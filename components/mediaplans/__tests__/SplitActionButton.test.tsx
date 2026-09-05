@@ -8,26 +8,29 @@ import { act, createElement, forwardRef } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const dropdownContentProps = vi.hoisted(() => ({
-  last: null as {
-    avoidCollisions?: boolean
-    side?: string
-    collisionPadding?: number
-  } | null,
-}))
+type CapturedDropdownContent = {
+  avoidCollisions?: boolean
+  side?: string
+  collisionPadding?: number
+}
+
+const capturedContent = vi.hoisted((): CapturedDropdownContent[] => [])
 
 vi.mock("@/components/ui/dropdown-menu", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/components/ui/dropdown-menu")>()
+  const Content = actual.DropdownMenuContent
   return {
     ...actual,
-    DropdownMenuContent: forwardRef((props: Record<string, unknown>, ref) => {
-      dropdownContentProps.last = {
-        avoidCollisions: props.avoidCollisions as boolean | undefined,
-        side: props.side as string | undefined,
-        collisionPadding: props.collisionPadding as number | undefined,
-      }
-      return createElement(actual.DropdownMenuContent, { ...props, ref })
-    }),
+    DropdownMenuContent: forwardRef<HTMLDivElement, Record<string, unknown>>(
+      (props, ref) => {
+        capturedContent.push({
+          avoidCollisions: props.avoidCollisions as boolean | undefined,
+          side: props.side as string | undefined,
+          collisionPadding: props.collisionPadding as number | undefined,
+        })
+        return createElement(Content, { ...props, ref } as never)
+      },
+    ),
   }
 })
 
@@ -52,7 +55,7 @@ describe("SplitActionButton", () => {
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
-    dropdownContentProps.last = null
+    capturedContent.length = 0
   })
 
   afterEach(() => {
@@ -265,7 +268,7 @@ describe("SplitActionButton", () => {
   })
 
   it("menuSide bottom locks content below the trigger without collision flip", async () => {
-    dropdownContentProps.last = null
+    capturedContent.length = 0
     act(() => {
       root.render(
         <SplitActionButton
@@ -281,8 +284,9 @@ describe("SplitActionButton", () => {
       trigger!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
       trigger!.click()
     })
-    expect(dropdownContentProps.last?.side).toBe("bottom")
-    expect(dropdownContentProps.last?.avoidCollisions).toBe(false)
+    const last = capturedContent.at(-1)
+    expect(last?.side).toBe("bottom")
+    expect(last?.avoidCollisions).toBe(false)
     const menu = document.body.querySelector("[role='menu']")
     expect(menu?.getAttribute("data-side")).toBe("bottom")
   })

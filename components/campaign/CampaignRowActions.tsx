@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation"
 
 import { SplitActionButton } from "@/components/mediaplans/SplitActionButton"
 import type { PublishedDocumentsPayload } from "@/lib/docs/planVersionFiles"
+import { cn } from "@/lib/utils"
 
 export type CampaignRowActionsProps = {
   mbaNumber: string
   versionNumber: number
   clientSlug: string
   canEdit: boolean
+  layout: "stacked" | "columns"
 }
 
 const documentsCache = new Map<string, Promise<PublishedDocumentsPayload>>()
@@ -72,11 +74,13 @@ export function CampaignRowActions({
   versionNumber,
   clientSlug,
   canEdit,
+  layout,
 }: CampaignRowActionsProps) {
   const router = useRouter()
   const [docs, setDocs] = useState<PublishedDocumentsPayload | null>(null)
   const unpublished = docs != null && docs.publishedVersionId == null
   const downloadDisabled = unpublished
+  const size = layout === "columns" ? "card" : "row"
 
   const loadDocuments = useCallback(
     (open: boolean) => {
@@ -96,11 +100,6 @@ export function CampaignRowActions({
     },
     [mbaNumber],
   )
-
-  const openDashboard = () => {
-    if (!clientSlug) return
-    router.push(`/dashboard/${clientSlug}/${mbaNumber}`)
-  }
 
   const publishedLabel = docs?.versionNumber ?? versionNumber
   const savedIso = docs ? savedAtFromPayload(docs) : null
@@ -128,33 +127,58 @@ export function CampaignRowActions({
         })
       : [{ label: "Loading…", disabled: true, onSelect: () => {} }]
 
-  return (
-    <div className="flex items-center gap-1.5">
-      <SplitActionButton
-        label="Open"
-        variant="outline"
-        size="compact"
-        hintPlacement="end"
-        menuSide="bottom"
-        hideCaret={!canEdit}
-        disabled={!clientSlug}
-        title={!clientSlug ? "No client dashboard" : undefined}
-        onPrimary={openDashboard}
-        menu={[
+  const noDashboard = !clientSlug
+  const openMenu = [
+    {
+      label: "View campaign",
+      hint: noDashboard ? "No client dashboard" : undefined,
+      disabled: noDashboard,
+      onSelect: () => {
+        if (noDashboard) return
+        router.push(`/dashboard/${clientSlug}/${mbaNumber}`)
+      },
+    },
+    ...(canEdit
+      ? [
           {
             label: `Edit media plan · v${versionNumber}`,
             onSelect: () => {
               router.push(`/mediaplans/mba/${mbaNumber}/edit?version=${versionNumber}`)
             },
           },
-        ]}
+        ]
+      : []),
+  ]
+
+  return (
+    <div
+      className={cn(
+        layout === "stacked"
+          ? "flex w-full min-w-[9.5rem] flex-col gap-1.5"
+          : "grid w-full grid-cols-2 gap-2",
+      )}
+    >
+      <SplitActionButton
+        label="Open"
+        variant="outline"
+        size={size}
+        fullWidth
+        hintPlacement="end"
+        menuSide="bottom"
+        menuAlign="start"
+        menuMatchTriggerWidth
+        menuOnly
+        menu={openMenu}
       />
       <SplitActionButton
         label="Download"
         variant="outline"
-        size="compact"
+        size={size}
+        fullWidth
         hintPlacement="end"
         menuSide="bottom"
+        menuAlign="start"
+        menuMatchTriggerWidth
         menuOnly
         disabled={downloadDisabled}
         title={downloadDisabled ? "No published version" : undefined}

@@ -176,7 +176,7 @@ export function CampaignCardCompact({
           "group-active:scale-[0.98]"
         )}
       >
-        {/* Identity + actions: wrap actions under title when the column is tight (AVU4-8). */}
+        {/* Identity: status pill + copy-MBA stay in the title row. Open/Download sit in the footer. */}
         <div className="pointer-events-auto relative z-20 flex flex-wrap items-start gap-x-3 gap-y-2">
           <div className="min-w-[11rem] flex-1 basis-[11rem]">
             <h3 className="line-clamp-2 text-balance break-words text-base font-semibold leading-snug tracking-tight text-foreground">
@@ -194,13 +194,6 @@ export function CampaignCardCompact({
           </div>
 
           <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
-            <CampaignRowActions
-              mbaNumber={mbaNumber}
-              versionNumber={versionNumber}
-              clientSlug={clientSlug}
-              canEdit={canEdit}
-            />
-
             <span
               className={cn(
                 "pointer-events-none inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
@@ -285,6 +278,16 @@ export function CampaignCardCompact({
             </p>
           </div>
           <p className="text-[10px] leading-tight text-muted-foreground/80">Monthly plan · prorated</p>
+        </div>
+
+        <div className="pointer-events-auto relative z-20 mt-3 border-t border-border/60 pt-3">
+          <CampaignRowActions
+            layout="columns"
+            mbaNumber={mbaNumber}
+            versionNumber={versionNumber}
+            clientSlug={clientSlug}
+            canEdit={canEdit}
+          />
         </div>
       </motion.article>
     </div>

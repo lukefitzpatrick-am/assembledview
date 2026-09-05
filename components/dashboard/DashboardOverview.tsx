@@ -185,6 +185,7 @@ function OverviewCampaignRowActions({
 }) {
   return (
     <CampaignRowActions
+      layout="stacked"
       mbaNumber={mbaNumber}
       versionNumber={versionNumber}
       clientSlug={slugifyClientName(clientName)}
@@ -2225,7 +2226,7 @@ export default function DashboardOverview({
                                 {getMediaTypeTags(plan)}
                               </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="w-44 align-top">
                               <OverviewCampaignRowActions
                                 mbaNumber={plan.mp_mba_number}
                                 versionNumber={plan.mp_version}
@@ -2401,7 +2402,7 @@ export default function DashboardOverview({
                                 {getMediaTypeTags(plan)}
                               </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="w-44 align-top">
                               <OverviewCampaignRowActions
                                 mbaNumber={plan.mp_mba_number}
                                 versionNumber={plan.mp_version}
@@ -2490,7 +2491,7 @@ export default function DashboardOverview({
                                 {getMediaTypeTags(plan)}
                               </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="w-44 align-top">
                               <OverviewCampaignRowActions
                                 mbaNumber={plan.mp_mba_number}
                                 versionNumber={plan.mp_version}

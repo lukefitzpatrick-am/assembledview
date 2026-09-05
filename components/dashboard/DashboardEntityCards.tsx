@@ -90,6 +90,7 @@ export function DashboardCampaignPlanCard({
         </Field>
         <div className="mt-auto border-t border-border/40 pt-3">
           <CampaignRowActions
+            layout="columns"
             mbaNumber={plan.mp_mba_number}
             versionNumber={plan.mp_version}
             clientSlug={clientSlug}

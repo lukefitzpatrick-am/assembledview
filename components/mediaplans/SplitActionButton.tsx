@@ -27,7 +27,7 @@ export type SplitActionButtonProps = {
   menuOnly?: boolean
   menuHeader?: string
   onMenuOpenChange?: (open: boolean) => void
-  size?: "default" | "compact" | "row"
+  size?: "default" | "compact" | "row" | "card"
   hintPlacement?: "below" | "end"
   menuSide?: "top" | "bottom"
   menuAlign?: "start" | "end"
@@ -38,6 +38,7 @@ export type SplitActionButtonProps = {
 function heightClassForSize(size: NonNullable<SplitActionButtonProps["size"]>): string {
   if (size === "compact") return "h-7 max-[375px]:h-11"
   if (size === "row") return "h-9 text-sm px-3 max-[375px]:h-11"
+  if (size === "card") return "h-10 text-sm px-3 max-[375px]:h-11"
   return "h-9"
 }
 

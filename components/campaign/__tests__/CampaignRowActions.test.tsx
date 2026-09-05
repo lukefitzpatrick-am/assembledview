@@ -1,5 +1,5 @@
 /**
- * SM-23 — Open + Download on campaign rows.
+ * SM-23 / SM-25 — Open + Download on campaign rows.
  *
  * @vitest-environment jsdom
  */
@@ -53,6 +53,19 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
+function findButton(container: HTMLElement, label: string) {
+  return [...container.querySelectorAll("button")].find((el) =>
+    el.textContent?.includes(label),
+  )
+}
+
+async function openMenu(button: HTMLElement) {
+  await act(async () => {
+    button.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+    button.click()
+  })
+}
+
 describe("CampaignRowActions", () => {
   let container: HTMLDivElement
   let root: Root
@@ -79,10 +92,11 @@ describe("CampaignRowActions", () => {
     vi.unstubAllGlobals()
   })
 
-  it("canEdit false → no caret on Open", () => {
+  it("canEdit false → Open menu has View only, no Edit row", async () => {
     act(() => {
       root.render(
         <CampaignRowActions
+          layout="stacked"
           mbaNumber="glenda008"
           versionNumber={6}
           clientSlug="glendale"
@@ -90,15 +104,98 @@ describe("CampaignRowActions", () => {
         />,
       )
     })
-    const open = [...container.querySelectorAll("button")].find((el) =>
-      el.textContent?.includes("Open"),
-    )
+    const open = findButton(container, "Open")
     expect(open).toBeTruthy()
-    expect(open?.getAttribute("aria-haspopup")).not.toBe("menu")
-    const openCaret = [...container.querySelectorAll("button")].find(
-      (el) => el.getAttribute("aria-label") === "Open menu",
+    expect(open?.disabled).toBe(false)
+    await openMenu(open!)
+    const items = [...document.body.querySelectorAll("[role='menuitem']")]
+    expect(items.map((el) => el.textContent?.trim())).toEqual(["View campaign"])
+    expect(items.find((el) => el.textContent?.includes("Edit media plan"))).toBeUndefined()
+  })
+
+  it("canEdit true → Open menu is View then Edit media plan · v6", async () => {
+    act(() => {
+      root.render(
+        <CampaignRowActions
+          layout="stacked"
+          mbaNumber="glenda008"
+          versionNumber={6}
+          clientSlug="glendale"
+          canEdit
+        />,
+      )
+    })
+    await openMenu(findButton(container, "Open")!)
+    const items = [...document.body.querySelectorAll("[role='menuitem']")]
+    expect(items.map((el) => el.textContent?.replace(/\s+/g, " ").trim())).toEqual([
+      "View campaign",
+      "Edit media plan · v6",
+    ])
+  })
+
+  it("layout stacked → flex-col wrapper, both w-full", () => {
+    act(() => {
+      root.render(
+        <CampaignRowActions
+          layout="stacked"
+          mbaNumber="glenda008"
+          versionNumber={6}
+          clientSlug="glendale"
+          canEdit
+        />,
+      )
+    })
+    const wrapper = container.firstElementChild
+    expect(wrapper?.className).toContain("flex-col")
+    expect(wrapper?.className).toContain("w-full")
+    const pills = [...wrapper!.children]
+    expect(pills.length).toBe(2)
+    for (const pill of pills) {
+      expect(pill.className).toContain("w-full")
+    }
+  })
+
+  it("layout columns → grid-cols-2", () => {
+    act(() => {
+      root.render(
+        <CampaignRowActions
+          layout="columns"
+          mbaNumber="glenda008"
+          versionNumber={6}
+          clientSlug="glendale"
+          canEdit
+        />,
+      )
+    })
+    expect(container.firstElementChild?.className).toContain("grid-cols-2")
+  })
+
+  it("both menus render with data-side=bottom", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(twoOfThree))
+    act(() => {
+      root.render(
+        <CampaignRowActions
+          layout="stacked"
+          mbaNumber="glenda008"
+          versionNumber={6}
+          clientSlug="glendale"
+          canEdit
+        />,
+      )
+    })
+    await openMenu(findButton(container, "Open")!)
+    expect(document.body.querySelector("[role='menu']")?.getAttribute("data-side")).toBe(
+      "bottom",
     )
-    expect(openCaret).toBeUndefined()
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
+    await openMenu(findButton(container, "Download")!)
+    await vi.waitFor(() => {
+      expect(document.body.querySelector("[role='menu']")?.getAttribute("data-side")).toBe(
+        "bottom",
+      )
+    })
   })
 
   it("unpublished → Download disabled with tooltip after menu fetch", async () => {
@@ -106,6 +203,7 @@ describe("CampaignRowActions", () => {
     act(() => {
       root.render(
         <CampaignRowActions
+          layout="stacked"
           mbaNumber="krusty001"
           versionNumber={1}
           clientSlug="krusty"
@@ -113,20 +211,13 @@ describe("CampaignRowActions", () => {
         />,
       )
     })
-    const download = [...container.querySelectorAll("button")].find((el) =>
-      el.textContent?.includes("Download"),
-    )
+    const download = findButton(container, "Download")
     expect(download).toBeTruthy()
     expect(download?.disabled).toBe(false)
 
-    await act(async () => {
-      download!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
-      download!.click()
-    })
+    await openMenu(download!)
     await vi.waitFor(() => {
-      const disabledDownload = [...container.querySelectorAll("button")].find((el) =>
-        el.textContent?.includes("Download"),
-      )
+      const disabledDownload = findButton(container, "Download")
       expect(disabledDownload?.disabled).toBe(true)
       expect(disabledDownload?.getAttribute("title")).toBe("No published version")
     })
@@ -138,6 +229,7 @@ describe("CampaignRowActions", () => {
     act(() => {
       root.render(
         <CampaignRowActions
+          layout="stacked"
           mbaNumber="glenda008"
           versionNumber={6}
           clientSlug="glendale"
@@ -145,13 +237,7 @@ describe("CampaignRowActions", () => {
         />,
       )
     })
-    const download = [...container.querySelectorAll("button")].find((el) =>
-      el.textContent?.includes("Download"),
-    )
-    await act(async () => {
-      download!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
-      download!.click()
-    })
+    await openMenu(findButton(container, "Download")!)
     await vi.waitFor(() => {
       const items = [...document.body.querySelectorAll("[role='menuitem']")]
       expect(items.find((el) => el.textContent?.includes("AA media plan"))).toBeTruthy()
@@ -174,6 +260,7 @@ describe("CampaignRowActions", () => {
     act(() => {
       root.render(
         <CampaignRowActions
+          layout="stacked"
           mbaNumber="glenda008"
           versionNumber={6}
           clientSlug="glendale"
@@ -182,13 +269,8 @@ describe("CampaignRowActions", () => {
       )
     })
     expect(fetchMock).not.toHaveBeenCalled()
-    const download = [...container.querySelectorAll("button")].find((el) =>
-      el.textContent?.includes("Download"),
-    )
-    await act(async () => {
-      download!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
-      download!.click()
-    })
+    const download = findButton(container, "Download")
+    await openMenu(download!)
     await vi.waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
     })
@@ -199,10 +281,7 @@ describe("CampaignRowActions", () => {
     await act(async () => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
     })
-    await act(async () => {
-      download!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
-      download!.click()
-    })
+    await openMenu(download!)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

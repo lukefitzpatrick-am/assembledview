@@ -810,8 +810,9 @@ function MediaPlansPageInner() {
                                   <TableCell className="w-48">
                                     <div className={mediaChannelTagRowClassName}>{getMediaTypeTags(plan)}</div>
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap">
+                                  <TableCell className="w-44 align-top">
                                     <CampaignRowActions
+                                      layout="stacked"
                                       mbaNumber={plan.mba_number}
                                       versionNumber={plan.version_number}
                                       clientSlug={slugifyClientName(plan.mp_client_name)}
