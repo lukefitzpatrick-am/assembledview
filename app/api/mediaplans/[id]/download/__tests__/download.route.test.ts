@@ -23,7 +23,15 @@ const aaFile = {
   name: "Glendale_AA_v6.xlsx",
 }
 
-const readVersionForDownloadMock = mock.fn(async (_id: number) => ({
+const readVersionForDownloadMock = mock.fn(async (_id: number): Promise<{
+  id: number
+  mbaNumber: string
+  versionNumber: number
+  publishedAt: string | null
+  mbaPdfFile: unknown
+  mediaPlanFile: unknown
+  aaMediaPlanFile: unknown
+} | null> => ({
   id: 42,
   mbaNumber: "glenda008",
   versionNumber: 6,

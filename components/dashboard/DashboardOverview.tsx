@@ -23,6 +23,7 @@ import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
 import { formatMoney, formatMoneyCompact } from "@/lib/format/money"
 import { isPlannedBasisCampaignStatus } from "@/lib/dashboard/plannedSpendConsistency"
 import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
+import { CampaignRowActions } from "@/components/campaign/CampaignRowActions"
 import { CampaignStatusBadge } from "@/components/campaign/CampaignStatusBadge"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
@@ -171,6 +172,25 @@ const slugifyClientName = (name?: string | null) => {
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .trim()
+}
+
+function OverviewCampaignRowActions({
+  mbaNumber,
+  versionNumber,
+  clientName,
+}: {
+  mbaNumber: string
+  versionNumber: number
+  clientName: string
+}) {
+  return (
+    <CampaignRowActions
+      mbaNumber={mbaNumber}
+      versionNumber={versionNumber}
+      clientSlug={slugifyClientName(clientName)}
+      canEdit
+    />
+  )
 }
 
 const parseDashboardFiltersFromSearchParams = (sp: URLSearchParams): DashboardViewFilters => ({
@@ -2184,7 +2204,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="Version" direction={liveCampaignSort.column === "version" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("version", liveCampaignSort, setLiveCampaignSort)} />
                           <SortableTableHeader label="Status" direction={liveCampaignSort.column === "status" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("status", liveCampaignSort, setLiveCampaignSort)} />
                           <TableHead>Media Types</TableHead>
-                          <TableHead className="w-24">Actions</TableHead>
+                          <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2206,31 +2226,11 @@ export default function DashboardOverview({
                               </div>
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-1.5">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
-                                  onClick={() =>
-                                    router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)
-                                  }
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
-                                  disabled={!slugifyClientName(plan.mp_clientname)}
-                                  onClick={() => {
-                                    const slug = slugifyClientName(plan.mp_clientname)
-                                    if (!slug) return
-                                    router.push(`/dashboard/${slug}/${plan.mp_mba_number}`)
-                                  }}
-                                >
-                                  View
-                                </Button>
-                              </div>
+                              <OverviewCampaignRowActions
+                                mbaNumber={plan.mp_mba_number}
+                                versionNumber={plan.mp_version}
+                                clientName={plan.mp_clientname}
+                              />
                             </TableCell>
                           </TableRow>
                         ))}
@@ -2248,13 +2248,8 @@ export default function DashboardOverview({
                         mediaTypeTags={getMediaTypeTags(plan)}
                         showStatus
                         statusBadgeClassName={getStatusBadgeColor(plan.mp_campaignstatus)}
-                        onEdit={() => router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)}
-                        onView={() => {
-                          const slug = slugifyClientName(plan.mp_clientname)
-                          if (!slug) return
-                          router.push(`/dashboard/${slug}/${plan.mp_mba_number}`)
-                        }}
-                        viewDisabled={!slugifyClientName(plan.mp_clientname)}
+                        clientSlug={slugifyClientName(plan.mp_clientname)}
+                        canEdit
                       />
                     ))}
                   </div>
@@ -2297,7 +2292,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="Scope Date" direction={liveScopesSort.column === "scopeDate" ? liveScopesSort.direction : null} onToggle={() => toggleSort("scopeDate", liveScopesSort, setLiveScopesSort)} />
                           <TableHead>Project Overview</TableHead>
                           <SortableTableHeader label="Status" direction={liveScopesSort.column === "status" ? liveScopesSort.direction : null} onToggle={() => toggleSort("status", liveScopesSort, setLiveScopesSort)} />
-                          <TableHead className="w-24">Actions</TableHead>
+                          <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2386,7 +2381,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="Budget" direction={dueSoonSort.column === "budget" ? dueSoonSort.direction : null} onToggle={() => toggleSort("budget", dueSoonSort, setDueSoonSort)} />
                           <SortableTableHeader label="Status" direction={dueSoonSort.column === "status" ? dueSoonSort.direction : null} onToggle={() => toggleSort("status", dueSoonSort, setDueSoonSort)} />
                           <TableHead>Media Types</TableHead>
-                          <TableHead className="w-24">Actions</TableHead>
+                          <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2407,31 +2402,11 @@ export default function DashboardOverview({
                               </div>
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-1.5">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
-                                  onClick={() =>
-                                    router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)
-                                  }
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
-                                  disabled={!slugifyClientName(plan.mp_clientname)}
-                                  onClick={() => {
-                                    const slug = slugifyClientName(plan.mp_clientname)
-                                    if (!slug) return
-                                    router.push(`/dashboard/${slug}/${plan.mp_mba_number}`)
-                                  }}
-                                >
-                                  View
-                                </Button>
-                              </div>
+                              <OverviewCampaignRowActions
+                                mbaNumber={plan.mp_mba_number}
+                                versionNumber={plan.mp_version}
+                                clientName={plan.mp_clientname}
+                              />
                             </TableCell>
                           </TableRow>
                         ))}
@@ -2449,13 +2424,8 @@ export default function DashboardOverview({
                         mediaTypeTags={getMediaTypeTags(plan)}
                         showStatus
                         statusBadgeClassName={getStatusBadgeColor(plan.mp_campaignstatus)}
-                        onEdit={() => router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)}
-                        onView={() => {
-                          const slug = slugifyClientName(plan.mp_clientname)
-                          if (!slug) return
-                          router.push(`/dashboard/${slug}/${plan.mp_mba_number}`)
-                        }}
-                        viewDisabled={!slugifyClientName(plan.mp_clientname)}
+                        clientSlug={slugifyClientName(plan.mp_clientname)}
+                        canEdit
                       />
                     ))}
                   </div>
@@ -2500,7 +2470,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="Budget" direction={finishedSort.column === "budget" ? finishedSort.direction : null} onToggle={() => toggleSort("budget", finishedSort, setFinishedSort)} />
                           <SortableTableHeader label="Status" direction={finishedSort.column === "status" ? finishedSort.direction : null} onToggle={() => toggleSort("status", finishedSort, setFinishedSort)} />
                           <TableHead>Media Types</TableHead>
-                          <TableHead className="w-24">Actions</TableHead>
+                          <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2521,31 +2491,11 @@ export default function DashboardOverview({
                               </div>
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-1.5">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
-                                  onClick={() =>
-                                    router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)
-                                  }
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
-                                  disabled={!slugifyClientName(plan.mp_clientname)}
-                                  onClick={() => {
-                                    const slug = slugifyClientName(plan.mp_clientname)
-                                    if (!slug) return
-                                    router.push(`/dashboard/${slug}/${plan.mp_mba_number}`)
-                                  }}
-                                >
-                                  View
-                                </Button>
-                              </div>
+                              <OverviewCampaignRowActions
+                                mbaNumber={plan.mp_mba_number}
+                                versionNumber={plan.mp_version}
+                                clientName={plan.mp_clientname}
+                              />
                             </TableCell>
                           </TableRow>
                         ))}
@@ -2563,13 +2513,8 @@ export default function DashboardOverview({
                         mediaTypeTags={getMediaTypeTags(plan)}
                         showStatus
                         statusBadgeClassName={getStatusBadgeColor(plan.mp_campaignstatus)}
-                        onEdit={() => router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)}
-                        onView={() => {
-                          const slug = slugifyClientName(plan.mp_clientname)
-                          if (!slug) return
-                          router.push(`/dashboard/${slug}/${plan.mp_mba_number}`)
-                        }}
-                        viewDisabled={!slugifyClientName(plan.mp_clientname)}
+                        clientSlug={slugifyClientName(plan.mp_clientname)}
+                        canEdit
                       />
                     ))}
                   </div>

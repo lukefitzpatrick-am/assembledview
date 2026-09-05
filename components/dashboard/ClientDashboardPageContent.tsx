@@ -86,6 +86,7 @@ type DashboardCampaign = {
   href: string
   editHref?: string
   canEdit: boolean
+  versionNumber: number
 }
 
 function buildCampaignViewHref(slug: string, mbaNumber: string): string {
@@ -130,6 +131,7 @@ function toDashboardCampaign(
     href: buildCampaignViewHref(slug, campaign.mbaNumber),
     editHref: canEdit ? buildCampaignEditHref(campaign.mbaNumber, campaign.version_number) : undefined,
     canEdit,
+    versionNumber: campaign.version_number,
   }
 }
 
@@ -440,8 +442,8 @@ export function ClientDashboardPageContent({
                   href={campaign.href}
                   editHref={campaign.editHref}
                   canEdit={campaign.canEdit}
-                  showInlineEditButton={!isClientHub}
-                  viewMenuLabel={isClientHub ? "View campaign dashboard" : "View campaign"}
+                  versionNumber={campaign.versionNumber}
+                  clientSlug={slug}
                   viewLinkAriaLabel={isClientHub ? `View campaign dashboard: ${campaign.name}` : undefined}
                   brandColour={clientData.brandColour}
                 />

@@ -58,6 +58,7 @@ export default defineConfig({
       "components/mediaplans/__tests__/ExpertApplyDirtyClearOnSave.characterisation.test.tsx",
       "components/mediaplans/__tests__/PlanWizardSaveMessages.test.tsx",
       "components/mediaplans/__tests__/PlanWizardShell.test.tsx",
+      "components/campaign/__tests__/CampaignRowActions.test.tsx",
       "components/mediaplans/__tests__/SplitActionButton.test.tsx",
       "lib/mediaplan/__tests__/useMediaPlanDirtyController.test.tsx",
       "lib/mediaplan/__tests__/handleInvestmentChange.dirty.characterisation.test.tsx",

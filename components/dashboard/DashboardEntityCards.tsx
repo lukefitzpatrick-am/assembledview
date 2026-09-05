@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { CampaignRowActions } from "@/components/campaign/CampaignRowActions"
 import { CampaignStatusBadge } from "@/components/campaign/CampaignStatusBadge"
 import { mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
 import { cn } from "@/lib/utils"
@@ -46,9 +47,8 @@ export function DashboardCampaignPlanCard({
   mediaTypeTags,
   showStatus,
   statusBadgeClassName: _statusBadgeClassName,
-  onEdit,
-  onView,
-  viewDisabled,
+  clientSlug,
+  canEdit,
 }: {
   plan: DashboardCampaignPlanCardModel
   formatDate: (dateString: string) => string
@@ -56,9 +56,8 @@ export function DashboardCampaignPlanCard({
   mediaTypeTags: ReactNode
   showStatus: boolean
   statusBadgeClassName: string
-  onEdit: () => void
-  onView: () => void
-  viewDisabled: boolean
+  clientSlug: string
+  canEdit: boolean
 }) {
   return (
     <Card className="interactive flex h-full flex-col overflow-hidden shadow-e1">
@@ -89,13 +88,13 @@ export function DashboardCampaignPlanCard({
         <Field label="Media types">
           <div className={mediaChannelTagRowClassName}>{mediaTypeTags}</div>
         </Field>
-        <div className="mt-auto grid grid-cols-2 gap-2 border-t border-border/40 pt-3">
-          <Button variant="outline" size="sm" className="w-full hover:bg-muted/50 transition-colors" onClick={onEdit}>
-            Edit
-          </Button>
-          <Button variant="secondary" size="sm" className="w-full hover:opacity-90 transition-opacity" disabled={viewDisabled} onClick={onView}>
-            View
-          </Button>
+        <div className="mt-auto border-t border-border/40 pt-3">
+          <CampaignRowActions
+            mbaNumber={plan.mp_mba_number}
+            versionNumber={plan.mp_version}
+            clientSlug={clientSlug}
+            canEdit={canEdit}
+          />
         </div>
       </CardContent>
     </Card>

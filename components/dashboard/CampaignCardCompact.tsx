@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { motion, useReducedMotion } from "framer-motion"
-import { Copy, Download, Eye, MoreHorizontal, Pencil } from "lucide-react"
+import { Copy, MoreHorizontal } from "lucide-react"
 import type { CSSProperties } from "react"
 
 import {
@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { CampaignRowActions } from "@/components/campaign/CampaignRowActions"
 import { useToast } from "@/components/ui/use-toast"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
 import { formatDateRange, formatDateRangeCompact, formatDateShort } from "@/lib/format/date"
@@ -38,6 +39,8 @@ export interface CampaignCardCompactProps {
   editHref?: string
   /** When true, show Edit in the toolbar and menu (typically agency / admin hub). */
   canEdit?: boolean
+  versionNumber: number
+  clientSlug: string
   /** When false, hide the header pencil; edit stays under ⋮ only (e.g. client hub). Default true. */
   showInlineEditButton?: boolean
   /** Dropdown label for the dashboard link. */
@@ -120,12 +123,11 @@ export function CampaignCardCompact({
   spentAmount,
   totalBudget,
   href: viewHref,
-  editHref,
   canEdit = false,
-  showInlineEditButton = true,
-  viewMenuLabel = "View campaign",
   viewLinkAriaLabel,
   brandColour,
+  versionNumber,
+  clientSlug,
 }: CampaignCardCompactProps) {
   const shouldReduceMotion = useReducedMotion()
   const { toast } = useToast()
@@ -134,8 +136,6 @@ export function CampaignCardCompact({
   const statusTone = statusMap[status]
   const visibleTags = mediaTypes.slice(0, 3)
   const hiddenTagCount = Math.max(0, mediaTypes.length - visibleTags.length)
-  const showEdit = Boolean(canEdit && editHref)
-  const showPencil = showEdit && showInlineEditButton
   const dateRange = formatCampaignDateRange(startDate, endDate)
 
   const copyMbaNumber = async () => {
@@ -194,19 +194,12 @@ export function CampaignCardCompact({
           </div>
 
           <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
-            <Link
-              href={viewHref}
-              aria-label={viewLinkAriaLabel ?? `${viewMenuLabel}: ${name}`}
-              title={viewMenuLabel}
-              onClick={(e) => e.stopPropagation()}
-              className={cn(
-                "flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-border bg-background/90 px-2.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm",
-                "transition-colors hover:bg-muted hover:text-foreground",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              )}
-            >
-              View
-            </Link>
+            <CampaignRowActions
+              mbaNumber={mbaNumber}
+              versionNumber={versionNumber}
+              clientSlug={clientSlug}
+              canEdit={canEdit}
+            />
 
             <span
               className={cn(
@@ -219,22 +212,6 @@ export function CampaignCardCompact({
               ) : null}
               {statusTone.label}
             </span>
-
-            {showPencil ? (
-              <Link
-                href={editHref!}
-                title="Edit campaign"
-                aria-label={`Edit campaign ${name}`}
-                onClick={(e) => e.stopPropagation()}
-                className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background/90 text-muted-foreground shadow-sm backdrop-blur-sm",
-                  "transition-colors hover:bg-muted hover:text-foreground",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                )}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Link>
-            ) : null}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -253,20 +230,6 @@ export function CampaignCardCompact({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-[11rem]">
-                <DropdownMenuItem asChild>
-                  <Link href={viewHref} className="cursor-pointer">
-                    <Eye className="h-4 w-4" />
-                    {viewMenuLabel}
-                  </Link>
-                </DropdownMenuItem>
-                {showEdit ? (
-                  <DropdownMenuItem asChild>
-                    <Link href={editHref!} className="cursor-pointer">
-                      <Pencil className="h-4 w-4" />
-                      Edit campaign
-                    </Link>
-                  </DropdownMenuItem>
-                ) : null}
                 <DropdownMenuItem
                   className="cursor-pointer"
                   onSelect={(e) => {
@@ -276,15 +239,6 @@ export function CampaignCardCompact({
                 >
                   <Copy className="h-4 w-4" />
                   Copy MBA number
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled
-                  title="Summary download is not wired yet"
-                  className="cursor-not-allowed opacity-60"
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  <Download className="h-4 w-4" />
-                  Download summary
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

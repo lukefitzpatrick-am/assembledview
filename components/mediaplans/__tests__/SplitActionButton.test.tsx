@@ -148,4 +148,41 @@ describe("SplitActionButton", () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(document.body.querySelector('[role="menu"]')).toBeNull()
   })
+
+  it("hideCaret omits the menu caret", () => {
+    act(() => {
+      root.render(
+        <SplitActionButton
+          label="Open"
+          hideCaret
+          onPrimary={() => {}}
+          menu={[{ label: "Edit media plan · v6", onSelect: () => {} }]}
+        />
+      )
+    })
+    const buttons = [...container.querySelectorAll("button")]
+    expect(buttons.length).toBe(1)
+    expect(buttons[0]?.getAttribute("aria-haspopup")).not.toBe("menu")
+  })
+
+  it("menuOnly opens the menu from the primary label", async () => {
+    act(() => {
+      root.render(
+        <SplitActionButton
+          label="Download"
+          menuOnly
+          menu={[{ label: "MBA (PDF)", onSelect: () => {} }]}
+        />
+      )
+    })
+    const primary = [...container.querySelectorAll("button")].find((el) =>
+      el.textContent?.includes("Download")
+    )
+    await act(async () => {
+      primary!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+      primary!.click()
+    })
+    expect(document.body.querySelector('[role="menu"]')).not.toBeNull()
+    expect(document.body.textContent).toContain("MBA (PDF)")
+  })
 })

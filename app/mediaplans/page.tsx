@@ -17,6 +17,7 @@ import { Panel, PanelActions, PanelContent, PanelHeader, PanelTitle } from "@/co
 import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import { DashboardCampaignPlanCard, dashboardCampaignGridClassName } from "@/components/dashboard/DashboardEntityCards"
+import { CampaignRowActions } from "@/components/campaign/CampaignRowActions"
 import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar"
 import { formatAUD } from "@/lib/format/money"
 import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
@@ -725,17 +726,8 @@ function MediaPlansPageInner() {
                                 mediaTypeTags={getMediaTypeTags(plan)}
                                 showStatus={true}
                                 statusBadgeClassName={getStatusBadgeColor(plan.campaign_status)}
-                                onEdit={() =>
-                                  router.push(
-                                    `/mediaplans/mba/${plan.mba_number}/edit?version=${plan.version_number}`
-                                  )
-                                }
-                                onView={() => {
-                                  const slug = slugifyClientName(plan.mp_client_name)
-                                  if (!slug) return
-                                  router.push(`/dashboard/${slug}/${plan.mba_number}`)
-                                }}
-                                viewDisabled={!slugifyClientName(plan.mp_client_name)}
+                                clientSlug={slugifyClientName(plan.mp_client_name)}
+                                canEdit
                               />
                             ))}
                           </div>
@@ -798,7 +790,7 @@ function MediaPlansPageInner() {
                                   className="w-24"
                                 />
                                 <TableHead className="w-48">Media Types</TableHead>
-                                <TableHead className="w-20">Actions</TableHead>
+                                <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody className="[&_tr:nth-child(even)]:bg-muted/5">
@@ -818,34 +810,13 @@ function MediaPlansPageInner() {
                                   <TableCell className="w-48">
                                     <div className={mediaChannelTagRowClassName}>{getMediaTypeTags(plan)}</div>
                                   </TableCell>
-                                  <TableCell className="w-20">
-                                    <div className="flex items-center gap-1.5">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 text-xs"
-                                        onClick={() =>
-                                          router.push(
-                                            `/mediaplans/mba/${plan.mba_number}/edit?version=${plan.version_number}`
-                                          )
-                                        }
-                                      >
-                                        Edit
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 text-xs"
-                                        disabled={!slugifyClientName(plan.mp_client_name)}
-                                        onClick={() => {
-                                          const slug = slugifyClientName(plan.mp_client_name)
-                                          if (!slug) return
-                                          router.push(`/dashboard/${slug}/${plan.mba_number}`)
-                                        }}
-                                      >
-                                        View
-                                      </Button>
-                                    </div>
+                                  <TableCell className="whitespace-nowrap">
+                                    <CampaignRowActions
+                                      mbaNumber={plan.mba_number}
+                                      versionNumber={plan.version_number}
+                                      clientSlug={slugifyClientName(plan.mp_client_name)}
+                                      canEdit
+                                    />
                                   </TableCell>
                                 </TableRow>
                               ))}
