@@ -81,3 +81,16 @@ export function wizardPrimarySaveLabel(args: {
   if (args.isPublished) return "Save draft"
   return "Save"
 }
+
+/**
+ * Soft Save draft on the edit bar. Flag-on keeps it after publish (primary
+ * Save already publishes). Flag-off hides it on a published tip so it does
+ * not duplicate the working-draft primary.
+ */
+export function showPlanDraftSaveButton(args: {
+  enabled: boolean
+  savePublishesImmediately: boolean
+  isPublished: boolean
+}): boolean {
+  return args.enabled && (args.savePublishesImmediately || !args.isPublished)
+}

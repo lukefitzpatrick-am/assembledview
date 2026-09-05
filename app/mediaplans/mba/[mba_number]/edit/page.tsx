@@ -191,6 +191,7 @@ import {
 import {
   describePublishSuccessToast,
   runSaveSuccessSideEffects,
+  showPlanDraftSaveButton,
   wizardPrimarySaveLabel,
 } from "@/lib/mediaplan/planWizardSaveBar"
 import {
@@ -11619,7 +11620,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             ]}
           />
         ) : null}
-        {planDraft.enabled && !isPublished ? (
+        {showPlanDraftSaveButton({
+          enabled: planDraft.enabled,
+          savePublishesImmediately: SAVE_PUBLISHES_IMMEDIATELY,
+          isPublished,
+        }) ? (
           <SplitActionButton
             variant="outline"
             label="Save draft"

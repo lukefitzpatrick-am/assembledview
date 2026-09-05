@@ -10,6 +10,7 @@ import {
   describePublishSuccessToast,
   resolveSaveSuccessSideEffects,
   runSaveSuccessSideEffects,
+  showPlanDraftSaveButton,
   wizardPrimarySaveLabel,
 } from "../planWizardSaveBar"
 
@@ -117,6 +118,52 @@ describe("runSaveSuccessSideEffects", () => {
   })
 })
 
+describe("showPlanDraftSaveButton", () => {
+  it("flag on + published tip → Save draft rendered", () => {
+    assert.equal(
+      showPlanDraftSaveButton({
+        enabled: true,
+        savePublishesImmediately: true,
+        isPublished: true,
+      }),
+      true
+    )
+  })
+
+  it("flag off + published → not rendered", () => {
+    assert.equal(
+      showPlanDraftSaveButton({
+        enabled: true,
+        savePublishesImmediately: false,
+        isPublished: true,
+      }),
+      false
+    )
+  })
+
+  it("flag off + unpublished → rendered", () => {
+    assert.equal(
+      showPlanDraftSaveButton({
+        enabled: true,
+        savePublishesImmediately: false,
+        isPublished: false,
+      }),
+      true
+    )
+  })
+
+  it("drafts chrome off → never rendered", () => {
+    assert.equal(
+      showPlanDraftSaveButton({
+        enabled: false,
+        savePublishesImmediately: true,
+        isPublished: true,
+      }),
+      false
+    )
+  })
+})
+
 describe("wizardPrimarySaveLabel", () => {
   it("flag OFF → the primary reads Save / Save draft, never Publish", () => {
     assert.equal(
@@ -219,5 +266,11 @@ describe("edit page wiring (SF-1)", () => {
     assert.match(bar, /handleGenerateMBA/)
     assert.match(bar, /showExplicitPublishButton\(isPublished\)/)
     assert.match(bar, /SAVE_PUBLISHES_IMMEDIATELY/)
+    assert.match(bar, /showPlanDraftSaveButton\(/)
+    assert.match(
+      bar,
+      /disabled=\{isSaving \|\| isLoading \|\| !hasUnsavedChanges\}/
+    )
+    assert.doesNotMatch(bar, /planDraft\.enabled && !isPublished/)
   })
 })
