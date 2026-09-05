@@ -41,7 +41,8 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `mediaplans/mba/[mba_number]` | GET/PUT/PATCH | `mediaplans` list | scope / `requireRole` | `checkClientMbaAccess` | OK |
 | `mediaplans/mba/[mba_number]/expected-spend-to-date` | GET | MBA peer | `checkClientMbaAccess` | cookie-forwards to gated MBA | OK |
 | `mediaplans/mba/[mba_number]/material-instructions` | GET/POST | MBA peer | `checkClientMbaAccess` | session + admin (inline) | OK |
-| `mediaplans/[id]/download` | GET | generate-pdf | `requireRole(admin)` | `requireRole(admin)` | OK |
+| `mediaplans/[id]/download` | GET | generate-pdf | `checkClientMbaAccess` | `checkClientMbaAccess` | OK |
+| `mediaplans/mba/[mba_number]/documents` | GET | MBA GET | `checkClientMbaAccess` | `checkClientMbaAccess` | OK |
 | `mediaplans/versions/[id]/billing-schedule` | PATCH | finance peers | `requireFinanceAdmin` | `requireFinanceAdmin` | OK |
 | `mediaplans/versions/[id]/documents` | POST | download / pdf | `requireRole(admin)` | `requireRole(admin)` | OK |
 | `creative-assets/[id]` | GET/PATCH/DELETE | `creative-assets` | session + `checkClientMbaAccess` (all roles) | same | OK (SEC-G soft-spot closed) |
