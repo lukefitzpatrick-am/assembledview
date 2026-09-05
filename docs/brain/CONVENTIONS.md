@@ -105,6 +105,7 @@ Create (`/mediaplans/create`) and edit (`/mediaplans/mba/[mba_number]/edit`) sha
 |---|---|---|
 | Primary | Title + subtitle only (no actions slot) | Same title row |
 | Secondary | omitted | Version pill · trail (`describeVersionHeaderTrail`) + version picker |
+| Rail | steps · Draft Summary · status panel | steps · Campaign tools (edit only: Creative, Trafficking) · Draft Summary · status panel |
 | Campaign Details card | Heading + date presets; Campaign Status field is the only status control | Same |
 
 Never a third hero row. Long client / campaign names wrap (`break-words`, `min-w-0`); do not clip under the hero `overflow-hidden`.

@@ -12108,6 +12108,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           sub: step.eyebrow,
         }))}
         railSubItems={wizardRailSubItems}
+        toolLinks={
+          mbaNumber
+            ? [
+                { id: "creative", label: "Creative", href: `/mediaplans/mba/${mbaNumber}/creative` },
+                { id: "trafficking", label: "Trafficking", href: `/mediaplans/mba/${mbaNumber}/trafficking` },
+              ]
+            : undefined
+        }
+        onNavigate={requestNavigation}
         summary={wizardSummary}
         onExit={handleExit}
         exitLabel="Exit to Campaigns"

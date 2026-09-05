@@ -671,3 +671,23 @@ describe("SM-22: View changes is a read-only field diff", () => {
     assert.doesNotMatch(createSrc, /onViewChanges=/)
   })
 })
+
+describe("SM-27: campaign tools in the edit wizard rail", () => {
+  it("edit passes Creative/Trafficking through requestNavigation; create has no card", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    assert.match(editSrc, /onNavigate=\{requestNavigation\}/)
+    assert.match(
+      editSrc,
+      /id: "creative",\s*label: "Creative",\s*href: `\/mediaplans\/mba\/\$\{mbaNumber\}\/creative`/,
+    )
+    assert.match(
+      editSrc,
+      /id: "trafficking",\s*label: "Trafficking",\s*href: `\/mediaplans\/mba\/\$\{mbaNumber\}\/trafficking`/,
+    )
+    assert.match(editSrc, /requestNavigation\("\/mediaplans"\)/)
+    assert.doesNotMatch(createSrc, /Campaign tools/)
+    assert.doesNotMatch(createSrc, /toolLinks=/)
+    assert.doesNotMatch(createSrc, /onNavigate=\{requestNavigation\}/)
+  })
+})

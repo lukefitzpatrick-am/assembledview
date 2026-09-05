@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
-import { Check } from "lucide-react"
+import { ArrowUpRight, Check } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useSidebar } from "@/components/ui/sidebar"
@@ -36,6 +36,13 @@ type PlanWizardSummary = {
   budgetRemainingOverspend?: boolean
 }
 
+export type PlanWizardToolLink = {
+  id: string
+  label: string
+  href: string
+  description?: string
+}
+
 export type PlanWizardShellProps = {
   /** Breadcrumb + hero. Both create and edit pass `PlanWizardHeader`. */
   header: ReactNode
@@ -43,6 +50,10 @@ export type PlanWizardShellProps = {
   activeStep?: string
   railSubItems?: PlanWizardRailSubItems
   summary: PlanWizardSummary
+  /** Edit-only campaign pages (Creative, Trafficking). Empty/absent → no card. */
+  toolLinks?: PlanWizardToolLink[]
+  /** Guarded navigation for `toolLinks`. Edit wires this to `requestNavigation`. */
+  onNavigate?: (href: string) => void
   onExit: () => void
   /** Destination label for Exit (e.g. "Exit to Campaigns"). */
   exitLabel?: string
@@ -64,6 +75,8 @@ export function PlanWizardShell({
   activeStep: activeStepProp,
   railSubItems,
   summary,
+  toolLinks,
+  onNavigate,
   onExit,
   exitLabel = "Exit to Campaigns",
   saveDisabled = false,
@@ -278,6 +291,32 @@ export function PlanWizardShell({
                 })}
               </ol>
             </nav>
+
+            {toolLinks && toolLinks.length > 0 ? (
+              <nav
+                className="rounded-frame border border-border bg-card p-2.5 shadow-e1"
+                aria-label="Campaign tools"
+              >
+                <p className="px-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Campaign tools
+                </p>
+                <ul className="mt-1 space-y-1">
+                  {toolLinks.map((link) => (
+                    <li key={link.id}>
+                      <button
+                        type="button"
+                        onClick={() => onNavigate?.(link.href)}
+                        className="flex w-full items-center justify-between gap-2.5 rounded-card px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-table-row-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={`${link.label} (opens page)`}
+                      >
+                        <span className="font-medium">{link.label}</span>
+                        <ArrowUpRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            ) : null}
 
             <div className="rounded-frame border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-bg))] p-3 text-[hsl(var(--sidebar-foreground))] shadow-e1">
               <div className="space-y-1">
