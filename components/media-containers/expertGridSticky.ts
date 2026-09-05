@@ -90,6 +90,7 @@ export function expertGridStickyStyleBody(
   reorderColWidthPx: number = EXPERT_REORDER_COL_WIDTH_PX
 ): CSSProperties {
   const width = descriptorColWidths[index]
+  const collapsed = (width ?? 0) === 0
   return {
     position: "sticky",
     left: reorderColWidthPx + (leftOffsets[index] ?? 0),
@@ -100,6 +101,9 @@ export function expertGridStickyStyleBody(
     minWidth: width,
     maxWidth: width,
     boxSizing: "border-box",
+    ...(collapsed
+      ? { overflow: "hidden", padding: 0, borderRight: "none" }
+      : {}),
   }
 }
 
@@ -110,6 +114,7 @@ export function expertGridStickyStyleHeaderCorner(
   reorderColWidthPx: number = EXPERT_REORDER_COL_WIDTH_PX
 ): CSSProperties {
   const width = descriptorColWidths[index]
+  const collapsed = (width ?? 0) === 0
   return {
     position: "sticky",
     left: reorderColWidthPx + (leftOffsets[index] ?? 0),
@@ -118,7 +123,16 @@ export function expertGridStickyStyleHeaderCorner(
     minWidth: width,
     maxWidth: width,
     boxSizing: "border-box",
+    ...(collapsed
+      ? { overflow: "hidden", padding: 0, borderRight: "none" }
+      : {}),
   }
+}
+
+/** Zero-width sticky cells stay in the DOM (colSpan / nav indexes) but are skipped. */
+export function expertGridStickyZeroWidthClass(width: number | undefined): string {
+  if ((width ?? 0) > 0) return ""
+  return "overflow-hidden !p-0 border-r-0"
 }
 
 export function expertGridStickyStyleReorderBody(): CSSProperties {

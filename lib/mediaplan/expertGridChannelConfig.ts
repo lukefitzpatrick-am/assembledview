@@ -175,6 +175,11 @@ export type ExpertGridChannelConfig<TRow extends ExpertScheduleRowCommon> = {
   /** Human channel name in UI chrome. */
   channelLabel: string
   /**
+   * The one sticky descriptor that identifies a row in compact mode
+   * (OOH placement, radio station, TV station, …). Must be a grid-surface key.
+   */
+  rowLabelKey: string
+  /**
    * Fixed schedule body-row height (px) for the virtualiser, cell box, and
    * the dev assertion. Omit to use the shared ExpertGrid default (41px).
    * Must be CSS pixels, not rem — `html { font-size: 80% }` desyncs `h-8`.
@@ -308,6 +313,7 @@ export const SEARCH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SearchExpertS
   {
     mediaTypeKey: "search",
     channelLabel: "Search",
+    rowLabelKey: "creativeTargeting",
     publisherField: "platform",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -451,6 +457,7 @@ export const PROGVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgVideoE
   {
     mediaTypeKey: "progvideo",
     channelLabel: "Prog Video",
+    rowLabelKey: "creativeTargeting",
     publisherField: "platform",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -596,6 +603,7 @@ export const PROGDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgDisp
   {
     mediaTypeKey: "progdisplay",
     channelLabel: "Prog Display",
+    rowLabelKey: "creativeTargeting",
     publisherField: "platform",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -741,6 +749,7 @@ export const PROGAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgAudioE
   {
     mediaTypeKey: "progaudio",
     channelLabel: "Prog Audio",
+    rowLabelKey: "creativeTargeting",
     publisherField: "platform",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -886,6 +895,7 @@ export const PROGBVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgBvodExp
   {
     mediaTypeKey: "progbvod",
     channelLabel: "Prog BVOD",
+    rowLabelKey: "creativeTargeting",
     publisherField: "platform",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -1030,6 +1040,7 @@ export const PROGOOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgOohExper
   {
     mediaTypeKey: "progooh",
     channelLabel: "Prog OOH",
+    rowLabelKey: "creativeTargeting",
     publisherField: "platform",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -1176,6 +1187,7 @@ export const SOCIALMEDIA_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SocialMe
   {
     mediaTypeKey: "socialmedia",
     channelLabel: "Social Media",
+    rowLabelKey: "creativeTargeting",
     publisherField: "platform",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -1343,6 +1355,7 @@ export const OOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<OohExpertSchedul
   {
     mediaTypeKey: "ooh",
     channelLabel: "OOH",
+    rowLabelKey: "placement",
     publisherField: "network",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -1590,6 +1603,50 @@ export function expertGridDescriptorColWidths(
     : [...widths, ...trailing]
 }
 
+/** Compact-mode width of {@link ExpertGridChannelConfig.rowLabelKey}. */
+export const COMPACT_ROW_LABEL_WIDTH_PX = 140
+
+const COMPACT_DESCRIPTOR_KEEP = new Set(["netMedia", "totalCost", "sumQty"])
+
+/**
+ * Keys aligned 1:1 with {@link expertGridDescriptorColWidths} (billing +
+ * grid surface + trailing that is actually in the widths array).
+ */
+export function expertGridDescriptorWidthKeys(
+  config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
+  showBillingCols: boolean
+): string[] {
+  const gridCols = getExpertGridSurfaceFields(config)
+  const trailingWidths = config.trailingColWidthsPx ?? []
+  const trailingKeys = getExpertTrailingColumns(config)
+    .slice(0, trailingWidths.length)
+    .map((c) => c.key)
+  return showBillingCols
+    ? [...config.billingFlagKeys, ...gridCols.map((c) => c.key), ...trailingKeys]
+    : [...gridCols.map((c) => c.key), ...trailingKeys]
+}
+
+/**
+ * Sticky descriptor widths. `"expanded"` is byte-identical to
+ * {@link expertGridDescriptorColWidths}. `"compact"` keeps length and order;
+ * only rowLabelKey, net media / total cost, and Σ are non-zero.
+ */
+export function expertGridDescriptorColWidthsForMode(
+  config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
+  showBillingCols: boolean,
+  mode: "expanded" | "compact"
+): number[] {
+  const expanded = expertGridDescriptorColWidths(config, showBillingCols)
+  if (mode === "expanded") return expanded
+  const keys = expertGridDescriptorWidthKeys(config, showBillingCols)
+  return expanded.map((w, i) => {
+    const key = keys[i] ?? ""
+    if (key === config.rowLabelKey) return COMPACT_ROW_LABEL_WIDTH_PX
+    if (COMPACT_DESCRIPTOR_KEEP.has(key)) return w
+    return 0
+  })
+}
+
 export function expertGridDescriptorHeadLabels(
   config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
   showBillingCols: boolean
@@ -1666,6 +1723,7 @@ export const DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Digit
   {
     mediaTypeKey: "digidisplay",
     channelLabel: "Digital Display",
+    rowLabelKey: "site",
     publisherField: "publisher",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -1788,6 +1846,7 @@ export const DIGIVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigiVideoE
   {
     mediaTypeKey: "digivideo",
     channelLabel: "Digi Video",
+    rowLabelKey: "site",
     publisherField: "publisher",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -1917,6 +1976,7 @@ export const DIGIAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigitalAud
   {
     mediaTypeKey: "digiaudio",
     channelLabel: "Digital Audio",
+    rowLabelKey: "site",
     publisherField: "publisher",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -2046,6 +2106,7 @@ export const BVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<BvodExpertSched
   {
     mediaTypeKey: "bvod",
     channelLabel: "BVOD",
+    rowLabelKey: "site",
     publisherField: "publisher",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -2177,6 +2238,7 @@ export const TELEVISION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Televisio
   {
     mediaTypeKey: "television",
     channelLabel: "Television",
+    rowLabelKey: "station",
     publisherField: "network",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -2312,6 +2374,7 @@ export const RADIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<RadioExpertSch
   {
     mediaTypeKey: "radio",
     channelLabel: "Radio",
+    rowLabelKey: "station",
     publisherField: "network",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -2427,6 +2490,7 @@ export const CINEMA_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<CinemaExpertS
   {
     mediaTypeKey: "cinema",
     channelLabel: "Cinema",
+    rowLabelKey: "station",
     publisherField: "network",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -2543,6 +2607,7 @@ export const NEWSPAPER_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<NewspaperE
   {
     mediaTypeKey: "newspaper",
     channelLabel: "Newspaper",
+    rowLabelKey: "title",
     publisherField: "network",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -2666,6 +2731,7 @@ export const MAGAZINES_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<MagazinesE
   {
     mediaTypeKey: "magazines",
     channelLabel: "Magazines",
+    rowLabelKey: "title",
     publisherField: "network",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -2800,6 +2866,7 @@ export const INFLUENCERS_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Influenc
   {
     mediaTypeKey: "influencers",
     channelLabel: "Influencers",
+    rowLabelKey: "campaign",
     publisherField: "platform",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -2979,6 +3046,7 @@ export const INTEGRATION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Integrat
   {
     mediaTypeKey: "integration",
     channelLabel: "Integration",
+    rowLabelKey: "platform",
     publisherField: "platform",
     optionFlags: [
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
@@ -3121,6 +3189,7 @@ export const PRODUCTION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Productio
   {
     mediaTypeKey: "production",
     channelLabel: "Production",
+    rowLabelKey: "description",
     publisherField: "publisher",
     optionFlags: [],
     billingFlagKeys: [],

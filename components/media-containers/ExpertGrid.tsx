@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type FocusEvent,
   type KeyboardEvent,
 } from "react"
 import { MemoExpertGridRow } from "@/components/media-containers/MemoExpertGridRow"
@@ -88,6 +89,7 @@ import {
   cumulativeLeftOffsets,
   expertGridDescriptorStickySpanWidthPx,
   expertGridRowZebraProps,
+  expertGridStickyLeftWidthPx,
   expertGridStickyStyleBody,
   expertGridStickyStyleDescriptorTotalLabel,
   expertGridStickyStyleHeaderCorner,
@@ -96,6 +98,7 @@ import {
   expertGridStickyTd,
   expertGridStickyThCorner,
   expertGridStickyThWeek,
+  expertGridStickyZeroWidthClass,
   EXPERT_GRID_ROW_CLASS,
   EXPERT_GRID_WEEK_BODY_Z,
 } from "@/components/media-containers/expertGridSticky"
@@ -146,11 +149,23 @@ import {
   expertGridBodyDescriptorColumns,
   expertGridDescriptorKeys,
   expertGridDescriptorColWidths,
+  expertGridDescriptorColWidthsForMode,
   expertGridDescriptorHeadLabels,
+  expertGridDescriptorWidthKeys,
   getRowBoolean,
   getRowString,
   normalizeOptionPaste,
 } from "@/lib/mediaplan/expertGridChannelConfig"
+import {
+  adjustScrollLeftForDescriptorWidthChange,
+  descriptorErrorForcesExpand,
+  descriptorPinStorageKey,
+  nextDescriptorScrollIntent,
+  parseDescriptorPin,
+  resolveExpertGridDescriptorMode,
+  serializeDescriptorPin,
+  type ExpertGridDescriptorMode,
+} from "@/lib/mediaplan/expertGridDescriptorMode"
 import {
   buildWeeklyGanttColumnsFromCampaign,
   type WeeklyGanttWeekColumn,
@@ -454,6 +469,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
 
   const [rowCountInput, setRowCountInput] = useState<string>("1")
   const [showBillingCols, setShowBillingCols] = useState(false)
+  const [descriptorScrollMode, setDescriptorScrollMode] =
+    useState<ExpertGridDescriptorMode>("expanded")
+  const [descriptorFocusWithin, setDescriptorFocusWithin] = useState(false)
+  const [descriptorPinned, setDescriptorPinned] = useState<boolean | null>(null)
   const [pendingFuzzyMatch, setPendingFuzzyMatch] =
     useState<PendingFuzzyMatch | null>(null)
   const fuzzyMatchAutoApplyRef = useRef(false)
@@ -607,8 +626,17 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     [config, showBillingCols]
   )
 
-  const descriptorColWidths = useMemo(
+  const expandedDescriptorColWidths = useMemo(
     () => expertGridDescriptorColWidths(config, showBillingCols),
+    [config, showBillingCols]
+  )
+  const compactDescriptorColWidths = useMemo(
+    () =>
+      expertGridDescriptorColWidthsForMode(config, showBillingCols, "compact"),
+    [config, showBillingCols]
+  )
+  const descriptorWidthKeys = useMemo(
+    () => expertGridDescriptorWidthKeys(config, showBillingCols),
     [config, showBillingCols]
   )
 
@@ -622,46 +650,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       config.descriptorCore.find((c) => c.key === "buyType")?.options ?? [],
     [config]
   )
-
-  const leftOffsets = useMemo(
-    () => cumulativeLeftOffsets(descriptorColWidths),
-    [descriptorColWidths]
-  )
-
-  /** Totals-label width: same keys as colSpan, not trailing. */
-  const descriptorStickySpanWidthPx = useMemo(
-    () =>
-      expertGridDescriptorStickySpanWidthPx(
-        descriptorColWidths,
-        searchDescriptorKeys.length
-      ),
-    [descriptorColWidths, searchDescriptorKeys.length]
-  )
-
-  const stickyStyleBodyDescriptorTotalLabel = useMemo(() => {
-    const style = expertGridStickyStyleDescriptorTotalLabel(
-      descriptorStickySpanWidthPx
-    )
-    if (process.env.NODE_ENV !== "production") {
-      const spanned = searchDescriptorKeys.reduce(
-        (s, _k, i) => s + (descriptorColWidths[i] ?? 0),
-        0
-      )
-      if (descriptorStickySpanWidthPx !== spanned) {
-        console.error(
-          "[expert-grid] totals-label width",
-          descriptorStickySpanWidthPx,
-          "!== spanned column sum",
-          spanned
-        )
-      }
-    }
-    return style
-  }, [
-    descriptorColWidths,
-    descriptorStickySpanWidthPx,
-    searchDescriptorKeys,
-  ])
 
   const platformComboboxOptions: ComboboxOption[] = useMemo(
     () => platformNames.map((name) => ({ value: name, label: name })),
@@ -863,6 +851,77 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   const weekMultiSelectRef = useRef(weekMultiSelect)
   weekMultiSelectRef.current = weekMultiSelect
 
+  const descriptorErrorWithin = useMemo(() => {
+    if (!focusedCell) return false
+    const compactIdx = descriptorWidthKeys.indexOf(focusedCell.columnKey)
+    if (compactIdx < 0) return false
+    if ((compactDescriptorColWidths[compactIdx] ?? 0) > 0) return false
+    const row = normalizedRows[focusedCell.rowIndex]
+    if (!row) return false
+    return descriptorErrorForcesExpand(
+      compactDescriptorColWidths,
+      descriptorWidthKeys,
+      expertRowIncompleteReasons(row)
+    )
+  }, [
+    compactDescriptorColWidths,
+    descriptorWidthKeys,
+    focusedCell,
+    normalizedRows,
+  ])
+
+  const descriptorMode = resolveExpertGridDescriptorMode({
+    focusWithin: descriptorFocusWithin,
+    errorWithin: descriptorErrorWithin,
+    pinned: descriptorPinned,
+    auto: descriptorScrollMode,
+  })
+
+  const descriptorColWidths =
+    descriptorMode === "compact"
+      ? compactDescriptorColWidths
+      : expandedDescriptorColWidths
+
+  const leftOffsets = useMemo(
+    () => cumulativeLeftOffsets(descriptorColWidths),
+    [descriptorColWidths]
+  )
+
+  /** Totals-label width: same keys as colSpan, not trailing. */
+  const descriptorStickySpanWidthPx = useMemo(
+    () =>
+      expertGridDescriptorStickySpanWidthPx(
+        descriptorColWidths,
+        searchDescriptorKeys.length
+      ),
+    [descriptorColWidths, searchDescriptorKeys.length]
+  )
+
+  const stickyStyleBodyDescriptorTotalLabel = useMemo(() => {
+    const style = expertGridStickyStyleDescriptorTotalLabel(
+      descriptorStickySpanWidthPx
+    )
+    if (process.env.NODE_ENV !== "production") {
+      const spanned = searchDescriptorKeys.reduce(
+        (s, _k, i) => s + (descriptorColWidths[i] ?? 0),
+        0
+      )
+      if (descriptorStickySpanWidthPx !== spanned) {
+        console.error(
+          "[expert-grid] totals-label width",
+          descriptorStickySpanWidthPx,
+          "!== spanned column sum",
+          spanned
+        )
+      }
+    }
+    return style
+  }, [
+    descriptorColWidths,
+    descriptorStickySpanWidthPx,
+    searchDescriptorKeys,
+  ])
+
   const pushRows = useCallback(
     (next: TRow[]) => {
       const withDates = finalizeRowsPreservingIdentity(next, (r) => {
@@ -987,6 +1046,98 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
 
 
   const gridScrollRef = useRef<HTMLDivElement>(null)
+  const prevStickyWidthRef = useRef<number | null>(null)
+  const pinHydratedRef = useRef(false)
+
+  useEffect(() => {
+    pinHydratedRef.current = false
+    try {
+      setDescriptorPinned(
+        parseDescriptorPin(
+          localStorage.getItem(descriptorPinStorageKey(config.mediaTypeKey))
+        )
+      )
+    } catch {
+      setDescriptorPinned(null)
+    }
+  }, [config.mediaTypeKey])
+
+  useEffect(() => {
+    if (!pinHydratedRef.current) {
+      pinHydratedRef.current = true
+      return
+    }
+    try {
+      const key = descriptorPinStorageKey(config.mediaTypeKey)
+      const raw = serializeDescriptorPin(descriptorPinned)
+      if (raw == null) localStorage.removeItem(key)
+      else localStorage.setItem(key, raw)
+    } catch {
+      /* private mode / disabled storage */
+    }
+  }, [config.mediaTypeKey, descriptorPinned])
+
+  useEffect(() => {
+    const el = gridScrollRef.current
+    if (!el) return
+    let raf = 0
+    const onScroll = () => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        const sl = el.scrollLeft
+        setDescriptorScrollMode((cur) => nextDescriptorScrollIntent(cur, sl))
+      })
+    }
+    el.addEventListener("scroll", onScroll, { passive: true })
+    return () => {
+      el.removeEventListener("scroll", onScroll)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [normalizedRows.length])
+
+  useLayoutEffect(() => {
+    const el = gridScrollRef.current
+    const nextWidth = expertGridStickyLeftWidthPx(descriptorColWidths)
+    const prev = prevStickyWidthRef.current
+    prevStickyWidthRef.current = nextWidth
+    if (!el || prev == null || prev === nextWidth) return
+    el.scrollLeft = adjustScrollLeftForDescriptorWidthChange(
+      el.scrollLeft,
+      prev,
+      nextWidth
+    )
+  }, [descriptorColWidths])
+
+  const isDescriptorFocusTarget = useCallback((t: EventTarget | null) => {
+    if (!(t instanceof HTMLElement)) return false
+    if (t.closest("[data-eg-descriptor-cell]")) return true
+    if (t.closest('[aria-label="Fill down"]')) return true
+    return false
+  }, [])
+
+  const handleDescriptorFocusCapture = useCallback(
+    (e: FocusEvent) => {
+      if (isDescriptorFocusTarget(e.target)) setDescriptorFocusWithin(true)
+    },
+    [isDescriptorFocusTarget]
+  )
+
+  const handleDescriptorBlurCapture = useCallback(
+    (e: FocusEvent) => {
+      const next = e.relatedTarget
+      requestAnimationFrame(() => {
+        const active = document.activeElement
+        if (
+          !isDescriptorFocusTarget(active) &&
+          !isDescriptorFocusTarget(next)
+        ) {
+          setDescriptorFocusWithin(false)
+        }
+      })
+    },
+    [isDescriptorFocusTarget]
+  )
 
   const handleReorder = useCallback(
     (from: number, to: number) => {
@@ -1277,14 +1428,26 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
 
   const stickyThWeek = expertGridStickyThWeek()
 
-  const stickyTd = (_index: number, className?: string) =>
-    expertGridStickyTd(className)
+  const stickyTd = (index: number, className?: string) =>
+    expertGridStickyTd(
+      cn(expertGridStickyZeroWidthClass(descriptorColWidths[index]), className)
+    )
 
   const stickyStyleBody = (index: number) =>
     expertGridStickyStyleBody(index, leftOffsets, descriptorColWidths)
 
   const stickyStyleHeaderCorner = (index: number) =>
     expertGridStickyStyleHeaderCorner(index, leftOffsets, descriptorColWidths)
+
+  const stickyDescriptorTdAttrs = (index: number, extraClass?: string) => {
+    const hidden = (descriptorColWidths[index] ?? 0) === 0
+    return {
+      className: stickyTd(index, extraClass),
+      style: stickyStyleBody(index),
+      "data-eg-descriptor-cell": "" as const,
+      ...(hidden ? { "aria-hidden": true as const } : {}),
+    }
+  }
 
   const stickyStyleReorderBody = expertGridStickyStyleReorderBody()
 
@@ -3142,8 +3305,11 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                 onPasteCapture={handlePasteCapture}
                 onCopyCapture={handleCopyCapture}
                 onCutCapture={handleCutCapture}
+                onFocusCapture={handleDescriptorFocusCapture}
+                onBlurCapture={handleDescriptorBlurCapture}
                 data-expert-grid={domGridId}
                 data-search-expert-grid-scroll=""
+                data-eg-descriptor-mode={descriptorMode}
               >
                 <table className="w-max min-w-full border-collapse text-sm">
                   <thead ref={theadRef} className="[&_tr]:border-b-0">
@@ -3155,12 +3321,19 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                       {descriptorHeadLabels.map((label, i) => (
                         <th
                           key={`h-${i}`}
-                          className={stickyThCorner(
-                            i === descriptorHeadLabels.length - 1
-                              ? SEARCH_EXPERT_WEEK_SCROLLER_EDGE
-                              : undefined
+                          className={cn(
+                            stickyThCorner(
+                              i === descriptorHeadLabels.length - 1
+                                ? SEARCH_EXPERT_WEEK_SCROLLER_EDGE
+                                : undefined
+                            ),
+                            expertGridStickyZeroWidthClass(descriptorColWidths[i])
                           )}
                           style={stickyStyleHeaderCorner(i)}
+                          data-eg-descriptor-cell=""
+                          aria-hidden={
+                            (descriptorColWidths[i] ?? 0) === 0 ? true : undefined
+                          }
                         >
                           {(() => {
                             const descKey = searchDescriptorKeys[i]
@@ -3400,9 +3573,9 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               focusedCell?.columnKey === col.key &&
                               !col.readOnly &&
                               col.kind !== "checkbox-billing"
-                            const tdClassName = cn(
-                              stickyTd(ci),
-                              showFillHandle && "relative"
+                            const descriptorTdAttrs = stickyDescriptorTdAttrs(
+                              ci,
+                              showFillHandle ? "relative" : undefined
                             )
                             const fillHandleNode = showFillHandle ? (
                               <ExpertGridFillHandle
@@ -3423,8 +3596,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={tdClassName}
-                                  style={stickyStyleBody(ci)}
+                                  {...descriptorTdAttrs}
                                 >
                                   {fillHandleNode}
                                   <div className="flex h-8 items-center justify-center overflow-hidden">
@@ -3451,8 +3623,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={tdClassName}
-                                  style={stickyStyleBody(ci)}
+                                  {...descriptorTdAttrs}
                                 >
                                   {fillHandleNode}
                                   <SingleDatePicker
@@ -3483,8 +3654,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={tdClassName}
-                                  style={stickyStyleBody(ci)}
+                                  {...descriptorTdAttrs}
                                 >
                                   {fillHandleNode}
                                   <SingleDatePicker
@@ -3516,8 +3686,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={tdClassName}
-                                  style={stickyStyleBody(ci)}
+                                  {...descriptorTdAttrs}
                                 >
                                   {fillHandleNode}
                                   <Combobox
@@ -3569,8 +3738,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={tdClassName}
-                                  style={stickyStyleBody(ci)}
+                                  {...descriptorTdAttrs}
                                 >
                                   {fillHandleNode}
                                   <Combobox
@@ -3611,8 +3779,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={tdClassName}
-                                  style={stickyStyleBody(ci)}
+                                  {...descriptorTdAttrs}
                                 >
                                   {fillHandleNode}
                                   <Combobox
@@ -3657,8 +3824,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={tdClassName}
-                                  style={stickyStyleBody(ci)}
+                                  {...descriptorTdAttrs}
                                 >
                                   {fillHandleNode}
                                   <Combobox
@@ -3707,8 +3873,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={tdClassName}
-                                  style={stickyStyleBody(ci)}
+                                  {...descriptorTdAttrs}
                                 >
                                   {fillHandleNode}
                                   <Combobox
@@ -3746,8 +3911,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={tdClassName}
-                                  style={stickyStyleBody(ci)}
+                                  {...descriptorTdAttrs}
                                 >
                                   {fillHandleNode}
                                   <Input
@@ -3778,8 +3942,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                             return (
                               <td
                                 key={col.key}
-                                className={tdClassName}
-                                style={stickyStyleBody(ci)}
+                                {...descriptorTdAttrs}
                               >
                                 {fillHandleNode}
                                 <Input
@@ -3801,10 +3964,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               </td>
                             )
                           })}
-                          <td
-                            className={stickyTd(grossCol)}
-                            style={stickyStyleBody(grossCol)}
-                          >
+                          <td {...stickyDescriptorTdAttrs(grossCol)}>
                             <div
                               className="flex h-8 items-center px-1 text-xs tabular-nums"
                               title={netMediaTooltip}
@@ -3812,10 +3972,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               {formatAUD(net)}
                             </div>
                           </td>
-                          <td
-                            className={cn(stickyTd(actionsCol), "text-center")}
-                            style={stickyStyleBody(actionsCol)}
-                          >
+                          <td {...stickyDescriptorTdAttrs(actionsCol, "text-center")}>
                             <div className="flex justify-center gap-0.5">
                               <Button
                                 type="button"
@@ -3841,12 +3998,13 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                             </div>
                           </td>
                           <td
-                            className={cn(
-                              stickyTd(sigmaCol),
-                              "text-muted-foreground",
-                              SEARCH_EXPERT_WEEK_SCROLLER_EDGE
+                            {...stickyDescriptorTdAttrs(
+                              sigmaCol,
+                              cn(
+                                "text-muted-foreground",
+                                SEARCH_EXPERT_WEEK_SCROLLER_EDGE
+                              )
                             )}
-                            style={stickyStyleBody(sigmaCol)}
                           >
                             <div
                               className="flex h-8 items-center justify-end px-1 text-xs tabular-nums"
@@ -5106,6 +5264,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                         className={stickyTd(0)}
                         style={stickyStyleBodyDescriptorTotalLabel}
                         colSpan={searchDescriptorKeys.length}
+                        data-eg-descriptor-cell=""
                       >
                         <div className="flex h-8 items-center px-1">
                           <span
@@ -5117,30 +5276,29 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                         </div>
                       </td>
                       <td
-                        className={cn(
-                          stickyTd(searchDescriptorKeys.length),
+                        {...stickyDescriptorTdAttrs(
+                          searchDescriptorKeys.length,
                           "h-8 px-1 text-xs tabular-nums"
                         )}
-                        style={stickyStyleBody(searchDescriptorKeys.length)}
                       >
                         <div className="flex h-full items-center">
                           {formatAUD(containerTotals.sumNet)}
                         </div>
                       </td>
                       <td
-                        className={cn(
-                          stickyTd(searchDescriptorKeys.length + 1),
+                        {...stickyDescriptorTdAttrs(
+                          searchDescriptorKeys.length + 1,
                           "h-8"
                         )}
-                        style={stickyStyleBody(searchDescriptorKeys.length + 1)}
                       />
                       <td
-                        className={cn(
-                          stickyTd(searchDescriptorKeys.length + 2),
-                          "h-8 px-1 text-xs tabular-nums text-muted-foreground",
-                          SEARCH_EXPERT_WEEK_SCROLLER_EDGE
+                        {...stickyDescriptorTdAttrs(
+                          searchDescriptorKeys.length + 2,
+                          cn(
+                            "h-8 px-1 text-xs tabular-nums text-muted-foreground",
+                            SEARCH_EXPERT_WEEK_SCROLLER_EDGE
+                          )
                         )}
-                        style={stickyStyleBody(searchDescriptorKeys.length + 2)}
                       >
                         <div className="flex h-full items-center justify-end">
                           {containerTotals.sumQty === 0

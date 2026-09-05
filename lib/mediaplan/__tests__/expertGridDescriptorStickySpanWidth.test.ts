@@ -11,6 +11,7 @@ import { expertGridDescriptorStickySpanWidthPx } from "@/components/media-contai
 import {
   OOH_EXPERT_CHANNEL_CONFIG,
   expertGridDescriptorColWidths,
+  expertGridDescriptorColWidthsForMode,
   expertGridDescriptorKeys,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
@@ -63,6 +64,20 @@ test("OOH billing shown: span width includes billing flags, still omits trailing
     widths.reduce((s, w) => s + w, 0),
     expected + trailing
   )
+})
+
+test("OOH compact: SF-7 span width equals summed spanned widths", () => {
+  for (const billing of [false, true]) {
+    const keys = expertGridDescriptorKeys(OOH_EXPERT_CHANNEL_CONFIG, billing)
+    const widths = expertGridDescriptorColWidthsForMode(
+      OOH_EXPERT_CHANNEL_CONFIG,
+      billing,
+      "compact"
+    )
+    const span = expertGridDescriptorStickySpanWidthPx(widths, keys.length)
+    const expected = widths.slice(0, keys.length).reduce((s, w) => s + w, 0)
+    assert.equal(span, expected)
+  }
 })
 
 test("expertGridVirtualSpacerPaddings unchanged (scrollMargin 48 and 76)", () => {
