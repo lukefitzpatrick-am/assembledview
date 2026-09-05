@@ -238,7 +238,7 @@ C-numbers are allocated on `localhost` only, and are never reassigned once writt
 |---|---|---|
 | UI-1 | Create/edit floating save bar stacked the unsaved-draft banner, save-mode line, and validation alerts under the action buttons, overlapping Step 02 | FIXED — same `PlanWizardSaveMessages` card below Draft Summary on both mega-pages (banner, then save-mode, then alerts; empty = not rendered). Floating bar is action buttons only. SavingModal + toasts unchanged |
 | UI-2 | Create/edit still passed `saveMode`/`alerts` into `PlanWizardSaveMessages` after that component dropped those props, so the Save-status panel silently rendered nothing | FIXED — both mega-pages pass `issues`, `extraProblemTexts`, `draftBanner`, `savePrimary` / `saveSecondary`, `saveTip` |
-| SM-13 | ExpertGrid descriptor auto-compact is off pending live measurement (this doc) | Off |
+| SM-13 | ExpertGrid descriptor auto-compact is off pending live measurement (this doc) | FIXED — SM-24 re-enabled `DESCRIPTOR_AUTO_COMPACT_ENABLED` after SM-17 trailing sticky widths |
 | SM-12 | Trailing sticky (net media / actions / Σ) had no widths on 19 channels — only OOH set `trailingColWidthsPx`, so those cells got `left: 44` and pinned over the descriptor block | FIXED — `expertGridDescriptorColWidths` / `expertGridDescriptorWidthKeys` read `getExpertTrailingColumns` |
 | SM-17 | DialogContent zoom-in made `getBoundingClientRect` 5% short; thead `ResizeObserver` did not re-fire, so `scrollMargin` stayed wrong | FIXED — virtualiser sizing and the body-row assertion use `offsetHeight` |
 

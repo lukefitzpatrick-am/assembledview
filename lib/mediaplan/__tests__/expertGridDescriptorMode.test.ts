@@ -1,7 +1,7 @@
 /**
- * SM-13 / SM-14 / SM-16 — descriptor compact-mode hysteresis, pin/focus resolve,
+ * SM-13 / SM-14 / SM-24 — descriptor compact-mode hysteresis, pin/focus resolve,
  * logical-scroll auto-mode, canCompact, suppression, clamped compensation,
- * and auto-compact gated off (unpinned defaults expanded).
+ * and auto-compact kill-switch branches (off vs on).
  *
  * Run: npx tsx --test lib/mediaplan/__tests__/expertGridDescriptorMode.test.ts
  */
@@ -9,18 +9,25 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { descriptorPinTooltip } from "@/components/media-containers/ExpertGridDescriptorChrome"
+import { expertGridStickyLeftWidthPx } from "@/components/media-containers/expertGridSticky"
+import {
+  RADIO_EXPERT_CHANNEL_CONFIG,
+  expertGridDescriptorColWidths,
+  expertGridDescriptorColWidthsForMode,
+} from "@/lib/mediaplan/expertGridChannelConfig"
 import {
   adjustScrollLeftForDescriptorWidthChange,
   applyDescriptorScrollEvent,
   canCompact,
   descriptorLogicalScrollLeft,
-  DESCRIPTOR_AUTO_COMPACT_ENABLED,
+  DESCRIPTOR_COMPACT_SCROLL_PX,
   DESCRIPTOR_SCROLL_SUPPRESS_MS,
   nextDescriptorPin,
   nextDescriptorScrollIntent,
   nextDescriptorScrollSuppressUntil,
   parseDescriptorPin,
   resolveExpertGridDescriptorMode,
+  resolveExpertGridDescriptorModeWith,
   shouldSuppressDescriptorScrollEvent,
 } from "@/lib/mediaplan/expertGridDescriptorMode"
 
@@ -103,56 +110,88 @@ test("pinned true forces expanded; pinned false forces compact unless focusWithi
   )
 })
 
-test("SM-16: flag false + pinned null + auto compact → expanded", () => {
-  assert.equal(DESCRIPTOR_AUTO_COMPACT_ENABLED, false)
+const UNPINNED_AUTO_COMPACT = {
+  focusWithin: false,
+  errorWithin: false,
+  pinned: null,
+  auto: "compact" as const,
+}
+
+test("auto-compact off: pinned null + auto compact → expanded", () => {
+  assert.equal(
+    resolveExpertGridDescriptorModeWith(UNPINNED_AUTO_COMPACT, false),
+    "expanded"
+  )
+})
+
+test("auto-compact off: pinned false → compact", () => {
+  assert.equal(
+    resolveExpertGridDescriptorModeWith(
+      {
+        focusWithin: false,
+        errorWithin: false,
+        pinned: false,
+        auto: "expanded",
+      },
+      false
+    ),
+    "compact"
+  )
+})
+
+test("pinned null uses auto when auto-compact is on", () => {
+  assert.equal(
+    resolveExpertGridDescriptorModeWith(UNPINNED_AUTO_COMPACT, true),
+    "compact"
+  )
+  assert.equal(
+    resolveExpertGridDescriptorModeWith(
+      {
+        focusWithin: false,
+        errorWithin: false,
+        pinned: null,
+        auto: "expanded",
+      },
+      true
+    ),
+    "expanded"
+  )
+  assert.equal(resolveExpertGridDescriptorMode(UNPINNED_AUTO_COMPACT), "compact")
   assert.equal(
     resolveExpertGridDescriptorMode({
       focusWithin: false,
       errorWithin: false,
       pinned: null,
-      auto: "compact",
+      auto: "expanded",
     }),
     "expanded"
   )
 })
 
-test("SM-16: flag false + pinned false → compact", () => {
-  assert.equal(DESCRIPTOR_AUTO_COMPACT_ENABLED, false)
+test("SM-17: radio sticky widths — canCompact at 3000/1400, false when week travel after shrink < 160", () => {
+  const radioConfig = RADIO_EXPERT_CHANNEL_CONFIG
+  const expandedStickyWidthPx = expertGridStickyLeftWidthPx(
+    expertGridDescriptorColWidths(radioConfig, false)
+  )
+  const compactStickyWidthPx = expertGridStickyLeftWidthPx(
+    expertGridDescriptorColWidthsForMode(radioConfig, false, "compact")
+  )
+  const widths = {
+    expandedStickyWidthPx,
+    compactStickyWidthPx,
+    currentStickyWidthPx: expandedStickyWidthPx,
+  }
   assert.equal(
-    resolveExpertGridDescriptorMode({
-      focusWithin: false,
-      errorWithin: false,
-      pinned: false,
-      auto: "expanded",
-    }),
-    "compact"
+    canCompact({ scrollWidth: 3000, clientWidth: 1400 }, widths),
+    true
+  )
+  const W = expandedStickyWidthPx - compactStickyWidthPx
+  const clientWidthTight = 3000 - W - (DESCRIPTOR_COMPACT_SCROLL_PX - 1)
+  assert.equal(
+    canCompact({ scrollWidth: 3000, clientWidth: clientWidthTight }, widths),
+    false
   )
 })
-
-test(
-  "pinned null uses auto when auto-compact is on",
-  { skip: !DESCRIPTOR_AUTO_COMPACT_ENABLED },
-  () => {
-    assert.equal(
-      resolveExpertGridDescriptorMode({
-        focusWithin: false,
-        errorWithin: false,
-        pinned: null,
-        auto: "compact",
-      }),
-      "compact"
-    )
-    assert.equal(
-      resolveExpertGridDescriptorMode({
-        focusWithin: false,
-        errorWithin: false,
-        pinned: null,
-        auto: "expanded",
-      }),
-      "expanded"
-    )
-  }
-)
 
 test("pin cycle: auto → expanded → compact → auto", () => {
   assert.equal(nextDescriptorPin(null), true)
