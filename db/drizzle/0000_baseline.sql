@@ -1263,6 +1263,15 @@ CREATE TABLE "plan_working_drafts" (
 	CONSTRAINT "uq_plan_working_drafts_master_user" UNIQUE("master_id","user_id")
 );
 --> statement-breakpoint
+CREATE TABLE "plan_presence" (
+	"master_id" bigint NOT NULL,
+	"user_id" text NOT NULL,
+	"user_label" text,
+	"page" text DEFAULT 'edit' NOT NULL,
+	"last_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "plan_presence_master_id_user_id_pk" PRIMARY KEY("master_id","user_id")
+);
+--> statement-breakpoint
 ALTER TABLE "finance_forecast_snapshot_lines" ADD CONSTRAINT "finance_forecast_snapshot_lines_snapshot_id_finance_forecast_snapshots_id_fk" FOREIGN KEY ("snapshot_id") REFERENCES "public"."finance_forecast_snapshots"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "xero_client_aliases" ADD CONSTRAINT "xero_client_aliases_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "billing_overrides" ADD CONSTRAINT "billing_overrides_version_id_media_plan_versions_id_fk" FOREIGN KEY ("version_id") REFERENCES "public"."media_plan_versions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1298,6 +1307,7 @@ ALTER TABLE "xero_contact_links" ADD CONSTRAINT "xero_contact_links_client_id_cl
 ALTER TABLE "xero_invoice_matches" ADD CONSTRAINT "xero_invoice_matches_run_item_id_finance_run_items_id_fk" FOREIGN KEY ("run_item_id") REFERENCES "public"."finance_run_items"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "plan_working_drafts" ADD CONSTRAINT "plan_working_drafts_master_id_media_plan_masters_id_fk" FOREIGN KEY ("master_id") REFERENCES "public"."media_plan_masters"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "plan_working_drafts" ADD CONSTRAINT "plan_working_drafts_base_version_id_media_plan_versions_id_fk" FOREIGN KEY ("base_version_id") REFERENCES "public"."media_plan_versions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "plan_presence" ADD CONSTRAINT "plan_presence_master_id_media_plan_masters_id_fk" FOREIGN KEY ("master_id") REFERENCES "public"."media_plan_masters"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "idx_audio_site_created_at" ON "audio_site" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "idx_bvod_site_created_at" ON "bvod_site" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "idx_campaign_kpi_created_at" ON "campaign_kpi" USING btree ("created_at");--> statement-breakpoint
@@ -1411,7 +1421,8 @@ CREATE INDEX "idx_xero_invoice_matches_period" ON "xero_invoice_matches" USING b
 CREATE INDEX "idx_xero_invoice_matches_run_item" ON "xero_invoice_matches" USING btree ("run_item_id");--> statement-breakpoint
 CREATE INDEX "idx_xero_invoice_matches_status" ON "xero_invoice_matches" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "idx_plan_working_drafts_master" ON "plan_working_drafts" USING btree ("master_id");--> statement-breakpoint
-CREATE INDEX "idx_plan_working_drafts_updated" ON "plan_working_drafts" USING btree ("updated_at");
+CREATE INDEX "idx_plan_working_drafts_updated" ON "plan_working_drafts" USING btree ("updated_at");--> statement-breakpoint
+CREATE INDEX "idx_plan_presence_last_seen" ON "plan_presence" USING btree ("last_seen_at");
 --> statement-breakpoint
 CREATE TABLE "publisher_profile_changes" (
 	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "publisher_profile_changes_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),

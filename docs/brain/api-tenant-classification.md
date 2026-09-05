@@ -369,6 +369,8 @@ Existing `/api/admin/*` handlers in this recount: **25** methods across **21** f
 | DELETE | `/api/plans/drafts` | admin-only | requireRole | `app/api/plans/drafts/route.ts` |
 | GET | `/api/plans/drafts` | admin-only | requireRole | `app/api/plans/drafts/route.ts` |
 | PUT | `/api/plans/drafts` | admin-only | requireRole | `app/api/plans/drafts/route.ts` |
+| GET | `/api/plans/presence` | admin-only | requireRole | `app/api/plans/presence/route.ts` |
+| POST | `/api/plans/presence` | admin-only | requireRole | `app/api/plans/presence/route.ts` |
 | POST | `/api/plans/save` | tenant-scoped | checkClientMbaAccess | `app/api/plans/save/route.ts` |
 | POST | `/api/processPlan` | admin-only | requireRole | `app/api/processPlan/route.ts` |
 | GET | `/api/publishers` | tenant-scoped | none | `app/api/publishers/route.ts` |

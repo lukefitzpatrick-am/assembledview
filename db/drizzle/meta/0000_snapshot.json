@@ -1,5 +1,5 @@
 {
-  "id": "e2360de2-9062-4517-a1a2-ea1c8b41b923",
+  "id": "c21af902-da88-4784-807c-bba8e13061c2",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -11036,6 +11036,89 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.plan_presence": {
+      "name": "plan_presence",
+      "schema": "",
+      "columns": {
+        "master_id": {
+          "name": "master_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_label": {
+          "name": "user_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "page": {
+          "name": "page",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'edit'"
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_plan_presence_last_seen": {
+          "name": "idx_plan_presence_last_seen",
+          "columns": [
+            {
+              "expression": "last_seen_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "plan_presence_master_id_media_plan_masters_id_fk": {
+          "name": "plan_presence_master_id_media_plan_masters_id_fk",
+          "tableFrom": "plan_presence",
+          "tableTo": "media_plan_masters",
+          "columnsFrom": [
+            "master_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "plan_presence_master_id_user_id_pk": {
+          "name": "plan_presence_master_id_user_id_pk",
+          "columns": [
+            "master_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
