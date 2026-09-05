@@ -249,6 +249,7 @@ import {
   editorBillingStableLineItemId,
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
+import { buildMediaPlanWorkbookMbaData } from "@/lib/mediaplan/buildMediaPlanWorkbookMbaData"
 import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
@@ -3054,17 +3055,6 @@ function CreateMediaPlan() {
 
     // MBA totals for Excel — same core as MBA Details / PDF (partial via selected line ids).
     const coreTotals = campaignFinancials.mbaScopeTotals
-    const mbaDataGrossMedia = mediaTypes
-      .filter((medium) => medium.name !== "mp_production")
-      .filter((medium) => Boolean(form.getValues()[medium.name as keyof MediaPlanFormValues]))
-      .map((medium) => {
-        const billingKey = mediaKeyMap[medium.name]
-        return {
-          media_type: medium.label,
-          gross_amount:
-            billingKey !== undefined ? (campaignFinancialsMediaByKey[billingKey] ?? 0) : 0,
-        }
-      })
 
     let mediaItemsForWorkbook: MediaItems = mediaItems
     let mbaData: Parameters<typeof generateMediaPlan>[2]
@@ -3084,17 +3074,13 @@ function CreateMediaPlan() {
       mediaItemsForWorkbook = aaFiltered
       mbaData = buildAdvertisingAssociatesMbaDataFromMediaItems(aaFiltered)
     } else {
-      mbaData = {
-        gross_media: mbaDataGrossMedia,
-        totals: {
-          gross_media: coreTotals.grossMedia,
-          service_fee: coreTotals.fee,
-          production: coreTotals.production,
-          adserving: coreTotals.adServing,
-          totals_ex_gst: coreTotals.nettExGst,
-          total_inc_gst: coreTotals.nettIncGst,
-        },
-      }
+      mbaData = buildMediaPlanWorkbookMbaData({
+        mediaTypes,
+        formFlags: form.getValues() as Record<string, unknown>,
+        mediaKeyMap,
+        campaignFinancialsMediaByKey,
+        mbaScopeTotals: coreTotals,
+      })
     }
 
     const workbook = await generateMediaPlan(header, mediaItemsForWorkbook, mbaData, {

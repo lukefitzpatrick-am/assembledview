@@ -1,0 +1,23 @@
+{
+  "source": "Computed from Postgres dump lib/docs/__tests__/fixtures/glenda008-v6.plan.json via computeBurstAmounts / computeCampaignFinancials (same mbaScopeTotals as the editor Excel). Luke PDF totals and client-generated v6 workbook were not supplied this session — workbook assertions check generateMediaPlan sheet names and MBA totals cells only. Snapshot is missing feeradio/feebvod so those channels fee 0%. Production fee is always 0 in campaign financials.",
+  "mbaNumber": "glenda008",
+  "versionNumber": 6,
+  "channelLineCounts": {
+    "radio": 1,
+    "socialMedia": 1,
+    "bvod": 1,
+    "production": 1
+  },
+  "excelBurstRowCounts": {
+    "radio": 2,
+    "socialMedia": 1,
+    "bvod": 1,
+    "production": 1
+  },
+  "expectedWorkbookSheetNames": ["Media Plan"],
+  "mbaDataTotals": {
+    "gross_media": 75500,
+    "service_fee": 5000,
+    "production": 12000
+  }
+}
