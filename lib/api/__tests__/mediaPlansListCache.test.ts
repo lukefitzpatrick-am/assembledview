@@ -78,4 +78,21 @@ describe("mediaPlansListCache list-shape parity", () => {
     assert.equal(typeof row.mp_client_name, "string")
     assert.equal(row.mp_client_name, "")
   })
+
+  it("overlays published_version_id from master when the field is present", () => {
+    const row = overlayMasterOwnedListFields(
+      { id: 42, mba_number: "jayco001", version_number: 7 },
+      { mba_number: "jayco001", mp_client_name: "Jayco", published_version_id: 99 },
+    )
+    assert.equal(row.published_version_id, 99)
+    assert.equal(row.id, 42)
+  })
+
+  it("does not invent published_version_id when the master lacks the field", () => {
+    const row = overlayMasterOwnedListFields(
+      { id: 1, mba_number: "jayco001" },
+      { mba_number: "jayco001", mp_client_name: "Jayco" },
+    )
+    assert.equal("published_version_id" in row, false)
+  })
 })

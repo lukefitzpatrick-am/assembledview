@@ -13,6 +13,19 @@ export type CampaignRowActionsProps = {
   clientSlug: string
   canEdit: boolean
   layout: "stacked" | "columns"
+  /**
+   * When `false`, Download is disabled immediately (no documents fetch, no
+   * “Loading…”). When `undefined`, today’s lazy fetch on menu open stays.
+   */
+  hasPublishedVersion?: boolean
+}
+
+/** List-row pointer → CampaignRowActions prop. `undefined` keeps lazy fetch. */
+export function hasPublishedVersionFromPointer(
+  publishedVersionId: number | null | undefined,
+): boolean | undefined {
+  if (publishedVersionId === undefined) return undefined
+  return publishedVersionId != null && publishedVersionId > 0
 }
 
 const documentsCache = new Map<string, Promise<PublishedDocumentsPayload>>()
@@ -75,16 +88,18 @@ export function CampaignRowActions({
   clientSlug,
   canEdit,
   layout,
+  hasPublishedVersion,
 }: CampaignRowActionsProps) {
   const router = useRouter()
   const [docs, setDocs] = useState<PublishedDocumentsPayload | null>(null)
+  const knownUnpublished = hasPublishedVersion === false
   const unpublished = docs != null && docs.publishedVersionId == null
-  const downloadDisabled = unpublished
+  const downloadDisabled = knownUnpublished || unpublished
   const size = layout === "columns" ? "card" : "row"
 
   const loadDocuments = useCallback(
     (open: boolean) => {
-      if (!open) return
+      if (!open || knownUnpublished) return
       void fetchCampaignDocuments(mbaNumber)
         .then((payload) => {
           setDocs(payload)
@@ -98,7 +113,7 @@ export function CampaignRowActions({
           })
         })
     },
-    [mbaNumber],
+    [mbaNumber, knownUnpublished],
   )
 
   const publishedLabel = docs?.versionNumber ?? versionNumber
@@ -108,8 +123,9 @@ export function CampaignRowActions({
       ? `Published v${publishedLabel}${savedIso ? ` · saved ${formatSavedDay(savedIso)}` : ""}`
       : undefined
 
-  const downloadMenu =
-    docs && docs.publishedVersionId != null
+  const downloadMenu = knownUnpublished
+    ? [{ label: "No published version", disabled: true, onSelect: () => {} }]
+    : docs && docs.publishedVersionId != null
       ? FILE_ROWS.map((row) => {
           const file = docs.files[row.kind]
           const missing = file == null
@@ -183,7 +199,7 @@ export function CampaignRowActions({
         disabled={downloadDisabled}
         title={downloadDisabled ? "No published version" : undefined}
         menuHeader={menuHeader}
-        onMenuOpenChange={loadDocuments}
+        onMenuOpenChange={knownUnpublished ? undefined : loadDocuments}
         menu={downloadMenu}
       />
     </div>

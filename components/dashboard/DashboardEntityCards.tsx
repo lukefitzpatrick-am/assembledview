@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CampaignRowActions } from "@/components/campaign/CampaignRowActions"
+import { CampaignRowActions, hasPublishedVersionFromPointer } from "@/components/campaign/CampaignRowActions"
 import { CampaignStatusBadge } from "@/components/campaign/CampaignStatusBadge"
 import { mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
 import { cn } from "@/lib/utils"
@@ -20,6 +20,7 @@ export type DashboardCampaignPlanCardModel = {
   mp_campaigndates_start: string
   mp_campaigndates_end: string
   mp_campaignbudget: number
+  published_version_id?: number | null
 }
 
 export type DashboardScopeCardModel = {
@@ -95,6 +96,7 @@ export function DashboardCampaignPlanCard({
             versionNumber={plan.mp_version}
             clientSlug={clientSlug}
             canEdit={canEdit}
+            hasPublishedVersion={hasPublishedVersionFromPointer(plan.published_version_id)}
           />
         </div>
       </CardContent>

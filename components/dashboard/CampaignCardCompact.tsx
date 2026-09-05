@@ -40,6 +40,7 @@ export interface CampaignCardCompactProps {
   /** When true, show Edit in the toolbar and menu (typically agency / admin hub). */
   canEdit?: boolean
   versionNumber: number
+  hasPublishedVersion?: boolean
   clientSlug: string
   /** When false, hide the header pencil; edit stays under ⋮ only (e.g. client hub). Default true. */
   showInlineEditButton?: boolean
@@ -127,6 +128,7 @@ export function CampaignCardCompact({
   viewLinkAriaLabel,
   brandColour,
   versionNumber,
+  hasPublishedVersion,
   clientSlug,
 }: CampaignCardCompactProps) {
   const shouldReduceMotion = useReducedMotion()
@@ -287,6 +289,7 @@ export function CampaignCardCompact({
             versionNumber={versionNumber}
             clientSlug={clientSlug}
             canEdit={canEdit}
+            hasPublishedVersion={hasPublishedVersion}
           />
         </div>
       </motion.article>

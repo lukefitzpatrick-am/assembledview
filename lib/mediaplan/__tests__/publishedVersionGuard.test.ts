@@ -12,6 +12,7 @@ import {
   parseVersionNumber,
   pickPublishedVersionRow,
   publishedVersionFromMaster,
+  publishedVersionIdFromMaster,
 } from "@/lib/mediaplan/publishedVersionGuard"
 
 test("parseVersionNumber", () => {
@@ -49,4 +50,12 @@ test("clampLatestToPublished and publishedVersionFromMaster", () => {
   assert.equal(clampLatestToPublished(5, 2), 2)
   assert.equal(clampLatestToPublished(1, 2), 1)
   assert.equal(publishedVersionFromMaster({ version_number: 7 }), 7)
+})
+
+test("publishedVersionIdFromMaster: absent vs null vs id", () => {
+  assert.equal(publishedVersionIdFromMaster({ version_number: 7 }), undefined)
+  assert.equal(publishedVersionIdFromMaster({ published_version_id: null }), null)
+  assert.equal(publishedVersionIdFromMaster({ published_version_id: 42 }), 42)
+  assert.equal(publishedVersionIdFromMaster({ publishedVersionId: "9" }), 9)
+  assert.equal(publishedVersionIdFromMaster({ published_version_id: 0 }), null)
 })

@@ -224,6 +224,30 @@ describe("CampaignRowActions", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it("hasPublishedVersion false → Download disabled, fetch never called", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(unpublished))
+    act(() => {
+      root.render(
+        <CampaignRowActions
+          layout="stacked"
+          mbaNumber="krusty001"
+          versionNumber={1}
+          clientSlug="krusty"
+          canEdit
+          hasPublishedVersion={false}
+        />,
+      )
+    })
+    const download = findButton(container, "Download")
+    expect(download).toBeTruthy()
+    expect(download?.disabled).toBe(true)
+    expect(download?.getAttribute("title")).toBe("No published version")
+
+    await openMenu(download!)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(document.body.textContent).not.toContain("Loading…")
+  })
+
   it("two of three files → third row disabled with reason", async () => {
     fetchMock.mockResolvedValue(jsonResponse(twoOfThree))
     act(() => {

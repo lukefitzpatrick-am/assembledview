@@ -15,7 +15,7 @@ import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from '@/lib/spend/monthlyPlanCalendar'
 import { normalizeDateToMelbourneISO } from '@/lib/dates/normalizeCampaignDateISO'
 import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
-import { publishedVersionFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
+import { publishedVersionFromMaster, publishedVersionIdFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
 import { australianFyStartYearForDate } from '@/lib/finance/months'
 import {
   campaignFlightOverlapsRange,
@@ -445,12 +445,14 @@ export function buildClientDashboardDataFromVersions(
     urlSlug: string
     /** Published watermark per MBA — staged-but-unpublished rows must not win. */
     publishedByMba?: Map<string, number>
+    /** Master `published_version_id` when the field was on the master payload. */
+    publishedVersionIdByMba?: Map<string, number | null>
     financialYearStartYear?: number
     rangeStartISO?: string
     rangeEndISO?: string
   }
 ): ClientDashboardData | null {
-  const { fallbackClient, totalCampaignsYTDFromMaster, urlSlug, publishedByMba, financialYearStartYear } = ctx
+  const { fallbackClient, totalCampaignsYTDFromMaster, urlSlug, publishedByMba, publishedVersionIdByMba, financialYearStartYear } = ctx
 
   const range: ClientDashboardRange =
     ctx.rangeStartISO && ctx.rangeEndISO
@@ -556,6 +558,11 @@ export function buildClientDashboardDataFromVersions(
       if (version.mp_influencers) mediaTypes.push('Influencers')
 
       const vn = Number(version.version_number)
+      const mbaKey = mbaJoinKey(version.mba_number)
+      const hasPublishedVersion =
+        mbaKey != null && publishedVersionIdByMba?.has(mbaKey)
+          ? publishedVersionIdByMba.get(mbaKey) != null
+          : undefined
       let billingSchedule: any[] = []
       try {
         const raw = version.billingSchedule ?? version.billing_schedule
@@ -594,6 +601,7 @@ export function buildClientDashboardDataFromVersions(
         mediaTypes,
         status: normalizeStatus(version.campaign_status) as Campaign['status'],
         expectedSpendToDate: expectedSpendToDate > 0 ? expectedSpendToDate : undefined,
+        ...(hasPublishedVersion !== undefined ? { hasPublishedVersion } : {}),
       }
     })
 
@@ -891,6 +899,7 @@ export async function getClientDashboardData(
     let totalCampaignsYTDFromMaster: number | null = null
     let masterEndpointUsed: string | null = null
     let publishedByMba = new Map<string, number>()
+    let publishedVersionIdByMba = new Map<string, number | null>()
 
     try {
       const { data: masterData, endpoint } = await fetchMediaPlanMasterWithFallback()
@@ -903,6 +912,8 @@ export async function getClientDashboardData(
         if (!key) continue
         const published = publishedVersionFromMaster(master)
         if (published > 0) publishedByMba.set(key, published)
+        const pointer = publishedVersionIdFromMaster(master)
+        if (pointer !== undefined) publishedVersionIdByMba.set(key, pointer)
       }
     } catch (error) {
       console.warn('Dashboard: failed to load media plan master for totals', error)
@@ -939,6 +950,7 @@ export async function getClientDashboardData(
       totalCampaignsYTDFromMaster,
       urlSlug: sanitizedSlug,
       publishedByMba,
+      publishedVersionIdByMba,
       financialYearStartYear: options?.financialYearStartYear,
       rangeStartISO: options?.rangeStartISO,
       rangeEndISO: options?.rangeEndISO,
@@ -968,11 +980,14 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
   const masterPlans = parseXanoListPayload(masterBundle.data)
   const ytdMap = buildYtdCountBySlugFromMaster(masterPlans, fyWindow)
   const publishedByMba = new Map<string, number>()
+  const publishedVersionIdByMba = new Map<string, number | null>()
   for (const master of masterPlans) {
     const key = mbaJoinKey(master?.mba_number)
     if (!key) continue
     const published = publishedVersionFromMaster(master)
     if (published > 0) publishedByMba.set(key, published)
+    const pointer = publishedVersionIdFromMaster(master)
+    if (pointer !== undefined) publishedVersionIdByMba.set(key, pointer)
   }
 
   const summaries: ClientHubSummary[] = []
@@ -994,6 +1009,7 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
       totalCampaignsYTDFromMaster,
       urlSlug: slugUrl,
       publishedByMba,
+      publishedVersionIdByMba,
     })
     if (!dashboard) continue
 

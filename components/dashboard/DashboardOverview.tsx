@@ -23,7 +23,7 @@ import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
 import { formatMoney, formatMoneyCompact } from "@/lib/format/money"
 import { isPlannedBasisCampaignStatus } from "@/lib/dashboard/plannedSpendConsistency"
 import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
-import { CampaignRowActions } from "@/components/campaign/CampaignRowActions"
+import { CampaignRowActions, hasPublishedVersionFromPointer } from "@/components/campaign/CampaignRowActions"
 import { CampaignStatusBadge } from "@/components/campaign/CampaignStatusBadge"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
@@ -92,6 +92,8 @@ type MediaPlan = {
   mp_campaigndates_start: string
   mp_campaigndates_end: string
   mp_campaignbudget: number
+  /** From master overlay on GET /api/media_plans; omit when the payload lacks it. */
+  published_version_id?: number | null
   mp_television: boolean
   mp_radio: boolean
   mp_newspaper: boolean
@@ -178,10 +180,12 @@ function OverviewCampaignRowActions({
   mbaNumber,
   versionNumber,
   clientName,
+  hasPublishedVersion,
 }: {
   mbaNumber: string
   versionNumber: number
   clientName: string
+  hasPublishedVersion?: boolean
 }) {
   return (
     <CampaignRowActions
@@ -190,6 +194,7 @@ function OverviewCampaignRowActions({
       versionNumber={versionNumber}
       clientSlug={slugifyClientName(clientName)}
       canEdit
+      hasPublishedVersion={hasPublishedVersion}
     />
   )
 }
@@ -406,6 +411,16 @@ const transformMediaPlanData = (apiData: any[]): MediaPlan[] =>
     mp_campaigndates_start: item.campaign_start_date || item.mp_campaigndates_start || "",
     mp_campaigndates_end: item.campaign_end_date || item.mp_campaigndates_end || "",
     mp_campaignbudget: item.mp_campaignbudget || 0,
+    ...(item.published_version_id !== undefined || item.publishedVersionId !== undefined
+      ? {
+          published_version_id: (() => {
+            const raw = item.published_version_id ?? item.publishedVersionId
+            if (raw == null || raw === "") return null
+            const n = Number(raw)
+            return Number.isFinite(n) && n > 0 ? n : null
+          })(),
+        }
+      : {}),
     mp_television: item.mp_television || false,
     mp_radio: item.mp_radio || false,
     mp_newspaper: item.mp_newspaper || false,
@@ -2231,6 +2246,9 @@ export default function DashboardOverview({
                                 mbaNumber={plan.mp_mba_number}
                                 versionNumber={plan.mp_version}
                                 clientName={plan.mp_clientname}
+                                hasPublishedVersion={hasPublishedVersionFromPointer(
+                                  plan.published_version_id,
+                                )}
                               />
                             </TableCell>
                           </TableRow>
@@ -2407,6 +2425,9 @@ export default function DashboardOverview({
                                 mbaNumber={plan.mp_mba_number}
                                 versionNumber={plan.mp_version}
                                 clientName={plan.mp_clientname}
+                                hasPublishedVersion={hasPublishedVersionFromPointer(
+                                  plan.published_version_id,
+                                )}
                               />
                             </TableCell>
                           </TableRow>
@@ -2496,6 +2517,9 @@ export default function DashboardOverview({
                                 mbaNumber={plan.mp_mba_number}
                                 versionNumber={plan.mp_version}
                                 clientName={plan.mp_clientname}
+                                hasPublishedVersion={hasPublishedVersionFromPointer(
+                                  plan.published_version_id,
+                                )}
                               />
                             </TableCell>
                           </TableRow>

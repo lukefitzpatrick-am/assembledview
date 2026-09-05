@@ -1,6 +1,7 @@
 /**
  * Master-owned list scalars that Xano `media_plan_versions_latest` carried inline
  * but Postgres `media_plan_versions` omit (they live on `media_plan_masters`).
+ * Also copies `published_version_id` from the master when that field is present.
  *
  * Shared by:
  * - `mediaPlansListCache` → `GET /api/mediaplans` (Campaigns list)
@@ -10,6 +11,7 @@
  */
 
 import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
+import { publishedVersionIdFromMaster } from "@/lib/mediaplan/publishedVersionGuard"
 
 export const MEDIA_PLANS_LIST_MASTER_OWNED_STRING_FIELDS = [
   "mp_client_name",
@@ -19,6 +21,8 @@ export const MEDIA_PLANS_LIST_MASTER_OWNED_STRING_FIELDS = [
  * Overlay master-owned list fields onto a latest-version row.
  * Prefer version value when already present (Xano `_latest`); fill from master
  * otherwise (Postgres). Always coerce required strings so search/sort never see undefined.
+ * Copies `published_version_id` from the master when that field is present
+ * (never from the version row `id`). Omit the key when the master lacks it.
  */
 export function overlayMasterOwnedListFields(
   versionPlan: Record<string, unknown> | null | undefined,
@@ -36,6 +40,10 @@ export function overlayMasterOwnedListFields(
           ? fromMaster
           : fromVersion ?? ""
     base[key] = typeof raw === "string" ? raw : String(raw ?? "")
+  }
+  const pointer = publishedVersionIdFromMaster(masterData)
+  if (pointer !== undefined) {
+    base.published_version_id = pointer
   }
   return base
 }

@@ -14,6 +14,11 @@ export interface Campaign {
    * same model as mediaplans API / MBA dashboard.
    */
   expectedSpendToDate?: number
+  /**
+   * From master `published_version_id` on the same dashboard master read.
+   * `undefined` when that field was not on the master payload.
+   */
+  hasPublishedVersion?: boolean
 }
 
 /** Admin client hub card (metrics match tenant dashboard definitions). */

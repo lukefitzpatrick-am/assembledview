@@ -17,7 +17,7 @@ import { Panel, PanelActions, PanelContent, PanelHeader, PanelTitle } from "@/co
 import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import { DashboardCampaignPlanCard, dashboardCampaignGridClassName } from "@/components/dashboard/DashboardEntityCards"
-import { CampaignRowActions } from "@/components/campaign/CampaignRowActions"
+import { CampaignRowActions, hasPublishedVersionFromPointer } from "@/components/campaign/CampaignRowActions"
 import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar"
 import { formatAUD } from "@/lib/format/money"
 import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
@@ -74,6 +74,8 @@ interface MediaPlan {
   campaign_start_date: string;
   campaign_end_date: string;
   mp_campaignbudget: number;
+  /** From master overlay on GET /api/mediaplans; omit when the payload lacks it. */
+  published_version_id?: number | null;
   created_at: number;
   // Media type flags (these will come from the latest version)
   mp_television?: boolean;
@@ -720,6 +722,7 @@ function MediaPlansPageInner() {
                                   mp_campaigndates_start: plan.campaign_start_date,
                                   mp_campaigndates_end: plan.campaign_end_date,
                                   mp_campaignbudget: plan.mp_campaignbudget,
+                                  published_version_id: plan.published_version_id,
                                 }}
                                 formatDate={formatDate}
                                 formatCurrency={formatAUD}
@@ -817,6 +820,9 @@ function MediaPlansPageInner() {
                                       versionNumber={plan.version_number}
                                       clientSlug={slugifyClientName(plan.mp_client_name)}
                                       canEdit
+                                      hasPublishedVersion={hasPublishedVersionFromPointer(
+                                        plan.published_version_id,
+                                      )}
                                     />
                                   </TableCell>
                                 </TableRow>

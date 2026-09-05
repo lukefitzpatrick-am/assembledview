@@ -17,6 +17,28 @@ export function publishedVersionFromMaster(master: { version_number?: unknown } 
   return parseVersionNumber(master?.version_number)
 }
 
+/**
+ * Master's published-version pointer (`published_version_id`), when the field is
+ * present on the already-loaded master row.
+ *
+ * `undefined` = field absent (caller must not invent unpublished).
+ * `null` = field present and empty / unusable.
+ * number = stamped pointer id (> 0).
+ */
+export function publishedVersionIdFromMaster(
+  master: object | null | undefined,
+): number | null | undefined {
+  if (master == null || typeof master !== "object") return undefined
+  const rec = master as Record<string, unknown>
+  const hasSnake = "published_version_id" in rec
+  const hasCamel = "publishedVersionId" in rec
+  if (!hasSnake && !hasCamel) return undefined
+  const raw = hasSnake ? rec.published_version_id : rec.publishedVersionId
+  if (raw == null || raw === "") return null
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null
+}
+
 /** Keep only rows at or below the published watermark. */
 export function filterPublishedVersions<T extends { version_number?: unknown }>(
   versions: T[],
