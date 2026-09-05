@@ -1,7 +1,5 @@
 "use client"
 
-import { useRef } from "react"
-
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,6 +9,7 @@ import {
 } from "@/components/ui/popover"
 import type { DraftDiffSummary } from "@/lib/mediaplan/drafts/fieldDiff"
 import {
+  formatDraftFieldWas,
   formatDraftRelativeTime,
   removedLineCaption,
 } from "@/lib/mediaplan/drafts/fieldDiff"
@@ -91,24 +90,21 @@ export function PlanDraftActiveBanner(props: {
   updatedAt: string
   summary: DraftDiffSummary
   onDiscard: () => void
+  /** Opens the read-only field-diff panel. Omit when there is no published tip. */
+  onViewChanges?: () => void
+  /** When set (or when `onViewChanges` is omitted), View changes is disabled. */
+  viewChangesDisabledReason?: string
   /** Create-page meaningful draft: names client, campaign, lines, budget. */
   headline?: string
   /** Rail: single-line text + actions stacked, no save-bar band. */
   compact?: boolean
 }) {
-  const cycleRef = useRef(0)
+  const viewChangesReason =
+    props.viewChangesDisabledReason ??
+    (props.onViewChanges ? undefined : "No published version to compare")
+  const viewChangesDisabled = viewChangesReason != null
   const n = props.summary.changeCount
   const changeLabel = n === 1 ? "1 change" : `${n} changes`
-
-  function viewChanges() {
-    const nodes = document.querySelectorAll<HTMLElement>(
-      "[data-draft-changed='true'], [data-draft-new-line='true']",
-    )
-    if (!nodes.length) return
-    const i = cycleRef.current % nodes.length
-    nodes[i].scrollIntoView({ behavior: "smooth", block: "center" })
-    cycleRef.current = i + 1
-  }
 
   return (
     <div
@@ -167,7 +163,13 @@ export function PlanDraftActiveBanner(props: {
           size="sm"
           variant="outline"
           className={props.compact ? "h-8 w-full" : undefined}
-          onClick={viewChanges}
+          disabled={viewChangesDisabled}
+          title={viewChangesReason}
+          aria-disabled={viewChangesDisabled ? true : undefined}
+          onClick={() => {
+            if (viewChangesDisabled) return
+            props.onViewChanges?.()
+          }}
         >
           View changes
         </Button>
@@ -310,6 +312,67 @@ export function PlanDraftTipCompareDialog(props: {
               {props.removed.length ? props.removed.join(", ") : "—"}
             </p>
           </div>
+        </div>
+        <Button type="button" className="mt-4" onClick={props.onClose}>
+          Close
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** Per-field old → new vs the captured tip snapshot. Close changes nothing. */
+export function PlanDraftFieldDiffDialog(props: {
+  summary: DraftDiffSummary
+  onClose: () => void
+}) {
+  const { fieldChanges, addedLineIds, removedLines, changeCount } = props.summary
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
+      <div className="max-h-[80vh] max-w-lg overflow-y-auto rounded-card border border-border bg-card p-4 shadow-e2">
+        <h2 className="text-base font-semibold text-foreground">Draft vs loaded plan</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {changeCount === 1 ? "1 change" : `${changeCount} changes`} · Close leaves the form as it is
+        </p>
+        <div className="mt-3 space-y-3 text-sm">
+          {removedLines.length > 0 ? (
+            <div>
+              <p className="font-medium text-foreground">Removed lines</p>
+              <ul className="mt-1 space-y-1 text-muted-foreground">
+                {removedLines.map((line) => (
+                  <li key={line.lineItemId}>{removedLineCaption(line)}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {addedLineIds.length > 0 ? (
+            <div>
+              <p className="font-medium text-foreground">Added lines</p>
+              <ul className="mt-1 space-y-1 font-mono text-xs text-muted-foreground">
+                {addedLineIds.map((id) => (
+                  <li key={id}>{id}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {fieldChanges.length > 0 ? (
+            <div>
+              <p className="font-medium text-foreground">Fields</p>
+              <ul className="mt-1 space-y-1 text-muted-foreground">
+                {fieldChanges.map((change) => (
+                  <li key={`${change.lineItemId}:${change.fieldPath}`}>
+                    <span className="font-mono text-xs">{change.lineItemId}</span>
+                    {" · "}
+                    {change.fieldPath}: {change.wasFormatted || "—"} →{" "}
+                    {formatDraftFieldWas(change.newValue, change.kind) || "—"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {changeCount === 0 ? (
+            <p className="text-muted-foreground">No remaining differences</p>
+          ) : null}
         </div>
         <Button type="button" className="mt-4" onClick={props.onClose}>
           Close

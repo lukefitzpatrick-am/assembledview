@@ -220,6 +220,7 @@ import {
 import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
 import {
   PlanDraftActiveBanner,
+  PlanDraftFieldDiffDialog,
   PlanDraftStaleBanner,
   PlanDraftTipCompareDialog,
   PlanStaleBaseDialog,
@@ -11555,6 +11556,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 changeCount: 0,
               }
             }
+            onViewChanges={() => planDraft.setCompareOpen(true)}
             onDiscard={() => void planDraft.discard()}
           />
         ) : planDraft.recovery ? (
@@ -11594,6 +11596,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         <PlanStaleBaseDialog
           compare={planDraft.staleCompare as { sections: { base: string; yours: string; current: string } }}
           onClose={() => planDraft.setStaleCompare(null)}
+        />
+      ) : null}
+      {planDraft.compareOpen && planDraft.activeDraft ? (
+        <PlanDraftFieldDiffDialog
+          summary={
+            planDraft.diffLive() ?? {
+              fieldChanges: [],
+              addedLineIds: [],
+              removedLines: [],
+              changeCount: 0,
+            }
+          }
+          onClose={() => planDraft.setCompareOpen(false)}
         />
       ) : null}
       {planDraft.compareOpen && draftTipCompare ? (

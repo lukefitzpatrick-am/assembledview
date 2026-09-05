@@ -8,7 +8,10 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
 
-import { PlanDraftActiveBanner } from "@/components/mediaplan/PlanDraftChrome"
+import {
+  PlanDraftActiveBanner,
+  PlanDraftFieldDiffDialog,
+} from "@/components/mediaplan/PlanDraftChrome"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
 
 describe("PlanWizardSaveMessages", () => {
@@ -149,5 +152,90 @@ describe("PlanDraftActiveBanner compact", () => {
       discard!.click()
     })
     expect(onDiscard).toHaveBeenCalledTimes(1)
+  })
+
+  it("View changes with a computable compare opens a read-only diff and does not mutate form state", () => {
+    const onDiscard = vi.fn()
+    const onViewChanges = vi.fn()
+    const form = { campaign: "Spring", budget: 1000 }
+    const before = JSON.stringify(form)
+    const summary = {
+      fieldChanges: [
+        {
+          lineItemId: "glenda008-se1",
+          fieldPath: "bursts.0.budget",
+          oldValue: 25000,
+          newValue: 20000,
+          wasFormatted: "$25,000.00",
+          kind: "money" as const,
+        },
+      ],
+      addedLineIds: [],
+      removedLines: [{ lineItemId: "glenda008-se2", label: "Bing" }],
+      changeCount: 2,
+    }
+
+    act(() => {
+      root.render(
+        <>
+          <PlanDraftActiveBanner
+            compact
+            updatedAt="2026-09-01T00:00:00.000Z"
+            summary={summary}
+            onDiscard={onDiscard}
+            onViewChanges={onViewChanges}
+          />
+          <PlanDraftFieldDiffDialog summary={summary} onClose={() => undefined} />
+        </>
+      )
+    })
+
+    const view = Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.trim() === "View changes"
+    )
+    expect(view).toBeTruthy()
+    expect((view as HTMLButtonElement).disabled).toBe(false)
+    act(() => {
+      view!.click()
+    })
+    expect(onViewChanges).toHaveBeenCalledTimes(1)
+    expect(onDiscard).not.toHaveBeenCalled()
+    expect(JSON.stringify(form)).toBe(before)
+    expect(container.textContent).toContain("$25,000.00")
+    expect(container.textContent).toContain("$20,000.00")
+    expect(container.textContent).toContain("Removed: glenda008-se2 — Bing")
+  })
+
+  it("View changes with no tip is disabled with a reason and changes no state", () => {
+    const onDiscard = vi.fn()
+    const onViewChanges = vi.fn()
+    act(() => {
+      root.render(
+        <PlanDraftActiveBanner
+          compact
+          updatedAt="2026-09-01T00:00:00.000Z"
+          summary={{
+            fieldChanges: [],
+            addedLineIds: [],
+            removedLines: [],
+            changeCount: 0,
+          }}
+          onDiscard={onDiscard}
+          viewChangesDisabledReason="No published version to compare"
+        />
+      )
+    })
+    const view = Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.trim() === "View changes"
+    )
+    expect(view).toBeTruthy()
+    expect((view as HTMLButtonElement).disabled).toBe(true)
+    expect(view!.getAttribute("title")).toBe("No published version to compare")
+    act(() => {
+      view!.click()
+    })
+    expect(onViewChanges).not.toHaveBeenCalled()
+    expect(onDiscard).not.toHaveBeenCalled()
+    expect(container.textContent).not.toContain("Draft vs loaded plan")
   })
 })

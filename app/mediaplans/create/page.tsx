@@ -7282,6 +7282,7 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
                 changeCount: 0,
               }
             }
+            viewChangesDisabledReason="No published version to compare"
             onDiscard={() => void planDraft.discard()}
           />
         ) : planDraft.recovery ? (

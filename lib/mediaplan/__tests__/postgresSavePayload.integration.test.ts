@@ -610,3 +610,25 @@ describe("UI-1 twin: save messages live in the sidebar panel, bar is actions onl
     }
   })
 })
+
+describe("SM-22: View changes is a read-only field diff", () => {
+  it("edit opens PlanDraftFieldDiffDialog from activeDraft; create disables without a published tip", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    const chromeSrc = readFileSync(
+      join(process.cwd(), "components/mediaplan/PlanDraftChrome.tsx"),
+      "utf8"
+    )
+    assert.doesNotMatch(chromeSrc, /querySelectorAll/)
+    assert.match(chromeSrc, /PlanDraftFieldDiffDialog/)
+    assert.match(
+      editSrc,
+      /onViewChanges=\{\(\) => planDraft\.setCompareOpen\(true\)\}/
+    )
+    assert.match(editSrc, /PlanDraftFieldDiffDialog/)
+    assert.match(editSrc, /planDraft\.compareOpen && planDraft\.activeDraft/)
+    assert.match(editSrc, /PlanDraftTipCompareDialog/)
+    assert.match(createSrc, /viewChangesDisabledReason/)
+    assert.doesNotMatch(createSrc, /onViewChanges=/)
+  })
+})
