@@ -198,6 +198,7 @@ pct === 100 → fee = 0 (division guard)
 - No new hard-coded hex in `app/**` route components (chart palette constants and tenant brand colours excepted). No chart hard-codes a hex — use `lib/chart-theme.ts` / `lib/charts/registry.ts`.
 - Delivery daily-chart series (`key` / `label` / `yAxis` / optional `format`) is `DeliveryDailyChartSeries` only — `ChannelAggregate.chart.series` and `LineItemBlock` `DailyChart.series` import it. ComboChart bars default `dollars`, lines default `number`.
 - Interactive charts: tooltip + legend + keyboard alternative; non-interactive: `cursor="default"`. Touch targets ≥24×24 CSS px, ≥44×44 for primary actions.
+- Create and edit wizard page headers are `PlanWizardHeader` (via `PlanWizardShell.header`). One primary row (title + reserved actions floor) and at most one secondary row for edit-only chrome (version trail, status, Creative/Trafficking stay in the reserved actions slot). Never a third hero row.
 - (Full normative doc: `docs/design-refresh/SYSTEM_RULES.md`.)
 
 ## Workflow

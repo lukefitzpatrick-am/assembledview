@@ -43,7 +43,7 @@ import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
-import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { PlanWizardHeader, PlanWizardVersionChrome } from "@/components/mediaplans/PlanWizardHeader"
 import { MediaPlanEditorHeroActions } from "@/components/mediaplans/MediaPlanEditorHeroActions"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
@@ -11819,13 +11819,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="mx-auto w-full max-w-[1920px] px-4 sm:px-5 md:px-6 xl:px-8 2xl:px-10 pt-0 pb-24 space-y-6">
-          <MediaPlanEditorHero
-            className="mb-2"
+          <PlanWizardHeader
             title="Edit Campaign"
-            detail={
+            breadcrumbCurrent="Edit Campaign"
+            subtitle={
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                 <span>Loading campaign details…</span>
+              </div>
+            }
+            secondary={
+              <div className="flex min-w-0 flex-wrap items-center gap-3">
+                <Skeleton className="h-3 w-8" />
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-7 w-28" />
               </div>
             }
           />
@@ -11836,11 +11843,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <div className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-2">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                   <Skeleton className="h-5 w-40" />
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-3 w-8" />
-                    <Skeleton className="h-3 w-16" />
-                    <Skeleton className="h-7 w-28" />
-                  </div>
+                  <Skeleton className="h-8 w-64" />
                 </div>
                 <div className="grid w-full flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-3">
                   {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => (
@@ -11997,11 +12000,68 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       </Dialog>
 
       <PlanWizardShell
-        title="Edit Campaign"
-        breadcrumbCurrent="Edit Campaign"
-        subtitle={<p>Update campaign settings, media types, and line item details.</p>}
-        heroActions={
-          <MediaPlanEditorHeroActions mbaNumber={mbaNumber} />
+        header={
+          <PlanWizardHeader
+            title="Edit Campaign"
+            breadcrumbCurrent="Edit Campaign"
+            subtitle={<p>Update campaign settings, media types, and line item details.</p>}
+            actions={<MediaPlanEditorHeroActions mbaNumber={mbaNumber} />}
+            secondary={
+              <PlanWizardVersionChrome
+                versionLabel={`v${selectedVersionNumber ?? mediaPlan?.version_number ?? "—"}`}
+                trail={describeVersionHeaderTrail(planDraft.modeResolved)}
+                versionSelect={
+                  latestVersionNumber > 1 ? (
+                    <Combobox
+                      value={selectedVersionNumber ? String(selectedVersionNumber) : ""}
+                      onValueChange={handleVersionSelect}
+                      placeholder="Load version"
+                      searchPlaceholder="Search versions..."
+                      buttonClassName="h-7 w-28 text-xs"
+                      onOpenChange={(open) => {
+                        if (open) void loadVersionsMeta()
+                      }}
+                      options={
+                        availableVersions.length > 0
+                          ? [...availableVersions].map((v) => ({
+                              value: String(v.version_number),
+                              label: `v${v.version_number}`,
+                            }))
+                          : selectedVersionNumber
+                            ? [
+                                {
+                                  value: String(selectedVersionNumber),
+                                  label: `v${selectedVersionNumber}`,
+                                },
+                              ]
+                            : []
+                      }
+                    />
+                  ) : undefined
+                }
+                status={
+                  <CampaignStatusControl
+                    mbaNumber={mbaNumber}
+                    persisted={true}
+                    status={String(
+                      watchedCampaignStatus ??
+                        mediaPlan?.campaign_status ??
+                        mediaPlan?.mp_campaignstatus ??
+                        ""
+                    )}
+                    startDate={campaignStartDate}
+                    endDate={campaignEndDate}
+                    onStatusCommitted={(next) => {
+                      form.setValue("mp_campaignstatus", next, {
+                        shouldDirty: false,
+                        shouldValidate: true,
+                      })
+                    }}
+                  />
+                }
+              />
+            }
+          />
         }
         steps={createCampaignSteps.map((step) => ({
           id: step.id,
@@ -12030,41 +12090,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm scroll-mt-24"
             >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-              <div className="flex flex-wrap items-center gap-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Campaign Details</h3>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span>v{selectedVersionNumber ?? mediaPlan?.version_number ?? "—"}</span>
-                  <span className="text-border">•</span>
-                  <span>{describeVersionHeaderTrail(planDraft.modeResolved)}</span>
-                  {latestVersionNumber > 1 && (
-                    <Combobox
-                      value={selectedVersionNumber ? String(selectedVersionNumber) : ""}
-                      onValueChange={handleVersionSelect}
-                      placeholder="Load version"
-                      searchPlaceholder="Search versions..."
-                      buttonClassName="h-7 w-28 text-xs"
-                      onOpenChange={(open) => {
-                        if (open) void loadVersionsMeta()
-                      }}
-                      options={
-                        availableVersions.length > 0
-                          ? [...availableVersions].map((v) => ({
-                              value: String(v.version_number),
-                              label: `v${v.version_number}`,
-                            }))
-                          : selectedVersionNumber
-                            ? [
-                                {
-                                  value: String(selectedVersionNumber),
-                                  label: `v${selectedVersionNumber}`,
-                                },
-                              ]
-                            : []
-                      }
-                    />
-                  )}
-                </div>
-              </div>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Campaign Details</h3>
               <CampaignDatePresetBar
                 onApply={({ start, end }) => {
                   form.setValue("mp_campaigndates_start", start, { shouldDirty: true, shouldValidate: true })

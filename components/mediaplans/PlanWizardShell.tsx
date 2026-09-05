@@ -2,17 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Check } from "lucide-react"
-import Link from "next/link"
 
-import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { useSidebar } from "@/components/ui/sidebar"
 import { CAMPAIGN_BUDGET_REMAINING_BASIS_CAPTION } from "@/lib/mediaplan/campaignBudgetRemaining"
@@ -47,11 +37,8 @@ type PlanWizardSummary = {
 }
 
 export type PlanWizardShellProps = {
-  title: string
-  subtitle?: ReactNode
-  heroActions?: ReactNode
-  /** Current page crumb (e.g. "Edit Campaign"). Links back via breadcrumb. */
-  breadcrumbCurrent?: string
+  /** Breadcrumb + hero. Both create and edit pass `PlanWizardHeader`. */
+  header: ReactNode
   steps: PlanWizardStep[]
   activeStep?: string
   railSubItems?: PlanWizardRailSubItems
@@ -72,10 +59,7 @@ export type PlanWizardShellProps = {
 }
 
 export function PlanWizardShell({
-  title,
-  subtitle,
-  heroActions,
-  breadcrumbCurrent,
+  header,
   steps,
   activeStep: activeStepProp,
   railSubItems,
@@ -204,7 +188,6 @@ export function PlanWizardShell({
     return () => observer.disconnect()
   }, [steps, railSubItems, activeStepProp])
 
-  const crumb = breadcrumbCurrent ?? title
   const holdReason =
     saveDisabled && saveDisabledReason
       ? saveDisabledReason
@@ -215,26 +198,7 @@ export function PlanWizardShell({
   return (
     <div className="w-full min-h-0 overflow-visible pb-[env(safe-area-inset-bottom)]">
       <div className="mx-auto w-full max-w-[1920px] space-y-6 overflow-visible px-4 pb-24 pt-0 sm:px-5 md:px-6 xl:px-8 2xl:px-10">
-        <Breadcrumb className="pt-1">
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link href="/mediaplans">Campaigns</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{crumb}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-
-        <MediaPlanEditorHero
-          className="mb-2"
-          title={title}
-          detail={subtitle}
-          actions={heroActions}
-        />
+        {header}
 
         <div className="grid w-full grid-cols-1 items-start gap-5 overflow-visible xl:grid-cols-[220px_minmax(0,1fr)] xl:gap-6">
           <aside className="flex flex-col gap-4 xl:sticky xl:top-4 xl:z-10 xl:self-start">
@@ -310,8 +274,8 @@ export function PlanWizardShell({
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.65)]">
                   Draft Summary
                 </p>
-                <h2 className="text-sm font-semibold leading-tight">{summary.title}</h2>
-                <p className="text-xs text-[hsl(var(--sidebar-foreground)/0.72)]">{summary.client}</p>
+                <h2 className="text-sm font-semibold leading-tight break-words">{summary.title}</h2>
+                <p className="text-xs break-words text-[hsl(var(--sidebar-foreground)/0.72)]">{summary.client}</p>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <div>

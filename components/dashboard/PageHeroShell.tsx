@@ -33,7 +33,7 @@ export function PageHeroTitleBlock({
         aria-hidden
       />
       {detail != null ? (
-        <div className="mt-2 max-w-[380px] space-y-1 text-[13px] leading-relaxed text-muted-foreground [&_p]:leading-relaxed">
+        <div className="mt-2 max-w-[380px] min-w-0 break-words space-y-1 text-[13px] leading-relaxed text-muted-foreground [&_p]:leading-relaxed">
           {detail}
         </div>
       ) : null}

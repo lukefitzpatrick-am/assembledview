@@ -456,8 +456,9 @@ describe("create + edit assembly twins (shared helpers)", () => {
     }
   })
 
-  it("edit Campaign Details header trail uses describeVersionHeaderTrail(planDraft.modeResolved), not tip+1", () => {
+  it("edit wizard header trail uses describeVersionHeaderTrail(planDraft.modeResolved), not tip+1", () => {
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    assert.match(editSrc, /<PlanWizardHeader/)
     assert.match(editSrc, /describeVersionHeaderTrail/)
     assert.match(
       editSrc,
@@ -467,6 +468,15 @@ describe("create + edit assembly twins (shared helpers)", () => {
       editSrc,
       /Next: v\{nextSaveVersionNumber \?\? \(latestVersionNumber \|\| 0\) \+ 1\}/
     )
+  })
+
+  it("create and edit both render PlanWizardHeader so hero rows cannot drift", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    assert.match(createSrc, /<PlanWizardHeader/)
+    assert.match(editSrc, /<PlanWizardHeader/)
+    assert.match(editSrc, /<PlanWizardVersionChrome/)
+    assert.doesNotMatch(createSrc, /<PlanWizardVersionChrome/)
   })
 
   it("edit overwrite toast is explicit (not a version-cut message) + uiMode→mode guard comment", () => {

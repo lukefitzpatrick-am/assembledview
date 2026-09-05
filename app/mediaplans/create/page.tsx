@@ -57,6 +57,7 @@ import { formatMoney } from "@/lib/format/money"
 import { MoneyInput } from "@/components/ui/MoneyInput"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
+import { PlanWizardHeader } from "@/components/mediaplans/PlanWizardHeader"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
 import { MediaPlanEditorHeroActions } from "@/components/mediaplans/MediaPlanEditorHeroActions"
 import { sortByLabel } from "@/lib/utils/sort"
@@ -7455,11 +7456,13 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
       <ExpertApplyDirtyClearOnSave hasUnsavedChanges={hasUnsavedChanges} />
       {wizardDraftDialogs}
       <PlanWizardShell
-        title="Create a Campaign"
-        breadcrumbCurrent="Create Campaign"
-        subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}
-        heroActions={
-          <MediaPlanEditorHeroActions />
+        header={
+          <PlanWizardHeader
+            title="Create a Campaign"
+            breadcrumbCurrent="Create Campaign"
+            subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}
+            actions={<MediaPlanEditorHeroActions />}
+          />
         }
         steps={createCampaignSteps.map((step) => ({
           id: step.id,

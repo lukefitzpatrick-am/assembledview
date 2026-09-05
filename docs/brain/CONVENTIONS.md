@@ -97,6 +97,18 @@ Layout is `RowActionLine`: pill → optional context text → spacer → primary
 
 Primitives: `components/finance/RowActionLine.tsx`, `RowActionMenu.tsx`, `InvoiceDocumentButton.tsx`. Mounted callers: Clients billing `/finance/invoicing` (one line per `invoice_key`), In Xero `/finance/in-xero` (one line per match row), and Owed `/finance/owed` (same primitives in **table cells**, never cards, never a primary). Do not wire a parallel chrome. Invoicing funnel tiles use the same vocabulary as the pills (Ready to approve · Approved · Sent to finance) so the tiles and the rows teach each other.
 
+## Twin wizard headers
+
+Create (`/mediaplans/create`) and edit (`/mediaplans/mba/[mba_number]/edit`) share `PlanWizardHeader` inside `PlanWizardShell`. Do not rebuild breadcrumb + hero on either mega-page.
+
+| Row | Create | Edit |
+|---|---|---|
+| Primary | Title + subtitle; actions slot reserved (`MediaPlanEditorHeroActions` without `mbaNumber`) | Same title row; actions slot filled (Creative, Trafficking) |
+| Secondary | omitted | Version trail (`describeVersionHeaderTrail`) + version picker + `CampaignStatusControl` |
+| Campaign Details card | Heading + date presets | Same — version chrome does not live here |
+
+Never a third hero row. Long client / campaign names wrap (`break-words`, `min-w-0`); do not clip under the hero `overflow-hidden`.
+
 ## Change protocol
 
 One prompt = one commit = one gate review. Claude and Cursor propose; a human applies. Anything ambiguous is reported, not guessed.

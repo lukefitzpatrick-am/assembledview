@@ -52,7 +52,7 @@ export function describePlanSavePill(args: {
 }
 
 /**
- * Campaign Details header trail after "v{n} · …".
+ * Wizard header trail after "v{n} · …".
  * Same `ResolvePostgresSaveModeResult` as `describePlanSavePill` — never tip+1 alone.
  * Overwrite: no "Next" (publish replaces tip). Published tip: "Next: v{n+1}".
  */
