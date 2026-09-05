@@ -14,45 +14,11 @@ import {
   normaliseStatus,
   SELECTABLE_CAMPAIGN_STATUSES,
 } from "@/lib/mediaplan/campaignStatusGuard"
-import { resolveCampaignPhase } from "@/lib/mediaplan/campaignPhase"
-import { parseDateOnlyString, toDateOnlyString } from "@/lib/timezone"
 
 const SELECTABLE_OPTIONS = SELECTABLE_CAMPAIGN_STATUSES.map((value) => ({
   value,
   label: campaignStatusDisplayLabel(value),
 }))
-
-function toYmd(value: unknown): string | null {
-  if (value == null || value === "") return null
-  if (typeof value === "string") {
-    const trimmed = value.trim()
-    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10)
-    try {
-      return toDateOnlyString(trimmed)
-    } catch {
-      return null
-    }
-  }
-  if (value instanceof Date) {
-    try {
-      return toDateOnlyString(value)
-    } catch {
-      return null
-    }
-  }
-  return null
-}
-
-function formatDayMonth(ymd: string): string {
-  try {
-    return new Intl.DateTimeFormat("en-AU", {
-      day: "numeric",
-      month: "short",
-    }).format(parseDateOnlyString(ymd))
-  } catch {
-    return ymd
-  }
-}
 
 export async function persistCampaignStatus(input: {
   next: string
@@ -122,8 +88,6 @@ export function CampaignStatusControl({
   mbaNumber,
   persisted,
   status,
-  startDate,
-  endDate,
   onStatusCommitted,
   disabled,
 }: {
@@ -139,17 +103,6 @@ export function CampaignStatusControl({
   const normalised = normaliseStatus(status)
   const selectable = isSelectableCampaignStatus(normalised)
   const legacy = normalised === "draft" || normalised === "completed"
-  const start = toYmd(startDate)
-  const end = toYmd(endDate)
-  const phase = resolveCampaignPhase({
-    status: normalised,
-    startDate: start,
-    endDate: end,
-  })
-  const liveCaption =
-    phase.derived && phase.phase === "live" && start
-      ? `${campaignStatusDisplayLabel(normalised) || "Approved"} — Live since ${formatDayMonth(start)}`
-      : null
 
   async function persist(next: string) {
     await persistCampaignStatus({
@@ -182,9 +135,6 @@ export function CampaignStatusControl({
           disabled={disabled || pending}
         />
       </div>
-      {liveCaption ? (
-        <p className="text-sm text-muted-foreground">{liveCaption}</p>
-      ) : null}
     </div>
   )
 }
