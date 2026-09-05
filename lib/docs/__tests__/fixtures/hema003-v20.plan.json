@@ -1,0 +1,238 @@
+{
+  "source": "Postgres dump hema003 v20 for DOC-3 adapter fixtures",
+  "master": {
+    "id": 97,
+    "mbaNumber": "hema003",
+    "mpClientName": "Hema",
+    "publishedVersionId": 938
+  },
+  "version": {
+    "id": 938,
+    "versionNumber": 20,
+    "publishedAt": "2026-06-29 05:47:12.987+00",
+    "campaignName": "Always On Performance",
+    "brand": "Hema Maps",
+    "campaignStatus": "approved",
+    "campaignStartDate": "2026-01-01",
+    "campaignEndDate": "2026-06-30",
+    "poNumber": null,
+    "clientContact": "Kirsten Craze",
+    "campaignBudgetCents": 7500000,
+    "channelFlags": {
+      "ooh": false,
+      "radio": false,
+      "cinema": false,
+      "search": true,
+      "social": true,
+      "prog_ooh": false,
+      "digi_bvod": false,
+      "magazines": false,
+      "newspaper": false,
+      "prog_bvod": false,
+      "digi_audio": false,
+      "digi_video": false,
+      "production": false,
+      "prog_audio": false,
+      "prog_video": false,
+      "television": false,
+      "influencers": false,
+      "digi_display": false,
+      "integrations": false,
+      "prog_display": false
+    },
+    "legacySchedules": {
+      "billingSchedule": [
+        {
+          "monthYear": "January 2026",
+          "feeTotal": "$2,500.00",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "February 2026",
+          "feeTotal": "$2,500.00",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "March 2026",
+          "feeTotal": "$2,500.00",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "April 2026",
+          "feeTotal": "$2,500.00",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "May 2026",
+          "feeTotal": "$2,500.00",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "June 2026",
+          "feeTotal": "$2,500.00",
+          "production": "$0.00"
+        }
+      ]
+    }
+  },
+  "feeSnapshot": {},
+  "lineItems": [
+    {
+      "id": 12621,
+      "versionId": 938,
+      "channel": "social",
+      "lineItemId": "hema003SM1",
+      "position": 1,
+      "market": "National",
+      "buyingDemo": "PPL 25+",
+      "buyType": "cpm",
+      "publisher": null,
+      "platform": "Meta",
+      "bidStrategy": "maximize_conversions",
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": null,
+      "bursts": [
+        {
+          "budget": "$3,000.00",
+          "endDate": "2026-01-30T13:00:00.000Z",
+          "buyAmount": "$9.00",
+          "feeAmount": "$750.00",
+          "startDate": "2025-12-31T13:00:00.000Z",
+          "mediaAmount": "$3,000.00",
+          "calculatedValue": 333333.3333333333
+        },
+        {
+          "budget": "$3,000.00",
+          "endDate": "2026-02-27T13:00:00.000Z",
+          "buyAmount": "$9.00",
+          "feeAmount": "$750.00",
+          "startDate": "2026-01-31T13:00:00.000Z",
+          "mediaAmount": "$3,000.00",
+          "calculatedValue": 333333.3333333333
+        },
+        {
+          "budget": "$3,000.00",
+          "endDate": "2026-03-30T13:00:00.000Z",
+          "buyAmount": "$9.00",
+          "feeAmount": "$750.00",
+          "startDate": "2026-02-28T13:00:00.000Z",
+          "mediaAmount": "$3,000.00",
+          "calculatedValue": 333333.3333333333
+        },
+        {
+          "budget": "$3,000.00",
+          "endDate": "2026-04-29T14:00:00.000Z",
+          "buyAmount": "$9.00",
+          "feeAmount": "$750.00",
+          "startDate": "2026-03-31T13:00:00.000Z",
+          "mediaAmount": "$3,000.00",
+          "calculatedValue": 333333.3333333333
+        },
+        {
+          "budget": "$3,000.00",
+          "endDate": "2026-05-30T14:00:00.000Z",
+          "buyAmount": "$9.00",
+          "feeAmount": "$750.00",
+          "startDate": "2026-04-30T14:00:00.000Z",
+          "mediaAmount": "$3,000.00",
+          "calculatedValue": 333333.3333333333
+        },
+        {
+          "budget": "$3,000.00",
+          "endDate": "2026-06-29T14:00:00.000Z",
+          "buyAmount": "$9.00",
+          "feeAmount": "$750.00",
+          "startDate": "2026-05-31T14:00:00.000Z",
+          "mediaAmount": "$3,000.00",
+          "calculatedValue": 333333.3333333333
+        }
+      ],
+      "attrs": {
+        "creative": "BAU - Carousel, Static, Video (Feed and Stories)",
+        "creative_targeting": "In-market audiences + retargeting"
+      }
+    },
+    {
+      "id": 13250,
+      "versionId": 938,
+      "channel": "search",
+      "lineItemId": "hema003SE1",
+      "position": 1,
+      "market": "National",
+      "buyingDemo": "PPL 25+",
+      "buyType": "cpc",
+      "publisher": null,
+      "platform": "Google Ads - AM",
+      "bidStrategy": "maximize_conversions",
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": false,
+      "bursts": [
+        {
+          "budget": "$7,000.00",
+          "endDate": "2026-01-30T13:00:00.000Z",
+          "buyAmount": "$1.00",
+          "feeAmount": "$1,750.00",
+          "startDate": "2025-12-31T13:00:00.000Z",
+          "mediaAmount": "$7,000.00",
+          "calculatedValue": 7000
+        },
+        {
+          "budget": "$7,000.00",
+          "endDate": "2026-02-27T13:00:00.000Z",
+          "buyAmount": "$1.00",
+          "feeAmount": "$1,750.00",
+          "startDate": "2026-01-31T13:00:00.000Z",
+          "mediaAmount": "$7,000.00",
+          "calculatedValue": 7000
+        },
+        {
+          "budget": "$7,000.00",
+          "endDate": "2026-03-30T13:00:00.000Z",
+          "buyAmount": "$1.00",
+          "feeAmount": "$1,750.00",
+          "startDate": "2026-02-28T13:00:00.000Z",
+          "mediaAmount": "$7,000.00",
+          "calculatedValue": 7000
+        },
+        {
+          "budget": "$7,000.00",
+          "endDate": "2026-04-29T14:00:00.000Z",
+          "buyAmount": "$1.00",
+          "feeAmount": "$1,750.00",
+          "startDate": "2026-03-31T13:00:00.000Z",
+          "mediaAmount": "$7,000.00",
+          "calculatedValue": 7000
+        },
+        {
+          "budget": "$7,000.00",
+          "endDate": "2026-05-30T14:00:00.000Z",
+          "buyAmount": "$1.00",
+          "feeAmount": "$1,750.00",
+          "startDate": "2026-04-30T14:00:00.000Z",
+          "mediaAmount": "$7,000.00",
+          "calculatedValue": 7000
+        },
+        {
+          "budget": "$7,000.00",
+          "endDate": "2026-06-29T14:00:00.000Z",
+          "buyAmount": "$1.00",
+          "feeAmount": "$1,750.00",
+          "startDate": "2026-05-31T14:00:00.000Z",
+          "mediaAmount": "$7,000.00",
+          "calculatedValue": 7000
+        }
+      ],
+      "attrs": {
+        "creative": "Text Ads",
+        "creative_targeting": "Shopping and search high intent keywords"
+      }
+    }
+  ],
+  "expectedBlobTotals": {
+    "fee": 15000,
+    "adserving": 0,
+    "production": 0
+  }
+}

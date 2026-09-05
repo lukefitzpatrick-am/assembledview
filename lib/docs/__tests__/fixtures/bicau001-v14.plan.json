@@ -1,0 +1,525 @@
+{
+  "source": "Postgres dump BICAU001 v14 for DOC-3 adapter fixtures",
+  "master": {
+    "id": 89,
+    "mbaNumber": "BICAU001",
+    "mpClientName": "BIC",
+    "publishedVersionId": 677
+  },
+  "version": {
+    "id": 677,
+    "versionNumber": 14,
+    "publishedAt": "2026-04-29 06:48:48.17+00",
+    "campaignName": "4 Colours FY26",
+    "brand": "BIC - Stationary",
+    "campaignStatus": "booked",
+    "campaignStartDate": "2025-12-01",
+    "campaignEndDate": "2026-04-14",
+    "poNumber": null,
+    "clientContact": "Katarina Marshall",
+    "campaignBudgetCents": 54449721,
+    "channelFlags": {
+      "ooh": false,
+      "radio": false,
+      "cinema": false,
+      "search": false,
+      "social": true,
+      "prog_ooh": false,
+      "digi_bvod": true,
+      "magazines": false,
+      "newspaper": false,
+      "prog_bvod": false,
+      "digi_audio": false,
+      "digi_video": false,
+      "production": true,
+      "prog_audio": false,
+      "prog_video": true,
+      "television": true,
+      "influencers": true,
+      "digi_display": false,
+      "integrations": false,
+      "prog_display": false
+    },
+    "legacySchedules": {
+      "billingSchedule": [
+        {
+          "monthYear": "December 2025",
+          "feeTotal": "$2,068.89",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "January 2026",
+          "feeTotal": "$3,136.44",
+          "adservingTechFees": "$1,060.22",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "February 2026",
+          "feeTotal": "$2,068.89",
+          "adservingTechFees": "$1,060.22",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "March 2026",
+          "feeTotal": "$2,578.33",
+          "adservingTechFees": "$1,060.22",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "April 2026",
+          "feeTotal": "$0.00",
+          "production": "$0.00"
+        }
+      ]
+    }
+  },
+  "feeSnapshot": {},
+  "lineItems": [
+    {
+      "id": 60,
+      "versionId": 677,
+      "channel": "television",
+      "lineItemId": "BICAU001TV2",
+      "position": 2,
+      "market": "Australia",
+      "buyingDemo": "18+",
+      "buyType": "bonus",
+      "publisher": null,
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": null,
+      "bursts": [
+        {
+          "fee": 0,
+          "size": "30s",
+          "tarps": "4",
+          "budget": "0",
+          "endDate": "2026-03-30T13:00:00.000Z",
+          "buyAmount": "0",
+          "startDate": "2026-02-28T13:00:00.000Z",
+          "calculatedValue": 4
+        }
+      ],
+      "attrs": {
+        "daypart": "Married At First Sight Program Sponsorship",
+        "network": "Nine",
+        "station": "Nine",
+        "creative": "",
+        "placement": "Solus Broadcast Billboards (Premiere & Encore)"
+      }
+    },
+    {
+      "id": 61,
+      "versionId": 677,
+      "channel": "television",
+      "lineItemId": "BICAU001TV1",
+      "position": 1,
+      "market": "Australia",
+      "buyingDemo": "18+",
+      "buyType": "spots",
+      "publisher": null,
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": null,
+      "bursts": [
+        {
+          "fee": 0,
+          "size": "30s",
+          "tarps": "50",
+          "budget": "$289,990.00",
+          "endDate": "2026-04-13T14:00:00.000Z",
+          "buyAmount": "$5,800.00",
+          "startDate": "2026-01-25T13:00:00.000Z",
+          "calculatedValue": 50
+        }
+      ],
+      "attrs": {
+        "daypart": "Married At First Sight Program Sponsorship",
+        "network": "Nine",
+        "station": "Nine",
+        "creative": "15\"",
+        "placement": "15\" First Run TVC"
+      }
+    },
+    {
+      "id": 62,
+      "versionId": 677,
+      "channel": "television",
+      "lineItemId": "BICAU001TV3",
+      "position": 3,
+      "market": "Australia",
+      "buyingDemo": "18+",
+      "buyType": "bonus",
+      "publisher": null,
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": null,
+      "bursts": [
+        {
+          "fee": 0,
+          "size": "30s",
+          "tarps": "1",
+          "budget": "0",
+          "endDate": "2026-03-30T13:00:00.000Z",
+          "buyAmount": "0",
+          "startDate": "2026-01-25T13:00:00.000Z",
+          "calculatedValue": 1
+        }
+      ],
+      "attrs": {
+        "daypart": "Married At First Sight Program Sponsorship",
+        "network": "Nine",
+        "station": "Nine",
+        "creative": "",
+        "placement": "15\" TVCs - $60k Bonus Commitment"
+      }
+    },
+    {
+      "id": 63,
+      "versionId": 677,
+      "channel": "television",
+      "lineItemId": "BICAU001TV4",
+      "position": 4,
+      "market": "Australia",
+      "buyingDemo": "18+",
+      "buyType": "bonus",
+      "publisher": null,
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": null,
+      "bursts": [
+        {
+          "fee": 0,
+          "size": "30s",
+          "tarps": "4",
+          "budget": "0",
+          "endDate": "2026-03-30T13:00:00.000Z",
+          "buyAmount": "0",
+          "startDate": "2026-01-25T13:00:00.000Z",
+          "calculatedValue": 4
+        }
+      ],
+      "attrs": {
+        "daypart": "Married At First Sight Program Sponsorship",
+        "network": "Nine",
+        "station": "Nine",
+        "creative": "",
+        "placement": "1x In-show 4 Colours Pen integration + 1 x BONUS  In-show Vivid Marker integration"
+      }
+    },
+    {
+      "id": 13364,
+      "versionId": 677,
+      "channel": "influencers",
+      "lineItemId": "BICAU001IN1",
+      "position": 1,
+      "market": null,
+      "buyingDemo": null,
+      "buyType": null,
+      "publisher": null,
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": false,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "",
+          "endDate": "2026-04-13T14:00:00.000Z",
+          "buyAmount": "",
+          "startDate": "2025-11-30T13:00:00.000Z",
+          "calculatedValue": 0
+        }
+      ],
+      "attrs": {
+        "campaign": "",
+        "objective": "",
+        "targeting_attribute": ""
+      }
+    },
+    {
+      "id": 10093,
+      "versionId": 677,
+      "channel": "prog_video",
+      "lineItemId": "BICAU001ML1",
+      "position": 1,
+      "market": "Australia",
+      "buyingDemo": "W18+",
+      "buyType": "cpv",
+      "publisher": null,
+      "platform": "YouTube - DV360",
+      "bidStrategy": "completed_views",
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": true,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$8,500.00",
+          "endDate": "2026-01-30T13:00:00.000Z",
+          "buyAmount": "$0.03",
+          "startDate": "2025-12-31T13:00:00.000Z",
+          "calculatedValue": 283333.3333333334
+        },
+        {
+          "fee": 0,
+          "budget": "$4,585.00",
+          "endDate": "2026-03-30T13:00:00.000Z",
+          "buyAmount": "$0.03",
+          "startDate": "2026-02-28T13:00:00.000Z",
+          "calculatedValue": 152833.33333333334
+        }
+      ],
+      "attrs": {
+        "creative": "15 sec video",
+        "creative_targeting": "Women 18-44, MGBs"
+      }
+    },
+    {
+      "id": 11549,
+      "versionId": 677,
+      "channel": "digi_bvod",
+      "lineItemId": "BICAU001BV1",
+      "position": 1,
+      "market": "Australia",
+      "buyingDemo": "18+",
+      "buyType": "cpm",
+      "publisher": "Nine",
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": false,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$36,667.00",
+          "endDate": "2026-01-30T13:00:00.000Z",
+          "buyAmount": "$36.00",
+          "startDate": "2025-12-31T13:00:00.000Z",
+          "calculatedValue": 1018528
+        },
+        {
+          "fee": 0,
+          "budget": "$36,667.00",
+          "endDate": "2026-02-27T13:00:00.000Z",
+          "buyAmount": "$36.00",
+          "startDate": "2026-01-31T13:00:00.000Z",
+          "calculatedValue": 1018528
+        },
+        {
+          "fee": 0,
+          "budget": "$36,667.00",
+          "endDate": "2026-03-30T13:00:00.000Z",
+          "buyAmount": "$36.00",
+          "startDate": "2026-02-28T13:00:00.000Z",
+          "calculatedValue": 1018528
+        }
+      ],
+      "attrs": {
+        "site": "NineNow",
+        "creative": "15\" pre & mid rolls",
+        "creative_targeting": "Married At First Sight BVOD programing - Standard"
+      }
+    },
+    {
+      "id": 11550,
+      "versionId": 677,
+      "channel": "digi_bvod",
+      "lineItemId": "BICAU001BV2",
+      "position": 2,
+      "market": "New Zealand",
+      "buyingDemo": "18+",
+      "buyType": "cpm",
+      "publisher": "TV New Zealand",
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": false,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$7,600.00",
+          "endDate": "2026-01-30T13:00:00.000Z",
+          "buyAmount": "$44.00",
+          "startDate": "2025-12-31T13:00:00.000Z",
+          "calculatedValue": 172727
+        },
+        {
+          "fee": 0,
+          "budget": "$7,600.00",
+          "endDate": "2026-02-27T13:00:00.000Z",
+          "buyAmount": "$44.00",
+          "startDate": "2026-01-31T13:00:00.000Z",
+          "calculatedValue": 172727
+        },
+        {
+          "fee": 0,
+          "budget": "$7,600.00",
+          "endDate": "2026-03-30T13:00:00.000Z",
+          "buyAmount": "$44.00",
+          "startDate": "2026-02-28T13:00:00.000Z",
+          "calculatedValue": 172727
+        }
+      ],
+      "attrs": {
+        "site": "TVNZ On Demand",
+        "creative": "15\" pre & mid rolls",
+        "creative_targeting": "Married At First Sight BVOD programing - Standard"
+      }
+    },
+    {
+      "id": 12376,
+      "versionId": 677,
+      "channel": "social",
+      "lineItemId": "BICAU001SM1",
+      "position": 1,
+      "market": "Australia",
+      "buyingDemo": "Women 18-44, MGBs",
+      "buyType": "cpm",
+      "publisher": null,
+      "platform": "Meta",
+      "bidStrategy": "completed_views",
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": null,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$9,310.00",
+          "endDate": "2025-12-30T13:00:00.000Z",
+          "buyAmount": "$7.00",
+          "startDate": "2025-11-30T13:00:00.000Z",
+          "calculatedValue": 1330000
+        },
+        {
+          "fee": 0,
+          "budget": "$9,864.00",
+          "endDate": "2026-01-30T13:00:00.000Z",
+          "buyAmount": "$7.00",
+          "startDate": "2025-12-31T13:00:00.000Z",
+          "calculatedValue": 1409142.857142857
+        },
+        {
+          "fee": 0,
+          "budget": "$9,310.00",
+          "endDate": "2026-02-27T13:00:00.000Z",
+          "buyAmount": "$7.00",
+          "startDate": "2026-01-31T13:00:00.000Z",
+          "calculatedValue": 1330000
+        },
+        {
+          "fee": 0,
+          "budget": "$9,310.00",
+          "endDate": "2026-03-30T13:00:00.000Z",
+          "buyAmount": "$7.00",
+          "startDate": "2026-02-28T13:00:00.000Z",
+          "calculatedValue": 1330000
+        }
+      ],
+      "attrs": {
+        "creative": "Feed and Stories ads: Static carousels and UGC videos",
+        "creative_targeting": "Women 18-44, MGBs"
+      }
+    },
+    {
+      "id": 12377,
+      "versionId": 677,
+      "channel": "social",
+      "lineItemId": "BICAU001SM2",
+      "position": 2,
+      "market": "Australia",
+      "buyingDemo": "Women 18-44, MGBs",
+      "buyType": "cpm",
+      "publisher": null,
+      "platform": "TikTok",
+      "bidStrategy": "completed_views",
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": null,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$9,310.00",
+          "endDate": "2025-12-30T13:00:00.000Z",
+          "buyAmount": "$7.00",
+          "startDate": "2025-11-30T13:00:00.000Z",
+          "calculatedValue": 1330000
+        },
+        {
+          "fee": 0,
+          "budget": "$9,864.00",
+          "endDate": "2026-01-30T13:00:00.000Z",
+          "buyAmount": "$7.00",
+          "startDate": "2025-12-31T13:00:00.000Z",
+          "calculatedValue": 1409142.857142857
+        },
+        {
+          "fee": 0,
+          "budget": "$9,310.00",
+          "endDate": "2026-02-27T13:00:00.000Z",
+          "buyAmount": "$7.00",
+          "startDate": "2026-01-31T13:00:00.000Z",
+          "calculatedValue": 1330000
+        },
+        {
+          "fee": 0,
+          "budget": "$9,310.00",
+          "endDate": "2026-03-30T13:00:00.000Z",
+          "buyAmount": "$7.00",
+          "startDate": "2026-02-28T13:00:00.000Z",
+          "calculatedValue": 1330000
+        }
+      ],
+      "attrs": {
+        "creative": "Feed and Stories ads: Static carousels and UGC videos",
+        "creative_targeting": "Women 18-44, MGBs"
+      }
+    },
+    {
+      "id": 13593,
+      "versionId": 677,
+      "channel": "production",
+      "lineItemId": "BICAU001-production-v677-p1",
+      "position": 1,
+      "market": "Australia",
+      "buyingDemo": null,
+      "buyType": null,
+      "publisher": "Nine",
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": null,
+      "budgetIncludesFees": null,
+      "noAdserving": null,
+      "bursts": [
+        {
+          "cost": 0,
+          "amount": 1,
+          "market": "Australia",
+          "endDate": "2026-01-20",
+          "startDate": "2026-01-20",
+          "description": "Solus Billboard Production"
+        }
+      ],
+      "attrs": {
+        "media_type": "Production",
+        "description": "Solus Billboard Production"
+      }
+    }
+  ],
+  "expectedBlobTotals": {
+    "fee": 9852.55,
+    "adserving": 3180.66,
+    "production": 0
+  }
+}

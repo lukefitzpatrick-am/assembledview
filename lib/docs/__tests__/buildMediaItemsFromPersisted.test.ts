@@ -176,4 +176,97 @@ describe("buildMediaItemsFromPlanDetail", () => {
     })
     assert.equal(foundGross, true)
   })
+
+  it("keeps snapshot fees when a billing blob is also present (glenda008 v6)", () => {
+    const result = buildMediaItemsFromPlanDetail({
+      versionData: versionMapped({
+        legacySchedules: {
+          billingSchedule: [{ monthYear: "July 2026", feeTotal: "$99,999.00" }],
+        },
+      }),
+      clientName: dump.master.mpClientName,
+      lineItems: groupedLines(),
+      feeSnapshot: dump.feeSnapshot,
+      publishers: [],
+      logoBase64: LOGO,
+    })
+    assert.equal(result.mbaData.totals.service_fee, 5_000)
+  })
+})
+
+type Doc3Dump = {
+  master: { mbaNumber: string; mpClientName: string }
+  version: Record<string, unknown>
+  feeSnapshot: Record<string, unknown>
+  lineItems: Record<string, unknown>[]
+  expectedBlobTotals: { fee: number; adserving: number }
+}
+
+function loadDoc3Dump(name: string): Doc3Dump {
+  return JSON.parse(readFileSync(join(here, "fixtures", name), "utf8")) as Doc3Dump
+}
+
+function detailFromDump(plan: Doc3Dump) {
+  return buildMediaItemsFromPlanDetail({
+    versionData: mapPlanVersionFromPostgres({
+      ...plan.version,
+      mbaNumber: plan.master.mbaNumber,
+      masterId: 0,
+    }),
+    clientName: plan.master.mpClientName,
+    lineItems: groupLineItemsByMbaGetKey(plan.lineItems, {
+      versionId: Number(plan.version.id),
+      versionNumber: Number(plan.version.versionNumber),
+      mbaNumber: plan.master.mbaNumber,
+      mpClientName: plan.master.mpClientName,
+    }),
+    feeSnapshot: plan.feeSnapshot,
+    publishers: [],
+    logoBase64: LOGO,
+  })
+}
+
+describe("buildMediaItemsFromPlanDetail DOC-3 dumps (empty snapshot)", () => {
+  it("PENFOLD001 v16 newspaper / ooh / bvod: blob $15 fee, channel rows present", () => {
+    const plan = loadDoc3Dump("penfold001-v16.plan.json")
+    const result = detailFromDump(plan)
+    assert.ok(result.mediaItems.newspaper.length > 0)
+    assert.ok(result.mediaItems.ooh.length > 0)
+    assert.ok(result.mediaItems.bvod.length > 0)
+    assert.equal(result.mbaData.totals.service_fee, plan.expectedBlobTotals.fee)
+    assert.equal(result.mbaData.totals.service_fee, 15)
+    // December 2025 ($5) sits before campaign start 2026-01-04; full blob still counts it.
+
+  })
+
+  it("golf002 v28 social / prog_video: blob $15,028 fee", () => {
+    const plan = loadDoc3Dump("golf002-v28.plan.json")
+    const result = detailFromDump(plan)
+    assert.ok(result.mediaItems.socialMedia.length > 0)
+    assert.ok(result.mediaItems.progVideo.length > 0)
+    assert.equal(result.mbaData.totals.service_fee, 15_028)
+    assert.equal(result.mbaData.totals.adserving, 0)
+  })
+
+  it("hema003 v20 search / social: blob $15,000 fee", () => {
+    const plan = loadDoc3Dump("hema003-v20.plan.json")
+    const result = detailFromDump(plan)
+    assert.ok(result.mediaItems.search.length > 0)
+    assert.ok(result.mediaItems.socialMedia.length > 0)
+    assert.equal(result.mbaData.totals.service_fee, 15_000)
+  })
+
+  it("BICAU001 v14 television / influencers: blob fee and adserving", () => {
+    const plan = loadDoc3Dump("bicau001-v14.plan.json")
+    const result = detailFromDump(plan)
+    assert.ok(result.mediaItems.television.length > 0)
+    // Influencers line is a $0 placeholder (empty budget) — correctly dropped
+    // from Excel burst rows; the totals block still lists the channel from flags.
+    assert.equal(result.mediaItems.influencers.length, 0)
+    assert.ok(
+      result.mbaData.gross_media.some((row) => row.media_type === "Influencers"),
+    )
+    assert.equal(result.mbaData.totals.service_fee, 9_852.55)
+    assert.equal(result.mbaData.totals.adserving, 3_180.66)
+  })
 })

@@ -7,24 +7,11 @@
 import { eq } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
-import { generateMBA } from "@/lib/generateMBA"
-import { generateMediaPlan } from "@/lib/generateMediaPlan"
-import {
-  buildMbaFromPersisted,
-  PersistedDocError,
-} from "@/lib/docs/buildMbaFromPersisted"
-import { buildMediaItemsFromPersisted } from "@/lib/docs/buildMediaItemsFromPersisted"
+import { renderPlanVersionDocuments } from "@/lib/docs/renderPlanVersionDocuments"
 import {
   storePlanVersionDocuments,
   type PlanDocumentFileLike,
 } from "@/lib/docs/storePlanVersionDocuments"
-import {
-  advertisingAssociatesFilteredPlanHasLineItems,
-  filterMediaItemsForAdvertisingAssociates,
-  planHasAdvertisingAssociatesLineItem,
-  shouldIncludeMediaPlanLineItem,
-  buildAdvertisingAssociatesMbaDataFromMediaItems,
-} from "@/lib/mediaplan/advertisingAssociatesExcel"
 import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 import {
   PLAN_DOCUMENT_KINDS,
@@ -68,16 +55,6 @@ function namedFile(
   mime: string,
 ): PlanDocumentFileLike {
   return new File([body as BlobPart], filename, { type: mime })
-}
-
-function mediaPlanFilename(
-  client: string,
-  campaignName: string,
-  versionNumber: number,
-  aa: boolean,
-): string {
-  const base = `${client || "client"}-MediaPlan_${campaignName || "campaign"}-v${versionNumber}.xlsx`
-  return aa ? `AA - ${base}` : base
 }
 
 export async function regeneratePlanVersionDocuments(
@@ -128,106 +105,31 @@ export async function regeneratePlanVersionDocuments(
   } = {}
 
   const publishedAtDate = row.publishedAt ? new Date(row.publishedAt) : new Date()
-
-  let adapter: Awaited<ReturnType<typeof buildMediaItemsFromPersisted>> | null = null
-  const loadAdapter = async () => {
-    if (!adapter) {
-      adapter = await buildMediaItemsFromPersisted({
-        mbaNumber: row.mbaNumber,
-        versionNumber: row.versionNumber,
-      })
-    }
-    return adapter
-  }
-
+  const kindsToRender: PlanDocumentKind[] = []
   for (const kind of kinds) {
     if (!force && columnHasFile(existing[kind])) {
       results.push({ kind, status: "skipped" })
-      continue
+    } else {
+      kindsToRender.push(kind)
     }
-    try {
-      if (kind === "mba_pdf") {
-        const rendered = await buildMbaFromPersisted({
-          mbaNumber: row.mbaNumber,
-          versionNumber: row.versionNumber,
-          now: publishedAtDate,
-        })
-        const pdf = await generateMBA(rendered.mbaData)
-        files.mba_pdf = namedFile(pdf, rendered.filename, "application/pdf")
-        results.push({ kind, status: "written" })
-        continue
-      }
+  }
 
-      const built = await loadAdapter()
-      if (kind === "media_plan") {
-        const workbook = await generateMediaPlan(
-          built.header,
-          built.mediaItems,
-          built.mbaData,
-        )
-        const filename = mediaPlanFilename(
-          built.header.client,
-          built.header.campaignName,
-          row.versionNumber,
-          false,
-        )
-        const buffer = Buffer.from(
-          (await workbook.xlsx.writeBuffer()) as ArrayBuffer,
-        )
-        files.media_plan = namedFile(
-          buffer,
-          filename,
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-        results.push({ kind, status: "written" })
-        continue
+  if (kindsToRender.length > 0) {
+    const rendered = await renderPlanVersionDocuments({
+      mbaNumber: row.mbaNumber,
+      versionNumber: row.versionNumber,
+      kinds: kindsToRender,
+      now: publishedAtDate,
+    })
+    if (rendered.status === "not_published") {
+      return { status: "not_published", code: "NOT_PUBLISHED" }
+    }
+    for (const result of rendered.results) {
+      results.push(result)
+      const file = rendered.files[result.kind]
+      if (file && result.status === "written") {
+        files[result.kind] = namedFile(file.buffer, file.filename, file.mime)
       }
-
-      if (
-        !planHasAdvertisingAssociatesLineItem(
-          built.mediaItems,
-          built.publishers,
-          shouldIncludeMediaPlanLineItem,
-        )
-      ) {
-        results.push({ kind: "aa_media_plan", status: "not_applicable" })
-        continue
-      }
-      const aaFiltered = filterMediaItemsForAdvertisingAssociates(
-        built.mediaItems,
-        built.publishers,
-      )
-      if (!advertisingAssociatesFilteredPlanHasLineItems(aaFiltered)) {
-        results.push({ kind: "aa_media_plan", status: "not_applicable" })
-        continue
-      }
-      const aaMba = buildAdvertisingAssociatesMbaDataFromMediaItems(aaFiltered)
-      const workbook = await generateMediaPlan(built.header, aaFiltered, aaMba, {
-        mbaTotalsLayout: "aa",
-      })
-      const filename = mediaPlanFilename(
-        built.header.client,
-        built.header.campaignName,
-        row.versionNumber,
-        true,
-      )
-      const buffer = Buffer.from(
-        (await workbook.xlsx.writeBuffer()) as ArrayBuffer,
-      )
-      files.aa_media_plan = namedFile(
-        buffer,
-        filename,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      )
-      results.push({ kind, status: "written" })
-    } catch (err) {
-      const message =
-        err instanceof PersistedDocError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : String(err)
-      results.push({ kind, status: "error", error: message })
     }
   }
 

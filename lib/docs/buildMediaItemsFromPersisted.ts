@@ -41,7 +41,7 @@ import {
   computeDeliverableFromMedia,
   type BuyType,
 } from "@/lib/mediaplan/deliverableBudget"
-import { formatAUD, parseMoneyInput } from "@/lib/format/money"
+import { formatAUD, parseMoneyInput, roundMoney2 } from "@/lib/format/money"
 import {
   buildEditorLineItemInputs,
   buildFeeLoadingFromEditorFees,
@@ -49,6 +49,11 @@ import {
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { resolveFeePctFromFeeLoading } from "@/lib/finance/computeCampaignFinancials"
+import { addGst } from "@/lib/finance/gst"
+import {
+  feeSnapshotHasRates,
+  sumLegacyBillingTotals,
+} from "@/lib/docs/legacyBillingTotals"
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 import { shouldIncludeMediaPlanLineItem } from "@/lib/mediaplan/advertisingAssociatesExcel"
 import {
@@ -415,12 +420,37 @@ export function buildMediaItemsFromPlanDetail(
     mediaByKey[line.mediaType] = (mediaByKey[line.mediaType] ?? 0) + line.media
   }
 
-  const mbaData = buildMediaPlanWorkbookMbaData({
+  let mbaData = buildMediaPlanWorkbookMbaData({
     mediaTypes: MEDIA_PLAN_WORKBOOK_MEDIA_TYPES,
     formFlags: args.versionData,
     campaignFinancialsMediaByKey: mediaByKey,
     mbaScopeTotals: financials.mbaScopeTotals,
   })
+
+  // Historic published cuts often have no mba_fee_snapshots row. Explode still
+  // uses burstAmounts (gross media). Totals fee/adserving come from the frozen
+  // billing blob so regenerated Excel matches the Xano-era workbook.
+  if (!feeSnapshotHasRates(args.feeSnapshot)) {
+    const blob = sumLegacyBillingTotals(args.versionData.billingSchedule)
+    if (blob.fee !== 0 || blob.adserving !== 0) {
+      const exGst = roundMoney2(
+        mbaData.totals.gross_media +
+          blob.fee +
+          mbaData.totals.production +
+          blob.adserving,
+      )
+      mbaData = {
+        ...mbaData,
+        totals: {
+          ...mbaData.totals,
+          service_fee: blob.fee,
+          adserving: blob.adserving,
+          totals_ex_gst: exGst,
+          total_inc_gst: addGst(exGst),
+        },
+      }
+    }
+  }
 
   const budgetRaw = args.versionData.mp_campaignbudget
   const header: MediaPlanHeader = {
@@ -464,6 +494,9 @@ export async function buildMediaItemsFromPersisted(args: {
   const result = await readMbaPlanDetailFromPostgres({
     mbaNumber: args.mbaNumber,
     requestedVersionNumber: args.versionNumber,
+    // Default assemble trims billing months to campaign dates. Overlay needs
+    // the frozen blob in full (PENFOLD001 v16 December fee sits before start).
+    billingScheduleFull: true,
   })
   if (!result.ok) {
     throw new PersistedDocError("NOT_FOUND", result.error)

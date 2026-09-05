@@ -1,0 +1,442 @@
+{
+  "source": "Postgres dump PENFOLD001 v16 for DOC-3 adapter fixtures",
+  "master": {
+    "id": 93,
+    "mbaNumber": "PENFOLD001",
+    "mpClientName": "Penfolds",
+    "publishedVersionId": 336
+  },
+  "version": {
+    "id": 336,
+    "versionNumber": 16,
+    "publishedAt": "2026-02-26 23:33:41.957+00",
+    "campaignName": "Lunar New Year 2026",
+    "brand": "Penfolds ANZ",
+    "campaignStatus": "booked",
+    "campaignStartDate": "2026-01-04",
+    "campaignEndDate": "2026-03-03",
+    "poNumber": null,
+    "clientContact": "Katherine Tunaley",
+    "campaignBudgetCents": 3001500,
+    "channelFlags": {
+      "ooh": true,
+      "radio": false,
+      "cinema": false,
+      "search": false,
+      "social": false,
+      "prog_ooh": false,
+      "digi_bvod": true,
+      "magazines": false,
+      "newspaper": true,
+      "prog_bvod": false,
+      "digi_audio": false,
+      "digi_video": false,
+      "production": false,
+      "prog_audio": false,
+      "prog_video": false,
+      "television": false,
+      "influencers": false,
+      "digi_display": false,
+      "integrations": false,
+      "prog_display": false
+    },
+    "legacySchedules": {
+      "billingSchedule": [
+        {
+          "monthYear": "January 2026",
+          "feeTotal": "$5.00"
+        },
+        {
+          "monthYear": "February 2026",
+          "feeTotal": "$10.00"
+        },
+        {
+          "monthYear": "March 2026",
+          "feeTotal": "$0.00"
+        }
+      ]
+    }
+  },
+  "feeSnapshot": {},
+  "lineItems": [
+    {
+      "id": 1575,
+      "versionId": 336,
+      "channel": "newspaper",
+      "lineItemId": "PENFOLD001NP2",
+      "position": 2,
+      "market": "Melbourne",
+      "buyingDemo": "P25+",
+      "buyType": "insertions",
+      "publisher": null,
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": null,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$1,500.00",
+          "endDate": "2026-01-31T13:00:00.000Z",
+          "buyAmount": "$1,500.00",
+          "startDate": "2026-01-31T13:00:00.000Z",
+          "calculatedValue": 1
+        },
+        {
+          "fee": 0,
+          "budget": "$1,500.00",
+          "endDate": "2026-02-28T13:00:00.000Z",
+          "buyAmount": "$1,500.00",
+          "startDate": "2026-02-28T13:00:00.000Z",
+          "calculatedValue": 1
+        }
+      ],
+      "attrs": {
+        "size": "Full Page",
+        "title": "Melbourne Chinese Post",
+        "format": "",
+        "network": "Leba",
+        "placement": "Full Page, Sunday\nPO:"
+      }
+    },
+    {
+      "id": 1576,
+      "versionId": 336,
+      "channel": "newspaper",
+      "lineItemId": "PENFOLD001NP1",
+      "position": 1,
+      "market": "National",
+      "buyingDemo": "P25+",
+      "buyType": "insertions",
+      "publisher": null,
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": null,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$2,500.00",
+          "endDate": "2026-02-20T13:00:00.000Z",
+          "buyAmount": "$2,500.00",
+          "startDate": "2026-02-20T13:00:00.000Z",
+          "calculatedValue": 1
+        },
+        {
+          "fee": 0,
+          "budget": "$2,500.00",
+          "endDate": "2026-02-27T13:00:00.000Z",
+          "buyAmount": "$2,500.00",
+          "startDate": "2026-02-27T13:00:00.000Z",
+          "calculatedValue": 1
+        }
+      ],
+      "attrs": {
+        "size": "Full Page",
+        "title": "Australian Chinese Daily",
+        "format": "",
+        "network": "Leba",
+        "placement": "Full Page, Saturday\nPO:"
+      }
+    },
+    {
+      "id": 2465,
+      "versionId": 336,
+      "channel": "ooh",
+      "lineItemId": "PENFOLD001ML1",
+      "position": 1,
+      "market": "New South Wales",
+      "buyingDemo": "P25+",
+      "buyType": "panels",
+      "publisher": null,
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": false,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$1,000.00",
+          "endDate": "2026-01-31T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-01-25T13:00:00.000Z",
+          "calculatedValue": 8
+        },
+        {
+          "fee": 0,
+          "budget": "$1,000.00",
+          "endDate": "2026-02-07T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-02-01T13:00:00.000Z",
+          "calculatedValue": 8
+        },
+        {
+          "fee": 0,
+          "budget": "$1,125.00",
+          "endDate": "2026-02-14T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-02-08T13:00:00.000Z",
+          "calculatedValue": 9
+        },
+        {
+          "fee": 0,
+          "budget": "$1,250.00",
+          "endDate": "2026-02-21T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-02-15T13:00:00.000Z",
+          "calculatedValue": 10
+        },
+        {
+          "fee": 0,
+          "budget": "$1,250.00",
+          "endDate": "2026-02-28T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-02-22T13:00:00.000Z",
+          "calculatedValue": 10
+        }
+      ],
+      "attrs": {
+        "size": "Small Format | Path to Purchase",
+        "type": "Digital",
+        "format": "small_format",
+        "network": "Cartology",
+        "placement": "Specific Liquor Stores | Prioitise Highlighted Dan Murphy's Stores | Audience Targeting: P25+ / High Net Worth / Luxury Aware / Chinese and South-East Asian Classic & Status Connoisseurs"
+      }
+    },
+    {
+      "id": 2466,
+      "versionId": 336,
+      "channel": "ooh",
+      "lineItemId": "PENFOLD001ML2",
+      "position": 2,
+      "market": "Victoria",
+      "buyingDemo": "P25+",
+      "buyType": "panels",
+      "publisher": null,
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": false,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$1,000.00",
+          "endDate": "2026-01-31T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-01-25T13:00:00.000Z",
+          "calculatedValue": 8
+        },
+        {
+          "fee": 0,
+          "budget": "$1,000.00",
+          "endDate": "2026-02-07T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-02-01T13:00:00.000Z",
+          "calculatedValue": 8
+        },
+        {
+          "fee": 0,
+          "budget": "$1,125.00",
+          "endDate": "2026-02-14T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-02-08T13:00:00.000Z",
+          "calculatedValue": 9
+        },
+        {
+          "fee": 0,
+          "budget": "$1,250.00",
+          "endDate": "2026-02-21T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-02-15T13:00:00.000Z",
+          "calculatedValue": 10
+        },
+        {
+          "fee": 0,
+          "budget": "$1,250.00",
+          "endDate": "2026-02-28T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-02-22T13:00:00.000Z",
+          "calculatedValue": 10
+        }
+      ],
+      "attrs": {
+        "size": "Small Format | Path to Purchase",
+        "type": "Digital",
+        "format": "small_format",
+        "network": "Cartology",
+        "placement": "Specific Liquor Stores | Prioitise Highlighted Dan Murphy's Stores | Audience Targeting: P25+ / High Net Worth / Luxury Aware / Chinese and South-East Asian Classic & Status Connoisseurs"
+      }
+    },
+    {
+      "id": 2467,
+      "versionId": 336,
+      "channel": "ooh",
+      "lineItemId": "PENFOLD001ML5",
+      "position": 5,
+      "market": "Eastern Seaboard",
+      "buyingDemo": "P25+",
+      "buyType": "bonus",
+      "publisher": null,
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": false,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$0.00",
+          "endDate": "2026-02-28T13:00:00.000Z",
+          "buyAmount": "$0.00",
+          "startDate": "2026-01-25T13:00:00.000Z",
+          "calculatedValue": 24
+        }
+      ],
+      "attrs": {
+        "size": "Small Format | Path to Purchase",
+        "type": "Digital",
+        "format": "small_format",
+        "network": "Cartology",
+        "placement": "Subject to Availability Bonus"
+      }
+    },
+    {
+      "id": 2468,
+      "versionId": 336,
+      "channel": "ooh",
+      "lineItemId": "PENFOLD001ML3",
+      "position": 3,
+      "market": "Queensland",
+      "buyingDemo": "P25+",
+      "buyType": "panels",
+      "publisher": null,
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": false,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$500.00",
+          "endDate": "2026-01-31T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-01-25T13:00:00.000Z",
+          "calculatedValue": 4
+        },
+        {
+          "fee": 0,
+          "budget": "$750.00",
+          "endDate": "2026-02-07T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-02-01T13:00:00.000Z",
+          "calculatedValue": 6
+        },
+        {
+          "fee": 0,
+          "budget": "$750.00",
+          "endDate": "2026-02-14T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-02-08T13:00:00.000Z",
+          "calculatedValue": 6
+        },
+        {
+          "fee": 0,
+          "budget": "$875.00",
+          "endDate": "2026-02-21T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-02-15T13:00:00.000Z",
+          "calculatedValue": 7
+        },
+        {
+          "fee": 0,
+          "budget": "$875.00",
+          "endDate": "2026-02-28T13:00:00.000Z",
+          "buyAmount": "$125.00",
+          "startDate": "2026-02-22T13:00:00.000Z",
+          "calculatedValue": 7
+        }
+      ],
+      "attrs": {
+        "size": "Small Format | Path to Purchase",
+        "type": "Digital",
+        "format": "small_format",
+        "network": "Cartology",
+        "placement": "Specific Liquor Stores | Prioitise Highlighted Dan Murphy's Stores | Audience Targeting: P25+ / High Net Worth / Luxury Aware / Chinese and South-East Asian Classic & Status Connoisseurs"
+      }
+    },
+    {
+      "id": 2469,
+      "versionId": 336,
+      "channel": "ooh",
+      "lineItemId": "PENFOLD001ML4",
+      "position": 4,
+      "market": "Eastern Seaboard",
+      "buyingDemo": "P25+",
+      "buyType": "bonus",
+      "publisher": null,
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": false,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$0.00",
+          "endDate": "2026-02-28T13:00:00.000Z",
+          "buyAmount": "$0.00",
+          "startDate": "2026-01-25T13:00:00.000Z",
+          "calculatedValue": 12
+        }
+      ],
+      "attrs": {
+        "size": "Small Format | Path to Purchase",
+        "type": "Digital",
+        "format": "small_format",
+        "network": "Cartology",
+        "placement": "Guaranteed Bonus"
+      }
+    },
+    {
+      "id": 11500,
+      "versionId": 336,
+      "channel": "digi_bvod",
+      "lineItemId": "PENFOLD001BV1",
+      "position": 1,
+      "market": "Eastern Seaboard",
+      "buyingDemo": "P25+",
+      "buyType": "cpm",
+      "publisher": "Leba",
+      "platform": null,
+      "bidStrategy": null,
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": true,
+      "bursts": [
+        {
+          "fee": 0,
+          "budget": "$7,000.00",
+          "endDate": "2026-03-02T13:00:00.000Z",
+          "buyAmount": "$30.00",
+          "startDate": "2026-02-16T13:00:00.000Z",
+          "calculatedValue": 233333.33333333334
+        }
+      ],
+      "attrs": {
+        "site": "TVB APP",
+        "creative": "30\" Pre-Roll",
+        "creative_targeting": "Chinese and South-East Asian Classic & Status Connoisseurs"
+      }
+    }
+  ],
+  "expectedBlobTotals": {
+    "fee": 15,
+    "adserving": 0,
+    "production": 0
+  }
+}

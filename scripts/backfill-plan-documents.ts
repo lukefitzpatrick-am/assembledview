@@ -6,15 +6,31 @@
  * POST /api/mediaplans/versions/[id]/documents/regenerate). Never mutates
  * approved_slice, published_at, schedule_months, or line items.
  *
+ * `--out <dir>` with `--mba` and `--version` writes the three files to disk
+ * and makes no Blob upload and no Postgres write. The selected version may
+ * be a historic published cut (not the master's published_version_id);
+ * isVersionPublished still gates generate.
+ *
  * Usage:
  *   npm run docs:backfill              # dry-run (default)
  *   npm run docs:backfill -- --apply
  *   npm run docs:backfill -- --mba glenda008
+ *   npm run docs:backfill -- --out tmp/parity --mba PENFOLD001 --version 16
  *   npm run docs:backfill -- --apply --force
  */
 
+import { mkdirSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm"
 
+import {
+  parseBackfillPlanDocumentsArgs,
+  planDocumentOutFilenames,
+  storedPlanDocumentOutFilenames,
+} from "@/lib/docs/backfillPlanDocumentsArgs"
+import { parsePlanFileJson, type PlanDocumentKind } from "@/lib/docs/planVersionFiles"
+import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 import { loadEnvLocal } from "@/scripts/migration/_shared"
 
 loadEnvLocal()
@@ -30,29 +46,6 @@ type Candidate = {
   mbaPdfFile: unknown
   mediaPlanFile: unknown
   aaMediaPlanFile: unknown
-}
-
-function parseArgs(argv: string[]) {
-  let apply = false
-  let force = false
-  let mba: string | null = null
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i]
-    if (arg === "--apply") apply = true
-    else if (arg === "--force") force = true
-    else if (arg === "--dry-run") apply = false
-    else if (arg === "--mba") {
-      mba = argv[i + 1] ?? null
-      i++
-    } else if (arg.startsWith("--mba=")) {
-      mba = arg.slice("--mba=".length)
-    }
-  }
-  return {
-    apply,
-    force,
-    mba: mba?.trim() ? mba.trim() : null,
-  }
 }
 
 function hasFile(value: unknown): boolean {
@@ -94,9 +87,179 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function main() {
+function isVercelBlobUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return host.endsWith("vercel-storage.com") || host.endsWith("blob.vercel-storage.com")
+  } catch {
+    return false
+  }
+}
+
+async function fetchStoredPlanFile(
+  file: unknown,
+  publishedAt: string | null,
+): Promise<Buffer | null> {
+  const parsed = parsePlanFileJson(file, publishedAt)
+  if (!parsed) return null
+  const obj =
+    file && typeof file === "object" && !Array.isArray(file)
+      ? (file as Record<string, unknown>)
+      : null
+  const pathname =
+    typeof obj?.pathname === "string" &&
+    obj.pathname.trim() &&
+    !obj.pathname.trim().startsWith("http")
+      ? obj.pathname.trim()
+      : null
+  const blobTarget = pathname ?? (isVercelBlobUrl(parsed.url) ? parsed.url : null)
+  if (blobTarget) {
+    const { getPrivateBlob } = await import("@/lib/creative/getPrivateBlob")
+    const blobResult = await getPrivateBlob(blobTarget)
+    if (!blobResult || blobResult.statusCode !== 200 || !blobResult.blob) return null
+    const bytes = await blobResult.blob.arrayBuffer()
+    return Buffer.from(bytes)
+  }
+  const upstream = await fetch(parsed.url)
+  if (!upstream.ok) return null
+  return Buffer.from(await upstream.arrayBuffer())
+}
+
+async function writeOutDocuments(args: {
+  mba: string
+  version: number
+  outDir: string
+}) {
   const { closeDb, getDb, schema } = await import("@/db")
-  const { apply, force, mba } = parseArgs(process.argv.slice(2))
+  const db = getDb()
+  try {
+    const [row] = await db
+      .select({
+        versionId: schema.mediaPlanVersions.id,
+        versionNumber: schema.mediaPlanVersions.versionNumber,
+        mbaNumber: schema.mediaPlanMasters.mbaNumber,
+        publishedAt: schema.mediaPlanVersions.publishedAt,
+        mbaPdfFile: schema.mediaPlanVersions.mbaPdfFile,
+        mediaPlanFile: schema.mediaPlanVersions.mediaPlanFile,
+        aaMediaPlanFile: schema.mediaPlanVersions.aaMediaPlanFile,
+      })
+      .from(schema.mediaPlanMasters)
+      .innerJoin(
+        schema.mediaPlanVersions,
+        eq(schema.mediaPlanVersions.masterId, schema.mediaPlanMasters.id),
+      )
+      .where(
+        and(
+          sql`lower(trim(${schema.mediaPlanMasters.mbaNumber})) = ${args.mba.toLowerCase()}`,
+          eq(schema.mediaPlanVersions.versionNumber, args.version),
+        ),
+      )
+      .limit(1)
+
+    if (!row) {
+      console.error(`No version ${args.mba} v${args.version}`)
+      process.exitCode = 1
+      return
+    }
+    if (!isVersionPublished({ publishedAt: row.publishedAt })) {
+      console.error(
+        `NOT_PUBLISHED: ${row.mbaNumber} v${row.versionNumber} has no published_at (isVersionPublished holds; not bypassed)`,
+      )
+      process.exitCode = 1
+      return
+    }
+
+    const { renderPlanVersionDocuments } = await import(
+      "@/lib/docs/renderPlanVersionDocuments"
+    )
+    const rendered = await renderPlanVersionDocuments({
+      mbaNumber: row.mbaNumber,
+      versionNumber: row.versionNumber,
+      now: row.publishedAt ? new Date(row.publishedAt) : new Date(),
+    })
+    if (rendered.status === "not_published") {
+      console.error("NOT_PUBLISHED")
+      process.exitCode = 1
+      return
+    }
+
+    mkdirSync(args.outDir, { recursive: true })
+    const names = planDocumentOutFilenames(row.mbaNumber, row.versionNumber)
+    const storedNames = storedPlanDocumentOutFilenames(
+      row.mbaNumber,
+      row.versionNumber,
+    )
+    const storedFiles: Record<PlanDocumentKind, unknown> = {
+      mba_pdf: row.mbaPdfFile,
+      media_plan: row.mediaPlanFile,
+      aa_media_plan: row.aaMediaPlanFile,
+    }
+
+    console.log(
+      `OUT ${args.outDir}  ${row.mbaNumber} v${row.versionNumber}  version_id=${row.versionId}  (no Blob, no Postgres)`,
+    )
+    console.log("kind            status          file")
+    console.log("--------------  --------------  --------------------------------")
+
+    let errors = 0
+    for (const result of rendered.results) {
+      const file = rendered.files[result.kind]
+      let path = ""
+      if (file && result.status === "written") {
+        path = join(args.outDir, names[result.kind])
+        writeFileSync(path, file.buffer)
+      } else if (result.status === "error") {
+        errors++
+      }
+      console.log(
+        `${pad(result.kind, 14)}  ${pad(result.status, 14)}  ${path || result.error || ""}`,
+      )
+    }
+
+    console.log("")
+    console.log("stored originals (Xano / Blob url):")
+    for (const kind of ["mba_pdf", "media_plan", "aa_media_plan"] as const) {
+      const dest = join(args.outDir, storedNames[kind])
+      try {
+        const buf = await fetchStoredPlanFile(storedFiles[kind], row.publishedAt)
+        if (!buf) {
+          console.log(`${pad(kind, 14)}  not_saved`)
+          continue
+        }
+        writeFileSync(dest, buf)
+        console.log(`${pad(kind, 14)}  wrote ${dest}`)
+      } catch (err) {
+        console.log(
+          `${pad(kind, 14)}  error:${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
+    }
+
+    if (errors > 0) process.exitCode = 1
+  } finally {
+    await closeDb()
+  }
+}
+
+async function main() {
+  const parsed = parseBackfillPlanDocumentsArgs(process.argv.slice(2))
+
+  if (parsed.outDir) {
+    if (!parsed.mba || parsed.version == null) {
+      console.error("--out requires --mba <n> and --version <n>")
+      process.exitCode = 1
+      return
+    }
+    await writeOutDocuments({
+      mba: parsed.mba,
+      version: parsed.version,
+      outDir: parsed.outDir,
+    })
+    return
+  }
+
+  const { closeDb, getDb, schema } = await import("@/db")
+  const { apply, force, mba } = parsed
   const db = getDb()
 
   try {

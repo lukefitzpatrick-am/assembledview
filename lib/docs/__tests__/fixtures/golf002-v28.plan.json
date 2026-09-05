@@ -1,0 +1,274 @@
+{
+  "source": "Postgres dump golf002 v28 for DOC-3 adapter fixtures",
+  "master": {
+    "id": 100,
+    "mbaNumber": "golf002",
+    "mpClientName": "Golf Australia",
+    "publishedVersionId": 887
+  },
+  "version": {
+    "id": 887,
+    "versionNumber": 28,
+    "publishedAt": "2026-06-23 23:12:44.121+00",
+    "campaignName": "Golf Australia Club",
+    "brand": "Golf Australia",
+    "campaignStatus": "approved",
+    "campaignStartDate": "2025-12-01",
+    "campaignEndDate": "2026-06-30",
+    "poNumber": "TBC",
+    "clientContact": "Tim Cook",
+    "campaignBudgetCents": 6011200,
+    "channelFlags": {
+      "ooh": false,
+      "radio": false,
+      "cinema": false,
+      "search": false,
+      "social": true,
+      "prog_ooh": false,
+      "digi_bvod": false,
+      "magazines": false,
+      "newspaper": false,
+      "prog_bvod": false,
+      "digi_audio": false,
+      "digi_video": false,
+      "production": false,
+      "prog_audio": false,
+      "prog_video": true,
+      "television": false,
+      "influencers": false,
+      "digi_display": false,
+      "integrations": false,
+      "prog_display": false
+    },
+    "legacySchedules": {
+      "billingSchedule": [
+        {
+          "monthYear": "December 2025",
+          "feeTotal": "$2,112.00",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "January 2026",
+          "feeTotal": "$4,212.00",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "February 2026",
+          "feeTotal": "$2,112.00",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "March 2026",
+          "feeTotal": "$2,112.00",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "April 2026",
+          "feeTotal": "$2,280.00",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "May 2026",
+          "feeTotal": "$1,200.00",
+          "production": "$0.00"
+        },
+        {
+          "monthYear": "June 2026",
+          "feeTotal": "$1,000.00",
+          "production": "$0.00"
+        }
+      ]
+    }
+  },
+  "feeSnapshot": {},
+  "lineItems": [
+    {
+      "id": 10253,
+      "versionId": 887,
+      "channel": "prog_video",
+      "lineItemId": "golf002PV1",
+      "position": 1,
+      "market": "National",
+      "buyingDemo": "P18+",
+      "buyType": "cpv",
+      "publisher": null,
+      "platform": "YouTube - DV360",
+      "bidStrategy": "completed_views",
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": true,
+      "bursts": [
+        {
+          "budget": "$5,328.00",
+          "endDate": "2025-12-30T13:00:00.000Z",
+          "buyAmount": "$0.13",
+          "feeAmount": "$1,332.00",
+          "startDate": "2025-12-14T13:00:00.000Z",
+          "mediaAmount": "$5,328.00",
+          "calculatedValue": 40984.61538461538
+        },
+        {
+          "budget": "$5,328.00",
+          "endDate": "2026-01-31T03:13:51.695Z",
+          "buyAmount": "$0.13",
+          "feeAmount": "$1,332.00",
+          "startDate": "2025-12-31T13:00:00.000Z",
+          "mediaAmount": "$5,328.00",
+          "calculatedValue": 40984.61538461538
+        },
+        {
+          "budget": "$5,328.00",
+          "endDate": "2026-02-14T13:00:00.000Z",
+          "buyAmount": "$0.13",
+          "feeAmount": "$1,332.00",
+          "startDate": "2026-02-01T03:13:51.695Z",
+          "mediaAmount": "$5,328.00",
+          "calculatedValue": 40984.61538461538
+        },
+        {
+          "budget": "$5,328.00",
+          "endDate": "2026-03-30T13:00:00.000Z",
+          "buyAmount": "$0.13",
+          "feeAmount": "$1,332.00",
+          "startDate": "2026-03-05T13:00:00.000Z",
+          "mediaAmount": "$5,328.00",
+          "calculatedValue": 40984.61538461538
+        },
+        {
+          "budget": "$4,000.00",
+          "endDate": "2026-04-29T14:00:00.000Z",
+          "buyAmount": "$0.13",
+          "feeAmount": "$1,000.00",
+          "startDate": "2026-03-31T13:00:00.000Z",
+          "mediaAmount": "$4,000.00",
+          "calculatedValue": 30769.23076923077
+        }
+      ],
+      "attrs": {
+        "creative": "15 second landscape & 6 second vertical video, focusing on handicap education.",
+        "creative_targeting": "Golf Interest (excluding currrent handicappers)"
+      }
+    },
+    {
+      "id": 12541,
+      "versionId": 887,
+      "channel": "social",
+      "lineItemId": "golf002SM1",
+      "position": 1,
+      "market": "National",
+      "buyingDemo": "P18+",
+      "buyType": "cpm",
+      "publisher": null,
+      "platform": "Meta",
+      "bidStrategy": "maximize_conversions",
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": null,
+      "bursts": [
+        {
+          "budget": "$6,240.00",
+          "endDate": "2026-01-30T13:00:00.000Z",
+          "buyAmount": "$15.00",
+          "feeAmount": "$1,560.00",
+          "startDate": "2025-11-30T13:00:00.000Z",
+          "mediaAmount": "$6,240.00",
+          "calculatedValue": 416000
+        },
+        {
+          "budget": "$8,400.00",
+          "endDate": "2026-01-30T13:00:00.000Z",
+          "buyAmount": "$15.00",
+          "feeAmount": "$2,100.00",
+          "startDate": "2025-12-31T13:00:00.000Z",
+          "mediaAmount": "$8,400.00",
+          "calculatedValue": 560000
+        },
+        {
+          "budget": "$3,120.00",
+          "endDate": "2026-02-27T13:00:00.000Z",
+          "buyAmount": "$15.00",
+          "feeAmount": "$780.00",
+          "startDate": "2026-01-31T13:00:00.000Z",
+          "mediaAmount": "$3,120.00",
+          "calculatedValue": 208000
+        },
+        {
+          "budget": "$3,120.00",
+          "endDate": "2026-03-30T13:00:00.000Z",
+          "buyAmount": "$15.00",
+          "feeAmount": "$780.00",
+          "startDate": "2026-02-28T13:00:00.000Z",
+          "mediaAmount": "$3,120.00",
+          "calculatedValue": 208000
+        },
+        {
+          "budget": "$3,120.00",
+          "endDate": "2026-04-29T14:00:00.000Z",
+          "buyAmount": "$15.00",
+          "feeAmount": "$780.00",
+          "startDate": "2026-03-31T13:00:00.000Z",
+          "mediaAmount": "$3,120.00",
+          "calculatedValue": 208000
+        },
+        {
+          "budget": "$4,800.00",
+          "endDate": "2026-05-30T14:00:00.000Z",
+          "buyAmount": "$15.00",
+          "feeAmount": "$1,200.00",
+          "startDate": "2026-04-30T14:00:00.000Z",
+          "mediaAmount": "$4,800.00",
+          "calculatedValue": 320000
+        },
+        {
+          "budget": "$4,000.00",
+          "endDate": "2026-06-29T14:00:00.000Z",
+          "buyAmount": "$15.00",
+          "feeAmount": "$1,000.00",
+          "startDate": "2026-05-31T14:00:00.000Z",
+          "mediaAmount": "$4,000.00",
+          "calculatedValue": 266666.6666666667
+        }
+      ],
+      "attrs": {
+        "creative": "Carousel, video and static posts. Feed and Stories",
+        "creative_targeting": "Ex handicappers' audience via Golf Australia, regular golfers (excluding current handicappers)"
+      }
+    },
+    {
+      "id": 12542,
+      "versionId": 887,
+      "channel": "social",
+      "lineItemId": "golf002SM2",
+      "position": 2,
+      "market": "National",
+      "buyingDemo": "P18+",
+      "buyType": "cpm",
+      "publisher": null,
+      "platform": "Meta",
+      "bidStrategy": "landing_page_views",
+      "clientPaysForMedia": false,
+      "budgetIncludesFees": false,
+      "noAdserving": null,
+      "bursts": [
+        {
+          "budget": "$2,000.00",
+          "endDate": "2026-04-29T14:00:00.000Z",
+          "buyAmount": "$15.00",
+          "feeAmount": "$500.00",
+          "startDate": "2026-03-31T13:00:00.000Z",
+          "mediaAmount": "$2,000.00",
+          "calculatedValue": 133333.33333333334
+        }
+      ],
+      "attrs": {
+        "creative": "Carousel, video and static posts. Feed and Stories",
+        "creative_targeting": "Ex handicappers' audience via Golf Australia, regular golfers (excluding current handicappers)"
+      }
+    }
+  ],
+  "expectedBlobTotals": {
+    "fee": 15028,
+    "adserving": 0,
+    "production": 0
+  }
+}
