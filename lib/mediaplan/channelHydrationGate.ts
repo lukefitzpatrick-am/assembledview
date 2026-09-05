@@ -201,6 +201,53 @@ export function listOutstandingHydrationChannels(input: AllChannelsHydratedInput
     .map(hydrationChannelLabel)
 }
 
+/** Toast hang copy: name outstanding containers after this delay. */
+export const HYDRATION_TOAST_HANG_MS = 10_000
+
+export type HydrationToastItem = {
+  flag: string
+  name: string
+  status: "pending" | "success" | "error"
+}
+
+/**
+ * Per-channel toast rows from the SAME maps as `computeAllChannelsHydrated`.
+ * Error counts as complete (matches the save gate). Ready without settle stays pending.
+ */
+export function buildHydrationToastItems(
+  input: AllChannelsHydratedInput
+): HydrationToastItem[] {
+  return input.expectedFlags.map((flag) => {
+    const loadStatus = input.mediaLoadStatus[flag]
+    const name = hydrationChannelLabel(flag)
+    if (loadStatus === "error") {
+      return { flag, name, status: "error" }
+    }
+    if (loadStatus === "ready" && input.settledFlags[flag] === true) {
+      return { flag, name, status: "success" }
+    }
+    return { flag, name, status: "pending" }
+  })
+}
+
+export function hydrationToastReadyCount(items: readonly HydrationToastItem[]): number {
+  return items.filter((item) => item.status === "success" || item.status === "error").length
+}
+
+export function formatHydrationToastHeader(opts: {
+  readyCount: number
+  totalCount: number
+  hangLabels: string[]
+  bootstrapping?: boolean
+}): string {
+  if (opts.bootstrapping && opts.totalCount === 0) {
+    return "Loading campaign details…"
+  }
+  const base = `${opts.readyCount} of ${opts.totalCount} containers ready`
+  if (opts.hangLabels.length === 0) return base
+  return `${base} — still waiting on ${opts.hangLabels.join(", ")}`
+}
+
 /**
  * Disabled-with-reason copy for the Save control while channels hydrate.
  * Gate stays closed — this only names why.

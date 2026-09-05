@@ -9,6 +9,10 @@ import type { SaveStatusItem } from "@/components/ui/saving-modal"
 interface MediaPlanLoadStatusPillProps {
   items: SaveStatusItem[]
   isLoading: boolean
+  /** Same moment Save unlocks (`allChannelsHydrated`). */
+  allHydrated?: boolean
+  /** Header copy; defaults to legacy section-count wording. */
+  headerLabel?: string
   onDismiss?: () => void
   /** Optional: called when user clicks an errored section name. Receives the item name. */
   onItemClick?: (name: string) => void
@@ -17,6 +21,8 @@ interface MediaPlanLoadStatusPillProps {
 export function MediaPlanLoadStatusPill({
   items,
   isLoading,
+  allHydrated = false,
+  headerLabel: headerLabelProp,
   onDismiss,
   onItemClick,
 }: MediaPlanLoadStatusPillProps) {
@@ -29,23 +35,19 @@ export function MediaPlanLoadStatusPill({
 
   if (items.length === 0) return null
 
-  const totalCount = items.length
-  const successCount = items.filter((i) => i.status === "success").length
   const errorCount = items.filter((i) => i.status === "error").length
   const pendingCount = items.filter((i) => i.status === "pending").length
 
   const hasErrors = errorCount > 0
-  const allDone = pendingCount === 0
-  const canDismiss = !isLoading && allDone
+  const canDismiss = allHydrated || (!isLoading && pendingCount === 0)
 
-  // Hide the pill entirely when everything succeeded and nothing is loading
-  if (allDone && !hasErrors && !isLoading) return null
+  // Dismiss the progress pill when the save gate unlocks, unless errors remain.
+  if (allHydrated && !hasErrors) return null
 
   const headerLabel = hasErrors
     ? `Loaded with ${errorCount} error${errorCount === 1 ? "" : "s"}`
-    : isLoading
-      ? `Loading sections (${successCount}/${totalCount})`
-      : `All sections loaded`
+    : headerLabelProp ??
+      (isLoading ? "Loading sections" : "All sections loaded")
 
   return (
     <div

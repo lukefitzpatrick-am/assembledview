@@ -165,10 +165,15 @@ import {
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials, scheduleMonthYearToIso } from "@/lib/finance/computeCampaignFinancials"
 import {
+  buildHydrationToastItems,
   computeAllChannelsHydrated,
   computeChannelDuplicateStats,
+  formatHydrationToastHeader,
   formatSaveHydrationHoldReason,
   formatSaveModeLabel,
+  hydrationChannelLabel,
+  hydrationToastReadyCount,
+  HYDRATION_TOAST_HANG_MS,
   isSaveAllowedAfterHydration,
   lineItemLoadToastAfterChannelSuccess,
   listOutstandingHydrationChannels,
@@ -2292,6 +2297,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   )
   const [loadPhase, setLoadPhase] = useState<LoadPhase>("bootstrapping")
   const [lineItemLoadItems, setLineItemLoadItems] = useState<SaveStatusItem[]>([])
+  const [loadStatusUserDismissed, setLoadStatusUserDismissed] = useState(false)
+  const [hydrationHangVisible, setHydrationHangVisible] = useState(false)
   const [mediaLoadStatus, setMediaLoadStatus] = useState<Partial<Record<MediaTypeKey, MediaLoadStatus>>>({})
   /** Channels that have published container media-line-items (or empty/error settle). */
   const [channelHydrationSettled, setChannelHydrationSettled] = useState<
@@ -2613,8 +2620,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     []
   )
 
-  const hasLoadErrors = lineItemLoadItems.some((item) => item.status === 'error')
-
   useEffect(() => {
     if (
       !isSaving &&
@@ -2628,12 +2633,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setSaveStatus([])
     }
   }, [hasSaveErrors, isSaveModalOpen, isSaving, isRetryingPublish, pendingPublishRetry, saveStatus])
-
-  useEffect(() => {
-    if (loadPhase === 'ready' && !isLoading && lineItemLoadItems.length > 0 && !hasLoadErrors) {
-      setLineItemLoadItems([])
-    }
-  }, [hasLoadErrors, isLoading, lineItemLoadItems.length, loadPhase])
 
   const handleCloseSaveModal = useCallback(() => {
     if (isSaving || isRetryingPublish) return
@@ -3040,18 +3039,77 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     [mediaFlagMap]
   )
 
-  const allChannelsHydrated = useMemo(
-    () =>
-      computeAllChannelsHydrated({
-        loadPhase,
-        expectedFlags: expectedHydrationFlags,
-        mediaLoadStatus,
-        settledFlags: channelHydrationSettled,
-      }),
+  const hydrationGateInput = useMemo(
+    () => ({
+      loadPhase,
+      expectedFlags: expectedHydrationFlags,
+      mediaLoadStatus,
+      settledFlags: channelHydrationSettled,
+    }),
     [loadPhase, expectedHydrationFlags, mediaLoadStatus, channelHydrationSettled]
   )
 
+  const allChannelsHydrated = useMemo(
+    () => computeAllChannelsHydrated(hydrationGateInput),
+    [hydrationGateInput]
+  )
+
   const saveHeldForHydration = !isSaveAllowedAfterHydration(allChannelsHydrated)
+
+  const hydrationToastItems = useMemo(
+    () => buildHydrationToastItems(hydrationGateInput),
+    [hydrationGateInput]
+  )
+
+  useEffect(() => {
+    if (allChannelsHydrated || expectedHydrationFlags.length === 0) {
+      setHydrationHangVisible(false)
+      return
+    }
+    setHydrationHangVisible(false)
+    const timer = window.setTimeout(() => {
+      setHydrationHangVisible(true)
+    }, HYDRATION_TOAST_HANG_MS)
+    return () => window.clearTimeout(timer)
+  }, [allChannelsHydrated, enabledMediaFlagsFingerprint, mbaNumber, versionNumber])
+
+  useEffect(() => {
+    if (!allChannelsHydrated) setLoadStatusUserDismissed(false)
+  }, [allChannelsHydrated])
+
+  const loadStatusPillItems = useMemo(() => {
+    if (expectedHydrationFlags.length === 0) {
+      return lineItemLoadItems
+    }
+    const errorByName = new Map(
+      lineItemLoadItems
+        .filter((item) => item.error)
+        .map((item) => [item.name, item.error] as const)
+    )
+    return hydrationToastItems.map((item) => ({
+      name: item.name,
+      status: item.status,
+      error: errorByName.get(item.name),
+    }))
+  }, [expectedHydrationFlags.length, hydrationToastItems, lineItemLoadItems])
+
+  const loadStatusHeaderLabel = useMemo(() => {
+    const hangLabels = hydrationHangVisible
+      ? hydrationToastItems
+          .filter((item) => item.status === "pending")
+          .map((item) => item.name)
+      : []
+    return formatHydrationToastHeader({
+      readyCount: hydrationToastReadyCount(hydrationToastItems),
+      totalCount: hydrationToastItems.length,
+      hangLabels,
+      bootstrapping: expectedHydrationFlags.length === 0,
+    })
+  }, [
+    expectedHydrationFlags.length,
+    hydrationHangVisible,
+    hydrationToastItems,
+  ])
 
   const saveHydrationHoldReason = useMemo(() => {
     if (!saveHeldForHydration && !isLoading) return null
@@ -4099,7 +4157,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         delete next[flag]
         return next
       })
-      updateLoadStatus(label, "pending")
+      updateLoadStatus(hydrationChannelLabel(flag), "pending")
       try {
         const count = await loadSingleMediaTypeLineItems(
           flag,
@@ -4107,7 +4165,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           LINE_ITEM_TIMEOUT_MANUAL_RETRY_MS
         )
         setMediaLoadStatus((prev) => mediaLoadStatusAfterChannelSuccess(prev, flag))
-        updateLoadStatus(label, "success")
+        updateLoadStatus(hydrationChannelLabel(flag), "success")
         if (count === 0) {
           markChannelHydrationSettled(flag)
         }
@@ -4115,7 +4173,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         console.warn(`[DATA LOAD] Manual retry failed for ${flag}:`, err)
         lineItemLoaderConfig[flag]?.setter([])
         setMediaLoadStatus((prev) => ({ ...prev, [flag]: "error" }))
-        updateLoadStatus(label, "error", "Failed to load line items")
+        updateLoadStatus(
+          hydrationChannelLabel(flag),
+          "error",
+          "Failed to load line items"
+        )
         markChannelHydrationSettled(flag)
       }
     },
@@ -4180,8 +4242,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           return
         }
 
-        for (const { label } of enabledInOrder) {
-          updateLoadStatus(label, "pending", "loading…")
+        for (const { flag } of enabledInOrder) {
+          updateLoadStatus(hydrationChannelLabel(flag), "pending", "loading…")
         }
         const initialStatus: Partial<Record<MediaTypeKey, MediaLoadStatus>> = {}
         enabledInOrder.forEach(({ flag }) => {
@@ -4214,7 +4276,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   `[DATA LOAD] First attempt failed for ${flag}, auto-retrying with longer timeout:`,
                   firstErr
                 )
-                updateLoadStatus(label, "pending", "retrying…")
+                updateLoadStatus(hydrationChannelLabel(flag), "pending", "retrying…")
                 items = await attemptFetch(LINE_ITEM_TIMEOUT_AUTO_RETRY_MS)
               }
               if (cancelled) return
@@ -4244,7 +4306,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
               if (!cancelled) {
                 setMediaLoadStatus((prev) => mediaLoadStatusAfterChannelSuccess(prev, flag))
-                updateLoadStatus(label, "success")
+                updateLoadStatus(hydrationChannelLabel(flag), "success")
                 // Empty API payloads never run container useStableHydration — settle now.
                 if (processedItems.length === 0) {
                   setChannelHydrationSettled((prev) => {
@@ -4275,7 +4337,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               console.warn(`[DATA LOAD] Both attempts failed for ${flag} line items:`, loadError)
               setter([])
               setMediaLoadStatus((prev) => ({ ...prev, [flag]: "error" }))
-              updateLoadStatus(label, "error", "Failed to load line items")
+              updateLoadStatus(
+                hydrationChannelLabel(flag),
+                "error",
+                "Failed to load line items"
+              )
               setChannelHydrationSettled((prev) => {
                 if (prev[flag]) return prev
                 const next = { ...prev, [flag]: true }
@@ -4354,9 +4420,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           return next
         })
         for (const flag of unsettledFlags) {
-          const label = mediaTypes.find((m) => m.name === flag)?.label ?? flag
           updateLoadStatus(
-            label,
+            hydrationChannelLabel(flag),
             "error",
             "did not finish loading — check line items before saving"
           )
@@ -12538,7 +12603,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                     <LazyMountWhenVisible
                       label={medium.label}
                       rootMargin="150px 0px"
-                      forceMount={loadPhase === "ready"}
+                      forceMount={
+                        mediaLoadStatus[medium.name as MediaTypeKey] === "ready" ||
+                        mediaLoadStatus[medium.name as MediaTypeKey] === "error" ||
+                        loadPhase === "ready"
+                      }
                     >
                     <Suspense fallback={<MediaContainerSuspenseFallback label={medium.label} />}>
                       {medium.name === "mp_television" && (
@@ -12932,14 +13001,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       />
 
       <MediaPlanLoadStatusPill
-        items={lineItemLoadItems}
-        isLoading={loadPhase === "loadingLineItems"}
+        items={loadStatusUserDismissed ? [] : loadStatusPillItems}
+        isLoading={!allChannelsHydrated}
+        allHydrated={allChannelsHydrated}
+        headerLabel={loadStatusHeaderLabel}
         onDismiss={() => {
-          setLineItemLoadItems((prev) => prev.filter((item) => item.status === "error"))
+          setLoadStatusUserDismissed(true)
         }}
         onItemClick={(name) => {
-          // Find the matching mediaType by label and scroll within #main only
-          const match = mediaTypes.find((m) => m.label === name)
+          const match = mediaTypes.find(
+            (m) => m.label === name || hydrationChannelLabel(m.name) === name
+          )
           if (match) {
             const el = document.getElementById(`media-section-${match.name}`)
             const scroller = document.getElementById("main")

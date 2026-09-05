@@ -199,6 +199,7 @@ pct === 100 → fee = 0 (division guard)
 - Delivery daily-chart series (`key` / `label` / `yAxis` / optional `format`) is `DeliveryDailyChartSeries` only — `ChannelAggregate.chart.series` and `LineItemBlock` `DailyChart.series` import it. ComboChart bars default `dollars`, lines default `number`.
 - Interactive charts: tooltip + legend + keyboard alternative; non-interactive: `cursor="default"`. Touch targets ≥24×24 CSS px, ≥44×44 for primary actions.
 - Create and edit wizard page headers are `PlanWizardHeader` (via `PlanWizardShell.header`). One primary row (title + reserved actions floor) and at most one secondary row for edit-only chrome (version trail, status, Creative/Trafficking stay in the reserved actions slot). Never a third hero row.
+- Edit load toast and Save hydration gate share `computeAllChannelsHydrated` / `buildHydrationToastItems`. The toast reports `n of m` enabled containers and dismisses when that gate opens — never on fetch arrival or `loadPhase === ready` alone.
 - (Full normative doc: `docs/design-refresh/SYSTEM_RULES.md`.)
 
 ## Workflow

@@ -2,8 +2,11 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
+  buildHydrationToastItems,
   computeAllChannelsHydrated,
+  formatHydrationToastHeader,
   formatSaveHydrationHoldReason,
+  hydrationToastReadyCount,
   isSaveAllowedAfterHydration,
   lineItemLoadToastAfterChannelSuccess,
   listOutstandingHydrationChannels,
@@ -213,5 +216,79 @@ test("late success after watchdog: clears load-toast error text for that channel
   assert.equal(
     afterSuccess.some((i) => i.status === "error"),
     false
+  )
+})
+
+const toastInputReadyUnsettled = {
+  loadPhase: "ready" as const,
+  expectedFlags: ["mp_search", "mp_socialmedia"],
+  mediaLoadStatus: { mp_search: "ready" as const, mp_socialmedia: "ready" as const },
+  settledFlags: { mp_search: true },
+}
+
+test("hydration toast m is expectedFlags only — no Campaign details row", () => {
+  const items = buildHydrationToastItems({
+    loadPhase: "ready",
+    expectedFlags: ["mp_search", "mp_television"],
+    mediaLoadStatus: { mp_search: "ready" as const, mp_television: "ready" as const },
+    settledFlags: { mp_search: true, mp_television: true },
+  })
+  assert.equal(items.length, 2)
+  assert.equal(
+    items.some((item) => item.name === "Campaign details"),
+    false
+  )
+  assert.deepEqual(
+    items.map((item) => item.flag),
+    ["mp_search", "mp_television"]
+  )
+})
+
+test("hydration toast stays pending until container settle — fetch ready is not enough", () => {
+  const items = buildHydrationToastItems(toastInputReadyUnsettled)
+  assert.equal(items.find((item) => item.flag === "mp_search")?.status, "success")
+  assert.equal(items.find((item) => item.flag === "mp_socialmedia")?.status, "pending")
+  assert.equal(hydrationToastReadyCount(items), 1)
+  assert.equal(computeAllChannelsHydrated(toastInputReadyUnsettled), false)
+})
+
+test("hydration toast ready count matches the save gate, including error", () => {
+  const input = {
+    loadPhase: "ready" as const,
+    expectedFlags: ["mp_search", "mp_television"],
+    mediaLoadStatus: { mp_search: "ready" as const, mp_television: "error" as const },
+    settledFlags: { mp_search: true },
+  }
+  const items = buildHydrationToastItems(input)
+  assert.equal(hydrationToastReadyCount(items), 2)
+  assert.equal(computeAllChannelsHydrated(input), true)
+  assert.equal(isSaveAllowedAfterHydration(computeAllChannelsHydrated(input)), true)
+})
+
+test("hydration toast header names outstanding hangers", () => {
+  const items = buildHydrationToastItems(toastInputReadyUnsettled)
+  const hangLabels = items
+    .filter((item) => item.status === "pending")
+    .map((item) => item.name)
+  assert.deepEqual(hangLabels, ["Social"])
+  assert.equal(
+    formatHydrationToastHeader({
+      readyCount: hydrationToastReadyCount(items),
+      totalCount: items.length,
+      hangLabels,
+    }),
+    "1 of 2 containers ready — still waiting on Social"
+  )
+})
+
+test("hydration toast header bootstrapping copy when no containers yet", () => {
+  assert.equal(
+    formatHydrationToastHeader({
+      readyCount: 0,
+      totalCount: 0,
+      hangLabels: [],
+      bootstrapping: true,
+    }),
+    "Loading campaign details…"
   )
 })

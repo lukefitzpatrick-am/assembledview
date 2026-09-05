@@ -52,6 +52,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `proxyAllowlist.MEDIA_PLANS_ALLOWLIST` | Catch-all is staff-only (`requireRole`); `clearVersionChildren` needs `{table}/{id}` DELETE allowed; new staff POSTs 403 unless added |
 | `LINE_ITEM_BROWSER_API_PATH` / `app/api/media_plans/<channel>` | Every map value must have a dedicated GET (`createChannelLineItemsGetHandler` + `checkClientMbaAccess`). Table-name segments hit the admin catch-all (C-89). `isChannelLineItemEndpoint` is `media_plan_*` only; kebab maps via `resolveChannelLineItemEndpoint`. Tests: `test:channel-line-item-routes` |
 | `lib/mediaplan/campaignDatePresets.ts` / `CampaignDatePresetBar` | Create + edit pass no `presets` (default `CAMPAIGN_DATE_PRESETS`, four pills). Planner Stage A (`StageBrief`) passes `PLANNER_DATE_PRESETS` (adds Annual plan). Changing the default array changes both mega-pages. Tests: `lib/mediaplan/__tests__/campaignDatePresets.test.ts` |
+| `lib/mediaplan/channelHydrationGate.ts` / `MediaPlanLoadStatusPill` | Edit-only load toast. `buildHydrationToastItems` must stay on the same maps as `computeAllChannelsHydrated`. Do not dismiss on `loadPhase === ready` / fetch arrival; do not count Campaign details in `m`. Hang copy after `HYDRATION_TOAST_HANG_MS`. Create has no twin pill. Tests: `lib/mediaplan/__tests__/channelHydrationGate.test.ts` |
 
 ### Pacing
 | Touch | Also check |
