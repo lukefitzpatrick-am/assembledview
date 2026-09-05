@@ -117,6 +117,31 @@ const compactMoneyFormatter = new Intl.NumberFormat(AUD_LOCALE, {
   maximumFractionDigits: 1,
 })
 
+const compactMoneyFormatterByFraction = new Map<number, Intl.NumberFormat>()
+
+function compactMoneyFormatterWithFraction(fractionDigits: 1 | 2): Intl.NumberFormat {
+  const existing = compactMoneyFormatterByFraction.get(fractionDigits)
+  if (existing) return existing
+  const nf = new Intl.NumberFormat(AUD_LOCALE, {
+    style: "currency",
+    currency: AUD_CURRENCY,
+    notation: "compact",
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })
+  compactMoneyFormatterByFraction.set(fractionDigits, nf)
+  return nf
+}
+
+export type FormatMoneyCompactOptions = {
+  /**
+   * Home Media Spend to Date: two compact decimals for millions below $10M
+   * (`$1.06M`), one decimal at/above (`$12.4M`). Thousands stay on the default
+   * one-decimal K rule. Other KPI tiles omit this option.
+   */
+  millionScale?: "home-spend"
+}
+
 /** Parses user-entered or formatted currency strings (same rules as legacy {@link formatMoney}). */
 export function parseMoneyInput(value: MoneyInput): number | null {
   if (value === null || value === undefined) return null
@@ -193,10 +218,18 @@ export function formatMoney(
  * Values under 1000 fall back to {@link formatMoney} with whole dollars.
  * Returns "—" for null/undefined/NaN.
  */
-export function formatMoneyCompact(value: number | null | undefined): string {
+export function formatMoneyCompact(
+  value: number | null | undefined,
+  opts?: FormatMoneyCompactOptions,
+): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—"
   if (!Number.isFinite(value)) return "—"
   if (Math.abs(value) < 1000) return formatMoney(value, { decimals: 0 })
+  if (opts?.millionScale === "home-spend") {
+    const abs = Math.abs(value)
+    const fractionDigits: 1 | 2 = abs >= 1_000_000 && abs < 10_000_000 ? 2 : 1
+    return compactMoneyFormatterWithFraction(fractionDigits).format(value)
+  }
   return compactMoneyFormatter.format(value)
 }
 

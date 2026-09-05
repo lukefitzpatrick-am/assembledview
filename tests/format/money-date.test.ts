@@ -27,6 +27,20 @@ describe("formatMoneyCompact", () => {
     expect(formatMoneyCompact(43000)).toBe("$43.0K")
     expect(formatMoneyCompact(999)).toBe("$999")
   })
+
+  it("default compact stays one decimal so other KPI tiles do not change", () => {
+    expect(formatMoneyCompact(1_057_700)).toBe("$1.1M")
+    expect(formatMoneyCompact(1_049_000)).toBe("$1.0M")
+  })
+
+  it("home-spend scale uses two million decimals below $10M and one at or above", () => {
+    expect(formatMoneyCompact(1_057_700, { millionScale: "home-spend" })).toBe("$1.06M")
+    expect(formatMoneyCompact(12_400_000, { millionScale: "home-spend" })).toBe("$12.4M")
+  })
+
+  it("home-spend thousands keep the compact K rule", () => {
+    expect(formatMoneyCompact(948_101, { millionScale: "home-spend" })).toBe("$948.1K")
+  })
 })
 
 describe("formatPercent", () => {

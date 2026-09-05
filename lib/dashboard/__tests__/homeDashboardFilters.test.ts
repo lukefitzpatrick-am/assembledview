@@ -10,6 +10,7 @@ import {
   homeMediaSpendTile,
   isLiveScopeStatus,
   sumPlannedToDateForCampaigns,
+  formatHomeMediaSpendTooltip,
 } from "@/lib/dashboard/homeDashboardFilters"
 
 function typesShapeEntry(monthYear: string, amount: string) {
@@ -200,5 +201,13 @@ describe("home media spend to date", () => {
       { mp_mba_number: "penfold016" },
     ]
     expect(sumPlannedToDateForCampaigns(mixedCampaigns, byMba)).toBe(20_000)
+  })
+})
+
+describe("formatHomeMediaSpendTooltip", () => {
+  it("includes the exact figure and Melbourne as-at date", () => {
+    expect(formatHomeMediaSpendTooltip(1_057_700, new Date("2026-09-05T04:00:00.000Z"))).toBe(
+      "$1,057,700.00 · Planned media, published versions, to 5 Sep 2026",
+    )
   })
 })

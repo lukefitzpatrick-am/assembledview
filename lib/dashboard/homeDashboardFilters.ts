@@ -5,6 +5,8 @@
 
 import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { matchText, normalizeSearchText } from "@/lib/search/matchText"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import { formatMoney } from "@/lib/format/money"
 
 export type DashboardViewFilters = {
   campaignSearch: string
@@ -179,6 +181,29 @@ export function homeMediaSpendTile(
   if (status === "loading") return { show: true, amount: null }
   if (status === "error" || !byMba) return { show: false, amount: null }
   return { show: true, amount: sumPlannedToDateForCampaigns(campaigns, byMba) }
+}
+
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const
+
+/** Tooltip for the Home Media Spend to Date tile — exact AUD + published-plan basis. */
+export function formatHomeMediaSpendTooltip(amount: number, asAt: Date = new Date()): string {
+  const iso = getMelbourneTodayISO(asAt)
+  const [year, month, day] = iso.split("-").map((part) => Number(part))
+  const monthLabel = MONTH_SHORT[(month ?? 1) - 1] ?? "Jan"
+  return `${formatMoney(amount)} · Planned media, published versions, to ${day} ${monthLabel} ${year}`
 }
 
 /** Scope line under "Key metrics": All clients vs active filter summary. */

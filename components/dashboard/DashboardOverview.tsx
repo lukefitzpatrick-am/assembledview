@@ -61,6 +61,7 @@ import {
   defaultDashboardViewFilters,
   describeHomeMetricsFilterScope,
   homeMediaSpendTile,
+  formatHomeMediaSpendTooltip,
   isLiveScopeStatus,
   normalizeClientFilterValue,
   type DashboardViewFilters,
@@ -746,10 +747,9 @@ export default function DashboardOverview({
     if (mediaSpendTile.show && mediaSpendTile.amount !== null) {
       metrics.push({
         title: "Media Spend to Date",
-        value: formatMoneyCompact(mediaSpendTile.amount),
+        value: formatMoneyCompact(mediaSpendTile.amount, { millionScale: "home-spend" }),
         icon: DollarSign,
-        tooltip:
-          "Planned spend to date from delivery schedules for the selected FY (respects active filters). Not delivered actuals.",
+        tooltip: formatHomeMediaSpendTooltip(mediaSpendTile.amount),
         accent: "bg-channel-search",
         iconBg: "bg-surface-panel",
         iconText: "text-channel-search",
@@ -1587,7 +1587,7 @@ export default function DashboardOverview({
             { title: "Total Live Scopes of Work", value: String(kpiCounts.liveScopes) },
             { title: "Total Live Clients", value: String(kpiCounts.liveClients) },
             ...(mediaSpendTile.show && mediaSpendTile.amount !== null
-              ? [{ title: "Media Spend to Date", value: formatMoneyCompact(mediaSpendTile.amount) }]
+              ? [{ title: "Media Spend to Date", value: formatMoneyCompact(mediaSpendTile.amount, { millionScale: "home-spend" }) }]
               : []),
           ],
           liveCampaigns: liveCampaigns.length,
