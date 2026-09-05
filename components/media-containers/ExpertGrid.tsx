@@ -132,6 +132,10 @@ import {
 } from "@/lib/mediaplan/expertGridFill"
 import { ExpertGridFillHandle } from "@/components/media-containers/ExpertGridFillHandle"
 import {
+  ExpertGridCompactRowLabelChrome,
+  ExpertGridDescriptorPinButton,
+} from "@/components/media-containers/ExpertGridDescriptorChrome"
+import {
   expertRowCostSplit,
   expertRowNetMedia,
   expertRowNetMediaTooltip,
@@ -160,6 +164,7 @@ import {
   adjustScrollLeftForDescriptorWidthChange,
   descriptorErrorForcesExpand,
   descriptorPinStorageKey,
+  nextDescriptorPin,
   nextDescriptorScrollIntent,
   parseDescriptorPin,
   resolveExpertGridDescriptorMode,
@@ -1138,6 +1143,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     },
     [isDescriptorFocusTarget]
   )
+
+  const cycleDescriptorPin = useCallback(() => {
+    setDescriptorPinned((cur) => nextDescriptorPin(cur))
+  }, [])
 
   const handleReorder = useCallback(
     (from: number, to: number) => {
@@ -3317,7 +3326,12 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                       <ExpertGridRowReorderHeaderCell
                         className={stickyThCorner("text-center")}
                         style={stickyStyleReorderHeader}
-                      />
+                      >
+                        <ExpertGridDescriptorPinButton
+                          pinned={descriptorPinned}
+                          onCycle={cycleDescriptorPin}
+                        />
+                      </ExpertGridRowReorderHeaderCell>
                       {descriptorHeadLabels.map((label, i) => (
                         <th
                           key={`h-${i}`}
@@ -3573,9 +3587,17 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               focusedCell?.columnKey === col.key &&
                               !col.readOnly &&
                               col.kind !== "checkbox-billing"
+                            const isCompactRowLabel =
+                              descriptorMode === "compact" &&
+                              col.key === config.rowLabelKey
                             const descriptorTdAttrs = stickyDescriptorTdAttrs(
                               ci,
-                              showFillHandle ? "relative" : undefined
+                              cn(
+                                (showFillHandle || isCompactRowLabel) &&
+                                  "relative",
+                                isCompactRowLabel &&
+                                  "[&>:not([data-eg-compact-chrome])]:opacity-0"
+                              )
                             )
                             const fillHandleNode = showFillHandle ? (
                               <ExpertGridFillHandle
@@ -3592,12 +3614,21 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                 }
                               />
                             ) : null
+                            const compactRowLabelChrome = isCompactRowLabel ? (
+                              <ExpertGridCompactRowLabelChrome
+                                labelText={getRowString(row, col.key)}
+                                onDuplicate={() => duplicateRow(rowIndex)}
+                                onDelete={() => deleteRow(rowIndex)}
+                                deleteDisabled={normalizedRows.length <= 1}
+                              />
+                            ) : null
                             if (col.kind === "checkbox-billing") {
                               return (
                                 <td
                                   key={col.key}
                                   {...descriptorTdAttrs}
                                 >
+                                  {compactRowLabelChrome}
                                   {fillHandleNode}
                                   <div className="flex h-8 items-center justify-center overflow-hidden">
                                     <Checkbox
@@ -3625,6 +3656,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                   key={col.key}
                                   {...descriptorTdAttrs}
                                 >
+                                  {compactRowLabelChrome}
                                   {fillHandleNode}
                                   <SingleDatePicker
                                     id={cellId}
@@ -3656,6 +3688,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                   key={col.key}
                                   {...descriptorTdAttrs}
                                 >
+                                  {compactRowLabelChrome}
                                   {fillHandleNode}
                                   <SingleDatePicker
                                     id={cellId}
@@ -3688,6 +3721,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                   key={col.key}
                                   {...descriptorTdAttrs}
                                 >
+                                  {compactRowLabelChrome}
                                   {fillHandleNode}
                                   <Combobox
                                     id={cellId}
@@ -3740,6 +3774,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                   key={col.key}
                                   {...descriptorTdAttrs}
                                 >
+                                  {compactRowLabelChrome}
                                   {fillHandleNode}
                                   <Combobox
                                     id={cellId}
@@ -3781,6 +3816,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                   key={col.key}
                                   {...descriptorTdAttrs}
                                 >
+                                  {compactRowLabelChrome}
                                   {fillHandleNode}
                                   <Combobox
                                     id={cellId}
@@ -3826,6 +3862,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                   key={col.key}
                                   {...descriptorTdAttrs}
                                 >
+                                  {compactRowLabelChrome}
                                   {fillHandleNode}
                                   <Combobox
                                     id={cellId}
@@ -3875,6 +3912,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                   key={col.key}
                                   {...descriptorTdAttrs}
                                 >
+                                  {compactRowLabelChrome}
                                   {fillHandleNode}
                                   <Combobox
                                     id={cellId}
@@ -3913,6 +3951,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                   key={col.key}
                                   {...descriptorTdAttrs}
                                 >
+                                  {compactRowLabelChrome}
                                   {fillHandleNode}
                                   <Input
                                     id={cellId}
@@ -3944,6 +3983,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                 key={col.key}
                                 {...descriptorTdAttrs}
                               >
+                                {compactRowLabelChrome}
                                 {fillHandleNode}
                                 <Input
                                   id={cellId}

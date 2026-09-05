@@ -7,6 +7,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import { descriptorPinTooltip } from "@/components/media-containers/ExpertGridDescriptorChrome"
 import {
   adjustScrollLeftForDescriptorWidthChange,
   nextDescriptorPin,
@@ -126,6 +127,12 @@ test("parseDescriptorPin reads localStorage strings", () => {
   assert.equal(parseDescriptorPin(""), null)
   assert.equal(parseDescriptorPin("true"), true)
   assert.equal(parseDescriptorPin("false"), false)
+})
+
+test("descriptor pin tooltip reflects pinned state", () => {
+  assert.equal(descriptorPinTooltip(null), "Keep descriptors expanded")
+  assert.equal(descriptorPinTooltip(true), "Keep descriptors expanded")
+  assert.equal(descriptorPinTooltip(false), "Collapse descriptors")
 })
 
 test("scrollLeft compensation equals sticky-width delta", () => {

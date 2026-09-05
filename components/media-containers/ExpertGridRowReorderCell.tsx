@@ -57,14 +57,25 @@ export function ExpertGridRowReorderCell({
   )
 }
 
-export function ExpertGridRowReorderHeaderCell({ className, style }: { className?: string; style?: React.CSSProperties }) {
+export function ExpertGridRowReorderHeaderCell({
+  className,
+  style,
+  children,
+}: {
+  className?: string
+  style?: React.CSSProperties
+  children?: React.ReactNode
+}) {
   return (
     <th
       className={cn("text-center", className)}
       style={{ width: EXPERT_REORDER_COL_WIDTH_PX, minWidth: EXPERT_REORDER_COL_WIDTH_PX, maxWidth: EXPERT_REORDER_COL_WIDTH_PX, ...style }}
       title="Drag rows to reorder line item numbers"
     >
-      #
+      <div className="flex flex-col items-center justify-center gap-0.5">
+        {children}
+        <span>#</span>
+      </div>
     </th>
   )
 }
