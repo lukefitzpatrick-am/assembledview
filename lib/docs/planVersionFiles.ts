@@ -2,8 +2,10 @@
  * Plan-version document jsonb (`media_plan_file` / `mba_pdf_file` /
  * `aa_media_plan_file`).
  *
- * Two stored shapes:
- * - Vercel Blob (DOC-1): `{ url, pathname, name, size, mime, uploadedAt, source: "vercel-blob" }`
+ * Stored shapes:
+ * - Vercel Blob (DOC-1 upload): `{ url, pathname, name, size, mime, uploadedAt, source: "vercel-blob" }`
+ * - Regenerated (DOC-2): same Blob keys plus `source: "regenerated"` and
+ *   `generatedFrom: "persisted"`
  * - ETL / pre-DOC-1 Xano Public File: `{ path, name, mime, … }` with no `url` or
  *   `uploadedAt`. A http(s) `path` is the downloadable location; `savedAt`
  *   falls back to the version `published_at`.
@@ -12,6 +14,26 @@
  */
 
 export type PlanDocumentKind = "mba_pdf" | "media_plan" | "aa_media_plan"
+
+export const PLAN_DOCUMENT_KINDS = [
+  "mba_pdf",
+  "media_plan",
+  "aa_media_plan",
+] as const satisfies readonly PlanDocumentKind[]
+
+export function parseRegenerateKinds(raw: unknown): PlanDocumentKind[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [...PLAN_DOCUMENT_KINDS]
+  const out: PlanDocumentKind[] = []
+  for (const item of raw) {
+    if (
+      (item === "mba_pdf" || item === "media_plan" || item === "aa_media_plan") &&
+      !out.includes(item)
+    ) {
+      out.push(item)
+    }
+  }
+  return out.length > 0 ? out : [...PLAN_DOCUMENT_KINDS]
+}
 
 export type ParsedPlanFile = {
   url: string

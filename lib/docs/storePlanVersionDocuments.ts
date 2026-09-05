@@ -33,6 +33,8 @@ export type StorePlanVersionDocumentsInput = {
     media_plan?: PlanDocumentFileLike
     aa_media_plan?: PlanDocumentFileLike
   }
+  source?: PlanDocumentBlobJson["source"]
+  generatedFrom?: PlanDocumentBlobJson["generatedFrom"]
 }
 
 export type StorePlanVersionDocumentsResult =
@@ -136,6 +138,8 @@ export async function storePlanVersionDocuments(
       size,
       mime,
       uploadedAt,
+      source: input.source,
+      generatedFrom: input.generatedFrom,
     })
     files[kind] = json
     patch[KIND_COLUMN[kind]] = json

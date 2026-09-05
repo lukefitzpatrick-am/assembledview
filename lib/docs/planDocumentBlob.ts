@@ -1,5 +1,7 @@
 import type { PlanDocumentKind } from "@/lib/docs/planVersionFiles"
 
+export type PlanDocumentBlobSource = "vercel-blob" | "regenerated"
+
 export type PlanDocumentBlobJson = {
   url: string
   pathname: string
@@ -7,7 +9,8 @@ export type PlanDocumentBlobJson = {
   size: number
   mime: string
   uploadedAt: string
-  source: "vercel-blob"
+  source: PlanDocumentBlobSource
+  generatedFrom?: "persisted"
 }
 
 function basename(filename: string): string {
@@ -33,6 +36,8 @@ export function planDocumentBlobJson(args: {
   size: number
   mime: string
   uploadedAt?: string
+  source?: PlanDocumentBlobSource
+  generatedFrom?: "persisted"
 }): PlanDocumentBlobJson {
   return {
     url: args.url,
@@ -41,6 +46,7 @@ export function planDocumentBlobJson(args: {
     size: args.size,
     mime: args.mime,
     uploadedAt: args.uploadedAt ?? new Date().toISOString(),
-    source: "vercel-blob",
+    source: args.source ?? "vercel-blob",
+    ...(args.generatedFrom ? { generatedFrom: args.generatedFrom } : {}),
   }
 }

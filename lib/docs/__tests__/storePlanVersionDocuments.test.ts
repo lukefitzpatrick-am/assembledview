@@ -50,4 +50,19 @@ describe("planDocumentBlobJson", () => {
       source: "vercel-blob",
     })
   })
+
+  it("stores source regenerated and generatedFrom persisted", () => {
+    const json = planDocumentBlobJson({
+      url: "https://abc.blob.vercel-storage.com/plans/glenda008/v6/mba_pdf/MBA.pdf",
+      pathname: "plans/glenda008/v6/mba_pdf/MBA.pdf",
+      name: "MBA.pdf",
+      size: 10,
+      mime: "application/pdf",
+      uploadedAt: "2026-09-05T12:00:00.000Z",
+      source: "regenerated",
+      generatedFrom: "persisted",
+    })
+    assert.equal(json.source, "regenerated")
+    assert.equal(json.generatedFrom, "persisted")
+  })
 })
