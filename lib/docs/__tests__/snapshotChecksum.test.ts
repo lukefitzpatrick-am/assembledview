@@ -89,6 +89,23 @@ describe("PC3 snapshotChecksum", () => {
     assert.ok(payload.includes('"fee_snapshot"'))
     assert.ok(payload.includes('"schedule_months"'))
   })
+
+  it("does not include the MBA header date label", () => {
+    const parsed = JSON.parse(
+      canonicalSnapshotPayload({
+        scheduleMonths: fixtureRows,
+        approvedSlice: fixtureSlice,
+        feeSnapshot,
+      })
+    ) as Record<string, unknown>
+    assert.deepEqual(Object.keys(parsed).sort(), [
+      "approved_slice",
+      "fee_snapshot",
+      "schedule_months",
+    ])
+    assert.equal("date" in parsed, false)
+    assert.equal("dateLabel" in parsed, false)
+  })
 })
 
 describe("PC3 isApprovedOrBeyond", () => {

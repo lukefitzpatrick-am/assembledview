@@ -2,7 +2,8 @@
  * PC3 — snapshot checksum for document render + tripwire.
  *
  * hash = sha256(canonical JSON of schedule_months + approved_slice + fee snapshot).
- * Footer uses hash8 = first 8 hex chars. Same input ⇒ same hash ⇒ byte-identical PDF.
+ * Footer uses hash8 = first 8 hex chars. Same input ⇒ same hash.
+ * Header `Date:` (Melbourne generation day) is not in the payload — do not add it.
  */
 
 import { createHash } from "node:crypto"

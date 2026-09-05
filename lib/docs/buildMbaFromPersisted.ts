@@ -7,6 +7,7 @@ import { format, parseISO } from "date-fns"
 import { and, eq, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { readMbaLineApprovals } from "@/lib/data/readApprovals"
 import { addGst } from "@/lib/finance/gst"
 import { isoMonthToScheduleMonthYear } from "@/lib/finance/computeCampaignFinancials"
@@ -72,6 +73,11 @@ function formatDateDdMmYyyy(raw: unknown): string {
     /* fall through */
   }
   return s
+}
+
+/** MBA header `Date:` — Melbourne calendar day of generation, `dd/MM/yyyy`. */
+export function mbaHeaderDateLabel(now: Date = new Date()): string {
+  return formatDateDdMmYyyy(getMelbourneTodayISO(now))
 }
 
 function toChecksumRows(rows: ScheduleMonthRowInput[]): ChecksumScheduleRow[] {
@@ -190,6 +196,7 @@ export async function buildMbaFromPersisted(args: {
   versionNumber: number
   liveCampaignStatus?: string | null
   liveSelection?: LiveMbaSelection | null
+  now?: Date
 }): Promise<PersistedMbaRender> {
   const mbaNumber = String(args.mbaNumber ?? "").trim()
   const versionNumber = Number(args.versionNumber)
@@ -396,10 +403,7 @@ export async function buildMbaFromPersisted(args: {
 
   const footer = snapshotChecksumFooter(versionNumber, checksumHex)
 
-  const dateLabel =
-    formatDateDdMmYyyy(version.campaignStartDate) ||
-    formatDateDdMmYyyy(version.createdAt) ||
-    "01/01/1970"
+  const dateLabel = mbaHeaderDateLabel(args.now ?? new Date())
 
   const mbaData: MBAData = {
     date: dateLabel,
