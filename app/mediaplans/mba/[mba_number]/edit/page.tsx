@@ -7995,25 +7995,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }
         }
 
-        if (saveResult.data.mirror === "failed") {
-          updateSaveStatus(
-            "Mirror to Xano",
-            "skipped",
-            saveResult.data.mirrorError || "Xano mirror failed (Postgres commit kept)"
-          )
-          toast({
-            title: "Saved — Xano mirror is out of date",
-            description:
-              "Postgres saved successfully. The Xano copy will be retried by an admin.",
-          })
-        } else if (saveResult.data.mirror === "disabled") {
-          setSaveStatus((prev) =>
-            prev.filter((item) => item.name !== "Mirror to Xano")
-          )
-        } else {
-          updateSaveStatus("Mirror to Xano", "success")
-        }
-
         setMediaPlanVersionId(versionId)
         const updatedLatest = Math.max(latestVersionNumber || 0, numericSavedVersion)
         setLatestVersionNumber(updatedLatest)

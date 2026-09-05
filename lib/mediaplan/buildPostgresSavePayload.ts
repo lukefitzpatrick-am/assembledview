@@ -372,7 +372,6 @@ export async function postPlansSave(
 /** Modal step names for the Postgres transactional path (T4c). */
 export const POSTGRES_SAVE_MODAL_STEPS = [
   "Save plan (transactional)",
-  "Mirror to Xano",
   "KPI sync",
 ] as const
 

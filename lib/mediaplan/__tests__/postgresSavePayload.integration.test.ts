@@ -18,6 +18,7 @@ import { join } from "node:path"
 import {
   buildSavePlanLineItemsFromSnapshots,
   dollarsToCampaignBudgetCents,
+  POSTGRES_SAVE_MODAL_STEPS,
   resolveMasterIdFromCombinedPlan,
 } from "@/lib/mediaplan/buildPostgresSavePayload"
 import {
@@ -514,6 +515,26 @@ function sliceBottomBar(src: string) {
   assert.ok(end > start, "could not bound wizardBottomBar")
   return src.slice(start, end)
 }
+
+describe("SM-6: save-status panel is Save plan + KPI sync (no Xano mirror)", () => {
+  it("POSTGRES_SAVE_MODAL_STEPS is exactly the two live steps", () => {
+    assert.deepEqual([...POSTGRES_SAVE_MODAL_STEPS], [
+      "Save plan (transactional)",
+      "KPI sync",
+    ])
+  })
+
+  it("neither twin page seeds, updates, or toasts a Mirror to Xano step", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    for (const src of [createSrc, editSrc]) {
+      assert.match(src, /POSTGRES_SAVE_MODAL_STEPS\.map/)
+      assert.doesNotMatch(src, /Mirror to Xano/)
+      assert.doesNotMatch(src, /Saved — Xano mirror is out of date/)
+      assert.doesNotMatch(src, /saveResult\.data\.mirror/)
+    }
+  })
+})
 
 describe("UI-1 twin: save messages live in the sidebar panel, bar is actions only", () => {
   it("both pages host banners/pill/alerts in PlanWizardSaveMessages and keep buttons in bottomBar", () => {

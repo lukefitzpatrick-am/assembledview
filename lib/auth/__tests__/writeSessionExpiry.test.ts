@@ -69,7 +69,6 @@ describe("applySessionExpiredToSaveItems", () => {
     const next = applySessionExpiredToSaveItems(
       [
         { name: "Save plan (transactional)", status: "pending" },
-        { name: "Mirror to Xano", status: "pending" },
         { name: "KPI sync", status: "pending" },
       ],
       "Save plan (transactional)"
@@ -79,11 +78,6 @@ describe("applySessionExpiredToSaveItems", () => {
         name: "Save plan (transactional)",
         status: "error",
         error: SESSION_EXPIRED_SAVE_MESSAGE,
-      },
-      {
-        name: "Mirror to Xano",
-        status: "skipped",
-        error: SESSION_EXPIRED_SKIPPED_STEP,
       },
       {
         name: "KPI sync",
