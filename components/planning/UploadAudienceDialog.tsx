@@ -656,7 +656,9 @@ export function UploadAudienceDialog({
                               setDefinition((d) => {
                                 if (!d) return d
                                 if (s === "NAT") return { ...d, states: ["NAT"] }
-                                let next = d.states.filter((x) => x !== "NAT")
+                                let next: PlanningState[] = d.states.filter(
+                                  (x): boolean => x !== "NAT"
+                                )
                                 if (next.includes(s)) next = next.filter((x) => x !== s)
                                 else next = [...next, s]
                                 if (next.length === 0) next = ["NAT"]

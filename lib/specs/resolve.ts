@@ -7,6 +7,7 @@ import {
   type MiFormatText,
   type MiPublisherRecord,
 } from "./library.js"
+import { isSkipAnswer } from "@/lib/ava/chatInterviewQuestion"
 
 export type MiPlanLineItem = {
   line_item_id: string
@@ -1243,7 +1244,9 @@ export function resolveMiPlan(
     derived.push(...result.derived)
     for (const open of result.questions) questions.push({ ...open, index: line.index, container: line.container })
   }
-  const open_questions = sortQuestions(questions)
+  const open_questions = sortQuestions(questions).filter(
+    (question) => !isSkipAnswer(answerMap.get(question.id) ?? ""),
+  )
   return {
     resolved,
     open_questions,
