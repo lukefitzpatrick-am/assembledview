@@ -2,6 +2,8 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import {
+  backfillKindsNotYetMarked,
+  backfillPlanDocumentsMarkerKey,
   countMissingByKind,
   parseBackfillPlanDocumentsArgs,
   planDocumentOutFilenames,
@@ -81,6 +83,73 @@ describe("countMissingByKind", () => {
     assert.equal(counts.mba_pdf, 1)
     assert.equal(counts.media_plan, 1)
     assert.equal(counts.aa_media_plan, 0)
+  })
+})
+
+describe("backfillPlanDocumentsMarkerKey", () => {
+  it("keys each kind under doc2_plan_documents_backfill so Excel cannot block MBA", () => {
+    assert.equal(
+      backfillPlanDocumentsMarkerKey("media_plan"),
+      "doc2_plan_documents_backfill:media_plan",
+    )
+    assert.equal(
+      backfillPlanDocumentsMarkerKey("aa_media_plan"),
+      "doc2_plan_documents_backfill:aa_media_plan",
+    )
+    assert.equal(
+      backfillPlanDocumentsMarkerKey("mba_pdf"),
+      "doc2_plan_documents_backfill:mba_pdf",
+    )
+  })
+
+  it("lets mba_pdf apply after an Excel-only marker set", () => {
+    const remaining = backfillKindsNotYetMarked({
+      kinds: ["mba_pdf"],
+      markerKeys: [
+        "doc2_plan_documents_backfill:media_plan",
+        "doc2_plan_documents_backfill:aa_media_plan",
+      ],
+      force: false,
+    })
+    assert.deepEqual(remaining, ["mba_pdf"])
+  })
+
+  it("refuses kinds already marked unless --force", () => {
+    assert.deepEqual(
+      backfillKindsNotYetMarked({
+        kinds: ["media_plan", "aa_media_plan"],
+        markerKeys: ["doc2_plan_documents_backfill:media_plan"],
+        force: false,
+      }),
+      ["aa_media_plan"],
+    )
+    assert.deepEqual(
+      backfillKindsNotYetMarked({
+        kinds: ["mba_pdf"],
+        markerKeys: ["doc2_plan_documents_backfill:mba_pdf"],
+        force: false,
+      }),
+      [],
+    )
+    assert.deepEqual(
+      backfillKindsNotYetMarked({
+        kinds: ["mba_pdf"],
+        markerKeys: ["doc2_plan_documents_backfill:mba_pdf"],
+        force: true,
+      }),
+      ["mba_pdf"],
+    )
+  })
+
+  it("treats the unsuffixed legacy marker as blocking every kind", () => {
+    assert.deepEqual(
+      backfillKindsNotYetMarked({
+        kinds: ["mba_pdf", "media_plan"],
+        markerKeys: ["doc2_plan_documents_backfill"],
+        force: false,
+      }),
+      [],
+    )
   })
 })
 

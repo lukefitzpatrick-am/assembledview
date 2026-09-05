@@ -13,6 +13,26 @@ import {
   type PlanDocumentKind,
 } from "@/lib/docs/planVersionFiles"
 
+export const BACKFILL_PLAN_DOCUMENTS_MARKER_PREFIX =
+  "doc2_plan_documents_backfill"
+
+export function backfillPlanDocumentsMarkerKey(kind: PlanDocumentKind): string {
+  return `${BACKFILL_PLAN_DOCUMENTS_MARKER_PREFIX}:${kind}`
+}
+
+export function backfillKindsNotYetMarked(args: {
+  kinds: PlanDocumentKind[]
+  markerKeys: Iterable<string>
+  force: boolean
+}): PlanDocumentKind[] {
+  if (args.force) return [...args.kinds]
+  const keys = new Set(args.markerKeys)
+  if (keys.has(BACKFILL_PLAN_DOCUMENTS_MARKER_PREFIX)) return []
+  return args.kinds.filter(
+    (kind) => !keys.has(backfillPlanDocumentsMarkerKey(kind)),
+  )
+}
+
 export type BackfillPlanDocumentsArgs = {
   apply: boolean
   force: boolean

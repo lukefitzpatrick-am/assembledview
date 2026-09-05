@@ -11,6 +11,9 @@
  * be a historic published cut (not the master's published_version_id);
  * isVersionPublished still gates generate.
  * `--kinds media_plan,aa_media_plan,mba_pdf` defaults to all three.
+ * `--apply` writes one `migration_markers` row per kind
+ * (`doc2_plan_documents_backfill:<kind>`), so an Excel apply does not block
+ * a later `--kinds mba_pdf` run.
  *
  * Usage:
  *   npm run docs:backfill              # dry-run (default)
@@ -24,22 +27,24 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm"
 
 import {
+  BACKFILL_PLAN_DOCUMENTS_MARKER_PREFIX,
+  backfillKindsNotYetMarked,
+  backfillPlanDocumentsMarkerKey,
   countMissingByKind,
   missingRequestedKinds,
   parseBackfillPlanDocumentsArgs,
   planDocumentOutFilenames,
   storedPlanDocumentOutFilenames,
 } from "@/lib/docs/backfillPlanDocumentsArgs"
-import { parsePlanFileJson, type PlanDocumentKind } from "@/lib/docs/planVersionFiles"
+import { parsePlanFileJson, PLAN_DOCUMENT_KINDS, type PlanDocumentKind } from "@/lib/docs/planVersionFiles"
 import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 import { loadEnvLocal } from "@/scripts/migration/_shared"
 
 loadEnvLocal()
 
-const MARKER_KEY = "doc2_plan_documents_backfill"
 const GAP_MS = 1000
 
 type Candidate = {
@@ -122,8 +127,8 @@ async function fetchStoredPlanFile(
   if (blobTarget) {
     const { getPrivateBlob } = await import("@/lib/creative/getPrivateBlob")
     const blobResult = await getPrivateBlob(blobTarget)
-    if (!blobResult || blobResult.statusCode !== 200 || !blobResult.blob) return null
-    const bytes = await blobResult.blob.arrayBuffer()
+    if (!blobResult || blobResult.statusCode !== 200 || !blobResult.stream) return null
+    const bytes = await new Response(blobResult.stream).arrayBuffer()
     return Buffer.from(bytes)
   }
   const upstream = await fetch(parsed.url)
@@ -268,23 +273,38 @@ async function main() {
   }
 
   const { closeDb, getDb, schema } = await import("@/db")
-  const { apply, force, mba, kinds } = parsed
+  const { apply, force, mba, kinds: requestedKinds } = parsed
   const db = getDb()
 
   try {
-    const [marker] = await db
+    const markerRows = await db
       .select()
       .from(schema.migrationMarkers)
-      .where(eq(schema.migrationMarkers.key, MARKER_KEY))
-      .limit(1)
+      .where(
+        inArray(schema.migrationMarkers.key, [
+          BACKFILL_PLAN_DOCUMENTS_MARKER_PREFIX,
+          ...PLAN_DOCUMENT_KINDS.map(backfillPlanDocumentsMarkerKey),
+        ]),
+      )
+    const markerKeys = markerRows.map((row) => row.key)
+    const kindsToApply = backfillKindsNotYetMarked({
+      kinds: requestedKinds,
+      markerKeys,
+      force,
+    })
 
-    if (apply && marker && !force) {
+    if (apply && kindsToApply.length === 0) {
+      const listed = requestedKinds
+        .map((kind) => backfillPlanDocumentsMarkerKey(kind))
+        .join(", ")
       console.error(
-        `Refusing: migration_markers.${MARKER_KEY} already applied at ${marker.appliedAt}. Pass --force to re-run.`,
+        `Refusing: migration_markers already record ${listed}. Pass --force to re-run those kinds.`,
       )
       process.exitCode = 1
       return
     }
+
+    const kinds = apply ? kindsToApply : requestedKinds
 
     const filter = mba
       ? sql`lower(trim(${schema.mediaPlanMasters.mbaNumber})) = ${mba.toLowerCase()}`
@@ -334,12 +354,18 @@ async function main() {
       .where(unpublishedWhere)
       .orderBy(schema.mediaPlanMasters.mbaNumber, schema.mediaPlanVersions.versionNumber)
 
-    const kindsLabel = ` --kinds ${kinds.join(",")}`
+    const kindsLabel = ` --kinds ${requestedKinds.join(",")}`
     console.log(
       apply
         ? `APPLY${force ? " --force" : ""}${mba ? ` --mba ${mba}` : ""}${kindsLabel}`
         : `DRY-RUN${mba ? ` --mba ${mba}` : ""}${kindsLabel} (pass --apply to write Blob + jsonb)`,
     )
+    if (apply && kindsToApply.length !== requestedKinds.length) {
+      const skipped = requestedKinds.filter((kind) => !kindsToApply.includes(kind))
+      console.log(
+        `Skipping already-marked kinds: ${skipped.map(backfillPlanDocumentsMarkerKey).join(", ")}`,
+      )
+    }
     console.log("")
     const missingCounts = countMissingByKind(
       missingFiles.map((row) => ({
@@ -429,20 +455,24 @@ async function main() {
       if (i < missingFiles.length - 1) await sleep(GAP_MS)
     }
 
-    const note = `DOC-2 backfill: ${missingFiles.length} published versions missing files; ${errors} with errors; skipped ${needsPublishedAt.length} published_at-null pointers`
-    if (marker) {
-      await db
-        .update(schema.migrationMarkers)
-        .set({ appliedAt: new Date().toISOString(), note })
-        .where(eq(schema.migrationMarkers.key, MARKER_KEY))
-    } else {
-      await db.insert(schema.migrationMarkers).values({
-        key: MARKER_KEY,
-        note,
-      })
+    const appliedAt = new Date().toISOString()
+    const writtenKeys: string[] = []
+    for (const kind of kindsToApply) {
+      const key = backfillPlanDocumentsMarkerKey(kind)
+      const note = `DOC-2 backfill kind=${kind}: ${missingFiles.length} published versions missing files; ${errors} with errors; skipped ${needsPublishedAt.length} published_at-null pointers`
+      const existing = markerRows.find((row) => row.key === key)
+      if (existing) {
+        await db
+          .update(schema.migrationMarkers)
+          .set({ appliedAt, note })
+          .where(eq(schema.migrationMarkers.key, key))
+      } else {
+        await db.insert(schema.migrationMarkers).values({ key, note })
+      }
+      writtenKeys.push(key)
     }
     console.log("")
-    console.log(`Wrote migration_markers.${MARKER_KEY}. Errors: ${errors}.`)
+    console.log(`Wrote migration_markers ${writtenKeys.join(", ")}. Errors: ${errors}.`)
   } finally {
     await closeDb()
   }
