@@ -24,17 +24,26 @@ import {
   type DateRange,
 } from "@/lib/dashboard/dateFilter"
 import { deliverableLabelForMetricKey } from "@/lib/delivery/deliverableLabel"
+import { deriveSpendFromPlanRate } from "@/lib/delivery/deriveSpendFromPlanRate"
+import {
+  lookupActiveDeliverySource,
+  deliverySourceLookupKey,
+  PROGRAMMATIC_DELIVERY_SOURCE_SEED,
+  type DeliverySourceMapRow,
+} from "@/lib/delivery/deliverySourceMap"
 export type ProgrammaticLineItem = {
   line_item_id: string
   line_item_name?: string
   buy_type?: string
   platform?: string
+  publisher?: string
   bursts?: any[]
   bursts_json?: string | any[]
   total_budget?: number
   goal_deliverable_total?: number
   start_date?: string
   end_date?: string
+  deliverySourceMap?: DeliverySourceMapRow
   [key: string]: any
 }
 
@@ -86,6 +95,7 @@ export type ProgrammaticLineItemMetrics = {
   targetCurve: TargetCurvePoint[]
   cumulativeActual: Array<{ date: string; actual: number }>
   onTrackStatus: OnTrackStatus
+  spendModelledFromPlanRate: boolean
 }
 function cleanId(v: any) {
   const s = String(v ?? "").trim()
@@ -100,38 +110,28 @@ export function extractProgrammaticLineItemId(item: ProgrammaticLineItem): strin
   return cleanId(id)
 }
 
-/** Platforms accepted into Programmatic Display / Video delivery sections. */
-const PROGRAMMATIC_ACCEPTED_PLATFORMS = new Set([
-  "dv360",
-  "youtube - dv360",
-  "youtube-dv360",
-  "taboola",
-  "native - taboola",
-  "native",
-])
-
-/** Programmatic line items for DV360 + Taboola (and native aliases). */
-export function normalizeProgrammaticLineItems(items: unknown[] | undefined): ProgrammaticLineItem[] {
+/** Programmatic line items with an active delivery_source_map row. Unmapped platforms stay excluded. */
+export function normalizeProgrammaticLineItems(
+  items: unknown[] | undefined,
+  sourceMap: readonly DeliverySourceMapRow[] = PROGRAMMATIC_DELIVERY_SOURCE_SEED,
+): ProgrammaticLineItem[] {
   const arr = Array.isArray(items) ? items : []
-  return arr
-    .filter((item) => {
-      const platform = String((item as ProgrammaticLineItem)?.platform ?? "")
-        .trim()
-        .toLowerCase()
-      return PROGRAMMATIC_ACCEPTED_PLATFORMS.has(platform)
-    })
-    .flatMap((item) => {
-      const typed = item as ProgrammaticLineItem
-      const id = extractProgrammaticLineItemId(typed)
-      if (!id) return []
-      return [
-        {
-          ...typed,
-          line_item_id: id,
-          bursts: parseBursts(typed.bursts ?? typed.bursts_json),
-        },
-      ]
-    })
+  return arr.flatMap((item) => {
+    const typed = item as ProgrammaticLineItem
+    const key = deliverySourceLookupKey(typed.publisher, typed.platform)
+    const mapRow = lookupActiveDeliverySource(key, sourceMap)
+    if (!mapRow) return []
+    const id = extractProgrammaticLineItemId(typed)
+    if (!id) return []
+    return [
+      {
+        ...typed,
+        line_item_id: id,
+        bursts: parseBursts(typed.bursts ?? typed.bursts_json),
+        deliverySourceMap: mapRow,
+      },
+    ]
+  })
 }
 
 function startOfDay(date: Date) {
@@ -197,6 +197,11 @@ function parseBursts(raw: ProgrammaticLineItem["bursts"] | ProgrammaticLineItem[
   return []
 }
 
+function optionalCurrency(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined
+  return parseCurrency(value)
+}
+
 function normalizeBurst(raw: Record<string, any>) {
   const startDate = raw.start_date || raw.startDate || raw.start || raw.beginDate || raw.begin_date || ""
   const endDate = raw.end_date || raw.endDate || raw.end || raw.stopDate || raw.stop_date || ""
@@ -207,6 +212,8 @@ function normalizeBurst(raw: Record<string, any>) {
   const calculatedValueNumber = parseCurrency(
     raw.calculated_value_number ?? raw.calculatedValue ?? raw.deliverables ?? raw.deliverable ?? raw.conversions
   )
+  const mediaAmount = optionalCurrency(raw.media_amount ?? raw.mediaAmount)
+  const buyAmount = optionalCurrency(raw.buyAmount ?? raw.buy_amount)
 
   return {
     start_date: startDate,
@@ -217,6 +224,8 @@ function normalizeBurst(raw: Record<string, any>) {
     deliverables: Number.isFinite(calculatedValueNumber) ? calculatedValueNumber : 0,
     budget_number: Number.isFinite(budgetNumber) ? budgetNumber : 0,
     calculated_value_number: Number.isFinite(calculatedValueNumber) ? calculatedValueNumber : 0,
+    ...(mediaAmount !== undefined ? { media_amount: mediaAmount, mediaAmount } : {}),
+    ...(buyAmount !== undefined ? { buyAmount } : {}),
   }
 }
 
@@ -289,9 +298,12 @@ function expectedInWindowFromBurstsProg(
   return Math.max(0, cumEnd - cumBefore)
 }
 
-export function mapCombinedRowToDv360(row: CombinedPacingRow): Dv360DailyRow {
+export function mapCombinedRowToDv360(
+  row: CombinedPacingRow,
+  acceptedChannels: ReadonlySet<string>,
+): Dv360DailyRow {
   const channel = String(row.channel ?? "")
-  if (channel !== "programmatic-display" && channel !== "programmatic-video") {
+  if (!acceptedChannels.has(channel)) {
     throw new Error(`Unexpected channel for programmatic pacing: ${channel}`)
   }
 
@@ -548,6 +560,28 @@ export function buildProgrammaticLineItemMetrics(
       }
     })
 
+    const spendModelledFromPlanRate = item.deliverySourceMap?.derive_spend_from_plan === true
+    if (spendModelledFromPlanRate) {
+      const derived = deriveSpendFromPlanRate({
+        lineItemId: targetId ?? String(item.line_item_id ?? ""),
+        buyType: item.buy_type,
+        bursts,
+        days: actualsDaily.map((d) => ({
+          date: d.date,
+          impressions: d.impressions,
+          clicks: d.clicks,
+          results: d.conversions,
+        })),
+      })
+      for (const warning of derived.warnings) {
+        console.warn(warning)
+      }
+      const spendByDate = new Map(derived.days.map((d) => [d.date, d.derivedSpend]))
+      for (const day of actualsDaily) {
+        day.spend = spendByDate.get(day.date) ?? 0
+      }
+    }
+
     const asAtDate = pacingAsAtISO
 
     const clipCampaignStart = fallbackStart ?? campaignWindow.startISO
@@ -726,6 +760,7 @@ export function buildProgrammaticLineItemMetrics(
       targetCurve,
       cumulativeActual,
       onTrackStatus,
+      spendModelledFromPlanRate,
     }
   })
 }

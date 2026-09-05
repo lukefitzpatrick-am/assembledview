@@ -1,5 +1,5 @@
 {
-  "id": "c78dbc94-2322-472d-a266-aa2da20ddbb7",
+  "id": "e2360de2-9062-4517-a1a2-ea1c8b41b923",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -8557,6 +8557,65 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.delivery_source_map": {
+      "name": "delivery_source_map",
+      "schema": "",
+      "columns": {
+        "publisher_key": {
+          "name": "publisher_key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "delivery_source": {
+          "name": "delivery_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "derive_spend_from_plan": {
+          "name": "derive_spend_from_plan",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

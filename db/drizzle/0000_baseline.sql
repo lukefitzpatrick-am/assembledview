@@ -1499,3 +1499,13 @@ CREATE TABLE "publisher_value_synonyms" (
 ALTER TABLE "publisher_value_synonyms" ADD CONSTRAINT "publisher_value_synonyms_publisher_id_publishers_id_fk" FOREIGN KEY ("publisher_id") REFERENCES "public"."publishers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_pvs_scope" ON "publisher_value_synonyms" USING btree (coalesce("publisher_id", 0),"vocabulary","raw_value") WHERE "publisher_value_synonyms"."is_active" = true;--> statement-breakpoint
 CREATE INDEX "idx_pvs_lookup" ON "publisher_value_synonyms" USING btree ("vocabulary","raw_value") WHERE "publisher_value_synonyms"."is_active" = true;
+--> statement-breakpoint
+CREATE TABLE "delivery_source_map" (
+	"publisher_key" text PRIMARY KEY NOT NULL,
+	"delivery_source" text NOT NULL,
+	"derive_spend_from_plan" boolean DEFAULT false NOT NULL,
+	"active" boolean DEFAULT true NOT NULL,
+	"notes" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);

@@ -108,6 +108,27 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     })
   })
 
+  it("ZERO-$ LAW: derive_spend_from_plan is OFF for Direct Booked Digital — no amount_spent series", () => {
+    const section = buildSection(
+      [
+        factRow({
+          lineItemId: LINE_A,
+          impressions: 800,
+          clicks: 40,
+          amountSpent: 99,
+        }),
+      ],
+      [LINE_A],
+    )
+
+    assert.ok(section)
+    const keys = section.aggregate.chart.series.map((s) => s.key)
+    assert.ok(!keys.includes("amountSpent"))
+    assert.ok(!keys.includes("amount_spent"))
+    assert.ok(!keys.includes("spend"))
+    assert.equal(section.aggregate.chart.daily[0]?.amountSpent, undefined)
+  })
+
   it("aggregate completionRate is volume-weighted (910/1100*100), not the mean of per-line rates", () => {
     // Line A 90% on 1,000 imps; line B 10% on 100 imps. Mean of rates = 50%.
     // Volume-weighted: (900+10) / (1000+100) * 100 = 82.727...

@@ -15,6 +15,7 @@ import {
   buildProgrammaticCampaignDateRange,
   buildProgrammaticLineItemMetrics,
   buildProgrammaticTargetCurveLineItem,
+  extractProgrammaticLineItemId,
   getProgrammaticDeliverableLabel,
   mapCombinedRowToDv360,
   normalizeProgrammaticLineItems,
@@ -22,6 +23,7 @@ import {
   type ProgrammaticLineItem,
   type ProgrammaticLineItemMetrics,
 } from "@/lib/delivery/programmatic/programmaticCompute"
+import { snowflakeChannelsForDeliverySource } from "@/lib/delivery/deliverySourceMap"
 import {
   type OnTrackStatus,
 } from "@/lib/kpi/deliveryTargetCurve"
@@ -31,11 +33,15 @@ import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiTileProps } from "../shared/KpiTile"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
 import { channelMediaTypeColour } from "./channelMediaTypeColour"
-import type { ChannelKey, ChannelSectionData } from "./types"
+import type { ChannelKey, ChannelSectionData, ConnectionPill } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 import { aggregateDeliverableLabel } from "@/lib/delivery/deliverableLabel"
+
+const MODELLED_SPEND_LABEL = "Delivered spend (modelled from plan rate)"
+const MODELLED_SPEND_TOOLTIP =
+  "Rate = planned media ÷ planned deliverables. Capped at the planned total."
 
 function pctVarianceFromPacingPct(pct: number | undefined): number {
   if (pct === undefined || Number.isNaN(pct)) return 0
@@ -86,7 +92,7 @@ function burstsForLineItem(lineItem: ProgrammaticLineItem): unknown {
 const DV360_PLATFORMS = new Set(["dv360", "youtube - dv360", "youtube-dv360"])
 const TABOOLA_PLATFORMS = new Set(["taboola", "native - taboola", "native"])
 
-function programmaticConnectionLabel(items: ProgrammaticLineItem[]): string {
+function dspConnectionLabel(items: ProgrammaticLineItem[]): string {
   let hasDv360 = false
   let hasTaboola = false
   for (const item of items) {
@@ -99,6 +105,54 @@ function programmaticConnectionLabel(items: ProgrammaticLineItem[]): string {
   if (hasDv360 && hasTaboola) return "DV360 + Taboola connected"
   if (hasTaboola) return "Taboola connected"
   return "DV360 connected"
+}
+
+function cm360PartnerLabel(publisherKey: string): string {
+  const key = publisherKey.trim().toLowerCase()
+  if (key === "quantcast" || key === "quantcast - direct") return "Quantcast"
+  return publisherKey.trim() || "CM360"
+}
+
+function programmaticConnectionPills(items: ProgrammaticLineItem[]): ConnectionPill[] {
+  const dspItems = items.filter((item) => item.deliverySourceMap?.delivery_source === "dsp")
+  const cm360Items = items.filter((item) => item.deliverySourceMap?.delivery_source === "cm360")
+  const pills: ConnectionPill[] = []
+  if (dspItems.length > 0) {
+    pills.push({ label: dspConnectionLabel(dspItems), tone: "dv360" })
+  }
+  const seen = new Set<string>()
+  for (const item of cm360Items) {
+    const label = `CM360 (${cm360PartnerLabel(item.deliverySourceMap?.publisher_key ?? "")})`
+    if (seen.has(label)) continue
+    seen.add(label)
+    pills.push({ label, tone: "cm360" })
+  }
+  return pills
+}
+
+function mapCombinedRowsForNormalizedLines(
+  combinedRows: CombinedPacingRow[],
+  normalized: ProgrammaticLineItem[],
+  snowflakeChannel: string,
+) {
+  const byId = new Map<string, ProgrammaticLineItem>()
+  for (const item of normalized) {
+    const id = extractProgrammaticLineItemId(item)
+    if (id) byId.set(id, item)
+  }
+
+  return combinedRows.flatMap((row) => {
+    const rowId = String(row.lineItemId ?? "").trim().toLowerCase()
+    if (!rowId) return []
+    const item = byId.get(rowId)
+    if (!item) return []
+    const source = item.deliverySourceMap?.delivery_source
+    if (!source) return []
+    const accepted = snowflakeChannelsForDeliverySource(source, snowflakeChannel)
+    const channel = String(row.channel ?? "")
+    if (!accepted.has(channel)) return []
+    return [mapCombinedRowToDv360(row, accepted)]
+  })
 }
 
 function buildProgrammaticKpiTiles(input: {
@@ -281,7 +335,7 @@ export function buildProgrammaticChannelSection(input: {
   const normalized = normalizeProgrammaticLineItems(rawLineItems)
   if (!normalized.length) return null
 
-  const dvRows = combinedRows.filter((r) => r.channel === snowflakeChannel).map(mapCombinedRowToDv360)
+  const dvRows = mapCombinedRowsForNormalizedLines(combinedRows, normalized, snowflakeChannel)
 
   const campaignDateSeries = buildProgrammaticCampaignDateRange(campaignStart, campaignEnd)
 
@@ -333,8 +387,11 @@ export function buildProgrammaticChannelSection(input: {
 
   const aggregateTrack = pacingPctToStatus(aggregatePacing.deliverable?.pacingPct)
 
+  const allSpendModelled =
+    metrics.length > 0 && metrics.every((m) => m.spendModelledFromPlanRate)
+
   const summaryChips = [
-    { label: "Total spend", value: formatCurrency2dp(kpisRollup.spend) },
+    { label: allSpendModelled ? MODELLED_SPEND_LABEL : "Total spend", value: formatCurrency2dp(kpisRollup.spend) },
     { label: "Total impressions", value: formatWholeNumber(kpisRollup.impressions) },
     { label: "Avg CPM", value: formatCurrency2dp(kpisRollup.cpm) },
     {
@@ -353,13 +410,14 @@ export function buildProgrammaticChannelSection(input: {
       : 0
 
   const spendCard: ProgressCardProps = {
-    title: "Spend delivery",
+    title: allSpendModelled ? MODELLED_SPEND_LABEL : "Spend delivery",
     value: formatCurrency2dp(aggregatePacing.spend.actualToDate),
     detail: `Delivered ${formatCurrency2dp(aggregatePacing.spend.actualToDate)} · Planned ${formatCurrency2dp(bookedTotals.spend)}`,
     progress: spendRatio,
     variance: pctVarianceFromPacingPct(aggregatePacing.spend.pacingPct),
     status: pacingPctToStatus(aggregatePacing.spend.pacingPct),
     sparkline: aggregatePacing.series.map((p) => Number(p.actualSpend ?? 0)),
+    ...(allSpendModelled ? { titleTooltip: MODELLED_SPEND_TOOLTIP } : {}),
   }
 
   const deliverableCard: ProgressCardProps = {
@@ -423,6 +481,7 @@ export function buildProgrammaticChannelSection(input: {
         ? { video_3s_views: Number(d.videoViews ?? 0) }
         : { impressions: Number(d.impressions ?? 0) }),
     }))
+    const modelled = m.spendModelledFromPlanRate === true
     const displayName = deliveryLineItemDisplayName(li as Record<string, unknown>)
     const block: LineItemBlockProps = {
       name: displayName.label,
@@ -430,7 +489,7 @@ export function buildProgrammaticChannelSection(input: {
       platform: String(m.lineItem.buy_type ?? ""),
       progressCards: [
         {
-          title: "Spend delivery",
+          title: modelled ? MODELLED_SPEND_LABEL : "Spend delivery",
           value: formatCurrency2dp(m.pacing.spend.actualToDate),
           detail: `Delivered ${formatCurrency2dp(m.pacing.spend.actualToDate)} · Planned ${formatCurrency2dp(m.booked.spend)}`,
           progress: spendR,
@@ -438,6 +497,7 @@ export function buildProgrammaticChannelSection(input: {
           status: pacingPctToStatus(m.pacing.spend.pacingPct),
           sparkline: m.pacing.series.map((p) => Number(p.actualSpend ?? 0)),
           dense: true,
+          ...(modelled ? { titleTooltip: MODELLED_SPEND_TOOLTIP } : {}),
         },
         {
           title: `${getProgrammaticDeliverableLabel(m.deliverableKey)} delivery`,
@@ -482,7 +542,7 @@ export function buildProgrammaticChannelSection(input: {
     title,
     dateRange: { startISO: campaignStart, endISO: campaignEnd },
     lastSyncedAt,
-    connections: [{ label: programmaticConnectionLabel(normalized), tone: "dv360" }],
+    connections: programmaticConnectionPills(normalized),
     mediaTypeColour,
     aggregate: {
       summaryChips,
