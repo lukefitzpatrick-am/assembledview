@@ -1,5 +1,6 @@
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
+import { prorateBurstFeesToMonths, type SeedBurstSource } from "@/lib/billing/seedLineFees"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
 import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
@@ -8,8 +9,8 @@ import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { resolveProductionBurstBudget } from "@/lib/mediaplan/resolveProductionBurstBudget"
 
 /**
- * Build per-month media amounts for each container line item (billing or delivery mode).
- * Matches the media plan create flow; MBA edit extends this with fee/ad-serving fields elsewhere.
+ * Build per-month media and fee amounts for each container line item (billing or delivery).
+ * Client-pays billing media is 0; fee months still come from {@link computeBurstAmounts}.
  */
 export function generateBillingLineItems(
   mediaLineItems: any[],
@@ -33,6 +34,7 @@ export function generateBillingLineItems(
     monthKeys.forEach((key) => {
       monthlyAmounts[key] = 0
     })
+    const feeBurstSources: SeedBurstSource[] = []
 
     const bursts = resolveLineItemBursts(lineItem)
 
@@ -95,7 +97,7 @@ export function generateBillingLineItems(
           (lineItem as any)?.buy_type ??
           ""
       )
-      const { mediaAmount, deliveryMediaAmount } = computeBurstAmounts({
+      const { mediaAmount, deliveryMediaAmount, feeAmount } = computeBurstAmounts({
         rawBudget: budget,
         budgetIncludesFees,
         clientPaysForMedia: burstClientPaysForMedia,
@@ -104,20 +106,35 @@ export function generateBillingLineItems(
       })
       const effectiveBudget = mode === "billing" ? mediaAmount : deliveryMediaAmount
 
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || effectiveBudget === 0) return
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return
 
-      const shares = prorateAcrossMonths({
-        amount: effectiveBudget,
-        burstStart: startDate,
-        burstEnd: endDate,
-        monthKeys,
-      })
-      for (const monthKey of monthKeys) {
-        monthlyAmounts[monthKey] += shares[monthKey] ?? 0
+      // C-95: client-pays billing media is 0; still keep the line and prorate fee.
+      if (effectiveBudget !== 0) {
+        const shares = prorateAcrossMonths({
+          amount: effectiveBudget,
+          burstStart: startDate,
+          burstEnd: endDate,
+          monthKeys,
+        })
+        for (const monthKey of monthKeys) {
+          monthlyAmounts[monthKey] += shares[monthKey] ?? 0
+        }
+      }
+      if (feeAmount > 0) {
+        feeBurstSources.push({
+          startDate,
+          endDate,
+          feeAmount,
+          clientPaysForMedia: burstClientPaysForMedia,
+        })
       }
     })
 
     const totalAmount = Object.values(monthlyAmounts).reduce((sum, val) => sum + val, 0)
+    const { feeMonthlyAmounts, totalFeeAmount } = prorateBurstFeesToMonths(
+      feeBurstSources,
+      monthKeys
+    )
     const dimensions = resolveLineDimensions(mediaType, lineItem)
     lineItemsMap.set(itemId, {
       id: itemId,
@@ -126,6 +143,9 @@ export function generateBillingLineItems(
       monthlyAmounts,
       totalAmount,
       ...dimensions,
+      feeMonthlyAmounts,
+      totalFeeAmount,
+      feeAmount: totalFeeAmount,
       ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),
     })
   })
