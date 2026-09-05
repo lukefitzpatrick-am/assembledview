@@ -1,6 +1,6 @@
 /**
- * SM-13 — descriptor compact-mode hysteresis, pin/focus resolve, and
- * scrollLeft compensation when sticky widths change.
+ * SM-13 / SM-14 — descriptor compact-mode hysteresis, pin/focus resolve,
+ * logical-scroll auto-mode, canCompact, suppression, and clamped compensation.
  *
  * Run: npx tsx --test lib/mediaplan/__tests__/expertGridDescriptorMode.test.ts
  */
@@ -10,10 +10,16 @@ import test from "node:test"
 import { descriptorPinTooltip } from "@/components/media-containers/ExpertGridDescriptorChrome"
 import {
   adjustScrollLeftForDescriptorWidthChange,
+  applyDescriptorScrollEvent,
+  canCompact,
+  descriptorLogicalScrollLeft,
+  DESCRIPTOR_SCROLL_SUPPRESS_MS,
   nextDescriptorPin,
   nextDescriptorScrollIntent,
+  nextDescriptorScrollSuppressUntil,
   parseDescriptorPin,
   resolveExpertGridDescriptorMode,
+  shouldSuppressDescriptorScrollEvent,
 } from "@/lib/mediaplan/expertGridDescriptorMode"
 
 test("hysteresis: 200 → compact; 100 → still compact; 30 → expanded; 100 → still expanded", () => {
@@ -135,8 +141,147 @@ test("descriptor pin tooltip reflects pinned state", () => {
   assert.equal(descriptorPinTooltip(false), "Collapse descriptors")
 })
 
-test("scrollLeft compensation equals sticky-width delta", () => {
-  assert.equal(adjustScrollLeftForDescriptorWidthChange(800, 1400, 400), 800 + (400 - 1400))
-  assert.equal(adjustScrollLeftForDescriptorWidthChange(0, 400, 1400), 1000)
-  assert.equal(adjustScrollLeftForDescriptorWidthChange(200, 900, 900), 200)
+test("scrollLeft compensation equals sticky-width delta, clamped to [0, max]", () => {
+  assert.equal(adjustScrollLeftForDescriptorWidthChange(0, 400, 1400, 2000), 1000)
+  assert.equal(adjustScrollLeftForDescriptorWidthChange(200, 900, 900, 500), 200)
+  assert.equal(adjustScrollLeftForDescriptorWidthChange(800, 1400, 400, 500), 0)
+  assert.equal(adjustScrollLeftForDescriptorWidthChange(100, 400, 1400, 500), 500)
+})
+
+const NARROW_WIDTHS = {
+  expandedStickyWidthPx: 1400,
+  compactStickyWidthPx: 600,
+  currentStickyWidthPx: 1400,
+}
+const WIDE_WIDTHS = {
+  expandedStickyWidthPx: 1400,
+  compactStickyWidthPx: 600,
+  currentStickyWidthPx: 1400,
+}
+
+test("canCompact is false when expanded max 300 and W 800 (narrow right-edge loop)", () => {
+  assert.equal(
+    canCompact({ scrollWidth: 1300, clientWidth: 1000 }, NARROW_WIDTHS),
+    false
+  )
+})
+
+test("narrow grid: mode stays expanded across 10 simulated frames at the right edge", () => {
+  const el = { scrollWidth: 1300, clientWidth: 1000 }
+  let mode: "expanded" | "compact" = "expanded"
+  let scrollLeft = 300
+  let currentW = NARROW_WIDTHS.expandedStickyWidthPx
+  let scrollWidth = el.scrollWidth
+  let suppressUntil = 0
+  const now0 = 1_000
+  for (let i = 0; i < 10; i += 1) {
+    const currentStickyWidthPx = currentW
+    const step = applyDescriptorScrollEvent({
+      current: mode,
+      scrollLeft,
+      scrollWidth,
+      clientWidth: el.clientWidth,
+      expandedStickyWidthPx: NARROW_WIDTHS.expandedStickyWidthPx,
+      compactStickyWidthPx: NARROW_WIDTHS.compactStickyWidthPx,
+      currentStickyWidthPx,
+      now: now0 + i * 16,
+      suppressUntil,
+    })
+    assert.equal(step.mode, "expanded")
+    if (step.mode !== mode) {
+      const nextW =
+        step.mode === "compact"
+          ? NARROW_WIDTHS.compactStickyWidthPx
+          : NARROW_WIDTHS.expandedStickyWidthPx
+      scrollWidth += nextW - currentW
+      const maxScroll = Math.max(0, scrollWidth - el.clientWidth)
+      scrollLeft = adjustScrollLeftForDescriptorWidthChange(
+        scrollLeft,
+        currentW,
+        nextW,
+        maxScroll
+      )
+      currentW = nextW
+      suppressUntil = nextDescriptorScrollSuppressUntil(now0 + i * 16)
+      mode = step.mode
+    }
+  }
+  assert.equal(mode, "expanded")
+})
+
+test("wide grid: canCompact true; hysteresis on logical 200/100/30; compact scrollLeft never negative", () => {
+  const W =
+    WIDE_WIDTHS.expandedStickyWidthPx - WIDE_WIDTHS.compactStickyWidthPx
+  assert.equal(W, 800)
+  assert.equal(
+    canCompact({ scrollWidth: 4000, clientWidth: 1000 }, WIDE_WIDTHS),
+    true
+  )
+
+  let mode = nextDescriptorScrollIntent("expanded", 200, true)
+  assert.equal(mode, "compact")
+  let compactScrollLeft = Math.max(0, 200 - W)
+  assert.equal(compactScrollLeft, 0)
+
+  mode = nextDescriptorScrollIntent(mode, 100, true)
+  assert.equal(mode, "compact")
+  compactScrollLeft = Math.max(0, 100 - W)
+  assert.equal(compactScrollLeft, 0)
+
+  mode = nextDescriptorScrollIntent(mode, 30, true)
+  assert.equal(mode, "expanded")
+  compactScrollLeft = Math.max(0, 30 - W)
+  assert.equal(compactScrollLeft, 0)
+})
+
+test("logicalScroll equals scrollLeft when expanded and scrollLeft + W when compact", () => {
+  assert.equal(descriptorLogicalScrollLeft(200, 1400, 1400), 200)
+  assert.equal(descriptorLogicalScrollLeft(50, 1400, 600), 850)
+})
+
+test("nextDescriptorScrollIntent stays expanded when compact is not allowed", () => {
+  assert.equal(nextDescriptorScrollIntent("expanded", 300, false), "expanded")
+  assert.equal(nextDescriptorScrollIntent("compact", 300, false), "expanded")
+})
+
+test("a scroll event inside the suppression window is ignored; one after it is not", () => {
+  const until = nextDescriptorScrollSuppressUntil(1_000)
+  assert.equal(until, 1_000 + DESCRIPTOR_SCROLL_SUPPRESS_MS)
+  assert.equal(shouldSuppressDescriptorScrollEvent(1_000, until), true)
+  assert.equal(shouldSuppressDescriptorScrollEvent(1_033, until), true)
+  assert.equal(shouldSuppressDescriptorScrollEvent(1_034, until), false)
+
+  const base = {
+    current: "compact" as const,
+    scrollLeft: 2200,
+    scrollWidth: 3200,
+    clientWidth: 1000,
+    expandedStickyWidthPx: 1400,
+    compactStickyWidthPx: 600,
+    currentStickyWidthPx: 600,
+    suppressUntil: until,
+  }
+  const ignored = applyDescriptorScrollEvent({ ...base, now: 1_020 })
+  assert.equal(ignored.ignored, true)
+  assert.equal(ignored.mode, "compact")
+
+  const after = applyDescriptorScrollEvent({ ...base, now: 1_040 })
+  assert.equal(after.ignored, false)
+  assert.equal(after.mode, "compact")
+})
+
+test("compact scroller left edge expands even when logical is still ~W", () => {
+  const expanded = applyDescriptorScrollEvent({
+    current: "compact",
+    scrollLeft: 30,
+    scrollWidth: 3200,
+    clientWidth: 1000,
+    expandedStickyWidthPx: 1400,
+    compactStickyWidthPx: 600,
+    currentStickyWidthPx: 600,
+    now: 2_000,
+    suppressUntil: 0,
+  })
+  assert.equal(expanded.ignored, false)
+  assert.equal(expanded.mode, "expanded")
 })

@@ -1,14 +1,66 @@
 /**
- * Compact / expanded descriptor pane for ExpertGrid (SM-13).
- * Pure hysteresis + resolve — no DOM.
+ * Compact / expanded descriptor pane for ExpertGrid (SM-13 / SM-14).
+ * Pure hysteresis + resolve — no DOM. Auto-mode reads logical scroll
+ * (week travel in expanded coordinates), never the post-compact raw
+ * scrollLeft that the width change itself writes.
  */
 
 export type ExpertGridDescriptorMode = "expanded" | "compact"
 
-/** scrollLeft above this → compact (strict greater-than). */
+/** Logical scroll above this → compact (strict greater-than). */
 export const DESCRIPTOR_COMPACT_SCROLL_PX = 160
-/** scrollLeft below this → expanded (strict less-than). */
+/** Logical scroll below this → expanded (strict less-than). */
 export const DESCRIPTOR_EXPAND_SCROLL_PX = 40
+/** Ignore scroll events for ~2 frames after a compensation write. */
+export const DESCRIPTOR_SCROLL_SUPPRESS_MS = 34
+
+export type DescriptorStickyWidths = {
+  expandedStickyWidthPx: number
+  compactStickyWidthPx: number
+  currentStickyWidthPx: number
+}
+
+export type DescriptorScrollerMetrics = {
+  scrollWidth: number
+  clientWidth: number
+}
+
+/** Week-grid travel in expanded coordinates. */
+export function descriptorLogicalScrollLeft(
+  scrollLeft: number,
+  expandedStickyWidthPx: number,
+  currentStickyWidthPx: number
+): number {
+  return scrollLeft + (expandedStickyWidthPx - currentStickyWidthPx)
+}
+
+/**
+ * Compact is only allowed when the weeks stay scrolled after shrinking
+ * the pane by W = expanded − compact:
+ *   expandedMaxScroll − W ≥ DESCRIPTOR_COMPACT_SCROLL_PX
+ */
+export function canCompact(
+  el: DescriptorScrollerMetrics,
+  widths: DescriptorStickyWidths
+): boolean {
+  const W = widths.expandedStickyWidthPx - widths.compactStickyWidthPx
+  if (W <= 0) return false
+  const expandedScrollWidth =
+    el.scrollWidth + (widths.expandedStickyWidthPx - widths.currentStickyWidthPx)
+  const expandedMaxScroll = expandedScrollWidth - el.clientWidth
+  return expandedMaxScroll - W >= DESCRIPTOR_COMPACT_SCROLL_PX
+}
+
+export function shouldSuppressDescriptorScrollEvent(
+  now: number,
+  suppressUntil: number
+): boolean {
+  return now < suppressUntil
+}
+
+export function nextDescriptorScrollSuppressUntil(now: number): number {
+  return now + DESCRIPTOR_SCROLL_SUPPRESS_MS
+}
 
 export const DESCRIPTOR_PIN_STORAGE_PREFIX = "eg-descriptor-pin:"
 
@@ -17,15 +69,64 @@ export function descriptorPinStorageKey(channelKey: string): string {
 }
 
 /**
- * Hysteresis band: between expand and compact thresholds, keep `current`.
+ * Hysteresis band on logical scroll. `compactAllowed` is {@link canCompact}.
  */
 export function nextDescriptorScrollIntent(
   current: ExpertGridDescriptorMode,
-  scrollLeft: number
+  logicalScroll: number,
+  compactAllowed: boolean = true
 ): ExpertGridDescriptorMode {
-  if (scrollLeft > DESCRIPTOR_COMPACT_SCROLL_PX) return "compact"
-  if (scrollLeft < DESCRIPTOR_EXPAND_SCROLL_PX) return "expanded"
+  if (!compactAllowed) return "expanded"
+  if (logicalScroll > DESCRIPTOR_COMPACT_SCROLL_PX) return "compact"
+  if (logicalScroll < DESCRIPTOR_EXPAND_SCROLL_PX) return "expanded"
   return current
+}
+
+/**
+ * One auto-mode step from scroller numbers. Compensation writes are
+ * ignored until `suppressUntil`. Compact scrollLeft below the expand
+ * threshold still expands: logical is ≥ W while compact, so 40 logical
+ * px is unreachable from the compact scroller's left edge.
+ */
+export function applyDescriptorScrollEvent(args: {
+  current: ExpertGridDescriptorMode
+  scrollLeft: number
+  scrollWidth: number
+  clientWidth: number
+  expandedStickyWidthPx: number
+  compactStickyWidthPx: number
+  currentStickyWidthPx: number
+  now: number
+  suppressUntil: number
+}): { mode: ExpertGridDescriptorMode; ignored: boolean } {
+  if (shouldSuppressDescriptorScrollEvent(args.now, args.suppressUntil)) {
+    return { mode: args.current, ignored: true }
+  }
+  const compactAllowed = canCompact(
+    { scrollWidth: args.scrollWidth, clientWidth: args.clientWidth },
+    {
+      expandedStickyWidthPx: args.expandedStickyWidthPx,
+      compactStickyWidthPx: args.compactStickyWidthPx,
+      currentStickyWidthPx: args.currentStickyWidthPx,
+    }
+  )
+  const logicalScroll = descriptorLogicalScrollLeft(
+    args.scrollLeft,
+    args.expandedStickyWidthPx,
+    args.currentStickyWidthPx
+  )
+  let mode = nextDescriptorScrollIntent(
+    args.current,
+    logicalScroll,
+    compactAllowed
+  )
+  if (
+    args.current === "compact" &&
+    args.scrollLeft < DESCRIPTOR_EXPAND_SCROLL_PX
+  ) {
+    mode = "expanded"
+  }
+  return { mode, ignored: false }
 }
 
 /**
@@ -64,14 +165,19 @@ export function serializeDescriptorPin(pinned: boolean | null): string | null {
 
 /**
  * Keep the week under the pointer still when sticky pane width changes:
- * newScrollLeft = scrollLeft + (nextStickyWidth − prevStickyWidth).
+ * newScrollLeft = clamp(scrollLeft + Δ, 0, maxScroll).
  */
 export function adjustScrollLeftForDescriptorWidthChange(
   scrollLeft: number,
   prevStickyWidthPx: number,
-  nextStickyWidthPx: number
+  nextStickyWidthPx: number,
+  maxScroll: number = Number.POSITIVE_INFINITY
 ): number {
-  return scrollLeft + (nextStickyWidthPx - prevStickyWidthPx)
+  const next = scrollLeft + (nextStickyWidthPx - prevStickyWidthPx)
+  const max = Math.max(0, maxScroll)
+  if (next < 0) return 0
+  if (next > max) return max
+  return next
 }
 
 const INCOMPLETE_REASON_TO_FIELD: Record<string, string> = {

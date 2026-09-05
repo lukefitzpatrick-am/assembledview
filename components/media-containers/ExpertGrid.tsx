@@ -163,10 +163,11 @@ import {
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
   adjustScrollLeftForDescriptorWidthChange,
+  applyDescriptorScrollEvent,
   descriptorErrorForcesExpand,
   descriptorPinStorageKey,
   nextDescriptorPin,
-  nextDescriptorScrollIntent,
+  nextDescriptorScrollSuppressUntil,
   parseDescriptorPin,
   resolveExpertGridDescriptorMode,
   serializeDescriptorPin,
@@ -1054,6 +1055,21 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   const gridScrollRef = useRef<HTMLDivElement>(null)
   const prevStickyWidthRef = useRef<number | null>(null)
   const pinHydratedRef = useRef(false)
+  const suppressScrollUntilRef = useRef(0)
+  const stickyWidthsRef = useRef({
+    expandedStickyWidthPx: 0,
+    compactStickyWidthPx: 0,
+    currentStickyWidthPx: 0,
+  })
+  stickyWidthsRef.current = {
+    expandedStickyWidthPx: expertGridStickyLeftWidthPx(
+      expandedDescriptorColWidths
+    ),
+    compactStickyWidthPx: expertGridStickyLeftWidthPx(
+      compactDescriptorColWidths
+    ),
+    currentStickyWidthPx: expertGridStickyLeftWidthPx(descriptorColWidths),
+  }
 
   useEffect(() => {
     pinHydratedRef.current = false
@@ -1091,8 +1107,20 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       if (raf) return
       raf = requestAnimationFrame(() => {
         raf = 0
-        const sl = el.scrollLeft
-        setDescriptorScrollMode((cur) => nextDescriptorScrollIntent(cur, sl))
+        const w = stickyWidthsRef.current
+        setDescriptorScrollMode((cur) =>
+          applyDescriptorScrollEvent({
+            current: cur,
+            scrollLeft: el.scrollLeft,
+            scrollWidth: el.scrollWidth,
+            clientWidth: el.clientWidth,
+            expandedStickyWidthPx: w.expandedStickyWidthPx,
+            compactStickyWidthPx: w.compactStickyWidthPx,
+            currentStickyWidthPx: w.currentStickyWidthPx,
+            now: performance.now(),
+            suppressUntil: suppressScrollUntilRef.current,
+          }).mode
+        )
       })
     }
     el.addEventListener("scroll", onScroll, { passive: true })
@@ -1108,10 +1136,15 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     const prev = prevStickyWidthRef.current
     prevStickyWidthRef.current = nextWidth
     if (!el || prev == null || prev === nextWidth) return
+    const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth)
     el.scrollLeft = adjustScrollLeftForDescriptorWidthChange(
       el.scrollLeft,
       prev,
-      nextWidth
+      nextWidth,
+      maxScroll
+    )
+    suppressScrollUntilRef.current = nextDescriptorScrollSuppressUntil(
+      performance.now()
     )
   }, [descriptorColWidths])
 
