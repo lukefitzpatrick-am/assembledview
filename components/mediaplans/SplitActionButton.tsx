@@ -27,9 +27,18 @@ export type SplitActionButtonProps = {
   menuOnly?: boolean
   menuHeader?: string
   onMenuOpenChange?: (open: boolean) => void
-  size?: "default" | "compact"
+  size?: "default" | "compact" | "row"
   hintPlacement?: "below" | "end"
   menuSide?: "top" | "bottom"
+  menuAlign?: "start" | "end"
+  menuMatchTriggerWidth?: boolean
+  fullWidth?: boolean
+}
+
+function heightClassForSize(size: NonNullable<SplitActionButtonProps["size"]>): string {
+  if (size === "compact") return "h-7 max-[375px]:h-11"
+  if (size === "row") return "h-9 text-sm px-3 max-[375px]:h-11"
+  return "h-9"
 }
 
 export function SplitActionButton({
@@ -48,11 +57,14 @@ export function SplitActionButton({
   size = "default",
   hintPlacement = "below",
   menuSide = "top",
+  menuAlign = "end",
+  menuMatchTriggerWidth = false,
+  fullWidth = false,
 }: SplitActionButtonProps) {
   const bothDisabled = disabled || isBusy
   const shownLabel = isBusy ? busyLabel ?? label : label
   const compact = size === "compact"
-  const heightClass = compact ? "h-7 max-[375px]:h-11" : "h-9"
+  const heightClass = heightClassForSize(size)
   const [open, setOpen] = useState(false)
 
   const setMenuOpen = (next: boolean) => {
@@ -64,11 +76,19 @@ export function SplitActionButton({
     if (bothDisabled) setOpen(false)
   }, [bothDisabled])
 
+  const wrapperClass = cn(
+    fullWidth ? "flex w-full" : "inline-flex",
+    "shrink-0 overflow-hidden rounded-pill shadow-sm",
+    heightClass,
+    variant === "outline" && "border-2 border-input",
+  )
+
   const primaryClass = cn(
     heightClass,
     "rounded-none px-4 shadow-none hover:translate-y-0 hover:shadow-none active:scale-100",
     compact && "px-2.5 text-xs",
     hideCaret ? "rounded-pill" : "rounded-l-pill",
+    fullWidth && "flex-1",
     variant === "outline" && "border-0",
   )
 
@@ -101,8 +121,19 @@ export function SplitActionButton({
     </DropdownMenuItem>
   ))
 
+  const lockDownward = menuSide === "bottom"
   const menuContent = (
-    <DropdownMenuContent side={menuSide} align="end" sideOffset={6}>
+    <DropdownMenuContent
+      side={menuSide}
+      align={menuAlign}
+      sideOffset={6}
+      avoidCollisions={!lockDownward}
+      collisionPadding={lockDownward ? 0 : undefined}
+      className={cn(
+        menuMatchTriggerWidth &&
+          "w-[var(--radix-dropdown-menu-trigger-width)] min-w-[11rem]",
+      )}
+    >
       {menuHeader ? (
         <>
           <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
@@ -115,15 +146,36 @@ export function SplitActionButton({
     </DropdownMenuContent>
   )
 
+  if (menuOnly) {
+    return (
+      <div className={wrapperClass}>
+        <DropdownMenu open={open} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant={variant}
+              disabled={bothDisabled}
+              title={title}
+              className={cn(
+                heightClass,
+                "justify-between rounded-pill px-3 shadow-none hover:translate-y-0 hover:shadow-none active:scale-100",
+                fullWidth && "flex-1",
+                variant === "outline" && "border-0",
+              )}
+            >
+              {shownLabel}
+              <ChevronDown className="h-4 w-4" aria-hidden />
+            </Button>
+          </DropdownMenuTrigger>
+          {menuContent}
+        </DropdownMenu>
+      </div>
+    )
+  }
+
   if (hideCaret) {
     return (
-      <div
-        className={cn(
-          "inline-flex shrink-0 overflow-hidden rounded-pill shadow-sm",
-          heightClass,
-          variant === "outline" && "border-2 border-input",
-        )}
-      >
+      <div className={wrapperClass}>
         <Button
           type="button"
           variant={variant}
@@ -139,26 +191,14 @@ export function SplitActionButton({
   }
 
   return (
-    <div
-      className={cn(
-        "inline-flex shrink-0 overflow-hidden rounded-pill shadow-sm",
-        heightClass,
-        variant === "outline" && "border-2 border-input",
-      )}
-    >
+    <div className={wrapperClass}>
       <DropdownMenu open={open} onOpenChange={setMenuOpen}>
         <Button
           type="button"
           variant={variant}
           disabled={bothDisabled}
           title={title}
-          onClick={() => {
-            if (menuOnly) {
-              setMenuOpen(true)
-              return
-            }
-            onPrimary?.()
-          }}
+          onClick={() => onPrimary?.()}
           className={primaryClass}
         >
           {shownLabel}

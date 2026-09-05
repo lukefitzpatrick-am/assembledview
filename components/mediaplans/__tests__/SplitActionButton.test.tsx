@@ -1,11 +1,35 @@
 /**
  * SF-1 — split Save/Publish + caret menu on the plan wizard bar.
+ * SM-25 — menuOnly is a single trigger; menus can lock to side=bottom.
  *
  * @vitest-environment jsdom
  */
-import { act } from "react"
+import { act, createElement, forwardRef } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+const dropdownContentProps = vi.hoisted(() => ({
+  last: null as {
+    avoidCollisions?: boolean
+    side?: string
+    collisionPadding?: number
+  } | null,
+}))
+
+vi.mock("@/components/ui/dropdown-menu", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/ui/dropdown-menu")>()
+  return {
+    ...actual,
+    DropdownMenuContent: forwardRef((props: Record<string, unknown>, ref) => {
+      dropdownContentProps.last = {
+        avoidCollisions: props.avoidCollisions as boolean | undefined,
+        side: props.side as string | undefined,
+        collisionPadding: props.collisionPadding as number | undefined,
+      }
+      return createElement(actual.DropdownMenuContent, { ...props, ref })
+    }),
+  }
+})
 
 import { SplitActionButton } from "@/components/mediaplans/SplitActionButton"
 
@@ -28,6 +52,7 @@ describe("SplitActionButton", () => {
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
+    dropdownContentProps.last = null
   })
 
   afterEach(() => {
@@ -184,5 +209,81 @@ describe("SplitActionButton", () => {
     })
     expect(document.body.querySelector('[role="menu"]')).not.toBeNull()
     expect(document.body.textContent).toContain("MBA (PDF)")
+  })
+
+  it("menuOnly renders one menu trigger and no caret", () => {
+    act(() => {
+      root.render(
+        <SplitActionButton
+          label="Open"
+          menuOnly
+          menu={[{ label: "View campaign", onSelect: () => {} }]}
+        />,
+      )
+    })
+    const buttons = [...container.querySelectorAll("button")]
+    expect(buttons.length).toBe(1)
+    const trigger = buttons[0]
+    expect(
+      trigger?.getAttribute("aria-haspopup") === "menu" ||
+        trigger?.getAttribute("role") === "combobox",
+    ).toBe(true)
+    expect(
+      [...container.querySelectorAll("button")].find(
+        (el) => el.getAttribute("aria-label") === "Open menu",
+      ),
+    ).toBeUndefined()
+  })
+
+  it("size row applies h-9", () => {
+    act(() => {
+      root.render(
+        <SplitActionButton
+          label="Open"
+          menuOnly
+          size="row"
+          menu={[{ label: "View campaign", onSelect: () => {} }]}
+        />,
+      )
+    })
+    expect(container.querySelector("button")?.className).toContain("h-9")
+  })
+
+  it("fullWidth puts w-full on the wrapper", () => {
+    act(() => {
+      root.render(
+        <SplitActionButton
+          label="Open"
+          menuOnly
+          fullWidth
+          menu={[{ label: "View campaign", onSelect: () => {} }]}
+        />,
+      )
+    })
+    const wrapper = container.firstElementChild
+    expect(wrapper?.className).toContain("w-full")
+  })
+
+  it("menuSide bottom locks content below the trigger without collision flip", async () => {
+    dropdownContentProps.last = null
+    act(() => {
+      root.render(
+        <SplitActionButton
+          label="Open"
+          menuOnly
+          menuSide="bottom"
+          menu={[{ label: "View campaign", onSelect: () => {} }]}
+        />,
+      )
+    })
+    const trigger = container.querySelector("button")
+    await act(async () => {
+      trigger!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+      trigger!.click()
+    })
+    expect(dropdownContentProps.last?.side).toBe("bottom")
+    expect(dropdownContentProps.last?.avoidCollisions).toBe(false)
+    const menu = document.body.querySelector("[role='menu']")
+    expect(menu?.getAttribute("data-side")).toBe("bottom")
   })
 })
