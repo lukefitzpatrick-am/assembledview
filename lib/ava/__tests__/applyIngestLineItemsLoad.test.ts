@@ -1,6 +1,7 @@
 /**
- * AV-1 — loading ingest lines into a channel the plan does not have
+ * AV-1 / IG-10 — loading ingest lines into a channel the plan does not have
  * enables the form flag, hydrates the container, and names that in the note.
+ * Partial MBA loads union the new billing-stable ids so they resolve approved.
  */
 import assert from "node:assert/strict"
 import test from "node:test"
@@ -8,9 +9,19 @@ import {
   applyIngestLineItemsLoad,
   formatIngestLoadNote,
   INGEST_CHANNEL_FLAG,
+  nextPartialMbaSelectionAfterIngestLoad,
 } from "../applyIngestLineItemsLoad.js"
+import {
+  buildEditorLineItemInputs,
+  editorBillingStableLineItemId,
+  resolveApproval,
+} from "@/lib/finance/buildEditorLineItemInputs"
+import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 
-const OOH_ROWS = Array.from({ length: 106 }, (_, i) => ({ id: `ooh-${i + 1}` }))
+const OOH_ROWS = Array.from({ length: 95 }, (_, i) => ({
+  id: `ooh-${i + 1}`,
+  publisher: "JCDecaux",
+}))
 const RADIO_ROWS = Array.from({ length: 3 }, (_, i) => ({ id: `radio-${i + 1}` }))
 
 function harness(enabled: { ooh: boolean; radio: boolean }) {
@@ -23,6 +34,7 @@ function harness(enabled: { ooh: boolean; radio: boolean }) {
   const flagWrites: Array<{ flag: string; value: boolean }> = []
   let dirty = false
   const scrolled: string[] = []
+  let selected: Record<string, string[]> = { radio: ["billing-radio::keep"] }
   return {
     get oohOn() {
       return oohOn
@@ -47,10 +59,14 @@ function harness(enabled: { ooh: boolean; radio: boolean }) {
       return dirty
     },
     scrolled,
+    get selected() {
+      return selected
+    },
     apply(
       channel: "radio" | "ooh",
       items: Record<string, unknown>[],
       replace = true,
+      opts?: { isPartialMBA?: boolean },
     ) {
       const channelEnabled = channel === "ooh" ? oohOn : radioOn
       return applyIngestLineItemsLoad({
@@ -78,37 +94,45 @@ function harness(enabled: { ooh: boolean; radio: boolean }) {
         scrollToSection: (sectionId) => {
           scrolled.push(sectionId)
         },
+        isPartialMBA: opts?.isPartialMBA,
+        setPartialMBASelectedLineItemIds: (next) => {
+          selected = typeof next === "function" ? next(selected) : next
+        },
       })
     },
   }
 }
 
-test("formatIngestLoadNote names the channel and whether it was switched on", () => {
+test("formatIngestLoadNote names publisher and all-in scope", () => {
   assert.equal(
-    formatIngestLoadNote({ count: 106, label: "OOH", turnedOn: true }),
-    "Loaded 106 OOH line items into the form and turned OOH on for this plan. Nothing is saved.",
+    formatIngestLoadNote({
+      count: 95,
+      label: "OOH",
+      publisherName: "JCDecaux",
+    }),
+    "95 lines loaded from JCDecaux, all in scope",
   )
   assert.equal(
-    formatIngestLoadNote({ count: 106, label: "OOH", turnedOn: false }),
-    "Loaded 106 OOH line items into the form. Nothing is saved.",
+    formatIngestLoadNote({ count: 1, label: "Radio", publisherName: "SCA" }),
+    "1 line loaded from SCA, all in scope",
   )
   assert.equal(
-    formatIngestLoadNote({ count: 1, label: "Radio", turnedOn: false }),
-    "Loaded 1 Radio line item into the form. Nothing is saved.",
+    formatIngestLoadNote({ count: 3, label: "Radio" }),
+    "3 lines loaded from Radio, all in scope",
   )
 })
 
-test("mp_ooh false + load OOH enables the flag, hydrates 106 rows, and marks dirty", () => {
+test("mp_ooh false + load OOH enables the flag, hydrates 95 rows, and marks dirty", () => {
   const h = harness({ ooh: false, radio: true })
   const note = h.apply("ooh", OOH_ROWS)
   assert.deepEqual(h.flagWrites, [{ flag: "mp_ooh", value: true }])
   assert.equal(h.oohOn, true)
-  assert.equal(h.oohHydration.length, 106)
-  assert.equal(h.oohMedia.length, 106)
+  assert.equal(h.oohHydration.length, 95)
+  assert.equal(h.oohMedia.length, 95)
   assert.equal(h.dirty, true)
   assert.deepEqual(h.scrolled, [`media-section-${INGEST_CHANNEL_FLAG.ooh}`])
-  assert.match(note, /turned OOH on for this plan/)
-  assert.match(note, /Nothing is saved/)
+  assert.equal(note, "95 lines loaded from JCDecaux, all in scope")
+  assert.equal(h.selected.ooh, undefined)
 })
 
 test("mp_radio already true + load radio does not write the flag", () => {
@@ -121,5 +145,45 @@ test("mp_radio already true + load radio does not write the flag", () => {
   assert.equal(h.dirty, true)
   assert.deepEqual(h.scrolled, [`media-section-${INGEST_CHANNEL_FLAG.radio}`])
   assert.equal(note.includes("turned Radio on"), false)
-  assert.match(note, /Loaded 3 Radio line items into the form\. Nothing is saved\./)
+  assert.equal(note, "3 lines loaded from Radio, all in scope")
+})
+
+test("Partial MBA load unions ingest ids so every loaded line resolves approved", () => {
+  const h = harness({ ooh: false, radio: true })
+  h.apply("ooh", OOH_ROWS, true, { isPartialMBA: true })
+  const oohIds = h.selected.ooh ?? []
+  assert.equal(oohIds.length, 95)
+  assert.equal(h.selected.radio?.[0], "billing-radio::keep")
+  for (const [i, item] of h.oohMedia.entries()) {
+    const id = editorBillingStableLineItemId("ooh", item, i)
+    assert.equal(
+      resolveApproval("ooh", id, {
+        isPartialMBA: true,
+        partialMBASelectedLineItemIds: h.selected,
+      }),
+      "approved",
+    )
+  }
+  const configs: SeedLineFeesMediaConfig[] = [
+    { billingKey: "ooh", lineItems: h.oohMedia, containerBursts: [] },
+  ]
+  const inputs = buildEditorLineItemInputs(configs, {
+    isPartialMBA: true,
+    partialMBASelectedLineItemIds: h.selected,
+  })
+  assert.equal(inputs.length, 95)
+  assert.equal(inputs.every((line) => line.approval === "approved"), true)
+})
+
+test("nextPartialMbaSelectionAfterIngestLoad fills an emptied channel", () => {
+  const items = [{ id: "n1" }, { id: "n2" }]
+  const next = nextPartialMbaSelectionAfterIngestLoad({
+    selected: { ooh: [] },
+    channel: "ooh",
+    nextItems: items,
+  })
+  assert.deepEqual(next.ooh, [
+    editorBillingStableLineItemId("ooh", items[0], 0),
+    editorBillingStableLineItemId("ooh", items[1], 1),
+  ])
 })

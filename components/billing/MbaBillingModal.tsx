@@ -51,6 +51,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { formatMoney } from "@/lib/format/money"
+import { excludedFromMbaScopeNoteFromLines } from "@/lib/mediaplan/excludedMbaScopeNote"
 import {
   clientPaysBadgeLabel,
   draftContradictsSavedForLine,
@@ -854,6 +855,7 @@ export function MbaBillingModal({
   const effectiveLineTiming = timingLocked ? undefined : lineTiming
   const effectiveResetBilling = timingLocked ? undefined : onResetBillingToAuto
   const t = financials.mbaScopeTotals
+  const excludedScopeNote = excludedFromMbaScopeNoteFromLines(scopeLines)
   const schedule = financials.billingSchedule
   const byMedia = panelIndicators.mbaDetails.byMediaType
   const mbaRec = reconciliationBadgeVisibility(
@@ -1164,6 +1166,9 @@ export function MbaBillingModal({
                   <span className="text-muted-foreground">Gross Media</span>
                   <span className="num font-medium">{formatMoney(t.grossMedia)}</span>
                 </div>
+                {excludedScopeNote ? (
+                  <p className="text-xs text-muted-foreground">{excludedScopeNote}</p>
+                ) : null}
                 <div className="flex justify-between text-sm">
                   <span className="flex items-center text-muted-foreground">
                     Assembled Fee

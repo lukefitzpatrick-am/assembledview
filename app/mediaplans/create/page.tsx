@@ -256,6 +256,7 @@ import {
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { buildMediaPlanWorkbookMbaData } from "@/lib/mediaplan/buildMediaPlanWorkbookMbaData"
+import { excludedFromMbaScopeNoteFromLines } from "@/lib/mediaplan/excludedMbaScopeNote"
 import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
@@ -987,6 +988,7 @@ function CreateMediaPlan() {
     messages: [],
   })
   const [isPartialMBA, setIsPartialMBA] = useState(false);
+  const [partialMBASelectedLineItemIds, setPartialMBASelectedLineItemIds] = useState<Record<string, string[]>>({})
   const [isMbaBillingModalOpen, setIsMbaBillingModalOpen] = useState(false);
   const [saveModeLabel, setSaveModeLabel] = useState<string | null>(null)
   const [dateWarning, setDateWarning] = useState<{
@@ -1756,9 +1758,11 @@ function CreateMediaPlan() {
           channel === "ooh" ? setOohMediaLineItems : setRadioMediaLineItems,
         markDirty: markUnsavedChanges,
         scrollToSection: queueScrollToMediaSection,
+        isPartialMBA,
+        setPartialMBASelectedLineItemIds,
       })
     },
-    [form, markUnsavedChanges],
+    [form, markUnsavedChanges, isPartialMBA],
   )
 
   const handleGetLineItems = useCallback(
@@ -1900,7 +1904,6 @@ function CreateMediaPlan() {
   const [partialMBAMonthYears, setPartialMBAMonthYears] = useState<string[]>([])
   const [partialMBAMediaEnabled, setPartialMBAMediaEnabled] = useState<Record<string, boolean>>({})
   const [partialMBALineItemsByMedia, setPartialMBALineItemsByMedia] = useState<Record<string, PartialApprovalLineItem[]>>({})
-  const [partialMBASelectedLineItemIds, setPartialMBASelectedLineItemIds] = useState<Record<string, string[]>>({})
 
   const billingFeeSeedEnabledConfigs = useMemo((): SeedLineFeesMediaConfig[] => {
     const formFlagByKey: Record<string, string> = {
@@ -3096,6 +3099,9 @@ function CreateMediaPlan() {
         mediaKeyMap,
         campaignFinancialsMediaByKey,
         mbaScopeTotals: coreTotals,
+        excludedFromMbaScopeNote: excludedFromMbaScopeNoteFromLines(
+          campaignFinancials.perLine,
+        ),
       })
     }
 

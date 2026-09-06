@@ -3,7 +3,13 @@
  * Enabling the channel flag mounts the container; writing the same rows into
  * the hydration setter (edit: *LineItems) is the same path draft restore uses,
  * so useStableHydration does not wipe the load with an empty first paint.
+ *
+ * On a Partial MBA, loaded line ids are unioned into the channel's selected
+ * set so they resolve approved (all-in), same as a line typed onto an
+ * unlisted channel. Reset-to-all-in is unchanged.
  */
+
+import { editorBillingStableLineItemId } from "@/lib/finance/buildEditorLineItemInputs"
 
 export const INGEST_CHANNEL_FLAG = {
   radio: "mp_radio",
@@ -20,17 +26,35 @@ export type IngestLoadChannel = keyof typeof INGEST_CHANNEL_FLAG
 type LineItems = Record<string, unknown>[]
 type LineItemsUpdater = (prev: LineItems) => LineItems
 
+export function ingestPublisherFromItems(items: LineItems): string | undefined {
+  for (const item of items) {
+    const attrs =
+      item.attrs && typeof item.attrs === "object" && !Array.isArray(item.attrs)
+        ? (item.attrs as Record<string, unknown>)
+        : null
+    const candidates = [
+      item.publisher,
+      item.source_publisher,
+      item.network,
+      attrs?.network,
+      attrs?.source_publisher,
+    ]
+    for (const raw of candidates) {
+      if (typeof raw === "string" && raw.trim()) return raw.trim()
+    }
+  }
+  return undefined
+}
+
 export function formatIngestLoadNote(args: {
   count: number
+  publisherName?: string | null
   label: string
-  turnedOn: boolean
 }): string {
-  const noun = args.count === 1 ? "line item" : "line items"
-  const loaded = `Loaded ${args.count} ${args.label} ${noun} into the form`
-  const turned = args.turnedOn
-    ? ` and turned ${args.label} on for this plan`
-    : ""
-  return `${loaded}${turned}. Nothing is saved.`
+  const n = args.count
+  const noun = n === 1 ? "line" : "lines"
+  const source = args.publisherName?.trim() || args.label
+  return `${n} ${noun} loaded from ${source}, all in scope`
 }
 
 export function ingestChannelWillSwitchOn(
@@ -66,6 +90,25 @@ export function queueScrollToMediaSection(sectionId: string): void {
   }
 }
 
+export function nextPartialMbaSelectionAfterIngestLoad(args: {
+  selected: Record<string, string[]>
+  channel: IngestLoadChannel
+  nextItems: LineItems
+}): Record<string, string[]> {
+  const ids = args.nextItems.map((item, index) =>
+    editorBillingStableLineItemId(args.channel, item, index),
+  )
+  const prev = args.selected[args.channel] ?? []
+  const seen = new Set(prev)
+  const merged = [...prev]
+  for (const id of ids) {
+    if (seen.has(id)) continue
+    seen.add(id)
+    merged.push(id)
+  }
+  return { ...args.selected, [args.channel]: merged }
+}
+
 export function applyIngestLineItemsLoad(args: {
   channel: IngestLoadChannel
   items: LineItems
@@ -76,19 +119,38 @@ export function applyIngestLineItemsLoad(args: {
   setMediaItems: (updater: LineItemsUpdater) => void
   markDirty: () => void
   scrollToSection?: (sectionId: string) => void
+  publisherName?: string | null
+  isPartialMBA?: boolean
+  setPartialMBASelectedLineItemIds?: (
+    next: Record<string, string[]> | ((prev: Record<string, string[]>) => Record<string, string[]>),
+  ) => void
 }): string {
   const replace = args.replace !== false
-  const updater: LineItemsUpdater = (prev) =>
-    replace ? args.items : [...prev, ...args.items]
+  let nextItems: LineItems = args.items
+  const updater: LineItemsUpdater = (prev) => {
+    nextItems = replace ? args.items : [...prev, ...args.items]
+    return nextItems
+  }
   args.setHydrationItems?.(updater)
   args.setMediaItems(updater)
   if (!args.channelEnabled) args.enableChannel()
   args.markDirty()
+  if (args.isPartialMBA && args.setPartialMBASelectedLineItemIds) {
+    const itemsForScope = nextItems
+    args.setPartialMBASelectedLineItemIds((prev) =>
+      nextPartialMbaSelectionAfterIngestLoad({
+        selected: prev,
+        channel: args.channel,
+        nextItems: itemsForScope,
+      }),
+    )
+  }
   const flag = INGEST_CHANNEL_FLAG[args.channel]
   args.scrollToSection?.(`media-section-${flag}`)
   return formatIngestLoadNote({
     count: args.items.length,
     label: INGEST_CHANNEL_LABEL[args.channel],
-    turnedOn: !args.channelEnabled,
+    publisherName:
+      args.publisherName ?? ingestPublisherFromItems(args.items) ?? null,
   })
 }

@@ -313,6 +313,7 @@ export async function generateMediaPlan(
       adserving: number;
       totals_ex_gst: number;
       total_inc_gst: number;
+      excluded_from_mba_scope_note?: string;
     };
   },
   options?: GenerateMediaPlanOptions
@@ -2067,6 +2068,15 @@ export async function generateMediaPlan(
         numFmt: '$#,##0.00'
       });
       currentRow++;
+
+      if (totals.excluded_from_mba_scope_note) {
+        style(sheet.getCell(currentRow, 13), {
+          value: totals.excluded_from_mba_scope_note,
+          fontSize: 12,
+          align: 'left'
+        });
+        currentRow++;
+      }
 
       if (mbaTotalsLayout === 'standard') {
         style(sheet.getCell(currentRow, 13), {

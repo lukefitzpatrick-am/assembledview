@@ -61,6 +61,7 @@ import {
   MEDIA_PLAN_WORKBOOK_MEDIA_TYPES,
   type MediaPlanWorkbookMbaData,
 } from "@/lib/mediaplan/buildMediaPlanWorkbookMbaData"
+import { excludedFromMbaScopeNoteFromLines } from "@/lib/mediaplan/excludedMbaScopeNote"
 import type { LineItem, MediaItems, MediaPlanHeader } from "@/lib/generateMediaPlan"
 import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 import type { Publisher } from "@/lib/types/publisher"
@@ -425,6 +426,7 @@ export function buildMediaItemsFromPlanDetail(
     formFlags: args.versionData,
     campaignFinancialsMediaByKey: mediaByKey,
     mbaScopeTotals: financials.mbaScopeTotals,
+    excludedFromMbaScopeNote: excludedFromMbaScopeNoteFromLines(financials.perLine),
   })
 
   // Historic published cuts often have no mba_fee_snapshots row. Explode still

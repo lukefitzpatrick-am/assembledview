@@ -164,6 +164,7 @@ import {
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials, scheduleMonthYearToIso } from "@/lib/finance/computeCampaignFinancials"
 import { buildMediaPlanWorkbookMbaData } from "@/lib/mediaplan/buildMediaPlanWorkbookMbaData"
+import { excludedFromMbaScopeNoteFromLines } from "@/lib/mediaplan/excludedMbaScopeNote"
 import {
   buildHydrationToastItems,
   computeAllChannelsHydrated,
@@ -9379,6 +9380,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         mediaKeyMap,
         campaignFinancialsMediaByKey,
         mbaScopeTotals: coreTotals,
+        excludedFromMbaScopeNote: excludedFromMbaScopeNoteFromLines(
+          campaignFinancials.perLine,
+        ),
       })
     }
 
@@ -11414,9 +11418,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           channel === "ooh" ? setOohMediaLineItems : setRadioMediaLineItems,
         markDirty: markUnsavedChanges,
         scrollToSection: queueScrollToMediaSection,
+        isPartialMBA,
+        setPartialMBASelectedLineItemIds,
       })
     },
-    [form, markUnsavedChanges],
+    [form, markUnsavedChanges, isPartialMBA],
   )
 
   const handleGetLineItems = useCallback(

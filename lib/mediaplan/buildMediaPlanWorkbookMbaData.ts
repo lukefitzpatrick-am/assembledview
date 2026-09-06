@@ -63,6 +63,7 @@ export type MediaPlanWorkbookMbaData = {
     adserving: number
     totals_ex_gst: number
     total_inc_gst: number
+    excluded_from_mba_scope_note?: string
   }
 }
 
@@ -72,6 +73,7 @@ export function buildMediaPlanWorkbookMbaData(args: {
   mediaKeyMap?: Record<string, string>
   campaignFinancialsMediaByKey: Record<string, number>
   mbaScopeTotals: MbaScopeTotals
+  excludedFromMbaScopeNote?: string | null
 }): MediaPlanWorkbookMbaData {
   const mediaKeyMap = args.mediaKeyMap ?? MEDIA_PLAN_WORKBOOK_FLAG_TO_BILLING_KEY
   const gross_media = args.mediaTypes
@@ -89,6 +91,7 @@ export function buildMediaPlanWorkbookMbaData(args: {
     })
 
   const core = args.mbaScopeTotals
+  const note = args.excludedFromMbaScopeNote?.trim()
   return {
     gross_media,
     totals: {
@@ -98,6 +101,7 @@ export function buildMediaPlanWorkbookMbaData(args: {
       adserving: core.adServing,
       totals_ex_gst: core.nettExGst,
       total_inc_gst: core.nettIncGst,
+      ...(note ? { excluded_from_mba_scope_note: note } : {}),
     },
   }
 }
