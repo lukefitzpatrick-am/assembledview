@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { hasResolvableAuditUserId } from "@/lib/auth/teamMemberAuditId"
 import { getDb } from "@/db"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
 import { parseInvoiceKeys } from "@/lib/finance/resolveApproveGrains"
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const currentUser = await getCurrentUser(request)
-    if (!currentUser) {
+    if (!currentUser || !hasResolvableAuditUserId(currentUser.id)) {
       return NextResponse.json(
         { error: "no_user", message: "Could not resolve user for audit." },
         { status: 401 }
