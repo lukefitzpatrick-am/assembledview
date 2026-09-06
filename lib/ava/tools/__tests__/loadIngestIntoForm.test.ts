@@ -18,6 +18,13 @@ import {
   putIngestStage,
 } from "@/lib/mediaplans/ingest/ingestStageStore"
 import { loadSeedPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles"
+import { auditRowsFromProposal } from "@/lib/mediaplans/ingest/lineAudit"
+import {
+  PARSER_RESOLUTION_LABEL,
+  discrepancyLoadRefuseMessage,
+  reconcileLineAudit,
+  recordDiscrepancyResolution,
+} from "@/lib/mediaplans/ingest/lineAuditReconcile"
 import { loadIngestIntoFormTool } from "../loadIngestIntoForm.js"
 import { avaToolDefinitionsForPage } from "../pageToolOffer.js"
 import type { AvaToolContext } from "../types.js"
@@ -356,4 +363,57 @@ test("retry after remap succeeds", async () => {
     (r) => r.outcome === "blocked",
   ).length
   assert.equal(blockedAfter, blockedBefore)
+})
+
+test("load refuses while a line-audit discrepancy is open, then proceeds after Parser", async () => {
+  const { stageId, review } = await stageQms((hub) => {
+    const proposal = hub.proposal
+    if (!proposal) return withoutUnresolved(hub)
+    const mutated = {
+      ...proposal,
+      line_items: proposal.line_items.map((item, i) =>
+        i === 0
+          ? {
+              ...item,
+              bought_rate: 1,
+              bursts: item.bursts.map((b) =>
+                b.booking_status === "paid" ? { ...b, media_amount: 1 } : b,
+              ),
+            }
+          : item,
+      ),
+    }
+    const audit = reconcileLineAudit(mutated, {
+      model: "mock-audit",
+      status: "complete",
+      chunks: 1,
+      rows: auditRowsFromProposal(proposal),
+    })
+    return withoutUnresolved({
+      ...hub,
+      proposal: mutated,
+      line_audit: audit,
+    })
+  })
+  assert.ok(review.proposal)
+  const c = ctx({ pendingIngest: { stageId, fileName: QMS } })
+  const refused = await loadIngestIntoFormTool.execute({ confirm: true }, c)
+  assert.equal(refused.isError, true)
+  assert.equal(c.capturedLineItemsLoad, null)
+  assert.equal(refused.content, discrepancyLoadRefuseMessage(1))
+
+  const firstRef = review.proposal!.line_items[0]?.panels[0]?.source_row_ref ?? ""
+  const row = Number(/r(\d+)$/.exec(firstRef)?.[1])
+  assert.ok(Number.isInteger(row) && row > 0)
+  const resolved = recordDiscrepancyResolution({
+    review,
+    row,
+    answer: PARSER_RESOLUTION_LABEL,
+    by: "ava@assembledmedia.com.au",
+  })
+  await patchIngestStageReview(stageId, resolved)
+  const retry = ctx({ pendingIngest: { stageId, fileName: QMS } })
+  const ok = await loadIngestIntoFormTool.execute({ confirm: true }, retry)
+  assert.equal(ok.isError, false)
+  assert.ok(retry.capturedLineItemsLoad)
 })

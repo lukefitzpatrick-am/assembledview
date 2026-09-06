@@ -34,7 +34,7 @@ export const getPendingIngestReviewTool: AvaTool = {
   definition: {
     name: "get_pending_ingest_review",
     description:
-      "Read the staged publisher-schedule ingest review. Returns a compact confirmed markdown table (publisher, coverage, money delta, named ignored rows) plus question cards: unmatched AssembledView fields asking which file column feeds them, and a money card only when media money is unmapped or the 0.5% gate fails. Echo the table; ask only via the cards — never as prose asking the user to type a column name. Pass prior card answers as answers to accumulate mapping. Does not invent figures.",
+      "Read the staged publisher-schedule ingest review. Returns a parity report (totals, line counts, green vs discrepancy, empty fields) plus question cards. Echo the report; ask only via the cards. Pass prior card answers as answers to accumulate mapping and discrepancy resolutions. Does not invent figures.",
     input_schema: {
       type: "object",
       properties: {
@@ -130,7 +130,7 @@ export const getPendingIngestReviewTool: AvaTool = {
     }
 
     const followUp = incoming.length > 0
-    const confirmed = formatIngestConfirmedBlock(summary)
+    const confirmed = formatIngestConfirmedBlock(summary, review)
     const unusedLine = formatFilteredUnusedMappingLine(
       listFilteredUnusedMappingProposals(review),
     )

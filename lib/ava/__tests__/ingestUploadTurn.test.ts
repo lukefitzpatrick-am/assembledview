@@ -18,11 +18,11 @@ import {
 import type { IngestChatSummary } from "@/lib/mediaplans/ingest/summariseIngestReview"
 
 const DIRECTIVE_NEEDLE =
-  "call get_pending_ingest_review; echo the confirmed block"
+  "call get_pending_ingest_review; echo the parity report"
 const OPERATOR_FRAGMENTS = [
   "Call get_pending_ingest_review",
   "do not invent figures",
-  "Wait for my confirm before accept_ingest_proposal",
+  "Wait for confirm then load_ingest_into_form",
   "never guess",
 ]
 const NUMERIC_DUMP_FRAGMENTS = [
@@ -128,7 +128,8 @@ test("ingest operator directives are stated once in skillGuidance, not in ChatWi
   const count = hay.split(needle).length - 1
   assert.equal(count, 1, `expected directive once in skillGuidance, got ${count}`)
   assert.match(AVA_SKILL_GUIDANCE, /never guess/i)
-  assert.match(AVA_SKILL_GUIDANCE, /wait for confirm then accept_ingest_proposal/i)
+  assert.match(AVA_SKILL_GUIDANCE, /wait for confirm then load_ingest_into_form/i)
+  assert.match(AVA_SKILL_GUIDANCE, /accept_ingest_proposal \(Hub\)/)
 
   const widget = fs.readFileSync(
     path.join(process.cwd(), "components/ChatWidget.tsx"),

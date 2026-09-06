@@ -1,6 +1,6 @@
 # IG-11 — Independent line audit + load parity gate
 
-**Status:** Implement (design locked by the IG-11 prompt)  
+**Status:** Implemented  
 **Surface:** AVA chat attach + Hub `POST /api/admin/ingest/review`  
 **Non-goals:** Chat-turn model call; profile rules in the audit prompt; auto-accepting the audit over the parser; a new `ingest_stages` column (nested jsonb on `review_package`)
 

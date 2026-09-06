@@ -4,6 +4,7 @@
  */
 
 import { roundCents } from "@/lib/mediaplans/ingest/moneyRules"
+import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 import type { IngestProposal, ProposedLineItem } from "@/lib/mediaplans/ingest/proposeLineItems"
 import {
   auditRowFromProposedLine,
@@ -16,8 +17,17 @@ import {
   type LineAuditDateRange,
   type LineAuditDiscrepancy,
   type LineAuditIdentity,
+  type LineAuditResolution,
+  type LineAuditResolutionChoice,
   type LineAuditRow,
 } from "@/lib/mediaplans/ingest/lineAudit"
+
+export function discrepancyLoadRefuseMessage(count: number): string {
+  if (count === 1) {
+    return "1 line discrepancy is still open. Nothing was written."
+  }
+  return `${count} line discrepancies are still open. Nothing was written.`
+}
 
 export const PARSER_RESOLUTION_LABEL = "Parser"
 export const AUDIT_RESOLUTION_LABEL = "Audit"
@@ -335,4 +345,122 @@ export function formatDiscrepancyCardText(args: {
   }
   bits.push("Choose Parser, Audit, or type the value.")
   return bits.join(" ")
+}
+
+export function parseResolutionChoice(
+  answer: string,
+): LineAuditResolutionChoice {
+  const raw = answer.replace(/\s+/g, " ").trim()
+  const lower = raw.toLowerCase()
+  if (lower === PARSER_RESOLUTION_LABEL.toLowerCase() || lower === "parser") {
+    return "parser"
+  }
+  if (lower === AUDIT_RESOLUTION_LABEL.toLowerCase() || lower === "audit") {
+    return "audit"
+  }
+  return "typed"
+}
+
+function setLineMoney(item: ProposedLineItem, amount: number): ProposedLineItem {
+  const paidIdx = item.bursts
+    .map((b, i) => (b.booking_status === "paid" ? i : -1))
+    .filter((i) => i >= 0)
+  const bursts = item.bursts.map((b) => ({ ...b }))
+  if (paidIdx.length === 1) {
+    bursts[paidIdx[0]!] = {
+      ...bursts[paidIdx[0]!]!,
+      media_amount: roundCents(amount),
+    }
+  } else if (paidIdx.length > 1) {
+    const total = paidIdx.reduce((s, i) => s + bursts[i]!.media_amount, 0)
+    paidIdx.forEach((i, n) => {
+      const share =
+        total === 0
+          ? amount / paidIdx.length
+          : (bursts[i]!.media_amount / total) * amount
+      bursts[i] = { ...bursts[i]!, media_amount: roundCents(share) }
+      if (n === paidIdx.length - 1) {
+        const used = paidIdx
+          .slice(0, -1)
+          .reduce((s, j) => s + bursts[j]!.media_amount, 0)
+        bursts[i] = { ...bursts[i]!, media_amount: roundCents(amount - used) }
+      }
+    })
+  }
+  return { ...item, bursts, bought_rate: roundCents(amount) }
+}
+
+function overlayAuditOnLine(
+  item: ProposedLineItem,
+  auditRow: LineAuditRow,
+): ProposedLineItem {
+  const identity = auditRow.identity
+  const grouping = { ...item.grouping }
+  if (identity.panel) grouping.site_number = identity.panel
+  if (identity.name) grouping.panel_name = identity.name
+  if (identity.market) grouping.market = identity.market
+  if (identity.section || auditRow.format_header) {
+    grouping.publisher_format_name =
+      identity.section ?? auditRow.format_header ?? grouping.publisher_format_name
+  }
+  let next: ProposedLineItem = { ...item, grouping }
+  if (auditRow.money.amount != null) {
+    next = setLineMoney(next, auditRow.money.amount)
+  }
+  if (auditRow.dates_implied.length > 0 && next.bursts.length > 0) {
+    const d0 = auditRow.dates_implied[0]!
+    next = {
+      ...next,
+      bursts: next.bursts.map((b, i) =>
+        i === 0
+          ? {
+              ...b,
+              start_date: d0.from ?? b.start_date,
+              end_date: d0.to ?? b.end_date,
+            }
+          : b,
+      ),
+    }
+  }
+  return next
+}
+
+export function recordDiscrepancyResolution(args: {
+  review: IngestReviewPackage
+  row: number
+  answer: string
+  by: string
+}): IngestReviewPackage {
+  const audit = args.review.line_audit
+  if (!audit) return args.review
+  const choice = parseResolutionChoice(args.answer)
+  const id = discrepancyQuestionId(args.row)
+  const resolution: LineAuditResolution = {
+    choice,
+    typed: choice === "typed" ? args.answer.trim() : null,
+    by: args.by,
+    at: new Date().toISOString(),
+  }
+  const nextAudit: LineAudit = {
+    ...audit,
+    resolutions: { ...(audit.resolutions ?? {}), [id]: resolution },
+  }
+  let proposal = args.review.proposal
+  if (proposal && choice !== "parser") {
+    const auditRow = audit.rows.find((r) => r.row === args.row)
+    proposal = {
+      ...proposal,
+      line_items: proposal.line_items.map((item) => {
+        const ref = item.panels[0]?.source_row_ref ?? ""
+        if (sourceRowNumber(ref) !== args.row) return item
+        if (choice === "audit" && auditRow) return overlayAuditOnLine(item, auditRow)
+        if (choice === "typed") {
+          const n = Number(String(args.answer).replace(/[$,]/g, ""))
+          if (Number.isFinite(n)) return setLineMoney(item, n)
+        }
+        return item
+      }),
+    }
+  }
+  return { ...args.review, proposal, line_audit: nextAudit }
 }

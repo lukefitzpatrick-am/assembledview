@@ -12,15 +12,24 @@ import {
 import {
   AUDIT_RESOLUTION_LABEL,
   PARSER_RESOLUTION_LABEL,
+  discrepancyLoadRefuseMessage,
   discrepancyQuestionId,
   invariantBreachesForLine,
   reconcileLineAudit,
+  recordDiscrepancyResolution,
   unresolvedDiscrepancyRows,
 } from "../lineAuditReconcile"
 import { loadSeedPublisherProfiles } from "../loadPublisherProfiles"
 import { listOpenIngestReviewQuestions } from "../ingestReviewQuestions"
 import type { IngestProposal, ProposedLineItem } from "../proposeLineItems"
 import type { IngestReviewPackage } from "../buildIngestReview"
+import {
+  clearIngestStageForTests,
+  putIngestStage,
+  patchIngestStageReview,
+} from "../ingestStageStore"
+import { loadIngestIntoFormTool } from "@/lib/ava/tools/loadIngestIntoForm"
+import type { AvaToolContext } from "@/lib/ava/tools/types"
 
 const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
 const JCD = path.join(FIX, "jcd_strength-meals_ooh.xlsx")
@@ -255,4 +264,101 @@ test("invariant: format from that section", () => {
   })
   const rules = invariantBreachesForLine(item).map((b) => b.rule)
   assert.ok(rules.includes("format_from_section"))
+})
+
+function withoutUnresolved(review: IngestReviewPackage): IngestReviewPackage {
+  if (!review.template_coverage) return review
+  return {
+    ...review,
+    template_coverage: {
+      ...review.template_coverage,
+      unresolved_controlled: [],
+    },
+  }
+}
+
+function loadCtx(stageId: string, fileName: string): AvaToolContext {
+  return {
+    pageContext: undefined,
+    clientSlug: undefined,
+    mbaNumber: undefined,
+    versionNumber: undefined,
+    enabledMediaTypes: undefined,
+    userSub: "u1",
+    userEmail: "ava@assembledmedia.com.au",
+    roles: ["admin"],
+    clientSlugs: [],
+    mbaNumbers: [],
+    capturedPatch: null,
+    capturedAttachments: null,
+    capturedQuestions: null,
+    pendingParsedPlan: null,
+    pendingIngest: { stageId, fileName },
+    capturedLineItemsLoad: null,
+    currentLineItems: null,
+  }
+}
+
+test("load refuses r62 until the discrepancy is resolved, then proceeds", async () => {
+  clearIngestStageForTests()
+  const review = await buildIngestReviewFromFile(
+    JCD,
+    loadSeedPublisherProfiles(),
+    { skipAva: true },
+  )
+  const proposal = review.proposal!
+  const auditRows = auditRowsFromProposal(proposal)
+  const mutated: IngestProposal = {
+    ...proposal,
+    line_items: proposal.line_items.map((item) => {
+      const ref = item.panels[0]?.source_row_ref ?? ""
+      if (!ref.endsWith("!r62")) return item
+      return {
+        ...item,
+        bought_rate: 1,
+        bursts: item.bursts.map((b) =>
+          b.booking_status === "paid" ? { ...b, media_amount: 1 } : b,
+        ),
+      }
+    }),
+  }
+  const audit = reconcileLineAudit(mutated, {
+    model: "mock-audit",
+    status: "complete",
+    chunks: 1,
+    rows: auditRows,
+  })
+  const dirty = withoutUnresolved({
+    ...review,
+    proposal: mutated,
+    line_audit: audit,
+  })
+  assert.deepEqual(unresolvedDiscrepancyRows(dirty.line_audit), [62])
+  const stageId = await putIngestStage({
+    review: dirty,
+    fileName: "jcd_strength-meals_ooh.xlsx",
+    uploadedBy: "ava@assembledmedia.com.au",
+  })
+  const refused = await loadIngestIntoFormTool.execute(
+    { confirm: true },
+    loadCtx(stageId, "jcd_strength-meals_ooh.xlsx"),
+  )
+  assert.equal(refused.isError, true)
+  assert.match(refused.content, /1 line discrepancy is still open/)
+  assert.equal(refused.content, discrepancyLoadRefuseMessage(1))
+
+  const resolved = recordDiscrepancyResolution({
+    review: dirty,
+    row: 62,
+    answer: PARSER_RESOLUTION_LABEL,
+    by: "ava@assembledmedia.com.au",
+  })
+  assert.equal(resolved.line_audit?.resolutions?.[discrepancyQuestionId(62)]?.choice, "parser")
+  assert.deepEqual(unresolvedDiscrepancyRows(resolved.line_audit), [])
+  await patchIngestStageReview(stageId, resolved)
+  const okCtx = loadCtx(stageId, "jcd_strength-meals_ooh.xlsx")
+  const ok = await loadIngestIntoFormTool.execute({ confirm: true }, okCtx)
+  assert.equal(ok.isError, false)
+  assert.ok(okCtx.capturedLineItemsLoad)
+  assert.ok(okCtx.capturedLineItemsLoad.items.length > 0)
 })

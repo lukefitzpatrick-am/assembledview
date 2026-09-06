@@ -4,6 +4,7 @@
  */
 
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
+import { unresolvedDiscrepancyRows } from "@/lib/mediaplans/ingest/lineAuditReconcile"
 import { countBonusLineItemsFromProposal } from "@/lib/mediaplans/ingest/stampProposalForSave"
 import { evaluateTemplateCoverage } from "@/lib/mediaplans/ingest/templateCoverage"
 import { isUnknownPublisherMatch } from "@/lib/mediaplans/ingest/unknownPublisher"
@@ -129,19 +130,56 @@ export function formatIngestBudget(summary: IngestChatSummary): string {
   })}`
 }
 
-/** Compact confirmed block — numbers come only from summariseIngestReview. */
-export function formatIngestConfirmedBlock(summary: IngestChatSummary): string {
+function formatDollars(n: number | null | undefined): string {
+  if (n == null) return "—"
+  return `$${n.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
+function emptyFieldLabels(review: IngestReviewPackage | null | undefined): string[] {
+  const coverage = review?.template_coverage
+  if (!coverage) return []
+  return [...coverage.required, ...coverage.enrich]
+    .filter((f) => !f.matched)
+    .map((f) => f.label)
+}
+
+function formatSectionSubtotals(review: IngestReviewPackage | null | undefined): string {
+  const sections = review?.proposal?.reconciliation.section_reconciliations ?? []
+  if (sections.length === 0) return "—"
+  const ok = sections.filter((s) => s.ok).length
+  return `${ok}/${sections.length} within 0.5%`
+}
+
+/** Compact confirmed block — numbers come only from summariseIngestReview + staged audit. */
+export function formatIngestConfirmedBlock(
+  summary: IngestChatSummary,
+  review?: IngestReviewPackage | null,
+): string {
   const pub = summary.detected_publisher ?? "Unknown publisher"
   const conf = `${Math.round(summary.publisher_confidence * 100)}%`
   const coverage = `${Math.round(summary.required_coverage * 100)}%`
+  const paid = Math.max(0, summary.line_item_count - summary.bonus_line_item_count)
+  const unresolved = unresolvedDiscrepancyRows(review?.line_audit)
+  const green =
+    review?.line_audit?.green_count ??
+    (review?.line_audit?.status === "complete" ? 0 : summary.line_item_count)
+  const discrepancyCount = unresolved.length
+  const empty = emptyFieldLabels(review)
   const lines = [
-    `Here's what this ${pub} schedule already resolved.`,
+    `Here's the parity report for this ${pub} schedule.`,
+    "",
+    "## Totals",
     "",
     "| Field | Value |",
     "| --- | --- |",
     `| Publisher | ${pub} (${conf}) |`,
     `| Media type | ${summary.media_type ?? "—"} |`,
     `| Total line items | ${summary.line_item_count} |`,
+    `| Line sum | ${formatDollars(summary.total_media_amount)} |`,
+    `| Stated cell | ${formatDollars(summary.file_stated_total)} |`,
     `| Total budget | ${formatIngestBudget(summary)} |`,
   ]
   if (
@@ -149,19 +187,42 @@ export function formatIngestConfirmedBlock(summary: IngestChatSummary): string {
     summary.rate_card_total > 0 &&
     summary.rate_card_discount_pct != null
   ) {
-    const rateCard = `$${summary.rate_card_total.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`
+    const rateCard = formatDollars(summary.rate_card_total)
     const disc = `${(summary.rate_card_discount_pct * 100).toFixed(1)}%`
     lines.push(`| Rate-card value | ${rateCard} · discount ${disc} |`)
   }
+  lines.push(`| Section subtotals | ${formatSectionSubtotals(review)} |`)
   lines.push(
+    "",
+    "## Lines",
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    `| Paid / bonus | ${paid} / ${summary.bonus_line_item_count} |`,
     `| Bonus line items | ${summary.bonus_line_item_count} (of ${summary.line_item_count}) |`,
+    `| Green / discrepancies | ${green} / ${discrepancyCount} |`,
     `| Lines / panels / bursts | ${summary.line_item_count} / ${summary.panel_count} / ${summary.burst_count} |`,
     `| Required coverage | ${coverage} |`,
-    `| Money delta vs file total | ${formatMoneyDelta(summary)} |`
+    `| Money delta vs file total | ${formatMoneyDelta(summary)} |`,
+    "",
+    "## Empty fields",
+    "",
+    empty.length > 0 ? empty.join(" / ") : "None.",
+    "",
+    "## Discrepancies",
+    "",
   )
+  if (review?.line_audit?.status === "skipped") {
+    lines.push("Audit skipped.")
+  } else if (discrepancyCount === 0) {
+    lines.push("None.")
+  } else {
+    for (const row of unresolved) {
+      const items = (review?.line_audit?.discrepancies ?? []).filter((d) => d.row === row)
+      const fields = [...new Set(items.map((d) => d.field))].join(", ")
+      lines.push(`- r${row}: ${fields}`)
+    }
+  }
   if (summary.ignored_rows.length > 0) {
     lines.push("", `Excluded rows: ${summary.ignored_rows.join(" / ")}`)
   }

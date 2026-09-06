@@ -45,6 +45,9 @@ import {
   discrepancyQuestionId,
   discrepanciesForRow,
   formatDiscrepancyCardText,
+  parseDiscrepancyQuestionRow,
+  parseResolutionChoice,
+  recordDiscrepancyResolution,
   unresolvedDiscrepancyRows,
 } from "@/lib/mediaplans/ingest/lineAuditReconcile"
 
@@ -749,6 +752,24 @@ async function applyOneAnswer(
         },
       },
       changed: `Campaign set to ${mba}.`,
+      record: true,
+    }
+  }
+  const discrepancyRow = parseDiscrepancyQuestionRow(questionId)
+  if (discrepancyRow != null) {
+    if (skipRemap) {
+      return { review, changed: `Left r${discrepancyRow} unresolved.`, record: true }
+    }
+    const next = recordDiscrepancyResolution({
+      review,
+      row: discrepancyRow,
+      answer,
+      by: identity.changedBy,
+    })
+    const choice = parseResolutionChoice(answer)
+    return {
+      review: next,
+      changed: `Recorded r${discrepancyRow} as ${choice}.`,
       record: true,
     }
   }

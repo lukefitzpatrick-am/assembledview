@@ -21,6 +21,10 @@ import {
   NO_PUBLISHER_PROFILE_MESSAGE,
   summariseIngestReview,
 } from "@/lib/mediaplans/ingest/summariseIngestReview"
+import {
+  discrepancyLoadRefuseMessage,
+  unresolvedDiscrepancyRows,
+} from "@/lib/mediaplans/ingest/lineAuditReconcile"
 import type { IngestProposal } from "@/lib/mediaplans/ingest/proposeLineItems"
 import type { FeeLoading } from "@/lib/finance/campaignFinancials.types"
 
@@ -204,6 +208,24 @@ export async function executeIngestAccept(
         ok: false,
         status: 409,
         error: gate.reason ?? "Required fields unmatched.",
+      }
+    }
+  }
+
+  if (review) {
+    const openDiscrepancies = unresolvedDiscrepancyRows(review.line_audit)
+    if (openDiscrepancies.length > 0) {
+      const error = discrepancyLoadRefuseMessage(openDiscrepancies.length)
+      await recordRun({
+        ...baseRun,
+        outcome: "blocked",
+        outcomeReason: error,
+        acceptedVersionId: null,
+      })
+      return {
+        ok: false,
+        status: 409,
+        error,
       }
     }
   }

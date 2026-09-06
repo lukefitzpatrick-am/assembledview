@@ -10,6 +10,10 @@ import { ingestReviewToFormLineItems } from "@/lib/mediaplans/ingest/toFormLineI
 import { evaluateRequiredFieldGate } from "@/lib/mediaplans/ingest/templateCoverage"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 import type { IngestProposal } from "@/lib/mediaplans/ingest/proposeLineItems"
+import {
+  discrepancyLoadRefuseMessage,
+  unresolvedDiscrepancyRows,
+} from "@/lib/mediaplans/ingest/lineAuditReconcile"
 
 const MONEY_BLOCK_FALLBACK =
   "Money total is outside the 0.5% gate. Nothing was written."
@@ -59,7 +63,7 @@ export const loadIngestIntoFormTool: AvaTool = {
   definition: {
     name: "load_ingest_into_form",
     description:
-      "Loads the staged publisher schedule into the create/edit form for human review. Writes nothing. Requires an explicit user confirm first — do not call until the user confirms. Refuses when the money total is outside the 0.5% gate, a required template field has no source column, or a sourced controlled value is still unanswered.",
+      "Loads the staged publisher schedule into the create/edit form for human review. Writes nothing. Requires an explicit user confirm first — do not call until the user confirms. Refuses when the money total is outside the 0.5% gate, a required template field has no source column, a sourced controlled value is still unanswered, or a line-audit discrepancy is unresolved.",
     input_schema: {
       type: "object",
       properties: {
@@ -133,6 +137,14 @@ export const loadIngestIntoFormTool: AvaTool = {
         isError: true,
         block_reason: reason,
         delta: recon.delta ?? null,
+      }
+    }
+
+    const openDiscrepancies = unresolvedDiscrepancyRows(review.line_audit)
+    if (openDiscrepancies.length > 0) {
+      return {
+        content: discrepancyLoadRefuseMessage(openDiscrepancies.length),
+        isError: true,
       }
     }
 

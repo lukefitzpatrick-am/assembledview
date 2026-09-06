@@ -111,6 +111,7 @@ test("get_pending_ingest_review confirmed block is markdown from the staged pack
   )
   assert.equal(out.isError, false)
   assert.notEqual(out.content.trimStart()[0], "{")
+  assert.match(out.content, /Here's the parity report/i)
   assert.match(out.content, /\| Publisher \|/i)
   assert.match(out.content, /\| Media type \|/i)
   assert.match(out.content, /\| Total line items \|/i)
