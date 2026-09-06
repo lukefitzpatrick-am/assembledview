@@ -38,6 +38,7 @@ import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 import { aggregateDeliverableLabel } from "@/lib/delivery/deliverableLabel"
+import { groupPacingRowsByPlacement } from "./directDigitalAdapterShared"
 
 const MODELLED_SPEND_LABEL = "Delivered spend (modelled from plan rate)"
 const MODELLED_SPEND_TOOLTIP =
@@ -153,6 +154,32 @@ function mapCombinedRowsForNormalizedLines(
     if (!accepted.has(channel)) return []
     return [mapCombinedRowToDv360(row, accepted)]
   })
+}
+
+/** CM360 placement grain from combinedRows — Dv360DailyRow drops entityId. */
+function cm360PlacementBreakdown(
+  lineItem: ProgrammaticLineItem,
+  combinedRows: CombinedPacingRow[],
+  snowflakeChannel: "programmatic-display" | "programmatic-video",
+  knownPlanLineIds: string[],
+): LineItemBlockProps["entityBreakdown"] | undefined {
+  const source = lineItem.deliverySourceMap?.delivery_source
+  if (source !== "cm360") return undefined
+  const lineId = extractProgrammaticLineItemId(lineItem)
+  if (!lineId) return undefined
+  const accepted = snowflakeChannelsForDeliverySource(source, snowflakeChannel)
+  const matched = combinedRows.filter((row) => {
+    const rowId = String(row.lineItemId ?? "").trim().toLowerCase()
+    return rowId === lineId && accepted.has(String(row.channel ?? ""))
+  })
+  const rows = groupPacingRowsByPlacement(matched)
+  if (rows.length === 0) return undefined
+  return {
+    rows,
+    knownPlanLineIds,
+    entityNoun: { singular: "placement", plural: "placements" },
+    columns: "delivery",
+  }
 }
 
 function buildProgrammaticKpiTiles(input: {
@@ -355,6 +382,10 @@ export function buildProgrammaticChannelSection(input: {
     filterRange,
   )
 
+  const knownPlanLineIds = normalized
+    .map((item) => extractProgrammaticLineItemId(item))
+    .filter((id): id is string => Boolean(id))
+
   const aggregatePacing = buildProgrammaticAggregatedMetrics(
     metrics,
     pacingWindow.asAtISO,
@@ -483,6 +514,12 @@ export function buildProgrammaticChannelSection(input: {
     }))
     const modelled = m.spendModelledFromPlanRate === true
     const displayName = deliveryLineItemDisplayName(li as Record<string, unknown>)
+    const entityBreakdown = cm360PlacementBreakdown(
+      m.lineItem,
+      combinedRows,
+      snowflakeChannel,
+      knownPlanLineIds,
+    )
     const block: LineItemBlockProps = {
       name: displayName.label,
       fullName: displayName.full,
@@ -529,6 +566,7 @@ export function buildProgrammaticChannelSection(input: {
         asAtDate: m.pacing.asAtDate,
         brandColour,
       },
+      ...(entityBreakdown ? { entityBreakdown } : {}),
     }
 
     return {

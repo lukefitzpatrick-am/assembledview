@@ -78,6 +78,43 @@ describe("groupPacingRowsByPlacement", () => {
       false,
     )
   })
+
+  it("rows with clicks produce placement clicks and non-zero CTR", () => {
+    const grouped = groupPacingRowsByPlacement([
+      {
+        entityId: "plc-mpu",
+        entityName: "Homepage MPU",
+        impressions: 400_000,
+        clicks: 100,
+      },
+      {
+        entityId: "plc-ros",
+        entityName: "ROS banner",
+        impressions: 463_761,
+        clicks: 56,
+      },
+    ])
+    const clickTotal = grouped.reduce((sum, row) => sum + Number(row.clicks ?? 0), 0)
+    assert.equal(clickTotal, 156)
+
+    const html = renderToStaticMarkup(
+      createElement(EntityBreakdownTable, {
+        rows: grouped,
+        knownPlanLineIds: ["sinch001pd1"],
+        entityNoun: { singular: "placement", plural: "placements" },
+        columns: "delivery",
+        defaultOpen: true,
+      }),
+    )
+    const cells = [...html.matchAll(/<td[^>]*>([^<]*)<\/td>/g)].map((m) => m[1])
+    // Placement · Impressions · Clicks · CTR · Video completions · Completion rate (impressions desc)
+    assert.equal(cells[2], "56")
+    assert.equal(cells[8], "100")
+    assert.match(cells[3] ?? "", /\d\.\d{2}%/)
+    assert.match(cells[9] ?? "", /\d\.\d{2}%/)
+    assert.notEqual(cells[3], "0.00%")
+    assert.notEqual(cells[9], "0.00%")
+  })
 })
 
 describe("EntityBreakdownTable columns", () => {

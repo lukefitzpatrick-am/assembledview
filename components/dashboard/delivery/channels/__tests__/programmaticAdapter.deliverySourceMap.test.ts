@@ -130,6 +130,40 @@ test("a Quantcast prog line with CM360 rows produces a section named CM360 (Quan
   assert.equal(section.lineItems[0]?.id, "test001pd9")
 })
 
+test("CM360 Quantcast rows with clicks produce placement clicks and non-zero CTR", () => {
+  const section = buildDisplay({
+    lines: [burstLine("sinch001pd1", "quantcast")],
+    rows: [
+      pacingRow({
+        channel: "ad-serving",
+        lineItemId: "sinch001pd1",
+        entityId: "plc-mpu",
+        entityName: "Homepage MPU",
+        impressions: 400_000,
+        clicks: 100,
+      }),
+      pacingRow({
+        channel: "ad-serving",
+        lineItemId: "sinch001pd1",
+        entityId: "plc-ros",
+        entityName: "ROS banner",
+        impressions: 463_761,
+        clicks: 56,
+      }),
+    ],
+  })
+  assert.ok(section, "expected a programmatic display section")
+  const breakdown = section.lineItems[0]?.block.entityBreakdown
+  assert.ok(breakdown, "expected a placement breakdown on the CM360 line")
+  assert.equal(breakdown.columns, "delivery")
+  assert.equal(breakdown.entityNoun.singular, "placement")
+  const clickTotal = breakdown.rows.reduce((sum, row) => sum + Number(row.clicks ?? 0), 0)
+  const impressionTotal = breakdown.rows.reduce((sum, row) => sum + Number(row.impressions ?? 0), 0)
+  assert.equal(clickTotal, 156)
+  assert.ok(impressionTotal > 0)
+  assert.ok(clickTotal / impressionTotal > 0)
+})
+
 test("a DV360 line is byte-identical to the pre-map section (connections + line id)", () => {
   const dvRows = [
     pacingRow({
