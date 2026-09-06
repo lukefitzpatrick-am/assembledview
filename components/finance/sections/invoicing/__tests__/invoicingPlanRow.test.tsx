@@ -91,6 +91,8 @@ describe("InvoicingPlanRow primary action", () => {
     markExportedMock.mockReset()
     toastMock.mockReset()
     approveMock.mockResolvedValue({ ok: true, records: [], errors: [] })
+    unapproveMock.mockResolvedValue({ ok: true, records: [], errors: [] })
+    vi.spyOn(window, "confirm")
     markExportedMock.mockResolvedValue({
       ok: true,
       exported_by_name: "A",
@@ -108,6 +110,7 @@ describe("InvoicingPlanRow primary action", () => {
       root.unmount()
     })
     container.remove()
+    vi.restoreAllMocks()
   })
 
   it("renders Approve on a Ready row", () => {
@@ -136,6 +139,106 @@ describe("InvoicingPlanRow primary action", () => {
       )
     })
     expect(primaryLabel(container)).toBe("Mark sent")
+  })
+
+  it("shows Un-approve with a confirm that names client, month and amount", async () => {
+    act(() => {
+      root.render(
+        <InvoicingPlanRow
+          record={rec({ state: "approved" })}
+          mp={mp}
+          kind="media"
+          refetch={() => undefined}
+        />,
+      )
+    })
+    const openBtn = [...container.querySelectorAll("button")].find((el) =>
+      /Un-approve/i.test(el.textContent ?? ""),
+    )
+    expect(openBtn).toBeTruthy()
+    await act(async () => {
+      openBtn!.click()
+    })
+    expect(window.confirm).not.toHaveBeenCalled()
+    expect(document.body.textContent).toMatch(/BIC/)
+    expect(document.body.textContent).toMatch(/July 2026/)
+    expect(document.body.textContent).toMatch(/\$2,625/)
+    expect(unapproveMock).not.toHaveBeenCalled()
+  })
+
+  it("calls unapprove on confirm and surfaces a 409 as the reason, not failed", async () => {
+    unapproveMock.mockResolvedValue({
+      ok: false,
+      records: [],
+      errors: [
+        {
+          invoice_key: "media:BIC001:2026-07",
+          error: "already_exported",
+          status: 409,
+        },
+      ],
+    })
+    act(() => {
+      root.render(
+        <InvoicingPlanRow
+          record={rec({ state: "approved" })}
+          mp={mp}
+          kind="media"
+          refetch={() => undefined}
+        />,
+      )
+    })
+    const openBtn = [...container.querySelectorAll("button")].find((el) =>
+      /Un-approve/i.test(el.textContent ?? ""),
+    )
+    await act(async () => {
+      openBtn!.click()
+    })
+    const confirmBtn = [...document.body.querySelectorAll("button")].find(
+      (el) => /Un-approve/i.test(el.textContent ?? "") && el !== openBtn,
+    )
+    expect(confirmBtn).toBeTruthy()
+    await act(async () => {
+      confirmBtn!.click()
+    })
+    expect(unapproveMock).toHaveBeenCalledTimes(1)
+    expect(toastMock).toHaveBeenCalled()
+    const toastArg = toastMock.mock.calls[0]?.[0] as { title?: string; description?: string }
+    expect(String(toastArg?.title ?? "")).not.toMatch(/failed/i)
+    expect(`${toastArg?.title ?? ""} ${toastArg?.description ?? ""}`).toMatch(
+      /sent to finance|exported/i,
+    )
+  })
+
+  it("does not offer Un-approve on a sent-to-finance row", () => {
+    act(() => {
+      root.render(
+        <InvoicingPlanRow
+          record={rec({ state: "sent_to_finance" })}
+          mp={mp}
+          kind="media"
+          refetch={() => undefined}
+        />,
+      )
+    })
+    expect(container.textContent).not.toMatch(/Un-approve/)
+    expect(container.textContent).not.toMatch(/Unapprove/)
+  })
+
+  it("approved inline amounts look read-only", () => {
+    act(() => {
+      root.render(
+        <InvoicingPlanRow
+          record={rec({ state: "approved" })}
+          mp={mp}
+          kind="media"
+          refetch={() => undefined}
+        />,
+      )
+    })
+    const edit = container.querySelector('[title="Click to edit amount"]')
+    expect(edit).toBeNull()
+    expect(container.querySelector("[data-amount-frozen]")).not.toBeNull()
   })
 
   it("renders no primary button on a Sent-to-finance row", () => {

@@ -34,6 +34,19 @@ export const INVOICING_FUNNEL_LABELS = {
   sent_to_finance: "Sent to finance",
 } as const
 
+/** To bill list filter. Independent of the campaign STATUS combobox. Default Ready. */
+export type InvoicingLifecycleFilter = InvoicingFunnelBucketId | "all"
+
+export const DEFAULT_INVOICING_LIFECYCLE_FILTER: InvoicingLifecycleFilter = "ready"
+
+export function recordMatchesLifecycleFilter(
+  state: BillingState | null | undefined,
+  filter: InvoicingLifecycleFilter
+): boolean {
+  if (filter === "all") return true
+  return invoicingFunnelBucket(state) === filter
+}
+
 export function invoicingFunnelBucket(
   state: BillingState | null | undefined
 ): InvoicingFunnelBucketId {

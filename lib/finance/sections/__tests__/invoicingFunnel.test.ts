@@ -2,7 +2,9 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import type { BillingState } from "../../billingLifecycle.js"
 import {
+  DEFAULT_INVOICING_LIFECYCLE_FILTER,
   formatFunnelCountCaption,
+  recordMatchesLifecycleFilter,
   summariseInvoicingFunnel,
 } from "../invoicingFunnel.js"
 
@@ -63,4 +65,18 @@ test("issued/paid/overdue sit in Sent to finance so the three tiles still add up
     summary.ready.cents + summary.approved.cents + summary.sentToFinance.cents,
     summary.totalCents
   )
+})
+
+test("default lifecycle filter is Ready, independent of campaign STATUS", () => {
+  assert.equal(DEFAULT_INVOICING_LIFECYCLE_FILTER, "ready")
+  assert.equal(recordMatchesLifecycleFilter("ready", "ready"), true)
+  assert.equal(recordMatchesLifecycleFilter("approved", "ready"), false)
+  assert.equal(recordMatchesLifecycleFilter("approved", "approved"), true)
+  assert.equal(recordMatchesLifecycleFilter("ready", "approved"), false)
+  assert.equal(recordMatchesLifecycleFilter("sent_to_finance", "sent_to_finance"), true)
+  assert.equal(recordMatchesLifecycleFilter("issued", "sent_to_finance"), true)
+  assert.equal(recordMatchesLifecycleFilter("paid", "sent_to_finance"), true)
+  assert.equal(recordMatchesLifecycleFilter("ready", "all"), true)
+  assert.equal(recordMatchesLifecycleFilter("approved", "all"), true)
+  assert.equal(recordMatchesLifecycleFilter("overdue", "all"), true)
 })

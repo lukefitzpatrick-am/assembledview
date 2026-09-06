@@ -6,7 +6,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ChevronDown } from "lucide-react"
 import { BulkApproveReadyButton } from "@/components/finance/sections/invoicing/BulkApproveReadyButton"
 import { InvoicingClientCard } from "@/components/finance/sections/invoicing/InvoicingClientCard"
 import { InvoicingToolbar } from "@/components/finance/sections/invoicing/InvoicingToolbar"
@@ -15,13 +14,15 @@ import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSecti
 import { EmptyState } from "@/components/finance/sections/EmptyState"
 import { ErrorState } from "@/components/finance/sections/ErrorState"
 import { LoadingState } from "@/components/finance/sections/LoadingState"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { exportBillingRecordsCsv } from "@/lib/finance/export"
 import { hasBillingEvidence } from "@/lib/finance/billingLifecycle"
 import { INVOICING_EXCEL_DISABLED_REASON } from "@/lib/finance/sections/invoicingBulkApproveCopy"
 import {
+  DEFAULT_INVOICING_LIFECYCLE_FILTER,
   formatFunnelCountCaption,
+  recordMatchesLifecycleFilter,
   summariseInvoicingFunnel,
+  type InvoicingLifecycleFilter,
 } from "@/lib/finance/sections/invoicingFunnel"
 import {
   filterApprovedReceivablesForExport,
@@ -126,10 +127,6 @@ function monthReadyStats(mg: MonthGroup): { count: number; amountDollars: number
   return { count, amountDollars }
 }
 
-function sumMonthGroupsTotal(groups: MonthGroup[]): number {
-  return groups.reduce((s, mg) => s + mg.total, 0)
-}
-
 function InvoicingMonthSections({
   groups,
   refetch,
@@ -206,6 +203,9 @@ export function InvoicingPageClient() {
   const applied = useFinanceScopeApplied()
   const [localFilters, setLocalFilters] = useState<InvoicingLocalFilters>(
     () => DEFAULT_INVOICING_LOCAL_FILTERS
+  )
+  const [lifecycleFilter, setLifecycleFilter] = useState<InvoicingLifecycleFilter>(
+    DEFAULT_INVOICING_LIFECYCLE_FILTER
   )
   const {
     loading,
@@ -294,18 +294,15 @@ export function InvoicingPageClient() {
 
   const funnel = useMemo(() => summariseInvoicingFunnel(allRecords), [allRecords])
 
-  const unbilledGroups = useMemo(
-    () => filterReceivablesMonthGroups(visibleMonthGroups, (r) => !hasBillingEvidence(r.state)),
-    [visibleMonthGroups]
+  const filteredGroups = useMemo(
+    () =>
+      filterReceivablesMonthGroups(visibleMonthGroups, (r) =>
+        recordMatchesLifecycleFilter(r.state, lifecycleFilter)
+      ),
+    [visibleMonthGroups, lifecycleFilter]
   )
-  const billedGroups = useMemo(
-    () => filterReceivablesMonthGroups(visibleMonthGroups, (r) => hasBillingEvidence(r.state)),
-    [visibleMonthGroups]
-  )
-
-  const billedInvoiceCount = countInvoicesInMonthGroups(billedGroups)
-  const billedTotal = sumMonthGroupsTotal(billedGroups)
-  const unbilledInvoiceCount = countInvoicesInMonthGroups(unbilledGroups)
+  const filteredInvoiceCount = countInvoicesInMonthGroups(filteredGroups)
+  const showBulkApprove = lifecycleFilter === "ready" || lifecycleFilter === "all"
 
   const monthLabel = useMemo(() => {
     const months = expandMonthRange(applied.monthRange)
@@ -477,6 +474,8 @@ export function InvoicingPageClient() {
               funnel.sentToFinance.invoiceCount,
               funnel.sentToFinance.monthCount
             )}
+            selectedFilter={lifecycleFilter}
+            onFilterChange={setLifecycleFilter}
           />
         ) : null}
 
@@ -499,42 +498,38 @@ export function InvoicingPageClient() {
             aria-busy={isUpdating || undefined}
           >
             <div className="relative mt-4 space-y-6 pt-1">
-              {unbilledInvoiceCount === 0 && billedInvoiceCount > 0 ? (
+              {lifecycleFilter === "ready" &&
+              filteredInvoiceCount === 0 &&
+              allRecords.some((r) => hasBillingEvidence(r.state)) ? (
                 <p className="text-sm text-muted-foreground">
                   All invoices have moved past ready for this period.
                 </p>
               ) : null}
 
+              {filteredInvoiceCount === 0 &&
+              !(
+                lifecycleFilter === "ready" &&
+                allRecords.some((r) => hasBillingEvidence(r.state))
+              ) ? (
+                <EmptyState
+                  title="No invoices in this state"
+                  message="Nothing matches the selected lifecycle filter. Try All, or another tile."
+                />
+              ) : null}
+
               <InvoicingMonthSections
-                groups={unbilledGroups}
+                groups={filteredGroups}
                 refetch={bumpFetch}
                 onNotesSaved={handleNotesSaved}
                 onLineAmountCommitted={handleLineAmountCommitted}
                 clientMetaById={clientMetaById}
                 approveBusy={approveBusy || isUpdating}
-                onApproveReady={(monthIso) => void approveReadyForMonth(monthIso)}
+                onApproveReady={
+                  showBulkApprove
+                    ? (monthIso) => void approveReadyForMonth(monthIso)
+                    : undefined
+                }
               />
-
-              {billedInvoiceCount > 0 ? (
-                <Collapsible defaultOpen={false} className="group/billed">
-                  <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-card border border-border bg-surface-panel px-4 py-3 text-left hover:bg-table-row-hover">
-                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/billed:rotate-180" />
-                    <span className="text-sm font-medium">
-                      Approved & beyond · {billedInvoiceCount}{" "}
-                      {billedInvoiceCount === 1 ? "invoice" : "invoices"} · {formatAUD(billedTotal)}
-                    </span>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-4">
-                    <InvoicingMonthSections
-                      groups={billedGroups}
-                      refetch={bumpFetch}
-                      onNotesSaved={handleNotesSaved}
-                      onLineAmountCommitted={handleLineAmountCommitted}
-                      clientMetaById={clientMetaById}
-                    />
-                  </CollapsibleContent>
-                </Collapsible>
-              ) : null}
             </div>
           </div>
         ) : null}

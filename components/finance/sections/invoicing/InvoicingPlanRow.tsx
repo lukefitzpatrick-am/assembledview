@@ -8,6 +8,7 @@ import { RowActionLine } from "@/components/finance/RowActionLine"
 import type { RowActionMenuItem } from "@/components/finance/RowActionMenu"
 import { useMediaPlanActions } from "@/components/finance/MediaPlanActionBar"
 import { MarkSentToFinanceButton } from "@/components/finance/sections/invoicing/MarkSentToFinanceButton"
+import { UnapproveBillingButton } from "@/components/finance/sections/invoicing/UnapproveBillingButton"
 import { ReceivableNotesButton } from "@/components/finance/receivables/ReceivableNotesButton"
 import { ReceivablesLineGroupRow } from "@/components/finance/receivables/ReceivablesLineGroupRow"
 import { useToast } from "@/components/ui/use-toast"
@@ -21,6 +22,7 @@ import { grainFromBillingRecord } from "@/lib/finance/billingApproveGrain"
 import { hasBillingEvidence, needsInlineAmountConfirm } from "@/lib/finance/billingLifecycle"
 import { groupIdenticalLineItems } from "@/lib/finance/groupIdenticalLineItems"
 import { markSentResultToast } from "@/lib/finance/markSentToFinanceCopy"
+import { unapproveFailureToast } from "@/lib/finance/sections/unapproveCopy"
 import type { InlineScheduleEditContext } from "@/lib/finance/commitInlineScheduleAmountEdit"
 import {
   buildMediaTypeRollups,
@@ -114,8 +116,9 @@ export function InvoicingPlanRow({
   clientMeta,
 }: InvoicingPlanRowProps) {
   const { toast } = useToast()
+  const amountFrozen = hasBillingEvidence(record.state)
   const [busy, setBusy] = useState(false)
-  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(amountFrozen)
   const notesTriggerRef = useRef<HTMLButtonElement>(null)
   const planMp = mp ?? EMPTY_MP
   const mediaActions = useMediaPlanActions({
@@ -142,6 +145,7 @@ export function InvoicingPlanRow({
   const mbaMeta = [record.mba_number, typeLabel].filter(Boolean).join(" · ")
 
   const editCtx = useMemo<InlineScheduleEditContext | null>(() => {
+    if (amountFrozen) return null
     if (kind !== "media") return null
     if (!planMp.mbaNumber || planMp.versionId == null || planMp.versionNumber == null) return null
     if (!record.billing_month) return null
@@ -151,7 +155,14 @@ export function InvoicingPlanRow({
       mbaNumber: planMp.mbaNumber,
       billingMonthIso: record.billing_month,
     }
-  }, [kind, planMp.mbaNumber, planMp.versionId, planMp.versionNumber, record.billing_month])
+  }, [
+    amountFrozen,
+    kind,
+    planMp.mbaNumber,
+    planMp.versionId,
+    planMp.versionNumber,
+    record.billing_month,
+  ])
 
   const run = async (action: "approve" | "unapprove" | "reapprove" | "unmark") => {
     if (!grain || busy) return
@@ -165,7 +176,11 @@ export function InvoicingPlanRow({
         })
         toast({ title: action === "reapprove" ? "Re-approved at the current amount" : "Approved" })
       } else if (action === "unapprove") {
-        await unapproveBillingRecords({ invoice_keys: [grain.invoice_key] })
+        const res = await unapproveBillingRecords({ invoice_keys: [grain.invoice_key] })
+        if (!res.ok) {
+          toast(unapproveFailureToast(res))
+          return
+        }
         toast({ title: "Approval cleared" })
       } else {
         await unmarkBillingRecordsExported({ invoice_keys: [grain.invoice_key] })
@@ -173,10 +188,13 @@ export function InvoicingPlanRow({
       }
       refetch()
     } catch (e) {
-      const titles: Record<typeof action, string> = {
+      if (action === "unapprove") {
+        toast(unapproveFailureToast(e))
+        return
+      }
+      const titles: Record<"approve" | "reapprove" | "unmark", string> = {
         approve: "Could not approve",
         reapprove: "Could not re-approve",
-        unapprove: "Could not unapprove",
         unmark: "Could not un-mark",
       }
       toast({
@@ -214,9 +232,19 @@ export function InvoicingPlanRow({
   }
 
   const primaryVariant = blocked ? "secondary" : "default"
-  let primary: ReactNode = null
+  const unapproveControl =
+    state === "approved" && grain ? (
+      <UnapproveBillingButton
+        busy={busy}
+        clientName={record.client_name ?? ""}
+        billingMonth={record.billing_month}
+        amountDollars={record.total}
+        onConfirm={() => run("unapprove")}
+      />
+    ) : null
+  let forwardPrimary: ReactNode = null
   if (primaryKind === "approve" && grain) {
-    primary = (
+    forwardPrimary = (
       <Button
         type="button"
         size="sm"
@@ -229,7 +257,7 @@ export function InvoicingPlanRow({
       </Button>
     )
   } else if (primaryKind === "mark_sent" && record.invoice_key) {
-    primary = (
+    forwardPrimary = (
       <MarkSentToFinanceButton
         busy={busy}
         variant={primaryVariant}
@@ -238,6 +266,13 @@ export function InvoicingPlanRow({
       />
     )
   }
+  const primary =
+    forwardPrimary || unapproveControl ? (
+      <div className="flex items-center gap-2">
+        {forwardPrimary}
+        {unapproveControl}
+      </div>
+    ) : null
 
   const menuItems: RowActionMenuItem[] = []
   if (kind === "media") {
@@ -283,16 +318,6 @@ export function InvoicingPlanRow({
       },
     })
   }
-  if (state === "approved") {
-    menuItems.push({
-      label: "Unapprove",
-      disabled: !grain || busy,
-      disabledReason: grain ? undefined : "Missing invoice key",
-      onSelect: () => {
-        void run("unapprove")
-      },
-    })
-  }
   if (state === "sent_to_finance") {
     menuItems.push({
       label: "Un-mark",
@@ -311,6 +336,7 @@ export function InvoicingPlanRow({
     <div
       data-invoicing-plan-row=""
       data-invoice-key={record.invoice_key ?? ""}
+      data-amount-frozen={amountFrozen ? "" : undefined}
       className="space-y-1.5 border-b border-border/50 py-3 last:border-0 last:pb-0 first:pt-0"
     >
       <div className="flex items-start justify-between gap-3">

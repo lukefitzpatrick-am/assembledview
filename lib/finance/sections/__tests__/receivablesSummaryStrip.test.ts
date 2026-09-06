@@ -54,3 +54,20 @@ test("funnel tile labels match the lifecycle pills and carry a count sub-line", 
   assert.equal(html.includes("Not yet approved"), false)
   assert.equal(html.includes("Any derived state past ready"), false)
 })
+
+test("funnel tiles are clickable lifecycle filters with an All control", () => {
+  const html = renderToStaticMarkup(
+    createElement(ReceivablesSummaryStrip, {
+      view: "ready",
+      readyCents: 100,
+      approvedCents: 200,
+      sentToFinanceCents: 300,
+      selectedFilter: "ready",
+      onFilterChange: () => undefined,
+    })
+  )
+  assert.ok(html.includes("<button"))
+  assert.ok(html.includes('aria-pressed="true"'))
+  assert.ok(html.includes(">All<") || html.includes(">All invoices<") || html.includes("All"))
+  assert.match(html, /aria-pressed="false"/)
+})

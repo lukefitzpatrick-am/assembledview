@@ -150,7 +150,10 @@ export function InlineScheduleAmountCell({
 
   if (!canEdit) {
     return (
-      <p className={cn("num shrink-0 text-xs text-muted-foreground", className)}>
+      <p
+        data-amount-frozen={ctx == null ? "" : undefined}
+        className={cn("num shrink-0 text-xs text-muted-foreground", className)}
+      >
         {formatAUD(line.amount)}
       </p>
     )
