@@ -1,0 +1,1361 @@
+{
+  "id": "jcd",
+  "publisher": "JCDecaux",
+  "file": "jcd_strength-meals_ooh.xlsx",
+  "line_item_count": 95,
+  "file_stated_total": 131250.01,
+  "total_media_amount": 131250.01,
+  "dates": [
+    "2026-08-31",
+    "2026-09-06",
+    "2026-09-07",
+    "2026-09-13",
+    "2026-09-14",
+    "2026-09-20",
+    "2026-09-21",
+    "2026-09-27",
+    "2026-09-28",
+    "2026-10-04",
+    "2026-10-05",
+    "2026-10-11",
+    "2026-10-12",
+    "2026-10-18",
+    "2026-10-19",
+    "2026-10-25",
+    "2026-10-26",
+    "2026-11-01",
+    "2026-11-02",
+    "2026-11-08",
+    "2026-11-09",
+    "2026-11-15",
+    "2026-11-16",
+    "2026-11-22",
+    "2026-11-23",
+    "2026-11-29",
+    "2026-11-30",
+    "2026-12-06",
+    "2026-12-07",
+    "2026-12-13",
+    "2026-12-14",
+    "2026-12-20",
+    "2027-01-04",
+    "2027-01-10",
+    "2027-01-11",
+    "2027-01-17",
+    "2027-01-18",
+    "2027-01-24",
+    "2027-01-25",
+    "2027-01-31",
+    "2027-02-01",
+    "2027-02-07",
+    "2027-02-08",
+    "2027-02-14",
+    "2027-02-15",
+    "2027-02-21",
+    "2027-02-22",
+    "2027-02-28",
+    "2027-03-01",
+    "2027-03-07",
+    "2027-03-08",
+    "2027-03-14",
+    "2027-03-15",
+    "2027-03-21",
+    "2027-03-22",
+    "2027-03-28",
+    "2027-03-29",
+    "2027-04-04",
+    "2027-04-05",
+    "2027-04-11",
+    "2027-04-19",
+    "2027-04-25",
+    "2027-04-26",
+    "2027-05-02",
+    "2027-05-03",
+    "2027-05-09",
+    "2027-05-10",
+    "2027-05-16",
+    "2027-05-17",
+    "2027-05-23",
+    "2027-05-24",
+    "2027-05-30",
+    "2027-06-07",
+    "2027-06-13"
+  ],
+  "lines": [
+    {
+      "source_row_ref": "JCD Strength Meals Co !r24",
+      "money": 911.87,
+      "dates": [
+        {
+          "from": "2027-03-15",
+          "to": "2027-03-21"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r25",
+      "money": 1136.56,
+      "dates": [
+        {
+          "from": "2026-10-05",
+          "to": "2026-10-11"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r26",
+      "money": 3530.8,
+      "dates": [
+        {
+          "from": "2027-05-03",
+          "to": "2027-05-09"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r27",
+      "money": 3648.49,
+      "dates": [
+        {
+          "from": "2027-04-05",
+          "to": "2027-04-11"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r28",
+      "money": 5199.53,
+      "dates": [
+        {
+          "from": "2027-03-15",
+          "to": "2027-03-21"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r29",
+      "money": 1086.4,
+      "dates": [
+        {
+          "from": "2027-03-08",
+          "to": "2027-03-14"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r30",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-02-15",
+          "to": "2027-02-21"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r31",
+      "money": 889.24,
+      "dates": [
+        {
+          "from": "2027-02-08",
+          "to": "2027-02-14"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r32",
+      "money": 2223.1,
+      "dates": [
+        {
+          "from": "2027-02-01",
+          "to": "2027-02-07"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r33",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-01-04",
+          "to": "2027-01-10"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r34",
+      "money": 5072.4,
+      "dates": [
+        {
+          "from": "2026-12-07",
+          "to": "2026-12-13"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r35",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-11-16",
+          "to": "2026-11-22"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r36",
+      "money": 3768.87,
+      "dates": [
+        {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r37",
+      "money": 3174.84,
+      "dates": [
+        {
+          "from": "2026-10-19",
+          "to": "2026-10-25"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r38",
+      "money": 4509.42,
+      "dates": [
+        {
+          "from": "2026-10-05",
+          "to": "2026-10-11"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r39",
+      "money": 2496.04,
+      "dates": [
+        {
+          "from": "2026-09-21",
+          "to": "2026-09-27"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r40",
+      "money": 3492.59,
+      "dates": [
+        {
+          "from": "2026-09-07",
+          "to": "2026-09-13"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r41",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-08-31",
+          "to": "2026-09-06"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r43",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-06-07",
+          "to": "2027-06-13"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r44",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-05-24",
+          "to": "2027-05-30"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r45",
+      "money": 706.85,
+      "dates": [
+        {
+          "from": "2027-05-17",
+          "to": "2027-05-23"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r46",
+      "money": 925.36,
+      "dates": [
+        {
+          "from": "2027-04-26",
+          "to": "2027-05-02"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r47",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-04-05",
+          "to": "2027-04-11"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r48",
+      "money": 2249.68,
+      "dates": [
+        {
+          "from": "2027-03-29",
+          "to": "2027-04-04"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r49",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-03-15",
+          "to": "2027-03-21"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r50",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-03-01",
+          "to": "2027-03-07"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r51",
+      "money": 2059.64,
+      "dates": [
+        {
+          "from": "2027-02-22",
+          "to": "2027-02-28"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r52",
+      "money": 537.2,
+      "dates": [
+        {
+          "from": "2027-02-22",
+          "to": "2027-02-28"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r53",
+      "money": 1903.6,
+      "dates": [
+        {
+          "from": "2027-02-15",
+          "to": "2027-02-21"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r54",
+      "money": 2122.39,
+      "dates": [
+        {
+          "from": "2027-02-08",
+          "to": "2027-02-14"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r55",
+      "money": 3710.38,
+      "dates": [
+        {
+          "from": "2027-02-01",
+          "to": "2027-02-07"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r56",
+      "money": 4531.19,
+      "dates": [
+        {
+          "from": "2027-01-25",
+          "to": "2027-01-31"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r57",
+      "money": 491.11,
+      "dates": [
+        {
+          "from": "2027-01-18",
+          "to": "2027-01-24"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r58",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-01-04",
+          "to": "2027-01-10"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r59",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-12-14",
+          "to": "2026-12-20"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r60",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-11-30",
+          "to": "2026-12-06"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r61",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-11-23",
+          "to": "2026-11-29"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r62",
+      "money": 306.08,
+      "dates": [
+        {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        {
+          "from": "2027-03-15",
+          "to": "2027-03-21"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r63",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r64",
+      "money": 2368.56,
+      "dates": [
+        {
+          "from": "2026-10-19",
+          "to": "2026-10-25"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r65",
+      "money": 529.4,
+      "dates": [
+        {
+          "from": "2026-10-12",
+          "to": "2026-10-18"
+        },
+        {
+          "from": "2027-02-22",
+          "to": "2027-02-28"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r66",
+      "money": 1246.25,
+      "dates": [
+        {
+          "from": "2026-10-05",
+          "to": "2026-10-11"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r67",
+      "money": 970.64,
+      "dates": [
+        {
+          "from": "2026-09-28",
+          "to": "2026-10-04"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r68",
+      "money": 2614.92,
+      "dates": [
+        {
+          "from": "2026-09-21",
+          "to": "2026-09-27"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r69",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-09-21",
+          "to": "2026-09-27"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r70",
+      "money": 1083.86,
+      "dates": [
+        {
+          "from": "2026-09-14",
+          "to": "2026-09-20"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r71",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-09-14",
+          "to": "2026-09-20"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r72",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-09-07",
+          "to": "2026-09-13"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r73",
+      "money": 2335.55,
+      "dates": [
+        {
+          "from": "2026-08-31",
+          "to": "2026-09-06"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r75",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-04-19",
+          "to": "2027-04-25"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r76",
+      "money": 3246.23,
+      "dates": [
+        {
+          "from": "2027-04-05",
+          "to": "2027-04-11"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r77",
+      "money": 558.84,
+      "dates": [
+        {
+          "from": "2027-04-05",
+          "to": "2027-04-11"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r78",
+      "money": 1654.06,
+      "dates": [
+        {
+          "from": "2027-03-29",
+          "to": "2027-04-04"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r79",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-03-22",
+          "to": "2027-03-28"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r80",
+      "money": 1959.84,
+      "dates": [
+        {
+          "from": "2027-03-15",
+          "to": "2027-03-21"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r81",
+      "money": 538.68,
+      "dates": [
+        {
+          "from": "2027-03-15",
+          "to": "2027-03-21"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r82",
+      "money": 2010.09,
+      "dates": [
+        {
+          "from": "2027-03-01",
+          "to": "2027-03-07"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r83",
+      "money": 1282.56,
+      "dates": [
+        {
+          "from": "2027-03-01",
+          "to": "2027-03-07"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r84",
+      "money": 1711.08,
+      "dates": [
+        {
+          "from": "2027-02-22",
+          "to": "2027-02-28"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r85",
+      "money": 3460.18,
+      "dates": [
+        {
+          "from": "2027-02-15",
+          "to": "2027-02-21"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r86",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-02-15",
+          "to": "2027-02-21"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r87",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-02-08",
+          "to": "2027-02-14"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r88",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-02-01",
+          "to": "2027-02-07"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r89",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-01-25",
+          "to": "2027-01-31"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r90",
+      "money": 3355.49,
+      "dates": [
+        {
+          "from": "2027-01-18",
+          "to": "2027-01-24"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r91",
+      "money": 875.36,
+      "dates": [
+        {
+          "from": "2027-01-18",
+          "to": "2027-01-24"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r92",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-01-11",
+          "to": "2027-01-17"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r93",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-11-02",
+          "to": "2026-11-08"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r94",
+      "money": 1639.78,
+      "dates": [
+        {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r95",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-10-19",
+          "to": "2026-10-25"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r96",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-10-12",
+          "to": "2026-10-18"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r97",
+      "money": 6121.86,
+      "dates": [
+        {
+          "from": "2026-10-05",
+          "to": "2026-10-11"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r98",
+      "money": 1106.89,
+      "dates": [
+        {
+          "from": "2026-10-05",
+          "to": "2026-10-11"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r99",
+      "money": 2168.11,
+      "dates": [
+        {
+          "from": "2026-09-28",
+          "to": "2026-10-04"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r100",
+      "money": 1147.82,
+      "dates": [
+        {
+          "from": "2026-09-28",
+          "to": "2026-10-04"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r101",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-09-21",
+          "to": "2026-09-27"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r102",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-09-14",
+          "to": "2026-09-20"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r103",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-09-07",
+          "to": "2026-09-13"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r104",
+      "money": 488.7,
+      "dates": [
+        {
+          "from": "2026-09-07",
+          "to": "2026-09-13"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r105",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-08-31",
+          "to": "2026-09-06"
+        }
+      ],
+      "format": "large_format",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r117",
+      "money": 1912.06,
+      "dates": [
+        {
+          "from": "2027-02-22",
+          "to": "2027-02-28"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r118",
+      "money": 1738.24,
+      "dates": [
+        {
+          "from": "2027-01-25",
+          "to": "2027-01-31"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r119",
+      "money": 1903.65,
+      "dates": [
+        {
+          "from": "2026-10-12",
+          "to": "2026-10-18"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r120",
+      "money": 3265.24,
+      "dates": [
+        {
+          "from": "2026-09-28",
+          "to": "2026-10-04"
+        },
+        {
+          "from": "2027-03-15",
+          "to": "2027-03-21"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r121",
+      "money": 1119.8,
+      "dates": [
+        {
+          "from": "2026-09-07",
+          "to": "2026-09-13"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r123",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-06-07",
+          "to": "2027-06-13"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r124",
+      "money": 4707.04,
+      "dates": [
+        {
+          "from": "2026-09-28",
+          "to": "2026-10-04"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r126",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2027-03-22",
+          "to": "2027-03-28"
+        },
+        {
+          "from": "2027-04-19",
+          "to": "2027-04-25"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r127",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-11-09",
+          "to": "2026-11-15"
+        },
+        {
+          "from": "2027-03-01",
+          "to": "2027-03-07"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r128",
+      "money": 1615.72,
+      "dates": [
+        {
+          "from": "2026-10-26",
+          "to": "2026-11-01"
+        },
+        {
+          "from": "2027-02-15",
+          "to": "2027-02-21"
+        },
+        {
+          "from": "2027-05-10",
+          "to": "2027-05-16"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r129",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-10-19",
+          "to": "2026-10-25"
+        },
+        {
+          "from": "2027-01-18",
+          "to": "2027-01-24"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r130",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-09-28",
+          "to": "2026-10-04"
+        },
+        {
+          "from": "2027-04-05",
+          "to": "2027-04-11"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r131",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-09-07",
+          "to": "2026-09-13"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r132",
+      "money": 0,
+      "dates": [
+        {
+          "from": "2026-08-31",
+          "to": "2026-09-06"
+        },
+        {
+          "from": "2027-04-26",
+          "to": "2027-05-02"
+        }
+      ],
+      "format": "unresolved:JCDecaux RAIL",
+      "placement": null,
+      "buy_type": "bonus"
+    },
+    {
+      "source_row_ref": "JCD Strength Meals Co !r144",
+      "money": 9829.88,
+      "dates": [
+        {
+          "from": "2026-10-12",
+          "to": "2026-10-18"
+        }
+      ],
+      "format": "small_format",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    }
+  ]
+}

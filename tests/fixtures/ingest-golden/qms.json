@@ -1,0 +1,573 @@
+{
+  "id": "qms",
+  "publisher": "QMS",
+  "file": "qms_strength-meals_esb-ooh.xlsx",
+  "line_item_count": 41,
+  "file_stated_total": 2348750,
+  "total_media_amount": 2348750,
+  "dates": [
+    "2026-09-07",
+    "2026-09-14",
+    "2026-09-21",
+    "2026-09-28",
+    "2026-10-05",
+    "2026-10-12",
+    "2026-10-19",
+    "2026-10-26",
+    "2026-11-09",
+    "2026-11-23",
+    "2026-11-30",
+    "2027-01-04",
+    "2027-01-11",
+    "2027-01-18",
+    "2027-01-25",
+    "2027-02-01",
+    "2027-02-08",
+    "2027-02-15",
+    "2027-02-22",
+    "2027-03-01",
+    "2027-03-08",
+    "2027-03-15",
+    "2027-04-12",
+    "2027-04-19",
+    "2027-05-10",
+    "2027-05-17",
+    "2027-06-07",
+    "2027-06-21"
+  ],
+  "lines": [
+    {
+      "source_row_ref": "QMS_2026_Paid!r13",
+      "money": 125000,
+      "dates": [
+        {
+          "from": "2026-09-07",
+          "to": "2026-09-07"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r14",
+      "money": 115000,
+      "dates": [
+        {
+          "from": "2026-09-21",
+          "to": "2026-09-21"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r15",
+      "money": 92000,
+      "dates": [
+        {
+          "from": "2026-10-19",
+          "to": "2026-10-19"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r16",
+      "money": 92000,
+      "dates": [
+        {
+          "from": "2027-01-11",
+          "to": "2027-01-11"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r17",
+      "money": 75000,
+      "dates": [
+        {
+          "from": "2026-10-05",
+          "to": "2026-10-05"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r18",
+      "money": 75000,
+      "dates": [
+        {
+          "from": "2027-02-01",
+          "to": "2027-02-01"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r19",
+      "money": 68250,
+      "dates": [
+        {
+          "from": "2027-02-22",
+          "to": "2027-02-22"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r20",
+      "money": 63000,
+      "dates": [
+        {
+          "from": "2026-11-30",
+          "to": "2026-11-30"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r21",
+      "money": 60500,
+      "dates": [
+        {
+          "from": "2027-01-18",
+          "to": "2027-01-18"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r22",
+      "money": 50000,
+      "dates": [
+        {
+          "from": "2027-05-10",
+          "to": "2027-05-10"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r23",
+      "money": 50000,
+      "dates": [
+        {
+          "from": "2027-03-08",
+          "to": "2027-03-08"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r24",
+      "money": 26250,
+      "dates": [
+        {
+          "from": "2026-09-28",
+          "to": "2026-09-28"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r26",
+      "money": 95000,
+      "dates": [
+        {
+          "from": "2026-09-14",
+          "to": "2026-09-14"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r27",
+      "money": 86750,
+      "dates": [
+        {
+          "from": "2026-09-07",
+          "to": "2026-09-07"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r28",
+      "money": 85500,
+      "dates": [
+        {
+          "from": "2026-10-12",
+          "to": "2026-10-12"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r29",
+      "money": 85500,
+      "dates": [
+        {
+          "from": "2027-02-01",
+          "to": "2027-02-01"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r30",
+      "money": 75000,
+      "dates": [
+        {
+          "from": "2026-10-26",
+          "to": "2026-10-26"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r31",
+      "money": 72250,
+      "dates": [
+        {
+          "from": "2027-03-01",
+          "to": "2027-03-01"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r32",
+      "money": 68250,
+      "dates": [
+        {
+          "from": "2026-09-21",
+          "to": "2026-09-21"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r33",
+      "money": 68250,
+      "dates": [
+        {
+          "from": "2027-02-15",
+          "to": "2027-02-15"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r34",
+      "money": 59000,
+      "dates": [
+        {
+          "from": "2027-01-25",
+          "to": "2027-01-25"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r35",
+      "money": 56500,
+      "dates": [
+        {
+          "from": "2027-01-11",
+          "to": "2027-01-11"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r36",
+      "money": 52500,
+      "dates": [
+        {
+          "from": "2027-04-19",
+          "to": "2027-04-19"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r37",
+      "money": 51250,
+      "dates": [
+        {
+          "from": "2027-06-07",
+          "to": "2027-06-07"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r38",
+      "money": 47250,
+      "dates": [
+        {
+          "from": "2026-11-09",
+          "to": "2026-11-09"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r39",
+      "money": 42000,
+      "dates": [
+        {
+          "from": "2027-04-12",
+          "to": "2027-04-12"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r40",
+      "money": 39500,
+      "dates": [
+        {
+          "from": "2026-10-05",
+          "to": "2026-10-05"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r41",
+      "money": 35500,
+      "dates": [
+        {
+          "from": "2027-01-18",
+          "to": "2027-01-18"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r42",
+      "money": 29000,
+      "dates": [
+        {
+          "from": "2027-03-15",
+          "to": "2027-03-15"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r44",
+      "money": 48750,
+      "dates": [
+        {
+          "from": "2026-09-28",
+          "to": "2026-09-28"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r45",
+      "money": 48750,
+      "dates": [
+        {
+          "from": "2026-09-14",
+          "to": "2026-09-14"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r46",
+      "money": 46000,
+      "dates": [
+        {
+          "from": "2027-03-01",
+          "to": "2027-03-01"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r47",
+      "money": 42000,
+      "dates": [
+        {
+          "from": "2027-01-04",
+          "to": "2027-01-04"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r48",
+      "money": 38000,
+      "dates": [
+        {
+          "from": "2026-11-30",
+          "to": "2026-11-30"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r49",
+      "money": 35500,
+      "dates": [
+        {
+          "from": "2027-06-21",
+          "to": "2027-06-21"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r50",
+      "money": 30250,
+      "dates": [
+        {
+          "from": "2026-10-19",
+          "to": "2026-10-19"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r51",
+      "money": 30250,
+      "dates": [
+        {
+          "from": "2027-02-08",
+          "to": "2027-02-08"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r52",
+      "money": 29000,
+      "dates": [
+        {
+          "from": "2027-01-18",
+          "to": "2027-01-18"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r53",
+      "money": 23750,
+      "dates": [
+        {
+          "from": "2026-09-21",
+          "to": "2026-09-21"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r54",
+      "money": 18500,
+      "dates": [
+        {
+          "from": "2026-11-23",
+          "to": "2026-11-23"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    },
+    {
+      "source_row_ref": "QMS_2026_Paid!r55",
+      "money": 17000,
+      "dates": [
+        {
+          "from": "2027-05-17",
+          "to": "2027-05-17"
+        }
+      ],
+      "format": "unresolved:Digital",
+      "placement": null,
+      "buy_type": "fixed_cost"
+    }
+  ]
+}
