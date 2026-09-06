@@ -3,7 +3,7 @@
  * Detection stays in buildIngestReviewFromBuffer — this only stages + records.
  */
 
-import { buildIngestReviewFromBuffer } from "@/lib/mediaplans/ingest/buildIngestReview"
+import { buildIngestReviewWithPrimary } from "@/lib/mediaplans/ingest/buildIngestReview"
 import { recordIngestRun } from "@/lib/mediaplans/ingest/ingestRuns"
 import { putIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
 import type { PublisherProfileConfig } from "@/lib/mediaplans/ingest/publisherProfileConfig"
@@ -12,6 +12,11 @@ import {
   type IngestChatSummary,
 } from "@/lib/mediaplans/ingest/summariseIngestReview"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
+import {
+  runLineAudit,
+  skippedLineAudit,
+  type LineAuditClient,
+} from "@/lib/mediaplans/ingest/lineAudit"
 
 export async function stageIngestReviewFromBuffer(
   buffer: Buffer,
@@ -20,17 +25,46 @@ export async function stageIngestReviewFromBuffer(
     uploadedBy: string | null
     profiles: PublisherProfileConfig[]
     pinnedPublisherName?: string | null
+    /** Injectable audit client (tests). Production review route passes Anthropic. */
+    lineAuditClient?: LineAuditClient | null
   },
 ): Promise<{
   review: IngestReviewPackage
   stageId: string
   summary: IngestChatSummary
 }> {
-  const review = await buildIngestReviewFromBuffer(buffer, args.profiles, {
-    skipAva: true,
-    sourceFileName: args.fileName,
-    pinnedPublisherName: args.pinnedPublisherName,
-  })
+  const { review: built, primary } = await buildIngestReviewWithPrimary(
+    buffer,
+    args.profiles,
+    {
+      skipAva: true,
+      sourceFileName: args.fileName,
+      pinnedPublisherName: args.pinnedPublisherName,
+    },
+  )
+  let review = built
+  if (review.line_audit?.status !== "complete") {
+    if (!primary || !review.proposal) {
+      review = {
+        ...review,
+        line_audit: skippedLineAudit("no proposal"),
+      }
+    } else if (!args.lineAuditClient) {
+      review = {
+        ...review,
+        line_audit: skippedLineAudit("no audit client"),
+      }
+    } else {
+      review = {
+        ...review,
+        line_audit: await runLineAudit({
+          shape: primary,
+          proposal: review.proposal,
+          client: args.lineAuditClient,
+        }),
+      }
+    }
+  }
   const stageId = await putIngestStage({
     review,
     fileName: args.fileName,

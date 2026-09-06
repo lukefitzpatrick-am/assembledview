@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/requireRole"
 import { listPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles"
 import { stageIngestReviewFromBuffer } from "@/lib/mediaplans/ingest/stageIngestReview"
+import { createAnthropicLineAuditClient } from "@/lib/mediaplans/ingest/lineAudit.server"
 
 export const runtime = "nodejs"
+export const maxDuration = 300
 
 /** Upload a publisher schedule → staged review package (no plan writes). */
 export async function POST(request: NextRequest) {
@@ -26,11 +28,13 @@ export async function POST(request: NextRequest) {
       typeof auth.session?.user?.email === "string"
         ? auth.session.user.email.trim().toLowerCase()
         : null
+    const auditOff = process.env.INGEST_AUDIT === "off"
     const { review, stageId, summary } = await stageIngestReviewFromBuffer(buf, {
       fileName: file.name,
       uploadedBy,
       profiles,
       pinnedPublisherName,
+      lineAuditClient: auditOff ? null : createAnthropicLineAuditClient(),
     })
     return NextResponse.json({ review, stageId, summary })
   } catch (e) {

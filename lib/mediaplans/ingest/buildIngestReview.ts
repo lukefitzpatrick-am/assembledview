@@ -33,6 +33,7 @@ import {
   evaluateTemplateCoverage,
   type TemplateCoverage,
 } from "@/lib/mediaplans/ingest/templateCoverage"
+import type { LineAudit } from "@/lib/mediaplans/ingest/lineAudit"
 
 export type ColumnMappingRow = {
   header: string
@@ -106,6 +107,12 @@ export type IngestReviewPackage = {
     answers?: Record<string, string>
     emittedQuestionIds?: string[]
   }
+  /**
+   * Independent line audit (IG-11). Nested jsonb on the staged package —
+   * never a chat-turn model call. Absent when skipped (unknown publisher,
+   * INGEST_AUDIT=off, or tests without a client).
+   */
+  line_audit?: LineAudit
   /** All sheet shapes for debugging / multi-sheet accept later. */
   sheets: Array<{
     sheet_name: string
@@ -276,11 +283,14 @@ export function buildIgnoredSummary(args: {
   }
 }
 
-export async function buildIngestReviewFromBuffer(
+export async function buildIngestReviewWithPrimary(
   buffer: Buffer,
   profiles: PublisherProfileConfig[],
   options: BuildIngestReviewOptions = {},
-): Promise<IngestReviewPackage> {
+): Promise<{
+  review: IngestReviewPackage
+  primary: DetectedSheetShape | null
+}> {
   const wb = new ExcelJS.Workbook()
   await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer)
   const allShapes = wb.worksheets.map((ws) => detectSheetShape(ws))
@@ -469,7 +479,7 @@ export async function buildIngestReviewFromBuffer(
     ava_call_count = ava.ava_call_count
   }
 
-  return {
+  const review: IngestReviewPackage = {
     detected_publisher: unknown ? null : (profile?.publisher_name ?? null),
     publisher_confidence,
     match_reasons: best?.match?.reasons ?? [],
@@ -488,6 +498,20 @@ export async function buildIngestReviewFromBuffer(
     source_file_name: options.sourceFileName ?? null,
     sheets,
   }
+  return { review, primary }
+}
+
+export async function buildIngestReviewFromBuffer(
+  buffer: Buffer,
+  profiles: PublisherProfileConfig[],
+  options: BuildIngestReviewOptions = {},
+): Promise<IngestReviewPackage> {
+  const { review } = await buildIngestReviewWithPrimary(
+    buffer,
+    profiles,
+    options,
+  )
+  return review
 }
 
 export async function buildIngestReviewFromFile(
