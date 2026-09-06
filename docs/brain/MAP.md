@@ -130,7 +130,7 @@ Three related-but-distinct stores, all joined on `publishers.id` and never on di
 - `publisher_profiles` — how to parse a publisher's schedule spreadsheet (`detect_signature`, `column_map`, `field_defaults`, `money_rules`, `grid_semantics`, `line_granularity`). Config is jsonb on the row, not TypeScript per publisher.
 - `publisher_value_synonyms` — learned publisher prose → AV canonical (`0060` AUTHOR ONLY). `publisher_id` NULL is a global suggestion, never auto-applied.
 - `publisher_specs` + `spec_runs` — material specs and deadlines.
-- `ingest_stages` → `ingest_runs` → `ingest_eval_runs` — staged review package (`IngestReviewPackage` jsonb, including `line_audit`), then accepted run history, then weekly parser-accuracy scores (`0067` AUTHOR ONLY; overlay until applied). OOH detail lands in `line_item_panels` + `line_item_panel_flights` (no money columns; spend stays on the burst). Original xlsx is not stored on the stage.
+- `ingest_stages` → `ingest_runs` → `ingest_eval_runs` — staged review package (`IngestReviewPackage` jsonb, including `line_audit` and unconfirmed `proposed_profile`), then accepted run history, then weekly parser-accuracy scores (`0067` AUTHOR ONLY; overlay until applied). OOH detail lands in `line_item_panels` + `line_item_panel_flights` (no money columns; spend stays on the burst). Original xlsx is not stored on the stage.
 
 ## 8. Clients
 

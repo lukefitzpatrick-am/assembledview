@@ -34,6 +34,10 @@ import {
   type TemplateCoverage,
 } from "@/lib/mediaplans/ingest/templateCoverage"
 import type { LineAudit } from "@/lib/mediaplans/ingest/lineAudit"
+import {
+  proposePublisherProfileFromShapes,
+  type ProposedPublisherProfile,
+} from "@/lib/mediaplans/ingest/proposePublisherProfile"
 
 export type ColumnMappingRow = {
   header: string
@@ -113,6 +117,11 @@ export type IngestReviewPackage = {
    * INGEST_AUDIT=off, or tests without a client).
    */
   line_audit?: LineAudit
+  /**
+   * Model-proposed profile for an unmatched file. `confirmed: false` until
+   * the planner accepts field-by-field — never used as `profile` for load.
+   */
+  proposed_profile?: ProposedPublisherProfile
   /** All sheet shapes for debugging / multi-sheet accept later. */
   sheets: Array<{
     sheet_name: string
@@ -364,13 +373,31 @@ export async function buildIngestReviewWithPrimary(
 
   const profileMatch = unknown ? null : (best?.match?.profile ?? null)
   const primary = unknown ? null : (best?.shape ?? null)
+  const proposedDraft = unknown
+    ? proposePublisherProfileFromShapes(allShapes)
+    : null
+  const displayShape = unknown
+    ? allShapes.reduce<DetectedSheetShape | null>((top, s) => {
+        if (
+          !top ||
+          s.line_item_sheet_confidence > top.line_item_sheet_confidence
+        ) {
+          return s
+        }
+        return top
+      }, null)
+    : primary
   const profile =
     profileMatch && primary
       ? overlayMoneySynonyms(profileMatch, primary)
       : profileMatch
   let publisher_confidence = best?.match?.confidence ?? 0
   const column_mapping =
-    primary && profile ? buildColumnMapping(primary, profile) : []
+    primary && profile
+      ? buildColumnMapping(primary, profile)
+      : displayShape && proposedDraft
+        ? buildColumnMapping(displayShape, proposedDraft)
+        : []
 
   let proposal =
     primary && profile ? proposeLineItemsFromSheet(primary, profile) : null
@@ -435,7 +462,7 @@ export async function buildIngestReviewWithPrimary(
   const ignored = buildIgnoredSummary({
     allShapes,
     profile,
-    primary,
+    primary: primary ?? displayShape,
     column_mapping,
     columns_unmapped:
       leftoverHeaders.length > 0
@@ -497,6 +524,9 @@ export async function buildIngestReviewWithPrimary(
     needs_catalogue_choice: unknown,
     source_file_name: options.sourceFileName ?? null,
     sheets,
+    ...(proposedDraft
+      ? { proposed_profile: { draft: proposedDraft, confirmed: false } }
+      : {}),
   }
   return { review, primary }
 }

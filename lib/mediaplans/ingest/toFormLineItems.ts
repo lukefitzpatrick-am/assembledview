@@ -7,6 +7,7 @@ import type { AutopopulateChannel } from "@/lib/ava/autopopulate/types"
 import type { SavePlanLineItem } from "@/lib/data/savePlan"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 import { uniqueTrimmedRefs } from "@/lib/mediaplans/ingest/ingestSourceRowRefs"
+import { hasUnconfirmedProposedProfile } from "@/lib/mediaplans/ingest/proposePublisherProfile"
 import {
   stampProposalForSave,
   type IngestPanelRow,
@@ -20,7 +21,7 @@ export function ingestReviewToFormLineItems(
 ): { channel: AutopopulateChannel; items: unknown[]; skipped: string[] } {
   const skipped = skippedFromReview(review)
   const channel = channelFromReview(review)
-  if (!review.proposal) {
+  if (hasUnconfirmedProposedProfile(review) || !review.proposal) {
     return { channel, items: [], skipped }
   }
 

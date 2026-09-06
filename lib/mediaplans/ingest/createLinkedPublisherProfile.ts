@@ -33,6 +33,13 @@ export function clearLinkedProfileOverlayForTests() {
   clearPublisherProfileSeedOverlayForTests()
 }
 
+export function registerLinkedPublisherProfile(profile: PublisherProfileConfig) {
+  if (profile.publisher_id != null) {
+    createdByCatalogueId.set(profile.publisher_id, profile)
+  }
+  registerPublisherProfileOverlay(profile)
+}
+
 export function mediaTypeFromCatalogue(catalogue: CataloguePublisherRef): string {
   if (catalogue.pub_ooh && !catalogue.pub_radio) return "ooh"
   if (catalogue.pub_radio && !catalogue.pub_ooh) return "radio"

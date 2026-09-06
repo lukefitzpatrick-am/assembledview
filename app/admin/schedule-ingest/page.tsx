@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { IngestReviewScreen } from "@/components/ingest/IngestReviewScreen"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
+import { hasUnconfirmedProposedProfile } from "@/lib/mediaplans/ingest/proposePublisherProfile"
 import {
   isConstantMappingHeader,
   fieldIdFromConstantHeader,
@@ -26,6 +27,7 @@ async function loadAvaMappingSuggestions(
   setError: Dispatch<SetStateAction<string | null>>,
 ) {
   if (review.needs_catalogue_choice) return
+  if (hasUnconfirmedProposedProfile(review)) return
   const columns = review.unmapped_column_samples ?? []
   const leftoverHeaders = (review.template_coverage?.not_used ?? []).map(
     (n) => n.header,
@@ -95,6 +97,8 @@ function ScheduleIngestPageInner() {
   const [catalogue, setCatalogue] = useState<Publisher[]>([])
   const [pickedPublisherId, setPickedPublisherId] = useState("")
   const [linking, setLinking] = useState(false)
+  const [confirmingProfile, setConfirmingProfile] = useState(false)
+  const [stagedStageId, setStagedStageId] = useState("")
   const fileRef = useRef<File | null>(null)
 
   useEffect(() => {
@@ -121,6 +125,9 @@ function ScheduleIngestPageInner() {
     const fromSession = readIngestStageFromSession(stageId)
     if (fromSession?.review) {
       setReview(fromSession.review)
+      setStagedStageId(stageId)
+      const linkedId = fromSession.review.proposed_profile?.draft.publisher_id
+      if (linkedId != null) setPickedPublisherId(String(linkedId))
       void loadAvaMappingSuggestions(fromSession.review, setReview, setError)
       return
     }
@@ -136,6 +143,9 @@ function ScheduleIngestPageInner() {
         }
         if (!cancelled) {
           setReview(json.review)
+          setStagedStageId(stageId)
+          const linkedId = json.review.proposed_profile?.draft.publisher_id
+          if (linkedId != null) setPickedPublisherId(String(linkedId))
           void loadAvaMappingSuggestions(json.review, setReview, setError)
         }
       })
@@ -166,12 +176,14 @@ function ScheduleIngestPageInner() {
       })
       const json = (await res.json()) as {
         review?: IngestReviewPackage
+        stageId?: string
         error?: string
       }
       if (!res.ok || !json.review) {
         throw new Error(json.error || `HTTP ${res.status}`)
       }
       setReview(json.review)
+      if (json.stageId) setStagedStageId(json.stageId)
       void loadAvaMappingSuggestions(json.review, setReview, setError)
     } catch (e) {
       setReview(null)
@@ -400,8 +412,7 @@ function ScheduleIngestPageInner() {
 
   const onLinkPublisher = useCallback(async () => {
     const picked = catalogue.find((p) => String(p.id) === pickedPublisherId)
-    const file = fileRef.current
-    if (!picked || !file) {
+    if (!picked) {
       setError("Pick a catalogue publisher, then continue.")
       return
     }
@@ -417,14 +428,26 @@ function ScheduleIngestPageInner() {
           publisherid: picked.publisherid,
           pub_ooh: picked.pub_ooh,
           pub_radio: picked.pub_radio,
+          stageId: stagedStageId || undefined,
         }),
       })
       const linkJson = (await linkRes.json()) as {
         profile?: { publisher_name: string }
+        review?: IngestReviewPackage
+        awaiting_profile_confirm?: boolean
         error?: string
       }
       if (!linkRes.ok || !linkJson.profile) {
         throw new Error(linkJson.error || `HTTP ${linkRes.status}`)
+      }
+      if (linkJson.awaiting_profile_confirm && linkJson.review) {
+        setReview(linkJson.review)
+        return
+      }
+      const file = fileRef.current
+      if (!file) {
+        setError("Re-attach the schedule file to continue.")
+        return
       }
       const fd = new FormData()
       fd.set("file", file)
@@ -435,19 +458,86 @@ function ScheduleIngestPageInner() {
       })
       const json = (await res.json()) as {
         review?: IngestReviewPackage
+        stageId?: string
         error?: string
       }
       if (!res.ok || !json.review) {
         throw new Error(json.error || `HTTP ${res.status}`)
       }
       setReview(json.review)
+      if (json.stageId) setStagedStageId(json.stageId)
       void loadAvaMappingSuggestions(json.review, setReview, setError)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Link failed")
     } finally {
       setLinking(false)
     }
-  }, [catalogue, pickedPublisherId])
+  }, [catalogue, pickedPublisherId, stagedStageId])
+
+  const onConfirmProposedProfile = useCallback(async () => {
+    const draft = review?.proposed_profile?.draft
+    const picked =
+      catalogue.find((p) => String(p.id) === pickedPublisherId) ??
+      (draft?.publisher_id != null && draft.publisher_name
+        ? {
+            id: draft.publisher_id,
+            publisher_name: draft.publisher_name,
+            publisherid: null as string | null,
+            pub_ooh: draft.media_type === "ooh",
+            pub_radio: draft.media_type === "radio",
+          }
+        : undefined)
+    const file = fileRef.current
+    if (!picked || !file || !stagedStageId) {
+      setError("Pick the catalogue publisher and keep the file attached, then confirm.")
+      return
+    }
+    setConfirmingProfile(true)
+    setError(null)
+    try {
+      const confirmRes = await fetch("/api/admin/ingest/confirm-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stageId: stagedStageId,
+          id: picked.id,
+          publisher_name: picked.publisher_name,
+          publisherid: picked.publisherid,
+          pub_ooh: picked.pub_ooh,
+          pub_radio: picked.pub_radio,
+        }),
+      })
+      const confirmJson = (await confirmRes.json()) as {
+        profile?: { publisher_name: string }
+        error?: string
+      }
+      if (!confirmRes.ok || !confirmJson.profile) {
+        throw new Error(confirmJson.error || `HTTP ${confirmRes.status}`)
+      }
+      const fd = new FormData()
+      fd.set("file", file)
+      fd.set("publisherName", confirmJson.profile.publisher_name)
+      const res = await fetch("/api/admin/ingest/review", {
+        method: "POST",
+        body: fd,
+      })
+      const json = (await res.json()) as {
+        review?: IngestReviewPackage
+        stageId?: string
+        error?: string
+      }
+      if (!res.ok || !json.review) {
+        throw new Error(json.error || `HTTP ${res.status}`)
+      }
+      setReview(json.review)
+      if (json.stageId) setStagedStageId(json.stageId)
+      void loadAvaMappingSuggestions(json.review, setReview, setError)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Confirm failed")
+    } finally {
+      setConfirmingProfile(false)
+    }
+  }, [catalogue, pickedPublisherId, review, stagedStageId])
 
   if (review?.needs_catalogue_choice) {
     return (
@@ -515,6 +605,82 @@ function ScheduleIngestPageInner() {
             </Button>
           </div>
         </section>
+      </div>
+    )
+  }
+
+  if (review && hasUnconfirmedProposedProfile(review)) {
+    const draft = review.proposed_profile!.draft
+    const money = draft.money_rules
+    const legend = Object.entries(draft.legend_map)
+      .map(([code, status]) => `${code}=${status}`)
+      .join(", ")
+    return (
+      <div className="mx-auto flex w-full max-w-[720px] flex-col gap-6 p-6">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Confirm proposed profile
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Review each proposed field, then confirm. The schedule is not
+            loaded until you confirm.
+            {draft.publisher_name && draft.publisher_name !== "proposed" ? (
+              <>
+                {" "}
+                Catalogue:{" "}
+                <span className="font-medium text-foreground">
+                  {draft.publisher_name}
+                </span>
+              </>
+            ) : null}
+          </p>
+        </header>
+        {error ? (
+          <div className="rounded-card border border-border bg-card px-4 py-3 text-sm text-status-critical-fg shadow-e1">
+            {error}
+          </div>
+        ) : null}
+        <section className="space-y-3 rounded-card border border-border bg-card p-4 shadow-e1">
+          <h2 className="text-sm font-semibold text-foreground">Column map</h2>
+          <ul className="space-y-1 text-sm text-foreground">
+            {Object.entries(draft.column_map).map(([header, canonical]) => (
+              <li key={header} className="flex justify-between gap-3">
+                <span className="text-muted-foreground">{header}</span>
+                <span className="num">{canonical}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="space-y-2 rounded-card border border-border bg-card p-4 shadow-e1 text-sm">
+          <h2 className="font-semibold text-foreground">Money rules</h2>
+          <p>Basis: {money.media_amount_basis ?? "—"}</p>
+          <p>Stated total: {money.stated_total?.label ?? "—"}</p>
+          <p>Subtotal: {money.section_subtotal?.label ?? "—"}</p>
+          <p>Rate-card: {money.rate_card?.column ?? "—"}</p>
+          <p>Grid: {draft.grid_semantics}</p>
+          {legend ? <p>Legend: {legend}</p> : null}
+        </section>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            onClick={() => void onConfirmProposedProfile()}
+            disabled={
+              confirmingProfile ||
+              (!pickedPublisherId &&
+                review.proposed_profile?.draft.publisher_id == null)
+            }
+          >
+            {confirmingProfile ? "Confirming…" : "Confirm proposed profile"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void onCancel()}
+            disabled={confirmingProfile}
+          >
+            Cancel
+          </Button>
+        </div>
       </div>
     )
   }

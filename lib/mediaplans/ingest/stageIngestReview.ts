@@ -91,7 +91,9 @@ export async function stageIngestReviewFromBuffer(
       burstCount: 0,
       moneyDelta: null,
       outcome: "blocked",
-      outcomeReason: "No publisher profile",
+      outcomeReason: review.proposed_profile
+        ? "Proposed profile awaiting confirmation"
+        : "No publisher profile",
       acceptedVersionId: null,
     })
   }

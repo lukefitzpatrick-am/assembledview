@@ -22,6 +22,10 @@ import {
   summariseIngestReview,
 } from "@/lib/mediaplans/ingest/summariseIngestReview"
 import {
+  hasUnconfirmedProposedProfile,
+  UNCONFIRMED_PROFILE_REFUSE_MESSAGE,
+} from "@/lib/mediaplans/ingest/proposePublisherProfile"
+import {
   discrepancyLoadRefuseMessage,
   unresolvedDiscrepancyRows,
 } from "@/lib/mediaplans/ingest/lineAuditReconcile"
@@ -148,6 +152,13 @@ export async function executeIngestAccept(
         ok: false,
         status: 409,
         error: summary.no_profile_message ?? NO_PUBLISHER_PROFILE_MESSAGE,
+      }
+    }
+    if (hasUnconfirmedProposedProfile(review)) {
+      return {
+        ok: false,
+        status: 409,
+        error: UNCONFIRMED_PROFILE_REFUSE_MESSAGE,
       }
     }
   }

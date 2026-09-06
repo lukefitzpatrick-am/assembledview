@@ -40,6 +40,11 @@ import { resolveCatalogueIdForProfileName } from "@/lib/mediaplans/ingest/publis
 import { resolveControlledValue } from "@/lib/mediaplans/ingest/resolveControlledValue"
 import { learnSynonym } from "@/lib/mediaplans/ingest/valueSynonymRepo"
 import {
+  hasUnconfirmedProposedProfile,
+  PROFILE_QUESTION_PREFIX,
+} from "@/lib/mediaplans/ingest/proposePublisherProfile"
+import type { PublisherProfileConfig } from "@/lib/mediaplans/ingest/publisherProfileConfig"
+import {
   AUDIT_RESOLUTION_LABEL,
   PARSER_RESOLUTION_LABEL,
   discrepancyQuestionId,
@@ -54,6 +59,7 @@ import {
 export { CONSTANT_VALUE_OPTION }
 
 export const LEAVE_UNMAPPED_OPTION = "Leave unmapped"
+export const CONFIRM_PROPOSED_OPTION = "Confirm proposed"
 /** Decline a required-field card — records the answer, writes nothing. */
 export const NOT_IN_THIS_FILE_OPTION = "Not in this file"
 /** Prefix for the only answer that deletes a mapping. Full label names the target. */
@@ -481,6 +487,132 @@ function moneyColumns(review: IngestReviewPackage): Array<{
   return out
 }
 
+function confirmLabel(value: string): string {
+  return `${CONFIRM_PROPOSED_OPTION}: ${value}`
+}
+
+function profileCard(args: {
+  id: string
+  text: string
+  selected: string
+  extraOptions?: string[]
+}): Omit<ChatInterviewQuestion, "index" | "total"> {
+  return toChatInterviewQuestion({
+    id: args.id,
+    text: args.text,
+    type: "choice",
+    options: [args.selected, ...(args.extraOptions ?? [LEAVE_UNMAPPED_OPTION])],
+    selected: [args.selected],
+    index: 1,
+    total: 1,
+  })
+}
+
+function buildProposedProfileCards(
+  profile: PublisherProfileConfig,
+  answered: Set<string>,
+): Array<Omit<ChatInterviewQuestion, "index" | "total">> {
+  const cards: Array<Omit<ChatInterviewQuestion, "index" | "total">> = []
+  const push = (card: Omit<ChatInterviewQuestion, "index" | "total">) => {
+    if (answered.has(card.id)) return
+    cards.push(card)
+  }
+  for (const [header, canonical] of Object.entries(profile.column_map)) {
+    push(
+      profileCard({
+        id: `${PROFILE_QUESTION_PREFIX}column:${header}`,
+        text: `Proposed mapping: “${header}” → ${canonical}. Confirm?`,
+        selected: confirmLabel(canonical),
+      }),
+    )
+  }
+  const money = profile.money_rules
+  if (money.media_amount_basis) {
+    push(
+      profileCard({
+        id: `${PROFILE_QUESTION_PREFIX}money:basis`,
+        text: `Proposed money basis: ${money.media_amount_basis}. Confirm?`,
+        selected: confirmLabel(money.media_amount_basis),
+        extraOptions: [],
+      }),
+    )
+  }
+  if (money.stated_total?.label) {
+    push(
+      profileCard({
+        id: `${PROFILE_QUESTION_PREFIX}money:stated_total`,
+        text: `Proposed stated-total label: “${money.stated_total.label}”${
+          money.stated_total.column ? ` (column ${money.stated_total.column})` : ""
+        }. Confirm?`,
+        selected: confirmLabel(money.stated_total.label),
+        extraOptions: [],
+      }),
+    )
+  }
+  if (money.section_subtotal?.label) {
+    push(
+      profileCard({
+        id: `${PROFILE_QUESTION_PREFIX}money:section_subtotal`,
+        text: `Proposed section subtotal label: “${money.section_subtotal.label}”. Confirm?`,
+        selected: confirmLabel(money.section_subtotal.label),
+        extraOptions: [],
+      }),
+    )
+  }
+  if (money.rate_card?.column) {
+    push(
+      profileCard({
+        id: `${PROFILE_QUESTION_PREFIX}money:rate_card`,
+        text: `Proposed rate-card column: “${money.rate_card.column}”. Confirm?`,
+        selected: confirmLabel(money.rate_card.column),
+        extraOptions: [],
+      }),
+    )
+  }
+  push(
+    profileCard({
+      id: `${PROFILE_QUESTION_PREFIX}grid`,
+      text: `Proposed grid semantics: ${profile.grid_semantics}. Confirm?`,
+      selected: confirmLabel(profile.grid_semantics),
+      extraOptions: [],
+    }),
+  )
+  const legend = Object.entries(profile.legend_map)
+    .map(([code, status]) => `${code}=${status}`)
+    .join(", ")
+  if (legend) {
+    push(
+      profileCard({
+        id: `${PROFILE_QUESTION_PREFIX}legend`,
+        text: `Proposed legend: ${legend}. Confirm?`,
+        selected: confirmLabel(legend),
+        extraOptions: [],
+      }),
+    )
+  }
+  const includes = Array.isArray(
+    (profile.detect_signature as { header_text_includes?: unknown })
+      .header_text_includes,
+  )
+    ? (
+        (profile.detect_signature as { header_text_includes?: unknown[] })
+          .header_text_includes ?? []
+      ).map((x) => String(x))
+    : []
+  if (includes.length > 0) {
+    const joined = includes.join(", ")
+    push(
+      profileCard({
+        id: `${PROFILE_QUESTION_PREFIX}detect`,
+        text: `Proposed detect signature headers: ${joined}. Confirm?`,
+        selected: confirmLabel(joined),
+        extraOptions: [],
+      }),
+    )
+  }
+  return cards
+}
+
 export function listOpenIngestReviewQuestions(
   review: IngestReviewPackage,
   context: IngestQuestionContext,
@@ -489,6 +621,25 @@ export function listOpenIngestReviewQuestions(
     Object.keys(review.ava_chat?.answers ?? {}).map((id) => id),
   )
   const draft: Array<Omit<ChatInterviewQuestion, "index" | "total"> & { index?: number; total?: number }> = []
+
+  if (hasUnconfirmedProposedProfile(review) && review.proposed_profile?.draft) {
+    draft.push(
+      ...buildProposedProfileCards(review.proposed_profile.draft, answered),
+    )
+    const total = draft.length
+    return draft.map((q, i) =>
+      toChatInterviewQuestion({
+        id: q.id,
+        text: q.text,
+        type: q.type,
+        options: q.options,
+        selected: q.selected,
+        index: i + 1,
+        total: Math.max(total, 1),
+      }),
+    )
+  }
+
   const leftovers = leftoverHeaders(review)
   const proposals = review.ava_mapping_proposals ?? []
   const unmatched = unmatchedFieldsInCardOrder(review)
@@ -738,6 +889,21 @@ async function applyOneAnswer(
   const publisher = review.detected_publisher
   const skipRemap = isSkipAnswer(answer)
   const knownHeaders = knownHeadersFromReview(review)
+  if (questionId.startsWith(PROFILE_QUESTION_PREFIX)) {
+    const label = questionId.slice(PROFILE_QUESTION_PREFIX.length)
+    if (skipRemap || isDeclineAnswer(answer)) {
+      return {
+        review,
+        changed: `Left proposed ${label} unchanged.`,
+        record: true,
+      }
+    }
+    return {
+      review,
+      changed: `Confirmed proposed ${label}.`,
+      record: true,
+    }
+  }
   if (questionId === MBA_QUESTION_ID) {
     if (skipRemap) {
       return { review, changed: "Left campaign unselected.", record: true }

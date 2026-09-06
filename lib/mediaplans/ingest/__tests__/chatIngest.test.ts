@@ -186,7 +186,7 @@ test("money-blocked file refuses in chat with the delta and does not accept", as
   assert.equal(blocked.uploadedBy, "ava@assembledmedia.com.au")
 })
 
-test("unknown publisher: no-profile reply, run recorded, never guessed", async () => {
+test("unknown publisher: proposed profile, never guessed", async () => {
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet("Random")
   ws.addRow(["Completely Unique Header XYZ", "Another Weird Col"])
@@ -202,7 +202,12 @@ test("unknown publisher: no-profile reply, run recorded, never guessed", async (
     fileName: "mystery.xlsx",
   })
   assert.equal(summary.unknown_publisher, true)
-  assert.match(summary.no_profile_message ?? "", /no publisher profile/i)
+  assert.ok(staged.review.proposed_profile)
+  assert.equal(staged.review.proposed_profile?.confirmed, false)
+  assert.match(
+    summary.no_profile_message ?? "",
+    /confirm the proposed|no confirmed publisher profile/i,
+  )
   assert.equal(summary.detected_publisher, null)
   const runs = await listIngestRuns({})
   assert.ok(
@@ -210,7 +215,7 @@ test("unknown publisher: no-profile reply, run recorded, never guessed", async (
       (r) =>
         r.fileName === "mystery.xlsx" &&
         r.uploadedBy === "chat-user@assembledmedia.com.au" &&
-        /no publisher profile/i.test(r.outcomeReason ?? ""),
+        /proposed profile|no publisher profile/i.test(r.outcomeReason ?? ""),
     ),
     `expected unknown-publisher run, got ${JSON.stringify(runs)}`,
   )

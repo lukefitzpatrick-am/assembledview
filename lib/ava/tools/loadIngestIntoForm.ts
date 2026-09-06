@@ -14,6 +14,10 @@ import {
   discrepancyLoadRefuseMessage,
   unresolvedDiscrepancyRows,
 } from "@/lib/mediaplans/ingest/lineAuditReconcile"
+import {
+  hasUnconfirmedProposedProfile,
+  UNCONFIRMED_PROFILE_REFUSE_MESSAGE,
+} from "@/lib/mediaplans/ingest/proposePublisherProfile"
 
 const MONEY_BLOCK_FALLBACK =
   "Money total is outside the 0.5% gate. Nothing was written."
@@ -122,6 +126,12 @@ export const loadIngestIntoFormTool: AvaTool = {
     }
 
     const review = looked.staged.review
+    if (hasUnconfirmedProposedProfile(review)) {
+      return {
+        content: UNCONFIRMED_PROFILE_REFUSE_MESSAGE,
+        isError: true,
+      }
+    }
     const recon = review.proposal?.reconciliation
     if (recon && recon.accept_ok === false) {
       const reason = recon.block_reason ?? MONEY_BLOCK_FALLBACK

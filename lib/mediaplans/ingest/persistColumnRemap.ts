@@ -17,7 +17,7 @@ import { applyConstantFieldValue } from "@/lib/mediaplans/ingest/templateCoverag
 /** Process-local overlay so remaps stick across requests when DB is unavailable. */
 const seedOverlay = new Map<string, PublisherProfileConfig>()
 
-export type RemapSource = "ava_card" | "hub_remap" | "admin"
+export type RemapSource = "ava_card" | "hub_remap" | "admin" | "model_proposed"
 
 export type RemapRejection = {
   ok: false
@@ -309,6 +309,12 @@ function reject(
 function recordSeedAudit(row: PublisherProfileAuditSeedRow) {
   seedAuditLog.push(row)
   console.info("[publisher-profile-audit]", row)
+}
+
+export function recordPublisherProfileSeedAudits(
+  rows: PublisherProfileAuditSeedRow[],
+) {
+  for (const row of rows) recordSeedAudit(row)
 }
 
 export async function persistColumnRemap(args: {
