@@ -189,13 +189,21 @@ export function PlanDraftActiveBanner(props: {
 
 export function PlanDraftStaleBanner(props: {
   updatedAt: string
-  baseVersionNumber: number | string
+  baseVersionNumber?: number | string | null
   tipVersionNumber: number | string
   onLoadAnyway: () => void
   onDiscard: () => void
   onCompare?: () => void
   compact?: boolean
 }) {
+  const baseN =
+    props.baseVersionNumber == null ||
+    props.baseVersionNumber === "" ||
+    props.baseVersionNumber === "?"
+      ? null
+      : Number(props.baseVersionNumber)
+  const hasBase = baseN != null && Number.isFinite(baseN)
+
   return (
     <div
       role="status"
@@ -211,8 +219,9 @@ export function PlanDraftStaleBanner(props: {
           props.compact ? "text-xs leading-snug" : "text-sm"
         )}
       >
-        Draft from {formatDraftRelativeTime(props.updatedAt)} is based on v
-        {props.baseVersionNumber}; the plan is now on v{props.tipVersionNumber}.
+        Draft from {formatDraftRelativeTime(props.updatedAt)}
+        {hasBase ? ` is based on v${baseN}` : ""}
+        ; the plan is now on v{props.tipVersionNumber}.
       </p>
       <div className={cn("flex gap-2", props.compact ? "flex-col" : "flex-wrap")}>
         <Button

@@ -235,6 +235,7 @@ import {
 } from "@/lib/mediaplan/drafts/pill"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
+import { resolveDraftBaseVersionNumber } from "@/lib/mediaplan/drafts/resolveDraftBaseVersionNumber"
 import {
   humaniseBillingSaveError,
   withMbaScopeLineLabels,
@@ -11171,6 +11172,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return promise
   }, [mbaNumber, versionNumber, selectedVersionNumber])
 
+  useEffect(() => {
+    if (planDraft.recovery) void loadVersionsMeta()
+  }, [planDraft.recovery, loadVersionsMeta])
+
   const handleVersionSelect = useCallback((value: string) => {
     const numericVersion = parseInt(value, 10)
     if (!numericVersion || numericVersion === selectedVersionNumber) return
@@ -11573,10 +11578,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           <PlanDraftStaleBanner
             compact
             updatedAt={planDraft.recovery.updatedAt}
-            baseVersionNumber={
-              availableVersions.find((v) => v.id === planDraft.recovery?.draftBaseVersionId)
-                ?.version_number ?? "?"
-            }
+            baseVersionNumber={resolveDraftBaseVersionNumber(
+              availableVersions,
+              planDraft.recovery.draftBaseVersionId,
+            )}
             tipVersionNumber={
               selectedVersionNumber ??
               (typeof latestVersionNumber === "number" ? latestVersionNumber : "?")
@@ -11716,65 +11721,86 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   if (loadPhase === "bootstrapping") {
     return (
-      <div
-        className="w-full min-h-0"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      >
-        <div className="mx-auto w-full max-w-[1920px] px-4 sm:px-5 md:px-6 xl:px-8 2xl:px-10 pt-0 pb-24 space-y-6">
-          <PlanPresenceBanner line={planDraft.presenceLine} />
-          <PlanWizardHeader
-            title="Edit Campaign"
-            breadcrumbCurrent="Edit Campaign"
-            subtitle={
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                <span>Loading campaign details…</span>
-              </div>
-            }
-            secondary={
-              <div className="flex min-w-0 flex-wrap items-center gap-3">
-                <Skeleton className="h-3 w-8" />
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-7 w-28" />
-              </div>
-            }
-          />
-
-          <div className="space-y-6">
-            {/* Row 2 — Campaign Details + Media Types */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
-              <div className="scroll-mt-[18px] rounded-frame border border-border bg-card p-4 shadow-e1 sm:p-5 xl:col-span-2">
-                <div className="mb-5 flex flex-col gap-1">
+      <PlanWizardShell
+        header={
+          <>
+            <PlanPresenceBanner line={planDraft.presenceLine} />
+            <PlanWizardHeader
+              title="Edit Campaign"
+              breadcrumbCurrent="Edit Campaign"
+              subtitle={
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  <span>Loading campaign details…</span>
+                </div>
+              }
+              secondary={
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
+                  <Skeleton className="h-3 w-8" />
                   <Skeleton className="h-3 w-16" />
-                  <Skeleton className="h-6 w-40" />
+                  <Skeleton className="h-7 w-28" />
                 </div>
-                <div className="grid w-full flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-4">
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
-                    <div key={i} className="space-y-2">
-                      <Skeleton className="h-3 w-24" />
-                      <Skeleton className="h-10 w-full" />
-                    </div>
-                  ))}
+              }
+            />
+          </>
+        }
+        steps={createCampaignSteps.map((step) => ({
+          id: step.id,
+          label: step.label,
+          sub: step.eyebrow,
+        }))}
+        toolLinks={
+          mbaNumber
+            ? [
+                { id: "creative", label: "Creative", href: `/mediaplans/mba/${mbaNumber}/creative` },
+                { id: "trafficking", label: "Trafficking", href: `/mediaplans/mba/${mbaNumber}/trafficking` },
+              ]
+            : undefined
+        }
+        onNavigate={requestNavigation}
+        summary={wizardSummary}
+        onExit={handleExit}
+        exitLabel="Exit to Campaigns"
+        isSaving={isSaving}
+        saveDisabled
+        saveDisabledReason="Waiting for channels to load — you can't save yet"
+        statusPanel={wizardStatusPanel}
+        bottomBar={wizardBottomBar}
+      >
+        <div className="space-y-6">
+          <section id="campaign-setup" className="scroll-mt-[18px] rounded-frame border border-border bg-card p-4 shadow-e1 sm:p-5">
+            <div className="mb-5 flex flex-col gap-1">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-6 w-40" />
+            </div>
+            <div className="grid w-full flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-4">
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-10 w-full" />
                 </div>
-              </div>
+              ))}
+            </div>
+          </section>
 
-              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-1">
-                <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-                  <Skeleton className="h-5 w-28" />
-                </div>
-                <div className="grid min-h-0 w-full flex-1 grid-cols-1 content-start gap-x-3 gap-y-1.5 px-6 py-4 md:grid-cols-2">
-                  {Array.from({ length: 20 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 py-0.5">
-                      <Skeleton className="h-5 w-9 shrink-0 rounded-full" />
-                      <Skeleton className="h-4 flex-1" />
-                    </div>
-                  ))}
-                </div>
+          <section id="channel-allocation" className="scroll-mt-[18px] space-y-6">
+            <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+              <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                <Skeleton className="h-5 w-28" />
+              </div>
+              <div className="grid min-h-0 w-full flex-1 grid-cols-1 content-start gap-x-3 gap-y-1.5 px-6 py-4 md:grid-cols-2">
+                {Array.from({ length: 20 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 py-0.5">
+                    <Skeleton className="h-5 w-9 shrink-0 rounded-full" />
+                    <Skeleton className="h-4 flex-1" />
+                  </div>
+                ))}
               </div>
             </div>
+          </section>
 
-            {/* Row 3 — MBA & billing CTA + KPIs */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
+          <section id="mba-billing" className="scroll-mt-[18px]">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2 xl:gap-7 2xl:gap-8 xl:items-stretch">
               <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
                 <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                   <Skeleton className="h-5 w-28" />
@@ -11818,44 +11844,24 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   </div>
                 </div>
               </div>
-
-              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
-                <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-                  <Skeleton className="h-5 w-16" />
-                </div>
-                <div className="px-4 py-3">
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {[0, 1, 2, 3, 4, 5].map((i) => (
-                      <div key={i} className="space-y-2 rounded-lg border p-3">
-                        <Skeleton className="h-3 w-16" />
-                        <Skeleton className="h-6 w-full" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
             </div>
+          </section>
 
-            {/* Media Containers */}
-            <div className="space-y-6">
-              <div className="relative pb-2 pt-8">
-                <div className="absolute inset-x-0 top-4 h-px bg-border/50" />
-                <Skeleton className="relative h-5 w-36 bg-background" />
-              </div>
-              <div className="space-y-4">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="mt-4">
-                    <MediaContainerSkeletonCard />
-                  </div>
-                ))}
-              </div>
+          <div className="space-y-6">
+            <div className="relative pb-2 pt-8">
+              <div className="absolute inset-x-0 top-4 h-px bg-border/50" />
+              <Skeleton className="relative h-5 w-36 bg-background" />
+            </div>
+            <div className="space-y-4">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="mt-4">
+                  <MediaContainerSkeletonCard />
+                </div>
+              ))}
             </div>
           </div>
-
-          {/* Spacer so the fixed save bar never covers the last field */}
-          <div aria-hidden="true" style={{ height: 160 }} />
         </div>
-      </div>
+      </PlanWizardShell>
     )
   }
 

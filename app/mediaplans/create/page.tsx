@@ -7348,7 +7348,7 @@ const handleSaveAll = async (opts?: {
           <PlanDraftStaleBanner
             compact
             updatedAt={planDraft.recovery.updatedAt}
-            baseVersionNumber={planDraft.recovery.draftBaseVersionId ?? "?"}
+            baseVersionNumber={null}
             tipVersionNumber={draftBaseVersionId ?? "?"}
             onLoadAnyway={() => planDraft.resume()}
             onDiscard={() => void planDraft.discard()}

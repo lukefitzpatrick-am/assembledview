@@ -110,7 +110,7 @@ Create (`/mediaplans/create`) and edit (`/mediaplans/mba/[mba_number]/edit`) sha
 
 Never a third hero row. Long client / campaign names wrap (`break-words`, `min-w-0`); do not clip under the hero `overflow-hidden`.
 
-Step 01 `#campaign-setup` on both pages uses the same frame (`rounded-frame … shadow-e1 sm:p-5`), inner `#builder-section-campaign` card (`overflow-visible rounded-card … bg-surface-panel`), and field grid (`md:grid-cols-2 xl:grid-cols-4`). Create may carry `data-create-step` (no consumer); edit must not. Edit keeps `mp_plannumber` in the field grid and does not mount `PlannerCreateTargetsStrip`. Pin: `lib/mediaplan/__tests__/postgresSavePayload.integration.test.ts`. Do not rebuild this chrome as a second shared component unless both pages are extracted together.
+Step 01 `#campaign-setup` on both pages uses the same frame (`rounded-frame … shadow-e1 sm:p-5`), inner `#builder-section-campaign` card (`overflow-visible rounded-card … bg-surface-panel`), and field grid (`md:grid-cols-2 xl:grid-cols-4`). Create may carry `data-create-step` (no consumer); edit must not. Edit keeps `mp_plannumber` in the field grid and does not mount `PlannerCreateTargetsStrip`. Edit bootstrapping paints that same `#campaign-setup` frame inside `PlanWizardShell` (rail placeholder + content column) so xl swap does not shift width. Pin: `lib/mediaplan/__tests__/postgresSavePayload.integration.test.ts`. Do not rebuild this chrome as a second shared component unless both pages are extracted together.
 
 ## Change protocol
 

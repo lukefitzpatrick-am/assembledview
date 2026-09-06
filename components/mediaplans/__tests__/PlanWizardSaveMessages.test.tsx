@@ -11,6 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import {
   PlanDraftActiveBanner,
   PlanDraftFieldDiffDialog,
+  PlanDraftStaleBanner,
 } from "@/components/mediaplan/PlanDraftChrome"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
 
@@ -237,5 +238,39 @@ describe("PlanDraftActiveBanner compact", () => {
     expect(onViewChanges).not.toHaveBeenCalled()
     expect(onDiscard).not.toHaveBeenCalled()
     expect(container.textContent).not.toContain("Draft vs loaded plan")
+  })
+})
+
+describe("PlanDraftStaleBanner", () => {
+  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+
+  it("names the resolved base version", () => {
+    const html = renderToStaticMarkup(
+      <PlanDraftStaleBanner
+        updatedAt={twoMinutesAgo}
+        baseVersionNumber={3}
+        tipVersionNumber={5}
+        onLoadAnyway={() => undefined}
+        onDiscard={() => undefined}
+      />,
+    )
+    expect(html).toContain("is based on v3")
+    expect(html).toContain("the plan is now on v5")
+    expect(html.includes("v?")).toBe(false)
+  })
+
+  it("omits the based-on clause when the base version cannot be resolved", () => {
+    const html = renderToStaticMarkup(
+      <PlanDraftStaleBanner
+        updatedAt={twoMinutesAgo}
+        baseVersionNumber={null}
+        tipVersionNumber={5}
+        onLoadAnyway={() => undefined}
+        onDiscard={() => undefined}
+      />,
+    )
+    expect(html).toContain("the plan is now on v5")
+    expect(html.includes("based on")).toBe(false)
+    expect(html.includes("v?")).toBe(false)
   })
 })

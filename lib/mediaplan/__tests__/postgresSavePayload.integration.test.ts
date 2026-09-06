@@ -544,14 +544,34 @@ describe("create + edit assembly twins (shared helpers)", () => {
     assert.equal(editCampaignSetup.includes("xl:grid-cols-3"), false)
     assert.doesNotMatch(editSrc, /PlannerCreateTargetsStrip/)
 
+    const CAMPAIGN_SETUP_CLASS =
+      "scroll-mt-[18px] rounded-frame border border-border bg-card p-4 shadow-e1 sm:p-5"
     const bootStart = editSrc.indexOf('if (loadPhase === "bootstrapping")')
-    const bootEnd = editSrc.indexOf("<PlanWizardShell", bootStart)
-    assert.ok(bootStart >= 0 && bootEnd > bootStart, "missing bootstrapping skeleton")
-    const boot = editSrc.slice(bootStart, bootEnd)
-    assert.match(
-      boot,
-      /md:grid-cols-2 xl:grid-cols-4/,
+    const errorStart = editSrc.indexOf('if (loadPhase === "error"', bootStart)
+    assert.ok(bootStart >= 0 && errorStart > bootStart, "missing bootstrapping skeleton")
+    const boot = editSrc.slice(bootStart, errorStart)
+    assert.match(boot, /<PlanWizardShell/)
+    assert.match(boot, /id="campaign-setup"/)
+    const loadedSetup = editSrc.slice(
+      editSrc.indexOf('id="campaign-setup"', errorStart),
+      editSrc.indexOf('id="channel-allocation"', errorStart),
     )
+    const bootSetupClass = boot.match(/id="campaign-setup" className="([^"]+)"/)?.[1]
+    const loadedSetupClass = loadedSetup.match(/id="campaign-setup" className="([^"]+)"/)?.[1]
+    assert.equal(bootSetupClass, loadedSetupClass)
+    assert.equal(bootSetupClass, CAMPAIGN_SETUP_CLASS)
+    assert.doesNotMatch(boot, /xl:col-span-2/)
+  })
+
+  it("edit stale banner resolves base version_number and never prints v?", () => {
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    const chromeSrc = readFileSync(
+      join(process.cwd(), "components/mediaplan/PlanDraftChrome.tsx"),
+      "utf8",
+    )
+    assert.match(editSrc, /resolveDraftBaseVersionNumber/)
+    assert.doesNotMatch(editSrc, /baseVersionNumber=\{[\s\S]{0,220}\?\s*\}/)
+    assert.doesNotMatch(chromeSrc, /is based on v\s*\n\s*\{props\.baseVersionNumber\}/)
   })
 
   it("edit overwrite toast is explicit (not a version-cut message) + uiMode→mode guard comment", () => {

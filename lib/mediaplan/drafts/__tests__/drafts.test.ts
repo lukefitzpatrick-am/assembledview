@@ -13,6 +13,7 @@ import {
   shouldNudgeStaleDraft,
 } from "../pill.js"
 import { compareDraftToTip } from "../compare.js"
+import { resolveDraftBaseVersionNumber } from "../resolveDraftBaseVersionNumber.js"
 
 describe("PC7 pill shares T4c resolvePostgresSaveMode", () => {
   it("draft overwrite → Draft of v{n} — publish overwrites", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
@@ -347,5 +348,23 @@ describe("PC7 retention nudge", () => {
       }),
       false
     )
+  })
+})
+
+describe("SM-31: stale banner names the draft base version_number", () => {
+  const versions = [
+    { id: 10, version_number: 3 },
+    { id: "11", version_number: "5" },
+  ]
+
+  it("resolves version_number from base_version_id", () => {
+    assert.equal(resolveDraftBaseVersionNumber(versions, 10), 3)
+    assert.equal(resolveDraftBaseVersionNumber(versions, "11"), 5)
+  })
+
+  it("returns null when the id is missing from versions meta", () => {
+    assert.equal(resolveDraftBaseVersionNumber(versions, 99), null)
+    assert.equal(resolveDraftBaseVersionNumber(versions, null), null)
+    assert.equal(resolveDraftBaseVersionNumber([], 10), null)
   })
 })
