@@ -17,6 +17,7 @@ import {
   skippedLineAudit,
   type LineAuditClient,
 } from "@/lib/mediaplans/ingest/lineAudit"
+import { reconcileLineAudit } from "@/lib/mediaplans/ingest/lineAuditReconcile"
 
 export async function stageIngestReviewFromBuffer(
   buffer: Buffer,
@@ -57,11 +58,14 @@ export async function stageIngestReviewFromBuffer(
     } else {
       review = {
         ...review,
-        line_audit: await runLineAudit({
-          shape: primary,
-          proposal: review.proposal,
-          client: args.lineAuditClient,
-        }),
+        line_audit: reconcileLineAudit(
+          review.proposal,
+          await runLineAudit({
+            shape: primary,
+            proposal: review.proposal,
+            client: args.lineAuditClient,
+          }),
+        ),
       }
     }
   }

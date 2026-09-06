@@ -39,6 +39,14 @@ import {
 import { resolveCatalogueIdForProfileName } from "@/lib/mediaplans/ingest/publisherCatalogueJoin"
 import { resolveControlledValue } from "@/lib/mediaplans/ingest/resolveControlledValue"
 import { learnSynonym } from "@/lib/mediaplans/ingest/valueSynonymRepo"
+import {
+  AUDIT_RESOLUTION_LABEL,
+  PARSER_RESOLUTION_LABEL,
+  discrepancyQuestionId,
+  discrepanciesForRow,
+  formatDiscrepancyCardText,
+  unresolvedDiscrepancyRows,
+} from "@/lib/mediaplans/ingest/lineAuditReconcile"
 
 export { CONSTANT_VALUE_OPTION }
 
@@ -561,6 +569,22 @@ export function listOpenIngestReviewQuestions(
   const haveMba = Boolean(context.mbaNumber?.trim() || review.ava_chat?.selectedMbaNumber)
   if (!haveMba && context.mbaNumbers.length > 0 && !answered.has(MBA_QUESTION_ID)) {
     draft.push(buildMbaCard(context.mbaNumbers, 1, 1))
+  }
+
+  for (const row of unresolvedDiscrepancyRows(review.line_audit)) {
+    const id = discrepancyQuestionId(row)
+    if (answered.has(id)) continue
+    const items = discrepanciesForRow(review.line_audit, row)
+    draft.push(
+      toChatInterviewQuestion({
+        id,
+        text: formatDiscrepancyCardText({ row, items }),
+        type: "choice",
+        options: [PARSER_RESOLUTION_LABEL, AUDIT_RESOLUTION_LABEL, OTHER_OPTION],
+        index: 1,
+        total: 1,
+      }),
+    )
   }
 
   const total = draft.length
