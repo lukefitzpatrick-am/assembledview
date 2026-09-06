@@ -186,7 +186,7 @@ test("JCD converter line count, per-line money and total match accept stamp", as
   assert.equal(converted.channel, "ooh")
   assert.equal(converted.items.length, 95)
   const stated = review.proposal!.reconciliation.file_stated_total ?? 0
-  assert.ok(Math.abs(stated - 311707.88) < 1)
+  assert.ok(Math.abs(stated - 131250.01) < 1)
   assert.ok(
     Math.abs(convertedTotal - stated) / stated <= 0.005,
     `converter total ${convertedTotal} vs file ${stated}`,

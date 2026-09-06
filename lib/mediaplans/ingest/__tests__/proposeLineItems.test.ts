@@ -99,6 +99,7 @@ test("QMS fixture: one line per Paid data row (supersedes grouped 3-of-41 model)
   assert.equal(proposal.reconciliation.line_item_count, paid!.data_rows.length)
   assert.equal(proposal.reconciliation.panel_count, 41)
   assert.equal(proposal.reconciliation.accept_ok, true)
+  assert.equal(qms.money_rules.media_amount_basis, "weekly_rate")
 
   for (const li of proposal.line_items) {
     assert.equal(li.panels.length, 1, "per_row: each line IS its source row")
@@ -146,6 +147,10 @@ test("SCA fixture: one line per station row; week-columns become that line's bur
     }
   }
   assert.equal(proposal.reconciliation.accept_ok, true)
+  assert.ok(
+    proposal.reconciliation.warnings.some((w) => /not silent/i.test(w)),
+    "SCA column-sum fallback must be visible",
+  )
 
   console.log("SCA reconciliation", JSON.stringify(proposal.reconciliation))
 })
@@ -169,9 +174,65 @@ test("JCDecaux fixture: one line per buy row with identity or legend status (95;
   assert.equal(proposal.reconciliation.line_item_count, 95)
   assert.equal(proposal.reconciliation.panel_count, 95)
   assert.equal(proposal.reconciliation.accept_ok, true)
+  assert.equal(proposal.reconciliation.file_stated_source, "stated_cell")
   assert.ok(
-    Math.abs((proposal.reconciliation.file_stated_total ?? 0) - 311707.88) < 1,
+    Math.abs((proposal.reconciliation.file_stated_total ?? 0) - 131250.01) <
+      0.005,
   )
+  assert.ok(Math.abs(proposal.reconciliation.total_media_amount - 131250.01) < 0.005)
+  assert.ok(
+    Math.abs(proposal.reconciliation.delta ?? 1) < 0.005,
+    `delta ${proposal.reconciliation.delta}`,
+  )
+
+  function lineAtRow(n: number) {
+    const hit = proposal.line_items.find((li) =>
+      (li.panels[0]?.source_row_ref ?? "").endsWith(`!r${n}`),
+    )
+    assert.ok(hit, `missing line for r${n}`)
+    return hit!
+  }
+  function paidMedia(n: number) {
+    return Math.round(
+      lineAtRow(n)
+        .bursts.filter((b) => b.booking_status === "paid")
+        .reduce((s, b) => s + b.media_amount, 0) * 100,
+    ) / 100
+  }
+  function bonusMedia(n: number) {
+    return lineAtRow(n)
+      .bursts.filter(
+        (b) =>
+          b.booking_status === "bonus" || b.booking_status === "bonus_display",
+      )
+      .reduce((s, b) => s + b.media_amount, 0)
+  }
+  assert.ok(Math.abs(paidMedia(62) - 306.08) < 0.005, `r62 ${paidMedia(62)}`)
+  assert.ok(Math.abs(paidMedia(65) - 529.4) < 0.005, `r65 ${paidMedia(65)}`)
+  assert.ok(Math.abs(paidMedia(120) - 3265.24) < 0.005, `r120 ${paidMedia(120)}`)
+  assert.ok(Math.abs(paidMedia(128) - 1615.72) < 0.005, `r128 ${paidMedia(128)}`)
+  assert.equal(
+    lineAtRow(120).bursts.filter((b) => b.booking_status === "paid").length,
+    2,
+  )
+  assert.equal(
+    lineAtRow(128).bursts.filter((b) => b.booking_status === "paid").length,
+    3,
+  )
+  for (const n of [62, 65, 120, 128]) {
+    assert.equal(bonusMedia(n), 0, `r${n} bonus must be $0`)
+  }
+  // Bonus weeks stay their own bursts (never merged into a paid run).
+  for (const n of [62, 65]) {
+    const mixed = lineAtRow(n)
+    const paid = mixed.bursts.filter((b) => b.booking_status === "paid")
+    const bonus = mixed.bursts.filter(
+      (b) => b.booking_status === "bonus" || b.booking_status === "bonus_display",
+    )
+    assert.ok(paid.length >= 1, `r${n} paid burst`)
+    assert.ok(bonus.length >= 1, `r${n} bonus burst stays separate`)
+  }
+
   for (const li of proposal.line_items) {
     assert.equal(li.panels.length, 1)
   }

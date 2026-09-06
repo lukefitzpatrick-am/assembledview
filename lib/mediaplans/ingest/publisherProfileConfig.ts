@@ -58,6 +58,33 @@ export type SheetRule = {
   default_booking_status?: BookingStatus
 }
 
+export const MEDIA_AMOUNT_BASES = [
+  "line_total",
+  "weekly_rate",
+  "lunar_rate",
+] as const
+export type MediaAmountBasis = (typeof MEDIA_AMOUNT_BASES)[number]
+
+export type MoneyLabelRef = {
+  label: string
+  column?: string
+}
+
+export type MoneyRules = {
+  /**
+   * How the line's mapped money column becomes burst media.
+   * `line_total` = the cell is the bought line investment (split across
+   * paid weeks). `weekly_rate` / `lunar_rate` multiply by PAID weeks only.
+   */
+  media_amount_basis?: MediaAmountBasis | null
+  /** Campaign stated investment — label in the summary block, never a column sum. */
+  stated_total?: MoneyLabelRef | null
+  /** Per-block subtotal label; value is read from `stated_total.column` on that row. */
+  section_subtotal?: { label: string } | null
+  /** Rate-card column — informational total + discount, never the Accept gate. */
+  rate_card?: { column: string } | null
+}
+
 export type PublisherProfileConfig = {
   publisher_name: string
   /** Catalogue `publishers.id` (0036). Null on seed until joined. */
@@ -76,6 +103,8 @@ export type PublisherProfileConfig = {
   column_map: Record<string, string>
   /** Canonical AV field → one value for every line. Never a column name. */
   field_defaults: Record<string, string>
+  /** Profile-level money semantics. Empty = infer from column_map. */
+  money_rules: MoneyRules
   grid_semantics: GridSemantics
   legend_map: Record<string, BookingStatus>
   sheet_rules: SheetRule[]
@@ -117,6 +146,60 @@ function parseLegendMap(v: unknown): Record<string, BookingStatus> {
       throw new Error(`legend_map.${k} has invalid booking status ${val}`)
     }
     out[k] = val as BookingStatus
+  }
+  return out
+}
+
+function parseMoneyRules(v: unknown): MoneyRules {
+  if (v == null || v === "") return {}
+  if (!isObject(v)) throw new Error("money_rules must be an object")
+  const out: MoneyRules = {}
+  if (v.media_amount_basis != null && v.media_amount_basis !== "") {
+    const basis = String(v.media_amount_basis).trim()
+    if (!(MEDIA_AMOUNT_BASES as readonly string[]).includes(basis)) {
+      throw new Error(
+        `money_rules.media_amount_basis must be one of ${MEDIA_AMOUNT_BASES.join(",")}`,
+      )
+    }
+    out.media_amount_basis = basis as MediaAmountBasis
+  }
+  if (v.stated_total != null && v.stated_total !== "") {
+    const stated = v.stated_total
+    if (!isObject(stated)) throw new Error("money_rules.stated_total must be an object")
+    const label =
+      stated.label == null || stated.label === ""
+        ? undefined
+        : String(stated.label).trim()
+    const column =
+      stated.column == null || stated.column === ""
+        ? undefined
+        : String(stated.column).trim()
+    if (!label && !column) {
+      throw new Error("money_rules.stated_total needs label or column")
+    }
+    out.stated_total = {
+      ...(label ? { label } : { label: "" }),
+      ...(column ? { column } : {}),
+    }
+    if (!out.stated_total.label && column) {
+      out.stated_total = { label: "", column }
+    }
+  }
+  if (v.section_subtotal != null && v.section_subtotal !== "") {
+    if (!isObject(v.section_subtotal)) {
+      throw new Error("money_rules.section_subtotal must be an object")
+    }
+    const label = String(v.section_subtotal.label ?? "").trim()
+    if (!label) throw new Error("money_rules.section_subtotal.label required")
+    out.section_subtotal = { label }
+  }
+  if (v.rate_card != null && v.rate_card !== "") {
+    if (!isObject(v.rate_card)) {
+      throw new Error("money_rules.rate_card must be an object")
+    }
+    const column = String(v.rate_card.column ?? "").trim()
+    if (!column) throw new Error("money_rules.rate_card.column required")
+    out.rate_card = { column }
   }
   return out
 }
@@ -211,6 +294,7 @@ export function parsePublisherProfile(input: unknown): PublisherProfileConfig {
     grouping_keys,
     column_map: asStringRecord(input.column_map ?? {}, "column_map"),
     field_defaults: asStringRecord(input.field_defaults ?? {}, "field_defaults"),
+    money_rules: parseMoneyRules(input.money_rules),
     grid_semantics: grid_semantics as GridSemantics,
     legend_map: parseLegendMap(input.legend_map),
     sheet_rules: parseSheetRules(input.sheet_rules ?? []),
@@ -235,6 +319,7 @@ export function serializePublisherProfile(
     grouping_keys: profile.grouping_keys,
     column_map: profile.column_map,
     field_defaults: profile.field_defaults,
+    money_rules: profile.money_rules,
     grid_semantics: profile.grid_semantics,
     legend_map: profile.legend_map,
     sheet_rules: profile.sheet_rules,

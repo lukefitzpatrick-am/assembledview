@@ -56,7 +56,10 @@
         "role": "ignore"
       }
     ],
-    "notes": "OOH status letters in the flight grid. Paid and Bonus are separate sheets."
+    "money_rules": {
+      "media_amount_basis": "weekly_rate"
+    },
+    "notes": "OOH status letters in the flight grid. Paid and Bonus are separate sheets. Weekly market rate × PAID weeks only."
   },
   {
     "publisher_name": "SCA",
@@ -105,7 +108,11 @@
         "default_booking_status": "paid"
       }
     ],
-    "notes": "Radio spot-count grid. Reach & Frequency / R+F is not line items."
+    "money_rules": {
+      "media_amount_basis": "line_total",
+      "stated_total": { "column": "Client Total" }
+    },
+    "notes": "Radio spot-count grid. Reach & Frequency / R+F is not line items. Client Total is the line investment. No campaign stated-cell label — gate falls back to column sum with a warning."
   },
   {
     "publisher_name": "JCDecaux",
@@ -152,7 +159,16 @@
         "default_booking_status": "paid"
       }
     ],
-    "notes": "OOH status matrix. Stated MEDIA VALUE (inc. STA) is authoritative per line; lunar/4×weeks is a cross-check warning only. Village weight shares a header with village name — weight not separately mapped."
+    "money_rules": {
+      "media_amount_basis": "line_total",
+      "stated_total": {
+        "label": "TOTAL MEDIA INVESTMENT (ex. P&I)",
+        "column": "MEDIA BOUGHT RATE"
+      },
+      "section_subtotal": { "label": "MEDIA INVESTMENT (ex. P&I):" },
+      "rate_card": { "column": "MEDIA VALUE (inc. STA)" }
+    },
+    "notes": "OOH status matrix. MEDIA BOUGHT RATE is the line investment (once, split across PAID weeks). MEDIA VALUE (inc. STA) is rate-card, not the gate. Campaign stated cell is TOTAL MEDIA INVESTMENT (ex. P&I). Village weight shares a header with village name — weight not separately mapped."
   },
   {
     "publisher_name": "SEN",
@@ -183,6 +199,7 @@
         "default_booking_status": "paid"
       }
     ],
-    "notes": "Radio spot-count grid (OPTION 2). State grouping rows stack into market. CS–DP 1900-date junk band is not part of the detected flight grid."
+    "money_rules": {},
+    "notes": "Radio spot-count grid (OPTION 2). State grouping rows stack into market. CS–DP 1900-date junk band is not part of the detected flight grid. No per-line money column — gate uses the scraped campaign total."
   }
 ]

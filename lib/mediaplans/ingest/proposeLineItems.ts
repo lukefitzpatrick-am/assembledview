@@ -5,6 +5,17 @@
 
 import type { DetectedSheetShape } from "@/lib/mediaplans/ingest/detectShape"
 import {
+  columnIndexForHeader,
+  inferMediaAmountBasis,
+  lineMediaForRow,
+  reconcileSections,
+  resolveFileStatedTotal,
+  roundCents,
+  sumRateCardColumn,
+  type FileStatedSource,
+  type SectionReconciliation,
+} from "@/lib/mediaplans/ingest/moneyRules"
+import {
   DERIVED_WARNING_PCT,
   evaluateReconciliationGate,
   isMoneyTarget,
@@ -52,9 +63,9 @@ export type ProposedLineItem = {
   panels: ProposedPanel[]
   bursts: ProposedBurst[]
   /**
-   * Publisher per-unit bought rate for the row (`media_rate:bought`).
-   * `null` / omitted = unmapped; `0` = mapped zero. Display/rate only —
-   * never a line total.
+   * Publisher bought-rate cell for the row (`media_rate:bought`).
+   * Display/rate; also the line investment when money_rules.media_amount_basis
+   * is `line_total`.
    */
   bought_rate?: number | null
   /** One-off charges seen on source rows — not imported into media. */
@@ -70,6 +81,13 @@ export type IngestReconciliation = {
   burst_count: number
   total_media_amount: number
   file_stated_total: number | null
+  /** How `file_stated_total` was obtained — never a silent column sum. */
+  file_stated_source?: FileStatedSource | null
+  /** Rate-card column Σ (info only). */
+  rate_card_total?: number | null
+  /** 0–1; (rate-card − stated) / rate-card when both known. */
+  rate_card_discount_pct?: number | null
+  section_reconciliations?: SectionReconciliation[]
   /** Absolute |computed − stated|; null when no stated total. */
   delta: number | null
   /** Relative delta; null when no stated total. */
@@ -178,24 +196,16 @@ function countPaidWeeks(
 }
 
 /**
- * Stated line total is not derived here. Rate × period:
- * weekly → lunar/4 → bought last, and only when the profile declares
- * the bought-rate period. An unknown-period rate is display-only.
+ * Rate × period for the derived cross-check only: weekly → lunar/4.
+ * Line media itself comes from money_rules.media_amount_basis.
  */
 function derivedMediaForRow(
   money: RowMoney,
   paidWeeks: number,
-  boughtRatePeriod?: "weekly" | "lunar" | null,
 ): number | null {
   if (paidWeeks <= 0) return null
   if (money.weeklyRate != null) return money.weeklyRate * paidWeeks
   if (money.lunarRate != null) return (money.lunarRate / 4) * paidWeeks
-  if (money.boughtRate != null && boughtRatePeriod === "weekly") {
-    return money.boughtRate * paidWeeks
-  }
-  if (money.boughtRate != null && boughtRatePeriod === "lunar") {
-    return (money.boughtRate / 4) * paidWeeks
-  }
   return null
 }
 
@@ -517,25 +527,29 @@ function buildBurstsForRow(
 ): ProposedBurst[] {
   const runs = buildStatusRunsForRow(profile, shape, row)
   const paidWeeks = countPaidWeeks(profile, shape, row)
+  const lineColName = profile.money_rules.stated_total?.column
+  const lineCol =
+    lineColName != null ? columnIndexForHeader(shape, lineColName) : null
+  const lineColumnValue =
+    lineCol != null
+      ? parseMoneyCell(shape.matrix[row]?.[lineCol] ?? "")
+      : null
   const derived = derivedMediaForRow(money, paidWeeks)
-
-  // Stated line total wins when present; otherwise derived rate×period.
-  let authoritative = 0
-  if (money.stated != null && money.stated > 0 && paidWeeks > 0) {
-    authoritative = money.stated
-    if (
-      derived != null &&
-      derived > 0 &&
-      Math.abs(derived - money.stated) / money.stated > DERIVED_WARNING_PCT
-    ) {
-      const pct =
-        (Math.abs(derived - money.stated) / money.stated) * 100
+  const fromRules = lineMediaForRow(
+    money,
+    paidWeeks,
+    profile,
+    lineColumnValue,
+  )
+  let authoritative = fromRules ?? 0
+  if (authoritative > 0 && derived != null && derived > 0) {
+    const vs = Math.abs(derived - authoritative) / authoritative
+    if (vs > DERIVED_WARNING_PCT) {
+      const pct = vs * 100
       warnings.push(
-        `${shape.sheet_name}!r${row}: derived $${derived.toFixed(2)} diverges from stated $${money.stated.toFixed(2)} by ${pct.toFixed(1)}% (cross-check only)`,
+        `${shape.sheet_name}!r${row}: derived $${derived.toFixed(2)} diverges from line media $${authoritative.toFixed(2)} by ${pct.toFixed(1)}% (cross-check only)`,
       )
     }
-  } else if (derived != null && derived > 0) {
-    authoritative = derived
   }
 
   return allocateMediaToBursts(runs, profile, shape, authoritative)
@@ -659,8 +673,9 @@ export function proposeLineItemsFromSheet(
   let ctx: RowContext = {}
   const groupingSet = new Set(shape.grouping_rows)
   const warnings: string[] = []
-  let statedPaidSum = 0
+  let lineColumnSum = 0
   let charges_detected_total = 0
+  const lineMediaBySourceRow: { sourceRow: number; media: number }[] = []
   const grouped = profile.line_granularity === "grouped"
   const groups = new Map<string, Acc>()
   const perRow: Acc[] = []
@@ -709,11 +724,28 @@ export function proposeLineItemsFromSheet(
     }
 
     const paidWeeks = countPaidWeeks(profile, shape, row)
-    if (money.stated != null && money.stated > 0 && paidWeeks > 0) {
-      statedPaidSum += money.stated
+    const lineColName = profile.money_rules.stated_total?.column
+    const lineCol =
+      lineColName != null ? columnIndexForHeader(shape, lineColName) : null
+    const lineColumnValue =
+      lineCol != null
+        ? parseMoneyCell(shape.matrix[row]?.[lineCol] ?? "")
+        : inferMediaAmountBasis(profile) === "line_total"
+          ? (money.boughtRate ?? money.stated)
+          : money.stated
+    if (
+      lineColumnValue != null &&
+      lineColumnValue > 0 &&
+      (paidWeeks > 0 || inferMediaAmountBasis(profile) === "line_total")
+    ) {
+      lineColumnSum += lineColumnValue
     }
 
     const rowBursts = buildBurstsForRow(profile, shape, row, money, warnings)
+    const rowMedia = roundCents(
+      rowBursts.reduce((s, b) => s + b.media_amount, 0),
+    )
+    lineMediaBySourceRow.push({ sourceRow: row, media: rowMedia })
     rowAcc.bursts = rowBursts.map((b) => ({ ...b }))
 
     if (!grouped) {
@@ -761,10 +793,32 @@ export function proposeLineItemsFromSheet(
       ) * 100,
     ) / 100
 
-  // Stated line Σ is the Accept gate target when the file carries line totals
-  // (SCA Client Total, JCD MEDIA VALUE). Otherwise fall back to scrape.
-  const file_stated_total =
-    statedPaidSum > 0 ? statedPaidSum : shape.file_stated_total
+  const statedResolved = resolveFileStatedTotal({
+    profile,
+    shape,
+    lineColumnSum,
+  })
+  if (statedResolved.warning) warnings.push(statedResolved.warning)
+  const file_stated_total = statedResolved.file_stated_total
+
+  const section = reconcileSections({
+    profile,
+    shape,
+    lineItems: lineMediaBySourceRow,
+  })
+  if (section.reason) warnings.push(section.reason)
+
+  const rateCardHeader = profile.money_rules.rate_card?.column
+  const rate_card_total = rateCardHeader
+    ? sumRateCardColumn(shape, rateCardHeader, shape.data_rows)
+    : null
+  const rate_card_discount_pct =
+    rate_card_total != null &&
+    rate_card_total > 0 &&
+    file_stated_total != null &&
+    file_stated_total > 0
+      ? (rate_card_total - file_stated_total) / rate_card_total
+      : null
 
   if (charges_detected_total > 0) {
     warnings.push(
@@ -776,6 +830,12 @@ export function proposeLineItemsFromSheet(
     total_media_amount,
     file_stated_total,
   })
+  const accept_ok = gate.ok && section.ok
+  const block_reason = !gate.ok
+    ? gate.reason
+    : !section.ok
+      ? section.reason
+      : null
 
   const proposal: IngestProposal = {
     publisher_name: profile.publisher_name,
@@ -789,10 +849,14 @@ export function proposeLineItemsFromSheet(
       burst_count,
       total_media_amount,
       file_stated_total,
+      file_stated_source: statedResolved.file_stated_source,
+      rate_card_total,
+      rate_card_discount_pct,
+      section_reconciliations: section.sections,
       delta: gate.delta,
       delta_pct: gate.delta_pct,
-      accept_ok: gate.ok,
-      block_reason: gate.reason,
+      accept_ok,
+      block_reason,
       warnings,
       charges_detected_total,
     },

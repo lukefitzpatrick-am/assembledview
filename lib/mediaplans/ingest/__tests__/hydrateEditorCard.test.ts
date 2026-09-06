@@ -117,7 +117,7 @@ test("JCD accept→editor: 95 buy-row lines (not occupancy subtotals), each card
   assert.equal(stamped.lineItems.length, 95)
   assert.equal(stamped.panels.length, 95)
   const stated = review.proposal!.reconciliation.file_stated_total ?? 0
-  assert.ok(Math.abs(stated - 311707.88) < 1)
+  assert.ok(Math.abs(stated - 131250.01) < 1)
 
   let moneySum = 0
   const sourceRows = new Set<string>()

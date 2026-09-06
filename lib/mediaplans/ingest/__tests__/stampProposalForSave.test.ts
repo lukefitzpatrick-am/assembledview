@@ -21,7 +21,7 @@ import { stampProposalForSave } from "../stampProposalForSave"
 import { ingestReviewToFormLineItems } from "../toFormLineItems"
 
 const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
-const JCD_STATED = 311707.88
+const JCD_STATED = 131250.01
 
 function burst(
   status: ProposedBurst["booking_status"],
@@ -187,7 +187,7 @@ test("file-supplied buy_type panels wins over all-bonus booking_status", () => {
   assert.notEqual(lineItems[0]!.buyType, "bonus")
 })
 
-test("JCD converter total still $311,707.88 within 0.5% after bonus buyType", async () => {
+test("JCD converter total still $131,250.01 within 0.5% after bonus buyType", async () => {
   const review = await buildIngestReviewFromFile(
     path.join(FIX, "jcd_strength-meals_ooh.xlsx"),
     loadSeedPublisherProfiles(),
@@ -344,7 +344,7 @@ test("SF-6 count semantics still stamps buyAmount as the spot count", () => {
   assert.equal(stampedBuyAmount(lineItems[0]!), String(spots))
 })
 
-test("SF-6 JCD converter total still $311,707.88 within 0.5% after bought-rate map", async () => {
+test("SF-6 JCD converter total still $131,250.01 within 0.5% after bought-rate map", async () => {
   const review = await buildIngestReviewFromFile(
     path.join(FIX, "jcd_strength-meals_ooh.xlsx"),
     loadSeedPublisherProfiles(),

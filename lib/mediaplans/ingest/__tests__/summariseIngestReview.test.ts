@@ -22,7 +22,9 @@ import {
 
 const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
 const JCD = "jcd_strength-meals_ooh.xlsx"
-const JCD_STATED = 311707.88
+const JCD_STATED = 131250.01
+const JCD_RATE_CARD = 403820.48
+const JCD_DISCOUNT = 0.675
 
 function fixtureSummary(over: Partial<IngestChatSummary> = {}): IngestChatSummary {
   return {
@@ -39,6 +41,8 @@ function fixtureSummary(over: Partial<IngestChatSummary> = {}): IngestChatSummar
     money_delta_pct: 0,
     file_stated_total: JCD_STATED,
     total_media_amount: JCD_STATED,
+    rate_card_total: JCD_RATE_CARD,
+    rate_card_discount_pct: JCD_DISCOUNT,
     bonus_line_item_count: 38,
     accept_ok: true,
     block_reason: null,
@@ -55,7 +59,8 @@ function fixtureSummary(over: Partial<IngestChatSummary> = {}): IngestChatSummar
 test("confirmed block prints total lines, gate budget, and SF-5 bonus from the summary", () => {
   const table = formatIngestConfirmedBlock(fixtureSummary())
   assert.match(table, /\| Total line items \| 95 \|/)
-  assert.match(table, /\| Total budget \| \$311,707\.88 \|/)
+  assert.match(table, /\| Total budget \| \$131,250\.01 \|/)
+  assert.match(table, /\| Rate-card value \| \$403,820\.48 · discount 67\.5% \|/)
   assert.match(table, /\| Bonus line items \| 38 \(of 95\) \|/)
 })
 
@@ -92,7 +97,8 @@ test("JCD review summary totals match staged recon + SF-5 stamp (not a prompt re
 
   const table = formatIngestConfirmedBlock(summary)
   assert.match(table, /\| Total line items \| 95 \|/)
-  assert.match(table, /\| Total budget \| \$311,707\.88 \|/)
+  assert.match(table, /\| Total budget \| \$131,250\.01 \|/)
+  assert.match(table, /\| Rate-card value \| \$403,820\.48 · discount 67\.5% \|/)
   assert.match(table, /\| Bonus line items \| 38 \(of 95\) \|/)
   assert.match(table, /Excluded rows:/)
   assert.match(table, /INVESTMENT/i)

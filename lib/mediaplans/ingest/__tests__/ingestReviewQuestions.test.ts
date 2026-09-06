@@ -420,7 +420,7 @@ test("JCD fixture: cards only for unmatched required/enrich in card order; no co
   assert.equal(review.proposal!.reconciliation.total_media_amount, mediaTotal)
   assert.equal(review.proposal!.reconciliation.file_stated_total, fileTotal)
   assert.equal(lineCount, 95)
-  assert.ok(fileTotal != null && Math.abs(fileTotal - 311707.88) < 1)
+  assert.ok(fileTotal != null && Math.abs(fileTotal - 131250.01) < 1)
   assert.equal(recon.accept_ok, true)
   assert.equal(cov.unresolved_controlled.length, 0)
   assert.equal(questions.some((q) => q.id.startsWith("ingest:value:")), false)

@@ -25,6 +25,10 @@ export type IngestChatSummary = {
   money_delta_pct: number | null
   file_stated_total: number | null
   total_media_amount: number | null
+  /** Rate-card column Σ (info only). */
+  rate_card_total: number | null
+  /** 0–1 when rate-card and stated are both known. */
+  rate_card_discount_pct: number | null
   /** SF-5 all-bonus / all bonus_display lines (or sourced buy type bonus). */
   bonus_line_item_count: number
   accept_ok: boolean
@@ -84,6 +88,8 @@ export function summariseIngestReview(
     money_delta_pct: recon?.delta_pct ?? null,
     file_stated_total: recon?.file_stated_total ?? null,
     total_media_amount: recon?.total_media_amount ?? null,
+    rate_card_total: recon?.rate_card_total ?? null,
+    rate_card_discount_pct: recon?.rate_card_discount_pct ?? null,
     bonus_line_item_count: review.proposal
       ? countBonusLineItemsFromProposal(
           review.proposal,
@@ -137,11 +143,25 @@ export function formatIngestConfirmedBlock(summary: IngestChatSummary): string {
     `| Media type | ${summary.media_type ?? "—"} |`,
     `| Total line items | ${summary.line_item_count} |`,
     `| Total budget | ${formatIngestBudget(summary)} |`,
+  ]
+  if (
+    summary.rate_card_total != null &&
+    summary.rate_card_total > 0 &&
+    summary.rate_card_discount_pct != null
+  ) {
+    const rateCard = `$${summary.rate_card_total.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`
+    const disc = `${(summary.rate_card_discount_pct * 100).toFixed(1)}%`
+    lines.push(`| Rate-card value | ${rateCard} · discount ${disc} |`)
+  }
+  lines.push(
     `| Bonus line items | ${summary.bonus_line_item_count} (of ${summary.line_item_count}) |`,
     `| Lines / panels / bursts | ${summary.line_item_count} / ${summary.panel_count} / ${summary.burst_count} |`,
     `| Required coverage | ${coverage} |`,
-    `| Money delta vs file total | ${formatMoneyDelta(summary)} |`,
-  ]
+    `| Money delta vs file total | ${formatMoneyDelta(summary)} |`
+  )
   if (summary.ignored_rows.length > 0) {
     lines.push("", `Excluded rows: ${summary.ignored_rows.join(" / ")}`)
   }

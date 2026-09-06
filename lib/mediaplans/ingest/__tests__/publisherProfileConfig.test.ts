@@ -282,6 +282,49 @@ test("0061 field_defaults SQL is AUTHOR ONLY and idempotent", () => {
   assert.doesNotMatch(sql, /CREATE POLICY|ENABLE ROW LEVEL SECURITY/i)
 })
 
+test("0066 money_rules SQL is AUTHOR ONLY and idempotent", () => {
+  const sql = readFileSync(
+    path.join(
+      process.cwd(),
+      "db/migrations/0066_publisher_profiles_money_rules.sql",
+    ),
+    "utf8",
+  )
+  assert.match(sql, /AUTHOR ONLY/i)
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS money_rules/i)
+  assert.match(sql, /0066_publisher_profiles_money_rules/)
+  assert.match(sql, /RAISE NOTICE/)
+  assert.match(sql, /publisher_profiles rows/)
+  assert.match(sql, /TOTAL MEDIA INVESTMENT/)
+  assert.match(sql, /media_amount_basis/)
+  assert.doesNotMatch(sql, /CREATE POLICY|ENABLE ROW LEVEL SECURITY/i)
+})
+
+test("money_rules defaults to empty and JCD line_total round-trips", () => {
+  const seeds = loadSeeds()
+  const qms = seeds.find((p) => p.publisher_name === "QMS")!
+  assert.equal(qms.money_rules.media_amount_basis, "weekly_rate")
+  const sca = seeds.find((p) => p.publisher_name === "SCA")!
+  assert.equal(sca.money_rules.media_amount_basis, "line_total")
+  const sen = seeds.find((p) => p.publisher_name === "SEN")!
+  assert.deepEqual(sen.money_rules, {})
+  const jcd = seeds.find((p) => p.publisher_name === "JCDecaux")!
+  assert.equal(jcd.money_rules.media_amount_basis, "line_total")
+  assert.equal(
+    jcd.money_rules.stated_total?.label,
+    "TOTAL MEDIA INVESTMENT (ex. P&I)",
+  )
+  assert.deepEqual(
+    parsePublisherProfile(serializePublisherProfile(jcd)).money_rules,
+    jcd.money_rules,
+  )
+  const omitted = parsePublisherProfile({
+    ...serializePublisherProfile(jcd),
+    money_rules: undefined,
+  })
+  assert.deepEqual(omitted.money_rules, {})
+})
+
 test("field_defaults defaults to empty and round-trips", () => {
   const base = loadSeeds()[0]!
   assert.deepEqual(base.field_defaults, {})

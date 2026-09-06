@@ -50,14 +50,17 @@ test("reconciliation gate blocks when delta > 0.5%", () => {
   assert.ok(bad.reason)
 })
 
-test("QMS Paid: weekly×weeks reconciles to stated total within 0.5%", async () => {
+test("QMS Paid: weekly_rate × PAID weeks reconciles to scrape within 0.5%", async () => {
+  const qms = loadProfile("QMS")
+  assert.equal(qms.money_rules.media_amount_basis, "weekly_rate")
   const shapes = await detectWorkbookShapesFromFile(
     path.join(FIX, "qms_strength-meals_esb-ooh.xlsx"),
   )
   const sheet = shapes.find((s) => /paid/i.test(s.sheet_name))
   assert.ok(sheet)
-  const proposal = proposeLineItemsFromSheet(sheet!, loadProfile("QMS"))
+  const proposal = proposeLineItemsFromSheet(sheet!, qms)
   const r = proposal.reconciliation
+  assert.equal(r.file_stated_source, "scrape")
   assert.ok(r.file_stated_total != null && r.file_stated_total > 0)
   assert.ok(r.total_media_amount > 0)
   assert.equal(r.accept_ok, true)
@@ -68,7 +71,9 @@ test("QMS Paid: weekly×weeks reconciles to stated total within 0.5%", async () 
   console.log("QMS Paid reconciliation", JSON.stringify(r))
 })
 
-test("SCA: Client Total stated wins; reconciles within 0.5%", async () => {
+test("SCA: Client Total line_total; column-sum fallback with a visible warning", async () => {
+  const sca = loadProfile("SCA")
+  assert.equal(sca.money_rules.media_amount_basis, "line_total")
   const shapes = await detectWorkbookShapesFromFile(
     path.join(FIX, "sca_boss-engineering_fy26_v1.xlsx"),
   )
@@ -78,15 +83,23 @@ test("SCA: Client Total stated wins; reconciles within 0.5%", async () => {
     sheet!.descriptor_columns.some((d) => /client total/i.test(d.header)),
     "Client Total must be a trailing descriptor",
   )
-  const proposal = proposeLineItemsFromSheet(sheet!, loadProfile("SCA"))
+  const proposal = proposeLineItemsFromSheet(sheet!, sca)
   const r = proposal.reconciliation
   assert.ok(Math.abs((r.file_stated_total ?? 0) - 60097) < 1)
+  assert.ok(Math.abs(r.total_media_amount - 60097) < 1)
+  assert.equal(r.file_stated_source, "column_sum_fallback")
+  assert.ok(
+    r.warnings.some((w) => /not silent/i.test(w)),
+    `SCA must warn on column-sum fallback, got ${r.warnings.join(" | ")}`,
+  )
   assert.equal(r.accept_ok, true)
   assert.ok((r.delta_pct ?? 1) <= RECONCILIATION_BLOCK_PCT)
   console.log("SCA reconciliation", JSON.stringify(r))
 })
 
-test("JCD: paid-row MEDIA VALUE ~311708 is gate; lunar derived is warning-only", async () => {
+test("JCD: stated cell 131250.01 is the gate; MEDIA VALUE is rate-card info", async () => {
+  const jcd = loadProfile("JCDecaux")
+  assert.equal(jcd.money_rules.media_amount_basis, "line_total")
   const shapes = await detectWorkbookShapesFromFile(
     path.join(FIX, "jcd_strength-meals_ooh.xlsx"),
   )
@@ -105,15 +118,48 @@ test("JCD: paid-row MEDIA VALUE ~311708 is gate; lunar derived is warning-only",
     `scrape should not return section subtotal, got ${sheet!.file_stated_total}`,
   )
 
-  const proposal = proposeLineItemsFromSheet(sheet!, loadProfile("JCDecaux"))
+  const proposal = proposeLineItemsFromSheet(sheet!, jcd)
   const r = proposal.reconciliation
+  assert.equal(r.file_stated_source, "stated_cell")
   assert.ok(r.file_stated_total != null)
   assert.ok(
-    Math.abs(r.file_stated_total! - 311707.88) < 1,
-    `expected ~311708 paid-rows stated, got ${r.file_stated_total}`,
+    Math.abs(r.file_stated_total! - 131250.01) < 0.005,
+    `expected stated cell 131250.01, got ${r.file_stated_total}`,
   )
+  assert.ok(
+    Math.abs(r.total_media_amount - 131250.01) < 0.005,
+    `line media ${r.total_media_amount}`,
+  )
+  assert.ok(Math.abs(r.delta ?? 1) < 0.005, `delta ${r.delta}`)
   assert.equal(r.accept_ok, true)
   assert.ok((r.delta_pct ?? 1) <= RECONCILIATION_BLOCK_PCT)
+  assert.ok(
+    r.rate_card_total != null && Math.abs(r.rate_card_total - 403820.48) < 0.02,
+    `rate-card ${r.rate_card_total}`,
+  )
+  assert.ok(
+    r.rate_card_discount_pct != null &&
+      Math.abs(r.rate_card_discount_pct - 0.675) < 0.002,
+    `discount ${r.rate_card_discount_pct}`,
+  )
+  const sections = r.section_reconciliations ?? []
+  assert.equal(sections.length, 3)
+  assert.deepEqual(
+    sections.map((s) => s.row),
+    [111, 138, 150],
+  )
+  for (const s of sections) {
+    assert.equal(s.ok, true, `section r${s.row} delta ${s.delta}`)
+    assert.ok(
+      Math.abs(s.computed - s.file) <= 0.02,
+      `section r${s.row} computed ${s.computed} vs file ${s.file}`,
+    )
+  }
+  assert.equal(
+    r.warnings.some((w) => /fell back to summing/i.test(w)),
+    false,
+    "JCD found the stated cell — no column-sum fallback",
+  )
   // Lunar/4×weeks diverges on some lines — warnings only, never block
   assert.ok(r.warnings.some((w) => /cross-check only/i.test(w)))
   console.log(
@@ -121,7 +167,15 @@ test("JCD: paid-row MEDIA VALUE ~311708 is gate; lunar derived is warning-only",
     JSON.stringify({
       total: r.total_media_amount,
       stated: r.file_stated_total,
-      delta_pct: r.delta_pct,
+      source: r.file_stated_source,
+      delta: r.delta,
+      rate_card_total: r.rate_card_total,
+      discount: r.rate_card_discount_pct,
+      sections: sections.map((s) => ({
+        row: s.row,
+        file: s.file,
+        computed: s.computed,
+      })),
       warnings: r.warnings.length,
     }),
   )
@@ -187,7 +241,7 @@ test("SF-6 media_rate:bought is a MONEY_TARGET and is not a stated line total", 
   assert.equal(isMoneyTarget("media_amount:stated"), true)
 })
 
-test("SF-6 bought rate alone does not become authoritative media (unknown period)", async () => {
+test("JCD line_total: MEDIA BOUGHT RATE is the line investment once (not rate × weeks)", async () => {
   const jcd = loadProfile("JCDecaux")
   const column_map = { ...jcd.column_map }
   delete column_map["MEDIA VALUE (inc. STA)"]
@@ -202,9 +256,8 @@ test("SF-6 bought rate alone does not become authoritative media (unknown period
     path.join(FIX, "jcd_strength-meals_ooh.xlsx"),
   )
   const proposal = proposeLineItemsFromSheet(shapes[0]!, stripped)
-  assert.equal(
-    proposal.reconciliation.total_media_amount,
-    0,
-    `bought rate of unknown period must not feed total_media_amount, got ${proposal.reconciliation.total_media_amount}`,
+  assert.ok(
+    Math.abs(proposal.reconciliation.total_media_amount - 131250.01) < 0.005,
+    `bought line total must feed media, got ${proposal.reconciliation.total_media_amount}`,
   )
 })
