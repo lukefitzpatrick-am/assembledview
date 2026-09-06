@@ -134,8 +134,8 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
 
   const summary: IngestChatSummary | null = useMemo(() => {
     if (!review) return null
-    return summariseIngestReview(review, { stageId, fileName })
-  }, [review, stageId, fileName])
+    return summariseIngestReview(review, { stageId, fileName, mbaNumber })
+  }, [review, stageId, fileName, mbaNumber])
 
   const counts = review ? parseReviewCounts(review) : null
   const split = review ? paidBonusSplit(review) : { paid: 0, bonus: 0 }
@@ -196,6 +196,9 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
   const sectionRecons = review.proposal?.reconciliation.section_reconciliations ?? []
   const sectionsMatch =
     sectionRecons.length === 0 || sectionRecons.every((s) => s.ok)
+  const pendingOverrides = (review.parse_review?.override_proposals ?? []).filter(
+    (p) => !p.applied,
+  )
 
   return (
     <div className="space-y-4 pb-20">
@@ -374,6 +377,56 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
           </Table>
         </section>
       </div>
+
+      {pendingOverrides.length > 0 ? (
+        <section className="rounded-card border border-border bg-card p-4 shadow-e1">
+          <h2 className="mb-2 text-sm font-semibold text-foreground">
+            Recurring mapping proposals
+          </h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Same header on three files. Applying writes the publisher profile and an
+            audit row. Nothing is applied until you confirm.
+          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Header</TableHead>
+                <TableHead>Maps to</TableHead>
+                <TableHead>Files</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pendingOverrides.map((p) => (
+                <TableRow key={`${p.header}|${p.mapped_to}`}>
+                  <TableCell>{p.header}</TableCell>
+                  <TableCell>{p.mapped_to}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {p.file_names.join(" · ")}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() =>
+                        void postAction({
+                          action: "apply_override_proposal",
+                          header: p.header,
+                          mappedTo: p.mapped_to,
+                        })
+                      }
+                    >
+                      Apply to profile
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">Show</span>

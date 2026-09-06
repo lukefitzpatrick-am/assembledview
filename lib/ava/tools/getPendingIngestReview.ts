@@ -111,6 +111,7 @@ export const getPendingIngestReviewTool: AvaTool = {
     const summary = summariseIngestReview(review, {
       stageId,
       fileName: context.pendingIngest?.fileName ?? looked.staged.fileName,
+      mbaNumber: context.mbaNumber,
     })
     const questionCtx = {
       mbaNumber: context.mbaNumber,

@@ -562,7 +562,13 @@ export function ChatWidget({
     try {
       const formData = new FormData()
       formData.append("file", file)
+      if (pageContext?.mbaNumber) {
+        formData.append("mbaNumber", pageContext.mbaNumber)
+      }
       const response = await fetch("/api/admin/ingest/review", {
+        method: "POST",
+        body: formData,
+      })
         method: "POST",
         body: formData,
       })

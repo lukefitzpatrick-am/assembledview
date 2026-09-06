@@ -46,13 +46,16 @@ export type IngestChatSummary = {
 
 export { ingestParseReviewPath }
 
-export function ingestFullReviewPath(stageId: string): string {
-  return `/admin/schedule-ingest?stage=${encodeURIComponent(stageId)}`
+export function ingestFullReviewPath(
+  stageId: string,
+  mbaNumber?: string | null,
+): string {
+  return ingestParseReviewPath(stageId, mbaNumber)
 }
 
 export function summariseIngestReview(
   review: IngestReviewPackage,
-  args: { stageId: string; fileName?: string | null },
+  args: { stageId: string; fileName?: string | null; mbaNumber?: string | null },
 ): IngestChatSummary {
   const unknown = isUnknownPublisherMatch({
     confidence: review.publisher_confidence,
@@ -109,7 +112,7 @@ export function summariseIngestReview(
     columns_unmapped: review.ignored.columns_unmapped,
     unknown_publisher: unknown,
     no_profile_message: unknown ? NO_PUBLISHER_PROFILE_MESSAGE : null,
-    full_review_path: ingestFullReviewPath(args.stageId),
+    full_review_path: ingestFullReviewPath(args.stageId, args.mbaNumber),
   }
 }
 
@@ -229,5 +232,6 @@ export function formatIngestConfirmedBlock(
   if (summary.ignored_rows.length > 0) {
     lines.push("", `Excluded rows: ${summary.ignored_rows.join(" / ")}`)
   }
+  lines.push("", `Open Parse Review: ${summary.full_review_path}`)
   return lines.join("\n")
 }

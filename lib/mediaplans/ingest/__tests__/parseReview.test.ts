@@ -26,7 +26,12 @@ import {
   resolveParseReviewValue,
   siblingRowsForValue,
   tallyFieldOverride,
+  applyParseReviewOverrideProposal,
 } from "../parseReview"
+import {
+  clearPublisherProfileSeedOverlayForTests,
+  getPublisherProfileSeedAuditForTests,
+} from "../persistColumnRemap"
 import {
   clearIngestStageForTests,
   getIngestStage,
@@ -47,6 +52,7 @@ const BY = "ava@assembledmedia.com.au"
 test.beforeEach(() => {
   clearIngestStageForTests()
   clearValueSynonymOverlayForTests()
+  clearPublisherProfileSeedOverlayForTests()
 })
 
 function withoutUnresolved(review: IngestReviewPackage): IngestReviewPackage {
@@ -394,7 +400,7 @@ test("buy type disagree when parser is paid and audit status runs are all bonus"
   assert.ok((audit.discrepancies ?? []).some((d) => d.field === "buy_type"))
 })
 
-test("recurring field override on 3 files is proposed, not applied", () => {
+test("recurring field override on 3 files is proposed, not applied", async () => {
   const review = {
     parse_review: { decisions: {} },
   } as IngestReviewPackage
@@ -425,4 +431,39 @@ test("recurring field override on 3 files is proposed, not applied", () => {
   assert.equal(proposals.length, 1)
   assert.equal(proposals[0]!.applied, false)
   assert.equal(proposals[0]!.file_names.length, 3)
+  assert.equal(getPublisherProfileSeedAuditForTests().length, 0)
+
+  const withHeaders = {
+    ...next,
+    detected_publisher: "JCDecaux",
+    column_mapping: [
+      {
+        header: "Suburb",
+        mapped_to: "market",
+        unmapped: false,
+        sheetName: "Paid",
+      },
+    ],
+    ignored: {
+      sheets_skipped: [],
+      rows_unparsed: 0,
+      rows_unparsed_labels: [],
+      columns_unmapped: [],
+      spoken: [],
+    },
+  } as IngestReviewPackage
+  const applied = await applyParseReviewOverrideProposal({
+    review: withHeaders,
+    header: "Suburb",
+    mappedTo: "placement",
+    by: BY,
+    stageId: "11111111-1111-4111-8111-111111111111",
+  })
+  assert.equal(applied.applied, true)
+  assert.equal(parseReviewOf(applied.review).override_proposals?.[0]?.applied, true)
+  const audit = getPublisherProfileSeedAuditForTests()
+  assert.equal(audit.length, 1)
+  assert.equal(audit[0]!.source, "parse_review")
+  assert.equal(audit[0]!.header, "Suburb")
+  assert.equal(audit[0]!.next_value, "placement")
 })

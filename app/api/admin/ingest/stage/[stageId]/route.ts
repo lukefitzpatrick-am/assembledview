@@ -20,9 +20,11 @@ export async function GET(
   if (!staged) {
     return NextResponse.json({ error: "Staged ingest not found" }, { status: 404 })
   }
+  const mbaNumber = request.nextUrl.searchParams.get("mba")
   const summary = summariseIngestReview(staged.review, {
     stageId: staged.stageId,
     fileName: staged.fileName,
+    mbaNumber,
   })
   return NextResponse.json({
     review: staged.review,

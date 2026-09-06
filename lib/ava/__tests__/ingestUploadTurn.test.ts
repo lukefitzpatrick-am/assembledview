@@ -58,7 +58,7 @@ function sampleSummary(stageId: string): IngestChatSummary {
     columns_unmapped: [],
     unknown_publisher: false,
     no_profile_message: null,
-    full_review_path: `/admin/schedule-ingest?stage=${stageId}`,
+    full_review_path: `/mediaplans/mba/create/ingest/${stageId}`,
   }
 }
 
@@ -148,7 +148,7 @@ test("ingest operator directives are stated once in skillGuidance, not in ChatWi
 test("footer chip switches to Attach the file again when the stage is missing", () => {
   const pending = pendingIngestChipCopy({
     fileName: "qms.xlsx",
-    fullReviewPath: "/admin/schedule-ingest?stage=stg-1",
+    fullReviewPath: "/mediaplans/mba/create/ingest/stg-1",
   })
   assert.equal(pending.kind, "pending")
   assert.match(pending.text, /Schedule ready/)
@@ -156,7 +156,7 @@ test("footer chip switches to Attach the file again when the stage is missing", 
 
   const missing = pendingIngestChipCopy({
     fileName: "qms.xlsx",
-    fullReviewPath: "/admin/schedule-ingest?stage=stg-1",
+    fullReviewPath: "/mediaplans/mba/create/ingest/stg-1",
     missing: true,
   })
   assert.equal(missing.kind, "reattach")

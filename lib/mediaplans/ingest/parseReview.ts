@@ -513,6 +513,68 @@ export function tallyFieldOverride(args: {
   }
 }
 
+export async function applyParseReviewOverrideProposal(args: {
+  review: IngestReviewPackage
+  header: string
+  mappedTo: string
+  by: string
+  stageId: string
+}): Promise<{
+  review: IngestReviewPackage
+  applied: boolean
+  reason?: string
+}> {
+  const state = parseReviewOf(args.review)
+  const proposal = (state.override_proposals ?? []).find(
+    (p) =>
+      headerKey(p.header) === headerKey(args.header) &&
+      headerKey(p.mapped_to) === headerKey(args.mappedTo) &&
+      !p.applied,
+  )
+  if (!proposal) {
+    return {
+      review: args.review,
+      applied: false,
+      reason: "No pending override proposal for that mapping.",
+    }
+  }
+  const publisherName =
+    proposal.publisher_name ||
+    args.review.detected_publisher ||
+    args.review.proposal?.publisher_name ||
+    ""
+  const { knownHeadersFromReview } = await import(
+    "@/lib/mediaplans/ingest/persistColumnRemap"
+  )
+  const { remapIngestColumn } = await import(
+    "@/lib/mediaplans/ingest/remapIngestColumn"
+  )
+  const result = await remapIngestColumn({
+    publisherName,
+    header: proposal.header,
+    mappedTo: proposal.mapped_to,
+    knownHeaders: knownHeadersFromReview(args.review),
+    changedBy: args.by,
+    source: "parse_review",
+    stageId: args.stageId,
+  })
+  if (!result.ok) {
+    return { review: args.review, applied: false, reason: result.reason }
+  }
+  return {
+    review: {
+      ...args.review,
+      parse_review: {
+        ...state,
+        override_proposals: (state.override_proposals ?? []).map((p) =>
+          p === proposal ? { ...p, applied: true } : p,
+        ),
+      },
+    },
+    applied: true,
+  }
+}
+
 export function leftoverExcludedLegend(review: IngestReviewPackage): string {
   const labels = review.ignored.rows_unparsed_labels ?? []
   if (labels.length === 0) return ""

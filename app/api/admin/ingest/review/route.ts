@@ -29,11 +29,13 @@ export async function POST(request: NextRequest) {
         ? auth.session.user.email.trim().toLowerCase()
         : null
     const auditOff = process.env.INGEST_AUDIT === "off"
+    const mbaNumber = String(form.get("mbaNumber") ?? "").trim() || null
     const { review, stageId, summary } = await stageIngestReviewFromBuffer(buf, {
       fileName: file.name,
       uploadedBy,
       profiles,
       pinnedPublisherName,
+      mbaNumber,
       lineAuditClient: auditOff ? null : createAnthropicLineAuditClient(),
     })
     return NextResponse.json({ review, stageId, summary })

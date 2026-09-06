@@ -17,7 +17,12 @@ import { applyConstantFieldValue } from "@/lib/mediaplans/ingest/templateCoverag
 /** Process-local overlay so remaps stick across requests when DB is unavailable. */
 const seedOverlay = new Map<string, PublisherProfileConfig>()
 
-export type RemapSource = "ava_card" | "hub_remap" | "admin" | "model_proposed"
+export type RemapSource =
+  | "ava_card"
+  | "hub_remap"
+  | "admin"
+  | "model_proposed"
+  | "parse_review"
 
 export type RemapRejection = {
   ok: false

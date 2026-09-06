@@ -41,8 +41,8 @@ Every decision → stage `parse_review`. Value resolutions → `publisher_value_
 
 ## Page stats
 
-Numbers come only from `summariseIngestReview` + staged `parse_review` / `line_audit`. Never re-summed in the prompt or the page.
+Numbers come only from `summariseIngestReview` + staged `parse_review` / `line_audit`. Never re-summed in the prompt or the page. Chat `full_review_path` and the confirmed-block footer are this page.
 
 ## Below 90%
 
-Live token counts / wall seconds are estimates. Recurring-override “3 files” uses an in-process + stage tally keyed by publisher+header+canonical — not historical `ingest_runs`. Campaign-window flag is skipped when create/Hub has no campaign dates. Hub Accept stays gated the same as load so Hub is not a back door.
+Live token counts / wall seconds are estimates. Recurring-override “3 files” uses an in-process + stage tally keyed by publisher+header+canonical — not historical `ingest_runs`. Campaign-window flag is skipped when create/Hub has no campaign dates. Hub Accept stays gated the same as load so Hub is not a back door. Re-run audit 409s until the original workbook is re-attached (C-101, no Blob on the stage).

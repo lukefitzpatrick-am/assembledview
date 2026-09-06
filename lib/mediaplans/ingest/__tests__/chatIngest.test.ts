@@ -64,6 +64,7 @@ test("chat review summary matches Hub review numbers for the same QMS fixture", 
   assert.ok(chat.required_coverage >= 0 && chat.required_coverage <= 1)
   assert.equal(chat.unknown_publisher, false)
   assert.ok(chat.full_review_path.includes(staged.stageId))
+  assert.match(chat.full_review_path, /\/mediaplans\/mba\/create\/ingest\//)
   assert.equal(
     (await getIngestStage(staged.stageId))?.review.detected_publisher,
     "QMS",

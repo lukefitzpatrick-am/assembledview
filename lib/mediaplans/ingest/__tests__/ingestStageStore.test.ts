@@ -382,7 +382,7 @@ test("Hub deep-link and chat resolve the same package after reload", async () =>
     JSON.stringify(staged.review.proposal?.reconciliation),
     JSON.stringify(hub.proposal!.reconciliation),
   )
-  assert.ok(hubSummary.full_review_path.includes(`/admin/schedule-ingest?stage=${stageId}`))
+  assert.ok(hubSummary.full_review_path.includes(`/mediaplans/mba/create/ingest/${stageId}`))
   assert.ok(hubSummary.full_review_path.includes(stageId))
 })
 

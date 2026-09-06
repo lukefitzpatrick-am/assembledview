@@ -5,6 +5,7 @@ import {
   patchIngestStageReview,
 } from "@/lib/mediaplans/ingest/ingestStageStore"
 import {
+  applyParseReviewOverrideProposal,
   confirmAllGreen,
   includeExcludedRow,
   parseReviewLoadGate,
@@ -52,6 +53,8 @@ export async function POST(request: NextRequest) {
       row?: number
       answer?: string
       note?: string
+      header?: string
+      mappedTo?: string
       mbaNumber?: string | null
     }
     const stageId = body.stageId?.trim()
@@ -136,6 +139,30 @@ export async function POST(request: NextRequest) {
           canonical: resolved.canonical,
           synonymWritten: resolved.synonymWritten,
         })
+      }
+      case "apply_override_proposal": {
+        if (!body.header?.trim() || !body.mappedTo?.trim()) {
+          return NextResponse.json(
+            { error: "header and mappedTo required" },
+            { status: 400 },
+          )
+        }
+        const applied = await applyParseReviewOverrideProposal({
+          review,
+          header: body.header.trim(),
+          mappedTo: body.mappedTo.trim(),
+          by,
+          stageId,
+        })
+        if (!applied.applied) {
+          return NextResponse.json(
+            { error: applied.reason ?? "Override was not applied." },
+            { status: 409 },
+          )
+        }
+        review = applied.review
+        await patchIngestStageReview(stageId, review)
+        return NextResponse.json({ review, applied: true })
       }
       case "rerun_audit":
         return NextResponse.json(

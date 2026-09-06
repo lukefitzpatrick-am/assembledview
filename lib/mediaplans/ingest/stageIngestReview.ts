@@ -28,6 +28,7 @@ export async function stageIngestReviewFromBuffer(
     pinnedPublisherName?: string | null
     /** Injectable audit client (tests). Production review route passes Anthropic. */
     lineAuditClient?: LineAuditClient | null
+    mbaNumber?: string | null
   },
 ): Promise<{
   review: IngestReviewPackage
@@ -77,6 +78,7 @@ export async function stageIngestReviewFromBuffer(
   const summary = summariseIngestReview(review, {
     stageId,
     fileName: args.fileName,
+    mbaNumber: args.mbaNumber,
   })
   if (summary.unknown_publisher) {
     await recordIngestRun({

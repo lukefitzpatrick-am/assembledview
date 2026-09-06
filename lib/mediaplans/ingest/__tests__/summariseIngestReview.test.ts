@@ -53,7 +53,7 @@ function fixtureSummary(over: Partial<IngestChatSummary> = {}): IngestChatSummar
     columns_unmapped: [],
     unknown_publisher: false,
     no_profile_message: null,
-    full_review_path: "/admin/schedule-ingest?stage=stg-av1",
+    full_review_path: "/mediaplans/mba/create/ingest/stg-av1",
     ...over,
   }
 }
@@ -70,6 +70,7 @@ test("parity report prints total lines, gate budget, and SF-5 bonus from the sum
   assert.match(table, /\| Green \/ discrepancies \| 95 \/ 0 \|/)
   assert.match(table, /## Discrepancies/)
   assert.match(table, /None\./)
+  assert.match(table, /Open Parse Review: \/mediaplans\/mba\/create\/ingest\/stg-av1/)
 })
 
 test("JCD review summary totals match staged recon + SF-5 stamp (not a prompt re-sum)", async () => {
@@ -102,6 +103,10 @@ test("JCD review summary totals match staged recon + SF-5 stamp (not a prompt re
   assert.equal(summary.bonus_line_item_count, countedBonus)
   assert.equal(summary.bonus_line_item_count, stampedBonus)
   assert.equal(summary.bonus_line_item_count, 38)
+  assert.equal(
+    summary.full_review_path,
+    "/mediaplans/mba/create/ingest/stg-jcd",
+  )
 
   const audit = reconcileLineAudit(review.proposal!, {
     model: "mock-audit",
@@ -124,4 +129,5 @@ test("JCD review summary totals match staged recon + SF-5 stamp (not a prompt re
   assert.match(table, /Excluded rows:/)
   assert.match(table, /INVESTMENT/i)
   assert.match(table, /×3/)
+  assert.match(table, /Open Parse Review: \/mediaplans\/mba\/create\/ingest\/stg-jcd/)
 })
