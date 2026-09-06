@@ -285,6 +285,10 @@ describe("SplitActionButton", () => {
     expect(trigger?.className).not.toContain("border-0")
     expect(trigger?.className).toContain("rounded-pill")
     expect(trigger?.className).toContain("justify-between")
+    expect(trigger?.className).toContain("hover:translate-y-0")
+    expect(trigger?.className).toContain("hover:shadow-none")
+    expect(trigger?.className).toContain("active:scale-100")
+    expect(trigger?.className).not.toContain("-translate-y-px")
     const chrome = container.querySelector(
       "[class*='overflow-hidden'][class*='shadow-sm']",
     )

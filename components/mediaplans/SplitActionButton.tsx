@@ -158,7 +158,7 @@ export function SplitActionButton({
             title={title}
             className={cn(
               heightClass,
-              "justify-between rounded-pill",
+              "justify-between rounded-pill hover:translate-y-0 hover:shadow-none active:scale-100",
               fullWidth && "w-full",
             )}
           >

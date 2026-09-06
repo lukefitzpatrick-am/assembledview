@@ -2153,32 +2153,32 @@ export default function DashboardOverview({
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <SortableTableHeader label="Client Name" direction={liveCampaignSort.column === "client" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("client", liveCampaignSort, setLiveCampaignSort)} />
-                          <SortableTableHeader label="Campaign Name" direction={liveCampaignSort.column === "campaign" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("campaign", liveCampaignSort, setLiveCampaignSort)} />
-                          <SortableTableHeader label="MBA Number" direction={liveCampaignSort.column === "mba" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("mba", liveCampaignSort, setLiveCampaignSort)} />
-                          <SortableTableHeader label="Start Date" direction={liveCampaignSort.column === "startDate" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("startDate", liveCampaignSort, setLiveCampaignSort)} />
-                          <SortableTableHeader label="End Date" direction={liveCampaignSort.column === "endDate" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("endDate", liveCampaignSort, setLiveCampaignSort)} />
-                          <SortableTableHeader label="Budget" direction={liveCampaignSort.column === "budget" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("budget", liveCampaignSort, setLiveCampaignSort)} />
-                          <SortableTableHeader label="Version" direction={liveCampaignSort.column === "version" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("version", liveCampaignSort, setLiveCampaignSort)} />
-                          <SortableTableHeader label="Status" direction={liveCampaignSort.column === "status" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("status", liveCampaignSort, setLiveCampaignSort)} />
-                          <TableHead>Media Types</TableHead>
+                          <SortableTableHeader label="Client Name" direction={liveCampaignSort.column === "client" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("client", liveCampaignSort, setLiveCampaignSort)} className="w-32" />
+                          <SortableTableHeader label="Campaign Name" direction={liveCampaignSort.column === "campaign" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("campaign", liveCampaignSort, setLiveCampaignSort)} className="w-40" />
+                          <SortableTableHeader label="MBA Number" direction={liveCampaignSort.column === "mba" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("mba", liveCampaignSort, setLiveCampaignSort)} className="w-24" />
+                          <SortableTableHeader label="Start Date" direction={liveCampaignSort.column === "startDate" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("startDate", liveCampaignSort, setLiveCampaignSort)} className="w-24" />
+                          <SortableTableHeader label="End Date" direction={liveCampaignSort.column === "endDate" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("endDate", liveCampaignSort, setLiveCampaignSort)} className="w-24" />
+                          <SortableTableHeader label="Budget" direction={liveCampaignSort.column === "budget" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("budget", liveCampaignSort, setLiveCampaignSort)} className="w-24" />
+                          <SortableTableHeader label="Version" direction={liveCampaignSort.column === "version" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("version", liveCampaignSort, setLiveCampaignSort)} className="w-20" />
+                          <SortableTableHeader label="Status" direction={liveCampaignSort.column === "status" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("status", liveCampaignSort, setLiveCampaignSort)} className="w-24" />
+                          <TableHead className="w-48">Media Types</TableHead>
                           <TableHead className="text-left">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {sortedLiveCampaigns.map((plan) => (
                           <TableRow key={plan.id}>
-                            <TableCell>{plan.mp_clientname}</TableCell>
-                            <TableCell>{plan.mp_campaignname}</TableCell>
-                            <TableCell>{plan.mp_mba_number}</TableCell>
-                            <TableCell>{formatDate(plan.mp_campaigndates_start)}</TableCell>
-                            <TableCell>{formatDate(plan.mp_campaigndates_end)}</TableCell>
-                            <TableCell>{formatCurrency(plan.mp_campaignbudget)}</TableCell>
-                            <TableCell>{plan.mp_version}</TableCell>
-                            <TableCell>
+                            <TableCell className="w-32">{plan.mp_clientname}</TableCell>
+                            <TableCell className="w-40">{plan.mp_campaignname}</TableCell>
+                            <TableCell className="w-24">{plan.mp_mba_number}</TableCell>
+                            <TableCell className="w-24">{formatDate(plan.mp_campaigndates_start)}</TableCell>
+                            <TableCell className="w-24">{formatDate(plan.mp_campaigndates_end)}</TableCell>
+                            <TableCell className="w-24">{formatCurrency(plan.mp_campaignbudget)}</TableCell>
+                            <TableCell className="w-20">{plan.mp_version}</TableCell>
+                            <TableCell className="w-24">
                               <OverviewCampaignPhaseBadge plan={plan} />
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="w-48">
                               <div className={mediaChannelTagRowClassName}>
                                 {getMediaTypeTags(plan)}
                               </div>
@@ -2334,30 +2334,30 @@ export default function DashboardOverview({
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <SortableTableHeader label="Client Name" direction={dueSoonSort.column === "client" ? dueSoonSort.direction : null} onToggle={() => toggleSort("client", dueSoonSort, setDueSoonSort)} />
-                          <SortableTableHeader label="Campaign Name" direction={dueSoonSort.column === "campaign" ? dueSoonSort.direction : null} onToggle={() => toggleSort("campaign", dueSoonSort, setDueSoonSort)} />
-                          <SortableTableHeader label="MBA Number" direction={dueSoonSort.column === "mba" ? dueSoonSort.direction : null} onToggle={() => toggleSort("mba", dueSoonSort, setDueSoonSort)} />
-                          <SortableTableHeader label="Start Date" direction={dueSoonSort.column === "startDate" ? dueSoonSort.direction : null} onToggle={() => toggleSort("startDate", dueSoonSort, setDueSoonSort)} />
-                          <SortableTableHeader label="End Date" direction={dueSoonSort.column === "endDate" ? dueSoonSort.direction : null} onToggle={() => toggleSort("endDate", dueSoonSort, setDueSoonSort)} />
-                          <SortableTableHeader label="Budget" direction={dueSoonSort.column === "budget" ? dueSoonSort.direction : null} onToggle={() => toggleSort("budget", dueSoonSort, setDueSoonSort)} />
-                          <SortableTableHeader label="Status" direction={dueSoonSort.column === "status" ? dueSoonSort.direction : null} onToggle={() => toggleSort("status", dueSoonSort, setDueSoonSort)} />
-                          <TableHead>Media Types</TableHead>
+                          <SortableTableHeader label="Client Name" direction={dueSoonSort.column === "client" ? dueSoonSort.direction : null} onToggle={() => toggleSort("client", dueSoonSort, setDueSoonSort)} className="w-32" />
+                          <SortableTableHeader label="Campaign Name" direction={dueSoonSort.column === "campaign" ? dueSoonSort.direction : null} onToggle={() => toggleSort("campaign", dueSoonSort, setDueSoonSort)} className="w-40" />
+                          <SortableTableHeader label="MBA Number" direction={dueSoonSort.column === "mba" ? dueSoonSort.direction : null} onToggle={() => toggleSort("mba", dueSoonSort, setDueSoonSort)} className="w-24" />
+                          <SortableTableHeader label="Start Date" direction={dueSoonSort.column === "startDate" ? dueSoonSort.direction : null} onToggle={() => toggleSort("startDate", dueSoonSort, setDueSoonSort)} className="w-24" />
+                          <SortableTableHeader label="End Date" direction={dueSoonSort.column === "endDate" ? dueSoonSort.direction : null} onToggle={() => toggleSort("endDate", dueSoonSort, setDueSoonSort)} className="w-24" />
+                          <SortableTableHeader label="Budget" direction={dueSoonSort.column === "budget" ? dueSoonSort.direction : null} onToggle={() => toggleSort("budget", dueSoonSort, setDueSoonSort)} className="w-24" />
+                          <SortableTableHeader label="Status" direction={dueSoonSort.column === "status" ? dueSoonSort.direction : null} onToggle={() => toggleSort("status", dueSoonSort, setDueSoonSort)} className="w-24" />
+                          <TableHead className="w-48">Media Types</TableHead>
                           <TableHead className="text-left">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {sortedDueSoon.map((plan) => (
                           <TableRow key={plan.id}>
-                            <TableCell>{plan.mp_clientname}</TableCell>
-                            <TableCell>{plan.mp_campaignname}</TableCell>
-                            <TableCell>{plan.mp_mba_number}</TableCell>
-                            <TableCell>{formatDate(plan.mp_campaigndates_start)}</TableCell>
-                            <TableCell>{formatDate(plan.mp_campaigndates_end)}</TableCell>
-                            <TableCell>{formatCurrency(plan.mp_campaignbudget)}</TableCell>
-                            <TableCell>
+                            <TableCell className="w-32">{plan.mp_clientname}</TableCell>
+                            <TableCell className="w-40">{plan.mp_campaignname}</TableCell>
+                            <TableCell className="w-24">{plan.mp_mba_number}</TableCell>
+                            <TableCell className="w-24">{formatDate(plan.mp_campaigndates_start)}</TableCell>
+                            <TableCell className="w-24">{formatDate(plan.mp_campaigndates_end)}</TableCell>
+                            <TableCell className="w-24">{formatCurrency(plan.mp_campaignbudget)}</TableCell>
+                            <TableCell className="w-24">
                               <OverviewCampaignPhaseBadge plan={plan} />
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="w-48">
                               <div className={mediaChannelTagRowClassName}>
                                 {getMediaTypeTags(plan)}
                               </div>
@@ -2426,30 +2426,30 @@ export default function DashboardOverview({
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <SortableTableHeader label="Client Name" direction={finishedSort.column === "client" ? finishedSort.direction : null} onToggle={() => toggleSort("client", finishedSort, setFinishedSort)} />
-                          <SortableTableHeader label="Campaign Name" direction={finishedSort.column === "campaign" ? finishedSort.direction : null} onToggle={() => toggleSort("campaign", finishedSort, setFinishedSort)} />
-                          <SortableTableHeader label="MBA Number" direction={finishedSort.column === "mba" ? finishedSort.direction : null} onToggle={() => toggleSort("mba", finishedSort, setFinishedSort)} />
-                          <SortableTableHeader label="Start Date" direction={finishedSort.column === "startDate" ? finishedSort.direction : null} onToggle={() => toggleSort("startDate", finishedSort, setFinishedSort)} />
-                          <SortableTableHeader label="End Date" direction={finishedSort.column === "endDate" ? finishedSort.direction : null} onToggle={() => toggleSort("endDate", finishedSort, setFinishedSort)} />
-                          <SortableTableHeader label="Budget" direction={finishedSort.column === "budget" ? finishedSort.direction : null} onToggle={() => toggleSort("budget", finishedSort, setFinishedSort)} />
-                          <SortableTableHeader label="Status" direction={finishedSort.column === "status" ? finishedSort.direction : null} onToggle={() => toggleSort("status", finishedSort, setFinishedSort)} />
-                          <TableHead>Media Types</TableHead>
+                          <SortableTableHeader label="Client Name" direction={finishedSort.column === "client" ? finishedSort.direction : null} onToggle={() => toggleSort("client", finishedSort, setFinishedSort)} className="w-32" />
+                          <SortableTableHeader label="Campaign Name" direction={finishedSort.column === "campaign" ? finishedSort.direction : null} onToggle={() => toggleSort("campaign", finishedSort, setFinishedSort)} className="w-40" />
+                          <SortableTableHeader label="MBA Number" direction={finishedSort.column === "mba" ? finishedSort.direction : null} onToggle={() => toggleSort("mba", finishedSort, setFinishedSort)} className="w-24" />
+                          <SortableTableHeader label="Start Date" direction={finishedSort.column === "startDate" ? finishedSort.direction : null} onToggle={() => toggleSort("startDate", finishedSort, setFinishedSort)} className="w-24" />
+                          <SortableTableHeader label="End Date" direction={finishedSort.column === "endDate" ? finishedSort.direction : null} onToggle={() => toggleSort("endDate", finishedSort, setFinishedSort)} className="w-24" />
+                          <SortableTableHeader label="Budget" direction={finishedSort.column === "budget" ? finishedSort.direction : null} onToggle={() => toggleSort("budget", finishedSort, setFinishedSort)} className="w-24" />
+                          <SortableTableHeader label="Status" direction={finishedSort.column === "status" ? finishedSort.direction : null} onToggle={() => toggleSort("status", finishedSort, setFinishedSort)} className="w-24" />
+                          <TableHead className="w-48">Media Types</TableHead>
                           <TableHead className="text-left">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {sortedFinished.map((plan) => (
                           <TableRow key={plan.id}>
-                            <TableCell>{plan.mp_clientname}</TableCell>
-                            <TableCell>{plan.mp_campaignname}</TableCell>
-                            <TableCell>{plan.mp_mba_number}</TableCell>
-                            <TableCell>{formatDate(plan.mp_campaigndates_start)}</TableCell>
-                            <TableCell>{formatDate(plan.mp_campaigndates_end)}</TableCell>
-                            <TableCell>{formatCurrency(plan.mp_campaignbudget)}</TableCell>
-                            <TableCell>
+                            <TableCell className="w-32">{plan.mp_clientname}</TableCell>
+                            <TableCell className="w-40">{plan.mp_campaignname}</TableCell>
+                            <TableCell className="w-24">{plan.mp_mba_number}</TableCell>
+                            <TableCell className="w-24">{formatDate(plan.mp_campaigndates_start)}</TableCell>
+                            <TableCell className="w-24">{formatDate(plan.mp_campaigndates_end)}</TableCell>
+                            <TableCell className="w-24">{formatCurrency(plan.mp_campaignbudget)}</TableCell>
+                            <TableCell className="w-24">
                               <OverviewCampaignPhaseBadge plan={plan} />
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="w-48">
                               <div className={mediaChannelTagRowClassName}>
                                 {getMediaTypeTags(plan)}
                               </div>
