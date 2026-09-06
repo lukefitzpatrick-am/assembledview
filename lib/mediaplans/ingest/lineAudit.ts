@@ -73,6 +73,7 @@ export type LineAuditDiscrepancyField =
   | "money"
   | "dates"
   | "format"
+  | "buy_type"
   | "invariant"
 
 export type LineAuditDiscrepancy = {

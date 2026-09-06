@@ -89,7 +89,7 @@ erDiagram
 | `publisher_specs` / `spec_runs` | 20 / 0 | Material specs and deadline days. Joined on `publishers.id`, never on display name |
 | `spec_deadline_overrides` | 0 | Explicit manual deadline override: who, when, value |
 | `publisher_domains` | 1 | Learned on manual Fireflies assign. **Never seed vendor domains** |
-| `ingest_stages` → `ingest_runs` → `ingest_eval_runs` | 0 / 0 / 0 (0067 not applied) | Staged review package (uuid `stage_id`, `expires_at` NULL = retained), accepted-run history, then weekly parser-accuracy rows (one per publisher). Original xlsx is not stored. Do not SELECT `ingest_eval_runs` until 0067 is applied (C-76) |
+| `ingest_stages` → `ingest_runs` → `ingest_eval_runs` | 0 / 0 / 0 (0067 not applied) | Staged review package (uuid `stage_id`, `expires_at` NULL = retained; `review_package` jsonb includes nested `line_audit` + `parse_review`), accepted-run history, then weekly parser-accuracy rows (one per publisher). Original xlsx is not stored. Do not SELECT `ingest_eval_runs` until 0067 is applied (C-76) |
 | `line_item_panels` / `line_item_panel_flights` | 0 / 0 | OOH panel and pack detail + per-period presence. **No money columns** — spend stays on the burst. `buy_granularity` panel (1:1) or pack (1:N). Partial unique `(line_item_id, source_row_ref) WHERE source_row_ref IS NOT NULL` (`0055` applied) |
 
 ## Media reference (dropdown data)

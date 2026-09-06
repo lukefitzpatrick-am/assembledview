@@ -25,6 +25,7 @@ import {
   reconcileLineAudit,
   recordDiscrepancyResolution,
 } from "@/lib/mediaplans/ingest/lineAuditReconcile"
+import { confirmAllGreen } from "@/lib/mediaplans/ingest/parseReview"
 import { loadIngestIntoFormTool } from "../loadIngestIntoForm.js"
 import { avaToolDefinitionsForPage } from "../pageToolOffer.js"
 import type { AvaToolContext } from "../types.js"
@@ -121,6 +122,13 @@ function withoutUnresolved(
       unresolved_controlled: [],
     },
   }
+}
+
+function readyForLoad(review: IngestReviewPackage): IngestReviewPackage {
+  return confirmAllGreen({
+    review: withoutUnresolved(review),
+    by: "ava@assembledmedia.com.au",
+  })
 }
 
 async function stageQms(
@@ -268,7 +276,7 @@ test("loadIngestIntoForm refuses when an unresolved value is outstanding and nam
 })
 
 test("clean file loads into the form as it does now", async () => {
-  const { stageId } = await stageQms(withoutUnresolved)
+  const { stageId } = await stageQms(readyForLoad)
   const c = ctx({ pendingIngest: { stageId, fileName: QMS } })
   const ok = await loadIngestIntoFormTool.execute({ confirm: true }, c)
   assert.equal(ok.isError, false)
@@ -288,7 +296,7 @@ test("clean file loads into the form as it does now", async () => {
 })
 
 test("load says the channel will be switched on when enabledMediaTypes omits it", async () => {
-  const { stageId } = await stageQms(withoutUnresolved)
+  const { stageId } = await stageQms(readyForLoad)
   const c = ctx({
     pendingIngest: { stageId, fileName: QMS },
     enabledMediaTypes: ["radio", "bvod", "socialMedia"],
@@ -305,7 +313,7 @@ test("load says the channel will be switched on when enabledMediaTypes omits it"
 })
 
 test("load does not say switched on when the channel is already enabled", async () => {
-  const { stageId } = await stageQms(withoutUnresolved)
+  const { stageId } = await stageQms(readyForLoad)
   const c = ctx({
     pendingIngest: { stageId, fileName: QMS },
     enabledMediaTypes: ["ooh", "radio"],
@@ -319,7 +327,7 @@ test("load does not say switched on when the channel is already enabled", async 
 })
 
 test("client/MBA mismatch does not block load", async () => {
-  const { stageId } = await stageQms(withoutUnresolved)
+  const { stageId } = await stageQms(readyForLoad)
   const c = ctx({
     pendingIngest: { stageId, fileName: QMS },
     mbaNumber: "glenda008",
@@ -352,7 +360,7 @@ test("retry after remap succeeds", async () => {
 
   await patchIngestStageReview(
     stageId,
-    withoutUnresolved(rematchRequired(review, ["media_money"])),
+    readyForLoad(rematchRequired(review, ["media_money"])),
   )
   const retry = ctx({ pendingIngest: { stageId, fileName: QMS } })
   const ok = await loadIngestIntoFormTool.execute({ confirm: true }, retry)
@@ -405,10 +413,13 @@ test("load refuses while a line-audit discrepancy is open, then proceeds after P
   const firstRef = review.proposal!.line_items[0]?.panels[0]?.source_row_ref ?? ""
   const row = Number(/r(\d+)$/.exec(firstRef)?.[1])
   assert.ok(Number.isInteger(row) && row > 0)
-  const resolved = recordDiscrepancyResolution({
-    review,
-    row,
-    answer: PARSER_RESOLUTION_LABEL,
+  const resolved = confirmAllGreen({
+    review: recordDiscrepancyResolution({
+      review,
+      row,
+      answer: PARSER_RESOLUTION_LABEL,
+      by: "ava@assembledmedia.com.au",
+    }),
     by: "ava@assembledmedia.com.au",
   })
   await patchIngestStageReview(stageId, resolved)

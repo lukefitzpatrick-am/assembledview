@@ -22,6 +22,7 @@ import {
 } from "../ingestStageStore"
 import { loadSeedPublisherProfiles } from "../loadPublisherProfiles"
 import { summariseIngestReview } from "../summariseIngestReview"
+import { confirmAllGreen } from "../parseReview"
 import type { IngestReviewPackage } from "../buildIngestReview"
 
 const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
@@ -37,6 +38,13 @@ function withoutUnresolved(review: IngestReviewPackage): IngestReviewPackage {
       unresolved_controlled: [],
     },
   }
+}
+
+function readyForLoad(review: IngestReviewPackage): IngestReviewPackage {
+  return confirmAllGreen({
+    review: withoutUnresolved(review),
+    by: "ava@assembledmedia.com.au",
+  })
 }
 
 function stubReview(
@@ -189,7 +197,7 @@ test("accepted stage is retained with master and version linkage", async () => {
     { skipAva: true },
   )
   const stageId = await putIngestStage({
-    review: withoutUnresolved(hub),
+    review: readyForLoad(hub),
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
   })
@@ -305,7 +313,7 @@ test("sweep deletes expired non-retained rows and keeps retained", async () => {
     { skipAva: true },
   )
   const kept = await putIngestStage({
-    review: withoutUnresolved(hub),
+    review: readyForLoad(hub),
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
   })

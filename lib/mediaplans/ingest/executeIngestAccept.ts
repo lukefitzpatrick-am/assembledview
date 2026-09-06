@@ -26,9 +26,8 @@ import {
   UNCONFIRMED_PROFILE_REFUSE_MESSAGE,
 } from "@/lib/mediaplans/ingest/proposePublisherProfile"
 import {
-  discrepancyLoadRefuseMessage,
-  unresolvedDiscrepancyRows,
-} from "@/lib/mediaplans/ingest/lineAuditReconcile"
+  parseReviewLoadGate,
+} from "@/lib/mediaplans/ingest/parseReview"
 import type { IngestProposal } from "@/lib/mediaplans/ingest/proposeLineItems"
 import type { FeeLoading } from "@/lib/finance/campaignFinancials.types"
 
@@ -224,9 +223,9 @@ export async function executeIngestAccept(
   }
 
   if (review) {
-    const openDiscrepancies = unresolvedDiscrepancyRows(review.line_audit)
-    if (openDiscrepancies.length > 0) {
-      const error = discrepancyLoadRefuseMessage(openDiscrepancies.length)
+    const parseGate = parseReviewLoadGate(review)
+    if (!parseGate.ok) {
+      const error = parseGate.reason
       await recordRun({
         ...baseRun,
         outcome: "blocked",

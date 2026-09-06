@@ -100,12 +100,60 @@ export const INVARIANT_RULES = [
   "bursts_inside_runs",
   "one_section_per_line",
   "format_from_section",
+  "campaign_window",
 ] as const
 
 export type InvariantRule = (typeof INVARIANT_RULES)[number]
 
+export type CampaignWindow = {
+  start: string
+  end: string
+}
+
+function buyKindFromStatus(status: string): "bonus" | "paid" | "other" {
+  if (isBonusStatus(status)) return "bonus"
+  if (isPaidStatus(status)) return "paid"
+  return "other"
+}
+
+function parserBuyKind(item: ProposedLineItem): "bonus" | "paid" | "mixed" {
+  const kinds = new Set(
+    item.bursts.map((b) => buyKindFromStatus(b.booking_status)).filter(
+      (k) => k === "bonus" || k === "paid",
+    ),
+  )
+  if (kinds.has("bonus") && kinds.has("paid")) return "mixed"
+  if (kinds.has("bonus") && kinds.size === 1) return "bonus"
+  return "paid"
+}
+
+function auditBuyKind(
+  auditRow: LineAuditRow | null,
+): "bonus" | "paid" | "mixed" | null {
+  if (!auditRow || auditRow.status_runs.length === 0) return null
+  const kinds = new Set(
+    auditRow.status_runs
+      .map((r) => buyKindFromStatus(r.status))
+      .filter((k) => k === "bonus" || k === "paid"),
+  )
+  if (kinds.size === 0) return null
+  if (kinds.has("bonus") && kinds.has("paid")) return "mixed"
+  if (kinds.has("bonus") && kinds.size === 1) return "bonus"
+  return "paid"
+}
+
+function inCampaignWindow(
+  from: string | null | undefined,
+  to: string | null | undefined,
+  window: CampaignWindow,
+): boolean {
+  if (!from || !to) return true
+  return from >= window.start && to <= window.end
+}
+
 export function invariantBreachesForLine(
   item: ProposedLineItem,
+  campaignWindow?: CampaignWindow | null,
 ): Array<{ rule: InvariantRule; detail: string }> {
   const breaches: Array<{ rule: InvariantRule; detail: string }> = []
   for (const burst of item.bursts) {
@@ -183,6 +231,17 @@ export function invariantBreachesForLine(
     })
   }
 
+  if (campaignWindow?.start && campaignWindow?.end) {
+    for (const burst of item.bursts) {
+      if (!inCampaignWindow(burst.start_date, burst.end_date, campaignWindow)) {
+        breaches.push({
+          rule: "campaign_window",
+          detail: `burst ${burst.start_date}–${burst.end_date} sits outside campaign ${campaignWindow.start}–${campaignWindow.end}`,
+        })
+      }
+    }
+  }
+
   return breaches
 }
 
@@ -200,6 +259,7 @@ function push(
 export function reconcileLineAudit(
   proposal: IngestProposal,
   audit: LineAudit,
+  opts?: { campaignWindow?: CampaignWindow | null },
 ): LineAudit {
   const auditByRow = new Map(audit.rows.map((r) => [r.row, r]))
   const discrepancies: LineAuditDiscrepancy[] = []
@@ -263,9 +323,21 @@ export function reconcileLineAudit(
           cells: cellsFor(auditRow),
         })
       }
+      const parserKind = parserBuyKind(item)
+      const auditKind = auditBuyKind(auditRow)
+      if (auditKind != null && parserKind !== auditKind) {
+        rowDiscrepancies.push({
+          source_row_ref: ref,
+          row,
+          field: "buy_type",
+          parser: { kind: parserKind },
+          audit: { kind: auditKind, status_runs: auditRow.status_runs },
+          cells: cellsFor(auditRow),
+        })
+      }
     }
 
-    for (const breach of invariantBreachesForLine(item)) {
+    for (const breach of invariantBreachesForLine(item, opts?.campaignWindow)) {
       rowDiscrepancies.push({
         source_row_ref: ref,
         row,
@@ -340,6 +412,8 @@ export function formatDiscrepancyCardText(args: {
   }
   if (dates) bits.push("Parser and audit disagree on dates.")
   if (format) bits.push("Parser and audit disagree on format.")
+  const buyType = args.items.find((d) => d.field === "buy_type")
+  if (buyType) bits.push("Parser and audit disagree on buy type.")
   for (const inv of invariant) {
     bits.push(`Invariant ${inv.rule ?? "breach"}.`)
   }

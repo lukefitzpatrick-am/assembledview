@@ -10,10 +10,7 @@ import { ingestReviewToFormLineItems } from "@/lib/mediaplans/ingest/toFormLineI
 import { evaluateRequiredFieldGate } from "@/lib/mediaplans/ingest/templateCoverage"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 import type { IngestProposal } from "@/lib/mediaplans/ingest/proposeLineItems"
-import {
-  discrepancyLoadRefuseMessage,
-  unresolvedDiscrepancyRows,
-} from "@/lib/mediaplans/ingest/lineAuditReconcile"
+import { parseReviewLoadGate } from "@/lib/mediaplans/ingest/parseReview"
 import {
   hasUnconfirmedProposedProfile,
   UNCONFIRMED_PROFILE_REFUSE_MESSAGE,
@@ -67,7 +64,7 @@ export const loadIngestIntoFormTool: AvaTool = {
   definition: {
     name: "load_ingest_into_form",
     description:
-      "Loads the staged publisher schedule into the create/edit form for human review. Writes nothing. Requires an explicit user confirm first — do not call until the user confirms. Refuses when the money total is outside the 0.5% gate, a required template field has no source column, a sourced controlled value is still unanswered, or a line-audit discrepancy is unresolved.",
+      "Loads the staged publisher schedule into the create/edit form for human review. Writes nothing. Requires an explicit user confirm first — do not call until the user confirms. Refuses when the money total is outside the 0.5% gate, a required template field has no source column, a sourced controlled value is still unanswered, a line-audit discrepancy is unresolved, or any proposed row is not confirmed or excluded.",
     input_schema: {
       type: "object",
       properties: {
@@ -150,14 +147,6 @@ export const loadIngestIntoFormTool: AvaTool = {
       }
     }
 
-    const openDiscrepancies = unresolvedDiscrepancyRows(review.line_audit)
-    if (openDiscrepancies.length > 0) {
-      return {
-        content: discrepancyLoadRefuseMessage(openDiscrepancies.length),
-        isError: true,
-      }
-    }
-
     const gate = evaluateRequiredFieldGate(
       review.template_coverage ?? { required: [], waivers: [] },
     )
@@ -171,6 +160,14 @@ export const loadIngestIntoFormTool: AvaTool = {
       const named = gate.missing.join(", ")
       return {
         content: `These fields have no source column, so the schedule wasn't loaded: ${named}. Answer the mapping cards and I'll load it.`,
+        isError: true,
+      }
+    }
+
+    const parseGate = parseReviewLoadGate(review)
+    if (!parseGate.ok) {
+      return {
+        content: parseGate.reason,
         isError: true,
       }
     }

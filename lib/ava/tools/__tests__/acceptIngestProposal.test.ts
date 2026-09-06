@@ -16,6 +16,7 @@ import { clearIngestRunOverlayForTests } from "@/lib/mediaplans/ingest/ingestRun
 import { setExecuteIngestAcceptDepsForTests } from "@/lib/mediaplans/ingest/executeIngestAccept"
 import { clearPublisherProfileSeedOverlayForTests } from "@/lib/mediaplans/ingest/persistColumnRemap"
 import { summariseIngestReview } from "@/lib/mediaplans/ingest/summariseIngestReview"
+import { confirmAllGreen } from "@/lib/mediaplans/ingest/parseReview"
 import { listOpenIngestReviewQuestions } from "@/lib/mediaplans/ingest/ingestReviewQuestions"
 import type { AvaColumnMappingProposal } from "@/lib/mediaplans/ingest/avaColumnMapping"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
@@ -91,6 +92,13 @@ function withoutUnresolved(review: IngestReviewPackage): IngestReviewPackage {
       unresolved_controlled: [],
     },
   }
+}
+
+function readyForLoad(review: IngestReviewPackage): IngestReviewPackage {
+  return confirmAllGreen({
+    review: withoutUnresolved(review),
+    by: "ava@assembledmedia.com.au",
+  })
 }
 
 test("get_pending_ingest_review confirmed block is markdown from the staged package, never invented", async () => {
@@ -419,7 +427,7 @@ test("accept_ingest_proposal confirm with page MBA accepts via shared engine", a
     { skipAva: true },
   )
   const stageId = await putIngestStage({
-    review: withoutUnresolved(hub),
+    review: readyForLoad(hub),
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
   })

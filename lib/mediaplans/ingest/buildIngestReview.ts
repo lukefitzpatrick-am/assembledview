@@ -34,6 +34,7 @@ import {
   type TemplateCoverage,
 } from "@/lib/mediaplans/ingest/templateCoverage"
 import type { LineAudit } from "@/lib/mediaplans/ingest/lineAudit"
+import type { ParseReviewState } from "@/lib/mediaplans/ingest/parseReview"
 import {
   proposePublisherProfileFromShapes,
   type ProposedPublisherProfile,
@@ -117,6 +118,11 @@ export type IngestReviewPackage = {
    * INGEST_AUDIT=off, or tests without a client).
    */
   line_audit?: LineAudit
+  /**
+   * Per-row Parse Review decisions (IG-11). Nested jsonb on the staged
+   * package — reload and hand-over share the same overlay. No new column.
+   */
+  parse_review?: ParseReviewState
   /**
    * Model-proposed profile for an unmatched file. `confirmed: false` until
    * the planner accepts field-by-field — never used as `profile` for load.

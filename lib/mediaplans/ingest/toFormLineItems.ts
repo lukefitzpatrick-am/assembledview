@@ -8,6 +8,8 @@ import type { SavePlanLineItem } from "@/lib/data/savePlan"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 import { uniqueTrimmedRefs } from "@/lib/mediaplans/ingest/ingestSourceRowRefs"
 import { hasUnconfirmedProposedProfile } from "@/lib/mediaplans/ingest/proposePublisherProfile"
+import { excludedProposedRows } from "@/lib/mediaplans/ingest/parseReview"
+import { sourceRowNumber } from "@/lib/mediaplans/ingest/lineAudit"
 import {
   stampProposalForSave,
   type IngestPanelRow,
@@ -25,8 +27,20 @@ export function ingestReviewToFormLineItems(
     return { channel, items: [], skipped }
   }
 
+  const excluded = new Set(excludedProposedRows(review))
+  const proposal =
+    excluded.size === 0
+      ? review.proposal
+      : {
+          ...review.proposal,
+          line_items: review.proposal.line_items.filter((item) => {
+            const row = sourceRowNumber(item.panels[0]?.source_row_ref)
+            return row == null || !excluded.has(row)
+          }),
+        }
+
   const { lineItems, panels } = stampProposalForSave(
-    review.proposal,
+    proposal,
     FORM_STAMP_MBA,
     review.template_coverage?.resolved_controlled,
   )

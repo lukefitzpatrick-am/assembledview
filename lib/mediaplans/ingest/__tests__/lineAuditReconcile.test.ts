@@ -30,6 +30,7 @@ import {
 } from "../ingestStageStore"
 import { loadIngestIntoFormTool } from "@/lib/ava/tools/loadIngestIntoForm"
 import type { AvaToolContext } from "@/lib/ava/tools/types"
+import { confirmAllGreen } from "../parseReview"
 
 const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
 const JCD = path.join(FIX, "jcd_strength-meals_ooh.xlsx")
@@ -347,10 +348,13 @@ test("load refuses r62 until the discrepancy is resolved, then proceeds", async 
   assert.match(refused.content, /1 line discrepancy is still open/)
   assert.equal(refused.content, discrepancyLoadRefuseMessage(1))
 
-  const resolved = recordDiscrepancyResolution({
-    review: dirty,
-    row: 62,
-    answer: PARSER_RESOLUTION_LABEL,
+  const resolved = confirmAllGreen({
+    review: recordDiscrepancyResolution({
+      review: dirty,
+      row: 62,
+      answer: PARSER_RESOLUTION_LABEL,
+      by: "ava@assembledmedia.com.au",
+    }),
     by: "ava@assembledmedia.com.au",
   })
   assert.equal(resolved.line_audit?.resolutions?.[discrepancyQuestionId(62)]?.choice, "parser")
