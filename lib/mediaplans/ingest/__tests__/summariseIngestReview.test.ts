@@ -31,8 +31,8 @@ function fixtureSummary(over: Partial<IngestChatSummary> = {}): IngestChatSummar
     detected_publisher: "JCDecaux",
     publisher_confidence: 0.94,
     media_type: "ooh",
-    line_item_count: 106,
-    panel_count: 106,
+    line_item_count: 95,
+    panel_count: 95,
     burst_count: 12,
     required_coverage: 1,
     money_delta: 0,
@@ -54,9 +54,9 @@ function fixtureSummary(over: Partial<IngestChatSummary> = {}): IngestChatSummar
 
 test("confirmed block prints total lines, gate budget, and SF-5 bonus from the summary", () => {
   const table = formatIngestConfirmedBlock(fixtureSummary())
-  assert.match(table, /\| Total line items \| 106 \|/)
+  assert.match(table, /\| Total line items \| 95 \|/)
   assert.match(table, /\| Total budget \| \$311,707\.88 \|/)
-  assert.match(table, /\| Bonus line items \| 38 \(of 106\) \|/)
+  assert.match(table, /\| Bonus line items \| 38 \(of 95\) \|/)
 })
 
 test("JCD review summary totals match staged recon + SF-5 stamp (not a prompt re-sum)", async () => {
@@ -83,7 +83,7 @@ test("JCD review summary totals match staged recon + SF-5 stamp (not a prompt re
   )
 
   assert.equal(summary.line_item_count, recon.line_item_count)
-  assert.equal(summary.line_item_count, 106)
+  assert.equal(summary.line_item_count, 95)
   assert.equal(summary.file_stated_total, recon.file_stated_total)
   assert.ok(Math.abs((summary.file_stated_total ?? 0) - JCD_STATED) < 0.005)
   assert.equal(summary.bonus_line_item_count, countedBonus)
@@ -91,7 +91,10 @@ test("JCD review summary totals match staged recon + SF-5 stamp (not a prompt re
   assert.equal(summary.bonus_line_item_count, 38)
 
   const table = formatIngestConfirmedBlock(summary)
-  assert.match(table, /\| Total line items \| 106 \|/)
+  assert.match(table, /\| Total line items \| 95 \|/)
   assert.match(table, /\| Total budget \| \$311,707\.88 \|/)
-  assert.match(table, /\| Bonus line items \| 38 \(of 106\) \|/)
+  assert.match(table, /\| Bonus line items \| 38 \(of 95\) \|/)
+  assert.match(table, /Excluded rows:/)
+  assert.match(table, /INVESTMENT/i)
+  assert.match(table, /×3/)
 })

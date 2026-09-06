@@ -392,6 +392,64 @@ function buildStatusRunsForRow(
   return runs
 }
 
+const PANEL_IDENTITY_FIELDS = new Set(["site_number", "panel_name"])
+
+/** Same title copied across many descriptor cells is a banner, not a buy id. */
+const BANNER_DESCRIPTOR_COPIES = 3
+
+function descriptorCopyCount(
+  shape: DetectedSheetShape,
+  row: number,
+  value: string,
+): number {
+  let n = 0
+  for (const d of shape.descriptor_columns) {
+    if ((shape.matrix[row]?.[d.col] ?? "").trim() === value) n++
+  }
+  return n
+}
+
+function rowHasPanelOrGroupingIdentity(
+  profile: PublisherProfileConfig,
+  shape: DetectedSheetShape,
+  row: number,
+): boolean {
+  const { mapped } = buildHeaderLookup(profile, shape)
+  const identityCanons = new Set([
+    ...profile.grouping_keys,
+    ...PANEL_IDENTITY_FIELDS,
+  ])
+  for (const d of shape.descriptor_columns) {
+    const canon = mapped.get(d.col)
+    if (!canon || !identityCanons.has(canon)) continue
+    const val = (shape.matrix[row]?.[d.col] ?? "").trim()
+    if (!val) continue
+    if (descriptorCopyCount(shape, row, val) >= BANNER_DESCRIPTOR_COPIES) {
+      continue
+    }
+    return true
+  }
+  return false
+}
+
+/**
+ * Narrow occupancy `data_rows` to buy rows: keep only (a) panel/grouping
+ * identity on the row itself, or (b) at least one grid cell that
+ * `buildStatusRunsForRow` would treat as a booked legend status.
+ * Mutates `shape.data_rows` so unparsed labelling sees the leftovers.
+ */
+export function retainBuyDataRows(
+  shape: DetectedSheetShape,
+  profile: PublisherProfileConfig,
+): void {
+  if (shape.grid_columns.length === 0) return
+  shape.data_rows = shape.data_rows.filter(
+    (row) =>
+      rowHasPanelOrGroupingIdentity(profile, shape, row) ||
+      buildStatusRunsForRow(profile, shape, row).length > 0,
+  )
+}
+
 function allocateMediaToBursts(
   runs: StatusRun[],
   profile: PublisherProfileConfig,
@@ -592,6 +650,7 @@ export function proposeLineItemsFromSheet(
   shape: DetectedSheetShape,
   profile: PublisherProfileConfig,
 ): IngestProposal {
+  retainBuyDataRows(shape, profile)
   const stackFields =
     profile.media_type === "radio"
       ? ["market", "network", "station"]

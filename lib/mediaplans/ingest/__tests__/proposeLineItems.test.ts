@@ -13,6 +13,7 @@ import {
 import {
   buildBurstsFromCellsForTest,
   proposeLineItemsFromSheet,
+  retainBuyDataRows,
   type IngestProposal,
 } from "../proposeLineItems"
 
@@ -149,7 +150,7 @@ test("SCA fixture: one line per station row; week-columns become that line's bur
   console.log("SCA reconciliation", JSON.stringify(proposal.reconciliation))
 })
 
-test("JCDecaux fixture: one line per buy row with flight occupancy (106; 118 was data_rows including MEDIA VALUE/SUMMARY leftovers)", async () => {
+test("JCDecaux fixture: one line per buy row with identity or legend status (95; 106 was occupancy including INVESTMENT/SUMMARY leftovers)", async () => {
   const jcd = loadProfile("JCDecaux")
   assert.equal(jcd.line_granularity, "per_row")
   const shapes = await detectWorkbookShapesFromFile(
@@ -157,14 +158,16 @@ test("JCDecaux fixture: one line per buy row with flight occupancy (106; 118 was
   )
   const sheet = shapes[0]
   assert.ok(sheet)
-  // 118 was detectShape's old count (buy rows + MEDIA VALUE / DISCOUNT /
-  // CAMPAIGN SUMMARY). Non-buy rows are never lines.
+  // Occupancy still includes subtotal/summary rows whose grid cells are
+  // money or "Lunar N", not legend statuses.
   assert.equal(sheet!.data_rows.length, 106)
+  retainBuyDataRows(sheet!, jcd)
+  assert.equal(sheet!.data_rows.length, 95)
 
   const proposal = proposeLineItemsFromSheet(sheet!, jcd)
   assertNoLineItemId(proposal)
-  assert.equal(proposal.reconciliation.line_item_count, 106)
-  assert.equal(proposal.reconciliation.panel_count, 106)
+  assert.equal(proposal.reconciliation.line_item_count, 95)
+  assert.equal(proposal.reconciliation.panel_count, 95)
   assert.equal(proposal.reconciliation.accept_ok, true)
   assert.ok(
     Math.abs((proposal.reconciliation.file_stated_total ?? 0) - 311707.88) < 1,

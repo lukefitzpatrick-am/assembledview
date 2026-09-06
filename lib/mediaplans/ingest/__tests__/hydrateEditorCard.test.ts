@@ -109,13 +109,13 @@ test("hydrateOohEditorLine with an unresolvable buy type returns null and carrie
   assert.equal(card.attrs?.buyType_unresolved_raw, "zzzz-not-a-buy-type")
 })
 
-test("JCD accept→editor: 106 buy-row lines (not the old 118 data_rows incl. totals), each card from its own row, money sums to file total", async () => {
+test("JCD accept→editor: 95 buy-row lines (not occupancy subtotals), each card from its own row, money sums to file total", async () => {
   const { review, stamped } = await stampFixture(
     "jcd_strength-meals_ooh.xlsx",
     "glenda0090h1",
   )
-  assert.equal(stamped.lineItems.length, 106)
-  assert.equal(stamped.panels.length, 106)
+  assert.equal(stamped.lineItems.length, 95)
+  assert.equal(stamped.panels.length, 95)
   const stated = review.proposal!.reconciliation.file_stated_total ?? 0
   assert.ok(Math.abs(stated - 311707.88) < 1)
 
@@ -158,11 +158,18 @@ test("JCD accept→editor: 106 buy-row lines (not the old 118 data_rows incl. to
         "fixed_cost",
         `JCD[${i}]: buyType ${card.buyType}`,
       )
+      assert.ok(money > 0, `JCD[${i}]: fixed line must have money`)
     }
     moneySum += money
     if (money > 0) paidCards++
   }
-  assert.ok(paidCards > 0, "expected paid rows with money")
+  const bonusCount = stamped.lineItems.filter((l) => l.buyType === "bonus").length
+  const fixedCount = stamped.lineItems.filter(
+    (l) => l.buyType === "fixed_cost",
+  ).length
+  assert.equal(bonusCount, 38)
+  assert.equal(fixedCount, 57)
+  assert.equal(paidCards, 57, "expected 57 fixed rows with money")
   assert.ok(
     Math.abs(moneySum - stated) / stated <= 0.005,
     `hydrated money ${moneySum} vs file ${stated}`,
@@ -170,8 +177,8 @@ test("JCD accept→editor: 106 buy-row lines (not the old 118 data_rows incl. to
   // Per-row identity is sourceRowRef, not site+format+market. JCD repeats
   // the same site on separate buy rows (different flights); collapsing those
   // would be the old grouped model. Duplicate descriptors are expected.
-  assert.equal(sourceRows.size, 106)
-  assert.equal(lineIds.size, 106)
+  assert.equal(sourceRows.size, 95)
+  assert.equal(lineIds.size, 95)
 })
 
 test("QMS accept→editor: 41 lines (supersedes grouped 3-of-41), each card from its own row", async () => {

@@ -159,8 +159,8 @@ export function labelUnparsedRows(shape: DetectedSheetShape): {
   const grouped = new Set(shape.grouping_rows)
   const data = new Set(shape.data_rows)
   const descCols = shape.descriptor_columns.map((d) => d.col)
-  const labels: string[] = []
-  const seen = new Set<string>()
+  const order: string[] = []
+  const counts = new Map<string, { label: string; count: number }>()
   let rowCount = 0
   for (let r = shape.header_row + 1; r < shape.matrix.length; r++) {
     if (grouped.has(r) || data.has(r)) continue
@@ -177,11 +177,20 @@ export function labelUnparsedRows(shape: DetectedSheetShape): {
     rowCount++
     const label = firstLetterCell(row, descCols)
     if (!label) continue
-    const key = label.replace(/\s+/g, " ").trim().toUpperCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    labels.push(label.replace(/\s+/g, " ").trim())
+    const trimmed = label.replace(/\s+/g, " ").trim()
+    const key = trimmed.toUpperCase()
+    const prev = counts.get(key)
+    if (prev) {
+      prev.count++
+      continue
+    }
+    counts.set(key, { label: trimmed, count: 1 })
+    order.push(key)
   }
+  const labels = order.map((key) => {
+    const entry = counts.get(key)!
+    return entry.count > 1 ? `${entry.label} ×${entry.count}` : entry.label
+  })
   return { rowCount, labels }
 }
 

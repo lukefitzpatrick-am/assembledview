@@ -60,7 +60,7 @@ There is **no** booking-ref column besides Panel #.
 
 This fixture does **not** list the same Panel # twice with different flights. `hydrateEditorCard` notes that collapsing by site+format+market was the old grouped model; empirically Panel # does not repeat among the 95. If a future JCD export listed one face as two buy rows, Panel # would collide — at that point those rows cannot be auto-matched either. Do not add flight dates to the key to paper over that.
 
-The 11 non-keyed rows are leftovers that still have grid occupancy, so `detectShape` keeps them in the 106 `data_rows`. They have $0 bursts. They still receive `line_item_id`s on accept.
+The 11 non-keyed rows (INVESTMENT subtotals and CAMPAIGN SUMMARY banners) have grid occupancy but no panel/grouping identity and no legend-status cell. `retainBuyDataRows` drops them from `data_rows`; they are named unparsed leftovers, not lines.
 
 ### SCA (radio spot-count grid)
 

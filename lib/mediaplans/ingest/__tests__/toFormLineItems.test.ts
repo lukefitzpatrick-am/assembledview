@@ -184,7 +184,7 @@ test("JCD converter line count, per-line money and total match accept stamp", as
     "glenda0090h1",
   )
   assert.equal(converted.channel, "ooh")
-  assert.equal(converted.items.length, 106)
+  assert.equal(converted.items.length, 95)
   const stated = review.proposal!.reconciliation.file_stated_total ?? 0
   assert.ok(Math.abs(stated - 311707.88) < 1)
   assert.ok(
@@ -192,12 +192,21 @@ test("JCD converter line count, per-line money and total match accept stamp", as
     `converter total ${convertedTotal} vs file ${stated}`,
   )
   const skippedHay = converted.skipped.join(" | ").toUpperCase()
-  for (const name of ["MEDIA VALUE", "DISCOUNT", "CAMPAIGN SUMMARY"]) {
+  for (const name of [
+    "MEDIA VALUE",
+    "DISCOUNT",
+    "CAMPAIGN SUMMARY",
+    "INVESTMENT",
+  ]) {
     assert.ok(
       skippedHay.includes(name),
       `JCD skipped must name ${name}, got ${converted.skipped.join(", ")}`,
     )
   }
+  assert.ok(
+    converted.skipped.some((s) => /×3/.test(s)),
+    `JCD skipped must carry counts, got ${converted.skipped.join(", ")}`,
+  )
 })
 
 test("each form line keeps its own row descriptors, not the first row's", () => {

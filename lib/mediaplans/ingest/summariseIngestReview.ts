@@ -30,7 +30,7 @@ export type IngestChatSummary = {
   accept_ok: boolean
   block_reason: string | null
   ignored: string[]
-  /** Named leftover rows (JCD: MEDIA VALUE / DISCOUNT / CAMPAIGN SUMMARY). */
+  /** Named leftover rows (JCD: MEDIA VALUE / DISCOUNT / CAMPAIGN SUMMARY, plus subtotals with counts). */
   ignored_rows: string[]
   columns_unmapped: string[]
   unknown_publisher: boolean

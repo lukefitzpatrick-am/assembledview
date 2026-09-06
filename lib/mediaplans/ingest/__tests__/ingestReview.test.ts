@@ -22,7 +22,7 @@ test.beforeEach(() => {
   clearPublisherProfileSeedOverlayForTests()
 })
 
-test("JCD ignored summary names unparsed descriptor rows, not a bare count", async () => {
+test("JCD ignored summary names unparsed descriptor rows with counts, not a bare count", async () => {
   const profiles = loadSeedPublisherProfiles()
   const review = await buildIngestReviewFromFile(
     path.join(FIX, "jcd_strength-meals_ooh.xlsx"),
@@ -36,17 +36,32 @@ test("JCD ignored summary names unparsed descriptor rows, not a bare count", asy
     "unparsed rows must be named — a bare count is a silent drop",
   )
   const hay = labels.join(" | ").toUpperCase()
-  for (const name of ["MEDIA VALUE", "DISCOUNT", "CAMPAIGN SUMMARY"]) {
+  for (const name of [
+    "MEDIA VALUE",
+    "DISCOUNT",
+    "CAMPAIGN SUMMARY",
+    "INVESTMENT (INC. P&I)",
+    "MEDIA INVESTMENT (EX. P&I)",
+  ]) {
     assert.ok(
       hay.includes(name),
       `expected ignored-row label ${name}, got ${labels.join(", ")}`,
     )
   }
+  assert.ok(
+    labels.some((l) => /INVESTMENT \(inc\. P&I\).*×3/i.test(l)),
+    `expected INVESTMENT ×3, got ${labels.join(", ")}`,
+  )
+  assert.ok(
+    labels.some((l) => /MEDIA INVESTMENT \(ex\. P&I\).*×3/i.test(l)),
+    `expected MEDIA INVESTMENT ×3, got ${labels.join(", ")}`,
+  )
   const spoken = review.ignored.spoken.join(" | ")
   assert.match(spoken, /unparsed/i)
   assert.match(spoken, /MEDIA VALUE/i)
   assert.match(spoken, /DISCOUNT/i)
   assert.match(spoken, /CAMPAIGN SUMMARY/i)
+  assert.match(spoken, /×3/)
 })
 
 test("QMS review: publisher + mapping + reconciliation; confidence reported", async () => {

@@ -588,9 +588,10 @@ export function detectSheetShape(ws: ExcelJS.Worksheet): DetectedSheetShape {
       grouping_rows.push(r)
       continue
     }
-    // When a flight grid exists, a buy row occupies it. Descriptor-only
-    // leftovers (subtotals, MEDIA VALUE, legend, campaign summary) stay
-    // unparsed — never lines.
+    // Occupancy is the candidate set (gridPop > 0). After a profile is
+    // known, retainBuyDataRows keeps a row only when it has panel/grouping
+    // identity or a grid cell that resolves to a legend status — money
+    // and "Lunar N" leaking into the grid are not buy rows.
     if (gridCols.length > 0) {
       if (gridPop > 0) data_rows.push(r)
     } else if (descPop >= 2) {

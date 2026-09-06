@@ -142,7 +142,7 @@ test("JCD IngestReviewPackage serialises under 500KB (design A — whole package
   console.log(
     `[measure] JCD IngestReviewPackage ${kb.toFixed(2)} KB (${bytes} bytes) line_item_count=${review.proposal?.reconciliation.line_item_count}`,
   )
-  assert.equal(review.proposal?.reconciliation.line_item_count, 106)
+  assert.equal(review.proposal?.reconciliation.line_item_count, 95)
   assert.ok(kb < 500, `JCD package was ${kb.toFixed(2)} KB`)
 })
 

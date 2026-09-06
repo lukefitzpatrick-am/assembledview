@@ -208,6 +208,9 @@ test("JCD converter total still $311,707.88 within 0.5% after bonus buyType", as
   )
   const bonusCount = lineItems.filter((l) => l.buyType === "bonus").length
   const paidCount = lineItems.filter((l) => l.buyType === "fixed_cost").length
+  assert.equal(lineItems.length, 95)
+  assert.equal(bonusCount, 38)
+  assert.equal(paidCount, 57)
   console.log(
     `SF-5 JCD stamp: ${lineItems.length} lines, ${bonusCount} bonus, ${paidCount} fixed_cost, total ${total}`,
   )
