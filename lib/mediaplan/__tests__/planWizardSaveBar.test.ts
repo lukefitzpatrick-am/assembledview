@@ -12,11 +12,17 @@ import {
   runSaveSuccessSideEffects,
   showPlanDraftSaveButton,
   wizardPrimarySaveLabel,
+  wizardPublishMbaLabel,
 } from "../planWizardSaveBar"
 
+const CREATE_PAGE = join(process.cwd(), "app/mediaplans/create/page.tsx")
 const EDIT_PAGE = join(
   process.cwd(),
   "app/mediaplans/mba/[mba_number]/edit/page.tsx"
+)
+const BOTTOM_BAR = join(
+  process.cwd(),
+  "components/mediaplans/PlanWizardBottomBar.tsx"
 )
 
 function sliceBottomBar(src: string) {
@@ -239,6 +245,13 @@ describe("describePublishSuccessToast", () => {
   })
 })
 
+describe("wizardPublishMbaLabel", () => {
+  it("idle is Publish MBA; busy is Publishing MBA…", () => {
+    assert.equal(wizardPublishMbaLabel({ isBusy: false }), "Publish MBA")
+    assert.equal(wizardPublishMbaLabel({ isBusy: true }), "Publishing MBA…")
+  })
+})
+
 describe("edit page wiring (SF-1)", () => {
   it("handleSaveAll no longer navigates on every success; download/exit are opt-in", () => {
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
@@ -257,20 +270,76 @@ describe("edit page wiring (SF-1)", () => {
     )
   })
 
-  it("bar: flag-on primary is Publish split; Save draft and Generate MBA stay distinct", () => {
+  it("bar: flag-on primary is Publish split; Save draft and Publish MBA stay distinct", () => {
     const bar = sliceBottomBar(readFileSync(EDIT_PAGE, "utf8"))
-    assert.match(bar, /SplitActionButton/)
+    assert.match(bar, /PlanWizardBottomBar/)
     assert.match(bar, /intent: "publish", download: true/)
-    assert.match(bar, /Publish and exit/)
-    assert.match(bar, /Save draft and exit/)
+    assert.match(bar, /onPublishAndExit/)
+    assert.match(bar, /onSaveDraftAndExit/)
     assert.match(bar, /handleGenerateMBA/)
     assert.match(bar, /showExplicitPublishButton\(isPublished\)/)
     assert.match(bar, /SAVE_PUBLISHES_IMMEDIATELY/)
     assert.match(bar, /showPlanDraftSaveButton\(/)
     assert.match(
       bar,
-      /disabled=\{isSaving \|\| isLoading \|\| !hasUnsavedChanges\}/
+      /saveDraftDisabled=\{isSaving \|\| isLoading \|\| !hasUnsavedChanges\}/
     )
     assert.doesNotMatch(bar, /planDraft\.enabled && !isPublished/)
+  })
+})
+
+describe("SM-30: create bar is the edit bar", () => {
+  it("shared component order is Publish, Save draft, Publish MBA with SplitActionButton for the first two", () => {
+    const barSrc = readFileSync(BOTTOM_BAR, "utf8")
+    const publish = barSrc.indexOf("label={primaryLabel}")
+    const saveDraft = barSrc.indexOf('label="Save draft"')
+    const publishMba = barSrc.indexOf("{wizardPublishMbaLabel")
+    assert.ok(publish >= 0, "missing primary SplitActionButton")
+    assert.ok(saveDraft > publish, "Save draft must follow Publish")
+    assert.ok(publishMba > saveDraft, "Publish MBA must follow Save draft")
+    assert.match(barSrc, /<SplitActionButton[\s\S]*label=\{primaryLabel\}/)
+    assert.match(barSrc, /<SplitActionButton[\s\S]*label="Save draft"/)
+    assert.doesNotMatch(barSrc, /Generate MBA/)
+  })
+
+  it("both pages mount PlanWizardBottomBar with the same control order and split handlers", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    for (const src of [createSrc, editSrc]) {
+      const bar = sliceBottomBar(src)
+      assert.match(bar, /<PlanWizardBottomBar/)
+      assert.match(bar, /intent: "publish", download: true/)
+      assert.match(bar, /onPublishAndExit/)
+      assert.match(bar, /onSaveDraftAndExit/)
+      assert.match(bar, /showExplicitPublishButton\(/)
+      assert.match(bar, /showPlanDraftSaveButton\(/)
+      assert.match(bar, /onPublishMba=\{handleGenerateMBA\}/)
+      const publish = bar.indexOf("download: true")
+      const saveDraft = bar.indexOf("onSaveDraft=")
+      const mba = bar.indexOf("onPublishMba=")
+      assert.ok(publish >= 0 && saveDraft > publish && mba > saveDraft)
+    }
+  })
+
+  it("create first save lands on edit; Publish and exit returns to Campaigns", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    assert.match(
+      createSrc,
+      /handleSaveAll = async \(opts\?: \{[\s\S]*?intent\?: "save" \| "publish"[\s\S]*?exitAfter\?: boolean[\s\S]*?download\?: boolean/
+    )
+    assert.match(createSrc, /runSaveSuccessSideEffects/)
+    assert.match(createSrc, /saveDraftThenExit/)
+    const handleStart = createSrc.indexOf("const handleSaveAll = async")
+    const handleEnd = createSrc.indexOf("const handleExit =", handleStart)
+    const handleBody = createSrc.slice(handleStart, handleEnd)
+    assert.match(
+      handleBody,
+      /\/mediaplans\/mba\/\$\{encodeURIComponent\(mba\)\}\/edit/
+    )
+    assert.match(handleBody, /navigate: \(\) => router\.push\("\/mediaplans"\)/)
+    assert.doesNotMatch(
+      handleBody,
+      /clearDirtyOnSaveSuccess\(\)\s*\n\s*form\.reset\(form\.getValues\(\)\)\s*\n\s*router\.push\(['"]\/mediaplans['"]\)/
+    )
   })
 })

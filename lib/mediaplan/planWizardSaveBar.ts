@@ -94,3 +94,10 @@ export function showPlanDraftSaveButton(args: {
 }): boolean {
   return args.enabled && (args.savePublishesImmediately || !args.isPublished)
 }
+
+export const DRAFT_BLOCKS_DOWNLOAD_MESSAGE =
+  "Publish this version to download and send to client"
+
+export function wizardPublishMbaLabel(args: { isBusy: boolean }): string {
+  return args.isBusy ? "Publishing MBA…" : "Publish MBA"
+}

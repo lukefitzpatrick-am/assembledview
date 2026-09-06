@@ -60,6 +60,7 @@ export default defineConfig({
       "components/mediaplans/__tests__/PlanWizardShell.test.tsx",
       "components/campaign/__tests__/CampaignRowActions.test.tsx",
       "components/mediaplans/__tests__/SplitActionButton.test.tsx",
+      "components/mediaplans/__tests__/PlanWizardBottomBar.test.tsx",
       "components/dashboard/__tests__/CampaignCardCompact.test.tsx",
       "lib/mediaplan/__tests__/useMediaPlanDirtyController.test.tsx",
       "lib/mediaplan/__tests__/handleInvestmentChange.dirty.characterisation.test.tsx",

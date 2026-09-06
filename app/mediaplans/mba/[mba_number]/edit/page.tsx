@@ -40,20 +40,14 @@ import {
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import { LazyMountWhenVisible } from "@/components/media-containers/LazyMountWhenVisible"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
-import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { PlanWizardHeader, PlanWizardVersionChrome } from "@/components/mediaplans/PlanWizardHeader"
 import { PlanPresenceBanner } from "@/components/mediaplans/PlanPresenceBanner"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
-import { SplitActionButton } from "@/components/mediaplans/SplitActionButton"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { PlanWizardBottomBar } from "@/components/mediaplans/PlanWizardBottomBar"
 import { formatAUD, formatMoney } from "@/lib/format/money"
 import { MoneyInput } from "@/components/ui/MoneyInput"
 import {
@@ -200,6 +194,7 @@ import {
   showExplicitPublishButton,
 } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import {
+  DRAFT_BLOCKS_DOWNLOAD_MESSAGE,
   describePublishSuccessToast,
   runSaveSuccessSideEffects,
   showPlanDraftSaveButton,
@@ -2972,8 +2967,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const billingTimingLocked = isApprovedOrBeyond(
     watchedCampaignStatus ?? mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
   )
-  const draftBlocksDownloadMessage =
-    "Publish this version to download and send to client"
+  const draftBlocksDownloadMessage = DRAFT_BLOCKS_DOWNLOAD_MESSAGE
   const watchedClientName = useWatch({ control: form.control, name: 'mp_clientname' })
   // totalInvestment is wired from mbaScopeTotals.nettExGst (total investment, ex GST).
   const budgetRemaining = useMemo(
@@ -11649,229 +11643,51 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         ariaStatus=""
         className="max-w-full justify-center"
       >
-        <SplitActionButton
-          label={primarySaveLabel}
-          busyLabel={SAVE_PUBLISHES_IMMEDIATELY ? "Publishing…" : "Saving…"}
-          isBusy={isSaving}
-          disabled={saveBarDisabled}
-          title={saveBarTitle}
+        <PlanWizardBottomBar
+          savePublishesImmediately={SAVE_PUBLISHES_IMMEDIATELY}
+          isPublished={isPublished}
+          primaryLabel={primarySaveLabel}
+          isSaving={isSaving}
+          saveBarDisabled={saveBarDisabled}
+          saveBarTitle={saveBarTitle}
           onPrimary={() =>
             void (SAVE_PUBLISHES_IMMEDIATELY
               ? handleSaveAll({ intent: "publish", download: true })
               : handleSaveAll())
           }
-          menu={
-            SAVE_PUBLISHES_IMMEDIATELY
-              ? [
-                  {
-                    label: "Publish and exit",
-                    hint: "Publishes, then returns to Campaigns",
-                    onSelect: () =>
-                      void handleSaveAll({ intent: "publish", exitAfter: true }),
-                  },
-                ]
-              : [
-                  {
-                    label: isPublished ? "Save draft and exit" : "Save and exit",
-                    hint: isPublished
-                      ? "Keeps your working draft, then returns to Campaigns"
-                      : "Saves, then returns to Campaigns",
-                    onSelect: () => void handleSaveAll({ exitAfter: true }),
-                  },
-                ]
+          onPublishAndExit={() =>
+            void handleSaveAll({ intent: "publish", exitAfter: true })
           }
+          onSaveAndExit={() => void handleSaveAll({ exitAfter: true })}
+          showExplicitPublish={showExplicitPublishButton(isPublished)}
+          onExplicitPublish={() =>
+            void handleSaveAll({ intent: "publish", download: true })
+          }
+          onExplicitPublishAndExit={() =>
+            void handleSaveAll({ intent: "publish", exitAfter: true })
+          }
+          showSaveDraft={showPlanDraftSaveButton({
+            enabled: planDraft.enabled,
+            savePublishesImmediately: SAVE_PUBLISHES_IMMEDIATELY,
+            isPublished,
+          })}
+          onSaveDraft={() => void planDraft.saveDraftNow()}
+          onSaveDraftAndExit={() => void saveDraftThenExit()}
+          saveDraftDisabled={isSaving || isLoading || !hasUnsavedChanges}
+          onPublishMba={handleGenerateMBA}
+          mbaBusy={isLoading}
+          onDownloadMediaPlan={() => void handleDownloadMediaPlan()}
+          onDownloadAa={handleDownloadAdvertisingAssociatesMediaPlan}
+          onDownloadNaming={handleDownloadNamingConventions}
+          onSaveAndDownloadAll={handleSaveAndDownloadAll}
+          isDownloading={isDownloading}
+          isDownloadingAa={isDownloadingAa}
+          isNamingDownloading={isNamingDownloading}
+          downloadsLocked={isLoading || isSaving}
+          hasAdvertisingAssociatesBilling={hasAdvertisingAssociatesBilling}
+          gateDownloadsOnPublish
+          draftBlocksDownloadMessage={draftBlocksDownloadMessage}
         />
-        {showExplicitPublishButton(isPublished) ? (
-          <SplitActionButton
-            label="Publish"
-            busyLabel="Publishing…"
-            isBusy={isSaving}
-            disabled={saveBarDisabled}
-            onPrimary={() => void handleSaveAll({ intent: "publish", download: true })}
-            menu={[
-              {
-                label: "Publish and exit",
-                hint: "Publishes, then returns to Campaigns",
-                onSelect: () =>
-                  void handleSaveAll({ intent: "publish", exitAfter: true }),
-              },
-            ]}
-          />
-        ) : null}
-        {showPlanDraftSaveButton({
-          enabled: planDraft.enabled,
-          savePublishesImmediately: SAVE_PUBLISHES_IMMEDIATELY,
-          isPublished,
-        }) ? (
-          <SplitActionButton
-            variant="outline"
-            label="Save draft"
-            onPrimary={() => void planDraft.saveDraftNow()}
-            disabled={isSaving || isLoading || !hasUnsavedChanges}
-            menu={[
-              {
-                label: "Save draft and exit",
-                hint: "Keeps your working draft, then returns to Campaigns",
-                onSelect: () => void saveDraftThenExit(),
-              },
-            ]}
-          />
-        ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleGenerateMBA}
-          disabled={isLoading || !isPublished}
-          title={!isPublished ? draftBlocksDownloadMessage : undefined}
-          className="h-9 shrink-0 rounded-pill border-border px-4 focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {isLoading ? "Generating..." : "Generate MBA"}
-        </Button>
-        <div className="flex items-center gap-2 md:hidden">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 rounded-pill px-4 focus-visible:ring-2 focus-visible:ring-ring"
-                disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
-              >
-                <MoreHorizontal className="mr-1.5 h-4 w-4" />
-                Downloads
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => void handleDownloadMediaPlan()}
-                disabled={
-                  !isPublished ||
-                  isDownloading ||
-                  isDownloadingAa ||
-                  isNamingDownloading ||
-                  isLoading ||
-                  isSaving
-                }
-                title={!isPublished ? draftBlocksDownloadMessage : undefined}
-              >
-                Media Plan
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleDownloadAdvertisingAssociatesMediaPlan}
-                disabled={
-                  !isPublished ||
-                  !hasAdvertisingAssociatesBilling ||
-                  isDownloading ||
-                  isDownloadingAa ||
-                  isNamingDownloading ||
-                  isLoading ||
-                  isSaving
-                }
-                title={!isPublished ? draftBlocksDownloadMessage : undefined}
-                className={cn(
-                  "text-brand-dark focus:bg-highlight/25 focus:text-brand-dark",
-                  (!hasAdvertisingAssociatesBilling || !isPublished) && "opacity-50",
-                )}
-              >
-                Media Plan (AA)
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleDownloadNamingConventions}
-                disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
-              >
-                Generate Naming (Ava)
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleSaveAndDownloadAll}
-                disabled={isLoading || isDownloading || isDownloadingAa || isSaving}
-                title={!isPublished ? draftBlocksDownloadMessage : undefined}
-              >
-                Save &amp; Download All
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <Button
-          type="button"
-          onClick={() => void handleDownloadMediaPlan()}
-          disabled={
-            !isPublished ||
-            isDownloading ||
-            isDownloadingAa ||
-            isNamingDownloading ||
-            isLoading ||
-            isSaving
-          }
-          title={!isPublished ? draftBlocksDownloadMessage : undefined}
-          className="hidden h-9 shrink-0 rounded-pill bg-accent px-4 py-2 text-foreground hover:bg-accent/90 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {isDownloading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4" />
-          )}
-          <span className="ml-2">{isDownloading ? "Downloading..." : "Media Plan"}</span>
-        </Button>
-        <Button
-          type="button"
-          onClick={handleDownloadAdvertisingAssociatesMediaPlan}
-          disabled={
-            !isPublished ||
-            !hasAdvertisingAssociatesBilling ||
-            isDownloading ||
-            isDownloadingAa ||
-            isNamingDownloading ||
-            isLoading ||
-            isSaving
-          }
-          title={!isPublished ? draftBlocksDownloadMessage : undefined}
-          className={cn(
-            "hidden h-9 shrink-0 rounded-pill bg-brand-dark px-4 py-2 text-primary-foreground hover:bg-brand-dark/90 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring",
-            (!hasAdvertisingAssociatesBilling || !isPublished) && "opacity-50 grayscale",
-          )}
-        >
-          {isDownloadingAa ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4" />
-          )}
-          <span className="ml-2">
-            {isDownloadingAa ? "Creating AA Plan..." : "Media Plan (AA)"}
-          </span>
-        </Button>
-        <div className="hidden items-center gap-2 md:flex">
-          <Button
-            type="button"
-            onClick={handleDownloadNamingConventions}
-            disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
-            className="h-9 shrink-0 rounded-pill border-border px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {isNamingDownloading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            <span className="ml-2">
-              {isNamingDownloading ? "Generating Names..." : "Generate Naming (Ava)"}
-            </span>
-          </Button>
-        </div>
-        <Button
-          type="button"
-          variant="action"
-          onClick={handleSaveAndDownloadAll}
-          disabled={isLoading || isDownloading || isDownloadingAa || isSaving}
-          title={!isPublished ? draftBlocksDownloadMessage : undefined}
-          className="hidden h-9 shrink-0 rounded-pill px-4 py-2 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <FileText className="h-4 w-4" />
-          )}
-          <span className="ml-2">
-            {isLoading || isDownloading || isDownloadingAa ? "Processing..." : "Save & Download All"}
-          </span>
-        </Button>
       </CampaignExportsSection>
     </>
   )
@@ -12977,7 +12793,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 className="max-w-full"
               >
                 <p className="max-w-md text-xs text-muted-foreground">
-                  Use the pinned action bar to save, generate MBA, and download campaign files.
+                  Use the pinned action bar to save, publish MBA, and download campaign files.
                 </p>
               </CampaignExportsSection>
             </section>
