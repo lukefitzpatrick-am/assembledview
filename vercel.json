@@ -41,6 +41,10 @@
       "schedule": "0 3 * * 1"
     },
     {
+      "path": "/api/cron/ingest-eval",
+      "schedule": "30 3 * * 1"
+    },
+    {
       "path": "/api/cron/finance-pre-run",
       "schedule": "0 19,20 * * *"
     },

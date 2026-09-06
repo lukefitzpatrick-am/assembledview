@@ -5,7 +5,7 @@ The routing table for the whole app. Find your section, open the files it lists,
 ## Layer hierarchy (what sits on what)
 
 ```
-L0  PLATFORM      Vercel (project avmediaplan, regions iad1/syd1/sin1) · 13 crons
+L0  PLATFORM      Vercel (project avmediaplan, regions iad1/syd1/sin1) · 14 crons
 L1  IDENTITY      Auth0 v4 → middleware.ts (authN only) → lib/rbac.ts (roles) → per-route gates
 L2  DATA          Supabase Postgres (Sydney) via Drizzle  db/  ← system of record
                   Snowflake ASSEMBLEDVIEW.MART.*         lib/snowflake/  ← delivery facts, read-only
@@ -130,7 +130,7 @@ Three related-but-distinct stores, all joined on `publishers.id` and never on di
 - `publisher_profiles` — how to parse a publisher's schedule spreadsheet (`detect_signature`, `column_map`, `field_defaults`, `money_rules`, `grid_semantics`, `line_granularity`). Config is jsonb on the row, not TypeScript per publisher.
 - `publisher_value_synonyms` — learned publisher prose → AV canonical (`0060` AUTHOR ONLY). `publisher_id` NULL is a global suggestion, never auto-applied.
 - `publisher_specs` + `spec_runs` — material specs and deadlines.
-- `ingest_stages` → `ingest_runs` — staged review package (`IngestReviewPackage` jsonb, including `line_audit`), then accepted run history. OOH detail lands in `line_item_panels` + `line_item_panel_flights` (no money columns; spend stays on the burst).
+- `ingest_stages` → `ingest_runs` → `ingest_eval_runs` — staged review package (`IngestReviewPackage` jsonb, including `line_audit`), then accepted run history, then weekly parser-accuracy scores (`0067` AUTHOR ONLY; overlay until applied). OOH detail lands in `line_item_panels` + `line_item_panel_flights` (no money columns; spend stays on the burst). Original xlsx is not stored on the stage.
 
 ## 8. Clients
 
@@ -204,4 +204,4 @@ Touch these and you are touching everything. Check `BLAST-RADIUS.md` first, ever
 
 ## Scale reference
 
-71 pages · 196 API route handlers · ~450 component files · ~1,440 lib files · 78 live Supabase tables · 50 applied migrations · 13 crons · 20 media channels.
+71 pages · 196 API route handlers · ~450 component files · ~1,440 lib files · 78 live Supabase tables · 50 applied migrations · 14 crons · 20 media channels.

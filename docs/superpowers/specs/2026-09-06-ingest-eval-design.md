@@ -1,6 +1,6 @@
 # IG-12 — Ingest evaluation corpus and per-publisher accuracy
 
-**Status:** Implemented (harness + goldens; CI cron in the follow-up commit)  
+**Status:** Implemented  
 **Surface:** `scripts/ingest-eval.ts`, `lib/mediaplans/ingest/ingestEval.ts`, `tests/fixtures/ingest-golden/`  
 **Non-goals:** Storing original xlsx on `ingest_stages`; a Blob ingest path; scoring live published plans without a retrievable file; running Anthropic audit in CI
 

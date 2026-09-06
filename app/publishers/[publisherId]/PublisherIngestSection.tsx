@@ -25,6 +25,7 @@ import { MONEY_TARGETS } from "@/lib/mediaplans/ingest/moneyTargets"
 import { REFERENCE_IGNORE_TARGET, FIXED_VALUE_COLUMN_LABEL, constantMappingHeader, isConstantMappingHeader } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import type { PublisherProfileConfig } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import type { IngestRunRecord } from "@/lib/mediaplans/ingest/ingestRuns"
+import type { IngestEvalRunRecord } from "@/lib/mediaplans/ingest/ingestEvalRuns"
 import type { Publisher } from "@/lib/types/publisher"
 
 const PLAN_FIELDS = [
@@ -36,6 +37,7 @@ const PLAN_FIELDS = [
 type HubPayload = {
   profile: PublisherProfileConfig | null
   runs: IngestRunRecord[]
+  latestEval: IngestEvalRunRecord | null
 }
 
 function pct(n: number | null): string {
@@ -297,6 +299,59 @@ export function PublisherIngestSection({ publisher }: { publisher: Publisher }) 
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold text-foreground">
+            Parser accuracy
+          </h3>
+          {data.latestEval ? (
+            <div className="overflow-hidden rounded-card border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Overall</TableHead>
+                    <TableHead>Money</TableHead>
+                    <TableHead>Dates</TableHead>
+                    <TableHead>Format</TableHead>
+                    <TableHead>Placement</TableHead>
+                    <TableHead>Buy type</TableHead>
+                    <TableHead>Lines</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow>
+                    <TableCell className="num font-medium">
+                      {pct(data.latestEval.overallPct)}
+                    </TableCell>
+                    <TableCell className="num">
+                      {pct(data.latestEval.moneyPct)}
+                    </TableCell>
+                    <TableCell className="num">
+                      {pct(data.latestEval.datesPct)}
+                    </TableCell>
+                    <TableCell className="num">
+                      {pct(data.latestEval.formatPct)}
+                    </TableCell>
+                    <TableCell className="num">
+                      {pct(data.latestEval.placementPct)}
+                    </TableCell>
+                    <TableCell className="num">
+                      {pct(data.latestEval.buyTypePct)}
+                    </TableCell>
+                    <TableCell className="num">
+                      {data.latestEval.lineCount}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Weekly eval has not run yet. Golden fixtures score money, dates,
+              format, placement, and buy type.
+            </p>
+          )}
         </section>
 
         <section className="space-y-2">

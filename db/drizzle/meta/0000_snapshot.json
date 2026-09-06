@@ -1,5 +1,5 @@
 {
-  "id": "c21af902-da88-4784-807c-bba8e13061c2",
+  "id": "6a6c665f-0a0f-417f-abe9-5182cae24db9",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -8248,6 +8248,13 @@
           "notNull": true,
           "default": "'{}'::jsonb"
         },
+        "money_rules": {
+          "name": "money_rules",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
         "grid_semantics": {
           "name": "grid_semantics",
           "type": "text",
@@ -9887,6 +9894,168 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ingest_eval_runs": {
+      "name": "ingest_eval_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "ingest_eval_runs_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "publisher_id": {
+          "name": "publisher_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "publisher_name": {
+          "name": "publisher_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fixture_id": {
+          "name": "fixture_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "corpus_kind": {
+          "name": "corpus_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "line_count": {
+          "name": "line_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "money_pct": {
+          "name": "money_pct",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dates_pct": {
+          "name": "dates_pct",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "format_pct": {
+          "name": "format_pct",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "placement_pct": {
+          "name": "placement_pct",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "buy_type_pct": {
+          "name": "buy_type_pct",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "overall_pct": {
+          "name": "overall_pct",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scores": {
+          "name": "scores",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "ran_at": {
+          "name": "ran_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_ingest_eval_runs_publisher_ran": {
+          "name": "idx_ingest_eval_runs_publisher_ran",
+          "columns": [
+            {
+              "expression": "publisher_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ran_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_ingest_eval_runs_ran_at": {
+          "name": "idx_ingest_eval_runs_ran_at",
+          "columns": [
+            {
+              "expression": "ran_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ingest_eval_runs_publisher_id_publishers_id_fk": {
+          "name": "ingest_eval_runs_publisher_id_publishers_id_fk",
+          "tableFrom": "ingest_eval_runs",
+          "tableTo": "publishers",
+          "columnsFrom": [
+            "publisher_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

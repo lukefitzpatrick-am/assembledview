@@ -5,7 +5,7 @@ import { getPublisherIngestHub } from "@/lib/mediaplans/ingest/publisherIngestHu
 
 export const runtime = "nodejs"
 
-/** Ingest profile + recent runs for the Publisher Hub. */
+/** Ingest profile + recent runs + latest eval score for the Publisher Hub. */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ publisherId: string }> },

@@ -1145,6 +1145,23 @@ CREATE TABLE "ingest_stages" (
 	CONSTRAINT "ingest_stages_stage_id_unique" UNIQUE("stage_id")
 );
 --> statement-breakpoint
+CREATE TABLE "ingest_eval_runs" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ingest_eval_runs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"publisher_id" bigint,
+	"publisher_name" text NOT NULL,
+	"fixture_id" text,
+	"corpus_kind" text NOT NULL,
+	"line_count" integer DEFAULT 0 NOT NULL,
+	"money_pct" numeric NOT NULL,
+	"dates_pct" numeric NOT NULL,
+	"format_pct" numeric NOT NULL,
+	"placement_pct" numeric NOT NULL,
+	"buy_type_pct" numeric NOT NULL,
+	"overall_pct" numeric NOT NULL,
+	"scores" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"ran_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "meeting_title_rules" (
 	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "meeting_title_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"normalized_title" text NOT NULL,
@@ -1297,6 +1314,7 @@ ALTER TABLE "publisher_specs" ADD CONSTRAINT "publisher_specs_publisher_id_publi
 ALTER TABLE "spec_runs" ADD CONSTRAINT "spec_runs_publisher_specs_id_publisher_specs_id_fk" FOREIGN KEY ("publisher_specs_id") REFERENCES "public"."publisher_specs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "spec_runs" ADD CONSTRAINT "spec_runs_publisher_id_publishers_id_fk" FOREIGN KEY ("publisher_id") REFERENCES "public"."publishers"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ingest_runs" ADD CONSTRAINT "ingest_runs_publisher_id_publishers_id_fk" FOREIGN KEY ("publisher_id") REFERENCES "public"."publishers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ingest_eval_runs" ADD CONSTRAINT "ingest_eval_runs_publisher_id_publishers_id_fk" FOREIGN KEY ("publisher_id") REFERENCES "public"."publishers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "publisher_domains" ADD CONSTRAINT "publisher_domains_publisher_id_publishers_id_fk" FOREIGN KEY ("publisher_id") REFERENCES "public"."publishers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "finance_run_items" ADD CONSTRAINT "finance_run_items_period_id_finance_periods_id_fk" FOREIGN KEY ("period_id") REFERENCES "public"."finance_periods"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "finance_run_items" ADD CONSTRAINT "finance_run_items_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -1409,6 +1427,8 @@ CREATE INDEX "idx_ingest_runs_created_at" ON "ingest_runs" USING btree ("created
 CREATE INDEX "idx_ingest_stages_expires_at" ON "ingest_stages" USING btree ("expires_at") WHERE "ingest_stages"."retained_at" IS NULL AND "ingest_stages"."expires_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "idx_ingest_stages_master_id" ON "ingest_stages" USING btree ("master_id") WHERE "ingest_stages"."master_id" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "idx_ingest_stages_accepted_version_id" ON "ingest_stages" USING btree ("accepted_version_id") WHERE "ingest_stages"."accepted_version_id" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_ingest_eval_runs_publisher_ran" ON "ingest_eval_runs" USING btree ("publisher_name","ran_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "idx_ingest_eval_runs_ran_at" ON "ingest_eval_runs" USING btree ("ran_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "idx_publisher_domains_publisher_id" ON "publisher_domains" USING btree ("publisher_id");--> statement-breakpoint
 CREATE INDEX "idx_app_notifications_audience_created" ON "app_notifications" USING btree ("audience","created_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "idx_app_notifications_unread" ON "app_notifications" USING btree ("audience") WHERE "app_notifications"."read_at" IS NULL;--> statement-breakpoint
@@ -1481,6 +1501,7 @@ CREATE TABLE "planning_uploaded_audiences" (
 );
 --> statement-breakpoint
 ALTER TABLE "publisher_profiles" ADD COLUMN "updated_by" text;--> statement-breakpoint
+ALTER TABLE "publisher_profiles" ADD COLUMN "money_rules" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
 ALTER TABLE "publisher_profile_changes" ADD CONSTRAINT "publisher_profile_changes_publisher_profile_id_publisher_profiles_id_fk" FOREIGN KEY ("publisher_profile_id") REFERENCES "public"."publisher_profiles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "planning_uploaded_audiences" ADD CONSTRAINT "planning_uploaded_audiences_upload_id_planning_audience_uploads_id_fk" FOREIGN KEY ("upload_id") REFERENCES "public"."planning_audience_uploads"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "idx_ppc_profile" ON "publisher_profile_changes" USING btree ("publisher_profile_id","created_at" DESC NULLS LAST);--> statement-breakpoint
