@@ -1,5 +1,6 @@
 /**
  * ingest_stages — staged IngestReviewPackage (migration 0050).
+ * source_file jsonb is 0068 AUTHOR ONLY (private Blob pointer).
  * RLS on; no ava_readonly grant. Owner path only.
  * expires_at NULL means retained, not expired.
  */
@@ -29,6 +30,7 @@ export const ingestStages = pgTable(
     retainedAt: timestamp("retained_at", { withTimezone: true, mode: "string" }),
     masterId: bigint("master_id", { mode: "number" }),
     acceptedVersionId: bigint("accepted_version_id", { mode: "number" }),
+    sourceFile: jsonb("source_file"),
   },
   (table) => [
     index("idx_ingest_stages_expires_at")

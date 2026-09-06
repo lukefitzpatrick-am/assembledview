@@ -2,7 +2,7 @@
 
 **Status:** Implemented  
 **Surface:** `lib/mediaplans/ingest/proposePublisherProfile.ts`, `confirmPublisherProfile.ts`, `POST /api/admin/ingest/confirm-profile`, Hub `/admin/schedule-ingest`, AVA `ingest:profile:*` cards  
-**Non-goals:** Live Anthropic in CI; guessing the catalogue publisher; storing workbook bytes (C-101); per-field Hub toggles (C-102)
+**Non-goals:** Live Anthropic in CI; guessing the catalogue publisher; per-field Hub toggles (C-102). Workbook bytes now live on `source_file` (IG-14).
 
 ## Flow
 

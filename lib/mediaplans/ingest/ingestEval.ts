@@ -83,8 +83,8 @@ export type GoldenLine = {
 }
 
 export type GoldenFixtureFile = {
-  id: GoldenFixtureId
-  publisher: GoldenFixtureMeta["publisher"]
+  id: string
+  publisher: string
   file: string
   line_item_count: number
   file_stated_total: number | null
@@ -110,8 +110,8 @@ export type LineDiff = {
 }
 
 export type FixtureScore = {
-  id: GoldenFixtureId
-  publisher: GoldenFixtureMeta["publisher"]
+  id: string
+  publisher: string
   file: string
   line_count: number
   expected_line_count: number | null
@@ -131,7 +131,7 @@ export type FixtureScore = {
 
 export type PublisherScore = {
   publisher: string
-  fixtures: GoldenFixtureId[]
+  fixtures: string[]
   line_count: number
   money: number
   dates: number

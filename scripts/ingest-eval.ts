@@ -4,6 +4,8 @@
  *   npx tsx scripts/ingest-eval.ts
  *   npx tsx scripts/ingest-eval.ts --write-golden
  *   npx tsx scripts/ingest-eval.ts --diff tmp/ingest-eval-diff.jsonl
+ *   npx tsx scripts/ingest-eval.ts --dry-run
+ *   npx tsx scripts/ingest-eval.ts --full
  *   npx tsx scripts/ingest-eval.ts --report-live
  */
 
@@ -16,8 +18,14 @@ import {
   formatPublisherTable,
   goldenPath,
   parseFixtureToGolden,
+  rollupPublishers,
   type FixtureScore,
 } from "@/lib/mediaplans/ingest/ingestEval"
+import {
+  formatLiveEvalPairLines,
+  listLiveIngestEvalPairs,
+  scoreLiveIngestEvalPairs,
+} from "@/lib/mediaplans/ingest/ingestEvalLive"
 
 function loadEnvLocal(): void {
   try {
@@ -61,7 +69,7 @@ async function reportLive(): Promise<void> {
       JSON.stringify({
         ok: false,
         reason: "no DATABASE_URL",
-        note: "There is no ingest_stage_id column on versions. Join is ingest_stages.accepted_version_id / ingest_runs.accepted_version_id / line_item_panels.source_row_ref. Original xlsx is not stored on the stage (no Blob).",
+        note: "There is no ingest_stage_id column on versions. Join is ingest_stages.accepted_version_id / ingest_runs.accepted_version_id / line_item_panels.source_row_ref. Live pairs need ingest_stages.source_file (0068).",
       }),
     )
     return
@@ -127,12 +135,31 @@ async function reportLive(): Promise<void> {
         (SELECT count(*)::int FROM ingest_runs WHERE outcome = 'accepted' AND accepted_version_id IS NOT NULL) AS runs_accepted,
         (SELECT count(DISTINCT published_version_id)::int FROM media_plan_masters WHERE published_version_id IS NOT NULL) AS published_masters
     `
+    const pairs = await listLiveIngestEvalPairs()
+    const liveScores = await scoreLiveIngestEvalPairs(pairs)
     console.log(
       JSON.stringify(
         {
           ok: true,
-          source_xlsx_retrievable: 0,
-          note: "ingest_stage_id is a save-body field only — not a version column. Stages store review_package jsonb, not the original workbook. No ingest Blob path exists.",
+          source_xlsx_retrievable: pairs.length,
+          version_choice:
+            "published_version_number >= accepted_version_number on the same master; score vs current published lines; sha256 deduped per master",
+          live_pairs: pairs.map((p) => ({
+            publisher: p.publisher,
+            masterId: p.masterId,
+            acceptedVersionId: p.acceptedVersionId,
+            publishedVersionId: p.publishedVersionId,
+            fileName: p.fileName,
+            sha256: p.sha256,
+            stageId: p.stageId,
+          })),
+          live_scores: liveScores.map((s) => ({
+            id: s.id,
+            publisher: s.publisher,
+            overall: s.overall,
+            n_compared: s.n_compared,
+          })),
+          note: "ingest_stage_id is a save-body field only — not a version column. Retained stages keep source_file (private Blob ingest/{stageId}/{filename}). Pre-IG-14 stages (source_file null) are omitted.",
           totals: totals[0],
           stages_on_published: stagesPublished,
           runs_on_published: runsPublished,
@@ -193,14 +220,47 @@ async function main(): Promise<void> {
     await writeGoldens()
     return
   }
-  const { scores, publishers, failed } = await evaluateGoldenSet()
+  if (hasFlag("--dry-run")) {
+    loadEnvLocal()
+    const pairs = await listLiveIngestEvalPairs()
+    console.log(formatLiveEvalPairLines(pairs))
+    console.log(
+      `\nversion choice: published_version_number >= accepted_version_number; sha256 deduped per master; pre-IG-14 source_file null omitted`,
+    )
+    return
+  }
+  const golden = await evaluateGoldenSet()
+  let scores = golden.scores
+  let publishers = golden.publishers
+  let failed = golden.failed
+  if (hasFlag("--full")) {
+    loadEnvLocal()
+    const pairs = await listLiveIngestEvalPairs()
+    console.log(formatLiveEvalPairLines(pairs))
+    const liveScores = await scoreLiveIngestEvalPairs(pairs)
+    scores = [...golden.scores, ...liveScores]
+    publishers = rollupPublishers(scores)
+    failed = [
+      ...golden.failed,
+      ...liveScores
+        .filter((s) => s.overall < 1)
+        .map(
+          (s) =>
+            `${s.id}: overall=${(s.overall * 100).toFixed(1)}% extra=${s.n_extra} missing=${s.n_missing}`,
+        ),
+    ]
+  }
   console.log(formatPublisherTable(publishers))
   const diffPath =
     argValue("--diff") ?? resolve(process.cwd(), "tmp/ingest-eval-diff.jsonl")
   writeDiffFile(diffPath, scores)
   console.log(`\nper-line diffs (misses only): ${diffPath}`)
-  if (failed.length > 0) {
+  if (failed.length > 0 && !hasFlag("--full")) {
     console.error(`\ningest-eval FAILED:\n- ${failed.join("\n- ")}`)
+    process.exit(1)
+  }
+  if (hasFlag("--full") && golden.failed.length > 0) {
+    console.error(`\ningest-eval golden FAILED:\n- ${golden.failed.join("\n- ")}`)
     process.exit(1)
   }
 }

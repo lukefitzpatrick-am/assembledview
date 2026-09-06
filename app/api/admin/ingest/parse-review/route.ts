@@ -15,6 +15,9 @@ import {
 } from "@/lib/mediaplans/ingest/parseReview"
 import { ingestReviewToFormLineItems } from "@/lib/mediaplans/ingest/toFormLineItems"
 import { ingestParseReviewPath } from "@/lib/mediaplans/ingest/ingestParseReviewPath"
+import { rerunStagedLineAuditFromSourceFile } from "@/lib/mediaplans/ingest/ingestSourceFile"
+import { listPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles"
+import { createAnthropicLineAuditClient } from "@/lib/mediaplans/ingest/lineAudit.server"
 import type { AutopopulateChannel } from "@/lib/ava/autopopulate/types"
 
 export const runtime = "nodejs"
@@ -164,14 +167,22 @@ export async function POST(request: NextRequest) {
         await patchIngestStageReview(stageId, review)
         return NextResponse.json({ review, applied: true })
       }
-      case "rerun_audit":
-        return NextResponse.json(
-          {
-            error:
-              "Re-run needs the workbook attached again — the original file is not stored on the stage.",
-          },
-          { status: 409 },
-        )
+      case "rerun_audit": {
+        const { profiles } = await listPublisherProfiles()
+        const auditOff = process.env.INGEST_AUDIT === "off"
+        const rerun = await rerunStagedLineAuditFromSourceFile({
+          stageId,
+          profiles,
+          lineAuditClient: auditOff ? null : createAnthropicLineAuditClient(),
+        })
+        if (!rerun.ok) {
+          return NextResponse.json(
+            { error: rerun.error, code: "code" in rerun ? rerun.code : undefined },
+            { status: rerun.status },
+          )
+        }
+        return NextResponse.json({ review: rerun.review })
+      }
       case "load": {
         const gate = parseReviewLoadGate(review)
         if (!gate.ok) {

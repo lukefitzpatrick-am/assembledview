@@ -7,6 +7,11 @@
  */
 
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
+import {
+  deleteIngestWorkbook,
+  parseIngestSourceFile,
+  type IngestSourceFile,
+} from "@/lib/mediaplans/ingest/ingestWorkbookBlob"
 
 export const INGEST_STAGE_TTL_MS = 24 * 60 * 60 * 1000
 
@@ -20,6 +25,7 @@ export type StagedIngest = {
   retainedAt: string | null
   masterId: number | null
   acceptedVersionId: number | null
+  sourceFile: IngestSourceFile | null
 }
 
 export type IngestStageLookup =
@@ -90,6 +96,7 @@ export async function putIngestStage(args: {
   fileName?: string | null
   uploadedBy?: string | null
   stageId?: string
+  sourceFile?: IngestSourceFile | null
 }): Promise<string> {
   const stageId = args.stageId?.trim() || crypto.randomUUID()
   const createdAt = new Date().toISOString()
@@ -104,36 +111,49 @@ export async function putIngestStage(args: {
     retainedAt: null,
     masterId: null,
     acceptedVersionId: null,
+    sourceFile: args.sourceFile ?? null,
   }
   writeLocal(row)
   try {
     const { db } = await import("@/db")
     const { ingestStages } = await import("@/db/schema/ingestStages")
-    await db
-      .insert(ingestStages)
-      .values({
-        stageId: row.stageId,
-        reviewPackage: row.review,
-        fileName: row.fileName,
-        uploadedBy: row.uploadedBy,
-        createdAt: row.createdAt,
-        expiresAt: row.expiresAt,
-        retainedAt: row.retainedAt,
-        masterId: row.masterId,
-        acceptedVersionId: row.acceptedVersionId,
-      })
-      .onConflictDoUpdate({
-        target: ingestStages.stageId,
-        set: {
-          reviewPackage: row.review,
-          fileName: row.fileName,
-          uploadedBy: row.uploadedBy,
-          expiresAt: row.expiresAt,
-          retainedAt: row.retainedAt,
-          masterId: row.masterId,
-          acceptedVersionId: row.acceptedVersionId,
-        },
-      })
+    const base = {
+      stageId: row.stageId,
+      reviewPackage: row.review,
+      fileName: row.fileName,
+      uploadedBy: row.uploadedBy,
+      createdAt: row.createdAt,
+      expiresAt: row.expiresAt,
+      retainedAt: row.retainedAt,
+      masterId: row.masterId,
+      acceptedVersionId: row.acceptedVersionId,
+    }
+    const baseSet = {
+      reviewPackage: row.review,
+      fileName: row.fileName,
+      uploadedBy: row.uploadedBy,
+      expiresAt: row.expiresAt,
+      retainedAt: row.retainedAt,
+      masterId: row.masterId,
+      acceptedVersionId: row.acceptedVersionId,
+    }
+    try {
+      await db
+        .insert(ingestStages)
+        .values({ ...base, sourceFile: row.sourceFile })
+        .onConflictDoUpdate({
+          target: ingestStages.stageId,
+          set: { ...baseSet, sourceFile: row.sourceFile },
+        })
+    } catch {
+      await db
+        .insert(ingestStages)
+        .values(base)
+        .onConflictDoUpdate({
+          target: ingestStages.stageId,
+          set: baseSet,
+        })
+    }
   } catch {
     // 0050 not applied / DB unavailable — overlay is the test + local store.
   }
@@ -173,6 +193,7 @@ function rowFromDb(saved: {
   retainedAt: string | null
   masterId: number | null
   acceptedVersionId: number | null
+  sourceFile?: unknown
 }): StagedIngest {
   return {
     stageId: saved.stageId,
@@ -184,6 +205,7 @@ function rowFromDb(saved: {
     retainedAt: saved.retainedAt,
     masterId: saved.masterId,
     acceptedVersionId: saved.acceptedVersionId,
+    sourceFile: parseIngestSourceFile(saved.sourceFile),
   }
 }
 
@@ -209,12 +231,33 @@ export async function lookupIngestStage(
       const { ingestStages } = await import("@/db/schema/ingestStages")
       const { eq } = await import("drizzle-orm")
       const [saved] = await db
-        .select()
+        .select({
+          stageId: ingestStages.stageId,
+          reviewPackage: ingestStages.reviewPackage,
+          fileName: ingestStages.fileName,
+          uploadedBy: ingestStages.uploadedBy,
+          createdAt: ingestStages.createdAt,
+          expiresAt: ingestStages.expiresAt,
+          retainedAt: ingestStages.retainedAt,
+          masterId: ingestStages.masterId,
+          acceptedVersionId: ingestStages.acceptedVersionId,
+        })
         .from(ingestStages)
         .where(eq(ingestStages.stageId, id))
         .limit(1)
       if (saved) {
-        const row = rowFromDb(saved)
+        let sourceFile: unknown = null
+        try {
+          const [withFile] = await db
+            .select({ sourceFile: ingestStages.sourceFile })
+            .from(ingestStages)
+            .where(eq(ingestStages.stageId, id))
+            .limit(1)
+          sourceFile = withFile?.sourceFile ?? null
+        } catch {
+          // 0068 not applied
+        }
+        const row = rowFromDb({ ...saved, sourceFile })
         writeLocal(row)
         return classify(row)
       }
@@ -238,6 +281,10 @@ export async function getIngestStage(
 }
 
 export async function deleteIngestStage(stageId: string): Promise<void> {
+  const existing = readLocal(stageId)
+  if (existing?.sourceFile) {
+    await deleteIngestWorkbook(existing.sourceFile)
+  }
   deleteLocal(stageId)
   if (!UUID_RE.test(stageId)) return
   try {
@@ -289,13 +336,18 @@ export async function sweepExpiredIngestStages(
 ): Promise<number> {
   const nowMs = now.getTime()
   const doomed = new Set<string>()
+  const doomedFiles: IngestSourceFile[] = []
   for (const map of [processCache, durableMemory]) {
     for (const [id, row] of map) {
       if (row.retainedAt) continue
       if (row.expiresAt && Date.parse(row.expiresAt) <= nowMs) {
         doomed.add(id)
+        if (row.sourceFile) doomedFiles.push(row.sourceFile)
       }
     }
+  }
+  for (const file of doomedFiles) {
+    await deleteIngestWorkbook(file)
   }
   for (const id of doomed) deleteLocal(id)
 
@@ -303,17 +355,31 @@ export async function sweepExpiredIngestStages(
     const { db } = await import("@/db")
     const { ingestStages } = await import("@/db/schema/ingestStages")
     const { and, isNotNull, isNull, lt } = await import("drizzle-orm")
-    const deleted = await db
-      .delete(ingestStages)
-      .where(
-        and(
-          isNotNull(ingestStages.expiresAt),
-          lt(ingestStages.expiresAt, now.toISOString()),
-          isNull(ingestStages.retainedAt),
-        ),
-      )
-      .returning({ stageId: ingestStages.stageId })
-    return doomed.size + deleted.length
+    const whereExpired = and(
+      isNotNull(ingestStages.expiresAt),
+      lt(ingestStages.expiresAt, now.toISOString()),
+      isNull(ingestStages.retainedAt),
+    )
+    try {
+      const deleted = await db
+        .delete(ingestStages)
+        .where(whereExpired)
+        .returning({
+          stageId: ingestStages.stageId,
+          sourceFile: ingestStages.sourceFile,
+        })
+      for (const row of deleted) {
+        const file = parseIngestSourceFile(row.sourceFile)
+        if (file) await deleteIngestWorkbook(file)
+      }
+      return doomed.size + deleted.length
+    } catch {
+      const deleted = await db
+        .delete(ingestStages)
+        .where(whereExpired)
+        .returning({ stageId: ingestStages.stageId })
+      return doomed.size + deleted.length
+    }
   } catch {
     return doomed.size
   }

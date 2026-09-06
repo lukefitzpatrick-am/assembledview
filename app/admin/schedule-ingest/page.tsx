@@ -488,9 +488,8 @@ function ScheduleIngestPageInner() {
             pub_radio: draft.media_type === "radio",
           }
         : undefined)
-    const file = fileRef.current
-    if (!picked || !file || !stagedStageId) {
-      setError("Pick the catalogue publisher and keep the file attached, then confirm.")
+    if (!picked || !stagedStageId) {
+      setError("Pick the catalogue publisher, then confirm.")
       return
     }
     setConfirmingProfile(true)
@@ -510,29 +509,16 @@ function ScheduleIngestPageInner() {
       })
       const confirmJson = (await confirmRes.json()) as {
         profile?: { publisher_name: string }
-        error?: string
-      }
-      if (!confirmRes.ok || !confirmJson.profile) {
-        throw new Error(confirmJson.error || `HTTP ${confirmRes.status}`)
-      }
-      const fd = new FormData()
-      fd.set("file", file)
-      fd.set("publisherName", confirmJson.profile.publisher_name)
-      const res = await fetch("/api/admin/ingest/review", {
-        method: "POST",
-        body: fd,
-      })
-      const json = (await res.json()) as {
         review?: IngestReviewPackage
         stageId?: string
         error?: string
       }
-      if (!res.ok || !json.review) {
-        throw new Error(json.error || `HTTP ${res.status}`)
+      if (!confirmRes.ok || !confirmJson.profile || !confirmJson.review) {
+        throw new Error(confirmJson.error || `HTTP ${confirmRes.status}`)
       }
-      setReview(json.review)
-      if (json.stageId) setStagedStageId(json.stageId)
-      void loadAvaMappingSuggestions(json.review, setReview, setError)
+      setReview(confirmJson.review)
+      if (confirmJson.stageId) setStagedStageId(confirmJson.stageId)
+      void loadAvaMappingSuggestions(confirmJson.review, setReview, setError)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Confirm failed")
     } finally {

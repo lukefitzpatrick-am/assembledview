@@ -11,6 +11,12 @@ import {
   type CataloguePublisherRef,
 } from "@/lib/mediaplans/ingest/createLinkedPublisherProfile"
 import {
+  SOURCE_FILE_MISSING,
+  reparseStagedIngestFromSourceFile,
+} from "@/lib/mediaplans/ingest/ingestSourceFile"
+import { lookupIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
+import type { LineAuditClient } from "@/lib/mediaplans/ingest/lineAudit"
+import {
   recordPublisherProfileSeedAudits,
   registerPublisherProfileOverlay,
   type PublisherProfileAuditSeedRow,
@@ -158,4 +164,69 @@ export async function confirmProposedPublisherProfile(args: {
   const profile = stampCatalogueOnDraft(draft, args.catalogue, confirmedBy)
   await insertConfirmedProfile(profile, confirmedBy, args.stageId?.trim() || null)
   return { ok: true, profile }
+}
+
+/**
+ * Confirm the staged proposed profile, then re-parse from source_file.
+ * 409 SOURCE_FILE_MISSING before insert when the stage has no workbook
+ * (pre-IG-14). Callers without a stage keep using confirmProposedPublisherProfile.
+ */
+export async function confirmStagedProposedProfile(args: {
+  stageId: string
+  confirmedBy: string
+  catalogue: CataloguePublisherRef
+  profiles: PublisherProfileConfig[]
+  lineAuditClient?: LineAuditClient | null
+}): Promise<
+  | {
+      ok: true
+      status: 200
+      profile: PublisherProfileConfig
+      review: IngestReviewPackage
+    }
+  | {
+      ok: false
+      status: 409
+      code?: typeof SOURCE_FILE_MISSING
+      error: string
+    }
+  | { ok: false; status: 404; error: string }
+> {
+  const looked = await lookupIngestStage(args.stageId)
+  if (!looked.ok) {
+    return { ok: false, status: 404, error: "Staged ingest not found" }
+  }
+  if (!looked.staged.sourceFile) {
+    return {
+      ok: false,
+      status: 409,
+      code: SOURCE_FILE_MISSING,
+      error:
+        "Confirm needs the workbook on the stage — this stage has no source_file (pre-IG-14). Attach the file again.",
+    }
+  }
+  const confirmed = await confirmProposedPublisherProfile({
+    review: looked.staged.review,
+    confirmedBy: args.confirmedBy,
+    catalogue: args.catalogue,
+    stageId: args.stageId,
+  })
+  if (!confirmed.ok) {
+    return { ok: false, status: 409, error: confirmed.error }
+  }
+  const reparsed = await reparseStagedIngestFromSourceFile({
+    stageId: args.stageId,
+    profiles: [...args.profiles, confirmed.profile],
+    pinnedPublisherName: confirmed.profile.publisher_name,
+    lineAuditClient: args.lineAuditClient,
+  })
+  if (!reparsed.ok) {
+    return reparsed
+  }
+  return {
+    ok: true,
+    status: 200,
+    profile: confirmed.profile,
+    review: reparsed.review,
+  }
 }

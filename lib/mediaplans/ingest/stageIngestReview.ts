@@ -6,6 +6,7 @@
 import { buildIngestReviewWithPrimary } from "@/lib/mediaplans/ingest/buildIngestReview"
 import { recordIngestRun } from "@/lib/mediaplans/ingest/ingestRuns"
 import { putIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
+import { putIngestWorkbook } from "@/lib/mediaplans/ingest/ingestWorkbookBlob"
 import type { PublisherProfileConfig } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import {
   summariseIngestReview,
@@ -70,10 +71,18 @@ export async function stageIngestReviewFromBuffer(
       }
     }
   }
-  const stageId = await putIngestStage({
+  const stageId = crypto.randomUUID()
+  const sourceFile = await putIngestWorkbook({
+    stageId,
+    fileName: args.fileName,
+    buffer,
+  })
+  await putIngestStage({
     review,
     fileName: args.fileName,
     uploadedBy: args.uploadedBy,
+    stageId,
+    sourceFile,
   })
   const summary = summariseIngestReview(review, {
     stageId,

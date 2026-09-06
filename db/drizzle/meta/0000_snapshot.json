@@ -9831,6 +9831,12 @@
           "type": "bigint",
           "primaryKey": false,
           "notNull": false
+        },
+        "source_file": {
+          "name": "source_file",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {

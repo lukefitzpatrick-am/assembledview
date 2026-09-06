@@ -2,19 +2,11 @@
 
 **Status:** Implemented  
 **Surface:** `scripts/ingest-eval.ts`, `lib/mediaplans/ingest/ingestEval.ts`, `tests/fixtures/ingest-golden/`  
-**Non-goals:** Storing original xlsx on `ingest_stages`; a Blob ingest path; scoring live published plans without a retrievable file; running Anthropic audit in CI
+**Non-goals:** Running Anthropic audit in CI. Weekly cron stays golden-only. Live pairs require `source_file` (IG-14 / 0068).
 
 ## Live corpus (REPORT 1)
 
-There is **no** `ingest_stage_id` column on `media_plan_versions`. Join paths:
-
-- `ingest_stages.accepted_version_id` = `media_plan_masters.published_version_id`
-- `ingest_runs.accepted_version_id` where `outcome = 'accepted'`
-- `line_item_panels.source_row_ref` via `line_items.line_item_id` onto the published pointer
-
-Stages store `review_package` jsonb + `file_name`, not the workbook bytes. No ingest Blob writer exists. Live probe (2026-09-06): **0** published versions with a retrievable source file, per publisher. 7 pending stages, 0 accepted, 0 retained, 0 ingest panels on published pointers.
-
-The evaluable corpus is the five checked-in fixtures.
+There is **no** `ingest_stage_id` column on `media_plan_versions`. Join is `ingest_stages.accepted_version_id` / `ingest_runs.accepted_version_id` / `line_item_panels.source_row_ref`. IG-14 stores the workbook as private Blob `ingest/{stageId}/{filename}` on `ingest_stages.source_file`. Live pairs (`ingest-eval --dry-run` / `--full`) keep a retained stage when `published_version_number >= accepted_version_number` on the same master; sha256 dedupes the same file twice on one plan. Pre-IG-14 stages (`source_file` null) are omitted. Cron stays golden.
 
 ## Scoring
 

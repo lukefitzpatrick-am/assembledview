@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/requireRole"
-import { confirmProposedPublisherProfile } from "@/lib/mediaplans/ingest/confirmPublisherProfile"
+import { confirmStagedProposedProfile } from "@/lib/mediaplans/ingest/confirmPublisherProfile"
 import { hasUnconfirmedProposedProfile } from "@/lib/mediaplans/ingest/proposePublisherProfile"
 import { lookupIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
+import { listPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles"
+import { createAnthropicLineAuditClient } from "@/lib/mediaplans/ingest/lineAudit.server"
 
 export const runtime = "nodejs"
+export const maxDuration = 300
 
 function sessionIdentity(auth: {
   session: { user?: { email?: string | null } } | null | undefined
@@ -14,8 +17,8 @@ function sessionIdentity(auth: {
 
 /**
  * Planner confirms a model-proposed profile (after catalogue pick).
- * Inserts the profile. Hub then re-runs review with the pinned name.
- * Never loads from an unconfirmed draft.
+ * Inserts the profile, then re-parses from the staged source_file.
+ * Never loads from an unconfirmed draft. No re-upload.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request)
@@ -61,8 +64,10 @@ export async function POST(request: NextRequest) {
         { status: 409 },
       )
     }
-    const confirmed = await confirmProposedPublisherProfile({
-      review: looked.staged.review,
+    const { profiles } = await listPublisherProfiles()
+    const auditOff = process.env.INGEST_AUDIT === "off"
+    const confirmed = await confirmStagedProposedProfile({
+      stageId,
       confirmedBy,
       catalogue: {
         id,
@@ -71,12 +76,23 @@ export async function POST(request: NextRequest) {
         pub_ooh: body.pub_ooh ?? null,
         pub_radio: body.pub_radio ?? null,
       },
-      stageId,
+      profiles,
+      lineAuditClient: auditOff ? null : createAnthropicLineAuditClient(),
     })
     if (!confirmed.ok) {
-      return NextResponse.json({ error: confirmed.error }, { status: 409 })
+      return NextResponse.json(
+        {
+          error: confirmed.error,
+          code: "code" in confirmed ? confirmed.code : undefined,
+        },
+        { status: confirmed.status },
+      )
     }
-    return NextResponse.json({ profile: confirmed.profile })
+    return NextResponse.json({
+      profile: confirmed.profile,
+      review: confirmed.review,
+      stageId,
+    })
   } catch (e) {
     console.error("[admin/ingest/confirm-profile]", e)
     return NextResponse.json(
