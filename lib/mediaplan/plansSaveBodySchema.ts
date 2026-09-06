@@ -107,11 +107,17 @@ export const plansSaveBodySchema = z.object({
     .nullable(),
   /** Safety net only (X9): master should already exist from POST /api/mediaplans. */
   ensureMaster: ensureMasterSchema.optional(),
-  /** PC7: tip version id the editor started from — 409 if tip moved. */
+  /** PC7: version this cut is forked from (loaded editor version). */
   baseVersionId: z.number().int().positive().optional().nullable(),
   /**
    * Staged ingest to complete after a successful save. Optional — ordinary
    * saves omit it. Zod must not strip this (C-21 class trap).
    */
   ingestStageId: z.string().min(1).optional(),
+  /**
+   * SV-1: published pointer the editor saw at load. Stale-base 409 compares
+   * this to the current pointer — not `baseVersionId` (the version being forked).
+   * Null on create.
+   */
+  tipVersionIdAtLoad: z.number().int().positive().optional().nullable(),
 })

@@ -77,6 +77,8 @@ export function usePlanDraftSession(args: {
   campaignStatus: string | null | undefined
   publishedVersionNumber: number
   versionRowCount: number
+  /** Version ordinal currently loaded in the editor (omit on create). */
+  editingVersionNumber?: number | null
   /** VC Stage 1 — tip `published_at`; null = unpublished overwrite. */
   tipPublishedAt?: string | null
   forceIncrement?: boolean
@@ -142,6 +144,7 @@ export function usePlanDraftSession(args: {
         campaignStatus: args.campaignStatus,
         forceIncrement: Boolean(args.forceIncrement),
         publishedVersionNumber: args.publishedVersionNumber,
+        editingVersionNumber: args.editingVersionNumber,
         versionRowCount: args.versionRowCount,
         tipPublishedAt: args.tipPublishedAt,
         intent: args.intent,
@@ -150,6 +153,7 @@ export function usePlanDraftSession(args: {
       args.campaignStatus,
       args.forceIncrement,
       args.publishedVersionNumber,
+      args.editingVersionNumber,
       args.versionRowCount,
       args.tipPublishedAt,
       args.intent,
@@ -167,9 +171,11 @@ export function usePlanDraftSession(args: {
         hasWorkingDraft: Boolean(recovery) || Boolean(activeDraft) || lastAutosaveAt != null || args.dirty,
         autosavedSecondsAgo: ago,
         editingUnpublishedDraft: args.dirty && modeResolved.uiMode === "overwrite",
+        editingVersionNumber: args.editingVersionNumber,
+        publishedTipVersionNumber: args.publishedVersionNumber,
       })
     )
-  }, [modeResolved, lastAutosaveAt, recovery, activeDraft, args.dirty])
+  }, [modeResolved, lastAutosaveAt, recovery, activeDraft, args.dirty, args.editingVersionNumber, args.publishedVersionNumber])
 
   const persistQueueRef = useRef(Promise.resolve())
   const enqueuePersist = useCallback((work: () => Promise<void>) => {

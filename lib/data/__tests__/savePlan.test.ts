@@ -1933,6 +1933,77 @@ test("CS-B REQUIREMENT LOCK: status-only change at v5 does not cut a version and
   assert.equal(lineAfter?.createdAt, lineBefore.createdAt)
 })
 
+test("SV-1: publish from older version writes the body lines, not the tip's", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const v3 = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "publish",
+    versionNumber: 1,
+  })
+  const v5 = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_B, 2000)]),
+    mode: "publish",
+    versionNumber: 2,
+  })
+  assert.equal(v3.versionNumber, 1)
+  assert.equal(v5.versionNumber, 2)
+
+  const forked = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1500)]),
+    mode: "publish",
+    versionNumber: 3,
+    campaignBudgetCents: 1_500_00,
+    baseVersionId: v3.versionId,
+  })
+  assert.equal(forked.versionNumber, 3)
+  assert.notEqual(forked.versionId, v3.versionId)
+  assert.notEqual(forked.versionId, v5.versionId)
+
+  const db = getDb()
+  const v6Lines = await db
+    .select({
+      lineItemId: schema.lineItems.lineItemId,
+    })
+    .from(schema.lineItems)
+    .where(eq(schema.lineItems.versionId, forked.versionId))
+  assert.deepEqual(
+    v6Lines.map((r) => r.lineItemId).sort(),
+    [LINE_A]
+  )
+
+  const v3Lines = await db
+    .select({ lineItemId: schema.lineItems.lineItemId })
+    .from(schema.lineItems)
+    .where(eq(schema.lineItems.versionId, v3.versionId))
+  const v5Lines = await db
+    .select({ lineItemId: schema.lineItems.lineItemId })
+    .from(schema.lineItems)
+    .where(eq(schema.lineItems.versionId, v5.versionId))
+  assert.deepEqual(
+    v3Lines.map((r) => r.lineItemId),
+    [LINE_A]
+  )
+  assert.deepEqual(
+    v5Lines.map((r) => r.lineItemId),
+    [LINE_B]
+  )
+
+  const [master] = await db
+    .select({ publishedVersionId: schema.mediaPlanMasters.publishedVersionId })
+    .from(schema.mediaPlanMasters)
+    .where(eq(schema.mediaPlanMasters.id, masterId))
+  assert.equal(master?.publishedVersionId, forked.versionId)
+})
+
 test("savePlan: close db pool", async () => {
   if (hasDb) await closeDb()
 })

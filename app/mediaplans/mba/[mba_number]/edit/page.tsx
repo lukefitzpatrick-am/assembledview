@@ -229,7 +229,10 @@ import {
 import { DraftDiffProvider } from "@/hooks/useDraftFieldDiff"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
 import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
-import { describeVersionHeaderTrail } from "@/lib/mediaplan/drafts/pill"
+import {
+  describeVersionHeaderTrail,
+  resolveTipVersionIdAtLoad,
+} from "@/lib/mediaplan/drafts/pill"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import {
@@ -1844,6 +1847,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const writeBackend = useWriteBackend()
   /** DB row id of the current `media_plan_versions` record — NOT `version_number`. */
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<string | number | null>(null)
+  /** Published pointer the editor saw at first load — stale-base compares this, not the chosen base. */
+  const tipVersionIdAtLoadRef = useRef<number | null>(null)
   /** Latest identity for anomaly callbacks — avoid putting these in billing-schedule deps (would re-append). */
   const mbaNumberRef = useRef(mbaNumber)
   const mediaPlanVersionIdRef = useRef(mediaPlanVersionId)
@@ -3745,6 +3750,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
         const latestFromApi = versionCandidates.length > 0 ? Math.max(...versionCandidates) : 1
         setLatestVersionNumber(latestFromApi)
+        if (tipVersionIdAtLoadRef.current == null) {
+          tipVersionIdAtLoadRef.current = resolveTipVersionIdAtLoad({
+            publishedVersionId:
+              (data as { published_version_id?: unknown }).published_version_id,
+            versions: versionsFromApi,
+            latestVersionNumber: latestFromApi,
+          })
+        }
 
         const nextFromApi = data.nextVersionNumber
           ?? data.next_version_number
@@ -6801,7 +6814,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         ? latestVersionNumber
         : Number(mediaPlan?.version_number) || 0,
     versionRowCount: availableVersions.length,
-        tipPublishedAt:
+    editingVersionNumber: selectedVersionNumber,
+    tipPublishedAt:
       (mediaPlan as { published_at?: string | null } | null)?.published_at !== undefined
         ? (mediaPlan as { published_at?: string | null }).published_at
         : availableVersions.find(
@@ -7903,6 +7917,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               versionNumber: modeResolved.versionNumber,
               mode: modeResolved.mode,
               baseVersionId: draftBaseVersionId,
+              tipVersionIdAtLoad: tipVersionIdAtLoadRef.current,
               campaignName: formValues.mp_campaignname ?? null,
               campaignStartDate: toDateOnlyString(formValues.mp_campaigndates_start),
               campaignEndDate: toDateOnlyString(formValues.mp_campaigndates_end),
@@ -11138,6 +11153,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               ? Math.max(...versionsFromApi.map((v: { version_number: number }) => v.version_number || 0))
               : null
         if (latest != null) setLatestVersionNumber(latest)
+        if (tipVersionIdAtLoadRef.current == null && latest != null) {
+          tipVersionIdAtLoadRef.current = resolveTipVersionIdAtLoad({
+            versions: versionsFromApi,
+            latestVersionNumber: latest,
+          })
+        }
         versionsMetaLoadedRef.current = true
       } catch (err) {
         console.warn("[versions] failed to load version history", err)

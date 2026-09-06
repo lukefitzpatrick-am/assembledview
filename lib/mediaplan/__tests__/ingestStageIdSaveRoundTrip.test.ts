@@ -39,3 +39,28 @@ test("ingestStageId survives assemblePlansSaveRequestBody → bodySchema", () =>
     "Zod bodySchema must not strip ingestStageId (C-21 class trap)",
   )
 })
+
+test("SV-1: tipVersionIdAtLoad survives assemblePlansSaveRequestBody → bodySchema", () => {
+  const assembled = assemblePlansSaveRequestBody(
+    {
+      masterId: 1,
+      mbaNumber: "sv1fork01",
+      versionNumber: 6,
+      mode: "publish",
+      lineItems: [],
+      baseVersionId: 30,
+      tipVersionIdAtLoad: 50,
+    } as Parameters<typeof assemblePlansSaveRequestBody>[0],
+    { feeLoading: {} },
+  )
+  assert.equal(
+    (assembled as { tipVersionIdAtLoad?: number | null }).tipVersionIdAtLoad,
+    50,
+    "assembler must pass tipVersionIdAtLoad through",
+  )
+  const parsed = plansSaveBodySchema.safeParse(assembled)
+  assert.equal(parsed.success, true)
+  if (!parsed.success) return
+  assert.equal(parsed.data.tipVersionIdAtLoad, 50)
+  assert.equal(parsed.data.baseVersionId, 30)
+})

@@ -2,7 +2,8 @@
  * T4a — one transactional media-plan save on Postgres (`DATABASE_URL`).
  *
  * Replaces the Xano 20-table fan-out with a single Drizzle transaction:
- * resolve versionId → (publish/new_version: copy billing_overrides from tip-1)
+ * resolve versionId → (publish/new_version: copy billing_overrides from base
+ * version — `baseVersionId` when sent, else version_number = newVn − 1)
  * → load billing_overrides → attachOverridesToLineInputs →
  * computeCampaignFinancials → replace-set line_items → explode schedule_months
  * → reconcileOverrideSources (source='override') → legacy_schedules mirror →
@@ -12,7 +13,7 @@
  * attached so blob months and schedule_months agree. Delivery stays
  * override-free inside computeCampaignFinancials.
  *
- * MB-2: publish/new_version copies base-tip overrides onto the new versionId
+ * MB-2: publish/new_version copies base-version overrides onto the new versionId
  * before the MB-22 payload replace-set and the override read that feeds
  * financials; deleted-line overrides are dropped and named in the response
  * (never silent).
@@ -164,6 +165,11 @@ export type SavePlanVersionInput = {
    * REPLACE-SET (never delete on unknown).
    */
   billingOverrides?: BillingOverridesSaveEnvelope | null
+  /**
+   * Version this cut is forked from. Publish/new_version billing-override
+   * carry reads this row (not the current tip) when set.
+   */
+  baseVersionId?: number | null
   /**
    * Test-only injection point for the PENFOLD016/BOSS006 kill-shot.
    * Must throw to abort between line_items and schedule_months writes.
@@ -415,12 +421,13 @@ type BaseOverrideRow = {
 
 /**
  * MB-2 — when publish/new_version inserts a new version row, copy billing_overrides
- * from the prior tip (version_number = newVn − 1) for line_item_ids that still
- * exist. Deleted-line overrides are returned as `dropped` (never silent).
+ * from the fork base (`baseVersionId` when sent; else version_number = newVn − 1)
+ * for line_item_ids that still exist. Deleted-line overrides are returned as
+ * `dropped` (never silent).
  *
  * TRANSITIONAL (VC-3): once Revisions land, the revision holds its own overrides
- * and Publish promotes them. At that point copying from tip−1 becomes a competing
- * second source and this carry must go. Do not expand this path meanwhile.
+ * and Publish promotes them. At that point copying from the prior row becomes a
+ * competing second source and this carry must go. Do not expand this path meanwhile.
  */
 async function carryBillingOverridesToNewVersion(
   tx: Tx,
@@ -429,6 +436,7 @@ async function carryBillingOverridesToNewVersion(
     newVersionId: number
     newVersionNumber: number
     livingLineItemIds: ReadonlySet<string>
+    baseVersionId?: number | null
   }
 ): Promise<{
   carried: number
@@ -439,16 +447,32 @@ async function carryBillingOverridesToNewVersion(
     return { carried: 0, dropped: [], fromVersionId: null }
   }
 
-  const [base] = await tx
-    .select({ id: schema.mediaPlanVersions.id })
-    .from(schema.mediaPlanVersions)
-    .where(
-      and(
-        eq(schema.mediaPlanVersions.masterId, args.masterId),
-        eq(schema.mediaPlanVersions.versionNumber, args.newVersionNumber - 1)
+  let base: { id: number } | undefined
+  if (args.baseVersionId != null) {
+    const [row] = await tx
+      .select({ id: schema.mediaPlanVersions.id })
+      .from(schema.mediaPlanVersions)
+      .where(
+        and(
+          eq(schema.mediaPlanVersions.id, args.baseVersionId),
+          eq(schema.mediaPlanVersions.masterId, args.masterId)
+        )
       )
-    )
-    .limit(1)
+      .limit(1)
+    base = row
+  } else {
+    const [row] = await tx
+      .select({ id: schema.mediaPlanVersions.id })
+      .from(schema.mediaPlanVersions)
+      .where(
+        and(
+          eq(schema.mediaPlanVersions.masterId, args.masterId),
+          eq(schema.mediaPlanVersions.versionNumber, args.newVersionNumber - 1)
+        )
+      )
+      .limit(1)
+    base = row
+  }
   if (!base) {
     return { carried: 0, dropped: [], fromVersionId: null }
   }
@@ -789,9 +813,10 @@ export async function savePlanVersion(
         await input._testHooks.afterLineItemsInsert()
       }
 
-      // MB-2: publish/new_version inserts a new version row — copy tip-1 overrides
-      // onto it BEFORE the override read that feeds financials. Draft overwrite
-      // keeps the same versionId (no copy).
+      // MB-2: publish/new_version inserts a new version row — copy overrides
+      // from the fork base (baseVersionId, else ordinal tip−1) BEFORE the
+      // override read that feeds financials. Draft overwrite keeps the same
+      // versionId (no copy).
       let droppedBillingOverrides: DroppedBillingOverride[] = []
       let carryAudit: {
         carried: number
@@ -808,6 +833,7 @@ export async function savePlanVersion(
           newVersionId: versionId,
           newVersionNumber: versionNumber,
           livingLineItemIds: livingIds,
+          baseVersionId: input.baseVersionId ?? null,
         })
         droppedBillingOverrides = carryAudit.dropped
       }

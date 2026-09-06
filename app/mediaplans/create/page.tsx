@@ -5526,6 +5526,7 @@ function CreateMediaPlan() {
               versionNumber: modeResolved.versionNumber,
               mode: modeResolved.mode,
               baseVersionId: draftBaseVersionId,
+              tipVersionIdAtLoad: null,
               campaignName: fv.mp_campaignname ?? null,
               campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start),
               campaignEndDate: toDateOnlyString(fv.mp_campaigndates_end),

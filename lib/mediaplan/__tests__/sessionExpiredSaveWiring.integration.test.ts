@@ -42,7 +42,7 @@ describe("create + edit 401 save wiring", () => {
       /if \(isWriteSessionExpiredError\(err\)\) \{\s*throw err/
     )
     assert.match(createSrc, /versionResult === 'publish_pending'/)
-    assert.match(createSrc, /router\.push\('\/mediaplans'\)/)
+    assert.match(createSrc, /router\.push\(['"]\/mediaplans['"]\)/)
   })
 
   it("edit working-draft save uses the same 401 copy instead of the raw fetch message", () => {

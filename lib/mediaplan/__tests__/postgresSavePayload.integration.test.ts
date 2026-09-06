@@ -352,7 +352,11 @@ describe("create + edit assembly twins (shared helpers)", () => {
       assert.match(src, /CampaignStatusControl/)
       assert.match(src, /ingestStageIdRef/)
       assert.match(src, /ingestStageId:\s*ingestStageIdRef\.current/)
+      assert.match(src, /tipVersionIdAtLoad:/)
     }
+    assert.match(editSrc, /resolveTipVersionIdAtLoad/)
+    assert.match(editSrc, /tipVersionIdAtLoadRef/)
+    assert.match(createSrc, /tipVersionIdAtLoad:\s*null/)
     // CS-C1: create AVA PageFields omit campaign status; selectable vocab stays on edit (control options).
     assert.equal(createSrc.includes("SELECTABLE_CAMPAIGN_STATUSES"), false)
     assert.match(editSrc, /SELECTABLE_CAMPAIGN_STATUSES/)

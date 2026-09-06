@@ -293,8 +293,13 @@ export type PlansSaveRequestBody = {
     campaignBudgetCents?: number | null
     clientId?: number | null
   }
-  /** PC7 stale-base check — tip version id at edit open. */
+  /** Version this cut is forked from (loaded editor version). */
   baseVersionId?: number | null
+  /**
+   * Published pointer the editor saw at load. Stale-base 409 compares this
+   * to the current pointer — not `baseVersionId`. Null on create.
+   */
+  tipVersionIdAtLoad?: number | null
   /** O4 — working billing for AUTO correction toast (server still authoritative). */
   clientBillingSchedulePreview?: BillingMonth[] | null
   /**

@@ -21,7 +21,10 @@ import {
   getWorkingDraft,
   resolvePublishedVersionId,
 } from "@/lib/mediaplan/drafts/serverStore"
-import { buildStaleBaseCompare } from "@/lib/mediaplan/drafts/pill"
+import {
+  buildStaleBaseCompare,
+  isStalePublishedTip,
+} from "@/lib/mediaplan/drafts/pill"
 import { SAVE_PUBLISHES_IMMEDIATELY } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import { shouldClearWorkingDraftAfterSave } from "@/lib/mediaplan/shouldClearWorkingDraftAfterSave"
 import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver"
@@ -72,26 +75,31 @@ export async function POST(request: NextRequest) {
   const access = await checkClientMbaAccess(request, body.mbaNumber)
   if (!access.ok) return access.response
 
-  // PC7 stale-base: tip moved since editor loaded base_version_id.
-  // Always on when baseVersionId is sent (Stage 2b working drafts are
-  // load-bearing even if NEXT_PUBLIC_PLAN_DRAFTS autosave chrome is off).
-  if (
-    body.baseVersionId != null &&
-    (body.mode === "publish" || body.mode === "new_version")
-  ) {
+  // SV-1 stale-base: another editor published during this session.
+  // Compares tip-at-load to the current published pointer — not baseVersionId
+  // (the version this cut is forked from). Create sends null → never 409.
+  if (body.mode === "publish" || body.mode === "new_version") {
     const currentId = await resolvePublishedVersionId(body.masterId)
-    if (currentId != null && currentId !== body.baseVersionId) {
+    if (
+      isStalePublishedTip({
+        mode: body.mode,
+        tipVersionIdAtLoad: body.tipVersionIdAtLoad,
+        currentPublishedVersionId: currentId,
+      })
+    ) {
+      const tipNowId = currentId as number
+      const tipAtLoadId = body.tipVersionIdAtLoad as number
       const [yours, tip] = await Promise.all([
         Promise.resolve(body.lineItems.length),
-        countVersionLines(currentId),
+        countVersionLines(tipNowId),
       ])
       return NextResponse.json(
         {
           error: "Published tip moved since you started editing",
           code: "STALE_BASE_VERSION",
           compare: buildStaleBaseCompare({
-            baseVersionId: body.baseVersionId,
-            currentVersionId: currentId,
+            baseVersionId: tipAtLoadId,
+            currentVersionId: tipNowId,
             yoursLineCount: yours,
             tipLineCount: tip,
           }),
@@ -243,6 +251,7 @@ export async function POST(request: NextRequest) {
       | undefined,
     billingOverrides: body.billingOverrides ?? null,
     publishedByEmail,
+    baseVersionId: body.baseVersionId ?? null,
     lineItems: body.lineItems.map((l) => ({
       ...l,
       channel: l.channel as (typeof LINE_CHANNELS)[number],

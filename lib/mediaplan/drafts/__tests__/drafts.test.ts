@@ -8,6 +8,7 @@ import {
   summarizeDraftOffer,
   pickNewerDraft,
   buildStaleBaseCompare,
+  isStalePublishedTip,
   draftAgeDays,
   shouldNudgeStaleDraft,
 } from "../pill.js"
@@ -165,9 +166,58 @@ describe("version header trail shares resolvePostgresSaveMode with pill", () => 
       hasWorkingDraft: false,
       autosavedSecondsAgo: null,
       editingUnpublishedDraft: false,
+      editingVersionNumber: 1,
+      publishedTipVersionNumber: 1,
     })
     assert.equal(mode.uiMode, "increment")
     assert.match(pill.primary, /Save will create v2/i)
+    assert.doesNotMatch(pill.primary, /from v/i)
+  })
+
+  it("SV-1: three pill copies — tip / older base / create", { skip: !SAVE_PUBLISHES_IMMEDIATELY }, () => {
+    const tipMode = resolvePostgresSaveMode({
+      forceIncrement: false,
+      publishedVersionNumber: 5,
+      versionRowCount: 5,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
+      intent: "publish",
+    })
+    const onTip = describePlanSavePill({
+      modeResolved: tipMode,
+      hasWorkingDraft: false,
+      autosavedSecondsAgo: null,
+      editingUnpublishedDraft: false,
+      editingVersionNumber: 5,
+      publishedTipVersionNumber: 5,
+    })
+    assert.equal(onTip.primary, "Save will create v6")
+
+    const fromOlder = describePlanSavePill({
+      modeResolved: tipMode,
+      hasWorkingDraft: false,
+      autosavedSecondsAgo: null,
+      editingUnpublishedDraft: false,
+      editingVersionNumber: 3,
+      publishedTipVersionNumber: 5,
+    })
+    assert.equal(
+      fromOlder.primary,
+      "Save will create v6 from v3 · published tip is v5"
+    )
+
+    const createMode = resolvePostgresSaveMode({
+      forceIncrement: false,
+      publishedVersionNumber: 0,
+      versionRowCount: 0,
+    })
+    const create = describePlanSavePill({
+      modeResolved: createMode,
+      hasWorkingDraft: false,
+      autosavedSecondsAgo: null,
+      editingUnpublishedDraft: false,
+    })
+    assert.equal(create.primary, "Save will create v1")
+    assert.doesNotMatch(create.primary, /from v/i)
   })
 
   it("NV-1: unpublished tip + forceIncrement → Will cut v{n} (stays unpublished)", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
@@ -238,6 +288,45 @@ describe("PC7 compare + stale-base", () => {
     assert.equal(c.baseVersionId, 10)
     assert.equal(c.currentVersionId, 12)
     assert.ok(c.sections.base && c.sections.yours && c.sections.current)
+  })
+
+  it("SV-1: stale guard checks tip-at-load vs tip-now, not the chosen base", () => {
+    // base v3, tip-at-load v5, tip-now v5 → proceed
+    assert.equal(
+      isStalePublishedTip({
+        mode: "publish",
+        tipVersionIdAtLoad: 50,
+        currentPublishedVersionId: 50,
+      }),
+      false
+    )
+    // base v3, tip-at-load v5, tip-now v6 → 409
+    assert.equal(
+      isStalePublishedTip({
+        mode: "publish",
+        tipVersionIdAtLoad: 50,
+        currentPublishedVersionId: 60,
+      }),
+      true
+    )
+    // create (no tip) → proceed even if a pointer exists
+    assert.equal(
+      isStalePublishedTip({
+        mode: "publish",
+        tipVersionIdAtLoad: null,
+        currentPublishedVersionId: 50,
+      }),
+      false
+    )
+    // chosen base must not participate
+    assert.equal(
+      isStalePublishedTip({
+        mode: "publish",
+        tipVersionIdAtLoad: 50,
+        currentPublishedVersionId: 50,
+      }),
+      false
+    )
   })
 })
 

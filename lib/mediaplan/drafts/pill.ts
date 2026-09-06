@@ -18,8 +18,15 @@ export function describePlanSavePill(args: {
   hasWorkingDraft: boolean
   autosavedSecondsAgo: number | null
   editingUnpublishedDraft: boolean
+  /** Version ordinal loaded in the editor (omit on create). */
+  editingVersionNumber?: number | null
+  /** Published tip ordinal at session start (omit on create). */
+  publishedTipVersionNumber?: number | null
 }): PlanSavePill {
   const { modeResolved: m } = args
+  const editing = Number(args.editingVersionNumber) || 0
+  const tip = Number(args.publishedTipVersionNumber) || 0
+  const forkingOlder = editing > 0 && tip > 0 && editing !== tip
   let primary: string
   if (args.editingUnpublishedDraft) {
     // Resolver versionNumber is the save target. Under save-equals-publish
@@ -35,6 +42,8 @@ export function describePlanSavePill(args: {
     primary = `Working draft of v${m.versionNumber} — publish creates next version`
   } else if (m.uiMode === "increment_unpublished") {
     primary = `Will cut v${m.versionNumber} (stays unpublished)`
+  } else if (SAVE_PUBLISHES_IMMEDIATELY && forkingOlder) {
+    primary = `Save will create v${m.versionNumber} from v${editing} · published tip is v${tip}`
   } else if (SAVE_PUBLISHES_IMMEDIATELY) {
     primary = `Save will create v${m.versionNumber}`
   } else {
@@ -118,11 +127,48 @@ export function buildStaleBaseCompare(args: {
     baseVersionId: args.baseVersionId,
     currentVersionId: args.currentVersionId,
     sections: {
-      base: `Base version id ${args.baseVersionId}`,
+      base: `Tip at load version id ${args.baseVersionId}`,
       yours: `Your draft (${args.yoursLineCount} lines)`,
       current: `Current tip version id ${args.currentVersionId} (${args.tipLineCount} lines)`,
     },
   }
+}
+
+/**
+ * SV-1 stale-base: another editor published during this session.
+ * `tipVersionIdAtLoad` is the published pointer the editor saw at load.
+ * The chosen `baseVersionId` (version being forked) does not participate.
+ * Create sends null → never 409.
+ */
+export function isStalePublishedTip(args: {
+  mode: "draft" | "new_version" | "publish"
+  tipVersionIdAtLoad: number | null | undefined
+  currentPublishedVersionId: number | null
+}): boolean {
+  if (args.tipVersionIdAtLoad == null) return false
+  if (args.mode !== "publish" && args.mode !== "new_version") return false
+  if (args.currentPublishedVersionId == null) return false
+  return args.currentPublishedVersionId !== args.tipVersionIdAtLoad
+}
+
+/**
+ * Published pointer the editor saw at load. Prefers the version-picker row
+ * for the newest ordinal; falls back to master `published_version_id`.
+ */
+export function resolveTipVersionIdAtLoad(args: {
+  publishedVersionId?: unknown
+  versions: Array<{ id?: number; version_number: number }>
+  latestVersionNumber: number
+}): number | null {
+  const fromPicker = args.versions.find(
+    (v) => v.version_number === args.latestVersionNumber
+  )?.id
+  if (typeof fromPicker === "number" && Number.isFinite(fromPicker) && fromPicker > 0) {
+    return fromPicker
+  }
+  const pointer = Number(args.publishedVersionId)
+  if (Number.isFinite(pointer) && pointer > 0) return pointer
+  return null
 }
 
 export function draftAgeDays(updatedAt: string, now = new Date()): number {
