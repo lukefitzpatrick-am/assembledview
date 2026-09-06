@@ -217,6 +217,7 @@ import {
   INGEST_CHANNEL_FLAG,
   queueScrollToMediaSection,
 } from "@/lib/ava/applyIngestLineItemsLoad"
+import { consumePendingParseReviewLoad } from "@/lib/mediaplans/ingest/pendingParseReviewLoad"
 import { KPISection } from "@/components/kpis/KPISection"
 import { createMediaPlanKpiHost } from "@/components/kpis/kpiHost"
 import { resolveAllKPIs } from "@/lib/kpi/resolve"
@@ -1764,6 +1765,15 @@ function CreateMediaPlan() {
     },
     [form, markUnsavedChanges, isPartialMBA],
   )
+
+  const consumedParseReviewLoad = useRef(false)
+  useEffect(() => {
+    if (consumedParseReviewLoad.current) return
+    const pending = consumePendingParseReviewLoad()
+    if (!pending) return
+    consumedParseReviewLoad.current = true
+    void handleSetLineItems(pending)
+  }, [handleSetLineItems])
 
   const handleGetLineItems = useCallback(
     async ({ channel }: { channel: "radio" | "ooh" }) => {

@@ -4,6 +4,7 @@
  */
 
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
+import { ingestParseReviewPath } from "@/lib/mediaplans/ingest/ingestParseReviewPath"
 import { unresolvedDiscrepancyRows } from "@/lib/mediaplans/ingest/lineAuditReconcile"
 import { countBonusLineItemsFromProposal } from "@/lib/mediaplans/ingest/stampProposalForSave"
 import { evaluateTemplateCoverage } from "@/lib/mediaplans/ingest/templateCoverage"
@@ -42,6 +43,8 @@ export type IngestChatSummary = {
   no_profile_message: string | null
   full_review_path: string
 }
+
+export { ingestParseReviewPath }
 
 export function ingestFullReviewPath(stageId: string): string {
   return `/admin/schedule-ingest?stage=${encodeURIComponent(stageId)}`

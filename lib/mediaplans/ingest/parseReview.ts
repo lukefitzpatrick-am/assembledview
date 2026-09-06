@@ -19,7 +19,6 @@ import {
   publisherRawFieldFor,
   type UnresolvedControlledValue,
 } from "@/lib/mediaplans/ingest/templateCoverage"
-import { learnSynonym } from "@/lib/mediaplans/ingest/valueSynonymRepo"
 import { resolveCatalogueIdForProfileName } from "@/lib/mediaplans/ingest/publisherCatalogueJoin"
 
 export const PARSE_REVIEW_LOAD_REFUSE =
@@ -445,6 +444,9 @@ export async function resolveParseReviewValue(args: {
     (publisherName ? resolveCatalogueIdForProfileName(publisherName) : null)
   let synonymWritten = false
   if (publisherId != null) {
+    const { learnSynonym } = await import(
+      "@/lib/mediaplans/ingest/valueSynonymRepo"
+    )
     await learnSynonym({
       publisherId,
       mediaType:

@@ -503,6 +503,14 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     roles: ["admin"],
     group: "campaigns",
   },
+  {
+    path: "/mediaplans/mba/[mba_number]/ingest/[stageId]",
+    label: "Parse review",
+    title: "Parse review",
+    inPalette: false,
+    roles: ["admin"],
+    group: "campaigns",
+  },
 
   // ── Dashboards (client + admin drill-down) ─────────────────────────
   {

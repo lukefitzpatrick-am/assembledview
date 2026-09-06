@@ -17,6 +17,7 @@ import {
   type AvaColumnMappingProposal,
 } from "@/lib/mediaplans/ingest/avaColumnMapping"
 import { readIngestStageFromSession } from "@/lib/mediaplans/ingest/ingestStageClient"
+import { ingestParseReviewPath } from "@/lib/mediaplans/ingest/ingestParseReviewPath"
 import { getRouteByExactPath } from "@/lib/nav/routeManifest"
 import { LoadingState } from "@/components/ui/states"
 import type { Publisher } from "@/lib/types/publisher"
@@ -686,6 +687,10 @@ function ScheduleIngestPageInner() {
   }
 
   if (review) {
+    const parseHref = ingestParseReviewPath(
+      stagedStageId || stageId,
+      mbaNumber.trim() || "create",
+    )
     return (
       <>
         {error ? (
@@ -693,6 +698,13 @@ function ScheduleIngestPageInner() {
             <div className="rounded-card border border-border bg-card px-4 py-3 text-sm text-status-critical-fg shadow-e1">
               {error}
             </div>
+          </div>
+        ) : null}
+        {stagedStageId || stageId ? (
+          <div className="mx-auto flex w-full max-w-[1200px] items-center justify-end gap-2 px-6 pt-4">
+            <Button variant="outline" asChild>
+              <a href={parseHref}>Open parse review</a>
+            </Button>
           </div>
         ) : null}
         <IngestReviewScreen

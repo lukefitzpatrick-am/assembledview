@@ -15,6 +15,7 @@ import type { ChatFileAttachment, FormPatch, ModelChatReply, PageContext } from 
 import type { CapturedLineItemsLoad } from "@/lib/ava/autopopulate/types"
 import type { PendingParsedPlan } from "@/lib/ava/tools/types"
 import { writeIngestStageToSession } from "@/lib/mediaplans/ingest/ingestStageClient"
+import { ingestParseReviewPath } from "@/lib/mediaplans/ingest/ingestParseReviewPath"
 import {
   applyIngestStageMissingMeta,
   buildIngestProposalPrompt,
@@ -907,7 +908,21 @@ export function ChatWidget({
                 <p className="text-xs text-muted-foreground">
                   Schedule ready
                   {pendingIngest.fileName ? ` · ${pendingIngest.fileName}` : ""}
-                  {pendingIngest.summary?.full_review_path ? (
+                  {pendingIngest.summary?.line_item_count ? (
+                    <>
+                      {" "}
+                      ·{" "}
+                      <a
+                        className="underline underline-offset-2"
+                        href={ingestParseReviewPath(
+                          pendingIngest.stageId,
+                          pageContext?.mbaNumber ?? "create",
+                        )}
+                      >
+                        Review {pendingIngest.summary.line_item_count} lines
+                      </a>
+                    </>
+                  ) : pendingIngest.summary?.full_review_path ? (
                     <>
                       {" "}
                       ·{" "}
@@ -915,7 +930,7 @@ export function ChatWidget({
                         className="underline underline-offset-2"
                         href={pendingIngest.summary.full_review_path}
                       >
-                        Open full review
+                        Review lines
                       </a>
                     </>
                   ) : null}

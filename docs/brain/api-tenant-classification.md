@@ -103,7 +103,7 @@ Existing `/api/admin/*` handlers in this recount: **25** methods across **21** f
 | POST | `/api/admin/fireflies-sync` | admin-only | requireRole | `app/api/admin/fireflies-sync/route.ts` |
 | GET | `/api/admin/fireflies-unattributed` | admin-only | requireRole | `app/api/admin/fireflies-unattributed/route.ts` |
 | POST | `/api/admin/fireflies-unattributed` | admin-only | requireRole | `app/api/admin/fireflies-unattributed/route.ts` |
-| POST | `/api/admin/ingest/accept` | admin-only | requireRole | `app/api/admin/ingest/accept/route.ts` |
+| POST | `/api/admin/ingest/parse-review` | admin-only | requireRole | `app/api/admin/ingest/parse-review/route.ts` |
 | POST | `/api/admin/ingest/ava-mapping` | admin-only | requireRole | `app/api/admin/ingest/ava-mapping/route.ts` |
 | POST | `/api/admin/ingest/cancel` | admin-only | requireRole | `app/api/admin/ingest/cancel/route.ts` |
 | POST | `/api/admin/ingest/link-publisher` | admin-only | requireRole | `app/api/admin/ingest/link-publisher/route.ts` |

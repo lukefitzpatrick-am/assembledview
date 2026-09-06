@@ -65,6 +65,7 @@ import {
   INGEST_CHANNEL_FLAG,
   queueScrollToMediaSection,
 } from "@/lib/ava/applyIngestLineItemsLoad"
+import { consumePendingParseReviewLoad } from "@/lib/mediaplans/ingest/pendingParseReviewLoad"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { getSearchBursts } from "@/components/media-containers/SearchContainer"
 import { getSocialMediaBursts } from "@/components/media-containers/SocialMediaContainer"
@@ -11424,6 +11425,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     },
     [form, markUnsavedChanges, isPartialMBA],
   )
+
+  const consumedParseReviewLoad = useRef(false)
+  useEffect(() => {
+    if (consumedParseReviewLoad.current) return
+    const pending = consumePendingParseReviewLoad()
+    if (!pending) return
+    consumedParseReviewLoad.current = true
+    void handleSetLineItems(pending)
+  }, [handleSetLineItems])
 
   const handleGetLineItems = useCallback(
     async ({ channel }: { channel: "radio" | "ooh" }) => {
