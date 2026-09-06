@@ -149,16 +149,6 @@ export function PlanWizardBottomBar({
           ]}
         />
       ) : null}
-      <Button
-        type="button"
-        variant="outline"
-        onClick={onPublishMba}
-        disabled={mbaBusy || !isPublished}
-        title={unpublishedTitle}
-        className="h-9 shrink-0 rounded-pill border-border px-4 focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {wizardPublishMbaLabel({ isBusy: mbaBusy })}
-      </Button>
       <div className="flex items-center gap-2 md:hidden">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -173,6 +163,13 @@ export function PlanWizardBottomBar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={onPublishMba}
+              disabled={mbaBusy || !isPublished}
+              title={unpublishedTitle}
+            >
+              {wizardPublishMbaLabel({ isBusy: mbaBusy })}
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={onDownloadMediaPlan}
               disabled={mediaPlanDisabled}
@@ -204,6 +201,20 @@ export function PlanWizardBottomBar({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <Button
+        type="button"
+        onClick={onPublishMba}
+        disabled={mbaBusy || !isPublished}
+        title={unpublishedTitle}
+        className="hidden h-9 shrink-0 rounded-pill bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {mbaBusy ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Download className="h-4 w-4" />
+        )}
+        <span className="ml-2">{wizardPublishMbaLabel({ isBusy: mbaBusy })}</span>
+      </Button>
       <Button
         type="button"
         onClick={onDownloadMediaPlan}

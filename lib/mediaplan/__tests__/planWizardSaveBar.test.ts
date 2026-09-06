@@ -246,9 +246,9 @@ describe("describePublishSuccessToast", () => {
 })
 
 describe("wizardPublishMbaLabel", () => {
-  it("idle is Publish MBA; busy is Publishing MBA…", () => {
-    assert.equal(wizardPublishMbaLabel({ isBusy: false }), "Publish MBA")
-    assert.equal(wizardPublishMbaLabel({ isBusy: true }), "Publishing MBA…")
+  it("idle is MBA; busy is Generating MBA…", () => {
+    assert.equal(wizardPublishMbaLabel({ isBusy: false }), "MBA")
+    assert.equal(wizardPublishMbaLabel({ isBusy: true }), "Generating MBA…")
   })
 })
 
@@ -270,7 +270,7 @@ describe("edit page wiring (SF-1)", () => {
     )
   })
 
-  it("bar: flag-on primary is Publish split; Save draft and Publish MBA stay distinct", () => {
+  it("bar: flag-on primary is Publish split; Save draft and MBA download stay distinct", () => {
     const bar = sliceBottomBar(readFileSync(EDIT_PAGE, "utf8"))
     assert.match(bar, /PlanWizardBottomBar/)
     assert.match(bar, /intent: "publish", download: true/)
@@ -289,17 +289,20 @@ describe("edit page wiring (SF-1)", () => {
 })
 
 describe("SM-30: create bar is the edit bar", () => {
-  it("shared component order is Publish, Save draft, Publish MBA with SplitActionButton for the first two", () => {
+  it("shared component order is Publish, Save draft, then MBA first in the download group", () => {
     const barSrc = readFileSync(BOTTOM_BAR, "utf8")
     const publish = barSrc.indexOf("label={primaryLabel}")
     const saveDraft = barSrc.indexOf('label="Save draft"')
-    const publishMba = barSrc.indexOf("{wizardPublishMbaLabel")
+    const mba = barSrc.indexOf("onClick={onPublishMba}")
+    const mediaPlan = barSrc.indexOf("onClick={onDownloadMediaPlan}")
     assert.ok(publish >= 0, "missing primary SplitActionButton")
     assert.ok(saveDraft > publish, "Save draft must follow Publish")
-    assert.ok(publishMba > saveDraft, "Publish MBA must follow Save draft")
+    assert.ok(mba > saveDraft, "MBA download must follow Save draft")
+    assert.ok(mediaPlan > mba, "MBA must precede Media Plan in the download group")
     assert.match(barSrc, /<SplitActionButton[\s\S]*label=\{primaryLabel\}/)
     assert.match(barSrc, /<SplitActionButton[\s\S]*label="Save draft"/)
-    assert.doesNotMatch(barSrc, /Generate MBA/)
+    assert.match(barSrc, /bg-primary/)
+    assert.doesNotMatch(barSrc, /Publish MBA/)
   })
 
   it("both pages mount PlanWizardBottomBar with the same control order and split handlers", () => {

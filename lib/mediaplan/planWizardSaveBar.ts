@@ -99,5 +99,5 @@ export const DRAFT_BLOCKS_DOWNLOAD_MESSAGE =
   "Publish this version to download and send to client"
 
 export function wizardPublishMbaLabel(args: { isBusy: boolean }): string {
-  return args.isBusy ? "Publishing MBA…" : "Publish MBA"
+  return args.isBusy ? "Generating MBA…" : "MBA"
 }

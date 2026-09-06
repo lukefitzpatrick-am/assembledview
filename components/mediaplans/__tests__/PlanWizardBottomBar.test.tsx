@@ -1,5 +1,6 @@
 /**
- * SM-30 — create and edit share PlanWizardBottomBar: Publish, Save draft, Publish MBA.
+ * SM-30 / SM-30b — create and edit share PlanWizardBottomBar:
+ * Publish, Save draft, then download group (MBA first).
  *
  * @vitest-environment jsdom
  */
@@ -72,19 +73,42 @@ describe("PlanWizardBottomBar", () => {
     container.remove()
   })
 
-  it("renders Publish, Save draft, Publish MBA in that order via SplitActionButton then outline MBA", () => {
+  it("renders Publish, Save draft, then MBA first in the download group", () => {
     act(() => {
       root.render(renderBar())
     })
     const labels = Array.from(container.querySelectorAll("button"))
       .map((el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "")
-      .filter((text) => text === "Publish" || text === "Save draft" || text === "Publish MBA")
-    expect(labels.slice(0, 3)).toEqual(["Publish", "Save draft", "Publish MBA"])
+      .filter(
+        (text) =>
+          text === "Publish" ||
+          text === "Save draft" ||
+          text === "MBA" ||
+          text === "Media Plan" ||
+          text === "Media Plan (AA)" ||
+          text === "Generate Naming (Ava)" ||
+          text === "Save & Download All",
+      )
+    expect(labels.slice(0, 7)).toEqual([
+      "Publish",
+      "Save draft",
+      "MBA",
+      "Media Plan",
+      "Media Plan (AA)",
+      "Generate Naming (Ava)",
+      "Save & Download All",
+    ])
     expect(container.querySelector('[aria-label="Publish menu"]')).not.toBeNull()
     expect(container.querySelector('[aria-label="Save draft menu"]')).not.toBeNull()
+    const mba = Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "MBA",
+    )
+    expect(mba?.className).toContain("bg-primary")
+    expect(mba?.className).not.toContain("border-border")
+    expect(mba?.querySelector("svg")).toBeTruthy()
   })
 
-  it("disables Publish MBA until published and uses the draft title", () => {
+  it("disables MBA until published and uses the draft title", () => {
     act(() => {
       root.render(
         renderBar({
@@ -94,7 +118,7 @@ describe("PlanWizardBottomBar", () => {
       )
     })
     const mba = Array.from(container.querySelectorAll("button")).find(
-      (el) => el.textContent?.includes("Publish MBA"),
+      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "MBA",
     )
     expect(mba).toBeTruthy()
     expect(mba?.disabled).toBe(true)
@@ -103,13 +127,13 @@ describe("PlanWizardBottomBar", () => {
     )
   })
 
-  it("shows Publishing MBA… while busy", () => {
+  it("shows Generating MBA… while busy", () => {
     act(() => {
       root.render(renderBar({ isPublished: true, mbaBusy: true }))
     })
     const mba = Array.from(container.querySelectorAll("button")).find((el) =>
-      el.textContent?.includes("Publishing MBA"),
+      el.textContent?.includes("Generating MBA"),
     )
-    expect(mba?.textContent).toContain("Publishing MBA…")
+    expect(mba?.textContent).toContain("Generating MBA…")
   })
 })
