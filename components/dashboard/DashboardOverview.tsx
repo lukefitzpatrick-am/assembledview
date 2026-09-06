@@ -18,6 +18,8 @@ import {
   DashboardScopeCard,
   dashboardCampaignGridClassName,
 } from "@/components/dashboard/DashboardEntityCards"
+import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
+import { campaignMediaTypeTagLabels } from "@/lib/dashboard/campaignMediaTypeTags"
 import { format } from "date-fns"
 import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
 import { formatMoney, formatMoneyCompact } from "@/lib/format/money"
@@ -1926,70 +1928,10 @@ export default function DashboardOverview({
     }
   }
 
-  const getMediaBadgeClassName = (key: string) => {
-    switch (key) {
-      case "television":
-        return "bg-pacing-critical-bg text-status-critical-fg border-channel-tv"
-      case "bvod":
-      case "digivideo":
-      case "progvideo":
-      case "progbvod":
-        return "bg-channel-bvod-bg text-channel-bvod border-channel-bvod"
-      case "socialmedia":
-      case "influencers":
-        return "bg-channel-social-bg text-channel-social-fg border-channel-social"
-      case "digidisplay":
-      case "progdisplay":
-        return "bg-pacing-behind-bg text-status-behind-fg border-channel-progDisplay"
-      case "search":
-      case "ooh":
-      case "progooh":
-        return "bg-pacing-ahead-bg text-status-ahead-fg border-channel-search"
-      default:
-        return "bg-surface-panel text-muted-foreground border-border"
-    }
-  }
-
-  const getMediaTypeTags = (plan: MediaPlan) => {
-    const isEnabled = (value: any): boolean => {
-      if (typeof value === "boolean") return value === true
-      if (typeof value === "string") return value.toLowerCase() === "true" || value === "1"
-      if (typeof value === "number") return value === 1
-      return false
-    }
-
-    const mediaTypes = [
-      { key: "television", enabled: isEnabled(plan.mp_television) },
-      { key: "radio", enabled: isEnabled(plan.mp_radio) },
-      { key: "newspaper", enabled: isEnabled(plan.mp_newspaper) },
-      { key: "magazines", enabled: isEnabled(plan.mp_magazines) },
-      { key: "ooh", enabled: isEnabled(plan.mp_ooh) },
-      { key: "cinema", enabled: isEnabled(plan.mp_cinema) },
-      { key: "digidisplay", enabled: isEnabled(plan.mp_digidisplay) },
-      { key: "digiaudio", enabled: isEnabled(plan.mp_digiaudio) },
-      { key: "digivideo", enabled: isEnabled(plan.mp_digivideo) },
-      { key: "bvod", enabled: isEnabled(plan.mp_bvod) },
-      { key: "integration", enabled: isEnabled(plan.mp_integration) },
-      { key: "search", enabled: isEnabled(plan.mp_search) },
-      { key: "socialmedia", enabled: isEnabled(plan.mp_socialmedia) },
-      { key: "progdisplay", enabled: isEnabled(plan.mp_progdisplay) },
-      { key: "progvideo", enabled: isEnabled(plan.mp_progvideo) },
-      { key: "progbvod", enabled: isEnabled(plan.mp_progbvod) },
-      { key: "progaudio", enabled: isEnabled(plan.mp_progaudio) },
-      { key: "progooh", enabled: isEnabled(plan.mp_progooh) },
-      { key: "influencers", enabled: isEnabled(plan.mp_influencers) },
-    ]
-
-    const enabledTypes = mediaTypes.filter(({ enabled }) => enabled === true)
-
-    return enabledTypes.map(({ key }) => {
-      return (
-        <Badge key={key} className={cn("mr-1 mb-1 border text-[10px] font-medium", getMediaBadgeClassName(key))}>
-          {key}
-        </Badge>
-      )
-    })
-  }
+  const getMediaTypeTags = (plan: MediaPlan) =>
+    campaignMediaTypeTagLabels(plan).map((label) => (
+      <MediaChannelTag key={label} label={label} />
+    ))
 
   const latestPlansForFilters = getLatestPlanVersions(mediaPlans)
   const clientFilterOptions = (() => {
@@ -2237,7 +2179,7 @@ export default function DashboardOverview({
                               <OverviewCampaignPhaseBadge plan={plan} />
                             </TableCell>
                             <TableCell>
-                              <div className="flex flex-wrap gap-1">
+                              <div className={mediaChannelTagRowClassName}>
                                 {getMediaTypeTags(plan)}
                               </div>
                             </TableCell>
@@ -2416,7 +2358,7 @@ export default function DashboardOverview({
                               <OverviewCampaignPhaseBadge plan={plan} />
                             </TableCell>
                             <TableCell>
-                              <div className="flex flex-wrap gap-1">
+                              <div className={mediaChannelTagRowClassName}>
                                 {getMediaTypeTags(plan)}
                               </div>
                             </TableCell>
@@ -2508,7 +2450,7 @@ export default function DashboardOverview({
                               <OverviewCampaignPhaseBadge plan={plan} />
                             </TableCell>
                             <TableCell>
-                              <div className="flex flex-wrap gap-1">
+                              <div className={mediaChannelTagRowClassName}>
                                 {getMediaTypeTags(plan)}
                               </div>
                             </TableCell>

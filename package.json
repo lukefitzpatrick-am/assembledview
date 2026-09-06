@@ -14,6 +14,7 @@
     "test:coverage": "node scripts/run-test-coverage.mjs",
     "test:billing-line-id-match": "tsx --test lib/billing/__tests__/billingLineIdMatch.mb4.test.ts lib/billing/__tests__/canonicalBillingLineIdMembership.mb11.test.ts",
     "test:client-dashboard": "tsx --test lib/client-dashboard/__tests__/theme.test.ts",
+    "test:charts-registry": "tsx --test lib/charts/__tests__/registry.test.ts",
     "test:format-money": "vitest run tests/format/money-date.test.ts",
     "test:planned-to-date": "tsx --test lib/api/dashboard/__tests__/plannedToDate.test.ts && vitest run lib/dashboard/__tests__/homeDashboardFilters.test.ts",
     "test:client-dashboard-range": "tsx --test lib/dashboard/__tests__/clientDateRange.test.ts lib/delivery/__tests__/deliveredRange.test.ts && node --experimental-test-module-mocks --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/delivery/__tests__/getDeliveredTotalsForClient.range.test.ts && vitest run lib/api/dashboard/__tests__/client.test.ts lib/dashboard/__tests__/plannedSpendConsistency.test.ts lib/dashboard/__tests__/spendInsightsCaptions.test.ts components/dashboard/__tests__/SpendingInsightsSection.render.test.tsx",

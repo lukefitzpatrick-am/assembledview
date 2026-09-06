@@ -3,9 +3,9 @@
  * Colours mirror `mediaTypeTheme.colors` in `lib/utils`.
  *
  * Consolidation notes (registry wins; former `lib/media/channelColors.ts` removed):
- * - Aliases `social` → social_media, `consulting` → production, and compact `programmatic*` tokens
- *   (`programmaticdisplay`, etc.) → prog_* registry keys were added so labels/colours match dashboard
- *   and API strings that previously only `channelColors` normalized.
+ * - Aliases `social` → social_media, `consulting` → production, compact `programmatic*` tokens
+ *   (`programmaticdisplay`, etc.) → prog_* registry keys, and `line_channel` spellings (`digi_*`,
+ *   `integrations`) were added so labels/colours match dashboard, API, and enum strings.
  * - Unknown / non-registry channel strings use `getDeterministicColor` (Tableau ramp + FNV), not the
  *   old channel-only hash ramp — intentional single fallback story for charts and badges.
  * - Empty or whitespace-only inputs for `getMediaBadgeStyle` use `CHART_CHANNEL_FALLBACK_FILL` as the
@@ -99,6 +99,12 @@ const REGISTRY_KEY_ALIASES: Record<string, MediaTypeRegistryKey> = {
   social: "social_media",
   consulting: "production",
   tv: "television",
+  /** `line_channel` enum spellings that are not registry keys */
+  digi_display: "digital_display",
+  digi_video: "digital_video",
+  digi_audio: "digital_audio",
+  digi_bvod: "bvod",
+  integrations: "integration",
 }
 
 function splitWords(s: string): string[] {
@@ -168,6 +174,12 @@ export function getMediaColor(key: string): string {
   const row = MEDIA_TYPE_REGISTRY[n as MediaTypeRegistryKey]
   if (row) return row.color
   return getDeterministicColor(key)
+}
+
+/** True when `getMediaColor` / `getMediaBadgeStyle` use a registry row, not the Tableau fallback. */
+export function isMediaTypeRegistryKey(raw: string): boolean {
+  const n = normalizeEntityKey(raw)
+  return Boolean(n) && n in MEDIA_TYPE_REGISTRY
 }
 
 export function getMediaLabel(key: string): string {

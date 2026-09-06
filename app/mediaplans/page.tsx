@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { format } from "date-fns"
 import { PlusCircle } from "lucide-react"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
+import { campaignMediaTypeTagLabels } from "@/lib/dashboard/campaignMediaTypeTags"
 import { cn } from "@/lib/utils"
 import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
 import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
@@ -407,51 +408,10 @@ function MediaPlansPageInner() {
     setFilteredPlans(filtered)
   }, [searchTerm, selectedClients, fyFilter, mediaPlans])
 
-  // Get media type tags for a campaign
-  const getMediaTypeTags = (plan: MediaPlan) => {
-    // Helper to safely check if a media type is enabled
-    const isEnabled = (value: any): boolean => {
-      if (typeof value === 'boolean') return value === true;
-      if (typeof value === 'string') {
-        return value.toLowerCase() === 'true' || value === '1';
-      }
-      if (typeof value === 'number') return value === 1;
-      return false;
-    };
-
-    /** Labels aligned with `lib/api/dashboard.ts` campaign `mediaTypes` (matches dashboard campaign cards / charts). */
-    const mediaTypes = [
-      { label: "Television", enabled: isEnabled(plan.mp_television) },
-      { label: "Radio", enabled: isEnabled(plan.mp_radio) },
-      { label: "Newspaper", enabled: isEnabled(plan.mp_newspaper) },
-      { label: "Magazines", enabled: isEnabled(plan.mp_magazines) },
-      { label: "OOH", enabled: isEnabled(plan.mp_ooh) },
-      { label: "Cinema", enabled: isEnabled(plan.mp_cinema) },
-      { label: "Digital Display", enabled: isEnabled(plan.mp_digidisplay) },
-      { label: "Digital Audio", enabled: isEnabled(plan.mp_digiaudio) },
-      { label: "Digital Video", enabled: isEnabled(plan.mp_digivideo) },
-      { label: "BVOD", enabled: isEnabled(plan.mp_bvod) },
-      { label: "Integration", enabled: isEnabled(plan.mp_integration) },
-      { label: "Search", enabled: isEnabled(plan.mp_search) },
-      { label: "Social Media", enabled: isEnabled(plan.mp_socialmedia) },
-      { label: "Programmatic Display", enabled: isEnabled(plan.mp_progdisplay) },
-      { label: "Programmatic Video", enabled: isEnabled(plan.mp_progvideo) },
-      { label: "Programmatic BVOD", enabled: isEnabled(plan.mp_progbvod) },
-      { label: "Programmatic Audio", enabled: isEnabled(plan.mp_progaudio) },
-      { label: "Programmatic OOH", enabled: isEnabled(plan.mp_progooh) },
-      { label: "Influencers", enabled: isEnabled(plan.mp_influencers) },
-    ]
-
-    const enabledTypes = mediaTypes.filter(({ enabled }) => enabled === true)
-
-    if (enabledTypes.length > 0) {
-      console.log(`Plan ${plan.id} - Enabled media types:`, enabledTypes.map((t) => t.label))
-    }
-
-    return enabledTypes.map(({ label }) => (
+  const getMediaTypeTags = (plan: MediaPlan) =>
+    campaignMediaTypeTagLabels(plan).map((label) => (
       <MediaChannelTag key={`${plan.id}-${label}`} label={label} />
     ))
-  }
 
   // Get status badge color
   const getStatusBadgeColor = (status: string) => {
