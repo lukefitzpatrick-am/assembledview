@@ -18,6 +18,23 @@ test("JCDecaux DIGITAL LARGE FORMAT resolves to large_format after the publisher
   )
 })
 
+test("JCDecaux DIGITAL SMALL FORMAT resolves to small_format after the publisher prefix", () => {
+  assert.equal(
+    resolveControlledFormat("JCDecaux DIGITAL SMALL FORMAT", "JCDecaux"),
+    "small_format",
+  )
+})
+
+test("JCDecaux RAIL does not guess retail or large_format (AV has transit, not rail)", () => {
+  assert.equal(resolveControlledFormat("JCDecaux RAIL", "JCDecaux"), null)
+  assert.equal(resolveControlledFormat("RAIL"), null)
+  assert.notEqual(resolveControlledFormat("JCDecaux RAIL", "JCDecaux"), "retail")
+  assert.notEqual(
+    resolveControlledFormat("JCDecaux RAIL", "JCDecaux"),
+    "large_format",
+  )
+})
+
 test("unmatchable prose does not guess a format", () => {
   assert.equal(resolveControlledFormat("ZZORP BLIB"), null)
   assert.equal(resolveControlledFormat("Portrait"), null)

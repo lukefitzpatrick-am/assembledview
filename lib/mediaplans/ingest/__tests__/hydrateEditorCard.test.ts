@@ -140,10 +140,21 @@ test("JCD accept→editor: 95 buy-row lines (not occupancy subtotals), each card
       feePct: 0,
     })
     assert.ok(card.network.trim(), `JCD[${i}]: Network empty`)
-    assert.equal(card.format, "large_format", `JCD[${i}]: format ${card.format}`)
     const rawFormat = String(card.attrs?.publisher_format_name ?? "").trim()
     assert.ok(rawFormat, `JCD[${i}]: publisher_format_name missing`)
     assert.notEqual(rawFormat, "large_format")
+    assert.notEqual(card.format, "retail", `JCD[${i}]: RAIL must not become retail`)
+    if (/RAIL/i.test(rawFormat)) {
+      assert.equal(card.format, null, `JCD[${i}]: RAIL stays unresolved`)
+      assert.ok(
+        String(card.attrs?.format_unresolved_raw ?? "").match(/RAIL/i),
+        `JCD[${i}]: RAIL unresolved raw missing`,
+      )
+    } else if (/SMALL FORMAT/i.test(rawFormat)) {
+      assert.equal(card.format, "small_format", `JCD[${i}]: ${card.format}`)
+    } else {
+      assert.equal(card.format, "large_format", `JCD[${i}]: format ${card.format}`)
+    }
     assert.ok(
       String(panel.publisherFormatName ?? "").trim() || rawFormat,
       `JCD[${i}]: panel publisherFormatName missing`,
@@ -165,6 +176,29 @@ test("JCD accept→editor: 95 buy-row lines (not occupancy subtotals), each card
     moneySum += money
     if (money > 0) paidCards++
   }
+  const formatCounts = { large_format: 0, small_format: 0, rail_unresolved: 0 }
+  const rawHeaderCounts = new Map<string, number>()
+  for (const line of stamped.lineItems) {
+    const assembled = assembleStamped(line, "glenda0090h1")
+    const card = hydrateOohEditorLine(assembled, {
+      campaignStartDate: CAMPAIGN_START,
+      campaignEndDate: CAMPAIGN_END,
+      feePct: 0,
+    })
+    const raw = String(card.attrs?.publisher_format_name ?? "").trim()
+    rawHeaderCounts.set(raw, (rawHeaderCounts.get(raw) ?? 0) + 1)
+    if (card.format === "large_format") formatCounts.large_format++
+    else if (card.format === "small_format") formatCounts.small_format++
+    else if (card.format == null && /RAIL/i.test(raw)) {
+      formatCounts.rail_unresolved++
+    }
+  }
+  assert.equal(formatCounts.large_format, 80)
+  assert.equal(formatCounts.rail_unresolved, 14)
+  assert.equal(formatCounts.small_format, 1)
+  assert.equal(rawHeaderCounts.get("JCDecaux DIGITAL LARGE FORMAT"), 80)
+  assert.equal(rawHeaderCounts.get("JCDecaux RAIL"), 14)
+  assert.equal(rawHeaderCounts.get("JCDecaux DIGITAL SMALL FORMAT"), 1)
   const bonusCount = stamped.lineItems.filter((l) => l.buyType === "bonus").length
   const fixedCount = stamped.lineItems.filter(
     (l) => l.buyType === "fixed_cost",

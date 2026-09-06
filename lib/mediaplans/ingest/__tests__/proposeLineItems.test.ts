@@ -263,7 +263,24 @@ test("JCDecaux fixture: one line per buy row with identity or legend status (95;
       (b) => b.booking_status === "bonus" || b.booking_status === "bonus_display",
     )
     assert.equal(bonus.length, 2, `Rail Brisbane r${n} two B weeks → two bonus bursts`)
+    assert.equal(rail.grouping.format, "JCDecaux RAIL")
+    assert.equal(rail.grouping.publisher_format_name, "JCDecaux RAIL")
+    assert.equal(rail.grouping.market, "Brisbane")
   }
+
+  const formatRawCounts = new Map<string, number>()
+  for (const li of proposal.line_items) {
+    const raw = li.grouping.publisher_format_name || li.grouping.format || ""
+    formatRawCounts.set(raw, (formatRawCounts.get(raw) ?? 0) + 1)
+  }
+  assert.equal(formatRawCounts.get("JCDecaux DIGITAL LARGE FORMAT"), 80)
+  assert.equal(formatRawCounts.get("JCDecaux RAIL"), 14)
+  assert.equal(formatRawCounts.get("JCDecaux DIGITAL SMALL FORMAT"), 1)
+  assert.equal(
+    proposal.line_items.filter((li) => li.grouping.format === "JCDecaux RAIL")
+      .length,
+    14,
+  )
 
   for (const li of proposal.line_items) {
     for (const b of li.bursts) {

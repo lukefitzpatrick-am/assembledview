@@ -50,6 +50,54 @@ test("JCDecaux DIGITAL LARGE FORMAT strips the publisher prefix", async () => {
   assert.equal(hit.suggestion, null)
 })
 
+test("JCDecaux DIGITAL SMALL FORMAT strips the publisher prefix to small_format", async () => {
+  clearValueSynonymOverlayForTests()
+  const hit = await resolveControlledValue({
+    vocabularyKey: "ooh_format",
+    raw: "JCDecaux DIGITAL SMALL FORMAT",
+    publisherId: 35,
+    publisherName: "JCDecaux",
+  })
+  assert.equal(hit.canonical, "small_format")
+  assert.ok(hit.via === "prefix_strip" || hit.via === "fuzzy")
+  assert.equal(hit.suggestion, null)
+})
+
+test("JCDecaux RAIL stays unresolved (no rail vocab; Fuse must not pick retail)", async () => {
+  clearValueSynonymOverlayForTests()
+  const hit = await resolveControlledValue({
+    vocabularyKey: "ooh_format",
+    raw: "JCDecaux RAIL",
+    publisherId: 35,
+    publisherName: "JCDecaux",
+  })
+  assert.equal(hit.canonical, null)
+  assert.equal(hit.via, null)
+  assert.equal(hit.suggestion, null)
+})
+
+test("publisher synonym for JCDecaux RAIL auto-applies transit", async () => {
+  clearValueSynonymOverlayForTests()
+  await learnSynonym({
+    publisherId: 35,
+    mediaType: "ooh",
+    vocabulary: "ooh_format",
+    avField: "format",
+    rawValue: "jcdecaux rail",
+    rawValueDisplay: "JCDecaux RAIL",
+    avCanonical: "transit",
+    createdBy: CREATED_BY,
+  })
+  const hit = await resolveControlledValue({
+    vocabularyKey: "ooh_format",
+    raw: "JCDecaux RAIL",
+    publisherId: 35,
+    publisherName: "JCDecaux",
+  })
+  assert.equal(hit.canonical, "transit")
+  assert.equal(hit.via, "publisher_synonym")
+})
+
 test("Digital with no synonym stays unresolved (the QMS case)", async () => {
   clearValueSynonymOverlayForTests()
   const hit = await resolveControlledValue({

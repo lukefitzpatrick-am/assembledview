@@ -398,14 +398,20 @@ test("JCD fixture: cards only for unmatched required/enrich in card order; no co
     mbaNumbers: ["jcd001"],
   })
 
-  assert.deepEqual(questions.map((q) => q.id), expected)
   assert.equal(questions.some((q) => q.id.startsWith("ingest:map:")), false)
   assert.equal(questions.some((q) => q.id.startsWith("ingest:money:")), false)
   assert.equal(
     questions.some((q) => /Production Charge|MEDIA BOUGHT RATE/i.test(q.text)),
     false,
   )
-  for (const q of questions) {
+  const requiredCards = questions.filter((q) =>
+    q.id.startsWith("ingest:required:"),
+  )
+  assert.deepEqual(
+    requiredCards.map((q) => q.id),
+    expected,
+  )
+  for (const q of requiredCards) {
     const fieldId = q.id.slice("ingest:required:".length)
     const field = [...cov.required, ...cov.enrich].find((f) => f.id === fieldId)
     assert.ok(field, `unexpected card ${q.id}`)
@@ -422,8 +428,17 @@ test("JCD fixture: cards only for unmatched required/enrich in card order; no co
   assert.equal(lineCount, 95)
   assert.ok(fileTotal != null && Math.abs(fileTotal - 131250.01) < 1)
   assert.equal(recon.accept_ok, true)
-  assert.equal(cov.unresolved_controlled.length, 0)
-  assert.equal(questions.some((q) => q.id.startsWith("ingest:value:")), false)
+  const railUnresolved = cov.unresolved_controlled.filter((u) =>
+    /RAIL/i.test(u.raw),
+  )
+  assert.equal(railUnresolved.length, 1)
+  const valueCards = questions.filter((q) =>
+    q.id.startsWith("ingest:value:format:"),
+  )
+  assert.equal(valueCards.length, 1)
+  assert.ok(valueCards.some((q) => /RAIL/i.test(q.text)))
+  assert.ok(valueCards[0]!.options?.includes("Transit"))
+  assert.ok(valueCards[0]!.options?.includes("Large Format"))
 })
 
 test("JCD reconciling file produces zero money cards", async () => {

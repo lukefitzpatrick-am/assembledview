@@ -36,13 +36,44 @@ export function stripPublisherPrefix(
   return rest || trimmed
 }
 
+function tokenize(s: string): string[] {
+  return s
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+}
+
+/**
+ * Fuse substring-matches "RAIL" onto "retail" at score 0.07. Ingest only
+ * auto-applies a fuzzy hit when the query and the canonical share tokens
+ * (DIGITAL LARGE FORMAT → Large Format) — not a leftover substring.
+ */
+function fuzzyTokensCompatible(
+  query: string,
+  matchedValue: string,
+  label: string,
+): boolean {
+  const q = tokenize(query)
+  const c = [...new Set([...tokenize(matchedValue), ...tokenize(label)])]
+  if (q.length === 0 || c.length === 0) return false
+  const qSet = new Set(q)
+  const cSet = new Set(c)
+  return q.every((t) => cSet.has(t)) || c.every((t) => qSet.has(t))
+}
+
 const OOH_FORMAT: ControlledVocabulary = {
   key: "ooh_format",
   label: "format",
   values: OOH_FORMAT_OPTIONS,
   labelByValue: OOH_FORMAT_LABEL_BY_VALUE,
   exact: exactCanonicalFormat,
-  fuzzy: (input) => fuzzyMatchFormat(input)?.matched ?? null,
+  fuzzy: (input) => {
+    const hit = fuzzyMatchFormat(input)
+    if (!hit) return null
+    const label = OOH_FORMAT_LABEL_BY_VALUE[hit.matched] ?? hit.matched
+    if (!fuzzyTokensCompatible(input, hit.matched, label)) return null
+    return hit.matched
+  },
 }
 
 const OOH_BUY_TYPE: ControlledVocabulary = {

@@ -21,6 +21,7 @@ import {
   isMoneyTarget,
   parseMoneyCell,
 } from "@/lib/mediaplans/ingest/moneyTargets"
+import { stripPublisherPrefix } from "@/lib/mediaplans/ingest/controlledVocabularies"
 import {
   interpretGridCell,
   isReferenceIgnoreTarget,
@@ -28,6 +29,7 @@ import {
   type GridSemantics,
   type PublisherProfileConfig,
 } from "@/lib/mediaplans/ingest/publisherProfileConfig"
+import { resolveControlledFormat } from "@/lib/mediaplans/ingest/resolveControlledOoh"
 
 export type ProposedBurst = {
   start_date: string | null
@@ -209,11 +211,26 @@ function derivedMediaForRow(
   return null
 }
 
+function looksLikeOohFormatHeader(
+  value: string,
+  publisherName?: string | null,
+): boolean {
+  if (resolveControlledFormat(value, publisherName ?? undefined)) return true
+  const stripped = stripPublisherPrefix(value, publisherName)
+  return /digital|format|large|small|rail|transit|furniture|street|retail|active/i.test(
+    stripped,
+  )
+}
+
 /**
  * Carry grouping-row context down. Grouping rows never write into identity
  * column_map fields (site_number, panel_name, …) — only into grouping_keys
  * that are context fields, or state/format/market/geography when the cell
  * lands in a column mapped to those.
+ *
+ * Stacked format+market headers: each row takes the nearest format header
+ * above it. A later format section overwrites format (and publisher_format_name)
+ * and clears market so the next city header fills market.
  */
 function applyGroupingRow(
   profile: PublisherProfileConfig,
@@ -275,18 +292,25 @@ function applyGroupingRow(
     return next
   }
 
+  const formatIdx = useFields.indexOf("format")
+  const marketIdx = useFields.indexOf("market")
   let idx = useFields.findIndex((f) => !next[f])
   if (idx < 0) idx = useFields.length - 1
-  if (
-    useFields.includes("market") &&
+  if (formatIdx >= 0 && looksLikeOohFormatHeader(value, profile.publisher_name)) {
+    idx = formatIdx
+  } else if (
+    marketIdx >= 0 &&
     next.format &&
     populated.length === 1 &&
     value.length < 40 &&
-    !/digital|format|large/i.test(value)
+    !looksLikeOohFormatHeader(value, profile.publisher_name)
   ) {
-    idx = useFields.indexOf("market")
+    idx = marketIdx
   }
   next[useFields[idx]!] = value
+  if (useFields[idx] === "format") {
+    next.publisher_format_name = value
+  }
   for (let i = idx + 1; i < useFields.length; i++) delete next[useFields[i]!]
   return next
 }
