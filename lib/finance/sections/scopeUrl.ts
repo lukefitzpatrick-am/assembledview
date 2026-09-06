@@ -1,6 +1,6 @@
 import {
   buildDefaultFinanceScope,
-  clampMonthRangeToFy,
+  normaliseToFy,
   type FinanceBasisDefault,
   type FinanceScopeValues,
 } from "@/lib/finance/sections/defaultScope"
@@ -47,7 +47,7 @@ export function parseScopeFromParams(
   }
   const from = params.get("from")?.trim() || defaults.monthRange.from
   const to = params.get("to")?.trim() || defaults.monthRange.to
-  const monthRange = clampMonthRangeToFy(fy, { from, to }, today)
+  const monthRange = normaliseToFy(fy, { from, to })
   const clients = parseClientsParam(params.get("clients"))
   const basisRaw = (params.get("basis") ?? "").trim().toLowerCase()
   const basisDefault: FinanceBasisDefault =

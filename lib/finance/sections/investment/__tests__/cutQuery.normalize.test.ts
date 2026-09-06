@@ -34,9 +34,27 @@ describe("normalizeInvestmentCutRequest", () => {
     assert.ok(!("error" in q))
     if ("error" in q) return
     assert.equal(q.from, "2025-07")
+    assert.equal(q.to, "2026-06")
     assert.ok(q.measures.includes("billable_cents"))
     assert.ok(q.measures.includes("fee_cents"))
     assert.ok(!q.measures.includes("invoiced_cents"))
+  })
+
+  it("keeps a future month in the current FY when the range is explicit (FIN-K4)", () => {
+    const q = normalizeInvestmentCutRequest(
+      {
+        fy: 2026,
+        basis: "billing",
+        monthRange: { from: "2026-07", to: "2026-11" },
+        dimensions: ["client"],
+        measures: ["billable_cents"],
+      },
+      new Date(2026, 8, 6)
+    )
+    assert.ok(!("error" in q))
+    if ("error" in q) return
+    assert.equal(q.from, "2026-07")
+    assert.equal(q.to, "2026-11")
   })
 
   it("returns ACTUALS_GRAIN_UNSUPPORTED for publisher + invoiced", () => {

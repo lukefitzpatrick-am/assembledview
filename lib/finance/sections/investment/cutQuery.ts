@@ -21,7 +21,7 @@ import {
   referenceDateForFyStartYear,
 } from "@/lib/finance/months"
 import { BILLING_AGENCY_AA } from "@/lib/finance/billingAgency"
-import { clampMonthRangeToFy } from "@/lib/finance/sections/defaultScope"
+import { normaliseToFy } from "@/lib/finance/sections/defaultScope"
 import {
   FINANCE_STATUS_EXCLUDED_SQL,
   FINANCE_STATUS_INCLUDED_SQL,
@@ -132,7 +132,7 @@ export function normalizeInvestmentCutRequest(
   let to =
     input.monthRange?.to?.trim() ||
     (fy === currentFy ? currentMonth : fyMonths[fyMonths.length - 1]!)
-  const clamped = clampMonthRangeToFy(fy, { from, to }, today)
+  const clamped = normaliseToFy(fy, { from, to })
 
   const dimensions = Array.isArray(input.dimensions)
     ? [...new Set(input.dimensions.filter(isDim))]

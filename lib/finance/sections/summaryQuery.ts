@@ -21,7 +21,7 @@ import {
   getCurrentBillingMonth,
   referenceDateForFyStartYear,
 } from "@/lib/finance/months"
-import { clampMonthRangeToFy } from "@/lib/finance/sections/defaultScope"
+import { normaliseToFy } from "@/lib/finance/sections/defaultScope"
 import { INVOICED_TO_DATE_BASIS } from "@/lib/finance/sections/invoicedToDate"
 import {
   FINANCE_STATUS_EXCLUDED_SQL,
@@ -258,11 +258,11 @@ export function normalizeSummaryQuery(input: {
   const currentMonth = getCurrentBillingMonth(today)
   let from = input.from?.trim() || fyMonths[0]!
   let to = input.to?.trim() || (fy === currentFy ? currentMonth : fyMonths[fyMonths.length - 1]!)
-  const clamped = clampMonthRangeToFy(fy, { from, to }, today)
+  const normalised = normaliseToFy(fy, { from, to })
   return {
     fy,
-    from: clamped.from,
-    to: clamped.to,
+    from: normalised.from,
+    to: normalised.to,
     clientIds: input.clients ?? [],
   }
 }

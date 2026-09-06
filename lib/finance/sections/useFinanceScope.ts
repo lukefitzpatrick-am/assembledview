@@ -8,7 +8,7 @@
 import { create } from "zustand"
 import {
   buildDefaultFinanceScope,
-  clampMonthRangeToFy,
+  normaliseToFy,
   type FinanceScopeValues,
 } from "@/lib/finance/sections/defaultScope"
 import {
@@ -57,7 +57,7 @@ export const useFinanceScopeStore = create<FinanceScopeState>((set, get) => ({
     set((state) => ({
       draft: {
         ...state.draft,
-        monthRange: clampMonthRangeToFy(state.draft.fy, range),
+        monthRange: normaliseToFy(state.draft.fy, range),
       },
     }))
   },
@@ -69,11 +69,7 @@ export const useFinanceScopeStore = create<FinanceScopeState>((set, get) => ({
       const rebuilt = buildDefaultFinanceScope(new Date(fy, 6, 15))
       let monthRange = rebuilt.monthRange
       if (fy < currentFy) {
-        monthRange = clampMonthRangeToFy(
-          fy,
-          { from: `${fy}-07`, to: `${fy + 1}-06` },
-          today
-        )
+        monthRange = normaliseToFy(fy, { from: `${fy}-07`, to: `${fy + 1}-06` })
       }
       return {
         draft: {
@@ -89,7 +85,7 @@ export const useFinanceScopeStore = create<FinanceScopeState>((set, get) => ({
     const { draft } = get()
     const next = cloneScope({
       ...draft,
-      monthRange: clampMonthRangeToFy(draft.fy, draft.monthRange),
+      monthRange: normaliseToFy(draft.fy, draft.monthRange),
     })
     // Always bump scopeVersion — Apply on a clean bar is a refetch, not a no-op.
     set((state) => ({
