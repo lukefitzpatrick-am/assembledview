@@ -193,6 +193,7 @@ pct === 100 → fee = 0 (division guard)
 - `db:generate` proves the `db/drizzle/` snapshot matches `db/schema/*.ts`. `db:drift` proves those mirrors match live Postgres. Drift exclusions cover writing only (naming, unique-index vs unique-constraint, opclass, parens, casts, RLS, CHECKs) — never column order, ASC/DESC, or partial predicates.
 - AVA tool `fy` = Australian FY **ending** year (`lib/ava/tools/fyToRange.ts`); finance sections `fyMonthRange` stays start-year. Do not conflate.
 - Client hub with no params = current AU FY (`lib/dashboard/clientDateRange.ts`, Jul–Jun). Not all-time. Legacy `?fy=` still translates.
+- **Plan committed** is planned-to-date ÷ planned-in-range, never in-range planned ÷ itself. `computePlannedSpendTotals` with a range clamps months to `[rangeStart, min(rangeEnd, today)]` for the numerator and `[rangeStart, rangeEnd]` for the denominator. No range → `spentAmount / totalBudget`.
 - Client-hub donuts/stack are planned delivery-schedule-month media via `normalizeDeliveryEntryMediaBreakdown`; captions are `spendInsightsCaption`, not campaign `MEDIA_MIX_DONUT_BASIS_CAPTION`.
 
 ## UI / design system

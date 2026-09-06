@@ -104,7 +104,7 @@ Cached 4h via `unstable_cache` tag `pacing-campaigns`.
 
 This is the client-facing surface. Client-role users are confined here by `middleware.ts` and must be scoped by `checkClientMbaAccess` in every handler that serves it. `components/dashboard/DashboardOverview.tsx` is 2,491 lines and is a choke point.
 
-Spend on these pages derives from `schedule_months`, not from live platform data.
+Spend on these pages derives from `schedule_months`, not from live platform data. Client-hub Plan committed is elapsed planned in the date window ÷ planned in the window (`computePlannedSpendTotals`) — not the window total ÷ itself.
 
 → `modules/dashboards-charts-exports.md`
 

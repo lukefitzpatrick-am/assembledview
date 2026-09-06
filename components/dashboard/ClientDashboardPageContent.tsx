@@ -235,11 +235,8 @@ export function ClientDashboardPageContent({
   }, [allCampaigns])
 
   /**
-   * KPI-bar self-consistency (Task 2): "Planned to date" and "Plan committed" (UI label for
-   * `budgetUtilizedPct`) must agree, so both are derived from the SAME booked/approved/completed
-   * campaign set and the SAME planned-spend basis — see `lib/dashboard/plannedSpendConsistency.ts`.
-   * Do NOT reintroduce `clientData.totalSpend` (a differently-windowed server figure) or the
-   * unfiltered `totalBudget`/`totalSpent` above into either KPI tile.
+   * KPI-bar (Task 2 / FX-1): "Planned to date" and "Plan committed" share the booked/approved/completed
+   * set. With the hub range, committed is elapsed-in-range ÷ planned-in-range — not the same clamp twice.
    */
   const { plannedToDate, plannedBudget, budgetUtilizedPct } = useMemo(
     () => computePlannedSpendTotals(allCampaigns, { rangeStartISO, rangeEndISO }),

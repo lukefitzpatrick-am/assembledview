@@ -95,8 +95,71 @@ describe("computePlannedSpendTotals", () => {
     const totals = computePlannedSpendTotals(campaigns, {
       rangeStartISO: "2026-07-01",
       rangeEndISO: "2027-06-30",
+      todayISO: "2026-09-06",
     })
     expect(totals.plannedToDate).toBe(500)
     expect(totals.plannedBudget).toBe(500)
+  })
+
+  it("FX-1: with a range, Plan committed is elapsed-in-range ÷ planned-in-range (not itself)", () => {
+    const campaigns: PlannedBasisCampaign[] = [
+      {
+        rawStatus: "booked",
+        spentAmount: 300,
+        totalBudget: 300,
+        months: [
+          { yearMonth: "2026-08", amount: 100 },
+          { yearMonth: "2026-09", amount: 100 },
+          { yearMonth: "2026-10", amount: 100 },
+        ],
+      },
+    ]
+    const todayISO = "2026-09-06"
+
+    const past = computePlannedSpendTotals(campaigns, {
+      rangeStartISO: "2026-08-01",
+      rangeEndISO: "2026-08-31",
+      todayISO,
+    })
+    expect(past.plannedToDate).toBe(100)
+    expect(past.plannedBudget).toBe(100)
+    expect(past.budgetUtilizedPct).toBe(100)
+
+    const future = computePlannedSpendTotals(campaigns, {
+      rangeStartISO: "2026-10-01",
+      rangeEndISO: "2026-10-31",
+      todayISO,
+    })
+    expect(future.plannedToDate).toBe(0)
+    expect(future.plannedBudget).toBe(100)
+    expect(future.budgetUtilizedPct).toBe(0)
+
+    const straddle = computePlannedSpendTotals(campaigns, {
+      rangeStartISO: "2026-08-01",
+      rangeEndISO: "2026-10-31",
+      todayISO,
+    })
+    expect(straddle.plannedToDate).toBe(200)
+    expect(straddle.plannedBudget).toBe(300)
+    expect(straddle.budgetUtilizedPct).toBeCloseTo((200 / 300) * 100, 10)
+  })
+
+  it("FX-1: without a range, still spentAmount / totalBudget (months ignored)", () => {
+    const campaigns: PlannedBasisCampaign[] = [
+      {
+        rawStatus: "booked",
+        spentAmount: 50,
+        totalBudget: 200,
+        months: [
+          { yearMonth: "2026-08", amount: 100 },
+          { yearMonth: "2026-09", amount: 100 },
+          { yearMonth: "2026-10", amount: 100 },
+        ],
+      },
+    ]
+    const totals = computePlannedSpendTotals(campaigns)
+    expect(totals.plannedToDate).toBe(50)
+    expect(totals.plannedBudget).toBe(200)
+    expect(totals.budgetUtilizedPct).toBeCloseTo(25, 10)
   })
 })
