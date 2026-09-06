@@ -66,6 +66,11 @@ import {
   type PartialMbaValues,
 } from "@/lib/mediaplan/partialMba"
 import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
+import {
+  applyIngestLineItemsLoad,
+  INGEST_CHANNEL_FLAG,
+  queueScrollToMediaSection,
+} from "@/lib/ava/applyIngestLineItemsLoad"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { getSearchBursts } from "@/components/media-containers/SearchContainer"
 import { getSocialMediaBursts } from "@/components/media-containers/SocialMediaContainer"
@@ -11375,19 +11380,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       } else {
         ingestStageIdRef.current = null
       }
-      if (channel === "radio") {
-        setRadioMediaLineItems((prev) => (replace ? items : [...prev, ...items]))
-        markUnsavedChanges()
-        return `Loaded ${items.length} radio line item(s) into the form for review.`
-      }
-      if (channel === "ooh") {
-        setOohMediaLineItems((prev) => (replace ? items : [...prev, ...items]))
-        markUnsavedChanges()
-        return `Loaded ${items.length} OOH line item(s) into the form for review.`
-      }
-      throw new Error(`Unsupported channel: ${channel}`)
+      const flag = INGEST_CHANNEL_FLAG[channel]
+      if (!flag) throw new Error(`Unsupported channel: ${channel}`)
+      return applyIngestLineItemsLoad({
+        channel,
+        items,
+        replace,
+        channelEnabled: Boolean(form.getValues(flag)),
+        enableChannel: () => form.setValue(flag, true, { shouldDirty: true }),
+        setHydrationItems:
+          channel === "ooh" ? setOohLineItems : setRadioLineItems,
+        setMediaItems:
+          channel === "ooh" ? setOohMediaLineItems : setRadioMediaLineItems,
+        markDirty: markUnsavedChanges,
+        scrollToSection: queueScrollToMediaSection,
+      })
     },
-    [markUnsavedChanges],
+    [form, markUnsavedChanges],
   )
 
   const handleGetLineItems = useCallback(

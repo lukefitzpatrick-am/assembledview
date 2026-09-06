@@ -1,4 +1,9 @@
 import type AvaTool from "./types"
+import {
+  INGEST_CHANNEL_LABEL,
+  ingestChannelWillSwitchOn,
+  type IngestLoadChannel,
+} from "@/lib/ava/applyIngestLineItemsLoad"
 import { recordIngestRun } from "@/lib/mediaplans/ingest/ingestRuns"
 import { lookupIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
 import { ingestReviewToFormLineItems } from "@/lib/mediaplans/ingest/toFormLineItems"
@@ -166,12 +171,21 @@ export const loadIngestIntoFormTool: AvaTool = {
       ingestStageId: looked.staged.stageId,
     }
 
+    const enabled =
+      context.pageContext?.entities?.enabledMediaTypes ??
+      context.enabledMediaTypes
+    const channel = converted.channel as IngestLoadChannel
+    const label = INGEST_CHANNEL_LABEL[channel] ?? converted.channel
+    const willSwitchOn = ingestChannelWillSwitchOn(enabled, channel)
+    const switchClause = willSwitchOn
+      ? ` The ${label} channel is off on this plan and will be switched on.`
+      : ""
     const skipped =
       converted.skipped.length > 0
         ? ` ${converted.skipped.length} leftover row(s) weren't loaded — they're listed as ignored.`
         : ""
     return {
-      content: `${items.length} ${converted.channel} line item(s) are in the form for you to review. Nothing has been saved.${skipped}`,
+      content: `${items.length} ${label} line item(s) are in the form for you to review.${switchClause} Nothing has been saved.${skipped}`,
       isError: false,
     }
   },

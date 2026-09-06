@@ -273,10 +273,61 @@ test("clean file loads into the form as it does now", async () => {
   assert.match(ok.content, /line item/)
   assert.match(ok.content, /form/)
   assert.doesNotMatch(ok.content, /expired/i)
+  assert.doesNotMatch(ok.content, /switched on/i)
   const blocked = (await listIngestRuns({ publisherName: "QMS" })).filter(
     (r) => r.outcome === "blocked" && r.outcomeReason === MONEY_BLOCK,
   )
   assert.equal(blocked.length, 0)
+})
+
+test("load says the channel will be switched on when enabledMediaTypes omits it", async () => {
+  const { stageId } = await stageQms(withoutUnresolved)
+  const c = ctx({
+    pendingIngest: { stageId, fileName: QMS },
+    enabledMediaTypes: ["radio", "bvod", "socialMedia"],
+    pageContext: {
+      entities: { enabledMediaTypes: ["radio", "bvod", "socialMedia"] },
+    },
+  })
+  const ok = await loadIngestIntoFormTool.execute({ confirm: true }, c)
+  assert.equal(ok.isError, false)
+  assert.ok(c.capturedLineItemsLoad)
+  assert.match(ok.content, /switched on/i)
+  assert.match(ok.content, /OOH/i)
+  assert.match(ok.content, /Nothing has been saved/)
+})
+
+test("load does not say switched on when the channel is already enabled", async () => {
+  const { stageId } = await stageQms(withoutUnresolved)
+  const c = ctx({
+    pendingIngest: { stageId, fileName: QMS },
+    enabledMediaTypes: ["ooh", "radio"],
+    pageContext: {
+      entities: { enabledMediaTypes: ["ooh", "radio"] },
+    },
+  })
+  const ok = await loadIngestIntoFormTool.execute({ confirm: true }, c)
+  assert.equal(ok.isError, false)
+  assert.doesNotMatch(ok.content, /switched on/i)
+})
+
+test("client/MBA mismatch does not block load", async () => {
+  const { stageId } = await stageQms(withoutUnresolved)
+  const c = ctx({
+    pendingIngest: { stageId, fileName: QMS },
+    mbaNumber: "glenda008",
+    clientSlug: "glenda",
+    pageContext: {
+      entities: {
+        mbaNumber: "glenda008",
+        clientName: "Glenda",
+        enabledMediaTypes: ["radio"],
+      },
+    },
+  })
+  const ok = await loadIngestIntoFormTool.execute({ confirm: true }, c)
+  assert.equal(ok.isError, false)
+  assert.ok(c.capturedLineItemsLoad)
 })
 
 test("retry after remap succeeds", async () => {

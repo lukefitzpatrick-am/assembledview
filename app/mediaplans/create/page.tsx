@@ -211,6 +211,11 @@ import {
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { toDateOnlyString } from "@/lib/timezone"
 import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
+import {
+  applyIngestLineItemsLoad,
+  INGEST_CHANNEL_FLAG,
+  queueScrollToMediaSection,
+} from "@/lib/ava/applyIngestLineItemsLoad"
 import { KPISection } from "@/components/kpis/KPISection"
 import { createMediaPlanKpiHost } from "@/components/kpis/kpiHost"
 import { resolveAllKPIs } from "@/lib/kpi/resolve"
@@ -1730,19 +1735,21 @@ function CreateMediaPlan() {
       } else {
         ingestStageIdRef.current = null
       }
-      if (channel === "radio") {
-        setRadioMediaLineItems((prev) => (replace ? items : [...prev, ...items]))
-        markUnsavedChanges()
-        return `Loaded ${items.length} radio line item(s) into the form for review.`
-      }
-      if (channel === "ooh") {
-        setOohMediaLineItems((prev) => (replace ? items : [...prev, ...items]))
-        markUnsavedChanges()
-        return `Loaded ${items.length} OOH line item(s) into the form for review.`
-      }
-      throw new Error(`Unsupported channel: ${channel}`)
+      const flag = INGEST_CHANNEL_FLAG[channel]
+      if (!flag) throw new Error(`Unsupported channel: ${channel}`)
+      return applyIngestLineItemsLoad({
+        channel,
+        items,
+        replace,
+        channelEnabled: Boolean(form.getValues(flag)),
+        enableChannel: () => form.setValue(flag, true, { shouldDirty: true }),
+        setMediaItems:
+          channel === "ooh" ? setOohMediaLineItems : setRadioMediaLineItems,
+        markDirty: markUnsavedChanges,
+        scrollToSection: queueScrollToMediaSection,
+      })
     },
-    [markUnsavedChanges],
+    [form, markUnsavedChanges],
   )
 
   const handleGetLineItems = useCallback(
@@ -7045,10 +7052,13 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
   const getPageContext = useCallback((): PageContext => {
     const values = form.getValues();
     const clientSlug = values.mp_client_name ? clientNameToSlug(values.mp_client_name) : undefined;
-    const enabledMediaTypes = mediaTypes
+    const enabledMedia = mediaTypes
       .filter((medium) => medium.name !== "mp_fixedfee")
       .filter((medium) => Boolean(values[medium.name as keyof MediaPlanFormValues]))
-      .map((medium) => medium.label);
+    const enabledMediaTypes = enabledMedia.map((medium) => medium.label)
+    const enabledMediaFetchKeys = enabledMedia
+      .map((medium) => mediaKeyMap[medium.name])
+      .filter((key): key is string => Boolean(key))
 
     const baseFields: PageField[] = [
       {
@@ -7164,6 +7174,9 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
         clientName: values.mp_client_name,
         campaignName: values.mp_campaignname,
         mediaTypes: enabledMediaTypes,
+        ...(enabledMediaFetchKeys.length
+          ? { enabledMediaTypes: enabledMediaFetchKeys }
+          : {}),
       },
       pageText: {
         title: "Create a Campaign",
