@@ -4,6 +4,7 @@
  */
 
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
+import { countBonusLineItemsFromProposal } from "@/lib/mediaplans/ingest/stampProposalForSave"
 import { evaluateTemplateCoverage } from "@/lib/mediaplans/ingest/templateCoverage"
 import { isUnknownPublisherMatch } from "@/lib/mediaplans/ingest/unknownPublisher"
 
@@ -24,6 +25,8 @@ export type IngestChatSummary = {
   money_delta_pct: number | null
   file_stated_total: number | null
   total_media_amount: number | null
+  /** SF-5 all-bonus / all bonus_display lines (or sourced buy type bonus). */
+  bonus_line_item_count: number
   accept_ok: boolean
   block_reason: string | null
   ignored: string[]
@@ -81,6 +84,12 @@ export function summariseIngestReview(
     money_delta_pct: recon?.delta_pct ?? null,
     file_stated_total: recon?.file_stated_total ?? null,
     total_media_amount: recon?.total_media_amount ?? null,
+    bonus_line_item_count: review.proposal
+      ? countBonusLineItemsFromProposal(
+          review.proposal,
+          review.template_coverage?.resolved_controlled,
+        )
+      : 0,
     accept_ok: unknown ? false : Boolean(recon?.accept_ok),
     block_reason: unknown
       ? NO_PUBLISHER_PROFILE_MESSAGE
@@ -104,6 +113,16 @@ function formatMoneyDelta(summary: IngestChatSummary): string {
   return `$${abs.toFixed(2)}${pct}`
 }
 
+/** Gate-reconciled file total (`file_stated_total`), else computed media. */
+export function formatIngestBudget(summary: IngestChatSummary): string {
+  const n = summary.file_stated_total ?? summary.total_media_amount
+  if (n == null) return "—"
+  return `$${n.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
 /** Compact confirmed block — numbers come only from summariseIngestReview. */
 export function formatIngestConfirmedBlock(summary: IngestChatSummary): string {
   const pub = summary.detected_publisher ?? "Unknown publisher"
@@ -116,6 +135,9 @@ export function formatIngestConfirmedBlock(summary: IngestChatSummary): string {
     "| --- | --- |",
     `| Publisher | ${pub} (${conf}) |`,
     `| Media type | ${summary.media_type ?? "—"} |`,
+    `| Total line items | ${summary.line_item_count} |`,
+    `| Total budget | ${formatIngestBudget(summary)} |`,
+    `| Bonus line items | ${summary.bonus_line_item_count} (of ${summary.line_item_count}) |`,
     `| Lines / panels / bursts | ${summary.line_item_count} / ${summary.panel_count} / ${summary.burst_count} |`,
     `| Required coverage | ${coverage} |`,
     `| Money delta vs file total | ${formatMoneyDelta(summary)} |`,

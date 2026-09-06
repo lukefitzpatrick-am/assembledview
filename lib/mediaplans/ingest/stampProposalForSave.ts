@@ -137,6 +137,43 @@ function buyTypeFromBookingStatus(
   return allBonus ? "bonus" : fallback
 }
 
+/** Same buyType stampProposalForSave writes — SF-5, never amount. */
+export function stampedBuyTypeForProposalLine(
+  item: ProposedLineItem,
+  mediaType: "radio" | "ooh",
+  resolvedControlled?: ResolvedControlledValue[],
+): string {
+  const sourcedBuyType = firstDescriptor(item, ["buy_type", "buyType"])
+  const { buyType: resolvedBuyType } = resolveLineBuyType(
+    item,
+    mediaType,
+    resolvedControlled,
+  )
+  return sourcedBuyType
+    ? resolvedBuyType
+    : buyTypeFromBookingStatus(item, resolvedBuyType)
+}
+
+/** SF-5 bonus lines on the staged proposal — not a prompt re-sum. */
+export function countBonusLineItemsFromProposal(
+  proposal: IngestProposal,
+  resolvedControlled?: ResolvedControlledValue[],
+): number {
+  const mediaType = mediaTypeKeyForChannel(
+    channelForMediaType(proposal.media_type),
+  )
+  let n = 0
+  for (const item of proposal.line_items) {
+    if (
+      stampedBuyTypeForProposalLine(item, mediaType, resolvedControlled) ===
+      "bonus"
+    ) {
+      n++
+    }
+  }
+  return n
+}
+
 function resolveLineBuyType(
   item: ProposedLineItem,
   mediaType: "radio" | "ooh",
@@ -373,17 +410,18 @@ export function stampProposalForSave(
   const code = mediaCodeForChannel(channel)
 
   const stubs = proposal.line_items.map((item, index) => {
-    const sourcedBuyType = firstDescriptor(item, ["buy_type", "buyType"])
-    const { buyType: resolvedBuyType, unresolvedRaw } = resolveLineBuyType(
+    const { unresolvedRaw } = resolveLineBuyType(
       item,
       mediaType,
       resolvedControlled,
     )
     // File-supplied buy type (IG-4) wins. Otherwise all-bonus / all
     // bonus_display stamps bonus; mixed and paid keep the media fallback.
-    const buyType = sourcedBuyType
-      ? resolvedBuyType
-      : buyTypeFromBookingStatus(item, resolvedBuyType)
+    const buyType = stampedBuyTypeForProposalLine(
+      item,
+      mediaType,
+      resolvedControlled,
+    )
     const mediaSum = item.bursts.reduce((s, b) => s + (b.media_amount || 0), 0)
     const buyGranularity: "panel" | "pack" =
       item.panels.length > 1 ? "pack" : "panel"

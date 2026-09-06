@@ -48,6 +48,7 @@ function sampleSummary(stageId: string): IngestChatSummary {
     money_delta_pct: 0,
     file_stated_total: 1000,
     total_media_amount: 1000,
+    bonus_line_item_count: 0,
     accept_ok: true,
     block_reason: null,
     ignored: [],
