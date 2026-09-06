@@ -149,28 +149,25 @@ export function SplitActionButton({
 
   if (menuOnly) {
     return (
-      <div className={wrapperClass}>
-        <DropdownMenu open={open} onOpenChange={setMenuOpen}>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant={variant}
-              disabled={bothDisabled}
-              title={title}
-              className={cn(
-                heightClass,
-                "justify-between rounded-pill px-3 shadow-none hover:translate-y-0 hover:shadow-none active:scale-100",
-                fullWidth && "flex-1",
-                variant === "outline" && "border-0",
-              )}
-            >
-              {shownLabel}
-              <ChevronDown className="h-4 w-4" aria-hidden />
-            </Button>
-          </DropdownMenuTrigger>
-          {menuContent}
-        </DropdownMenu>
-      </div>
+      <DropdownMenu open={open} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant={variant}
+            disabled={bothDisabled}
+            title={title}
+            className={cn(
+              heightClass,
+              "justify-between rounded-pill",
+              fullWidth && "w-full",
+            )}
+          >
+            {shownLabel}
+            <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
+          </Button>
+        </DropdownMenuTrigger>
+        {menuContent}
+      </DropdownMenu>
     )
   }
 

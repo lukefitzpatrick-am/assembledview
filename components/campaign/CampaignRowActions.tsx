@@ -145,15 +145,6 @@ export function CampaignRowActions({
 
   const noDashboard = !clientSlug
   const openMenu = [
-    {
-      label: "View campaign",
-      hint: noDashboard ? "No client dashboard" : undefined,
-      disabled: noDashboard,
-      onSelect: () => {
-        if (noDashboard) return
-        router.push(`/dashboard/${clientSlug}/${mbaNumber}`)
-      },
-    },
     ...(canEdit
       ? [
           {
@@ -164,13 +155,22 @@ export function CampaignRowActions({
           },
         ]
       : []),
+    {
+      label: "View campaign",
+      hint: noDashboard ? "No client dashboard" : undefined,
+      disabled: noDashboard,
+      onSelect: () => {
+        if (noDashboard) return
+        router.push(`/dashboard/${clientSlug}/${mbaNumber}`)
+      },
+    },
   ]
 
   return (
     <div
       className={cn(
         layout === "stacked"
-          ? "flex w-full min-w-[9.5rem] flex-col gap-1.5"
+          ? "flex w-full min-w-[10rem] flex-col gap-1.5"
           : "grid w-full grid-cols-2 gap-2",
       )}
     >

@@ -252,7 +252,7 @@ describe("SplitActionButton", () => {
     expect(container.querySelector("button")?.className).toContain("h-9")
   })
 
-  it("fullWidth puts w-full on the wrapper", () => {
+  it("fullWidth puts w-full on the trigger button", () => {
     act(() => {
       root.render(
         <SplitActionButton
@@ -263,8 +263,32 @@ describe("SplitActionButton", () => {
         />,
       )
     })
-    const wrapper = container.firstElementChild
-    expect(wrapper?.className).toContain("w-full")
+    const trigger = container.querySelector("button")
+    expect(trigger?.className).toContain("w-full")
+  })
+
+  it("menuOnly outline is the Button — no chrome wrapper", () => {
+    act(() => {
+      root.render(
+        <SplitActionButton
+          label="Open"
+          menuOnly
+          variant="outline"
+          fullWidth
+          menu={[{ label: "View campaign", onSelect: () => {} }]}
+        />,
+      )
+    })
+    const trigger = container.querySelector("button")
+    expect(trigger).toBeTruthy()
+    expect(trigger?.className).toContain("border-input")
+    expect(trigger?.className).not.toContain("border-0")
+    expect(trigger?.className).toContain("rounded-pill")
+    expect(trigger?.className).toContain("justify-between")
+    const chrome = container.querySelector(
+      "[class*='overflow-hidden'][class*='shadow-sm']",
+    )
+    expect(chrome).toBeNull()
   })
 
   it("menuSide bottom locks content below the trigger without collision flip", async () => {

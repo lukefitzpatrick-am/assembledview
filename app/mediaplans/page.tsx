@@ -793,7 +793,7 @@ function MediaPlansPageInner() {
                                   className="w-24"
                                 />
                                 <TableHead className="w-48">Media Types</TableHead>
-                                <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                                <TableHead className="text-left">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody className="[&_tr:nth-child(even)]:bg-muted/5">
@@ -813,7 +813,7 @@ function MediaPlansPageInner() {
                                   <TableCell className="w-48">
                                     <div className={mediaChannelTagRowClassName}>{getMediaTypeTags(plan)}</div>
                                   </TableCell>
-                                  <TableCell className="w-44 align-top">
+                                  <TableCell className="w-full min-w-[10rem] align-top">
                                     <CampaignRowActions
                                       layout="stacked"
                                       mbaNumber={plan.mba_number}

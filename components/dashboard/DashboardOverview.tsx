@@ -2220,7 +2220,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="Version" direction={liveCampaignSort.column === "version" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("version", liveCampaignSort, setLiveCampaignSort)} />
                           <SortableTableHeader label="Status" direction={liveCampaignSort.column === "status" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("status", liveCampaignSort, setLiveCampaignSort)} />
                           <TableHead>Media Types</TableHead>
-                          <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                          <TableHead className="text-left">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2241,7 +2241,7 @@ export default function DashboardOverview({
                                 {getMediaTypeTags(plan)}
                               </div>
                             </TableCell>
-                            <TableCell className="w-44 align-top">
+                            <TableCell className="w-full min-w-[10rem] align-top">
                               <OverviewCampaignRowActions
                                 mbaNumber={plan.mp_mba_number}
                                 versionNumber={plan.mp_version}
@@ -2400,7 +2400,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="Budget" direction={dueSoonSort.column === "budget" ? dueSoonSort.direction : null} onToggle={() => toggleSort("budget", dueSoonSort, setDueSoonSort)} />
                           <SortableTableHeader label="Status" direction={dueSoonSort.column === "status" ? dueSoonSort.direction : null} onToggle={() => toggleSort("status", dueSoonSort, setDueSoonSort)} />
                           <TableHead>Media Types</TableHead>
-                          <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                          <TableHead className="text-left">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2420,7 +2420,7 @@ export default function DashboardOverview({
                                 {getMediaTypeTags(plan)}
                               </div>
                             </TableCell>
-                            <TableCell className="w-44 align-top">
+                            <TableCell className="w-full min-w-[10rem] align-top">
                               <OverviewCampaignRowActions
                                 mbaNumber={plan.mp_mba_number}
                                 versionNumber={plan.mp_version}
@@ -2492,7 +2492,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="Budget" direction={finishedSort.column === "budget" ? finishedSort.direction : null} onToggle={() => toggleSort("budget", finishedSort, setFinishedSort)} />
                           <SortableTableHeader label="Status" direction={finishedSort.column === "status" ? finishedSort.direction : null} onToggle={() => toggleSort("status", finishedSort, setFinishedSort)} />
                           <TableHead>Media Types</TableHead>
-                          <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                          <TableHead className="text-left">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2512,7 +2512,7 @@ export default function DashboardOverview({
                                 {getMediaTypeTags(plan)}
                               </div>
                             </TableCell>
-                            <TableCell className="w-44 align-top">
+                            <TableCell className="w-full min-w-[10rem] align-top">
                               <OverviewCampaignRowActions
                                 mbaNumber={plan.mp_mba_number}
                                 versionNumber={plan.mp_version}

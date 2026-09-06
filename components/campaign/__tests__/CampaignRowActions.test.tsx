@@ -113,7 +113,7 @@ describe("CampaignRowActions", () => {
     expect(items.find((el) => el.textContent?.includes("Edit media plan"))).toBeUndefined()
   })
 
-  it("canEdit true → Open menu is View then Edit media plan · v6", async () => {
+  it("canEdit true → Open menu is Edit media plan · v6 then View campaign", async () => {
     act(() => {
       root.render(
         <CampaignRowActions
@@ -128,8 +128,8 @@ describe("CampaignRowActions", () => {
     await openMenu(findButton(container, "Open")!)
     const items = [...document.body.querySelectorAll("[role='menuitem']")]
     expect(items.map((el) => el.textContent?.replace(/\s+/g, " ").trim())).toEqual([
-      "View campaign",
       "Edit media plan · v6",
+      "View campaign",
     ])
   })
 
@@ -148,6 +148,7 @@ describe("CampaignRowActions", () => {
     const wrapper = container.firstElementChild
     expect(wrapper?.className).toContain("flex-col")
     expect(wrapper?.className).toContain("w-full")
+    expect(wrapper?.className).toContain("min-w-[10rem]")
     const pills = [...wrapper!.children]
     expect(pills.length).toBe(2)
     for (const pill of pills) {
