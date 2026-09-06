@@ -233,6 +233,48 @@ test("JCDecaux fixture: one line per buy row with identity or legend status (95;
     assert.ok(bonus.length >= 1, `r${n} bonus burst stays separate`)
   }
 
+  function burstYmd(b: { start_date: string | null; end_date: string | null }) {
+    return `${b.start_date}→${b.end_date}`
+  }
+  const brookvale = lineAtRow(30)
+  assert.equal(brookvale.bursts.length, 1)
+  assert.equal(brookvale.bursts[0]!.booking_status, "bonus")
+  assert.equal(burstYmd(brookvale.bursts[0]!), "2027-02-15→2027-02-21")
+
+  const bundoora = lineAtRow(62)
+  const bundooraPaid = bundoora.bursts.find((b) => b.booking_status === "paid")
+  const bundooraBonus = bundoora.bursts.find(
+    (b) => b.booking_status === "bonus" || b.booking_status === "bonus_display",
+  )
+  assert.equal(burstYmd(bundooraPaid!), "2026-10-26→2026-11-01")
+  assert.equal(burstYmd(bundooraBonus!), "2027-03-15→2027-03-21")
+  assert.ok(Math.abs(bundooraPaid!.media_amount - 306.08) < 0.005)
+
+  assert.equal(burstYmd(lineAtRow(67).bursts[0]!), "2026-09-28→2026-10-04")
+
+  const r120Paid = lineAtRow(120).bursts.filter((b) => b.booking_status === "paid")
+  const r128Paid = lineAtRow(128).bursts.filter((b) => b.booking_status === "paid")
+  assert.equal(r120Paid.length, 2)
+  assert.equal(r128Paid.length, 3)
+
+  for (const n of [126, 127, 129, 130, 132]) {
+    const rail = lineAtRow(n)
+    const bonus = rail.bursts.filter(
+      (b) => b.booking_status === "bonus" || b.booking_status === "bonus_display",
+    )
+    assert.equal(bonus.length, 2, `Rail Brisbane r${n} two B weeks → two bonus bursts`)
+  }
+
+  for (const li of proposal.line_items) {
+    for (const b of li.bursts) {
+      assert.notEqual(
+        burstYmd(b),
+        "2026-07-01→2027-06-30",
+        `${li.panels[0]?.source_row_ref} must not use campaign-dated default`,
+      )
+    }
+  }
+
   for (const li of proposal.line_items) {
     assert.equal(li.panels.length, 1)
   }

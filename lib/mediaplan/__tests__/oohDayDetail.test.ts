@@ -39,3 +39,32 @@ test("full-week burst stays weekly (no dailyValues)", () => {
   const rows = mapStandardOohLineItemsToExpertRows(std, cols, CS, CE)
   assert.equal(rows[0]!.dailyValues === undefined || Object.keys(rows[0]!.dailyValues).length === 0, true)
 })
+
+test("month-crossing Mon–Sun paid week keeps both halves (not 28 Sep→28 Sep)", () => {
+  const start = new Date(2026, 6, 1)
+  const end = new Date(2027, 5, 30)
+  const weeks = buildWeeklyGanttColumnsFromCampaign(start, end, 0)
+  const std: StandardOohFormLineItem[] = [
+    {
+      ...line([
+        {
+          budget: "970.64",
+          buyAmount: "970.64",
+          startDate: new Date(2026, 8, 28),
+          endDate: new Date(2026, 9, 4),
+          calculatedValue: 1,
+        },
+      ]),
+      buyType: "fixed_cost",
+    },
+  ]
+  const rows = mapStandardOohLineItemsToExpertRows(std, weeks, start, end)
+  const back = mapOohExpertRowsToStandardLineItems(rows, weeks, start, end, {
+    feePctOoh: 0,
+  })
+  const b = back[0]!.bursts[0]!
+  const ymd = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  assert.equal(ymd(new Date(b.startDate)), "2026-09-28")
+  assert.equal(ymd(new Date(b.endDate)), "2026-10-04")
+})

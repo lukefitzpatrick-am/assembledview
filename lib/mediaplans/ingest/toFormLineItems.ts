@@ -85,6 +85,9 @@ function formBursts(line: SavePlanLineItem): Record<string, unknown>[] {
       fee: b.fee ?? 0,
       mediaAmount: b.mediaAmount,
       feeAmount: b.feeAmount,
+      ...(typeof b.buyType === "string" && b.buyType.trim()
+        ? { buyType: b.buyType }
+        : {}),
     }
   })
 }

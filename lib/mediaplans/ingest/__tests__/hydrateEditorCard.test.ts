@@ -17,6 +17,8 @@ const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
 
 const CAMPAIGN_START = new Date(2026, 7, 1) // 01/08 — the empty-card default
 const CAMPAIGN_END = new Date(2026, 7, 31)
+const JCD_CAMPAIGN_START = new Date(2026, 6, 1) // 1 Jul 2026 (glenda008)
+const JCD_CAMPAIGN_END = new Date(2027, 5, 30) // 30 Jun 2027
 
 function assembleStamped(line: SavePlanLineItem, mba: string) {
   return mapLineItemFromPostgres(
@@ -210,4 +212,102 @@ test("QMS accept→editor: 41 lines (supersedes grouped 3-of-41), each card from
     assert.ok(card.market.trim(), "Market empty")
     assert.ok(card.bursts.length > 0)
   }
+})
+
+function cardYmd(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+test("hydrate campaign default only when the loaded line has no bursts at all", () => {
+  const empty = hydrateOohEditorLine(
+    { publisher: "JCDecaux", buyType: "bonus" },
+    {
+      campaignStartDate: JCD_CAMPAIGN_START,
+      campaignEndDate: JCD_CAMPAIGN_END,
+      feePct: 0,
+    },
+  )
+  assert.equal(empty.bursts.length, 1)
+  assert.equal(cardYmd(empty.bursts[0]!.startDate), "2026-07-01")
+  assert.equal(cardYmd(empty.bursts[0]!.endDate), "2027-06-30")
+
+  const existing = hydrateOohEditorLine(
+    {
+      publisher: "JCDecaux",
+      buyType: "bonus",
+      bursts: [
+        {
+          budget: "0",
+          buyAmount: "0",
+          startDate: "not-a-date",
+          endDate: "also-bad",
+          calculatedValue: 0,
+        },
+      ],
+    },
+    {
+      campaignStartDate: JCD_CAMPAIGN_START,
+      campaignEndDate: JCD_CAMPAIGN_END,
+      feePct: 0,
+    },
+  )
+  assert.ok(existing.bursts.length >= 1, "existing burst list must not be dropped")
+  for (const burst of existing.bursts) {
+    assert.notEqual(
+      `${cardYmd(burst.startDate)}→${cardYmd(burst.endDate)}`,
+      "2026-07-01→2027-06-30",
+      "hydrate must not substitute campaign dates onto an existing burst",
+    )
+  }
+})
+
+test("JCD hydrate with Jul–Jun campaign keeps file B weeks, not campaign dates", async () => {
+  const { stamped } = await stampFixture(
+    "jcd_strength-meals_ooh.xlsx",
+    "glenda0080h1",
+  )
+  const campaignDated: string[] = []
+  for (let i = 0; i < stamped.lineItems.length; i++) {
+    const line = stamped.lineItems[i]!
+    const assembled = assembleStamped(line, "glenda0080h1")
+    const card = hydrateOohEditorLine(assembled, {
+      campaignStartDate: JCD_CAMPAIGN_START,
+      campaignEndDate: JCD_CAMPAIGN_END,
+      feePct: 0,
+    })
+    for (const burst of card.bursts) {
+      const span = `${cardYmd(burst.startDate)}→${cardYmd(burst.endDate)}`
+      if (span === "2026-07-01→2027-06-30") {
+        campaignDated.push(String(stamped.panels[i]?.sourceRowRef ?? i))
+      }
+    }
+  }
+  assert.deepEqual(campaignDated, [], `campaign-dated bursts: ${campaignDated.join(", ")}`)
+
+  function cardAtRow(n: number) {
+    const i = stamped.panels.findIndex((p) =>
+      (p.sourceRowRef ?? "").endsWith(`!r${n}`),
+    )
+    assert.ok(i >= 0, `missing r${n}`)
+    return hydrateOohEditorLine(assembleStamped(stamped.lineItems[i]!, "glenda0080h1"), {
+      campaignStartDate: JCD_CAMPAIGN_START,
+      campaignEndDate: JCD_CAMPAIGN_END,
+      feePct: 0,
+    })
+  }
+  const brookvale = cardAtRow(30)
+  assert.equal(brookvale.bursts.length, 1)
+  assert.equal(cardYmd(brookvale.bursts[0]!.startDate), "2027-02-15")
+  assert.equal(cardYmd(brookvale.bursts[0]!.endDate), "2027-02-21")
+
+  const bundoora = cardAtRow(62)
+  assert.equal(bundoora.bursts.length, 2)
+  const paid = bundoora.bursts.find((b) => parseBurstMoney(b.budget) > 0)
+  const bonus = bundoora.bursts.find((b) => parseBurstMoney(b.budget) === 0)
+  assert.ok(paid && bonus)
+  assert.equal(cardYmd(paid!.startDate), "2026-10-26")
+  assert.equal(cardYmd(paid!.endDate), "2026-11-01")
+  assert.ok(Math.abs(parseBurstMoney(paid!.budget) - 306.08) < 0.005)
+  assert.equal(cardYmd(bonus!.startDate), "2027-03-15")
+  assert.equal(cardYmd(bonus!.endDate), "2027-03-21")
 })

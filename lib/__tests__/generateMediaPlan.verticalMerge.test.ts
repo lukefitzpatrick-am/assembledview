@@ -277,6 +277,74 @@ test("gantt burst merges remain on columns >= 15", async () => {
   assert.ok(ganttMerges.length > 0, "expected gantt/date-area merges to remain")
 })
 
+function oohBurstLine(overrides: Partial<LineItem>): LineItem {
+  return {
+    market: "Sydney",
+    network: "JCDecaux",
+    oohFormat: "large_format",
+    oohType: "Billboard",
+    placement: "DFO Uni Hill",
+    size: "6x3",
+    buyingDemo: "P25-54",
+    buyType: "fixed_cost",
+    startDate: "2026-10-26",
+    endDate: "2026-11-01",
+    deliverables: 1,
+    deliverablesAmount: "306.08",
+    grossMedia: "306.08",
+    line_item_id: "glenda008OH1",
+    lineItemId: "glenda008OH1",
+    ...overrides,
+  }
+}
+
+test("OOH Excel keeps one row per flight — paid and bonus dates never min/max merge", async () => {
+  const workbook = await generateMediaPlan(
+    HEADER,
+    emptyMedia({
+      ooh: [
+        oohBurstLine({
+          startDate: "2026-09-28",
+          endDate: "2026-10-04",
+          buyType: "fixed_cost",
+          deliverablesAmount: "1632.62",
+          grossMedia: "1632.62",
+        }),
+        oohBurstLine({
+          startDate: "2027-03-15",
+          endDate: "2027-03-21",
+          buyType: "fixed_cost",
+          deliverablesAmount: "1632.62",
+          grossMedia: "1632.62",
+        }),
+      ],
+    }),
+  )
+  const sheet = mediaPlanSheet(workbook)
+  const dates: string[] = []
+  sheet.eachRow((row) => {
+    const start = row.getCell(7).value
+    const end = row.getCell(8).value
+    if (start instanceof Date && end instanceof Date) {
+      const ymd = (d: Date) => d.toISOString().slice(0, 10)
+      dates.push(`${ymd(start)}→${ymd(end)}`)
+    }
+  })
+  assert.ok(
+    dates.includes("2026-09-28→2026-10-04"),
+    `missing first paid week in ${dates.join(", ")}`,
+  )
+  assert.ok(
+    dates.includes("2027-03-15→2027-03-21"),
+    `missing second paid week in ${dates.join(", ")}`,
+  )
+  assert.equal(
+    dates.some((d) => d.startsWith("2026-09-28") && d.endsWith("2027-03-21")),
+    false,
+    "two non-contiguous paid weeks must not collapse to one Start/End",
+  )
+})
+
 test("master cell of a descriptive merge is horizontally centered and vertically middle", async () => {
   const workbook = await generateMediaPlan(
     HEADER,

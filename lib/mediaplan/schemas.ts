@@ -44,6 +44,7 @@ const baseBurstShape = {
   fee: z.number().optional(),
   adServingRatePct: z.number().optional(),
   adServingImpressions: z.number().optional(),
+  buyType: z.string().optional(),
 } as const
 
 /** Universal line item totals appearing on every channel. */

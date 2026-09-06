@@ -1,4 +1,4 @@
-import { format, startOfDay } from "date-fns"
+import { format, startOfDay, differenceInCalendarDays } from "date-fns"
 import {
   type BuyType,
   coerceBuyTypeWithDevWarn,
@@ -85,6 +85,7 @@ interface StandardMediaBurst {
   fee?: number
   adServingRatePct?: number
   adServingImpressions?: number
+  buyType?: string
 }
 
 /** OOH `lineItems` entry shape used by {@link OOHContainer}. */
@@ -460,6 +461,8 @@ function accumulateDistributableBurstForExpertImport(
     campaignStartDate: Date
     campaignEndDate: Date
     distribute: (total: number, overlapKeys: string[]) => void
+    spanBuyType?: string
+    spanGross?: number
   }
 ): void {
   const {
@@ -470,6 +473,8 @@ function accumulateDistributableBurstForExpertImport(
     campaignStartDate,
     campaignEndDate,
     distribute,
+    spanBuyType,
+    spanGross,
   } = params
 
   const overlapKeys = radioWeekKeysOverlappingBurstWindow(
@@ -480,7 +485,12 @@ function accumulateDistributableBurstForExpertImport(
     ed
   )
 
-  if (overlapKeys.length === 1) {
+  const burstDayCount =
+    differenceInCalendarDays(startOfDay(ed), startOfDay(sd)) + 1
+  // A full file week (7 days) that only partly covers a Sunday gantt column
+  // must not go through day-detail remainder (that collapsed 28 Sep–4 Oct
+  // into 28 Sep→28 Sep). True sub-week interiors still expand to days.
+  if (overlapKeys.length === 1 && burstDayCount < 7) {
     const week = weekColumns.find((c) => c.weekKey === overlapKeys[0])
     const dayKeys = week
       ? coveredDayKeysIfDayDetail(sd, ed, week, campaignStartDate, campaignEndDate)
@@ -497,7 +507,7 @@ function accumulateDistributableBurstForExpertImport(
     }
   }
 
-  if (overlapKeys.length > 1) {
+  if (overlapKeys.length >= 1) {
     const imported = tryImportMultiWeekBurstAsMergedSpan({
       burstStart: sd,
       burstEnd: ed,
@@ -509,6 +519,8 @@ function accumulateDistributableBurstForExpertImport(
       existingSpans: ctx.mergedWeekSpans,
       rowIndex: ctx.rowIndex,
       mergeIdx: ctx.mergeIdx,
+      buyType: spanBuyType,
+      gross: spanGross,
     })
     if (imported) {
       ctx.mergedWeekSpans.push(imported.span)
@@ -997,6 +1009,9 @@ function normalizeOohBursts(item: StandardOohLineItemInput): StandardMediaBurst[
             ? rec.calculated_value
             : undefined,
       ...(fee !== undefined ? { fee } : {}),
+      ...(typeof rec.buyType === "string" && rec.buyType.trim()
+        ? { buyType: rec.buyType }
+        : {}),
     })
   }
   return out
@@ -1138,9 +1153,17 @@ export function mapOohExpertRowsToStandardLineItems(
       qty: number,
       startCol: WeeklyGanttWeekColumn,
       endCol: WeeklyGanttWeekColumn,
-      spanDates?: ExpertSpanDateOverrides
+      spanDates?: ExpertSpanDateOverrides,
+      burstBuyType?: string,
+      grossOverride?: number
     ) => {
-      if (!Number.isFinite(qty) || qty === 0) return
+      const effectiveBuyType = burstBuyType || buyType
+      const btLower = String(effectiveBuyType || "").toLowerCase()
+      const isInclusionBuyType =
+        btLower === "bonus" ||
+        btLower === "package_inclusions"
+      if (!Number.isFinite(qty)) return
+      if (qty === 0 && !isInclusionBuyType) return
       const { start, end } = spanDates
         ? burstDatesForExpertSpan(
             spanDates,
@@ -1162,19 +1185,19 @@ export function mapOohExpertRowsToStandardLineItems(
             ).end,
           }
       const bt = coerceBuyTypeWithDevWarn(
-        buyType,
+        effectiveBuyType,
         "mapOohExpertRowsToStandardLineItems.appendBurst"
       )
-      const grossBudget = expertRowRawCost(buyType, unitRate, qty)
+      const grossBudget = isInclusionBuyType
+        ? 0
+        : grossOverride != null && Number.isFinite(grossOverride) && grossOverride > 0
+          ? grossOverride
+          : expertRowRawCost(effectiveBuyType, unitRate, qty)
       const netForCalc = oohNetBudgetForDeliverables(
         grossBudget,
         budgetIncludesFees,
         feePct
       )
-      const btLower = String(buyType || "").toLowerCase()
-      const isInclusionBuyType =
-        btLower === "bonus" ||
-        btLower === "package_inclusions"
       const isFixedDeliverableBuyType =
         btLower === "package"
       const usesManualDeliverable =
@@ -1187,7 +1210,9 @@ export function mapOohExpertRowsToStandardLineItems(
             ? formatBurstBudget(unitRate)
             : formatRate(unitRate)
       let calculatedValue: number
-      if (usesManualDeliverable) {
+      if (isInclusionBuyType) {
+        calculatedValue = 0
+      } else if (usesManualDeliverable) {
         calculatedValue = roundDeliverables(bt, qty)
       } else if (btLower === "cpm") {
         calculatedValue = roundDeliverables(
@@ -1206,6 +1231,7 @@ export function mapOohExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
+        ...(isInclusionBuyType ? { buyType: "bonus" } : {}),
       })
     }
 
@@ -1214,7 +1240,14 @@ export function mapOohExpertRowsToStandardLineItems(
       const startCol = weekColumns.find((c) => c.weekKey === span.startWeekKey)
       const endCol = weekColumns.find((c) => c.weekKey === span.endWeekKey)
       if (!startCol || !endCol) continue
-      appendOohBurstFromExpertQty(qty, startCol, endCol, span)
+      appendOohBurstFromExpertQty(
+        qty,
+        startCol,
+        endCol,
+        span,
+        span.buyType,
+        span.gross
+      )
     }
 
     const bt = String(buyType || "").toLowerCase() as BuyType
@@ -1578,6 +1611,9 @@ export function mapStandardOohLineItemsToExpertRows(
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
 
+      const burstBuyType = String(b.buyType ?? buyType ?? "")
+      const isBonusBurst = burstBuyType.toLowerCase() === "bonus"
+
       let totalDeliverables =
         buyType.toLowerCase() === "panels"
           ? panelsBurstQtyForExpert(b)
@@ -1585,17 +1621,19 @@ export function mapStandardOohLineItemsToExpertRows(
             ? b.calculatedValue
             : parseNum(b.calculatedValue)
       if (!Number.isFinite(totalDeliverables)) continue
-      if (buyType.toLowerCase() === "fixed_cost") {
-        totalDeliverables = 1
+      if (isBonusBurst) {
+        totalDeliverables = totalDeliverables > 0 ? totalDeliverables : 1
+      } else if (buyType.toLowerCase() === "fixed_cost") {
+        totalDeliverables = totalDeliverables > 0 ? totalDeliverables : 1
       }
-      if (totalDeliverables === 0 && buyType.toLowerCase() !== "bonus") continue
+      if (totalDeliverables === 0 && !isBonusBurst && buyType.toLowerCase() !== "bonus") continue
 
       importCtx.mergeIdx = mergeIdx
       accumulateDistributableBurstForExpertImport(importCtx, {
         sd,
         ed,
         totalDeliverables,
-        buyType,
+        buyType: burstBuyType || buyType,
         bt,
         weekColumns,
         campaignStartDate,
@@ -1607,6 +1645,11 @@ export function mapStandardOohLineItemsToExpertRows(
             overlapKeys,
             weeklyValues
           ),
+        spanBuyType: isBonusBurst ? "bonus" : undefined,
+        spanGross: (() => {
+          const stamped = parseNum(b.budget)
+          return stamped > 0 ? stamped : undefined
+        })(),
       })
       mergeIdx = importCtx.mergeIdx
     }

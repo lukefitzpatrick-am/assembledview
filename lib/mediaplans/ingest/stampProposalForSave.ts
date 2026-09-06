@@ -268,6 +268,12 @@ function attrsForLine(
   if (unresolvedBuyTypeRaw) {
     attrs.buyType_unresolved_raw = unresolvedBuyTypeRaw
   }
+  const bonusWeeks = item.bursts
+    .filter((b) => isBonusBookingStatus(b.booking_status))
+    .reduce((s, b) => s + (b.quantity || 0), 0)
+  if (bonusWeeks > 0) {
+    attrs.bonus_weeks = bonusWeeks
+  }
   return attrs
 }
 
@@ -289,6 +295,8 @@ function burstFromProposed(
   unitRate: number | null | undefined,
 ) {
   const buyAmount = burstBuyAmount(b, gridSemantics, unitRate)
+  const burstBuyType = isBonusBookingStatus(b.booking_status) ? "bonus" : buyType
+  const paidWeeks = isBonusBookingStatus(b.booking_status) ? 0 : b.quantity
   const [serialized] = serializeBurstsJson({
     bursts: [
       {
@@ -296,21 +304,23 @@ function burstFromProposed(
         buyAmount,
         startDate: b.start_date ?? "",
         endDate: b.end_date ?? "",
+        calculatedValue: paidWeeks,
       },
     ],
     feePct: 0,
     budgetIncludesFees: false,
     clientPaysForMedia: false,
-    buyType,
+    buyType: burstBuyType,
   })
   return {
     startDate: serialized?.startDate ?? b.start_date ?? "",
     endDate: serialized?.endDate ?? b.end_date ?? "",
     budget: serialized?.budget ?? String(b.media_amount ?? ""),
     buyAmount: serialized?.buyAmount ?? buyAmount,
-    calculatedValue: serialized?.calculatedValue ?? 0,
+    calculatedValue: serialized?.calculatedValue ?? paidWeeks,
     mediaAmount: serialized?.mediaAmount,
     feeAmount: serialized?.feeAmount,
+    buyType: burstBuyType,
   }
 }
 

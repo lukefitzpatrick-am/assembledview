@@ -392,3 +392,101 @@ test("SF-6 JCD converter total still $131,250.01 within 0.5% after bought-rate m
     "JCD MEDIA BOUGHT RATE must land on unitRate for paid lines",
   )
 })
+
+function stampYmd(v: unknown) {
+  const s = String(v ?? "")
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  const d = v instanceof Date ? v : new Date(String(v ?? ""))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+function burstBuyType(b: unknown) {
+  return String((b as { buyType?: unknown }).buyType ?? "").toLowerCase()
+}
+
+type StampedBurst = {
+  startDate?: unknown
+  endDate?: unknown
+  budget?: unknown
+  buyType?: unknown
+  calculatedValue?: unknown
+}
+
+function asBursts(line: SavePlanLineItem): StampedBurst[] {
+  return Array.isArray(line.bursts) ? (line.bursts as StampedBurst[]) : []
+}
+
+test("JCD stamp: bursts follow the status grid (dates, bonus_weeks, paid weeks)", async () => {
+  const review = await buildIngestReviewFromFile(
+    path.join(FIX, "jcd_strength-meals_ooh.xlsx"),
+    loadSeedPublisherProfiles(),
+    { skipAva: true },
+  )
+  assert.ok(review.proposal)
+  const stamped = stampProposalForSave(
+    review.proposal!,
+    "ig8jcd1",
+    review.template_coverage?.resolved_controlled,
+  )
+  function atRow(n: number) {
+    const i = stamped.panels.findIndex((p) =>
+      (p.sourceRowRef ?? "").endsWith(`!r${n}`),
+    )
+    assert.ok(i >= 0, `missing r${n}`)
+    return stamped.lineItems[i]!
+  }
+  function span(b: { startDate?: unknown; endDate?: unknown }) {
+    return `${stampYmd(b.startDate)}→${stampYmd(b.endDate)}`
+  }
+
+  const brookvale = atRow(30)
+  const brookvaleBursts = asBursts(brookvale)
+  assert.equal(brookvaleBursts.length, 1)
+  assert.equal(span(brookvaleBursts[0]!), "2027-02-15→2027-02-21")
+  assert.equal(burstBuyType(brookvaleBursts[0]!), "bonus")
+  assert.equal(Number(brookvale.attrs?.bonus_weeks), 1)
+  assert.equal(Number(brookvaleBursts[0]!.calculatedValue ?? 0), 0)
+
+  const bundoora = atRow(62)
+  const bundooraBursts = asBursts(bundoora)
+  assert.equal(bundooraBursts.length, 2)
+  const paid62 = bundooraBursts.find((b) => parseBurstMoney(b.budget) > 0)!
+  const bonus62 = bundooraBursts.find((b) => burstBuyType(b) === "bonus")!
+  assert.equal(span(paid62), "2026-10-26→2026-11-01")
+  assert.equal(span(bonus62), "2027-03-15→2027-03-21")
+  assert.ok(Math.abs(parseBurstMoney(paid62.budget) - 306.08) < 0.005)
+  assert.equal(parseBurstMoney(bonus62.budget), 0)
+  assert.equal(Number(paid62.calculatedValue ?? 0), 1)
+  assert.equal(Number(bundoora.attrs?.bonus_weeks), 1)
+
+  assert.equal(span(asBursts(atRow(67))[0]!), "2026-09-28→2026-10-04")
+
+  const r120 = atRow(120)
+  const paid120 = asBursts(r120).filter((b) => parseBurstMoney(b.budget) > 0)
+  assert.equal(paid120.length, 2)
+  const sum120 = paid120.reduce((s, b) => s + parseBurstMoney(b.budget), 0)
+  assert.ok(Math.abs(sum120 - 3265.24) < 0.005, `r120 ${sum120}`)
+  assert.equal(
+    paid120.reduce((s, b) => s + Number(b.calculatedValue ?? 0), 0),
+    2,
+  )
+
+  const r128 = atRow(128)
+  const paid128 = asBursts(r128).filter((b) => parseBurstMoney(b.budget) > 0)
+  assert.equal(paid128.length, 3)
+  const sum128 = paid128.reduce((s, b) => s + parseBurstMoney(b.budget), 0)
+  assert.ok(Math.abs(sum128 - 1615.72) < 0.005, `r128 ${sum128}`)
+
+  for (const n of [126, 127, 129, 130, 132]) {
+    const rail = atRow(n)
+    const bonus = asBursts(rail).filter((b) => burstBuyType(b) === "bonus")
+    assert.equal(bonus.length, 2, `r${n} two bonus bursts`)
+    assert.equal(Number(rail.attrs?.bonus_weeks), 2)
+  }
+
+  for (const line of stamped.lineItems) {
+    for (const b of asBursts(line)) {
+      assert.notEqual(span(b), "2026-07-01→2027-06-30")
+    }
+  }
+})

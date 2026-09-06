@@ -23,6 +23,13 @@ export interface OohExpertMergedWeekSpan {
    */
   startYmd?: string
   endYmd?: string
+  /** Burst-level buy type when it differs from the row (bonus occupancy on a paid line). */
+  buyType?: string
+  /**
+   * Card burst budget for this span. Export uses this so lump-sum / line_total
+   * `fixed_cost` lines do not replay `unitRate` once per flight.
+   */
+  gross?: number
 }
 
 export interface OohExpertScheduleRow {

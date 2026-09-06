@@ -990,7 +990,7 @@ useEffect(() => {
         network: lineItem.network || "",
         oohFormat: lineItem.format || "",
         oohType: lineItem.type || "",
-        buyType: lineItem.buyType || "",
+        buyType: String((burst as { buyType?: string }).buyType || lineItem.buyType || ""),
         placement: lineItem.placement || "",
         size: lineItem.size || "",
         buyingDemo: lineItem.buyingDemo || "",

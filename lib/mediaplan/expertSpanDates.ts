@@ -164,6 +164,9 @@ export type ImportBurstAsSpanParams = Readonly<{
   existingSpans: OohExpertMergedWeekSpan[]
   rowIndex: number
   mergeIdx: number
+  buyType?: string
+  /** Card burst budget for this span (ingest / lump-sum round-trip). */
+  gross?: number
 }>
 
 /**
@@ -187,7 +190,7 @@ export function tryImportMultiWeekBurstAsMergedSpan(
     mergeIdx,
   } = params
 
-  if (overlapKeys.length <= 1) return null
+  if (overlapKeys.length < 1) return null
 
   const startWeekKey = overlapKeys[0]!
   const endWeekKey = overlapKeys[overlapKeys.length - 1]!
@@ -219,6 +222,10 @@ export function tryImportMultiWeekBurstAsMergedSpan(
       totalQty,
       startYmd: formatYmd(clampedStart),
       endYmd: formatYmd(clampedEnd),
+      ...(params.buyType ? { buyType: params.buyType } : {}),
+      ...(params.gross != null && Number.isFinite(params.gross)
+        ? { gross: params.gross }
+        : {}),
     },
     nextMergeIdx: mergeIdx + 1,
   }

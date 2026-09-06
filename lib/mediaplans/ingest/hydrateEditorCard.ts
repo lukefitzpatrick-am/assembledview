@@ -31,6 +31,7 @@ export type HydratedOohEditorBurst = {
   endDate: Date
   calculatedValue: number
   fee: number
+  buyType?: string
 }
 
 export type HydratedOohEditorLine = {
@@ -109,26 +110,52 @@ export function hydrateOohEditorLine(
   const parsedBursts = resolveLineItemBursts(item)
   const bursts: HydratedOohEditorBurst[] =
     parsedBursts.length > 0
-      ? parsedBursts.map((burst: Record<string, unknown>) => ({
-          budget: asBudget(burst.budget),
-          buyAmount: asBudget(burst.buyAmount),
-          startDate:
+      ? parsedBursts.map((burst: Record<string, unknown>) => {
+          const start =
             coerceBurstDateLocal(
               (burst.startDate ?? burst.start_date) as string | Date | null,
-            ) ?? defaultMediaBurstStartDate(opts.campaignStartDate, opts.campaignEndDate),
-          endDate:
+            ) ??
             coerceBurstDateLocal(
               (burst.endDate ?? burst.end_date) as string | Date | null,
-            ) ?? defaultMediaBurstEndDate(opts.campaignStartDate, opts.campaignEndDate),
-          calculatedValue: computeLoadedDeliverables(
-            String(item.buy_type || item.buyType || buyType || ""),
-            burst,
-            Boolean(item.budget_includes_fees || item.budgetIncludesFees),
-            opts.feePct,
-            { bonusFallbackFields: ["calculatedValue", "deliverables"] },
-          ),
-          fee: Number(burst.fee ?? 0) || 0,
-        }))
+            )
+          const end =
+            coerceBurstDateLocal(
+              (burst.endDate ?? burst.end_date) as string | Date | null,
+            ) ??
+            coerceBurstDateLocal(
+              (burst.startDate ?? burst.start_date) as string | Date | null,
+            )
+          const storedCalc = burst.calculatedValue
+          const calculatedValue =
+            typeof storedCalc === "number" && Number.isFinite(storedCalc)
+              ? storedCalc
+              : computeLoadedDeliverables(
+                  String(
+                    burst.buyType ||
+                      item.buy_type ||
+                      item.buyType ||
+                      buyType ||
+                      "",
+                  ),
+                  burst,
+                  Boolean(item.budget_includes_fees || item.budgetIncludesFees),
+                  opts.feePct,
+                  { bonusFallbackFields: ["calculatedValue", "deliverables"] },
+                )
+          const burstBuyType =
+            typeof burst.buyType === "string" && burst.buyType.trim()
+              ? burst.buyType
+              : undefined
+          return {
+            budget: asBudget(burst.budget),
+            buyAmount: asBudget(burst.buyAmount),
+            startDate: start ?? new Date(Number.NaN),
+            endDate: end ?? new Date(Number.NaN),
+            calculatedValue,
+            fee: Number(burst.fee ?? 0) || 0,
+            ...(burstBuyType ? { buyType: burstBuyType } : {}),
+          }
+        })
       : [
           {
             budget: "",
