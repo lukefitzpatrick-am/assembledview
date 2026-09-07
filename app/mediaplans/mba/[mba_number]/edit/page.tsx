@@ -231,6 +231,7 @@ import {
 import { DraftDiffProvider } from "@/hooks/useDraftFieldDiff"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
 import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
+import { EMPTY_DRAFT_DIFF_SUMMARY } from "@/lib/mediaplan/drafts/fieldDiff"
 import {
   describeVersionHeaderTrail,
   resolveTipVersionIdAtLoad,
@@ -11593,12 +11594,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             compact
             updatedAt={planDraft.activeDraft.updatedAt}
             summary={
-              planDraft.diffLive() ?? {
-                fieldChanges: [],
-                addedLineIds: [],
-                removedLines: [],
-                changeCount: 0,
-              }
+              planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY
             }
             onViewChanges={() => planDraft.setCompareOpen(true)}
             onDiscard={() => void planDraft.discard()}
@@ -11645,12 +11641,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       {planDraft.compareOpen && planDraft.activeDraft ? (
         <PlanDraftFieldDiffDialog
           summary={
-            planDraft.diffLive() ?? {
-              fieldChanges: [],
-              addedLineIds: [],
-              removedLines: [],
-              changeCount: 0,
-            }
+            planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY
           }
           onClose={() => planDraft.setCompareOpen(false)}
         />

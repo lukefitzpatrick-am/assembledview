@@ -321,6 +321,7 @@ import { DraftDiffProvider } from "@/hooks/useDraftFieldDiff"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
 import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
+import { EMPTY_DRAFT_DIFF_SUMMARY } from "@/lib/mediaplan/drafts/fieldDiff"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
@@ -7358,12 +7359,7 @@ const handleSaveAll = async (opts?: {
             updatedAt={planDraft.activeDraft.updatedAt}
             headline={planDraft.activeDraft.headline}
             summary={
-              planDraft.diffLive() ?? {
-                fieldChanges: [],
-                addedLineIds: [],
-                removedLines: [],
-                changeCount: 0,
-              }
+              planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY
             }
             viewChangesDisabledReason="No published version to compare"
             onDiscard={() => void planDraft.discard()}

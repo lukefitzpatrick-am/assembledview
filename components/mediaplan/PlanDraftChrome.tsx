@@ -9,10 +9,14 @@ import {
 } from "@/components/ui/popover"
 import type { DraftDiffSummary } from "@/lib/mediaplan/drafts/fieldDiff"
 import {
+  addedLineCaption,
+  draftDiffBreakdown,
   formatDraftFieldWas,
   formatDraftRelativeTime,
+  groupDraftDiff,
   removedLineCaption,
 } from "@/lib/mediaplan/drafts/fieldDiff"
+import { draftFieldLabel } from "@/lib/mediaplan/drafts/fieldLabels"
 import type { PlanSavePill } from "@/lib/mediaplan/drafts/pill"
 import { cn } from "@/lib/utils"
 
@@ -138,18 +142,20 @@ export function PlanDraftActiveBanner(props: {
               <PopoverContent align="start" className="w-80 text-sm">
                 <p className="font-medium text-foreground">{changeLabel}</p>
                 <ul className="mt-2 space-y-1 text-muted-foreground">
-                  {props.summary.removedLines.map((line) => (
-                    <li key={line.lineItemId}>{removedLineCaption(line)}</li>
-                  ))}
-                  {props.summary.addedLineIds.map((id) => (
-                    <li key={id}>Added: {id}</li>
-                  ))}
-                  {props.summary.fieldChanges.length > 0 ? (
-                    <li>
-                      {props.summary.fieldChanges.length} field
-                      {props.summary.fieldChanges.length === 1 ? "" : "s"} edited
+                  {draftDiffBreakdown(props.summary).map((row) => (
+                    <li key={row.key}>
+                      {row.key === "added" || row.key === "removed" ? (
+                        row.label
+                      ) : (
+                        <>
+                          {row.label} {row.count}
+                          {row.moneyDeltaLabel ? (
+                            <span className="num"> ({row.moneyDeltaLabel})</span>
+                          ) : null}
+                        </>
+                      )}
                     </li>
-                  ) : null}
+                  ))}
                   {n === 0 ? <li>No remaining differences</li> : null}
                 </ul>
               </PopoverContent>
@@ -335,7 +341,8 @@ export function PlanDraftFieldDiffDialog(props: {
   summary: DraftDiffSummary
   onClose: () => void
 }) {
-  const { fieldChanges, addedLineIds, removedLines, changeCount } = props.summary
+  const grouped = groupDraftDiff(props.summary)
+  const changeCount = props.summary.changeCount
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
       <div className="max-h-[80vh] max-w-lg overflow-y-auto rounded-card border border-border bg-card p-4 shadow-e2">
@@ -343,37 +350,70 @@ export function PlanDraftFieldDiffDialog(props: {
         <p className="mt-1 text-sm text-muted-foreground">
           {changeCount === 1 ? "1 change" : `${changeCount} changes`} · Close leaves the form as it is
         </p>
-        <div className="mt-3 space-y-3 text-sm">
-          {removedLines.length > 0 ? (
+        <div className="mt-3 space-y-4 text-sm">
+          {grouped.campaign.length > 0 ? (
+            <div>
+              <p className="font-medium text-foreground">Campaign</p>
+              <ul className="mt-1 space-y-1 text-muted-foreground">
+                {grouped.campaign.map((change) => (
+                  <li key={`campaign:${change.fieldPath}`}>
+                    {draftFieldLabel(change.fieldPath)}:{" "}
+                    {change.wasFormatted || "—"} →{" "}
+                    {formatDraftFieldWas(change.newValue, change.kind) || "—"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {grouped.channels.map((ch) => (
+            <div key={ch.channel}>
+              <p className="font-medium text-foreground">{ch.channelLabel}</p>
+              <div className="mt-2 space-y-3">
+                {ch.lines.map((line) => (
+                  <div key={line.lineItemId}>
+                    <p className="text-foreground">
+                      {line.label.trim() || "Untitled line"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{line.lineItemId}</p>
+                    <ul className="mt-1 space-y-1 text-muted-foreground">
+                      {line.changes.map((change) => (
+                        <li key={`${change.lineItemId}:${change.fieldPath}`}>
+                          {draftFieldLabel(change.fieldPath)}:{" "}
+                          {change.wasFormatted || "—"} →{" "}
+                          {formatDraftFieldWas(change.newValue, change.kind) || "—"}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          {grouped.removedLines.length > 0 ? (
             <div>
               <p className="font-medium text-foreground">Removed lines</p>
               <ul className="mt-1 space-y-1 text-muted-foreground">
-                {removedLines.map((line) => (
-                  <li key={line.lineItemId}>{removedLineCaption(line)}</li>
+                {grouped.removedLines.map((line) => (
+                  <li key={line.lineItemId}>
+                    <span>{removedLineCaption(line)}</span>
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      {line.lineItemId}
+                    </span>
+                  </li>
                 ))}
               </ul>
             </div>
           ) : null}
-          {addedLineIds.length > 0 ? (
+          {grouped.addedLines.length > 0 ? (
             <div>
               <p className="font-medium text-foreground">Added lines</p>
-              <ul className="mt-1 space-y-1 font-mono text-xs text-muted-foreground">
-                {addedLineIds.map((id) => (
-                  <li key={id}>{id}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {fieldChanges.length > 0 ? (
-            <div>
-              <p className="font-medium text-foreground">Fields</p>
               <ul className="mt-1 space-y-1 text-muted-foreground">
-                {fieldChanges.map((change) => (
-                  <li key={`${change.lineItemId}:${change.fieldPath}`}>
-                    <span className="font-mono text-xs">{change.lineItemId}</span>
-                    {" · "}
-                    {change.fieldPath}: {change.wasFormatted || "—"} →{" "}
-                    {formatDraftFieldWas(change.newValue, change.kind) || "—"}
+                {grouped.addedLines.map((line) => (
+                  <li key={line.lineItemId}>
+                    <span>{addedLineCaption(line)}</span>
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      {line.lineItemId}
+                    </span>
                   </li>
                 ))}
               </ul>

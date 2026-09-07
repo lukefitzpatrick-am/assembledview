@@ -13,6 +13,7 @@ import {
   PlanDraftFieldDiffDialog,
   PlanDraftStaleBanner,
 } from "@/components/mediaplan/PlanDraftChrome"
+import { EMPTY_DRAFT_DIFF_SUMMARY } from "@/lib/mediaplan/drafts/fieldDiff"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
 
 describe("PlanWizardSaveMessages", () => {
@@ -130,12 +131,7 @@ describe("PlanDraftActiveBanner compact", () => {
           compact
           updatedAt="2026-09-01T00:00:00.000Z"
           headline="Unsaved campaign: Acme — Spring, 2 lines, $1000"
-          summary={{
-            fieldChanges: [],
-            addedLineIds: [],
-            removedLines: [],
-            changeCount: 0,
-          }}
+          summary={EMPTY_DRAFT_DIFF_SUMMARY}
           onDiscard={onDiscard}
         />
       )
@@ -169,11 +165,28 @@ describe("PlanDraftActiveBanner compact", () => {
           newValue: 20000,
           wasFormatted: "$25,000.00",
           kind: "money" as const,
+          channel: "search",
+          lineLabel: "Google",
+        },
+      ],
+      campaignChanges: [
+        {
+          lineItemId: "",
+          fieldPath: "mp_campaignbudget",
+          oldValue: 40000,
+          newValue: 42500,
+          wasFormatted: "$40,000.00",
+          kind: "money" as const,
+          channel: "",
+          lineLabel: "",
         },
       ],
       addedLineIds: [],
-      removedLines: [{ lineItemId: "glenda008-se2", label: "Bing" }],
-      changeCount: 2,
+      addedLines: [],
+      removedLines: [
+        { lineItemId: "glenda008-se2", label: "Bing", channel: "search" },
+      ],
+      changeCount: 3,
     }
 
     act(() => {
@@ -199,12 +212,34 @@ describe("PlanDraftActiveBanner compact", () => {
     act(() => {
       view!.click()
     })
+    const breakdown = Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.trim() === "3 changes"
+    )
+    expect(breakdown).toBeTruthy()
+    act(() => {
+      breakdown!.click()
+    })
     expect(onViewChanges).toHaveBeenCalledTimes(1)
     expect(onDiscard).not.toHaveBeenCalled()
     expect(JSON.stringify(form)).toBe(before)
-    expect(container.textContent).toContain("$25,000.00")
-    expect(container.textContent).toContain("$20,000.00")
-    expect(container.textContent).toContain("Removed: glenda008-se2 — Bing")
+    const body = document.body.textContent ?? ""
+    expect(body).toContain("$25,000.00")
+    expect(body).toContain("$20,000.00")
+    expect(body).toContain("Removed: Bing")
+    expect(body).not.toContain("Removed: glenda008-se2 — Bing")
+    expect(body).toContain("Burst 1 Budget")
+    expect(body).not.toContain("bursts.0.budget")
+    expect(body).toContain("Google")
+    expect(body).toContain("Search")
+    expect(body).toContain("Search 1")
+    expect(body).toContain("Campaign 1")
+    expect(body).toContain("1 line removed")
+    expect(body).toContain("+$2,500")
+    expect(body).toContain("-$5,000")
+    const campaignAt = body.indexOf("Campaign")
+    const searchHeadingAt = body.indexOf("Search")
+    expect(campaignAt).toBeGreaterThanOrEqual(0)
+    expect(searchHeadingAt).toBeGreaterThan(campaignAt)
   })
 
   it("View changes with no tip is disabled with a reason and changes no state", () => {
@@ -215,12 +250,7 @@ describe("PlanDraftActiveBanner compact", () => {
         <PlanDraftActiveBanner
           compact
           updatedAt="2026-09-01T00:00:00.000Z"
-          summary={{
-            fieldChanges: [],
-            addedLineIds: [],
-            removedLines: [],
-            changeCount: 0,
-          }}
+          summary={EMPTY_DRAFT_DIFF_SUMMARY}
           onDiscard={onDiscard}
           viewChangesDisabledReason="No published version to compare"
         />

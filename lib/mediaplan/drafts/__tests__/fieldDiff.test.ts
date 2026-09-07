@@ -5,13 +5,18 @@ import type { PlanDraftStateV1 } from "../types.js"
 import {
   classifyDraftLoad,
   diffDraftAgainstBase,
+  draftDiffBreakdown,
   formatDraftFieldWas,
+  formatDraftMoneyDelta,
   formatDraftRelativeTime,
   getLineItemId,
+  groupDraftDiff,
   isDraftFieldChanged,
   lineItemLabel,
+  removedLineCaption,
   valuesEqualForDraftDiff,
 } from "../fieldDiff.js"
+import { CAMPAIGN_DRAFT_LINE_ID } from "../fieldLabels.js"
 
 function state(
   over: Partial<PlanDraftStateV1> & { channels: PlanDraftStateV1["channels"] },
@@ -154,6 +159,98 @@ describe("diffDraftAgainstBase", () => {
     assert.equal(diff.removedLines[0].lineItemId, "glenda006-se2")
     assert.match(diff.removedLines[0].label, /Bing/)
     assert.equal(diff.changeCount, 2)
+    assert.equal(diff.addedLines[0]?.label, "Meta")
+    assert.equal(removedLineCaption(diff.removedLines[0]!), "Removed: Bing")
+    assert.equal(diff.removedLines[0]!.lineItemId.includes("se2"), true)
+  })
+
+  it("campaign budget change is one campaignChanges row, money-formatted, no channel rows", () => {
+    const campaignBase = state({
+      formValues: { mp_campaignbudget: 20000 },
+      channels: {
+        search: [
+          {
+            line_item_id: "glenda006-se1",
+            platform: "Google",
+            bursts: [{ budget: "$25,000.00" }],
+          },
+        ],
+      },
+    })
+    const edited = state({
+      formValues: { mp_campaignbudget: 22500 },
+      channels: campaignBase.channels,
+    })
+    const diff = diffDraftAgainstBase(campaignBase, edited)
+    assert.equal(diff.fieldChanges.length, 0)
+    assert.equal(diff.campaignChanges.length, 1)
+    assert.equal(diff.campaignChanges[0]!.lineItemId, CAMPAIGN_DRAFT_LINE_ID)
+    assert.equal(diff.campaignChanges[0]!.fieldPath, "mp_campaignbudget")
+    assert.equal(diff.campaignChanges[0]!.kind, "money")
+    assert.equal(diff.campaignChanges[0]!.wasFormatted, "$20,000.00")
+    assert.equal(
+      formatDraftFieldWas(diff.campaignChanges[0]!.newValue, "money"),
+      "$22,500.00",
+    )
+    assert.equal(formatDraftMoneyDelta(2500), "+$2,500")
+    const grouped = groupDraftDiff(diff)
+    assert.equal(grouped.channels.length, 0)
+    assert.equal(grouped.campaign.length, 1)
+    const rows = draftDiffBreakdown(diff)
+    assert.equal(rows[0]!.label, "Campaign")
+    assert.equal(rows[0]!.count, 1)
+    assert.equal(rows[0]!.moneyDeltaLabel, "+$2,500")
+  })
+
+  it("two channels edited group as one block per line", () => {
+    const twoBase = state({
+      channels: {
+        search: [
+          {
+            line_item_id: "glenda006-se1",
+            platform: "Google",
+            bursts: [{ budget: "$25,000.00" }],
+          },
+        ],
+        socialMedia: [
+          {
+            line_item_id: "glenda006-so1",
+            platform: "Meta",
+            bursts: [{ budget: "$10,000.00" }],
+          },
+        ],
+      },
+    })
+    const edited = state({
+      channels: {
+        search: [
+          {
+            line_item_id: "glenda006-se1",
+            platform: "Google",
+            bursts: [{ budget: "$20,000.00" }],
+          },
+        ],
+        socialMedia: [
+          {
+            line_item_id: "glenda006-so1",
+            platform: "Meta",
+            bursts: [{ budget: "$12,000.00" }],
+          },
+        ],
+      },
+    })
+    const diff = diffDraftAgainstBase(twoBase, edited)
+    const grouped = groupDraftDiff(diff)
+    assert.equal(grouped.campaign.length, 0)
+    assert.equal(grouped.channels.length, 2)
+    assert.equal(grouped.channels[0]!.channel, "search")
+    assert.equal(grouped.channels[0]!.channelLabel, "Search")
+    assert.equal(grouped.channels[0]!.lines.length, 1)
+    assert.equal(grouped.channels[0]!.lines[0]!.label, "Google")
+    assert.equal(grouped.channels[1]!.channel, "socialMedia")
+    assert.equal(grouped.channels[1]!.channelLabel, "Social")
+    assert.equal(grouped.channels[1]!.lines.length, 1)
+    assert.equal(grouped.channels[1]!.lines[0]!.label, "Meta")
   })
 })
 
