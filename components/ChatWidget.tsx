@@ -569,9 +569,6 @@ export function ChatWidget({
         method: "POST",
         body: formData,
       })
-        method: "POST",
-        body: formData,
-      })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
         throw new Error(
