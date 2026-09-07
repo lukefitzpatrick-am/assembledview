@@ -70,12 +70,19 @@ export function pendingIngestChipCopy(state: {
   fileName?: string
   fullReviewPath?: string
   missing?: boolean
+  sourceFileRetained?: boolean
 }): { kind: "pending" | "reattach"; text: string } {
   const fileBit = state.fileName?.trim() ? ` · ${state.fileName.trim()}` : ""
   if (state.missing) {
     return {
       kind: "reattach",
       text: `Attach the file again${fileBit}`,
+    }
+  }
+  if (state.sourceFileRetained === false) {
+    return {
+      kind: "reattach",
+      text: `Re-upload needed${fileBit}`,
     }
   }
   return {

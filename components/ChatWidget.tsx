@@ -899,13 +899,18 @@ export function ChatWidget({
               </Button>
             </div>
             {pendingIngest ? (
-              pendingIngest.missing ? (
+              pendingIngest.missing ||
+              pendingIngest.summary?.source_file_retained === false ? (
                 <button
                   type="button"
                   className="text-left text-xs text-muted-foreground underline underline-offset-2"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  {pendingIngestChipCopy(pendingIngest).text}
+                  {pendingIngestChipCopy({
+                    ...pendingIngest,
+                    sourceFileRetained:
+                      pendingIngest.summary?.source_file_retained,
+                  }).text}
                 </button>
               ) : (
                 <p className="text-xs text-muted-foreground">

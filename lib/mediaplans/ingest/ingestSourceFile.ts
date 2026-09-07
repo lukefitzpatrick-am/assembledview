@@ -1,6 +1,7 @@
 /**
  * Re-parse / re-run audit from the staged workbook pointer (IG-14).
- * 409 SOURCE_FILE_MISSING only when source_file is null (pre-IG-14 stages).
+ * 409 SOURCE_FILE_MISSING when source_file is null (Blob retain failed
+ * or a pre-IG-14 stage).
  */
 import { buildIngestReviewWithPrimary } from "@/lib/mediaplans/ingest/buildIngestReview"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
@@ -42,8 +43,8 @@ export type SourceFileMissingResult = {
   error: string
 }
 
-const SOURCE_FILE_MISSING_ERROR =
-  "Re-run needs the workbook on the stage — this stage has no source_file (pre-IG-14). Attach the file again."
+export const SOURCE_FILE_MISSING_ERROR =
+  "The workbook was not retained for this stage. Re-upload the file."
 
 function missingSourceFile(): SourceFileMissingResult {
   return {

@@ -12,6 +12,7 @@ import {
 } from "@/lib/mediaplans/ingest/createLinkedPublisherProfile"
 import {
   SOURCE_FILE_MISSING,
+  SOURCE_FILE_MISSING_ERROR,
   reparseStagedIngestFromSourceFile,
 } from "@/lib/mediaplans/ingest/ingestSourceFile"
 import { lookupIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
@@ -169,7 +170,8 @@ export async function confirmProposedPublisherProfile(args: {
 /**
  * Confirm the staged proposed profile, then re-parse from source_file.
  * 409 SOURCE_FILE_MISSING before insert when the stage has no workbook
- * (pre-IG-14). Callers without a stage keep using confirmProposedPublisherProfile.
+ * (Blob retain failed or pre-IG-14). Callers without a stage keep using
+ * confirmProposedPublisherProfile.
  */
 export async function confirmStagedProposedProfile(args: {
   stageId: string
@@ -201,8 +203,7 @@ export async function confirmStagedProposedProfile(args: {
       ok: false,
       status: 409,
       code: SOURCE_FILE_MISSING,
-      error:
-        "Confirm needs the workbook on the stage — this stage has no source_file (pre-IG-14). Attach the file again.",
+      error: SOURCE_FILE_MISSING_ERROR,
     }
   }
   const confirmed = await confirmProposedPublisherProfile({

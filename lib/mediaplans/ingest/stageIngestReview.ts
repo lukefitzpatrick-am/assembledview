@@ -6,7 +6,10 @@
 import { buildIngestReviewWithPrimary } from "@/lib/mediaplans/ingest/buildIngestReview"
 import { recordIngestRun } from "@/lib/mediaplans/ingest/ingestRuns"
 import { putIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
-import { putIngestWorkbook } from "@/lib/mediaplans/ingest/ingestWorkbookBlob"
+import {
+  putIngestWorkbook,
+  type IngestSourceFile,
+} from "@/lib/mediaplans/ingest/ingestWorkbookBlob"
 import type { PublisherProfileConfig } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import {
   summariseIngestReview,
@@ -30,6 +33,8 @@ export async function stageIngestReviewFromBuffer(
     /** Injectable audit client (tests). Production review route passes Anthropic. */
     lineAuditClient?: LineAuditClient | null
     mbaNumber?: string | null
+    /** Tests only — production uses putIngestWorkbook. */
+    putWorkbook?: typeof putIngestWorkbook
   },
 ): Promise<{
   review: IngestReviewPackage
@@ -72,11 +77,18 @@ export async function stageIngestReviewFromBuffer(
     }
   }
   const stageId = crypto.randomUUID()
-  const sourceFile = await putIngestWorkbook({
-    stageId,
-    fileName: args.fileName,
-    buffer,
-  })
+  const putWorkbook = args.putWorkbook ?? putIngestWorkbook
+  let sourceFile: IngestSourceFile | null = null
+  try {
+    sourceFile = await putWorkbook({
+      stageId,
+      fileName: args.fileName,
+      buffer,
+    })
+  } catch (err) {
+    console.warn(`[ingest] workbook not retained stage=${stageId}`, err)
+    sourceFile = null
+  }
   await putIngestStage({
     review,
     fileName: args.fileName,
@@ -88,6 +100,7 @@ export async function stageIngestReviewFromBuffer(
     stageId,
     fileName: args.fileName,
     mbaNumber: args.mbaNumber,
+    sourceFileRetained: sourceFile != null,
   })
   if (summary.unknown_publisher) {
     await recordIngestRun({

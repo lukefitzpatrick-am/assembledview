@@ -54,6 +54,7 @@ function fixtureSummary(over: Partial<IngestChatSummary> = {}): IngestChatSummar
     unknown_publisher: false,
     no_profile_message: null,
     full_review_path: "/mediaplans/mba/create/ingest/stg-av1",
+    source_file_retained: true,
     ...over,
   }
 }

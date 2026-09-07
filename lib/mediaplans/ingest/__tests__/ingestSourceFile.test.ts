@@ -77,11 +77,12 @@ function mockAuditClient(): LineAuditClient {
 
 test("stage stores source_file pointer with sha256 under ingest/{stageId}/{filename}", async () => {
   const buf = readFileSync(QMS)
-  const { stageId } = await stageIngestReviewFromBuffer(buf, {
+  const { stageId, summary } = await stageIngestReviewFromBuffer(buf, {
     fileName: "qms_strength-meals_esb-ooh.xlsx",
     uploadedBy: BY,
     profiles: loadSeedPublisherProfiles(),
   })
+  assert.equal(summary.source_file_retained, true)
   const got = await getIngestStage(stageId)
   assert.ok(got)
   assert.ok(got.sourceFile, "source_file missing on staged row")
@@ -100,6 +101,41 @@ test("stage stores source_file pointer with sha256 under ingest/{stageId}/{filen
     ingestWorkbookBlobExistsForTests(got.sourceFile.pathname),
     true,
   )
+})
+
+test("putIngestWorkbook throw still creates the stage with sourceFile null and one warn", async () => {
+  const warns: unknown[][] = []
+  const origWarn = console.warn
+  console.warn = (...args: unknown[]) => {
+    warns.push(args)
+  }
+  try {
+    const { stageId, summary } = await stageIngestReviewFromBuffer(
+      readFileSync(QMS),
+      {
+        fileName: "qms.xlsx",
+        uploadedBy: BY,
+        profiles: loadSeedPublisherProfiles(),
+        putWorkbook: async () => {
+          throw new Error(
+            "Vercel Blob: No blob credentials found. Pass a `token` option, set `BLOB_READ_WRITE_TOKEN`, or use `oidcToken` (or `VERCEL_OIDC_TOKEN`) with `storeId` or `BLOB_STORE_ID`.",
+          )
+        },
+      },
+    )
+    const got = await getIngestStage(stageId)
+    assert.ok(got, "stage must still be created")
+    assert.equal(got.sourceFile, null)
+    assert.equal(summary.source_file_retained, false)
+    assert.equal(warns.length, 1, "one warn logged")
+    assert.match(String(warns[0][0]), /workbook not retained/)
+    assert.ok(
+      String(warns[0][0]).includes(stageId),
+      "warn names the stage id",
+    )
+  } finally {
+    console.warn = origWarn
+  }
 })
 
 test("re-run audit without upload returns ok when source_file is present", async () => {
@@ -144,7 +180,7 @@ test("re-run audit 409s only when source_file is null", async () => {
   assert.equal(result.ok, false)
   if (result.ok) return
   assert.equal(result.status, 409)
-  assert.match(result.error, /source_file|workbook|not stored/i)
+  assert.match(result.error, /workbook was not retained for this stage/i)
   assert.equal(result.code, SOURCE_FILE_MISSING)
 })
 
@@ -205,6 +241,7 @@ test("Confirm 409s when source_file is null", async () => {
   if (confirmed.ok) return
   assert.equal(confirmed.status, 409)
   assert.equal(confirmed.code, SOURCE_FILE_MISSING)
+  assert.match(confirmed.error, /workbook was not retained for this stage/i)
 })
 
 test("deterministic re-parse reads the workbook from source_file", async () => {

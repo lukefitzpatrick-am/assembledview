@@ -25,11 +25,13 @@ export async function GET(
     stageId: staged.stageId,
     fileName: staged.fileName,
     mbaNumber,
+    sourceFileRetained: staged.sourceFile != null,
   })
   return NextResponse.json({
     review: staged.review,
     stageId: staged.stageId,
     fileName: staged.fileName,
     summary,
+    sourceFileRetained: summary.source_file_retained,
   })
 }

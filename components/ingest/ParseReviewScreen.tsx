@@ -68,6 +68,7 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
   const router = useRouter()
   const [review, setReview] = useState<IngestReviewPackage | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
+  const [sourceFileRetained, setSourceFileRetained] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -85,11 +86,16 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
         review?: IngestReviewPackage
         fileName?: string | null
         error?: string
+        sourceFileRetained?: boolean
+        summary?: IngestChatSummary
       }
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
       if (!json.review) throw new Error("Staged ingest not found")
       setReview(json.review)
       setFileName(json.fileName ?? json.review.source_file_name ?? null)
+      setSourceFileRetained(
+        json.summary?.source_file_retained ?? json.sourceFileRetained !== false,
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't load the review")
     } finally {
@@ -134,8 +140,13 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
 
   const summary: IngestChatSummary | null = useMemo(() => {
     if (!review) return null
-    return summariseIngestReview(review, { stageId, fileName, mbaNumber })
-  }, [review, stageId, fileName, mbaNumber])
+    return summariseIngestReview(review, {
+      stageId,
+      fileName,
+      mbaNumber,
+      sourceFileRetained,
+    })
+  }, [review, stageId, fileName, mbaNumber, sourceFileRetained])
 
   const counts = review ? parseReviewCounts(review) : null
   const split = review ? paidBonusSplit(review) : { paid: 0, bonus: 0 }
@@ -226,7 +237,12 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
           <Button
             type="button"
             variant="outline"
-            disabled={busy}
+            disabled={busy || !sourceFileRetained}
+            title={
+              sourceFileRetained
+                ? undefined
+                : "The workbook was not retained for this stage. Re-upload needed."
+            }
             onClick={() => void postAction({ action: "rerun_audit" })}
           >
             Re-run audit
@@ -241,6 +257,13 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
           </Button>
         </div>
       </div>
+
+      {!sourceFileRetained ? (
+        <div className="rounded-card border border-border bg-card px-4 py-3 text-sm text-status-critical-fg shadow-e1">
+          The workbook was not retained for this stage. Re-upload needed to
+          re-run audit.
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-card border border-border bg-card px-4 py-3 text-sm text-status-critical-fg shadow-e1">

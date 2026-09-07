@@ -42,6 +42,8 @@ export type IngestChatSummary = {
   unknown_publisher: boolean
   no_profile_message: string | null
   full_review_path: string
+  /** False when Blob retain failed or the stage predates source_file. */
+  source_file_retained: boolean
 }
 
 export { ingestParseReviewPath }
@@ -55,7 +57,12 @@ export function ingestFullReviewPath(
 
 export function summariseIngestReview(
   review: IngestReviewPackage,
-  args: { stageId: string; fileName?: string | null; mbaNumber?: string | null },
+  args: {
+    stageId: string
+    fileName?: string | null
+    mbaNumber?: string | null
+    sourceFileRetained?: boolean
+  },
 ): IngestChatSummary {
   const unknown = isUnknownPublisherMatch({
     confidence: review.publisher_confidence,
@@ -113,6 +120,7 @@ export function summariseIngestReview(
     unknown_publisher: unknown,
     no_profile_message: unknown ? NO_PUBLISHER_PROFILE_MESSAGE : null,
     full_review_path: ingestFullReviewPath(args.stageId, args.mbaNumber),
+    source_file_retained: args.sourceFileRetained !== false,
   }
 }
 

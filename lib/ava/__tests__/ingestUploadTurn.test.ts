@@ -59,6 +59,7 @@ function sampleSummary(stageId: string): IngestChatSummary {
     unknown_publisher: false,
     no_profile_message: null,
     full_review_path: `/mediaplans/mba/create/ingest/${stageId}`,
+    source_file_retained: true,
   }
 }
 
@@ -171,4 +172,16 @@ test("footer chip switches to Attach the file again when the stage is missing", 
   assert.equal(tagged?.missing, true)
   const chip = pendingIngestChipCopy(tagged!)
   assert.equal(chip.kind, "reattach")
+})
+
+test("footer chip says re-upload needed when the workbook was not retained", () => {
+  const chip = pendingIngestChipCopy({
+    fileName: "jcd.xlsx",
+    sourceFileRetained: false,
+  })
+  assert.equal(chip.kind, "reattach")
+  assert.match(chip.text, /Re-upload needed/)
+  assert.match(chip.text, /jcd\.xlsx/)
+  assert.doesNotMatch(chip.text, /Schedule ready/)
+  assert.doesNotMatch(chip.text, /Attach the file again/)
 })
