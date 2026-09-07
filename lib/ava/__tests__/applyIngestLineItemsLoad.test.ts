@@ -153,7 +153,7 @@ test("Partial MBA load unions ingest ids so every loaded line resolves approved"
   h.apply("ooh", OOH_ROWS, true, { isPartialMBA: true })
   const oohIds = h.selected.ooh ?? []
   assert.equal(oohIds.length, 95)
-  assert.equal(h.selected.radio?.[0], "billing-radio::keep")
+  assert.equal(h.selected.radio?.[0], "keep")
   for (const [i, item] of h.oohMedia.entries()) {
     const id = editorBillingStableLineItemId("ooh", item, i)
     assert.equal(
@@ -182,8 +182,12 @@ test("nextPartialMbaSelectionAfterIngestLoad fills an emptied channel", () => {
     channel: "ooh",
     nextItems: items,
   })
-  assert.deepEqual(next.ooh, [
-    editorBillingStableLineItemId("ooh", items[0], 0),
-    editorBillingStableLineItemId("ooh", items[1], 1),
-  ])
+  assert.deepEqual(next.ooh, ["n1", "n2"])
+  assert.equal(
+    resolveApproval("ooh", editorBillingStableLineItemId("ooh", items[0], 0), {
+      isPartialMBA: true,
+      partialMBASelectedLineItemIds: next,
+    }),
+    "approved"
+  )
 })

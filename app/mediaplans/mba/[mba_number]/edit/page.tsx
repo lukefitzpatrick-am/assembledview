@@ -253,6 +253,7 @@ import {
   applyLineFeePrebillToMonths,
   applyLinePrebillToMonths,
   billingOverrideLineIdsMatch,
+  buildCanonicalBillingLineIdSet,
   clearLineOverrideMeta,
   listManualOverrideLineIds,
   restoreLinePrebillSnapshot,
@@ -330,8 +331,10 @@ import {
 } from "@/components/billing/MbaBillingModal"
 import {
   approvalExclusionFingerprint,
+  canonicalisePartialMbaSelectedLineItemIds,
   excludedLineItemIdsByMedia,
   fetchMbaLineApprovalsClient,
+  mbaApprovalPatchLinesFromSelection,
   patchMbaLineApprovalsClient,
   selectedLineItemIdsFromApprovalRows,
 } from "@/lib/finance/mbaLineApprovalsClient"
@@ -3824,7 +3827,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             setIsPartialMBA(true)
             setPartialMBAValues(h.partialMBAValues)
             setPartialMBAMonthYears(h.partialMBAMonthYears)
-            setPartialMBASelectedLineItemIds(h.partialMBASelectedLineItemIds)
+            setPartialMBASelectedLineItemIds(
+              canonicalisePartialMbaSelectedLineItemIds(h.partialMBASelectedLineItemIds)
+            )
             setPartialMBAMediaEnabled(h.partialMBAMediaEnabled)
             setOriginalPartialMBAValues(JSON.parse(JSON.stringify(h.partialMBAValues)))
           }
@@ -8175,7 +8180,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           (isPartialMBA || forceIncrementForApprovals || lastApprovalFp !== null)
         ) {
           const approvalLines = billingSaveInputs.lineItems.map((line) => ({
-            line_item_id: line.lineItemId,
+            line_item_id: toBillingOverrideLineItemId(line.lineItemId),
             media_type: line.mediaType,
             approved: line.approval !== "excluded",
           }))
@@ -8464,7 +8469,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         (isPartialMBA || forceIncrementForApprovals || lastApprovalFp !== null)
       ) {
         const approvalLines = billingSaveInputs.lineItems.map((line) => ({
-          line_item_id: line.lineItemId,
+          line_item_id: toBillingOverrideLineItemId(line.lineItemId),
           media_type: line.mediaType,
           approved: line.approval !== "excluded",
         }))
@@ -10253,9 +10258,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       deliveryMonths: deliveryMonthsWithLineItems,
       selectedMonthYears: monthYears,
     })
-    const selectedIds = Object.fromEntries(
-      Object.entries(lineItemsMap).map(([mediaKey, items]) => [mediaKey, Object.keys(items)])
-    ) as Record<string, string[]>
+    const selectedIds = canonicalisePartialMbaSelectedLineItemIds(
+      Object.fromEntries(
+        Object.entries(lineItemsMap).map(([mediaKey, items]) => [mediaKey, Object.keys(items)])
+      ) as Record<string, string[]>
+    )
     setPartialMBASelectedLineItemIds(selectedIds)
     const initialValues = recomputePartialMBAFromLineItems(monthYears, selectedIds, enabledMap)
     if (initialValues) {
@@ -10270,28 +10277,31 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   function handleMbaBillingToggleLine(lineItemId: string, mediaType: string, approved: boolean) {
-    const existing = new Set(
-      (partialMBASelectedLineItemIds[mediaType] || []).map((id) =>
-        toBillingOverrideLineItemId(id)
-      )
+    const existing = buildCanonicalBillingLineIdSet(
+      partialMBASelectedLineItemIds[mediaType] || []
     )
     const canonId = toBillingOverrideLineItemId(lineItemId)
     if (approved) existing.add(canonId)
     else existing.delete(canonId)
-    const nextSelected = { ...partialMBASelectedLineItemIds, [mediaType]: Array.from(existing) }
+    let nextSelected = {
+      ...partialMBASelectedLineItemIds,
+      [mediaType]: Array.from(existing),
+    }
     // If we had an empty map (all-in / not partial yet), seed all other media from current approved lines.
     if (!isPartialMBA && Object.keys(partialMBASelectedLineItemIds).length === 0) {
       for (const line of campaignFinancialsForPanels.perLine) {
         if (line.mediaType === mediaType) continue
         if (!nextSelected[line.mediaType]) nextSelected[line.mediaType] = []
-        if (!nextSelected[line.mediaType].includes(line.lineItemId)) {
-          nextSelected[line.mediaType].push(line.lineItemId)
+        const canon = toBillingOverrideLineItemId(line.lineItemId)
+        if (!nextSelected[line.mediaType].includes(canon)) {
+          nextSelected[line.mediaType].push(canon)
         }
       }
       if (!approved) {
         nextSelected[mediaType] = Array.from(existing)
       }
     }
+    nextSelected = canonicalisePartialMbaSelectedLineItemIds(nextSelected)
     setPartialMBASelectedLineItemIds(nextSelected)
     const nextEnabled = { ...partialMBAMediaEnabled, [mediaType]: (nextSelected[mediaType]?.length ?? 0) > 0 }
     setPartialMBAMediaEnabled(nextEnabled)
@@ -10312,16 +10322,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     if (!isPartialMBA && Object.keys(partialMBASelectedLineItemIds).length === 0) {
       for (const line of campaignFinancialsForPanels.perLine) {
         if (!nextSelected[line.mediaType]) nextSelected[line.mediaType] = []
-        if (!nextSelected[line.mediaType].includes(line.lineItemId)) {
-          nextSelected[line.mediaType].push(line.lineItemId)
+        const canon = toBillingOverrideLineItemId(line.lineItemId)
+        if (!nextSelected[line.mediaType].includes(canon)) {
+          nextSelected[line.mediaType].push(canon)
         }
       }
     }
     nextSelected[mediaType] = approved ? containerIds : []
-    setPartialMBASelectedLineItemIds(nextSelected)
+    const canonicalNext = canonicalisePartialMbaSelectedLineItemIds(nextSelected)
+    setPartialMBASelectedLineItemIds(canonicalNext)
     const nextEnabled = {
       ...partialMBAMediaEnabled,
-      [mediaType]: (nextSelected[mediaType]?.length ?? 0) > 0,
+      [mediaType]: (canonicalNext[mediaType]?.length ?? 0) > 0,
     }
     setPartialMBAMediaEnabled(nextEnabled)
     setIsPartialMBA(true)
@@ -10330,7 +10342,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         ? partialMBAMonthYears
         : getPartialMbaRawMonthsForBaseline().map((m) => m.monthYear)
     if (months.length && partialMBAMonthYears.length === 0) setPartialMBAMonthYears(months)
-    recomputePartialMBAFromLineItems(months, nextSelected, nextEnabled)
+    recomputePartialMBAFromLineItems(months, canonicalNext, nextEnabled)
   }
 
   function handleMbaBillingResetApprovalsToAllIn() {
@@ -10382,7 +10394,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const hasExclusion = Object.entries(selected).some(
         ([k, ids]) => ids.length < (allByMedia[k]?.length ?? 0)
       )
-      setPartialMBASelectedLineItemIds(selected)
+      setPartialMBASelectedLineItemIds(
+        canonicalisePartialMbaSelectedLineItemIds(selected)
+      )
       setPartialMBAMediaEnabled(
         Object.fromEntries(
           Object.entries(selected).map(([k, ids]) => [k, ids.length > 0])
@@ -10429,24 +10443,25 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const nextEnabled = { ...partialMBAMediaEnabled, [mediaKey]: enabled }
     setPartialMBAMediaEnabled(nextEnabled)
     const allIds = (partialMBALineItemsByMedia[mediaKey] || []).map((item) => item.lineItemId)
-    const nextSelected = {
+    const nextSelected = canonicalisePartialMbaSelectedLineItemIds({
       ...partialMBASelectedLineItemIds,
       [mediaKey]: enabled ? allIds : [],
-    }
+    })
     setPartialMBASelectedLineItemIds(nextSelected)
     recomputePartialMBAFromLineItems(partialMBAMonthYears, nextSelected, nextEnabled)
   }
 
   function handlePartialMBAToggleLineItem(mediaKey: string, lineItemId: string, enabled: boolean) {
-    const existing = new Set(
-      (partialMBASelectedLineItemIds[mediaKey] || []).map((id) =>
-        toBillingOverrideLineItemId(id)
-      )
+    const existing = buildCanonicalBillingLineIdSet(
+      partialMBASelectedLineItemIds[mediaKey] || []
     )
     const canonId = toBillingOverrideLineItemId(lineItemId)
     if (enabled) existing.add(canonId)
     else existing.delete(canonId)
-    const nextSelected = { ...partialMBASelectedLineItemIds, [mediaKey]: Array.from(existing) }
+    const nextSelected = canonicalisePartialMbaSelectedLineItemIds({
+      ...partialMBASelectedLineItemIds,
+      [mediaKey]: Array.from(existing),
+    })
     setPartialMBASelectedLineItemIds(nextSelected)
     const nextEnabled = { ...partialMBAMediaEnabled, [mediaKey]: nextSelected[mediaKey].length > 0 }
     setPartialMBAMediaEnabled(nextEnabled)
@@ -10534,13 +10549,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         })
         return
       }
-      const lines = Object.entries(allByMedia).flatMap(([media_type, ids]) => {
-        const selected = new Set(partialMBASelectedLineItemIds[media_type] ?? ids)
-        return ids.map((line_item_id) => ({
-          line_item_id,
-          media_type,
-          approved: selected.has(line_item_id),
-        }))
+      const lines = mbaApprovalPatchLinesFromSelection({
+        allByMedia,
+        selectedByMedia: partialMBASelectedLineItemIds,
       })
       const patch = await patchMbaLineApprovalsClient({
         mbaNumber: String(mbaNumber),
@@ -10589,9 +10600,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       deliveryMonths: deliveryMonthsWithLineItems,
       selectedMonthYears: monthYears,
     })
-    const selectedIds = Object.fromEntries(
-      Object.entries(lineItemsMap).map(([mediaKey, items]) => [mediaKey, Object.keys(items)])
-    ) as Record<string, string[]>
+    const selectedIds = canonicalisePartialMbaSelectedLineItemIds(
+      Object.fromEntries(
+        Object.entries(lineItemsMap).map(([mediaKey, items]) => [mediaKey, Object.keys(items)])
+      ) as Record<string, string[]>
+    )
     setPartialMBASelectedLineItemIds(selectedIds)
     const v = recomputePartialMBAFromLineItems(monthYears, selectedIds, enabledMap)
     if (v) setOriginalPartialMBAValues(JSON.parse(JSON.stringify(v)))

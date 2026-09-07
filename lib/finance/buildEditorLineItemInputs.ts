@@ -14,6 +14,10 @@ import type {
   LineItemApproval,
   LineItemInput,
 } from "@/lib/finance/campaignFinancials.types"
+import {
+  buildCanonicalBillingLineIdSet,
+  canonicalBillingLineIdSetHas,
+} from "@/lib/finance/manualBillingOverridesUi"
 
 export type EditorFeeState = {
   feetelevision?: number | null
@@ -171,7 +175,10 @@ export function resolveApproval(
   // Explicit empty selection → channel managed as all-excluded.
   if (selected.length === 0) return "excluded"
   // Managed channel: only selected line ids are approved (new lines default out).
-  return selected.includes(lineItemId) ? "approved" : "excluded"
+  const selectedSet = buildCanonicalBillingLineIdSet(selected)
+  return canonicalBillingLineIdSetHas(selectedSet, lineItemId)
+    ? "approved"
+    : "excluded"
 }
 
 /**

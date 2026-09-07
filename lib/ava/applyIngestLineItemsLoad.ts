@@ -4,12 +4,18 @@
  * the hydration setter (edit: *LineItems) is the same path draft restore uses,
  * so useStableHydration does not wipe the load with an empty first paint.
  *
- * On a Partial MBA, loaded line ids are unioned into the channel's selected
- * set so they resolve approved (all-in), same as a line typed onto an
+ * On a Partial MBA, loaded line ids are unioned (canonical) into the channel's
+ * selected set so they resolve approved (all-in), same as a line typed onto an
  * unlisted channel. Reset-to-all-in is unchanged.
  */
 
 import { editorBillingStableLineItemId } from "@/lib/finance/buildEditorLineItemInputs"
+import { canonicalisePartialMbaSelectedLineItemIds } from "@/lib/finance/mbaLineApprovalsClient"
+import {
+  buildCanonicalBillingLineIdSet,
+  canonicalBillingLineIdSetHas,
+  toBillingOverrideLineItemId,
+} from "@/lib/finance/manualBillingOverridesUi"
 
 export const INGEST_CHANNEL_FLAG = {
   radio: "mp_radio",
@@ -99,14 +105,19 @@ export function nextPartialMbaSelectionAfterIngestLoad(args: {
     editorBillingStableLineItemId(args.channel, item, index),
   )
   const prev = args.selected[args.channel] ?? []
-  const seen = new Set(prev)
-  const merged = [...prev]
+  const seen = buildCanonicalBillingLineIdSet(prev)
+  const merged = Array.from(seen)
   for (const id of ids) {
-    if (seen.has(id)) continue
-    seen.add(id)
-    merged.push(id)
+    if (canonicalBillingLineIdSetHas(seen, id)) continue
+    const canon = toBillingOverrideLineItemId(id)
+    if (!canon) continue
+    seen.add(canon)
+    merged.push(canon)
   }
-  return { ...args.selected, [args.channel]: merged }
+  return canonicalisePartialMbaSelectedLineItemIds({
+    ...args.selected,
+    [args.channel]: merged,
+  })
 }
 
 export function applyIngestLineItemsLoad(args: {

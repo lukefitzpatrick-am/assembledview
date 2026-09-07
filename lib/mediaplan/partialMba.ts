@@ -1,4 +1,9 @@
 import type { BillingMonth } from "@/lib/billing/types"
+import {
+  buildCanonicalBillingLineIdSet,
+  canonicalBillingLineIdSetHas,
+  toBillingOverrideLineItemId,
+} from "@/lib/finance/manualBillingOverridesUi"
 
 export type PartialMbaValues = {
   mediaTotals: Record<string, number>
@@ -263,7 +268,9 @@ export function hydratePartialMbaFromSavedMetadata(meta: PartialApprovalMetadata
   const partialMBASelectedLineItemIds: Record<string, string[]> = {}
   const partialMBAMediaEnabled: Record<string, boolean> = {}
   ;(meta.channels ?? []).forEach((c) => {
-    partialMBASelectedLineItemIds[c.mediaKey] = [...(c.selectedLineItemIds ?? [])]
+    partialMBASelectedLineItemIds[c.mediaKey] = Array.from(
+      buildCanonicalBillingLineIdSet(c.selectedLineItemIds ?? [])
+    )
     partialMBAMediaEnabled[c.mediaKey] = (c.selectedLineItemIds?.length ?? 0) > 0
   })
 
@@ -284,14 +291,20 @@ export function computePartialApprovalChannels(params: {
   return Object.entries(lineItemsByMedia).map(([mediaKey, itemsById]) => {
     const allItems = Object.values(itemsById)
     const allIds = allItems.map((item) => item.lineItemId)
-    const selectedSet = new Set(selectedLineItemIdsByMedia[mediaKey] ?? allIds)
-    const selectedItems = allItems.filter((item) => selectedSet.has(item.lineItemId))
+    const selectedSet = buildCanonicalBillingLineIdSet(
+      selectedLineItemIdsByMedia[mediaKey] ?? allIds
+    )
+    const selectedItems = allItems.filter((item) =>
+      canonicalBillingLineIdSetHas(selectedSet, item.lineItemId)
+    )
     const selectedTotal = selectedItems.reduce((sum, item) => sum + item.amount, 0)
     const fullTotal = allItems.reduce((sum, item) => sum + item.amount, 0)
     return {
       mediaKey,
       mediaType: mediaLabelByKey[mediaKey] ?? mediaKey,
-      selectedLineItemIds: selectedItems.map((item) => item.lineItemId),
+      selectedLineItemIds: selectedItems.map((item) =>
+        toBillingOverrideLineItemId(item.lineItemId)
+      ),
       selectedTotal: money(selectedTotal),
       fullChannelTotal: money(fullTotal),
       selectedCount: selectedItems.length,

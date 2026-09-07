@@ -10,6 +10,11 @@ import {
   coalescedGetJson,
   invalidateCoalescedGetJson,
 } from "@/lib/api/coalescedGetJson"
+import {
+  buildCanonicalBillingLineIdSet,
+  canonicalBillingLineIdSetHas,
+  toBillingOverrideLineItemId,
+} from "@/lib/finance/manualBillingOverridesUi"
 
 /** Same-render-cycle window for approvals hydrate churn (≤30s). */
 const MBA_LINE_APPROVALS_GET_TTL_MS = 30_000
@@ -129,6 +134,40 @@ export async function patchMbaLineApprovalsClient(params: {
 }
 
 /**
+ * One shape at the Partial MBA map boundary: bare line ids (strip `billing-…::`).
+ */
+export function canonicalisePartialMbaSelectedLineItemIds(
+  byMedia: Record<string, string[]>
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const [media, ids] of Object.entries(byMedia)) {
+    out[media] = Array.from(buildCanonicalBillingLineIdSet(ids ?? []))
+  }
+  return out
+}
+
+/**
+ * Persist payload for PATCH mba_line_approvals.
+ * `allByMedia` is the live per-line id list (may be decorated); `selectedByMedia`
+ * is Partial MBA scope (may be canonical or decorated).
+ */
+export function mbaApprovalPatchLinesFromSelection(params: {
+  allByMedia: Record<string, string[]>
+  selectedByMedia: Record<string, string[]>
+}): MbaLineApprovalPatchLine[] {
+  return Object.entries(params.allByMedia).flatMap(([media_type, ids]) => {
+    const selected = buildCanonicalBillingLineIdSet(
+      params.selectedByMedia[media_type] ?? ids
+    )
+    return ids.map((line_item_id) => ({
+      line_item_id: toBillingOverrideLineItemId(line_item_id),
+      media_type,
+      approved: canonicalBillingLineIdSetHas(selected, line_item_id),
+    }))
+  })
+}
+
+/**
  * Convert approval rows → selected line-item ids by media.
  * Rows with approved:false are exclusions; absence = include.
  * When `allLineIdsByMedia` is provided, start from all-in and drop exclusions.
@@ -137,14 +176,25 @@ export function selectedLineItemIdsFromApprovalRows(params: {
   rows: MbaLineApprovalRow[]
   allLineIdsByMedia: Record<string, string[]>
 }): Record<string, string[]> {
-  const excluded = new Set(
-    params.rows
-      .filter((r) => r.approved === false)
-      .map((r) => `${r.media_type}::${r.line_item_id}`)
-  )
+  const excludedByMedia = new Map<string, Set<string>>()
+  for (const r of params.rows) {
+    if (r.approved !== false) continue
+    const canon = toBillingOverrideLineItemId(String(r.line_item_id ?? ""))
+    if (!canon) continue
+    const media = String(r.media_type ?? "")
+    let set = excludedByMedia.get(media)
+    if (!set) {
+      set = new Set()
+      excludedByMedia.set(media, set)
+    }
+    set.add(canon)
+  }
   const out: Record<string, string[]> = {}
   for (const [mediaType, ids] of Object.entries(params.allLineIdsByMedia)) {
-    out[mediaType] = ids.filter((id) => !excluded.has(`${mediaType}::${id}`))
+    const excluded = excludedByMedia.get(mediaType)
+    out[mediaType] = Array.from(buildCanonicalBillingLineIdSet(ids)).filter(
+      (id) => !excluded?.has(id)
+    )
   }
   return out
 }
@@ -182,8 +232,12 @@ export function excludedLineItemIdsByMedia(params: {
 }): Record<string, string[]> {
   const out: Record<string, string[]> = {}
   for (const [mediaType, ids] of Object.entries(params.allLineIdsByMedia)) {
-    const selected = new Set(params.selectedByMedia[mediaType] ?? [])
-    const excluded = ids.filter((id) => !selected.has(id))
+    const selected = buildCanonicalBillingLineIdSet(
+      params.selectedByMedia[mediaType] ?? []
+    )
+    const excluded = Array.from(buildCanonicalBillingLineIdSet(ids)).filter(
+      (id) => !canonicalBillingLineIdSetHas(selected, id)
+    )
     if (excluded.length > 0) out[mediaType] = excluded
   }
   return out
