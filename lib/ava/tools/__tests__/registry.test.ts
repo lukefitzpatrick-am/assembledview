@@ -24,6 +24,7 @@ test("ava tool catalog: names unique and complete", () => {
     "accept_ingest_proposal",
     "load_ingest_into_form",
     "adjust_line_items",
+    "calculate_media_math",
     "get_client_details",
     "get_campaign_context",
     "get_saved_audiences",

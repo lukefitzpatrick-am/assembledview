@@ -9,6 +9,7 @@ import { getPendingIngestReviewTool } from "./getPendingIngestReview";
 import { acceptIngestProposalTool } from "./acceptIngestProposal";
 import { loadIngestIntoFormTool } from "./loadIngestIntoForm";
 import { adjustLineItemsTool } from "./adjustLineItems";
+import { calculateMediaMathTool } from "./calculateMediaMath";
 import { getMediaPlanSummaryTool } from "./getMediaPlanSummary";
 import { getClientDetailsTool } from "./getClientDetails";
 import { getCampaignContextTool } from "./getCampaignContext";
@@ -45,6 +46,7 @@ const AVA_TOOLS: AvaTool[] = [
   acceptIngestProposalTool,
   loadIngestIntoFormTool,
   adjustLineItemsTool,
+  calculateMediaMathTool,
   getClientDetailsTool,
   getCampaignContextTool,
   getSavedAudiencesTool,

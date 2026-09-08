@@ -165,7 +165,7 @@ Client-accessible learning centre. Content is file-driven from `src/data/learnin
 **Entry** `POST /api/chat-v2`. Widget mounted for admins only via `AdminAssistantGate`; the API 403s non-admins.
 
 - `lib/ava/agentLoop.ts` — the tool loop
-- `lib/ava/tools/registry.ts` — the tool surface (~31 tools: `getCampaignContext`, `queryCampaignLines`, `queryScheduleMonths`, `queryFinanceSummary`, `getPacingSnapshot`, `applyFormPatch`, `adjustLineItems`, `loadIngestIntoForm`, `acceptIngestProposal`, `saveClientBrain`, `generatePerformanceReport`, …). Offer of `accept_ingest_proposal` is surface-aware (`avaToolDefinitionsForPage`).
+- `lib/ava/tools/registry.ts` — the tool surface (~32 tools: `getCampaignContext`, `queryCampaignLines`, `queryScheduleMonths`, `queryFinanceSummary`, `getPacingSnapshot`, `applyFormPatch`, `adjustLineItems`, `calculateMediaMath`, `loadIngestIntoForm`, `acceptIngestProposal`, `saveClientBrain`, `generatePerformanceReport`, …). Offer of `accept_ingest_proposal` is surface-aware (`avaToolDefinitionsForPage`).
 - `lib/ava/applyIngestLineItemsLoad.ts` — create/edit `handleSetLineItems`: enable channel flag if off, dual-write hydration on edit, scroll to the section. Partial MBA unions loaded billing-stable ids into the channel selected set (all-in).
 - `lib/ava/skills/registry.ts` — skill guidance loaded on demand
 - `src/ava/systemPrompt.ts` + `voiceSpec.ts` + `docs/brain/AVA-VOICE.md` — voice
