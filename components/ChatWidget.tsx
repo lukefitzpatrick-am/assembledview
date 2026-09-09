@@ -25,11 +25,13 @@ import {
   type PendingIngestPayload,
 } from "@/lib/ava/ingestUploadTurn"
 import type { ChatMode } from "@/src/ava/modes"
+import { AvaMediaMathPanel } from "@/components/ava/AvaMediaMathPanel"
 import { ChatAssistantTurn } from "@/components/ava/ChatAssistantTurn"
 import { ChatThinkingIndicator } from "@/components/ava/ChatThinkingIndicator"
 import { ChatUserMessage } from "@/components/ava/ChatUserMessage"
 import { ChatQuestionCard, type ChatQuestionCardState } from "@/components/ChatQuestionCard"
 import {
+  Calculator,
   ChevronDown,
   ChevronUp,
   FileSpreadsheet,
@@ -61,6 +63,7 @@ type SizePresetKey = keyof typeof SIZE_PRESETS
 const MIN_W = 320
 const MIN_H = 380
 const PANEL_SIZE_KEY = "ava:panel-size"
+const CALC_OPEN_KEY = "ava:calc-open"
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
@@ -106,6 +109,24 @@ function persistPanelSize(size: PanelSize) {
   if (typeof window === "undefined") return
   try {
     localStorage.setItem(PANEL_SIZE_KEY, JSON.stringify(size))
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+function readStoredCalcOpen(): boolean {
+  if (typeof window === "undefined") return false
+  try {
+    return localStorage.getItem(CALC_OPEN_KEY) === "true"
+  } catch {
+    return false
+  }
+}
+
+function persistCalcOpen(open: boolean) {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(CALC_OPEN_KEY, open ? "true" : "false")
   } catch {
     // ignore quota / private mode
   }
@@ -285,6 +306,7 @@ export function ChatWidget({
   const [isFileDragOver, setIsFileDragOver] = useState(false)
   const dragMovedRef = useRef(false)
   const [panelSize, setPanelSize] = useState<PanelSize>(() => readStoredPanelSize())
+  const [calcOpen, setCalcOpen] = useState(() => readStoredCalcOpen())
   const [resizeState, setResizeState] = useState<{
     startX: number
     startY: number
@@ -691,6 +713,23 @@ export function ChatWidget({
                     type="button"
                     variant="ghost"
                     size="icon"
+                    onClick={() =>
+                      setCalcOpen((v) => {
+                        const next = !v
+                        persistCalcOpen(next)
+                        return next
+                      })
+                    }
+                    aria-label="Calculator"
+                    aria-pressed={calcOpen}
+                    title="Calculator"
+                  >
+                    <Calculator className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={() => applySizePreset("compact")}
                     aria-label="Compact size"
                     title="Compact"
@@ -741,6 +780,10 @@ export function ChatWidget({
               </Button>
             </div>
           </div>
+
+          {!isCollapsed && calcOpen ? (
+            <AvaMediaMathPanel onPrefillComposer={setInput} />
+          ) : null}
 
           {!isCollapsed && (
             <div

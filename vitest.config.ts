@@ -41,6 +41,7 @@ export default defineConfig({
       "components/planning/__tests__/UploadCoveragePanel.render.test.tsx",
       "components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx",
       "components/ava/__tests__/ChatMarkdown.render.test.tsx",
+      "components/ava/__tests__/AvaMediaMathPanel.test.tsx",
       "components/__tests__/ChatQuestionCard.test.tsx",
       "components/auth/__tests__/SessionExpiredBanner.render.test.tsx",
       "components/finance/receivables/__tests__/InlineScheduleAmountCell.test.tsx",
