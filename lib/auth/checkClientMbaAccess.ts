@@ -1,38 +1,80 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth0 } from "@/lib/auth0"
 import { getUserRoles, getUserClientIdentifier, getUserMbaNumbers } from "@/lib/rbac"
-import { fetchXanoClientRowByUrlSlug } from "@/lib/clients/fetchClientRowByUrlSlug"
+import type { ClientGroup } from "@/lib/clients/clientGroup"
 import { mbaNumberMatchesClientIdentifier } from "@/lib/auth/mbaNumberMatchesClientIdentifier"
 
 export type ClientMbaAccess =
   | { ok: true; isClient: boolean }
   | { ok: false; response: NextResponse }
 
+export type ClientMbaDenyPath = "mba_numbers" | "identifier" | "no-row"
+
 export type ClientMbaScope =
-  | { ok: false; response: NextResponse }
+  | { ok: false; response: NextResponse; denyPath?: ClientMbaDenyPath; email?: string; slug?: string | null }
   | {
       ok: true
       isClient: boolean
       /** True when the caller may access this MBA number. */
       allows: (mbaNumber: string) => boolean
+      denyPath: Exclude<ClientMbaDenyPath, "no-row">
+      email?: string
+      slug?: string | null
     }
+
+export type CheckClientMbaAccessDeps = {
+  getSession?: (request: NextRequest) => Promise<{ user: unknown } | null>
+  fetchClientGroupByUrlSlug?: (slug: string) => Promise<ClientGroup | null>
+}
 
 function forbiddenResponse(): NextResponse {
   return NextResponse.json({ error: "forbidden" }, { status: 403 })
 }
 
+function logAccessDeny(input: {
+  email: string | undefined
+  slug: string | null | undefined
+  mba: string
+  path: ClientMbaDenyPath
+}): void {
+  console.info("[checkClientMbaAccess] deny", {
+    email: input.email,
+    slug: input.slug ?? null,
+    mba: input.mba,
+    path: input.path,
+  })
+}
+
+async function defaultGetSession(request: NextRequest): Promise<{ user: unknown } | null> {
+  const { auth0 } = await import("@/lib/auth0")
+  const session = await auth0.getSession(request)
+  return session?.user ? { user: session.user } : null
+}
+
+async function defaultFetchClientGroupByUrlSlug(slug: string): Promise<ClientGroup | null> {
+  const { fetchClientGroupByUrlSlug } = await import(
+    "@/lib/clients/fetchClientRowByUrlSlug"
+  )
+  return fetchClientGroupByUrlSlug(slug)
+}
+
 /**
  * Resolve the caller's MBA scope once (staff = unrestricted; client = mba_numbers
  * list or mbaidentifier prefix matcher). Prefer this for list endpoints so the
- * Xano client-row lookup is not repeated per row.
+ * client-row lookup is not repeated per row.
  *
  * Primary path: `app_metadata.mba_numbers` (exact membership).
- * Fallback: `mbaNumberMatchesClientIdentifier` against the client's `mbaidentifier`.
+ * Fallback: `mbaNumberMatchesClientIdentifier` against the group's `mbaidentifier`
+ * (slug resolves through `resolveClientGroup`).
  */
 export async function resolveClientMbaScope(
-  request: NextRequest
+  request: NextRequest,
+  deps: CheckClientMbaAccessDeps = {}
 ): Promise<ClientMbaScope> {
-  const session = await auth0.getSession(request)
+  const getSession = deps.getSession ?? defaultGetSession
+  const fetchClientGroupByUrlSlug =
+    deps.fetchClientGroupByUrlSlug ?? defaultFetchClientGroupByUrlSlug
+
+  const session = await getSession(request)
   if (!session?.user) {
     return {
       ok: false,
@@ -40,23 +82,28 @@ export async function resolveClientMbaScope(
     }
   }
 
-  const roles = getUserRoles(session.user)
+  const user = session.user as { email?: string }
+  const roles = getUserRoles(user as Parameters<typeof getUserRoles>[0])
   // AuthZ: only admin is unscoped. Empty MBA on non-admin must not open the book
   // (SEC-G creative soft-spot + every checkClientMbaAccess consumer).
   if (roles.includes("admin")) {
-    return { ok: true, isClient: false, allows: () => true }
+    return { ok: true, isClient: false, allows: () => true, denyPath: "mba_numbers" }
   }
 
-  const email = (session.user as { email?: string }).email
+  const email = user.email
   const isClient = roles.includes("client")
+  const slug = getUserClientIdentifier(user as Parameters<typeof getUserClientIdentifier>[0])
 
-  const mbaList = getUserMbaNumbers(session.user)
+  const mbaList = getUserMbaNumbers(user as Parameters<typeof getUserMbaNumbers>[0])
   if (mbaList.length > 0) {
     const normalized = new Set(mbaList.map((mba) => mba.toLowerCase()))
     return {
       ok: true,
       isClient,
       allows: (mbaNumber: string) => normalized.has(mbaNumber.toLowerCase()),
+      denyPath: "mba_numbers",
+      email,
+      slug,
     }
   }
 
@@ -68,24 +115,23 @@ export async function resolveClientMbaScope(
     return { ok: false, response: forbiddenResponse() }
   }
 
-  const slug = getUserClientIdentifier(session.user)
   if (!slug) {
     console.warn("[checkClientMbaAccess] Client user missing client identifier", {
       email,
     })
-    return { ok: false, response: forbiddenResponse() }
+    return { ok: false, response: forbiddenResponse(), denyPath: "no-row", email, slug: null }
   }
 
   try {
-    const row = await fetchXanoClientRowByUrlSlug(slug)
-    const mbaidentifier =
-      typeof row?.mbaidentifier === "string" ? row.mbaidentifier.trim() : null
+    const group = await fetchClientGroupByUrlSlug(slug)
+    const mbaidentifier = group?.mbaidentifier?.trim() || null
     if (!mbaidentifier) {
       console.warn("[checkClientMbaAccess] Client row missing mbaidentifier", {
         email,
         userClientSlug: slug,
+        slug,
       })
-      return { ok: false, response: forbiddenResponse() }
+      return { ok: false, response: forbiddenResponse(), denyPath: "no-row", email, slug }
     }
 
     return {
@@ -93,6 +139,9 @@ export async function resolveClientMbaScope(
       isClient: true,
       allows: (mbaNumber: string) =>
         mbaNumberMatchesClientIdentifier(mbaNumber, mbaidentifier),
+      denyPath: "identifier",
+      email,
+      slug,
     }
   } catch (err) {
     console.warn("[checkClientMbaAccess] Failed to resolve client row for MBA access check", {
@@ -100,26 +149,38 @@ export async function resolveClientMbaScope(
       userClientSlug: slug,
       err,
     })
-    return { ok: false, response: forbiddenResponse() }
+    return { ok: false, response: forbiddenResponse(), denyPath: "no-row", email, slug }
   }
 }
 
 export async function checkClientMbaAccess(
   request: NextRequest,
-  mbaNumber: string
+  mbaNumber: string,
+  deps: CheckClientMbaAccessDeps = {}
 ): Promise<ClientMbaAccess> {
-  const scope = await resolveClientMbaScope(request)
-  if (!scope.ok) return scope
+  const scope = await resolveClientMbaScope(request, deps)
+  if (!scope.ok) {
+    if (scope.denyPath) {
+      logAccessDeny({
+        email: scope.email,
+        slug: scope.slug,
+        mba: mbaNumber,
+        path: scope.denyPath,
+      })
+    }
+    return scope
+  }
 
   if (scope.allows(mbaNumber)) {
     return { ok: true, isClient: scope.isClient }
   }
 
-  if (scope.isClient) {
-    console.warn("[checkClientMbaAccess] MBA number not in caller scope", {
-      requestedMba: mbaNumber,
-    })
-  }
+  logAccessDeny({
+    email: scope.email,
+    slug: scope.slug,
+    mba: mbaNumber,
+    path: scope.denyPath,
+  })
 
   return { ok: false, response: forbiddenResponse() }
 }

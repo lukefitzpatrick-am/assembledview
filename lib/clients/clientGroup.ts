@@ -87,3 +87,16 @@ export function resolveClientGroup(
     nameSlugs,
   }
 }
+
+/** Positive `clients.id` values from every group member. Empty when the group is null. */
+export function clientIdsFromGroup(group: ClientGroup | null): Set<number> {
+  const ids = new Set<number>()
+  if (!group) return ids
+  for (const member of group.members) {
+    const raw = member.id
+    const n = typeof raw === "number" ? raw : Number(raw)
+    if (!Number.isFinite(n) || n <= 0) continue
+    ids.add(Math.trunc(n))
+  }
+  return ids
+}

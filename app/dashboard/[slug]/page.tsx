@@ -71,8 +71,8 @@ export default async function ClientDashboard({ params, searchParams }: ClientDa
   let error: string | null = null
 
   try {
-    // fetchXanoClientRowByUrlSlug resolves via resolveClientGroup → group.anchor
-    // so mbaidentifier-slugs (penfold) keep the same logo as name-slugs (penfolds).
+    // fetchXanoClientRowByUrlSlug resolves via resolveClientGroup so clients.slug,
+    // the name slug and the mbaidentifier slug all identify the same group.anchor.
     const [data, clientRecord] = await Promise.all([
       getClientDashboardData(slug, { rangeStartISO: range.rangeStartISO, rangeEndISO: range.rangeEndISO }),
       fetchXanoClientRowByUrlSlug(slug),

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getUserClientIdentifier, getUserRoles } from "@/lib/rbac"
+import type { ClientGroup } from "@/lib/clients/clientGroup"
+import { clientIdsFromGroup } from "@/lib/clients/clientGroup"
 
 export type ClientAccess =
   | { ok: true; isClient: boolean }
@@ -10,7 +12,7 @@ export type DecideClientAccessInput = {
   isAdmin: boolean
   isClient: boolean
   requestedClientId: number
-  callerClientId: number | null
+  callerClientIds: ReadonlySet<number>
 }
 
 export type DecideClientAccessResult =
@@ -21,7 +23,7 @@ export type AssertClientAccessDeps = {
   getSession: (request: NextRequest) => Promise<{ user: unknown } | null>
   getUserRoles: (user: unknown) => string[]
   getUserClientIdentifier: (user: unknown) => string | null
-  fetchClientBySlug: (slug: string) => Promise<Record<string, unknown> | null>
+  fetchClientGroupBySlug: (slug: string) => Promise<ClientGroup | null>
 }
 
 function forbiddenResponse(): NextResponse {
@@ -43,7 +45,8 @@ export function clientIdFromRow(row: Record<string, unknown> | null): number | n
 
 /**
  * Per-client tenant gate. Admin is unscoped. A client-role caller passes only
- * when `callerClientId === requestedClientId` and both are positive.
+ * when `requestedClientId` is in `callerClientIds` (the resolveClientGroup
+ * member-id set) and both the requested id and the set entry are positive.
  * Unresolved (0) never grants access — never "show it anyway".
  */
 export function decideClientAccess(input: DecideClientAccessInput): DecideClientAccessResult {
@@ -52,8 +55,7 @@ export function decideClientAccess(input: DecideClientAccessInput): DecideClient
   if (
     input.isClient &&
     input.requestedClientId > 0 &&
-    input.callerClientId != null &&
-    input.callerClientId === input.requestedClientId
+    input.callerClientIds.has(input.requestedClientId)
   ) {
     return { ok: true, isClient: true }
   }
@@ -69,11 +71,11 @@ const defaultDeps: AssertClientAccessDeps = {
   getUserRoles: (user) => getUserRoles(user as Parameters<typeof getUserRoles>[0]),
   getUserClientIdentifier: (user) =>
     getUserClientIdentifier(user as Parameters<typeof getUserClientIdentifier>[0]),
-  fetchClientBySlug: async (slug) => {
-    const { fetchXanoClientRowByUrlSlug } = await import(
+  fetchClientGroupBySlug: async (slug) => {
+    const { fetchClientGroupByUrlSlug } = await import(
       "@/lib/clients/fetchClientRowByUrlSlug"
     )
-    return fetchXanoClientRowByUrlSlug(slug)
+    return fetchClientGroupByUrlSlug(slug)
   },
 }
 
@@ -94,14 +96,14 @@ export async function assertClientAccess(
   const isAdmin = roles.includes("admin")
   const isClient = roles.includes("client")
 
-  let callerClientId: number | null = null
+  let callerClientIds: Set<number> = new Set()
   if (session?.user && isClient && !isAdmin) {
     const slug = deps.getUserClientIdentifier(session.user)?.trim() ?? ""
     if (!slug) {
       return { ok: false, response: forbiddenResponse() }
     }
     try {
-      callerClientId = clientIdFromRow(await deps.fetchClientBySlug(slug))
+      callerClientIds = clientIdsFromGroup(await deps.fetchClientGroupBySlug(slug))
     } catch (err) {
       console.warn("[assertClientAccess] Failed to resolve client row", { err })
       return { ok: false, response: forbiddenResponse() }
@@ -113,7 +115,7 @@ export async function assertClientAccess(
     isAdmin,
     isClient,
     requestedClientId: clientId,
-    callerClientId,
+    callerClientIds,
   })
   if (!decided.ok) {
     return {

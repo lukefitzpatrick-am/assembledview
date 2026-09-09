@@ -1,10 +1,16 @@
 import assert from "node:assert/strict"
-import test from "node:test"
+import { afterEach, describe, it, test } from "node:test"
+import { NextRequest } from "next/server"
+
+import { checkClientMbaAccess } from "../checkClientMbaAccess"
 import {
   escapeRegExp,
   mbaNumberMatchesClientIdentifier,
 } from "../mbaNumberMatchesClientIdentifier"
 import { getUserMbaNumbers } from "../../rbac"
+import { resolveClientGroup } from "../../clients/clientGroup"
+import { omitClientBrain } from "../../clients/omitClientBrain"
+import { GOLF_CLIENT_ROWS } from "../../clients/__tests__/golfClientRows.fixture"
 
 test("escapeRegExp escapes regex metacharacters", () => {
   assert.equal(escapeRegExp("PENFOLD"), "PENFOLD")
@@ -82,4 +88,141 @@ test("SEC-G: non-admin empty mba_numbers is not an unscoped allow-all", () => {
   assert.deepEqual(list, [])
   // Empty list ⇒ helper denies before identifier fallback for non-client sessions.
   assert.equal(list.length === 0, true)
+})
+
+function req(): NextRequest {
+  return new NextRequest("http://localhost/api/campaigns/golf001")
+}
+
+function clientUser(slug: string, mbaNumbers: string[] = []) {
+  return {
+    email: "golf@example.com",
+    app_metadata: {
+      role: "client",
+      client_slug: slug,
+      ...(mbaNumbers.length > 0 ? { mba_numbers: mbaNumbers } : {}),
+    },
+  }
+}
+
+async function fetchGolfGroup(slug: string) {
+  const group = resolveClientGroup(GOLF_CLIENT_ROWS, slug)
+  if (!group) return null
+  return {
+    ...group,
+    anchor: omitClientBrain(group.anchor),
+    members: group.members.map((m) => omitClientBrain(m)),
+  }
+}
+
+function golfDeps(slug: string, mbaNumbers: string[] = []) {
+  return {
+    getSession: async () => ({ user: clientUser(slug, mbaNumbers) }),
+    fetchClientGroupByUrlSlug: fetchGolfGroup,
+  }
+}
+
+const infoLogs: unknown[][] = []
+const originalInfo = console.info
+
+afterEach(() => {
+  infoLogs.length = 0
+  console.info = originalInfo
+})
+
+function captureInfo() {
+  infoLogs.length = 0
+  console.info = (...args: unknown[]) => {
+    infoLogs.push(args)
+  }
+}
+
+describe("checkClientMbaAccess golf group", () => {
+  it('slug "golf-australia", mba_numbers [] allows golf001 and golf028', async () => {
+    const deps = golfDeps("golf-australia")
+    const a = await checkClientMbaAccess(req(), "golf001", deps)
+    const b = await checkClientMbaAccess(req(), "golf028", deps)
+    assert.equal(a.ok, true)
+    assert.equal(b.ok, true)
+  })
+
+  it('slug "golf", mba_numbers [] allows golf001 (mbaidentifier-slug path)', async () => {
+    const result = await checkClientMbaAccess(req(), "golf001", golfDeps("golf"))
+    assert.equal(result.ok, true)
+  })
+
+  it('slug "golf-australia-self-run-campaigns" allows golf001 (sibling, same group)', async () => {
+    const result = await checkClientMbaAccess(
+      req(),
+      "golf001",
+      golfDeps("golf-australia-self-run-campaigns")
+    )
+    assert.equal(result.ok, true)
+  })
+
+  it('slug "golf-australia" denies gogolf001 (prefix decoy)', async () => {
+    captureInfo()
+    const result = await checkClientMbaAccess(req(), "gogolf001", golfDeps("golf-australia"))
+    assert.equal(result.ok, false)
+    assert.deepEqual(infoLogs[0], [
+      "[checkClientMbaAccess] deny",
+      {
+        email: "golf@example.com",
+        slug: "golf-australia",
+        mba: "gogolf001",
+        path: "identifier",
+      },
+    ])
+  })
+
+  it('slug "go-golfer" denies golf001', async () => {
+    captureInfo()
+    const result = await checkClientMbaAccess(req(), "golf001", golfDeps("go-golfer"))
+    assert.equal(result.ok, false)
+    assert.deepEqual(infoLogs[0], [
+      "[checkClientMbaAccess] deny",
+      {
+        email: "golf@example.com",
+        slug: "go-golfer",
+        mba: "golf001",
+        path: "identifier",
+      },
+    ])
+  })
+
+  it('slug "golf-australia", mba_numbers ["GOLF002"] denies golf001 and allows golf002', async () => {
+    captureInfo()
+    const deps = golfDeps("golf-australia", ["GOLF002"])
+    const deny = await checkClientMbaAccess(req(), "golf001", deps)
+    const allow = await checkClientMbaAccess(req(), "golf002", deps)
+    assert.equal(deny.ok, false)
+    assert.equal(allow.ok, true)
+    assert.deepEqual(infoLogs[0], [
+      "[checkClientMbaAccess] deny",
+      {
+        email: "golf@example.com",
+        slug: "golf-australia",
+        mba: "golf001",
+        path: "mba_numbers",
+      },
+    ])
+  })
+
+  it('unknown slug denies and logs path "no-row"', async () => {
+    captureInfo()
+    const result = await checkClientMbaAccess(req(), "golf001", {
+      getSession: async () => ({ user: clientUser("not-a-client") }),
+      fetchClientGroupByUrlSlug: fetchGolfGroup,
+    })
+    assert.equal(result.ok, false)
+    assert.deepEqual(infoLogs[0], [
+      "[checkClientMbaAccess] deny",
+      {
+        email: "golf@example.com",
+        slug: "not-a-client",
+        mba: "golf001",
+        path: "no-row",
+      },
+    ])
+  })
 })

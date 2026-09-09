@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { resolveClientGroup } from "../clientGroup"
+import { clientIdsFromGroup, resolveClientGroup } from "../clientGroup"
+import { GOLF_CLIENT_ROWS } from "./golfClientRows.fixture"
 
 const rows = [
   { id: 25, mp_client_name: "Penfolds", mbaidentifier: "PENFOLD" },
@@ -53,4 +54,44 @@ test('resolveClientGroup("sinch") returns only Sinch', () => {
 
 test('resolveClientGroup("nobody") returns null', () => {
   assert.equal(resolveClientGroup(rows, "nobody"), null)
+})
+
+test('resolveClientGroup("golf-australia") groups by exact mbaidentifier golf', () => {
+  const group = resolveClientGroup(GOLF_CLIENT_ROWS, "golf-australia")
+  assert.ok(group)
+  assert.equal(group.anchor.id, 19)
+  assert.equal(group.mbaidentifier, "golf")
+  assert.deepEqual(memberIds(group), [19, 46])
+})
+
+test('resolveClientGroup("golf") matches mbaidentifier-slug, same group', () => {
+  const group = resolveClientGroup(GOLF_CLIENT_ROWS, "golf")
+  assert.ok(group)
+  assert.equal(group.anchor.id, 19)
+  assert.deepEqual(memberIds(group), [19, 46])
+})
+
+test('resolveClientGroup("golf-australia-self-run-campaigns") is a sibling of golf-australia', () => {
+  const group = resolveClientGroup(GOLF_CLIENT_ROWS, "golf-australia-self-run-campaigns")
+  assert.ok(group)
+  assert.equal(group.anchor.id, 46)
+  assert.deepEqual(memberIds(group), [19, 46])
+})
+
+test('resolveClientGroup("go-golfer") is exact — no prefix bleed into golf', () => {
+  const group = resolveClientGroup(GOLF_CLIENT_ROWS, "go-golfer")
+  assert.ok(group)
+  assert.equal(group.anchor.id, 41)
+  assert.deepEqual(memberIds(group), [41])
+  assert.ok(!memberIds(group).includes(19))
+})
+
+test("clientIdsFromGroup returns the member id set", () => {
+  const group = resolveClientGroup(GOLF_CLIENT_ROWS, "golf-australia")
+  assert.ok(group)
+  assert.deepEqual([...clientIdsFromGroup(group)].sort((a, b) => a - b), [19, 46])
+})
+
+test("clientIdsFromGroup on null is empty", () => {
+  assert.deepEqual([...clientIdsFromGroup(null)], [])
 })
