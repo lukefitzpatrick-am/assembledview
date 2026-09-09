@@ -3,12 +3,24 @@
  * spend-by-media-type / spend-by-campaign charts, so a cancelled campaign can't feed `totalSpend`
  * while being correctly excluded from the charts.
  */
+import { readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 
 import { buildClientDashboardDataFromVersions } from "../client"
 import { slugifyClientName } from "../shared"
 import { australianFyStartYearForDate } from "@/lib/finance/months"
 import { CLIENT_ALL_TIME_END, CLIENT_ALL_TIME_START } from "@/lib/dashboard/clientDateRange"
+
+const CLIENT_TS = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../client.ts"), "utf8")
+
+function getClientDashboardDataSource(): string {
+  const start = CLIENT_TS.indexOf("export async function getClientDashboardData")
+  expect(start).toBeGreaterThanOrEqual(0)
+  const next = CLIENT_TS.indexOf("\nexport async function", start + 1)
+  return CLIENT_TS.slice(start, next === -1 ? undefined : next)
+}
 
 const CLIENT_NAME = "Acme Co"
 
@@ -200,5 +212,15 @@ describe("buildClientDashboardDataFromVersions — deliveryScheduleByMBA campaig
     expect(implicit!.totalSpend).toBeCloseTo(explicitCurrentFy!.totalSpend, 2)
     expect(allTime!.totalSpend).toBeCloseTo(1400, 2)
     expect(implicit!.totalSpend).not.toBeCloseTo(allTime!.totalSpend, 2)
+  })
+})
+
+describe("getClientDashboardData client group lookup", () => {
+  it("reads clients via readClientsList and parseXanoListPayload(result.body), not the Xano collection URL", () => {
+    const src = getClientDashboardDataSource()
+    expect(src).toContain("readClientsList")
+    expect(src).toContain("parseXanoListPayload(result.body)")
+    expect(src).not.toMatch(/getXanoClientsCollectionUrl\s*\(/)
+    expect(src).not.toMatch(/apiClient\.get\(clientsUrl\)/)
   })
 })

@@ -877,9 +877,9 @@ export async function getClientDashboardData(
     let fallbackClient: Client | null = null
 
     try {
-      const clientsUrl = getXanoClientsCollectionUrl()
-      const clientsResponse = await apiClient.get(clientsUrl)
-      const clientRows = parseXanoListPayload(clientsResponse.data)
+      const { readClientsList } = await import('@/lib/data/readClients')
+      const result = await readClientsList()
+      const clientRows = parseXanoListPayload(result.body)
       const group = resolveClientGroup(clientRows, sanitizedSlug)
       if (group) {
         targetSlugs = group.nameSlugs.size > 0 ? group.nameSlugs : targetSlugs
