@@ -1,10 +1,13 @@
 "use client"
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
+import { X } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Combobox } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Combobox } from "@/components/ui/combobox"
+import { Switch } from "@/components/ui/switch"
 import { useAuthContext } from "@/contexts/AuthContext"
 import {
   applyClientsFetchResult,
@@ -14,7 +17,8 @@ import { getClientDisplayName } from "@/lib/clients/slug"
 
 type Status = "idle" | "loading" | "success" | "error"
 type Role = "admin" | "client"
-type ClientOption = { mp_client_name: string; slug: string }
+type ClientOption = { id: number | null; mp_client_name: string; slug: string }
+type MbaCampaignOption = { mba_number: string; campaign_name: string; label: string }
 
 type NewAdminUserFormProps = {
   /** Cosmetic only — POST /api/admin/users enforces SUPERADMIN_EMAIL_ALLOWLIST. */
@@ -30,9 +34,13 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
     password: "",
   })
   const [role, setRole] = useState<Role>("client")
-  const [clientSlug, setClientSlug] = useState<string>("")
+  const [clientSlugs, setClientSlugs] = useState<string[]>([])
   const [clients, setClients] = useState<ClientOption[]>([])
   const [clientsError, setClientsError] = useState<string | null>(null)
+  const [restrictMbas, setRestrictMbas] = useState(false)
+  const [mbaNumbers, setMbaNumbers] = useState<string[]>([])
+  const [mbaCampaigns, setMbaCampaigns] = useState<MbaCampaignOption[]>([])
+  const [mbaError, setMbaError] = useState<string | null>(null)
   const [status, setStatus] = useState<Status>("idle")
   const [error, setError] = useState<string | null>(null)
 
@@ -41,6 +49,32 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
     if (!canGrantAdminRole) return [client]
     return [{ value: "admin", label: "Admin" }, client]
   }, [canGrantAdminRole])
+
+  const clientBySlug = useMemo(() => {
+    return new Map(clients.map((client) => [client.slug, client]))
+  }, [clients])
+
+  const unusedClientOptions = useMemo(
+    () =>
+      clients
+        .filter((client) => !clientSlugs.includes(client.slug))
+        .map((client) => ({
+          value: client.slug,
+          label: `${client.mp_client_name} (${client.slug})`,
+        })),
+    [clients, clientSlugs],
+  )
+
+  const unusedMbaOptions = useMemo(
+    () =>
+      mbaCampaigns
+        .filter((campaign) => !mbaNumbers.includes(campaign.mba_number.trim().toLowerCase()))
+        .map((campaign) => ({
+          value: campaign.mba_number.trim().toLowerCase(),
+          label: campaign.label,
+        })),
+    [mbaCampaigns, mbaNumbers],
+  )
 
   useEffect(() => {
     if (!canGrantAdminRole && role === "admin") {
@@ -59,7 +93,9 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
             .map((raw: Record<string, unknown>) => {
               const name = getClientDisplayName(raw)
               const slug = String(raw.slug ?? "").trim().toLowerCase()
+              const idNum = Number(raw.id)
               return {
+                id: Number.isFinite(idNum) && idNum > 0 ? idNum : null,
                 mp_client_name: String(name),
                 slug,
               } satisfies ClientOption
@@ -80,6 +116,53 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
     }
   }, [isAdmin])
 
+  useEffect(() => {
+    if (!restrictMbas || role !== "client" || clientSlugs.length === 0) {
+      setMbaCampaigns([])
+      setMbaError(null)
+      return
+    }
+
+    const slugsKey = clientSlugs.join(",")
+    let cancelled = false
+
+    async function loadMbas() {
+      try {
+        const response = await fetch(
+          `/api/admin/users/mba-numbers?slugs=${encodeURIComponent(slugsKey)}`,
+        )
+        const body = (await response.json().catch(() => ({}))) as {
+          campaigns?: MbaCampaignOption[]
+          error?: string
+        }
+        if (cancelled) return
+        if (!response.ok) {
+          setMbaCampaigns([])
+          setMbaError(body.error || "Campaign list unavailable — try again")
+          return
+        }
+        setMbaError(null)
+        const campaigns = Array.isArray(body.campaigns) ? body.campaigns : []
+        setMbaCampaigns(campaigns)
+        const allowed = new Set(
+          campaigns.map((campaign) => campaign.mba_number.trim().toLowerCase()),
+        )
+        setMbaNumbers((prev) => prev.filter((mba) => allowed.has(mba)))
+      } catch (err) {
+        console.error("Failed to load campaign list", err)
+        if (!cancelled) {
+          setMbaCampaigns([])
+          setMbaError("Campaign list unavailable — try again")
+        }
+      }
+    }
+
+    void loadMbas()
+    return () => {
+      cancelled = true
+    }
+  }, [restrictMbas, role, clientSlugs])
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setStatus("loading")
@@ -91,9 +174,19 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
         setError(clientsError)
         return
       }
-      if (role === "client" && !clientSlug) {
+      if (role === "client" && clientSlugs.length === 0) {
         setStatus("error")
         setError("Client is required when role is Client.")
+        return
+      }
+      if (role === "client" && restrictMbas && mbaError) {
+        setStatus("error")
+        setError(mbaError)
+        return
+      }
+      if (role === "client" && restrictMbas && mbaNumbers.length === 0) {
+        setStatus("error")
+        setError("Pick at least one campaign, or turn off campaign restriction.")
         return
       }
 
@@ -106,7 +199,8 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
           email: form.email,
           password: form.password,
           role,
-          clientSlug: role === "client" ? clientSlug : undefined,
+          clientSlugs: role === "client" ? clientSlugs : undefined,
+          mbaNumbers: role === "client" && restrictMbas ? mbaNumbers : undefined,
         }),
       })
 
@@ -117,7 +211,9 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
 
       setStatus("success")
       setForm({ firstName: "", lastName: "", email: "", password: "" })
-      setClientSlug("")
+      setClientSlugs([])
+      setMbaNumbers([])
+      setRestrictMbas(false)
       setRole("client")
     } catch (err) {
       setStatus("error")
@@ -194,7 +290,11 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
             value={role}
             onValueChange={(value) => {
               setRole(value as Role)
-              if (value !== "client") setClientSlug("")
+              if (value !== "client") {
+                setClientSlugs([])
+                setMbaNumbers([])
+                setRestrictMbas(false)
+              }
             }}
             placeholder="Select role"
             searchPlaceholder="Search roles..."
@@ -210,27 +310,160 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
 
         {role === "client" && (
           <div className="flex flex-col gap-2">
-            <Label htmlFor="clientSlug">Client</Label>
+            <Label htmlFor="clientSlugs">Clients</Label>
             {clientsError ? (
               <p role="alert" className="rounded-input border border-status-critical-fg/30 bg-status-critical/10 px-3 py-2 text-sm text-status-critical-fg">
                 {clientsError}
               </p>
             ) : (
-              <Combobox
-                value={clientSlug}
-                onValueChange={setClientSlug}
-                placeholder="Select client"
-                searchPlaceholder="Search clients..."
-                emptyText={clients.length === 0 ? "No clients available." : "No clients found."}
-                options={clients.map((client) => ({
-                  value: client.slug,
-                  label: `${client.mp_client_name} (${client.slug})`,
-                }))}
-              />
+              <>
+                {clientSlugs.length > 0 ? (
+                  <ul className="flex flex-col gap-2">
+                    {clientSlugs.map((slug, index) => {
+                      const client = clientBySlug.get(slug)
+                      const label = client
+                        ? `${client.mp_client_name} (${slug})`
+                        : slug
+                      return (
+                        <li
+                          key={slug}
+                          className="flex items-center gap-2 rounded-input border border-border bg-surface-panel px-3 py-2"
+                        >
+                          <span className="min-w-0 flex-1 font-mono text-sm text-foreground">
+                            {label}
+                          </span>
+                          {index === 0 ? (
+                            <Badge size="sm" variant="default">
+                              Primary
+                            </Badge>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-muted-foreground"
+                              onClick={() =>
+                                setClientSlugs((prev) => [
+                                  slug,
+                                  ...prev.filter((entry) => entry !== slug),
+                                ])
+                              }
+                            >
+                              Make primary
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground"
+                            aria-label={`Remove ${slug}`}
+                            onClick={() =>
+                              setClientSlugs((prev) => prev.filter((entry) => entry !== slug))
+                            }
+                          >
+                            <X className="h-4 w-4" aria-hidden />
+                          </Button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : null}
+                <Combobox
+                  id="clientSlugs"
+                  value=""
+                  onValueChange={(value) => {
+                    if (!value || clientSlugs.includes(value)) return
+                    setClientSlugs((prev) => [...prev, value])
+                  }}
+                  placeholder={clientSlugs.length === 0 ? "Select client" : "Add another client"}
+                  searchPlaceholder="Search clients..."
+                  emptyText={
+                    unusedClientOptions.length === 0
+                      ? "No more clients to add."
+                      : "No clients found."
+                  }
+                  options={unusedClientOptions}
+                />
+              </>
             )}
             <p className="text-xs text-muted-foreground">
-              Stored in Auth0 as the client's dashboard slug (clients.slug).
+              First pick is the landing dashboard (Primary). Group siblings sharing an identifier
+              are not added automatically — pick each slug you need.
             </p>
+
+            <div className="mt-2 flex items-center gap-3">
+              <Switch
+                id="restrictMbas"
+                aria-labelledby="restrictMbas-label"
+                checked={restrictMbas}
+                onCheckedChange={(checked) => {
+                  setRestrictMbas(checked)
+                  if (!checked) setMbaNumbers([])
+                }}
+                disabled={clientSlugs.length === 0}
+              />
+              <Label id="restrictMbas-label" htmlFor="restrictMbas">
+                Restrict to specific campaigns
+              </Label>
+            </div>
+
+            {restrictMbas ? (
+              <div className="flex flex-col gap-2">
+                {mbaError ? (
+                  <p role="alert" className="rounded-input border border-status-critical-fg/30 bg-status-critical/10 px-3 py-2 text-sm text-status-critical-fg">
+                    {mbaError}
+                  </p>
+                ) : (
+                  <>
+                    {mbaNumbers.length > 0 ? (
+                      <ul className="flex flex-wrap gap-2">
+                        {mbaNumbers.map((mba) => (
+                          <li
+                            key={mba}
+                            className="inline-flex items-center gap-1 rounded-pill border border-border bg-surface-panel px-2 py-1"
+                          >
+                            <span className="font-mono text-xs text-foreground">{mba}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 w-5 p-0 text-muted-foreground"
+                              aria-label={`Remove ${mba}`}
+                              onClick={() =>
+                                setMbaNumbers((prev) => prev.filter((entry) => entry !== mba))
+                              }
+                            >
+                              <X className="h-3 w-3" aria-hidden />
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    <Combobox
+                      value=""
+                      onValueChange={(value) => {
+                        if (!value || mbaNumbers.includes(value)) return
+                        setMbaNumbers((prev) => [...prev, value])
+                      }}
+                      placeholder="Select campaigns"
+                      searchPlaceholder="Search campaigns..."
+                      emptyText={
+                        unusedMbaOptions.length === 0
+                          ? "No campaigns for these clients."
+                          : "No campaigns found."
+                      }
+                      options={unusedMbaOptions}
+                      preserveOrder
+                    />
+                  </>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Only campaigns on the selected clients. Leave this off to allow every MBA those
+                  clients own.
+                </p>
+              </div>
+            ) : null}
           </div>
         )}
 

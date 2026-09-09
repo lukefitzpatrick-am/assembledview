@@ -24,7 +24,11 @@ const createPasswordChangeTicketMock = mock.fn(async () => "https://ticket.examp
 const deleteAuth0UserMock = mock.fn(async () => undefined)
 const invalidateAuth0UsersListCacheMock = mock.fn(() => undefined)
 const sendInviteEmailMock = mock.fn(async () => undefined)
-const listAllAuth0UsersMock = mock.fn(async () => ({ users: [], total: 0, page: 0 }))
+const listAllAuth0UsersMock = mock.fn(async (): Promise<{
+  users: unknown[]
+  total: number
+  page: number
+}> => ({ users: [], total: 0, page: 0 }))
 const readClientsListMock = mock.fn(async () => ({
   status: 200,
   body: [
@@ -87,6 +91,8 @@ function resetMocks() {
   deleteAuth0UserMock.mock.resetCalls()
   invalidateAuth0UsersListCacheMock.mock.resetCalls()
   sendInviteEmailMock.mock.resetCalls()
+  listAllAuth0UsersMock.mock.resetCalls()
+  listAllAuth0UsersMock.mock.mockImplementation(async () => ({ users: [], total: 0, page: 0 }))
   readClientsListMock.mock.resetCalls()
   readClientsListMock.mock.mockImplementation(async () => ({
     status: 200,
@@ -237,6 +243,7 @@ test(
     const metaArgs = updateAuth0UserMetadataMock.mock.calls[0]?.arguments as unknown[]
     const metaParams = metaArgs?.[0] as { app_metadata?: Record<string, unknown> }
     assert.equal(metaParams?.app_metadata?.client_slug, "golf-australia")
+    assert.deepEqual(metaParams?.app_metadata?.client_slugs, ["golf-australia"])
     assert.deepEqual(metaParams?.app_metadata?.mba_numbers, ["ga-001"])
 
     if (prevAllow === undefined) delete process.env.SUPERADMIN_EMAIL_ALLOWLIST
@@ -314,6 +321,165 @@ test(
 
     if (prevAllow === undefined) delete process.env.SUPERADMIN_EMAIL_ALLOWLIST
     else process.env.SUPERADMIN_EMAIL_ALLOWLIST = prevAllow
+  },
+)
+
+test(
+  "POST clientSlugs with an unknown slug → 400 unknown client slug",
+  { skip },
+  async () => {
+    const prevAllow = process.env.SUPERADMIN_EMAIL_ALLOWLIST
+    const prevAdminRole = process.env.AUTH0_ROLE_ADMIN_ID
+    const prevClientRole = process.env.AUTH0_ROLE_CLIENT_ID
+    process.env.SUPERADMIN_EMAIL_ALLOWLIST = "ops@assembled.media"
+    process.env.AUTH0_ROLE_ADMIN_ID = "rol_admin"
+    process.env.AUTH0_ROLE_CLIENT_ID = "rol_client"
+    resetMocks()
+
+    const { POST } = await import("../route.js")
+    const req = new NextRequest("http://localhost/api/admin/users", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        ...clientBody,
+        clientSlug: undefined,
+        clientSlugs: ["golf-australia", "not-a-client"],
+      }),
+    })
+    const res = await POST(req)
+    assert.equal(res.status, 400)
+    const body = (await res.json()) as { error?: string }
+    assert.equal(body.error, "unknown client slug")
+    assert.equal(createAuth0UserMock.mock.calls.length, 0)
+
+    if (prevAllow === undefined) delete process.env.SUPERADMIN_EMAIL_ALLOWLIST
+    else process.env.SUPERADMIN_EMAIL_ALLOWLIST = prevAllow
+    if (prevAdminRole === undefined) delete process.env.AUTH0_ROLE_ADMIN_ID
+    else process.env.AUTH0_ROLE_ADMIN_ID = prevAdminRole
+    if (prevClientRole === undefined) delete process.env.AUTH0_ROLE_CLIENT_ID
+    else process.env.AUTH0_ROLE_CLIENT_ID = prevClientRole
+  },
+)
+
+test(
+  "POST clientSlugs golf-australia, pga-australia writes primary + array and empty mba_numbers",
+  { skip },
+  async () => {
+    const prevAllow = process.env.SUPERADMIN_EMAIL_ALLOWLIST
+    const prevAdminRole = process.env.AUTH0_ROLE_ADMIN_ID
+    const prevClientRole = process.env.AUTH0_ROLE_CLIENT_ID
+    process.env.SUPERADMIN_EMAIL_ALLOWLIST = "ops@assembled.media"
+    process.env.AUTH0_ROLE_ADMIN_ID = "rol_admin"
+    process.env.AUTH0_ROLE_CLIENT_ID = "rol_client"
+    resetMocks()
+
+    const { POST } = await import("../route.js")
+    const req = new NextRequest("http://localhost/api/admin/users", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        ...clientBody,
+        clientSlug: undefined,
+        clientSlugs: ["golf-australia", "pga-australia"],
+      }),
+    })
+    const res = await POST(req)
+    assert.equal(res.status, 201)
+    const createArgs = createAuth0UserMock.mock.calls[0]?.arguments as unknown[]
+    const createParams = createArgs?.[0] as {
+      clientSlug?: string
+      clientSlugs?: string[]
+    }
+    assert.equal(createParams?.clientSlug, "golf-australia")
+    assert.deepEqual(createParams?.clientSlugs, ["golf-australia", "pga-australia"])
+    const metaArgs = updateAuth0UserMetadataMock.mock.calls[0]?.arguments as unknown[]
+    const metaParams = metaArgs?.[0] as { app_metadata?: Record<string, unknown> }
+    assert.equal(metaParams?.app_metadata?.client_slug, "golf-australia")
+    assert.deepEqual(metaParams?.app_metadata?.client_slugs, [
+      "golf-australia",
+      "pga-australia",
+    ])
+    assert.deepEqual(metaParams?.app_metadata?.mba_numbers, [])
+
+    if (prevAllow === undefined) delete process.env.SUPERADMIN_EMAIL_ALLOWLIST
+    else process.env.SUPERADMIN_EMAIL_ALLOWLIST = prevAllow
+    if (prevAdminRole === undefined) delete process.env.AUTH0_ROLE_ADMIN_ID
+    else process.env.AUTH0_ROLE_ADMIN_ID = prevAdminRole
+    if (prevClientRole === undefined) delete process.env.AUTH0_ROLE_CLIENT_ID
+    else process.env.AUTH0_ROLE_CLIENT_ID = prevClientRole
+  },
+)
+
+test(
+  "POST legacy clientSlug still writes client_slugs as a one-element array",
+  { skip },
+  async () => {
+    const prevAllow = process.env.SUPERADMIN_EMAIL_ALLOWLIST
+    const prevAdminRole = process.env.AUTH0_ROLE_ADMIN_ID
+    const prevClientRole = process.env.AUTH0_ROLE_CLIENT_ID
+    process.env.SUPERADMIN_EMAIL_ALLOWLIST = "ops@assembled.media"
+    process.env.AUTH0_ROLE_ADMIN_ID = "rol_admin"
+    process.env.AUTH0_ROLE_CLIENT_ID = "rol_client"
+    resetMocks()
+
+    const { POST } = await import("../route.js")
+    const req = new NextRequest("http://localhost/api/admin/users", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        ...clientBody,
+        clientSlug: "golf-australia",
+      }),
+    })
+    const res = await POST(req)
+    assert.equal(res.status, 201)
+    const metaArgs = updateAuth0UserMetadataMock.mock.calls[0]?.arguments as unknown[]
+    const metaParams = metaArgs?.[0] as { app_metadata?: Record<string, unknown> }
+    assert.equal(metaParams?.app_metadata?.client_slug, "golf-australia")
+    assert.deepEqual(metaParams?.app_metadata?.client_slugs, ["golf-australia"])
+
+    if (prevAllow === undefined) delete process.env.SUPERADMIN_EMAIL_ALLOWLIST
+    else process.env.SUPERADMIN_EMAIL_ALLOWLIST = prevAllow
+    if (prevAdminRole === undefined) delete process.env.AUTH0_ROLE_ADMIN_ID
+    else process.env.AUTH0_ROLE_ADMIN_ID = prevAdminRole
+    if (prevClientRole === undefined) delete process.env.AUTH0_ROLE_CLIENT_ID
+    else process.env.AUTH0_ROLE_CLIENT_ID = prevClientRole
+  },
+)
+
+test(
+  "GET lists clientSlugs with client_slug first",
+  { skip },
+  async () => {
+    resetMocks()
+    listAllAuth0UsersMock.mock.mockImplementation(async () => ({
+      users: [
+        {
+          user_id: "auth0|golf-user",
+          email: "pat@example.com",
+          name: "Pat Client",
+          last_login: null,
+          blocked: false,
+          app_metadata: {
+            role: "client",
+            client_slug: "golf-australia",
+            client_slugs: ["pga-australia", "golf-australia"],
+          },
+        },
+      ],
+      total: 1,
+      page: 0,
+    }))
+
+    const { GET } = await import("../route.js")
+    const req = new NextRequest("http://localhost/api/admin/users")
+    const res = await GET(req)
+    assert.equal(res.status, 200)
+    const body = (await res.json()) as {
+      users: Array<{ clientSlug: string | null; clientSlugs: string[] }>
+    }
+    assert.equal(body.users[0]?.clientSlug, "golf-australia")
+    assert.deepEqual(body.users[0]?.clientSlugs, ["golf-australia", "pga-australia"])
   },
 )
 

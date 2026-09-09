@@ -27,6 +27,7 @@ type AdminListedUser = {
   name: string | null
   role: string | null
   clientSlug: string | null
+  clientSlugs?: string[]
   lastLogin: string | null
   blocked: boolean
 }
@@ -35,6 +36,31 @@ type UsersListResponse = {
   users: AdminListedUser[]
   total: number
   page: number
+}
+
+function clientSlugsForDisplay(user: AdminListedUser): string[] {
+  if (user.clientSlugs && user.clientSlugs.length > 0) return user.clientSlugs
+  return user.clientSlug ? [user.clientSlug] : []
+}
+
+function ClientSlugsCell({ user }: { user: AdminListedUser }) {
+  const slugs = clientSlugsForDisplay(user)
+  if (slugs.length === 0) return "—"
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {slugs.map((slug, index) => (
+        <span key={slug} className="inline-flex items-center gap-1">
+          {index > 0 ? <span className="text-muted-foreground">,</span> : null}
+          <span className="font-mono">{slug}</span>
+          {index === 0 && slugs.length > 1 ? (
+            <Badge variant="default" size="sm">
+              Primary
+            </Badge>
+          ) : null}
+        </span>
+      ))}
+    </span>
+  )
 }
 
 const PER_PAGE = 25
@@ -227,8 +253,8 @@ function AdminUsersPageInner() {
                           {roleLabel(user.role)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-mono text-sm text-muted-foreground">
-                        {user.clientSlug ?? "—"}
+                      <TableCell className="text-sm text-muted-foreground">
+                        <ClientSlugsCell user={user} />
                       </TableCell>
                       <TableCell className="num text-sm text-muted-foreground">
                         {formatLastLogin(user.lastLogin)}

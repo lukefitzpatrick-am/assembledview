@@ -5,6 +5,7 @@ import {
   listAuth0UsersByClientSlug,
   updateAuth0UserMetadata,
 } from "@/lib/api/auth0Management"
+import { rewriteClientSlugFields } from "@/lib/auth/rewriteClientSlugFields"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import { readClientById } from "@/lib/data/readClients"
 
@@ -66,10 +67,7 @@ export async function POST(request: NextRequest) {
       if (!userId) continue
 
       const appMetadataRaw = (user.app_metadata ?? {}) as Record<string, unknown>
-      const nextAppMetadata: Record<string, unknown> = {
-        ...appMetadataRaw,
-        client_slug: newSlug,
-      }
+      const nextAppMetadata = rewriteClientSlugFields(appMetadataRaw, oldSlug, newSlug)
 
       try {
         await updateAuth0UserMetadata({ userId, app_metadata: nextAppMetadata })

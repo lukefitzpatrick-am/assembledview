@@ -13,6 +13,11 @@ import {
 } from '@/lib/api/auth0Management';
 import { parseXanoListPayload } from '@/lib/api/xano';
 import { assertCanGrantAdminRole } from '@/lib/auth/canGrantAdminRole';
+import {
+  buildClientRoleAppMetadata,
+  listedUserClientSlugs,
+  resolveInviteClientSlugs,
+} from '@/lib/auth/inviteClientSlugs';
 import { sendInviteEmail } from '@/lib/email/inviteSender';
 import { readClientsList } from '@/lib/data/readClients';
 import { requireAdmin } from '@/lib/requireRole';
@@ -29,11 +34,7 @@ function mapListedUser(user: Auth0ListedUser) {
     user.app_metadata && typeof user.app_metadata === 'object'
       ? (user.app_metadata as Record<string, unknown>)
       : undefined;
-  const clientSlugRaw = appMetadata?.client_slug;
-  const clientSlug =
-    typeof clientSlugRaw === 'string' && clientSlugRaw.trim()
-      ? clientSlugRaw.trim().toLowerCase()
-      : null;
+  const clientSlugs = listedUserClientSlugs(appMetadata);
 
   return {
     user_id: user.user_id,
@@ -43,7 +44,8 @@ function mapListedUser(user: Auth0ListedUser) {
     // create/update). Can drift from the real Auth0 Authorization Core / RBAC role —
     // do not present this as authoritative without also reading assigned roles.
     role: deriveRoleFromAppMetadata(appMetadata),
-    clientSlug,
+    clientSlug: clientSlugs[0] ?? null,
+    clientSlugs,
     lastLogin: user.last_login ?? null,
     blocked: Boolean(user.blocked),
   };
@@ -85,39 +87,54 @@ export async function GET(request: NextRequest) {
   }
 }
 
+const clientSlugField = z
+  .string()
+  .trim()
+  .refine((value) => !/^\d+$/.test(value), {
+    message: 'Client slug must be a slug (e.g. "bic"), not a numeric ID',
+  });
+
 const basePayloadSchema = z.object({
   firstName: z.string().trim().min(1, 'First name is required'),
   lastName: z.string().trim().min(1, 'Last name is required'),
   email: z.string().trim().email('Valid email is required'),
   password: z.string().min(1, 'Password is required'),
   role: z.enum(['admin', 'client']).default('client'),
-  clientSlug: z
-    .string()
-    .trim()
-    .optional()
-    .refine((value) => value === undefined || !/^\d+$/.test(value), {
-      message: 'Client slug must be a slug (e.g. "bic"), not a numeric ID',
-    }),
+  clientSlug: clientSlugField.optional(),
+  clientSlugs: z.array(clientSlugField).optional(),
   mbaNumbers: z.array(z.string().trim()).optional(),
   primaryMbaNumber: z.string().trim().optional(),
 });
 
-const enforceClientSlug = (data: z.infer<typeof basePayloadSchema>) =>
-  data.role === 'client' ? Boolean(data.clientSlug) : true;
+function refineClientSlugs(
+  data: { role: 'admin' | 'client'; clientSlug?: string; clientSlugs?: string[] },
+  ctx: z.RefinementCtx,
+) {
+  if (data.role !== 'client') return;
+  const resolved = resolveInviteClientSlugs(data);
+  if (resolved.ok) return;
+  if (resolved.reason === 'numeric') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Client slug must be a slug (e.g. "bic"), not a numeric ID',
+      path: ['clientSlugs'],
+    });
+    return;
+  }
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: 'Client slug is required for client role',
+    path: ['clientSlugs'],
+  });
+}
 
-const payloadSchema = basePayloadSchema.refine(
-  enforceClientSlug,
-  'Client slug is required for client role',
-);
+const payloadSchema = basePayloadSchema.superRefine(refineClientSlugs);
 
 const updateSchema = basePayloadSchema
   .extend({
     userId: z.string().trim().min(1, 'User ID is required'),
   })
-  .refine(
-    enforceClientSlug,
-    'Client slug is required for client role',
-  );
+  .superRefine(refineClientSlugs);
 
 function ensureRoleEnv(role: 'admin' | 'client') {
   // Role env vars must be the Auth0 Role ID (starts with rol_), not the role name.
@@ -129,16 +146,14 @@ function ensureRoleEnv(role: 'admin' | 'client') {
   return value;
 }
 
-function lowercaseMbaNumbers(values: string[] | undefined): string[] | undefined {
-  if (!values) return undefined;
-  const next = values.map((entry) => entry.trim().toLowerCase()).filter(Boolean);
-  return next.length > 0 ? next : undefined;
+function lowercaseMbaNumbers(values: string[] | undefined): string[] {
+  if (!values) return [];
+  return values.map((entry) => entry.trim().toLowerCase()).filter(Boolean);
 }
 
-async function requireKnownClientSlug(
-  slug: string,
-): Promise<{ ok: true; slug: string } | { ok: false; response: NextResponse }> {
-  const normalized = slug.trim().toLowerCase();
+async function requireKnownClientSlugs(
+  slugs: string[],
+): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
   const result = await readClientsList();
   if (result.status < 200 || result.status >= 300) {
     return {
@@ -146,19 +161,24 @@ async function requireKnownClientSlug(
       response: NextResponse.json({ error: 'Failed to load clients' }, { status: 500 }),
     };
   }
-  const found = parseXanoListPayload(result.body).some((row) => {
-    if (!row || typeof row !== 'object') return false;
-    return (
-      String((row as Record<string, unknown>).slug ?? '').trim().toLowerCase() === normalized
-    );
-  });
-  if (!found) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: 'unknown client slug' }, { status: 400 }),
-    };
+  const known = new Set(
+    parseXanoListPayload(result.body).flatMap((row) => {
+      if (!row || typeof row !== 'object') return [];
+      const slug = String((row as Record<string, unknown>).slug ?? '')
+        .trim()
+        .toLowerCase();
+      return slug ? [slug] : [];
+    }),
+  );
+  for (const slug of slugs) {
+    if (!known.has(slug)) {
+      return {
+        ok: false,
+        response: NextResponse.json({ error: 'unknown client slug' }, { status: 400 }),
+      };
+    }
   }
-  return { ok: true, slug: normalized };
+  return { ok: true };
 }
 
 const ADMIN_CLIENT_CLAIM_NULLS = {
@@ -183,18 +203,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { firstName, lastName, email, password, role, clientSlug, mbaNumbers, primaryMbaNumber } = parsed.data;
+    const { firstName, lastName, email, password, role, mbaNumbers, primaryMbaNumber } = parsed.data;
     const normalizedMbaNumbers = lowercaseMbaNumbers(mbaNumbers);
 
     // REVIEW: policy lands in USR-4 — SUPERADMIN_EMAIL_ALLOWLIST fail-closed.
     const grantDenied = assertCanGrantAdminRole(sessionResult.session, role);
     if (grantDenied) return grantDenied;
 
-    let normalizedClientSlug: string | undefined;
-    if (role === 'client' && clientSlug) {
-      const known = await requireKnownClientSlug(clientSlug);
+    let clientSlugs: string[] = [];
+    if (role === 'client') {
+      const resolved = resolveInviteClientSlugs(parsed.data);
+      if (!resolved.ok) {
+        return NextResponse.json(
+          { error: 'Client slug is required for client role' },
+          { status: 400 },
+        );
+      }
+      const known = await requireKnownClientSlugs(resolved.slugs);
       if (!known.ok) return known.response;
-      normalizedClientSlug = known.slug;
+      clientSlugs = resolved.slugs;
     }
 
     // Fail fast before touching Auth0.
@@ -216,7 +243,8 @@ export async function POST(request: NextRequest) {
         firstName,
         lastName,
         password,
-        clientSlug: normalizedClientSlug,
+        clientSlug: clientSlugs[0],
+        clientSlugs: role === 'client' ? clientSlugs : undefined,
         mbaNumbers: role === 'client' ? normalizedMbaNumbers : undefined,
         primaryMbaNumber: role === 'client' ? primaryMbaNumber : undefined,
       });
@@ -226,17 +254,14 @@ export async function POST(request: NextRequest) {
       await assignRoleToUser(createdUser.user_id, role);
 
       currentStep = 'set_metadata';
-      // Build app_metadata with role and client info
-      const appMetadata: Record<string, unknown> = { role };
-      if (role === 'client') {
-        if (normalizedClientSlug) appMetadata.client_slug = normalizedClientSlug;
-        if (normalizedMbaNumbers && normalizedMbaNumbers.length > 0) {
-          appMetadata.mba_numbers = normalizedMbaNumbers;
-        }
-        if (primaryMbaNumber) {
-          appMetadata.primary_mba_number = primaryMbaNumber;
-        }
-      }
+      const appMetadata: Record<string, unknown> =
+        role === 'client'
+          ? buildClientRoleAppMetadata({
+              slugs: clientSlugs,
+              mbaNumbers: normalizedMbaNumbers,
+              primaryMbaNumber,
+            })
+          : { role };
       await updateAuth0UserMetadata({
         userId: createdUser.user_id,
         app_metadata: appMetadata,
@@ -324,18 +349,25 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { firstName, lastName, email, role, clientSlug, mbaNumbers, primaryMbaNumber, userId } = parsed.data;
+    const { role, mbaNumbers, primaryMbaNumber, userId } = parsed.data;
     const normalizedMbaNumbers = lowercaseMbaNumbers(mbaNumbers);
 
     // REVIEW: policy lands in USR-4 — SUPERADMIN_EMAIL_ALLOWLIST fail-closed.
     const grantDenied = assertCanGrantAdminRole(sessionResult.session, role);
     if (grantDenied) return grantDenied;
 
-    let normalizedClientSlug: string | undefined;
-    if (role === 'client' && clientSlug) {
-      const known = await requireKnownClientSlug(clientSlug);
+    let clientSlugs: string[] = [];
+    if (role === 'client') {
+      const resolved = resolveInviteClientSlugs(parsed.data);
+      if (!resolved.ok) {
+        return NextResponse.json(
+          { error: 'Client slug is required for client role' },
+          { status: 400 },
+        );
+      }
+      const known = await requireKnownClientSlugs(resolved.slugs);
       if (!known.ok) return known.response;
-      normalizedClientSlug = known.slug;
+      clientSlugs = resolved.slugs;
     }
 
     if (role) {
@@ -349,13 +381,14 @@ export async function PUT(request: NextRequest) {
     if (role === 'admin') {
       Object.assign(appMetadata, ADMIN_CLIENT_CLAIM_NULLS);
     } else if (role === 'client') {
-      if (normalizedClientSlug) appMetadata.client_slug = normalizedClientSlug;
-      if (normalizedMbaNumbers && normalizedMbaNumbers.length > 0) {
-        appMetadata.mba_numbers = normalizedMbaNumbers;
-      }
-      if (primaryMbaNumber) {
-        appMetadata.primary_mba_number = primaryMbaNumber;
-      }
+      Object.assign(
+        appMetadata,
+        buildClientRoleAppMetadata({
+          slugs: clientSlugs,
+          mbaNumbers: normalizedMbaNumbers,
+          primaryMbaNumber,
+        }),
+      );
     }
 
     await updateAuth0UserMetadata({

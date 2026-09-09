@@ -332,8 +332,17 @@ export async function listAllAuth0UsersUnpaged(query?: string): Promise<Auth0Lis
 export async function listAuth0UsersByClientSlug(clientSlug: string): Promise<Auth0User[]> {
   const normalized = String(clientSlug ?? '').trim().toLowerCase();
   if (!normalized) return [];
-  // Auth0 search syntax: app_metadata.client_slug:"value"
-  return searchAuth0Users({ q: `app_metadata.client_slug:"${normalized}"` });
+  const q = `app_metadata.client_slug:"${normalized}" OR app_metadata.client_slugs:"${normalized}"`;
+  const users = await searchAuth0Users({ q });
+  const seen = new Set<string>();
+  const unique: Auth0User[] = [];
+  for (const user of users) {
+    const id = String(user.user_id ?? '');
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    unique.push(user);
+  }
+  return unique;
 }
 
 export async function createAuth0User(params: {
@@ -342,6 +351,7 @@ export async function createAuth0User(params: {
   lastName: string;
   password: string;
   clientSlug?: string;
+  clientSlugs?: string[];
   mbaNumbers?: string[];
   primaryMbaNumber?: string;
 }): Promise<CreatedUser> {
@@ -350,10 +360,19 @@ export async function createAuth0User(params: {
   
   // Build app_metadata object
   const appMetadata: Record<string, unknown> = {};
-  if (params.clientSlug) {
-    appMetadata.client_slug = params.clientSlug;
+  const slugs = (params.clientSlugs?.length
+    ? params.clientSlugs
+    : params.clientSlug
+      ? [params.clientSlug]
+      : []
+  )
+    .map((slug) => slug.trim().toLowerCase())
+    .filter(Boolean);
+  if (slugs.length > 0) {
+    appMetadata.client_slug = slugs[0];
+    appMetadata.client_slugs = slugs;
   }
-  if (params.mbaNumbers && Array.isArray(params.mbaNumbers) && params.mbaNumbers.length > 0) {
+  if (params.mbaNumbers && Array.isArray(params.mbaNumbers)) {
     appMetadata.mba_numbers = params.mbaNumbers.filter(Boolean);
   }
   if (params.primaryMbaNumber) {

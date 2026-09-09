@@ -118,6 +118,7 @@ Existing `/api/admin/*` handlers in this recount: **27** methods across **23** f
 | POST | `/api/admin/myhours-mapping` | admin-only | requireRole | `app/api/admin/myhours-mapping/route.ts` |
 | GET | `/api/admin/publisher-profiles` | admin-only | requireRole | `app/api/admin/publisher-profiles/route.ts` |
 | GET | `/api/admin/users` | admin-only | requireRole | `app/api/admin/users/route.ts` |
+| GET | `/api/admin/users/mba-numbers` | admin-only | requireRole | `app/api/admin/users/mba-numbers/route.ts` |
 | POST | `/api/admin/users` | admin-only | requireRole | `app/api/admin/users/route.ts` |
 | PUT | `/api/admin/users` | admin-only | requireRole | `app/api/admin/users/route.ts` |
 | POST | `/api/admin/xano-mirror/retry` | admin-only | requireRole | `app/api/admin/xano-mirror/retry/route.ts` |
