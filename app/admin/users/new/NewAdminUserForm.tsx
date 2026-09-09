@@ -11,11 +11,10 @@ import {
   fetchClientsList,
 } from "@/lib/clients/fetchClientsList"
 import { getClientDisplayName } from "@/lib/clients/slug"
-import { resolveAuth0ClientIdentifier } from "@/lib/clients/auth0ClientIdentifier"
 
 type Status = "idle" | "loading" | "success" | "error"
 type Role = "admin" | "client"
-type ClientOption = { mp_client_name: string; auth0ClientId: string }
+type ClientOption = { mp_client_name: string; slug: string }
 
 type NewAdminUserFormProps = {
   /** Cosmetic only — POST /api/admin/users enforces SUPERADMIN_EMAIL_ALLOWLIST. */
@@ -59,13 +58,13 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
           const normalized = ui.clients
             .map((raw: Record<string, unknown>) => {
               const name = getClientDisplayName(raw)
-              const auth0ClientId = resolveAuth0ClientIdentifier(raw)
+              const slug = String(raw.slug ?? "").trim().toLowerCase()
               return {
                 mp_client_name: String(name),
-                auth0ClientId: auth0ClientId ?? "",
+                slug,
               } satisfies ClientOption
             })
-            .filter((c: ClientOption) => Boolean(c.auth0ClientId))
+            .filter((c: ClientOption) => Boolean(c.slug))
           setClients(normalized)
         } else {
           setClients([])
@@ -224,14 +223,13 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
                 searchPlaceholder="Search clients..."
                 emptyText={clients.length === 0 ? "No clients available." : "No clients found."}
                 options={clients.map((client) => ({
-                  value: client.auth0ClientId,
-                  label: client.mp_client_name,
+                  value: client.slug,
+                  label: `${client.mp_client_name} (${client.slug})`,
                 }))}
               />
             )}
             <p className="text-xs text-muted-foreground">
-              Stored in Auth0 as client slug (MBA identifier when set, otherwise the client URL
-              slug — never the numeric Xano id).
+              Stored in Auth0 as the client's dashboard slug (clients.slug).
             </p>
           </div>
         )}

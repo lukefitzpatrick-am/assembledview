@@ -5,7 +5,7 @@ import {
   listAuth0UsersByClientSlug,
   updateAuth0UserMetadata,
 } from "@/lib/api/auth0Management"
-import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
+import { getClientDisplayName } from "@/lib/clients/slug"
 import { readClientById } from "@/lib/data/readClients"
 
 export const runtime = "nodejs"
@@ -48,10 +48,10 @@ export async function POST(request: NextRequest) {
     const client = clientResult.body as Record<string, unknown>
 
     const clientName = getClientDisplayName(client)
-    const newSlug = slugifyClientNameForUrl(clientName)
-    if (!newSlug) {
+    const newSlug = String(client.slug ?? "").trim().toLowerCase()
+    if (!newSlug || /^\d+$/.test(newSlug)) {
       return NextResponse.json(
-        { error: "Client has no valid name to slugify", clientId, clientName },
+        { error: "Client has no slug", clientId, clientName },
         { status: 400 }
       )
     }

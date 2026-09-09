@@ -16,7 +16,7 @@
 | 8 | `lib/auth0.ts` | **52** | **Throws at import** on missing env → takes the whole app down, not one route. `beforeSessionSaved` drops claims silently if changed. After claims persist it fail-soft upserts admin into `team_members` (`syncAdminRosterOnLogin`) — login must never throw. Login gate stays claims-based; Layer 2 roster sync is a separate eligibility path (`rosterEligibility.ts`) |
 | 9 | `lib/requireRole.ts` | **35** | Gate on all admin + all finance routes; the `"response" in result` discriminant shape is relied on at every call site |
 | 10 | `lib/generateMediaPlan.ts` (2.3k lines) | **32+** | A **type hub disguised as a generator** — all 20 containers import `LineItem` from it; `MediaItems` feeds KPI grouping + Excel. Server regenerate (`buildMediaItemsFromPersisted`) also calls it — do not rename LineItem fields. Totals `excluded_from_mba_scope_note` is a label-only row under Total Gross Media (no col-14 number) when out-of-scope lines exist |
-| 11 | `lib/clients/slug.ts` | **24** | Slugs ARE tenant identity (URLs, Auth0 claims, cache enrichment). Algorithm change → client users locked out. `legalsuper → legal_super` override is load-bearing |
+| 11 | `lib/clients/slug.ts` | **24** | Slugs ARE tenant identity (URLs, Auth0 claims, cache enrichment). Algorithm change → client users locked out. `legalsuper → legal_super` override is load-bearing. Auth0 **write** path stores `clients.slug` as `client_slug`, not the mbaidentifier slug |
 | 12 | `lib/api/xanoPagination.ts` | **22** | All multi-page reads. Silent truncation at 10,000 rows; dedupe fallback can drop distinct rows on tables without `id` |
 
 ## The five highest-consequence contracts

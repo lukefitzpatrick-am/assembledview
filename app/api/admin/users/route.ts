@@ -11,8 +11,10 @@ import {
   Auth0HttpError,
   type Auth0ListedUser,
 } from '@/lib/api/auth0Management';
+import { parseXanoListPayload } from '@/lib/api/xano';
 import { assertCanGrantAdminRole } from '@/lib/auth/canGrantAdminRole';
 import { sendInviteEmail } from '@/lib/email/inviteSender';
+import { readClientsList } from '@/lib/data/readClients';
 import { requireAdmin } from '@/lib/requireRole';
 
 function deriveRoleFromAppMetadata(appMetadata: Record<string, unknown> | undefined): string | null {
@@ -127,6 +129,45 @@ function ensureRoleEnv(role: 'admin' | 'client') {
   return value;
 }
 
+function lowercaseMbaNumbers(values: string[] | undefined): string[] | undefined {
+  if (!values) return undefined;
+  const next = values.map((entry) => entry.trim().toLowerCase()).filter(Boolean);
+  return next.length > 0 ? next : undefined;
+}
+
+async function requireKnownClientSlug(
+  slug: string,
+): Promise<{ ok: true; slug: string } | { ok: false; response: NextResponse }> {
+  const normalized = slug.trim().toLowerCase();
+  const result = await readClientsList();
+  if (result.status < 200 || result.status >= 300) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'Failed to load clients' }, { status: 500 }),
+    };
+  }
+  const found = parseXanoListPayload(result.body).some((row) => {
+    if (!row || typeof row !== 'object') return false;
+    return (
+      String((row as Record<string, unknown>).slug ?? '').trim().toLowerCase() === normalized
+    );
+  });
+  if (!found) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'unknown client slug' }, { status: 400 }),
+    };
+  }
+  return { ok: true, slug: normalized };
+}
+
+const ADMIN_CLIENT_CLAIM_NULLS = {
+  client_slug: null,
+  client_slugs: null,
+  mba_numbers: null,
+  primary_mba_number: null,
+} as const;
+
 export async function POST(request: NextRequest) {
   try {
     const sessionResult = await requireAdmin(request);
@@ -143,13 +184,18 @@ export async function POST(request: NextRequest) {
     }
 
     const { firstName, lastName, email, password, role, clientSlug, mbaNumbers, primaryMbaNumber } = parsed.data;
+    const normalizedMbaNumbers = lowercaseMbaNumbers(mbaNumbers);
 
     // REVIEW: policy lands in USR-4 — SUPERADMIN_EMAIL_ALLOWLIST fail-closed.
     const grantDenied = assertCanGrantAdminRole(sessionResult.session, role);
     if (grantDenied) return grantDenied;
 
-    const normalizedClientSlug =
-      role === 'client' && clientSlug ? clientSlug.trim().toLowerCase() : undefined;
+    let normalizedClientSlug: string | undefined;
+    if (role === 'client' && clientSlug) {
+      const known = await requireKnownClientSlug(clientSlug);
+      if (!known.ok) return known.response;
+      normalizedClientSlug = known.slug;
+    }
 
     // Fail fast before touching Auth0.
     ensureRoleEnv(role);
@@ -171,7 +217,7 @@ export async function POST(request: NextRequest) {
         lastName,
         password,
         clientSlug: normalizedClientSlug,
-        mbaNumbers: role === 'client' ? mbaNumbers : undefined,
+        mbaNumbers: role === 'client' ? normalizedMbaNumbers : undefined,
         primaryMbaNumber: role === 'client' ? primaryMbaNumber : undefined,
       });
       createdUserId = createdUser.user_id;
@@ -184,8 +230,8 @@ export async function POST(request: NextRequest) {
       const appMetadata: Record<string, unknown> = { role };
       if (role === 'client') {
         if (normalizedClientSlug) appMetadata.client_slug = normalizedClientSlug;
-        if (mbaNumbers && Array.isArray(mbaNumbers) && mbaNumbers.length > 0) {
-          appMetadata.mba_numbers = mbaNumbers.filter(Boolean);
+        if (normalizedMbaNumbers && normalizedMbaNumbers.length > 0) {
+          appMetadata.mba_numbers = normalizedMbaNumbers;
         }
         if (primaryMbaNumber) {
           appMetadata.primary_mba_number = primaryMbaNumber;
@@ -208,7 +254,7 @@ export async function POST(request: NextRequest) {
       });
 
       invalidateAuth0UsersListCache();
-      return NextResponse.json({ ok: true, userId: createdUser.user_id });
+      return NextResponse.json({ ok: true, userId: createdUser.user_id }, { status: 201 });
     } catch (error) {
       console.error(`[admin-user-create] step=${currentStep} failed`, error);
       const auth0ErrorCodeMap: Record<
@@ -279,24 +325,33 @@ export async function PUT(request: NextRequest) {
     }
 
     const { firstName, lastName, email, role, clientSlug, mbaNumbers, primaryMbaNumber, userId } = parsed.data;
+    const normalizedMbaNumbers = lowercaseMbaNumbers(mbaNumbers);
 
     // REVIEW: policy lands in USR-4 — SUPERADMIN_EMAIL_ALLOWLIST fail-closed.
     const grantDenied = assertCanGrantAdminRole(sessionResult.session, role);
     if (grantDenied) return grantDenied;
 
-    const normalizedClientSlug =
-      role === 'client' && clientSlug ? clientSlug.trim().toLowerCase() : undefined;
+    let normalizedClientSlug: string | undefined;
+    if (role === 'client' && clientSlug) {
+      const known = await requireKnownClientSlug(clientSlug);
+      if (!known.ok) return known.response;
+      normalizedClientSlug = known.slug;
+    }
 
     if (role) {
       await assignRoleToUser(userId, role);
     }
 
-    // Build app_metadata with role and client info
+    // Auth0 PATCH app_metadata is a first-level merge — omitted keys stay.
+    // Promoting to admin must send explicit nulls or stale client claims survive
+    // (gate-review 2026-08-04 §2).
     const appMetadata: Record<string, unknown> = { role };
-    if (role === 'client') {
+    if (role === 'admin') {
+      Object.assign(appMetadata, ADMIN_CLIENT_CLAIM_NULLS);
+    } else if (role === 'client') {
       if (normalizedClientSlug) appMetadata.client_slug = normalizedClientSlug;
-      if (mbaNumbers && Array.isArray(mbaNumbers) && mbaNumbers.length > 0) {
-        appMetadata.mba_numbers = mbaNumbers.filter(Boolean);
+      if (normalizedMbaNumbers && normalizedMbaNumbers.length > 0) {
+        appMetadata.mba_numbers = normalizedMbaNumbers;
       }
       if (primaryMbaNumber) {
         appMetadata.primary_mba_number = primaryMbaNumber;
