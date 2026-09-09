@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 type ExpertGridFillHandleProps = {
   onFillAllBelow: () => void
   onFillDrag: (rowCount: number) => void
+  onDraggingChange?: (dragging: boolean) => void
   className?: string
 }
 
@@ -16,6 +17,7 @@ type ExpertGridFillHandleProps = {
 export function ExpertGridFillHandle({
   onFillAllBelow,
   onFillDrag,
+  onDraggingChange,
   className,
 }: ExpertGridFillHandleProps) {
   const draggingRef = useRef(false)
@@ -43,6 +45,7 @@ export function ExpertGridFillHandle({
         const raw = tr?.getAttribute("data-search-expert-row-index")
         sourceRowRef.current = raw != null ? Number(raw) : null
         e.currentTarget.setPointerCapture(e.pointerId)
+        onDraggingChange?.(true)
       }}
       onPointerMove={(e) => {
         if (!draggingRef.current || !startPointRef.current) return
@@ -55,6 +58,7 @@ export function ExpertGridFillHandle({
       onPointerUp={(e) => {
         if (!draggingRef.current) return
         draggingRef.current = false
+        onDraggingChange?.(false)
         const didMove = movedRef.current
         movedRef.current = false
         startPointRef.current = null
@@ -76,6 +80,7 @@ export function ExpertGridFillHandle({
       }}
       onPointerCancel={() => {
         draggingRef.current = false
+        onDraggingChange?.(false)
         movedRef.current = false
         startPointRef.current = null
         sourceRowRef.current = null

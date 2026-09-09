@@ -105,6 +105,7 @@ import {
 } from "@/components/media-containers/expertGridSticky"
 import { ExpertGridWeekResizeHandle } from "@/components/media-containers/ExpertGridWeekResizeHandle"
 import { ExpertGridWeekCommencesBar } from "@/components/media-containers/ExpertGridWeekCommencesBar"
+import { ExpertGridWeekContextMenu } from "@/components/media-containers/ExpertGridWeekContextMenu"
 import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
 import { useExpertWeekColumnWidths } from "@/hooks/useExpertWeekColumnWidths"
 import type {
@@ -239,6 +240,10 @@ import {
   mergeKeysFromRect as oohMergeKeysFromRect,
   normalizeWeekMergeSelection as normalizeSearchWeekMergeSelection,
   weekPlainClickPreservesWeekAreaSelection,
+  canOpenWeekCellContextMenu,
+  resolveWeekCellContextMenuTarget,
+  asyncClipboardReadAvailable,
+  WEEK_CELL_CONTEXT_MENU_PASTE_UNAVAILABLE_REASON,
   deriveMergeEligibility as deriveSearchMergeEligibility,
   weekCellExportText,
   mergedWeekSpansAfterCutRect,
@@ -566,6 +571,11 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     weekKey: string
     valid: boolean
   } | null>(null)
+  const [weekContextMenu, setWeekContextMenu] = useState<{
+    x: number
+    y: number
+  } | null>(null)
+  const fillHandleDraggingRef = useRef(false)
   const weekAreaDragRef = useRef<{
     rowIndex: number
     weekKey: string
@@ -2859,6 +2869,70 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     [dayKeysByWeekKey, pushRows, weekKeys]
   )
 
+  const closeWeekContextMenu = useCallback(() => {
+    setWeekContextMenu(null)
+  }, [])
+
+  const handleWeekCellContextMenu = useCallback(
+    (e: React.MouseEvent, rowIndex: number, weekKey: string) => {
+      if (
+        !canOpenWeekCellContextMenu({
+          spanEdgeResize: spanEdgeResizeRef.current,
+          fillHandleDragging: fillHandleDraggingRef.current,
+          weekAreaDragActive:
+            weekAreaDragRef.current != null || isSelecting,
+        })
+      ) {
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
+      e.preventDefault()
+      e.stopPropagation()
+      const sel = resolveCurrentWeeklyExportSelection()
+      const target = resolveWeekCellContextMenuTarget(
+        rowIndex,
+        weekKey,
+        sel,
+        weekKeys
+      )
+      if (target.action === "collapse") {
+        focusedCellRef.current = target.focusedCell
+        setFocusedCell(target.focusedCell)
+        weekRectSelectionRef.current = target.weekRect
+        setWeekRectSelection(target.weekRect)
+        setWeekMultiSelect(null)
+        setWeekStripSelection(null)
+        lastWeekAnchorRef.current = { rowIndex, weekKey }
+      }
+      setWeekContextMenu({ x: e.clientX, y: e.clientY })
+    },
+    [isSelecting, resolveCurrentWeeklyExportSelection, weekKeys]
+  )
+
+  const pasteFromWeekContextMenu = useCallback(() => {
+    void (async () => {
+      let matrix = await readClipboardMatrixAsync()
+      if (!matrix?.length) {
+        toast({
+          variant: "destructive",
+          title: "Paste unavailable",
+          description: WEEK_CELL_CONTEXT_MENU_PASTE_UNAVAILABLE_REASON,
+        })
+        return
+      }
+      matrix = trimEmptyEdgeColumns(matrix)
+      if (!matrix.length) return
+      pasteMatrixIntoGrid(matrix)
+    })()
+  }, [pasteMatrixIntoGrid, toast])
+
+  const deleteFromWeekContextMenu = useCallback(() => {
+    const sel = resolveCurrentWeeklyExportSelection()
+    if (!sel) return
+    commitResolvedWeeklyCut(sel)
+  }, [commitResolvedWeeklyCut, resolveCurrentWeeklyExportSelection])
+
   const handleWeekCellDeleteOrBackspace = useCallback(
     (e: KeyboardEvent<HTMLElement>): boolean => {
       if (e.key !== "Delete" && e.key !== "Backspace") return false
@@ -3648,6 +3722,9 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                     rowCount,
                                   })
                                 }
+                                onDraggingChange={(dragging) => {
+                                  fillHandleDraggingRef.current = dragging
+                                }}
                               />
                             ) : null
                             const compactRowLabelChrome = isCompactRowLabel ? (
@@ -4676,6 +4753,13 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                       : weekColStyle(col.weekKey, weekColumnWidths)
                                   }
                                   className={tdClassName}
+                                  onContextMenu={(e) =>
+                                    handleWeekCellContextMenu(
+                                      e,
+                                      rowIndex,
+                                      col.weekKey
+                                    )
+                                  }
                                   title={
                                     isMergedAnchorCell
                                       ? partialPlan
@@ -5498,6 +5582,26 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         ) : null}
       </Card>
       </div>
+
+      {weekContextMenu ? (
+        <ExpertGridWeekContextMenu
+          x={weekContextMenu.x}
+          y={weekContextMenu.y}
+          pasteDisabled={
+            typeof navigator === "undefined" ||
+            !asyncClipboardReadAvailable(navigator.clipboard)
+          }
+          onCut={() => {
+            void cutSelectedWeekRangeToClipboard()
+          }}
+          onCopy={() => {
+            void copySelectedWeekRangeToClipboard()
+          }}
+          onPaste={pasteFromWeekContextMenu}
+          onDelete={deleteFromWeekContextMenu}
+          onClose={closeWeekContextMenu}
+        />
+      ) : null}
 
       <AlertDialog
         open={!!pendingFuzzyMatch}

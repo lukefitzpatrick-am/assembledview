@@ -1055,6 +1055,87 @@ export function weekPlainClickPreservesWeekAreaSelection(
   return false
 }
 
+export type WeekCellContextMenuGesture = {
+  spanEdgeResize: unknown | null
+  fillHandleDragging: boolean
+  weekAreaDragActive: boolean
+}
+
+export function canOpenWeekCellContextMenu(
+  gesture: WeekCellContextMenuGesture
+): boolean {
+  return (
+    gesture.spanEdgeResize == null &&
+    !gesture.fillHandleDragging &&
+    !gesture.weekAreaDragActive
+  )
+}
+
+export function weekCellIsInsideWeeklyExportSelection(
+  rowIndex: number,
+  weekKey: string,
+  selection: WeeklyExportSelection | null,
+  weekKeys: readonly string[]
+): boolean {
+  if (!selection) return false
+  const bounds = selectionBoundsFromWeeklyExportSelection(selection, weekKeys)
+  if (bounds) {
+    const col = weekKeys.indexOf(weekKey)
+    if (col < 0) return false
+    return (
+      rowIndex >= bounds.startRow &&
+      rowIndex <= bounds.endRow &&
+      col >= bounds.startCol &&
+      col <= bounds.endCol
+    )
+  }
+  if (selection.kind === "focusedWeekCell") {
+    return selection.rowIndex === rowIndex && selection.weekKey === weekKey
+  }
+  return false
+}
+
+export type WeekCellContextMenuTargetResult =
+  | { action: "preserve" }
+  | {
+      action: "collapse"
+      focusedCell: { rowIndex: number; columnKey: string }
+      weekRect: ExpertWeekRectSelection
+    }
+
+export function resolveWeekCellContextMenuTarget(
+  rowIndex: number,
+  weekKey: string,
+  selection: WeeklyExportSelection | null,
+  weekKeys: readonly string[]
+): WeekCellContextMenuTargetResult {
+  if (
+    weekCellIsInsideWeeklyExportSelection(
+      rowIndex,
+      weekKey,
+      selection,
+      weekKeys
+    )
+  ) {
+    return { action: "preserve" }
+  }
+  return {
+    action: "collapse",
+    focusedCell: { rowIndex, columnKey: weekKey },
+    weekRect: normalizeWeekRect(rowIndex, weekKey, rowIndex, weekKey, weekKeys),
+  }
+}
+
+export function asyncClipboardReadAvailable(
+  clipboard: { read?: unknown; readText?: unknown } | null | undefined
+): boolean {
+  if (!clipboard) return false
+  return typeof clipboard.read === "function" || typeof clipboard.readText === "function"
+}
+
+export const WEEK_CELL_CONTEXT_MENU_PASTE_UNAVAILABLE_REASON =
+  "Clipboard read needs a keyboard paste (Ctrl+V) or a browser clipboard-permission prompt. Menu Paste cannot use the native paste event."
+
 export function deriveMergeEligibility(
   rect: ExpertWeekRectSelection | null,
   multi: { rowIndex: number; keys: string[] } | null,
