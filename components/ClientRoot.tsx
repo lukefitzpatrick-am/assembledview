@@ -3,10 +3,16 @@
 import { AuthProvider } from "@/app/providers";
 import { ClientLayout } from "@/components/ClientLayout";
 
-export default function ClientRoot({ children }: { children: React.ReactNode }) {
+export default function ClientRoot({
+  children,
+  clientSlugs,
+}: {
+  children: React.ReactNode
+  clientSlugs: string[]
+}) {
   return (
     <AuthProvider>
-      <ClientLayout>{children}</ClientLayout>
+      <ClientLayout clientSlugs={clientSlugs}>{children}</ClientLayout>
     </AuthProvider>
   );
 }

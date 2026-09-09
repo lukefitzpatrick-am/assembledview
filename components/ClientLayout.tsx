@@ -21,7 +21,13 @@ import { cn } from "@/lib/utils"
 import type { ChatMode } from "@/src/ava/modes"
 import type { PageContext } from "@/lib/ava/types"
 
-export function ClientLayout({ children }: { children: React.ReactNode }) {
+export function ClientLayout({
+  children,
+  clientSlugs,
+}: {
+  children: React.ReactNode
+  clientSlugs: string[]
+}) {
   const pathname = usePathname()
   const isHomePage = pathname === "/"
   const isAuthPage = pathname?.startsWith("/auth")
@@ -35,7 +41,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthWrapper>
-      <AuthContextProvider>
+      <AuthContextProvider clientSlugs={clientSlugs}>
         <SidebarProvider>
           <MediaPlanProvider>
             <DocumentTitleFromManifest />

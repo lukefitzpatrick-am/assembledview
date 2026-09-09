@@ -26,6 +26,17 @@ import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slu
 import { coalescedGetJson } from "@/lib/api/coalescedGetJson"
 import { cn } from "@/lib/utils"
 import {
+  buildClientMenuItems,
+  clientBottomNavItems,
+  type ClientMenuKind,
+} from "@/lib/nav/clientMenuItems"
+
+const CLIENT_MENU_ICONS: Record<ClientMenuKind, typeof BookOpen> = {
+  client: LayoutDashboard,
+  creative: Images,
+  knowledge: BookOpen,
+}
+import {
   getAdminBottomNav,
   getAdminSidebarGroups,
   getRouteByExactPath,
@@ -100,9 +111,10 @@ function NavRow({
 export function AppSidebar() {
   const pathname = usePathname() ?? ""
   const applied = useFinanceScopeApplied()
-  const { userClient, userRoles, isAdmin, isLoading } = useAuthContext()
+  const { clientSlugs, userRoles, isAdmin, isLoading } = useAuthContext()
   const [isClientsExpanded, setIsClientsExpanded] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
+  const [clientLabels, setClientLabels] = useState<Record<string, string>>({})
 
   const isCampaignsNavActive = useCallback(
     () => pathMatchesHref(pathname, "/mediaplans") && !pathname.startsWith("/mediaplans/create"),
@@ -116,6 +128,38 @@ export function AppSidebar() {
       setClients([])
     }
   }, [isAdmin])
+
+  const clientSlugKey = clientSlugs.join(",")
+  useEffect(() => {
+    const slugs = clientSlugKey.length === 0 ? [] : clientSlugKey.split(",")
+    if (isAdmin || slugs.length === 0) {
+      setClientLabels({})
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const entries = await Promise.all(
+        slugs.map(async (slug) => {
+          try {
+            const data = await coalescedGetJson<{ name?: string }>(
+              `/api/dashboard/${encodeURIComponent(slug)}/name`,
+            )
+            const name = typeof data?.name === "string" ? data.name.trim() : ""
+            return [slug, name] as const
+          } catch {
+            return [slug, ""] as const
+          }
+        }),
+      )
+      if (cancelled) return
+      setClientLabels(
+        Object.fromEntries(entries.filter(([, name]) => name.length > 0)),
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, clientSlugKey])
 
   async function fetchClients() {
     try {
@@ -141,42 +185,24 @@ export function AppSidebar() {
       .filter((group) => group.items.length > 0)
   }, [userRoles])
 
-  const formatClientSlugLabel = (slug: string) => {
-    const s = String(slug ?? "").trim()
-    if (!s) return ""
-    return s
-      .replace(/[_-]+/g, " ")
-      .split(" ")
-      .filter(Boolean)
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join(" ")
-  }
-
   const knowledgeLabel = getRouteByExactPath("/knowledge")?.label ?? "Knowledge Hub"
   const creativeLabel = getRouteByExactPath("/creative")?.label ?? "Creative"
 
-  const clientMenuItems = useMemo(() => {
-    const links: Array<{
-      title: string
-      icon: typeof BookOpen
-      href: string
-      exact?: boolean
-    }> = []
-    if (userClient) {
-      links.push({
-        title: formatClientSlugLabel(userClient) || userClient.toUpperCase(),
-        icon: LayoutDashboard,
-        href: `/dashboard/${userClient}`,
-      })
-      links.push({
-        title: creativeLabel,
-        icon: Images,
-        href: `/dashboard/${userClient}/creative`,
-      })
-    }
-    links.push({ title: knowledgeLabel, icon: BookOpen, href: "/knowledge" })
-    return links
-  }, [userClient, creativeLabel, knowledgeLabel])
+  const clientMenuItems = useMemo(
+    () =>
+      buildClientMenuItems({
+        clientSlugs,
+        labels: clientLabels,
+        pathname,
+        creativeLabel,
+        knowledgeLabel,
+      }),
+    [clientSlugs, clientLabels, pathname, creativeLabel, knowledgeLabel],
+  )
+  const clientBottomItems = useMemo(
+    () => clientBottomNavItems(clientMenuItems),
+    [clientMenuItems],
+  )
 
   const clientDashboardsSectionActive = /^\/client\/[^/]+/.test(pathname)
 
@@ -341,8 +367,8 @@ export function AppSidebar() {
               <SidebarGroupContent>
                 <SidebarMenu>
                   {clientMenuItems.map((item) => {
-                    const Icon = item.icon
-                    const active = pathMatchesHref(pathname, item.href, item.exact)
+                    const Icon = CLIENT_MENU_ICONS[item.kind]
+                    const active = item.isActive
                     return (
                       <SidebarMenuItem key={item.href}>
                         <SidebarMenuButton asChild isActive={active}>
@@ -408,9 +434,9 @@ export function AppSidebar() {
                   </li>
                 )
               })
-            : clientMenuItems.slice(0, 5).map((item) => {
-                const Icon = item.icon
-                const active = pathMatchesHref(pathname, item.href, item.exact)
+            : clientBottomItems.map((item) => {
+                const Icon = CLIENT_MENU_ICONS[item.kind]
+                const active = item.isActive
                 return (
                   <li key={item.href} className="min-w-0">
                     <Link

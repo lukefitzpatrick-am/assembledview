@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { auth0 } from "@/lib/auth0"
+import { isDashboardSlugAllowed } from "@/lib/auth/dashboardSlugAccess"
 import { getUserRoles, getUserClientSlugs } from "@/lib/rbac"
 import { getClientDashboardData } from "@/lib/api/dashboard"
 import { parseIsoDateOnlyStrict } from "@/lib/dashboard/campaignDateRange"
@@ -26,15 +27,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
     const roles = getUserRoles(session.user)
     const tenantSlugs = getUserClientSlugs(session.user)
-    const unscoped = roles.includes("admin")
-    const slugKey = slug.toLowerCase()
-    if (!unscoped && tenantSlugs.length === 0) {
-      return NextResponse.json({ error: "forbidden" }, { status: 403 })
-    }
-    if (!unscoped && !tenantSlugs.some((s) => s.toLowerCase() === slugKey)) {
-      console.warn(
-        `[dashboard/delivered] tenant mismatch: caller scoped to [${tenantSlugs.join(",")}] requested slug "${slug}"`,
-      )
+    if (!isDashboardSlugAllowed({ roles, tenantSlugs, slug })) {
+      if (!roles.includes("admin") && tenantSlugs.length > 0) {
+        console.warn(
+          `[dashboard/delivered] tenant mismatch: caller scoped to [${tenantSlugs.join(",")}] requested slug "${slug}"`,
+        )
+      }
       return NextResponse.json({ error: "forbidden" }, { status: 403 })
     }
 

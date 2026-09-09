@@ -2,7 +2,7 @@ import "./globals.css";
 import { GeistMono } from "geist/font";
 import { Merriweather, Rethink_Sans } from "next/font/google";
 
-import ClientRoot from "@/components/ClientRoot";
+import ServerAuthScope from "@/components/ServerAuthScope";
 import { ClientBrandProvider } from "@/components/client-dashboard/ClientBrandProvider";
 import { buildAssembledMediaAppDefaultTheme } from "@/lib/client-dashboard/theme";
 
@@ -38,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className={`${rethink.className} antialiased`}>
         <ClientBrandProvider theme={assembledMediaDefaultTheme}>
-          <ClientRoot>{children}</ClientRoot>
+          <ServerAuthScope>{children}</ServerAuthScope>
         </ClientBrandProvider>
       </body>
     </html>

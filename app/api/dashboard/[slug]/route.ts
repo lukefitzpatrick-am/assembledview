@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth0 } from '@/lib/auth0'
-import { getUserRoles, getUserClientSlugs } from '@/lib/rbac'
 import { getClientDashboardData, exportDashboardData } from '@/lib/api/dashboard'
+import { auth0 } from '@/lib/auth0'
+import { isDashboardSlugAllowed } from '@/lib/auth/dashboardSlugAccess'
 import { rangeFromDashboardSearchParams } from '@/lib/dashboard/clientDateRange'
+import { getUserRoles, getUserClientSlugs } from '@/lib/rbac'
 
 export async function GET(
   request: NextRequest,
@@ -18,13 +19,10 @@ export async function GET(
     const roles = getUserRoles(session.user)
     const tenantSlugs = getUserClientSlugs(session.user)
     // AuthZ: unrestricted dashboard access is admin-only; non-admin with no slug scope fails closed (403).
-    const unscoped = roles.includes('admin')
-    const slugKey = slug.toLowerCase()
-    if (!unscoped && tenantSlugs.length === 0) {
-      return NextResponse.json({ error: 'forbidden' }, { status: 403 })
-    }
-    if (!unscoped && !tenantSlugs.some((s) => s.toLowerCase() === slugKey)) {
-      console.warn(`[dashboard] tenant mismatch: caller scoped to [${tenantSlugs.join(',')}] requested slug "${slug}"`)
+    if (!isDashboardSlugAllowed({ roles, tenantSlugs, slug })) {
+      if (!roles.includes('admin') && tenantSlugs.length > 0) {
+        console.warn(`[dashboard] tenant mismatch: caller scoped to [${tenantSlugs.join(',')}] requested slug "${slug}"`)
+      }
       return NextResponse.json({ error: 'forbidden' }, { status: 403 })
     }
 

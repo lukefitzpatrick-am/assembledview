@@ -4,7 +4,6 @@ import { createContext, useContext, useEffect, useMemo } from "react";
 import { useUser } from "@/components/AuthWrapper";
 import {
   getHighestRole,
-  getUserClientIdentifier,
   getUserRoles,
   logRoleDebug,
   UserRole,
@@ -16,7 +15,10 @@ type AuthContextValue = {
   error: unknown;
   userRoles: UserRole[];
   userRole: UserRole | null;
+  /** Primary (landing) slug — always `clientSlugs[0]`. */
   userClient: string | null;
+  /** Server-derived tenant set from `getUserClientSlugs`; primary first. */
+  clientSlugs: string[];
   isAdmin: boolean;
   isClient: boolean;
   login: () => void;
@@ -25,15 +27,18 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthContextProvider({ children }: { children: React.ReactNode }) {
+export function AuthContextProvider({
+  children,
+  clientSlugs = [],
+}: {
+  children: React.ReactNode;
+  clientSlugs?: string[];
+}) {
   const { user, isLoading, error, login, logout } = useUser();
 
   const userRoles = useMemo(() => (user ? getUserRoles(user) : []), [user]);
   const userRole = useMemo(() => getHighestRole(user), [user]);
-  const userClient = useMemo(
-    () => getUserClientIdentifier(user),
-    [user]
-  );
+  const userClient = clientSlugs[0] ?? null;
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_DEBUG_AUTH === "true") {
@@ -48,11 +53,12 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     userRoles,
     userRole,
     userClient,
+    clientSlugs,
     isAdmin: userRoles.includes("admin"),
     isClient: userRoles.includes("client"),
     login,
     logout,
-  }), [user, isLoading, error, userRoles, userRole, userClient, login, logout]);
+  }), [user, isLoading, error, userRoles, userRole, userClient, clientSlugs, login, logout]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -68,5 +74,3 @@ export function useAuthContext(): AuthContextValue {
   }
   return ctx;
 }
-
-

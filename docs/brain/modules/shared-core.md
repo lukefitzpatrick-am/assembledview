@@ -48,7 +48,7 @@ Boot warming via `instrumentation.ts` → dynamic `instrumentation.node.ts` only
 
 ## Navigation IA
 
-- `lib/nav/routeManifest.ts` is the single source of truth for sidebar structure (`ADMIN_SIDEBAR_GROUPS`), labels, titles, breadcrumbs, and command-palette destinations. `AppSidebar` / bottom nav / `CommandPalette` / `DynamicBreadcrumbs` derive from it — do not invent parallel nav maps. Full admin IA notes live in `docs/brain/modules/admin-misc.md` (Navigation identity).
+- `lib/nav/routeManifest.ts` is the single source of truth for sidebar structure (`ADMIN_SIDEBAR_GROUPS`), labels, titles, breadcrumbs, and command-palette destinations. `AppSidebar` / bottom nav / `CommandPalette` / `DynamicBreadcrumbs` derive from it — do not invent parallel nav maps. Client-role nav is `buildClientMenuItems`: one dashboard link per `clientSlugs` (server-derived, primary first), then Creative (`/dashboard/{activeSlug}/creative`), then Knowledge Hub. Labels come from `GET /api/dashboard/[slug]/name` (same tenant check as the dashboard GET); fallback `formatClientSlugLabel`. Bottom nav caps client items at 3 so Creative and Knowledge stay in the 5-slot bar. Full admin IA notes live in `docs/brain/modules/admin-misc.md` (Navigation identity).
 
 ## Cross-cutting utils
 
