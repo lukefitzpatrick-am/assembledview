@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { auth0 } from '@/lib/auth0'
-import { getPrimaryRole, getUserClientIdentifier } from '@/lib/rbac'
+import { getPrimaryRole, getUserClientSlugs } from '@/lib/rbac'
 import { notFound } from 'next/navigation'
 import { getClientDashboardData } from '@/lib/api/dashboard'
 import { currentAuFyRange, rangeFromDashboardSearchParams } from '@/lib/dashboard/clientDateRange'
@@ -33,7 +33,8 @@ export default async function ClientDashboard({ params, searchParams }: ClientDa
   const session = await auth0.getSession()
   const user = session?.user
   const role = getPrimaryRole(user)
-  const userClientSlug = getUserClientIdentifier(user)
+  const userClientSlugs = getUserClientSlugs(user)
+  const userClientSlug = userClientSlugs[0] ?? null
 
   if (!user) {
     redirect(`/auth/login?returnTo=/dashboard/${slug}`)
@@ -44,11 +45,12 @@ export default async function ClientDashboard({ params, searchParams }: ClientDa
     role,
     requestedSlug: slug,
     userClientSlug,
+    userClientSlugs,
     app_metadata: user['app_metadata'],
   })
 
   if (role === 'client') {
-    if (!userClientSlug) {
+    if (userClientSlugs.length === 0) {
       console.error('[dashboard/[slug]] Client user missing client_slug in app_metadata', {
         email: user.email,
         requestedSlug: slug,
@@ -57,10 +59,11 @@ export default async function ClientDashboard({ params, searchParams }: ClientDa
       notFound()
     }
 
-    if (userClientSlug.toLowerCase() !== slug.toLowerCase()) {
+    if (!userClientSlugs.includes(slug.toLowerCase())) {
       console.warn('[dashboard/[slug]] Tenant mismatch - client attempted to access another client dashboard', {
         email: user.email,
         userClientSlug,
+        userClientSlugs,
         requestedSlug: slug,
       })
       notFound()

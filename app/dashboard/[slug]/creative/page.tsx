@@ -8,7 +8,7 @@ import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero
 import { getClientDashboardData } from "@/lib/api/dashboard/client"
 import { auth0 } from "@/lib/auth0"
 import { fetchXanoClientRowByUrlSlug } from "@/lib/clients/fetchClientRowByUrlSlug"
-import { getPrimaryRole, getUserClientIdentifier } from "@/lib/rbac"
+import { getPrimaryRole, getUserClientSlugs } from "@/lib/rbac"
 
 interface ClientCreativePageProps {
   params: Promise<{
@@ -26,14 +26,14 @@ export default async function ClientCreativePage({ params }: ClientCreativePageP
   }
 
   const role = getPrimaryRole(user)
-  const userClientSlug = getUserClientIdentifier(user)
+  const userClientSlugs = getUserClientSlugs(user)
 
   if (role === "client") {
-    if (!userClientSlug) {
+    if (userClientSlugs.length === 0) {
       notFound()
     }
 
-    if (userClientSlug.toLowerCase() !== slug.toLowerCase()) {
+    if (!userClientSlugs.includes(slug.toLowerCase())) {
       notFound()
     }
   }

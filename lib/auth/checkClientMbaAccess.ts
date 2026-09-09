@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getUserRoles, getUserClientIdentifier, getUserMbaNumbers } from "@/lib/rbac"
+import { getUserRoles, getUserClientSlugs, getUserMbaNumbers } from "@/lib/rbac"
 import type { ClientGroup } from "@/lib/clients/clientGroup"
 import { mbaNumberMatchesClientIdentifier } from "@/lib/auth/mbaNumberMatchesClientIdentifier"
 
@@ -10,7 +10,7 @@ export type ClientMbaAccess =
 export type ClientMbaDenyPath = "mba_numbers" | "identifier" | "no-row"
 
 export type ClientMbaScope =
-  | { ok: false; response: NextResponse; denyPath?: ClientMbaDenyPath; email?: string; slug?: string | null }
+  | { ok: false; response: NextResponse; denyPath?: ClientMbaDenyPath; email?: string; slug?: string | null; slugs?: string[] }
   | {
       ok: true
       isClient: boolean
@@ -19,6 +19,7 @@ export type ClientMbaScope =
       denyPath: Exclude<ClientMbaDenyPath, "no-row">
       email?: string
       slug?: string | null
+      slugs?: string[]
     }
 
 export type CheckClientMbaAccessDeps = {
@@ -33,12 +34,14 @@ function forbiddenResponse(): NextResponse {
 function logAccessDeny(input: {
   email: string | undefined
   slug: string | null | undefined
+  slugs?: string[]
   mba: string
   path: ClientMbaDenyPath
 }): void {
   console.info("[checkClientMbaAccess] deny", {
     email: input.email,
     slug: input.slug ?? null,
+    slugs: input.slugs ?? [],
     mba: input.mba,
     path: input.path,
   })
@@ -92,7 +95,8 @@ export async function resolveClientMbaScope(
 
   const email = user.email
   const isClient = roles.includes("client")
-  const slug = getUserClientIdentifier(user as Parameters<typeof getUserClientIdentifier>[0])
+  const slugs = getUserClientSlugs(user as Parameters<typeof getUserClientSlugs>[0])
+  const slug = slugs[0] ?? null
 
   const mbaList = getUserMbaNumbers(user as Parameters<typeof getUserMbaNumbers>[0])
   if (mbaList.length > 0) {
@@ -104,6 +108,7 @@ export async function resolveClientMbaScope(
       denyPath: "mba_numbers",
       email,
       slug,
+      slugs,
     }
   }
 
@@ -115,41 +120,49 @@ export async function resolveClientMbaScope(
     return { ok: false, response: forbiddenResponse() }
   }
 
-  if (!slug) {
+  if (slugs.length === 0) {
     console.warn("[checkClientMbaAccess] Client user missing client identifier", {
       email,
     })
-    return { ok: false, response: forbiddenResponse(), denyPath: "no-row", email, slug: null }
+    return { ok: false, response: forbiddenResponse(), denyPath: "no-row", email, slug: null, slugs: [] }
   }
 
   try {
-    const group = await fetchClientGroupByUrlSlug(slug)
-    const mbaidentifier = group?.mbaidentifier?.trim() || null
-    if (!mbaidentifier) {
+    const identifiers: string[] = []
+    for (const candidate of slugs) {
+      const group = await fetchClientGroupByUrlSlug(candidate)
+      const mbaidentifier = group?.mbaidentifier?.trim() || null
+      if (mbaidentifier) identifiers.push(mbaidentifier)
+    }
+    if (identifiers.length === 0) {
       console.warn("[checkClientMbaAccess] Client row missing mbaidentifier", {
         email,
         userClientSlug: slug,
-        slug,
+        slugs,
       })
-      return { ok: false, response: forbiddenResponse(), denyPath: "no-row", email, slug }
+      return { ok: false, response: forbiddenResponse(), denyPath: "no-row", email, slug, slugs }
     }
 
     return {
       ok: true,
       isClient: true,
       allows: (mbaNumber: string) =>
-        mbaNumberMatchesClientIdentifier(mbaNumber, mbaidentifier),
+        identifiers.some((mbaidentifier) =>
+          mbaNumberMatchesClientIdentifier(mbaNumber, mbaidentifier),
+        ),
       denyPath: "identifier",
       email,
       slug,
+      slugs,
     }
   } catch (err) {
     console.warn("[checkClientMbaAccess] Failed to resolve client row for MBA access check", {
       email,
       userClientSlug: slug,
+      slugs,
       err,
     })
-    return { ok: false, response: forbiddenResponse(), denyPath: "no-row", email, slug }
+    return { ok: false, response: forbiddenResponse(), denyPath: "no-row", email, slug, slugs }
   }
 }
 
@@ -164,6 +177,7 @@ export async function checkClientMbaAccess(
       logAccessDeny({
         email: scope.email,
         slug: scope.slug,
+        slugs: scope.slugs,
         mba: mbaNumber,
         path: scope.denyPath,
       })
@@ -178,6 +192,7 @@ export async function checkClientMbaAccess(
   logAccessDeny({
     email: scope.email,
     slug: scope.slug,
+    slugs: scope.slugs,
     mba: mbaNumber,
     path: scope.denyPath,
   })

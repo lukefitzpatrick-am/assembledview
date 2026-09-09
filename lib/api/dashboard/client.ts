@@ -436,6 +436,17 @@ function emptyDashboardForKnownClient(
   }
 }
 
+function parseDashboardClientId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value)
+  }
+  if (typeof value === "string" && value.trim()) {
+    const n = Number(value)
+    if (Number.isFinite(n) && n > 0) return Math.trunc(n)
+  }
+  return null
+}
+
 export function buildClientDashboardDataFromVersions(
   targetSlugs: Set<string>,
   allVersions: any[],
@@ -450,6 +461,8 @@ export function buildClientDashboardDataFromVersions(
     financialYearStartYear?: number
     rangeStartISO?: string
     rangeEndISO?: string
+    /** When set, prefer versions whose `client_id` matches the requested row. */
+    targetClientId?: number | null
   }
 ): ClientDashboardData | null {
   const { fallbackClient, totalCampaignsYTDFromMaster, urlSlug, publishedByMba, publishedVersionIdByMba, financialYearStartYear } = ctx
@@ -471,6 +484,12 @@ export function buildClientDashboardDataFromVersions(
   const monthBuckets = monthBucketsForRange(range)
 
   const clientVersions = allVersions.filter((version: any) => {
+    const targetId = ctx.targetClientId
+    if (targetId != null && targetId > 0) {
+      const versionId = parseDashboardClientId(version?.client_id)
+      if (versionId != null) return versionId === targetId
+    }
+
     const nameCandidates = [
       version?.mp_client_name,
       version?.client_name,
@@ -857,7 +876,13 @@ function sumYtdAcrossSlugs(
 
 export async function getClientDashboardData(
   slug: string,
-  options?: { financialYearStartYear?: number; rangeStartISO?: string; rangeEndISO?: string },
+  options?: {
+    financialYearStartYear?: number
+    rangeStartISO?: string
+    rangeEndISO?: string
+    /** Tenant dashboards are per-row. Admin hub (`/client/[slug]`) passes `"group"`. */
+    campaignScope?: "row" | "group"
+  },
 ): Promise<ClientDashboardData | null> {
   console.log('[dashboard] getClientDashboardData called with slug:', slug, 'ENV check:', {
     XANO_BASE_URL: !!peekXanoEnv('XANO_BASE_URL'),
@@ -871,10 +896,12 @@ export async function getClientDashboardData(
 
   const sanitizedSlug = slug.trim()
   const fyWindow = getAustralianFinancialYearWindow(new Date())
+  const campaignScope = options?.campaignScope ?? "row"
 
   try {
     let targetSlugs = new Set([slugifyClientName(sanitizedSlug)].filter(Boolean))
     let fallbackClient: Client | null = null
+    let targetClientId: number | null = null
 
     try {
       const { readClientsList } = await import('@/lib/data/readClients')
@@ -882,8 +909,18 @@ export async function getClientDashboardData(
       const clientRows = parseXanoListPayload(result.body)
       const group = resolveClientGroup(clientRows, sanitizedSlug)
       if (group) {
-        targetSlugs = group.nameSlugs.size > 0 ? group.nameSlugs : targetSlugs
         fallbackClient = rawClientToFallbackClient(group.anchor)
+        if (campaignScope === "group") {
+          targetSlugs = group.nameSlugs.size > 0 ? group.nameSlugs : targetSlugs
+          targetClientId = null
+        } else {
+          const rowName = getClientDisplayName(group.anchor)
+          const rowSlug = slugifyClientName(rowName)
+          targetSlugs = rowSlug ? new Set([rowSlug]) : targetSlugs
+          const id = Number(group.anchor.id)
+          targetClientId =
+            Number.isFinite(id) && id > 0 ? Math.trunc(id) : null
+        }
       } else {
         fallbackClient = await getClientBySlug(slugifyClientName(sanitizedSlug))
       }
@@ -954,6 +991,7 @@ export async function getClientDashboardData(
       financialYearStartYear: options?.financialYearStartYear,
       rangeStartISO: options?.rangeStartISO,
       rangeEndISO: options?.rangeEndISO,
+      targetClientId,
     })
   } catch (error: any) {
     const msg = error?.message != null ? String(error.message) : String(error)

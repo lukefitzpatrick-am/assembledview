@@ -1,7 +1,7 @@
 import CampaignPageAssembly from "./components/CampaignPageAssembly"
 import { mapMbaCampaignResponseVersionsToListEntries } from "@/lib/api/dashboard"
 import { auth0 } from "@/lib/auth0"
-import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers, isAdminRole } from "@/lib/rbac"
+import { getPrimaryRole, getUserClientSlugs, getUserMbaNumbers, isAdminRole } from "@/lib/rbac"
 import { redirect, notFound } from "next/navigation"
 import { headers } from "next/headers"
 import { createPerfTimer, logPerf } from "@/lib/utils/perf"
@@ -323,7 +323,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const session = await auth0.getSession()
   const user = session?.user
   const role = getPrimaryRole(user)
-  const userClientSlug = getUserClientIdentifier(user)
+  const userClientSlugs = getUserClientSlugs(user)
+  const userClientSlug = userClientSlugs[0] ?? null
   logPerf("Auth check", authStart, { hasUser: !!user, role })
 
   if (!user) {
@@ -337,12 +338,13 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     requestedSlug: slug,
     requestedMba: mba_number,
     userClientSlug,
+    userClientSlugs,
     app_metadata: user['app_metadata'],
   })
 
-  // Enforce tenant safety: client users can only access their own slug
+  // Enforce tenant safety: client users can only access their own slugs
   if (role === "client") {
-    if (!userClientSlug) {
+    if (userClientSlugs.length === 0) {
       console.error("[dashboard/[slug]/[mba_number]] Client user missing client_slug in app_metadata", {
         email: user.email,
         requestedSlug: slug,
@@ -352,11 +354,11 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       notFound()
     }
 
-    // Case-insensitive comparison for slug
-    if (userClientSlug.toLowerCase() !== slug.toLowerCase()) {
+    if (!userClientSlugs.includes(slug.toLowerCase())) {
       console.warn("[dashboard/[slug]/[mba_number]] Tenant mismatch - client attempted to access another client's campaign", {
         email: user.email,
         userClientSlug,
+        userClientSlugs,
         requestedSlug: slug,
         requestedMba: mba_number,
       })

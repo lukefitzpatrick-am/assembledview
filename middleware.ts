@@ -2,7 +2,8 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth0 } from './lib/auth0';
 import { FINANCE_TAB_TO_SECTION_PATH } from './lib/finance/sections/nav';
-import { getUserClientIdentifier, getUserRoles } from './lib/rbac';
+import { getUserClientSlugs, getUserRoles } from './lib/rbac';
+import { resolveClientPageFence } from './lib/auth/clientPathFence';
 
 const STATIC_PATHS = ['/favicon.ico', '/robots.txt', '/sitemap.xml'];
 const PUBLIC_PATHS = ['/', '/forbidden'];
@@ -12,11 +13,6 @@ const normalizePath = (p: string) => (p !== '/' && p.endsWith('/') ? p.slice(0, 
 
 function isFinanceSectionsApiPath(pathname: string): boolean {
   return pathname === '/api/finance/sections' || pathname.startsWith('/api/finance/sections/');
-}
-
-function isAllowedClientDashboardPath(pathname: string, clientSlug: string) {
-  const base = `/dashboard/${clientSlug}`;
-  return pathname === base || pathname.startsWith(`${base}/`);
 }
 
 export async function middleware(request: NextRequest) {
@@ -55,9 +51,9 @@ export async function middleware(request: NextRequest) {
 
     const roles = getUserRoles(session.user);
     const isClient = roles.includes('client');
-    const clientSlug = getUserClientIdentifier(session.user);
+    const slugs = getUserClientSlugs(session.user);
 
-    if (isClient && !clientSlug) {
+    if (isClient && slugs.length === 0) {
       return NextResponse.json({ error: 'unauthorised' }, { status: 401 });
     }
 
@@ -89,7 +85,8 @@ export async function middleware(request: NextRequest) {
   const roles = getUserRoles(session.user);
   const isClient = roles.includes('client');
   const isAdmin = roles.includes('admin');
-  const clientSlug = getUserClientIdentifier(session.user);
+  const slugs = getUserClientSlugs(session.user);
+  const clientSlug = slugs[0] ?? null;
   let redirectTarget: string | null = null;
   let reason: string | null = null;
 
@@ -97,29 +94,9 @@ export async function middleware(request: NextRequest) {
   // IMPORTANT: This must run BEFORE any unauthorized redirects so that
   // clients never get sent to /unauthorized for "/" or "/dashboard".
   if (isClient) {
-    if (!clientSlug) {
-      redirectTarget = '/unauthorized';
-      reason = 'client-missing-slug';
-    } else if (pathname === '/') {
-      redirectTarget = `/dashboard/${clientSlug}`;
-      reason = 'client-root-redirect';
-    } else if (pathname === '/dashboard') {
-      redirectTarget = `/dashboard/${clientSlug}`;
-      reason = 'client-dashboard-redirect';
-    } else if (pathname.startsWith('/dashboard')) {
-      const base = `/dashboard/${clientSlug}`;
-      if (pathname === base || pathname.startsWith(`${base}/`)) {
-        // allow
-      } else {
-        redirectTarget = base;
-        reason = 'client-cross-tenant-block';
-      }
-    } else if (pathname === '/knowledge' || pathname.startsWith('/knowledge/') || pathname === '/forbidden' || pathname === '/unauthorized') {
-      // allow these pages
-    } else {
-      redirectTarget = `/dashboard/${clientSlug}`;
-      reason = 'client-non-dashboard-redirect';
-    }
+    const fence = resolveClientPageFence(pathname, slugs);
+    redirectTarget = fence.redirectTarget;
+    reason = fence.reason;
   }
 
   if (DEBUG_AUTH_ENABLED) {
@@ -129,6 +106,7 @@ export async function middleware(request: NextRequest) {
       redirectTarget,
       reason,
       clientSlug,
+      clientSlugs: slugs,
       roles,
       isAdmin,
     });

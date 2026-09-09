@@ -22,7 +22,9 @@ export const MEDIA_PLANS_LIST_MASTER_OWNED_STRING_FIELDS = [
  * Prefer version value when already present (Xano `_latest`); fill from master
  * otherwise (Postgres). Always coerce required strings so search/sort never see undefined.
  * Copies `published_version_id` from the master when that field is present
- * (never from the version row `id`). Omit the key when the master lacks it.
+ * (never from the version row `id`). Overlay numeric `client_id` from the
+ * master when the version lacks a positive id (DI-9b twin). Omit the key when
+ * the master lacks it.
  */
 export function overlayMasterOwnedListFields(
   versionPlan: Record<string, unknown> | null | undefined,
@@ -45,7 +47,25 @@ export function overlayMasterOwnedListFields(
   if (pointer !== undefined) {
     base.published_version_id = pointer
   }
+
+  const fromVersionId = parsePositiveClientId(base.client_id)
+  const fromMasterId = parsePositiveClientId(masterData?.client_id)
+  const clientId = fromVersionId ?? fromMasterId
+  if (clientId != null) {
+    base.client_id = clientId
+  }
   return base
+}
+
+function parsePositiveClientId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value)
+  }
+  if (typeof value === "string" && value.trim()) {
+    const n = Number(value)
+    if (Number.isFinite(n) && n > 0) return Math.trunc(n)
+  }
+  return null
 }
 
 /**

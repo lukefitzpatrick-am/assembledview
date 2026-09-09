@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getUserClientIdentifier, getUserRoles } from "@/lib/rbac"
+import { getUserClientSlugs, getUserRoles } from "@/lib/rbac"
 import type { ClientGroup } from "@/lib/clients/clientGroup"
 import { clientIdsFromGroup } from "@/lib/clients/clientGroup"
 
@@ -22,7 +22,7 @@ export type DecideClientAccessResult =
 export type AssertClientAccessDeps = {
   getSession: (request: NextRequest) => Promise<{ user: unknown } | null>
   getUserRoles: (user: unknown) => string[]
-  getUserClientIdentifier: (user: unknown) => string | null
+  getUserClientSlugs: (user: unknown) => string[]
   fetchClientGroupBySlug: (slug: string) => Promise<ClientGroup | null>
 }
 
@@ -69,8 +69,8 @@ const defaultDeps: AssertClientAccessDeps = {
     return session?.user ? { user: session.user } : null
   },
   getUserRoles: (user) => getUserRoles(user as Parameters<typeof getUserRoles>[0]),
-  getUserClientIdentifier: (user) =>
-    getUserClientIdentifier(user as Parameters<typeof getUserClientIdentifier>[0]),
+  getUserClientSlugs: (user) =>
+    getUserClientSlugs(user as Parameters<typeof getUserClientSlugs>[0]),
   fetchClientGroupBySlug: async (slug) => {
     const { fetchClientGroupByUrlSlug } = await import(
       "@/lib/clients/fetchClientRowByUrlSlug"
@@ -98,12 +98,18 @@ export async function assertClientAccess(
 
   let callerClientIds: Set<number> = new Set()
   if (session?.user && isClient && !isAdmin) {
-    const slug = deps.getUserClientIdentifier(session.user)?.trim() ?? ""
-    if (!slug) {
+    const slugs = deps
+      .getUserClientSlugs(session.user)
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (slugs.length === 0) {
       return { ok: false, response: forbiddenResponse() }
     }
     try {
-      callerClientIds = clientIdsFromGroup(await deps.fetchClientGroupBySlug(slug))
+      for (const slug of slugs) {
+        const ids = clientIdsFromGroup(await deps.fetchClientGroupBySlug(slug))
+        for (const id of ids) callerClientIds.add(id)
+      }
     } catch (err) {
       console.warn("[assertClientAccess] Failed to resolve client row", { err })
       return { ok: false, response: forbiddenResponse() }

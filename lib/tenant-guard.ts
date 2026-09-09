@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { auth0 } from './auth0';
-import { getUserClientIdentifier, getUserRoles } from './rbac';
+import { getUserClientSlugs, getUserRoles } from './rbac';
 
 type RequireTenantAccessResult =
   | { ok: true; session: Awaited<ReturnType<typeof auth0.getSession>>; allowedSlugs?: string[] }
@@ -26,14 +26,13 @@ export async function requireTenantAccess(
     return { ok: true, session };
   }
 
-  const clientSlug = getUserClientIdentifier(session.user);
-  const allowedSlugs = clientSlug ? [clientSlug] : [];
+  const allowedSlugs = getUserClientSlugs(session.user);
 
   if (!allowedSlugs.length) {
     return { ok: false, status: 403 };
   }
 
-  if (routeSlug && !allowedSlugs.includes(routeSlug)) {
+  if (routeSlug && !allowedSlugs.includes(routeSlug.toLowerCase())) {
     return { ok: false, status: 403 };
   }
 

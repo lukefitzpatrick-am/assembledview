@@ -94,4 +94,12 @@ describe("mediaPlanVersionsCache master-owned overlay (DI-9b)", () => {
       overlayMasterOwnedListFields(version, master),
     )
   })
+
+  it("overlays client_id from master onto postgres version rows (DI-9b twin)", () => {
+    const rows = applyMasterOwnedOverlayByMba(
+      [{ id: 831, mba_number: "golf001", version_number: 1 }],
+      [{ mba_number: "golf001", mp_client_name: "Golf Australia", client_id: 19 }],
+    )
+    assert.equal(rows[0].client_id, 19)
+  })
 })

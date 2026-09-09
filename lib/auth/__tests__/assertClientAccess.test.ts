@@ -120,7 +120,7 @@ describe("assertClientAccess", () => {
     const result = await assertClientAccess(req(), 7, {
       getSession: async () => ({ user: { email: "admin@example.com" } }),
       getUserRoles: () => ["admin"],
-      getUserClientIdentifier: () => null,
+      getUserClientSlugs: () => [],
       fetchClientGroupBySlug: async () => {
         fetched += 1
         return groupForIds(7)
@@ -135,7 +135,7 @@ describe("assertClientAccess", () => {
     const result = await assertClientAccess(req(), 7, {
       getSession: async () => ({ user: { email: "client@example.com" } }),
       getUserRoles: () => ["client"],
-      getUserClientIdentifier: () => "acme",
+      getUserClientSlugs: () => ["acme"],
       fetchClientGroupBySlug: async (slug) => {
         assert.equal(slug, "acme")
         return groupForIds(7)
@@ -149,7 +149,7 @@ describe("assertClientAccess", () => {
     const result = await assertClientAccess(req(), 7, {
       getSession: async () => ({ user: { email: "client@example.com" } }),
       getUserRoles: () => ["client"],
-      getUserClientIdentifier: () => "other",
+      getUserClientSlugs: () => ["other"],
       fetchClientGroupBySlug: async () => groupForIds(9),
     })
     assert.equal(result.ok, false)
@@ -163,7 +163,7 @@ describe("assertClientAccess", () => {
     const result = await assertClientAccess(req(), 7, {
       getSession: async () => null,
       getUserRoles: () => [],
-      getUserClientIdentifier: () => null,
+      getUserClientSlugs: () => [],
       fetchClientGroupBySlug: async () => null,
     })
     assert.equal(result.ok, false)
@@ -177,7 +177,7 @@ describe("assertClientAccess", () => {
     const result = await assertClientAccess(req(), 7, {
       getSession: async () => null,
       getUserRoles: () => [],
-      getUserClientIdentifier: () => null,
+      getUserClientSlugs: () => [],
       fetchClientGroupBySlug: async () => null,
     })
     assert.equal(result.ok, false)
@@ -191,7 +191,18 @@ describe("assertClientAccess", () => {
     const result = await assertClientAccess(req(), 46, {
       getSession: async () => ({ user: { email: "golf@example.com" } }),
       getUserRoles: () => ["client"],
-      getUserClientIdentifier: () => "golf-australia",
+      getUserClientSlugs: () => ["golf-australia"],
+      fetchClientGroupBySlug: fetchGolfGroup,
+    })
+    assert.equal(result.ok, true)
+    if (result.ok) assert.equal(result.isClient, true)
+  })
+
+  it("caller golf-australia + pga-australia unions both groups (id 20 allowed)", async () => {
+    const result = await assertClientAccess(req(), 20, {
+      getSession: async () => ({ user: { email: "golf@example.com" } }),
+      getUserRoles: () => ["client"],
+      getUserClientSlugs: () => ["golf-australia", "pga-australia"],
       fetchClientGroupBySlug: fetchGolfGroup,
     })
     assert.equal(result.ok, true)
@@ -202,7 +213,7 @@ describe("assertClientAccess", () => {
     const result = await assertClientAccess(req(), 41, {
       getSession: async () => ({ user: { email: "golf@example.com" } }),
       getUserRoles: () => ["client"],
-      getUserClientIdentifier: () => "golf-australia",
+      getUserClientSlugs: () => ["golf-australia"],
       fetchClientGroupBySlug: fetchGolfGroup,
     })
     assert.equal(result.ok, false)

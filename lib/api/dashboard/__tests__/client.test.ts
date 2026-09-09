@@ -223,4 +223,92 @@ describe("getClientDashboardData client group lookup", () => {
     expect(src).not.toMatch(/getXanoClientsCollectionUrl\s*\(/)
     expect(src).not.toMatch(/apiClient\.get\(clientsUrl\)/)
   })
+
+  it('defaults campaignScope to "row"; admin hub must opt into "group"', () => {
+    const src = getClientDashboardDataSource()
+    expect(src).toMatch(/campaignScope\s*=\s*options\?\.campaignScope\s*\?\?\s*["']row["']/)
+    const hubPage = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../../../app/client/[slug]/page.tsx"),
+      "utf8",
+    )
+    expect(hubPage).toMatch(/campaignScope:\s*["']group["']/)
+  })
+})
+
+describe("buildClientDashboardDataFromVersions — tenant per-row (not group union)", () => {
+  const golfFy = {
+    fallbackClient: null,
+    totalCampaignsYTDFromMaster: null,
+    urlSlug: "golf-australia",
+    financialYearStartYear: 2025,
+  } as const
+
+  const golf001 = version({
+    mba_number: "golf001",
+    client_id: 19,
+    mp_client_name: "Golf Australia",
+    campaign_status: "booked",
+    campaign_name: "Golf Australia campaign",
+  })
+  const golfd001 = version({
+    mba_number: "golfd001",
+    client_id: 46,
+    mp_client_name: "Golf Australia - Self Run Campaigns",
+    campaign_status: "booked",
+    campaign_name: "Golf Direct campaign",
+  })
+  const penfoldsMain = version({
+    mba_number: "penfold001",
+    client_id: 25,
+    mp_client_name: "Penfolds",
+    campaign_status: "booked",
+    campaign_name: "Penfolds campaign",
+  })
+  const penfoldsPr = version({
+    mba_number: "penfold021",
+    client_id: 44,
+    mp_client_name: "Penfolds - PR Campaigns",
+    campaign_status: "booked",
+    campaign_name: "Penfolds PR campaign",
+  })
+
+  it("row 19 lists golf001 only; row 46 lists golfd001 only", () => {
+    const golfName = new Set([slugifyClientName("Golf Australia")])
+    const directName = new Set([slugifyClientName("Golf Australia - Self Run Campaigns")])
+
+    const row19 = buildClientDashboardDataFromVersions(golfName, [golf001, golfd001], {
+      ...golfFy,
+      targetClientId: 19,
+    })
+    const row46 = buildClientDashboardDataFromVersions(directName, [golf001, golfd001], {
+      ...golfFy,
+      urlSlug: "golf-australia-self-run-campaigns",
+      targetClientId: 46,
+    })
+
+    expect(row19).not.toBeNull()
+    expect(row46).not.toBeNull()
+    expect(row19!.allCampaigns.map((c) => c.mbaNumber)).toEqual(["golf001"])
+    expect(row46!.allCampaigns.map((c) => c.mbaNumber)).toEqual(["golfd001"])
+  })
+
+  it("penfolds (25) and penfolds-pr-campaigns (44) no longer union", () => {
+    const penfoldsName = new Set([slugifyClientName("Penfolds")])
+    const prName = new Set([slugifyClientName("Penfolds - PR Campaigns")])
+    const versions = [penfoldsMain, penfoldsPr]
+
+    const row25 = buildClientDashboardDataFromVersions(penfoldsName, versions, {
+      ...golfFy,
+      urlSlug: "penfolds",
+      targetClientId: 25,
+    })
+    const row44 = buildClientDashboardDataFromVersions(prName, versions, {
+      ...golfFy,
+      urlSlug: "penfolds-pr-campaigns",
+      targetClientId: 44,
+    })
+
+    expect(row25!.allCampaigns.map((c) => c.mbaNumber)).toEqual(["penfold001"])
+    expect(row44!.allCampaigns.map((c) => c.mbaNumber)).toEqual(["penfold021"])
+  })
 })

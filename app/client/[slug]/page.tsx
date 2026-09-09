@@ -35,7 +35,7 @@ export default async function ClientHubDetailPage({ params, searchParams }: Page
   }
 
   const [clientData, slugRow] = await Promise.all([
-    getClientDashboardData(slug, { rangeStartISO: range.rangeStartISO, rangeEndISO: range.rangeEndISO }),
+    getClientDashboardData(slug, { rangeStartISO: range.rangeStartISO, rangeEndISO: range.rangeEndISO, campaignScope: "group" }),
     fetchXanoClientRowByUrlSlug(slug),
   ])
 

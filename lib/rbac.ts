@@ -191,37 +191,12 @@ const CLIENT_SLUGS_CLAIM_CANDIDATES = buildNamespaceCandidates(
   ALT_CLIENT_SLUGS_NAMESPACE
 );
 
-type ClientNamespaceScanResult = {
-  slugs: string[];
-  claimKeyUsed: string | null;
-  claimKeysWithValues: string[];
-};
-
 function normalizeClientSlug(value: string): string | null {
   const trimmed = value.trim().toLowerCase();
   if (!trimmed) return null;
   // Explicitly do not treat numeric client IDs as valid slugs.
   if (/^\d+$/.test(trimmed)) return null;
   return trimmed;
-}
-
-function scanClientSlugNamespaces(user: User): ClientNamespaceScanResult {
-  // Priority: plural claim first, then singular claim.
-  const claimKeys = [...CLIENT_SLUGS_CLAIM_CANDIDATES, ...CLIENT_SLUG_CLAIM_CANDIDATES];
-  const claimValues = claimKeys.map((key) => ({ key, values: getClaimArray(user, key) }));
-  const claimKeysWithValues = claimValues.filter(({ values }) => values.length > 0).map(({ key }) => key);
-  const claimKeyUsed = claimKeysWithValues[0] ?? null;
-
-  const slugs = claimValues
-    .flatMap(({ values }) => values)
-    .map((value) => (typeof value === 'string' ? normalizeClientSlug(value) : null))
-    .filter((value): value is string => Boolean(value));
-
-  return {
-    slugs: Array.from(new Set(slugs)),
-    claimKeyUsed,
-    claimKeysWithValues,
-  };
 }
 
 function normalizeAndDedupeRoles(roles: string[]): UserRole[] {
@@ -275,36 +250,94 @@ function getUserRolesWithSource(user: User | null | undefined): { roles: UserRol
   return { roles: [], source: 'none' };
 }
 
-function getUserClientSlugWithSource(
-  user: User | null | undefined
-): { clientSlug: string | null; source: ClientSlugSource; claimKeyUsed?: string | null } {
-  if (!user) return { clientSlug: null, source: 'none' };
-
-  // a) namespaced custom claim client_slug / client_slugs
-  const namespaceScan = scanClientSlugNamespaces(user);
-  if (namespaceScan.slugs.length > 0) {
-    return {
-      clientSlug: namespaceScan.slugs[0] ?? null,
-      source: 'namespaced_claim',
-      claimKeyUsed: namespaceScan.claimKeyUsed,
-    };
+function pushNormalizedSlug(target: string[], seen: Set<string>, raw: unknown): void {
+  for (const item of coerceToStringArray(raw)) {
+    const normalized = normalizeClientSlug(item);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    target.push(normalized);
   }
+}
 
-  // b) user.app_metadata.client_slug
+function firstNormalizedSingularSlug(user: User): string | null {
+  for (const key of CLIENT_SLUG_CLAIM_CANDIDATES) {
+    for (const value of getClaimArray(user, key)) {
+      const normalized = normalizeClientSlug(value);
+      if (normalized) return normalized;
+    }
+  }
   const appSlugRaw = (user as Record<string, any>)['app_metadata']?.client_slug;
   if (typeof appSlugRaw === 'string') {
     const normalized = normalizeClientSlug(appSlugRaw);
-    if (normalized) return { clientSlug: normalized, source: 'app_metadata' };
+    if (normalized) return normalized;
   }
-
-  // c) user.user_metadata.client_slug
   const userSlugRaw = (user as Record<string, any>)['user_metadata']?.client_slug;
   if (typeof userSlugRaw === 'string') {
     const normalized = normalizeClientSlug(userSlugRaw);
-    if (normalized) return { clientSlug: normalized, source: 'user_metadata' };
+    if (normalized) return normalized;
+  }
+  return null;
+}
+
+/**
+ * Ordered, deduped, lowercased tenant slugs. Singular `client_slug` is always
+ * element zero when present; otherwise the first `client_slugs` entry.
+ */
+export function getUserClientSlugsWithSource(
+  user: User | null | undefined
+): { slugs: string[]; source: ClientSlugSource; claimKeyUsed?: string | null } {
+  if (!user) return { slugs: [], source: 'none' };
+
+  const slugs: string[] = [];
+  const seen = new Set<string>();
+  let claimKeyUsed: string | null = null;
+  let namespacedHit = false;
+  let appHit = false;
+  let userHit = false;
+
+  for (const key of CLIENT_SLUGS_CLAIM_CANDIDATES) {
+    const values = getClaimArray(user, key);
+    if (values.length > 0) {
+      namespacedHit = true;
+      if (!claimKeyUsed) claimKeyUsed = key;
+      pushNormalizedSlug(slugs, seen, values);
+    }
+  }
+  for (const key of CLIENT_SLUG_CLAIM_CANDIDATES) {
+    const values = getClaimArray(user, key);
+    if (values.length > 0) {
+      namespacedHit = true;
+      if (!claimKeyUsed) claimKeyUsed = key;
+      pushNormalizedSlug(slugs, seen, values);
+    }
   }
 
-  return { clientSlug: null, source: 'none' };
+  const appMeta = (user as Record<string, any>)['app_metadata'];
+  if (appMeta && typeof appMeta === 'object') {
+    const extras = coerceToStringArray(appMeta.client_slugs);
+    const singular = typeof appMeta.client_slug === 'string' ? [appMeta.client_slug] : [];
+    if (extras.length > 0 || singular.length > 0) appHit = true;
+    pushNormalizedSlug(slugs, seen, extras);
+    pushNormalizedSlug(slugs, seen, singular);
+  }
+
+  const userMeta = (user as Record<string, any>)['user_metadata'];
+  if (userMeta && typeof userMeta === 'object' && typeof userMeta.client_slug === 'string') {
+    userHit = true;
+    pushNormalizedSlug(slugs, seen, [userMeta.client_slug]);
+  }
+
+  const primary = firstNormalizedSingularSlug(user);
+  const ordered = primary ? [primary, ...slugs.filter((slug) => slug !== primary)] : slugs;
+  const source: ClientSlugSource = namespacedHit
+    ? 'namespaced_claim'
+    : appHit
+      ? 'app_metadata'
+      : userHit
+        ? 'user_metadata'
+        : 'none';
+
+  return { slugs: ordered, source, claimKeyUsed };
 }
 
 export type RoleInspection = {
@@ -313,6 +346,7 @@ export type RoleInspection = {
   roles: string[];
   roleSource: RoleSource;
   clientSlug: string | null;
+  clientSlugs: string[];
   clientSlugSource: ClientSlugSource;
   clientSlugClaimKeyUsed: string | null;
   hasPermissions: boolean;
@@ -327,6 +361,7 @@ export function inspectUserRolesAndPermissions(user: User | null | undefined): R
       roles: [],
       roleSource: 'none',
       clientSlug: null,
+      clientSlugs: [],
       clientSlugSource: 'none',
       clientSlugClaimKeyUsed: null,
       hasPermissions: false,
@@ -337,14 +372,15 @@ export function inspectUserRolesAndPermissions(user: User | null | undefined): R
   const namespaceScan = scanRoleNamespaces(user);
   const permissions = coerceToStringArray((user as Record<string, unknown>).permissions);
   const roleInfo = getUserRolesWithSource(user);
-  const clientInfo = getUserClientSlugWithSource(user);
+  const clientInfo = getUserClientSlugsWithSource(user);
 
   return {
     hasRolesClaim: namespaceScan.claimKeysWithValues.length > 0,
     rolesClaimKeyUsed: namespaceScan.claimKeyUsed,
     roles: getUserRoles(user),
     roleSource: roleInfo.source,
-    clientSlug: clientInfo.clientSlug,
+    clientSlug: clientInfo.slugs[0] ?? null,
+    clientSlugs: clientInfo.slugs,
     clientSlugSource: clientInfo.source,
     clientSlugClaimKeyUsed: clientInfo.claimKeyUsed ?? null,
     hasPermissions: permissions.length > 0,
@@ -394,25 +430,27 @@ export function userHasAdminAccess(user: User | null | undefined): boolean {
 }
 
 export function getUserClientIdentifier(user: User | null | undefined): string | null {
-  const info = getUserClientSlugWithSource(user);
+  const info = getUserClientSlugsWithSource(user);
 
   if (DEBUG_AUTH_ENABLED) {
     console.log('[RBAC debug] client slug resolution', {
       source: info.source,
-      clientSlug: info.clientSlug,
+      clientSlug: info.slugs[0] ?? null,
+      clientSlugs: info.slugs,
+      claimKeyUsed: info.claimKeyUsed ?? null,
     });
   }
 
-  return info.clientSlug;
+  return info.slugs[0] ?? null;
 }
 
 /**
- * All normalised tenant slugs from Auth0 claims (`client_slugs` then `client_slug` namespaces).
- * Used to scope read-only reporting APIs (e.g. Finance Forecast) for non-admin users when claims are present.
+ * Ordered, deduped, lowercased tenant slugs from namespaced claims, then
+ * `app_metadata.client_slugs` / `client_slug`, then `user_metadata.client_slug`.
+ * Singular `client_slug` is always element zero when present.
  */
 export function getUserClientSlugs(user: User | null | undefined): string[] {
-  if (!user) return [];
-  return scanClientSlugNamespaces(user).slugs;
+  return getUserClientSlugsWithSource(user).slugs;
 }
 
 /**

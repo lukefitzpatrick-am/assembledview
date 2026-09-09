@@ -95,4 +95,20 @@ describe("mediaPlansListCache list-shape parity", () => {
     )
     assert.equal("published_version_id" in row, false)
   })
+
+  it("overlays numeric client_id from master when the version lacks it", () => {
+    const row = overlayMasterOwnedListFields(
+      { id: 42, mba_number: "golf001", version_number: 1 },
+      { mba_number: "golf001", mp_client_name: "Golf Australia", client_id: 19 },
+    )
+    assert.equal(row.client_id, 19)
+  })
+
+  it("keeps version client_id when already present", () => {
+    const row = overlayMasterOwnedListFields(
+      { id: 1, mba_number: "golf001", client_id: 19 },
+      { mba_number: "golf001", mp_client_name: "Golf Australia", client_id: 46 },
+    )
+    assert.equal(row.client_id, 19)
+  })
 })
