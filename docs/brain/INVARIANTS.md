@@ -84,6 +84,7 @@ pct === 100 → fee = 0 (division guard)
 - The visible calculator (`components/ava/AvaMediaMathPanel.tsx`) never writes the plan form. Send to Ava prefills the composer only. Clear empties budget / rate / deliverables / weeks / months and returns the cold-start hint; buy type is not reset. Disabled when every field is already empty. Solved rate displays via `formatRate`; budget via `formatAUD`.
 - `fixed_cost` → 1 deliverable, everywhere.
 - 18 runtime buy types: package, spots, cpt, cpp, panels, insertions, cpm, cpc, screens, cpcv, cpi, cps, cpv, fixed_cost, weekly_rate, monthly_rate, package_inclusions, bonus.
+- Excel Buy Type column labels are `BUY_TYPE_UI_LABELS` (`lib/mediaplan/buyTypeLabels.ts`) — the same strings as the expert-grid combobox. `package_inclusions` is **Package Inclusions**, never Bonus.
 - `ProductionContainer` is structurally outside every shared container model — exclude it from "apply to all containers" changes.
 
 ## bursts_json contract (`lib/mediaplan/serializeBurstsJson.ts`)

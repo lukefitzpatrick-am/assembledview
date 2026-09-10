@@ -1,5 +1,6 @@
 import type ExcelJS from 'exceljs';
 import { prorateAcrossMonths } from '@/lib/billing/prorateAcrossMonths';
+import { formatBuyTypeForExport } from '@/lib/mediaplan/buyTypeLabels';
 import { OOH_FORMAT_LABEL_BY_VALUE } from '@/lib/mediaplan/expertOohFuzzyMatch';
 
 const KPI_MEDIA_LABELS: Record<string, string> = {
@@ -230,59 +231,8 @@ function formatBidStrategy(strategyCode: string | undefined): string {
     .join(' ');
 }
 
-// format buy type to human readable
 function formatBuyType(buyType: string | undefined): string {
-  if (!buyType) return '';
-  
-  // Handle common buy type formats and acronyms
-  const buyTypeMap: { [key: string]: string } = {
-    'cpt': 'CPT',
-    'cpm': 'CPM',
-    'cpc': 'CPC',
-    'cpv': 'CPV',
-    'cpa': 'CPA',
-    'cpl': 'CPL',
-    'cpi': 'CPI',
-    'fixed_cost': 'Fixed Cost',
-    'fixed_spot_rate': 'Fixed Spot Rate',
-    'sponsorship': 'Sponsorship',
-    'spots': 'Spots',
-    'reach': 'Reach',
-    'frequency': 'Frequency',
-    'cpp': 'CPP',
-    'cost_per_spot': 'Cost Per Spot',
-    'cost_per_thousand': 'Cost Per Thousand',
-    'cost_per_point': 'Cost Per Point',
-    'cost_per_click': 'CPC',
-    'cost_per_view': 'CPV',
-    'cost_per_acquisition': 'CPA',
-    'cost_per_lead': 'CPL',
-    'cost_per_install': 'CPI'
-  };
-  
-  const lowerBuyType = buyType.toLowerCase();
-  if (buyTypeMap[lowerBuyType]) {
-    return buyTypeMap[lowerBuyType];
-  }
-  
-  // Check if it's already an acronym (all caps or mixed case like "CPC", "cpm", etc.)
-  // Common acronym patterns: 2-4 uppercase letters
-  const acronymPattern = /^[A-Z]{2,4}$/i;
-  if (acronymPattern.test(buyType)) {
-    return buyType.toUpperCase();
-  }
-  
-  // If not in map, format by capitalizing words and handling underscores
-  return buyType
-    .split('_')
-    .map(word => {
-      // If word looks like an acronym, uppercase it
-      if (acronymPattern.test(word)) {
-        return word.toUpperCase();
-      }
-      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-    })
-    .join(' ');
+  return formatBuyTypeForExport(buyType)
 }
 
 // Section title to mediaCosts key mapping for delivery schedule
