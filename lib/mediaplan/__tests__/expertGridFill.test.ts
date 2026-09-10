@@ -89,6 +89,24 @@ test("drag-range of N writes only the next N rows", () => {
   assert.equal(next![3].creative, "c")
 })
 
+test("unit-rate fill copies the stored raw value, not a currency string", () => {
+  type RateRow = { id: string; unitRate: number | string }
+  const unitRateCol: ExpertFillColumn = { key: "unitRate", kind: "unit-rate" }
+  const rows: RateRow[] = [
+    { id: "1", unitRate: 12.5 },
+    { id: "2", unitRate: "" },
+  ]
+  const next = applyExpertFillDown({
+    rows,
+    sourceRowIndex: 0,
+    column: unitRateCol,
+    range: { mode: "all-below" },
+  })
+  assert.ok(next)
+  assert.equal(next![1].unitRate, 12.5)
+  assert.equal(String(next![1].unitRate).includes("$"), false)
+})
+
 test("read-only column is a no-op", () => {
   const rows: Row[] = [
     { id: "1", creative: "src", buyType: "" },

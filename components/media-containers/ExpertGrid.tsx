@@ -181,6 +181,10 @@ import {
   type WeekStartsOn,
 } from "@/lib/utils/weeklyGanttColumns"
 import { formatAUD } from "@/lib/format/money"
+import {
+  commitUnitRateInput,
+  formatUnitRateCellValue,
+} from "@/lib/mediaplan/expertGridUnitRateDisplay"
 import { cn } from "@/lib/utils"
 import {
   getMediaTypeThemeHex,
@@ -561,6 +565,11 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   const [budgetDraft, setBudgetDraft] = useState<{
     rowIndex: number
     cellKey: string
+    text: string
+  } | null>(null)
+  /** Raw text while the Unit Rate cell is focused — never formatRate mid-keystroke. */
+  const [unitRateDraft, setUnitRateDraft] = useState<{
+    rowIndex: number
     text: string
   } | null>(null)
 
@@ -2572,6 +2581,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   const pasteMatrixIntoGrid = useCallback(
     (matrix: string[][], source?: WeekPasteSourceOverride) => {
       if (!matrix || matrix.length === 0) return
+      setUnitRateDraft(null)
 
       // Paste is deliverables-only: silently interpreting clipboard numbers
       // as $ (or as qty while the grid displays $) would corrupt data.
@@ -3757,6 +3767,9 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                         budgetDraft?.rowIndex === rowIndex
                           ? `bd:${budgetDraft.cellKey}:${budgetDraft.text}`
                           : "",
+                        unitRateDraft?.rowIndex === rowIndex
+                          ? `ur:${unitRateDraft.text}`
+                          : "",
                         mergeSpanHighlightPulse?.rowIndex === rowIndex
                           ? `mp:${mergeSpanHighlightPulse.startWeekKey}:${mergeSpanHighlightPulse.endWeekKey}`
                           : "",
@@ -4204,22 +4217,48 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                     className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
                                     inputMode="decimal"
                                     value={
-                                      row.unitRate === "" ||
-                                      row.unitRate === undefined
-                                        ? ""
-                                        : String(row.unitRate)
+                                      unitRateDraft?.rowIndex === rowIndex
+                                        ? unitRateDraft.text
+                                        : formatUnitRateCellValue(
+                                            row.unitRate,
+                                            false
+                                          )
                                     }
-                                    onFocus={() =>
+                                    onFocus={() => {
                                       handleCellFocus(rowIndex, col.key)
-                                    }
+                                      setUnitRateDraft({
+                                        rowIndex,
+                                        text: formatUnitRateCellValue(
+                                          row.unitRate,
+                                          true
+                                        ),
+                                      })
+                                    }}
+                                    onBlur={(e) => {
+                                      updateRow(rowIndex, {
+                                        unitRate: commitUnitRateInput(
+                                          e.target.value
+                                        ),
+                                      } as Partial<TRow>)
+                                      setUnitRateDraft((prev) =>
+                                        prev && prev.rowIndex === rowIndex
+                                          ? null
+                                          : prev
+                                      )
+                                    }}
                                     onKeyDown={(e) =>
                                       handleGridInputKeyDown(rowIndex, ci, e)
                                     }
-                                    onChange={(e) =>
+                                    onChange={(e) => {
+                                      const text = e.target.value
+                                      setUnitRateDraft({
+                                        rowIndex,
+                                        text,
+                                      })
                                       updateRow(rowIndex, {
-                                        unitRate: e.target.value,
+                                        unitRate: text,
                                       } as Partial<TRow>)
-                                    }
+                                    }}
                                   />
                                 </td>
                               )

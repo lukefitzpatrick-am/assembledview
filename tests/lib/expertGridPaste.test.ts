@@ -36,6 +36,16 @@ test("parseRatePasteValue matches weekly numeric rules", () => {
   if (r.ok) assert.equal(r.value, "2500.00")
 })
 
+test("parseRatePasteValue of $1,250.00 stores a raw number, not a formatted string", () => {
+  const r = parseRatePasteValue("$1,250.00")
+  assert.equal(r.ok, true)
+  if (r.ok) {
+    assert.equal(Number(r.value), 1250)
+    assert.equal(r.value.includes("$"), false)
+    assert.equal(r.value.includes(","), false)
+  }
+})
+
 test("parseDatePasteValue handles ISO and Excel serial", () => {
   assert.deepEqual(parseDatePasteValue("2025-03-15"), { ok: true, value: "2025-03-15" })
   const serial = parseDatePasteValue("45678")
