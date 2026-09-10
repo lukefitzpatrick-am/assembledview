@@ -22,7 +22,7 @@ function sessionIdentity(auth: {
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request)
-  if ("response" in auth && auth.response) {
+  if ("response" in auth) {
     return auth.response
   }
 

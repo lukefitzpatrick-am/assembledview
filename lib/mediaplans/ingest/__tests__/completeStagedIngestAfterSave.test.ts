@@ -81,6 +81,7 @@ function review(proposal: IngestProposal | null): IngestReviewPackage {
 }
 
 function staged(over: Partial<StagedIngest> = {}): StagedIngest {
+  const { sourceFile, ...rest } = over
   return {
     stageId: STAGE,
     review: review(oohProposal(1)),
@@ -91,7 +92,8 @@ function staged(over: Partial<StagedIngest> = {}): StagedIngest {
     retainedAt: null,
     masterId: null,
     acceptedVersionId: null,
-    ...over,
+    sourceFile: sourceFile ?? null,
+    ...rest,
   }
 }
 

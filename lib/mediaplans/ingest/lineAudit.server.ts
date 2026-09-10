@@ -110,6 +110,7 @@ export function createAnthropicLineAuditClient(): LineAuditClient {
       const response = await client.messages.create({
         model: INGEST_AUDIT_MODEL,
         max_tokens: 16000,
+        stream: false,
         system: LINE_AUDIT_SYSTEM_PROMPT,
         tools: [EMIT_TOOL],
         tool_choice: { type: "tool", name: LINE_AUDIT_TOOL_NAME },
@@ -120,7 +121,7 @@ export function createAnthropicLineAuditClient(): LineAuditClient {
             content: serializeChunkForModel(request),
           },
         ],
-      } as Anthropic.MessageCreateParams)
+      } as Anthropic.MessageCreateParamsNonStreaming)
       const rows = rowsFromResponse(response)
       if (rows.length === 0 && request.data_rows.length > 0) {
         throw new Error(
