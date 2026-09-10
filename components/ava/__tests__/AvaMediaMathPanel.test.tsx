@@ -7,9 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BUY_TYPES_WITH_DERIVED_DELIVERABLES } from "@/lib/mediaplan/deliverableBudget"
 import { solveMediaMath } from "@/lib/mediaplan/solveMediaMath"
-import { formatAUD, formatRate } from "@/lib/format/money"
+import { formatAUD } from "@/lib/format/money"
 
 import {
+  AVA_MEDIA_MATH_COLD_HINT,
   AvaMediaMathPanel,
   type AvaMediaMathPanelProps,
 } from "../AvaMediaMathPanel"
@@ -141,7 +142,8 @@ describe("AvaMediaMathPanel", () => {
     if (!solved.ok) return
     expect(solved.solvedValue).toBe(15)
     const text = resultEl(container)?.textContent ?? ""
-    expect(text).toContain(formatRate(15))
+    expect(text).toContain(formatAUD(15))
+    expect(text).toContain("$15.00")
     expect(text).toContain(solved.formula)
     expect(field(container, "rate")?.readOnly).toBe(true)
   })
@@ -181,6 +183,7 @@ describe("AvaMediaMathPanel", () => {
     chooseBuyType("weekly_rate")
     expect(field(container, "weeks")).toBeTruthy()
     expect(field(container, "months")).toBeNull()
+    expect(field(container, "deliverables")).toBeNull()
     fill("rate", "1000")
     fill("weeks", "4")
     const text = resultEl(container)?.textContent ?? ""
@@ -188,6 +191,21 @@ describe("AvaMediaMathPanel", () => {
     const solved = solveMediaMath({ buyType: "weekly_rate", rate: 1_000, weeks: 4 })
     expect(solved.ok).toBe(true)
     if (solved.ok) expect(text).toContain(solved.formula)
+  })
+
+  it("weekly_rate shows one quantity field and solves from it", () => {
+    render()
+    chooseBuyType("weekly_rate")
+    const weeks = field(container, "weeks")
+    expect(weeks).toBeTruthy()
+    expect(weeks?.getAttribute("id")).toBe("ava-math-weeks")
+    expect(field(container, "deliverables")).toBeNull()
+    expect(container.querySelectorAll('input[data-testid^="ava-math-"]').length).toBe(3)
+    fill("rate", "1000")
+    fill("weeks", "4")
+    const text = resultEl(container)?.textContent ?? ""
+    expect(text).toContain(formatAUD(4_000))
+    expect(text).not.toMatch(/weeks and deliverables both given/)
   })
 
   it("monthly_rate with months: budget 8000 + 2 months → rate $4,000.00", () => {
@@ -198,7 +216,9 @@ describe("AvaMediaMathPanel", () => {
     fill("budget", "8000")
     fill("months", "2")
     const text = resultEl(container)?.textContent ?? ""
-    expect(text).toContain(formatRate(4_000))
+    expect(text).toContain(formatAUD(4_000))
+    expect(text).toContain("$4,000.00")
+    expect(field(container, "deliverables")).toBeNull()
   })
 
   it("hides weeks/months except for weekly_rate / monthly_rate", () => {
@@ -206,6 +226,16 @@ describe("AvaMediaMathPanel", () => {
     chooseBuyType("cpm")
     expect(field(container, "weeks")).toBeNull()
     expect(field(container, "months")).toBeNull()
+    expect(field(container, "deliverables")).toBeTruthy()
+  })
+
+  it("cold start renders the hint not a refusal", () => {
+    render()
+    const text = resultEl(container)?.textContent ?? ""
+    expect(text).toBe(AVA_MEDIA_MATH_COLD_HINT)
+    expect(text).not.toMatch(/Exactly two/)
+    expect(text).not.toMatch(/Missing:/)
+    expect(text).not.toMatch(/required/i)
   })
 
   it("renders the solver reason for three inputs", () => {

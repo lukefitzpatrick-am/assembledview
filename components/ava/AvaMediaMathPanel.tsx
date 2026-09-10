@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatNumberAU } from "@/lib/format/chartFormat"
-import { formatAUD, formatRate, parseMoneyInput } from "@/lib/format/money"
+import { formatAUD, parseMoneyInput } from "@/lib/format/money"
 import { BUY_TYPES_WITH_DERIVED_DELIVERABLES } from "@/lib/mediaplan/deliverableBudget"
 import {
   solveMediaMath,
@@ -19,6 +19,9 @@ export type AvaMediaMathPanelProps = {
 }
 
 const BUY_TYPE_OPTIONS = [...BUY_TYPES_WITH_DERIVED_DELIVERABLES]
+
+/** Cold start: no values yet. Solver refusals stay hidden until a field is filled. */
+export const AVA_MEDIA_MATH_COLD_HINT = "Enter two values to solve the third."
 
 function parseOptionalNumber(raw: string): number | undefined {
   const trimmed = raw.trim()
@@ -35,8 +38,7 @@ function formatSolvedValue(
   field: SolveMediaMathOk["solvedField"],
   value: number,
 ): string {
-  if (field === "budget") return formatAUD(value)
-  if (field === "rate") return formatRate(value)
+  if (field === "budget" || field === "rate") return formatAUD(value)
   return formatDeliverables(value)
 }
 
@@ -74,20 +76,48 @@ export function AvaMediaMathPanel({ onPrefillComposer }: AvaMediaMathPanelProps)
 
   const showWeeks = buyType === "weekly_rate"
   const showMonths = buyType === "monthly_rate"
+  const quantityKind = showWeeks ? "weeks" : showMonths ? "months" : "deliverables"
+  const quantityLabel =
+    quantityKind === "weeks" ? "Weeks" : quantityKind === "months" ? "Months" : "Deliverables"
+  const quantityRaw = showWeeks ? weeksRaw : showMonths ? monthsRaw : deliverablesRaw
+  const setQuantityRaw = showWeeks
+    ? setWeeksRaw
+    : showMonths
+      ? setMonthsRaw
+      : setDeliverablesRaw
+
+  const hasAnyInput = [budgetRaw, rateRaw, deliverablesRaw, weeksRaw, monthsRaw].some(
+    (s) => s.trim() !== "",
+  )
 
   const result = useMemo((): SolveMediaMathResult => {
     return solveMediaMath({
       buyType,
       budget: parseOptionalNumber(budgetRaw),
       rate: parseOptionalNumber(rateRaw),
-      deliverables: parseOptionalNumber(deliverablesRaw),
-      weeks: showWeeks ? parseOptionalNumber(weeksRaw) : undefined,
-      months: showMonths ? parseOptionalNumber(monthsRaw) : undefined,
+      deliverables:
+        quantityKind === "deliverables"
+          ? parseOptionalNumber(deliverablesRaw)
+          : undefined,
+      weeks: quantityKind === "weeks" ? parseOptionalNumber(weeksRaw) : undefined,
+      months: quantityKind === "months" ? parseOptionalNumber(monthsRaw) : undefined,
     })
-  }, [buyType, budgetRaw, rateRaw, deliverablesRaw, weeksRaw, monthsRaw, showWeeks, showMonths])
+  }, [
+    buyType,
+    budgetRaw,
+    rateRaw,
+    deliverablesRaw,
+    weeksRaw,
+    monthsRaw,
+    quantityKind,
+  ])
 
   const solvedField = result.ok ? result.solvedField : null
-  const slotText = resultSlotText(result)
+  const slotText = hasAnyInput ? resultSlotText(result) : AVA_MEDIA_MATH_COLD_HINT
+  const quantitySolved = solvedField === "deliverables"
+  const quantityValue = quantitySolved
+    ? (result.ok ? finiteDisplay(result) : null) ?? quantityRaw
+    : quantityRaw
   const displayOrRaw = (
     field: SolveMediaMathOk["solvedField"],
     raw: string,
@@ -137,32 +167,13 @@ export function AvaMediaMathPanel({ onPrefillComposer }: AvaMediaMathPanelProps)
             onChange={setRateRaw}
           />
           <MathField
-            id="ava-math-deliverables"
-            label="Deliverables"
-            value={displayOrRaw("deliverables", deliverablesRaw)}
-            readOnly={solvedField === "deliverables"}
-            onChange={setDeliverablesRaw}
+            id={`ava-math-${quantityKind}`}
+            label={quantityLabel}
+            value={quantityValue}
+            readOnly={quantitySolved}
+            onChange={setQuantityRaw}
           />
         </div>
-
-        {showWeeks ? (
-          <MathField
-            id="ava-math-weeks"
-            label="Weeks"
-            value={weeksRaw}
-            readOnly={false}
-            onChange={setWeeksRaw}
-          />
-        ) : null}
-        {showMonths ? (
-          <MathField
-            id="ava-math-months"
-            label="Months"
-            value={monthsRaw}
-            readOnly={false}
-            onChange={setMonthsRaw}
-          />
-        ) : null}
 
         <p
           data-testid="ava-math-result"

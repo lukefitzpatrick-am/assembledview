@@ -782,7 +782,11 @@ export function ChatWidget({
           </div>
 
           {!isCollapsed && calcOpen ? (
-            <AvaMediaMathPanel onPrefillComposer={setInput} />
+            <AvaMediaMathPanel
+              onPrefillComposer={(text) => {
+                setInput((prev) => (prev ? `${prev} ${text}` : text))
+              }}
+            />
           ) : null}
 
           {!isCollapsed && (
