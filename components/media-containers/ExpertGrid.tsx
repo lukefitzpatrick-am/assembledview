@@ -244,6 +244,8 @@ import {
   resolveWeekCellContextMenuTarget,
   asyncClipboardReadAvailable,
   WEEK_CELL_CONTEXT_MENU_PASTE_UNAVAILABLE_REASON,
+  WEEK_CELL_CONTEXT_MENU_NO_SELECTION_REASON,
+  requireWeeklyMenuSelection,
   deriveMergeEligibility as deriveSearchMergeEligibility,
   weekCellExportText,
   mergedWeekSpansAfterCutRect,
@@ -403,6 +405,24 @@ export interface ExpertGridProps<TRow extends ExpertScheduleRowCommon = ExpertSc
 
 
 type SearchExpertFocusedCell = { rowIndex: number; columnKey: string }
+
+type WeekCellContextMenuState = {
+  x: number
+  y: number
+  returnFocusTo: HTMLElement
+  selection: WeeklyExportSelection | null
+  focusedCell: SearchExpertFocusedCell | null
+  weekRectSelection: SearchWeekRectSelection | null
+  weekMultiSelect: { rowIndex: number; keys: string[] } | null
+  weekStripSelection: { rowIndex: number } | null
+}
+
+type WeekPasteSourceOverride = {
+  focusedCell: SearchExpertFocusedCell
+  weekRectSelection: SearchWeekRectSelection | null
+  weekStripSelection: { rowIndex: number } | null
+  weekMultiSelect: { rowIndex: number; keys: string[] } | null
+}
 type WeekDragSource =
   | {
       type: "single"
@@ -571,11 +591,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     weekKey: string
     valid: boolean
   } | null>(null)
-  const [weekContextMenu, setWeekContextMenu] = useState<{
-    x: number
-    y: number
-    returnFocusTo: HTMLElement
-  } | null>(null)
+  const [weekContextMenu, setWeekContextMenu] =
+    useState<WeekCellContextMenuState | null>(null)
   const fillHandleDraggingRef = useRef(false)
   const weekAreaDragRef = useRef<{
     rowIndex: number
@@ -2553,7 +2570,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   )
 
   const pasteMatrixIntoGrid = useCallback(
-    (matrix: string[][]) => {
+    (matrix: string[][], source?: WeekPasteSourceOverride) => {
       if (!matrix || matrix.length === 0) return
 
       // Paste is deliverables-only: silently interpreting clipboard numbers
@@ -2568,7 +2585,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         return
       }
 
-      const fc = focusedCellRef.current
+      const fc = source?.focusedCell ?? focusedCellRef.current
       if (!fc) {
         toast({
           variant: "destructive",
@@ -2612,9 +2629,11 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             weekColumns,
             anchorRow: fc.rowIndex,
             anchorWeekKey: fc.columnKey,
-            weekRectSelection: weekRectSelectionRef.current,
-            weekStripSelection: weekStripSelectionRef.current,
-            weekMultiSelect: weekMultiSelectRef.current,
+            weekRectSelection:
+              source?.weekRectSelection ?? weekRectSelectionRef.current,
+            weekStripSelection:
+              source?.weekStripSelection ?? weekStripSelectionRef.current,
+            weekMultiSelect: source?.weekMultiSelect ?? weekMultiSelectRef.current,
             weekKeys,
             rowCount: normalizedRows.length,
             nextRows,
@@ -2897,6 +2916,16 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         sel,
         weekKeys
       )
+      let capturedSel = sel
+      let capturedFocus = focusedCellRef.current
+      let capturedRect = weekRectSelectionRef.current
+      let capturedMulti = weekMultiSelectRef.current
+        ? {
+            rowIndex: weekMultiSelectRef.current.rowIndex,
+            keys: [...weekMultiSelectRef.current.keys],
+          }
+        : null
+      let capturedStrip = weekStripSelectionRef.current
       if (target.action === "collapse") {
         focusedCellRef.current = target.focusedCell
         setFocusedCell(target.focusedCell)
@@ -2905,6 +2934,11 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         setWeekMultiSelect(null)
         setWeekStripSelection(null)
         lastWeekAnchorRef.current = { rowIndex, weekKey }
+        capturedSel = { kind: "rect", rect: target.weekRect }
+        capturedFocus = target.focusedCell
+        capturedRect = target.weekRect
+        capturedMulti = null
+        capturedStrip = null
       }
       setWeekContextMenu({
         x: e.clientX,
@@ -2913,33 +2947,72 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
           e.target instanceof HTMLElement
             ? e.target
             : (e.currentTarget as HTMLElement),
+        selection: capturedSel,
+        focusedCell: capturedFocus,
+        weekRectSelection: capturedRect,
+        weekMultiSelect: capturedMulti,
+        weekStripSelection: capturedStrip,
       })
     },
     [isSelecting, resolveCurrentWeeklyExportSelection, weekKeys]
   )
 
-  const pasteFromWeekContextMenu = useCallback(() => {
-    void (async () => {
-      let matrix = await readClipboardMatrixAsync()
-      if (!matrix?.length) {
+  const pasteFromWeekContextMenu = useCallback(
+    (menu: WeekCellContextMenuState) => {
+      void (async () => {
+        if (!menu.focusedCell) {
+          toast({
+            variant: "destructive",
+            title: "Paste skipped",
+            description: WEEK_CELL_CONTEXT_MENU_NO_SELECTION_REASON,
+          })
+          return
+        }
+        const pasteSource: WeekPasteSourceOverride = {
+          focusedCell: menu.focusedCell,
+          weekRectSelection: menu.weekRectSelection,
+          weekStripSelection: menu.weekStripSelection,
+          weekMultiSelect: menu.weekMultiSelect,
+        }
+        let matrix = await readClipboardMatrixAsync()
+        if (!matrix?.length) {
+          toast({
+            variant: "destructive",
+            title: "Paste unavailable",
+            description: WEEK_CELL_CONTEXT_MENU_PASTE_UNAVAILABLE_REASON,
+          })
+          return
+        }
+        matrix = trimEmptyEdgeColumns(matrix)
+        if (!matrix.length) {
+          toast({
+            variant: "destructive",
+            title: "Paste skipped",
+            description: "The clipboard did not contain any cells to paste.",
+          })
+          return
+        }
+        pasteMatrixIntoGrid(matrix, pasteSource)
+      })()
+    },
+    [pasteMatrixIntoGrid, toast]
+  )
+
+  const deleteFromWeekContextMenu = useCallback(
+    (sel: WeeklyExportSelection | null) => {
+      const req = requireWeeklyMenuSelection(sel)
+      if (!req.ok) {
         toast({
           variant: "destructive",
-          title: "Paste unavailable",
-          description: WEEK_CELL_CONTEXT_MENU_PASTE_UNAVAILABLE_REASON,
+          title: "Delete skipped",
+          description: req.reason,
         })
         return
       }
-      matrix = trimEmptyEdgeColumns(matrix)
-      if (!matrix.length) return
-      pasteMatrixIntoGrid(matrix)
-    })()
-  }, [pasteMatrixIntoGrid, toast])
-
-  const deleteFromWeekContextMenu = useCallback(() => {
-    const sel = resolveCurrentWeeklyExportSelection()
-    if (!sel) return
-    commitResolvedWeeklyCut(sel)
-  }, [commitResolvedWeeklyCut, resolveCurrentWeeklyExportSelection])
+      commitResolvedWeeklyCut(req.selection)
+    },
+    [commitResolvedWeeklyCut, toast]
+  )
 
   const handleWeekCellDeleteOrBackspace = useCallback(
     (e: KeyboardEvent<HTMLElement>): boolean => {
@@ -2958,9 +3031,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     ]
   )
 
-  const copySelectedWeekRangeToClipboard = useCallback(async (): Promise<boolean> => {
+  const copySelectedWeekRangeToClipboard = useCallback(async (
+    sel: WeeklyExportSelection | null = resolveCurrentWeeklyExportSelection()
+  ): Promise<boolean> => {
     const rows = normalizedRowsRef.current
-    const sel = resolveCurrentWeeklyExportSelection()
     if (!sel) return false
     const text = buildWeeklyExportTsv(sel, rows, weekKeys)
     if (!text) return false
@@ -2982,9 +3056,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     }
   }, [resolveCurrentWeeklyExportSelection, weekKeys])
 
-  const cutSelectedWeekRangeToClipboard = useCallback(async (): Promise<boolean> => {
+  const cutSelectedWeekRangeToClipboard = useCallback(async (
+    sel: WeeklyExportSelection | null = resolveCurrentWeeklyExportSelection()
+  ): Promise<boolean> => {
     const rows = normalizedRowsRef.current
-    const sel = resolveCurrentWeeklyExportSelection()
     if (!sel) return false
     const text = buildWeeklyExportTsv(sel, rows, weekKeys)
     if (!text) return false
@@ -3016,6 +3091,56 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     toast,
     weekKeys,
   ])
+
+  const copyFromWeekContextMenu = useCallback(
+    (sel: WeeklyExportSelection | null) => {
+      const req = requireWeeklyMenuSelection(sel)
+      if (!req.ok) {
+        toast({
+          variant: "destructive",
+          title: "Copy skipped",
+          description: req.reason,
+        })
+        return
+      }
+      void (async () => {
+        const ok = await copySelectedWeekRangeToClipboard(req.selection)
+        if (!ok) {
+          toast({
+            variant: "destructive",
+            title: "Copy failed",
+            description: "The selection could not be copied to the clipboard.",
+          })
+        }
+      })()
+    },
+    [copySelectedWeekRangeToClipboard, toast]
+  )
+
+  const cutFromWeekContextMenu = useCallback(
+    (sel: WeeklyExportSelection | null) => {
+      const req = requireWeeklyMenuSelection(sel)
+      if (!req.ok) {
+        toast({
+          variant: "destructive",
+          title: "Cut skipped",
+          description: req.reason,
+        })
+        return
+      }
+      void (async () => {
+        const ok = await cutSelectedWeekRangeToClipboard(req.selection)
+        if (!ok) {
+          toast({
+            variant: "destructive",
+            title: "Cut skipped",
+            description: "The selection could not be cut.",
+          })
+        }
+      })()
+    },
+    [cutSelectedWeekRangeToClipboard, toast]
+  )
 
   const handlePasteCapture = useCallback(
     (e: React.ClipboardEvent) => {
@@ -5601,13 +5726,17 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             !asyncClipboardReadAvailable(navigator.clipboard)
           }
           onCut={() => {
-            void cutSelectedWeekRangeToClipboard()
+            cutFromWeekContextMenu(weekContextMenu.selection)
           }}
           onCopy={() => {
-            void copySelectedWeekRangeToClipboard()
+            copyFromWeekContextMenu(weekContextMenu.selection)
           }}
-          onPaste={pasteFromWeekContextMenu}
-          onDelete={deleteFromWeekContextMenu}
+          onPaste={() => {
+            pasteFromWeekContextMenu(weekContextMenu)
+          }}
+          onDelete={() => {
+            deleteFromWeekContextMenu(weekContextMenu.selection)
+          }}
           onClose={closeWeekContextMenu}
         />
       ) : null}

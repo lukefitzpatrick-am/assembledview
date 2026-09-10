@@ -14,7 +14,10 @@ import {
   asyncClipboardReadAvailable,
   buildWeeklyExportTsv,
   canOpenWeekCellContextMenu,
+  requireWeeklyMenuSelection,
   resolveWeekCellContextMenuTarget,
+  resolveWeeklyExportSelection,
+  WEEK_CELL_CONTEXT_MENU_NO_SELECTION_REASON,
   type ExpertGridRowWithWeekly,
 } from "../expertGridShared.js"
 
@@ -71,15 +74,39 @@ test("CE4: right-click outside a multi-cell selection collapses to that cell", (
   assert.equal(result.weekRect.weekKeyEnd, "2026-01-19")
 })
 
-test("CE4: menu Copy uses the same TSV builder as Ctrl+C", () => {
+test("CE4: menu Copy on a captured selection produces the same TSV as Ctrl+C", () => {
   const rows = [row(10, 20, 30), row(40, 50, 60)]
-  const tsv = buildWeeklyExportTsv(TWO_BY_TWO, rows, WEEK_KEYS)
-  assert.equal(tsv, "10\t20\n40\t50")
+  const captured = TWO_BY_TWO
+  const keyboardTsv = buildWeeklyExportTsv(TWO_BY_TWO, rows, WEEK_KEYS)
+  const liveAfterPortalPointerDown = resolveWeeklyExportSelection(
+    null,
+    null,
+    null,
+    null,
+    null,
+    WEEK_KEYS,
+    rows
+  )
+  assert.equal(liveAfterPortalPointerDown, null)
+  const menuTsv = buildWeeklyExportTsv(captured, rows, WEEK_KEYS)
+  assert.equal(menuTsv, keyboardTsv)
+  assert.equal(menuTsv, "10\t20\n40\t50")
 })
 
-test("CE4: menu Cut clears the same cells as Ctrl+X", () => {
+test("CE4: menu Cut clears exactly the captured cells", () => {
   const rows = [row(10, 20, 30), row(40, 50, 60)]
-  const next = applyWeeklyCutToRows(TWO_BY_TWO, rows, WEEK_KEYS)
+  const captured = TWO_BY_TWO
+  const liveAfterPortalPointerDown = resolveWeeklyExportSelection(
+    null,
+    null,
+    null,
+    null,
+    null,
+    WEEK_KEYS,
+    rows
+  )
+  assert.equal(liveAfterPortalPointerDown, null)
+  const next = applyWeeklyCutToRows(captured, rows, WEEK_KEYS)
   assert.ok(next)
   assert.equal(next![0]!.weeklyValues["2026-01-05"], "")
   assert.equal(next![0]!.weeklyValues["2026-01-12"], "")
@@ -87,6 +114,46 @@ test("CE4: menu Cut clears the same cells as Ctrl+X", () => {
   assert.equal(next![1]!.weeklyValues["2026-01-12"], "")
   assert.equal(next![0]!.weeklyValues["2026-01-19"], 30)
   assert.equal(next![1]!.weeklyValues["2026-01-19"], 60)
+})
+
+test("CE4: menu Delete clears on the first press with no re-select", () => {
+  const rows = [row(10, 20, 30), row(40, 50, 60)]
+  const captured = TWO_BY_TWO
+  const liveAfterPortalPointerDown = resolveWeeklyExportSelection(
+    null,
+    null,
+    null,
+    null,
+    null,
+    WEEK_KEYS,
+    rows
+  )
+  assert.equal(
+    liveAfterPortalPointerDown,
+    null,
+    "live selection is gone after body-portal pointerdown — Delete must not wait for a re-select"
+  )
+  const firstPress = applyWeeklyCutToRows(captured, rows, WEEK_KEYS)
+  assert.ok(firstPress)
+  assert.equal(firstPress![0]!.weeklyValues["2026-01-05"], "")
+  assert.equal(firstPress![0]!.weeklyValues["2026-01-12"], "")
+  assert.equal(firstPress![1]!.weeklyValues["2026-01-05"], "")
+  assert.equal(firstPress![1]!.weeklyValues["2026-01-12"], "")
+  assert.equal(firstPress![0]!.weeklyValues["2026-01-19"], 30)
+  assert.equal(firstPress![1]!.weeklyValues["2026-01-19"], 60)
+})
+
+test("CE4: a null menu selection surfaces a reason instead of returning silently", () => {
+  const missing = requireWeeklyMenuSelection(null)
+  assert.equal(missing.ok, false)
+  if (missing.ok) return
+  assert.equal(missing.reason, WEEK_CELL_CONTEXT_MENU_NO_SELECTION_REASON)
+  assert.ok(missing.reason.length > 0)
+
+  const present = requireWeeklyMenuSelection(TWO_BY_TWO)
+  assert.equal(present.ok, true)
+  if (!present.ok) return
+  assert.equal(present.selection, TWO_BY_TWO)
 })
 
 test("CE4: week-cell context menu is suppressed while a drag is in flight", () => {

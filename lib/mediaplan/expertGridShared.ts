@@ -1136,6 +1136,18 @@ export function asyncClipboardReadAvailable(
 export const WEEK_CELL_CONTEXT_MENU_PASTE_UNAVAILABLE_REASON =
   "Clipboard read needs a keyboard paste (Ctrl+V) or a browser clipboard-permission prompt. Menu Paste cannot use the native paste event."
 
+export const WEEK_CELL_CONTEXT_MENU_NO_SELECTION_REASON =
+  "No week cells are selected. The selection was cleared before this action ran."
+
+export function requireWeeklyMenuSelection(
+  sel: WeeklyExportSelection | null
+):
+  | { ok: true; selection: WeeklyExportSelection }
+  | { ok: false; reason: string } {
+  if (sel) return { ok: true, selection: sel }
+  return { ok: false, reason: WEEK_CELL_CONTEXT_MENU_NO_SELECTION_REASON }
+}
+
 export function deriveMergeEligibility(
   rect: ExpertWeekRectSelection | null,
   multi: { rowIndex: number; keys: string[] } | null,
