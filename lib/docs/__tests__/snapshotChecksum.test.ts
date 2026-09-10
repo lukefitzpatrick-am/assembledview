@@ -119,6 +119,9 @@ describe("PC3 isApprovedOrBeyond", () => {
   })
 })
 
+/** Pins jsPDF /CreationDate so a.equals(b) is not the wall clock. */
+const FIXED_PDF_CREATION_DATE = new Date(Date.UTC(1970, 0, 1, 0, 0, 0))
+
 describe("PC3 MBA PDF byte-identical fixture", () => {
   it("generates identical bytes twice for the same MBAData", async () => {
     const hash = computeSnapshotChecksum({
@@ -155,8 +158,8 @@ describe("PC3 MBA PDF byte-identical fixture", () => {
       checksumFooter: footer,
     }
 
-    const a = Buffer.from(await (await generateMBA(data)).arrayBuffer())
-    const b = Buffer.from(await (await generateMBA(data)).arrayBuffer())
+    const a = Buffer.from(await (await generateMBA(data, FIXED_PDF_CREATION_DATE)).arrayBuffer())
+    const b = Buffer.from(await (await generateMBA(data, FIXED_PDF_CREATION_DATE)).arrayBuffer())
     assert.equal(a.length, b.length)
     assert.ok(a.equals(b), "PDF bytes must be identical for identical MBAData")
     // Footer string is embedded as PDF text.

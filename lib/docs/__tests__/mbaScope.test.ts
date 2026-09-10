@@ -281,6 +281,9 @@ describe("checksum ignores scope", () => {
   })
 })
 
+/** Pins jsPDF /CreationDate so a.equals(b) is not the wall clock. */
+const FIXED_PDF_CREATION_DATE = new Date(Date.UTC(1970, 0, 1, 0, 0, 0))
+
 describe("generateMBA scope header", () => {
   it("embeds the radio/September scope string on a partial MBA", async () => {
     const data = fixtureMbaData({
@@ -316,9 +319,9 @@ describe("generateMBA scope header", () => {
         totalLineCount: 1,
       },
     })
-    const a = Buffer.from(await (await generateMBA(data)).arrayBuffer())
-    const b = Buffer.from(await (await generateMBA(data)).arrayBuffer())
-    const c = Buffer.from(await (await generateMBA(withFalseScope)).arrayBuffer())
+    const a = Buffer.from(await (await generateMBA(data, FIXED_PDF_CREATION_DATE)).arrayBuffer())
+    const b = Buffer.from(await (await generateMBA(data, FIXED_PDF_CREATION_DATE)).arrayBuffer())
+    const c = Buffer.from(await (await generateMBA(withFalseScope, FIXED_PDF_CREATION_DATE)).arrayBuffer())
     const latin1 = a.toString("latin1")
     assert.equal(latin1.includes("Partial MBA"), false)
     assert.equal(latin1.includes("Scope:"), false)

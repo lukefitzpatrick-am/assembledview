@@ -88,7 +88,10 @@ const getImageBase64 = async (url: string) => {
 };
 
 
-export async function generateMBA(mbaData: MBAData): Promise<Blob> {
+export async function generateMBA(
+  mbaData: MBAData,
+  creationDate?: Date,
+): Promise<Blob> {
   // Fetch the logo first
   const logoBase64 = await getImageBase64('/assembled-logo.png');
 
@@ -97,6 +100,14 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
     unit: 'mm',
     format: 'a4',
   });
+
+  // jsPDF's constructor already called setCreationDate() with new Date().
+  // setProperties() does not reach that variable (documentProperties is
+  // title/subject/author/keywords/creator only). Tests pass a fixed Date so
+  // /CreationDate is stable; production omits this and keeps a real stamp.
+  if (creationDate) {
+    doc.setCreationDate(creationDate);
+  }
 
   // Deterministic PDF metadata — same input ⇒ byte-identical output (PC3).
   // (jsPDF DocumentProperties typings omit creationDate/modDate; cast is intentional.)

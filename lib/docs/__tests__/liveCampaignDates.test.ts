@@ -220,6 +220,9 @@ describe("full MBA + live dates does not set liveOverlay", () => {
   })
 })
 
+/** Pins jsPDF /CreationDate so a.equals(b) is not the wall clock. */
+const FIXED_PDF_CREATION_DATE = new Date(Date.UTC(1970, 0, 1, 0, 0, 0))
+
 describe("generateMBA datesUnsaved line", () => {
   it("prints live campaign dates and does not draw the unsaved-dates line", async () => {
     const data = fixtureMbaData({
@@ -235,10 +238,10 @@ describe("generateMBA datesUnsaved line", () => {
 
   it("datesUnsaved true does not change PDF bytes when campaign dates match", async () => {
     const a = Buffer.from(
-      await (await generateMBA(fixtureMbaData())).arrayBuffer()
+      await (await generateMBA(fixtureMbaData(), FIXED_PDF_CREATION_DATE)).arrayBuffer()
     )
     const b = Buffer.from(
-      await (await generateMBA(fixtureMbaData({ datesUnsaved: true }))).arrayBuffer()
+      await (await generateMBA(fixtureMbaData({ datesUnsaved: true }), FIXED_PDF_CREATION_DATE)).arrayBuffer()
     )
     assert.ok(a.equals(b), "datesUnsaved must not draw or advance the y-cursor")
   })
@@ -246,9 +249,9 @@ describe("generateMBA datesUnsaved line", () => {
   it("omits the watermark and stays byte-identical when datesUnsaved is absent", async () => {
     const data = fixtureMbaData()
     const withFalse = fixtureMbaData({ datesUnsaved: false })
-    const a = Buffer.from(await (await generateMBA(data)).arrayBuffer())
-    const b = Buffer.from(await (await generateMBA(data)).arrayBuffer())
-    const c = Buffer.from(await (await generateMBA(withFalse)).arrayBuffer())
+    const a = Buffer.from(await (await generateMBA(data, FIXED_PDF_CREATION_DATE)).arrayBuffer())
+    const b = Buffer.from(await (await generateMBA(data, FIXED_PDF_CREATION_DATE)).arrayBuffer())
+    const c = Buffer.from(await (await generateMBA(withFalse, FIXED_PDF_CREATION_DATE)).arrayBuffer())
     const latin1 = a.toString("latin1")
     assert.ok(latin1.includes("Campaign Dates: From 01/01/2026 to 31/12/2026"))
     assert.equal(latin1.includes("Dates as edited in the plan"), false)
