@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BUY_TYPES_WITH_DERIVED_DELIVERABLES } from "@/lib/mediaplan/deliverableBudget"
 import { solveMediaMath } from "@/lib/mediaplan/solveMediaMath"
-import { formatAUD } from "@/lib/format/money"
+import { formatAUD, formatRate } from "@/lib/format/money"
 
 import {
   AVA_MEDIA_MATH_COLD_HINT,
@@ -142,10 +142,49 @@ describe("AvaMediaMathPanel", () => {
     if (!solved.ok) return
     expect(solved.solvedValue).toBe(15)
     const text = resultEl(container)?.textContent ?? ""
-    expect(text).toContain(formatAUD(15))
+    expect(text).toContain(formatRate(15))
     expect(text).toContain("$15.00")
     expect(text).toContain(solved.formula)
+    expect(field(container, "rate")?.value).toBe("$15.00")
     expect(field(container, "rate")?.readOnly).toBe(true)
+  })
+
+  it("cpv: budget 5000 + deliverables 213,675 → rate $0.0234, not $0.02", () => {
+    render()
+    chooseBuyType("cpv")
+    fill("budget", "5000")
+    fill("deliverables", "213675")
+    const rate = field(container, "rate")
+    const text = resultEl(container)?.textContent ?? ""
+    expect(rate?.value).toBe("$0.0234")
+    expect(rate?.value).not.toBe("$0.02")
+    expect(text).toContain("$0.0234")
+    expect(text).not.toMatch(/\$0\.02(?!\d)/)
+  })
+
+  it("cpc: budget 1000 + deliverables 19,048 → rate keeps 4 decimal places", () => {
+    render()
+    chooseBuyType("cpc")
+    fill("budget", "1000")
+    fill("deliverables", "19048")
+    const rate = field(container, "rate")
+    const text = resultEl(container)?.textContent ?? ""
+    expect(rate?.value).toBe(formatRate(0.0525))
+    expect(rate?.value).toBe("$0.0525")
+    expect(rate?.value).not.toBe("$0.05")
+    expect(text).toContain("$0.0525")
+  })
+
+  it("budget field still renders $50,000.00 via formatAUD", () => {
+    render()
+    chooseBuyType("cpm")
+    fill("rate", "12.50")
+    fill("deliverables", "4000000")
+    const budget = field(container, "budget")
+    const text = resultEl(container)?.textContent ?? ""
+    expect(budget?.value).toBe(formatAUD(50_000))
+    expect(budget?.value).toBe("$50,000.00")
+    expect(text).toContain("$50,000.00")
   })
 
   it("cpc: budget 10000 + rate 2.50 → 4,000 clicks", () => {

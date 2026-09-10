@@ -80,8 +80,8 @@ pct === 100 → fee = 0 (division guard)
 
 - `bonus` / `package_inclusions` return **`NaN` as a "no recompute" sentinel** — callers preserve the existing value. Never treat that NaN as 0.
 - CPM inverse = `(deliverables/1000) × unitRate`; forward = `(netBudget/unitRate) × 1000`.
-- Pair solver is `lib/mediaplan/solveMediaMath.ts` (rate inverse of `deliverablesFromBudget`; budget via `netMediaFromDeliverables`). AVA `calculate_media_math` answers only — it never writes the form. `fixed_cost` and types outside `BUY_TYPES_WITH_DERIVED_DELIVERABLES` refuse; divide-by-zero and negatives refuse.
-- The visible calculator (`components/ava/AvaMediaMathPanel.tsx`) never writes the plan form. Send to Ava prefills the composer only.
+- Pair solver is `lib/mediaplan/solveMediaMath.ts` (rate inverse of `deliverablesFromBudget`; budget via `netMediaFromDeliverables`). AVA `calculate_media_math` answers only — it never writes the form. `fixed_cost` and types outside `BUY_TYPES_WITH_DERIVED_DELIVERABLES` refuse; divide-by-zero and negatives refuse. A derived rate is rounded with `roundMoney4`, not cents.
+- The visible calculator (`components/ava/AvaMediaMathPanel.tsx`) never writes the plan form. Send to Ava prefills the composer only. Solved rate displays via `formatRate`; budget via `formatAUD`.
 - `fixed_cost` → 1 deliverable, everywhere.
 - 18 runtime buy types: package, spots, cpt, cpp, panels, insertions, cpm, cpc, screens, cpcv, cpi, cps, cpv, fixed_cost, weekly_rate, monthly_rate, package_inclusions, bonus.
 - `ProductionContainer` is structurally outside every shared container model — exclude it from "apply to all containers" changes.

@@ -51,6 +51,24 @@ describe("solveMediaMath", () => {
     assert.equal(roundMoneyCents(15), 15)
   })
 
+  it("cpv: $5,000 / 213,675 views → rate 0.0234 (4 dp, not cents)", () => {
+    const r = assertOk(
+      solveMediaMath({ buyType: "cpv", budget: 5_000, deliverables: 213_675 }),
+    )
+    assert.equal(r.solvedField, "rate")
+    assert.equal(r.solvedValue, 0.0234)
+    assert.notEqual(r.solvedValue, 0.02)
+  })
+
+  it("cpc: $1,000 / 19,048 clicks → rate 0.0525 (4 dp)", () => {
+    const r = assertOk(
+      solveMediaMath({ buyType: "cpc", budget: 1_000, deliverables: 19_048 }),
+    )
+    assert.equal(r.solvedField, "rate")
+    assert.equal(r.solvedValue, 0.0525)
+    assert.notEqual(r.solvedValue, 0.05)
+  })
+
   it("cpc: $10,000 at $2.50 → 4,000 clicks; round-trips within a cent", () => {
     const d = assertOk(
       solveMediaMath({ buyType: "cpc", budget: 10_000, rate: 2.5 }),

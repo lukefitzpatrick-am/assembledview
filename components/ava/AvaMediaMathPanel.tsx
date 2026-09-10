@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatNumberAU } from "@/lib/format/chartFormat"
-import { formatAUD, parseMoneyInput } from "@/lib/format/money"
+import { formatAUD, formatRate, parseMoneyInput } from "@/lib/format/money"
 import { BUY_TYPES_WITH_DERIVED_DELIVERABLES } from "@/lib/mediaplan/deliverableBudget"
 import {
   solveMediaMath,
@@ -38,7 +38,8 @@ function formatSolvedValue(
   field: SolveMediaMathOk["solvedField"],
   value: number,
 ): string {
-  if (field === "budget" || field === "rate") return formatAUD(value)
+  if (field === "budget") return formatAUD(value)
+  if (field === "rate") return formatRate(value)
   return formatDeliverables(value)
 }
 

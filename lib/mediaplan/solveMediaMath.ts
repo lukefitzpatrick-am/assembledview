@@ -1,3 +1,4 @@
+import { roundMoney4 } from "@/lib/format/money"
 import {
   BUY_TYPES_WITH_DERIVED_DELIVERABLES,
   type BuyType,
@@ -222,8 +223,8 @@ export function solveMediaMath(input: SolveMediaMathInput): SolveMediaMathResult
   if (rawRate === 0) {
     return refuse("rate is 0 — cannot divide by zero.")
   }
-  const roundedRate = roundMoneyCents(rawRate)
-  if (roundedRate !== rawRate) roundingApplied.push("rate rounded to cents")
+  const roundedRate = roundMoney4(rawRate)
+  if (roundedRate !== rawRate) roundingApplied.push("rate rounded to 4 decimal places")
   const dRounded = roundDeliverables(buyType, deliverables)
   if (dRounded !== deliverables) roundingApplied.push("deliverables rounded to whole units")
   return {
