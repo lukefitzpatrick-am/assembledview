@@ -11,6 +11,12 @@ import {
   mapStandardOohLineItemsToExpertRows,
   mapStandardRadioLineItemsToExpertRows,
   mapStandardNewspaperLineItemsToExpertRows,
+  mapStandardTvLineItemsToExpertRows,
+  mapTvExpertRowsToStandardLineItems,
+  mapStandardBvodLineItemsToExpertRows,
+  mapBvodExpertRowsToStandardLineItems,
+  mapStandardDigiAudioLineItemsToExpertRows,
+  mapDigitalAudioExpertRowsToStandardLineItems,
 } from "../../lib/mediaplan/expertChannelMappings.js"
 import { format } from "date-fns"
 
@@ -647,4 +653,172 @@ test("deriveOohExpertRowScheduleYmd spans first and last week with non-zero qty"
   assert.match(endDate, /^\d{4}-\d{2}-\d{2}$/)
   assert.ok(startDate <= endDate)
   assert.notEqual(startDate, endDate)
+})
+
+function sumWeekly(v: Record<string, number | "">): number {
+  return Object.values(v).reduce<number>((s, x) => s + (x === "" ? 0 : Number(x)), 0)
+}
+
+function assertFullWeekQtyOnSpan(
+  row: {
+    weeklyValues: Record<string, number | "">
+    mergedWeekSpans?: ReadonlyArray<{ totalQty: number }> | null
+  },
+  weekKey: string,
+  qty: number
+) {
+  const spanQty = (row.mergedWeekSpans ?? []).reduce((s, sp) => s + sp.totalQty, 0)
+  assert.equal(spanQty + sumWeekly(row.weeklyValues), qty)
+  assert.equal(row.mergedWeekSpans?.length, 1)
+  assert.equal(row.mergedWeekSpans?.[0]?.totalQty, qty)
+  assert.equal(row.weeklyValues[weekKey], "")
+}
+
+test("Television spots round-trip stores full-week qty on the span, not the cell", () => {
+  const campaignStart = new Date(2025, 0, 5)
+  const campaignEnd = new Date(2025, 0, 11)
+  const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
+  const w0 = cols[0]!.weekKey
+
+  const expert = mapStandardTvLineItemsToExpertRows(
+    [
+      {
+        line_item_id: "TV-1",
+        buyType: "spots",
+        market: "",
+        network: "N",
+        station: "",
+        daypart: "",
+        placement: "",
+        buyingDemo: "",
+        size: "30s",
+        tarps: "",
+        creative: "",
+        fixedCostMedia: false,
+        clientPaysForMedia: false,
+        budgetIncludesFees: false,
+        noadserving: false,
+        bursts: [
+          {
+            budget: "200",
+            buyAmount: "50",
+            startDate: campaignStart,
+            endDate: campaignEnd,
+            calculatedValue: 4,
+          },
+        ],
+      },
+    ],
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+  assert.equal(expert[0]!.sourceLineItemId, "TV-1")
+  assertFullWeekQtyOnSpan(expert[0]!, w0, 4)
+
+  const back = mapTvExpertRowsToStandardLineItems(expert, cols, campaignStart, campaignEnd, {
+    feePctTelevision: 0,
+  })
+  assert.equal(back[0]!.line_item_id, "TV-1")
+  assert.equal(back[0]!.bursts[0]!.calculatedValue, 4)
+})
+
+test("BVOD spots round-trip stores full-week qty on the span, not the cell", () => {
+  const campaignStart = new Date(2025, 0, 5)
+  const campaignEnd = new Date(2025, 0, 11)
+  const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
+  const w0 = cols[0]!.weekKey
+
+  const expert = mapStandardBvodLineItemsToExpertRows(
+    [
+      {
+        line_item_id: "BV-1",
+        buyType: "spots",
+        platform: "",
+        publisher: "",
+        site: "",
+        bidStrategy: "",
+        creativeTargeting: "",
+        creative: "",
+        buyingDemo: "",
+        market: "",
+        fixedCostMedia: false,
+        clientPaysForMedia: false,
+        budgetIncludesFees: false,
+        noadserving: false,
+        bursts: [
+          {
+            budget: "200",
+            buyAmount: "50",
+            startDate: campaignStart,
+            endDate: campaignEnd,
+            calculatedValue: 4,
+          },
+        ],
+      },
+    ],
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+  assert.equal(expert[0]!.sourceLineItemId, "BV-1")
+  assertFullWeekQtyOnSpan(expert[0]!, w0, 4)
+
+  const back = mapBvodExpertRowsToStandardLineItems(expert, cols, campaignStart, campaignEnd, {
+    feePctBvod: 0,
+  })
+  assert.equal(back[0]!.line_item_id, "BV-1")
+  assert.equal(back[0]!.bursts[0]!.calculatedValue, 4)
+})
+
+test("Digital Audio spots round-trip stores full-week qty on the span, not the cell", () => {
+  const campaignStart = new Date(2025, 0, 5)
+  const campaignEnd = new Date(2025, 0, 11)
+  const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
+  const w0 = cols[0]!.weekKey
+
+  const expert = mapStandardDigiAudioLineItemsToExpertRows(
+    [
+      {
+        line_item_id: "DA-1",
+        buyType: "spots",
+        platform: "",
+        publisher: "",
+        site: "",
+        bidStrategy: "",
+        creativeTargeting: "",
+        creative: "",
+        buyingDemo: "",
+        market: "",
+        fixedCostMedia: false,
+        clientPaysForMedia: false,
+        budgetIncludesFees: false,
+        noadserving: false,
+        bursts: [
+          {
+            budget: "200",
+            buyAmount: "50",
+            startDate: campaignStart,
+            endDate: campaignEnd,
+            calculatedValue: 4,
+          },
+        ],
+      },
+    ],
+    cols,
+    campaignStart,
+    campaignEnd
+  )
+  assert.equal(expert[0]!.sourceLineItemId, "DA-1")
+  assertFullWeekQtyOnSpan(expert[0]!, w0, 4)
+
+  const back = mapDigitalAudioExpertRowsToStandardLineItems(
+    expert,
+    cols,
+    campaignStart,
+    campaignEnd,
+    { feePctDigiAudio: 0 }
+  )
+  assert.equal(back[0]!.line_item_id, "DA-1")
+  assert.equal(back[0]!.bursts[0]!.calculatedValue, 4)
 })

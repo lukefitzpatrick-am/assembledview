@@ -446,8 +446,11 @@ type DistributableBurstImportCtx = {
 }
 
 /**
- * Radio-family import: single-week → cell or day-detail; multi-week → merged span
- * with exact dates when no occupancy conflict, else distribute into cells.
+ * Radio-family import: a full-week burst (7 days, including a single
+ * Sunday-aligned week) is a merged span (`mergedWeekSpans[].totalQty`), not
+ * a weekly cell. True sub-week interiors expand to day-detail. Multi-week
+ * uses a merged span with exact dates when there is no occupancy conflict,
+ * else distribute into cells.
  */
 function accumulateDistributableBurstForExpertImport(
   ctx: DistributableBurstImportCtx,
