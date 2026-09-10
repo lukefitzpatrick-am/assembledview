@@ -54,6 +54,7 @@ import {
   type InvestmentBurstInput,
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
+import { excelBuyTypeFromLine } from "@/lib/mediaplan/buyTypeLabels"
 import {
   MEDIA_TYPE_ID_CODES,
   buildLineItemId,
@@ -991,7 +992,7 @@ useEffect(() => {
         network: lineItem.network || "",
         oohFormat: lineItem.format || "",
         oohType: lineItem.type || "",
-        buyType: String((burst as { buyType?: string }).buyType || lineItem.buyType || ""),
+        buyType: excelBuyTypeFromLine(lineItem, burst as { buyType?: string }),
         placement: lineItem.placement || "",
         size: lineItem.size || "",
         buyingDemo: lineItem.buyingDemo || "",

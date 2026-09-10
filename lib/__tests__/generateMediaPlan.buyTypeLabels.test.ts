@@ -1,15 +1,22 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import type ExcelJS from "exceljs"
+import ExcelJS from "exceljs"
 
 import {
+  addKPISheet,
   generateMediaPlan,
+  type KPISheetRow,
   type LineItem,
   type MediaItems,
   type MediaPlanHeader,
 } from "@/lib/generateMediaPlan"
+import { explodeExcelLineItems } from "@/lib/docs/explodeExcelLineItems"
 import type { BuyType } from "@/lib/mediaplan/deliverableBudget"
-import { BUY_TYPE_UI_LABELS } from "@/lib/mediaplan/buyTypeLabels"
+import {
+  BUY_TYPE_UI_LABELS,
+  excelBuyTypeFromLine,
+  formatBuyTypeForExport,
+} from "@/lib/mediaplan/buyTypeLabels"
 import {
   BVOD_BUY_TYPE_OPTIONS,
   CINEMA_BUY_TYPE_OPTIONS,
@@ -283,4 +290,165 @@ test("Excel Buy Type column matches the UI label for every BuyType", async () =>
     BUY_TYPE_UI_LABELS.production,
     "production",
   )
+})
+
+/** OOH line the planner set to package_inclusions; Apply still stamps bursts[].buyType bonus. */
+const OOH_PACKAGE_INCLUSIONS_STAMPED_BONUS = {
+  buyType: "package_inclusions",
+  market: "Sydney",
+  network: "JCDecaux",
+  format: "large_format",
+  type: "static",
+  placement: "Transit",
+  size: "6x3",
+  buyingDemo: "P 25-54",
+  line_item_id: "STRMEA001OOH1",
+  lineItemId: "STRMEA001OOH1",
+  line_item: 1,
+  budgetIncludesFees: false,
+  clientPaysForMedia: false,
+  bursts: [
+    {
+      buyType: "bonus",
+      budget: "0",
+      buyAmount: "0",
+      startDate: "2026-01-05",
+      endDate: "2026-01-11",
+      calculatedValue: 1,
+    },
+  ],
+}
+
+const OOH_GENUINE_BONUS = {
+  ...OOH_PACKAGE_INCLUSIONS_STAMPED_BONUS,
+  buyType: "bonus",
+  line_item_id: "STRMEA001OOH2",
+  lineItemId: "STRMEA001OOH2",
+}
+
+function oohExcelLineFromForm(formLine: typeof OOH_PACKAGE_INCLUSIONS_STAMPED_BONUS): LineItem {
+  const burst = formLine.bursts[0]!
+  return {
+    market: formLine.market,
+    network: formLine.network,
+    oohFormat: formLine.format,
+    oohType: formLine.type,
+    buyType: excelBuyTypeFromLine(formLine, burst),
+    placement: formLine.placement,
+    size: formLine.size,
+    buyingDemo: formLine.buyingDemo,
+    startDate: burst.startDate,
+    endDate: burst.endDate,
+    deliverables: burst.calculatedValue,
+    deliverablesAmount: burst.budget,
+    grossMedia: "0",
+    line_item_id: formLine.line_item_id,
+    lineItemId: formLine.lineItemId,
+    line_item: formLine.line_item,
+    clientPaysForMedia: formLine.clientPaysForMedia,
+    budgetIncludesFees: formLine.budgetIncludesFees,
+  }
+}
+
+function oohBuyTypeCell(sheet: ExcelJS.Worksheet, placement: string): string {
+  let found: string | null = null
+  sheet.eachRow((row) => {
+    if (cellText(row.getCell(5).value) === placement) {
+      found = cellText(row.getCell(12).value)
+    }
+  })
+  assert.ok(found != null, `expected an OOH row with placement ${placement}`)
+  return found
+}
+
+function kpiSheetBuyTypes(workbook: ExcelJS.Workbook): string[] {
+  const sheet = workbook.getWorksheet("Campaign KPIs")
+  assert.ok(sheet, "expected Campaign KPIs worksheet")
+  const values: string[] = []
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber < 4) return
+    const header = cellText(row.getCell(4).value)
+    if (header === "Buy Type") return
+    const text = cellText(row.getCell(4).value)
+    if (text && text !== "OOH") values.push(text)
+  })
+  return values
+}
+
+function kpiRow(buyType: string, label: string): KPISheetRow {
+  return {
+    mediaType: "ooh",
+    publisher: "JCDecaux",
+    label,
+    buyType,
+    spend: 0,
+    deliverables: 1,
+    ctr: null,
+    vtr: null,
+    cpv: null,
+    conversion_rate: null,
+    frequency: null,
+    calculatedClicks: null,
+    calculatedViews: null,
+    calculatedReach: null,
+  }
+}
+
+test("OOH client export and persisted explode print the same Buy Type for a bonus-stamped burst", async () => {
+  const fixture = OOH_PACKAGE_INCLUSIONS_STAMPED_BONUS
+  const burst = fixture.bursts[0]!
+
+  const clientRaw = excelBuyTypeFromLine(fixture, burst)
+  const persistedRows = explodeExcelLineItems("ooh", fixture, 0, 0)
+  assert.equal(persistedRows.length, 1)
+  const persistedRaw = persistedRows[0]!.buyType
+
+  const clientLabel = formatBuyTypeForExport(clientRaw)
+  const persistedLabel = formatBuyTypeForExport(persistedRaw)
+  assert.equal(clientRaw, persistedRaw, "raw buy type must not drift between renderers")
+  assert.equal(clientLabel, persistedLabel, "printed labels must not drift between renderers")
+  assert.equal(clientLabel, BUY_TYPE_UI_LABELS.package_inclusions)
+  assert.notEqual(clientLabel, BUY_TYPE_UI_LABELS.bonus)
+  assert.notEqual(clientLabel, "bonus")
+
+  const workbook = await generateMediaPlan(
+    HEADER,
+    emptyMedia({ ooh: [oohExcelLineFromForm(fixture)] }),
+  )
+  assert.equal(oohBuyTypeCell(mediaPlanSheet(workbook), "Transit"), clientLabel)
+})
+
+test("KPI sheet formats package_inclusions as Package Inclusions, not raw bonus", () => {
+  const workbook = new ExcelJS.Workbook()
+  addKPISheet(workbook, [
+    kpiRow(
+      excelBuyTypeFromLine(OOH_PACKAGE_INCLUSIONS_STAMPED_BONUS, OOH_PACKAGE_INCLUSIONS_STAMPED_BONUS.bursts[0]),
+      "Transit inclusions",
+    ),
+  ])
+  const labels = kpiSheetBuyTypes(workbook)
+  assert.ok(labels.includes(BUY_TYPE_UI_LABELS.package_inclusions), String(labels))
+  assert.equal(labels.includes("bonus"), false)
+  assert.equal(labels.includes(BUY_TYPE_UI_LABELS.bonus), false)
+})
+
+test("an OOH line genuinely set to bonus still prints Bonus everywhere", async () => {
+  const fixture = OOH_GENUINE_BONUS
+  const burst = fixture.bursts[0]!
+  const clientRaw = excelBuyTypeFromLine(fixture, burst)
+  const persistedRaw = explodeExcelLineItems("ooh", fixture, 0, 0)[0]!.buyType
+  const label = formatBuyTypeForExport(clientRaw)
+
+  assert.equal(clientRaw, persistedRaw)
+  assert.equal(label, BUY_TYPE_UI_LABELS.bonus)
+
+  const workbook = await generateMediaPlan(
+    HEADER,
+    emptyMedia({ ooh: [oohExcelLineFromForm(fixture)] }),
+  )
+  assert.equal(oohBuyTypeCell(mediaPlanSheet(workbook), "Transit"), BUY_TYPE_UI_LABELS.bonus)
+
+  const kpiBook = new ExcelJS.Workbook()
+  addKPISheet(kpiBook, [kpiRow(clientRaw, "Transit bonus")])
+  assert.ok(kpiSheetBuyTypes(kpiBook).includes(BUY_TYPE_UI_LABELS.bonus))
 })

@@ -48,6 +48,18 @@ const BUY_TYPE_EXPORT_ALIASES: Record<string, string> = {
 
 const ACRONYM_PATTERN = /^[A-Z]{2,4}$/i
 
+/**
+ * Excel Buy Type for a media-plan line. Always the LINE field.
+ * Do not fall back to `bursts[].buyType` — OOH Expert Apply stamps that
+ * `"bonus"` for both bonus and package_inclusions (expert round-trip only).
+ */
+export function excelBuyTypeFromLine(
+  lineItem: { buyType?: string | null },
+  _burst?: { buyType?: string },
+): string {
+  return String(lineItem.buyType || "")
+}
+
 /** Excel Buy Type column. Empty in → empty out. */
 export function formatBuyTypeForExport(buyType: string | undefined): string {
   if (!buyType) return ""

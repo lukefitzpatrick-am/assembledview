@@ -2242,7 +2242,7 @@ export function addKPISheet(
       }
       txt(ws.getCell(r, 2), row.publisher)
       txt(ws.getCell(r, 3), row.label)
-      txt(ws.getCell(r, 4), row.buyType)
+      txt(ws.getCell(r, 4), formatBuyType(row.buyType))
       numFmt(ws.getCell(r, 5),  '$#,##0.00', row.spend)
       numFmt(ws.getCell(r, 6),  '#,##0',     row.deliverables)
       writeMetric(ws.getCell(r, 7),  '0.00%',     row.ctr)
