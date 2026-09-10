@@ -65,6 +65,7 @@ export default defineConfig({
       "components/mediaplans/__tests__/PlanWizardBottomBar.test.tsx",
       "components/dashboard/__tests__/CampaignCardCompact.test.tsx",
       "lib/mediaplan/__tests__/useMediaPlanDirtyController.test.tsx",
+      "lib/mediaplan/__tests__/useWeekStartsOn.hook.test.tsx",
       "lib/mediaplan/__tests__/handleInvestmentChange.dirty.characterisation.test.tsx",
       "lib/mediaplan/__tests__/channelTotalChange.dirty.characterisation.test.tsx",
       "lib/mediaplan/__tests__/oohStandardContainer.bench.test.tsx",

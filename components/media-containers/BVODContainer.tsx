@@ -106,7 +106,8 @@ import {
   serializeBvodExpertRowsBaseline,
   serializeBvodStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
 
 const AD_SERVING_OVERRIDE_BURST_GRID =
   "grid grid-cols-8 gap-3 items-end flex-1 min-w-0"
@@ -282,7 +283,7 @@ export default function BVODContainer({
   const bvodExpertModalOpenRef = useRef(false)
   bvodExpertModalOpenRef.current = bvodExpertModalOpen
 
-  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
+  const [weekStartsOn, setWeekStartsOn] = useWeekStartsOn();
   const bvodExpertWeekColumns = useMemo(
     () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
     [campaignStartDate, campaignEndDate, weekStartsOn]

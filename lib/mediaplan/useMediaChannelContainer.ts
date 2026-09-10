@@ -15,6 +15,7 @@ import { useStableHydration } from "@/hooks/useStableHydration"
 import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
 import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
+import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
 import {
   type ContainerChannelConfig,
   buildDefaultLineItem,
@@ -39,7 +40,6 @@ import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date
 import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import {
   buildWeeklyGanttColumnsFromCampaign,
-  type WeekStartsOn,
 } from "@/lib/utils/weeklyGanttColumns"
 import {
   coerceBuyTypeWithDevWarn,
@@ -273,7 +273,7 @@ export function useMediaChannelContainer(
   const expertModalOpenRef = useRef(false)
   expertModalOpenRef.current = expertModalOpen
 
-  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0)
+  const [weekStartsOn, setWeekStartsOn] = useWeekStartsOn()
   const expertWeekColumns = useMemo(
     () =>
       buildWeeklyGanttColumnsFromCampaign(

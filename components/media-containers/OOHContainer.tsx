@@ -88,7 +88,8 @@ import {
   serializeOohExpertRowsBaseline,
   serializeOohStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
@@ -255,7 +256,7 @@ export default function OohContainer({
   const oohExpertRowsBaselineRef = useRef<string>("");
   oohExpertModalOpenRef.current = oohExpertModalOpen;
 
-  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
+  const [weekStartsOn, setWeekStartsOn] = useWeekStartsOn();
   const oohExpertWeekColumns = useMemo(
     () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
     [campaignStartDate, campaignEndDate, weekStartsOn]

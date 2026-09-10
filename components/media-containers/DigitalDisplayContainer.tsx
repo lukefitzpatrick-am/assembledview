@@ -107,7 +107,8 @@ import {
   serializeDigiDisplayExpertRowsBaseline,
   serializeDigiDisplayStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -378,7 +379,7 @@ export default function DigiDisplayContainer({
   const digiDisplayExpertModalOpenRef = useRef(false)
   digiDisplayExpertModalOpenRef.current = digiDisplayExpertModalOpen
 
-  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
+  const [weekStartsOn, setWeekStartsOn] = useWeekStartsOn();
   const digiDisplayExpertWeekColumns = useMemo(
     () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
     [campaignStartDate, campaignEndDate, weekStartsOn]

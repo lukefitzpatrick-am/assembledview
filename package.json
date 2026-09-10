@@ -27,6 +27,7 @@
     "test:solver": "tsx --test tests/learning/solver.test.ts",
     "test:utm": "tsx --test tests/learning/utm.test.ts",
     "test:weekly-gantt": "node --loader ts-node/esm tests/lib/weeklyGanttColumns.test.ts",
+    "test:week-starts-on": "tsx --test lib/mediaplan/__tests__/useWeekStartsOn.test.ts && vitest run lib/mediaplan/__tests__/useWeekStartsOn.hook.test.tsx",
     "test:expert-mappings": "tsx --test tests/lib/expertChannelMappings.test.ts",
     "test:expert-goldens": "tsx --test lib/mediaplan/__tests__/expertGridGoldenParity.test.ts",
     "test:expert-paste": "node --loader ts-node/esm tests/lib/expertGridPaste.test.ts",

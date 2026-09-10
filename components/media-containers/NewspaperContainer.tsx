@@ -102,7 +102,8 @@ import {
   serializeNewspaperExpertRowsBaseline,
   serializeNewspaperStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, normalizeLineItemsForSave, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
@@ -490,7 +491,7 @@ const handleAddNewNewspaperAdSize = async () => {
   const newspaperExpertModalOpenRef = useRef(false)
   newspaperExpertModalOpenRef.current = newspaperExpertModalOpen
 
-  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
+  const [weekStartsOn, setWeekStartsOn] = useWeekStartsOn();
   const newspaperExpertWeekColumns = useMemo(
     () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
     [campaignStartDate, campaignEndDate, weekStartsOn]

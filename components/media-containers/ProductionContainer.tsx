@@ -110,7 +110,8 @@ import {
   mergeProductionStandardFromExpertWithPrevious,
   serializeProductionExpertRowsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("production")
 
@@ -267,7 +268,7 @@ export default function ProductionContainer({
   const reorderedRef = useRef(false)
   productionExpertModalOpenRef.current = productionExpertModalOpen
 
-  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
+  const [weekStartsOn, setWeekStartsOn] = useWeekStartsOn();
   const productionExpertWeekColumns = useMemo(
     () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
     [campaignStartDate, campaignEndDate, weekStartsOn]

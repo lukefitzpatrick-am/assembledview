@@ -180,6 +180,7 @@ import {
   type WeeklyGanttWeekColumn,
   type WeekStartsOn,
 } from "@/lib/utils/weeklyGanttColumns"
+import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
 import { formatAUD } from "@/lib/format/money"
 import {
   commitUnitRateInput,
@@ -398,10 +399,10 @@ export interface ExpertGridProps<TRow extends ExpertScheduleRowCommon = ExpertSc
   extraComboboxOptions?: Partial<Record<string, ComboboxOption[]>>
   onReorder?: () => void
   /**
-   * Controlled week-start (0=Sun … 6=Sat). When omitted, ExpertGrid keeps
-   * internal state defaulting to Sunday. Parents that Apply must pass this
-   * (and `onWeekStartsOnChange`) so Apply columns match grid week keys.
-   * Not persisted to the database.
+   * Controlled week-start (0=Sun … 6=Sat). When omitted, ExpertGrid reads
+   * the shared `av:week-starts-on` store (default Sunday). Parents that Apply
+   * must pass this (and `onWeekStartsOnChange`) so Apply columns match grid
+   * week keys. Not persisted to the database.
    */
   weekStartsOn?: WeekStartsOn
   onWeekStartsOnChange?: (v: WeekStartsOn) => void
@@ -519,9 +520,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     [publishers]
   )
 
-  const [uncontrolledWeekStartsOn, setUncontrolledWeekStartsOn] =
-    useState<WeekStartsOn>(0)
-  const weekStartsOn = weekStartsOnProp ?? uncontrolledWeekStartsOn
+  const [storedWeekStartsOn, setStoredWeekStartsOn] = useWeekStartsOn()
+  const weekStartsOn = weekStartsOnProp ?? storedWeekStartsOn
   const weekColumns = useMemo(
     () =>
       buildWeeklyGanttColumnsFromCampaign(
@@ -1026,7 +1026,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       )
       setExpandedWeekKeys(new Set())
       if (weekStartsOnProp === undefined) {
-        setUncontrolledWeekStartsOn(next)
+        setStoredWeekStartsOn(next)
       }
       onWeekStartsOnChange?.(next)
     },
@@ -1034,6 +1034,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       weekStartsOn,
       weekStartsOnProp,
       onWeekStartsOnChange,
+      setStoredWeekStartsOn,
       weekColumns,
       campaignStartDate,
       campaignEndDate,
