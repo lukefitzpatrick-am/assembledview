@@ -197,7 +197,9 @@ test("OOH CPM calculatedValue round-trips standard → expert → standard", () 
     campaignStart,
     campaignEnd
   )
-  assert.equal(expert[0]!.weeklyValues[w0], qty)
+  // Full-week qty lives on the span (3adeba9f / C-97), not the cell.
+  assert.equal(expert[0]!.mergedWeekSpans?.[0]?.totalQty, qty)
+  assert.equal(expert[0]!.weeklyValues[w0], "")
 
   const roundTrip = mapOohExpertRowsToStandardLineItems(
     expert,
@@ -520,7 +522,7 @@ test("Newspaper legacy three single-week bursts round-trip unchanged", () => {
   )
 })
 
-test("Radio spots round-trip preserves id and weekly cell qty", () => {
+test("Radio spots round-trip preserves id and span qty", () => {
   const campaignStart = new Date(2024, 9, 23)
   const campaignEnd = new Date(2024, 9, 29)
   const cols = buildWeeklyGanttColumnsFromCampaign(campaignStart, campaignEnd)
@@ -557,7 +559,9 @@ test("Radio spots round-trip preserves id and weekly cell qty", () => {
   const back = mapStandardRadioLineItemsToExpertRows(standard, cols, campaignStart, campaignEnd)
   assert.notEqual(back[0]!.id, "RAD-42")
   assert.equal(back[0]!.sourceLineItemId, "RAD-42")
-  assert.equal(back[0]!.weeklyValues[w0], 4)
+  // Full-week qty lives on the span (3adeba9f / C-97), not the cell.
+  assert.equal(back[0]!.mergedWeekSpans?.[0]?.totalQty, 4)
+  assert.equal(back[0]!.weeklyValues[w0], "")
   assert.equal(back[0]!.unitRate, 50)
 })
 
