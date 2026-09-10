@@ -186,15 +186,34 @@ export function AvaMediaMathPanel({ onPrefillComposer }: AvaMediaMathPanelProps)
           {slotText}
         </p>
 
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="w-fit"
-          onClick={() => onPrefillComposer(describeSolve(buyType, result))}
-        >
-          Send to Ava
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-fit"
+            onClick={() => onPrefillComposer(describeSolve(buyType, result))}
+          >
+            Send to Ava
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-fit"
+            data-testid="ava-math-clear"
+            disabled={!hasAnyInput}
+            onClick={() => {
+              setBudgetRaw("")
+              setRateRaw("")
+              setDeliverablesRaw("")
+              setWeeksRaw("")
+              setMonthsRaw("")
+            }}
+          >
+            Clear
+          </Button>
+        </div>
       </div>
     </div>
   )

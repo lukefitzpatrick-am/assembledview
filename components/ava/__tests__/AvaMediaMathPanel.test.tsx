@@ -366,4 +366,39 @@ describe("AvaMediaMathPanel", () => {
     expect(sentence).toContain("4,000,000")
     expect(sentence).not.toMatch(/setValue|setLineItems|apply_form_patch/i)
   })
+
+  function clearButton() {
+    return Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.trim() === "Clear",
+    )
+  }
+
+  it("Clear empties inputs and restores the hint, keeping buy type", () => {
+    render()
+    chooseBuyType("cpc")
+    fill("budget", "10000")
+    fill("rate", "2.50")
+    expect(resultEl(container)?.textContent).toContain("4,000")
+    const button = clearButton()
+    expect(button).toBeTruthy()
+    expect((button as HTMLButtonElement).disabled).toBe(false)
+    act(() => {
+      button!.click()
+    })
+    expect(field(container, "budget")?.value).toBe("")
+    expect(field(container, "rate")?.value).toBe("")
+    expect(field(container, "deliverables")?.value).toBe("")
+    expect(field(container, "budget")?.readOnly).toBe(false)
+    expect(field(container, "rate")?.readOnly).toBe(false)
+    expect(field(container, "deliverables")?.readOnly).toBe(false)
+    expect(resultEl(container)?.textContent).toBe(AVA_MEDIA_MATH_COLD_HINT)
+    expect(buyTypeSelect(container)?.value).toBe("cpc")
+  })
+
+  it("Clear is disabled when every field is already empty", () => {
+    render()
+    const button = clearButton()
+    expect(button).toBeTruthy()
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+  })
 })
