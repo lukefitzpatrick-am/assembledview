@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useLayoutEffect, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
 import { cn } from "@/lib/utils"
@@ -12,6 +12,7 @@ type ExpertGridWeekContextMenuProps = {
   x: number
   y: number
   pasteDisabled: boolean
+  returnFocusTo?: HTMLElement | null
   onCut: () => void
   onCopy: () => void
   onPaste: () => void
@@ -55,10 +56,26 @@ function MenuItem({
   )
 }
 
+function enabledMenuItems(root: HTMLElement): HTMLButtonElement[] {
+  return Array.from(root.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).filter(
+    (el) => !el.disabled
+  )
+}
+
+function moveMenuFocus(root: HTMLElement, direction: 1 | -1) {
+  const items = enabledMenuItems(root)
+  if (items.length === 0) return
+  const current = items.indexOf(document.activeElement as HTMLButtonElement)
+  const nextIndex =
+    current < 0 ? 0 : (current + direction + items.length) % items.length
+  items[nextIndex]?.focus()
+}
+
 export function ExpertGridWeekContextMenu({
   x,
   y,
   pasteDisabled,
+  returnFocusTo,
   onCut,
   onCopy,
   onPaste,
@@ -66,12 +83,38 @@ export function ExpertGridWeekContextMenu({
   onClose,
 }: ExpertGridWeekContextMenuProps) {
   const rootRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ left: x, top: y })
+
+  useLayoutEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const { width, height } = el.getBoundingClientRect()
+    const pad = 8
+    const menuWidth = width > 0 ? width : 0
+    const menuHeight = height > 0 ? height : 0
+    setPos({
+      left: Math.max(pad, Math.min(x, window.innerWidth - menuWidth - pad)),
+      top: Math.max(pad, Math.min(y, window.innerHeight - menuHeight - pad)),
+    })
+    enabledMenuItems(el)[0]?.focus()
+  }, [x, y])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault()
         onClose()
+        returnFocusTo?.focus()
+        return
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault()
+        if (rootRef.current) moveMenuFocus(rootRef.current, 1)
+        return
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault()
+        if (rootRef.current) moveMenuFocus(rootRef.current, -1)
       }
     }
     const onPointerDown = (e: PointerEvent) => {
@@ -80,18 +123,25 @@ export function ExpertGridWeekContextMenu({
       if (e.target instanceof Node && el.contains(e.target)) return
       onClose()
     }
+    const onScroll = () => {
+      onClose()
+    }
+    const onResize = () => {
+      onClose()
+    }
     window.addEventListener("keydown", onKey)
     window.addEventListener("pointerdown", onPointerDown, true)
+    window.addEventListener("scroll", onScroll, true)
+    window.addEventListener("resize", onResize)
     return () => {
       window.removeEventListener("keydown", onKey)
       window.removeEventListener("pointerdown", onPointerDown, true)
+      window.removeEventListener("scroll", onScroll, true)
+      window.removeEventListener("resize", onResize)
     }
-  }, [onClose])
+  }, [onClose, returnFocusTo])
 
   if (typeof document === "undefined") return null
-
-  const left = Math.max(8, Math.min(x, window.innerWidth - 200))
-  const top = Math.max(8, Math.min(y, window.innerHeight - 180))
 
   return createPortal(
     <div
@@ -100,7 +150,7 @@ export function ExpertGridWeekContextMenu({
       aria-label="Week cell"
       data-eg-week-context-menu=""
       className="z-popover fixed min-w-[11rem] overflow-hidden rounded-input border border-border bg-popover p-1 text-popover-foreground shadow-e2"
-      style={{ left, top }}
+      style={{ left: pos.left, top: pos.top }}
     >
       <MenuItem
         label="Cut"

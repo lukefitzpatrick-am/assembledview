@@ -574,6 +574,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   const [weekContextMenu, setWeekContextMenu] = useState<{
     x: number
     y: number
+    returnFocusTo: HTMLElement
   } | null>(null)
   const fillHandleDraggingRef = useRef(false)
   const weekAreaDragRef = useRef<{
@@ -2905,7 +2906,14 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         setWeekStripSelection(null)
         lastWeekAnchorRef.current = { rowIndex, weekKey }
       }
-      setWeekContextMenu({ x: e.clientX, y: e.clientY })
+      setWeekContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        returnFocusTo:
+          e.target instanceof HTMLElement
+            ? e.target
+            : (e.currentTarget as HTMLElement),
+      })
     },
     [isSelecting, resolveCurrentWeeklyExportSelection, weekKeys]
   )
@@ -5587,6 +5595,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         <ExpertGridWeekContextMenu
           x={weekContextMenu.x}
           y={weekContextMenu.y}
+          returnFocusTo={weekContextMenu.returnFocusTo}
           pasteDisabled={
             typeof navigator === "undefined" ||
             !asyncClipboardReadAvailable(navigator.clipboard)
