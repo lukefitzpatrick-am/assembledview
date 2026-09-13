@@ -130,6 +130,13 @@ export async function putIngestWorkbook(args: {
   }
 }
 
+async function bufferFromPrivateGet(
+  result: Awaited<ReturnType<typeof getPrivateBlob>>,
+): Promise<Buffer | null> {
+  if (!result || result.statusCode !== 200 || !result.stream) return null
+  return Buffer.from(await new Response(result.stream).arrayBuffer())
+}
+
 export async function getIngestWorkbookBuffer(
   sourceFile: IngestSourceFile,
 ): Promise<Buffer | null> {
@@ -137,13 +144,9 @@ export async function getIngestWorkbookBuffer(
     memoryBlobs.get(sourceFile.pathname) ?? memoryBlobs.get(sourceFile.url)
   if (mem) return Buffer.from(mem)
 
-  const result = await getPrivateBlob(sourceFile.url)
-  if (!result || result.statusCode !== 200) {
-    const byPath = await getPrivateBlob(sourceFile.pathname)
-    if (!byPath || byPath.statusCode !== 200) return null
-    return Buffer.from(await byPath.blob.arrayBuffer())
-  }
-  return Buffer.from(await result.blob.arrayBuffer())
+  const fromUrl = await bufferFromPrivateGet(await getPrivateBlob(sourceFile.url))
+  if (fromUrl) return fromUrl
+  return bufferFromPrivateGet(await getPrivateBlob(sourceFile.pathname))
 }
 
 export async function deleteIngestWorkbook(

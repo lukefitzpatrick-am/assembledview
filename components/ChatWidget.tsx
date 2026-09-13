@@ -166,6 +166,13 @@ type ChatApiMessage = {
   content?: unknown
 }
 
+function pageContextMbaNumber(pageContext?: PageContext): string | undefined {
+  const mba = pageContext?.entities?.mbaNumber
+  if (typeof mba !== "string") return undefined
+  const trimmed = mba.trim()
+  return trimmed || undefined
+}
+
 type ChatWidgetProps = {
   getPageContext?: () => Promise<PageContext | undefined> | PageContext | undefined
   pageContext?: PageContext
@@ -584,8 +591,9 @@ export function ChatWidget({
     try {
       const formData = new FormData()
       formData.append("file", file)
-      if (pageContext?.mbaNumber) {
-        formData.append("mbaNumber", pageContext.mbaNumber)
+      const mbaNumber = pageContextMbaNumber(pageContext)
+      if (mbaNumber) {
+        formData.append("mbaNumber", mbaNumber)
       }
       const response = await fetch("/api/admin/ingest/review", {
         method: "POST",
@@ -971,7 +979,7 @@ export function ChatWidget({
                         className="underline underline-offset-2"
                         href={ingestParseReviewPath(
                           pendingIngest.stageId,
-                          pageContext?.mbaNumber ?? "create",
+                          pageContextMbaNumber(pageContext) ?? "create",
                         )}
                       >
                         Review {pendingIngest.summary.line_item_count} lines
