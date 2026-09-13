@@ -2004,6 +2004,97 @@ test("SV-1: publish from older version writes the body lines, not the tip's", as
   assert.equal(master?.publishedVersionId, forked.versionId)
 })
 
+test("savePlan: C-95b client-pays social fee reaches billing schedule_months", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const SOCIAL_SM1 = `${MBA.toUpperCase()}SM1`
+  const RADIO_RA1 = `${MBA.toUpperCase()}RA1`
+  const result = await savePlanVersion(
+    draftInput(
+      masterId,
+      [
+        {
+          lineItemId: SOCIAL_SM1,
+          channel: "social",
+          mediaType: "social",
+          buyType: "cpm",
+          rate: 10,
+          enteredAmount: 20_000,
+          budgetIncludesFees: false,
+          clientPaysForMedia: true,
+          feePct: 20,
+          approval: "approved",
+          bursts: [
+            {
+              startDate: "2026-07-01",
+              endDate: "2026-09-18",
+              budget: 20_000,
+              buyAmount: 10,
+            },
+          ],
+          attrs: {},
+        },
+        {
+          lineItemId: RADIO_RA1,
+          channel: "radio",
+          mediaType: "radio",
+          buyType: "spots",
+          rate: 1,
+          enteredAmount: 40_000,
+          budgetIncludesFees: false,
+          clientPaysForMedia: false,
+          feePct: 0,
+          approval: "approved",
+          bursts: [
+            {
+              startDate: "2026-07-01",
+              endDate: "2026-09-30",
+              budget: 40_000,
+            },
+          ],
+          attrs: {},
+        },
+      ],
+      {
+        mode: "publish",
+        campaignStatus: "Approved",
+        campaignStartDate: "2026-07-01",
+        campaignEndDate: "2026-09-30",
+        campaignBudgetCents: 70_000_00,
+        channelFlags: { mp_socialmedia: true, mp_radio: true },
+        feeLoading: { feesocial: 20, feeradio: 0 },
+        feeSnapshot: { feesocial: 20, feeradio: 0 },
+      }
+    )
+  )
+  assert.equal(result.published, true)
+
+  const { months } = await snapshot(result.versionId)
+  const isSm1 = (id: string) => String(id).includes(SOCIAL_SM1)
+  const billingFee = months.filter(
+    (r) => r.basis === "billing" && r.component === "fee" && isSm1(r.lineItemId)
+  )
+  const billingMedia = months.filter(
+    (r) => r.basis === "billing" && r.component === "media" && isSm1(r.lineItemId)
+  )
+  const feeCents = billingFee.reduce((s, r) => s + Number(r.amountCents), 0)
+  assert.ok(billingFee.length > 0, "billing fee rows for the social line must exist")
+  assert.equal(feeCents, 500_000)
+  assert.equal(
+    billingMedia.length,
+    0,
+    "client-pays social must have no billing-basis media rows"
+  )
+})
+
 test("savePlan: close db pool", async () => {
   if (hasDb) await closeDb()
 })

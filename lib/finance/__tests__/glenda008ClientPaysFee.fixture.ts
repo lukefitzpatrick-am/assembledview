@@ -26,6 +26,7 @@ function glendaSocialLine(): LineItemInput {
   }
 }
 
+/** Radio fee rate is 0 (`feeradio: 0`) — fee dollars 0. Do not treat campaign fee as social-only. */
 function glendaAgencyRadio(): LineItemInput {
   return {
     lineItemId: "billing-radio::glenda008RAD1",

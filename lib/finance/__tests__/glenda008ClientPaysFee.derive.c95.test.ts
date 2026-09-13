@@ -46,8 +46,28 @@ function bookedVersion() {
   }
 }
 
+function lineFeeFromSchedule(
+  schedule: ReturnType<typeof glenda008ClientPaysFinancials>["billingSchedule"],
+  group: "socialMedia" | "radio",
+  idPart: string
+): number {
+  for (const month of schedule) {
+    const hit = (month.lineItems?.[group] ?? []).find((li) =>
+      String(li.id).includes(idPart)
+    )
+    if (hit) {
+      return Object.values(hit.feeMonthlyAmounts ?? {}).reduce((s, v) => s + v, 0)
+    }
+  }
+  return 0
+}
+
 test("C-95: receivables carry 5,000 fee and 0 client-pays media", () => {
   const version = bookedVersion()
+  const socialFee = lineFeeFromSchedule(version.billingSchedule, "socialMedia", "glenda008SM1")
+  const radioFee = lineFeeFromSchedule(version.billingSchedule, "radio", "glenda008RAD1")
+  assert.equal(round2(socialFee), 5_000)
+  assert.equal(round2(radioFee), 0)
   let fee = 0
   let clientPaysMedia = 0
   for (const [year, month] of [
@@ -72,6 +92,7 @@ test("C-95: receivables carry 5,000 fee and 0 client-pays media", () => {
     }
   }
   assert.equal(round2(clientPaysMedia), 0)
+  assert.equal(round2(fee), round2(socialFee + radioFee))
   assert.equal(round2(fee), 5_000)
 })
 
