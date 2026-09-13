@@ -132,7 +132,6 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
       "/admin/m365-reconciliation",
       "/admin/myhours-mapping",
       "/admin/fireflies-unattributed",
-      "/admin/publisher-profiles",
       "/admin/schedule-ingest",
     ],
   },
@@ -376,18 +375,6 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inSidebar: true,
     roles: ["admin"],
     searchTerms: "fireflies meetings transcripts unattributed assign domains clients publishers",
-    group: "admin",
-  },
-  {
-    path: "/admin/publisher-profiles",
-    label: "Publisher profiles",
-    title: "Publisher profiles",
-    icon: "Layers",
-    inPalette: true,
-    inSidebar: true,
-    roles: ["admin"],
-    searchTerms:
-      "publisher profiles ingest schedule qms sca jcdecaux grid semantics legend",
     group: "admin",
   },
   {

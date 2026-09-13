@@ -4,7 +4,6 @@ import { listPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProf
 
 export const runtime = "nodejs"
 
-/** Read-only publisher ingest profiles (MR config). No writes in this slice. */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request)
   if ("response" in auth && auth.response) {
@@ -13,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { profiles, source } = await listPublisherProfiles()
-    return NextResponse.json({ profiles, source, editable: false })
+    return NextResponse.json({ profiles, source })
   } catch (e) {
     console.error("[admin/publisher-profiles]", e)
     return NextResponse.json(

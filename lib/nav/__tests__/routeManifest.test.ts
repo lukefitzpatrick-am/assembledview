@@ -91,9 +91,7 @@ test("Home / Clients / Users labels and Create Campaign is palette-only", () => 
   assert.ok(
     (ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/m365-reconciliation")
   )
-  assert.ok(
-    (ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/publisher-profiles")
-  )
+  assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/publishers"))
   assert.ok(
     (ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/schedule-ingest")
   )
@@ -102,10 +100,8 @@ test("Home / Clients / Users labels and Create Campaign is palette-only", () => 
     getRouteByExactPath("/admin/m365-reconciliation")!.label,
     "M365 reconciliation"
   )
-  assert.equal(
-    getRouteByExactPath("/admin/publisher-profiles")!.label,
-    "Publisher profiles"
-  )
+  assert.equal(getRouteByExactPath("/publishers")!.label, "Publishers")
+  assert.equal(getRouteByExactPath("/publishers")!.path, "/publishers")
   assert.equal(getRouteByExactPath("/tasks")!.inSidebar, true)
   assert.equal(getRouteByExactPath("/tasks")!.label, "Codex")
 })
@@ -144,7 +140,6 @@ test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async (
           "/admin/m365-reconciliation",
           "/admin/myhours-mapping",
           "/admin/fireflies-unattributed",
-          "/admin/publisher-profiles",
           "/admin/schedule-ingest",
         ],
       },

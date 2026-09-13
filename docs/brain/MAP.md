@@ -124,7 +124,7 @@ Naming/trafficking builder generates platform names from plan lines (`lib/naming
 
 ## 7. Publishers, specs & ingest
 
-**Routes** `/publishers`, `/publishers/[publisherId]` · `/admin/publisher-profiles` · `/admin/schedule-ingest` · `/mediaplans/mba/[mba_number]/ingest/[stageId]` (staff Parse Review)
+**Routes** `/publishers`, `/publishers/[publisherId]` · `/admin/schedule-ingest` · `/mediaplans/mba/[mba_number]/ingest/[stageId]` (staff Parse Review)
 
 Three related-but-distinct stores, all joined on `publishers.id` and never on display name:
 - `publisher_profiles` — how to parse a publisher's schedule spreadsheet (`detect_signature`, `column_map`, `field_defaults`, `money_rules`, `grid_semantics`, `line_granularity`). Config is jsonb on the row, not TypeScript per publisher.
@@ -176,7 +176,7 @@ Client-accessible learning centre. Content is file-driven from `src/data/learnin
 
 ## 14. Admin & M365
 
-`/admin/users`, `/admin/users/new` (Auth0 Management API), `/admin/media-container-best-practice`, `/admin/m365-reconciliation`, `/admin/publisher-profiles`, `/admin/schedule-ingest`, `/admin/myhours-mapping`, `/admin/fireflies-unattributed`, `/pacing/(shell)/admin/orphans`.
+`/admin/users`, `/admin/users/new` (Auth0 Management API), `/admin/media-container-best-practice`, `/admin/m365-reconciliation`, `/admin/schedule-ingest`, `/admin/myhours-mapping`, `/admin/fireflies-unattributed`, `/pacing/(shell)/admin/orphans`.
 
 M365 provisioning (SharePoint sites, Teams groups) is flag-off by default and logs every attempt to `m365_provisioning_log`. Anchor client per `mbaidentifier` group is enforced by a partial unique index.
 

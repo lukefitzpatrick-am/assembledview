@@ -54,7 +54,7 @@ The publisher directory, per-publisher analytics and market share, the ingest pr
 
 **Be careful of:** everything here joins on the publisher's numeric ID, never on their display name.
 
-Code: `app/publishers/`, `app/admin/publisher-profiles/`, `app/admin/schedule-ingest/`, `lib/specs/`, `lib/publisher/`.
+Code: `app/publishers/`, `app/admin/schedule-ingest/`, `lib/specs/`, `lib/publisher/`.
 
 ## Clients
 
