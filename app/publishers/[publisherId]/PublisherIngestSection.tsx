@@ -22,7 +22,7 @@ import {
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { AVA_MAPPING_TARGET_DESCRIPTORS } from "@/lib/mediaplans/ingest/avaColumnMapping"
 import { MONEY_TARGETS } from "@/lib/mediaplans/ingest/moneyTargets"
-import { REFERENCE_IGNORE_TARGET, FIXED_VALUE_COLUMN_LABEL, constantMappingHeader, isConstantMappingHeader } from "@/lib/mediaplans/ingest/publisherProfileConfig"
+import { REFERENCE_IGNORE_TARGET, FIXED_VALUE_COLUMN_LABEL, constantMappingHeader } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import type { PublisherProfileConfig } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import type { IngestRunRecord } from "@/lib/mediaplans/ingest/ingestRuns"
 import type { IngestEvalRunRecord } from "@/lib/mediaplans/ingest/ingestEvalRuns"
@@ -43,6 +43,44 @@ type HubPayload = {
 function pct(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return "—"
   return `${Math.round(n * 100)}%`
+}
+
+function ConstantValueControl({
+  field,
+  value,
+  disabled,
+  onSet,
+}: {
+  field: string
+  value: string
+  disabled: boolean
+  onSet: (value: string) => void
+}) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="font-medium">{FIXED_VALUE_COLUMN_LABEL}</span>
+      <input
+        className="h-9 min-w-[10rem] flex-1 rounded-input border border-border bg-background px-2 text-sm"
+        value={draft}
+        disabled={disabled}
+        aria-label={`Fixed value for ${field}`}
+        onChange={(e) => setDraft(e.target.value)}
+      />
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={disabled}
+        onClick={() => onSet(draft)}
+      >
+        Set
+      </Button>
+    </div>
+  )
 }
 
 export function PublisherIngestSection({ publisher }: { publisher: Publisher }) {
@@ -97,6 +135,37 @@ export function PublisherIngestSection({ publisher }: { publisher: Publisher }) 
     )
   }, [data?.profile])
 
+  const onFieldDefault = async (field: string, value: string | null) => {
+    const name = data?.profile?.publisher_name
+    if (!name) return
+    setRemapping(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/admin/ingest/remap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          publisherName: name,
+          fieldDefault: { field, value },
+        }),
+      })
+      const json = (await res.json()) as {
+        error?: string
+        ok?: boolean
+        reason?: string
+      }
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
+      if (json.ok === false) {
+        throw new Error(json.reason || "Could not save that fixed value")
+      }
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Remap failed")
+    } finally {
+      setRemapping(false)
+    }
+  }
+
   const onRemap = async (header: string, mappedTo: string | null) => {
     const name = data?.profile?.publisher_name
     if (!name) return
@@ -110,9 +179,9 @@ export function PublisherIngestSection({ publisher }: { publisher: Publisher }) 
           publisherName: name,
           header,
           mappedTo,
-          ...(isConstantMappingHeader(header)
-            ? {}
-            : { knownHeaders: mappingRows.filter((row) => row.kind === "column").map((row) => row.header) }),
+          knownHeaders: mappingRows
+            .filter((row) => row.kind === "column")
+            .map((row) => row.header),
         }),
       })
       const json = (await res.json()) as {
@@ -233,7 +302,7 @@ export function PublisherIngestSection({ publisher }: { publisher: Publisher }) 
                           onChange={(e) => {
                             const next = e.target.value
                             if (row.kind === "constant") {
-                              if (!next) void onRemap(row.header, null)
+                              if (!next) void onFieldDefault(row.dest, null)
                               return
                             }
                             void onRemap(row.header, next || null)
@@ -250,9 +319,16 @@ export function PublisherIngestSection({ publisher }: { publisher: Publisher }) 
                         </select>
                       </TableCell>
                       <TableCell className="font-medium">
-                        {row.kind === "constant"
-                          ? FIXED_VALUE_COLUMN_LABEL
-                          : row.header}
+                        {row.kind === "constant" ? (
+                          <ConstantValueControl
+                            field={row.dest}
+                            value={row.value}
+                            disabled={remapping}
+                            onSet={(value) => void onFieldDefault(row.dest, value)}
+                          />
+                        ) : (
+                          row.header
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
