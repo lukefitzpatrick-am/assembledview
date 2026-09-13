@@ -251,6 +251,7 @@ import {
   WEEK_CELL_CONTEXT_MENU_PASTE_UNAVAILABLE_REASON,
   WEEK_CELL_CONTEXT_MENU_NO_SELECTION_REASON,
   requireWeeklyMenuSelection,
+  weekShiftClickSelection,
   deriveMergeEligibility as deriveSearchMergeEligibility,
   weekCellExportText,
   mergedWeekSpansAfterCutRect,
@@ -2255,6 +2256,28 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       setWeekStripSelection(null)
     },
     [weekKeys]
+  )
+
+  const applyWeekShiftClickResult = useCallback(
+    (
+      result: ReturnType<typeof weekShiftClickSelection>,
+      targetWeekKey: string
+    ) => {
+      lastWeekAnchorRef.current = result.persistOrigin
+      if (result.sameRow) {
+        rangeWeekMultiSelect(
+          result.persistOrigin.rowIndex,
+          result.persistOrigin.weekKey,
+          targetWeekKey
+        )
+        return
+      }
+      setWeekRectSelection(result.rect)
+      setWeekMultiSelect(null)
+      setWeekStripSelection(null)
+      clearPendingMergeSelection("cross-row shift-click selection")
+    },
+    [rangeWeekMultiSelect, clearPendingMergeSelection]
   )
 
   const lockPendingMergeSelectionFromCurrentSelection = useCallback(() => {
@@ -5150,6 +5173,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                       disabled={budgetEntryBlocked}
                                       draggable={isDraggableWeekCell}
                                       onDragStart={(e) => {
+                                        if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                                          e.preventDefault()
+                                          return
+                                        }
                                         // resolveWeekDragSource returns the "merged" variant when called on a
                                         // merged anchor cell, so the same path serves both single and merged drags.
                                         const source = resolveWeekDragSource(
@@ -5177,12 +5204,26 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                         e.stopPropagation()
                                         return
                                       }
-                                      if (
-                                        e.button !== 0 ||
-                                        e.ctrlKey ||
-                                        e.metaKey ||
-                                        e.shiftKey
-                                      ) {
+                                      if (e.button !== 0) return
+                                      if (e.ctrlKey || e.metaKey) return
+                                      if (e.shiftKey) {
+                                        // Extend on pointerdown while focusedCell is still
+                                        // the origin. Click is too late: focus has already
+                                        // moved, and HTML5 drag on valued cells swallows click.
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        applyWeekShiftClickResult(
+                                          weekShiftClickSelection(
+                                            lastWeekAnchorRef.current,
+                                            focusedCellRef.current,
+                                            {
+                                              rowIndex,
+                                              weekKey: col.weekKey,
+                                            },
+                                            weekKeys
+                                          ),
+                                          col.weekKey
+                                        )
                                         return
                                       }
                                       const currentRect = weekRectSelectionRef.current
@@ -5276,34 +5317,22 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                         )
                                         return
                                       }
-                                      if (shift && lastWeekAnchorRef.current) {
+                                      if (shift) {
                                         e.preventDefault()
-                                        if (
-                                          lastWeekAnchorRef.current.rowIndex ===
-                                          rowIndex
-                                        ) {
-                                          // Same row — single-row range (existing behavior)
-                                          rangeWeekMultiSelect(
-                                            rowIndex,
-                                            lastWeekAnchorRef.current.weekKey,
-                                            col.weekKey
-                                          )
-                                        } else {
-                                          // Cross-row — create a multi-row rectangle selection
-                                          const rect = normalizeSearchWeekRect(
-                                            lastWeekAnchorRef.current.rowIndex,
-                                            lastWeekAnchorRef.current.weekKey,
-                                            rowIndex,
-                                            col.weekKey,
+                                        // Click is a fallback only. Do not pass live
+                                        // focusedCell — it has already moved to this cell.
+                                        applyWeekShiftClickResult(
+                                          weekShiftClickSelection(
+                                            lastWeekAnchorRef.current,
+                                            null,
+                                            {
+                                              rowIndex,
+                                              weekKey: col.weekKey,
+                                            },
                                             weekKeys
-                                          )
-                                          setWeekRectSelection(rect)
-                                          setWeekMultiSelect(null)
-                                          setWeekStripSelection(null)
-                                          clearPendingMergeSelection(
-                                            "cross-row shift-click selection"
-                                          )
-                                        }
+                                          ),
+                                          col.weekKey
+                                        )
                                         return
                                       }
                                       lastWeekAnchorRef.current = {

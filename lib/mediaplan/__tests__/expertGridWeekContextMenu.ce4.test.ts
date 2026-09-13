@@ -16,8 +16,10 @@ import {
   canOpenWeekCellContextMenu,
   requireWeeklyMenuSelection,
   resolveWeekCellContextMenuTarget,
+  resolveWeekShiftClickAnchor,
   resolveWeeklyExportSelection,
   WEEK_CELL_CONTEXT_MENU_NO_SELECTION_REASON,
+  weekShiftClickSelection,
   type ExpertGridRowWithWeekly,
 } from "../expertGridShared.js"
 
@@ -200,4 +202,77 @@ test("CE4: menu Paste is disabled when async clipboard read is unavailable", () 
     }),
     true
   )
+})
+
+test("CE4: Shift+click origin prefers lastWeekAnchor over a different focused cell", () => {
+  const origin = resolveWeekShiftClickAnchor(
+    { rowIndex: 0, weekKey: "2026-01-05" },
+    { rowIndex: 1, columnKey: "2026-01-19" },
+    WEEK_KEYS
+  )
+  assert.deepEqual(origin, { rowIndex: 0, weekKey: "2026-01-05" })
+})
+
+test("CE4: Shift+click origin falls back to the focused week cell when lastWeekAnchor is null", () => {
+  const origin = resolveWeekShiftClickAnchor(
+    null,
+    { rowIndex: 0, columnKey: "2026-01-05" },
+    WEEK_KEYS
+  )
+  assert.deepEqual(origin, { rowIndex: 0, weekKey: "2026-01-05" })
+})
+
+test("CE4: Shift+click origin is null when lastWeekAnchor is null and focus is not a week cell", () => {
+  assert.equal(
+    resolveWeekShiftClickAnchor(
+      null,
+      { rowIndex: 0, columnKey: "placement" },
+      WEEK_KEYS
+    ),
+    null
+  )
+  assert.equal(resolveWeekShiftClickAnchor(null, null, WEEK_KEYS), null)
+})
+
+test("CE4: Shift+click extends from the focused week cell even when live focus has already moved to the target", () => {
+  const result = weekShiftClickSelection(
+    null,
+    { rowIndex: 0, columnKey: "2026-01-05" },
+    { rowIndex: 0, weekKey: "2026-01-19" },
+    WEEK_KEYS
+  )
+  assert.deepEqual(result.persistOrigin, { rowIndex: 0, weekKey: "2026-01-05" })
+  assert.equal(result.sameRow, true)
+  assert.equal(result.rect.rowStart, 0)
+  assert.equal(result.rect.rowEnd, 0)
+  assert.equal(result.rect.weekKeyStart, "2026-01-05")
+  assert.equal(result.rect.weekKeyEnd, "2026-01-19")
+})
+
+test("CE4: Shift+click with no origin selects only the clicked cell and stores it as the origin", () => {
+  const result = weekShiftClickSelection(
+    null,
+    null,
+    { rowIndex: 1, weekKey: "2026-01-12" },
+    WEEK_KEYS
+  )
+  assert.deepEqual(result.persistOrigin, { rowIndex: 1, weekKey: "2026-01-12" })
+  assert.equal(result.sameRow, true)
+  assert.equal(result.rect.weekKeyStart, "2026-01-12")
+  assert.equal(result.rect.weekKeyEnd, "2026-01-12")
+})
+
+test("CE4: Shift+click lastWeekAnchor wins even when focusedCell is already the target", () => {
+  const result = weekShiftClickSelection(
+    { rowIndex: 0, weekKey: "2026-01-05" },
+    { rowIndex: 1, columnKey: "2026-01-19" },
+    { rowIndex: 1, weekKey: "2026-01-19" },
+    WEEK_KEYS
+  )
+  assert.deepEqual(result.persistOrigin, { rowIndex: 0, weekKey: "2026-01-05" })
+  assert.equal(result.sameRow, false)
+  assert.equal(result.rect.rowStart, 0)
+  assert.equal(result.rect.rowEnd, 1)
+  assert.equal(result.rect.weekKeyStart, "2026-01-05")
+  assert.equal(result.rect.weekKeyEnd, "2026-01-19")
 })

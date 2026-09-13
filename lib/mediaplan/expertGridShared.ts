@@ -116,6 +116,11 @@ export type ExpertWeekRectSelection = Readonly<{
   weekKeyEnd: string
 }>
 
+export type WeekCellAnchor = Readonly<{
+  rowIndex: number
+  weekKey: string
+}>
+
 export type ExpertMultiCellSelection = Readonly<{
   startRow: number
   endRow: number
@@ -271,6 +276,56 @@ export function normalizeWeekRect(
     rowEnd: r1,
     weekKeyStart: weekKeys[a]!,
     weekKeyEnd: weekKeys[b]!,
+  }
+}
+
+/**
+ * Origin for Shift+click week-range extend. `lastWeekAnchor` wins (Excel-like
+ * sticky origin). If it is null, fall back to the currently focused week cell
+ * so keyboard focus / HTML5-drag-swallowed clicks still extend. Descriptor
+ * columns and a missing focus are not an origin.
+ */
+export function resolveWeekShiftClickAnchor(
+  lastAnchor: WeekCellAnchor | null,
+  focusedCell: { rowIndex: number; columnKey: string } | null,
+  weekKeys: readonly string[]
+): WeekCellAnchor | null {
+  if (lastAnchor) return lastAnchor
+  if (focusedCell && weekKeys.includes(focusedCell.columnKey)) {
+    return { rowIndex: focusedCell.rowIndex, weekKey: focusedCell.columnKey }
+  }
+  return null
+}
+
+export type WeekShiftClickSelection = Readonly<{
+  persistOrigin: WeekCellAnchor
+  sameRow: boolean
+  rect: ExpertWeekRectSelection
+}>
+
+/**
+ * Range to apply on Shift+mousedown of `target`. `persistOrigin` is the
+ * origin to store afterwards — never the clicked cell when an origin
+ * already existed (or was inferred from focus).
+ */
+export function weekShiftClickSelection(
+  lastAnchor: WeekCellAnchor | null,
+  focusedCell: { rowIndex: number; columnKey: string } | null,
+  target: WeekCellAnchor,
+  weekKeys: readonly string[]
+): WeekShiftClickSelection {
+  const origin =
+    resolveWeekShiftClickAnchor(lastAnchor, focusedCell, weekKeys) ?? target
+  return {
+    persistOrigin: origin,
+    sameRow: origin.rowIndex === target.rowIndex,
+    rect: normalizeWeekRect(
+      origin.rowIndex,
+      origin.weekKey,
+      target.rowIndex,
+      target.weekKey,
+      weekKeys
+    ),
   }
 }
 
