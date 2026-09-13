@@ -205,7 +205,7 @@ test("CHARACTERISATION edit page: dirty sources and clear sites", () => {
 
   assert.match(
     edit,
-    /onPrimary=\{\(\) => void planDraft\.saveDraftNow\(\)\}[\s\S]{0,200}!hasUnsavedChanges/s
+    /onSaveDraft=\{\(\) => void planDraft\.saveDraftNow\(\)\}[\s\S]{0,250}!hasUnsavedChanges/s
   )
 })
 
@@ -240,9 +240,9 @@ test("CHARACTERISATION create page: Save not gated; draft gated; ExpertApplyDirt
   )
 
   const primarySave = create.match(
-    /onClick=\{\(\) => void handleSaveAll\(\)\}[\s\S]{0,200}disabled=\{([^}]+)\}/
+    /saveBarDisabled =\s*([\s\S]*?)const saveBarTitle/
   )
-  assert.ok(primarySave)
+  assert.ok(primarySave, "primary Save disabled expression must exist")
   assert.doesNotMatch(
     primarySave![1]!,
     /hasUnsavedChanges/,
@@ -250,7 +250,7 @@ test("CHARACTERISATION create page: Save not gated; draft gated; ExpertApplyDirt
   )
   assert.match(
     create,
-    /planDraft\.saveDraftNow\(\)[\s\S]{0,120}!hasUnsavedChanges/s
+    /planDraft\.saveDraftNow\(\)[\s\S]{0,200}!hasUnsavedChanges/s
   )
 })
 

@@ -12,6 +12,25 @@ test("resolveLineItemBursts prefers bursts array over bursts_json", () => {
   assert.equal(result[0].budget, "100")
 })
 
+test("a line carrying both bursts and bursts_json with different content resolves to bursts", () => {
+  const fromBursts = [
+    { budget: "111", startDate: "2026-06-01", endDate: "2026-06-07", market: "NSW" },
+  ]
+  const fromJson = [
+    { budget: "999", startDate: "2026-01-01", endDate: "2026-01-31", market: "VIC" },
+    { budget: "888", startDate: "2026-02-01", endDate: "2026-02-28", market: "QLD" },
+  ]
+  const result = resolveLineItemBursts({
+    bursts: fromBursts,
+    bursts_json: fromJson,
+  })
+  assert.equal(result, fromBursts)
+  assert.notEqual(result, fromJson)
+  assert.equal(result.length, 1)
+  assert.equal(result[0].budget, "111")
+  assert.equal(result[0].market, "NSW")
+})
+
 test("resolveLineItemBursts parses bursts_json string", () => {
   const result = resolveLineItemBursts({
     bursts_json: JSON.stringify([{ budget: "200", startDate: "2026-02-01", endDate: "2026-02-07" }]),

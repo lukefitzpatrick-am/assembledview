@@ -146,14 +146,12 @@ import {
   isUnintendedBillingDivergence,
   type BillingDivergenceResult,
 } from "@/lib/billing/compareBillingDivergence"
-import { computeMediaLineAdServingMonthlyAmounts } from "@/lib/billing/computeMediaLineAdServingMonthly"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver"
 import { mergeInvestmentMonths } from "@/lib/billing/mergeInvestmentMonths"
-import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
+import { generateBillingLineItems } from "@/lib/billing/generateBillingLineItems"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
-import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
 import {
   attachOverridesToLineInputs,
   type BillingOverrideRow,
@@ -324,7 +322,6 @@ import {
 } from "@/lib/finance/preservePriorBilling"
 import { applyDateBasisKeepOrReset } from "@/lib/finance/applyDateBasisKeepOrReset"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
-import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { MbaBillingAutoCalcSummary } from "@/components/billing/MbaBillingAutoCalcSummary"
 import {
   MbaBillingModal,
@@ -440,6 +437,35 @@ function billingStableLineItemId(mediaType: string, lineItem: any, index: number
     return `billing-${mediaType}::${String(raw)}`
   }
   return `billing-${mediaType}::new-${index}`
+}
+
+/**
+ * Today's edit-page burst dollars: `budget` then `buyAmount` strings only.
+ * Production cost×amount is month-level `__service__production`, not per-line preview.
+ */
+function editResolveBurstBudget(burst: unknown): number {
+  const raw = burst as {
+    budget?: { replace?: (re: RegExp, s: string) => string }
+    buyAmount?: { replace?: (re: RegExp, s: string) => string }
+  }
+  return (
+    parseFloat(raw?.budget?.replace?.(/[^0-9.-]/g, "") || "0") ||
+    parseFloat(raw?.buyAmount?.replace?.(/[^0-9.-]/g, "") || "0") ||
+    0
+  )
+}
+
+/** Edit preview: keep decorated ids, omit fee keys so B1 still seeds from container bursts. */
+function editGenerateBillingOptions(
+  getRateForMediaType: (mediaType: string) => number,
+  adservaudio: number | null | undefined
+) {
+  return {
+    adServing: { getRateForMediaType, adservaudio },
+    resolveLineItemId: billingStableLineItemId,
+    emitFees: false as const,
+    resolveBurstBudget: editResolveBurstBudget,
+  }
 }
 
 /** Normalize for Set / comparisons so template vs working ids always match when logically the same. */
@@ -4740,7 +4766,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
       if (form.getValues(mediaTypeKey as any) && lineItems) {
-        const billingLineItems = generateBillingLineItems(lineItems, key, deepCopiedMonths, "billing");
+        const billingLineItems = generateBillingLineItems(
+          lineItems,
+          key,
+          deepCopiedMonths,
+          "billing",
+          editGenerateBillingOptions(getRateForMediaType, adservaudio)
+        )
         if (billingLineItems.length > 0) {
           allLineItems[key] = billingLineItems;
         }
@@ -4825,7 +4857,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           if (mediaCostVal <= 0) return
 
           // Generate from container data so user can see and edit individual line items
-          const generated = generateBillingLineItems(containerItems, key, deepCopiedMonths, "billing")
+          const generated = generateBillingLineItems(
+            containerItems,
+            key,
+            deepCopiedMonths,
+            "billing",
+            editGenerateBillingOptions(getRateForMediaType, adservaudio)
+          )
           if (generated.length > 0) {
             li[key] = generated
           }
@@ -5493,153 +5531,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
   }, []);
 
-  // Helper function to generate billing line items from media line items (similar to create page)
-  const generateBillingLineItems = useCallback((
-    mediaLineItems: any[],
-    mediaType: string,
-    months: { monthYear: string }[],
-    mode: "billing" | "delivery" = "billing"
-  ): BillingLineItemType[] => {
-    if (!mediaLineItems || mediaLineItems.length === 0) return [];
-
-    const lineItemsMap = new Map<string, BillingLineItemType>();
-    const monthKeys = months.map(m => m.monthYear);
-
-    mediaLineItems.forEach((lineItem, index) => {
-      const { header1, header2 } = getScheduleHeaders(mediaType, lineItem);
-      const itemId = billingStableLineItemId(mediaType, lineItem, index);
-      const clientPaysForMedia = Boolean(
-        (lineItem as any)?.client_pays_for_media ?? (lineItem as any)?.clientPaysForMedia
-      );
-
-      // Initialize monthly amounts
-      const monthlyAmounts: Record<string, number> = {};
-      monthKeys.forEach(key => monthlyAmounts[key] = 0);
-
-      // Parse bursts and distribute across months
-      let bursts = [];
-      if (typeof lineItem.bursts_json === 'string') {
-        try {
-          bursts = JSON.parse(lineItem.bursts_json);
-        } catch (e) {
-          // Error parsing bursts_json - continue with empty bursts
-        }
-      } else if (Array.isArray(lineItem.bursts_json)) {
-        bursts = lineItem.bursts_json;
-      } else if (Array.isArray(lineItem.bursts)) {
-        bursts = lineItem.bursts;
-      }
-
-      const inferredLineItemFeePct = (() => {
-        // Some containers (e.g. Social Media) store `budget_includes_fees` on the LINE ITEM, not per-burst,
-        // and do not include fee % in `bursts_json`. In those cases we infer fee% from totalMedia vs raw budgets.
-        const budgetIncludesFees = Boolean(
-          (lineItem as any)?.budget_includes_fees ?? (lineItem as any)?.budgetIncludesFees
-        );
-        if (!budgetIncludesFees) return 0;
-
-        const parseMoney = (v: any) =>
-          parseFloat(String(v ?? "").replace(/[^0-9.-]/g, "")) || 0;
-
-        const sumRawBudgets = (bursts || []).reduce((sum: number, b: any) => {
-          const raw = parseMoney(b?.budget) || parseMoney(b?.buyAmount);
-          return sum + raw;
-        }, 0);
-
-        const totalMediaRaw =
-          (lineItem as any)?.totalMedia ?? (lineItem as any)?.total_media ?? 0;
-        const totalMedia = typeof totalMediaRaw === "number" ? totalMediaRaw : parseMoney(totalMediaRaw);
-
-        if (sumRawBudgets <= 0) return 0;
-        const pct = (1 - totalMedia / sumRawBudgets) * 100;
-        return Math.max(0, Math.min(100, pct));
-      })();
-
-      // Distribute each burst across months.
-      // IMPORTANT: line item amounts should reflect *media* only (net of fees when budget includes fees),
-      // and should be $0 in billing mode when the client pays for media.
-      bursts.forEach((burst: any) => {
-          const startDate = coerceBurstDateLocal(burst.startDate);
-          const endDate = coerceBurstDateLocal(burst.endDate);
-          if (!startDate || !endDate) return;
-          const budget = parseFloat(burst.budget?.replace(/[^0-9.-]/g, '') || '0') || 
-                        parseFloat(burst.buyAmount?.replace(/[^0-9.-]/g, '') || '0') || 0;
-
-          const feePctRaw =
-            (burst.feePercentage ?? burst.fee_percentage ??
-              (lineItem as any)?.feePercentage ?? (lineItem as any)?.fee_percentage) as any;
-          const feePctCandidate = Number(feePctRaw);
-          const feePct = Number.isFinite(feePctCandidate)
-            ? Math.max(0, Math.min(100, feePctCandidate))
-            : inferredLineItemFeePct;
-
-          const budgetIncludesFees = Boolean(
-            burst.budgetIncludesFees ??
-              burst.budget_includes_fees ??
-              (lineItem as any)?.budgetIncludesFees ??
-              (lineItem as any)?.budget_includes_fees
-          );
-          const burstClientPaysForMedia = Boolean(
-            burst.clientPaysForMedia ??
-              burst.client_pays_for_media ??
-              (lineItem as any)?.clientPaysForMedia ??
-              (lineItem as any)?.client_pays_for_media ??
-              clientPaysForMedia
-          );
-
-          // Convert "budget" into the net media amount used for schedule line items
-          const netMedia = budgetIncludesFees ? (budget * (100 - feePct)) / 100 : budget;
-          const effectiveBudget =
-            mode === "billing"
-              ? (burstClientPaysForMedia ? 0 : netMedia)
-              : netMedia; // delivery schedule should always reflect delivered media
-
-          if (effectiveBudget === 0) return;
-
-          const shares = prorateAcrossMonths({
-            amount: effectiveBudget,
-            burstStart: startDate,
-            burstEnd: endDate,
-            monthKeys,
-          });
-          for (const monthKey of monthKeys) {
-            monthlyAmounts[monthKey] += shares[monthKey] ?? 0;
-          }
-        });
-
-      // Ad serving per month — LINE flag only (never burst.noAdserving from bursts_json).
-      // Flag lives on `lineItem` (arg); callers re-invoke when *MediaLineItems change
-      // (attachLineItemsToMonths deps). Callback deps are rates only — do not add a
-      // line-flag fingerprint here (would churn this hot callback for free).
-      const { monthlyAmounts: adServingMonthlyAmounts, totalAdServingAmount } =
-        computeMediaLineAdServingMonthlyAmounts({
-          lineItem: lineItem as Record<string, unknown>,
-          bursts,
-          monthKeys,
-          mediaType,
-          getRateForMediaType,
-          adservaudio,
-        })
-
-      // Create or update line item
-      const totalAmount = Object.values(monthlyAmounts).reduce((sum, val) => sum + val, 0);
-      const dimensions = resolveLineDimensions(mediaType, lineItem);
-      lineItemsMap.set(itemId, {
-        id: itemId,
-        header1,
-        header2,
-        monthlyAmounts,
-        totalAmount,
-        ...dimensions,
-        adServingMonthlyAmounts,
-        totalAdServingAmount,
-        ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),
-      });
-    });
-
-    return Array.from(lineItemsMap.values());
-  }, [adservaudio, getRateForMediaType]);
-
   /**
    * Level 2 — per–line-item reset (modal draft): copy that row from the auto template
    * and clear the line from pending (MB-23). Deletion of billing_overrides happens at
@@ -5751,7 +5642,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
       const isEnabled = formValues[mediaTypeKey as keyof typeof formValues];
       if (isEnabled && lineItems && lineItems.length > 0) {
-        const billingLineItems = generateBillingLineItems(lineItems, key, monthsWithLineItems, mode);
+        const billingLineItems = generateBillingLineItems(
+          lineItems,
+          key,
+          monthsWithLineItems,
+          mode,
+          editGenerateBillingOptions(getRateForMediaType, adservaudio)
+        )
         if (billingLineItems.length > 0) {
           allLineItems[key] = billingLineItems;
         }
@@ -5810,7 +5707,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     progOohMediaLineItems,
     influencersMediaLineItems,
     productionMediaLineItems,
-    generateBillingLineItems
+    getRateForMediaType,
+    adservaudio,
   ]);
 
   // Keep ref always current — assigned during render so timeouts / handlers never read a stale `attachLineItemsToMonths`.
@@ -6117,7 +6015,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
       Object.entries(mediaTypeMap).forEach(([formKey, { lineItems, key }]) => {
         if (!form.getValues(formKey as any) || !lineItems?.length) return
-        const expected = generateBillingLineItems(lineItems, key, months, "billing")
+        const expected = generateBillingLineItems(
+          lineItems,
+          key,
+          months,
+          "billing",
+          editGenerateBillingOptions(getRateForMediaType, adservaudio)
+        )
         const actualGroup =
           ((first.lineItems as Record<string, BillingLineItemType[]>)?.[key] as BillingLineItemType[]) ?? []
         const unmatchedActual = new Map(actualGroup.map((li) => [li.id, li] as const))
@@ -6177,7 +6081,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     },
     [
       form,
-      generateBillingLineItems,
+      getRateForMediaType,
+      adservaudio,
       televisionMediaLineItems,
       radioMediaLineItems,
       newspaperMediaLineItems,

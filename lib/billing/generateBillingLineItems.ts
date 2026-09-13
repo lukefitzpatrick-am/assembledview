@@ -1,3 +1,4 @@
+import { computeMediaLineAdServingMonthlyAmounts } from "@/lib/billing/computeMediaLineAdServingMonthly"
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import { prorateBurstFeesToMonths, type SeedBurstSource } from "@/lib/billing/seedLineFees"
@@ -8,15 +9,46 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { resolveProductionBurstBudget } from "@/lib/mediaplan/resolveProductionBurstBudget"
 
+/** Edit-page ad-serving preview. Create omits this; fees still attach without it. */
+export type GenerateBillingLineItemsAdServing = {
+  getRateForMediaType: (mediaType: string) => number
+  adservaudio?: number | null
+}
+
+export type GenerateBillingLineItemsOptions = {
+  adServing?: GenerateBillingLineItemsAdServing
+  /**
+   * Mint the billing row id. Edit passes `billingStableLineItemId` so rows stay
+   * `billing-{media}::{raw}` (billing_overrides round-trip). Absent → today's
+   * `${mediaType}-${header1}-${header2}-${index}` template (create page).
+   */
+  resolveLineItemId?: (mediaType: string, lineItem: unknown, index: number) => string
+  /**
+   * When false, omit `feeMonthlyAmounts` / `totalFeeAmount` / `feeAmount` entirely
+   * so B1 still owns fee seeding (key presence, not zeros). Default true.
+   */
+  emitFees?: boolean
+  /**
+   * Burst media dollars. Default is {@link resolveProductionBurstBudget} (create/export).
+   * Edit passes a budget/buyAmount-only parser so production cost×amount does not
+   * inflate per-line preview (money lives on `__service__production`). Temporary.
+   */
+  resolveBurstBudget?: (burst: unknown) => number
+}
+
 /**
  * Build per-month media and fee amounts for each container line item (billing or delivery).
- * Client-pays billing media is 0; fee months still come from {@link computeBurstAmounts}.
+ * Client-pays billing media is 0; fee months still come from {@link computeBurstAmounts}
+ * unless {@link GenerateBillingLineItemsOptions.emitFees} is false.
+ * Optional {@link GenerateBillingLineItemsOptions.adServing} is the edit-page preview
+ * that used to live in a local copy of this helper (C-98).
  */
 export function generateBillingLineItems(
   mediaLineItems: any[],
   mediaType: string,
   months: BillingMonth[] | { monthYear: string }[],
-  mode: "billing" | "delivery" = "billing"
+  mode: "billing" | "delivery" = "billing",
+  options?: GenerateBillingLineItemsOptions
 ): BillingLineItem[] {
   if (!mediaLineItems || mediaLineItems.length === 0) return []
 
@@ -25,7 +57,9 @@ export function generateBillingLineItems(
 
   mediaLineItems.forEach((lineItem, index) => {
     const { header1, header2 } = getScheduleHeaders(mediaType, lineItem)
-    const itemId = `${mediaType}-${header1 || "Item"}-${header2 || "Details"}-${index}`
+    const itemId = options?.resolveLineItemId
+      ? options.resolveLineItemId(mediaType, lineItem, index)
+      : `${mediaType}-${header1 || "Item"}-${header2 || "Details"}-${index}`
     const clientPaysForMedia = Boolean(
       (lineItem as any)?.client_pays_for_media ?? (lineItem as any)?.clientPaysForMedia
     )
@@ -63,7 +97,9 @@ export function generateBillingLineItems(
       const startDate = coerceBurstDateLocal(burst.startDate)
       const endDate = coerceBurstDateLocal(burst.endDate)
       if (!startDate || !endDate) return
-      const budget = resolveProductionBurstBudget(burst).effectiveBudget
+      const budget = options?.resolveBurstBudget
+        ? options.resolveBurstBudget(burst)
+        : resolveProductionBurstBudget(burst).effectiveBudget
 
       const feePctRaw =
         (burst.feePercentage ??
@@ -131,10 +167,30 @@ export function generateBillingLineItems(
     })
 
     const totalAmount = Object.values(monthlyAmounts).reduce((sum, val) => sum + val, 0)
-    const { feeMonthlyAmounts, totalFeeAmount } = prorateBurstFeesToMonths(
-      feeBurstSources,
-      monthKeys
-    )
+    const emitFees = options?.emitFees !== false
+    const feeFields = emitFees
+      ? (() => {
+          const { feeMonthlyAmounts, totalFeeAmount } = prorateBurstFeesToMonths(
+            feeBurstSources,
+            monthKeys
+          )
+          return {
+            feeMonthlyAmounts,
+            totalFeeAmount,
+            feeAmount: totalFeeAmount,
+          }
+        })()
+      : {}
+    const adServing = options?.adServing
+      ? computeMediaLineAdServingMonthlyAmounts({
+          lineItem: lineItem as Record<string, unknown>,
+          bursts,
+          monthKeys,
+          mediaType,
+          getRateForMediaType: options.adServing.getRateForMediaType,
+          adservaudio: options.adServing.adservaudio,
+        })
+      : null
     const dimensions = resolveLineDimensions(mediaType, lineItem)
     lineItemsMap.set(itemId, {
       id: itemId,
@@ -143,9 +199,13 @@ export function generateBillingLineItems(
       monthlyAmounts,
       totalAmount,
       ...dimensions,
-      feeMonthlyAmounts,
-      totalFeeAmount,
-      feeAmount: totalFeeAmount,
+      ...feeFields,
+      ...(adServing
+        ? {
+            adServingMonthlyAmounts: adServing.monthlyAmounts,
+            totalAdServingAmount: adServing.totalAdServingAmount,
+          }
+        : {}),
       ...(clientPaysForMedia ? { clientPaysForMedia: true } : {}),
     })
   })
