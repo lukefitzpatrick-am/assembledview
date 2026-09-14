@@ -2,7 +2,7 @@
  * Publisher Hub ingest payload: profile + recent ingest_runs + latest eval score.
  */
 
-import { listPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles"
+import { listPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles.server"
 import { findProfileForCataloguePublisher } from "@/lib/mediaplans/ingest/publisherCatalogueJoin"
 import { listIngestRuns } from "@/lib/mediaplans/ingest/ingestRuns"
 import type { IngestRunRecord } from "@/lib/mediaplans/ingest/ingestRuns"

@@ -29,10 +29,10 @@ import {
 import { overlayMoneySynonyms } from "@/lib/mediaplans/ingest/moneySynonyms"
 import {
   applyFieldDefaultsToProposal,
-  attachControlledResolutions,
   evaluateTemplateCoverage,
   type TemplateCoverage,
 } from "@/lib/mediaplans/ingest/templateCoverage"
+import { attachControlledResolutions } from "@/lib/mediaplans/ingest/templateCoverage.server"
 import type { LineAudit } from "@/lib/mediaplans/ingest/lineAudit"
 import type { ParseReviewState } from "@/lib/mediaplans/ingest/parseReview"
 import {

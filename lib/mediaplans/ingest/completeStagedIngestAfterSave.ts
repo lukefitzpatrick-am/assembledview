@@ -8,7 +8,7 @@ import { recordIngestRun } from "@/lib/mediaplans/ingest/ingestRuns"
 import {
   getIngestStage,
   retainIngestStage,
-} from "@/lib/mediaplans/ingest/ingestStageStore"
+} from "@/lib/mediaplans/ingest/ingestStageStore.server"
 import { insertIngestPanels } from "@/lib/mediaplans/ingest/insertIngestPanels"
 import {
   keyIngestPanelsToSavedIds,

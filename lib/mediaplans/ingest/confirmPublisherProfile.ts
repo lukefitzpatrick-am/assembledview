@@ -15,7 +15,7 @@ import {
   SOURCE_FILE_MISSING_ERROR,
   reparseStagedIngestFromSourceFile,
 } from "@/lib/mediaplans/ingest/ingestSourceFile"
-import { lookupIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
+import { lookupIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore.server"
 import type { LineAuditClient } from "@/lib/mediaplans/ingest/lineAudit"
 import {
   recordPublisherProfileSeedAudits,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/requireRole"
-import { listPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles"
+import { listPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles.server"
 import { stageIngestReviewFromBuffer } from "@/lib/mediaplans/ingest/stageIngestReview"
 import { createAnthropicLineAuditClient } from "@/lib/mediaplans/ingest/lineAudit.server"
 

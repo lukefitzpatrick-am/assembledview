@@ -5,7 +5,7 @@ import {
   type IngestLoadChannel,
 } from "@/lib/ava/applyIngestLineItemsLoad"
 import { recordIngestRun } from "@/lib/mediaplans/ingest/ingestRuns"
-import { lookupIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
+import { lookupIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore.server"
 import { ingestReviewToFormLineItems } from "@/lib/mediaplans/ingest/toFormLineItems"
 import { evaluateRequiredFieldGate } from "@/lib/mediaplans/ingest/templateCoverage"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"

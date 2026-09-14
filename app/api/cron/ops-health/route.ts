@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { getOpsEmailRecipients, sendHtmlEmail } from "@/lib/email/sendHtmlEmail"
-import { sweepExpiredIngestStages } from "@/lib/mediaplans/ingest/ingestStageStore"
+import { sweepExpiredIngestStages } from "@/lib/mediaplans/ingest/ingestStageStore.server"
 import { runOpsHealthChecks } from "@/lib/ops/health/checks"
 import {
   buildOpsHealthEmailHtml,

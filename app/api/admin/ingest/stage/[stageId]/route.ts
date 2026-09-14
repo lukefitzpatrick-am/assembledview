@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/requireRole"
-import { getIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
+import { getIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore.server"
 import { summariseIngestReview } from "@/lib/mediaplans/ingest/summariseIngestReview"
 
 export const runtime = "nodejs"

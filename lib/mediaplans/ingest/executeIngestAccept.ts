@@ -13,7 +13,7 @@ import { recordIngestRun } from "@/lib/mediaplans/ingest/ingestRuns"
 import {
   getIngestStage,
   retainIngestStage,
-} from "@/lib/mediaplans/ingest/ingestStageStore"
+} from "@/lib/mediaplans/ingest/ingestStageStore.server"
 import { resolveCatalogueIdForProfileName } from "@/lib/mediaplans/ingest/publisherCatalogueJoin"
 import { resolveIngestCampaignFromDb } from "@/lib/mediaplans/ingest/resolveIngestCampaign"
 import { evaluateRequiredFieldGate, evaluateTemplateCoverage } from "@/lib/mediaplans/ingest/templateCoverage"

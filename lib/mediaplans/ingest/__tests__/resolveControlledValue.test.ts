@@ -10,8 +10,8 @@ import { resolveControlledValue } from "../resolveControlledValue"
 import {
   clearValueSynonymOverlayForTests,
   getValueSynonymOverlayForTests,
-  learnSynonym,
 } from "../valueSynonymRepo"
+import { learnSynonym } from "../valueSynonymRepo.server"
 
 const QMS_ID = 30
 const CREATED_BY = "luke@assembledmedia.com.au"

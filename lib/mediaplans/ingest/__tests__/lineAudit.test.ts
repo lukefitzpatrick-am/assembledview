@@ -27,10 +27,8 @@ import {
   headerBandRows,
 } from "../sheetTextGrid"
 import { stageIngestReviewFromBuffer } from "../stageIngestReview"
-import {
-  clearIngestStageForTests,
-  getIngestStage,
-} from "../ingestStageStore"
+import { clearIngestStageForTests } from "../ingestStageStore"
+import { getIngestStage } from "../ingestStageStore.server"
 
 const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
 const JCD = path.join(FIX, "jcd_strength-meals_ooh.xlsx")

@@ -6,7 +6,7 @@ import { hasUnconfirmedProposedProfile } from "@/lib/mediaplans/ingest/proposePu
 import {
   lookupIngestStage,
   patchIngestStageReview,
-} from "@/lib/mediaplans/ingest/ingestStageStore"
+} from "@/lib/mediaplans/ingest/ingestStageStore.server"
 
 export const runtime = "nodejs"
 

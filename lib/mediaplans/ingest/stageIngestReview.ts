@@ -5,7 +5,7 @@
 
 import { buildIngestReviewWithPrimary } from "@/lib/mediaplans/ingest/buildIngestReview"
 import { recordIngestRun } from "@/lib/mediaplans/ingest/ingestRuns"
-import { putIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
+import { putIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore.server"
 import {
   putIngestWorkbook,
   type IngestSourceFile,

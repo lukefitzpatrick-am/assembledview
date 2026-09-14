@@ -1,5 +1,5 @@
 import type AvaTool from "./types"
-import { lookupIngestStage, patchIngestStageReview } from "@/lib/mediaplans/ingest/ingestStageStore"
+import { lookupIngestStage, patchIngestStageReview } from "@/lib/mediaplans/ingest/ingestStageStore.server"
 import {
   formatIngestConfirmedBlock,
   summariseIngestReview,

@@ -8,7 +8,7 @@ import {
   getControlledVocabulary,
   stripPublisherPrefix,
 } from "@/lib/mediaplans/ingest/controlledVocabularies"
-import { listSynonymsFor } from "@/lib/mediaplans/ingest/valueSynonymRepo"
+import { listSynonymsFor } from "@/lib/mediaplans/ingest/valueSynonymRepo.server"
 
 export type ControlledResolution = {
   canonical: string | null

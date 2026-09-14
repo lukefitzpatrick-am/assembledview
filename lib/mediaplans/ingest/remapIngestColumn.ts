@@ -3,11 +3,11 @@
  * Keyed by publisher_name while 1:1 holds.
  */
 
-import {
-  persistColumnRemap,
-  type RemapRejection,
-  type RemapResult,
-  type RemapSource,
+import { persistColumnRemap } from "@/lib/mediaplans/ingest/persistColumnRemap.server"
+import type {
+  RemapRejection,
+  RemapResult,
+  RemapSource,
 } from "@/lib/mediaplans/ingest/persistColumnRemap"
 
 export async function remapIngestColumn(args: {

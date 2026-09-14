@@ -23,11 +23,11 @@ import { loadSeedPublisherProfiles } from "../loadPublisherProfiles"
 import { listOpenIngestReviewQuestions } from "../ingestReviewQuestions"
 import type { IngestProposal, ProposedLineItem } from "../proposeLineItems"
 import type { IngestReviewPackage } from "../buildIngestReview"
+import { clearIngestStageForTests } from "../ingestStageStore"
 import {
-  clearIngestStageForTests,
   putIngestStage,
   patchIngestStageReview,
-} from "../ingestStageStore"
+} from "../ingestStageStore.server"
 import { loadIngestIntoFormTool } from "@/lib/ava/tools/loadIngestIntoForm"
 import type { AvaToolContext } from "@/lib/ava/tools/types"
 import { confirmAllGreen } from "../parseReview"

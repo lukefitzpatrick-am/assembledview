@@ -23,20 +23,25 @@ import {
   proposedSourceRows,
   recordRowDecision,
   resolveParseReviewDiscrepancy,
-  resolveParseReviewValue,
   siblingRowsForValue,
   tallyFieldOverride,
-  applyParseReviewOverrideProposal,
 } from "../parseReview"
+import {
+  applyParseReviewOverrideProposal,
+  resolveParseReviewValue,
+} from "../parseReview.server"
 import {
   clearPublisherProfileSeedOverlayForTests,
   getPublisherProfileSeedAuditForTests,
 } from "../persistColumnRemap"
 import {
   clearIngestStageForTests,
-  getIngestStage,
-  putIngestStage,
 } from "../ingestStageStore"
+import {
+  getIngestStage,
+  patchIngestStageReview,
+  putIngestStage,
+} from "../ingestStageStore.server"
 import { loadIngestIntoFormTool } from "@/lib/ava/tools/loadIngestIntoForm"
 import type { AvaToolContext } from "@/lib/ava/tools/types"
 import {
@@ -234,7 +239,6 @@ test("wrong money on r62 → one disagree; bulk green skips it; load refused unt
   assert.equal(parseReviewOf(chosen).decisions.r62?.status, "confirmed")
   assert.equal(parseReviewLoadGate(chosen).ok, true)
 
-  const { patchIngestStageReview } = await import("../ingestStageStore")
   await patchIngestStageReview(stageId, chosen)
   const okCtx = loadCtx(stageId, "jcd_strength-meals_ooh.xlsx")
   const ok = await loadIngestIntoFormTool.execute({ confirm: true }, okCtx)

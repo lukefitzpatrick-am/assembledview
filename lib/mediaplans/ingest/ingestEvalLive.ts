@@ -26,7 +26,7 @@ import {
   parseIngestSourceFile,
   type IngestSourceFile,
 } from "@/lib/mediaplans/ingest/ingestWorkbookBlob"
-import { listPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles"
+import { listPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles.server"
 import { roundCents } from "@/lib/mediaplans/ingest/moneyRules"
 import { stampProposalForSave } from "@/lib/mediaplans/ingest/stampProposalForSave"
 

@@ -18,10 +18,12 @@ import {
   clearPublisherProfileSeedOverlayForTests,
   getPublisherProfileSeedAuditForTests,
   getPublisherProfileSeedOverlay,
-  persistColumnRemap,
-  persistFieldDefault,
   validateRemapHeader,
 } from "../persistColumnRemap"
+import {
+  persistColumnRemap,
+  persistFieldDefault,
+} from "../persistColumnRemap.server"
 import { loadSeedPublisherProfiles } from "../loadPublisherProfiles"
 
 const TEST_IDENTITY = {

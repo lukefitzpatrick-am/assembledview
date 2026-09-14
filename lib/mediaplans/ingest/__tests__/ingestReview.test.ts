@@ -10,9 +10,9 @@ import { loadSeedPublisherProfiles } from "../loadPublisherProfiles"
 import {
   applyColumnRemap,
   clearPublisherProfileSeedOverlayForTests,
-  persistColumnRemap,
   profilesWithRemapOverlay,
 } from "../persistColumnRemap"
+import { persistColumnRemap } from "../persistColumnRemap.server"
 import { stampProposalForSave } from "../stampProposalForSave"
 import type { SavePlanLineItem } from "@/lib/data/savePlan"
 

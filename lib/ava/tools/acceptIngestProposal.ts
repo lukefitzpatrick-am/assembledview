@@ -1,6 +1,6 @@
 import type AvaTool from "./types"
 import { executeIngestAccept } from "@/lib/mediaplans/ingest/executeIngestAccept"
-import { getIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
+import { getIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore.server"
 
 export const acceptIngestProposalTool: AvaTool = {
   definition: {

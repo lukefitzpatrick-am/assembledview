@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/requireRole"
-import { persistFieldDefault } from "@/lib/mediaplans/ingest/persistColumnRemap"
+import { persistFieldDefault } from "@/lib/mediaplans/ingest/persistColumnRemap.server"
 import {
   fieldIdFromConstantHeader,
   isConstantMappingHeader,

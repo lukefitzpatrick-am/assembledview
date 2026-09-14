@@ -20,9 +20,9 @@ import {
   applyReviewColumnRemap,
   applyReviewFieldDefault,
   knownHeadersFromReview,
-  persistFieldDefault,
   validateRemapHeader,
 } from "@/lib/mediaplans/ingest/persistColumnRemap"
+import { persistFieldDefault } from "@/lib/mediaplans/ingest/persistColumnRemap.server"
 import { isMoneyTarget } from "@/lib/mediaplans/ingest/moneyTargets"
 import { remapIngestColumn } from "@/lib/mediaplans/ingest/remapIngestColumn"
 import { getTargetTemplate } from "@/lib/mediaplans/ingest/targetTemplates"
@@ -38,7 +38,7 @@ import {
 } from "@/lib/mediaplans/ingest/controlledVocabularies"
 import { resolveCatalogueIdForProfileName } from "@/lib/mediaplans/ingest/publisherCatalogueJoin"
 import { resolveControlledValue } from "@/lib/mediaplans/ingest/resolveControlledValue"
-import { learnSynonym } from "@/lib/mediaplans/ingest/valueSynonymRepo"
+import { learnSynonym } from "@/lib/mediaplans/ingest/valueSynonymRepo.server"
 import {
   hasUnconfirmedProposedProfile,
   PROFILE_QUESTION_PREFIX,

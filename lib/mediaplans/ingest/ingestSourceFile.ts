@@ -9,7 +9,7 @@ import {
   getIngestStage,
   lookupIngestStage,
   patchIngestStageReview,
-} from "@/lib/mediaplans/ingest/ingestStageStore"
+} from "@/lib/mediaplans/ingest/ingestStageStore.server"
 import {
   getIngestWorkbookBuffer,
 } from "@/lib/mediaplans/ingest/ingestWorkbookBlob"

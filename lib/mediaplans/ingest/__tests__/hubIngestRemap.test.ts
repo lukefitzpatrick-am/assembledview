@@ -4,10 +4,8 @@
  */
 import assert from "node:assert/strict"
 import test from "node:test"
-import {
-  clearPublisherProfileSeedOverlayForTests,
-  persistColumnRemap,
-} from "../persistColumnRemap"
+import { clearPublisherProfileSeedOverlayForTests } from "../persistColumnRemap"
+import { persistColumnRemap } from "../persistColumnRemap.server"
 import { remapIngestColumn } from "../remapIngestColumn"
 import { loadSeedPublisherProfiles } from "../loadPublisherProfiles"
 

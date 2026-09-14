@@ -18,9 +18,9 @@ import { buildIngestReviewFromFile } from "../buildIngestReview"
 import { loadSeedPublisherProfiles } from "../loadPublisherProfiles"
 import {
   clearPublisherProfileSeedOverlayForTests,
-  persistColumnRemap,
   profilesWithRemapOverlay,
 } from "../persistColumnRemap"
+import { persistColumnRemap } from "../persistColumnRemap.server"
 import { parsePublisherProfile } from "../publisherProfileConfig"
 
 const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")

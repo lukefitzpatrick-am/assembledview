@@ -46,7 +46,7 @@ function mimeForName(filename: string, mime?: string | null): string {
   return "application/octet-stream"
 }
 
-function useMemoryBlob(): boolean {
+function isMemoryBlobStore(): boolean {
   return (
     process.env.NODE_TEST_CONTEXT != null ||
     process.env.INGEST_BLOB_STORE === "memory"
@@ -99,7 +99,7 @@ export async function putIngestWorkbook(args: {
   const uploadedAt = new Date().toISOString()
   const sha256 = sha256Hex(args.buffer)
 
-  if (useMemoryBlob()) {
+  if (isMemoryBlobStore()) {
     memoryBlobs.set(pathname, Buffer.from(args.buffer))
     return {
       url: `https://blob.test/${pathname}`,
@@ -155,7 +155,7 @@ export async function deleteIngestWorkbook(
   if (!sourceFile) return
   memoryBlobs.delete(sourceFile.pathname)
   memoryBlobs.delete(sourceFile.url)
-  if (useMemoryBlob()) return
+  if (isMemoryBlobStore()) return
   const token = blobToken()
   try {
     await del(sourceFile.url, token ? { token } : {})

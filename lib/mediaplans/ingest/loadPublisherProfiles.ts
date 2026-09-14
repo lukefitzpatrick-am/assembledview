@@ -1,6 +1,6 @@
 /**
- * Load publisher_profiles for admin / ingest.
- * Prefers Postgres when reachable; falls back to seed JSON (same payload as 0024).
+ * Load publisher_profiles seed JSON (same payload as 0024).
+ * Postgres listing lives in loadPublisherProfiles.server.ts.
  */
 import { readFileSync } from "node:fs"
 import path from "node:path"
@@ -17,46 +17,4 @@ const SEED_PATH = path.join(
 export function loadSeedPublisherProfiles(): PublisherProfileConfig[] {
   const raw = JSON.parse(readFileSync(SEED_PATH, "utf8")) as unknown[]
   return raw.map((row) => parsePublisherProfile(row))
-}
-
-export async function listPublisherProfiles(): Promise<{
-  profiles: PublisherProfileConfig[]
-  source: "postgres" | "seed"
-}> {
-  const { profilesWithRemapOverlay } = await import(
-    "@/lib/mediaplans/ingest/persistColumnRemap"
-  )
-  try {
-    const { db } = await import("@/db")
-    const { publisherProfiles } = await import("@/db/schema/publisherProfiles")
-    const rows = await db.select().from(publisherProfiles)
-    if (rows.length > 0) {
-      const profiles = rows.map((row) =>
-        parsePublisherProfile({
-          publisher_name: row.publisherName,
-          publisher_id: row.publisherId ?? null,
-          media_type: row.mediaType,
-          active: row.active,
-          detect_signature: row.detectSignature,
-          grouping_keys: (row.detectSignature as { grouping_keys?: string[] })
-            ?.grouping_keys,
-          line_granularity: row.lineGranularity,
-          column_map: row.columnMap,
-          field_defaults: row.fieldDefaults ?? {},
-          money_rules: row.moneyRules ?? {},
-          grid_semantics: row.gridSemantics,
-          legend_map: row.legendMap,
-          sheet_rules: row.sheetRules,
-          notes: row.notes,
-        }),
-      )
-      return { profiles: profilesWithRemapOverlay(profiles), source: "postgres" }
-    }
-  } catch {
-    // Migration not applied / DB unavailable — seed is authoritative for local.
-  }
-  return {
-    profiles: profilesWithRemapOverlay(loadSeedPublisherProfiles()),
-    source: "seed",
-  }
 }

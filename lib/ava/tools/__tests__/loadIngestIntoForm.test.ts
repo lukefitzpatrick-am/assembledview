@@ -12,11 +12,11 @@ import {
   clearIngestRunOverlayForTests,
   listIngestRuns,
 } from "@/lib/mediaplans/ingest/ingestRuns"
+import { clearIngestStageForTests } from "@/lib/mediaplans/ingest/ingestStageStore"
 import {
-  clearIngestStageForTests,
   patchIngestStageReview,
   putIngestStage,
-} from "@/lib/mediaplans/ingest/ingestStageStore"
+} from "@/lib/mediaplans/ingest/ingestStageStore.server"
 import { loadSeedPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles"
 import { auditRowsFromProposal } from "@/lib/mediaplans/ingest/lineAudit"
 import {
