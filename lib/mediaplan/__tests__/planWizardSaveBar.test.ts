@@ -282,9 +282,32 @@ describe("edit page wiring (SF-1)", () => {
     assert.match(bar, /showPlanDraftSaveButton\(/)
     assert.match(
       bar,
-      /saveDraftDisabled=\{isSaving \|\| isLoading \|\| !hasUnsavedChanges\}/
+      /saveDraftDisabled=\{isSaving \|\| isLoading \|\| saveBlockedByFailedChannelLoad \|\| !hasUnsavedChanges\}/
     )
     assert.doesNotMatch(bar, /planDraft\.enabled && !isPublished/)
+  })
+
+  it("BZ-3: Save disabled on failed channel load; bar names Retry; watchdog stays on hydration hold", () => {
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    const bar = sliceBottomBar(editSrc)
+    assert.match(editSrc, /saveBlockedByFailedChannelLoad/)
+    assert.match(editSrc, /channelLoadSucceededFromMediaStatus/)
+    assert.match(bar, /failedLoadRetry/)
+    assert.match(bar, /retryMediaTypeLoad/)
+    assert.match(
+      editSrc,
+      /shouldWatch = loadPhase === "loadingLineItems" \|\| saveHeldForHydration/
+    )
+    const watchStart = editSrc.indexOf(
+      "const shouldWatch = loadPhase === \"loadingLineItems\" || saveHeldForHydration"
+    )
+    const watchEnd = editSrc.indexOf("}, [loadPhase, saveHeldForHydration, updateLoadStatus]")
+    const watchBody = editSrc.slice(watchStart, watchEnd)
+    assert.doesNotMatch(watchBody, /saveBlockedByFailedChannelLoad/)
+    assert.match(
+      editSrc,
+      /saveBarDisabled =\s*[\s\S]*?saveBlockedByFailedChannelLoad/
+    )
   })
 })
 
@@ -322,6 +345,21 @@ describe("SM-30: create bar is the edit bar", () => {
       const mba = bar.indexOf("onPublishMba=")
       assert.ok(publish >= 0 && saveDraft > publish && mba > saveDraft)
     }
+  })
+
+  it("BZ-3: create with toggled channels and no fetch keeps Save enabled", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    assert.match(createSrc, /channelLoadSucceededWithoutFetch/)
+    const primarySave = createSrc.match(
+      /saveBarDisabled =\s*([\s\S]*?)const saveBarTitle/
+    )
+    assert.ok(primarySave, "create primary Save disabled expression must exist")
+    assert.doesNotMatch(primarySave![1]!, /saveBlockedByFailedChannelLoad/)
+    assert.doesNotMatch(primarySave![1]!, /mediaLoadStatus/)
+    assert.match(
+      createSrc,
+      /buildSavePlanLineItemsFromSnapshots\(\s*snapshots,\s*billingSaveInputs\.lineItems,\s*createChannelLoadSucceeded/
+    )
   })
 
   it("create first save lands on edit; Publish and exit returns to Campaigns", () => {

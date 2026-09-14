@@ -263,6 +263,7 @@ import { excludedFromMbaScopeNoteFromLines } from "@/lib/mediaplan/excludedMbaSc
 import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
+  channelLoadSucceededWithoutFetch,
   computeChannelDuplicateStats,
   formatSaveModeLabel,
   isSaveAllowedAfterHydration,
@@ -5491,9 +5492,16 @@ function CreateMediaPlan() {
           formatSaveModeLabel(modeResolved.uiMode, modeResolved.versionNumber)
         )
 
+        const createChannelLoadSucceeded = channelLoadSucceededWithoutFetch(
+          CREATE_MEDIA_TYPE_CATALOG.map((entry) => entry.name).filter(
+            (name) => name !== "mp_fixedfee" && Boolean(fv[name as CreateMediaTypeCatalogName])
+          )
+        )
+
         const lineItemsForSave = buildSavePlanLineItemsFromSnapshots(
           snapshots,
-          billingSaveInputs.lineItems
+          billingSaveInputs.lineItems,
+          createChannelLoadSucceeded
         )
 
         if (

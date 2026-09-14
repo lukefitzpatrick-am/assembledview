@@ -182,6 +182,98 @@ export function hydrationChannelLabel(flag: string): string {
   return HYDRATION_CHANNEL_LABELS[flag] ?? flag.replace(/^mp_/, "").replace(/_/g, " ")
 }
 
+/** mp_* flag → snapshot key used by `buildSavePlanLineItemsFromSnapshots`. */
+export const HYDRATION_FLAG_TO_SNAPSHOT_KEY: Record<string, string> = {
+  mp_television: "television",
+  mp_radio: "radio",
+  mp_newspaper: "newspaper",
+  mp_magazines: "magazines",
+  mp_ooh: "ooh",
+  mp_cinema: "cinema",
+  mp_digidisplay: "digiDisplay",
+  mp_digiaudio: "digiAudio",
+  mp_digivideo: "digiVideo",
+  mp_bvod: "bvod",
+  mp_integration: "integration",
+  mp_search: "search",
+  mp_socialmedia: "socialMedia",
+  mp_progdisplay: "progDisplay",
+  mp_progvideo: "progVideo",
+  mp_progbvod: "progBvod",
+  mp_progaudio: "progAudio",
+  mp_progooh: "progOoh",
+  mp_influencers: "influencers",
+  mp_production: "production",
+}
+
+const SNAPSHOT_KEY_TO_FLAG = Object.fromEntries(
+  Object.entries(HYDRATION_FLAG_TO_SNAPSHOT_KEY).map(([flag, key]) => [key, flag])
+)
+
+export function snapshotMediaTypeLabel(mediaType: string): string {
+  const flag = SNAPSHOT_KEY_TO_FLAG[mediaType]
+  if (flag) return hydrationChannelLabel(flag)
+  return mediaType
+}
+
+/**
+ * Per enabled channel: did this session's line-item GET succeed?
+ * Distinct from settled (error also settles) and from empty (ready + [] is success).
+ * Catch / watchdog leave status `"error"` — those are not success.
+ */
+export function channelLoadSucceededFromMediaStatus(
+  expectedFlags: string[],
+  mediaLoadStatus: Partial<Record<string, ChannelMediaLoadStatus>>
+): Record<string, boolean> {
+  const out: Record<string, boolean> = {}
+  for (const flag of expectedFlags) {
+    const key = HYDRATION_FLAG_TO_SNAPSHOT_KEY[flag]
+    if (!key) continue
+    out[key] = mediaLoadStatus[flag] === "ready"
+  }
+  return out
+}
+
+/**
+ * Create never GETs channel line items. Enabled channels are planner-authored,
+ * so load success is true by construction.
+ */
+export function channelLoadSucceededWithoutFetch(
+  expectedFlags: string[]
+): Record<string, boolean> {
+  const out: Record<string, boolean> = {}
+  for (const flag of expectedFlags) {
+    const key = HYDRATION_FLAG_TO_SNAPSHOT_KEY[flag]
+    if (!key) continue
+    out[key] = true
+  }
+  return out
+}
+
+export function isSaveBlockedByFailedChannelLoad(
+  channelLoadSucceeded: Record<string, boolean>
+): boolean {
+  return Object.values(channelLoadSucceeded).some((ok) => ok === false)
+}
+
+export function listFailedChannelLoadLabels(
+  channelLoadSucceeded: Record<string, boolean>
+): string[] {
+  return Object.entries(channelLoadSucceeded)
+    .filter(([, ok]) => ok === false)
+    .map(([mediaType]) => snapshotMediaTypeLabel(mediaType))
+}
+
+export function formatSaveFailedChannelLoadReason(
+  labels: string[]
+): string | null {
+  if (labels.length === 0) return null
+  if (labels.length === 1) {
+    return `${labels[0]} failed to load — Retry before saving`
+  }
+  return `${labels.length} channels failed to load — Retry before saving`
+}
+
 /**
  * Flags still blocking Save: not ready, or ready but not yet settled.
  * Error status does not block (matches computeAllChannelsHydrated).

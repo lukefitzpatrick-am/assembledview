@@ -250,6 +250,40 @@ describe("4. stable line ids + unique-violation disambiguation", () => {
     )
   })
 
+  it("BZ-3: throws when an enabled channel never loaded (does not skip empty)", () => {
+    assert.throws(
+      () =>
+        buildSavePlanLineItemsFromSnapshots({ radio: [] }, [], {
+          radio: false,
+        }),
+      /Radio/
+    )
+  })
+
+  it("BZ-3: planner-emptied loaded channel still saves as empty", () => {
+    const lineItems = buildSavePlanLineItemsFromSnapshots({ radio: [] }, [], {
+      radio: true,
+    })
+    assert.deepEqual(lineItems, [])
+  })
+
+  it("BZ-3: no failed channel is byte-identical to omitting the load map", () => {
+    const grid = [socialRow(`${MBA}SM1`, 1)]
+    const stamped = assignStableLineItemNumbers(
+      grid,
+      MBA,
+      MEDIA_TYPE_ID_CODES.socialMedia
+    )
+    const snapshots = { socialMedia: stamped, radio: [] as unknown[] }
+    const withoutMap = buildSavePlanLineItemsFromSnapshots(snapshots)
+    const withAllSucceeded = buildSavePlanLineItemsFromSnapshots(
+      snapshots,
+      [],
+      { socialMedia: true, radio: true }
+    )
+    assert.deepEqual(withAllSucceeded, withoutMap)
+  })
+
   it("reorder does NOT restamp ids (unlike reassignLineItemNumbers)", () => {
     const reordered = [socialRow(`${MBA}SM2`, 2), socialRow(`${MBA}SM1`, 1)]
     const stable = assignStableLineItemNumbers(

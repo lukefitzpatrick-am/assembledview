@@ -65,14 +65,19 @@ export function wizardPrimarySaveLabel(args: {
   isPublishAction: boolean
   saveBlockedByClientsError?: boolean
   saveHeldForHydration?: boolean
+  saveBlockedByFailedChannelLoad?: boolean
   clientsError?: string | null
   saveHydrationHoldReason?: string | null
+  saveFailedChannelLoadReason?: string | null
 }): string {
   if (args.isSaving) {
     return args.isPublishAction ? "Publishing…" : "Saving…"
   }
   if (args.saveBlockedByClientsError) {
     return args.clientsError ?? "Client list unavailable"
+  }
+  if (args.saveBlockedByFailedChannelLoad) {
+    return args.saveFailedChannelLoadReason ?? "Channel failed to load"
   }
   if (args.saveHeldForHydration) {
     return args.saveHydrationHoldReason ?? "Waiting for channels…"

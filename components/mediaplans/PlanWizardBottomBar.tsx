@@ -47,6 +47,12 @@ export type PlanWizardBottomBarProps = {
   /** Edit gates Media Plan / AA / zip on a published version; create does not. */
   gateDownloadsOnPublish: boolean
   draftBlocksDownloadMessage?: string
+  failedLoadRetry?: {
+    reason: string
+    retryLabel: string
+    onRetry: () => void
+    retrying?: boolean
+  } | null
 }
 
 export function PlanWizardBottomBar({
@@ -79,6 +85,7 @@ export function PlanWizardBottomBar({
   hasAdvertisingAssociatesBilling,
   gateDownloadsOnPublish,
   draftBlocksDownloadMessage = DRAFT_BLOCKS_DOWNLOAD_MESSAGE,
+  failedLoadRetry = null,
 }: PlanWizardBottomBarProps) {
   const unpublishedTitle = !isPublished ? draftBlocksDownloadMessage : undefined
   const downloadBlocked = gateDownloadsOnPublish && !isPublished
@@ -118,6 +125,18 @@ export function PlanWizardBottomBar({
               ]
         }
       />
+      {failedLoadRetry ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={failedLoadRetry.onRetry}
+          disabled={failedLoadRetry.retrying}
+          title={failedLoadRetry.reason}
+        >
+          {failedLoadRetry.retrying ? "Retrying…" : failedLoadRetry.retryLabel}
+        </Button>
+      ) : null}
       {showExplicitPublish ? (
         <SplitActionButton
           label="Publish"

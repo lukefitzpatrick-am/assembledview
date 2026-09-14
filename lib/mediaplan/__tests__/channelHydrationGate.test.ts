@@ -3,12 +3,17 @@ import test from "node:test"
 
 import {
   buildHydrationToastItems,
+  channelLoadSucceededFromMediaStatus,
+  channelLoadSucceededWithoutFetch,
   computeAllChannelsHydrated,
   formatHydrationToastHeader,
+  formatSaveFailedChannelLoadReason,
   formatSaveHydrationHoldReason,
   hydrationToastReadyCount,
   isSaveAllowedAfterHydration,
+  isSaveBlockedByFailedChannelLoad,
   lineItemLoadToastAfterChannelSuccess,
+  listFailedChannelLoadLabels,
   listOutstandingHydrationChannels,
   mediaLoadStatusAfterChannelSuccess,
   reconciliationBadgeVisibility,
@@ -291,4 +296,67 @@ test("hydration toast header bootstrapping copy when no containers yet", () => {
     }),
     "Loading campaign details…"
   )
+})
+
+test("BZ-3: fetch reject is not load success — Save blocked, bar names the channel", () => {
+  const succeeded = channelLoadSucceededFromMediaStatus(["mp_search", "mp_radio"], {
+    mp_search: "ready",
+    mp_radio: "error",
+  })
+  assert.equal(succeeded.radio, false)
+  assert.equal(succeeded.search, true)
+  assert.equal(isSaveBlockedByFailedChannelLoad(succeeded), true)
+  assert.deepEqual(listFailedChannelLoadLabels(succeeded), ["Radio"])
+  assert.equal(
+    formatSaveFailedChannelLoadReason(["Radio"]),
+    "Radio failed to load — Retry before saving"
+  )
+  // Hydration still settles (page presents as loaded); this gate is separate.
+  assert.equal(
+    computeAllChannelsHydrated({
+      loadPhase: "ready",
+      expectedFlags: ["mp_search", "mp_radio"],
+      mediaLoadStatus: { mp_search: "ready", mp_radio: "error" },
+      settledFlags: { mp_search: true, mp_radio: true },
+    }),
+    true
+  )
+  assert.equal(isSaveAllowedAfterHydration(true), true)
+})
+
+test("BZ-3: successful Retry marks the channel loaded — Save enabled", () => {
+  const afterError = {
+    mp_search: "ready" as const,
+    mp_radio: "error" as const,
+  }
+  const afterRetry = mediaLoadStatusAfterChannelSuccess(afterError, "mp_radio")
+  const succeeded = channelLoadSucceededFromMediaStatus(
+    ["mp_search", "mp_radio"],
+    afterRetry
+  )
+  assert.equal(succeeded.radio, true)
+  assert.equal(isSaveBlockedByFailedChannelLoad(succeeded), false)
+  assert.deepEqual(listFailedChannelLoadLabels(succeeded), [])
+  assert.equal(formatSaveFailedChannelLoadReason([]), null)
+})
+
+test("BZ-3: loaded channel with zero rows is still success — Save enabled", () => {
+  const succeeded = channelLoadSucceededFromMediaStatus(["mp_radio"], {
+    mp_radio: "ready",
+  })
+  assert.equal(succeeded.radio, true)
+  assert.equal(isSaveBlockedByFailedChannelLoad(succeeded), false)
+})
+
+test("BZ-3: create with channels on and no fetch — loaded by construction, Save enabled", () => {
+  const succeeded = channelLoadSucceededWithoutFetch([
+    "mp_television",
+    "mp_radio",
+    "mp_search",
+  ])
+  assert.equal(succeeded.television, true)
+  assert.equal(succeeded.radio, true)
+  assert.equal(succeeded.search, true)
+  assert.equal(isSaveBlockedByFailedChannelLoad(succeeded), false)
+  assert.deepEqual(listFailedChannelLoadLabels(succeeded), [])
 })

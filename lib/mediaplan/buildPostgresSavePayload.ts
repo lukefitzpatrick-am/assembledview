@@ -7,6 +7,7 @@ import type {
   LineItemInput,
 } from "@/lib/finance/campaignFinancials.types"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
+import { snapshotMediaTypeLabel } from "@/lib/mediaplan/channelHydrationGate"
 import { mapUiMediaTypeToLineChannel } from "@/lib/mediaplan/mapUiMediaTypeToLineChannel"
 import { parseMoneyInput, type MoneyInput } from "@/lib/format/money"
 import {
@@ -107,13 +108,19 @@ function approvalByRealId(
  */
 export function buildSavePlanLineItemsFromSnapshots(
   snapshotsByMediaType: Record<string, unknown[] | undefined>,
-  billingLines: LineItemInput[] = []
+  billingLines: LineItemInput[] = [],
+  channelLoadSucceeded?: Record<string, boolean>
 ): SavePlanLineItem[] {
   const approvals = approvalByRealId(billingLines)
   const out: SavePlanLineItem[] = []
   const seen = new Set<string>()
 
   for (const [mediaType, rows] of Object.entries(snapshotsByMediaType)) {
+    if (channelLoadSucceeded?.[mediaType] === false) {
+      throw new Error(
+        `Cannot save ${snapshotMediaTypeLabel(mediaType)}: line items did not load successfully`
+      )
+    }
     if (!rows?.length) continue
     const channel = mapUiMediaTypeToLineChannel(mediaType)
     if (!channel) {

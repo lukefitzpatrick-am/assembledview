@@ -169,13 +169,17 @@ import {
   computeAllChannelsHydrated,
   computeChannelDuplicateStats,
   formatHydrationToastHeader,
+  formatSaveFailedChannelLoadReason,
   formatSaveHydrationHoldReason,
   formatSaveModeLabel,
   hydrationChannelLabel,
   hydrationToastReadyCount,
   HYDRATION_TOAST_HANG_MS,
   isSaveAllowedAfterHydration,
+  isSaveBlockedByFailedChannelLoad,
+  channelLoadSucceededFromMediaStatus,
   lineItemLoadToastAfterChannelSuccess,
+  listFailedChannelLoadLabels,
   listOutstandingHydrationChannels,
   mediaLoadStatusAfterChannelSuccess,
   reconciliationBadgeVisibility,
@@ -3094,6 +3098,24 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   )
 
   const saveHeldForHydration = !isSaveAllowedAfterHydration(allChannelsHydrated)
+
+  const channelLoadSucceeded = useMemo(
+    () =>
+      channelLoadSucceededFromMediaStatus(
+        expectedHydrationFlags,
+        mediaLoadStatus
+      ),
+    [expectedHydrationFlags, mediaLoadStatus]
+  )
+  const failedChannelLoadLabels = useMemo(
+    () => listFailedChannelLoadLabels(channelLoadSucceeded),
+    [channelLoadSucceeded]
+  )
+  const saveBlockedByFailedChannelLoad =
+    isSaveBlockedByFailedChannelLoad(channelLoadSucceeded)
+  const saveFailedChannelLoadReason = formatSaveFailedChannelLoadReason(
+    failedChannelLoadLabels
+  )
 
   const hydrationToastItems = useMemo(
     () => buildHydrationToastItems(hydrationGateInput),
@@ -7284,6 +7306,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
       return
     }
+    if (saveBlockedByFailedChannelLoad) {
+      toast({
+        title: "Save disabled",
+        description:
+          saveFailedChannelLoadReason ??
+          "A channel failed to load — Retry before saving",
+        variant: "destructive",
+      })
+      return
+    }
 
     // MB-25: pending Applied work requires a successful overrides load — never
     // silently drop it via authoritative:false REPLACE-SET skip.
@@ -7777,7 +7809,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               progOoh: progOohMediaLineItemsForSave,
               influencers: influencersMediaLineItemsForSave,
             },
-            billingSaveInputs.lineItems
+            billingSaveInputs.lineItems,
+            channelLoadSucceeded
           )
         } catch (buildErr: any) {
           updateSaveStatus(
@@ -11568,18 +11601,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     isLoading ||
     saveBlockedByDuplicates ||
     saveHeldForHydration ||
+    saveBlockedByFailedChannelLoad ||
     saveBlockedByClientsError
   const saveBarTitle = saveBlockedByClientsError
     ? clientsError ?? "Client list unavailable"
-    : saveHeldForHydration || isLoading
-      ? saveHydrationHoldReason ?? "Waiting for channels to load — you can't save yet"
-      : undefined
+    : saveBlockedByFailedChannelLoad
+      ? saveFailedChannelLoadReason ?? "Channel failed to load — Retry before saving"
+      : saveHeldForHydration || isLoading
+        ? saveHydrationHoldReason ?? "Waiting for channels to load — you can't save yet"
+        : undefined
   const primarySaveLabel = wizardPrimarySaveLabel({
     savePublishesImmediately: SAVE_PUBLISHES_IMMEDIATELY,
     isPublished,
     isSaving: false,
     isPublishAction: SAVE_PUBLISHES_IMMEDIATELY,
     saveBlockedByClientsError,
+    saveBlockedByFailedChannelLoad,
+    saveFailedChannelLoadReason,
     saveHeldForHydration: saveHeldForHydration || isLoading,
     saveHydrationHoldReason,
   })
@@ -11601,6 +11639,32 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           isSaving={isSaving}
           saveBarDisabled={saveBarDisabled}
           saveBarTitle={saveBarTitle}
+          failedLoadRetry={
+            saveBlockedByFailedChannelLoad
+              ? {
+                  reason:
+                    saveFailedChannelLoadReason ??
+                    "A channel failed to load — Retry before saving",
+                  retryLabel:
+                    failedChannelLoadLabels.length === 1
+                      ? `Retry ${failedChannelLoadLabels[0]}`
+                      : "Retry failed channels",
+                  onRetry: () => {
+                    for (const flag of expectedHydrationFlags) {
+                      if (mediaLoadStatus[flag] === "error") {
+                        void retryMediaTypeLoad(
+                          flag,
+                          hydrationChannelLabel(flag)
+                        )
+                      }
+                    }
+                  },
+                  retrying: expectedHydrationFlags.some(
+                    (flag) => mediaLoadStatus[flag] === "loading"
+                  ),
+                }
+              : null
+          }
           onPrimary={() =>
             void (SAVE_PUBLISHES_IMMEDIATELY
               ? handleSaveAll({ intent: "publish", download: true })
@@ -11624,7 +11688,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           })}
           onSaveDraft={() => void planDraft.saveDraftNow()}
           onSaveDraftAndExit={() => void saveDraftThenExit()}
-          saveDraftDisabled={isSaving || isLoading || !hasUnsavedChanges}
+          saveDraftDisabled={isSaving || isLoading || saveBlockedByFailedChannelLoad || !hasUnsavedChanges}
           onPublishMba={handleGenerateMBA}
           mbaBusy={isLoading}
           onDownloadMediaPlan={() => void handleDownloadMediaPlan()}
@@ -11898,11 +11962,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         onExit={handleExit}
         exitLabel="Exit to Campaigns"
         isSaving={isSaving}
-        saveDisabled={isLoading || saveHeldForHydration || saveBlockedByClientsError}
+        saveDisabled={isLoading || saveHeldForHydration || saveBlockedByFailedChannelLoad || saveBlockedByClientsError}
         saveDisabledReason={
           saveBlockedByClientsError
             ? clientsError ?? "Client list unavailable — try again"
-            : saveHydrationHoldReason
+            : saveBlockedByFailedChannelLoad
+              ? saveFailedChannelLoadReason
+              : saveHydrationHoldReason
         }
         statusPanel={wizardStatusPanel}
         bottomBar={wizardBottomBar}
