@@ -6,7 +6,9 @@ import {
   describePlanSavePill,
   describeVersionHeaderTrail,
   summarizeDraftOffer,
+  summarizeLocalOnlyDraftOffer,
   pickNewerDraft,
+  isOrphanLocalDraft,
   buildStaleBaseCompare,
   isStalePublishedTip,
   draftAgeDays,
@@ -262,6 +264,54 @@ describe("PC7 draft offer + newer wins", () => {
     })
     assert.equal(r.winner, "local")
     assert.match(r.reason, /newer/i)
+  })
+
+  it("local present, server absent is still pickNewerDraft local — orphan is the caller's load policy", () => {
+    const r = pickNewerDraft({
+      localUpdatedAt: "2026-08-14T00:00:00.000Z",
+      serverUpdatedAt: null,
+    })
+    assert.equal(r.winner, "local")
+    assert.equal(r.reason, "Local draft only")
+    assert.equal(
+      isOrphanLocalDraft({
+        masterId: 1,
+        localUpdatedAt: "2026-08-14T00:00:00.000Z",
+        serverUpdatedAt: null,
+      }),
+      true
+    )
+    assert.equal(
+      isOrphanLocalDraft({
+        masterId: null,
+        localUpdatedAt: "2026-08-14T00:00:00.000Z",
+        serverUpdatedAt: null,
+      }),
+      false,
+      "create has no master — local-only is the store, not an orphan"
+    )
+    assert.equal(
+      isOrphanLocalDraft({
+        masterId: 1,
+        localUpdatedAt: "2026-08-14T00:00:00.000Z",
+        serverUpdatedAt: "2026-08-14T00:00:00.000Z",
+      }),
+      false
+    )
+    assert.equal(
+      isOrphanLocalDraft({
+        masterId: 1,
+        localUpdatedAt: null,
+        serverUpdatedAt: null,
+      }),
+      false
+    )
+  })
+
+  it("orphan copy names the local date", () => {
+    const s = summarizeLocalOnlyDraftOffer("2026-08-14T00:00:00.000Z")
+    assert.match(s, /You have unsaved local changes from/)
+    assert.match(s, /2026/)
   })
 })
 

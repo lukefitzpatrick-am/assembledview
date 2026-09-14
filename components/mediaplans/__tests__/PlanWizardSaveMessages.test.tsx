@@ -11,6 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import {
   PlanDraftActiveBanner,
   PlanDraftFieldDiffDialog,
+  PlanDraftLocalOnlyBanner,
   PlanDraftStaleBanner,
 } from "@/components/mediaplan/PlanDraftChrome"
 import { EMPTY_DRAFT_DIFF_SUMMARY } from "@/lib/mediaplan/drafts/fieldDiff"
@@ -302,5 +303,21 @@ describe("PlanDraftStaleBanner", () => {
     expect(html).toContain("the plan is now on v5")
     expect(html.includes("based on")).toBe(false)
     expect(html.includes("v?")).toBe(false)
+  })
+})
+
+describe("PlanDraftLocalOnlyBanner", () => {
+  it("offers Apply and Discard with the unsaved-local copy", () => {
+    const html = renderToStaticMarkup(
+      <PlanDraftLocalOnlyBanner
+        updatedAt="2026-08-14T00:00:00.000Z"
+        onApply={() => undefined}
+        onDiscard={() => undefined}
+      />,
+    )
+    expect(html).toContain("You have unsaved local changes from")
+    expect(html).toContain("Apply")
+    expect(html).toContain("Discard")
+    expect(html.includes("Load anyway")).toBe(false)
   })
 })

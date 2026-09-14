@@ -11,8 +11,10 @@ import {
 } from "@/lib/mediaplan/drafts/localStore"
 import {
   describePlanSavePill,
+  isOrphanLocalDraft,
   pickNewerDraft,
   summarizeDraftOffer,
+  summarizeLocalOnlyDraftOffer,
   type PlanSavePill,
 } from "@/lib/mediaplan/drafts/pill"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
@@ -53,7 +55,7 @@ type OtherDraft = {
 }
 
 type RecoveryOffer = {
-  source: "local" | "server"
+  source: "local" | "server" | "local_only"
   reason: string
   summary: string
   headline?: string
@@ -358,8 +360,9 @@ export function usePlanDraftSession(args: {
     []
   )
 
-  // On mount: load offer. Auto-apply matching-base drafts after hydration;
-  // stale-base drafts keep a click (Load anyway). Never silently overlay a newer tip.
+  // On mount: load offer. Auto-apply matching-base *server* drafts after hydration;
+  // local-only (server draft: null) is an orphan — offer Apply/Discard, never overlay.
+  // Stale-base drafts keep a click (Load anyway). Never silently overlay a newer tip.
   useEffect(() => {
     if (!userId) return
     let cancelled = false
@@ -404,6 +407,11 @@ export function usePlanDraftSession(args: {
         setOffer(null)
         return
       }
+      const orphanLocal = isOrphanLocalDraft({
+        masterId: args.masterId,
+        localUpdatedAt: local?.updatedAt ?? null,
+        serverUpdatedAt: server?.updatedAt ?? null,
+      })
       const state = pick.winner === "local" ? local!.state : server!.state
       const updatedAt = pick.winner === "local" ? local!.updatedAt : server!.updatedAt
       if (
@@ -444,15 +452,17 @@ export function usePlanDraftSession(args: {
       const headline =
         args.masterId == null ? summarizeCreateDraftOffer(state) : undefined
       setOffer({
-        source: pick.winner,
+        source: orphanLocal ? "local_only" : pick.winner,
         reason: pick.reason,
-        summary: headline
-          ? headline
-          : summarizeDraftOffer({
-              updatedAt,
-              linesChanged: cmp.linesChanged || Math.max(0, state.meta.lineCount),
-              budgetDeltaDollars: cmp.budgetDeltaCents / 100,
-            }),
+        summary: orphanLocal
+          ? summarizeLocalOnlyDraftOffer(updatedAt)
+          : headline
+            ? headline
+            : summarizeDraftOffer({
+                updatedAt,
+                linesChanged: cmp.linesChanged || Math.max(0, state.meta.lineCount),
+                budgetDeltaDollars: cmp.budgetDeltaCents / 100,
+              }),
         headline,
         state,
         updatedAt,
@@ -466,6 +476,10 @@ export function usePlanDraftSession(args: {
 
   useEffect(() => {
     if (!offer || activeDraft || restoreGateRef.current.applied) return
+    if (offer.source === "local_only") {
+      setRecovery(offer)
+      return
+    }
     const kind = classifyDraftLoad({
       hasDraft: true,
       draftBaseVersionId: offer.draftBaseVersionId,

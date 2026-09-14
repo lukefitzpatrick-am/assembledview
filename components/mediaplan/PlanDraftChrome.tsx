@@ -17,7 +17,7 @@ import {
   removedLineCaption,
 } from "@/lib/mediaplan/drafts/fieldDiff"
 import { draftFieldLabel } from "@/lib/mediaplan/drafts/fieldLabels"
-import type { PlanSavePill } from "@/lib/mediaplan/drafts/pill"
+import { summarizeLocalOnlyDraftOffer, type PlanSavePill } from "@/lib/mediaplan/drafts/pill"
 import { cn } from "@/lib/utils"
 
 export function PlanDraftPill(props: {
@@ -249,6 +249,52 @@ export function PlanDraftStaleBanner(props: {
             Compare
           </Button>
         ) : null}
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className={props.compact ? "h-8 w-full" : undefined}
+          onClick={props.onDiscard}
+        >
+          Discard
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export function PlanDraftLocalOnlyBanner(props: {
+  updatedAt: string
+  onApply: () => void
+  onDiscard: () => void
+  compact?: boolean
+}) {
+  return (
+    <div
+      role="status"
+      className={cn(
+        props.compact
+          ? "flex flex-col items-stretch gap-1.5"
+          : "mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-status-warning/40 bg-surface-panel px-3 py-2 shadow-e0"
+      )}
+    >
+      <p
+        className={cn(
+          "text-foreground",
+          props.compact ? "text-xs leading-snug" : "text-sm"
+        )}
+      >
+        {summarizeLocalOnlyDraftOffer(props.updatedAt)}
+      </p>
+      <div className={cn("flex gap-2", props.compact ? "flex-col" : "flex-wrap")}>
+        <Button
+          type="button"
+          size="sm"
+          className={props.compact ? "h-8 w-full" : undefined}
+          onClick={props.onApply}
+        >
+          Apply
+        </Button>
         <Button
           type="button"
           size="sm"

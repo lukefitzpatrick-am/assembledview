@@ -321,6 +321,7 @@ import {
 import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
 import {
   PlanDraftActiveBanner,
+  PlanDraftLocalOnlyBanner,
   PlanDraftStaleBanner,
   PlanDraftTipCompareDialog,
   PlanStaleBaseDialog,
@@ -7396,6 +7397,13 @@ const handleSaveAll = async (opts?: {
               planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY
             }
             viewChangesDisabledReason="No published version to compare"
+            onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
+          />
+        ) : planDraft.recovery?.source === "local_only" ? (
+          <PlanDraftLocalOnlyBanner
+            compact
+            updatedAt={planDraft.recovery.updatedAt}
+            onApply={() => planDraft.resume()}
             onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
           />
         ) : planDraft.recovery ? (

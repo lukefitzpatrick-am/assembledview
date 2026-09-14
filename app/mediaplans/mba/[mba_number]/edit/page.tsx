@@ -232,6 +232,7 @@ import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
 import {
   PlanDraftActiveBanner,
   PlanDraftFieldDiffDialog,
+  PlanDraftLocalOnlyBanner,
   PlanDraftStaleBanner,
   PlanDraftTipCompareDialog,
   PlanStaleBaseDialog,
@@ -11561,6 +11562,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY
             }
             onViewChanges={() => planDraft.setCompareOpen(true)}
+            onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
+          />
+        ) : planDraft.recovery?.source === "local_only" ? (
+          <PlanDraftLocalOnlyBanner
+            compact
+            updatedAt={planDraft.recovery.updatedAt}
+            onApply={() => planDraft.resume()}
             onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
           />
         ) : planDraft.recovery ? (

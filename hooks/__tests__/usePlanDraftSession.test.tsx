@@ -294,6 +294,52 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
     expect(latest?.activeDraft).toBeTruthy()
   })
 
+  it("local-only snapshot (server draft: null, matching base) is offered, never auto-applied", async () => {
+    vi.spyOn(localStore, "readLocalDraft").mockResolvedValue({
+      key: "m1::luke.fitzpatrick@assembledmedia.com.au",
+      updatedAt: "2026-08-14T00:00:00.000Z",
+      state: GLENDA_DRAFT,
+    })
+    fetchMock.mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/api/plans/drafts") && (!init?.method || init.method === "GET")) {
+        return new Response(JSON.stringify({ draft: null, others: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      if (url.includes("/api/plans/drafts") && init?.method === "DELETE") {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      }
+      if (url.includes("/api/plans/presence")) {
+        return new Response(JSON.stringify({ ok: true, others: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      return new Response("not found", { status: 404 })
+    })
+
+    await renderProbe(true)
+    await waitUntil(() => latest?.recovery != null)
+    expect(restored).toEqual([])
+    expect(latest?.activeDraft).toBeNull()
+    expect(latest?.recovery?.summary).toMatch(/You have unsaved local changes from/)
+    expect(latest?.recovery?.source).toBe("local_only")
+
+    const clearSpy = vi.spyOn(localStore, "clearLocalDraft")
+    await act(async () => {
+      await latest?.discard()
+    })
+    expect(clearSpy).toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/plans/drafts?masterId=1"),
+      expect.objectContaining({ method: "DELETE" })
+    )
+    expect(latest?.recovery).toBeNull()
+    expect(reverted).toEqual([])
+  })
+
   it("does not auto-apply a stale draft; Load anyway applies", async () => {
     await renderProbe(true, 4401)
     await waitUntil(() => latest?.recovery != null)

@@ -103,6 +103,27 @@ export function summarizeDraftOffer(args: {
   return `Draft from ${whenLabel} — ${args.linesChanged} lines changed, ${deltaLabel}. Resume · Compare · Discard`
 }
 
+export function summarizeLocalOnlyDraftOffer(updatedAt: string): string {
+  const when = new Date(updatedAt)
+  const whenLabel = Number.isNaN(when.getTime()) ? updatedAt : when.toLocaleString()
+  return `You have unsaved local changes from ${whenLabel}`
+}
+
+/**
+ * Edit-page IndexedDB leftover after the server row is gone.
+ * Create (`masterId` null) is not an orphan — IndexedDB is the only store (C-118).
+ */
+export function isOrphanLocalDraft(args: {
+  masterId: number | null
+  localUpdatedAt: string | null
+  serverUpdatedAt: string | null
+}): boolean {
+  if (args.masterId == null) return false
+  const lt = args.localUpdatedAt ? Date.parse(args.localUpdatedAt) : NaN
+  const st = args.serverUpdatedAt ? Date.parse(args.serverUpdatedAt) : NaN
+  return Number.isFinite(lt) && !Number.isFinite(st)
+}
+
 export function pickNewerDraft(args: {
   localUpdatedAt: string | null
   serverUpdatedAt: string | null
