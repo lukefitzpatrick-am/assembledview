@@ -44,6 +44,13 @@ export function describePlanSavePill(args: {
     primary = `Will cut v${m.versionNumber} (stays unpublished)`
   } else if (SAVE_PUBLISHES_IMMEDIATELY && forkingOlder) {
     primary = `Save will create v${m.versionNumber} from v${editing} · published tip is v${tip}`
+  } else if (
+    SAVE_PUBLISHES_IMMEDIATELY &&
+    args.editingVersionNumber == null &&
+    m.versionNumber === 1
+  ) {
+    // Create: Publish mints v1. Save draft cannot (C-118).
+    primary = "Publish creates v1"
   } else if (SAVE_PUBLISHES_IMMEDIATELY) {
     primary = `Save will create v${m.versionNumber}`
   } else {

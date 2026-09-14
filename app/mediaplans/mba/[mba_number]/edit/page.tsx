@@ -199,6 +199,7 @@ import {
 } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import {
   DRAFT_BLOCKS_DOWNLOAD_MESSAGE,
+  catchPlanDraftAction,
   describePublishSuccessToast,
   runSaveSuccessSideEffects,
   showPlanDraftSaveButton,
@@ -8019,7 +8020,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             description: saveResult.data.ingestPanelError,
           })
         }
-        void planDraft.clearAfterPublish()
+        catchPlanDraftAction(planDraft.clearAfterPublish(), toast)
         const versionId = saveResult.data.versionId
         const numericSavedVersion = modeResolved.versionNumber
 
@@ -11560,7 +11561,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY
             }
             onViewChanges={() => planDraft.setCompareOpen(true)}
-            onDiscard={() => void planDraft.discard()}
+            onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
           />
         ) : planDraft.recovery ? (
           <PlanDraftStaleBanner
@@ -11575,7 +11576,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               (typeof latestVersionNumber === "number" ? latestVersionNumber : "?")
             }
             onLoadAnyway={() => planDraft.resume()}
-            onDiscard={() => void planDraft.discard()}
+            onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
             onCompare={() => planDraft.setCompareOpen(true)}
           />
         ) : otherEditorLabel ? (
@@ -11711,7 +11712,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             savePublishesImmediately: SAVE_PUBLISHES_IMMEDIATELY,
             isPublished,
           })}
-          onSaveDraft={() => void planDraft.saveDraftNow()}
+          onSaveDraft={() =>
+            catchPlanDraftAction(
+              planDraft.saveDraftNow(),
+              toast,
+              "Draft save failed"
+            )
+          }
           onSaveDraftAndExit={() => void saveDraftThenExit()}
           saveDraftDisabled={isSaving || isLoading || saveBlockedByFailedChannelLoad || !hasUnsavedChanges}
           onPublishMba={handleGenerateMBA}

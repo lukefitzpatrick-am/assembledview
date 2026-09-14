@@ -33,6 +33,7 @@ export type PlanWizardBottomBarProps = {
   onSaveDraft: () => void
   onSaveDraftAndExit: () => void
   saveDraftDisabled: boolean
+  saveDraftTitle?: string
   onPublishMba: () => void
   mbaBusy: boolean
   onDownloadMediaPlan: () => void
@@ -72,6 +73,7 @@ export function PlanWizardBottomBar({
   onSaveDraft,
   onSaveDraftAndExit,
   saveDraftDisabled,
+  saveDraftTitle,
   onPublishMba,
   mbaBusy,
   onDownloadMediaPlan,
@@ -159,11 +161,13 @@ export function PlanWizardBottomBar({
           label="Save draft"
           onPrimary={onSaveDraft}
           disabled={saveDraftDisabled}
+          title={saveDraftTitle}
           menu={[
             {
               label: "Save draft and exit",
               hint: "Keeps your working draft, then returns to Campaigns",
               onSelect: onSaveDraftAndExit,
+              disabled: saveDraftDisabled,
             },
           ]}
         />

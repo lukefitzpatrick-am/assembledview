@@ -7,6 +7,8 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 
 import {
+  CREATE_SAVE_DRAFT_DISABLED_REASON,
+  catchPlanDraftAction,
   describePublishSuccessToast,
   resolveSaveSuccessSideEffects,
   runSaveSuccessSideEffects,
@@ -381,6 +383,58 @@ describe("SM-30: create bar is the edit bar", () => {
     assert.doesNotMatch(
       handleBody,
       /clearDirtyOnSaveSuccess\(\)\s*\n\s*form\.reset\(form\.getValues\(\)\)\s*\n\s*router\.push\(['"]\/mediaplans['"]\)/
+    )
+  })
+
+  it("SD-1: create Save draft is disabled with a reason", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const bar = sliceBottomBar(createSrc)
+    assert.match(bar, /saveDraftTitle=\{CREATE_SAVE_DRAFT_DISABLED_REASON\}/)
+    assert.match(bar, /saveDraftDisabled=\{true\}/)
+    assert.match(bar, /catchPlanDraftAction/)
+    assert.equal(
+      CREATE_SAVE_DRAFT_DISABLED_REASON,
+      "Drafts save to this browser until the plan is published"
+    )
+    assert.doesNotMatch(bar, /void planDraft\.saveDraftNow/)
+  })
+
+  it("SD-1: edit saveDraftNow is caught and toasted", () => {
+    const bar = sliceBottomBar(readFileSync(EDIT_PAGE, "utf8"))
+    assert.match(
+      bar,
+      /catchPlanDraftAction\(\s*planDraft\.saveDraftNow\(\),\s*toast,\s*"Draft save failed"/
+    )
+  })
+})
+
+describe("catchPlanDraftAction", () => {
+  it("toasts the rejected error message", async () => {
+    const calls: Array<{
+      variant: string
+      title: string
+      description: string
+    }> = []
+    const err = new Error("Missing master id — cannot save working draft")
+    const orig = console.error
+    console.error = () => undefined
+    try {
+      catchPlanDraftAction(
+        Promise.reject(err),
+        (opts) => {
+          calls.push(opts)
+        },
+        "Draft save failed"
+      )
+      await new Promise((r) => setTimeout(r, 0))
+    } finally {
+      console.error = orig
+    }
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0]?.title, "Draft save failed")
+    assert.equal(
+      calls[0]?.description,
+      "Missing master id — cannot save working draft"
     )
   })
 })

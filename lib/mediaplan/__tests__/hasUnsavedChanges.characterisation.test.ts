@@ -205,7 +205,7 @@ test("CHARACTERISATION edit page: dirty sources and clear sites", () => {
 
   assert.match(
     edit,
-    /onSaveDraft=\{\(\) => void planDraft\.saveDraftNow\(\)\}[\s\S]{0,250}!hasUnsavedChanges/s
+    /catchPlanDraftAction\(\s*planDraft\.saveDraftNow\(\)[\s\S]{0,400}saveDraftDisabled=\{isSaving \|\| isLoading \|\| saveBlockedByFailedChannelLoad \|\| !hasUnsavedChanges\}/s
   )
 })
 
@@ -248,9 +248,11 @@ test("CHARACTERISATION create page: Save not gated; draft gated; ExpertApplyDirt
     /hasUnsavedChanges/,
     "CURRENT create primary Save not gated on dirty"
   )
-  assert.match(
+  assert.match(create, /CREATE_SAVE_DRAFT_DISABLED_REASON/)
+  assert.match(create, /saveDraftTitle=\{CREATE_SAVE_DRAFT_DISABLED_REASON\}/)
+  assert.doesNotMatch(
     create,
-    /planDraft\.saveDraftNow\(\)[\s\S]{0,200}!hasUnsavedChanges/s
+    /saveDraftDisabled=\{isWizardSaving \|\| !hasUnsavedChanges\}/
   )
 })
 

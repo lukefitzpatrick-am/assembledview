@@ -275,7 +275,9 @@ import {
   showExplicitPublishButton,
 } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import {
+  CREATE_SAVE_DRAFT_DISABLED_REASON,
   DRAFT_BLOCKS_DOWNLOAD_MESSAGE,
+  catchPlanDraftAction,
   describePublishSuccessToast,
   runSaveSuccessSideEffects,
   showPlanDraftSaveButton,
@@ -5710,7 +5712,7 @@ function CreateMediaPlan() {
             description: saveResult.data.ingestPanelError,
           })
         }
-        void planDraft.clearAfterPublish()
+        catchPlanDraftAction(planDraft.clearAfterPublish(), toast)
 
         setMediaPlanVersionId(saveResult.data.versionId)
         updateSaveStatus("KPI sync", "pending")
@@ -7394,7 +7396,7 @@ const handleSaveAll = async (opts?: {
               planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY
             }
             viewChangesDisabledReason="No published version to compare"
-            onDiscard={() => void planDraft.discard()}
+            onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
           />
         ) : planDraft.recovery ? (
           <PlanDraftStaleBanner
@@ -7403,7 +7405,7 @@ const handleSaveAll = async (opts?: {
             baseVersionNumber={null}
             tipVersionNumber={draftBaseVersionId ?? "?"}
             onLoadAnyway={() => planDraft.resume()}
-            onDiscard={() => void planDraft.discard()}
+            onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
             onCompare={() => planDraft.setCompareOpen(true)}
           />
         ) : otherEditorLabel ? (
@@ -7497,9 +7499,16 @@ const handleSaveAll = async (opts?: {
             savePublishesImmediately: SAVE_PUBLISHES_IMMEDIATELY,
             isPublished,
           })}
-          onSaveDraft={() => void planDraft.saveDraftNow()}
+          onSaveDraft={() =>
+            catchPlanDraftAction(
+              planDraft.saveDraftNow(),
+              toast,
+              "Draft save failed"
+            )
+          }
           onSaveDraftAndExit={() => void saveDraftThenExit()}
-          saveDraftDisabled={isWizardSaving || !hasUnsavedChanges}
+          saveDraftDisabled={true}
+          saveDraftTitle={CREATE_SAVE_DRAFT_DISABLED_REASON}
           onPublishMba={handleGenerateMBA}
           mbaBusy={isLoading}
           onDownloadMediaPlan={() => void handleDownloadMediaPlan()}

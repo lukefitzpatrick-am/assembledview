@@ -217,7 +217,7 @@ describe("version header trail shares resolvePostgresSaveMode with pill", () => 
       autosavedSecondsAgo: null,
       editingUnpublishedDraft: false,
     })
-    assert.equal(create.primary, "Save will create v1")
+    assert.equal(create.primary, "Publish creates v1")
     assert.doesNotMatch(create.primary, /from v/i)
   })
 

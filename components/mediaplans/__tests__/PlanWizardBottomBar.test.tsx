@@ -136,4 +136,23 @@ describe("PlanWizardBottomBar", () => {
     )
     expect(mba?.textContent).toContain("Generating MBA…")
   })
+
+  it("SD-1: disabled Save draft exposes the create tooltip", () => {
+    act(() => {
+      root.render(
+        renderBar({
+          saveDraftDisabled: true,
+          saveDraftTitle: "Drafts save to this browser until the plan is published",
+        }),
+      )
+    })
+    const saveDraft = Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "Save draft",
+    )
+    expect(saveDraft).toBeTruthy()
+    expect(saveDraft?.disabled).toBe(true)
+    expect(saveDraft?.getAttribute("title")).toBe(
+      "Drafts save to this browser until the plan is published",
+    )
+  })
 })

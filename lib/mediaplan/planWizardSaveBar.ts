@@ -100,6 +100,30 @@ export function showPlanDraftSaveButton(args: {
   return args.enabled && (args.savePublishesImmediately || !args.isPublished)
 }
 
+/** Create cannot mint `plan_working_drafts` (unique on master_id + user_id, C-118). */
+export const CREATE_SAVE_DRAFT_DISABLED_REASON =
+  "Drafts save to this browser until the plan is published"
+
+export function catchPlanDraftAction(
+  action: Promise<unknown>,
+  toastFn: (opts: {
+    variant: "destructive"
+    title: string
+    description: string
+  }) => void,
+  title = "Draft action failed"
+): void {
+  void action.catch((err: unknown) => {
+    const description = err instanceof Error ? err.message : String(err)
+    console.error("[plan-draft]", title, err)
+    toastFn({
+      variant: "destructive",
+      title,
+      description,
+    })
+  })
+}
+
 export const DRAFT_BLOCKS_DOWNLOAD_MESSAGE =
   "Publish this version to download and send to client"
 

@@ -22,7 +22,7 @@ vi.mock("@/components/ui/dropdown-menu", async (importOriginal) => {
   return {
     ...actual,
     DropdownMenuContent: forwardRef<HTMLDivElement, Record<string, unknown>>(
-      (props, ref) => {
+      function DropdownMenuContentMock(props, ref) {
         capturedContent.push({
           avoidCollisions: props.avoidCollisions as boolean | undefined,
           side: props.side as string | undefined,
@@ -126,6 +126,27 @@ describe("SplitActionButton", () => {
     for (const btn of buttons) {
       expect(btn.disabled).toBe(true)
     }
+  })
+
+  it("SD-1: disabled primary exposes title as the tooltip", () => {
+    act(() => {
+      root.render(
+        <SplitActionButton
+          label="Save draft"
+          disabled
+          title="Drafts save to this browser until the plan is published"
+          onPrimary={() => {}}
+          menu={[{ label: "Save draft and exit", onSelect: () => {} }]}
+        />
+      )
+    })
+    const primary = [...container.querySelectorAll("button")].find(
+      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "Save draft",
+    )
+    expect(primary?.disabled).toBe(true)
+    expect(primary?.getAttribute("title")).toBe(
+      "Drafts save to this browser until the plan is published",
+    )
   })
 
   it("isBusy disables both segments", () => {
