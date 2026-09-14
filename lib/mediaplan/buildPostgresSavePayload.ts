@@ -15,6 +15,7 @@ import {
   noteAuthenticatedWriteOk,
   noteWriteUnauthorized,
 } from "@/lib/auth/writeSessionExpiry"
+import { normaliseBuyType } from "@/lib/mediaplan/missingBuyTypeGate"
 
 const ATTR_SKIP = new Set([
   "id",
@@ -185,10 +186,7 @@ export function buildSavePlanLineItemsFromSnapshots(
           (raw.buying_demo as string | undefined) ??
           (raw.buyingDemo as string | undefined) ??
           null,
-        buyType:
-          (raw.buy_type as string | undefined) ??
-          (raw.buyType as string | undefined) ??
-          null,
+        buyType: normaliseBuyType(raw.buy_type ?? raw.buyType),
         publisher: (raw.publisher as string | undefined) ?? null,
         platform: (raw.platform as string | undefined) ?? null,
         bidStrategy:
@@ -336,6 +334,8 @@ export type PlansSaveResponse = {
   error?: string
   code?: string
   lineItemId?: string
+  /** BT-1 — 422 MISSING_BUY_TYPE names the offending lines. */
+  lineItemIds?: string[]
   /** O4 — AUTO-line server correction vs pre-save preview (toast, never silent). */
   billingCorrection?: {
     correctedLineCount: number

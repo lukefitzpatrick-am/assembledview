@@ -18,6 +18,7 @@ pct === 100 → fee = 0 (division guard)
 - An explicit `"0"` on a non-production burst is **stated money**. `buildEditorLineItemInputs` and `buildSavePlanLineItemsFromSnapshots` back-fill `enteredAmount` from the line total only when every raw burst has `parseMoneyInput(budget) == null` (never entered). Production stays on the mapped-sum `<= 0` path because its budget often lives in `cost`×`amount` with a blank `budget` key.
 - `buyType` match is case-insensitive and trimmed (`"Bonus"` / `" bonus "` → zero).
 - Production channel null/blank `buyType` resolves to `"production"` at `resolveBuyTypeForChannel` (`buildEditorLineItemInputs` and production form hydrate). Stored `line_items.buy_type` is not rewritten.
+- A non-production line cannot **publish** with null/blank `buyType`. `POST /api/plans/save` trims `""` / `"  "` to null at `plansSaveBodySchema`, then rejects `mode === "publish"` with 422 `MISSING_BUY_TYPE` (offending `line_item_id`s) after parse and before `savePlanVersion`. Draft and `new_version` are not this gate. Production stays C-91. Existing published empty strings are not rewritten.
 - Never round fee% before applying to gross. Never sum net media and apply fee% once at channel level.
 - Rounding order: full float per burst → round at burst level (AUD 2dp) → sum rounded burst fees for campaign totals.
 - All fee rates are 0–100 percent points, never 0–1. Missing/null → 0 at compute boundaries.

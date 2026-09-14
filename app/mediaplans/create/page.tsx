@@ -302,6 +302,11 @@ import {
   postPlansSave,
 } from "@/lib/mediaplan/buildPostgresSavePayload"
 import {
+  MISSING_BUY_TYPE,
+  formatMissingBuyTypeMessage,
+  missingBuyTypeBuilderIssues,
+} from "@/lib/mediaplan/missingBuyTypeGate"
+import {
   SESSION_EXPIRED_PUBLISH_MESSAGE,
   SESSION_EXPIRED_SAVE_MESSAGE,
   SESSION_EXPIRED_TITLE,
@@ -638,6 +643,7 @@ function CreateMediaPlan() {
   const [clientsError, setClientsError] = useState<string | null>(null)
   const [reportId, setReportId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [missingBuyTypeLineIds, setMissingBuyTypeLineIds] = useState<string[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   /** Monotonic token so stale MBA-number responses never overwrite a newer client pick. */
   const mbaNumberRequestTokenRef = useRef(0)
@@ -2378,6 +2384,7 @@ function CreateMediaPlan() {
         scrollTargetId: "builder-section-kpis",
       })
     }
+    issues.push(...missingBuyTypeBuilderIssues(missingBuyTypeLineIds))
     return issues
   }, [
     watchedClientName,
@@ -2389,6 +2396,7 @@ function CreateMediaPlan() {
     campaignFinancials,
     panelIndicators,
     missingPublisherKpiCount,
+    missingBuyTypeLineIds,
   ])
 
 
@@ -5551,6 +5559,7 @@ function CreateMediaPlan() {
         if (modeResolved.mode == null) {
           throw new Error("working_draft must not POST /api/plans/save")
         }
+        setMissingBuyTypeLineIds([])
         const saveResult = await postPlansSave(
           assemblePlansSaveRequestBody(
             {
@@ -5660,6 +5669,18 @@ function CreateMediaPlan() {
               variant: "destructive",
               title: "Tip moved since you started",
               description: "Compare base / yours / current, then re-apply manually.",
+            })
+            return
+          }
+          if (saveResult.data.code === MISSING_BUY_TYPE) {
+            const ids = saveResult.data.lineItemIds ?? []
+            setMissingBuyTypeLineIds(ids)
+            const human = formatMissingBuyTypeMessage(ids)
+            updateSaveStatus("Save plan (transactional)", "error", human)
+            toast({
+              variant: "destructive",
+              title: "Buy type required",
+              description: human,
             })
             return
           }
@@ -7354,6 +7375,9 @@ const handleSaveAll = async (opts?: {
         ? "1 line item has flight dates outside the campaign window"
         : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`
     )
+  }
+  if (missingBuyTypeLineIds.length > 0) {
+    extraProblemTexts.push(formatMissingBuyTypeMessage(missingBuyTypeLineIds))
   }
 
   const wizardStatusPanel = (

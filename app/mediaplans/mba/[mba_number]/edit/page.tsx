@@ -213,6 +213,11 @@ import {
   resolveMasterIdFromCombinedPlan,
 } from "@/lib/mediaplan/buildPostgresSavePayload"
 import {
+  MISSING_BUY_TYPE,
+  formatMissingBuyTypeMessage,
+  missingBuyTypeBuilderIssues,
+} from "@/lib/mediaplan/missingBuyTypeGate"
+import {
   SESSION_EXPIRED_PUBLISH_MESSAGE,
   SESSION_EXPIRED_SAVE_MESSAGE,
   SESSION_EXPIRED_TITLE,
@@ -2284,6 +2289,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [partialMBASelectedLineItemIds, setPartialMBASelectedLineItemIds] = useState<Record<string, string[]>>({})
   const [partialApprovalMetadata, setPartialApprovalMetadata] = useState<PartialApprovalMetadata | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [missingBuyTypeLineIds, setMissingBuyTypeLineIds] = useState<string[]>([])
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([])
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
   /** Children saved, master.version_number bump failed — retry publishes only. */
@@ -7015,6 +7021,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         scrollTargetId: "builder-section-kpis",
       })
     }
+    issues.push(...missingBuyTypeBuilderIssues(missingBuyTypeLineIds))
     return issues
   }, [
     watchedClientName,
@@ -7029,6 +7036,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     campaignFinancials.mbaScopeTotals.adServing,
     campaignFinancials.mbaScopeTotals.production,
     missingPublisherKpiCount,
+    missingBuyTypeLineIds,
   ])
 
   const mediaLabelByBillingKey = useMemo(() => {
@@ -7856,6 +7864,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         //   "increment_unpublished" → mode "new_version"
         //   "overwrite"             → mode "draft" (in-place tip; versionNumber === tip)
         //   "working_draft"         → never reaches here
+        setMissingBuyTypeLineIds([])
         const saveResult = await postPlansSave(
           assemblePlansSaveRequestBody(
             {
@@ -7958,6 +7967,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               variant: "destructive",
               title: "Tip moved since you started",
               description: "Compare base / yours / current, then re-apply manually.",
+            })
+            setIsSaving(false)
+            return
+          }
+          if (saveResult.data.code === MISSING_BUY_TYPE) {
+            const ids = saveResult.data.lineItemIds ?? []
+            setMissingBuyTypeLineIds(ids)
+            const human = formatMissingBuyTypeMessage(ids)
+            updateSaveStatus("Save plan (transactional)", "error", human)
+            toast({
+              variant: "destructive",
+              title: "Buy type required",
+              description: human,
             })
             setIsSaving(false)
             return
@@ -11520,6 +11542,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         ? "1 line item has flight dates outside the campaign window"
         : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`
     )
+  }
+  if (missingBuyTypeLineIds.length > 0) {
+    extraProblemTexts.push(formatMissingBuyTypeMessage(missingBuyTypeLineIds))
   }
 
   const wizardStatusPanel = (

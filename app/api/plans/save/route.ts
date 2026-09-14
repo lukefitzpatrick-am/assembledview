@@ -6,6 +6,7 @@ import { LINE_CHANNELS } from "@/db/schema"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { getWriteBackend, isXanoMirrorEnabled } from "@/lib/data/backend"
 import { plansSaveBodySchema } from "@/lib/mediaplan/plansSaveBodySchema"
+import { missingBuyTypeGateResult } from "@/lib/mediaplan/missingBuyTypeGate"
 import {
   mirrorInputFromSave,
   mirrorPlanToXano,
@@ -74,6 +75,14 @@ export async function POST(request: NextRequest) {
   const body = parsed.data
   const access = await checkClientMbaAccess(request, body.mbaNumber)
   if (!access.ok) return access.response
+
+  // BT-1 — publish intent is body.mode === "publish" (shouldRejectMissingBuyTypeOnSave).
+  // While SAVE_PUBLISHES_IMMEDIATELY is on, UI Save already sends mode: "publish"
+  // (resolvePostgresSaveMode). Draft and new_version are not this gate.
+  const buyTypeGate = missingBuyTypeGateResult(body.mode, body.lineItems)
+  if (buyTypeGate.reject) {
+    return NextResponse.json(buyTypeGate.body, { status: 422 })
+  }
 
   // SV-1 stale-base: another editor published during this session.
   // Compares tip-at-load to the current published pointer — not baseVersionId

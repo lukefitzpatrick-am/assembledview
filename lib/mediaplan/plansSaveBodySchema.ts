@@ -33,7 +33,12 @@ const lineItemSchema = z.object({
   position: z.number().int().nullable().optional(),
   market: z.string().nullable().optional(),
   buyingDemo: z.string().nullable().optional(),
-  buyType: z.string().nullable().optional(),
+  // "" / "  " become null at the boundary. Production lines are legitimately null.
+  buyType: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v?.trim() || null),
   publisher: z.string().nullable().optional(),
   platform: z.string().nullable().optional(),
   bidStrategy: z.string().nullable().optional(),
