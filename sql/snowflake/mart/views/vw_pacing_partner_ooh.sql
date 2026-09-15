@@ -1,7 +1,11 @@
 -- ASSEMBLEDVIEW.MART.VW_PACING_PARTNER_OOH
--- Applied 2026-09-15 (ACCOUNTADMIN). Capture only; this file is not applied by the commit.
+-- Applied 2026-09-15 (ACCOUNTADMIN), map join aggregated 2026-09-16. Capture only; this file is
+-- not applied by the commit.
 -- Feeds TSK_REFRESH_PACING_FACT. RESULTS = plays on this channel only (SUM(PLAYS)).
 -- Line attribution at read time: file code or RAW.PARTNER_LINE_MAP. Unmapped rows stay in RAW.
+-- The map join aggregates to one row per (SOURCE_SLUG, PARTNER_CAMPAIGN_ID). Snowflake does not
+-- enforce the map's primary key, and a seed INSERT replayed three times tripled every delivery
+-- figure on 2026-09-15. Never join a map table here without collapsing it first.
 USE SCHEMA ASSEMBLEDVIEW.MART;
 
 create or replace view ASSEMBLEDVIEW.MART.VW_PACING_PARTNER_OOH(
@@ -16,8 +20,13 @@ with rows as (
            m.AV_LINE_ITEM_ID
          ))) as resolved_line_item_id
   from ASSEMBLEDVIEW.RAW.PARTNER_DELIVERY_DAILY d
-  left join ASSEMBLEDVIEW.RAW.PARTNER_LINE_MAP m
-    on m.SOURCE_SLUG = 'vistar' and m.IS_ACTIVE
+  left join (
+    select SOURCE_SLUG, PARTNER_CAMPAIGN_ID, max(AV_LINE_ITEM_ID) as AV_LINE_ITEM_ID
+    from ASSEMBLEDVIEW.RAW.PARTNER_LINE_MAP
+    where IS_ACTIVE
+    group by SOURCE_SLUG, PARTNER_CAMPAIGN_ID
+  ) m
+    on m.SOURCE_SLUG = 'vistar'
    and m.PARTNER_CAMPAIGN_ID = d.PARTNER_CAMPAIGN_ID
   where d.SOURCE = 'Vistar'
 )

@@ -2,6 +2,8 @@
 -- Applied 2026-09-15 (ACCOUNTADMIN). Capture only; this file is not applied by the commit.
 -- 48-row seed from the 15 Sep Vistar exchange file. Legal Super -> legal004po1.
 -- Sinch AV_LINE_ITEM_ID is NULL until Luke splits PO1/PO2/PO3 by market (NOTES holds IO | metro).
+-- The seed is NOT idempotent and Snowflake does not enforce the primary key: replaying it duplicates
+-- rows and multiplies every figure in VW_PACING_PARTNER_OOH. Check the count before re-running.
 USE SCHEMA ASSEMBLEDVIEW.RAW;
 
 create table if not exists ASSEMBLEDVIEW.RAW.PARTNER_LINE_MAP (
@@ -66,3 +68,21 @@ values
   ('vistar', 'wIPSDEs_SW2sns7Q0vxEkw', 'legalsuper - FY26 Q4 Apr-Jun New South Wales - Outdoor|Bus Shelters - oOh! Media', 'legal004po1', TRUE, 'legalsuper - FY26 Q4 Apr-Jun | Greater Sydney'),
   ('vistar', 'wYCIHm0ST4uj9FNUDNfETQ', 'legalsuper - Jan-Mar26 New South Wales - Outdoor|Bus Shelters - oOh! Media', 'legal004po1', TRUE, 'legalsuper - Jan-Mar26 | Greater Sydney'),
   ('vistar', 'z7EAXSsVSLCV40GCCIa0PA', 'legalsuper - Jan-Mar26 Victoria - Transit|Train Stations - oOh! Media', 'legal004po1', TRUE, 'legalsuper - Jan-Mar26 | Greater Melbourne');
+
+grant select on table ASSEMBLEDVIEW.RAW.PARTNER_LINE_MAP to role CLAUDE_RW;
+-- AV_APP_WRITE_ROLE reads the map so the app-role session can verify its state directly:
+grant select on table ASSEMBLEDVIEW.RAW.PARTNER_LINE_MAP to role AV_APP_WRITE_ROLE;
+
+-- Duplicate check. Expect 48, 48; anything higher means the seed was replayed.
+select count(*) as MAP_ROWS, count(distinct PARTNER_CAMPAIGN_ID) as DISTINCT_CAMPAIGNS
+from ASSEMBLEDVIEW.RAW.PARTNER_LINE_MAP where SOURCE_SLUG = 'vistar';
+
+-- Dedupe if it was (ACCOUNTADMIN):
+-- create or replace temporary table _map_dedupe as
+-- select * from ASSEMBLEDVIEW.RAW.PARTNER_LINE_MAP
+-- qualify row_number() over (
+--   partition by SOURCE_SLUG, PARTNER_CAMPAIGN_ID order by UPDATED_AT desc) = 1;
+-- begin;
+-- delete from ASSEMBLEDVIEW.RAW.PARTNER_LINE_MAP;
+-- insert into ASSEMBLEDVIEW.RAW.PARTNER_LINE_MAP select * from _map_dedupe;
+-- commit;
