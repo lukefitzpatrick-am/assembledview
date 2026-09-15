@@ -24,7 +24,10 @@
 | `resolvePostgresSaveMode` overwrite | tip unpublished (`published_at` null) && tip > 0 && !forceIncrement && intent≠publish | n/a | May overwrite tip in place |
 | `resolvePostgresSaveMode` working_draft | tip published && !forceIncrement && intent=save | n/a | Write `plan_working_drafts`; tip byte-identical |
 | `isFinanceIncludedCampaignStatus` | same set as approved-or-beyond | no | Finance totals — **B**, not publication |
-| `publishedVersionFromMaster` / `filterPublishedVersions` | `master.version_number` | n/a | **Already tip-based** — not status inference; out of Stage 1 scope |
+| `publishedVersionFromMaster` / `filterPublishedVersions` | `master.version_number` | n/a | Staging watermark — not publication; reap/list caps |
+| `publishedVersionIdFromMaster` | pointer AND `isVersionPublished` | n/a | Published cut id; unstamped pointer → null |
+| `publishedVersionPointerIdFromMaster` | `published_version_id` only | n/a | Raw pointer; may be unstamped (overlay/audit) |
+| `PUBLISHED_VERSION_JOIN_SQL` | `v.id = m.published_version_id AND v.published_at IS NOT NULL` | n/a | Finance sections SQL interpolates this (summary, cut, costs, client-pays, cut AR, dashboard monthly spend; `probeFinanceScheduleDiffs` is the same predicate without `m`/`v` aliases). Remaining: list / dashboard / AVA / Snowflake readers |
 
 Live invariant already proves status ≠ publication: a publish-mode save can leave `campaign_status=draft` while advancing the tip and writing fee snapshots (`INVARIANTS.md`). Stage 1 closes that gap with `published_at`.
 

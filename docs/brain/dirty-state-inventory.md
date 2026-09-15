@@ -88,7 +88,7 @@ File: `app/mediaplans/mba/[mba_number]/edit/page.tsx`
 
 `markPassiveChannelChange` also respects `ignorePassiveDirtyUntilRef` (post-fee quiet window).
 
-**Consumers of the flag:** `shouldBlockNavigation` → `useUnsavedChangesPrompt` (modal + `beforeunload`); `usePlanDraftSession({ dirty: hasUnsavedChanges })`; Save-draft button gated on dirty; primary Save **not** gated on dirty (pinned by characterisation); `<ExpertApplyDirtyClearOnSave hasUnsavedChanges={…} />`.
+**Consumers of the flag:** `shouldBlockNavigation` → `useUnsavedChangesPrompt` (modal + `beforeunload`); `usePlanDraftSession({ dirty: hasUnsavedChanges, subscribeDirty: dirty.subscribe })` — the boolean latches and must stay sticky; autosave timers re-arm on already-dirty controller emits (`editRevision`), not on a false→true flip; Save-draft button gated on dirty; primary Save **not** gated on dirty (pinned by characterisation); `<ExpertApplyDirtyClearOnSave hasUnsavedChanges={…} />`.
 
 ---
 

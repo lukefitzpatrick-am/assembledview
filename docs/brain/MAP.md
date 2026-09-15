@@ -5,13 +5,14 @@ The routing table for the whole app. Find your section, open the files it lists,
 ## Layer hierarchy (what sits on what)
 
 ```
-L0  PLATFORM      Vercel (project avmediaplan, regions iad1/syd1/sin1) · 14 crons
+L0  PLATFORM      Vercel (project avmediaplan, regions iad1/syd1/sin1) · 16 crons
 L1  IDENTITY      Auth0 v4 → middleware.ts (authN only) → lib/rbac.ts (roles) → per-route gates
 L2  DATA          Supabase Postgres (Sydney) via Drizzle  db/  ← system of record
                   Snowflake ASSEMBLEDVIEW.MART.*         lib/snowflake/  ← delivery facts, read-only
+                  Snowflake ASSEMBLEDVIEW.RAW.PARTNER_*  ← partner file ingest writes (no UPDATE)
                   Vercel Blob                            ← exports, creative, reports, sheets, plan documents
 L3  DOMAIN LIB    lib/<domain>/  ← all business rules. Nothing in app/ or components/ may re-derive them.
-L4  API           app/api/**/route.ts  (196 handlers) ← own auth + own tenant check, always
+L4  API           app/api/**/route.ts  (197 handlers) ← own auth + own tenant check, always
 L5  UI            app/**/page.tsx (70) → components/<domain>/
 L6  ASSISTANT     AVA reads L2–L4 through a tool registry; never bypasses a gate
 ```
@@ -62,7 +63,7 @@ Adding or altering a channel touches, at minimum:
 
 `BLAST-RADIUS.md` carries the full ~12-map list. Complete all of them or the channel half-works.
 
-**Save path** `POST /api/plans/save` (409 `STALE_BASE_VERSION` when `tipVersionIdAtLoad` is set and the published pointer has moved; `baseVersionId` names the fork source and is not in that guard) → `lib/data/savePlan.ts` → one transaction writing `media_plan_versions` + `line_items` + `schedule_months` + `mba_fee_snapshots`. After that commit, when `ingestStageId` is present, `completeStagedIngestAfterSave` writes panels / `ingest_runs` / retain — never inside `savePlanVersion`. `WRITE_BACKEND=postgres`. Working drafts live in `plan_working_drafts` (unique `(master_id, user_id)`; identity email else `sub`, never `"unknown"`). `NEXT_PUBLIC_PLAN_DRAFTS` gates autosave chrome; persistence + offer are always on. Presence (`plan_presence`, GET/POST `/api/plans/presence`) is who else has the edit page open — information, not a lock; same identity helper; 0064 AUTHOR ONLY. Published MBA / media-plan / AA files are private Vercel Blob objects (`plans/{mba}/v{n}/{kind}/{filename}`) plus jsonb pointers on the version (`mba_pdf_file` / `media_plan_file` / `aa_media_plan_file`); `POST /api/mediaplans/versions/[id]/documents` writes an upload after publish; admin `POST /api/mediaplans/versions/[id]/documents/regenerate` rebuilds from persisted rows (`lib/docs/buildMediaItemsFromPersisted.ts` + `buildMbaFromPersisted`) and writes the same columns with `source: "regenerated"`.
+**Save path** `POST /api/plans/save` (409 `STALE_BASE_VERSION` when `tipVersionIdAtLoad` is set and the published pointer has moved; `baseVersionId` names the fork source and is not in that guard) → `lib/data/savePlan.ts` → one transaction writing `media_plan_versions` + `line_items` + `schedule_months` + `mba_fee_snapshots`. VP-1 (`0069`/`0070` AUTHOR ONLY): `published_version_id` must be NULL or point at `published_at` set; required order is R1 live in production, then 0070, then 0069. CREATE CONSTRAINT TRIGGER does not scan existing rows, so 0070 stamps the 12 C-113 pointers before the constraint is installed. Do not apply 0069 until the stamping writer is live. After that commit, when `ingestStageId` is present, `completeStagedIngestAfterSave` writes panels / `ingest_runs` / retain — never inside `savePlanVersion`. After a **publish** commit, `runPublishDocumentsBestEffort` regenerates MBA PDF / Media Plan / AA (Blob + jsonb) beside `markRunItemsStaleOnPublish`; failure is named on `documents` and the Generate documents modal step and never rolls back. `WRITE_BACKEND=postgres`. Working drafts live in `plan_working_drafts` (unique `(master_id, user_id)`; identity email else `sub`, never `"unknown"`). `NEXT_PUBLIC_PLAN_DRAFTS` gates autosave chrome; persistence + offer are always on. **0071 AUTHOR ONLY** deletes the nine live rows at go-live (no `campaign_status` update); recovery JSON via `npm run drafts:export`. Presence (`plan_presence`, GET/POST `/api/plans/presence`) is who else has the edit page open — information, not a lock; same identity helper; 0064 AUTHOR ONLY. Published MBA / media-plan / AA files are private Vercel Blob objects (`plans/{mba}/v{n}/{kind}/{filename}`) plus jsonb pointers on the version (`mba_pdf_file` / `media_plan_file` / `aa_media_plan_file`); `POST /api/mediaplans/versions/[id]/documents` writes an upload after publish; admin `POST /api/mediaplans/versions/[id]/documents/regenerate` rebuilds from persisted rows (`lib/docs/buildMediaItemsFromPersisted.ts` + `buildMbaFromPersisted`) and writes the same columns with `source: "regenerated"`.
 
 **Read path** `GET /api/mediaplans/mba/[mba_number]` (1,588 lines) → `lib/data/readMbaPlanDetail.ts`. One query set, no fallback: a failure is a 500 `PLAN_DETAIL_POSTGRES_FAILED`, deliberately.
 
@@ -76,7 +77,7 @@ Adding or altering a channel touches, at minimum:
 
 **Two data access styles live here.** Most of the app uses the Drizzle query builder. Finance periods, run items, notifications and Xero matching are reached with `sql` tagged templates instead — `finance_periods`, `finance_run_items`, `app_notifications`, `xero_contact_links`, `xero_invoice_matches`, `xero_match_month_metrics` (and `plan_working_drafts` / `plan_presence` in media plans). See `lib/finance/periods/postgresStore.ts`. All of them **are** mirrored in `db/schema/`, so the types are there if you want them; migrating the callers to the query builder is a separate decision, not a gap. Pre-merge: `npm run db:drift` against the applied database before any `db/schema/*.ts` handover — the mirror is live code (Drizzle selects every named column).
 
-**Money law** — integer cents everywhere in the plan core (`*_cents`). `numeric` in ported finance tables. Fee is a slice of gross, never `net × fee%`, and only `lib/mediaplan/burstAmounts.ts` computes it.
+**Money law** — integer cents everywhere in the plan core (`*_cents`). `numeric` in ported finance tables. Fee is a slice of gross, never `net × fee%`, and only `lib/mediaplan/burstAmounts.ts` computes it. Sections SQL published cut is `PUBLISHED_VERSION_JOIN_SQL` (pointer AND stamp); `relevantPlanVersions` is still the watermark family.
 
 **Billing-record writes** go through `lib/data/writeFinance.ts` (Postgres, `invoice_key`, never `xero:`). Approve / unapprove / mark-exported / unmark-exported are the invoicing human writers. PATCH-by-id is field-allowlisted (notes, PO, payment, status, invoice date, campaign name — not `total` / `billed*` / lifecycle stamps). Line-item delete freezes on parent `approved_at` in SQL (`APPROVED_FROZEN`). Unapprove / mark-exported `ok` is `errors.length === 0`. Approve POST is keys + month; the snapshot is composed server-side (same GET path). Mark-exported is the deliberate "Mark as sent to finance" action (approved keys only; Excel download does not stamp). Unmark-exported clears `exported_at` / `exported_by` only. Xero ingest is the only writer of `xero:` keys. `finance_edits` POST still Xano (T1). Internal finance money is **ex-GST**; Xero Total stays on `xero_ar_*` / `xero_ap_*` only.
 
@@ -95,6 +96,8 @@ Adding or altering a channel touches, at minimum:
 **Two laws.** `PacingStatus` ladder order mirrors the Snowflake view — never reorder. ZERO-$ LAW: CM360 surfaces carry no spend UNLESS the line's `delivery_source_map` row sets `derive_spend_from_plan`, in which case the figure is modelled from the plan rate, capped at the planned total, and labelled as modelled. The flag is OFF for all Direct Booked Digital, so `lib/pacing/ad-serving/*` and `lib/pacing/overview/mapOverviewItems.ts` keep their no-spend row shapes. Programmatic Display/Video keep a line when `delivery_source_map` has an active row (`lib/delivery/deliverySourceMap.ts` until 0063 is applied).
 
 Cached 4h via `unstable_cache` tag `pacing-campaigns`.
+
+**Partner file ingest** `GET|POST /api/cron/partner-ingest` (`assertCronSecret`, `maxDuration` 300) pulls Channel Factory Datorama workbooks from `snowflake@assembledview.com.au` via Graph client-credentials (`Mail.ReadWrite`), writes `ASSEMBLEDVIEW.RAW.PARTNER_FILE_LINES` first, then range-replaces `PARTNER_DELIVERY_DAILY` in one `withSnowflakeSession` (BEGIN/DELETE/INSERT/COMMIT — never `querySnowflake`/`execWithRetry` for that txn). Two Vercel slots: `30 22 * * *` (08:30 Sydney) and `0 3 * * *` (13:00 Sydney). Lib: `lib/partner-ingest/`. Tests: `npm run test:partner-ingest`.
 
 → `modules/pacing.md`
 
@@ -204,4 +207,4 @@ Touch these and you are touching everything. Check `BLAST-RADIUS.md` first, ever
 
 ## Scale reference
 
-71 pages · 196 API route handlers · ~450 component files · ~1,440 lib files · 78 live Supabase tables · 50 applied migrations · 14 crons · 20 media channels.
+71 pages · 197 API route handlers · ~450 component files · ~1,440 lib files · 78 live Supabase tables · 50 applied migrations · 16 crons · 20 media channels.
