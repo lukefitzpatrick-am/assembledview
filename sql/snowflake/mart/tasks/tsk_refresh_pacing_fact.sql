@@ -1,5 +1,8 @@
 -- ASSEMBLEDVIEW.MART.TSK_REFRESH_PACING_FACT
--- Captured from Snowflake GET_DDL on 2026-06-08. Source of truth.
+-- June GET_DDL plus the 14 Sep VW_PACING_PARTNER_FILE union (Channel Factory runbook rev3).
+-- Live task DDL is ACCOUNTADMIN-owned; AV_APP_WRITE_ROLE cannot GET_DDL it. Paste
+-- `select get_ddl('task','ASSEMBLEDVIEW.MART.TSK_REFRESH_PACING_FACT');` over this
+-- body when Luke pulls it. Author only; this file is not applied by the capture commit.
 USE SCHEMA ASSEMBLEDVIEW.MART;
 
 create or replace task TSK_REFRESH_PACING_FACT
@@ -24,6 +27,25 @@ using (
       video_3s_views,
       max_fivetran_synced_at::timestamp_ntz as max_fivetran_synced_at
     from ASSEMBLEDVIEW.MART.VW_PACING_DV360
+    where date_day >= dateadd(day, -14, current_date())
+
+    union all
+
+    select
+      channel,
+      date_day,
+      line_item_name,
+      line_item_id,
+      entity_name,
+      entity_id,
+      campaign_name,
+      amount_spent,
+      impressions,
+      clicks,
+      results,
+      video_3s_views,
+      max_fivetran_synced_at::timestamp_ntz as max_fivetran_synced_at
+    from ASSEMBLEDVIEW.MART.VW_PACING_PARTNER_FILE
     where date_day >= dateadd(day, -14, current_date())
 
   ),

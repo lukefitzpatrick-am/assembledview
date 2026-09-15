@@ -1,14 +1,19 @@
 # ASSEMBLEDVIEW MART pacing objects
 
 Source of truth for the live Snowflake pacing objects in `ASSEMBLEDVIEW.MART`.
-Captured from `GET_DDL` on 2026-06-08. Previously these existed only in Snowsight.
+June 2026 GET_DDL plus the 14 Sep Channel Factory capture (`VW_PACING_PARTNER_FILE`, RAW partner tables, combined `FIXED_COST_*` facts). ACCOUNTADMIN-owned tasks and `SP_REFRESH_FIXED_COST_REPORTED_DAILY` still need a live GET_DDL paste.
+
+RAW landing tables live in `sql/snowflake/raw/partner_ingest_tables.sql`.
 
 ## Refresh DAG (warehouse `AV_APP_WH`)
 
 ```
 TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
-├─ TSK_REFRESH_PACING_FACT        MERGE PACING_FACT         <- VW_PACING_DV360 (+ programmatic)
-├─ TSK_REFRESH_SOCIAL_PACING_FACT MERGE SOCIAL_PACING_FACT  <- VW_PACING_TIKTOK, VW_PACING_META
+├─ TSK_REFRESH_PACING_FACT        MERGE PACING_FACT
+│                                 <- VW_PACING_DV360 ∪ VW_PACING_PARTNER_FILE
+├─ TSK_REFRESH_SOCIAL_PACING_FACT MERGE SOCIAL_PACING_FACT
+│                                 <- VW_PACING_TIKTOK, VW_PACING_META
+│                                    (+ VW_PACING_REDDIT when that union is applied)
 ├─ TSK_REFRESH_GOOGLESEARCHPACING CALL SP_REFRESH_GOOGLESEARCHPACING_ROLLING(14)
 │                                 -> SEARCH_PACING_FACT      <- VW_PACING_GOOGLE_SEARCH_DAILY
 └─ TSK_REFRESH_FIXED_COST_REPORTED  (after the three above)
@@ -18,6 +23,7 @@ TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
                                      FIXED_COST_LINE_ITEM_FACT
                                   reads XANO_LINE_ITEMS_SNAPSHOT (WHERE FIXED_COST_MEDIA = TRUE)
                                   delivery from SEARCH/SOCIAL/PACING_FACT
+                                  (partner-file CPV uses VIDEO_3S_VIEWS dual-write from the view)
 ```
 
 ## App read paths

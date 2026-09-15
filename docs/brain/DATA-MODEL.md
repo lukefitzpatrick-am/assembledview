@@ -173,18 +173,59 @@ erDiagram
 
 ## Warehouse (Snowflake)
 
-`ASSEMBLEDVIEW.MART.*` via `lib/snowflake/` is the delivery-fact read path:
+`ASSEMBLEDVIEW.MART.*` via `lib/snowflake/` is the delivery-fact read path. Captures live under `sql/snowflake/`.
 
 - `XANO_LINE_ITEMS_SNAPSHOT` — the plan side, MERGEd nightly on `line_item_id`. Name is frozen; source is now Postgres (`syncPgLineItems.ts`)
-- `PACING_FACT`, `SEARCH_PACING_FACT`, `SOCIAL_PACING_FACT` — delivery facts (Fivetran-fed)
-- `FIXED_COST_LINE_ITEM_FACT`, `FIXED_COST_BURST_FACT`, `FIXED_COST_REPORTED_DAILY_FACT`
+- `PACING_FACT` — programmatic + ad-serving delivery. MERGE from `VW_PACING_DV360` ∪ `VW_PACING_PARTNER_FILE` (`TSK_REFRESH_PACING_FACT`)
+- `SEARCH_PACING_FACT`, `SOCIAL_PACING_FACT` — search / social delivery (Fivetran-fed; social also unions Reddit when that task is applied)
 - `META_BASIC_AD_SET_TEST`
 
 Pacing joins plan to fact on `line_item_id` and computes bands in TypeScript (`lib/pacing/maths`) mirroring the Snowflake view. Ladder order is a contract.
 
-`ASSEMBLEDVIEW.RAW.PARTNER_*` is the partner-file landing zone. Tables already exist in Snowflake (not authored in `sql/snowflake/`). `AV_APP_WRITE_ROLE` has USAGE on RAW, SELECT/INSERT/DELETE on `PARTNER_DELIVERY_DAILY`, SELECT/INSERT on `PARTNER_FILE_LINES` and `PARTNER_FILE_INGEST_LOG`, SELECT on `PARTNER_SOURCE_MAP`, and **no UPDATE**. Cron `/api/cron/partner-ingest` is the writer (`lib/partner-ingest/`). Grain of `PARTNER_DELIVERY_DAILY` is `(REPORT_DATE, PARTNER_ADVERTISER_ID, PARTNER_CAMPAIGN_NAME, PARTNER_LINE_ITEM_NAME)`. `AV_LINE_ITEM_ID` is a lowercased plan code or NULL. Fully qualify every RAW object.
+### MART.VW_PACING_PARTNER_FILE
 
-## Test data in this database
+Channel Factory only until PI-1. Reads `RAW.PARTNER_DELIVERY_DAILY` where `SOURCE = 'Channel Factory'` and `AV_LINE_ITEM_ID IS NOT NULL`. `AMOUNT_SPENT` is always 0 (zero-$ law; CF reports no platform cost). Dual-writes `SUM(COMPLETED_VIEWS)` into `VIDEO_3S_VIEWS` because `SP_REFRESH_FIXED_COST_REPORTED_DAILY` still reads that column for CPV. Capture: `sql/snowflake/mart/views/vw_pacing_partner_file.sql`.
+
+| Column | Notes |
+|---|---|
+| `CHANNEL` | `'Programmatic - Video'` |
+| `DATE_DAY` | `REPORT_DATE` |
+| `LINE_ITEM_NAME` | `MAX(PARTNER_LINE_ITEM_NAME)` |
+| `LINE_ITEM_ID` | `LOWER(TRIM(AV_LINE_ITEM_ID))` — plan code |
+| `ENTITY_NAME` | `MAX(PARTNER_CAMPAIGN_NAME)` |
+| `ENTITY_ID` | `LOWER(TRIM(PARTNER_LINE_ITEM_NAME))` — PACING_FACT merge key |
+| `CAMPAIGN_NAME` | `MAX(PARTNER_CAMPAIGN_NAME)` |
+| `AMOUNT_SPENT` | `0` |
+| `IMPRESSIONS` / `CLICKS` | sums |
+| `RESULTS` | NULL |
+| `VIDEO_3S_VIEWS` | `SUM(COMPLETED_VIEWS)` (temporary dual-write) |
+| `MAX_FIVETRAN_SYNCED_AT` | `MAX(LOADED_AT)` |
+
+### MART.VW_PACING_REDDIT
+
+Same column list as `VW_PACING_TIKTOK` (`CHANNEL` = `'Social - Reddit'`). Live warehouse reads `REDDIT_ADS.AD_GROUP_REPORT` (spend ÷ 1e6, `video_watched_3_seconds`) joined to `AD_GROUP` / `CAMPAIGN` and staging conversions. The in-repo file `sql/snowflake/mart/views/vw_pacing_reddit.sql` is RT-1 AUTHOR ONLY (`AD_REPORTING_STAGING.REDDIT_ADS__AD_GROUP_REPORT`, `VIDEO_3S_VIEWS = 0`) and is not this capture.
+
+### MART.FIXED_COST_* (filled by `SP_REFRESH_FIXED_COST_REPORTED_DAILY`)
+
+Capture: `sql/snowflake/mart/tables/fixed_cost_facts.sql`. Per-table June files in the same folder match this DDL.
+
+`FIXED_COST_REPORTED_DAILY_FACT` — grain `(LINE_ITEM_ID, BURST_INDEX, DATE_DAY)`, cluster by the same. 3-day rolling recalculation; older days locked. Columns: `LINE_ITEM_ID`, `BURST_INDEX`, `DATE_DAY`, `REPORTED_SPEND`, `ACTUAL_PLATFORM_SPEND`, `ACTUAL_DELIVERABLES`, `EXPECTED_DAILY_DELIVERABLES`, `BURST_BUDGET`, `BURST_START_DATE`, `BURST_END_DATE`, `BUY_TYPE`, `BUY_AMOUNT`, `SHARE_TODAY`, `CAP_APPLIED`, `IS_SQUAREUP_DAY`, `IS_LOCKED`, `CALCULATED_AT`. App money for Channel Factory is `REPORTED_SPEND`.
+
+`FIXED_COST_BURST_FACT` — grain `(LINE_ITEM_ID, BURST_INDEX)`. Columns: `LINE_ITEM_ID`, `BURST_INDEX`, `BURST_START_DATE`, `BURST_END_DATE`, `BURST_BUDGET`, `BURST_EXPECTED_DELIVERABLES`, `BURST_ACTUAL_DELIVERABLES`, `BURST_DELIVERY_RATIO`, `BURST_REPORTED_SPEND`, `BURST_ACTUAL_PLATFORM_SPEND`, `BURST_VARIANCE`, `BURST_STATUS`, `LAST_CALCULATED_AT`. Drives `/pacing` variance display.
+
+`FIXED_COST_LINE_ITEM_FACT` — grain `LINE_ITEM_ID`. Columns: `LINE_ITEM_ID`, `MBA_NUMBER`, `LINE_ITEM_NAME`, `IS_CURRENTLY_FIXED_COST`, `WAS_EVER_FIXED_COST` (sticky once true), `LINE_ITEM_TOTAL_BUDGET`, `LINE_ITEM_TOTAL_REPORTED`, `LINE_ITEM_TOTAL_ACTUAL`, `LINE_ITEM_VARIANCE`, `BURST_COUNT`, `BURSTS_DELIVERED_OVER`, `BURSTS_DELIVERED_UNDER`, `LAST_CALCULATED_AT`.
+
+### ASSEMBLEDVIEW.RAW.PARTNER_*
+
+Capture: `sql/snowflake/raw/partner_ingest_tables.sql`. Writer is cron `/api/cron/partner-ingest` (`lib/partner-ingest/`). `AV_APP_WRITE_ROLE` has USAGE on RAW, SELECT/INSERT/DELETE on `PARTNER_DELIVERY_DAILY`, SELECT/INSERT on `PARTNER_FILE_LINES` and `PARTNER_FILE_INGEST_LOG`, SELECT on `PARTNER_SOURCE_MAP`, and **no UPDATE**. Fully qualify every RAW object.
+
+`PARTNER_SOURCE_MAP` — sender+subject → slug. Columns: `SENDER_DOMAIN`, `SUBJECT_PATTERN`, `SOURCE_SLUG`, `SOURCE_LABEL`, `IS_ACTIVE`, `EXPECTED_HEADER`, `HEADER_ROW_HINT`, `MAX_STALE_DAYS`, `LOAD_MODE` (default `range_replace`), `NOTES`, `UPDATED_AT`.
+
+`PARTNER_DELIVERY_DAILY` — grain `(REPORT_DATE, PARTNER_ADVERTISER_ID, PARTNER_CAMPAIGN_NAME, PARTNER_LINE_ITEM_NAME)`. Columns: `SOURCE`, `REPORT_DATE`, `PARTNER_ADVERTISER_ID`, `PARTNER_CAMPAIGN_NAME`, `PARTNER_LINE_ITEM_NAME`, `AV_LINE_ITEM_ID` (lowercased plan code or NULL), `IMPRESSIONS`, `CLICKS`, `VIDEO_VIEWS`, `VIDEO_Q25` / `VIDEO_Q50` / `VIDEO_Q75`, `COMPLETED_VIEWS`, `RATE_Q25` / `RATE_Q50` / `RATE_Q75` / `RATE_FULLY_PLAYED`, `SOURCE_FILE`, `LOADED_AT`. Uncoded rows (`AV_LINE_ITEM_ID` NULL) stay in RAW.
+
+`PARTNER_FILE_INGEST_LOG` — one row per attachment attempt. Columns: `SOURCE_SLUG`, `INTERNET_MESSAGE_ID`, `ATTACHMENT_NAME`, `ATTACHMENT_SHA256`, `SOURCE_FILE`, `SENDER_ADDRESS`, `RECEIVED_AT`, `BYTES`, `LINE_COUNT`, `PARSED_ROW_COUNT`, `STATUS`, `ERROR_TEXT`, `INGESTED_AT`.
+
+`PARTNER_FILE_LINES` — raw dump before parse. Columns: `SOURCE_FILE`, `FILE_ROW`, `RAW_LINE`, `LOADED_AT`.
 
 ## Test data in this database
 

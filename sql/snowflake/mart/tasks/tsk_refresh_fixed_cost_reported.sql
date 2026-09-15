@@ -1,5 +1,8 @@
 -- ASSEMBLEDVIEW.MART.TSK_REFRESH_FIXED_COST_REPORTED
--- Captured from Snowflake GET_DDL on 2026-06-08. Source of truth.
+-- June GET_DDL retained. Live task is ACCOUNTADMIN-owned; AV_APP_WRITE_ROLE cannot
+-- GET_DDL it. Paste `select get_ddl('task','ASSEMBLEDVIEW.MART.TSK_REFRESH_FIXED_COST_REPORTED');`
+-- over this body when Luke pulls it. Body still CALL SP_REFRESH_FIXED_COST_REPORTED_DAILY(NULL, FALSE)
+-- after the three pacing tasks.
 USE SCHEMA ASSEMBLEDVIEW.MART;
 
 create or replace task TSK_REFRESH_FIXED_COST_REPORTED
