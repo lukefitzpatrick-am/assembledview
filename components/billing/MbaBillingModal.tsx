@@ -942,8 +942,7 @@ export function MbaBillingModal({
             <DialogHeader>
               <DialogTitle>MBA &amp; billing</DialogTitle>
               <DialogDescription>
-                Approve lines for MBA scope and review the billing schedule. Totals come from core
-                financials.
+                Scope is saved with the version. Publish issues it to the client.
               </DialogDescription>
             </DialogHeader>
           </div>

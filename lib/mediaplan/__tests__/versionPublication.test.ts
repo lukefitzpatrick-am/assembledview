@@ -88,6 +88,7 @@ function toEditorVersionListEntry(v: Record<string, unknown>): {
   created_at: unknown
   published_at: unknown
   published_by: unknown
+  mba_scope: unknown
 } {
   const vn = v.version_number
   return {
@@ -97,6 +98,7 @@ function toEditorVersionListEntry(v: Record<string, unknown>): {
     created_at: v.created_at ?? null,
     published_at: v.published_at ?? null,
     published_by: v.published_by ?? null,
+    mba_scope: v.mba_scope ?? null,
   }
 }
 
@@ -134,6 +136,7 @@ describe("published_at survives DB → editor version-list shape", () => {
     assert.equal(editorEntry.published_at, "2025-06-01T12:00:00.000Z")
     assert.equal(editorEntry.published_by, "luke@assembled.media")
     assert.equal(editorEntry.version_number, 3)
+    assert.equal(editorEntry.mba_scope, null)
   })
 
   it("null published_at maps through as null (unpublished)", () => {

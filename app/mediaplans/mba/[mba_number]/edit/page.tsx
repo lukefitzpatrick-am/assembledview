@@ -252,9 +252,17 @@ import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
 import { EMPTY_DRAFT_DIFF_SUMMARY } from "@/lib/mediaplan/drafts/fieldDiff"
 import { isPlanDraftsEnabled } from "@/lib/mediaplan/drafts/flag"
 import {
+  describePartialMbaPublishRail,
   describeVersionHeaderTrail,
   resolveTipVersionIdAtLoad,
 } from "@/lib/mediaplan/drafts/pill"
+import {
+  buildMbaScopeForSaveBody,
+  countablePartialMbaLineCount,
+  formatMbaScopeVersionPickerLabel,
+  parsePersistedMbaScope,
+  selectedLineItemIdsByMediaFromMbaScope,
+} from "@/lib/mediaplan/mbaScopeClient"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import { resolveDraftBaseVersionNumber } from "@/lib/mediaplan/drafts/resolveDraftBaseVersionNumber"
@@ -349,12 +357,8 @@ import {
   type MbaBillingScopeLine,
 } from "@/components/billing/MbaBillingModal"
 import {
-  approvalExclusionFingerprint,
   canonicalisePartialMbaSelectedLineItemIds,
-  excludedLineItemIdsByMedia,
   fetchMbaLineApprovalsClient,
-  mbaApprovalPatchLinesFromSelection,
-  patchMbaLineApprovalsClient,
   selectedLineItemIdsFromApprovalRows,
 } from "@/lib/finance/mbaLineApprovalsClient"
 import {
@@ -1891,6 +1895,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     created_at?: number | string | null
     published_at?: string | null
     published_by?: string | null
+    mba_scope?: unknown
   }>>([])
   const versionsMetaLoadedRef = useRef(false)
   const versionsMetaInflightRef = useRef<Promise<void> | null>(null)
@@ -2283,7 +2288,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   )
 
   const [isPartialMBA, setIsPartialMBA] = useState(false)
-  const lastPersistedApprovalFingerprintRef = useRef<string | null>(null)
   const approvalsHydratedRef = useRef(false)
   const [partialMBAError, setPartialMBAError] = useState<string | null>(null)
   const [partialMBAValues, setPartialMBAValues] = useState({
@@ -7744,21 +7748,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         }
       }
 
-      // Approval-set change after a persisted baseline → force version cut (even on draft).
-      // SV-3: fingerprint exclusions only — adding/deleting approved lines must not cut.
-      const excludedFromSaveInputs: Record<string, string[]> = {}
-      for (const line of billingSaveInputs.lineItems) {
-        if (line.approval !== "excluded") continue
-        if (!excludedFromSaveInputs[line.mediaType]) {
-          excludedFromSaveInputs[line.mediaType] = []
-        }
-        excludedFromSaveInputs[line.mediaType].push(line.lineItemId)
-      }
-      const approvalFpNow = approvalExclusionFingerprint(excludedFromSaveInputs)
-      const lastApprovalFp = lastPersistedApprovalFingerprintRef.current
-      const forceIncrementForApprovals =
-        lastApprovalFp !== null && lastApprovalFp !== approvalFpNow
-
       const shouldEnableProduction = Boolean(
         formValues.mp_production || (productionMediaLineItemsForSave?.length ?? 0) > 0
       )
@@ -7777,7 +7766,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           mediaPlan,
           availableVersions,
           selectedVersionNumber,
-          forceIncrement: forceIncrementForApprovals,
           intent: saveIntent,
           campaignStatus: formValues.mp_campaignstatus,
         })
@@ -7789,9 +7777,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           editingVersionNumber: saveModeInput.editingVersionNumber,
           versionRowCount: availableVersions.length,
           tipPublishedAt: saveModeInput.tipPublishedAt,
-          forceIncrementForApprovals,
-          lastApprovalFp,
-          approvalFpNow,
           uiMode: modeResolved.uiMode,
           mode: modeResolved.mode,
           versionNumber: modeResolved.versionNumber,
@@ -7974,6 +7959,11 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                 production: shouldEnableProduction,
               },
               lineItems: lineItemsForSave,
+              mbaScope: buildMbaScopeForSaveBody({
+                isPartialMBA,
+                partialMBASelectedLineItemIds,
+                partialMBAMonthYears,
+              }),
               ingestStageId: ingestStageIdRef.current || undefined,
             },
             {
@@ -8188,25 +8178,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           updateSaveStatus("KPI sync", "success")
         }
 
-        if (
-          mbaNumber &&
-          (isPartialMBA || forceIncrementForApprovals || lastApprovalFp !== null)
-        ) {
-          const approvalLines = billingSaveInputs.lineItems.map((line) => ({
-            line_item_id: toBillingOverrideLineItemId(line.lineItemId),
-            media_type: line.mediaType,
-            approved: line.approval !== "excluded",
-          }))
-          const patch = await patchMbaLineApprovalsClient({
-            mbaNumber: String(mbaNumber),
-            mediaPlanVersion: Number(numericSavedVersion),
-            lines: approvalLines,
-          })
-          if (patch.ok) {
-            lastPersistedApprovalFingerprintRef.current = approvalFpNow
-          }
-        }
-
         // MB-25: committed — clear Reset tombstone + pending (DB now matches).
         setClearedBillingOverrideLineIds([])
         setPendingBillingOverrideRows([])
@@ -8219,7 +8190,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
               modeResolved.uiMode === "overwrite"
                 ? `Saved over v${numericSavedVersion} — still unpublished`
                 : modeResolved.uiMode === "increment_unpublished"
-                  ? `Cut v${numericSavedVersion} (unpublished) — approval scope changed`
+                  ? `Cut v${numericSavedVersion} (unpublished)`
                   : `Saved as version ${numericSavedVersion}`,
           },
         })
@@ -8372,7 +8343,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                 }
               : null,
           deferMasterVersionPublish: true,
-          ...(forceIncrementForApprovals ? { forceIncrement: true } : {}),
         }),
       })
       
@@ -8473,29 +8443,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       }
       if (isOverwriteMode && !versionId) {
         throw new Error("Missing version 1 ID for draft overwrite")
-      }
-
-      // Persist line approvals for the saved version number (fail-soft if API absent).
-      if (
-        mbaNumber &&
-        numericSavedVersion != null &&
-        (isPartialMBA || forceIncrementForApprovals || lastApprovalFp !== null)
-      ) {
-        const approvalLines = billingSaveInputs.lineItems.map((line) => ({
-          line_item_id: toBillingOverrideLineItemId(line.lineItemId),
-          media_type: line.mediaType,
-          approved: line.approval !== "excluded",
-        }))
-        const patch = await patchMbaLineApprovalsClient({
-          mbaNumber: String(mbaNumber),
-          mediaPlanVersion: Number(numericSavedVersion),
-          lines: approvalLines,
-        })
-        if (patch.ok) {
-          lastPersistedApprovalFingerprintRef.current = approvalFpNow
-        } else if (patch.available === false) {
-          console.warn("[mba_line_approvals] unavailable on save", patch.error)
-        }
       }
 
       // --- KPI: save campaign KPIs against the new version (non-blocking) (Stage 2) ---
@@ -9634,6 +9581,11 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           production: shouldEnableProduction,
         },
         lineItems: lineItemsForSave,
+        mbaScope: buildMbaScopeForSaveBody({
+          isPartialMBA,
+          partialMBASelectedLineItemIds,
+          partialMBAMonthYears,
+        }),
       },
       {
         feeLoading: feeLoadingForSave,
@@ -10642,7 +10594,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
 
 
 
-  // Prefer mba_line_approvals over schedule metadata when the API is live (absence = all-in).
+  // Prefer version.mba_scope; legacy versions fall back to mba_line_approvals GET.
   useEffect(() => {
     approvalsHydratedRef.current = false
   }, [mbaNumber, selectedVersionNumber])
@@ -10664,6 +10616,50 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       }
       if (Object.values(allByMedia).every((ids) => ids.length === 0)) return
 
+      const applySelected = (
+        selected: Record<string, string[]>,
+        isPartial: boolean,
+        monthYears: string[] | null
+      ) => {
+        setPartialMBASelectedLineItemIds(
+          canonicalisePartialMbaSelectedLineItemIds(selected)
+        )
+        setPartialMBAMediaEnabled(
+          Object.fromEntries(
+            Object.entries(selected).map(([k, ids]) => [k, ids.length > 0])
+          )
+        )
+        setIsPartialMBA(isPartial)
+        const baselineMonths = getPartialMbaRawMonthsForBaseline().map(
+          (m) => m.monthYear
+        )
+        const months =
+          monthYears && monthYears.length > 0 ? monthYears : baselineMonths
+        if (months.length) {
+          setPartialMBAMonthYears(months)
+          recomputePartialMBAFromLineItems(months, selected)
+        }
+      }
+
+      const persisted = parsePersistedMbaScope(
+        (mediaPlan as { mba_scope?: unknown } | null)?.mba_scope ??
+          (
+            mediaPlan as {
+              versionData?: { mba_scope?: unknown }
+            } | null
+          )?.versionData?.mba_scope
+      )
+      if (persisted) {
+        if (cancelled) return
+        approvalsHydratedRef.current = true
+        const selected = selectedLineItemIdsByMediaFromMbaScope({
+          lineItemIds: persisted.lineItemIds,
+          allLineIdsByMedia: allByMedia,
+        })
+        applySelected(selected, persisted.partial, persisted.monthYears)
+        return
+      }
+
       const result = await fetchMbaLineApprovalsClient({
         mbaNumber: String(mbaNumber),
         mediaPlanVersion: Number(selectedVersionNumber),
@@ -10671,12 +10667,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       if (cancelled) return
       approvalsHydratedRef.current = true
       if (!result.ok || !result.available) return
-      if (!result.rows.length) {
-        // All-in (no exclusion rows) — empty exclusion fingerprint.
-        lastPersistedApprovalFingerprintRef.current =
-          approvalExclusionFingerprint({})
-        return
-      }
+      if (!result.rows.length) return
       const selected = selectedLineItemIdsFromApprovalRows({
         rows: result.rows,
         allLineIdsByMedia: allByMedia,
@@ -10684,27 +10675,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       const hasExclusion = Object.entries(selected).some(
         ([k, ids]) => ids.length < (allByMedia[k]?.length ?? 0)
       )
-      setPartialMBASelectedLineItemIds(
-        canonicalisePartialMbaSelectedLineItemIds(selected)
-      )
-      setPartialMBAMediaEnabled(
-        Object.fromEntries(
-          Object.entries(selected).map(([k, ids]) => [k, ids.length > 0])
-        )
-      )
-      if (hasExclusion) setIsPartialMBA(true)
-      lastPersistedApprovalFingerprintRef.current =
-        approvalExclusionFingerprint(
-          excludedLineItemIdsByMedia({
-            allLineIdsByMedia: allByMedia,
-            selectedByMedia: selected,
-          })
-        )
-      const months = getPartialMbaRawMonthsForBaseline().map((m) => m.monthYear)
-      if (months.length) {
-        setPartialMBAMonthYears(months)
-        recomputePartialMBAFromLineItems(months, selected)
-      }
+      applySelected(selected, hasExclusion, null)
     })()
 
     return () => {
@@ -10812,51 +10783,11 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         updatedAt: new Date().toISOString(),
       })
     }
-    toast({ title: "Success", description: "Partial MBA details have been saved." });
-    // Prefer live approvals table when available (fail-soft).
-    // If the approval set changed after a persisted baseline, defer PATCH until campaign
-    // Save (forceIncrement cuts vN → vN+1, then PATCH the new version number).
-    void (async () => {
-      const versionNum = selectedVersionNumber ?? mediaPlan?.version_number
-      if (!mbaNumber || versionNum == null) return
-      const allByMedia: Record<string, string[]> = {}
-      for (const line of campaignFinancialsForPanels.perLine) {
-        if (!allByMedia[line.mediaType]) allByMedia[line.mediaType] = []
-        allByMedia[line.mediaType].push(line.lineItemId)
-      }
-      const fp = approvalExclusionFingerprint(
-        excludedLineItemIdsByMedia({
-          allLineIdsByMedia: allByMedia,
-          selectedByMedia: partialMBASelectedLineItemIds,
-        })
-      )
-      const lastFp = lastPersistedApprovalFingerprintRef.current
-      if (lastFp !== null && lastFp !== fp) {
-        toast({
-          title: "New MBA version required",
-          description:
-            "Approval set changed. Publish to create the next version and persist line approvals.",
-        })
-        return
-      }
-      const lines = mbaApprovalPatchLinesFromSelection({
-        allByMedia,
-        selectedByMedia: partialMBASelectedLineItemIds,
-      })
-      const patch = await patchMbaLineApprovalsClient({
-        mbaNumber: String(mbaNumber),
-        mediaPlanVersion: Number(versionNum),
-        lines,
-      })
-      if (!patch.ok && patch.available === false) {
-        toast({
-          title: "Approvals API unavailable",
-          description: "Scope saved in schedule metadata; line-approval table was not updated.",
-        })
-      } else if (patch.ok) {
-        lastPersistedApprovalFingerprintRef.current = fp
-      }
-    })()
+    toast({
+      title: "Success",
+      description:
+        "Scope is saved with the version. Publish issues it to the client.",
+    })
   }
 
   function handlePartialMBAReset() {
@@ -11442,6 +11373,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
               created_at: v.created_at ?? null,
               published_at: v.published_at ?? null,
               published_by: v.published_by ?? null,
+              mba_scope: v.mba_scope ?? null,
             }))
           : []
         setAvailableVersions(versionsFromApi)
@@ -11890,6 +11822,12 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           ? `v${publishedPointerNumber}`
           : null
       }
+      saveScopeNote={describePartialMbaPublishRail({
+        isPartial: isPartialMBA,
+        inCount: flattenPartialMbaSelectedLineIds(partialMBASelectedLineItemIds)
+          .length,
+        totalCount: countablePartialMbaLineCount(campaignFinancials.perLine),
+      })}
       isSaving={isSaving}
     />
   )
@@ -12328,7 +12266,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                       onValueChange={handleVersionSelect}
                       placeholder="Load version"
                       searchPlaceholder="Search versions..."
-                      buttonClassName="h-7 w-28 text-xs"
+                      buttonClassName="h-7 min-w-28 w-auto max-w-[min(28rem,calc(100vw-8rem))] text-xs"
+                      preserveOrder
                       onOpenChange={(open) => {
                         if (open) void loadVersionsMeta()
                       }}
@@ -12336,7 +12275,14 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                         availableVersions.length > 0
                           ? [...availableVersions].map((v) => ({
                               value: String(v.version_number),
-                              label: `v${v.version_number}`,
+                              label: formatMbaScopeVersionPickerLabel({
+                                versionNumber: v.version_number,
+                                scope: parsePersistedMbaScope(v.mba_scope),
+                                publishedAt: v.published_at ?? null,
+                                countableLineCount: countablePartialMbaLineCount(
+                                  campaignFinancials.perLine
+                                ),
+                              }),
                             }))
                           : selectedVersionNumber
                             ? [

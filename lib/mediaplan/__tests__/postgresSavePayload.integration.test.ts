@@ -396,6 +396,23 @@ describe("create + edit assembly twins (shared helpers)", () => {
     assert.match(editSrc, /SELECTABLE_CAMPAIGN_STATUSES/)
   })
 
+  it("both pages post the same mbaScope builder; edit no longer PATCHes mba_line_approvals", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    for (const src of [createSrc, editSrc]) {
+      assert.match(src, /buildMbaScopeForSaveBody/)
+      assert.match(
+        src,
+        /mbaScope:\s*buildMbaScopeForSaveBody\(\s*\{[\s\S]*?isPartialMBA,[\s\S]*?partialMBASelectedLineItemIds,[\s\S]*?partialMBAMonthYears/
+      )
+    }
+    assert.doesNotMatch(editSrc, /patchMbaLineApprovalsClient/)
+    assert.doesNotMatch(editSrc, /forceIncrementForApprovals/)
+    assert.doesNotMatch(editSrc, /approvalExclusionFingerprint/)
+    assert.match(editSrc, /formatMbaScopeVersionPickerLabel/)
+    assert.match(editSrc, /parsePersistedMbaScope/)
+  })
+
   it("CS-B2: create persists only after a master id exists; edit always has a master", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
@@ -446,7 +463,8 @@ describe("create + edit assembly twins (shared helpers)", () => {
     const createVersionSends = createSrc.match(
       /campaignStatus:\s*mapCampaignStatusForPersist/g
     )
-    assert.equal(createVersionSends?.length, 1)
+    // Save POST + draft-documents assemble both stamp ensureMaster (not the version row).
+    assert.equal(createVersionSends?.length, 2)
     assert.doesNotMatch(
       editSrc,
       /campaignStatus:\s*mapCampaignStatusForPersist/
@@ -693,8 +711,10 @@ describe("UI-1 twin: save messages live in the sidebar panel, bar is actions onl
       assert.match(panel, /issues=\{builderIssues\}/)
       assert.match(panel, /extraProblemTexts=\{extraProblemTexts\}/)
       assert.match(panel, /savePrimary=/)
-      assert.match(panel, /saveSecondary=\{null\}/)
+      assert.match(panel, /saveSecondary=/)
       assert.match(panel, /saveTip=/)
+      assert.match(panel, /saveScopeNote=/)
+      assert.match(panel, /describePartialMbaPublishRail/)
       assert.match(panel, /isSaving=/)
       assert.doesNotMatch(panel, /compact/)
       assert.doesNotMatch(panel, /PlanDraftPill/)

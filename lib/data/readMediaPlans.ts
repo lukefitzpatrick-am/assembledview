@@ -388,6 +388,8 @@ export function mapPlanVersionFromPostgres(
     // VC Stage 1 — publication columns (null = unpublished). Do not drop.
     published_at: api.published_at ?? null,
     published_by: api.published_by ?? null,
+    /** null = pre-scope legacy version; object = saved MBA scope (full or partial). */
+    mba_scope: api.mba_scope ?? null,
     ...flagFields,
     ...(created != null ? { created_at: created } : {}),
   }

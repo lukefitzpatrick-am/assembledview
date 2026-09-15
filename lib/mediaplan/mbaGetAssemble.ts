@@ -592,6 +592,7 @@ export type MbaGetAssembleInput = {
     created_at: unknown
     published_at?: unknown
     published_by?: unknown
+    mba_scope?: unknown
   }>
   /** Published watermark (master.version_number). */
   latestVersionNumber: number

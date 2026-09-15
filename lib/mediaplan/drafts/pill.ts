@@ -206,6 +206,16 @@ export function draftAgeDays(updatedAt: string, now = new Date()): number {
   return Math.floor((now.getTime() - t) / (24 * 60 * 60 * 1000))
 }
 
+/** When you publish rail — Partial MBA covers a subset of countable lines. */
+export function describePartialMbaPublishRail(args: {
+  isPartial: boolean
+  inCount: number
+  totalCount: number
+}): string | null {
+  if (!args.isPartial || args.totalCount <= 0) return null
+  return `Client MBA covers ${args.inCount} of ${args.totalCount} lines.`
+}
+
 export function shouldNudgeStaleDraft(args: {
   updatedAt: string
   now?: Date

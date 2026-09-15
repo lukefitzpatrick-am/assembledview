@@ -322,6 +322,14 @@ export type PlansSaveRequestBody = {
    * through (do not strip like campaignStatus).
    */
   ingestStageId?: string
+  /**
+   * Client MBA scope. `isPartialMBA` false → `{ lineItemIds: null, monthYears: null }`.
+   * Null ids = all approved; empty array = none. Mapped onto `approved_slice` + `mba_scope`.
+   */
+  mbaScope?: {
+    lineItemIds: string[] | null
+    monthYears: string[] | null
+  } | null
 }
 
 export type PlansSaveResponse = {

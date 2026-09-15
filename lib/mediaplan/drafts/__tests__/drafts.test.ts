@@ -5,6 +5,7 @@ import { resolvePostgresSaveMode, SAVE_PUBLISHES_IMMEDIATELY } from "../../resol
 import {
   describePlanSavePill,
   describeVersionHeaderTrail,
+  describePartialMbaPublishRail,
   summarizeDraftOffer,
   summarizeLocalOnlyDraftOffer,
   pickNewerDraft,
@@ -417,5 +418,26 @@ describe("SM-31: stale banner names the draft base version_number", () => {
     assert.equal(resolveDraftBaseVersionNumber(versions, 99), null)
     assert.equal(resolveDraftBaseVersionNumber(versions, null), null)
     assert.equal(resolveDraftBaseVersionNumber([], 10), null)
+  })
+})
+
+describe("Partial MBA When you publish rail", () => {
+  it("names the scoped line count", () => {
+    assert.equal(
+      describePartialMbaPublishRail({
+        isPartial: true,
+        inCount: 4,
+        totalCount: 7,
+      }),
+      "Client MBA covers 4 of 7 lines."
+    )
+    assert.equal(
+      describePartialMbaPublishRail({
+        isPartial: false,
+        inCount: 7,
+        totalCount: 7,
+      }),
+      null
+    )
   })
 })

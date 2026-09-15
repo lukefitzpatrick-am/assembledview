@@ -86,6 +86,17 @@ describe("PlanWizardSaveMessages", () => {
     expect(replacingPill).toContain("Clients, documents and pacing use v4")
   })
 
+  it("renders Partial MBA scope on the When you publish rail", () => {
+    const html = renderToStaticMarkup(
+      <PlanWizardSaveMessages
+        savePrimary="Publishing will create v2"
+        saveScopeNote="Client MBA covers 4 of 7 lines."
+      />
+    )
+    expect(html).toContain("When you publish")
+    expect(html).toContain("Client MBA covers 4 of 7 lines.")
+  })
+
   it("renders extraProblemTexts after issues", () => {
     const html = renderToStaticMarkup(
       <PlanWizardSaveMessages

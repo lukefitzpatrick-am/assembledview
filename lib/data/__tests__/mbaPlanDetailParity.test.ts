@@ -38,6 +38,8 @@ const INTENTIONAL_PATH_PREFIXES = [
   "latest_version_id",
   "temp_version_number",
   "nextVersionNumber",
+  "mba_scope",
+  "versionData.mba_scope",
   // Nested copies after master∪version spread
   "versionData.inputs_hash",
   "versionData.rebill_needed",

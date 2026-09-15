@@ -159,6 +159,11 @@ export const MBA_PLAN_DETAIL_INTENTIONAL_DIFFS = [
     reason:
       "Postgres master mapper does not invent Xano-only fields absent from media_plan_masters (inputs_hash, rebill_needed, latest_version_id, temp_version_number).",
   },
+  {
+    path: "mba_scope",
+    reason:
+      "Postgres version mapper surfaces media_plan_versions.mba_scope (null on pre-scope rows). Xano GET never had this column.",
+  },
 ] as const
 
 async function loadMasterAndVersions(mbaNumber: string): Promise<{
@@ -285,6 +290,7 @@ export async function readMbaPlanDetailFromPostgres(
       created_at: unknown
       published_at: unknown
       published_by: unknown
+      mba_scope: unknown
     }> = []
     if (query.includeVersionsMeta) {
       versionsMetadata = versions
@@ -294,6 +300,7 @@ export async function readMbaPlanDetailFromPostgres(
           created_at: v.created_at ?? null,
           published_at: v.published_at ?? null,
           published_by: v.published_by ?? null,
+          mba_scope: v.mba_scope ?? null,
         }))
         .filter((v) => v.version_number > 0 && v.version_number <= publishedCap)
     }

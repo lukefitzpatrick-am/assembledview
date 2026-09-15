@@ -29,6 +29,8 @@ export function PlanWizardSaveMessages(props: {
   savePrimary?: string | null
   saveSecondary?: string | null
   saveTip?: string | null
+  /** Partial MBA: "Client MBA covers {in} of {total} lines." */
+  saveScopeNote?: string | null
   isSaving?: boolean
 }) {
   const issues = props.issues ?? []
@@ -39,13 +41,20 @@ export function PlanWizardSaveMessages(props: {
   const savePrimary = hasText(props.savePrimary) ? props.savePrimary.trim() : null
   const saveSecondary = hasText(props.saveSecondary) ? props.saveSecondary.trim() : null
   const saveTip = hasText(props.saveTip) ? props.saveTip.trim() : null
+  const saveScopeNote = hasText(props.saveScopeNote)
+    ? props.saveScopeNote.trim()
+    : null
   const isSaving = props.isSaving === true
 
   const problemCount = issues.length + extraProblemTexts.length
   const hasProblems = problemCount > 0
   const hasDraft = draftBanner != null
   const hasSave =
-    isSaving || savePrimary != null || saveSecondary != null || saveTip != null
+    isSaving ||
+    savePrimary != null ||
+    saveSecondary != null ||
+    saveTip != null ||
+    saveScopeNote != null
 
   if (!hasProblems && !hasDraft && !hasSave) return null
 
@@ -139,6 +148,11 @@ export function PlanWizardSaveMessages(props: {
         {saveTip ? (
           <p className="whitespace-normal break-words text-[11px] leading-snug text-foreground/70">
             Clients, documents and pacing use {saveTip}
+          </p>
+        ) : null}
+        {saveScopeNote ? (
+          <p className="whitespace-normal break-words text-[11px] leading-snug text-foreground/70">
+            {saveScopeNote}
           </p>
         ) : null}
       </div>

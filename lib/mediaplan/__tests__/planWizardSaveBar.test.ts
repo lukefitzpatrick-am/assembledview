@@ -567,3 +567,14 @@ describe("catchPlanDraftAction", () => {
     )
   })
 })
+
+describe("Partial MBA publish rail", () => {
+  it("both pages add Client MBA covers N of M lines when scope is partial", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    for (const src of [createSrc, editSrc]) {
+      assert.match(src, /describePartialMbaPublishRail/)
+      assert.match(src, /saveScopeNote=\{describePartialMbaPublishRail/)
+    }
+  })
+})

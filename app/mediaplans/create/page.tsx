@@ -289,6 +289,11 @@ import {
   kpiRowsForDraftDocuments,
   mergeDraftDocumentsBody,
 } from "@/lib/mediaplan/mergeDraftDocumentsBody"
+import { describePartialMbaPublishRail } from "@/lib/mediaplan/drafts/pill"
+import {
+  buildMbaScopeForSaveBody,
+  countablePartialMbaLineCount,
+} from "@/lib/mediaplan/mbaScopeClient"
 import { shouldRunDeferredMasterPublish } from "@/lib/mediaplan/publishVersionIntegrityClient"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import {
@@ -3316,6 +3321,11 @@ function CreateMediaPlan() {
           production: shouldEnableProduction,
         },
         lineItems: lineItemsForSave,
+        mbaScope: buildMbaScopeForSaveBody({
+          isPartialMBA,
+          partialMBASelectedLineItemIds,
+          partialMBAMonthYears,
+        }),
         ensureMaster: {
           mbaNumber: mbaNum,
           mpClientName: clientName,
@@ -4969,7 +4979,11 @@ function CreateMediaPlan() {
         updatedAt: new Date().toISOString(),
       })
     }
-    toast({ title: "Success", description: "Partial MBA details have been saved." });
+    toast({
+      title: "Success",
+      description:
+        "Scope is saved with the version. Publish issues it to the client.",
+    })
   }
 
   function handlePartialMBAReset() {
@@ -5856,6 +5870,11 @@ function CreateMediaPlan() {
                 production: shouldEnableProduction,
               },
               lineItems: lineItemsForSave,
+              mbaScope: buildMbaScopeForSaveBody({
+                isPartialMBA,
+                partialMBASelectedLineItemIds,
+                partialMBAMonthYears,
+              }),
               ingestStageId: ingestStageIdRef.current || undefined,
               ensureMaster: {
                 mbaNumber: mbaNum,
@@ -7627,6 +7646,12 @@ const handleSaveAll = async (opts?: {
       savePrimary={planDraft.pill?.primary ?? predictedSaveModeLabel ?? null}
       saveSecondary={CREATE_DRAFT_DOWNLOAD_RAIL}
       saveTip={null}
+      saveScopeNote={describePartialMbaPublishRail({
+        isPartial: isPartialMBA,
+        inCount: flattenPartialMbaSelectedLineIds(partialMBASelectedLineItemIds)
+          .length,
+        totalCount: countablePartialMbaLineCount(campaignFinancials.perLine),
+      })}
       isSaving={isWizardSaving}
     />
   )
