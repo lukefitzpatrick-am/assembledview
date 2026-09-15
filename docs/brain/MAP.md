@@ -97,7 +97,7 @@ Adding or altering a channel touches, at minimum:
 
 Cached 4h via `unstable_cache` tag `pacing-campaigns`.
 
-**Partner file ingest** `GET|POST /api/cron/partner-ingest` (`assertCronSecret`, `maxDuration` 300) pulls Channel Factory Datorama workbooks from `snowflake@assembledview.com.au` via Graph client-credentials (`Mail.ReadWrite`), writes `ASSEMBLEDVIEW.RAW.PARTNER_FILE_LINES` first, then range-replaces `PARTNER_DELIVERY_DAILY` in one `withSnowflakeSession` (BEGIN/DELETE/INSERT/COMMIT — never `querySnowflake`/`execWithRetry` for that txn). One Vercel slot: `30 22 * * *` (08:30 Sydney). Lib: `lib/partner-ingest/`. Tests: `npm run test:partner-ingest`. Partner-file money path: `RAW.PARTNER_DELIVERY_DAILY` → `MART.VW_PACING_PARTNER_FILE` → `PACING_FACT` (`TSK_REFRESH_PACING_FACT`) → `SP_REFRESH_FIXED_COST_REPORTED_DAILY` → `FIXED_COST_REPORTED_DAILY_FACT.REPORTED_SPEND`.
+**Partner file ingest** `GET|POST /api/cron/partner-ingest` (`assertCronSecret`, `maxDuration` 300) pulls Channel Factory Datorama workbooks from `snowflake@assembledview.com.au` via Graph client-credentials (`Mail.ReadWrite`), writes `ASSEMBLEDVIEW.RAW.PARTNER_FILE_LINES` first, then range-replaces `PARTNER_DELIVERY_DAILY` in one `withSnowflakeSession` (BEGIN/DELETE/INSERT/COMMIT — never `querySnowflake`/`execWithRetry` for that txn). One Vercel slot: `30 22 * * *` (08:30 Sydney); the old `0 3 * * *` slot is not in `vercel.json`. Lib: `lib/partner-ingest/`. Tests: `npm run test:partner-ingest`. Partner-file money path: `RAW.PARTNER_DELIVERY_DAILY` → `MART.VW_PACING_PARTNER_FILE` → `PACING_FACT` (`TSK_REFRESH_PACING_FACT`) → `SP_REFRESH_FIXED_COST_REPORTED_DAILY` → `FIXED_COST_REPORTED_DAILY_FACT.REPORTED_SPEND`.
 
 → `modules/pacing.md`
 

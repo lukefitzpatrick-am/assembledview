@@ -126,4 +126,4 @@ Wire `AVA_DATABASE_URL` to the **transaction pooler** host with that password. R
 
 ## Snowflake RAW (not in this folder)
 
-Partner ingest tables live in Snowflake `ASSEMBLEDVIEW.RAW` (`PARTNER_SOURCE_MAP`, `PARTNER_FILE_INGEST_LOG`, `PARTNER_FILE_LINES`, `PARTNER_DELIVERY_DAILY`). They are already applied and seeded. Do not author DDL here or in `sql/snowflake/`. Writer: `lib/partner-ingest/` via `/api/cron/partner-ingest`. No UPDATE. Fully qualify RAW objects (`SNOWFLAKE_SCHEMA` is MART).
+Partner ingest tables live in Snowflake `ASSEMBLEDVIEW.RAW` (`PARTNER_SOURCE_MAP`, `PARTNER_LINE_MAP`, `PARTNER_FILE_INGEST_LOG`, `PARTNER_FILE_LINES`, `PARTNER_DELIVERY_DAILY`). They are already applied and seeded. Captures: `sql/snowflake/raw/partner_ingest_tables.sql`, `partner_line_map.sql`, `partner_delivery_daily_2026-09-15_alter.sql`. Do not author or apply DDL from here. Writer: `lib/partner-ingest/` via `/api/cron/partner-ingest`. No UPDATE. Fully qualify RAW objects (`SNOWFLAKE_SCHEMA` is MART).

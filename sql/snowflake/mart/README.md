@@ -1,16 +1,17 @@
 # ASSEMBLEDVIEW MART pacing objects
 
 Source of truth for the live Snowflake pacing objects in `ASSEMBLEDVIEW.MART`.
-June 2026 GET_DDL plus the 14 Sep Channel Factory capture (`VW_PACING_PARTNER_FILE`, RAW partner tables, combined `FIXED_COST_*` facts). ACCOUNTADMIN-owned tasks and `SP_REFRESH_FIXED_COST_REPORTED_DAILY` still need a live GET_DDL paste.
+Live task/proc GET_DDL 2026-09-15 plus the 14 Sep Channel Factory capture and the 15 Sep Vistar / prog OOH union (`VW_PACING_PARTNER_OOH`, `PARTNER_LINE_MAP`).
 
-RAW landing tables live in `sql/snowflake/raw/partner_ingest_tables.sql`.
+RAW landing tables live in `sql/snowflake/raw/partner_ingest_tables.sql`. Line map: `sql/snowflake/raw/partner_line_map.sql`. 15 Sep alter: `sql/snowflake/raw/partner_delivery_daily_2026-09-15_alter.sql`.
 
 ## Refresh DAG (warehouse `AV_APP_WH`)
 
 ```
 TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
 ├─ TSK_REFRESH_PACING_FACT        MERGE PACING_FACT
-│                                 <- VW_PACING_DV360 ∪ VW_PACING_PARTNER_FILE
+│                                 <- VW_PACING_DV360 ∪ VW_PACING_TABOOLA ∪ VW_PACING_CM360
+│                                    ∪ VW_PACING_PARTNER_FILE ∪ VW_PACING_PARTNER_OOH
 ├─ TSK_REFRESH_SOCIAL_PACING_FACT MERGE SOCIAL_PACING_FACT
 │                                 <- VW_PACING_TIKTOK, VW_PACING_META, VW_PACING_REDDIT
 ├─ TSK_REFRESH_GOOGLESEARCHPACING CALL SP_REFRESH_GOOGLESEARCHPACING_ROLLING(14)
@@ -34,9 +35,9 @@ TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
 - **Identifier case:** MART pacing views emit `LOWER(TRIM(...))` for `LINE_ITEM_ID` /
   `LINE_ITEM_NAME` (and DV360 plan-code extract is case-insensitive via
   `REGEXP_SUBSTR(UPPER(name), …)` then `LOWER`). Raw Fivetran schemas stay
-  immutable. `TSK_REFRESH_PACING_FACT` also `LOWER`s label-map coalesced ids/names.
-  `TSK_REFRESH_SOCIAL_PACING_FACT` relabel names are `coalesce` only — `lower(trim())`
-  lives on `platform_line_item_id` and the MERGE ON.
+  immutable.   Live `TSK_REFRESH_PACING_FACT` (GET_DDL 2026-09-15) relabel is `coalesce` only —
+  `lower(trim())` lives on `platform_line_item_id` and the MERGE ON, matching
+  `TSK_REFRESH_SOCIAL_PACING_FACT`.
   Deploy + full-history backfill: `npx tsx scripts/snowflake/deploy-mba-case-norm.mjs`
   (requires a role that **owns** the MART views/tables — `AV_APP_WRITE_ROLE` is
   SELECT-only on `PACING_FACT`/`SOCIAL_PACING_FACT` and cannot `CREATE OR REPLACE`
@@ -45,9 +46,8 @@ TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
 - `views/vw_pacing_fact.sql` is a thin pass-through over `PACING_FACT`. No app
   references were found in the 2026-06-08 repo audit. Redundancy candidate,
   retained pending confirmation. Do not drop without checking.
-- `procedures/sp_refresh_fixed_cost_reported_daily.sql` is NOT generated here.
-  It is a ~600 line JavaScript procedure. Save it directly from Snowsight
-  `GET_DDL` output to avoid transcription corruption. See commit steps.
+- `procedures/sp_refresh_fixed_cost_reported_daily.sql` is the 2026-09-15
+  ACCOUNTADMIN GET_DDL paste (~600 line JavaScript). Do not re-type it.
 - Pattern A objects (`V_LINE_ITEM_PACING`, `V_DELIVERY_PACING`,
   `FACT_LINE_ITEM_PACING_DAILY`, `DIM_PLAN_MAPPING`) are NOT in this folder.
   They are slated for retirement and live under `sql/snowflake/pacing/`.

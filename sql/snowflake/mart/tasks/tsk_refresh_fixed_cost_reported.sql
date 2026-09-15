@@ -1,8 +1,6 @@
 -- ASSEMBLEDVIEW.MART.TSK_REFRESH_FIXED_COST_REPORTED
--- June GET_DDL retained. Live task is ACCOUNTADMIN-owned; AV_APP_WRITE_ROLE cannot
--- GET_DDL it. Paste `select get_ddl('task','ASSEMBLEDVIEW.MART.TSK_REFRESH_FIXED_COST_REPORTED');`
--- over this body when Luke pulls it. Body still CALL SP_REFRESH_FIXED_COST_REPORTED_DAILY(NULL, FALSE)
--- after the three pacing tasks.
+-- Live DDL captured 2026-09-15 (GET_DDL, ACCOUNTADMIN). Runs after the three fact refreshes.
+-- Args: (LINE_ITEM_ID_FILTER NULL = all lines, BACKFILL_MODE FALSE = 3-day rolling window).
 USE SCHEMA ASSEMBLEDVIEW.MART;
 
 create or replace task TSK_REFRESH_FIXED_COST_REPORTED

@@ -1,8 +1,5 @@
 -- ASSEMBLEDVIEW.MART.TSK_REFRESH_PACING_FACT
--- June GET_DDL plus the 14 Sep VW_PACING_PARTNER_FILE union (Channel Factory runbook rev3).
--- Live task DDL is ACCOUNTADMIN-owned; AV_APP_WRITE_ROLE cannot GET_DDL it. Paste
--- `select get_ddl('task','ASSEMBLEDVIEW.MART.TSK_REFRESH_PACING_FACT');` over this
--- body when Luke pulls it. Author only; this file is not applied by the capture commit.
+-- Live DDL captured 2026-09-15; OOH union applied 2026-09-15
 USE SCHEMA ASSEMBLEDVIEW.MART;
 
 create or replace task TSK_REFRESH_PACING_FACT
@@ -13,18 +10,9 @@ using (
   with unioned as (
 
     select
-      channel,
-      date_day,
-      line_item_name,
-      line_item_id,
-      entity_name,
-      entity_id,
-      campaign_name,
-      amount_spent,
-      impressions,
-      clicks,
-      results,
-      video_3s_views,
+      channel, date_day, line_item_name, line_item_id,
+      entity_name, entity_id, campaign_name,
+      amount_spent, impressions, clicks, results, video_3s_views,
       max_fivetran_synced_at::timestamp_ntz as max_fivetran_synced_at
     from ASSEMBLEDVIEW.MART.VW_PACING_DV360
     where date_day >= dateadd(day, -14, current_date())
@@ -32,21 +20,44 @@ using (
     union all
 
     select
-      channel,
-      date_day,
-      line_item_name,
-      line_item_id,
-      entity_name,
-      entity_id,
-      campaign_name,
-      amount_spent,
-      impressions,
-      clicks,
-      results,
-      video_3s_views,
+      channel, date_day, line_item_name, line_item_id,
+      entity_name, entity_id, campaign_name,
+      amount_spent, impressions, clicks, results, video_3s_views,
+      max_fivetran_synced_at::timestamp_ntz as max_fivetran_synced_at
+    from ASSEMBLEDVIEW.MART.VW_PACING_TABOOLA
+    where date_day >= dateadd(day, -14, current_date())
+
+    union all
+
+    select
+      channel, date_day, line_item_name, line_item_id,
+      entity_name, entity_id, campaign_name,
+      amount_spent, impressions, clicks, results, video_3s_views,
+      max_fivetran_synced_at::timestamp_ntz as max_fivetran_synced_at
+    from ASSEMBLEDVIEW.MART.VW_PACING_CM360
+    where date_day >= dateadd(day, -14, current_date())
+
+    union all
+
+    -- Channel Factory via the partner-file pipeline. NO date filter:
+    -- the source restates its entire history every day (~1,200 rows).
+    select
+      channel, date_day, line_item_name, line_item_id,
+      entity_name, entity_id, campaign_name,
+      amount_spent, impressions, clicks, results, video_3s_views,
       max_fivetran_synced_at::timestamp_ntz as max_fivetran_synced_at
     from ASSEMBLEDVIEW.MART.VW_PACING_PARTNER_FILE
-    where date_day >= dateadd(day, -14, current_date())
+
+    union all
+
+    -- Vistar exchange report (prog OOH) via the partner-file pipeline. NO date filter:
+    -- the report restates year to date every day. Line attribution via RAW.PARTNER_LINE_MAP.
+    select
+      channel, date_day, line_item_name, line_item_id,
+      entity_name, entity_id, campaign_name,
+      amount_spent, impressions, clicks, results, video_3s_views,
+      max_fivetran_synced_at::timestamp_ntz as max_fivetran_synced_at
+    from ASSEMBLEDVIEW.MART.VW_PACING_PARTNER_OOH
 
   ),
 
@@ -74,8 +85,8 @@ using (
   relabel as (
     select
       k.*,
-      lower(trim(coalesce(m.line_item_id, k.line_item_id))) as final_line_item_id,
-      lower(trim(coalesce(m.line_item_name, k.line_item_name))) as final_line_item_name
+      coalesce(m.line_item_id, k.line_item_id) as final_line_item_id,
+      coalesce(m.line_item_name, k.line_item_name) as final_line_item_name
     from keyed k
     left join ASSEMBLEDVIEW.MART.LINE_ITEM_LABEL_MAP m
       on lower(trim(m.channel)) = lower(trim(k.channel))

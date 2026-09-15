@@ -23,9 +23,19 @@ Tracks actual delivery (Snowflake facts) against plan (Xano media plans) at line
 
 ## Snowflake tables
 
-`MART.SEARCH_PACING_FACT` (search + orphans), `MART.PACING_FACT` (programmatic, ad-serving, Channel Factory via `VW_PACING_PARTNER_FILE`), `MART.SOCIAL_PACING_FACT` (Meta/TikTok/Reddit), `MART.FIXED_COST_{LINE_ITEM,BURST,REPORTED_DAILY}_FACT` (direct + fixed-cost programmatic overlay), `MART.XANO_LINE_ITEMS_SNAPSHOT` (cron-merged plan — X7 flip earned, PG tip SoT; prod `postgres` after X-series merge). Join key: `line_item_id` lowercased+trimmed — forget the `.toLowerCase().trim()` and you get silent `no-data` rows, not errors. MART views + snapshot sync now **persist** lowercase ids/names (raw Fivetran stays mixed-case); suffix_id match is `LOWER` on both sides so `se1`/`se2` cannot cross-attribute. `TSK_REFRESH_SOCIAL_PACING_FACT` MERGEs `VW_PACING_TIKTOK` ∪ `VW_PACING_META` ∪ `VW_PACING_REDDIT`. Social attach is `classifySocialPacingPlatform` (`meta` \| `tiktok` \| `reddit`).
+`MART.SEARCH_PACING_FACT` (search + orphans), `MART.PACING_FACT` (programmatic, ad-serving, Channel Factory via `VW_PACING_PARTNER_FILE`, Vistar prog OOH via `VW_PACING_PARTNER_OOH`), `MART.SOCIAL_PACING_FACT` (Meta/TikTok/Reddit), `MART.FIXED_COST_{LINE_ITEM,BURST,REPORTED_DAILY}_FACT` (direct + fixed-cost programmatic overlay), `MART.XANO_LINE_ITEMS_SNAPSHOT` (cron-merged plan — X7 flip earned, PG tip SoT; prod `postgres` after X-series merge). Join key: `line_item_id` lowercased+trimmed — forget the `.toLowerCase().trim()` and you get silent `no-data` rows, not errors. MART views + snapshot sync now **persist** lowercase ids/names (raw Fivetran stays mixed-case); suffix_id match is `LOWER` on both sides so `se1`/`se2` cannot cross-attribute. `TSK_REFRESH_SOCIAL_PACING_FACT` MERGEs `VW_PACING_TIKTOK` ∪ `VW_PACING_META` ∪ `VW_PACING_REDDIT`. Social attach is `classifySocialPacingPlatform` (`meta` \| `tiktok` \| `reddit`).
 
-`RAW.PARTNER_SOURCE_MAP` (active sender+subject → slug), `RAW.PARTNER_FILE_INGEST_LOG`, `RAW.PARTNER_FILE_LINES`, `RAW.PARTNER_DELIVERY_DAILY` (grain: date × advertiser × campaign × media-buy name). App role may SELECT/INSERT(/DELETE on daily) and must never UPDATE. Fully qualify `ASSEMBLEDVIEW.RAW.*`.
+`RAW.PARTNER_SOURCE_MAP` (active sender+subject → slug), `RAW.PARTNER_LINE_MAP` (partner campaign → plan line at read time), `RAW.PARTNER_FILE_INGEST_LOG`, `RAW.PARTNER_FILE_LINES`, `RAW.PARTNER_DELIVERY_DAILY` (grain: date × advertiser × campaign × media-buy name). App role may SELECT/INSERT(/DELETE on daily) and must never UPDATE. Fully qualify `ASSEMBLEDVIEW.RAW.*`.
+
+### Task graph
+
+| Task | Trigger | Writes |
+|---|---|---|
+| `TSK_ROOT_DAILY_REFRESH` | CRON `30 6 * * * Australia/Melbourne` | `SELECT 1` |
+| `TSK_REFRESH_PACING_FACT` | after root | MERGE `PACING_FACT` from `VW_PACING_DV360` ∪ `VW_PACING_TABOOLA` ∪ `VW_PACING_CM360` ∪ `VW_PACING_PARTNER_FILE` ∪ `VW_PACING_PARTNER_OOH` |
+| `TSK_REFRESH_SOCIAL_PACING_FACT` | after root | MERGE `SOCIAL_PACING_FACT` |
+| `TSK_REFRESH_GOOGLESEARCHPACING` | after root | CALL `SP_REFRESH_GOOGLESEARCHPACING_ROLLING(14)` → `SEARCH_PACING_FACT` |
+| `TSK_REFRESH_FIXED_COST_REPORTED` | after the three fact tasks | CALL `SP_REFRESH_FIXED_COST_REPORTED_DAILY(NULL, FALSE)` → `FIXED_COST_*_FACT` |
 
 ## Partner file ingest
 
@@ -34,6 +44,8 @@ Tracks actual delivery (Snowflake facts) against plan (Xano media plans) at line
 ## Fixed-cost money path (partner file)
 
 Channel Factory does not report platform cost. `MART.VW_PACING_PARTNER_FILE` filters `RAW.PARTNER_DELIVERY_DAILY` (`SOURCE = 'Channel Factory'`, coded `AV_LINE_ITEM_ID` only), sets `AMOUNT_SPENT = 0`, and MERGEs into `PACING_FACT` via `TSK_REFRESH_PACING_FACT`. `TSK_REFRESH_FIXED_COST_REPORTED` then calls `SP_REFRESH_FIXED_COST_REPORTED_DAILY`, which writes `FIXED_COST_REPORTED_DAILY_FACT.REPORTED_SPEND` — the figure the Direct reader overlays onto `fixedCostMedia` programmatic lines. CPV in the proc still reads `VIDEO_3S_VIEWS`, so the view dual-writes `SUM(COMPLETED_VIEWS)` there until the proc reads `COMPLETED_VIEWS` directly. Completions and video views stay distinct (C-123).
+
+Vistar exchange reports use the same partner-ingest mailbox path: `RAW.PARTNER_DELIVERY_DAILY` (`SOURCE = 'Vistar'`) → `MART.VW_PACING_PARTNER_OOH` (resolves `line_item_id` at read time through `RAW.PARTNER_LINE_MAP` or a `{mba}P[VO]{n}` code on the file; unmapped rows stay in RAW) → `PACING_FACT` channel `'Programmatic - OOH'` via `TSK_REFRESH_PACING_FACT` with no 14-day filter (the report restates YTD). `RESULTS` on this channel is plays (`SUM(PLAYS)`). CPM lines carry Vistar Revenue as `AMOUNT_SPENT`; `fixedCostMedia` lines still take overlay spend from `SP_REFRESH_FIXED_COST_REPORTED_DAILY` → `REPORTED_SPEND`.
 
 ## Data flow (search, representative)
 

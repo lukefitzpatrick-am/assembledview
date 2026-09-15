@@ -1,5 +1,6 @@
 -- Captured from production 2026-09-15. Written by lib/partner-ingest (cron partner-ingest).
 -- Writer contract is the 18-column INSERT in lib/partner-ingest/sql.ts; LOADED_AT defaults.
+-- Seven Vistar columns: sql/snowflake/raw/partner_delivery_daily_2026-09-15_alter.sql.
 USE SCHEMA ASSEMBLEDVIEW.RAW;
 
 create or replace TABLE PARTNER_SOURCE_MAP (
@@ -60,3 +61,13 @@ create or replace TABLE PARTNER_FILE_LINES (
 	RAW_LINE VARCHAR(16777216),
 	LOADED_AT TIMESTAMP_NTZ(9) DEFAULT CURRENT_TIMESTAMP()
 );
+
+-- Example PARTNER_SOURCE_MAP row applied 2026-09-15 (Vistar). Commented capture; not executed here.
+-- insert into ASSEMBLEDVIEW.RAW.PARTNER_SOURCE_MAP
+--   (SENDER_DOMAIN, SUBJECT_PATTERN, SOURCE_SLUG, SOURCE_LABEL, IS_ACTIVE, EXPECTED_HEADER,
+--    HEADER_ROW_HINT, MAX_STALE_DAYS, LOAD_MODE, NOTES)
+-- values
+--   ('vistarmedia.com', '%exchange%', 'vistar', 'Vistar', TRUE,
+--   'Day,Venue Type,Advertiser,Insertion Order Name,Insertion Order,Contract Number,Campaign Name,Campaign ID,Campaign Pixel,Creative Name,Creative ID,Creative Pixel,Metro Area,State/Territory,Impressions,Spots,Revenue,Total eCPM',
+--   7, 2, 'range_replace',
+--   'Vistar exchange report. YTD restated each send. Covers Vistar and Broadsign buys. Line attribution via PARTNER_LINE_MAP.');

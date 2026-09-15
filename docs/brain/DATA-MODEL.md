@@ -176,7 +176,7 @@ erDiagram
 `ASSEMBLEDVIEW.MART.*` via `lib/snowflake/` is the delivery-fact read path. Captures live under `sql/snowflake/`.
 
 - `XANO_LINE_ITEMS_SNAPSHOT` — the plan side, MERGEd nightly on `line_item_id`. Name is frozen; source is now Postgres (`syncPgLineItems.ts`)
-- `PACING_FACT` — programmatic + ad-serving delivery. MERGE from `VW_PACING_DV360` ∪ `VW_PACING_PARTNER_FILE` (`TSK_REFRESH_PACING_FACT`)
+- `PACING_FACT` — programmatic + ad-serving delivery. MERGE from `VW_PACING_DV360` ∪ `VW_PACING_TABOOLA` ∪ `VW_PACING_CM360` ∪ `VW_PACING_PARTNER_FILE` ∪ `VW_PACING_PARTNER_OOH` (`TSK_REFRESH_PACING_FACT`)
 - `SEARCH_PACING_FACT`, `SOCIAL_PACING_FACT` — search / social delivery (Fivetran-fed). `SOCIAL_PACING_FACT` is filled by `TSK_REFRESH_SOCIAL_PACING_FACT` from `VW_PACING_TIKTOK`, `VW_PACING_META`, and `VW_PACING_REDDIT`
 - `META_BASIC_AD_SET_TEST`
 
@@ -184,7 +184,7 @@ Pacing joins plan to fact on `line_item_id` and computes bands in TypeScript (`l
 
 ### MART.VW_PACING_PARTNER_FILE
 
-Channel Factory only until PI-1. Reads `RAW.PARTNER_DELIVERY_DAILY` where `SOURCE = 'Channel Factory'` and `AV_LINE_ITEM_ID IS NOT NULL`. `AMOUNT_SPENT` is always 0 (zero-$ law; CF reports no platform cost). Dual-writes `SUM(COMPLETED_VIEWS)` into `VIDEO_3S_VIEWS` because `SP_REFRESH_FIXED_COST_REPORTED_DAILY` still reads that column for CPV. Capture: `sql/snowflake/mart/views/vw_pacing_partner_file.sql`.
+Channel Factory. Reads `RAW.PARTNER_DELIVERY_DAILY` where `SOURCE = 'Channel Factory'` and `AV_LINE_ITEM_ID IS NOT NULL`. `AMOUNT_SPENT` is always 0 (zero-$ law; CF reports no platform cost). Dual-writes `SUM(COMPLETED_VIEWS)` into `VIDEO_3S_VIEWS` because `SP_REFRESH_FIXED_COST_REPORTED_DAILY` still reads that column for CPV. Capture: `sql/snowflake/mart/views/vw_pacing_partner_file.sql`. Vistar / prog OOH is the sibling view `VW_PACING_PARTNER_OOH`.
 
 | Column | Notes |
 |---|---|
@@ -199,6 +199,26 @@ Channel Factory only until PI-1. Reads `RAW.PARTNER_DELIVERY_DAILY` where `SOURC
 | `IMPRESSIONS` / `CLICKS` | sums |
 | `RESULTS` | NULL |
 | `VIDEO_3S_VIEWS` | `SUM(COMPLETED_VIEWS)` (temporary dual-write) |
+| `MAX_FIVETRAN_SYNCED_AT` | `MAX(LOADED_AT)` |
+
+### MART.VW_PACING_PARTNER_OOH
+
+Vistar exchange reports (`SOURCE = 'Vistar'`). Resolves `line_item_id` at read time from a `{mba}P[VO]{n}` code on the file or `RAW.PARTNER_LINE_MAP` (`SOURCE_SLUG = 'vistar'`, `IS_ACTIVE`). Unmapped rows stay in RAW. `AMOUNT_SPENT` is Vistar Revenue (client cost). **`RESULTS` = plays on this channel only** (`SUM(PLAYS)`). Capture: `sql/snowflake/mart/views/vw_pacing_partner_ooh.sql`. Channel `'Programmatic - OOH'` (19 chars) fits `PACING_FACT.CHANNEL VARCHAR(22)`.
+
+| Column | Notes |
+|---|---|
+| `CHANNEL` | `'Programmatic - OOH'` |
+| `DATE_DAY` | `REPORT_DATE` |
+| `LINE_ITEM_NAME` | `MAX(PARTNER_CAMPAIGN_NAME)` |
+| `LINE_ITEM_ID` | resolved plan code (lowercase) |
+| `ENTITY_NAME` | `MAX(PARTNER_CAMPAIGN_NAME)` |
+| `ENTITY_ID` | `LOWER(TRIM(PARTNER_CAMPAIGN_ID))` — PACING_FACT merge key |
+| `CAMPAIGN_NAME` | `MAX(PARTNER_CAMPAIGN_NAME)` |
+| `AMOUNT_SPENT` | `SUM(AMOUNT_SPENT)` (Vistar Revenue) |
+| `IMPRESSIONS` | `ROUND(SUM(IMPRESSIONS))` |
+| `CLICKS` | `0` |
+| `RESULTS` | `SUM(PLAYS)` — plays, this channel only |
+| `VIDEO_3S_VIEWS` | `0` |
 | `MAX_FIVETRAN_SYNCED_AT` | `MAX(LOADED_AT)` |
 
 ### MART.VW_PACING_REDDIT
@@ -217,11 +237,13 @@ Capture: `sql/snowflake/mart/tables/fixed_cost_facts.sql`. Per-table June files 
 
 ### ASSEMBLEDVIEW.RAW.PARTNER_*
 
-Capture: `sql/snowflake/raw/partner_ingest_tables.sql`. Writer is cron `/api/cron/partner-ingest` (`lib/partner-ingest/`). `AV_APP_WRITE_ROLE` has USAGE on RAW, SELECT/INSERT/DELETE on `PARTNER_DELIVERY_DAILY`, SELECT/INSERT on `PARTNER_FILE_LINES` and `PARTNER_FILE_INGEST_LOG`, SELECT on `PARTNER_SOURCE_MAP`, and **no UPDATE**. Fully qualify every RAW object.
+Capture: `sql/snowflake/raw/partner_ingest_tables.sql` (tables), `sql/snowflake/raw/partner_line_map.sql` (map + 48-row seed), `sql/snowflake/raw/partner_delivery_daily_2026-09-15_alter.sql` (seven Vistar columns). Writer is cron `/api/cron/partner-ingest` (`lib/partner-ingest/`). `AV_APP_WRITE_ROLE` has USAGE on RAW, SELECT/INSERT/DELETE on `PARTNER_DELIVERY_DAILY`, SELECT/INSERT on `PARTNER_FILE_LINES` and `PARTNER_FILE_INGEST_LOG`, SELECT on `PARTNER_SOURCE_MAP`, and **no UPDATE**. `PARTNER_LINE_MAP` SELECT is granted to `CLAUDE_RW` (applied 15 Sep). Fully qualify every RAW object.
 
-`PARTNER_SOURCE_MAP` — sender+subject → slug. Columns: `SENDER_DOMAIN`, `SUBJECT_PATTERN`, `SOURCE_SLUG`, `SOURCE_LABEL`, `IS_ACTIVE`, `EXPECTED_HEADER`, `HEADER_ROW_HINT`, `MAX_STALE_DAYS`, `LOAD_MODE` (default `range_replace`), `NOTES`, `UPDATED_AT`.
+`PARTNER_SOURCE_MAP` — sender+subject → slug. Columns: `SENDER_DOMAIN`, `SUBJECT_PATTERN`, `SOURCE_SLUG`, `SOURCE_LABEL`, `IS_ACTIVE`, `EXPECTED_HEADER`, `HEADER_ROW_HINT`, `MAX_STALE_DAYS`, `LOAD_MODE` (default `range_replace`), `NOTES`, `UPDATED_AT`. Vistar row (`SOURCE_SLUG = 'vistar'`, `SOURCE_LABEL = 'Vistar'`, `SUBJECT_PATTERN = '%exchange%'` until the scheduled subject lands) is captured as a commented example in `partner_ingest_tables.sql`.
 
-`PARTNER_DELIVERY_DAILY` — grain `(REPORT_DATE, PARTNER_ADVERTISER_ID, PARTNER_CAMPAIGN_NAME, PARTNER_LINE_ITEM_NAME)`. Columns: `SOURCE`, `REPORT_DATE`, `PARTNER_ADVERTISER_ID`, `PARTNER_CAMPAIGN_NAME`, `PARTNER_LINE_ITEM_NAME`, `AV_LINE_ITEM_ID` (lowercased plan code or NULL), `IMPRESSIONS`, `CLICKS`, `VIDEO_VIEWS`, `VIDEO_Q25` / `VIDEO_Q50` / `VIDEO_Q75`, `COMPLETED_VIEWS`, `RATE_Q25` / `RATE_Q50` / `RATE_Q75` / `RATE_FULLY_PLAYED`, `SOURCE_FILE`, `LOADED_AT`. Uncoded rows (`AV_LINE_ITEM_ID` NULL) stay in RAW.
+`PARTNER_LINE_MAP` — grain `(SOURCE_SLUG, PARTNER_CAMPAIGN_ID)` (PK). Columns: `SOURCE_SLUG`, `PARTNER_CAMPAIGN_ID`, `PARTNER_CAMPAIGN_NAME`, `AV_LINE_ITEM_ID` (lowercase `{mba}po{n}`; NULL = unmapped, excluded from MART), `IS_ACTIVE`, `NOTES`, `UPDATED_AT`. Resolves partner campaign → plan line at read time; RAW delivery rows are never rewritten to attach a line.
+
+`PARTNER_DELIVERY_DAILY` — grain `(REPORT_DATE, PARTNER_ADVERTISER_ID, PARTNER_CAMPAIGN_NAME, PARTNER_LINE_ITEM_NAME)`. Columns: `SOURCE`, `REPORT_DATE`, `PARTNER_ADVERTISER_ID`, `PARTNER_CAMPAIGN_NAME`, `PARTNER_LINE_ITEM_NAME`, `AV_LINE_ITEM_ID` (lowercased plan code or NULL), `IMPRESSIONS`, `CLICKS`, `VIDEO_VIEWS`, `VIDEO_Q25` / `VIDEO_Q50` / `VIDEO_Q75`, `COMPLETED_VIEWS`, `RATE_Q25` / `RATE_Q50` / `RATE_Q75` / `RATE_FULLY_PLAYED`, `SOURCE_FILE`, `LOADED_AT`, plus (2026-09-15) `AMOUNT_SPENT`, `PLAYS`, `VENUE_TYPE`, `METRO_AREA`, `STATE`, `PARTNER_CAMPAIGN_ID`, `PARTNER_CREATIVE_ID`. Uncoded rows (`AV_LINE_ITEM_ID` NULL) stay in RAW.
 
 `PARTNER_FILE_INGEST_LOG` — one row per attachment attempt. Columns: `SOURCE_SLUG`, `INTERNET_MESSAGE_ID`, `ATTACHMENT_NAME`, `ATTACHMENT_SHA256`, `SOURCE_FILE`, `SENDER_ADDRESS`, `RECEIVED_AT`, `BYTES`, `LINE_COUNT`, `PARSED_ROW_COUNT`, `STATUS`, `ERROR_TEXT`, `INGESTED_AT`.
 
