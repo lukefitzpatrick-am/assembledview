@@ -117,6 +117,9 @@ function cm360PartnerLabel(publisherKey: string): string {
 function programmaticConnectionPills(items: ProgrammaticLineItem[]): ConnectionPill[] {
   const dspItems = items.filter((item) => item.deliverySourceMap?.delivery_source === "dsp")
   const cm360Items = items.filter((item) => item.deliverySourceMap?.delivery_source === "cm360")
+  const partnerFileItems = items.filter(
+    (item) => item.deliverySourceMap?.delivery_source === "partner_file",
+  )
   const pills: ConnectionPill[] = []
   if (dspItems.length > 0) {
     pills.push({ label: dspConnectionLabel(dspItems), tone: "dv360" })
@@ -127,6 +130,9 @@ function programmaticConnectionPills(items: ProgrammaticLineItem[]): ConnectionP
     if (seen.has(label)) continue
     seen.add(label)
     pills.push({ label, tone: "cm360" })
+  }
+  if (partnerFileItems.length > 0) {
+    pills.push({ label: "Channel Factory (partner file)", tone: "partner-file" })
   }
   return pills
 }

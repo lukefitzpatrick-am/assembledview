@@ -10,6 +10,7 @@ import {
   type ProgrammaticLineItem,
 } from "@/lib/delivery/programmatic/programmaticCompute"
 import { buildProgrammaticDisplaySection } from "../programmaticDisplayAdapter"
+import { buildProgrammaticVideoSection } from "../programmaticVideoAdapter"
 import type { ChannelSectionData } from "../types"
 
 const CAMPAIGN_START = "2026-03-01"
@@ -202,6 +203,69 @@ test("a Taboola line still says Taboola connected", () => {
   assert.deepEqual(section.connections, [{ label: "Taboola connected", tone: "dv360" }])
 })
 
+function buildVideo(input: {
+  lines: unknown[]
+  rows: PacingRow[]
+}): ChannelSectionData | null {
+  return buildProgrammaticVideoSection({
+    progVideoLineItems: input.lines,
+    combinedRows: input.rows,
+    campaignStart: CAMPAIGN_START,
+    campaignEnd: CAMPAIGN_END,
+    mbaNumber: "BICAU002",
+    filterRange: { start: null, end: null },
+    kpiVersionNumber: 1,
+    kpiTargets: undefined,
+    lineItemTargets: undefined,
+    pacingWindow: {
+      asAtISO: "2026-03-15",
+      campaignStartISO: CAMPAIGN_START,
+      campaignEndISO: CAMPAIGN_END,
+    },
+    lastSyncedAt: null,
+  })
+}
+
+test("a Channel Factory prog_video line with null publisher is included and consumes PACING_FACT video rows", () => {
+  const section = buildVideo({
+    lines: [burstLine("bicau002pv1", "Channel Factory")],
+    rows: [
+      pacingRow({
+        channel: "programmatic-video",
+        lineItemId: "bicau002pv1",
+        impressions: 12_000,
+        video3sViews: 4_000,
+        amountSpent: 0,
+      }),
+    ],
+  })
+  assert.ok(section, "expected a programmatic video section")
+  assert.equal(section.lineItems.length, 1)
+  assert.equal(section.lineItems[0]?.id, "bicau002pv1")
+  assert.deepEqual(section.connections, [
+    { label: "Channel Factory (partner file)", tone: "partner-file" },
+  ])
+  const impressions = section.lineItems[0]?.block.progressCards.find((card) =>
+    /impression|view|deliverable/i.test(card.title),
+  )
+  assert.ok(impressions, "expected a delivery card")
+  assert.match(String(impressions.detail), /12,000|4,000/)
+})
+
+test("an unknown programmatic platform is still excluded", () => {
+  const video = buildVideo({
+    lines: [burstLine("bicau002pv9", "unknown-dsp")],
+    rows: [
+      pacingRow({
+        channel: "programmatic-video",
+        lineItemId: "bicau002pv9",
+        impressions: 9_000,
+      }),
+    ],
+  })
+  assert.equal(video, null)
+})
+
 test("an unmapped platform still produces nothing", () => {
   const section = buildDisplay({
     lines: [burstLine("TEST001PD8", "the-trade-desk")],
@@ -262,6 +326,16 @@ test("normalizeProgrammaticLineItems attaches the resolved map row and keeps bot
   )
   assert.equal(bare.length, 1)
   assert.equal(bare[0]?.deliverySourceMap?.publisher_key, "quantcast")
+})
+
+test("normalizeProgrammaticLineItems includes Channel Factory when publisher is null", () => {
+  const items = normalizeProgrammaticLineItems(
+    [burstLine("bicau002pv1", "Channel Factory")],
+    PROGRAMMATIC_DELIVERY_SOURCE_SEED,
+  )
+  assert.equal(items.length, 1)
+  assert.equal(items[0]?.deliverySourceMap?.publisher_key, "channel factory")
+  assert.equal(items[0]?.deliverySourceMap?.delivery_source, "partner_file")
 })
 
 test("normalizeProgrammaticLineItems looks up publisher before platform", () => {
