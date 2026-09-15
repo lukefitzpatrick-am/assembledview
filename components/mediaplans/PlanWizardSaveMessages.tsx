@@ -115,7 +115,7 @@ export function PlanWizardSaveMessages(props: {
     zones.push(
       <div key="save" className="min-w-0 space-y-1.5 p-3">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          On save
+          When you publish
         </p>
         {isSaving ? (
           <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
@@ -138,7 +138,7 @@ export function PlanWizardSaveMessages(props: {
         ) : null}
         {saveTip ? (
           <p className="whitespace-normal break-words text-[11px] leading-snug text-foreground/70">
-            Docs/pacing serve {saveTip}
+            Clients, documents and pacing use {saveTip}
           </p>
         ) : null}
       </div>

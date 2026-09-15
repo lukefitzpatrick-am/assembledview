@@ -148,7 +148,7 @@ export function formatSaveModeLabel(
   if (mode === "overwrite") return `Draft — overwrites v${n}`
   if (mode === "working_draft") return `Working draft of v${n}`
   if (mode === "increment_unpublished") {
-    return `Will cut v${n} (stays unpublished)`
+    return `Saves as v${n} without publishing`
   }
   return `Will create v${n}`
 }

@@ -28,7 +28,7 @@ export function UnsavedChangesDialog({
     ? saveDisabledReason
     : isSaving
       ? "Saving…"
-      : "Save campaign"
+      : "Publish and leave"
 
   return (
     <Dialog
@@ -65,7 +65,7 @@ export function UnsavedChangesDialog({
                 await onSave()
               }}
             >
-              {isSaving ? "Saving..." : "Save campaign"}
+              {isSaving ? "Saving..." : "Publish and leave"}
             </Button>
             <Button variant="destructive" className="w-full sm:w-auto" onClick={onLeave}>
               Yes, leave without saving

@@ -58,7 +58,7 @@ describe("PlanWizardSaveMessages", () => {
     )
     expect(html).toContain("Publish will create v1")
     expect(html).toContain("Save status")
-    expect(html).toContain("On save")
+    expect(html).toContain("When you publish")
     expect(html.includes("Unsaved draft")).toBe(false)
     expect(html.includes("DRAFT-BANNER") || html.includes("ALERTS")).toBe(false)
   })
@@ -69,20 +69,20 @@ describe("PlanWizardSaveMessages", () => {
     expect(idleEmpty).toBe("")
     expect(savingOnly).toContain("Save status")
     expect(savingOnly).toContain("Saving…")
-    expect(savingOnly).toContain("On save")
+    expect(savingOnly).toContain("When you publish")
 
     const replacingPill = renderToStaticMarkup(
       <PlanWizardSaveMessages
         isSaving
         savePrimary="Publish will create v1"
-        saveSecondary="Draft — working copy (not published)"
+        saveSecondary="Draft - not published"
         saveTip="v4"
       />
     )
     expect(replacingPill).toContain("Saving…")
     expect(replacingPill.includes("Publish will create v1")).toBe(false)
-    expect(replacingPill).toContain("Draft — working copy (not published)")
-    expect(replacingPill).toContain("Docs/pacing serve v4")
+    expect(replacingPill).toContain("Draft - not published")
+    expect(replacingPill).toContain("Clients, documents and pacing use v4")
   })
 
   it("renders extraProblemTexts after issues", () => {
@@ -106,6 +106,21 @@ describe("PlanWizardSaveMessages", () => {
 })
 
 describe("PlanDraftActiveBanner compact", () => {
+  it("compact active banner with no headline names the local draft and published version", () => {
+    const html = renderToStaticMarkup(
+      <PlanDraftActiveBanner
+        compact
+        updatedAt="2026-09-01T00:00:00.000Z"
+        summary={EMPTY_DRAFT_DIFF_SUMMARY}
+        tipVersionNumber={4}
+        onDiscard={() => undefined}
+      />,
+    )
+    expect(html).toContain("You&#x27;re editing your unsaved draft from")
+    expect(html).toContain("Clients still see v4.")
+    expect(html).toContain("0 changes")
+  })
+
   let container: HTMLDivElement
   let root: Root
 
@@ -131,7 +146,7 @@ describe("PlanDraftActiveBanner compact", () => {
         <PlanDraftActiveBanner
           compact
           updatedAt="2026-09-01T00:00:00.000Z"
-          headline="Unsaved campaign: Acme — Spring, 2 lines, $1000"
+          headline="Restored your unsaved campaign: Acme — Spring, 2 lines, $1000"
           summary={EMPTY_DRAFT_DIFF_SUMMARY}
           onDiscard={onDiscard}
         />
@@ -268,7 +283,7 @@ describe("PlanDraftActiveBanner compact", () => {
     })
     expect(onViewChanges).not.toHaveBeenCalled()
     expect(onDiscard).not.toHaveBeenCalled()
-    expect(container.textContent).not.toContain("Draft vs loaded plan")
+    expect(container.textContent).not.toContain("Your draft vs")
   })
 })
 
@@ -283,10 +298,15 @@ describe("PlanDraftStaleBanner", () => {
         tipVersionNumber={5}
         onLoadAnyway={() => undefined}
         onDiscard={() => undefined}
+        onCompare={() => undefined}
       />,
     )
-    expect(html).toContain("is based on v3")
-    expect(html).toContain("the plan is now on v5")
+    expect(html).toContain("Someone published v5 after you started this draft")
+    expect(html).toContain("(based on v3)")
+    expect(html).toContain("Using your draft and publishing would replace their changes.")
+    expect(html).toContain("Compare first")
+    expect(html).toContain("Use my draft")
+    expect(html).toContain("Discard my draft")
     expect(html.includes("v?")).toBe(false)
   })
 
@@ -298,9 +318,10 @@ describe("PlanDraftStaleBanner", () => {
         tipVersionNumber={5}
         onLoadAnyway={() => undefined}
         onDiscard={() => undefined}
+        onCompare={() => undefined}
       />,
     )
-    expect(html).toContain("the plan is now on v5")
+    expect(html).toContain("Someone published v5 after you started this draft")
     expect(html.includes("based on")).toBe(false)
     expect(html.includes("v?")).toBe(false)
   })

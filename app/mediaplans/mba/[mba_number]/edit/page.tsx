@@ -11561,6 +11561,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             summary={
               planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY
             }
+            tipVersionNumber={
+              selectedVersionNumber ?? mediaPlan?.version_number ?? "?"
+            }
             onViewChanges={() => planDraft.setCompareOpen(true)}
             onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
           />
@@ -11614,6 +11617,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         <PlanDraftFieldDiffDialog
           summary={
             planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY
+          }
+          tipVersionNumber={
+            selectedVersionNumber ?? mediaPlan?.version_number ?? "?"
           }
           onClose={() => planDraft.setCompareOpen(false)}
         />

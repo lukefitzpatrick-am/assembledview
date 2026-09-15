@@ -7392,7 +7392,10 @@ const handleSaveAll = async (opts?: {
           <PlanDraftActiveBanner
             compact
             updatedAt={planDraft.activeDraft.updatedAt}
-            headline={planDraft.activeDraft.headline}
+            headline={planDraft.activeDraft.headline?.replace(
+              /^Unsaved campaign:/,
+              "Restored your unsaved campaign:",
+            )}
             summary={
               planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY
             }

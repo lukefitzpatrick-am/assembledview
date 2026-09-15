@@ -18,7 +18,7 @@ import { compareDraftToTip } from "../compare.js"
 import { resolveDraftBaseVersionNumber } from "../resolveDraftBaseVersionNumber.js"
 
 describe("PC7 pill shares T4c resolvePostgresSaveMode", () => {
-  it("draft overwrite → Draft of v{n} — publish overwrites", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
+  it("draft overwrite → Draft of v{n} (never published)", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const mode = resolvePostgresSaveMode({
       campaignStatus: "Draft",
       forceIncrement: false,
@@ -34,8 +34,8 @@ describe("PC7 pill shares T4c resolvePostgresSaveMode", () => {
     })
     assert.equal(mode.uiMode, "overwrite")
     assert.match(pill.primary, /Draft of v2/i)
-    assert.match(pill.primary, /overwrite/i)
-    assert.match(pill.secondary ?? "", /autosaved 12s/i)
+    assert.match(pill.primary, /never published/i)
+    assert.match(pill.secondary ?? "", /Autosaved 12s/i)
   })
 
   it("increment publish → Publish will create v{n+1}", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
@@ -57,7 +57,7 @@ describe("PC7 pill shares T4c resolvePostgresSaveMode", () => {
     assert.match(pill.primary, /Publish will create v2/i)
   })
 
-  it("working_draft → Working draft of v{n}", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
+  it("working_draft → Draft of v{n}. Publishing will create next", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const mode = resolvePostgresSaveMode({
       campaignStatus: "Approved",
       forceIncrement: false,
@@ -72,7 +72,8 @@ describe("PC7 pill shares T4c resolvePostgresSaveMode", () => {
       editingUnpublishedDraft: false,
     })
     assert.equal(mode.uiMode, "working_draft")
-    assert.match(pill.primary, /Working draft of v1/i)
+    assert.match(pill.primary, /Draft of v1/i)
+    assert.match(pill.primary, /Publishing will create v2/i)
   })
 
   it("editing unpublished draft label", () => {
@@ -89,7 +90,7 @@ describe("PC7 pill shares T4c resolvePostgresSaveMode", () => {
       autosavedSecondsAgo: 3,
       editingUnpublishedDraft: true,
     })
-    assert.match(pill.primary, /Editing v3 — unpublished draft/i)
+    assert.match(pill.primary, /Editing v3 \(not yet published\)/i)
   })
 })
 
@@ -110,12 +111,12 @@ describe("version header trail shares resolvePostgresSaveMode with pill", () => 
     })
     const trail = describeVersionHeaderTrail(mode)
     assert.equal(mode.uiMode, "overwrite")
-    assert.match(pill.primary, /publish overwrites v4/i)
-    assert.equal(trail, "publish overwrites v4")
+    assert.match(pill.primary, /Publishing replaces v4/i)
+    assert.equal(trail, "Publishing replaces v4")
     assert.doesNotMatch(trail, /Next/i)
   })
 
-  it("published tip → Next: v{n+1}, pill says publish creates next", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
+  it("published tip → Publishing creates v{n+1}", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const mode = resolvePostgresSaveMode({
       campaignStatus: "Approved",
       forceIncrement: false,
@@ -131,8 +132,8 @@ describe("version header trail shares resolvePostgresSaveMode with pill", () => 
     })
     const trail = describeVersionHeaderTrail(mode)
     assert.equal(mode.uiMode, "working_draft")
-    assert.match(pill.primary, /publish creates next version/i)
-    assert.equal(trail, "Next: v5")
+    assert.match(pill.primary, /Draft of v4\. Publishing will create v5/i)
+    assert.equal(trail, "Publishing creates v5")
   })
 
   it("publish intent on published tip → Next uses resolved increment version", () => {
@@ -152,11 +153,11 @@ describe("version header trail shares resolvePostgresSaveMode with pill", () => 
     })
     const trail = describeVersionHeaderTrail(mode)
     assert.equal(mode.uiMode, "increment")
-    assert.match(pill.primary, /(?:Publish|Save) will create v5/i)
-    assert.equal(trail, "Next: v5")
+    assert.match(pill.primary, /(?:Publish|Publishing) will create v5/i)
+    assert.equal(trail, "Publishing creates v5")
   })
 
-  it("interim: save on published tip → Save will create v{n}", { skip: !SAVE_PUBLISHES_IMMEDIATELY }, () => {
+  it("interim: save on published tip → Publishing will create v{n}", { skip: !SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const mode = resolvePostgresSaveMode({
       campaignStatus: "Approved",
       forceIncrement: false,
@@ -173,7 +174,7 @@ describe("version header trail shares resolvePostgresSaveMode with pill", () => 
       publishedTipVersionNumber: 1,
     })
     assert.equal(mode.uiMode, "increment")
-    assert.match(pill.primary, /Save will create v2/i)
+    assert.match(pill.primary, /Publishing will create v2/i)
     assert.doesNotMatch(pill.primary, /from v/i)
   })
 
@@ -193,7 +194,7 @@ describe("version header trail shares resolvePostgresSaveMode with pill", () => 
       editingVersionNumber: 5,
       publishedTipVersionNumber: 5,
     })
-    assert.equal(onTip.primary, "Save will create v6")
+    assert.equal(onTip.primary, "Publishing will create v6")
 
     const fromOlder = describePlanSavePill({
       modeResolved: tipMode,
@@ -205,7 +206,7 @@ describe("version header trail shares resolvePostgresSaveMode with pill", () => 
     })
     assert.equal(
       fromOlder.primary,
-      "Save will create v6 from v3 · published tip is v5"
+      "You're editing v3. Publishing will create v6 and replace v5 for clients"
     )
 
     const createMode = resolvePostgresSaveMode({
@@ -223,7 +224,7 @@ describe("version header trail shares resolvePostgresSaveMode with pill", () => 
     assert.doesNotMatch(create.primary, /from v/i)
   })
 
-  it("NV-1: unpublished tip + forceIncrement → Will cut v{n} (stays unpublished)", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
+  it("NV-1: unpublished tip + forceIncrement → Saves as v{n} without publishing", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const mode = resolvePostgresSaveMode({
       campaignStatus: "Draft",
       forceIncrement: true,
@@ -240,8 +241,8 @@ describe("version header trail shares resolvePostgresSaveMode with pill", () => 
     const trail = describeVersionHeaderTrail(mode)
     assert.equal(mode.uiMode, "increment_unpublished")
     assert.equal(mode.mode, "new_version")
-    assert.equal(pill.primary, "Will cut v3 (stays unpublished)")
-    assert.equal(trail, "Will cut v3 (stays unpublished)")
+    assert.equal(pill.primary, "Saves as v3 without publishing")
+    assert.equal(trail, "Saves as v3 without publishing")
   })
 })
 

@@ -50,7 +50,7 @@ export function PlanDraftPill(props: {
       ) : null}
       {props.tipLabel ? (
         <span className={cn("text-muted-foreground", props.compact && "max-w-full truncate")}>
-          Docs/pacing serve {props.tipLabel}
+          Clients, documents and pacing use {props.tipLabel}
         </span>
       ) : null}
     </div>
@@ -100,6 +100,8 @@ export function PlanDraftActiveBanner(props: {
   viewChangesDisabledReason?: string
   /** Create-page meaningful draft: names client, campaign, lines, budget. */
   headline?: string
+  /** Published version clients still see. */
+  tipVersionNumber?: number | string | null
   /** Rail: single-line text + actions stacked, no save-bar band. */
   compact?: boolean
 }) {
@@ -132,7 +134,11 @@ export function PlanDraftActiveBanner(props: {
           props.headline
         ) : (
           <>
-            Unsaved draft from {formatDraftRelativeTime(props.updatedAt)} loaded —{" "}
+            You&apos;re editing your unsaved draft from{" "}
+            {formatDraftRelativeTime(props.updatedAt)}.
+            {props.tipVersionNumber != null && props.tipVersionNumber !== ""
+              ? ` Clients still see v${props.tipVersionNumber}.`
+              : null}{" "}
             <Popover>
               <PopoverTrigger asChild>
                 <button type="button" className="underline-offset-2 hover:underline">
@@ -225,30 +231,30 @@ export function PlanDraftStaleBanner(props: {
           props.compact ? "text-xs leading-snug" : "text-sm"
         )}
       >
-        Draft from {formatDraftRelativeTime(props.updatedAt)}
-        {hasBase ? ` is based on v${baseN}` : ""}
-        ; the plan is now on v{props.tipVersionNumber}.
+        Someone published v{props.tipVersionNumber} after you started this draft
+        {hasBase ? ` (based on v${baseN})` : ""}. Using your draft and publishing
+        would replace their changes.
       </p>
       <div className={cn("flex gap-2", props.compact ? "flex-col" : "flex-wrap")}>
-        <Button
-          type="button"
-          size="sm"
-          className={props.compact ? "h-8 w-full" : undefined}
-          onClick={props.onLoadAnyway}
-        >
-          Load anyway
-        </Button>
         {props.onCompare ? (
           <Button
             type="button"
             size="sm"
-            variant="outline"
             className={props.compact ? "h-8 w-full" : undefined}
             onClick={props.onCompare}
           >
-            Compare
+            Compare first
           </Button>
         ) : null}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className={props.compact ? "h-8 w-full" : undefined}
+          onClick={props.onLoadAnyway}
+        >
+          Use my draft
+        </Button>
         <Button
           type="button"
           size="sm"
@@ -256,7 +262,7 @@ export function PlanDraftStaleBanner(props: {
           className={props.compact ? "h-8 w-full" : undefined}
           onClick={props.onDiscard}
         >
-          Discard
+          Discard my draft
         </Button>
       </div>
     </div>
@@ -318,9 +324,11 @@ export function PlanStaleBaseDialog(props: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
       <div className="max-w-lg rounded-card border border-border bg-card p-4 shadow-e2">
-        <h2 className="text-base font-semibold text-foreground">Tip moved — re-apply manually</h2>
+        <h2 className="text-base font-semibold text-foreground">
+          Someone published this plan while you were editing
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          No merge engine. Compare base / yours / current, then re-apply your edits.
+          Your draft is kept. Compare the two, then re-apply what you need.
         </p>
         <ul className="mt-3 space-y-2 text-sm">
           <li>
@@ -355,7 +363,7 @@ export function PlanDraftTipCompareDialog(props: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
       <div className="max-h-[80vh] max-w-lg overflow-y-auto rounded-card border border-border bg-card p-4 shadow-e2">
-        <h2 className="text-base font-semibold text-foreground">Draft vs published tip</h2>
+        <h2 className="text-base font-semibold text-foreground">Your draft vs the published plan</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {props.added.length + props.removed.length} lines changed · budget {deltaLabel} ·{" "}
           {props.keptCount} unchanged
@@ -386,13 +394,20 @@ export function PlanDraftTipCompareDialog(props: {
 export function PlanDraftFieldDiffDialog(props: {
   summary: DraftDiffSummary
   onClose: () => void
+  tipVersionNumber?: number | string | null
 }) {
   const grouped = groupDraftDiff(props.summary)
   const changeCount = props.summary.changeCount
+  const tipLabel =
+    props.tipVersionNumber == null || props.tipVersionNumber === ""
+      ? "the published plan"
+      : `v${props.tipVersionNumber}`
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
       <div className="max-h-[80vh] max-w-lg overflow-y-auto rounded-card border border-border bg-card p-4 shadow-e2">
-        <h2 className="text-base font-semibold text-foreground">Draft vs loaded plan</h2>
+        <h2 className="text-base font-semibold text-foreground">
+          Your draft vs {tipLabel}
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {changeCount === 1 ? "1 change" : `${changeCount} changes`} · Close leaves the form as it is
         </p>

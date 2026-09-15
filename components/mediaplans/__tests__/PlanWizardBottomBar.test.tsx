@@ -73,7 +73,7 @@ describe("PlanWizardBottomBar", () => {
     container.remove()
   })
 
-  it("renders Publish, Save draft, then MBA first in the download group", () => {
+  it("renders Publish, Save draft, then MBA first in the download group", async () => {
     act(() => {
       root.render(renderBar())
     })
@@ -86,19 +86,30 @@ describe("PlanWizardBottomBar", () => {
           text === "MBA" ||
           text === "Media Plan" ||
           text === "Media Plan (AA)" ||
-          text === "Generate Naming (Ava)" ||
-          text === "Save & Download All",
+          text === "Generate Naming (Ava)",
       )
-    expect(labels.slice(0, 7)).toEqual([
+    expect(labels.slice(0, 6)).toEqual([
       "Publish",
       "Save draft",
       "MBA",
       "Media Plan",
       "Media Plan (AA)",
       "Generate Naming (Ava)",
-      "Save & Download All",
     ])
-    expect(container.querySelector('[aria-label="Publish menu"]')).not.toBeNull()
+    const allButtonLabels = Array.from(container.querySelectorAll("button")).map(
+      (el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "",
+    )
+    expect(allButtonLabels.includes("Save & Download All")).toBe(false)
+    const publishMenu = container.querySelector('[aria-label="Publish menu"]')
+    expect(publishMenu).not.toBeNull()
+    await act(async () => {
+      publishMenu!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+      ;(publishMenu as HTMLButtonElement).click()
+    })
+    expect(document.body.textContent).toContain("Publish & download all")
+    expect(document.body.textContent).toContain(
+      "Publishes, then downloads the MBA, media plan and naming as one zip",
+    )
     expect(container.querySelector('[aria-label="Save draft menu"]')).not.toBeNull()
     const mba = Array.from(container.querySelectorAll("button")).find(
       (el) => el.textContent?.replace(/\s+/g, " ").trim() === "MBA",

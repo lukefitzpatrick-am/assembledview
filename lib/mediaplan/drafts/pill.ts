@@ -35,15 +35,15 @@ export function describePlanSavePill(args: {
       SAVE_PUBLISHES_IMMEDIATELY && m.uiMode === "increment" && m.versionNumber > 1
         ? m.versionNumber - 1
         : m.versionNumber
-    primary = `Editing v${loaded} — unpublished draft`
+    primary = `Editing v${loaded} (not yet published)`
   } else if (m.uiMode === "overwrite") {
-    primary = `Draft of v${m.versionNumber} — publish overwrites v${m.versionNumber}`
+    primary = `Draft of v${m.versionNumber} (never published). Publishing replaces it`
   } else if (m.uiMode === "working_draft") {
-    primary = `Working draft of v${m.versionNumber} — publish creates next version`
+    primary = `Draft of v${m.versionNumber}. Publishing will create v${m.versionNumber + 1}`
   } else if (m.uiMode === "increment_unpublished") {
-    primary = `Will cut v${m.versionNumber} (stays unpublished)`
+    primary = `Saves as v${m.versionNumber} without publishing`
   } else if (SAVE_PUBLISHES_IMMEDIATELY && forkingOlder) {
-    primary = `Save will create v${m.versionNumber} from v${editing} · published tip is v${tip}`
+    primary = `You're editing v${editing}. Publishing will create v${m.versionNumber} and replace v${tip} for clients`
   } else if (
     SAVE_PUBLISHES_IMMEDIATELY &&
     args.editingVersionNumber == null &&
@@ -52,16 +52,16 @@ export function describePlanSavePill(args: {
     // Create: Publish mints v1. Save draft cannot (C-118).
     primary = "Publish creates v1"
   } else if (SAVE_PUBLISHES_IMMEDIATELY) {
-    primary = `Save will create v${m.versionNumber}`
+    primary = `Publishing will create v${m.versionNumber}`
   } else {
     primary = `Publish will create v${m.versionNumber}`
   }
 
   let secondary: string | null = null
   if (args.hasWorkingDraft && args.autosavedSecondsAgo != null) {
-    secondary = `Draft — autosaved ${Math.max(0, Math.round(args.autosavedSecondsAgo))}s ago`
+    secondary = `Autosaved ${Math.max(0, Math.round(args.autosavedSecondsAgo))}s ago`
   } else if (args.hasWorkingDraft) {
-    secondary = "Draft — working copy (not published)"
+    secondary = "Draft - not published"
   }
 
   return { primary, secondary }
@@ -70,22 +70,23 @@ export function describePlanSavePill(args: {
 /**
  * Wizard header trail after "v{n} · …".
  * Same `ResolvePostgresSaveModeResult` as `describePlanSavePill` — never tip+1 alone.
- * Overwrite: no "Next" (publish replaces tip). Published tip: "Next: v{n+1}".
+ * Overwrite: no "Next" (publish replaces the published version).
+ * Published: "Publishing creates v{n}".
  */
 export function describeVersionHeaderTrail(
   modeResolved: ResolvePostgresSaveModeResult
 ): string {
   const n = modeResolved.versionNumber
   if (modeResolved.uiMode === "overwrite") {
-    return `publish overwrites v${n}`
+    return `Publishing replaces v${n}`
   }
   if (modeResolved.uiMode === "working_draft") {
-    return `Next: v${n + 1}`
+    return `Publishing creates v${n + 1}`
   }
   if (modeResolved.uiMode === "increment_unpublished") {
-    return `Will cut v${n} (stays unpublished)`
+    return `Saves as v${n} without publishing`
   }
-  return `Next: v${n}`
+  return `Publishing creates v${n}`
 }
 
 export function summarizeDraftOffer(args: {

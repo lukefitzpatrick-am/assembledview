@@ -1,6 +1,6 @@
 "use client"
 
-import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
+import { Download, Loader2, MoreHorizontal } from "lucide-react"
 
 import { SplitActionButton } from "@/components/mediaplans/SplitActionButton"
 import { Button } from "@/components/ui/button"
@@ -97,6 +97,12 @@ export function PlanWizardBottomBar({
   const aaDisabled =
     downloadBlocked || !hasAdvertisingAssociatesBilling || downloadsBusy
   const zipDisabled = downloadsLocked || isDownloading || isDownloadingAa
+  const publishAndDownloadAllItem = {
+    label: "Publish & download all",
+    hint: "Publishes, then downloads the MBA, media plan and naming as one zip",
+    onSelect: onSaveAndDownloadAll,
+    disabled: zipDisabled,
+  }
 
   return (
     <>
@@ -115,6 +121,7 @@ export function PlanWizardBottomBar({
                   hint: "Publishes, then returns to Campaigns",
                   onSelect: onPublishAndExit,
                 },
+                publishAndDownloadAllItem,
               ]
             : [
                 {
@@ -152,6 +159,7 @@ export function PlanWizardBottomBar({
               hint: "Publishes, then returns to Campaigns",
               onSelect: onExplicitPublishAndExit,
             },
+            publishAndDownloadAllItem,
           ]}
         />
       ) : null}
@@ -213,13 +221,6 @@ export function PlanWizardBottomBar({
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onDownloadNaming} disabled={downloadsBusy}>
               Generate Naming (Ava)
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={onSaveAndDownloadAll}
-              disabled={zipDisabled}
-              title={gateDownloadsOnPublish ? unpublishedTitle : undefined}
-            >
-              Save &amp; Download All
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -288,25 +289,6 @@ export function PlanWizardBottomBar({
           </span>
         </Button>
       </div>
-      <Button
-        type="button"
-        variant="action"
-        onClick={onSaveAndDownloadAll}
-        disabled={zipDisabled}
-        title={gateDownloadsOnPublish ? unpublishedTitle : undefined}
-        className="hidden h-9 shrink-0 rounded-pill px-4 py-2 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {downloadsLocked ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <FileText className="h-4 w-4" />
-        )}
-        <span className="ml-2">
-          {downloadsLocked || isDownloading || isDownloadingAa
-            ? "Processing..."
-            : "Save & Download All"}
-        </span>
-      </Button>
     </>
   )
 }
