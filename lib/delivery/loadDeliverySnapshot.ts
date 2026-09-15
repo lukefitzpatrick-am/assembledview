@@ -263,6 +263,7 @@ function collectChannelPlans(
     const platform = classifySocialPacingPlatform(item as Record<string, unknown>)
     if (platform === "meta") ensure("social_meta").set(meta.id, meta)
     else if (platform === "tiktok") ensure("social_tiktok").set(meta.id, meta)
+    else ensure("plan_only").set(meta.id, meta)
   }
 
   for (const item of byChannel.progDisplay ?? []) {
@@ -405,6 +406,7 @@ export async function loadDeliverySnapshot(
     "digital_audio",
     "bvod",
     "search",
+    "plan_only",
   ]
 
   const channels: DeliveryChannelGroup[] = []

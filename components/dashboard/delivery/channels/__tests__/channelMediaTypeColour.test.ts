@@ -16,6 +16,7 @@ const CHANNEL_KEYS: ChannelKey[] = [
   "digital-video",
   "digital-audio",
   "bvod",
+  "plan-only",
 ]
 
 describe("channelMediaTypeColour", () => {
@@ -54,8 +55,9 @@ describe("channelMediaTypeColour", () => {
       bvod: channelMediaTypeColour("bvod"),
     }
 
-    // Meta + TikTok share social_media by design (same media type)
+    // Meta + TikTok + plan-only share social_media by design (same media type)
     assert.equal(channelMediaTypeColour("social-meta"), channelMediaTypeColour("social-tiktok"))
+    assert.equal(channelMediaTypeColour("plan-only"), channelMediaTypeColour("social-meta"))
 
     const distinct = new Set(Object.values(colours))
     assert.equal(

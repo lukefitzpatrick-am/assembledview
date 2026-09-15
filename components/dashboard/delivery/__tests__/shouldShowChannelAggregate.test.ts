@@ -51,6 +51,11 @@ describe("shouldShowChannelAggregate", () => {
     assert.equal(shouldShowChannelAggregate("programmatic-video", 4), false)
   })
 
+  it("plan-only never rolls up", () => {
+    assert.equal(shouldShowChannelAggregate("plan-only", 1), false)
+    assert.equal(shouldShowChannelAggregate("plan-only", 3), false)
+  })
+
   it("any key + 0 lines → true (empty-container guard)", () => {
     const keys: ChannelKey[] = [
       "search",
@@ -62,6 +67,7 @@ describe("shouldShowChannelAggregate", () => {
       "digital-video",
       "digital-audio",
       "bvod",
+      "plan-only",
     ]
     for (const key of keys) {
       assert.equal(shouldShowChannelAggregate(key, 0), true, key)

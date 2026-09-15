@@ -35,6 +35,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   digital_audio: "Digital Audio",
   bvod: "BVOD",
   search: "Search",
+  plan_only: "Awaiting delivery",
 }
 
 export type CampaignReportChannelRow = {

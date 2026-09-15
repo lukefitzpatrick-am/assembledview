@@ -7,6 +7,7 @@ import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { getPacingWindow } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
+import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform"
 import type { SocialLineItem } from "@/lib/delivery/social/socialChannelCompute"
 import { ErrorState, LoadingState } from "@/components/ui/states"
 import DeliveryDataProvider from "./DeliveryDataProvider"
@@ -20,36 +21,16 @@ import { buildBvodSection } from "./channels/bvodAdapter"
 import { buildSearchSection } from "./channels/searchAdapter"
 import { buildSocialMetaSection } from "./channels/socialMetaAdapter"
 import { buildSocialTiktokSection } from "./channels/socialTiktokAdapter"
+import { buildPlanOnlyRemainderSection } from "./channels/planOnlyAdapter"
 import type { ChannelSectionData } from "./channels/types"
 import {
   cleanPacingLineItemId,
   extractPacingLineItemIdFromItem,
 } from "@/lib/pacing/delivery/lineItemIds"
-
-function isMetaPlatformString(value: unknown) {
-  return /\b(meta|facebook|instagram|ig)\b/i.test(String(value ?? ""))
-}
-
-function isTikTokPlatformString(value: unknown) {
-  return /\btik\s*tok\b/i.test(String(value ?? ""))
-}
-
-function classifySocialPacingPlatform(item: unknown): "meta" | "tiktok" | null {
-  const row = item as Record<string, unknown>
-  const platform = String(row?.platform ?? "").trim()
-  if (platform) {
-    if (isMetaPlatformString(platform)) return "meta"
-    if (isTikTokPlatformString(platform)) return "tiktok"
-  }
-  const fallbackName = String(
-    row?.line_item_name ?? row?.lineItemName ?? row?.creative_targeting ?? row?.creative ?? "",
-  )
-    .trim()
-    .toUpperCase()
-  if (/(^|[^A-Z])(FB|IG|META)([^A-Z]|$)/.test(fallbackName)) return "meta"
-  if (/(^|[^A-Z])(TT|TIKTOK)([^A-Z]|$)/.test(fallbackName)) return "tiktok"
-  return null
-}
+import {
+  deliverySourceLookupKey,
+  lookupActiveDeliverySource,
+} from "@/lib/delivery/deliverySourceMap"
 
 export type CampaignDeliverySectionProps = {
   mbaNumber: string
@@ -97,6 +78,7 @@ type DeliveryBodyProps = {
   digitalVideoLineItems: unknown[]
   digitalAudioLineItems: unknown[]
   bvodLineItems: unknown[]
+  remainderItems: unknown[]
   reportedSpendByLineDate?: Map<string, Map<string, number>>
 }
 
@@ -124,6 +106,7 @@ function CampaignDeliveryBody({
   digitalVideoLineItems,
   digitalAudioLineItems,
   bvodLineItems,
+  remainderItems,
   reportedSpendByLineDate,
 }: DeliveryBodyProps) {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
@@ -291,6 +274,14 @@ function CampaignDeliveryBody({
       if (s) out.push(s)
     }
 
+    const remainder = buildPlanOnlyRemainderSection({
+      lineItems: remainderItems,
+      campaignStart,
+      campaignEnd,
+      lastSyncedAt,
+    })
+    if (remainder) out.push(remainder)
+
     return out
   }, [
     rows,
@@ -304,6 +295,7 @@ function CampaignDeliveryBody({
     digitalVideoLineItems,
     digitalAudioLineItems,
     bvodLineItems,
+    remainderItems,
     campaignStart,
     campaignEnd,
     filterRange,
@@ -355,16 +347,33 @@ export function CampaignDeliverySection({
 }: CampaignDeliverySectionProps) {
   const pacingWindow = useMemo(() => getPacingWindow(campaignStart, campaignEnd), [campaignStart, campaignEnd])
 
-  const { metaItems, tiktokItems } = useMemo(() => {
+  const { metaItems, tiktokItems, remainderSocialItems } = useMemo(() => {
     const meta: SocialLineItem[] = []
     const tiktok: SocialLineItem[] = []
+    const remainder: SocialLineItem[] = []
     for (const item of socialLineItems) {
-      const p = classifySocialPacingPlatform(item)
+      const p = classifySocialPacingPlatform(item as Record<string, unknown>)
       if (p === "meta") meta.push(item)
       else if (p === "tiktok") tiktok.push(item)
+      else remainder.push(item)
     }
-    return { metaItems: meta, tiktokItems: tiktok }
+    return { metaItems: meta, tiktokItems: tiktok, remainderSocialItems: remainder }
   }, [socialLineItems])
+
+  const remainderProgItems = useMemo(() => {
+    const out: unknown[] = []
+    for (const item of [...(progDisplayLineItems ?? []), ...(progVideoLineItems ?? [])]) {
+      const rec = item as Record<string, unknown>
+      const key = deliverySourceLookupKey(rec.publisher, rec.platform)
+      if (!lookupActiveDeliverySource(key)) out.push(item)
+    }
+    return out
+  }, [progDisplayLineItems, progVideoLineItems])
+
+  const remainderItems = useMemo(
+    () => [...remainderSocialItems, ...remainderProgItems],
+    [remainderSocialItems, remainderProgItems],
+  )
 
   const pacingIdSet = useMemo(() => {
     const ids = (deliveryLineItemIds ?? []).map((id) => cleanPacingLineItemId(id)).filter(Boolean) as string[]
@@ -471,6 +480,7 @@ export function CampaignDeliverySection({
           digitalVideoLineItems={digitalVideoLineItems}
           digitalAudioLineItems={digitalAudioLineItems}
           bvodLineItems={bvodLineItems}
+          remainderItems={remainderItems}
           reportedSpendByLineDate={reportedSpendByLineDate}
         />
       )}

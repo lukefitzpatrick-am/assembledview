@@ -22,5 +22,7 @@ export function getChannelIcon(key: ChannelKey): LucideIcon {
       return AudioLines
     case "bvod":
       return Tv
+    case "plan-only":
+      return Gauge
   }
 }

@@ -20,6 +20,7 @@ const CHANNEL_KEYS: ChannelKey[] = [
   "digital-video",
   "digital-audio",
   "bvod",
+  "plan-only",
 ]
 
 function norm(hex: string): string {
