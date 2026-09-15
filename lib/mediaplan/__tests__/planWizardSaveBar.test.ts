@@ -13,8 +13,11 @@ import {
   resolveSaveSuccessSideEffects,
   runSaveSuccessSideEffects,
   showPlanDraftSaveButton,
+  wizardDownloadControls,
   wizardPrimarySaveLabel,
   wizardPublishMbaLabel,
+  DRAFT_DOWNLOAD_HINT,
+  DRAFT_MBA_TOAST,
 } from "../planWizardSaveBar"
 
 const CREATE_PAGE = join(process.cwd(), "app/mediaplans/create/page.tsx")
@@ -251,6 +254,63 @@ describe("wizardPublishMbaLabel", () => {
   it("idle is MBA; busy is Generating MBA…", () => {
     assert.equal(wizardPublishMbaLabel({ isBusy: false }), "MBA")
     assert.equal(wizardPublishMbaLabel({ isBusy: true }), "Generating MBA…")
+    assert.equal(
+      wizardPublishMbaLabel({ isBusy: false, label: "Published MBA (v33)" }),
+      "Published MBA (v33)"
+    )
+  })
+})
+
+describe("wizardDownloadControls", () => {
+  it("create: draft-only labels, AA hidden", () => {
+    const c = wizardDownloadControls({
+      isCreate: true,
+      isPublished: false,
+      hasWorkingDraftOrDirty: true,
+      publishedVersionNumber: null,
+    })
+    assert.equal(c.showDraftGroup, true)
+    assert.equal(c.showPublishedGroup, false)
+    assert.equal(c.showDraftAa, false)
+    assert.equal(c.draftMbaLabel, "Download draft MBA")
+    assert.equal(c.draftMediaPlanLabel, "Download draft Media Plan")
+    assert.equal(c.draftHint, DRAFT_DOWNLOAD_HINT)
+  })
+
+  it("edit published + dirty: two groups labelled with pointer vN", () => {
+    const c = wizardDownloadControls({
+      isCreate: false,
+      isPublished: true,
+      hasWorkingDraftOrDirty: true,
+      publishedVersionNumber: 33,
+    })
+    assert.equal(c.showDraftGroup, true)
+    assert.equal(c.showPublishedGroup, true)
+    assert.equal(c.showDraftAa, true)
+    assert.equal(c.draftMbaLabel, "Draft MBA")
+    assert.equal(c.publishedMbaLabel, "Published MBA (v33)")
+    assert.equal(c.publishedMediaPlanLabel, "Published Media Plan (v33)")
+  })
+
+  it("edit published and clean: published labels, no stamp group", () => {
+    const c = wizardDownloadControls({
+      isCreate: false,
+      isPublished: true,
+      hasWorkingDraftOrDirty: false,
+      publishedVersionNumber: 33,
+    })
+    assert.equal(c.showDraftGroup, false)
+    assert.equal(c.showPublishedGroup, true)
+    assert.equal(c.publishedMbaLabel, "MBA")
+    assert.equal(c.publishedMediaPlanLabel, "Media Plan")
+    assert.equal(c.draftHint, undefined)
+  })
+})
+
+describe("DRAFT_MBA_TOAST", () => {
+  it("is not a success-as-shipped title", () => {
+    assert.match(DRAFT_MBA_TOAST, /not for the client/i)
+    assert.doesNotMatch(DRAFT_MBA_TOAST, /successfully/i)
   })
 })
 
@@ -259,7 +319,7 @@ describe("edit page wiring (SF-1)", () => {
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
     assert.match(
       editSrc,
-      /handleSaveAll = async \(opts\?: \{[\s\S]*?intent\?: "save" \| "publish"[\s\S]*?exitAfter\?: boolean[\s\S]*?download\?: boolean/
+      /handleSaveAll = async \(opts\?: \{[\s\S]*?intent\?: "save" \| "publish"[\s\S]*?exitAfter\?: boolean[\s\S]*?download\?: boolean[\s\S]*?zipAfter\?: boolean/
     )
     assert.match(editSrc, /runSaveSuccessSideEffects/)
     assert.match(editSrc, /saveDraftThenExit/)
@@ -342,6 +402,7 @@ describe("SM-30: create bar is the edit bar", () => {
       assert.match(bar, /showExplicitPublishButton\(/)
       assert.match(bar, /showPlanDraftSaveButton\(/)
       assert.match(bar, /onPublishMba=\{handleGenerateMBA\}/)
+      assert.match(bar, /onDraftMba=/)
       const publish = bar.indexOf("download: true")
       const saveDraft = bar.indexOf("onSaveDraft=")
       const mba = bar.indexOf("onPublishMba=")
@@ -368,7 +429,7 @@ describe("SM-30: create bar is the edit bar", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     assert.match(
       createSrc,
-      /handleSaveAll = async \(opts\?: \{[\s\S]*?intent\?: "save" \| "publish"[\s\S]*?exitAfter\?: boolean[\s\S]*?download\?: boolean/
+      /handleSaveAll = async \(opts\?: \{[\s\S]*?intent\?: "save" \| "publish"[\s\S]*?exitAfter\?: boolean[\s\S]*?download\?: boolean[\s\S]*?zipAfter\?: boolean/
     )
     assert.match(createSrc, /runSaveSuccessSideEffects/)
     assert.match(createSrc, /saveDraftThenExit/)
@@ -408,6 +469,71 @@ describe("SM-30: create bar is the edit bar", () => {
       bar,
       /catchPlanDraftAction\(\s*planDraft\.saveDraftNow\(\)/
     )
+  })
+})
+
+describe("DD-3 draft downloads", () => {
+  it("create zip runs after publish, never before", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const zipAll = createSrc.indexOf("const handleSaveAndDownloadAll")
+    const zipBody = createSrc.slice(
+      zipAll,
+      createSrc.indexOf("const handleDownloadNamingConventions", zipAll)
+    )
+    assert.match(zipBody, /handleSaveAll\(\{ intent: "publish", zipAfter: true \}\)/)
+    assert.doesNotMatch(zipBody, /generateMbaPdfBlob\(\)/)
+    const handleStart = createSrc.indexOf("const handleSaveAll = async")
+    const handleEnd = createSrc.indexOf("const handleExit =", handleStart)
+    const handleBody = createSrc.slice(handleStart, handleEnd)
+    assert.match(handleBody, /zipAfter/)
+    assert.match(handleBody, /zipPublishedCreateDocuments/)
+    const zipCall = handleBody.indexOf("zipPublishedCreateDocuments")
+    const landOnEdit = handleBody.indexOf("encodeURIComponent(mba)")
+    assert.ok(zipCall >= 0 && landOnEdit > zipCall)
+  })
+
+  it("create draft MBA posts the save body, not /api/mba/generate with campaign_status", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const draftStart = createSrc.indexOf("const handleDraftMba")
+    const draftEnd = createSrc.indexOf("const handleGenerateMBA", draftStart)
+    const draftBody = createSrc.slice(draftStart, draftEnd)
+    assert.match(draftBody, /postDraftDocuments/)
+    assert.match(draftBody, /buildCreateDraftDocumentsBody\("mba_pdf"\)/)
+    assert.doesNotMatch(draftBody, /\/api\/mba\/generate/)
+    assert.match(createSrc, /DRAFT_MBA_TOAST/)
+    const genStart = createSrc.indexOf("const generateMbaPdfBlob")
+    const genEnd = createSrc.indexOf("const generateMediaPlanXlsxBlob", genStart)
+    assert.doesNotMatch(
+      createSrc.slice(genStart, genEnd),
+      /campaign_status/
+    )
+  })
+
+  it("edit handleGenerateMBA / handleDownloadMediaPlan no longer toast-and-return on unpublished", () => {
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    const mbaStart = editSrc.indexOf("const handleGenerateMBA = async")
+    const mbaEnd = editSrc.indexOf("const handleDownloadMediaPlan", mbaStart)
+    assert.doesNotMatch(editSrc.slice(mbaStart, mbaEnd), /if \(!isPublished\)/)
+    const planStart = editSrc.indexOf("const handleDownloadMediaPlan = async")
+    const planEnd = editSrc.indexOf(
+      "const handleDownloadAdvertisingAssociatesMediaPlan",
+      planStart
+    )
+    assert.doesNotMatch(
+      editSrc.slice(planStart, planEnd),
+      /if \(!opts\?\.fromPublish && !isPublished\)/
+    )
+  })
+
+  it("edit unpublished zip publishes first", () => {
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    const zipAll = editSrc.indexOf("const handleSaveAndDownloadAll")
+    const zipBody = editSrc.slice(
+      zipAll,
+      editSrc.indexOf("const handleSearchTotalChange", zipAll)
+    )
+    assert.match(zipBody, /handleSaveAll\(\{ intent: "publish", zipAfter: true \}\)/)
+    assert.doesNotMatch(zipBody, /draftBlocksDownloadMessage/)
   })
 })
 

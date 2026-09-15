@@ -199,12 +199,20 @@ import {
 } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import {
   DRAFT_BLOCKS_DOWNLOAD_MESSAGE,
+  DRAFT_MBA_TOAST,
+  EDIT_DRAFT_DOWNLOAD_RAIL,
   catchPlanDraftAction,
   describePublishSuccessToast,
   runSaveSuccessSideEffects,
   showPlanDraftSaveButton,
   wizardPrimarySaveLabel,
 } from "@/lib/mediaplan/planWizardSaveBar"
+import { postDraftDocuments } from "@/lib/docs/postDraftDocuments"
+import {
+  flattenPartialMbaSelectedLineIds,
+  kpiRowsForDraftDocuments,
+  mergeDraftDocumentsBody,
+} from "@/lib/mediaplan/mergeDraftDocumentsBody"
 import {
   POSTGRES_SAVE_MODAL_STEPS,
   assemblePlansSaveRequestBody,
@@ -3017,6 +3025,10 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     mediaPlan,
   ])
   const isPublished = isVersionPublished({ publishedAt: selectedVersionPublishedAt })
+  const publishedPointerNumber =
+    typeof latestVersionNumber === "number"
+      ? latestVersionNumber
+      : Number(mediaPlan?.version_number) || 0
   // Stage 1 scope: publication (published_at) answers "may the client have this".
   // Mutability still keys off commercial status until Stage 2 makes published
   // versions immutable deliberately. Do not merge these two predicates —
@@ -7279,6 +7291,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     intent?: "save" | "publish"
     exitAfter?: boolean
     download?: boolean
+    zipAfter?: boolean
   }) => {
     const saveIntent = opts?.intent === "publish" ? "publish" : "save"
     const afterSuccessfulSave = async (args: {
@@ -7296,6 +7309,21 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         navigate: () => router.push("/mediaplans"),
         downloadPlan: () => handleDownloadMediaPlan({ fromPublish: true }),
       })
+      if (opts?.zipAfter) {
+        try {
+          await zipPublishedEditDocuments()
+        } catch (error: unknown) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Failed to zip published documents"
+          toast({
+            title: "Error",
+            description: message,
+            variant: "destructive",
+          })
+        }
+      }
       if (opts?.download && !args.skipDownload) {
         const published = describePublishSuccessToast({
           versionNumber: args.versionNumber ?? "",
@@ -9417,11 +9445,292 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     return { blob, fileName, planVersion: resolvedPlanVersion }
   }
 
-  const handleGenerateMBA = async () => {
-    if (!isPublished) {
-      toast({ title: draftBlocksDownloadMessage })
-      return
+  const buildEditDraftDocumentsBody = async (
+    kind: "mba_pdf" | "media_plan" | "aa_media_plan"
+  ): Promise<Record<string, unknown>> => {
+    await waitForStateFlush()
+    const formValues = form.getValues()
+    const mbaNum = String(mbaNumber || formValues.mbanumber || "").trim()
+    if (!mbaNum) {
+      throw new Error("MBA number is required to generate a draft")
     }
+    const resolvedMasterId = resolveMasterIdFromCombinedPlan(mediaPlan)
+    if (resolvedMasterId == null) {
+      throw new Error("Cannot resolve media_plan_masters id for draft download")
+    }
+    const shouldEnableProduction = Boolean(
+      formValues.mp_production || (productionMediaLineItems?.length ?? 0) > 0
+    )
+    const feeLoadingForSave = billingSaveInputs.feeLoading
+    const snapshots = {
+      television: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(televisionMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.television),
+        "television",
+        feeLoadingForSave
+      ),
+      radio: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(radioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.radio),
+        "radio",
+        feeLoadingForSave
+      ),
+      newspaper: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(newspaperMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.newspaper),
+        "newspaper",
+        feeLoadingForSave
+      ),
+      magazines: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(magazinesMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.magazines),
+        "magazines",
+        feeLoadingForSave
+      ),
+      ooh: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(oohMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.ooh),
+        "ooh",
+        feeLoadingForSave
+      ),
+      cinema: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(cinemaMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.cinema),
+        "cinema",
+        feeLoadingForSave
+      ),
+      digiDisplay: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(digitalDisplayMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalDisplay),
+        "digiDisplay",
+        feeLoadingForSave
+      ),
+      digiAudio: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(digitalAudioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalAudio),
+        "digiAudio",
+        feeLoadingForSave
+      ),
+      digiVideo: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(digitalVideoMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalVideo),
+        "digiVideo",
+        feeLoadingForSave
+      ),
+      bvod: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(bvodMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.bvod),
+        "bvod",
+        feeLoadingForSave
+      ),
+      integration: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(integrationMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.integration),
+        "integration",
+        feeLoadingForSave
+      ),
+      production: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(productionMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.production),
+        "production",
+        feeLoadingForSave
+      ),
+      search: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(searchMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.search),
+        "search",
+        feeLoadingForSave
+      ),
+      socialMedia: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(socialMediaMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.socialMedia),
+        "socialMedia",
+        feeLoadingForSave
+      ),
+      progDisplay: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(progDisplayMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progDisplay),
+        "progDisplay",
+        feeLoadingForSave
+      ),
+      progVideo: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(progVideoMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progVideo),
+        "progVideo",
+        feeLoadingForSave
+      ),
+      progBvod: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(progBvodMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progBVOD),
+        "progBvod",
+        feeLoadingForSave
+      ),
+      progAudio: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(progAudioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progAudio),
+        "progAudio",
+        feeLoadingForSave
+      ),
+      progOoh: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(progOohMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progOOH),
+        "progOoh",
+        feeLoadingForSave
+      ),
+      influencers: stampClientFeePctOnLineItems(
+        assignStableLineItemNumbers(influencersMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.influencers),
+        "influencers",
+        feeLoadingForSave
+      ),
+    }
+    const lineItemsForSave = buildSavePlanLineItemsFromSnapshots(
+      snapshots,
+      billingSaveInputs.lineItems,
+      channelLoadSucceeded
+    )
+    const saveBody = assemblePlansSaveRequestBody(
+      {
+        masterId: resolvedMasterId,
+        mbaNumber: mbaNum,
+        versionNumber: publishedPointerNumber || 1,
+        mode: "publish",
+        baseVersionId: draftBaseVersionId,
+        tipVersionIdAtLoad: tipVersionIdAtLoadRef.current,
+        campaignName: formValues.mp_campaignname ?? null,
+        campaignStartDate: toDateOnlyString(formValues.mp_campaigndates_start),
+        campaignEndDate: toDateOnlyString(formValues.mp_campaigndates_end),
+        brand: formValues.mp_brand ?? null,
+        clientContact: formValues.mp_clientcontact ?? null,
+        poNumber: formValues.mp_ponumber ?? null,
+        campaignBudgetCents: dollarsToCampaignBudgetCents(formValues.mp_campaignbudget),
+        fixedFee: Boolean(formValues.mp_fixedfee),
+        clientBillingSchedulePreview:
+          workingBillingMonths.length > 0 ? workingBillingMonths : undefined,
+        billingOverrides: buildBillingOverridesSaveEnvelope({
+          loadState: billingOverridesLoadState,
+          clearedLineIds: clearedBillingOverrideLineIdsRef.current,
+        }),
+        channelFlags: {
+          mp_television: Boolean(formValues.mp_television),
+          mp_radio: Boolean(formValues.mp_radio),
+          mp_newspaper: Boolean(formValues.mp_newspaper),
+          mp_magazines: Boolean(formValues.mp_magazines),
+          mp_ooh: Boolean(formValues.mp_ooh),
+          mp_cinema: Boolean(formValues.mp_cinema),
+          mp_digidisplay: Boolean(formValues.mp_digidisplay),
+          mp_digiaudio: Boolean(formValues.mp_digiaudio),
+          mp_digivideo: Boolean(formValues.mp_digivideo),
+          mp_bvod: Boolean(formValues.mp_bvod),
+          mp_integration: Boolean(formValues.mp_integration),
+          mp_search: Boolean(formValues.mp_search),
+          mp_socialmedia: Boolean(formValues.mp_socialmedia),
+          mp_progdisplay: Boolean(formValues.mp_progdisplay),
+          mp_progvideo: Boolean(formValues.mp_progvideo),
+          mp_progbvod: Boolean(formValues.mp_progbvod),
+          mp_progaudio: Boolean(formValues.mp_progaudio),
+          mp_progooh: Boolean(formValues.mp_progooh),
+          mp_influencers: Boolean(formValues.mp_influencers),
+          mp_production: shouldEnableProduction,
+          television: Boolean(formValues.mp_television),
+          radio: Boolean(formValues.mp_radio),
+          newspaper: Boolean(formValues.mp_newspaper),
+          magazines: Boolean(formValues.mp_magazines),
+          ooh: Boolean(formValues.mp_ooh),
+          cinema: Boolean(formValues.mp_cinema),
+          digi_display: Boolean(formValues.mp_digidisplay),
+          digi_audio: Boolean(formValues.mp_digiaudio),
+          digi_video: Boolean(formValues.mp_digivideo),
+          digi_bvod: Boolean(formValues.mp_bvod),
+          integrations: Boolean(formValues.mp_integration),
+          search: Boolean(formValues.mp_search),
+          social: Boolean(formValues.mp_socialmedia),
+          prog_display: Boolean(formValues.mp_progdisplay),
+          prog_video: Boolean(formValues.mp_progvideo),
+          prog_bvod: Boolean(formValues.mp_progbvod),
+          prog_audio: Boolean(formValues.mp_progaudio),
+          prog_ooh: Boolean(formValues.mp_progooh),
+          influencers: Boolean(formValues.mp_influencers),
+          production: shouldEnableProduction,
+        },
+        lineItems: lineItemsForSave,
+      },
+      {
+        feeLoading: feeLoadingForSave,
+        adservaudio,
+        adservvideo,
+        adservdisplay,
+        adservimp,
+      }
+    )
+    const clientName =
+      typeof formValues.mp_clientname === "string"
+        ? formValues.mp_clientname.trim()
+        : String(formValues.mp_clientname || "").trim()
+    let publishers: Publisher[] | undefined
+    if (kind === "aa_media_plan") {
+      const pubRes = await fetch("/api/publishers")
+      if (!pubRes.ok) {
+        throw new Error("Failed to load publishers for Advertising Associates export")
+      }
+      publishers = (await pubRes.json()) as Publisher[]
+    }
+    return mergeDraftDocumentsBody(saveBody, {
+      kind,
+      campaignStatus: formValues.mp_campaignstatus ?? null,
+      clientAddress: {
+        name: clientName,
+        streetaddress: clientAddress,
+        suburb: clientSuburb,
+        state: clientState,
+        postcode: clientPostcode,
+      },
+      selectedMonthYears: partialMBAMonthYears,
+      approvedLineItemIds: flattenPartialMbaSelectedLineIds(partialMBASelectedLineItemIds),
+      kpiRows: kpiRowsForDraftDocuments(kpiRows),
+      publishers,
+    })
+  }
+
+  const handleDraftMba = async () => {
+    setIsMbaGenerating(true)
+    try {
+      const { blob, filename } = await postDraftDocuments(
+        await buildEditDraftDocumentsBody("mba_pdf")
+      )
+      saveAs(blob, filename)
+      toast({ title: DRAFT_MBA_TOAST })
+    } catch (e: unknown) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Failed to download draft MBA",
+        variant: "destructive",
+      })
+    } finally {
+      setIsMbaGenerating(false)
+    }
+  }
+
+  const handleDraftMediaPlan = async () => {
+    setIsDownloading(true)
+    try {
+      const { blob, filename } = await postDraftDocuments(
+        await buildEditDraftDocumentsBody("media_plan")
+      )
+      saveAs(blob, filename)
+      toast({ title: DRAFT_MBA_TOAST })
+    } catch (e: unknown) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Failed to download draft media plan",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  const handleDraftAa = async () => {
+    if (!hasAdvertisingAssociatesBilling) return
+    setIsDownloadingAa(true)
+    try {
+      const { blob, filename } = await postDraftDocuments(
+        await buildEditDraftDocumentsBody("aa_media_plan")
+      )
+      saveAs(blob, filename)
+      toast({ title: DRAFT_MBA_TOAST })
+    } catch (e: unknown) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Failed to download draft AA media plan",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDownloadingAa(false)
+    }
+  }
+
+  const handleGenerateMBA = async () => {
     setIsMbaGenerating(true)
     try {
       const { blob: pdfBlob, fileName } = await generateMbaPdfBlob({
@@ -9461,10 +9770,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   }
 
   const handleDownloadMediaPlan = async (opts?: { fromPublish?: boolean }): Promise<boolean> => {
-    if (!opts?.fromPublish && !isPublished) {
-      toast({ title: draftBlocksDownloadMessage })
-      return false
-    }
     setIsDownloading(true)
     try {
       const { blob, fileName } = await generateMediaPlanXlsxBlob()
@@ -9490,10 +9795,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   }
 
   const handleDownloadAdvertisingAssociatesMediaPlan = async () => {
-    if (!isPublished) {
-      toast({ title: draftBlocksDownloadMessage })
-      return
-    }
     if (!hasAdvertisingAssociatesBilling) return
     setIsDownloadingAa(true)
     try {
@@ -9584,38 +9885,32 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     return { blob, fileName, tokenPath }
   };
 
-  const handleSaveAndDownloadAll = async () => {
-    if (!isPublished) {
-      toast({ title: draftBlocksDownloadMessage })
-      await handleSaveAll()
-      return
-    }
-
-    const fv = form.getValues();
-
-    setIsDownloading(true);
-    setModalOpen(true);
-    setModalLoading(true);
-    setModalTitle("Downloading Media Plan");
-    setModalOutcome("Preparing your media plan for download...");
-
+  const zipPublishedEditDocuments = async () => {
+    const fv = form.getValues()
+    setIsDownloading(true)
+    setModalOpen(true)
+    setModalLoading(true)
+    setModalTitle("Downloading Media Plan")
+    setModalOutcome("Preparing your media plan for download...")
     try {
-      const [{ blob: mbaBlob, fileName: mbaFileName }, { blob: mediaPlanBlob, fileName: mediaPlanFileName }, { blob: namingBlob, fileName: namingFileName }] = await Promise.all([
+      const [
+        { blob: mbaBlob, fileName: mbaFileName },
+        { blob: mediaPlanBlob, fileName: mediaPlanFileName },
+        { blob: namingBlob, fileName: namingFileName },
+      ] = await Promise.all([
         generateMbaPdfBlob({ liveScope: true }),
         generateMediaPlanXlsxBlob(),
         generateNamingConventionsXlsxBlob(),
-      ]);
-
-      const JSZip = (await import("jszip")).default;
-      const zip = new JSZip();
-      zip.file(mbaFileName, mbaBlob);
-      zip.file(mediaPlanFileName, mediaPlanBlob);
-      zip.file(namingFileName, namingBlob);
-      // Standalone KPI workbook (only when KPI rows exist)
+      ])
+      const JSZip = (await import("jszip")).default
+      const zip = new JSZip()
+      zip.file(mbaFileName, mbaBlob)
+      zip.file(mediaPlanFileName, mediaPlanBlob)
+      zip.file(namingFileName, namingBlob)
       if (kpiRows.length > 0) {
-        const ExcelJS = (await import("exceljs")).default;
-        const { addKPISheet } = await import("@/lib/generateMediaPlan");
-        const kpiWorkbook = new ExcelJS.Workbook();
+        const ExcelJS = (await import("exceljs")).default
+        const { addKPISheet } = await import("@/lib/generateMediaPlan")
+        const kpiWorkbook = new ExcelJS.Workbook()
         addKPISheet(
           kpiWorkbook,
           kpiRows.map((r) => ({
@@ -9634,39 +9929,49 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             calculatedViews: r.calculatedViews,
             calculatedReach: r.calculatedReach,
           })),
-        );
-        const kpiArrayBuffer = await kpiWorkbook.xlsx.writeBuffer();
-        const kpiBlob = new Blob([kpiArrayBuffer], {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        });
-        const kpiFileName = `KPIs_${fv.mp_campaignname || "campaign"}.xlsx`;
-        zip.file(kpiFileName, kpiBlob);
+        )
+        const kpiArrayBuffer = await kpiWorkbook.xlsx.writeBuffer()
+        zip.file(
+          `KPIs_${fv.mp_campaignname || "campaign"}.xlsx`,
+          new Blob([kpiArrayBuffer], {
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          })
+        )
       }
-      const zipBlob = await zip.generateAsync({ type: "blob" });
-
+      const zipBlob = await zip.generateAsync({ type: "blob" })
       const campaignNameSafe = (fv.mp_campaignname || "campaign")
         .replace(/[^a-z0-9-_ ]/gi, "")
         .trim()
-        .replace(/\s+/g, "-");
-      const zipFileName = `${fv.mp_clientname || "client"}-${campaignNameSafe || "campaign"}-all-files.zip`;
-      saveAs(zipBlob, zipFileName);
+        .replace(/\s+/g, "-")
+      saveAs(
+        zipBlob,
+        `${fv.mp_clientname || "client"}-${campaignNameSafe || "campaign"}-all-files.zip`
+      )
+      setModalLoading(false)
+      setModalOpen(false)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
 
-      setModalLoading(false);
-      setModalOpen(false);
-
-      await handleSaveAll();
-    } catch (error: any) {
-      console.error("Error in save and download all:", error);
-      setModalLoading(false);
-      setModalTitle("Error");
-      setModalOutcome(error?.message || "Failed to save and download all files");
+  const handleSaveAndDownloadAll = async () => {
+    if (!isPublished) {
+      await handleSaveAll({ intent: "publish", zipAfter: true })
+      return
+    }
+    try {
+      await zipPublishedEditDocuments()
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to save and download all files"
+      setModalLoading(false)
+      setModalTitle("Error")
+      setModalOutcome(message)
       toast({
         title: "Error",
-        description: error?.message || "Failed to save and download all files",
+        description: message,
         variant: "destructive",
-      });
-    } finally {
-      setIsDownloading(false);
+      })
     }
   }
 
@@ -11579,10 +11884,10 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       issues={builderIssues}
       extraProblemTexts={extraProblemTexts}
       savePrimary={planDraft.pill?.primary ?? predictedSaveModeLabel ?? null}
-      saveSecondary={null}
+      saveSecondary={EDIT_DRAFT_DOWNLOAD_RAIL}
       saveTip={
-        isPublished
-          ? `v${selectedVersionNumber ?? mediaPlan?.version_number ?? "?"}`
+        isPublished && publishedPointerNumber > 0
+          ? `v${publishedPointerNumber}`
           : null
       }
       isSaving={isSaving}
@@ -11783,6 +12088,15 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           }
           autosaveStatus={planDraft.pill?.secondary ?? null}
           onPublishMba={handleGenerateMBA}
+          onDraftMba={() => void handleDraftMba()}
+          onDraftMediaPlan={() => void handleDraftMediaPlan()}
+          onDraftAa={() => void handleDraftAa()}
+          hasWorkingDraftOrDirty={
+            Boolean(planDraft.activeDraft) || hasUnsavedChanges
+          }
+          publishedVersionNumber={
+            publishedPointerNumber > 0 ? publishedPointerNumber : null
+          }
           mbaBusy={isMbaGenerating}
           onDownloadMediaPlan={() => void handleDownloadMediaPlan()}
           onDownloadAa={handleDownloadAdvertisingAssociatesMediaPlan}

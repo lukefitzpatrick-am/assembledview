@@ -73,9 +73,9 @@ describe("PlanWizardBottomBar", () => {
     container.remove()
   })
 
-  it("renders Publish, Save draft, then MBA first in the download group", async () => {
+  it("renders Publish, Save draft, then draft MBA first in the download group", async () => {
     act(() => {
-      root.render(renderBar())
+      root.render(renderBar({ isCreate: true }))
     })
     const labels = Array.from(container.querySelectorAll("button"))
       .map((el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "")
@@ -83,17 +83,16 @@ describe("PlanWizardBottomBar", () => {
         (text) =>
           text === "Publish" ||
           text === "Save draft" ||
-          text === "MBA" ||
-          text === "Media Plan" ||
+          text === "Download draft MBA" ||
+          text === "Download draft Media Plan" ||
           text === "Media Plan (AA)" ||
           text === "Generate Naming (Ava)",
       )
-    expect(labels.slice(0, 6)).toEqual([
+    expect(labels.slice(0, 5)).toEqual([
       "Publish",
       "Save draft",
-      "MBA",
-      "Media Plan",
-      "Media Plan (AA)",
+      "Download draft MBA",
+      "Download draft Media Plan",
       "Generate Naming (Ava)",
     ])
     const allButtonLabels = Array.from(container.querySelectorAll("button")).map(
@@ -112,30 +111,43 @@ describe("PlanWizardBottomBar", () => {
     )
     expect(container.querySelector('[aria-label="Save draft menu"]')).not.toBeNull()
     const mba = Array.from(container.querySelectorAll("button")).find(
-      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "MBA",
+      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "Download draft MBA",
     )
-    expect(mba?.className).toContain("bg-primary")
-    expect(mba?.className).not.toContain("border-border")
+    expect(mba?.className).not.toContain("bg-primary")
     expect(mba?.querySelector("svg")).toBeTruthy()
   })
 
-  it("disables MBA until published and uses the draft title", () => {
+  it("enables draft MBA on create and uses the watermark hint", () => {
+    act(() => {
+      root.render(renderBar({ isCreate: true, isPublished: false }))
+    })
+    const mba = Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "Download draft MBA",
+    )
+    expect(mba).toBeTruthy()
+    expect(mba?.disabled).toBe(false)
+    expect(mba?.getAttribute("title")).toBe("Watermarked DRAFT. Clients still have vN.")
+  })
+
+  it("edit dirty shows Draft MBA and Published MBA (vN)", () => {
     act(() => {
       root.render(
         renderBar({
-          isPublished: false,
-          draftBlocksDownloadMessage: "Publish this version to download and send to client",
+          isPublished: true,
+          hasWorkingDraftOrDirty: true,
+          publishedVersionNumber: 33,
         }),
       )
     })
-    const mba = Array.from(container.querySelectorAll("button")).find(
-      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "MBA",
+    const labels = Array.from(container.querySelectorAll("button")).map(
+      (el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "",
     )
-    expect(mba).toBeTruthy()
-    expect(mba?.disabled).toBe(true)
-    expect(mba?.getAttribute("title")).toBe(
-      "Publish this version to download and send to client",
+    expect(labels).toContain("Draft MBA")
+    expect(labels).toContain("Published MBA (v33)")
+    const draft = Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "Draft MBA",
     )
+    expect(draft?.className).not.toContain("bg-primary")
   })
 
   it("shows Generating MBA… while busy", () => {

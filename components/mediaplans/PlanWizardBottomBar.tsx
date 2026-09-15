@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   DRAFT_BLOCKS_DOWNLOAD_MESSAGE,
+  wizardDownloadControls,
   wizardPublishMbaLabel,
 } from "@/lib/mediaplan/planWizardSaveBar"
 import { cn } from "@/lib/utils"
@@ -39,6 +40,12 @@ export type PlanWizardBottomBarProps = {
   mbaBusy: boolean
   onDownloadMediaPlan: () => void
   onDownloadAa: () => void
+  onDraftMba?: () => void
+  onDraftMediaPlan?: () => void
+  onDraftAa?: () => void
+  isCreate?: boolean
+  hasWorkingDraftOrDirty?: boolean
+  publishedVersionNumber?: number | null
   onDownloadNaming: () => void
   onSaveAndDownloadAll: () => void
   isDownloading: boolean
@@ -80,6 +87,12 @@ export function PlanWizardBottomBar({
   mbaBusy,
   onDownloadMediaPlan,
   onDownloadAa,
+  onDraftMba,
+  onDraftMediaPlan,
+  onDraftAa,
+  isCreate = false,
+  hasWorkingDraftOrDirty = false,
+  publishedVersionNumber = null,
   onDownloadNaming,
   onSaveAndDownloadAll,
   isDownloading,
@@ -91,6 +104,13 @@ export function PlanWizardBottomBar({
   draftBlocksDownloadMessage = DRAFT_BLOCKS_DOWNLOAD_MESSAGE,
   failedLoadRetry = null,
 }: PlanWizardBottomBarProps) {
+  const controls = wizardDownloadControls({
+    isCreate,
+    isPublished,
+    hasWorkingDraftOrDirty,
+    publishedVersionNumber,
+  })
+  const draftHint = controls.draftHint
   const unpublishedTitle = !isPublished ? draftBlocksDownloadMessage : undefined
   const downloadBlocked = gateDownloadsOnPublish && !isPublished
   const downloadsBusy =
@@ -98,6 +118,8 @@ export function PlanWizardBottomBar({
   const mediaPlanDisabled = downloadBlocked || downloadsBusy
   const aaDisabled =
     downloadBlocked || !hasAdvertisingAssociatesBilling || downloadsBusy
+  const draftAaHidden =
+    !controls.showDraftAa || !hasAdvertisingAssociatesBilling
   const zipDisabled = downloadsLocked || isDownloading || isDownloadingAa
   const publishAndDownloadAllItem = {
     label: "Publish & download all",
@@ -105,6 +127,11 @@ export function PlanWizardBottomBar({
     onSelect: onSaveAndDownloadAll,
     disabled: zipDisabled,
   }
+  const draftMba = onDraftMba ?? onPublishMba
+  const draftMediaPlan = onDraftMediaPlan ?? onDownloadMediaPlan
+  const draftAa = onDraftAa ?? onDownloadAa
+  const draftBtnClass =
+    "hidden h-9 shrink-0 rounded-pill border border-border bg-background px-4 py-2 text-foreground hover:bg-muted md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
 
   return (
     <>
@@ -203,37 +230,120 @@ export function PlanWizardBottomBar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={onPublishMba}
-              disabled={mbaBusy || downloadsLocked || !isPublished}
-              title={unpublishedTitle}
-            >
-              {wizardPublishMbaLabel({ isBusy: mbaBusy })}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={onDownloadMediaPlan}
-              disabled={mediaPlanDisabled}
-              title={gateDownloadsOnPublish ? unpublishedTitle : undefined}
-            >
-              Media Plan
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={onDownloadAa}
-              disabled={aaDisabled}
-              title={gateDownloadsOnPublish ? unpublishedTitle : undefined}
-              className={cn(
-                "text-brand-dark focus:bg-highlight/25 focus:text-brand-dark",
-                (!hasAdvertisingAssociatesBilling || downloadBlocked) && "opacity-50",
-              )}
-            >
-              Media Plan (AA)
-            </DropdownMenuItem>
+            {controls.showDraftGroup ? (
+              <>
+                <DropdownMenuItem
+                  onClick={draftMba}
+                  disabled={mbaBusy || downloadsLocked}
+                  title={draftHint}
+                >
+                  {wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.draftMbaLabel })}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={draftMediaPlan}
+                  disabled={downloadsBusy}
+                  title={draftHint}
+                >
+                  {controls.draftMediaPlanLabel}
+                </DropdownMenuItem>
+                {draftAaHidden ? null : (
+                  <DropdownMenuItem
+                    onClick={draftAa}
+                    disabled={aaDisabled}
+                    title={draftHint}
+                    className="text-brand-dark focus:bg-highlight/25 focus:text-brand-dark"
+                  >
+                    {controls.draftAaLabel}
+                  </DropdownMenuItem>
+                )}
+              </>
+            ) : null}
+            {controls.showPublishedGroup ? (
+              <>
+                <DropdownMenuItem
+                  onClick={onPublishMba}
+                  disabled={mbaBusy || downloadsLocked || !isPublished}
+                  title={unpublishedTitle}
+                >
+                  {wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.publishedMbaLabel })}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={onDownloadMediaPlan}
+                  disabled={mediaPlanDisabled}
+                  title={gateDownloadsOnPublish ? unpublishedTitle : undefined}
+                >
+                  {controls.publishedMediaPlanLabel}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={onDownloadAa}
+                  disabled={aaDisabled}
+                  title={gateDownloadsOnPublish ? unpublishedTitle : undefined}
+                  className={cn(
+                    "text-brand-dark focus:bg-highlight/25 focus:text-brand-dark",
+                    (!hasAdvertisingAssociatesBilling || downloadBlocked) && "opacity-50",
+                  )}
+                >
+                  {controls.publishedAaLabel}
+                </DropdownMenuItem>
+              </>
+            ) : null}
             <DropdownMenuItem onClick={onDownloadNaming} disabled={downloadsBusy}>
               Generate Naming (Ava)
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {controls.showDraftGroup ? (
+        <Button
+          type="button"
+          onClick={draftMba}
+          disabled={mbaBusy || downloadsLocked}
+          title={draftHint}
+          className={draftBtnClass}
+        >
+          {mbaBusy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          <span className="ml-2">
+            {wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.draftMbaLabel })}
+          </span>
+        </Button>
+      ) : null}
+      {controls.showDraftGroup ? (
+        <Button
+          type="button"
+          onClick={draftMediaPlan}
+          disabled={downloadsBusy}
+          title={draftHint}
+          className={draftBtnClass}
+        >
+          {isDownloading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          <span className="ml-2">{controls.draftMediaPlanLabel}</span>
+        </Button>
+      ) : null}
+      {controls.showDraftGroup && !draftAaHidden ? (
+        <Button
+          type="button"
+          onClick={draftAa}
+          disabled={aaDisabled}
+          title={draftHint}
+          className={cn(draftBtnClass, "text-foreground")}
+        >
+          {isDownloadingAa ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          <span className="ml-2">{controls.draftAaLabel}</span>
+        </Button>
+      ) : null}
+      {controls.showPublishedGroup ? (
       <Button
         type="button"
         onClick={onPublishMba}
@@ -246,8 +356,12 @@ export function PlanWizardBottomBar({
         ) : (
           <Download className="h-4 w-4" />
         )}
-        <span className="ml-2">{wizardPublishMbaLabel({ isBusy: mbaBusy })}</span>
+        <span className="ml-2">
+          {wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.publishedMbaLabel })}
+        </span>
       </Button>
+      ) : null}
+      {controls.showPublishedGroup ? (
       <Button
         type="button"
         onClick={onDownloadMediaPlan}
@@ -260,8 +374,12 @@ export function PlanWizardBottomBar({
         ) : (
           <Download className="h-4 w-4" />
         )}
-        <span className="ml-2">{isDownloading ? "Downloading..." : "Media Plan"}</span>
+        <span className="ml-2">
+          {isDownloading ? "Downloading..." : controls.publishedMediaPlanLabel}
+        </span>
       </Button>
+      ) : null}
+      {controls.showPublishedGroup ? (
       <Button
         type="button"
         onClick={onDownloadAa}
@@ -278,9 +396,10 @@ export function PlanWizardBottomBar({
           <Download className="h-4 w-4" />
         )}
         <span className="ml-2">
-          {isDownloadingAa ? "Creating AA Plan..." : "Media Plan (AA)"}
+          {isDownloadingAa ? "Creating AA Plan..." : controls.publishedAaLabel}
         </span>
       </Button>
+      ) : null}
       <div className="hidden items-center gap-2 md:flex">
         <Button
           type="button"

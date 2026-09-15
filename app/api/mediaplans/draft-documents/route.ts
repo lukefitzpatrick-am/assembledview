@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   if (!access.ok) return access.response
 
   const rendered = await renderDraftDocuments(body)
-  return new NextResponse(rendered.buffer, {
+  return new NextResponse(new Uint8Array(rendered.buffer), {
     status: 200,
     headers: {
       "Content-Type": rendered.mime,

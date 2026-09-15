@@ -7,13 +7,16 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 import ExcelJS from "exceljs"
 
+import type { DraftDocumentsBody } from "../draftDocumentsBody.js"
 import { renderDraftDocuments } from "../renderDraftDocuments.js"
 
-function fixtureSaveBody(overrides: Record<string, unknown> = {}) {
+function fixtureSaveBody(
+  overrides: Partial<DraftDocumentsBody> = {}
+): DraftDocumentsBody {
   return {
     mbaNumber: "draft001",
     versionNumber: 1,
-    mode: "publish",
+    mode: "publish" as const,
     campaignName: "Draft Campaign",
     brand: "Brand",
     poNumber: "PO-1",
@@ -54,7 +57,7 @@ function fixtureSaveBody(overrides: Record<string, unknown> = {}) {
     },
     campaignStatus: "Draft",
     ...overrides,
-  }
+  } as DraftDocumentsBody
 }
 
 describe("renderDraftDocuments writes nothing", () => {
