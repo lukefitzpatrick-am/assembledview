@@ -25,7 +25,7 @@ select
   r.date::date as date_day,
 
   /* Normalise display + join keys — raw Fivetran landing stays immutable. */
-  lower(trim(coalesce(g.name, r.ad_group_id::varchar))) as line_item_name,
+  g.name as line_item_name,
 
   /* relabellable id: trailing "-" token of the ad group name, else ad group id */
   lower(trim(
@@ -35,7 +35,7 @@ select
     )
   )) as line_item_id,
 
-  lower(trim(coalesce(g.name, r.ad_group_id::varchar))) as entity_name,
+  g.name as entity_name,
 
   /* immutable platform key */
   lower(trim(r.ad_group_id::varchar)) as entity_id,
