@@ -71,7 +71,10 @@ test("load → all lines approved; exclude one → totals drop and the note appe
   })
   assert.equal(scoped.mbaScopeTotals.grossMedia, 100_000)
   const note = excludedFromMbaScopeNoteFromLines(scoped.perLine)
-  assert.equal(note, "Excluded from MBA scope: $31,250.01 across 1 line")
+  assert.equal(
+    note,
+    "Not in this MBA: $31,250.01 across 1 line (see plan for full schedule)",
+  )
 
   const header: MediaPlanHeader = {
     logoBase64: "",

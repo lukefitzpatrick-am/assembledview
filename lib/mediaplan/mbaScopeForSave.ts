@@ -4,6 +4,11 @@
  * alias for `mbaScope.monthYears` only — it does not override per-line approval.
  */
 
+import {
+  buildCanonicalBillingLineIdSet,
+  canonicalBillingLineIdSetHas,
+} from "@/lib/finance/manualBillingOverridesUi"
+
 export type MbaScopeBody = {
   lineItemIds: string[] | null
   monthYears: string[] | null
@@ -58,14 +63,14 @@ export function applyMbaScopeLineApprovals<
   if (lineItemIds == null) {
     return lines.map((l) => ({ ...l, approval: "approved" as const }))
   }
-  const allowed = new Set(
-    lineItemIds.map((id) => String(id).trim()).filter(Boolean)
-  )
+  const allowed = buildCanonicalBillingLineIdSet(lineItemIds)
   return lines.map((l) => {
     const id = String(l.lineItemId).trim()
     return {
       ...l,
-      approval: allowed.has(id) ? ("approved" as const) : ("excluded" as const),
+      approval: canonicalBillingLineIdSetHas(allowed, id)
+        ? ("approved" as const)
+        : ("excluded" as const),
     }
   })
 }

@@ -192,6 +192,32 @@ describe("buildMediaItemsFromPlanDetail", () => {
     })
     assert.equal(result.mbaData.totals.service_fee, 5_000)
   })
+
+  it("mba_scope.partial drops excluded social rows; totals equal the slice; note is present", () => {
+    const result = buildMediaItemsFromPlanDetail({
+      versionData: {
+        ...versionMapped(),
+        mba_scope: {
+          lineItemIds: ["glenda008RA1", "glenda008BV1", "glenda008PROD1"],
+          monthYears: null,
+          partial: true,
+        },
+      },
+      clientName: dump.master.mpClientName,
+      lineItems: groupedLines(),
+      feeSnapshot: dump.feeSnapshot,
+      publishers: [],
+      logoBase64: LOGO,
+    })
+    assert.equal(result.mediaItems.socialMedia.length, 0)
+    assert.ok(result.mediaItems.radio.length > 0)
+    assert.ok(result.mediaItems.bvod.length > 0)
+    assert.notEqual(result.mbaData.totals.gross_media, 75_500)
+    assert.match(
+      String(result.mbaData.totals.excluded_from_mba_scope_note ?? ""),
+      /^Not in this MBA: /,
+    )
+  })
 })
 
 type Doc3Dump = {

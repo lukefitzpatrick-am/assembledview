@@ -87,6 +87,13 @@ test("applyMbaScopeLineApprovals: null = all in; [] = none", () => {
   assert.equal(subset.find((l) => l.lineItemId === "B")?.approval, "approved")
 })
 
+test("applyMbaScopeLineApprovals matches decorated ids to canonical scope ids", () => {
+  const lines = [{ lineItemId: "billing-ooh::keep" }, { lineItemId: "billing-ooh::drop" }]
+  const subset = applyMbaScopeLineApprovals(lines, ["keep"])
+  assert.equal(subset.find((l) => l.lineItemId === "billing-ooh::keep")?.approval, "approved")
+  assert.equal(subset.find((l) => l.lineItemId === "billing-ooh::drop")?.approval, "excluded")
+})
+
 test("buildPersistedMbaScope.partial is true when lines or months are a subset", () => {
   const countable = ["A", "B"]
   const months = ["May 2026", "June 2026"]

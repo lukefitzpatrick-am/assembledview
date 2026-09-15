@@ -1,5 +1,6 @@
 /**
- * Honest totals copy when MBA scope omits lines that section subtotals still show.
+ * Honest totals copy when MBA scope omits lines from this version.
+ * Channel sheets drop those rows; this note sits under Total Gross Media.
  */
 
 import { formatMoney } from "@/lib/format/money"
@@ -31,7 +32,7 @@ export function formatExcludedFromMbaScopeNote(
 ): string | null {
   if (lineCount <= 0) return null
   const noun = lineCount === 1 ? "line" : "lines"
-  return `Excluded from MBA scope: ${formatMoney(amount)} across ${lineCount} ${noun}`
+  return `Not in this MBA: ${formatMoney(amount)} across ${lineCount} ${noun} (see plan for full schedule)`
 }
 
 export function excludedFromMbaScopeNoteFromLines(

@@ -260,6 +260,7 @@ import {
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { buildMediaPlanWorkbookMbaData } from "@/lib/mediaplan/buildMediaPlanWorkbookMbaData"
 import { excludedFromMbaScopeNoteFromLines } from "@/lib/mediaplan/excludedMbaScopeNote"
+import { filterMediaItemsForMbaScope } from "@/lib/docs/filterMediaItemsForMbaScope"
 import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
@@ -3039,7 +3040,7 @@ function CreateMediaPlan() {
     const validInfluencersItems = influencersItems.filter(shouldIncludeMediaPlanLineItem);
     const validProductionLineItems = productionItems.filter(shouldIncludeMediaPlanLineItem);
 
-    const mediaItems: MediaItems = {
+    const assembledMediaItems: MediaItems = {
       search:       assignLineItemIds(validSearchItems,       "SRC"),
       socialMedia:  assignLineItemIds(validSocialMediaItems,  "SOC"),
       digiAudio:    assignLineItemIds(validDigiAudioItems,    "DA"),
@@ -3061,6 +3062,15 @@ function CreateMediaPlan() {
       influencers:  assignLineItemIds(validInfluencersItems,  "INF"),
       production:   assignLineItemIds(validProductionLineItems,   MEDIA_TYPE_ID_CODES.production),
     };
+
+    const mediaItems = filterMediaItemsForMbaScope(
+      assembledMediaItems,
+      buildMbaScopeForSaveBody({
+        isPartialMBA,
+        partialMBASelectedLineItemIds,
+        partialMBAMonthYears,
+      }),
+    )
 
     // MBA totals for Excel — same core as MBA Details / PDF (partial via selected line ids).
     const coreTotals = campaignFinancials.mbaScopeTotals

@@ -164,6 +164,7 @@ import {
 import { computeCampaignFinancials, scheduleMonthYearToIso } from "@/lib/finance/computeCampaignFinancials"
 import { buildMediaPlanWorkbookMbaData } from "@/lib/mediaplan/buildMediaPlanWorkbookMbaData"
 import { excludedFromMbaScopeNoteFromLines } from "@/lib/mediaplan/excludedMbaScopeNote"
+import { filterMediaItemsForMbaScope } from "@/lib/docs/filterMediaItemsForMbaScope"
 import {
   buildHydrationToastItems,
   computeAllChannelsHydrated,
@@ -9296,7 +9297,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       campaignEnd: format(fv.mp_campaigndates_end, "dd/MM/yyyy"),
     }
 
-    const mediaItems: MediaItems = {
+    const assembledMediaItems: MediaItems = {
       search: searchItems.filter(shouldIncludeMediaPlanLineItem),
       socialMedia: socialMediaItems.filter(shouldIncludeMediaPlanLineItem),
       digiAudio: digitalAudioItems.filter(shouldIncludeMediaPlanLineItem),
@@ -9318,6 +9319,15 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       influencers: influencersItems.filter(shouldIncludeMediaPlanLineItem),
       production: productionItems.filter(shouldIncludeMediaPlanLineItem),
     }
+
+    const mediaItems = filterMediaItemsForMbaScope(
+      assembledMediaItems,
+      buildMbaScopeForSaveBody({
+        isPartialMBA,
+        partialMBASelectedLineItemIds,
+        partialMBAMonthYears,
+      }),
+    )
 
     // MBA totals for Excel — same core as MBA Details / PDF (partial via selected line ids).
     const coreTotals = campaignFinancials.mbaScopeTotals

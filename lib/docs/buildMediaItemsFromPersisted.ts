@@ -58,7 +58,10 @@ import {
 import { excludedFromMbaScopeNoteFromLines } from "@/lib/mediaplan/excludedMbaScopeNote"
 import type { MediaItems, MediaPlanHeader } from "@/lib/generateMediaPlan"
 import { explodeExcelLineItems } from "@/lib/docs/explodeExcelLineItems"
+import { filterMediaItemsForMbaScope } from "@/lib/docs/filterMediaItemsForMbaScope"
 import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
+import { applyMbaScopeLineApprovals } from "@/lib/mediaplan/mbaScopeForSave"
+import { parsePersistedMbaScope } from "@/lib/mediaplan/mbaScopeClient"
 import type { Publisher } from "@/lib/types/publisher"
 
 export { explodeExcelLineItems } from "@/lib/docs/explodeExcelLineItems"
@@ -209,7 +212,7 @@ export function buildMediaItemsFromPlanDetail(
   }
 
   const feeLoading = buildFeeLoadingFromEditorFees(args.feeSnapshot as EditorFeeState)
-  const mediaItems = emptyMediaItems()
+  const exploded = emptyMediaItems()
   const seedConfigs: SeedLineFeesMediaConfig[] = []
 
   for (const mbaKey of MBA_GET_LINE_ITEM_KEYS) {
@@ -224,7 +227,7 @@ export function buildMediaItemsFromPlanDetail(
     const excelRows = formLines.flatMap((formLine, lineIndex) =>
       explodeExcelLineItems(mediaItemsKey, formLine, feePct, lineIndex),
     )
-    mediaItems[mediaItemsKey] = excelRows.filter(shouldIncludeMediaPlanLineItem)
+    exploded[mediaItemsKey] = excelRows.filter(shouldIncludeMediaPlanLineItem)
     seedConfigs.push({
       billingKey: mediaItemsKey,
       lineItems: formLines,
@@ -232,7 +235,14 @@ export function buildMediaItemsFromPlanDetail(
     })
   }
 
-  const lineInputs = buildEditorLineItemInputs(seedConfigs)
+  const persistedScope = parsePersistedMbaScope(
+    args.versionData.mba_scope ?? args.versionData.mbaScope,
+  )
+  const mediaItems = filterMediaItemsForMbaScope(exploded, persistedScope)
+  const unscopedInputs = buildEditorLineItemInputs(seedConfigs)
+  const lineInputs = persistedScope
+    ? applyMbaScopeLineApprovals(unscopedInputs, persistedScope.lineItemIds)
+    : unscopedInputs
   const campaignStartRaw =
     args.versionData.campaign_start_date ?? args.versionData.mp_campaigndates_start
   const campaignEndRaw =
@@ -247,6 +257,7 @@ export function buildMediaItemsFromPlanDetail(
     campaignStart:
       campaignStart && !Number.isNaN(campaignStart.getTime()) ? campaignStart : undefined,
     campaignEnd: campaignEnd && !Number.isNaN(campaignEnd.getTime()) ? campaignEnd : undefined,
+    selectedMonthYears: persistedScope?.monthYears ?? undefined,
   })
   const mediaByKey: Record<string, number> = {}
   for (const line of financials.perLine) {

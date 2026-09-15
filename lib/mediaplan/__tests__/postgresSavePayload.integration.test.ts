@@ -405,6 +405,7 @@ describe("create + edit assembly twins (shared helpers)", () => {
         src,
         /mbaScope:\s*buildMbaScopeForSaveBody\(\s*\{[\s\S]*?isPartialMBA,[\s\S]*?partialMBASelectedLineItemIds,[\s\S]*?partialMBAMonthYears/
       )
+      assert.match(src, /filterMediaItemsForMbaScope/)
     }
     assert.doesNotMatch(editSrc, /patchMbaLineApprovalsClient/)
     assert.doesNotMatch(editSrc, /forceIncrementForApprovals/)

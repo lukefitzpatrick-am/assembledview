@@ -30,7 +30,13 @@ import {
   type MediaPlanHeader,
 } from "@/lib/generateMediaPlan"
 import { explodeExcelLineItems } from "@/lib/docs/explodeExcelLineItems"
+import { filterMediaItemsForMbaScope } from "@/lib/docs/filterMediaItemsForMbaScope"
 import { buildMbaDataFromFinancials } from "@/lib/docs/buildMbaDataFromFinancials"
+import {
+  applyMbaScopeLineApprovals,
+  resolveMbaScopeInput,
+  selectedMonthYearsForFinancials,
+} from "@/lib/mediaplan/mbaScopeForSave"
 import type { DraftDocumentsBody } from "@/lib/docs/draftDocumentsBody"
 import {
   overrideRowsFromSaveLines,
@@ -172,12 +178,24 @@ export async function renderDraftDocuments(
     ...fromSnapshot,
     ...(body.feeLoading as FeeLoading),
   }
-  const selectedMonthYears =
-    body.partialMba?.selectedMonthYears ?? body.selectedMonthYears
   const approvedFromChips = body.partialMba?.approvedLineItemIds
+  const resolvedMbaScope = resolveMbaScopeInput({
+    mbaScope: body.mbaScope,
+    selectedMonthYears: body.selectedMonthYears,
+  })
+  const selectedMonthYears =
+    resolvedMbaScope.source === "mbaScope" ||
+    resolvedMbaScope.source === "legacyMonths"
+      ? selectedMonthYearsForFinancials(resolvedMbaScope)
+      : (body.partialMba?.selectedMonthYears ?? body.selectedMonthYears)
 
   let lineInputs = saveBodyToLineItemInputs(lines)
-  if (approvedFromChips) {
+  if (resolvedMbaScope.source === "mbaScope") {
+    lineInputs = applyMbaScopeLineApprovals(
+      lineInputs,
+      resolvedMbaScope.scope.lineItemIds,
+    )
+  } else if (approvedFromChips) {
     const allowed = new Set(approvedFromChips.map((id) => String(id).trim()))
     lineInputs = lineInputs.map((l) => ({
       ...l,
@@ -203,12 +221,10 @@ export async function renderDraftDocuments(
       selectedMonthYears,
     }
   )
-  const approvedLineItemIds =
-    approvedFromChips ??
-    lines
-      .filter((l) => (l.approval ?? "approved") !== "excluded")
-      .map((l) => String(l.lineItemId).trim())
-      .filter(Boolean)
+  const approvedLineItemIds = lineInputs
+    .filter((l) => l.approval !== "excluded")
+    .map((l) => String(l.lineItemId).trim())
+    .filter(Boolean)
   const slice = computeApprovedSlice({
     financials,
     selectedMonthYears,
@@ -280,6 +296,15 @@ export async function renderDraftDocuments(
     mediaItems[mediaKey] = [...mediaItems[mediaKey], ...excelRows]
   }
 
+  const mediaItemsScoped = filterMediaItemsForMbaScope(
+    mediaItems,
+    resolvedMbaScope.source === "mbaScope"
+      ? resolvedMbaScope.scope
+      : approvedFromChips
+        ? { lineItemIds: approvedFromChips }
+        : null,
+  )
+
   const mediaByKey: Record<string, number> = {}
   for (const line of financials.perLine) {
     if (line.flags.excluded) continue
@@ -319,8 +344,8 @@ export async function renderDraftDocuments(
   const publishers = (body.publishers ?? []) as Publisher[]
   const itemsForWorkbook =
     body.kind === "aa_media_plan"
-      ? filterMediaItemsForAdvertisingAssociates(mediaItems, publishers)
-      : mediaItems
+      ? filterMediaItemsForAdvertisingAssociates(mediaItemsScoped, publishers)
+      : mediaItemsScoped
   const mbaForWorkbook =
     body.kind === "aa_media_plan"
       ? buildAdvertisingAssociatesMbaDataFromMediaItems(itemsForWorkbook)
