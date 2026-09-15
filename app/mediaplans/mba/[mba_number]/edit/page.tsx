@@ -434,8 +434,10 @@ import {
   DOC_SKIP_REASON,
   DOC_STEP_MBA,
   DOC_STEP_MEDIA_PLAN,
+  applyPublishDocumentsStep,
   classifyDocStepFailure,
   shouldSkipDocsForCampaignStatus,
+  skipUnrunPostgresSaveSteps,
 } from "@/lib/docs/saveDocSteps"
 import { deriveLiveMbaScopeSelection } from "@/lib/docs/liveMbaScopeSelection"
 import { liveCampaignDatesIfChanged } from "@/lib/docs/liveCampaignDates"
@@ -1860,7 +1862,7 @@ if (HYDRATION_WATCHDOG_MS <= LINE_ITEM_TIMEOUT_INITIAL_MS + LINE_ITEM_TIMEOUT_AU
  */
 const FF_BILLING_DIVERGENCE_ENABLED = true
 
-export default function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) {
+function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) {
   // Use React's use() hook to unwrap the params Promise
   // This ensures we get the latest value on every render/navigation
   const { mba_number: mbaNumber } = use(params)
@@ -6756,6 +6758,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     masterId: resolveMasterIdFromCombinedPlan(mediaPlan),
     mbaNumber: String(mbaNumber ?? ""),
     dirty: hasUnsavedChanges,
+    subscribeDirty: dirty.subscribe,
     baseVersionId: draftBaseVersionId,
     campaignStatus: watchedCampaignStatus ?? mediaPlan?.campaign_status,
     publishedVersionNumber:
@@ -7787,10 +7790,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               title: expired ? SESSION_EXPIRED_TITLE : "Draft save failed",
               description: human,
             })
+            skipUnrunPostgresSaveSteps(updateSaveStatus)
             setIsSaving(false)
             return
           }
           updateSaveStatus("Save plan (transactional)", "success")
+          skipUnrunPostgresSaveSteps(updateSaveStatus)
           await afterSuccessfulSave({
             skipDownload: true,
             existingToast: {
@@ -7954,6 +7959,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         )
 
         if (!saveResult.ok) {
+          skipUnrunPostgresSaveSteps(updateSaveStatus)
           if (isUnauthorizedStatus(saveResult.status)) {
             setSaveStatus((prev) =>
               applySessionExpiredToSaveItems(prev, "Save plan (transactional)")
@@ -8019,6 +8025,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
 
         updateSaveStatus("Save plan (transactional)", "success")
+        applyPublishDocumentsStep(updateSaveStatus, saveResult.data.documents)
+        if (saveResult.data.documents?.status === "error") {
+          toast({
+            variant: "destructive",
+            title: "Plan saved without documents",
+            description: saveResult.data.documents.error || "Document generation failed",
+          })
+        }
         if (saveResult.data.ingestStageRetained) {
           ingestStageIdRef.current = null
         }
@@ -13921,6 +13935,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       />
     </>
     </DraftDiffProvider>
+  )
+}
+
+export default function EditMediaPlanPage({
+  params,
+}: {
+  params: Promise<{ mba_number: string }>
+}) {
+  return (
+    <Suspense fallback={<MediaContainerSuspenseFallback label="campaign form" />}>
+      <EditMediaPlan params={params} />
+    </Suspense>
   )
 }
 
