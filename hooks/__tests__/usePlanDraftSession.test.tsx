@@ -84,7 +84,7 @@ describe("usePlanDraftSession disabled path (NEXT_PUBLIC_PLAN_DRAFTS off)", () =
     expect(latest?.enabled).toBe(false)
     // Pill always comes from describePlanSavePill (mode primary); autosave chrome stays off.
     expect(latest?.pill?.primary).toMatch(
-      /Draft of v2|Working draft|Publish will create|Save will create/i
+      /Draft of v2|Working draft|Publishing will create|Publish will create|Save will create/i
     )
 
     const modeAfterMount = latest?.modeResolved

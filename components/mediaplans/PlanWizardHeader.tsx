@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { Badge } from "@/components/ui/badge"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -69,6 +70,7 @@ export type PlanWizardVersionChromeProps = {
   versionLabel: ReactNode
   trail: ReactNode
   versionSelect?: ReactNode
+  showDraftBadge?: boolean
 }
 
 /** Edit-only secondary-row chrome: version pill · trail · picker. */
@@ -76,6 +78,7 @@ export function PlanWizardVersionChrome({
   versionLabel,
   trail,
   versionSelect,
+  showDraftBadge = false,
 }: PlanWizardVersionChromeProps) {
   return (
     <div
@@ -84,6 +87,11 @@ export function PlanWizardVersionChrome({
       aria-label="Plan version"
     >
       <span className="num break-words">{versionLabel}</span>
+      {showDraftBadge ? (
+        <Badge variant="info" size="sm" className="rounded-pill">
+          Draft
+        </Badge>
+      ) : null}
       <span className="text-border" aria-hidden>
         •
       </span>

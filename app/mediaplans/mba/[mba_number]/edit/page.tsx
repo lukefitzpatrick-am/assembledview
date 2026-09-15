@@ -230,6 +230,7 @@ import {
 } from "@/lib/auth/writeSessionExpiry"
 import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
 import {
+  PlanDraftDiscardConfirmDialog,
   PlanDraftActiveBanner,
   PlanDraftFieldDiffDialog,
   PlanDraftLocalOnlyBanner,
@@ -241,6 +242,7 @@ import { DraftDiffProvider } from "@/hooks/useDraftFieldDiff"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
 import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
 import { EMPTY_DRAFT_DIFF_SUMMARY } from "@/lib/mediaplan/drafts/fieldDiff"
+import { isPlanDraftsEnabled } from "@/lib/mediaplan/drafts/flag"
 import {
   describeVersionHeaderTrail,
   resolveTipVersionIdAtLoad,
@@ -1905,6 +1907,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [isLoading, setIsLoading] = useState(true)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingAa, setIsDownloadingAa] = useState(false)
+  const [isMbaGenerating, setIsMbaGenerating] = useState(false)
+  const [draftStripDismissed, setDraftStripDismissed] = useState(false)
+  const [discardConfirmAt, setDiscardConfirmAt] = useState<string | null>(null)
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [clientAddress, setClientAddress] = useState("")
@@ -6914,10 +6919,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     },
   })
 
-  const otherEditorLabel =
-    planDraft.others[0] != null
-      ? `${planDraft.others[0].userLabel || planDraft.others[0].userId} has an open draft (since ${new Date(planDraft.others[0].updatedAt).toLocaleString()})`
-      : null
+  useEffect(() => {
+    setDraftStripDismissed(false)
+  }, [planDraft.activeDraft?.updatedAt, planDraft.recovery?.updatedAt])
+
+  const requestDiscardDraft = (updatedAt: string) => {
+    setDiscardConfirmAt(updatedAt)
+  }
 
   const draftTipCompare = planDraft.recovery
     ? (() => {
@@ -7787,7 +7795,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             skipDownload: true,
             existingToast: {
               title: "Working draft saved",
-              description: `Draft of v${modeResolved.versionNumber} stored — publish to cut the next version.`,
+              description: `Draft of v${modeResolved.versionNumber} saved. Publishing will create the next version.`,
             },
           })
           setIsSaving(false)
@@ -7963,12 +7971,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             updateSaveStatus(
               "Save plan (transactional)",
               "error",
-              "Published tip moved — compare and re-apply"
+              "Someone published a new version — compare and re-apply"
             )
             toast({
               variant: "destructive",
-              title: "Tip moved since you started",
-              description: "Compare base / yours / current, then re-apply manually.",
+              title: "Someone published this plan while you were editing",
+              description: "Your draft is kept. Compare the two, then re-apply what you need.",
             })
             setIsSaving(false)
             return
@@ -9400,7 +9408,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       toast({ title: draftBlocksDownloadMessage })
       return
     }
-    setIsLoading(true)
+    setIsMbaGenerating(true)
     try {
       const { blob: pdfBlob, fileName } = await generateMbaPdfBlob({
         liveScope: true,
@@ -9434,7 +9442,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         variant: "destructive" 
       })
     } finally {
-      setIsLoading(false)
+      setIsMbaGenerating(false)
     }
   }
 
@@ -10508,7 +10516,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         toast({
           title: "New MBA version required",
           description:
-            "Approval set changed. Save the campaign to cut the next version and persist line approvals.",
+            "Approval set changed. Publish to create the next version and persist line approvals.",
         })
         return
       }
@@ -11470,6 +11478,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const saveDraftThenExit = async () => {
     try {
       await planDraft.saveDraftNow()
+      toast({
+        title: `Draft saved · ${new Date().toLocaleTimeString()}`,
+      })
       clearDirtyOnSaveSuccess()
       router.push("/mediaplans")
     } catch (err: unknown) {
@@ -11553,49 +11564,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     <PlanWizardSaveMessages
       issues={builderIssues}
       extraProblemTexts={extraProblemTexts}
-      draftBanner={
-        planDraft.activeDraft ? (
-          <PlanDraftActiveBanner
-            compact
-            updatedAt={planDraft.activeDraft.updatedAt}
-            summary={
-              planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY
-            }
-            tipVersionNumber={
-              selectedVersionNumber ?? mediaPlan?.version_number ?? "?"
-            }
-            onViewChanges={() => planDraft.setCompareOpen(true)}
-            onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
-          />
-        ) : planDraft.recovery?.source === "local_only" ? (
-          <PlanDraftLocalOnlyBanner
-            compact
-            updatedAt={planDraft.recovery.updatedAt}
-            onApply={() => planDraft.resume()}
-            onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
-          />
-        ) : planDraft.recovery ? (
-          <PlanDraftStaleBanner
-            compact
-            updatedAt={planDraft.recovery.updatedAt}
-            baseVersionNumber={resolveDraftBaseVersionNumber(
-              availableVersions,
-              planDraft.recovery.draftBaseVersionId,
-            )}
-            tipVersionNumber={
-              selectedVersionNumber ??
-              (typeof latestVersionNumber === "number" ? latestVersionNumber : "?")
-            }
-            onLoadAnyway={() => planDraft.resume()}
-            onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
-            onCompare={() => planDraft.setCompareOpen(true)}
-          />
-        ) : otherEditorLabel ? (
-          <p className="text-xs text-muted-foreground">{otherEditorLabel}</p>
-        ) : null
-      }
       savePrimary={planDraft.pill?.primary ?? predictedSaveModeLabel ?? null}
-      saveSecondary={planDraft.pill?.secondary ?? null}
+      saveSecondary={null}
       saveTip={
         isPublished
           ? `v${selectedVersionNumber ?? mediaPlan?.version_number ?? "?"}`
@@ -11604,6 +11574,41 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       isSaving={isSaving}
     />
   )
+
+  const publishedTipLabel = `v${selectedVersionNumber ?? mediaPlan?.version_number ?? "?"}`
+  const wizardDraftStrip =
+    draftStripDismissed ? null : planDraft.activeDraft ? (
+      <PlanDraftActiveBanner
+        updatedAt={planDraft.activeDraft.updatedAt}
+        summary={planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY}
+        tipVersionNumber={
+          selectedVersionNumber ?? mediaPlan?.version_number ?? "?"
+        }
+        onViewChanges={() => planDraft.setCompareOpen(true)}
+        onDiscard={() => requestDiscardDraft(planDraft.activeDraft!.updatedAt)}
+      />
+    ) : planDraft.recovery?.source === "local_only" ? (
+      <PlanDraftLocalOnlyBanner
+        updatedAt={planDraft.recovery.updatedAt}
+        onApply={() => planDraft.resume()}
+        onDiscard={() => requestDiscardDraft(planDraft.recovery!.updatedAt)}
+      />
+    ) : planDraft.recovery ? (
+      <PlanDraftStaleBanner
+        updatedAt={planDraft.recovery.updatedAt}
+        baseVersionNumber={resolveDraftBaseVersionNumber(
+          availableVersions,
+          planDraft.recovery.draftBaseVersionId,
+        )}
+        tipVersionNumber={
+          selectedVersionNumber ??
+          (typeof latestVersionNumber === "number" ? latestVersionNumber : "?")
+        }
+        onLoadAnyway={() => planDraft.resume()}
+        onDiscard={() => requestDiscardDraft(planDraft.recovery!.updatedAt)}
+        onCompare={() => planDraft.setCompareOpen(true)}
+      />
+    ) : null
 
   const wizardDraftDialogs = (
     <>
@@ -11633,6 +11638,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           onClose={() => planDraft.setCompareOpen(false)}
         />
       ) : null}
+      <PlanDraftDiscardConfirmDialog
+        open={discardConfirmAt != null}
+        updatedAt={discardConfirmAt}
+        onKeep={() => setDiscardConfirmAt(null)}
+        onDiscard={() => {
+          setDiscardConfirmAt(null)
+          catchPlanDraftAction(planDraft.discard(), toast)
+        }}
+      />
     </>
   )
 
@@ -11726,17 +11740,36 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             savePublishesImmediately: SAVE_PUBLISHES_IMMEDIATELY,
             isPublished,
           })}
-          onSaveDraft={() =>
-            catchPlanDraftAction(
-              planDraft.saveDraftNow(),
-              toast,
-              "Draft save failed"
-            )
-          }
+          onSaveDraft={() => {
+            void (async () => {
+              try {
+                await planDraft.saveDraftNow()
+                toast({
+                  title: `Draft saved · ${new Date().toLocaleTimeString()}`,
+                })
+              } catch (err: unknown) {
+                const expired = isWriteSessionExpiredError(err)
+                const human = expired
+                  ? SESSION_EXPIRED_SAVE_MESSAGE
+                  : err instanceof Error
+                    ? err.message
+                    : String(err)
+                toast({
+                  variant: "destructive",
+                  title: expired ? SESSION_EXPIRED_TITLE : "Draft save failed",
+                  description: human,
+                })
+              }
+            })()
+          }}
           onSaveDraftAndExit={() => void saveDraftThenExit()}
           saveDraftDisabled={isSaving || isLoading || saveBlockedByFailedChannelLoad || !hasUnsavedChanges}
+          saveDraftTitle={
+            !hasUnsavedChanges ? "No changes since your last save" : undefined
+          }
+          autosaveStatus={planDraft.pill?.secondary ?? null}
           onPublishMba={handleGenerateMBA}
-          mbaBusy={isLoading}
+          mbaBusy={isMbaGenerating}
           onDownloadMediaPlan={() => void handleDownloadMediaPlan()}
           onDownloadAa={handleDownloadAdvertisingAssociatesMediaPlan}
           onDownloadNaming={handleDownloadNamingConventions}
@@ -11759,7 +11792,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       <PlanWizardShell
         header={
           <>
-            <PlanPresenceBanner line={planDraft.presenceLine} />
             <PlanWizardHeader
               title="Edit Campaign"
               breadcrumbCurrent="Edit Campaign"
@@ -11774,9 +11806,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   <Skeleton className="h-3 w-8" />
                   <Skeleton className="h-3 w-16" />
                   <Skeleton className="h-7 w-28" />
+                  {planDraft.presenceLine ? (
+                    <PlanPresenceBanner line={planDraft.presenceLine} />
+                  ) : null}
                 </div>
               }
             />
+            {wizardDraftStrip}
           </>
         }
         steps={createCampaignSteps.map((step) => ({
@@ -11794,6 +11830,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
         onNavigate={requestNavigation}
         summary={wizardSummary}
+        summaryLoading={isLoading}
         onExit={handleExit}
         exitLabel="Exit to Campaigns"
         isSaving={isSaving}
@@ -11946,15 +11983,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       <PlanWizardShell
         header={
           <>
-            <PlanPresenceBanner line={planDraft.presenceLine} />
             <PlanWizardHeader
             title="Edit Campaign"
             breadcrumbCurrent="Edit Campaign"
             subtitle={<p>Update campaign settings, media types, and line item details.</p>}
             secondary={
-              <PlanWizardVersionChrome
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+                <PlanWizardVersionChrome
                 versionLabel={`v${selectedVersionNumber ?? mediaPlan?.version_number ?? "—"}`}
                 trail={describeVersionHeaderTrail(planDraft.modeResolved)}
+                showDraftBadge={Boolean(planDraft.activeDraft)}
                 versionSelect={
                   latestVersionNumber > 1 ? (
                     <Combobox
@@ -11985,8 +12023,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   ) : undefined
                 }
               />
+                {planDraft.presenceLine ? (
+                  <PlanPresenceBanner line={planDraft.presenceLine} />
+                ) : null}
+              </div>
             }
           />
+            {wizardDraftStrip}
           </>
         }
         steps={createCampaignSteps.map((step) => ({
@@ -12005,6 +12048,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
         onNavigate={requestNavigation}
         summary={wizardSummary}
+        summaryLoading={isLoading}
         onExit={handleExit}
         exitLabel="Exit to Campaigns"
         isSaving={isSaving}
@@ -12871,6 +12915,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         onSave={() => void handleSaveAll()}
         onLeave={confirmNavigation}
         isSaving={isLoading || isSaving}
+        draftSaved={
+          isPlanDraftsEnabled() &&
+          (Boolean(planDraft.activeDraft) ||
+            Boolean(planDraft.pill?.secondary?.startsWith("Autosaved")))
+        }
+        tipVersionLabel={publishedTipLabel}
         saveDisabled={saveBlockedByDuplicates || saveBlockedByClientsError}
         saveDisabledReason={
           saveBlockedByClientsError

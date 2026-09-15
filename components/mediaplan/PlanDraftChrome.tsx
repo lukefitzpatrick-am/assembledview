@@ -3,6 +3,14 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -489,5 +497,68 @@ export function PlanDraftFieldDiffDialog(props: {
         </Button>
       </div>
     </div>
+  )
+}
+
+export function CreatePlanDraftActiveBanner(props: {
+  headline: string
+  onKeepGoing: () => void
+  onStartFresh: () => void
+}) {
+  return (
+    <div
+      role="status"
+      className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-status-warning/40 bg-surface-panel px-3 py-2 shadow-e0"
+    >
+      <div className="min-w-0">
+        <p className="text-sm text-foreground" title={props.headline}>
+          {props.headline}
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          It&apos;s saved on this browser only.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" onClick={props.onKeepGoing}>
+          Keep going
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={props.onStartFresh}>
+          Start fresh
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export function PlanDraftDiscardConfirmDialog(props: {
+  open: boolean
+  updatedAt: string | null
+  onKeep: () => void
+  onDiscard: () => void
+}) {
+  const when =
+    props.updatedAt != null ? formatDraftRelativeTime(props.updatedAt) : "just now"
+  return (
+    <Dialog
+      open={props.open}
+      onOpenChange={(next) => {
+        if (!next) props.onKeep()
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Discard your draft from {when}?</DialogTitle>
+          <DialogDescription>This can&apos;t be undone.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" autoFocus onClick={props.onKeep}>
+            Keep draft
+          </Button>
+          <Button type="button" variant="destructive" onClick={props.onDiscard}>
+            Discard
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

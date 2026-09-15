@@ -5,6 +5,7 @@ import { ArrowUpRight, Check } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useSidebar } from "@/components/ui/sidebar"
+import { Skeleton } from "@/components/ui/skeleton"
 import { CAMPAIGN_BUDGET_REMAINING_BASIS_CAPTION } from "@/lib/mediaplan/campaignBudgetRemaining"
 import { cn } from "@/lib/utils"
 
@@ -65,6 +66,8 @@ export type PlanWizardShellProps = {
   saveDisabledReason?: string | null
   /** Sidebar card below Draft Summary. Omit or pass null when idle (no empty card). */
   statusPanel?: ReactNode
+  /** Edit: skeleton the summary while the plan is still loading. */
+  summaryLoading?: boolean
   bottomBar: ReactNode
   children: ReactNode
 }
@@ -82,6 +85,7 @@ export function PlanWizardShell({
   saveDisabled = false,
   saveDisabledReason = null,
   statusPanel = null,
+  summaryLoading = false,
   bottomBar,
   children,
 }: PlanWizardShellProps) {
@@ -323,48 +327,75 @@ export function PlanWizardShell({
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.65)]">
                   Draft Summary
                 </p>
-                <h2 className="text-sm font-semibold leading-tight break-words">{summary.title}</h2>
-                <p className="text-xs break-words text-[hsl(var(--sidebar-foreground)/0.72)]">{summary.client}</p>
+                {summaryLoading ? (
+                  <div className="space-y-2" aria-busy="true" aria-label="Loading draft summary">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-28" />
+                  </div>
+                ) : (
+                  <>
+                    <h2 className="text-sm font-semibold leading-tight break-words">{summary.title}</h2>
+                    <p className="text-xs break-words text-[hsl(var(--sidebar-foreground)/0.72)]">{summary.client}</p>
+                  </>
+                )}
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">
                     Budget
                   </p>
-                  <p className="num font-semibold">{summary.budget}</p>
+                  {summaryLoading ? (
+                    <Skeleton className="mt-1 h-4 w-16" />
+                  ) : (
+                    <p className="num font-semibold">{summary.budget}</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">
                     Channels
                   </p>
-                  <p className="num font-semibold">{summary.channels}</p>
+                  {summaryLoading ? (
+                    <Skeleton className="mt-1 h-4 w-8" />
+                  ) : (
+                    <p className="num font-semibold">{summary.channels}</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">
                     Budget remaining
                   </p>
-                  <p
-                    className={cn(
-                      "num font-semibold",
-                      summary.budgetRemainingOverspend && "text-status-behind-fg"
-                    )}
-                  >
-                    {summary.budgetRemaining}
-                  </p>
-                  <p className="mt-0.5 text-[10px] leading-snug text-[hsl(var(--sidebar-foreground)/0.55)]">
-                    {CAMPAIGN_BUDGET_REMAINING_BASIS_CAPTION}
-                  </p>
-                  {summary.budgetRemainingOverspend ? (
-                    <p className="mt-0.5 text-[10px] leading-snug text-status-behind-fg">
-                      Over campaign budget
-                    </p>
-                  ) : null}
+                  {summaryLoading ? (
+                    <Skeleton className="mt-1 h-4 w-16" />
+                  ) : (
+                    <>
+                      <p
+                        className={cn(
+                          "num font-semibold",
+                          summary.budgetRemainingOverspend && "text-status-behind-fg"
+                        )}
+                      >
+                        {summary.budgetRemaining}
+                      </p>
+                      <p className="mt-0.5 text-[10px] leading-snug text-[hsl(var(--sidebar-foreground)/0.55)]">
+                        {CAMPAIGN_BUDGET_REMAINING_BASIS_CAPTION}
+                      </p>
+                      {summary.budgetRemainingOverspend ? (
+                        <p className="mt-0.5 text-[10px] leading-snug text-status-behind-fg">
+                          Over campaign budget
+                        </p>
+                      ) : null}
+                    </>
+                  )}
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">
                     Status
                   </p>
-                  <p className="font-semibold">{summary.status}</p>
+                  {summaryLoading ? (
+                    <Skeleton className="mt-1 h-4 w-16" />
+                  ) : (
+                    <p className="font-semibold">{summary.status}</p>
+                  )}
                 </div>
               </div>
               {holdReason ? (

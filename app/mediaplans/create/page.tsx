@@ -320,7 +320,8 @@ import {
 } from "@/lib/auth/writeSessionExpiry"
 import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
 import {
-  PlanDraftActiveBanner,
+  CreatePlanDraftActiveBanner,
+  PlanDraftDiscardConfirmDialog,
   PlanDraftLocalOnlyBanner,
   PlanDraftStaleBanner,
   PlanDraftTipCompareDialog,
@@ -330,7 +331,7 @@ import { DraftDiffProvider } from "@/hooks/useDraftFieldDiff"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
 import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
-import { EMPTY_DRAFT_DIFF_SUMMARY } from "@/lib/mediaplan/drafts/fieldDiff"
+import { isPlanDraftsEnabled } from "@/lib/mediaplan/drafts/flag"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
@@ -656,6 +657,9 @@ function CreateMediaPlan() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingAa, setIsDownloadingAa] = useState(false)
   const [isNamingDownloading, setIsNamingDownloading] = useState(false)
+  const [isMbaGenerating, setIsMbaGenerating] = useState(false)
+  const [draftStripDismissed, setDraftStripDismissed] = useState(false)
+  const [discardConfirmAt, setDiscardConfirmAt] = useState<string | null>(null)
   const [clientAddress, setClientAddress] = useState("")
   const [clientSuburb, setClientSuburb] = useState("")
   const [clientState, setClientState] = useState("")
@@ -3166,7 +3170,7 @@ function CreateMediaPlan() {
   }
 
   const handleGenerateMBA = async () => {
-    setIsLoading(true);
+    setIsMbaGenerating(true);
   
     try {
       const { blob: pdfBlob, fileName } = await generateMbaPdfBlob();
@@ -3198,7 +3202,7 @@ function CreateMediaPlan() {
         variant: "destructive" 
       });
     } finally {
-      setIsLoading(false);
+      setIsMbaGenerating(false);
     }
   };
 
@@ -5095,10 +5099,13 @@ function CreateMediaPlan() {
     },
   })
 
-  const otherEditorLabel =
-    planDraft.others[0] != null
-      ? `${planDraft.others[0].userLabel || planDraft.others[0].userId} has an open draft (since ${new Date(planDraft.others[0].updatedAt).toLocaleString()})`
-      : null
+  useEffect(() => {
+    setDraftStripDismissed(false)
+  }, [planDraft.activeDraft?.updatedAt, planDraft.recovery?.updatedAt])
+
+  const requestDiscardDraft = (updatedAt: string) => {
+    setDiscardConfirmAt(updatedAt)
+  }
 
   const draftTipCompare = planDraft.recovery
     ? (() => {
@@ -5666,12 +5673,12 @@ function CreateMediaPlan() {
             updateSaveStatus(
               "Save plan (transactional)",
               "error",
-              "Published tip moved — compare and re-apply"
+              "Someone published a new version — compare and re-apply"
             )
             toast({
               variant: "destructive",
-              title: "Tip moved since you started",
-              description: "Compare base / yours / current, then re-apply manually.",
+              title: "Someone published this plan while you were editing",
+              description: "Your draft is kept. Compare the two, then re-apply what you need.",
             })
             return
           }
@@ -6915,6 +6922,9 @@ const handleSaveAll = async (opts?: {
   const saveDraftThenExit = async () => {
     try {
       await planDraft.saveDraftNow()
+      toast({
+        title: `Draft saved · ${new Date().toLocaleTimeString()}`,
+      })
       clearDirtyOnSaveSuccess()
       router.push("/mediaplans")
     } catch (err: unknown) {
@@ -7387,48 +7397,45 @@ const handleSaveAll = async (opts?: {
     <PlanWizardSaveMessages
       issues={builderIssues}
       extraProblemTexts={extraProblemTexts}
-      draftBanner={
-        planDraft.activeDraft ? (
-          <PlanDraftActiveBanner
-            compact
-            updatedAt={planDraft.activeDraft.updatedAt}
-            headline={planDraft.activeDraft.headline?.replace(
-              /^Unsaved campaign:/,
-              "Restored your unsaved campaign:",
-            )}
-            summary={
-              planDraft.diffLive() ?? EMPTY_DRAFT_DIFF_SUMMARY
-            }
-            viewChangesDisabledReason="No published version to compare"
-            onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
-          />
-        ) : planDraft.recovery?.source === "local_only" ? (
-          <PlanDraftLocalOnlyBanner
-            compact
-            updatedAt={planDraft.recovery.updatedAt}
-            onApply={() => planDraft.resume()}
-            onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
-          />
-        ) : planDraft.recovery ? (
-          <PlanDraftStaleBanner
-            compact
-            updatedAt={planDraft.recovery.updatedAt}
-            baseVersionNumber={null}
-            tipVersionNumber={draftBaseVersionId ?? "?"}
-            onLoadAnyway={() => planDraft.resume()}
-            onDiscard={() => catchPlanDraftAction(planDraft.discard(), toast)}
-            onCompare={() => planDraft.setCompareOpen(true)}
-          />
-        ) : otherEditorLabel ? (
-          <p className="text-xs text-muted-foreground">{otherEditorLabel}</p>
-        ) : null
-      }
       savePrimary={planDraft.pill?.primary ?? predictedSaveModeLabel ?? null}
-      saveSecondary={planDraft.pill?.secondary ?? null}
+      saveSecondary={null}
       saveTip={null}
       isSaving={isWizardSaving}
     />
   )
+
+  const restoredCreateHeadline = [
+    "Restored your unsaved campaign",
+    [watchedClientName, watchedCampaignName].filter(Boolean).join(" — ") || null,
+  ]
+    .filter(Boolean)
+    .join(": ")
+  const wizardDraftStrip =
+    draftStripDismissed ? null : planDraft.activeDraft ? (
+      <CreatePlanDraftActiveBanner
+        headline={
+          restoredCreateHeadline ||
+          "Restored your unsaved campaign"
+        }
+        onKeepGoing={() => setDraftStripDismissed(true)}
+        onStartFresh={() => requestDiscardDraft(planDraft.activeDraft!.updatedAt)}
+      />
+    ) : planDraft.recovery?.source === "local_only" ? (
+      <PlanDraftLocalOnlyBanner
+        updatedAt={planDraft.recovery.updatedAt}
+        onApply={() => planDraft.resume()}
+        onDiscard={() => requestDiscardDraft(planDraft.recovery!.updatedAt)}
+      />
+    ) : planDraft.recovery ? (
+      <PlanDraftStaleBanner
+        updatedAt={planDraft.recovery.updatedAt}
+        baseVersionNumber={null}
+        tipVersionNumber={draftBaseVersionId ?? "?"}
+        onLoadAnyway={() => planDraft.resume()}
+        onDiscard={() => requestDiscardDraft(planDraft.recovery!.updatedAt)}
+        onCompare={() => planDraft.setCompareOpen(true)}
+      />
+    ) : null
 
   const wizardDraftDialogs = (
     <>
@@ -7447,6 +7454,15 @@ const handleSaveAll = async (opts?: {
           onClose={() => planDraft.setCompareOpen(false)}
         />
       ) : null}
+      <PlanDraftDiscardConfirmDialog
+        open={discardConfirmAt != null}
+        updatedAt={discardConfirmAt}
+        onKeep={() => setDiscardConfirmAt(null)}
+        onDiscard={() => {
+          setDiscardConfirmAt(null)
+          catchPlanDraftAction(planDraft.discard(), toast)
+        }}
+      />
     </>
   )
 
@@ -7520,8 +7536,13 @@ const handleSaveAll = async (opts?: {
           onSaveDraftAndExit={() => void saveDraftThenExit()}
           saveDraftDisabled={true}
           saveDraftTitle={CREATE_SAVE_DRAFT_DISABLED_REASON}
+          autosaveStatus={
+            planDraft.pill?.secondary
+              ? `${planDraft.pill.secondary} · this browser only`
+              : null
+          }
           onPublishMba={handleGenerateMBA}
-          mbaBusy={isLoading}
+          mbaBusy={isMbaGenerating}
           onDownloadMediaPlan={() => void handleDownloadMediaPlan()}
           onDownloadAa={handleDownloadAdvertisingAssociatesMediaPlan}
           onDownloadNaming={handleDownloadNamingConventions}
@@ -7545,11 +7566,14 @@ const handleSaveAll = async (opts?: {
       {wizardDraftDialogs}
       <PlanWizardShell
         header={
-          <PlanWizardHeader
-            title="Create a Campaign"
-            breadcrumbCurrent="Create Campaign"
-            subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}
-          />
+          <>
+            <PlanWizardHeader
+              title="Create a Campaign"
+              breadcrumbCurrent="Create Campaign"
+              subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}
+            />
+            {wizardDraftStrip}
+          </>
         }
         steps={createCampaignSteps.map((step) => ({
           id: step.id,
@@ -9193,6 +9217,11 @@ const handleSaveAll = async (opts?: {
         onSave={() => void handleSaveAll()}
         onLeave={confirmNavigation}
         isSaving={isLoading || isPlanSaving || isVersionSaving}
+        draftSaved={
+          isPlanDraftsEnabled() &&
+          (Boolean(planDraft.activeDraft) ||
+            Boolean(planDraft.pill?.secondary?.startsWith("Autosaved")))
+        }
         saveDisabled={saveBlockedByDuplicates || saveBlockedByClientsError}
         saveDisabledReason={
           saveBlockedByClientsError

@@ -156,9 +156,9 @@ export function buildStaleBaseCompare(args: {
     baseVersionId: args.baseVersionId,
     currentVersionId: args.currentVersionId,
     sections: {
-      base: `Tip at load version id ${args.baseVersionId}`,
+      base: `Published version at load id ${args.baseVersionId}`,
       yours: `Your draft (${args.yoursLineCount} lines)`,
-      current: `Current tip version id ${args.currentVersionId} (${args.tipLineCount} lines)`,
+      current: `Current published version id ${args.currentVersionId} (${args.tipLineCount} lines)`,
     },
   }
 }

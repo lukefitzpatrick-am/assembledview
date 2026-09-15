@@ -401,9 +401,12 @@ describe("SM-30: create bar is the edit bar", () => {
 
   it("SD-1: edit saveDraftNow is caught and toasted", () => {
     const bar = sliceBottomBar(readFileSync(EDIT_PAGE, "utf8"))
-    assert.match(
+    assert.match(bar, /await planDraft\.saveDraftNow\(\)/)
+    assert.match(bar, /Draft saved ·/)
+    assert.match(bar, /SESSION_EXPIRED_SAVE_MESSAGE/)
+    assert.doesNotMatch(
       bar,
-      /catchPlanDraftAction\(\s*planDraft\.saveDraftNow\(\),\s*toast,\s*"Draft save failed"/
+      /catchPlanDraftAction\(\s*planDraft\.saveDraftNow\(\)/
     )
   })
 })

@@ -10,6 +10,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 
 import {
   PlanDraftActiveBanner,
+  PlanDraftDiscardConfirmDialog,
   PlanDraftFieldDiffDialog,
   PlanDraftLocalOnlyBanner,
   PlanDraftStaleBanner,
@@ -340,5 +341,72 @@ describe("PlanDraftLocalOnlyBanner", () => {
     expect(html).toContain("Apply")
     expect(html).toContain("Discard")
     expect(html.includes("Load anyway")).toBe(false)
+  })
+})
+
+describe("PlanDraftStaleBanner button order", () => {
+  it("is Compare first, then Use my draft, then Discard my draft", () => {
+    const html = renderToStaticMarkup(
+      <PlanDraftStaleBanner
+        updatedAt={new Date().toISOString()}
+        baseVersionNumber={3}
+        tipVersionNumber={5}
+        onLoadAnyway={() => undefined}
+        onDiscard={() => undefined}
+        onCompare={() => undefined}
+      />,
+    )
+    const compare = html.indexOf("Compare first")
+    const useMine = html.indexOf("Use my draft")
+    const discard = html.indexOf("Discard my draft")
+    expect(compare).toBeGreaterThan(-1)
+    expect(useMine).toBeGreaterThan(compare)
+    expect(discard).toBeGreaterThan(useMine)
+  })
+})
+
+describe("PlanDraftDiscardConfirmDialog", () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+      true
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => {
+      root.unmount()
+    })
+    container.remove()
+  })
+
+  it("opens with Keep draft and does not discard when Keep draft is clicked", () => {
+    const onKeep = vi.fn()
+    const onDiscard = vi.fn()
+    act(() => {
+      root.render(
+        <PlanDraftDiscardConfirmDialog
+          open
+          updatedAt="2026-09-01T00:00:00.000Z"
+          onKeep={onKeep}
+          onDiscard={onDiscard}
+        />,
+      )
+    })
+    expect(document.body.textContent).toContain("Discard your draft from")
+    expect(document.body.textContent).toContain("This can't be undone.")
+    const keep = Array.from(document.body.querySelectorAll("button")).find(
+      (el) => el.textContent?.trim() === "Keep draft",
+    )
+    expect(keep).toBeTruthy()
+    act(() => {
+      keep!.click()
+    })
+    expect(onKeep).toHaveBeenCalled()
+    expect(onDiscard).not.toHaveBeenCalled()
   })
 })

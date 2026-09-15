@@ -34,6 +34,7 @@ export type PlanWizardBottomBarProps = {
   onSaveDraftAndExit: () => void
   saveDraftDisabled: boolean
   saveDraftTitle?: string
+  autosaveStatus?: string | null
   onPublishMba: () => void
   mbaBusy: boolean
   onDownloadMediaPlan: () => void
@@ -74,6 +75,7 @@ export function PlanWizardBottomBar({
   onSaveDraftAndExit,
   saveDraftDisabled,
   saveDraftTitle,
+  autosaveStatus = null,
   onPublishMba,
   mbaBusy,
   onDownloadMediaPlan,
@@ -164,21 +166,28 @@ export function PlanWizardBottomBar({
         />
       ) : null}
       {showSaveDraft ? (
-        <SplitActionButton
-          variant="outline"
-          label="Save draft"
-          onPrimary={onSaveDraft}
-          disabled={saveDraftDisabled}
-          title={saveDraftTitle}
-          menu={[
-            {
-              label: "Save draft and exit",
-              hint: "Keeps your working draft, then returns to Campaigns",
-              onSelect: onSaveDraftAndExit,
-              disabled: saveDraftDisabled,
-            },
-          ]}
-        />
+        <>
+          <SplitActionButton
+            variant="outline"
+            label="Save draft"
+            onPrimary={onSaveDraft}
+            disabled={saveDraftDisabled}
+            title={saveDraftTitle}
+            menu={[
+              {
+                label: "Save draft and exit",
+                hint: "Keeps your working draft, then returns to Campaigns",
+                onSelect: onSaveDraftAndExit,
+                disabled: saveDraftDisabled,
+              },
+            ]}
+          />
+          {autosaveStatus ? (
+            <span className="hidden max-w-[14rem] text-[11px] leading-snug text-muted-foreground md:inline">
+              {autosaveStatus}
+            </span>
+          ) : null}
+        </>
       ) : null}
       <div className="flex items-center gap-2 md:hidden">
         <DropdownMenu>
@@ -196,7 +205,7 @@ export function PlanWizardBottomBar({
           <DropdownMenuContent align="end">
             <DropdownMenuItem
               onClick={onPublishMba}
-              disabled={mbaBusy || !isPublished}
+              disabled={mbaBusy || downloadsLocked || !isPublished}
               title={unpublishedTitle}
             >
               {wizardPublishMbaLabel({ isBusy: mbaBusy })}
@@ -228,7 +237,7 @@ export function PlanWizardBottomBar({
       <Button
         type="button"
         onClick={onPublishMba}
-        disabled={mbaBusy || !isPublished}
+        disabled={mbaBusy || downloadsLocked || !isPublished}
         title={unpublishedTitle}
         className="hidden h-9 shrink-0 rounded-pill bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
       >

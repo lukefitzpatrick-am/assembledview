@@ -148,6 +148,18 @@ describe("PlanWizardBottomBar", () => {
     expect(mba?.textContent).toContain("Generating MBA…")
   })
 
+  it("keeps idle MBA label when downloads are locked for page load", () => {
+    act(() => {
+      root.render(renderBar({ mbaBusy: false, downloadsLocked: true, isPublished: true }))
+    })
+    const mba = Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "MBA",
+    )
+    expect(mba).toBeTruthy()
+    expect(mba?.disabled).toBe(true)
+    expect(mba?.textContent).not.toContain("Generating MBA")
+  })
+
   it("SD-1: disabled Save draft exposes the create tooltip", () => {
     act(() => {
       root.render(

@@ -59,6 +59,7 @@ export default defineConfig({
       "components/media-containers/__tests__/ExpertGridWeekContextMenu.test.tsx",
       "components/mediaplans/__tests__/ExpertApplyDirtyClearOnSave.characterisation.test.tsx",
       "components/mediaplans/__tests__/PlanWizardSaveMessages.test.tsx",
+      "components/mediaplans/__tests__/UnsavedChangesDialog.test.tsx",
       "components/mediaplans/__tests__/PlanWizardShell.test.tsx",
       "components/campaign/__tests__/CampaignRowActions.test.tsx",
       "components/mediaplans/__tests__/SplitActionButton.test.tsx",

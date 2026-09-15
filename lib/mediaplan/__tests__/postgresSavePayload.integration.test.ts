@@ -676,29 +676,36 @@ describe("SM-6: save-status panel is Save plan + KPI sync (no Xano mirror)", () 
 })
 
 describe("UI-1 twin: save messages live in the sidebar panel, bar is actions only", () => {
-  it("both pages host banners/pill/alerts in PlanWizardSaveMessages and keep buttons in bottomBar", () => {
+  it("both pages host banners under the header and keep buttons in bottomBar", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
     for (const src of [createSrc, editSrc]) {
       assert.match(src, /statusPanel=\{wizardStatusPanel\}/)
       assert.match(src, /bottomBar=\{wizardBottomBar\}/)
       assert.match(src, /<PlanWizardSaveMessages/)
+      assert.match(src, /\{wizardDraftStrip\}/)
 
-      const panel = sliceConst(src, "wizardStatusPanel", "wizardDraftDialogs")
-      assert.match(panel, /PlanDraftActiveBanner/)
+      const panel = sliceConst(src, "wizardStatusPanel", "wizardDraftStrip")
+      assert.doesNotMatch(panel, /PlanDraftActiveBanner/)
+      assert.doesNotMatch(panel, /CreatePlanDraftActiveBanner/)
+      assert.doesNotMatch(panel, /PlanDraftStaleBanner/)
       assert.match(panel, /issues=\{builderIssues\}/)
       assert.match(panel, /extraProblemTexts=\{extraProblemTexts\}/)
       assert.match(panel, /savePrimary=/)
-      assert.match(panel, /saveSecondary=/)
+      assert.match(panel, /saveSecondary=\{null\}/)
       assert.match(panel, /saveTip=/)
       assert.match(panel, /isSaving=/)
-      assert.match(panel, /compact/)
+      assert.doesNotMatch(panel, /compact/)
       assert.doesNotMatch(panel, /PlanDraftPill/)
       assert.doesNotMatch(panel, /BuilderIssuesBadge/)
       assert.doesNotMatch(panel, /saveMode=/)
       assert.doesNotMatch(panel, /alerts=/)
       assert.doesNotMatch(panel, /CampaignExportsSection/)
       assert.doesNotMatch(panel, /handleSaveAll/)
+
+      const strip = sliceConst(src, "wizardDraftStrip", "wizardDraftDialogs")
+      assert.match(strip, /PlanDraftStaleBanner/)
+      assert.doesNotMatch(strip, /compact/)
 
       assert.match(src, /const extraProblemTexts: string\[\] = \[\]/)
       assert.match(src, /Duplicate line-item rows detected/)
@@ -707,6 +714,7 @@ describe("UI-1 twin: save messages live in the sidebar panel, bar is actions onl
       const bar = sliceBottomBar(src)
       assert.match(bar, /CampaignExportsSection/)
       assert.match(bar, /handleSaveAll/)
+      assert.match(bar, /autosaveStatus=/)
       assert.doesNotMatch(bar, /PlanDraftActiveBanner/)
       assert.doesNotMatch(bar, /PlanDraftPill/)
       assert.doesNotMatch(bar, /BuilderIssuesBadge/)
@@ -714,6 +722,8 @@ describe("UI-1 twin: save messages live in the sidebar panel, bar is actions onl
       assert.doesNotMatch(bar, /PlanDraftStaleBanner/)
       assert.doesNotMatch(bar, /dateWarning\.hasViolation/)
     }
+    assert.match(createSrc, /CreatePlanDraftActiveBanner/)
+    assert.match(editSrc, /PlanDraftActiveBanner/)
   })
 })
 
@@ -734,8 +744,9 @@ describe("SM-22: View changes is a read-only field diff", () => {
     assert.match(editSrc, /PlanDraftFieldDiffDialog/)
     assert.match(editSrc, /planDraft\.compareOpen && planDraft\.activeDraft/)
     assert.match(editSrc, /PlanDraftTipCompareDialog/)
-    assert.match(createSrc, /viewChangesDisabledReason/)
+    assert.match(createSrc, /CreatePlanDraftActiveBanner/)
     assert.doesNotMatch(createSrc, /onViewChanges=/)
+    assert.doesNotMatch(createSrc, /viewChangesDisabledReason/)
   })
 })
 

@@ -12,6 +12,12 @@ interface UnsavedChangesDialogProps {
   /** When true, Save is disabled with a reason (e.g. duplicate rows block save). */
   saveDisabled?: boolean
   saveDisabledReason?: string
+  /**
+   * Drafts-on leave: draft is already saved. Stay / Leave only — no publish.
+   * `tipVersionLabel` is the published version clients still see (e.g. "v4").
+   */
+  draftSaved?: boolean
+  tipVersionLabel?: string | null
 }
 
 export function UnsavedChangesDialog({
@@ -22,6 +28,8 @@ export function UnsavedChangesDialog({
   isSaving,
   saveDisabled = false,
   saveDisabledReason,
+  draftSaved = false,
+  tipVersionLabel = null,
 }: UnsavedChangesDialogProps) {
   const saveBlocked = isSaving || saveDisabled
   const saveTitle = saveDisabled
@@ -42,35 +50,59 @@ export function UnsavedChangesDialog({
       <DialogContent className="overflow-hidden p-0 sm:max-w-lg">
         <div className="h-1 bg-gradient-to-r from-pacing-behind via-pacing-behind/70 to-pacing-behind/40" />
         <div className="p-6">
-          <DialogHeader className="space-y-2">
-            <DialogTitle>Leave without saving?</DialogTitle>
-            <DialogDescription>
-              You have unsaved changes. Save your campaign before leaving or continue without saving.
-            </DialogDescription>
-          </DialogHeader>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Leaving now will discard any unsaved edits to this media plan.
-          </p>
-          <DialogFooter className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-2">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={onStay}>
-              No, stay on page
-            </Button>
-            <Button
-              variant="secondary"
-              className="w-full sm:w-auto"
-              disabled={saveBlocked}
-              title={saveTitle}
-              onClick={async () => {
-                onStay()
-                await onSave()
-              }}
-            >
-              {isSaving ? "Saving..." : "Publish and leave"}
-            </Button>
-            <Button variant="destructive" className="w-full sm:w-auto" onClick={onLeave}>
-              Yes, leave without saving
-            </Button>
-          </DialogFooter>
+          {draftSaved ? (
+            <>
+              <DialogHeader className="space-y-2">
+                <DialogTitle>Leave this plan?</DialogTitle>
+                <DialogDescription>
+                  Your draft is saved and will be here when you come back.
+                  {tipVersionLabel
+                    ? ` Clients still see ${tipVersionLabel}.`
+                    : ""}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-2">
+                <Button variant="outline" className="w-full sm:w-auto" onClick={onStay}>
+                  Stay
+                </Button>
+                <Button className="w-full sm:w-auto" onClick={onLeave}>
+                  Leave
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader className="space-y-2">
+                <DialogTitle>Leave without saving?</DialogTitle>
+                <DialogDescription>
+                  You have unsaved changes. Save your campaign before leaving or continue without saving.
+                </DialogDescription>
+              </DialogHeader>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Leaving now will discard any unsaved edits to this media plan.
+              </p>
+              <DialogFooter className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end sm:space-x-2">
+                <Button variant="outline" className="w-full sm:w-auto" onClick={onStay}>
+                  No, stay on page
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="w-full sm:w-auto"
+                  disabled={saveBlocked}
+                  title={saveTitle}
+                  onClick={async () => {
+                    onStay()
+                    await onSave()
+                  }}
+                >
+                  {isSaving ? "Saving..." : "Publish and leave"}
+                </Button>
+                <Button variant="destructive" className="w-full sm:w-auto" onClick={onLeave}>
+                  Yes, leave without saving
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>

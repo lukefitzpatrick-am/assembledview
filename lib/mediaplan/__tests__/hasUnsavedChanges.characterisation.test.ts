@@ -203,9 +203,10 @@ test("CHARACTERISATION edit page: dirty sources and clear sites", () => {
     "CURRENT: primary Save ignores hasUnsavedChanges — gating is a separate commit"
   )
 
+  assert.match(edit, /await planDraft\.saveDraftNow\(\)/)
   assert.match(
     edit,
-    /catchPlanDraftAction\(\s*planDraft\.saveDraftNow\(\)[\s\S]{0,400}saveDraftDisabled=\{isSaving \|\| isLoading \|\| saveBlockedByFailedChannelLoad \|\| !hasUnsavedChanges\}/s
+    /saveDraftDisabled=\{isSaving \|\| isLoading \|\| saveBlockedByFailedChannelLoad \|\| !hasUnsavedChanges\}/
   )
 })
 

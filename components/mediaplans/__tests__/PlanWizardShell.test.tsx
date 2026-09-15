@@ -187,3 +187,48 @@ describe("PlanWizardShell campaign tools rail", () => {
     expect(onNavigate).toHaveBeenCalledWith("/mediaplans/mba/glenda008/creative")
   })
 })
+
+describe("PlanWizardShell draft summary loading", () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+      true
+    sidebarState.open = true
+    sidebarState.isMobile = false
+    sidebarState.setOpen.mockReset()
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => {
+      root.unmount()
+    })
+    container.remove()
+  })
+
+  it("does not paint Untitled campaign while summaryLoading", () => {
+    act(() => {
+      root.render(
+        <PlanWizardShell
+          {...SHELL_PROPS}
+          summary={{
+            title: "Untitled campaign",
+            client: "No client selected",
+            budget: "$0.00",
+            channels: 0,
+            status: "Draft",
+            budgetRemaining: "$0.00",
+          }}
+          summaryLoading
+        />,
+      )
+    })
+    expect(container.textContent).not.toContain("Untitled campaign")
+    expect(container.textContent).not.toContain("No client selected")
+    expect(container.querySelector('[aria-label="Loading draft summary"]')).toBeTruthy()
+  })
+})
