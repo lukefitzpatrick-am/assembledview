@@ -51,11 +51,14 @@ function senderAddressFrom(from: unknown): string {
   return String(email.address ?? "")
 }
 
+/**
+ * No `$orderby`: Graph rejects it alongside `$filter` on messages with
+ * `InefficientFilter`, and runPartnerIngest sorts the page oldest-first anyway.
+ */
 function inboxMessagesUrl(user: string): string {
   const filter = encodeURIComponent("hasAttachments eq true")
-  const orderby = encodeURIComponent("receivedDateTime asc")
   const select = encodeURIComponent("id,internetMessageId,receivedDateTime,from,subject")
-  return `${GRAPH}/users/${encodeURIComponent(user)}/mailFolders/inbox/messages?$filter=${filter}&$top=50&$orderby=${orderby}&$select=${select}`
+  return `${GRAPH}/users/${encodeURIComponent(user)}/mailFolders/inbox/messages?$filter=${filter}&$top=50&$select=${select}`
 }
 
 export function createPartnerMailbox(input: {
