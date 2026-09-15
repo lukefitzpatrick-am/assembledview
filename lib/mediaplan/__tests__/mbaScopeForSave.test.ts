@@ -7,6 +7,7 @@ import {
   buildPersistedMbaScope,
   resolveMbaScopeInput,
   selectedMonthYearsForFinancials,
+  type MbaScopeApprovalLine,
 } from "@/lib/mediaplan/mbaScopeForSave"
 
 const MIN_BODY = {
@@ -88,7 +89,10 @@ test("applyMbaScopeLineApprovals: null = all in; [] = none", () => {
 })
 
 test("applyMbaScopeLineApprovals matches decorated ids to canonical scope ids", () => {
-  const lines = [{ lineItemId: "billing-ooh::keep" }, { lineItemId: "billing-ooh::drop" }]
+  const lines: MbaScopeApprovalLine[] = [
+    { lineItemId: "billing-ooh::keep" },
+    { lineItemId: "billing-ooh::drop" },
+  ]
   const subset = applyMbaScopeLineApprovals(lines, ["keep"])
   assert.equal(subset.find((l) => l.lineItemId === "billing-ooh::keep")?.approval, "approved")
   assert.equal(subset.find((l) => l.lineItemId === "billing-ooh::drop")?.approval, "excluded")

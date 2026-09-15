@@ -18,6 +18,12 @@ export type PersistedMbaScope = MbaScopeBody & {
   partial: boolean
 }
 
+/** The line shape scope derivation receives: an id plus the approval it may set. */
+export type MbaScopeApprovalLine = {
+  lineItemId: string
+  approval?: "approved" | "excluded"
+}
+
 export type ResolvedMbaScope =
   | { source: "mbaScope"; scope: MbaScopeBody }
   | { source: "legacyMonths"; monthYears: string[] }
@@ -57,9 +63,10 @@ export function selectedMonthYearsForFinancials(
   return undefined
 }
 
-export function applyMbaScopeLineApprovals<
-  T extends { lineItemId: string; approval?: "approved" | "excluded" },
->(lines: readonly T[], lineItemIds: string[] | null): T[] {
+export function applyMbaScopeLineApprovals<T extends MbaScopeApprovalLine>(
+  lines: readonly T[],
+  lineItemIds: string[] | null
+): T[] {
   if (lineItemIds == null) {
     return lines.map((l) => ({ ...l, approval: "approved" as const }))
   }
