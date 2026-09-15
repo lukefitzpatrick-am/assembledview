@@ -5370,7 +5370,23 @@
           "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_media_plan_masters_published_version_id": {
+          "name": "idx_media_plan_masters_published_version_id",
+          "columns": [
+            {
+              "expression": "published_version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "media_plan_masters_client_id_clients_id_fk": {
           "name": "media_plan_masters_client_id_clients_id_fk",

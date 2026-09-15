@@ -80,7 +80,7 @@ Scope (in parentheses) is optional but recommended when the commit touches a spe
 
 A smoke pass is **recommended before any cherry-pick to `main`**, but not mandatory for every commit type.
 
-- **`feat:` and `fix:` commits** — smoke before cherry-picking. These change behaviour users will see.
+- **`feat:` and `fix:` commits** — smoke before cherry-picking. These change behaviour users will see. Also run `npm run gate:main` (production `next build` is not optional for these; a typecheck-clean tree can still fail the client webpack compile).
 - **`refactor:` commits** — smoke before cherry-picking. Refactors are supposed to be behaviour-preserving but often aren't.
 - **`docs:` commits** — smoke optional. If the doc commit also touches code (e.g. a JSDoc edit in a `.ts` file), treat as if it were code.
 - **`chore:` commits** — judgement call. Dependency bumps need smoke. Renaming a config key in a comment doesn't.
@@ -89,7 +89,9 @@ When in doubt, smoke.
 
 ## Cherry-pick to `main`
 
-Once a commit is approved:
+Once a commit is approved, **run `npm run gate:main` on `localhost` before cherry-picking** (`check:client-server-only`, `db:generate` empty-diff, `next build`). That class of break (client graph pulling `server-only` / `@/db`) is invisible to `tsc` and was never in the smoke row.
+
+Then:
 
 ```
 git checkout main

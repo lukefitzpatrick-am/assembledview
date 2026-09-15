@@ -1372,6 +1372,7 @@ CREATE INDEX "idx_line_items_channel" ON "line_items" USING btree ("channel");--
 CREATE INDEX "idx_line_items_line_item_id" ON "line_items" USING btree ("line_item_id");--> statement-breakpoint
 CREATE INDEX "idx_mba_line_approvals_mba_version" ON "mba_line_approvals" USING btree ("mba_number","media_plan_version");--> statement-breakpoint
 CREATE INDEX "idx_mba_line_approvals_line_item_id" ON "mba_line_approvals" USING btree ("line_item_id");--> statement-breakpoint
+CREATE INDEX "idx_media_plan_masters_published_version_id" ON "media_plan_masters" USING btree ("published_version_id");--> statement-breakpoint
 CREATE INDEX "idx_mpv_published_at" ON "media_plan_versions" USING btree ("published_at") WHERE "media_plan_versions"."published_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "idx_mpv_master_published" ON "media_plan_versions" USING btree ("master_id","published_at" DESC NULLS LAST) WHERE "media_plan_versions"."published_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "idx_schedule_months_version" ON "schedule_months" USING btree ("version_id");--> statement-breakpoint

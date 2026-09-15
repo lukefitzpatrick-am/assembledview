@@ -34,8 +34,46 @@ jobs:
       - name: Ban strict billing line id equality (MB-4)
         run: npm run check:billing-line-id-equality
 
+      - name: Client graph must not reach server-only / @/db
+        run: npm run check:client-server-only
+
+      - name: Drizzle snapshot matches schema (db:generate empty)
+        run: npm run check:drizzle-snapshot
+
       - name: Schema mirror-ahead fixtures (no database)
         run: npm run test:db-drift
+
+  production-build:
+    name: npm run build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production build
+        env:
+          AUTH0_DOMAIN: example.auth0.com
+          AUTH0_CLIENT_ID: ci-build
+          AUTH0_CLIENT_SECRET: ci-build
+          AUTH0_SECRET: ci-auth0-secret-32-characters-min
+          APP_BASE_URL: http://localhost:3000
+          XANO_BASE_URL: https://ci.example.invalid
+          XANO_PUBLISHERS_BASE_URL: https://ci.example.invalid
+          XANO_CLIENTS_BASE_URL: https://ci.example.invalid
+          XANO_MEDIA_DETAILS_BASE_URL: https://ci.example.invalid
+          XANO_MEDIA_PLANS_BASE_URL: https://ci.example.invalid
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+        run: npm run build
 
   knip:
     name: knip (report-only)

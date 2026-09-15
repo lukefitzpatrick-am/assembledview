@@ -33,6 +33,7 @@ export const mediaPlanMasters = pgTable(
   campaignStartDate: date('campaign_start_date'),
   campaignEndDate: date('campaign_end_date'),
   campaignBudgetCents: bigint('campaign_budget_cents', { mode: "number" }),
+  /** Live cut. VP-1 (0069 AUTHOR ONLY): must point at a version with published_at set. */
   publishedVersionId: bigint('published_version_id', { mode: "number" }),
   },
   (table) => [
@@ -41,6 +42,10 @@ export const mediaPlanMasters = pgTable(
       foreignColumns: [mediaPlanVersions.id],
       name: "fk_masters_published_version",
     }),
+    /** 0072 AUTHOR ONLY: covers the unindexed FK. Mirror the whole index (btree, no WHERE). */
+    index("idx_media_plan_masters_published_version_id").on(
+      table.publishedVersionId,
+    ),
   ],
 )
 
@@ -67,8 +72,9 @@ export const mediaPlanVersions = pgTable(
   approvedSlice: jsonb('approved_slice'),
   /** PC3: sha256 hex of canonical schedule_months + approved_slice + fee snapshot. */
   snapshotChecksum: text('snapshot_checksum'),
-  /** VC Stage 1: wall-clock publication; null = unpublished. Never infer from campaign_status. */
+  /** VC Stage 1: wall-clock publication; null = unpublished. Never infer from campaign_status. VP-1: cannot clear while a master published_version_id points here. */
   publishedAt: timestamp('published_at', { withTimezone: true, mode: "string" }),
+  /** Lowercase actor email, or NULL, or VP-1 sentinel `backfill:vp-1`. CHECK: published_by = lower(published_by). */
   publishedBy: text('published_by'),
   /** SD-2: persisted MI interview answers ({ answers, updatedAt, updatedBy }). Never a full MiResolveResult. */
   miResolution: jsonb("mi_resolution").notNull().default({}),
