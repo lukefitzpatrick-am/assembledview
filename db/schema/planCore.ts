@@ -70,6 +70,11 @@ export const mediaPlanVersions = pgTable(
   legacySchedules: jsonb('legacy_schedules'),
   /** PC2: frozen approved billing law at publish. Never mutate after write. */
   approvedSlice: jsonb('approved_slice'),
+  /**
+   * Client MBA scope at save. null = full scope.
+   * Shape: { lineItemIds: string[] | null, monthYears: string[] | null, partial: boolean }
+   */
+  mbaScope: jsonb('mba_scope'),
   /** PC3: sha256 hex of canonical schedule_months + approved_slice + fee snapshot. */
   snapshotChecksum: text('snapshot_checksum'),
   /** VC Stage 1: wall-clock publication; null = unpublished. Never infer from campaign_status. VP-1: cannot clear while a master published_version_id points here. */

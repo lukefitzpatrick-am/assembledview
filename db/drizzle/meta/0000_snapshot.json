@@ -5547,6 +5547,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "mba_scope": {
+          "name": "mba_scope",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "snapshot_checksum": {
           "name": "snapshot_checksum",
           "type": "text",

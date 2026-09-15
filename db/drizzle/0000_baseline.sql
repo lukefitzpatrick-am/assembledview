@@ -726,6 +726,7 @@ CREATE TABLE "media_plan_versions" (
 	"channel_flags" jsonb,
 	"legacy_schedules" jsonb,
 	"approved_slice" jsonb,
+	"mba_scope" jsonb,
 	"snapshot_checksum" text,
 	"published_at" timestamp with time zone,
 	"published_by" text,
