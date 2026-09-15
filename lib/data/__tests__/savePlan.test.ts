@@ -2127,6 +2127,190 @@ test("savePlan: C-95b client-pays social fee reaches billing schedule_months", a
   )
 })
 
+test("savePlan: mbaScope.lineItemIds subset freezes slice and omits excluded billing rows", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const prevGate = process.env.SAVE_GATE_FULL_SCOPE
+  process.env.SAVE_GATE_FULL_SCOPE = "enforce"
+  t.after(() => {
+    if (prevGate == null) delete process.env.SAVE_GATE_FULL_SCOPE
+    else process.env.SAVE_GATE_FULL_SCOPE = prevGate
+  })
+
+  const result = await savePlanVersion({
+    ...draftInput(masterId, [
+      baseLine(LINE_A, 1000, { approval: "approved" }),
+      baseLine(LINE_B, 500, { approval: "approved" }),
+    ]),
+    mode: "publish",
+    campaignStatus: "Approved",
+    mbaScope: { lineItemIds: [LINE_A], monthYears: null },
+  })
+  assert.equal(result.published, true)
+
+  const { version, months } = await snapshot(result.versionId)
+  const slice = version?.approvedSlice as {
+    lines?: Array<{ lineItemId: string; mediaCents: number }>
+  } | null
+  const sliceIds = (slice?.lines ?? []).map((l) => l.lineItemId)
+  assert.deepEqual(sliceIds, [LINE_A])
+  assert.ok(
+    (slice?.lines ?? []).every((l) => l.mediaCents > 0),
+    "in-scope slice line must carry money"
+  )
+  const billingLineIds = [
+    ...new Set(
+      months
+        .filter((r) => r.basis === "billing")
+        .map((r) => r.lineItemId)
+    ),
+  ]
+  assert.ok(billingLineIds.includes(LINE_A))
+  assert.equal(billingLineIds.includes(LINE_B), false)
+  const scope = version?.mbaScope as {
+    lineItemIds: string[] | null
+    monthYears: string[] | null
+    partial: boolean
+  } | null
+  assert.deepEqual(scope?.lineItemIds, [LINE_A])
+  assert.equal(scope?.monthYears, null)
+  assert.equal(scope?.partial, true)
+})
+
+test("savePlan: mbaScope.monthYears subset trims slice and billing months", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const twoMonthLine = baseLine(LINE_A, 2000, {
+    bursts: [
+      {
+        startDate: "2026-05-01",
+        endDate: "2026-06-30",
+        budget: 2000,
+        buyAmount: 1,
+      },
+    ],
+  })
+  const result = await savePlanVersion({
+    ...draftInput(masterId, [twoMonthLine], {
+      campaignStartDate: "2026-05-01",
+      campaignEndDate: "2026-06-30",
+    }),
+    mode: "publish",
+    campaignStatus: "Approved",
+    mbaScope: { lineItemIds: null, monthYears: ["May 2026"] },
+  })
+  assert.equal(result.published, true)
+
+  const { version, months } = await snapshot(result.versionId)
+  const slice = version?.approvedSlice as {
+    lines?: Array<{ months: string[] }>
+  } | null
+  const sliceMonths = [...new Set((slice?.lines ?? []).flatMap((l) => l.months))]
+  assert.ok(sliceMonths.every((m) => m.startsWith("2026-05")))
+  const billingMonths = [
+    ...new Set(
+      months.filter((r) => r.basis === "billing").map((r) => String(r.month))
+    ),
+  ]
+  assert.ok(billingMonths.every((m) => m.startsWith("2026-05")))
+  const scope = version?.mbaScope as { monthYears: string[] | null; partial: boolean } | null
+  assert.deepEqual(scope?.monthYears, ["May 2026"])
+  assert.equal(scope?.partial, true)
+})
+
+test("savePlan: mbaScope absent writes null and keeps per-line approval", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const result = await savePlanVersion({
+    ...draftInput(masterId, [
+      baseLine(LINE_A, 1000, { approval: "approved" }),
+      baseLine(LINE_B, 500, { approval: "excluded" }),
+    ]),
+    mode: "publish",
+    campaignStatus: "Approved",
+  })
+  assert.equal(result.published, true)
+  const { version, months } = await snapshot(result.versionId)
+  assert.equal(version?.mbaScope ?? null, null)
+  const billingLineIds = new Set(
+    months.filter((r) => r.basis === "billing").map((r) => r.lineItemId)
+  )
+  assert.equal(billingLineIds.has(LINE_A), true)
+  assert.equal(billingLineIds.has(LINE_B), false)
+})
+
+test("savePlan: selectedMonthYears legacy key still trims billing months", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const twoMonthLine = baseLine(LINE_A, 2000, {
+    bursts: [
+      {
+        startDate: "2026-05-01",
+        endDate: "2026-06-30",
+        budget: 2000,
+        buyAmount: 1,
+      },
+    ],
+  })
+  const result = await savePlanVersion({
+    ...draftInput(masterId, [twoMonthLine], {
+      campaignStartDate: "2026-05-01",
+      campaignEndDate: "2026-06-30",
+    }),
+    mode: "publish",
+    campaignStatus: "Approved",
+    selectedMonthYears: ["May 2026"],
+  })
+  assert.equal(result.published, true)
+  const { version, months } = await snapshot(result.versionId)
+  const billingMonths = [
+    ...new Set(
+      months.filter((r) => r.basis === "billing").map((r) => String(r.month))
+    ),
+  ]
+  assert.ok(billingMonths.every((m) => m.startsWith("2026-05")))
+  const scope = version?.mbaScope as {
+    lineItemIds: string[] | null
+    monthYears: string[] | null
+    partial: boolean
+  } | null
+  assert.equal(scope?.lineItemIds, null)
+  assert.deepEqual(scope?.monthYears, ["May 2026"])
+  assert.equal(scope?.partial, true)
+})
+
 test("savePlan: close db pool", async () => {
   if (hasDb) await closeDb()
 })

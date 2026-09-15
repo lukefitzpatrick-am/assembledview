@@ -74,6 +74,15 @@ import {
   type BillingOverridesSaveEnvelope,
 } from "@/lib/finance/billingOverridesSaveIntent"
 import { validateManualOverrideSumRules } from "@/lib/finance/recomputeBillingScheduleOnSave"
+import {
+  applyMbaScopeLineApprovals,
+  billingMonthYearsFromSchedule,
+  countableMbaScopeLineIds,
+  persistedMbaScopeFromResolved,
+  resolveMbaScopeInput,
+  selectedMonthYearsForFinancials,
+  type PersistedMbaScope,
+} from "@/lib/mediaplan/mbaScopeForSave"
 import type { BillingMonth } from "@/lib/billing/types"
 import {
   evaluatePostgresAutoDivergence,
@@ -154,9 +163,18 @@ export type SavePlanVersionInput = {
   publishedByEmail?: string | null
   /**
    * Month chips at approve time (`January 2026` / `2026-01`). Empty → all
-   * billing months in the approved slice.
+   * billing months in the approved slice. Legacy alias for `mbaScope.monthYears`
+   * when `mbaScope` is absent.
    */
   selectedMonthYears?: readonly string[]
+  /**
+   * Client MBA scope. When present, `lineItemIds` overrides per-line `approval`
+   * (null = all approved; [] = none). `monthYears` null = all billing months.
+   */
+  mbaScope?: {
+    lineItemIds: string[] | null
+    monthYears: string[] | null
+  } | null
   getRateForMediaType?: (mediaType: string) => number
   adservaudio?: number
   /**
@@ -774,7 +792,19 @@ export async function savePlanVersion(
     )
   }
 
-  const lineInputs = toLineItemInputs(input.lineItems)
+  const resolvedMbaScope = resolveMbaScopeInput({
+    mbaScope: input.mbaScope,
+    selectedMonthYears: input.selectedMonthYears,
+  })
+  const scopedLineItems =
+    resolvedMbaScope.source === "mbaScope"
+      ? applyMbaScopeLineApprovals(
+          input.lineItems,
+          resolvedMbaScope.scope.lineItemIds
+        )
+      : input.lineItems
+  const lineInputs = toLineItemInputs(scopedLineItems)
+  const selectedMonthYears = selectedMonthYearsForFinancials(resolvedMbaScope)
   const feeLoading = input.feeLoading ?? {}
 
   const lineIds = input.lineItems.map((l) => String(l.lineItemId).trim())
@@ -898,7 +928,7 @@ export async function savePlanVersion(
         {
           getRateForMediaType: input.getRateForMediaType,
           adservaudio: input.adservaudio,
-          selectedMonthYears: input.selectedMonthYears,
+          selectedMonthYears,
         }
       )
       const financials = computeCampaignFinancials(
@@ -907,7 +937,7 @@ export async function savePlanVersion(
         {
           getRateForMediaType: input.getRateForMediaType,
           adservaudio: input.adservaudio,
-          selectedMonthYears: input.selectedMonthYears,
+          selectedMonthYears,
         }
       )
 
@@ -1089,10 +1119,33 @@ export async function savePlanVersion(
         )
       }
 
+      const unscopedMonthYears =
+        selectedMonthYears != null && selectedMonthYears.length > 0
+          ? billingMonthYearsFromSchedule(
+              computeCampaignFinancials(
+                lineItemsWithOverrides,
+                { feeLoading },
+                {
+                  getRateForMediaType: input.getRateForMediaType,
+                  adservaudio: input.adservaudio,
+                }
+              ).billingSchedule
+            )
+          : billingMonthYearsFromSchedule(financials.billingSchedule)
+      const persistedMbaScope: PersistedMbaScope | null =
+        persistedMbaScopeFromResolved(
+          resolvedMbaScope,
+          countableMbaScopeLineIds(input.lineItems),
+          unscopedMonthYears
+        )
+
       // Mirror override-aware billing + override-free delivery into the blob.
       await tx
         .update(schema.mediaPlanVersions)
-        .set({ legacySchedules })
+        .set({
+          legacySchedules,
+          mbaScope: persistedMbaScope,
+        })
         .where(eq(schema.mediaPlanVersions.id, versionId))
 
       const published = input.mode === "publish"
@@ -1126,8 +1179,8 @@ export async function savePlanVersion(
         if (approvedSlice == null || typeof approvedSlice !== "object") {
           approvedSlice = computeApprovedSlice({
             financials,
-            selectedMonthYears: input.selectedMonthYears,
-            approvedLineItemIds: approvedLineIdsFromInput(input.lineItems),
+            selectedMonthYears,
+            approvedLineItemIds: approvedLineIdsFromInput(scopedLineItems),
           })
           await tx
             .update(schema.mediaPlanVersions)

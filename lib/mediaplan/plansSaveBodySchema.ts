@@ -94,7 +94,20 @@ export const plansSaveBodySchema = z.object({
   adservvideo: z.number().optional(),
   adservdisplay: z.number().optional(),
   adservimp: z.number().optional(),
-  /** Month chips at approve/publish — drives approved_slice. */
+  /**
+   * Client MBA scope for this save. `lineItemIds` null = all lines in;
+   * `[]` = none. `monthYears` null = all billing months.
+   */
+  mbaScope: z
+    .object({
+      lineItemIds: z.array(z.string()).nullable(),
+      monthYears: z.array(z.string()).nullable(),
+    })
+    .optional(),
+  /**
+   * @deprecated Prefer `mbaScope.monthYears`. Still accepted for one release
+   * and mapped onto `mbaScope.monthYears` when `mbaScope` is absent.
+   */
   selectedMonthYears: z.array(z.string()).optional(),
   /** O4 — working billing snapshot for AUTO correction toast (not authoritative). */
   clientBillingSchedulePreview: z.array(z.any()).optional().nullable(),

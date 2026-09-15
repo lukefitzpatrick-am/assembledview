@@ -254,6 +254,7 @@ export async function POST(request: NextRequest) {
     adservaudio: body.adservaudio,
     getRateForMediaType,
     selectedMonthYears: body.selectedMonthYears,
+    mbaScope: body.mbaScope ?? null,
     clientBillingSchedulePreview: body.clientBillingSchedulePreview as
       | import("@/lib/billing/types").BillingMonth[]
       | null
