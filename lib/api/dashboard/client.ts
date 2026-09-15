@@ -15,7 +15,7 @@ import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from '@/lib/spend/monthlyPlanCalendar'
 import { normalizeDateToMelbourneISO } from '@/lib/dates/normalizeCampaignDateISO'
 import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
-import { publishedVersionFromMaster, publishedVersionIdFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
+import { publishedVersionFromMaster, publishedVersionPointerIdFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
 import { australianFyStartYearForDate } from '@/lib/finance/months'
 import {
   campaignFlightOverlapsRange,
@@ -949,7 +949,7 @@ export async function getClientDashboardData(
         if (!key) continue
         const published = publishedVersionFromMaster(master)
         if (published > 0) publishedByMba.set(key, published)
-        const pointer = publishedVersionIdFromMaster(master)
+        const pointer = publishedVersionPointerIdFromMaster(master)
         if (pointer !== undefined) publishedVersionIdByMba.set(key, pointer)
       }
     } catch (error) {
@@ -1024,7 +1024,7 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
     if (!key) continue
     const published = publishedVersionFromMaster(master)
     if (published > 0) publishedByMba.set(key, published)
-    const pointer = publishedVersionIdFromMaster(master)
+    const pointer = publishedVersionPointerIdFromMaster(master)
     if (pointer !== undefined) publishedVersionIdByMba.set(key, pointer)
   }
 

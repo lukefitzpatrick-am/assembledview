@@ -1,7 +1,8 @@
 /**
  * CP-8 — Client-pays detail under Costs.
  *
- * Inverted CP-3 footprint: published tip · delivery media · client_pays_for_media
+ * Inverted CP-3 footprint: published tip (PUBLISHED_VERSION_JOIN_SQL) ·
+ * delivery media · client_pays_for_media
  * · statuses approved|booked|completed · SCHEDULE_LINE_JOIN_SQL.
  * Fee omitted (C-27). Complements payables headline media.
  */
@@ -33,6 +34,7 @@ import {
   UNSPECIFIED_PUBLISHER,
 } from "@/lib/finance/sections/publisherIdentitySql"
 import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinSql"
+import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 import { IS_SERVICE_LINE_SQL } from "@/lib/finance/sections/serviceLineBucket"
 
 export type FinanceClientPaysQuery = Pick<
@@ -175,7 +177,7 @@ export async function fetchFinanceClientPays(
       to_char(date_trunc('month', sm.month)::date, 'YYYY-MM') AS month,
       SUM(sm.amount_cents)::bigint AS media_cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
       AND sm.component = 'media'
@@ -206,7 +208,7 @@ export async function fetchFinanceClientPays(
       COALESCE(SUM(CASE WHEN sm.component = 'adserving' THEN sm.amount_cents ELSE 0 END), 0)
         AS adserving_cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
       AND sm.component IN ('media', 'fee', 'adserving')

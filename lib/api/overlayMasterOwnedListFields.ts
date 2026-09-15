@@ -11,7 +11,7 @@
  */
 
 import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
-import { publishedVersionIdFromMaster } from "@/lib/mediaplan/publishedVersionGuard"
+import { publishedVersionPointerIdFromMaster } from "@/lib/mediaplan/publishedVersionGuard"
 
 export const MEDIA_PLANS_LIST_MASTER_OWNED_STRING_FIELDS = [
   "mp_client_name",
@@ -22,7 +22,8 @@ export const MEDIA_PLANS_LIST_MASTER_OWNED_STRING_FIELDS = [
  * Prefer version value when already present (Xano `_latest`); fill from master
  * otherwise (Postgres). Always coerce required strings so search/sort never see undefined.
  * Copies `published_version_id` from the master when that field is present
- * (never from the version row `id`). Overlay numeric `client_id` from the
+ * (never from the version row `id`) via `publishedVersionPointerIdFromMaster`
+ * — the raw pointer, which may be unstamped. Overlay numeric `client_id` from the
  * master when the version lacks a positive id (DI-9b twin). Omit the key when
  * the master lacks it.
  */
@@ -43,7 +44,7 @@ export function overlayMasterOwnedListFields(
           : fromVersion ?? ""
     base[key] = typeof raw === "string" ? raw : String(raw ?? "")
   }
-  const pointer = publishedVersionIdFromMaster(masterData)
+  const pointer = publishedVersionPointerIdFromMaster(masterData)
   if (pointer !== undefined) {
     base.published_version_id = pointer
   }

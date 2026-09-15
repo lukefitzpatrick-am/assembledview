@@ -6,7 +6,8 @@
  * - delivery: exclude media where client_pays_for_media; fee+adserving always
  *
  * Status scope (CP-3): approved|booked|completed only; excluded statuses in
- * coverage.excludedByStatusCents. Version authority = published tip (D1).
+ * coverage.excludedByStatusCents. Version authority = published tip via
+ * PUBLISHED_VERSION_JOIN_SQL (D1).
  *
  * Publisher = FN0 PUBLISHER_IDENTITY_SQL; null → Unmatched.
  * billingAgency = classifyBillingAgency over publishers join (SQL twin).
@@ -31,6 +32,7 @@ import {
   PUBLISHER_IDENTITY_SQL,
 } from "@/lib/finance/sections/publisherIdentitySql"
 import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinSql"
+import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 import {
   IS_SERVICE_LINE_SQL,
   LINE_DETAIL_COVERAGE_NOTE,
@@ -561,7 +563,7 @@ LEFT JOIN LATERAL (
 
   const fromJoinsText = `
 FROM media_plan_masters m
-INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+INNER JOIN media_plan_versions v ON ${PUBLISHED_VERSION_JOIN_SQL}
 INNER JOIN schedule_months sm ON sm.version_id = v.id
   AND sm.basis = '${q.basis}'
   AND sm.component IN ('media', 'fee', 'adserving')
@@ -594,7 +596,7 @@ LIMIT ${INVESTMENT_CUT_ROW_CAP + 1}
 SELECT
     ${sql.raw(selectDims.length || measureFrags.length ? `${selectList},\n    ${billableOrderFrag}` : billableOrderFrag)}
 FROM media_plan_masters m
-INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
 INNER JOIN schedule_months sm ON sm.version_id = v.id
   AND sm.basis = ${q.basis}
   AND sm.component IN ('media', 'fee', 'adserving')
@@ -654,7 +656,7 @@ FROM (
     BOOL_OR(sm.component = 'media') AS has_media,
     BOOL_OR(sm.component = 'fee') AS has_fee
   FROM media_plan_masters m
-  INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+  INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
   INNER JOIN schedule_months sm ON sm.version_id = v.id
     AND sm.basis = ${q.basis}
     AND sm.component IN ('media', 'fee', 'adserving')
@@ -700,7 +702,7 @@ SELECT
     ELSE 0
   END), 0) AS billable_matched_cents
 FROM media_plan_masters m
-INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
 INNER JOIN schedule_months sm ON sm.version_id = v.id
   AND sm.basis = ${q.basis}
   AND sm.component IN ('media', 'fee', 'adserving')
@@ -739,7 +741,7 @@ SELECT
   COALESCE(SUM(CASE WHEN NOT ${sql.raw(IS_SERVICE_LINE_SQL)} THEN sm.amount_cents ELSE 0 END), 0) AS line_detail_cents,
   COALESCE(SUM(CASE WHEN ${sql.raw(IS_SERVICE_LINE_SQL)} THEN sm.amount_cents ELSE 0 END), 0) AS campaign_level_cents
 FROM media_plan_masters m
-INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
 INNER JOIN schedule_months sm ON sm.version_id = v.id
   AND sm.basis = ${q.basis}
   AND sm.component IN ('media', 'fee', 'adserving')
@@ -809,7 +811,8 @@ function mapCutRows(
 }
 
 export async function fetchInvestmentCut(
-  q: InvestmentCutNormalized
+  q: InvestmentCutNormalized,
+  options?: { includeDebugSql?: boolean },
 ): Promise<InvestmentCutResponse> {
   const db = getDb()
   const built = buildInvestmentCutSql(q)
@@ -836,7 +839,7 @@ export async function fetchInvestmentCut(
           COALESCE(SUM(CASE WHEN sm.component = 'fee' THEN sm.amount_cents ELSE 0 END), 0) AS fee_cents,
           COALESCE(SUM(CASE WHEN sm.component = 'adserving' THEN sm.amount_cents ELSE 0 END), 0) AS adserving_cents
         FROM media_plan_masters m
-        INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+        INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
         INNER JOIN schedule_months sm ON sm.version_id = v.id
           AND sm.basis = ${q.basis}
           AND sm.component IN ('media', 'fee', 'adserving')
@@ -971,12 +974,16 @@ export async function fetchInvestmentCut(
     },
     truncated,
     rowCap: INVESTMENT_CUT_ROW_CAP,
-    _debugSql: {
-      cut: built.cutSqlText,
-      feeCoverage: built.feeCoverageSqlText,
-      publisherMatch: built.publisherMatchSqlText,
-      ...(arSqlText ? { arMbaMonth: arSqlText } : {}),
-    },
+    ...(options?.includeDebugSql
+      ? {
+          _debugSql: {
+            cut: built.cutSqlText,
+            feeCoverage: built.feeCoverageSqlText,
+            publisherMatch: built.publisherMatchSqlText,
+            ...(arSqlText ? { arMbaMonth: arSqlText } : {}),
+          },
+        }
+      : {}),
   }
 }
 
@@ -1003,7 +1010,7 @@ async function fetchInvestmentCutTotals(
 SELECT
   ${sql.raw(measureFrags.join(",\n  "))}
 FROM media_plan_masters m
-INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
 INNER JOIN schedule_months sm ON sm.version_id = v.id
   AND sm.basis = ${q.basis}
   AND sm.component IN ('media', 'fee', 'adserving')

@@ -12,6 +12,7 @@ import { sql } from "drizzle-orm"
 import { getDb } from "@/db"
 import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinSql"
 import { FINANCE_STATUS_INCLUDED_SQL } from "@/lib/finance/sections/financeCampaignStatus"
+import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 import {
   AR_COVERAGE_NOTE,
   type InvestmentCutDim,
@@ -240,7 +241,7 @@ WITH booked AS (
     to_char(CAST(date_trunc('month', sm.month) AS date), 'YYYY-MM') AS activity_month,
     CAST(SUM(sm.amount_cents) AS bigint) AS billable_cents
   FROM media_plan_masters m
-  INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+  INNER JOIN media_plan_versions v ON ${PUBLISHED_VERSION_JOIN_SQL}
   INNER JOIN schedule_months sm ON sm.version_id = v.id
     AND sm.basis = '${q.basis}'
     AND sm.component IN ('media', 'fee', 'adserving')

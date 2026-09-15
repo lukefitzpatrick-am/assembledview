@@ -10,7 +10,8 @@
  *   figures (not in the payables headline).
  * - Status scope (CP-3 / FS-2): approved|booked|completed only; draft|planned|cancelled
  *   totals live in coverage.excludedByStatusCents (never silent-drop).
- * - Version authority: published tip + schedule_months (D1) — not relevantPlanVersions.
+ * - Version authority: published tip via PUBLISHED_VERSION_JOIN_SQL +
+ *   schedule_months (D1) — not relevantPlanVersions.
  */
 
 import { sql, type SQL } from "drizzle-orm"
@@ -30,6 +31,7 @@ import {
   type ExcludedByStatusCents,
 } from "@/lib/finance/sections/financeCampaignStatus"
 import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinSql"
+import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 import {
   IS_SERVICE_LINE_SQL,
   LINE_DETAIL_COVERAGE_NOTE,
@@ -205,7 +207,7 @@ export function receivablesSqlText(q: FinanceSectionsSummaryQuery): string {
   return `
 SELECT COALESCE(SUM(sm.amount_cents), 0) AS cents
 FROM media_plan_masters m
-INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+INNER JOIN media_plan_versions v ON ${PUBLISHED_VERSION_JOIN_SQL}
 INNER JOIN schedule_months sm ON sm.version_id = v.id
   AND sm.basis = 'billing'
   AND sm.component IN ('media', 'fee', 'adserving')
@@ -229,7 +231,7 @@ export function payablesSqlText(q: FinanceSectionsSummaryQuery): string {
   return `
 SELECT COALESCE(SUM(sm.amount_cents), 0) AS cents
 FROM media_plan_masters m
-INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+INNER JOIN media_plan_versions v ON ${PUBLISHED_VERSION_JOIN_SQL}
 INNER JOIN schedule_months sm ON sm.version_id = v.id
   AND sm.basis = 'delivery'
   AND sm.component = 'media'
@@ -268,7 +270,8 @@ export function normalizeSummaryQuery(input: {
 }
 
 export async function fetchFinanceSectionsSummary(
-  input: FinanceSectionsSummaryQuery
+  input: FinanceSectionsSummaryQuery,
+  options?: { includeDebugSql?: boolean },
 ): Promise<FinanceSectionsSummaryPayload> {
   const db = getDb()
   const q = input
@@ -290,7 +293,7 @@ export async function fetchFinanceSectionsSummary(
   const billingAgg = await db.execute(sql`
     SELECT COALESCE(SUM(sm.amount_cents), 0) AS cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'billing'
       AND sm.component IN ('media', 'fee', 'adserving')
@@ -305,7 +308,7 @@ export async function fetchFinanceSectionsSummary(
   const deliveryAgg = await db.execute(sql`
     SELECT COALESCE(SUM(sm.amount_cents), 0) AS cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
       AND sm.component = 'media'
@@ -324,7 +327,7 @@ export async function fetchFinanceSectionsSummary(
       COALESCE(SUM(CASE WHEN sm.component = 'fee' THEN sm.amount_cents ELSE 0 END), 0) AS fee_cents,
       COALESCE(SUM(CASE WHEN sm.component = 'adserving' THEN sm.amount_cents ELSE 0 END), 0) AS adserving_cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
       AND sm.component IN ('fee', 'adserving')
@@ -346,7 +349,7 @@ export async function fetchFinanceSectionsSummary(
         WHEN COALESCE(li.client_pays_for_media, FALSE) = TRUE THEN sm.amount_cents ELSE 0 END), 0)
         AS client_pays_excluded_cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
       AND sm.component = 'media'
@@ -365,7 +368,7 @@ export async function fetchFinanceSectionsSummary(
       COALESCE(SUM(CASE WHEN sm.component = 'fee' THEN sm.amount_cents ELSE 0 END), 0) AS fee_cents,
       COALESCE(SUM(CASE WHEN sm.component = 'adserving' THEN sm.amount_cents ELSE 0 END), 0) AS adserving_cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
       AND sm.component IN ('media', 'fee', 'adserving')
@@ -379,7 +382,7 @@ export async function fetchFinanceSectionsSummary(
   const currentBillingAgg = await db.execute(sql`
     SELECT COALESCE(SUM(sm.amount_cents), 0) AS cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'billing'
       AND sm.component IN ('media', 'fee', 'adserving')
@@ -423,7 +426,7 @@ export async function fetchFinanceSectionsSummary(
       SELECT to_char(date_trunc('month', sm.month)::date, 'YYYY-MM') AS month,
              SUM(sm.amount_cents) AS cents
       FROM media_plan_masters m
-      INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+      INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
       INNER JOIN schedule_months sm ON sm.version_id = v.id
         AND sm.basis = 'billing'
         AND sm.component IN ('media', 'fee', 'adserving')
@@ -438,7 +441,7 @@ export async function fetchFinanceSectionsSummary(
       SELECT to_char(date_trunc('month', sm.month)::date, 'YYYY-MM') AS month,
              SUM(sm.amount_cents) AS cents
       FROM media_plan_masters m
-      INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+      INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
       INNER JOIN schedule_months sm ON sm.version_id = v.id
         AND sm.basis = 'delivery'
         AND sm.component = 'media'
@@ -466,7 +469,7 @@ export async function fetchFinanceSectionsSummary(
            COALESCE(NULLIF(BTRIM(c.mp_client_name), ''), NULLIF(BTRIM(m.mp_client_name), ''), 'Unknown') AS client_name,
            SUM(sm.amount_cents) AS cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'billing'
       AND sm.component IN ('media', 'fee', 'adserving')
@@ -485,7 +488,7 @@ export async function fetchFinanceSectionsSummary(
     SELECT COALESCE(NULLIF(BTRIM(li.publisher), ''), 'Unspecified') AS publisher,
            SUM(sm.amount_cents) AS cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
       AND sm.component = 'media'
@@ -620,10 +623,14 @@ export async function fetchFinanceSectionsSummary(
       scope: "all open exceptions",
       href: "/finance/xero",
     },
-    _debugSql: {
-      receivables: receivablesSqlText(q),
-      payables: payablesSqlText(q),
-    },
+    ...(options?.includeDebugSql
+      ? {
+          _debugSql: {
+            receivables: receivablesSqlText(q),
+            payables: payablesSqlText(q),
+          },
+        }
+      : {}),
   }
 }
 
@@ -640,7 +647,7 @@ export async function fetchReceivablesByMba(
   const result = await db.execute(sql`
     SELECT m.mba_number AS mba, COALESCE(SUM(sm.amount_cents), 0) AS cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'billing'
       AND sm.component IN ('media', 'fee', 'adserving')

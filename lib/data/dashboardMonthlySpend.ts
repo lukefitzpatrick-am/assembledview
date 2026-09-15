@@ -9,6 +9,7 @@
 
 import { sql } from "drizzle-orm"
 import { roundMoney2 } from "@/lib/format/money"
+import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 
 /** Exact Xano list row for `dashboard_monthly_publisher_spend`. */
 export type DashboardMonthlyPublisherSpendRow = {
@@ -177,7 +178,7 @@ export function shapeDashboardMonthlyClientSpendSqlRows(
 }
 
 /**
- * Published tip = masters.published_version_id → versions.id (never max(version)).
+ * Published tip = pointer AND stamp (`PUBLISHED_VERSION_JOIN_SQL`). Never max(version).
  * Delivery basis; all schedule components; dollars at the boundary.
  */
 export async function fetchDashboardMonthlyPublisherSpendFromPostgres(): Promise<
@@ -192,7 +193,7 @@ export async function fetchDashboardMonthlyPublisherSpendFromPostgres(): Promise
       ROUND((SUM(sm.amount_cents)::numeric / 100), 2) AS amount
     FROM media_plan_masters m
     INNER JOIN media_plan_versions v
-      ON v.id = m.published_version_id
+      ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm
       ON sm.version_id = v.id
      AND sm.basis = 'delivery'
@@ -218,7 +219,7 @@ export async function fetchDashboardMonthlyClientSpendFromPostgres(): Promise<
       ROUND((SUM(sm.amount_cents)::numeric / 100), 2) AS amount
     FROM media_plan_masters m
     INNER JOIN media_plan_versions v
-      ON v.id = m.published_version_id
+      ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm
       ON sm.version_id = v.id
      AND sm.basis = 'delivery'

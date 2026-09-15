@@ -73,7 +73,9 @@ async function main() {
   }
 
   try {
-    const cut = await fetchInvestmentCut(ok)
+    // In-process call — no HTTP. `{ includeDebugSql: true }` is the same gate
+    // the cut route maps from `?debug=1`.
+    const cut = await fetchInvestmentCut(ok, { includeDebugSql: true })
     console.log("")
     console.log("--- Live client cut + Actuals ---")
     console.log(

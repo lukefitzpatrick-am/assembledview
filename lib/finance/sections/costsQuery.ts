@@ -1,7 +1,8 @@
 /**
  * Finance Costs summary — delivery-basis booked publisher cost + xero_ap_bills.
  *
- * Booked cost (CP-3): published tip schedule_months basis=delivery, **media only**,
+ * Booked cost (CP-3): published tip (PUBLISHED_VERSION_JOIN_SQL) schedule_months
+ * basis=delivery, **media only**,
  * client-pays media excluded; statuses approved|booked|completed. Fee + adserving
  * are separate labelled figures. Draft/planned/cancelled → coverage.excludedByStatusCents.
  * Publisher identity: per-channel accessor (publisherIdentitySql), not bare li.publisher.
@@ -30,6 +31,7 @@ import {
   UNSPECIFIED_PUBLISHER,
 } from "@/lib/finance/sections/publisherIdentitySql"
 import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinSql"
+import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 import {
   CAMPAIGN_LEVEL_NO_LINE_DETAIL,
   IS_SERVICE_LINE_SQL,
@@ -233,7 +235,7 @@ SELECT
   ${channelDim} AS channel,
   SUM(sm.amount_cents) AS booked_cents
 FROM media_plan_masters m
-INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+INNER JOIN media_plan_versions v ON ${PUBLISHED_VERSION_JOIN_SQL}
 INNER JOIN schedule_months sm ON sm.version_id = v.id
   AND sm.basis = 'delivery'
   AND sm.component = 'media'
@@ -257,7 +259,8 @@ function publisherFilterPass(label: string, filters: string[]): boolean {
 }
 
 export async function fetchFinanceCostsSummary(
-  input: FinanceCostsQuery
+  input: FinanceCostsQuery,
+  options?: { includeDebugSql?: boolean },
 ): Promise<FinanceCostsSummaryPayload> {
   const db = getDb()
   const q = input
@@ -283,7 +286,7 @@ export async function fetchFinanceCostsSummary(
       ${sql.raw(channelDimSql)} AS channel,
       SUM(sm.amount_cents)::bigint AS booked_cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
       AND sm.component = 'media'
@@ -304,7 +307,7 @@ export async function fetchFinanceCostsSummary(
       COALESCE(SUM(CASE WHEN sm.component = 'fee' THEN sm.amount_cents ELSE 0 END), 0) AS fee_cents,
       COALESCE(SUM(CASE WHEN sm.component = 'adserving' THEN sm.amount_cents ELSE 0 END), 0) AS adserving_cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
       AND sm.component IN ('fee', 'adserving')
@@ -331,7 +334,7 @@ export async function fetchFinanceCostsSummary(
         WHEN COALESCE(li.client_pays_for_media, FALSE) = TRUE THEN sm.amount_cents ELSE 0 END), 0)
         AS client_pays_excluded_cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
       AND sm.component = 'media'
@@ -350,7 +353,7 @@ export async function fetchFinanceCostsSummary(
       COALESCE(SUM(CASE WHEN sm.component = 'fee' THEN sm.amount_cents ELSE 0 END), 0) AS fee_cents,
       COALESCE(SUM(CASE WHEN sm.component = 'adserving' THEN sm.amount_cents ELSE 0 END), 0) AS adserving_cents
     FROM media_plan_masters m
-    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
       AND sm.component IN ('media', 'fee', 'adserving')
@@ -646,8 +649,12 @@ export async function fetchFinanceCostsSummary(
     ),
     topPublishers,
     attributionRule: AP_ATTRIBUTION_RULE_TEXT,
-    _debugSql: {
-      bookedByPublisherMonth: bookedByPublisherMonthSqlText(q),
-    },
+    ...(options?.includeDebugSql
+      ? {
+          _debugSql: {
+            bookedByPublisherMonth: bookedByPublisherMonthSqlText(q),
+          },
+        }
+      : {}),
   }
 }

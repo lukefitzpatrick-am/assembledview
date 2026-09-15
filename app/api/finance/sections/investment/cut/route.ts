@@ -67,7 +67,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(normalized, { status })
     }
 
-    const payload = await fetchInvestmentCut(normalized)
+    // Same debug-payload convention as GET /api/finance/forecast (`?debug=1`).
+    // Route is already requireFinanceAdmin; do not ship raw SQL otherwise.
+    const debugParam = request.nextUrl.searchParams.get("debug")
+    const includeDebugSql =
+      debugParam === "1" || debugParam === "true" || debugParam === "yes"
+
+    const payload = await fetchInvestmentCut(normalized, { includeDebugSql })
     return NextResponse.json(payload)
   } catch (error) {
     console.error("[finance/sections/investment/cut]", error)

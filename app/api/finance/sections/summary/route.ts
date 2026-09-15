@@ -43,7 +43,13 @@ export async function GET(request: NextRequest) {
       clients: parseClientIds(sp.get("clients")),
     })
 
-    const payload = await fetchFinanceSectionsSummary(query)
+    // Same debug-payload convention as GET /api/finance/forecast (`?debug=1`).
+    // Route is already requireFinanceAdmin; do not ship raw SQL otherwise.
+    const debugParam = sp.get("debug")
+    const includeDebugSql =
+      debugParam === "1" || debugParam === "true" || debugParam === "yes"
+
+    const payload = await fetchFinanceSectionsSummary(query, { includeDebugSql })
     return NextResponse.json(payload)
   } catch (error) {
     console.error("[finance/sections/summary]", error)

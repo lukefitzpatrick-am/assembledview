@@ -1,10 +1,18 @@
 /**
- * Published-version watermark helpers.
+ * Published-version helpers.
  *
- * Staged-but-unpublished saves create media_plan_versions rows whose
- * version_number is greater than master.version_number. Readers must never
- * treat those rows as the live plan.
+ * Two different questions live here — do not conflate them:
+ *
+ * 1. Staging watermark (`master.version_number` / `publishedVersionFromMaster`)
+ *    — which ordinals are live vs staged-ahead. Used by reapers and list caps.
+ * 2. Published cut — `published_version_id` AND `published_at` set.
+ *    A name that means "published" must not resolve an unstamped pointer.
+ *
+ * Stamp predicate is canonical in `isVersionPublished` (this module does
+ * not re-derive it). SQL joins use {@link PUBLISHED_VERSION_JOIN_SQL}.
  */
+
+import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 
 export function parseVersionNumber(value: unknown): number {
   if (value == null || value === "") return 0
@@ -12,20 +20,22 @@ export function parseVersionNumber(value: unknown): number {
   return Number.isFinite(n) && n > 0 ? n : 0
 }
 
-/** Master watermark — the only published version_number for an MBA. */
+/** Master watermark — the staging ordinal, not the publication predicate. */
 export function publishedVersionFromMaster(master: { version_number?: unknown } | null | undefined): number {
   return parseVersionNumber(master?.version_number)
 }
 
 /**
- * Master's published-version pointer (`published_version_id`), when the field is
- * present on the already-loaded master row.
+ * Raw `published_version_id` on an already-loaded master row. No stamp check.
+ * Use this only when the caller must see unstamped pointers (overlay copy,
+ * audits). Resolving "the published version" goes through
+ * {@link publishedVersionIdFromMaster}.
  *
  * `undefined` = field absent (caller must not invent unpublished).
  * `null` = field present and empty / unusable.
- * number = stamped pointer id (> 0).
+ * number = pointer id (> 0), which may still be unstamped.
  */
-export function publishedVersionIdFromMaster(
+export function publishedVersionPointerIdFromMaster(
   master: object | null | undefined,
 ): number | null | undefined {
   if (master == null || typeof master !== "object") return undefined
@@ -38,6 +48,53 @@ export function publishedVersionIdFromMaster(
   const n = Number(raw)
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null
 }
+
+type PointerTargetStamp = {
+  publishedAt?: string | null
+  published_at?: string | null
+}
+
+/**
+ * Published version id: pointer AND stamp.
+ *
+ * `undefined` = pointer field absent.
+ * `null` = no published cut (null pointer, unusable id, missing target, or
+ * unstamped target — NV-1 / C-113).
+ * number = pointer id whose target has `published_at` set.
+ */
+export function publishedVersionIdFromMaster(
+  master: object | null | undefined,
+  pointerTarget: PointerTargetStamp | null | undefined,
+): number | null | undefined {
+  const pointer = publishedVersionPointerIdFromMaster(master)
+  if (pointer === undefined) return undefined
+  if (pointer == null) return null
+  if (pointerTarget == null || !isVersionPublished(pointerTarget)) return null
+  return pointer
+}
+
+/**
+ * Pointer target counts as published only when `published_at` is set.
+ * Stale pointer → unpublished row is treated like a null pointer (NV-1).
+ * Canonical stamp check: {@link isVersionPublished}.
+ */
+export function publishedVersionIfStamped<T extends Record<string, unknown>>(
+  publishedVersion: T | null | undefined,
+): T | null {
+  if (publishedVersion == null) return null
+  if (!isVersionPublished(publishedVersion as PointerTargetStamp)) return null
+  return publishedVersion
+}
+
+/**
+ * Join predicate for raw SQL: pointer target is the published cut.
+ * A NULL pointer stays unpublished (`NULL = id` does not match).
+ * Aliases are `m` (masters) and `v` (versions) — finance/dashboard SQL
+ * interpolates this fragment (JS strings) or `sql.raw` of it (Drizzle).
+ * `probeFinanceScheduleDiffs` is the same predicate without these aliases.
+ */
+export const PUBLISHED_VERSION_JOIN_SQL =
+  "v.id = m.published_version_id AND v.published_at IS NOT NULL"
 
 /** Keep only rows at or below the published watermark. */
 export function filterPublishedVersions<T extends { version_number?: unknown }>(

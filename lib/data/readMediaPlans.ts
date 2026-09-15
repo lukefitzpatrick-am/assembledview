@@ -12,6 +12,7 @@ import { getDataBackendFor } from "@/lib/data/backend"
 import { coerceNumericStringsToNumbers, toApiRow } from "@/lib/data/toApiRow"
 import { compareReferenceRows, recordShadowDiff } from "@/lib/data/shadowDiff"
 import { sortLineItemsByLineItemNumber } from "@/lib/mediaplan/lineItemIds"
+import { publishedVersionIfStamped } from "@/lib/mediaplan/publishedVersionGuard"
 import {
   CHANNEL_ENDPOINT_TO_CHANNEL,
   PLANS_DUPLICATE_CLASS_MBAS,
@@ -128,20 +129,7 @@ function runPlansShadowCompare(
 
 // --- masters ---
 
-/**
- * Pointer target counts as published only when `published_at` is set.
- * Stale pointer → unpublished row is treated like a null pointer (NV-1).
- */
-export function publishedVersionIfStamped(
-  publishedVersion: Record<string, unknown> | null | undefined
-): Record<string, unknown> | null {
-  if (publishedVersion == null) return null
-  const at =
-    publishedVersion.published_at ??
-    (publishedVersion as { publishedAt?: unknown }).publishedAt
-  if (at == null) return null
-  return publishedVersion
-}
+export { publishedVersionIfStamped }
 
 /**
  * Full master shape for plan loaders.

@@ -81,7 +81,9 @@ describe("normalizeInvestmentCutRequest", () => {
     assert.ok(!("error" in q))
     if ("error" in q) return
     const sql = investmentCutSqlText(q)
-    assert.match(sql.cut, /sm\.basis = 'delivery'/)
+    assert.match(sql.cut, /v\.id = m\.published_version_id AND v\.published_at IS NOT NULL/)
+    assert.match(sql.feeCoverage, /v\.id = m\.published_version_id AND v\.published_at IS NOT NULL/)
+    assert.match(sql.publisherMatch, /v\.id = m\.published_version_id AND v\.published_at IS NOT NULL/)
     assert.doesNotMatch(sql.cut, /sm\.basis = 'billing'/)
     assert.match(sql.cut, /client_pays_for_media/)
     assert.match(sql.feeCoverage, /has_fee/)

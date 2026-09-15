@@ -53,6 +53,10 @@ describe("normalisePublishedByEmail", () => {
     assert.equal(normalisePublishedByEmail(undefined), null)
     assert.equal(normalisePublishedByEmail("   "), null)
   })
+
+  it("Auth0-sub shaped strings survive lowercase CHECK — callers must not pass sub", () => {
+    assert.equal(normalisePublishedByEmail("auth0|abc"), "auth0|abc")
+  })
 })
 
 describe("warnIfPublishMissingPublishedBy", () => {

@@ -8,7 +8,7 @@
  * empty-divergence versions (DISPOSITIONS §E) land here.
  */
 
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, isNotNull } from "drizzle-orm"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
 import { getDb, schema } from "@/db"
@@ -859,7 +859,11 @@ export async function probeFinanceScheduleDiffs(): Promise<FinanceScheduleProbeR
     .from(schema.mediaPlanMasters)
     .innerJoin(
       schema.mediaPlanVersions,
-      eq(schema.mediaPlanMasters.publishedVersionId, schema.mediaPlanVersions.id)
+      // PUBLISHED_VERSION_JOIN_SQL without m/v aliases (Drizzle innerJoin).
+      and(
+        eq(schema.mediaPlanMasters.publishedVersionId, schema.mediaPlanVersions.id),
+        isNotNull(schema.mediaPlanVersions.publishedAt)
+      )
     )
 
   const versionIds = published.map((p) => p.versionId)
