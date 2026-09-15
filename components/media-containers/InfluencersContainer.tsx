@@ -26,6 +26,7 @@ import { INFLUENCERS_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridCha
 import {
   INFLUENCERS_CONTAINER_CONFIG,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -232,25 +233,7 @@ export default function InfluencersContainer({
   const form = useForm<InfluencersFormValues>({
     resolver: zodResolver<InfluencersFormValues, any, InfluencersFormValues>(influencersFormSchema),
     defaultValues: {
-      lineItems: [
-        {
-          ...buildDefaultLineItem(INFLUENCERS_CONTAINER_CONFIG.fieldMap),
-          bursts: [
-            {
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-              _reactKey: newBurstReactKey(),
-            } as InfluencersFormValues["lineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      lineItems: emptyChannelLineItemsDefault(),
     },
   });
 

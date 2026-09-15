@@ -9,6 +9,7 @@ import { ExpertIncompleteRowsSummary } from "@/components/media-containers/Exper
 import {
   TELEVISION_CONTAINER_CONFIG,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -386,30 +387,7 @@ export default function TelevisionContainer({
   // Form initialization
   const form = useForm({
     defaultValues: {
-      televisionlineItems: [
-        {
-          ...buildDefaultLineItem(TELEVISION_CONTAINER_CONFIG.fieldMap),
-          ...(() => {
-            const id = createLineItemId(1);
-            return { lineItemId: id, line_item_id: id };
-          })(),
-          line_item: 1,
-          // Burst Level Defaults
-          bursts: [
-            {
-              budget: "",
-              buyAmount: "",
-              startDate: campaignStartDate || new Date(), // Use prop if available
-              endDate: campaignEndDate || new Date(),     // Use prop if available
-              size: "30s", // Example default
-              tarps: "",
-              calculatedValue: 0,
-              fee: 0,
-              _reactKey: newBurstReactKey(),
-            },
-          ],
-        },
-      ],
+      televisionlineItems: emptyChannelLineItemsDefault(),
     },
   }) as any;
 

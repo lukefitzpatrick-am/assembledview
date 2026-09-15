@@ -433,9 +433,7 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
     expect(restored).toHaveLength(1)
     expect(restored[0]?.formValues.mp_client_name).toBe("Penfold")
     expect(latest?.activeDraft).toBeTruthy()
-    expect(latest?.activeDraft?.headline).toBe(
-      "Unsaved campaign: Penfold — Summer brand, 1 line, $5000"
-    )
+    expect(latest?.activeDraft).not.toHaveProperty("headline")
     expect(latest?.loadKind).toBe("auto")
   })
 
@@ -533,6 +531,104 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
       "Sarah Chen also has this campaign open (2 min ago)"
     )
     expect(latest?.presenceLine).not.toMatch(/@|lock|takeover/i)
+  })
+})
+
+const MEANINGFUL_CREATE: PlanDraftStateV1 = {
+  ...EMPTY_SNAPSHOT,
+  formValues: { mp_client_name: "Penfold", mp_campaignname: "Summer brand" },
+  channels: { search: [{ line_item_id: "pen-se1" }] },
+  meta: { lineCount: 1, budgetCents: 500_000 },
+}
+
+describe("usePlanDraftSession autosave latch (NEXT_PUBLIC_PLAN_DRAFTS on)", () => {
+  let container: HTMLDivElement
+  let root: Root
+  let writeSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+      true
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    })
+    vi.stubEnv("NEXT_PUBLIC_PLAN_DRAFTS", "on")
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+    vi.spyOn(localStore, "readLocalDraft").mockResolvedValue(null)
+    vi.spyOn(localStore, "clearLocalDraft").mockResolvedValue(undefined)
+    writeSpy = vi.spyOn(localStore, "writeLocalDraft").mockImplementation(async (args) => ({
+      key: "test",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      state: args.state,
+    }))
+  })
+
+  afterEach(() => {
+    act(() => {
+      root.unmount()
+    })
+    container.remove()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    vi.unstubAllEnvs()
+  })
+
+  it("re-arms the 3s local autosave when dirty stays true and subscribeDirty fires", async () => {
+    const listeners = new Set<() => void>()
+    const subscribeDirty = (listener: () => void) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    }
+
+    function LatchProbe() {
+      usePlanDraftSession({
+        masterId: null,
+        mbaNumber: "TEST001",
+        userId: "luke",
+        dirty: true,
+        subscribeDirty,
+        baseVersionId: null,
+        campaignStatus: "Draft",
+        publishedVersionNumber: 0,
+        versionRowCount: 0,
+        getSnapshot: () => MEANINGFUL_CREATE,
+        onRestore: () => {},
+      })
+      return null
+    }
+
+    act(() => {
+      root.render(<LatchProbe />)
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500)
+      await Promise.resolve()
+    })
+    expect(writeSpy).not.toHaveBeenCalled()
+
+    act(() => {
+      for (const listener of listeners) listener()
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500)
+      await Promise.resolve()
+    })
+    // Original 3s from mount has elapsed. A latched dirty boolean never
+    // re-ran the effect, so current code writes here. After the fix, the
+    // subscribeDirty emit re-armed — persist waits a full 3s from the bump.
+    expect(writeSpy).not.toHaveBeenCalled()
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500)
+      await Promise.resolve()
+    })
+    expect(writeSpy).toHaveBeenCalledTimes(1)
   })
 })
 

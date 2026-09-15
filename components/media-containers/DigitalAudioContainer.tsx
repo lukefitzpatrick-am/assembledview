@@ -23,6 +23,7 @@ import {
 import {
   DIGITALAUDIO_CONTAINER_CONFIG,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -369,25 +370,7 @@ export default function DigiAudioContainer({
   const form = useForm({
     resolver: zodResolver(digiAudioFormSchema),
     defaultValues: {
-      digiaudiolineItems: [
-        {
-          ...buildDefaultLineItem(DIGITALAUDIO_CONTAINER_CONFIG.fieldMap),
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as DigiAudioFormValues["digiaudiolineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      digiaudiolineItems: emptyChannelLineItemsDefault(),
     },
   });
 

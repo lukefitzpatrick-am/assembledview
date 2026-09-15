@@ -35,6 +35,7 @@ import { resolveBuyTypeForChannel } from "@/lib/mediaplan/deliverableBudget"
 import {
   PRODUCTION_CONTAINER_CONFIG,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -321,14 +322,7 @@ export default function ProductionContainer({
   const form = useForm<ProductionFormValues>({
     resolver: zodResolver(productionFormSchema),
     defaultValues: {
-      lineItems: [
-        {
-          ...buildDefaultLineItem(PRODUCTION_CONTAINER_CONFIG.fieldMap),
-          mediaType: mediaTypeOptions[0]?.value || "",
-          lineItemId: "",
-          bursts: [makeDefaultBurst()],
-        },
-      ],
+      lineItems: emptyChannelLineItemsDefault(),
     },
   })
 

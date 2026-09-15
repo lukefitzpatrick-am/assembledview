@@ -14,6 +14,11 @@ export type MediaPlanDirtyController = {
   getSnapshot: () => boolean
   /** True when the page should treat edits as unsaved. */
   getHasUnsavedChanges: () => boolean
+  /**
+   * Bumped on every accepted dirty-mark, including already-dirty.
+   * Autosave consumes this via `subscribe`, not the sticky boolean.
+   */
+  getEditRevision: () => number
   /** User / form edits after the dirty gate is open. */
   markUnsavedChanges: () => void
   /**
@@ -48,6 +53,7 @@ export function createMediaPlanDirtyController(
 ): MediaPlanDirtyController {
   const now = options.now ?? (() => Date.now())
   let dirty = false
+  let editRevision = 0
   let gateOpen = false
   let passiveQuietUntil = 0
   const listeners = new Set<() => void>()
@@ -59,6 +65,17 @@ export function createMediaPlanDirtyController(
   const setDirty = (next: boolean) => {
     if (dirty === next) return
     dirty = next
+    emit()
+  }
+
+  /** Same path as set-dirty-true, but always emits so autosave can re-arm. */
+  const noteEdit = () => {
+    editRevision += 1
+    if (dirty) {
+      emit()
+      return
+    }
+    dirty = true
     emit()
   }
 
@@ -75,17 +92,20 @@ export function createMediaPlanDirtyController(
     getHasUnsavedChanges() {
       return dirty
     },
+    getEditRevision() {
+      return editRevision
+    },
     markUnsavedChanges() {
       if (!gateOpen) return
-      setDirty(true)
+      noteEdit()
     },
     markPassiveChannelChange() {
       if (!gateOpen) return
       if (now() < passiveQuietUntil) return
-      setDirty(true)
+      noteEdit()
     },
     forceDirty() {
-      setDirty(true)
+      noteEdit()
     },
     clearDirtyOnSaveSuccess() {
       setDirty(false)

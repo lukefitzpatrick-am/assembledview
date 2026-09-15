@@ -33,6 +33,7 @@ import { OOH_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConf
 import {
   OOH_CONTAINER_CONFIG,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -275,26 +276,7 @@ export default function OohContainer({
   const form = useForm({
     resolver: zodResolver(oohFormSchema) as any,
     defaultValues: {
-      lineItems: [
-        {
-          ...buildDefaultLineItem(OOH_CONTAINER_CONFIG.fieldMap),
-          ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as OohFormValues["lineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      lineItems: emptyChannelLineItemsDefault(),
       overallDeliverables: 0,
     },
   }) as any;

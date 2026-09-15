@@ -212,6 +212,16 @@ export function buildDefaultLineItem(fieldMap: FieldMapEntry[]): any {
 }
 
 /**
+ * Form default for a channel's line-item field array.
+ * Empty on purpose: Add (and ContainerEmptyLinesPlaceholder) create the first
+ * line. `buildDefaultLineItem` is for append only. Edit hydrate still replaces
+ * this seed via useStableHydration — do not change that path.
+ */
+export function emptyChannelLineItemsDefault<T = any>(): T[] {
+  return []
+}
+
+/**
  * Map an API/persisted line item → form camelCase fields (inHydration only).
  * Mirrors current transforms: string fields || "", booleans || false.
  * Does NOT fall back to fieldMap.default (preserves Television buy_type → "").

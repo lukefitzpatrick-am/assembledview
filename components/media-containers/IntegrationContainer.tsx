@@ -26,6 +26,7 @@ import { INTEGRATION_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridCha
 import {
   INTEGRATION_CONTAINER_CONFIG,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -240,25 +241,7 @@ export default function IntegrationContainer({
   const form = useForm<IntegrationFormValues>({
     resolver: zodResolver(integrationFormSchema) as any,
     defaultValues: {
-      lineItems: [
-        {
-          ...buildDefaultLineItem(INTEGRATION_CONTAINER_CONFIG.fieldMap),
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as IntegrationFormValues["lineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      lineItems: emptyChannelLineItemsDefault(),
     },
   });
 

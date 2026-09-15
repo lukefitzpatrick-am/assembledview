@@ -67,7 +67,6 @@ type RecoveryOffer = {
 export type ActiveDraftSession = {
   updatedAt: string
   baseSnapshot: PlanDraftStateV1
-  headline?: string
 }
 
 export function usePlanDraftSession(args: {
@@ -87,6 +86,12 @@ export function usePlanDraftSession(args: {
   /** VC Stage 2b — default save; pass publish for explicit version cut. */
   intent?: "save" | "publish"
   getSnapshot: () => PlanDraftStateV1
+  /**
+   * Fires on every accepted dirty-mark, including already-dirty.
+   * Re-arms autosave timers without waiting for `dirty` to flip false→true.
+   * Do not pass `hasUnsavedChanges` as this signal — that boolean latches.
+   */
+  subscribeDirty?: (listener: () => void) => () => void
   onRestore: (state: PlanDraftStateV1) => void
   /** Discard of an applied draft — rehydrate the captured tip snapshot. */
   onRevertToBase?: (state: PlanDraftStateV1) => void
@@ -242,6 +247,9 @@ export function usePlanDraftSession(args: {
           state,
         })
         setLastAutosaveAt(Date.now())
+        setActiveDraft((prev) =>
+          prev ? { ...prev, updatedAt: new Date().toISOString() } : prev
+        )
       })
     },
     [autosaveEnabled, args.masterId, args.mbaNumber, userId, enqueuePersist]
@@ -282,34 +290,49 @@ export function usePlanDraftSession(args: {
     [autosaveEnabled, args.masterId, args.mbaNumber, userId, args.baseVersionId, enqueuePersist]
   )
 
-  // Tier 1 ~3s after dirty
+  const persistLocalRef = useRef(persistLocal)
+  persistLocalRef.current = persistLocal
+  const persistServerRef = useRef(persistServer)
+  persistServerRef.current = persistServer
+
+  // Tier 1 ~3s after last accepted edit (not the sticky dirty boolean).
   useEffect(() => {
     if (!autosaveEnabled || !args.dirty) return
-    if (localTimer.current) clearTimeout(localTimer.current)
-    localTimer.current = setTimeout(() => {
-      void persistLocal()
-    }, 3000)
+    const arm = () => {
+      if (localTimer.current) clearTimeout(localTimer.current)
+      localTimer.current = setTimeout(() => {
+        void persistLocalRef.current()
+      }, 3000)
+    }
+    arm()
+    const unsub = args.subscribeDirty?.(arm)
     return () => {
+      unsub?.()
       if (localTimer.current) clearTimeout(localTimer.current)
     }
-  }, [autosaveEnabled, args.dirty, persistLocal])
+  }, [autosaveEnabled, args.dirty, args.subscribeDirty])
 
   // Tier 2 ~15s + blur
   useEffect(() => {
     if (!autosaveEnabled || !args.dirty || args.masterId == null) return
-    if (serverTimer.current) clearTimeout(serverTimer.current)
-    serverTimer.current = setTimeout(() => {
-      void persistServer()
-    }, 15000)
+    const arm = () => {
+      if (serverTimer.current) clearTimeout(serverTimer.current)
+      serverTimer.current = setTimeout(() => {
+        void persistServerRef.current()
+      }, 15000)
+    }
+    arm()
     const onBlur = () => {
-      void persistServer()
+      void persistServerRef.current()
     }
     window.addEventListener("blur", onBlur)
+    const unsub = args.subscribeDirty?.(arm)
     return () => {
+      unsub?.()
       if (serverTimer.current) clearTimeout(serverTimer.current)
       window.removeEventListener("blur", onBlur)
     }
-  }, [autosaveEnabled, args.dirty, args.masterId, persistServer])
+  }, [autosaveEnabled, args.dirty, args.masterId, args.subscribeDirty])
 
   // Presence heartbeat: immediate on mount, leave on unmount. Interval only
   // when the 15s autosave timeout is not armed.
@@ -350,10 +373,10 @@ export function usePlanDraftSession(args: {
   }, [args.masterId, autosaveEnabled, args.dirty])
 
   const commitApply = useCallback(
-    (state: PlanDraftStateV1, updatedAt: string, headline?: string) => {
+    (state: PlanDraftStateV1, updatedAt: string) => {
       const base = cloneDraftState(getSnapshotRef.current())
       pendingUpdatedAtRef.current = null
-      setActiveDraft({ updatedAt, baseSnapshot: base, headline })
+      setActiveDraft({ updatedAt, baseSnapshot: base })
       setRecovery(null)
       onRestoreRef.current(state)
     },
@@ -501,7 +524,7 @@ export function usePlanDraftSession(args: {
       hydrationSettled,
     )
     restoreGateRef.current = result.gate
-    if (result.apply) commitApply(result.apply, offer.updatedAt, offer.headline)
+    if (result.apply) commitApply(result.apply, offer.updatedAt)
   }, [offer, args.baseVersionId, hydrationSettled, activeDraft, commitApply])
 
   const discard = useCallback(async () => {
@@ -535,7 +558,7 @@ export function usePlanDraftSession(args: {
     restoreGateRef.current = result.gate
     pendingUpdatedAtRef.current = stale.updatedAt
     setRecovery(null)
-    if (result.apply) commitApply(result.apply, stale.updatedAt, stale.headline)
+    if (result.apply) commitApply(result.apply, stale.updatedAt)
   }, [recovery, hydrationSettled, commitApply])
 
   useEffect(() => {
@@ -548,7 +571,6 @@ export function usePlanDraftSession(args: {
       commitApply(
         result.apply,
         pendingUpdatedAtRef.current ?? offer?.updatedAt ?? "",
-        offer?.headline
       )
     }
   }, [hydrationSettled, commitApply, offer?.updatedAt])

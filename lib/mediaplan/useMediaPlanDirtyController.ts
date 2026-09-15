@@ -13,6 +13,11 @@ export type UseMediaPlanDirtyControllerResult = MediaPlanDirtyController & {
 /**
  * React adapter for {@link createMediaPlanDirtyController}.
  * One instance per create/edit page mount.
+ *
+ * Snapshot is the sticky boolean only. Already-dirty marks still `emit`
+ * (for autosave re-arm) but `Object.is(true, true)` bails — the 365KB
+ * create/edit tree does not re-render per keystroke. Do not snapshot
+ * `editRevision` here.
  */
 export function useMediaPlanDirtyController(): UseMediaPlanDirtyControllerResult {
   const ctrlRef = useRef<MediaPlanDirtyController | null>(null)

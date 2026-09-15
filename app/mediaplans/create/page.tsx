@@ -264,9 +264,7 @@ import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnL
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
   channelLoadSucceededWithoutFetch,
-  computeChannelDuplicateStats,
   formatSaveModeLabel,
-  isSaveAllowedAfterHydration,
 } from "@/lib/mediaplan/channelHydrationGate"
 import { useWriteBackend } from "@/lib/data/WriteBackendContext"
 import {
@@ -293,8 +291,10 @@ import {
   DOC_SKIP_REASON,
   DOC_STEP_MBA,
   DOC_STEP_MEDIA_PLAN,
+  applyPublishDocumentsStep,
   classifyDocStepFailure,
   shouldSkipDocsForCampaignStatus,
+  skipUnrunPostgresSaveSteps,
 } from "@/lib/docs/saveDocSteps"
 import {
   POSTGRES_SAVE_MODAL_STEPS,
@@ -2190,57 +2190,6 @@ function CreateMediaPlan() {
     [campaignFinancials, isPartialMBA, partialMBAMonthYears]
   )
 
-  const channelDuplicateSummary = useMemo(
-    () =>
-      computeChannelDuplicateStats({
-        television: televisionMediaLineItems,
-        radio: radioMediaLineItems,
-        newspaper: newspaperMediaLineItems,
-        magazines: magazineMediaLineItems,
-        ooh: oohMediaLineItems,
-        cinema: cinemaMediaLineItems,
-        digitalDisplay: digiDisplayMediaLineItems,
-        digitalAudio: digiAudioMediaLineItems,
-        digitalVideo: digiVideoMediaLineItems,
-        bvod: bvodMediaLineItems,
-        integration: integrationMediaLineItems,
-        production: productionMediaLineItems,
-        search: searchMediaLineItems,
-        socialMedia: socialMediaMediaLineItems,
-        progDisplay: progDisplayMediaLineItems,
-        progVideo: progVideoMediaLineItems,
-        progBvod: progBvodMediaLineItems,
-        progAudio: progAudioMediaLineItems,
-        progOoh: progOohMediaLineItems,
-        influencers: influencersMediaLineItems,
-      }),
-    [
-      televisionMediaLineItems,
-      radioMediaLineItems,
-      newspaperMediaLineItems,
-      magazineMediaLineItems,
-      oohMediaLineItems,
-      cinemaMediaLineItems,
-      digiDisplayMediaLineItems,
-      digiAudioMediaLineItems,
-      digiVideoMediaLineItems,
-      bvodMediaLineItems,
-      integrationMediaLineItems,
-      productionMediaLineItems,
-      searchMediaLineItems,
-      socialMediaMediaLineItems,
-      progDisplayMediaLineItems,
-      progVideoMediaLineItems,
-      progBvodMediaLineItems,
-      progAudioMediaLineItems,
-      progOohMediaLineItems,
-      influencersMediaLineItems,
-    ]
-  )
-  const duplicatesDetected = channelDuplicateSummary.duplicatesDetected
-  const saveBlockedByDuplicates = !isSaveAllowedAfterHydration(true, {
-    duplicatesDetected,
-  })
   const saveBlockedByClientsError = Boolean(clientsError)
 
   const predictedSaveModeLabel = useMemo(() => {
@@ -5004,6 +4953,7 @@ function CreateMediaPlan() {
     masterId: mediaPlanId,
     mbaNumber: String(mbaNumber ?? ""),
     dirty: hasUnsavedChanges,
+    subscribeDirty: dirty.subscribe,
     baseVersionId: draftBaseVersionId,
     campaignStatus: form.watch("mp_campaignstatus"),
     publishedVersionNumber: 0,
@@ -5657,6 +5607,7 @@ function CreateMediaPlan() {
         )
 
         if (!saveResult.ok) {
+          skipUnrunPostgresSaveSteps(updateSaveStatus)
           if (isUnauthorizedStatus(saveResult.status)) {
             setSaveStatus((prev) =>
               applySessionExpiredToSaveItems(prev, "Save plan (transactional)")
@@ -5710,6 +5661,14 @@ function CreateMediaPlan() {
         }
 
         updateSaveStatus("Save plan (transactional)", "success")
+        applyPublishDocumentsStep(updateSaveStatus, saveResult.data.documents)
+        if (saveResult.data.documents?.status === "error") {
+          toast({
+            variant: "destructive",
+            title: "Plan saved without documents",
+            description: saveResult.data.documents.error || "Document generation failed",
+          })
+        }
         if (saveResult.data.ingestStageRetained) {
           ingestStageIdRef.current = null
         }
@@ -6843,15 +6802,6 @@ const handleSaveAll = async (opts?: {
       })
       return
     }
-    if (saveBlockedByDuplicates) {
-      toast({
-        title: "Save disabled",
-        description: "Duplicate line-item rows detected — fix before saving.",
-        variant: "destructive",
-      })
-      return
-    }
-
   if (saveAllInFlightRef.current) return
   if (budgetRemaining < 0) {
     const proceed = window.confirm(
@@ -7377,11 +7327,6 @@ const handleSaveAll = async (opts?: {
   const isWizardSaving = isLoading || isPlanSaving || isVersionSaving
 
   const extraProblemTexts: string[] = []
-  if (duplicatesDetected) {
-    extraProblemTexts.push(
-      `Duplicate line-item rows detected (${channelDuplicateSummary.inflatedRows} rows / ${channelDuplicateSummary.inflatedDistinctIds} ids) — do not save; totals are inflated`
-    )
-  }
   if (dateWarning.hasViolation) {
     extraProblemTexts.push(
       dateWarning.offendingCount === 1
@@ -7469,7 +7414,7 @@ const handleSaveAll = async (opts?: {
   const isPublished = false
   const draftBlocksDownloadMessage = DRAFT_BLOCKS_DOWNLOAD_MESSAGE
   const saveBarDisabled =
-    isWizardSaving || saveBlockedByDuplicates || saveBlockedByClientsError
+    isWizardSaving || saveBlockedByClientsError
   const saveBarTitle = saveBlockedByClientsError
     ? clientsError ?? "Client list unavailable"
     : undefined
@@ -8018,11 +7963,10 @@ const handleSaveAll = async (opts?: {
               </div>
               <div className="grid grid-cols-1 gap-6 xl:grid-cols-3 xl:gap-7 2xl:gap-8 xl:items-stretch">
                 <div className="flex min-w-0 flex-col gap-4 xl:col-span-2">
-                  <MbaBillingAutoCalcSummary
+                    <MbaBillingAutoCalcSummary
                     financials={campaignFinancials}
                     panelIndicators={panelIndicators}
                     mediaLabelByType={mediaLabelByBillingKey}
-                    duplicatesDetected={duplicatesDetected}
                   />
                   <div className="flex flex-wrap items-center gap-2">
                     <Button type="button" variant="action" onClick={handleMbaBillingModalOpen}>
@@ -9222,11 +9166,11 @@ const handleSaveAll = async (opts?: {
           (Boolean(planDraft.activeDraft) ||
             Boolean(planDraft.pill?.secondary?.startsWith("Autosaved")))
         }
-        saveDisabled={saveBlockedByDuplicates || saveBlockedByClientsError}
+        saveDisabled={saveBlockedByClientsError}
         saveDisabledReason={
           saveBlockedByClientsError
             ? clientsError ?? "Client list unavailable — try again"
-            : "Duplicate line-item rows detected — fix them before saving."
+            : undefined
         }
       />
     </>

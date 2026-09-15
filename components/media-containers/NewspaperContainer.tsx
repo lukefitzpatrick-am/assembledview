@@ -48,6 +48,7 @@ import { NEWSPAPER_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChann
 import {
   NEWSPAPER_CONTAINER_CONFIG,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -405,26 +406,7 @@ const handleAddNewNewspaperAdSize = async () => {
   const form = useForm<NewspapersFormValues>({
     resolver: zodResolver(newspapersFormSchema) as Resolver<NewspapersFormValues>,
     defaultValues: {
-      newspaperlineItems: [
-        {
-          ...buildDefaultLineItem(NEWSPAPER_CONTAINER_CONFIG.fieldMap),
-          ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as NewspapersFormValues["newspaperlineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      newspaperlineItems: emptyChannelLineItemsDefault(),
     },
   });
 

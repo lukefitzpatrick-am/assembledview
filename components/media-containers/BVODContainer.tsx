@@ -23,6 +23,7 @@ import {
 import {
   BVOD_CONTAINER_CONFIG,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -366,25 +367,7 @@ export default function BVODContainer({
   const form = useForm({
     resolver: zodResolver(bvodFormSchema),
     defaultValues: {
-      bvodlineItems: [
-        {
-          ...buildDefaultLineItem(BVOD_CONTAINER_CONFIG.fieldMap),
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as any,
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      bvodlineItems: emptyChannelLineItemsDefault(),
     },
   });
 

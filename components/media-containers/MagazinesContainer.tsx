@@ -55,6 +55,7 @@ import { MAGAZINES_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChann
 import {
   MAGAZINES_CONTAINER_CONFIG,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -405,26 +406,7 @@ const handleAddNewMagazinesAdSize = async () => {
 const form = useForm<MagazinesFormValues>({
   resolver: zodResolver(magazinesFormSchema) as Resolver<MagazinesFormValues>,
     defaultValues: {
-      magazineslineItems: [
-        {
-          ...buildDefaultLineItem(MAGAZINES_CONTAINER_CONFIG.fieldMap),
-          ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as MagazinesFormValues["magazineslineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      magazineslineItems: emptyChannelLineItemsDefault(),
     },
   });
 

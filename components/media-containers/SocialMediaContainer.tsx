@@ -11,6 +11,7 @@ import { SOCIALMEDIA_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridCha
 import {
   SOCIALMEDIA_CONTAINER_CONFIG,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -282,25 +283,7 @@ export default function SocialMediaContainer({
   // Form initialization
   const form = useForm({
     defaultValues: {
-      lineItems: [
-        {
-          ...buildDefaultLineItem(SOCIALMEDIA_CONTAINER_CONFIG.fieldMap),
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      lineItems: emptyChannelLineItemsDefault(),
     },
   }) as any;
 

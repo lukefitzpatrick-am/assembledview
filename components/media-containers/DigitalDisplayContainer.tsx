@@ -27,6 +27,7 @@ import { DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGrid
 import {
   DIGITALDISPLAY_CONTAINER_CONFIG,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -460,29 +461,7 @@ export default function DigiDisplayContainer({
   const form = useForm<DigiDisplayFormValues>({
     resolver: zodResolver(digidisplayFormSchema) as Resolver<DigiDisplayFormValues>,
     defaultValues: {
-      digidisplaylineItems: [
-        {
-          ...buildDefaultLineItem(DIGITALDISPLAY_CONTAINER_CONFIG.fieldMap),
-          ...(() => {
-            const id = buildLineItemId("", MEDIA_TYPE_ID_CODES.digitalDisplay, 1);
-            return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 };
-          })(),
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as DigiDisplayFormValues["digidisplaylineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      digidisplaylineItems: emptyChannelLineItemsDefault(),
     },
   });
 

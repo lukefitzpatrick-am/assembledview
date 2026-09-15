@@ -19,6 +19,7 @@ import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
 import {
   type ContainerChannelConfig,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -194,25 +195,7 @@ export function useMediaChannelContainer(
   const [overallDeliverables, setOverallDeliverables] = useState(0)
   const form = useForm<any>({
     defaultValues: {
-      [fieldKey]: [
-        {
-          ...buildDefaultLineItem(config.fieldMap),
-          bursts: [
-            {
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-              _reactKey: newBurstReactKey(),
-            },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      [fieldKey]: emptyChannelLineItemsDefault(),
       overallDeliverables: 0,
     },
   } as any)

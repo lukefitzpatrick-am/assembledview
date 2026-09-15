@@ -116,6 +116,25 @@ test("P2-3 controller: subscribe fires on dirty transitions", () => {
   assert.equal(hits, 2)
 })
 
+test("P2-3 controller: already-dirty markUnsavedChanges still emits and bumps editRevision", () => {
+  const c = createMediaPlanDirtyController()
+  c.openGate()
+  c.markUnsavedChanges()
+  assert.equal(c.getEditRevision(), 1)
+  let hits = 0
+  const unsub = c.subscribe(() => {
+    hits += 1
+  })
+  c.markUnsavedChanges()
+  assert.equal(c.getHasUnsavedChanges(), true)
+  assert.equal(c.getEditRevision(), 2)
+  assert.equal(hits, 1, "already-dirty mark must emit so autosave can re-arm")
+  c.forceDirty()
+  assert.equal(c.getEditRevision(), 3)
+  assert.equal(hits, 2)
+  unsub()
+})
+
 // ─── Page adapters (source contracts) ───────────────────────────────────────
 
 test("P2-3 adapter: edit + create own dirty via useMediaPlanDirtyController", () => {

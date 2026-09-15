@@ -23,6 +23,7 @@ import {
 import {
   DIGITALVIDEO_CONTAINER_CONFIG,
   buildDefaultLineItem,
+  emptyChannelLineItemsDefault,
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
@@ -330,25 +331,7 @@ export default function DigiVideoContainer({
   const form = useForm({
     resolver: zodResolver(digivideoFormSchema),
     defaultValues: {
-      digivideolineItems: [
-        {
-          ...buildDefaultLineItem(DIGITALVIDEO_CONTAINER_CONFIG.fieldMap),
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as DigiVideoFormValues["digivideolineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      digivideolineItems: emptyChannelLineItemsDefault(),
     },
   });
 
