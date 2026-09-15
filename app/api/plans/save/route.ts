@@ -221,12 +221,12 @@ export async function POST(request: NextRequest) {
   }
   const getRateForMediaType = createAdServingRateResolver(adservRates)
 
-  // VC Stage 1 — same session identity resolution as PC7 draft cleanup below.
+  // VC Stage 1 — published_by is email-only. Auth0 sub is a weaker claim
+  // (the 0018 CHECK would accept auth0|…; never write it). Missing email →
+  // null; warnIfPublishMissingPublishedBy fires; publish still succeeds.
   const sessionUser = (gate as { session?: { user?: { email?: string; sub?: string } } })
     .session?.user
-  const publishedByEmail = normalisePublishedByEmail(
-    sessionUser?.email || sessionUser?.sub || null
-  )
+  const publishedByEmail = normalisePublishedByEmail(sessionUser?.email ?? null)
   warnIfPublishMissingPublishedBy(body.mode, publishedByEmail, {
     mbaNumber: body.mbaNumber,
   })
@@ -350,6 +350,7 @@ export async function POST(request: NextRequest) {
       lineCount: result.lineCount,
       scheduleRowCount: result.scheduleRowCount,
       published: result.published,
+      documents: result.documents,
       mirror,
       mirrorDurationMs,
       ...(result.billingCorrection

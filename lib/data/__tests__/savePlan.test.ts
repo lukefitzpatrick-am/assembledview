@@ -1878,6 +1878,38 @@ test("CS-B: draft overwrite with booked payload does not write version campaign_
   assert.notEqual(after.version?.campaignStatus, "booked")
 })
 
+test("DOC-1b: draft overwrite without file fields leaves document jsonb alone", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const first = await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000)])
+  )
+  const files = {
+    mbaPdfFile: { name: "mba.pdf", source: "vercel-blob" },
+    mediaPlanFile: { name: "mp.xlsx", source: "vercel-blob" },
+    aaMediaPlanFile: { name: "aa.xlsx", source: "vercel-blob" },
+  }
+  const db = getDb()
+  await db
+    .update(schema.mediaPlanVersions)
+    .set(files)
+    .where(eq(schema.mediaPlanVersions.id, first.versionId))
+
+  await savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1100)]))
+  const after = await snapshot(first.versionId)
+  assert.deepEqual(after.version?.mbaPdfFile, files.mbaPdfFile)
+  assert.deepEqual(after.version?.mediaPlanFile, files.mediaPlanFile)
+  assert.deepEqual(after.version?.aaMediaPlanFile, files.aaMediaPlanFile)
+})
+
 test("CS-B REQUIREMENT LOCK: status-only change at v5 does not cut a version and leaves line_items.created_at unchanged", async (t) => {
   if (!hasDb) {
     t.skip("DATABASE_URL not set")

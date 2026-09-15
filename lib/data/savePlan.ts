@@ -33,6 +33,11 @@ import { and, count, eq, inArray, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 
 import { getDb, schema, type Db } from "@/db"
+import { DOC_SKIP_REASON } from "@/lib/docs/saveDocSteps"
+import {
+  runPublishDocumentsBestEffort,
+  type PublishDocumentsResult,
+} from "@/lib/docs/publishDocumentsAfterCommit"
 import type { LineChannel } from "@/db/schema"
 import { normalizeMonthKey } from "@/lib/finance/accrual"
 import {
@@ -208,6 +213,11 @@ export type SavePlanVersionResult = {
    * version's line_items. Always named when non-empty; never silent-drop.
    */
   droppedBillingOverrides?: DroppedBillingOverride[]
+  /**
+   * Best-effort documents after commit (option b). Always present so the
+   * save modal cannot treat a missing payload as silence.
+   */
+  documents: PublishDocumentsResult
 }
 
 export type SavePlanErrorCode =
@@ -663,9 +673,13 @@ async function upsertVersionRow(
     fixedFee: input.fixedFee ?? null,
     channelFlags: input.channelFlags ?? null,
     legacySchedules,
-    mediaPlanFile: input.mediaPlanFile ?? null,
-    mbaPdfFile: input.mbaPdfFile ?? null,
-    aaMediaPlanFile: input.aaMediaPlanFile ?? null,
+    // DOC-1b: do not `?? null`. Save bodies never send these (documents POST /
+    // regenerate own the columns). Undefined → Drizzle omits the key, so a
+    // draft-overwrite UPDATE leaves existing jsonb alone. INSERT still lands
+    // NULL (omit / column default). An explicit `null` still clears.
+    mediaPlanFile: input.mediaPlanFile,
+    mbaPdfFile: input.mbaPdfFile,
+    aaMediaPlanFile: input.aaMediaPlanFile,
   }
 
   if (input.mode === "draft") {
@@ -1153,7 +1167,10 @@ export async function savePlanVersion(
         // CS-B: commercial status is a master fact (PATCH /status). Do not
         // write campaign_status onto the version or master from this payload.
         // Stamp created_at and published_at from the same now() so they are
-        // equal to the microsecond (smoke S5 / unit assertion).
+        // equal to the microsecond (smoke S5 / unit assertion). Production R1
+        // omits createdAt — publish is a separate act from version creation
+        // when SAVE_PUBLISHES_IMMEDIATELY is off; resetting created_at would
+        // misstate when the row was made. That writer convention is C-114.
         await tx
           .update(schema.mediaPlanVersions)
           .set({
@@ -1247,6 +1264,11 @@ export async function savePlanVersion(
       }
     })
 
+    let documents: PublishDocumentsResult = {
+      status: "skipped",
+      error: DOC_SKIP_REASON,
+    }
+
     // PC5: after publish, flip open-period finance run items for this MBA to stale.
     if (result.published) {
       try {
@@ -1260,9 +1282,20 @@ export async function savePlanVersion(
       } catch (err) {
         console.warn("[PC5] stale flip after publish failed", err)
       }
+
+      try {
+        documents = await runPublishDocumentsBestEffort({
+          published: true,
+          versionId: result.versionId,
+        })
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err)
+        console.warn("[docs] generate after publish failed", err)
+        documents = { status: "error", error }
+      }
     }
 
-    return result
+    return { ...result, documents }
   } catch (err) {
     if (err instanceof SavePlanError) throw err
     if (isUniqueViolation(err)) {

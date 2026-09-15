@@ -11,6 +11,8 @@ export const DOC_SKIP_REASON = "Documents generate from published versions"
 export const DOC_STEP_MBA = "MBA PDF Upload"
 export const DOC_STEP_MEDIA_PLAN = "Media Plan Upload"
 export const DOC_STEP_AA_MEDIA_PLAN = "AA Media Plan Upload"
+/** Postgres publish path — one step so a generate failure cannot stay silent. */
+export const DOC_STEP_POSTGRES_GENERATE = "Generate documents"
 
 export type SaveDocStepStatus = "pending" | "success" | "error" | "skipped"
 
@@ -95,4 +97,64 @@ export function classifyDocStepFailure(message: unknown): {
   }
   const error = String(message ?? "").trim() || "Document step failed"
   return { status: "error", error }
+}
+
+export type PublishDocumentsPayload = {
+  status: "ok" | "error" | "skipped"
+  error?: string
+}
+
+/**
+ * Map the save-response documents payload onto the Generate documents modal
+ * step. A missing payload is an error — that omission is how this stayed
+ * silent for six weeks.
+ */
+export function applyPublishDocumentsStep(
+  updateSaveStatus: (
+    name: string,
+    status: SaveDocStepStatus,
+    error?: string,
+  ) => void,
+  documents?: PublishDocumentsPayload | null,
+): void {
+  if (!documents) {
+    updateSaveStatus(
+      DOC_STEP_POSTGRES_GENERATE,
+      "error",
+      "Document step did not run",
+    )
+    return
+  }
+  if (documents.status === "ok") {
+    updateSaveStatus(DOC_STEP_POSTGRES_GENERATE, "success")
+    return
+  }
+  if (documents.status === "skipped") {
+    updateSaveStatus(
+      DOC_STEP_POSTGRES_GENERATE,
+      "skipped",
+      documents.error ?? DOC_SKIP_REASON,
+    )
+    return
+  }
+  updateSaveStatus(
+    DOC_STEP_POSTGRES_GENERATE,
+    "error",
+    documents.error || "Document generation failed",
+  )
+}
+
+export const DOC_SAVE_DID_NOT_RUN_REASON = "Save did not publish"
+
+/** Keep Generate documents + KPI sync from sitting pending after a failed save. */
+export function skipUnrunPostgresSaveSteps(
+  updateSaveStatus: (
+    name: string,
+    status: SaveDocStepStatus,
+    error?: string,
+  ) => void,
+  docReason: string = DOC_SAVE_DID_NOT_RUN_REASON,
+): void {
+  updateSaveStatus(DOC_STEP_POSTGRES_GENERATE, "skipped", docReason)
+  updateSaveStatus("KPI sync", "skipped")
 }

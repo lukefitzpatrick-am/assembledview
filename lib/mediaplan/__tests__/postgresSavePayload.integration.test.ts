@@ -656,9 +656,10 @@ function sliceBottomBar(src: string) {
 }
 
 describe("SM-6: save-status panel is Save plan + KPI sync (no Xano mirror)", () => {
-  it("POSTGRES_SAVE_MODAL_STEPS is exactly the two live steps", () => {
+  it("POSTGRES_SAVE_MODAL_STEPS is exactly the three live steps", () => {
     assert.deepEqual([...POSTGRES_SAVE_MODAL_STEPS], [
       "Save plan (transactional)",
+      "Generate documents",
       "KPI sync",
     ])
   })

@@ -15,6 +15,7 @@ import {
   noteAuthenticatedWriteOk,
   noteWriteUnauthorized,
 } from "@/lib/auth/writeSessionExpiry"
+import { DOC_STEP_POSTGRES_GENERATE } from "@/lib/docs/saveDocSteps"
 import { normaliseBuyType } from "@/lib/mediaplan/missingBuyTypeGate"
 
 const ATTR_SKIP = new Set([
@@ -359,6 +360,15 @@ export type PlansSaveResponse = {
   ingestPanelError?: string
   /** True when the staged ingest was retained (or already retained). */
   ingestStageRetained?: boolean
+  /**
+   * Best-effort publish documents (after commit). Missing on older servers;
+   * the modal treats a missing payload as a visible error.
+   */
+  documents?: {
+    status: "ok" | "error" | "skipped"
+    error?: string
+    results?: Array<{ kind: string; status: string; error?: string }>
+  }
 }
 
 export async function postPlansSave(
@@ -382,8 +392,10 @@ export async function postPlansSave(
 }
 
 /** Modal step names for the Postgres transactional path (T4c). */
+export const POSTGRES_SAVE_DOC_STEP = DOC_STEP_POSTGRES_GENERATE
 export const POSTGRES_SAVE_MODAL_STEPS = [
   "Save plan (transactional)",
+  POSTGRES_SAVE_DOC_STEP,
   "KPI sync",
 ] as const
 

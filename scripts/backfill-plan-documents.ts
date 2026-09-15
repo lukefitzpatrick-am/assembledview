@@ -10,6 +10,9 @@
  * and makes no Blob upload and no Postgres write. The selected version may
  * be a historic published cut (not the master's published_version_id);
  * isVersionPublished still gates generate.
+ * Default list is published versions (`published_at >= 2026-08-01` AND
+ * `mba_pdf_file IS NULL`) — not the master's current pointer. Pre-cutover
+ * ETL rows are out of scope (no approved_slice / checksum).
  * `--kinds media_plan,aa_media_plan,mba_pdf` defaults to all three.
  * `--apply` writes one `migration_markers` row per kind
  * (`doc2_plan_documents_backfill:<kind>`), so an Excel apply does not block
@@ -27,7 +30,7 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm"
+import { and, eq, gte, inArray, isNull, or, sql } from "drizzle-orm"
 
 import {
   BACKFILL_PLAN_DOCUMENTS_MARKER_PREFIX,
@@ -47,6 +50,9 @@ loadEnvLocal()
 
 const GAP_MS = 1000
 
+/** Post-cutover published cuts. Pre-cutover ETL rows have no frozen slice. */
+const POST_CUTOVER_PUBLISHED_AT = "2026-08-01"
+
 type Candidate = {
   versionId: number
   versionNumber: number
@@ -55,6 +61,17 @@ type Candidate = {
   mbaPdfFile: unknown
   mediaPlanFile: unknown
   aaMediaPlanFile: unknown
+  approvedSlice?: unknown
+  snapshotChecksum?: string | null
+  publishedVersionId?: number | null
+}
+
+function renderPathHint(row: Candidate): "persisted" | "explode" {
+  const slice = row.approvedSlice
+  const hasSlice = slice != null && typeof slice === "object"
+  const checksum =
+    typeof row.snapshotChecksum === "string" ? row.snapshotChecksum.trim() : ""
+  return hasSlice && checksum.length > 0 ? "persisted" : "explode"
 }
 
 function missingKinds(
@@ -76,11 +93,11 @@ function pad(value: unknown, width: number): string {
 }
 
 function printCandidateList(rows: Candidate[], kinds: PlanDocumentKind[]) {
-  console.log("mba              v     version_id  missing")
-  console.log("----------------  ----  ----------  --------------------------------")
+  console.log("mba              v     version_id  path        missing")
+  console.log("----------------  ----  ----------  ----------  --------------------------------")
   for (const row of rows) {
     console.log(
-      `${pad(row.mbaNumber, 16)}  ${pad(row.versionNumber, 4)}  ${pad(row.versionId, 10)}  ${missingKinds(row, kinds).join(", ")}`,
+      `${pad(row.mbaNumber, 16)}  ${pad(row.versionNumber, 4)}  ${pad(row.versionId, 10)}  ${pad(renderPathHint(row), 10)}  ${missingKinds(row, kinds).join(", ")}`,
     )
   }
 }
@@ -323,9 +340,13 @@ async function main() {
       missingClauses.length === 1
         ? missingClauses[0]!
         : or(...missingClauses)
+    const postCutoverMissingPdf = and(
+      gte(schema.mediaPlanVersions.publishedAt, POST_CUTOVER_PUBLISHED_AT),
+      isNull(schema.mediaPlanVersions.mbaPdfFile),
+    )
     const missingWhere = filter
-      ? and(isNotNull(schema.mediaPlanVersions.publishedAt), fileMissing, filter)
-      : and(isNotNull(schema.mediaPlanVersions.publishedAt), fileMissing)
+      ? and(postCutoverMissingPdf, fileMissing, filter)
+      : and(postCutoverMissingPdf, fileMissing)
     const unpublishedWhere = filter
       ? and(isNull(schema.mediaPlanVersions.publishedAt), filter)
       : isNull(schema.mediaPlanVersions.publishedAt)
@@ -338,12 +359,18 @@ async function main() {
       mbaPdfFile: schema.mediaPlanVersions.mbaPdfFile,
       mediaPlanFile: schema.mediaPlanVersions.mediaPlanFile,
       aaMediaPlanFile: schema.mediaPlanVersions.aaMediaPlanFile,
+      approvedSlice: schema.mediaPlanVersions.approvedSlice,
+      snapshotChecksum: schema.mediaPlanVersions.snapshotChecksum,
+      publishedVersionId: schema.mediaPlanMasters.publishedVersionId,
     }
 
     const missingFiles: Candidate[] = await db
       .select(candidateSelect)
-      .from(schema.mediaPlanMasters)
-      .innerJoin(schema.mediaPlanVersions, publishedPointer)
+      .from(schema.mediaPlanVersions)
+      .innerJoin(
+        schema.mediaPlanMasters,
+        eq(schema.mediaPlanVersions.masterId, schema.mediaPlanMasters.id),
+      )
       .where(missingWhere)
       .orderBy(schema.mediaPlanMasters.mbaNumber, schema.mediaPlanVersions.versionNumber)
 
@@ -379,6 +406,18 @@ async function main() {
     for (const kind of kinds) {
       console.log(`  ${pad(kind, 16)}  ${missingCounts[kind]}`)
     }
+    const currentPointers = missingFiles.filter(
+      (row) => row.publishedVersionId === row.versionId,
+    ).length
+    const earlierCuts = missingFiles.length - currentPointers
+    const persistedPath = missingFiles.filter(
+      (row) => renderPathHint(row) === "persisted",
+    ).length
+    const explodePath = missingFiles.length - persistedPath
+    console.log("")
+    console.log(
+      `Population: ${missingFiles.length} post-cutover published versions with mba_pdf_file NULL (${currentPointers} current pointers, ${earlierCuts} earlier cuts). Render path: ${persistedPath} persisted, ${explodePath} explode.`,
+    )
     console.log("")
     console.log(
       `Published versions missing at least one requested kind (${missingFiles.length}):`,

@@ -1,7 +1,8 @@
 /**
  * Rebuild published plan documents from persisted version rows.
  * Writes Blob + jsonb only. Never mutates approved_slice, published_at,
- * schedule_months, or line items.
+ * schedule_months, or line items. Historic published cuts (not the master's
+ * current published_version_id) are valid persist targets.
  */
 
 import { eq } from "drizzle-orm"
@@ -68,7 +69,6 @@ export async function regeneratePlanVersionDocuments(
       versionNumber: schema.mediaPlanVersions.versionNumber,
       mbaNumber: schema.mediaPlanMasters.mbaNumber,
       publishedAt: schema.mediaPlanVersions.publishedAt,
-      publishedVersionId: schema.mediaPlanMasters.publishedVersionId,
       mbaPdfFile: schema.mediaPlanVersions.mbaPdfFile,
       mediaPlanFile: schema.mediaPlanVersions.mediaPlanFile,
       aaMediaPlanFile: schema.mediaPlanVersions.aaMediaPlanFile,
@@ -83,10 +83,9 @@ export async function regeneratePlanVersionDocuments(
 
   if (!row) return { status: "not_found" }
 
-  if (
-    row.publishedVersionId !== row.versionId ||
-    !isVersionPublished({ publishedAt: row.publishedAt })
-  ) {
+  // Historic published cuts (not the master's current pointer) are valid
+  // persist targets — same gate as renderPlanVersionDocuments.
+  if (!isVersionPublished({ publishedAt: row.publishedAt })) {
     return { status: "not_published", code: "NOT_PUBLISHED" }
   }
 

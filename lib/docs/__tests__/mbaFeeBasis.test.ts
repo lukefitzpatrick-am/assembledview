@@ -412,6 +412,10 @@ describe("regenerate NO_FEE_BASIS explode path", () => {
       regenerateSrc,
       /generatedFrom:\s*"persisted"/,
     )
+    assert.doesNotMatch(
+      regenerateSrc,
+      /publishedVersionId !== row\.versionId/,
+    )
 
     const generateSrc = readFileSync(
       join(here, "../../../app/api/mba/generate/route.ts"),
