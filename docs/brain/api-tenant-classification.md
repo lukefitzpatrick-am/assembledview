@@ -292,6 +292,7 @@ Existing `/api/admin/*` handlers in this recount: **27** methods across **23** f
 | GET | `/api/mba-line-approvals` | tenant-scoped | checkClientMbaAccess | `app/api/mba-line-approvals/route.ts` |
 | PATCH | `/api/mba-line-approvals` | tenant-scoped | checkClientMbaAccess | `app/api/mba-line-approvals/route.ts` |
 | POST | `/api/mba/generate` | admin-only | requireRole | `app/api/mba/generate/route.ts` |
+| POST | `/api/mediaplans/draft-documents` | admin-only | requireRole + checkClientMbaAccess | `app/api/mediaplans/draft-documents/route.ts` |
 | GET | `/api/me` | tenant-scoped | none | `app/api/me/route.ts` |
 | GET | `/api/media_plans` | tenant-scoped | checkClientMbaAccess | `app/api/media_plans/route.ts` |
 | DELETE | `/api/media_plans/[...path]` | admin-only | requireRole | `app/api/media_plans/[...path]/route.ts` |
