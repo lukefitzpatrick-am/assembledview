@@ -1,6 +1,6 @@
 // /lib/generateMBA.ts
 
-import { jsPDF } from "jspdf";
+import { jsPDF, GState } from "jspdf";
 import { createHash } from "node:crypto";
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -53,6 +53,11 @@ export interface MBAData {
   };
   /** Live form campaign dates differ from the persisted row — audit flag, not drawn. */
   datesUnsaved?: boolean;
+  /**
+   * Unpublished dry-run. Diagonal "DRAFT - NOT FOR CLIENT" on every page,
+   * "DRAFT" beside the header date, and no checksum footer (even if set).
+   */
+  draft?: boolean;
 }
 
 const parseCurrency = (value: string | number | null | undefined): number => {
@@ -117,7 +122,7 @@ export async function generateMBA(
     subject: mbaData.campaign_name || "MBA",
     author: "AssembledView",
     creator: "AssembledView",
-    keywords: mbaData.checksumFooter || "",
+    keywords: mbaData.draft ? "" : mbaData.checksumFooter || "",
     creationDate: fixedDate,
     modDate: fixedDate,
   } as Parameters<typeof doc.setProperties>[0]);
@@ -133,7 +138,7 @@ export async function generateMBA(
   const lineHeight = 5;
 
   const drawChecksumFooter = () => {
-    if (!mbaData.checksumFooter) return;
+    if (mbaData.draft || !mbaData.checksumFooter) return;
     const pageH = doc.internal.pageSize.getHeight();
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
@@ -143,6 +148,22 @@ export async function generateMBA(
       pageH - 10,
       { align: "right" }
     );
+  };
+
+  const drawDraftStamp = () => {
+    if (!mbaData.draft) return;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    doc.setGState(new GState({ opacity: 0.25 }));
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(36);
+    doc.setTextColor(128, 128, 128);
+    doc.text("DRAFT - NOT FOR CLIENT", pageWidth / 2, pageHeight / 2, {
+      align: "center",
+      angle: 45,
+    });
+    doc.setGState(new GState({ opacity: 1 }));
+    doc.setTextColor(0, 0, 0);
   };
 
   // --- Add Logo to the top right ---
@@ -159,7 +180,12 @@ export async function generateMBA(
   // Header
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.text(`Date: ${mbaData.date}`, margin.left, y);
+  const dateLabel = `Date: ${mbaData.date}`;
+  doc.text(dateLabel, margin.left, y);
+  if (mbaData.draft) {
+    const dateWidth = doc.getTextWidth(`${dateLabel}  `);
+    doc.text("DRAFT", margin.left + dateWidth, y);
+  }
   // This was previously aligned to the right margin, which would clash with the logo.
   // We'll move it below the other header info or handle differently if needed.
   // For now, let's keep it simple.
@@ -336,10 +362,12 @@ export async function generateMBA(
     { align: 'right' }
   );
 
-  // PC3: checksum footer on every page.
+  // PC3: checksum footer on every published page. Draft stamps instead
+  // (checksumFooter is ignored — a draft has no authenticity mark).
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
+    drawDraftStamp();
     drawChecksumFooter();
   }
 
@@ -349,7 +377,7 @@ export async function generateMBA(
   const seed = [
     mbaData.mba_number,
     mbaData.media_plan_version,
-    mbaData.checksumFooter || "",
+    mbaData.draft ? "" : mbaData.checksumFooter || "",
     mbaData.date,
     String(mbaData.totals.totals_ex_gst),
   ].join("|");

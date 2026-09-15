@@ -249,6 +249,50 @@ const SECTION_TO_MEDIA_KEY: Record<string, string> = {
 export type GenerateMediaPlanOptions = {
   /** 'aa' omits Service Fee and Adserving/Tech rows (caller supplies adjusted totals_ex_gst / total_inc_gst). */
   mbaTotalsLayout?: 'standard' | 'aa'
+  /** Unpublished dry-run: print header/footer + on-sheet rotated DRAFT. */
+  draft?: boolean
+}
+
+const DRAFT_STAMP_TEXT = 'DRAFT - NOT FOR CLIENT'
+const DRAFT_HEADER_FOOTER = `&C&"Arial,Bold"&20${DRAFT_STAMP_TEXT}`
+
+function cellText(cell: ExcelJS.Cell): string {
+  const v = cell.value
+  return typeof v === 'string' ? v : v == null ? '' : String(v)
+}
+
+/** Print + on-screen DRAFT mark. Cover G4 campaign status is left alone. */
+export function applyDraftStampToWorksheet(sheet: ExcelJS.Worksheet): void {
+  sheet.headerFooter.oddHeader = DRAFT_HEADER_FOOTER
+  sheet.headerFooter.oddFooter = DRAFT_HEADER_FOOTER
+  const used = sheet.dimensions
+  const endRow = Math.max(used?.bottom ?? 16, 16)
+  const a1 = sheet.getCell(1, 1)
+  const a1Busy = cellText(a1).length > 0 && cellText(a1) !== 'DRAFT'
+  // Media Plan: column A is the gutter. Campaign KPIs already merges A1 across
+  // the title — stamp the first free column so we do not wipe that title.
+  const stampCol = a1Busy ? Math.max((used?.right ?? 14) + 1, 15) : 1
+  if (stampCol === 1) {
+    try {
+      sheet.mergeCells(1, 1, endRow, 1)
+    } catch {
+      // Already merged — still stamp the master cell.
+    }
+  }
+  const cell = sheet.getCell(1, stampCol)
+  cell.value = 'DRAFT'
+  cell.font = {
+    name: 'Arial',
+    size: 72,
+    bold: true,
+    color: { argb: 'FF999999' },
+  }
+  cell.alignment = {
+    horizontal: 'center',
+    vertical: 'middle',
+    textRotation: 45,
+    wrapText: true,
+  }
 }
 
 export async function generateMediaPlan(
@@ -2140,12 +2184,17 @@ export async function generateMediaPlan(
     }
   }
 
+  if (options?.draft) {
+    applyDraftStampToWorksheet(sheet)
+  }
+
   return workbook;
 }
 
 export function addKPISheet(
   workbook: ExcelJS.Workbook,
-  kpiRows: KPISheetRow[]
+  kpiRows: KPISheetRow[],
+  options?: { draft?: boolean }
 ): void {
   if (!kpiRows || kpiRows.length === 0) return
 
@@ -2292,4 +2341,8 @@ export function addKPISheet(
   numFmt(ws.getCell(r, 13), '#,##0',     grandSum('calculatedViews'),    true)
   numFmt(ws.getCell(r, 14), '#,##0',     grandSum('calculatedReach'),    true)
   ws.getRow(r).height = 16
+
+  if (options?.draft) {
+    applyDraftStampToWorksheet(ws)
+  }
 }
