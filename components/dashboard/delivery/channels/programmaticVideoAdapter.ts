@@ -22,6 +22,7 @@ export function buildProgrammaticVideoSection(input: {
   }
   brandColour?: string
   lastSyncedAt: Date | null
+  reportedSpendByLineDate?: Map<string, Map<string, number>>
 }): ChannelSectionData | null {
   return buildProgrammaticChannelSection({
     key: "programmatic-video",
@@ -41,5 +42,6 @@ export function buildProgrammaticVideoSection(input: {
     pacingWindow: input.pacingWindow,
     brandColour: input.brandColour,
     lastSyncedAt: input.lastSyncedAt,
+    reportedSpendByLineDate: input.reportedSpendByLineDate,
   })
 }

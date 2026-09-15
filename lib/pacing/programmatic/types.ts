@@ -106,6 +106,9 @@ export type ProgrammaticPacingCampaignRow = {
   cpv: number | null;
   vtr: number | null;
 
+  /** True when spend pacing is shown on /pacing/direct, not this tab. */
+  spendPacingDeferredToDirect?: boolean;
+
   kpiTargets: KpiTargets | null;
 
   platformCampaigns: ProgrammaticPlatformCampaignBreakdown[];

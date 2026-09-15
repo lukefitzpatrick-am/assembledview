@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
+import { reportedSpendDaysFromDailyFacts } from "@/lib/delivery/programmatic/applyReportedSpend"
+import { queryDailyFacts } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import { getCampaignPacingData } from "@/lib/snowflake/pacing-service"
 import { getSearchPacingData, type SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 
@@ -126,6 +128,7 @@ export async function POST(request: NextRequest) {
 
     let rows: Awaited<ReturnType<typeof getCampaignPacingData>>
     let search: SearchPacingResponse | null = null
+    let reportedSpendDaily: ReturnType<typeof reportedSpendDaysFromDailyFacts> = []
     try {
       const rowsPromise =
         normalizedLineItemIds.length > 0
@@ -160,9 +163,23 @@ export async function POST(request: NextRequest) {
           })
         : Promise.resolve(null)
 
-      const results = await Promise.all([rowsPromise, searchPromise])
+      const reportedPromise =
+        normalizedLineItemIds.length > 0
+          ? queryDailyFacts(normalizedLineItemIds)
+              .then((facts) => reportedSpendDaysFromDailyFacts(facts))
+              .catch((err) => {
+                console.warn("[api/pacing/bulk] reported daily facts failed", {
+                  requestId,
+                  error: err instanceof Error ? err.message : String(err),
+                })
+                return []
+              })
+          : Promise.resolve([])
+
+      const results = await Promise.all([rowsPromise, searchPromise, reportedPromise])
       rows = results[0]
       search = results[1]
+      reportedSpendDaily = results[2]
     } catch (err) {
       const isAbortError = Boolean(err && typeof err === "object" && (err as any).name === "AbortError")
       if (isAbortError || ac.signal.aborted) {
@@ -214,6 +231,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       rows,
       count: rows.length,
+      reportedSpendDaily,
       ...(includeSearch ? { search } : {}),
       ...(DEBUG
         ? {

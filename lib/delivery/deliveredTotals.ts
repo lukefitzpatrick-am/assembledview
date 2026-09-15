@@ -70,25 +70,56 @@ export function deliveredQueryWindow(
  * Empty `daily[]` while ranged → 0 (no unbounded `totalReported` fallback).
  * Unbounded: `totalReported`.
  */
+function skipDirectLine(
+  line: { lineItemId?: string },
+  excludeLineItemIds?: Set<string> | null,
+): boolean {
+  if (!excludeLineItemIds || excludeLineItemIds.size === 0) return false
+  const id = String(line.lineItemId ?? "").trim().toLowerCase()
+  return Boolean(id) && excludeLineItemIds.has(id)
+}
+
 export function sumDirectReportedSpendInRange(
   group:
     | {
         totalReported: number
-        lineItems?: Array<{ daily?: Array<{ dateDay: string; reportedSpend: number }> }>
+        lineItems?: Array<{
+          lineItemId?: string
+          totalReported?: number
+          daily?: Array<{ dateDay: string; reportedSpend: number }>
+        }>
       }
     | null
     | undefined,
   startDate?: string | null,
   endDate?: string | null,
+  excludeLineItemIds?: Set<string> | null,
 ): number {
   if (!group) return 0
   const window = deliveredQueryWindow(startDate, endDate)
   if (!window) {
-    return Number.isFinite(group.totalReported) ? group.totalReported : 0
+    if (!excludeLineItemIds || excludeLineItemIds.size === 0) {
+      return Number.isFinite(group.totalReported) ? group.totalReported : 0
+    }
+    let unbounded = 0
+    for (const line of group.lineItems ?? []) {
+      if (skipDirectLine(line, excludeLineItemIds)) continue
+      const lineTotal = Number(line.totalReported)
+      if (Number.isFinite(lineTotal)) {
+        unbounded += lineTotal
+        continue
+      }
+      for (const day of line.daily ?? []) {
+        const n = Number(day.reportedSpend)
+        if (Number.isFinite(n)) unbounded += n
+      }
+    }
+    return unbounded
   }
   let sum = 0
   let sawDaily = false
   for (const line of group.lineItems ?? []) {
+    if (skipDirectLine(line, excludeLineItemIds)) continue
     if (!Array.isArray(line.daily) || line.daily.length === 0) continue
     sawDaily = true
     for (const day of line.daily) {
@@ -98,6 +129,31 @@ export function sumDirectReportedSpendInRange(
     }
   }
   return sawDaily ? sum : 0
+}
+
+/** Snapshot programmatic lines already carry REPORTED_SPEND — exclude them from the Direct sum. */
+export function programmaticLineItemIdsFromSnapshot(
+  snapshot:
+    | {
+        channels?: Array<{
+          group: string
+          lines?: Array<{ lineItemId: string }>
+        }>
+      }
+    | null
+    | undefined,
+): Set<string> {
+  const ids = new Set<string>()
+  for (const channel of snapshot?.channels ?? []) {
+    if (channel.group !== "programmatic_display" && channel.group !== "programmatic_video") {
+      continue
+    }
+    for (const line of channel.lines ?? []) {
+      const id = String(line.lineItemId ?? "").trim().toLowerCase()
+      if (id) ids.add(id)
+    }
+  }
+  return ids
 }
 
 /** Clamp snapshot as-of to the range end when the range ends before today. */

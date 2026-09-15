@@ -25,6 +25,7 @@ import {
 } from "@/lib/dashboard/dateFilter"
 import { deliverableLabelForMetricKey } from "@/lib/delivery/deliverableLabel"
 import { deriveSpendFromPlanRate } from "@/lib/delivery/deriveSpendFromPlanRate"
+import { overlayReportedSpendOnActuals } from "@/lib/delivery/programmatic/applyReportedSpend"
 import {
   lookupActiveDeliverySource,
   deliverySourceLookupKey,
@@ -502,6 +503,7 @@ export function buildProgrammaticLineItemMetrics(
   fallbackStart?: string,
   fallbackEnd?: string,
   urlFilter?: DateRange,
+  reportedSpendByLineDate?: Map<string, Map<string, number>>,
 ): ProgrammaticLineItemMetrics[] {
   return items.map((item) => {
     const bursts = item.bursts ?? parseBursts(item.bursts_json)
@@ -560,8 +562,15 @@ export function buildProgrammaticLineItemMetrics(
       }
     })
 
-    const spendModelledFromPlanRate = item.deliverySourceMap?.derive_spend_from_plan === true
-    if (spendModelledFromPlanRate) {
+    const isFixedCostMedia = item.fixedCostMedia === true || item.fixed_cost_media === true
+    let spendModelledFromPlanRate = item.deliverySourceMap?.derive_spend_from_plan === true
+    if (isFixedCostMedia) {
+      overlayReportedSpendOnActuals(
+        actualsDaily,
+        reportedSpendByLineDate?.get(targetId ?? ""),
+      )
+      spendModelledFromPlanRate = true
+    } else if (spendModelledFromPlanRate) {
       const derived = deriveSpendFromPlanRate({
         lineItemId: targetId ?? String(item.line_item_id ?? ""),
         buyType: item.buy_type,

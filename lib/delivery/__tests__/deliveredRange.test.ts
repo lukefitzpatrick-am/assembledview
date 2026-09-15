@@ -27,6 +27,27 @@ test("getDeliveredTotalsForCampaign with no range equals the unbounded call", ()
   assert.equal(asOfForDeliveredRange("2026-06-01"), "2026-06-01")
 })
 
+test("ranged delivered spend can exclude programmatic line ids already in the digital snapshot", () => {
+  const mixed = {
+    totalReported: 100,
+    lineItems: [
+      {
+        lineItemId: "bicau002pv1",
+        daily: [{ dateDay: "2026-01-05", reportedSpend: 40 }],
+      },
+      {
+        lineItemId: "bicau002tv1",
+        daily: [{ dateDay: "2026-01-05", reportedSpend: 60 }],
+      },
+    ],
+  }
+  assert.equal(sumDirectReportedSpendInRange(mixed, "2026-01-01", "2026-01-31"), 100)
+  assert.equal(
+    sumDirectReportedSpendInRange(mixed, "2026-01-01", "2026-01-31", new Set(["bicau002pv1"])),
+    60,
+  )
+})
+
 test("ranged delivered spend bounds DATE_DAY and clamps asOf to range end", () => {
   assert.deepEqual(deliveredQueryWindow("2026-01-01", "2026-01-31"), {
     startDate: "2026-01-01",

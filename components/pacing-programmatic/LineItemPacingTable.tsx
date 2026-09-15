@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type RefObject,
 } from "react";
+import Link from "next/link";
 import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Info } from "lucide-react";
 import {
   compareValues,
@@ -759,7 +760,7 @@ function FragmentForLineItem({
           <td className="p-2 font-mono text-[10px]">{row.lineItemId}</td>
         )}
         <td className="p-2">
-          <StatusCell status={row.lineItemStatus} />
+          <StatusCell row={row} />
         </td>
         {isColumnVisible("creativeTargeting", moreColumns) && (
           <td className="p-2 max-w-[8rem] truncate" title={row.creativeTargeting}>
@@ -981,12 +982,22 @@ function AdSetRow({
   );
 }
 
-function StatusCell({ status }: { status: ProgrammaticPacingCampaignRow["lineItemStatus"] }) {
-  const resolved = pacingStatusFromBand(status);
+function StatusCell({ row }: { row: ProgrammaticPacingCampaignRow }) {
+  const resolved = pacingStatusFromBand(row.lineItemStatus);
   return (
-    <Badge variant={resolved.badgeVariant} size="sm" className="whitespace-nowrap text-[10px]">
-      {resolved.label}
-    </Badge>
+    <div className="flex flex-col gap-0.5">
+      <Badge variant={resolved.badgeVariant} size="sm" className="whitespace-nowrap text-[10px]">
+        {resolved.label}
+      </Badge>
+      {row.spendPacingDeferredToDirect ? (
+        <Link
+          href="/pacing/direct"
+          className="text-[10px] text-muted-foreground hover:underline"
+        >
+          Spend on Direct tab
+        </Link>
+      ) : null}
+    </div>
   );
 }
 

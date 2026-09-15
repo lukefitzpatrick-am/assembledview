@@ -344,6 +344,7 @@ export function buildProgrammaticChannelSection(input: {
   }
   brandColour?: string
   lastSyncedAt: Date | null
+  reportedSpendByLineDate?: Map<string, Map<string, number>>
 }): ChannelSectionData | null {
   const {
     key,
@@ -363,6 +364,7 @@ export function buildProgrammaticChannelSection(input: {
     pacingWindow,
     brandColour,
     lastSyncedAt,
+    reportedSpendByLineDate,
   } = input
 
   const normalized = normalizeProgrammaticLineItems(rawLineItems)
@@ -386,6 +388,7 @@ export function buildProgrammaticChannelSection(input: {
     campaignStart,
     campaignEnd,
     filterRange,
+    reportedSpendByLineDate,
   )
 
   const knownPlanLineIds = normalized

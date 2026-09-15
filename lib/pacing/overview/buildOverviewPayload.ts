@@ -14,6 +14,7 @@ import {
   mapAdServingRowToOverviewItem,
   mapDirectLineToOverviewItem,
   mapSpendRowToOverviewItem,
+  includeProgrammaticRowInOverview,
   summarizeOverviewItems,
 } from "@/lib/pacing/overview/mapOverviewItems";
 import {
@@ -283,6 +284,7 @@ export async function buildOverviewPayload(
       >;
       for (const row of programmatic ?? []) {
         if (!inPortfolio(row.clientName)) continue;
+        if (!includeProgrammaticRowInOverview(row)) continue;
         items.push(
           mapSpendRowToOverviewItem(
             "programmatic",

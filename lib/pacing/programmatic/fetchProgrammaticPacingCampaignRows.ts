@@ -22,6 +22,7 @@ import {
   type PacingStatus,
 } from "@/lib/pacing/maths";
 import { pacingStatus } from "@/lib/pacing/status";
+import { applyFixedCostProgrammaticDeliveryPresentation } from "@/lib/pacing/programmatic/fixedCostProgrammaticPresentation";
 import { queryPacingFact } from "@/lib/snowflake/pacing-fact";
 
 export type FetchProgrammaticPacingCampaignRowsArgs = GetLiveProgrammaticLineItemsArgs;
@@ -252,6 +253,7 @@ export async function fetchProgrammaticPacingCampaignRows(
   for (const row of rows) {
     const key = makeKpiKey(row.mbaNumber, row.mediaPlanVersionNumber, row.lineItemId);
     row.kpiTargets = kpiTargetsByKey.get(key) ?? null;
+    applyFixedCostProgrammaticDeliveryPresentation(row);
   }
 
   return rows;

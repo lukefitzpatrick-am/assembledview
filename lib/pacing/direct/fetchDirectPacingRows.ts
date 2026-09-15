@@ -190,7 +190,7 @@ async function queryBurstFacts(lineItemIds: string[]): Promise<BurstFactRow[]> {
   return querySnowflake<BurstFactRow>(sql, lineItemIds, { label: "fixed_cost_burst_fact" });
 }
 
-async function queryDailyFacts(lineItemIds: string[]): Promise<DailyFactRow[]> {
+export async function queryDailyFacts(lineItemIds: string[]): Promise<DailyFactRow[]> {
   if (lineItemIds.length === 0) return [];
   const placeholders = lineItemIds.map(() => "?").join(", ");
   const sql = `

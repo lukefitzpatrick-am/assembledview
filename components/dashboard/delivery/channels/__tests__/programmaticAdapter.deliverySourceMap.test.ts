@@ -74,7 +74,15 @@ function modelledCpmLine(id: string, platform: string): ProgrammaticLineItem {
   }
 }
 
-function lineMetrics(lines: ProgrammaticLineItem[], rows: PacingRow[], acceptedChannel: string) {
+function lineMetrics(
+  lines: ProgrammaticLineItem[],
+  rows: PacingRow[],
+  acceptedChannel: string,
+  extra?: {
+    mediaType?: "progdisplay" | "progvideo"
+    reportedSpendByLineDate?: Map<string, Map<string, number>>
+  },
+) {
   const normalized = normalizeProgrammaticLineItems(lines)
   const dvRows = rows.map((row) => mapCombinedRowToDv360(row, new Set([acceptedChannel])))
   return buildProgrammaticLineItemMetrics(
@@ -82,11 +90,13 @@ function lineMetrics(lines: ProgrammaticLineItem[], rows: PacingRow[], acceptedC
     dvRows,
     [CAMPAIGN_START, "2026-03-02", "2026-03-03"],
     "2026-03-15",
-    "progdisplay",
+    extra?.mediaType ?? "progdisplay",
     undefined,
     { startISO: CAMPAIGN_START, endISO: CAMPAIGN_END },
     CAMPAIGN_START,
     CAMPAIGN_END,
+    undefined,
+    extra?.reportedSpendByLineDate,
   )
 }
 
@@ -441,4 +451,70 @@ test("Quantcast spend tile and chip read modelled-from-plan-rate copy", () => {
   const spendChip = section.aggregate.summaryChips.find((c) => c.label === MODELLED_SPEND_TITLE)
   assert.ok(spendChip, "expected modelled spend chip on a Quantcast-only section")
   assert.ok(!section.aggregate.summaryChips.some((c) => c.label === "Total spend"))
+})
+
+test("BIC Channel Factory delivered spend equals REPORTED_SPEND, not PACING_FACT amountSpent", () => {
+  const metrics = lineMetrics(
+    [{ ...burstLine("bicau002pv1", "Channel Factory"), fixedCostMedia: true }],
+    [
+      pacingRow({
+        channel: "programmatic-video",
+        lineItemId: "bicau002pv1",
+        dateDay: "2026-03-01",
+        amountSpent: 0,
+        impressions: 1000,
+        video3sViews: 400,
+      }),
+      pacingRow({
+        channel: "programmatic-video",
+        lineItemId: "bicau002pv1",
+        dateDay: "2026-03-02",
+        amountSpent: 0,
+        impressions: 2000,
+        video3sViews: 800,
+      }),
+    ],
+    "programmatic-video",
+    {
+      mediaType: "progvideo",
+      reportedSpendByLineDate: new Map([
+        [
+          "bicau002pv1",
+          new Map([
+            ["2026-03-01", 25],
+            ["2026-03-02", 15],
+          ]),
+        ],
+      ]),
+    },
+  )
+  assert.equal(metrics.length, 1)
+  assert.equal(metrics[0]?.spendModelledFromPlanRate, true)
+  const spend = metrics[0]!.actualsDaily.reduce((sum, day) => sum + day.spend, 0)
+  assert.equal(spend, 40)
+  assert.equal(metrics[0]?.actualsDaily[0]?.impressions, 1000)
+  assert.equal(metrics[0]?.actualsDaily[1]?.impressions, 2000)
+})
+
+test("a DV360 line is unchanged when reported spend is present for another line", () => {
+  const metrics = lineMetrics(
+    [burstLine("TEST001PD1", "dv360")],
+    [
+      pacingRow({
+        channel: "programmatic-display",
+        lineItemId: "TEST001PD1",
+        dateDay: "2026-03-01",
+        amountSpent: 40,
+        impressions: 8000,
+      }),
+    ],
+    "programmatic-display",
+    {
+      reportedSpendByLineDate: new Map([
+        ["bicau002pv1", new Map([["2026-03-01", 99]])],
+      ]),
+    },
+  )
+  assert.equal(metrics[0]?.spendModelledFromPlanRate, false)
+  assert.equal(metrics[0]?.actualsDaily[0]?.spend, 40)
 })

@@ -11,6 +11,7 @@ import {
   sumDeliveredTotals,
   sumDirectReportedSpendInRange,
   asOfForDeliveredRange,
+  programmaticLineItemIdsFromSnapshot,
   type DeliveredTotals,
 } from "@/lib/delivery/deliveredTotals"
 import { boundedMap } from "@/lib/utils/boundedMap"
@@ -90,6 +91,11 @@ export async function getDeliveredTotalsForClient(
       : Promise.resolve<DirectCampaignGroup[]>([]),
   ])
 
+  const snapshotByMba = new Map<string, (typeof snapshots)[number]>()
+  campaigns.forEach((c, i) => {
+    snapshotByMba.set(c.mbaNumber.trim().toLowerCase(), snapshots[i] ?? null)
+  })
+
   const fixedCostByMba = new Map<string, number>()
   for (const group of directGroups) {
     const key = group.mbaNumber.trim().toLowerCase()
@@ -97,7 +103,12 @@ export async function getDeliveredTotalsForClient(
     fixedCostByMba.set(
       key,
       (fixedCostByMba.get(key) ?? 0) +
-        sumDirectReportedSpendInRange(group, window?.startDate, window?.endDate),
+        sumDirectReportedSpendInRange(
+          group,
+          window?.startDate,
+          window?.endDate,
+          programmaticLineItemIdsFromSnapshot(snapshotByMba.get(key) ?? null),
+        ),
     )
   }
 

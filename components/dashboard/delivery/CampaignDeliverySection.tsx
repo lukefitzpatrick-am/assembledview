@@ -97,6 +97,7 @@ type DeliveryBodyProps = {
   digitalVideoLineItems: unknown[]
   digitalAudioLineItems: unknown[]
   bvodLineItems: unknown[]
+  reportedSpendByLineDate?: Map<string, Map<string, number>>
 }
 
 function CampaignDeliveryBody({
@@ -123,6 +124,7 @@ function CampaignDeliveryBody({
   digitalVideoLineItems,
   digitalAudioLineItems,
   bvodLineItems,
+  reportedSpendByLineDate,
 }: DeliveryBodyProps) {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
 
@@ -201,6 +203,7 @@ function CampaignDeliveryBody({
         pacingWindow,
         brandColour,
         lastSyncedAt,
+        reportedSpendByLineDate,
       })
       if (s) out.push(s)
     }
@@ -219,6 +222,7 @@ function CampaignDeliveryBody({
         pacingWindow,
         brandColour,
         lastSyncedAt,
+        reportedSpendByLineDate,
       })
       if (s) out.push(s)
     }
@@ -311,6 +315,7 @@ function CampaignDeliveryBody({
     mbaNumber,
     searchLineItems,
     lastSyncedAt,
+    reportedSpendByLineDate,
   ])
 
   if (loading) {
@@ -441,7 +446,7 @@ export function CampaignDeliverySection({
       searchEnabled={includeSearch}
       searchLineItemIds={normalizedSearchLineItemIds}
     >
-      {({ rows, search, loading, error }) => (
+      {({ rows, search, loading, error, reportedSpendByLineDate }) => (
         <CampaignDeliveryBody
           rows={rows}
           search={search}
@@ -466,6 +471,7 @@ export function CampaignDeliverySection({
           digitalVideoLineItems={digitalVideoLineItems}
           digitalAudioLineItems={digitalAudioLineItems}
           bvodLineItems={bvodLineItems}
+          reportedSpendByLineDate={reportedSpendByLineDate}
         />
       )}
     </DeliveryDataProvider>

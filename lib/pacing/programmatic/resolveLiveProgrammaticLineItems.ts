@@ -380,6 +380,8 @@ function mapProgRowToCampaignRow(
 
     kpiTargets: null,
 
+    spendPacingDeferredToDirect: false,
+
     platformCampaigns: [],
   };
 }

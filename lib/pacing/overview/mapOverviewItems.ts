@@ -91,6 +91,13 @@ export function mapSpendRowToOverviewItem(
   };
 }
 
+/** Fixed-cost programmatic money and spend-pacing live on Direct — key the line once. */
+export function includeProgrammaticRowInOverview(row: {
+  fixedCostMedia?: boolean;
+}): boolean {
+  return row.fixedCostMedia !== true;
+}
+
 /** Direct line-item status → Overview band (same intent as digest banding). */
 export function overviewStatusFromDirectLineStatus(
   status: string,

@@ -5,6 +5,10 @@ import { useEffect, useMemo, useState } from "react"
 import { parseDateNativeSafe } from "@/lib/dates/parseDateNativeSafe"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
+import {
+  indexReportedSpendByLineDate,
+  type ReportedSpendDay,
+} from "@/lib/delivery/programmatic/applyReportedSpend"
 
 type DeliveryDataProviderProps = {
   mbaNumber: string
@@ -24,6 +28,7 @@ type DeliveryDataProviderProps = {
     search: SearchPacingResponse | null
     loading: boolean
     error: string | null
+    reportedSpendByLineDate: Map<string, Map<string, number>>
   }) => ReactNode
 }
 
@@ -90,6 +95,9 @@ export default function DeliveryDataProvider({
 }: DeliveryDataProviderProps) {
   const [rows, setRows] = useState<CombinedPacingRow[]>([])
   const [search, setSearch] = useState<SearchPacingResponse | null>(null)
+  const [reportedSpendByLineDate, setReportedSpendByLineDate] = useState<
+    Map<string, Map<string, number>>
+  >(() => new Map())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -153,6 +161,7 @@ export default function DeliveryDataProvider({
     if (!anyBulkIds && !anySearch) {
       setRows([])
       setSearch(null)
+      setReportedSpendByLineDate(new Map())
       setLoading(false)
       setError(null)
       return
@@ -170,6 +179,7 @@ export default function DeliveryDataProvider({
           ok: boolean
           rows?: CombinedPacingRow[]
           search?: SearchPacingResponse | null
+          reportedSpendDaily?: ReportedSpendDay[]
           error?: string
         }>(
           "/api/pacing/bulk",
@@ -188,12 +198,18 @@ export default function DeliveryDataProvider({
         const nextRows = Array.isArray((data as any)?.rows) ? ((data as any).rows as CombinedPacingRow[]) : []
         setRows(nextRows)
         setSearch(includeSearch ? ((data as any)?.search ?? null) : null)
+        setReportedSpendByLineDate(
+          indexReportedSpendByLineDate(
+            Array.isArray(data?.reportedSpendDaily) ? data.reportedSpendDaily : [],
+          ),
+        )
         setError(data && (data as any).error ? String((data as any).error) : null)
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         setError(errorMessage)
         setRows([])
         setSearch(null)
+        setReportedSpendByLineDate(new Map())
       } finally {
         setLoading(false)
       }
@@ -203,6 +219,8 @@ export default function DeliveryDataProvider({
       const errorMessage = err instanceof Error ? err.message : String(err)
       setError(errorMessage)
       setRows([])
+      setSearch(null)
+      setReportedSpendByLineDate(new Map())
       setLoading(false)
     })
   }, [
@@ -220,5 +238,5 @@ export default function DeliveryDataProvider({
     normalizedBulkEnd,
   ])
 
-  return <>{children({ rows, search, loading, error })}</>
+  return <>{children({ rows, search, loading, error, reportedSpendByLineDate })}</>
 }

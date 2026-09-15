@@ -6,6 +6,7 @@ import {
   mapAdServingRowToOverviewItem,
   mapDirectLineToOverviewItem,
   mapSpendRowToOverviewItem,
+  includeProgrammaticRowInOverview,
   summarizeOverviewItems,
 } from "@/lib/pacing/overview/mapOverviewItems";
 import type { OverviewStatusCounts } from "@/lib/pacing/overview/types";
@@ -72,25 +73,27 @@ export function countProgrammaticOverviewStatus(
   rows: ProgrammaticPacingCampaignRow[],
   asOfDate: string
 ): OverviewStatusCounts {
-  const items = rows.map((row) =>
-    mapSpendRowToOverviewItem(
-      "programmatic",
-      {
-        clientName: row.clientName,
-        campaignName: row.campaignName,
-        mbaNumber: row.mbaNumber,
-        lineItemId: row.lineItemId,
-        currentBurst: row.currentBurst,
-        spendToDateCurrentBurst: row.spendToDateCurrentBurst,
-        spendYesterday: row.spendYesterday,
-        impressions: row.impressions,
-        clicks: row.clicks,
-        conversions: 0,
-        revenue: 0,
-      },
-      asOfDate
-    )
-  );
+  const items = rows
+    .filter(includeProgrammaticRowInOverview)
+    .map((row) =>
+      mapSpendRowToOverviewItem(
+        "programmatic",
+        {
+          clientName: row.clientName,
+          campaignName: row.campaignName,
+          mbaNumber: row.mbaNumber,
+          lineItemId: row.lineItemId,
+          currentBurst: row.currentBurst,
+          spendToDateCurrentBurst: row.spendToDateCurrentBurst,
+          spendYesterday: row.spendYesterday,
+          impressions: row.impressions,
+          clicks: row.clicks,
+          conversions: 0,
+          revenue: 0,
+        },
+        asOfDate
+      )
+    );
   return summarizeOverviewItems(items, 0).counts;
 }
 

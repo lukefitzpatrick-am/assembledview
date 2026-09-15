@@ -12,6 +12,11 @@ import { getAsOfDate } from "@/lib/pacing/maths"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/resolveLiveSocialLineItems"
 import { getCampaignPacingData, type PacingRow } from "@/lib/snowflake/pacing-service"
 import { getSearchPacingData } from "@/lib/snowflake/search-pacing-service"
+import { queryDailyFacts } from "@/lib/pacing/direct/fetchDirectPacingRows"
+import {
+  indexReportedSpendByLineDate,
+  reportedSpendDaysFromDailyFacts,
+} from "@/lib/delivery/programmatic/applyReportedSpend"
 
 type MediaTypeKey = keyof typeof MEDIA_CONTAINER_ENDPOINTS
 
@@ -200,6 +205,41 @@ function flightWindowFromPlan(metas: PlanLineMeta[]): { startDate?: string; endD
   return { startDate: start, endDate: end }
 }
 
+function collectFixedCostProgrammaticLineIds(
+  byChannel: Record<string, MediaContainerLineItem[]>,
+): string[] {
+  const ids = new Set<string>()
+  for (const item of [...(byChannel.progDisplay ?? []), ...(byChannel.progVideo ?? [])]) {
+    if (item.fixedCostMedia !== true && item.fixed_cost_media !== true) continue
+    const id = extractPacingLineItemIdFromItem(item as Record<string, unknown>)
+    if (id) ids.add(id)
+  }
+  return [...ids]
+}
+
+function overlayReportedSpendOnSnapshot(
+  deliveredById: Map<string, ReturnType<typeof emptyMetrics>>,
+  byLine: Map<string, Map<string, number>>,
+  lineIds: string[],
+  startDate?: string,
+  endDate?: string,
+): void {
+  for (const id of lineIds) {
+    const byDate = byLine.get(id)
+    let spend = 0
+    if (byDate) {
+      for (const [date, amount] of byDate) {
+        if (startDate && date < startDate) continue
+        if (endDate && date > endDate) continue
+        spend += amount
+      }
+    }
+    const cur = deliveredById.get(id) ?? emptyMetrics()
+    cur.spendToDate = spend
+    deliveredById.set(id, cur)
+  }
+}
+
 function collectChannelPlans(
   byChannel: Record<string, MediaContainerLineItem[]>,
 ): {
@@ -334,6 +374,25 @@ export async function loadDeliverySnapshot(
   const deliveredById = aggregatePacingRows(pacingRows)
   for (const [id, metrics] of searchDelivered) {
     deliveredById.set(id, metrics)
+  }
+
+  const fixedCostProgIds = collectFixedCostProgrammaticLineIds(byChannel)
+  if (fixedCostProgIds.length > 0) {
+    try {
+      const facts = await queryDailyFacts(fixedCostProgIds)
+      overlayReportedSpendOnSnapshot(
+        deliveredById,
+        indexReportedSpendByLineDate(reportedSpendDaysFromDailyFacts(facts)),
+        fixedCostProgIds,
+        startDate,
+        endDate,
+      )
+    } catch (err) {
+      console.warn("[loadDeliverySnapshot] reported daily facts failed", {
+        mba,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
   }
 
   const channelOrder = [
