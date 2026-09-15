@@ -27,6 +27,14 @@ export type PartnerDeliveryRow = {
   rateQ50: number
   rateQ75: number
   rateFullyPlayed: number
+  /** Exchange columns. Absent for Channel Factory, which carries no spend. */
+  amountSpent?: number | null
+  plays?: number | null
+  venueType?: string | null
+  metroArea?: string | null
+  state?: string | null
+  partnerCampaignId?: string | null
+  partnerCreativeId?: string | null
 }
 
 export type PartnerRawLine = {
@@ -43,7 +51,7 @@ export type ParsedPartnerFile = {
 }
 
 export type ParseTestResult = {
-  name: "T1" | "T4" | "T5"
+  name: "T1" | "T4" | "T5" | "T6"
   ok: boolean
   detail: string
   value?: number
@@ -53,6 +61,7 @@ export type PartnerFileParseTests = {
   t1: ParseTestResult
   t4: ParseTestResult
   t5: ParseTestResult
+  t6?: ParseTestResult
   failed: boolean
 }
 
@@ -99,4 +108,6 @@ export type PartnerIngestRunSummary = {
     attachmentName: string
     tests: PartnerFileParseTests
   }>
+  /** Active map rows whose latest REPORT_DATE is older than MAX_STALE_DAYS. */
+  staleSources: Array<{ sourceSlug: string; staleDays: number }>
 }

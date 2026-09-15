@@ -1,15 +1,26 @@
 import ExcelJS from "exceljs"
 import JSZip from "jszip"
 
-import { COL } from "./columnNames"
-import { extractPlanCode } from "./extractPlanCode"
-import type { ParsedPartnerFile, PartnerDeliveryRow, PartnerRawLine } from "./types"
+import type { PartnerRawLine } from "../types"
 
-export { CHANNEL_FACTORY_EXPECTED_HEADER } from "./columnNames"
+export const HEADER_SCAN_ROWS = 20
 
-const HEADER_SCAN_ROWS = 20
+const MONTHS: Record<string, number> = {
+  jan: 1,
+  feb: 2,
+  mar: 3,
+  apr: 4,
+  may: 5,
+  jun: 6,
+  jul: 7,
+  aug: 8,
+  sep: 9,
+  oct: 10,
+  nov: 11,
+  dec: 12,
+}
 
-function unwrapCell(v: unknown): unknown {
+export function unwrapCell(v: unknown): unknown {
   if (v == null) return null
   if (typeof v === "object" && v && "result" in (v as object)) {
     return unwrapCell((v as { result?: unknown }).result ?? null)
@@ -27,7 +38,7 @@ function unwrapCell(v: unknown): unknown {
   return v
 }
 
-function cellDisplay(v: unknown): string {
+export function cellDisplay(v: unknown): string {
   const unwrapped = unwrapCell(v)
   if (unwrapped == null) return ""
   if (unwrapped instanceof Date && !Number.isNaN(unwrapped.getTime())) {
@@ -39,14 +50,15 @@ function cellDisplay(v: unknown): string {
   return String(unwrapped).replace(/\r?\n/g, " ").trim()
 }
 
-function isoDateFromDate(d: Date): string {
+export function isoDateFromDate(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, "0")
   const day = String(d.getDate()).padStart(2, "0")
   return `${y}-${m}-${day}`
 }
 
-function parseReportDate(v: unknown): string | null {
+/** Date cell, Excel serial, `YYYY-MM-DD` or Vistar's `d-MMM-yy`. */
+export function parseReportDate(v: unknown): string | null {
   const unwrapped = unwrapCell(v)
   if (unwrapped instanceof Date && !Number.isNaN(unwrapped.getTime())) {
     return isoDateFromDate(unwrapped)
@@ -59,11 +71,20 @@ function parseReportDate(v: unknown): string | null {
   }
   const text = cellDisplay(unwrapped).trim()
   const iso = text.match(/^(\d{4}-\d{2}-\d{2})/)
-  if (iso) return iso[1]
+  if (iso) return iso[1]!
+  const dMonY = text.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2}|\d{4})$/)
+  if (dMonY) {
+    const month = MONTHS[dMonY[2]!.toLowerCase()]
+    if (month) {
+      const yy = dMonY[3]!
+      const year = yy.length === 2 ? 2000 + Number(yy) : Number(yy)
+      return `${year}-${String(month).padStart(2, "0")}-${dMonY[1]!.padStart(2, "0")}`
+    }
+  }
   return null
 }
 
-function parseNumber(v: unknown): number {
+export function parseNumber(v: unknown): number {
   const unwrapped = unwrapCell(v)
   if (typeof unwrapped === "number" && Number.isFinite(unwrapped)) return unwrapped
   const text = cellDisplay(unwrapped).replace(/,/g, "").trim()
@@ -72,30 +93,7 @@ function parseNumber(v: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
-function rowCells(row: ExcelJS.Row, width: number): unknown[] {
-  const out: unknown[] = []
-  for (let c = 1; c <= width; c++) {
-    out.push(row.getCell(c).value)
-  }
-  return out
-}
-
-function joinTab(cells: unknown[]): string {
-  const last = [...cells].reverse().findIndex((c) => cellDisplay(c) !== "")
-  const used = last < 0 ? [] : cells.slice(0, cells.length - last)
-  return used.map((c) => cellDisplay(c)).join("\t")
-}
-
-function isHeaderRow(cells: unknown[]): boolean {
-  const labels = cells.map((c) => cellDisplay(c).trim().toLowerCase())
-  return labels.includes("day") && lowerIncludesImpressions(labels)
-}
-
-function lowerIncludesImpressions(labels: string[]): boolean {
-  return labels.includes("impressions")
-}
-
-function headerIndex(cells: unknown[]): Map<string, number> {
+export function headerIndex(cells: unknown[]): Map<string, number> {
   const map = new Map<string, number>()
   cells.forEach((c, i) => {
     const name = cellDisplay(c).trim()
@@ -104,15 +102,40 @@ function headerIndex(cells: unknown[]): Map<string, number> {
   return map
 }
 
-function col(map: Map<string, number>, name: string, cells: unknown[]): unknown {
+export function col(map: Map<string, number>, name: string, cells: unknown[]): unknown {
   const i = map.get(name)
   if (i == null) return null
   return cells[i]
 }
 
-function isTotalsRow(cells: unknown[]): boolean {
-  const first = cellDisplay(cells[0] ?? "").trim().toLowerCase()
-  return first.startsWith("total")
+export function joinTab(cells: unknown[]): string {
+  const last = [...cells].reverse().findIndex((c) => cellDisplay(c) !== "")
+  const used = last < 0 ? [] : cells.slice(0, cells.length - last)
+  return used.map((c) => cellDisplay(c)).join("\t")
+}
+
+/** Header labels the row must carry, lowercased. 1-based row number, or -1. */
+export function findHeaderRow(matrix: unknown[][], labels: string[]): number {
+  for (let i = 0; i < Math.min(HEADER_SCAN_ROWS, matrix.length); i++) {
+    const cells = (matrix[i] ?? []).map((c) => cellDisplay(c).trim().toLowerCase())
+    if (labels.every((label) => cells.includes(label))) return i + 1
+  }
+  return -1
+}
+
+export function detectedHeaderFrom(cells: unknown[], separator: string): string {
+  return cells
+    .map((c) => cellDisplay(c).trim())
+    .filter((c) => c !== "")
+    .join(separator)
+}
+
+function rowCells(row: ExcelJS.Row, width: number): unknown[] {
+  const out: unknown[] = []
+  for (let c = 1; c <= width; c++) {
+    out.push(row.getCell(c).value)
+  }
+  return out
 }
 
 async function matrixFromXlsx(buffer: Buffer): Promise<unknown[][]> {
@@ -182,82 +205,6 @@ async function matrixFromBuffer(buffer: Buffer, filename: string): Promise<unkno
   return matrixFromXlsx(buffer)
 }
 
-function parseMatrix(matrix: unknown[][]): ParsedPartnerFile {
-  const rawLines: PartnerRawLine[] = matrix.map((cells, i) => ({
-    fileRow: i + 1,
-    rawLine: joinTab(cells),
-  }))
-
-  let headerRow = -1
-  for (let i = 0; i < Math.min(HEADER_SCAN_ROWS, matrix.length); i++) {
-    if (isHeaderRow(matrix[i] ?? [])) {
-      headerRow = i + 1
-      break
-    }
-  }
-  if (headerRow < 0) {
-    return {
-      headerRow: 0,
-      preambleRowCount: 0,
-      detectedHeader: "",
-      rawLines,
-      rows: [],
-    }
-  }
-
-  const headerCells = matrix[headerRow - 1] ?? []
-  const detectedHeader = headerCells
-    .map((c) => cellDisplay(c).trim())
-    .filter((c) => c !== "")
-    .join("|")
-  const cols = headerIndex(headerCells)
-  const rows: PartnerDeliveryRow[] = []
-
-  for (let i = headerRow; i < matrix.length; i++) {
-    const cells = matrix[i] ?? []
-    if (isTotalsRow(cells)) continue
-    const reportDate = parseReportDate(col(cols, COL.day, cells))
-    if (!reportDate) continue
-    const partnerLineItemName =
-      cellDisplay(col(cols, COL.mediaBuyName, cells)).trim() || null
-    const impressions = parseNumber(col(cols, COL.impressions, cells))
-    const clicks = parseNumber(col(cols, COL.clicks, cells))
-    const videoViews = parseNumber(col(cols, COL.videoViews, cells))
-    const rateQ25 = parseNumber(col(cols, COL.rateQ25, cells))
-    const rateQ50 = parseNumber(col(cols, COL.rateQ50, cells))
-    const rateQ75 = parseNumber(col(cols, COL.rateQ75, cells))
-    const rateFullyPlayed = parseNumber(col(cols, COL.rateFullyPlayed, cells))
-    rows.push({
-      reportDate,
-      partnerAdvertiserId:
-        cellDisplay(col(cols, COL.advertiserId, cells)).trim() || null,
-      partnerCampaignName:
-        cellDisplay(col(cols, COL.campaignName, cells)).trim() || null,
-      partnerLineItemName,
-      avLineItemId: extractPlanCode(partnerLineItemName),
-      impressions,
-      clicks,
-      videoViews,
-      rateQ25,
-      rateQ50,
-      rateQ75,
-      rateFullyPlayed,
-      videoQ25: Math.round(rateQ25 * impressions),
-      videoQ50: Math.round(rateQ50 * impressions),
-      videoQ75: Math.round(rateQ75 * impressions),
-      completedViews: Math.round(rateFullyPlayed * impressions),
-    })
-  }
-
-  return {
-    headerRow,
-    preambleRowCount: headerRow - 1,
-    detectedHeader,
-    rawLines,
-    rows,
-  }
-}
-
 export async function readPartnerFileMatrix(
   buffer: Buffer,
   filename: string
@@ -270,16 +217,4 @@ export function rawLinesFromMatrix(matrix: unknown[][]): PartnerRawLine[] {
     fileRow: i + 1,
     rawLine: joinTab(cells),
   }))
-}
-
-export function parsePartnerFileMatrix(matrix: unknown[][]): ParsedPartnerFile {
-  return parseMatrix(matrix)
-}
-
-export async function parseChannelFactoryBuffer(
-  buffer: Buffer,
-  filename: string
-): Promise<ParsedPartnerFile> {
-  const matrix = await readPartnerFileMatrix(buffer, filename)
-  return parsePartnerFileMatrix(matrix)
 }

@@ -1,5 +1,5 @@
 -- Captured from production 2026-09-15. Written by lib/partner-ingest (cron partner-ingest).
--- Writer contract is the 18-column INSERT in lib/partner-ingest/sql.ts; LOADED_AT defaults.
+-- Writer contract is DELIVERY_COLUMNS in lib/partner-ingest/sql.ts (25 columns); LOADED_AT defaults.
 -- Seven Vistar columns: sql/snowflake/raw/partner_delivery_daily_2026-09-15_alter.sql.
 USE SCHEMA ASSEMBLEDVIEW.RAW;
 

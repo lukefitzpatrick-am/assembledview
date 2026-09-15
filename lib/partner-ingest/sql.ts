@@ -52,13 +52,37 @@ INSERT INTO ${RAW.ingestLog} (
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
+export const SELECT_MAX_REPORT_DATE_SQL = (n: number): string => `
+SELECT SOURCE, MAX(REPORT_DATE) AS MAX_REPORT_DATE
+FROM ${RAW.deliveryDaily}
+WHERE SOURCE IN (${Array.from({ length: n }, () => "?").join(", ")})
+GROUP BY SOURCE
+`
+
 export const DELETE_DELIVERY_RANGE_SQL = `
 DELETE FROM ${RAW.deliveryDaily}
 WHERE SOURCE = ?
   AND REPORT_DATE BETWEEN ? AND ?
 `
 
-const DELIVERY_COLUMNS = [
+export const DELETE_DELIVERY_DAYS_SQL = (n: number): string => `
+DELETE FROM ${RAW.deliveryDaily}
+WHERE SOURCE = ?
+  AND REPORT_DATE IN (${Array.from({ length: n }, () => "?").join(", ")})
+`
+
+export type PartnerLoadMode = "range_replace" | "day_replace" | "append"
+
+const LOAD_MODES: PartnerLoadMode[] = ["range_replace", "day_replace", "append"]
+
+/** PARTNER_SOURCE_MAP.LOAD_MODE. Null or blank means the historic range replace. */
+export function resolveLoadMode(value: string | null | undefined): PartnerLoadMode | null {
+  const text = (value ?? "").trim().toLowerCase()
+  if (text === "") return "range_replace"
+  return LOAD_MODES.find((mode) => mode === text) ?? null
+}
+
+export const DELIVERY_COLUMNS = [
   "SOURCE",
   "REPORT_DATE",
   "PARTNER_ADVERTISER_ID",
@@ -77,6 +101,13 @@ const DELIVERY_COLUMNS = [
   "RATE_Q75",
   "RATE_FULLY_PLAYED",
   "SOURCE_FILE",
+  "AMOUNT_SPENT",
+  "PLAYS",
+  "VENUE_TYPE",
+  "METRO_AREA",
+  "STATE",
+  "PARTNER_CAMPAIGN_ID",
+  "PARTNER_CREATIVE_ID",
 ] as const
 
 export const INSERT_DELIVERY_SQL = (n: number): string => {
@@ -106,7 +137,8 @@ export function deliveryInsertBinds(
     row.partnerCampaignName,
     row.partnerLineItemName,
     row.avLineItemId,
-    row.impressions,
+    // IMPRESSIONS is NUMBER(38,0); exchange reports send fractions.
+    Math.round(row.impressions),
     row.clicks,
     row.videoViews,
     row.videoQ25,
@@ -118,8 +150,17 @@ export function deliveryInsertBinds(
     row.rateQ75,
     row.rateFullyPlayed,
     sourceFile,
+    row.amountSpent ?? null,
+    row.plays ?? null,
+    row.venueType ?? null,
+    row.metroArea ?? null,
+    row.state ?? null,
+    row.partnerCampaignId ?? null,
+    row.partnerCreativeId ?? null,
   ])
 }
+
+export const DELIVERY_PARAMS_PER_ROW = DELIVERY_COLUMNS.length
 
 export function ingestLogBinds(log: {
   sourceSlug: string

@@ -6,13 +6,17 @@ import { fileURLToPath } from "node:url"
 import type { Connection } from "snowflake-sdk"
 
 import {
+  DELETE_DELIVERY_DAYS_SQL,
   DELETE_DELIVERY_RANGE_SQL,
+  DELIVERY_COLUMNS,
   INSERT_DELIVERY_SQL,
   INSERT_FILE_LINE_SQL,
   INSERT_INGEST_LOG_SQL,
   SELECT_LOADED_DUPLICATE_SQL,
+  SELECT_MAX_REPORT_DATE_SQL,
   SELECT_SOURCE_MAP_SQL,
   assertNoRawUpdate,
+  deliveryInsertBinds,
 } from "../sql"
 import { createPartnerSnowflakeWriter } from "../snowflakeWriter"
 import type { PartnerDeliveryRow } from "../types"
@@ -20,11 +24,91 @@ import type { PartnerDeliveryRow } from "../types"
 const ALL_SQL = [
   SELECT_SOURCE_MAP_SQL,
   SELECT_LOADED_DUPLICATE_SQL,
+  SELECT_MAX_REPORT_DATE_SQL(2),
   INSERT_FILE_LINE_SQL(3),
   INSERT_INGEST_LOG_SQL,
   DELETE_DELIVERY_RANGE_SQL,
+  DELETE_DELIVERY_DAYS_SQL(2),
   INSERT_DELIVERY_SQL(2),
 ]
+
+test("delivery INSERT keeps the exchange columns after SOURCE_FILE", () => {
+  assert.deepEqual(DELIVERY_COLUMNS.slice(18), [
+    "AMOUNT_SPENT",
+    "PLAYS",
+    "VENUE_TYPE",
+    "METRO_AREA",
+    "STATE",
+    "PARTNER_CAMPAIGN_ID",
+    "PARTNER_CREATIVE_ID",
+  ])
+  assert.equal(DELIVERY_COLUMNS[17], "SOURCE_FILE")
+  assert.equal(DELIVERY_COLUMNS.length, 25)
+  assert.equal(INSERT_DELIVERY_SQL(2).match(/\?/g)?.length, 50)
+})
+
+test("delivery binds round fractional impressions and null the exchange columns for CF", () => {
+  const binds = deliveryInsertBinds("Vistar", "vistar/f.csv", [
+    {
+      reportDate: "2026-02-02",
+      partnerAdvertiserId: "Legal Super",
+      partnerCampaignName: "camp",
+      partnerLineItemName: "creative.jpg",
+      avLineItemId: null,
+      impressions: 288.99220399999996,
+      clicks: 0,
+      videoViews: 0,
+      videoQ25: 0,
+      videoQ50: 0,
+      videoQ75: 0,
+      completedViews: 0,
+      rateQ25: 0,
+      rateQ50: 0,
+      rateQ75: 0,
+      rateFullyPlayed: 0,
+      amountSpent: 12.5528646796,
+      plays: 59,
+      venueType: "Outdoor|Urban Panels",
+      metroArea: "Greater Sydney",
+      state: "New South Wales",
+      partnerCampaignId: "7a3PpWQARm0LDir1oGsOOw",
+      partnerCreativeId: "xArrGiXMR9WBbCw8nAzBAA",
+    },
+  ])
+  assert.equal(binds.length, 25)
+  assert.equal(binds[6], 289)
+  assert.deepEqual(binds.slice(18), [
+    12.5528646796,
+    59,
+    "Outdoor|Urban Panels",
+    "Greater Sydney",
+    "New South Wales",
+    "7a3PpWQARm0LDir1oGsOOw",
+    "xArrGiXMR9WBbCw8nAzBAA",
+  ])
+
+  const cf = deliveryInsertBinds("Channel Factory", "cf/f.xlsx", [
+    {
+      reportDate: "2026-09-13",
+      partnerAdvertiserId: "1",
+      partnerCampaignName: "C",
+      partnerLineItemName: "buy",
+      avLineItemId: "bicau002pv4",
+      impressions: 10,
+      clicks: 0,
+      videoViews: 8,
+      videoQ25: 9,
+      videoQ50: 8,
+      videoQ75: 7,
+      completedViews: 6,
+      rateQ25: 0.9,
+      rateQ50: 0.8,
+      rateQ75: 0.7,
+      rateFullyPlayed: 0.6,
+    },
+  ])
+  assert.deepEqual(cf.slice(18), [null, null, null, null, null, null, null])
+})
 
 test("partner ingest SQL never issues UPDATE against RAW", () => {
   for (const sql of ALL_SQL) {

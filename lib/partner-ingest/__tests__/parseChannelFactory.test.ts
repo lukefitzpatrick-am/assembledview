@@ -10,7 +10,7 @@ import { extractPlanCode } from "../extractPlanCode"
 import {
   CHANNEL_FACTORY_EXPECTED_HEADER,
   parseChannelFactoryBuffer,
-} from "../parseChannelFactory"
+} from "../parsers/parseChannelFactory"
 import { runPartnerFileParseTests } from "../parseTests"
 import type { ChannelFactorySeedRow } from "../types"
 
@@ -71,6 +71,19 @@ function fixtureBuffer(): Buffer {
 test("14 Sep fixture is the real Datorama attachment", () => {
   const hash = createHash("sha256").update(fixtureBuffer()).digest("hex")
   assert.equal(hash, FIXTURE_SHA256)
+})
+
+test("14 Sep fixture parses byte-identical to the pre-dispatch parser", async () => {
+  const parsed = await parseChannelFactoryBuffer(
+    fixtureBuffer(),
+    "channel-factory-2026-09-14.xlsx"
+  )
+  const json = JSON.stringify(parsed)
+  assert.equal(json.length, 884_852)
+  assert.equal(
+    createHash("sha256").update(json).digest("hex"),
+    "c26e9a5e94b47946d5634dfa1ad10d775eceb8b313274a42b8faeb1cf230fe77"
+  )
 })
 
 test("14 Sep fixture: 1208 data rows, header on row 5, four preamble rows, no totals", async () => {

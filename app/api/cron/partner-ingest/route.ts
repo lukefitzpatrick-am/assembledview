@@ -9,9 +9,10 @@ export const runtime = "nodejs"
 export const preferredRegion = ["syd1"]
 
 /**
- * Pull Channel Factory Datorama attachments from snowflake@assembledview.com.au
- * into ASSEMBLEDVIEW.RAW.PARTNER_*. Auth: CRON_SECRET.
- * Never deletes mailbox messages. Never UPDATE on RAW.
+ * Pull supplier delivery attachments from snowflake@assembledview.com.au into
+ * ASSEMBLEDVIEW.RAW.PARTNER_*, one parser per PARTNER_SOURCE_MAP.SOURCE_SLUG.
+ * Auth: CRON_SECRET. Never deletes mailbox messages. Never UPDATE on RAW.
+ * The response is the run summary, including staleSources[].
  * Cron: 30 22 * * * (08:30 AEST, after the Datorama send).
  */
 function partnerIngestConfigured(

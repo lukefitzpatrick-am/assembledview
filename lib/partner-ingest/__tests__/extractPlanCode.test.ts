@@ -24,6 +24,11 @@ test("extracts a code after a double underscore", () => {
   )
 })
 
+test("extracts a PO plan code from a Vistar contract number", () => {
+  assert.equal(extractPlanCode("legal004PO1"), "legal004po1")
+  assert.equal(extractPlanCode("Contract LEGAL004PO12 / Jolt"), "legal004po12")
+})
+
 test("returns null when the media buy has no plan code", () => {
   assert.equal(extractPlanCode("CF12_AT1_P25-64 (Female List)"), null)
   assert.equal(extractPlanCode("CF12_AT1_P25-64_1"), null)

@@ -16,3 +16,27 @@ export const COL = {
   rateQ75: "Video Completions 75% Rate",
   rateFullyPlayed: "Video Fully Played Rate",
 } as const
+
+export const VISTAR_SOURCE_LABEL = "Vistar"
+
+export const VISTAR_EXPECTED_HEADER =
+  "Day,Venue Type,Advertiser,Insertion Order Name,Insertion Order,Contract Number,Campaign Name,Campaign ID,Campaign Pixel,Creative Name,Creative ID,Creative Pixel,Metro Area,State/Territory,Impressions,Spots,Revenue,Total eCPM"
+
+export const VISTAR_COL = {
+  day: "Day",
+  venueType: "Venue Type",
+  advertiser: "Advertiser",
+  insertionOrderName: "Insertion Order Name",
+  insertionOrder: "Insertion Order",
+  contractNumber: "Contract Number",
+  campaignName: "Campaign Name",
+  campaignId: "Campaign ID",
+  creativeName: "Creative Name",
+  creativeId: "Creative ID",
+  metroArea: "Metro Area",
+  state: "State/Territory",
+  impressions: "Impressions",
+  spots: "Spots",
+  revenue: "Revenue",
+  totalEcpm: "Total eCPM",
+} as const

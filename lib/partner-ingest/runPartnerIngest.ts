@@ -1,14 +1,12 @@
-import {
-  parsePartnerFileMatrix,
-  rawLinesFromMatrix,
-  readPartnerFileMatrix,
-} from "./parseChannelFactory"
 import { keepPartnerAttachment } from "./keepAttachment"
 import { matchPartnerSource } from "./matchSource"
 import { runPartnerFileParseTests } from "./parseTests"
+import { parserForSource, rawLinesFromMatrix, readPartnerFileMatrix } from "./parsers"
 import { sha256Hex } from "./sha256"
 import { partnerSourceFile } from "./sourceFile"
+import { resolveLoadMode } from "./sql"
 import type {
+  ParsedPartnerFile,
   PartnerDeliveryRow,
   PartnerFileParseTests,
   PartnerIngestFileSummary,
@@ -70,24 +68,29 @@ export type PartnerSnowflakePort = {
     lines: PartnerRawLine[]
   }): Promise<void>
   /**
-   * Range replace is BEGIN → DELETE → INSERT → COMMIT on one held session.
-   * Never UPDATE. Daily rows are omitted when `load` is null.
+   * The replace is BEGIN → DELETE → INSERT → COMMIT on one held session, with the
+   * DELETE shaped by `loadMode`. Never UPDATE. Daily rows are omitted when `load` is null.
    */
   writeLoadAndLog(input: {
     load: {
       source: string
       minDate: string
       maxDate: string
+      loadMode?: string | null
       rows: PartnerDeliveryRow[]
       sourceFile: string
     } | null
     log: PartnerIngestLogRow
   }): Promise<void>
+  /** Latest REPORT_DATE per SOURCE label, for the staleness sweep. */
+  loadMaxReportDates?(sourceLabels: string[]): Promise<Record<string, string | null>>
 }
 
 export type PartnerIngestDeps = {
   mailbox: PartnerMailboxPort
   snowflake: PartnerSnowflakePort
+  /** `YYYY-MM-DD`. Defaults to today in Melbourne, the agency's business day. */
+  today?: string
 }
 
 const EMPTY_SHA = sha256Hex(Buffer.alloc(0))
@@ -114,7 +117,49 @@ function emptySummary(): PartnerIngestRunSummary {
     t5Drift: null,
     files: [],
     tests: [],
+    staleSources: [],
   }
+}
+
+function melbourneToday(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date())
+}
+
+function daysBetween(fromYmd: string, toYmd: string): number {
+  const from = Date.parse(`${fromYmd}T00:00:00Z`)
+  const to = Date.parse(`${toYmd}T00:00:00Z`)
+  if (Number.isNaN(from) || Number.isNaN(to)) return 0
+  return Math.round((to - from) / 86400000)
+}
+
+async function collectStaleSources(
+  deps: PartnerIngestDeps,
+  maps: PartnerSourceMapRow[]
+): Promise<PartnerIngestRunSummary["staleSources"]> {
+  if (!deps.snowflake.loadMaxReportDates) return []
+  const watched = maps.filter((m) => m.isActive && m.maxStaleDays != null)
+  if (watched.length === 0) return []
+  const labels = [...new Set(watched.map((m) => m.sourceLabel))]
+  const maxes = await deps.snowflake.loadMaxReportDates(labels)
+  const today = deps.today ?? melbourneToday()
+  const stale: PartnerIngestRunSummary["staleSources"] = []
+  const seen = new Set<string>()
+  for (const map of watched) {
+    if (seen.has(map.sourceSlug)) continue
+    const max = maxes[map.sourceLabel]
+    if (!max) continue
+    const staleDays = daysBetween(max, today)
+    if (staleDays > (map.maxStaleDays ?? 0)) {
+      seen.add(map.sourceSlug)
+      stale.push({ sourceSlug: map.sourceSlug, staleDays })
+    }
+  }
+  return stale
 }
 
 export async function runPartnerIngest(
@@ -127,44 +172,73 @@ export async function runPartnerIngest(
     String(a.receivedDateTime).localeCompare(String(b.receivedDateTime))
   )
 
+  async function writeUnrecognised(
+    message: PartnerMailMessage,
+    sourceSlug: string,
+    errorText: string
+  ): Promise<void> {
+    summary.unrecognised += 1
+    const sourceFile = partnerSourceFile({
+      sourceSlug,
+      receivedAt: message.receivedDateTime,
+      internetMessageId: message.internetMessageId,
+      attachmentName: "(none)",
+    })
+    await deps.snowflake.writeLoadAndLog({
+      load: null,
+      log: {
+        sourceSlug,
+        internetMessageId: message.internetMessageId,
+        attachmentName: "(none)",
+        attachmentSha256: EMPTY_SHA,
+        sourceFile,
+        senderAddress: message.senderAddress,
+        receivedAt: message.receivedDateTime,
+        bytes: null,
+        lineCount: 0,
+        parsedRowCount: 0,
+        status: "unrecognised",
+        errorText,
+      },
+    })
+    summary.files.push({
+      attachmentName: "(none)",
+      sourceFile,
+      status: "unrecognised",
+      rowsParsed: 0,
+      nullCodeRows: 0,
+      errorText,
+    })
+    await deps.mailbox.moveMessage(message.id, "Unrecognised")
+  }
+
   for (const message of oldestFirst) {
     const source = matchPartnerSource(message, maps)
     if (!source) {
-      summary.unrecognised += 1
-      const sourceFile = partnerSourceFile({
-        sourceSlug: "unrecognised",
-        receivedAt: message.receivedDateTime,
-        internetMessageId: message.internetMessageId,
-        attachmentName: "(none)",
-      })
-      await deps.snowflake.writeLoadAndLog({
-        load: null,
-        log: {
-          sourceSlug: "unrecognised",
-          internetMessageId: message.internetMessageId,
-          attachmentName: "(none)",
-          attachmentSha256: EMPTY_SHA,
-          sourceFile,
-          senderAddress: message.senderAddress,
-          receivedAt: message.receivedDateTime,
-          bytes: null,
-          lineCount: 0,
-          parsedRowCount: 0,
-          status: "unrecognised",
-          errorText: "sender domain or subject did not match PARTNER_SOURCE_MAP",
-        },
-      })
-      summary.files.push({
-        attachmentName: "(none)",
-        sourceFile,
-        status: "unrecognised",
-        rowsParsed: 0,
-        nullCodeRows: 0,
-        errorText: "sender domain or subject did not match PARTNER_SOURCE_MAP",
-      })
-      await deps.mailbox.moveMessage(message.id, "Unrecognised")
+      await writeUnrecognised(
+        message,
+        "unrecognised",
+        "sender domain or subject did not match PARTNER_SOURCE_MAP"
+      )
       continue
     }
+
+    let parseMatrix
+    try {
+      parseMatrix = parserForSource(source.sourceSlug)
+    } catch (err) {
+      await writeUnrecognised(
+        message,
+        source.sourceSlug,
+        err instanceof Error ? err.message : String(err)
+      )
+      continue
+    }
+
+    const loadMode = resolveLoadMode(source.loadMode)
+    const loadModeError = loadMode
+      ? null
+      : `unknown LOAD_MODE ${JSON.stringify(source.loadMode ?? "")}`
 
     const attachments = (await deps.mailbox.getAttachments(message.id)).filter(
       keepPartnerAttachment
@@ -225,12 +299,26 @@ export async function runPartnerIngest(
       const rawLines = rawLinesFromMatrix(matrix)
       await deps.snowflake.insertRawLines({ sourceFile, lines: rawLines })
 
-      const parsed = parsePartnerFileMatrix(matrix)
+      let parsed: ParsedPartnerFile = {
+        headerRow: 0,
+        preambleRowCount: 0,
+        detectedHeader: "",
+        rawLines,
+        rows: [],
+      }
+      if (!parseError) {
+        try {
+          parsed = parseMatrix(matrix)
+        } catch (err) {
+          parseError = err instanceof Error ? err.message : String(err)
+        }
+      }
       const tests: PartnerFileParseTests | undefined = parseError
         ? undefined
-        : runPartnerFileParseTests(parsed, source.expectedHeader)
+        : runPartnerFileParseTests(parsed, source.expectedHeader, matrix)
       const failed =
         Boolean(parseError) ||
+        Boolean(loadModeError) ||
         Boolean(tests?.failed) ||
         parsed.rows.length === 0
 
@@ -240,14 +328,16 @@ export async function runPartnerIngest(
       if (t5Drift != null) summary.t5Drift = t5Drift
       const errorText = parseError
         ? parseError
-        : tests?.failed
-          ? [tests.t1, tests.t4, tests.t5]
-              .filter((t) => !t.ok)
-              .map((t) => `${t.name}: ${t.detail}`)
-              .join("; ") || "parse_failed"
-          : parsed.rows.length === 0
-            ? "no data rows"
-            : null
+        : loadModeError
+          ? loadModeError
+          : tests?.failed
+            ? [tests.t1, tests.t4, tests.t5, tests.t6]
+                .filter((t): t is NonNullable<typeof t> => t != null && !t.ok)
+                .map((t) => `${t.name}: ${t.detail}`)
+                .join("; ") || "parse_failed"
+            : parsed.rows.length === 0
+              ? "no data rows"
+              : null
 
       await deps.snowflake.writeLoadAndLog({
         load:
@@ -257,6 +347,7 @@ export async function runPartnerIngest(
                 source: source.sourceLabel,
                 minDate: range.minDate,
                 maxDate: range.maxDate,
+                loadMode: source.loadMode,
                 rows: parsed.rows,
                 sourceFile,
               },
@@ -302,6 +393,8 @@ export async function runPartnerIngest(
 
     await deps.mailbox.moveMessage(message.id, anyFailed ? "Failed" : "Processed")
   }
+
+  summary.staleSources = await collectStaleSources(deps, maps)
 
   return summary
 }

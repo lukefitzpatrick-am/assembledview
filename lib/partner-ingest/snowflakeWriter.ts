@@ -1,20 +1,25 @@
 import type { Connection } from "snowflake-sdk"
 
+import { PartnerIngestError } from "./errors"
 import {
+  DELETE_DELIVERY_DAYS_SQL,
   DELETE_DELIVERY_RANGE_SQL,
   DELIVERY_INSERT_BATCH,
+  DELIVERY_PARAMS_PER_ROW,
   INSERT_DELIVERY_SQL,
   INSERT_FILE_LINE_SQL,
   INSERT_INGEST_LOG_SQL,
   LINE_INSERT_BATCH,
   SELECT_LOADED_DUPLICATE_SQL,
+  SELECT_MAX_REPORT_DATE_SQL,
   SELECT_SOURCE_MAP_SQL,
   assertNoRawUpdate,
   deliveryInsertBinds,
   ingestLogBinds,
   lineInsertBinds,
+  resolveLoadMode,
 } from "./sql"
-import type { PartnerSourceMapRow } from "./types"
+import type { PartnerDeliveryRow, PartnerSourceMapRow } from "./types"
 import type { PartnerSnowflakePort } from "./runPartnerIngest"
 
 export type SnowflakeQueryFn = (
@@ -72,6 +77,10 @@ export function mapSourceMapRow(row: Record<string, unknown>): PartnerSourceMapR
   }
 }
 
+function distinctDates(rows: PartnerDeliveryRow[]): string[] {
+  return [...new Set(rows.map((r) => r.reportDate))].sort()
+}
+
 async function insertBatched(
   session: Connection,
   executeVoid: SnowflakeExecuteVoidFn,
@@ -124,28 +133,57 @@ export function createPartnerSnowflakeWriter(
       })
     },
 
+    async loadMaxReportDates(sourceLabels) {
+      const out: Record<string, string | null> = {}
+      for (const label of sourceLabels) out[label] = null
+      if (sourceLabels.length === 0) return out
+      const sql = SELECT_MAX_REPORT_DATE_SQL(sourceLabels.length)
+      assertNoRawUpdate(sql)
+      const rows = await deps.query(sql, [...sourceLabels])
+      for (const row of rows) {
+        const label = asString(row.SOURCE ?? row.source)
+        const max = row.MAX_REPORT_DATE ?? row.max_report_date
+        if (!label) continue
+        out[label] =
+          max instanceof Date
+            ? max.toISOString().slice(0, 10)
+            : asNullableString(max)?.slice(0, 10) ?? null
+      }
+      return out
+    },
+
     async writeLoadAndLog(input) {
+      const load = input.load
+      const mode = load ? resolveLoadMode(load.loadMode) : null
+      if (load && !mode) {
+        throw new PartnerIngestError(
+          `unknown LOAD_MODE ${JSON.stringify(load.loadMode ?? "")}`
+        )
+      }
       await deps.withSession(async (session) => {
-        if (input.load) {
+        if (load) {
           assertNoRawUpdate("BEGIN")
           await deps.executeVoid(session, "BEGIN")
           try {
-            assertNoRawUpdate(DELETE_DELIVERY_RANGE_SQL)
-            await deps.executeVoid(session, DELETE_DELIVERY_RANGE_SQL, [
-              input.load.source,
-              input.load.minDate,
-              input.load.maxDate,
-            ])
+            if (mode === "range_replace") {
+              assertNoRawUpdate(DELETE_DELIVERY_RANGE_SQL)
+              await deps.executeVoid(session, DELETE_DELIVERY_RANGE_SQL, [
+                load.source,
+                load.minDate,
+                load.maxDate,
+              ])
+            } else if (mode === "day_replace") {
+              const dates = distinctDates(load.rows)
+              const sql = DELETE_DELIVERY_DAYS_SQL(dates.length)
+              assertNoRawUpdate(sql)
+              await deps.executeVoid(session, sql, [load.source, ...dates])
+            }
             await insertBatched(
               session,
               deps.executeVoid,
               INSERT_DELIVERY_SQL,
-              deliveryInsertBinds(
-                input.load.source,
-                input.load.sourceFile,
-                input.load.rows
-              ),
-              18,
+              deliveryInsertBinds(load.source, load.sourceFile, load.rows),
+              DELIVERY_PARAMS_PER_ROW,
               DELIVERY_INSERT_BATCH
             )
             assertNoRawUpdate("COMMIT")

@@ -102,15 +102,18 @@ function mailbox(atts: { name: string; bytes: Buffer; contentType?: string; isIn
 function snowflakeStub(opts?: {
   duplicate?: boolean
   map?: PartnerSourceMapRow[]
+  maxReportDates?: Record<string, string | null>
 }): PartnerSnowflakePort & {
   events: string[]
   lines: PartnerRawLine[]
   lastLoad: PartnerDeliveryRow[] | null
+  loadModes: (string | null | undefined)[]
   logs: PartnerIngestLogRow[]
 } {
   const events: string[] = []
   const lines: PartnerRawLine[] = []
   const logs: PartnerIngestLogRow[] = []
+  const loadModes: (string | null | undefined)[] = []
   const state: {
     lastLoad: PartnerDeliveryRow[] | null
   } = { lastLoad: null }
@@ -120,6 +123,7 @@ function snowflakeStub(opts?: {
     get lastLoad() {
       return state.lastLoad
     },
+    loadModes,
     logs,
     async loadSourceMap() {
       return opts?.map ?? [CF_MAP]
@@ -134,7 +138,15 @@ function snowflakeStub(opts?: {
     async writeLoadAndLog(input) {
       events.push(input.load ? "load" : "noload")
       state.lastLoad = input.load ? input.load.rows : null
+      if (input.load) loadModes.push(input.load.loadMode)
       logs.push(input.log)
+    },
+    async loadMaxReportDates(sourceLabels) {
+      const out: Record<string, string | null> = {}
+      for (const label of sourceLabels) {
+        out[label] = opts?.maxReportDates?.[label] ?? null
+      }
+      return out
     },
   }
 }
@@ -218,6 +230,69 @@ test("successful load inserts lines first then range-replaces daily including un
   assert.equal(summary.tests[0]?.tests.t5.ok, true)
   assert.equal(summary.t5Drift, 0)
   assert.deepEqual(box.moves, ["Processed"])
+})
+
+test("an unknown LOAD_MODE fails the file and loads nothing", async () => {
+  const bytes = await xlsx([validRow()])
+  const sf = snowflakeStub({ map: [{ ...CF_MAP, loadMode: "merge_into" }] })
+  const box = mailbox([{ name: "cf.xlsx", bytes }])
+  const summary = await runPartnerIngest({ mailbox: box, snowflake: sf })
+  assert.equal(summary.failed, 1)
+  assert.equal(summary.loaded, 0)
+  assert.equal(sf.lastLoad, null)
+  assert.equal(sf.logs[0]?.status, "parse_failed")
+  assert.match(sf.logs[0]?.errorText ?? "", /unknown LOAD_MODE "merge_into"/)
+  assert.deepEqual(box.moves, ["Failed"])
+})
+
+test("a source with no parser is treated as unrecognised", async () => {
+  const bytes = await xlsx([validRow()])
+  const sf = snowflakeStub({ map: [{ ...CF_MAP, sourceSlug: "broadsign" }] })
+  const box = mailbox([{ name: "cf.xlsx", bytes }])
+  const summary = await runPartnerIngest({ mailbox: box, snowflake: sf })
+  assert.equal(summary.unrecognised, 1)
+  assert.equal(summary.filesSeen, 0)
+  assert.equal(sf.logs[0]?.status, "unrecognised")
+  assert.equal(sf.logs[0]?.sourceSlug, "broadsign")
+  assert.match(sf.logs[0]?.errorText ?? "", /no parser for source/)
+  assert.deepEqual(box.moves, ["Unrecognised"])
+})
+
+test("the load mode from the map row reaches the writer", async () => {
+  const bytes = await xlsx([validRow()])
+  const sf = snowflakeStub({ map: [{ ...CF_MAP, loadMode: "day_replace" }] })
+  const box = mailbox([{ name: "cf.xlsx", bytes }])
+  await runPartnerIngest({ mailbox: box, snowflake: sf })
+  assert.equal(sf.loadModes[0], "day_replace")
+})
+
+test("stale sources are reported against MAX_STALE_DAYS", async () => {
+  const bytes = await xlsx([validRow()])
+  const sf = snowflakeStub({
+    map: [CF_MAP, { ...CF_MAP, sourceSlug: "vistar", sourceLabel: "Vistar", maxStaleDays: 2 }],
+    maxReportDates: { "Channel Factory": "2026-09-13", Vistar: "2026-09-05" },
+  })
+  const box = mailbox([{ name: "cf.xlsx", bytes }])
+  const summary = await runPartnerIngest({
+    mailbox: box,
+    snowflake: sf,
+    today: "2026-09-15",
+  })
+  assert.deepEqual(summary.staleSources, [{ sourceSlug: "vistar", staleDays: 10 }])
+})
+
+test("staleness is empty when every source is inside its window", async () => {
+  const bytes = await xlsx([validRow()])
+  const sf = snowflakeStub({
+    maxReportDates: { "Channel Factory": "2026-09-13" },
+  })
+  const box = mailbox([{ name: "cf.xlsx", bytes }])
+  const summary = await runPartnerIngest({
+    mailbox: box,
+    snowflake: sf,
+    today: "2026-09-15",
+  })
+  assert.deepEqual(summary.staleSources, [])
 })
 
 test("T5 failure writes raw lines and does not load daily", async () => {
