@@ -1,7 +1,7 @@
 /**
  * Programmatic delivery platform → source.
  *
- * Mirrors `delivery_source_map` (0063 AUTHOR ONLY; Channel Factory row is 0074).
+ * Mirrors `delivery_source_map` (0063 AUTHOR ONLY; Channel Factory is 0074; Twitch is 0075).
  * Do not SELECT the table until 0063 is applied (C-76). `derive_spend_from_plan`
  * is consumed by `lib/delivery/deriveSpendFromPlanRate.ts` for modelled delivered
  * spend on cm360-sourced programmatic lines. Direct Booked Digital stays ZERO-$.
@@ -18,7 +18,7 @@ export type DeliverySourceMapRow = {
   notes: string | null
 }
 
-/** 0063 seed plus Channel Factory `partner_file` (0074). Two Quantcast keys: prog vs digi strings genuinely differ. */
+/** 0063 seed plus Channel Factory `partner_file` (0074) and Twitch `cm360` (0075). Two Quantcast keys: prog vs digi strings genuinely differ. */
 export const PROGRAMMATIC_DELIVERY_SOURCE_SEED: readonly DeliverySourceMapRow[] = [
   { publisher_key: "dv360", delivery_source: "dsp", derive_spend_from_plan: false, active: true, notes: null },
   { publisher_key: "youtube - dv360", delivery_source: "dsp", derive_spend_from_plan: false, active: true, notes: null },
@@ -34,6 +34,13 @@ export const PROGRAMMATIC_DELIVERY_SOURCE_SEED: readonly DeliverySourceMapRow[] 
     derive_spend_from_plan: false,
     active: true,
     notes: "Datorama report 1248052 via partner-ingest. No platform cost.",
+  },
+  {
+    publisher_key: "twitch",
+    delivery_source: "cm360",
+    derive_spend_from_plan: true,
+    active: true,
+    notes: "CM360 verification; modelled spend (Quantcast pattern).",
   },
 ]
 

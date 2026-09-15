@@ -107,6 +107,8 @@ export const PUBLISHER_ALIASES: Record<string, string> = {
   fb: "meta",
   tiktok: "tiktok",
   "tik tok": "tiktok",
+  reddit: "reddit",
+  "reddit ads": "reddit",
   youtube: "youtube",
   "youtube - dv360": "youtube",
   "youtube dv360": "youtube",

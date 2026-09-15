@@ -287,9 +287,10 @@ function fmtCpv(n: number | null | undefined): string {
 }
 
 function formatSocialPlatform(platform: SocialPlatform): string {
-  if (platform === "meta") return "Meta";
-  if (platform === "tiktok") return "TikTok";
-  return platform;
+  if (platform === "meta") return "Meta"
+  if (platform === "tiktok") return "TikTok"
+  if (platform === "reddit") return "Reddit"
+  return platform
 }
 
 function labelForDeliverableMetric(metric: DeliverableMetric): string {

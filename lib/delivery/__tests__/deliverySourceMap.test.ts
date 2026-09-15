@@ -27,6 +27,15 @@ test("partner_file consumes the DSP container channel", () => {
   )
 })
 
+test("Twitch maps to cm360 with modelled plan-rate spend", () => {
+  const row = lookupActiveDeliverySource("twitch", PROGRAMMATIC_DELIVERY_SOURCE_SEED)
+  assert.ok(row)
+  assert.equal(row.publisher_key, "twitch")
+  assert.equal(row.delivery_source, "cm360")
+  assert.equal(row.derive_spend_from_plan, true)
+  assert.equal(row.active, true)
+})
+
 test("unknown delivery source still has no Snowflake channel", () => {
   assert.deepEqual([...snowflakeChannelsForDeliverySource("cm360", "programmatic-video")], ["ad-serving"])
   assert.deepEqual([...snowflakeChannelsForDeliverySource("dsp", "programmatic-video")], ["programmatic-video"])

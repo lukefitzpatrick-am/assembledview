@@ -518,3 +518,38 @@ test("a DV360 line is unchanged when reported spend is present for another line"
   assert.equal(metrics[0]?.spendModelledFromPlanRate, false)
   assert.equal(metrics[0]?.actualsDaily[0]?.spend, 40)
 })
+
+test("a Twitch prog_video line with CM360 rows is included with impressions and modelled spend", () => {
+  const metrics = lineMetrics(
+    [modelledCpmLine("bicau006pv2", "twitch")],
+    [
+      pacingRow({
+        channel: "ad-serving",
+        lineItemId: "bicau006pv2",
+        impressions: 50_000,
+        clicks: 10,
+      }),
+    ],
+    "ad-serving",
+    { mediaType: "progvideo" },
+  )
+  assert.equal(metrics.length, 1)
+  assert.equal(metrics[0]?.spendModelledFromPlanRate, true)
+  const impressions = metrics[0]!.actualsDaily.reduce((sum, day) => sum + day.impressions, 0)
+  assert.equal(impressions, 50_000)
+
+  const section = buildVideo({
+    lines: [modelledCpmLine("bicau006pv2", "twitch")],
+    rows: [
+      pacingRow({
+        channel: "ad-serving",
+        lineItemId: "bicau006pv2",
+        impressions: 50_000,
+        clicks: 10,
+      }),
+    ],
+  })
+  assert.ok(section, "expected a programmatic video section")
+  assert.equal(section.lineItems.length, 1)
+  assert.equal(section.lineItems[0]?.block.progressCards[0]?.title, MODELLED_SPEND_TITLE)
+})

@@ -89,4 +89,7 @@ test("slugifyPublisher: aliases + buying-platform suffix strip", () => {
   assert.equal(slugifyPublisher("DV360"), "assembled-programmatic")
   assert.equal(slugifyPublisher("oOh!media"), "ooh-media")
   assert.equal(slugifyPublisher("ChatGPT - AM"), "chatgpt")
+  assert.equal(slugifyPublisher("Reddit"), "reddit")
+  assert.equal(slugifyPublisher("Reddit Ads"), "reddit")
+  assert.equal(slugifyPublisher("Twitch"), "twitch")
 })

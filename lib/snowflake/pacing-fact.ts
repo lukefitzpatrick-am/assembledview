@@ -1,7 +1,6 @@
 import { querySnowflake } from "@/lib/snowflake/query"
 import {
   isSocialPacingChannel,
-  SOCIAL_PACING_CHANNEL_TYPES,
   SOCIAL_PACING_TABLE,
 } from "@/lib/pacing/social-channels"
 
@@ -24,7 +23,13 @@ export type PacingFactRow = {
   UPDATED_AT: string | null
 }
 
-type Channel = "meta" | "tiktok" | "programmatic-display" | "programmatic-video" | "ad-serving"
+type Channel =
+  | "meta"
+  | "tiktok"
+  | "reddit"
+  | "programmatic-display"
+  | "programmatic-video"
+  | "ad-serving"
 
 type QueryPacingFactParams = {
   channel: Channel
@@ -86,10 +91,12 @@ export async function queryPacingFact(params: QueryPacingFactParams, options: Qu
   // so we match using LOWER() + LIKE patterns (same intent as bulk pacing query).
   const channelWhere = (() => {
     switch (channel) {
-      case SOCIAL_PACING_CHANNEL_TYPES[0]:
-        return `LOWER(CHANNEL) LIKE '%${SOCIAL_PACING_CHANNEL_TYPES[0]}%'`
-      case SOCIAL_PACING_CHANNEL_TYPES[1]:
-        return `LOWER(CHANNEL) LIKE '%${SOCIAL_PACING_CHANNEL_TYPES[1]}%'`
+      case "meta":
+        return "LOWER(CHANNEL) LIKE '%meta%'"
+      case "tiktok":
+        return "LOWER(CHANNEL) LIKE '%tiktok%'"
+      case "reddit":
+        return "LOWER(CHANNEL) LIKE '%reddit%'"
       case "programmatic-display":
         return "LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%'"
       case "programmatic-video":
@@ -105,6 +112,7 @@ export async function queryPacingFact(params: QueryPacingFactParams, options: Qu
 
   const baseSql = `  SELECT
     CASE
+      WHEN LOWER(CHANNEL) LIKE '%reddit%' THEN 'reddit'
       WHEN LOWER(CHANNEL) LIKE '%meta%' THEN 'meta'
       WHEN LOWER(CHANNEL) LIKE '%tiktok%' THEN 'tiktok'
       WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%' THEN 'programmatic-display'

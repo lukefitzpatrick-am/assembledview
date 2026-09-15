@@ -10,10 +10,13 @@ import {
   type VersionRow,
 } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows";
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
-import type { SocialPacingCampaignRow, SocialPlatform } from "@/lib/pacing/social/types";
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs";
+import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform";
+import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types";
 import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
 import { boundedMap } from "@/lib/utils/boundedMap";
+
+export { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform";
 
 const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const;
 /** Parallel Xano per-master fetches; well under Launch-plan 100 req/s ceiling. */
@@ -108,37 +111,6 @@ export async function fetchSocialLineItemsForMba(args: {
   }
 
   return best;
-}
-
-// Platform classification mirrors components/dashboard/delivery/DeliveryDataProviderWrapper.tsx
-// (classifySocialPacingPlatform). Dedupe when a shared module exists.
-function isMetaPlatformString(value: unknown): boolean {
-  return /\b(meta|facebook|instagram|ig)\b/i.test(String(value ?? ""));
-}
-
-function isTikTokPlatformString(value: unknown): boolean {
-  return /\btik\s*tok\b/i.test(String(value ?? ""));
-}
-
-export function classifySocialPacingPlatform(row: Record<string, unknown>): SocialPlatform | null {
-  const platform = String(row.platform ?? "").trim();
-  if (platform) {
-    if (isMetaPlatformString(platform)) return "meta";
-    if (isTikTokPlatformString(platform)) return "tiktok";
-  }
-  const fallbackName = String(
-    row.line_item_name ??
-      row.lineItemName ??
-      row.creative_targeting ??
-      row.creativeTargeting ??
-      row.creative ??
-      ""
-  )
-    .trim()
-    .toUpperCase();
-  if (/(^|[^A-Z])(FB|IG|META)([^A-Z]|$)/.test(fallbackName)) return "meta";
-  if (/(^|[^A-Z])(TT|TIKTOK)([^A-Z]|$)/.test(fallbackName)) return "tiktok";
-  return null;
 }
 
 /**

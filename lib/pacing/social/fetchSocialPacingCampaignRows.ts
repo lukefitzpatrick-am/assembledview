@@ -105,6 +105,11 @@ export async function fetchSocialPacingCampaignRows(
       rows.filter((r) => r.socialPlatform === "tiktok").map((r) => r.lineItemId.toLowerCase())
     )
   );
+  const redditIds = Array.from(
+    new Set(
+      rows.filter((r) => r.socialPlatform === "reddit").map((r) => r.lineItemId.toLowerCase())
+    )
+  );
 
   const lineTotalStart =
     rows
@@ -113,12 +118,13 @@ export async function fetchSocialPacingCampaignRows(
       .sort()[0] ?? args.asOfDate;
   const yesterday = getMelbourneYesterdayISO(args.asOfDate);
 
-  if (metaIds.length > 0 || tiktokIds.length > 0) {
-    const [metaFacts, tiktokFacts] = await Promise.all([
+  if (metaIds.length > 0 || tiktokIds.length > 0 || redditIds.length > 0) {
+    const [metaFacts, tiktokFacts, redditFacts] = await Promise.all([
       fetchFactsForPlatform("meta", metaIds, lineTotalStart, args.asOfDate),
       fetchFactsForPlatform("tiktok", tiktokIds, lineTotalStart, args.asOfDate),
+      fetchFactsForPlatform("reddit", redditIds, lineTotalStart, args.asOfDate),
     ]);
-    const allFacts = [...metaFacts, ...tiktokFacts];
+    const allFacts = [...metaFacts, ...tiktokFacts, ...redditFacts];
 
     const byLineItem = new Map<string, SocialFactRow[]>();
     for (const fact of allFacts) {

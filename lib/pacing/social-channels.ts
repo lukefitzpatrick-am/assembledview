@@ -1,20 +1,20 @@
 /**
  * Shared constants and helpers for social pacing channels.
- * Social channels (Social - Meta, Social - TikTok) live in SOCIAL_PACING_FACT.
+ * Social channels (Social - Meta, Social - TikTok, Social - Reddit) live in SOCIAL_PACING_FACT.
  * Non-social (programmatic) remains in PACING_FACT.
  */
 
 /** Canonical display names for social pacing channels in Snowflake. */
-const SOCIAL_PACING_CHANNEL_NAMES = ["Social - Meta", "Social - TikTok"] as const
+const SOCIAL_PACING_CHANNEL_NAMES = ["Social - Meta", "Social - TikTok", "Social - Reddit"] as const
 
 /** Normalized channel types used by the app for social pacing. */
-export const SOCIAL_PACING_CHANNEL_TYPES = ["meta", "tiktok"] as const
+export const SOCIAL_PACING_CHANNEL_TYPES = ["meta", "tiktok", "reddit"] as const
 
 /** Snowflake table for social pacing data. */
 export const SOCIAL_PACING_TABLE = "ASSEMBLEDVIEW.MART.SOCIAL_PACING_FACT"
 
 /**
- * Returns true if the channel type is a social pacing channel (meta or tiktok).
+ * Returns true if the channel type is a social pacing channel (meta, tiktok, or reddit).
  */
 export function isSocialPacingChannel(channel: string): boolean {
   const lower = String(channel ?? "").trim().toLowerCase()

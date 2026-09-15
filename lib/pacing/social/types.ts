@@ -10,7 +10,7 @@
 import type { KpiTargets, NormalisedBurst } from "@/lib/pacing/campaigns/types";
 import type { DeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
 
-export type SocialPlatform = "meta" | "tiktok";
+export type SocialPlatform = "meta" | "tiktok" | "reddit";
 
 /**
  * Snowflake delivery metrics and KPI ratios reused at line-item, platform-campaign,

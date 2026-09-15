@@ -23,6 +23,8 @@ import {
 import { clipDateRangeToCampaign, filterDailySeriesByRange, parseDateOnly, type DateRange } from "@/lib/dashboard/dateFilter"
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 import { deliverableLabelForMetricKey } from "@/lib/delivery/deliverableLabel"
+import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform"
+import type { SocialPlatform } from "@/lib/pacing/social/types"
 
 
 export type SocialLineItem = {
@@ -58,18 +60,6 @@ export type SocialLineMetrics = {
   onTrackStatus: OnTrackStatus
 }
 
-function isMetaPlatform(value: string | undefined) {
-  if (!value) return false
-  const lower = String(value).toLowerCase()
-  return /\b(meta|facebook|instagram|ig)\b/.test(lower)
-}
-
-function isTikTokPlatform(value: string | undefined) {
-  if (!value) return false
-  const lower = String(value).toLowerCase()
-  return /\btik\s*tok\b/.test(lower)
-}
-
 const cleanId = (v: any) => {
   const s = String(v ?? "").trim()
   if (!s) return null
@@ -100,21 +90,14 @@ export function mapCombinedRowToMeta(row: CombinedPacingRow): MetaPacingRow {
   }
 }
 
-export function classifyPlatform(platformValue: unknown, fallbackName: string | null | undefined): "meta" | "tiktok" | null {
-  const platform = String(platformValue ?? "").trim()
-  if (platform) {
-    if (isMetaPlatform(platform)) return "meta"
-    if (isTikTokPlatform(platform)) return "tiktok"
-  }
-
-  const name = String(fallbackName ?? "").trim()
-  if (name) {
-    const upper = name.toUpperCase()
-    if (/(^|[^A-Z])(FB|IG|META)([^A-Z]|$)/.test(upper)) return "meta"
-    if (/(^|[^A-Z])(TT|TIKTOK)([^A-Z]|$)/.test(upper)) return "tiktok"
-  }
-
-  return null
+export function classifyPlatform(
+  platformValue: unknown,
+  fallbackName: string | null | undefined,
+): SocialPlatform | null {
+  return classifySocialPacingPlatform({
+    platform: platformValue,
+    line_item_name: fallbackName,
+  })
 }
 
 function startOfDay(date: Date) {
