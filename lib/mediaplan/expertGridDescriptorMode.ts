@@ -2,7 +2,8 @@
  * Compact / expanded descriptor pane for ExpertGrid (SM-13 / SM-14).
  * Pure hysteresis + resolve — no DOM. Auto-mode reads logical scroll
  * (week travel in expanded coordinates), never the post-compact raw
- * scrollLeft that the width change itself writes.
+ * scrollLeft that the width change itself writes. Compensation writes
+ * are gated by `userInitiated`, not a timer.
  */
 
 export type ExpertGridDescriptorMode = "expanded" | "compact"
@@ -11,7 +12,7 @@ export type ExpertGridDescriptorMode = "expanded" | "compact"
 export const DESCRIPTOR_COMPACT_SCROLL_PX = 160
 /** Logical scroll below this → expanded (strict less-than). */
 export const DESCRIPTOR_EXPAND_SCROLL_PX = 40
-/** Ignore scroll events for ~2 frames after a compensation write. */
+/** Dead: live path uses an intent flag, not a timer. Kept for a later knip sweep. */
 export const DESCRIPTOR_SCROLL_SUPPRESS_MS = 34
 /**
  * Kill switch for descriptor auto-compact. SM-16 stop-gap lifted after
@@ -88,10 +89,10 @@ export function nextDescriptorScrollIntent(
 }
 
 /**
- * One auto-mode step from scroller numbers. Compensation writes are
- * ignored until `suppressUntil`. Compact scrollLeft below the expand
- * threshold still expands: logical is ≥ W while compact, so 40 logical
- * px is unreachable from the compact scroller's left edge.
+ * One auto-mode step from scroller numbers. Compensation writes pass
+ * `userInitiated: false` and must not change mode. Compact scrollLeft
+ * below the expand threshold still expands: that hatch is the only way
+ * to reach the left edge after the pane shrinks by W.
  */
 export function applyDescriptorScrollEvent(args: {
   current: ExpertGridDescriptorMode
@@ -101,10 +102,9 @@ export function applyDescriptorScrollEvent(args: {
   expandedStickyWidthPx: number
   compactStickyWidthPx: number
   currentStickyWidthPx: number
-  now: number
-  suppressUntil: number
+  userInitiated: boolean
 }): { mode: ExpertGridDescriptorMode; ignored: boolean } {
-  if (shouldSuppressDescriptorScrollEvent(args.now, args.suppressUntil)) {
+  if (!args.userInitiated) {
     return { mode: args.current, ignored: true }
   }
   const compactAllowed = canCompact(
@@ -183,7 +183,10 @@ export function serializeDescriptorPin(pinned: boolean | null): string | null {
 
 /**
  * Keep the week under the pointer still when sticky pane width changes:
- * newScrollLeft = clamp(scrollLeft + Δ, 0, maxScroll).
+ * newScrollLeft = clamp(scrollLeft + Δ, min, maxScroll).
+ * Shrinking (expanded → compact) floors at {@link DESCRIPTOR_EXPAND_SCROLL_PX}
+ * when maxScroll allows it, so a wheel-left can still fire the expand hatch.
+ * Expanding still floors at 0.
  */
 export function adjustScrollLeftForDescriptorWidthChange(
   scrollLeft: number,
@@ -193,7 +196,12 @@ export function adjustScrollLeftForDescriptorWidthChange(
 ): number {
   const next = scrollLeft + (nextStickyWidthPx - prevStickyWidthPx)
   const max = Math.max(0, maxScroll)
-  if (next < 0) return 0
+  const shrinking = nextStickyWidthPx < prevStickyWidthPx
+  const min =
+    shrinking && max >= DESCRIPTOR_EXPAND_SCROLL_PX
+      ? DESCRIPTOR_EXPAND_SCROLL_PX
+      : 0
+  if (next < min) return min
   if (next > max) return max
   return next
 }

@@ -150,7 +150,7 @@ export function ExpertGridWeekContextMenu({
       aria-label="Week cell"
       data-eg-week-context-menu=""
       className="z-popover fixed min-w-[11rem] overflow-hidden rounded-input border border-border bg-popover p-1 text-popover-foreground shadow-e2"
-      style={{ left: pos.left, top: pos.top }}
+      style={{ left: pos.left, top: pos.top, pointerEvents: "auto" }}
     >
       <MenuItem
         label="Cut"

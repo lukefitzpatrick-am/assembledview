@@ -169,7 +169,6 @@ import {
   descriptorErrorForcesExpand,
   descriptorPinStorageKey,
   nextDescriptorPin,
-  nextDescriptorScrollSuppressUntil,
   parseDescriptorPin,
   resolveExpertGridDescriptorMode,
   serializeDescriptorPin,
@@ -1095,7 +1094,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   const gridScrollRef = useRef<HTMLDivElement>(null)
   const prevStickyWidthRef = useRef<number | null>(null)
   const pinHydratedRef = useRef(false)
-  const suppressScrollUntilRef = useRef(0)
+  const pendingDescriptorCompensationRef = useRef(false)
   const stickyWidthsRef = useRef({
     expandedStickyWidthPx: 0,
     compactStickyWidthPx: 0,
@@ -1144,10 +1143,14 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     const el = gridScrollRef.current
     if (!el) return
     let raf = 0
+    const onUserScrollIntent = () => {
+      pendingDescriptorCompensationRef.current = false
+    }
     const onScroll = () => {
       if (raf) return
       raf = requestAnimationFrame(() => {
         raf = 0
+        if (pendingDescriptorCompensationRef.current) return
         const w = stickyWidthsRef.current
         setDescriptorScrollMode((cur) =>
           applyDescriptorScrollEvent({
@@ -1158,15 +1161,22 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             expandedStickyWidthPx: w.expandedStickyWidthPx,
             compactStickyWidthPx: w.compactStickyWidthPx,
             currentStickyWidthPx: w.currentStickyWidthPx,
-            now: performance.now(),
-            suppressUntil: suppressScrollUntilRef.current,
+            userInitiated: true,
           }).mode
         )
       })
     }
     el.addEventListener("scroll", onScroll, { passive: true })
+    el.addEventListener("wheel", onUserScrollIntent, { passive: true })
+    el.addEventListener("pointerdown", onUserScrollIntent, { passive: true })
+    el.addEventListener("keydown", onUserScrollIntent)
+    el.addEventListener("touchstart", onUserScrollIntent, { passive: true })
     return () => {
       el.removeEventListener("scroll", onScroll)
+      el.removeEventListener("wheel", onUserScrollIntent)
+      el.removeEventListener("pointerdown", onUserScrollIntent)
+      el.removeEventListener("keydown", onUserScrollIntent)
+      el.removeEventListener("touchstart", onUserScrollIntent)
       if (raf) cancelAnimationFrame(raf)
     }
   }, [normalizedRows.length])
@@ -1178,14 +1188,12 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     prevStickyWidthRef.current = nextWidth
     if (!el || prev == null || prev === nextWidth) return
     const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth)
+    pendingDescriptorCompensationRef.current = true
     el.scrollLeft = adjustScrollLeftForDescriptorWidthChange(
       el.scrollLeft,
       prev,
       nextWidth,
       maxScroll
-    )
-    suppressScrollUntilRef.current = nextDescriptorScrollSuppressUntil(
-      performance.now()
     )
   }, [descriptorColWidths])
 
