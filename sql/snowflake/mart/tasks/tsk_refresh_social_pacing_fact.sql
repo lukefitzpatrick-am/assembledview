@@ -1,5 +1,8 @@
 -- ASSEMBLEDVIEW.MART.TSK_REFRESH_SOCIAL_PACING_FACT
--- Captured from Snowflake GET_DDL on 2026-06-08. Source of truth.
+-- Captured from production 2026-09-15. MERGE SOCIAL_PACING_FACT from
+-- VW_PACING_TIKTOK, VW_PACING_META, VW_PACING_REDDIT (14-day window).
+-- Relabel names are coalesce only — no lower(trim()) on those two columns
+-- (that wrap lives in keyed.platform_line_item_id and the MERGE ON).
 USE SCHEMA ASSEMBLEDVIEW.MART;
 
 create or replace task TSK_REFRESH_SOCIAL_PACING_FACT
@@ -19,6 +22,12 @@ using (
            max_fivetran_synced_at::timestamp_ntz
     from ASSEMBLEDVIEW.MART.VW_PACING_META
     where date_day >= dateadd(day, -14, current_date())
+    union all
+    select channel, date_day, line_item_name, line_item_id, entity_name, entity_id,
+           campaign_name, amount_spent, impressions, clicks, results, video_3s_views,
+           max_fivetran_synced_at::timestamp_ntz
+    from ASSEMBLEDVIEW.MART.VW_PACING_REDDIT
+    where date_day >= dateadd(day, -14, current_date())
   ),
   keyed as (
     select channel, date_day,
@@ -31,8 +40,8 @@ using (
   ),
   relabel as (
     select k.*,
-           lower(trim(coalesce(m.line_item_id, k.line_item_id))) as final_line_item_id,
-           lower(trim(coalesce(m.line_item_name, k.line_item_name))) as final_line_item_name
+           coalesce(m.line_item_id, k.line_item_id) as final_line_item_id,
+           coalesce(m.line_item_name, k.line_item_name) as final_line_item_name
     from keyed k
     left join ASSEMBLEDVIEW.MART.LINE_ITEM_LABEL_MAP m
       on lower(trim(m.channel)) = lower(trim(k.channel))

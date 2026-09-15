@@ -12,8 +12,7 @@ TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
 ├─ TSK_REFRESH_PACING_FACT        MERGE PACING_FACT
 │                                 <- VW_PACING_DV360 ∪ VW_PACING_PARTNER_FILE
 ├─ TSK_REFRESH_SOCIAL_PACING_FACT MERGE SOCIAL_PACING_FACT
-│                                 <- VW_PACING_TIKTOK, VW_PACING_META
-│                                    (+ VW_PACING_REDDIT when that union is applied)
+│                                 <- VW_PACING_TIKTOK, VW_PACING_META, VW_PACING_REDDIT
 ├─ TSK_REFRESH_GOOGLESEARCHPACING CALL SP_REFRESH_GOOGLESEARCHPACING_ROLLING(14)
 │                                 -> SEARCH_PACING_FACT      <- VW_PACING_GOOGLE_SEARCH_DAILY
 └─ TSK_REFRESH_FIXED_COST_REPORTED  (after the three above)
@@ -35,7 +34,9 @@ TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
 - **Identifier case:** MART pacing views emit `LOWER(TRIM(...))` for `LINE_ITEM_ID` /
   `LINE_ITEM_NAME` (and DV360 plan-code extract is case-insensitive via
   `REGEXP_SUBSTR(UPPER(name), …)` then `LOWER`). Raw Fivetran schemas stay
-  immutable. Refresh tasks also `LOWER` label-map coalesced ids/names.
+  immutable. `TSK_REFRESH_PACING_FACT` also `LOWER`s label-map coalesced ids/names.
+  `TSK_REFRESH_SOCIAL_PACING_FACT` relabel names are `coalesce` only — `lower(trim())`
+  lives on `platform_line_item_id` and the MERGE ON.
   Deploy + full-history backfill: `npx tsx scripts/snowflake/deploy-mba-case-norm.mjs`
   (requires a role that **owns** the MART views/tables — `AV_APP_WRITE_ROLE` is
   SELECT-only on `PACING_FACT`/`SOCIAL_PACING_FACT` and cannot `CREATE OR REPLACE`
