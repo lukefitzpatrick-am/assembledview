@@ -132,6 +132,7 @@ function saveBody(over: Record<string, unknown> = {}) {
         lineItemId: LINE_FROM_V3,
         channel: "search",
         mediaType: "search",
+        buyType: "cpm",
         rate: 1,
         enteredAmount: 1500,
         bursts: [],
