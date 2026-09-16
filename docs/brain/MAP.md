@@ -109,7 +109,7 @@ This is the client-facing surface. Client-role users are confined here by `middl
 
 Spend on these pages derives from `schedule_months`, not from live platform data. Client-hub Plan committed is elapsed planned in the date window ÷ planned in the window (`computePlannedSpendTotals`) — not the window total ÷ itself.
 
-Campaign MBA compositor is `CampaignPageAssembly`. Layout contract (section order, Campaign read, `CampaignStatusStrip`, `ChannelsAtAGlance`, Connecting, null-KPI) lives in the dashboards module. `campaign_reads` is draft-until-publish (0079 AUTHOR ONLY).
+Campaign MBA compositor is `CampaignPageAssembly`. Layout contract (section order, campaign read, `CampaignStatusStrip`, `ChannelsAtAGlance`, Connecting, null-KPI) lives in the dashboards module. Campaign reads: `GET|POST /api/campaign-reads/**` (`lib/campaign-read/`), table `campaign_reads` (0079 AUTHOR ONLY).
 
 → `modules/dashboards-charts-exports.md`
 
