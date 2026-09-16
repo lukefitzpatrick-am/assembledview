@@ -111,3 +111,42 @@ test(
     }))
   },
 )
+
+test(
+  "getDeliveredTotalsForCampaign passes a non-empty lineItemsMap as lineItemsByChannel",
+  { skip },
+  async () => {
+    const { getDeliveredTotalsForCampaign } = await import("../getDeliveredTotalsForCampaign.js")
+    loadDeliverySnapshot.mock.resetCalls()
+    const lineItemsMap = {
+      progDisplay: [{ line_item_id: "bicau002pd1" }],
+    }
+    await getDeliveredTotalsForCampaign({
+      mbaNumber: "BICAU002",
+      versionNumber: 28,
+      lineItemsMap,
+    })
+    const args = loadDeliverySnapshot.mock.calls[0]?.arguments[0] as {
+      lineItemsByChannel?: Record<string, unknown[]>
+    }
+    assert.deepEqual(args.lineItemsByChannel, lineItemsMap)
+  },
+)
+
+test(
+  "getDeliveredTotalsForCampaign omits lineItemsByChannel when the map is empty",
+  { skip },
+  async () => {
+    const { getDeliveredTotalsForCampaign } = await import("../getDeliveredTotalsForCampaign.js")
+    loadDeliverySnapshot.mock.resetCalls()
+    await getDeliveredTotalsForCampaign({
+      mbaNumber: "BICAU002",
+      versionNumber: 28,
+      lineItemsMap: { progDisplay: [] },
+    })
+    const args = loadDeliverySnapshot.mock.calls[0]?.arguments[0] as {
+      lineItemsByChannel?: Record<string, unknown[]>
+    }
+    assert.equal(args.lineItemsByChannel, undefined)
+  },
+)

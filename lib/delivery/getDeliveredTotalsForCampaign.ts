@@ -10,7 +10,7 @@ export type GetDeliveredTotalsForCampaignInput = {
   mbaNumber: string
   versionNumber?: number
   mpSearchEnabled?: boolean
-  /** `campaignData.lineItems` — used only to decide whether the fixed-cost read is needed. */
+  /** `campaignData.lineItems` — fixed-cost gate, and passed through to the snapshot when non-empty. */
   lineItemsMap?: Record<string, unknown[] | undefined> | null
   startDate?: string | null
   endDate?: string | null
@@ -42,6 +42,13 @@ export type DeliveredTotalsForCampaign = DeliveredTotals & {
  * `/pacing/direct` admin tab); this function filters the result down to the single requested
  * `mbaNumber` before returning, so no other tenant's figures ever leave this function.
  */
+function hasNonEmptyLineItemsMap(
+  map: Record<string, unknown[] | undefined> | null | undefined,
+): map is Record<string, unknown[]> {
+  if (!map) return false
+  return Object.values(map).some((arr) => Array.isArray(arr) && arr.length > 0)
+}
+
 export async function getDeliveredTotalsForCampaign(
   input: GetDeliveredTotalsForCampaignInput,
 ): Promise<DeliveredTotalsForCampaign> {
@@ -55,12 +62,17 @@ export async function getDeliveredTotalsForCampaign(
     versionNumber: input.versionNumber,
   })
 
+  const lineItemsByChannel = hasNonEmptyLineItemsMap(input.lineItemsMap)
+    ? (input.lineItemsMap as Record<string, unknown[]>)
+    : undefined
+
   const [snapshot, directGroups] = await Promise.all([
     loadDeliverySnapshot({
       mbaNumber: input.mbaNumber,
       versionNumber: input.versionNumber,
       mpSearchEnabled: input.mpSearchEnabled,
       snowflakeLabel: "delivered-totals",
+      ...(lineItemsByChannel ? { lineItemsByChannel } : {}),
       ...(window ?? {}),
     }).catch((error) => {
       console.error("[getDeliveredTotalsForCampaign] loadDeliverySnapshot failed", {

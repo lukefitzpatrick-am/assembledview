@@ -54,7 +54,7 @@ The heaviest section in the app. Everything else consumes its output.
 Adding or altering a channel touches, at minimum:
 - `db/schema/enums.ts` (enum) + a migration
 - `db/schema/lineItemAttrs.ts` (per-channel zod for `line_items.attrs`)
-- `lib/api/media-containers.ts` (`MEDIA_CONTAINER_ENDPOINTS`)
+- `lib/api/media-containers.ts` (`MEDIA_CONTAINER_ENDPOINTS`; delivery snapshot uses `fetchAllPlanLineItemsForDelivery`)
 - `lib/data/planShapes.ts` (`CHANNEL_ENDPOINT_TO_CHANNEL`, `BURSTS_FIELD_AS_BURSTS`)
 - `lib/mediaplan/expertChannelMappings.ts` (8,434 lines) + `expertGridChannelConfig.ts` + `containerChannelConfig.ts`
 - `components/media-containers/<Channel>Container.tsx` + `ExpertGrid.tsx`

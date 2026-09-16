@@ -1,5 +1,7 @@
 import axios from 'axios'
 import { xanoPostHeaderRecord, xanoUrl } from '@/lib/api/xano'
+import { getDataBackendFor } from '@/lib/data/backend'
+import { publishedVersionFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
 import { sortLineItemsByLineItemNumber } from '@/lib/mediaplan/lineItemIds'
 import { boundedMap } from '@/lib/utils/boundedMap'
 
@@ -253,6 +255,65 @@ export async function fetchAllMediaContainerLineItems(
     results[mediaType] = lineItems
   })
 
+  return results
+}
+
+/**
+ * Delivery-snapshot plan lines. Postgres when `getDataBackendFor("plans")` says so;
+ * otherwise the existing Xano container fan-out. AVA / creative keep using
+ * `fetchAllMediaContainerLineItems` (Xano) unchanged.
+ */
+export async function fetchAllPlanLineItemsForDelivery(
+  mbaNumber: string,
+  versionNumber?: number,
+  mediaTypeFilter?: Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS>
+): Promise<Record<string, MediaContainerLineItem[]>> {
+  const backend = getDataBackendFor('plans')
+  if (backend !== 'postgres') {
+    return fetchAllMediaContainerLineItems(mbaNumber, versionNumber, mediaTypeFilter)
+  }
+
+  const { fetchLineItemsFromPostgresByEndpoint, readPlanMasterByMba } = await import(
+    '@/lib/data/readMediaPlans'
+  )
+
+  let targetVersion = versionNumber
+  if (targetVersion === undefined || targetVersion === null) {
+    const master = await readPlanMasterByMba(mbaNumber)
+    if (!master) {
+      throw new Error(`Media plan master not found for MBA number ${mbaNumber}`)
+    }
+    const published = publishedVersionFromMaster(master)
+    if (published <= 0) {
+      throw new Error(
+        `Media plan master for MBA ${mbaNumber} is missing published version_number`
+      )
+    }
+    targetVersion = published
+  }
+
+  const mediaTypes =
+    mediaTypeFilter && mediaTypeFilter.length > 0
+      ? mediaTypeFilter
+      : (Object.keys(MEDIA_CONTAINER_ENDPOINTS) as Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS>)
+
+  const responses = await mapMediaContainerFetches(
+    mediaTypes,
+    async (mediaType) => {
+      const rows = await fetchLineItemsFromPostgresByEndpoint(
+        MEDIA_CONTAINER_ENDPOINTS[mediaType],
+        mbaNumber,
+        targetVersion
+      )
+      return rows as MediaContainerLineItem[]
+    },
+    4
+  )
+
+  const results: Record<string, MediaContainerLineItem[]> = {}
+  responses.forEach(({ mediaType, lineItems }) => {
+    results[mediaType] = lineItems
+  })
   return results
 }
 

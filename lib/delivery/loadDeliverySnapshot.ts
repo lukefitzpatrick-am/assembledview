@@ -1,8 +1,9 @@
 import {
-  fetchAllMediaContainerLineItems,
+  fetchAllPlanLineItemsForDelivery,
   MEDIA_CONTAINER_ENDPOINTS,
   type MediaContainerLineItem,
 } from "@/lib/api/media-containers"
+import { getDataBackendFor } from "@/lib/data/backend"
 import type { DeliveryChannelGroup, DeliveryLineSnapshot } from "@/lib/ava/tools/summaries"
 import {
   cleanPacingLineItemId,
@@ -30,6 +31,12 @@ export type LoadDeliverySnapshotInput = {
   endDate?: string
   /** When set, Snowflake exec labels are prefixed (campaign-page delivered-totals). */
   snowflakeLabel?: string
+  /**
+   * Pre-resolved plan lines (e.g. campaign page `campaignData.lineItems`).
+   * When provided and non-empty, skips the plans-backend fetch.
+   * Keys match `collectChannelPlans` (both spellings: bvod / digiBvod, progVideo, …).
+   */
+  lineItemsByChannel?: Record<string, unknown[]>
 }
 
 export type LoadedDeliverySnapshot = {
@@ -341,6 +348,13 @@ function collectChannelPlans(
   }
 }
 
+function hasProvidedLineItems(
+  map: Record<string, unknown[]> | undefined,
+): map is Record<string, unknown[]> {
+  if (!map) return false
+  return Object.values(map).some((arr) => Array.isArray(arr) && arr.length > 0)
+}
+
 /**
  * Same Snowflake + media-container delivery totals used by get_delivery_snapshot
  * and the performance deck. Throws on Snowflake failure so callers can decide UX.
@@ -354,9 +368,18 @@ export async function loadDeliverySnapshot(
   }
 
   const versionNumber = input.versionNumber
-  const byChannel = await fetchAllMediaContainerLineItems(mba, versionNumber, input.mediaTypeFilter)
+  const byChannel = hasProvidedLineItems(input.lineItemsByChannel)
+    ? (input.lineItemsByChannel as Record<string, MediaContainerLineItem[]>)
+    : await fetchAllPlanLineItemsForDelivery(mba, versionNumber, input.mediaTypeFilter)
   const { groups, allMetas, searchIds, nonSearchIds } = collectChannelPlans(byChannel)
   const fixedCostLineIds = collectFixedCostLineIds(byChannel)
+  if (allMetas.length === 0) {
+    console.warn("[loadDeliverySnapshot] no plan lines resolved", {
+      mba,
+      versionNumber,
+      backend: getDataBackendFor("plans"),
+    })
+  }
 
   const flight = flightWindowFromPlan(allMetas)
   const startDate = input.startDate ?? flight.startDate
