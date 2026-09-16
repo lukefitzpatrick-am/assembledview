@@ -772,6 +772,34 @@ describe("SM-22: View changes is a read-only field diff", () => {
   })
 })
 
+describe("KPI modal persist: campaign_kpi write when the plan has an identity", () => {
+  it("edit always passes persist; create only after mba_number + version identity", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    assert.match(editSrc, /persist:\s*persistMediaPlanKpis/)
+    assert.match(createSrc, /persist:\s*canPersistMediaPlanKpis\s*\?\s*persistMediaPlanKpis\s*:\s*undefined/)
+    assert.match(createSrc, /mediaPlanVersionId\s*!=\s*null/)
+    for (const src of [createSrc, editSrc]) {
+      assert.match(src, /buildCampaignKpiSavePayload/)
+      assert.match(src, /setSavedCampaignKPIs\(/)
+      assert.match(src, /KPIs saved/)
+    }
+  })
+
+  it("plan save still syncs via the shared payload helper (VP-1 increment unchanged)", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    for (const src of [createSrc, editSrc]) {
+      const helperHits = src.split("buildCampaignKpiSavePayload").length - 1
+      assert.ok(
+        helperHits >= 3,
+        `expected persist + both plan-save KPI paths to call the helper, got ${helperHits}`,
+      )
+      assert.match(src, /saveCampaignKpisFromRows\(kpiRows, kpiPayload\)/)
+    }
+  })
+})
+
 describe("SM-27: campaign tools in the edit wizard rail", () => {
   it("edit passes Creative/Trafficking through requestNavigation; create has no card", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")

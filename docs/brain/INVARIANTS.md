@@ -180,7 +180,7 @@ pct === 100 → fee = 0 (division guard)
 - Unset metric returns **null, never 0** — `?? 0` converts "no target" into "target 0%". Publisher KPI rows default metrics to null; publisher tier ignores null and honours explicit 0.
 - Ad-serving precedence (locked): manual `adServingRatePct > 0` → resolved KPI ctr/vtr → hardcoded baseline. `adServingRatePct` stays manual-only; KPI values pass separately into compute. Identity is per-line `lineItemId`.
 - The two KPI target maps have different keys (see BLAST-RADIUS) — both must be updated for a new channel.
-- `KpiHost` implementations differ on purpose: media-plan host defers persistence to campaign save; pacing host writes to Xano immediately.
+- `KpiHost` implementations differ on purpose: media-plan host persists `campaign_kpi` immediately when the plan has an identity (create defers until first save); pacing host writes immediately. Plan save always syncs the version it just wrote, including VP-1 increments.
 
 ## Planning engine law
 

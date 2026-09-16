@@ -1,12 +1,17 @@
+import type { CampaignKpiSaveResult } from "@/lib/kpi/saveCampaignKpis"
 import type { ResolvedKPIRow } from "@/lib/kpi/types"
+
+export const MEDIA_PLAN_KPI_DEFERRED_SAVE_NOTE =
+  "KPIs are held with the plan and written when you save it."
 
 /**
  * Behaviour contract for a host that supplies KPI rows to KPIEditModal
  * and receives edits back. Two implementations:
  *
  * - MediaPlanKpiHost (this file): wraps the media-plan editor pages' KPI
- *   state. Save updates page state in memory; campaign save handles Xano
- *   persistence via the existing fan-out + sync chain.
+ *   state. Save updates page state in memory and, when the plan already
+ *   has an identity, persists campaign_kpi immediately. Plan save still
+ *   syncs the version it just wrote (including VP-1 increments).
  * - PacingKpiHost (Stage 2d-7): wraps a single pacing line item. Save
  *   immediately syncs to Xano and refreshes the row.
  *
@@ -22,6 +27,8 @@ export interface KpiHost {
   onSave: (rows: ResolvedKPIRow[]) => void | Promise<void>
   /** Called when the user clicks Reset. Media-plan clears saved layer; pacing TBD in 2d-7. */
   onReset: () => void
+  /** Shown under Save KPIs when persistence is deferred to plan save. */
+  saveNote?: string
 }
 
 export interface MediaPlanKpiHostArgs {
@@ -29,21 +36,31 @@ export interface MediaPlanKpiHostArgs {
   setRows: (rows: ResolvedKPIRow[]) => void
   onResetSavedLayer: () => void
   isSaving?: boolean
+  persist?: (rows: ResolvedKPIRow[]) => Promise<CampaignKpiSaveResult>
+  setIsSaving?: (saving: boolean) => void
 }
 
 /**
- * Factory for the media-plan editor host. Behaviour mirrors the pre-2d-6
- * flow exactly:
- *   - onSave just calls setRows (in-memory; persistence deferred to campaign save).
+ * Factory for the media-plan editor host.
+ *   - onSave always calls setRows (in-memory).
+ *   - When persist is provided, onSave then awaits it (campaign_kpi write).
+ *   - When persist is omitted, Save stays in-memory and saveNote explains the deferral.
  *   - onReset clears the saved tier so resolver re-runs from publisher/client only.
- *   - isSaving is currently false in all three pages but flows through for future use.
  */
 export function createMediaPlanKpiHost(args: MediaPlanKpiHostArgs): KpiHost {
   return {
     rows: args.rows,
     isSaving: args.isSaving ?? false,
-    onSave: (updatedRows) => {
+    saveNote: args.persist ? undefined : MEDIA_PLAN_KPI_DEFERRED_SAVE_NOTE,
+    onSave: async (updatedRows) => {
       args.setRows(updatedRows)
+      if (!args.persist) return
+      args.setIsSaving?.(true)
+      try {
+        await args.persist(updatedRows)
+      } finally {
+        args.setIsSaving?.(false)
+      }
     },
     onReset: () => {
       args.onResetSavedLayer()

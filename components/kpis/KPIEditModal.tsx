@@ -194,7 +194,7 @@ export function KPIEditModal({
   missingPublisherOnly = false,
 }: KPIEditModalProps) {
   const { toast } = useToast()
-  const { rows: kpiRows, isSaving, onSave, onReset } = host
+  const { rows: kpiRows, isSaving, onSave, onReset, saveNote } = host
   const [editedRows, setEditedRows] = React.useState<ResolvedKPIRow[]>([])
   const [fieldErrors, setFieldErrors] = React.useState<
     Record<number, Partial<Record<"ctr" | "vtr" | "cpv" | "conversion_rate" | "frequency", string>>>
@@ -895,30 +895,42 @@ export function KPIEditModal({
               >
                 Cancel
               </Button>
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                disabled={isSaving || Object.keys(fieldErrors).length > 0}
-                title={
-                  Object.keys(fieldErrors).length > 0
-                    ? "Fix validation errors before saving."
-                    : "KPIs will be saved to Xano when you save the campaign"
-                }
-                onClick={() => {
-                  onSave(editedRows)
-                  onClose()
-                }}
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving…
-                  </>
-                ) : (
-                  "Save KPIs"
-                )}
-              </Button>
+              <div className="flex flex-col items-end gap-1">
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  disabled={isSaving || Object.keys(fieldErrors).length > 0}
+                  title={
+                    Object.keys(fieldErrors).length > 0
+                      ? "Fix validation errors before saving."
+                      : saveNote
+                        ? saveNote
+                        : "Save KPIs to this campaign version"
+                  }
+                  onClick={async () => {
+                    try {
+                      await onSave(editedRows)
+                    } finally {
+                      onClose()
+                    }
+                  }}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    "Save KPIs"
+                  )}
+                </Button>
+                {saveNote ? (
+                  <p className="max-w-xs text-right text-[10px] text-muted-foreground">
+                    {saveNote}
+                  </p>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>

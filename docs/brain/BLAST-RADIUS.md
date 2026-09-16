@@ -129,7 +129,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `lib/kpi/percentUnits.ts` (`normaliseRatioTarget` / `parsePercentHeuristic` / format / cell tint) | UI percentage points ↔ stored decimal for ctr/vtr/conversion_rate/viewability; NEVER cpv. No magnitude heuristic (AV-25 v2). Unset returns null, never 0. Data migration pending Luke — scan via `npm run scan:kpi-percent-units` |
 | `lib/kpi/kpiWriteHandlers.ts` + `lib/data/writeKpi.ts` + `app/api/kpis/{campaign,campaign/sync,client,publisher}` writes | Admin write matrix after `requireRole(["admin"])`; validation → named 400; campaign/client PG-first + Xano mirror (X5); publisher still Xano; percent bodies decimal ≤1 (`percentUnits` — no magnitude heuristic) |
 | `deliveryTargetCurve.ts` | Contract behind every delivery chart's target line |
-| KPI target maps | There are TWO with different keys: `lineItemTargets` (`mba\|version\|line_item_id`) vs `kpiTargets` (`media_type::publisher::bid_strategy`). Fixing one does not fix the other |
+| `components/kpis/kpiHost.ts` (`createMediaPlanKpiHost`) | Media-plan Save KPIs persists `campaign_kpi` immediately when the plan has an identity (edit always; create after first save). Plan save still syncs the version it just wrote via `buildCampaignKpiSavePayload`. Tests: `npm run test:kpi-host` |
 
 ### AVA / creative
 | Touch | Also check |

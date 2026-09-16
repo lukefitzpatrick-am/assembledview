@@ -225,15 +225,17 @@ import { createMediaPlanKpiHost } from "@/components/kpis/kpiHost"
 import { resolveAllKPIs } from "@/lib/kpi/resolve"
 import { mergeManualKpiOverrides } from "@/lib/kpi/recalc"
 import { getPublisherKPIs, getClientKPIs } from "@/lib/api/kpi"
-import { saveCampaignKpisFromRows } from "@/lib/kpi/saveCampaignKpis"
-import { fanOutKpiPayload } from "@/lib/kpi/fanOut"
+import {
+  saveCampaignKpisFromRows,
+  type CampaignKpiSaveResult,
+} from "@/lib/kpi/saveCampaignKpis"
+import { buildCampaignKpiSavePayload } from "@/lib/kpi/buildCampaignKpiSavePayload"
 import { buildKpiLineItemsByMediaType } from "@/lib/kpi/lineItemsForFanOut"
 import type {
   PublisherKPI,
   ClientKPI,
   ResolvedKPIRow,
   CampaignKPI,
-  LineItemForKpiFanout,
 } from "@/lib/kpi/types"
 import type { MediaContainerBestPractice, Publisher } from "@/lib/types/publisher"
 import {
@@ -1038,6 +1040,7 @@ function CreateMediaPlan() {
   const [kpiTrigger, setKpiTrigger] = useState(0)
   const kpiRebuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const kpiRowsRef = useRef<ResolvedKPIRow[]>([])
+  const [kpiHostSaving, setKpiHostSaving] = useState(false)
 
   const form = useForm<MediaPlanFormValues>({
     resolver: zodResolver(mediaPlanSchema),
@@ -5601,6 +5604,73 @@ function CreateMediaPlan() {
     // from publisher/client tables only
   }, [])
 
+  const canPersistMediaPlanKpis =
+    mediaPlanVersionId != null && Boolean(String(mbaNumber ?? "").trim())
+
+  const persistMediaPlanKpis = async (
+    rows: ResolvedKPIRow[],
+  ): Promise<CampaignKpiSaveResult> => {
+    const fv = form.getValues()
+    const mba = String(fv.mba_number ?? "").trim()
+    const version = parseInt(String(fv.mp_plannumber ?? "1"), 10)
+    if (!mba || !Number.isFinite(version)) {
+      const result: CampaignKpiSaveResult = {
+        status: "error",
+        message:
+          "Could not match KPI rows to line items. Save line items first, then retry.",
+      }
+      toast({
+        variant: "destructive",
+        title: "Could not save KPIs",
+        description: result.message,
+      })
+      return result
+    }
+    const kpiPayload = buildCampaignKpiSavePayload({
+      kpiRows: rows,
+      identity: {
+        mp_client_name: fv.mp_client_name ?? "",
+        mba_number: mba,
+        version_number: version,
+        campaign_name: fv.mp_campaignname ?? "",
+      },
+      mediaPairs: {
+        search: { media: searchMediaLineItems, export: searchItems },
+        socialMedia: { media: socialMediaMediaLineItems, export: socialMediaItems },
+        progDisplay: { media: progDisplayMediaLineItems, export: progDisplayItems },
+        progVideo: { media: progVideoMediaLineItems, export: progVideoItems },
+        progBvod: { media: progBvodMediaLineItems, export: progBvodItems },
+        progAudio: { media: progAudioMediaLineItems, export: progAudioItems },
+        progOoh: { media: progOohMediaLineItems, export: progOohItems },
+        digiDisplay: { media: digiDisplayMediaLineItems, export: digiDisplayItems },
+        digiAudio: { media: digiAudioMediaLineItems, export: digiAudioItems },
+        digiVideo: { media: digiVideoMediaLineItems, export: digiVideoItems },
+        bvod: { media: bvodMediaLineItems, export: bvodItems },
+        integration: { media: integrationMediaLineItems, export: integrationItems },
+        television: { media: televisionMediaLineItems, export: televisionItems },
+        radio: { media: radioMediaLineItems, export: radioItems },
+        newspaper: { media: newspaperMediaLineItems, export: newspaperItems },
+        magazines: { media: magazineMediaLineItems, export: magazineItems },
+        ooh: { media: oohMediaLineItems, export: oohItems },
+        cinema: { media: cinemaMediaLineItems, export: cinemaItems },
+        influencers: { media: influencersMediaLineItems, export: influencersItems },
+        production: { media: productionMediaLineItems, export: productionItems },
+      },
+    })
+    const result = await saveCampaignKpisFromRows(rows, kpiPayload)
+    if (result.status === "success") {
+      setSavedCampaignKPIs(kpiPayload)
+      toast({ title: "KPIs saved" })
+    } else if (result.status === "error") {
+      toast({
+        variant: "destructive",
+        title: "Could not save KPIs",
+        description: result.message,
+      })
+    }
+    return result
+  }
+
   const handleSaveMediaPlanVersion = async (
     masterId: number,
     opts?: { intent?: "save" | "publish" }
@@ -5987,38 +6057,37 @@ function CreateMediaPlan() {
         setMediaPlanVersionId(saveResult.data.versionId)
         updateSaveStatus("KPI sync", "pending")
         if (kpiRows.length > 0) {
-          const lineItemsByMediaType = buildKpiLineItemsByMediaType({
-            search: { media: snapshots.search, export: searchItems },
-            socialMedia: { media: snapshots.socialMedia, export: socialMediaItems },
-            progDisplay: { media: snapshots.progDisplay, export: progDisplayItems },
-            progVideo: { media: snapshots.progVideo, export: progVideoItems },
-            progBvod: { media: snapshots.progBvod, export: progBvodItems },
-            progAudio: { media: snapshots.progAudio, export: progAudioItems },
-            progOoh: { media: snapshots.progOoh, export: progOohItems },
-            digiDisplay: { media: snapshots.digiDisplay, export: digiDisplayItems },
-            digiAudio: { media: snapshots.digiAudio, export: digiAudioItems },
-            digiVideo: { media: snapshots.digiVideo, export: digiVideoItems },
-            bvod: { media: snapshots.bvod, export: bvodItems },
-            integration: { media: snapshots.integration, export: integrationItems },
-            television: { media: snapshots.television, export: televisionItems },
-            radio: { media: snapshots.radio, export: radioItems },
-            newspaper: { media: snapshots.newspaper, export: newspaperItems },
-            magazines: { media: snapshots.magazines, export: magazineItems },
-            ooh: { media: snapshots.ooh, export: oohItems },
-            cinema: { media: snapshots.cinema, export: cinemaItems },
-            influencers: { media: snapshots.influencers, export: influencersItems },
-            production: { media: snapshots.production, export: productionItems },
-          })
-          const kpiPayload: CampaignKPI[] = fanOutKpiPayload(
+          const kpiPayload: CampaignKPI[] = buildCampaignKpiSavePayload({
             kpiRows,
-            {
+            identity: {
               mp_client_name: clientName,
               mba_number: mbaNum,
               version_number: modeResolved.versionNumber,
               campaign_name: fv.mp_campaignname ?? "",
             },
-            lineItemsByMediaType
-          )
+            mediaPairs: {
+              search: { media: snapshots.search, export: searchItems },
+              socialMedia: { media: snapshots.socialMedia, export: socialMediaItems },
+              progDisplay: { media: snapshots.progDisplay, export: progDisplayItems },
+              progVideo: { media: snapshots.progVideo, export: progVideoItems },
+              progBvod: { media: snapshots.progBvod, export: progBvodItems },
+              progAudio: { media: snapshots.progAudio, export: progAudioItems },
+              progOoh: { media: snapshots.progOoh, export: progOohItems },
+              digiDisplay: { media: snapshots.digiDisplay, export: digiDisplayItems },
+              digiAudio: { media: snapshots.digiAudio, export: digiAudioItems },
+              digiVideo: { media: snapshots.digiVideo, export: digiVideoItems },
+              bvod: { media: snapshots.bvod, export: bvodItems },
+              integration: { media: snapshots.integration, export: integrationItems },
+              television: { media: snapshots.television, export: televisionItems },
+              radio: { media: snapshots.radio, export: radioItems },
+              newspaper: { media: snapshots.newspaper, export: newspaperItems },
+              magazines: { media: snapshots.magazines, export: magazineItems },
+              ooh: { media: snapshots.ooh, export: oohItems },
+              cinema: { media: snapshots.cinema, export: cinemaItems },
+              influencers: { media: snapshots.influencers, export: influencersItems },
+              production: { media: snapshots.production, export: productionItems },
+            },
+          })
           const kpiResult = await saveCampaignKpisFromRows(kpiRows, kpiPayload)
           updateSaveStatus(
             "KPI sync",
@@ -6307,39 +6376,37 @@ function CreateMediaPlan() {
       // Save campaign KPIs (non-blocking — don't fail the campaign save if KPIs fail)
       if (kpiRows.length > 0) {
         updateSaveStatus("Campaign KPIs", "pending")
-        const lineItemsByMediaType: Record<string, LineItemForKpiFanout[]> =
-          buildKpiLineItemsByMediaType({
-          search: { media: searchMediaLineItems, export: searchItems },
-          socialMedia: { media: socialMediaMediaLineItems, export: socialMediaItems },
-          progDisplay: { media: progDisplayMediaLineItems, export: progDisplayItems },
-          progVideo: { media: progVideoMediaLineItems, export: progVideoItems },
-          progBvod: { media: progBvodMediaLineItems, export: progBvodItems },
-          progAudio: { media: progAudioMediaLineItems, export: progAudioItems },
-          progOoh: { media: progOohMediaLineItems, export: progOohItems },
-          digiDisplay: { media: digiDisplayMediaLineItems, export: digiDisplayItems },
-          digiAudio: { media: digiAudioMediaLineItems, export: digiAudioItems },
-          digiVideo: { media: digiVideoMediaLineItems, export: digiVideoItems },
-          bvod: { media: bvodMediaLineItems, export: bvodItems },
-          integration: { media: integrationMediaLineItems, export: integrationItems },
-          television: { media: televisionMediaLineItems, export: televisionItems },
-          radio: { media: radioMediaLineItems, export: radioItems },
-          newspaper: { media: newspaperMediaLineItems, export: newspaperItems },
-          magazines: { media: magazineMediaLineItems, export: magazineItems },
-          ooh: { media: oohMediaLineItems, export: oohItems },
-          cinema: { media: cinemaMediaLineItems, export: cinemaItems },
-          influencers: { media: influencersMediaLineItems, export: influencersItems },
-          production: { media: productionMediaLineItems, export: productionItems },
-        })
-        const kpiPayload: CampaignKPI[] = fanOutKpiPayload(
+        const kpiPayload: CampaignKPI[] = buildCampaignKpiSavePayload({
           kpiRows,
-          {
+          identity: {
             mp_client_name: clientName,
             mba_number: fv.mba_number ?? "",
             version_number: version.version_number ?? planVersionNumber,
             campaign_name: fv.mp_campaignname ?? "",
           },
-          lineItemsByMediaType,
-        )
+          mediaPairs: {
+            search: { media: searchMediaLineItems, export: searchItems },
+            socialMedia: { media: socialMediaMediaLineItems, export: socialMediaItems },
+            progDisplay: { media: progDisplayMediaLineItems, export: progDisplayItems },
+            progVideo: { media: progVideoMediaLineItems, export: progVideoItems },
+            progBvod: { media: progBvodMediaLineItems, export: progBvodItems },
+            progAudio: { media: progAudioMediaLineItems, export: progAudioItems },
+            progOoh: { media: progOohMediaLineItems, export: progOohItems },
+            digiDisplay: { media: digiDisplayMediaLineItems, export: digiDisplayItems },
+            digiAudio: { media: digiAudioMediaLineItems, export: digiAudioItems },
+            digiVideo: { media: digiVideoMediaLineItems, export: digiVideoItems },
+            bvod: { media: bvodMediaLineItems, export: bvodItems },
+            integration: { media: integrationMediaLineItems, export: integrationItems },
+            television: { media: televisionMediaLineItems, export: televisionItems },
+            radio: { media: radioMediaLineItems, export: radioItems },
+            newspaper: { media: newspaperMediaLineItems, export: newspaperItems },
+            magazines: { media: magazineMediaLineItems, export: magazineItems },
+            ooh: { media: oohMediaLineItems, export: oohItems },
+            cinema: { media: cinemaMediaLineItems, export: cinemaItems },
+            influencers: { media: influencersMediaLineItems, export: influencersItems },
+            production: { media: productionMediaLineItems, export: productionItems },
+          },
+        })
         saveCampaignKpisFromRows(kpiRows, kpiPayload).then((result) => {
           if (result.status === "skipped") {
             updateSaveStatus("Campaign KPIs", "success");
@@ -8326,6 +8393,9 @@ const handleSaveAll = async (opts?: {
                         rows: kpiRows,
                         setRows: setKpiRows,
                         onResetSavedLayer: handleKPIReset,
+                        persist: canPersistMediaPlanKpis ? persistMediaPlanKpis : undefined,
+                        isSaving: kpiHostSaving,
+                        setIsSaving: setKpiHostSaving,
                       })}
                       isLoading={isKPILoading}
                       publishers={kpiPublishers}

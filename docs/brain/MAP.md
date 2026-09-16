@@ -117,7 +117,7 @@ Campaign MBA compositor is `CampaignPageAssembly`. Layout contract (section orde
 
 Three-table cascade, most specific wins: `campaign_kpi` (per line item) → `client_kpi` (per client) → `publisher_kpi` (benchmark defaults by publisher + bid strategy + media type).
 
-Fan-out from line items lives in `lib/kpi/`. `campaign_kpi.line_item_id` is the join key to both plan lines and Snowflake facts.
+Fan-out from line items lives in `lib/kpi/`. `campaign_kpi.line_item_id` is the join key to both plan lines and Snowflake facts. The media-plan KPI modal persists `campaign_kpi` immediately when the plan has an identity; plan save still syncs.
 
 → `modules/kpi.md`
 

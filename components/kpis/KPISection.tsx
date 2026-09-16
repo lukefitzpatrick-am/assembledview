@@ -263,8 +263,8 @@ export function KPISection({
         missingPublisherOnly={modalMissingOnly}
         host={{
           ...host,
-          onSave: (updatedRows) => {
-            host.onSave(updatedRows)
+          onSave: async (updatedRows) => {
+            await host.onSave(updatedRows)
             setIsModalOpen(false)
           },
           onReset: () => {
