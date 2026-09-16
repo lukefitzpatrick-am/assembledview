@@ -493,7 +493,15 @@ export function channelCoverage(input: ChannelCoverageInput): ChannelCoverageEnt
   ]
   for (const { items, family } of direct) {
     for (const item of items) {
-      addLine(groups, { item, family, hasSource: true })
+      const rec = asRecord(item)
+      const publisherKey = deliverySourceLookupKey(rec.publisher, rec.platform)
+      const mapRow = lookupActiveDeliverySource(publisherKey, sourceMap)
+      addLine(groups, {
+        item,
+        family,
+        hasSource: Boolean(mapRow),
+        mapRow,
+      })
     }
   }
 

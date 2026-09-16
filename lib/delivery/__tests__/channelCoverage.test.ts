@@ -329,6 +329,79 @@ test("BVOD glance card sums CM360 impressions and planned deliverables from line
   assert.equal(bvod.deliverableLabel, "Impressions")
 })
 
+test("direct-digital group with CM360 rows is reporting even without a map row", () => {
+  const buckets = emptyBuckets()
+  buckets.digitalVideoLineItems = [
+    {
+      line_item_id: "bicau002dv1",
+      publisher: "Supercars",
+      budget: 6_000,
+      impressions: 0,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 6_000 }],
+    },
+  ]
+  const entries = channelCoverage({
+    buckets,
+    sections: [
+      section({
+        key: "digital-video",
+        lineIds: ["bicau002dv1"],
+        spendValue: "$0.00",
+        impressionsValue: "10,000",
+        impressionsDetail: "Delivered 10,000 · Planned 80,000",
+      }),
+    ],
+    todayISO: TODAY,
+  })
+  const video = entries.find((e) => e.key === "digital-video")
+  assert.ok(video)
+  assert.equal(video.status, "reporting")
+})
+
+test("direct-digital group with a map row and no fact rows is connecting", () => {
+  const buckets = emptyBuckets()
+  buckets.digitalVideoLineItems = [
+    {
+      line_item_id: "mba001dv1",
+      publisher: "Quantcast",
+      budget: 6_000,
+      impressions: 0,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 6_000 }],
+    },
+  ]
+  const entries = channelCoverage({
+    buckets,
+    sections: [],
+    todayISO: TODAY,
+  })
+  const video = entries.find((e) => e.key === "digital-video")
+  assert.ok(video)
+  assert.equal(video.status, "connecting")
+  assert.equal(video.label, "Digital Video")
+})
+
+test("direct-digital group with no map row and no fact rows is no_source", () => {
+  const buckets = emptyBuckets()
+  buckets.digitalVideoLineItems = [
+    {
+      line_item_id: "bicau002dv2",
+      publisher: "Supercars",
+      budget: 6_000,
+      impressions: 0,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 6_000 }],
+    },
+  ]
+  const entries = channelCoverage({
+    buckets,
+    sections: [],
+    todayISO: TODAY,
+  })
+  const video = entries.find((e) => e.key === "digital-video")
+  assert.ok(video)
+  assert.equal(video.status, "no_source")
+  assert.deepEqual(visibleCoverageCards(entries), [])
+})
+
 test("order is reporting, connecting, not_started; within each by plannedSpend desc", () => {
   const buckets = emptyBuckets()
   buckets.socialLineItems = [
