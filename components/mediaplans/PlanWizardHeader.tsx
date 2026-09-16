@@ -20,8 +20,8 @@ export type PlanWizardHeaderProps = {
   /** Current page crumb (e.g. "Edit Campaign"). */
   breadcrumbCurrent?: string
   /**
-   * Optional second row inside the same hero card (edit-only chrome).
-   * Never a third hero row — wrap inside this slot instead.
+   * Optional second row inside the same hero card (edit version chrome + AVA
+   * skill actions on both twins). Never a third hero row — wrap inside this slot.
    */
   secondary?: ReactNode
 }

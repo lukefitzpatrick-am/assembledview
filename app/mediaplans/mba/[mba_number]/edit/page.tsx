@@ -43,6 +43,7 @@ import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
+import { AvaMediaplanEditActions } from "@/components/ava/AvaSkillActionSets"
 import { PlanWizardHeader, PlanWizardVersionChrome } from "@/components/mediaplans/PlanWizardHeader"
 import { PlanPresenceBanner } from "@/components/mediaplans/PlanPresenceBanner"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
@@ -12289,7 +12290,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             breadcrumbCurrent="Edit Campaign"
             subtitle={<p>Update campaign settings, media types, and line item details.</p>}
             secondary={
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+              <div className="flex min-w-0 w-full flex-1 flex-wrap items-center gap-x-4 gap-y-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
                 <PlanWizardVersionChrome
                 versionLabel={`v${selectedVersionNumber ?? mediaPlan?.version_number ?? "—"}`}
                 trail={describeVersionHeaderTrail(planDraft.modeResolved)}
@@ -12335,6 +12337,14 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                 {planDraft.presenceLine ? (
                   <PlanPresenceBanner line={planDraft.presenceLine} />
                 ) : null}
+                </div>
+                <div
+                  className="flex shrink-0 flex-wrap items-center gap-2"
+                  role="group"
+                  aria-label="AVA skill actions"
+                >
+                  <AvaMediaplanEditActions />
+                </div>
               </div>
             }
           />

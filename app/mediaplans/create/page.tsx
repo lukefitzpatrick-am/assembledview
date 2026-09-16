@@ -58,6 +58,7 @@ import { formatMoney } from "@/lib/format/money"
 import { MoneyInput } from "@/components/ui/MoneyInput"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
+import { AvaMediaplanCreateActions } from "@/components/ava/AvaSkillActionSets"
 import { PlanWizardHeader } from "@/components/mediaplans/PlanWizardHeader"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
 import { sortByLabel } from "@/lib/utils/sort"
@@ -7864,6 +7865,15 @@ const handleSaveAll = async (opts?: {
               title="Create a Campaign"
               breadcrumbCurrent="Create Campaign"
               subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}
+              secondary={
+                <div
+                  className="flex min-w-0 flex-wrap items-center gap-2"
+                  role="group"
+                  aria-label="AVA skill actions"
+                >
+                  <AvaMediaplanCreateActions />
+                </div>
+              }
             />
             {wizardDraftStrip}
           </>
