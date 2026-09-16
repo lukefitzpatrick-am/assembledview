@@ -82,3 +82,23 @@ export async function getCachedDirectPacingRows(
   )
   return cached()
 }
+
+export async function getCachedPortfolioPacingRows(
+  asOfDate: string,
+  allowedClientSlugs: Set<string> | null,
+  liveOnly: boolean
+) {
+  const scopeKey = pacingScopeKey(allowedClientSlugs)
+  const liveKey = liveOnly ? "live" : "all"
+  const cached = unstable_cache(
+    async () => {
+      const { buildCampaignPacingRows } = await import(
+        "@/lib/pacing/portfolio/buildCampaignPacingRows"
+      )
+      return buildCampaignPacingRows({ asOfDate, allowedClientSlugs, liveOnly })
+    },
+    ["pacing-rows", "portfolio", asOfDate, scopeKey, liveKey],
+    { revalidate: REVALIDATE_SECONDS, tags: [PACING_CAMPAIGNS_TAG] }
+  )
+  return cached()
+}

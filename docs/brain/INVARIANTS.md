@@ -149,6 +149,7 @@ pct === 100 → fee = 0 (division guard)
 - **Publisher Hub spend** (`getPublisherDashboardData` → `lineItemMatchesPublisher`): empty/whitespace `header1` is absent (`header1 || publisher || publisherid`), never `header1 ?? publisher`. Prefer the line's numeric `publisher_id` / ingest `publisher_profiles.publisher_id` (0036) over catalogue display name. Short stamps (QMS / JCDecaux / SCA / SEN) join via `resolveCatalogueIdForProfileName`.
 - The `PacingStatus` ladder order mirrors Snowflake `V_LINE_ITEM_PACING` — do not reorder. Bands: ±5% on track, ±15%.
 - Campaign-delivery Ahead / Behind / On track is `lib/pacing/deliveryStatusFromPct.ts` only: behind below 90, ahead above 110. Not the admin `PacingStatus` ladder.
+- Campaign-level portfolio `expectedToDate` is `resolveCampaignExpectedSpendToDate` (delivery / monthly / billing schedule on the published version), never a straight-line of budget. Channel expected is that figure allocated by contributing-channel budget share. Ad-serving / Direct Booked Digital still contribute no spend (ZERO-$ LAW).
 - CALL the fixed-cost proc with lowercase ids. Snapshot `LINE_ITEM_ID` is lowercase; `SP_REFRESH_FIXED_COST_REPORTED_DAILY` matches `LOWER(LINE_ITEM_ID) = LOWER(?)`. Mixed-case CALLs still miss if that filter is not live.
 - Direct pacing: `REPORTED_SPEND` (finance-smoothed) and `ACTUAL_PLATFORM_SPEND` are different ledgers — never mix into one KPI. Direct's status vocab doesn't map 1:1 to ahead/behind pills.
 - "As of" is a single Melbourne date (`asOfDate`), not a range.
