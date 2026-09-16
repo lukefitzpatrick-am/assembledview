@@ -38,6 +38,8 @@ export default defineConfig({
       "components/pacing/__tests__/PacingStatusSummary.test.tsx",
       "components/pacing/portfolio/__tests__/CampaignPacingCard.test.tsx",
       "components/pacing/portfolio/__tests__/PortfolioCardsBoard.test.tsx",
+      "components/pacing/portfolio/__tests__/CampaignPacingTable.test.tsx",
+      "components/pacing/portfolio/__tests__/PortfolioLayoutToggle.test.tsx",
       "components/tasks/__tests__/TaskMbaSelect.render.test.tsx",
       "components/tasks/__tests__/TaskChecklist.render.test.tsx",
       "components/dashboard/__tests__/SpendingInsightsSection.render.test.tsx",

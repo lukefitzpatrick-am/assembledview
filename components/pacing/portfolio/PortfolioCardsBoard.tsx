@@ -3,30 +3,20 @@
 import { useMemo, useState } from "react"
 import { StatusLegend } from "@/components/pacing/StatusLegend"
 import { CampaignPacingCard } from "@/components/pacing/portfolio/CampaignPacingCard"
+import { CampaignPacingTable } from "@/components/pacing/portfolio/CampaignPacingTable"
+import { PortfolioStatusTiles } from "@/components/pacing/portfolio/PortfolioStatusTiles"
+import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/states"
-import { countPortfolioRows } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
+import { Download } from "lucide-react"
+import { downloadPortfolioCsv } from "@/lib/pacing/portfolio/portfolioCsv"
 import {
   filterPortfolioByTile,
   splitPortfolioSections,
   type PortfolioTileKey,
 } from "@/lib/pacing/portfolio/filterPortfolioRows"
+import type { PortfolioLayout } from "@/lib/pacing/portfolio/portfolioLayout"
 import { portfolioLegendItems } from "@/lib/pacing/portfolio/portfolioPresentation"
 import type { CampaignPacingRow, PortfolioPacingCounts } from "@/lib/pacing/portfolio/types"
-import { cn } from "@/lib/utils"
-
-const TILES: Array<{
-  key: PortfolioTileKey
-  label: string
-  countKey: keyof PortfolioPacingCounts
-  tone: string
-}> = [
-  { key: "live", label: "Live campaigns", countKey: "live", tone: "text-foreground" },
-  { key: "behind", label: "Behind", countKey: "behind", tone: "text-status-behind-fg" },
-  { key: "on_track", label: "On track", countKey: "on_track", tone: "text-status-on-track-fg" },
-  { key: "ahead", label: "Ahead", countKey: "ahead", tone: "text-status-ahead-fg" },
-  { key: "over_pacing", label: "Over-pacing", countKey: "over_pacing", tone: "text-status-critical-fg" },
-  { key: "attention", label: "Needs attention", countKey: "attention", tone: "text-status-attention-fg" },
-]
 
 const GRID_CLASS =
   "grid grid-cols-1 min-[900px]:grid-cols-2 min-[1280px]:grid-cols-3 gap-3.5"
@@ -35,13 +25,14 @@ export function PortfolioCardsBoard({
   rows,
   asOf,
   counts,
+  layout = "cards",
 }: {
   rows: CampaignPacingRow[]
   asOf: string
   counts?: PortfolioPacingCounts
+  layout?: PortfolioLayout
 }) {
   const [tile, setTile] = useState<PortfolioTileKey | null>(null)
-  const tileCounts = counts ?? countPortfolioRows(rows)
   const visible = useMemo(() => filterPortfolioByTile(rows, tile), [rows, tile])
   const { attention, rest } = useMemo(() => splitPortfolioSections(visible), [visible])
 
@@ -52,34 +43,7 @@ export function PortfolioCardsBoard({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <div
-          className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
-          role="toolbar"
-          aria-label="Filter portfolio by pace"
-        >
-          {TILES.map((item) => {
-            const selected = tile === item.key
-            return (
-              <button
-                key={item.key}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => toggleTile(item.key)}
-                className={cn(
-                  "interactive rounded-card border bg-card p-3 text-left shadow-e0",
-                  selected ? "border-foreground" : "border-border",
-                )}
-              >
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {item.label}
-                </span>
-                <span className={cn("num mt-0.5 block text-2xl font-semibold", item.tone)}>
-                  {tileCounts[item.countKey]}
-                </span>
-              </button>
-            )
-          })}
-        </div>
+        <PortfolioStatusTiles rows={rows} counts={counts} tile={tile} onToggle={toggleTile} />
         <StatusLegend items={portfolioLegendItems()} />
       </div>
 
@@ -88,6 +52,21 @@ export function PortfolioCardsBoard({
           title="No campaigns match"
           message="Clear the tile or toolbar filters to see more campaigns."
         />
+      ) : layout === "table" ? (
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => downloadPortfolioCsv(visible, asOf)}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Download CSV
+            </Button>
+          </div>
+          <CampaignPacingTable rows={visible} />
+        </div>
       ) : (
         <>
           {attention.length > 0 ? (

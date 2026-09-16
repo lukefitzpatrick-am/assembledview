@@ -14,6 +14,7 @@ import {
   PACING_MEDIA_TYPE_OPTIONS,
   PACING_STATUS_OPTIONS,
 } from "@/lib/pacing/pacingFilters"
+import { PortfolioLayoutToggle } from "@/components/pacing/portfolio/PortfolioLayoutToggle"
 
 type ClientOption = { value: string; label: string }
 
@@ -115,6 +116,8 @@ export function PacingFilterToolbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const isScopedTenant = assignedClientIds.length > 0
+  const isPortfolio =
+    pathname === "/pacing/portfolio" || pathname.startsWith("/pacing/portfolio/")
   const { rowFiltersDisabled, asOfDisabled, rowFilterReason, asOfReason } = useMemo(
     () => pacingToolbarScope(pathname),
     [pathname],
@@ -286,7 +289,8 @@ export function PacingFilterToolbar() {
 
   return (
     <div className="px-4 py-2 md:px-6">
-      <div className="mb-2 flex justify-end lg:hidden">
+      <div className="mb-2 flex justify-end gap-2 lg:hidden">
+        {isPortfolio ? <PortfolioLayoutToggle /> : null}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
             <Button variant="outline" size="sm">
@@ -379,6 +383,7 @@ export function PacingFilterToolbar() {
         >
           Reset
         </Button>
+        {isPortfolio ? <PortfolioLayoutToggle /> : null}
       </div>
     </div>
   )

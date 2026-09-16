@@ -10,6 +10,7 @@ import { PortfolioCardsBoard } from "@/components/pacing/portfolio/PortfolioCard
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { countPortfolioRows } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
 import { filterPortfolioRows } from "@/lib/pacing/portfolio/filterPortfolioRows"
+import { usePortfolioLayout } from "@/lib/pacing/portfolio/portfolioLayout"
 import type { CampaignPacingRow, PortfolioPacingCounts } from "@/lib/pacing/portfolio/types"
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore"
 import {
@@ -30,6 +31,7 @@ export function PortfolioClient() {
   const [loading, setLoading] = useState(true)
 
   const filters = usePacingFilterStore((s) => s.filters)
+  const { layout } = usePortfolioLayout()
   const { map: clientIdToName, settled: clientMapSettled } = usePacingClientIdToNameMap()
 
   useEffect(() => {
@@ -124,7 +126,7 @@ export function PortfolioClient() {
       ) : filtersOn && displayed.length === 0 ? (
         <PacingFilterEmptyState />
       ) : (
-        <PortfolioCardsBoard rows={displayed} asOf={data.asOf} counts={counts} />
+        <PortfolioCardsBoard rows={displayed} asOf={data.asOf} counts={counts} layout={layout} />
       )}
     </div>
   )
