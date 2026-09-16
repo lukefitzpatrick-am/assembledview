@@ -64,6 +64,8 @@ const ALLOWED_CHANNELS: Channel[] = [
 type GetCampaignPacingDataOptions = {
   requestId?: string
   signal?: AbortSignal
+  /** Snowflake exec label prefix (campaign-page delivered-totals vs CSR bulk). */
+  label?: string
 }
 
 type GetCampaignPacingDataParams = {
@@ -241,16 +243,19 @@ export async function getCampaignPacingData(
   // ============================================================================
   const queryStartTime = Date.now()
 
+  const socialLabel = options?.label ? `${options.label}_social` : "pacing_bulk_social"
+  const nonSocialLabel = options?.label ? `${options.label}_non_social` : "pacing_bulk_non_social"
+
   const [socialRows, nonSocialRows] = await Promise.all([
     querySnowflake<RawRow>(socialSql, binds, {
       requestId,
       signal: options?.signal,
-      label: "pacing_bulk_social",
+      label: socialLabel,
     }),
     querySnowflake<RawRow>(nonSocialSql, binds, {
       requestId,
       signal: options?.signal,
-      label: "pacing_bulk_non_social",
+      label: nonSocialLabel,
     }),
   ])
 

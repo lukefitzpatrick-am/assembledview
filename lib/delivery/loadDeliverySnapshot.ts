@@ -28,6 +28,8 @@ export type LoadDeliverySnapshotInput = {
   mpSearchEnabled?: boolean
   startDate?: string
   endDate?: string
+  /** When set, Snowflake exec labels are prefixed (campaign-page delivered-totals). */
+  snowflakeLabel?: string
 }
 
 export type LoadedDeliverySnapshot = {
@@ -354,6 +356,7 @@ export async function loadDeliverySnapshot(
   const versionNumber = input.versionNumber
   const byChannel = await fetchAllMediaContainerLineItems(mba, versionNumber, input.mediaTypeFilter)
   const { groups, allMetas, searchIds, nonSearchIds } = collectChannelPlans(byChannel)
+  const fixedCostLineIds = collectFixedCostLineIds(byChannel)
 
   const flight = flightWindowFromPlan(allMetas)
   const startDate = input.startDate ?? flight.startDate
@@ -361,13 +364,19 @@ export async function loadDeliverySnapshot(
 
   const mpSearchEnabled = input.mpSearchEnabled !== false
   const includeSearch = Boolean(mpSearchEnabled && searchIds.length > 0)
+  const snowflakeLabel = input.snowflakeLabel
 
   let pacingRows: PacingRow[] = []
   const searchDelivered = new Map<string, ReturnType<typeof emptyMetrics>>()
 
   const pacingPromise =
     nonSearchIds.length > 0
-      ? getCampaignPacingData(mba, nonSearchIds, { startDate, endDate })
+      ? getCampaignPacingData(
+          mba,
+          nonSearchIds,
+          { startDate, endDate },
+          snowflakeLabel ? { label: snowflakeLabel } : undefined,
+        )
       : Promise.resolve([] as PacingRow[])
 
   const searchPromise = includeSearch
@@ -378,7 +387,22 @@ export async function loadDeliverySnapshot(
       })
     : Promise.resolve(null)
 
-  const [rows, search] = await Promise.all([pacingPromise, searchPromise])
+  const overlayPromise =
+    fixedCostLineIds.length > 0
+      ? queryDailyFacts(
+          fixedCostLineIds,
+          snowflakeLabel ? { label: snowflakeLabel } : undefined,
+        ).catch((err) => {
+          console.error("[loadDeliverySnapshot] reported daily facts failed", {
+            mba,
+            error: err instanceof Error ? err.message : String(err),
+            cause: err,
+          })
+          return [] as Awaited<ReturnType<typeof queryDailyFacts>>
+        })
+      : Promise.resolve([] as Awaited<ReturnType<typeof queryDailyFacts>>)
+
+  const [rows, search, facts] = await Promise.all([pacingPromise, searchPromise, overlayPromise])
   pacingRows = rows
   if (search) {
     for (const series of search.lineItems ?? []) {
@@ -399,23 +423,14 @@ export async function loadDeliverySnapshot(
     deliveredById.set(id, metrics)
   }
 
-  const fixedCostLineIds = collectFixedCostLineIds(byChannel)
-  if (fixedCostLineIds.length > 0) {
-    try {
-      const facts = await queryDailyFacts(fixedCostLineIds)
-      overlayReportedSpendOnSnapshot(
-        deliveredById,
-        indexReportedSpendByLineDate(reportedSpendDaysFromDailyFacts(facts)),
-        fixedCostLineIds,
-        startDate,
-        endDate,
-      )
-    } catch (err) {
-      console.warn("[loadDeliverySnapshot] reported daily facts failed", {
-        mba,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
+  if (fixedCostLineIds.length > 0 && facts.length > 0) {
+    overlayReportedSpendOnSnapshot(
+      deliveredById,
+      indexReportedSpendByLineDate(reportedSpendDaysFromDailyFacts(facts)),
+      fixedCostLineIds,
+      startDate,
+      endDate,
+    )
   }
 
   const channelOrder = [

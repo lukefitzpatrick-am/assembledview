@@ -3,6 +3,13 @@ import test from "node:test"
 
 import { inclusiveCampaignDayMetrics } from "../melbourne.js"
 
+test("Sep 16 of a 1 Aug–25 Oct campaign is Day 47 of 86 (Melbourne calendar)", () => {
+  const m = inclusiveCampaignDayMetrics("2026-08-01", "2026-10-25", "2026-09-16")
+  assert.equal(m.daysInCampaign, 86)
+  assert.equal(m.daysElapsed, 47)
+  assert.equal(m.daysRemaining, 39)
+})
+
 test("Sep 16 of a 1 Sep–30 Nov campaign is Day 16 of 91 (Melbourne calendar)", () => {
   const m = inclusiveCampaignDayMetrics("2026-09-01", "2026-11-30", "2026-09-16")
   assert.equal(m.daysInCampaign, 91)

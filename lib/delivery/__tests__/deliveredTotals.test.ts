@@ -115,17 +115,25 @@ describe("hasReportedDeliveredSpend", () => {
 })
 
 describe("programmaticLineItemIdsFromSnapshot", () => {
-  it("includes programmatic_ooh so combineDeliveredTotals does not double-count Direct REPORTED_SPEND", () => {
+  it("excludes overlay groups so combineDeliveredTotals does not double-count REPORTED_SPEND", () => {
     const ids = programmaticLineItemIdsFromSnapshot({
       channels: [
         { group: "programmatic_video", lines: [{ lineItemId: "bicau002pv1" }] },
         { group: "programmatic_ooh", lines: [{ lineItemId: "legal004po1" }] },
         { group: "digital_display", lines: [{ lineItemId: "legal004dd1" }] },
+        { group: "digital_video", lines: [{ lineItemId: "bicau002dv1" }] },
+        { group: "digital_audio", lines: [{ lineItemId: "bicau002da1" }] },
+        { group: "bvod", lines: [{ lineItemId: "bicau002bv2" }] },
+        { group: "social_meta", lines: [{ lineItemId: "bicau002sm1" }] },
       ],
     })
     expect(ids.has("legal004po1")).toBe(true)
     expect(ids.has("bicau002pv1")).toBe(true)
-    expect(ids.has("legal004dd1")).toBe(false)
+    expect(ids.has("legal004dd1")).toBe(true)
+    expect(ids.has("bicau002dv1")).toBe(true)
+    expect(ids.has("bicau002da1")).toBe(true)
+    expect(ids.has("bicau002bv2")).toBe(true)
+    expect(ids.has("bicau002sm1")).toBe(false)
   })
 })
 

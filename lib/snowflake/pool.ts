@@ -66,8 +66,9 @@ const DEFAULT_ACQUIRE_TIMEOUT_MS = IS_PRODUCTION ? "20000" : "15000"
 const ACQUIRE_TIMEOUT_MS = Number(process.env.SNOWFLAKE_ACQUIRE_TIMEOUT_MS ?? DEFAULT_ACQUIRE_TIMEOUT_MS)
 
 // Query execution timeout
-// Production defaults to 8s; dev stays at 30s for heavier local queries
-const DEFAULT_EXECUTE_TIMEOUT_MS = IS_PRODUCTION ? "8000" : "30000"
+// Production matches local (30s). 8s timed out PACING_FACT on campaign-page delivered-totals
+// (page maxDuration is 60s; CSR bulk already uses a 55s abort).
+const DEFAULT_EXECUTE_TIMEOUT_MS = "30000"
 const EXECUTE_TIMEOUT_MS = Number(process.env.SNOWFLAKE_EXECUTE_TIMEOUT_MS ?? DEFAULT_EXECUTE_TIMEOUT_MS)
 
 // Session initialization timeout: 8 seconds
@@ -1770,6 +1771,7 @@ export async function execWithRetry<T = any>(
       recordSuccess()
       console.info("[snowflake][exec] ok", {
         requestId,
+        label,
         mode: MODE,
         connect_ms: (connectMs ?? acquireMs) ?? undefined,
         acquire_ms: acquireMs ?? undefined,
@@ -1783,6 +1785,7 @@ export async function execWithRetry<T = any>(
 
       console.error("[snowflake][exec] failed", {
         requestId,
+        label,
         mode: MODE,
         stage,
         connect_ms: (connectMs ?? acquireMs) ?? undefined,

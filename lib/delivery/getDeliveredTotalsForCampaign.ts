@@ -60,6 +60,7 @@ export async function getDeliveredTotalsForCampaign(
       mbaNumber: input.mbaNumber,
       versionNumber: input.versionNumber,
       mpSearchEnabled: input.mpSearchEnabled,
+      snowflakeLabel: "delivered-totals",
       ...(window ?? {}),
     }).catch((error) => {
       console.error("[getDeliveredTotalsForCampaign] loadDeliverySnapshot failed", {

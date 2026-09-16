@@ -131,7 +131,17 @@ export function sumDirectReportedSpendInRange(
   return sawDaily ? sum : 0
 }
 
-/** Snapshot programmatic lines already carry REPORTED_SPEND — exclude them from the Direct sum. */
+/** Snapshot lines that already carry REPORTED_SPEND overlay — exclude them from the Direct sum. */
+const OVERLAY_SPEND_SNAPSHOT_GROUPS = new Set([
+  "programmatic_display",
+  "programmatic_video",
+  "programmatic_ooh",
+  "digital_display",
+  "digital_video",
+  "digital_audio",
+  "bvod",
+])
+
 export function programmaticLineItemIdsFromSnapshot(
   snapshot:
     | {
@@ -145,13 +155,7 @@ export function programmaticLineItemIdsFromSnapshot(
 ): Set<string> {
   const ids = new Set<string>()
   for (const channel of snapshot?.channels ?? []) {
-    if (
-      channel.group !== "programmatic_display" &&
-      channel.group !== "programmatic_video" &&
-      channel.group !== "programmatic_ooh"
-    ) {
-      continue
-    }
+    if (!OVERLAY_SPEND_SNAPSHOT_GROUPS.has(channel.group)) continue
     for (const line of channel.lines ?? []) {
       const id = String(line.lineItemId ?? "").trim().toLowerCase()
       if (id) ids.add(id)
