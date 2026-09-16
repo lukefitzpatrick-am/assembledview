@@ -4,7 +4,7 @@ import {
 } from "@/lib/pacing/filters/applyPacingRowFilters"
 import type { PacingFilterStatusBand } from "@/lib/pacing/pacingFilters"
 import { matchText, normalizeSearchText } from "@/lib/search/matchText"
-import { isAttentionRow, isOverPacing } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
+import { isAttentionRow, isOverPacing } from "@/lib/pacing/portfolio/portfolioRowFlags"
 import type { CampaignPacingRow } from "@/lib/pacing/portfolio/types"
 
 export type PortfolioTileKey =

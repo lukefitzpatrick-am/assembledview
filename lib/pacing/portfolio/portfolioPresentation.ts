@@ -2,7 +2,7 @@ import {
   AHEAD_ABOVE_PCT,
   BEHIND_BELOW_PCT,
 } from "@/lib/pacing/deliveryStatusFromPct"
-import { isOverPacing } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
+import { isOverPacing } from "@/lib/pacing/portfolio/portfolioRowFlags"
 import type {
   CampaignPacingRow,
   ChannelSourceState,

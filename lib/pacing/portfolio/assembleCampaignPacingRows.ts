@@ -22,6 +22,7 @@ import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs"
 import { isLiveCampaignStatus } from "@/lib/types/mediaPlanMaster"
 import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
 import { resolveCampaignExpectedSpendToDate } from "@/lib/spend/resolveCampaignExpectedSpend"
+import { isAttentionRow, isOverPacing } from "./portfolioRowFlags"
 import type {
   CampaignPacingRow,
   CampaignScheduleInput,
@@ -29,8 +30,9 @@ import type {
   ChannelSourceState,
   ChannelSpendMode,
   PortfolioPace,
-  PortfolioPacingCounts,
 } from "./types"
+
+export { countPortfolioRows, isAttentionRow, isOverPacing } from "./portfolioRowFlags"
 
 export type AssembleCampaignPacingRowsInput = {
   asOfDate: string
@@ -323,35 +325,6 @@ function channelPace(args: {
   if (args.sourceState === "no_source") return "no_source"
   if (args.daysElapsed >= 2 && !args.hasFactRows) return "no_delivery"
   return mapDeliveryPace(deliveryStatusFromPct(Number.isFinite(args.spendPct) ? args.spendPct : undefined))
-}
-
-export function isOverPacing(row: Pick<CampaignPacingRow, "spendPct" | "projectedFinish" | "budget">): boolean {
-  return (
-    row.spendPct > 110 &&
-    row.projectedFinish != null &&
-    row.budget > 0 &&
-    row.projectedFinish > row.budget * 1.15
-  )
-}
-
-export function isAttentionRow(row: CampaignPacingRow): boolean {
-  return (
-    isOverPacing(row) ||
-    row.pace === "no_delivery" ||
-    row.pace === "no_source" ||
-    row.pace === "behind"
-  )
-}
-
-export function countPortfolioRows(rows: CampaignPacingRow[]): PortfolioPacingCounts {
-  return {
-    live: rows.length,
-    behind: rows.filter((r) => r.pace === "behind").length,
-    on_track: rows.filter((r) => r.pace === "on_track").length,
-    ahead: rows.filter((r) => r.pace === "ahead").length,
-    over_pacing: rows.filter(isOverPacing).length,
-    attention: rows.filter(isAttentionRow).length,
-  }
 }
 
 function sortCampaignRows(rows: CampaignPacingRow[]): CampaignPacingRow[] {

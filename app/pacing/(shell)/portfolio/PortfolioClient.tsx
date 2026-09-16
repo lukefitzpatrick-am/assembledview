@@ -8,7 +8,7 @@ import {
 } from "@/components/pacing/PacingFilterResultMeta"
 import { PortfolioCardsBoard } from "@/components/pacing/portfolio/PortfolioCardsBoard"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
-import { countPortfolioRows } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
+import { countPortfolioRows } from "@/lib/pacing/portfolio/portfolioRowFlags"
 import { filterPortfolioRows } from "@/lib/pacing/portfolio/filterPortfolioRows"
 import { usePortfolioLayout } from "@/lib/pacing/portfolio/portfolioLayout"
 import type { CampaignPacingRow, PortfolioPacingCounts } from "@/lib/pacing/portfolio/types"

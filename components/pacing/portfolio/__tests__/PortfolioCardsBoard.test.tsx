@@ -3,7 +3,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { p6FixtureRows, P6_AS_OF } from "@/lib/pacing/portfolio/__tests__/p6Fixture"
-import { countPortfolioRows } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
+import { countPortfolioRows } from "@/lib/pacing/portfolio/portfolioRowFlags"
 import { splitPortfolioSections } from "@/lib/pacing/portfolio/filterPortfolioRows"
 import { PortfolioCardsBoard } from "@/components/pacing/portfolio/PortfolioCardsBoard"
 

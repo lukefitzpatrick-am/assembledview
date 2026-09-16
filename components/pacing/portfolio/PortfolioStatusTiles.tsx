@@ -1,6 +1,6 @@
 "use client"
 
-import { countPortfolioRows } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
+import { countPortfolioRows } from "@/lib/pacing/portfolio/portfolioRowFlags"
 import type { PortfolioTileKey } from "@/lib/pacing/portfolio/filterPortfolioRows"
 import type { CampaignPacingRow, PortfolioPacingCounts } from "@/lib/pacing/portfolio/types"
 import { cn } from "@/lib/utils"
