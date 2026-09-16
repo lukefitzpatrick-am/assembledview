@@ -45,3 +45,14 @@ test("formatActivityDiff soft_delete", () => {
     ["soft-deleted"]
   )
 })
+
+test("formatActivityDiff keeps asked-for-help action copy", () => {
+  assert.deepEqual(
+    formatActivityDiff({ action: "asked Ada for help" }),
+    ["asked Ada for help"]
+  )
+  assert.deepEqual(
+    formatActivityDiff({ action: "help from Bea done" }),
+    ["help from Bea done"]
+  )
+})

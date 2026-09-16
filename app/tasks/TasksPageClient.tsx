@@ -14,6 +14,7 @@ import { isValid, parseISO, startOfDay } from "date-fns"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { matchText } from "@/lib/search/matchText"
 import { useUser } from "@/components/AuthWrapper"
+import { TaskAskHelpButton } from "@/components/tasks/TaskAskHelpDialog"
 import { TaskBoard } from "@/components/tasks/TaskBoard"
 import { TaskBulkBar } from "@/components/tasks/TaskBulkBar"
 import { TaskDetailSlideOver } from "@/components/tasks/TaskDetailSlideOver"
@@ -1227,6 +1228,17 @@ export function TasksPageClient({
                 Auto
               </Badge>
             ) : null}
+            {row.original.parent_task_id != null && row.original.parent_title ? (
+              <Link
+                href={`/tasks/${row.original.parent_task_id}`}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex max-w-full items-center rounded-pill border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                <span className="truncate">
+                  Help for: {row.original.parent_title}
+                </span>
+              </Link>
+            ) : null}
           </div>
         ),
       },
@@ -1288,10 +1300,24 @@ export function TasksPageClient({
       {
         id: "assignee",
         header: "Assignee",
-        cell: ({ row }) =>
-          row.original.assignee_name ||
-          row.original.assignee_email ||
-          "—",
+        cell: ({ row }) => (
+          <div
+            className="flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span>
+              {row.original.assignee_name ||
+                row.original.assignee_email ||
+                "—"}
+            </span>
+            <TaskAskHelpButton
+              task={row.original}
+              members={teamMembers}
+              meEmail={meEmail}
+              onAsked={() => void fetchTasks()}
+            />
+          </div>
+        ),
       },
       {
         accessorKey: "due_date",
@@ -1377,7 +1403,7 @@ export function TasksPageClient({
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- patchStatus closes over fetchTasks
-    [clientNameById, selectedIds, autoBusyId]
+    [clientNameById, selectedIds, autoBusyId, teamMembers, meEmail, fetchTasks]
   )
 
   const teamRows = useMemo<TeamMemberWithWeek[]>(() => {
@@ -1813,6 +1839,9 @@ export function TasksPageClient({
                   onStatusChange={(task, status) => {
                     void patchStatus(task, status)
                   }}
+                  teamMembers={teamMembers}
+                  meEmail={meEmail}
+                  onHelpAsked={() => void fetchTasks()}
                 />
               ) : (
               <div className="mx-auto max-w-6xl overflow-hidden rounded-card border border-border bg-card shadow-e1">

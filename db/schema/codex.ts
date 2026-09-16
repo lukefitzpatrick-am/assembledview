@@ -155,11 +155,16 @@ export const tasks = pgTable(
     avaAutoKey: text("ava_auto_key"),
     estimatedMinutes: integer("estimated_minutes"),
     deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
+    /** Help-request child → parent. NULL on ordinary tasks. */
+    parentTaskId: integer("parent_task_id"),
+    helpRequestedByEmail: text("help_requested_by_email"),
+    helpPriorStatus: text("help_prior_status"),
   },
   (table) => [
     index("idx_tasks_client_id_status").on(table.clientId, table.status),
     index("idx_tasks_assignee_email_due_date").on(table.assigneeEmail, table.dueDate),
     index("idx_tasks_source_note_id").on(table.sourceNoteId),
+    index("idx_tasks_parent_task_id").on(table.parentTaskId),
     uniqueIndex("uq_tasks_ava_auto_key")
       .on(table.avaAutoKey)
       .where(sql`${table.avaAutoKey} IS NOT NULL`),
@@ -172,6 +177,11 @@ export const tasks = pgTable(
       columns: [table.sourceNoteId],
       foreignColumns: [clientNotes.id],
       name: "tasks_source_note_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.parentTaskId],
+      foreignColumns: [table.id],
+      name: "tasks_parent_task_id_fkey",
     }).onDelete("set null"),
   ],
 )

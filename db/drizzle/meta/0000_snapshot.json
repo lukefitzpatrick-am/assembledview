@@ -7060,6 +7060,24 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "parent_task_id": {
+          "name": "parent_task_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "help_requested_by_email": {
+          "name": "help_requested_by_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "help_prior_status": {
+          "name": "help_prior_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -7135,6 +7153,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "idx_tasks_parent_task_id": {
+          "name": "idx_tasks_parent_task_id",
+          "columns": [
+            {
+              "expression": "parent_task_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -7157,6 +7190,19 @@
           "tableTo": "client_notes",
           "columnsFrom": [
             "source_note_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "tasks_parent_task_id_fkey": {
+          "name": "tasks_parent_task_id_fkey",
+          "tableFrom": "tasks",
+          "tableTo": "tasks",
+          "columnsFrom": [
+            "parent_task_id"
           ],
           "columnsTo": [
             "id"

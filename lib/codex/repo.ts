@@ -32,15 +32,22 @@ import {
   formatPeriodMarker,
   normaliseRecurringRule,
 } from "@/lib/codex/recurringRule"
+import { CodexHelpError, isOpenHelpChildStatus } from "@/lib/codex/helpRoster"
 import type {
   ChecklistItem,
   CodexActivity,
   CodexPagedResponse,
   CodexTask,
+  HelpChildSummary,
+  HelpParentSummary,
   TaskComment,
   TaskTemplate,
   TaskTemplateItem,
   TeamMember,
+} from "@/lib/codex/types"
+import {
+  ASK_HELP_MAX_CHARS,
+  FIRST_OPEN_TASK_STATUS,
 } from "@/lib/codex/types"
 import {
   assertNewAliasesAvailable,
@@ -247,7 +254,94 @@ function taskRowToApi(row: typeof tasks.$inferSelect): CodexTask {
     deleted_at: row.deletedAt,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
+    parent_task_id: row.parentTaskId ?? null,
+    help_requested_by_email: row.helpRequestedByEmail ?? null,
+    help_prior_status: row.helpPriorStatus ?? null,
   }
+}
+
+function helpChildSummary(row: typeof tasks.$inferSelect): HelpChildSummary {
+  return {
+    id: Number(row.id),
+    title: row.title,
+    assignee_email: row.assigneeEmail ?? null,
+    assignee_name: row.assigneeName ?? null,
+    status: row.status,
+  }
+}
+
+function helpParentSummary(row: typeof tasks.$inferSelect): HelpParentSummary {
+  return {
+    id: Number(row.id),
+    title: row.title,
+    assignee_email: row.assigneeEmail ?? null,
+    assignee_name: row.assigneeName ?? null,
+    status: row.status,
+    description: row.description ?? null,
+  }
+}
+
+async function listHelpChildren(
+  database: DbExecutor,
+  parentId: number
+): Promise<HelpChildSummary[]> {
+  const rows = await database
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.parentTaskId, parentId), isNull(tasks.deletedAt)))
+    .orderBy(asc(tasks.createdAt), asc(tasks.id))
+  return rows.map(helpChildSummary)
+}
+
+async function attachHelpGraph(
+  database: DbExecutor,
+  api: CodexTask
+): Promise<CodexTask> {
+  const id = Number(api.id)
+  const children = await listHelpChildren(database, id)
+  let parent: HelpParentSummary | null = null
+  let parentTitle: string | null = api.parent_title ?? null
+  if (api.parent_task_id != null) {
+    const [row] = await database
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.id, api.parent_task_id), isNull(tasks.deletedAt)))
+      .limit(1)
+    if (row) {
+      parent = helpParentSummary(row)
+      parentTitle = row.title
+    }
+  }
+  return {
+    ...api,
+    children,
+    parent,
+    parent_title: parentTitle,
+  }
+}
+
+async function attachParentTitles(
+  database: DbExecutor,
+  items: CodexTask[]
+): Promise<CodexTask[]> {
+  const parentIds = [
+    ...new Set(
+      items
+        .map((t) => t.parent_task_id)
+        .filter((id): id is number => id != null && Number.isFinite(id) && id > 0)
+    ),
+  ]
+  if (parentIds.length === 0) return items
+  const rows = await database
+    .select({ id: tasks.id, title: tasks.title })
+    .from(tasks)
+    .where(inArray(tasks.id, parentIds))
+  const titleById = new Map(rows.map((r) => [Number(r.id), r.title]))
+  return items.map((t) =>
+    t.parent_task_id != null
+      ? { ...t, parent_title: titleById.get(t.parent_task_id) ?? null }
+      : t
+  )
 }
 
 function templateRowToApi(row: typeof taskTemplates.$inferSelect): TaskTemplate {
@@ -453,7 +547,8 @@ export async function listTasks(
   })
 
   const withEstimates = await applyEstimatedMinutes(database, withProgress)
-  return pagedEnvelope(withEstimates, itemsTotal, page, perPage)
+  const withParents = await attachParentTitles(database, withEstimates)
+  return pagedEnvelope(withParents, itemsTotal, page, perPage)
 }
 
 export type MbaTaskCounts = {
@@ -541,7 +636,8 @@ export async function getTask(
   const [row] = await database.select().from(tasks).where(eq(tasks.id, id)).limit(1)
   if (!row || row.deletedAt) return null
   const [api] = await applyEstimatedMinutes(database, [taskRowToApi(row)])
-  return api ?? null
+  if (!api) return null
+  return attachHelpGraph(database, api)
 }
 
 /**
@@ -738,7 +834,234 @@ export async function updateTask(
       before: beforeWithEst ?? taskRowToApi(before),
       after,
     })
+
+    if (before.status !== "done" && row.status === "done" && row.parentTaskId) {
+      await maybeCompleteHelpParent(tx, row, actorEmail)
+    }
+
     return after
+  })
+}
+
+export type RequestHelpInput = {
+  assigneeEmail: string
+  ask: string
+}
+
+export type RequestHelpActor = {
+  email: string
+  name?: string | null
+}
+
+export type RequestHelpResult = {
+  parent: CodexTask
+  child: CodexTask
+}
+
+export async function requestHelp(
+  parentId: number,
+  input: RequestHelpInput,
+  actor: RequestHelpActor,
+  database: Db = db
+): Promise<RequestHelpResult> {
+  const actorEmail = actor.email.trim().toLowerCase()
+  if (!actorEmail) {
+    throw new CodexHelpError("Could not resolve the caller email.")
+  }
+  const ask = input.ask.trim()
+  if (!ask) {
+    throw new CodexHelpError("ask is required.")
+  }
+  if (ask.length > ASK_HELP_MAX_CHARS) {
+    throw new CodexHelpError(`ask must be ${ASK_HELP_MAX_CHARS} characters or fewer.`)
+  }
+  const assigneeEmail = input.assigneeEmail.trim().toLowerCase()
+  if (!assigneeEmail) {
+    throw new CodexHelpError("assignee_email is required.")
+  }
+  if (assigneeEmail === actorEmail) {
+    throw new CodexHelpError("Cannot ask yourself for help.")
+  }
+
+  return database.transaction(async (tx) => {
+    const [parent] = await tx
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.id, parentId), isNull(tasks.deletedAt)))
+      .limit(1)
+    if (!parent) {
+      throw new CodexHelpError("Task not found.", 404)
+    }
+    if (parent.parentTaskId != null) {
+      throw new CodexHelpError("Cannot ask for help on a help request.")
+    }
+
+    const [member] = await tx
+      .select()
+      .from(teamMembers)
+      .where(
+        and(eq(teamMembers.email, assigneeEmail), eq(teamMembers.active, true))
+      )
+      .limit(1)
+    if (!member) {
+      throw new CodexHelpError("Team member not found or inactive.")
+    }
+
+    const helperName = member.name
+    const now = new Date().toISOString()
+    const [child] = await tx
+      .insert(tasks)
+      .values({
+        title: `Help: ${parent.title}`,
+        clientId: parent.clientId,
+        description: null,
+        status: FIRST_OPEN_TASK_STATUS,
+        priority: parent.priority ?? "normal",
+        assigneeEmail,
+        assigneeName: helperName,
+        dueDate: parent.dueDate ?? null,
+        mbaNumber: parent.mbaNumber ?? null,
+        category: parent.category ?? null,
+        clientVisible: parent.clientVisible ?? false,
+        source: "manual",
+        parentTaskId: parent.id,
+        createdByEmail: actorEmail,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning()
+
+    const [comment] = await tx
+      .insert(taskComments)
+      .values({
+        taskId: child.id,
+        body: ask,
+        authorEmail: actorEmail,
+        authorName: actor.name ?? null,
+        authorKind: "user",
+      })
+      .returning()
+
+    await appendActivity(tx, {
+      entityType: "task_comment",
+      entityId: comment.id,
+      actorEmail,
+      action: "create",
+      after: commentRowToApi(comment),
+    })
+
+    const parentValues: Partial<typeof tasks.$inferInsert> = {
+      status: "waiting",
+      helpRequestedByEmail: actorEmail,
+      updatedAt: now,
+    }
+    if (parent.status !== "waiting") {
+      parentValues.helpPriorStatus = parent.status
+    }
+
+    const [updatedParent] = await tx
+      .update(tasks)
+      .set(parentValues)
+      .where(and(eq(tasks.id, parent.id), isNull(tasks.deletedAt)))
+      .returning()
+
+    const childApi = taskRowToApi(child)
+    await appendActivity(tx, {
+      entityType: "task",
+      entityId: child.id,
+      actorEmail,
+      action: "create",
+      after: childApi,
+    })
+    await appendActivity(tx, {
+      entityType: "task",
+      entityId: parent.id,
+      actorEmail,
+      action: `asked ${helperName} for help`,
+    })
+
+    const parentApi = taskRowToApi(updatedParent ?? parent)
+    return {
+      parent: await attachHelpGraph(tx, parentApi),
+      child: await attachHelpGraph(tx, childApi),
+    }
+  })
+}
+
+async function maybeCompleteHelpParent(
+  tx: DbExecutor,
+  child: typeof tasks.$inferSelect,
+  actorEmail: string | null
+): Promise<void> {
+  const parentId = child.parentTaskId
+  if (parentId == null) return
+
+  const [parent] = await tx
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, parentId), isNull(tasks.deletedAt)))
+    .limit(1)
+  if (!parent) return
+
+  const siblings = await tx
+    .select({ id: tasks.id, status: tasks.status })
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.parentTaskId, parentId),
+        isNull(tasks.deletedAt),
+        ne(tasks.id, child.id)
+      )
+    )
+  const otherOpen = siblings.some((row) => isOpenHelpChildStatus(row.status))
+  if (otherOpen) return
+
+  const restoreStatus =
+    parent.helpPriorStatus?.trim() || "in_progress"
+  const now = new Date().toISOString()
+  await tx
+    .update(tasks)
+    .set({
+      status: restoreStatus,
+      helpPriorStatus: null,
+      updatedAt: now,
+    })
+    .where(and(eq(tasks.id, parentId), isNull(tasks.deletedAt)))
+
+  const [lastComment] = await tx
+    .select()
+    .from(taskComments)
+    .where(eq(taskComments.taskId, child.id))
+    .orderBy(desc(taskComments.createdAt), desc(taskComments.id))
+    .limit(1)
+
+  const helperName =
+    child.assigneeName?.trim() || child.assigneeEmail?.trim() || "someone"
+  if (lastComment?.body?.trim()) {
+    const [copied] = await tx
+      .insert(taskComments)
+      .values({
+        taskId: parentId,
+        body: `${helperName}: ${lastComment.body.trim()}`,
+        authorEmail: child.assigneeEmail?.trim().toLowerCase() || null,
+        authorName: child.assigneeName ?? null,
+        authorKind: "user",
+      })
+      .returning()
+    await appendActivity(tx, {
+      entityType: "task_comment",
+      entityId: copied.id,
+      actorEmail: actorEmail?.toLowerCase() ?? null,
+      action: "create",
+      after: commentRowToApi(copied),
+    })
+  }
+
+  await appendActivity(tx, {
+    entityType: "task",
+    entityId: parentId,
+    actorEmail: actorEmail?.toLowerCase() ?? null,
+    action: `help from ${helperName} done`,
   })
 }
 

@@ -139,6 +139,7 @@ erDiagram
     tasks ||--o| ava_task_proposals : "created_task_id (set null)"
     tasks ||--o{ task_checklist_items : "task_id (cascade)"
     tasks ||--o{ task_comments : "task_id (cascade)"
+    tasks ||--o{ tasks : "parent_task_id (set null)"
     task_templates ||--o{ task_template_items : "template_id (cascade)"
     task_templates ||--o{ tasks : "template_id (set null)"
     publishers ||--o{ client_notes : "publisher_id"
@@ -147,7 +148,7 @@ erDiagram
 | Table | Rows | Notes |
 |---|---|---|
 | `client_notes` | 131 | Fireflies meetings. `fireflies_meeting_id` UNIQUE. `attributed_type` = client\|publisher\|internal\|new_business; **NULL is the unattributed queue**. `matched_by` records how attribution happened |
-| `tasks` | 46 | `client_id` has **no FK** to `clients` (deliberate, from the ETL era). `auto_created` + `ava_auto_key` for unique-roster auto-create. Soft delete via `deleted_at` |
+| `tasks` | 46 | `client_id` has **no FK** to `clients` (deliberate, from the ETL era). `auto_created` + `ava_auto_key` for unique-roster auto-create. Soft delete via `deleted_at`. Help children: `parent_task_id` → `tasks(id)` ON DELETE SET NULL, plus `help_requested_by_email` / `help_prior_status` (0078 AUTHOR ONLY) |
 | `team_members` | 11 | `email` UNIQUE and `auth0_user_id` UNIQUE — identity is email, never a numeric id. `email_aliases`, `default_client_ids` array. Synced by `auth0-roster-sync` |
 | `ava_task_proposals` | 1,352 | proposed → accepted / accepted_edited / rejected / expired, with `decision_diff` for learning |
 | `ava_time_entry_proposals` | 26 | UNIQUE(`source_note_id`,`member_email`); blocked_overlap / blocked_structure states |

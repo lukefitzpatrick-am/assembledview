@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { CheckSquare, MessageSquare, Plus } from "lucide-react"
+import { useUser } from "@/components/AuthWrapper"
+import { TaskAskHelpButton } from "@/components/tasks/TaskAskHelpDialog"
+import { isOpenHelpChildStatus } from "@/lib/codex/helpRoster"
 import { formatDistanceToNow, isValid, parseISO } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -94,6 +97,8 @@ type Props = { taskId: number }
 
 export function TaskDetailClient({ taskId }: Props) {
   const { toast } = useToast()
+  const { user } = useUser()
+  const meEmail = (user?.email ?? "").trim().toLowerCase() || null
 
   const [task, setTask] = useState<CodexTask | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -105,6 +110,8 @@ export function TaskDetailClient({ taskId }: Props) {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
   const [comments, setComments] = useState<TaskComment[]>([])
   const [activity, setActivity] = useState<CodexActivity[]>([])
+  const [parentChecklist, setParentChecklist] = useState<ChecklistItem[]>([])
+  const [parentComments, setParentComments] = useState<TaskComment[]>([])
 
   const [titleDraft, setTitleDraft] = useState("")
   const [descriptionDraft, setDescriptionDraft] = useState("")
@@ -149,6 +156,32 @@ export function TaskDetailClient({ taskId }: Props) {
       setTitleDraft(taskJson.title ?? "")
       setDescriptionDraft(taskJson.description ?? "")
       setEstimateDraft(formatMinutesAsEstimate(taskJson.estimated_minutes) ?? "")
+
+      if (taskJson.parent?.id) {
+        const [pCheckRes, pCommentRes] = await Promise.all([
+          fetch(`/api/codex/tasks/${taskJson.parent.id}/checklist`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/codex/tasks/${taskJson.parent.id}/comments`, {
+            cache: "no-store",
+          }),
+        ])
+        if (pCheckRes.ok) {
+          const j = (await pCheckRes.json()) as { items?: ChecklistItem[] }
+          setParentChecklist(Array.isArray(j.items) ? j.items : [])
+        } else {
+          setParentChecklist([])
+        }
+        if (pCommentRes.ok) {
+          const j = (await pCommentRes.json()) as { items?: TaskComment[] }
+          setParentComments(Array.isArray(j.items) ? j.items : [])
+        } else {
+          setParentComments([])
+        }
+      } else {
+        setParentChecklist([])
+        setParentComments([])
+      }
 
       if (checkRes.ok) {
         const j = (await checkRes.json()) as { items?: ChecklistItem[] }
@@ -693,7 +726,16 @@ export function TaskDetailClient({ taskId }: Props) {
         </div>
 
         <div className="space-y-1.5">
-          <Label>Assignee</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label>Assignee</Label>
+            <TaskAskHelpButton
+              task={task}
+              members={teamMembers}
+              meEmail={meEmail}
+              layer="nested"
+              onAsked={() => void loadAll()}
+            />
+          </div>
           <Select
             value={task.assignee_email?.trim() || UNASSIGNED}
             onValueChange={(v) => {
@@ -778,6 +820,82 @@ export function TaskDetailClient({ taskId }: Props) {
           </p>
         </div>
       </div>
+
+      {task.parent ? (
+        <section className="space-y-3 rounded-card border border-border bg-surface-panel/50 p-4 shadow-e1">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold">Help for</h2>
+            <Link
+              href={`/tasks/${task.parent.id}`}
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {task.parent.title}
+            </Link>
+          </div>
+          {task.parent.description?.trim() ? (
+            <p className="whitespace-pre-wrap text-sm text-foreground">
+              {task.parent.description}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">No description.</p>
+          )}
+          {parentChecklist.length > 0 ? (
+            <ul className="space-y-1.5">
+              {parentChecklist.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-start gap-2 text-sm text-muted-foreground"
+                >
+                  <span className="num mt-0.5">
+                    {item.done ? "☑" : "☐"}
+                  </span>
+                  <span className={item.done ? "line-through" : ""}>
+                    {item.label}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {parentComments.length > 0 ? (
+            <ul className="space-y-2">
+              {parentComments.map((c) => (
+                <li
+                  key={c.id}
+                  className="rounded-input border border-border/50 bg-card px-3 py-2"
+                >
+                  <div className="mb-1 text-xs text-muted-foreground">
+                    {c.author_name || c.author_email || "Someone"}
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm">{c.body}</p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
+
+      {(task.children ?? []).some((c) => isOpenHelpChildStatus(c.status)) ? (
+        <section className="space-y-2 rounded-card border border-border bg-card p-4 shadow-e1">
+          <h2 className="text-sm font-semibold">Waiting on</h2>
+          <ul className="space-y-2">
+            {task.children
+              ?.filter((c) => isOpenHelpChildStatus(c.status))
+              .map((child) => (
+                <li key={child.id} className="flex flex-wrap items-center gap-2 text-sm">
+                  <Link
+                    href={`/tasks/${child.id}`}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    {child.assignee_name || child.assignee_email || child.title}
+                  </Link>
+                  <Badge variant={statusMeta(child.status).badgeVariant} size="sm">
+                    {statusMeta(child.status).label}
+                  </Badge>
+                </li>
+              ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* Description */}
       <section className="space-y-2">

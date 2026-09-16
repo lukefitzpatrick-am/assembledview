@@ -26,6 +26,12 @@ const SKIP_KEYS = new Set([
   "created_by",
   "created_by_email",
   "source",
+  "parent_task_id",
+  "parent_title",
+  "help_requested_by_email",
+  "help_prior_status",
+  "children",
+  "parent",
 ])
 
 function displayValue(value: unknown): string {

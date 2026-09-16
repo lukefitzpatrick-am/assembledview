@@ -70,6 +70,10 @@ if (supportsMockModule()) {
       parseStatusFilter: () => undefined,
       createTask: async () => ({ id: 1, title: "t", client_id: 1, status: "todo" }),
       getTask: async () => ({ id: 1, title: "t", client_id: 1, status: "todo" }),
+      requestHelp: async () => ({
+        parent: { id: 1, title: "t", client_id: 1, status: "waiting" },
+        child: { id: 2, title: "Help: t", client_id: 1, status: "backlog" },
+      }),
       updateTask: async () => null,
       softDeleteTask: async () => false,
       listTaskActivity: async () => [],
@@ -270,6 +274,9 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
   const dismissAuto = await import(
     "../../../app/api/codex/tasks/[id]/dismiss-auto/route.js"
   )
+  const taskHelp = await import(
+    "../../../app/api/codex/tasks/[id]/help/route.js"
+  )
   const proposals = await import("../../../app/api/codex/proposals/route.js")
   const proposalAccept = await import(
     "../../../app/api/codex/proposals/[id]/accept/route.js"
@@ -355,6 +362,21 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
         dismissAuto.POST(
           new Request("http://localhost/api/codex/tasks/1/dismiss-auto", {
             method: "POST",
+          }),
+          taskIdCtx
+        ),
+    },
+    {
+      label: "POST /api/codex/tasks/[id]/help",
+      invoke: () =>
+        taskHelp.POST(
+          new Request("http://localhost/api/codex/tasks/1/help", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              assignee_email: "helper@example.com",
+              ask: "Need a second pair of eyes",
+            }),
           }),
           taskIdCtx
         ),
@@ -615,7 +637,7 @@ test(
   { skip },
   async () => {
     const callers = await loadRouteCallers()
-    assert.equal(callers.length, 36)
+    assert.equal(callers.length, 37)
 
     for (const route of callers) {
       // Flag off: deliberately 404 (not 403). Hidden feature must not confirm it exists.

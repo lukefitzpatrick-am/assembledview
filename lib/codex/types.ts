@@ -10,6 +10,11 @@ export const TASK_STATUSES = [
 
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 
+/** First board column that is not done — help children land here. */
+export const FIRST_OPEN_TASK_STATUS: TaskStatus = TASK_STATUSES[0]
+
+export const ASK_HELP_MAX_CHARS = 280
+
 /** Alias used by Tasks page / form — single source of truth. */
 export const STATUSES = [
   { value: "backlog" as const, label: "Backlog", badgeVariant: "secondary" as const },
@@ -94,6 +99,33 @@ export type CodexTask = {
   /** Present on list responses — checklist progress for board cards. */
   checklist_done?: number
   checklist_total?: number
+  /** Help-request child → parent. Null on ordinary tasks. */
+  parent_task_id?: number | null
+  help_requested_by_email?: string | null
+  help_prior_status?: string | null
+  /** List/card: parent title when this row is a help child. */
+  parent_title?: string | null
+  /** Detail: help children of this parent (open and done). */
+  children?: HelpChildSummary[]
+  /** Detail: parent snapshot when this row is a help child. */
+  parent?: HelpParentSummary | null
+}
+
+export type HelpChildSummary = {
+  id: number
+  title: string
+  assignee_email: string | null
+  assignee_name: string | null
+  status: string
+}
+
+export type HelpParentSummary = {
+  id: number
+  title: string
+  assignee_email: string | null
+  assignee_name: string | null
+  status: string
+  description: string | null
 }
 
 /** Checklist blueprint — name + ordered labels. */

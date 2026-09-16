@@ -21,8 +21,10 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { CheckSquare } from "lucide-react"
+import Link from "next/link"
 import { isValid, parseISO, startOfDay } from "date-fns"
 import { Badge } from "@/components/ui/badge"
+import { TaskAskHelpButton } from "@/components/tasks/TaskAskHelpDialog"
 import { TaskEstimateChip } from "@/components/tasks/TaskEstimateChip"
 import {
   STATUSES,
@@ -31,6 +33,7 @@ import {
   statusMeta,
   type CodexTask,
   type TaskStatus,
+  type TeamMember,
 } from "@/lib/codex/types"
 import { cn } from "@/lib/utils"
 
@@ -82,16 +85,25 @@ type BoardCardProps = {
   task: CodexTask
   clientName: string
   onOpen: (task: CodexTask) => void
+  teamMembers: TeamMember[]
+  meEmail: string | null
+  onHelpAsked?: () => void
 }
 
 function TaskBoardCardFace({
   task,
   clientName,
   overdue,
+  teamMembers,
+  meEmail,
+  onHelpAsked,
 }: {
   task: CodexTask
   clientName: string
   overdue: boolean
+  teamMembers?: TeamMember[]
+  meEmail?: string | null
+  onHelpAsked?: () => void
 }) {
   const done = task.checklist_done ?? 0
   const total = task.checklist_total ?? 0
@@ -111,9 +123,29 @@ function TaskBoardCardFace({
         </Badge>
       </div>
       <p className="mt-1 truncate text-xs text-muted-foreground">{clientName}</p>
+      {task.parent_task_id != null && task.parent_title ? (
+        <Link
+          href={`/tasks/${task.parent_task_id}`}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="mt-1 inline-flex max-w-full items-center rounded-pill border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+        >
+          <span className="truncate">Help for: {task.parent_title}</span>
+        </Link>
+      ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span className="truncate">
-          {task.assignee_name || task.assignee_email || "Unassigned"}
+        <span className="inline-flex min-w-0 items-center gap-1">
+          <span className="truncate">
+            {task.assignee_name || task.assignee_email || "Unassigned"}
+          </span>
+          {teamMembers && meEmail !== undefined ? (
+            <TaskAskHelpButton
+              task={task}
+              members={teamMembers}
+              meEmail={meEmail}
+              onAsked={onHelpAsked}
+            />
+          ) : null}
         </span>
         <span
           className={cn(
@@ -137,7 +169,14 @@ function TaskBoardCardFace({
   )
 }
 
-function SortableTaskCard({ task, clientName, onOpen }: BoardCardProps) {
+function SortableTaskCard({
+  task,
+  clientName,
+  onOpen,
+  teamMembers,
+  meEmail,
+  onHelpAsked,
+}: BoardCardProps) {
   const overdue = isOverdue(task)
   const {
     attributes,
@@ -157,23 +196,37 @@ function SortableTaskCard({ task, clientName, onOpen }: BoardCardProps) {
   }
 
   return (
-    <button
-      type="button"
+    <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
+      role="button"
+      tabIndex={0}
       onClick={() => onOpen(task)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          onOpen(task)
+        }
+      }}
       className={cn(
-        "interactive w-full rounded-card border border-border bg-card p-3 text-left shadow-e1",
+        "interactive w-full cursor-pointer rounded-card border border-border bg-card p-3 text-left shadow-e1",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         overdue && "border-l-[3px] border-l-status-critical-fg",
         isDragging && "opacity-40"
       )}
       aria-label={`${task.title}${overdue ? ", overdue" : ""}`}
     >
-      <TaskBoardCardFace task={task} clientName={clientName} overdue={overdue} />
-    </button>
+      <TaskBoardCardFace
+        task={task}
+        clientName={clientName}
+        overdue={overdue}
+        teamMembers={teamMembers}
+        meEmail={meEmail}
+        onHelpAsked={onHelpAsked}
+      />
+    </div>
   )
 }
 
@@ -183,12 +236,18 @@ function BoardColumn({
   tasks,
   clientNameById,
   onOpen,
+  teamMembers,
+  meEmail,
+  onHelpAsked,
 }: {
   status: TaskStatus
   label: string
   tasks: CodexTask[]
   clientNameById: Map<number, string>
   onOpen: (task: CodexTask) => void
+  teamMembers: TeamMember[]
+  meEmail: string | null
+  onHelpAsked?: () => void
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: columnDropId(status),
@@ -226,6 +285,9 @@ function BoardColumn({
                 String(task.client_id || "—")
               }
               onOpen={onOpen}
+              teamMembers={teamMembers}
+              meEmail={meEmail}
+              onHelpAsked={onHelpAsked}
             />
           ))}
         </SortableContext>
@@ -247,6 +309,9 @@ type Props = {
     task: CodexTask,
     nextStatus: TaskStatus
   ) => void | Promise<void>
+  teamMembers: TeamMember[]
+  meEmail: string | null
+  onHelpAsked?: () => void
 }
 
 export function TaskBoard({
@@ -254,6 +319,9 @@ export function TaskBoard({
   clientNameById,
   onOpenTask,
   onStatusChange,
+  teamMembers,
+  meEmail,
+  onHelpAsked,
 }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -349,6 +417,9 @@ export function TaskBoard({
             tasks={byStatus[s.value]}
             clientNameById={clientNameById}
             onOpen={onOpenTask}
+            teamMembers={teamMembers}
+            meEmail={meEmail}
+            onHelpAsked={onHelpAsked}
           />
         ))}
       </div>
