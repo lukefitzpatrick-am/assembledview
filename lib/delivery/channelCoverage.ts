@@ -6,6 +6,7 @@ import {
   lookupActiveDeliverySource,
   type DeliverySourceMapRow,
 } from "@/lib/delivery/deliverySourceMap"
+import type { KpiReviewCoverageDraft } from "@/lib/kpi/kpiReview"
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import { extractPacingLineItemIdFromItem } from "@/lib/pacing/delivery/lineItemIds"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform"
@@ -102,6 +103,7 @@ type Acc = {
   plannedImpressions: number
   earliestStart: string | null
   lineIds: string[]
+  plannedSpendByLineId: Record<string, number>
 }
 
 function asRecord(item: unknown): Record<string, unknown> {
@@ -240,6 +242,7 @@ function addLine(
   const existing = groups.get(key)
   const start = earliestBurstStart(args.item)
   const lineId = extractPacingLineItemIdFromItem(args.item)
+  const planned = plannedSpendFromItem(args.item)
   if (!existing) {
     groups.set(key, {
       key,
@@ -248,19 +251,23 @@ function addLine(
       publisherKey,
       hasSource: args.hasSource,
       mapRow: args.mapRow,
-      plannedSpend: plannedSpendFromItem(args.item),
+      plannedSpend: planned,
       plannedImpressions: plannedImpressionsFromItem(args.item),
       earliestStart: start,
       lineIds: lineId ? [lineId] : [],
+      plannedSpendByLineId: lineId ? { [lineId]: planned } : {},
     })
     return
   }
-  existing.plannedSpend += plannedSpendFromItem(args.item)
+  existing.plannedSpend += planned
   existing.plannedImpressions += plannedImpressionsFromItem(args.item)
   if (start && (!existing.earliestStart || start < existing.earliestStart)) {
     existing.earliestStart = start
   }
-  if (lineId && !existing.lineIds.includes(lineId)) existing.lineIds.push(lineId)
+  if (lineId) {
+    if (!existing.lineIds.includes(lineId)) existing.lineIds.push(lineId)
+    existing.plannedSpendByLineId[lineId] = (existing.plannedSpendByLineId[lineId] ?? 0) + planned
+  }
   existing.hasSource = existing.hasSource || args.hasSource
   if (!existing.mapRow && args.mapRow) existing.mapRow = args.mapRow
 }
@@ -471,7 +478,7 @@ export function firstAheadChannelName(entries: ChannelCoverageEntry[]): string |
   return null
 }
 
-export function channelCoverage(input: ChannelCoverageInput): ChannelCoverageEntry[] {
+function collectCoverageGroups(input: ChannelCoverageInput): Map<string, Acc> {
   const sourceMap = input.sourceMap
   const groups = new Map<string, Acc>()
 
@@ -536,6 +543,10 @@ export function channelCoverage(input: ChannelCoverageInput): ChannelCoverageEnt
     }
   }
 
+  return groups
+}
+
+function entriesFromGroups(groups: Map<string, Acc>, input: ChannelCoverageInput): ChannelCoverageEntry[] {
   const entries: ChannelCoverageEntry[] = []
   for (const acc of groups.values()) {
     const section = sectionForFamily(input.sections, acc.family)
@@ -570,4 +581,31 @@ export function channelCoverage(input: ChannelCoverageInput): ChannelCoverageEnt
   })
 
   return entries
+}
+
+function draftsFromGroups(groups: Map<string, Acc>): KpiReviewCoverageDraft[] {
+  return [...groups.values()].map((acc) => ({
+    key: acc.key,
+    label: groupLabel(acc.family, acc.publisherKey),
+    colour: coverageColour(acc.channelKey),
+    family: acc.family,
+    deliverySource: acc.mapRow?.delivery_source,
+    lineItemIds: [...acc.lineIds],
+    plannedSpendByLineId: { ...acc.plannedSpendByLineId },
+  }))
+}
+
+export function channelCoverageBundle(input: ChannelCoverageInput): {
+  entries: ChannelCoverageEntry[]
+  kpiDrafts: KpiReviewCoverageDraft[]
+} {
+  const groups = collectCoverageGroups(input)
+  return {
+    entries: entriesFromGroups(groups, input),
+    kpiDrafts: draftsFromGroups(groups),
+  }
+}
+
+export function channelCoverage(input: ChannelCoverageInput): ChannelCoverageEntry[] {
+  return channelCoverageBundle(input).entries
 }

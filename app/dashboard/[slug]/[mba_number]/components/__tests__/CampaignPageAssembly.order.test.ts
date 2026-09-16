@@ -24,7 +24,7 @@ describe("CampaignPageAssembly section order", () => {
       "Where we are",
       "Channels at a glance",
       "Team hours",
-      "KPI pacing",
+      "KPI review",
       "Recent insights",
       "Delivery",
       "Media plan",

@@ -1,6 +1,9 @@
 /**
  * B1-1 — Campaign KPI pacing (display-only).
  *
+ * Unmounted from CampaignPageAssembly (replaced by `lib/kpi/kpiReview.ts`).
+ * File and tests retained pending deletion (C-135). Do not remount.
+ *
  * Read path only. Never writes campaign_kpi / client_kpi / publisher_kpi.
  * Percent targets go through `percentUnits.ts` (AV-25); ambiguous / non-decimal
  * stored values never coerce to a guessed number.

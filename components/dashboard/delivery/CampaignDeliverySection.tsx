@@ -11,9 +11,14 @@ import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocial
 import type { SocialLineItem } from "@/lib/delivery/social/socialChannelCompute"
 import { ErrorState, LoadingState } from "@/components/ui/states"
 import {
-  channelCoverage,
+  channelCoverageBundle,
   type ChannelCoverageEntry,
 } from "@/lib/delivery/channelCoverage"
+import {
+  buildKpiReviewGroups,
+  indexLineDeliveryActuals,
+  type KpiReviewGroup,
+} from "@/lib/kpi/kpiReview"
 import DeliveryDataProvider from "./DeliveryDataProvider"
 import { DeliveryContainer } from "./DeliveryContainer"
 import { buildProgrammaticDisplaySection } from "./channels/programmaticDisplayAdapter"
@@ -62,6 +67,7 @@ export type CampaignDeliverySectionProps = {
   digitalAudioLineItems: unknown[]
   bvodLineItems: unknown[]
   onCoverage?: (entries: ChannelCoverageEntry[]) => void
+  onKpiReviewGroups?: (groups: KpiReviewGroup[]) => void
   showAccordion?: boolean
 }
 
@@ -95,6 +101,7 @@ type DeliveryBodyProps = {
   reportedSpendByLineDate?: Map<string, Map<string, number>>
   socialLineItems: SocialLineItem[]
   onCoverage?: (entries: ChannelCoverageEntry[]) => void
+  onKpiReviewGroups?: (groups: KpiReviewGroup[]) => void
   showAccordion?: boolean
 }
 
@@ -128,6 +135,7 @@ function CampaignDeliveryBody({
   reportedSpendByLineDate,
   socialLineItems,
   onCoverage,
+  onKpiReviewGroups,
   showAccordion = true,
 }: DeliveryBodyProps) {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
@@ -385,9 +393,9 @@ function CampaignDeliveryBody({
     reportedSpendByLineDate,
   ])
 
-  const coverage = useMemo(
+  const { entries: coverage, kpiDrafts } = useMemo(
     () =>
-      channelCoverage({
+      channelCoverageBundle({
         buckets: {
           socialLineItems,
           searchLineItems,
@@ -416,10 +424,28 @@ function CampaignDeliveryBody({
     ],
   )
 
+  const kpiReviewGroups = useMemo(
+    () =>
+      buildKpiReviewGroups({
+        drafts: kpiDrafts,
+        coverage,
+        actualsByLineId: indexLineDeliveryActuals({
+          pacingRows: rows,
+          searchLineItems: search?.lineItems ?? [],
+        }),
+      }),
+    [coverage, kpiDrafts, rows, search],
+  )
+
   useEffect(() => {
     if (loading) return
     onCoverage?.(coverage)
   }, [coverage, loading, onCoverage])
+
+  useEffect(() => {
+    if (loading) return
+    onKpiReviewGroups?.(kpiReviewGroups)
+  }, [kpiReviewGroups, loading, onKpiReviewGroups])
 
   if (!showAccordion) return null
 
@@ -459,6 +485,7 @@ export function CampaignDeliverySection({
   digitalAudioLineItems,
   bvodLineItems,
   onCoverage,
+  onKpiReviewGroups,
   showAccordion = true,
 }: CampaignDeliverySectionProps) {
   const pacingWindow = useMemo(() => getPacingWindow(campaignStart, campaignEnd), [campaignStart, campaignEnd])
@@ -627,6 +654,7 @@ export function CampaignDeliverySection({
           reportedSpendByLineDate={reportedSpendByLineDate}
           socialLineItems={socialLineItems}
           onCoverage={onCoverage}
+          onKpiReviewGroups={onKpiReviewGroups}
           showAccordion={showAccordion}
         />
       )}

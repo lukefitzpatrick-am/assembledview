@@ -23,13 +23,13 @@ import type { PageContext } from "@/lib/ava/types"
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
 import { CampaignStatusStrip } from "@/components/dashboard/campaign/CampaignStatusStrip"
 import { ChannelsAtAGlance } from "@/components/dashboard/campaign/ChannelsAtAGlance"
-import { CampaignKpiPacingStrip } from "@/components/dashboard/campaign/CampaignKpiPacingStrip"
+import { KpiReview } from "@/components/dashboard/campaign/KpiReview"
 import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
 import MediaPlanVizSection from "@/components/dashboard/campaign/MediaPlanVizSection"
 import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetailsModal"
 import { PlannedAudienceSection } from "@/components/dashboard/campaign/PlannedAudienceSection"
 import { CampaignDeliverySection } from "@/components/dashboard/delivery/CampaignDeliverySection"
-import { buildKpiPacingRows } from "@/lib/kpi/kpiPacing"
+import { buildKpiReview, kpiReviewGroupsIdentity, type KpiReviewGroup } from "@/lib/kpi/kpiReview"
 import CampaignActions from "./CampaignActions"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
 import { ErrorState, LoadingState } from "@/components/ui/states"
@@ -235,7 +235,7 @@ type CampaignPageAssemblyProps = {
   deliveryLineItemIds: string[]
   availableVersions: MediaPlanVersionListEntry[]
   currentVersion: number
-  /** Admin-only surfaces (KPI pacing strip). Clients never see them. */
+  /** Admin-only surfaces (Team hours, Recent insights). Clients never see them. */
   isAdmin?: boolean
 }
 
@@ -259,12 +259,20 @@ function filterLineItemsByBurstWindow(
 export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [coverage, setCoverage] = useState<ChannelCoverageEntry[]>([])
+  const [kpiReviewGroups, setKpiReviewGroups] = useState<KpiReviewGroup[]>([])
   const prevCoverageEntriesRef = useRef<ChannelCoverageEntry[]>([])
+  const prevKpiReviewIdentityRef = useRef("")
   const handleCoverage = useCallback((entries: ChannelCoverageEntry[]) => {
     const decision = applyCoverageIfChanged(prevCoverageEntriesRef.current, entries)
     if (!decision.commit) return
     prevCoverageEntriesRef.current = decision.nextPrev
     setCoverage(entries)
+  }, [])
+  const handleKpiReviewGroups = useCallback((groups: KpiReviewGroup[]) => {
+    const nextKey = kpiReviewGroupsIdentity(groups)
+    if (prevKpiReviewIdentityRef.current === nextKey) return
+    prevKpiReviewIdentityRef.current = nextKey
+    setKpiReviewGroups(groups)
   }, [])
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -276,9 +284,6 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     budget,
     actualSpend,
     deliveredImpressions,
-    deliveredClicks,
-    deliveredResults,
-    deliveredVideo3sViews,
     hasDelivery,
     deliveredAsOf,
     expectedSpend,
@@ -482,35 +487,15 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     [savedCampaignKPIs],
   )
 
-  const kpiPacingRows = useMemo(() => {
-    if (!isAdmin) return []
-    return buildKpiPacingRows({
-      campaignKpis: savedCampaignKPIs,
-      feed: {
-        impressions: Number(deliveredImpressions ?? 0) || 0,
-        clicks: Number(deliveredClicks ?? 0) || 0,
-        results: Number(deliveredResults ?? 0) || 0,
-        spendToDate: Number(actualSpend ?? 0) || 0,
-        video3sViews: Number(deliveredVideo3sViews ?? 0) || 0,
-      },
-      startDate: campaignStartISO ?? startDate,
-      endDate: campaignEndISO ?? endDate,
-      asOfDate: deliveredAsOf || undefined,
-    })
-  }, [
-    actualSpend,
-    campaignEndISO,
-    campaignStartISO,
-    deliveredAsOf,
-    deliveredClicks,
-    deliveredImpressions,
-    deliveredResults,
-    deliveredVideo3sViews,
-    endDate,
-    isAdmin,
-    savedCampaignKPIs,
-    startDate,
-  ])
+  const kpiReviewCards = useMemo(
+    () =>
+      buildKpiReview({
+        groups: kpiReviewGroups,
+        lineItemTargets,
+        isAdmin: Boolean(isAdmin),
+      }),
+    [isAdmin, kpiReviewGroups, lineItemTargets],
+  )
 
   const heroCampaign = useMemo(
     () => ({
@@ -688,6 +673,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     digitalAudioLineItems: filteredDigitalAudio,
     bvodLineItems: filteredBvod,
     onCoverage: handleCoverage,
+    onKpiReviewGroups: handleKpiReviewGroups,
   }
 
   return (
@@ -772,11 +758,11 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         </section>
       ) : null}
 
-      {isAdmin && kpiPacingRows.length > 0 ? (
+      {kpiReviewCards.length > 0 ? (
         <section className="mt-6">
-          <SectionBoundary title="KPI pacing">
+          <SectionBoundary title="KPI review">
             <div className="campaign-section-enter" style={{ animationDelay: "150ms" }}>
-              <CampaignKpiPacingStrip rows={kpiPacingRows} />
+              <KpiReview cards={kpiReviewCards} isAdmin={Boolean(isAdmin)} />
             </div>
           </SectionBoundary>
         </section>

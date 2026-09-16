@@ -11,6 +11,7 @@ export type CampaignKpiPacingStripProps = {
 
 /**
  * Admin-only, display-only KPI pacing strip (B1-1).
+ * Unmounted — campaign page uses `KpiReview` instead. Retained pending deletion (C-135).
  * Parent must gate on `isAdmin` and omit the section when `rows` is empty.
  */
 export function CampaignKpiPacingStrip({ rows, className }: CampaignKpiPacingStripProps) {
