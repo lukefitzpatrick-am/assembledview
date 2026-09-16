@@ -6,6 +6,7 @@ import {
   getSocialChannelSqlCondition,
   SOCIAL_PACING_TABLE,
 } from "@/lib/pacing/social-channels"
+import { bulkNonSocialChannelWhere } from "@/lib/snowflake/bulkNonSocialChannelWhere"
 
 type Channel = "meta" | "tiktok" | "reddit" | "programmatic-display" | "programmatic-video" | "programmatic-ooh" | "ad-serving" | "search"
 
@@ -222,11 +223,7 @@ export async function getCampaignPacingData(
   FROM ASSEMBLEDVIEW.MART.PACING_FACT, bounds
   WHERE bounds.end_date IS NOT NULL
     AND CAST(DATE_DAY AS DATE) BETWEEN bounds.start_date AND bounds.end_date
-    AND (
-      (LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%')
-      OR (LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%')
-      OR (LOWER(CHANNEL) LIKE '%ad serving%')
-    )
+    AND ${bulkNonSocialChannelWhere()}
     AND LOWER(LINE_ITEM_ID) IN (${placeholders})
   ORDER BY CAST(DATE_DAY AS DATE) DESC, CHANNEL ASC
   LIMIT ${QUERY_ROW_LIMIT}
