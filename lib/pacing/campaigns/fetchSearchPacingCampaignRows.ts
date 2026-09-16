@@ -2,7 +2,9 @@ import "server-only";
 
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination";
 import { xanoUrl } from "@/lib/api/xano";
+import { getDataBackendFor } from "@/lib/data/backend";
 import { readPacingMasters, readPacingVersions } from "@/lib/data/readPacing";
+import { publishedVersionFromMaster } from "@/lib/mediaplan/publishedVersionGuard";
 import { aggregateForLineItem } from "@/lib/pacing/campaigns/aggregate";
 import { findCurrentBurstIndex, inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst";
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts";
@@ -37,10 +39,109 @@ export type LiveSearchLineItemInput = {
 };
 
 /**
- * Resolves live search line items (masters, versions, Xano search rows)
- * without Snowflake hydration.
+ * Resolves live search line items (masters, versions, channel rows)
+ * without Snowflake hydration. Postgres when `getDataBackendFor("plans")`
+ * is postgres (published watermark); otherwise the Xano per-MBA walk.
  */
 export async function resolveLiveSearchLineItemInputs(
+  args: GetLiveSearchLineItemsArgs
+): Promise<LiveSearchLineItemInput[]> {
+  if (getDataBackendFor("plans") === "postgres") {
+    return resolveSearchLineItemsFromPostgres(args);
+  }
+  return resolveSearchLineItemsFromXano(args);
+}
+
+async function resolveSearchLineItemsFromPostgres(
+  args: GetLiveSearchLineItemsArgs
+): Promise<LiveSearchLineItemInput[]> {
+  const { readPlanMasters, readPlanVersions, fetchLineItemsFromPostgresByEndpoint } =
+    await import("@/lib/data/readMediaPlans");
+
+  const masters = (await readPlanMasters())
+    .map((r) => toMaster(r as Record<string, unknown>))
+    .filter((m): m is MediaPlanMaster => m !== null);
+  const liveMasters = masters.filter((m) => {
+    if (!isLiveCampaignStatus(m.campaign_status, m.campaign_start_date, m.campaign_end_date, args.asOfDate)) return false;
+    if (!m.campaign_start_date || !m.campaign_end_date) return false;
+    if (args.asOfDate < m.campaign_start_date || args.asOfDate > m.campaign_end_date) return false;
+    if (args.allowedClientSlugs !== null) {
+      const slug = slugifyPlanClientName(m.mp_client_name);
+      if (!slug || !args.allowedClientSlugs.has(slug)) return false;
+    }
+    return true;
+  });
+  if (liveMasters.length === 0) return [];
+
+  const versions = await readPlanVersions();
+  const versionRowsByMba = new Map<string, VersionRow>();
+  const wantMba = new Set(liveMasters.map((m) => norm(m.mba_number)));
+  const wantVersion = new Map(
+    liveMasters.map((m) => [norm(m.mba_number), publishedVersionFromMaster(m)] as const)
+  );
+  for (const raw of versions) {
+    const row = raw as Record<string, unknown>;
+    const mba = norm(row.mba_number);
+    if (!mba || !wantMba.has(mba)) continue;
+    const versionNumber = parseVersion(row.version_number);
+    if (versionNumber !== wantVersion.get(mba)) continue;
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) continue;
+    const brand =
+      row.brand !== undefined && row.brand !== null ? String(row.brand).trim() || null : null;
+    versionRowsByMba.set(mba, { id, version_number: versionNumber, brand });
+  }
+
+  const perMaster = await boundedMap(
+    liveMasters,
+    async (master) => {
+      const published = publishedVersionFromMaster(master);
+      const versionRow = versionRowsByMba.get(norm(master.mba_number));
+      if (!versionRow || published <= 0) {
+        console.warn(
+          "[pacing/campaigns] no published version row for master",
+          master.mba_number,
+          master.version_number
+        );
+        return [] as LiveSearchLineItemInput[];
+      }
+
+      const searchRows = await fetchLineItemsFromPostgresByEndpoint(
+        "media_plan_search",
+        master.mba_number,
+        published
+      );
+      const inputs: LiveSearchLineItemInput[] = [];
+      for (const searchRow of searchRows) {
+        const lineItemId = String(searchRow.line_item_id ?? searchRow.lineItemId ?? "").trim();
+        if (!lineItemId) {
+          console.warn(
+            "[pacing/campaigns] search row missing line_item_id",
+            master.mba_number,
+            searchRow.id
+          );
+          continue;
+        }
+        inputs.push({ master, versionRow, searchRow });
+      }
+      return inputs;
+    },
+    XANO_MASTER_FETCH_CONCURRENCY
+  );
+
+  const out = perMaster.flat();
+  if (out.length === 0) {
+    console.warn("[pacing/plans] no line items for live masters", {
+      channel: "search",
+      backend: "postgres",
+      liveMasterCount: liveMasters.length,
+      endpoints: ["media_plan_search"],
+    });
+  }
+  return out;
+}
+
+async function resolveSearchLineItemsFromXano(
   args: GetLiveSearchLineItemsArgs
 ): Promise<LiveSearchLineItemInput[]> {
   const masters = await fetchAllMasters();

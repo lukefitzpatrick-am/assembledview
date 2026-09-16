@@ -12,6 +12,7 @@ import {
   assembleCampaignPacingRows,
   countPortfolioRows,
 } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
+import { loadPortfolioChannelSources } from "@/lib/pacing/portfolio/loadPortfolioChannelSources"
 import type { CampaignScheduleInput } from "@/lib/pacing/portfolio/types"
 
 export type BuildCampaignPacingRowsArgs = {
@@ -63,12 +64,18 @@ export async function buildCampaignPacingRows(
   args: BuildCampaignPacingRowsArgs,
 ) {
   const liveOnly = args.liveOnly !== false
-  const [search, social, programmatic, adServing, direct, versions] = await Promise.all([
-    getCachedSearchPacingRows(args.asOfDate, args.allowedClientSlugs),
-    getCachedSocialPacingRows(args.asOfDate, args.allowedClientSlugs),
-    getCachedProgrammaticPacingRows(args.asOfDate, args.allowedClientSlugs),
-    getCachedAdServingPacingRows(args.asOfDate, args.allowedClientSlugs),
-    getCachedDirectPacingRows(args.asOfDate, args.allowedClientSlugs, false),
+  const [sources, versions] = await Promise.all([
+    loadPortfolioChannelSources(
+      { asOfDate: args.asOfDate, allowedClientSlugs: args.allowedClientSlugs },
+      {
+        search: getCachedSearchPacingRows,
+        social: getCachedSocialPacingRows,
+        programmatic: getCachedProgrammaticPacingRows,
+        adServing: getCachedAdServingPacingRows,
+        direct: (asOfDate, slugs) => getCachedDirectPacingRows(asOfDate, slugs, false),
+      },
+      { parallel: true }
+    ),
     readPlanVersions(),
   ])
 
@@ -76,11 +83,7 @@ export async function buildCampaignPacingRows(
     asOfDate: args.asOfDate,
     allowedClientSlugs: args.allowedClientSlugs,
     liveOnly,
-    search,
-    social,
-    programmatic,
-    adServing,
-    direct,
+    ...sources,
     schedulesByMba: schedulesByMbaFromVersions(versions),
   })
 }
