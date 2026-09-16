@@ -7767,6 +7767,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           mediaPlan,
           availableVersions,
           selectedVersionNumber,
+          forceIncrement: false,
           intent: saveIntent,
           campaignStatus: formValues.mp_campaignstatus,
         })
