@@ -11,6 +11,7 @@ import {
   hasFixedCostMediaLineItems,
   hasFixedCostMediaTypeLabel,
   hasReportedDeliveredSpend,
+  programmaticLineItemIdsFromSnapshot,
   sumDeliveredTotals,
 } from "../deliveredTotals"
 
@@ -110,6 +111,21 @@ describe("hasReportedDeliveredSpend", () => {
     expect(hasReportedDeliveredSpend(undefined)).toBe(false)
     expect(hasReportedDeliveredSpend(Number.NaN)).toBe(false)
     expect(hasReportedDeliveredSpend(Number.POSITIVE_INFINITY)).toBe(false)
+  })
+})
+
+describe("programmaticLineItemIdsFromSnapshot", () => {
+  it("includes programmatic_ooh so combineDeliveredTotals does not double-count Direct REPORTED_SPEND", () => {
+    const ids = programmaticLineItemIdsFromSnapshot({
+      channels: [
+        { group: "programmatic_video", lines: [{ lineItemId: "bicau002pv1" }] },
+        { group: "programmatic_ooh", lines: [{ lineItemId: "legal004po1" }] },
+        { group: "digital_display", lines: [{ lineItemId: "legal004dd1" }] },
+      ],
+    })
+    expect(ids.has("legal004po1")).toBe(true)
+    expect(ids.has("bicau002pv1")).toBe(true)
+    expect(ids.has("legal004dd1")).toBe(false)
   })
 })
 

@@ -7,7 +7,7 @@ import {
   SOCIAL_PACING_TABLE,
 } from "@/lib/pacing/social-channels"
 
-type Channel = "meta" | "tiktok" | "reddit" | "programmatic-display" | "programmatic-video" | "ad-serving" | "search"
+type Channel = "meta" | "tiktok" | "reddit" | "programmatic-display" | "programmatic-video" | "programmatic-ooh" | "ad-serving" | "search"
 
 export type PacingRow = {
   channel: Channel
@@ -55,6 +55,7 @@ const ALLOWED_CHANNELS: Channel[] = [
   "reddit",
   "programmatic-display",
   "programmatic-video",
+  "programmatic-ooh",
   "ad-serving",
   "search",
 ]
@@ -173,6 +174,7 @@ export async function getCampaignPacingData(
       WHEN LOWER(CHANNEL) LIKE '%reddit%' THEN 'reddit'
       WHEN LOWER(CHANNEL) LIKE '%meta%' THEN 'meta'
       WHEN LOWER(CHANNEL) LIKE '%tiktok%' THEN 'tiktok'
+      WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%ooh%' THEN 'programmatic-ooh'
       WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%' THEN 'programmatic-display'
       WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%' THEN 'programmatic-video'
       WHEN LOWER(CHANNEL) LIKE '%ad serving%' THEN 'ad-serving'

@@ -31,6 +31,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   social_reddit: "Social (Reddit)",
   programmatic_display: "Programmatic display",
   programmatic_video: "Programmatic video",
+  programmatic_ooh: "Programmatic OOH",
   digital_display: "Digital Display",
   digital_video: "Digital Video",
   digital_audio: "Digital Audio",

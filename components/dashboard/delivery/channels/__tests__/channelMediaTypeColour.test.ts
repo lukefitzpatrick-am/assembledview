@@ -13,6 +13,7 @@ const CHANNEL_KEYS: ChannelKey[] = [
   "search",
   "programmatic-display",
   "programmatic-video",
+  "programmatic-ooh",
   "digital-display",
   "digital-video",
   "digital-audio",
@@ -50,6 +51,7 @@ describe("channelMediaTypeColour", () => {
       social: channelMediaTypeColour("social-meta"),
       progDisplay: channelMediaTypeColour("programmatic-display"),
       progVideo: channelMediaTypeColour("programmatic-video"),
+      progOoh: channelMediaTypeColour("programmatic-ooh"),
       digitalDisplay: channelMediaTypeColour("digital-display"),
       digitalVideo: channelMediaTypeColour("digital-video"),
       digitalAudio: channelMediaTypeColour("digital-audio"),
@@ -64,11 +66,13 @@ describe("channelMediaTypeColour", () => {
     const distinct = new Set(Object.values(colours))
     assert.equal(
       distinct.size,
-      8,
-      `expected 8 distinct media-type hexes, got ${JSON.stringify(colours)}`,
+      9,
+      `expected 9 distinct media-type hexes, got ${JSON.stringify(colours)}`,
     )
 
     assert.notEqual(colours.progDisplay, colours.progVideo)
+    assert.notEqual(colours.progDisplay, colours.progOoh)
+    assert.notEqual(colours.progVideo, colours.progOoh)
     assert.notEqual(colours.digitalDisplay, colours.progDisplay)
     assert.equal(colours.digitalDisplay, getMediaColor("digital_display"))
     assert.equal(colours.digitalVideo, getMediaColor("digital_video"))
@@ -78,6 +82,7 @@ describe("channelMediaTypeColour", () => {
     const badProgrammatic = getMediaColor("programmatic")
     assert.notEqual(colours.progDisplay, badProgrammatic)
     assert.notEqual(colours.progVideo, badProgrammatic)
+    assert.notEqual(colours.progOoh, badProgrammatic)
   })
 
   it("searchSeriesPalette.cost equals getMediaColor(search)", () => {

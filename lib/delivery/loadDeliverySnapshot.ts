@@ -209,7 +209,12 @@ function collectFixedCostProgrammaticLineIds(
   byChannel: Record<string, MediaContainerLineItem[]>,
 ): string[] {
   const ids = new Set<string>()
-  for (const item of [...(byChannel.progDisplay ?? []), ...(byChannel.progVideo ?? [])]) {
+  for (const item of [
+    ...(byChannel.progDisplay ?? []),
+    ...(byChannel.progVideo ?? []),
+    ...(byChannel.progOoh ?? []),
+    ...(byChannel.progOOH ?? []),
+  ]) {
     if (item.fixedCostMedia !== true && item.fixed_cost_media !== true) continue
     const id = extractPacingLineItemIdFromItem(item as Record<string, unknown>)
     if (id) ids.add(id)
@@ -279,6 +284,13 @@ function collectChannelPlans(
     if (!meta) continue
     allMetas.push(meta)
     ensure("programmatic_video").set(meta.id, meta)
+  }
+
+  for (const item of [...(byChannel.progOoh ?? []), ...(byChannel.progOOH ?? [])]) {
+    const meta = toPlanLineMeta(item)
+    if (!meta) continue
+    allMetas.push(meta)
+    ensure("programmatic_ooh").set(meta.id, meta)
   }
 
   const ingestDirectDigital = (keys: readonly string[], group: string) => {
@@ -403,6 +415,7 @@ export async function loadDeliverySnapshot(
     "social_reddit",
     "programmatic_display",
     "programmatic_video",
+    "programmatic_ooh",
     "digital_display",
     "digital_video",
     "digital_audio",

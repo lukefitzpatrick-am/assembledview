@@ -15,7 +15,22 @@ export type ProgrammaticChannelFamily =
   | "progOoh";
 
 /** Snowflake queryPacingFact channel used to hydrate actuals. */
-export type ProgrammaticSnowflakeChannel = "programmatic-display" | "programmatic-video";
+export type ProgrammaticSnowflakeChannel =
+  | "programmatic-display"
+  | "programmatic-video"
+  | "programmatic-ooh"
+
+/** Plan family → PACING_FACT channel stamped onto live programmatic rows. */
+export const PROGRAMMATIC_FAMILY_SNOWFLAKE_CHANNEL: Record<
+  ProgrammaticChannelFamily,
+  ProgrammaticSnowflakeChannel
+> = {
+  progDisplay: "programmatic-display",
+  progVideo: "programmatic-video",
+  progBvod: "programmatic-video",
+  progAudio: "programmatic-video",
+  progOoh: "programmatic-ooh",
+}
 
 export type ProgrammaticPacingMetrics = {
   spend: number;

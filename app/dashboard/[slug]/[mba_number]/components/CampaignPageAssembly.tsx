@@ -227,6 +227,7 @@ type CampaignPageAssemblyProps = {
   mpSearchEnabled: boolean
   progDisplayItemsActive: any[]
   progVideoItemsActive: any[]
+  progOohItemsActive: any[]
   digitalDisplayItemsActive: any[]
   digitalVideoItemsActive: any[]
   digitalAudioItemsActive: any[]
@@ -301,6 +302,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     mpSearchEnabled,
     progDisplayItemsActive,
     progVideoItemsActive,
+    progOohItemsActive,
     digitalDisplayItemsActive,
     digitalVideoItemsActive,
     digitalAudioItemsActive,
@@ -415,6 +417,15 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
       return bursts.some((b: unknown) => burstOverlapsRange(b, filterRange))
     })
   }, [filterRange, isUnfiltered, progVideoItemsActive])
+
+  const filteredProgOoh = useMemo(() => {
+    if (isUnfiltered) return progOohItemsActive
+    return progOohItemsActive.filter((item) => {
+      const bursts = Array.isArray(item?.bursts) ? item.bursts : []
+      if (bursts.length === 0) return true
+      return bursts.some((b: unknown) => burstOverlapsRange(b, filterRange))
+    })
+  }, [filterRange, isUnfiltered, progOohItemsActive])
 
   const filteredDigitalDisplay = useMemo(
     () => filterLineItemsByBurstWindow(digitalDisplayItemsActive, isUnfiltered, filterRange),
@@ -671,6 +682,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     mpSearchEnabled,
     progDisplayLineItems: filteredProgDisplay,
     progVideoLineItems: filteredProgVideo,
+    progOohLineItems: filteredProgOoh,
     digitalDisplayLineItems: filteredDigitalDisplay,
     digitalVideoLineItems: filteredDigitalVideo,
     digitalAudioLineItems: filteredDigitalAudio,

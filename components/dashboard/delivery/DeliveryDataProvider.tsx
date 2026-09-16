@@ -17,6 +17,7 @@ type DeliveryDataProviderProps = {
   redditLineItemIds: string[]
   progDisplayLineItemIds: string[]
   progVideoLineItemIds: string[]
+  progOohLineItemIds: string[]
   directDigitalLineItemIds: string[]
   campaignStart?: string
   campaignEnd?: string
@@ -85,6 +86,7 @@ export default function DeliveryDataProvider({
   redditLineItemIds,
   progDisplayLineItemIds,
   progVideoLineItemIds,
+  progOohLineItemIds,
   directDigitalLineItemIds,
 
   campaignStart,
@@ -111,12 +113,13 @@ export default function DeliveryDataProvider({
         ...(redditLineItemIds ?? []),
         ...(progDisplayLineItemIds ?? []),
         ...(progVideoLineItemIds ?? []),
+        ...(progOohLineItemIds ?? []),
         ...(directDigitalLineItemIds ?? []),
       ]
         .map((id) => cleanId(id))
         .filter(Boolean) as string[]
     )
-  }, [metaLineItemIds, tiktokLineItemIds, redditLineItemIds, progDisplayLineItemIds, progVideoLineItemIds, directDigitalLineItemIds])
+  }, [metaLineItemIds, tiktokLineItemIds, redditLineItemIds, progDisplayLineItemIds, progVideoLineItemIds, progOohLineItemIds, directDigitalLineItemIds])
 
   const allIdsKey = useMemo(() => {
     return [
@@ -125,9 +128,10 @@ export default function DeliveryDataProvider({
       `reddit:${redditLineItemIds.join(",")}`,
       `pd:${progDisplayLineItemIds.join(",")}`,
       `pv:${progVideoLineItemIds.join(",")}`,
+      `po:${progOohLineItemIds.join(",")}`,
       `dd:${directDigitalLineItemIds.join(",")}`,
     ].join("|")
-  }, [metaLineItemIds, tiktokLineItemIds, redditLineItemIds, progDisplayLineItemIds, progVideoLineItemIds, directDigitalLineItemIds])
+  }, [metaLineItemIds, tiktokLineItemIds, redditLineItemIds, progDisplayLineItemIds, progVideoLineItemIds, progOohLineItemIds, directDigitalLineItemIds])
 
   const normalizedSearchLineItemIds = useMemo(() => {
     const ids = (searchLineItemIds ?? [])

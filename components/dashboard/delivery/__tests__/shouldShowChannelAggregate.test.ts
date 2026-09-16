@@ -34,6 +34,12 @@ describe("shouldShowChannelAggregate", () => {
     assert.equal(shouldShowChannelAggregate("programmatic-video", 4), false)
   })
 
+  it("programmatic-ooh never rolls up (1 / 2 / 4)", () => {
+    assert.equal(shouldShowChannelAggregate("programmatic-ooh", 1), false)
+    assert.equal(shouldShowChannelAggregate("programmatic-ooh", 2), false)
+    assert.equal(shouldShowChannelAggregate("programmatic-ooh", 4), false)
+  })
+
   it("bvod + 2 → true", () => {
     assert.equal(shouldShowChannelAggregate("bvod", 2), true)
   })
@@ -54,6 +60,7 @@ describe("shouldShowChannelAggregate", () => {
     assert.equal(shouldShowChannelAggregate("social-meta", 2), true)
     assert.equal(shouldShowChannelAggregate("programmatic-display", 5), false)
     assert.equal(shouldShowChannelAggregate("programmatic-video", 4), false)
+    assert.equal(shouldShowChannelAggregate("programmatic-ooh", 4), false)
   })
 
   it("plan-only never rolls up", () => {
@@ -69,6 +76,7 @@ describe("shouldShowChannelAggregate", () => {
       "social-reddit",
       "programmatic-display",
       "programmatic-video",
+      "programmatic-ooh",
       "digital-display",
       "digital-video",
       "digital-audio",

@@ -17,6 +17,7 @@ export type ChannelKey =
   | "search"
   | "programmatic-display"
   | "programmatic-video"
+  | "programmatic-ooh"
   | "digital-display"
   | "digital-video"
   | "digital-audio"

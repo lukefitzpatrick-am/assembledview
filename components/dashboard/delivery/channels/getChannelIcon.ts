@@ -1,4 +1,4 @@
-import { AudioLines, Facebook, Gauge, MessagesSquare, MonitorPlay, Music2, Search, Tv, Video } from "lucide-react"
+import { AudioLines, Facebook, Gauge, MapPin, MessagesSquare, MonitorPlay, Music2, Search, Tv, Video } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { ChannelKey } from "./types"
 
@@ -16,6 +16,8 @@ export function getChannelIcon(key: ChannelKey): LucideIcon {
       return Gauge
     case "programmatic-video":
       return MonitorPlay
+    case "programmatic-ooh":
+      return MapPin
     case "digital-display":
       return MonitorPlay
     case "digital-video":

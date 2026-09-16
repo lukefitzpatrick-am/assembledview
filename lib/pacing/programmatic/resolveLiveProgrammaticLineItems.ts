@@ -10,10 +10,11 @@ import {
   type VersionRow,
 } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows";
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
-import type {
-  ProgrammaticChannelFamily,
-  ProgrammaticPacingCampaignRow,
-  ProgrammaticSnowflakeChannel,
+import {
+  PROGRAMMATIC_FAMILY_SNOWFLAKE_CHANNEL,
+  type ProgrammaticChannelFamily,
+  type ProgrammaticPacingCampaignRow,
+  type ProgrammaticSnowflakeChannel,
 } from "@/lib/pacing/programmatic/types";
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs";
 import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
@@ -47,27 +48,27 @@ const PROG_TABLES: ProgTableSpec[] = [
   {
     tableName: "media_plan_prog_display",
     channelFamily: "progDisplay",
-    snowflakeChannel: "programmatic-display",
+    snowflakeChannel: PROGRAMMATIC_FAMILY_SNOWFLAKE_CHANNEL.progDisplay,
   },
   {
     tableName: "media_plan_prog_video",
     channelFamily: "progVideo",
-    snowflakeChannel: "programmatic-video",
+    snowflakeChannel: PROGRAMMATIC_FAMILY_SNOWFLAKE_CHANNEL.progVideo,
   },
   {
     tableName: "media_plan_prog_bvod",
     channelFamily: "progBvod",
-    snowflakeChannel: "programmatic-video",
+    snowflakeChannel: PROGRAMMATIC_FAMILY_SNOWFLAKE_CHANNEL.progBvod,
   },
   {
     tableName: "media_plan_prog_audio",
     channelFamily: "progAudio",
-    snowflakeChannel: "programmatic-video",
+    snowflakeChannel: PROGRAMMATIC_FAMILY_SNOWFLAKE_CHANNEL.progAudio,
   },
   {
     tableName: "media_plan_prog_ooh",
     channelFamily: "progOoh",
-    snowflakeChannel: "programmatic-display",
+    snowflakeChannel: PROGRAMMATIC_FAMILY_SNOWFLAKE_CHANNEL.progOoh,
   },
 ];
 

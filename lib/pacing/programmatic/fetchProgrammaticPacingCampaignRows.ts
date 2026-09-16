@@ -92,7 +92,7 @@ async function fetchFactsForChannel(
 
 /**
  * Full programmatic pacing composer: resolves live prog* line items, hydrates
- * PACING_FACT actuals (display + video channels — Taboola rides display),
+ * PACING_FACT actuals (display + video + OOH — Taboola rides display),
  * aggregates to line-item grain, and computes spend pacing.
  */
 export async function fetchProgrammaticPacingCampaignRows(
@@ -116,6 +116,14 @@ export async function fetchProgrammaticPacingCampaignRows(
     )
   );
 
+  const oohIds = Array.from(
+    new Set(
+      rows
+        .filter((r) => r.snowflakeChannel === "programmatic-ooh")
+        .map((r) => r.lineItemId.toLowerCase())
+    )
+  );
+
   const lineTotalStart =
     rows
       .map((r) => r.lineItemStartDate)
@@ -123,12 +131,13 @@ export async function fetchProgrammaticPacingCampaignRows(
       .sort()[0] ?? args.asOfDate;
   const yesterday = getMelbourneYesterdayISO(args.asOfDate);
 
-  if (displayIds.length > 0 || videoIds.length > 0) {
-    const [displayFacts, videoFacts] = await Promise.all([
+  if (displayIds.length > 0 || videoIds.length > 0 || oohIds.length > 0) {
+    const [displayFacts, videoFacts, oohFacts] = await Promise.all([
       fetchFactsForChannel("programmatic-display", displayIds, lineTotalStart, args.asOfDate),
       fetchFactsForChannel("programmatic-video", videoIds, lineTotalStart, args.asOfDate),
+      fetchFactsForChannel("programmatic-ooh", oohIds, lineTotalStart, args.asOfDate),
     ]);
-    const allFacts = [...displayFacts, ...videoFacts];
+    const allFacts = [...displayFacts, ...videoFacts, ...oohFacts];
 
     const byLineItem = new Map<string, ProgrammaticFactRow[]>();
     for (const fact of allFacts) {

@@ -506,6 +506,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const searchKeys = ["search", "paidSearch", "paid_search", "search_line_items", "searchLineItems"]
   const progDisplayKeys = ["progDisplay", "programmaticDisplay", "dv360Display", "programmatic_display"]
   const progVideoKeys = ["progVideo", "programmaticVideo", "dv360Video", "programmatic_video"]
+  const progOohKeys = ["progOoh", "progOOH", "programmaticOoh", "programmatic_ooh"]
   // Direct Booked Digital (CM360 verification) — one array per media-type container.
   // Keep every alias: dropping one silently empties that container.
   const digitalDisplayKeys = ["digitalDisplay", "digiDisplay"]
@@ -518,6 +519,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const searchItemsAllKeys = getAllLineItemsFromKeys(lineItemsMap, searchKeys)
   const progDisplayItems = getLineItems(lineItemsMap, progDisplayKeys)
   const progVideoItems = getLineItems(lineItemsMap, progVideoKeys)
+  const progOohItems = getAllLineItemsFromKeys(lineItemsMap, progOohKeys)
   const digitalDisplayItems = getAllLineItemsFromKeys(lineItemsMap, digitalDisplayKeys)
   const digitalVideoItems = getAllLineItemsFromKeys(lineItemsMap, digitalVideoKeys)
   const digitalAudioItems = getAllLineItemsFromKeys(lineItemsMap, digitalAudioKeys)
@@ -528,6 +530,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   let searchKeyUsed: string | null = null
   let progDisplayKeyUsed: string | null = null
   let progVideoKeyUsed: string | null = null
+  let progOohKeyUsed: string | null = null
   
   for (const key of socialKeys) {
     if (Array.isArray(lineItemsMap[key])) {
@@ -553,6 +556,12 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       break
     }
   }
+  for (const key of progOohKeys) {
+    if (Array.isArray(lineItemsMap[key])) {
+      progOohKeyUsed = key
+      break
+    }
+  }
   
   // Determine if media types are running
   const normalizedRunningTypes = runningMediaTypes.map(normalizeMediaType)
@@ -568,17 +577,23 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     normalizedRunningTypes.includes("progvideo") ||
     normalizedRunningTypes.includes("programmaticvideo") ||
     (runningMediaTypes.length === 0 && progVideoItems.some(isLineItemRunning))
+  const isProgrammaticOohRunning =
+    normalizedRunningTypes.includes("progooh") ||
+    normalizedRunningTypes.includes("programmaticooh") ||
+    (runningMediaTypes.length === 0 && progOohItems.some(isLineItemRunning))
   
   // Filter line items to running-only (kept for debugging)
   const socialItemsRunning = socialItems.filter(isLineItemRunning)
   const progDisplayItemsRunning = progDisplayItems.filter(isLineItemRunning)
   const progVideoItemsRunning = progVideoItems.filter(isLineItemRunning)
+  const progOohItemsRunning = progOohItems.filter(isLineItemRunning)
   
   // Create "active" arrays based on existence of items (not running flags)
   const socialItemsActive = socialItems
   const searchItemsActive = searchItemsAllKeys.length > 0 ? searchItemsAllKeys : searchItems
   const progDisplayItemsActive = progDisplayItems
   const progVideoItemsActive = progVideoItems
+  const progOohItemsActive = progOohItems
   const digitalDisplayItemsActive = digitalDisplayItems
   const digitalVideoItemsActive = digitalVideoItems
   const digitalAudioItemsActive = digitalAudioItems
@@ -606,6 +621,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
         ...socialItemsActive,
         ...progDisplayItemsActive,
         ...progVideoItemsActive,
+        ...progOohItemsActive,
         ...digitalDisplayItemsActive,
         ...digitalVideoItemsActive,
         ...digitalAudioItemsActive,
@@ -625,17 +641,20 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
         search: searchKeyUsed,
         progDisplay: progDisplayKeyUsed,
         progVideo: progVideoKeyUsed,
+        progOoh: progOohKeyUsed,
       },
       resolvedRunningMediaTypes: runningMediaTypes,
       normalizedRunningTypes,
       isSocialRunning,
       isProgrammaticDisplayRunning,
       isProgrammaticVideoRunning,
+      isProgrammaticOohRunning,
       lineItemCounts: {
         social: { total: socialItems.length, running: socialItemsRunning.length, active: socialItemsActive.length },
         search: { total: searchItems.length, allKeys: searchItemsAllKeys.length, active: searchItemsActive.length },
         progDisplay: { total: progDisplayItems.length, running: progDisplayItemsRunning.length, active: progDisplayItemsActive.length },
         progVideo: { total: progVideoItems.length, running: progVideoItemsRunning.length, active: progVideoItemsActive.length },
+        progOoh: { total: progOohItems.length, running: progOohItemsRunning.length, active: progOohItemsActive.length },
       },
       deliveryLineItemIdsCount: deliveryLineItemIds.length,
       sampleLineItemIds: sampleIds,
@@ -767,6 +786,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       social: { total: socialItems.length, running: socialItemsRunning.length, active: socialItemsActive.length },
       progDisplay: { total: progDisplayItems.length, running: progDisplayItemsRunning.length, active: progDisplayItemsActive.length },
       progVideo: { total: progVideoItems.length, running: progVideoItemsRunning.length, active: progVideoItemsActive.length },
+      progOoh: { total: progOohItems.length, running: progOohItemsRunning.length, active: progOohItemsActive.length },
     },
   })
 
@@ -780,6 +800,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     (mpSearchEnabled && searchLineItemIds.length > 0 && hasPacingCampaignDates) ||
     progDisplayItemsActive.length > 0 ||
     progVideoItemsActive.length > 0 ||
+    progOohItemsActive.length > 0 ||
     digitalDisplayItemsActive.length > 0 ||
     digitalVideoItemsActive.length > 0 ||
     digitalAudioItemsActive.length > 0 ||
@@ -820,6 +841,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       mpSearchEnabled={mpSearchEnabled}
       progDisplayItemsActive={progDisplayItemsActive}
       progVideoItemsActive={progVideoItemsActive}
+      progOohItemsActive={progOohItemsActive}
       digitalDisplayItemsActive={digitalDisplayItemsActive}
       digitalVideoItemsActive={digitalVideoItemsActive}
       digitalAudioItemsActive={digitalAudioItemsActive}

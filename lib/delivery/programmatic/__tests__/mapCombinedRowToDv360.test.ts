@@ -53,3 +53,13 @@ test("mapCombinedRowToDv360 still throws on ad-serving when the accepted set is 
     /Unexpected channel for programmatic pacing: ad-serving/,
   )
 })
+
+test("mapCombinedRowToDv360 accepts programmatic-ooh and maps RESULTS to conversions (plays)", () => {
+  const accepted = new Set(["programmatic-ooh"])
+  const mapped = mapCombinedRowToDv360(
+    pacingRow({ channel: "programmatic-ooh", results: 12_000, impressions: 80_000 }),
+    accepted,
+  )
+  assert.equal(mapped.conversions, 12_000)
+  assert.equal(mapped.impressions, 80_000)
+})

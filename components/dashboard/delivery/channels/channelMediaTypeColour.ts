@@ -15,6 +15,8 @@ export function channelMediaRegistryKey(key: ChannelKey): string {
       return "prog_display"
     case "programmatic-video":
       return "prog_video"
+    case "programmatic-ooh":
+      return "prog_ooh"
     case "digital-display":
       return "digital_display"
     case "digital-video":

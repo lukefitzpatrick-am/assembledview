@@ -18,6 +18,7 @@ import DeliveryDataProvider from "./DeliveryDataProvider"
 import { DeliveryContainer } from "./DeliveryContainer"
 import { buildProgrammaticDisplaySection } from "./channels/programmaticDisplayAdapter"
 import { buildProgrammaticVideoSection } from "./channels/programmaticVideoAdapter"
+import { buildProgrammaticOohSection } from "./channels/programmaticOohAdapter"
 import { buildDigitalDisplaySection } from "./channels/digitalDisplayAdapter"
 import { buildDigitalVideoSection } from "./channels/digitalVideoAdapter"
 import { buildDigitalAudioSection } from "./channels/digitalAudioAdapter"
@@ -33,6 +34,7 @@ import {
   extractPacingLineItemIdFromItem,
 } from "@/lib/pacing/delivery/lineItemIds"
 import { partitionRedditDeliveryLines } from "@/lib/delivery/social/partitionRedditDeliveryLines"
+import { partitionProgOohDeliveryLines } from "@/lib/delivery/programmatic/partitionProgOohDeliveryLines"
 import {
   deliverySourceLookupKey,
   lookupActiveDeliverySource,
@@ -54,6 +56,7 @@ export type CampaignDeliverySectionProps = {
   mpSearchEnabled: boolean
   progDisplayLineItems: unknown[]
   progVideoLineItems: unknown[]
+  progOohLineItems: unknown[]
   digitalDisplayLineItems: unknown[]
   digitalVideoLineItems: unknown[]
   digitalAudioLineItems: unknown[]
@@ -83,6 +86,7 @@ type DeliveryBodyProps = {
   includeSearch: boolean
   progDisplayLineItems: unknown[]
   progVideoLineItems: unknown[]
+  progOohLineItems: unknown[]
   digitalDisplayLineItems: unknown[]
   digitalVideoLineItems: unknown[]
   digitalAudioLineItems: unknown[]
@@ -115,6 +119,7 @@ function CampaignDeliveryBody({
   includeSearch,
   progDisplayLineItems,
   progVideoLineItems,
+  progOohLineItems,
   digitalDisplayLineItems,
   digitalVideoLineItems,
   digitalAudioLineItems,
@@ -248,6 +253,32 @@ function CampaignDeliveryBody({
       if (s) out.push(s)
     }
 
+    const { live: oohLive, awaiting: oohAwaiting } = partitionProgOohDeliveryLines(
+      (progOohLineItems ?? []).filter((item) => {
+        const rec = item as Record<string, unknown>
+        return Boolean(lookupActiveDeliverySource(deliverySourceLookupKey(rec.publisher, rec.platform)))
+      }),
+      rows,
+    )
+    if (oohLive.length > 0) {
+      const s = buildProgrammaticOohSection({
+        progOohLineItems: oohLive,
+        combinedRows: rows,
+        campaignStart,
+        campaignEnd,
+        mbaNumber,
+        filterRange,
+        kpiVersionNumber,
+        kpiTargets,
+        lineItemTargets,
+        pacingWindow,
+        brandColour,
+        lastSyncedAt,
+        reportedSpendByLineDate,
+      })
+      if (s) out.push(s)
+    }
+
     if (digitalDisplayLineItems.length > 0) {
       const s = buildDigitalDisplaySection({
         lineItems: digitalDisplayLineItems,
@@ -313,7 +344,7 @@ function CampaignDeliveryBody({
     }
 
     const remainder = buildPlanOnlyRemainderSection({
-      lineItems: [...remainderItems, ...redditAwaiting],
+      lineItems: [...remainderItems, ...redditAwaiting, ...oohAwaiting],
       campaignStart,
       campaignEnd,
       lastSyncedAt,
@@ -330,6 +361,7 @@ function CampaignDeliveryBody({
     includeSearch,
     progDisplayLineItems,
     progVideoLineItems,
+    progOohLineItems,
     digitalDisplayLineItems,
     digitalVideoLineItems,
     digitalAudioLineItems,
@@ -357,7 +389,7 @@ function CampaignDeliveryBody({
           searchLineItems,
           progDisplayLineItems,
           progVideoLineItems,
-          progOohLineItems: [],
+          progOohLineItems,
           digitalDisplayLineItems,
           digitalVideoLineItems,
           digitalAudioLineItems,
@@ -371,6 +403,7 @@ function CampaignDeliveryBody({
       searchLineItems,
       progDisplayLineItems,
       progVideoLineItems,
+      progOohLineItems,
       digitalDisplayLineItems,
       digitalVideoLineItems,
       digitalAudioLineItems,
@@ -416,6 +449,7 @@ export function CampaignDeliverySection({
   mpSearchEnabled,
   progDisplayLineItems,
   progVideoLineItems,
+  progOohLineItems,
   digitalDisplayLineItems,
   digitalVideoLineItems,
   digitalAudioLineItems,
@@ -447,13 +481,17 @@ export function CampaignDeliverySection({
 
   const remainderProgItems = useMemo(() => {
     const out: unknown[] = []
-    for (const item of [...(progDisplayLineItems ?? []), ...(progVideoLineItems ?? [])]) {
+    for (const item of [
+      ...(progDisplayLineItems ?? []),
+      ...(progVideoLineItems ?? []),
+      ...(progOohLineItems ?? []),
+    ]) {
       const rec = item as Record<string, unknown>
       const key = deliverySourceLookupKey(rec.publisher, rec.platform)
       if (!lookupActiveDeliverySource(key)) out.push(item)
     }
     return out
-  }, [progDisplayLineItems, progVideoLineItems])
+  }, [progDisplayLineItems, progVideoLineItems, progOohLineItems])
 
   const remainderItems = useMemo(
     () => [...remainderSocialItems, ...remainderProgItems],
@@ -503,6 +541,13 @@ export function CampaignDeliverySection({
     return Array.from(new Set(ids)).sort()
   }, [progVideoLineItems, filterByPacingSet])
 
+  const progOohLineItemIds = useMemo(() => {
+    const ids = (progOohLineItems ?? [])
+      .map(extractPacingLineItemIdFromItem)
+      .filter(filterByPacingSet) as string[]
+    return Array.from(new Set(ids)).sort()
+  }, [progOohLineItems, filterByPacingSet])
+
   const directDigitalLineItemIds = useMemo(() => {
     const ids = [
       ...(digitalDisplayLineItems ?? []),
@@ -540,6 +585,7 @@ export function CampaignDeliverySection({
       redditLineItemIds={redditLineItemIds}
       progDisplayLineItemIds={progDisplayLineItemIds}
       progVideoLineItemIds={progVideoLineItemIds}
+      progOohLineItemIds={progOohLineItemIds}
       directDigitalLineItemIds={directDigitalLineItemIds}
       campaignStart={campaignStart}
       campaignEnd={campaignEnd}
@@ -568,6 +614,7 @@ export function CampaignDeliverySection({
           includeSearch={includeSearch}
           progDisplayLineItems={progDisplayLineItems}
           progVideoLineItems={progVideoLineItems}
+          progOohLineItems={progOohLineItems}
           digitalDisplayLineItems={digitalDisplayLineItems}
           digitalVideoLineItems={digitalVideoLineItems}
           digitalAudioLineItems={digitalAudioLineItems}

@@ -1,4 +1,3 @@
-import { querySnowflake } from "@/lib/snowflake/query"
 import {
   isSocialPacingChannel,
   SOCIAL_PACING_TABLE,
@@ -29,6 +28,7 @@ type Channel =
   | "reddit"
   | "programmatic-display"
   | "programmatic-video"
+  | "programmatic-ooh"
   | "ad-serving"
 
 type QueryPacingFactParams = {
@@ -72,6 +72,29 @@ function normalizePacingFactRow(r: PacingFactRow): PacingFactRow {
   }
 }
 
+export function pacingFactChannelWhere(channel: Channel): string {
+  switch (channel) {
+    case "meta":
+      return "LOWER(CHANNEL) LIKE '%meta%'"
+    case "tiktok":
+      return "LOWER(CHANNEL) LIKE '%tiktok%'"
+    case "reddit":
+      return "LOWER(CHANNEL) LIKE '%reddit%'"
+    case "programmatic-display":
+      return "LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%'"
+    case "programmatic-video":
+      return "LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%'"
+    case "programmatic-ooh":
+      return "LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%ooh%'"
+    case "ad-serving":
+      return "LOWER(CHANNEL) LIKE '%ad serving%'"
+    default: {
+      const exhaustive: never = channel
+      throw new Error(`Unsupported pacing channel: ${String(exhaustive)}`)
+    }
+  }
+}
+
 export async function queryPacingFact(params: QueryPacingFactParams, options: QueryPacingFactOptions = {}) {
   const { channel, lineItemIds, startDate, endDate } = params
   const ids = lineItemIds
@@ -87,34 +110,14 @@ export async function queryPacingFact(params: QueryPacingFactParams, options: Qu
     ? SOCIAL_PACING_TABLE
     : "ASSEMBLEDVIEW.MART.PACING_FACT"
 
-  // Snowflake CHANNEL values may not be normalised (case/wording varies),
-  // so we match using LOWER() + LIKE patterns (same intent as bulk pacing query).
-  const channelWhere = (() => {
-    switch (channel) {
-      case "meta":
-        return "LOWER(CHANNEL) LIKE '%meta%'"
-      case "tiktok":
-        return "LOWER(CHANNEL) LIKE '%tiktok%'"
-      case "reddit":
-        return "LOWER(CHANNEL) LIKE '%reddit%'"
-      case "programmatic-display":
-        return "LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%'"
-      case "programmatic-video":
-        return "LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%'"
-      case "ad-serving":
-        return "LOWER(CHANNEL) LIKE '%ad serving%'"
-      default: {
-        const exhaustive: never = channel
-        throw new Error(`Unsupported pacing channel: ${String(exhaustive)}`)
-      }
-    }
-  })()
+  const channelWhere = pacingFactChannelWhere(channel)
 
   const baseSql = `  SELECT
     CASE
       WHEN LOWER(CHANNEL) LIKE '%reddit%' THEN 'reddit'
       WHEN LOWER(CHANNEL) LIKE '%meta%' THEN 'meta'
       WHEN LOWER(CHANNEL) LIKE '%tiktok%' THEN 'tiktok'
+      WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%ooh%' THEN 'programmatic-ooh'
       WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%' THEN 'programmatic-display'
       WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%' THEN 'programmatic-video'
       WHEN LOWER(CHANNEL) LIKE '%ad serving%' THEN 'ad-serving'
@@ -144,6 +147,7 @@ export async function queryPacingFact(params: QueryPacingFactParams, options: Qu
   const clampedStartISO = clampStartToMaxRange(startISO, endISO)
 
   const queryWindow = async (windowStartISO: string, windowEndISO: string) => {
+    const { querySnowflake } = await import("@/lib/snowflake/query")
     const binds = [...ids, windowStartISO, windowEndISO]
     const rawRows = await querySnowflake<PacingFactRow>(baseSql, binds, {
       requestId: options.requestId,

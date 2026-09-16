@@ -145,7 +145,11 @@ export function programmaticLineItemIdsFromSnapshot(
 ): Set<string> {
   const ids = new Set<string>()
   for (const channel of snapshot?.channels ?? []) {
-    if (channel.group !== "programmatic_display" && channel.group !== "programmatic_video") {
+    if (
+      channel.group !== "programmatic_display" &&
+      channel.group !== "programmatic_video" &&
+      channel.group !== "programmatic_ooh"
+    ) {
       continue
     }
     for (const line of channel.lines ?? []) {
