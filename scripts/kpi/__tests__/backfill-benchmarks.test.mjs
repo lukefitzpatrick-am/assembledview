@@ -15,7 +15,6 @@ test("isEmptyKpiRow is true when every metric is null or 0", () => {
     isEmptyKpiRow({
       ctr: null,
       conversion_rate: 0,
-      cpv: null,
       vtr: 0,
       frequency: null,
     }),
@@ -28,11 +27,23 @@ test("isEmptyKpiRow is false when any metric is non-zero", () => {
     isEmptyKpiRow({
       ctr: 0.02,
       conversion_rate: null,
-      cpv: null,
       vtr: null,
       frequency: null,
     }),
     false,
+  )
+})
+
+test("leftover campaign_kpi.cpv does not count as a saved target", () => {
+  assert.equal(
+    isEmptyKpiRow({
+      ctr: null,
+      conversion_rate: null,
+      vtr: null,
+      frequency: null,
+      cpv: 0.04,
+    }),
+    true,
   )
 })
 
@@ -46,7 +57,6 @@ test("all-zero existing row is an update", () => {
       id: 11,
       ctr: 0,
       conversion_rate: 0,
-      cpv: 0,
       vtr: 0,
       frequency: 0,
     },
@@ -55,10 +65,10 @@ test("all-zero existing row is an update", () => {
   assert.equal(action.id, 11)
   assert.equal(action.values.ctr, 0.011)
   assert.equal(action.values.conversion_rate, 0.005)
-  assert.equal(action.values.cpv, 0.04)
   assert.equal(action.values.vtr, 0.2)
   assert.equal(action.values.frequency, 2)
   assert.equal(action.values.target_source, "benchmark")
+  assert.equal("cpv" in action.values, false)
   assert.match(action.values.benchmark_ref, /WordStream AU Q1 2026/)
 })
 
@@ -73,9 +83,9 @@ test("missing campaign_kpi row is an insert", () => {
   assert.equal(action.kind, "insert")
   assert.equal(action.values.ctr, 0.066)
   assert.equal(action.values.conversion_rate, 0.082)
-  assert.equal(action.values.cpv, null)
   assert.equal(action.values.vtr, null)
   assert.equal(action.values.frequency, null)
+  assert.equal("cpv" in action.values, false)
 })
 
 test("partial row with any non-zero field is untouched", () => {
@@ -88,7 +98,6 @@ test("partial row with any non-zero field is untouched", () => {
       id: 22,
       ctr: 0.01,
       conversion_rate: null,
-      cpv: null,
       vtr: null,
       frequency: 0,
     },
@@ -156,22 +165,23 @@ test("search industry map uses the doc table; unknown client falls back to 6.6% 
   assert.deepEqual(resolveSearchIndustry("Totally New Co"), { ctr: 0.066, conversion_rate: 0.082 })
 })
 
-test("stores rates as fractions, CPV in dollars, frequency as a number", () => {
+test("stores rates as fractions and frequency as a number; never writes cpv", () => {
   const meta = resolveBenchmark({ channel: "social", publisher: "meta", platform: "ig" })
   assert.equal(meta.values.ctr, 0.011)
   assert.notEqual(meta.values.ctr, 1.1)
   assert.equal(meta.values.conversion_rate, 0.005)
+  assert.equal("cpv" in meta.values, false)
   const tiktok = resolveBenchmark({ channel: "social", publisher: "tiktok", platform: "" })
   assert.equal(tiktok.values.conversion_rate, 0.005)
-  assert.equal(tiktok.values.cpv, null)
+  assert.equal("cpv" in tiktok.values, false)
   const cf = resolveBenchmark({
     channel: "prog_video",
     publisher: "",
     platform: "channel factory",
   })
-  assert.equal(cf.values.cpv, 0.1)
   assert.equal(cf.values.vtr, 0.75)
   assert.equal(cf.values.frequency, 3)
+  assert.equal("cpv" in cf.values, false)
   const audio = resolveBenchmark({ channel: "prog_audio", publisher: "", platform: "" })
   assert.equal(audio.values.ctr, null)
   assert.equal(audio.values.frequency, 3)
@@ -206,7 +216,6 @@ test("dry-run writes nothing", async () => {
       kpi_id: null,
       ctr: null,
       conversion_rate: null,
-      cpv: null,
       vtr: null,
       frequency: null,
     },

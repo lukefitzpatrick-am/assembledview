@@ -10,6 +10,7 @@
  *
  * Without --apply: print the rows that would be written and exit.
  * Requires campaign_kpi.target_source + benchmark_ref (0080).
+ * Never writes campaign_kpi.cpv — CPV is a plan rate (0e4ed1b9).
  */
 
 import fs from "node:fs"
@@ -18,7 +19,7 @@ import { pathToFileURL } from "node:url"
 import process from "node:process"
 import postgres from "postgres"
 
-const METRIC_KEYS = ["ctr", "conversion_rate", "cpv", "vtr", "frequency"]
+const METRIC_KEYS = ["ctr", "conversion_rate", "vtr", "frequency"]
 
 const CHANNEL_TO_MEDIA_TYPE = {
   social: "socialmedia",
@@ -48,51 +49,51 @@ const SEARCH_FALLBACK = { ctr: 0.066, conversion_rate: 0.082 }
 
 const BENCHMARKS = {
   "social-meta": {
-    values: { ctr: 0.011, conversion_rate: 0.005, cpv: 0.04, vtr: 0.2, frequency: 2 },
+    values: { ctr: 0.011, conversion_rate: 0.005, vtr: 0.2, frequency: 2 },
     benchmark_ref:
       "CTR, CPC and ThruPlay cost are AU (WordStream AU Q1 2026, n=8,400 accounts). Conversion rate is global ecommerce, not AU. ThruPlay rate is a global 2026 range (18-25%, Reels/Stories).",
   },
   "social-tiktok": {
-    values: { ctr: 0.007, conversion_rate: 0.005, cpv: null, vtr: 0.3, frequency: 2 },
+    values: { ctr: 0.007, conversion_rate: 0.005, vtr: 0.3, frequency: 2 },
     benchmark_ref: "Global 2026 (Lebesgue, DigitalApplied). No AU-specific figure.",
   },
   "social-reddit": {
-    values: { ctr: 0.004, conversion_rate: 0.02, cpv: 0.15, vtr: null, frequency: 2 },
+    values: { ctr: 0.004, conversion_rate: 0.02, vtr: null, frequency: 2 },
     benchmark_ref:
       'Global 2024-25 (FanIQ, AdBacklog). CPV is "under USD 0.10" converted. Reddit is the least-evidenced row.',
   },
   search: {
-    values: { ctr: SEARCH_FALLBACK.ctr, conversion_rate: SEARCH_FALLBACK.conversion_rate, cpv: null, vtr: null, frequency: null },
+    values: { ctr: SEARCH_FALLBACK.ctr, conversion_rate: SEARCH_FALLBACK.conversion_rate, vtr: null, frequency: null },
     benchmark_ref:
       "WordStream / LocaliQ 2026, global, published 1 Jun 2026. No AU-only CTR/CVR source exists; the AU articles all cite the same study.",
   },
   "prog-video-cf": {
-    values: { ctr: 0.008, conversion_rate: null, cpv: 0.1, vtr: 0.75, frequency: 3 },
+    values: { ctr: 0.008, conversion_rate: null, vtr: 0.75, frequency: 3 },
     benchmark_ref:
       "CTR is YouTube TrueView global (0.5-1.5%). CPV and VTR are agency: public YouTube skippable benchmarks are 15-30% view rate and USD 0.10-0.30 CPV, but Channel Factory delivers 70%+ view rate at about $0.06 on BIC today, so the public figures would be wrong for how we buy it. Keep the 75% / $0.09 already on BICAU002 as the house number.",
   },
   "prog-video-instream": {
-    values: { ctr: 0.005, conversion_rate: null, cpv: 0.2, vtr: 0.7, frequency: 3 },
+    values: { ctr: 0.005, conversion_rate: null, vtr: 0.7, frequency: 3 },
     benchmark_ref:
       "Agency. Premium in-stream completion sits between YouTube skippable (15-30%) and CTV (94-98%); 70% is the usual planning figure. CPV is USD 0.10-0.30 converted, mid-point.",
   },
   bvod: {
-    values: { ctr: 0.0005, conversion_rate: null, cpv: null, vtr: 0.95, frequency: 3 },
+    values: { ctr: 0.0005, conversion_rate: null, vtr: 0.95, frequency: 3 },
     benchmark_ref:
       "Completion: CTV 94-98%, median 96% (Innovid 2024 / Adwave Q3 2025). CTR is agency: BICAU002's live CTR is 0.02% against a saved 0.40% target, which is a display number, not a BVOD one. Frequency 3-5 per household per campaign (Adwave 2026).",
   },
   display: {
-    values: { ctr: 0.0035, conversion_rate: 0.007, cpv: null, vtr: null, frequency: 3 },
+    values: { ctr: 0.0035, conversion_rate: 0.007, vtr: null, frequency: 3 },
     benchmark_ref:
       "Global 2026 (DigitalApplied composite of GDN, TTD, IAS/DV). PMP 0.58%, retargeting CVR 1.42% if you want a second row.",
   },
   "display-taboola": {
-    values: { ctr: 0.003, conversion_rate: 0.007, cpv: null, vtr: null, frequency: 3 },
+    values: { ctr: 0.003, conversion_rate: 0.007, vtr: null, frequency: 3 },
     benchmark_ref:
       "Native benchmark is 1.16% but that is premium native; Taboola feed placements run 0.2-0.4%. Agency on the CTR.",
   },
   audio: {
-    values: { ctr: null, conversion_rate: null, cpv: null, vtr: null, frequency: 3 },
+    values: { ctr: null, conversion_rate: null, vtr: null, frequency: 3 },
     benchmark_ref:
       "Listen-through rate is the KPI (90%+) and the review card has no field for it. Frequency only.",
   },
@@ -264,7 +265,6 @@ function plannedFromLine(line) {
           id: line.kpi_id,
           ctr: line.ctr,
           conversion_rate: line.conversion_rate,
-          cpv: line.cpv,
           vtr: line.vtr,
           frequency: line.frequency,
         }
@@ -346,7 +346,6 @@ function printReport(result) {
     key: row.key,
     ctr: fmt(row.values.ctr),
     conversion_rate: fmt(row.values.conversion_rate),
-    cpv: fmt(row.values.cpv),
     vtr: fmt(row.values.vtr),
     frequency: fmt(row.values.frequency),
     id: row.writtenId ?? row.id ?? "",
@@ -399,7 +398,6 @@ async function loadLinesFromDb(sql, { all, clients }) {
       li.bid_strategy,
       k.id AS kpi_id,
       k.ctr,
-      k.cpv,
       k.conversion_rate,
       k.vtr,
       k.frequency
@@ -428,7 +426,6 @@ async function applyClientWrites(sql, _client, rows) {
           SET
             ctr = ${values.ctr},
             conversion_rate = ${values.conversion_rate},
-            cpv = ${values.cpv},
             vtr = ${values.vtr},
             frequency = ${values.frequency},
             target_source = 'benchmark',
@@ -454,7 +451,6 @@ async function applyClientWrites(sql, _client, rows) {
           line_item_id,
           ctr,
           conversion_rate,
-          cpv,
           vtr,
           frequency,
           target_source,
@@ -470,7 +466,6 @@ async function applyClientWrites(sql, _client, rows) {
           ${row.line.line_item_id},
           ${values.ctr},
           ${values.conversion_rate},
-          ${values.cpv},
           ${values.vtr},
           ${values.frequency},
           'benchmark',
