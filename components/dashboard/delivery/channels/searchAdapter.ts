@@ -4,6 +4,7 @@ import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import { clipDateRangeToCampaign, type DateRange } from "@/lib/dashboard/dateFilter"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
+import { applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
 import { aggregateRatioTargetFromLineItems, getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import type { SearchPacingAdGroupRow, SearchPacingLineItemSeries, SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
@@ -125,6 +126,7 @@ export function buildSearchSection(input: {
   }
   brandColour?: string
   lastSyncedAt: Date | null
+  isAdmin?: boolean
 }): ChannelSectionData | null {
   const {
     title = "Search",
@@ -140,6 +142,7 @@ export function buildSearchSection(input: {
     pacingWindow,
     brandColour,
     lastSyncedAt,
+    isAdmin = false,
   } = input
 
   if (!searchData || (searchData as { error?: string }).error) return null
@@ -306,6 +309,23 @@ export function buildSearchSection(input: {
     },
   ]
 
+  const plannedSpendByLineId: Record<string, number> = {}
+  for (const [id, sched] of scheduleByLineItemId) {
+    plannedSpendByLineId[id] = sched.bursts.reduce((sum, burst) => sum + burst.budget, 0)
+  }
+  const bandTiles = applyKpiBandTargetsFromPlan(kpiTiles, {
+    key: "search",
+    items: Array.isArray(searchLineItems) ? searchLineItems : [],
+    plannedSpendByLineId,
+    impressions: Number(totals.impressions ?? 0),
+    clicks: Number(totals.clicks ?? 0),
+    results: Number(totals.conversions ?? 0),
+    views: null,
+    spend: Number(totals.cost ?? 0),
+    lineItemTargets,
+    isAdmin,
+  })
+
   const lineItemsPayload = Array.isArray(searchData.lineItems) ? searchData.lineItems : []
   const adGroupsPayload = Array.isArray(searchData.adGroups) ? searchData.adGroups : []
   const knownPlanLineIds = searchLineItemIdSources(searchLineItems).map((r) => r.line_item_id)
@@ -326,6 +346,8 @@ export function buildSearchSection(input: {
     dailyFill: { fillStartISO, fillEndISO },
     accentColour,
     brandColour,
+    plannedSpendByLineId,
+    isAdmin,
   })
 
   return {
@@ -341,7 +363,7 @@ export function buildSearchSection(input: {
       kpiBand: {
         title: "Delivery KPIs",
         subtitle: "CPC, CTR, conversions, impression share & volume",
-        tiles: kpiTiles,
+        tiles: bandTiles,
       },
       chart: {
         daily: aggregateDailyRows(
@@ -388,6 +410,8 @@ function buildSearchLineItemBlocks(input: {
   dailyFill: { fillStartISO: string; fillEndISO: string }
   accentColour: string
   brandColour?: string
+  plannedSpendByLineId: Record<string, number>
+  isAdmin: boolean
 }): Array<{ id: string; block: LineItemBlockProps }> {
   const {
     lineItems,
@@ -406,6 +430,8 @@ function buildSearchLineItemBlocks(input: {
     dailyFill,
     accentColour,
     brandColour,
+    plannedSpendByLineId,
+    isAdmin,
   } = input
 
   return lineItems
@@ -545,7 +571,8 @@ function buildSearchLineItemBlocks(input: {
         ],
         kpiBand: {
           title: "Delivery KPIs",
-          tiles: [
+          tiles: applyKpiBandTargetsFromPlan(
+            [
             {
               label: "CPC",
               value: formatCurrency2dp(liActualCpc ?? 0),
@@ -589,6 +616,24 @@ function buildSearchLineItemBlocks(input: {
               accentColour,
             },
           ],
+            {
+              key: "search",
+              items: (Array.isArray(searchLineItems) ? searchLineItems : []).filter((item) => {
+                const rec = item as Record<string, unknown>
+                return String(rec.line_item_id ?? rec.lineItemId ?? rec.LINE_ITEM_ID ?? "")
+                  .trim()
+                  .toLowerCase() === id
+              }),
+              plannedSpendByLineId,
+              impressions: Number(liTotals.impressions ?? 0),
+              clicks: Number(liTotals.clicks ?? 0),
+              results: Number(liTotals.conversions ?? 0),
+              views: null,
+              spend: Number(liTotals.cost ?? 0),
+              lineItemTargets,
+              isAdmin,
+            },
+          ),
         },
         chart: {
           kind: "daily-delivery",

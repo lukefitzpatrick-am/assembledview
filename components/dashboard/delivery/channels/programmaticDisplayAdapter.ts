@@ -23,6 +23,7 @@ export function buildProgrammaticDisplaySection(input: {
   brandColour?: string
   lastSyncedAt: Date | null
   reportedSpendByLineDate?: Map<string, Map<string, number>>
+  isAdmin?: boolean
 }): ChannelSectionData | null {
   return buildProgrammaticChannelSection({
     key: "programmatic-display",
@@ -43,5 +44,6 @@ export function buildProgrammaticDisplaySection(input: {
     brandColour: input.brandColour,
     lastSyncedAt: input.lastSyncedAt,
     reportedSpendByLineDate: input.reportedSpendByLineDate,
+    isAdmin: input.isAdmin,
   })
 }

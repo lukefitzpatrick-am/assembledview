@@ -1,6 +1,7 @@
 import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { formatMoney } from "@/lib/format/money"
+import { applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
 import { getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import type { CampaignKPI } from "@/lib/kpi/types"
@@ -335,6 +336,7 @@ export function buildDirectDigitalChannelSection(input: {
   reportedSpendByLineDate?: Map<string, Map<string, number>>
   /** Melbourne civil date for expected-to-date; defaults to today. */
   asOfDate?: string
+  isAdmin?: boolean
 }): ChannelSectionData | null {
   const {
     key,
@@ -350,6 +352,7 @@ export function buildDirectDigitalChannelSection(input: {
     lastSyncedAt,
     reportedSpendByLineDate,
     asOfDate,
+    isAdmin = false,
   } = input
   // filterRange reserved for future date-window clipping (parity with other adapters)
   void input.filterRange
@@ -564,6 +567,36 @@ export function buildDirectDigitalChannelSection(input: {
     ? [spendCard, impressionsCard]
     : [impressionsCard, clicksCard]
 
+  const plannedSpendByLineId: Record<string, number> = {}
+  for (const m of withDelivery) {
+    plannedSpendByLineId[m.id] = m.bookedSpend
+  }
+  const cpvTile: KpiTileProps[] =
+    hasVideoCompletes || key === "bvod"
+      ? [
+          {
+            label: "CPV",
+            value:
+              reportedLines.length > 0 && rollup.videoCompletes > 0
+                ? formatMoney(reportedSpendTotal / rollup.videoCompletes)
+                : "—",
+            accentColour,
+          },
+        ]
+      : []
+  const bandTiles = applyKpiBandTargetsFromPlan([...aggregateKpiTiles, ...cpvTile], {
+    key,
+    items: withDelivery.map((m) => m.item),
+    plannedSpendByLineId,
+    impressions: rollup.impressions,
+    clicks: rollup.clicks,
+    results: rollup.results,
+    views: rollup.videoCompletes > 0 ? rollup.videoCompletes : null,
+    spend: reportedLines.length > 0 ? reportedSpendTotal : null,
+    lineItemTargets,
+    isAdmin,
+  })
+
   const accordionItems = withDelivery.map((m) => {
     const liCtr = safeDiv(m.totals.clicks, m.totals.impressions) * 100
     const kpiRow = getLineItemKpiRow(input.lineItemTargets, input.mbaNumber, input.kpiVersionNumber, m.id)
@@ -610,7 +643,8 @@ export function buildDirectDigitalChannelSection(input: {
       progressCards: lineSpendCard ? [lineSpendCard, impressionCard] : [impressionCard, clicksCard],
       kpiBand: {
         title: "Verification KPIs",
-        tiles: [
+        tiles: applyKpiBandTargetsFromPlan(
+          [
           {
             label: "Served impressions",
             value: formatWholeNumber(m.totals.impressions),
@@ -650,7 +684,32 @@ export function buildDirectDigitalChannelSection(input: {
             value: formatWholeNumber(m.totals.results),
             accentColour,
           },
+          ...(hasVideoCompletes || key === "bvod"
+            ? [
+                {
+                  label: "CPV",
+                  value:
+                    m.hasReportedEntries && m.totals.videoCompletes > 0
+                      ? formatMoney(m.reportedTotal / m.totals.videoCompletes)
+                      : "—",
+                  accentColour,
+                } satisfies KpiTileProps,
+              ]
+            : []),
         ],
+          {
+            key,
+            items: [m.item],
+            plannedSpendByLineId: { [m.id]: m.bookedSpend },
+            impressions: m.totals.impressions,
+            clicks: m.totals.clicks,
+            results: m.totals.results,
+            views: m.totals.videoCompletes > 0 ? m.totals.videoCompletes : null,
+            spend: m.hasReportedEntries ? m.reportedTotal : null,
+            lineItemTargets,
+            isAdmin,
+          },
+        ),
       },
       chart: {
         kind: "daily-delivery",
@@ -706,7 +765,7 @@ export function buildDirectDigitalChannelSection(input: {
       kpiBand: {
         title: "Verification KPIs",
         subtitle: "CM360 delivery counts — spend not applicable",
-        tiles: aggregateKpiTiles,
+        tiles: bandTiles,
       },
       chart: {
         daily: aggDaily.map((d) => ({

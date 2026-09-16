@@ -71,6 +71,7 @@ export type CampaignDeliverySectionProps = {
   onKpiReviewGroups?: (groups: KpiReviewGroup[]) => void
   onDeliveredByLineId?: (map: Map<string, number>) => void
   showAccordion?: boolean
+  isAdmin?: boolean
 }
 
 type DeliveryBodyProps = {
@@ -106,6 +107,7 @@ type DeliveryBodyProps = {
   onKpiReviewGroups?: (groups: KpiReviewGroup[]) => void
   onDeliveredByLineId?: (map: Map<string, number>) => void
   showAccordion?: boolean
+  isAdmin?: boolean
 }
 
 function CampaignDeliveryBody({
@@ -141,6 +143,7 @@ function CampaignDeliveryBody({
   onKpiReviewGroups,
   onDeliveredByLineId,
   showAccordion = true,
+  isAdmin = false,
 }: DeliveryBodyProps) {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
 
@@ -165,6 +168,7 @@ function CampaignDeliveryBody({
           filterRange,
           brandColour,
           lastSyncedAt,
+          isAdmin,
         }),
       )
     }
@@ -183,6 +187,7 @@ function CampaignDeliveryBody({
           filterRange,
           brandColour,
           lastSyncedAt,
+          isAdmin,
         }),
       )
     }
@@ -205,6 +210,7 @@ function CampaignDeliveryBody({
           filterRange,
           brandColour,
           lastSyncedAt,
+          isAdmin,
         }),
       )
     }
@@ -223,6 +229,7 @@ function CampaignDeliveryBody({
         pacingWindow,
         brandColour,
         lastSyncedAt,
+        isAdmin,
       })
       if (s) out.push(s)
     }
@@ -242,6 +249,7 @@ function CampaignDeliveryBody({
         brandColour,
         lastSyncedAt,
         reportedSpendByLineDate,
+        isAdmin,
       })
       if (s) out.push(s)
     }
@@ -261,6 +269,7 @@ function CampaignDeliveryBody({
         brandColour,
         lastSyncedAt,
         reportedSpendByLineDate,
+        isAdmin,
       })
       if (s) out.push(s)
     }
@@ -287,6 +296,7 @@ function CampaignDeliveryBody({
         brandColour,
         lastSyncedAt,
         reportedSpendByLineDate,
+        isAdmin,
       })
       if (s) out.push(s)
     }
@@ -304,6 +314,7 @@ function CampaignDeliveryBody({
         brandColour,
         lastSyncedAt,
         reportedSpendByLineDate,
+        isAdmin,
       })
       if (s) out.push(s)
     }
@@ -321,6 +332,7 @@ function CampaignDeliveryBody({
         brandColour,
         lastSyncedAt,
         reportedSpendByLineDate,
+        isAdmin,
       })
       if (s) out.push(s)
     }
@@ -338,6 +350,7 @@ function CampaignDeliveryBody({
         brandColour,
         lastSyncedAt,
         reportedSpendByLineDate,
+        isAdmin,
       })
       if (s) out.push(s)
     }
@@ -355,6 +368,7 @@ function CampaignDeliveryBody({
         brandColour,
         lastSyncedAt,
         reportedSpendByLineDate,
+        isAdmin,
       })
       if (s) out.push(s)
     }
@@ -395,6 +409,7 @@ function CampaignDeliveryBody({
     searchLineItems,
     lastSyncedAt,
     reportedSpendByLineDate,
+    isAdmin,
   ])
 
   const { entries: coverage, kpiDrafts } = useMemo(
@@ -502,6 +517,7 @@ export function CampaignDeliverySection({
   onKpiReviewGroups,
   onDeliveredByLineId,
   showAccordion = true,
+  isAdmin = false,
 }: CampaignDeliverySectionProps) {
   const pacingWindow = useMemo(() => getPacingWindow(campaignStart, campaignEnd), [campaignStart, campaignEnd])
 
@@ -672,6 +688,7 @@ export function CampaignDeliverySection({
           onKpiReviewGroups={onKpiReviewGroups}
           onDeliveredByLineId={onDeliveredByLineId}
           showAccordion={showAccordion}
+          isAdmin={isAdmin}
         />
       )}
     </DeliveryDataProvider>

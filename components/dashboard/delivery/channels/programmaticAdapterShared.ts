@@ -9,6 +9,7 @@ import {
   deriveRateTargetFromBursts,
   getLineItemKpiRow,
 } from "@/lib/kpi/lineItemKpiTargets"
+import { applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import {
   buildProgrammaticAggregatedMetrics,
@@ -245,6 +246,11 @@ function buildProgrammaticKpiTiles(input: {
   lineItemTargets: Map<string, CampaignKPI> | undefined
   activeItems: ProgrammaticLineItem[]
   lineItem?: ProgrammaticLineItem
+  sectionKey: string
+  plannedSpendByLineId: Record<string, number>
+  isAdmin: boolean
+  vtrTracked: boolean
+  spendModelled?: boolean
 }): KpiTileProps[] {
   const {
     kpis,
@@ -256,7 +262,28 @@ function buildProgrammaticKpiTiles(input: {
     lineItemTargets,
     activeItems,
     lineItem,
+    sectionKey,
+    plannedSpendByLineId,
+    isAdmin,
+    vtrTracked,
+    spendModelled,
   } = input
+
+  const overlay = (built: KpiTileProps[]) =>
+    applyKpiBandTargetsFromPlan(built, {
+      key: sectionKey,
+      items: lineItem ? [lineItem] : activeItems,
+      plannedSpendByLineId,
+      impressions: kpis.impressions,
+      clicks: kpis.clicks,
+      results: kpis.conversions,
+      views: kpis.videoViews > 0 ? kpis.videoViews : null,
+      spend: Number.isFinite(kpis.spend) ? kpis.spend : null,
+      spendModelled,
+      vtrTracked,
+      lineItemTargets,
+      isAdmin,
+    })
 
   const isPerLine = Boolean(lineItem)
   const kpiRow = lineItem
@@ -326,7 +353,7 @@ function buildProgrammaticKpiTiles(input: {
 
   if (isOoh) {
     const costPerPlay = kpis.conversions ? kpis.spend / kpis.conversions : null
-    return [
+    return overlay([
       cpmTile,
       {
         label: "Plays",
@@ -340,11 +367,11 @@ function buildProgrammaticKpiTiles(input: {
         emptyHint: "none-recorded",
         accentColour,
       },
-    ]
+    ])
   }
 
   if (isVideo) {
-    return [
+    return overlay([
       cpmTile,
       {
         label: "View rate",
@@ -372,10 +399,10 @@ function buildProgrammaticKpiTiles(input: {
         accentColour,
       },
       ctrTile,
-    ]
+    ])
   }
 
-  return [
+  return overlay([
     cpmTile,
     ctrTile,
     {
@@ -390,7 +417,7 @@ function buildProgrammaticKpiTiles(input: {
       emptyHint: "not-tracked",
       accentColour,
     },
-  ]
+  ])
 }
 
 export function buildProgrammaticChannelSection(input: {
@@ -417,6 +444,7 @@ export function buildProgrammaticChannelSection(input: {
   brandColour?: string
   lastSyncedAt: Date | null
   reportedSpendByLineDate?: Map<string, Map<string, number>>
+  isAdmin?: boolean
 }): ChannelSectionData | null {
   const {
     key,
@@ -438,6 +466,7 @@ export function buildProgrammaticChannelSection(input: {
     brandColour,
     lastSyncedAt,
     reportedSpendByLineDate,
+    isAdmin = false,
   } = input
 
   const normalized = normalizeProgrammaticLineItems(rawLineItems)
@@ -583,6 +612,15 @@ export function buildProgrammaticChannelSection(input: {
     sparkline: aggregatePacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
   }
 
+  const plannedSpendByLineId: Record<string, number> = {}
+  for (const m of metrics) {
+    const id = String(m.lineItem.line_item_id ?? "").trim()
+    if (id) plannedSpendByLineId[id] = m.booked.spend
+  }
+  const vtrTracked =
+    isVideoChannel &&
+    normalized.some((li) => li.deliverySourceMap?.delivery_source === "partner_file")
+
   const aggregateKpiTiles = buildProgrammaticKpiTiles({
     kpis: kpisRollup,
     accentColour,
@@ -592,6 +630,11 @@ export function buildProgrammaticChannelSection(input: {
     kpiVersionNumber,
     lineItemTargets,
     activeItems: normalized,
+    sectionKey: key,
+    plannedSpendByLineId,
+    isAdmin,
+    vtrTracked,
+    spendModelled: allSpendModelled,
   })
 
   const accordionItems = metrics.map((m) => {
@@ -622,6 +665,11 @@ export function buildProgrammaticChannelSection(input: {
       lineItemTargets,
       activeItems: normalized,
       lineItem: m.lineItem,
+      sectionKey: key,
+      plannedSpendByLineId,
+      isAdmin,
+      vtrTracked,
+      spendModelled: m.spendModelledFromPlanRate === true,
     })
 
     const li = m.lineItem as ProgrammaticLineItem & {

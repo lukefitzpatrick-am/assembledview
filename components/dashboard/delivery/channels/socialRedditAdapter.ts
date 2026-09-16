@@ -18,6 +18,7 @@ export function buildSocialRedditSection(input: {
   filterRange: DateRange
   brandColour?: string
   lastSyncedAt: Date | null
+  isAdmin?: boolean
 }): ChannelSectionData {
   return buildSocialChannelSectionForPlatform({
     key: "social-reddit",

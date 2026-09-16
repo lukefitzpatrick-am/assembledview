@@ -43,6 +43,8 @@ export type KpiReviewPlanLine = {
   buyAmount: number | null
   plannedViews: number | null
   plannedImpressions: number | null
+  /** Plan clicks when the line is a click buy or carries an explicit clicks goal. */
+  plannedClicks?: number | null
 }
 
 export type KpiReviewCpvCaption =
@@ -143,6 +145,10 @@ export function isCpvBuyType(buyType: string | null | undefined): boolean {
   return t === "cpv" || t === "cpcv" || t.includes("cpv") || t.includes("cpcv")
 }
 
+export function isCpcBuyType(buyType: string | null | undefined): boolean {
+  return deliverableLabelForBuyType(buyType) === "Clicks"
+}
+
 function isViewsDeliverable(buyType: string): boolean {
   if (isCpvBuyType(buyType)) return true
   return deliverableLabelForBuyType(buyType) === "Views"
@@ -171,9 +177,12 @@ export function extractKpiReviewPlanLine(item: unknown, plannedSpend: number): K
     rec.impressions ?? rec.plannedImpressions ?? rec.units ?? rec.quantity,
   )
   const viewsBuy = isViewsDeliverable(buyType)
+  const clicksBuy = isCpcBuyType(buyType)
+  const explicitClicks = parseMoneyish(rec.clicks ?? rec.plannedClicks ?? rec.calculatedClicks)
   const plannedViews = explicitViews > 0 ? explicitViews : viewsBuy && calculated > 0 ? calculated : null
+  const plannedClicks = explicitClicks > 0 ? explicitClicks : clicksBuy && calculated > 0 ? calculated : null
   const plannedImpressions =
-    !viewsBuy && (impressions > 0 || calculated > 0)
+    !viewsBuy && !clicksBuy && (impressions > 0 || calculated > 0)
       ? impressions > 0
         ? impressions
         : calculated
@@ -186,6 +195,7 @@ export function extractKpiReviewPlanLine(item: unknown, plannedSpend: number): K
     buyAmount: buyWeight > 0 ? buySum / buyWeight : null,
     plannedViews,
     plannedImpressions,
+    plannedClicks,
   }
 }
 
@@ -297,7 +307,7 @@ function rowTargetSource(row: CampaignKPI | undefined): KpiReviewTargetSource {
   return row?.target_source === "benchmark" ? "benchmark" : "target"
 }
 
-function resolveGroupTarget(
+export function resolveGroupTarget(
   group: KpiReviewGroup,
   metric: KpiReviewMetricKey,
   lineItemTargets: Map<string, CampaignKPI>,
@@ -351,7 +361,7 @@ function resolveGroupTarget(
   }
 }
 
-function resolveCpvPlanRate(
+export function resolveCpvPlanRate(
   group: KpiReviewGroup,
   lineItemTargets: Map<string, CampaignKPI>,
 ): { value: number; caption: KpiReviewCpvCaption } | null {
@@ -404,6 +414,60 @@ function resolveCpvPlanRate(
   return { value, caption }
 }
 
+export type KpiReviewCostCaption = "plan rate" | "No click basis"
+
+export function resolveCpmPlanRate(
+  group: KpiReviewGroup,
+): { value: number; caption: "plan rate" } | null {
+  const parts: Array<{ spend: number; rate: number }> = []
+  for (const lineId of group.lineItemIds) {
+    const plan = group.planByLineId?.[lineId]
+    const spend = Number(group.plannedSpendByLineId[lineId] ?? plan?.plannedSpend ?? 0) || 0
+    const impressions = plan?.plannedImpressions ?? 0
+    if (impressions > 0 && spend > 0) {
+      parts.push({ spend, rate: (spend / impressions) * 1000 })
+    }
+  }
+  if (parts.length === 0) return null
+  const spendTotal = parts.reduce((sum, part) => sum + part.spend, 0)
+  const value =
+    spendTotal > 0
+      ? parts.reduce((sum, part) => sum + part.rate * part.spend, 0) / spendTotal
+      : parts[0]!.rate
+  return { value, caption: "plan rate" }
+}
+
+export function resolveCpcPlanRate(
+  group: KpiReviewGroup,
+): { value: number; caption: "plan rate" } | { value: null; caption: "No click basis" } {
+  const parts: Array<{ spend: number; rate: number }> = []
+  for (const lineId of group.lineItemIds) {
+    const plan = group.planByLineId?.[lineId]
+    const spend = Number(group.plannedSpendByLineId[lineId] ?? plan?.plannedSpend ?? 0) || 0
+    const buy = plan?.buyType ?? ""
+    if (isCpcBuyType(buy) && plan?.buyAmount && plan.buyAmount > 0) {
+      parts.push({ spend: spend > 0 ? spend : 1, rate: plan.buyAmount })
+      continue
+    }
+    const clicks = plan?.plannedClicks ?? 0
+    if (clicks > 0 && spend > 0) {
+      parts.push({ spend, rate: spend / clicks })
+    }
+  }
+  if (parts.length === 0) return { value: null, caption: "No click basis" }
+  const spendTotal = parts.reduce((sum, part) => sum + part.spend, 0)
+  const value =
+    spendTotal > 0
+      ? parts.reduce((sum, part) => sum + part.rate * part.spend, 0) / spendTotal
+      : parts[0]!.rate
+  return { value, caption: "plan rate" }
+}
+
+export function statusForCostMetric(target: number, delivered: number | null): DeliveryStatus {
+  if (delivered == null || !Number.isFinite(delivered) || !(delivered > 0)) return "no-data"
+  return deliveryStatusFromPct((target / delivered) * 100)
+}
+
 function ratio(numerator: number, denominator: number): number | null {
   if (!(denominator > 0)) return null
   const n = numerator / denominator
@@ -445,7 +509,7 @@ function deliveredRatio(
   }
 }
 
-function statusForMetric(
+export function statusForMetric(
   metric: KpiReviewMetricKey,
   target: number,
   delivered: number | null,
@@ -462,7 +526,7 @@ function statusForMetric(
   return "no-data"
 }
 
-function formatTarget(metric: KpiReviewMetricKey, target: number): string {
+export function formatTarget(metric: KpiReviewMetricKey, target: number): string {
   if (metric === "cpv") return formatMoney(target)
   if (metric === "frequency") return target.toFixed(2)
   return formatStoredDecimalAsPercent(target)
