@@ -726,7 +726,12 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     deliveredVideo3sViews = delivered.video3sViews
     hasDelivery = delivered.hasDelivery
     deliveredAsOf = delivered.asOf
-  } catch {
+  } catch (error) {
+    console.error("[campaign-page] delivered totals failed", {
+      mba: mba_number,
+      versionNumber: vn,
+      error,
+    })
     actualSpend = undefined
   }
 

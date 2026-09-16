@@ -60,6 +60,11 @@ export function statusSentence(input: StatusSentenceInput): string {
     return base
   }
 
+  const spendKnown = isFiniteNumber(actualSpend)
+  if (!spendKnown) {
+    return "No delivery reported yet."
+  }
+
   if (
     isFiniteNumber(cpmActual) &&
     isFiniteNumber(cpmPlanned) &&

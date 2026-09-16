@@ -86,12 +86,42 @@ test("rule c: behind spend (and critical / over-pacing)", () => {
   assert.equal(critical, behind)
 })
 
+test("undefined actualSpend never uses behind-by-$X; falls through to no delivery reported", () => {
+  assert.equal(
+    statusSentence({
+      pacingStatus: "behind",
+      spendPct: 0,
+      impressionsPct: 0,
+      expectedSpend: 43_956,
+      actualSpend: undefined,
+    }),
+    "No delivery reported yet.",
+  )
+})
+
+test("undefined actualSpend still uses N of M when channels are partial", () => {
+  assert.equal(
+    statusSentence({
+      pacingStatus: "behind",
+      spendPct: 0,
+      impressionsPct: 0,
+      channelsReporting: 2,
+      channelsTotal: 5,
+      expectedSpend: 43_956,
+      actualSpend: undefined,
+    }),
+    "2 of 5 channels are reporting so far, which is why delivered spend looks low.",
+  )
+})
+
 test("rule d: otherwise on track", () => {
   assert.equal(
     statusSentence({
       pacingStatus: "on-track",
       spendPct: 0.7,
       impressionsPct: 0.72,
+      actualSpend: 7_000,
+      expectedSpend: 10_000,
     }),
     "Delivery is on track against the plan.",
   )
@@ -104,6 +134,8 @@ test("unknown total skips rule a", () => {
       spendPct: 0.1,
       impressionsPct: 0.1,
       channelsReporting: 1,
+      actualSpend: 1_000,
+      expectedSpend: 10_000,
     }),
     "Delivery is on track against the plan.",
   )
@@ -115,6 +147,8 @@ test("rule b skipped when CPM is absent", () => {
       pacingStatus: "on-track",
       spendPct: 0.4,
       impressionsPct: 0.7,
+      actualSpend: 4_000,
+      expectedSpend: 10_000,
     }),
     "Delivery is on track against the plan.",
   )

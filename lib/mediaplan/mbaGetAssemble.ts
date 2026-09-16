@@ -4,6 +4,7 @@
  * cutover so postgres `readMbaPlanDetail` stays shape-compatible with edit consumers.
  */
 
+import { inclusiveCampaignDayMetrics } from "@/lib/dates/melbourne"
 import { parseDateSafe as safeParseDate } from "@/lib/dates/parseDateSafe"
 import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
@@ -213,39 +214,15 @@ function getMonthLabel(value: unknown): string {
 }
 
 function calculateTimeElapsed(startDate: string, endDate: string): number {
-  const start = parseDateOnlyString(startDate)
-  const end = parseDateOnlyString(endDate)
-  if (!start || !end) return 0
-  const now = new Date()
-  const total = end.getTime() - start.getTime()
-  if (total <= 0) return 100
-  const elapsed = now.getTime() - start.getTime()
-  if (elapsed <= 0) return 0
-  if (elapsed >= total) return 100
-  return Math.round((elapsed / total) * 1000) / 10
+  const { daysInCampaign, daysElapsed } = inclusiveCampaignDayMetrics(startDate, endDate)
+  if (daysInCampaign <= 0) return 0
+  if (daysElapsed <= 0) return 0
+  if (daysElapsed >= daysInCampaign) return 100
+  return Math.round((daysElapsed / daysInCampaign) * 1000) / 10
 }
 
 function calculateDayMetrics(startDate: string, endDate: string) {
-  const start = parseDateOnlyString(startDate)
-  const end = parseDateOnlyString(endDate)
-  if (!start || !end) {
-    return { daysInCampaign: 0, daysElapsed: 0, daysRemaining: 0 }
-  }
-  const msDay = 24 * 60 * 60 * 1000
-  const daysInCampaign = Math.max(
-    1,
-    Math.round((end.getTime() - start.getTime()) / msDay) + 1
-  )
-  const now = new Date()
-  const daysElapsed = Math.min(
-    daysInCampaign,
-    Math.max(0, Math.round((now.getTime() - start.getTime()) / msDay) + 1)
-  )
-  return {
-    daysInCampaign,
-    daysElapsed,
-    daysRemaining: Math.max(0, daysInCampaign - daysElapsed),
-  }
+  return inclusiveCampaignDayMetrics(startDate, endDate)
 }
 
 function startOfDay(date: Date) {

@@ -138,17 +138,19 @@ export function CampaignStatusStrip({
   const expectedVsBudget = ratio(expectedSpend, budget)
   const impressionsPct = ratio(deliveredImpressions, plannedImpressions)
 
-  const pacingResolved = campaignPacingVerdict({
-    budget,
-    startDate,
-    endDate,
-    spendToDate: spendKnown ? actualSpend : 0,
-    asOfDate: deliveredAsOf,
-  })
+  const pacingResolved = spendKnown
+    ? campaignPacingVerdict({
+        budget,
+        startDate,
+        endDate,
+        spendToDate: actualSpend,
+        asOfDate: deliveredAsOf,
+      })
+    : null
   const pill = pacingResolved ? PILL_BY_BAND[pacingResolved.status] : null
 
   const sentence = statusSentence({
-    pacingStatus: pacingResolved?.status ?? "no-data",
+    pacingStatus: spendKnown ? pacingResolved?.status ?? "no-data" : "no-data",
     spendPct,
     impressionsPct,
     channelsReporting,

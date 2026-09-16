@@ -65,4 +65,35 @@ describe("CampaignStatusStrip", () => {
     expect(delivered).toContain("—")
     expect(delivered.includes("$20")).toBe(false)
   })
+
+  it("does not say spend is behind by $X when actualSpend is unset", () => {
+    const html = renderToStaticMarkup(
+      <CampaignStatusStrip
+        {...FULL}
+        actualSpend={undefined}
+        expectedSpend={43_956}
+        channelsReporting={undefined}
+        channelsTotal={undefined}
+      />,
+    )
+    expect(html).toContain("No delivery reported yet.")
+    expect(html).not.toContain("behind the plan by")
+    expect(html).not.toContain("Behind plan on spend")
+  })
+
+  it("uses N of M channels copy when spend is unknown but coverage is partial", () => {
+    const html = renderToStaticMarkup(
+      <CampaignStatusStrip
+        {...FULL}
+        actualSpend={undefined}
+        expectedSpend={43_956}
+        channelsReporting={2}
+        channelsTotal={5}
+      />,
+    )
+    expect(html).toContain(
+      "2 of 5 channels are reporting so far, which is why delivered spend looks low.",
+    )
+    expect(html).not.toContain("behind the plan by")
+  })
 })

@@ -86,3 +86,28 @@ test(
     assert.equal(args.endDate, "2026-03-31")
   },
 )
+
+test(
+  "getDeliveredTotalsForCampaign rethrows a snapshot failure so the page catch can log it",
+  { skip },
+  async () => {
+    const { getDeliveredTotalsForCampaign } = await import("../getDeliveredTotalsForCampaign.js")
+    loadDeliverySnapshot.mock.mockImplementationOnce(async () => {
+      throw new Error("snowflake down")
+    })
+    await assert.rejects(
+      () => getDeliveredTotalsForCampaign({ mbaNumber: "foo001" }),
+      /snowflake down/,
+    )
+    loadDeliverySnapshot.mock.mockImplementation(async () => ({
+      asOf: "2026-06-01",
+      planTotals: {
+        spendToDate: 10,
+        impressions: 100,
+        clicks: 2,
+        results: 1,
+        video3sViews: 0,
+      },
+    }))
+  },
+)

@@ -50,19 +50,38 @@ export async function getDeliveredTotalsForCampaign(
   const window = deliveredQueryWindow(input.startDate, input.endDate)
   const asOfDate = asOfForDeliveredRange(getAsOfDate(), window?.endDate)
 
+  console.info("[getDeliveredTotalsForCampaign] start", {
+    mbaNumber: input.mbaNumber,
+    versionNumber: input.versionNumber,
+  })
+
   const [snapshot, directGroups] = await Promise.all([
     loadDeliverySnapshot({
       mbaNumber: input.mbaNumber,
       versionNumber: input.versionNumber,
       mpSearchEnabled: input.mpSearchEnabled,
       ...(window ?? {}),
-    }).catch(() => null),
+    }).catch((error) => {
+      console.error("[getDeliveredTotalsForCampaign] loadDeliverySnapshot failed", {
+        mbaNumber: input.mbaNumber,
+        versionNumber: input.versionNumber,
+        error,
+      })
+      throw error
+    }),
     needsFixedCost
       ? fetchDirectPacingRows({
           asOfDate,
           allowedClientSlugs: null,
           includeHistorical: false,
-        }).catch((): DirectCampaignGroup[] => [])
+        }).catch((error): DirectCampaignGroup[] => {
+          console.error("[getDeliveredTotalsForCampaign] fetchDirectPacingRows failed", {
+            mbaNumber: input.mbaNumber,
+            versionNumber: input.versionNumber,
+            error,
+          })
+          return []
+        })
       : Promise.resolve<DirectCampaignGroup[]>([]),
   ])
 

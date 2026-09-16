@@ -1,3 +1,6 @@
+import { getMelbourneTodayISO, inclusiveCampaignDayMetrics } from "@/lib/dates/melbourne"
+import { toDateOnlyString } from "@/lib/timezone"
+
 /**
  * Date range filtering helpers for the per-MBA dashboard.
  *
@@ -346,7 +349,7 @@ export function filterDeliverySchedule(schedule: unknown, range: DateRange): unk
   })
 }
 
-/** Recompute time-elapsed numbers for the selected window vs today. */
+/** Recompute time-elapsed numbers for the selected window vs Melbourne today. */
 export function recomputeTimeMetrics(
   range: DateRange,
   campaignBounds: CampaignDateBounds,
@@ -364,14 +367,13 @@ export function recomputeTimeMetrics(
     return { timeElapsedPct: 0, daysInCampaign: 0, daysElapsed: 0, daysRemaining: 0 }
   }
 
-  const totalMs = end.getTime() - start.getTime()
-  const elapsedMs = Math.max(0, today.getTime() - start.getTime())
-  const cappedElapsedMs = Math.min(totalMs, elapsedMs)
+  const days = inclusiveCampaignDayMetrics(
+    toDateOnlyString(start),
+    toDateOnlyString(end),
+    getMelbourneTodayISO(today),
+  )
+  const timeElapsedPct =
+    days.daysInCampaign > 0 ? (days.daysElapsed / days.daysInCampaign) * 100 : 0
 
-  const daysInCampaign = Math.max(0, Math.ceil(totalMs / 86_400_000))
-  const daysElapsed = Math.max(0, Math.floor(cappedElapsedMs / 86_400_000))
-  const daysRemaining = Math.max(0, daysInCampaign - daysElapsed)
-  const timeElapsedPct = totalMs > 0 ? (cappedElapsedMs / totalMs) * 100 : 0
-
-  return { timeElapsedPct, daysInCampaign, daysElapsed, daysRemaining }
+  return { timeElapsedPct, ...days }
 }
