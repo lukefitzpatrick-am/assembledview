@@ -58,6 +58,8 @@ test("buildCampaignKpiSavePayload fans out with the given version identity", () 
   assert.equal(payload[0]?.line_item_id, "MBA99OH12")
   assert.equal(payload[0]?.mba_number, "MBA99")
   assert.equal(payload[0]?.cpv, null)
+  assert.equal(payload[0]?.target_source, "target")
+  assert.equal(payload[0]?.benchmark_ref, null)
 })
 
 test("buildCampaignKpiSavePayload writes campaign_kpi.cpv as null even when the row still has a value", () => {

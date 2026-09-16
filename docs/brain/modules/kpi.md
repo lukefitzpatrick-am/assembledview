@@ -6,7 +6,8 @@ Three-tier KPI target resolution — publisher benchmark → client override →
 
 - `lib/kpi/types.ts` — canonical shapes + zod bodies. **`ResolvedKPIRow` and `deliveryTargets.ts::KPITargetValues` are frozen public API** (41 importing files).
 - `lib/kpi/resolve.ts` — the tier-merge engine (in-memory; does not fetch).
-- `lib/kpi/fanOut.ts` — group → per-line expansion via `lib/mediaplan/lineItemIds` (28 refs; ships `FANOUT_LINE_ITEM_MAP_ALIASES` to bridge the app's 4 channel-key conventions). Campaign writes always set `cpv: null`.
+- `lib/kpi/fanOut.ts` — group → per-line expansion via `lib/mediaplan/lineItemIds` (28 refs; ships `FANOUT_LINE_ITEM_MAP_ALIASES` to bridge the app's 4 channel-key conventions). Campaign writes always set `cpv: null`, `target_source: "target"`, `benchmark_ref: null` so a publish overwrite replaces a benchmark row.
+- `scripts/kpi/backfill-benchmarks.mjs` — industry-benchmark fill for published `live`/`booked`/`approved` plans. Empty/all-zero `campaign_kpi` rows UPDATE; missing rows INSERT; any non-zero metric is left alone. Requires 0080 `target_source` / `benchmark_ref`. Dry-run unless `--apply`. Meta/TikTok conversion rate is `0.005`. Tests: `npm run test:kpi-backfill`.
 - `lib/kpi/grouping.ts` — groups plan `LineItem`s by (publisher, platform, bidStrategy, buyType, creative).
 - `lib/kpi/deliveryTargetCurve.ts` — burst-aware target curve; the contract behind every delivery chart's target line.
 - `lib/kpi/lineItemKpiTargets.ts` — cpm/cpv rate targets derived from bursts at render time (not stored).

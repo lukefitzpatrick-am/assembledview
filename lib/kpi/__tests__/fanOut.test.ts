@@ -64,6 +64,8 @@ test("fanOutKpiPayload matches by line number when stored id differs from KPI ro
   assert.equal(payload[0].line_item_id, "MBA99OH12")
   assert.equal(payload[0].version_number, 2)
   assert.equal(payload[0].cpv, null)
+  assert.equal(payload[0].target_source, "target")
+  assert.equal(payload[0].benchmark_ref, null)
 })
 
 test("fanOutKpiPayload fills empty bid_strategy for API validation", () => {

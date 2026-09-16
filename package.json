@@ -55,6 +55,7 @@
     "test:kpi-percent-units": "tsx --test lib/kpi/__tests__/percentUnits.roundTrip.test.ts lib/kpi/__tests__/metrics.test.ts tests/kpi/normaliseRatioTarget.delivery.test.ts",
     "test:kpi-writes": "tsx --test lib/kpi/__tests__/kpiWriteHandlers.matrix.test.ts lib/kpi/__tests__/metrics.test.ts lib/kpi/__tests__/kpiWorkbook.test.ts",
     "test:kpi-review": "tsx --test lib/kpi/__tests__/kpiReview.test.ts && vitest run components/dashboard/campaign/__tests__/KpiReview.test.tsx \"app/dashboard/[slug]/[mba_number]/components/__tests__/CampaignPageAssembly.order.test.ts\"",
+    "test:kpi-backfill": "tsx --test scripts/kpi/__tests__/backfill-benchmarks.test.mjs lib/kpi/__tests__/fanOut.test.ts lib/kpi/__tests__/buildCampaignKpiSavePayload.test.ts",
     "scan:kpi-percent-units": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx scripts/scan-kpi-percent-units.ts",
     "test:pacing-maths": "tsx --test lib/pacing/maths/__tests__/*.test.ts",
     "test:pacing-portfolio": "tsx --test lib/pacing/portfolio/__tests__/buildCampaignPacingRows.test.ts lib/pacing/portfolio/__tests__/filterPortfolioRows.test.ts lib/pacing/portfolio/__tests__/portfolioCsv.test.ts lib/pacing/portfolio/__tests__/portfolioLayout.test.ts && vitest run components/pacing/portfolio/__tests__/CampaignPacingCard.test.tsx components/pacing/portfolio/__tests__/PortfolioCardsBoard.test.tsx components/pacing/portfolio/__tests__/CampaignPacingTable.test.tsx components/pacing/portfolio/__tests__/PortfolioLayoutToggle.test.tsx",

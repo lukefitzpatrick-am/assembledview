@@ -186,6 +186,7 @@ pct === 100 → fee = 0 (division guard)
 - The two KPI target maps have different keys (see BLAST-RADIUS) — both must be updated for a new channel.
 - `KpiHost` implementations differ on purpose: media-plan host persists `campaign_kpi` immediately when the plan has an identity (create defers until first save); pacing host writes immediately. Plan save always syncs the version it just wrote, including VP-1 increments.
 - Campaign KPI targets stay at line-item grain. Entered campaign KPIs are CTR, VTR, conversion rate and frequency only. `campaign_kpi.cpv` is kept but writes are always null; leftover non-zero values are ignored. Review CPV is a plan rate (budget-weighted `buyAmount` on a CPV buy; else planned spend ÷ planned views; else planned spend ÷ (planned impressions × VTR target)) or "Not a view buy". Delivered CPV is the channel card's spend ÷ reported views, never gated on buy type. Review `targetSource` is `target` (saved `campaign_kpi` or a CPV plan rate) or `benchmark` (industry backfill); 0/null stays "No target set" and does not inherit `publisher_kpi`. Clients do not see the review unless a card has a saved, benchmark, or CPV plan-rate target.
+- Industry benchmarks (`scripts/kpi/backfill-benchmarks.mjs`) write only empty or all-zero `campaign_kpi` rows on the published version of live/booked/approved masters, as fractions (Meta/TikTok CVR `0.005`). A later plan save that fans out KPIs overwrites that row and sets `target_source` to `target`. Any non-zero saved metric is never replaced by the script.
 
 ## Planning engine law
 

@@ -224,6 +224,8 @@ export function fanOutKpiPayload(
         conversion_rate: row.conversion_rate,
         vtr: row.vtr,
         frequency: row.frequency,
+        target_source: "target",
+        benchmark_ref: null,
       },
     ]
   })
