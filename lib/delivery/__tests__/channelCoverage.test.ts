@@ -358,7 +358,6 @@ test("BVOD glance card sums reported spend when fixed-cost lines have a spend ca
       bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 6_500 }],
     },
   ]
-  const clicks = progressCard("Clicks delivery", "100", "on-track", "Delivered 100 · Planned 0")
   const spendCards = [
     progressCard(
       "Reported spend (fixed cost)",
@@ -390,7 +389,7 @@ test("BVOD glance card sums reported spend when fixed-cost lines have a spend ca
     id,
     block: {
       name: id,
-      progressCards: [spendCards[i]!, impressionCards[i]!, clicks],
+      progressCards: [spendCards[i]!, impressionCards[i]!],
       kpiBand: { tiles: [] },
       chart: { kind: "daily-delivery", daily, series: [], asAtDate: null },
     },
@@ -415,7 +414,6 @@ test("BVOD glance card sums reported spend when fixed-cost lines have a spend ca
               "Delivered $9,852.85 · Planned $19,500.00",
             ),
             progressCard("Impressions delivery", "240,000", "on-track", "Delivered 240,000 · Planned 300,000"),
-            clicks,
           ],
           kpiBand: { tiles: [] },
           chart: { daily: [], series: [], asAtDate: null },
