@@ -409,8 +409,8 @@ function deliveredFromCards(
   return {
     spend,
     impressions,
-    deliveryStatus: deliveryStatus === "no-data" ? null : deliveryStatus,
-    impressionsStatus: impressionsStatus === "no-data" ? null : impressionsStatus,
+    deliveryStatus,
+    impressionsStatus,
   }
 }
 
