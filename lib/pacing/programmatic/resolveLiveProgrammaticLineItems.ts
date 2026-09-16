@@ -1,28 +1,20 @@
 import "server-only";
 
-import { fetchAllXanoPages } from "@/lib/api/xanoPagination";
-import { xanoUrl } from "@/lib/api/xano";
 import { findCurrentBurstIndex, inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst";
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts";
-import {
-  fetchAllMasters,
-  fetchCurrentVersionRowsForMasters,
-  type VersionRow,
-} from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows";
+import { type VersionRow } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows";
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
+import {
+  fetchXanoLineItemsForMba,
+  resolveLivePlanLineItems,
+} from "@/lib/pacing/plans/resolveLivePlanLineItems";
 import {
   PROGRAMMATIC_FAMILY_SNOWFLAKE_CHANNEL,
   type ProgrammaticChannelFamily,
   type ProgrammaticPacingCampaignRow,
   type ProgrammaticSnowflakeChannel,
 } from "@/lib/pacing/programmatic/types";
-import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs";
-import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
-import { boundedMap } from "@/lib/utils/boundedMap";
-
-const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const;
-/** Parallel Xano per-master fetches; well under Launch-plan 100 req/s ceiling. */
-const XANO_MASTER_FETCH_CONCURRENCY = 8;
+import { type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
 
 export type GetLiveProgrammaticLineItemsArgs = {
   asOfDate: string;
@@ -72,98 +64,13 @@ const PROG_TABLES: ProgTableSpec[] = [
   },
 ];
 
-function norm(value: unknown): string {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase();
-}
-
-function filterByMbaAndVersion(
-  items: unknown[],
-  mbaNumber: string,
-  versionNumber: number,
-  mediaPlanVersionId?: number | null
-): Record<string, unknown>[] {
-  if (!Array.isArray(items)) return [];
-  const normalizedMba = norm(mbaNumber);
-  const versionStr = String(versionNumber);
-  const versionIdStr =
-    mediaPlanVersionId !== null && mediaPlanVersionId !== undefined
-      ? String(mediaPlanVersionId)
-      : null;
-
-  return items.filter((item) => {
-    const row = item as Record<string, unknown>;
-    if (norm(row.mba_number) !== normalizedMba) return false;
-
-    const mpPlanNumber = row.mp_plannumber ?? row.mp_plan_number ?? row.mpPlanNumber;
-    const mediaPlanVersion = row.media_plan_version;
-    const mediaPlanVersionIdField = row.media_plan_version_id ?? row.media_plan_versionID;
-    const versionNumberField = row.version_number;
-
-    const hasVersionIdCandidate =
-      (mediaPlanVersion !== null &&
-        mediaPlanVersion !== undefined &&
-        String(mediaPlanVersion).trim() !== "") ||
-      (mediaPlanVersionIdField !== null &&
-        mediaPlanVersionIdField !== undefined &&
-        String(mediaPlanVersionIdField).trim() !== "");
-
-    if (versionIdStr && hasVersionIdCandidate) {
-      const candidates = [mediaPlanVersion, mediaPlanVersionIdField];
-      return candidates.some((value) => String(value ?? "").trim() === versionIdStr);
-    }
-
-    const versionCandidates = [mpPlanNumber, versionNumberField];
-    return versionCandidates.some((value) => String(value ?? "").trim() === versionStr);
-  }) as Record<string, unknown>[];
-}
-
 export async function fetchProgrammaticLineItemsForMba(args: {
   mba_number: string;
   versionRowId: number;
   versionNumber: number;
   tableName: string;
 }): Promise<Record<string, unknown>[]> {
-  const url = xanoUrl(args.tableName, [...MEDIA_PLANS_KEYS]);
-  const attempts: Array<Record<string, string | number | boolean | null | undefined>> = [
-    { mba_number: args.mba_number, media_plan_version: args.versionRowId },
-    { mba_number: args.mba_number, media_plan_version_id: args.versionRowId },
-    { mba_number: args.mba_number, mp_plannumber: args.versionNumber },
-    { mba_number: args.mba_number, version_number: args.versionNumber },
-    { mba_number: args.mba_number, media_plan_version: args.versionNumber },
-  ];
-
-  let best: Record<string, unknown>[] = [];
-  let bestRawCount = Number.POSITIVE_INFINITY;
-
-  for (const params of attempts) {
-    const raw = await fetchAllXanoPages(
-      url,
-      params,
-      `PACING_${args.tableName}`,
-      200,
-      20
-    );
-    const filtered = filterByMbaAndVersion(
-      raw,
-      args.mba_number,
-      args.versionNumber,
-      args.versionRowId
-    );
-    if (
-      filtered.length > best.length ||
-      (filtered.length === best.length && raw.length < bestRawCount)
-    ) {
-      best = filtered;
-      bestRawCount = raw.length;
-    }
-    if (raw.length > 0 && raw.length === filtered.length) {
-      break;
-    }
-  }
-
-  return best;
+  return fetchXanoLineItemsForMba(args);
 }
 
 /**
@@ -204,72 +111,27 @@ export function deriveProgrammaticPlatformLabel(args: {
 export async function resolveLiveProgrammaticLineItemInputs(
   args: GetLiveProgrammaticLineItemsArgs
 ): Promise<LiveProgrammaticLineItemInput[]> {
-  const masters = await fetchAllMasters();
-  const liveMasters = masters.filter((m) => {
-    if (!isLiveCampaignStatus(m.campaign_status, m.campaign_start_date, m.campaign_end_date, args.asOfDate)) return false;
-    if (!m.campaign_start_date || !m.campaign_end_date) return false;
-    if (args.asOfDate < m.campaign_start_date || args.asOfDate > m.campaign_end_date) {
-      return false;
-    }
-    if (args.allowedClientSlugs !== null) {
-      const slug = slugifyPlanClientName(m.mp_client_name);
-      if (!slug || !args.allowedClientSlugs.has(slug)) return false;
-    }
-    return true;
+  const specByEndpoint = new Map(PROG_TABLES.map((spec) => [spec.tableName, spec]));
+  const rows = await resolveLivePlanLineItems({
+    endpoints: PROG_TABLES.map((spec) => spec.tableName),
+    asOfDate: args.asOfDate,
+    allowedClientSlugs: args.allowedClientSlugs,
+    channelLabel: "programmatic",
   });
 
-  if (liveMasters.length === 0) return [];
-
-  const versionRowsByMba = await fetchCurrentVersionRowsForMasters(liveMasters);
-
-  const perMaster = await boundedMap(
-    liveMasters,
-    async (master) => {
-      const versionRow = versionRowsByMba.get(norm(master.mba_number));
-      if (!versionRow) {
-        console.warn(
-          "[pacing/programmatic] no version row for master",
-          master.mba_number,
-          master.version_number
-        );
-        return [] as LiveProgrammaticLineItemInput[];
-      }
-
-      const inputs: LiveProgrammaticLineItemInput[] = [];
-      for (const spec of PROG_TABLES) {
-        const progRows = await fetchProgrammaticLineItemsForMba({
-          mba_number: master.mba_number,
-          versionRowId: versionRow.id,
-          versionNumber: master.version_number,
-          tableName: spec.tableName,
-        });
-
-        for (const progRow of progRows) {
-          const lineItemId = String(progRow.line_item_id ?? progRow.lineItemId ?? "").trim();
-          if (!lineItemId) {
-            console.warn(
-              "[pacing/programmatic] row missing line_item_id",
-              master.mba_number,
-              spec.tableName,
-              progRow.id
-            );
-            continue;
-          }
-          inputs.push({
-            master,
-            versionRow,
-            progRow,
-            channelFamily: spec.channelFamily,
-            snowflakeChannel: spec.snowflakeChannel,
-          });
-        }
-      }
-      return inputs;
-    },
-    XANO_MASTER_FETCH_CONCURRENCY
-  );
-
-  return perMaster.flat();
+  const inputs: LiveProgrammaticLineItemInput[] = [];
+  for (const row of rows) {
+    const spec = specByEndpoint.get(row.endpoint);
+    if (!spec) continue;
+    inputs.push({
+      master: row.master,
+      versionRow: row.versionRow,
+      progRow: row.lineItem,
+      channelFamily: spec.channelFamily,
+      snowflakeChannel: spec.snowflakeChannel,
+    });
+  }
+  return inputs;
 }
 
 function mapProgRowToCampaignRow(

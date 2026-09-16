@@ -5,8 +5,9 @@ Tracks actual delivery (Snowflake facts) against plan (Xano media plans) at line
 ## Key files
 
 - `lib/pacing/maths/index.ts` — pacing arithmetic + 7-state `PacingStatus` ladder (order mirrors Snowflake `V_LINE_ITEM_PACING` — DO NOT REORDER; ±5%/±15% bands) + Melbourne date helpers.
-- `lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts` — search composer AND the de-facto shared layer: `fetchAllMasters`, `fetchCurrentVersionRowsForMasters` are imported by every other channel. Masters/versions go through `lib/data/readPacing.ts` (`DATA_BACKEND_PACING`).
-- `lib/data/readPacing.ts` — pacing-owned Xano reads: `media_plan_master`, `media_plan_versions`, `pacing_orphan_fixes`. Channel `media_plan_*` line GETs remain direct Xano until T2e. Snapshot sync cron gated by `LINE_ITEM_SNAPSHOT_SOURCE` (X7 flip earned — prod `postgres` after X-series merge; until then `parity` / MERGE Xano).
+- `lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts` — search composer AND the shared master/version crawl (`fetchAllMasters`, `fetchCurrentVersionRowsForMasters`, `DATA_BACKEND_PACING`). Search **line items** stay on the Xano walk.
+- `lib/pacing/plans/resolveLivePlanLineItems.ts` — programmatic / social / ad-serving live lines. `getDataBackendFor("plans") === "postgres"` lists live masters from Postgres and reads `fetchLineItemsFromPostgresByEndpoint` at the published watermark; otherwise the existing Xano per-table walk. Warns when live masters yield zero rows.
+- `lib/data/readPacing.ts` — pacing-owned master/version/orphan reads (`DATA_BACKEND_PACING`). Snapshot sync cron gated by `LINE_ITEM_SNAPSHOT_SOURCE` (X7 flip earned — prod `postgres` after X-series merge; until then `parity` / MERGE Xano).
 - `lib/pacing/{social,programmatic,ad-serving,direct}/fetch*Rows.ts` — per-channel composers (social/programmatic near-copies of search; direct returns grouped shape).
 - `lib/pacing/campaigns/pacingRowsCache.ts` — five `unstable_cache` wrappers, 4h TTL, tag `pacing-campaigns`; the chokepoint for every read path.
 - `lib/pacing/overview/buildOverviewPayload.ts` — `Promise.allSettled` fan-out over all 5 channels, 45s per-source timeout, partial-200 with `unavailableSources`.
@@ -53,7 +54,7 @@ Vistar exchange reports use the same mailbox cron. Path: Vistar email → `/api/
 
 ## Data flow (search, representative)
 
-Masters (full crawl via `readPacingMasters`) → live filter (`isLiveCampaignStatus` = phase `live`, plus date window + allowed slugs) → versions (full crawl via `readPacingVersions`) → per-MBA channel line items (**still Xano** until T2e; concurrency 8, 5 param-shape attempts) → parse bursts → current burst by asOfDate → campaign KPIs (`readKpi` / T2b) → Snowflake facts bucketed by line_item_id → `computePacing` on current burst → `pacingStatus()` → 5-band Status pill (on-track / ahead / behind / over-pacing / no-data) + orthogonal KPI Pending tile.
+Masters (full crawl via `readPacingMasters`, or `readPlanMasters` when the plans backend is postgres) → live filter (`isLiveCampaignStatus` = phase `live`, plus date window + allowed slugs) → versions → per-MBA channel line items (programmatic / social / ad-serving: `resolveLivePlanLineItems` — Postgres published watermark or Xano 5-attempt walk; search stays Xano) → parse bursts → current burst by asOfDate → campaign KPIs (`readKpi` / T2b) → Snowflake facts bucketed by line_item_id → `computePacing` on current burst → `pacingStatus()` → 5-band Status pill (on-track / ahead / behind / over-pacing / no-data) + orthogonal KPI Pending tile.
 
 ## Consumed by
 
@@ -75,4 +76,4 @@ AVA (`getPacingSnapshot`, `getDeliverySnapshot`), ops digest email (`buildPacing
 - Overview / admin tools: `PacingFilterToolbar` disables client/media/status/search (and as-of on `/pacing/admin/*`) with an explicit reason; Overview consumes only `as_of_date`.
 - **BICAU002 Meta relabel (C-141):** `SOCIAL_PACING_FACT` holds ad set `120256089860390550` as `bicau002sm2` for all 44 days (4 Aug – 16 Sep); the 16 Sep nightly refresh kept it. The `LINE_ITEM_LABEL_MAP` row is doing its job.
 - DS-0 confirm-then-fix backlog (UNCONFIRMED until read): `docs/superpowers/delivery-source-registry-backlog-2026-09-16.md`.
-- **Migration cutover risk:** most pacing *facts* are Snowflake; Xano deps are masters/versions (T2d), channel lines (T2e), clients (T2a), campaign_kpi (T2b), orphan_fixes audit (T2d list / Xano POST).
+- **Migration cutover risk:** most pacing *facts* are Snowflake; Xano deps are masters/versions (T2d / `DATA_BACKEND_PACING`), search channel lines (still Xano), clients (T2a), campaign_kpi (T2b), orphan_fixes audit (T2d list / Xano POST). Programmatic / social / ad-serving lines follow `DATA_BACKEND_PLANS`.
