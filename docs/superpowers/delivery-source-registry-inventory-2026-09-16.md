@@ -270,3 +270,5 @@ A generic registry row is `fact + channel + spend mode + metric profile`. The fo
 25. Social View rate / CPV and programmatic View rate / CPV emit `0` on a zero denominator; CPM/CTR/CPC/CPA emit `null` (`socialChannelCompute.ts:733–741`; `programmaticCompute.ts:349–355`).
 26. BVOD is a distinct ChannelKey and coverage group but mounts the Direct digital tile set with no BVOD-specific metric (`bvodAdapter.ts:20–24`).
 27. Warehouse `LINE_ITEM_LABEL_MAP` (PACING_FACT + SOCIAL_PACING_FACT refresh) and `PARTNER_LINE_MAP` (partner views) resolve ids before any adapter; no adapter repeats those joins (`tsk_refresh_pacing_fact.sql:91–94`; `tsk_refresh_social_pacing_fact.sql:46–48`).
+
+Confirm-then-fix backlog (do not edit the 27 items above): `docs/superpowers/delivery-source-registry-backlog-2026-09-16.md`.
