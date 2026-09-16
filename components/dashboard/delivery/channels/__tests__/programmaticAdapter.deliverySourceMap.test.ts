@@ -217,6 +217,7 @@ test("a Taboola line still says Taboola connected", () => {
 function buildVideo(input: {
   lines: unknown[]
   rows: PacingRow[]
+  reportedSpendByLineDate?: Map<string, Map<string, number>>
 }): ChannelSectionData | null {
   return buildProgrammaticVideoSection({
     progVideoLineItems: input.lines,
@@ -234,7 +235,12 @@ function buildVideo(input: {
       campaignEndISO: CAMPAIGN_END,
     },
     lastSyncedAt: null,
+    reportedSpendByLineDate: input.reportedSpendByLineDate,
   })
+}
+
+function chip(section: ChannelSectionData, label: string) {
+  return section.aggregate.summaryChips.find((c) => c.label === label)
 }
 
 test("a Channel Factory prog_video line with null publisher is included and consumes PACING_FACT video rows", () => {
@@ -805,5 +811,124 @@ test("partner-file Channel Factory deliverable status is not no-data when delive
     deliverable.status === "ahead" ||
       deliverable.status === "behind" ||
       deliverable.status === "on-track",
+  )
+})
+
+test("display section summary chips are spend, impressions, Avg CPM, and deliverable Avg delivery", () => {
+  const section = buildDisplay({
+    lines: [burstLine("TEST001PD1", "dv360"), burstLine("TEST001PD2", "taboola")],
+    rows: [
+      pacingRow({
+        channel: "programmatic-display",
+        lineItemId: "TEST001PD1",
+        amountSpent: 40,
+        impressions: 8_000,
+      }),
+      pacingRow({
+        channel: "programmatic-display",
+        lineItemId: "TEST001PD2",
+        amountSpent: 10,
+        impressions: 2_000,
+      }),
+    ],
+  })
+  assert.ok(section)
+  assert.equal(chip(section, "Total spend")?.value, "$50.00")
+  assert.equal(chip(section, "Total impressions")?.value, "10,000")
+  assert.equal(chip(section, "Avg CPM")?.value, "$5.00")
+  assert.equal(chip(section, "Avg delivery")?.value, "5.0%")
+  assert.equal(chip(section, "Avg CPV"), undefined)
+  assert.deepEqual(
+    section.aggregate.chart.series.map((s) => s.label),
+    ["Spend", "Impressions"],
+  )
+})
+
+test("mixed reported + modelled spend keeps Total spend with an includes-modelled caption", () => {
+  const section = buildVideo({
+    lines: [
+      { ...burstLine("bicau006pv1", "Channel Factory"), fixedCostMedia: true },
+      modelledCpmLine("bicau006pv2", "twitch"),
+    ],
+    rows: [
+      pacingRow({
+        channel: "programmatic-video",
+        lineItemId: "bicau006pv1",
+        impressions: 12_000,
+        video3sViews: 4_000,
+        amountSpent: 0,
+      }),
+      pacingRow({
+        channel: "ad-serving",
+        lineItemId: "bicau006pv2",
+        impressions: 50_000,
+        clicks: 10,
+      }),
+    ],
+    reportedSpendByLineDate: new Map([["bicau006pv1", new Map([["2026-03-01", 25]])]]),
+  })
+  assert.ok(section)
+  const spend = chip(section, "Total spend")
+  assert.ok(spend)
+  assert.equal(spend.caption, "includes modelled spend")
+  assert.equal(chip(section, "Delivered spend (modelled from plan rate)"), undefined)
+  assert.equal(chip(section, "Reported spend (fixed cost)"), undefined)
+})
+
+test("Channel Factory CPV section summary uses Avg CPV and a Spend + Views chart", () => {
+  const section = buildVideo({
+    lines: [{ ...burstLine("bicau006pv1", "Channel Factory"), buy_type: "cpv", fixedCostMedia: true }],
+    rows: [
+      pacingRow({
+        channel: "programmatic-video",
+        lineItemId: "bicau006pv1",
+        impressions: 12_000,
+        video3sViews: 4_000,
+        amountSpent: 0,
+      }),
+    ],
+    reportedSpendByLineDate: new Map([["bicau006pv1", new Map([["2026-03-01", 40]])]]),
+  })
+  assert.ok(section)
+  assert.equal(chip(section, "Reported spend (fixed cost)")?.value, "$40.00")
+  assert.equal(chip(section, "Avg CPV")?.value, "$0.01")
+  assert.equal(chip(section, "Avg CPM"), undefined)
+  assert.deepEqual(
+    section.aggregate.chart.series.map((s) => s.label),
+    ["Spend", "Views"],
+  )
+})
+
+test("OOH section summary is spend, impressions, Avg CPM, Avg delivery, plus Plays", () => {
+  const section = buildOoh({
+    lines: [burstLine("legal004po1", "Vistar"), burstLine("legal004po2", "Broadsign")],
+    rows: [
+      pacingRow({
+        channel: "programmatic-ooh",
+        lineItemId: "legal004po1",
+        dateDay: "2026-03-01",
+        amountSpent: 40,
+        impressions: 8_000,
+        results: 120,
+      }),
+      pacingRow({
+        channel: "programmatic-ooh",
+        lineItemId: "legal004po2",
+        dateDay: "2026-03-01",
+        amountSpent: 10,
+        impressions: 2_000,
+        results: 80,
+      }),
+    ],
+  })
+  assert.ok(section)
+  assert.equal(chip(section, "Total spend")?.value, "$50.00")
+  assert.equal(chip(section, "Total impressions")?.value, "10,000")
+  assert.equal(chip(section, "Avg CPM")?.value, "$5.00")
+  assert.equal(chip(section, "Avg delivery")?.value, "5.0%")
+  assert.equal(chip(section, "Plays")?.value, "200")
+  assert.deepEqual(
+    section.aggregate.chart.series.map((s) => s.label),
+    ["Spend", "Impressions"],
   )
 })

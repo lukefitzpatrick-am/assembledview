@@ -76,6 +76,48 @@ describe.skip("ChannelSection line items (parked until FX2b pack)", () => {
   })
 })
 
+describe("ChannelSection programmatic summary", () => {
+  it("shows chips and the daily chart above the line list, without mixed deliverable cards", () => {
+    const data = programmaticChannel(["LI-Alpha-Unique", "LI-Bravo-Unique"])
+    data.aggregate = {
+      ...emptyAggregate(),
+      summaryChips: [
+        { label: "Total spend", value: "$50.00" },
+        { label: "Total impressions", value: "10,000" },
+        { label: "Avg CPM", value: "$5.00" },
+        { label: "Avg delivery", value: "5.0%", caption: "includes modelled spend" },
+      ],
+      progressCards: [
+        { ...PROGRESS, title: "AGGREGATE-SPEND-CARD" },
+        { ...PROGRESS, title: "AGGREGATE-DELIVERABLE-CARD" },
+      ],
+      kpiBand: { title: "AGGREGATE-KPI-BAND", tiles: [] },
+      chart: {
+        daily: [{ date: "2026-03-01", amount_spent: 10, impressions: 100 }],
+        series: [
+          { key: "amount_spent", label: "Spend" },
+          { key: "impressions", label: "Impressions" },
+        ],
+        asAtDate: "2026-03-15",
+      },
+    }
+
+    const html = renderToStaticMarkup(<ChannelSection data={data} defaultOpen />)
+
+    expect(html).toContain("Total spend")
+    expect(html).toContain("$50.00")
+    expect(html).toContain("includes modelled spend")
+    expect(html).toContain("Daily delivery")
+    expect(html).toContain("Spend + Impressions")
+    expect(html).toContain("Line items (2)")
+    expect(html).toContain("LI-Alpha-Unique")
+    expect(html).toContain("LI-Bravo-Unique")
+    expect(html).not.toContain("AGGREGATE-SPEND-CARD")
+    expect(html).not.toContain("AGGREGATE-DELIVERABLE-CARD")
+    expect(html).not.toContain("AGGREGATE-KPI-BAND")
+  })
+})
+
 describe.skip("DeliveryContainer (parked until FX2b pack)", () => {
   it("opens every channel section by default", () => {
     const a = programmaticChannel(["LI-One-Unique"])

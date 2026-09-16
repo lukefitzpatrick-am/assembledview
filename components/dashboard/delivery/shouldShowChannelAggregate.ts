@@ -5,7 +5,8 @@ import type { ChannelKey } from "./channels/types"
  * so adding a ChannelKey later forces an explicit decision here rather than
  * silently defaulting to hide. Direct Booked Digital is included because
  * impressions and clicks stay on separate cards (C-37); programmatic stays
- * out because it still mixes deliverable units into one card.
+ * out of the full roll-up because it still mixes deliverable units into one
+ * card. Those keys still get chips + chart via shouldShowChannelSectionSummary.
  */
 export const ROLLUP_SAFE_CHANNEL_KEYS: Set<ChannelKey> = new Set([
   "search",
@@ -44,4 +45,22 @@ export function shouldShowChannelAggregate(
   if (lineItemCount === 0) return true
   if (ROLLUP_SAFE_CHANNEL_KEYS.has(key) && lineItemCount > 1) return true
   return false
+}
+
+const PROGRAMMATIC_SECTION_KEYS: ReadonlySet<ChannelKey> = new Set([
+  "programmatic-display",
+  "programmatic-video",
+  "programmatic-ooh",
+])
+
+/**
+ * Chips + daily chart above the line list. Programmatic 2+ lines get this
+ * without the mixed-deliverable progress cards / KPI band (C-37 / C-41).
+ */
+export function shouldShowChannelSectionSummary(
+  key: ChannelKey,
+  lineItemCount: number,
+): boolean {
+  if (shouldShowChannelAggregate(key, lineItemCount)) return true
+  return lineItemCount > 1 && PROGRAMMATIC_SECTION_KEYS.has(key)
 }

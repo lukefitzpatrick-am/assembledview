@@ -17,7 +17,10 @@ import { DeliveryDailyChart } from "./common/DeliveryDailyChart"
 import { channelMediaRegistryKey } from "./channels/channelMediaTypeColour"
 import { getChannelIcon } from "./channels/getChannelIcon"
 import type { ChannelSectionData } from "./channels/types"
-import { shouldShowChannelAggregate } from "./shouldShowChannelAggregate"
+import {
+  shouldShowChannelAggregate,
+  shouldShowChannelSectionSummary,
+} from "./shouldShowChannelAggregate"
 
 function formatLastSynced(d: Date | null): string {
   if (!d) return "Not yet synced"
@@ -46,7 +49,10 @@ export interface ChannelSectionProps {
   onRefresh?: () => void
 }
 
-export { shouldShowChannelAggregate } from "./shouldShowChannelAggregate"
+export {
+  shouldShowChannelAggregate,
+  shouldShowChannelSectionSummary,
+} from "./shouldShowChannelAggregate"
 
 export function ChannelSection({ data, defaultOpen = false, onRefresh }: ChannelSectionProps) {
   const Icon = getChannelIcon(data.key)
@@ -54,8 +60,9 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
   const badge = getMediaBadgeStyle(channelMediaRegistryKey(data.key))
   // Adapters still compute `aggregate` on ChannelSectionData; this only gates render.
   const showAggregate = shouldShowChannelAggregate(data.key, data.lineItems.length)
+  const showSummary = shouldShowChannelSectionSummary(data.key, data.lineItems.length)
   const flatSingleLine =
-    !showAggregate && data.lineItems.length === 1 ? data.lineItems[0] : null
+    !showSummary && data.lineItems.length === 1 ? data.lineItems[0] : null
 
   const actionButtons = (
     <div className="flex items-center gap-1">
@@ -145,12 +152,12 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
           {/* Actions always render; chips only with the aggregate roll-up. */}
           <div
             className={
-              showAggregate
+              showSummary
                 ? "flex flex-wrap items-center justify-between gap-3 border-t border-border/40 pt-4"
                 : "flex flex-wrap items-center justify-end gap-3 border-t border-border/40 pt-4"
             }
           >
-            {showAggregate ? (
+            {showSummary ? (
               <div className="flex flex-wrap gap-2">
                 {data.aggregate.summaryChips.map((c) => (
                   <div
@@ -158,7 +165,10 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
                     className="rounded-lg bg-muted/40 px-3 py-1.5"
                   >
                     <p className="text-[11px] text-muted-foreground">{c.label}</p>
-                    <p className="text-sm font-semibold tabular-nums">{c.value}</p>
+                    <p className="num text-sm font-semibold">{c.value}</p>
+                    {c.caption ? (
+                      <p className="text-[10px] text-muted-foreground">{c.caption}</p>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -174,17 +184,19 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
               </div>
 
               <KpiBand {...data.aggregate.kpiBand} />
-
-              <DeliveryDailyChart
-                daily={data.aggregate.chart.daily}
-                series={data.aggregate.chart.series}
-                asAtDate={data.aggregate.chart.asAtDate}
-                mediaTypeColour={data.mediaTypeColour}
-                brandColour={data.aggregate.chart.brandColour}
-                title="Daily delivery"
-                subtitle={data.aggregate.chart.series.map((s) => s.label).join(" + ")}
-              />
             </>
+          ) : null}
+
+          {showSummary ? (
+            <DeliveryDailyChart
+              daily={data.aggregate.chart.daily}
+              series={data.aggregate.chart.series}
+              asAtDate={data.aggregate.chart.asAtDate}
+              mediaTypeColour={data.mediaTypeColour}
+              brandColour={data.aggregate.chart.brandColour}
+              title="Daily delivery"
+              subtitle={data.aggregate.chart.series.map((s) => s.label).join(" + ")}
+            />
           ) : null}
 
           {flatSingleLine ? (

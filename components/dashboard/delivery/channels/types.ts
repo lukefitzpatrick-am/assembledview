@@ -39,7 +39,7 @@ export interface ConnectionPill {
  */
 export interface ChannelAggregate {
   /** "Total spend $35,763" style summary chips above the progress cards. */
-  summaryChips: Array<{ label: string; value: string }>
+  summaryChips: Array<{ label: string; value: string; caption?: string }>
   /** Two progress cards, [spend, deliverable]. */
   progressCards: [ProgressCardProps, ProgressCardProps]
   /** Unified KPI band rolled up across all line items in this channel. */

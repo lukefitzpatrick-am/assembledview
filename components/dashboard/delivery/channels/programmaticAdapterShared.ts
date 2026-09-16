@@ -170,6 +170,10 @@ function programmaticConnectionPills(items: ProgrammaticLineItem[]): ConnectionP
   return pills
 }
 
+function isCpvBuyType(item: ProgrammaticLineItem): boolean {
+  return String(item.buy_type ?? "").trim().toLowerCase() === "cpv"
+}
+
 function lineFamilyFromItem(item: ProgrammaticLineItem): string | undefined {
   const raw = item.line_channel ?? item.media_type ?? item.mediaType
   return typeof raw === "string" && raw.trim() ? raw : undefined
@@ -503,6 +507,7 @@ export function buildProgrammaticChannelSection(input: {
     metrics.length > 0 && metrics.every((m) => m.spendModelledFromPlanRate)
   const allFixedCostReported =
     metrics.length > 0 && metrics.every((m) => m.spendFromFixedCostReport)
+  const someSpendModelled = metrics.some((m) => m.spendModelledFromPlanRate)
   const spendTitle = allSpendModelled
     ? MODELLED_SPEND_LABEL
     : allFixedCostReported
@@ -510,27 +515,45 @@ export function buildProgrammaticChannelSection(input: {
       : isOohChannel
         ? "Delivered spend"
         : "Spend delivery"
+  const spendChipLabel = allSpendModelled
+    ? MODELLED_SPEND_LABEL
+    : allFixedCostReported
+      ? FIXED_COST_SPEND_LABEL
+      : "Total spend"
+  const isCpvSection = normalized.length > 0 && normalized.every(isCpvBuyType)
 
   const aggregateTrack = deliveryStatusFromPct(aggregatePacing.deliverable?.pacingPct)
 
-  const avgPacingPct = (
-    metrics.reduce((s, m) => s + Number(m.pacing.spend.pacingPct ?? 0), 0) / Math.max(1, metrics.length)
-  ).toFixed(1)
+  const avgDeliveryPct =
+    bookedTotals.deliverables > 0 && aggregatePacing.deliverable
+      ? (aggregatePacing.deliverable.actualToDate / bookedTotals.deliverables) * 100
+      : 0
 
-  const summaryChips = isOohChannel
-    ? [
-        { label: "Planned", value: formatCurrency2dp(bookedTotals.spend) },
-        { label: "Impressions", value: formatWholeNumber(kpisRollup.impressions) },
-        { label: "Plays", value: formatWholeNumber(kpisRollup.conversions) },
-        { label: spendTitle, value: formatCurrency2dp(kpisRollup.spend) },
-        { label: "Pacing", value: `${avgPacingPct}%` },
-      ]
-    : [
-        { label: allSpendModelled ? MODELLED_SPEND_LABEL : allFixedCostReported ? FIXED_COST_SPEND_LABEL : "Total spend", value: formatCurrency2dp(kpisRollup.spend) },
-        { label: "Total impressions", value: formatWholeNumber(kpisRollup.impressions) },
-        { label: "Avg CPM", value: kpisRollup.cpm == null ? "—" : formatCurrency2dp(kpisRollup.cpm) },
-        { label: "Avg delivery", value: `${avgPacingPct}%` },
-      ]
+  const spendChip = {
+    label: spendChipLabel,
+    value: formatCurrency2dp(kpisRollup.spend),
+    ...(someSpendModelled && !allSpendModelled
+      ? { caption: "includes modelled spend" }
+      : {}),
+  }
+  const rateChip = isCpvSection
+    ? {
+        label: "Avg CPV",
+        value: kpisRollup.videoViews ? formatCurrency2dp(kpisRollup.cpv) : "—",
+      }
+    : {
+        label: "Avg CPM",
+        value: kpisRollup.cpm == null ? "—" : formatCurrency2dp(kpisRollup.cpm),
+      }
+  const summaryChips = [
+    spendChip,
+    { label: "Total impressions", value: formatWholeNumber(kpisRollup.impressions) },
+    rateChip,
+    { label: "Avg delivery", value: `${avgDeliveryPct.toFixed(1)}%` },
+    ...(isOohChannel
+      ? [{ label: "Plays", value: formatWholeNumber(kpisRollup.conversions) }]
+      : []),
+  ]
 
   const spendRatio =
     bookedTotals.spend > 0 ? Math.max(0, Math.min(1, aggregatePacing.spend.actualToDate / bookedTotals.spend)) : 0
@@ -609,9 +632,8 @@ export function buildProgrammaticChannelSection(input: {
     const dailyRows = m.actualsDaily.map((d) => ({
       date: d.date,
       amount_spent: Number(d.spend ?? 0),
-      ...(isVideoLine
-        ? { video_3s_views: Number(d.videoViews ?? 0) }
-        : { impressions: Number(d.impressions ?? 0) }),
+      impressions: Number(d.impressions ?? 0),
+      ...(isVideoLine ? { video_3s_views: Number(d.videoViews ?? 0) } : {}),
     }))
     const modelled = m.spendModelledFromPlanRate === true
     const fixedCostReported = m.spendFromFixedCostReport === true
@@ -707,11 +729,11 @@ export function buildProgrammaticChannelSection(input: {
       chart: {
         daily: aggregateDailyRows(
           accordionItems.flatMap((item) => (item.block.chart.kind === "daily-delivery" ? item.block.chart.daily : [])),
-          snowflakeChannel === "programmatic-video"
+          isCpvSection
             ? ["amount_spent", "video_3s_views"]
             : ["amount_spent", "impressions"],
         ),
-        series: snowflakeChannel === "programmatic-video"
+        series: isCpvSection
           ? [
               { key: "amount_spent", label: "Spend", yAxis: "left" },
               { key: "video_3s_views", label: "Views", yAxis: "right" },
