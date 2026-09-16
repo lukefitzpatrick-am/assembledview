@@ -63,6 +63,41 @@ export function resolveListAssigneeEmail(opts: {
 
 export type TasksFilterView = "list" | "board"
 
+/** Last chosen layout. Convenience only — URL `view=` still wins. */
+export const TASKS_LAYOUT_STORAGE_KEY = "codex.tasksLayout"
+
+export function parseTasksLayoutValue(
+  raw: string | null | undefined
+): TasksFilterView | null {
+  const view = raw?.trim().toLowerCase()
+  return view === "list" || view === "board" ? view : null
+}
+
+export function resolveTasksFilterView(
+  urlRaw: string | null | undefined,
+  storedRaw?: string | null
+): TasksFilterView {
+  return parseTasksLayoutValue(urlRaw) ?? parseTasksLayoutValue(storedRaw) ?? "board"
+}
+
+export function readStoredTasksLayout(): TasksFilterView | null {
+  try {
+    if (typeof localStorage === "undefined") return null
+    return parseTasksLayoutValue(localStorage.getItem(TASKS_LAYOUT_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+export function writeStoredTasksLayout(view: TasksFilterView): void {
+  try {
+    if (typeof localStorage === "undefined") return
+    localStorage.setItem(TASKS_LAYOUT_STORAGE_KEY, view)
+  } catch {
+    // Preference is a convenience, not state.
+  }
+}
+
 export type TasksFilterParams = {
   mbaNumber: string | null
   clientId: string | null
@@ -80,9 +115,12 @@ export type TasksFilterParams = {
  * Compact toolbar + deep-link filters for `/tasks`.
  * Existing `?mba=` / `?client=` behaviour is preserved.
  */
-export function parseTasksFilterParams(searchParams: {
-  get(name: string): string | null
-}): TasksFilterParams {
+export function parseTasksFilterParams(
+  searchParams: {
+    get(name: string): string | null
+  },
+  prefs?: { storedView?: string | null }
+): TasksFilterParams {
   const mbaRaw = searchParams.get("mba")?.trim() ?? ""
   const clientRaw = searchParams.get("client")?.trim() ?? ""
   const search = searchParams.get("q")?.trim() || null
@@ -91,8 +129,10 @@ export function parseTasksFilterParams(searchParams: {
   const statuses = parseStatusFilter(searchParams.get("status")) ?? null
   const all = searchParams.get("all") === "1" || searchParams.get("mine") === "0"
   const myWeek = searchParams.get("week") === "1"
-  const viewRaw = searchParams.get("view")?.trim().toLowerCase()
-  const view: TasksFilterView = viewRaw === "board" ? "board" : "list"
+  const view = resolveTasksFilterView(
+    searchParams.get("view"),
+    prefs?.storedView
+  )
   return {
     mbaNumber: mbaRaw.length > 0 ? mbaRaw : null,
     clientId:
@@ -145,7 +185,7 @@ export function serializeTasksFilterParams(filters: {
   if (statuses.length > 0 && !filters.myWeek) params.set("status", statuses.join(","))
   if (filters.myWeek) params.set("week", "1")
   else if (filters.mine === false) params.set("all", "1")
-  if (filters.view === "board") params.set("view", "board")
+  if (filters.view === "list") params.set("view", "list")
   return params.toString()
 }
 

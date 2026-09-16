@@ -80,7 +80,10 @@ import {
 } from "@/lib/codex/quickAddParse"
 import {
   parseTasksFilterParams,
+  parseTasksLayoutValue,
+  readStoredTasksLayout,
   serializeTasksFilterParams,
+  writeStoredTasksLayout,
 } from "@/lib/codex/queryHelpers"
 import {
   STATUSES,
@@ -227,6 +230,15 @@ export function TasksPageClient({
   const [tasksLayout, setTasksLayout] = useState<"list" | "board">(
     urlFilters.view
   )
+  const appliedStoredLayout = useRef(false)
+
+  useEffect(() => {
+    if (appliedStoredLayout.current) return
+    appliedStoredLayout.current = true
+    if (parseTasksLayoutValue(searchParams.get("view"))) return
+    const stored = readStoredTasksLayout()
+    if (stored) setTasksLayout(stored)
+  }, [searchParams])
 
   const [tasks, setTasks] = useState<CodexTask[]>([])
   const [itemsTotal, setItemsTotal] = useState(0)
@@ -1746,7 +1758,10 @@ export function TasksPageClient({
               if (allTasks) setAssigneeEmail("")
             }}
             onMyWeek={(on) => applyMyWeek(on)}
-            onLayout={setTasksLayout}
+            onLayout={(v) => {
+              writeStoredTasksLayout(v)
+              setTasksLayout(v)
+            }}
             onClearAll={clearTaskFilters}
           />
 

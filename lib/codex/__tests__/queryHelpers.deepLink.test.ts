@@ -51,6 +51,37 @@ test("serializeTasksFilterParams round-trips and keeps ?mba=", () => {
   assert.equal(parsed.view, "board")
   assert.equal(parsed.mine, false)
   assert.match(qs, /mba=KRUSTY001/)
+  assert.doesNotMatch(qs, /view=/)
+})
+
+test("tasks view defaults to board when no view param is present", () => {
+  const parsed = parseTasksFilterParams(new URLSearchParams())
+  assert.equal(parsed.view, "board")
+})
+
+test("stored list wins over the board default when the URL has no view", () => {
+  const parsed = parseTasksFilterParams(new URLSearchParams(), {
+    storedView: "list",
+  })
+  assert.equal(parsed.view, "list")
+})
+
+test("explicit URL view wins over the stored layout", () => {
+  const listUrl = parseTasksFilterParams(new URLSearchParams("view=list"), {
+    storedView: "board",
+  })
+  assert.equal(listUrl.view, "list")
+  const boardUrl = parseTasksFilterParams(new URLSearchParams("view=board"), {
+    storedView: "list",
+  })
+  assert.equal(boardUrl.view, "board")
+})
+
+test("serializeTasksFilterParams writes view=list and omits the board default", () => {
+  const listQs = serializeTasksFilterParams({ view: "list" })
+  assert.equal(listQs, "view=list")
+  const boardQs = serializeTasksFilterParams({ view: "board" })
+  assert.equal(boardQs, "")
 })
 
 test("parseMbaNumbersQuery preserves order and uniqueness", () => {
