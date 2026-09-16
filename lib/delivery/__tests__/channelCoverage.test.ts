@@ -287,13 +287,14 @@ test("BVOD glance card sums CM360 impressions and planned deliverables from line
     progressCard("Impressions delivery", "124,600", "ahead", "Delivered 124,600 · Planned 164,286"),
   ]
   const daily = [{ date: "2026-02-01", impressions: 1_000 }]
-  const lineItems = ["bicau002bv1", "bicau002bv2", "bicau002bv3"].map((id, i) => ({
+  const lineIds = ["bicau002bv1", "bicau002bv2", "bicau002bv3"] as const
+  const lineItems: ChannelSectionData["lineItems"] = lineIds.map((id, i) => ({
     id,
     block: {
       name: id,
       progressCards: [lineCards[i]!, clicks],
       kpiBand: { tiles: [] },
-      chart: { kind: "daily-delivery" as const, daily, series: [], asAtDate: null },
+      chart: { kind: "daily-delivery", daily, series: [], asAtDate: null },
     },
   }))
   const entries = channelCoverage({
