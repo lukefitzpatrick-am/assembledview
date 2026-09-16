@@ -52,3 +52,28 @@ test("weekly todayWeek lands on a sun-week index", () => {
     assert.ok(gantt!.todayWeek < gantt!.weeks)
   }
 })
+
+test("future-start line bar reads Starts {d MMM}", () => {
+  const gantt = reshapeLineItemsToMediaGantt(
+    {
+      search: [
+        item({
+          bursts: [
+            {
+              startDate: "2099-03-15",
+              endDate: "2099-04-20",
+              deliverables: 5000,
+              deliverablesAmount: 5000,
+              budget: 10_000,
+            },
+          ],
+        }),
+      ],
+    },
+    "2099-01-01",
+    "2099-12-31",
+    "weekly",
+  )
+  assert.ok(gantt)
+  assert.equal(gantt!.rows[0]?.bursts[0]?.label, "Starts 15 Mar")
+})

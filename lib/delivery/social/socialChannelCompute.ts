@@ -708,11 +708,11 @@ export type ActualKpis = {
   clicks: number
   results: number
   video_3s_views: number
-  cpm: number
-  ctr: number
-  cvr: number
-  cpc: number
-  cost_per_result: number
+  cpm: number | null
+  ctr: number | null
+  cvr: number | null
+  cpc: number | null
+  cost_per_result: number | null
   cpv: number
   view_rate: number
 }
@@ -730,11 +730,11 @@ export function summarizeActuals(rows: (ActualsDaily | (ActualsDaily & { video3s
     { spend: 0, impressions: 0, clicks: 0, results: 0, video_3s_views: 0 }
   )
 
-  const cpm = totals.impressions ? (totals.spend / totals.impressions) * 1000 : 0
-  const ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : 0
-  const cvr = totals.impressions ? (totals.results / totals.impressions) * 100 : 0
-  const cpc = totals.clicks ? totals.spend / totals.clicks : 0
-  const cost_per_result = totals.results ? totals.spend / totals.results : 0
+  const cpm = totals.impressions ? (totals.spend / totals.impressions) * 1000 : null
+  const ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : null
+  const cvr = totals.impressions ? (totals.results / totals.impressions) * 100 : null
+  const cpc = totals.clicks ? totals.spend / totals.clicks : null
+  const cost_per_result = totals.results ? totals.spend / totals.results : null
   const cpv = totals.video_3s_views ? totals.spend / totals.video_3s_views : 0
   const view_rate = totals.impressions
     ? (totals.video_3s_views / totals.impressions) * 100

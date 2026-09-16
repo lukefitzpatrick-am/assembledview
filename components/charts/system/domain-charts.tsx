@@ -12,6 +12,7 @@
  */
 import * as React from 'react';
 import { round } from '@/lib/chart-utils';
+import { wrapGanttLabel } from '@/lib/charts/wrapGanttLabel';
 import { CHART_PALETTE, CHANNEL_COLORS, SEQUENTIAL, NEUTRAL, STATUS, fmt } from '@/lib/chart-theme';
 
 const INK = NEUTRAL.ink, MUTED = NEUTRAL.axis, MID = NEUTRAL.label, GRID = NEUTRAL.grid;
@@ -48,29 +49,6 @@ export interface MediaGanttProps {
   className?: string;
 }
 
-function wrapLabel(text: string, maxChars: number, maxLines: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word;
-    if (candidate.length <= maxChars || !current) {
-      current = candidate;
-    } else {
-      lines.push(current);
-      current = word;
-      if (lines.length === maxLines - 1) break;
-    }
-  }
-  if (current && lines.length < maxLines) lines.push(current);
-  const joined = lines.join(" ");
-  if (joined.length < text.length && lines.length > 0) {
-    const last = lines[lines.length - 1];
-    lines[lines.length - 1] = last.length > maxChars - 1 ? `${last.slice(0, maxChars - 1)}…` : `${last}…`;
-  }
-  return lines;
-}
-
 export function MediaGanttChart({
   rows, weeks = 24, months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
   weeksPerMonth = 4, monthBands, todayWeek = null, rowHeight = 56, className,
@@ -78,7 +56,7 @@ export function MediaGanttChart({
   const [tip, setTip] = React.useState<{ x: number; y: number; label: string; sub?: string } | null>(null);
   const hostRef = React.useRef<HTMLDivElement>(null);
   const gutterClipId = `gantt-gutter-clip-${React.useId().replace(/:/g, "")}`;
-  const W = 1180, headH = 44, padL = 230, x1 = W - 16;
+  const W = 1180, headH = 44, padL = 360, x1 = W - 16;
   const H = headH + rows.length * rowHeight + 8;
   const weekW = (x1 - padL) / weeks;
   const wx = (w: number) => padL + weekW * w;
@@ -105,7 +83,7 @@ export function MediaGanttChart({
   rows.forEach((row, ri) => {
     const y = headH + ri * rowHeight;
     const color = row.color ?? CHANNEL_COLORS[(row.sub ?? '').toLowerCase()] ?? CHART_PALETTE[ri % CHART_PALETTE.length];
-    const primaryLines = wrapLabel(row.label, 30, 2);
+    const primaryLines = wrapGanttLabel(row.label);
     labelEls.push(<rect key={`sw${ri}`} x={14} y={round(y + rowHeight / 2 - 7)} width={4} height={14} rx={2} fill={color} />);
     if (primaryLines.length === 1) {
       labelEls.push(<text key={`rl${ri}-0`} x={26} y={round(y + rowHeight / 2 - 4)} fontSize={12} fontWeight={700} fill={INK}>{primaryLines[0]}</text>);
@@ -138,7 +116,9 @@ export function MediaGanttChart({
           setTip({ x: e.clientX - host.left, y: e.clientY - host.top, label: row.label, sub: row.sub });
         }}
         onMouseLeave={() => setTip(null)}
-      />,
+      >
+        <title>{row.label}</title>
+      </rect>,
     );
   });
   if (todayWeek != null) {

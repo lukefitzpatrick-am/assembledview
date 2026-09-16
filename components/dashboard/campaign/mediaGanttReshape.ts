@@ -18,6 +18,7 @@ import {
   groupByLineItemId,
   type NormalisedLineItem,
 } from "@/lib/mediaplan/normalizeLineItem"
+import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 
 export type MediaGanttGranularity = "weekly" | "monthly"
 
@@ -160,6 +161,7 @@ export function reshapeLineItemsToMediaGantt(
     groupedItems.forEach((item) => {
       const bursts: GanttBurst[] = []
       let rowMaxDeliverables = 0
+      let earliestStart: Date | null = null
 
       const pendingBursts: Array<{ burst: GanttBurst; deliverables: number }> = []
 
@@ -173,6 +175,7 @@ export function reshapeLineItemsToMediaGantt(
         const clampedEnd = clampDate(barEnd, start, end)
         const deliverables = safeNumber(burst.deliverables ?? 0)
         rowMaxDeliverables = Math.max(rowMaxDeliverables, deliverables)
+        if (!earliestStart || barStart < earliestStart) earliestStart = barStart
 
         let startWeek: number
         let endWeek: number
@@ -199,10 +202,18 @@ export function reshapeLineItemsToMediaGantt(
 
       if (pendingBursts.length === 0) return
 
+      const todayISO = getMelbourneTodayISO()
+      const startsAfterToday =
+        earliestStart != null && format(earliestStart, "yyyy-MM-dd") > todayISO
+      const startLabel = startsAfterToday && earliestStart
+        ? `Starts ${format(earliestStart, "d MMM")}`
+        : undefined
+
       const intensityBase = rowMaxDeliverables > 0 ? rowMaxDeliverables : 1
       pendingBursts.forEach(({ burst, deliverables }) => {
         bursts.push({
           ...burst,
+          label: startLabel ?? burst.label,
           intensity:
             deliverables > 0 ? Math.max(0.35, deliverables / intensityBase) : 0.75,
         })

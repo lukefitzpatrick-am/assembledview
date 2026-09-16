@@ -32,6 +32,7 @@ export default defineConfig({
       "lib/dashboard/__tests__/mediaMixFromDeliverySchedule.test.ts",
       "lib/dashboard/__tests__/plannedSpendConsistency.test.ts",
       "lib/dashboard/__tests__/spendInsightsCaptions.test.ts",
+      "lib/charts/__tests__/wrapGanttLabel.test.ts",
       "lib/api/dashboard/__tests__/client.test.ts",
       "lib/pacing/__tests__/statusUi.test.ts",
       "components/pacing/__tests__/PacingStatusSummary.test.tsx",
