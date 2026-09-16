@@ -14,16 +14,27 @@ import {
   skillsContentDir,
 } from "../registry.js"
 
-test("skills: all 11 load with frontmatter, unique ids, chained brain", () => {
+test("skills: all 12 load with frontmatter, unique ids, chained brain", () => {
   __resetSkillRegistryCacheForTests()
   const entries = loadSkillRegistry()
-  assert.equal(entries.length, 11)
+  assert.equal(entries.length, 12)
 
   const ids = entries.map((e) => e.id)
-  assert.equal(new Set(ids).size, 11)
+  assert.equal(new Set(ids).size, 12)
   assert.ok(ids.includes(MARKETING_BRAIN_ID))
   assert.ok(ids.includes("assembled-performance-review-report"))
+  assert.ok(ids.includes("assembled-campaign-read"))
   assert.ok(ids.includes("assembled-media-plan-autopopulate"))
+
+  const campaignRead = entries.find((e) => e.id === "assembled-campaign-read")
+  assert.ok(campaignRead)
+  assert.deepEqual(campaignRead.pairedTools, [
+    "get_campaign_context",
+    "get_delivery_snapshot",
+    "get_pacing_snapshot",
+    "get_campaign_insights",
+  ])
+  assert.ok(campaignRead.references.some((r) => r.name === "voice.md"))
 
   for (const entry of entries) {
     assert.ok(entry.version, `${entry.id} version`)

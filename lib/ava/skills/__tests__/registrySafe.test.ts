@@ -41,6 +41,6 @@ test("loadSkillRegistrySafe quarantines a malformed skill and keeps the rest", (
 test("loadSkillRegistry (strict) still loads real content", () => {
   __resetSkillRegistryCacheForTests()
   const entries = loadSkillRegistry()
-  assert.equal(entries.length, 11)
+  assert.equal(entries.length, 12)
   assert.ok(entries.every((e) => e.body.trim()))
 })

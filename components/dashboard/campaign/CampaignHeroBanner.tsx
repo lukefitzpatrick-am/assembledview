@@ -36,6 +36,7 @@ interface CampaignHeroBannerProps {
   onDownload: () => void
   campaignStart?: string
   campaignEnd?: string
+  onAskRead?: () => void
 }
 
 function parseCampaignDate(value: string): Date | null {
@@ -103,6 +104,7 @@ export default function CampaignHeroBanner({
   onDownload,
   campaignStart,
   campaignEnd,
+  onAskRead,
 }: CampaignHeroBannerProps) {
   const subtitle = campaign.brand ? `${campaign.clientName} • ${campaign.brand}` : campaign.clientName
   const budget = Number(campaign.budget ?? 0) || 0
@@ -165,7 +167,7 @@ export default function CampaignHeroBanner({
             <Download className="h-3.5 w-3.5" aria-hidden />
             Downloads
           </Button>
-          <AvaCampaignReadAction />
+          <AvaCampaignReadAction onActivate={onAskRead} />
         </div>
       </div>
     </PageHeroShell>

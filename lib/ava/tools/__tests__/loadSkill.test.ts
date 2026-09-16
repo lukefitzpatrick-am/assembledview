@@ -51,7 +51,7 @@ test("load_skill: unknown skill and missing reference error", () => {
 test("load_skill: admin gate", async () => {
   const denied = await loadSkillTool.execute(
     { skillId: "assembled-meta-copy" },
-    { ...adminCtx, roles: ["admin"] },
+    { ...adminCtx, roles: ["client"] },
   )
   assert.equal(denied.isError, true)
 
@@ -74,4 +74,17 @@ test("skill guidance mentions one skill per turn and paired tools", () => {
   assert.match(AVA_SKILL_GUIDANCE, /visible user message/i)
   assert.match(AVA_SKILL_GUIDANCE, /four questions/i)
   assert.match(AVA_SKILL_GUIDANCE, /omitted context rings/i)
+  assert.match(AVA_SKILL_GUIDANCE, /assembled-campaign-read/)
+})
+
+test("load_skill: campaign read includes voice reference and paired tools", () => {
+  const payload = buildLoadSkillPayload("assembled-campaign-read", "voice")
+  assert.ok(!("error" in payload && payload.error))
+  assert.equal(payload.skillId, "assembled-campaign-read")
+  assert.equal(payload.chainedDecisionRules, true)
+  assert.equal(payload.loadedReference, "voice.md")
+  assert.ok(payload.pairedTools?.includes("get_delivery_snapshot"))
+  assert.ok(payload.pairedTools?.includes("get_pacing_snapshot"))
+  assert.ok(payload.pairedTools?.includes("get_campaign_insights"))
+  assert.ok(payload.content?.includes("Nothing to report yet."))
 })

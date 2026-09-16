@@ -109,6 +109,16 @@ const SKILL_META: Record<
       "generate_performance_report",
     ],
   },
+  "assembled-campaign-read": {
+    title: "Campaign read",
+    chains: [MARKETING_BRAIN_ID],
+    pairedTools: [
+      "get_campaign_context",
+      "get_delivery_snapshot",
+      "get_pacing_snapshot",
+      "get_campaign_insights",
+    ],
+  },
   "assembled-media-plan-autopopulate": {
     title: "Media-plan auto-populate",
     chains: [MARKETING_BRAIN_ID],

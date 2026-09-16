@@ -21,6 +21,7 @@ import { clearAssistantContext, setAssistantContext } from "@/lib/assistantBridg
 import type { PageContext } from "@/lib/ava/types"
 
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
+import { CampaignReadSection } from "@/components/dashboard/campaign/CampaignReadSection"
 import { CampaignStatusStrip } from "@/components/dashboard/campaign/CampaignStatusStrip"
 import { ChannelsAtAGlance } from "@/components/dashboard/campaign/ChannelsAtAGlance"
 import { KpiReview } from "@/components/dashboard/campaign/KpiReview"
@@ -259,6 +260,7 @@ function filterLineItemsByBurstWindow(
 
 export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [readRegenToken, setReadRegenToken] = useState(0)
   const [coverage, setCoverage] = useState<ChannelCoverageEntry[]>([])
   const [kpiReviewGroups, setKpiReviewGroups] = useState<KpiReviewGroup[]>([])
   const [deliveredByLineId, setDeliveredByLineId] = useState<Map<string, number>>(() => new Map())
@@ -706,10 +708,25 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               onDownload={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
               campaignStart={campaignStartISO ?? startDate ?? undefined}
               campaignEnd={campaignEndISO ?? endDate ?? undefined}
+              onAskRead={() => setReadRegenToken((n) => n + 1)}
             />
           </div>
         </Suspense>
       </SectionBoundary>
+
+      <section className="mt-6">
+        <SectionBoundary title="Campaign read">
+          <div className="campaign-section-enter" style={{ animationDelay: "40ms" }}>
+            <CampaignReadSection
+              mbaNumber={mbaNumber}
+              versionNumber={currentVersion}
+              clientSlug={slug}
+              isAdmin={Boolean(isAdmin)}
+              regenerateToken={readRegenToken}
+            />
+          </div>
+        </SectionBoundary>
+      </section>
 
       <section className="mt-6">
         <SectionBoundary title="Planned audience">

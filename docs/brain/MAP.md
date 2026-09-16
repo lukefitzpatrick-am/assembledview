@@ -26,7 +26,7 @@ Rule of direction: **L5 never talks to L2.** A page calls an API route or a serv
 | 1 | [Media plans](#1-media-plans) | `/mediaplans` | `components/media-containers/`, `components/mediaplans/` | `lib/mediaplan/`, `lib/mediaplans/`, `lib/data/` | `/api/mediaplans`, `/api/media_plans`, `/api/plans` | `media_plan_masters`, `media_plan_versions`, `line_items`, `schedule_months` |
 | 2 | [Finance & billing](#2-finance--billing) | `/finance` | `components/finance/`, `components/billing/` | `lib/finance/`, `lib/billing/`, `lib/xero/` | `/api/finance`, `/api/billing-overrides` | `finance_periods`, `finance_run_items`, `finance_billing_*`, `xero_*` |
 | 3 | [Pacing & delivery](#3-pacing--delivery) | `/pacing` | `components/pacing*/` | `lib/pacing/`, `lib/snowflake/`, `lib/delivery/` | `/api/pacing` | Snowflake `MART.*` + `line_items` |
-| 4 | [Client dashboards](#4-client-dashboards) | `/dashboard/[slug]` | `components/dashboard/`, `components/charts/` | `lib/dashboard/`, `lib/charts/`, `lib/spend/` | `/api/dashboard`, `/api/campaigns` | `media_plan_*`, `schedule_months`, `campaign_insights` |
+| 4 | [Client dashboards](#4-client-dashboards) | `/dashboard/[slug]` | `components/dashboard/`, `components/charts/` | `lib/dashboard/`, `lib/charts/`, `lib/spend/`, `lib/campaign-read/` | `/api/dashboard`, `/api/campaigns`, `/api/campaign-reads` | `media_plan_*`, `schedule_months`, `campaign_insights`, `campaign_reads` |
 | 5 | [KPI](#5-kpi) | (inside plan + pacing) | `components/kpis/` | `lib/kpi/` | `/api/kpis` | `campaign_kpi`, `client_kpi`, `publisher_kpi` |
 | 6 | [Trafficking & creative](#6-trafficking--creative) | `/creative`, `/mediaplans/mba/[mba]/trafficking` | `components/creative/`, `components/trafficking/` | `lib/naming/`, `lib/creative/` | `/api/creative-assets`, `/api/naming` | `creative_asset` |
 | 7 | [Publishers & specs](#7-publishers-specs--ingest) | `/publishers` | `components/specs/`, `components/ingest/` | `lib/publisher/`, `lib/specs/` | `/api/publishers`, `/api/admin/ingest` | `publishers`, `publisher_profiles`, `publisher_value_synonyms`, `publisher_specs`, `ingest_*`, `line_item_panels` |
@@ -109,7 +109,7 @@ This is the client-facing surface. Client-role users are confined here by `middl
 
 Spend on these pages derives from `schedule_months`, not from live platform data. Client-hub Plan committed is elapsed planned in the date window ÷ planned in the window (`computePlannedSpendTotals`) — not the window total ÷ itself.
 
-Campaign MBA compositor is `CampaignPageAssembly`. Layout contract (section order, `CampaignStatusStrip`, `ChannelsAtAGlance`, Connecting, null-KPI) lives in the dashboards module.
+Campaign MBA compositor is `CampaignPageAssembly`. Layout contract (section order, Campaign read, `CampaignStatusStrip`, `ChannelsAtAGlance`, Connecting, null-KPI) lives in the dashboards module. `campaign_reads` is draft-until-publish (0079 AUTHOR ONLY).
 
 → `modules/dashboards-charts-exports.md`
 
@@ -172,7 +172,7 @@ Client-accessible learning centre. Content is file-driven from `src/data/learnin
 - `lib/ava/agentLoop.ts` — the tool loop
 - `lib/ava/tools/registry.ts` — the tool surface (~32 tools: `getCampaignContext`, `queryCampaignLines`, `queryScheduleMonths`, `queryFinanceSummary`, `getPacingSnapshot`, `applyFormPatch`, `adjustLineItems`, `calculateMediaMath`, `loadIngestIntoForm`, `acceptIngestProposal`, `saveClientBrain`, `generatePerformanceReport`, …). Offer of `accept_ingest_proposal` is surface-aware (`avaToolDefinitionsForPage`).
 - `lib/ava/applyIngestLineItemsLoad.ts` — create/edit `handleSetLineItems`: enable channel flag if off, dual-write hydration on edit, scroll to the section. Partial MBA unions loaded billing-stable ids into the channel selected set (all-in).
-- `lib/ava/skills/registry.ts` — skill guidance loaded on demand
+- `lib/ava/skills/registry.ts` — skill guidance loaded on demand. `assembled-campaign-read` writes the dashboard six-beat read via `POST /api/campaign-reads/generate`.
 - `src/ava/systemPrompt.ts` + `voiceSpec.ts` + `docs/brain/AVA-VOICE.md` — voice
 - `db/avaClient.ts` + `AVA_DATABASE_URL` — a **separate connection as role `ava_readonly`**, fail-closed with an explicit per-table `GRANT SELECT` allowlist. Adding a table to AVA is a migration, not a code change.
 - Pages publish `PageContext` to `window.__AV_ASSISTANT__` via `lib/assistantBridge.ts`.

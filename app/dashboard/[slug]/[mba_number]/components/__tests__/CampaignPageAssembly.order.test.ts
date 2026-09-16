@@ -20,6 +20,7 @@ describe("CampaignPageAssembly section order", () => {
   it("places Delivery before Media plan and The plan", () => {
     expect(sectionBoundaryTitles(source)).toEqual([
       "Campaign hero",
+      "Campaign read",
       "Planned audience",
       "Where we are",
       "Channels at a glance",

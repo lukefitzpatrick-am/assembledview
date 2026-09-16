@@ -80,12 +80,17 @@ export function AvaCampaignCommentaryAction() {
   )
 }
 
-export function AvaCampaignReadAction() {
+export function AvaCampaignReadAction({
+  onActivate,
+}: {
+  onActivate?: () => void
+} = {}) {
   return (
     <AvaSkillAction
       label="Get AVA's read"
       message={AVA_SKILL_MESSAGES.campaignRead}
       className="h-9 min-w-[7.5rem] justify-center rounded-pill border-border bg-card shadow-e0"
+      onActivate={onActivate}
     />
   )
 }

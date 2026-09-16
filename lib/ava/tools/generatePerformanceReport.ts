@@ -17,6 +17,7 @@ import {
 } from "@/lib/reports/storePerformanceReport"
 import { listCampaignInsights } from "@/lib/insights/queryCampaignInsights"
 import { findUnattributedPriorRestatement } from "@/lib/insights/priorInsightGuard"
+import { getPublishedCampaignRead } from "@/lib/campaign-read/repo"
 import { getDeliverySnapshotTool } from "./getDeliverySnapshot"
 import { asRecord, asString, jsonContent, resolveScopedMba } from "./helpers"
 
@@ -365,6 +366,23 @@ export const generatePerformanceReportTool: AvaTool = {
       deliverySpend: hard.deliverySpend,
       deliveryDeliverables: hard.deliveryDeliverables,
       kpis: hard.kpis,
+    }
+
+    const versionHint =
+      context.versionNumber
+      ?? context.pageContext?.entities?.versionNumber
+    if (typeof versionHint === "number" && Number.isFinite(versionHint)) {
+      try {
+        const published = await getPublishedCampaignRead(scopedMba.mba, versionHint)
+        if (published?.bodyMarkdown) {
+          payload.execSummary = published.bodyMarkdown
+        }
+      } catch (readErr) {
+        console.error("[generate_performance_report] campaign read load failed", {
+          mbaNumber: scopedMba.mba,
+          error: readErr instanceof Error ? readErr.message : String(readErr),
+        })
+      }
     }
 
     const skipInsightPersist = args.preview === true || args.dryRun === true

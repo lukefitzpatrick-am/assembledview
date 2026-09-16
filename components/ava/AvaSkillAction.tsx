@@ -19,6 +19,8 @@ type AvaSkillActionProps = {
   size?: "sm" | "default"
   /** When set, the control is disabled and the reason is shown in a tooltip. */
   disabledReason?: string
+  /** When set, runs instead of opening AVA chat. */
+  onActivate?: () => void
 }
 
 /**
@@ -32,6 +34,7 @@ export function AvaSkillAction({
   variant = "outline",
   size = "sm",
   disabledReason,
+  onActivate,
 }: AvaSkillActionProps) {
   const { isAdmin, isLoading } = useAuthContext()
   if (isLoading || !isAdmin) return null
@@ -48,6 +51,10 @@ export function AvaSkillAction({
       title={disabledReason}
       onClick={() => {
         if (disabled) return
+        if (onActivate) {
+          onActivate()
+          return
+        }
         openAvaChat({ message })
       }}
     >

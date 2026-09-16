@@ -76,6 +76,8 @@ const payload: CampaignReportPayload = {
   ],
   commentaryPlaceholder:
     "PLACEHOLDER: insight commentary will be written by the assembled-insight-commentary skill after delivery review. Do not treat this slide as final client copy.",
+  hasPublishedCampaignRead: false,
+  readAsAt: null,
 }
 
 async function main() {

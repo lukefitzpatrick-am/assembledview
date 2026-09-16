@@ -82,6 +82,7 @@ const nextConfig = {
     "/api/planning/export-deck": ["./lib/planning/export/assets/**"],
     "/api/planning/insight": ["./lib/ava/skills/content/**"],
     "/api/chat-v2": ["./lib/ava/skills/content/**"],
+    "/api/campaign-reads/generate": ["./lib/ava/skills/content/**"],
   },
   webpack: (config, { isServer, dev }) => {
     config.resolve.extensionAlias = { ".js": [".js", ".ts", ".tsx"] }

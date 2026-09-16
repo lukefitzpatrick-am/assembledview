@@ -269,11 +269,18 @@ export async function buildCampaignReportDeck(
     )
   })
 
-  // Commentary placeholder (AVA wiring is follow-up)
   pres.addSlide("tpl", 33, (slide) => {
-    setText(slide, "Title 1", "Commentary")
+    setText(slide, "Title 1", payload.hasPublishedCampaignRead ? "Campaign read" : "Commentary")
     setText(slide, "Text Placeholder 2", payload.commentaryPlaceholder)
-    setText(slide, "Text Placeholder 3", "Follow-up: wire assembled-insight-commentary.")
+    setText(
+      slide,
+      "Text Placeholder 3",
+      payload.hasPublishedCampaignRead
+        ? payload.readAsAt
+          ? `Read as at ${payload.readAsAt}`
+          : " "
+        : "Follow-up: wire assembled-insight-commentary.",
+    )
   })
 
   // End

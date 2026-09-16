@@ -5,6 +5,7 @@
  */
 import "server-only"
 
+import { getPublishedCampaignRead } from "@/lib/campaign-read/repo"
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import type { DeliveryChannelGroup } from "@/lib/ava/tools/summaries"
 import { fetchCampaignKpis } from "@/lib/kpi/campaignKpi"
@@ -84,8 +85,11 @@ export type CampaignReportPayload = {
   }
   channels: CampaignReportChannelRow[]
   kpis: CampaignReportKpiRow[]
-  /** Fixed placeholder for the commentary slide (AVA wiring is follow-up). */
+  /** Published campaign read markdown, or the unchanged placeholder when none. */
   commentaryPlaceholder: string
+  /** True when commentaryPlaceholder is a published campaign read. */
+  hasPublishedCampaignRead: boolean
+  readAsAt: string | null
 }
 
 function channelLabel(group: string): string {
@@ -212,7 +216,12 @@ export async function assembleCampaignReportData(
     ? clipWindowToCampaign(period.previous, input.campaignStartISO, input.campaignEndISO)
     : null
 
-  const [currentSnap, previousSnap, kpiRows] = await Promise.all([
+  const publishedReadPromise =
+    input.versionNumber != null && Number.isFinite(input.versionNumber)
+      ? getPublishedCampaignRead(mbaNumber, input.versionNumber)
+      : Promise.resolve(null)
+
+  const [currentSnap, previousSnap, kpiRows, publishedFromInput] = await Promise.all([
     loadDeliverySnapshot({
       mbaNumber,
       versionNumber: input.versionNumber,
@@ -232,7 +241,14 @@ export async function assembleCampaignReportData(
     input.versionNumber != null && Number.isFinite(input.versionNumber)
       ? fetchCampaignKpis(mbaNumber, input.versionNumber).catch(() => [] as CampaignKPI[])
       : Promise.resolve([] as CampaignKPI[]),
+    publishedReadPromise,
   ])
+
+  const publishedRead =
+    publishedFromInput
+    ?? (currentSnap.versionNumber != null && currentSnap.versionNumber !== input.versionNumber
+      ? await getPublishedCampaignRead(mbaNumber, currentSnap.versionNumber)
+      : null)
 
   const prevByGroup = previousSnap ? indexChannels(previousSnap.channels) : new Map()
   const channels: CampaignReportChannelRow[] = currentSnap.channels.map((ch) => {
@@ -298,7 +314,10 @@ export async function assembleCampaignReportData(
     },
     channels,
     kpis,
-    commentaryPlaceholder:
-      "PLACEHOLDER: insight commentary will be written by the assembled-insight-commentary skill after delivery review. Do not treat this slide as final client copy.",
+    commentaryPlaceholder: publishedRead
+      ? publishedRead.bodyMarkdown
+      : "PLACEHOLDER: insight commentary will be written by the assembled-insight-commentary skill after delivery review. Do not treat this slide as final client copy.",
+    hasPublishedCampaignRead: Boolean(publishedRead),
+    readAsAt: publishedRead?.publishedAt ?? publishedRead?.generatedAt ?? null,
   }
 }
