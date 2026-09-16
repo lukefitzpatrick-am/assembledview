@@ -31,11 +31,18 @@ function factRow(
   }
 }
 
-function buildSection(rows: PacingRow[], lineIds: string[]) {
+function buildSection(
+  rows: PacingRow[],
+  lineIds: string[],
+  extra?: {
+    lineItems?: unknown[]
+    reportedSpendByLineDate?: Map<string, Map<string, number>>
+  },
+) {
   return buildDirectDigitalChannelSection({
     key: "bvod",
     title: "BVOD",
-    lineItems: lineIds.map((id) => ({ line_item_id: id, buy_type: "cpm" })),
+    lineItems: extra?.lineItems ?? lineIds.map((id) => ({ line_item_id: id, buy_type: "cpm" })),
     combinedRows: rows,
     campaignStart: "2026-01-01",
     campaignEnd: "2026-12-31",
@@ -44,6 +51,7 @@ function buildSection(rows: PacingRow[], lineIds: string[]) {
     kpiVersionNumber: 1,
     lineItemTargets: undefined,
     lastSyncedAt: null,
+    reportedSpendByLineDate: extra?.reportedSpendByLineDate,
   })
 }
 
@@ -156,5 +164,88 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     assert.equal(day.completionRate, expected)
     assert.notEqual(day.completionRate, 50)
     assert.equal(day.impressions, 1100)
+  })
+
+  it("fixed-cost BVOD line with REPORTED_SPEND is labelled Reported spend (fixed cost)", () => {
+    const section = buildSection(
+      [
+        factRow({
+          lineItemId: LINE_A,
+          impressions: 50_000,
+          clicks: 10,
+        }),
+      ],
+      [LINE_A],
+      {
+        lineItems: [
+          {
+            line_item_id: LINE_A,
+            buy_type: "cpm",
+            fixedCostMedia: true,
+            budget: 6_500,
+          },
+        ],
+        reportedSpendByLineDate: new Map([
+          [
+            LINE_A,
+            new Map([
+              ["2026-03-01", 3221.16],
+            ]),
+          ],
+        ]),
+      },
+    )
+
+    assert.ok(section)
+    const spendCard = section.lineItems[0]?.block.progressCards.find((c) =>
+      /spend/i.test(c.title),
+    )
+    assert.ok(spendCard)
+    assert.equal(spendCard.title, "Reported spend (fixed cost)")
+    assert.equal(spendCard.value, "$3,221.16")
+    const keys = section.aggregate.chart.series.map((s) => s.key)
+    assert.ok(!keys.includes("amountSpent"))
+    assert.ok(!keys.includes("spend"))
+    assert.equal(section.aggregate.chart.daily[0]?.impressions, 50_000)
+  })
+
+  it("non-fixed-cost BVOD line keeps zero-$ and the CM360 no-spend label", () => {
+    const section = buildSection(
+      [
+        factRow({
+          lineItemId: LINE_A,
+          impressions: 50_000,
+          clicks: 10,
+          amountSpent: 99,
+        }),
+      ],
+      [LINE_A],
+      {
+        lineItems: [
+          {
+            line_item_id: LINE_A,
+            buy_type: "cpm",
+            fixedCostMedia: false,
+            budget: 6_500,
+          },
+        ],
+        reportedSpendByLineDate: new Map([
+          [LINE_A, new Map([["2026-03-01", 3221.16]])],
+        ]),
+      },
+    )
+
+    assert.ok(section)
+    const spendCard = section.lineItems[0]?.block.progressCards.find((c) =>
+      /spend/i.test(c.title),
+    )
+    assert.equal(spendCard, undefined)
+    assert.equal(
+      section.connections[0]?.label,
+      "Ad server verification (CM360) — delivery counts, no spend data",
+    )
+    assert.equal(section.aggregate.kpiBand.subtitle, "CM360 delivery counts — spend not applicable")
+    assert.equal(section.lineItems[0]?.block.progressCards[0]?.title, "Impressions delivery")
+    assert.equal(section.lineItems[0]?.block.progressCards[0]?.value, "50,000")
   })
 })

@@ -18,7 +18,7 @@ export type ChannelCoverageEntry = {
   colour: string
   plannedSpend: number
   plannedImpressions: number
-  /** Null when ZERO-$ LAW hides spend (CM360 without derive_spend_from_plan). */
+  /** Null when ZERO-$ LAW hides spend (CM360 without overlay or derive_spend_from_plan). */
   deliveredSpend: number | null
   deliveredImpressions: number
   status: ChannelCoverageStatus
@@ -291,9 +291,34 @@ function isViewsCardTitle(title: string | undefined): boolean {
   return /\bviews?\b/i.test(title)
 }
 
+function isSpendCardTitle(title: string | undefined): boolean {
+  return Boolean(title && /spend/i.test(title))
+}
+
+function isDeliverableCardTitle(title: string | undefined): boolean {
+  if (!title) return false
+  return isViewsCardTitle(title) || /impressions/i.test(title)
+}
+
 /** Direct digital adapters put impressions at [0] (clicks at [1]). Spend families put the deliverable at [1]. */
 function deliverableCardIndex(acc: Acc): number {
   return ZERO_SPEND_FAMILIES.has(acc.channelKey) ? 0 : 1
+}
+
+function pickSpendCard(
+  cards: Array<{ title?: string; detail?: string; value?: string; status?: DeliveryStatus }>,
+) {
+  return cards.find((card) => isSpendCardTitle(card.title))
+}
+
+function pickDeliverableCard(
+  acc: Acc,
+  cards: Array<{ title?: string; detail?: string; value?: string; status?: DeliveryStatus }>,
+) {
+  if (pickSpendCard(cards)) {
+    return cards.find((card) => isDeliverableCardTitle(card.title)) ?? cards[1]
+  }
+  return cards[deliverableCardIndex(acc)]
 }
 
 function deliverableCardsForGroup(
@@ -302,11 +327,10 @@ function deliverableCardsForGroup(
 ): Array<{ title?: string; detail?: string; value?: string; status?: DeliveryStatus }> {
   if (!section) return []
   const subset = matchingLineItems(section, acc.lineIds)
-  const idx = deliverableCardIndex(acc)
   if (subset.length > 0) {
-    return subset.map((row) => row.block.progressCards[idx] ?? {})
+    return subset.map((row) => pickDeliverableCard(acc, row.block.progressCards) ?? {})
   }
-  return [section.aggregate.progressCards[idx] ?? {}]
+  return [pickDeliverableCard(acc, section.aggregate.progressCards) ?? {}]
 }
 
 function plannedDeliverablesFromCards(acc: Acc, section: ChannelSectionData | undefined): number {
@@ -361,40 +385,47 @@ function deliveredFromCards(
     return { spend: 0, impressions: 0, deliveryStatus: null, impressionsStatus: null }
   }
   const subset = matchingLineItems(section, acc.lineIds)
-  const deliverableIdx = deliverableCardIndex(acc)
-  if (subset.length > 0) {
-    let spend = 0
-    let impressions = 0
-    let deliveryStatus: DeliveryStatus | null = null
-    let impressionsStatus: DeliveryStatus | null = null
-    for (const row of subset) {
-      const spendCard = row.block.progressCards[0]
-      const deliverableCard = row.block.progressCards[deliverableIdx]
-      spend += parseCardValue(spendCard?.value)
-      impressions += parseCardValue(deliverableCard?.value)
-      const status = spendHidden(acc) ? deliverableCard?.status : spendCard?.status
-      if (status && status !== "no-data") deliveryStatus = status
-      if (deliverableCard?.status && deliverableCard.status !== "no-data") {
-        impressionsStatus = deliverableCard.status
-      }
+  const hideSpend = spendHidden(acc, section)
+  const cardSets =
+    subset.length > 0
+      ? subset.map((row) => row.block.progressCards)
+      : [section.aggregate.progressCards]
+  let spend = 0
+  let impressions = 0
+  let deliveryStatus: DeliveryStatus | null = null
+  let impressionsStatus: DeliveryStatus | null = null
+  for (const cards of cardSets) {
+    const spendCard =
+      pickSpendCard(cards) ?? (ZERO_SPEND_FAMILIES.has(acc.channelKey) ? undefined : cards[0])
+    const deliverableCard = pickDeliverableCard(acc, cards)
+    spend += parseCardValue(spendCard?.value)
+    impressions += parseCardValue(deliverableCard?.value)
+    const status = hideSpend ? deliverableCard?.status : spendCard?.status
+    if (status && status !== "no-data") deliveryStatus = status
+    if (deliverableCard?.status && deliverableCard.status !== "no-data") {
+      impressionsStatus = deliverableCard.status
     }
-    return { spend, impressions, deliveryStatus, impressionsStatus }
   }
-  const spendCard = section.aggregate.progressCards[0]
-  const deliverableCard = section.aggregate.progressCards[deliverableIdx]
-  const deliveryStatus = spendHidden(acc)
-    ? (deliverableCard?.status ?? null)
-    : (spendCard?.status ?? deliverableCard?.status ?? null)
-  const impressionsStatus = deliverableCard?.status ?? null
   return {
-    spend: parseCardValue(spendCard?.value),
-    impressions: parseCardValue(deliverableCard?.value),
+    spend,
+    impressions,
     deliveryStatus: deliveryStatus === "no-data" ? null : deliveryStatus,
     impressionsStatus: impressionsStatus === "no-data" ? null : impressionsStatus,
   }
 }
 
-function spendHidden(acc: Acc): boolean {
+function groupHasReportedSpend(acc: Acc, section: ChannelSectionData | undefined): boolean {
+  if (!section) return false
+  const subset = matchingLineItems(section, acc.lineIds)
+  const cards =
+    subset.length > 0
+      ? subset.flatMap((row) => row.block.progressCards)
+      : section.aggregate.progressCards
+  return cards.some((card) => isSpendCardTitle(card.title))
+}
+
+function spendHidden(acc: Acc, section?: ChannelSectionData): boolean {
+  if (groupHasReportedSpend(acc, section)) return false
   if (ZERO_SPEND_FAMILIES.has(acc.channelKey)) return true
   if (acc.mapRow?.delivery_source === "cm360" && acc.mapRow.derive_spend_from_plan !== true) return true
   return false
@@ -511,7 +542,7 @@ export function channelCoverage(input: ChannelCoverageInput): ChannelCoverageEnt
     const hasFacts = groupHasFactRows(acc, section)
     const delivered = deliveredFromCards(acc, section)
     const status = resolveStatus(acc, hasFacts, input.todayISO)
-    const hideSpend = spendHidden(acc)
+    const hideSpend = spendHidden(acc, section)
     const modelled = acc.mapRow?.derive_spend_from_plan === true
     const plannedFromSection = plannedDeliverablesFromCards(acc, section)
     entries.push({

@@ -291,6 +291,7 @@ function CampaignDeliveryBody({
         lineItemTargets,
         brandColour,
         lastSyncedAt,
+        reportedSpendByLineDate,
       })
       if (s) out.push(s)
     }
@@ -307,6 +308,7 @@ function CampaignDeliveryBody({
         lineItemTargets,
         brandColour,
         lastSyncedAt,
+        reportedSpendByLineDate,
       })
       if (s) out.push(s)
     }
@@ -323,6 +325,7 @@ function CampaignDeliveryBody({
         lineItemTargets,
         brandColour,
         lastSyncedAt,
+        reportedSpendByLineDate,
       })
       if (s) out.push(s)
     }
@@ -339,6 +342,7 @@ function CampaignDeliveryBody({
         lineItemTargets,
         brandColour,
         lastSyncedAt,
+        reportedSpendByLineDate,
       })
       if (s) out.push(s)
     }

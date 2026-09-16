@@ -1,11 +1,13 @@
 import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
+import { formatMoney } from "@/lib/format/money"
 import { getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
+import { sumReportedSpend } from "@/lib/delivery/programmatic/applyReportedSpend"
 import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiTileProps } from "../shared/KpiTile"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
@@ -14,6 +16,10 @@ import type { DeliveryStatus } from "../shared/statusColours"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import { aggregateDailyRows } from "./aggregateDaily"
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
+
+const FIXED_COST_SPEND_LABEL = "Reported spend (fixed cost)"
+const CM360_NO_SPEND_CONNECTION =
+  "Ad server verification (CM360) — delivery counts, no spend data"
 
 type AdServingLineItem = {
   line_item_id?: string
@@ -25,6 +31,14 @@ type AdServingLineItem = {
   platform?: string
   bursts?: unknown
   bursts_json?: unknown
+  fixedCostMedia?: boolean
+  fixed_cost_media?: boolean
+  totalMedia?: unknown
+  grossMedia?: unknown
+  budget?: unknown
+  spend?: unknown
+  investment?: unknown
+  media_investment?: unknown
 }
 
 type DailyActuals = {
@@ -125,6 +139,32 @@ function burstDeliverables(burst: Record<string, unknown>): number {
   return Number.isFinite(n) && n > 0 ? n : 0
 }
 
+function moneyish(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value.replace(/[^0-9.-]/g, ""))
+    return Number.isFinite(n) ? n : 0
+  }
+  return 0
+}
+
+function isFixedCostMedia(item: AdServingLineItem): boolean {
+  return item.fixedCostMedia === true || item.fixed_cost_media === true
+}
+
+function bookedSpend(item: AdServingLineItem): number {
+  const rec = item as Record<string, unknown>
+  const n = moneyish(
+    rec.totalMedia ?? rec.grossMedia ?? rec.budget ?? rec.spend ?? rec.investment ?? rec.media_investment,
+  )
+  if (n > 0) return n
+  return parseBursts(item.bursts_json ?? item.bursts).reduce(
+    (sum, burst) =>
+      sum + moneyish(burst.budget ?? burst.media_amount ?? burst.mediaAmount ?? burst.totalMedia),
+    0,
+  )
+}
+
 /** Plan deliverable totals by buy type — impressions for CPM, clicks for CPC. */
 function bookedDeliverables(item: AdServingLineItem): { impressions: number; clicks: number } {
   const buy = String(item.buy_type ?? "")
@@ -189,6 +229,32 @@ function deliveryProgressCard(input: {
   }
 }
 
+function spendDeliveryProgressCard(input: {
+  title: string
+  actual: number
+  planned: number
+  sparkline: number[]
+  dense?: boolean
+}): ProgressCardProps {
+  const { title, actual, planned, sparkline, dense } = input
+  const hasGoal = planned > 0
+  const progress = hasGoal ? Math.max(0, Math.min(1, safeDiv(actual, planned))) : 0
+  const pacingPct = hasGoal ? safeDiv(actual, planned) * 100 : undefined
+  return {
+    title,
+    value: formatMoney(actual),
+    detail: hasGoal
+      ? `Delivered ${formatMoney(actual)} · Planned ${formatMoney(planned)}`
+      : `Delivered ${formatMoney(actual)} · No plan goal`,
+    progress,
+    variance: hasGoal ? pctVarianceFromPacingPct(pacingPct) : 0,
+    varianceLabel: hasGoal ? "vs plan spend" : "reported spend",
+    status: hasGoal ? deliveryStatusFromPct(pacingPct) : "no-data",
+    sparkline,
+    dense,
+  }
+}
+
 function normalizeAdServingLineItems(items: unknown[] | undefined): AdServingLineItem[] {
   const arr = Array.isArray(items) ? items : []
   return arr.flatMap((item) => {
@@ -200,8 +266,9 @@ function normalizeAdServingLineItems(items: unknown[] | undefined): AdServingLin
 }
 
 /**
- * Direct Booked Digital (CM360 verification). ZERO-$ LAW: never surfaces spend
- * pacing, CPM/CPC/CPA, or computeStatus (spend=0 → fake no_delivery).
+ * Direct Booked Digital (CM360 verification). ZERO-$ LAW: never surfaces
+ * platform spend. Fixed-cost lines overlay REPORTED_SPEND from
+ * FIXED_COST_REPORTED_DAILY_FACT when `reportedSpendByLineDate` has entries.
  */
 export function buildDirectDigitalChannelSection(input: {
   key: ChannelKey
@@ -216,6 +283,7 @@ export function buildDirectDigitalChannelSection(input: {
   lineItemTargets: Map<string, CampaignKPI> | undefined
   brandColour?: string
   lastSyncedAt: Date | null
+  reportedSpendByLineDate?: Map<string, Map<string, number>>
 }): ChannelSectionData | null {
   const {
     key,
@@ -229,6 +297,7 @@ export function buildDirectDigitalChannelSection(input: {
     lineItemTargets,
     brandColour,
     lastSyncedAt,
+    reportedSpendByLineDate,
   } = input
   // filterRange reserved for future date-window clipping (parity with other adapters)
   void input.filterRange
@@ -284,7 +353,20 @@ export function buildDirectDigitalChannelSection(input: {
       { impressions: 0, clicks: 0, results: 0, videoCompletes: 0 },
     )
     const booked = bookedDeliverables(item)
-    return { item, id, daily, totals, booked, matched }
+    const reportedByDate = isFixedCostMedia(item) ? reportedSpendByLineDate?.get(id) : undefined
+    const hasReportedEntries = Boolean(reportedByDate && reportedByDate.size > 0)
+    return {
+      item,
+      id,
+      daily,
+      totals,
+      booked,
+      bookedSpend: bookedSpend(item),
+      matched,
+      hasReportedEntries,
+      reportedTotal: hasReportedEntries ? sumReportedSpend(reportedByDate) : 0,
+      reportedByDate,
+    }
   })
 
   // Drop plan-only orphans with zero matched rows from the accordion; keep aggregate from matched.
@@ -400,6 +482,25 @@ export function buildDirectDigitalChannelSection(input: {
     planned: rollup.plannedClicks,
     sparkline: clicksSpark,
   })
+  const reportedLines = withDelivery.filter((m) => m.hasReportedEntries)
+  const reportedSpendTotal = reportedLines.reduce((sum, m) => sum + m.reportedTotal, 0)
+  const reportedSpendPlanned = reportedLines.reduce((sum, m) => sum + m.bookedSpend, 0)
+  const reportedSpendSpark = aggDaily.map((d) => {
+    const date = String(d.date ?? "")
+    return reportedLines.reduce((sum, m) => sum + (m.reportedByDate?.get(date) ?? 0), 0)
+  })
+  const spendCard =
+    reportedLines.length > 0
+      ? spendDeliveryProgressCard({
+          title: FIXED_COST_SPEND_LABEL,
+          actual: reportedSpendTotal,
+          planned: reportedSpendPlanned,
+          sparkline: reportedSpendSpark,
+        })
+      : null
+  const aggregateProgressCards: [ProgressCardProps, ProgressCardProps] = spendCard
+    ? [spendCard, impressionsCard]
+    : [impressionsCard, clicksCard]
 
   const accordionItems = withDelivery.map((m) => {
     const liCtr = safeDiv(m.totals.clicks, m.totals.impressions) * 100
@@ -416,26 +517,34 @@ export function buildDirectDigitalChannelSection(input: {
 
     const displayName = deliveryLineItemDisplayName(m.item as Record<string, unknown>)
     const placementRows = groupPacingRowsByPlacement(m.matched)
+    const impressionCard = deliveryProgressCard({
+      title: "Impressions delivery",
+      actual: m.totals.impressions,
+      planned: m.booked.impressions,
+      sparkline: m.daily.map((d) => d.impressions),
+      dense: true,
+    })
+    const clicksCard = deliveryProgressCard({
+      title: "Clicks delivery",
+      actual: m.totals.clicks,
+      planned: m.booked.clicks,
+      sparkline: m.daily.map((d) => d.clicks),
+      dense: true,
+    })
+    const lineSpendCard = m.hasReportedEntries
+      ? spendDeliveryProgressCard({
+          title: FIXED_COST_SPEND_LABEL,
+          actual: m.reportedTotal,
+          planned: m.bookedSpend,
+          sparkline: m.daily.map((d) => m.reportedByDate?.get(d.date) ?? 0),
+          dense: true,
+        })
+      : null
     const block: LineItemBlockProps = {
       name: displayName.label,
       fullName: displayName.full,
       platform: String(m.item.buy_type ?? m.item.platform ?? "CM360"),
-      progressCards: [
-        deliveryProgressCard({
-          title: "Impressions delivery",
-          actual: m.totals.impressions,
-          planned: m.booked.impressions,
-          sparkline: m.daily.map((d) => d.impressions),
-          dense: true,
-        }),
-        deliveryProgressCard({
-          title: "Clicks delivery",
-          actual: m.totals.clicks,
-          planned: m.booked.clicks,
-          sparkline: m.daily.map((d) => d.clicks),
-          dense: true,
-        }),
-      ],
+      progressCards: lineSpendCard ? [lineSpendCard, impressionCard] : [impressionCard, clicksCard],
       kpiBand: {
         title: "Verification KPIs",
         tiles: [
@@ -509,13 +618,14 @@ export function buildDirectDigitalChannelSection(input: {
     lastSyncedAt: input.lastSyncedAt,
     connections: [
       {
-        label: "Ad server verification (CM360) — delivery counts, no spend data",
+        label: CM360_NO_SPEND_CONNECTION,
         tone: "cm360",
       },
     ],
     mediaTypeColour,
     aggregate: {
       summaryChips: [
+        ...(spendCard ? [{ label: FIXED_COST_SPEND_LABEL, value: formatMoney(reportedSpendTotal) }] : []),
         { label: "Served impressions", value: formatWholeNumber(rollup.impressions) },
         { label: "Clicks", value: formatWholeNumber(rollup.clicks) },
         { label: "CTR", value: fmtPct(ctr) },
@@ -529,7 +639,7 @@ export function buildDirectDigitalChannelSection(input: {
             ]
           : []),
       ],
-      progressCards: [impressionsCard, clicksCard],
+      progressCards: aggregateProgressCards,
       kpiBand: {
         title: "Verification KPIs",
         subtitle: "CM360 delivery counts — spend not applicable",

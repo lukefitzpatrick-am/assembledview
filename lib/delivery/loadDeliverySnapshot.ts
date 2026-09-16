@@ -205,7 +205,7 @@ function flightWindowFromPlan(metas: PlanLineMeta[]): { startDate?: string; endD
   return { startDate: start, endDate: end }
 }
 
-function collectFixedCostProgrammaticLineIds(
+function collectFixedCostLineIds(
   byChannel: Record<string, MediaContainerLineItem[]>,
 ): string[] {
   const ids = new Set<string>()
@@ -214,6 +214,15 @@ function collectFixedCostProgrammaticLineIds(
     ...(byChannel.progVideo ?? []),
     ...(byChannel.progOoh ?? []),
     ...(byChannel.progOOH ?? []),
+    ...(byChannel.digitalDisplay ?? []),
+    ...(byChannel.digiDisplay ?? []),
+    ...(byChannel.digitalVideo ?? []),
+    ...(byChannel.digiVideo ?? []),
+    ...(byChannel.digitalAudio ?? []),
+    ...(byChannel.digiAudio ?? []),
+    ...(byChannel.bvod ?? []),
+    ...(byChannel.digiBvod ?? []),
+    ...(byChannel.digi_bvod ?? []),
   ]) {
     if (item.fixedCostMedia !== true && item.fixed_cost_media !== true) continue
     const id = extractPacingLineItemIdFromItem(item as Record<string, unknown>)
@@ -390,14 +399,14 @@ export async function loadDeliverySnapshot(
     deliveredById.set(id, metrics)
   }
 
-  const fixedCostProgIds = collectFixedCostProgrammaticLineIds(byChannel)
-  if (fixedCostProgIds.length > 0) {
+  const fixedCostLineIds = collectFixedCostLineIds(byChannel)
+  if (fixedCostLineIds.length > 0) {
     try {
-      const facts = await queryDailyFacts(fixedCostProgIds)
+      const facts = await queryDailyFacts(fixedCostLineIds)
       overlayReportedSpendOnSnapshot(
         deliveredById,
         indexReportedSpendByLineDate(reportedSpendDaysFromDailyFacts(facts)),
-        fixedCostProgIds,
+        fixedCostLineIds,
         startDate,
         endDate,
       )

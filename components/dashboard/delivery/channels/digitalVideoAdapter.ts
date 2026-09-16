@@ -15,6 +15,7 @@ export function buildDigitalVideoSection(input: {
   lineItemTargets: Map<string, CampaignKPI> | undefined
   brandColour?: string
   lastSyncedAt: Date | null
+  reportedSpendByLineDate?: Map<string, Map<string, number>>
 }): ChannelSectionData | null {
   return buildDirectDigitalChannelSection({
     key: "digital-video",

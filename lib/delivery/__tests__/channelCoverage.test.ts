@@ -330,6 +330,109 @@ test("BVOD glance card sums CM360 impressions and planned deliverables from line
   assert.equal(bvod.deliverableLabel, "Impressions")
 })
 
+test("BVOD glance card sums reported spend when fixed-cost lines have a spend card", () => {
+  const buckets = emptyBuckets()
+  buckets.bvodLineItems = [
+    {
+      line_item_id: "bicau002bv2",
+      publisher: "Seven",
+      budget: 6_500,
+      impressions: 0,
+      fixedCostMedia: true,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 6_500 }],
+    },
+    {
+      line_item_id: "bicau002bv3",
+      publisher: "Seven",
+      budget: 6_500,
+      impressions: 0,
+      fixedCostMedia: true,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 6_500 }],
+    },
+    {
+      line_item_id: "bicau002bv4",
+      publisher: "Seven",
+      budget: 6_500,
+      impressions: 0,
+      fixedCostMedia: true,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 6_500 }],
+    },
+  ]
+  const clicks = progressCard("Clicks delivery", "100", "on-track", "Delivered 100 · Planned 0")
+  const spendCards = [
+    progressCard(
+      "Reported spend (fixed cost)",
+      "$3,221.16",
+      "behind",
+      "Delivered $3,221.16 · Planned $6,500.00",
+    ),
+    progressCard(
+      "Reported spend (fixed cost)",
+      "$3,265.03",
+      "behind",
+      "Delivered $3,265.03 · Planned $6,500.00",
+    ),
+    progressCard(
+      "Reported spend (fixed cost)",
+      "$3,366.66",
+      "behind",
+      "Delivered $3,366.66 · Planned $6,500.00",
+    ),
+  ]
+  const impressionCards = [
+    progressCard("Impressions delivery", "80,000", "on-track", "Delivered 80,000 · Planned 100,000"),
+    progressCard("Impressions delivery", "80,000", "on-track", "Delivered 80,000 · Planned 100,000"),
+    progressCard("Impressions delivery", "80,000", "on-track", "Delivered 80,000 · Planned 100,000"),
+  ]
+  const daily = [{ date: "2026-02-01", impressions: 1_000 }]
+  const lineIds = ["bicau002bv2", "bicau002bv3", "bicau002bv4"] as const
+  const lineItems: ChannelSectionData["lineItems"] = lineIds.map((id, i) => ({
+    id,
+    block: {
+      name: id,
+      progressCards: [spendCards[i]!, impressionCards[i]!, clicks],
+      kpiBand: { tiles: [] },
+      chart: { kind: "daily-delivery", daily, series: [], asAtDate: null },
+    },
+  }))
+  const entries = channelCoverage({
+    buckets,
+    sections: [
+      {
+        key: "bvod",
+        title: "BVOD",
+        dateRange: { startISO: "2026-01-01", endISO: "2026-06-01" },
+        lastSyncedAt: null,
+        connections: [],
+        mediaTypeColour: "#000",
+        aggregate: {
+          summaryChips: [],
+          progressCards: [
+            progressCard(
+              "Reported spend (fixed cost)",
+              "$9,852.85",
+              "behind",
+              "Delivered $9,852.85 · Planned $19,500.00",
+            ),
+            progressCard("Impressions delivery", "240,000", "on-track", "Delivered 240,000 · Planned 300,000"),
+            clicks,
+          ],
+          kpiBand: { tiles: [] },
+          chart: { daily: [], series: [], asAtDate: null },
+        },
+        lineItems,
+      },
+    ],
+    todayISO: TODAY,
+  })
+  const bvod = entries.find((e) => e.key === "bvod")
+  assert.ok(bvod)
+  assert.equal(bvod.status, "reporting")
+  assert.equal(bvod.deliveredSpend, 9852.85)
+  assert.equal(bvod.plannedSpend, 19_500)
+  assert.equal(bvod.deliveredImpressions, 240_000)
+})
+
 test("direct-digital group with CM360 rows is reporting even without a map row", () => {
   const buckets = emptyBuckets()
   buckets.digitalVideoLineItems = [
