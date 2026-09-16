@@ -16,7 +16,8 @@ import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types"
 import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types"
 import type { ProgrammaticPacingCampaignRow } from "@/lib/pacing/programmatic/types"
 import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types"
-import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
+import type { DirectCampaignGroup, DirectLineItemRow } from "@/lib/pacing/direct/types"
+import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs"
 import { isLiveCampaignStatus } from "@/lib/types/mediaPlanMaster"
 import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
@@ -120,6 +121,80 @@ function socialLabel(platform: SocialPacingCampaignRow["socialPlatform"]): strin
   if (platform === "tiktok") return "Social · TikTok"
   if (platform === "reddit") return "Social · Reddit"
   return "Social · Meta"
+}
+
+const MEDIA_TYPE_LABELS: Record<string, string> = {
+  television: "Television",
+  newspaper: "Newspaper",
+  socialMedia: "Social",
+  radio: "Radio",
+  magazines: "Magazines",
+  cinema: "Cinema",
+  digitalDisplay: "Digital Display",
+  digitalAudio: "Digital Audio",
+  digitalVideo: "Digital Video",
+  bvod: "BVOD",
+  integration: "Integration",
+  search: "Search",
+  progDisplay: "Prog display",
+  progVideo: "Prog video",
+  progBVOD: "Prog BVOD",
+  progAudio: "Prog audio",
+  progOOH: "Prog ooh",
+  ooh: "OOH",
+  influencers: "Influencers",
+  production: "Production",
+}
+
+const MEDIA_TYPE_CODES_BY_LENGTH = [...Object.values(MEDIA_TYPE_ID_CODES), "ML"].toSorted(
+  (a, b) => b.length - a.length,
+)
+
+const MEDIA_TYPE_BY_CODE = new Map(
+  Object.entries(MEDIA_TYPE_ID_CODES).map(([key, code]) => [code.toLowerCase(), key]),
+)
+
+function mediaTypeFromLineItemId(lineItemId: string): { key: string; label: string } {
+  const id = lineItemId.trim()
+  for (const code of MEDIA_TYPE_CODES_BY_LENGTH) {
+    if (!new RegExp(`${code}\\d+$`, "i").test(id)) continue
+    if (code.toUpperCase() === "ML") return { key: "direct", label: "Direct" }
+    const typeKey = MEDIA_TYPE_BY_CODE.get(code.toLowerCase())
+    return {
+      key: code.toLowerCase(),
+      label: (typeKey && MEDIA_TYPE_LABELS[typeKey]) || code,
+    }
+  }
+  return { key: "direct", label: "Direct" }
+}
+
+function owningChannelForLine(campaign: DraftCampaign, lineItemId: string): DraftChannel | undefined {
+  const needle = lineItemId.trim().toLowerCase()
+  for (const ch of campaign.channels.values()) {
+    if (ch.lineItemIds.some((id) => id.trim().toLowerCase() === needle)) return ch
+  }
+  return undefined
+}
+
+function lineYesterdayReported(li: DirectLineItemRow, yesterdayISO: string): number {
+  return li.daily.reduce((sum, day) => {
+    return sum + (day.dateDay === yesterdayISO ? finite(day.reportedSpend) : 0)
+  }, 0)
+}
+
+function attributeReportedToChannel(
+  owner: DraftChannel,
+  li: DirectLineItemRow,
+  yesterdayISO: string,
+): void {
+  owner.spendToDate += finite(li.totalReported)
+  owner.budget += finite(li.totalBudget)
+  owner.spendYesterday += lineYesterdayReported(li, yesterdayISO)
+  owner.spendMode = "reported"
+  owner.contributesSpend = true
+  owner.hasSource = true
+  owner.hasFactRows =
+    owner.hasFactRows || finite(li.totalReported) > 0 || li.daily.length > 0
 }
 
 function titleCasePublisher(raw: string): string {
@@ -508,33 +583,45 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       startDate: group.campaignStartDate,
       endDate: group.campaignEndDate,
     })
-    const lineIds = group.lineItems.map((li) => li.lineItemId)
-    const hasFacts = finite(group.totalReported) > 0 || group.lineItems.some((li) => li.daily.length > 0)
     const yesterdayISO = getMelbourneYesterdayISO(input.asOfDate)
-    const yesterday = group.lineItems.reduce((sum, li) => {
-      return (
-        sum +
-        li.daily.reduce((inner, day) => {
-          return inner + (day.dateDay === yesterdayISO ? finite(day.reportedSpend) : 0)
-        }, 0)
+    const leftovers = new Map<string, { label: string; lines: DirectLineItemRow[] }>()
+
+    for (const li of group.lineItems) {
+      const owner = owningChannelForLine(campaign, li.lineItemId)
+      if (owner) {
+        attributeReportedToChannel(owner, li, yesterdayISO)
+        continue
+      }
+      const media = mediaTypeFromLineItemId(li.lineItemId)
+      const bucket = leftovers.get(media.key)
+      if (bucket) bucket.lines.push(li)
+      else leftovers.set(media.key, { label: media.label, lines: [li] })
+    }
+
+    for (const [code, bucket] of leftovers) {
+      const spend = bucket.lines.reduce((sum, li) => sum + finite(li.totalReported), 0)
+      const budget = bucket.lines.reduce((sum, li) => sum + finite(li.totalBudget), 0)
+      const yesterday = bucket.lines.reduce(
+        (sum, li) => sum + lineYesterdayReported(li, yesterdayISO),
+        0,
       )
-    }, 0)
-    upsertChannel(campaign, {
-      channelKey: "direct",
-      label: "Direct",
-      spendToDate: finite(group.totalReported),
-      budget: finite(group.totalBudget),
-      spendYesterday: yesterday,
-      spendMode: "reported",
-      deliverable: null,
-      lineItemIds: lineIds,
-      lineStart: group.campaignStartDate,
-      hasSource: true,
-      hasFactRows: hasFacts,
-      contributesSpend: true,
-      kpiTotal: 0,
-      kpiTracked: 0,
-    })
+      upsertChannel(campaign, {
+        channelKey: code === "direct" ? "direct" : `direct-${code}`,
+        label: code === "direct" ? "Direct" : `Direct · ${bucket.label}`,
+        spendToDate: spend,
+        budget,
+        spendYesterday: yesterday,
+        spendMode: "reported",
+        deliverable: null,
+        lineItemIds: bucket.lines.map((li) => li.lineItemId),
+        lineStart: group.campaignStartDate,
+        hasSource: true,
+        hasFactRows: spend > 0 || bucket.lines.some((li) => li.daily.length > 0),
+        contributesSpend: true,
+        kpiTotal: 0,
+        kpiTracked: 0,
+      })
+    }
   }
 
   const assembled: CampaignPacingRow[] = []

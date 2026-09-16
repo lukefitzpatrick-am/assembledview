@@ -49,7 +49,7 @@ describe("PortfolioCardsBoard", () => {
       "candel001",
       "hartm012",
     ])
-    expect(rest.map((row) => row.mbaNumber)).toEqual(["BICAU002", "PGAAUS014"])
+    expect(rest.map((row) => row.mbaNumber)).toEqual(["PGAAUS014", "BICAU002"])
 
     act(() => {
       root.render(

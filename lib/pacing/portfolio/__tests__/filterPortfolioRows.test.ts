@@ -19,7 +19,7 @@ describe("filterPortfolioRows / tiles / sections", () => {
     )
     assert.deepEqual(
       rest.map((row) => row.mbaNumber),
-      ["BICAU002", "PGAAUS014"],
+      ["PGAAUS014", "BICAU002"],
     )
   })
 
@@ -45,7 +45,7 @@ describe("filterPortfolioRows / tiles / sections", () => {
     )
     assert.deepEqual(
       filtered.map((row) => row.mbaNumber),
-      ["jayco001"],
+      ["jayco001", "BICAU002"],
     )
   })
 })

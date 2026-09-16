@@ -2,8 +2,19 @@ import type { SearchPacingCampaignRow } from "../../campaigns/types.js"
 import type { SocialPacingCampaignRow } from "../../social/types.js"
 import type { ProgrammaticPacingCampaignRow } from "../../programmatic/types.js"
 import type { AdServingPacingCampaignRow } from "../../ad-serving/types.js"
+import type {
+  DirectCampaignGroup,
+  DirectLineItemRow,
+} from "../../direct/types.js"
 import { assembleCampaignPacingRows } from "../assembleCampaignPacingRows.js"
 import type { CampaignScheduleInput } from "../types.js"
+
+export const BICAU002_CF_REPORTED = 20_376
+export const BICAU002_BVOD_REPORTED = 9_853
+export const BICAU002_UMG_REPORTED = 9_120
+export const BICAU002_META_ACTUAL = 11_894.36
+export const BICAU002_SPEND_TO_DATE =
+  BICAU002_CF_REPORTED + BICAU002_BVOD_REPORTED + BICAU002_UMG_REPORTED + BICAU002_META_ACTUAL
 
 export const P6_AS_OF = "2026-09-16"
 const START = "2026-07-01"
@@ -181,6 +192,7 @@ function programmatic(partial: {
   platformLabel: string
   spend?: number
   impressions?: number
+  fixedCostMedia?: boolean
 }): ProgrammaticPacingCampaignRow {
   return {
     mbaNumber: partial.mbaNumber,
@@ -203,7 +215,7 @@ function programmatic(partial: {
     creative: "",
     buyingDemo: "",
     market: "",
-    fixedCostMedia: false,
+    fixedCostMedia: partial.fixedCostMedia === true,
     clientPaysForMedia: false,
     budgetIncludesFees: true,
     channelFamily: "progVideo",
@@ -242,10 +254,12 @@ function programmatic(partial: {
   }
 }
 
-function bvod(partial: {
+function adServing(partial: {
   mbaNumber: string
   clientName: string
   campaignName: string
+  lineItemId: string
+  channelFamily: AdServingPacingCampaignRow["channelFamily"]
   delivered: number
   planned: number
 }): AdServingPacingCampaignRow {
@@ -253,7 +267,7 @@ function bvod(partial: {
     mbaNumber: partial.mbaNumber,
     mediaPlanVersionId: 1,
     mediaPlanVersionNumber: 1,
-    lineItemId: `${partial.mbaNumber}BV1`,
+    lineItemId: partial.lineItemId,
     lineItemNumber: 1,
     xanoRowId: 1,
     clientName: partial.clientName,
@@ -269,7 +283,7 @@ function bvod(partial: {
     creative: "",
     buyingDemo: "",
     market: "",
-    channelFamily: "bvod",
+    channelFamily: partial.channelFamily,
     lineItemStartDate: START,
     lineItemEndDate: END,
     totalBursts: 1,
@@ -292,12 +306,62 @@ function bvod(partial: {
   }
 }
 
+function directLine(partial: {
+  mbaNumber: string
+  lineItemId: string
+  reported: number
+  budget: number
+  name?: string
+}): DirectLineItemRow {
+  return {
+    lineItemId: partial.lineItemId,
+    mbaNumber: partial.mbaNumber,
+    lineItemName: partial.name ?? partial.lineItemId,
+    buyType: "fixed_cost",
+    isCurrentlyFixedCost: true,
+    wasEverFixedCost: true,
+    totalBudget: partial.budget,
+    totalReported: partial.reported,
+    totalActual: 0,
+    variance: partial.reported,
+    variancePct: partial.reported > 0 ? 1 : null,
+    burstCount: 1,
+    burstsDeliveredOver: 0,
+    burstsDeliveredUnder: 0,
+    lineItemStatus: "in_progress",
+    bursts: [],
+    daily: [],
+  }
+}
+
+function directGroup(partial: {
+  mbaNumber: string
+  clientName: string
+  campaignName: string
+  lineItems: DirectLineItemRow[]
+}): DirectCampaignGroup {
+  return {
+    mbaNumber: partial.mbaNumber,
+    clientName: partial.clientName,
+    campaignName: partial.campaignName,
+    campaignStatus: "booked",
+    campaignStartDate: START,
+    campaignEndDate: END,
+    brand: null,
+    lineItems: partial.lineItems,
+    totalBudget: partial.lineItems.reduce((sum, li) => sum + li.totalBudget, 0),
+    totalReported: partial.lineItems.reduce((sum, li) => sum + li.totalReported, 0),
+    totalActual: 0,
+    variance: partial.lineItems.reduce((sum, li) => sum + li.variance, 0),
+  }
+}
+
 export function p6FixtureRows() {
   const schedulesByMba = new Map<string, CampaignScheduleInput>([
     schedule("letsgo001", 40_000, 100_000),
     schedule("jayco001", 20_000, 50_000),
     schedule("candel001", 5_000, 5_000),
-    schedule("BICAU002", 40_000, 100_000),
+    schedule("BICAU002", BICAU002_SPEND_TO_DATE, 100_000),
     schedule("hartm012", 2_000, 10_000),
     schedule("PGAAUS014", 8_000, 20_000),
   ])
@@ -322,15 +386,6 @@ export function p6FixtureRows() {
         lineItemId: "jayco001SE1",
         spend: 10_000,
         budget: 20_000,
-      }),
-      search({
-        mbaNumber: "BICAU002",
-        clientName: "Penfolds",
-        campaignName: "Penfolds Always On",
-        lineItemId: "BICAU002SE1",
-        spend: 38_500,
-        budget: 40_000,
-        kpi: true,
       }),
       search({
         mbaNumber: "hartm012",
@@ -359,6 +414,14 @@ export function p6FixtureRows() {
         spend: 4_000,
         budget: 5_000,
       }),
+      social({
+        mbaNumber: "BICAU002",
+        clientName: "Penfolds",
+        campaignName: "Penfolds Always On",
+        lineItemId: "BICAU002SM1",
+        spend: BICAU002_META_ACTUAL,
+        budget: BICAU002_META_ACTUAL,
+      }),
     ],
     programmatic: [
       programmatic({
@@ -369,17 +432,67 @@ export function p6FixtureRows() {
         platform: "mystery dsp",
         platformLabel: "Mystery Dsp",
       }),
-    ],
-    adServing: [
-      bvod({
+      programmatic({
         mbaNumber: "BICAU002",
         clientName: "Penfolds",
         campaignName: "Penfolds Always On",
+        lineItemId: "BICAU002PV1",
+        platform: "channel factory",
+        platformLabel: "Channel Factory",
+        impressions: 12_000,
+        fixedCostMedia: true,
+      }),
+    ],
+    adServing: [
+      adServing({
+        mbaNumber: "BICAU002",
+        clientName: "Penfolds",
+        campaignName: "Penfolds Always On",
+        lineItemId: "BICAU002BV1",
+        channelFamily: "bvod",
         delivered: 5_000,
         planned: 20_000,
       }),
+      adServing({
+        mbaNumber: "BICAU002",
+        clientName: "Penfolds",
+        campaignName: "Penfolds Always On",
+        lineItemId: "BICAU002DV1",
+        channelFamily: "digitalVideo",
+        delivered: 8_000,
+        planned: 10_000,
+      }),
     ],
-    direct: [],
+    direct: [
+      directGroup({
+        mbaNumber: "BICAU002",
+        clientName: "Penfolds",
+        campaignName: "Penfolds Always On",
+        lineItems: [
+          directLine({
+            mbaNumber: "BICAU002",
+            lineItemId: "bicau002pv1",
+            reported: BICAU002_CF_REPORTED,
+            budget: BICAU002_CF_REPORTED,
+            name: "Channel Factory",
+          }),
+          directLine({
+            mbaNumber: "BICAU002",
+            lineItemId: "BICAU002BV1",
+            reported: BICAU002_BVOD_REPORTED,
+            budget: 19_500,
+            name: "BVOD",
+          }),
+          directLine({
+            mbaNumber: "BICAU002",
+            lineItemId: "BICAU002DV1",
+            reported: BICAU002_UMG_REPORTED,
+            budget: BICAU002_UMG_REPORTED,
+            name: "UMG",
+          }),
+        ],
+      }),
+    ],
     schedulesByMba,
   })
 }
