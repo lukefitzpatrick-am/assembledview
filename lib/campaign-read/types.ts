@@ -22,7 +22,14 @@ export const CAMPAIGN_READ_HEADINGS: Record<CampaignReadBeatKey, string> = {
 
 export const EMPTY_CAMPAIGN_READ_BEAT = "Nothing to report yet."
 
-export type CampaignReadStatus = "draft" | "published"
+export type CampaignReadStatus = "draft" | "published" | "generating" | "failed"
+
+export const CAMPAIGN_READ_STATUSES: readonly CampaignReadStatus[] = [
+  "draft",
+  "published",
+  "generating",
+  "failed",
+]
 
 export type CampaignRead = {
   id: number
@@ -32,6 +39,7 @@ export type CampaignRead = {
   beats: CampaignReadBeats
   bodyMarkdown: string
   sources: string[] | null
+  errorMessage: string | null
   generatedAt: string
   generatedByEmail: string
   editedAt: string | null
@@ -43,5 +51,7 @@ export type CampaignRead = {
 export type CampaignReadListPayload = {
   published: CampaignRead | null
   draft: CampaignRead | null
+  generating: CampaignRead | null
+  failed: CampaignRead | null
   history: CampaignRead[]
 }

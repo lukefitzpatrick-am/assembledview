@@ -195,6 +195,13 @@ export async function runAvaAgent(
       input.enableWebSearch === true,
       input.context.pageContext,
     );
+    const offeredNames = new Set(
+      tools.flatMap((tool) =>
+        "name" in tool && typeof tool.name === "string" && tool.name
+          ? [tool.name]
+          : [],
+      ),
+    );
 
     for (let iter = 0; iter < AVA_MAX_TOOL_ITERATIONS; iter++) {
       const response = await client.messages.create({
@@ -288,8 +295,11 @@ export async function runAvaAgent(
           }
 
           const tool = getToolByName(name);
-          if (!tool) {
-            resultContent = formatToolFailure(name, `Unknown tool: ${name}`);
+          if (!tool || !offeredNames.has(name)) {
+            resultContent = formatToolFailure(
+              name,
+              tool ? `Tool ${name} is not available on this surface` : `Unknown tool: ${name}`,
+            );
             resultIsError = true;
           } else {
             try {

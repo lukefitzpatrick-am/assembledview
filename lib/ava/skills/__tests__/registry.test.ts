@@ -31,7 +31,6 @@ test("skills: all 12 load with frontmatter, unique ids, chained brain", () => {
   assert.deepEqual(campaignRead.pairedTools, [
     "get_campaign_context",
     "get_delivery_snapshot",
-    "get_pacing_snapshot",
     "get_campaign_insights",
   ])
   assert.ok(campaignRead.references.some((r) => r.name === "voice.md"))

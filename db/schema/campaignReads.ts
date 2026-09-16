@@ -1,7 +1,7 @@
 /**
- * campaign_reads (migration 0079). SQL is source of truth; this mirror
- * is for generate/diff fidelity. RLS is on. Do not db.select() this table
- * against live Postgres before applying (C-76).
+ * campaign_reads (migrations 0079 + 0082). SQL is source of truth; this
+ * mirror is for generate/diff fidelity. RLS is on. Do not db.select() this
+ * table against live Postgres before applying (C-76).
  */
 import { sql } from "drizzle-orm"
 import {
@@ -42,11 +42,12 @@ export const campaignReads = pgTable(
     editedByEmail: text("edited_by_email"),
     publishedAt: timestamp("published_at", { withTimezone: true, mode: "string" }),
     publishedByEmail: text("published_by_email"),
+    errorMessage: text("error_message"),
   },
   (table) => [
     check(
       "campaign_reads_status_check",
-      sql`${table.status} = ANY (ARRAY['draft'::text, 'published'::text])`,
+      sql`${table.status} = ANY (ARRAY['draft'::text, 'published'::text, 'generating'::text, 'failed'::text])`,
     ),
     index("idx_campaign_reads_mba_version_status").on(
       table.mbaNumber,

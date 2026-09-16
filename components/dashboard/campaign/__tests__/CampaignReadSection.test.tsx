@@ -4,7 +4,9 @@ import { renderToStaticMarkup } from "react-dom/server"
 
 import {
   CampaignReadBeatsView,
+  CampaignReadFailedState,
   CampaignReadSection,
+  CampaignReadWritingState,
 } from "../CampaignReadSection"
 import type { CampaignRead } from "@/lib/campaign-read/types"
 
@@ -23,6 +25,7 @@ const published: CampaignRead = {
   },
   bodyMarkdown: "md",
   sources: ["get_delivery_snapshot"],
+  errorMessage: null,
   generatedAt: "2026-09-17T00:00:00.000Z",
   generatedByEmail: "luke@assembledmedia.com.au",
   editedAt: null,
@@ -54,5 +57,18 @@ describe("CampaignReadSection views", () => {
     expect(html.includes("Regenerate") || html.includes("No read yet") || html.includes("animate-pulse")).toBe(true)
     expect(html).not.toContain("Publish")
     expect(typeof CampaignReadSection).toBe("function")
+  })
+
+  it("shows writing copy while generating", () => {
+    const html = renderToStaticMarkup(<CampaignReadWritingState />)
+    expect(html).toContain("Writing the read…")
+  })
+
+  it("failed state shows the message and Regenerate", () => {
+    const html = renderToStaticMarkup(
+      <CampaignReadFailedState message="model timed out" onRegenerate={() => {}} busy={false} />,
+    )
+    expect(html).toContain("model timed out")
+    expect(html).toContain("Regenerate")
   })
 })

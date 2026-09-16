@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { generateCampaignReadDraft } from "@/lib/campaign-read/generate"
+import {
+  runCampaignReadJob,
+  scheduleCampaignReadContinuation,
+  startCampaignReadGeneration,
+} from "@/lib/campaign-read/generate"
 import { CampaignReadError } from "@/lib/campaign-read/repo"
-import { CampaignReadValidationError } from "@/lib/campaign-read/beats"
 import { requireAdmin } from "@/lib/requireRole"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-export const maxDuration = 60
+export const maxDuration = 120
 
 function asNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) {
@@ -66,19 +69,27 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const clientSlug = typeof body.clientSlug === "string" ? body.clientSlug : undefined
+  const userSub = typeof auth.session?.user?.sub === "string" ? auth.session.user.sub : undefined
+
   try {
-    const item = await generateCampaignReadDraft({
+    const item = await startCampaignReadGeneration({
       mbaNumber,
       versionNumber,
       generatedByEmail: email,
-      userSub: typeof auth.session?.user?.sub === "string" ? auth.session.user.sub : undefined,
-      clientSlug: typeof body.clientSlug === "string" ? body.clientSlug : undefined,
     })
-    return NextResponse.json({ item }, { status: 201 })
+    scheduleCampaignReadContinuation(() =>
+      runCampaignReadJob({
+        id: item.id,
+        mbaNumber,
+        versionNumber,
+        generatedByEmail: email,
+        userSub,
+        clientSlug,
+      }),
+    )
+    return NextResponse.json({ item }, { status: 202 })
   } catch (err) {
-    if (err instanceof CampaignReadValidationError) {
-      return NextResponse.json({ error: "validation", message: err.message }, { status: 422 })
-    }
     if (err instanceof CampaignReadError) {
       const status = err.code === "UNAVAILABLE" ? 503 : err.code === "NOT_FOUND" ? 404 : 400
       return NextResponse.json({ error: err.code.toLowerCase(), message: err.message }, { status })
