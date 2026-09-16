@@ -41,6 +41,7 @@ export default defineConfig({
       "components/planning/__tests__/UploadCoveragePanel.render.test.tsx",
       "components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx",
       "components/dashboard/campaign/__tests__/CampaignStatusStrip.test.tsx",
+      "components/dashboard/campaign/__tests__/ChannelsAtAGlance.test.tsx",
       "app/dashboard/[slug]/[mba_number]/components/__tests__/handleCoverage.identity.test.ts",
       "components/ava/__tests__/ChatMarkdown.render.test.tsx",
       "components/ava/__tests__/AvaMediaMathPanel.test.tsx",

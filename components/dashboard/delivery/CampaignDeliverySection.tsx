@@ -4,12 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
-import { getPacingWindow } from "@/lib/pacing/pacingWindow"
+import { getMelbourneTodayISO, getPacingWindow } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform"
 import type { SocialLineItem } from "@/lib/delivery/social/socialChannelCompute"
 import { ErrorState, LoadingState } from "@/components/ui/states"
+import {
+  channelCoverage,
+  type ChannelCoverageEntry,
+} from "@/lib/delivery/channelCoverage"
 import DeliveryDataProvider from "./DeliveryDataProvider"
 import { DeliveryContainer } from "./DeliveryContainer"
 import { buildProgrammaticDisplaySection } from "./channels/programmaticDisplayAdapter"
@@ -52,6 +56,8 @@ export type CampaignDeliverySectionProps = {
   digitalVideoLineItems: unknown[]
   digitalAudioLineItems: unknown[]
   bvodLineItems: unknown[]
+  onCoverage?: (entries: ChannelCoverageEntry[]) => void
+  showAccordion?: boolean
 }
 
 type DeliveryBodyProps = {
@@ -80,6 +86,9 @@ type DeliveryBodyProps = {
   bvodLineItems: unknown[]
   remainderItems: unknown[]
   reportedSpendByLineDate?: Map<string, Map<string, number>>
+  socialLineItems: SocialLineItem[]
+  onCoverage?: (entries: ChannelCoverageEntry[]) => void
+  showAccordion?: boolean
 }
 
 function CampaignDeliveryBody({
@@ -108,6 +117,9 @@ function CampaignDeliveryBody({
   bvodLineItems,
   remainderItems,
   reportedSpendByLineDate,
+  socialLineItems,
+  onCoverage,
+  showAccordion = true,
 }: DeliveryBodyProps) {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
 
@@ -310,6 +322,43 @@ function CampaignDeliveryBody({
     reportedSpendByLineDate,
   ])
 
+  const coverage = useMemo(
+    () =>
+      channelCoverage({
+        buckets: {
+          socialLineItems,
+          searchLineItems,
+          progDisplayLineItems,
+          progVideoLineItems,
+          progOohLineItems: [],
+          digitalDisplayLineItems,
+          digitalVideoLineItems,
+          digitalAudioLineItems,
+          bvodLineItems,
+        },
+        sections: channels,
+        todayISO: getMelbourneTodayISO(),
+      }),
+    [
+      socialLineItems,
+      searchLineItems,
+      progDisplayLineItems,
+      progVideoLineItems,
+      digitalDisplayLineItems,
+      digitalVideoLineItems,
+      digitalAudioLineItems,
+      bvodLineItems,
+      channels,
+    ],
+  )
+
+  useEffect(() => {
+    if (loading) return
+    onCoverage?.(coverage)
+  }, [coverage, loading, onCoverage])
+
+  if (!showAccordion) return null
+
   if (loading) {
     return <LoadingState rows={6} className="min-h-[480px]" />
   }
@@ -344,6 +393,8 @@ export function CampaignDeliverySection({
   digitalVideoLineItems,
   digitalAudioLineItems,
   bvodLineItems,
+  onCoverage,
+  showAccordion = true,
 }: CampaignDeliverySectionProps) {
   const pacingWindow = useMemo(() => getPacingWindow(campaignStart, campaignEnd), [campaignStart, campaignEnd])
 
@@ -482,6 +533,9 @@ export function CampaignDeliverySection({
           bvodLineItems={bvodLineItems}
           remainderItems={remainderItems}
           reportedSpendByLineDate={reportedSpendByLineDate}
+          socialLineItems={socialLineItems}
+          onCoverage={onCoverage}
+          showAccordion={showAccordion}
         />
       )}
     </DeliveryDataProvider>

@@ -8,6 +8,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useCallback,
 } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
@@ -20,6 +21,7 @@ import type { PageContext } from "@/lib/ava/types"
 
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
 import { CampaignStatusStrip } from "@/components/dashboard/campaign/CampaignStatusStrip"
+import { ChannelsAtAGlance } from "@/components/dashboard/campaign/ChannelsAtAGlance"
 import { CampaignKpiPacingStrip } from "@/components/dashboard/campaign/CampaignKpiPacingStrip"
 import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
 import MediaPlanVizSection from "@/components/dashboard/campaign/MediaPlanVizSection"
@@ -45,6 +47,13 @@ import {
   type DateRange,
 } from "@/lib/dashboard/dateFilter"
 import { sumPlannedImpressionsFromLineItems } from "@/lib/dashboard/plannedImpressions"
+import {
+  firstAheadChannelName,
+  sumReportingPlannedImpressions,
+  visibleCoverageCards,
+  coverageReportingCounts,
+  type ChannelCoverageEntry,
+} from "@/lib/delivery/channelCoverage"
 
 const CHANNEL_SNAPSHOT_CAP = 15
 
@@ -246,6 +255,10 @@ function filterLineItemsByBurstWindow(
 
 export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [coverage, setCoverage] = useState<ChannelCoverageEntry[]>([])
+  const handleCoverage = useCallback((entries: ChannelCoverageEntry[]) => {
+    setCoverage(entries)
+  }, [])
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const {
@@ -338,6 +351,11 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     () => sumPlannedImpressionsFromLineItems(filteredLineItemsMap),
     [filteredLineItemsMap],
   )
+  const coverageCards = useMemo(() => visibleCoverageCards(coverage), [coverage])
+  const coverageCounts = useMemo(() => coverageReportingCounts(coverage), [coverage])
+  const plannedImpressions =
+    coverageCards.length > 0 ? sumReportingPlannedImpressions(coverage) : plannedImpressionsAll
+  const aheadChannelName = firstAheadChannelName(coverage)
 
   const filteredTimeMetrics = useMemo(() => {
     if (isUnfiltered) {
@@ -676,14 +694,29 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               actualSpend={actualSpend}
               expectedSpend={expectedSpend}
               deliveredImpressions={deliveredImpressions}
-              plannedImpressions={plannedImpressionsAll}
+              plannedImpressions={plannedImpressions}
               hasDelivery={Boolean(hasDelivery)}
               deliveredAsOf={deliveredAsOf}
+              channelsReporting={
+                coverageCards.length > 0 ? coverageCounts.channelsReporting : undefined
+              }
+              channelsTotal={coverageCards.length > 0 ? coverageCounts.channelsTotal : undefined}
+              aheadChannelName={aheadChannelName}
             />
             </div>
           </Suspense>
         </SectionBoundary>
       </section>
+
+      {coverageCards.length > 0 ? (
+        <section className="mt-6">
+          <SectionBoundary title="Channels at a glance">
+            <div className="campaign-section-enter" style={{ animationDelay: "120ms" }}>
+              <ChannelsAtAGlance entries={coverageCards} />
+            </div>
+          </SectionBoundary>
+        </section>
+      ) : null}
 
       {isAdmin ? (
         <section className="mt-6">
@@ -789,12 +822,37 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                 digitalVideoLineItems={filteredDigitalVideo}
                 digitalAudioLineItems={filteredDigitalAudio}
                 bvodLineItems={filteredBvod}
+                onCoverage={handleCoverage}
               />
               </div>
             </Suspense>
           </SectionBoundary>
         </section>
-      ) : null}
+      ) : (
+        <CampaignDeliverySection
+          mbaNumber={mbaNumber}
+          deliveryLineItemIds={deliveryLineItemIds}
+          filterRange={filterRange}
+          brandColour={brandColour}
+          kpiTargets={kpiTargets}
+          kpiVersionNumber={kpiVersionNumber}
+          lineItemTargets={lineItemTargets}
+          campaignStart={startDate ?? ""}
+          campaignEnd={endDate ?? ""}
+          socialLineItems={filteredSocialItems}
+          searchLineItemIds={searchLineItemIds}
+          searchLineItems={filteredSearchItems}
+          mpSearchEnabled={mpSearchEnabled}
+          progDisplayLineItems={filteredProgDisplay}
+          progVideoLineItems={filteredProgVideo}
+          digitalDisplayLineItems={filteredDigitalDisplay}
+          digitalVideoLineItems={filteredDigitalVideo}
+          digitalAudioLineItems={filteredDigitalAudio}
+          bvodLineItems={filteredBvod}
+          onCoverage={handleCoverage}
+          showAccordion={false}
+        />
+      )}
 
       <CampaignDetailsModal
         open={detailsOpen}
