@@ -60,8 +60,12 @@ function onTrackToDelivery(s: OnTrackStatus): DeliveryStatus {
   return s as DeliveryStatus
 }
 
-function compareRateStatus(actual: number, target: number | undefined, higherIsBetter: boolean): DeliveryStatus | undefined {
-  if (target === undefined || target <= 0 || !Number.isFinite(actual)) return undefined
+function compareRateStatus(
+  actual: number | null,
+  target: number | undefined,
+  higherIsBetter: boolean,
+): DeliveryStatus | undefined {
+  if (actual == null || target === undefined || target <= 0 || !Number.isFinite(actual)) return undefined
   const tol = 0.08
   const ratio = higherIsBetter ? actual / target : target / actual
   if (ratio >= 1 + tol) return higherIsBetter ? "ahead" : "behind"
@@ -79,6 +83,28 @@ function formatWholeNumber(value: number | undefined) {
 
 function fmtPct(x: number): string {
   return `${x.toFixed(2)}%`
+}
+
+function tileMoney(value: number | null): string | null {
+  return value == null ? null : formatCurrency2dp(value)
+}
+
+function tilePct(value: number | null): string | null {
+  return value == null ? null : fmtPct(value)
+}
+
+function sharedPlanCpm(items: ProgrammaticLineItem[]): number | undefined {
+  if (!items.length) return undefined
+  const rates: number[] = []
+  for (const item of items) {
+    const derived = deriveRateTargetFromBursts(burstsForLineItem(item), String(item.buy_type ?? ""))
+    if (derived?.kind !== "cpm") return undefined
+    rates.push(derived.value)
+  }
+  const first = rates[0]
+  if (first == null) return undefined
+  if (!rates.every((rate) => rate === first)) return undefined
+  return first
 }
 
 function ratioTargetPercentPoints(raw: number | null | undefined): number | undefined {
@@ -114,6 +140,15 @@ function cm360PartnerLabel(publisherKey: string): string {
   return publisherKey.trim() || "CM360"
 }
 
+function partnerFileConnectionLabel(publisherKey: string): string {
+  const key = publisherKey.trim().toLowerCase()
+  if (key === "channel factory") return "Channel Factory (partner file)"
+  if (key === "vistar") return "Vistar (partner file)"
+  if (key === "broadsign") return "Broadsign (partner file)"
+  const pretty = publisherKey.trim() || "Partner file"
+  return `${pretty} (partner file)`
+}
+
 function programmaticConnectionPills(items: ProgrammaticLineItem[]): ConnectionPill[] {
   const dspItems = items.filter((item) => item.deliverySourceMap?.delivery_source === "dsp")
   const cm360Items = items.filter((item) => item.deliverySourceMap?.delivery_source === "cm360")
@@ -131,16 +166,25 @@ function programmaticConnectionPills(items: ProgrammaticLineItem[]): ConnectionP
     seen.add(label)
     pills.push({ label, tone: "cm360" })
   }
-  if (partnerFileItems.length > 0) {
-    pills.push({ label: "Channel Factory (partner file)", tone: "partner-file" })
+  for (const item of partnerFileItems) {
+    const label = partnerFileConnectionLabel(item.deliverySourceMap?.publisher_key ?? "")
+    if (seen.has(label)) continue
+    seen.add(label)
+    pills.push({ label, tone: "partner-file" })
   }
   return pills
+}
+
+function lineFamilyFromItem(item: ProgrammaticLineItem): string | undefined {
+  const raw = item.line_channel ?? item.media_type ?? item.mediaType
+  return typeof raw === "string" && raw.trim() ? raw : undefined
 }
 
 function mapCombinedRowsForNormalizedLines(
   combinedRows: CombinedPacingRow[],
   normalized: ProgrammaticLineItem[],
   snowflakeChannel: string,
+  lineFamily?: string,
 ) {
   const byId = new Map<string, ProgrammaticLineItem>()
   for (const item of normalized) {
@@ -155,7 +199,11 @@ function mapCombinedRowsForNormalizedLines(
     if (!item) return []
     const source = item.deliverySourceMap?.delivery_source
     if (!source) return []
-    const accepted = snowflakeChannelsForDeliverySource(source, snowflakeChannel)
+    const accepted = snowflakeChannelsForDeliverySource(
+      source,
+      snowflakeChannel,
+      lineFamilyFromItem(item) ?? lineFamily,
+    )
     const channel = String(row.channel ?? "")
     if (!accepted.has(channel)) return []
     return [mapCombinedRowToDv360(row, accepted)]
@@ -166,7 +214,7 @@ function mapCombinedRowsForNormalizedLines(
 function cm360PlacementBreakdown(
   lineItem: ProgrammaticLineItem,
   combinedRows: CombinedPacingRow[],
-  snowflakeChannel: "programmatic-display" | "programmatic-video",
+  snowflakeChannel: "programmatic-display" | "programmatic-video" | "programmatic-ooh",
   knownPlanLineIds: string[],
 ): LineItemBlockProps["entityBreakdown"] | undefined {
   const source = lineItem.deliverySourceMap?.delivery_source
@@ -238,19 +286,46 @@ function buildProgrammaticKpiTiles(input: {
       })()
     : (aggregateRateTargetFromLineItems(activeItems, "cpv") ?? undefined)
 
+  const cpmPlanned = sharedPlanCpm(isPerLine && lineItem ? [lineItem] : activeItems)
+  const cpmCaption = cpmPlanned != null ? `planned ${formatCurrency2dp(cpmPlanned)}` : undefined
+
+  const cpmTile: KpiTileProps = {
+    label: "CPM",
+    value: tileMoney(kpis.cpm),
+    expected:
+      kpis.cpm != null && cpmExpected !== undefined ? formatCurrency2dp(cpmExpected) : undefined,
+    status:
+      kpis.cpm != null && cpmExpected !== undefined
+        ? compareRateStatus(kpis.cpm, cpmExpected, false)
+        : undefined,
+    progress:
+      kpis.cpm != null && kpis.cpm > 0 && cpmExpected !== undefined && cpmExpected > 0
+        ? Math.max(0, Math.min(1, cpmExpected / kpis.cpm))
+        : undefined,
+    caption: cpmCaption,
+    emptyHint: "none-recorded",
+    accentColour,
+  }
+
+  const ctrTile: KpiTileProps = {
+    label: "CTR",
+    value: tilePct(kpis.ctr),
+    expected: kpis.ctr != null && ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
+    status:
+      kpis.ctr != null && ctrTarget !== undefined
+        ? compareRateStatus(kpis.ctr, ctrTarget, true)
+        : undefined,
+    progress:
+      kpis.ctr != null && ctrTarget !== undefined
+        ? Math.max(0, Math.min(1, kpis.ctr / ctrTarget))
+        : undefined,
+    emptyHint: "none-recorded",
+    accentColour,
+  }
+
   if (isVideo) {
     return [
-      {
-        label: "CPM",
-        value: formatCurrency2dp(kpis.cpm),
-        expected: cpmExpected !== undefined ? formatCurrency2dp(cpmExpected) : undefined,
-        status: cpmExpected !== undefined ? compareRateStatus(kpis.cpm, cpmExpected, false) : undefined,
-        progress:
-          cpmExpected !== undefined && cpmExpected > 0
-            ? Math.max(0, Math.min(1, cpmExpected / kpis.cpm))
-            : undefined,
-        accentColour,
-      },
+      cpmTile,
       {
         label: "View rate",
         value: fmtPct(kpis.viewRate),
@@ -261,6 +336,8 @@ function buildProgrammaticKpiTiles(input: {
           vtrTarget !== undefined
             ? Math.max(0, Math.min(1, kpis.viewRate / vtrTarget))
             : undefined,
+        caption:
+          kpis.impressions > 0 ? `${Math.round(kpis.viewRate)}% of impressions` : undefined,
         accentColour,
       },
       {
@@ -274,49 +351,23 @@ function buildProgrammaticKpiTiles(input: {
             : undefined,
         accentColour,
       },
-      {
-        label: "CTR",
-        value: fmtPct(kpis.ctr),
-        expected: ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
-        status:
-          ctrTarget !== undefined ? compareRateStatus(kpis.ctr, ctrTarget, true) : undefined,
-        progress:
-          ctrTarget !== undefined ? Math.max(0, Math.min(1, kpis.ctr / ctrTarget)) : undefined,
-        accentColour,
-      },
+      ctrTile,
     ]
   }
 
   return [
-    {
-      label: "CPM",
-      value: formatCurrency2dp(kpis.cpm),
-      expected: cpmExpected !== undefined ? formatCurrency2dp(cpmExpected) : undefined,
-      status: cpmExpected !== undefined ? compareRateStatus(kpis.cpm, cpmExpected, false) : undefined,
-      progress:
-        cpmExpected !== undefined && cpmExpected > 0
-          ? Math.max(0, Math.min(1, cpmExpected / kpis.cpm))
-          : undefined,
-      accentColour,
-    },
-    {
-      label: "CTR",
-      value: fmtPct(kpis.ctr),
-      expected: ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
-      status:
-        ctrTarget !== undefined ? compareRateStatus(kpis.ctr, ctrTarget, true) : undefined,
-      progress:
-        ctrTarget !== undefined ? Math.max(0, Math.min(1, kpis.ctr / ctrTarget)) : undefined,
-      accentColour,
-    },
+    cpmTile,
+    ctrTile,
     {
       label: "CPC",
-      value: formatCurrency2dp(kpis.cpc),
+      value: tileMoney(kpis.cpc),
+      emptyHint: "none-recorded",
       accentColour,
     },
     {
       label: "CPA",
-      value: formatCurrency2dp(kpis.cpa),
+      value: tileMoney(kpis.cpa),
+      emptyHint: "not-tracked",
       accentColour,
     },
   ]
@@ -325,9 +376,10 @@ function buildProgrammaticKpiTiles(input: {
 export function buildProgrammaticChannelSection(input: {
   key: ChannelKey
   title: string
-  snowflakeChannel: "programmatic-display" | "programmatic-video"
-  mediaCurveKey: "progdisplay" | "progvideo"
-  curveMetric: "clicks" | "views"
+  snowflakeChannel: "programmatic-display" | "programmatic-video" | "programmatic-ooh"
+  mediaCurveKey: "progdisplay" | "progvideo" | "progooh"
+  curveMetric: "clicks" | "views" | "plays"
+  lineFamily?: string
   rawLineItems: unknown[] | undefined
   combinedRows: CombinedPacingRow[]
   campaignStart: string
@@ -352,6 +404,7 @@ export function buildProgrammaticChannelSection(input: {
     snowflakeChannel,
     mediaCurveKey,
     curveMetric,
+    lineFamily,
     rawLineItems,
     combinedRows,
     campaignStart,
@@ -370,7 +423,12 @@ export function buildProgrammaticChannelSection(input: {
   const normalized = normalizeProgrammaticLineItems(rawLineItems)
   if (!normalized.length) return null
 
-  const dvRows = mapCombinedRowsForNormalizedLines(combinedRows, normalized, snowflakeChannel)
+  const dvRows = mapCombinedRowsForNormalizedLines(
+    combinedRows,
+    normalized,
+    snowflakeChannel,
+    lineFamily,
+  )
 
   const campaignDateSeries = buildProgrammaticCampaignDateRange(campaignStart, campaignEnd)
 
@@ -424,23 +482,35 @@ export function buildProgrammaticChannelSection(input: {
   const mediaTypeColour = channelMediaTypeColour(key)
   const accentColour = mediaTypeColour
   const isVideoChannel = snowflakeChannel === "programmatic-video"
+  const isOohChannel = snowflakeChannel === "programmatic-ooh"
+  const allSpendModelled =
+    metrics.length > 0 && metrics.every((m) => m.spendModelledFromPlanRate)
+  const spendTitle = allSpendModelled
+    ? MODELLED_SPEND_LABEL
+    : isOohChannel
+      ? "Delivered spend"
+      : "Spend delivery"
 
   const aggregateTrack = pacingPctToStatus(aggregatePacing.deliverable?.pacingPct)
 
-  const allSpendModelled =
-    metrics.length > 0 && metrics.every((m) => m.spendModelledFromPlanRate)
+  const avgPacingPct = (
+    metrics.reduce((s, m) => s + Number(m.pacing.spend.pacingPct ?? 0), 0) / Math.max(1, metrics.length)
+  ).toFixed(1)
 
-  const summaryChips = [
-    { label: allSpendModelled ? MODELLED_SPEND_LABEL : "Total spend", value: formatCurrency2dp(kpisRollup.spend) },
-    { label: "Total impressions", value: formatWholeNumber(kpisRollup.impressions) },
-    { label: "Avg CPM", value: formatCurrency2dp(kpisRollup.cpm) },
-    {
-      label: "Avg delivery",
-      value: `${(
-        metrics.reduce((s, m) => s + Number(m.pacing.spend.pacingPct ?? 0), 0) / Math.max(1, metrics.length)
-      ).toFixed(1)}%`,
-    },
-  ]
+  const summaryChips = isOohChannel
+    ? [
+        { label: "Planned", value: formatCurrency2dp(bookedTotals.spend) },
+        { label: "Impressions", value: formatWholeNumber(kpisRollup.impressions) },
+        { label: "Plays", value: formatWholeNumber(kpisRollup.conversions) },
+        { label: spendTitle, value: formatCurrency2dp(kpisRollup.spend) },
+        { label: "Pacing", value: `${avgPacingPct}%` },
+      ]
+    : [
+        { label: allSpendModelled ? MODELLED_SPEND_LABEL : "Total spend", value: formatCurrency2dp(kpisRollup.spend) },
+        { label: "Total impressions", value: formatWholeNumber(kpisRollup.impressions) },
+        { label: "Avg CPM", value: kpisRollup.cpm == null ? "—" : formatCurrency2dp(kpisRollup.cpm) },
+        { label: "Avg delivery", value: `${avgPacingPct}%` },
+      ]
 
   const spendRatio =
     bookedTotals.spend > 0 ? Math.max(0, Math.min(1, aggregatePacing.spend.actualToDate / bookedTotals.spend)) : 0
@@ -450,7 +520,7 @@ export function buildProgrammaticChannelSection(input: {
       : 0
 
   const spendCard: ProgressCardProps = {
-    title: allSpendModelled ? MODELLED_SPEND_LABEL : "Spend delivery",
+    title: spendTitle,
     value: formatCurrency2dp(aggregatePacing.spend.actualToDate),
     detail: `Delivered ${formatCurrency2dp(aggregatePacing.spend.actualToDate)} · Planned ${formatCurrency2dp(bookedTotals.spend)}`,
     progress: spendRatio,
@@ -461,7 +531,9 @@ export function buildProgrammaticChannelSection(input: {
   }
 
   const deliverableCard: ProgressCardProps = {
-    title: `${aggregateDeliverableLabel(normalized.map((li) => li.buy_type))} delivery`,
+    title: isOohChannel
+      ? "Plays delivery"
+      : `${aggregateDeliverableLabel(normalized.map((li) => li.buy_type))} delivery`,
     value: formatWholeNumber(aggregatePacing.deliverable?.actualToDate ?? 0),
     detail: `Delivered ${formatWholeNumber(aggregatePacing.deliverable?.actualToDate ?? 0)} · Planned ${formatWholeNumber(bookedTotals.deliverables)}`,
     progress: delRatio,
@@ -517,11 +589,24 @@ export function buildProgrammaticChannelSection(input: {
     const dailyRows = m.actualsDaily.map((d) => ({
       date: d.date,
       amount_spent: Number(d.spend ?? 0),
-      ...(isVideoLine
-        ? { video_3s_views: Number(d.videoViews ?? 0) }
-        : { impressions: Number(d.impressions ?? 0) }),
+      ...(isOohChannel
+        ? {
+            impressions: Number(d.impressions ?? 0),
+            plays: Number(d.conversions ?? 0),
+          }
+        : isVideoLine
+          ? { video_3s_views: Number(d.videoViews ?? 0) }
+          : { impressions: Number(d.impressions ?? 0) }),
     }))
     const modelled = m.spendModelledFromPlanRate === true
+    const lineSpendTitle = modelled
+      ? MODELLED_SPEND_LABEL
+      : isOohChannel
+        ? "Delivered spend"
+        : "Spend delivery"
+    const lineDeliverableTitle = isOohChannel
+      ? "Plays"
+      : getProgrammaticDeliverableLabel(m.deliverableKey)
     const displayName = deliveryLineItemDisplayName(li as Record<string, unknown>)
     const entityBreakdown = cm360PlacementBreakdown(
       m.lineItem,
@@ -535,7 +620,7 @@ export function buildProgrammaticChannelSection(input: {
       platform: String(m.lineItem.buy_type ?? ""),
       progressCards: [
         {
-          title: modelled ? MODELLED_SPEND_LABEL : "Spend delivery",
+          title: lineSpendTitle,
           value: formatCurrency2dp(m.pacing.spend.actualToDate),
           detail: `Delivered ${formatCurrency2dp(m.pacing.spend.actualToDate)} · Planned ${formatCurrency2dp(m.booked.spend)}`,
           progress: spendR,
@@ -546,12 +631,12 @@ export function buildProgrammaticChannelSection(input: {
           ...(modelled ? { titleTooltip: MODELLED_SPEND_TOOLTIP } : {}),
         },
         {
-          title: `${getProgrammaticDeliverableLabel(m.deliverableKey)} delivery`,
+          title: `${lineDeliverableTitle} delivery`,
           value: formatWholeNumber(m.pacing.deliverable?.actualToDate ?? 0),
           detail: `Delivered ${formatWholeNumber(m.pacing.deliverable?.actualToDate ?? 0)} · Planned ${formatWholeNumber(m.booked.deliverables)}`,
           progress: delR,
           variance: pctVarianceFromPacingPct(m.pacing.deliverable?.pacingPct),
-          status: onTrackToDelivery(m.onTrackStatus),
+          status: pacingPctToStatus(m.pacing.deliverable?.pacingPct),
           sparkline: m.pacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
           dense: true,
         },
@@ -563,7 +648,12 @@ export function buildProgrammaticChannelSection(input: {
       chart: {
         kind: "daily-delivery",
         daily: dailyRows,
-        series: isVideoLine
+        series: isOohChannel
+          ? [
+              { key: "amount_spent", label: "Spend", yAxis: "left" },
+              { key: "plays", label: "Plays", yAxis: "right" },
+            ]
+          : isVideoLine
           ? [
               { key: "amount_spent", label: "Spend", yAxis: "left" },
               { key: "video_3s_views", label: "Views", yAxis: "right" },
@@ -596,24 +686,36 @@ export function buildProgrammaticChannelSection(input: {
       progressCards: [spendCard, deliverableCard],
       kpiBand: {
         title: "Delivery KPIs",
-        subtitle: snowflakeChannel === "programmatic-video" ? "Video efficiency & engagement" : "Display efficiency",
+        subtitle: isOohChannel
+          ? "OOH plays and impressions"
+          : snowflakeChannel === "programmatic-video"
+            ? "Video efficiency & engagement"
+            : "Display efficiency",
         tiles: aggregateKpiTiles,
       },
       chart: {
         daily: aggregateDailyRows(
           accordionItems.flatMap((item) => (item.block.chart.kind === "daily-delivery" ? item.block.chart.daily : [])),
-          snowflakeChannel === "programmatic-video" ? ["amount_spent", "video_3s_views"] : ["amount_spent", "impressions"],
+          isOohChannel
+            ? ["amount_spent", "plays"]
+            : snowflakeChannel === "programmatic-video"
+              ? ["amount_spent", "video_3s_views"]
+              : ["amount_spent", "impressions"],
         ),
-        series:
-          snowflakeChannel === "programmatic-video"
-            ? [
-                { key: "amount_spent", label: "Spend", yAxis: "left" },
-                { key: "video_3s_views", label: "Views", yAxis: "right" },
-              ]
-            : [
-                { key: "amount_spent", label: "Spend", yAxis: "left" },
-                { key: "impressions", label: "Impressions", yAxis: "right" },
-              ],
+        series: isOohChannel
+          ? [
+              { key: "amount_spent", label: "Spend", yAxis: "left" },
+              { key: "plays", label: "Plays", yAxis: "right" },
+            ]
+          : snowflakeChannel === "programmatic-video"
+          ? [
+              { key: "amount_spent", label: "Spend", yAxis: "left" },
+              { key: "video_3s_views", label: "Views", yAxis: "right" },
+            ]
+          : [
+              { key: "amount_spent", label: "Spend", yAxis: "left" },
+              { key: "impressions", label: "Impressions", yAxis: "right" },
+            ],
         asAtDate: aggregatePacing.asAtDate,
         brandColour,
       },

@@ -11,6 +11,7 @@ import {
 } from "@/lib/delivery/programmatic/programmaticCompute"
 import { buildProgrammaticDisplaySection } from "../programmaticDisplayAdapter"
 import { buildProgrammaticVideoSection } from "../programmaticVideoAdapter"
+import { buildProgrammaticOohSection } from "../programmaticOohAdapter"
 import type { ChannelSectionData } from "../types"
 
 const CAMPAIGN_START = "2026-03-01"
@@ -79,7 +80,7 @@ function lineMetrics(
   rows: PacingRow[],
   acceptedChannel: string,
   extra?: {
-    mediaType?: "progdisplay" | "progvideo"
+    mediaType?: "progdisplay" | "progvideo" | "progooh"
     reportedSpendByLineDate?: Map<string, Map<string, number>>
   },
 ) {
@@ -552,4 +553,179 @@ test("a Twitch prog_video line with CM360 rows is included with impressions and 
   assert.ok(section, "expected a programmatic video section")
   assert.equal(section.lineItems.length, 1)
   assert.equal(section.lineItems[0]?.block.progressCards[0]?.title, MODELLED_SPEND_TITLE)
+})
+
+function buildOoh(input: {
+  lines: unknown[]
+  rows: PacingRow[]
+  reportedSpendByLineDate?: Map<string, Map<string, number>>
+}): ChannelSectionData | null {
+  return buildProgrammaticOohSection({
+    progOohLineItems: input.lines,
+    combinedRows: input.rows,
+    campaignStart: CAMPAIGN_START,
+    campaignEnd: CAMPAIGN_END,
+    mbaNumber: "LEGAL004",
+    filterRange: { start: null, end: null },
+    kpiVersionNumber: 1,
+    kpiTargets: undefined,
+    lineItemTargets: undefined,
+    pacingWindow: {
+      asAtISO: "2026-03-15",
+      campaignStartISO: CAMPAIGN_START,
+      campaignEndISO: CAMPAIGN_END,
+    },
+    lastSyncedAt: null,
+    reportedSpendByLineDate: input.reportedSpendByLineDate,
+  })
+}
+
+test("a Vistar prog_ooh line with PACING_FACT rows is included with plays from RESULTS", () => {
+  const section = buildOoh({
+    lines: [burstLine("legal004po1", "Vistar")],
+    rows: [
+      pacingRow({
+        channel: "programmatic-ooh",
+        lineItemId: "legal004po1",
+        impressions: 80_000,
+        results: 12_000,
+        amountSpent: 61.5,
+      }),
+    ],
+  })
+  assert.ok(section, "expected a programmatic OOH section")
+  assert.equal(section.key, "programmatic-ooh")
+  assert.equal(section.title, "Programmatic - OOH")
+  assert.equal(section.lineItems.length, 1)
+  assert.equal(section.lineItems[0]?.id, "legal004po1")
+  assert.deepEqual(section.connections, [{ label: "Vistar (partner file)", tone: "partner-file" }])
+  const playsCard = section.lineItems[0]?.block.progressCards.find((card) =>
+    /play/i.test(card.title),
+  )
+  assert.ok(playsCard, "expected a Plays delivery card")
+  assert.match(String(playsCard.value), /12,000/)
+  const spendCard = section.lineItems[0]?.block.progressCards[0]
+  assert.equal(spendCard?.title, "Delivered spend")
+})
+
+test("a Perion prog_ooh line with no map row is excluded", () => {
+  const section = buildOoh({
+    lines: [burstLine("legal004po9", "Perion")],
+    rows: [
+      pacingRow({
+        channel: "programmatic-ooh",
+        lineItemId: "legal004po9",
+        impressions: 9_000,
+        results: 100,
+      }),
+    ],
+  })
+  assert.equal(section, null)
+})
+
+test("fixedCostMedia OOH spend is REPORTED_SPEND, labelled modelled; CPM keeps AMOUNT_SPENT", () => {
+  const reported = lineMetrics(
+    [{ ...burstLine("legal004po1", "Vistar"), fixedCostMedia: true }],
+    [
+      pacingRow({
+        channel: "programmatic-ooh",
+        lineItemId: "legal004po1",
+        dateDay: "2026-03-01",
+        amountSpent: 99,
+        impressions: 1000,
+        results: 40,
+      }),
+    ],
+    "programmatic-ooh",
+    {
+      mediaType: "progooh",
+      reportedSpendByLineDate: new Map([["legal004po1", new Map([["2026-03-01", 25]])]]),
+    },
+  )
+  assert.equal(reported.length, 1)
+  assert.equal(reported[0]?.spendModelledFromPlanRate, true)
+  assert.equal(reported[0]?.actualsDaily[0]?.spend, 25)
+  assert.equal(reported[0]?.deliverableKey, "conversions")
+  assert.equal(reported[0]?.actualsDaily[0]?.conversions, 40)
+
+  const cpm = lineMetrics(
+    [burstLine("legal004po2", "Vistar")],
+    [
+      pacingRow({
+        channel: "programmatic-ooh",
+        lineItemId: "legal004po2",
+        dateDay: "2026-03-01",
+        amountSpent: 61.5,
+        impressions: 2000,
+        results: 80,
+      }),
+    ],
+    "programmatic-ooh",
+    { mediaType: "progooh" },
+  )
+  assert.equal(cpm[0]?.spendModelledFromPlanRate, false)
+  assert.equal(cpm[0]?.actualsDaily[0]?.spend, 61.5)
+
+  const modelledSection = buildOoh({
+    lines: [{ ...burstLine("legal004po1", "Vistar"), fixedCostMedia: true }],
+    rows: [
+      pacingRow({
+        channel: "programmatic-ooh",
+        lineItemId: "legal004po1",
+        impressions: 1000,
+        results: 40,
+        amountSpent: 0,
+      }),
+    ],
+    reportedSpendByLineDate: new Map([["legal004po1", new Map([["2026-03-01", 25]])]]),
+  })
+  assert.equal(
+    modelledSection?.lineItems[0]?.block.progressCards[0]?.title,
+    MODELLED_SPEND_TITLE,
+  )
+})
+
+test("CM360 Twitch deliverable status is not no-data when delivered and planned are both > 0", () => {
+  const section = buildVideo({
+    lines: [modelledCpmLine("bicau006pv2", "twitch")],
+    rows: [
+      pacingRow({
+        channel: "ad-serving",
+        lineItemId: "bicau006pv2",
+        impressions: 50_000,
+        clicks: 10,
+      }),
+    ],
+  })
+  const deliverable = section?.lineItems[0]?.block.progressCards[1]
+  assert.ok(deliverable)
+  assert.notEqual(deliverable.status, "no-data")
+  assert.ok(
+    deliverable.status === "ahead" ||
+      deliverable.status === "behind" ||
+      deliverable.status === "on-track",
+  )
+})
+
+test("partner-file Channel Factory deliverable status is not no-data when delivered and planned are both > 0", () => {
+  const section = buildVideo({
+    lines: [burstLine("bicau006pv1", "Channel Factory")],
+    rows: [
+      pacingRow({
+        channel: "programmatic-video",
+        lineItemId: "bicau006pv1",
+        impressions: 12_000,
+        video3sViews: 4_000,
+        amountSpent: 0,
+      }),
+    ],
+  })
+  const deliverable = section?.lineItems[0]?.block.progressCards[1]
+  assert.ok(deliverable)
+  assert.notEqual(deliverable.status, "no-data")
+  assert.ok(
+    deliverable.status === "ahead" ||
+      deliverable.status === "behind" ||
+      deliverable.status === "on-track",
+  )
 })

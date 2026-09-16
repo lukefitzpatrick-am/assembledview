@@ -57,12 +57,38 @@ function fmtPct(x: number): string {
   return `${x.toFixed(2)}%`
 }
 
+function tileMoney(value: number | null): string | null {
+  return value == null ? null : formatCurrency2dp(value)
+}
+
+function tilePct(value: number | null): string | null {
+  return value == null ? null : fmtPct(value)
+}
+
+function sharedPlanCpm(items: SocialLineItem[]): number | undefined {
+  if (!items.length) return undefined
+  const rates: number[] = []
+  for (const item of items) {
+    const derived = deriveRateTargetFromBursts(burstsForLineItem(item), String(item.buy_type ?? ""))
+    if (derived?.kind !== "cpm") return undefined
+    rates.push(derived.value)
+  }
+  const first = rates[0]
+  if (first == null) return undefined
+  if (!rates.every((rate) => rate === first)) return undefined
+  return first
+}
+
 function isVideoBuySocial(lineItems: SocialLineItem[]): boolean {
   return lineItems.some((li) => /\bvideo\b/i.test(String(li.buy_type ?? "")))
 }
 
-function compareRateStatus(actual: number, target: number | undefined, higherIsBetter: boolean): DeliveryStatus {
-  if (target === undefined || target <= 0 || !Number.isFinite(actual)) return "no-data"
+function compareRateStatus(
+  actual: number | null,
+  target: number | undefined,
+  higherIsBetter: boolean,
+): DeliveryStatus {
+  if (actual == null || target === undefined || target <= 0 || !Number.isFinite(actual)) return "no-data"
   const tol = 0.08
   const ratio = higherIsBetter ? actual / target : target / actual
   if (ratio >= 1 + tol) return higherIsBetter ? "ahead" : "behind"
@@ -86,7 +112,7 @@ function cleanLineId(v: unknown): string | null {
   return s
 }
 
-export function socialBreakdownNoun(platform: "meta" | "tiktok"): {
+export function socialBreakdownNoun(platform: "meta" | "tiktok" | "reddit"): {
   singular: string
   plural: string
 } {
@@ -142,7 +168,7 @@ export function groupPacingRowsByAdSet(rows: AdSetFactRow[]): EntityBreakdownRow
 
 /** Undefined when every matched row lacks entityId — caller must not pass an empty table. */
 export function socialEntityBreakdownProps(
-  platform: "meta" | "tiktok",
+  platform: "meta" | "tiktok" | "reddit",
   matchedRows: AdSetFactRow[],
   knownPlanLineIds: string[],
 ): LineItemBlockProps["entityBreakdown"] | undefined {
@@ -216,49 +242,72 @@ function buildKpiTiles(input: {
       })()
     : (aggregateRateTargetFromLineItems(activeItems, "cpv") ?? undefined)
 
+  const cpmPlanned = sharedPlanCpm(isPerLine && lineItem ? [lineItem] : activeItems)
+  const cpmCaption = cpmPlanned != null ? `planned ${formatCurrency2dp(cpmPlanned)}` : undefined
+
   const tiles: KpiTileProps[] = []
 
   tiles.push({
     label: "CPM",
-    value: formatCurrency2dp(kpis.cpm),
-    expected: cpmExpected !== undefined ? formatCurrency2dp(cpmExpected) : undefined,
-    status: cpmExpected !== undefined ? compareRateStatus(kpis.cpm, cpmExpected, false) : undefined,
+    value: tileMoney(kpis.cpm),
+    expected:
+      kpis.cpm != null && cpmExpected !== undefined ? formatCurrency2dp(cpmExpected) : undefined,
+    status:
+      kpis.cpm != null && cpmExpected !== undefined
+        ? compareRateStatus(kpis.cpm, cpmExpected, false)
+        : undefined,
     progress:
-      cpmExpected !== undefined && cpmExpected > 0
+      kpis.cpm != null && kpis.cpm > 0 && cpmExpected !== undefined && cpmExpected > 0
         ? Math.max(0, Math.min(1, cpmExpected / kpis.cpm))
         : undefined,
+    caption: cpmCaption,
+    emptyHint: "none-recorded",
     accentColour,
   })
 
   tiles.push({
     label: "CTR",
-    value: fmtPct(kpis.ctr),
-    expected: ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
-    status: ctrTarget !== undefined ? compareRateStatus(kpis.ctr, ctrTarget, true) : undefined,
+    value: tilePct(kpis.ctr),
+    expected: kpis.ctr != null && ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
+    status:
+      kpis.ctr != null && ctrTarget !== undefined
+        ? compareRateStatus(kpis.ctr, ctrTarget, true)
+        : undefined,
     progress:
-      ctrTarget !== undefined ? Math.max(0, Math.min(1, kpis.ctr / ctrTarget)) : undefined,
+      kpis.ctr != null && ctrTarget !== undefined
+        ? Math.max(0, Math.min(1, kpis.ctr / ctrTarget))
+        : undefined,
+    emptyHint: "none-recorded",
     accentColour,
   })
 
   tiles.push({
     label: "CPC",
-    value: formatCurrency2dp(kpis.cpc),
+    value: tileMoney(kpis.cpc),
+    emptyHint: "none-recorded",
     accentColour,
   })
 
   tiles.push({
     label: "CVR",
-    value: fmtPct(kpis.cvr),
-    expected: cvrTarget !== undefined ? fmtPct(cvrTarget) : undefined,
-    status: cvrTarget !== undefined ? compareRateStatus(kpis.cvr, cvrTarget, true) : undefined,
+    value: tilePct(kpis.cvr),
+    expected: kpis.cvr != null && cvrTarget !== undefined ? fmtPct(cvrTarget) : undefined,
+    status:
+      kpis.cvr != null && cvrTarget !== undefined
+        ? compareRateStatus(kpis.cvr, cvrTarget, true)
+        : undefined,
     progress:
-      cvrTarget !== undefined ? Math.max(0, Math.min(1, kpis.cvr / cvrTarget)) : undefined,
+      kpis.cvr != null && cvrTarget !== undefined
+        ? Math.max(0, Math.min(1, kpis.cvr / cvrTarget))
+        : undefined,
+    emptyHint: "not-tracked",
     accentColour,
   })
 
   tiles.push({
     label: "CPA",
-    value: formatCurrency2dp(kpis.cost_per_result),
+    value: tileMoney(kpis.cost_per_result),
+    emptyHint: "not-tracked",
     accentColour,
   })
 
@@ -269,6 +318,8 @@ function buildKpiTiles(input: {
       expected: vtrTarget !== undefined ? fmtPct(vtrTarget) : undefined,
       status:
         vtrTarget !== undefined ? compareRateStatus(kpis.view_rate, vtrTarget, true) : undefined,
+      caption:
+        kpis.impressions > 0 ? `${Math.round(kpis.view_rate)}% of impressions` : undefined,
       accentColour,
     })
     tiles.push({
@@ -289,7 +340,7 @@ function buildKpiTiles(input: {
 
 export function buildSocialChannelSectionForPlatform(input: {
   key: ChannelKey
-  platform: "meta" | "tiktok"
+  platform: "meta" | "tiktok" | "reddit"
   title: string
   lineItems: SocialLineItem[]
   snowflakeRows: CombinedPacingRow[]
@@ -320,7 +371,7 @@ export function buildSocialChannelSectionForPlatform(input: {
     lastSyncedAt,
   } = input
 
-  const wantChannel = platform === "meta" ? "meta" : "tiktok"
+  const wantChannel = platform
   const pacingWindow = getPacingWindow(campaignStart, campaignEnd)
   const normalized = normalizeLineItems(lineItems ?? [])
   const activeItems = normalized.filter(
@@ -363,12 +414,12 @@ export function buildSocialChannelSectionForPlatform(input: {
   // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).
   const mediaTypeColour = channelMediaTypeColour(key)
   const accentColour = mediaTypeColour
-  const includeVideo = isVideoBuySocial(activeItems)
+  const includeVideo = platform === "reddit" || isVideoBuySocial(activeItems)
 
   const summaryChips = [
     { label: "Total spend", value: formatCurrency(aggregatePacing.spend.actualToDate) },
     { label: "Total impressions", value: formatNumber(kpisRaw.impressions) },
-    { label: "Avg CPM", value: formatCurrency2dp(kpisRaw.cpm) },
+    { label: "Avg CPM", value: kpisRaw.cpm == null ? "—" : formatCurrency2dp(kpisRaw.cpm) },
     {
       label: "Avg delivery",
       value: `${(
@@ -420,7 +471,7 @@ export function buildSocialChannelSectionForPlatform(input: {
 
   const accordionItems = metrics.map((m) => {
     const liKpis = summarizeActuals(m.actualsDaily)
-    const videoLi = /\bvideo\b/i.test(String(m.lineItem.buy_type ?? ""))
+    const videoLi = platform === "reddit" || /\bvideo\b/i.test(String(m.lineItem.buy_type ?? ""))
     const spendR =
       m.booked.spend > 0 ? Math.max(0, Math.min(1, m.pacing.spend.actualToDate / m.booked.spend)) : 0
     const delR =
@@ -454,7 +505,7 @@ export function buildSocialChannelSectionForPlatform(input: {
           detail: `Delivered ${formatWholeNumber(m.pacing.deliverable?.actualToDate ?? 0)} · Planned ${formatWholeNumber(m.booked.deliverables)}`,
           progress: delR,
           variance: pctVarianceFromPacingPct(m.pacing.deliverable?.pacingPct),
-          status: onTrackToDelivery(m.onTrackStatus),
+          status: pacingPctToStatus(m.pacing.deliverable?.pacingPct),
           sparkline: m.pacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
           dense: true,
         },
@@ -503,7 +554,9 @@ export function buildSocialChannelSectionForPlatform(input: {
     connections:
       platform === "meta"
         ? [{ label: "Meta connected", tone: "meta" }]
-        : [{ label: "TikTok connected", tone: "tiktok" }],
+        : platform === "tiktok"
+          ? [{ label: "TikTok connected", tone: "tiktok" }]
+          : [{ label: "Reddit connected", tone: "reddit" }],
     mediaTypeColour,
     aggregate: {
       summaryChips,
