@@ -208,6 +208,8 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | POST | `/api/cron/myhours-sync` | internal-cron | CRON_SECRET | `app/api/cron/myhours-sync/route.ts` |
 | GET | `/api/cron/ops-health` | internal-cron | CRON_SECRET | `app/api/cron/ops-health/route.ts` |
 | GET | `/api/cron/pacing-digest` | internal-cron | CRON_SECRET | `app/api/cron/pacing-digest/route.ts` |
+| GET | `/api/cron/pacing-portfolio` | internal-cron | CRON_SECRET | `app/api/cron/pacing-portfolio/route.ts` |
+| POST | `/api/cron/pacing-portfolio` | internal-cron | CRON_SECRET | `app/api/cron/pacing-portfolio/route.ts` |
 | GET | `/api/cron/partner-ingest` | internal-cron | CRON_SECRET | `app/api/cron/partner-ingest/route.ts` |
 | POST | `/api/cron/partner-ingest` | internal-cron | CRON_SECRET | `app/api/cron/partner-ingest/route.ts` |
 | GET | `/api/cron/snapshot-checksum` | internal-cron | CRON_SECRET | `app/api/cron/snapshot-checksum/route.ts` |

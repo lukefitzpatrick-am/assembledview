@@ -356,7 +356,7 @@ function directGroup(partial: {
   }
 }
 
-export function p6FixtureRows() {
+export function p6AssembleInput() {
   const schedulesByMba = new Map<string, CampaignScheduleInput>([
     schedule("letsgo001", 40_000, 100_000),
     schedule("jayco001", 20_000, 50_000),
@@ -366,7 +366,7 @@ export function p6FixtureRows() {
     schedule("PGAAUS014", 8_000, 20_000),
   ])
 
-  return assembleCampaignPacingRows({
+  return {
     asOfDate: P6_AS_OF,
     allowedClientSlugs: null,
     liveOnly: true,
@@ -494,5 +494,9 @@ export function p6FixtureRows() {
       }),
     ],
     schedulesByMba,
-  })
+  }
+}
+
+export function p6FixtureRows() {
+  return assembleCampaignPacingRows(p6AssembleInput())
 }

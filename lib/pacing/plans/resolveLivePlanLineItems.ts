@@ -354,7 +354,8 @@ async function resolveFromXano(
 /**
  * Live plan lines for pacing channel resolvers.
  * Postgres when `getDataBackendFor("plans")` is postgres (published watermark);
- * otherwise the existing Xano per-table walk. Search stays on its own composer.
+ * otherwise the existing Xano per-table walk. Search has its own composer
+ * and now follows the same plans-backend switch.
  */
 export async function resolveLivePlanLineItems(
   args: ResolveLivePlanLineItemsArgs

@@ -59,6 +59,10 @@
     {
       "path": "/api/cron/partner-ingest",
       "schedule": "30 22 * * *"
+    },
+    {
+      "path": "/api/cron/pacing-portfolio",
+      "schedule": "0 21 * * *"
     }
   ]
 }
