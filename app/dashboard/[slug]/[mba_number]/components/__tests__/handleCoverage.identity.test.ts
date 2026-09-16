@@ -112,6 +112,7 @@ describe("handleCoverage equality guard", () => {
         entry!.startsOn,
         entry!.deliveryStatus,
         entry!.impressionsStatus,
+        entry!.deliverableLabel,
       ].join("\u001f"),
     )
   })
