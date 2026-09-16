@@ -691,6 +691,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     onCoverage: handleCoverage,
     onKpiReviewGroups: handleKpiReviewGroups,
     onDeliveredByLineId: handleDeliveredByLineId,
+    isAdmin: Boolean(isAdmin),
   }
 
   return (

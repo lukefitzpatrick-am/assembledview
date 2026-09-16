@@ -8,9 +8,9 @@ export interface KpiTileProps {
   label: string
   /** Big number, formatted (e.g. "$15.34", "2.35%"). Null = dashed empty tile. */
   value: string | null
-  /** Expected target, formatted. Optional - when absent, no comparison shown. */
+  /** Formatted target / plan rate. Optional — when absent, no status pill. */
   expected?: string
-  /** Status when comparison applies. Defaults to "no-data" when expected is absent. */
+  /** Status when a target is present. Defaults to "no-data" when expected is absent. */
   status?: DeliveryStatus
   /** Progress 0..1, optional progress bar under the value. */
   progress?: number
@@ -64,17 +64,15 @@ export function KpiTile({
           ) : null}
           <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
         </div>
-        {!isEmpty && expected ? <StatusPill status={effectiveStatus} /> : null}
+        {expected ? <StatusPill status={effectiveStatus} /> : null}
       </div>
       {isEmpty ? (
         <p className="mt-1 text-sm text-muted-foreground">{emptyCopy(emptyHint)}</p>
       ) : (
         <p className="mt-1 text-lg font-semibold tabular-nums num">{value}</p>
       )}
+      {expected ? <p className="text-[11px] tabular-nums num text-muted-foreground">{expected}</p> : null}
       {caption ? <p className="text-[11px] text-muted-foreground">{caption}</p> : null}
-      {!isEmpty && expected ? (
-        <p className="text-[11px] text-muted-foreground">Expected: {expected}</p>
-      ) : null}
       {!isEmpty && typeof progress === "number" ? (
         <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted">
           <div

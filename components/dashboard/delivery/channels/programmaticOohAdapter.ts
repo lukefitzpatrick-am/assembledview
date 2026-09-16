@@ -23,6 +23,7 @@ export function buildProgrammaticOohSection(input: {
   brandColour?: string
   lastSyncedAt: Date | null
   reportedSpendByLineDate?: Map<string, Map<string, number>>
+  isAdmin?: boolean
 }): ChannelSectionData | null {
   return buildProgrammaticChannelSection({
     key: "programmatic-ooh",
@@ -44,5 +45,6 @@ export function buildProgrammaticOohSection(input: {
     brandColour: input.brandColour,
     lastSyncedAt: input.lastSyncedAt,
     reportedSpendByLineDate: input.reportedSpendByLineDate,
+    isAdmin: input.isAdmin,
   })
 }

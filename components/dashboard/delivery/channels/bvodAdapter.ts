@@ -16,6 +16,7 @@ export function buildBvodSection(input: {
   brandColour?: string
   lastSyncedAt: Date | null
   reportedSpendByLineDate?: Map<string, Map<string, number>>
+  isAdmin?: boolean
 }): ChannelSectionData | null {
   return buildDirectDigitalChannelSection({
     key: "bvod",

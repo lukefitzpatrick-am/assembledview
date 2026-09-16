@@ -16,6 +16,7 @@ export function buildDigitalAudioSection(input: {
   brandColour?: string
   lastSyncedAt: Date | null
   reportedSpendByLineDate?: Map<string, Map<string, number>>
+  isAdmin?: boolean
 }): ChannelSectionData | null {
   return buildDirectDigitalChannelSection({
     key: "digital-audio",

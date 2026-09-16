@@ -8,6 +8,7 @@ import {
   deriveRateTargetFromBursts,
   getLineItemKpiRow,
 } from "@/lib/kpi/lineItemKpiTargets"
+import { applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import {
@@ -185,6 +186,9 @@ function buildKpiTiles(input: {
   lineItemTargets: Map<string, CampaignKPI> | undefined
   activeItems: SocialLineItem[]
   lineItem?: SocialLineItem
+  sectionKey: string
+  plannedSpendByLineId: Record<string, number>
+  isAdmin: boolean
 }): KpiTileProps[] {
   const {
     kpis,
@@ -329,7 +333,19 @@ function buildKpiTiles(input: {
     })
   }
 
-  return tiles
+  const items = lineItem ? [lineItem] : activeItems
+  return applyKpiBandTargetsFromPlan(tiles, {
+    key: input.sectionKey,
+    items,
+    plannedSpendByLineId: input.plannedSpendByLineId,
+    impressions: kpis.impressions,
+    clicks: kpis.clicks,
+    results: kpis.results,
+    views: kpis.video_3s_views > 0 ? kpis.video_3s_views : null,
+    spend: Number.isFinite(kpis.spend) ? kpis.spend : null,
+    lineItemTargets,
+    isAdmin: input.isAdmin,
+  })
 }
 
 export function buildSocialChannelSectionForPlatform(input: {
@@ -347,6 +363,7 @@ export function buildSocialChannelSectionForPlatform(input: {
   filterRange: DateRange
   brandColour?: string
   lastSyncedAt: Date | null
+  isAdmin?: boolean
 }): ChannelSectionData {
   const {
     key,
@@ -363,6 +380,7 @@ export function buildSocialChannelSectionForPlatform(input: {
     filterRange,
     brandColour,
     lastSyncedAt,
+    isAdmin = false,
   } = input
 
   const wantChannel = platform
@@ -449,6 +467,12 @@ export function buildSocialChannelSectionForPlatform(input: {
     sparkline: aggregatePacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
   }
 
+  const plannedSpendByLineId: Record<string, number> = {}
+  for (const m of metrics) {
+    const id = String(m.lineItem.line_item_id ?? "").trim()
+    if (id) plannedSpendByLineId[id] = m.booked.spend
+  }
+
   const kpiTiles = buildKpiTiles({
     kpis: kpisRaw,
     accentColour,
@@ -457,6 +481,9 @@ export function buildSocialChannelSectionForPlatform(input: {
     kpiVersionNumber,
     lineItemTargets,
     activeItems,
+    sectionKey: key,
+    plannedSpendByLineId,
+    isAdmin,
   })
 
   const knownPlanLineIds = activeItems
@@ -515,6 +542,9 @@ export function buildSocialChannelSectionForPlatform(input: {
           lineItemTargets,
           activeItems,
           lineItem: m.lineItem,
+          sectionKey: key,
+          plannedSpendByLineId,
+          isAdmin,
         }),
       },
       chart: {
