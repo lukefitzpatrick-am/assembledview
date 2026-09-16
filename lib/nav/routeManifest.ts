@@ -594,6 +594,15 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     group: "pacing",
     searchTerms: "orphan line items",
   },
+  {
+    path: "/pacing/admin/unmapped-placements",
+    label: "Unmapped CM360",
+    title: "Pacing · Unmapped CM360",
+    inPalette: true,
+    roles: ["admin"],
+    group: "pacing",
+    searchTerms: "unmapped cm360 placements",
+  },
 
   // ── Finance children ───────────────────────────────────────────────
   {

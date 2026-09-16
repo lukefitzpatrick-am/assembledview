@@ -99,6 +99,11 @@ function adminConsolidationCandidates(rows: HandlerRow[]): string {
       links: "pacing orphans admin UI; optional rename to `/api/admin/pacing/orphans*`",
     },
     {
+      path: "/api/admin/unmapped-placements",
+      gate: "requireRole([\"admin\"])",
+      links: "pacing admin unmapped CM360 placements list",
+    },
+    {
       path: "/api/finance/forecast (gated root)",
       gate: "requireRole(admin) on `/api/finance/forecast`",
       links: "`ForecastingPageClient`, finance forecast section",

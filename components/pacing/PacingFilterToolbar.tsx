@@ -21,8 +21,8 @@ const YMD = /^\d{4}-\d{2}-\d{2}$/
 
 const OVERVIEW_ROW_FILTER_REASON =
   "Not available on Overview — use a channel tab"
-const ORPHANS_FILTER_REASON =
-  "Not available on Orphans — assignment list is unfiltered"
+const ADMIN_TOOLS_FILTER_REASON =
+  "Not available on admin tools — these lists are unfiltered"
 
 function pacingFilterStateEqual(a: PacingFilterState, b: PacingFilterState): boolean {
   return (
@@ -69,13 +69,13 @@ function pacingToolbarScope(pathname: string): {
     pathname === "/pacing" ||
     pathname === "/pacing/" ||
     pathname.startsWith("/pacing/overview")
-  const isOrphans = pathname.includes("/pacing/admin/orphans")
-  if (isOrphans) {
+  const isAdminTools = pathname.includes("/pacing/admin/")
+  if (isAdminTools) {
     return {
       rowFiltersDisabled: true,
       asOfDisabled: true,
-      rowFilterReason: ORPHANS_FILTER_REASON,
-      asOfReason: ORPHANS_FILTER_REASON,
+      rowFilterReason: ADMIN_TOOLS_FILTER_REASON,
+      asOfReason: ADMIN_TOOLS_FILTER_REASON,
     }
   }
   if (isOverview) {

@@ -156,6 +156,7 @@ pct === 100 → fee = 0 (division guard)
 - Snowflake dynamic tables can't ALTER the query body — adding a platform is `CREATE OR REPLACE`; new stage views must match `V_GOOGLE_ADS_AD_GROUP_DAILY` column list/order/types exactly.
 - `MART.XANO_LINE_ITEMS_SNAPSHOT` ingest source is gated by `LINE_ITEM_SNAPSHOT_SOURCE` (`xano` \| `parity` \| `postgres`). X7 flip **earned** (PG tip = source of truth; Xano crawl under-counts) — prod `postgres` only after the X-series merge ships the sync code; until then **`parity`** (still MERGEs Xano). See `docs/superpowers/x7-line-item-snapshot-pg-stop-2026-08-02.md`.
 - Snapshot warehouse readers do not tip-select from `XANO_LINE_ITEMS_SNAPSHOT` — ingest/parity must pre-scope to `published_version_id` tip rows.
+- Unmapped CM360 admin list (`GET /api/admin/unmapped-placements`) is read-only. It applies `LINE_ITEM_LABEL_MAP` first, then treats a resolved `LINE_ITEM_ID` as unmapped when it is null, empty, or absent from `XANO_LINE_ITEMS_SNAPSHOT`. Do not invent an assign write here.
 - Ingest panel flights (`line_item_panel_flights`): no money columns (spend on bursts); paid → `is_live`; bonus/STA → `is_live`+`is_bonus`; N/A / C/C / blank / unmapped → no row (same as bursts).
 
 ## Partner file ingest

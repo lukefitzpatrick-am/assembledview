@@ -26,7 +26,12 @@ export function PacingShell({ children, isAdmin = false }: PacingShellProps) {
   const pathname = usePathname() ?? ""
   const tabs = [
     ...baseTabs,
-    ...(isAdmin ? [{ href: "/pacing/admin/orphans", label: "Admin" as const }] : []),
+    ...(isAdmin
+      ? [
+          { href: "/pacing/admin/orphans", label: "Orphans" as const },
+          { href: "/pacing/admin/unmapped-placements", label: "Unmapped" as const },
+        ]
+      : []),
   ]
 
   return (
