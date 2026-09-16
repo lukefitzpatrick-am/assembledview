@@ -37,6 +37,7 @@ function buildSection(
   extra?: {
     lineItems?: unknown[]
     reportedSpendByLineDate?: Map<string, Map<string, number>>
+    asOfDate?: string
   },
 ) {
   return buildDirectDigitalChannelSection({
@@ -52,6 +53,7 @@ function buildSection(
     lineItemTargets: undefined,
     lastSyncedAt: null,
     reportedSpendByLineDate: extra?.reportedSpendByLineDate,
+    asOfDate: extra?.asOfDate,
   })
 }
 
@@ -203,6 +205,9 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     assert.ok(spendCard)
     assert.equal(spendCard.title, "Reported spend (fixed cost)")
     assert.equal(spendCard.value, "$3,221.16")
+    assert.equal(spendCard.varianceLabel, "vs plan spend")
+    assert.equal(spendCard.detail, "Delivered $3,221.16 · Planned $6,500.00")
+    assert.equal(spendCard.status, "behind")
     const keys = section.aggregate.chart.series.map((s) => s.key)
     assert.ok(!keys.includes("amountSpent"))
     assert.ok(!keys.includes("spend"))
@@ -247,5 +252,57 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     assert.equal(section.aggregate.kpiBand.subtitle, "CM360 delivery counts — spend not applicable")
     assert.equal(section.lineItems[0]?.block.progressCards[0]?.title, "Impressions delivery")
     assert.equal(section.lineItems[0]?.block.progressCards[0]?.value, "50,000")
+  })
+
+  it("BICAU002 bv2 at day 47 of 86 paces reported spend against expected to date", () => {
+    const section = buildSection(
+      [
+        factRow({
+          lineItemId: "bicau002bv2",
+          dateDay: "2026-09-16",
+          impressions: 174_000,
+          clicks: 0,
+        }),
+      ],
+      ["bicau002bv2"],
+      {
+        asOfDate: "2026-09-16",
+        lineItems: [
+          {
+            line_item_id: "bicau002bv2",
+            buy_type: "cpm",
+            fixedCostMedia: true,
+            budget: 8_600,
+            bursts: [
+              {
+                startDate: "2026-08-01",
+                endDate: "2026-10-25",
+                budget: 8_600,
+                calculatedValue: 174_000,
+              },
+            ],
+          },
+        ],
+        reportedSpendByLineDate: new Map([
+          ["bicau002bv2", new Map([["2026-09-16", 4_700]])],
+        ]),
+      },
+    )
+
+    assert.ok(section)
+    const spendCard = section.lineItems[0]?.block.progressCards.find((c) =>
+      /spend/i.test(c.title),
+    )
+    assert.ok(spendCard)
+    assert.equal(spendCard.varianceLabel, "vs expected to date")
+    assert.equal(
+      spendCard.detail,
+      "Reported $4,700.00 · Planned $8,600.00 · Expected to date $4,700.00",
+    )
+    assert.equal(spendCard.status, "on-track")
+    assert.ok(Math.abs(spendCard.variance) < 0.02)
+    assert.ok(Math.abs(spendCard.progress - 4_700 / 8_600) < 0.001)
+    assert.equal(section.aggregate.progressCards[0]?.status, "on-track")
+    assert.equal(section.aggregate.progressCards[0]?.varianceLabel, "vs expected to date")
   })
 })

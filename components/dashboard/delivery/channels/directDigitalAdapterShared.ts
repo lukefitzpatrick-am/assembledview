@@ -4,6 +4,8 @@ import { formatMoney } from "@/lib/format/money"
 import { getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import type { CampaignKPI } from "@/lib/kpi/types"
+import { inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst"
+import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
@@ -229,27 +231,74 @@ function deliveryProgressCard(input: {
   }
 }
 
+function burstPlannedSpend(burst: { mediaAmount?: number; budget: number }): number {
+  return burst.mediaAmount && burst.mediaAmount > 0 ? burst.mediaAmount : burst.budget
+}
+
+/** Planned × inclusive elapsed share of the line's bursts. Null when there are no bursts. */
+function expectedSpendToDateFromBursts(
+  rawBursts: unknown,
+  planned: number,
+  asOfDate: string,
+): number | null {
+  const bursts = parseBurstsToNormalised(rawBursts)
+  if (bursts.length === 0) return null
+
+  let expected = 0
+  let burstMoney = 0
+  for (const burst of bursts) {
+    const totalDays = inclusiveDaysBetween(burst.startDate, burst.endDate)
+    if (!totalDays) continue
+    const amount = burstPlannedSpend(burst)
+    burstMoney += amount
+    if (asOfDate < burst.startDate) continue
+    const windowEnd = asOfDate > burst.endDate ? burst.endDate : asOfDate
+    const elapsed = inclusiveDaysBetween(burst.startDate, windowEnd)
+    if (!elapsed) continue
+    expected += amount * Math.min(1, Math.max(0, elapsed / totalDays))
+  }
+  if (burstMoney > 0) return expected
+
+  const start = bursts[0]!.startDate
+  const end = bursts.reduce((latest, burst) => (burst.endDate > latest ? burst.endDate : latest), bursts[0]!.endDate)
+  const totalDays = inclusiveDaysBetween(start, end)
+  if (!totalDays || planned <= 0) return null
+  if (asOfDate < start) return 0
+  const windowEnd = asOfDate > end ? end : asOfDate
+  const elapsed = inclusiveDaysBetween(start, windowEnd)
+  if (!elapsed) return null
+  return planned * Math.min(1, Math.max(0, elapsed / totalDays))
+}
+
 function spendDeliveryProgressCard(input: {
   title: string
   actual: number
   planned: number
+  expectedToDate?: number | null
   sparkline: number[]
   dense?: boolean
 }): ProgressCardProps {
-  const { title, actual, planned, sparkline, dense } = input
+  const { title, actual, planned, expectedToDate, sparkline, dense } = input
   const hasGoal = planned > 0
+  const hasExpected = expectedToDate != null && expectedToDate > 0
   const progress = hasGoal ? Math.max(0, Math.min(1, safeDiv(actual, planned))) : 0
-  const pacingPct = hasGoal ? safeDiv(actual, planned) * 100 : undefined
+  const pacingPct = hasExpected
+    ? safeDiv(actual, expectedToDate) * 100
+    : hasGoal
+      ? safeDiv(actual, planned) * 100
+      : undefined
   return {
     title,
     value: formatMoney(actual),
-    detail: hasGoal
-      ? `Delivered ${formatMoney(actual)} · Planned ${formatMoney(planned)}`
-      : `Delivered ${formatMoney(actual)} · No plan goal`,
+    detail: hasExpected
+      ? `Reported ${formatMoney(actual)} · Planned ${formatMoney(planned)} · Expected to date ${formatMoney(expectedToDate)}`
+      : hasGoal
+        ? `Delivered ${formatMoney(actual)} · Planned ${formatMoney(planned)}`
+        : `Delivered ${formatMoney(actual)} · No plan goal`,
     progress,
-    variance: hasGoal ? pctVarianceFromPacingPct(pacingPct) : 0,
-    varianceLabel: hasGoal ? "vs plan spend" : "reported spend",
-    status: hasGoal ? deliveryStatusFromPct(pacingPct) : "no-data",
+    variance: pacingPct != null ? pctVarianceFromPacingPct(pacingPct) : 0,
+    varianceLabel: hasExpected ? "vs expected to date" : hasGoal ? "vs plan spend" : "reported spend",
+    status: pacingPct != null ? deliveryStatusFromPct(pacingPct) : "no-data",
     sparkline,
     dense,
   }
@@ -284,6 +333,8 @@ export function buildDirectDigitalChannelSection(input: {
   brandColour?: string
   lastSyncedAt: Date | null
   reportedSpendByLineDate?: Map<string, Map<string, number>>
+  /** Melbourne civil date for expected-to-date; defaults to today. */
+  asOfDate?: string
 }): ChannelSectionData | null {
   const {
     key,
@@ -298,6 +349,7 @@ export function buildDirectDigitalChannelSection(input: {
     brandColour,
     lastSyncedAt,
     reportedSpendByLineDate,
+    asOfDate,
   } = input
   // filterRange reserved for future date-window clipping (parity with other adapters)
   void input.filterRange
@@ -315,7 +367,7 @@ export function buildDirectDigitalChannelSection(input: {
   // No CM360 verification rows for these plan ids → hide the block entirely.
   if (!adRows.length) return null
 
-  const asAtISO = getMelbourneTodayISO()
+  const asAtISO = asOfDate || getMelbourneTodayISO()
   // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).
   const mediaTypeColour = channelMediaTypeColour(key)
   const accentColour = mediaTypeColour
@@ -353,6 +405,7 @@ export function buildDirectDigitalChannelSection(input: {
       { impressions: 0, clicks: 0, results: 0, videoCompletes: 0 },
     )
     const booked = bookedDeliverables(item)
+    const spendPlanned = bookedSpend(item)
     const reportedByDate = isFixedCostMedia(item) ? reportedSpendByLineDate?.get(id) : undefined
     const hasReportedEntries = Boolean(reportedByDate && reportedByDate.size > 0)
     return {
@@ -361,7 +414,12 @@ export function buildDirectDigitalChannelSection(input: {
       daily,
       totals,
       booked,
-      bookedSpend: bookedSpend(item),
+      bookedSpend: spendPlanned,
+      expectedSpendToDate: expectedSpendToDateFromBursts(
+        item.bursts_json ?? item.bursts,
+        spendPlanned,
+        asAtISO,
+      ),
       matched,
       hasReportedEntries,
       reportedTotal: hasReportedEntries ? sumReportedSpend(reportedByDate) : 0,
@@ -489,12 +547,16 @@ export function buildDirectDigitalChannelSection(input: {
     const date = String(d.date ?? "")
     return reportedLines.reduce((sum, m) => sum + (m.reportedByDate?.get(date) ?? 0), 0)
   })
+  const reportedExpectedToDate = reportedLines.every((m) => m.expectedSpendToDate != null)
+    ? reportedLines.reduce((sum, m) => sum + (m.expectedSpendToDate ?? 0), 0)
+    : null
   const spendCard =
     reportedLines.length > 0
       ? spendDeliveryProgressCard({
           title: FIXED_COST_SPEND_LABEL,
           actual: reportedSpendTotal,
           planned: reportedSpendPlanned,
+          expectedToDate: reportedExpectedToDate,
           sparkline: reportedSpendSpark,
         })
       : null
@@ -536,6 +598,7 @@ export function buildDirectDigitalChannelSection(input: {
           title: FIXED_COST_SPEND_LABEL,
           actual: m.reportedTotal,
           planned: m.bookedSpend,
+          expectedToDate: m.expectedSpendToDate,
           sparkline: m.daily.map((d) => m.reportedByDate?.get(d.date) ?? 0),
           dense: true,
         })
