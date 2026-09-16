@@ -27,6 +27,7 @@ import {
   type SocialLineItem,
   type SocialLineMetrics,
 } from "@/lib/delivery/social/socialChannelCompute"
+import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import { getPacingWindow } from "@/lib/pacing/pacingWindow"
 import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiTileProps } from "../shared/KpiTile"
@@ -40,13 +41,6 @@ import { aggregateDeliverableLabel } from "@/lib/delivery/deliverableLabel"
 function pctVarianceFromPacingPct(pct: number | undefined): number {
   if (pct === undefined || Number.isNaN(pct)) return 0
   return (pct - 100) / 100
-}
-
-function pacingPctToStatus(pct: number | undefined): DeliveryStatus {
-  if (pct === undefined || Number.isNaN(pct)) return "no-data"
-  if (pct >= 102) return "ahead"
-  if (pct <= 98) return "behind"
-  return "on-track"
 }
 
 function onTrackToDelivery(s: SocialLineMetrics["onTrackStatus"]): DeliveryStatus {
@@ -407,7 +401,7 @@ export function buildSocialChannelSectionForPlatform(input: {
     deliverables: metrics.reduce((s, m) => s + (m.booked?.deliverables ?? 0), 0),
   }
 
-  const aggregateTrack = pacingPctToStatus(aggregatePacing.deliverable?.pacingPct)
+  const aggregateTrack = deliveryStatusFromPct(aggregatePacing.deliverable?.pacingPct)
 
   const kpisRaw = summarizeActuals(metrics.flatMap((m) => m.actualsDaily))
 
@@ -441,7 +435,7 @@ export function buildSocialChannelSectionForPlatform(input: {
     detail: `Delivered ${formatCurrency(aggregatePacing.spend.actualToDate)} · Planned ${formatCurrency(bookedTotals.spend)}`,
     progress: spendRatio,
     variance: pctVarianceFromPacingPct(aggregatePacing.spend.pacingPct),
-    status: pacingPctToStatus(aggregatePacing.spend.pacingPct),
+    status: deliveryStatusFromPct(aggregatePacing.spend.pacingPct),
     sparkline: aggregatePacing.series.map((p) => Number(p.actualSpend ?? 0)),
   }
 
@@ -495,7 +489,7 @@ export function buildSocialChannelSectionForPlatform(input: {
           detail: `Delivered ${formatCurrency(m.pacing.spend.actualToDate)} · Planned ${formatCurrency(m.booked.spend)}`,
           progress: spendR,
           variance: pctVarianceFromPacingPct(m.pacing.spend.pacingPct),
-          status: pacingPctToStatus(m.pacing.spend.pacingPct),
+          status: deliveryStatusFromPct(m.pacing.spend.pacingPct),
           sparkline: m.pacing.series.map((p) => Number(p.actualSpend ?? 0)),
           dense: true,
         },
@@ -505,7 +499,7 @@ export function buildSocialChannelSectionForPlatform(input: {
           detail: `Delivered ${formatWholeNumber(m.pacing.deliverable?.actualToDate ?? 0)} · Planned ${formatWholeNumber(m.booked.deliverables)}`,
           progress: delR,
           variance: pctVarianceFromPacingPct(m.pacing.deliverable?.pacingPct),
-          status: pacingPctToStatus(m.pacing.deliverable?.pacingPct),
+          status: deliveryStatusFromPct(m.pacing.deliverable?.pacingPct),
           sparkline: m.pacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
           dense: true,
         },

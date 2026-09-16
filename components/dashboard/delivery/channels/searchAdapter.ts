@@ -25,6 +25,7 @@ import {
   searchExpectedInWindow,
   searchOnTrackStatus,
 } from "@/lib/delivery/search/searchCore"
+import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiTileProps } from "../shared/KpiTile"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
@@ -45,13 +46,6 @@ const searchSeriesPalette = {
 function pctVarianceFromPacingPct(pct: number | undefined): number {
   if (pct === undefined || Number.isNaN(pct)) return 0
   return (pct - 100) / 100
-}
-
-function pacingPctToStatus(pct: number | undefined): DeliveryStatus {
-  if (pct === undefined || Number.isNaN(pct)) return "no-data"
-  if (pct >= 102) return "ahead"
-  if (pct <= 98) return "behind"
-  return "on-track"
 }
 
 function onTrackToDelivery(s: string): DeliveryStatus {
@@ -178,7 +172,7 @@ export function buildSearchSection(input: {
     cost: Number(d.cost ?? 0),
   }))
 
-  const aggregateTrack = pacingPctToStatus(totalDerived.clicksPacingPct)
+  const aggregateTrack = deliveryStatusFromPct(totalDerived.clicksPacingPct)
 
   // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).
   // searchSeriesPalette.cost === getMediaColor("search") — confirmed equal; keep palette for series accents.
@@ -212,7 +206,7 @@ export function buildSearchSection(input: {
     detail: `Delivered ${formatCurrency(totals.cost)} · Planned ${formatCurrency(totalSchedule.budgetBooked)}`,
     progress: spendRatio,
     variance: pctVarianceFromPacingPct(totalDerived.budgetPacingPct),
-    status: pacingPctToStatus(totalDerived.budgetPacingPct),
+    status: deliveryStatusFromPct(totalDerived.budgetPacingPct),
     sparkline: daily.map((d) => Number(d.cost ?? 0)),
   }
 
@@ -534,7 +528,7 @@ function buildSearchLineItemBlocks(input: {
             detail: `Delivered ${formatCurrency(liTotals.cost)} · Planned ${formatCurrency(spendFull.bookedTotal)}`,
             progress: spendR,
             variance: pctVarianceFromPacingPct(budgetPacingPct),
-            status: pacingPctToStatus(budgetPacingPct),
+            status: deliveryStatusFromPct(budgetPacingPct),
             sparkline: filled.map((d) => Number(d.cost ?? 0)),
             dense: true,
           },

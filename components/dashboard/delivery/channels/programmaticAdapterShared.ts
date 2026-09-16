@@ -27,6 +27,7 @@ import { snowflakeChannelsForDeliverySource } from "@/lib/delivery/deliverySourc
 import {
   type OnTrackStatus,
 } from "@/lib/kpi/deliveryTargetCurve"
+import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { ProgressCardProps } from "../shared/ProgressCard"
@@ -48,13 +49,6 @@ const FIXED_COST_SPEND_LABEL = "Reported spend (fixed cost)"
 function pctVarianceFromPacingPct(pct: number | undefined): number {
   if (pct === undefined || Number.isNaN(pct)) return 0
   return (pct - 100) / 100
-}
-
-function pacingPctToStatus(pct: number | undefined): DeliveryStatus {
-  if (pct === undefined || Number.isNaN(pct)) return "no-data"
-  if (pct >= 102) return "ahead"
-  if (pct <= 98) return "behind"
-  return "on-track"
 }
 
 function onTrackToDelivery(s: OnTrackStatus): DeliveryStatus {
@@ -517,7 +511,7 @@ export function buildProgrammaticChannelSection(input: {
         ? "Delivered spend"
         : "Spend delivery"
 
-  const aggregateTrack = pacingPctToStatus(aggregatePacing.deliverable?.pacingPct)
+  const aggregateTrack = deliveryStatusFromPct(aggregatePacing.deliverable?.pacingPct)
 
   const avgPacingPct = (
     metrics.reduce((s, m) => s + Number(m.pacing.spend.pacingPct ?? 0), 0) / Math.max(1, metrics.length)
@@ -551,7 +545,7 @@ export function buildProgrammaticChannelSection(input: {
     detail: `Delivered ${formatCurrency2dp(aggregatePacing.spend.actualToDate)} · Planned ${formatCurrency2dp(bookedTotals.spend)}`,
     progress: spendRatio,
     variance: pctVarianceFromPacingPct(aggregatePacing.spend.pacingPct),
-    status: pacingPctToStatus(aggregatePacing.spend.pacingPct),
+    status: deliveryStatusFromPct(aggregatePacing.spend.pacingPct),
     sparkline: aggregatePacing.series.map((p) => Number(p.actualSpend ?? 0)),
     ...(allSpendModelled ? { titleTooltip: MODELLED_SPEND_TOOLTIP } : {}),
   }
@@ -647,7 +641,7 @@ export function buildProgrammaticChannelSection(input: {
           detail: `Delivered ${formatCurrency2dp(m.pacing.spend.actualToDate)} · Planned ${formatCurrency2dp(m.booked.spend)}`,
           progress: spendR,
           variance: pctVarianceFromPacingPct(m.pacing.spend.pacingPct),
-          status: pacingPctToStatus(m.pacing.spend.pacingPct),
+          status: deliveryStatusFromPct(m.pacing.spend.pacingPct),
           sparkline: m.pacing.series.map((p) => Number(p.actualSpend ?? 0)),
           dense: true,
           ...(modelled ? { titleTooltip: MODELLED_SPEND_TOOLTIP } : {}),
@@ -658,7 +652,7 @@ export function buildProgrammaticChannelSection(input: {
           detail: `Delivered ${formatWholeNumber(m.pacing.deliverable?.actualToDate ?? 0)} · Planned ${formatWholeNumber(m.booked.deliverables)}`,
           progress: delR,
           variance: pctVarianceFromPacingPct(m.pacing.deliverable?.pacingPct),
-          status: pacingPctToStatus(m.pacing.deliverable?.pacingPct),
+          status: deliveryStatusFromPct(m.pacing.deliverable?.pacingPct),
           sparkline: m.pacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
           dense: true,
         },

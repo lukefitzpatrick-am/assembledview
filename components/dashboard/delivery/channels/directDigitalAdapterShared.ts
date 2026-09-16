@@ -3,6 +3,7 @@ import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import type { CampaignKPI } from "@/lib/kpi/types"
+import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { ProgressCardProps } from "../shared/ProgressCard"
@@ -157,13 +158,6 @@ function completionRatePct(videoCompletes: number, impressions: number): number 
   return safeDiv(videoCompletes, impressions) * 100
 }
 
-function pacingPctToStatus(pct: number | undefined): DeliveryStatus {
-  if (pct === undefined || Number.isNaN(pct)) return "no-data"
-  if (pct >= 102) return "ahead"
-  if (pct <= 98) return "behind"
-  return "on-track"
-}
-
 function pctVarianceFromPacingPct(pct: number | undefined): number {
   if (pct === undefined || Number.isNaN(pct)) return 0
   return (pct - 100) / 100
@@ -189,7 +183,7 @@ function deliveryProgressCard(input: {
     progress,
     variance: hasGoal ? pctVarianceFromPacingPct(pacingPct) : 0,
     varianceLabel: hasGoal ? "vs plan deliverable" : "verification counts only",
-    status: hasGoal ? pacingPctToStatus(pacingPct) : "no-data",
+    status: hasGoal ? deliveryStatusFromPct(pacingPct) : "no-data",
     sparkline,
     dense,
   }
@@ -354,7 +348,7 @@ export function buildDirectDigitalChannelSection(input: {
       expected: ctrTargetRaw != null ? fmtPct(ctrTargetRaw) : undefined,
       status:
         ctrTargetRaw != null && ctrTargetRaw > 0
-          ? pacingPctToStatus(safeDiv(ctr, ctrTargetRaw) * 100)
+          ? deliveryStatusFromPct(safeDiv(ctr, ctrTargetRaw) * 100)
           : "no-data",
       accentColour,
     },
@@ -461,7 +455,7 @@ export function buildDirectDigitalChannelSection(input: {
             expected: liCtrTarget != null ? fmtPct(liCtrTarget) : undefined,
             status:
               liCtrTarget != null && liCtrTarget > 0
-                ? pacingPctToStatus(safeDiv(liCtr, liCtrTarget) * 100)
+                ? deliveryStatusFromPct(safeDiv(liCtr, liCtrTarget) * 100)
                 : "no-data",
             accentColour,
           },

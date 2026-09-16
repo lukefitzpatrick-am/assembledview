@@ -148,6 +148,7 @@ pct === 100 → fee = 0 (division guard)
 - Platform delivery attaches through `delivery_source_map` and the social classifier; a platform is never a new `line_channel`.
 - **Publisher Hub spend** (`getPublisherDashboardData` → `lineItemMatchesPublisher`): empty/whitespace `header1` is absent (`header1 || publisher || publisherid`), never `header1 ?? publisher`. Prefer the line's numeric `publisher_id` / ingest `publisher_profiles.publisher_id` (0036) over catalogue display name. Short stamps (QMS / JCDecaux / SCA / SEN) join via `resolveCatalogueIdForProfileName`.
 - The `PacingStatus` ladder order mirrors Snowflake `V_LINE_ITEM_PACING` — do not reorder. Bands: ±5% on track, ±15%.
+- Campaign-delivery Ahead / Behind / On track is `lib/pacing/deliveryStatusFromPct.ts` only: behind below 90, ahead above 110. Not the admin `PacingStatus` ladder.
 - Direct pacing: `REPORTED_SPEND` (finance-smoothed) and `ACTUAL_PLATFORM_SPEND` are different ledgers — never mix into one KPI. Direct's status vocab doesn't map 1:1 to ahead/behind pills.
 - "As of" is a single Melbourne date (`asOfDate`), not a range.
 - `pacing_mappings` writes must write through to `MART_PACING.DIM_PLAN_MAPPING` then refresh facts — refresh order: `FACT_DELIVERY_DAILY` before `FACT_LINE_ITEM_PACING_DAILY`. Snowflake deletes are soft (`IS_ACTIVE = FALSE`).
