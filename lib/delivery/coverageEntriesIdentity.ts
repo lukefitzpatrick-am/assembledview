@@ -20,6 +20,7 @@ export function coverageEntriesIdentityKey(entries: ChannelCoverageEntry[]): str
         e.startsOn,
         e.deliveryStatus,
         e.impressionsStatus,
+        e.deliverableLabel,
       ].join(FIELD_SEP),
     )
     .join(ENTRY_SEP)

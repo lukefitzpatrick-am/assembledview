@@ -25,6 +25,7 @@ function bicau006Entry(
     startsOn: null,
     deliveryStatus: "on-track",
     impressionsStatus: "on-track",
+    deliverableLabel: "Impressions",
     ...partial,
   }
 }
