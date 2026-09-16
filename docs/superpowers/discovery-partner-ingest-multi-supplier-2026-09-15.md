@@ -1,9 +1,9 @@
 # D3 — Partner ingest as built, and what a second and third supplier need
 
-Status: discovery  
+Status: implemented (PI-1..PI-3)  
 Date: 2026-09-15  
-Scope: read-only. No app code changed.  
-Brain: `docs/brain/MAP.md` §3 Pacing (partner-file ingest); `docs/brain/modules/pacing.md`; `docs/brain/INVARIANTS.md` Partner file ingest; `docs/brain/DATA-MODEL.md` `RAW.PARTNER_*` + `delivery_source_map`; `docs/brain/KNOWN-ISSUES.md` C-90 (`partner_file` empty), C-115 (T5), C-116 (Graph app); `docs/brain/BLAST-RADIUS.md` `lib/partner-ingest/*`.
+Scope: originally read-only discovery. PI-1 (warehouse objects), PI-2 (parser dispatch, Vistar parser, `LOAD_MODE`), and PI-3 (`0077` + Programmatic OOH campaign delivery and pacing) have landed. **Broadsign buys arrive inside the Vistar exchange report** — there is no Broadsign mailbox or parser. The body below is the 15 Sep snapshot; the live path is `docs/brain/modules/pacing.md`.
+Brain: `docs/brain/MAP.md` §3 Pacing (partner-file ingest); `docs/brain/modules/pacing.md`; `docs/brain/INVARIANTS.md` Partner file ingest; `docs/brain/DATA-MODEL.md` `RAW.PARTNER_*` + `delivery_source_map`; `docs/brain/KNOWN-ISSUES.md` C-90, C-115, C-116, C-127, C-128, C-129; `docs/brain/BLAST-RADIUS.md` `lib/partner-ingest/*`.
 
 Goal: map the Channel Factory / Datorama mailbox pipeline as it exists, then say what Vistar and Broadsign would need so Programmatic OOH (`prog_ooh` / `PO`) delivery can land and show on dashboards.
 
