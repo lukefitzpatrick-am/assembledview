@@ -130,9 +130,13 @@ import {
 } from "@/lib/mediaplan/expertGridKeyboardNav"
 import {
   applyExpertFillDown,
+  applyExpertWeekSpanFill,
   type ExpertFillRange,
 } from "@/lib/mediaplan/expertGridFill"
-import { ExpertGridFillHandle } from "@/components/media-containers/ExpertGridFillHandle"
+import {
+  ExpertGridFillHandle,
+  ExpertGridWeekSpanFillHandle,
+} from "@/components/media-containers/ExpertGridFillHandle"
 import {
   ExpertGridCompactRowLabelChrome,
   ExpertGridDescriptorPinButton,
@@ -236,6 +240,9 @@ import {
   buildWeeklyPasteTargetsAnchorOnly,
   mapClipboardMatrixToWeeklyTargets,
   applyWeeklyPasteMatrixToSelection,
+  copiedWeekSpansFromSelection,
+  clipboardMatrixMatchesCopiedPayload,
+  type CopiedWeekSpan,
   weekRangeOutlineFlags as tvWeekRangeOutlineFlags,
   weekOutlineEdgeClasses as tvWeekOutlineEdgeClasses,
   mergeReadyOutlineFlags as oohMergeReadyOutlineFlags,
@@ -263,6 +270,7 @@ import {
   type ExpertMultiCellSelection,
   type WeeklyExportSelection,
   type WeekMergeSelectionNormalized,
+  type ExpertGridRowWithWeekly,
 } from "@/lib/mediaplan/expertGridShared"
 import {
   deltaDaysFromPx,
@@ -311,6 +319,25 @@ type SearchCopiedCells = {
   sourceRows: number
   sourceCols: number
   selection: SearchMultiCellSelection
+  spans: CopiedWeekSpan[]
+}
+
+function buildSearchCopiedCells(
+  sel: WeeklyExportSelection,
+  rows: readonly ExpertGridRowWithWeekly[],
+  weekKeys: readonly string[],
+  text: string
+): SearchCopiedCells | null {
+  const selection = selectionBoundsFromWeeklyExportSelection(sel, weekKeys)
+  if (!selection) return null
+  const matrix = text.split("\n").map((line) => line.split("\t"))
+  return {
+    data: matrix,
+    sourceRows: selection.endRow - selection.startRow + 1,
+    sourceCols: selection.endCol - selection.startCol + 1,
+    selection,
+    spans: copiedWeekSpansFromSelection(sel, rows, weekKeys),
+  }
 }
 
 function normalizeSearchPlatformPaste(
@@ -587,6 +614,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     useState<SearchMultiCellSelection | null>(null)
   const [isSelecting, setIsSelecting] = useState(false)
   const [copiedCells, setCopiedCells] = useState<SearchCopiedCells | null>(null)
+  const copiedCellsRef = useRef(copiedCells)
+  copiedCellsRef.current = copiedCells
   const [pendingMergeSelection, setPendingMergeSelection] = useState<{
     rowIndex: number
     keys: string[]
@@ -2294,7 +2323,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       weekMultiSelectRef.current,
       weekKeys
     )
-    if (!n || n.orderedWeekKeys.length < 2) return
+    if (!n || n.orderedWeekKeys.length < 1) return
     setPendingMergeSelection((prev) => {
       const next = {
         rowIndex: n.rowIndex,
@@ -2324,16 +2353,16 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
 
   const derivedMergeTarget = useMemo(() => {
     const n = deriveSearchMergeEligibility(weekRectSelection, weekMultiSelect, weekKeys)
-    if (!n || n.orderedWeekKeys.length < 2) return null
+    if (!n || n.orderedWeekKeys.length < 1) return null
     return { rowIndex: n.rowIndex, keys: n.orderedWeekKeys }
   }, [weekRectSelection, weekMultiSelect, weekKeys])
 
   const mergeTarget = useMemo(() => {
-    if (!derivedMergeTarget || derivedMergeTarget.keys.length < 2) {
+    if (!derivedMergeTarget || derivedMergeTarget.keys.length < 1) {
       return null
     }
     const sorted = sortWeekKeysByTimeline([...derivedMergeTarget.keys], weekKeys)
-    if (sorted.length < 2 || !weekKeysAreContiguous(sorted, weekKeys)) {
+    if (sorted.length < 1 || !weekKeysAreContiguous(sorted, weekKeys)) {
       return null
     }
     const rowIndex = derivedMergeTarget.rowIndex
@@ -2394,14 +2423,14 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       weekKeys
     )
     const sel =
-      n && n.orderedWeekKeys.length >= 2
+      n && n.orderedWeekKeys.length >= 1
         ? {
             rowIndex: n.rowIndex,
             keys: n.orderedWeekKeys,
             anchorWeekKey: n.anchorWeekKey,
           }
         : null
-    if (!sel || sel.keys.length < 2) {
+    if (!sel || sel.keys.length < 1) {
       const r = weekRectSelectionRef.current
       if (r && r.rowStart !== r.rowEnd) {
         toast({
@@ -2485,13 +2514,13 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     resetTransientWeekUiState()
     toast({
       title: "Weeks merged",
-      description: `Merged ${sorted.length} weeks into one burst. Edit the value or click the red ✕ to unmerge.`,
+      description: `Merged ${sorted.length} week${sorted.length === 1 ? "" : "s"} into one burst. Edit the value or click the red ✕ to unmerge.`,
     })
   }, [dayKeysByWeekKey, pushRows, resetTransientWeekUiState, rowMergeMaps, toast, weekKeys])
 
   const mergeWeeksReady =
     mergeTarget !== null &&
-    mergeTarget.keys.length >= 2 &&
+    mergeTarget.keys.length >= 1 &&
     weekKeysAreContiguous(mergeTarget.keys, weekKeys)
 
   useEffect(() => {
@@ -2610,9 +2639,38 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     [config, platformNames, pushRows]
   )
 
+  const handleWeekSpanFill = useCallback(
+    (
+      rowIndex: number,
+      sourceStartWeekKey: string,
+      sourceEndWeekKey: string,
+      dragEndWeekKey: string
+    ) => {
+      const next = applyExpertWeekSpanFill({
+        rows: normalizedRowsRef.current,
+        weekKeys,
+        sourceRowIndex: rowIndex,
+        sourceStartWeekKey,
+        sourceEndWeekKey,
+        dragEndWeekKey,
+      })
+      if (next) pushRows(next)
+    },
+    [pushRows, weekKeys]
+  )
+
   const pasteMatrixIntoGrid = useCallback(
     (matrix: string[][], source?: WeekPasteSourceOverride) => {
       if (!matrix || matrix.length === 0) return
+      const copied = copiedCellsRef.current
+      const internalMatch = Boolean(
+        copied && clipboardMatrixMatchesCopiedPayload(matrix, copied)
+      )
+      const workingMatrix = internalMatch
+        ? copied!.data.map((row) => row.map((cell) => String(cell ?? "")))
+        : trimEmptyEdgeColumns(matrix)
+      const internalSpans = internalMatch ? copied!.spans : undefined
+      if (!workingMatrix.length) return
       setUnitRateDraft(null)
 
       // Paste is deliverables-only: silently interpreting clipboard numbers
@@ -2656,7 +2714,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       const fcIsWeek = weekKeys.includes(fc.columnKey)
 
       if (fcIsWeek) {
-        let working = trimEmptyEdgeColumns(matrix)
+        const working = workingMatrix
         if (working.length === 0) return
 
         const nextRows: TRow[] = normalizedRows.map((r) => ({
@@ -2665,8 +2723,13 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
           mergedWeekSpans: [...(r.mergedWeekSpans ?? [])],
         }))
 
-        const { applied, errorReasons, layout, usedWeekAlignmentToast } =
-          applyWeeklyPasteMatrixToSelection({
+        const {
+          applied,
+          errorReasons,
+          layout,
+          usedWeekAlignmentToast,
+          droppedUnfittedSpans,
+        } = applyWeeklyPasteMatrixToSelection({
             matrix: working,
             weekColumns,
             anchorRow: fc.rowIndex,
@@ -2679,6 +2742,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             weekKeys,
             rowCount: normalizedRows.length,
             nextRows,
+            copiedSpans: internalSpans,
           })
 
         if (applied > 0) {
@@ -2691,17 +2755,22 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             })
           }
           if (layout !== "direct") {
+            const spanNote = droppedUnfittedSpans
+              ? " Merged spans that did not fit whole were dropped; the value was written to the first cell only."
+              : ""
             if (layout === "tile") {
               toast({
                 title: "Pattern repeated across selection",
                 description:
-                  "Clipboard values were tiled or repeated to fill the selected weeks.",
+                  "Clipboard values were tiled or repeated to fill the selected weeks." +
+                  spanNote,
               })
             } else {
               toast({
                 title: "Paste clipped to selection",
                 description:
-                  "Only the top-left part of the clipboard fit the selected area.",
+                  "Only the top-left part of the clipboard fit the selected area." +
+                  spanNote,
               })
             }
           }
@@ -3016,21 +3085,12 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
           weekStripSelection: menu.weekStripSelection,
           weekMultiSelect: menu.weekMultiSelect,
         }
-        let matrix = await readClipboardMatrixAsync()
+        const matrix = await readClipboardMatrixAsync()
         if (!matrix?.length) {
           toast({
             variant: "destructive",
             title: "Paste unavailable",
             description: WEEK_CELL_CONTEXT_MENU_PASTE_UNAVAILABLE_REASON,
-          })
-          return
-        }
-        matrix = trimEmptyEdgeColumns(matrix)
-        if (!matrix.length) {
-          toast({
-            variant: "destructive",
-            title: "Paste skipped",
-            description: "The clipboard did not contain any cells to paste.",
           })
           return
         }
@@ -3080,18 +3140,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     if (!sel) return false
     const text = buildWeeklyExportTsv(sel, rows, weekKeys)
     if (!text) return false
-    const selection = selectionBoundsFromWeeklyExportSelection(sel, weekKeys)
-    const matrix = text.split("\n").map((line) => line.split("\t"))
     try {
       await navigator.clipboard.writeText(text)
-      if (selection) {
-        setCopiedCells({
-          data: matrix,
-          sourceRows: selection.endRow - selection.startRow + 1,
-          sourceCols: selection.endCol - selection.startCol + 1,
-          selection,
-        })
-      }
+      const payload = buildSearchCopiedCells(sel, rows, weekKeys, text)
+      if (payload) setCopiedCells(payload)
       return true
     } catch {
       return false
@@ -3105,18 +3157,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     if (!sel) return false
     const text = buildWeeklyExportTsv(sel, rows, weekKeys)
     if (!text) return false
-    const selection = selectionBoundsFromWeeklyExportSelection(sel, weekKeys)
-    const matrix = text.split("\n").map((line) => line.split("\t"))
     try {
       await navigator.clipboard.writeText(text)
-      if (selection) {
-        setCopiedCells({
-          data: matrix,
-          sourceRows: selection.endRow - selection.startRow + 1,
-          sourceCols: selection.endCol - selection.startCol + 1,
-          selection,
-        })
-      }
+      const payload = buildSearchCopiedCells(sel, rows, weekKeys, text)
+      if (payload) setCopiedCells(payload)
     } catch {
       toast({
         variant: "destructive",
@@ -3202,8 +3246,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
           ? plainMatrix
           : clipboardMatrixFromDataTransfer(e.clipboardData)
       if (!matrix || matrix.length === 0) return
-      matrix = trimEmptyEdgeColumns(matrix)
-      if (matrix.length === 0) return
       pasteMatrixIntoGrid(matrix)
     },
     [pasteMatrixIntoGrid]
@@ -3260,10 +3302,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
           }
         }, 0)
         void (async () => {
-          let matrix = await readClipboardMatrixAsync()
+          const matrix = await readClipboardMatrixAsync()
           if (!matrix?.length) return
-          matrix = trimEmptyEdgeColumns(matrix)
-          if (!matrix.length) return
           pasteMatrixIntoGrid(matrix)
         })()
       }
@@ -3284,20 +3324,12 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       if (!sel) return
       const text = buildWeeklyExportTsv(sel, rows, weekKeys)
       if (!text) return
-      const selection = selectionBoundsFromWeeklyExportSelection(sel, weekKeys)
-      const matrix = text.split("\n").map((line) => line.split("\t"))
       e.preventDefault()
       e.stopPropagation()
       e.clipboardData.setData("text/plain", text)
       void navigator.clipboard.writeText(text).catch(() => {})
-      if (selection) {
-        setCopiedCells({
-          data: matrix,
-          sourceRows: selection.endRow - selection.startRow + 1,
-          sourceCols: selection.endCol - selection.startCol + 1,
-          selection,
-        })
-      }
+      const payload = buildSearchCopiedCells(sel, rows, weekKeys, text)
+      if (payload) setCopiedCells(payload)
     },
     [resolveCurrentWeeklyExportSelection, weekKeys]
   )
@@ -3309,20 +3341,12 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       if (!sel) return
       const text = buildWeeklyExportTsv(sel, rows, weekKeys)
       if (!text) return
-      const selection = selectionBoundsFromWeeklyExportSelection(sel, weekKeys)
-      const matrix = text.split("\n").map((line) => line.split("\t"))
       e.preventDefault()
       e.stopPropagation()
       e.clipboardData.setData("text/plain", text)
       void navigator.clipboard.writeText(text).catch(() => {})
-      if (selection) {
-        setCopiedCells({
-          data: matrix,
-          sourceRows: selection.endRow - selection.startRow + 1,
-          sourceCols: selection.endCol - selection.startCol + 1,
-          selection,
-        })
-      }
+      const payload = buildSearchCopiedCells(sel, rows, weekKeys, text)
+      if (payload) setCopiedCells(payload)
       commitResolvedWeeklyCut(sel)
     },
     [commitResolvedWeeklyCut, resolveCurrentWeeklyExportSelection, weekKeys]
@@ -4945,6 +4969,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               renderedWeekCells.push(
                                 <td
                                   key={`${row.id}-${col.weekKey}`}
+                                  data-search-expert-week-key={col.weekKey}
                                   colSpan={anchorColSpan}
                                   style={
                                     isMergedAnchorCell && mergedAnchorWidthPx != null
@@ -5530,6 +5555,22 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                           onClick={(e) => e.stopPropagation()}
                                           onDoubleClick={(e) => e.stopPropagation()}
                                         />
+                                        {isActiveWeekCell ? (
+                                          <ExpertGridWeekSpanFillHandle
+                                            onFillToWeek={(endWeekKey) =>
+                                              handleWeekSpanFill(
+                                                rowIndex,
+                                                mSpan.startWeekKey,
+                                                mSpan.endWeekKey,
+                                                endWeekKey
+                                              )
+                                            }
+                                            onDraggingChange={(dragging) => {
+                                              fillHandleDraggingRef.current =
+                                                dragging
+                                            }}
+                                          />
+                                        ) : null}
                                       </>
                                     ) : null}
                                     {mSpan ? (

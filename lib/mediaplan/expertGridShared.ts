@@ -137,6 +137,14 @@ export type WeeklySelectionBounds = Readonly<{
 
 export type WeeklyPasteLayoutMode = "tile" | "clip" | "direct"
 
+/** Merged span copied from a week rect, offsets relative to the copied origin. */
+export type CopiedWeekSpan = Readonly<{
+  rowOffset: number
+  startColOffset: number
+  endColOffset: number
+  anchorValue: number
+}>
+
 export type WeeklyExportSelection =
   | { kind: "rect"; rect: ExpertWeekRectSelection }
   | { kind: "strip"; rowIndex: number }
@@ -230,7 +238,7 @@ export function weekKeysAreContiguous(
   sortedKeys: string[],
   order: readonly string[]
 ): boolean {
-  if (sortedKeys.length < 2) return false
+  if (sortedKeys.length < 1) return false
   const idx = sortedKeys.map((k) => order.indexOf(k))
   if (idx.some((i) => i < 0)) return false
   for (let i = 1; i < idx.length; i++) {
@@ -816,12 +824,14 @@ export function applyWeeklyPasteMatrixToSelection<R extends ExpertGridRowWithWee
     weekKeys: readonly string[]
     rowCount: number
     nextRows: R[]
+    copiedSpans?: readonly CopiedWeekSpan[]
   }>
 ): {
   applied: number
   errorReasons: string[]
   layout: WeeklyPasteLayoutMode
   usedWeekAlignmentToast: boolean
+  droppedUnfittedSpans: boolean
 } {
   const {
     matrix,
@@ -834,6 +844,7 @@ export function applyWeeklyPasteMatrixToSelection<R extends ExpertGridRowWithWee
     weekKeys,
     rowCount,
     nextRows,
+    copiedSpans,
   } = args
 
   const anchorWi = weekKeys.indexOf(anchorWeekKey)
@@ -843,6 +854,7 @@ export function applyWeeklyPasteMatrixToSelection<R extends ExpertGridRowWithWee
       errorReasons: [],
       layout: "direct",
       usedWeekAlignmentToast: false,
+      droppedUnfittedSpans: false,
     }
   }
 
@@ -928,7 +940,105 @@ export function applyWeeklyPasteMatrixToSelection<R extends ExpertGridRowWithWee
     applied += 1
   }
 
-  return { applied, errorReasons, layout, usedWeekAlignmentToast }
+  let droppedUnfittedSpans = false
+  if (copiedSpans && copiedSpans.length > 0 && assignments.length > 0) {
+    let destRow0 = Infinity
+    let destRow1 = -Infinity
+    let destWi0 = Infinity
+    let destWi1 = -Infinity
+    for (const a of assignments) {
+      destRow0 = Math.min(destRow0, a.rowIndex)
+      destRow1 = Math.max(destRow1, a.rowIndex)
+      const wi = weekKeys.indexOf(a.weekKey)
+      if (wi >= 0) {
+        destWi0 = Math.min(destWi0, wi)
+        destWi1 = Math.max(destWi1, wi)
+      }
+    }
+    if (Number.isFinite(destRow0) && Number.isFinite(destWi0)) {
+      for (let r = destRow0; r <= destRow1; r++) {
+        const row = nextRows[r]
+        if (!row) continue
+        nextRows[r] = {
+          ...row,
+          mergedWeekSpans: mergedWeekSpansDissolvedByRect(
+            row.mergedWeekSpans,
+            destWi0,
+            destWi1,
+            weekKeys
+          ),
+        } as R
+      }
+
+      const nR = Math.max(1, dataMatrix.length)
+      const nC = Math.max(
+        1,
+        ...dataMatrix.map((row) => row.length),
+        0
+      )
+      const tileOrigins: { row: number; wi: number }[] = []
+      if (layout === "tile") {
+        for (let r = destRow0; r <= destRow1; r += nR) {
+          for (let wi = destWi0; wi <= destWi1; wi += nC) {
+            tileOrigins.push({ row: r, wi })
+          }
+        }
+      } else {
+        tileOrigins.push({ row: destRow0, wi: destWi0 })
+      }
+
+      for (const origin of tileOrigins) {
+        for (const span of copiedSpans) {
+          const destRow = origin.row + span.rowOffset
+          const destStart = origin.wi + span.startColOffset
+          const destEnd = origin.wi + span.endColOffset
+          const fits =
+            destRow >= destRow0 &&
+            destRow <= destRow1 &&
+            destRow < rowCount &&
+            destStart >= destWi0 &&
+            destEnd <= destWi1 &&
+            destStart >= 0 &&
+            destEnd < weekKeys.length
+          if (!fits) {
+            droppedUnfittedSpans = true
+            continue
+          }
+          const rowAt = nextRows[destRow]
+          if (!rowAt) continue
+          const startKey = weekKeys[destStart]
+          const endKey = weekKeys[destEnd]
+          if (!startKey || !endKey) continue
+          const weeklyValues = { ...rowAt.weeklyValues } as ExpertWeeklyValues
+          for (let wi = destStart; wi <= destEnd; wi++) {
+            const wk = weekKeys[wi]
+            if (wk) weeklyValues[wk] = ""
+          }
+          nextRows[destRow] = {
+            ...rowAt,
+            weeklyValues,
+            mergedWeekSpans: [
+              ...(rowAt.mergedWeekSpans ?? []),
+              {
+                id: newExpertMergeSpanId(),
+                startWeekKey: startKey,
+                endWeekKey: endKey,
+                totalQty: span.anchorValue,
+              },
+            ],
+          } as R
+        }
+      }
+    }
+  }
+
+  return {
+    applied,
+    errorReasons,
+    layout,
+    usedWeekAlignmentToast,
+    droppedUnfittedSpans,
+  }
 }
 
 export function weekRangeOutlineFlags(
@@ -999,7 +1109,7 @@ export function mergeReadyOutlineFlags(
   }
   if (!mergeWeeksReady || !mergeTarget || mergeTarget.rowIndex !== rowIndex) return empty
   const ordered = sortWeekKeysByTimeline([...mergeTarget.keys], weekKeys)
-  if (ordered.length < 2 || !weekKeysAreContiguous(ordered, weekKeys)) return empty
+  if (ordered.length < 1 || !weekKeysAreContiguous(ordered, weekKeys)) return empty
   const i0 = weekKeys.indexOf(ordered[0]!)
   const i1 = weekKeys.indexOf(ordered[ordered.length - 1]!)
   if (i0 < 0 || i1 < 0) return empty
@@ -1066,7 +1176,7 @@ export function normalizeWeekMergeSelection(
 ): WeekMergeSelectionNormalized | null {
   if (rect && rect.rowStart === rect.rowEnd) {
     const keys = mergeKeysFromRect(rect, weekKeys)
-    if (keys && keys.length >= 2) {
+    if (keys && keys.length >= 1) {
       return {
         rowIndex: rect.rowStart,
         orderedWeekKeys: keys,
@@ -1074,7 +1184,7 @@ export function normalizeWeekMergeSelection(
       }
     }
   }
-  if (multi && multi.keys.length >= 2) {
+  if (multi && multi.keys.length >= 1) {
     const sorted = sortWeekKeysByTimeline(multi.keys, weekKeys)
     if (weekKeysAreContiguous(sorted, weekKeys)) {
       return {
@@ -1222,6 +1332,94 @@ export function weekCellExportText<R extends ExpertGridRowWithWeekly>(
   }
   const v = row.weeklyValues[weekKey]
   return v === "" || v === undefined ? "" : String(v)
+}
+
+export function newExpertMergeSpanId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID()
+  }
+  return `merge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+export function normalizeWeeklyClipboardText(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n+$/g, "")
+}
+
+export function weeklyMatrixToTsv(
+  matrix: readonly (readonly (string | number)[])[]
+): string {
+  return matrix.map((row) => row.map((c) => String(c ?? "")).join("\t")).join("\n")
+}
+
+export function clipboardTextMatchesCopiedPayload(
+  osText: string,
+  copied: { data: readonly (readonly (string | number)[])[] }
+): boolean {
+  return (
+    normalizeWeeklyClipboardText(osText) ===
+    normalizeWeeklyClipboardText(weeklyMatrixToTsv(copied.data))
+  )
+}
+
+export function clipboardMatrixMatchesCopiedPayload(
+  matrix: readonly (readonly (string | number)[])[],
+  copied: { data: readonly (readonly (string | number)[])[] }
+): boolean {
+  return (
+    normalizeWeeklyClipboardText(weeklyMatrixToTsv(matrix)) ===
+    normalizeWeeklyClipboardText(weeklyMatrixToTsv(copied.data))
+  )
+}
+
+function spanWeekIndexRange(
+  span: Pick<ExpertGridMergeSpan, "startWeekKey" | "endWeekKey">,
+  weekKeys: readonly string[]
+): { si0: number; si1: number } | null {
+  const i0 = weekKeys.indexOf(span.startWeekKey)
+  const i1 = weekKeys.indexOf(span.endWeekKey)
+  if (i0 < 0 || i1 < 0) return null
+  return { si0: Math.min(i0, i1), si1: Math.max(i0, i1) }
+}
+
+/** Remove spans that overlap [wi0, wi1]. Cut still zeros; paste/fill dissolve. */
+export function mergedWeekSpansDissolvedByRect<S extends ExpertGridMergeSpan>(
+  spans: readonly S[] | undefined,
+  wi0: number,
+  wi1: number,
+  weekKeys: readonly string[]
+): S[] {
+  return (spans ?? []).filter((sp) => {
+    const range = spanWeekIndexRange(sp, weekKeys)
+    if (!range) return true
+    const overlaps = !(range.si1 < wi0 || range.si0 > wi1)
+    return !overlaps
+  })
+}
+
+export function copiedWeekSpansFromSelection<R extends ExpertGridRowWithWeekly>(
+  selection: WeeklyExportSelection,
+  rows: readonly R[],
+  weekKeys: readonly string[]
+): CopiedWeekSpan[] {
+  const bounds = selectionBoundsFromWeeklyExportSelection(selection, weekKeys)
+  if (!bounds) return []
+  const out: CopiedWeekSpan[] = []
+  for (let r = bounds.startRow; r <= bounds.endRow; r++) {
+    const row = rows[r]
+    if (!row) continue
+    for (const span of row.mergedWeekSpans ?? []) {
+      const range = spanWeekIndexRange(span, weekKeys)
+      if (!range) continue
+      if (range.si0 < bounds.startCol || range.si1 > bounds.endCol) continue
+      out.push({
+        rowOffset: r - bounds.startRow,
+        startColOffset: range.si0 - bounds.startCol,
+        endColOffset: range.si1 - bounds.startCol,
+        anchorValue: span.totalQty,
+      })
+    }
+  }
+  return out
 }
 
 export function mergedWeekSpansAfterCutRect<S extends ExpertGridMergeSpan>(

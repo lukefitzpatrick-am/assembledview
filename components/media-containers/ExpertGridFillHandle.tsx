@@ -93,3 +93,84 @@ export function ExpertGridFillHandle({
     />
   )
 }
+
+type ExpertGridWeekSpanFillHandleProps = {
+  onFillToWeek: (endWeekKey: string) => void
+  onDraggingChange?: (dragging: boolean) => void
+  className?: string
+}
+
+/**
+ * Fill handle on a merged week-span anchor: drag right by whole span widths.
+ */
+export function ExpertGridWeekSpanFillHandle({
+  onFillToWeek,
+  onDraggingChange,
+  className,
+}: ExpertGridWeekSpanFillHandleProps) {
+  const draggingRef = useRef(false)
+  const movedRef = useRef(false)
+  const startPointRef = useRef<{ x: number; y: number } | null>(null)
+
+  return (
+    <div
+      role="button"
+      tabIndex={-1}
+      aria-label="Fill merged weeks"
+      title="Drag right to fill by whole span widths"
+      className={cn(
+        "absolute bottom-0 right-0 z-10 h-2 w-2 cursor-crosshair rounded-input bg-primary",
+        className
+      )}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return
+        e.preventDefault()
+        e.stopPropagation()
+        draggingRef.current = true
+        movedRef.current = false
+        startPointRef.current = { x: e.clientX, y: e.clientY }
+        e.currentTarget.setPointerCapture(e.pointerId)
+        onDraggingChange?.(true)
+      }}
+      onPointerMove={(e) => {
+        if (!draggingRef.current || !startPointRef.current) return
+        const dx = e.clientX - startPointRef.current.x
+        const dy = e.clientY - startPointRef.current.y
+        if (dx * dx + dy * dy > 16) {
+          movedRef.current = true
+        }
+      }}
+      onPointerUp={(e) => {
+        if (!draggingRef.current) return
+        draggingRef.current = false
+        onDraggingChange?.(false)
+        const didMove = movedRef.current
+        movedRef.current = false
+        startPointRef.current = null
+        try {
+          e.currentTarget.releasePointerCapture(e.pointerId)
+        } catch {
+          /* already released */
+        }
+        if (!didMove) return
+        const el = document.elementFromPoint(e.clientX, e.clientY)
+        const weekEl = el?.closest?.("[data-search-expert-week-key]")
+        const endWeekKey = weekEl?.getAttribute("data-search-expert-week-key")
+        if (!endWeekKey) return
+        onFillToWeek(endWeekKey)
+      }}
+      onPointerCancel={() => {
+        draggingRef.current = false
+        onDraggingChange?.(false)
+        movedRef.current = false
+        startPointRef.current = null
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+      }}
+    />
+  )
+}
