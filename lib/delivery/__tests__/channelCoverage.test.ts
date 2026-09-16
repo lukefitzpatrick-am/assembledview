@@ -6,6 +6,7 @@ import type { ChannelSectionData } from "@/components/dashboard/delivery/channel
 import type { ProgressCardProps } from "@/components/dashboard/delivery/shared/ProgressCard"
 import {
   channelCoverage,
+  firstAheadChannelName,
   visibleCoverageCards,
   type ChannelCoverageBuckets,
 } from "../channelCoverage"
@@ -332,4 +333,75 @@ test("CPV group planned views come from the section caption; card noun is Views"
   assert.equal(video.plannedImpressions, 885_173)
   assert.equal(video.deliveredImpressions, 86_956)
   assert.equal(video.deliverableLabel, "Views")
+})
+
+test("firstAheadChannelName follows glance card status, not impressions", () => {
+  const buckets = emptyBuckets()
+  buckets.socialLineItems = [
+    {
+      line_item_id: "mba001sm1",
+      platform: "Meta",
+      budget: 20_000,
+      impressions: 0,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 20_000 }],
+    },
+    {
+      line_item_id: "mba001sr1",
+      platform: "Reddit",
+      budget: 5_000,
+      impressions: 0,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 5_000 }],
+    },
+  ]
+  const noneAhead = channelCoverage({
+    buckets,
+    sections: [
+      section({
+        key: "social-meta",
+        lineIds: ["mba001sm1"],
+        spendValue: "$2,000.00",
+        impressionsValue: "180,000",
+        impressionsDetail: "Delivered 180,000 · Planned 400,000",
+        spendStatus: "behind",
+        impressionsStatus: "ahead",
+      }),
+      section({
+        key: "social-reddit",
+        lineIds: ["mba001sr1"],
+        spendValue: "$1,000.00",
+        impressionsValue: "40,000",
+        impressionsDetail: "Delivered 40,000 · Planned 80,000",
+        spendStatus: "on-track",
+        impressionsStatus: "ahead",
+      }),
+    ],
+    todayISO: TODAY,
+  })
+  assert.equal(firstAheadChannelName(noneAhead), null)
+
+  const redditAhead = channelCoverage({
+    buckets,
+    sections: [
+      section({
+        key: "social-meta",
+        lineIds: ["mba001sm1"],
+        spendValue: "$2,000.00",
+        impressionsValue: "180,000",
+        impressionsDetail: "Delivered 180,000 · Planned 400,000",
+        spendStatus: "behind",
+        impressionsStatus: "ahead",
+      }),
+      section({
+        key: "social-reddit",
+        lineIds: ["mba001sr1"],
+        spendValue: "$4,000.00",
+        impressionsValue: "40,000",
+        impressionsDetail: "Delivered 40,000 · Planned 80,000",
+        spendStatus: "ahead",
+        impressionsStatus: "behind",
+      }),
+    ],
+    todayISO: TODAY,
+  })
+  assert.equal(firstAheadChannelName(redditAhead), "Social · Reddit")
 })

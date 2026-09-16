@@ -426,7 +426,7 @@ export function sumReportingPlannedImpressions(entries: ChannelCoverageEntry[]):
 
 export function firstAheadChannelName(entries: ChannelCoverageEntry[]): string | null {
   for (const entry of visibleCoverageCards(entries)) {
-    if (entry.status === "reporting" && entry.impressionsStatus === "ahead") return entry.label
+    if (entry.status === "reporting" && entry.deliveryStatus === "ahead") return entry.label
   }
   return null
 }
