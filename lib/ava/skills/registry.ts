@@ -115,7 +115,6 @@ const SKILL_META: Record<
     pairedTools: [
       "get_campaign_context",
       "get_delivery_snapshot",
-      "get_pacing_snapshot",
       "get_campaign_insights",
     ],
   },

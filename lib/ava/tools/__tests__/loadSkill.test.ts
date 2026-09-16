@@ -84,7 +84,7 @@ test("load_skill: campaign read includes voice reference and paired tools", () =
   assert.equal(payload.chainedDecisionRules, true)
   assert.equal(payload.loadedReference, "voice.md")
   assert.ok(payload.pairedTools?.includes("get_delivery_snapshot"))
-  assert.ok(payload.pairedTools?.includes("get_pacing_snapshot"))
+  assert.equal(payload.pairedTools?.includes("get_pacing_snapshot"), false)
   assert.ok(payload.pairedTools?.includes("get_campaign_insights"))
   assert.ok(payload.content?.includes("Nothing to report yet."))
 })

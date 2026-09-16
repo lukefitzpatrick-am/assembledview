@@ -2,7 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 
-import { parseCampaignReadBeats, renderCampaignReadMarkdown } from "./beats"
+import { emptyCampaignReadBeats, parseCampaignReadBeats, renderCampaignReadMarkdown } from "./beats"
 import type {
   CampaignRead,
   CampaignReadBeats,
@@ -33,7 +33,20 @@ const SELECT = {
   editedByEmail: schema.campaignReads.editedByEmail,
   publishedAt: schema.campaignReads.publishedAt,
   publishedByEmail: schema.campaignReads.publishedByEmail,
+  errorMessage: schema.campaignReads.errorMessage,
 } as const
+
+function asStatus(value: string): CampaignReadStatus {
+  if (
+    value === "published" ||
+    value === "generating" ||
+    value === "failed" ||
+    value === "draft"
+  ) {
+    return value
+  }
+  return "draft"
+}
 
 function mapRow(row: {
   id: number
@@ -49,15 +62,19 @@ function mapRow(row: {
   editedByEmail: string | null
   publishedAt: string | null
   publishedByEmail: string | null
+  errorMessage: string | null
 }): CampaignRead {
   return {
     id: Number(row.id),
     mbaNumber: row.mbaNumber,
     versionNumber: Number(row.versionNumber),
-    status: row.status === "published" ? "published" : "draft",
+    status: asStatus(row.status),
     beats: parseCampaignReadBeats(row.beats),
     bodyMarkdown: row.bodyMarkdown,
     sources: Array.isArray(row.sources) ? row.sources : null,
+    errorMessage: typeof row.errorMessage === "string" && row.errorMessage.trim()
+      ? row.errorMessage
+      : null,
     generatedAt: row.generatedAt,
     generatedByEmail: row.generatedByEmail,
     editedAt: row.editedAt,
@@ -97,6 +114,7 @@ export async function insertCampaignReadDraft(input: {
         bodyMarkdown,
         sources: input.sources,
         generatedByEmail: input.generatedByEmail.trim().toLowerCase(),
+        errorMessage: null,
       })
       .returning(SELECT)
     if (!row) throw new CampaignReadError("VALIDATION", "Failed to store campaign read")
@@ -105,7 +123,102 @@ export async function insertCampaignReadDraft(input: {
     if (isMissingTable(err)) {
       throw new CampaignReadError(
         "UNAVAILABLE",
-        "campaign_reads is not applied yet (0079)",
+        "campaign_reads is not applied yet (0079/0082)",
+      )
+    }
+    throw err
+  }
+}
+
+export async function insertCampaignReadGenerating(input: {
+  mbaNumber: string
+  versionNumber: number
+  generatedByEmail: string
+}): Promise<CampaignRead> {
+  const mbaNumber = input.mbaNumber.trim()
+  const beats = emptyCampaignReadBeats()
+  const db = getDb()
+  try {
+    const [row] = await db
+      .insert(schema.campaignReads)
+      .values({
+        mbaNumber,
+        versionNumber: input.versionNumber,
+        status: "generating",
+        beats,
+        bodyMarkdown: renderCampaignReadMarkdown(beats),
+        sources: null,
+        generatedByEmail: input.generatedByEmail.trim().toLowerCase(),
+        errorMessage: null,
+      })
+      .returning(SELECT)
+    if (!row) throw new CampaignReadError("VALIDATION", "Failed to store campaign read")
+    return mapRow(row)
+  } catch (err) {
+    if (isMissingTable(err)) {
+      throw new CampaignReadError(
+        "UNAVAILABLE",
+        "campaign_reads is not applied yet (0079/0082)",
+      )
+    }
+    throw err
+  }
+}
+
+export async function completeCampaignReadDraft(input: {
+  id: number
+  beats: CampaignReadBeats
+  sources: string[] | null
+}): Promise<CampaignRead> {
+  const bodyMarkdown = renderCampaignReadMarkdown(input.beats)
+  const db = getDb()
+  try {
+    const [row] = await db
+      .update(schema.campaignReads)
+      .set({
+        status: "draft",
+        beats: input.beats,
+        bodyMarkdown,
+        sources: input.sources,
+        errorMessage: null,
+      })
+      .where(eq(schema.campaignReads.id, input.id))
+      .returning(SELECT)
+    if (!row) throw new CampaignReadError("NOT_FOUND", "Campaign read not found")
+    return mapRow(row)
+  } catch (err) {
+    if (isMissingTable(err)) {
+      throw new CampaignReadError(
+        "UNAVAILABLE",
+        "campaign_reads is not applied yet (0079/0082)",
+      )
+    }
+    throw err
+  }
+}
+
+export async function failCampaignRead(input: {
+  id: number
+  message: string
+}): Promise<CampaignRead> {
+  const errorMessage = input.message.replace(/\s+/g, " ").trim().slice(0, 2000) || "generate_failed"
+  const db = getDb()
+  try {
+    const [row] = await db
+      .update(schema.campaignReads)
+      .set({
+        status: "failed",
+        errorMessage,
+      })
+      .where(eq(schema.campaignReads.id, input.id))
+      .returning(SELECT)
+    if (!row) throw new CampaignReadError("NOT_FOUND", "Campaign read not found")
+    return mapRow(row)
+  } catch (err) {
+    if (isMissingTable(err)) {
+      throw new CampaignReadError(
+        "UNAVAILABLE",
+        "campaign_reads is not applied yet (0079/0082)",
       )
     }
     throw err
@@ -170,17 +283,19 @@ export async function listCampaignReadsForMba(input: {
     rows = found.map(mapRow)
   } catch (err) {
     if (isMissingTable(err)) {
-      return { published: null, draft: null, history: [] }
+      return { published: null, draft: null, generating: null, failed: null, history: [] }
     }
     throw err
   }
 
   const published = rows.find((r) => r.status === "published") ?? null
   const draft = rows.find((r) => r.status === "draft") ?? null
+  const generating = rows.find((r) => r.status === "generating") ?? null
+  const failed = rows.find((r) => r.status === "failed") ?? null
   if (!input.includeDrafts) {
-    return { published, draft: null, history: [] }
+    return { published, draft: null, generating: null, failed: null, history: [] }
   }
-  return { published, draft, history: rows }
+  return { published, draft, generating, failed, history: rows }
 }
 
 export async function updateCampaignReadBeats(input: {
@@ -190,6 +305,9 @@ export async function updateCampaignReadBeats(input: {
 }): Promise<CampaignRead> {
   const existing = await getCampaignReadById(input.id)
   if (!existing) throw new CampaignReadError("NOT_FOUND", "Campaign read not found")
+  if (existing.status === "generating") {
+    throw new CampaignReadError("VALIDATION", "Cannot edit a read that is still generating")
+  }
 
   const bodyMarkdown = renderCampaignReadMarkdown(input.beats)
   const actor = input.actorEmail.trim().toLowerCase()
@@ -217,6 +335,9 @@ export async function publishCampaignRead(input: {
 }): Promise<CampaignRead> {
   const existing = await getCampaignReadById(input.id)
   if (!existing) throw new CampaignReadError("NOT_FOUND", "Campaign read not found")
+  if (existing.status !== "draft") {
+    throw new CampaignReadError("VALIDATION", "Only a draft can be published")
+  }
 
   const actor = input.actorEmail.trim().toLowerCase()
   const db = getDb()

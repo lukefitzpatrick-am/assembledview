@@ -39,8 +39,14 @@ test("client GET payload keeps only published", () => {
   const includeDrafts = false
   const published = history.find((r) => r.status === "published") ?? null
   const payload = includeDrafts
-    ? { published, draft: history.find((r) => r.status === "draft") ?? null, history }
-    : { published, draft: null, history: [] }
+    ? {
+        published,
+        draft: history.find((r) => r.status === "draft") ?? null,
+        generating: null,
+        failed: null,
+        history,
+      }
+    : { published, draft: null, generating: null, failed: null, history: [] }
 
   assert.equal(payload.published?.id, 1)
   assert.equal(payload.draft, null)

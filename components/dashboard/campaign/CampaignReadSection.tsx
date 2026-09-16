@@ -95,6 +95,29 @@ export function CampaignReadBeatsView({
   )
 }
 
+export function CampaignReadWritingState() {
+  return <p className="text-sm text-muted-foreground">Writing the read…</p>
+}
+
+export function CampaignReadFailedState({
+  message,
+  onRegenerate,
+  busy,
+}: {
+  message: string
+  onRegenerate: () => void
+  busy: boolean
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-status-critical-fg">{message}</p>
+      <Button type="button" onClick={onRegenerate} disabled={busy}>
+        {busy ? "Working…" : "Regenerate"}
+      </Button>
+    </div>
+  )
+}
+
 export function CampaignReadSection({
   mbaNumber,
   versionNumber,
@@ -115,9 +138,11 @@ export function CampaignReadSection({
   const visible: CampaignRead | null = isAdmin
     ? payload?.draft ?? payload?.published ?? null
     : payload?.published ?? null
+  const generating = isAdmin ? payload?.generating ?? null : null
+  const failed = isAdmin ? payload?.failed ?? null : null
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true)
     setError(null)
     try {
       const qs = new URLSearchParams({
@@ -133,13 +158,21 @@ export function CampaignReadSection({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load the campaign read")
     } finally {
-      setLoading(false)
+      if (!opts?.silent) setLoading(false)
     }
   }, [mbaNumber, versionNumber])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (!isAdmin || !generating) return
+    const timer = window.setInterval(() => {
+      void load({ silent: true })
+    }, 3000)
+    return () => window.clearInterval(timer)
+  }, [generating, isAdmin, load])
 
   const regenerate = useCallback(async () => {
     if (!isAdmin || busy) return
@@ -155,12 +188,12 @@ export function CampaignReadSection({
           clientSlug,
         }),
       })
-      if (!res.ok) {
+      if (res.status !== 202 && !res.ok) {
         const body = (await res.json().catch(() => null)) as { message?: string } | null
         throw new Error(body?.message || "Generate failed")
       }
       setEditing(false)
-      await load()
+      await load({ silent: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Generate failed")
     } finally {
@@ -233,11 +266,23 @@ export function CampaignReadSection({
         className="space-y-3 rounded-card border border-border bg-card p-5 shadow-e1"
       >
         <h2 className="text-base font-semibold text-foreground">Campaign read</h2>
-        <p className="text-sm text-muted-foreground">No read yet</p>
-        {error ? <p className="text-sm text-status-critical-fg">{error}</p> : null}
-        <Button type="button" onClick={() => void regenerate()} disabled={busy}>
-          {busy ? "Generating…" : "Regenerate"}
-        </Button>
+        {generating ? <CampaignReadWritingState /> : null}
+        {!generating && failed ? (
+          <CampaignReadFailedState
+            message={failed.errorMessage || "Generate failed"}
+            onRegenerate={() => void regenerate()}
+            busy={busy}
+          />
+        ) : null}
+        {!generating && !failed ? (
+          <>
+            <p className="text-sm text-muted-foreground">No read yet</p>
+            {error ? <p className="text-sm text-status-critical-fg">{error}</p> : null}
+            <Button type="button" onClick={() => void regenerate()} disabled={busy}>
+              {busy ? "Working…" : "Regenerate"}
+            </Button>
+          </>
+        ) : null}
       </section>
     )
   }
@@ -255,7 +300,7 @@ export function CampaignReadSection({
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-semibold text-foreground">Campaign read</h2>
             <Badge variant={visible.status === "published" ? "default" : "outline"}>
-              {visible.status === "published" ? "Published" : "Draft"}
+              {generating ? "Writing" : visible.status === "published" ? "Published" : "Draft"}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -263,14 +308,14 @@ export function CampaignReadSection({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => void regenerate()} disabled={busy}>
-            {busy ? "Working…" : "Regenerate"}
+          <Button type="button" variant="outline" size="sm" onClick={() => void regenerate()} disabled={busy || Boolean(generating)}>
+            {generating ? "Writing…" : busy ? "Working…" : "Regenerate"}
           </Button>
           {editing ? (
             <Button
               type="button"
               size="sm"
-              disabled={busy || !draftBeats}
+              disabled={busy || !draftBeats || Boolean(generating)}
               onClick={() =>
                 void mutate(`/api/campaign-reads/${visible.id}`, "PATCH", { beats: draftBeats })
               }
@@ -282,7 +327,7 @@ export function CampaignReadSection({
               type="button"
               variant="outline"
               size="sm"
-              disabled={busy}
+              disabled={busy || Boolean(generating)}
               onClick={() => {
                 setDraftBeats({ ...visible.beats })
                 setEditing(true)
@@ -296,7 +341,7 @@ export function CampaignReadSection({
               type="button"
               variant="outline"
               size="sm"
-              disabled={busy}
+              disabled={busy || Boolean(generating)}
               onClick={() => void mutate(`/api/campaign-reads/${visible.id}/unpublish`)}
             >
               Unpublish
@@ -305,7 +350,7 @@ export function CampaignReadSection({
             <Button
               type="button"
               size="sm"
-              disabled={busy}
+              disabled={busy || Boolean(generating)}
               onClick={() => void mutate(`/api/campaign-reads/${visible.id}/publish`)}
             >
               Publish
@@ -317,6 +362,14 @@ export function CampaignReadSection({
         </div>
       </div>
 
+      {generating ? <CampaignReadWritingState /> : null}
+      {!generating && failed ? (
+        <CampaignReadFailedState
+          message={failed.errorMessage || "Generate failed"}
+          onRegenerate={() => void regenerate()}
+          busy={busy}
+        />
+      ) : null}
       {error ? <p className="text-sm text-status-critical-fg">{error}</p> : null}
 
       {CAMPAIGN_READ_BEAT_KEYS.map((key) => (

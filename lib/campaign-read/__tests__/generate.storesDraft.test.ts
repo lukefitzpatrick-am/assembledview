@@ -5,22 +5,45 @@ import { mockModuleSkip, supportsMockModule } from "../../test/mockModuleHarness
 
 const skip = mockModuleSkip()
 
-const insertMock = mock.fn(async (input: {
-  mbaNumber: string
-  versionNumber: number
+const completeMock = mock.fn(async (input: {
+  id: number
   beats: Record<string, string>
   sources: string[] | null
-  generatedByEmail: string
 }) => ({
-  id: 9,
-  mbaNumber: input.mbaNumber,
-  versionNumber: input.versionNumber,
+  id: input.id,
+  mbaNumber: "GOLF001",
+  versionNumber: 4,
   status: "draft" as const,
   beats: input.beats,
   bodyMarkdown: "md",
   sources: input.sources,
+  errorMessage: null,
   generatedAt: "2026-09-17T00:00:00.000Z",
-  generatedByEmail: input.generatedByEmail,
+  generatedByEmail: "luke@assembledmedia.com.au",
+  editedAt: null,
+  editedByEmail: null,
+  publishedAt: null,
+  publishedByEmail: null,
+}))
+
+const insertGeneratingMock = mock.fn(async () => ({
+  id: 9,
+  mbaNumber: "GOLF001",
+  versionNumber: 4,
+  status: "generating" as const,
+  beats: {
+    planned: "Nothing to report yet.",
+    happened: "Nothing to report yet.",
+    vsPlan: "Nothing to report yet.",
+    best: "Nothing to report yet.",
+    worst: "Nothing to report yet.",
+    upcoming: "Nothing to report yet.",
+  },
+  bodyMarkdown: "md",
+  sources: null,
+  errorMessage: null,
+  generatedAt: "2026-09-17T00:00:00.000Z",
+  generatedByEmail: "luke@assembledmedia.com.au",
   editedAt: null,
   editedByEmail: null,
   publishedAt: null,
@@ -32,7 +55,10 @@ const fetchKpisMock = mock.fn(async () => [{ ctr: 0.01 }])
 if (supportsMockModule()) {
   await mock.module!("@/lib/campaign-read/repo", {
     namedExports: {
-      insertCampaignReadDraft: insertMock,
+      insertCampaignReadGenerating: insertGeneratingMock,
+      completeCampaignReadDraft: completeMock,
+      failCampaignRead: mock.fn(),
+      insertCampaignReadDraft: mock.fn(),
     },
   })
   await mock.module!("@/lib/kpi/campaignKpi", {
@@ -56,7 +82,8 @@ if (supportsMockModule()) {
 }
 
 test("generate stores a draft with six beats", { skip }, async () => {
-  insertMock.mock.resetCalls()
+  completeMock.mock.resetCalls()
+  insertGeneratingMock.mock.resetCalls()
   const { generateCampaignReadDraft } = await import("../generate.js")
 
   const item = await generateCampaignReadDraft({
@@ -80,12 +107,13 @@ test("generate stores a draft with six beats", { skip }, async () => {
   assert.equal(item.status, "draft")
   assert.equal(item.beats.planned, "You booked $180K.")
   assert.equal(item.beats.worst, "Meta lag. We moved $8K.")
-  assert.equal(insertMock.mock.calls.length, 1)
-  const stored = insertMock.mock.calls[0]!.arguments[0] as {
+  assert.equal(insertGeneratingMock.mock.calls.length, 1)
+  assert.equal(completeMock.mock.calls.length, 1)
+  const stored = completeMock.mock.calls[0]!.arguments[0] as {
     beats: Record<string, string>
-    mbaNumber: string
+    id: number
   }
-  assert.equal(stored.mbaNumber, "GOLF001")
+  assert.equal(stored.id, 9)
   assert.deepEqual(Object.keys(stored.beats).sort(), [
     "best",
     "happened",

@@ -109,7 +109,7 @@ This is the client-facing surface. Client-role users are confined here by `middl
 
 Spend on these pages derives from `schedule_months`, not from live platform data. Client-hub Plan committed is elapsed planned in the date window ÷ planned in the window (`computePlannedSpendTotals`) — not the window total ÷ itself.
 
-Campaign MBA compositor is `CampaignPageAssembly`. Layout contract (section order, campaign read, `CampaignStatusStrip`, `ChannelsAtAGlance`, Connecting, null-KPI) lives in the dashboards module. Campaign reads: `GET|POST /api/campaign-reads/**` (`lib/campaign-read/`), table `campaign_reads` (0079 AUTHOR ONLY).
+Campaign MBA compositor is `CampaignPageAssembly`. Layout contract (section order, campaign read, `CampaignStatusStrip`, `ChannelsAtAGlance`, Connecting, null-KPI) lives in the dashboards module. Campaign reads: `GET|POST /api/campaign-reads/**` (`lib/campaign-read/`), table `campaign_reads` (0079/0082 AUTHOR ONLY; generate is 202 + `generating`/`failed`).
 
 → `modules/dashboards-charts-exports.md`
 
@@ -172,7 +172,7 @@ Client-accessible learning centre. Content is file-driven from `src/data/learnin
 - `lib/ava/agentLoop.ts` — the tool loop
 - `lib/ava/tools/registry.ts` — the tool surface (~32 tools: `getCampaignContext`, `queryCampaignLines`, `queryScheduleMonths`, `queryFinanceSummary`, `getPacingSnapshot`, `applyFormPatch`, `adjustLineItems`, `calculateMediaMath`, `loadIngestIntoForm`, `acceptIngestProposal`, `saveClientBrain`, `generatePerformanceReport`, …). Offer of `accept_ingest_proposal` is surface-aware (`avaToolDefinitionsForPage`).
 - `lib/ava/applyIngestLineItemsLoad.ts` — create/edit `handleSetLineItems`: enable channel flag if off, dual-write hydration on edit, scroll to the section. Partial MBA unions loaded billing-stable ids into the channel selected set (all-in).
-- `lib/ava/skills/registry.ts` — skill guidance loaded on demand. `assembled-campaign-read` writes the dashboard six-beat read via `POST /api/campaign-reads/generate`.
+- `lib/ava/skills/registry.ts` — skill guidance loaded on demand. `assembled-campaign-read` writes the dashboard six-beat read via `POST /api/campaign-reads/generate` (202 + campaign-scoped tools).
 - `src/ava/systemPrompt.ts` + `voiceSpec.ts` + `docs/brain/AVA-VOICE.md` — voice
 - `db/avaClient.ts` + `AVA_DATABASE_URL` — a **separate connection as role `ava_readonly`**, fail-closed with an explicit per-table `GRANT SELECT` allowlist. Adding a table to AVA is a migration, not a code change.
 - Pages publish `PageContext` to `window.__AV_ASSISTANT__` via `lib/assistantBridge.ts`.

@@ -32,6 +32,7 @@ const listMock = mock.fn(async (input: { includeDrafts: boolean }) => ({
     editedByEmail: null,
     publishedAt: "2026-09-17T00:00:00.000Z",
     publishedByEmail: "a@b.com",
+    errorMessage: null,
   },
   draft: input.includeDrafts
     ? {
@@ -55,8 +56,11 @@ const listMock = mock.fn(async (input: { includeDrafts: boolean }) => ({
         editedByEmail: null,
         publishedAt: null,
         publishedByEmail: null,
+        errorMessage: null,
       }
     : null,
+  generating: null,
+  failed: null,
   history: input.includeDrafts ? [{ id: 2 }, { id: 1 }] : [],
 }))
 
