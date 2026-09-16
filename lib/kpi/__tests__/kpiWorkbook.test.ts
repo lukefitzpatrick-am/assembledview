@@ -13,7 +13,6 @@ const EXPECTED_HEADERS = [
   "Deliverables",
   "CTR",
   "VTR",
-  "CPV",
   "Conv Rate",
   "Frequency",
   "Est. Clicks",
@@ -78,7 +77,7 @@ test("buildKpiWorkbookBlob writes a Campaign KPIs sheet with three data rows and
   const headerRow = headerRowNumber(sheet)
   assert.ok(headerRow > 0, "sheet must include the KPI column header row")
   assert.deepEqual(
-    Array.from({ length: 14 }, (_, i) => sheet.getCell(headerRow, i + 1).value ?? ""),
+    Array.from({ length: 13 }, (_, i) => sheet.getCell(headerRow, i + 1).value ?? ""),
     EXPECTED_HEADERS,
   )
 

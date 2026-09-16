@@ -101,7 +101,9 @@ export function KpiReview({
                       >
                         {row.targetDisplay}
                       </p>
-                      {row.targetSource === "target" ? (
+                      {row.targetCaption ? (
+                        <p className="text-[11px] text-muted-foreground">{row.targetCaption}</p>
+                      ) : row.targetSource === "target" ? (
                         <p className="text-[11px] text-muted-foreground">plan target</p>
                       ) : null}
                       {row.targetSource === "benchmark" ? (
@@ -130,7 +132,7 @@ export function KpiReview({
                     <div className="flex min-w-[5.5rem] justify-end">
                       {row.omitted ? (
                         <span className="text-[11px] text-muted-foreground">No target</span>
-                      ) : (
+                      ) : row.metric === "cpv" && !row.targetCaption ? null : (
                         <StatusPill status={row.status} />
                       )}
                     </div>

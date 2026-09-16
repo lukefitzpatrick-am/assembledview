@@ -8,10 +8,12 @@
  */
 
 import type { ChannelCoverageEntry } from "@/lib/delivery/channelCoverage"
+import { deliverableLabelForBuyType } from "@/lib/delivery/deliverableLabel"
 import type { DeliverySource } from "@/lib/delivery/deliverySourceMap"
 import { formatMoney } from "@/lib/format/money"
 import { CLIENT_KPI_METRIC_LABELS, type CampaignKPI } from "@/lib/kpi/types"
 import { formatStoredDecimalAsPercent } from "@/lib/kpi/percentUnits"
+import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import { cleanPacingLineItemId } from "@/lib/pacing/delivery/lineItemIds"
 import {
   deliveryStatusFromPct,
@@ -35,6 +37,19 @@ export type LineDeliveryActuals = {
   video3sViews: number
 }
 
+export type KpiReviewPlanLine = {
+  buyType: string
+  plannedSpend: number
+  buyAmount: number | null
+  plannedViews: number | null
+  plannedImpressions: number | null
+}
+
+export type KpiReviewCpvCaption =
+  | "plan rate"
+  | "plan rate, derived"
+  | "plan rate, derived from VTR target"
+
 export type KpiReviewCoverageDraft = {
   key: string
   label: string
@@ -43,6 +58,7 @@ export type KpiReviewCoverageDraft = {
   deliverySource: DeliverySource | undefined
   lineItemIds: string[]
   plannedSpendByLineId: Record<string, number>
+  planByLineId: Record<string, KpiReviewPlanLine>
 }
 
 export type KpiReviewGroup = {
@@ -51,10 +67,11 @@ export type KpiReviewGroup = {
   colour: string
   lineItemIds: string[]
   plannedSpendByLineId: Record<string, number>
+  planByLineId: Record<string, KpiReviewPlanLine>
   impressions: number
   clicks: number
   results: number
-  /** CPV denominator: VIDEO_3S_VIEWS (social), views (Channel Factory), completes (BVOD). */
+  /** Views the source reports (VIDEO_3S_VIEWS / completes / ThruPlays). 0 = not tracked. */
   views: number | null
   /** COMPLETED_VIEWS when the source tracks them. */
   completes: number | null
@@ -76,6 +93,8 @@ export type KpiReviewRow = {
   modelled?: boolean
   targetSource: KpiReviewTargetSource | null
   benchmarkRef?: string | null
+  /** CPV plan-rate caption (a/b/c). Other metrics keep plan target / benchmark. */
+  targetCaption?: string | null
 }
 
 export type KpiReviewCard = {
@@ -104,6 +123,71 @@ type SearchActualRow = {
 }
 
 const HIGHER_IS_BETTER = new Set<KpiReviewMetricKey>(["ctr", "conversion_rate", "vtr"])
+
+function asRecord(item: unknown): Record<string, unknown> {
+  return item && typeof item === "object" ? (item as Record<string, unknown>) : {}
+}
+
+function parseMoneyish(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value.replace(/[^0-9.-]/g, ""))
+    return Number.isFinite(n) ? n : 0
+  }
+  return 0
+}
+
+export function isCpvBuyType(buyType: string | null | undefined): boolean {
+  const t = String(buyType ?? "").trim().toLowerCase()
+  if (!t) return false
+  return t === "cpv" || t === "cpcv" || t.includes("cpv") || t.includes("cpcv")
+}
+
+function isViewsDeliverable(buyType: string): boolean {
+  if (isCpvBuyType(buyType)) return true
+  return deliverableLabelForBuyType(buyType) === "Views"
+}
+
+export function extractKpiReviewPlanLine(item: unknown, plannedSpend: number): KpiReviewPlanLine {
+  const rec = asRecord(item)
+  const buyType = String(rec.buy_type ?? rec.buyType ?? "").trim()
+  const bursts = parseBurstsToNormalised(rec.bursts ?? rec.bursts_json)
+  let buyWeight = 0
+  let buySum = 0
+  let calculated = 0
+  for (const burst of bursts) {
+    const weight =
+      burst.mediaAmount && burst.mediaAmount > 0 ? burst.mediaAmount : burst.budget
+    if (burst.buyAmount > 0 && weight > 0) {
+      buySum += burst.buyAmount * weight
+      buyWeight += weight
+    }
+    if (burst.calculatedValue > 0) calculated += burst.calculatedValue
+  }
+  const explicitViews = parseMoneyish(
+    rec.views ?? rec.plannedViews ?? rec.calculatedViews ?? rec.video_views ?? rec.videoViews,
+  )
+  const impressions = parseMoneyish(
+    rec.impressions ?? rec.plannedImpressions ?? rec.units ?? rec.quantity,
+  )
+  const viewsBuy = isViewsDeliverable(buyType)
+  const plannedViews = explicitViews > 0 ? explicitViews : viewsBuy && calculated > 0 ? calculated : null
+  const plannedImpressions =
+    !viewsBuy && (impressions > 0 || calculated > 0)
+      ? impressions > 0
+        ? impressions
+        : calculated
+      : impressions > 0
+        ? impressions
+        : null
+  return {
+    buyType,
+    plannedSpend,
+    buyAmount: buyWeight > 0 ? buySum / buyWeight : null,
+    plannedViews,
+    plannedImpressions,
+  }
+}
 
 export function indexLineDeliveryActuals(input: {
   pacingRows: readonly PacingActualRow[]
@@ -144,13 +228,6 @@ function vtrTrackedForDraft(draft: KpiReviewCoverageDraft): boolean {
   return draft.family === "programmatic-video" && draft.deliverySource === "partner_file"
 }
 
-function viewsKind(family: string): "video" | null {
-  if (family.startsWith("social-")) return "video"
-  if (family === "programmatic-video") return "video"
-  if (family === "bvod") return "video"
-  return null
-}
-
 export function buildKpiReviewGroups(input: {
   drafts: readonly KpiReviewCoverageDraft[]
   coverage: readonly ChannelCoverageEntry[]
@@ -181,10 +258,11 @@ export function buildKpiReviewGroups(input: {
       colour: draft.colour,
       lineItemIds: [...draft.lineItemIds],
       plannedSpendByLineId: { ...draft.plannedSpendByLineId },
+      planByLineId: { ...(draft.planByLineId ?? {}) },
       impressions,
       clicks,
       results,
-      views: viewsKind(draft.family) ? video3sViews : null,
+      views: video3sViews,
       completes: tracked ? video3sViews : null,
       spend: coverage?.deliveredSpend ?? null,
       spendModelled: coverage?.spendModelled === true,
@@ -273,6 +351,59 @@ function resolveGroupTarget(
   }
 }
 
+function resolveCpvPlanRate(
+  group: KpiReviewGroup,
+  lineItemTargets: Map<string, CampaignKPI>,
+): { value: number; caption: KpiReviewCpvCaption } | null {
+  const parts: Array<{ spend: number; rate: number; caption: KpiReviewCpvCaption }> = []
+  for (const lineId of group.lineItemIds) {
+    const plan = group.planByLineId?.[lineId]
+    const spend = Number(group.plannedSpendByLineId[lineId] ?? plan?.plannedSpend ?? 0) || 0
+    const buy = plan?.buyType ?? ""
+    if (isCpvBuyType(buy) && plan?.buyAmount && plan.buyAmount > 0) {
+      parts.push({
+        spend: spend > 0 ? spend : 1,
+        rate: plan.buyAmount,
+        caption: "plan rate",
+      })
+      continue
+    }
+    if (plan?.plannedViews && plan.plannedViews > 0 && spend > 0) {
+      parts.push({
+        spend,
+        rate: spend / plan.plannedViews,
+        caption: "plan rate, derived",
+      })
+      continue
+    }
+    const impressions = plan?.plannedImpressions ?? 0
+    const vtr = metricValue(kpiRowForLine(lineItemTargets, lineId), "vtr")
+    if (impressions > 0 && spend > 0 && isSetTarget(vtr)) {
+      parts.push({
+        spend,
+        rate: spend / (impressions * vtr),
+        caption: "plan rate, derived from VTR target",
+      })
+    }
+  }
+  if (parts.length === 0) return null
+  const spendTotal = parts.reduce((sum, part) => sum + part.spend, 0)
+  const value =
+    spendTotal > 0
+      ? parts.reduce((sum, part) => sum + part.rate * part.spend, 0) / spendTotal
+      : parts[0]!.rate
+  const captions = [...new Set(parts.map((part) => part.caption))]
+  const caption =
+    captions.length === 1
+      ? captions[0]!
+      : captions.includes("plan rate")
+        ? "plan rate"
+        : captions.includes("plan rate, derived")
+          ? "plan rate, derived"
+          : captions[0]!
+  return { value, caption }
+}
+
 function ratio(numerator: number, denominator: number): number | null {
   if (!(denominator > 0)) return null
   const n = numerator / denominator
@@ -301,9 +432,11 @@ function deliveredRatio(
     const value = ratio(group.completes ?? 0, group.impressions)
     return { value, display: value == null ? "—" : formatStoredDecimalAsPercent(value) }
   }
-  // cpv
+  // cpv — never invent $0 when spend is hidden (ZERO-$ LAW)
   if (group.spend == null) return { value: null, display: "—" }
-  if (group.views == null || !(group.views > 0)) return { value: null, display: "—" }
+  if (group.views == null || !(group.views > 0)) {
+    return { value: null, display: "Not tracked for this source" }
+  }
   const value = group.spend / group.views
   return {
     value: Number.isFinite(value) ? value : null,
@@ -344,8 +477,37 @@ export function buildKpiReview(input: {
   for (const group of input.groups) {
     const rows: KpiReviewRow[] = []
     for (const metric of KPI_REVIEW_METRICS) {
-      const target = resolveGroupTarget(group, metric, input.lineItemTargets)
       const delivered = deliveredRatio(group, metric)
+      if (metric === "cpv") {
+        const planRate = resolveCpvPlanRate(group, input.lineItemTargets)
+        if (planRate) {
+          rows.push({
+            metric,
+            label: CLIENT_KPI_METRIC_LABELS[metric] ?? metric,
+            targetDisplay: formatTarget(metric, planRate.value),
+            deliveredDisplay: delivered.display,
+            status: statusForMetric(metric, planRate.value, delivered.value),
+            omitted: false,
+            modelled: delivered.modelled,
+            targetSource: "target",
+            targetCaption: planRate.caption,
+          })
+          continue
+        }
+        rows.push({
+          metric,
+          label: CLIENT_KPI_METRIC_LABELS[metric] ?? metric,
+          targetDisplay: "Not a view buy",
+          deliveredDisplay: delivered.display,
+          status: "no-data",
+          omitted: false,
+          modelled: delivered.modelled,
+          targetSource: null,
+          targetCaption: null,
+        })
+        continue
+      }
+      const target = resolveGroupTarget(group, metric, input.lineItemTargets)
       if (target == null) {
         if (!input.isAdmin) continue
         rows.push({
@@ -372,7 +534,7 @@ export function buildKpiReview(input: {
         benchmarkRef: target.benchmarkRef,
       })
     }
-    const noTargets = !rows.some((row) => !row.omitted)
+    const noTargets = !rows.some((row) => rowCountsAsTarget(row))
     cards.push({
       key: group.key,
       label: group.label,
@@ -382,6 +544,12 @@ export function buildKpiReview(input: {
     })
   }
   return cards
+}
+
+function rowCountsAsTarget(row: KpiReviewRow): boolean {
+  if (row.omitted) return false
+  if (row.metric === "cpv") return Boolean(row.targetCaption)
+  return row.targetSource === "target" || row.targetSource === "benchmark"
 }
 
 export function shouldShowKpiReview(
@@ -407,6 +575,7 @@ export function kpiReviewGroupsIdentity(groups: readonly KpiReviewGroup[]): stri
         g.spendModelled,
         g.vtrTracked,
         g.lineItemIds.join(","),
+        JSON.stringify(g.planByLineId ?? {}),
       ].join("\u001f"),
     )
     .join("\u001e")

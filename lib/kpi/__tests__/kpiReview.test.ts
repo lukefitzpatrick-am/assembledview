@@ -5,6 +5,7 @@ import { lineItemKpiKey } from "@/lib/kpi/lineItemKpiTargets"
 import {
   buildKpiReview,
   buildKpiReviewGroups,
+  extractKpiReviewPlanLine,
   indexLineDeliveryActuals,
   shouldShowKpiReview,
   type KpiReviewGroup,
@@ -45,6 +46,7 @@ function socialGroup(partial: Partial<KpiReviewGroup> = {}): KpiReviewGroup {
     colour: "var(--channel-social)",
     lineItemIds: ["bicau002sm1"],
     plannedSpendByLineId: { "bicau002sm1": 10_000 },
+    planByLineId: {},
     impressions: 100_000,
     clicks: 2_000,
     results: 80,
@@ -104,18 +106,32 @@ describe("buildKpiReview targets", () => {
       plannedSpendByLineId: { a: 10_000 },
     })
     const lineItemTargets = targets([
-      kpi({ mba_number: "BICAU002", line_item_id: "a", ctr: 0, conversion_rate: null, cpv: 0.12 }),
+      kpi({ mba_number: "BICAU002", line_item_id: "a", ctr: 0, conversion_rate: null, frequency: 3 }),
     ])
     const client = buildKpiReview({ groups: [group], lineItemTargets, isAdmin: false })
     assert.equal(client[0]?.rows.some((r) => r.metric === "ctr"), false)
     assert.equal(client[0]?.rows.some((r) => r.metric === "conversion_rate"), false)
-    assert.ok(client[0]?.rows.some((r) => r.metric === "cpv"))
+    assert.ok(client[0]?.rows.some((r) => r.metric === "frequency"))
 
     const admin = buildKpiReview({ groups: [group], lineItemTargets, isAdmin: true })
     const ctr = admin[0]?.rows.find((r) => r.metric === "ctr")
     assert.equal(ctr?.omitted, true)
     assert.equal(ctr?.targetDisplay, "No target set")
     assert.equal(ctr?.targetSource, null)
+  })
+
+  it("ignores a leftover campaign_kpi.cpv value when every entered metric is unset", () => {
+    const group = socialGroup({
+      lineItemIds: ["a"],
+      plannedSpendByLineId: { a: 10_000 },
+    })
+    const lineItemTargets = targets([
+      kpi({ mba_number: "BICAU002", line_item_id: "a", cpv: 0.12 }),
+    ])
+    const client = buildKpiReview({ groups: [group], lineItemTargets, isAdmin: false })
+    assert.equal(client[0]?.noTargets, true)
+    assert.equal(client[0]?.rows.length, 0)
+    assert.equal(shouldShowKpiReview(client, false), false)
   })
 
   it("stamps plan target source on a saved campaign_kpi value", () => {
@@ -213,6 +229,15 @@ describe("buildKpiReview delivered", () => {
           spend: 200,
           views: 1_000,
           spendModelled: true,
+          planByLineId: {
+            bicau002sm1: {
+              buyType: "cpv",
+              plannedSpend: 10_000,
+              buyAmount: 0.25,
+              plannedViews: 40_000,
+              plannedImpressions: null,
+            },
+          },
         }),
       ],
       lineItemTargets: targets([kpi({ mba_number: "BICAU002", line_item_id: "bicau002sm1", cpv: 0.25 })]),
@@ -225,7 +250,21 @@ describe("buildKpiReview delivered", () => {
 
   it("does not invent $0 CPV when spend is hidden (ZERO-$ LAW)", () => {
     const cards = buildKpiReview({
-      groups: [socialGroup({ spend: null, views: 1_000 })],
+      groups: [
+        socialGroup({
+          spend: null,
+          views: 1_000,
+          planByLineId: {
+            bicau002sm1: {
+              buyType: "cpv",
+              plannedSpend: 10_000,
+              buyAmount: 0.25,
+              plannedViews: 40_000,
+              plannedImpressions: null,
+            },
+          },
+        }),
+      ],
       lineItemTargets: targets([kpi({ mba_number: "BICAU002", line_item_id: "bicau002sm1", cpv: 0.25 })]),
       isAdmin: false,
     })
@@ -289,7 +328,21 @@ describe("buildKpiReview status", () => {
 
   it("uses lower-is-better pct for cpv", () => {
     const ahead = buildKpiReview({
-      groups: [socialGroup({ spend: 100, views: 1_000 })],
+      groups: [
+        socialGroup({
+          spend: 100,
+          views: 1_000,
+          planByLineId: {
+            bicau002sm1: {
+              buyType: "cpv",
+              plannedSpend: 10_000,
+              buyAmount: 0.2,
+              plannedViews: 50_000,
+              plannedImpressions: null,
+            },
+          },
+        }),
+      ],
       lineItemTargets: targets([kpi({ mba_number: "BICAU002", line_item_id: "bicau002sm1", cpv: 0.2 })]),
       isAdmin: false,
     })
@@ -355,6 +408,7 @@ describe("indexLineDeliveryActuals + buildKpiReviewGroups", () => {
           deliverySource: "partner_file",
           lineItemIds: ["cf1"],
           plannedSpendByLineId: { cf1: 5_000 },
+          planByLineId: {},
         },
       ],
       coverage: [
@@ -395,11 +449,154 @@ describe("indexLineDeliveryActuals + buildKpiReviewGroups", () => {
           deliverySource: undefined,
           lineItemIds: ["x"],
           plannedSpendByLineId: { x: 1 },
+          planByLineId: {},
         },
       ],
       coverage: [],
       actualsByLineId: new Map(),
     })
     assert.equal(groups.length, 0)
+  })
+})
+
+describe("CPV is a plan rate, not an entered target", () => {
+  it("uses the budget-weighted buyAmount for a cpv-bought channel (BICAU002 Channel Factory)", () => {
+    const group: KpiReviewGroup = {
+      key: "programmatic-video:channel factory",
+      label: "Prog Video · Channel Factory",
+      colour: "var(--channel-bvod)",
+      lineItemIds: ["BICAU002-CF-1"],
+      plannedSpendByLineId: { "BICAU002-CF-1": 30_400 },
+      planByLineId: {
+        "BICAU002-CF-1": {
+          buyType: "cpv",
+          plannedSpend: 30_400,
+          buyAmount: 0.09,
+          plannedViews: 337_777,
+          plannedImpressions: null,
+        },
+      },
+      impressions: 0,
+      clicks: 0,
+      results: 0,
+      views: 337_746,
+      completes: 337_746,
+      spend: 20_376,
+      spendModelled: false,
+      vtrTracked: true,
+    }
+
+    const cards = buildKpiReview({
+      groups: [group],
+      lineItemTargets: targets([
+        kpi({
+          mba_number: "BICAU002",
+          line_item_id: "BICAU002-CF-1",
+          cpv: 0.25,
+        }),
+      ]),
+      isAdmin: false,
+    })
+    const row = cards[0]?.rows.find((r) => r.metric === "cpv")
+    assert.equal(row?.targetDisplay, "$0.09")
+    assert.equal(row?.targetSource, "target")
+    assert.equal(row?.targetCaption, "plan rate")
+    assert.equal(row?.deliveredDisplay, "$0.06")
+    assert.equal(row?.status, "ahead")
+    assert.equal(row?.omitted, false)
+    assert.equal(cards[0]?.noTargets, false)
+    assert.equal(shouldShowKpiReview(cards, false), true)
+  })
+
+  it("derives CPV from planned spend ÷ planned views for a cpm-bought video channel", () => {
+    const group: KpiReviewGroup = {
+      ...socialGroup(),
+      key: "social-youtube",
+      label: "Social · YouTube",
+      lineItemIds: ["YT-1"],
+      plannedSpendByLineId: { "YT-1": 10_000 },
+      planByLineId: {
+        "YT-1": {
+          buyType: "cpm",
+          plannedSpend: 10_000,
+          buyAmount: 12,
+          plannedViews: 200_000,
+          plannedImpressions: 500_000,
+        },
+      },
+      views: 80_000,
+      spend: 4_000,
+    }
+
+    const cards = buildKpiReview({
+      groups: [group],
+      lineItemTargets: targets([
+        kpi({ mba_number: "BICAU002", line_item_id: "YT-1", cpv: 0.4 }),
+      ]),
+      isAdmin: false,
+    })
+    const row = cards[0]?.rows.find((r) => r.metric === "cpv")
+    assert.equal(row?.targetDisplay, "$0.05")
+    assert.equal(row?.targetCaption, "plan rate, derived")
+    assert.equal(row?.deliveredDisplay, "$0.05")
+    assert.equal(row?.status, "on-track")
+  })
+
+  it("reads Not a view buy for a display channel with no view basis", () => {
+    const group: KpiReviewGroup = {
+      ...socialGroup({ views: 0 }),
+      key: "programmatic-display",
+      label: "Prog Display · DV360",
+      lineItemIds: ["GDN-1"],
+      plannedSpendByLineId: { "GDN-1": 8_000 },
+      planByLineId: {
+        "GDN-1": {
+          buyType: "cpm",
+          plannedSpend: 8_000,
+          buyAmount: 4.5,
+          plannedViews: null,
+          plannedImpressions: 1_800_000,
+        },
+      },
+      impressions: 900_000,
+      clicks: 9_000,
+      spend: 4_000,
+    }
+
+    const cards = buildKpiReview({
+      groups: [group],
+      lineItemTargets: targets([
+        kpi({ mba_number: "BICAU002", line_item_id: "GDN-1", ctr: 0.01, cpv: 0.12 }),
+      ]),
+      isAdmin: false,
+    })
+    const row = cards[0]?.rows.find((r) => r.metric === "cpv")
+    assert.equal(row?.targetDisplay, "Not a view buy")
+    assert.equal(row?.targetCaption ?? null, null)
+    assert.equal(row?.targetSource, null)
+    assert.equal(row?.deliveredDisplay, "Not tracked for this source")
+    assert.equal(row?.status, "no-data")
+  })
+
+  it("extracts a budget-weighted CPV buyAmount from plan bursts", () => {
+    const plan = extractKpiReviewPlanLine(
+      {
+        buy_type: "cpv",
+        impressions: 337_777,
+        bursts: [
+          {
+            startDate: "2026-01-01",
+            endDate: "2026-03-31",
+            budget: 30_400,
+            buyAmount: 0.09,
+            calculatedValue: 337_777,
+          },
+        ],
+      },
+      30_400,
+    )
+    assert.equal(plan.buyType, "cpv")
+    assert.equal(plan.buyAmount, 0.09)
+    assert.equal(plan.plannedViews, 337_777)
   })
 })

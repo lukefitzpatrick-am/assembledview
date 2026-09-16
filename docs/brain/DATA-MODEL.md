@@ -102,7 +102,7 @@ Three tiers, most specific wins.
 
 `campaign_kpi` (9,732) keyed by `mba_number` + `version_number` + `line_item_id` → `client_kpi` (0) keyed by `mp_client_name` → `publisher_kpi` (901) keyed by publisher + `bid_strategy` + `media_type`. `campaign_kpi.target_source` (`target` \| `benchmark`, default `target`) and `benchmark_ref` are 0080 AUTHOR ONLY — do not SELECT until applied (C-76). Existing rows are `target`.
 
-Metrics on all three: `ctr`, `cpv`, `conversion_rate`, `vtr`, `frequency`. `client_kpi` is currently empty — the cascade falls through it to publisher defaults.
+Metrics on all three: `ctr`, `cpv`, `conversion_rate`, `vtr`, `frequency`. Campaign writes keep `cpv` null (column stays; leftover values are ignored by the MBA review). `client_kpi` is currently empty — the cascade falls through it to publisher defaults.
 
 ## Finance
 

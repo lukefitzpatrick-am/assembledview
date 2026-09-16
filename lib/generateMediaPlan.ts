@@ -2202,14 +2202,14 @@ export function addKPISheet(
   ws.views = [{ state: 'normal', showGridLines: false }]
 
   // Column widths: A=3, B=28, C=32, D=18, E=14, F=14, G=10, H=10,
-  //                I=10, J=10, K=10, L=14, M=14, N=14
-  const colWidths = [3, 28, 32, 18, 14, 14, 10, 10, 10, 10, 10, 14, 14, 14]
+  //                I=10, J=10, K=14, L=14, M=14
+  const colWidths = [3, 28, 32, 18, 14, 14, 10, 10, 10, 10, 14, 14, 14]
   colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w })
 
   let r = 1
 
   // Title row
-  ws.mergeCells(r, 1, r, 14)
+  ws.mergeCells(r, 1, r, 13)
   const titleCell = ws.getCell(r, 1)
   titleCell.value = 'Campaign KPIs'
   titleCell.font = { name: 'Aptos', size: 20, bold: true }
@@ -2229,7 +2229,7 @@ export function addKPISheet(
 
   const COL_HEADERS = [
     '', 'Publisher', 'Creative / Targeting', 'Buy Type',
-    'Spend', 'Deliverables', 'CTR', 'VTR', 'CPV', 'Conv Rate',
+    'Spend', 'Deliverables', 'CTR', 'VTR', 'Conv Rate',
     'Frequency', 'Est. Clicks', 'Est. Views', 'Est. Reach',
   ]
 
@@ -2264,7 +2264,7 @@ export function addKPISheet(
     const tint  = KPI_MEDIA_TINTS[mediaType]  ?? 'FFF0F0F0'
 
     // — Media type header row —
-    ws.mergeCells(r, 1, r, 14)
+    ws.mergeCells(r, 1, r, 13)
     const hdrCell = ws.getCell(r, 1)
     txt(hdrCell, label, true, 'FFFFFFFF')
     fillCell(hdrCell, color)
@@ -2285,7 +2285,7 @@ export function addKPISheet(
     // — Data rows —
     rows.forEach((row, idx) => {
       const rowFill = idx % 2 === 0 ? 'FFFFFFFF' : 'FFF8F8F8'
-      for (let c = 1; c <= 14; c++) {
+      for (let c = 1; c <= 13; c++) {
         fillCell(ws.getCell(r, c), rowFill)
         ws.getCell(r, c).font = { name: 'Aptos', size: 10 }
       }
@@ -2296,12 +2296,11 @@ export function addKPISheet(
       numFmt(ws.getCell(r, 6),  '#,##0',     row.deliverables)
       writeMetric(ws.getCell(r, 7),  '0.00%',     row.ctr)
       writeMetric(ws.getCell(r, 8),  '0.00%',     row.vtr)
-      writeMetric(ws.getCell(r, 9),  '$#,##0.00##', row.cpv)
-      writeMetric(ws.getCell(r, 10), '0.00%',     row.conversion_rate)
-      writeMetric(ws.getCell(r, 11), '0.0',       row.frequency)
-      writeMetric(ws.getCell(r, 12), '#,##0',     row.calculatedClicks)
-      writeMetric(ws.getCell(r, 13), '#,##0',     row.calculatedViews)
-      writeMetric(ws.getCell(r, 14), '#,##0',     row.calculatedReach)
+      writeMetric(ws.getCell(r, 9),  '0.00%',     row.conversion_rate)
+      writeMetric(ws.getCell(r, 10), '0.0',       row.frequency)
+      writeMetric(ws.getCell(r, 11), '#,##0',     row.calculatedClicks)
+      writeMetric(ws.getCell(r, 12), '#,##0',     row.calculatedViews)
+      writeMetric(ws.getCell(r, 13), '#,##0',     row.calculatedReach)
       ws.getRow(r).height = 14
       r++
     })
@@ -2310,16 +2309,16 @@ export function addKPISheet(
     const sumField = (f: keyof KPISheetRow) =>
       rows.reduce((s, rw) => s + ((rw[f] as number | null) ?? 0), 0)
 
-    for (let c = 1; c <= 14; c++) fillCell(ws.getCell(r, c), tint)
+    for (let c = 1; c <= 13; c++) fillCell(ws.getCell(r, c), tint)
     ws.mergeCells(r, 1, r, 4)
     txt(ws.getCell(r, 1), `Total ${label}`, true)
     fillCell(ws.getCell(r, 1), tint)
     numFmt(ws.getCell(r, 5),  '$#,##0.00', sumField('spend'),              true)
     numFmt(ws.getCell(r, 6),  '#,##0',     sumField('deliverables'),       true)
-    // cols 7-11 (KPI benchmarks): leave blank for subtotal
-    numFmt(ws.getCell(r, 12), '#,##0',     sumField('calculatedClicks'),   true)
-    numFmt(ws.getCell(r, 13), '#,##0',     sumField('calculatedViews'),    true)
-    numFmt(ws.getCell(r, 14), '#,##0',     sumField('calculatedReach'),    true)
+    // cols 7-10 (KPI benchmarks): leave blank for subtotal
+    numFmt(ws.getCell(r, 11), '#,##0',     sumField('calculatedClicks'),   true)
+    numFmt(ws.getCell(r, 12), '#,##0',     sumField('calculatedViews'),    true)
+    numFmt(ws.getCell(r, 13), '#,##0',     sumField('calculatedReach'),    true)
     ws.getRow(r).height = 15
     r++
 
@@ -2329,7 +2328,7 @@ export function addKPISheet(
 
   // — Grand total row —
   const allRows = kpiRows
-  for (let c = 1; c <= 14; c++) fillCell(ws.getCell(r, c), 'FFBDDC52')
+  for (let c = 1; c <= 13; c++) fillCell(ws.getCell(r, c), 'FFBDDC52')
   ws.mergeCells(r, 1, r, 4)
   txt(ws.getCell(r, 1), 'Grand Total', true)
   fillCell(ws.getCell(r, 1), 'FFBDDC52')
@@ -2337,9 +2336,9 @@ export function addKPISheet(
     allRows.reduce((s, rw) => s + ((rw[f] as number | null) ?? 0), 0)
   numFmt(ws.getCell(r, 5),  '$#,##0.00', grandSum('spend'),              true)
   numFmt(ws.getCell(r, 6),  '#,##0',     grandSum('deliverables'),       true)
-  numFmt(ws.getCell(r, 12), '#,##0',     grandSum('calculatedClicks'),   true)
-  numFmt(ws.getCell(r, 13), '#,##0',     grandSum('calculatedViews'),    true)
-  numFmt(ws.getCell(r, 14), '#,##0',     grandSum('calculatedReach'),    true)
+  numFmt(ws.getCell(r, 11), '#,##0',     grandSum('calculatedClicks'),   true)
+  numFmt(ws.getCell(r, 12), '#,##0',     grandSum('calculatedViews'),    true)
+  numFmt(ws.getCell(r, 13), '#,##0',     grandSum('calculatedReach'),    true)
   ws.getRow(r).height = 16
 
   if (options?.draft) {

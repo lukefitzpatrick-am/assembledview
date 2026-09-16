@@ -6,7 +6,11 @@ import {
   lookupActiveDeliverySource,
   type DeliverySourceMapRow,
 } from "@/lib/delivery/deliverySourceMap"
-import type { KpiReviewCoverageDraft } from "@/lib/kpi/kpiReview"
+import {
+  extractKpiReviewPlanLine,
+  type KpiReviewCoverageDraft,
+  type KpiReviewPlanLine,
+} from "@/lib/kpi/kpiReview"
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import { extractPacingLineItemIdFromItem } from "@/lib/pacing/delivery/lineItemIds"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform"
@@ -104,6 +108,7 @@ type Acc = {
   earliestStart: string | null
   lineIds: string[]
   plannedSpendByLineId: Record<string, number>
+  planByLineId: Record<string, KpiReviewPlanLine>
 }
 
 function asRecord(item: unknown): Record<string, unknown> {
@@ -243,6 +248,7 @@ function addLine(
   const start = earliestBurstStart(args.item)
   const lineId = extractPacingLineItemIdFromItem(args.item)
   const planned = plannedSpendFromItem(args.item)
+  const planLine = extractKpiReviewPlanLine(args.item, planned)
   if (!existing) {
     groups.set(key, {
       key,
@@ -256,6 +262,7 @@ function addLine(
       earliestStart: start,
       lineIds: lineId ? [lineId] : [],
       plannedSpendByLineId: lineId ? { [lineId]: planned } : {},
+      planByLineId: lineId ? { [lineId]: planLine } : {},
     })
     return
   }
@@ -267,6 +274,7 @@ function addLine(
   if (lineId) {
     if (!existing.lineIds.includes(lineId)) existing.lineIds.push(lineId)
     existing.plannedSpendByLineId[lineId] = (existing.plannedSpendByLineId[lineId] ?? 0) + planned
+    existing.planByLineId[lineId] = planLine
   }
   existing.hasSource = existing.hasSource || args.hasSource
   if (!existing.mapRow && args.mapRow) existing.mapRow = args.mapRow
@@ -592,6 +600,7 @@ function draftsFromGroups(groups: Map<string, Acc>): KpiReviewCoverageDraft[] {
     deliverySource: acc.mapRow?.delivery_source,
     lineItemIds: [...acc.lineIds],
     plannedSpendByLineId: { ...acc.plannedSpendByLineId },
+    planByLineId: { ...acc.planByLineId },
   }))
 }
 

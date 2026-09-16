@@ -80,6 +80,32 @@ describe("KpiReview", () => {
     expect(admin).toContain("opacity-60")
   })
 
+  it("captions a CPV plan rate under the target", () => {
+    const html = renderToStaticMarkup(
+      <KpiReview
+        cards={[
+          {
+            ...CARD,
+            rows: [
+              {
+                metric: "cpv",
+                label: "CPV",
+                targetDisplay: "$0.09",
+                deliveredDisplay: "$0.06",
+                status: "ahead",
+                omitted: false,
+                targetSource: "target",
+                targetCaption: "plan rate",
+              },
+            ],
+          },
+        ]}
+      />,
+    )
+    expect(html).toContain("plan rate")
+    expect(html).not.toContain("plan target")
+  })
+
   it("captions a plan target in the Target column", () => {
     const html = renderToStaticMarkup(<KpiReview cards={[CARD]} isAdmin />)
     expect(html).toContain("plan target")

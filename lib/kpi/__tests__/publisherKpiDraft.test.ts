@@ -55,7 +55,7 @@ test("buildPublisherKpiCreateBody resolves the row publisher to Xano publisherid
     media_type: "digiDisplay",
     bid_strategy: "cpm",
     ctr: 0.012,
-    cpv: 0.4567,
+    cpv: null,
     conversion_rate: 0.034,
     vtr: 0.5,
     frequency: 2.5,

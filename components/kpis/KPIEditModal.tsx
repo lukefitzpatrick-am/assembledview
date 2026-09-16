@@ -116,7 +116,7 @@ export function buildPublisherKpiCreateBody(
       media_type: row.media_type,
       bid_strategy: row.bid_strategy,
       ctr: parsePercentMetric(metrics.ctr),
-      cpv: parsePlainMetric(metrics.cpv),
+      cpv: null,
       conversion_rate: parsePercentMetric(metrics.conversion_rate),
       vtr: parsePercentMetric(metrics.vtr),
       frequency: parsePlainMetric(metrics.frequency),
@@ -436,7 +436,6 @@ export function KPIEditModal({
                     <th className={cn(headerCell, "text-right")}>Deliverables</th>
                     <th className={cn(headerCell, "text-right")}>CTR</th>
                     <th className={cn(headerCell, "text-right")}>VTR</th>
-                    <th className={cn(headerCell, "text-right")}>CPV</th>
                     <th className={cn(headerCell, "text-right")}>Conv Rate</th>
                     <th className={cn(headerCell, "text-right")}>Freq</th>
                     <th className={cn(headerCell, "text-right")}>Est. Clicks</th>
@@ -450,7 +449,7 @@ export function KPIEditModal({
                     <React.Fragment key={mediaType}>
                       <tr>
                         <td
-                          colSpan={15}
+                          colSpan={14}
                           className="bg-surface-panel px-3 py-1.5 text-left text-xs font-semibold"
                         >
                           {MEDIA_TYPE_LABELS[mediaType] ?? mediaType} — {entries.length} rows
@@ -578,48 +577,6 @@ export function KPIEditModal({
                               {fieldErrors[rowIndex]?.vtr && (
                                 <div className="text-xs text-destructive mt-1">
                                   {fieldErrors[rowIndex].vtr}
-                                </div>
-                              )}
-                            </td>
-                            <td className="border-b border-border/30 px-2 py-1 text-right">
-                              <input
-                                type="text"
-                                className={inputClass}
-                                key={`cpv-${row.lineItemId}-${row.cpv ?? "null"}`}
-                                defaultValue={row.cpv === null ? "" : row.cpv.toFixed(2)}
-                                onBlur={(e) => {
-                                  const cleaned = e.target.value.replace(/[^0-9.-]/g, "").trim()
-                                  const val = cleaned === "" ? null : parseFloat(cleaned)
-                                  const parsed = val !== null && Number.isFinite(val) ? val : null
-                                  if (parsed !== null && parsed < 0) {
-                                    setFieldErrors((prev) => ({
-                                      ...prev,
-                                      [rowIndex]: {
-                                        ...prev[rowIndex],
-                                        cpv: "Targets cannot be negative.",
-                                      },
-                                    }))
-                                    return
-                                  }
-                                  setFieldErrors((prev) => {
-                                    const next = { ...prev }
-                                    if (next[rowIndex]) {
-                                      const rowErr = { ...next[rowIndex] }
-                                      delete rowErr.cpv
-                                      if (Object.keys(rowErr).length === 0) {
-                                        delete next[rowIndex]
-                                      } else {
-                                        next[rowIndex] = rowErr
-                                      }
-                                    }
-                                    return next
-                                  })
-                                  handleFieldChange(rowIndex, "cpv", parsed)
-                                }}
-                              />
-                              {fieldErrors[rowIndex]?.cpv && (
-                                <div className="text-xs text-destructive mt-1">
-                                  {fieldErrors[rowIndex].cpv}
                                 </div>
                               )}
                             </td>
@@ -805,7 +762,7 @@ export function KPIEditModal({
                                         className="h-7 w-full rounded-input border border-border bg-surface-panel px-2 text-[11px]"
                                       />
                                     </div>
-                                    {CLIENT_KPI_METRIC_FIELDS.map((field) => (
+                                    {CLIENT_KPI_METRIC_FIELDS.filter((field) => field !== "cpv").map((field) => (
                                       <div key={field} className="space-y-1">
                                         <label className="text-[10px] font-medium text-muted-foreground">
                                           {CLIENT_KPI_METRIC_LABELS[field] ?? field}

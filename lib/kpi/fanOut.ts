@@ -220,7 +220,7 @@ export function fanOutKpiPayload(
         bid_strategy,
         line_item_id,
         ctr: row.ctr,
-        cpv: row.cpv,
+        cpv: null,
         conversion_rate: row.conversion_rate,
         vtr: row.vtr,
         frequency: row.frequency,
