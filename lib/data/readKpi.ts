@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, eq } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { parseXanoListPayload, xanoAuthHeader, xanoUrl } from "@/lib/api/xano"
@@ -81,7 +81,7 @@ export async function fetchCampaignKpisFromPostgres(
     .from(schema.campaignKpi)
     .where(
       and(
-        eq(schema.campaignKpi.mbaNumber, mbaNumber),
+        sql`lower(${schema.campaignKpi.mbaNumber}) = lower(${mbaNumber})`,
         eq(schema.campaignKpi.versionNumber, versionNumber)
       )
     )

@@ -222,6 +222,30 @@ function pack(key) {
   }
 }
 
+export function campaignKpiLineKey(mbaNumber, versionNumber, lineItemId) {
+  return `${String(mbaNumber ?? "").trim().toLowerCase()}|${Number(versionNumber)}|${String(lineItemId ?? "").trim().toLowerCase()}`
+}
+
+export function duplicateCampaignKpiKeys(lines) {
+  const idsByKey = new Map()
+  for (const line of lines ?? []) {
+    const lid = String(line.line_item_id ?? "").trim()
+    if (!lid) continue
+    const key = campaignKpiLineKey(line.mba_number, line.version_number, lid)
+    if (!idsByKey.has(key)) idsByKey.set(key, new Set())
+    if (line.kpi_id != null) idsByKey.get(key).add(line.kpi_id)
+  }
+  return [...idsByKey.entries()].filter(([, ids]) => ids.size > 1).map(([key]) => key)
+}
+
+export function assertNoDuplicateCampaignKpiLines(lines) {
+  const keys = duplicateCampaignKpiKeys(lines)
+  if (keys.length === 0) return
+  throw new Error(
+    `campaign_kpi has duplicate rows for ${keys.join(", ")}. Apply db/migrations/0083_campaign_kpi_dedupe.sql before backfilling — refusing to write one twin and leave the other.`,
+  )
+}
+
 export function decideLineAction(input) {
   const resolved = resolveBenchmark({
     channel: input.channel,
@@ -283,6 +307,7 @@ export async function runBackfill(options) {
     throw new Error("Pass --all or at least one --client \"<name>\"")
   }
   const lines = await loadLines({ all, clients })
+  assertNoDuplicateCampaignKpiLines(lines)
   const planned = []
   for (const line of lines) {
     const row = plannedFromLine(line)

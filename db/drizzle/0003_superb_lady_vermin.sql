@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "uq_campaign_kpi_mba_version_line" ON "campaign_kpi" USING btree (lower("mba_number"),"version_number",lower("line_item_id")) WHERE "campaign_kpi"."line_item_id" IS NOT NULL;

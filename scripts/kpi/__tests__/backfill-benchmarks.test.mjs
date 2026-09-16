@@ -3,6 +3,7 @@ import test from "node:test"
 
 import {
   decideLineAction,
+  duplicateCampaignKpiKeys,
   isEmptyKpiRow,
   parseArgs,
   resolveBenchmark,
@@ -234,4 +235,76 @@ test("dry-run writes nothing", async () => {
   assert.equal(result.planned.length, 1)
   assert.equal(result.planned[0].kind, "insert")
   assert.equal(result.applied, false)
+})
+
+test("duplicate campaign_kpi rows for a line fail closed", async () => {
+  const key = "bicau002|28|bicau002sm1"
+  assert.deepEqual(
+    duplicateCampaignKpiKeys([
+      {
+        mba_number: "BICAU002",
+        version_number: 28,
+        line_item_id: "bicau002sm1",
+        kpi_id: 11,
+      },
+      {
+        mba_number: "bicau002",
+        version_number: 28,
+        line_item_id: "BICAU002SM1",
+        kpi_id: 22,
+      },
+    ]),
+    [key],
+  )
+
+  await assert.rejects(
+    () =>
+      runBackfill({
+        apply: false,
+        all: true,
+        clients: [],
+        loadLines: async () => [
+          {
+            mp_client_name: "BIC",
+            mba_number: "BICAU002",
+            campaign_name: "Camp",
+            version_number: 28,
+            line_item_id: "bicau002sm1",
+            channel: "social",
+            publisher: "Meta",
+            platform: "facebook",
+            bid_strategy: "cpm",
+            kpi_id: 11,
+            ctr: 0,
+            conversion_rate: 0,
+            vtr: 0,
+            frequency: 0,
+          },
+          {
+            mp_client_name: "BIC",
+            mba_number: "BICAU002",
+            campaign_name: "Camp",
+            version_number: 28,
+            line_item_id: "bicau002sm1",
+            channel: "social",
+            publisher: "Meta",
+            platform: "facebook",
+            bid_strategy: "cpm",
+            kpi_id: 22,
+            ctr: 0,
+            conversion_rate: 0,
+            vtr: 0,
+            frequency: 0,
+          },
+        ],
+        applyClient: async () => [],
+      }),
+    (err) => {
+      assert.match(
+        err instanceof Error ? err.message : String(err),
+        /campaign_kpi has duplicate rows for bicau002\|28\|bicau002sm1/,
+      )
+      return true
+    },
+  )
 })

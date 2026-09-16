@@ -5,6 +5,9 @@ import {
   KPI_MIRROR_FAILURE_KIND,
   assertKpiPercentDecimal,
   buildKpiMirrorFailurePayload,
+  campaignKpiLineKey,
+  pickNewestCampaignKpi,
+  resolveCampaignKpiUpsert,
 } from "../writeKpi"
 
 describe("assertKpiPercentDecimal", () => {
@@ -36,5 +39,31 @@ describe("buildKpiMirrorFailurePayload", () => {
     assert.equal(p.table, "campaign_kpi")
     assert.equal(p.timestamp, "2026-08-02T00:00:00.000Z")
     assert.equal(KPI_MIRROR_FAILURE_KIND, "xano_kpi_mirror_failed")
+  })
+})
+
+describe("campaign_kpi upsert key", () => {
+  it("folds mba and line_item_id case so twins share one key", () => {
+    assert.equal(
+      campaignKpiLineKey("BICAU002", 28, "bicau002SM1"),
+      campaignKpiLineKey("bicau002", 28, "BICAU002sm1"),
+    )
+  })
+
+  it("picks the newest row (created_at, then id) when twins exist", () => {
+    const newest = pickNewestCampaignKpi([
+      { id: 10, created_at: "2026-01-01T00:00:00.000Z" },
+      { id: 12, created_at: "2026-01-02T00:00:00.000Z" },
+      { id: 11, created_at: "2026-01-02T00:00:00.000Z" },
+    ])
+    assert.equal(newest?.id, 12)
+  })
+
+  it("inserts when no existing row; updates the newest when one exists", () => {
+    assert.deepEqual(resolveCampaignKpiUpsert([]), { action: "insert" })
+    assert.deepEqual(
+      resolveCampaignKpiUpsert([{ id: 7, created_at: "2026-01-01T00:00:00.000Z" }]),
+      { action: "update", id: 7 },
+    )
   })
 })

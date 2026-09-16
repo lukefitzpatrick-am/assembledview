@@ -62,6 +62,9 @@ export const campaignKpi = pgTable(
   },
   (table) => [
     index("idx_campaign_kpi_created_at").on(table.createdAt),
+    uniqueIndex("uq_campaign_kpi_mba_version_line")
+      .on(sql`lower(${table.mbaNumber})`, table.versionNumber, sql`lower(${table.lineItemId})`)
+      .where(sql`${table.lineItemId} IS NOT NULL`),
   ],
 )
 

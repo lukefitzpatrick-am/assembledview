@@ -22,6 +22,47 @@ import type {
 export const KPI_MIRROR_FAILURE_KIND = "xano_kpi_mirror_failed"
 export const KPI_MIRROR_FAILURE_AUDIENCE = "admin"
 
+export function campaignKpiLineKey(
+  mbaNumber: string | null | undefined,
+  versionNumber: number | null | undefined,
+  lineItemId: string | null | undefined,
+): string {
+  return `${String(mbaNumber ?? "").trim().toLowerCase()}|${Number(versionNumber)}|${String(lineItemId ?? "").trim().toLowerCase()}`
+}
+
+type CampaignKpiAgeRow = { id?: number | null; created_at?: string | number | null }
+
+function createdAtMs(value: string | number | null | undefined): number {
+  if (value == null) return 0
+  if (typeof value === "number") return value < 1e12 ? value * 1000 : value
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+export function pickNewestCampaignKpi<T extends CampaignKpiAgeRow>(rows: T[]): T | undefined {
+  if (rows.length === 0) return undefined
+  return rows.reduce((best, row) => {
+    const bestMs = createdAtMs(best.created_at)
+    const rowMs = createdAtMs(row.created_at)
+    if (rowMs > bestMs) return row
+    if (rowMs === bestMs && Number(row.id ?? 0) > Number(best.id ?? 0)) return row
+    return best
+  })
+}
+
+export function resolveCampaignKpiUpsert(
+  existing: Array<{ id: number; created_at?: string | number | null }>,
+): { action: "insert" } | { action: "update"; id: number } {
+  const newest = pickNewestCampaignKpi(existing)
+  if (newest?.id == null) return { action: "insert" }
+  return { action: "update", id: newest.id }
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; cause?: { code?: string } }
+  return e?.code === "23505" || e?.cause?.code === "23505"
+}
+
 const CAMPAIGN_WRITABLE: Record<string, keyof typeof schema.campaignKpi.$inferInsert> = {
   mp_client_name: "mpClientName",
   mba_number: "mbaNumber",
@@ -304,30 +345,103 @@ export async function syncClientKpiIdSequence(): Promise<void> {
   `)
 }
 
+async function findCampaignKpiTwins(input: {
+  mbaNumber: string
+  versionNumber: number
+  lineItemId: string
+}): Promise<Array<{ id: number; created_at: string | null }>> {
+  const rows = await getDb()
+    .select({
+      id: schema.campaignKpi.id,
+      createdAt: schema.campaignKpi.createdAt,
+    })
+    .from(schema.campaignKpi)
+    .where(sql`
+      lower(${schema.campaignKpi.mbaNumber}) = lower(${input.mbaNumber})
+      AND ${schema.campaignKpi.versionNumber} = ${input.versionNumber}
+      AND ${schema.campaignKpi.lineItemId} IS NOT NULL
+      AND lower(${schema.campaignKpi.lineItemId}) = lower(${input.lineItemId})
+    `)
+  return rows
+    .filter((row): row is { id: number; createdAt: string | null } => typeof row.id === "number")
+    .map((row) => ({ id: row.id, created_at: row.createdAt ?? null }))
+}
+
+async function insertCampaignKpiRow(
+  snake: Record<string, unknown>,
+): Promise<CampaignKPI> {
+  const [inserted] = await getDb()
+    .insert(schema.campaignKpi)
+    .values(campaignSnakeToInsert(snake))
+    .returning()
+  if (!inserted?.id) {
+    throw new Error("insert returned no id")
+  }
+  await mirrorKpiToXano({
+    op: "create",
+    table: "campaign_kpi",
+    rowId: Number(inserted.id),
+    body: snake,
+  })
+  return asCampaignRow(inserted as Record<string, unknown>)
+}
+
+async function upsertCampaignKpiRow(
+  input: CampaignKpiInput,
+  snake: Record<string, unknown>,
+): Promise<CampaignKPI> {
+  const mbaNumber = String(input.mba_number ?? "").trim()
+  const versionNumber = Number(input.version_number)
+  const lineItemId = String(input.line_item_id ?? "").trim()
+  if (!lineItemId || !mbaNumber || !Number.isFinite(versionNumber)) {
+    return insertCampaignKpiRow(snake)
+  }
+
+  const applyUpdate = async (id: number): Promise<CampaignKPI> => {
+    const patched = await updateCampaignKpiPostgresFirst(id, input)
+    if (patched == null) {
+      throw new Error(`updateCampaignKpi returned null for id=${id}`)
+    }
+    return patched
+  }
+
+  const twins = await findCampaignKpiTwins({ mbaNumber, versionNumber, lineItemId })
+  const decision = resolveCampaignKpiUpsert(twins)
+  if (decision.action === "update") {
+    const patched = await applyUpdate(decision.id)
+    for (const twin of twins) {
+      if (twin.id === decision.id) continue
+      await deleteCampaignKpiPostgresFirst(twin.id)
+    }
+    return patched
+  }
+
+  try {
+    return await insertCampaignKpiRow(snake)
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err
+    const after = await findCampaignKpiTwins({ mbaNumber, versionNumber, lineItemId })
+    const retry = resolveCampaignKpiUpsert(after)
+    if (retry.action === "insert") throw err
+    const patched = await applyUpdate(retry.id)
+    for (const twin of after) {
+      if (twin.id === retry.id) continue
+      await deleteCampaignKpiPostgresFirst(twin.id)
+    }
+    return patched
+  }
+}
+
 export async function createCampaignKpisPostgresFirst(
   inputs: CampaignKpiInput[]
 ): Promise<CampaignKPI[]> {
   await syncCampaignKpiIdSequence()
-  const db = getDb()
   const out: CampaignKPI[] = []
   for (let i = 0; i < inputs.length; i++) {
-    const snake = normalizeCampaignSnake(inputs[i]!)
+    const item = inputs[i]!
+    const snake = normalizeCampaignSnake(item)
     try {
-      const [inserted] = await db
-        .insert(schema.campaignKpi)
-        .values(campaignSnakeToInsert(snake))
-        .returning()
-      if (!inserted?.id) {
-        throw new Error("insert returned no id")
-      }
-      const row = asCampaignRow(inserted as Record<string, unknown>)
-      out.push(row)
-      await mirrorKpiToXano({
-        op: "create",
-        table: "campaign_kpi",
-        rowId: Number(inserted.id),
-        body: snake,
-      })
+      out.push(await upsertCampaignKpiRow(item, snake))
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       throw new Error(`createCampaignKpis: row ${i} failed: ${msg}`)
@@ -417,15 +531,26 @@ export async function syncCampaignKpisPostgresFirst(
       for (const row of existing) {
         const rowLineItemId = String(row.line_item_id ?? "").trim()
         if (!rowLineItemId) continue
-        existingByKey.set(
-          `${item.mba_number}|${item.version_number}|${rowLineItemId.toLowerCase()}`,
-          row
+        const key = campaignKpiLineKey(item.mba_number, item.version_number, rowLineItemId)
+        const prev = existingByKey.get(key)
+        const winner = pickNewestCampaignKpi(
+          [prev, row].filter((candidate): candidate is CampaignKPI => Boolean(candidate)),
         )
+        if (winner) existingByKey.set(key, winner)
+      }
+      for (const row of existing) {
+        const rowLineItemId = String(row.line_item_id ?? "").trim()
+        if (!rowLineItemId || typeof row.id !== "number") continue
+        const key = campaignKpiLineKey(item.mba_number, item.version_number, rowLineItemId)
+        const winner = existingByKey.get(key)
+        if (winner && winner.id !== row.id) {
+          await deleteCampaignKpiPostgresFirst(row.id)
+        }
       }
       fetchedPairs.add(pairKey)
     }
 
-    const naturalKey = `${item.mba_number}|${item.version_number}|${lineItemId.toLowerCase()}`
+    const naturalKey = campaignKpiLineKey(item.mba_number, item.version_number, lineItemId)
     const existing = existingByKey.get(naturalKey)
 
     try {
