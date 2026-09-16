@@ -1,6 +1,7 @@
 -- ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_REPORTED_DAILY
--- Live DDL captured 2026-09-15 (GET_DDL, ACCOUNTADMIN). Signature (VARCHAR DEFAULT NULL, BOOLEAN DEFAULT FALSE).
--- Reads MART.XANO_LINE_ITEMS_SNAPSHOT (frozen name). prog_ooh routes to PACING_FACT; cpv reads VIDEO_3S_VIEWS.
+-- Rev 2026-09-16. Signature (VARCHAR DEFAULT NULL, BOOLEAN DEFAULT FALSE).
+-- Reads MART.XANO_LINE_ITEMS_SNAPSHOT (frozen name). prog_* and digi_* route to PACING_FACT; cpv reads VIDEO_3S_VIEWS.
+-- Safety (author only; Luke applies in Snowsight): LOWER filter on LINE_ITEM_ID; QUALIFY latest SYNCED_AT per id.
 USE SCHEMA ASSEMBLEDVIEW.MART;
 
 CREATE OR REPLACE PROCEDURE "SP_REFRESH_FIXED_COST_REPORTED_DAILY"("LINE_ITEM_ID_FILTER" VARCHAR DEFAULT null, "BACKFILL_MODE" BOOLEAN DEFAULT FALSE)
@@ -48,7 +49,11 @@ function factTableForSource(sourceTable) {
         sourceTable === ''media_plan_prog_video'' ||
         sourceTable === ''media_plan_prog_bvod'' ||
         sourceTable === ''media_plan_prog_audio'' ||
-        sourceTable === ''media_plan_prog_ooh'') return ''ASSEMBLEDVIEW.MART.PACING_FACT'';
+        sourceTable === ''media_plan_prog_ooh'' ||
+        sourceTable === ''media_plan_digi_bvod'' ||
+        sourceTable === ''media_plan_digi_video'' ||
+        sourceTable === ''media_plan_digi_display'' ||
+        sourceTable === ''media_plan_digi_audio'') return ''ASSEMBLEDVIEW.MART.PACING_FACT'';
     return null;
 }
 
@@ -92,7 +97,8 @@ function fetchLineItems() {
         FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
         WHERE FIXED_COST_MEDIA = TRUE
     `;
-    if (lineItemIdFilter) sql += ` AND LINE_ITEM_ID = ?`;
+    if (lineItemIdFilter) sql += ` AND LOWER(LINE_ITEM_ID) = LOWER(?)`;
+    sql += ` QUALIFY ROW_NUMBER() OVER (PARTITION BY LINE_ITEM_ID ORDER BY SYNCED_AT DESC) = 1`;
     sql += ` ORDER BY LINE_ITEM_ID`;
 
     const stmt = snowflake.createStatement({
