@@ -9,6 +9,7 @@ import {
   useMemo,
   useState,
   useCallback,
+  useRef,
 } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
@@ -54,6 +55,7 @@ import {
   coverageReportingCounts,
   type ChannelCoverageEntry,
 } from "@/lib/delivery/channelCoverage"
+import { applyCoverageIfChanged } from "@/lib/delivery/coverageEntriesIdentity"
 
 const CHANNEL_SNAPSHOT_CAP = 15
 
@@ -256,7 +258,11 @@ function filterLineItemsByBurstWindow(
 export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [coverage, setCoverage] = useState<ChannelCoverageEntry[]>([])
+  const prevCoverageEntriesRef = useRef<ChannelCoverageEntry[]>([])
   const handleCoverage = useCallback((entries: ChannelCoverageEntry[]) => {
+    const decision = applyCoverageIfChanged(prevCoverageEntriesRef.current, entries)
+    if (!decision.commit) return
+    prevCoverageEntriesRef.current = decision.nextPrev
     setCoverage(entries)
   }, [])
   const pathname = usePathname()
@@ -456,7 +462,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     }
   }, [mbaNumber, kpiVersionNumber])
 
-  const kpiTargets: KPITargetsMap = buildKPITargetsMap(savedCampaignKPIs)
+  const kpiTargets: KPITargetsMap = useMemo(
+    () => buildKPITargetsMap(savedCampaignKPIs),
+    [savedCampaignKPIs],
+  )
   const lineItemTargets = useMemo(
     () => buildLineItemKpiTargetMap(savedCampaignKPIs),
     [savedCampaignKPIs],
