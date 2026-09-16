@@ -97,8 +97,7 @@ describe("renderDraftDocuments Media Plan", () => {
     assert.match(result.filename, /^DRAFT-MediaPlan_/)
     assert.match(result.filename, /not-for-client\.xlsx$/)
     const wb = new ExcelJS.Workbook()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await wb.xlsx.load(result.buffer as any)
+    await wb.xlsx.load(result.buffer as unknown as ExcelJS.Buffer)
     const sheet = wb.getWorksheet("Media Plan")
     assert.ok(sheet)
     assert.equal(
