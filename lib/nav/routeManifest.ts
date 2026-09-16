@@ -251,7 +251,7 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inBottomNav: true,
     roles: ["admin"],
     group: "core",
-    // Index redirects to /pacing/overview — still a real route entry.
+    // Index redirects to /pacing/portfolio — still a real route entry.
   },
   {
     path: "/tools/behavioural-planner",
@@ -536,6 +536,15 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
   },
 
   // ── Pacing channels ────────────────────────────────────────────────
+  {
+    path: "/pacing/portfolio",
+    label: "Portfolio",
+    title: "Pacing · Portfolio",
+    inPalette: true,
+    roles: ["admin"],
+    group: "pacing",
+    searchTerms: "pacing portfolio cards",
+  },
   {
     path: "/pacing/overview",
     label: "Overview",

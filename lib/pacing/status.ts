@@ -149,6 +149,8 @@ export type StatusLegendItem = {
   role: PacingColourRole
   textClass: string
   definition: string
+  /** Override the role-derived legend dot (portfolio uses delivery colours). */
+  dotClass?: string
 }
 
 /** Legend copy — thresholds from PACING_STATUS_THRESHOLDS only. */

@@ -10,7 +10,7 @@ export default async function PacingShellLayout({ children }: { children: ReactN
   const session = await auth0.getSession()
   const user = session?.user
   if (!user) {
-    redirect("/auth/login?returnTo=/pacing/overview")
+    redirect("/auth/login?returnTo=/pacing/portfolio")
   }
   const scope = await getPacingClientScopeIds(user)
   const assignedStr = scope === null ? [] : scope.map(String)

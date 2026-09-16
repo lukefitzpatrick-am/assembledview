@@ -89,7 +89,7 @@ Adding or altering a channel touches, at minimum:
 
 ## 3. Pacing & delivery
 
-**Routes** `/pacing/(shell)/` → `overview` `direct` `programmatic` `social` `search` `ad-serving` · `admin/orphans` `admin/unmapped-placements` · `GET /api/pacing/portfolio` (campaign-level rows, channels nested; no UI yet)
+**Routes** `/pacing/(shell)/` → `portfolio` (default; `/pacing` redirects here) `overview` `direct` `programmatic` `social` `search` `ad-serving` · `admin/orphans` `admin/unmapped-placements` · `GET /api/pacing/portfolio` (campaign-level rows, channels nested; cards UI on `/pacing/portfolio`)
 
 **Shape** Snowflake fact tables joined to plan line items on `line_item_id`. Facts: `MART.PACING_FACT`, `MART.SEARCH_PACING_FACT`, `MART.SOCIAL_PACING_FACT`, `MART.FIXED_COST_*_FACT`. Social dashboard and `/pacing/social` read `SOCIAL_PACING_FACT` (Meta / TikTok / Reddit via `classifySocialPacingPlatform`); programmatic + CM360 stay on `PACING_FACT`. The plan side is pushed into `MART.XANO_LINE_ITEMS_SNAPSHOT` nightly by `/api/cron/xano-line-item-sync` (19:00 UTC) — the table keeps its historic name; the source is now Postgres (`lib/snowflake/syncPgLineItems.ts`, `LINE_ITEM_SNAPSHOT_SOURCE`).
 

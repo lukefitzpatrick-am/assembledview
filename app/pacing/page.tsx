@@ -7,5 +7,5 @@ export default async function PacingIndexPage() {
     redirect("/auth/login?returnTo=/pacing")
   }
 
-  redirect("/pacing/overview")
+  redirect("/pacing/portfolio")
 }

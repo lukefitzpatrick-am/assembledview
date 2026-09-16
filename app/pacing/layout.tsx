@@ -8,7 +8,7 @@ export const metadata = pageMetadata("/pacing")
 export default async function PacingLayout({ children }: { children: ReactNode }) {
   const session = await auth0.getSession()
   if (!session?.user) {
-    redirect("/auth/login?returnTo=/pacing/overview")
+    redirect("/auth/login?returnTo=/pacing/portfolio")
   }
   return <>{children}</>
 }

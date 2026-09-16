@@ -9,6 +9,7 @@ import { AvaPacingCommentaryAction } from "@/components/ava/AvaSkillActionSets"
 import { PacingFilterToolbar } from "@/components/pacing/PacingFilterToolbar"
 
 const baseTabs = [
+  { href: "/pacing/portfolio", label: "Portfolio" },
   { href: "/pacing/overview", label: "Overview" },
   { href: "/pacing/search", label: "Search" },
   { href: "/pacing/social", label: "Social" },

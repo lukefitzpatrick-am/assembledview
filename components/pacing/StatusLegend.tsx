@@ -1,6 +1,6 @@
 "use client"
 
-import { statusLegendItems, type PacingColourRole } from "@/lib/pacing/status"
+import { statusLegendItems, type PacingColourRole, type StatusLegendItem } from "@/lib/pacing/status"
 import { cn } from "@/lib/utils"
 
 function roleDotClass(role: PacingColourRole): string {
@@ -18,8 +18,14 @@ function roleDotClass(role: PacingColourRole): string {
  * Defines all six pacing UI states and their thresholds.
  * Place with the summary tiles so the vocabulary is never implied.
  */
-export function StatusLegend({ className }: { className?: string }) {
-  const items = statusLegendItems()
+export function StatusLegend({
+  className,
+  items,
+}: {
+  className?: string
+  items?: StatusLegendItem[]
+}) {
+  const resolved = items ?? statusLegendItems()
   return (
     <div
       className={cn(
@@ -33,10 +39,13 @@ export function StatusLegend({ className }: { className?: string }) {
         Status legend
       </p>
       <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((item) => (
+        {resolved.map((item) => (
           <li key={item.status} className="flex gap-2 text-xs leading-snug">
             <span
-              className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", roleDotClass(item.role))}
+              className={cn(
+                "mt-1 h-2 w-2 shrink-0 rounded-full",
+                item.dotClass ?? roleDotClass(item.role),
+              )}
               aria-hidden
             />
             <span>
