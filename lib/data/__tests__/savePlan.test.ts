@@ -18,6 +18,9 @@ import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancia
 import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver.js"
 import { explodeScheduleToMonthRows, sumScheduleCents } from "../../../scripts/migration/_scheduleTransform.js"
 import { toCents } from "../../../scripts/migration/_shared.js"
+import { readMbaPlanDetailFromPostgres } from "../readMbaPlanDetail.js"
+import { readPublishedDocumentsByMba } from "@/lib/docs/readPublishedVersionDocuments"
+import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 
 loadEnvLocal()
 
@@ -1740,10 +1743,11 @@ test("NV-1: new_version with 0 lines rejected (BOSS006)", async (t) => {
   )
 })
 
-test("NV-1: pointer→unpublished + new_version cut → reads resolve NEW tip (pointer unchanged)", async (t) => {
+test("NV-1: pointer at published + new_version cut → published reads stay on pointer; tip is editor-only", async (t) => {
   // Route behaviour (assert only — do not change): /api/plans/save clears
   // plan_working_drafts via deleteWorkingDraft on ALL successful modes
   // (draft / new_version / publish) — see app/api/plans/save/route.ts.
+  // VP-1 (0069) forbids pointing published_version_id at an unstamped row.
   if (!hasDb) {
     t.skip("DATABASE_URL not set")
     return
@@ -1754,42 +1758,23 @@ test("NV-1: pointer→unpublished + new_version cut → reads resolve NEW tip (p
     await wipeMba()
   })
 
-  const v1 = await savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)]))
-  // Stale pointer: published_version_id → unpublished v1 (NV-0 debris).
-  const db = getDb()
-  await db
-    .update(schema.mediaPlanMasters)
-    .set({ publishedVersionId: v1.versionId })
-    .where(eq(schema.mediaPlanMasters.id, masterId))
+  await savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)]))
+  const published = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "publish",
+    campaignStatus: "booked",
+    publishedByEmail: "nv1@example.com",
+  })
+  assert.equal(published.published, true)
+  const pubSnap = await snapshot(published.versionId)
+  assert.ok(pubSnap.version?.publishedAt)
 
-  const { mapPlanMasterFromPostgres } = await import("../readMediaPlans.js")
+  const db = getDb()
   const [masterBefore] = await db
-    .select()
+    .select({ publishedVersionId: schema.mediaPlanMasters.publishedVersionId })
     .from(schema.mediaPlanMasters)
     .where(eq(schema.mediaPlanMasters.id, masterId))
-  const versionsBefore = await db
-    .select()
-    .from(schema.mediaPlanVersions)
-    .where(eq(schema.mediaPlanVersions.masterId, masterId))
-  const pubBefore = versionsBefore.find((v) => v.id === masterBefore!.publishedVersionId)
-  const maxBefore = Math.max(
-    ...versionsBefore.map((v) => Number(v.versionNumber) || 0)
-  )
-  const tipBefore = mapPlanMasterFromPostgres(
-    masterBefore as unknown as Record<string, unknown>,
-    pubBefore
-      ? {
-          version_number: pubBefore.versionNumber,
-          published_at: pubBefore.publishedAt,
-        }
-      : null,
-    maxBefore
-  )
-  assert.equal(
-    tipBefore.version_number,
-    maxBefore,
-    "stale pointer→unpublished must fall back to max(vn)"
-  )
+  assert.equal(masterBefore?.publishedVersionId, published.versionId)
 
   const cut = await savePlanVersion({
     ...draftInput(masterId, [baseLine(LINE_A, 1200)]),
@@ -1797,35 +1782,64 @@ test("NV-1: pointer→unpublished + new_version cut → reads resolve NEW tip (p
     campaignStatus: "draft",
   })
   assert.equal(cut.published, false)
-  assert.equal(cut.versionNumber, maxBefore + 1)
+  assert.equal(cut.versionNumber, published.versionNumber + 1)
+  const cutSnap = await snapshot(cut.versionId)
+  assert.equal(cutSnap.version?.publishedAt, null)
 
   const [masterAfter] = await db
-    .select()
+    .select({ publishedVersionId: schema.mediaPlanMasters.publishedVersionId })
     .from(schema.mediaPlanMasters)
     .where(eq(schema.mediaPlanMasters.id, masterId))
-  // NV-0: new_version must NOT advance published_version_id.
-  assert.equal(masterAfter!.publishedVersionId, v1.versionId)
+  assert.equal(masterAfter!.publishedVersionId, published.versionId)
 
-  const versionsAfter = await db
-    .select()
-    .from(schema.mediaPlanVersions)
-    .where(eq(schema.mediaPlanVersions.masterId, masterId))
-  const pubAfter = versionsAfter.find((v) => v.id === masterAfter!.publishedVersionId)
-  const maxAfter = Math.max(
-    ...versionsAfter.map((v) => Number(v.versionNumber) || 0)
+  const publishedDetail = await readMbaPlanDetailFromPostgres({
+    mbaNumber: MBA,
+    skipLineItems: true,
+    includeVersionsMeta: true,
+  })
+  assert.equal(publishedDetail.ok, true)
+  if (!publishedDetail.ok) return
+  assert.equal(publishedDetail.data.version_number, published.versionNumber)
+  assert.equal(publishedDetail.data.id, published.versionId)
+  const publishedMeta = publishedDetail.data.versions as Array<{
+    version_number: number
+  }>
+  assert.ok(
+    publishedMeta.every((v) => v.version_number <= published.versionNumber),
+    "published MBA GET versionsMetadata must not include the unpublished tip"
   )
-  const tipAfter = mapPlanMasterFromPostgres(
-    masterAfter as unknown as Record<string, unknown>,
-    pubAfter
-      ? {
-          version_number: pubAfter.versionNumber,
-          published_at: pubAfter.publishedAt,
-        }
-      : null,
-    maxAfter
+  assert.equal(
+    publishedMeta.some((v) => v.version_number === cut.versionNumber),
+    false
   )
-  assert.equal(tipAfter.version_number, cut.versionNumber)
-  assert.equal(tipAfter.version_number, maxAfter)
+
+  const editorTip = await readMbaPlanDetailFromPostgres({
+    mbaNumber: MBA,
+    requestedVersionNumber: cut.versionNumber,
+    skipLineItems: true,
+  })
+  assert.equal(editorTip.ok, true)
+  if (!editorTip.ok) return
+  assert.equal(editorTip.data.version_number, cut.versionNumber)
+  assert.equal(editorTip.data.id, cut.versionId)
+  assert.equal(editorTip.data.published_version_id, published.versionId)
+
+  const docs = await readPublishedDocumentsByMba(MBA)
+  assert.equal(docs.ok, true)
+  if (!docs.ok) return
+  assert.equal(docs.payload.publishedVersionId, published.versionId)
+  assert.equal(docs.payload.versionNumber, published.versionNumber)
+
+  const joined = await db.execute(sql`
+    SELECT v.id
+    FROM media_plan_masters m
+    INNER JOIN media_plan_versions v ON ${sql.raw(PUBLISHED_VERSION_JOIN_SQL)}
+    WHERE m.id = ${masterId}
+  `)
+  const joinedIds = Array.from(joined as Iterable<{ id: number }>).map((r) =>
+    Number(r.id)
+  )
+  assert.deepEqual(joinedIds, [published.versionId])
 })
 
 test("VC Stage 1: publish with no email stamps published_at, published_by null", async (t) => {
