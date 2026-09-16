@@ -207,15 +207,42 @@ test("CM360 Direct Booked Digital spend is hidden unless derive_spend_from_plan"
       bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 15_000 }],
     },
   ]
+  const impressions = progressCard(
+    "Impressions delivery",
+    "120,000",
+    "on-track",
+    "Delivered 120,000 · Planned 900,000",
+  )
+  const clicks = progressCard("Clicks delivery", "100", "on-track", "Delivered 100 · Planned 0")
+  const daily = [{ date: "2026-02-01", impressions: 500 }]
   const entries = channelCoverage({
     buckets,
     sections: [
-      section({
+      {
         key: "digital-display",
-        lineIds: ["mba001dd1"],
-        spendValue: "$0.00",
-        impressionsValue: "120,000",
-      }),
+        title: "digital-display",
+        dateRange: { startISO: "2026-01-01", endISO: "2026-06-01" },
+        lastSyncedAt: null,
+        connections: [],
+        mediaTypeColour: "#000",
+        aggregate: {
+          summaryChips: [],
+          progressCards: [impressions, clicks],
+          kpiBand: { tiles: [] },
+          chart: { daily, series: [], asAtDate: null },
+        },
+        lineItems: [
+          {
+            id: "mba001dd1",
+            block: {
+              name: "mba001dd1",
+              progressCards: [impressions, clicks],
+              kpiBand: { tiles: [] },
+              chart: { kind: "daily-delivery", daily, series: [], asAtDate: null },
+            },
+          },
+        ],
+      },
     ],
     todayISO: TODAY,
   })
@@ -226,6 +253,80 @@ test("CM360 Direct Booked Digital spend is hidden unless derive_spend_from_plan"
   assert.equal(digital.spendModelled, false)
   assert.equal(digital.deliveredImpressions, 120_000)
   assert.equal(digital.plannedSpend, 15_000)
+})
+
+test("BVOD glance card sums CM360 impressions and planned deliverables from line captions", () => {
+  const buckets = emptyBuckets()
+  buckets.bvodLineItems = [
+    {
+      line_item_id: "bicau002bv1",
+      publisher: "7plus",
+      budget: 8_000,
+      impressions: 0,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 8_000 }],
+    },
+    {
+      line_item_id: "bicau002bv2",
+      publisher: "9Now",
+      budget: 8_000,
+      impressions: 0,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 8_000 }],
+    },
+    {
+      line_item_id: "bicau002bv3",
+      publisher: "10 Play",
+      budget: 8_000,
+      impressions: 0,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 8_000 }],
+    },
+  ]
+  const clicks = progressCard("Clicks delivery", "100", "on-track", "Delivered 100 · Planned 0")
+  const lineCards = [
+    progressCard("Impressions delivery", "200,000", "ahead", "Delivered 200,000 · Planned 150,000"),
+    progressCard("Impressions delivery", "200,000", "ahead", "Delivered 200,000 · Planned 150,000"),
+    progressCard("Impressions delivery", "124,600", "ahead", "Delivered 124,600 · Planned 164,286"),
+  ]
+  const daily = [{ date: "2026-02-01", impressions: 1_000 }]
+  const lineItems = ["bicau002bv1", "bicau002bv2", "bicau002bv3"].map((id, i) => ({
+    id,
+    block: {
+      name: id,
+      progressCards: [lineCards[i]!, clicks],
+      kpiBand: { tiles: [] },
+      chart: { kind: "daily-delivery" as const, daily, series: [], asAtDate: null },
+    },
+  }))
+  const entries = channelCoverage({
+    buckets,
+    sections: [
+      {
+        key: "bvod",
+        title: "BVOD",
+        dateRange: { startISO: "2026-01-01", endISO: "2026-06-01" },
+        lastSyncedAt: null,
+        connections: [],
+        mediaTypeColour: "#000",
+        aggregate: {
+          summaryChips: [],
+          progressCards: [
+            progressCard("Impressions delivery", "0", "no-data", "Delivered 0 · Planned 0"),
+            clicks,
+          ],
+          kpiBand: { tiles: [] },
+          chart: { daily: [], series: [], asAtDate: null },
+        },
+        lineItems,
+      },
+    ],
+    todayISO: TODAY,
+  })
+  const bvod = entries.find((e) => e.key === "bvod")
+  assert.ok(bvod)
+  assert.equal(bvod.status, "reporting")
+  assert.equal(bvod.deliveredSpend, null)
+  assert.equal(bvod.deliveredImpressions, 524_600)
+  assert.equal(bvod.plannedImpressions, 464_286)
+  assert.equal(bvod.deliverableLabel, "Impressions")
 })
 
 test("order is reporting, connecting, not_started; within each by plannedSpend desc", () => {

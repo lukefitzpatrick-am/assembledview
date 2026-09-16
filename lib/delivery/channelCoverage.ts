@@ -291,16 +291,22 @@ function isViewsCardTitle(title: string | undefined): boolean {
   return /\bviews?\b/i.test(title)
 }
 
+/** Direct digital adapters put impressions at [0] (clicks at [1]). Spend families put the deliverable at [1]. */
+function deliverableCardIndex(acc: Acc): number {
+  return ZERO_SPEND_FAMILIES.has(acc.channelKey) ? 0 : 1
+}
+
 function deliverableCardsForGroup(
   acc: Acc,
   section: ChannelSectionData | undefined,
-): Array<{ title?: string; detail?: string }> {
+): Array<{ title?: string; detail?: string; value?: string; status?: DeliveryStatus }> {
   if (!section) return []
   const subset = matchingLineItems(section, acc.lineIds)
-  if (acc.publisherKey && subset.length > 0) {
-    return subset.map((row) => row.block.progressCards[1] ?? {})
+  const idx = deliverableCardIndex(acc)
+  if (subset.length > 0) {
+    return subset.map((row) => row.block.progressCards[idx] ?? {})
   }
-  return [section.aggregate.progressCards[1] ?? {}]
+  return [section.aggregate.progressCards[idx] ?? {}]
 }
 
 function plannedDeliverablesFromCards(acc: Acc, section: ChannelSectionData | undefined): number {
@@ -355,13 +361,15 @@ function deliveredFromCards(
     return { spend: 0, impressions: 0, deliveryStatus: null, impressionsStatus: null }
   }
   const subset = matchingLineItems(section, acc.lineIds)
-  if (acc.publisherKey && subset.length > 0) {
+  const deliverableIdx = deliverableCardIndex(acc)
+  if (subset.length > 0) {
     let spend = 0
     let impressions = 0
     let deliveryStatus: DeliveryStatus | null = null
     let impressionsStatus: DeliveryStatus | null = null
     for (const row of subset) {
-      const [spendCard, deliverableCard] = row.block.progressCards
+      const spendCard = row.block.progressCards[0]
+      const deliverableCard = row.block.progressCards[deliverableIdx]
       spend += parseCardValue(spendCard?.value)
       impressions += parseCardValue(deliverableCard?.value)
       const status = spendHidden(acc) ? deliverableCard?.status : spendCard?.status
@@ -372,7 +380,8 @@ function deliveredFromCards(
     }
     return { spend, impressions, deliveryStatus, impressionsStatus }
   }
-  const [spendCard, deliverableCard] = section.aggregate.progressCards
+  const spendCard = section.aggregate.progressCards[0]
+  const deliverableCard = section.aggregate.progressCards[deliverableIdx]
   const deliveryStatus = spendHidden(acc)
     ? (deliverableCard?.status ?? null)
     : (spendCard?.status ?? deliverableCard?.status ?? null)
