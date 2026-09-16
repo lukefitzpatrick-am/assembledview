@@ -28,6 +28,7 @@ export { formatReportInt, formatReportMoney }
 const CHANNEL_LABELS: Record<string, string> = {
   social_meta: "Social (Meta)",
   social_tiktok: "Social (TikTok)",
+  social_reddit: "Social (Reddit)",
   programmatic_display: "Programmatic display",
   programmatic_video: "Programmatic video",
   digital_display: "Digital Display",

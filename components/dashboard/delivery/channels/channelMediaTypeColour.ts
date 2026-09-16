@@ -7,6 +7,7 @@ export function channelMediaRegistryKey(key: ChannelKey): string {
   switch (key) {
     case "social-meta":
     case "social-tiktok":
+    case "social-reddit":
       return "socialmedia"
     case "search":
       return "search"

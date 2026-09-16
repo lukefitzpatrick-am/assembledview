@@ -13,6 +13,7 @@ import {
 const CHANNEL_KEYS: ChannelKey[] = [
   "social-meta",
   "social-tiktok",
+  "social-reddit",
   "search",
   "programmatic-display",
   "programmatic-video",

@@ -25,12 +25,14 @@ import { buildBvodSection } from "./channels/bvodAdapter"
 import { buildSearchSection } from "./channels/searchAdapter"
 import { buildSocialMetaSection } from "./channels/socialMetaAdapter"
 import { buildSocialTiktokSection } from "./channels/socialTiktokAdapter"
+import { buildSocialRedditSection } from "./channels/socialRedditAdapter"
 import { buildPlanOnlyRemainderSection } from "./channels/planOnlyAdapter"
 import type { ChannelSectionData } from "./channels/types"
 import {
   cleanPacingLineItemId,
   extractPacingLineItemIdFromItem,
 } from "@/lib/pacing/delivery/lineItemIds"
+import { partitionRedditDeliveryLines } from "@/lib/delivery/social/partitionRedditDeliveryLines"
 import {
   deliverySourceLookupKey,
   lookupActiveDeliverySource,
@@ -76,6 +78,7 @@ type DeliveryBodyProps = {
   pacingWindow: ReturnType<typeof getPacingWindow>
   metaItems: SocialLineItem[]
   tiktokItems: SocialLineItem[]
+  redditItems: SocialLineItem[]
   searchLineItems: unknown[]
   includeSearch: boolean
   progDisplayLineItems: unknown[]
@@ -107,6 +110,7 @@ function CampaignDeliveryBody({
   pacingWindow,
   metaItems,
   tiktokItems,
+  redditItems,
   searchLineItems,
   includeSearch,
   progDisplayLineItems,
@@ -152,6 +156,28 @@ function CampaignDeliveryBody({
       out.push(
         buildSocialTiktokSection({
           lineItems: tiktokItems,
+          snowflakeRows: rows,
+          campaignStart,
+          campaignEnd,
+          mbaNumber,
+          kpiVersionNumber,
+          kpiTargets,
+          lineItemTargets,
+          filterRange,
+          brandColour,
+          lastSyncedAt,
+        }),
+      )
+    }
+
+    const { live: redditLive, awaiting: redditAwaiting } = partitionRedditDeliveryLines(
+      redditItems,
+      rows,
+    )
+    if (redditLive.length > 0) {
+      out.push(
+        buildSocialRedditSection({
+          lineItems: redditLive,
           snowflakeRows: rows,
           campaignStart,
           campaignEnd,
@@ -287,7 +313,7 @@ function CampaignDeliveryBody({
     }
 
     const remainder = buildPlanOnlyRemainderSection({
-      lineItems: remainderItems,
+      lineItems: [...remainderItems, ...redditAwaiting],
       campaignStart,
       campaignEnd,
       lastSyncedAt,
@@ -300,6 +326,7 @@ function CampaignDeliveryBody({
     search,
     metaItems,
     tiktokItems,
+    redditItems,
     includeSearch,
     progDisplayLineItems,
     progVideoLineItems,
@@ -398,17 +425,24 @@ export function CampaignDeliverySection({
 }: CampaignDeliverySectionProps) {
   const pacingWindow = useMemo(() => getPacingWindow(campaignStart, campaignEnd), [campaignStart, campaignEnd])
 
-  const { metaItems, tiktokItems, remainderSocialItems } = useMemo(() => {
+  const { metaItems, tiktokItems, redditItems, remainderSocialItems } = useMemo(() => {
     const meta: SocialLineItem[] = []
     const tiktok: SocialLineItem[] = []
+    const reddit: SocialLineItem[] = []
     const remainder: SocialLineItem[] = []
     for (const item of socialLineItems) {
       const p = classifySocialPacingPlatform(item as Record<string, unknown>)
       if (p === "meta") meta.push(item)
       else if (p === "tiktok") tiktok.push(item)
+      else if (p === "reddit") reddit.push(item)
       else remainder.push(item)
     }
-    return { metaItems: meta, tiktokItems: tiktok, remainderSocialItems: remainder }
+    return {
+      metaItems: meta,
+      tiktokItems: tiktok,
+      redditItems: reddit,
+      remainderSocialItems: remainder,
+    }
   }, [socialLineItems])
 
   const remainderProgItems = useMemo(() => {
@@ -449,6 +483,11 @@ export function CampaignDeliverySection({
     const ids = tiktokItems.map(extractPacingLineItemIdFromItem).filter(filterByPacingSet) as string[]
     return Array.from(new Set(ids)).sort()
   }, [tiktokItems, filterByPacingSet])
+
+  const redditLineItemIds = useMemo(() => {
+    const ids = redditItems.map(extractPacingLineItemIdFromItem).filter(filterByPacingSet) as string[]
+    return Array.from(new Set(ids)).sort()
+  }, [redditItems, filterByPacingSet])
 
   const progDisplayLineItemIds = useMemo(() => {
     const ids = (progDisplayLineItems ?? [])
@@ -498,6 +537,7 @@ export function CampaignDeliverySection({
       mbaNumber={mbaNumber}
       metaLineItemIds={metaLineItemIds}
       tiktokLineItemIds={tiktokLineItemIds}
+      redditLineItemIds={redditLineItemIds}
       progDisplayLineItemIds={progDisplayLineItemIds}
       progVideoLineItemIds={progVideoLineItemIds}
       directDigitalLineItemIds={directDigitalLineItemIds}
@@ -523,6 +563,7 @@ export function CampaignDeliverySection({
           pacingWindow={pacingWindow}
           metaItems={metaItems}
           tiktokItems={tiktokItems}
+          redditItems={redditItems}
           searchLineItems={searchLineItems}
           includeSearch={includeSearch}
           progDisplayLineItems={progDisplayLineItems}

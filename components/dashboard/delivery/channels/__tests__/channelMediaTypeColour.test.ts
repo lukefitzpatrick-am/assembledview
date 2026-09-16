@@ -9,6 +9,7 @@ import type { ChannelKey } from "../types"
 const CHANNEL_KEYS: ChannelKey[] = [
   "social-meta",
   "social-tiktok",
+  "social-reddit",
   "search",
   "programmatic-display",
   "programmatic-video",
@@ -55,8 +56,9 @@ describe("channelMediaTypeColour", () => {
       bvod: channelMediaTypeColour("bvod"),
     }
 
-    // Meta + TikTok + plan-only share social_media by design (same media type)
+    // Meta + TikTok + Reddit + plan-only share social_media by design (same media type)
     assert.equal(channelMediaTypeColour("social-meta"), channelMediaTypeColour("social-tiktok"))
+    assert.equal(channelMediaTypeColour("social-meta"), channelMediaTypeColour("social-reddit"))
     assert.equal(channelMediaTypeColour("plan-only"), channelMediaTypeColour("social-meta"))
 
     const distinct = new Set(Object.values(colours))

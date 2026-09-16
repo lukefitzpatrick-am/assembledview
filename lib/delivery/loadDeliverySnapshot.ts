@@ -263,6 +263,7 @@ function collectChannelPlans(
     const platform = classifySocialPacingPlatform(item as Record<string, unknown>)
     if (platform === "meta") ensure("social_meta").set(meta.id, meta)
     else if (platform === "tiktok") ensure("social_tiktok").set(meta.id, meta)
+    else if (platform === "reddit") ensure("social_reddit").set(meta.id, meta)
     else ensure("plan_only").set(meta.id, meta)
   }
 
@@ -399,6 +400,7 @@ export async function loadDeliverySnapshot(
   const channelOrder = [
     "social_meta",
     "social_tiktok",
+    "social_reddit",
     "programmatic_display",
     "programmatic_video",
     "digital_display",

@@ -7,7 +7,7 @@ import {
   SOCIAL_PACING_TABLE,
 } from "@/lib/pacing/social-channels"
 
-type Channel = "meta" | "tiktok" | "programmatic-display" | "programmatic-video" | "ad-serving" | "search"
+type Channel = "meta" | "tiktok" | "reddit" | "programmatic-display" | "programmatic-video" | "ad-serving" | "search"
 
 export type PacingRow = {
   channel: Channel
@@ -52,6 +52,7 @@ const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
 const ALLOWED_CHANNELS: Channel[] = [
   "meta",
   "tiktok",
+  "reddit",
   "programmatic-display",
   "programmatic-video",
   "ad-serving",
@@ -169,6 +170,7 @@ export async function getCampaignPacingData(
   const selectShape = `
     /* normalised channel values for the app */
     CASE
+      WHEN LOWER(CHANNEL) LIKE '%reddit%' THEN 'reddit'
       WHEN LOWER(CHANNEL) LIKE '%meta%' THEN 'meta'
       WHEN LOWER(CHANNEL) LIKE '%tiktok%' THEN 'tiktok'
       WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%' THEN 'programmatic-display'

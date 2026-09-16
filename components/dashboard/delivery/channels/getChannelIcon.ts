@@ -1,4 +1,4 @@
-import { AudioLines, Facebook, Gauge, MonitorPlay, Music2, Search, Tv, Video } from "lucide-react"
+import { AudioLines, Facebook, Gauge, MessagesSquare, MonitorPlay, Music2, Search, Tv, Video } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { ChannelKey } from "./types"
 
@@ -8,6 +8,8 @@ export function getChannelIcon(key: ChannelKey): LucideIcon {
       return Facebook
     case "social-tiktok":
       return Music2
+    case "social-reddit":
+      return MessagesSquare
     case "search":
       return Search
     case "programmatic-display":

@@ -11,6 +11,7 @@ export const ROLLUP_SAFE_CHANNEL_KEYS: Set<ChannelKey> = new Set([
   "search",
   "social-meta",
   "social-tiktok",
+  "social-reddit",
   "digital-display",
   "digital-video",
   "digital-audio",

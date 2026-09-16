@@ -19,6 +19,11 @@ describe("shouldShowChannelAggregate", () => {
     assert.equal(shouldShowChannelAggregate("social-tiktok", 1), false)
   })
 
+  it("social-reddit + 1 → false; social-reddit + 2 → true", () => {
+    assert.equal(shouldShowChannelAggregate("social-reddit", 1), false)
+    assert.equal(shouldShowChannelAggregate("social-reddit", 2), true)
+  })
+
   it("programmatic-display never rolls up (1 / 2 / 5)", () => {
     assert.equal(shouldShowChannelAggregate("programmatic-display", 1), false)
     assert.equal(shouldShowChannelAggregate("programmatic-display", 2), false)
@@ -61,6 +66,7 @@ describe("shouldShowChannelAggregate", () => {
       "search",
       "social-meta",
       "social-tiktok",
+      "social-reddit",
       "programmatic-display",
       "programmatic-video",
       "digital-display",
