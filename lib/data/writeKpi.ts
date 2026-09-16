@@ -362,9 +362,7 @@ async function findCampaignKpiTwins(input: {
       AND ${schema.campaignKpi.lineItemId} IS NOT NULL
       AND lower(${schema.campaignKpi.lineItemId}) = lower(${input.lineItemId})
     `)
-  return rows
-    .filter((row): row is { id: number; createdAt: string | null } => typeof row.id === "number")
-    .map((row) => ({ id: row.id, created_at: row.createdAt ?? null }))
+  return rows.map((row) => ({ id: row.id, created_at: row.createdAt ?? null }))
 }
 
 async function insertCampaignKpiRow(
