@@ -216,7 +216,7 @@ export async function generateCampaignReadDraft(input: {
   })
 }
 
-export function scheduleCampaignReadContinuation(work: () => Promise<void>): void {
+export function scheduleCampaignReadContinuation(work: () => Promise<unknown>): void {
   after(() => {
     void work().catch((err) => {
       console.error("[campaign-read] generate continuation failed", err)
