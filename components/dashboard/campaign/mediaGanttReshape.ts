@@ -18,6 +18,7 @@ import {
   groupByLineItemId,
   type NormalisedLineItem,
 } from "@/lib/mediaplan/normalizeLineItem"
+import { cleanPacingLineItemId } from "@/lib/pacing/delivery/lineItemIds"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 
 export type MediaGanttGranularity = "weekly" | "monthly"
@@ -110,6 +111,7 @@ export function reshapeLineItemsToMediaGantt(
   startDate: string,
   endDate: string,
   granularity: MediaGanttGranularity = "weekly",
+  deliveredByLineId?: ReadonlyMap<string, number>,
 ): ReshapedMediaGantt | null {
   const safeStart = safeParseDate(startDate)
   const safeEnd = safeParseDate(endDate)
@@ -162,6 +164,9 @@ export function reshapeLineItemsToMediaGantt(
       const bursts: GanttBurst[] = []
       let rowMaxDeliverables = 0
       let earliestStart: Date | null = null
+      const lineId = cleanPacingLineItemId(item.lineItemId)
+      const hasDelivery = lineId != null && deliveredByLineId?.has(lineId) === true
+      const delivered = hasDelivery ? (deliveredByLineId!.get(lineId!) ?? 0) : null
 
       const pendingBursts: Array<{ burst: GanttBurst; deliverables: number }> = []
 
@@ -205,15 +210,25 @@ export function reshapeLineItemsToMediaGantt(
       const todayISO = getMelbourneTodayISO()
       const startsAfterToday =
         earliestStart != null && format(earliestStart, "yyyy-MM-dd") > todayISO
-      const startLabel = startsAfterToday && earliestStart
+      const startLabel = startsAfterToday && earliestStart && !hasDelivery
         ? `Starts ${format(earliestStart, "d MMM")}`
         : undefined
+      const linePlanned = pendingBursts.reduce((sum, pending) => sum + pending.deliverables, 0)
 
       const intensityBase = rowMaxDeliverables > 0 ? rowMaxDeliverables : 1
       pendingBursts.forEach(({ burst, deliverables }) => {
+        const planned = linePlanned > 0 ? linePlanned : deliverables
+        const deliveryLabel =
+          hasDelivery && delivered != null
+            ? `${formatDeliverablesDisplay(delivered)} / ${formatDeliverablesDisplay(planned)}`
+            : undefined
         bursts.push({
           ...burst,
-          label: startLabel ?? burst.label,
+          label: deliveryLabel ?? startLabel ?? burst.label,
+          fillRatio:
+            hasDelivery && delivered != null
+              ? planned > 0 ? delivered / planned : 0
+              : undefined,
           intensity:
             deliverables > 0 ? Math.max(0.35, deliverables / intensityBase) : 0.75,
         })

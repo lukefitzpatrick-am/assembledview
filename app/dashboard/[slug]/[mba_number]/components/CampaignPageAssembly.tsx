@@ -56,6 +56,7 @@ import {
   type ChannelCoverageEntry,
 } from "@/lib/delivery/channelCoverage"
 import { applyCoverageIfChanged } from "@/lib/delivery/coverageEntriesIdentity"
+import { deliveredByLineIdIdentity } from "@/lib/delivery/ganttDeliveredByLineId"
 
 const CHANNEL_SNAPSHOT_CAP = 15
 
@@ -260,8 +261,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [coverage, setCoverage] = useState<ChannelCoverageEntry[]>([])
   const [kpiReviewGroups, setKpiReviewGroups] = useState<KpiReviewGroup[]>([])
+  const [deliveredByLineId, setDeliveredByLineId] = useState<Map<string, number>>(() => new Map())
   const prevCoverageEntriesRef = useRef<ChannelCoverageEntry[]>([])
   const prevKpiReviewIdentityRef = useRef("")
+  const prevDeliveredIdentityRef = useRef("")
   const handleCoverage = useCallback((entries: ChannelCoverageEntry[]) => {
     const decision = applyCoverageIfChanged(prevCoverageEntriesRef.current, entries)
     if (!decision.commit) return
@@ -273,6 +276,12 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     if (prevKpiReviewIdentityRef.current === nextKey) return
     prevKpiReviewIdentityRef.current = nextKey
     setKpiReviewGroups(groups)
+  }, [])
+  const handleDeliveredByLineId = useCallback((next: Map<string, number>) => {
+    const nextKey = deliveredByLineIdIdentity(next)
+    if (prevDeliveredIdentityRef.current === nextKey) return
+    prevDeliveredIdentityRef.current = nextKey
+    setDeliveredByLineId(next)
   }, [])
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -674,6 +683,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     bvodLineItems: filteredBvod,
     onCoverage: handleCoverage,
     onKpiReviewGroups: handleKpiReviewGroups,
+    onDeliveredByLineId: handleDeliveredByLineId,
   }
 
   return (
@@ -819,6 +829,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               mbaNumber={mbaNumber}
               defaultView="timeline"
               isAdmin={isAdmin}
+              deliveredByLineId={deliveredByLineId}
             />
             </div>
           </Suspense>

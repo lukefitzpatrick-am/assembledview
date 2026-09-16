@@ -16,13 +16,21 @@ export interface MediaGanttChartProps {
   startDate: string
   endDate: string
   granularity?: MediaGanttGranularity
+  /** Accordion per-line deliverable actuals. Absent keys stay planned-only. */
+  deliveredByLineId?: ReadonlyMap<string, number>
 }
 
 const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(function MediaGanttChart(
-  { lineItems, startDate, endDate, granularity = "weekly" },
+  { lineItems, startDate, endDate, granularity = "weekly", deliveredByLineId },
   ref,
 ) {
-  const gantt = reshapeLineItemsToMediaGantt(lineItems, startDate, endDate, granularity)
+  const gantt = reshapeLineItemsToMediaGantt(
+    lineItems,
+    startDate,
+    endDate,
+    granularity,
+    deliveredByLineId,
+  )
 
   if (!gantt) {
     return (

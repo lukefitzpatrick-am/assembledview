@@ -77,3 +77,87 @@ test("future-start line bar reads Starts {d MMM}", () => {
   assert.ok(gantt)
   assert.equal(gantt!.rows[0]?.bursts[0]?.label, "Starts 15 Mar")
 })
+
+test("in-flight bar with delivery reads delivered / planned and keeps overflow fillRatio", () => {
+  const deliveredByLineId = new Map([["li-1", 400]])
+  const gantt = reshapeLineItemsToMediaGantt(
+    { search: [item()] },
+    "2026-01-01",
+    "2026-03-31",
+    "weekly",
+    deliveredByLineId,
+  )
+  assert.ok(gantt)
+  const burst = gantt!.rows[0]?.bursts[0]
+  assert.equal(burst?.label, "400 / 1,000")
+  assert.equal(burst?.fillRatio, 0.4)
+})
+
+test("delivered overflow stays in the label and fillRatio exceeds 1", () => {
+  const gantt = reshapeLineItemsToMediaGantt(
+    { search: [item()] },
+    "2026-01-01",
+    "2026-03-31",
+    "weekly",
+    new Map([["li-1", 1200]]),
+  )
+  assert.ok(gantt)
+  const burst = gantt!.rows[0]?.bursts[0]
+  assert.equal(burst?.label, "1,200 / 1,000")
+  assert.equal(burst?.fillRatio, 1.2)
+})
+
+test("line absent from delivered map keeps planned-only bar", () => {
+  const gantt = reshapeLineItemsToMediaGantt(
+    { search: [item()] },
+    "2026-01-01",
+    "2026-03-31",
+    "weekly",
+    new Map([["other-line", 400]]),
+  )
+  assert.ok(gantt)
+  const burst = gantt!.rows[0]?.bursts[0]
+  assert.equal(burst?.label, "1,000")
+  assert.equal(burst?.fillRatio, undefined)
+})
+
+test("monthly view uses the same delivered / planned label", () => {
+  const gantt = reshapeLineItemsToMediaGantt(
+    { search: [item()] },
+    "2026-01-01",
+    "2026-03-31",
+    "monthly",
+    new Map([["li-1", 250]]),
+  )
+  assert.ok(gantt)
+  const burst = gantt!.rows[0]?.bursts[0]
+  assert.equal(burst?.label, "250 / 1,000")
+  assert.equal(burst?.fillRatio, 0.25)
+})
+
+test("future-start with no delivery still reads Starts {d MMM}", () => {
+  const gantt = reshapeLineItemsToMediaGantt(
+    {
+      search: [
+        item({
+          bursts: [
+            {
+              startDate: "2099-03-15",
+              endDate: "2099-04-20",
+              deliverables: 5000,
+              deliverablesAmount: 5000,
+              budget: 10_000,
+            },
+          ],
+        }),
+      ],
+    },
+    "2099-01-01",
+    "2099-12-31",
+    "weekly",
+    new Map(),
+  )
+  assert.ok(gantt)
+  assert.equal(gantt!.rows[0]?.bursts[0]?.label, "Starts 15 Mar")
+  assert.equal(gantt!.rows[0]?.bursts[0]?.fillRatio, undefined)
+})

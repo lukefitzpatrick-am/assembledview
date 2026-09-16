@@ -14,6 +14,7 @@ import {
   channelCoverageBundle,
   type ChannelCoverageEntry,
 } from "@/lib/delivery/channelCoverage"
+import { deliveredByLineIdFromChannelSections } from "@/lib/delivery/ganttDeliveredByLineId"
 import {
   buildKpiReviewGroups,
   indexLineDeliveryActuals,
@@ -68,6 +69,7 @@ export type CampaignDeliverySectionProps = {
   bvodLineItems: unknown[]
   onCoverage?: (entries: ChannelCoverageEntry[]) => void
   onKpiReviewGroups?: (groups: KpiReviewGroup[]) => void
+  onDeliveredByLineId?: (map: Map<string, number>) => void
   showAccordion?: boolean
 }
 
@@ -102,6 +104,7 @@ type DeliveryBodyProps = {
   socialLineItems: SocialLineItem[]
   onCoverage?: (entries: ChannelCoverageEntry[]) => void
   onKpiReviewGroups?: (groups: KpiReviewGroup[]) => void
+  onDeliveredByLineId?: (map: Map<string, number>) => void
   showAccordion?: boolean
 }
 
@@ -136,6 +139,7 @@ function CampaignDeliveryBody({
   socialLineItems,
   onCoverage,
   onKpiReviewGroups,
+  onDeliveredByLineId,
   showAccordion = true,
 }: DeliveryBodyProps) {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
@@ -447,6 +451,16 @@ function CampaignDeliveryBody({
     onKpiReviewGroups?.(kpiReviewGroups)
   }, [kpiReviewGroups, loading, onKpiReviewGroups])
 
+  const deliveredByLineId = useMemo(
+    () => deliveredByLineIdFromChannelSections(channels),
+    [channels],
+  )
+
+  useEffect(() => {
+    if (loading) return
+    onDeliveredByLineId?.(deliveredByLineId)
+  }, [deliveredByLineId, loading, onDeliveredByLineId])
+
   if (!showAccordion) return null
 
   if (loading) {
@@ -486,6 +500,7 @@ export function CampaignDeliverySection({
   bvodLineItems,
   onCoverage,
   onKpiReviewGroups,
+  onDeliveredByLineId,
   showAccordion = true,
 }: CampaignDeliverySectionProps) {
   const pacingWindow = useMemo(() => getPacingWindow(campaignStart, campaignEnd), [campaignStart, campaignEnd])
@@ -655,6 +670,7 @@ export function CampaignDeliverySection({
           socialLineItems={socialLineItems}
           onCoverage={onCoverage}
           onKpiReviewGroups={onKpiReviewGroups}
+          onDeliveredByLineId={onDeliveredByLineId}
           showAccordion={showAccordion}
         />
       )}

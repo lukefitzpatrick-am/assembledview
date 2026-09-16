@@ -36,6 +36,8 @@ export type MediaPlanVizSectionProps = {
   onViewChange?: (view: string) => void
   /** Weekly/Monthly + Download PNG are admin chrome. */
   isAdmin?: boolean
+  /** Accordion per-line deliverable actuals. No extra fetch. */
+  deliveredByLineId?: ReadonlyMap<string, number>
 }
 
 function sanitizeFilenameBase(parts: (string | undefined)[]): string {
@@ -102,6 +104,7 @@ export default function MediaPlanVizSection({
   defaultView = "timeline",
   onViewChange,
   isAdmin = false,
+  deliveredByLineId,
 }: MediaPlanVizSectionProps) {
   const [view, setView] = useState<"timeline" | "table" | "summary">(defaultView)
   const [timelineGranularity, setTimelineGranularity] = useState<"weekly" | "monthly">("weekly")
@@ -319,6 +322,7 @@ export default function MediaPlanVizSection({
             startDate={campaignStart || ""}
             endDate={campaignEnd || ""}
             granularity={timelineGranularity}
+            deliveredByLineId={deliveredByLineId}
           />
         ) : null}
 

@@ -22,8 +22,10 @@ const TAB: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };
 export interface GanttBurst {
   startWeek: number;        // 0-indexed week the burst starts
   endWeek: number;          // exclusive end week
-  label?: string;           // e.g. "$46k" / "320 TARP"
+  label?: string;           // e.g. "$46k" / "320 TARP" / "400 / 1,000"
   intensity?: number;       // 0..1 — weight/share, drives fill opacity
+  /** Delivered ÷ planned. Visual width is capped at 1; omit for planned-only bars. */
+  fillRatio?: number;
 }
 export interface GanttRow {
   label: string;            // line item (publisher / placement)
@@ -97,8 +99,13 @@ export function MediaGanttChart({
     }
     row.bursts.forEach((b, bi) => {
       const bx = wx(b.startWeek), bw = weekW * (b.endWeek - b.startWeek) - 3, by = y + rowHeight / 2 - 9, bh = 18;
+      const fillRatio = b.fillRatio;
+      const hasDeliveryFill = typeof fillRatio === "number" && Number.isFinite(fillRatio);
+      const fillW = hasDeliveryFill ? round(bw * Math.min(1, Math.max(0, fillRatio))) : round(bw);
       els.push(<rect key={`bg${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={color} fillOpacity={0.16} />);
-      els.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={color} fillOpacity={(b.intensity ?? 0.85) * 0.92} />);
+      if (fillW > 0) {
+        els.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={fillW} height={bh} rx={5} fill={color} fillOpacity={(b.intensity ?? 0.85) * 0.92} />);
+      }
       if (bw > 48 && b.label) els.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill="#fff" style={TAB}>{b.label}</text>);
     });
     hitEls.push(
