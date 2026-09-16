@@ -34,6 +34,8 @@ export type MediaPlanVizSectionProps = {
   mbaNumber?: string
   defaultView?: "timeline" | "table" | "summary"
   onViewChange?: (view: string) => void
+  /** Weekly/Monthly + Download PNG are admin chrome. */
+  isAdmin?: boolean
 }
 
 function sanitizeFilenameBase(parts: (string | undefined)[]): string {
@@ -99,6 +101,7 @@ export default function MediaPlanVizSection({
   mbaNumber,
   defaultView = "timeline",
   onViewChange,
+  isAdmin = false,
 }: MediaPlanVizSectionProps) {
   const [view, setView] = useState<"timeline" | "table" | "summary">(defaultView)
   const [timelineGranularity, setTimelineGranularity] = useState<"weekly" | "monthly">("weekly")
@@ -268,6 +271,7 @@ export default function MediaPlanVizSection({
               Summary
             </Button>
           </div>
+          {isAdmin ? (
           <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border/50 pt-3 sm:ml-auto sm:w-auto sm:border-l sm:border-t-0 sm:border-border/60 sm:pl-4 sm:pt-0">
             {view === "timeline" ? (
               <div className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/30 p-1">
@@ -303,6 +307,7 @@ export default function MediaPlanVizSection({
               {exporting ? "Exporting…" : "Download PNG"}
             </Button>
           </div>
+          ) : null}
         </div>
       </PanelHeader>
 

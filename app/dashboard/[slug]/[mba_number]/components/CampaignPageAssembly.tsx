@@ -655,6 +655,29 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     }
   }, [])
 
+  const deliverySectionProps = {
+    mbaNumber,
+    deliveryLineItemIds,
+    filterRange,
+    brandColour,
+    kpiTargets,
+    kpiVersionNumber,
+    lineItemTargets,
+    campaignStart: startDate ?? "",
+    campaignEnd: endDate ?? "",
+    socialLineItems: filteredSocialItems,
+    searchLineItemIds,
+    searchLineItems: filteredSearchItems,
+    mpSearchEnabled,
+    progDisplayLineItems: filteredProgDisplay,
+    progVideoLineItems: filteredProgVideo,
+    digitalDisplayLineItems: filteredDigitalDisplay,
+    digitalVideoLineItems: filteredDigitalVideo,
+    digitalAudioLineItems: filteredDigitalAudio,
+    bvodLineItems: filteredBvod,
+    onCoverage: handleCoverage,
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-6 rounded-none bg-surface-muted px-4 pb-24 max-[375px]:pb-32 md:space-y-8 md:rounded-3xl md:px-6 lg:px-8">
       <a
@@ -772,22 +795,19 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         </section>
       ) : null}
 
-      <section className="mt-8">
-        <SectionBoundary title="Planned media insights">
-          <Suspense fallback={<SpendChartsRowSkeleton />}>
-            <div className="campaign-section-enter" style={{ animationDelay: "200ms" }}>
-            <SpendChartsRow
-              spendByChannel={filteredSpendByChannel}
-              monthlySpendByChannel={filteredMonthlySpend}
-              deliverySchedule={filteredDeliverySchedule}
-              brandColour={brandColour}
-              lineItemsMap={filteredLineItemsMap}
-              campaignSpendToDate={expectedSpend}
-            />
-            </div>
-          </Suspense>
-        </SectionBoundary>
-      </section>
+      {showDeliverySection ? (
+        <section className="mt-8">
+          <SectionBoundary title="Delivery">
+            <Suspense fallback={<DeliverySectionSkeleton />}>
+              <div className="campaign-section-enter" style={{ animationDelay: "200ms" }}>
+                <CampaignDeliverySection {...deliverySectionProps} showAccordion />
+              </div>
+            </Suspense>
+          </SectionBoundary>
+        </section>
+      ) : (
+        <CampaignDeliverySection {...deliverySectionProps} showAccordion={false} />
+      )}
 
       <section className="mt-8">
         <SectionBoundary title="Media plan">
@@ -800,68 +820,27 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               clientSlug={slug}
               mbaNumber={mbaNumber}
               defaultView="timeline"
+              isAdmin={isAdmin}
             />
             </div>
           </Suspense>
         </SectionBoundary>
       </section>
 
-      {showDeliverySection ? (
-        <section className="mt-8">
-          <SectionBoundary title="Delivery">
-            <Suspense fallback={<DeliverySectionSkeleton />}>
-              <div className="campaign-section-enter" style={{ animationDelay: "400ms" }}>
-              <CampaignDeliverySection
-                mbaNumber={mbaNumber}
-                deliveryLineItemIds={deliveryLineItemIds}
-                filterRange={filterRange}
-                brandColour={brandColour}
-                kpiTargets={kpiTargets}
-                kpiVersionNumber={kpiVersionNumber}
-                lineItemTargets={lineItemTargets}
-                campaignStart={startDate ?? ""}
-                campaignEnd={endDate ?? ""}
-                socialLineItems={filteredSocialItems}
-                searchLineItemIds={searchLineItemIds}
-                searchLineItems={filteredSearchItems}
-                mpSearchEnabled={mpSearchEnabled}
-                progDisplayLineItems={filteredProgDisplay}
-                progVideoLineItems={filteredProgVideo}
-                digitalDisplayLineItems={filteredDigitalDisplay}
-                digitalVideoLineItems={filteredDigitalVideo}
-                digitalAudioLineItems={filteredDigitalAudio}
-                bvodLineItems={filteredBvod}
-                onCoverage={handleCoverage}
-              />
-              </div>
-            </Suspense>
-          </SectionBoundary>
-        </section>
-      ) : (
-        <CampaignDeliverySection
-          mbaNumber={mbaNumber}
-          deliveryLineItemIds={deliveryLineItemIds}
-          filterRange={filterRange}
-          brandColour={brandColour}
-          kpiTargets={kpiTargets}
-          kpiVersionNumber={kpiVersionNumber}
-          lineItemTargets={lineItemTargets}
-          campaignStart={startDate ?? ""}
-          campaignEnd={endDate ?? ""}
-          socialLineItems={filteredSocialItems}
-          searchLineItemIds={searchLineItemIds}
-          searchLineItems={filteredSearchItems}
-          mpSearchEnabled={mpSearchEnabled}
-          progDisplayLineItems={filteredProgDisplay}
-          progVideoLineItems={filteredProgVideo}
-          digitalDisplayLineItems={filteredDigitalDisplay}
-          digitalVideoLineItems={filteredDigitalVideo}
-          digitalAudioLineItems={filteredDigitalAudio}
-          bvodLineItems={filteredBvod}
-          onCoverage={handleCoverage}
-          showAccordion={false}
-        />
-      )}
+      <section className="mt-8">
+        <SectionBoundary title="The plan">
+          <Suspense fallback={<SpendChartsRowSkeleton />}>
+            <div className="campaign-section-enter" style={{ animationDelay: "400ms" }}>
+            <SpendChartsRow
+              spendByChannel={filteredSpendByChannel}
+              monthlySpendByChannel={filteredMonthlySpend}
+              deliverySchedule={filteredDeliverySchedule}
+              brandColour={brandColour}
+            />
+            </div>
+          </Suspense>
+        </SectionBoundary>
+      </section>
 
       <CampaignDetailsModal
         open={detailsOpen}

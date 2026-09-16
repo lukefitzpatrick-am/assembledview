@@ -5,7 +5,6 @@ import { useMemo } from "react"
 import {
   BaseChartCard,
   DonutChart,
-  HorizontalBarChart,
   ShareBreakdownLegend,
   StackedBarChart,
 } from "@/components/charts/system"
@@ -22,7 +21,6 @@ import {
   monthlyMixFromDeliverySchedule,
 } from "@/lib/dashboard/mediaMixFromDeliverySchedule"
 import { formatMoneyCompact } from "@/lib/format/money"
-import { normaliseLineItemsByType, type NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
 
 type ChannelSpend = {
   mediaType: string
@@ -39,34 +37,10 @@ type SpendChartsRowProps = {
   monthlySpendByChannel: Record<string, Record<string, number>> | MonthlySpendEntry[]
   deliverySchedule?: any[]
   brandColour?: string
-  /** Line items by media type — used for spend-by-publisher chart */
-  lineItemsMap?: Record<string, NormalisedLineItem[] | any[]>
-  /** Prorated planned media to date (matches campaign summary Expected Spend) */
-  campaignSpendToDate?: number
 }
 
 const CHART_PLOT_HEIGHT = DASHBOARD_CHART_PLOT_HEIGHT
 const CHART_EMPTY_CLASS = "h-[400px] w-full"
-
-const UNKNOWN_PUBLISHER = "Unknown"
-const OTHER_BUCKET = "Other"
-const MAX_PUBLISHERS = 10
-const TOP_N_BEFORE_OTHER = 9
-
-function burstGross(burst: { budget?: number; deliverablesAmount?: number }): number {
-  const fromDeliverables =
-    typeof burst.deliverablesAmount === "number" && Number.isFinite(burst.deliverablesAmount)
-      ? burst.deliverablesAmount
-      : 0
-  const fromBudget = typeof burst.budget === "number" && Number.isFinite(burst.budget) ? burst.budget : 0
-  return fromDeliverables > 0 ? fromDeliverables : fromBudget
-}
-
-function publisherLabelForTick(raw: string): string {
-  if (raw === UNKNOWN_PUBLISHER) return UNKNOWN_PUBLISHER
-  if (raw === OTHER_BUCKET) return OTHER_BUCKET
-  return getMediaLabel(raw)
-}
 
 const monthNames = [
   "january",
@@ -131,9 +105,6 @@ export default function SpendChartsRow({
   spendByChannel,
   monthlySpendByChannel,
   deliverySchedule,
-  brandColour,
-  lineItemsMap = {},
-  campaignSpendToDate,
 }: SpendChartsRowProps) {
   /** Authoritative path: same delivery-schedule parser as Expected Spend (AV-16). */
   const derivedFromDelivery = useMemo(() => {
@@ -195,34 +166,6 @@ export default function SpendChartsRow({
     const fmt = (d: Date) => d.toLocaleDateString("en-AU", { month: "short", year: "numeric" })
     return `${fmt(sorted[0])} – ${fmt(sorted[sorted.length - 1])}`
   }, [monthlyData])
-
-  const channelTotalsSum = useMemo(
-    () => channelData.reduce((sum, c) => sum + (Number(c.spend) || 0), 0),
-    [channelData],
-  )
-  const totalSpendToDate =
-    typeof campaignSpendToDate === "number" && Number.isFinite(campaignSpendToDate)
-      ? campaignSpendToDate
-      : channelTotalsSum
-  const largestChannel = useMemo(() => {
-    const mediaOnly = channelData.filter((c) => !isNonMediaMixSlice(c.channel))
-    if (!mediaOnly.length) return "—"
-    const top = [...mediaOnly].sort((a, b) => b.spend - a.spend)[0]
-    return top?.channel ?? "—"
-  }, [channelData])
-  const monthWithHighestSpend = useMemo(() => {
-    if (!monthlyData.length) return "—"
-    const totals = monthlyData.map((m) => {
-      const total = Object.entries(m)
-        .filter(([k]) => k !== "month")
-        .reduce((sum, [, v]) => sum + (Number(v) || 0), 0)
-      return { month: String(m.month), total }
-    })
-    const top = totals.sort((a, b) => b.total - a.total)[0]
-    return top?.month ?? "—"
-  }, [monthlyData])
-
-  const currency = (value: number) => formatMoneyCompact(value)
 
   const mediaChannelPieData = useMemo(
     () =>
@@ -296,62 +239,11 @@ export default function SpendChartsRow({
     [mediaChannelDonutData],
   )
 
-  const normalisedLineItems = useMemo(
-    () => normaliseLineItemsByType(lineItemsMap || {}),
-    [lineItemsMap],
-  )
-
-  const { publisherBarData, publisherTotal } = useMemo(() => {
-    const totals = new Map<string, number>()
-
-    Object.values(normalisedLineItems).forEach((items) => {
-      if (!Array.isArray(items)) return
-      items.forEach((item) => {
-        const raw =
-          item.publisher || item.platform || item.network || item.site || item.station
-        const name =
-          raw != null && String(raw).trim().length > 0 ? String(raw).trim() : UNKNOWN_PUBLISHER
-
-        item.bursts?.forEach((burst) => {
-          const gross = burstGross(burst)
-          if (gross > 0) {
-            totals.set(name, (totals.get(name) ?? 0) + gross)
-          }
-        })
-      })
-    })
-
-    const rows = Array.from(totals.entries()).map(([publisher, amount]) => ({
-      publisher,
-      amount,
-    }))
-    rows.sort((a, b) => b.amount - a.amount)
-
-    let finalRows: typeof rows
-    if (rows.length <= MAX_PUBLISHERS) {
-      finalRows = rows
-    } else {
-      const top = rows.slice(0, TOP_N_BEFORE_OTHER)
-      const restSum = rows.slice(TOP_N_BEFORE_OTHER).reduce((s, r) => s + r.amount, 0)
-      finalRows = [...top, { publisher: OTHER_BUCKET, amount: restSum }]
-    }
-
-    const sumTotal = finalRows.reduce((s, r) => s + r.amount, 0)
-    const barData = [...finalRows]
-      .sort((a, b) => a.amount - b.amount)
-      .map((r) => ({
-        cat: publisherLabelForTick(r.publisher),
-        value: r.amount,
-      }))
-
-    return { publisherBarData: barData, publisherTotal: sumTotal }
-  }, [normalisedLineItems])
-
   if (!channelData.length && !monthlyData.length) {
     return (
       <Panel className="border-border/60 bg-card shadow-none">
         <PanelHeader className="p-4">
-          <PanelTitle className="text-base">Planned media insights</PanelTitle>
+          <PanelTitle className="text-base">The plan</PanelTitle>
         </PanelHeader>
         <PanelContent standalone>
           <EmptyState
@@ -368,35 +260,16 @@ export default function SpendChartsRow({
     <section className="w-full space-y-4 rounded-2xl border border-border/60 bg-card p-4 md:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <h3 className="text-lg font-semibold tracking-tight text-foreground">Planned media insights</h3>
-          <p className="text-sm text-muted-foreground">Planned channel mix and monthly media (not delivered spend)</p>
+          <h3 className="text-lg font-semibold tracking-tight text-foreground">The plan</h3>
+          <p className="text-sm text-muted-foreground">
+            {`Planned media by channel and month · ${formatMoneyCompact(mediaChannelTotal)} gross media, excludes fees`}
+          </p>
         </div>
         {dateRangeLabel ? (
           <span className="inline-flex rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
             {dateRangeLabel}
           </span>
         ) : null}
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Panel className="border-border/60 bg-background/80 shadow-none">
-          <PanelContent standalone className="p-4">
-            <p className="text-xs text-muted-foreground">Planned to date</p>
-            <p className="text-lg font-semibold">{currency(totalSpendToDate)}</p>
-          </PanelContent>
-        </Panel>
-        <Panel className="border-border/60 bg-background/80 shadow-none">
-          <PanelContent standalone className="p-4">
-            <p className="text-xs text-muted-foreground">Largest planned channel</p>
-            <p className="text-lg font-semibold">{largestChannel}</p>
-          </PanelContent>
-        </Panel>
-        <Panel className="border-border/60 bg-background/80 shadow-none">
-          <PanelContent standalone className="p-4">
-            <p className="text-xs text-muted-foreground">Month with highest planned media</p>
-            <p className="text-lg font-semibold">{monthWithHighestSpend}</p>
-          </PanelContent>
-        </Panel>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
@@ -436,53 +309,25 @@ export default function SpendChartsRow({
         </BaseChartCard>
 
         <BaseChartCard
-          title="Planned media by publisher"
-          subtitle="Top publishers by planned gross media"
+          title="Planned media by month"
+          subtitle={`gross media by month, planned · excludes fees · As at ${asAtDate}`}
           exportPage="dashboard"
           exportSeries={{
-            data: publisherBarData,
-            xKey: "cat",
-            seriesKeys: ["value"],
+            data: pivotedMonthly,
+            xKey: "month",
+            seriesKeys: monthlySeries.map((s) => s.key),
           }}
         >
-          {publisherBarData.length > 0 && publisherTotal > 0 ? (
-            <HorizontalBarChart
-              data={publisherBarData}
-              xKey="cat"
-              series={[{ key: "value", label: "Planned" }]}
-              valueFormat="dollars"
-              plotHeight={CHART_PLOT_HEIGHT}
-              className="w-full"
-            />
-          ) : (
-            <EmptyState
-              className={`${CHART_EMPTY_CLASS} border-0 bg-transparent`}
-              title="No publisher plan from line items"
-              message={null}
-            />
-          )}
+          <StackedBarChart
+            data={pivotedMonthly}
+            xKey="month"
+            series={monthlySeries}
+            valueFormat="dollars"
+            plotHeight={CHART_PLOT_HEIGHT}
+            className="w-full"
+          />
         </BaseChartCard>
       </div>
-
-      <BaseChartCard
-        title="Planned media by month"
-        subtitle={`gross media by month, planned · excludes fees · As at ${asAtDate}`}
-        exportPage="dashboard"
-        exportSeries={{
-          data: pivotedMonthly,
-          xKey: "month",
-          seriesKeys: monthlySeries.map((s) => s.key),
-        }}
-      >
-        <StackedBarChart
-          data={pivotedMonthly}
-          xKey="month"
-          series={monthlySeries}
-          valueFormat="dollars"
-          plotHeight={CHART_PLOT_HEIGHT}
-          className="w-full"
-        />
-      </BaseChartCard>
     </section>
   )
 }
