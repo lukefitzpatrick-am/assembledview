@@ -490,7 +490,8 @@ test("BIC Channel Factory delivered spend equals REPORTED_SPEND, not PACING_FACT
     },
   )
   assert.equal(metrics.length, 1)
-  assert.equal(metrics[0]?.spendModelledFromPlanRate, true)
+  assert.equal(metrics[0]?.spendModelledFromPlanRate, false)
+  assert.equal(metrics[0]?.spendFromFixedCostReport, true)
   const spend = metrics[0]!.actualsDaily.reduce((sum, day) => sum + day.spend, 0)
   assert.equal(spend, 40)
   assert.equal(metrics[0]?.actualsDaily[0]?.impressions, 1000)
@@ -623,7 +624,7 @@ test("a Perion prog_ooh line with no map row is excluded", () => {
   assert.equal(section, null)
 })
 
-test("fixedCostMedia OOH spend is REPORTED_SPEND, labelled modelled; CPM keeps AMOUNT_SPENT", () => {
+test("fixedCostMedia OOH spend is REPORTED_SPEND, labelled reported; CPM keeps AMOUNT_SPENT", () => {
   const reported = lineMetrics(
     [{ ...burstLine("legal004po1", "Vistar"), fixedCostMedia: true }],
     [
@@ -643,7 +644,8 @@ test("fixedCostMedia OOH spend is REPORTED_SPEND, labelled modelled; CPM keeps A
     },
   )
   assert.equal(reported.length, 1)
-  assert.equal(reported[0]?.spendModelledFromPlanRate, true)
+  assert.equal(reported[0]?.spendModelledFromPlanRate, false)
+  assert.equal(reported[0]?.spendFromFixedCostReport, true)
   assert.equal(reported[0]?.actualsDaily[0]?.spend, 25)
   assert.equal(reported[0]?.deliverableKey, "conversions")
   assert.equal(reported[0]?.actualsDaily[0]?.conversions, 40)
@@ -681,8 +683,40 @@ test("fixedCostMedia OOH spend is REPORTED_SPEND, labelled modelled; CPM keeps A
   })
   assert.equal(
     modelledSection?.lineItems[0]?.block.progressCards[0]?.title,
-    MODELLED_SPEND_TITLE,
+    "Reported spend (fixed cost)",
   )
+})
+
+test("fixed-cost partner-file spend is Reported spend (fixed cost); Twitch stays modelled from plan rate", () => {
+  const cf = buildVideo({
+    lines: [{ ...burstLine("bicau006pv1", "Channel Factory"), fixedCostMedia: true }],
+    rows: [
+      pacingRow({
+        channel: "programmatic-video",
+        lineItemId: "bicau006pv1",
+        impressions: 12_000,
+        video3sViews: 4_000,
+        amountSpent: 0,
+      }),
+    ],
+  })
+  assert.equal(
+    cf?.lineItems[0]?.block.progressCards[0]?.title,
+    "Reported spend (fixed cost)",
+  )
+
+  const twitch = buildVideo({
+    lines: [modelledCpmLine("bicau006pv2", "twitch")],
+    rows: [
+      pacingRow({
+        channel: "ad-serving",
+        lineItemId: "bicau006pv2",
+        impressions: 50_000,
+        clicks: 10,
+      }),
+    ],
+  })
+  assert.equal(twitch?.lineItems[0]?.block.progressCards[0]?.title, MODELLED_SPEND_TITLE)
 })
 
 test("CM360 Twitch deliverable status is not no-data when delivered and planned are both > 0", () => {

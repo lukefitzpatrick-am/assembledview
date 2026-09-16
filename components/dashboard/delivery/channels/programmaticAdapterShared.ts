@@ -43,6 +43,7 @@ import { groupPacingRowsByPlacement } from "./directDigitalAdapterShared"
 const MODELLED_SPEND_LABEL = "Delivered spend (modelled from plan rate)"
 const MODELLED_SPEND_TOOLTIP =
   "Rate = planned media ÷ planned deliverables. Capped at the planned total."
+const FIXED_COST_SPEND_LABEL = "Reported spend (fixed cost)"
 
 function pctVarianceFromPacingPct(pct: number | undefined): number {
   if (pct === undefined || Number.isNaN(pct)) return 0
@@ -485,11 +486,15 @@ export function buildProgrammaticChannelSection(input: {
   const isOohChannel = snowflakeChannel === "programmatic-ooh"
   const allSpendModelled =
     metrics.length > 0 && metrics.every((m) => m.spendModelledFromPlanRate)
+  const allFixedCostReported =
+    metrics.length > 0 && metrics.every((m) => m.spendFromFixedCostReport)
   const spendTitle = allSpendModelled
     ? MODELLED_SPEND_LABEL
-    : isOohChannel
-      ? "Delivered spend"
-      : "Spend delivery"
+    : allFixedCostReported
+      ? FIXED_COST_SPEND_LABEL
+      : isOohChannel
+        ? "Delivered spend"
+        : "Spend delivery"
 
   const aggregateTrack = pacingPctToStatus(aggregatePacing.deliverable?.pacingPct)
 
@@ -506,7 +511,7 @@ export function buildProgrammaticChannelSection(input: {
         { label: "Pacing", value: `${avgPacingPct}%` },
       ]
     : [
-        { label: allSpendModelled ? MODELLED_SPEND_LABEL : "Total spend", value: formatCurrency2dp(kpisRollup.spend) },
+        { label: allSpendModelled ? MODELLED_SPEND_LABEL : allFixedCostReported ? FIXED_COST_SPEND_LABEL : "Total spend", value: formatCurrency2dp(kpisRollup.spend) },
         { label: "Total impressions", value: formatWholeNumber(kpisRollup.impressions) },
         { label: "Avg CPM", value: kpisRollup.cpm == null ? "—" : formatCurrency2dp(kpisRollup.cpm) },
         { label: "Avg delivery", value: `${avgPacingPct}%` },
@@ -599,11 +604,14 @@ export function buildProgrammaticChannelSection(input: {
           : { impressions: Number(d.impressions ?? 0) }),
     }))
     const modelled = m.spendModelledFromPlanRate === true
+    const fixedCostReported = m.spendFromFixedCostReport === true
     const lineSpendTitle = modelled
       ? MODELLED_SPEND_LABEL
-      : isOohChannel
-        ? "Delivered spend"
-        : "Spend delivery"
+      : fixedCostReported
+        ? FIXED_COST_SPEND_LABEL
+        : isOohChannel
+          ? "Delivered spend"
+          : "Spend delivery"
     const lineDeliverableTitle = isOohChannel
       ? "Plays"
       : getProgrammaticDeliverableLabel(m.deliverableKey)

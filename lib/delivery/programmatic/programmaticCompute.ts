@@ -97,6 +97,7 @@ export type ProgrammaticLineItemMetrics = {
   cumulativeActual: Array<{ date: string; actual: number }>
   onTrackStatus: OnTrackStatus
   spendModelledFromPlanRate: boolean
+  spendFromFixedCostReport: boolean
 }
 function cleanId(v: any) {
   const s = String(v ?? "").trim()
@@ -345,11 +346,11 @@ export function summarizeDv360Actuals(
     { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
   )
 
-  const cpm = totals.impressions ? (totals.spend / totals.impressions) * 1000 : 0
-  const ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : 0
-  const cvr = totals.impressions ? (totals.conversions / totals.impressions) * 100 : 0
-  const cpc = totals.clicks ? totals.spend / totals.clicks : 0
-  const cpa = totals.conversions ? totals.spend / totals.conversions : 0
+  const cpm = totals.impressions ? (totals.spend / totals.impressions) * 1000 : null
+  const ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : null
+  const cvr = totals.impressions ? (totals.conversions / totals.impressions) * 100 : null
+  const cpc = totals.clicks ? totals.spend / totals.clicks : null
+  const cpa = totals.conversions ? totals.spend / totals.conversions : null
   const cpv = totals.videoViews ? totals.spend / totals.videoViews : 0
   const viewRate = totals.impressions ? (totals.videoViews / totals.impressions) * 100 : 0
 
@@ -405,8 +406,10 @@ function buildCumulativeSeries(dates: string[], actualsDaily: ProgrammaticLineIt
 
 function deriveDeliverableKey(
   buyType?: string | null,
-  platform?: string | null
+  platform?: string | null,
+  mediaType?: "progdisplay" | "progvideo" | "progooh",
 ): ProgrammaticLineItemMetrics["deliverableKey"] {
+  if (mediaType === "progooh") return "conversions"
   const metric = mapDeliverableMetric({ channel: "programmatic", buyType, platform })
   switch (metric) {
     case "VIDEO_3S_VIEWS":
@@ -437,7 +440,7 @@ function targetMetricForProgrammaticDeliverable(
 export function buildProgrammaticTargetCurveLineItem(
   item: ProgrammaticLineItem,
   bursts: any[],
-  mediaType: "progdisplay" | "progvideo",
+  mediaType: "progdisplay" | "progvideo" | "progooh",
 ): TargetCurveLineItem | null {
   const publisher = String(
     (item as any)?.platform ??
@@ -497,7 +500,7 @@ export function buildProgrammaticLineItemMetrics(
   apiRows: Dv360DailyRow[],
   campaignDateRange: string[],
   pacingAsAtISO: string,
-  mediaType: "progdisplay" | "progvideo",
+  mediaType: "progdisplay" | "progvideo" | "progooh",
   kpiTargets: KPITargetsMap | undefined,
   campaignWindow: { startISO: string; endISO: string },
   fallbackStart?: string,
@@ -538,7 +541,7 @@ export function buildProgrammaticLineItemMetrics(
       })
     })
 
-    const deliverableKey = deriveDeliverableKey(item.buy_type, item.platform)
+    const deliverableKey = deriveDeliverableKey(item.buy_type, item.platform, mediaType)
 
     const actualsDaily = dateRange.map((date) => {
       const day =
@@ -564,12 +567,14 @@ export function buildProgrammaticLineItemMetrics(
 
     const isFixedCostMedia = item.fixedCostMedia === true || item.fixed_cost_media === true
     let spendModelledFromPlanRate = item.deliverySourceMap?.derive_spend_from_plan === true
+    let spendFromFixedCostReport = false
     if (isFixedCostMedia) {
       overlayReportedSpendOnActuals(
         actualsDaily,
         reportedSpendByLineDate?.get(targetId ?? ""),
       )
-      spendModelledFromPlanRate = true
+      spendFromFixedCostReport = true
+      spendModelledFromPlanRate = false
     } else if (spendModelledFromPlanRate) {
       const derived = deriveSpendFromPlanRate({
         lineItemId: targetId ?? String(item.line_item_id ?? ""),
@@ -770,6 +775,7 @@ export function buildProgrammaticLineItemMetrics(
       cumulativeActual,
       onTrackStatus,
       spendModelledFromPlanRate,
+      spendFromFixedCostReport,
     }
   })
 }
