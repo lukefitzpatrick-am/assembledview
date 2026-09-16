@@ -19,7 +19,7 @@ import { clearAssistantContext, setAssistantContext } from "@/lib/assistantBridg
 import type { PageContext } from "@/lib/ava/types"
 
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
-import CampaignSummaryRow from "@/components/dashboard/campaign/CampaignSummaryRow"
+import { CampaignStatusStrip } from "@/components/dashboard/campaign/CampaignStatusStrip"
 import { CampaignKpiPacingStrip } from "@/components/dashboard/campaign/CampaignKpiPacingStrip"
 import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
 import MediaPlanVizSection from "@/components/dashboard/campaign/MediaPlanVizSection"
@@ -44,6 +44,7 @@ import {
   recomputeTimeMetrics,
   type DateRange,
 } from "@/lib/dashboard/dateFilter"
+import { sumPlannedImpressionsFromLineItems } from "@/lib/dashboard/plannedImpressions"
 
 const CHANNEL_SNAPSHOT_CAP = 15
 
@@ -261,7 +262,6 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     hasDelivery,
     deliveredAsOf,
     expectedSpend,
-    totalPlannedMonthlySpend,
     startDate,
     endDate,
     campaignStartISO,
@@ -333,6 +333,11 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     if (isUnfiltered) return lineItemsMap
     return filterLineItemsByBursts(lineItemsMap, filterRange) as Record<string, any[]>
   }, [filterRange, isUnfiltered, lineItemsMap])
+
+  const plannedImpressionsAll = useMemo(
+    () => sumPlannedImpressionsFromLineItems(filteredLineItemsMap),
+    [filteredLineItemsMap],
+  )
 
   const filteredTimeMetrics = useMemo(() => {
     if (isUnfiltered) {
@@ -657,30 +662,23 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
       </section>
 
       <section className="mt-6">
-        <SectionBoundary title="Progress summary">
+        <SectionBoundary title="Where we are">
           <Suspense fallback={<CampaignSummarySectionSkeleton />}>
             <div className="campaign-section-enter" style={{ animationDelay: "100ms" }}>
-            <CampaignSummaryRow
-              time={{
-                timeElapsedPct: filteredTimeMetrics.timeElapsedPct,
-                daysInCampaign: filteredTimeMetrics.daysInCampaign,
-                daysElapsed: filteredTimeMetrics.daysElapsed,
-                daysRemaining: filteredTimeMetrics.daysRemaining,
-                startDate: progressStartYmd,
-                endDate: progressEndYmd,
-              }}
-              spend={{
-                budget,
-                actualSpend,
-                expectedSpend,
-                totalPlannedSpend: totalPlannedMonthlySpend,
-              }}
-              delivered={{
-                impressions: deliveredImpressions,
-                hasDelivery: Boolean(hasDelivery),
-                asOf: deliveredAsOf,
-              }}
-              brandColour={brandColour}
+            <CampaignStatusStrip
+              daysElapsed={filteredTimeMetrics.daysElapsed}
+              daysInCampaign={filteredTimeMetrics.daysInCampaign}
+              daysRemaining={filteredTimeMetrics.daysRemaining}
+              timeElapsedPct={filteredTimeMetrics.timeElapsedPct}
+              startDate={progressStartYmd}
+              endDate={progressEndYmd}
+              budget={budget}
+              actualSpend={actualSpend}
+              expectedSpend={expectedSpend}
+              deliveredImpressions={deliveredImpressions}
+              plannedImpressions={plannedImpressionsAll}
+              hasDelivery={Boolean(hasDelivery)}
+              deliveredAsOf={deliveredAsOf}
             />
             </div>
           </Suspense>
