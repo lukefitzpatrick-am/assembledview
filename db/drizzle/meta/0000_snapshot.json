@@ -7063,7 +7063,7 @@
         },
         "parent_task_id": {
           "name": "parent_task_id",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },

@@ -156,7 +156,7 @@ export const tasks = pgTable(
     estimatedMinutes: integer("estimated_minutes"),
     deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
     /** Help-request child → parent. NULL on ordinary tasks. */
-    parentTaskId: integer("parent_task_id"),
+    parentTaskId: bigint("parent_task_id", { mode: "number" }),
     helpRequestedByEmail: text("help_requested_by_email"),
     helpPriorStatus: text("help_prior_status"),
   },

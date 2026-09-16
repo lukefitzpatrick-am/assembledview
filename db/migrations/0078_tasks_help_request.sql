@@ -23,7 +23,7 @@ BEGIN
   END IF;
 
   ALTER TABLE public.tasks
-    ADD COLUMN IF NOT EXISTS parent_task_id integer REFERENCES public.tasks(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS parent_task_id bigint REFERENCES public.tasks(id) ON DELETE SET NULL,
     ADD COLUMN IF NOT EXISTS help_requested_by_email text,
     ADD COLUMN IF NOT EXISTS help_prior_status text;
 
