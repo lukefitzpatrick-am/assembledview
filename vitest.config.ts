@@ -49,6 +49,7 @@ export default defineConfig({
       "components/dashboard/campaign/__tests__/CampaignReadSection.test.tsx",
       "components/dashboard/campaign/__tests__/ChannelsAtAGlance.test.tsx",
       "components/dashboard/campaign/__tests__/SpendChartsRow.test.tsx",
+      "components/dashboard/campaign/__tests__/KpiReview.test.tsx",
       "app/dashboard/[slug]/[mba_number]/components/__tests__/CampaignPageAssembly.order.test.ts",
       "app/dashboard/[slug]/[mba_number]/components/__tests__/handleCoverage.identity.test.ts",
       "components/ava/__tests__/ChatMarkdown.render.test.tsx",

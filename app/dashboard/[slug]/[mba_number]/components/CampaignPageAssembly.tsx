@@ -30,7 +30,12 @@ import MediaPlanVizSection from "@/components/dashboard/campaign/MediaPlanVizSec
 import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetailsModal"
 import { PlannedAudienceSection } from "@/components/dashboard/campaign/PlannedAudienceSection"
 import { CampaignDeliverySection } from "@/components/dashboard/delivery/CampaignDeliverySection"
-import { buildKpiReview, kpiReviewGroupsIdentity, type KpiReviewGroup } from "@/lib/kpi/kpiReview"
+import {
+  buildKpiReview,
+  kpiReviewGroupsIdentity,
+  shouldShowKpiReview,
+  type KpiReviewGroup,
+} from "@/lib/kpi/kpiReview"
 import CampaignActions from "./CampaignActions"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
 import { ErrorState, LoadingState } from "@/components/ui/states"
@@ -785,11 +790,15 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         </section>
       ) : null}
 
-      {kpiReviewCards.length > 0 ? (
+      {shouldShowKpiReview(kpiReviewCards, Boolean(isAdmin)) ? (
         <section className="mt-6">
           <SectionBoundary title="KPI review">
             <div className="campaign-section-enter" style={{ animationDelay: "150ms" }}>
-              <KpiReview cards={kpiReviewCards} isAdmin={Boolean(isAdmin)} />
+              <KpiReview
+                cards={kpiReviewCards}
+                isAdmin={Boolean(isAdmin)}
+                planEditHref={`/mediaplans/mba/${mbaNumber}/edit#builder-section-kpis`}
+              />
             </div>
           </SectionBoundary>
         </section>

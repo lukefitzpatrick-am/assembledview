@@ -136,7 +136,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `deliveryTargetCurve.ts` | Contract behind every delivery chart's target line |
 | `components/kpis/kpiHost.ts` (`createMediaPlanKpiHost`) | Media-plan Save KPIs persists `campaign_kpi` immediately when the plan has an identity (edit always; create after first save). Plan save still syncs the version it just wrote via `buildCampaignKpiSavePayload`. Tests: `npm run test:kpi-host` |
 | `lib/kpi/kpiWorkbook.ts` (`buildKpiWorkbookBlob` / `toKpiSheetRows`) | Standalone Campaign KPIs xlsx. Consumers: `KPISection` Download KPIs, create/edit zip-all, media-plan xlsx KPI append. Mapping is here only — do not re-copy `ResolvedKPIRow` → `KPISheetRow` in the mega-pages. Tests: `npm run test:kpi-writes` |
-| `lib/kpi/kpiReview.ts` / `KpiReview.tsx` | Campaign MBA per-channel review. Groups = `channelCoverage` buckets; targets never averaged across channels. Frequency blocked on reach (C-134). `kpiPacing.ts` unmounted (C-135). Tests: `npm run test:kpi-review` |
+| `lib/kpi/kpiReview.ts` / `KpiReview.tsx` | Campaign MBA per-channel review. Groups = `channelCoverage` buckets; targets never averaged across channels. Row `targetSource` is `target` \| `benchmark` \| null; all-empty cards use one pending/plan-edit line. Clients gated by `shouldShowKpiReview`. Frequency blocked on reach (C-134). `kpiPacing.ts` unmounted (C-135). Tests: `npm run test:kpi-review`. |
 
 ### AVA / creative
 | Touch | Also check |

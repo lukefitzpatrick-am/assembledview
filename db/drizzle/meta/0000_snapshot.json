@@ -239,6 +239,19 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "target_source": {
+          "name": "target_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'target'"
+        },
+        "benchmark_ref": {
+          "name": "benchmark_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {

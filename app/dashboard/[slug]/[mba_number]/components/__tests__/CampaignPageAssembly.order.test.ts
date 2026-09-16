@@ -40,4 +40,10 @@ describe("CampaignPageAssembly section order", () => {
       expect(delays[i]).toBeGreaterThanOrEqual(delays[i - 1]!)
     }
   })
+
+  it("gates the KPI review for clients via shouldShowKpiReview", () => {
+    expect(source).toContain("shouldShowKpiReview")
+    expect(source).toContain("planEditHref")
+    expect(source).toContain("#builder-section-kpis")
+  })
 })

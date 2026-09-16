@@ -6,6 +6,7 @@ import {
   buildKpiReview,
   buildKpiReviewGroups,
   indexLineDeliveryActuals,
+  shouldShowKpiReview,
   type KpiReviewGroup,
 } from "@/lib/kpi/kpiReview"
 import type { CampaignKPI } from "@/lib/kpi/types"
@@ -114,6 +115,79 @@ describe("buildKpiReview targets", () => {
     const ctr = admin[0]?.rows.find((r) => r.metric === "ctr")
     assert.equal(ctr?.omitted, true)
     assert.equal(ctr?.targetDisplay, "No target set")
+    assert.equal(ctr?.targetSource, null)
+  })
+
+  it("stamps plan target source on a saved campaign_kpi value", () => {
+    const cards = buildKpiReview({
+      groups: [socialGroup()],
+      lineItemTargets: targets([
+        kpi({ mba_number: "BICAU002", line_item_id: "bicau002sm1", ctr: 0.02 }),
+      ]),
+      isAdmin: false,
+    })
+    const ctr = cards[0]?.rows.find((r) => r.metric === "ctr")
+    assert.equal(ctr?.targetSource, "target")
+    assert.equal(ctr?.benchmarkRef ?? null, null)
+  })
+
+  it("stamps industry benchmark source and ref from campaign_kpi", () => {
+    const cards = buildKpiReview({
+      groups: [socialGroup()],
+      lineItemTargets: targets([
+        kpi({
+          mba_number: "BICAU002",
+          line_item_id: "bicau002sm1",
+          ctr: 0.015,
+          target_source: "benchmark",
+          benchmark_ref: "IAB AU 2025 display",
+        }),
+      ]),
+      isAdmin: false,
+    })
+    const ctr = cards[0]?.rows.find((r) => r.metric === "ctr")
+    assert.equal(ctr?.targetSource, "benchmark")
+    assert.equal(ctr?.benchmarkRef, "IAB AU 2025 display")
+  })
+
+  it("marks a card noTargets when every metric is unset", () => {
+    const group = socialGroup()
+    const empty = targets([])
+    const admin = buildKpiReview({ groups: [group], lineItemTargets: empty, isAdmin: true })
+    assert.equal(admin.length, 1)
+    assert.equal(admin[0]?.noTargets, true)
+    assert.equal(admin[0]?.rows.length, 0)
+    assert.equal(shouldShowKpiReview(admin, true), true)
+
+    const client = buildKpiReview({ groups: [group], lineItemTargets: empty, isAdmin: false })
+    assert.equal(client.length, 1)
+    assert.equal(client[0]?.noTargets, true)
+    assert.equal(shouldShowKpiReview(client, false), false)
+  })
+
+  it("keeps a mixed card's rows and still gates clients on any saved or benchmark target", () => {
+    const mixed = buildKpiReview({
+      groups: [
+        socialGroup({
+          key: "social-meta",
+          lineItemIds: ["a"],
+          plannedSpendByLineId: { a: 10_000 },
+        }),
+        socialGroup({
+          key: "bvod",
+          label: "BVOD",
+          lineItemIds: ["b"],
+          plannedSpendByLineId: { b: 8_000 },
+        }),
+      ],
+      lineItemTargets: targets([
+        kpi({ mba_number: "BICAU002", line_item_id: "a", ctr: 0.02 }),
+      ]),
+      isAdmin: false,
+    })
+    assert.equal(mixed.find((c) => c.key === "social-meta")?.noTargets, false)
+    assert.equal(mixed.find((c) => c.key === "bvod")?.noTargets, true)
+    assert.equal(shouldShowKpiReview(mixed, false), true)
   })
 })
 

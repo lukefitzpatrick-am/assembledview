@@ -64,6 +64,8 @@ export type KpiReviewGroup = {
   vtrTracked: boolean
 }
 
+export type KpiReviewTargetSource = "target" | "benchmark"
+
 export type KpiReviewRow = {
   metric: KpiReviewMetricKey
   label: string
@@ -72,6 +74,8 @@ export type KpiReviewRow = {
   status: DeliveryStatus
   omitted: boolean
   modelled?: boolean
+  targetSource: KpiReviewTargetSource | null
+  benchmarkRef?: string | null
 }
 
 export type KpiReviewCard = {
@@ -79,6 +83,7 @@ export type KpiReviewCard = {
   label: string
   colour: string
   rows: KpiReviewRow[]
+  noTargets: boolean
 }
 
 type PacingActualRow = {
@@ -210,28 +215,62 @@ function isSetTarget(value: number | null): value is number {
   return value != null && Number.isFinite(value) && value > 0
 }
 
+function rowTargetSource(row: CampaignKPI | undefined): KpiReviewTargetSource {
+  return row?.target_source === "benchmark" ? "benchmark" : "target"
+}
+
 function resolveGroupTarget(
   group: KpiReviewGroup,
   metric: KpiReviewMetricKey,
   lineItemTargets: Map<string, CampaignKPI>,
-): number | null {
-  const values: Array<{ value: number; spend: number }> = []
+): {
+  value: number
+  source: KpiReviewTargetSource
+  benchmarkRef: string | null
+} | null {
+  const values: Array<{
+    value: number
+    spend: number
+    source: KpiReviewTargetSource
+    benchmarkRef: string | null
+  }> = []
   for (const lineId of group.lineItemIds) {
-    const value = metricValue(kpiRowForLine(lineItemTargets, lineId), metric)
+    const row = kpiRowForLine(lineItemTargets, lineId)
+    const value = metricValue(row, metric)
     if (!isSetTarget(value)) continue
+    const ref = typeof row?.benchmark_ref === "string" ? row.benchmark_ref.trim() : ""
     values.push({
       value,
       spend: Number(group.plannedSpendByLineId[lineId] ?? 0) || 0,
+      source: rowTargetSource(row),
+      benchmarkRef: ref || null,
     })
   }
   if (values.length === 0) return null
   const first = values[0]!.value
-  if (values.every((item) => item.value === first)) return first
-  const spendTotal = values.reduce((sum, item) => sum + item.spend, 0)
-  if (spendTotal > 0) {
-    return values.reduce((sum, item) => sum + item.value * item.spend, 0) / spendTotal
+  const value = values.every((item) => item.value === first)
+    ? first
+    : (() => {
+        const spendTotal = values.reduce((sum, item) => sum + item.spend, 0)
+        if (spendTotal > 0) {
+          return values.reduce((sum, item) => sum + item.value * item.spend, 0) / spendTotal
+        }
+        return values.reduce((sum, item) => sum + item.value, 0) / values.length
+      })()
+  const hasPlan = values.some((item) => item.source === "target")
+  const source: KpiReviewTargetSource = hasPlan ? "target" : "benchmark"
+  const refs = [
+    ...new Set(
+      values
+        .filter((item) => item.source === "benchmark" && item.benchmarkRef)
+        .map((item) => item.benchmarkRef!),
+    ),
+  ]
+  return {
+    value,
+    source,
+    benchmarkRef: source === "benchmark" ? (refs[0] ?? null) : null,
   }
-  return values.reduce((sum, item) => sum + item.value, 0) / values.length
 }
 
 function ratio(numerator: number, denominator: number): number | null {
@@ -317,28 +356,41 @@ export function buildKpiReview(input: {
           status: "no-data",
           omitted: true,
           modelled: delivered.modelled,
+          targetSource: null,
         })
         continue
       }
       rows.push({
         metric,
         label: CLIENT_KPI_METRIC_LABELS[metric] ?? metric,
-        targetDisplay: formatTarget(metric, target),
+        targetDisplay: formatTarget(metric, target.value),
         deliveredDisplay: delivered.display,
-        status: statusForMetric(metric, target, delivered.value),
+        status: statusForMetric(metric, target.value, delivered.value),
         omitted: false,
         modelled: delivered.modelled,
+        targetSource: target.source,
+        benchmarkRef: target.benchmarkRef,
       })
     }
-    if (rows.length === 0) continue
+    const noTargets = !rows.some((row) => !row.omitted)
     cards.push({
       key: group.key,
       label: group.label,
       colour: group.colour,
-      rows,
+      rows: noTargets ? [] : rows,
+      noTargets,
     })
   }
   return cards
+}
+
+export function shouldShowKpiReview(
+  cards: readonly KpiReviewCard[],
+  isAdmin: boolean,
+): boolean {
+  if (cards.length === 0) return false
+  if (isAdmin) return true
+  return cards.some((card) => !card.noTargets)
 }
 
 export function kpiReviewGroupsIdentity(groups: readonly KpiReviewGroup[]): string {

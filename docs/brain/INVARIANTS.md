@@ -185,7 +185,7 @@ pct === 100 → fee = 0 (division guard)
 - Ad-serving precedence (locked): manual `adServingRatePct > 0` → resolved KPI ctr/vtr → hardcoded baseline. `adServingRatePct` stays manual-only; KPI values pass separately into compute. Identity is per-line `lineItemId`.
 - The two KPI target maps have different keys (see BLAST-RADIUS) — both must be updated for a new channel.
 - `KpiHost` implementations differ on purpose: media-plan host persists `campaign_kpi` immediately when the plan has an identity (create defers until first save); pacing host writes immediately. Plan save always syncs the version it just wrote, including VP-1 increments.
-- Campaign KPI targets stay at line-item grain. The campaign MBA KPI review (`lib/kpi/kpiReview.ts`) resolves a target inside one channel-platform group (shared value, else planned-spend weighted) and never averages across channels.
+- Campaign KPI targets stay at line-item grain. The campaign MBA KPI review (`lib/kpi/kpiReview.ts`) resolves a target inside one channel-platform group (shared value, else planned-spend weighted) and never averages across channels. Review `targetSource` is `target` (saved `campaign_kpi`) or `benchmark` (industry backfill); 0/null stays "No target set" and does not inherit `publisher_kpi`. Clients do not see the review unless a card has a saved or benchmark target.
 
 ## Planning engine law
 

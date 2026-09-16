@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils"
 export type KpiReviewProps = {
   cards: KpiReviewCard[]
   isAdmin?: boolean
+  /** Edit-page KPI section. Used on the admin empty-card line. */
+  planEditHref?: string
   className?: string
 }
 
@@ -20,7 +22,12 @@ function channelDotClass(key: string): string {
   return "bg-muted-foreground"
 }
 
-export function KpiReview({ cards, isAdmin = false, className }: KpiReviewProps) {
+export function KpiReview({
+  cards,
+  isAdmin = false,
+  planEditHref,
+  className,
+}: KpiReviewProps) {
   if (cards.length === 0) return null
 
   return (
@@ -44,7 +51,28 @@ export function KpiReview({ cards, isAdmin = false, className }: KpiReviewProps)
               />
               <h3 className="text-sm font-semibold text-foreground">{card.label}</h3>
             </div>
-            <ul className="divide-y divide-border/60">
+            {card.noTargets ? (
+              <p className="text-sm text-muted-foreground">
+                {isAdmin ? (
+                  <>
+                    No KPI targets saved for {card.label}.{" "}
+                    {planEditHref ? (
+                      <a
+                        href={planEditHref}
+                        className="text-primary underline-offset-2 hover:underline"
+                      >
+                        Set targets on the media plan →
+                      </a>
+                    ) : (
+                      "Set targets on the media plan →"
+                    )}
+                  </>
+                ) : (
+                  "KPI targets pending."
+                )}
+              </p>
+            ) : (
+              <ul className="divide-y divide-border/60">
               {card.rows.map((row) => {
                 if (row.omitted && !isAdmin) return null
                 return (
@@ -73,6 +101,17 @@ export function KpiReview({ cards, isAdmin = false, className }: KpiReviewProps)
                       >
                         {row.targetDisplay}
                       </p>
+                      {row.targetSource === "target" ? (
+                        <p className="text-[11px] text-muted-foreground">plan target</p>
+                      ) : null}
+                      {row.targetSource === "benchmark" ? (
+                        <p
+                          className="text-[11px] text-muted-foreground"
+                          title={row.benchmarkRef ?? undefined}
+                        >
+                          industry benchmark
+                        </p>
+                      ) : null}
                     </div>
                     <div className="min-w-[5.5rem] text-right">
                       <p className="text-[11px] text-muted-foreground">Delivered</p>
@@ -98,7 +137,8 @@ export function KpiReview({ cards, isAdmin = false, className }: KpiReviewProps)
                   </li>
                 )
               })}
-            </ul>
+              </ul>
+            )}
           </article>
         ))}
       </div>

@@ -48,6 +48,9 @@ export interface CampaignKPI {
   conversion_rate: number | null
   vtr: number | null
   frequency: number | null
+  /** Saved plan target vs industry backfill. Unset rows default to plan target. */
+  target_source?: "target" | "benchmark" | null
+  benchmark_ref?: string | null
 }
 
 // UI-only — not persisted to Xano directly

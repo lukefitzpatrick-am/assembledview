@@ -36,6 +36,8 @@ const CAMPAIGN_WRITABLE: Record<string, keyof typeof schema.campaignKpi.$inferIn
   vtr: "vtr",
   frequency: "frequency",
   line_item_id: "lineItemId",
+  target_source: "targetSource",
+  benchmark_ref: "benchmarkRef",
 }
 
 const CLIENT_WRITABLE: Record<string, keyof typeof schema.clientKpi.$inferInsert> = {

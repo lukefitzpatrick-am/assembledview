@@ -36,7 +36,9 @@ CREATE TABLE "campaign_kpi" (
 	"conversion_rate" numeric,
 	"vtr" numeric,
 	"frequency" numeric,
-	"line_item_id" text
+	"line_item_id" text,
+	"target_source" text DEFAULT 'target',
+	"benchmark_ref" text
 );
 --> statement-breakpoint
 CREATE TABLE "client_kpi" (

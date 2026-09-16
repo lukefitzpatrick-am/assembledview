@@ -57,6 +57,8 @@ export const campaignKpi = pgTable(
   vtr: numeric('vtr'),
   frequency: numeric('frequency'),
   lineItemId: text('line_item_id'),
+  targetSource: text('target_source').default('target'),
+  benchmarkRef: text('benchmark_ref'),
   },
   (table) => [
     index("idx_campaign_kpi_created_at").on(table.createdAt),
