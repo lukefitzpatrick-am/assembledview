@@ -241,6 +241,7 @@ function buildProgrammaticKpiTiles(input: {
   kpis: ReturnType<typeof summarizeDv360Actuals>
   accentColour: string
   isVideo: boolean
+  isOoh?: boolean
   mbaNumber: string
   kpiVersionNumber: number
   lineItemTargets: Map<string, CampaignKPI> | undefined
@@ -251,6 +252,7 @@ function buildProgrammaticKpiTiles(input: {
     kpis,
     accentColour,
     isVideo,
+    isOoh,
     mbaNumber,
     kpiVersionNumber,
     lineItemTargets,
@@ -322,6 +324,25 @@ function buildProgrammaticKpiTiles(input: {
         : undefined,
     emptyHint: "none-recorded",
     accentColour,
+  }
+
+  if (isOoh) {
+    const costPerPlay = kpis.conversions ? kpis.spend / kpis.conversions : null
+    return [
+      cpmTile,
+      {
+        label: "Plays",
+        value: formatWholeNumber(kpis.conversions),
+        emptyHint: "none-recorded",
+        accentColour,
+      },
+      {
+        label: "Cost per play",
+        value: tileMoney(costPerPlay),
+        emptyHint: "none-recorded",
+        accentColour,
+      },
+    ]
   }
 
   if (isVideo) {
@@ -536,9 +557,7 @@ export function buildProgrammaticChannelSection(input: {
   }
 
   const deliverableCard: ProgressCardProps = {
-    title: isOohChannel
-      ? "Plays delivery"
-      : `${aggregateDeliverableLabel(normalized.map((li) => li.buy_type))} delivery`,
+    title: `${aggregateDeliverableLabel(normalized.map((li) => li.buy_type))} delivery`,
     value: formatWholeNumber(aggregatePacing.deliverable?.actualToDate ?? 0),
     detail: `Delivered ${formatWholeNumber(aggregatePacing.deliverable?.actualToDate ?? 0)} · Planned ${formatWholeNumber(bookedTotals.deliverables)}`,
     progress: delRatio,
@@ -551,6 +570,7 @@ export function buildProgrammaticChannelSection(input: {
     kpis: kpisRollup,
     accentColour,
     isVideo: isVideoChannel,
+    isOoh: isOohChannel,
     mbaNumber,
     kpiVersionNumber,
     lineItemTargets,
@@ -579,6 +599,7 @@ export function buildProgrammaticChannelSection(input: {
       kpis: liKpis,
       accentColour,
       isVideo: isVideoChannel,
+      isOoh: isOohChannel,
       mbaNumber,
       kpiVersionNumber,
       lineItemTargets,
@@ -594,14 +615,9 @@ export function buildProgrammaticChannelSection(input: {
     const dailyRows = m.actualsDaily.map((d) => ({
       date: d.date,
       amount_spent: Number(d.spend ?? 0),
-      ...(isOohChannel
-        ? {
-            impressions: Number(d.impressions ?? 0),
-            plays: Number(d.conversions ?? 0),
-          }
-        : isVideoLine
-          ? { video_3s_views: Number(d.videoViews ?? 0) }
-          : { impressions: Number(d.impressions ?? 0) }),
+      ...(isVideoLine
+        ? { video_3s_views: Number(d.videoViews ?? 0) }
+        : { impressions: Number(d.impressions ?? 0) }),
     }))
     const modelled = m.spendModelledFromPlanRate === true
     const fixedCostReported = m.spendFromFixedCostReport === true
@@ -612,9 +628,7 @@ export function buildProgrammaticChannelSection(input: {
         : isOohChannel
           ? "Delivered spend"
           : "Spend delivery"
-    const lineDeliverableTitle = isOohChannel
-      ? "Plays"
-      : getProgrammaticDeliverableLabel(m.deliverableKey)
+    const lineDeliverableTitle = getProgrammaticDeliverableLabel(m.deliverableKey)
     const displayName = deliveryLineItemDisplayName(li as Record<string, unknown>)
     const entityBreakdown = cm360PlacementBreakdown(
       m.lineItem,
@@ -656,12 +670,7 @@ export function buildProgrammaticChannelSection(input: {
       chart: {
         kind: "daily-delivery",
         daily: dailyRows,
-        series: isOohChannel
-          ? [
-              { key: "amount_spent", label: "Spend", yAxis: "left" },
-              { key: "plays", label: "Plays", yAxis: "right" },
-            ]
-          : isVideoLine
+        series: isVideoLine
           ? [
               { key: "amount_spent", label: "Spend", yAxis: "left" },
               { key: "video_3s_views", label: "Views", yAxis: "right" },
@@ -695,7 +704,7 @@ export function buildProgrammaticChannelSection(input: {
       kpiBand: {
         title: "Delivery KPIs",
         subtitle: isOohChannel
-          ? "OOH plays and impressions"
+          ? "CPM, plays and cost per play"
           : snowflakeChannel === "programmatic-video"
             ? "Video efficiency & engagement"
             : "Display efficiency",
@@ -704,18 +713,11 @@ export function buildProgrammaticChannelSection(input: {
       chart: {
         daily: aggregateDailyRows(
           accordionItems.flatMap((item) => (item.block.chart.kind === "daily-delivery" ? item.block.chart.daily : [])),
-          isOohChannel
-            ? ["amount_spent", "plays"]
-            : snowflakeChannel === "programmatic-video"
-              ? ["amount_spent", "video_3s_views"]
-              : ["amount_spent", "impressions"],
+          snowflakeChannel === "programmatic-video"
+            ? ["amount_spent", "video_3s_views"]
+            : ["amount_spent", "impressions"],
         ),
-        series: isOohChannel
-          ? [
-              { key: "amount_spent", label: "Spend", yAxis: "left" },
-              { key: "plays", label: "Plays", yAxis: "right" },
-            ]
-          : snowflakeChannel === "programmatic-video"
+        series: snowflakeChannel === "programmatic-video"
           ? [
               { key: "amount_spent", label: "Spend", yAxis: "left" },
               { key: "video_3s_views", label: "Views", yAxis: "right" },

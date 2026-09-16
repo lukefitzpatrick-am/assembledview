@@ -409,7 +409,8 @@ function deriveDeliverableKey(
   platform?: string | null,
   mediaType?: "progdisplay" | "progvideo" | "progooh",
 ): ProgrammaticLineItemMetrics["deliverableKey"] {
-  if (mediaType === "progooh") return "conversions"
+  // CPM OOH booked units are impressions; RESULTS stays plays for the KPI band.
+  if (mediaType === "progooh") return "impressions"
   const metric = mapDeliverableMetric({ channel: "programmatic", buyType, platform })
   switch (metric) {
     case "VIDEO_3S_VIEWS":

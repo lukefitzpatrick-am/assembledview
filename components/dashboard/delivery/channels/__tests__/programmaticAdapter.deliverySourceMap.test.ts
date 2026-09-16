@@ -581,32 +581,75 @@ function buildOoh(input: {
   })
 }
 
-test("a Vistar prog_ooh line with PACING_FACT rows is included with plays from RESULTS", () => {
+test("a Vistar prog_ooh line with PACING_FACT rows delivers IMPRESSIONS not RESULTS", () => {
+  const line: ProgrammaticLineItem = {
+    ...burstLine("sinch001po1", "Vistar"),
+    bursts: [
+      {
+        start_date: CAMPAIGN_START,
+        end_date: CAMPAIGN_END,
+        budget_number: 10_000,
+        calculated_value_number: 1_071_429,
+      },
+    ],
+  }
   const section = buildOoh({
-    lines: [burstLine("legal004po1", "Vistar")],
+    lines: [line],
     rows: [
       pacingRow({
         channel: "programmatic-ooh",
-        lineItemId: "legal004po1",
-        impressions: 80_000,
-        results: 12_000,
-        amountSpent: 61.5,
+        lineItemId: "sinch001po1",
+        impressions: 257_094,
+        results: 57_602,
+        amountSpent: 576.02,
       }),
     ],
   })
   assert.ok(section, "expected a programmatic OOH section")
   assert.equal(section.key, "programmatic-ooh")
-  assert.equal(section.title, "Programmatic - OOH")
-  assert.equal(section.lineItems.length, 1)
-  assert.equal(section.lineItems[0]?.id, "legal004po1")
+  assert.equal(section.lineItems[0]?.id, "sinch001po1")
   assert.deepEqual(section.connections, [{ label: "Vistar (partner file)", tone: "partner-file" }])
-  const playsCard = section.lineItems[0]?.block.progressCards.find((card) =>
-    /play/i.test(card.title),
+  const impressionsCard = section.lineItems[0]?.block.progressCards[1]
+  assert.equal(impressionsCard?.title, "Impressions delivery")
+  assert.match(String(impressionsCard?.value), /257,094/)
+  assert.match(String(impressionsCard?.detail), /Planned 1,071,429/)
+  const playsDelivery = section.lineItems[0]?.block.progressCards.find((card) =>
+    /plays delivery/i.test(card.title),
   )
-  assert.ok(playsCard, "expected a Plays delivery card")
-  assert.match(String(playsCard.value), /12,000/)
+  assert.equal(playsDelivery, undefined)
   const spendCard = section.lineItems[0]?.block.progressCards[0]
   assert.equal(spendCard?.title, "Delivered spend")
+  const chart = section.lineItems[0]?.block.chart
+  assert.equal(chart?.kind, "daily-delivery")
+  if (!chart || chart.kind !== "daily-delivery") throw new Error("expected daily-delivery chart")
+  assert.deepEqual(
+    chart.series.map((s) => s.key),
+    ["amount_spent", "impressions"],
+  )
+})
+
+test("programmatic OOH KPI tiles are CPM, Plays and Cost per play", () => {
+  const section = buildOoh({
+    lines: [burstLine("sinch001po1", "Vistar")],
+    rows: [
+      pacingRow({
+        channel: "programmatic-ooh",
+        lineItemId: "sinch001po1",
+        impressions: 257_094,
+        results: 57_602,
+        amountSpent: 576.02,
+      }),
+    ],
+  })
+  assert.ok(section)
+  const labels = section.lineItems[0]?.block.kpiBand.tiles.map((tile) => tile.label) ?? []
+  assert.deepEqual(labels, ["CPM", "Plays", "Cost per play"])
+  assert.equal(labels.includes("CTR"), false)
+  assert.equal(labels.includes("CPC"), false)
+  assert.equal(labels.includes("CVR"), false)
+  assert.equal(labels.includes("CPA"), false)
+  const plays = section.lineItems[0]?.block.kpiBand.tiles.find((tile) => tile.label === "Plays")
+  assert.match(String(plays?.value), /57,602/)
 })
 
 test("a Perion prog_ooh line with no map row is excluded", () => {
@@ -647,7 +690,8 @@ test("fixedCostMedia OOH spend is REPORTED_SPEND, labelled reported; CPM keeps A
   assert.equal(reported[0]?.spendModelledFromPlanRate, false)
   assert.equal(reported[0]?.spendFromFixedCostReport, true)
   assert.equal(reported[0]?.actualsDaily[0]?.spend, 25)
-  assert.equal(reported[0]?.deliverableKey, "conversions")
+  assert.equal(reported[0]?.deliverableKey, "impressions")
+  assert.equal(reported[0]?.actualsDaily[0]?.impressions, 1000)
   assert.equal(reported[0]?.actualsDaily[0]?.conversions, 40)
 
   const cpm = lineMetrics(

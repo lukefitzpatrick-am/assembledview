@@ -580,3 +580,38 @@ test("firstAheadChannelName follows glance card status, not impressions", () => 
   })
   assert.equal(firstAheadChannelName(redditAhead), "Social · Reddit")
 })
+
+test("programmatic OOH glance impressions come from IMPRESSIONS not plays", () => {
+  const buckets = emptyBuckets()
+  buckets.progOohLineItems = [
+    {
+      line_item_id: "sinch001po1",
+      publisher: "Vistar",
+      buy_type: "cpm",
+      budget: 10_000,
+      impressions: 0,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 10_000 }],
+    },
+  ]
+  const entries = channelCoverage({
+    buckets,
+    sections: [
+      section({
+        key: "programmatic-ooh",
+        lineIds: ["sinch001po1"],
+        spendValue: "$576.02",
+        impressionsTitle: "Impressions delivery",
+        impressionsValue: "257,094",
+        impressionsDetail: "Delivered 257,094 · Planned 1,071,429",
+      }),
+    ],
+    todayISO: TODAY,
+  })
+  const ooh = entries.find((e) => e.key === "programmatic-ooh:vistar")
+  assert.ok(ooh)
+  assert.equal(ooh.status, "reporting")
+  assert.equal(ooh.deliveredImpressions, 257_094)
+  assert.equal(ooh.plannedImpressions, 1_071_429)
+  assert.equal(ooh.deliverableLabel, "Impressions")
+  assert.notEqual(ooh.deliveredImpressions, 57_602)
+})
