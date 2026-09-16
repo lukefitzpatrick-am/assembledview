@@ -3113,25 +3113,8 @@ function CreateMediaPlan() {
     })
     if (variant === "standard" && kpiRows.length > 0) {
       const { addKPISheet } = await import("@/lib/generateMediaPlan")
-      addKPISheet(
-        workbook,
-        kpiRows.map((r) => ({
-          mediaType: r.media_type,
-          publisher: r.publisher,
-          label: r.lineItemLabel,
-          buyType: r.buyType,
-          spend: r.spend,
-          deliverables: r.deliverables,
-          ctr: r.ctr,
-          vtr: r.vtr,
-          cpv: r.cpv,
-          conversion_rate: r.conversion_rate,
-          frequency: r.frequency,
-          calculatedClicks: r.calculatedClicks,
-          calculatedViews: r.calculatedViews,
-          calculatedReach: r.calculatedReach,
-        })),
-      )
+      const { toKpiSheetRows } = await import("@/lib/kpi/kpiWorkbook")
+      addKPISheet(workbook, toKpiSheetRows(kpiRows))
     }
     const arrayBuffer = await workbook.xlsx.writeBuffer() as ArrayBuffer
     const blob = new Blob([ arrayBuffer ], {
@@ -7353,32 +7336,8 @@ const handleSaveAll = async (opts?: {
       zip.file(mediaPlanFileName, mediaPlanBlob)
       zip.file(namingFileName, namingBlob)
       if (kpiRows.length > 0) {
-        const ExcelJS = (await import("exceljs")).default
-        const { addKPISheet } = await import("@/lib/generateMediaPlan")
-        const kpiWorkbook = new ExcelJS.Workbook()
-        addKPISheet(
-          kpiWorkbook,
-          kpiRows.map((r) => ({
-            mediaType: r.media_type,
-            publisher: r.publisher,
-            label: r.lineItemLabel,
-            buyType: r.buyType,
-            spend: r.spend,
-            deliverables: r.deliverables,
-            ctr: r.ctr,
-            vtr: r.vtr,
-            cpv: r.cpv,
-            conversion_rate: r.conversion_rate,
-            frequency: r.frequency,
-            calculatedClicks: r.calculatedClicks,
-            calculatedViews: r.calculatedViews,
-            calculatedReach: r.calculatedReach,
-          })),
-        )
-        const kpiArrayBuffer = await kpiWorkbook.xlsx.writeBuffer()
-        const kpiBlob = new Blob([kpiArrayBuffer], {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        })
+        const { buildKpiWorkbookBlob } = await import("@/lib/kpi/kpiWorkbook")
+        const kpiBlob = await buildKpiWorkbookBlob(kpiRows)
         zip.file(`KPIs_${fv.mp_campaignname || "campaign"}.xlsx`, kpiBlob)
       }
       const zipBlob = await zip.generateAsync({ type: "blob" })
@@ -8397,6 +8356,7 @@ const handleSaveAll = async (opts?: {
                         isSaving: kpiHostSaving,
                         setIsSaving: setKpiHostSaving,
                       })}
+                      campaignName={watchedCampaignName}
                       isLoading={isKPILoading}
                       publishers={kpiPublishers}
                       onPublisherKpiAdded={async () => {

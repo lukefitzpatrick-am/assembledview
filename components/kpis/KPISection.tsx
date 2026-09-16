@@ -88,6 +88,7 @@ export interface KPISectionProps {
   className?: string
   publishers?: Publisher[]
   onPublisherKpiAdded?: () => void | Promise<void>
+  campaignName?: string
 }
 
 export function KPISection({
@@ -96,6 +97,7 @@ export function KPISection({
   className,
   publishers,
   onPublisherKpiAdded,
+  campaignName,
 }: KPISectionProps) {
   const { rows: kpiRows, onReset } = host
   const [isModalOpen, setIsModalOpen] = React.useState(false)
@@ -127,6 +129,14 @@ export function KPISection({
     setModalMediaType(opts?.mediaType ?? "all")
     setModalMissingOnly(Boolean(opts?.missingOnly))
     setIsModalOpen(true)
+  }
+
+  async function handleDownloadKpis() {
+    if (isLoading || kpiRows.length === 0) return
+    const { buildKpiWorkbookBlob } = await import("@/lib/kpi/kpiWorkbook")
+    const { saveAs } = await import("file-saver")
+    const blob = await buildKpiWorkbookBlob(kpiRows)
+    saveAs(blob, `KPIs_${campaignName || "campaign"}.xlsx`)
   }
 
   return (
@@ -163,6 +173,15 @@ export function KPISection({
             disabled={isLoading}
           >
             {kpiRows.length === 0 ? "KPIs" : "Edit KPIs"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void handleDownloadKpis()}
+            disabled={isLoading || kpiRows.length === 0}
+          >
+            Download KPIs
           </Button>
           <Button
             type="button"

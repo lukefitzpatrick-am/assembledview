@@ -78,7 +78,7 @@ Editor chips (`isPartialMBA` / `partialMBASelectedLineItemIds` / `partialMBAMont
 
 ## Depends on
 
-Shared core (xano.ts, pagination, caches, auth/RBAC, proxyAllowlist), finance/billing engine (`recomputeBillingScheduleOnSave`, `computeCampaignFinancials` — imported back INTO the mega-pages), KPI (`addKPISheet`, fan-out), money/date/tz utils.
+Shared core (xano.ts, pagination, caches, auth/RBAC, proxyAllowlist), finance/billing engine (`recomputeBillingScheduleOnSave`, `computeCampaignFinancials` — imported back INTO the mega-pages), KPI (`addKPISheet` via `lib/kpi/kpiWorkbook.ts` for standalone + zip-all, fan-out), money/date/tz utils.
 
 ## Consumed by (verified importers)
 
