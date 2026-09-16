@@ -25,7 +25,13 @@ import {
   reconcileLineAudit,
   recordDiscrepancyResolution,
 } from "@/lib/mediaplans/ingest/lineAuditReconcile"
-import { confirmAllGreen } from "@/lib/mediaplans/ingest/parseReview"
+import {
+  confirmAllGreen,
+  parseReviewCounts,
+  parseReviewLoadGate,
+} from "@/lib/mediaplans/ingest/parseReview"
+import { applyIngestLineItemsLoad } from "@/lib/ava/applyIngestLineItemsLoad"
+import { getIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore.server"
 import { loadIngestIntoFormTool } from "../loadIngestIntoForm.js"
 import { avaToolDefinitionsForPage } from "../pageToolOffer.js"
 import type { AvaToolContext } from "../types.js"
@@ -427,4 +433,43 @@ test("load refuses while a line-audit discrepancy is open, then proceeds after P
   const ok = await loadIngestIntoFormTool.execute({ confirm: true }, retry)
   assert.equal(ok.isError, false)
   assert.ok(retry.capturedLineItemsLoad)
+})
+
+test("chat confirm on a card-resolved review stamps green rows and the page handler receives the load", async () => {
+  const { stageId, review } = await stageQms(withoutUnresolved)
+  const before = parseReviewCounts(review)
+  assert.ok(before.green_unconfirmed > 0)
+  assert.equal(parseReviewLoadGate(review).ok, false)
+
+  const c = ctx({ pendingIngest: { stageId, fileName: QMS } })
+  const ok = await loadIngestIntoFormTool.execute({ confirm: true }, c)
+  assert.equal(ok.isError, false)
+  assert.ok(c.capturedLineItemsLoad)
+  assert.equal(c.capturedLineItemsLoad.channel, "ooh")
+  assert.ok(c.capturedLineItemsLoad.items.length > 0)
+  assert.equal(c.capturedLineItemsLoad.ingestStageId, stageId)
+
+  const persisted = await getIngestStage(stageId)
+  assert.ok(persisted)
+  assert.equal(parseReviewLoadGate(persisted.review).ok, true)
+  assert.equal(parseReviewCounts(persisted.review).green_unconfirmed, 0)
+
+  let media: Record<string, unknown>[] = []
+  let dirty = false
+  const note = applyIngestLineItemsLoad({
+    channel: "ooh",
+    items: c.capturedLineItemsLoad.items,
+    replace: c.capturedLineItemsLoad.replace !== false,
+    channelEnabled: false,
+    enableChannel: () => {},
+    setMediaItems: (updater) => {
+      media = updater(media)
+    },
+    markDirty: () => {
+      dirty = true
+    },
+  })
+  assert.equal(media.length, c.capturedLineItemsLoad.items.length)
+  assert.equal(dirty, true)
+  assert.match(note, /loaded from/i)
 })

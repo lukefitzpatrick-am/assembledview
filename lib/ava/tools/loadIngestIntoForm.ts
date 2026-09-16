@@ -5,12 +5,18 @@ import {
   type IngestLoadChannel,
 } from "@/lib/ava/applyIngestLineItemsLoad"
 import { recordIngestRun } from "@/lib/mediaplans/ingest/ingestRuns"
-import { lookupIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore.server"
+import {
+  lookupIngestStage,
+  patchIngestStageReview,
+} from "@/lib/mediaplans/ingest/ingestStageStore.server"
 import { ingestReviewToFormLineItems } from "@/lib/mediaplans/ingest/toFormLineItems"
 import { evaluateRequiredFieldGate } from "@/lib/mediaplans/ingest/templateCoverage"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 import type { IngestProposal } from "@/lib/mediaplans/ingest/proposeLineItems"
-import { parseReviewLoadGate } from "@/lib/mediaplans/ingest/parseReview"
+import {
+  confirmAllGreen,
+  parseReviewLoadGate,
+} from "@/lib/mediaplans/ingest/parseReview"
 import {
   hasUnconfirmedProposedProfile,
   UNCONFIRMED_PROFILE_REFUSE_MESSAGE,
@@ -122,7 +128,7 @@ export const loadIngestIntoFormTool: AvaTool = {
       }
     }
 
-    const review = looked.staged.review
+    let review = looked.staged.review
     if (hasUnconfirmedProposedProfile(review)) {
       return {
         content: UNCONFIRMED_PROFILE_REFUSE_MESSAGE,
@@ -162,6 +168,13 @@ export const loadIngestIntoFormTool: AvaTool = {
         content: `These fields have no source column, so the schedule wasn't loaded: ${named}. Answer the mapping cards and I'll load it.`,
         isError: true,
       }
+    }
+
+    const confirmedBy = context.userEmail?.trim() || "ava-chat"
+    const stamped = confirmAllGreen({ review, by: confirmedBy })
+    if (stamped !== review) {
+      review = stamped
+      await patchIngestStageReview(stageId, review)
     }
 
     const parseGate = parseReviewLoadGate(review)
