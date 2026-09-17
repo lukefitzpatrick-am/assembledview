@@ -26,6 +26,7 @@ import {
 } from "@/lib/ava/ingestUploadTurn"
 import type { ChatMode } from "@/src/ava/modes"
 import { AvaMediaMathPanel } from "@/components/ava/AvaMediaMathPanel"
+import { ScenarioPlannerDrawer } from "@/components/pacing/scenario/ScenarioPlannerDrawer"
 import { ChatAssistantTurn } from "@/components/ava/ChatAssistantTurn"
 import { ChatThinkingIndicator } from "@/components/ava/ChatThinkingIndicator"
 import { ChatUserMessage } from "@/components/ava/ChatUserMessage"
@@ -33,6 +34,7 @@ import { ChatQuestionCard, type ChatQuestionCardState } from "@/components/ChatQ
 import {
   Calculator,
   ChevronDown,
+  SlidersHorizontal,
   ChevronUp,
   FileSpreadsheet,
   Maximize2,
@@ -314,6 +316,7 @@ export function ChatWidget({
   const dragMovedRef = useRef(false)
   const [panelSize, setPanelSize] = useState<PanelSize>(() => readStoredPanelSize())
   const [calcOpen, setCalcOpen] = useState(() => readStoredCalcOpen())
+  const [scenarioOpen, setScenarioOpen] = useState(false)
   const [resizeState, setResizeState] = useState<{
     startX: number
     startY: number
@@ -725,6 +728,7 @@ export function ChatWidget({
                       setCalcOpen((v) => {
                         const next = !v
                         persistCalcOpen(next)
+                        if (next) setScenarioOpen(false)
                         return next
                       })
                     }
@@ -733,6 +737,26 @@ export function ChatWidget({
                     title="Calculator"
                   >
                     <Calculator className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      setScenarioOpen((v) => {
+                        const next = !v
+                        if (next) {
+                          setCalcOpen(false)
+                          persistCalcOpen(false)
+                        }
+                        return next
+                      })
+                    }
+                    aria-label="Scenario"
+                    aria-pressed={scenarioOpen}
+                    title="Scenario"
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
                   </Button>
                   <Button
                     type="button"
@@ -793,6 +817,15 @@ export function ChatWidget({
             <AvaMediaMathPanel
               onPrefillComposer={(text) => {
                 setInput((prev) => (prev ? `${prev} ${text}` : text))
+              }}
+            />
+          ) : null}
+
+          {!isCollapsed && scenarioOpen ? (
+            <ScenarioPlannerDrawer
+              mba={pageContextMbaNumber(pageContext)}
+              onDraftNote={(message) => {
+                void sendMessageRef.current(message)
               }}
             />
           ) : null}

@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { CampaignDetailTrigger, useCampaignDetail } from "@/components/pacing/detail/CampaignDetailContext"
+import { ScenarioPlannerTrigger } from "@/components/pacing/scenario/ScenarioPlannerContext"
 import { Card } from "@/components/ui/card"
 import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import type { LineCardModel, LineCardPace } from "@/lib/pacing/channel/lineCardTypes"
@@ -279,13 +280,21 @@ export function LinePacingCard({
           Line {formatDateRange(model.lineStart, model.lineEnd)}
           {model.targeting ? ` · Targeting: ${model.targeting}` : ""}
         </span>
-        <CampaignDetailTrigger
-          mba={model.mba}
-          href={href}
-          className="shrink-0 font-semibold text-primary hover:underline"
-        >
-          Details →
-        </CampaignDetailTrigger>
+        <span className="flex shrink-0 items-center gap-3">
+          <ScenarioPlannerTrigger
+            mba={model.mba}
+            className="font-semibold text-primary hover:underline"
+          >
+            Plan a scenario
+          </ScenarioPlannerTrigger>
+          <CampaignDetailTrigger
+            mba={model.mba}
+            href={href}
+            className="font-semibold text-primary hover:underline"
+          >
+            Details →
+          </CampaignDetailTrigger>
+        </span>
       </div>
       <time className="sr-only" dateTime={asOf}>
         As of {asOf}

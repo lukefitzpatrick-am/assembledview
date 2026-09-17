@@ -1,5 +1,6 @@
 import "server-only"
 
+import { getCachedClientsList } from "@/lib/cache/clientsCache"
 import { getLatestPublishedCampaignRead } from "@/lib/campaign-read/repo"
 import { fetchAdServingPacingCampaignRows } from "@/lib/pacing/ad-serving/fetchAdServingPacingCampaignRows"
 import { fetchSearchPacingCampaignRows } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows"
@@ -191,11 +192,19 @@ export async function buildCampaignDetail(
     planPerDayByChannel[line.channel] = (planPerDayByChannel[line.channel] ?? 0) + line.perDayPlan
   }
 
-  const [read, notes, dailyFacts] = await Promise.all([
+  const [read, notes, dailyFacts, clients] = await Promise.all([
     getLatestPublishedCampaignRead(mba).catch(() => null),
     listCampaignDetailNotes(mba),
     dailyFactsForMba(mba, asOf, lines),
+    getCachedClientsList().catch(() => ({ data: [] as { id?: number; slug?: string }[] })),
   ])
+
+  const slug = row.clientSlug.trim().toLowerCase()
+  const client = clients.data.find(
+    (item) => String(item?.slug ?? "").trim().toLowerCase() === slug,
+  )
+  const clientIdRaw = Number(client?.id)
+  const clientId = Number.isFinite(clientIdRaw) && clientIdRaw > 0 ? clientIdRaw : null
 
   return assembleCampaignDetailPayload({
     row,
@@ -205,5 +214,6 @@ export async function buildCampaignDetail(
     notes,
     dailyFacts,
     planPerDayByChannel,
+    clientId,
   })
 }
