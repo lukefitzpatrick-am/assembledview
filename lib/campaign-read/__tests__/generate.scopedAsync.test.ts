@@ -61,6 +61,7 @@ const failReadMock = mock.fn(async (input: { id: number; message: string }) => (
   status: "failed" as const,
   errorMessage: input.message,
 }))
+const failStaleMock = mock.fn(async () => 0)
 const fetchKpisMock = mock.fn(async () => [{ line_item_id: "golf001s1", ctr: 0.01 }])
 const pacingComposerMock = mock.fn(async () => {
   throw new Error("portfolio composer must not run on generate")
@@ -72,6 +73,7 @@ if (supportsMockModule()) {
       insertCampaignReadGenerating: insertGeneratingMock,
       completeCampaignReadDraft: completeDraftMock,
       failCampaignRead: failReadMock,
+      failStaleGeneratingReads: failStaleMock,
       insertCampaignReadDraft: mock.fn(),
     },
   })
@@ -133,6 +135,7 @@ test("202 generating then draft; portfolio composers never run", { skip }, async
   insertGeneratingMock.mock.resetCalls()
   completeDraftMock.mock.resetCalls()
   failReadMock.mock.resetCalls()
+  failStaleMock.mock.resetCalls()
   pacingComposerMock.mock.resetCalls()
   const { startCampaignReadGeneration, runCampaignReadJob } = await import("../generate.js")
 
@@ -143,6 +146,7 @@ test("202 generating then draft; portfolio composers never run", { skip }, async
   })
   assert.equal(started.status, "generating")
   assert.equal(started.id, 11)
+  assert.equal(failStaleMock.mock.calls.length, 1)
 
   const item = await runCampaignReadJob({
     id: started.id,

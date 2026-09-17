@@ -1,8 +1,9 @@
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, desc, eq, lt, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 
 import { emptyCampaignReadBeats, parseCampaignReadBeats, renderCampaignReadMarkdown } from "./beats"
+import { GENERATING_STALE_ERROR, GENERATING_STALE_MS } from "./stale"
 import type {
   CampaignRead,
   CampaignReadBeats,
@@ -193,6 +194,30 @@ export async function completeCampaignReadDraft(input: {
         "campaign_reads is not applied yet (0079/0082)",
       )
     }
+    throw err
+  }
+}
+
+export async function failStaleGeneratingReads(now: Date = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - GENERATING_STALE_MS).toISOString()
+  const db = getDb()
+  try {
+    const rows = await db
+      .update(schema.campaignReads)
+      .set({
+        status: "failed",
+        errorMessage: GENERATING_STALE_ERROR,
+      })
+      .where(
+        and(
+          eq(schema.campaignReads.status, "generating"),
+          lt(schema.campaignReads.generatedAt, cutoff),
+        ),
+      )
+      .returning({ id: schema.campaignReads.id })
+    return rows.length
+  } catch (err) {
+    if (isMissingTable(err)) return 0
     throw err
   }
 }

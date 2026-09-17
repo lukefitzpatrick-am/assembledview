@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
-import { listCampaignReadsForMba } from "@/lib/campaign-read/repo"
+import { failStaleGeneratingReads, listCampaignReadsForMba } from "@/lib/campaign-read/repo"
 import { requireAdmin } from "@/lib/requireRole"
 
 export const dynamic = "force-dynamic"
@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
   const includeDrafts = !("response" in admin)
 
   try {
+    await failStaleGeneratingReads()
     const payload = await listCampaignReadsForMba({
       mbaNumber: mba,
       versionNumber: version,

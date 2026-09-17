@@ -1,7 +1,5 @@
 import "server-only"
 
-import { after } from "next/server"
-
 import { runAvaAgent } from "@/lib/ava/agentLoop"
 import { buildLoadSkillPayload } from "@/lib/ava/tools/loadSkill"
 import type { AvaToolContext } from "@/lib/ava/tools/types"
@@ -14,6 +12,7 @@ import { CAMPAIGN_READ_GENERATE_SURFACE } from "./generateTools"
 import {
   completeCampaignReadDraft,
   failCampaignRead,
+  failStaleGeneratingReads,
   insertCampaignReadGenerating,
 } from "./repo"
 import type { CampaignRead, CampaignReadBeats } from "./types"
@@ -216,19 +215,12 @@ export async function generateCampaignReadDraft(input: {
   })
 }
 
-export function scheduleCampaignReadContinuation(work: () => Promise<unknown>): void {
-  after(() => {
-    void work().catch((err) => {
-      console.error("[campaign-read] generate continuation failed", err)
-    })
-  })
-}
-
 export async function startCampaignReadGeneration(input: {
   mbaNumber: string
   versionNumber: number
   generatedByEmail: string
 }): Promise<CampaignRead> {
+  await failStaleGeneratingReads()
   return insertCampaignReadGenerating(input)
 }
 

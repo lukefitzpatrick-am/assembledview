@@ -6,6 +6,7 @@ import {
   CampaignReadBeatsView,
   CampaignReadFailedState,
   CampaignReadSection,
+  CampaignReadStillWritingState,
   CampaignReadWritingState,
 } from "../CampaignReadSection"
 import type { CampaignRead } from "@/lib/campaign-read/types"
@@ -62,6 +63,11 @@ describe("CampaignReadSection views", () => {
   it("shows writing copy while generating", () => {
     const html = renderToStaticMarkup(<CampaignReadWritingState />)
     expect(html).toContain("Writing the read…")
+  })
+
+  it("stops polling after the cap with a refresh hint", () => {
+    const html = renderToStaticMarkup(<CampaignReadStillWritingState />)
+    expect(html).toContain("Still writing, refresh to check")
   })
 
   it("failed state shows the message and Regenerate", () => {

@@ -13,6 +13,12 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  CAMPAIGN_READ_POLL_FETCH_INIT,
+  CAMPAIGN_READ_POLL_INTERVAL_MS,
+  CAMPAIGN_READ_STILL_WRITING,
+  campaignReadPollShouldStop,
+} from "@/lib/campaign-read/poll"
+import {
   CAMPAIGN_READ_BEAT_KEYS,
   CAMPAIGN_READ_HEADINGS,
   type CampaignRead,
@@ -99,6 +105,10 @@ export function CampaignReadWritingState() {
   return <p className="text-sm text-muted-foreground">Writing the read…</p>
 }
 
+export function CampaignReadStillWritingState() {
+  return <p className="text-sm text-muted-foreground">{CAMPAIGN_READ_STILL_WRITING}</p>
+}
+
 export function CampaignReadFailedState({
   message,
   onRegenerate,
@@ -132,7 +142,9 @@ export function CampaignReadSection({
   const [editing, setEditing] = useState(false)
   const [draftBeats, setDraftBeats] = useState<CampaignReadBeats | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [pollTimedOut, setPollTimedOut] = useState(false)
   const lastRegen = useRef(0)
+  const pollStartedAt = useRef<number | null>(null)
   const rootRef = useRef<HTMLElement | null>(null)
 
   const visible: CampaignRead | null = isAdmin
@@ -150,7 +162,7 @@ export function CampaignReadSection({
         version: String(versionNumber),
       })
       const res = await fetch(`/api/campaign-reads?${qs.toString()}`, {
-        cache: "no-store",
+        ...CAMPAIGN_READ_POLL_FETCH_INIT,
       })
       if (!res.ok) throw new Error("Could not load the campaign read")
       const json = (await res.json()) as CampaignReadListPayload
@@ -167,10 +179,23 @@ export function CampaignReadSection({
   }, [load])
 
   useEffect(() => {
-    if (!isAdmin || !generating) return
+    if (!isAdmin || !generating) {
+      pollStartedAt.current = null
+      setPollTimedOut(false)
+      return
+    }
+    if (pollStartedAt.current == null) {
+      pollStartedAt.current = Date.now()
+    }
     const timer = window.setInterval(() => {
+      const started = pollStartedAt.current ?? Date.now()
+      if (campaignReadPollShouldStop(started, Date.now())) {
+        setPollTimedOut(true)
+        window.clearInterval(timer)
+        return
+      }
       void load({ silent: true })
-    }, 3000)
+    }, CAMPAIGN_READ_POLL_INTERVAL_MS)
     return () => window.clearInterval(timer)
   }, [generating, isAdmin, load])
 
@@ -182,6 +207,7 @@ export function CampaignReadSection({
       const res = await fetch("/api/campaign-reads/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        ...CAMPAIGN_READ_POLL_FETCH_INIT,
         body: JSON.stringify({
           mbaNumber,
           versionNumber,
@@ -216,6 +242,7 @@ export function CampaignReadSection({
       const res = await fetch(path, {
         method,
         headers: body ? { "Content-Type": "application/json" } : undefined,
+        ...CAMPAIGN_READ_POLL_FETCH_INIT,
         body: body ? JSON.stringify(body) : undefined,
       })
       if (!res.ok) {
@@ -266,7 +293,8 @@ export function CampaignReadSection({
         className="space-y-3 rounded-card border border-border bg-card p-5 shadow-e1"
       >
         <h2 className="text-base font-semibold text-foreground">Campaign read</h2>
-        {generating ? <CampaignReadWritingState /> : null}
+        {generating && pollTimedOut ? <CampaignReadStillWritingState /> : null}
+        {generating && !pollTimedOut ? <CampaignReadWritingState /> : null}
         {!generating && failed ? (
           <CampaignReadFailedState
             message={failed.errorMessage || "Generate failed"}
@@ -362,7 +390,8 @@ export function CampaignReadSection({
         </div>
       </div>
 
-      {generating ? <CampaignReadWritingState /> : null}
+      {generating && pollTimedOut ? <CampaignReadStillWritingState /> : null}
+      {generating && !pollTimedOut ? <CampaignReadWritingState /> : null}
       {!generating && failed ? (
         <CampaignReadFailedState
           message={failed.errorMessage || "Generate failed"}

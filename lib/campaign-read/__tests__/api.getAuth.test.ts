@@ -10,6 +10,7 @@ const checkAccessMock = mock.fn(async () => ({ ok: true as const, isClient: true
 const requireAdminMock = mock.fn(async () => ({
   response: new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 }),
 }))
+const failStaleMock = mock.fn(async () => 0)
 const listMock = mock.fn(async (input: { includeDrafts: boolean }) => ({
   published: {
     id: 1,
@@ -72,12 +73,16 @@ if (supportsMockModule()) {
     namedExports: { requireAdmin: requireAdminMock, requireRole: requireAdminMock },
   })
   await mock.module!("@/lib/campaign-read/repo", {
-    namedExports: { listCampaignReadsForMba: listMock },
+    namedExports: {
+      listCampaignReadsForMba: listMock,
+      failStaleGeneratingReads: failStaleMock,
+    },
   })
 }
 
 test("client GET returns only published", { skip }, async () => {
   listMock.mock.resetCalls()
+  failStaleMock.mock.resetCalls()
   const { GET } = await import("../../../app/api/campaign-reads/route.js")
   const req = new NextRequest(
     "http://localhost/api/campaign-reads?mba=golf001&version=4",
@@ -89,4 +94,5 @@ test("client GET returns only published", { skip }, async () => {
   assert.equal(body.draft, null)
   assert.deepEqual(body.history, [])
   assert.equal(listMock.mock.calls[0]!.arguments[0].includeDrafts, false)
+  assert.equal(failStaleMock.mock.calls.length, 1)
 })
