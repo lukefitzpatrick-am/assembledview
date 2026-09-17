@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
-import type { DirectCampaignGroup } from "@/lib/pacing/direct/types";
+import type { DirectCampaignGroup, DirectLineItemRow } from "@/lib/pacing/direct/types";
 import { DirectCampaignsTable } from "@/components/pacing-direct/DirectCampaignsTable";
+import { ChannelLayoutToggle } from "@/components/pacing/channel/ChannelLayoutToggle";
+import { ChannelPacingBoard } from "@/components/pacing/channel/ChannelPacingBoard";
 import {
   filterDirectCampaignGroups,
   isPacingClientFilterUnresolved,
@@ -16,12 +18,11 @@ import {
   PacingClientFilterUnavailable,
   PacingFilterCount,
 } from "@/components/pacing/PacingFilterResultMeta";
-import { PacingStatusSummary } from "@/components/pacing/PacingStatusSummary";
-import { countDirectOverviewStatus } from "@/lib/pacing/overview/countChannelOverviewStatus";
+import { lineCardFromDirect } from "@/lib/pacing/channel/lineCardModel";
+import { useChannelLayout } from "@/lib/pacing/channel/channelLayout";
 import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary";
 import { LoadingState } from "@/components/ui/states";
 import { resolveListViewState } from "@/lib/ui/viewState";
-import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel";
 import { Switch } from "@/components/ui/switch";
 
 type ApiShape = {
@@ -38,6 +39,21 @@ function countLineItems(campaigns: DirectCampaignGroup[]): number {
   return campaigns.reduce((n, g) => n + g.lineItems.length, 0);
 }
 
+type DirectBoardRow = { group: DirectCampaignGroup; line: DirectLineItemRow }
+
+function regroupDirectRows(rows: DirectBoardRow[]): DirectCampaignGroup[] {
+  const map = new Map<string, DirectCampaignGroup>()
+  for (const { group, line } of rows) {
+    const existing = map.get(group.mbaNumber)
+    if (!existing) {
+      map.set(group.mbaNumber, { ...group, lineItems: [line] })
+    } else {
+      existing.lineItems.push(line)
+    }
+  }
+  return [...map.values()]
+}
+
 const EMPTY_CAMPAIGNS: DirectCampaignGroup[] = [];
 
 export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClientProps) {
@@ -48,6 +64,7 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
 
   const filters = usePacingFilterStore((s) => s.filters);
   const resetToDefaults = usePacingFilterStore((s) => s.resetToDefaults);
+  const { layout } = useChannelLayout("direct");
   const { map: clientIdToName, settled: clientMapSettled } = usePacingClientIdToNameMap();
 
   const asOfDate = filters.as_of_date;
@@ -100,7 +117,17 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
     );
   }, [data, filters.client_ids, filters.media_types, filters.statuses, filters.search, clientIdToName]);
 
-  const statusCounts = useMemo(() => countDirectOverviewStatus(displayed), [displayed]);
+  const asOf = data?.asOfDate ?? asOfDate;
+  const boardItems = useMemo(
+    () =>
+      displayed.flatMap((group) =>
+        group.lineItems.map((line) => ({
+          model: lineCardFromDirect(group, line, asOf),
+          row: { group, line },
+        })),
+      ),
+    [displayed, asOf],
+  );
 
   const deferredFilters = useDeferredValue(filters);
   const isFilterPending = filters !== deferredFilters;
@@ -155,57 +182,62 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
               <PacingFilterCount shown={shown} total={total} />
             ) : null}
           </div>
-          {isFilterPending ? (
-            <span className="text-xs text-muted-foreground" aria-live="polite">
-              Updating…
-            </span>
-          ) : loading ? (
-            <span className="text-xs text-muted-foreground" aria-live="polite">
-              Refreshing…
-            </span>
-          ) : null}
+          <div className="flex items-center gap-3">
+            {isFilterPending ? (
+              <span className="text-xs text-muted-foreground" aria-live="polite">
+                Updating…
+              </span>
+            ) : loading ? (
+              <span className="text-xs text-muted-foreground" aria-live="polite">
+                Refreshing…
+              </span>
+            ) : null}
+            <ChannelLayoutToggle channel="direct" />
+          </div>
         </div>
       ) : null}
-      {viewState.status === "ready" && !clientFilterUnresolved ? (
-        <PacingStatusSummary counts={statusCounts} />
-      ) : null}
-      <Panel>
-        <PanelHeader>
-          <PanelTitle>Direct campaigns</PanelTitle>
-        </PanelHeader>
-        <PanelContent>
-          {/*
-            Lives above the table, not inside it: with nothing in scope the table
-            is replaced by an empty state, and the toggle that widens scope has to
-            stay reachable.
-          */}
-          <label className="mb-3 flex w-fit items-center gap-2 text-xs text-muted-foreground">
-            <Switch
-              checked={includeHistorical}
-              onCheckedChange={setIncludeHistorical}
-              aria-label="Show historical fixed-cost line items"
-            />
-            Show historical (was ever fixed cost)
-          </label>
-          {clientFilterUnresolved ? (
-            <PacingClientFilterUnavailable />
-          ) : clientFilterPending && data ? (
-            <LoadingState rows={4} />
-          ) : (
-            <ViewStateBoundary
-              state={viewState}
-              errorTitle="Failed to load direct pacing"
-              emptyTitle="No direct campaigns"
-              emptyMessage="No direct line items are in scope for this date."
-              filteredEmptyTitle="No matching line items"
-              filteredEmptyMessage="Clear filters to see all direct campaigns in scope."
-              loadingRows={6}
-            >
-              {(campaigns) => <DirectCampaignsTable campaigns={campaigns} />}
-            </ViewStateBoundary>
-          )}
-        </PanelContent>
-      </Panel>
+      {/*
+        Lives above the table, not inside it: with nothing in scope the table
+        is replaced by an empty state, and the toggle that widens scope has to
+        stay reachable.
+      */}
+      <label className="flex w-fit items-center gap-2 text-xs text-muted-foreground">
+        <Switch
+          checked={includeHistorical}
+          onCheckedChange={setIncludeHistorical}
+          aria-label="Show historical fixed-cost line items"
+        />
+        Show historical (was ever fixed cost)
+      </label>
+      {clientFilterUnresolved ? (
+        <PacingClientFilterUnavailable />
+      ) : clientFilterPending && data ? (
+        <LoadingState rows={4} />
+      ) : (
+        <ViewStateBoundary
+          state={viewState}
+          errorTitle="Failed to load direct pacing"
+          emptyTitle="No direct campaigns"
+          emptyMessage="No direct line items are in scope for this date."
+          filteredEmptyTitle="No matching line items"
+          filteredEmptyMessage="Clear filters to see all direct campaigns in scope."
+          loadingRows={6}
+        >
+          {() =>
+            data ? (
+              <ChannelPacingBoard
+                items={boardItems}
+                asOf={data.asOfDate}
+                channel="direct"
+                layout={layout}
+                renderTable={(rows) => (
+                  <DirectCampaignsTable campaigns={regroupDirectRows(rows)} />
+                )}
+              />
+            ) : null
+          }
+        </ViewStateBoundary>
+      )}
     </div>
   );
 }
