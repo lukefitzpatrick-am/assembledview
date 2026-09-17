@@ -22,7 +22,8 @@ Tracks actual delivery (Snowflake facts) against plan (Xano media plans) at line
 - `components/pacing-{search,social,programmatic}/LineItemPacingTable.tsx` — ~1.2k lines each, ~90% duplicated.
 - `lib/pacing/status.ts` — UI vocabulary: `pacingStatus()` maps maths `PacingStatus` → six spend/KPI bands + label + colour role (`ok` / `attention` / `problem`). Tiles, Status cells, filters, and legend share this helper. Ahead ≠ success green (attention); over-pacing stays distinct from ahead; No delivery (KPI) is problem.
 - `lib/pacing/deliveryStatusFromPct.ts` — campaign-delivery Ahead / Behind / On track from a pacing percent (behind below 90, ahead above 110). Used by programmatic / social / search / direct-digital adapters. Not the admin `PacingStatus` ladder.
-- `components/pacing/StatusLegend.tsx` + `PacingStatusSummary` — six-state definitions (±5% on-track band, ≥15% over-pacing) sit with the channel/overview tiles. Portfolio passes `portfolioLegendItems()` (`deliveryStatusFromPct`: behind under 90, ahead over 110, over-pacing when projected finish is 15% over budget).
+- `components/pacing/StatusLegend.tsx` + `PacingStatusSummary` — six-state definitions (±5% on-track band, ≥15% over-pacing) sit with the overview tiles. Channel tabs and Portfolio pass `portfolioLegendItems()` (`deliveryStatusFromPct`: behind under 90, ahead over 110, over-pacing when projected finish is 15% over budget).
+- `lib/pacing/channel/lineCardModel.ts` — adapters from each composer row to `LineCardModel`. Cards / tiles / `pacing.<channel>Layout` toggle live in `components/pacing/channel/*`. Tables stay as the Table view with their full More-columns set. Ad-serving cards keep ZERO-$ (verification only). Tests: `npm run test:pacing-channel`.
 - `components/pacing/pacingTableScroll.ts` — shared `PACING_TABLE_SCROLL_CLASSNAME` (`max-h-[calc(100dvh-36rem)]`) for the five channel tables and the portfolio campaign table.
 
 ## Snowflake tables

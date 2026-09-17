@@ -3,6 +3,8 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { ProgrammaticPacingCampaignRow } from "@/lib/pacing/programmatic/types";
 import { LineItemPacingTable } from "@/components/pacing-programmatic/LineItemPacingTable";
+import { ChannelLayoutToggle } from "@/components/pacing/channel/ChannelLayoutToggle";
+import { ChannelPacingBoard } from "@/components/pacing/channel/ChannelPacingBoard";
 import {
   applyPacingRowFilters,
   isPacingClientFilterUnresolved,
@@ -18,10 +20,9 @@ import {
   PacingFilterCount,
   PacingFilterEmptyState,
 } from "@/components/pacing/PacingFilterResultMeta";
-import { PacingStatusSummary } from "@/components/pacing/PacingStatusSummary";
-import { countProgrammaticOverviewStatus } from "@/lib/pacing/overview/countChannelOverviewStatus";
+import { lineCardFromProgrammatic } from "@/lib/pacing/channel/lineCardModel";
+import { useChannelLayout } from "@/lib/pacing/channel/channelLayout";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
-import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel";
 
 type ApiShape = { asOfDate: string; rows: ProgrammaticPacingCampaignRow[] };
 
@@ -37,6 +38,7 @@ export function ProgrammaticCampaignsClient({
   const [loading, setLoading] = useState(true);
 
   const filters = usePacingFilterStore((s) => s.filters);
+  const { layout } = useChannelLayout("programmatic");
   const { map: clientIdToName, settled: clientMapSettled } = usePacingClientIdToNameMap();
 
   useEffect(() => {
@@ -88,9 +90,10 @@ export function ProgrammaticCampaignsClient({
     );
   }, [data, filters.client_ids, filters.media_types, filters.statuses, filters.search, clientIdToName]);
 
-  const statusCounts = useMemo(
-    () => countProgrammaticOverviewStatus(displayed, data?.asOfDate ?? filters.as_of_date),
-    [displayed, data?.asOfDate, filters.as_of_date],
+  const asOf = data?.asOfDate ?? filters.as_of_date;
+  const boardItems = useMemo(
+    () => displayed.map((row) => ({ model: lineCardFromProgrammatic(row, asOf), row })),
+    [displayed, asOf],
   );
 
   const deferredFilters = useDeferredValue(filters);
@@ -129,36 +132,35 @@ export function ProgrammaticCampaignsClient({
             <PacingFilterCount shown={displayed.length} total={total} />
           ) : null}
         </div>
-        {isFilterPending ? (
-          <span className="text-xs text-muted-foreground" aria-live="polite">
-            Updating…
-          </span>
-        ) : null}
+        <div className="flex items-center gap-3">
+          {isFilterPending ? (
+            <span className="text-xs text-muted-foreground" aria-live="polite">
+              Updating…
+            </span>
+          ) : null}
+          <ChannelLayoutToggle channel="programmatic" />
+        </div>
       </div>
-      {!clientFilterPending && !clientFilterUnresolved ? (
-        <PacingStatusSummary counts={statusCounts} />
-      ) : null}
-      <Panel>
-        <PanelHeader>
-          <PanelTitle>Programmatic campaigns</PanelTitle>
-        </PanelHeader>
-        <PanelContent>
-          {total === 0 ? (
-            <EmptyState
-              title="No programmatic campaigns"
-              message="No programmatic line items are in scope for this date."
-            />
-          ) : clientFilterPending ? (
-            <LoadingState rows={4} />
-          ) : clientFilterUnresolved ? (
-            <PacingClientFilterUnavailable />
-          ) : filtersOn && displayed.length === 0 ? (
-            <PacingFilterEmptyState />
-          ) : (
-            <LineItemPacingTable rows={displayed} asOfDate={data.asOfDate} />
-          )}
-        </PanelContent>
-      </Panel>
+      {total === 0 ? (
+        <EmptyState
+          title="No programmatic campaigns"
+          message="No programmatic line items are in scope for this date."
+        />
+      ) : clientFilterPending ? (
+        <LoadingState rows={4} />
+      ) : clientFilterUnresolved ? (
+        <PacingClientFilterUnavailable />
+      ) : filtersOn && displayed.length === 0 ? (
+        <PacingFilterEmptyState />
+      ) : (
+        <ChannelPacingBoard
+          items={boardItems}
+          asOf={data.asOfDate}
+          channel="programmatic"
+          layout={layout}
+          renderTable={(rows) => <LineItemPacingTable rows={rows} asOfDate={data.asOfDate} />}
+        />
+      )}
     </div>
   );
 }

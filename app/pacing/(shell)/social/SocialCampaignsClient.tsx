@@ -3,6 +3,8 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types";
 import { LineItemPacingTable } from "@/components/pacing-social/LineItemPacingTable";
+import { ChannelLayoutToggle } from "@/components/pacing/channel/ChannelLayoutToggle";
+import { ChannelPacingBoard } from "@/components/pacing/channel/ChannelPacingBoard";
 import {
   applyPacingRowFilters,
   isPacingClientFilterUnresolved,
@@ -17,10 +19,9 @@ import {
   PacingFilterCount,
   PacingFilterEmptyState,
 } from "@/components/pacing/PacingFilterResultMeta";
-import { PacingStatusSummary } from "@/components/pacing/PacingStatusSummary";
-import { countSocialOverviewStatus } from "@/lib/pacing/overview/countChannelOverviewStatus";
+import { lineCardFromSocial } from "@/lib/pacing/channel/lineCardModel";
+import { useChannelLayout } from "@/lib/pacing/channel/channelLayout";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
-import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel";
 
 type ApiShape = { asOfDate: string; rows: SocialPacingCampaignRow[] };
 
@@ -34,6 +35,7 @@ export function SocialCampaignsClient({ isAdmin: _isAdmin }: SocialCampaignsClie
   const [loading, setLoading] = useState(true);
 
   const filters = usePacingFilterStore((s) => s.filters);
+  const { layout } = useChannelLayout("social");
   const { map: clientIdToName, settled: clientMapSettled } = usePacingClientIdToNameMap();
 
   useEffect(() => {
@@ -85,9 +87,10 @@ export function SocialCampaignsClient({ isAdmin: _isAdmin }: SocialCampaignsClie
     );
   }, [data, filters.client_ids, filters.media_types, filters.statuses, filters.search, clientIdToName]);
 
-  const statusCounts = useMemo(
-    () => countSocialOverviewStatus(displayed, data?.asOfDate ?? filters.as_of_date),
-    [displayed, data?.asOfDate, filters.as_of_date],
+  const asOf = data?.asOfDate ?? filters.as_of_date;
+  const boardItems = useMemo(
+    () => displayed.map((row) => ({ model: lineCardFromSocial(row, asOf), row })),
+    [displayed, asOf],
   );
 
   const deferredFilters = useDeferredValue(filters);
@@ -126,36 +129,35 @@ export function SocialCampaignsClient({ isAdmin: _isAdmin }: SocialCampaignsClie
             <PacingFilterCount shown={displayed.length} total={total} />
           ) : null}
         </div>
-        {isFilterPending ? (
-          <span className="text-xs text-muted-foreground" aria-live="polite">
-            Updating…
-          </span>
-        ) : null}
+        <div className="flex items-center gap-3">
+          {isFilterPending ? (
+            <span className="text-xs text-muted-foreground" aria-live="polite">
+              Updating…
+            </span>
+          ) : null}
+          <ChannelLayoutToggle channel="social" />
+        </div>
       </div>
-      {!clientFilterPending && !clientFilterUnresolved ? (
-        <PacingStatusSummary counts={statusCounts} />
-      ) : null}
-      <Panel>
-        <PanelHeader>
-          <PanelTitle>Social campaigns</PanelTitle>
-        </PanelHeader>
-        <PanelContent>
-          {total === 0 ? (
-            <EmptyState
-              title="No social campaigns"
-              message="No social line items are in scope for this date."
-            />
-          ) : clientFilterPending ? (
-            <LoadingState rows={4} />
-          ) : clientFilterUnresolved ? (
-            <PacingClientFilterUnavailable />
-          ) : filtersOn && displayed.length === 0 ? (
-            <PacingFilterEmptyState />
-          ) : (
-            <LineItemPacingTable rows={displayed} asOfDate={data.asOfDate} />
-          )}
-        </PanelContent>
-      </Panel>
+      {total === 0 ? (
+        <EmptyState
+          title="No social campaigns"
+          message="No social line items are in scope for this date."
+        />
+      ) : clientFilterPending ? (
+        <LoadingState rows={4} />
+      ) : clientFilterUnresolved ? (
+        <PacingClientFilterUnavailable />
+      ) : filtersOn && displayed.length === 0 ? (
+        <PacingFilterEmptyState />
+      ) : (
+        <ChannelPacingBoard
+          items={boardItems}
+          asOf={data.asOfDate}
+          channel="social"
+          layout={layout}
+          renderTable={(rows) => <LineItemPacingTable rows={rows} asOfDate={data.asOfDate} />}
+        />
+      )}
     </div>
   );
 }

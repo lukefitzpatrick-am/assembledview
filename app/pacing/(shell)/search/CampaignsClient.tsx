@@ -3,6 +3,8 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { KpiTargets, SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
 import { LineItemPacingTable } from "@/components/pacing-search";
+import { ChannelLayoutToggle } from "@/components/pacing/channel/ChannelLayoutToggle";
+import { ChannelPacingBoard } from "@/components/pacing/channel/ChannelPacingBoard";
 import {
   applyPacingRowFilters,
   isPacingClientFilterUnresolved,
@@ -17,10 +19,9 @@ import {
   PacingFilterCount,
   PacingFilterEmptyState,
 } from "@/components/pacing/PacingFilterResultMeta";
-import { PacingStatusSummary } from "@/components/pacing/PacingStatusSummary";
-import { countSearchOverviewStatus } from "@/lib/pacing/overview/countChannelOverviewStatus";
+import { lineCardFromSearch } from "@/lib/pacing/channel/lineCardModel";
+import { useChannelLayout } from "@/lib/pacing/channel/channelLayout";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
-import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel";
 
 type ApiShape = { asOfDate: string; rows: SearchPacingCampaignRow[] };
 
@@ -34,6 +35,7 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
   const [loading, setLoading] = useState(true);
 
   const filters = usePacingFilterStore((s) => s.filters);
+  const { layout } = useChannelLayout("search");
   const { map: clientIdToName, settled: clientMapSettled } = usePacingClientIdToNameMap();
 
   useEffect(() => {
@@ -100,9 +102,10 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
     );
   }, [data, filters.client_ids, filters.media_types, filters.statuses, filters.search, clientIdToName]);
 
-  const statusCounts = useMemo(
-    () => countSearchOverviewStatus(displayed, data?.asOfDate ?? filters.as_of_date),
-    [displayed, data?.asOfDate, filters.as_of_date],
+  const asOf = data?.asOfDate ?? filters.as_of_date;
+  const boardItems = useMemo(
+    () => displayed.map((row) => ({ model: lineCardFromSearch(row, asOf), row })),
+    [displayed, asOf],
   );
 
   const deferredFilters = useDeferredValue(filters);
@@ -141,40 +144,41 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
             <PacingFilterCount shown={displayed.length} total={total} />
           ) : null}
         </div>
-        {isFilterPending ? (
-          <span className="text-xs text-muted-foreground" aria-live="polite">
-            Updating…
-          </span>
-        ) : null}
+        <div className="flex items-center gap-3">
+          {isFilterPending ? (
+            <span className="text-xs text-muted-foreground" aria-live="polite">
+              Updating…
+            </span>
+          ) : null}
+          <ChannelLayoutToggle channel="search" />
+        </div>
       </div>
-      {!clientFilterPending && !clientFilterUnresolved ? (
-        <PacingStatusSummary counts={statusCounts} />
-      ) : null}
-      <Panel>
-        <PanelHeader>
-          <PanelTitle>Search campaigns</PanelTitle>
-        </PanelHeader>
-        <PanelContent>
-          {total === 0 ? (
-            <EmptyState
-              title="No search campaigns"
-              message="No search line items are in scope for this date."
-            />
-          ) : clientFilterPending ? (
-            <LoadingState rows={4} />
-          ) : clientFilterUnresolved ? (
-            <PacingClientFilterUnavailable />
-          ) : filtersOn && displayed.length === 0 ? (
-            <PacingFilterEmptyState />
-          ) : (
+      {total === 0 ? (
+        <EmptyState
+          title="No search campaigns"
+          message="No search line items are in scope for this date."
+        />
+      ) : clientFilterPending ? (
+        <LoadingState rows={4} />
+      ) : clientFilterUnresolved ? (
+        <PacingClientFilterUnavailable />
+      ) : filtersOn && displayed.length === 0 ? (
+        <PacingFilterEmptyState />
+      ) : (
+        <ChannelPacingBoard
+          items={boardItems}
+          asOf={data.asOfDate}
+          channel="search"
+          layout={layout}
+          renderTable={(rows) => (
             <LineItemPacingTable
-              rows={displayed}
+              rows={rows}
               isAdmin={isAdmin}
               onRowKpiTargetsUpdated={handleRowKpiTargetsUpdated}
             />
           )}
-        </PanelContent>
-      </Panel>
+        />
+      )}
     </div>
   );
 }
