@@ -21,6 +21,8 @@ export type ResolveLivePlanLineItemsArgs = {
   endpoints: string[]
   asOfDate: string
   allowedClientSlugs: Set<string> | null
+  /** When set, only this MBA is resolved — per-MBA work, not the book. */
+  mbaNumber?: string
   /** Label for the empty-result warn (e.g. "programmatic"). */
   channelLabel?: string
 }
@@ -65,9 +67,12 @@ function toMaster(row: Record<string, unknown>): MediaPlanMaster | null {
 export function filterLiveMasters(
   masters: MediaPlanMaster[],
   asOfDate: string,
-  allowedClientSlugs: Set<string> | null
+  allowedClientSlugs: Set<string> | null,
+  mbaNumber?: string | null,
 ): MediaPlanMaster[] {
+  const wantMba = mbaNumber?.trim().toLowerCase() || ""
   return masters.filter((m) => {
+    if (wantMba && norm(m.mba_number) !== wantMba) return false
     if (!isLiveCampaignStatus(m.campaign_status, m.campaign_start_date, m.campaign_end_date, asOfDate)) {
       return false
     }
@@ -223,7 +228,12 @@ async function resolveFromPostgres(
   const masters = (await readPlanMasters())
     .map((r) => toMaster(r as Record<string, unknown>))
     .filter((m): m is MediaPlanMaster => m !== null)
-  const liveMasters = filterLiveMasters(masters, args.asOfDate, args.allowedClientSlugs)
+  const liveMasters = filterLiveMasters(
+    masters,
+    args.asOfDate,
+    args.allowedClientSlugs,
+    args.mbaNumber,
+  )
   if (liveMasters.length === 0) return []
 
   const versions = await readPlanVersions()
@@ -298,7 +308,12 @@ async function resolveFromXano(
   logTag: string
 ): Promise<LivePlanLineItemRow[]> {
   const masters = await fetchAllMasters()
-  const liveMasters = filterLiveMasters(masters, args.asOfDate, args.allowedClientSlugs)
+  const liveMasters = filterLiveMasters(
+    masters,
+    args.asOfDate,
+    args.allowedClientSlugs,
+    args.mbaNumber,
+  )
   if (liveMasters.length === 0) return []
 
   const versionRowsByMba = await fetchCurrentVersionRowsForMasters(liveMasters)

@@ -16,6 +16,7 @@ import { type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
 export type GetLiveAdServingLineItemsArgs = {
   asOfDate: string;
   allowedClientSlugs: Set<string> | null;
+  mbaNumber?: string;
 };
 
 export type LiveAdServingLineItemInput = {
@@ -71,6 +72,7 @@ export async function resolveLiveAdServingLineItemInputs(
     endpoints: DIGITAL_TABLES.map((spec) => spec.tableName),
     asOfDate: args.asOfDate,
     allowedClientSlugs: args.allowedClientSlugs,
+    mbaNumber: args.mbaNumber,
     channelLabel: "ad-serving",
   });
 

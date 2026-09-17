@@ -59,4 +59,18 @@ export type LineCardModel = {
   sourceState: ChannelSourceState
   burstMonth: string | null
   verificationOnly: boolean
+  channel: ChannelTabKey
+  buyType: string | null
+  fixedCost: boolean
+  impressions: number | null
+  clicks: number | null
+  ctr: number | null
+  cpc: number | null
+  cpm: number | null
+  conversions: number | null
+  views: number | null
+  remainingBurst: number | null
+  burstStart: string | null
+  burstEnd: string | null
+  burstDays: number | null
 }

@@ -1,5 +1,7 @@
-import Link from "next/link"
+"use client"
+
 import { Badge } from "@/components/ui/badge"
+import { CampaignDetailTrigger, useCampaignDetail } from "@/components/pacing/detail/CampaignDetailContext"
 import { Card } from "@/components/ui/card"
 import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import type { CampaignPacingRow, ChannelPacingRow } from "@/lib/pacing/portfolio/types"
@@ -68,6 +70,7 @@ export function CampaignPacingCard({
   const timeFill = clampPct(row.timePct)
   const tick = clampPct(row.timePct)
   const href = `/dashboard/${row.clientSlug}/${row.mbaNumber}`
+  const detail = useCampaignDetail()
   const finishLabel = band === "on-track" ? "Expected by now" : "Projected finish"
   const finishValue =
     band === "on-track"
@@ -84,7 +87,9 @@ export function CampaignPacingCard({
       className={cn(
         "flex min-w-0 min-[640px]:min-w-[360px] flex-col gap-3 p-4",
         muted && "opacity-75",
+        detail && "cursor-pointer",
       )}
+      onClick={detail ? () => detail.open(row.mbaNumber) : undefined}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -216,12 +221,13 @@ export function CampaignPacingCard({
 
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <time dateTime={asOf}>Updated {asOf}</time>
-        <Link
+        <CampaignDetailTrigger
+          mba={row.mbaNumber}
           href={href}
           className="font-semibold text-primary hover:underline"
         >
           Open campaign →
-        </Link>
+        </CampaignDetailTrigger>
       </div>
     </Card>
   )

@@ -1,5 +1,7 @@
-import Link from "next/link"
+"use client"
+
 import { Badge } from "@/components/ui/badge"
+import { CampaignDetailTrigger, useCampaignDetail } from "@/components/pacing/detail/CampaignDetailContext"
 import { Card } from "@/components/ui/card"
 import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import type { LineCardModel, LineCardPace } from "@/lib/pacing/channel/lineCardTypes"
@@ -84,10 +86,17 @@ export function LinePacingCard({
         ? clampPct(model.burstPct)
         : 0
   const href = `/dashboard/${model.clientSlug}/${model.mba}`
+  const detail = useCampaignDetail()
   const statMetrics = model.metrics.slice(0, 2)
 
   return (
-    <Card className="flex min-w-0 min-[640px]:min-w-[360px] flex-col gap-3 p-4">
+    <Card
+      className={cn(
+        "flex min-w-0 min-[640px]:min-w-[360px] flex-col gap-3 p-4",
+        detail && "cursor-pointer",
+      )}
+      onClick={detail ? () => detail.open(model.mba) : undefined}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -270,9 +279,13 @@ export function LinePacingCard({
           Line {formatDateRange(model.lineStart, model.lineEnd)}
           {model.targeting ? ` · Targeting: ${model.targeting}` : ""}
         </span>
-        <Link href={href} className="shrink-0 font-semibold text-primary hover:underline">
+        <CampaignDetailTrigger
+          mba={model.mba}
+          href={href}
+          className="shrink-0 font-semibold text-primary hover:underline"
+        >
           Details →
-        </Link>
+        </CampaignDetailTrigger>
       </div>
       <time className="sr-only" dateTime={asOf}>
         As of {asOf}

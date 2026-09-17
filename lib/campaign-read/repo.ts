@@ -265,6 +265,24 @@ export async function getCampaignReadById(id: number): Promise<CampaignRead | nu
   }
 }
 
+export async function getLatestPublishedCampaignRead(
+  mbaNumber: string,
+): Promise<CampaignRead | null> {
+  const db = getDb()
+  try {
+    const [row] = await db
+      .select(SELECT)
+      .from(schema.campaignReads)
+      .where(and(mbaMatch(mbaNumber), eq(schema.campaignReads.status, "published")))
+      .orderBy(desc(schema.campaignReads.publishedAt), desc(schema.campaignReads.id))
+      .limit(1)
+    return row ? mapRow(row) : null
+  } catch (err) {
+    if (isMissingTable(err)) return null
+    throw err
+  }
+}
+
 export async function getPublishedCampaignRead(
   mbaNumber: string,
   versionNumber: number,

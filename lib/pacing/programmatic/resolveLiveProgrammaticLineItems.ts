@@ -19,6 +19,7 @@ import { type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
 export type GetLiveProgrammaticLineItemsArgs = {
   asOfDate: string;
   allowedClientSlugs: Set<string> | null;
+  mbaNumber?: string;
 };
 
 export type LiveProgrammaticLineItemInput = {
@@ -116,6 +117,7 @@ export async function resolveLiveProgrammaticLineItemInputs(
     endpoints: PROG_TABLES.map((spec) => spec.tableName),
     asOfDate: args.asOfDate,
     allowedClientSlugs: args.allowedClientSlugs,
+    mbaNumber: args.mbaNumber,
     channelLabel: "programmatic",
   });
 
