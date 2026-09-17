@@ -7,6 +7,7 @@ import {
   SortableTableHeader,
   type SortDirection,
 } from "@/components/ui/sortable-table-header"
+import { CampaignDetailTrigger } from "@/components/pacing/detail/CampaignDetailContext"
 import { PACING_TABLE_SCROLL_CLASSNAME } from "@/components/pacing/pacingTableScroll"
 import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import type { CampaignPacingRow, ChannelPacingRow } from "@/lib/pacing/portfolio/types"
@@ -214,6 +215,9 @@ export function CampaignPacingTable({ rows }: { rows: CampaignPacingRow[] }) {
             <th className="sticky top-0 z-20 bg-background px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Why
             </th>
+            <th className="sticky top-0 z-20 bg-background px-3 py-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              View
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -311,6 +315,15 @@ function CampaignGroup({
         <td className="max-w-[220px] truncate px-3 py-2.5 align-middle text-xs text-muted-foreground" title={row.why}>
           {row.why || "—"}
         </td>
+        <td className="px-3 py-2.5 text-right align-middle">
+          <CampaignDetailTrigger
+            mba={row.mbaNumber}
+            href={`/dashboard/${row.clientSlug}/${row.mbaNumber}`}
+            className="text-xs font-semibold text-primary hover:underline"
+          >
+            View
+          </CampaignDetailTrigger>
+        </td>
       </tr>
       {isOpen
         ? row.channels.map((channel) => {
@@ -348,6 +361,7 @@ function CampaignGroup({
                 </td>
                 <td className="px-3 py-2 text-right align-middle" />
                 <td className="num px-3 py-2 text-right align-middle">—</td>
+                <td className="px-3 py-2 align-middle" />
                 <td className="px-3 py-2 align-middle" />
                 <td className="px-3 py-2 align-middle" />
               </tr>

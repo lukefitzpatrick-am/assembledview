@@ -84,16 +84,14 @@ function finishModel(base: Draft): LineCardModel {
     sourceState: base.sourceState,
     burstClause,
   })
-  const { _asOf, _burstEnd, burstStart, ...model } = base
+  const { _asOf, _burstEnd, ...model } = base
   void _asOf
   void _burstEnd
-  void burstStart
   return { ...model, why }
 }
 
 type Draft = Omit<LineCardModel, "why"> & {
   _asOf: string
-  burstStart: string | null
   _burstEnd: string | null
 }
 
@@ -122,6 +120,18 @@ function spendDraft(input: {
   kpis: LineCardKpi[]
   kpiStatus: LineCardModel["kpiStatus"]
   verificationOnly?: boolean
+  channel: LineCardModel["channel"]
+  buyType?: string | null
+  fixedCost?: boolean
+  impressions?: number | null
+  clicks?: number | null
+  ctr?: number | null
+  cpc?: number | null
+  cpm?: number | null
+  conversions?: number | null
+  views?: number | null
+  remainingBurst?: number | null
+  burstDays?: number | null
 }): Draft {
   const timePct = lineTimePct(input.start, input.end, input.asOf)
   const burstTimePct =
@@ -182,8 +192,21 @@ function spendDraft(input: {
     sourceState,
     burstMonth: burstMonthLabel(input.burstStart),
     verificationOnly: input.verificationOnly === true,
+    channel: input.channel,
+    buyType: input.buyType ?? null,
+    fixedCost: input.fixedCost === true,
+    impressions: input.impressions ?? null,
+    clicks: input.clicks ?? null,
+    ctr: input.ctr ?? null,
+    cpc: input.cpc ?? null,
+    cpm: input.cpm ?? null,
+    conversions: input.conversions ?? null,
+    views: input.views ?? null,
+    remainingBurst: input.remainingBurst ?? null,
+    burstDays: input.burstDays ?? null,
     _asOf: input.asOf,
     burstStart: input.burstStart,
+    burstEnd: input.burstEnd,
     _burstEnd: input.burstEnd,
   }
 }
@@ -231,6 +254,16 @@ export function lineCardFromSearch(row: SearchPacingCampaignRow, asOf: string): 
     hasFactRows: row.impressions > 0 || row.clicks > 0 || row.spendToDateLineTotal > 0,
     spendMode: "actual",
     kpiStatus: computeRowKpiStatus(row),
+    channel: "search",
+    buyType: row.buyType || null,
+    fixedCost: row.fixedCostMedia === true,
+    impressions: finite(row.impressions),
+    clicks: finite(row.clicks),
+    ctr: row.ctr,
+    cpc: row.cpc,
+    conversions: finite(row.conversions),
+    remainingBurst: row.spendRemainingCurrentBurst,
+    burstDays: row.burstDays,
     metrics: [
       { label: "Clicks", value: formatCount(row.clicks) },
       { label: "Conversions", value: formatCount(row.conversions) },
@@ -288,6 +321,15 @@ export function lineCardFromSocial(row: SocialPacingCampaignRow, asOf: string): 
     hasFactRows: row.impressions > 0 || row.spendToDateLineTotal > 0,
     spendMode: "actual",
     kpiStatus: computeSocialRowKpiStatus(row),
+    channel: "social",
+    buyType: row.buyType || null,
+    impressions: finite(row.impressions),
+    clicks: finite(row.clicks),
+    ctr: row.ctr,
+    conversions: finite(row.results),
+    views: finite(row.videoViews),
+    remainingBurst: row.spendRemainingCurrentBurst,
+    burstDays: row.burstDays,
     metrics,
     kpis,
   })
@@ -354,6 +396,16 @@ export function lineCardFromProgrammatic(
     hasFactRows: row.impressions > 0 || row.videoViews > 0 || row.spendToDateLineTotal > 0,
     spendMode: programmaticSpendMode(row),
     kpiStatus: computeProgrammaticRowKpiStatus(row),
+    channel: "programmatic",
+    buyType: row.buyType || null,
+    fixedCost: row.fixedCostMedia === true,
+    impressions: finite(row.impressions),
+    clicks: finite(row.clicks),
+    ctr: row.ctr,
+    cpm: row.cpm,
+    views: finite(row.videoViews),
+    remainingBurst: row.spendRemainingCurrentBurst,
+    burstDays: row.burstDays,
     metrics,
     kpis,
   })
@@ -436,8 +488,21 @@ export function lineCardFromAdServing(
     sourceState,
     burstMonth: burstMonthLabel(burst?.startDate),
     verificationOnly: true,
-    _asOf: asOf,
+    channel: "ad-serving",
+    buyType: null,
+    fixedCost: false,
+    impressions: finite(row.impressions),
+    clicks: finite(row.clicks),
+    ctr: row.ctr,
+    cpc: null,
+    cpm: null,
+    conversions: null,
+    views: finite(row.videoCompletes),
+    remainingBurst: null,
     burstStart: burst?.startDate ?? null,
+    burstEnd: burst?.endDate ?? null,
+    burstDays: null,
+    _asOf: asOf,
     _burstEnd: burst?.endDate ?? null,
   }
   return finishModel(draft)
@@ -482,6 +547,10 @@ export function lineCardFromDirect(
     hasFactRows: line.totalReported > 0 || line.totalActual > 0,
     spendMode: "reported",
     kpiStatus: null,
+    channel: "direct",
+    buyType: line.buyType || null,
+    fixedCost: true,
+    remainingBurst: burst ? burst.budget - burst.reportedSpend : null,
     metrics: [
       { label: "Reported", value: formatWholeMoney(line.totalReported) },
       { label: "Actual platform", value: formatWholeMoney(line.totalActual) },

@@ -22,6 +22,7 @@ export type FetchDirectPacingRowsArgs = {
   allowedClientSlugs: Set<string> | null;
   /** When false (default), only IS_CURRENTLY_FIXED_COST. When true, include WAS_EVER_FIXED_COST. */
   includeHistorical: boolean;
+  mbaNumber?: string;
 };
 
 type LineItemFactRow = {
@@ -282,10 +283,12 @@ export async function fetchDirectPacingRows(
       ? await fetchCurrentVersionRowsForMasters(relevantMasters)
       : new Map();
 
+  const wantMba = args.mbaNumber?.trim().toLowerCase() || "";
   const scopedFacts = lineFacts.filter((li) => {
     const mba = String(li.MBA_NUMBER ?? "")
       .trim()
       .toLowerCase();
+    if (wantMba && mba !== wantMba) return false;
     const master = masterByMba.get(mba);
     if (!master) return false;
     if (args.allowedClientSlugs !== null) {

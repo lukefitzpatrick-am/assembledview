@@ -4,6 +4,7 @@ import { auth0 } from "@/lib/auth0"
 import { getPacingClientScopeIds } from "@/lib/pacing/pacingScopeServer"
 import { PacingFilterProvider } from "@/lib/pacing/usePacingFilterStore"
 import { getUserRoles } from "@/lib/rbac"
+import { CampaignDetailProvider } from "@/components/pacing/detail/CampaignDetailContext"
 import { PacingShell } from "@/components/pacing/PacingShell"
 
 export default async function PacingShellLayout({ children }: { children: ReactNode }) {
@@ -19,7 +20,9 @@ export default async function PacingShellLayout({ children }: { children: ReactN
 
   return (
     <PacingFilterProvider initialAssignedClientIds={assignedStr}>
-      <PacingShell isAdmin={isAdmin}>{children}</PacingShell>
+      <CampaignDetailProvider>
+        <PacingShell isAdmin={isAdmin}>{children}</PacingShell>
+      </CampaignDetailProvider>
     </PacingFilterProvider>
   )
 }

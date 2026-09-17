@@ -28,6 +28,7 @@ import {
 } from "@/lib/pacing/kpi/computeKpiStatus";
 import { kpiStatusPresentation, pacingStatusFromBand } from "@/lib/pacing/status";
 import { PACING_TABLE_SCROLL_CLASSNAME } from "@/components/pacing/pacingTableScroll";
+import { useCampaignDetail } from "@/components/pacing/detail/CampaignDetailContext";
 import {
   formatRatioAsPercent,
   formatVariancePercent,
@@ -805,6 +806,7 @@ function FragmentForLineItem({
 }) {
   const hasChildren = row.platformCampaigns.length > 0;
   const clientSlug = slugifyClientName(row.clientName);
+  const detail = useCampaignDetail();
 
   return (
     <Fragment>
@@ -949,7 +951,19 @@ function FragmentForLineItem({
                 Edit
               </Link>
             </Button>
-            {clientSlug ? (
+            {clientSlug && detail ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-7 px-2.5 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  detail.open(row.mbaNumber)
+                }}
+              >
+                View
+              </Button>
+            ) : clientSlug ? (
               <Button variant="secondary" size="sm" className="h-7 px-2.5 text-xs" asChild>
                 <Link
                   href={`/dashboard/${encodeURIComponent(clientSlug)}/${encodeURIComponent(row.mbaNumber)}`}

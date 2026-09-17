@@ -28,6 +28,8 @@ const XANO_MASTER_FETCH_CONCURRENCY = 8;
 export type FetchSearchPacingCampaignRowsArgs = {
   asOfDate: string;
   allowedClientSlugs: Set<string> | null;
+  /** When set, only this MBA is resolved — per-MBA work, not the book. */
+  mbaNumber?: string;
 };
 
 export type GetLiveSearchLineItemsArgs = FetchSearchPacingCampaignRowsArgs;
@@ -61,7 +63,9 @@ async function resolveSearchLineItemsFromPostgres(
   const masters = (await readPlanMasters())
     .map((r) => toMaster(r as Record<string, unknown>))
     .filter((m): m is MediaPlanMaster => m !== null);
+  const wantMba = args.mbaNumber?.trim().toLowerCase() || "";
   const liveMasters = masters.filter((m) => {
+    if (wantMba && norm(m.mba_number) !== wantMba) return false;
     if (!isLiveCampaignStatus(m.campaign_status, m.campaign_start_date, m.campaign_end_date, args.asOfDate)) return false;
     if (!m.campaign_start_date || !m.campaign_end_date) return false;
     if (args.asOfDate < m.campaign_start_date || args.asOfDate > m.campaign_end_date) return false;
@@ -75,14 +79,14 @@ async function resolveSearchLineItemsFromPostgres(
 
   const versions = await readPlanVersions();
   const versionRowsByMba = new Map<string, VersionRow>();
-  const wantMba = new Set(liveMasters.map((m) => norm(m.mba_number)));
+  const liveMbaSet = new Set(liveMasters.map((m) => norm(m.mba_number)));
   const wantVersion = new Map(
     liveMasters.map((m) => [norm(m.mba_number), publishedVersionFromMaster(m)] as const)
   );
   for (const raw of versions) {
     const row = raw as Record<string, unknown>;
     const mba = norm(row.mba_number);
-    if (!mba || !wantMba.has(mba)) continue;
+    if (!mba || !liveMbaSet.has(mba)) continue;
     const versionNumber = parseVersion(row.version_number);
     if (versionNumber !== wantVersion.get(mba)) continue;
     const id = Number(row.id);
@@ -145,7 +149,9 @@ async function resolveSearchLineItemsFromXano(
   args: GetLiveSearchLineItemsArgs
 ): Promise<LiveSearchLineItemInput[]> {
   const masters = await fetchAllMasters();
+  const wantMba = args.mbaNumber?.trim().toLowerCase() || "";
   const liveMasters = masters.filter((m) => {
+    if (wantMba && norm(m.mba_number) !== wantMba) return false;
     if (!isLiveCampaignStatus(m.campaign_status, m.campaign_start_date, m.campaign_end_date, args.asOfDate)) return false;
     if (!m.campaign_start_date || !m.campaign_end_date) return false;
     if (args.asOfDate < m.campaign_start_date || args.asOfDate > m.campaign_end_date) return false;

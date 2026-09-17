@@ -42,6 +42,7 @@ export default defineConfig({
       "components/pacing/portfolio/__tests__/PortfolioLayoutToggle.test.tsx",
       "components/pacing/channel/__tests__/LinePacingCard.test.tsx",
       "components/pacing/channel/__tests__/ChannelLayoutToggle.test.tsx",
+      "components/pacing/detail/__tests__/CampaignDetailModal.test.tsx",
       "components/tasks/__tests__/TaskMbaSelect.render.test.tsx",
       "components/tasks/__tests__/TaskChecklist.render.test.tsx",
       "components/dashboard/__tests__/SpendingInsightsSection.render.test.tsx",

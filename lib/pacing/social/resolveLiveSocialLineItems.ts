@@ -19,6 +19,7 @@ const SOCIAL_ENDPOINT = "media_plan_social";
 export type GetLiveSocialLineItemsArgs = {
   asOfDate: string;
   allowedClientSlugs: Set<string> | null;
+  mbaNumber?: string;
 };
 
 export type LiveSocialLineItemInput = {
@@ -49,6 +50,7 @@ export async function resolveLiveSocialLineItemInputs(
     endpoints: [SOCIAL_ENDPOINT],
     asOfDate: args.asOfDate,
     allowedClientSlugs: args.allowedClientSlugs,
+    mbaNumber: args.mbaNumber,
     channelLabel: "social",
   });
   return rows.map((row) => ({
