@@ -17,7 +17,7 @@ import {
   computeProgrammaticRowKpiStatus,
 } from "@/lib/pacing/programmatic/computeProgrammaticKpiStatus"
 import { labelForMetric } from "@/lib/pacing/kpi/formatKpi"
-import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs"
+import { slugifyPlanClientName } from "@/lib/pacing/scope/slugifyPlanClientName"
 import { computeDaysPassed } from "@/lib/pacing/maths"
 import type { ChannelSpendMode } from "@/lib/pacing/portfolio/types"
 import type { LineCardKpi, LineCardMetric, LineCardModel } from "./lineCardTypes"
