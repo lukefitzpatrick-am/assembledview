@@ -58,6 +58,7 @@ if (supportsMockModule()) {
       insertCampaignReadGenerating: insertGeneratingMock,
       completeCampaignReadDraft: completeMock,
       failCampaignRead: mock.fn(),
+      failStaleGeneratingReads: async () => 0,
       insertCampaignReadDraft: mock.fn(),
     },
   })

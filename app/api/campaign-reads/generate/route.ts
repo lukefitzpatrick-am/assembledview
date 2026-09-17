@@ -1,8 +1,8 @@
+import { after } from "next/server"
 import { NextRequest, NextResponse } from "next/server"
 
 import {
   runCampaignReadJob,
-  scheduleCampaignReadContinuation,
   startCampaignReadGeneration,
 } from "@/lib/campaign-read/generate"
 import { CampaignReadError } from "@/lib/campaign-read/repo"
@@ -78,16 +78,31 @@ export async function POST(request: NextRequest) {
       versionNumber,
       generatedByEmail: email,
     })
-    scheduleCampaignReadContinuation(() =>
-      runCampaignReadJob({
+    after(async () => {
+      console.log("[campaign-read] generate job start", {
         id: item.id,
-        mbaNumber,
-        versionNumber,
-        generatedByEmail: email,
-        userSub,
-        clientSlug,
-      }),
-    )
+        mba: mbaNumber,
+        version: versionNumber,
+      })
+      try {
+        await runCampaignReadJob({
+          id: item.id,
+          mbaNumber,
+          versionNumber,
+          generatedByEmail: email,
+          userSub,
+          clientSlug,
+        })
+      } catch (err) {
+        console.error("[campaign-read] generate job failed", err)
+      } finally {
+        console.log("[campaign-read] generate job end", {
+          id: item.id,
+          mba: mbaNumber,
+          version: versionNumber,
+        })
+      }
+    })
     return NextResponse.json({ item }, { status: 202 })
   } catch (err) {
     if (err instanceof CampaignReadError) {

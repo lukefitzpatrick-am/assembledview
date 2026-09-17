@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { mock, test } from "node:test"
-import { NextRequest } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 
 import { mockModuleSkip, supportsMockModule } from "../../test/mockModuleHarness.js"
 
@@ -32,11 +32,18 @@ const pending = {
 
 const startMock = mock.fn(async () => ({ ...pending }))
 const runJobMock = mock.fn(async () => ({ ...pending, status: "draft" as const }))
-const scheduleMock = mock.fn((work: () => Promise<void>) => {
+const afterMock = mock.fn((work: () => unknown) => {
   void work()
 })
 
 if (supportsMockModule()) {
+  await mock.module!("next/server", {
+    namedExports: {
+      NextRequest,
+      NextResponse,
+      after: afterMock,
+    },
+  })
   await mock.module!("@/lib/requireRole", {
     namedExports: {
       requireAdmin: async () => ({
@@ -51,15 +58,14 @@ if (supportsMockModule()) {
     namedExports: {
       startCampaignReadGeneration: startMock,
       runCampaignReadJob: runJobMock,
-      scheduleCampaignReadContinuation: scheduleMock,
     },
   })
 }
 
-test("POST generate returns 202 generating and continues the job", { skip }, async () => {
+test("POST generate returns 202 generating and after() continues the job", { skip }, async () => {
   startMock.mock.resetCalls()
   runJobMock.mock.resetCalls()
-  scheduleMock.mock.resetCalls()
+  afterMock.mock.resetCalls()
   process.env.AVA_ENGINE = "on"
   process.env.ANTHROPIC_API_KEY = "test-key"
   const { POST } = await import("../../../app/api/campaign-reads/generate/route.js")
@@ -74,6 +80,7 @@ test("POST generate returns 202 generating and continues the job", { skip }, asy
   assert.equal(body.item.id, 11)
   assert.equal(body.item.status, "generating")
   assert.equal(startMock.mock.calls.length, 1)
-  assert.equal(scheduleMock.mock.calls.length, 1)
+  assert.equal(afterMock.mock.calls.length, 1)
+  assert.equal(typeof afterMock.mock.calls[0]!.arguments[0], "function")
   assert.equal(runJobMock.mock.calls.length, 1)
 })
