@@ -88,3 +88,16 @@ test("load_skill: campaign read includes voice reference and paired tools", () =
   assert.ok(payload.pairedTools?.includes("get_campaign_insights"))
   assert.ok(payload.content?.includes("Nothing to report yet."))
 })
+
+test("load_skill: scenario planner pairs run_scenario and chains marketing brain", () => {
+  const payload = buildLoadSkillPayload("assembled-scenario-planner")
+  assert.ok(!("error" in payload && payload.error))
+  assert.equal(payload.skillId, "assembled-scenario-planner")
+  assert.equal(payload.chainedDecisionRules, true)
+  assert.deepEqual(payload.pairedTools, [
+    "run_scenario",
+    "get_campaign_context",
+    "get_delivery_snapshot",
+  ])
+  assert.ok(payload.content?.includes("Never invent a rate"))
+})

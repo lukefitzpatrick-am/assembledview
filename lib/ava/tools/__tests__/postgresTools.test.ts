@@ -43,7 +43,7 @@ function adminContext(overrides: Partial<AvaToolContext> = {}): AvaToolContext {
 
 test("AVA_TOOL_NAMES includes insights + postgres tools in order", () => {
   // Named slice — bare length alone would miss a mid-list swap.
-  assert.deepEqual(AVA_TOOL_NAMES.slice(-7), [
+  assert.deepEqual(AVA_TOOL_NAMES.slice(-8), [
     "get_client_insights",
     "get_campaign_insights",
     "query_campaign_lines",
@@ -51,6 +51,7 @@ test("AVA_TOOL_NAMES includes insights + postgres tools in order", () => {
     "search_line_items",
     "query_finance_summary",
     "query_xero_status",
+    "run_scenario",
   ])
 })
 

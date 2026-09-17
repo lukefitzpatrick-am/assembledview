@@ -14,17 +14,18 @@ import {
   skillsContentDir,
 } from "../registry.js"
 
-test("skills: all 12 load with frontmatter, unique ids, chained brain", () => {
+test("skills: all 13 load with frontmatter, unique ids, chained brain", () => {
   __resetSkillRegistryCacheForTests()
   const entries = loadSkillRegistry()
-  assert.equal(entries.length, 12)
+  assert.equal(entries.length, 13)
 
   const ids = entries.map((e) => e.id)
-  assert.equal(new Set(ids).size, 12)
+  assert.equal(new Set(ids).size, 13)
   assert.ok(ids.includes(MARKETING_BRAIN_ID))
   assert.ok(ids.includes("assembled-performance-review-report"))
   assert.ok(ids.includes("assembled-campaign-read"))
   assert.ok(ids.includes("assembled-media-plan-autopopulate"))
+  assert.ok(ids.includes("assembled-scenario-planner"))
 
   const campaignRead = entries.find((e) => e.id === "assembled-campaign-read")
   assert.ok(campaignRead)
@@ -34,6 +35,15 @@ test("skills: all 12 load with frontmatter, unique ids, chained brain", () => {
     "get_campaign_insights",
   ])
   assert.ok(campaignRead.references.some((r) => r.name === "voice.md"))
+
+  const planner = entries.find((e) => e.id === "assembled-scenario-planner")
+  assert.ok(planner)
+  assert.deepEqual(planner.pairedTools, [
+    "run_scenario",
+    "get_campaign_context",
+    "get_delivery_snapshot",
+  ])
+  assert.deepEqual(planner.chains, [MARKETING_BRAIN_ID])
 
   for (const entry of entries) {
     assert.ok(entry.version, `${entry.id} version`)

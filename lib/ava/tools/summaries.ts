@@ -83,6 +83,7 @@ export const AVA_TOOL_NAMES = [
   "search_line_items",
   "query_finance_summary",
   "query_xero_status",
+  "run_scenario",
 ] as const
 
 export function summariseClientDetails(raw: Record<string, unknown>) {

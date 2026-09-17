@@ -123,6 +123,11 @@ const SKILL_META: Record<
     chains: [MARKETING_BRAIN_ID],
     pairedTools: ["apply_parsed_plan"],
   },
+  "assembled-scenario-planner": {
+    title: "Scenario planner",
+    chains: [MARKETING_BRAIN_ID],
+    pairedTools: ["run_scenario", "get_campaign_context", "get_delivery_snapshot"],
+  },
   "client-marketing-brain": {
     title: "Client marketing brain",
     chains: [MARKETING_BRAIN_ID],

@@ -37,6 +37,7 @@ import { queryScheduleMonthsTool } from "./queryScheduleMonths";
 import { searchLineItemsTool } from "./searchLineItems";
 import { queryFinanceSummaryTool } from "./queryFinanceSummary";
 import { queryXeroStatusTool } from "./queryXeroStatus";
+import { runScenarioTool } from "./runScenario";
 
 const AVA_TOOLS: AvaTool[] = [
   getMediaPlanSummaryTool,
@@ -71,6 +72,7 @@ const AVA_TOOLS: AvaTool[] = [
   searchLineItemsTool,
   queryFinanceSummaryTool,
   queryXeroStatusTool,
+  runScenarioTool,
 ];
 
 const registeredNames = AVA_TOOLS.map((t) => t.definition.name);
