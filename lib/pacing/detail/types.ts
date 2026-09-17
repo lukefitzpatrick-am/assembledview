@@ -2,6 +2,7 @@ import type { CampaignRead } from "@/lib/campaign-read/types"
 import type { KpiReviewCard } from "@/lib/kpi/kpiReview"
 import type { LineCardModel, LineCardPace } from "@/lib/pacing/channel/lineCardTypes"
 import type { CampaignPacingRow } from "@/lib/pacing/portfolio/types"
+import type { ScenarioLine } from "@/lib/pacing/scenario/types"
 
 export type CampaignDetailMetric = "spend" | "impressions" | "clicks" | "views"
 
@@ -51,4 +52,6 @@ export type CampaignDetailPayload = {
   daily: CampaignDetailDaily
   read: CampaignRead | null
   notes: CampaignDetailNote[]
+  scenarioLines: ScenarioLine[]
+  clientId: number | null
 }

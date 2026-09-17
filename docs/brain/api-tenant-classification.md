@@ -362,6 +362,10 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | GET | `/api/pacing/admin/orphans/live-line-items` | admin-only | requireRole | `app/api/pacing/admin/orphans/live-line-items/route.ts` |
 | POST | `/api/pacing/bulk` | tenant-scoped | checkClientMbaAccess | `app/api/pacing/bulk/route.ts` |
 | GET | `/api/pacing/campaigns` | tenant-scoped | checkClientMbaAccess | `app/api/pacing/campaigns/route.ts` |
+| GET | `/api/pacing/campaign/[mba]` | tenant-scoped | requirePacingAccess + resolveClientSlugs | `app/api/pacing/campaign/[mba]/route.ts` |
+| POST | `/api/pacing/campaign/[mba]` | tenant-scoped | requirePacingAccess + resolveClientSlugs | `app/api/pacing/campaign/[mba]/route.ts` |
+| GET | `/api/pacing/scenarios` | tenant-scoped | requirePacingAccess + resolveClientSlugs | `app/api/pacing/scenarios/route.ts` |
+| POST | `/api/pacing/scenarios` | tenant-scoped | requirePacingAccess + resolveClientSlugs | `app/api/pacing/scenarios/route.ts` |
 | GET | `/api/pacing/direct-campaigns` | tenant-scoped | checkClientMbaAccess | `app/api/pacing/direct-campaigns/route.ts` |
 | GET | `/api/pacing/overview` | tenant-scoped | checkClientMbaAccess | `app/api/pacing/overview/route.ts` |
 | GET | `/api/pacing/programmatic-campaigns` | tenant-scoped | checkClientMbaAccess | `app/api/pacing/programmatic-campaigns/route.ts` |

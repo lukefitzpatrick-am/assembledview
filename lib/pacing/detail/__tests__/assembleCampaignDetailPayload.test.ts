@@ -83,12 +83,14 @@ describe("assembleCampaignDetailPayload", () => {
 
     assert.deepEqual(Object.keys(payload).toSorted(), [
       "bursts",
+      "clientId",
       "daily",
       "kpis",
       "lines",
       "notes",
       "read",
       "row",
+      "scenarioLines",
     ])
     assert.equal(payload.row.mbaNumber, "jayco001")
     assert.equal(payload.lines[0]?.lineItemId, "jayco001se1")

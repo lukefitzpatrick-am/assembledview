@@ -21,6 +21,7 @@ import {
   displayBandTextClass,
 } from "@/lib/pacing/portfolio/portfolioPresentation"
 import { cn } from "@/lib/utils"
+import { useScenarioPlanner } from "@/components/pacing/scenario/ScenarioPlannerContext"
 import { CampaignAskHelpDialog } from "./CampaignAskHelpDialog"
 
 type TabKey = "overview" | "lines" | "kpis" | "bursts" | "daily" | "notes"
@@ -134,6 +135,7 @@ export function CampaignDetailModal({
   onClose: () => void
   onReload: () => void
 }) {
+  const planner = useScenarioPlanner()
   const [tab, setTab] = useState<TabKey>("overview")
   const [metric, setMetric] = useState<CampaignDetailMetric>("spend")
   const [combined, setCombined] = useState(true)
@@ -212,6 +214,14 @@ export function CampaignDetailModal({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => planner?.open(mba)}
+            >
+              Plan a scenario
+            </Button>
             <Button
               type="button"
               variant="outline"

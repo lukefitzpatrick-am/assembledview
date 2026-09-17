@@ -1,6 +1,7 @@
 import type { CampaignRead } from "@/lib/campaign-read/types"
 import type { LineCardModel } from "@/lib/pacing/channel/lineCardTypes"
 import type { CampaignPacingRow } from "@/lib/pacing/portfolio/types"
+import { scenarioLinesFromDetail } from "@/lib/pacing/scenario/fromLineCard"
 import { burstsFromLines } from "./burstsFromLines"
 import { dailyFromFacts, type DailyFactPoint } from "./dailyFromFacts"
 import { kpisFromLines } from "./kpisFromLines"
@@ -16,6 +17,7 @@ export function assembleCampaignDetailPayload(input: {
   notes?: CampaignDetailNote[]
   dailyFacts?: DailyFactPoint[]
   planPerDayByChannel?: Record<string, number>
+  clientId?: number | null
 }): CampaignDetailPayload {
   const facts = input.dailyFacts ?? []
   const byMetric = Object.fromEntries(
@@ -41,5 +43,11 @@ export function assembleCampaignDetailPayload(input: {
     },
     read: input.read ?? null,
     notes: input.notes ?? [],
+    scenarioLines: scenarioLinesFromDetail({
+      lines: input.lines,
+      asOf: input.asOf,
+      expectedToDate: input.row.expectedToDate,
+    }),
+    clientId: input.clientId ?? null,
   }
 }

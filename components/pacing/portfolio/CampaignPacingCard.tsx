@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { CampaignDetailTrigger, useCampaignDetail } from "@/components/pacing/detail/CampaignDetailContext"
+import { ScenarioPlannerTrigger } from "@/components/pacing/scenario/ScenarioPlannerContext"
 import { Card } from "@/components/ui/card"
 import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import type { CampaignPacingRow, ChannelPacingRow } from "@/lib/pacing/portfolio/types"
@@ -221,13 +222,21 @@ export function CampaignPacingCard({
 
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <time dateTime={asOf}>Updated {asOf}</time>
-        <CampaignDetailTrigger
-          mba={row.mbaNumber}
-          href={href}
-          className="font-semibold text-primary hover:underline"
-        >
-          Open campaign →
-        </CampaignDetailTrigger>
+        <span className="flex items-center gap-3">
+          <ScenarioPlannerTrigger
+            mba={row.mbaNumber}
+            className="font-semibold text-primary hover:underline"
+          >
+            Plan a scenario
+          </ScenarioPlannerTrigger>
+          <CampaignDetailTrigger
+            mba={row.mbaNumber}
+            href={href}
+            className="font-semibold text-primary hover:underline"
+          >
+            Open campaign →
+          </CampaignDetailTrigger>
+        </span>
       </div>
     </Card>
   )
