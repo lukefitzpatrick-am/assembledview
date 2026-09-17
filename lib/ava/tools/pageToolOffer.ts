@@ -34,6 +34,7 @@ export function isMediaPlanCreateOrEditRoute(
 /**
  * Surface-aware tool offer. Create/edit mega-pages and unknown/absent routes
  * omit `accept_ingest_proposal` (fail closed). Hub and other known routes keep it.
+ * `run_scenario` is offered only on `/pacing/*` and `/dashboard/*`.
  */
 export function avaToolDefinitionsForPage<T extends { name: string }>(
   definitions: readonly T[],
@@ -48,8 +49,16 @@ export function avaToolDefinitionsForPage<T extends { name: string }>(
     return definitions.filter((t) => allowed.has(t.name))
   }
   const pathname = pageContextRoutePathname(pageContext)
+  const scenarioOk =
+    Boolean(pathname) &&
+    (pathname!.startsWith("/pacing") || pathname!.startsWith("/dashboard"))
   if (!pathname || isMediaPlanCreateOrEditRoute(pageContext)) {
-    return definitions.filter((t) => t.name !== "accept_ingest_proposal")
+    return definitions.filter(
+      (t) => t.name !== "accept_ingest_proposal" && t.name !== "run_scenario",
+    )
+  }
+  if (!scenarioOk) {
+    return definitions.filter((t) => t.name !== "run_scenario")
   }
   return [...definitions]
 }
