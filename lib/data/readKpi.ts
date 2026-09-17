@@ -155,8 +155,18 @@ export async function fetchCampaignKpisForMbasFromPostgres(
   pairs: KpiMbaVersionPair[]
 ): Promise<Record<string, unknown>[]> {
   if (pairs.length === 0) return []
+
+  const uniqueKeys = new Set<string>()
+  const uniquePairs: KpiMbaVersionPair[] = []
+  for (const pair of pairs) {
+    const key = `${pair.mbaNumber}|${pair.versionNumber}`
+    if (uniqueKeys.has(key)) continue
+    uniqueKeys.add(key)
+    uniquePairs.push(pair)
+  }
+
   const out: Record<string, unknown>[] = []
-  for (const { mbaNumber, versionNumber } of pairs) {
+  for (const { mbaNumber, versionNumber } of uniquePairs) {
     const rows = await fetchCampaignKpisFromPostgres(mbaNumber, versionNumber)
     out.push(...rows)
   }
