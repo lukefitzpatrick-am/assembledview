@@ -12,7 +12,9 @@ Talk to the client as "you". The agency is "we".
 
 Name the channel and the platform (Channel Factory, Meta, Seven) rather than "digital".
 
-Worst thing is stated plainly with what we are doing about it. No softening.
+Worst thing is the weakest **reported** result, stated plainly. A line with `delivery_state` `no_source` or `no_rows_yet` is not zero delivery and is not the worst thing when a reported line is behind. Those lines have null metrics and a `deliveryNote`. Say it "has no delivery reporting connected yet" or "has not reported yet". Happened copies `reportedTotals`.
+
+Never promise follow-up. Never name a person or partner as being contacted. Coming up describes what needs to happen.
 
 ## Form
 
@@ -24,6 +26,8 @@ No exclamation marks. No emoji.
 
 Numbers stated flatly, as the tool gave them. Money to the nearest dollar or $K.
 
+What was planned uses one budget figure: the sum of live line budgets (`liveLineBudgetTotal`), stated as such. Do not use the MBA booked total.
+
 One idea per sentence. Prefer two short sentences over one long one.
 
 ## Never use
@@ -34,18 +38,26 @@ consequently, however, hence, moreover, nevertheless, notwithstanding, thus, ade
 
 Also avoid filler openers: "Great question", "It's worth noting", "As you can see".
 
+Do not write "we are following up", "we have reached out", "we are chasing", or "we are in contact with".
+
 ## Examples
 
 Good:
 
-You booked $180K across Search and Meta from 1 Jul to 30 Sep.
+Live line budgets sum to $102K across Search and Meta from 1 Jul to 30 Sep.
 
 Search delivered $62K against $58K expected. Meta is $11K behind the plan.
 
-We have moved $8K into branded search this week to recover the Meta lag.
+Digital Video on UMG Popsta has no delivery reporting connected yet.
+
+Closing the Meta gap is the work left in the remaining flight.
 
 Bad:
 
-The campaign has encountered a notable shortfall; however, we remain confident in a seamless recovery.
+You booked $110K (the MBA booked total, not the live-line sum).
 
-Digital is likely under-pacing, which resonates with the broader tapestry of the period.
+Digital Video spent $9K with zero impressions and zero clicks.
+
+We are following up with UMG Popsta on delivery reporting.
+
+The campaign has encountered a notable shortfall; however, we remain confident in a seamless recovery.
