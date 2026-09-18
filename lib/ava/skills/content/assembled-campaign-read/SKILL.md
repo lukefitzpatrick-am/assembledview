@@ -2,7 +2,7 @@
 name: assembled-campaign-read
 description: Write the six-beat campaign read for the client dashboard. Trigger on "campaign read", "write the read", or the dashboard Regenerate action. Ground every number in a tool. Never invent a cause.
 metadata:
-  version: 1.2.0
+  version: 1.3.0
 ---
 
 # Campaign read
@@ -23,8 +23,8 @@ A campaign read is six short beats for the client, in a fixed order. It is not c
 | Key | Heading | What it answers |
 |---|---|---|
 | `planned` | What was planned | Mix, flight, and **one** budget: `liveLineBudgetTotal` (the sum of live line budgets). State it as the live-line sum. Do not use the MBA booked total from context. |
-| `happened` | What has happened | Delivered spend and deliverables from **reportedTotals** (reported + `spend_only` spend — same figures as the Where we are strip), plus time elapsed. |
-| `vsPlan` | Against the plan | Pace vs expected on those same totals. Name the **reported** channel and platform that drives the gap. |
+| `happened` | What has happened | Delivered spend and deliverables from **reportedTotals** (reported + `spend_only` spend — same figures as the Where we are strip), plus `daysElapsed` / `daysInCampaign`. |
+| `vsPlan` | Against the plan | Copy `expectedSpendToDate` and `behindBy` from the snapshot (the strip's figures). Do not recompute as budget × elapsed. Name the **reported** channel and platform that drives the gap. |
 | `best` | Best thing going on | The strongest **reported** result, or a KPI row with `eligibleForBestWorst: true`. |
 | `worst` | Worst thing | The weakest **reported** result or eligible KPI, stated plainly. Never a `no_source` / `no_rows_yet` line when a reported line is behind. Never a KPI with `eligibleForBestWorst: false`. |
 | `upcoming` | Coming up | What needs to happen next (booked flights, catch-up, a material date). Describe the need. Never promise we are following up or contacting someone. |
@@ -34,7 +34,7 @@ A campaign read is six short beats for the client, in a fixed order. It is not c
    - Never invent a cause. If the cause is not in a tool or a live insight, omit it.
    - Prior insights are context. Do not restate them as this period's finding unless you say what was believed before and what changed.
    - Delivery $ / KPI figures come from **get_delivery_snapshot** / the KPI review payload — never from insight bodies.
-   - Happened / vsPlan copy **reportedTotals** (reported + `spend_only` spend — same delivered/expected as the strip). `no_source` / `no_rows_yet` have null metrics and a `deliveryNote`.
+   - Happened copies **reportedTotals.spendToDate**. Against the plan copies **expectedSpendToDate** and **behindBy** (strip resolver — never budget × elapsed). `no_source` / `no_rows_yet` have null metrics and a `deliveryNote`.
    - Each snapshot line has `delivery_state`: `reported`, `no_rows_yet`, `no_source`, or `spend_only`.
      - `no_source`: the line **has no delivery reporting connected yet**.
      - `no_rows_yet`: the line **has not reported yet**.

@@ -1,8 +1,12 @@
 ﻿import type AvaTool from "./types"
 import type { AvaToolContext } from "./types"
+import { attachStripExpected } from "@/lib/delivery/attachStripExpected"
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { summariseDeliverySnapshot } from "@/lib/ava/tools/summaries"
 import { MEDIA_CONTAINER_ENDPOINTS } from "@/lib/api/media-containers"
+import { readPlanVersionsByMba } from "@/lib/data/readMediaPlans"
+import { normalizeDateToMelbourneISO } from "@/lib/dates/normalizeCampaignDateISO"
+import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
 
 type MediaTypeKey = keyof typeof MEDIA_CONTAINER_ENDPOINTS
 
@@ -107,8 +111,47 @@ export const getDeliverySnapshotTool: AvaTool = {
         endDate: asString(args.endDate),
       })
 
+      const summarised = summariseDeliverySnapshot(snapshot)
+      try {
+        const versions = await readPlanVersionsByMba(mba)
+        const vn = snapshot.versionNumber
+        const version =
+          (typeof vn === "number"
+            ? versions.find((row) => Number(row.version_number) === vn)
+            : undefined) ?? versions.find((row) => row.published_at)
+        if (version) {
+          const campaignStartISO = normalizeDateToMelbourneISO(version.campaign_start_date)
+          const campaignEndISO = normalizeDateToMelbourneISO(version.campaign_end_date)
+          const strip = attachStripExpected({
+            stripInputs: {
+              billingSchedule: version.billingSchedule,
+              deliverySchedule: version.deliverySchedule,
+              monthlySpend: resolveMonthlySpendForPlan(undefined, undefined, version.deliverySchedule),
+              campaignStartISO,
+              campaignEndISO,
+              monthlyOpts: { campaignStartISO, campaignEndISO },
+            },
+            deliveredSpendToDate: summarised.reportedTotals.spendToDate,
+            asOf: snapshot.asOf,
+          })
+          return {
+            content: jsonContent({
+              ...summarised,
+              ...strip,
+              reportedTotalsNote:
+                "Copy expectedSpendToDate, behindBy, daysElapsed and daysInCampaign — they are the Where we are strip figures. Do not recompute as budget × elapsed. Delivered is reported + spend_only spend.",
+            }),
+          }
+        }
+      } catch (err) {
+        console.error("[get_delivery_snapshot] strip expected failed", {
+          mba,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+
       return {
-        content: jsonContent(summariseDeliverySnapshot(snapshot)),
+        content: jsonContent(summarised),
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

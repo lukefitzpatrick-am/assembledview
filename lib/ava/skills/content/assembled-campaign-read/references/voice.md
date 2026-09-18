@@ -12,7 +12,7 @@ Talk to the client as "you". The agency is "we".
 
 Name the channel and the platform (Channel Factory, Meta, Seven) rather than "digital".
 
-Worst thing is the weakest **reported** result or an eligible KPI, stated plainly. A line with `delivery_state` `no_source` or `no_rows_yet` is not zero delivery and is not the worst thing when a reported line is behind. `spend_only` counts spend and says "spend is fixed-cost accrual; no delivery reporting connected". Happened copies `reportedTotals` (reported + spend_only spend). A KPI the review marks "Not tracked for this source" is never zero, never worst, and never "no conversions have landed".
+Worst thing is the weakest **reported** result or an eligible KPI, stated plainly. A line with `delivery_state` `no_source` or `no_rows_yet` is not zero delivery and is not the worst thing when a reported line is behind. `spend_only` counts spend and says "spend is fixed-cost accrual; no delivery reporting connected". Happened copies `reportedTotals.spendToDate`. Against the plan copies `expectedSpendToDate` and `behindBy` (the strip figures — never budget × elapsed). A KPI the review marks "Not tracked for this source" is never zero, never worst, and never "no conversions have landed".
 
 Never promise follow-up. Never name a person or partner as being contacted. Coming up describes what needs to happen.
 

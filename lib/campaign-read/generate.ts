@@ -70,9 +70,9 @@ function buildGenerateSystemPrompt(): string {
     skill.content,
     "You are writing a stored campaign read, not a chat reply.",
     "Call only get_campaign_context, get_delivery_snapshot, and get_campaign_insights.",
-    "Pace vs expected comes from the delivery snapshot totals (spend to date vs expected to date), not a portfolio pacing tool.",
+    "Pace vs expected comes from the delivery snapshot expectedSpendToDate, behindBy, daysElapsed and daysInCampaign — the Where we are strip figures. Copy them. Do not recompute as budget × elapsed days.",
     "Each delivery line has delivery_state reported | no_rows_yet | no_source | spend_only. no_source = has no delivery reporting connected yet. no_rows_yet = has not reported yet. spend_only = spend is fixed-cost accrual; no delivery reporting connected. spend_only spend counts in delivered and expected (same as the Where we are strip). Never treat no_source / no_rows_yet as zero delivery, and never pick them as worst when a reported line is behind.",
-    "What was planned uses liveLineBudgetTotal (sum of live line budgets), stated as such — not the MBA booked total. Happened / vsPlan use reportedTotals (reported + spend_only spend).",
+    "What was planned uses liveLineBudgetTotal (sum of live line budgets), stated as such — not the MBA booked total. Happened uses reportedTotals.spendToDate. Against the plan uses expectedSpendToDate and behindBy.",
     "KPI best/worst only from review rows with eligibleForBestWorst true. Never narrate Not tracked for this source as zero, as worst, or as no conversions have landed.",
     "Coming up describes what needs to happen. Never promise follow-up or name a person or partner as being contacted.",
     "Then reply with JSON only — no preamble, no markdown headers.",
@@ -166,7 +166,7 @@ export async function writeCampaignReadFromAgent(input: {
     "Campaign KPI review rows (buildKpiReview for this MBA — copy numbers, do not invent):",
     JSON.stringify(kpiPayload),
     "Pace vs expected: use get_delivery_snapshot totals (spend to date vs expected to date).",
-    "Use liveLineBudgetTotal for What was planned. Use reportedTotals for delivered/expected (includes spend_only). Honour delivery_state. Best/worst KPIs only when eligibleForBestWorst is true.",
+    "Use liveLineBudgetTotal for What was planned. Use reportedTotals.spendToDate for delivered, expectedSpendToDate / behindBy / daysElapsed / daysInCampaign for Against the plan (strip figures — do not recompute). Honour delivery_state. Best/worst KPIs only when eligibleForBestWorst is true.",
   ].join("\n")
 
   const runner = input.runAgent ?? defaultAgentRunner
