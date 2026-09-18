@@ -287,6 +287,7 @@ export type DeliveryLineSnapshot = {
   cpm: number | null
   ctr: number | null
   cpc: number | null
+  expectedSpendToDate?: number | null
   noDeliveryRows: boolean
   deliveryState: "reported" | "no_rows_yet" | "no_source" | "spend_only"
 }
@@ -402,6 +403,11 @@ export function summariseDeliverySnapshot(args: {
   versionNumber: number | null
   channels: DeliveryChannelGroup[]
   planTotals: DeliveryChannelGroup["totals"]
+  expectedSpendToDate?: number
+  behindBy?: number
+  daysElapsed?: number
+  daysInCampaign?: number
+  daysRemaining?: number
 }) {
   const allLines = args.channels.flatMap((ch) => ch.lines)
   const reportedTotals = sumReportedTotals(allLines)
@@ -435,7 +441,12 @@ export function summariseDeliverySnapshot(args: {
     reportedTotals,
     liveLineBudgetTotal: args.planTotals.plannedBudget,
     liveLineBudgetNote: "sum of live line budgets — use this in What was planned, not the MBA booked total",
+    expectedSpendToDate: args.expectedSpendToDate ?? null,
+    behindBy: args.behindBy ?? null,
+    daysElapsed: args.daysElapsed ?? null,
+    daysInCampaign: args.daysInCampaign ?? null,
+    daysRemaining: args.daysRemaining ?? null,
     reportedTotalsNote:
-      "delivered and expected use reported + spend_only spend (same as the Where we are strip). no_source / no_rows_yet have no spend.",
+      "Copy expectedSpendToDate, behindBy, daysElapsed and daysInCampaign — they are the Where we are strip figures. Do not recompute as budget × elapsed. Delivered is reported + spend_only spend.",
   }
 }

@@ -91,6 +91,7 @@ test("load_skill: campaign read includes voice reference and paired tools", () =
   assert.ok(payload.content?.includes("has not reported yet"))
   assert.ok(payload.content?.includes("spend is fixed-cost accrual"))
   assert.ok(payload.content?.includes("eligibleForBestWorst"))
+  assert.ok(payload.content?.includes("expectedSpendToDate"))
   assert.ok(payload.content?.includes("liveLineBudgetTotal"))
   assert.ok(payload.content?.includes("Never promise"))
 })

@@ -23,6 +23,7 @@ import {
   lineHasDeliverySource,
   resolveDeliveryState,
 } from "@/lib/delivery/deliveryState"
+import { expectedSpendToDateFromBursts } from "@/lib/spend/expectedSpendToDateFromBursts"
 
 type MediaTypeKey = keyof typeof MEDIA_CONTAINER_ENDPOINTS
 
@@ -61,6 +62,7 @@ type PlanLineMeta = {
   startDate: string | null
   endDate: string | null
   hasSource: boolean
+  bursts: unknown
 }
 
 function asNumber(value: unknown): number | null {
@@ -126,6 +128,7 @@ function toPlanLineMeta(item: MediaContainerLineItem, group: string): PlanLineMe
       publisher: rec.publisher,
       platform: rec.platform,
     }),
+    bursts: rec.bursts_json ?? rec.bursts ?? null,
   }
 }
 
@@ -167,6 +170,7 @@ function buildLines(
   deliveredById: Map<string, ReturnType<typeof emptyMetrics>>,
   factIds: ReadonlySet<string>,
   overlaySpendIds: ReadonlySet<string>,
+  asOf: string,
 ): DeliveryLineSnapshot[] {
   const lines: DeliveryLineSnapshot[] = []
   for (const id of [...planById.keys()].sort()) {
@@ -196,6 +200,11 @@ function buildLines(
       cpm: rates.cpm,
       ctr: rates.ctr,
       cpc: rates.cpc,
+      expectedSpendToDate: expectedSpendToDateFromBursts(
+        plan?.bursts,
+        plan?.plannedBudget ?? 0,
+        asOf,
+      ),
       noDeliveryRows,
       deliveryState,
     })
@@ -512,12 +521,13 @@ export async function loadDeliverySnapshot(
     "plan_only",
   ]
 
+  const asOf = getAsOfDate()
   const channels: DeliveryChannelGroup[] = []
   for (const group of channelOrder) {
     const planMap = groups.get(group)
     if (!planMap || planMap.size === 0) continue
     if (group === "search" && !includeSearch) continue
-    const lines = buildLines(planMap, deliveredById, factIds, overlaySpendIds)
+    const lines = buildLines(planMap, deliveredById, factIds, overlaySpendIds, asOf)
     channels.push({
       group,
       lines,
@@ -528,7 +538,7 @@ export async function loadDeliverySnapshot(
   const planTotals = sumLines(channels.flatMap((c) => c.lines))
 
   return {
-    asOf: getAsOfDate(),
+    asOf,
     window: { startDate: startDate ?? null, endDate: endDate ?? null },
     mbaNumber: mba,
     versionNumber: versionNumber ?? null,
