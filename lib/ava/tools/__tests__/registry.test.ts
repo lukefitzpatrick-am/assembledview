@@ -363,3 +363,67 @@ test("get_delivery_snapshot blanks spend on unreported lines", () => {
   assert.equal(snap.planTotals.spendToDate, 12460)
   assert.equal(snap.liveLineBudgetTotal, 42902)
 })
+
+test("get_delivery_snapshot keeps spend_only spend and nulls delivery metrics", () => {
+  const snap = summariseDeliverySnapshot({
+    asOf: "2026-09-18",
+    window: { startDate: "2026-08-01", endDate: "2026-10-25" },
+    mbaNumber: "BICAU002",
+    versionNumber: 28,
+    channels: [
+      {
+        group: "digital_video",
+        lines: [
+          {
+            lineItemId: "bicau002dv1",
+            name: "UMG Popsta",
+            plannedBudget: 18240,
+            plannedUnits: null,
+            startDate: "2026-08-01",
+            endDate: "2026-10-25",
+            spendToDate: 9656,
+            impressions: 0,
+            clicks: 0,
+            results: 0,
+            video3sViews: 0,
+            cpm: null,
+            ctr: null,
+            cpc: null,
+            noDeliveryRows: true,
+            deliveryState: "spend_only",
+          },
+        ],
+        totals: {
+          spendToDate: 9656,
+          impressions: 0,
+          clicks: 0,
+          results: 0,
+          video3sViews: 0,
+          plannedBudget: 18240,
+          cpm: null,
+          ctr: null,
+          cpc: null,
+        },
+      },
+    ],
+    planTotals: {
+      spendToDate: 9656,
+      impressions: 0,
+      clicks: 0,
+      results: 0,
+      video3sViews: 0,
+      plannedBudget: 18240,
+      cpm: null,
+      ctr: null,
+      cpc: null,
+    },
+  })
+  const umg = snap.channels[0]?.lines[0]
+  assert.equal(umg?.deliveryState, "spend_only")
+  assert.equal(umg?.spendToDate, 9656)
+  assert.equal(umg?.impressions, null)
+  assert.equal(umg?.clicks, null)
+  assert.equal(umg?.deliveryNote, "spend is fixed-cost accrual; no delivery reporting connected")
+  assert.equal(snap.reportedTotals.spendToDate, 9656)
+  assert.equal(snap.planTotals.spendToDate, 9656)
+})

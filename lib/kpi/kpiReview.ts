@@ -526,6 +526,18 @@ export function statusForMetric(
   return "no-data"
 }
 
+/** Campaign-read best/worst may only use a row the review card treats as tracked. */
+export function kpiRowEligibleForReadBeat(
+  row: Pick<KpiReviewRow, "deliveredDisplay">,
+): boolean {
+  const display = String(row.deliveredDisplay ?? "").trim()
+  if (!display) return false
+  if (display === "Not tracked for this source") return false
+  if (display === "Not tracked yet") return false
+  if (display === "—") return false
+  return true
+}
+
 export function formatTarget(metric: KpiReviewMetricKey, target: number): string {
   if (metric === "cpv") return formatMoney(target)
   if (metric === "frequency") return target.toFixed(2)

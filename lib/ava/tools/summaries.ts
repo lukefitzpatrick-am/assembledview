@@ -288,7 +288,7 @@ export type DeliveryLineSnapshot = {
   ctr: number | null
   cpc: number | null
   noDeliveryRows: boolean
-  deliveryState: "reported" | "no_rows_yet" | "no_source"
+  deliveryState: "reported" | "no_rows_yet" | "no_source" | "spend_only"
 }
 
 export type DeliveryChannelGroup = {
@@ -312,13 +312,34 @@ function deliveryStateNote(
 ): string | undefined {
   if (state === "no_source") return "has no delivery reporting connected yet"
   if (state === "no_rows_yet") return "has not reported yet"
+  if (state === "spend_only") {
+    return "spend is fixed-cost accrual; no delivery reporting connected"
+  }
   return undefined
+}
+
+function countsTowardDeliveredSpend(state: DeliveryLineSnapshot["deliveryState"]): boolean {
+  return state === "reported" || state === "spend_only"
 }
 
 function blankUnreportedLine(line: DeliveryLineSnapshot) {
   const name = truncateText(line.name, 80)
   if (line.deliveryState === "reported") {
     return { ...line, name }
+  }
+  if (line.deliveryState === "spend_only") {
+    return {
+      ...line,
+      name,
+      impressions: null,
+      clicks: null,
+      results: null,
+      video3sViews: null,
+      cpm: null,
+      ctr: null,
+      cpc: null,
+      deliveryNote: deliveryStateNote(line.deliveryState),
+    }
   }
   return {
     ...line,
@@ -350,12 +371,14 @@ function sumReportedTotals(lines: DeliveryLineSnapshot[]) {
   let planned = 0
   let hasBudget = false
   for (const line of lines) {
-    if (line.deliveryState !== "reported") continue
+    if (!countsTowardDeliveredSpend(line.deliveryState)) continue
     totals.spendToDate += line.spendToDate
-    totals.impressions += line.impressions
-    totals.clicks += line.clicks
-    totals.results += line.results
-    totals.video3sViews += line.video3sViews
+    if (line.deliveryState === "reported") {
+      totals.impressions += line.impressions
+      totals.clicks += line.clicks
+      totals.results += line.results
+      totals.video3sViews += line.video3sViews
+    }
     if (typeof line.plannedBudget === "number") {
       planned += line.plannedBudget
       hasBudget = true
@@ -413,6 +436,6 @@ export function summariseDeliverySnapshot(args: {
     liveLineBudgetTotal: args.planTotals.plannedBudget,
     liveLineBudgetNote: "sum of live line budgets — use this in What was planned, not the MBA booked total",
     reportedTotalsNote:
-      "happened / vsPlan / best / worst use reportedTotals only — ignore spend on no_source and no_rows_yet lines",
+      "delivered and expected use reported + spend_only spend (same as the Where we are strip). no_source / no_rows_yet have no spend.",
   }
 }

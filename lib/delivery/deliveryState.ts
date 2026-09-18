@@ -4,7 +4,7 @@ import {
   type DeliverySourceMapRow,
 } from "@/lib/delivery/deliverySourceMap"
 
-export type DeliveryState = "reported" | "no_rows_yet" | "no_source"
+export type DeliveryState = "reported" | "no_rows_yet" | "no_source" | "spend_only"
 
 /** Real delivery activity — not modelled spend and not a zero-metric pacing stub. */
 export function hasDeliveryFactActivity(metrics: {
@@ -25,8 +25,10 @@ export function hasDeliveryFactActivity(metrics: {
 export function resolveDeliveryState(input: {
   hasFactRows: boolean
   hasSource: boolean
+  hasFixedCostSpend?: boolean
 }): DeliveryState {
   if (input.hasFactRows) return "reported"
+  if (input.hasFixedCostSpend) return "spend_only"
   if (input.hasSource) return "no_rows_yet"
   return "no_source"
 }

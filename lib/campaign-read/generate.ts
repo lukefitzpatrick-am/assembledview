@@ -4,10 +4,11 @@ import { runAvaAgent } from "@/lib/ava/agentLoop"
 import { buildLoadSkillPayload } from "@/lib/ava/tools/loadSkill"
 import type { AvaToolContext } from "@/lib/ava/tools/types"
 import type { PageContext } from "@/lib/ava/types"
+import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { fetchCampaignKpis } from "@/lib/kpi/campaignKpi"
-import type { CampaignKPI } from "@/lib/kpi/types"
 
 import { parseCampaignReadAgentJson } from "./beats"
+import { buildKpiReviewPayloadForRead } from "./kpiRead"
 import { CAMPAIGN_READ_GENERATE_SURFACE } from "./generateTools"
 import {
   completeCampaignReadDraft,
@@ -70,28 +71,14 @@ function buildGenerateSystemPrompt(): string {
     "You are writing a stored campaign read, not a chat reply.",
     "Call only get_campaign_context, get_delivery_snapshot, and get_campaign_insights.",
     "Pace vs expected comes from the delivery snapshot totals (spend to date vs expected to date), not a portfolio pacing tool.",
-    "Each delivery line has delivery_state reported | no_rows_yet | no_source. no_source = has no delivery reporting connected yet. no_rows_yet = has not reported yet. Those lines have null delivery metrics — never treat them as zero impressions, zero clicks, or spent $X, and never pick them as worst when a reported line is behind.",
-    "What was planned uses liveLineBudgetTotal (sum of live line budgets), stated as such — not the MBA booked total. Happened / vsPlan / best / worst use reportedTotals only.",
+    "Each delivery line has delivery_state reported | no_rows_yet | no_source | spend_only. no_source = has no delivery reporting connected yet. no_rows_yet = has not reported yet. spend_only = spend is fixed-cost accrual; no delivery reporting connected. spend_only spend counts in delivered and expected (same as the Where we are strip). Never treat no_source / no_rows_yet as zero delivery, and never pick them as worst when a reported line is behind.",
+    "What was planned uses liveLineBudgetTotal (sum of live line budgets), stated as such — not the MBA booked total. Happened / vsPlan use reportedTotals (reported + spend_only spend).",
+    "KPI best/worst only from review rows with eligibleForBestWorst true. Never narrate Not tracked for this source as zero, as worst, or as no conversions have landed.",
     "Coming up describes what needs to happen. Never promise follow-up or name a person or partner as being contacted.",
     "Then reply with JSON only — no preamble, no markdown headers.",
   ].join("\n\n")
 }
 
-function compactKpiReviewRows(kpis: CampaignKPI[]): unknown {
-  return kpis.map((row) => ({
-    line_item_id: row.line_item_id ?? null,
-    media_type: row.media_type,
-    publisher: row.publisher,
-    bid_strategy: row.bid_strategy,
-    ctr: row.ctr,
-    cpv: row.cpv,
-    conversion_rate: row.conversion_rate,
-    vtr: row.vtr,
-    frequency: row.frequency,
-    target_source: row.target_source ?? "target",
-    benchmark_ref: row.benchmark_ref ?? null,
-  }))
-}
 
 export function buildCampaignReadPageContext(input: {
   mbaNumber: string
@@ -132,8 +119,14 @@ export async function writeCampaignReadFromAgent(input: {
 
   let kpiPayload: unknown = []
   try {
-    const kpis = await fetchCampaignKpis(mbaNumber, versionNumber)
-    kpiPayload = compactKpiReviewRows(kpis)
+    const [kpis, snapshot] = await Promise.all([
+      fetchCampaignKpis(mbaNumber, versionNumber),
+      loadDeliverySnapshot({ mbaNumber, versionNumber }),
+    ])
+    kpiPayload = buildKpiReviewPayloadForRead({
+      channels: snapshot.channels,
+      kpis,
+    })
   } catch (err) {
     console.error("[campaign-read] KPI review load failed", {
       mbaNumber,
@@ -173,7 +166,7 @@ export async function writeCampaignReadFromAgent(input: {
     "Campaign KPI review rows (buildKpiReview for this MBA — copy numbers, do not invent):",
     JSON.stringify(kpiPayload),
     "Pace vs expected: use get_delivery_snapshot totals (spend to date vs expected to date).",
-    "Use liveLineBudgetTotal for What was planned. Use reportedTotals for happened / vsPlan / best / worst. Honour delivery_state on each line.",
+    "Use liveLineBudgetTotal for What was planned. Use reportedTotals for delivered/expected (includes spend_only). Honour delivery_state. Best/worst KPIs only when eligibleForBestWorst is true.",
   ].join("\n")
 
   const runner = input.runAgent ?? defaultAgentRunner
