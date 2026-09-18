@@ -82,6 +82,28 @@ if (supportsMockModule()) {
       fetchCampaignKpis: fetchKpisMock,
     },
   })
+  await mock.module!("@/lib/delivery/loadDeliverySnapshot", {
+    namedExports: {
+      loadDeliverySnapshot: async () => ({
+        asOf: "2026-09-18",
+        window: { startDate: null, endDate: null },
+        mbaNumber: "GOLF001",
+        versionNumber: 4,
+        channels: [],
+        planTotals: {
+          spendToDate: 0,
+          impressions: 0,
+          clicks: 0,
+          results: 0,
+          video3sViews: 0,
+          plannedBudget: 0,
+          cpm: null,
+          ctr: null,
+          cpc: null,
+        },
+      }),
+    },
+  })
   await mock.module!("@/lib/pacing/campaigns/pacingRowsCache", {
     namedExports: {
       getCachedSearchPacingRows: pacingComposerMock,

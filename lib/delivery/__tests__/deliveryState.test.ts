@@ -27,6 +27,21 @@ test("resolveDeliveryState: unconnected with no facts is no_source", () => {
   assert.equal(resolveDeliveryState({ hasFactRows: false, hasSource: false }), "no_source")
 })
 
+test("resolveDeliveryState: fixed-cost spend without delivery rows is spend_only", () => {
+  assert.equal(
+    resolveDeliveryState({ hasFactRows: false, hasSource: false, hasFixedCostSpend: true }),
+    "spend_only",
+  )
+  assert.equal(
+    resolveDeliveryState({ hasFactRows: false, hasSource: true, hasFixedCostSpend: true }),
+    "spend_only",
+  )
+  assert.equal(
+    resolveDeliveryState({ hasFactRows: true, hasSource: false, hasFixedCostSpend: true }),
+    "reported",
+  )
+})
+
 test("lineHasDeliverySource: search and classified social are connected", () => {
   assert.equal(lineHasDeliverySource({ group: "search" }), true)
   assert.equal(lineHasDeliverySource({ group: "social_meta" }), true)

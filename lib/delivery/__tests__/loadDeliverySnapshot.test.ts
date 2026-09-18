@@ -142,6 +142,71 @@ test(
 )
 
 test(
+  "spend_only overlay spend is in totals; zero-budget lines are dropped",
+  { skip },
+  async () => {
+    const { loadDeliverySnapshot } = await import("../loadDeliverySnapshot.js")
+
+    getCampaignPacingData.mock.resetCalls()
+    queryDailyFacts.mock.resetCalls()
+    getCampaignPacingData.mock.mockImplementation(async () => [
+      {
+        lineItemId: "bicau002pv1",
+        amountSpent: 1200,
+        impressions: 8000,
+        clicks: 40,
+        results: 0,
+        video3sViews: 2000,
+      },
+    ])
+    queryDailyFacts.mock.mockImplementation(async () => [
+      {
+        LINE_ITEM_ID: "bicau002dv1",
+        DATE_DAY: "2026-09-01",
+        REPORTED_SPEND: 9656,
+      },
+    ])
+
+    const snap = await loadDeliverySnapshot({
+      mbaNumber: "BICAU002",
+      versionNumber: 28,
+      startDate: "2026-08-01",
+      endDate: "2026-10-25",
+      lineItemsByChannel: {
+        progVideo: [
+          { line_item_id: "bicau002pv1", name: "CF", publisher: "Channel Factory", budget: 16000 },
+        ],
+        digitalVideo: [
+          {
+            line_item_id: "bicau002dv1",
+            name: "Popsta",
+            publisher: "UMG Popsta",
+            budget: 18240,
+            fixedCostMedia: true,
+          },
+        ],
+        bvod: [{ line_item_id: "bicau002bv1", name: "Direct BVOD", publisher: "Seven", budget: 0 }],
+      },
+    })
+
+    const byId = new Map(
+      snap.channels.flatMap((ch) => ch.lines).map((line) => [line.lineItemId, line]),
+    )
+    const spendOnly = byId.get("bicau002dv1")
+    assert.equal(spendOnly?.deliveryState, "spend_only")
+    assert.equal(spendOnly?.spendToDate, 9656)
+    assert.equal(spendOnly?.impressions, 0)
+    assert.equal(spendOnly?.clicks, 0)
+    assert.equal(spendOnly?.results, 0)
+    assert.equal(spendOnly?.video3sViews, 0)
+    assert.equal(byId.has("bicau002bv1"), false)
+    assert.equal(snap.planTotals.spendToDate, 1200 + 9656)
+    getCampaignPacingData.mock.mockImplementation(async () => [])
+    queryDailyFacts.mock.mockImplementation(async () => [])
+  },
+)
+
+test(
   "postgres backend fetches each media-container endpoint at the requested version",
   { skip },
   async () => {

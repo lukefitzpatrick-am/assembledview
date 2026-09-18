@@ -111,11 +111,13 @@ function dateFromItem(item: MediaContainerLineItem, keys: string[]): string | nu
 function toPlanLineMeta(item: MediaContainerLineItem, group: string): PlanLineMeta | null {
   const id = extractPacingLineItemIdFromItem(item as Record<string, unknown>)
   if (!id) return null
+  const plannedBudget = plannedBudgetFromItem(item)
+  if (plannedBudget === 0) return null
   const rec = item as Record<string, unknown>
   return {
     id,
     name: asString(item.name) || asString(item.placementName) || id,
-    plannedBudget: plannedBudgetFromItem(item),
+    plannedBudget,
     plannedUnits: plannedUnitsFromItem(item),
     startDate: dateFromItem(item, ["start_date", "startDate", "placement_date", "flight_start"]),
     endDate: dateFromItem(item, ["end_date", "endDate", "flight_end"]),
@@ -164,14 +166,18 @@ function buildLines(
   planById: Map<string, PlanLineMeta>,
   deliveredById: Map<string, ReturnType<typeof emptyMetrics>>,
   factIds: ReadonlySet<string>,
+  overlaySpendIds: ReadonlySet<string>,
 ): DeliveryLineSnapshot[] {
   const lines: DeliveryLineSnapshot[] = []
   for (const id of [...planById.keys()].sort()) {
     const plan = planById.get(id)
+    if (plan?.plannedBudget === 0) continue
     const delivered = deliveredById.get(id) ?? emptyMetrics()
+    const hasFactRows = factIds.has(id)
     const deliveryState = resolveDeliveryState({
-      hasFactRows: factIds.has(id),
+      hasFactRows,
       hasSource: plan?.hasSource ?? false,
+      hasFixedCostSpend: overlaySpendIds.has(id) && delivered.spendToDate > 0 && !hasFactRows,
     })
     const noDeliveryRows = deliveryState !== "reported"
     const rates = deriveRates(delivered)
@@ -264,9 +270,10 @@ function overlayReportedSpendOnSnapshot(
   lineIds: string[],
   startDate?: string,
   endDate?: string,
-): void {
+): Set<string> {
+  const overlaySpendIds = new Set<string>()
   for (const id of lineIds) {
-    const byDate = byLine.get(id)
+    const byDate = byLine.get(id) ?? byLine.get(String(id).toLowerCase())
     if (!byDate || byDate.size === 0) continue
     let spend = 0
     let inWindow = false
@@ -280,7 +287,9 @@ function overlayReportedSpendOnSnapshot(
     const cur = deliveredById.get(id) ?? emptyMetrics()
     cur.spendToDate = spend
     deliveredById.set(id, cur)
+    if (spend > 0) overlaySpendIds.add(id)
   }
+  return overlaySpendIds
 }
 
 function collectChannelPlans(
@@ -471,8 +480,9 @@ export async function loadDeliverySnapshot(
     deliveredById.set(id, metrics)
   }
 
+  let overlaySpendIds = new Set<string>()
   if (fixedCostLineIds.length > 0 && facts.length > 0) {
-    overlayReportedSpendOnSnapshot(
+    overlaySpendIds = overlayReportedSpendOnSnapshot(
       deliveredById,
       indexReportedSpendByLineDate(reportedSpendDaysFromDailyFacts(facts)),
       fixedCostLineIds,
@@ -507,7 +517,7 @@ export async function loadDeliverySnapshot(
     const planMap = groups.get(group)
     if (!planMap || planMap.size === 0) continue
     if (group === "search" && !includeSearch) continue
-    const lines = buildLines(planMap, deliveredById, factIds)
+    const lines = buildLines(planMap, deliveredById, factIds, overlaySpendIds)
     channels.push({
       group,
       lines,

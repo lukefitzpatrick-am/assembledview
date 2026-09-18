@@ -2,7 +2,7 @@
 name: assembled-campaign-read
 description: Write the six-beat campaign read for the client dashboard. Trigger on "campaign read", "write the read", or the dashboard Regenerate action. Ground every number in a tool. Never invent a cause.
 metadata:
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 # Campaign read
@@ -23,10 +23,10 @@ A campaign read is six short beats for the client, in a fixed order. It is not c
 | Key | Heading | What it answers |
 |---|---|---|
 | `planned` | What was planned | Mix, flight, and **one** budget: `liveLineBudgetTotal` (the sum of live line budgets). State it as the live-line sum. Do not use the MBA booked total from context. |
-| `happened` | What has happened | Delivered spend and deliverables from **reported** lines only, plus time elapsed. |
-| `vsPlan` | Against the plan | Pace vs expected. Name the **reported** channel and platform that drives the gap. |
-| `best` | Best thing going on | The strongest **reported** result, with the number that proves it. |
-| `worst` | Worst thing | The weakest **reported** result, stated plainly. Never a `no_source` / `no_rows_yet` line when a reported line is behind. |
+| `happened` | What has happened | Delivered spend and deliverables from **reportedTotals** (reported + `spend_only` spend — same figures as the Where we are strip), plus time elapsed. |
+| `vsPlan` | Against the plan | Pace vs expected on those same totals. Name the **reported** channel and platform that drives the gap. |
+| `best` | Best thing going on | The strongest **reported** result, or a KPI row with `eligibleForBestWorst: true`. |
+| `worst` | Worst thing | The weakest **reported** result or eligible KPI, stated plainly. Never a `no_source` / `no_rows_yet` line when a reported line is behind. Never a KPI with `eligibleForBestWorst: false`. |
 | `upcoming` | Coming up | What needs to happen next (booked flights, catch-up, a material date). Describe the need. Never promise we are following up or contacting someone. |
 
 4. Rules while writing:
@@ -34,12 +34,14 @@ A campaign read is six short beats for the client, in a fixed order. It is not c
    - Never invent a cause. If the cause is not in a tool or a live insight, omit it.
    - Prior insights are context. Do not restate them as this period's finding unless you say what was believed before and what changed.
    - Delivery $ / KPI figures come from **get_delivery_snapshot** / the KPI review payload — never from insight bodies.
-   - Happened / vsPlan / best / worst copy **reportedTotals** (and `delivery_state: reported` lines). Do not add spend from `no_source` or `no_rows_yet` lines — those metrics are null and carry a `deliveryNote`.
-   - Each snapshot line has `delivery_state`: `reported`, `no_rows_yet`, or `no_source`.
+   - Happened / vsPlan copy **reportedTotals** (reported + `spend_only` spend — same delivered/expected as the strip). `no_source` / `no_rows_yet` have null metrics and a `deliveryNote`.
+   - Each snapshot line has `delivery_state`: `reported`, `no_rows_yet`, `no_source`, or `spend_only`.
      - `no_source`: the line **has no delivery reporting connected yet**.
      - `no_rows_yet`: the line **has not reported yet**.
-     - Never treat those states as zero impressions, zero clicks, or "spent $X with no delivery". Those zeros are absence, not a result.
+     - `spend_only`: **spend is fixed-cost accrual; no delivery reporting connected**. Count its spend. Do not narrate zero impressions or clicks.
+     - Never treat `no_source` / `no_rows_yet` as zero impressions, zero clicks, or "spent $X with no delivery".
      - They are never the worst thing when a `reported` line is behind.
+   - KPI review rows come from `buildKpiReview`. Best/worst may only use a row with `eligibleForBestWorst: true` (tracked, with a delivered value). Never narrate "Not tracked for this source" as zero, as worst, or as "no conversions have landed".
    - Name the channel and the platform (Channel Factory, Meta, Seven). Do not say "digital".
    - Talk to the client as "you". The agency is "we".
    - Never promise a follow-up action. Never name a person or partner as being contacted. Coming up says what needs to happen, not who we will call.
@@ -63,4 +65,4 @@ A campaign read is six short beats for the client, in a fixed order. It is not c
 
 ## Failure modes
 
-Reject the draft if any beat invents a number, invents a cause, uses a banned word from `voice.md`, hides a miss on a **reported** line, treats `no_source` / `no_rows_yet` as zero delivery, or promises a follow-up / names someone as being contacted.
+Reject the draft if any beat invents a number, invents a cause, uses a banned word from `voice.md`, hides a miss on a **reported** line, treats `no_source` / `no_rows_yet` as zero delivery, narrates a not-tracked KPI as zero / worst / no conversions, or promises a follow-up / names someone as being contacted.
