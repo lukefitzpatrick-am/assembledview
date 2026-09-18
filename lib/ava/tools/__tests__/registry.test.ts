@@ -228,6 +228,7 @@ test("get_delivery_snapshot shape", () => {
             ctr: 0.00165,
             cpc: 3.04,
             noDeliveryRows: false,
+            deliveryState: "reported",
           },
         ],
         totals: {
@@ -259,5 +260,106 @@ test("get_delivery_snapshot shape", () => {
   assert.equal(snap.versionNumber, 14)
   assert.equal(snap.channels[0]?.group, "social_meta")
   assert.equal(snap.channels[0]?.lines[0]?.impressions, 7260000)
+  assert.equal(snap.channels[0]?.lines[0]?.deliveryState, "reported")
   assert.equal(snap.planTotals.spendToDate, 36500)
+  assert.equal(snap.liveLineBudgetTotal, 10000)
+  assert.equal(snap.reportedTotals.spendToDate, 36500)
+})
+
+test("get_delivery_snapshot blanks spend on unreported lines", () => {
+  const snap = summariseDeliverySnapshot({
+    asOf: "2026-09-18",
+    window: { startDate: "2026-08-01", endDate: "2026-10-25" },
+    mbaNumber: "BICAU002",
+    versionNumber: 28,
+    channels: [
+      {
+        group: "digital_video",
+        lines: [
+          {
+            lineItemId: "bicau002dv1",
+            name: "UMG Popsta",
+            plannedBudget: 18240,
+            plannedUnits: null,
+            startDate: "2026-08-01",
+            endDate: "2026-10-25",
+            spendToDate: 9656,
+            impressions: 0,
+            clicks: 0,
+            results: 0,
+            video3sViews: 0,
+            cpm: null,
+            ctr: null,
+            cpc: null,
+            noDeliveryRows: true,
+            deliveryState: "no_source",
+          },
+        ],
+        totals: {
+          spendToDate: 9656,
+          impressions: 0,
+          clicks: 0,
+          results: 0,
+          video3sViews: 0,
+          plannedBudget: 18240,
+          cpm: null,
+          ctr: null,
+          cpc: null,
+        },
+      },
+      {
+        group: "social_meta",
+        lines: [
+          {
+            lineItemId: "bicau002sm1",
+            name: "Meta",
+            plannedBudget: 24662,
+            plannedUnits: null,
+            startDate: "2026-08-01",
+            endDate: "2026-10-25",
+            spendToDate: 12460,
+            impressions: 3800000,
+            clicks: 3400,
+            results: 0,
+            video3sViews: 1800000,
+            cpm: 3.28,
+            ctr: 0.00089,
+            cpc: 3.66,
+            noDeliveryRows: false,
+            deliveryState: "reported",
+          },
+        ],
+        totals: {
+          spendToDate: 12460,
+          impressions: 3800000,
+          clicks: 3400,
+          results: 0,
+          video3sViews: 1800000,
+          plannedBudget: 24662,
+          cpm: 3.28,
+          ctr: 0.00089,
+          cpc: 3.66,
+        },
+      },
+    ],
+    planTotals: {
+      spendToDate: 22116,
+      impressions: 3800000,
+      clicks: 3400,
+      results: 0,
+      video3sViews: 1800000,
+      plannedBudget: 42902,
+      cpm: 5.82,
+      ctr: 0.00089,
+      cpc: 6.5,
+    },
+  })
+  const umg = snap.channels[0]?.lines[0]
+  assert.equal(umg?.deliveryState, "no_source")
+  assert.equal(umg?.spendToDate, null)
+  assert.equal(umg?.impressions, null)
+  assert.equal(umg?.deliveryNote, "has no delivery reporting connected yet")
+  assert.equal(snap.reportedTotals.spendToDate, 12460)
+  assert.equal(snap.planTotals.spendToDate, 12460)
+  assert.equal(snap.liveLineBudgetTotal, 42902)
 })

@@ -70,6 +70,9 @@ function buildGenerateSystemPrompt(): string {
     "You are writing a stored campaign read, not a chat reply.",
     "Call only get_campaign_context, get_delivery_snapshot, and get_campaign_insights.",
     "Pace vs expected comes from the delivery snapshot totals (spend to date vs expected to date), not a portfolio pacing tool.",
+    "Each delivery line has delivery_state reported | no_rows_yet | no_source. no_source = has no delivery reporting connected yet. no_rows_yet = has not reported yet. Those lines have null delivery metrics — never treat them as zero impressions, zero clicks, or spent $X, and never pick them as worst when a reported line is behind.",
+    "What was planned uses liveLineBudgetTotal (sum of live line budgets), stated as such — not the MBA booked total. Happened / vsPlan / best / worst use reportedTotals only.",
+    "Coming up describes what needs to happen. Never promise follow-up or name a person or partner as being contacted.",
     "Then reply with JSON only — no preamble, no markdown headers.",
   ].join("\n\n")
 }
@@ -170,6 +173,7 @@ export async function writeCampaignReadFromAgent(input: {
     "Campaign KPI review rows (buildKpiReview for this MBA — copy numbers, do not invent):",
     JSON.stringify(kpiPayload),
     "Pace vs expected: use get_delivery_snapshot totals (spend to date vs expected to date).",
+    "Use liveLineBudgetTotal for What was planned. Use reportedTotals for happened / vsPlan / best / worst. Honour delivery_state on each line.",
   ].join("\n")
 
   const runner = input.runAgent ?? defaultAgentRunner

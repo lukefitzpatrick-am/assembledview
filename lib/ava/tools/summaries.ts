@@ -288,6 +288,7 @@ export type DeliveryLineSnapshot = {
   ctr: number | null
   cpc: number | null
   noDeliveryRows: boolean
+  deliveryState: "reported" | "no_rows_yet" | "no_source"
 }
 
 export type DeliveryChannelGroup = {
@@ -306,6 +307,71 @@ export type DeliveryChannelGroup = {
   }
 }
 
+function deliveryStateNote(
+  state: DeliveryLineSnapshot["deliveryState"],
+): string | undefined {
+  if (state === "no_source") return "has no delivery reporting connected yet"
+  if (state === "no_rows_yet") return "has not reported yet"
+  return undefined
+}
+
+function blankUnreportedLine(line: DeliveryLineSnapshot) {
+  const name = truncateText(line.name, 80)
+  if (line.deliveryState === "reported") {
+    return { ...line, name }
+  }
+  return {
+    ...line,
+    name,
+    spendToDate: null,
+    impressions: null,
+    clicks: null,
+    results: null,
+    video3sViews: null,
+    cpm: null,
+    ctr: null,
+    cpc: null,
+    deliveryNote: deliveryStateNote(line.deliveryState),
+  }
+}
+
+function sumReportedTotals(lines: DeliveryLineSnapshot[]) {
+  const totals = {
+    spendToDate: 0,
+    impressions: 0,
+    clicks: 0,
+    results: 0,
+    video3sViews: 0,
+    plannedBudget: null as number | null,
+    cpm: null as number | null,
+    ctr: null as number | null,
+    cpc: null as number | null,
+  }
+  let planned = 0
+  let hasBudget = false
+  for (const line of lines) {
+    if (line.deliveryState !== "reported") continue
+    totals.spendToDate += line.spendToDate
+    totals.impressions += line.impressions
+    totals.clicks += line.clicks
+    totals.results += line.results
+    totals.video3sViews += line.video3sViews
+    if (typeof line.plannedBudget === "number") {
+      planned += line.plannedBudget
+      hasBudget = true
+    }
+  }
+  totals.plannedBudget = hasBudget ? planned : null
+  if (totals.impressions > 0) {
+    totals.cpm = (totals.spendToDate / totals.impressions) * 1000
+    totals.ctr = totals.clicks / totals.impressions
+  }
+  if (totals.clicks > 0) {
+    totals.cpc = totals.spendToDate / totals.clicks
+  }
+  return totals
+}
+
 export function summariseDeliverySnapshot(args: {
   asOf: string
   window: { startDate: string | null; endDate: string | null }
@@ -314,17 +380,16 @@ export function summariseDeliverySnapshot(args: {
   channels: DeliveryChannelGroup[]
   planTotals: DeliveryChannelGroup["totals"]
 }) {
+  const allLines = args.channels.flatMap((ch) => ch.lines)
+  const reportedTotals = sumReportedTotals(allLines)
   const channels = args.channels.map((ch) => {
     const { items, truncated } = capList(ch.lines, LIST_CAP)
     return {
       group: ch.group,
       lineCount: ch.lines.length,
       truncated,
-      totals: ch.totals,
-      lines: items.map((line) => ({
-        ...line,
-        name: truncateText(line.name, 80),
-      })),
+      totals: sumReportedTotals(ch.lines),
+      lines: items.map(blankUnreportedLine),
     }
   })
   return {
@@ -333,6 +398,21 @@ export function summariseDeliverySnapshot(args: {
     mbaNumber: args.mbaNumber,
     versionNumber: args.versionNumber,
     channels,
-    planTotals: args.planTotals,
+    planTotals: {
+      ...args.planTotals,
+      spendToDate: reportedTotals.spendToDate,
+      impressions: reportedTotals.impressions,
+      clicks: reportedTotals.clicks,
+      results: reportedTotals.results,
+      video3sViews: reportedTotals.video3sViews,
+      cpm: reportedTotals.cpm,
+      ctr: reportedTotals.ctr,
+      cpc: reportedTotals.cpc,
+    },
+    reportedTotals,
+    liveLineBudgetTotal: args.planTotals.plannedBudget,
+    liveLineBudgetNote: "sum of live line budgets — use this in What was planned, not the MBA booked total",
+    reportedTotalsNote:
+      "happened / vsPlan / best / worst use reportedTotals only — ignore spend on no_source and no_rows_yet lines",
   }
 }

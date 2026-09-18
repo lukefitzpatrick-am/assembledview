@@ -89,6 +89,59 @@ test(
 )
 
 test(
+  "marks each line reported / no_rows_yet / no_source",
+  { skip },
+  async () => {
+    const { loadDeliverySnapshot } = await import("../loadDeliverySnapshot.js")
+
+    getCampaignPacingData.mock.resetCalls()
+    getCampaignPacingData.mock.mockImplementation(async (_mba: string, _ids: string[]) => [
+      {
+        lineItemId: "bicau002pv1",
+        amountSpent: 1200,
+        impressions: 8000,
+        clicks: 40,
+        results: 0,
+        video3sViews: 0,
+      },
+      {
+        lineItemId: "bicau002dv1",
+        amountSpent: 9656,
+        impressions: 0,
+        clicks: 0,
+        results: 0,
+        video3sViews: 0,
+      },
+    ])
+
+    const snap = await loadDeliverySnapshot({
+      mbaNumber: "BICAU002",
+      versionNumber: 28,
+      lineItemsByChannel: {
+        progVideo: [
+          { line_item_id: "bicau002pv1", name: "CF", publisher: "Channel Factory" },
+        ],
+        digitalVideo: [
+          { line_item_id: "bicau002dv1", name: "Popsta", publisher: "UMG Popsta" },
+        ],
+        progDisplay: [
+          { line_item_id: "bicau002pd1", name: "DV360", publisher: "DV360" },
+        ],
+      },
+    })
+
+    const byId = new Map(
+      snap.channels.flatMap((ch) => ch.lines).map((line) => [line.lineItemId, line]),
+    )
+    assert.equal(byId.get("bicau002pv1")?.deliveryState, "reported")
+    assert.equal(byId.get("bicau002pd1")?.deliveryState, "no_rows_yet")
+    assert.equal(byId.get("bicau002dv1")?.deliveryState, "no_source")
+    assert.equal(byId.get("bicau002dv1")?.noDeliveryRows, true)
+    getCampaignPacingData.mock.mockImplementation(async () => [])
+  },
+)
+
+test(
   "postgres backend fetches each media-container endpoint at the requested version",
   { skip },
   async () => {

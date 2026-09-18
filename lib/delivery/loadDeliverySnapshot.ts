@@ -18,6 +18,11 @@ import {
   indexReportedSpendByLineDate,
   reportedSpendDaysFromDailyFacts,
 } from "@/lib/delivery/programmatic/applyReportedSpend"
+import {
+  hasDeliveryFactActivity,
+  lineHasDeliverySource,
+  resolveDeliveryState,
+} from "@/lib/delivery/deliveryState"
 
 type MediaTypeKey = keyof typeof MEDIA_CONTAINER_ENDPOINTS
 
@@ -55,6 +60,7 @@ type PlanLineMeta = {
   plannedUnits: number | null
   startDate: string | null
   endDate: string | null
+  hasSource: boolean
 }
 
 function asNumber(value: unknown): number | null {
@@ -102,9 +108,10 @@ function dateFromItem(item: MediaContainerLineItem, keys: string[]): string | nu
   return null
 }
 
-function toPlanLineMeta(item: MediaContainerLineItem): PlanLineMeta | null {
+function toPlanLineMeta(item: MediaContainerLineItem, group: string): PlanLineMeta | null {
   const id = extractPacingLineItemIdFromItem(item as Record<string, unknown>)
   if (!id) return null
+  const rec = item as Record<string, unknown>
   return {
     id,
     name: asString(item.name) || asString(item.placementName) || id,
@@ -112,6 +119,11 @@ function toPlanLineMeta(item: MediaContainerLineItem): PlanLineMeta | null {
     plannedUnits: plannedUnitsFromItem(item),
     startDate: dateFromItem(item, ["start_date", "startDate", "placement_date", "flight_start"]),
     endDate: dateFromItem(item, ["end_date", "endDate", "flight_end"]),
+    hasSource: lineHasDeliverySource({
+      group,
+      publisher: rec.publisher,
+      platform: rec.platform,
+    }),
   }
 }
 
@@ -151,12 +163,17 @@ function aggregatePacingRows(rows: PacingRow[]): Map<string, ReturnType<typeof e
 function buildLines(
   planById: Map<string, PlanLineMeta>,
   deliveredById: Map<string, ReturnType<typeof emptyMetrics>>,
+  factIds: ReadonlySet<string>,
 ): DeliveryLineSnapshot[] {
   const lines: DeliveryLineSnapshot[] = []
   for (const id of [...planById.keys()].sort()) {
     const plan = planById.get(id)
     const delivered = deliveredById.get(id) ?? emptyMetrics()
-    const noDeliveryRows = !deliveredById.has(id)
+    const deliveryState = resolveDeliveryState({
+      hasFactRows: factIds.has(id),
+      hasSource: plan?.hasSource ?? false,
+    })
+    const noDeliveryRows = deliveryState !== "reported"
     const rates = deriveRates(delivered)
     lines.push({
       lineItemId: id,
@@ -174,6 +191,7 @@ function buildLines(
       ctr: rates.ctr,
       cpc: rates.cpc,
       noDeliveryRows,
+      deliveryState,
     })
   }
   return lines
@@ -249,14 +267,16 @@ function overlayReportedSpendOnSnapshot(
 ): void {
   for (const id of lineIds) {
     const byDate = byLine.get(id)
+    if (!byDate || byDate.size === 0) continue
     let spend = 0
-    if (byDate) {
-      for (const [date, amount] of byDate) {
-        if (startDate && date < startDate) continue
-        if (endDate && date > endDate) continue
-        spend += amount
-      }
+    let inWindow = false
+    for (const [date, amount] of byDate) {
+      if (startDate && date < startDate) continue
+      if (endDate && date > endDate) continue
+      spend += amount
+      inWindow = true
     }
+    if (!inWindow) continue
     const cur = deliveredById.get(id) ?? emptyMetrics()
     cur.spendToDate = spend
     deliveredById.set(id, cur)
@@ -280,32 +300,37 @@ function collectChannelPlans(
 
   const social = byChannel.socialMedia ?? []
   for (const item of social) {
-    const meta = toPlanLineMeta(item)
+    const platform = classifySocialPacingPlatform(item as Record<string, unknown>)
+    const group =
+      platform === "meta"
+        ? "social_meta"
+        : platform === "tiktok"
+          ? "social_tiktok"
+          : platform === "reddit"
+            ? "social_reddit"
+            : "plan_only"
+    const meta = toPlanLineMeta(item, group)
     if (!meta) continue
     allMetas.push(meta)
-    const platform = classifySocialPacingPlatform(item as Record<string, unknown>)
-    if (platform === "meta") ensure("social_meta").set(meta.id, meta)
-    else if (platform === "tiktok") ensure("social_tiktok").set(meta.id, meta)
-    else if (platform === "reddit") ensure("social_reddit").set(meta.id, meta)
-    else ensure("plan_only").set(meta.id, meta)
+    ensure(group).set(meta.id, meta)
   }
 
   for (const item of byChannel.progDisplay ?? []) {
-    const meta = toPlanLineMeta(item)
+    const meta = toPlanLineMeta(item, "programmatic_display")
     if (!meta) continue
     allMetas.push(meta)
     ensure("programmatic_display").set(meta.id, meta)
   }
 
   for (const item of byChannel.progVideo ?? []) {
-    const meta = toPlanLineMeta(item)
+    const meta = toPlanLineMeta(item, "programmatic_video")
     if (!meta) continue
     allMetas.push(meta)
     ensure("programmatic_video").set(meta.id, meta)
   }
 
   for (const item of [...(byChannel.progOoh ?? []), ...(byChannel.progOOH ?? [])]) {
-    const meta = toPlanLineMeta(item)
+    const meta = toPlanLineMeta(item, "programmatic_ooh")
     if (!meta) continue
     allMetas.push(meta)
     ensure("programmatic_ooh").set(meta.id, meta)
@@ -314,7 +339,7 @@ function collectChannelPlans(
   const ingestDirectDigital = (keys: readonly string[], group: string) => {
     for (const key of keys) {
       for (const item of byChannel[key] ?? []) {
-        const meta = toPlanLineMeta(item)
+        const meta = toPlanLineMeta(item, group)
         if (!meta) continue
         allMetas.push(meta)
         ensure(group).set(meta.id, meta)
@@ -327,7 +352,7 @@ function collectChannelPlans(
   ingestDirectDigital(["bvod", "digiBvod", "digi_bvod"], "bvod")
 
   for (const item of byChannel.search ?? []) {
-    const meta = toPlanLineMeta(item)
+    const meta = toPlanLineMeta(item, "search")
     if (!meta) continue
     allMetas.push(meta)
     ensure("search").set(meta.id, meta)
@@ -456,6 +481,12 @@ export async function loadDeliverySnapshot(
     )
   }
 
+  const factIds = new Set(
+    [...deliveredById.entries()]
+      .filter(([, metrics]) => hasDeliveryFactActivity(metrics))
+      .map(([id]) => id),
+  )
+
   const channelOrder = [
     "social_meta",
     "social_tiktok",
@@ -476,7 +507,7 @@ export async function loadDeliverySnapshot(
     const planMap = groups.get(group)
     if (!planMap || planMap.size === 0) continue
     if (group === "search" && !includeSearch) continue
-    const lines = buildLines(planMap, deliveredById)
+    const lines = buildLines(planMap, deliveredById, factIds)
     channels.push({
       group,
       lines,
