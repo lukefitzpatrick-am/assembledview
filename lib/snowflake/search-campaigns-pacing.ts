@@ -1,5 +1,6 @@
 import "server-only"
 
+import { normalizeDailyFactDate } from "@/lib/pacing/detail/dailyFromFacts"
 import { querySnowflake } from "@/lib/snowflake/query"
 
 /** One ad-group-day row from SEARCH_PACING_FACT at ad-group grain. */
@@ -83,7 +84,7 @@ export async function getSearchCampaignsPacingData(
     CAMPAIGN_NAME: String(r.CAMPAIGN_NAME ?? "").trim(),
     PLATFORM_LINE_ITEM_ID: String(r.PLATFORM_LINE_ITEM_ID ?? "").trim(),
     LINE_ITEM_NAME: String(r.LINE_ITEM_NAME ?? "").trim(),
-    DATE_DAY: String(r.DATE_DAY ?? "").slice(0, 10),
+    DATE_DAY: normalizeDailyFactDate(r.DATE_DAY) ?? "",
     AMOUNT_SPENT: toNumber(r.AMOUNT_SPENT),
     IMPRESSIONS: toNumber(r.IMPRESSIONS),
     CLICKS: toNumber(r.CLICKS),

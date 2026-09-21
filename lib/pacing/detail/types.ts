@@ -6,10 +6,22 @@ import type { ScenarioLine } from "@/lib/pacing/scenario/types"
 
 export type CampaignDetailMetric = "spend" | "impressions" | "clicks" | "views"
 
+export type CampaignDetailDailyWindow = {
+  date_from?: string
+  date_to?: string
+}
+
+export type CampaignDetailDailyLineSlice = {
+  lineItemId: string
+  label: string
+  value: number
+}
+
 export type CampaignDetailDailyPoint = {
   date: string
   actual: number
   plan: number
+  byLine: CampaignDetailDailyLineSlice[]
 }
 
 export type CampaignDetailDailySeries = {
@@ -18,10 +30,30 @@ export type CampaignDetailDailySeries = {
   points: CampaignDetailDailyPoint[]
 }
 
+export type CampaignDetailDailyTableRow = {
+  date: string
+  spend: number
+  impressions: number
+  clicks: number
+  views: number
+  results: number
+  lines: Array<{
+    lineItemId: string
+    label: string
+    spend: number
+    impressions: number
+    clicks: number
+    views: number
+    results: number
+  }>
+}
+
 export type CampaignDetailDaily = {
   series: CampaignDetailDailySeries[]
   metric: CampaignDetailMetric
   byMetric: Record<CampaignDetailMetric, CampaignDetailDailySeries[]>
+  table: CampaignDetailDailyTableRow[]
+  empty: boolean
 }
 
 export type CampaignDetailBurst = {

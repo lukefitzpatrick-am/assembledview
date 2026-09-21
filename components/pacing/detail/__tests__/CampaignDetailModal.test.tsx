@@ -241,4 +241,25 @@ describe("CampaignDetailModal", () => {
     expect(sections[0]?.textContent).not.toContain("Generic search")
     expect(sections[1]?.textContent).not.toContain("Brand search")
   })
+
+  it("shows an explicit empty Daily state instead of a blank chart", () => {
+    act(() => {
+      root.render(
+        <CampaignDetailModal
+          mba={payload.row.mbaNumber}
+          asOf={P6_AS_OF}
+          payload={payload}
+          loading={false}
+          error={null}
+          onClose={() => {}}
+          onReload={() => {}}
+        />,
+      )
+    })
+    const dailyTab = [...container.querySelectorAll("button")].find((el) => el.textContent === "Daily")
+    act(() => {
+      dailyTab!.click()
+    })
+    expect(container.textContent).toContain("No daily rows for this campaign")
+  })
 })

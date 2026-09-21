@@ -23,14 +23,19 @@ import { fetchSocialPacingCampaignRows } from "@/lib/pacing/social/fetchSocialPa
 import { getCampaignPacingData } from "@/lib/snowflake/pacing-service"
 import { getSearchCampaignsPacingData } from "@/lib/snowflake/search-campaigns-pacing"
 import { assembleCampaignDetailPayload } from "./assembleCampaignDetailPayload"
-import type { DailyFactPoint } from "./dailyFromFacts"
+import {
+  logDailyFactsInput,
+  normalizeDailyFactDate,
+  type DailyFactPoint,
+} from "./dailyFromFacts"
 import { listCampaignDetailNotes } from "./notes"
-import type { CampaignDetailPayload } from "./types"
+import type { CampaignDetailDailyWindow, CampaignDetailPayload } from "./types"
 
 export type BuildCampaignDetailArgs = {
   mbaNumber: string
   asOfDate?: string
   allowedClientSlugs: Set<string> | null
+  window?: CampaignDetailDailyWindow
 }
 
 export class CampaignDetailError extends Error {
@@ -90,48 +95,74 @@ function channelOfLine(lines: LineCardModel[], lineItemId: string): LineCardMode
   return lines.find((line) => line.lineItemId.toLowerCase() === id)
 }
 
+function dailyQueryWindow(asOf: string, window?: CampaignDetailDailyWindow) {
+  const endDate = normalizeDailyFactDate(window?.date_to) ?? asOf
+  const startDate = normalizeDailyFactDate(window?.date_from) ?? sixtyDayStart(endDate)
+  return { startDate, endDate }
+}
+
+function failedDailyQuery(label: string, mbaNumber: string, err: unknown): [] {
+  console.warn("[dailyFactsForMba] query failed", {
+    label,
+    mba: mbaNumber,
+    message: err instanceof Error ? err.message : String(err),
+  })
+  return []
+}
+
 async function dailyFactsForMba(
   mbaNumber: string,
   asOf: string,
   lines: LineCardModel[],
+  window?: CampaignDetailDailyWindow,
 ): Promise<DailyFactPoint[]> {
   const searchIds = lines.filter((line) => line.channel === "search").map((line) => line.lineItemId)
   const otherIds = lines.filter((line) => line.channel !== "search").map((line) => line.lineItemId)
-  const startDate = sixtyDayStart(asOf)
+  const { startDate, endDate } = dailyQueryWindow(asOf, window)
   const [searchRows, pacingRows] = await Promise.all([
     searchIds.length
-      ? getSearchCampaignsPacingData({ lineItemIds: searchIds, startDate, endDate: asOf }).catch(() => [])
+      ? getSearchCampaignsPacingData({ lineItemIds: searchIds, startDate, endDate }).catch((err) =>
+          failedDailyQuery("search", mbaNumber, err),
+        )
       : Promise.resolve([]),
     otherIds.length
-      ? getCampaignPacingData(mbaNumber, otherIds, { startDate, endDate: asOf }).catch(() => [])
+      ? getCampaignPacingData(mbaNumber, otherIds, { startDate, endDate }).catch((err) =>
+          failedDailyQuery("social/other", mbaNumber, err),
+        )
       : Promise.resolve([]),
   ])
   const facts: DailyFactPoint[] = []
   for (const row of searchRows) {
     const line = channelOfLine(lines, row.LINE_ITEM_ID)
     facts.push({
-      date: String(row.DATE_DAY ?? "").slice(0, 10),
+      date: normalizeDailyFactDate(row.DATE_DAY) ?? "",
       channelKey: line?.channel ?? "search",
       channelLabel: line ? `${line.channel} · ${line.platform}` : "Search",
+      lineItemId: String(row.LINE_ITEM_ID ?? "").trim().toLowerCase(),
       spend: Number(row.AMOUNT_SPENT) || 0,
       impressions: Number(row.IMPRESSIONS) || 0,
       clicks: Number(row.CLICKS) || 0,
       views: 0,
+      results: Number(row.CONVERSIONS) || 0,
     })
   }
   for (const row of pacingRows) {
     const line = channelOfLine(lines, row.lineItemId ?? "")
     facts.push({
-      date: String(row.dateDay ?? "").slice(0, 10),
+      date: normalizeDailyFactDate(row.dateDay) ?? "",
       channelKey: line?.channel ?? "other",
       channelLabel: line ? `${line.channel} · ${line.platform}` : row.channel,
+      lineItemId: String(row.lineItemId ?? "").trim().toLowerCase(),
       spend: Number(row.amountSpent) || 0,
       impressions: Number(row.impressions) || 0,
       clicks: Number(row.clicks) || 0,
       views: Number(row.video3sViews) || 0,
+      results: Number(row.results) || 0,
     })
   }
-  return facts.filter((fact) => fact.date)
+  const kept = facts.filter((fact) => fact.date)
+  logDailyFactsInput(mbaNumber, asOf, kept)
+  return kept
 }
 
 function assertTenant(row: CampaignPacingRow, allowedClientSlugs: Set<string> | null) {
@@ -195,7 +226,7 @@ export async function buildCampaignDetail(
   const [read, notes, dailyFacts, clients] = await Promise.all([
     getLatestPublishedCampaignRead(mba).catch(() => null),
     listCampaignDetailNotes(mba),
-    dailyFactsForMba(mba, asOf, lines),
+    dailyFactsForMba(mba, asOf, lines, args.window),
     getCachedClientsList().catch(() => ({ data: [] as { id?: number; slug?: string }[] })),
   ])
 
@@ -215,5 +246,6 @@ export async function buildCampaignDetail(
     dailyFacts,
     planPerDayByChannel,
     clientId,
+    window: args.window,
   })
 }
