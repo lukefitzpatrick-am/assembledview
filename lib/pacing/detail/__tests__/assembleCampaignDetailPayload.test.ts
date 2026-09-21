@@ -6,6 +6,7 @@ import { lineCardFromSearch } from "../../channel/lineCardModel.js"
 import { LINE_AS_OF, searchFixture } from "../../channel/__tests__/fixtures.js"
 import type { CampaignPacingRow } from "../../portfolio/types.js"
 import { assembleCampaignDetailPayload } from "../assembleCampaignDetailPayload.js"
+import { kpisFromLines } from "../kpisFromLines.js"
 import { lineDetailDescription, visibleLineDetailColumns } from "../lineDetailColumns.js"
 
 function campaignRow(overrides: Partial<CampaignPacingRow> = {}): CampaignPacingRow {
@@ -126,5 +127,51 @@ describe("lineDetailDescription", () => {
       lineDetailDescription(line),
       `Jayco AU – Annual Plan, search · Google Ads, brand + generic RV, cpc, ${formatMoney(20_000, { decimals: 0 })}`,
     )
+  })
+})
+
+describe("kpisFromLines", () => {
+  it("groups KPI rows under one card per line", () => {
+    const brand = lineCardFromSearch(
+      searchFixture({ lineItemId: "jayco001se1", campaignName: "Brand search" }),
+      LINE_AS_OF,
+    )
+    const generic = lineCardFromSearch(
+      searchFixture({ lineItemId: "jayco001se2", campaignName: "Generic search", buyType: "cpm" }),
+      LINE_AS_OF,
+    )
+    const cards = kpisFromLines([brand, generic])
+    assert.equal(cards.length, 2)
+    assert.equal(cards[0]?.key, "jayco001se1")
+    assert.equal(cards[0]?.lineItemId, "jayco001se1")
+    assert.equal(cards[0]?.name, "Brand search")
+    assert.match(cards[0]?.channelPlatform ?? "", /search · Google Ads/)
+    assert.deepEqual(
+      cards[0]?.rows.map((row) => row.label),
+      brand.kpis.map((kpi) => kpi.label),
+    )
+    assert.equal(cards[1]?.key, "jayco001se2")
+    assert.equal(cards[1]?.name, "Generic search")
+    assert.equal(cards[1]?.buyType, "cpm")
+    assert.deepEqual(
+      cards[1]?.rows.map((row) => row.label),
+      generic.kpis.map((kpi) => kpi.label),
+    )
+    assert.ok(cards[0]?.rows.every((row) => row.targetCaption))
+  })
+
+  it("collapses a line whose every KPI is not tracked for this source", () => {
+    const line = lineCardFromSearch(searchFixture(), LINE_AS_OF)
+    const cards = kpisFromLines([
+      {
+        ...line,
+        kpis: line.kpis.map((kpi) => ({
+          ...kpi,
+          delivered: "Not tracked for this source",
+        })),
+      },
+    ])
+    assert.equal(cards[0]?.untracked, true)
+    assert.equal(cards[0]?.rows.length, 0)
   })
 })

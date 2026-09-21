@@ -1,13 +1,18 @@
-import type { KpiReviewCard, KpiReviewRow } from "@/lib/kpi/kpiReview"
+import type { KpiReviewRow } from "@/lib/kpi/kpiReview"
 import type { LineCardKpi, LineCardModel } from "@/lib/pacing/channel/lineCardTypes"
 import type { DeliveryStatus } from "@/lib/pacing/deliveryStatusFromPct"
 
-const CHANNEL_LABEL: Record<LineCardModel["channel"], string> = {
-  search: "Search",
-  social: "Social",
-  programmatic: "Programmatic",
-  "ad-serving": "Ad serving",
-  direct: "Direct",
+export const KPI_NOT_TRACKED_FOR_SOURCE = "Not tracked for this source"
+
+export type CampaignDetailKpiCard = {
+  key: string
+  lineItemId: string
+  name: string
+  channelPlatform: string
+  buyType: string | null
+  budget: number
+  rows: KpiReviewRow[]
+  untracked: boolean
 }
 
 function reviewStatus(kpi: LineCardKpi): DeliveryStatus {
@@ -16,11 +21,16 @@ function reviewStatus(kpi: LineCardKpi): DeliveryStatus {
   return "no-data"
 }
 
-function caption(kpi: LineCardKpi): string | null {
+/** Shared target caption: plan target / industry benchmark / plan rate / No target set. */
+export function kpiTargetCaption(kpi: Pick<LineCardKpi, "source">): string {
   if (kpi.source === "benchmark") return "industry benchmark"
   if (kpi.source === "rate") return "plan rate"
   if (kpi.source === "target") return "plan target"
-  return null
+  return "No target set"
+}
+
+export function lineKpiChannelPlatform(line: Pick<LineCardModel, "channel" | "platform">): string {
+  return [line.channel, line.platform].filter(Boolean).join(" · ")
 }
 
 function rowFromChip(kpi: LineCardKpi): KpiReviewRow {
@@ -32,29 +42,27 @@ function rowFromChip(kpi: LineCardKpi): KpiReviewRow {
     status: reviewStatus(kpi),
     omitted: kpi.status === "no-target" || kpi.status == null,
     targetSource: kpi.source === "benchmark" || kpi.source === "target" ? kpi.source : null,
-    targetCaption: caption(kpi),
+    targetCaption: kpiTargetCaption(kpi),
   }
 }
 
-/** Dashboard-review shaped cards from V1 line KPI chips, grouped by channel. */
-export function kpisFromLines(lines: readonly LineCardModel[]): KpiReviewCard[] {
-  const byChannel = new Map<string, { label: string; rows: KpiReviewRow[] }>()
-  for (const line of lines) {
-    if (line.kpis.length === 0) continue
-    const key = line.channel
-    const existing = byChannel.get(key) ?? { label: `${CHANNEL_LABEL[key]} · ${line.platform}`, rows: [] }
-    if (!byChannel.has(key)) existing.label = `${CHANNEL_LABEL[key]} · ${line.platform}`
-    existing.rows.push(...line.kpis.map(rowFromChip))
-    byChannel.set(key, existing)
-  }
-  return [...byChannel.entries()].map(([key, group]) => {
-    const rows = group.rows.filter((row) => !row.omitted || row.targetCaption)
+function isUntracked(kpi: LineCardKpi): boolean {
+  return kpi.delivered === KPI_NOT_TRACKED_FOR_SOURCE
+}
+
+/** One card per line, with that line's KPI chips underneath. */
+export function kpisFromLines(lines: readonly LineCardModel[]): CampaignDetailKpiCard[] {
+  return lines.map((line) => {
+    const untracked = line.kpis.length > 0 && line.kpis.every(isUntracked)
     return {
-      key,
-      label: group.label,
-      colour: "",
-      rows,
-      noTargets: rows.length === 0,
+      key: line.lineItemId,
+      lineItemId: line.lineItemId,
+      name: line.campaignName,
+      channelPlatform: lineKpiChannelPlatform(line),
+      buyType: line.buyType,
+      budget: line.budget,
+      rows: untracked ? [] : line.kpis.map(rowFromChip),
+      untracked,
     }
   })
 }

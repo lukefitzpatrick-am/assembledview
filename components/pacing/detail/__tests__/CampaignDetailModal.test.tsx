@@ -183,4 +183,62 @@ describe("CampaignDetailModal", () => {
     expect(description?.getAttribute("title")).toContain(payload.lines[0]?.campaignName ?? "")
     expect(description?.getAttribute("title")).toContain("search · Google Ads")
   })
+
+  it("groups KPIs under a header per line", () => {
+    const row = p6FixtureRows().find((item) => item.mbaNumber === "BICAU002")!
+    const brand = lineCardFromSearch(
+      searchFixture({
+        mbaNumber: row.mbaNumber,
+        campaignName: "Brand search",
+        lineItemId: "bicau002se1",
+      }),
+      P6_AS_OF,
+    )
+    const generic = lineCardFromSearch(
+      searchFixture({
+        mbaNumber: row.mbaNumber,
+        campaignName: "Generic search",
+        lineItemId: "bicau002se2",
+        buyType: "cpm",
+      }),
+      P6_AS_OF,
+    )
+    const twoLinePayload = assembleCampaignDetailPayload({
+      row,
+      lines: [brand, generic],
+      asOf: P6_AS_OF,
+    })
+    act(() => {
+      root.render(
+        <CampaignDetailModal
+          mba={row.mbaNumber}
+          asOf={P6_AS_OF}
+          payload={twoLinePayload}
+          loading={false}
+          error={null}
+          onClose={() => {}}
+          onReload={() => {}}
+        />,
+      )
+    })
+    const kpisTab = [...container.querySelectorAll("button")].find((el) => el.textContent === "KPIs")
+    act(() => {
+      kpisTab!.click()
+    })
+    const grid = container.querySelector('[class*="min-[800px]:grid-cols-2"]')
+    expect(grid).toBeTruthy()
+    const sections = [...container.querySelectorAll("[data-kpi-line]")]
+    expect(sections).toHaveLength(2)
+    expect(sections[0]?.getAttribute("data-kpi-line")).toBe("bicau002se1")
+    expect(sections[0]?.textContent).toContain("Brand search")
+    expect(sections[0]?.textContent).toContain("search · Google Ads")
+    expect([...sections[0]!.querySelectorAll("tbody tr")].map((el) => el.textContent)).toEqual(
+      expect.arrayContaining(["CTR", "Conversion Rate"].map((label) => expect.stringContaining(label))),
+    )
+    expect(sections[1]?.getAttribute("data-kpi-line")).toBe("bicau002se2")
+    expect(sections[1]?.textContent).toContain("Generic search")
+    expect(sections[1]?.textContent).toContain("cpm")
+    expect(sections[0]?.textContent).not.toContain("Generic search")
+    expect(sections[1]?.textContent).not.toContain("Brand search")
+  })
 })

@@ -11,6 +11,7 @@ import { formatMoney, formatPercent } from "@/lib/format/money"
 import { formatCount, formatRateMoney } from "@/lib/pacing/channel/lineCardFormat"
 import type { LineCardModel, LineCardPace } from "@/lib/pacing/channel/lineCardTypes"
 import { suggestedNextStep } from "@/lib/pacing/detail/suggestedNextStep"
+import { KPI_NOT_TRACKED_FOR_SOURCE } from "@/lib/pacing/detail/kpisFromLines"
 import {
   lineDetailDescription,
   visibleLineDetailColumns,
@@ -381,9 +382,29 @@ export function CampaignDetailModal({
           {payload && tab === "kpis" ? (
             <div className="grid gap-4 min-[800px]:grid-cols-2">
               {payload.kpis.map((group) => (
-                <section key={group.key} className="rounded-card border border-border p-3">
-                  <h3 className="mb-2 text-sm font-semibold">{group.label}</h3>
-                  {group.noTargets ? (
+                <section
+                  key={group.key}
+                  data-kpi-line={group.lineItemId}
+                  className="rounded-card border border-border p-3"
+                >
+                  <header className="mb-2 space-y-0.5">
+                    <h3 className="font-mono text-xs text-foreground">{group.lineItemId}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {[
+                        group.name,
+                        group.channelPlatform,
+                        group.buyType,
+                        group.budget && Number.isFinite(group.budget)
+                          ? money(group.budget)
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </header>
+                  {group.untracked ? (
+                    <p className="text-sm text-muted-foreground">{KPI_NOT_TRACKED_FOR_SOURCE}</p>
+                  ) : group.rows.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No targets set.</p>
                   ) : (
                     <table className="w-full text-sm">
