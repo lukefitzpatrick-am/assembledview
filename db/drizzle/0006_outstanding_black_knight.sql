@@ -1,0 +1,1 @@
+ALTER TABLE "delivery_relabel_log" ALTER COLUMN "relabel_id" DROP NOT NULL;

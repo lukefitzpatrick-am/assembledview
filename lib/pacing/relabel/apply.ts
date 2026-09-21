@@ -230,6 +230,7 @@ export async function applyRelabel(
     applyResult: {
       rowsUpdated: snowflake.rowsUpdated,
       rowsDeleted: snowflake.rowsDeleted,
+      spendMoving: preview.spendMoving,
     },
   })
 

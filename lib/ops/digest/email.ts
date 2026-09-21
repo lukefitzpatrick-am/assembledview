@@ -60,6 +60,47 @@ function renderTable(rows: DigestCampaignRow[]): string {
   </table>`
 }
 
+function renderRelabelSection(payload: PacingDigestPayload): string {
+  const relabels = payload.relabels ?? { day: payload.asOfDate, events: [], drift: [] }
+  const events = relabels.events ?? []
+  const drift = relabels.drift ?? []
+  const eventRows =
+    events.length === 0
+      ? `<p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#57606a;margin:8px 0;">None</p>`
+      : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #d0d7de;">
+      <tr style="background:#f6f8fa;">
+        <th align="left" style="padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#57606a;border-bottom:1px solid #d0d7de;">Action</th>
+        <th align="left" style="padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#57606a;border-bottom:1px solid #d0d7de;">MBA</th>
+        <th align="left" style="padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#57606a;border-bottom:1px solid #d0d7de;">Entity</th>
+        <th align="left" style="padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#57606a;border-bottom:1px solid #d0d7de;">Line</th>
+        <th align="left" style="padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#57606a;border-bottom:1px solid #d0d7de;">Actor</th>
+      </tr>
+      ${events
+        .map(
+          (event) => `<tr>
+        <td style="padding:8px 10px;border-bottom:1px solid #d0d7de;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#24292f;">${escapeHtml(event.action)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #d0d7de;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#24292f;">${escapeHtml(event.mbaNumber ?? "—")}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #d0d7de;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#24292f;">${escapeHtml(event.entityName ?? "—")}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #d0d7de;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#24292f;">${escapeHtml(event.toLineItemId ?? "—")}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #d0d7de;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#24292f;">${escapeHtml(event.actorEmail)}</td>
+      </tr>`,
+        )
+        .join("")}
+    </table>`
+  const driftRows =
+    drift.length === 0
+      ? `<p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#57606a;margin:8px 0;">No R4 drift.</p>`
+      : `<ul style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#24292f;margin:8px 0;padding-left:18px;">${drift
+          .map((item) => `<li>${escapeHtml(item.message)}</li>`)
+          .join("")}</ul>`
+
+  return `<tr><td style="padding:16px 24px 4px;font-family:Arial,Helvetica,sans-serif;">
+    <div style="font-size:15px;font-weight:700;color:#24292f;">Delivery relabels · ${escapeHtml(relabels.day)}</div>
+  </td></tr>
+  <tr><td style="padding:4px 24px 4px;">${eventRows}</td></tr>
+  <tr><td style="padding:4px 24px 12px;">${driftRows}</td></tr>`
+}
+
 function section(band: DigestBand, rows: DigestCampaignRow[]): string {
   const colour = BAND_COLOUR[band]
   return `<tr><td style="padding:16px 24px 4px;font-family:Arial,Helvetica,sans-serif;">
@@ -101,6 +142,7 @@ export function buildPacingDigestEmailHtml(payload: PacingDigestPayload): string
         ${section("on", groups.on)}
         ${section("ahead", groups.ahead)}
         ${section("no-data", groups["no-data"])}
+        ${renderRelabelSection(payload)}
         <tr><td style="padding:0 24px 8px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#8c959f;">
           Ad-serving: delivered % is deliverable progress (impressions/clicks vs plan); no spend pacing.
         </td></tr>

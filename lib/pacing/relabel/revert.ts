@@ -45,6 +45,9 @@ export async function revertRelabel(
   if (row.status === "reverted") {
     throw new RelabelRevertError("already_reverted", `Relabel ${relabelId} is already reverted.`)
   }
+  if (row.status === "blocked") {
+    throw new RelabelRevertError("invalid", `Relabel ${relabelId} is blocked and cannot be reverted.`)
+  }
 
   const plan = revertPlanFromPayload(row.beforeState)
   const route = factRouteForChannel(row.channel)

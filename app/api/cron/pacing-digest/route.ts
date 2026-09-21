@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { getOpsEmailRecipients, sendHtmlEmail } from "@/lib/email/sendHtmlEmail"
 import { buildPacingDigest } from "@/lib/ops/digest/buildPacingDigest"
+import { runCloseUntouchedRelabelTasks } from "@/lib/pacing/relabel/autoClose"
 import {
   buildPacingDigestEmailHtml,
   buildPacingDigestSubject,
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
   const startedAt = new Date()
   try {
     const payload = await buildPacingDigest(startedAt)
+    const closedRelabelTasks = await runCloseUntouchedRelabelTasks(startedAt)
     const subject = buildPacingDigestSubject(payload)
     const html = buildPacingDigestEmailHtml(payload)
     const to = getOpsEmailRecipients()
@@ -37,6 +39,8 @@ export async function GET(request: Request) {
         counts: payload.counts,
         subject,
         cacheNote: payload.cacheNote,
+        closedRelabelTasks,
+        relabelEvents: payload.relabels?.events.length ?? 0,
       }),
     )
 
@@ -45,6 +49,8 @@ export async function GET(request: Request) {
       subject,
       recipients: to,
       counts: payload.counts,
+      closedRelabelTasks,
+      relabelEvents: payload.relabels?.events.length ?? 0,
       atRiskSample: payload.atRisk.slice(0, 10),
     })
   } catch (err) {

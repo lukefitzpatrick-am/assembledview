@@ -1,6 +1,12 @@
 import "server-only"
 
 import { getAsOfDate } from "@/lib/pacing/maths"
+import { addMelbourneDays } from "@/lib/pacing/relabel/notify"
+import { listRelabelDrift, type RelabelDriftFinding } from "@/lib/pacing/relabel/drift"
+import {
+  listRelabelLogForDay,
+  type DeliveryRelabelLogRow,
+} from "@/lib/pacing/relabel/repo"
 import {
   getCachedAdServingPacingRows,
   getCachedDirectPacingRows,
@@ -69,6 +75,11 @@ export type PacingDigestPayload = {
   atRisk: DigestCampaignRow[]
   groups: ReturnType<typeof groupDigestByBand>
   counts: { atRisk: number; behind: number; on: number; ahead: number; noData: number; total: number }
+  relabels?: {
+    day: string
+    events: DeliveryRelabelLogRow[]
+    drift: RelabelDriftFinding[]
+  }
 }
 
 /**
@@ -110,6 +121,19 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
   })
   const groups = groupDigestByBand(rows)
   const atRisk = groups["at-risk"]
+  const relabelDay = addMelbourneDays(asOfDate, -1)
+  let relabelEvents: DeliveryRelabelLogRow[] = []
+  let relabelDrift: RelabelDriftFinding[] = []
+  try {
+    relabelEvents = await listRelabelLogForDay(relabelDay)
+  } catch (err) {
+    console.error("[pacing-digest] relabel log failed", err)
+  }
+  try {
+    relabelDrift = await listRelabelDrift()
+  } catch (err) {
+    console.error("[pacing-digest] relabel drift failed", err)
+  }
 
   return {
     asOfDate,
@@ -125,6 +149,11 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
       ahead: groups.ahead.length,
       noData: groups["no-data"].length,
       total: rows.length,
+    },
+    relabels: {
+      day: relabelDay,
+      events: relabelEvents,
+      drift: relabelDrift,
     },
   }
 }
