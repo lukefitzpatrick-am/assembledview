@@ -1,6 +1,6 @@
 import type { CampaignRead } from "@/lib/campaign-read/types"
-import type { KpiReviewCard } from "@/lib/kpi/kpiReview"
 import type { LineCardModel, LineCardPace } from "@/lib/pacing/channel/lineCardTypes"
+import type { CampaignDetailKpiCard } from "@/lib/pacing/detail/kpisFromLines"
 import type { CampaignPacingRow } from "@/lib/pacing/portfolio/types"
 import type { ScenarioLine } from "@/lib/pacing/scenario/types"
 
@@ -47,7 +47,7 @@ export type CampaignDetailNote = {
 export type CampaignDetailPayload = {
   row: CampaignPacingRow
   lines: LineCardModel[]
-  kpis: KpiReviewCard[]
+  kpis: CampaignDetailKpiCard[]
   bursts: CampaignDetailBurst[]
   daily: CampaignDetailDaily
   read: CampaignRead | null
