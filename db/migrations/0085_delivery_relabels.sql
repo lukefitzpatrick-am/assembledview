@@ -37,7 +37,7 @@ BEGIN
     created_at           timestamptz NOT NULL DEFAULT now(),
     reverted_at          timestamptz,
     reverted_by_email    text,
-    CONSTRAINT delivery_relabels_status_chk CHECK (status IN ('applied', 'reverted'))
+    CONSTRAINT delivery_relabels_status_chk CHECK (status IN ('applied', 'reverted', 'blocked'))
   );
 
   CREATE INDEX IF NOT EXISTS delivery_relabels_mba_created_idx
@@ -53,19 +53,19 @@ BEGIN
 
   CREATE TABLE IF NOT EXISTS public.delivery_relabel_log (
     id           serial PRIMARY KEY,
-    relabel_id   integer NOT NULL REFERENCES public.delivery_relabels(id),
+    relabel_id   integer REFERENCES public.delivery_relabels(id),
     action       text NOT NULL,
     actor_email  text NOT NULL,
     payload      jsonb NOT NULL,
     created_at   timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT delivery_relabel_log_action_chk CHECK (action IN ('apply', 'revert'))
+    CONSTRAINT delivery_relabel_log_action_chk CHECK (action IN ('preview', 'apply', 'warn_ack', 'block', 'revert'))
   );
 
   CREATE INDEX IF NOT EXISTS delivery_relabel_log_relabel_idx
     ON public.delivery_relabel_log (relabel_id, created_at DESC);
 
   COMMENT ON TABLE public.delivery_relabel_log IS
-    'Per-action payload for delivery_relabels (apply before-state; revert restore plan).';
+    'Per-action payload for delivery_relabels (preview/apply/warn_ack/block/revert). relabel_id nullable for preview.';
 
   ALTER TABLE public.delivery_relabel_log ENABLE ROW LEVEL SECURITY;
 

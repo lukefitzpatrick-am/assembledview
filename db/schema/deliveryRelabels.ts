@@ -43,9 +43,7 @@ export const deliveryRelabelLog = pgTable(
   "delivery_relabel_log",
   {
     id: serial("id").primaryKey(),
-    relabelId: integer("relabel_id")
-      .notNull()
-      .references(() => deliveryRelabels.id),
+    relabelId: integer("relabel_id").references(() => deliveryRelabels.id),
     action: text("action").notNull(),
     actorEmail: text("actor_email").notNull(),
     payload: jsonb("payload").notNull(),

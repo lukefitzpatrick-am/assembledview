@@ -41,6 +41,7 @@ const RECOGNISED_GUARD_PATTERNS: { name: string; re: RegExp; bucket: Mechanism }
   { name: "assertClientAccess", re: /\bassertClientAccess\b/, bucket: "checkClientMbaAccess" },
   { name: "serveArInvoicePdf", re: /\bserveArInvoicePdf\b/, bucket: "checkClientMbaAccess" },
   { name: "requirePacingAccess", re: /\brequirePacingAccess\b/, bucket: "checkClientMbaAccess" },
+  { name: "requireRelabelAccess", re: /\brequireRelabelAccess\b/, bucket: "requireRole" },
   {
     name: "createChannelLineItemsGetHandler",
     re: /\bcreateChannelLineItemsGetHandler\b/,

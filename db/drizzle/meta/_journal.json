@@ -43,6 +43,13 @@
       "when": 1789974873830,
       "tag": "0005_cultured_supreme_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789975679020,
+      "tag": "0006_outstanding_black_knight",
+      "breakpoints": true
     }
   ]
 }

@@ -301,3 +301,35 @@ test("email HTML includes ad-serving deliverable-progress footnote", () => {
   assert.match(html, /\(direct\)/)
   assert.match(html, /\(ad-serving\)/)
 })
+
+test("email HTML includes Delivery relabels section", () => {
+  const html = buildPacingDigestEmailHtml({
+    asOfDate: "2026-09-21",
+    builtAt: "2026-09-21T00:00:00.000Z",
+    cacheNote: "",
+    rows: [],
+    atRisk: [],
+    groups: { "at-risk": [], behind: [], on: [], ahead: [], "no-data": [] },
+    counts: { atRisk: 0, behind: 0, on: 0, ahead: 0, noData: 0, total: 0 },
+    relabels: {
+      day: "2026-09-20",
+      events: [
+        {
+          id: 1,
+          relabelId: 7,
+          action: "apply",
+          actorEmail: "staff@assembledmedia.com.au",
+          payload: {},
+          createdAt: "2026-09-20T01:00:00.000Z",
+          mbaNumber: "bicau002",
+          entityName: "BICAU002 SM2",
+          toLineItemId: "bicau002sm2",
+        },
+      ],
+      drift: [{ code: "r4", message: "map drifted on bicau002sm2" }],
+    },
+  })
+  assert.match(html, /Delivery relabels · 2026-09-20/)
+  assert.match(html, /bicau002sm2/)
+  assert.match(html, /map drifted on bicau002sm2/)
+})
