@@ -153,4 +153,34 @@ describe("CampaignDetailModal", () => {
     expect(headers).not.toContain("Views")
     expect(headers).not.toContain("Buy type")
   })
+
+  it("scrolls the Lines table horizontally with a sticky LINE column", () => {
+    act(() => {
+      root.render(
+        <CampaignDetailModal
+          mba={payload.row.mbaNumber}
+          asOf={P6_AS_OF}
+          payload={payload}
+          loading={false}
+          error={null}
+          onClose={() => {}}
+          onReload={() => {}}
+        />,
+      )
+    })
+    const linesTab = [...container.querySelectorAll("button")].find((el) => el.textContent === "Lines")
+    act(() => {
+      linesTab!.click()
+    })
+    const table = container.querySelector("table")
+    expect(table?.parentElement?.className).toMatch(/overflow-x-auto/)
+    const firstTh = container.querySelector("thead th")
+    const firstTd = container.querySelector("tbody td")
+    expect(firstTh?.className).toMatch(/sticky/)
+    expect(firstTd?.className).toMatch(/sticky/)
+    expect(firstTd?.querySelector(".font-mono")?.textContent).toBe(payload.lines[0]?.lineItemId)
+    const description = firstTd?.querySelector("[title]")
+    expect(description?.getAttribute("title")).toContain(payload.lines[0]?.campaignName ?? "")
+    expect(description?.getAttribute("title")).toContain("search · Google Ads")
+  })
 })
