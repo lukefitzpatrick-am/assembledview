@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/format/money"
 import type { LineCardModel } from "@/lib/pacing/channel/lineCardTypes"
 
 export type LineDetailColumnKey =
@@ -138,4 +139,21 @@ export function visibleLineDetailColumns(lines: readonly LineCardModel[]): LineD
   return LINE_DETAIL_COLUMNS.filter(
     (column) => ALWAYS_VISIBLE.has(column.key) || lines.some((line) => hasValue(line, column.key)),
   )
+}
+
+/** Card-style identity used under the mono line id in the detail Lines table. */
+export function lineDetailDescription(line: LineCardModel): string {
+  const parts: string[] = []
+  const name = line.campaignName.trim()
+  if (name) parts.push(name)
+  const channelPlatform = [line.channel, line.platform].filter(Boolean).join(" · ")
+  if (channelPlatform) parts.push(channelPlatform)
+  const targeting = line.targeting.trim()
+  if (targeting) parts.push(targeting)
+  const buyType = line.buyType?.trim()
+  if (buyType) parts.push(buyType)
+  if (!line.verificationOnly && Number.isFinite(line.budget) && line.budget !== 0) {
+    parts.push(formatMoney(line.budget, { decimals: 0 }))
+  }
+  return parts.join(", ")
 }

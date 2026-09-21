@@ -11,7 +11,11 @@ import { formatMoney, formatPercent } from "@/lib/format/money"
 import { formatCount, formatRateMoney } from "@/lib/pacing/channel/lineCardFormat"
 import type { LineCardModel, LineCardPace } from "@/lib/pacing/channel/lineCardTypes"
 import { suggestedNextStep } from "@/lib/pacing/detail/suggestedNextStep"
-import { visibleLineDetailColumns, type LineDetailColumnKey } from "@/lib/pacing/detail/lineDetailColumns"
+import {
+  lineDetailDescription,
+  visibleLineDetailColumns,
+  type LineDetailColumnKey,
+} from "@/lib/pacing/detail/lineDetailColumns"
 import type { CampaignDetailMetric, CampaignDetailPayload } from "@/lib/pacing/detail/types"
 import {
   campaignDisplayBand,
@@ -186,7 +190,7 @@ export function CampaignDetailModal({
       aria-label={row ? `${row.campaignName} detail` : "Campaign detail"}
       className="fixed inset-0 z-modal flex items-start justify-center overflow-y-auto bg-background/80 p-4 pt-10"
     >
-      <div className="flex w-full max-w-6xl flex-col rounded-frame border border-border bg-card shadow-e2">
+      <div className="flex w-full min-w-0 max-w-6xl flex-col rounded-frame border border-border bg-card shadow-e2">
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="min-w-0 space-y-1">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -265,7 +269,7 @@ export function CampaignDetailModal({
           ))}
         </nav>
 
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+        <div className="min-w-0 max-h-[70vh] overflow-y-auto px-5 py-4">
           {loading ? <Skeleton className="h-40 w-full" /> : null}
           {error ? <p className="text-sm text-status-critical-fg">{error}</p> : null}
           {payload && tab === "overview" ? (
@@ -329,7 +333,7 @@ export function CampaignDetailModal({
           ) : null}
 
           {payload && tab === "lines" ? (
-            <div className="overflow-x-auto">
+            <div className="min-w-0 max-h-[60vh] overflow-x-auto overflow-y-auto">
               <table className="w-full min-w-[960px] text-sm">
                 <thead>
                   <tr>
@@ -337,8 +341,9 @@ export function CampaignDetailModal({
                       <th
                         key={column.key}
                         className={cn(
-                          "px-2 py-2 text-xs font-medium uppercase text-muted-foreground",
+                          "sticky top-0 z-20 bg-card px-2 py-2 text-xs font-medium uppercase text-muted-foreground",
                           column.numeric && "num text-right",
+                          column.key === "line" && "left-0 z-30 min-w-[14rem] max-w-[18rem]",
                         )}
                       >
                         {column.label}
@@ -352,9 +357,18 @@ export function CampaignDetailModal({
                       {columns.map((column) => (
                         <td
                           key={column.key}
-                          className={cn("px-2 py-2", column.numeric && "num text-right")}
+                          className={cn(
+                            "px-2 py-2",
+                            column.numeric && "num text-right",
+                            column.key === "line" &&
+                              "sticky left-0 z-10 min-w-[14rem] max-w-[18rem] bg-card",
+                          )}
                         >
-                          {lineCell(line, column.key)}
+                          {column.key === "line" ? (
+                            <LineIdentityCell line={line} />
+                          ) : (
+                            lineCell(line, column.key)
+                          )}
                         </td>
                       ))}
                     </tr>
@@ -552,6 +566,18 @@ export function CampaignDetailModal({
         </div>
       </div>
       <CampaignAskHelpDialog mba={mba} open={helpOpen} onOpenChange={setHelpOpen} />
+    </div>
+  )
+}
+
+function LineIdentityCell({ line }: { line: LineCardModel }) {
+  const description = lineDetailDescription(line)
+  return (
+    <div className="min-w-0">
+      <p className="font-mono text-xs text-foreground">{line.lineItemId}</p>
+      <p className="truncate text-xs text-muted-foreground" title={description}>
+        {description}
+      </p>
     </div>
   )
 }

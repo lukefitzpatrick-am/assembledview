@@ -1,11 +1,12 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
+import { formatMoney } from "@/lib/format/money"
 import { lineCardFromSearch } from "../../channel/lineCardModel.js"
 import { LINE_AS_OF, searchFixture } from "../../channel/__tests__/fixtures.js"
 import type { CampaignPacingRow } from "../../portfolio/types.js"
 import { assembleCampaignDetailPayload } from "../assembleCampaignDetailPayload.js"
-import { visibleLineDetailColumns } from "../lineDetailColumns.js"
+import { lineDetailDescription, visibleLineDetailColumns } from "../lineDetailColumns.js"
 
 function campaignRow(overrides: Partial<CampaignPacingRow> = {}): CampaignPacingRow {
   return {
@@ -115,5 +116,15 @@ describe("visibleLineDetailColumns", () => {
     assert.equal(keys.includes("views"), false)
     assert.equal(keys.includes("buyType"), false)
     assert.equal(keys.includes("fixedCost"), false)
+  })
+})
+
+describe("lineDetailDescription", () => {
+  it("joins name, channel · platform, targeting, buy type and budget", () => {
+    const line = lineCardFromSearch(searchFixture(), LINE_AS_OF)
+    assert.equal(
+      lineDetailDescription(line),
+      `Jayco AU – Annual Plan, search · Google Ads, brand + generic RV, cpc, ${formatMoney(20_000, { decimals: 0 })}`,
+    )
   })
 })
