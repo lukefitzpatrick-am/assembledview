@@ -1,6 +1,7 @@
 import "server-only"
 
 import { querySnowflake } from "@/lib/snowflake/query"
+import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 import { formatMoney as formatMoneyDisplay } from "@/lib/format/money"
 import {
   isSocialMediaType,
@@ -28,21 +29,7 @@ const MAX_RANGE_DAYS = 180
 const cache = new Map<string, { expiresAt: number; value: string }>()
 
 function toISODate(value: unknown): string | null {
-  if (!value) return null
-  if (typeof value === "string") {
-    const trimmed = value.trim()
-    if (!trimmed) return null
-    const dt = new Date(trimmed)
-    if (Number.isNaN(dt.getTime())) return null
-    return dt.toISOString().slice(0, 10)
-  }
-  if (value instanceof Date) {
-    if (Number.isNaN(value.getTime())) return null
-    return value.toISOString().slice(0, 10)
-  }
-  const dt = new Date(String(value))
-  if (Number.isNaN(dt.getTime())) return null
-  return dt.toISOString().slice(0, 10)
+  return normalizeDailyFactDate(value)
 }
 
 function addDaysISO(isoDate: string, days: number): string {
@@ -173,7 +160,7 @@ async function queryFacts({
   }
 
   const facts: AvaSnowflakeFacts = {
-    latestDeliveryDate: row?.LATEST_DELIVERY_DATE ? String(row.LATEST_DELIVERY_DATE).slice(0, 10) : null,
+    latestDeliveryDate: normalizeDailyFactDate(row?.LATEST_DELIVERY_DATE),
     spendToDate: safeNumber(row?.SPEND_TO_DATE),
     impressions: safeNumber(row?.IMPRESSIONS),
     clicks: safeNumber(row?.CLICKS),

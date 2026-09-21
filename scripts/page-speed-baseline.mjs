@@ -27,7 +27,16 @@ const media = (
   ""
 ).replace(/\/$/, "")
 const pub = (process.env.XANO_PUBLISHERS_BASE_URL || "").replace(/\/$/, "")
-const nextBase = (process.env.APP_BASE_URL || "http://localhost:3000").replace(/\/$/, "")
+const nextBase = (
+  process.env.APP_BASE_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  process.env.AUTH0_BASE_URL ||
+  ""
+).replace(/\/$/, "")
+if (!nextBase) {
+  console.error("Set APP_BASE_URL, NEXT_PUBLIC_APP_URL, or AUTH0_BASE_URL")
+  process.exit(1)
+}
 const cookie = process.env.NEXT_COOKIE || ""
 
 function authHeaders() {

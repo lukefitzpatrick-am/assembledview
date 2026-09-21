@@ -4,6 +4,8 @@
  * work when two effects race with the same URL.
  */
 
+import { resolvePublicOrigin } from "@/lib/config/endpoints"
+
 type BufferedResponse = {
   status: number
   statusText: string
@@ -17,7 +19,7 @@ function canonicalMbaUrl(url: string): string {
   try {
     const u = new URL(
       url,
-      typeof window !== "undefined" ? window.location.origin : "http://localhost"
+      typeof window !== "undefined" ? window.location.origin : resolvePublicOrigin()
     )
     return `${u.pathname}?${u.searchParams.toString()}`
   } catch {

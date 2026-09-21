@@ -2,9 +2,11 @@
  * Fireflies GraphQL API client.
  * Auth: Authorization Bearer {FIREFLIES_API_KEY}
  */
+import { FIREFLIES_GRAPHQL_URL } from "@/lib/config/endpoints"
+
 import type { FirefliesTranscript } from "./types.js"
 
-export const FIREFLIES_GRAPHQL_URL = "https://api.fireflies.ai/graphql"
+export { FIREFLIES_GRAPHQL_URL }
 
 export type FirefliesTransport = (
   input: RequestInfo | URL,

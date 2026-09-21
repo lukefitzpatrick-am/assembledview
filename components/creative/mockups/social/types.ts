@@ -23,7 +23,7 @@ export type SocialAdCopy = {
 }
 
 export const DEFAULT_DISPLAY_LINK = "assembledmedia.com.au"
-export const DEFAULT_DESTINATION_URL = "https://assembledmedia.com.au"
+export const DEFAULT_DESTINATION_URL = `https://${DEFAULT_DISPLAY_LINK}`
 export const DEFAULT_CTA_LABEL: SocialCtaLabel = "Learn More"
 
 export function createDefaultSocialAdCopy(brandName: string): SocialAdCopy {

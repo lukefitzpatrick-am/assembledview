@@ -3,7 +3,9 @@
  * Auth: Authorization: ApiKey {MYHOURS_API_KEY}
  * Injectable transport — tests never dial out.
  */
-export const MYHOURS_API_BASE = "https://api2.myhours.com/api"
+import { MYHOURS_API_BASE } from "@/lib/config/endpoints"
+
+export { MYHOURS_API_BASE }
 export const MYHOURS_AUTH_ERROR_MESSAGE = "API key invalid or rotated"
 
 /** Live probe: page/pageSize ignored on Users/getAll + Reports/activity. */

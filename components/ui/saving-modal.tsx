@@ -11,6 +11,9 @@ import {
   savingDialogHasErrors,
 } from "@/lib/docs/saveDocSteps"
 import { savingModalChromeForItems } from "@/lib/auth/writeSessionExpiry"
+import { APP_ASSET_BASE_URL } from "@/lib/config/endpoints"
+
+const SAVING_MODAL_GIF_SRC = `${APP_ASSET_BASE_URL}/Data%20Sophistication-qgeiUdEIVkx6q4ceYsDFi1w38pwqjv.gif`
 
 export interface SaveStatusItem {
   name: string;
@@ -152,7 +155,7 @@ export function SavingModal({
         ) : (
           <div className="flex flex-col items-center justify-center gap-4">
             <Image
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Data%20Sophistication-qgeiUdEIVkx6q4ceYsDFi1w38pwqjv.gif"
+              src={SAVING_MODAL_GIF_SRC}
               alt="Saving..."
               width={64}
               height={64}

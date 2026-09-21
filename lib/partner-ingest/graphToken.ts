@@ -1,3 +1,4 @@
+import { MS_GRAPH_SCOPE, MS_LOGIN_BASE_URL } from "@/lib/config/endpoints"
 import type { GraphTransport } from "@/lib/m365/graphTransport"
 
 export type PartnerGraphCredentials = {
@@ -7,7 +8,7 @@ export type PartnerGraphCredentials = {
 }
 
 const TOKEN_SKEW_MS = 60_000
-const GRAPH_SCOPE = "https://graph.microsoft.com/.default"
+const GRAPH_SCOPE = MS_GRAPH_SCOPE
 
 type TokenCache = { accessToken: string; expiresAtMs: number } | null
 
@@ -39,7 +40,7 @@ export function createPartnerGraphToken(input: {
       return cache.accessToken
     }
 
-    const tokenUrl = `https://login.microsoftonline.com/${encodeURIComponent(
+    const tokenUrl = `${MS_LOGIN_BASE_URL}/${encodeURIComponent(
       input.credentials.tenantId
     )}/oauth2/v2.0/token`
     const body = new URLSearchParams({

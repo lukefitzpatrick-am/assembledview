@@ -26,6 +26,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getRouteByExactPath } from "@/lib/nav/routeManifest"
+import { resolvePublicOrigin } from "@/lib/config/endpoints"
 import { getUserDisplayName, getUserInitials, getUserRoles } from "@/lib/rbac"
 
 const notificationRows = [
@@ -125,7 +126,7 @@ export default function AccountPage() {
 
   const handlePasswordChange = () => {
     window.open(
-      `${process.env.NEXT_PUBLIC_AUTH0_BASE_URL || "http://localhost:3000"}/auth/login?screen_hint=signup&returnTo=/dashboard`,
+      `${resolvePublicOrigin()}/auth/login?screen_hint=signup&returnTo=/dashboard`,
       "_blank",
     )
   }

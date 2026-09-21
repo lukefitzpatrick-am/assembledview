@@ -1,3 +1,5 @@
+import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
+
 export type ReportedSpendDay = {
   lineItemId: string
   dateDay: string
@@ -15,7 +17,7 @@ export function indexReportedSpendByLineDate(
   const byLine = new Map<string, Map<string, number>>()
   for (const day of days) {
     const id = cleanLineId(day.lineItemId)
-    const dateDay = String(day.dateDay ?? "").slice(0, 10)
+    const dateDay = normalizeDailyFactDate(day.dateDay) ?? ""
     if (!id || !dateDay) continue
     const spend = Number(day.reportedSpend)
     if (!Number.isFinite(spend)) continue
@@ -56,7 +58,7 @@ export function reportedSpendDaysFromDailyFacts(
 ): ReportedSpendDay[] {
   return rows.map((row) => ({
     lineItemId: String(row.LINE_ITEM_ID ?? "").trim(),
-    dateDay: String(row.DATE_DAY ?? "").slice(0, 10),
+    dateDay: normalizeDailyFactDate(row.DATE_DAY) ?? "",
     reportedSpend: Number(row.REPORTED_SPEND),
   }))
 }

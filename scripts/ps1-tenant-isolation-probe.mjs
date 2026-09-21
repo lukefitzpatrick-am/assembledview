@@ -12,6 +12,9 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { NextRequest } from "next/server"
+import { resolvePublicOrigin } from "../lib/config/endpoints.ts"
+
+const REQUEST_ORIGIN = resolvePublicOrigin()
 
 function loadEnvLocal() {
   try {
@@ -111,7 +114,7 @@ async function main() {
 
   const mediaPlansMod = await import(fileUrl("app/api/media_plans/route.ts"))
   const adminListRes = await mediaPlansMod.GET(
-    new NextRequest("http://localhost/api/media_plans")
+    new NextRequest(`${REQUEST_ORIGIN}/api/media_plans`)
   )
   const adminListJson = await adminListRes.json()
   const adminSummary = summarizePlans(adminListJson)
@@ -139,7 +142,7 @@ async function main() {
     },
   })
   const listRes = await mediaPlansMod.GET(
-    new NextRequest("http://localhost/api/media_plans")
+    new NextRequest(`${REQUEST_ORIGIN}/api/media_plans`)
   )
   const listStatus = listRes.status
   const listJson = await listRes.json()
@@ -176,7 +179,7 @@ async function main() {
 
   const probeChannel = "social"
   const socialMod = await import(fileUrl(`app/api/media_plans/${probeChannel}/route.ts`))
-  const channelUrl = `http://localhost/api/media_plans/${probeChannel}?mba_number=${encodeURIComponent(tenants.foreign.mba)}`
+  const channelUrl = `${REQUEST_ORIGIN}/api/media_plans/${probeChannel}?mba_number=${encodeURIComponent(tenants.foreign.mba)}`
   const channelRes = await socialMod.GET(new Request(channelUrl))
   const channelStatus = channelRes.status
   let channelBody
@@ -225,7 +228,7 @@ async function main() {
   )
 
   // Own-MBA control (same route) — proves caller's tenant still readable
-  const ownUrl = `http://localhost/api/media_plans/${probeChannel}?mba_number=${encodeURIComponent(tenants.own.mba)}`
+  const ownUrl = `${REQUEST_ORIGIN}/api/media_plans/${probeChannel}?mba_number=${encodeURIComponent(tenants.own.mba)}`
   const ownRes = await socialMod.GET(new Request(ownUrl))
   let ownBody
   try {
@@ -245,7 +248,7 @@ async function main() {
     const searchChannelMod = await import(fileUrl("app/api/media_plans/search/route.ts"))
     const searchChRes = await searchChannelMod.GET(
       new Request(
-        `http://localhost/api/media_plans/search?mba_number=${encodeURIComponent(tenants.foreign.mba)}`
+        `${REQUEST_ORIGIN}/api/media_plans/search?mba_number=${encodeURIComponent(tenants.foreign.mba)}`
       )
     )
     if (searchChRes.status === 200) {
@@ -270,7 +273,7 @@ async function main() {
   }
 
   const pacingMod = await import(fileUrl("app/api/pacing/search/route.ts"))
-  const pacingReq = new NextRequest("http://localhost/api/pacing/search", {
+  const pacingReq = new NextRequest(`${REQUEST_ORIGIN}/api/pacing/search`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ lineItemIds: [foreignLineItemId] }),

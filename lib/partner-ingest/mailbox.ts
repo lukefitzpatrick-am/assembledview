@@ -1,3 +1,4 @@
+import { MS_GRAPH_BASE_URL } from "@/lib/config/endpoints"
 import type { GraphTransport } from "@/lib/m365/graphTransport"
 
 import { keepPartnerAttachment } from "./keepAttachment"
@@ -5,7 +6,7 @@ import type { PartnerMailAttachment, PartnerMailMessage, PartnerMailboxPort } fr
 
 export const DEFAULT_PARTNER_INGEST_MAILBOX = "snowflake@assembledview.com.au"
 
-const GRAPH = "https://graph.microsoft.com/v1.0"
+const GRAPH = MS_GRAPH_BASE_URL
 const MOVE_FOLDERS = ["Processed", "Failed", "Unrecognised"] as const
 
 type GraphJson = Record<string, unknown>

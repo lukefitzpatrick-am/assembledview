@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm"
 
 import { db } from "@/db"
 import { querySnowflake } from "@/lib/snowflake/query"
+import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 import { SOCIAL_PACING_TABLE } from "@/lib/pacing/social-channels"
 import { getAsOfDate, getMelbourneYesterdayISO } from "@/lib/pacing/maths"
 import { getCachedPlanningMeta } from "@/lib/planning/metaCache"
@@ -114,7 +115,7 @@ function checksFromPlatformStats(
 
   for (const p of PLATFORMS) {
     const row = byName.get(p.name)
-    const maxDate = row?.MAX_DATE ? String(row.MAX_DATE).slice(0, 10) : null
+    const maxDate = row?.MAX_DATE ? normalizeDailyFactDate(row.MAX_DATE) : null
     const behind = daysBehindMaxDate(maxDate, asOfDate)
     const fSt = freshnessStatus(behind)
     freshStatuses.push(fSt)

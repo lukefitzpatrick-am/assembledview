@@ -47,10 +47,14 @@ const MEDIA_BASE = (
 ).replace(/\/$/, "")
 const LIVE_KEY = process.env.XANO_API_KEY || ""
 const INSTANCE_ORIGIN = (() => {
+  const fromEnv =
+    process.env.XANO_EXPORT_INSTANCE_URL || process.env.XANO_INSTANCE_BASE || ""
+  if (fromEnv) return fromEnv.replace(/\/$/, "")
   try {
     return new URL(MEDIA_BASE).origin
   } catch {
-    return "https://xg4h-uyzs-dtex.a2.xano.io"
+    console.error("Set XANO_EXPORT_INSTANCE_URL or XANO_MEDIA_PLANS_BASE_URL")
+    process.exit(1)
   }
 })()
 const META_BASE = `${INSTANCE_ORIGIN}/api:meta`

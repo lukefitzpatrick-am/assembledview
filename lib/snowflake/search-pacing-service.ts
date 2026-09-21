@@ -1,4 +1,5 @@
 import { getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
+import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 import { querySnowflake } from "@/lib/snowflake/query"
 
 const QUERY_ROW_LIMIT = 50000
@@ -190,7 +191,7 @@ export async function getSearchPacingData(opts: {
   })
 
   const daily: SearchPacingDailyRow[] = (dailyRowsRaw ?? []).map((r) => ({
-    date: String(r.DATE ?? "").slice(0, 10),
+    date: normalizeDailyFactDate(r.DATE) ?? "",
     clicks: toNumber(r.CLICKS),
     impressions: toNumber(r.IMPRESSIONS),
     cost: toNumber(r.COST),
@@ -272,7 +273,7 @@ export async function getSearchPacingData(opts: {
     }
     if (!entry.lineItemName && r.LINE_ITEM_NAME) entry.lineItemName = String(r.LINE_ITEM_NAME)
     entry.daily.push({
-      date: String(r.DATE ?? "").slice(0, 10),
+      date: normalizeDailyFactDate(r.DATE) ?? "",
       clicks: toNumber(r.CLICKS),
       impressions: toNumber(r.IMPRESSIONS),
       cost: toNumber(r.COST),
