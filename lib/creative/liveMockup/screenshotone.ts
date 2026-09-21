@@ -1,9 +1,11 @@
 import "server-only"
 import { createHmac } from "node:crypto"
 
+import { SCREENSHOTONE_API_URL } from "@/lib/config/endpoints"
+
 import type { LiveMockupProvider, LiveMockupRender } from "./provider"
 
-const API_URL = "https://api.screenshotone.com/take"
+const API_URL = SCREENSHOTONE_API_URL
 
 function signQuery(query: string, secret: string): string {
   return createHmac("sha256", secret).update(query).digest("hex")

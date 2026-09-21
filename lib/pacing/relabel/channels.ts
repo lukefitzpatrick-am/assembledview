@@ -1,5 +1,6 @@
 import type { ChannelTabKey } from "@/lib/pacing/channel/lineCardTypes"
 import { isSocialMediaType } from "@/lib/pacing/social-channels"
+import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 import {
   CM360_PACING_CHANNEL,
   PACING_FACT,
@@ -71,16 +72,5 @@ export function isCm360Channel(channel: string): boolean {
 }
 
 export function asIsoDate(value: unknown): string {
-  if (value instanceof Date) {
-    const y = value.getUTCFullYear()
-    const m = String(value.getUTCMonth() + 1).padStart(2, "0")
-    const d = String(value.getUTCDate()).padStart(2, "0")
-    return `${y}-${m}-${d}`
-  }
-  if (value && typeof value === "object" && "toISOString" in value) {
-    return String((value as { toISOString: () => string }).toISOString()).slice(0, 10)
-  }
-  const raw = String(value ?? "").trim()
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10)
-  return raw.slice(0, 10)
+  return normalizeDailyFactDate(value) ?? ""
 }

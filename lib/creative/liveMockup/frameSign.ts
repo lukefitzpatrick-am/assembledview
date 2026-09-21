@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 
+import { resolvePublicOrigin as resolvePublicOriginFromConfig } from "@/lib/config/endpoints"
+
 const MAX_CLOCK_SKEW_SEC = 600
 
 function getSigningSecret(): string | null {
@@ -46,12 +48,7 @@ export function mintFrameUrl(args: {
   return `${base}/api/creative-assets/${args.id}/frame?exp=${exp}&sig=${encodeURIComponent(sig)}`
 }
 
-export function resolvePublicOrigin(request: Request): string {
-  const envUrl = process.env.APP_BASE_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim()
-  if (envUrl) return envUrl.replace(/\/$/, "")
-
-  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host")
-  const proto = request.headers.get("x-forwarded-proto") ?? "https"
-  if (host) return `${proto}://${host}`
-  return "http://localhost:3000"
+/** Prefer importing from `@/lib/config/endpoints`. Kept for live-mockup callers. */
+export function resolvePublicOrigin(_request?: Request): string {
+  return resolvePublicOriginFromConfig()
 }

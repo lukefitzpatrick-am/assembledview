@@ -3,6 +3,8 @@
  * POST identity.xero.com/connect/token; cache per process/run.
  */
 
+import { XERO_API_BASE, XERO_IDENTITY_URL } from "@/lib/config/endpoints"
+
 export type XeroTokenProvider = () => Promise<string>
 
 let cachedToken: { token: string; expiresAtMs: number } | null = null
@@ -31,7 +33,7 @@ export async function getXeroAccessToken(
     scope: "accounting.invoices.read accounting.contacts",
   })
 
-  const res = await fetchImpl("https://identity.xero.com/connect/token", {
+  const res = await fetchImpl(XERO_IDENTITY_URL, {
     method: "POST",
     headers: {
       Authorization: `Basic ${basic}`,
@@ -86,7 +88,7 @@ export async function xeroApiRequest(
     headers["If-Modified-Since"] = opts.ifModifiedSince
   }
 
-  const res = await fetchImpl(`https://api.xero.com/api.xro/2.0${opts.path}`, {
+  const res = await fetchImpl(`${XERO_API_BASE}${opts.path}`, {
     method: "GET",
     headers,
   })

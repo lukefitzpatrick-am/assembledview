@@ -13,6 +13,7 @@ import { clipDateRangeToCampaign, parseDateOnly, type DateRange } from "@/lib/da
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import type { SearchPacingDailyRow, SearchPacingTotals } from "@/lib/snowflake/search-pacing-service"
+import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 
 export type SearchApiDailyRow = SearchPacingDailyRow
 export type SearchApiTotals = SearchPacingTotals
@@ -115,7 +116,7 @@ export function fillDailySeries(
   if (!list.length) return Array.isArray(daily) ? daily : []
   const map = new Map<string, SearchApiDailyRow>()
   ;(Array.isArray(daily) ? daily : []).forEach((row) => {
-    const key = String(row?.date ?? "").slice(0, 10)
+    const key = normalizeDailyFactDate(row?.date) ?? ""
     if (key) map.set(key, row)
   })
   return list.map((date) => {

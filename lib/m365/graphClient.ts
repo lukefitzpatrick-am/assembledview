@@ -3,6 +3,11 @@
  * All network goes through an injectable transport — unit tests mock it.
  */
 
+import {
+  MS_GRAPH_BASE_URL,
+  MS_GRAPH_SCOPE,
+  MS_LOGIN_BASE_URL,
+} from "@/lib/config/endpoints"
 import { isM365ProvisioningEnabled } from "@/lib/m365/featureFlag"
 import type {
   GraphTransport,
@@ -13,7 +18,7 @@ import type {
   ProvisioningLogWriter,
 } from "@/lib/m365/provisioningLog"
 
-const GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+const GRAPH_BASE = MS_GRAPH_BASE_URL
 const DEFAULT_TOKEN_SKEW_MS = 60_000
 const DEFAULT_MAX_RETRIES = 4
 const BASE_BACKOFF_MS = 250
@@ -252,11 +257,10 @@ export function createGraphClient(deps: GraphClientDeps) {
       return tokenCache.accessToken
     }
 
-    const tokenUrl = `https://login.microsoftonline.com/${encodeURIComponent(
+    const tokenUrl = `${MS_LOGIN_BASE_URL}/${encodeURIComponent(
       credentials.tenantId
     )}/oauth2/v2.0/token`
-    const scope =
-      credentials.scope?.trim() || "https://graph.microsoft.com/.default"
+    const scope = credentials.scope?.trim() || MS_GRAPH_SCOPE
     const body = new URLSearchParams({
       client_id: credentials.clientId,
       client_secret: credentials.clientSecret,
@@ -504,7 +508,7 @@ export function createGraphClient(deps: GraphClientDeps) {
       path: "/teams",
       body: {
         "rachel.c@example.org":
-          "https://graph.microsoft.com/v1.0/teamsTemplates('standard')",
+          `${MS_GRAPH_BASE_URL}/teamsTemplates('standard')`,
         displayName: input.displayName,
         description: input.description ?? "",
       },

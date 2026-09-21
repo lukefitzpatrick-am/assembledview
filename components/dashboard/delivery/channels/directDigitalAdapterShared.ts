@@ -18,6 +18,7 @@ import type { DeliveryStatus } from "../shared/statusColours"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import { aggregateDailyRows } from "./aggregateDaily"
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
+import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 
 const FIXED_COST_SPEND_LABEL = "Reported spend (fixed cost)"
 const CM360_NO_SPEND_CONNECTION =
@@ -340,7 +341,7 @@ export function buildDirectDigitalChannelSection(input: {
     const matched = adRows.filter((r) => String(r.lineItemId).toLowerCase() === id)
     const byDate = new Map<string, DailyActuals>()
     for (const row of matched) {
-      const date = String(row.dateDay ?? "").slice(0, 10)
+      const date = normalizeDailyFactDate(row.dateDay) ?? ""
       if (!date) continue
       const existing = byDate.get(date) ?? {
         date,

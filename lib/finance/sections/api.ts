@@ -3,6 +3,7 @@
  * Panels consume ViewState — no bare fetches in components.
  */
 
+import { resolvePublicOrigin } from "@/lib/config/endpoints"
 import type { ViewState } from "@/lib/ui/viewState"
 
 export type FinanceSectionsFetchOptions = {
@@ -29,7 +30,10 @@ export async function fetchFinanceSectionsJson<T>(
   searchParams?: URLSearchParams | Record<string, string | number | undefined | null>,
   options: FinanceSectionsFetchOptions = {}
 ): Promise<ViewState<T>> {
-  const url = new URL(path, typeof window !== "undefined" ? window.location.origin : "http://local")
+  const url = new URL(
+    path,
+    typeof window !== "undefined" ? window.location.origin : resolvePublicOrigin(),
+  )
   if (searchParams instanceof URLSearchParams) {
     searchParams.forEach((v, k) => url.searchParams.set(k, v))
   } else if (searchParams) {

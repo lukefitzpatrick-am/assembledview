@@ -2,6 +2,7 @@ import {
   isSocialPacingChannel,
   SOCIAL_PACING_TABLE,
 } from "@/lib/pacing/social-channels"
+import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 
 const QUERY_ROW_LIMIT = 50000
 const MAX_RANGE_DAYS = 180
@@ -63,7 +64,7 @@ function toNumber(value: unknown): number {
 function normalizePacingFactRow(r: PacingFactRow): PacingFactRow {
   return {
     ...r,
-    DATE_DAY: String(r.DATE_DAY ?? "").slice(0, 10),
+    DATE_DAY: normalizeDailyFactDate(r.DATE_DAY) ?? "",
     AMOUNT_SPENT: toNumber(r.AMOUNT_SPENT),
     IMPRESSIONS: toNumber(r.IMPRESSIONS),
     CLICKS: toNumber(r.CLICKS),

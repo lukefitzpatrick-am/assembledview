@@ -9,14 +9,14 @@
  *
  * Env:
  *   XANO_METADATA_TOKEN  (required)
- *   XANO_INSTANCE_BASE   (optional, default https://xg4h-uyzs-dtex.a2.xano.io)
+ *   XANO_EXPORT_INSTANCE_URL / XANO_INSTANCE_BASE (optional; see lib/config/endpoints)
  *   XANO_WORKSPACE_ID    (optional; defaults to first accessible workspace)
  */
 import fs from "fs"
 import path from "path"
 import axios, { type AxiosError, type AxiosRequestConfig } from "axios"
 
-const DEFAULT_INSTANCE = "https://xg4h-uyzs-dtex.a2.xano.io"
+import { XANO_EXPORT_INSTANCE_URL } from "../../lib/config/endpoints"
 const PER_PAGE = 100
 const MAX_RETRIES = 8
 const BASE_BACKOFF_MS = 500
@@ -247,9 +247,7 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  const instanceBase = (
-    process.env.XANO_INSTANCE_BASE || DEFAULT_INSTANCE
-  ).replace(/\/$/, "")
+  const instanceBase = XANO_EXPORT_INSTANCE_URL.replace(/\/$/, "")
   const metaBase = `${instanceBase}/api:meta`
   const headers = {
     Authorization: `Bearer ${token}`,

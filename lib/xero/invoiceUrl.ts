@@ -3,8 +3,10 @@
  * no org short-code in env. The logged-in Xero session picks the tenant.
  */
 
+import { XERO_APP_BASE } from "@/lib/config/endpoints"
+
 export function xeroArInvoiceViewUrl(xeroInvoiceId: string): string | null {
   const id = xeroInvoiceId.trim()
   if (!id) return null
-  return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${encodeURIComponent(id)}`
+  return `${XERO_APP_BASE}/AccountsReceivable/View.aspx?InvoiceID=${encodeURIComponent(id)}`
 }

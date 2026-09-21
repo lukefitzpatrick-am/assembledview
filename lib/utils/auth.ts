@@ -2,6 +2,7 @@ import { Auth0Client } from '@auth0/nextjs-auth0/server';
 import type { User } from '@auth0/nextjs-auth0/types';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { NextRequest, NextResponse } from 'next/server';
+import { resolvePublicOrigin } from '@/lib/config/endpoints';
 import { hasRole, canAccessPage, UserRole, getUserRoles, getUserClientIdentifier } from '@/lib/rbac';
 
 // Single Auth0 client instance configured via environment variables
@@ -113,7 +114,7 @@ export async function getUserWithRoles(): Promise<{ user: User; roles: string[];
 
 // Redirect to login with return URL (defaults to dashboard)
 export function redirectToLogin(returnTo: string = '/dashboard'): NextResponse {
-  const loginUrl = new URL('/auth/login', process.env.AUTH0_BASE_URL || 'http://localhost:3000');
+  const loginUrl = new URL('/auth/login', resolvePublicOrigin());
   if (returnTo) {
     loginUrl.searchParams.set('returnTo', returnTo);
   }
@@ -122,7 +123,7 @@ export function redirectToLogin(returnTo: string = '/dashboard'): NextResponse {
 
 // Redirect to unauthorized page
 export function redirectToUnauthorized(): NextResponse {
-  return NextResponse.redirect(new URL('/unauthorized', process.env.AUTH0_BASE_URL || 'http://localhost:3000'));
+  return NextResponse.redirect(new URL('/unauthorized', resolvePublicOrigin()));
 }
 
 // Create error response for API routes

@@ -4,6 +4,7 @@
  */
 import { createHash } from "node:crypto"
 import { del, put } from "@vercel/blob"
+import { MEMORY_BLOB_BASE_URL } from "@/lib/config/endpoints"
 import { getPrivateBlob } from "@/lib/creative/getPrivateBlob"
 
 export const INGEST_XLSX_MIME =
@@ -102,7 +103,7 @@ export async function putIngestWorkbook(args: {
   if (isMemoryBlobStore()) {
     memoryBlobs.set(pathname, Buffer.from(args.buffer))
     return {
-      url: `https://blob.test/${pathname}`,
+      url: `${MEMORY_BLOB_BASE_URL}/${pathname}`,
       pathname,
       name,
       size: args.buffer.byteLength,

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getLiveSearchLineItemIds } from "@/lib/pacing/campaigns/liveSearchLineItems";
+import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate";
 import { querySnowflake } from "@/lib/snowflake/query";
 
 export type OrphanAdGroup = {
@@ -106,7 +107,7 @@ export async function getOrphanAdGroups(args: GetOrphanAdGroupsArgs): Promise<Or
     currentLineItemId: r.CURRENT_LINE_ITEM_ID,
     spendLast30d: Number(r.SPEND_LAST_WINDOW) || 0,
     impressionsLast30d: Number(r.IMPRESSIONS_LAST_WINDOW) || 0,
-    firstSeenDate: String(r.FIRST_SEEN_DATE).slice(0, 10),
-    lastSeenDate: String(r.LAST_SEEN_DATE).slice(0, 10),
+    firstSeenDate: normalizeDailyFactDate(r.FIRST_SEEN_DATE) ?? "",
+    lastSeenDate: normalizeDailyFactDate(r.LAST_SEEN_DATE) ?? "",
   }));
 }

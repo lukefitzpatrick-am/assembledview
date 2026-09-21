@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import type { CreativeAsset } from "@/lib/creative/types"
+import { FACEBOOK_GRAPH_URL } from "@/lib/config/endpoints"
 import { cn } from "@/lib/utils"
 import { useMediaObjectUrl } from "./useMediaObjectUrl"
 
@@ -82,7 +83,7 @@ export function BrandAvatar({
     return (
       // eslint-disable-next-line @next/next/no-img-element -- public Graph CDN avatar; no next/image remote config needed
       <img
-        src={`https://graph.facebook.com/${encodeURIComponent(pageId)}/picture?type=large`}
+        src={`${FACEBOOK_GRAPH_URL}/${encodeURIComponent(pageId)}/picture?type=large`}
         alt=""
         referrerPolicy="no-referrer"
         className={cn("shrink-0 rounded-full object-cover", sizeClass, className)}
