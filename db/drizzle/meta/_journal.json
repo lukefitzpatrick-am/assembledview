@@ -36,6 +36,13 @@
       "when": 1789608076203,
       "tag": "0004_fine_harpoon",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789974873830,
+      "tag": "0005_cultured_supreme_intelligence",
+      "breakpoints": true
     }
   ]
 }
