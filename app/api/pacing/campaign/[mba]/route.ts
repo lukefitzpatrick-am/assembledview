@@ -26,6 +26,8 @@ export async function GET(
 
   const { mba } = await context.params
   const asOf = request.nextUrl.searchParams.get("asOfDate")?.trim() || getAsOfDate()
+  const dateFrom = request.nextUrl.searchParams.get("date_from")?.trim() || undefined
+  const dateTo = request.nextUrl.searchParams.get("date_to")?.trim() || undefined
   const allowedClientSlugs =
     gate.allowedClientIds === null
       ? null
@@ -36,6 +38,7 @@ export async function GET(
       mbaNumber: decodeURIComponent(mba),
       asOfDate: asOf,
       allowedClientSlugs,
+      window: dateFrom || dateTo ? { date_from: dateFrom, date_to: dateTo } : undefined,
     })
     return NextResponse.json(payload)
   } catch (err) {

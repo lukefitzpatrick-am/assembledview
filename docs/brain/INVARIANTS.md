@@ -159,6 +159,7 @@ pct === 100 → fee = 0 (division guard)
 - CALL the fixed-cost proc with lowercase ids. Snapshot `LINE_ITEM_ID` is lowercase; `SP_REFRESH_FIXED_COST_REPORTED_DAILY` matches `LOWER(LINE_ITEM_ID) = LOWER(?)`. Mixed-case CALLs still miss if that filter is not live.
 - Direct pacing: `REPORTED_SPEND` (finance-smoothed) and `ACTUAL_PLATFORM_SPEND` are different ledgers — never mix into one KPI. Direct's status vocab doesn't map 1:1 to ahead/behind pills.
 - "As of" is a single Melbourne date (`asOfDate`), not a range.
+- Campaign-detail Daily fact dates are ISO `YYYY-MM-DD` after `normalizeDailyFactDate`. Never `String(snowflakeDate).slice(0, 10)` — that yields `"Sat Sep 19"` and empties the series. Empty facts are an explicit empty state, not a 60-day zero scaffold.
 - `pacing_mappings` writes must write through to `MART_PACING.DIM_PLAN_MAPPING` then refresh facts — refresh order: `FACT_DELIVERY_DAILY` before `FACT_LINE_ITEM_PACING_DAILY`. Snowflake deletes are soft (`IS_ACTIVE = FALSE`).
 - Snowflake dynamic tables can't ALTER the query body — adding a platform is `CREATE OR REPLACE`; new stage views must match `V_GOOGLE_ADS_AD_GROUP_DAILY` column list/order/types exactly.
 - `MART.XANO_LINE_ITEMS_SNAPSHOT` ingest source is gated by `LINE_ITEM_SNAPSHOT_SOURCE` (`xano` \| `parity` \| `postgres`). X7 flip **earned** (PG tip = source of truth; Xano crawl under-counts) — prod `postgres` only after the X-series merge ships the sync code; until then **`parity`** (still MERGEs Xano). See `docs/superpowers/x7-line-item-snapshot-pg-stop-2026-08-02.md`.

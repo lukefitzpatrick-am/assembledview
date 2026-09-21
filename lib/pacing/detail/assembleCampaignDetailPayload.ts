@@ -5,7 +5,12 @@ import { scenarioLinesFromDetail } from "@/lib/pacing/scenario/fromLineCard"
 import { burstsFromLines } from "./burstsFromLines"
 import { dailyFromFacts, type DailyFactPoint } from "./dailyFromFacts"
 import { kpisFromLines } from "./kpisFromLines"
-import type { CampaignDetailMetric, CampaignDetailNote, CampaignDetailPayload } from "./types"
+import type {
+  CampaignDetailDailyWindow,
+  CampaignDetailMetric,
+  CampaignDetailNote,
+  CampaignDetailPayload,
+} from "./types"
 
 const DAILY_METRICS: CampaignDetailMetric[] = ["spend", "impressions", "clicks", "views"]
 
@@ -18,28 +23,33 @@ export function assembleCampaignDetailPayload(input: {
   dailyFacts?: DailyFactPoint[]
   planPerDayByChannel?: Record<string, number>
   clientId?: number | null
+  window?: CampaignDetailDailyWindow
 }): CampaignDetailPayload {
   const facts = input.dailyFacts ?? []
-  const byMetric = Object.fromEntries(
-    DAILY_METRICS.map((metric) => [
+  const built = DAILY_METRICS.map((metric) =>
+    dailyFromFacts({
+      facts,
+      asOf: input.asOf,
       metric,
-      dailyFromFacts({
-        facts,
-        asOf: input.asOf,
-        metric,
-        planPerDayByChannel: input.planPerDayByChannel,
-      }).series,
-    ]),
+      planPerDayByChannel: input.planPerDayByChannel,
+      window: input.window,
+    }),
+  )
+  const byMetric = Object.fromEntries(
+    built.map((item) => [item.metric, item.series]),
   ) as CampaignDetailPayload["daily"]["byMetric"]
+  const spend = built.find((item) => item.metric === "spend") ?? built[0]
   return {
     row: input.row,
     lines: input.lines,
     kpis: kpisFromLines(input.lines),
     bursts: burstsFromLines(input.lines, input.asOf),
     daily: {
-      series: byMetric.spend,
+      series: spend?.series ?? [],
       metric: "spend",
       byMetric,
+      table: spend?.table ?? [],
+      empty: spend?.empty ?? true,
     },
     read: input.read ?? null,
     notes: input.notes ?? [],

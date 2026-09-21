@@ -17,7 +17,12 @@ import {
   visibleLineDetailColumns,
   type LineDetailColumnKey,
 } from "@/lib/pacing/detail/lineDetailColumns"
-import type { CampaignDetailMetric, CampaignDetailPayload } from "@/lib/pacing/detail/types"
+import { NO_DAILY_ROWS_MESSAGE } from "@/lib/pacing/detail/dailyFromFacts"
+import type {
+  CampaignDetailDailyWindow,
+  CampaignDetailMetric,
+  CampaignDetailPayload,
+} from "@/lib/pacing/detail/types"
 import {
   campaignDisplayBand,
   campaignPaceLabel,
@@ -27,6 +32,12 @@ import {
 } from "@/lib/pacing/portfolio/portfolioPresentation"
 import { cn } from "@/lib/utils"
 import { useScenarioPlanner } from "@/components/pacing/scenario/ScenarioPlannerContext"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { CampaignAskHelpDialog } from "./CampaignAskHelpDialog"
 
 type TabKey = "overview" | "lines" | "kpis" | "bursts" | "daily" | "notes"
@@ -123,6 +134,12 @@ function openAva(mba: string, message: string, campaignName?: string) {
   openAvaChat({ message })
 }
 
+function dateInWindow(date: string, window?: CampaignDetailDailyWindow): boolean {
+  if (window?.date_from && date < window.date_from) return false
+  if (window?.date_to && date > window.date_to) return false
+  return true
+}
+
 export function CampaignDetailModal({
   mba,
   asOf,
@@ -131,6 +148,7 @@ export function CampaignDetailModal({
   error,
   onClose,
   onReload,
+  window: dailyWindow,
 }: {
   mba: string
   asOf: string
@@ -139,11 +157,12 @@ export function CampaignDetailModal({
   error: string | null
   onClose: () => void
   onReload: () => void
+  window?: CampaignDetailDailyWindow
 }) {
   const planner = useScenarioPlanner()
   const [tab, setTab] = useState<TabKey>("overview")
   const [metric, setMetric] = useState<CampaignDetailMetric>("spend")
-  const [combined, setCombined] = useState(true)
+  const [lineFilter, setLineFilter] = useState("all")
   const [helpOpen, setHelpOpen] = useState(false)
   const [note, setNote] = useState("")
   const [savingNote, setSavingNote] = useState(false)
@@ -161,9 +180,42 @@ export function CampaignDetailModal({
 
   const dailySeries = useMemo(() => {
     const series = payload?.daily.byMetric[metric] ?? payload?.daily.series ?? []
-    if (combined) return series.filter((item) => item.key === "combined")
-    return series.filter((item) => item.key !== "combined")
-  }, [payload, combined, metric])
+    const combined = series.find((item) => item.key === "combined") ?? series[0]
+    if (!combined) return []
+    const points = combined.points.filter((point) => dateInWindow(point.date, dailyWindow))
+    return points.length ? [{ ...combined, points }] : []
+  }, [payload, metric, dailyWindow])
+
+  const dailyTable = useMemo(() => {
+    const rows = (payload?.daily.table ?? []).filter((row) => dateInWindow(row.date, dailyWindow))
+    if (lineFilter === "all") return rows
+    return rows
+      .map((row) => {
+        const line = row.lines.find((item) => item.lineItemId === lineFilter)
+        if (!line) return null
+        return {
+          ...row,
+          spend: line.spend,
+          impressions: line.impressions,
+          clicks: line.clicks,
+          views: line.views,
+          results: line.results,
+        }
+      })
+      .filter((row): row is NonNullable<typeof row> => row != null)
+  }, [payload, dailyWindow, lineFilter])
+
+  const dailyLineOptions = useMemo(() => {
+    const ids = new Map<string, string>()
+    for (const row of payload?.daily.table ?? []) {
+      for (const line of row.lines) {
+        if (!ids.has(line.lineItemId)) ids.set(line.lineItemId, line.label)
+      }
+    }
+    return [...ids.entries()].toSorted((a, b) => a[0].localeCompare(b[0]))
+  }, [payload])
+
+  const dailyEmpty = Boolean(payload) && (payload?.daily.empty || dailySeries.length === 0)
 
   async function addNote() {
     const body = note.trim()
@@ -518,16 +570,61 @@ export function CampaignDetailModal({
                     {key}
                   </Button>
                 ))}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={combined ? "default" : "outline"}
-                  onClick={() => setCombined((value) => !value)}
-                >
-                  {combined ? "Combined" : "Per channel"}
+                <Button type="button" size="sm" variant="default">
+                  Combined
                 </Button>
               </div>
-              <DailyBars series={dailySeries} metric={metric} />
+              {dailyEmpty ? (
+                <p className="text-sm text-muted-foreground">{NO_DAILY_ROWS_MESSAGE}</p>
+              ) : (
+                <>
+                  <DailyBars series={dailySeries} metric={metric} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="text-xs text-muted-foreground" htmlFor="daily-line-filter">
+                      Line
+                    </label>
+                    <select
+                      id="daily-line-filter"
+                      className="rounded-input border border-border bg-background px-2 py-1 text-sm"
+                      value={lineFilter}
+                      onChange={(event) => setLineFilter(event.target.value)}
+                    >
+                      <option value="all">All lines</option>
+                      {dailyLineOptions.map(([id, label]) => (
+                        <option key={id} value={id}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="min-w-0 max-h-[40vh] overflow-x-auto overflow-y-auto">
+                    <table className="w-full min-w-[40rem] text-sm">
+                      <thead className="sticky top-0 z-20 bg-card">
+                        <tr className="text-left text-xs text-muted-foreground">
+                          <th className="py-2 pr-3">Date</th>
+                          <th className="py-2 pr-3 text-right">Spend</th>
+                          <th className="py-2 pr-3 text-right">Impressions</th>
+                          <th className="py-2 pr-3 text-right">Clicks</th>
+                          <th className="py-2 pr-3 text-right">Views</th>
+                          <th className="py-2 text-right">Results</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dailyTable.map((row) => (
+                          <tr key={row.date} className="border-t border-border">
+                            <td className="py-2 pr-3">{row.date}</td>
+                            <td className="num py-2 pr-3 text-right">{money(row.spend)}</td>
+                            <td className="num py-2 pr-3 text-right">{formatCount(row.impressions)}</td>
+                            <td className="num py-2 pr-3 text-right">{formatCount(row.clicks)}</td>
+                            <td className="num py-2 pr-3 text-right">{formatCount(row.views)}</td>
+                            <td className="num py-2 text-right">{formatCount(row.results)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
           ) : null}
 
@@ -624,6 +721,10 @@ function Bar({ label, fill, className }: { label: string; fill: number; classNam
   )
 }
 
+function formatDailyMetric(metric: CampaignDetailMetric, value: number): string {
+  return metric === "spend" ? money(value) : formatCount(value)
+}
+
 function DailyBars({
   series,
   metric,
@@ -633,33 +734,52 @@ function DailyBars({
 }) {
   const first = series[0]
   if (!first || first.points.length === 0) {
-    return <p className="text-sm text-muted-foreground">No daily {metric} yet.</p>
+    return <p className="text-sm text-muted-foreground">{NO_DAILY_ROWS_MESSAGE}</p>
   }
-  const max = Math.max(
-    1,
-    ...series.flatMap((item) => item.points.flatMap((point) => [point.actual, point.plan])),
-  )
+  const max = Math.max(1, ...first.points.map((point) => point.actual))
   return (
-    <div className="space-y-3">
-      {series.map((item) => (
-        <div key={item.key}>
-          <p className="mb-1 text-xs text-muted-foreground">{item.label}</p>
-          <div className="flex h-24 items-end gap-px">
-            {item.points.map((point) => (
-              <div key={`${item.key}:${point.date}`} className="flex flex-1 items-end gap-px">
-                <span
-                  className="w-1/2 bg-pacing-on-track"
-                  style={{ height: `${(point.actual / max) * 100}%` }}
-                />
-                <span
-                  className="w-1/2 bg-fill-track"
-                  style={{ height: `${(point.plan / max) * 100}%` }}
-                />
-              </div>
-            ))}
-          </div>
+    <TooltipProvider delayDuration={150}>
+      <div>
+        <p className="mb-1 text-xs text-muted-foreground">{first.label}</p>
+        <div className="flex h-24 items-end gap-px">
+          {first.points.map((point) => {
+            const lines = point.byLine ?? []
+            const tip = [
+              `${point.date} · ${formatDailyMetric(metric, point.actual)}`,
+              ...lines.map(
+                (line) => `${line.label}: ${formatDailyMetric(metric, line.value)}`,
+              ),
+            ].join("\n")
+            return (
+              <Tooltip key={`${first.key}:${point.date}`}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex flex-1 items-end self-stretch"
+                    title={tip}
+                    aria-label={tip}
+                  >
+                    <span
+                      className="w-full bg-pacing-on-track"
+                      style={{ height: `${(point.actual / max) * 100}%` }}
+                    />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs whitespace-pre-line">
+                  <p className="font-medium">
+                    {point.date} · {formatDailyMetric(metric, point.actual)}
+                  </p>
+                  {lines.map((line) => (
+                    <p key={line.lineItemId} className="text-muted-foreground">
+                      {line.label}: {formatDailyMetric(metric, line.value)}
+                    </p>
+                  ))}
+                </TooltipContent>
+              </Tooltip>
+            )
+          })}
         </div>
-      ))}
-    </div>
+      </div>
+    </TooltipProvider>
   )
 }
