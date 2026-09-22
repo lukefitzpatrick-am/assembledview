@@ -13,6 +13,11 @@ const nextConfig = {
     // shares a heap with webpack.
     ignoreBuildErrors: true,
   },
+  eslint: {
+    // Same split as typecheck: lint is `npm run lint` in `gate:main`, not a
+    // second analysis pass sharing the Vercel webpack heap.
+    ignoreDuringBuilds: true,
+  },
   async redirects() {
     return [
       // FN7 — legacy finance paths → sections (permanent; no ?tab= hop)
@@ -85,7 +90,9 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    // Removed deprecated experimental features for Next.js 15
+    // Low-risk webpack behaviour that cuts peak heap at a small compile-time
+    // cost. Needed on the 8 GB Vercel builder; see memory-usage.mdx.
+    webpackMemoryOptimizations: true,
   },
   outputFileTracingIncludes: {
     "/api/planning/export-deck": ["./lib/planning/export/assets/**"],
