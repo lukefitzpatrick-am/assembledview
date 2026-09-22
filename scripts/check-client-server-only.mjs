@@ -1,7 +1,18 @@
 #!/usr/bin/env node
 /**
- * Fail if a "use client" module can reach `@/db` or `import "server-only"`
- * via static OR dynamic import.
+ * Fail if a "use client" module can reach a server-only sink via static OR
+ * dynamic import. The sinks are:
+ *
+ *   - `import "server-only"` anywhere in the module
+ *   - `db/index.ts` (the Drizzle client)
+ *   - the `db/schema` barrel and its table modules — they re-export Drizzle
+ *     table builders, so the barrel drags `drizzle-orm/pg-core` into the
+ *     browser. `CLIENT_SAFE_DB_SCHEMA` is the escape hatch for plain value
+ *     lists the UI legitimately needs (`lineChannelValues.ts`).
+ *   - the node packages in `FORBIDDEN_PACKAGES` — `snowflake-sdk`,
+ *     `drizzle-orm`, `postgres`, `pg`. These are the ones that actually cost
+ *     bundle size and build time, and they are what the `db/*` rules are
+ *     protecting against, so they are checked directly as well.
  *
  * `await import("@/db")` defers loading, not bundling — Webpack still puts
  * `db/index.ts` in the client graph. Type-only imports are erased and skipped.
@@ -42,6 +53,38 @@ const WEBPACK_IGNORE_ALLOWLIST = new Set([
   "lib/api.ts -> @/lib/data/readPublishers",
   "lib/api.ts -> @/lib/data/readClients",
 ])
+
+/**
+ * Node packages that must never appear in a client chunk. Subpaths count
+ * (`drizzle-orm/pg-core`, `pg/lib/*`). `exceljs` and `pptx-automizer` are
+ * deliberately absent — those are client-side generators behind a lazy
+ * `import()`, so they are a code-split, not a leak.
+ */
+const FORBIDDEN_PACKAGES = new Set([
+  "snowflake-sdk",
+  "drizzle-orm",
+  "postgres",
+  "pg",
+])
+
+/**
+ * `db/schema` modules a client component may import. These hold plain values
+ * with no drizzle import; everything else in `db/schema` is a table or enum
+ * builder. Adding a row here means proving the module imports no drizzle,
+ * directly or transitively — the traversal will catch it if you are wrong.
+ */
+const CLIENT_SAFE_DB_SCHEMA = new Set(["db/schema/lineChannelValues.ts"])
+
+/** Sink node for a bare package specifier, which has no file on disk here. */
+function packageNode(name) {
+  return `__pkg__:${name}`
+}
+
+/** `drizzle-orm/pg-core` -> `drizzle-orm`; `@scope/x/y` -> `@scope/x`. */
+function packageRoot(spec) {
+  const parts = spec.split("/")
+  return spec.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0]
+}
 
 function walkFiles(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -169,7 +212,10 @@ function tryResolve(fromFile, spec) {
   let abs
   if (spec.startsWith("@/")) abs = path.join(rootDir, spec.slice(2))
   else if (spec.startsWith(".")) abs = path.resolve(path.dirname(fromFile), spec)
-  else return null
+  else {
+    const root = packageRoot(spec)
+    return FORBIDDEN_PACKAGES.has(root) ? packageNode(root) : null
+  }
   abs = path.normalize(abs)
   const candidates = [
     abs,
@@ -190,12 +236,29 @@ function tryResolve(fromFile, spec) {
 
 function posixRel(file) {
   if (file === path.join(rootDir, "__server-only__")) return "server-only (package)"
+  if (file.startsWith("__pkg__:")) return `${file.slice(8)} (package)`
   return path.relative(rootDir, file).replaceAll("\\", "/")
 }
 
 function isDbIndex(file) {
   const rel = posixRel(file)
   return rel === "db/index.ts" || rel === "db/index.js"
+}
+
+function isDbSchema(file) {
+  const rel = posixRel(file)
+  if (!rel.startsWith("db/schema/")) return false
+  return !CLIENT_SAFE_DB_SCHEMA.has(rel)
+}
+
+/** Why this node is a sink, or null when it is ordinary app code. */
+function sinkReason(file, serverOnlyFiles) {
+  if (file === path.join(rootDir, "__server-only__")) return "server-only"
+  if (file.startsWith("__pkg__:")) return `${file.slice(8)} (node package)`
+  if (isDbIndex(file)) return "db/index.ts"
+  if (isDbSchema(file)) return "db/schema (drizzle table builders)"
+  if (serverOnlyFiles.has(file)) return 'import "server-only"'
+  return null
 }
 
 function selfTest() {
@@ -241,6 +304,33 @@ function selfTest() {
     false,
     "never allowlist webpackIgnore of @/db — that is the BUILD-1 class",
   )
+
+  // Bare package sinks resolve to a synthetic node; subpaths fold to the root.
+  const here = path.join(rootDir, "app/x.tsx")
+  assert.equal(tryResolve(here, "drizzle-orm/pg-core"), packageNode("drizzle-orm"))
+  assert.equal(tryResolve(here, "snowflake-sdk"), packageNode("snowflake-sdk"))
+  assert.equal(tryResolve(here, "postgres"), packageNode("postgres"))
+  assert.equal(tryResolve(here, "react"), null, "ordinary packages are not sinks")
+  assert.equal(packageRoot("@scope/pkg/deep"), "@scope/pkg")
+
+  const emptyServerOnly = new Set()
+  assert.equal(
+    sinkReason(path.join(rootDir, "db/schema/enums.ts"), emptyServerOnly),
+    "db/schema (drizzle table builders)",
+  )
+  assert.equal(
+    sinkReason(path.join(rootDir, "db/schema/lineChannelValues.ts"), emptyServerOnly),
+    null,
+    "the plain value tuple is the client-safe escape hatch",
+  )
+  assert.equal(
+    sinkReason(path.join(rootDir, "lib/mediaplan/burstAmounts.ts"), emptyServerOnly),
+    null,
+  )
+  assert.ok(
+    CLIENT_SAFE_DB_SCHEMA.size <= 2,
+    "client-safe db/schema list must stay tiny — each row needs a review",
+  )
 }
 
 function analyze() {
@@ -273,10 +363,7 @@ function analyze() {
       const fromRel = posixRel(file)
       const allowKey = `${fromRel} -> ${spec}`
       if (kind === "dynamic-webpackIgnore") {
-        const forbiddenTarget =
-          serverOnlyFiles.has(resolved) ||
-          isDbIndex(resolved) ||
-          resolved === path.join(rootDir, "__server-only__")
+        const forbiddenTarget = sinkReason(resolved, serverOnlyFiles) !== null
         if (forbiddenTarget && !WEBPACK_IGNORE_ALLOWLIST.has(allowKey)) {
           list.push({ to: resolved, kind, spec })
         }
@@ -285,11 +372,7 @@ function analyze() {
         }
         continue
       }
-      if (
-        !srcByFile.has(resolved) &&
-        !isDbIndex(resolved) &&
-        resolved !== path.join(rootDir, "__server-only__")
-      ) {
+      if (!srcByFile.has(resolved) && !sinkReason(resolved, serverOnlyFiles)) {
         if (spec === "@/db" || spec === "@/db/index" || spec.startsWith("@/db/")) {
           list.push({ to: resolved, kind, spec })
         }
@@ -316,6 +399,10 @@ function analyze() {
       seen.add(edge.to)
       parent.set(edge.to, cur)
       kindTo.set(edge.to, edge)
+      // Stop at a sink. One `db/schema` barrel import would otherwise report
+      // every table module and every package behind it as its own hit; the
+      // shortest chain to the first sink is what has to be fixed.
+      if (sinkReason(edge.to, serverOnlyFiles)) continue
       queue.push(edge.to)
     }
   }
@@ -333,20 +420,9 @@ function analyze() {
 
   const hits = []
   for (const file of seen) {
-    const forbidden =
-      serverOnlyFiles.has(file) ||
-      isDbIndex(file) ||
-      file === path.join(rootDir, "__server-only__")
-    if (!forbidden) continue
-    hits.push({
-      file,
-      reason: isDbIndex(file)
-        ? "db/index.ts"
-        : hasServerOnly(srcByFile.get(file) || "")
-          ? 'import "server-only"'
-          : "server-only",
-      steps: chainFor(file),
-    })
+    const reason = sinkReason(file, serverOnlyFiles)
+    if (!reason) continue
+    hits.push({ file, reason, steps: chainFor(file) })
   }
   hits.sort((a, b) => posixRel(a.file).localeCompare(posixRel(b.file)))
   return { seeds, serverOnlyFiles, seen, hits, kindTo, allowlistHits }
@@ -381,14 +457,16 @@ console.log(
 
 if (hits.length) {
   console.error(
-    "Client graph reaches @/db or import \"server-only\". " +
-      "Dynamic import() still bundles — split a *.server.ts sibling " +
-      "(avaColumnMapping.server.ts / lineAudit.server.ts).\n\n" +
+    "Client graph reaches a server-only sink. Dynamic import() still bundles — " +
+      "split a *.server.ts sibling (avaColumnMapping.server.ts / " +
+      "lineAudit.server.ts), or for a plain value list from db/schema, move the " +
+      "values to their own drizzle-free module (db/schema/lineChannelValues.ts).\n\n" +
       formatHits(hits, kindTo),
   )
   process.exit(1)
 }
 
 console.log(
-  'OK: no client-reachable path to @/db or import "server-only" (static or dynamic).',
+  "OK: no client-reachable path to @/db, db/schema, snowflake-sdk, drizzle-orm, " +
+    'postgres, pg or import "server-only" (static or dynamic).',
 )
