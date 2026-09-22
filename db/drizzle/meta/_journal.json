@@ -50,6 +50,13 @@
       "when": 1789975679020,
       "tag": "0006_outstanding_black_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790044148110,
+      "tag": "0007_big_mikhail_rasputin",
+      "breakpoints": true
     }
   ]
 }

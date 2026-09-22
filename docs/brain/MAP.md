@@ -5,7 +5,7 @@ The routing table for the whole app. Find your section, open the files it lists,
 ## Layer hierarchy (what sits on what)
 
 ```
-L0  PLATFORM      Vercel (project avmediaplan, regions iad1/syd1/sin1) · 16 crons
+L0  PLATFORM      Vercel (project avmediaplan, regions iad1/syd1/sin1) · 17 crons
 L1  IDENTITY      Auth0 v4 → middleware.ts (authN only) → lib/rbac.ts (roles) → per-route gates
 L2  DATA          Supabase Postgres (Sydney) via Drizzle  db/  ← system of record
                   Snowflake ASSEMBLEDVIEW.MART.*         lib/snowflake/  ← delivery facts, read-only
@@ -89,7 +89,7 @@ Adding or altering a channel touches, at minimum:
 
 ## 3. Pacing & delivery
 
-**Routes** `/pacing/(shell)/` → `portfolio` (default; `/pacing` redirects here) `overview` `direct` `programmatic` `social` `search` `ad-serving` · `admin/orphans` `admin/relabels` (`unmapped-placements` redirects to `relabels?tab=unmapped`) · `GET /api/pacing/portfolio` (daily snapshot `pacing_portfolio_snapshots`; cards / expandable table UI on `/pacing/portfolio`, layout in `pacing.portfolioLayout`) · `GET /api/pacing/campaign/[mba]` (per-MBA overlay; `?campaign=` reopens; payload includes `scenarioLines`) · `GET|POST /api/pacing/scenarios` (saved planner runs; `pacing_scenarios` 0084 AUTHOR ONLY) · `GET /api/pacing/relabels` `POST /api/pacing/relabels/preview` `POST /api/pacing/relabels/apply` `GET /api/pacing/relabels/[id]` `POST /api/pacing/relabels/[id]/revert` (`requireRelabelAccess`, staff not admin; audit `delivery_relabels` 0085 AUTHOR ONLY; UI `/pacing/admin/relabels`) · delivery relabel engine `lib/pacing/relabel` (generalises orphan assign across channels) · channel tabs share `LinePacingCard` + `pacing.<channel>Layout` (default cards) + `deliveryStatusFromPct` tiles · cron `/api/cron/pacing-portfolio` (`0 21 * * *`, 07:00 Melbourne) · what-if math is `lib/pacing/scenario` (pure; shared by planner UI and AVA) · planner overlay is `ScenarioPlannerPanel` from every card, the detail header, and the AVA Scenario tab · AVA chat is `run_scenario` + `assembled-scenario-planner` (offered on `/pacing/*` and `/dashboard/*`)
+**Routes** `/pacing/(shell)/` → `portfolio` (default; `/pacing` redirects here) `overview` `direct` `programmatic` `social` `search` `ad-serving` · `admin/orphans` `admin/relabels` (`unmapped-placements` redirects to `relabels?tab=unmapped`) · `GET /api/pacing/portfolio` (daily snapshot `pacing_portfolio_snapshots`; cards / expandable table UI on `/pacing/portfolio`, layout in `pacing.portfolioLayout`) · `GET /api/pacing/campaign/[mba]` (per-MBA overlay; `?campaign=` reopens; payload includes `scenarioLines`) · `GET|POST /api/pacing/scenarios` (saved planner runs; `pacing_scenarios` 0084 AUTHOR ONLY) · `GET /api/pacing/relabels` `POST /api/pacing/relabels/preview` `POST /api/pacing/relabels/apply` `GET /api/pacing/relabels/[id]` `POST /api/pacing/relabels/[id]/revert` (`requireRelabelAccess`, staff not admin; audit `delivery_relabels` 0085 AUTHOR ONLY; UI `/pacing/admin/relabels`) · delivery relabel engine `lib/pacing/relabel` (generalises orphan assign across channels) · channel tabs share `LinePacingCard` + `pacing.<channel>Layout` (default cards) + `deliveryStatusFromPct` tiles · cron `/api/cron/pacing-portfolio` (`0 21 * * *`, 07:00 Melbourne) · cron `/api/cron/relabel-drift` (`15 21 * * *`, 07:15 Melbourne; `relabel_drift_snapshots` 0086 AUTHOR ONLY) · what-if math is `lib/pacing/scenario` (pure; shared by planner UI and AVA) · planner overlay is `ScenarioPlannerPanel` from every card, the detail header, and the AVA Scenario tab · AVA chat is `run_scenario` + `assembled-scenario-planner` (offered on `/pacing/*` and `/dashboard/*`)
 
 **Shape** Snowflake fact tables joined to plan line items on `line_item_id`. Facts: `MART.PACING_FACT`, `MART.SEARCH_PACING_FACT`, `MART.SOCIAL_PACING_FACT`, `MART.FIXED_COST_*_FACT`. Social dashboard and `/pacing/social` read `SOCIAL_PACING_FACT` (Meta / TikTok / Reddit via `classifySocialPacingPlatform`); programmatic + CM360 stay on `PACING_FACT`. The plan side is pushed into `MART.XANO_LINE_ITEMS_SNAPSHOT` nightly by `/api/cron/xano-line-item-sync` (19:00 UTC) — the table keeps its historic name; the source is now Postgres (`lib/snowflake/syncPgLineItems.ts`, `LINE_ITEM_SNAPSHOT_SOURCE`).
 
@@ -209,4 +209,4 @@ Touch these and you are touching everything. Check `BLAST-RADIUS.md` first, ever
 
 ## Scale reference
 
-71 pages · 197 API route handlers · ~450 component files · ~1,440 lib files · 78 live Supabase tables · 50 applied migrations · 16 crons · 20 media channels.
+71 pages · 197 API route handlers · ~450 component files · ~1,440 lib files · 78 live Supabase tables · 50 applied migrations · 17 crons · 20 media channels.

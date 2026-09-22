@@ -89,9 +89,9 @@ function renderRelabelSection(payload: PacingDigestPayload): string {
     </table>`
   const driftRows =
     drift.length === 0
-      ? `<p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#57606a;margin:8px 0;">No R4 drift.</p>`
+      ? `<p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#57606a;margin:8px 0;">No map drift. No legacy LABEL_MAP rows.</p>`
       : `<ul style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#24292f;margin:8px 0;padding-left:18px;">${drift
-          .map((item) => `<li>${escapeHtml(item.message)}</li>`)
+          .map((item) => `<li>${escapeHtml(item.kind)} · ${escapeHtml(item.message)}</li>`)
           .join("")}</ul>`
 
   return `<tr><td style="padding:16px 24px 4px;font-family:Arial,Helvetica,sans-serif;">

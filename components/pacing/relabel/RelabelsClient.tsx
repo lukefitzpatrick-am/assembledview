@@ -21,6 +21,7 @@ import {
   type RelabelsTab,
 } from "@/lib/pacing/relabel/relabelPageUrl"
 import type { DeliveryRelabelRow, RelabelPreview } from "@/lib/pacing/relabel/types"
+import type { RelabelDriftFinding } from "@/lib/pacing/relabel/drift"
 import { CM360_PACING_CHANNEL, RELABEL_WAREHOUSE_CHANNELS } from "@/lib/pacing/relabel/types"
 
 const numberFmt = new Intl.NumberFormat("en-AU")
@@ -98,6 +99,7 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
   const [placements, setPlacements] = useState<UnmappedPlacement[] | null>(null)
   const [unmappedError, setUnmappedError] = useState<string | null>(null)
   const [relabels, setRelabels] = useState<DeliveryRelabelRow[] | null>(null)
+  const [drift, setDrift] = useState<RelabelDriftFinding[]>([])
   const [logError, setLogError] = useState<string | null>(null)
   const [planLines, setPlanLines] = useState<PlanLineOption[]>([])
   const [viewRow, setViewRow] = useState<DeliveryRelabelRow | null>(null)
@@ -124,8 +126,9 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
         throw new Error(json?.message || "delivery_relabels is unavailable (0085 not applied).")
       }
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      const json = (await r.json()) as { relabels: DeliveryRelabelRow[] }
+      const json = (await r.json()) as { relabels: DeliveryRelabelRow[]; drift?: RelabelDriftFinding[] }
       setRelabels(json.relabels)
+      setDrift((json.drift ?? []).filter((row) => row.kind === "drift"))
     } catch (e) {
       setLogError(e instanceof Error ? e.message : String(e))
       setRelabels([])
@@ -686,9 +689,21 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
             <ErrorState title="Relabel log failed to load" message={logError} onRetry={() => void loadLog()} />
           ) : relabels == null ? (
             <LoadingState rows={5} />
-          ) : relabels.length === 0 ? (
-            <EmptyState title="No relabels yet" message="Applied, blocked, and reverted rows will land here." />
           ) : (
+            <div className="space-y-3">
+              {drift.length > 0 ? (
+                <div
+                  role="status"
+                  data-relabel-drift-banner=""
+                  className="rounded-card border border-status-critical-fg/30 bg-status-critical/10 px-4 py-3 text-sm text-status-critical-fg"
+                >
+                  {drift.length} map row{drift.length === 1 ? "" : "s"} drifted from applied
+                  relabels. Nightly check of LINE_ITEM_LABEL_MAP vs delivery_relabels.
+                </div>
+              ) : null}
+              {relabels.length === 0 ? (
+                <EmptyState title="No relabels yet" message="Applied, blocked, and reverted rows will land here." />
+              ) : (
             <div className="overflow-auto rounded-card border border-border">
               <table className="w-full text-xs">
                 <thead className="bg-muted/40">
@@ -741,9 +756,9 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
                 </tbody>
               </table>
             </div>
-          )}
-          {viewRow ? (
-            <section className="mt-3 rounded-card border border-border bg-card p-4 text-xs shadow-e1">
+              )}
+              {viewRow ? (
+            <section className="rounded-card border border-border bg-card p-4 text-xs shadow-e1">
               <div className="mb-2 flex items-center justify-between">
                 <h2 className="text-sm font-semibold">Relabel #{viewRow.id}</h2>
                 <Button type="button" size="sm" variant="ghost" onClick={() => setViewRow(null)}>
@@ -754,7 +769,9 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
                 {JSON.stringify(viewRow, null, 2)}
               </pre>
             </section>
-          ) : null}
+              ) : null}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

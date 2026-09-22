@@ -3,6 +3,7 @@ import {
   withSnowflakeSession,
 } from "@/lib/snowflake/snowflakeSession"
 import { factRouteForChannel, normalizeLineItemId } from "./channels"
+import { canRevertRelabel } from "./relabelPageUrl"
 import { getRelabel, markRelabelReverted } from "./repo"
 import { revertPlanFromPayload } from "./revertPlan"
 import { LINE_ITEM_LABEL_MAP } from "./types"
@@ -11,13 +12,16 @@ export { revertPlanFromPayload }
 
 export class RelabelRevertError extends Error {
   constructor(
-    public code: "not_found" | "already_reverted" | "invalid",
+    public code: "not_found" | "already_reverted" | "invalid" | "expired",
     message: string,
   ) {
     super(message)
     this.name = "RelabelRevertError"
   }
 }
+
+export const RELABEL_REVERT_EXPIRED_MESSAGE =
+  "Relabels older than 30 days cannot be reverted."
 
 function dateFilterSql(dateFrom: string | null, dateTo: string | null): string {
   const from = dateFrom ? "AND CAST(DATE_DAY AS DATE) >= CAST(? AS DATE)" : ""
@@ -36,6 +40,7 @@ function entityMatchSql(hasFallback: boolean): string {
 export async function revertRelabel(
   relabelId: number,
   actorEmail: string,
+  now: Date = new Date(),
 ): Promise<{ relabelId: number; restoredRanges: number; reinsertedRows: number }> {
   const email = String(actorEmail ?? "").trim()
   if (!email) throw new RelabelRevertError("invalid", "actorEmail is required.")
@@ -47,6 +52,9 @@ export async function revertRelabel(
   }
   if (row.status === "blocked") {
     throw new RelabelRevertError("invalid", `Relabel ${relabelId} is blocked and cannot be reverted.`)
+  }
+  if (!canRevertRelabel(row.createdAt, now)) {
+    throw new RelabelRevertError("expired", RELABEL_REVERT_EXPIRED_MESSAGE)
   }
 
   const plan = revertPlanFromPayload(row.beforeState)

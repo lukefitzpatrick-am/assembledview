@@ -6,6 +6,7 @@ import { parseMbaNumberFromLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { querySnowflake } from "@/lib/snowflake/query"
 import { RelabelApplyError } from "./applyGuard"
 import { applyRelabel } from "./apply"
+import { listRelabelDrift, type RelabelDriftFinding } from "./listRelabelDrift"
 import {
   notifyRelabel,
   relabelNotifyFromPreview,
@@ -14,6 +15,7 @@ import {
 } from "./notify"
 import { previewRelabel, type PreviewRelabelArgs } from "./preview"
 import { lookupPublishedPlanLine } from "./publishedLine"
+import { canRevertRelabel } from "./relabelPageUrl"
 import {
   RelabelRepoError,
   assertRelabelTablesAvailable,
@@ -25,7 +27,7 @@ import {
   type ListRelabelsFilters,
 } from "./repo"
 import { queryActiveLabelMap } from "./entity"
-import { RelabelRevertError, revertRelabel } from "./revert"
+import { RelabelRevertError, RELABEL_REVERT_EXPIRED_MESSAGE, revertRelabel } from "./revert"
 import { buildApplyLogPayload } from "./applyGuard"
 import { describeRelabelWrites } from "./describeWrites"
 import type { RelabelPreview, RelabelQueryFn } from "./types"
@@ -43,6 +45,7 @@ export type RelabelHandlerDeps = {
   query: RelabelQueryFn
   notify: typeof notifyRelabel
   notifyIo: RelabelNotifyDeps
+  listRelabelDrift?: typeof listRelabelDrift
 }
 
 const defaultQuery: RelabelQueryFn = async (sql, binds) => {
@@ -66,6 +69,7 @@ export function defaultRelabelHandlerDeps(): RelabelHandlerDeps {
       createTask: async (input) => createTask(input),
       sendHtmlEmail,
     },
+    listRelabelDrift,
   }
 }
 
@@ -97,7 +101,13 @@ export async function runRelabelList(
   try {
     await deps.assertRelabelTablesAvailable()
     const relabels = await deps.listRelabels(filters)
-    return NextResponse.json({ relabels })
+    let drift: RelabelDriftFinding[] = []
+    try {
+      drift = (await (deps.listRelabelDrift ?? listRelabelDrift)()) ?? []
+    } catch (err) {
+      console.error("[api/pacing/relabels] drift list failed", err)
+    }
+    return NextResponse.json({ relabels, drift })
   } catch (err) {
     const soft = unavailable(err)
     if (soft) return soft
@@ -260,11 +270,18 @@ export async function runRelabelRevert(
   id: number,
   actorEmail: string,
   deps: RelabelHandlerDeps = defaultRelabelHandlerDeps(),
+  now: Date = new Date(),
 ): Promise<NextResponse> {
   try {
     await deps.assertRelabelTablesAvailable()
     const before = await deps.getRelabel(id)
-    const result = await deps.revertRelabel(id, actorEmail)
+    if (before && !canRevertRelabel(before.createdAt, now)) {
+      return NextResponse.json(
+        { error: "expired", message: RELABEL_REVERT_EXPIRED_MESSAGE },
+        { status: 409 },
+      )
+    }
+    const result = await deps.revertRelabel(id, actorEmail, now)
     const after: DeliveryRelabelRow | null = before
       ? {
           ...before,

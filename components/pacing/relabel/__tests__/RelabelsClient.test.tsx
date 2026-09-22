@@ -79,7 +79,7 @@ describe("RelabelsClient", () => {
           return { ok: true, json: async () => BLOCKED_PREVIEW }
         }
         if (url.includes("/api/pacing/relabels") && method === "GET") {
-          return { ok: true, json: async () => ({ relabels: [] }) }
+          return { ok: true, json: async () => ({ relabels: [], drift: [] }) }
         }
         return { ok: true, json: async () => ({}) }
       }),
@@ -156,5 +156,41 @@ describe("RelabelsClient", () => {
     expect(channel?.value).toBe("Ad Serving - CM360")
     expect(mba?.value).toBe("BICAU")
     expect(container.querySelector('[role="tab"][data-state="active"]')?.textContent).toBe("New relabel")
+  })
+
+  it("shows a Log banner when drift is greater than 0", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes("/api/admin/unmapped-placements")) {
+          return { ok: true, json: async () => UNMAPPED }
+        }
+        if (url.includes("/api/pacing/relabels")) {
+          return {
+            ok: true,
+            json: async () => ({
+              relabels: [],
+              drift: [
+                {
+                  kind: "drift",
+                  code: "drift",
+                  message: "drift: relabel #12 Social - Meta / 999 → bicau002sm3 but map row is missing",
+                },
+              ],
+            }),
+          }
+        }
+        return { ok: true, json: async () => ({}) }
+      }),
+    )
+    act(() => {
+      root.render(<RelabelsClient initial={{ tab: "log" }} />)
+    })
+    await settle()
+    await settle()
+    const banner = container.querySelector("[data-relabel-drift-banner]")
+    expect(banner).toBeTruthy()
+    expect(banner?.textContent).toMatch(/1 map row drifted/)
   })
 })

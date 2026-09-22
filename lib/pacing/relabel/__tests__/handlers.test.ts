@@ -76,6 +76,7 @@ function baseDeps(store: {
         fromLineItemId: p.moves[0]?.previousLineItemId ?? null,
         reason: "fix attribution",
         actorEmail: STAFF,
+        createdAt: "2026-09-20T00:00:00.000Z",
         applyResult: { rowsUpdated: p.rowsMoving, rowsDeleted: 0, spendMoving: p.spendMoving },
       }
       store.relabels.push(row)
@@ -151,6 +152,30 @@ test("apply writes the relabel row, the apply log, a Codex task, and emails once
   assert.equal(store.tasks.length, 1)
   assert.match(String(store.tasks[0]?.title), /Relabel applied: bicau002 BICAU002 SM2 → bicau002sm2/)
   assert.equal(store.emails.length, 1)
+})
+
+test("revert older than 30 days returns 409", async () => {
+  const store = { relabels: [] as Array<Record<string, unknown>>, logs: [] as Array<Record<string, unknown>>, tasks: [] as Array<Record<string, unknown>>, emails: [] as unknown[] }
+  const deps = baseDeps(store)
+  store.relabels.push({
+    id: 7,
+    status: "applied",
+    mbaNumber: "bicau002",
+    entityName: "BICAU002 SM2",
+    toLineItemId: "bicau002sm2",
+    fromLineItemId: "bicau002sm1",
+    reason: "fix attribution",
+    actorEmail: STAFF,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    applyResult: { rowsUpdated: 21, rowsDeleted: 0, spendMoving: 1200 },
+  })
+  const res = await runRelabelRevert(7, STAFF, deps, new Date("2026-09-21T00:00:00.000Z"))
+  assert.equal(res.status, 409)
+  const body = (await res.json()) as { error?: string; message?: string }
+  assert.equal(body.error, "expired")
+  assert.match(body.message ?? "", /30 days/i)
+  assert.equal(store.relabels[0]?.status, "applied")
+  assert.equal(store.emails.length, 0)
 })
 
 test("revert flips status and logs", async () => {

@@ -326,7 +326,7 @@ test("email HTML includes Delivery relabels section", () => {
           toLineItemId: "bicau002sm2",
         },
       ],
-      drift: [{ code: "r4", message: "map drifted on bicau002sm2" }],
+      drift: [{ kind: "drift", code: "drift", message: "map drifted on bicau002sm2" }],
     },
   })
   assert.match(html, /Delivery relabels · 2026-09-20/)
