@@ -1,27 +1,8 @@
 import { pgEnum } from "drizzle-orm/pg-core"
 
-export const lineChannelEnum = pgEnum("line_channel", [
-  "television",
-  "radio",
-  "cinema",
-  "newspaper",
-  "magazines",
-  "ooh",
-  "prog_display",
-  "prog_video",
-  "prog_audio",
-  "prog_bvod",
-  "prog_ooh",
-  "digi_display",
-  "digi_video",
-  "digi_audio",
-  "digi_bvod",
-  "social",
-  "search",
-  "influencers",
-  "integrations",
-  "production",
-])
+import { LINE_CHANNELS } from "./lineChannelValues"
+
+export const lineChannelEnum = pgEnum("line_channel", LINE_CHANNELS)
 
 export const scheduleComponentEnum = pgEnum("schedule_component", [
   "media",
@@ -37,8 +18,8 @@ export const scheduleSourceEnum = pgEnum("schedule_source", [
   "override",
 ])
 
-export const LINE_CHANNELS = lineChannelEnum.enumValues
-export type LineChannel = (typeof LINE_CHANNELS)[number]
+export { LINE_CHANNELS } from "./lineChannelValues"
+export type { LineChannel } from "./lineChannelValues"
 
 export const financePeriodStatusEnum = pgEnum("finance_period_status", [
   "open",

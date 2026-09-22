@@ -1,5 +1,7 @@
-import type { LineChannel } from "@/db/schema"
-import { LINE_CHANNELS } from "@/db/schema"
+// Not `@/db/schema` — this module is reachable from the create/edit client
+// graph, and `LINE_CHANNELS` there carries `drizzle-orm/pg-core` with it.
+import type { LineChannel } from "@/db/schema/lineChannelValues"
+import { LINE_CHANNELS } from "@/db/schema/lineChannelValues"
 
 /**
  * Map editor / billing `mediaType` keys (and common aliases) onto consolidated
