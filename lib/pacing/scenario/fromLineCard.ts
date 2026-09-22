@@ -101,17 +101,25 @@ export function scenarioLineFromCard(
     daysElapsed,
     endDate: model.lineEnd ?? asOf,
     bursts:
-      model.burstStart && model.burstEnd && model.burstBudget != null
-        ? [
-            {
-              index: model.bursts.index ?? 0,
-              start: model.burstStart,
-              end: model.burstEnd,
-              budget: model.burstBudget,
-              spend: model.burstSpend ?? 0,
-            },
-          ]
-        : [],
+      model.planBursts.length > 0
+        ? model.planBursts.map((burst) => ({
+            index: burst.index,
+            start: burst.start,
+            end: burst.end,
+            budget: burst.budget,
+            spend: burst.reportedSpend ?? 0,
+          }))
+        : model.burstStart && model.burstEnd && model.burstBudget != null
+          ? [
+              {
+                index: model.bursts.index ?? 0,
+                start: model.burstStart,
+                end: model.burstEnd,
+                budget: model.burstBudget,
+                spend: model.burstSpend ?? 0,
+              },
+            ]
+          : [],
     deliverable: deliverableFromCard(model, rate),
     rate,
     yesterday: model.yesterday,

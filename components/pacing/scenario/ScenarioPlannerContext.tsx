@@ -20,8 +20,14 @@ import type { ScenarioLine } from "@/lib/pacing/scenario/types"
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore"
 import { ScenarioPlannerPanel } from "./ScenarioPlannerPanel"
 
+export type ScenarioPlannerOpenOptions = {
+  lineItemId?: string
+  date_from?: string
+  date_to?: string
+}
+
 type ScenarioPlannerContextValue = {
-  open: (mba: string) => void
+  open: (mba: string, opts?: ScenarioPlannerOpenOptions) => void
   close: () => void
   mba: string | null
 }
@@ -69,17 +75,20 @@ export function ScenarioPlannerProvider({ children }: { children: ReactNode }) {
   const [saved, setSaved] = useState<SavedScenario[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [preset, setPreset] = useState<ScenarioPlannerOpenOptions | null>(null)
 
   const close = useCallback(() => {
     setMba(null)
     setPayload(null)
     setSaved([])
     setError(null)
+    setPreset(null)
   }, [])
 
-  const open = useCallback((nextMba: string) => {
+  const open = useCallback((nextMba: string, opts?: ScenarioPlannerOpenOptions) => {
     const mbaNumber = nextMba.trim()
     if (!mbaNumber) return
+    setPreset(opts ?? null)
     setMba(mbaNumber)
   }, [])
 
@@ -158,11 +167,15 @@ export function ScenarioPlannerProvider({ children }: { children: ReactNode }) {
               <p className="text-sm text-status-critical-fg">{error}</p>
             ) : payload ? (
               <ScenarioPlannerPanel
+                key={`${mba}:${preset?.lineItemId ?? ""}:${preset?.date_from ?? ""}:${preset?.date_to ?? ""}`}
                 mba={mba}
                 campaignName={payload.row.campaignName}
                 versionNumber={payload.row.versionNumber}
                 asOf={asOf}
                 lines={linesFromPayload(payload, asOf)}
+                initialLineItemId={preset?.lineItemId}
+                initialBurstStart={preset?.date_from}
+                initialBurstEnd={preset?.date_to}
                 saved={saved}
                 onRequestCampaign={(next) => setMba(next)}
                 onDraftNote={(draft) => {

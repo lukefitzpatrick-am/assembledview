@@ -43,7 +43,7 @@ export function assembleCampaignDetailPayload(input: {
     row: input.row,
     lines: input.lines,
     kpis: kpisFromLines(input.lines),
-    bursts: burstsFromLines(input.lines, input.asOf),
+    bursts: burstsFromLines(input.lines, input.asOf, facts),
     daily: {
       series: spend?.series ?? [],
       metric: "spend",

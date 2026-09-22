@@ -59,13 +59,22 @@ export type CampaignDetailDaily = {
 export type CampaignDetailBurst = {
   lineItemId: string
   index: number
+  name: string
   start: string
   end: string
   days: number
   budget: number
   spend: number
+  expected: number
   pct: number
   status: LineCardPace
+  impressions: number
+  clicks: number
+  views: number
+  plannedDeliverable: number
+  deliveredDeliverable: number
+  perDayLeft: number | null
+  empty?: boolean
 }
 
 export type CampaignDetailNote = {

@@ -20,7 +20,7 @@ import { labelForMetric } from "@/lib/pacing/kpi/formatKpi"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/slugifyPlanClientName"
 import { computeDaysPassed } from "@/lib/pacing/maths"
 import type { ChannelSpendMode } from "@/lib/pacing/portfolio/types"
-import type { LineCardKpi, LineCardMetric, LineCardModel } from "./lineCardTypes"
+import type { LineCardKpi, LineCardMetric, LineCardModel, LineCardPlanBurst } from "./lineCardTypes"
 import {
   burstMonthLabel,
   burstStates,
@@ -44,6 +44,24 @@ import {
 
 function finite(n: number | null | undefined): number {
   return typeof n === "number" && Number.isFinite(n) ? n : 0
+}
+
+function planBurstsFromNormalised(
+  bursts: ReadonlyArray<{
+    index: number
+    startDate: string
+    endDate: string
+    budget: number
+    calculatedValue: number
+  }>,
+): LineCardPlanBurst[] {
+  return bursts.map((burst) => ({
+    index: burst.index,
+    start: burst.startDate,
+    end: burst.endDate,
+    budget: burst.budget,
+    calculatedValue: burst.calculatedValue,
+  }))
 }
 
 function daysElapsed(start: string | null | undefined, end: string | null | undefined, asOf: string): number {
@@ -132,6 +150,7 @@ function spendDraft(input: {
   views?: number | null
   remainingBurst?: number | null
   burstDays?: number | null
+  planBursts?: LineCardModel["planBursts"]
 }): Draft {
   const timePct = lineTimePct(input.start, input.end, input.asOf)
   const burstTimePct =
@@ -204,6 +223,7 @@ function spendDraft(input: {
     views: input.views ?? null,
     remainingBurst: input.remainingBurst ?? null,
     burstDays: input.burstDays ?? null,
+    planBursts: input.planBursts ?? [],
     _asOf: input.asOf,
     burstStart: input.burstStart,
     burstEnd: input.burstEnd,
@@ -264,6 +284,7 @@ export function lineCardFromSearch(row: SearchPacingCampaignRow, asOf: string): 
     conversions: finite(row.conversions),
     remainingBurst: row.spendRemainingCurrentBurst,
     burstDays: row.burstDays,
+    planBursts: planBurstsFromNormalised(row.bursts),
     metrics: [
       { label: "Clicks", value: formatCount(row.clicks) },
       { label: "Conversions", value: formatCount(row.conversions) },
@@ -330,6 +351,7 @@ export function lineCardFromSocial(row: SocialPacingCampaignRow, asOf: string): 
     views: finite(row.videoViews),
     remainingBurst: row.spendRemainingCurrentBurst,
     burstDays: row.burstDays,
+    planBursts: planBurstsFromNormalised(row.bursts),
     metrics,
     kpis,
   })
@@ -406,6 +428,7 @@ export function lineCardFromProgrammatic(
     views: finite(row.videoViews),
     remainingBurst: row.spendRemainingCurrentBurst,
     burstDays: row.burstDays,
+    planBursts: planBurstsFromNormalised(row.bursts),
     metrics,
     kpis,
   })
@@ -502,6 +525,7 @@ export function lineCardFromAdServing(
     burstStart: burst?.startDate ?? null,
     burstEnd: burst?.endDate ?? null,
     burstDays: null,
+    planBursts: planBurstsFromNormalised(row.bursts),
     _asOf: asOf,
     _burstEnd: burst?.endDate ?? null,
   }
@@ -551,6 +575,14 @@ export function lineCardFromDirect(
     buyType: line.buyType || null,
     fixedCost: true,
     remainingBurst: burst ? burst.budget - burst.reportedSpend : null,
+    planBursts: line.bursts.map((item) => ({
+      index: item.burstIndex,
+      start: item.startDate,
+      end: item.endDate,
+      budget: item.budget,
+      calculatedValue: item.expectedDeliverables,
+      reportedSpend: item.reportedSpend,
+    })),
     metrics: [
       { label: "Reported", value: formatWholeMoney(line.totalReported) },
       { label: "Actual platform", value: formatWholeMoney(line.totalActual) },

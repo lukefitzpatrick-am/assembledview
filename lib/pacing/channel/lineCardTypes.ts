@@ -28,6 +28,15 @@ export type LineCardBursts = {
   states: LineCardBurstState[]
 }
 
+export type LineCardPlanBurst = {
+  index: number
+  start: string
+  end: string
+  budget: number
+  calculatedValue: number
+  reportedSpend?: number
+}
+
 export type LineCardModel = {
   client: string
   campaignName: string
@@ -73,4 +82,5 @@ export type LineCardModel = {
   burstStart: string | null
   burstEnd: string | null
   burstDays: number | null
+  planBursts: LineCardPlanBurst[]
 }
