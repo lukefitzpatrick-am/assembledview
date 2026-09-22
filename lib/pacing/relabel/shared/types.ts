@@ -1,3 +1,14 @@
+/**
+ * `lib/pacing/relabel/shared/*` is the half of the relabel domain that reaches
+ * the browser: RelabelsClient, RelabelUnmappedHint, CampaignDetailModal and the
+ * unmapped-placements page import from here. Everything one level up carries
+ * `import "server-only"`.
+ *
+ * These four modules must stay free of `@/db`, drizzle, snowflake and anything
+ * `server-only` — table and fact names are strings, not query builders. Data
+ * comes to the client through `/api/pacing/relabels/*`, never by importing a
+ * reader. `npm run check:client-server-only` enforces it.
+ */
 import type { ChannelTabKey } from "@/lib/pacing/channel/lineCardTypes"
 
 export const SOCIAL_PACING_FACT = "ASSEMBLEDVIEW.MART.SOCIAL_PACING_FACT"

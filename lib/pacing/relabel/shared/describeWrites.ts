@@ -1,3 +1,4 @@
+/** Client-reachable — see the boundary note in `./types`. No db/snowflake here. */
 import { factRouteForChannel } from "./channels"
 import {
   LINE_ITEM_LABEL_MAP,

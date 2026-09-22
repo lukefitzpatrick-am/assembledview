@@ -13,16 +13,16 @@ import { formatMoney } from "@/lib/format/money"
 import { matchTextAny } from "@/lib/search/matchText"
 import type { UnmappedPlacement } from "@/lib/pacing/admin/unmappedPlacements"
 import type { LineCardModel } from "@/lib/pacing/channel/lineCardTypes"
-import { describeRelabelWrites } from "@/lib/pacing/relabel/describeWrites"
+import { describeRelabelWrites } from "@/lib/pacing/relabel/shared/describeWrites"
 import {
   canRevertRelabel,
   mbaStem,
   parseRelabelsTab,
   type RelabelsTab,
-} from "@/lib/pacing/relabel/relabelPageUrl"
-import type { DeliveryRelabelRow, RelabelPreview } from "@/lib/pacing/relabel/types"
+} from "@/lib/pacing/relabel/shared/relabelPageUrl"
+import type { DeliveryRelabelRow, RelabelPreview } from "@/lib/pacing/relabel/shared/types"
 import type { RelabelDriftFinding } from "@/lib/pacing/relabel/drift"
-import { CM360_PACING_CHANNEL, RELABEL_WAREHOUSE_CHANNELS } from "@/lib/pacing/relabel/types"
+import { CM360_PACING_CHANNEL, RELABEL_WAREHOUSE_CHANNELS } from "@/lib/pacing/relabel/shared/types"
 
 const numberFmt = new Intl.NumberFormat("en-AU")
 

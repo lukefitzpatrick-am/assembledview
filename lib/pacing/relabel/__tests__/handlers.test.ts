@@ -13,7 +13,7 @@ import {
   shouldAutoCloseAppliedTask,
 } from "../notify.js"
 import { RelabelRevertError } from "../revert.js"
-import type { RelabelPreview } from "../types.js"
+import type { RelabelPreview } from "../shared/types.js"
 
 const STAFF = "staff@assembledmedia.com.au"
 

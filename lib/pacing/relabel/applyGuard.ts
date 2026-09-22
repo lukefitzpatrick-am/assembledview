@@ -1,4 +1,6 @@
-import type { RelabelActiveMap, RelabelBeforeState, RelabelDeletedRow, RelabelPreview } from "./types"
+import "server-only"
+
+import type { RelabelActiveMap, RelabelBeforeState, RelabelDeletedRow, RelabelPreview } from "./shared/types"
 
 export class RelabelApplyError extends Error {
   constructor(

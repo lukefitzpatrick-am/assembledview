@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/tooltip"
 import { CampaignAskHelpDialog } from "./CampaignAskHelpDialog"
 import { CampaignBurstsTab } from "./CampaignBurstsTab"
-import { defaultWarehouseChannel, relabelsHref } from "@/lib/pacing/relabel/relabelPageUrl"
+import { defaultWarehouseChannel, relabelsHref } from "@/lib/pacing/relabel/shared/relabelPageUrl"
 
 type TabKey = "overview" | "lines" | "kpis" | "bursts" | "daily" | "notes"
 

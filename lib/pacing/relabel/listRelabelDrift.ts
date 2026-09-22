@@ -1,7 +1,7 @@
 import "server-only"
 
 import { querySnowflake } from "@/lib/snowflake/query"
-import { normalizeLineItemId } from "./channels"
+import { normalizeLineItemId } from "./shared/channels"
 import {
   compareRelabelMap,
   type RelabelDriftFinding,
@@ -10,7 +10,7 @@ import {
 } from "./drift"
 
 export type { RelabelDriftFinding, RelabelDriftReport } from "./drift"
-import { LINE_ITEM_LABEL_MAP } from "./types"
+import { LINE_ITEM_LABEL_MAP } from "./shared/types"
 import { isMissingRelabelTable, listRelabels } from "./repo"
 import {
   readLatestRelabelDriftSnapshot,

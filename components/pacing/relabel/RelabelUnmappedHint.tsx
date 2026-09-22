@@ -1,4 +1,4 @@
-import { relabelsHref, mbaStem } from "@/lib/pacing/relabel/relabelPageUrl"
+import { relabelsHref, mbaStem } from "@/lib/pacing/relabel/shared/relabelPageUrl"
 import { cn } from "@/lib/utils"
 
 export function RelabelUnmappedHint({

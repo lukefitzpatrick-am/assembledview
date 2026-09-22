@@ -1,3 +1,5 @@
+import "server-only"
+
 export class RelabelRepoError extends Error {
   readonly code: "UNAVAILABLE" | "VALIDATION"
   constructor(code: RelabelRepoError["code"], message: string) {

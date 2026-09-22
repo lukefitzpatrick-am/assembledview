@@ -1,3 +1,5 @@
+import "server-only"
+
 import { parseMbaNumberFromLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
   sessionExecuteRows,
@@ -5,10 +7,10 @@ import {
   withSnowflakeSession,
 } from "@/lib/snowflake/snowflakeSession"
 import { RelabelApplyError, assertApplyAllowed, buildApplyLogPayload } from "./applyGuard"
-import { asIsoDate, factRouteForChannel, isCm360Channel, normalizeLineItemId } from "./channels"
+import { asIsoDate, factRouteForChannel, isCm360Channel, normalizeLineItemId } from "./shared/channels"
 import { assertRelabelTablesAvailable, insertRelabelApply } from "./repo"
-import type { RelabelActiveMap, RelabelApplyResult, RelabelDeletedRow, RelabelPreview } from "./types"
-import { LINE_ITEM_LABEL_MAP } from "./types"
+import type { RelabelActiveMap, RelabelApplyResult, RelabelDeletedRow, RelabelPreview } from "./shared/types"
+import { LINE_ITEM_LABEL_MAP } from "./shared/types"
 
 export { RelabelApplyError, assertApplyAllowed, buildApplyLogPayload }
 

@@ -1,3 +1,4 @@
+/** Client-reachable — see the boundary note in `./types`. No db/snowflake here. */
 import type { ChannelTabKey } from "@/lib/pacing/channel/lineCardTypes"
 import { CM360_PACING_CHANNEL, RELABEL_REVERT_WINDOW_DAYS } from "./types"
 

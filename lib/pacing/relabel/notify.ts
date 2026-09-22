@@ -1,5 +1,7 @@
+import "server-only"
+
 import { getAsOfDate } from "@/lib/pacing/maths"
-import type { RelabelPreview } from "./types"
+import type { RelabelPreview } from "./shared/types"
 import type { DeliveryRelabelRow } from "./repo"
 
 export const DEFAULT_RELABEL_NOTIFY_EMAIL = "luke.fitzpatrick@assembledmedia.com.au"
