@@ -1,7 +1,9 @@
+import "server-only"
+
 import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
-import type { DeliveryRelabelRow, RelabelBeforeState, RelabelRevertPlan } from "./types"
+import type { DeliveryRelabelRow, RelabelBeforeState, RelabelRevertPlan } from "./shared/types"
 import { RelabelRepoError, isMissingRelabelTable, relabelUnavailable } from "./repoErrors"
 
 export { RelabelRepoError, isMissingRelabelTable }

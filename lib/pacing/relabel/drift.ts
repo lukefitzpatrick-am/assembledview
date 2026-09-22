@@ -1,4 +1,6 @@
-import { normalizeLineItemId } from "./channels"
+import "server-only"
+
+import { normalizeLineItemId } from "./shared/channels"
 
 export type RelabelDriftKind = "legacy" | "drift"
 

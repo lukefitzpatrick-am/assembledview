@@ -1,3 +1,5 @@
+import "server-only"
+
 import { and, isNull, like, ne } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"

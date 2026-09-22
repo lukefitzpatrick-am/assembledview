@@ -1,3 +1,5 @@
+import "server-only"
+
 import { NextResponse } from "next/server"
 
 import { createTask } from "@/lib/codex/repo"
@@ -15,7 +17,7 @@ import {
 } from "./notify"
 import { previewRelabel, type PreviewRelabelArgs } from "./preview"
 import { lookupPublishedPlanLine } from "./publishedLine"
-import { canRevertRelabel } from "./relabelPageUrl"
+import { canRevertRelabel } from "./shared/relabelPageUrl"
 import {
   RelabelRepoError,
   assertRelabelTablesAvailable,
@@ -29,8 +31,8 @@ import {
 import { queryActiveLabelMap } from "./entity"
 import { RelabelRevertError, RELABEL_REVERT_EXPIRED_MESSAGE, revertRelabel } from "./revert"
 import { buildApplyLogPayload } from "./applyGuard"
-import { describeRelabelWrites } from "./describeWrites"
-import type { RelabelPreview, RelabelQueryFn } from "./types"
+import { describeRelabelWrites } from "./shared/describeWrites"
+import type { RelabelPreview, RelabelQueryFn } from "./shared/types"
 
 export type RelabelHandlerDeps = {
   previewRelabel: typeof previewRelabel

@@ -1,3 +1,4 @@
+/** Client-reachable — see the boundary note in `./types`. No db/snowflake here. */
 import type { ChannelTabKey } from "@/lib/pacing/channel/lineCardTypes"
 import { isSocialMediaType } from "@/lib/pacing/social-channels"
 import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"

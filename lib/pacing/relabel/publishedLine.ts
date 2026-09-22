@@ -1,9 +1,11 @@
+import "server-only"
+
 import { and, eq, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import { parseMbaNumberFromLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { cardChannelFromPlanLine, normalizeLineItemId } from "./channels"
-import type { RelabelPublishedLine } from "./types"
+import { cardChannelFromPlanLine, normalizeLineItemId } from "./shared/channels"
+import type { RelabelPublishedLine } from "./shared/types"
 
 /**
  * Published-version check: master's published_version_id + version.published_at,

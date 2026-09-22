@@ -1,12 +1,14 @@
+import "server-only"
+
 import {
   sessionExecuteVoid,
   withSnowflakeSession,
 } from "@/lib/snowflake/snowflakeSession"
-import { factRouteForChannel, normalizeLineItemId } from "./channels"
-import { canRevertRelabel } from "./relabelPageUrl"
+import { factRouteForChannel, normalizeLineItemId } from "./shared/channels"
+import { canRevertRelabel } from "./shared/relabelPageUrl"
 import { getRelabel, markRelabelReverted } from "./repo"
 import { revertPlanFromPayload } from "./revertPlan"
-import { LINE_ITEM_LABEL_MAP } from "./types"
+import { LINE_ITEM_LABEL_MAP } from "./shared/types"
 
 export { revertPlanFromPayload }
 

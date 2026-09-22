@@ -1,5 +1,7 @@
-import { normalizeLineItemId } from "./channels"
-import type { RelabelBeforeState, RelabelRevertPlan } from "./types"
+import "server-only"
+
+import { normalizeLineItemId } from "./shared/channels"
+import type { RelabelBeforeState, RelabelRevertPlan } from "./shared/types"
 
 export function revertPlanFromPayload(payload: RelabelBeforeState): RelabelRevertPlan {
   return {

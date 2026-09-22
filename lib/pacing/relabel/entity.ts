@@ -1,16 +1,18 @@
+import "server-only"
+
 import { parseMbaNumberFromLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
   asIsoDate,
   cardChannelFromWarehouse,
   factRouteForChannel,
   normalizeLineItemId,
-} from "./channels"
+} from "./shared/channels"
 import type {
   RelabelEntity,
   RelabelEntityAttribution,
   RelabelFactRoute,
   RelabelQueryFn,
-} from "./types"
+} from "./shared/types"
 
 function factKeySql(key: RelabelFactRoute["primaryKey"]): string {
   return key === "line_item_name" ? "LINE_ITEM_NAME" : "PLATFORM_LINE_ITEM_ID"
@@ -134,7 +136,7 @@ export const LABEL_MAP_ACTIVE_SQL = `
 export async function queryActiveLabelMap(
   args: { channel: string; platformEntityId: string },
   query: RelabelQueryFn,
-): Promise<import("./types").RelabelActiveMap | null> {
+): Promise<import("./shared/types").RelabelActiveMap | null> {
   const rows = await query(LABEL_MAP_ACTIVE_SQL, [args.channel, args.platformEntityId])
   const row = rows[0]
   if (!row) return null

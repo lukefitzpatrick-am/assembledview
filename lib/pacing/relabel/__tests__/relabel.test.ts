@@ -2,18 +2,18 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { RelabelApplyError, assertApplyAllowed, buildApplyLogPayload } from "../applyGuard.js"
-import { cardChannelFromPlanLine, cardChannelFromWarehouse, factRouteForChannel } from "../channels.js"
+import { cardChannelFromPlanLine, cardChannelFromWarehouse, factRouteForChannel } from "../shared/channels.js"
 import { buildResolveEntitySql, resolveEntity } from "../entity.js"
 import { detectCm360DoubleCount, previewRelabel } from "../preview.js"
 import { isMissingRelabelTable } from "../repoErrors.js"
 import { revertPlanFromPayload } from "../revertPlan.js"
-import type { RelabelPreview, RelabelPublishedLine } from "../types.js"
+import type { RelabelPreview, RelabelPublishedLine } from "../shared/types.js"
 import {
   CM360_PACING_CHANNEL,
   PACING_FACT,
   SEARCH_PACING_FACT,
   SOCIAL_PACING_FACT,
-} from "../types.js"
+} from "../shared/types.js"
 
 const SOCIAL_CHANNEL = "Social - Meta"
 const SEARCH_CHANNEL = "Search - Google Ads"
@@ -290,7 +290,7 @@ test("missing delivery_relabels is fail-soft UNAVAILABLE", () => {
 })
 
 test("describeRelabelWrites lists fact UPDATE, map insert, and all-history scope", async () => {
-  const { describeRelabelWrites } = await import("../describeWrites.js")
+  const { describeRelabelWrites } = await import("../shared/describeWrites.js")
   const lines = describeRelabelWrites(basePreview())
   assert.ok(lines.some((line) => line.includes("SOCIAL_PACING_FACT")))
   assert.ok(lines.some((line) => line.includes("LINE_ITEM_LABEL_MAP")))
@@ -298,7 +298,7 @@ test("describeRelabelWrites lists fact UPDATE, map insert, and all-history scope
 })
 
 test("relabelsHref and mbaStem encode the admin page entry points", async () => {
-  const { mbaStem, relabelsHref, canRevertRelabel } = await import("../relabelPageUrl.js")
+  const { mbaStem, relabelsHref, canRevertRelabel } = await import("../shared/relabelPageUrl.js")
   assert.equal(mbaStem("BICAU002"), "BICAU")
   assert.equal(
     relabelsHref({ tab: "unmapped", mba: "BICAU" }),

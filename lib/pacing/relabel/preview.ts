@@ -1,10 +1,12 @@
+import "server-only"
+
 import {
   asIsoDate,
   cardChannelFromPlanLine,
   cardChannelFromWarehouse,
   isCm360Channel,
   normalizeLineItemId,
-} from "./channels"
+} from "./shared/channels"
 import { buildMoveRowsSql, mbaFromLineItemId, resolveEntity } from "./entity"
 import type {
   RelabelActiveMap,
@@ -15,8 +17,8 @@ import type {
   RelabelPreview,
   RelabelPublishedLine,
   RelabelQueryFn,
-} from "./types"
-import { RELABEL_DAYS_WARNING, RELABEL_SPEND_WARNING } from "./types"
+} from "./shared/types"
+import { RELABEL_DAYS_WARNING, RELABEL_SPEND_WARNING } from "./shared/types"
 
 export type PreviewRelabelArgs = {
   channel: string
