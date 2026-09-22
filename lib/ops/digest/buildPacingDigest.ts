@@ -2,7 +2,7 @@ import "server-only"
 
 import { getAsOfDate } from "@/lib/pacing/maths"
 import { addMelbourneDays } from "@/lib/pacing/relabel/notify"
-import { listRelabelDrift, type RelabelDriftFinding } from "@/lib/pacing/relabel/drift"
+import { listRelabelDrift, type RelabelDriftFinding } from "@/lib/pacing/relabel/listRelabelDrift"
 import {
   listRelabelLogForDay,
   type DeliveryRelabelLogRow,
