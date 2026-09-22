@@ -24,6 +24,9 @@ const ENV_KEYS = [
 
 const saved: Record<string, string | undefined> = {}
 
+/** `NODE_ENV` is a read-only literal union in @types/node; widen it to write. */
+const mutableEnv = process.env as Record<string, string | undefined>
+
 function stashEnv() {
   for (const key of ENV_KEYS) {
     saved[key] = process.env[key]
@@ -35,7 +38,7 @@ function restoreEnv() {
   for (const key of ENV_KEYS) {
     const prev = saved[key]
     if (prev === undefined) delete process.env[key]
-    else process.env[key] = prev
+    else mutableEnv[key] = prev
   }
 }
 
@@ -53,7 +56,7 @@ describe("lib/config/endpoints", () => {
 
   it("returns documented defaults when env is unset", async () => {
     stashEnv()
-    process.env.NODE_ENV = "development"
+    mutableEnv.NODE_ENV = "development"
     const ep = await loadEndpoints()
     assert.equal(ep.SCREENSHOTONE_API_URL, "https://api.screenshotone.com/take")
     assert.equal(ep.FIREFLIES_GRAPHQL_URL, "https://api.fireflies.ai/graphql")
@@ -75,7 +78,7 @@ describe("lib/config/endpoints", () => {
 
   it("returns the env value when set", async () => {
     stashEnv()
-    process.env.NODE_ENV = "development"
+    mutableEnv.NODE_ENV = "development"
     process.env.SCREENSHOTONE_API_URL = "https://shot.example/take"
     process.env.FIREFLIES_GRAPHQL_URL = "https://ff.example/graphql"
     process.env.MYHOURS_API_BASE = "https://mh.example/api"
@@ -108,7 +111,7 @@ describe("lib/config/endpoints", () => {
 
   it("resolvePublicOrigin prefers NEXT_PUBLIC_APP_URL then AUTH0 then VERCEL_URL", async () => {
     stashEnv()
-    process.env.NODE_ENV = "production"
+    mutableEnv.NODE_ENV = "production"
     process.env.VERCEL_URL = "preview.vercel.app"
     let ep = await loadEndpoints()
     assert.equal(ep.resolvePublicOrigin(), "https://preview.vercel.app")
