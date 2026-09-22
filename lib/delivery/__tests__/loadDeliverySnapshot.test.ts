@@ -27,7 +27,10 @@ const getCampaignPacingData = mock.fn(
 
 const getSearchPacingData = mock.fn(async () => null)
 
-const queryDailyFacts = mock.fn(async () => [])
+const queryDailyFacts = mock.fn(
+  async () =>
+    [] as Array<{ LINE_ITEM_ID: string; DATE_DAY: string; REPORTED_SPEND: number }>,
+)
 
 if (supportsMockModule()) {
   await mock.module!("axios", {
