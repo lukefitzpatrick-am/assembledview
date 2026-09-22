@@ -8,6 +8,8 @@ import {
   type RelabelDriftReport,
   type RelabelMapRow,
 } from "./drift"
+
+export type { RelabelDriftFinding, RelabelDriftReport } from "./drift"
 import { LINE_ITEM_LABEL_MAP } from "./types"
 import { isMissingRelabelTable, listRelabels } from "./repo"
 import {
