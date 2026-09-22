@@ -201,12 +201,18 @@ function collectDynamicSpecifiers(src) {
   return specs
 }
 
-function hasUseClient(src) {
-  return /^[ \t]*['"]use client['"]/m.test(src.slice(0, 1500))
+/**
+ * Both of these take comment-stripped source. A file that *documents* the rule
+ * ("modules one level up carry `import \"server-only\"`") must not be counted
+ * as carrying the marker itself — that misread turned a client-safe module into
+ * a sink and failed the gate on its own doc comment.
+ */
+function hasUseClient(stripped) {
+  return /^[ \t]*['"]use client['"]/m.test(stripped.slice(0, 1500))
 }
 
-function hasServerOnly(src) {
-  return /\bimport\s+['"]server-only['"]/.test(src)
+function hasServerOnly(stripped) {
+  return /\bimport\s+['"]server-only['"]/.test(stripped)
 }
 
 function tryResolve(fromFile, spec) {
@@ -334,19 +340,40 @@ function selfTest() {
     CLIENT_SAFE_DB_SCHEMA.size <= 2,
     "client-safe db/schema list must stay tiny — each row needs a review",
   )
+
+  // A doc comment describing the rule is prose, not a marker.
+  const documented = stripCommentsPreserveStrings(
+    '/** Modules one level up carry `import "server-only"`. */\nexport const a = 1\n',
+  )
+  assert.equal(hasServerOnly(documented), false)
+  assert.equal(
+    hasServerOnly(stripCommentsPreserveStrings('import "server-only"\nexport const a = 1\n')),
+    true,
+  )
+  assert.equal(
+    hasUseClient(stripCommentsPreserveStrings('// not a "use client" file\nexport const a = 1\n')),
+    false,
+  )
+  assert.equal(
+    hasUseClient(stripCommentsPreserveStrings('"use client"\nexport const a = 1\n')),
+    true,
+  )
 }
 
 function analyze() {
   const files = walkFiles(rootDir)
   const srcByFile = new Map()
+  const strippedByFile = new Map()
   const serverOnlyFiles = new Set()
   const seeds = []
 
   for (const file of files) {
     const src = fs.readFileSync(file, "utf8")
     srcByFile.set(file, src)
-    if (hasServerOnly(src)) serverOnlyFiles.add(file)
-    if (hasUseClient(src)) seeds.push(file)
+    const stripped = stripCommentsPreserveStrings(src)
+    strippedByFile.set(file, stripped)
+    if (hasServerOnly(stripped)) serverOnlyFiles.add(file)
+    if (hasUseClient(stripped)) seeds.push(file)
   }
 
   const edges = new Map()
@@ -354,7 +381,7 @@ function analyze() {
 
   for (const file of files) {
     const src = srcByFile.get(file)
-    const stripped = stripCommentsPreserveStrings(src)
+    const stripped = strippedByFile.get(file)
     const all = [
       ...collectStaticSpecifiers(stripped),
       ...collectDynamicSpecifiers(src),
