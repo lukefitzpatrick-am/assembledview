@@ -21,18 +21,15 @@ const baseTabs = [
 interface PacingShellProps {
   children: ReactNode
   isAdmin?: boolean
+  canRelabel?: boolean
 }
 
-export function PacingShell({ children, isAdmin = false }: PacingShellProps) {
+export function PacingShell({ children, isAdmin = false, canRelabel = false }: PacingShellProps) {
   const pathname = usePathname() ?? ""
   const tabs = [
     ...baseTabs,
-    ...(isAdmin
-      ? [
-          { href: "/pacing/admin/orphans", label: "Orphans" as const },
-          { href: "/pacing/admin/unmapped-placements", label: "Unmapped" as const },
-        ]
-      : []),
+    ...(isAdmin ? [{ href: "/pacing/admin/orphans", label: "Orphans" as const }] : []),
+    ...(canRelabel ? [{ href: "/pacing/admin/relabels", label: "Relabels" as const }] : []),
   ]
 
   return (

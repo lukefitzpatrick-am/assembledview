@@ -288,3 +288,27 @@ test("missing delivery_relabels is fail-soft UNAVAILABLE", () => {
   assert.equal(isMissingRelabelTable(new Error("42P01")), true)
   assert.equal(isMissingRelabelTable(new Error("unrelated")), false)
 })
+
+test("describeRelabelWrites lists fact UPDATE, map insert, and all-history scope", async () => {
+  const { describeRelabelWrites } = await import("../describeWrites.js")
+  const lines = describeRelabelWrites(basePreview())
+  assert.ok(lines.some((line) => line.includes("SOCIAL_PACING_FACT")))
+  assert.ok(lines.some((line) => line.includes("LINE_ITEM_LABEL_MAP")))
+  assert.ok(lines.some((line) => line.includes("Scope: all history")))
+})
+
+test("relabelsHref and mbaStem encode the admin page entry points", async () => {
+  const { mbaStem, relabelsHref, canRevertRelabel } = await import("../relabelPageUrl.js")
+  assert.equal(mbaStem("BICAU002"), "BICAU")
+  assert.equal(
+    relabelsHref({ tab: "unmapped", mba: "BICAU" }),
+    "/pacing/admin/relabels?tab=unmapped&mba=BICAU",
+  )
+  assert.equal(
+    relabelsHref({ tab: "new", mba: "BICAU002", line: "bicau002sm2", channel: "Social - Meta" }),
+    "/pacing/admin/relabels?mba=BICAU002&line=bicau002sm2&channel=Social+-+Meta",
+  )
+  assert.equal(canRevertRelabel("2026-09-01T00:00:00.000Z", new Date("2026-09-21T00:00:00.000Z")), true)
+  assert.equal(canRevertRelabel("2026-08-01T00:00:00.000Z", new Date("2026-09-21T00:00:00.000Z")), false)
+})
+

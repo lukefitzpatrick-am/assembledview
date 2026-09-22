@@ -10,6 +10,7 @@ import type { SearchPacingResponse } from "@/lib/snowflake/search-pacing-service
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform"
 import type { SocialLineItem } from "@/lib/delivery/social/socialChannelCompute"
 import { ErrorState, LoadingState } from "@/components/ui/states"
+import { RelabelUnmappedHint } from "@/components/pacing/relabel/RelabelUnmappedHint"
 import {
   channelCoverageBundle,
   type ChannelCoverageEntry,
@@ -484,6 +485,7 @@ function CampaignDeliveryBody({
 
   return (
     <div className="space-y-3">
+      {isAdmin ? <RelabelUnmappedHint mba={mbaNumber} /> : null}
       {error ? (
         <ErrorState title="Could not load delivery data" message={error} />
       ) : null}

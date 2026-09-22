@@ -1,33 +1,13 @@
 import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
-import type { RelabelBeforeState, RelabelRevertPlan } from "./types"
+import type { DeliveryRelabelRow, RelabelBeforeState, RelabelRevertPlan } from "./types"
 import { RelabelRepoError, isMissingRelabelTable, relabelUnavailable } from "./repoErrors"
 
 export { RelabelRepoError, isMissingRelabelTable }
+export type { DeliveryRelabelRow }
 
-export type DeliveryRelabelStatus = "applied" | "reverted" | "blocked"
 export type DeliveryRelabelLogAction = "preview" | "apply" | "warn_ack" | "block" | "revert"
-
-export type DeliveryRelabelRow = {
-  id: number
-  channel: string
-  platformEntityId: string
-  entityName: string | null
-  fromLineItemId: string | null
-  toLineItemId: string
-  mbaNumber: string
-  dateFrom: string | null
-  dateTo: string | null
-  reason: string
-  actorEmail: string
-  status: DeliveryRelabelStatus
-  beforeState: RelabelBeforeState
-  applyResult: Record<string, unknown> | null
-  createdAt: string
-  revertedAt: string | null
-  revertedByEmail: string | null
-}
 
 export type DeliveryRelabelLogRow = {
   id: number

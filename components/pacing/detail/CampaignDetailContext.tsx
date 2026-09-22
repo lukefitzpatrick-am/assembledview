@@ -63,7 +63,13 @@ function pushCampaignUrl(mba: string | null) {
   window.history.pushState({ campaign: mba }, "", next)
 }
 
-export function CampaignDetailProvider({ children }: { children: ReactNode }) {
+export function CampaignDetailProvider({
+  children,
+  canRelabel = false,
+}: {
+  children: ReactNode
+  canRelabel?: boolean
+}) {
   const asOf = usePacingFilterStore((s) => s.filters.as_of_date)
   const [mba, setMba] = useState<string | null>(null)
   const [payload, setPayload] = useState<CampaignDetailPayload | null>(null)
@@ -148,6 +154,7 @@ export function CampaignDetailProvider({ children }: { children: ReactNode }) {
           error={error}
           onClose={close}
           onReload={() => setRefresh((n) => n + 1)}
+          canRelabel={canRelabel}
         />
       ) : null}
     </CampaignDetailContext.Provider>

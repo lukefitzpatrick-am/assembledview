@@ -39,6 +39,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { CampaignAskHelpDialog } from "./CampaignAskHelpDialog"
+import { defaultWarehouseChannel, relabelsHref } from "@/lib/pacing/relabel/relabelPageUrl"
 
 type TabKey = "overview" | "lines" | "kpis" | "bursts" | "daily" | "notes"
 
@@ -149,6 +150,7 @@ export function CampaignDetailModal({
   onClose,
   onReload,
   window: dailyWindow,
+  canRelabel = false,
 }: {
   mba: string
   asOf: string
@@ -158,6 +160,7 @@ export function CampaignDetailModal({
   onClose: () => void
   onReload: () => void
   window?: CampaignDetailDailyWindow
+  canRelabel?: boolean
 }) {
   const planner = useScenarioPlanner()
   const [tab, setTab] = useState<TabKey>("overview")
@@ -418,7 +421,7 @@ export function CampaignDetailModal({
                           )}
                         >
                           {column.key === "line" ? (
-                            <LineIdentityCell line={line} />
+                            <LineIdentityCell line={line} canRelabel={canRelabel} />
                           ) : (
                             lineCell(line, column.key)
                           )}
@@ -688,7 +691,13 @@ export function CampaignDetailModal({
   )
 }
 
-function LineIdentityCell({ line }: { line: LineCardModel }) {
+function LineIdentityCell({
+  line,
+  canRelabel,
+}: {
+  line: LineCardModel
+  canRelabel: boolean
+}) {
   const description = lineDetailDescription(line)
   return (
     <div className="min-w-0">
@@ -696,6 +705,19 @@ function LineIdentityCell({ line }: { line: LineCardModel }) {
       <p className="truncate text-xs text-muted-foreground" title={description}>
         {description}
       </p>
+      {canRelabel ? (
+        <a
+          href={relabelsHref({
+            tab: "new",
+            mba: line.mba,
+            line: line.lineItemId,
+            channel: defaultWarehouseChannel(line.channel, line.platform),
+          })}
+          className="mt-1 inline-block text-xs text-primary underline-offset-2 hover:underline"
+        >
+          Relabel this line&apos;s delivery
+        </a>
+      ) : null}
     </div>
   )
 }

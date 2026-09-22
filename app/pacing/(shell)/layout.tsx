@@ -18,12 +18,15 @@ export default async function PacingShellLayout({ children }: { children: ReactN
   const assignedStr = scope === null ? [] : scope.map(String)
   const roles = getUserRoles(user)
   const isAdmin = roles.includes("admin")
+  const canRelabel = !roles.includes("client")
 
   return (
     <PacingFilterProvider initialAssignedClientIds={assignedStr}>
       <ScenarioPlannerProvider>
-        <CampaignDetailProvider>
-          <PacingShell isAdmin={isAdmin}>{children}</PacingShell>
+        <CampaignDetailProvider canRelabel={canRelabel}>
+          <PacingShell isAdmin={isAdmin} canRelabel={canRelabel}>
+            {children}
+          </PacingShell>
         </CampaignDetailProvider>
       </ScenarioPlannerProvider>
     </PacingFilterProvider>

@@ -1,6 +1,7 @@
 "use client"
 
 import { StatusPill } from "@/components/dashboard/delivery/shared/StatusPill"
+import { RelabelUnmappedHint } from "@/components/pacing/relabel/RelabelUnmappedHint"
 import type { KpiReviewCard } from "@/lib/kpi/kpiReview"
 import { cn } from "@/lib/utils"
 
@@ -9,6 +10,7 @@ export type KpiReviewProps = {
   isAdmin?: boolean
   /** Edit-page KPI section. Used on the admin empty-card line. */
   planEditHref?: string
+  mbaNumber?: string
   className?: string
 }
 
@@ -26,6 +28,7 @@ export function KpiReview({
   cards,
   isAdmin = false,
   planEditHref,
+  mbaNumber,
   className,
 }: KpiReviewProps) {
   if (cards.length === 0) return null
@@ -37,6 +40,7 @@ export function KpiReview({
         <p className="mt-0.5 text-xs text-muted-foreground">
           Per channel against the saved line targets
         </p>
+        {isAdmin && mbaNumber ? <RelabelUnmappedHint mba={mbaNumber} className="mt-1" /> : null}
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         {cards.map((card) => (

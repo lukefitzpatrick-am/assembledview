@@ -14,6 +14,21 @@ export const SEARCH_PACING_CHANNELS = [
 
 export const RELABEL_SPEND_WARNING = 25_000
 export const RELABEL_DAYS_WARNING = 90
+export const RELABEL_REVERT_WINDOW_DAYS = 30
+
+export const RELABEL_WAREHOUSE_CHANNELS = [
+  "Social - Meta",
+  "Social - TikTok",
+  "Social - Reddit",
+  "Search - Google Ads",
+  "Shopping - Google Ads",
+  "PMax - Google Ads",
+  CM360_PACING_CHANNEL,
+  "Programmatic - Display",
+  "Programmatic - Video",
+  "Programmatic - OOH",
+  "Channel Factory",
+] as const
 
 export type RelabelFactKey = "platform_line_item_id" | "line_item_name"
 
@@ -144,6 +159,28 @@ export type RelabelRevertPlan = {
   reinsertDeletedRows: RelabelDeletedRow[]
   deactivateMap: { channel: string; platformEntityId: string; lineItemId: string }
   reactivateMap: RelabelActiveMap | null
+}
+
+export type DeliveryRelabelStatus = "applied" | "reverted" | "blocked"
+
+export type DeliveryRelabelRow = {
+  id: number
+  channel: string
+  platformEntityId: string
+  entityName: string | null
+  fromLineItemId: string | null
+  toLineItemId: string
+  mbaNumber: string
+  dateFrom: string | null
+  dateTo: string | null
+  reason: string
+  actorEmail: string
+  status: DeliveryRelabelStatus
+  beforeState: RelabelBeforeState
+  applyResult: Record<string, unknown> | null
+  createdAt: string
+  revertedAt: string | null
+  revertedByEmail: string | null
 }
 
 export type RelabelQueryFn = (sql: string, binds?: unknown[]) => Promise<Record<string, unknown>[]>
