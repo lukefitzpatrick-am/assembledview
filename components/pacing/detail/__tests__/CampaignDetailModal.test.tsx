@@ -242,6 +242,46 @@ describe("CampaignDetailModal", () => {
     expect(sections[1]?.textContent).not.toContain("Brand search")
   })
 
+  it("renders one no bursts booked lane when a line has no bursts", () => {
+    const row = p6FixtureRows().find((item) => item.mbaNumber === "BICAU002")!
+    const empty = lineCardFromSearch(
+      searchFixture({
+        mbaNumber: row.mbaNumber,
+        campaignName: row.campaignName,
+        bursts: [],
+        totalBursts: 0,
+        currentBurst: null,
+        currentBurstIndex: null,
+        spendToDateCurrentBurst: 0,
+      }),
+      P6_AS_OF,
+    )
+    const emptyPayload = assembleCampaignDetailPayload({
+      row,
+      lines: [{ ...empty, burstStart: null, burstEnd: null, burstBudget: null }],
+      asOf: P6_AS_OF,
+    })
+    act(() => {
+      root.render(
+        <CampaignDetailModal
+          mba={row.mbaNumber}
+          asOf={P6_AS_OF}
+          payload={emptyPayload}
+          loading={false}
+          error={null}
+          onClose={() => {}}
+          onReload={() => {}}
+        />,
+      )
+    })
+    const burstsTab = [...container.querySelectorAll("button")].find((el) => el.textContent === "Bursts")
+    act(() => {
+      burstsTab!.click()
+    })
+    expect(container.textContent).toContain("no bursts booked")
+    expect(container.querySelectorAll("[data-burst-lane]")).toHaveLength(1)
+  })
+
   it("shows an explicit empty Daily state instead of a blank chart", () => {
     act(() => {
       root.render(

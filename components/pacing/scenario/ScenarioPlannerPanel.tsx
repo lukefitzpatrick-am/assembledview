@@ -66,6 +66,9 @@ export type ScenarioPlannerPanelProps = {
   onSave?: (input: ScenarioPlannerSaveInput) => Promise<SavedScenario | void>
   onDraftNote?: (payload: DraftChangeNotePayload) => void
   onCreateTask?: (draft: ReturnType<typeof buildCodexTaskDraft>) => Promise<void>
+  initialLineItemId?: string
+  initialBurstStart?: string
+  initialBurstEnd?: string
 }
 
 export function ScenarioPlannerPanel({
@@ -80,21 +83,30 @@ export function ScenarioPlannerPanel({
   onSave,
   onDraftNote,
   onCreateTask,
+  initialLineItemId,
+  initialBurstStart,
+  initialBurstEnd,
 }: ScenarioPlannerPanelProps) {
   const first = lines[0]
   const second = lines[1] ?? lines[0]
-  const firstBurst = first?.bursts[0]
-  const [fromId, setFromId] = useState(first?.lineItemId ?? "")
+  const presetLine = lines.find((line) => line.lineItemId === initialLineItemId) ?? first
+  const firstBurst =
+    presetLine?.bursts.find(
+      (burst) =>
+        (!initialBurstStart || burst.start === initialBurstStart) &&
+        (!initialBurstEnd || burst.end === initialBurstEnd),
+    ) ?? presetLine?.bursts[0] ?? first?.bursts[0]
+  const [fromId, setFromId] = useState(presetLine?.lineItemId ?? first?.lineItemId ?? "")
   const [toId, setToId] = useState(second?.lineItemId ?? "")
   const [moveAmount, setMoveAmount] = useState(0)
-  const [capLineId, setCapLineId] = useState(first?.lineItemId ?? "")
+  const [capLineId, setCapLineId] = useState(presetLine?.lineItemId ?? first?.lineItemId ?? "")
   const [dailyCap, setDailyCap] = useState(0)
   const [extendDays, setExtendDays] = useState(0)
   const [pauses, setPauses] = useState<string[]>([])
-  const [burstLineId, setBurstLineId] = useState(firstBurst ? first?.lineItemId ?? "" : "")
+  const [burstLineId, setBurstLineId] = useState(firstBurst ? presetLine?.lineItemId ?? first?.lineItemId ?? "" : "")
   const [burstIndex, setBurstIndex] = useState(firstBurst?.index ?? 0)
-  const [burstStart, setBurstStart] = useState(firstBurst?.start ?? "")
-  const [burstEnd, setBurstEnd] = useState(firstBurst?.end ?? "")
+  const [burstStart, setBurstStart] = useState(initialBurstStart ?? firstBurst?.start ?? "")
+  const [burstEnd, setBurstEnd] = useState(initialBurstEnd ?? firstBurst?.end ?? "")
   const [goalLineId, setGoalLineId] = useState(first?.lineItemId ?? "")
   const [goalValue, setGoalValue] = useState(
     first?.deliverable?.planned != null ? String(Math.round(first.deliverable.planned)) : "",

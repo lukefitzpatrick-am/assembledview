@@ -95,9 +95,22 @@ function channelOfLine(lines: LineCardModel[], lineItemId: string): LineCardMode
   return lines.find((line) => line.lineItemId.toLowerCase() === id)
 }
 
-function dailyQueryWindow(asOf: string, window?: CampaignDetailDailyWindow) {
+function dailyQueryWindow(
+  asOf: string,
+  lines: LineCardModel[],
+  window?: CampaignDetailDailyWindow,
+) {
   const endDate = normalizeDailyFactDate(window?.date_to) ?? asOf
-  const startDate = normalizeDailyFactDate(window?.date_from) ?? sixtyDayStart(endDate)
+  if (window?.date_from) {
+    return { startDate: normalizeDailyFactDate(window.date_from) ?? sixtyDayStart(endDate), endDate }
+  }
+  let startDate = sixtyDayStart(endDate)
+  for (const line of lines) {
+    if (line.lineStart && line.lineStart < startDate) startDate = line.lineStart
+    for (const burst of line.planBursts) {
+      if (burst.start < startDate) startDate = burst.start
+    }
+  }
   return { startDate, endDate }
 }
 
@@ -118,7 +131,7 @@ async function dailyFactsForMba(
 ): Promise<DailyFactPoint[]> {
   const searchIds = lines.filter((line) => line.channel === "search").map((line) => line.lineItemId)
   const otherIds = lines.filter((line) => line.channel !== "search").map((line) => line.lineItemId)
-  const { startDate, endDate } = dailyQueryWindow(asOf, window)
+  const { startDate, endDate } = dailyQueryWindow(asOf, lines, window)
   const [searchRows, pacingRows] = await Promise.all([
     searchIds.length
       ? getSearchCampaignsPacingData({ lineItemIds: searchIds, startDate, endDate }).catch((err) =>

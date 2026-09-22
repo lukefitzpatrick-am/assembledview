@@ -39,6 +39,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { CampaignAskHelpDialog } from "./CampaignAskHelpDialog"
+import { CampaignBurstsTab } from "./CampaignBurstsTab"
 import { defaultWarehouseChannel, relabelsHref } from "@/lib/pacing/relabel/relabelPageUrl"
 
 type TabKey = "overview" | "lines" | "kpis" | "bursts" | "daily" | "notes"
@@ -169,6 +170,8 @@ export function CampaignDetailModal({
   const [helpOpen, setHelpOpen] = useState(false)
   const [note, setNote] = useState("")
   const [savingNote, setSavingNote] = useState(false)
+  const [burstDailyWindow, setBurstDailyWindow] = useState<CampaignDetailDailyWindow | undefined>(undefined)
+  const activeDailyWindow = burstDailyWindow ?? dailyWindow
 
   const row = payload?.row
   const columns = useMemo(
@@ -185,12 +188,12 @@ export function CampaignDetailModal({
     const series = payload?.daily.byMetric[metric] ?? payload?.daily.series ?? []
     const combined = series.find((item) => item.key === "combined") ?? series[0]
     if (!combined) return []
-    const points = combined.points.filter((point) => dateInWindow(point.date, dailyWindow))
+    const points = combined.points.filter((point) => dateInWindow(point.date, activeDailyWindow))
     return points.length ? [{ ...combined, points }] : []
-  }, [payload, metric, dailyWindow])
+  }, [payload, metric, activeDailyWindow])
 
   const dailyTable = useMemo(() => {
-    const rows = (payload?.daily.table ?? []).filter((row) => dateInWindow(row.date, dailyWindow))
+    const rows = (payload?.daily.table ?? []).filter((row) => dateInWindow(row.date, activeDailyWindow))
     if (lineFilter === "all") return rows
     return rows
       .map((row) => {
@@ -206,7 +209,7 @@ export function CampaignDetailModal({
         }
       })
       .filter((row): row is NonNullable<typeof row> => row != null)
-  }, [payload, dailyWindow, lineFilter])
+  }, [payload, activeDailyWindow, lineFilter])
 
   const dailyLineOptions = useMemo(() => {
     const ids = new Map<string, string>()
@@ -494,69 +497,20 @@ export function CampaignDetailModal({
           ) : null}
 
           {payload && tab === "bursts" ? (
-            <div className="space-y-4">
-              <div className="space-y-3">
-                {payload.lines.map((line) => (
-                  <div key={line.lineItemId} className="grid grid-cols-[160px_1fr] items-center gap-3">
-                    <span className="truncate text-xs text-muted-foreground">
-                      {line.lineItemId} · {line.platform}
-                    </span>
-                    <div className="relative h-3 rounded-pill bg-fill-track">
-                      {line.bursts.states.map((state, index) => (
-                        <i
-                          key={`${line.lineItemId}:${index}`}
-                          className={cn(
-                            "absolute top-0 h-full rounded-pill",
-                            state === "now" && "bg-foreground",
-                            state === "done" && "bg-muted-foreground/50",
-                            state === "future" && "bg-border",
-                          )}
-                          style={{
-                            left: `${(index / Math.max(line.bursts.total, 1)) * 100}%`,
-                            width: `${100 / Math.max(line.bursts.total, 1) - 1}%`,
-                          }}
-                        />
-                      ))}
-                      <span
-                        className="absolute top-[-4px] h-5 w-px bg-foreground"
-                        style={{ left: `${Math.min(100, line.timePct)}%` }}
-                        aria-label="Today"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase text-muted-foreground">
-                    <th className="py-2">Line</th>
-                    <th className="py-2">Burst</th>
-                    <th className="py-2">Start</th>
-                    <th className="py-2">End</th>
-                    <th className="num py-2 text-right">Days</th>
-                    <th className="num py-2 text-right">Budget</th>
-                    <th className="num py-2 text-right">Spend</th>
-                    <th className="num py-2 text-right">Pace</th>
-                    <th className="py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payload.bursts.map((burst) => (
-                    <tr key={`${burst.lineItemId}:${burst.index}`} className="border-t border-border">
-                      <td className="py-2">{burst.lineItemId}</td>
-                      <td className="py-2">{burst.index + 1}</td>
-                      <td className="py-2">{burst.start}</td>
-                      <td className="py-2">{burst.end}</td>
-                      <td className="num py-2 text-right">{burst.days}</td>
-                      <td className="num py-2 text-right">{money(burst.budget)}</td>
-                      <td className="num py-2 text-right">{money(burst.spend)}</td>
-                      <td className="num py-2 text-right">{formatPercent(burst.pct, { decimals: 0 })}</td>
-                      <td className="py-2">{paceLabel(burst.status)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <CampaignBurstsTab
+              lines={payload.lines}
+              bursts={payload.bursts}
+              asOf={asOf}
+              campaignStart={payload.row.startDate}
+              campaignEnd={payload.row.endDate}
+              onPlanScenario={({ lineItemId, date_from, date_to }) => {
+                planner?.open(mba, { lineItemId, date_from, date_to })
+              }}
+              onDailyWindow={(window) => {
+                setBurstDailyWindow(window)
+                setTab("daily")
+              }}
+            />
           ) : null}
 
           {payload && tab === "daily" ? (
