@@ -1,5 +1,4 @@
 import { suggestedMbaFromCampaignName } from "@/lib/pacing/admin/suggestedMbaFromCampaignName"
-import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 
 export const CM360_PACING_CHANNEL = "Ad Serving - CM360"
 export const UNMAPPED_PLACEMENTS_WINDOW_DAYS = 60
@@ -20,7 +19,12 @@ export type UnmappedPlacementQueryFn = (
 ) => Promise<Record<string, unknown>[]>
 
 function asIsoDate(value: unknown): string {
-  return normalizeDailyFactDate(value) ?? ""
+  if (value instanceof Date) return value.toISOString().slice(0, 10)
+  if (value && typeof value === "object" && "toISOString" in value) {
+    const iso = (value as { toISOString: () => string }).toISOString()
+    return String(iso).slice(0, 10)
+  }
+  return String(value ?? "").slice(0, 10)
 }
 
 function publishedIdSet(publishedLineIds: Iterable<string>): Set<string> {
