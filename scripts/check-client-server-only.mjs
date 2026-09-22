@@ -36,6 +36,9 @@ const SKIP_DIRS = new Set([
   "_to_delete",
   ".worktrees",
   ".parked-untracked",
+  // Untracked scratch: absent in CI, and a throwaway file with "use client"
+  // plus a @/db import would otherwise fail the gate on code nobody ships.
+  "av-review",
   ".agents",
   "coverage",
   "scripts",
