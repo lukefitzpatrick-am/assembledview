@@ -4,6 +4,15 @@ const nextConfig = {
   // bundles — especially Edge instrumentation, which still traces dynamic imports
   // from instrumentation.ts unless warmers live in instrumentation.node.ts.
   serverExternalPackages: ["postgres"],
+  typescript: {
+    // Type checking is its own step, not part of the build. `next build` ran
+    // tsc over the whole repo inside the same process as the compile, which on
+    // a 4-core / 8 GB Vercel builder pushed the optimize phase into swap and
+    // the build past the 45-minute kill. `npm run typecheck` is a step in
+    // `gate:main` and in CI, so nothing is unchecked — it just no longer
+    // shares a heap with webpack.
+    ignoreBuildErrors: true,
+  },
   async redirects() {
     return [
       // FN7 — legacy finance paths → sections (permanent; no ?tab= hop)
