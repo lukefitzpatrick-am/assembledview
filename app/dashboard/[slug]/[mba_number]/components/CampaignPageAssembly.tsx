@@ -798,6 +798,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               <KpiReview
                 cards={kpiReviewCards}
                 isAdmin={Boolean(isAdmin)}
+                mbaNumber={mbaNumber}
                 planEditHref={`/mediaplans/mba/${mbaNumber}/edit#builder-section-kpis`}
               />
             </div>

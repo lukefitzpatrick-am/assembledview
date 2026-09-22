@@ -20,6 +20,7 @@ export type RelabelNotifyInput = {
   duplicatesRemoved: number
   beforeLineItemId: string | null
   afterLineItemId: string
+  writes?: string[]
 }
 
 export type RelabelNotifyDeps = {
@@ -64,7 +65,7 @@ export function relabelNotifyTitle(input: RelabelNotifyInput): string {
 
 export function relabelNotifyBody(input: RelabelNotifyInput): string {
   const link = relabelAdminUrl(input.relabelId)
-  return [
+  const lines = [
     `Actor: ${input.actorEmail}`,
     `Reason: ${input.reason || "—"}`,
     `Rows moved: ${input.rowsMoved}`,
@@ -73,7 +74,12 @@ export function relabelNotifyBody(input: RelabelNotifyInput): string {
     `Before: ${input.beforeLineItemId ?? "—"}`,
     `After: ${input.afterLineItemId}`,
     `Link: ${link}`,
-  ].join("\n")
+  ]
+  if (input.writes?.length) {
+    lines.push("What gets written:")
+    lines.push(...input.writes)
+  }
+  return lines.join("\n")
 }
 
 export function relabelNotifyFromPreview(
@@ -86,6 +92,7 @@ export function relabelNotifyFromPreview(
     rowsMoved?: number
     spendMoved?: number
     duplicatesRemoved?: number
+    writes?: string[]
   },
 ): RelabelNotifyInput {
   return {
@@ -101,6 +108,7 @@ export function relabelNotifyFromPreview(
     duplicatesRemoved: extras.duplicatesRemoved ?? preview.duplicateOldNameDays.length,
     beforeLineItemId: preview.moves[0]?.previousLineItemId ?? null,
     afterLineItemId: preview.lineItemId,
+    writes: extras.writes,
   }
 }
 

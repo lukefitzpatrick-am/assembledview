@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       dateTo: typeof json?.dateTo === "string" ? json.dateTo : null,
       reason,
       acknowledgeWarnings: json?.acknowledgeWarnings === true,
+      saveAsRequest: json?.saveAsRequest === true,
     },
     gate.actorEmail,
   )

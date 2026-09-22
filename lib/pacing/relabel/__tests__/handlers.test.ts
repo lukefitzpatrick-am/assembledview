@@ -238,6 +238,57 @@ test("apply with preview blocks writes a blocked row and notifies without applyi
   assert.match(String(store.tasks[0]?.title), /Relabel blocked/)
 })
 
+test("saveAsRequest writes a blocked row with preview SQL and does not apply", async () => {
+  const store = { relabels: [] as Array<Record<string, unknown>>, logs: [] as Array<Record<string, unknown>>, tasks: [] as Array<Record<string, unknown>>, emails: [] as unknown[] }
+  const deps = baseDeps(store)
+  deps.insertBlocked = async (args) => {
+    const row = {
+      id: 9,
+      status: "blocked" as const,
+      channel: args.channel,
+      platformEntityId: args.platformEntityId,
+      entityName: args.entityName,
+      fromLineItemId: args.fromLineItemId,
+      toLineItemId: args.toLineItemId,
+      mbaNumber: args.mbaNumber,
+      dateFrom: args.dateFrom,
+      dateTo: args.dateTo,
+      reason: args.reason,
+      actorEmail: args.actorEmail,
+      beforeState: args.beforeState,
+      applyResult: args.applyResult,
+      createdAt: "2026-09-21T00:00:00.000Z",
+      revertedAt: null,
+      revertedByEmail: null,
+    }
+    store.relabels.push(row)
+    store.logs.push({ relabelId: 9, action: "block", actorEmail: args.actorEmail, payload: args.applyResult })
+    return row
+  }
+  deps.applyRelabel = async () => {
+    throw new RelabelApplyError("blocked", "should not apply")
+  }
+  const res = await runRelabelApply(
+    {
+      channel: "Social - Meta",
+      platformEntityId: "120256089860390550",
+      lineItemId: "bicau002sm2",
+      reason: "please review",
+      saveAsRequest: true,
+    },
+    STAFF,
+    deps,
+  )
+  assert.equal(res.status, 200)
+  const body = (await res.json()) as { requested?: boolean }
+  assert.equal(body.requested, true)
+  assert.equal(store.relabels[0]?.status, "blocked")
+  assert.ok(store.logs.some((row) => row.action === "block"))
+  assert.match(String(store.tasks[0]?.title), /Relabel blocked/)
+  assert.match(String(store.tasks[0]?.description), /What gets written/)
+  assert.match(String(store.tasks[0]?.description), /SOCIAL_PACING_FACT/)
+})
+
 test("applied relabel tasks auto-close after 7 untouched days; blocked stay open", () => {
   assert.equal(
     shouldAutoCloseAppliedTask(

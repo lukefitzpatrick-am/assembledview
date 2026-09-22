@@ -27,6 +27,7 @@ import {
 import { queryActiveLabelMap } from "./entity"
 import { RelabelRevertError, revertRelabel } from "./revert"
 import { buildApplyLogPayload } from "./applyGuard"
+import { describeRelabelWrites } from "./describeWrites"
 import type { RelabelPreview, RelabelQueryFn } from "./types"
 
 export type RelabelHandlerDeps = {
@@ -152,7 +153,11 @@ export async function runRelabelPreview(
 }
 
 export async function runRelabelApply(
-  args: PreviewRelabelArgs & { reason: string; acknowledgeWarnings?: boolean },
+  args: PreviewRelabelArgs & {
+    reason: string
+    acknowledgeWarnings?: boolean
+    saveAsRequest?: boolean
+  },
   actorEmail: string,
   deps: RelabelHandlerDeps = defaultRelabelHandlerDeps(),
 ): Promise<NextResponse> {
@@ -169,7 +174,9 @@ export async function runRelabelApply(
       lookupActiveLabelMap: (lookup) => queryActiveLabelMap(lookup, deps.query),
     })
 
-    if (preview.blocks.length > 0) {
+    const writes = describeRelabelWrites(preview)
+    const requestOnly = args.saveAsRequest === true || preview.blocks.length > 0
+    if (requestOnly) {
       const mbaNumber =
         preview.mbaNumber ??
         parseMbaNumberFromLineItemId(preview.lineItemId)?.toLowerCase() ??
@@ -186,20 +193,30 @@ export async function runRelabelApply(
         reason,
         actorEmail,
         beforeState: buildApplyLogPayload(preview),
-        applyResult: { blocks: preview.blocks, spendMoving: preview.spendMoving },
+        applyResult: {
+          blocks: preview.blocks,
+          spendMoving: preview.spendMoving,
+          writes,
+          requested: args.saveAsRequest === true,
+          preview: previewPayload(preview),
+        },
       })
       await deps.notify(
         relabelNotifyFromPreview("blocked", preview, {
           relabelId: blocked.id,
           actorEmail,
           reason,
+          writes,
         }),
         deps.notifyIo,
       )
-      return NextResponse.json(
-        { error: "blocked", message: "Relabel is blocked.", relabel: blocked, preview },
-        { status: 409 },
-      )
+      if (preview.blocks.length > 0 && args.saveAsRequest !== true) {
+        return NextResponse.json(
+          { error: "blocked", message: "Relabel is blocked.", relabel: blocked, preview },
+          { status: 409 },
+        )
+      }
+      return NextResponse.json({ requested: true, relabel: blocked, preview })
     }
 
     const result = await deps.applyRelabel(preview, {
