@@ -71,6 +71,26 @@ export async function POST(request: NextRequest) {
         }> = []
         for (const invoice_key of invoice_keys) {
           const result = await clearFinanceBillingRecordExported(invoice_key, tx)
+          const persisted_record_id = Number(result.record.id)
+          await writeStatusChangeEdit(
+            {
+              finance_billing_records_id: Number.isFinite(persisted_record_id)
+                ? persisted_record_id
+                : null,
+              field_name: "exported_at",
+              old_value:
+                result.priorExportedAt != null && String(result.priorExportedAt).length > 0
+                  ? String(result.priorExportedAt)
+                  : "cleared",
+              new_value: null,
+            },
+            {
+              editedBy: currentUser.id,
+              editedByName,
+              recordType: "status_change",
+            },
+            tx
+          )
           rows.push({
             invoice_key,
             record: result.record,
@@ -105,24 +125,6 @@ export async function POST(request: NextRequest) {
 
     for (const item of cleared) {
       const persisted_record_id = Number(item.record.id)
-      await writeStatusChangeEdit(
-        {
-          finance_billing_records_id: Number.isFinite(persisted_record_id)
-            ? persisted_record_id
-            : null,
-          field_name: "exported_at",
-          old_value:
-            item.priorExportedAt != null && String(item.priorExportedAt).length > 0
-              ? String(item.priorExportedAt)
-              : "cleared",
-          new_value: null,
-        },
-        {
-          editedBy: currentUser.id,
-          editedByName,
-          recordType: "status_change",
-        }
-      )
       results.push({ invoice_key: item.invoice_key, persisted_record_id })
     }
 

@@ -230,12 +230,12 @@ SQL used (Postgres):
 | `lib/api/mediaPlansListCache.ts` | versions + topline | DATA_BACKEND_PLANS | `/api/mediaplans` | DUAL-DONE |
 | `lib/api/dashboard/global.ts` | `xanoDashboardsUrl` monthly spend | DATA_BACKEND_PLANS | dashboard spend routes | PORT (cold if plans=pg) |
 | `lib/api/dashboard/{client,publisher,finance}.ts` | versions + channel fan-out | mostly unguarded | client/publisher/finance dashboards | PORT |
-| `lib/finance/xanoFinanceApi.ts` | finance_edits POST, xero-queue, leftover GET helpers | none (writes) | `writeFinanceAuditEdits`, xero-queue | PORT (billing record writes moved to writeFinance) |
+| `lib/finance/xanoFinanceApi.ts` | `POST /api/finance/edits`, fee-snapshot resnapshot, xero-queue, leftover GET helpers | none (those writes) | edits route, resnapshot, xero-queue | PORT (audit helper moved to Postgres) |
 | `lib/finance/xanoReferenceCache.ts` | clients + get_publishers TTL | none | Ava, MBA GET, dashboard | PORT (retire behind dual readers) |
 | `lib/finance/billingOverrides.ts` | attach helpers only (`attachOverridesToLineInputs` / `*FromRow`); Xano soft-fail GET `fetchBillingOverridesForVersion` **deleted** (MB-5 — returned `[]` on miss → silent manual erase) | n/a (pure) | savePlan, recompute, UI | RETIRE(dead fetch) / KEEP(attach) — reads via `readBillingOverridesForVersion` (PG dual) |
 | `lib/data/writeMediaPlanMasters.ts` | PG insert `media_plan_masters` (seq) + Xano POST with explicit `id` | PG authoritative (X9) | `POST /api/mediaplans` | MIRROR (write) |
 | `lib/finance/materialiseFinanceBillingRecord.ts` | `writeFinance.upsertFinanceBillingRecordByInvoiceKey` | PG (T0-1) | approve, notes | DUAL-DONE (PG writes) |
-| `lib/finance/writeFinanceAuditEdits.ts` | finance_edits POST | none | finance edits | PORT |
+| `lib/finance/writeFinanceAuditEdits.ts` | `finance_edits` INSERT | PG | approve, unapprove, mark-exported, schedule diff, notes | DUAL-DONE (PG writes) |
 | `lib/finance/relevantPlanVersions.ts` | masters + versions crawl | none | finance hub relevance | PORT |
 | `lib/finance/forecast/snapshot/pgSnapshots.ts` | finance_forecast_snapshots(+lines) | DATABASE_URL | snapshot APIs | DUAL-DONE (PG) |
 | `lib/finance/forecast/snapshot/xanoSnapshotQuery.ts` | re-exports PG; Legacy* for data-move | author-only Xano | migrate script | TOOLING |
