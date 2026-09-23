@@ -33,7 +33,7 @@ test("the three funnel amounts sum to the scope total for a fixture month", () =
   assert.equal(summary.approved.cents, 40_000)
   assert.equal(summary.sentToFinance.cents, 15_000)
   assert.equal(
-    summary.ready.cents + summary.approved.cents + summary.sentToFinance.cents,
+    summary.ready.cents + summary.approved.cents + summary.sentToFinance.cents + summary.issuedOutsideAv.cents,
     summary.totalCents
   )
   assert.equal(summary.totalCents, 90_000)
@@ -62,7 +62,7 @@ test("issued/paid/overdue sit in Sent to finance so the three tiles still add up
   assert.equal(summary.ready.monthCount, 1)
   assert.equal(summary.approved.monthCount, 1)
   assert.equal(
-    summary.ready.cents + summary.approved.cents + summary.sentToFinance.cents,
+    summary.ready.cents + summary.approved.cents + summary.sentToFinance.cents + summary.issuedOutsideAv.cents,
     summary.totalCents
   )
 })

@@ -21,12 +21,14 @@ function resolve(input: {
     fullyPaidDate: string | null
   } | null
   today?: Date
+  unapprovedXeroIsOutsideAv?: boolean
 }): { state: BillingState; reason: string } {
   return resolveBillingState({
     approvedAt: input.approvedAt ?? null,
     exportedAt: input.exportedAt ?? null,
     xero: input.xero ?? null,
     today: input.today ?? TODAY,
+    unapprovedXeroIsOutsideAv: input.unapprovedXeroIsOutsideAv,
   })
 }
 
@@ -70,13 +72,42 @@ test("xero DRAFT -> drafted (wins over export/approval)", () => {
   assert.equal(result.state, "drafted")
 })
 
-test("xero AUTHORISED -> issued", () => {
+test("xero AUTHORISED with approval -> issued", () => {
+  const result = resolve({
+    approvedAt: "2026-08-20T00:00:00.000Z",
+    xero: authorisedOpen,
+  })
+  assert.equal(result.state, "issued")
+})
+
+test("a matched invoice with no approved_at is issued_outside_av and never ready", () => {
+  const result = resolve({ xero: authorisedOpen, unapprovedXeroIsOutsideAv: true })
+  assert.equal(result.state, "issued_outside_av")
+  assert.notEqual(result.state, "ready")
+  assert.equal(hasBillingEvidence(result.state), true)
+})
+
+test("owed-style AR with no approval stamp keeps the Xero status ladder", () => {
   const result = resolve({ xero: authorisedOpen })
   assert.equal(result.state, "issued")
 })
 
+test("SUBMITTED with approval -> drafted", () => {
+  const result = resolve({
+    approvedAt: "2026-08-20T00:00:00.000Z",
+    xero: {
+      status: "SUBMITTED",
+      amountDue: 100,
+      dueDate: "2026-09-15",
+      fullyPaidDate: null,
+    },
+  })
+  assert.equal(result.state, "drafted")
+})
+
 test("AUTHORISED with dueDate === today is issued, not overdue (boundary)", () => {
   const result = resolve({
+    approvedAt: "2026-08-20T00:00:00.000Z",
     xero: {
       status: "AUTHORISED",
       amountDue: 50,
@@ -89,6 +120,7 @@ test("AUTHORISED with dueDate === today is issued, not overdue (boundary)", () =
 
 test("AUTHORISED, dueDate < today, amountDue > 0 -> overdue", () => {
   const result = resolve({
+    approvedAt: "2026-08-20T00:00:00.000Z",
     xero: {
       status: "AUTHORISED",
       amountDue: 50,
@@ -101,6 +133,7 @@ test("AUTHORISED, dueDate < today, amountDue > 0 -> overdue", () => {
 
 test("xero status PAID -> paid", () => {
   const result = resolve({
+    approvedAt: "2026-08-20T00:00:00.000Z",
     xero: {
       status: "PAID",
       amountDue: 10,
@@ -113,6 +146,7 @@ test("xero status PAID -> paid", () => {
 
 test("amountDue exactly 0 on an AUTHORISED invoice is paid", () => {
   const result = resolve({
+    approvedAt: "2026-08-20T00:00:00.000Z",
     xero: {
       status: "AUTHORISED",
       amountDue: 0,
@@ -125,6 +159,7 @@ test("amountDue exactly 0 on an AUTHORISED invoice is paid", () => {
 
 test("fullyPaidDate set -> paid", () => {
   const result = resolve({
+    approvedAt: "2026-08-20T00:00:00.000Z",
     xero: {
       status: "AUTHORISED",
       amountDue: 80,
