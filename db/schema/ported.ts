@@ -309,6 +309,8 @@ export const financeBillingRecords = pgTable(
   notes: text('notes'),
   exportedAt: timestamp('exported_at', { withTimezone: true, mode: "string" }),
   exportedBy: bigint('exported_by', { mode: "number" }),
+  /** JSON {"csv","xlsx"} private Blob pathnames. NULL until Send to accounts. */
+  exportBlobPath: text('export_blob_path'),
   invoiceKey: text('invoice_key'),
   /** Approval stamp. NULL = not yet approved. Lifecycle state is derived. */
   approvedAt: timestamp('approved_at', { withTimezone: true, mode: "string" }),

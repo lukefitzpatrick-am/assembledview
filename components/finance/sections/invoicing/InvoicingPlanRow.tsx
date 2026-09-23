@@ -5,23 +5,20 @@ import { ChevronDown, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { RowActionLine } from "@/components/finance/RowActionLine"
+import { BillingStateBadge } from "@/components/finance/BillingStateBadge"
 import type { RowActionMenuItem } from "@/components/finance/RowActionMenu"
 import { useMediaPlanActions } from "@/components/finance/MediaPlanActionBar"
-import { MarkSentToFinanceButton } from "@/components/finance/sections/invoicing/MarkSentToFinanceButton"
 import { UnapproveBillingButton } from "@/components/finance/sections/invoicing/UnapproveBillingButton"
 import { ReceivableNotesButton } from "@/components/finance/receivables/ReceivableNotesButton"
 import { ReceivablesLineGroupRow } from "@/components/finance/receivables/ReceivablesLineGroupRow"
 import { useToast } from "@/components/ui/use-toast"
 import {
   approveBillingRecords,
-  markBillingRecordsExported,
   unapproveBillingRecords,
-  unmarkBillingRecordsExported,
 } from "@/lib/finance/api"
 import { grainFromBillingRecord } from "@/lib/finance/billingApproveGrain"
 import { hasBillingEvidence, needsInlineAmountConfirm } from "@/lib/finance/billingLifecycle"
 import { groupIdenticalLineItems } from "@/lib/finance/groupIdenticalLineItems"
-import { markSentResultToast } from "@/lib/finance/markSentToFinanceCopy"
 import { unapproveFailureToast } from "@/lib/finance/sections/unapproveCopy"
 import type { InlineScheduleEditContext } from "@/lib/finance/commitInlineScheduleAmountEdit"
 import {
@@ -36,6 +33,8 @@ import {
 } from "@/lib/finance/sections/invoicingRowPresentation"
 import { receivableRecordSectionLabel, type MediaPlanGroup } from "@/lib/finance/useReceivablesData"
 import { formatAUD } from "@/lib/format/money"
+import { formatDateShort } from "@/lib/format/date"
+import { financeExportDownloadHref, parseExportBlobPath } from "@/lib/finance/sendToAccounts"
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import { cn } from "@/lib/utils"
 
@@ -164,7 +163,7 @@ export function InvoicingPlanRow({
     record.billing_month,
   ])
 
-  const run = async (action: "approve" | "unapprove" | "reapprove" | "unmark") => {
+  const run = async (action: "approve" | "unapprove" | "reapprove") => {
     if (!grain || busy) return
     setBusy(true)
     try {
@@ -175,16 +174,13 @@ export function InvoicingPlanRow({
           ...(action === "reapprove" ? { reapprove: true } : {}),
         })
         toast({ title: action === "reapprove" ? "Re-approved at the current amount" : "Approved" })
-      } else if (action === "unapprove") {
+      } else {
         const res = await unapproveBillingRecords({ invoice_keys: [grain.invoice_key] })
         if (!res.ok) {
           toast(unapproveFailureToast(res))
           return
         }
         toast({ title: "Approval cleared" })
-      } else {
-        await unmarkBillingRecordsExported({ invoice_keys: [grain.invoice_key] })
-        toast({ title: "Un-marked as sent to finance" })
       }
       refetch()
     } catch (e) {
@@ -192,38 +188,13 @@ export function InvoicingPlanRow({
         toast(unapproveFailureToast(e))
         return
       }
-      const titles: Record<"approve" | "reapprove" | "unmark", string> = {
+      const titles: Record<"approve" | "reapprove", string> = {
         approve: "Could not approve",
         reapprove: "Could not re-approve",
-        unmark: "Could not un-mark",
       }
       toast({
         variant: "destructive",
         title: titles[action],
-        description: e instanceof Error ? e.message : "Unknown error",
-      })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const markSent = async () => {
-    const key = record.invoice_key?.trim()
-    if (!key || busy) return
-    setBusy(true)
-    try {
-      const exported = await markBillingRecordsExported({ invoice_keys: [key] })
-      toast({
-        title: markSentResultToast({
-          marked: exported.records.length,
-          skippedNotApproved: exported.skipped?.length ?? 0,
-        }),
-      })
-      refetch()
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Could not mark as sent",
         description: e instanceof Error ? e.message : "Unknown error",
       })
     } finally {
@@ -255,15 +226,6 @@ export function InvoicingPlanRow({
         {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
         {invoicingPrimaryLabel("approve")}
       </Button>
-    )
-  } else if (primaryKind === "mark_sent" && record.invoice_key) {
-    forwardPrimary = (
-      <MarkSentToFinanceButton
-        busy={busy}
-        variant={primaryVariant}
-        label={invoicingPrimaryLabel("mark_sent")}
-        onConfirm={() => markSent()}
-      />
     )
   }
   const primary =
@@ -318,19 +280,27 @@ export function InvoicingPlanRow({
       },
     })
   }
-  if (state === "sent_to_finance") {
-    menuItems.push({
-      label: "Un-mark",
-      disabled: !grain || busy,
-      disabledReason: grain ? undefined : "Missing invoice key",
-      onSelect: () => {
-        void run("unmark")
-      },
-    })
-  }
 
+  const packPaths = state === "sent_to_finance" ? parseExportBlobPath(record.export_blob_path) : null
   const driftContext =
     drifted && state === "approved" ? "Amount changed since approval" : undefined
+  const sentDate =
+    state === "sent_to_finance" && record.exported_at
+      ? formatDateShort(
+          typeof record.exported_at === "number" ? new Date(record.exported_at) : record.exported_at
+        )
+      : null
+  const sentDocument = packPaths ? (
+    <span className="text-[11px] text-muted-foreground">
+      <a className="text-foreground underline" href={financeExportDownloadHref(packPaths.csv)}>
+        CSV
+      </a>
+      {" · "}
+      <a className="text-foreground underline" href={financeExportDownloadHref(packPaths.xlsx)}>
+        Workbook
+      </a>
+    </span>
+  ) : null
 
   return (
     <div
@@ -391,10 +361,16 @@ export function InvoicingPlanRow({
 
       <RowActionLine
         state={state}
+        pill={
+          state === "sent_to_finance" ? (
+            <BillingStateBadge state="sent_to_finance" label="Sent to accounts" />
+          ) : undefined
+        }
         approvedDrift={false}
         reason={record.state_reason}
-        context={driftContext}
+        context={sentDate ?? driftContext}
         primary={primary}
+        document={sentDocument}
         menuItems={menuItems}
       />
 

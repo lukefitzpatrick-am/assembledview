@@ -7,7 +7,6 @@ import { useToast } from "@/components/ui/use-toast"
 import {
   approveBillingRecords,
   unapproveBillingRecords,
-  unmarkBillingRecordsExported,
 } from "@/lib/finance/api"
 import { grainFromBillingRecord } from "@/lib/finance/billingApproveGrain"
 import type { BillingRecord } from "@/lib/types/financeBilling"
@@ -26,9 +25,9 @@ export function ReceivableApproveButton({ record, onDone }: Props) {
   const canReapprove = drifted && state === "approved"
 
   if (!grain) return null
-  if (state !== "ready" && state !== "approved" && state !== "sent_to_finance") return null
+  if (state !== "ready" && state !== "approved") return null
 
-  const run = async (action: "approve" | "unapprove" | "reapprove" | "unmark") => {
+  const run = async (action: "approve" | "unapprove" | "reapprove") => {
     if (busy) return
     setBusy(true)
     try {
@@ -39,12 +38,9 @@ export function ReceivableApproveButton({ record, onDone }: Props) {
           ...(action === "reapprove" ? { reapprove: true } : {}),
         })
         toast({ title: action === "reapprove" ? "Re-approved at the current amount" : "Approved" })
-      } else if (action === "unapprove") {
+      } else {
         await unapproveBillingRecords({ invoice_keys: [grain.invoice_key] })
         toast({ title: "Approval cleared" })
-      } else {
-        await unmarkBillingRecordsExported({ invoice_keys: [grain.invoice_key] })
-        toast({ title: "Un-marked as sent to finance" })
       }
       onDone?.()
     } catch (e) {
@@ -52,7 +48,6 @@ export function ReceivableApproveButton({ record, onDone }: Props) {
         approve: "Could not approve",
         reapprove: "Could not re-approve",
         unapprove: "Could not unapprove",
-        unmark: "Could not un-mark",
       }
       toast({
         variant: "destructive",
@@ -94,18 +89,6 @@ export function ReceivableApproveButton({ record, onDone }: Props) {
         >
           {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
           Unapprove
-        </Button>
-      ) : null}
-      {state === "sent_to_finance" ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          onClick={() => void run("unmark")}
-        >
-          {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-          Un-mark
         </Button>
       ) : null}
     </span>

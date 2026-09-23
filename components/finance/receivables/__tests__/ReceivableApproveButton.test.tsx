@@ -73,19 +73,13 @@ describe("ReceivableApproveButton", () => {
     return [...container.querySelectorAll("button")].map((el) => el.textContent?.trim() ?? "")
   }
 
-  it("shows Un-mark on a sent-to-finance row and does not unapprove", async () => {
+  it("renders nothing on a sent-to-finance row", () => {
     act(() => {
       root.render(<ReceivableApproveButton record={rec({ state: "sent_to_finance" })} />)
     })
-    expect(labels()).toContain("Un-mark")
+    expect(labels()).not.toContain("Un-mark")
     expect(labels()).not.toContain("Unapprove")
-    await act(async () => {
-      ;[...container.querySelectorAll("button")]
-        .find((el) => el.textContent?.trim() === "Un-mark")!
-        .click()
-    })
-    expect(unmarkMock).toHaveBeenCalledWith({ invoice_keys: ["media:X001:2026-07"] })
-    expect(unapproveMock).not.toHaveBeenCalled()
+    expect(container.textContent ?? "").not.toMatch(/Un-mark/)
   })
 
   it("does not offer re-approve on a drifted sent-to-finance row", () => {
@@ -96,7 +90,7 @@ describe("ReceivableApproveButton", () => {
         />
       )
     })
-    expect(labels()).toContain("Un-mark")
+    expect(labels()).not.toContain("Un-mark")
     expect(labels()).not.toContain("Re-approve at the current amount")
   })
 

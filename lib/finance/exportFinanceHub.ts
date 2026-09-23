@@ -1,18 +1,14 @@
-import { saveAs } from "file-saver"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import { filterApprovedReceivablesForExport } from "@/lib/finance/approvedReceivablesExport"
 import { billingRecordsToFinanceCampaigns } from "@/lib/finance/billingRecordToCampaignData"
 import {
-  loadFinanceExcelClientMeta,
   writeMediaFinanceWorksheet,
   writeRetainerFinanceWorksheet,
   writeSowFinanceWorksheet,
   workbookToXlsxBuffer,
-  type FinanceExcelClientMetaLoad,
+  type FinanceExcelClientMeta,
 } from "@/lib/finance/excelFinanceExport"
 import { exportBillingRecordsExcel, exportPayablesPublisherDetailExcel } from "@/lib/finance/export"
-
-export type ExportReceivablesResult = Pick<FinanceExcelClientMetaLoad, "missingLegalBusinessNames">
 
 function sanitizeExcelSheetName(name: string): string {
   const t = name.replace(/[*?:/\\[\]]/g, " ").trim().slice(0, 31)
@@ -29,21 +25,16 @@ function usedSheetNamesTracker() {
   }
 }
 
-function filenameMonthSegment(monthLabel: string): string {
-  return monthLabel.replace(/\s+/g, "_")
-}
-
 /**
- * Invoice-style workbook: Media + Scopes + one sheet per retainer (matches legacy finance routes).
- * Stamps Legal business name + ABN from `/api/clients` (empty legal → display-name fallback).
+ * Invoice-style workbook buffer: Media + Scopes + one sheet per retainer.
+ * Caller supplies legal name + ABN (empty legal already fallen back to display name).
+ * Does not download and does not stamp `exported_at`.
  */
-export async function exportReceivablesWorkbook(
+export async function buildReceivablesWorkbookBuffer(
   records: BillingRecord[],
-  monthLabel: string,
-  fileStem: string
-): Promise<ExportReceivablesResult> {
+  metaByClientId: Map<number, FinanceExcelClientMeta>
+): Promise<Buffer> {
   const ExcelJS = (await import("exceljs")).default
-  const { metaByClientId, missingLegalBusinessNames } = await loadFinanceExcelClientMeta()
   const workbook = new ExcelJS.Workbook()
   const approved = filterApprovedReceivablesForExport(records)
   const media = approved.filter((r) => r.billing_type === "media")
@@ -93,9 +84,7 @@ export async function exportReceivablesWorkbook(
   }
 
   const buffer = await workbookToXlsxBuffer(workbook)
-  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
-  saveAs(blob, `${fileStem}_${filenameMonthSegment(monthLabel)}.xlsx`)
-  return { missingLegalBusinessNames }
+  return Buffer.from(buffer)
 }
 
 /** Payables line-detail workbook (agency total excludes client-paid-direct lines). */

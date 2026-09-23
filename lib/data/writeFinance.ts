@@ -688,6 +688,35 @@ export async function setFinanceBillingRecordExported(
 }
 
 /**
+ * Stamp exported_at, exported_by, and export_blob_path together.
+ * Already-exported rows are left alone (zero rows, not an error).
+ */
+export async function stampFinanceBillingRecordSentToAccounts(
+  input: { invoiceKey: string; exportedBy: number; exportBlobPath: string },
+  executor?: FinanceExecutor
+): Promise<{ id: number; exportedAt: string } | null> {
+  assertAppInvoiceKey(input.invoiceKey)
+  const db = financeDb(executor)
+  const rows = rowsOf<{ id: number; exported_at: string }>(
+    await db.execute(sql`
+      UPDATE finance_billing_records SET
+        exported_at = now(),
+        exported_by = ${input.exportedBy},
+        export_blob_path = ${input.exportBlobPath},
+        updated_at = now()
+      WHERE invoice_key = ${input.invoiceKey}
+        AND invoice_key NOT LIKE 'xero:%'
+        AND approved_at IS NOT NULL
+        AND exported_at IS NULL
+      RETURNING id, exported_at
+    `)
+  )
+  const row = rows[0]
+  if (!row) return null
+  return { id: Number(row.id), exportedAt: String(row.exported_at) }
+}
+
+/**
  * Stamp exported_at on approved keys only. Unapproved and missing keys are
  * skipped (counted), not a batch failure. Genuine write failures still throw.
  */

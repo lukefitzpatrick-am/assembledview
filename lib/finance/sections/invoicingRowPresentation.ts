@@ -30,13 +30,13 @@ export type InvoicingClientBlockerMeta = {
 
 /**
  * Next lifecycle step on the row. Sent-to-finance and beyond have no primary.
+ * Approved rows are sent from the month bar, not a per-row Mark sent.
  * Does not read `records[0]` — caller passes the row's own state.
  */
 export function invoicingPrimaryAction(
   state: BillingState | null | undefined
 ): InvoicingPrimaryKind | null {
   if (state === "ready" || state == null) return "approve"
-  if (state === "approved") return "mark_sent"
   return null
 }
 

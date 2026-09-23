@@ -32,11 +32,10 @@ function rec(partial: Partial<BillingRecord>): BillingRecord {
   } as BillingRecord
 }
 
-test("Ready → Approve; Approved → Mark sent; sent_to_finance and beyond → no primary", () => {
+test("Ready → Approve; Approved and beyond → no primary", () => {
   assert.equal(invoicingPrimaryAction("ready"), "approve")
   assert.equal(invoicingPrimaryLabel("approve"), "Approve")
-  assert.equal(invoicingPrimaryAction("approved"), "mark_sent")
-  assert.equal(invoicingPrimaryLabel("mark_sent"), "Mark sent")
+  assert.equal(invoicingPrimaryAction("approved"), null)
   assert.equal(invoicingPrimaryAction("sent_to_finance"), null)
   assert.equal(invoicingPrimaryAction("drafted"), null)
   assert.equal(invoicingPrimaryAction("issued"), null)

@@ -8,6 +8,7 @@
 - `0021_m365_provisioning_log.sql` — Graph provisioning attempt log
 - `0087_xero_sync_log_stage.sql` — `xero_sync_log.stage` (`invoices` | `import` | `contacts` | `pdfs`) + `duration_ms`. NULL stage = legacy combined run. AUTHOR ONLY. Apply before the split Xero crons deploy. No backfill. Do not drizzle-kit.
 - `0088_matched_xero_invoice_nonunique.sql` — drop `uq_finance_billing_records_matched_xero_invoice_id`, keep the non-unique index, add `xero_match_resolution` and `xero_expected_source`. AUTHOR ONLY. Apply before the invoices cron that stamps many app rows onto one Xero invoice. No backfill. Do not drizzle-kit.
+- `0089_export_blob_path.sql` — `finance_billing_records.export_blob_path` text, JSON of the private CSV and workbook pathnames. AUTHOR ONLY. Apply before Send to accounts. No backfill. Do not drizzle-kit.
 - `0091_xero_sync_exception_resolution.sql` — `xero_sync_exceptions.resolved_at`, `resolved_by`, `resolution`. AUTHOR ONLY. Apply before xero-queue assign/resolve. No backfill. Do not drizzle-kit. Mirror: `xeroSyncExceptions` in `db/schema/ported.ts`.
 - `0022_campaign_insights_ava_readonly.sql` — GRANT SELECT on campaign_insights to ava_readonly
 - `0023_line_item_panels.sql` — OOH panel/pack detail rows

@@ -127,7 +127,7 @@ describe("InvoicingPlanRow primary action", () => {
     expect(primaryLabel(container)).toBe("Approve")
   })
 
-  it("renders Mark sent on an Approved row", () => {
+  it("does not render Mark sent on an Approved row", () => {
     act(() => {
       root.render(
         <InvoicingPlanRow
@@ -138,7 +138,8 @@ describe("InvoicingPlanRow primary action", () => {
         />,
       )
     })
-    expect(primaryLabel(container)).toBe("Mark sent")
+    expect(primaryLabel(container)).not.toBe("Mark sent")
+    expect(container.textContent).toMatch(/Un-approve/)
   })
 
   it("shows Un-approve with a confirm that names client, month and amount", async () => {
