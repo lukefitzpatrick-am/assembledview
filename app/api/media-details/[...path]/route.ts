@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { xanoUrl, xanoAuthHeader } from "@/lib/api/xano"
 import { requireRole } from "@/lib/requireRole"
 import { checkMediaDetailsProxyPath } from "@/lib/security/proxyAllowlist"
 import { logProxy403 } from "@/lib/security/logProxy403"
@@ -100,50 +99,10 @@ async function proxyRequest(request: Request, { params }: Params, method: string
     }
   }
 
-  try {
-    const targetUrl = xanoUrl(path, "XANO_MEDIA_DETAILS_BASE_URL")
-    const url = new URL(targetUrl)
-
-    // Forward query params
-    const incoming = new URL(request.url)
-    incoming.searchParams.forEach((value, key) => {
-      url.searchParams.set(key, value)
-    })
-
-    // Forward body for non-GET/HEAD methods
-    const body =
-      method === "GET" || method === "HEAD" ? undefined : await request.text()
-
-    // REVIEW: Route handler proxy — server-only; auth from process.env via xanoAuthHeader().
-    const upstream = await fetch(url.toString(), {
-      method,
-      headers: {
-        "Content-Type": request.headers.get("content-type") || "application/json",
-        ...xanoAuthHeader(),
-      },
-      body: body && body.length > 0 ? body : undefined,
-    })
-
-    const contentType = upstream.headers.get("content-type") || ""
-    const responseBody = contentType.includes("application/json")
-      ? await upstream.json()
-      : await upstream.text()
-
-    if (contentType.includes("application/json")) {
-      return NextResponse.json(responseBody, { status: upstream.status })
-    }
-
-    return new NextResponse(responseBody, {
-      status: upstream.status,
-      headers: { "content-type": contentType || "text/plain" },
-    })
-  } catch (error: any) {
-    console.error("[media-details proxy] error", error)
-    return NextResponse.json(
-      { error: "Failed to proxy media details request", details: error?.message || "Unknown error" },
-      { status: 500 }
-    )
-  }
+  return NextResponse.json(
+    { error: "This media-details path has no Postgres handler", path },
+    { status: 410 }
+  )
 }
 
 export async function GET(request: Request, ctx: Params) {

@@ -188,7 +188,6 @@ import { saveAs } from 'file-saver'
 import { useUnsavedChangesPrompt } from "@/hooks/use-unsaved-changes-prompt"
 import { 
   createMediaPlan, 
-  createMediaPlanVersion, 
   uploadMediaPlanVersionDocuments,
   editMediaPlan, 
   saveTelevisionLineItems, 
@@ -6252,61 +6251,12 @@ function CreateMediaPlan() {
         ) {
           throw putErr
         }
-        // Fallback only when PUT cannot create first version for a fresh master
+        // Xano createMediaPlanVersion fallback is deleted. Postgres save is /api/plans/save.
         console.warn(
-          "[create C1] MBA PUT unavailable; falling back to createMediaPlanVersion with core schedules",
+          "[create C1] MBA PUT unavailable; createMediaPlanVersion is deleted",
           putErr
         )
-        const fallbackVersion = await createMediaPlanVersion({
-          media_plan_master_id: masterId,
-          version_number: planVersionNumber,
-          mba_number: fv.mba_number || "",
-          campaign_name: fv.mp_campaignname || "",
-          campaign_status: fv.mp_campaignstatus || "Draft",
-          campaign_start_date: toDateOnlyString(fv.mp_campaigndates_start),
-          campaign_end_date: toDateOnlyString(fv.mp_campaigndates_end),
-          brand: fv.mp_brand || "",
-          mp_client_name: clientName,
-          client_contact: fv.mp_clientcontact || "",
-          po_number: fv.mp_ponumber || "",
-          mp_campaignbudget: fv.mp_campaignbudget || 0,
-          fixed_fee: fv.mp_fixedfee || false,
-          mp_production: shouldEnableProduction,
-          mp_television: fv.mp_television || false,
-          mp_radio: fv.mp_radio || false,
-          mp_newspaper: fv.mp_newspaper || false,
-          mp_magazines: fv.mp_magazines || false,
-          mp_ooh: fv.mp_ooh || false,
-          mp_cinema: fv.mp_cinema || false,
-          mp_digidisplay: fv.mp_digidisplay || false,
-          mp_digiaudio: fv.mp_digiaudio || false,
-          mp_digivideo: fv.mp_digivideo || false,
-          mp_bvod: fv.mp_bvod || false,
-          mp_integration: fv.mp_integration || false,
-          mp_search: fv.mp_search || false,
-          mp_socialmedia: fv.mp_socialmedia || false,
-          mp_progdisplay: fv.mp_progdisplay || false,
-          mp_progvideo: fv.mp_progvideo || false,
-          mp_progbvod: fv.mp_progbvod || false,
-          mp_progaudio: fv.mp_progaudio || false,
-          mp_progooh: fv.mp_progooh || false,
-          mp_influencers: fv.mp_influencers || false,
-          // Core schedules — never client-built buildBillingScheduleJSON
-          billingSchedule: campaignFinancials.billingSchedule,
-          deliverySchedule: campaignFinancials.deliverySchedule,
-          delivery_schedule: campaignFinancials.deliverySchedule,
-          lineItems: billingSaveInputs.lineItems,
-          feeLoading: billingSaveInputs.feeLoading,
-        } as Parameters<typeof createMediaPlanVersion>[0] & {
-          delivery_schedule?: unknown
-          lineItems?: unknown
-          feeLoading?: unknown
-        })
-        version = {
-          id: Number(fallbackVersion.id),
-          version_number: planVersionNumber,
-          billingSchedule: (fallbackVersion as { billingSchedule?: unknown }).billingSchedule,
-        }
+        throw putErr
       }
 
       // Cent-level verify: persisted schedule vs campaignFinancials.billingSchedule

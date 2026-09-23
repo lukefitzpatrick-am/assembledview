@@ -51,7 +51,7 @@ No other DATA_BACKEND_* exists. Unset domains fall back to DATA_BACKEND, so plan
 
 LINE_ITEM_SNAPSHOT_SOURCE is set on production (secret). Its value was not read. The code default is xano, which calls fetchAllXanoLineItems. Reach for that cron is **unknown**.
 
-Of the 34 PORT rows, 10 still make a Xano HTTP call with these flags: the three dashboard crawls (client, finance, publisher), lib/api/publishers.ts (market share), lib/kpi/publisherKpi.ts, lib/ava/tools/getBestPractice.ts, lib/pacing/admin/assignOrphanLineItem.ts, lib/xano/pacingOrphanFixes.ts, app/api/media-details/[...path]/route.ts (GET reference plus the catch-all proxy; POST is Postgres only), and the legacy redirect app/mediaplans/[id]/edit/page.tsx. The other PORT rows are only if a DATA_BACKEND_* or WRITE_BACKEND flag is flipped to xano. XS-2a removed finance HTTP from `xanoReferenceCache`, `xanoFinanceApi` (deleted), `xero-queue`, `readFinance`, `relevantPlanVersions`, and `loadFinanceForecastDataset`.
+XS-2c moves plan and dashboard reads onto Postgres. Still Xano HTTP: lib/api/publishers.ts (market share), lib/kpi/publisherKpi.ts, lib/ava/tools/getBestPractice.ts, lib/pacing/admin/assignOrphanLineItem.ts, and lib/xano/pacingOrphanFixes.ts. Client-collection fetches in lib/api/dashboard/client.ts (`getClientBySlug`, hub client list) stay on Xano until the clients switch. XS-2a removed finance HTTP. Tallies below are not recounted.
 
 **Ten largest PORT files by non-test importers** (direct imports of the file; tests excluded). Dual-read modules rank high because many callers exist; those callers take the Postgres branch today.
 
@@ -147,14 +147,14 @@ In-repo callers grepped under components/, app/, and lib/. A route with no calle
 | `app/api/admin/xano-mirror/retry/route.ts` | deleted (XS-1) | — | no | none | **DONE** | none; no cron |
 | `app/api/finance/receivables/aa-media-plan/route.ts` | proxies aa_media_plan file URL with Xano auth header | unconditional | yes | media_plan_versions.aa_media_plan_file via resolveRelevantVersionAaMediaPlan | **VAULT** | components/finance/MediaPlanActionBar.tsx |
 | `app/api/finance/xero-queue/route.ts` | GET open xero_sync_exceptions; assign_mba writes xero_ar_invoices and resolves the exception | — | no | lib/finance/xeroQueue.ts | **DONE** | XeroExceptionsPanel.tsx, XeroPageClient.tsx |
-| `app/api/media-details/[...path]/route.ts` | GET reference tables; catch-all proxy still calls Xano; POST is Postgres only (XS-1) | GET: DATA_BACKEND; catch-all: unconditional | yes | lib/data/referenceTables.ts fetchReferenceTableFromPostgres; createReferenceMediaDetailPostgresFirst | **PORT** | lib/api.ts → container create*/get* helpers |
+| `app/api/media-details/[...path]/route.ts` | GET reference tables from Postgres; POST reference writes; any other path returns 410 with the path | none | no | lib/data/referenceTables.ts fetchReferenceTableFromPostgres; createReferenceMediaDetailPostgresFirst | **DONE** | lib/api.ts → container get* helpers |
 | `app/api/mediaplans/mba/[mba_number]/documents/__tests__/documents.route.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** | — |
-| `app/api/mediaplans/mba/[mba_number]/route.ts` | GET plan detail; PUT/PATCH media_plan_master, media_plan_versions, channel tables | GET: DATA_BACKEND_PLAN_DETAIL (xano returns 410); PUT/PATCH: unconditional on the handler, in-repo caller gated by WRITE_BACKEND | only if flag flipped | lib/data/readMbaPlanDetail.ts readMbaPlanDetailFromPostgres | **PORT** | edit/create pages, dashboard, trafficking, creative (GET). PUT/PATCH only from edit page when writeBackend !== postgres |
+| `app/api/mediaplans/mba/[mba_number]/route.ts` | GET plan detail from Postgres. PUT returns 410 with the path and does not reap. PATCH updates media_plan_masters and, on publish, stamps published_at and published_version_id | none | no | readMbaPlanDetailFromPostgres; stampVersionPublicationByMbaVersion | **DONE** | edit/create pages still call PUT/PATCH on the Xano write branch |
 | `app/api/mediaplans/[id]/download/__tests__/download.route.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** | — |
-| `app/api/media_plans/[...path]/route.ts` | GET masters/versions/channel lines; residual proxy | DATA_BACKEND_PLANS (GET); WRITE_BACKEND (channel writes 410 when postgres) | only if flag flipped | lib/data/readMediaPlans.ts readPlanMasters / readPlanVersions; createChannelLineItemsGetHandler | **PORT** | lib/api.ts browser proxy |
+| `app/api/media_plans/[...path]/route.ts` | GET masters/versions/channel lines from Postgres; any other path returns 410 with the path | none | no | readPlanMasters / readPlanVersions; createChannelLineItemsGetHandler | **DONE** | lib/api.ts browser GET |
 | `app/api/plans/save/route.ts` | Postgres save only; mirrorPlanToXano removed (XS-1) | — | no | lib/data/savePlan.ts savePlanVersion | **DONE** | lib/mediaplan/buildPostgresSavePayload.ts; create + edit pages |
 | `app/dashboard/[slug]/[mba_number]/page.tsx` | origin for relative plan-file paths (XANO_SAVE_FILE_BASE_URL / media-plans bases) | unconditional | yes | none (file bytes stay in version jsonb) | **VAULT** | page |
-| `app/mediaplans/[id]/edit/page.tsx` | GET media_plan_versions?id= to redirect to MBA editor | unconditional | yes | none | **PORT** | page |
+| `app/mediaplans/[id]/edit/page.tsx` | Looks up media_plan_versions.id in Postgres and redirects to the MBA editor | none | no | media_plan_versions | **DONE** | page |
 
 ## §4 Lib and scripts
 
@@ -162,24 +162,24 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 
 | File | Fetches / writes | Flag | Production | Postgres equivalent | Verdict |
 |---|---|---|---|---|---|
-| `lib/api/dashboard/client.ts` | GET media_plan_versions + media_plan_master (full crawl) | unconditional | yes | none in this file (lib/data/readMediaPlans.ts fetchPlanVersionsFromPostgres is not called) | **PORT** |
-| `lib/api/dashboard/finance.ts` | GET media_plan_versions + media_plan_master | unconditional | yes | none in this file | **PORT** |
-| `lib/api/dashboard/global.ts` | dashboard_monthly_publisher_spend / dashboard_monthly_client_spend | DATA_BACKEND_PLANS | only if flag flipped | lib/data/dashboardMonthlySpend.ts fetchDashboardMonthly*FromPostgres | **PORT** |
-| `lib/api/dashboard/publisher.ts` | GET media_plan_versions | unconditional | yes | none in this file | **PORT** |
+| `lib/api/dashboard/client.ts` | Plan masters and versions via readPlanMasters / readPlanVersions. Client collection GETs remain Xano | plans: none; clients: unconditional | clients only | lib/api/dashboard/planRows.ts | **DONE** (plans) |
+| `lib/api/dashboard/finance.ts` | FYTD plan rows via readPlanMasters / readPlanVersions | none | no | lib/api/dashboard/planRows.ts | **DONE** |
+| `lib/api/dashboard/global.ts` | dashboard monthly publisher/client spend from Postgres | none | no | lib/data/dashboardMonthlySpend.ts fetchDashboardMonthly*FromPostgres | **DONE** |
+| `lib/api/dashboard/publisher.ts` | Plan versions via readPlanVersions | none | no | lib/api/dashboard/planRows.ts | **DONE** |
 | `lib/api/dashboard/shared.ts` | axios client with Xano auth headers (no request until a caller uses apiClient) | unconditional | yes | none | **TOOLING** |
-| `lib/api/fetchChannelLineItemsByMba.ts` | channel media_plan_* pages | DATA_BACKEND_PLANS | only if flag flipped | same file postgres branch / readMediaPlans fetchLineItemsFromPostgresByEndpoint | **PORT** |
-| `lib/api/media-containers.ts` | channel line pages for delivery snapshot | DATA_BACKEND_PLANS | only if flag flipped | same file postgres branch | **PORT** |
+| `lib/api/fetchChannelLineItemsByMba.ts` | channel lines from Postgres line_items | none | no | fetchLineItemsFromPostgresByEndpoint | **DONE** |
+| `lib/api/media-containers.ts` | delivery and container line items from Postgres line_items | none | no | fetchLineItemsFromPostgresByEndpoint | **DONE** |
 | `lib/api/mediaContainerBestPracticeCache.ts` | GET media_container_best_practice | DATA_BACKEND_PUBLISHERS | only if flag flipped | lib/data/writeMediaContainerBestPractice.ts fetchMediaContainerBestPracticeFromPostgres | **PORT** |
-| `lib/api/mediaPlansListCache.ts` | media_plan_versions + topline | DATA_BACKEND_PLANS | only if flag flipped | readMediaPlans | **PORT** |
+| `lib/api/mediaPlansListCache.ts` | latest versions and masters from Postgres | none | no | readMediaPlans | **DONE** |
 | `lib/api/mediaPlanVersionHelper.ts` | filterLineItemsByPlanNumber only; getVersionNumberForMBA deleted (XS-1) | — | no | none | **DONE** |
-| `lib/api/mediaPlanVersionsCache.ts` | media_plan_versions crawl | DATA_BACKEND_PLANS | only if flag flipped | readMediaPlans fetchPlanVersionsFromPostgres | **PORT** |
+| `lib/api/mediaPlanVersionsCache.ts` | latest version per MBA from Postgres | none | no | readPlanVersions / readPlanMasters | **DONE** |
 | `lib/api/publishers.ts` | GET publisher market-share paths; get_publishers | market share unconditional; getPublisherByPublisherId uses DATA_BACKEND_PUBLISHERS | yes | lib/data/readPublishers.ts readPublishersList (lookup only) | **PORT** |
 | `lib/api/replaceChannelLineItems.ts` | list/DELETE/POST channel media_plan_* | unconditional in this file; callers sit on the xano write path | only if flag flipped | lib/data/savePlan.ts savePlanVersion | **PORT** |
 | `lib/api/xano.ts` | URL, auth header, timeout (no table of its own) | unconditional | yes | none | **TOOLING** |
 | `lib/api/xanoClients.ts` | URL builders for clients, media plans, dashboards | unconditional | yes | none | **TOOLING** |
 | `lib/api/xanoPagination.ts` | paginated GET walk | callee-gated | yes | none | **TOOLING** |
 | `lib/api/__tests__/xanoPaginationCompleteness.test.ts` | test double / env stub | unconditional | no | none | **TOOLING** |
-| `lib/api.ts` | server GETs of versions when plans=xano; channel replace/create helpers | DATA_BACKEND_PLANS for version GETs; channel writes unconditional if invoked | only if flag flipped | readMediaPlans / savePlanVersion | **PORT** |
+| `lib/api.ts` | version GETs from Postgres or /api/media_plans. replaceChannelLineItems and createMediaPlanVersion throw. Channel save/create helpers that still name Xano URLs throw or remain for the editor Xano branch | none for version GETs | channel save helpers if that branch runs | readMediaPlans; referenceTables fetchReferenceTableFromPostgres | **DONE** (version GETs, reference getters) |
 | `lib/ava/tools/getBestPractice.ts` | GET media_container_best_practice | unconditional | yes | none | **PORT** |
 | `lib/ava/tools/getCampaignContext.ts` | getAvaXanoSummary | unconditional | no | lib/xano/ava.ts getAvaXanoSummary → fetchPlan*FromPostgres | **NAME-ONLY** |
 | `lib/ava/tools/getMediaPlanSummary.ts` | getAvaXanoSummary | unconditional | no | lib/xano/ava.ts getAvaXanoSummary → fetchPlan*FromPostgres | **NAME-ONLY** |
@@ -195,10 +195,10 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/data/readClients.ts` | clients | DATA_BACKEND_CLIENTS | only if flag flipped | same file postgres branch | **PORT** |
 | `lib/data/readFinance.ts` | finance reads are the Postgres functions (XS-2a) | — | no | same file | **DONE** |
 | `lib/data/readKpi.ts` | campaign_kpi, client_kpi, publisher_kpi | DATA_BACKEND_KPI | only if flag flipped | same file *FromPostgres | **PORT** |
-| `lib/data/readMediaPlans.ts` | media_plan_master, media_plan_versions, channel pages | DATA_BACKEND_PLANS | only if flag flipped | same file *FromPostgres | **PORT** |
+| `lib/data/readMediaPlans.ts` | masters, versions, and channel lines from Postgres. probePlansShadowDiffs is a no-op | none | no | same file *FromPostgres | **DONE** |
 | `lib/data/readPacing.ts` | media_plan_versions, pacing_orphan_fixes | DATA_BACKEND_PACING | only if flag flipped | same file postgres branch | **PORT** |
 | `lib/data/readPublishers.ts` | get_publishers | DATA_BACKEND_PUBLISHERS | only if flag flipped | same file postgres branch | **PORT** |
-| `lib/data/readReferenceMediaDetail.ts` | reference media-detail tables | DATA_BACKEND (reference) | only if flag flipped | lib/data/referenceTables.ts fetchReferenceTableFromPostgres | **PORT** |
+| `lib/data/readReferenceMediaDetail.ts` | reference media-detail tables from Postgres | none | no | fetchReferenceTableFromPostgres | **DONE** |
 | `lib/data/writeApprovals.ts` | PATCH mba_line_approvals | WRITE_BACKEND | only if flag flipped | same file patchMbaLineApprovalsOnPostgres | **PORT** |
 | `lib/data/writeClients.ts` | Postgres insert/update is the whole function (XS-1) | — | no | same file create/update | **DONE** |
 | `lib/data/writeKpi.ts` | Postgres write is the whole function (XS-1) | — | no | same file | **DONE** |
@@ -220,11 +220,11 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/finance/xanoFinanceApi.ts` | deleted (XS-2a) | — | no | lib/data/writeFinance.ts insertFinanceEdit / insertFinanceSavedView; readFinance | **DONE** |
 | `lib/finance/xanoReferenceCache.ts` | readClientsList / readPublishersList; no HTTP (XS-2a) | — | no | same exports | **DONE** |
 | `lib/kpi/publisherKpi.ts` | POST/PATCH/DELETE publisher_kpi (reads go through readKpi) | unconditional | yes | none for writes | **PORT** |
-| `lib/mediaplan/reapUnpublishedStagedVersions.ts` | DELETE unpublished channel + version rows | unconditional; only called from MBA PUT | only if flag flipped | none | **PORT** |
+| `lib/mediaplan/reapUnpublishedStagedVersions.ts` | Deletes unpublished Postgres versions above the published watermark. line_items cascade. MBA PUT no longer calls it | none | no | media_plan_versions / line_items | **DONE** |
 | `lib/ops/health/checks.ts` | GET clients liveness | unconditional | yes | none | **TOOLING** |
 | `lib/pacing/admin/assignOrphanLineItem.ts` | POST pacing_orphan_fixes via createPacingOrphanFix | unconditional | yes | none | **PORT** |
-| `lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts` | media_plan_search pages; campaign_kpi via readKpi | DATA_BACKEND_PLANS | only if flag flipped | same file resolveSearchLineItemsFromPostgres | **PORT** |
-| `lib/pacing/plans/resolveLivePlanLineItems.ts` | channel line pages | DATA_BACKEND_PLANS | only if flag flipped | same file resolveFromPostgres | **PORT** |
+| `lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts` | search lines from Postgres line_items. campaign_kpi still via lib/xano/campaignKpi | none for plans | campaign_kpi only | resolveSearchLineItemsFromPostgres | **DONE** (plans) |
+| `lib/pacing/plans/resolveLivePlanLineItems.ts` | channel lines from Postgres line_items | none | no | resolveFromPostgres | **DONE** |
 | `lib/pacing/programmatic/fetchProgrammaticPacingCampaignRows.ts` | campaign_kpi via readKpi | DATA_BACKEND_KPI | only if flag flipped | lib/data/readKpi.ts readCampaignKpisForMbas postgres branch | **PORT** |
 | `lib/pacing/social/fetchSocialPacingCampaignRows.ts` | campaign_kpi via readKpi | DATA_BACKEND_KPI | only if flag flipped | lib/data/readKpi.ts readCampaignKpisForMbas postgres branch | **PORT** |
 | `lib/snowflake/fetchAllPgLineItems.ts` | type import only; rows from Postgres | LINE_ITEM_SNAPSHOT_SOURCE | no | same file fetchAllPgLineItems | **NAME-ONLY** |

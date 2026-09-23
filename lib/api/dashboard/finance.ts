@@ -1,6 +1,4 @@
-import { parseXanoListPayload } from '@/lib/api/xano'
-import { xanoMediaPlansUrl } from '@/lib/api/xanoClients'
-import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
+import { loadDashboardPlanRows } from '@/lib/api/dashboard/planRows'
 import {
   australianFyStartYearForDate,
   billingMonthsInAustralianFinancialYear,
@@ -9,7 +7,6 @@ import {
 import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { publishedVersionFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
 import {
-  apiClient,
   getTzParts,
   getAustralianFinancialYearWindow,
   normalizeSchedule,
@@ -63,28 +60,7 @@ export async function getFinanceHubScheduleFytdTotals(
 
   const { start: fyStart, end: fyEnd } = getAustralianFinancialYearWindow(reference)
 
-  const [allVersions, mastersRaw] = await Promise.all([
-    fetchAllXanoPages(
-      xanoMediaPlansUrl('media_plan_versions'),
-      {},
-      'DASHBOARD_finance_hub_schedule_fytd',
-      100,
-      50
-    ),
-    (async () => {
-      // Prefer same master endpoints as client dashboard; tolerate missing collection.
-      for (const endpoint of ['media_plan_master', 'media_plans_master'] as const) {
-        try {
-          const response = await apiClient.get(xanoMediaPlansUrl(endpoint))
-          return parseXanoListPayload(response.data)
-        } catch (err: any) {
-          if (err?.response?.status === 404) continue
-          throw err
-        }
-      }
-      return [] as any[]
-    })(),
-  ])
+  const { versions: allVersions, masters: mastersRaw } = await loadDashboardPlanRows()
 
   const publishedByMba = new Map<string, number>()
   for (const master of mastersRaw || []) {

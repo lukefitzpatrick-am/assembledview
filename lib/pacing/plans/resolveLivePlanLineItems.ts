@@ -1,19 +1,11 @@
 import "server-only"
 
-import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import { xanoUrl } from "@/lib/api/xano"
-import { getDataBackendFor } from "@/lib/data/backend"
-import {
-  fetchAllMasters,
-  fetchCurrentVersionRowsForMasters,
-  type VersionRow,
-} from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows"
+import { type VersionRow } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows"
 import { publishedVersionFromMaster } from "@/lib/mediaplan/publishedVersionGuard"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs"
 import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster"
 import { boundedMap } from "@/lib/utils/boundedMap"
 
-const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
 /** Parallel per-master fetches; well under Launch-plan 100 req/s ceiling. */
 export const LIVE_PLAN_LINE_ITEM_CONCURRENCY = 8
 
@@ -86,93 +78,19 @@ export function filterLiveMasters(
   })
 }
 
-function filterByMbaAndVersion(
-  items: unknown[],
-  mbaNumber: string,
-  versionNumber: number,
-  mediaPlanVersionId?: number | null
-): Record<string, unknown>[] {
-  if (!Array.isArray(items)) return []
-  const normalizedMba = norm(mbaNumber)
-  const versionStr = String(versionNumber)
-  const versionIdStr =
-    mediaPlanVersionId !== null && mediaPlanVersionId !== undefined
-      ? String(mediaPlanVersionId)
-      : null
-
-  return items.filter((item) => {
-    const row = item as Record<string, unknown>
-    if (norm(row.mba_number) !== normalizedMba) return false
-
-    const mpPlanNumber = row.mp_plannumber ?? row.mp_plan_number ?? row.mpPlanNumber
-    const mediaPlanVersion = row.media_plan_version
-    const mediaPlanVersionIdField = row.media_plan_version_id ?? row.media_plan_versionID
-    const versionNumberField = row.version_number
-
-    const hasVersionIdCandidate =
-      (mediaPlanVersion !== null &&
-        mediaPlanVersion !== undefined &&
-        String(mediaPlanVersion).trim() !== "") ||
-      (mediaPlanVersionIdField !== null &&
-        mediaPlanVersionIdField !== undefined &&
-        String(mediaPlanVersionIdField).trim() !== "")
-
-    if (versionIdStr && hasVersionIdCandidate) {
-      const candidates = [mediaPlanVersion, mediaPlanVersionIdField]
-      return candidates.some((value) => String(value ?? "").trim() === versionIdStr)
-    }
-
-    const versionCandidates = [mpPlanNumber, versionNumberField]
-    return versionCandidates.some((value) => String(value ?? "").trim() === versionStr)
-  }) as Record<string, unknown>[]
-}
-
-/** Existing Xano walk: five param shapes, pick the tightest MBA+version match. */
+/** Live channel lines from Postgres `line_items`. Name kept for existing importers. */
 export async function fetchXanoLineItemsForMba(args: {
   mba_number: string
   versionRowId: number
   versionNumber: number
   tableName: string
 }): Promise<Record<string, unknown>[]> {
-  const url = xanoUrl(args.tableName, [...MEDIA_PLANS_KEYS])
-  const attempts: Array<Record<string, string | number | boolean | null | undefined>> = [
-    { mba_number: args.mba_number, media_plan_version: args.versionRowId },
-    { mba_number: args.mba_number, media_plan_version_id: args.versionRowId },
-    { mba_number: args.mba_number, mp_plannumber: args.versionNumber },
-    { mba_number: args.mba_number, version_number: args.versionNumber },
-    { mba_number: args.mba_number, media_plan_version: args.versionNumber },
-  ]
-
-  let best: Record<string, unknown>[] = []
-  let bestRawCount = Number.POSITIVE_INFINITY
-
-  for (const params of attempts) {
-    const raw = await fetchAllXanoPages(
-      url,
-      params,
-      `PACING_${args.tableName}`,
-      200,
-      20
-    )
-    const filtered = filterByMbaAndVersion(
-      raw,
-      args.mba_number,
-      args.versionNumber,
-      args.versionRowId
-    )
-    if (
-      filtered.length > best.length ||
-      (filtered.length === best.length && raw.length < bestRawCount)
-    ) {
-      best = filtered
-      bestRawCount = raw.length
-    }
-    if (raw.length > 0 && raw.length === filtered.length) {
-      break
-    }
-  }
-
-  return best
+  const { fetchLineItemsFromPostgresByEndpoint } = await import("@/lib/data/readMediaPlans")
+  return fetchLineItemsFromPostgresByEndpoint(
+    args.tableName,
+    args.mba_number,
+    args.versionNumber,
+  )
 }
 
 function rowsFromFetchedLines(args: {
@@ -303,81 +221,10 @@ async function resolveFromPostgres(
   return out
 }
 
-async function resolveFromXano(
-  args: ResolveLivePlanLineItemsArgs,
-  logTag: string
-): Promise<LivePlanLineItemRow[]> {
-  const masters = await fetchAllMasters()
-  const liveMasters = filterLiveMasters(
-    masters,
-    args.asOfDate,
-    args.allowedClientSlugs,
-    args.mbaNumber,
-  )
-  if (liveMasters.length === 0) return []
-
-  const versionRowsByMba = await fetchCurrentVersionRowsForMasters(liveMasters)
-
-  const perMaster = await boundedMap(
-    liveMasters,
-    async (master) => {
-      const versionRow = versionRowsByMba.get(norm(master.mba_number))
-      if (!versionRow) {
-        console.warn(
-          `[pacing/${logTag}] no version row for master`,
-          master.mba_number,
-          master.version_number
-        )
-        return [] as LivePlanLineItemRow[]
-      }
-
-      const inputs: LivePlanLineItemRow[] = []
-      for (const endpoint of args.endpoints) {
-        const lines = await fetchXanoLineItemsForMba({
-          mba_number: master.mba_number,
-          versionRowId: versionRow.id,
-          versionNumber: master.version_number,
-          tableName: endpoint,
-        })
-        inputs.push(
-          ...rowsFromFetchedLines({
-            master,
-            versionRow,
-            endpoint,
-            lines,
-            logTag,
-          })
-        )
-      }
-      return inputs
-    },
-    LIVE_PLAN_LINE_ITEM_CONCURRENCY
-  )
-
-  const out = perMaster.flat()
-  if (out.length === 0) {
-    warnEmptyLiveChannel({
-      channelLabel: logTag,
-      backend: "xano",
-      liveMasterCount: liveMasters.length,
-      endpoints: args.endpoints,
-    })
-  }
-  return out
-}
-
-/**
- * Live plan lines for pacing channel resolvers.
- * Postgres when `getDataBackendFor("plans")` is postgres (published watermark);
- * otherwise the existing Xano per-table walk. Search has its own composer
- * and now follows the same plans-backend switch.
- */
+/** Live plan lines for pacing channel resolvers. Postgres `line_items` only. */
 export async function resolveLivePlanLineItems(
   args: ResolveLivePlanLineItemsArgs
 ): Promise<LivePlanLineItemRow[]> {
   const logTag = args.channelLabel ?? args.endpoints.join(",")
-  if (getDataBackendFor("plans") === "postgres") {
-    return resolveFromPostgres(args, logTag)
-  }
-  return resolveFromXano(args, logTag)
+  return resolveFromPostgres(args, logTag)
 }

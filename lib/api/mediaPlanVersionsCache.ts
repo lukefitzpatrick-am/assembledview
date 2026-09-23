@@ -1,5 +1,3 @@
-import { fetchAllXanoPagesWithCompleteness } from "@/lib/api/xanoPagination"
-import { parseXanoListPayload, peekXanoEnv, xanoUrl } from "@/lib/api/xano"
 import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 
 /**
@@ -20,8 +18,6 @@ import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
  */
 
 const DEFAULT_TTL_MS = 60_000
-/** Halved from 100: page 1 at per_page=50 measured ~429ms vs ~844ms at 100 (29 Jul 2026). */
-const PAGE_SIZE = 50
 const FAILURE_BACKOFF_MS = 30_000
 
 const SCHEDULE_KEYS = [
@@ -55,17 +51,6 @@ function cacheTtlMs(): number {
   return Number.isFinite(n) && n >= 0 ? n : DEFAULT_TTL_MS
 }
 
-function versionsPath(): string {
-  const override = peekXanoEnv("XANO_MEDIA_PLAN_VERSIONS_PATH")
-  return override && override.length > 0
-    ? override.replace(/^\//, "")
-    : "media_plan_versions_latest"
-}
-
-function versionsUrl(): string {
-  return xanoUrl(versionsPath(), ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-}
-
 function stripScheduleFields(row: any): any {
   if (!row || typeof row !== "object") return row
   const next = { ...row }
@@ -83,60 +68,33 @@ function stripScheduleFields(row: any): any {
  * inline; Postgres versions do not (DI-9b; twin of mediaPlansListCache / DI-9).
  */
 async function fetchUpstream(): Promise<any[]> {
-  const { getDataBackendFor } = await import("@/lib/data/backend")
-  if (getDataBackendFor("plans") === "postgres") {
-    const { readPlanVersions, readPlanMasters } = await import(
-      "@/lib/data/readMediaPlans"
-    )
-    const { applyMasterOwnedOverlayByMba } = await import(
-      "@/lib/api/overlayMasterOwnedListFields"
-    )
-    const [all, masters] = await Promise.all([
-      readPlanVersions(),
-      readPlanMasters(),
-    ])
-    const latestByMba = new Map<string, any>()
-    for (const plan of all) {
-      const key = mbaJoinKey(plan?.mba_number)
-      if (!key) continue
-      const existing = latestByMba.get(key)
-      const planVn = Number(plan.version_number) || 0
-      const existingVn = Number(existing?.version_number) || 0
-      if (
-        !existing ||
-        existingVn < planVn ||
-        (existingVn === planVn && Number(existing?.id || 0) < Number(plan.id || 0))
-      ) {
-        latestByMba.set(key, plan)
-      }
-    }
-    const latest = Array.from(latestByMba.values()).map(stripScheduleFields)
-    return applyMasterOwnedOverlayByMba(latest, masters)
-  }
-
-  // shadow / xano: serve Xano `_latest` (shadow compare happens via readPlanVersions elsewhere)
-  if (getDataBackendFor("plans") === "shadow") {
-    void import("@/lib/data/readMediaPlans").then(({ readPlanVersions }) =>
-      readPlanVersions().catch((err) =>
-        console.error("[mediaPlanVersionsCache] plans shadow compare failed", err)
-      )
-    )
-  }
-
-  const { items, complete } = await fetchAllXanoPagesWithCompleteness(
-    versionsUrl(),
-    { include_schedules: false },
-    "media_plan_versions_latest",
-    PAGE_SIZE,
-    50
+  const { readPlanVersions, readPlanMasters } = await import(
+    "@/lib/data/readMediaPlans"
   )
-  if (!complete) {
-    throw new Error(
-      "media_plan_versions_latest page walk incomplete; refusing to cache partial data"
-    )
+  const { applyMasterOwnedOverlayByMba } = await import(
+    "@/lib/api/overlayMasterOwnedListFields"
+  )
+  const [all, masters] = await Promise.all([
+    readPlanVersions(),
+    readPlanMasters(),
+  ])
+  const latestByMba = new Map<string, any>()
+  for (const plan of all) {
+    const key = mbaJoinKey(plan?.mba_number)
+    if (!key) continue
+    const existing = latestByMba.get(key)
+    const planVn = Number(plan.version_number) || 0
+    const existingVn = Number(existing?.version_number) || 0
+    if (
+      !existing ||
+      existingVn < planVn ||
+      (existingVn === planVn && Number(existing?.id || 0) < Number(plan.id || 0))
+    ) {
+      latestByMba.set(key, plan)
+    }
   }
-  const list = Array.isArray(items) ? items : parseXanoListPayload(items)
-  return list.map(stripScheduleFields)
+  const latest = Array.from(latestByMba.values()).map(stripScheduleFields)
+  return applyMasterOwnedOverlayByMba(latest, masters)
 }
 
 function startRefresh(): Promise<MediaPlanVersionsCacheResult> {

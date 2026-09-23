@@ -1,17 +1,12 @@
-import axios from "axios"
+import { eq } from "drizzle-orm"
 import { notFound, redirect } from "next/navigation"
-import { xanoUrl } from "@/lib/api/xano"
+import { getDb, schema } from "@/db"
 
 export const dynamic = "force-dynamic"
 
-type MediaPlanVersion = {
-  mba_number?: string | null
-  mbanumber?: string | null
-  version_number?: number | null
-}
-
 /**
  * Legacy `/mediaplans/{id}/edit` URLs redirect to the canonical MBA editor.
+ * `id` is a Postgres `media_plan_versions.id`.
  */
 export default async function LegacyMediaPlanEditRedirect({
   params,
@@ -19,36 +14,31 @@ export default async function LegacyMediaPlanEditRedirect({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const versionId = Number(id)
+  if (!Number.isFinite(versionId) || versionId <= 0) {
+    notFound()
+  }
 
-  const versionsUrl = `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?id=${encodeURIComponent(id)}`
-
-  let mediaPlanVersion: MediaPlanVersion | undefined
-  try {
-    const response = await axios.get(versionsUrl, {
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      timeout: 55_000,
+  const db = getDb()
+  const rows = await db
+    .select({
+      mbaNumber: schema.mediaPlanVersions.mbaNumber,
+      versionNumber: schema.mediaPlanVersions.versionNumber,
     })
-    const data = response.data
-    mediaPlanVersion = Array.isArray(data) ? data[0] : data
-  } catch {
-    notFound()
-  }
+    .from(schema.mediaPlanVersions)
+    .where(eq(schema.mediaPlanVersions.id, versionId))
+    .limit(1)
 
-  if (!mediaPlanVersion) {
-    notFound()
-  }
-
-  const mbaNumber = (mediaPlanVersion.mba_number ?? mediaPlanVersion.mbanumber ?? "").trim()
+  const row = rows[0]
+  const mbaNumber = (row?.mbaNumber ?? "").trim()
   if (!mbaNumber) {
     notFound()
   }
 
-  const version =
-    mediaPlanVersion.version_number != null ? String(mediaPlanVersion.version_number) : null
-  const versionQuery = version ? `?version=${encodeURIComponent(version)}` : ""
+  const versionQuery =
+    row.versionNumber != null
+      ? `?version=${encodeURIComponent(String(row.versionNumber))}`
+      : ""
 
   redirect(`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/edit${versionQuery}`)
 }

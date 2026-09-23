@@ -1,12 +1,4 @@
-import axios from "axios"
-import { fetchAllXanoPagesWithCompleteness } from "@/lib/api/xanoPagination"
-import {
-  parseXanoListPayload,
-  xanoAuthHeaderRecord,
-  xanoPostHeaderRecord,
-  xanoUrl,
-} from "@/lib/api/xano"
-import { getCachedMediaPlanVersions } from "@/lib/api/mediaPlanVersionsCache"
+﻿import { getCachedMediaPlanVersions } from "@/lib/api/mediaPlanVersionsCache"
 import { overlayMasterOwnedListFields } from "@/lib/api/overlayMasterOwnedListFields"
 import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import {
@@ -25,7 +17,7 @@ import {
  * `_latest` carried inline (notably `mp_client_name`); Postgres version rows omit
  * those. Versions without a master row are kept.
  *
- * Master-owned overlay lives in `overlayMasterOwnedListFields.ts` — shared with
+ * Master-owned overlay lives in `overlayMasterOwnedListFields.ts` â€” shared with
  * `mediaPlanVersionsCache` (dashboard `/api/media_plans`). Twin-file: change both.
  */
 
@@ -36,7 +28,6 @@ export {
 } from "@/lib/api/overlayMasterOwnedListFields"
 
 const DEFAULT_TTL_MS = 60_000
-const PAGE_SIZE = 100
 
 const SCHEDULE_KEYS = [
   "deliverySchedule",
@@ -75,10 +66,6 @@ function stripScheduleFields(row: any): any {
   return next
 }
 
-function mediaPlansUrl(path: string): string {
-  return xanoUrl(path, ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-}
-
 async function fetchVersionsForList(): Promise<{
   data: any[]
   stale: boolean
@@ -90,22 +77,8 @@ async function fetchVersionsForList(): Promise<{
 }
 
 async function fetchMasters(): Promise<any[]> {
-  const { getDataBackendFor } = await import("@/lib/data/backend")
-  if (getDataBackendFor("plans") !== "xano") {
-    const { readPlanMasters } = await import("@/lib/data/readMediaPlans")
-    return readPlanMasters()
-  }
-  const { items, complete } = await fetchAllXanoPagesWithCompleteness(
-    mediaPlansUrl("media_plan_master"),
-    {},
-    "MEDIAPLANS_master",
-    PAGE_SIZE,
-    50
-  )
-  if (!complete) {
-    throw new Error("media_plan_master page walk incomplete")
-  }
-  return items
+  const { readPlanMasters } = await import("@/lib/data/readMediaPlans")
+  return readPlanMasters()
 }
 
 async function fetchPublishedVersionRow(
@@ -113,17 +86,8 @@ async function fetchPublishedVersionRow(
   published: number,
 ): Promise<any | null> {
   try {
-    const { data } = await axios.get(mediaPlansUrl("media_plan_versions"), {
-      headers: xanoAuthHeaderRecord(),
-      params: {
-        mba_number: mbaNumber,
-        version_number: published,
-        page: 1,
-        per_page: 50,
-      },
-      timeout: 15_000,
-    })
-    const rows = parseXanoListPayload(data)
+    const { readPlanVersionsByMba } = await import("@/lib/data/readMediaPlans")
+    const rows = await readPlanVersionsByMba(mbaNumber)
     const match = pickPublishedVersionRow(rows, published)
     return match ? stripScheduleFields(match) : null
   } catch (err) {
@@ -249,96 +213,12 @@ export async function getCachedMediaPlansList(): Promise<MediaPlansListCacheResu
   return promise
 }
 
-/** Fallback path used when the primary list cache fetch fails entirely. */
+/** Fallback path used when the primary list cache fetch fails entirely. Postgres only. */
 export async function fetchMediaPlansListFallback(): Promise<any[]> {
-  const XANO_TIMEOUT_MS = 15_000
-  const XANO_LONG_TIMEOUT_MS = 30_000
-
-  let masterMap = new Map<string, any>()
-  try {
-    const masters = await fetchMasters()
-    for (const master of masters) {
-      const key = mbaJoinKey(master?.mba_number)
-      if (key) masterMap.set(key, master)
-    }
-  } catch (masterError) {
-    console.log("Could not fetch masters for version number:", masterError)
-    try {
-      // REVIEW: Server-only cache module (used from API routes); auth via choke point.
-      const masterResponse = await axios.get(mediaPlansUrl("media_plan_master"), {
-        timeout: XANO_TIMEOUT_MS,
-        headers: xanoAuthHeaderRecord(),
-      })
-      const masters = parseXanoListPayload(masterResponse.data)
-      for (const master of masters) {
-        const key = mbaJoinKey(master?.mba_number)
-        if (key) masterMap.set(key, master)
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  let latestVersionId = 1
-  if (masterMap.size > 0) {
-    latestVersionId = Math.max(
-      ...Array.from(masterMap.values()).map((m: any) => m.version_number || 1)
-    )
-  }
-
-  const originalResponse = await axios.post(
-    xanoUrl("get_mediaplan_topline", "XANO_MEDIAPLANS_BASE_URL"),
-    { version_number: latestVersionId },
-    { timeout: XANO_LONG_TIMEOUT_MS, headers: xanoPostHeaderRecord() }
-  )
-
-  const fallbackData = Array.isArray(originalResponse.data)
-    ? originalResponse.data
-    : [originalResponse.data]
-
-  const latestByMba = new Map<string, any>()
-  for (const plan of fallbackData) {
-    const key = mbaJoinKey(plan?.mba_number)
-    if (!key) continue
-    const existing = latestByMba.get(key)
-    const planVersion = plan.version_number || 0
-    const existingVersion = existing?.version_number || 0
-    if (
-      !existing ||
-      existingVersion < planVersion ||
-      (existingVersion === planVersion && (existing.id || 0) < (plan.id || 0))
-    ) {
-      latestByMba.set(key, stripScheduleFields(plan))
-    }
-  }
-
-  return (
-    await Promise.all(
-      Array.from(latestByMba.values()).map(async (plan) => {
-        const masterData = masterMap.get(mbaJoinKey(plan.mba_number) ?? "")
-        if (!masterData || masterData.version_number === undefined) {
-          return overlayMasterOwnedListFields(plan, masterData)
-        }
-        const published = publishedVersionFromMaster(masterData)
-        const planVn = parseVersionNumber(plan.version_number)
-        if (published > 0 && planVn > published) {
-          const publishedRow = await fetchPublishedVersionRow(
-            String(plan.mba_number),
-            published,
-          )
-          if (publishedRow) {
-            return overlayMasterOwnedListFields(
-              { ...publishedRow, version_number: masterData.version_number },
-              masterData,
-            )
-          }
-          return null
-        }
-        return overlayMasterOwnedListFields(
-          { ...plan, version_number: masterData.version_number },
-          masterData,
-        )
-      }),
-    )
-  ).filter((row): row is any => row != null)
+  const [masters, versions] = await Promise.all([
+    fetchMasters(),
+    getCachedMediaPlanVersions(),
+  ])
+  return mergeLatestVersionsWithMasters(versions.data, masters)
 }
+

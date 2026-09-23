@@ -5,8 +5,8 @@ import {
   ClientHubSummary,
 } from '@/lib/types/dashboard'
 import { parseXanoListPayload, peekXanoEnv } from '@/lib/api/xano'
-import { getXanoClientsCollectionUrl, xanoMediaPlansUrl } from '@/lib/api/xanoClients'
-import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
+import { getXanoClientsCollectionUrl } from '@/lib/api/xanoClients'
+import { loadDashboardPlanRows, loadDashboardVersionsForMba } from '@/lib/api/dashboard/planRows'
 import { resolveClientGroup } from '@/lib/clients/clientGroup'
 import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slug'
 import { hasNonEmptyClientBrain, omitClientBrain } from '@/lib/clients/omitClientBrain'
@@ -81,44 +81,9 @@ function xanoResponseBodyPreview(data: unknown): string {
   }
 }
 
-async function fetchMediaPlanMasterWithFallback(): Promise<{ data: any; endpoint: string }> {
-  const endpoints = ['media_plan_master', 'media_plans_master']
-  const debug = isDashboardDebug()
-  let lastError: any = null
-
-  for (const endpoint of endpoints) {
-    const url = xanoMediaPlansUrl(endpoint)
-    try {
-      const response = await apiClient.get(url)
-      if (debug) {
-        console.log(`Dashboard: fetched media plan master via ${endpoint}`)
-      }
-      return { data: response.data, endpoint }
-    } catch (err: any) {
-      const status = err?.response?.status
-      lastError = err
-      const msg = err?.message != null ? String(err.message) : String(err)
-      console.error('[dashboard] fetchMediaPlanMasterWithFallback catch:', {
-        message: msg,
-        failedUrl: url,
-        responseStatus: err?.response?.status,
-        responseBodyPreview: err?.response?.data != null ? xanoResponseBodyPreview(err.response.data) : undefined,
-        err,
-      })
-
-      if (debug) {
-        console.warn(`Dashboard: ${endpoint} request failed${status ? ` (status ${status})` : ''}`)
-      }
-
-      if (status === 404) {
-        continue
-      }
-
-      throw err
-    }
-  }
-
-  throw lastError ?? new Error('Dashboard: media plan master endpoints unavailable')
+async function fetchMediaPlanMasterWithFallback(): Promise<{ data: any[]; endpoint: string }> {
+  const { masters } = await loadDashboardPlanRows()
+  return { data: masters, endpoint: 'postgres:media_plan_masters' }
 }
 
 export async function getClientBySlug(slug: string): Promise<Client | null> {
@@ -177,29 +142,9 @@ export async function getClientBySlug(slug: string): Promise<Client | null> {
 }
 
 async function fetchMediaPlanVersionsArray(): Promise<any[]> {
-  // Full version history (paged). Needed by fetchVersionsForMba (version switcher).
-  // Do NOT use getCachedMediaPlanVersions / media_plan_versions_latest here.
-  const url = xanoMediaPlansUrl('media_plan_versions')
-  try {
-    return await fetchAllXanoPages(url, {}, 'DASHBOARD_client_media_plan_versions', 100, 50)
-  } catch (error: any) {
-    const msg = error?.message != null ? String(error.message) : String(error)
-    console.error('[dashboard] fetchMediaPlanVersionsArray catch:', {
-      message: msg,
-      failedUrl: url,
-      responseStatus: error?.response?.status,
-      responseBodyPreview:
-        error?.response?.data != null ? xanoResponseBodyPreview(error.response.data) : undefined,
-      error,
-    })
-    if (error?.response?.status === 404) {
-      if (isDashboardDebug()) {
-        console.warn('Dashboard: media_plan_versions returned 404')
-      }
-      return []
-    }
-    throw error
-  }
+  // Full version history. Do NOT use getCachedMediaPlanVersions / media_plan_versions_latest.
+  const { versions } = await loadDashboardPlanRows()
+  return versions
 }
 
 export type MediaPlanVersionListEntry = {
@@ -282,17 +227,9 @@ export function mapMbaCampaignResponseVersionsToListEntries(
   return entries
 }
 
-/** All versions for one MBA from Xano (newest first). Paged + mba filter. */
+/** All versions for one MBA from Postgres (newest first). */
 export async function fetchVersionsForMba(mbaNumber: string): Promise<MediaPlanVersionListEntry[]> {
-  // Version history — do NOT use getCachedMediaPlanVersions / media_plan_versions_latest.
-  const url = xanoMediaPlansUrl('media_plan_versions')
-  const all = await fetchAllXanoPages(
-    url,
-    { mba_number: String(mbaNumber).trim() },
-    'DASHBOARD_versions_for_mba',
-    100,
-    20
-  )
+  const all = await loadDashboardVersionsForMba(String(mbaNumber).trim())
   const normalisedMba = String(mbaNumber).trim()
   const out: MediaPlanVersionListEntry[] = []
   for (const raw of all) {
@@ -301,16 +238,26 @@ export async function fetchVersionsForMba(mbaNumber: string): Promise<MediaPlanV
     if (candidate !== normalisedMba) continue
     const versionNumber = Number(v.version_number ?? v.versionNumber)
     if (!Number.isFinite(versionNumber) || versionNumber <= 0) continue
+    const createdAt =
+      typeof v.created_at === "number" && Number.isFinite(v.created_at)
+        ? new Date(v.created_at).toISOString()
+        : typeof v.created_at === "string"
+          ? v.created_at.trim()
+          : ""
     const planDate =
       typeof v.plan_date === "string" && v.plan_date.trim()
         ? v.plan_date.trim()
-        : typeof v.created_at === "string" && v.created_at.trim()
-          ? v.created_at.trim()
-          : typeof v.updated_at === "string" && v.updated_at.trim()
+        : createdAt ||
+          (typeof v.updated_at === "string" && v.updated_at.trim()
             ? v.updated_at.trim()
-            : undefined
+            : undefined)
     const idRaw = v.id
-    const id = typeof idRaw === "number" ? idRaw : undefined
+    const id =
+      typeof idRaw === "number"
+        ? idRaw
+        : typeof idRaw === "string" && Number.isFinite(Number(idRaw))
+          ? Number(idRaw)
+          : undefined
     out.push({
       versionNumber,
       planDate,

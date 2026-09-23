@@ -11,12 +11,18 @@ import {
   pickLineItemNumber,
   sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
-import { replaceChannelLineItems } from "@/lib/api/replaceChannelLineItems"
 import { extractAndFormatBursts } from "@/lib/mediaplan/formatBurstsForPersist"
 import { formatProductionBurstForPersist } from "@/lib/mediaplan/resolveProductionBurstBudget"
 import { getBooleanField } from "@/lib/util/getBooleanField"
 
-export { replaceChannelLineItems }
+/** Xano channel replace is deleted. Callers must use POST /api/plans/save. */
+export async function replaceChannelLineItems(
+  ..._args: unknown[]
+): Promise<never> {
+  throw new Error(
+    "replaceChannelLineItems is deleted. The editor saves through POST /api/plans/save."
+  )
+}
 
 const isBrowser = typeof window !== "undefined"
 const PUBLISHERS_BASE_URL = getXanoBaseUrl("XANO_PUBLISHERS_BASE_URL")
@@ -869,168 +875,10 @@ export async function createMediaPlan(data: {
  * 
  * Note: If the input block only contains 'dblink', Xano will not parse the JSON body fields.
  */
-export async function createMediaPlanVersion(data: MediaPlanVersion) {
-  try {
-    const resolvedClientName =
-      (typeof (data as any).mp_client_name === "string" && (data as any).mp_client_name.trim()) ||
-      (typeof (data as any).client_name === "string" && (data as any).client_name.trim()) ||
-      ""
-    if (!resolvedClientName) {
-      throw new Error("mp_client_name is required and must be a non-empty string")
-    }
-    
-    // Validate required fields match Xano expectations
-    const requiredFields = {
-      media_plan_master_id: 'number',
-      version_number: 'number',
-      mba_number: 'string',
-      campaign_name: 'string',
-      campaign_status: 'string',
-      campaign_start_date: 'string',
-      campaign_end_date: 'string',
-      brand: 'string',
-      mp_client_name: 'string',
-      client_contact: 'string',
-      po_number: 'string',
-      mp_campaignbudget: 'number',
-    };
-    
-    const missingFields: string[] = [];
-    const typeMismatches: string[] = [];
-    
-    Object.entries(requiredFields).forEach(([field, expectedType]) => {
-      if (data[field as keyof MediaPlanVersion] === undefined || data[field as keyof MediaPlanVersion] === null) {
-        missingFields.push(field);
-      } else if (typeof data[field as keyof MediaPlanVersion] !== expectedType) {
-        typeMismatches.push(`${field} (expected ${expectedType}, got ${typeof data[field as keyof MediaPlanVersion]})`);
-      }
-    });
-    
-    if (missingFields.length > 0) {
-      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-    }
-    
-    if (typeMismatches.length > 0) {
-      console.warn("Type mismatches detected:", typeMismatches);
-    }
-    
-    // Ensure boolean fields are actual booleans (not strings or undefined)
-    const booleanFields = [
-      'fixed_fee', 'mp_television', 'mp_radio', 'mp_newspaper', 'mp_magazines',
-      'mp_ooh', 'mp_cinema', 'mp_digidisplay', 'mp_digiaudio', 'mp_digivideo',
-      'mp_bvod', 'mp_integration', 'mp_search', 'mp_socialmedia', 'mp_progdisplay',
-      'mp_progvideo', 'mp_progbvod', 'mp_progaudio', 'mp_progooh', 'mp_influencers'
-    ];
-    
-    const sanitizedData: Partial<MediaPlanVersion> = { ...data };
-    if (sanitizedData.deliverySchedule && !(sanitizedData as any).delivery_schedule) {
-      (sanitizedData as any).delivery_schedule = sanitizedData.deliverySchedule;
-    }
-    booleanFields.forEach(field => {
-      if (sanitizedData[field as keyof MediaPlanVersion] === undefined) {
-        (sanitizedData as any)[field] = false;
-      }
-    });
-    
-    // Ensure correct field is sent to Xano
-    ;(sanitizedData as any).mp_client_name = resolvedClientName
-    if ((sanitizedData as any).client_name) {
-      delete (sanitizedData as any).client_name
-    }
-    
-    // Log the payload for debugging
-    console.log("Creating media plan version with payload:", JSON.stringify(sanitizedData, null, 2));
-    console.log("mp_client_name value:", (sanitizedData as any).mp_client_name);
-    console.log("mp_client_name type:", typeof (sanitizedData as any).mp_client_name);
-    
-    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions`, {
-      method: 'POST',
-      headers: xanoPostHeaderRecord(),
-      body: JSON.stringify(sanitizedData), 
-    });
-    
-    if (!response.ok) {
-      let errorMessage = "Failed to create media plan version";
-      let errorData: any = {};
-      
-      try {
-        const responseText = await response.text();
-        console.error("Raw error response:", responseText);
-        
-        if (responseText) {
-          try {
-            errorData = JSON.parse(responseText);
-          } catch (parseError) {
-            // If response is not JSON, use the text as error message
-            errorMessage = responseText || `HTTP ${response.status}: ${response.statusText}`;
-          }
-        }
-      } catch (textError) {
-        console.error("Error reading error response:", textError);
-      }
-      
-      console.error("API Error Response:", errorData);
-      console.error("Request payload that failed:", JSON.stringify(sanitizedData, null, 2));
-      console.error("Response status:", response.status);
-      console.error("Response headers:", Object.fromEntries(response.headers.entries()));
-      
-      // Extract error message from various possible locations
-      errorMessage = errorData.message || errorData.error || errorData.detail || errorMessage;
-      
-      // Check if the error mentions "Unable to locate input" - this suggests Xano can't find the field
-      if (errorMessage.includes("Unable to locate input") || errorMessage.includes("mp_client_name") || errorMessage.includes("client_name")) {
-        const missingField = errorMessage.match(/Unable to locate input: (\w+)/)?.[1] || "unknown field";
-        console.error("Xano query error detected. The endpoint input block needs to explicitly declare input fields.");
-        console.error(`Missing field in Xano script: ${missingField}`);
-        console.error("Payload structure:", {
-          hasClientName: !!(sanitizedData as any).mp_client_name,
-          clientNameValue: (sanitizedData as any).mp_client_name,
-          clientNameType: typeof (sanitizedData as any).mp_client_name,
-          allKeys: Object.keys(sanitizedData),
-          payloadKeys: Object.keys(sanitizedData).sort(),
-          expectedKeys: [
-            'media_plan_master_id', 'version_number', 'mba_number', 'campaign_name',
-            'campaign_status', 'campaign_start_date', 'campaign_end_date', 'brand',
-            'mp_client_name', 'client_contact', 'po_number', 'mp_campaignbudget',
-            'fixed_fee', 'mp_television', 'mp_radio', 'mp_newspaper', 'mp_magazines',
-            'mp_ooh', 'mp_cinema', 'mp_digidisplay', 'mp_digiaudio', 'mp_digivideo',
-            'mp_bvod', 'mp_integration', 'mp_search', 'mp_socialmedia', 'mp_progdisplay',
-            'mp_progvideo', 'mp_progbvod', 'mp_progaudio', 'mp_progooh', 'mp_influencers',
-            'billingSchedule', 'created_at'
-          ].sort()
-        });
-        console.error("Xano Script Fix Required:");
-        console.error("The Xano script's 'input' block must explicitly declare all input fields.");
-        console.error("Example: input { mp_client_name: string, media_plan_master_id: integer, ... }");
-        console.error("Remove or modify the 'dblink' configuration in the input block if it's preventing field parsing.");
-        
-        // Provide a more helpful error message
-        errorMessage = `Xano endpoint configuration error: The input field '${missingField}' is not declared in the Xano script's input block. Please update the Xano script to explicitly declare all input fields (mp_client_name, media_plan_master_id, etc.) in the input block.`;
-      }
-      
-      // If we got an empty object but status is 500, provide a more helpful message
-      if (response.status === 500 && (!errorData.message && !errorData.error)) {
-        errorMessage = "Server error: Unable to process request. Please check that all required fields are provided correctly.";
-      }
-      
-      throw new Error(errorMessage);
-    }
-    
-    const responseText = await response.text();
-    if (!responseText) {
-      throw new Error("Empty response from server");
-    }
-    
-    try {
-      return JSON.parse(responseText);
-    } catch (parseError) {
-      console.error("Failed to parse response as JSON:", responseText);
-      throw new Error("Invalid response format from server");
-    }
-  } catch (error) {
-    console.error("Error creating media plan version:", error);
-    throw error;
-  }
+export async function createMediaPlanVersion(_data: MediaPlanVersion): Promise<never> {
+  throw new Error(
+    "createMediaPlanVersion is deleted. The editor saves through POST /api/plans/save."
+  )
 }
 
 export async function editMediaPlan(id: number, data: any) { 
@@ -1053,69 +901,32 @@ export async function getPublishers(): Promise<Publisher[]> {
 
 export async function getMediaPlanVersions() {
   if (!isBrowser) {
-    const { getDataBackendFor } = await import("@/lib/data/backend")
-    if (getDataBackendFor("plans") !== "xano") {
-      const { readPlanVersions } = await import(
-        /* webpackIgnore: true */ "@/lib/data/readMediaPlans"
-      )
-      return readPlanVersions()
-    }
-  }
-  const { fetchAllXanoPages } = await import("@/lib/api/xanoPagination")
-  const { parseXanoListPayload } = await import("@/lib/api/xano")
-  try {
-    return await fetchAllXanoPages(
-      `${MEDIA_PLANS_BASE_URL}/media_plan_versions`,
-      {},
-      "lib_api_media_plan_versions",
-      100,
-      50
+    const { readPlanVersions } = await import(
+      /* webpackIgnore: true */ "@/lib/data/readMediaPlans"
     )
-  } catch {
-    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?page=1&per_page=100`, { headers: xanoAuthHeaderRecord() });
-    if (!response.ok) {
-      throw new Error("Failed to fetch media plan versions");
-    }
-    return parseXanoListPayload(await response.json());
+    return readPlanVersions()
   }
+  const response = await fetch("/api/media_plans/media_plan_versions")
+  if (!response.ok) throw new Error("Failed to fetch media plan versions")
+  return response.json()
 }
 
 export async function getMediaPlanVersionById(id: number) {
-  try {
-    const { parseXanoListPayload } = await import("@/lib/api/xano")
-    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?id=${id}&page=1&per_page=50`, { headers: xanoAuthHeaderRecord() });
-    if (!response.ok) {
-      throw new Error("Failed to fetch media plan version");
-    }
-    const data = parseXanoListPayload(await response.json());
-    return Array.isArray(data) ? data[0] : data;
-  } catch (error) {
-    console.error("Error fetching media plan version:", error);
-    throw error;
-  }
+  const rows = await getMediaPlanVersions()
+  const list = Array.isArray(rows) ? rows : []
+  return list.find((row: { id?: unknown }) => Number(row?.id) === id) ?? null
 }
 
 export async function getMediaPlanVersionByMasterId(masterId: number) {
-  try {
-    const { parseXanoListPayload } = await import("@/lib/api/xano")
-    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?media_plan_master_id=${masterId}&page=1&per_page=100`, { headers: xanoAuthHeaderRecord() });
-    if (!response.ok) {
-      throw new Error("Failed to fetch media plan versions by master ID");
-    }
-    const data = parseXanoListPayload(await response.json());
-    
-    // Get the latest version (highest version_number)
-    if (Array.isArray(data) && data.length > 0) {
-      return data.reduce((latest, current) => 
-        current.version_number > latest.version_number ? current : latest
-      );
-    }
-    
-    return null;
-  } catch (error) {
-    console.error("Error fetching media plan versions by master ID:", error);
-    throw error;
-  }
+  const rows = await getMediaPlanVersions()
+  const list = (Array.isArray(rows) ? rows : []).filter(
+    (row: { media_plan_master_id?: unknown }) =>
+      Number(row?.media_plan_master_id) === masterId
+  )
+  if (list.length === 0) return null
+  return list.reduce((latest: { version_number?: number }, current: { version_number?: number }) =>
+    Number(current.version_number) > Number(latest.version_number) ? current : latest
+  )
 }
 
 
@@ -1124,44 +935,32 @@ export async function getMediaPlanVersionByMasterId(masterId: number) {
 
 export async function getMediaPlanByMBA(mba_number: string) {
   if (!isBrowser) {
-    const { getDataBackendFor } = await import("@/lib/data/backend")
-    if (getDataBackendFor("plans") !== "xano") {
-      const { readPlanMasterByMba } = await import(
-        /* webpackIgnore: true */ "@/lib/data/readMediaPlans"
-      )
-      const row = await readPlanMasterByMba(mba_number)
-      return new Response(JSON.stringify(row ? [row] : []), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    }
+    const { readPlanMasterByMba } = await import(
+      /* webpackIgnore: true */ "@/lib/data/readMediaPlans"
+    )
+    const row = await readPlanMasterByMba(mba_number)
+    return new Response(JSON.stringify(row ? [row] : []), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })
   }
   const q = `mba_number=${encodeURIComponent(mba_number)}`
-  const url = isBrowser
-    ? `/api/media_plans/media_plan?${q}`
-    : `${MEDIA_PLANS_BASE_URL}/media_plan?${q}`
-  return fetch(url, isBrowser ? undefined : { headers: xanoAuthHeaderRecord() })
+  return fetch(`/api/media_plans/media_plan?${q}`)
 }
 
 export async function getMediaPlanVersionByMBA(mba_number: string) {
   if (!isBrowser) {
-    const { getDataBackendFor } = await import("@/lib/data/backend")
-    if (getDataBackendFor("plans") !== "xano") {
-      const { readPlanVersionsByMba } = await import(
-        /* webpackIgnore: true */ "@/lib/data/readMediaPlans"
-      )
-      const rows = await readPlanVersionsByMba(mba_number)
-      return new Response(JSON.stringify(rows), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    }
+    const { readPlanVersionsByMba } = await import(
+      /* webpackIgnore: true */ "@/lib/data/readMediaPlans"
+    )
+    const rows = await readPlanVersionsByMba(mba_number)
+    return new Response(JSON.stringify(rows), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })
   }
   const q = `mba_number=${encodeURIComponent(mba_number)}`
-  const url = isBrowser
-    ? `/api/media_plans/media_plan_version?${q}`
-    : `${MEDIA_PLANS_BASE_URL}/media_plan_version?${q}`
-  return fetch(url, isBrowser ? undefined : { headers: xanoAuthHeaderRecord() })
+  return fetch(`/api/media_plans/media_plan_versions?${q}`)
 }
 
 /**
@@ -1188,29 +987,18 @@ function invalidateMediaDetailBrowserCache(path: string): void {
   invalidateCoalescedGetJson(mediaDetailsBrowserUrl(path))
 }
 
-async function fetchMediaDetail(path: string) {
+async function fetchMediaDetail(path: string): Promise<any> {
   // Server: reference tables honor DATA_BACKEND via shared reader (same as proxy).
   // webpackIgnore keeps the server-only module out of client chunks of this
   // isomorphic file (create/edit pages import getTVStations etc. from here).
   if (!isBrowser) {
-    const { isReferenceTablePath } = await import("@/lib/data/referenceTablePaths")
-    if (isReferenceTablePath(path)) {
-      const { readReferenceMediaDetail } = await import(
-        /* webpackIgnore: true */ "@/lib/data/readReferenceMediaDetail"
-      )
-      const result = await readReferenceMediaDetail(path)
-      if (result.status < 200 || result.status >= 300) {
-        throw new Error(`Failed to fetch media details: ${path}`)
-      }
-      return result.body
+    const { fetchReferenceTableFromPostgres, isReferenceTablePath } = await import(
+      /* webpackIgnore: true */ "@/lib/data/referenceTables"
+    )
+    if (!isReferenceTablePath(path)) {
+      throw new Error(`No Postgres media-details handler: ${path}`)
     }
-
-    const url = `${MEDIA_DETAILS_BASE_URL}/${path}`
-    const response = await fetch(url, { headers: xanoAuthHeaderRecord() })
-    if (!response.ok) {
-      throw new Error(`Failed to fetch media details: ${path}`)
-    }
-    return response.json()
+    return fetchReferenceTableFromPostgres(path)
   }
 
   return fetchMediaDetailBrowser(path)

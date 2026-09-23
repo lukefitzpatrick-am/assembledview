@@ -1,7 +1,6 @@
 import type { Publisher, PublisherDashboardData, PublisherCampaignRow } from '@/lib/types/publisher'
 import { buildAllowedScheduleLabels } from '@/lib/publisher/scheduleLabels'
-import { xanoMediaPlansUrl } from '@/lib/api/xanoClients'
-import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
+import { loadDashboardPlanRows } from '@/lib/api/dashboard/planRows'
 import {
   getAustralianFinancialYear,
   normalizeSchedule,
@@ -46,13 +45,7 @@ export async function getPublisherDashboardData(publisher: Publisher): Promise<P
 
   const allowedLabels = buildAllowedScheduleLabels(publisher as unknown as Record<string, unknown>)
 
-  const allVersions = await fetchAllXanoPages(
-    xanoMediaPlansUrl("media_plan_versions"),
-    {},
-    "DASHBOARD_publisher",
-    100,
-    50
-  )
+  const { versions: allVersions } = await loadDashboardPlanRows()
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const key = mbaJoinKey(version?.mba_number)

@@ -25,7 +25,6 @@ import {
   pickPublishedVersionRow,
   publishedVersionFromMaster,
 } from "@/lib/mediaplan/publishedVersionGuard"
-import { reapUnpublishedStagedVersions } from "@/lib/mediaplan/reapUnpublishedStagedVersions"
 import {
   checkPublishLineItemIntegrity,
   countPublishIntegrityChildren,
@@ -871,465 +870,33 @@ export async function GET(
   }
 }
 
-// PUT (update) a media plan by MBA number - creates new version for version control
+// PUT is retired. The editor saves through POST /api/plans/save.
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
-  try {
-    const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-    const { mba_number: rawMbaNumber } = await params
-    const mba_number = parseMbaNumber(rawMbaNumber)
-    if (!mba_number) return invalidMbaNumberResponse()
+  const { mba_number: rawMbaNumber } = await params
+  const mba_number = parseMbaNumber(rawMbaNumber)
+  if (!mba_number) return invalidMbaNumberResponse()
 
-    const access = await checkClientMbaAccess(request, mba_number)
-    if (!access.ok) return access.response
+  const access = await checkClientMbaAccess(request, mba_number)
+  if (!access.ok) return access.response
 
-    const data = await request.json()
-    
-    console.log(`Creating new version for media plan with MBA: ${mba_number}`)
-    console.log("Update data:", data)
-    
-    // First, get the MediaPlanMaster by MBA number (require exact match)
-    const masterResponse = await axios.get(`${mediaPlansBaseUrl}/media_plan_master?mba_number=${mba_number}`, { headers: xanoAuthHeaderRecord(), timeout: XANO_TIMEOUT_MS })
-    const requestedNormalized = normalise(mba_number)
-    const masterData = Array.isArray(masterResponse.data)
-      ? masterResponse.data.find((item: any) => normalise(item?.mba_number) === requestedNormalized) || null
-      : (masterResponse.data && normalise((masterResponse.data as any).mba_number) === requestedNormalized
-        ? masterResponse.data
-        : null)
-    
-    if (!masterData) {
-      console.error(`[PUT] Media plan master not found for MBA: "${mba_number}"`)
-      return NextResponse.json(
-        { error: `Media plan master not found for MBA number: ${mba_number}` },
-        { status: 404 }
-      )
-    }
-
-    const draftReturnRejection = getDraftReturnRejection(
-      masterData.campaign_status,
-      data.mp_campaignstatus ?? data.campaign_status
-    )
-    if (draftReturnRejection) {
-      return NextResponse.json(
-        { error: draftReturnRejection.error },
-        { status: draftReturnRejection.status }
-      )
-    }
-
-    // Version history for one MBA — do NOT use media_plan_versions_latest.
-    const allVersionsForMBA = (
-      await fetchAllXanoPages(
-        `${mediaPlansBaseUrl}/media_plan_versions`,
-        { mba_number },
-        "MBA_versions_for_put",
-        100,
-        20
-      )
-    ).filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
-
-    const parseVersion = (value: any): number => {
-      const num = typeof value === "string" ? parseInt(value, 10) : value
-      return isNaN(num) ? 0 : num
-    }
-
-    // Published watermark is master.version_number — never max(all rows), which
-    // includes staged-but-unpublished orphans and would inflate nextVersion forever.
-    const publishedVersionNumber = publishedVersionFromMaster(masterData)
-
-    // FIX2: reap orphans on next save of this master (scoped, no cron). Prefer
-    // save-path cleanup over a scheduled sweep — smaller blast radius, no new
-    // infra, and it runs before next-version calculation.
-    const reapResult = await reapUnpublishedStagedVersions({
-      mbaNumber: mba_number,
-      mediaPlanMasterId: masterData.id,
-      publishedVersionNumber,
-      allVersions: allVersionsForMBA,
-    })
-    if (reapResult.deletedVersionIds.length > 0 || reapResult.errors.length > 0) {
-      console.warn("[mba-put] reaped unpublished staged versions", {
-        mba_number,
-        publishedVersionNumber,
-        orphanVersionNumbers: reapResult.orphanVersionNumbers,
-        deletedVersionIds: reapResult.deletedVersionIds,
-        deletedChildCount: reapResult.deletedChildCount,
-        errors: reapResult.errors,
-      })
-    }
-
-    const versionsForVersioning = allVersionsForMBA.filter(
-      (v: any) => !isUnpublishedStagedVersion(v.version_number, publishedVersionNumber),
-    )
-    const latestVersionNumber = publishedVersionNumber
-    const previousVersion =
-      pickPublishedVersionRow(versionsForVersioning, publishedVersionNumber) ??
-      pickPublishedVersionRow(allVersionsForMBA, publishedVersionNumber)
-
-    // Create-page quirk: master is seeded with version_number=1 before any version row
-    // exists. Using published+1 would cut v2 on first save while children still stamp
-    // mp_plannumber=1. First row for an MBA must be version 1.
-    const nextVersionNumber = nextMbaVersionNumber(
-      allVersionsForMBA.length,
-      latestVersionNumber || 0
-    )
-    const overwriteTargetRow = previousVersion
-    // Unpublished tip → overwrite in place; published tip → cut a new version.
-    // VC Stage 1: publication is published_at, never campaign_status === "draft".
-    // forceIncrement: approval-set change after a persisted baseline must cut vN → vN+1.
-    const forceIncrement =
-      data.forceIncrement === true ||
-      data.force_increment === true ||
-      data.forceNewVersion === true
-    const overwriteTargetId = overwriteTargetRow?.id
-    const overwriteTargetVersionNumber = parseVersion(overwriteTargetRow?.version_number) || 1
-    // Xano tip rows may lack published_at — read Postgres mirror (same key as stamp).
-    const tipPublishedAtFromRow =
-      overwriteTargetRow?.published_at ?? overwriteTargetRow?.publishedAt ?? undefined
-    const tipPublishedAt =
-      tipPublishedAtFromRow !== undefined && tipPublishedAtFromRow !== null
-        ? String(tipPublishedAtFromRow)
-        : overwriteTargetRow != null
-          ? await readVersionPublishedAtByMbaVersion({
-              mbaNumber: mba_number,
-              versionNumber: overwriteTargetVersionNumber,
-            })
-          : null
-    const overwriteMode =
-      overwriteTargetRow != null &&
-      !isVersionPublished({ publishedAt: tipPublishedAt }) &&
-      !forceIncrement
-    
-    const campaignStartDate = data.mp_campaigndates_start ?? masterData.campaign_start_date
-    const campaignEndDate = data.mp_campaigndates_end ?? masterData.campaign_end_date
-    const normalizedCampaignStartDate = campaignStartDate ? toMelbourneDateString(campaignStartDate) : campaignStartDate
-    const normalizedCampaignEndDate = campaignEndDate ? toMelbourneDateString(campaignEndDate) : campaignEndDate
-
-    // C1 — server recompute/validate billing schedule when line inputs are provided.
-    // Overrides load from the previous/current working version.
-    let billingScheduleToPersist: unknown = data.billingSchedule ?? null
-    let deliveryScheduleToPersist: unknown =
-      data.deliverySchedule ?? data.delivery_schedule ?? null
-    let inputsHashToPersist: string | undefined
-    let rebillNeededToPersist: boolean | undefined
-
-    const financialLineItems = (Array.isArray(data.lineItems)
-      ? data.lineItems
-      : Array.isArray(data.financialLineItems)
-        ? data.financialLineItems
-        : null) as LineItemInput[] | null
-    const feeLoading = (data.feeLoading ?? data.fee_loading ?? null) as FeeLoading | null
-
-    if (financialLineItems && financialLineItems.length > 0 && feeLoading) {
-      const overridesVersionId = previousVersion?.id
-      const overrideRows = overridesVersionId
-        ? ((await readBillingOverridesForVersion(overridesVersionId, {
-            baseUrl: mediaPlansBaseUrl,
-          })) as BillingOverrideRow[])
-        : []
-
-      const partialApprovalMeta =
-        data.partialApproval &&
-        typeof data.partialApproval === "object" &&
-        data.partialApproval.isPartial === true
-          ? data.partialApproval
-          : null
-      const selectedMonthYears = Array.isArray(partialApprovalMeta?.selectedMonthYears)
-        ? partialApprovalMeta.selectedMonthYears.filter(
-            (m: unknown): m is string => typeof m === "string" && m.trim().length > 0
-          )
-        : Array.isArray(data.selectedMonthYears)
-          ? data.selectedMonthYears.filter(
-              (m: unknown): m is string => typeof m === "string" && m.trim().length > 0
-            )
-          : undefined
-
-      const recompute = recomputeAndValidateBillingScheduleOnSave({
-        lineItems: financialLineItems,
-        feeLoading,
-        clientBillingSchedule: data.billingSchedule,
-        overrideRows,
-        opts: {
-          ...(normalizedCampaignStartDate
-            ? { campaignStart: new Date(String(normalizedCampaignStartDate)) }
-            : {}),
-          ...(normalizedCampaignEndDate
-            ? { campaignEnd: new Date(String(normalizedCampaignEndDate)) }
-            : {}),
-          ...(selectedMonthYears && selectedMonthYears.length > 0
-            ? { selectedMonthYears }
-            : {}),
-        },
-      })
-
-      if (!recompute.ok) {
-        return NextResponse.json(recompute.body, { status: recompute.status })
-      }
-
-      billingScheduleToPersist = recompute.billingSchedule
-      if (partialApprovalMeta) {
-        const scheduleArr = Array.isArray(billingScheduleToPersist)
-          ? billingScheduleToPersist
-          : []
-        billingScheduleToPersist = appendPartialApprovalToBillingSchedule({
-          billingSchedule: scheduleArr as Record<string, unknown>[],
-          metadata: {
-            ...partialApprovalMeta,
-            selectedMonthYears:
-              selectedMonthYears && selectedMonthYears.length > 0
-                ? selectedMonthYears
-                : partialApprovalMeta.selectedMonthYears ?? [],
-            isPartial: true,
-          },
-        })
-      }
-      // Never leave delivery null when we regenerated from server.
-      if (recompute.generatedFromServer || deliveryScheduleToPersist == null) {
-        deliveryScheduleToPersist = recompute.deliverySchedule
-      }
-      inputsHashToPersist = recompute.inputs_hash
-      rebillNeededToPersist = false
-    } else if (billingScheduleToPersist == null) {
-      // Never store null when the client omitted the schedule but also sent no
-      // line inputs to regenerate from — fall back to previous version schedule.
-      billingScheduleToPersist = previousVersion?.billingSchedule ?? []
-      console.warn(
-        "[mba-put] C1 skipped (no lineItems+feeLoading); refusing null billingSchedule"
-      )
-    }
-
-    // Format the data to match the media_plan_versions schema
-    const mpProductionFlag = isTruthyFlag(data.mp_production)
-    const resolvedClientName =
-      data.mp_client_name || data.mp_clientname || data.client_name || masterData.mp_client_name
-    const resolvedCampaignStatus = normalise(data.mp_campaignstatus || masterData.campaign_status)
-    const newVersionData = {
-      media_plan_master_id: masterData.id,
-      version_number: nextVersionNumber,
-      mba_number: mba_number,
-      campaign_name: data.mp_campaignname || masterData.mp_campaignname,
-      campaign_status: resolvedCampaignStatus,
-      campaign_start_date: normalizedCampaignStartDate,
-      campaign_end_date: normalizedCampaignEndDate,
-      brand: data.mp_brand || "",
-      mp_client_name: resolvedClientName,
-      client_contact: data.mp_clientcontact || "",
-      po_number: data.mp_ponumber || "",
-      mp_campaignbudget: data.mp_campaignbudget || masterData.mp_campaignbudget,
-      fixed_fee: isTruthyFlag(data.mp_fixedfee),
-      mp_production: mpProductionFlag,
-      mp_television: isTruthyFlag(data.mp_television),
-      mp_radio: isTruthyFlag(data.mp_radio),
-      mp_newspaper: isTruthyFlag(data.mp_newspaper),
-      mp_magazines: isTruthyFlag(data.mp_magazines),
-      mp_ooh: isTruthyFlag(data.mp_ooh),
-      mp_cinema: isTruthyFlag(data.mp_cinema),
-      mp_digidisplay: isTruthyFlag(data.mp_digidisplay),
-      mp_digiaudio: isTruthyFlag(data.mp_digiaudio),
-      mp_digivideo: isTruthyFlag(data.mp_digivideo),
-      mp_bvod: isTruthyFlag(data.mp_bvod),
-      mp_integration: isTruthyFlag(data.mp_integration),
-      mp_search: isTruthyFlag(data.mp_search),
-      mp_socialmedia: isTruthyFlag(data.mp_socialmedia),
-      mp_progdisplay: isTruthyFlag(data.mp_progdisplay),
-      mp_progvideo: isTruthyFlag(data.mp_progvideo),
-      mp_progbvod: isTruthyFlag(data.mp_progbvod),
-      mp_progaudio: isTruthyFlag(data.mp_progaudio),
-      mp_progooh: isTruthyFlag(data.mp_progooh),
-      mp_influencers: isTruthyFlag(data.mp_influencers),
-      billingSchedule: billingScheduleToPersist,
-      // Accept either casing from client; persist both keys to tolerate Xano schema/input naming.
-      deliverySchedule: deliveryScheduleToPersist,
-      delivery_schedule: deliveryScheduleToPersist,
-      ...(inputsHashToPersist != null ? { inputs_hash: inputsHashToPersist } : {}),
-      ...(rebillNeededToPersist != null ? { rebill_needed: rebillNeededToPersist } : {}),
-    }
-
-    // Update MediaPlanMaster with new version number and campaign name
-    const masterUpdateData = {
-      version_number: nextVersionNumber,
-      mp_campaignname: data.mp_campaignname || masterData.mp_campaignname,
-      campaign_status: resolvedCampaignStatus,
-      campaign_start_date: normalizedCampaignStartDate,
-      campaign_end_date: normalizedCampaignEndDate,
-      mp_campaignbudget: data.mp_campaignbudget || masterData.mp_campaignbudget
-    }
-
-    let versionResponse: any
-    let masterUpdateResponse: any
-    let savedVersionNumber = nextVersionNumber
-    // REVIEW (integrity P0): client may stage the version row first, write channel
-    // children, then PATCH master.version_number only on full success. Xano has no
-    // multi-table transaction — this is the closest stage-then-publish contract.
-    const deferMasterVersionPublish =
-      data.deferMasterVersionPublish === true ||
-      data.defer_master_version_publish === true
-
-    if (overwriteMode) {
-      const overwriteData = {
-        ...newVersionData,
-        version_number: overwriteTargetVersionNumber,
-      }
-      const overwriteMasterUpdateData = {
-        ...masterUpdateData,
-        version_number: overwriteTargetVersionNumber,
-      }
-
-      try {
-        versionResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_versions/${overwriteTargetId}`, overwriteData, { headers: xanoPostHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS })
-      } catch (versionPatchError) {
-        console.error("[mba-put] failed to overwrite draft version", versionPatchError)
-        return NextResponse.json(
-          { error: "Failed to overwrite draft version. No new version was created." },
-          { status: 500 },
-        )
-      }
-
-      masterUpdateResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`, overwriteMasterUpdateData, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS })
-      savedVersionNumber = overwriteTargetVersionNumber
-    } else {
-      // Create new version in media_plan_versions table
-      versionResponse = await axios.post(`${mediaPlansBaseUrl}/media_plan_versions`, newVersionData, { headers: xanoPostHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS, })
-
-      if (deferMasterVersionPublish) {
-        // Stage only: sync campaign fields on master, but do NOT advance version_number.
-        // Client publishes via PATCH after every channel child write succeeds.
-        const { version_number: _omitStagedVersion, ...masterFieldsWithoutPublish } =
-          masterUpdateData
-        if (Object.keys(masterFieldsWithoutPublish).length > 0) {
-          masterUpdateResponse = await axios.patch(
-            `${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`,
-            masterFieldsWithoutPublish,
-            { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS },
-          )
-        } else {
-          masterUpdateResponse = { data: masterData }
-        }
-        console.warn("[mba-put] staged version without publishing master.version_number", {
-          mba_number,
-          stagedVersionNumber: nextVersionNumber,
-          publishedVersionNumber: latestVersionNumber || masterData.version_number,
-          versionId: versionResponse.data?.id,
-        })
-      } else {
-        // Immediate publish (no defer): advance master.version_number now.
-        masterUpdateResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`, masterUpdateData, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS })
-        // VC Stage 1 — stamp Postgres publication for the new tip (best-effort).
-        try {
-          const actor = await getCurrentUser(request)
-          await stampVersionPublicationByMbaVersion({
-            mbaNumber: mba_number,
-            versionNumber: nextVersionNumber,
-            publishedByEmail: normalisePublishedByEmail(actor?.email ?? null),
-          })
-        } catch (stampErr) {
-          console.warn("[mba-put] publish stamp failed", stampErr)
-        }
-      }
-    }
-
-    console.log("New version created:", versionResponse.data)
-    console.log("Master updated:", masterUpdateResponse.data)
-
-    // Domain 5 Stage 2.2b — audit billingSchedule diff between previous and new version
-    try {
-      const user = await getCurrentUser(request)
-      if (user) {
-        const oldSchedule = parseJsonField(previousVersion?.billingSchedule)
-        const newSchedule = parseJsonField(newVersionData.billingSchedule)
-        const changes = diffBillingSchedules(oldSchedule, newSchedule)
-        if (changes.length > 0) {
-          const audit = await writeScheduleDiffEdits(changes, {
-            editedBy: user.id,
-            editedByName: user.name ?? user.email ?? String(user.id),
-            recordType: "version_create_diff",
-          })
-          if (audit.succeeded < audit.attempted) {
-            console.warn("[mba-put] partial audit failure", audit)
-          }
-        }
-      } else {
-        console.error("[mba-put] no user resolved; skipping audit")
-      }
-    } catch (auditError) {
-      console.error("[mba-put] audit step threw", {
-        message: auditError instanceof Error ? auditError.message : String(auditError),
-      })
-    }
-
-    const savedVersionId = overwriteMode ? overwriteTargetId : versionResponse.data?.id
-    let duplicateWarning: {
-      channels: Array<{ channel: string; rows: number; distinctLineItemIds: number }>
-    } | null = null
-    try {
-      duplicateWarning = await detectDuplicateLineItemWarning(
-        mba_number,
-        savedVersionNumber,
-        savedVersionId,
-        overwriteMode ? { ...newVersionData, version_number: overwriteTargetVersionNumber } : newVersionData
-      )
-      if (duplicateWarning) {
-        console.warn("[mba-put] duplicateWarning: channel rows exceed distinct line_item_ids", {
-          mba_number,
-          versionId: savedVersionId,
-          versionNumber: savedVersionNumber,
-          ...duplicateWarning,
-        })
-      }
-    } catch (dupError) {
-      console.warn("[mba-put] duplicateWarning check failed", dupError)
-    }
-
-    return NextResponse.json({
-      version: versionResponse.data,
-      master: masterUpdateResponse.data,
-      mode: overwriteMode ? "overwrite" : "increment",
-      versionId: savedVersionId,
-      versionNumber: savedVersionNumber,
-      latestVersionNumber,
-      nextVersionNumber: overwriteMode ? overwriteTargetVersionNumber : nextVersionNumber,
-      ...(duplicateWarning ? { duplicateWarning } : {}),
-      // REVIEW: when true, master.version_number was intentionally left unpublished
-      deferredPublish: !overwriteMode && deferMasterVersionPublish,
-      publishedVersionNumber: overwriteMode
-        ? overwriteTargetVersionNumber
-        : deferMasterVersionPublish
-          ? latestVersionNumber || masterData.version_number
-          : savedVersionNumber,
-    })
-  } catch (error) {
-    console.error("Error creating new media plan version:", error)
-    
-    if (axios.isAxiosError(error)) {
-      console.error("Axios error details:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-        url: error.config?.url,
-        method: error.config?.method,
-        headers: error.config?.headers,
-      })
-      
-      return NextResponse.json(
-        {
-          error: `Failed to create new version: ${error.response?.data?.message || error.message}`,
-        },
-        { status: error.response?.status || 500 }
-      )
-    }
-
-    console.error("[api/mediaplans/mba/[mba_number] PUT] unexpected error", error)
-    return NextResponse.json({ error: "Failed to create new version" }, { status: 500 })
-  }
+  return NextResponse.json(
+    {
+      error: "MBA PUT is retired. The editor saves through POST /api/plans/save.",
+      path: `/api/mediaplans/mba/${mba_number}`,
+    },
+    { status: 410 },
+  )
 }
 
-// PATCH (update) media plan master by MBA number
+// PATCH updates the Postgres media_plan_masters row (and the publish stamp).
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
-    const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
     const { mba_number: rawMbaNumber } = await params
     const mba_number = parseMbaNumber(rawMbaNumber)
     if (!mba_number) return invalidMbaNumberResponse()
@@ -1338,251 +905,104 @@ export async function PATCH(
     if (!access.ok) return access.response
 
     const data = await request.json()
-    
-    console.log(`[PATCH] Updating media plan master for MBA: "${mba_number}"`)
-    console.log(`[PATCH] MBA number type: ${typeof mba_number}, length: ${mba_number?.length}`)
-    console.log("[PATCH] Update data:", data)
-    
-    // First, get the MediaPlanMaster by MBA number (require exact match)
-    const masterQueryUrl = `${mediaPlansBaseUrl}/media_plan_master?mba_number=${encodeURIComponent(mba_number)}`
-    console.log(`[PATCH] Querying master with URL: ${masterQueryUrl}`)
-    
-    const masterResponse = await axios.get(masterQueryUrl, { headers: xanoAuthHeaderRecord(), timeout: XANO_TIMEOUT_MS })
-
-    const requestedNormalized = normalise(mba_number)
-
-    // Handle array response - find the exact match (same logic as GET handler)
-    let masterData: any = null
-    if (Array.isArray(masterResponse.data)) {
-      masterData = masterResponse.data.find((item: any) => normalise(item?.mba_number) === requestedNormalized) || null
-    } else if (masterResponse.data && typeof masterResponse.data === 'object') {
-      const candidate = masterResponse.data as any
-      masterData = normalise(candidate?.mba_number) === requestedNormalized ? candidate : null
-    }
-    
-    console.log(`[PATCH] Master data response:`, {
-      found: !!masterData,
-      id: masterData?.id,
-      mbaNumber: masterData?.mba_number,
-      versionNumber: masterData?.version_number
-    })
-    
-    // Validate that we got the correct MBA number
-    if (masterData && masterData.mba_number !== mba_number) {
-      console.error(`[PATCH] MBA number mismatch! Requested: "${mba_number}", Got: "${masterData.mba_number}"`)
-      return NextResponse.json(
-        { 
-          error: `MBA number mismatch: requested "${mba_number}" but received data for "${masterData.mba_number}". This indicates a database query issue.`,
-          requestedMbaNumber: mba_number,
-          receivedMbaNumber: masterData.mba_number
-        },
-        { status: 500 }
-      )
-    }
-    
+    const { readPlanMasterByMba, readPlanVersionsByMba } = await import("@/lib/data/readMediaPlans")
+    const masterData = await readPlanMasterByMba(mba_number)
     if (!masterData) {
-      console.error(`[PATCH] Master not found for MBA: ${mba_number}`)
       return NextResponse.json(
         { error: `Media plan master not found for MBA number: ${mba_number}` },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
     const draftReturnRejection = getDraftReturnRejection(
       masterData.campaign_status,
-      data.campaign_status ?? data.mp_campaignstatus
+      data.campaign_status ?? data.mp_campaignstatus,
     )
     if (draftReturnRejection) {
       return NextResponse.json(
         { error: draftReturnRejection.error },
-        { status: draftReturnRejection.status }
-      )
-    }
-    
-    console.log(`[PATCH] Successfully found master data for MBA: ${mba_number}`)
-
-    // Validate that we have the id field (required for PATCH)
-    if (!masterData.id) {
-      console.error(`[PATCH] Master data missing id field:`, masterData)
-      return NextResponse.json(
-        { error: `Media plan master data is missing the required 'id' field` },
-        { status: 500 }
+        { status: draftReturnRejection.status },
       )
     }
 
-    const masterId = masterData.id
-    console.log(`[PATCH] Using master ID for update: ${masterId} (type: ${typeof masterId})`)
-    
-    // Ensure masterId is a number (Xano requires numeric ID)
-    const numericMasterId = typeof masterId === 'number' ? masterId : parseInt(masterId, 10)
-    if (isNaN(numericMasterId)) {
-      console.error(`[PATCH] Invalid master ID: ${masterId}`)
-      return NextResponse.json(
-        { error: `Invalid master ID format: ${masterId}. Expected numeric ID.` },
-        { status: 400 }
-      )
-    }
-
-    // Build update data object with only provided fields
-    // IMPORTANT: Do NOT include id, mba_number, or other identifying fields in the update payload
-    // Only include fields that should be updated to avoid bulk updates
-    const masterUpdateData: any = {}
-    
     if (isPublishVersionAdvance(data)) {
-      // Dev-only: force-fail publish PATCH after children already staged (verify retry UI).
       if (
         process.env.FORCE_FAIL_VERSION_PUBLISH === "1" &&
         process.env.NODE_ENV !== "production"
       ) {
-        console.warn(
-          `[PATCH] FORCE_FAIL_VERSION_PUBLISH=1 — refusing to bump version_number for MBA ${mba_number}`,
-        )
         return NextResponse.json(
           { error: "Forced publish failure (FORCE_FAIL_VERSION_PUBLISH=1)" },
           { status: 500 },
         )
       }
 
-      // Defense-in-depth: reject empty publishes (enabled mp_* + zero children).
-      // Uses GET-parity mp_plannumber/version_number match; query errors fail open.
       const targetPublishVersion = parseVersion(data.version_number)
       if (targetPublishVersion != null && targetPublishVersion > 0) {
         const integrity = await checkPublishLineItemIntegrity({
           mbaNumber: mba_number,
           targetVersionNumber: targetPublishVersion,
           fetchVersionRow: async (mba, versionNumber) => {
-            const versionResponse = await axios.get(
-              `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba)}&version_number=${versionNumber}&page=1&per_page=50`,
-              { headers: xanoAuthHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS }
-            )
-            const rows = parseXanoListPayload(versionResponse.data).filter(
-              (v: any) => normalise(v?.mba_number) === normalise(mba)
-            )
-            return (rows[0] as Record<string, unknown>) || null
+            const rows = await readPlanVersionsByMba(mba)
+            return rows.find((row) => Number(row.version_number) === versionNumber) ?? null
           },
           countChildrenForChannels: countPublishIntegrityChildren,
         })
         if (!integrity.ok) {
-          console.warn("[PATCH] publish blocked — empty staged line items", {
-            mba_number,
-            targetPublishVersion,
-            error: integrity.error,
-          })
           return NextResponse.json({ error: integrity.error }, { status: integrity.status })
         }
       }
+    }
 
-      masterUpdateData.version_number = data.version_number
-    }
-    if (data.mp_campaignname !== undefined) {
-      masterUpdateData.mp_campaignname = data.mp_campaignname
-    }
-    if (data.campaign_status !== undefined) {
-      masterUpdateData.campaign_status = data.campaign_status
-    }
+    const { eq, sql } = await import("drizzle-orm")
+    const { getDb, schema } = await import("@/db")
+    const { dollarsToCampaignBudgetCents } = await import("@/lib/mediaplan/buildPostgresSavePayload")
+    const db = getDb()
+    const patch: Record<string, unknown> = {}
+    if (data.mp_campaignname !== undefined) patch.campaignName = data.mp_campaignname
+    if (data.campaign_status !== undefined) patch.campaignStatus = data.campaign_status
     if (data.campaign_start_date !== undefined) {
-      masterUpdateData.campaign_start_date = data.campaign_start_date
+      patch.campaignStartDate = data.campaign_start_date
         ? toMelbourneDateString(data.campaign_start_date)
         : data.campaign_start_date
     }
     if (data.campaign_end_date !== undefined) {
-      masterUpdateData.campaign_end_date = data.campaign_end_date
+      patch.campaignEndDate = data.campaign_end_date
         ? toMelbourneDateString(data.campaign_end_date)
         : data.campaign_end_date
     }
     if (data.mp_campaignbudget !== undefined) {
-      masterUpdateData.mp_campaignbudget = data.mp_campaignbudget
-    }
-    
-    // Construct the PATCH URL using the numeric id field
-    // Format: /media_plan_master/{id} - this should target ONLY the specific record
-    const patchUrl = `${mediaPlansBaseUrl}/media_plan_master/${numericMasterId}`
-    console.log(`[PATCH] Updating media plan master at URL: ${patchUrl}`)
-    console.log(`[PATCH] Target master ID: ${numericMasterId}`)
-    console.log(`[PATCH] Update payload (only updating these fields):`, masterUpdateData)
-    console.log(`[PATCH] Payload keys:`, Object.keys(masterUpdateData))
-    
-    // Verify we're not accidentally including identifying fields that could cause bulk updates
-    if (masterUpdateData.id || masterUpdateData.mba_number) {
-      console.error(`[PATCH] ERROR: Update payload contains identifying fields that could cause bulk updates!`, masterUpdateData)
-      return NextResponse.json(
-        { error: `Update payload must not contain id or mba_number fields to prevent bulk updates` },
-        { status: 400 }
-      )
-    }
-    
-    // Update MediaPlanMaster using the id field in the URL path
-    // This should update ONLY the record with the matching ID
-    const masterUpdateResponse = await axios.patch(patchUrl, masterUpdateData, { headers: { ...xanoPostHeaderRecord(), 
-        "Content-Type": "application/json",
-      },
-      timeout: XANO_TIMEOUT_MS, })
-    
-    // Check if the update was successful
-    if (masterUpdateResponse.status >= 200 && masterUpdateResponse.status < 300) {
-      // VC Stage 1 — deferred publish (PATCH advances watermark): stamp the tip.
-      if (isPublishVersionAdvance(data)) {
-        try {
-          const targetPublishVersion = parseVersion(data.version_number)
-          if (targetPublishVersion != null && targetPublishVersion > 0) {
-            const actor = await getCurrentUser(request)
-            await stampVersionPublicationByMbaVersion({
-              mbaNumber: mba_number,
-              versionNumber: targetPublishVersion,
-              publishedByEmail: normalisePublishedByEmail(actor?.email ?? null),
-            })
-          }
-        } catch (stampErr) {
-          console.warn("[mba-patch] publish stamp failed", stampErr)
-        }
-      }
-      console.log(`[PATCH] Successfully updated master ID ${numericMasterId}`)
-      console.log("[PATCH] Master updated response:", masterUpdateResponse.data)
-      
-      // Verify the response indicates a single record was updated
-      // Xano typically returns the updated record object, not an array
-      if (Array.isArray(masterUpdateResponse.data)) {
-        console.warn(`[PATCH] WARNING: Response is an array. Expected single record object. Array length: ${masterUpdateResponse.data.length}`)
-        if (masterUpdateResponse.data.length > 1) {
-          console.error(`[PATCH] ERROR: Multiple records returned! This suggests bulk update occurred.`)
-        }
-      }
-      
-      return NextResponse.json(masterUpdateResponse.data)
-    } else {
-      console.error("[api/mediaplans/mba/[mba_number] PATCH] unexpected response status", {
-        status: masterUpdateResponse.status,
-        data: masterUpdateResponse.data,
-      })
-      return NextResponse.json(
-        {
-          error: `Failed to update media plan master: Unexpected status ${masterUpdateResponse.status}`,
-        },
-        { status: masterUpdateResponse.status }
-      )
-    }
-  } catch (error) {
-    console.error("Error updating media plan master:", error)
-    
-    if (axios.isAxiosError(error)) {
-      console.error("Axios error details:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-        url: error.config?.url,
-        method: error.config?.method,
-      })
-      
-      return NextResponse.json(
-        {
-          error: `Failed to update media plan master: ${error.response?.data?.message || error.message}`,
-        },
-        { status: error.response?.status || 500 }
-      )
+      patch.campaignBudgetCents = dollarsToCampaignBudgetCents(data.mp_campaignbudget)
     }
 
+    if (Object.keys(patch).length > 0) {
+      await db
+        .update(schema.mediaPlanMasters)
+        .set(patch)
+        .where(sql`lower(${schema.mediaPlanMasters.mbaNumber}) = ${mba_number.trim().toLowerCase()}`)
+    }
+
+    if (isPublishVersionAdvance(data)) {
+      const targetPublishVersion = parseVersion(data.version_number)
+      if (targetPublishVersion != null && targetPublishVersion > 0) {
+        const actor = await getCurrentUser(request)
+        const stamped = await stampVersionPublicationByMbaVersion({
+          mbaNumber: mba_number,
+          versionNumber: targetPublishVersion,
+          publishedByEmail: normalisePublishedByEmail(actor?.email ?? null),
+        })
+        if (stamped.versionId != null) {
+          await db
+            .update(schema.mediaPlanMasters)
+            .set({ publishedVersionId: stamped.versionId })
+            .where(eq(schema.mediaPlanMasters.id, Number(masterData.id)))
+        }
+      }
+    }
+
+    const updated = await readPlanMasterByMba(mba_number)
+    return NextResponse.json(updated ?? masterData)
+  } catch (error) {
     console.error("[api/mediaplans/mba/[mba_number] PATCH] unexpected error", error)
     return NextResponse.json({ error: "Failed to update media plan master" }, { status: 500 })
   }
 }
-

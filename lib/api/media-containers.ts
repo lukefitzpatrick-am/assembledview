@@ -1,6 +1,5 @@
 import axios from 'axios'
 import { xanoPostHeaderRecord, xanoUrl } from '@/lib/api/xano'
-import { getDataBackendFor } from '@/lib/data/backend'
 import { publishedVersionFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
 import { sortLineItemsByLineItemNumber } from '@/lib/mediaplan/lineItemIds'
 import { boundedMap } from '@/lib/utils/boundedMap'
@@ -123,89 +122,13 @@ export async function fetchMediaContainerLineItems(
   mbaNumber: string,
   versionNumber?: number
 ): Promise<MediaContainerLineItem[]> {
-  if (!mbaNumber) {
-    console.warn(`Skipping ${mediaType} line items fetch - missing mbaNumber`)
-    return []
-  }
-  try {
-    // Primary fetch with version filters
-    const url = buildMediaContainerUrl(mediaType, mbaNumber, versionNumber)
-    const response = await apiClient.get(url)
-    const allItems = Array.isArray(response.data) ? response.data : []
-    
-    // Helper to normalize and match version fields
-    const matchesVersion = (item: any, ver: number) => {
-      const itemVersion = typeof item.version_number === 'string' 
-        ? parseInt(item.version_number, 10) 
-        : item.version_number
-      const itemPlan = typeof item.mp_plannumber === 'string'
-        ? parseInt(item.mp_plannumber, 10)
-        : item.mp_plannumber
-      const itemMediaPlan = typeof item.media_plan_version === 'string'
-        ? parseInt(item.media_plan_version, 10)
-        : item.media_plan_version
-      return itemVersion === ver || itemPlan === ver || itemMediaPlan === ver
-    }
-
-    // Filter by version fields + mba_number as safety net
-    const filteredPrimary = (versionNumber !== undefined && versionNumber !== null)
-      ? allItems.filter((item: any) => matchesVersion(item, versionNumber) && item.mba_number === mbaNumber)
-      : allItems.filter((item: any) => item.mba_number === mbaNumber)
-    
-    // Fallback: if the primary (version-filtered) response had rows but none matched
-    // this version, refetch without version filters. Skip when the unfiltered primary
-    // was empty — the normal case for channels a campaign does not use.
-    if (
-      versionNumber !== undefined &&
-      versionNumber !== null &&
-      filteredPrimary.length === 0 &&
-      allItems.length > 0
-    ) {
-      try {
-        const fallbackUrl = buildMediaContainerUrl(mediaType, mbaNumber, undefined)
-        const fallbackResponse = await apiClient.get(fallbackUrl)
-        const fallbackItems = Array.isArray(fallbackResponse.data) ? fallbackResponse.data : []
-        const filteredFallback = fallbackItems.filter((item: any) => {
-          const mbaMatch = item.mba_number === mbaNumber
-          const versionMatch = matchesVersion(item, versionNumber)
-          const versionUnset = !item.version_number && !item.mp_plannumber && !item.media_plan_version
-          return mbaMatch && (versionMatch || versionUnset)
-        })
-        if (filteredFallback.length > 0) {
-          console.info(`[${mediaType}] Fallback fetched ${filteredFallback.length} items without version filter for mba_number=${mbaNumber}, version=${versionNumber}`)
-        }
-        return sortLineItemsByLineItemNumber(filteredFallback)
-      } catch (fallbackErr) {
-        console.warn(`[${mediaType}] Fallback fetch without version failed`, fallbackErr)
-      }
-    }
-
-    if (versionNumber !== undefined && versionNumber !== null && filteredPrimary.length !== allItems.length) {
-      console.log(`[${mediaType}] Filtered ${allItems.length} items to ${filteredPrimary.length} matching mba_number=${mbaNumber} and version=${versionNumber}`)
-    }
-
-    return sortLineItemsByLineItemNumber(filteredPrimary)
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
-      const cacheKey = `${mediaType}:${mbaNumber}:${versionNumber ?? 'latest'}`
-      if (!missingLineItemsLogCache.has(cacheKey)) {
-        missingLineItemsLogCache.add(cacheKey)
-        console.info(`Line items not found for ${mediaType} (404)`, {
-          mbaNumber,
-          versionNumber: versionNumber ?? 'latest',
-          url: error.config?.url
-        })
-      } else {
-        console.debug(`Suppressing repeated 404 log for ${mediaType}`, {
-          mbaNumber,
-          versionNumber: versionNumber ?? 'latest'
-        })
-      }
-      return []
-    }
-    console.error(`Error fetching ${mediaType} line items:`, error)
-    return []
-  }
+  if (!mbaNumber) return []
+  const byChannel = await fetchAllPlanLineItemsForDelivery(
+    mbaNumber,
+    versionNumber,
+    [mediaType]
+  )
+  return byChannel[mediaType] ?? []
 }
 
 /**
@@ -242,37 +165,15 @@ export async function fetchAllMediaContainerLineItems(
   versionNumber?: number,
   mediaTypeFilter?: Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS>
 ): Promise<Record<string, MediaContainerLineItem[]>> {
-  const results: Record<string, MediaContainerLineItem[]> = {}
-  const mediaTypes = mediaTypeFilter && mediaTypeFilter.length > 0 ? mediaTypeFilter : (Object.keys(MEDIA_CONTAINER_ENDPOINTS) as Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS>)
-
-  const responses = await mapMediaContainerFetches(
-    mediaTypes,
-    (mediaType) => fetchMediaContainerLineItems(mediaType, mbaNumber, versionNumber),
-    4
-  )
-
-  responses.forEach(({ mediaType, lineItems }) => {
-    results[mediaType] = lineItems
-  })
-
-  return results
+  return fetchAllPlanLineItemsForDelivery(mbaNumber, versionNumber, mediaTypeFilter)
 }
 
-/**
- * Delivery-snapshot plan lines. Postgres when `getDataBackendFor("plans")` says so;
- * otherwise the existing Xano container fan-out. AVA / creative keep using
- * `fetchAllMediaContainerLineItems` (Xano) unchanged.
- */
+/** Delivery and container plan lines from Postgres `line_items`. */
 export async function fetchAllPlanLineItemsForDelivery(
   mbaNumber: string,
   versionNumber?: number,
   mediaTypeFilter?: Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS>
 ): Promise<Record<string, MediaContainerLineItem[]>> {
-  const backend = getDataBackendFor('plans')
-  if (backend !== 'postgres') {
-    return fetchAllMediaContainerLineItems(mbaNumber, versionNumber, mediaTypeFilter)
-  }
-
   const { fetchLineItemsFromPostgresByEndpoint, readPlanMasterByMba } = await import(
     '@/lib/data/readMediaPlans'
   )
