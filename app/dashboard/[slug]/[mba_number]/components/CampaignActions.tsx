@@ -25,6 +25,8 @@ import {
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { CampaignReportPeriodDialog } from "@/components/dashboard/campaign/CampaignReportPeriodDialog"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
+import { buildBillingScheduleExcelBlob } from "@/lib/billing/exportBillingScheduleExcel"
+import type { BillingMonth } from "@/lib/billing/types"
 
 type XanoPublicFile = {
   access?: string
@@ -113,6 +115,14 @@ export default function CampaignActions({
       : typeof _campaign?.mp_campaignname === "string"
         ? _campaign.mp_campaignname
         : null
+  const brand =
+    typeof _campaign?.campaign_brand === "string"
+      ? _campaign.campaign_brand
+      : typeof _campaign?.brand === "string"
+        ? _campaign.brand
+        : typeof _campaign?.mp_brand === "string"
+          ? _campaign.mp_brand
+          : ""
 
   const reportButton = isAdmin ? (
     <Button
@@ -177,19 +187,20 @@ export default function CampaignActions({
     document.body.removeChild(a)
   }
 
-  const downloadBillingAsJson = async () => {
-    if (!billingSchedule) {
+  const downloadBillingSchedule = async () => {
+    if (!Array.isArray(billingSchedule)) {
       throw new Error("Billing schedule not found for this campaign.")
     }
-    const payload =
-      typeof billingSchedule === "string"
-        ? billingSchedule
-        : JSON.stringify(billingSchedule, null, 2)
-    const blob = new Blob([payload], { type: "application/json;charset=utf-8" })
+    const blob = await buildBillingScheduleExcelBlob(billingSchedule as BillingMonth[], {
+      client: clientName ?? "",
+      brand,
+      campaignName: campaignName ?? "",
+      mbaNumber,
+    })
     const objectUrl = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = objectUrl
-    a.download = `billing-schedule-${mbaNumber}.json`
+    a.download = `billing-schedule-${mbaNumber}.xlsx`
     document.body.appendChild(a)
     a.click()
     window.URL.revokeObjectURL(objectUrl)
@@ -258,7 +269,7 @@ export default function CampaignActions({
     setIsDownloadingBilling(true)
     setAriaStatus("Downloading billing schedule")
     try {
-      await downloadBillingAsJson()
+      await downloadBillingSchedule()
       toast({
         title: "Success",
         description: "Billing schedule downloaded successfully",
@@ -350,7 +361,7 @@ export default function CampaignActions({
                 Download MBA
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleDownloadBilling} disabled={isBusy}>
-                Download Billing
+                Download billing schedule (Excel)
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
