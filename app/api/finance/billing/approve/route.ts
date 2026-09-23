@@ -141,6 +141,28 @@ export async function POST(request: NextRequest) {
             if (!billedSnapshotAmountEchoOk(row.approved_amount, grain.total)) {
               throw new Error("Approved amount echo did not match at cents precision.")
             }
+            const persisted_record_id = Number(row.id)
+            await writeStatusChangeEdit(
+              {
+                finance_billing_records_id: Number.isFinite(persisted_record_id)
+                  ? persisted_record_id
+                  : null,
+                field_name: "approved_at",
+                old_value: reapprove
+                  ? reapproveAuditOldValue({
+                      priorApprovedAt: result.priorApprovedAt,
+                      priorApprovedAmountCents: result.priorApprovedAmountCents,
+                    })
+                  : null,
+                new_value: String(row.approved_at ?? ""),
+              },
+              {
+                editedBy: currentUser.id,
+                editedByName: approvedByName,
+                recordType: "status_change",
+              },
+              tx
+            )
             rows.push({
               ...row,
               priorApprovedAt: result.priorApprovedAt,
@@ -186,32 +208,6 @@ export async function POST(request: NextRequest) {
       const grain = grains[i]!
       const row = stamped[i]!
       const persisted_record_id = Number(row.id)
-      await writeStatusChangeEdit(
-        {
-          finance_billing_records_id: Number.isFinite(persisted_record_id)
-            ? persisted_record_id
-            : null,
-          field_name: "approved_at",
-          old_value: reapprove
-            ? reapproveAuditOldValue({
-                priorApprovedAt:
-                  typeof row.priorApprovedAt === "string" ? row.priorApprovedAt : null,
-                priorApprovedAmountCents:
-                  typeof row.priorApprovedAmountCents === "number"
-                    ? row.priorApprovedAmountCents
-                    : row.priorApprovedAmountCents == null
-                      ? null
-                      : Number(row.priorApprovedAmountCents),
-              })
-            : null,
-          new_value: String(row.approved_at ?? ""),
-        },
-        {
-          editedBy: currentUser.id,
-          editedByName: approvedByName,
-          recordType: "status_change",
-        }
-      )
       results.push({
         invoice_key: grain.invoice_key,
         persisted_record_id,

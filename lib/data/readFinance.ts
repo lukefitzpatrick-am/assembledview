@@ -292,7 +292,7 @@ export async function fetchFinanceEditsFromXano(): Promise<Record<string, unknow
   return asRecordList(result.body)
 }
 
-/** List finance_edits. POST/writes stay on Xano. */
+/** List finance_edits. Audit inserts are Postgres (`writeFinanceAuditEdits`). */
 export async function readFinanceEdits(): Promise<Record<string, unknown>[]> {
   const backend = getDataBackendFor(DOMAIN)
 

@@ -75,6 +75,26 @@ export async function POST(request: NextRequest) {
           }> = []
           for (const invoice_key of actionable) {
             const result = await clearFinanceBillingRecordApproval(invoice_key, tx)
+            const persisted_record_id = Number(result.record.id)
+            await writeStatusChangeEdit(
+              {
+                finance_billing_records_id: Number.isFinite(persisted_record_id)
+                  ? persisted_record_id
+                  : null,
+                field_name: "approved_at",
+                old_value:
+                  result.priorApprovedAt != null && String(result.priorApprovedAt).length > 0
+                    ? String(result.priorApprovedAt)
+                    : "cleared",
+                new_value: null,
+              },
+              {
+                editedBy: currentUser.id,
+                editedByName,
+                recordType: "status_change",
+              },
+              tx
+            )
             rows.push({
               invoice_key,
               record: result.record,
@@ -98,24 +118,6 @@ export async function POST(request: NextRequest) {
 
     for (const item of cleared) {
       const persisted_record_id = Number(item.record.id)
-      await writeStatusChangeEdit(
-        {
-          finance_billing_records_id: Number.isFinite(persisted_record_id)
-            ? persisted_record_id
-            : null,
-          field_name: "approved_at",
-          old_value:
-            item.priorApprovedAt != null && String(item.priorApprovedAt).length > 0
-              ? String(item.priorApprovedAt)
-              : "cleared",
-          new_value: null,
-        },
-        {
-          editedBy: currentUser.id,
-          editedByName,
-          recordType: "status_change",
-        }
-      )
       results.push({ invoice_key: item.invoice_key, persisted_record_id })
     }
 

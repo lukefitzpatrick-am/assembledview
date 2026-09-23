@@ -67,9 +67,34 @@ export async function POST(request: NextRequest) {
     if (classified.actionable.length > 0) {
       try {
         const db = getDb()
-        const result = await db.transaction(async (tx) =>
-          stampExportedKeysSkippingUnapproved(classified.actionable, currentUser.id, tx)
-        )
+        const result = await db.transaction(async (tx) => {
+          const stampedResult = await stampExportedKeysSkippingUnapproved(
+            classified.actionable,
+            currentUser.id,
+            tx
+          )
+          for (const item of stampedResult.stamped) {
+            const persisted_record_id = Number(item.record.id)
+            const exportedAt = item.record.exported_at
+            await writeStatusChangeEdit(
+              {
+                finance_billing_records_id: Number.isFinite(persisted_record_id)
+                  ? persisted_record_id
+                  : null,
+                field_name: "exported_at",
+                old_value: null,
+                new_value: exportedAt != null ? String(exportedAt) : null,
+              },
+              {
+                editedBy: currentUser.id,
+                editedByName,
+                recordType: "status_change",
+              },
+              tx
+            )
+          }
+          return stampedResult
+        })
         stamped = result.stamped
         for (const skip of result.skipped) {
           if (skip.reason === "not_approved") {
@@ -100,21 +125,6 @@ export async function POST(request: NextRequest) {
     for (const item of stamped) {
       const persisted_record_id = Number(item.record.id)
       const exportedAt = item.record.exported_at
-      await writeStatusChangeEdit(
-        {
-          finance_billing_records_id: Number.isFinite(persisted_record_id)
-            ? persisted_record_id
-            : null,
-          field_name: "exported_at",
-          old_value: null,
-          new_value: exportedAt != null ? String(exportedAt) : null,
-        },
-        {
-          editedBy: currentUser.id,
-          editedByName,
-          recordType: "status_change",
-        }
-      )
       results.push({
         invoice_key: item.invoiceKey,
         persisted_record_id,
