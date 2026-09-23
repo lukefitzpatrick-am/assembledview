@@ -1,30 +1,23 @@
 /**
- * PC4 — audit collision worksheet decisions to finance_edits.
+ * Browser caller for collision-decision audits.
+ * The insert lives in writeCollisionAuditEdits.server.ts behind
+ * POST /api/finance/billing/collision-decisions. Identity comes from the
+ * session on that route, not from the second argument.
  */
 
-import { writeStatusChangeEdit, type AuditContext } from "@/lib/finance/writeFinanceAuditEdits"
 import type { CollisionDecision } from "@/lib/billing/collisionWorksheet"
 
 export async function writeCollisionDecisionEdits(
   choices: { lineItemId: string; decision: CollisionDecision; oldTotal: number; newTotal: number }[],
-  context: Pick<AuditContext, "editedBy" | "editedByName">
+  _context?: { editedBy: number; editedByName: string }
 ): Promise<number> {
-  let ok = 0
-  for (const c of choices) {
-    const wrote = await writeStatusChangeEdit(
-      {
-        finance_billing_records_id: null,
-        field_name: `collision:${c.lineItemId}`,
-        old_value: String(c.oldTotal),
-        new_value: `${c.decision}:${c.newTotal}`,
-      },
-      {
-        editedBy: context.editedBy,
-        editedByName: context.editedByName,
-        recordType: "schedule_patch",
-      }
-    )
-    if (wrote) ok += 1
-  }
-  return ok
+  if (choices.length === 0) return 0
+  const res = await fetch("/api/finance/billing/collision-decisions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ choices }),
+  })
+  if (!res.ok) return 0
+  const json = (await res.json().catch(() => ({}))) as { written?: unknown }
+  return typeof json.written === "number" ? json.written : 0
 }
