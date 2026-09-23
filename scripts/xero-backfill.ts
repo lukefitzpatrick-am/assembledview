@@ -14,7 +14,10 @@
  * omits that shim and throws before main.
  */
 
+import { sql, type SQLWrapper } from "drizzle-orm"
+
 import { matchMbaAgainstMasters, type MbaMaster } from "@/lib/xero/matchMba"
+import { rowsOf } from "@/lib/xero/dbRows"
 import { parseNotesJson } from "@/lib/xero/watermark"
 
 export const XERO_LIST_PAGE_SIZE = 1000
@@ -35,6 +38,77 @@ export const DEFAULT_FROM = "2025-07-01"
  */
 export const PDF_BACKFILL_PENDING_SQL =
   "pdf_file IS NULL OR pdf_file->>'url' IS NULL OR pdf_file->>'url' = ''"
+
+export type PdfBackfillFile = {
+  url: string
+  pathname: string
+  filename: string
+  size: number
+  uploadedAt: string
+}
+
+/**
+ * Affected-row count from postgres.js (`count`) or node-pg (`rowCount`).
+ * An UPDATE without RETURNING still reports this; the result array length does not.
+ */
+export function pdfUpdateAffected(result: unknown): number {
+  if (!result || typeof result !== "object") return 0
+  const record = result as { rowCount?: unknown; count?: unknown }
+  if (typeof record.rowCount === "number") return record.rowCount
+  if (typeof record.count === "number") return record.count
+  return 0
+}
+
+/** Writes `pdf_file` only when the row is still pending. Returns affected rows. */
+export async function persistBackfillPdfFile(
+  execute: (query: SQLWrapper) => Promise<unknown>,
+  table: "xero_ar_invoices" | "xero_ap_bills",
+  xeroInvoiceId: string,
+  pdfFile: PdfBackfillFile,
+): Promise<number> {
+  const payload = JSON.stringify(pdfFile)
+  const result = await execute(sql`
+    UPDATE ${sql.raw(table)}
+    SET pdf_file = ${payload}::jsonb
+    WHERE xero_invoice_id = ${xeroInvoiceId}
+      AND (${sql.raw(PDF_BACKFILL_PENDING_SQL)})
+  `)
+  return pdfUpdateAffected(result)
+}
+
+export function pdfBackfillStillMissingQuery(fromYmd: string) {
+  return sql`
+    SELECT count(*)::int AS n
+    FROM (
+      SELECT 1 FROM xero_ar_invoices
+      WHERE (${sql.raw(PDF_BACKFILL_PENDING_SQL)})
+        AND issue_date >= ${fromYmd}::date
+      UNION ALL
+      SELECT 1 FROM xero_ap_bills
+      WHERE (${sql.raw(PDF_BACKFILL_PENDING_SQL)})
+        AND issue_date >= ${fromYmd}::date
+    ) pending
+  `
+}
+
+export async function countPdfBackfillStillMissing(
+  execute: (query: SQLWrapper) => Promise<unknown>,
+  fromYmd: string,
+): Promise<number> {
+  const rows = rowsOf<{ n: number | string }>(
+    await execute(pdfBackfillStillMissingQuery(fromYmd)),
+  )
+  const n = Number(rows[0]?.n ?? 0)
+  return Number.isFinite(n) ? n : 0
+}
+
+export function pdfBackfillStepOutcome(
+  batchOutcome: "success" | "incomplete",
+  stillMissing: number,
+): "success" | "incomplete" {
+  if (stillMissing > 0) return "incomplete"
+  return batchOutcome
+}
 
 /** Row-level mirror of `PDF_BACKFILL_PENDING_SQL`. */
 export function pdfBackfillUrlMissing(pdfFile: unknown): boolean {
@@ -216,10 +290,17 @@ export async function runPdfBatches<T>(args: {
   pauseMs?: number
   now?: () => Date
   sleep?: (ms: number) => Promise<void>
-  fetchRow: (row: T) => Promise<{ calls: number; stored: boolean }>
+  fetchRow: (row: T) => Promise<{
+    calls: number
+    stored: boolean
+    kind?: "reused" | "fetched" | "unstored"
+  }>
   onBatch: (info: {
     batchIndex: number
     stored: number
+    reused: number
+    fetched: number
+    unstored: number
     calls: number
     remaining: number
   }) => void | Promise<void>
@@ -229,6 +310,9 @@ export async function runPdfBatches<T>(args: {
   remainingRows: number
   rerunAfterUtc: string | null
   stored: number
+  reused: number
+  fetched: number
+  unstored: number
 }> {
   const budget = args.dailyBudget ?? XERO_BACKFILL_DAILY_CALL_BUDGET
   const batchSize = args.batchSize ?? XERO_BACKFILL_PDF_BATCH
@@ -240,6 +324,9 @@ export async function runPdfBatches<T>(args: {
   let calls = args.callsUsedToday
   let index = 0
   let stored = 0
+  let reused = 0
+  let fetched = 0
+  let unstored = 0
   let batchIndex = 0
   let inBatch = 0
 
@@ -250,6 +337,9 @@ export async function runPdfBatches<T>(args: {
     rerunAfterUtc:
       outcome === "incomplete" ? nextUtcMidnight(now()).toISOString() : null,
     stored,
+    reused,
+    fetched,
+    unstored,
   })
 
   while (index < args.rows.length) {
@@ -257,7 +347,17 @@ export async function runPdfBatches<T>(args: {
     const row = args.rows[index]!
     const result = await args.fetchRow(row)
     calls += result.calls
-    if (result.stored) stored += 1
+    if (result.kind === "reused" && result.stored) {
+      reused += 1
+      stored += 1
+    } else if (result.kind === "fetched" && result.stored) {
+      fetched += 1
+      stored += 1
+    } else if (result.kind === "unstored") {
+      unstored += 1
+    } else if (result.stored) {
+      stored += 1
+    }
     index += 1
     inBatch += 1
     const hitBudget = calls >= budget
@@ -268,6 +368,9 @@ export async function runPdfBatches<T>(args: {
       await args.onBatch({
         batchIndex,
         stored,
+        reused,
+        fetched,
+        unstored,
         calls,
         remaining: args.rows.length - index,
       })
@@ -454,11 +557,9 @@ async function main(): Promise<number> {
   const { upsertPagedXeroContact } = await import(
     "@/lib/xero/stages/contactsRefresh"
   )
-  const {
-    PDF_429_MAX_ATTEMPTS,
-    defaultPersistPdfFile,
-    delayMsFor429,
-  } = await import("@/lib/xero/stages/syncPdfs")
+  const { PDF_429_MAX_ATTEMPTS, delayMsFor429 } = await import(
+    "@/lib/xero/stages/syncPdfs"
+  )
   const { BlobNotFoundError, head, put } = await import("@vercel/blob")
   const { parseXeroDateString } = await import("@/lib/xero/parseXeroDate")
 
@@ -896,9 +997,7 @@ async function main(): Promise<number> {
     )
     let token: string | null = null
     const blobToken = process.env.BLOB_READ_WRITE_TOKEN
-    let stored = 0
-    let reused = 0
-    let fetched = 0
+    const execute = (query: SQLWrapper) => db.execute(query)
     const batch = await runPdfBatches({
       rows,
       callsUsedToday: dayCalls(),
@@ -907,6 +1006,17 @@ async function main(): Promise<number> {
         const pathname = `xero-invoices/${row.xero_invoice_id}/${filename}`
         const table =
           row.kind === "AR" ? "xero_ar_invoices" : "xero_ap_bills"
+        const classify = (
+          affected: number,
+          calls: number,
+          kind: "reused" | "fetched",
+        ) => {
+          if (affected === 1) return { calls, stored: true, kind }
+          if (affected === 0) return { calls, stored: false, kind: "unstored" as const }
+          throw new Error(
+            `pdf_file update for ${row.xero_invoice_id} affected ${affected} rows`,
+          )
+        }
         let existing: Awaited<ReturnType<typeof head>> | null = null
         try {
           existing = await head(pathname, { token: blobToken })
@@ -921,10 +1031,13 @@ async function main(): Promise<number> {
             size: existing.size,
             uploadedAt: existing.uploadedAt.toISOString(),
           }
-          await defaultPersistPdfFile(table, row.xero_invoice_id, file)
-          reused += 1
-          stored += 1
-          return { calls: 0, stored: true }
+          const affected = await persistBackfillPdfFile(
+            execute,
+            table,
+            row.xero_invoice_id,
+            file,
+          )
+          return classify(affected, 0, "reused")
         }
 
         let calls = 0
@@ -969,18 +1082,22 @@ async function main(): Promise<number> {
           size: bytes.byteLength,
           uploadedAt: new Date().toISOString(),
         }
-        await defaultPersistPdfFile(table, row.xero_invoice_id, file)
-        fetched += 1
-        stored += 1
-        return { calls, stored: true }
+        const affected = await persistBackfillPdfFile(
+          execute,
+          table,
+          row.xero_invoice_id,
+          file,
+        )
+        return classify(affected, calls, "fetched")
       },
       onBatch: async (info) => {
         console.log(
-          `pdf batch ${info.batchIndex}: reused ${reused}, fetched ${fetched}, calls today ${info.calls}, remaining ${info.remaining}`,
+          `pdf batch ${info.batchIndex}: stored ${info.stored}, reused ${info.reused}, fetched ${info.fetched}, unstored ${info.unstored}, calls today ${info.calls}, remaining ${info.remaining}`,
         )
         notes.stored = info.stored
-        notes.reused = reused
-        notes.fetched = fetched
+        notes.reused = info.reused
+        notes.fetched = info.fetched
+        notes.unstored = info.unstored
         notes.api_calls = runCalls
         notes.remaining = info.remaining
         if (logId != null) {
@@ -988,19 +1105,23 @@ async function main(): Promise<number> {
         }
       },
     })
-    notes.stored = stored
-    notes.reused = reused
-    notes.fetched = fetched
+    const stillMissing = await countPdfBackfillStillMissing(execute, args.from)
+    notes.stored = batch.stored
+    notes.reused = batch.reused
+    notes.fetched = batch.fetched
+    notes.unstored = batch.unstored
+    notes.still_missing = stillMissing
     notes.pending = rows.length
     notes.api_calls = runCalls
     notes.calls_today = batch.callsUsedToday
+    const outcome = pdfBackfillStepOutcome(batch.outcome, stillMissing)
+    notes.outcome = outcome
     if (batch.outcome === "incomplete") {
-      notes.outcome = "incomplete"
       notes.stop_reason = "budget"
       notes.rerun_after_utc = batch.rerunAfterUtc
       return
     }
-    notes.outcome = "success"
+    if (outcome === "incomplete") notes.stop_reason = "still_missing"
   }
 }
 

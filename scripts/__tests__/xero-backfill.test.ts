@@ -6,7 +6,10 @@ import {
   createCallPacer,
   invoiceBackfillPath,
   PDF_BACKFILL_PENDING_SQL,
+  pdfBackfillStepOutcome,
+  pdfBackfillStillMissingQuery,
   pdfBackfillUrlMissing,
+  persistBackfillPdfFile,
   resumeBackfillPage,
   runPdfBatches,
   walkPagedResource,
@@ -15,6 +18,30 @@ import {
   XERO_BACKFILL_PDF_BATCH_PAUSE_MS,
   XERO_LIST_PAGE_SIZE,
 } from "../xero-backfill"
+
+function sqlText(query: unknown): string {
+  const chunks = (query as { queryChunks?: unknown[] }).queryChunks
+  if (!chunks) return String(query)
+  const parts: string[] = []
+  const walk = (chunk: unknown) => {
+    if (typeof chunk === "string") {
+      parts.push(chunk)
+      return
+    }
+    if (!chunk || typeof chunk !== "object") return
+    if ("queryChunks" in chunk) {
+      for (const nested of (chunk as { queryChunks: unknown[] }).queryChunks) walk(nested)
+      return
+    }
+    if ("value" in chunk) {
+      const value = (chunk as { value: unknown }).value
+      if (Array.isArray(value)) parts.push(value.map((part) => String(part)).join(""))
+      else if (typeof value === "string") parts.push(value)
+    }
+  }
+  for (const chunk of chunks) walk(chunk)
+  return parts.join("")
+}
 
 describe("page walker resumes from a saved page", () => {
   it("continues at the incomplete page and does not restart at 1", async () => {
@@ -132,6 +159,96 @@ describe("PDF batcher stops at the daily budget", () => {
     assert.equal(result.remainingRows, 17)
     assert.equal(sleeps.length, 0)
     assert.equal(result.rerunAfterUtc, "2026-09-24T00:00:00.000Z")
+  })
+
+  it("keeps stored, reused and fetched growing past a batch boundary", async () => {
+    const rows = Array.from({ length: 12 }, (_, i) => i)
+    const batches: Array<{ stored: number; reused: number; fetched: number; unstored: number }> = []
+    const result = await runPdfBatches({
+      rows,
+      callsUsedToday: 0,
+      batchSize: 10,
+      pauseMs: 0,
+      sleep: async () => {},
+      fetchRow: async (row) => {
+        if (row === 3) return { calls: 1, stored: false, kind: "unstored" }
+        if (row % 2 === 0) return { calls: 0, stored: true, kind: "reused" }
+        return { calls: 1, stored: true, kind: "fetched" }
+      },
+      onBatch: (info) => {
+        batches.push({
+          stored: info.stored,
+          reused: info.reused,
+          fetched: info.fetched,
+          unstored: info.unstored,
+        })
+      },
+    })
+
+    assert.equal(batches.length, 2)
+    assert.equal(batches[0]?.stored, 9)
+    assert.equal(batches[1]?.stored, 11)
+    assert.ok((batches[1]?.stored ?? 0) > (batches[0]?.stored ?? 0))
+    assert.equal(result.stored, 11)
+    assert.equal(result.reused, 6)
+    assert.equal(result.fetched, 5)
+    assert.equal(result.unstored, 1)
+  })
+})
+
+describe("PDF backfill persist", () => {
+  const xanoStub = {
+    meta: {},
+    mime: "",
+    name: "",
+    path: "",
+    size: 0,
+    type: "",
+    access: "public",
+  }
+  const nextFile = {
+    url: "https://blob.example/xero-invoices/inv-stub/INV-STUB.pdf",
+    pathname: "xero-invoices/inv-stub/INV-STUB.pdf",
+    filename: "INV-STUB.pdf",
+    size: 12,
+    uploadedAt: "2026-09-24T00:00:00.000Z",
+  }
+
+  it("writes the url onto a jsonb stub that has no url", async () => {
+    const row = { pdf_file: xanoStub as unknown }
+    const affected = await persistBackfillPdfFile(
+      async (query) => {
+        const text = sqlText(query)
+        const matchesPending =
+          text.includes("pdf_file->>'url' IS NULL") &&
+          text.includes("pdf_file->>'url' = ''") &&
+          text.includes("pdf_file IS NULL")
+        const matches =
+          text.includes("xero_invoice_id") &&
+          (matchesPending ? pdfBackfillUrlMissing(row.pdf_file) : row.pdf_file == null)
+        if (!matches) return { count: 0, rowCount: 0 }
+        row.pdf_file = nextFile
+        return { count: 1, rowCount: 1 }
+      },
+      "xero_ar_invoices",
+      "inv-stub",
+      nextFile,
+    )
+
+    assert.equal(affected, 1)
+    assert.equal(pdfBackfillUrlMissing(row.pdf_file), false)
+    assert.equal((row.pdf_file as { url: string }).url, nextFile.url)
+  })
+
+  it("counts a zero-row update as unstored and finishes incomplete while urls are missing", () => {
+    assert.equal(pdfBackfillStepOutcome("success", 0), "success")
+    assert.equal(pdfBackfillStepOutcome("success", 1245), "incomplete")
+    assert.equal(pdfBackfillStepOutcome("incomplete", 0), "incomplete")
+    const text = sqlText(pdfBackfillStillMissingQuery("2025-07-01"))
+    assert.match(text, /xero_ar_invoices/)
+    assert.match(text, /xero_ap_bills/)
+    assert.match(text, /pdf_file->>'url' IS NULL/)
+    assert.match(text, /pdf_file->>'url' = ''/)
   })
 })
 
