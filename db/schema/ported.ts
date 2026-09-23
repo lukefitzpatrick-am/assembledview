@@ -866,6 +866,9 @@ export const xeroSyncExceptions = pgTable(
   resolved: boolean('resolved'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: "string" }).notNull().defaultNow(),
   issueDate: text('issue_date'),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: "string" }),
+  resolvedBy: text('resolved_by'),
+  resolution: text('resolution'),
   },
 )
 

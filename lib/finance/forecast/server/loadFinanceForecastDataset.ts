@@ -1,4 +1,3 @@
-import axios from "axios"
 import { slugifyClientNameForUrl, getClientDisplayName } from "@/lib/clients/slug"
 import { financeClientNamesMatch, normalizeFinanceClientName } from "@/lib/finance/utils"
 import { buildFinanceForecastDataset } from "@/lib/finance/forecast/buildFinanceForecastDataset"
@@ -9,16 +8,13 @@ import type {
   FinanceForecastPublisherInput,
   FinanceForecastScenario,
 } from "@/lib/types/financeForecast"
-import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
-import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import { getDataBackendFor } from "@/lib/data/backend"
-import { readPlanMasters } from "@/lib/data/readMediaPlans"
+import { readClientsList } from "@/lib/data/readClients"
+import { readPlanMasters, readPlanVersions } from "@/lib/data/readMediaPlans"
+import { readPublishersList } from "@/lib/data/readPublishers"
 import { stampMasterCampaignStatus } from "@/lib/finance/sections/financeCampaignStatus"
 import { stabilizeFinanceForecastDataset } from "./stabilizeFinanceForecastDataset"
 import { redactForecastRowDebug } from "./redactForecastDebug"
 import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
-
-const MEDIA_BASE_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
 
 export interface LoadFinanceForecastDatasetOptions {
   financialYearStartYear: number
@@ -74,16 +70,6 @@ const datasetCache = new Map<
 >()
 const datasetInFlight = new Map<string, Promise<LoadFinanceForecastDatasetResult>>()
 
-function unwrapArray(payload: unknown): unknown[] {
-  if (Array.isArray(payload)) return payload
-  if (payload && typeof payload === "object") {
-    const p = payload as Record<string, unknown>
-    if (Array.isArray(p.data)) return p.data
-    if (Array.isArray(p.items)) return p.items
-  }
-  return []
-}
-
 function normalizeScenario(raw: string | null): FinanceForecastScenario | null {
   const s = String(raw ?? "")
     .trim()
@@ -93,7 +79,8 @@ function normalizeScenario(raw: string | null): FinanceForecastScenario | null {
 }
 
 /**
- * Single batched Xano read for Finance Forecast (versions + clients + publishers).
+ * Versions, clients, and publishers for Finance Forecast.
+ * The export name is unchanged so existing callers keep compiling.
  * No Next.js or Auth imports — safe to unit-test with mocks.
  */
 export async function fetchFinanceForecastRawFromXano(): Promise<{
@@ -122,35 +109,17 @@ async function fetchFinanceForecastRawFromXanoUncached(): Promise<{
   clients: FinanceForecastClientInput[]
   publishers: FinanceForecastPublisherInput[]
 }> {
-  // Full version history (paged) — forecast scenarios need non-latest rows.
-  // Do NOT use media_plan_versions_latest / dashboard cache.
-  const versionsUrl = xanoUrl("media_plan_versions", MEDIA_BASE_KEYS as unknown as string[])
-  const clientsUrl = xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL")
-  const publishersUrl = xanoUrl("get_publishers", "XANO_PUBLISHERS_BASE_URL")
-
   const [versions, clientsRes, publishersRes, masters] = await Promise.all([
-    fetchAllXanoPages(versionsUrl, {}, "FINANCE_forecast_media_plan_versions", 100, 50).catch(
-      () => [] as any[]
-    ),
-    axios
-      .get(clientsUrl, { timeout: 15_000, headers: xanoAuthHeaderRecord() })
-      .catch(() => ({ data: [] })),
-    axios
-      .get(publishersUrl, { timeout: 15_000, headers: xanoAuthHeaderRecord() })
-      .catch(() => ({ data: [] })),
-    getDataBackendFor("plans") === "postgres"
-      ? readPlanMasters().catch(() => [] as Record<string, unknown>[])
-      : axios
-          .get(xanoUrl("media_plan_master", MEDIA_BASE_KEYS as unknown as string[]), {
-            timeout: 15_000,
-            headers: xanoAuthHeaderRecord(),
-          })
-          .then((res) => unwrapArray(res.data) as Record<string, unknown>[])
-          .catch(() => [] as Record<string, unknown>[]),
+    readPlanVersions().catch(() => [] as FinanceForecastMediaPlanVersionInput[]),
+    readClientsList().catch(() => ({ status: 500, body: [], contentType: "application/json" })),
+    readPublishersList().catch(() => ({ status: 500, body: [], contentType: "application/json" })),
+    readPlanMasters().catch(() => [] as Record<string, unknown>[]),
   ])
 
-  const clients = unwrapArray(clientsRes.data) as FinanceForecastClientInput[]
-  const publishers = unwrapArray(publishersRes.data) as FinanceForecastPublisherInput[]
+  const clients = (Array.isArray(clientsRes.body) ? clientsRes.body : []) as FinanceForecastClientInput[]
+  const publishers = (Array.isArray(publishersRes.body)
+    ? publishersRes.body
+    : []) as FinanceForecastPublisherInput[]
   stampMasterCampaignStatus(versions as Record<string, unknown>[], masters)
 
   return {
@@ -254,7 +223,7 @@ function filterVersionsBySearch(
 }
 
 /**
- * End-to-end: fetch Xano → tenant/UI filters → `buildFinanceForecastDataset` → stable sort → optional debug redaction.
+ * End-to-end: Postgres versions, clients, and publishers → tenant/UI filters → `buildFinanceForecastDataset` → stable sort → optional debug redaction.
  */
 export async function loadFinanceForecastDataset(
   options: LoadFinanceForecastDatasetOptions

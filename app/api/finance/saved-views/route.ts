@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import {
-  FINANCE_SAVED_VIEWS_PATH,
-  xanoFinancePost,
-} from "@/lib/finance/xanoFinanceApi"
 import { readFinanceSavedViews } from "@/lib/data/readFinance"
+import { insertFinanceSavedView } from "@/lib/data/writeFinance"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
@@ -29,7 +26,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as Record<string, unknown>
-    const payload = await xanoFinancePost(FINANCE_SAVED_VIEWS_PATH, body)
+    const payload = await insertFinanceSavedView(body)
     return NextResponse.json(payload, { status: 201 })
   } catch (error: any) {
     return NextResponse.json(

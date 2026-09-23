@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import {
-  FINANCE_EDITS_PATH,
-  xanoFinancePost,
-} from "@/lib/finance/xanoFinanceApi"
 import { readFinanceEdits } from "@/lib/data/readFinance"
+import { insertFinanceEdit } from "@/lib/data/writeFinance"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
@@ -33,7 +30,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as Record<string, unknown>
-    const payload = await xanoFinancePost(FINANCE_EDITS_PATH, body)
+    const actor = gate.session?.user as { email?: string; name?: string } | undefined
+    const payload = await insertFinanceEdit({
+      ...body,
+      edited_by_name: body.edited_by_name ?? actor?.email ?? actor?.name ?? null,
+    })
     return NextResponse.json(payload, { status: 201 })
   } catch (error: any) {
     return NextResponse.json(

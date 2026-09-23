@@ -3,10 +3,7 @@ import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { getDb, schema } from "@/db"
-import {
-  FINANCE_EDITS_PATH,
-  xanoFinancePost,
-} from "@/lib/finance/xanoFinanceApi"
+import { insertFinanceEdit } from "@/lib/data/writeFinance"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const dynamic = "force-dynamic"
@@ -92,16 +89,14 @@ export async function POST(request: NextRequest) {
   const actor = actorUser?.email ?? actorUser?.name ?? "finance-admin"
 
   try {
-    await xanoFinancePost(FINANCE_EDITS_PATH, {
-      entity_type: "mba_fee_snapshots",
-      entity_id: String(versionId),
-      action: "resnapshot_fees",
-      reason,
-      mba_number: version.mbaNumber,
-      version_number: version.versionNumber,
-      before: existing?.fees ?? null,
-      after: fees,
-      actor,
+    await insertFinanceEdit({
+      record_type: "mba_fee_snapshots",
+      edit_type: "resnapshot_fees",
+      field_name: `fee_snapshot:${versionId}`,
+      old_value: existing?.fees ?? null,
+      new_value: { fees, reason, mba_number: version.mbaNumber, version_number: version.versionNumber },
+      edit_status: "published",
+      edited_by_name: actor,
     })
   } catch (err) {
     console.error("[fee-snapshots/resnapshot] finance_edits audit failed", err)

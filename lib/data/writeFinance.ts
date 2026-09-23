@@ -19,10 +19,11 @@ import "server-only"
 
 import { sql } from "drizzle-orm"
 
-import { getDb } from "@/db"
+import { getDb, schema } from "@/db"
 import {
   mapFinanceBillingLineItemFromPostgres,
   mapFinanceBillingRecordFromPostgres,
+  mapFinanceEditFromPostgres,
 } from "@/lib/data/readFinance"
 
 export class FinanceBillingWriteError extends Error {
@@ -1052,4 +1053,67 @@ export async function deleteFinanceBillingLineItemById(id: number): Promise<void
   const retry = await loadParentStampByLineItemId(id)
   if (retry?.approved_at) throwApprovedMoneyFrozen("amount")
   throw new FinanceBillingWriteError("NOT_FOUND", `finance_billing_line_items id=${id} not found`)
+}
+
+function optionalBigint(value: unknown): number | null {
+  if (value == null || value === "") return null
+  const n = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function editText(value: unknown): string | null {
+  if (value == null) return null
+  if (typeof value === "string") return value
+  if (typeof value === "number" || typeof value === "boolean") return String(value)
+  return JSON.stringify(value)
+}
+
+/** Insert one `finance_edits` row. `edited_by` is the bigint column; names stay in `edited_by_name`. */
+export async function insertFinanceEdit(
+  input: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const db = getDb()
+  const [row] = await db
+    .insert(schema.financeEdits)
+    .values({
+      financeBillingRecordsId: optionalBigint(input.finance_billing_records_id),
+      financeBillingLineItemsId: optionalBigint(input.finance_billing_line_items_id),
+      editType: editText(input.edit_type),
+      fieldName: editText(input.field_name),
+      oldValue: editText(input.old_value),
+      newValue: editText(input.new_value),
+      editStatus: editText(input.edit_status),
+      editedBy: optionalBigint(input.edited_by),
+      editedByName: editText(input.edited_by_name),
+      recordType: editText(input.record_type),
+    })
+    .returning()
+  return mapFinanceEditFromPostgres(row as unknown as Record<string, unknown>)
+}
+
+/** Insert one `finance_saved_views` row. `name` is stored as `view_name`. */
+export async function insertFinanceSavedView(
+  input: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const name = editText(input.name) ?? editText(input.view_name)
+  const filters =
+    input.report != null && input.filters && typeof input.filters === "object" && !Array.isArray(input.filters)
+      ? { ...(input.filters as Record<string, unknown>), report: input.report }
+      : (input.filters ?? null)
+  const db = getDb()
+  const [row] = await db
+    .insert(schema.financeSavedViews)
+    .values({
+      viewName: name,
+      filters,
+      userId: optionalBigint(input.user_id ?? input.user),
+      isDefault: input.is_default === true ? true : input.is_default === false ? false : null,
+    })
+    .returning()
+  return {
+    id: row.id,
+    name: row.viewName,
+    filters: row.filters,
+    is_default: row.isDefault,
+  }
 }

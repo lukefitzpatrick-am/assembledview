@@ -14,23 +14,23 @@ Living inventory of every Next.js surface that still depends on Xano. Built by X
 | **TOOLING** | Cron, admin probe, script, transport, or test — not product UX |
 | **VAULT** | `a2.xano.io/vault` file URL |
 | **NAME-ONLY** | Frozen name, or the file parses a Xano-shaped payload and makes no Xano HTTP call |
-| **DONE** | XS-1 removed the Xano call. The row stays as the severance record. |
+| **DONE** | XS-1 or XS-2a removed the Xano call. The row stays as the severance record. |
 
 ---
 
 ## Tallies
 
-Re-audited inclusion set was **112** files (app 13, lib 75, scripts 24, components 0). XS-1 marks **36** of those rows **DONE** (deleted, no longer call Xano, or moved to `scripts/_archive/xano/`). That archive is history and is excluded from the live inclusion set. Live remainder is **76** files that still match the scope above.
+Re-audited inclusion set was **112** files (app 13, lib 75, scripts 24, components 0). XS-1 marks **36** of those rows **DONE**. XS-2a marks **6** more **DONE** (`xanoReferenceCache`, deleted `xanoFinanceApi`, `xero-queue`, `readFinance`, `relevantPlanVersions`, `loadFinanceForecastDataset`). That archive is history and is excluded from the live inclusion set. Live remainder is **70** files that still match the scope above.
 
 | Verdict | Files |
 |---|---|
-| PORT | 40 |
+| PORT | 34 |
 | TOOLING | 16 |
 | NAME-ONLY | 13 |
 | MIRROR | 0 |
 | VAULT | 7 |
 | DEAD | 0 |
-| DONE | 36 |
+| DONE | 42 |
 
 **Production env** (`vercel env ls production --non-interactive`, names only). XANO_* present: XANO_API_KEY, XANO_CLIENT_DASHBOARDS_BASE_URL, XANO_CLIENTS_BASE_URL, XANO_DASHBOARDS_BASE_URL, XANO_EXPORT_INSTANCE_URL, XANO_MEDIA_CONTAINERS_BASE_URL, XANO_MEDIA_DETAILS_BASE_URL, XANO_MEDIA_PLANS_BASE_URL, XANO_MEDIAPLANS_BASE_URL, XANO_METADATA_TOKEN, XANO_OVERALL_TIMEOUT_MS, XANO_PUBLISHERS_BASE_URL, XANO_SAVE_FILE_BASE_URL, XANO_SCOPES_BASE_URL, XANO_TIMEOUT_MS.
 
@@ -51,24 +51,21 @@ No other DATA_BACKEND_* exists. Unset domains fall back to DATA_BACKEND, so plan
 
 LINE_ITEM_SNAPSHOT_SOURCE is set on production (secret). Its value was not read. The code default is xano, which calls fetchAllXanoLineItems. Reach for that cron is **unknown**.
 
-Of the 40 PORT rows, 13 still make a Xano HTTP call with these flags: the three dashboard crawls (client, finance, publisher), lib/finance/xanoReferenceCache.ts, lib/finance/xanoFinanceApi.ts, lib/api/publishers.ts (market share), lib/kpi/publisherKpi.ts, lib/ava/tools/getBestPractice.ts, lib/pacing/admin/assignOrphanLineItem.ts, lib/xano/pacingOrphanFixes.ts, app/api/finance/xero-queue/route.ts, app/api/media-details/[...path]/route.ts (GET reference plus the catch-all proxy; POST is Postgres only), and the legacy redirect app/mediaplans/[id]/edit/page.tsx. The other PORT rows are only if a DATA_BACKEND_* or WRITE_BACKEND flag is flipped to xano.
+Of the 34 PORT rows, 10 still make a Xano HTTP call with these flags: the three dashboard crawls (client, finance, publisher), lib/api/publishers.ts (market share), lib/kpi/publisherKpi.ts, lib/ava/tools/getBestPractice.ts, lib/pacing/admin/assignOrphanLineItem.ts, lib/xano/pacingOrphanFixes.ts, app/api/media-details/[...path]/route.ts (GET reference plus the catch-all proxy; POST is Postgres only), and the legacy redirect app/mediaplans/[id]/edit/page.tsx. The other PORT rows are only if a DATA_BACKEND_* or WRITE_BACKEND flag is flipped to xano. XS-2a removed finance HTTP from `xanoReferenceCache`, `xanoFinanceApi` (deleted), `xero-queue`, `readFinance`, `relevantPlanVersions`, and `loadFinanceForecastDataset`.
 
 **Ten largest PORT files by non-test importers** (direct imports of the file; tests excluded). Dual-read modules rank high because many callers exist; those callers take the Postgres branch today.
 
 | Importers | Production | File |
 |---|---|---|
 | 20 | only if flag flipped | lib/data/readMediaPlans.ts |
-| 19 | only if flag flipped | lib/data/readFinance.ts |
 | 18 | only if flag flipped | lib/api.ts |
-| 13 | yes | lib/finance/xanoReferenceCache.ts |
 | 12 | only if flag flipped | lib/data/readClients.ts |
 | 11 | only if flag flipped | lib/api/media-containers.ts |
-| 9 | only if flag flipped | lib/finance/relevantPlanVersions.ts |
 | 9 | only if flag flipped | lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts |
 | 7 | only if flag flipped | lib/clients/fetchClientRowByUrlSlug.ts |
 | 6 | only if flag flipped | lib/data/readKpi.ts |
 
-Tied at 6 and not in the ten: lib/data/readPublishers.ts, lib/finance/forecast/server/loadFinanceForecastDataset.ts. lib/api/dashboard/client.ts has two non-test direct importers because pages import it through lib/api/dashboard.ts; getClientDashboardData is still called from the client and campaign dashboard pages and from /api/dashboard/[slug] and /delivered.
+Tied at 6 and not in the ten: lib/data/readPublishers.ts. The ranking is not recounted after XS-2a; `readFinance`, `xanoReferenceCache`, `relevantPlanVersions`, and `loadFinanceForecastDataset` are DONE and left the list. lib/api/dashboard/client.ts has two non-test direct importers because pages import it through lib/api/dashboard.ts; getClientDashboardData is still called from the client and campaign dashboard pages and from /api/dashboard/[slug] and /delivered.
 
 **Live a2.xano.io counts** (column::text ILIKE, same technique as §2; §2 byte totals are unchanged). media_plan_versions:
 
@@ -90,7 +87,7 @@ Every other public jsonb/json column, plus text/varchar columns whose names matc
 | Suspect | Proof | Verdict |
 |---|---|---|
 | **`XANO_DASHBOARDS_BASE_URL`** | Defined in `lib/api/xanoClients.ts`. Only runtime consumer: `lib/api/dashboard/global.ts` → `dashboard_monthly_{publisher,client}_spend` when `DATA_BACKEND_PLANS !== postgres`. Product routes `/api/dashboard/global-monthly-*-spend` call those helpers via cache. **Not dead.** Under local `DATA_BACKEND=postgres` the Xano branch is cold but code remains live for xano/shadow. | **PORT** (cold when plans=postgres) / product dual via `dashboardMonthlySpend.ts` |
-| **`/api/finance/xero-queue` Xano bits** | Callers: `components/finance/sections/xero/XeroExceptionsPanel.tsx` GET+POST. Always hits `xero_sync_exceptions` via `xanoUrl(..., XANO_CLIENTS_BASE_URL)` + assign via `xanoFinancePatch`. Billing list half uses `readFinanceBillingRecords` (`DATA_BACKEND_FINANCE`). | **PORT** (exceptions always-Xano) — not dead |
+| **`/api/finance/xero-queue`** | Callers: `components/finance/sections/xero/XeroExceptionsPanel.tsx` GET+POST. Exceptions, `assign_mba`, resolve, and dismiss are Postgres. | **DONE** (XS-2a) |
 | **`/api/dashboard/spend-parity`** | Zero `fetch('/api/dashboard/spend-parity')` outside its own file. `NODE_ENV===production` → 404. | **TOOLING** (dev harness; no product callers) |
 | **`XANO_CODEX_*` remnant** | `rg XANO_CODEX` over `*.ts/tsx/js/mjs` → **0 hits**. F-27 FIXED — Postgres Codex + `CODEX_V2`. | **Gone** |
 | **Channel-route dead exports (S2 extend)** | Browser GETs: `lib/api.ts` `fetchLineItemsFromApi` → `/api/media_plans/{channel}`. Creates hit Xano direct from `lib/api.ts` (X7). Dedicated channel POSTs + `television/[id]` + TV CRUD exports **deleted (X2)**. Catch-all channel writes → 410 under `WRITE_BACKEND=postgres`. | Channel **POST RETIRE executed**; GETs **DUAL-DONE**; TV mutate **RETIRE executed** |
@@ -149,7 +146,7 @@ In-repo callers grepped under components/, app/, and lib/. A route with no calle
 | `app/api/admin/users/route.ts` | parses readClientsList body | DATA_BACKEND_CLIENTS (inside readClientsList) | no | lib/data/readClients.ts readClientsList | **NAME-ONLY** | app/admin/users/new/NewAdminUserForm.tsx |
 | `app/api/admin/xano-mirror/retry/route.ts` | deleted (XS-1) | — | no | none | **DONE** | none; no cron |
 | `app/api/finance/receivables/aa-media-plan/route.ts` | proxies aa_media_plan file URL with Xano auth header | unconditional | yes | media_plan_versions.aa_media_plan_file via resolveRelevantVersionAaMediaPlan | **VAULT** | components/finance/MediaPlanActionBar.tsx |
-| `app/api/finance/xero-queue/route.ts` | GET xero_sync_exceptions; PATCH finance_billing_records via xanoFinancePatch | unconditional | yes | none for exceptions; billing list is readFinanceBillingRecords | **PORT** | XeroExceptionsPanel.tsx, XeroPageClient.tsx |
+| `app/api/finance/xero-queue/route.ts` | GET open xero_sync_exceptions; assign_mba writes xero_ar_invoices and resolves the exception | — | no | lib/finance/xeroQueue.ts | **DONE** | XeroExceptionsPanel.tsx, XeroPageClient.tsx |
 | `app/api/media-details/[...path]/route.ts` | GET reference tables; catch-all proxy still calls Xano; POST is Postgres only (XS-1) | GET: DATA_BACKEND; catch-all: unconditional | yes | lib/data/referenceTables.ts fetchReferenceTableFromPostgres; createReferenceMediaDetailPostgresFirst | **PORT** | lib/api.ts → container create*/get* helpers |
 | `app/api/mediaplans/mba/[mba_number]/documents/__tests__/documents.route.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** | — |
 | `app/api/mediaplans/mba/[mba_number]/route.ts` | GET plan detail; PUT/PATCH media_plan_master, media_plan_versions, channel tables | GET: DATA_BACKEND_PLAN_DETAIL (xano returns 410); PUT/PATCH: unconditional on the handler, in-repo caller gated by WRITE_BACKEND | only if flag flipped | lib/data/readMbaPlanDetail.ts readMbaPlanDetailFromPostgres | **PORT** | edit/create pages, dashboard, trafficking, creative (GET). PUT/PATCH only from edit page when writeBackend !== postgres |
@@ -196,7 +193,7 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/data/mirrorToXano.ts` | deleted (XS-1) | — | no | none | **DONE** |
 | `lib/data/readApprovals.ts` | mba_line_approvals | DATA_BACKEND_APPROVALS | only if flag flipped | same file postgres branch | **PORT** |
 | `lib/data/readClients.ts` | clients | DATA_BACKEND_CLIENTS | only if flag flipped | same file postgres branch | **PORT** |
-| `lib/data/readFinance.ts` | finance_billing_records, line items, edits, saved views, SOW, overrides | DATA_BACKEND_FINANCE | only if flag flipped | same file *FromPostgres | **PORT** |
+| `lib/data/readFinance.ts` | finance reads are the Postgres functions (XS-2a) | — | no | same file | **DONE** |
 | `lib/data/readKpi.ts` | campaign_kpi, client_kpi, publisher_kpi | DATA_BACKEND_KPI | only if flag flipped | same file *FromPostgres | **PORT** |
 | `lib/data/readMediaPlans.ts` | media_plan_master, media_plan_versions, channel pages | DATA_BACKEND_PLANS | only if flag flipped | same file *FromPostgres | **PORT** |
 | `lib/data/readPacing.ts` | media_plan_versions, pacing_orphan_fixes | DATA_BACKEND_PACING | only if flag flipped | same file postgres branch | **PORT** |
@@ -215,13 +212,13 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/docs/__tests__/planVersionFiles.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** |
 | `lib/docs/__tests__/servePlanFile.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** |
 | `lib/finance/api.ts` | parseXanoListPayload on /api/finance responses; no Xano HTTP | unconditional | no | the /api/finance routes it calls | **NAME-ONLY** |
-| `lib/finance/forecast/server/loadFinanceForecastDataset.ts` | media_plan_versions, clients, publishers pages | DATA_BACKEND_PLANS | only if flag flipped | readPlanMasters / readPlanVersions | **PORT** |
+| `lib/finance/forecast/server/loadFinanceForecastDataset.ts` | readPlanMasters / readPlanVersions / readClientsList / readPublishersList (XS-2a) | — | no | same file | **DONE** |
 | `lib/finance/forecast/snapshot/xanoPersistSnapshot.ts` | finance_forecast_snapshots create | unconditional | no | lib/finance/forecast/snapshot/pgSnapshots.ts persistFinanceForecastSnapshotToPostgres | **TOOLING** |
 | `lib/finance/forecast/snapshot/xanoSnapshotQuery.ts` | list/lines names call Postgres; *Legacy functions GET Xano | unconditional for Legacy helpers | no | pgSnapshots.ts fetchFinanceForecastSnapshot*FromPostgres | **TOOLING** |
-| `lib/finance/forecast/targets/xanoTargetLines.ts` | revenue_forecast_lines | unconditional | no | pgTargetLines.ts (app routes); probe only if DATA_BACKEND_FINANCE=shadow | **TOOLING** |
-| `lib/finance/relevantPlanVersions.ts` | media_plan_master + media_plan_versions | DATA_BACKEND_PLANS | only if flag flipped | readPlanMasters / readPlanVersions | **PORT** |
-| `lib/finance/xanoFinanceApi.ts` | GET/POST/PATCH/DELETE finance_billing_records, finance_edits, finance_saved_views, line items | unconditional | yes | none in this file (writeFinance / readFinance are the PG layer) | **PORT** |
-| `lib/finance/xanoReferenceCache.ts` | GET clients + get_publishers | unconditional | yes | lib/data/readClients.ts readClientsList; lib/data/readPublishers.ts readPublishersList | **PORT** |
+| `lib/finance/forecast/targets/xanoTargetLines.ts` | revenue_forecast_lines | unconditional | no | pgTargetLines.ts (app routes). Finance shadow probe no longer calls this (XS-2a) | **TOOLING** |
+| `lib/finance/relevantPlanVersions.ts` | readPlanMasters / readPlanVersions (XS-2a) | — | no | same file | **DONE** |
+| `lib/finance/xanoFinanceApi.ts` | deleted (XS-2a) | — | no | lib/data/writeFinance.ts insertFinanceEdit / insertFinanceSavedView; readFinance | **DONE** |
+| `lib/finance/xanoReferenceCache.ts` | readClientsList / readPublishersList; no HTTP (XS-2a) | — | no | same exports | **DONE** |
 | `lib/kpi/publisherKpi.ts` | POST/PATCH/DELETE publisher_kpi (reads go through readKpi) | unconditional | yes | none for writes | **PORT** |
 | `lib/mediaplan/reapUnpublishedStagedVersions.ts` | DELETE unpublished channel + version rows | unconditional; only called from MBA PUT | only if flag flipped | none | **PORT** |
 | `lib/ops/health/checks.ts` | GET clients liveness | unconditional | yes | none | **TOOLING** |
