@@ -7,7 +7,8 @@ import { sql } from "drizzle-orm"
 import { db } from "@/db"
 
 import { getXeroAccessToken, xeroApiRequest } from "../client"
-import { rowsOf } from "../dbRows"
+import { fetchCronWatermarkRow } from "../runLoggedStage"
+import { tickStageBudget, type StageBudget } from "../stageBudget"
 import { resumeContactsWatermark } from "../watermark"
 
 export const CONTACTS_PAGES_CAP = 20
@@ -44,6 +45,7 @@ export async function stageContactsRefresh(opts?: {
   fetchImpl?: typeof fetch
   pagesCap?: number
   runStartedAt?: Date
+  budget?: StageBudget
 }): Promise<ContactsRefreshResult> {
   const pagesCap = opts?.pagesCap ?? CONTACTS_PAGES_CAP
   const runStartedAt = opts?.runStartedAt ?? new Date()
@@ -53,19 +55,7 @@ export async function stageContactsRefresh(opts?: {
   try {
     const accessToken = await getXeroAccessToken(fetchImpl)
 
-    const lastLogRow =
-      rowsOf<{
-        notes: string | null
-        watermark_used: string | null
-        new_watermark: string | null
-      }>(
-        await db.execute(sql`
-          SELECT notes, watermark_used, new_watermark
-          FROM xero_sync_log
-          ORDER BY id DESC
-          LIMIT 1
-        `),
-      )[0] ?? null
+    const lastLogRow = await fetchCronWatermarkRow("contacts")
 
     const { watermarkStr, nextPage } = resumeContactsWatermark(
       lastLogRow
@@ -81,8 +71,13 @@ export async function stageContactsRefresh(opts?: {
     let pagesFetched = 0
     let contactsUpserted = 0
     let stopLoop = false
+    let budgetHit = false
 
     while (!stopLoop && pagesFetched < pagesCap) {
+      if (opts?.budget && tickStageBudget(opts.budget).status === "incomplete") {
+        budgetHit = true
+        break
+      }
       try {
         const api = await xeroApiRequest({
           accessToken,
@@ -132,7 +127,7 @@ export async function stageContactsRefresh(opts?: {
       }
     }
 
-    const incomplete = !stopLoop && pagesFetched >= pagesCap
+    const incomplete = budgetHit || (!stopLoop && pagesFetched >= pagesCap)
     return {
       stage: "contacts_refresh",
       ok: errors.length === 0,

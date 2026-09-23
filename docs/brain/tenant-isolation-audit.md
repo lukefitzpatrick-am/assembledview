@@ -298,7 +298,11 @@ All finance handlers below are **admin-only** (`requireFinanceAdmin`, `requireRo
 | `cron/relabel-drift` | GET, POST | public | `assertCronSecret` |
 | `cron/snapshot-checksum` | GET | public | `assertCronSecret` |
 | `cron/xano-line-item-sync` | GET | public | `assertCronSecret` |
-| `cron/xero-sync` | GET, POST | public | `assertCronSecret` |
+| `cron/xero-sync` | GET, POST | public | `assertCronSecret` (410) |
+| `cron/xero-sync-invoices` | GET, POST | public | `assertCronSecret` |
+| `cron/xero-sync-import` | GET, POST | public | `assertCronSecret` |
+| `cron/xero-sync-contacts` | GET, POST | public | `assertCronSecret` |
+| `cron/xero-sync-pdfs` | GET, POST | public | `assertCronSecret` |
 
 ### Empty
 

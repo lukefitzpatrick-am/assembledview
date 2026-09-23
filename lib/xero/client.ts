@@ -13,6 +13,13 @@ export function clearXeroTokenCache(): void {
   cachedToken = null
 }
 
+/**
+ * Custom connection via client_credentials. This process does not store a
+ * refresh token — each cache miss POSTs a new token. The scope below asks
+ * for accounting.contacts.read. That succeeds on the next request only when
+ * the Xero custom connection already allows that scope. invalid_scope means
+ * the connection must be re-authorised with accounting.contacts.read.
+ */
 export async function getXeroAccessToken(
   fetchImpl: typeof fetch = fetch,
 ): Promise<string> {
@@ -30,7 +37,7 @@ export async function getXeroAccessToken(
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64")
   const body = new URLSearchParams({
     grant_type: "client_credentials",
-    scope: "accounting.invoices.read accounting.contacts",
+    scope: "accounting.invoices.read accounting.contacts.read",
   })
 
   const res = await fetchImpl(XERO_IDENTITY_URL, {

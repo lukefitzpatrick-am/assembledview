@@ -83,7 +83,7 @@ Adding or altering a channel touches, at minimum:
 
 **Invoice PDFs** `GET /api/finance/invoices/[xeroInvoiceId]/pdf` (AR, `assertClientAccess`) and sibling `GET /api/finance/bills/[xeroInvoiceId]/pdf` (AP, admin) proxy private Blob reads via `getPrivateBlob`. Never href the blob URL.
 
-**Crons** `finance-pre-run`, `finance-run` (19:00 and 20:00 UTC), `finance-lock` (12:59/13:59 UTC), `xero-sync` (00:15 UTC), `snapshot-checksum` (Mon 03:00 UTC).
+**Crons** `finance-pre-run`, `finance-run` (19:00 and 20:00 UTC), `finance-lock` (12:59/13:59 UTC), `xero-sync-invoices` (00:15 UTC), `xero-sync-import` (00:30 UTC), `xero-sync-contacts` (00:45 UTC), `xero-sync-pdfs` (01:00 UTC). `/api/cron/xero-sync` returns 410 for one release. `snapshot-checksum` (Mon 03:00 UTC).
 
 → `modules/finance-billing.md`
 

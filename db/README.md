@@ -6,6 +6,7 @@
 - `0019_campaign_insights.sql` — campaign insights library table
 - `0020_clients_m365_identity.sql` — clients slug + M365 SharePoint/Teams identity columns
 - `0021_m365_provisioning_log.sql` — Graph provisioning attempt log
+- `0087_xero_sync_log_stage.sql` — `xero_sync_log.stage` (`invoices` | `import` | `contacts` | `pdfs`) + `duration_ms`. NULL stage = legacy combined run. AUTHOR ONLY. Apply before the split Xero crons deploy. No backfill. Do not drizzle-kit.
 - `0022_campaign_insights_ava_readonly.sql` — GRANT SELECT on campaign_insights to ava_readonly
 - `0023_line_item_panels.sql` — OOH panel/pack detail rows
 - `0024_publisher_profiles.sql` — ingest publisher mapping config (jsonb rows, not code)

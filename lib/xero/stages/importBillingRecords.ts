@@ -1,25 +1,17 @@
 /**
  * Stage b: import_billing_records — FY26+ AR → finance_billing_records (xero: keys only).
+ * One INSERT … SELECT … ON CONFLICT over xero_ar_invoices. The SELECT mirrors
+ * resolveClientFromContact, inferBillingType, parsePoNumber, mapXeroStatusToBillingStatus,
+ * and projectXeroArToBillingAmounts (ex-GST sub_total, banker's cents).
+ * Campaign name is media_plan_masters.id = mba_match_id. mba_number is the
+ * invoice column, not the master id. First line description is line_items_json[0].Description.
  */
 
 import { sql } from "drizzle-orm"
 
 import { db } from "@/db"
 
-import {
-  inferBillingType,
-  mapXeroStatusToBillingStatus,
-  parsePoNumber,
-  xeroInvoiceKey,
-} from "../billingStatus"
 import { rowsOf } from "../dbRows"
-import { projectXeroArToBillingAmounts } from "../projectBillingAmounts"
-import {
-  resolveClientFromContact,
-  type AliasRow,
-  type ClientRow,
-  type ContactLinkRow,
-} from "../normalizeContact"
 
 export type ImportBillingResult = {
   stage: "import_billing_records"
@@ -31,206 +23,276 @@ export type ImportBillingResult = {
   skipped_app_keys: number
 }
 
-type ArRow = {
-  xero_invoice_id: string
-  xero_contact_id: string | null
-  reference_raw: string | null
-  mba_number: string | null
-  mba_match_id: number | null
-  issue_date: string | null
-  status: string | null
-  sub_total: string | number | null
-  line_items_json: unknown
-  invoice_number: string | null
+export type ImportBillingExecutor = {
+  execute: (query: ReturnType<typeof sql>) => Promise<unknown>
 }
 
-export async function stageImportBillingRecords(): Promise<ImportBillingResult> {
-  try {
-    const clients: ClientRow[] = rowsOf<{
-      id: number
-      mp_client_name: string | null
-      payment_days: number | null
-      payment_terms: string | null
-    }>(
-      await db.execute(sql`
-        SELECT id, mp_client_name, payment_days, payment_terms FROM clients
-      `),
-    ).map((c) => ({
-      id: Number(c.id),
-      mp_client_name: c.mp_client_name,
-      payment_days: c.payment_days != null ? Number(c.payment_days) : null,
-      payment_terms: c.payment_terms,
-    }))
-
-    let aliases: AliasRow[] = []
-    try {
-      aliases = rowsOf<{
-        contact_key: string
-        client_id: number
-      }>(
-        await db.execute(sql`SELECT contact_key, client_id FROM xero_client_aliases`),
-      ).map((a) => ({
-        contact_key: a.contact_key,
-        client_id: Number(a.client_id),
-      }))
-    } catch {
-      aliases = []
-    }
-
-    let links: ContactLinkRow[] = []
-    try {
-      links = rowsOf<{
-        xero_contact_key: string
-        client_id: number
-      }>(
-        await db.execute(sql`SELECT xero_contact_key, client_id FROM xero_contact_links`),
-      ).map((l) => ({
-        xeroContactKey: String(l.xero_contact_key),
-        clientId: Number(l.client_id),
-      }))
-    } catch {
-      links = []
-    }
-
-    const contactById = new Map<string, string>()
-    for (const c of rowsOf<{
-      xero_contact_id: string
-      name: string | null
-    }>(await db.execute(sql`SELECT xero_contact_id, name FROM xero_contacts`))) {
-      contactById.set(c.xero_contact_id, c.name ?? "")
-    }
-
-    const campaignById = new Map<number, string>()
-    for (const m of rowsOf<{
-      id: number
-      campaign_name: string | null
-    }>(
-      await db.execute(sql`SELECT id, campaign_name FROM media_plan_masters`),
-    )) {
-      campaignById.set(Number(m.id), m.campaign_name ?? "")
-    }
-
-    const arRows = rowsOf<ArRow>(
-      await db.execute(sql`
-      SELECT
-        xero_invoice_id, xero_contact_id, reference_raw, mba_number, mba_match_id,
-        issue_date::text AS issue_date, status, sub_total, line_items_json, invoice_number
-      FROM xero_ar_invoices
-      WHERE issue_date >= '2025-07-01'
-    `),
-    )
-
-    let imported = 0
-    let pendingEdits = 0
-    let countMedia = 0
-    let countRetainer = 0
-    let countSow = 0
-    const skippedAppKeys = 0
-
-    for (const row of arRows) {
-      const invoiceKey = xeroInvoiceKey(row.xero_invoice_id)
-
-      const contactName =
-        (row.xero_contact_id && contactById.get(row.xero_contact_id)) || ""
-      const resolved = resolveClientFromContact(contactName, clients, aliases, {
-        xeroContactId: row.xero_contact_id,
-        links,
-      })
-
-      const ref = row.reference_raw ?? ""
-      let firstDesc = ""
-      const lines = row.line_items_json
-      if (Array.isArray(lines) && lines.length > 0) {
-        const first = lines[0] as { Description?: string }
-        firstDesc = first?.Description ?? ""
-      }
-
-      const billingType = inferBillingType(ref, firstDesc)
-      const mbaNumber = row.mba_number ?? ""
-      let campaignName = ""
-      if (row.mba_match_id != null) {
-        campaignName = campaignById.get(Number(row.mba_match_id)) ?? ""
-      }
-      const poNumber = parsePoNumber(ref)
-      const issueDate = row.issue_date ? String(row.issue_date).slice(0, 10) : null
-      const billingMonth = issueDate ? issueDate.slice(0, 7) : null
-      const status = mapXeroStatusToBillingStatus(row.status)
-      // Decision (Luke, 1 Sep 2026): store ex-GST. Xero Total is inc-GST.
-      const { totalDollars, billedAmountCents } = projectXeroArToBillingAmounts(
-        row.sub_total
+/**
+ * Single upsert. Contact-key normalisation matches normalizeContactKey
+ * (strip " pty ltd", " limited", " ltd", " australia", in that order).
+ */
+export const IMPORT_BILLING_UPSERT_SQL = `
+WITH shaped AS (
+  SELECT
+    a.xero_invoice_id,
+    a.xero_contact_id,
+    COALESCE(a.reference_raw, '') AS reference_raw,
+    a.status AS xero_status,
+    a.sub_total,
+    a.issue_date,
+    a.mba_number,
+    a.mba_match_id,
+    COALESCE(a.line_items_json->0->>'Description', '') AS first_desc,
+    COALESCE(c.name, '') AS contact_name,
+    lower(trim(COALESCE(c.name, ''))) AS raw_key,
+    trim(
+      replace(
+        replace(
+          replace(
+            replace(lower(trim(COALESCE(c.name, ''))), ' pty ltd', ''),
+            ' limited', ''
+          ),
+          ' ltd', ''
+        ),
+        ' australia', ''
       )
-      const hasPendingEdits =
-        !resolved.resolved || (billingType === "media" && mbaNumber === "")
-
-      await db.execute(sql`
-        INSERT INTO finance_billing_records (
-          invoice_key, clients_id, client_name, billing_type, mba_number,
-          campaign_name, po_number, billing_month, invoice_date, payment_days,
-          payment_terms, status, total, billed, billed_at, billed_by,
-          has_pending_edits, source_billing_schedule_id, notes, updated_at,
-          billed_amount_cents
-        ) VALUES (
-          ${invoiceKey},
-          ${resolved.clientsId},
-          ${resolved.clientName || contactName},
-          ${billingType},
-          ${mbaNumber},
-          ${campaignName},
-          ${poNumber},
-          ${billingMonth},
-          ${issueDate},
-          ${resolved.paymentDays},
-          ${resolved.paymentTerms},
-          ${status},
-          ${totalDollars.toFixed(2)},
-          true,
-          ${issueDate ? `${issueDate}T00:00:00+00:00` : null}::timestamptz,
-          0,
-          ${hasPendingEdits},
-          0,
-          '',
-          now(),
-          ${billedAmountCents}
+    ) AS contact_norm
+  FROM xero_ar_invoices a
+  LEFT JOIN xero_contacts c ON c.xero_contact_id = a.xero_contact_id
+  WHERE a.issue_date >= DATE '2025-07-01'
+    AND a.xero_invoice_id IS NOT NULL
+),
+name_hits AS (
+  SELECT norm, COUNT(*)::int AS n, MIN(id) AS only_id
+  FROM (
+    SELECT
+      id,
+      trim(
+        replace(
+          replace(
+            replace(
+              replace(lower(trim(COALESCE(mp_client_name, ''))), ' pty ltd', ''),
+              ' limited', ''
+            ),
+            ' ltd', ''
+          ),
+          ' australia', ''
         )
-        ON CONFLICT (invoice_key) DO UPDATE SET
-          clients_id = EXCLUDED.clients_id,
-          client_name = EXCLUDED.client_name,
-          billing_type = EXCLUDED.billing_type,
-          mba_number = EXCLUDED.mba_number,
-          campaign_name = EXCLUDED.campaign_name,
-          po_number = EXCLUDED.po_number,
-          billing_month = EXCLUDED.billing_month,
-          invoice_date = EXCLUDED.invoice_date,
-          payment_days = EXCLUDED.payment_days,
-          payment_terms = EXCLUDED.payment_terms,
-          status = EXCLUDED.status,
-          total = EXCLUDED.total,
-          billed = EXCLUDED.billed,
-          billed_at = EXCLUDED.billed_at,
-          has_pending_edits = EXCLUDED.has_pending_edits,
-          billed_amount_cents = EXCLUDED.billed_amount_cents,
-          updated_at = EXCLUDED.updated_at
-        WHERE finance_billing_records.invoice_key LIKE 'xero:%'
-      `)
+      ) AS norm
+    FROM clients
+  ) cn
+  WHERE norm <> ''
+  GROUP BY norm
+),
+link_pick AS (
+  SELECT DISTINCT ON (s.xero_invoice_id)
+    s.xero_invoice_id,
+    l.client_id
+  FROM shaped s
+  JOIN xero_contact_links l
+    ON (
+      s.xero_contact_id IS NOT NULL
+      AND l.xero_contact_key = s.xero_contact_id
+    )
+    OR (
+      s.contact_norm <> ''
+      AND (
+        l.xero_contact_key = s.contact_norm
+        OR trim(
+          replace(
+            replace(
+              replace(
+                replace(lower(trim(COALESCE(l.xero_contact_key, ''))), ' pty ltd', ''),
+                ' limited', ''
+              ),
+              ' ltd', ''
+            ),
+            ' australia', ''
+          )
+        ) = s.contact_norm
+      )
+    )
+  ORDER BY s.xero_invoice_id,
+    CASE
+      WHEN s.xero_contact_id IS NOT NULL AND l.xero_contact_key = s.xero_contact_id THEN 0
+      WHEN l.xero_contact_key = s.contact_norm THEN 1
+      ELSE 2
+    END,
+    l.id
+),
+chosen AS (
+  SELECT
+    s.*,
+    CASE
+      WHEN lc.id IS NOT NULL THEN lc.id
+      WHEN COALESCE(nh.n, 0) = 1 THEN nh.only_id
+      WHEN COALESCE(nh.n, 0) >= 2 THEN NULL
+      WHEN ac_raw.id IS NOT NULL THEN alias_raw.client_id
+      WHEN ac_norm.id IS NOT NULL THEN alias_norm.client_id
+      ELSE NULL
+    END AS chosen_client_id
+  FROM shaped s
+  LEFT JOIN link_pick lp ON lp.xero_invoice_id = s.xero_invoice_id
+  LEFT JOIN clients lc ON lc.id = lp.client_id
+  LEFT JOIN name_hits nh ON nh.norm = s.contact_norm AND s.contact_norm <> ''
+  LEFT JOIN xero_client_aliases alias_raw ON alias_raw.contact_key = s.raw_key
+  LEFT JOIN clients ac_raw ON ac_raw.id = alias_raw.client_id
+  LEFT JOIN xero_client_aliases alias_norm
+    ON alias_norm.contact_key = s.contact_norm AND s.contact_norm <> ''
+  LEFT JOIN clients ac_norm ON ac_norm.id = alias_norm.client_id
+),
+projected AS (
+  SELECT
+    'xero:' || c.xero_invoice_id AS invoice_key,
+    COALESCE(cl.id, 0) AS clients_id,
+    COALESCE(NULLIF(cl.mp_client_name, ''), c.contact_name, '') AS client_name,
+    CASE
+      WHEN lower(c.reference_raw) LIKE '%retainer%'
+        OR lower(c.first_desc) LIKE '%retainer%' THEN 'retainer'
+      WHEN lower(c.reference_raw) LIKE '%\\_sow%' ESCAPE '\\'
+        OR lower(c.reference_raw) LIKE '%scope of work%' THEN 'sow'
+      ELSE 'media'
+    END AS billing_type,
+    COALESCE(c.mba_number, '') AS mba_number,
+    CASE
+      WHEN c.mba_match_id IS NULL THEN ''
+      ELSE COALESCE(m.campaign_name, '')
+    END AS campaign_name,
+    CASE
+      WHEN c.reference_raw LIKE '% | %' THEN COALESCE((
+        SELECT trim(seg)
+        FROM unnest(string_to_array(c.reference_raw, ' | ')) AS seg
+        WHERE trim(seg) LIKE 'PO %'
+        LIMIT 1
+      ), '')
+      WHEN trim(c.reference_raw) LIKE 'PO %' THEN trim(c.reference_raw)
+      ELSE ''
+    END AS po_number,
+    CASE
+      WHEN c.issue_date IS NULL THEN NULL
+      ELSE to_char(c.issue_date::date, 'YYYY-MM')
+    END AS billing_month,
+    c.issue_date::date AS invoice_date,
+    COALESCE(cl.payment_days, 14) AS payment_days,
+    COALESCE(cl.payment_terms, '') AS payment_terms,
+    CASE c.xero_status
+      WHEN 'PAID' THEN 'paid'
+      WHEN 'AUTHORISED' THEN 'invoiced'
+      WHEN 'SUBMITTED' THEN 'invoiced'
+      WHEN 'VOIDED' THEN 'cancelled'
+      WHEN 'DELETED' THEN 'cancelled'
+      WHEN 'DRAFT' THEN 'draft'
+      ELSE 'invoiced'
+    END AS status,
+    ROUND(COALESCE(c.sub_total, 0)::numeric, 2) AS total,
+    CASE
+      WHEN c.issue_date IS NULL THEN NULL
+      ELSE (c.issue_date::date::text || 'T00:00:00+00:00')::timestamptz
+    END AS billed_at,
+    (
+      COALESCE(cl.id, 0) = 0
+      OR (
+        CASE
+          WHEN lower(c.reference_raw) LIKE '%retainer%'
+            OR lower(c.first_desc) LIKE '%retainer%' THEN 'retainer'
+          WHEN lower(c.reference_raw) LIKE '%\\_sow%' ESCAPE '\\'
+            OR lower(c.reference_raw) LIKE '%scope of work%' THEN 'sow'
+          ELSE 'media'
+        END = 'media'
+        AND COALESCE(c.mba_number, '') = ''
+      )
+    ) AS has_pending_edits,
+    (
+      CASE
+        WHEN abs(sc.scaled - trunc(sc.scaled)) > 0.5 THEN trunc(sc.scaled) + sign(sc.scaled)
+        WHEN abs(sc.scaled - trunc(sc.scaled)) < 0.5 THEN trunc(sc.scaled)
+        WHEN mod(trunc(sc.scaled)::bigint, 2) = 0 THEN trunc(sc.scaled)
+        ELSE trunc(sc.scaled) + sign(sc.scaled)
+      END
+    )::bigint AS billed_amount_cents
+  FROM chosen c
+  LEFT JOIN clients cl ON cl.id = c.chosen_client_id
+  LEFT JOIN media_plan_masters m ON m.id = c.mba_match_id
+  CROSS JOIN LATERAL (
+    SELECT (COALESCE(c.sub_total, 0)::numeric * 100) AS scaled
+  ) sc
+),
+upserted AS (
+  INSERT INTO finance_billing_records (
+    invoice_key, clients_id, client_name, billing_type, mba_number,
+    campaign_name, po_number, billing_month, invoice_date, payment_days,
+    payment_terms, status, total, billed, billed_at, billed_by,
+    has_pending_edits, source_billing_schedule_id, notes, updated_at,
+    billed_amount_cents
+  )
+  SELECT
+    invoice_key, clients_id, client_name, billing_type, mba_number,
+    campaign_name, po_number, billing_month, invoice_date, payment_days,
+    payment_terms, status, total, true, billed_at, 0,
+    has_pending_edits, 0, '', now(),
+    billed_amount_cents
+  FROM projected
+  ON CONFLICT (invoice_key) DO UPDATE SET
+    clients_id = EXCLUDED.clients_id,
+    client_name = EXCLUDED.client_name,
+    billing_type = EXCLUDED.billing_type,
+    mba_number = EXCLUDED.mba_number,
+    campaign_name = EXCLUDED.campaign_name,
+    po_number = EXCLUDED.po_number,
+    billing_month = EXCLUDED.billing_month,
+    invoice_date = EXCLUDED.invoice_date,
+    payment_days = EXCLUDED.payment_days,
+    payment_terms = EXCLUDED.payment_terms,
+    status = EXCLUDED.status,
+    total = EXCLUDED.total,
+    billed = EXCLUDED.billed,
+    billed_at = EXCLUDED.billed_at,
+    has_pending_edits = EXCLUDED.has_pending_edits,
+    billed_amount_cents = EXCLUDED.billed_amount_cents,
+    updated_at = EXCLUDED.updated_at
+  WHERE finance_billing_records.invoice_key LIKE 'xero:%'
+  RETURNING billing_type, has_pending_edits
+)
+SELECT
+  count(*)::int AS imported,
+  count(*) FILTER (WHERE has_pending_edits)::int AS pending_edits,
+  count(*) FILTER (WHERE billing_type = 'media')::int AS media,
+  count(*) FILTER (WHERE billing_type = 'retainer')::int AS retainer,
+  count(*) FILTER (WHERE billing_type = 'sow')::int AS sow
+FROM upserted
+`
 
-      imported++
-      if (hasPendingEdits) pendingEdits++
-      if (billingType === "retainer") countRetainer++
-      else if (billingType === "sow") countSow++
-      else countMedia++
-    }
+type UpsertCounts = {
+  imported: number | string
+  pending_edits: number | string
+  media: number | string
+  retainer: number | string
+  sow: number | string
+}
 
+function num(value: number | string | null | undefined): number {
+  const n = Number(value ?? 0)
+  return Number.isFinite(n) ? n : 0
+}
+
+export async function stageImportBillingRecords(opts?: {
+  execute?: ImportBillingExecutor["execute"]
+}): Promise<ImportBillingResult> {
+  const execute = opts?.execute ?? ((query) => db.execute(query))
+  try {
+    const result = await execute(sql.raw(IMPORT_BILLING_UPSERT_SQL))
+    const row = rowsOf<UpsertCounts>(result)[0]
     return {
       stage: "import_billing_records",
       ok: true,
-      imported,
-      pending_edits: pendingEdits,
+      imported: num(row?.imported),
+      pending_edits: num(row?.pending_edits),
       by_type: {
-        media: countMedia,
-        retainer: countRetainer,
-        sow: countSow,
+        media: num(row?.media),
+        retainer: num(row?.retainer),
+        sow: num(row?.sow),
       },
-      skipped_app_keys: skippedAppKeys,
+      skipped_app_keys: 0,
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

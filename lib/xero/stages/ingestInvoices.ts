@@ -15,7 +15,8 @@ import { getXeroAccessToken, xeroApiRequest } from "../client"
 import { rowsOf } from "../dbRows"
 import { coerceDollars } from "../money"
 import { parseXeroDateString, parseXeroDotNetDate } from "../parseXeroDate"
-import { sqlCronWatermarkLogWhere } from "../syncLogNotes"
+import { fetchCronWatermarkRow } from "../runLoggedStage"
+import { tickStageBudget, type StageBudget } from "../stageBudget"
 import { invoiceIngestWindow } from "../watermark"
 
 export const INVOICE_PAGES_CAP = 20
@@ -66,6 +67,8 @@ export async function stageIngestInvoices(opts?: {
   runStartedAt?: Date
   /** Narrow If-Modified-Since (finance pull). Cron omits this and uses the watermark. */
   ifModifiedSince?: string
+  /** Cron passes this so a long page walk returns incomplete instead of being killed. */
+  budget?: StageBudget
 }): Promise<IngestInvoicesResult> {
   const pagesCap = opts?.pagesCap ?? INVOICE_PAGES_CAP
   const runStartedAt = opts?.runStartedAt ?? new Date()
@@ -75,20 +78,7 @@ export async function stageIngestInvoices(opts?: {
   try {
     const accessToken = await getXeroAccessToken(fetchImpl)
 
-    const lastLogRow =
-      rowsOf<{
-        notes: string | null
-        watermark_used: string | null
-        new_watermark: string | null
-      }>(
-        await db.execute(sql`
-          SELECT notes, watermark_used, new_watermark
-          FROM xero_sync_log
-          WHERE ${sqlCronWatermarkLogWhere}
-          ORDER BY id DESC
-          LIMIT 1
-        `),
-      )[0] ?? null
+    const lastLogRow = await fetchCronWatermarkRow("invoices")
 
     const { watermarkStr, nextPage } = invoiceIngestWindow(
       lastLogRow
@@ -113,9 +103,14 @@ export async function stageIngestInvoices(opts?: {
     let matched = 0
     let unmatched = 0
     let stopLoop = false
+    let budgetHit = false
     let sawNegativeAr = false
 
     while (!stopLoop && pagesFetched < pagesCap) {
+      if (opts?.budget && tickStageBudget(opts.budget).status === "incomplete") {
+        budgetHit = true
+        break
+      }
       try {
         const api = await xeroApiRequest({
           accessToken,
@@ -278,10 +273,11 @@ export async function stageIngestInvoices(opts?: {
       }
     }
 
-    const incomplete = !stopLoop && pagesFetched >= pagesCap
+    const incomplete = budgetHit || (!stopLoop && pagesFetched >= pagesCap)
 
     // O7: credit-note-shaped AR (negative total / ACCRECCREDIT) closes disputed matches.
-    if (sawNegativeAr) {
+    // Skip when the time budget is already spent so the log row can be updated.
+    if (sawNegativeAr && !budgetHit) {
       try {
         const { reconcileDisputedWithArrivedCreditNotes } = await import(
           "@/lib/xero/stages/matchRunItems"

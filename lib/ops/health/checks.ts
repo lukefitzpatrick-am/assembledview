@@ -221,36 +221,114 @@ export async function checkPlanningMethodology(): Promise<OpsCheckResult> {
   }
 }
 
-const XERO_SYNC_GREEN_HOURS = 36
-const XERO_SYNC_AMBER_HOURS = 7 * 24
+export const XERO_SYNC_STAGES = ["invoices", "import", "contacts", "pdfs"] as const
+export type XeroSyncStageName = (typeof XERO_SYNC_STAGES)[number]
 
-export type XeroSyncLogNewest = {
+const XERO_SYNC_GREEN_HOURS = 36
+const STALE_RUNNING_MS = 2 * 60 * 60 * 1000
+
+export type XeroStageSuccess = {
+  stage: string
   run_started_at: string | Date | null
-  status: string | null
 }
 
-export function xeroSyncFreshnessFromNewest(
-  newest: XeroSyncLogNewest | null,
+export type XeroStageLogRow = {
+  id?: number
+  stage: string | null
+  status: string | null
+  run_started_at: string | Date | null
+}
+
+function ageHours(startedAt: Date, now: Date): number {
+  return (now.getTime() - startedAt.getTime()) / 3_600_000
+}
+
+/**
+ * Newest success row per stage. Green only when every stage succeeded within
+ * 36h. Any missing or older success is red. There is no amber band.
+ */
+export function xeroSyncFreshnessFromStages(
+  newestSuccessByStage: Partial<Record<XeroSyncStageName, XeroStageSuccess | null>>,
   now: Date = new Date(),
 ): OpsCheckResult {
   const name = "Xero sync freshness"
-  if (!newest?.run_started_at) {
-    return { name, status: "red", detail: "empty table" }
+  const parts: string[] = []
+  let red = false
+  for (const stage of XERO_SYNC_STAGES) {
+    const row = newestSuccessByStage[stage]
+    if (!row?.run_started_at) {
+      red = true
+      parts.push(`${stage}=none`)
+      continue
+    }
+    const startedAt = new Date(row.run_started_at)
+    if (Number.isNaN(startedAt.getTime())) {
+      red = true
+      parts.push(`${stage}=unparseable`)
+      continue
+    }
+    const hours = ageHours(startedAt, now)
+    if (hours > XERO_SYNC_GREEN_HOURS) red = true
+    parts.push(`${stage}=${Math.round(hours)}h`)
   }
-  const startedAt = new Date(newest.run_started_at)
-  if (Number.isNaN(startedAt.getTime())) {
-    return { name, status: "red", detail: "unparseable timestamp" }
+  return {
+    name,
+    status: red ? "red" : "green",
+    detail: parts.join("; "),
   }
-  const ageHours = (now.getTime() - startedAt.getTime()) / 3_600_000
-  const statusLabel = newest.status ?? "unknown"
-  const detail = `status=${statusLabel}; age=${Math.round(ageHours)}h`
-  if (ageHours <= XERO_SYNC_GREEN_HOURS) {
-    return { name, status: "green", detail }
+}
+
+function isStaleRunning(row: XeroStageLogRow, now: Date): boolean {
+  if (row.status !== "running" || !row.run_started_at) return false
+  const started = new Date(row.run_started_at)
+  if (Number.isNaN(started.getTime())) return true
+  return now.getTime() - started.getTime() > STALE_RUNNING_MS
+}
+
+function isStageFailure(row: XeroStageLogRow, now: Date): boolean {
+  if (row.status === "failed" || row.status === "incomplete") return true
+  return isStaleRunning(row, now)
+}
+
+/**
+ * A stage alerts when its two newest considered runs both failed or timed out.
+ * `incomplete` is the clean budget stop. A `running` row older than 2h is a
+ * platform kill. A `running` row newer than 2h is still in flight and skipped.
+ */
+export function xeroStageConsecutiveFailures(
+  rows: XeroStageLogRow[],
+  now: Date = new Date(),
+): XeroSyncStageName[] {
+  const alerted: XeroSyncStageName[] = []
+  for (const stage of XERO_SYNC_STAGES) {
+    const considered = rows
+      .filter((r) => r.stage === stage)
+      .filter((r) => r.status !== "running" || isStaleRunning(r, now))
+      .toSorted((a, b) => (b.id ?? 0) - (a.id ?? 0))
+    const newest = considered.slice(0, 2)
+    if (newest.length === 2 && newest.every((r) => isStageFailure(r, now))) {
+      alerted.push(stage)
+    }
   }
-  if (ageHours <= XERO_SYNC_AMBER_HOURS) {
-    return { name, status: "amber", detail }
+  return alerted
+}
+
+export function xeroStageFailureCheck(
+  rows: XeroStageLogRow[],
+  now: Date = new Date(),
+): OpsCheckResult {
+  const name = "Xero sync stage failures"
+  const alerted = xeroStageConsecutiveFailures(rows, now)
+  if (alerted.length === 0) {
+    return { name, status: "green", detail: "no stage failed twice in a row" }
   }
-  return { name, status: "red", detail }
+  return {
+    name,
+    status: "red",
+    detail: alerted
+      .map((stage) => `${stage} failed or timed out on 2 consecutive runs`)
+      .join("; "),
+  }
 }
 
 export async function checkXeroSyncFreshness(
@@ -258,17 +336,31 @@ export async function checkXeroSyncFreshness(
 ): Promise<OpsCheckResult> {
   try {
     const result = await db.execute(sql`
-      SELECT run_started_at, status
+      SELECT DISTINCT ON (stage)
+        stage, run_started_at
       FROM xero_sync_log
-      ORDER BY run_started_at DESC NULLS LAST
-      LIMIT 1
+      WHERE status = 'success'
+        AND stage IN ('invoices', 'import', 'contacts', 'pdfs')
+      ORDER BY stage, run_started_at DESC NULLS LAST
     `)
     const rows = (
       Array.isArray(result)
         ? result
-        : ((result as { rows?: XeroSyncLogNewest[] }).rows ?? [])
-    ) as XeroSyncLogNewest[]
-    return xeroSyncFreshnessFromNewest(rows[0] ?? null, now)
+        : ((result as { rows?: XeroStageSuccess[] }).rows ?? [])
+    ) as XeroStageSuccess[]
+    const byStage: Partial<Record<XeroSyncStageName, XeroStageSuccess | null>> = {}
+    for (const stage of XERO_SYNC_STAGES) byStage[stage] = null
+    for (const row of rows) {
+      if (
+        row.stage === "invoices" ||
+        row.stage === "import" ||
+        row.stage === "contacts" ||
+        row.stage === "pdfs"
+      ) {
+        byStage[row.stage] = row
+      }
+    }
+    return xeroSyncFreshnessFromStages(byStage, now)
   } catch (err) {
     return {
       name: "Xero sync freshness",
@@ -278,14 +370,44 @@ export async function checkXeroSyncFreshness(
   }
 }
 
+export async function checkXeroStageFailures(
+  now: Date = new Date(),
+): Promise<OpsCheckResult> {
+  try {
+    const result = await db.execute(sql`
+      SELECT id, stage, status, run_started_at
+      FROM xero_sync_log
+      WHERE stage IN ('invoices', 'import', 'contacts', 'pdfs')
+      ORDER BY id DESC
+      LIMIT 40
+    `)
+    const rows = (
+      Array.isArray(result)
+        ? result
+        : ((result as { rows?: XeroStageLogRow[] }).rows ?? [])
+    ) as XeroStageLogRow[]
+    return xeroStageFailureCheck(
+      rows.map((r) => ({ ...r, id: r.id != null ? Number(r.id) : undefined })),
+      now,
+    )
+  } catch (err) {
+    return {
+      name: "Xero sync stage failures",
+      status: "red",
+      detail: err instanceof Error ? err.message : String(err),
+    }
+  }
+}
+
 export async function runOpsHealthChecks(now: Date = new Date()) {
   const asOfDate = getAsOfDate(now)
 
-  const [platformChecks, xano, methodology, xeroSync] = await Promise.all([
+  const [platformChecks, xano, methodology, xeroSync, xeroFailures] = await Promise.all([
     checkWarehouseAndVolume(asOfDate),
     checkXanoProxyLiveness(),
     checkPlanningMethodology(),
     checkXeroSyncFreshness(now),
+    checkXeroStageFailures(now),
   ])
 
   return {
@@ -297,6 +419,7 @@ export async function runOpsHealthChecks(now: Date = new Date()) {
       xano,
       methodology,
       xeroSync,
+      xeroFailures,
     ],
   }
 }

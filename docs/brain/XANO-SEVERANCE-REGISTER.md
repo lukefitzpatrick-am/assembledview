@@ -30,7 +30,7 @@ Pre-series tallies (~33 PORT) are obsolete. Dominant remaining Xano HTTP is fina
 | RETIRE(dead) | ~16 | Channel POSTs×10 + TV `[id]` + campaigns×2 + accrual + check-id (X2) |
 | MIRROR | 3 | `plans/save` + `admin/xano-mirror/retry` + `POST /api/mediaplans` master mirror (X9) |
 | TOOLING | 5 | admin×3, cron sync, spend-parity |
-| NOT-XANO | 3 | `chat-v2`, `cron/xero-sync`, `mediaplans/[id]/download` |
+| NOT-XANO | 3 | `chat-v2`, `cron/xero-sync` (410; nightly work is the four `xero-sync-*` crons), `mediaplans/[id]/download` |
 
 Method-split rows counted once per file under the **dominant remaining** verdict; X2 channel POST death is executed.
 
@@ -125,7 +125,11 @@ SQL used (Postgres):
 | `/api/creative-assets/[id]/frame` | GET | getById PG | PG (X4) | Creative UI | DUAL-DONE (PG) |
 | `/api/creative-assets/[id]/preview/[[...path]]` | GET | getById PG | PG (X4) | Creative UI | DUAL-DONE (PG) |
 | `/api/cron/xano-line-item-sync` | GET | `runLineItemSnapshotSync` → Snowflake | `LINE_ITEM_SNAPSHOT_SOURCE` (X7 flip earned; prod postgres after X-series merge; parity until then) | Vercel cron (no app fetch) | TOOLING |
-| `/api/cron/xero-sync` | GET/POST | none (comment only) | n/a | Vercel cron | NOT-XANO |
+| `/api/cron/xero-sync` | GET/POST | none | n/a | retired; 410 for one release | NOT-XANO |
+| `/api/cron/xero-sync-invoices` | GET/POST | none | n/a | Vercel cron 00:15 UTC | NOT-XANO |
+| `/api/cron/xero-sync-import` | GET/POST | none | n/a | Vercel cron 00:30 UTC | NOT-XANO |
+| `/api/cron/xero-sync-contacts` | GET/POST | none | n/a | Vercel cron 00:45 UTC | NOT-XANO |
+| `/api/cron/xero-sync-pdfs` | GET/POST | none | n/a | Vercel cron 01:00 UTC | NOT-XANO |
 | `/api/dashboard/spend-parity` | GET | via `global.ts` → `xanoDashboardsUrl` when plans≠pg | DATA_BACKEND_PLANS indirect | ZERO product callers | TOOLING |
 | `/api/finance/accrual` | GET | — | — | ZERO — UI uses billing+payables | RETIRE(dead) executed (410 X3) |
 | `/api/finance/billing` | GET | Hub compose; hard-requires `XANO_CLIENTS_BASE_URL`; schedule via DATA_BACKEND_FINANCE_SCHEDULE; `xanoReferenceCache` | partial | `lib/finance/api.ts`, costs accrual | PORT |

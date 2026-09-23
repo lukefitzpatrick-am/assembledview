@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
-import { XERO_SYNC_GONE_MESSAGE } from "@/lib/xero/cronHttp"
+import { handleXeroCronGet } from "@/lib/xero/cronHttp"
+import { runXeroPdfsCron } from "@/lib/xero/cronStages"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 10
+export const maxDuration = 120
 export const runtime = "nodejs"
 export const preferredRegion = ["syd1"]
 
-/**
- * Retired. The nightly sync is four crons. This route stays for one release
- * so an old schedule gets a clear 410 instead of a 404, then it is deleted.
- */
+/** Attach up to 10 invoice PDFs, stopping at a 40s budget. */
 export async function GET(request: Request) {
   if (!assertCronSecret(request)) {
     return NextResponse.json(
@@ -19,10 +17,7 @@ export async function GET(request: Request) {
       { status: 401 },
     )
   }
-  return NextResponse.json(
-    { error: "gone", message: XERO_SYNC_GONE_MESSAGE },
-    { status: 410 },
-  )
+  return handleXeroCronGet(request, "pdfs", runXeroPdfsCron)
 }
 
 export async function POST(request: Request) {

@@ -1,6 +1,9 @@
 /**
- * Orchestrate the four Xero sync stages. Each stage is isolated:
- * failure → log + partial_error, remaining stages still run.
+ * Combined Xero sync for the manual `db:xero-sync` script.
+ * The nightly cron does not call this. It is four routes
+ * (`xero-sync-invoices`, `xero-sync-import`, `xero-sync-contacts`,
+ * `xero-sync-pdfs`), each writing a running log row first.
+ * This runner still writes one log row at the end and is fail-open.
  */
 
 import { sql } from "drizzle-orm"

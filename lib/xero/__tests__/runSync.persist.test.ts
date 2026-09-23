@@ -43,6 +43,7 @@ function pdfsOk(): SyncPdfsResult {
     processed: 2,
     ar_pending_seen: 2,
     ap_pending_seen: 0,
+    incomplete: false,
   }
 }
 

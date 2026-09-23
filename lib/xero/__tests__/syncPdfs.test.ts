@@ -184,9 +184,52 @@ describe("PDF stage elapsed-time budget", () => {
     })
 
     assert.equal(result.ok, true)
+    assert.equal(result.incomplete, true)
     assert.equal(result.attempts, 1)
     assert.equal(result.processed, 1)
     assert.deepEqual(persisted, ["inv-ok"])
     assert.equal(result.ar_pending_seen, 2)
+  })
+})
+
+describe("PDF stage 429 batch boundary", () => {
+  it("honours Retry-After then stops before the next invoice once the budget is spent", async () => {
+    let t = 0
+    let fetches = 0
+    const sleeps: number[] = []
+    const extra: PendingPdfRow = {
+      xero_invoice_id: "inv-next",
+      invoice_number: "INV-NEXT",
+      reference_raw: "BOSS008",
+      issue_date: "2025-09-03",
+    }
+
+    const result = await stageSyncPdfs({
+      batchSize: 10,
+      now: () => t,
+      getAccessToken: async () => "tok",
+      sleep: async (ms) => {
+        sleeps.push(ms)
+        t = PDF_STAGE_BUDGET_MS
+      },
+      listPending: async (kind) => (kind === "AR" ? [OK_ROW, extra] : []),
+      putPdfBlob: async () => BLOB_PDF,
+      persistPdfFile: async () => {},
+      fetchImpl: (async () => {
+        fetches++
+        if (fetches === 1) {
+          return statusResponse(429, "slow", { "Retry-After": "2" })
+        }
+        if (fetches === 2) return pdfOkResponse()
+        throw new Error(`fetch past the batch boundary (${fetches})`)
+      }) as typeof fetch,
+    })
+
+    assert.deepEqual(sleeps, [2000])
+    assert.equal(fetches, 2)
+    assert.equal(result.processed, 1)
+    assert.equal(result.attempts, 1)
+    assert.equal(result.incomplete, true)
+    assert.equal(result.ok, true)
   })
 })
