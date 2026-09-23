@@ -9,6 +9,7 @@ import { stageImportBillingRecords } from "./stages/importBillingRecords"
 import { stageIngestInvoices } from "./stages/ingestInvoices"
 import { stageMatchBillingRecords } from "./stages/matchBillingRecords"
 import { stageMatchRunItems } from "./stages/matchRunItems"
+import { stageSendClearanceReports } from "./stages/sendClearanceReports"
 import { stageSyncPdfs } from "./stages/syncPdfs"
 import {
   fetchCronWatermarkRow,
@@ -65,6 +66,13 @@ export async function runXeroInvoicesCron(): Promise<XeroCronStageResult> {
             notes.billing_match = await stageMatchBillingRecords()
           } catch (err) {
             notes.billing_match_error = err instanceof Error ? err.message : String(err)
+          }
+          if (notes.billing_match && !notes.billing_match_error) {
+            try {
+              notes.clearance = await stageSendClearanceReports()
+            } catch (err) {
+              notes.clearance_error = err instanceof Error ? err.message : String(err)
+            }
           }
           try {
             notes.match = await stageMatchRunItems()

@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { BulkApproveReadyButton } from "@/components/finance/sections/invoicing/BulkApproveReadyButton"
+import { ClearForIssueButton } from "@/components/finance/sections/invoicing/ClearForIssueButton"
 import { SendToAccountsButton } from "@/components/finance/sections/invoicing/SendToAccountsButton"
 import { InvoicingClientCard } from "@/components/finance/sections/invoicing/InvoicingClientCard"
 import { InvoicingToolbar } from "@/components/finance/sections/invoicing/InvoicingToolbar"
@@ -129,6 +130,7 @@ function InvoicingMonthSections({
   fy,
   onApproveReady,
   onSent,
+  onCleared,
 }: {
   groups: MonthGroup[]
   refetch: () => void
@@ -147,6 +149,7 @@ function InvoicingMonthSections({
   fy: number
   onApproveReady?: (monthIso: string) => void
   onSent: () => void
+  onCleared: () => void
 }) {
   if (groups.length === 0) return null
   return (
@@ -172,6 +175,12 @@ function InvoicingMonthSections({
                 monthLabel={mg.monthLabel}
                 disabled={approveBusy}
                 onSent={onSent}
+              />
+              <ClearForIssueButton
+                month={mg.monthIso}
+                monthLabel={mg.monthLabel}
+                disabled={approveBusy}
+                onSent={onCleared}
               />
               {ready ? (
                 <BulkApproveReadyButton
@@ -453,6 +462,10 @@ export function InvoicingPageClient() {
                 fy={applied.fy}
                 onSent={() => {
                   toast({ title: "Sent to accounts" })
+                  bumpFetch()
+                }}
+                onCleared={() => {
+                  toast({ title: "Clearance sent" })
                   bumpFetch()
                 }}
                 onApproveReady={

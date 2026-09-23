@@ -117,6 +117,7 @@ Metrics on all three: `ctr`, `cpv`, `conversion_rate`, `vtr`, `frequency`. Campa
 | `revenue_forecast_lines` | 0 | UNIQUE(`clients_id`,`fy`,`line_key`,`month`) |
 | `revenue_line_catalog` | 10 | `line_key` UNIQUE, `fee_pct`, `booked_mapping` |
 | `finance_saved_views` | 0 | note: column is `user_id` (`user` is reserved) |
+| `finance_clearance_sends` | 0 | `0090`. `month`, `sent_at`, `hash` (sha256 of the sorted invoice id / state / amount list), `counts` jsonb `{cleared, differs, missing}`. Written only after the clearance email succeeds. |
 | `app_notifications` | 902 | Cross-cutting anomaly log, keyed by `audience` + `kind`. Partial index on unread. Dominated by `billing_overrides_publish_carry` (884) |
 
 `fy` means the Australian financial year **ending** year. AVA speaks AUD.
