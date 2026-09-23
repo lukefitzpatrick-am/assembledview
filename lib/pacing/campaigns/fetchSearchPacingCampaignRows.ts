@@ -172,7 +172,7 @@ function toMaster(row: Record<string, unknown>): MediaPlanMaster | null {
 }
 
 export async function fetchAllMasters(): Promise<MediaPlanMaster[]> {
-  // DATA_BACKEND_PACING — masters crawl for all pacing composers (T2d).
+  // Postgres masters crawl for all pacing composers.
   const raw = await readPacingMasters();
   return (raw ?? [])
     .map((r) => toMaster(r as Record<string, unknown>))
@@ -182,7 +182,7 @@ export async function fetchAllMasters(): Promise<MediaPlanMaster[]> {
 export async function fetchCurrentVersionRowsForMasters(
   masters: MediaPlanMaster[]
 ): Promise<Map<string, VersionRow>> {
-  // DATA_BACKEND_PACING — versions crawl (T2d). Channel line tables remain Xano until T2e.
+  // Postgres versions crawl. Search lines come from published `line_items`.
   const allVersions = await readPacingVersions();
 
   const wantMba = new Set(masters.map((m) => norm(m.mba_number)));

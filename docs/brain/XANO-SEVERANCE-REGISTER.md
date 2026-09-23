@@ -51,7 +51,7 @@ No other DATA_BACKEND_* exists. Unset domains fall back to DATA_BACKEND, so plan
 
 LINE_ITEM_SNAPSHOT_SOURCE is set on production (secret). Its value was not read. The code default is xano, which calls fetchAllXanoLineItems. Reach for that cron is **unknown**.
 
-XS-2c moves plan and dashboard reads onto Postgres. Still Xano HTTP: lib/api/publishers.ts (market share), lib/kpi/publisherKpi.ts, lib/ava/tools/getBestPractice.ts, lib/pacing/admin/assignOrphanLineItem.ts, and lib/xano/pacingOrphanFixes.ts. Client-collection fetches in lib/api/dashboard/client.ts (`getClientBySlug`, hub client list) stay on Xano until the clients switch. XS-2a removed finance HTTP. Tallies below are not recounted.
+XS-2b reads KPI, publishers, clients, pacing, approvals, best practice, and publisher market share from Postgres, and writes `publisher_kpi` and `pacing_orphan_fixes` to Postgres. `lib/xano/pacingOrphanFixes.ts` is deleted. `lib/api/publishers.ts` still has `fetchPublishersFromXano` for the archived backfill script. Client-collection fetches in lib/api/dashboard/client.ts (`getClientBySlug`, hub client list) stay on Xano until the clients switch. XS-2a removed finance HTTP. Tallies below are not recounted.
 
 **Ten largest PORT files by non-test importers** (direct imports of the file; tests excluded). Dual-read modules rank high because many callers exist; those callers take the Postgres branch today.
 
@@ -169,37 +169,37 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/api/dashboard/shared.ts` | axios client with Xano auth headers (no request until a caller uses apiClient) | unconditional | yes | none | **TOOLING** |
 | `lib/api/fetchChannelLineItemsByMba.ts` | channel lines from Postgres line_items | none | no | fetchLineItemsFromPostgresByEndpoint | **DONE** |
 | `lib/api/media-containers.ts` | delivery and container line items from Postgres line_items | none | no | fetchLineItemsFromPostgresByEndpoint | **DONE** |
-| `lib/api/mediaContainerBestPracticeCache.ts` | GET media_container_best_practice | DATA_BACKEND_PUBLISHERS | only if flag flipped | lib/data/writeMediaContainerBestPractice.ts fetchMediaContainerBestPracticeFromPostgres | **PORT** |
+| `lib/api/mediaContainerBestPracticeCache.ts` | media_container_best_practice from Postgres | — | no | fetchMediaContainerBestPracticeFromPostgres | **DONE** (XS-2b) |
 | `lib/api/mediaPlansListCache.ts` | latest versions and masters from Postgres | none | no | readMediaPlans | **DONE** |
 | `lib/api/mediaPlanVersionHelper.ts` | filterLineItemsByPlanNumber only; getVersionNumberForMBA deleted (XS-1) | — | no | none | **DONE** |
 | `lib/api/mediaPlanVersionsCache.ts` | latest version per MBA from Postgres | none | no | readPlanVersions / readPlanMasters | **DONE** |
-| `lib/api/publishers.ts` | GET publisher market-share paths; get_publishers | market share unconditional; getPublisherByPublisherId uses DATA_BACKEND_PUBLISHERS | yes | lib/data/readPublishers.ts readPublishersList (lookup only) | **PORT** |
+| `lib/api/publishers.ts` | market share is Postgres published lines; `fetchPublishersFromXano` remains for the archived backfill | market share none | `fetchPublishersFromXano` only | lib/publishers/marketShare.ts | **PORT** (`fetchPublishersFromXano`) |
 | `lib/api/replaceChannelLineItems.ts` | list/DELETE/POST channel media_plan_* | unconditional in this file; callers sit on the xano write path | only if flag flipped | lib/data/savePlan.ts savePlanVersion | **PORT** |
 | `lib/api/xano.ts` | URL, auth header, timeout (no table of its own) | unconditional | yes | none | **TOOLING** |
 | `lib/api/xanoClients.ts` | URL builders for clients, media plans, dashboards | unconditional | yes | none | **TOOLING** |
 | `lib/api/xanoPagination.ts` | paginated GET walk | callee-gated | yes | none | **TOOLING** |
 | `lib/api/__tests__/xanoPaginationCompleteness.test.ts` | test double / env stub | unconditional | no | none | **TOOLING** |
 | `lib/api.ts` | version GETs from Postgres or /api/media_plans. replaceChannelLineItems and createMediaPlanVersion throw. Channel save/create helpers that still name Xano URLs throw or remain for the editor Xano branch | none for version GETs | channel save helpers if that branch runs | readMediaPlans; referenceTables fetchReferenceTableFromPostgres | **DONE** (version GETs, reference getters) |
-| `lib/ava/tools/getBestPractice.ts` | GET media_container_best_practice | unconditional | yes | none | **PORT** |
+| `lib/ava/tools/getBestPractice.ts` | media_container_best_practice from Postgres | — | no | fetchMediaContainerBestPracticeFromPostgres | **DONE** (XS-2b) |
 | `lib/ava/tools/getCampaignContext.ts` | getAvaXanoSummary | unconditional | no | lib/xano/ava.ts getAvaXanoSummary → fetchPlan*FromPostgres | **NAME-ONLY** |
 | `lib/ava/tools/getMediaPlanSummary.ts` | getAvaXanoSummary | unconditional | no | lib/xano/ava.ts getAvaXanoSummary → fetchPlan*FromPostgres | **NAME-ONLY** |
 | `lib/ava/tools/getPacingSnapshot.ts` | getAvaXanoSummary | unconditional | no | lib/xano/ava.ts getAvaXanoSummary → fetchPlan*FromPostgres | **NAME-ONLY** |
-| `lib/clients/fetchClientRowByUrlSlug.ts` | parses readClientsList | DATA_BACKEND_CLIENTS | only if flag flipped | lib/data/readClients.ts readClientsList | **PORT** |
+| `lib/clients/fetchClientRowByUrlSlug.ts` | parses readClientsList | — | no | lib/data/readClients.ts readClientsList | **DONE** (XS-2b) |
 | `lib/config/endpoints.ts` | default export host xg4h-uyzs-dtex.a2.xano.io | unconditional | no | none | **TOOLING** |
 | `lib/config/__tests__/endpoints.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** |
 | `lib/creative/adCopy/avContext.ts` | getAvaXanoSummary | unconditional | no | lib/xano/ava.ts getAvaXanoSummary | **NAME-ONLY** |
 | `lib/creative/searchCopy/avContext.ts` | getAvaXanoSummary | unconditional | no | lib/xano/ava.ts getAvaXanoSummary | **NAME-ONLY** |
 | `lib/data/backend.ts` | no longer reads XANO_MIRROR_ENABLED (XS-1); DATA_BACKEND / WRITE_BACKEND remain | — | no | none | **DONE** |
 | `lib/data/mirrorToXano.ts` | deleted (XS-1) | — | no | none | **DONE** |
-| `lib/data/readApprovals.ts` | mba_line_approvals | DATA_BACKEND_APPROVALS | only if flag flipped | same file postgres branch | **PORT** |
-| `lib/data/readClients.ts` | clients | DATA_BACKEND_CLIENTS | only if flag flipped | same file postgres branch | **PORT** |
+| `lib/data/readApprovals.ts` | mba_line_approvals from Postgres | — | no | same file | **DONE** (XS-2b) |
+| `lib/data/readClients.ts` | clients from Postgres | — | no | same file | **DONE** (XS-2b) |
 | `lib/data/readFinance.ts` | finance reads are the Postgres functions (XS-2a) | — | no | same file | **DONE** |
-| `lib/data/readKpi.ts` | campaign_kpi, client_kpi, publisher_kpi | DATA_BACKEND_KPI | only if flag flipped | same file *FromPostgres | **PORT** |
+| `lib/data/readKpi.ts` | campaign_kpi, client_kpi, publisher_kpi from Postgres | — | no | same file | **DONE** (XS-2b) |
 | `lib/data/readMediaPlans.ts` | masters, versions, and channel lines from Postgres. probePlansShadowDiffs is a no-op | none | no | same file *FromPostgres | **DONE** |
-| `lib/data/readPacing.ts` | media_plan_versions, pacing_orphan_fixes | DATA_BACKEND_PACING | only if flag flipped | same file postgres branch | **PORT** |
-| `lib/data/readPublishers.ts` | get_publishers | DATA_BACKEND_PUBLISHERS | only if flag flipped | same file postgres branch | **PORT** |
+| `lib/data/readPacing.ts` | media_plan_versions, pacing_orphan_fixes from Postgres | — | no | same file | **DONE** (XS-2b) |
+| `lib/data/readPublishers.ts` | publishers from Postgres | — | no | same file | **DONE** (XS-2b) |
 | `lib/data/readReferenceMediaDetail.ts` | reference media-detail tables from Postgres | none | no | fetchReferenceTableFromPostgres | **DONE** |
-| `lib/data/writeApprovals.ts` | PATCH mba_line_approvals | WRITE_BACKEND | only if flag flipped | same file patchMbaLineApprovalsOnPostgres | **PORT** |
+| `lib/data/writeApprovals.ts` | mba_line_approvals Postgres upsert/delete | — | no | same file | **DONE** (XS-2b) |
 | `lib/data/writeClients.ts` | Postgres insert/update is the whole function (XS-1) | — | no | same file create/update | **DONE** |
 | `lib/data/writeKpi.ts` | Postgres write is the whole function (XS-1) | — | no | same file | **DONE** |
 | `lib/data/writeMediaContainerBestPractice.ts` | Postgres write is the whole function (XS-1) | — | no | same file | **DONE** |
@@ -219,14 +219,14 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/finance/relevantPlanVersions.ts` | readPlanMasters / readPlanVersions (XS-2a) | — | no | same file | **DONE** |
 | `lib/finance/xanoFinanceApi.ts` | deleted (XS-2a) | — | no | lib/data/writeFinance.ts insertFinanceEdit / insertFinanceSavedView; readFinance | **DONE** |
 | `lib/finance/xanoReferenceCache.ts` | readClientsList / readPublishersList; no HTTP (XS-2a) | — | no | same exports | **DONE** |
-| `lib/kpi/publisherKpi.ts` | POST/PATCH/DELETE publisher_kpi (reads go through readKpi) | unconditional | yes | none for writes | **PORT** |
+| `lib/kpi/publisherKpi.ts` | publisher_kpi reads and writes via readKpi / writeKpi | — | no | lib/data/writeKpi.ts | **DONE** (XS-2b) |
 | `lib/mediaplan/reapUnpublishedStagedVersions.ts` | Deletes unpublished Postgres versions above the published watermark. line_items cascade. MBA PUT no longer calls it | none | no | media_plan_versions / line_items | **DONE** |
 | `lib/ops/health/checks.ts` | GET clients liveness | unconditional | yes | none | **TOOLING** |
-| `lib/pacing/admin/assignOrphanLineItem.ts` | POST pacing_orphan_fixes via createPacingOrphanFix | unconditional | yes | none | **PORT** |
-| `lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts` | search lines from Postgres line_items. campaign_kpi still via lib/xano/campaignKpi | none for plans | campaign_kpi only | resolveSearchLineItemsFromPostgres | **DONE** (plans) |
+| `lib/pacing/admin/assignOrphanLineItem.ts` | pacing_orphan_fixes insert via createPacingOrphanFix | — | no | lib/pacing/admin/pacingOrphanFixes.ts | **DONE** (XS-2b) |
+| `lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts` | search lines from Postgres line_items. campaign_kpi via lib/xano/campaignKpi → readKpi | — | no | readKpi | **DONE** (XS-2b) |
 | `lib/pacing/plans/resolveLivePlanLineItems.ts` | channel lines from Postgres line_items | none | no | resolveFromPostgres | **DONE** |
-| `lib/pacing/programmatic/fetchProgrammaticPacingCampaignRows.ts` | campaign_kpi via readKpi | DATA_BACKEND_KPI | only if flag flipped | lib/data/readKpi.ts readCampaignKpisForMbas postgres branch | **PORT** |
-| `lib/pacing/social/fetchSocialPacingCampaignRows.ts` | campaign_kpi via readKpi | DATA_BACKEND_KPI | only if flag flipped | lib/data/readKpi.ts readCampaignKpisForMbas postgres branch | **PORT** |
+| `lib/pacing/programmatic/fetchProgrammaticPacingCampaignRows.ts` | campaign_kpi via readKpi (Postgres) | — | no | lib/data/readKpi.ts | **DONE** (XS-2b) |
+| `lib/pacing/social/fetchSocialPacingCampaignRows.ts` | campaign_kpi via readKpi (Postgres) | — | no | lib/data/readKpi.ts | **DONE** (XS-2b) |
 | `lib/snowflake/fetchAllPgLineItems.ts` | type import only; rows from Postgres | LINE_ITEM_SNAPSHOT_SOURCE | no | same file fetchAllPgLineItems | **NAME-ONLY** |
 | `lib/snowflake/lineItemSnapshotParity.ts` | type import; parity math, no HTTP | LINE_ITEM_SNAPSHOT_SOURCE | no | none | **NAME-ONLY** |
 | `lib/snowflake/pgLineItemSnapshotMap.ts` | type import; row map, no HTTP | unconditional | no | none | **NAME-ONLY** |
@@ -236,7 +236,7 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/snowflake/__tests__/syncPgLineItems.parity.test.ts` | media_plan_search, media_plan_social | unconditional | no | none | **TOOLING** |
 | `lib/snowflake/__tests__/syncXanoLineItemsPrune.test.ts` | media_plan_search | unconditional | no | none | **TOOLING** |
 | `lib/xano/fetchAllLineItems.ts` | GET all channel media_plan_* tables | LINE_ITEM_SNAPSHOT_SOURCE (caller) | unknown | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **TOOLING** |
-| `lib/xano/pacingOrphanFixes.ts` | POST pacing_orphan_fixes | unconditional | yes | none | **PORT** |
+| `lib/xano/pacingOrphanFixes.ts` | deleted | — | no | lib/pacing/admin/pacingOrphanFixes.ts | **DONE** (XS-2b) |
 
 ### Scripts (archived by XS-1; not in the live inclusion set)
 
@@ -282,7 +282,7 @@ Kept under `scripts/_archive/xano/` for history. They do not run. npm scripts th
 1. **`av-review/xano-severance-audit-2026-08-02.md` absent** — restore or treat this register as SoT.
 2. **77 ≠ 79** — string match undercounts channel routes without the word “xano”; overcounts 3 NOT-XANO comment hits.
 3. **`/api/finance/billing` GET is not clean DUAL-DONE** — still hard-fails without `XANO_CLIENTS_BASE_URL` and still uses `xanoReferenceCache`.
-4. **`fetchClientRowByUrlSlug` bypasses `DATA_BACKEND_CLIENTS`** — silent Xano dependency under postgres clients.
+4. **`fetchClientRowByUrlSlug` reads Postgres** via `readClientsList` (XS-2b). It no longer has its own Xano GET.
 5. **`lib/finance/xanoReferenceCache` duplicates dual readers** — candidate RETIRE behind `readClients`/`readPublishers`.
 6. **Vault = plan PDFs only** — creative/Xero already Blob in both stores; X6 is narrower than a full-file migration.
 7. **Channel POST dead wrappers** coexist with **live direct Xano creates** from `lib/api.ts` — deleting wrappers does not remove Xano writes.

@@ -36,8 +36,8 @@ export type FetchCampaignKpiArgs = {
 };
 
 /**
- * Fetches campaign_kpi rows for the supplied MBA numbers from the
- * Clients Xano group. Returns one row per (mba_number, version_number,
+ * Fetches campaign_kpi rows for the supplied MBA numbers through `readKpi`
+ * (Postgres). Returns one row per (mba_number, version_number,
  * line_item_id, media_type) per the table's grain.
  *
  * Fans out one fetch per MBA.

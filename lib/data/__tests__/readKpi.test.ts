@@ -1,6 +1,6 @@
 /**
  * campaign_kpi bulk Postgres fetch must dedupe (mba, version) pairs
- * the same way fetchCampaignKpisForMbasFromXano does.
+ * before fetching.
  * Requires Node 22+ `--experimental-test-module-mocks`.
  */
 import assert from "node:assert/strict"

@@ -1,5 +1,5 @@
 /**
- * Postgres-authoritative campaign_kpi / client_kpi writes.
+ * Postgres-authoritative campaign_kpi / client_kpi / publisher_kpi writes.
  * The Postgres mutate is the whole function.
  * Percent fields stored as decimal (AV-25 / percentUnits) — no magnitude heuristic.
  */
@@ -16,6 +16,8 @@ import type {
   CampaignKpiInput,
   ClientKpi,
   ClientKpiInput,
+  PublisherKpi,
+  PublisherKpiInput,
 } from "@/lib/kpi/types"
 
 export function campaignKpiLineKey(
@@ -75,6 +77,17 @@ const CAMPAIGN_WRITABLE: Record<string, keyof typeof schema.campaignKpi.$inferIn
   line_item_id: "lineItemId",
   target_source: "targetSource",
   benchmark_ref: "benchmarkRef",
+}
+
+const PUBLISHER_WRITABLE: Record<string, keyof typeof schema.publisherKpi.$inferInsert> = {
+  publisher: "publisher",
+  bid_strategy: "bidStrategy",
+  media_type: "mediaType",
+  ctr: "ctr",
+  cpv: "cpv",
+  conversion_rate: "conversionRate",
+  vtr: "vtr",
+  frequency: "frequency",
 }
 
 const CLIENT_WRITABLE: Record<string, keyof typeof schema.clientKpi.$inferInsert> = {
@@ -200,6 +213,62 @@ function asCampaignRow(row: Record<string, unknown>): CampaignKPI {
 
 function asClientRow(row: Record<string, unknown>): ClientKpi {
   return mapKpiRowFromPostgres(row) as unknown as ClientKpi
+}
+
+function normalizePublisherSnake(
+  input: Partial<PublisherKpiInput>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(input)) {
+    if (!(key in PUBLISHER_WRITABLE)) continue
+    if (value === undefined) continue
+    if (PERCENT_KEYS.has(key)) {
+      out[key] = assertKpiPercentDecimal(key, value)
+    } else {
+      out[key] = value
+    }
+  }
+  return out
+}
+
+function publisherSnakeToInsert(
+  snake: Record<string, unknown>
+): typeof schema.publisherKpi.$inferInsert {
+  const values: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(snake)) {
+    const camel = PUBLISHER_WRITABLE[k]
+    if (!camel) continue
+    if (v === null) {
+      values[camel] = null
+      continue
+    }
+    if (
+      camel === "ctr" ||
+      camel === "cpv" ||
+      camel === "conversionRate" ||
+      camel === "vtr" ||
+      camel === "frequency"
+    ) {
+      values[camel] = String(v)
+    } else {
+      values[camel] = v
+    }
+  }
+  return values as typeof schema.publisherKpi.$inferInsert
+}
+
+function asPublisherRow(row: Record<string, unknown>): PublisherKpi {
+  return mapKpiRowFromPostgres(row) as unknown as PublisherKpi
+}
+
+async function syncPublisherKpiIdSequence(): Promise<void> {
+  await getDb().execute(sql`
+    SELECT setval(
+      pg_get_serial_sequence('publisher_kpi', 'id'),
+      COALESCE((SELECT MAX(id) FROM publisher_kpi), 1),
+      true
+    )
+  `)
 }
 
 export async function syncCampaignKpiIdSequence(): Promise<void> {
@@ -384,7 +453,7 @@ export async function syncCampaignKpisPostgresFirst(
     desired.add(lineItemId.toLowerCase())
 
     if (!fetchedPairs.has(pairKey)) {
-      // Always PG for sync pre-read — writes are PG-authoritative regardless of DATA_BACKEND_KPI.
+      // Postgres pre-read. Writes are Postgres.
       const existing = (await fetchCampaignKpisFromPostgres(
         item.mba_number,
         item.version_number
@@ -515,6 +584,65 @@ export async function deleteClientKpiPostgresFirst(id: number): Promise<boolean>
     return true
   } catch (e) {
     console.error("deleteClientKpi", e)
+    return false
+  }
+}
+
+export async function createPublisherKpiPostgresFirst(
+  input: PublisherKpiInput
+): Promise<PublisherKpi | null> {
+  try {
+    await syncPublisherKpiIdSequence()
+    const snake = normalizePublisherSnake(input)
+    const [inserted] = await getDb()
+      .insert(schema.publisherKpi)
+      .values(publisherSnakeToInsert(snake))
+      .returning()
+    if (!inserted?.id) return null
+    return asPublisherRow(inserted as Record<string, unknown>)
+  } catch (e) {
+    console.error("createPublisherKpi", e)
+    return null
+  }
+}
+
+export async function updatePublisherKpiPostgresFirst(
+  id: number,
+  input: Partial<PublisherKpiInput>
+): Promise<PublisherKpi | null> {
+  try {
+    const snake = normalizePublisherSnake(input)
+    if (Object.keys(snake).length === 0) {
+      const [existing] = await getDb()
+        .select()
+        .from(schema.publisherKpi)
+        .where(eq(schema.publisherKpi.id, id))
+        .limit(1)
+      return existing ? asPublisherRow(existing as Record<string, unknown>) : null
+    }
+    const [updated] = await getDb()
+      .update(schema.publisherKpi)
+      .set(publisherSnakeToInsert(snake))
+      .where(eq(schema.publisherKpi.id, id))
+      .returning()
+    if (!updated) return null
+    return asPublisherRow(updated as Record<string, unknown>)
+  } catch (e) {
+    console.error("updatePublisherKpi", e)
+    return null
+  }
+}
+
+export async function deletePublisherKpiPostgresFirst(id: number): Promise<boolean> {
+  try {
+    const deleted = await getDb()
+      .delete(schema.publisherKpi)
+      .where(eq(schema.publisherKpi.id, id))
+      .returning({ id: schema.publisherKpi.id })
+    if (deleted.length === 0) return false
+    return true
+  } catch (e) {
+    console.error("deletePublisherKpi", e)
     return false
   }
 }

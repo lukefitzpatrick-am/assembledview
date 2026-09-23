@@ -1,40 +1,16 @@
 import "server-only"
 
 import { getDb, schema } from "@/db"
-import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import {
-  parseXanoListPayload,
-  xanoAuthHeader,
-  xanoUrl,
-} from "@/lib/api/xano"
-import { getDataBackendFor } from "@/lib/data/backend"
 import { coerceNumericStringsToNumbers, toApiRow } from "@/lib/data/toApiRow"
-import { compareReferenceRows, recordShadowDiff } from "@/lib/data/shadowDiff"
-
-const DOMAIN = "pacing" as const
-
-const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
+import { readPacingOrphanFixRows } from "@/lib/pacing/admin/pacingOrphanFixes"
 
 /**
- * Pacing-surface Xano reads owned by `DATA_BACKEND_PACING`:
- * - `media_plan_master` / `media_plan_versions` (live campaign crawl for burst /
- *   fixed-cost context — shared by every pacing composer)
- * - `pacing_orphan_fixes` (audit table; POST stays on Xano until write cutover)
+ * Pacing-surface reads from Postgres:
+ * - `media_plan_masters` / `media_plan_versions` (live campaign crawl)
+ * - `pacing_orphan_fixes` (audit rows)
  *
- * Channel `media_plan_*` line-item tables stay on Xano until T2e (media-plans
- * domain reassembles from consolidated `line_items`).
- * Snapshot sync: `LINE_ITEM_SNAPSHOT_SOURCE` (X7) — default Xano; PG behind STOP.
+ * Snapshot sync: `LINE_ITEM_SNAPSHOT_SOURCE`.
  */
-
-function asRecordList(body: unknown): Record<string, unknown>[] {
-  if (Array.isArray(body)) {
-    return body.filter(
-      (row): row is Record<string, unknown> =>
-        !!row && typeof row === "object" && !Array.isArray(row)
-    )
-  }
-  return parseXanoListPayload(body) as Record<string, unknown>[]
-}
 
 function createdAtMs(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value
@@ -43,27 +19,6 @@ function createdAtMs(value: unknown): number | undefined {
     return Number.isFinite(t) ? t : undefined
   }
   return undefined
-}
-
-function runPacingShadowCompare(
-  table: string,
-  xanoBody: unknown,
-  postgresRows: Record<string, unknown>[],
-  options: {
-    financeDuplicateClass?: boolean
-    duplicateNaturalKey?: (row: Record<string, unknown>) => string | null
-  } = {}
-): void {
-  try {
-    const event = compareReferenceRows(table, xanoBody, postgresRows, {
-      domain: DOMAIN,
-      postgresKeysOnly: true,
-      ...options,
-    })
-    recordShadowDiff(event)
-  } catch (err) {
-    console.error("[migration-shadow-diff] compare failed", { domain: DOMAIN, table, err })
-  }
 }
 
 // --- media_plan_master (pacing crawl shape) ---
@@ -164,56 +119,9 @@ export async function fetchPacingMastersFromPostgres(): Promise<Record<string, u
   })
 }
 
-/**
- * Dying-at-T6 (fetchAllXanoPages family). Dual-endpoint 404 → [] is Xano
- * discovery fallback, not a Postgres soft-fail. Do not convert for M7 ViewState.
- * @see docs/brain/READ-FAILURE-REGISTER.md
- */
-export async function fetchPacingMastersFromXano(): Promise<Record<string, unknown>[]> {
-  const endpoints = ["media_plan_master", "media_plans_master"] as const
-  for (const endpoint of endpoints) {
-    try {
-      const url = xanoUrl(endpoint, [...MEDIA_PLANS_KEYS])
-      const raw = await fetchAllXanoPages(url, {}, `PACING_READ_${endpoint}`, 200, 50)
-      return asRecordList(raw)
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status
-      if (status === 404) continue
-      throw err
-    }
-  }
-  return []
-}
-
-/**
- * Masters list for pacing composers (`fetchAllMasters`).
- * Serve Xano in xano/shadow; Postgres when `DATA_BACKEND_PACING=postgres`.
- */
+/** Masters list for pacing composers (`fetchAllMasters`). Postgres. */
 export async function readPacingMasters(): Promise<Record<string, unknown>[]> {
-  const backend = getDataBackendFor(DOMAIN)
-
-  if (backend === "postgres") {
-    return fetchPacingMastersFromPostgres()
-  }
-
-  const xanoRows = await fetchPacingMastersFromXano()
-
-  if (backend === "shadow") {
-    void (async () => {
-      try {
-        const postgresRows = await fetchPacingMastersFromPostgres()
-        runPacingShadowCompare("media_plan_master", xanoRows, postgresRows)
-      } catch (err) {
-        console.error("[migration-shadow-diff] compare failed", {
-          domain: DOMAIN,
-          table: "media_plan_master",
-          err,
-        })
-      }
-    })()
-  }
-
-  return xanoRows
+  return fetchPacingMastersFromPostgres()
 }
 
 // --- media_plan_versions (pacing crawl) ---
@@ -247,184 +155,23 @@ export async function fetchPacingVersionsFromPostgres(): Promise<Record<string, 
   return rows.map((row) => mapPacingVersionFromPostgres(row as Record<string, unknown>))
 }
 
-export async function fetchPacingVersionsFromXano(): Promise<Record<string, unknown>[]> {
-  const url = xanoUrl("media_plan_versions", [...MEDIA_PLANS_KEYS])
-  const raw = await fetchAllXanoPages(url, {}, "PACING_READ_VERSIONS", 200, 50)
-  return asRecordList(raw).map((row) => ({
-    id: row.id,
-    mba_number: row.mba_number,
-    version_number: row.version_number,
-    brand: row.brand ?? null,
-    campaign_name: row.campaign_name ?? null,
-    campaign_status: row.campaign_status ?? null,
-    campaign_start_date:
-      typeof row.campaign_start_date === "string"
-        ? row.campaign_start_date.slice(0, 10)
-        : row.campaign_start_date ?? null,
-    campaign_end_date:
-      typeof row.campaign_end_date === "string"
-        ? row.campaign_end_date.slice(0, 10)
-        : row.campaign_end_date ?? null,
-  }))
-}
-
-function versionDuplicateNaturalKey(row: Record<string, unknown>): string | null {
-  const mba = String(row.mba_number ?? "")
-    .trim()
-    .toLowerCase()
-  const vn = row.version_number
-  if (!mba || vn == null || String(vn).trim() === "") return null
-  return `mba_vn:${mba}::${String(vn).trim()}`
-}
-
-/**
- * Versions list for pacing (`fetchCurrentVersionRowsForMasters`).
- * Duplicate (mba, version_number) rows collapsed in PG are tagged duplicate-class.
- */
+/** Versions list for pacing (`fetchCurrentVersionRowsForMasters`). Postgres. */
 export async function readPacingVersions(): Promise<Record<string, unknown>[]> {
-  const backend = getDataBackendFor(DOMAIN)
-
-  if (backend === "postgres") {
-    return fetchPacingVersionsFromPostgres()
-  }
-
-  const xanoRows = await fetchPacingVersionsFromXano()
-
-  if (backend === "shadow") {
-    void (async () => {
-      try {
-        const postgresRows = await fetchPacingVersionsFromPostgres()
-        runPacingShadowCompare("media_plan_versions", xanoRows, postgresRows, {
-          financeDuplicateClass: true,
-          duplicateNaturalKey: versionDuplicateNaturalKey,
-        })
-      } catch (err) {
-        console.error("[migration-shadow-diff] compare failed", {
-          domain: DOMAIN,
-          table: "media_plan_versions",
-          err,
-        })
-      }
-    })()
-  }
-
-  return xanoRows
+  return fetchPacingVersionsFromPostgres()
 }
 
 // --- pacing_orphan_fixes ---
 
-export function mapPacingOrphanFixFromPostgres(
-  row: Record<string, unknown>
-): Record<string, unknown> {
-  return coerceNumericStringsToNumbers(toApiRow(row))
-}
-
 export async function fetchPacingOrphanFixesFromPostgres(): Promise<
   Record<string, unknown>[]
 > {
-  const db = getDb()
-  const rows = await db.select().from(schema.pacingOrphanFixes)
-  return rows.map((row) => mapPacingOrphanFixFromPostgres(row as Record<string, unknown>))
+  return readPacingOrphanFixRows()
 }
 
-export async function fetchPacingOrphanFixesFromXano(): Promise<Record<string, unknown>[]> {
-  const url = xanoUrl("pacing_orphan_fixes", [...MEDIA_PLANS_KEYS])
-  const upstream = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      ...xanoAuthHeader(),
-    },
-  })
-  if (upstream.status >= 400) {
-    throw new Error(`Xano pacing_orphan_fixes GET failed: ${upstream.status}`)
-  }
-  const contentType = upstream.headers.get("content-type") || ""
-  const body = contentType.includes("application/json")
-    ? await upstream.json()
-    : await upstream.text()
-  return asRecordList(body)
-}
-
-/**
- * List orphan-fix audit rows (no hot UI GET today — used for shadow probe).
- * POST create stays on Xano via `createPacingOrphanFix`.
- */
+/** List orphan-fix audit rows from Postgres `pacing_orphan_fixes`. */
 export async function readPacingOrphanFixes(): Promise<Record<string, unknown>[]> {
-  const backend = getDataBackendFor(DOMAIN)
-
-  if (backend === "postgres") {
-    return fetchPacingOrphanFixesFromPostgres()
-  }
-
-  const xanoRows = await fetchPacingOrphanFixesFromXano()
-
-  if (backend === "shadow") {
-    void (async () => {
-      try {
-        const postgresRows = await fetchPacingOrphanFixesFromPostgres()
-        runPacingShadowCompare("pacing_orphan_fixes", xanoRows, postgresRows)
-      } catch (err) {
-        console.error("[migration-shadow-diff] compare failed", {
-          domain: DOMAIN,
-          table: "pacing_orphan_fixes",
-          err,
-        })
-      }
-    })()
-  }
-
-  return xanoRows
+  return fetchPacingOrphanFixesFromPostgres()
 }
 
-/**
- * Probe pacing Xano tables for shadow diffs (admin `?probe=pacing`).
- */
-export async function probePacingShadowDiffs(): Promise<void> {
-  const backend = getDataBackendFor(DOMAIN)
-  if (backend !== "shadow") return
-
-  const tables: Array<{
-    table: string
-    run: () => Promise<{ xano: unknown; pg: Record<string, unknown>[] }>
-    opts?: {
-      financeDuplicateClass?: boolean
-      duplicateNaturalKey?: (row: Record<string, unknown>) => string | null
-    }
-  }> = [
-    {
-      table: "media_plan_master",
-      run: async () => ({
-        xano: await fetchPacingMastersFromXano(),
-        pg: await fetchPacingMastersFromPostgres(),
-      }),
-    },
-    {
-      table: "media_plan_versions",
-      run: async () => ({
-        xano: await fetchPacingVersionsFromXano(),
-        pg: await fetchPacingVersionsFromPostgres(),
-      }),
-      opts: {
-        financeDuplicateClass: true,
-        duplicateNaturalKey: versionDuplicateNaturalKey,
-      },
-    },
-    {
-      table: "pacing_orphan_fixes",
-      run: async () => ({
-        xano: await fetchPacingOrphanFixesFromXano(),
-        pg: await fetchPacingOrphanFixesFromPostgres(),
-      }),
-    },
-  ]
-
-  for (const { table, run, opts } of tables) {
-    try {
-      const { xano, pg } = await run()
-      runPacingShadowCompare(table, xano, pg, opts)
-    } catch (err) {
-      console.error("[migration-shadow-diff] probe failed", { domain: DOMAIN, table, err })
-    }
-  }
-}
+/** Pacing shadow probe is retired. Postgres is the only read. */
+export async function probePacingShadowDiffs(): Promise<void> {}

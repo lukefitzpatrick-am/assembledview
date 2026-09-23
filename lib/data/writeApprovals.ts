@@ -1,13 +1,5 @@
 import { and, eq } from "drizzle-orm"
 import { getDb, schema } from "@/db"
-import {
-  getXanoBaseUrl,
-  xanoPostHeaderRecord,
-} from "@/lib/api/xano"
-import { getWriteBackend } from "@/lib/data/backend"
-
-const MEDIA_PLANS_ENV_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
-const XANO_TIMEOUT_MS = 15_000
 
 export type MbaLineApprovalPatchLine = {
   line_item_id: string
@@ -96,76 +88,23 @@ export async function patchMbaLineApprovalsOnPostgres(params: {
   }
 }
 
-async function patchMbaLineApprovalsOnXano(params: {
-  mbaNumber: string
-  mediaPlanVersion: number
-  lines: MbaLineApprovalPatchLine[]
-}): Promise<WriteMbaLineApprovalsResult> {
-  const baseUrl = getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
-  const upstream = await fetch(`${baseUrl}/mba_line_approvals`, {
-    method: "PATCH",
-    headers: {
-      Accept: "application/json",
-      ...xanoPostHeaderRecord(),
-    },
-    body: JSON.stringify({
-      mba_number: params.mbaNumber,
-      media_plan_version: params.mediaPlanVersion,
-      lines: params.lines,
-    }),
-    signal: AbortSignal.timeout(XANO_TIMEOUT_MS),
-  })
-
-  const contentType = upstream.headers.get("content-type") || ""
-  const body = contentType.includes("application/json")
-    ? await upstream.json()
-    : await upstream.text()
-
-  if (upstream.status === 404) {
-    return {
-      ok: false,
-      available: false,
-      status: 404,
-      error: "Approvals API unavailable",
-    }
-  }
-  if (upstream.status >= 400) {
-    return {
-      ok: false,
-      available: false,
-      status: upstream.status,
-      error: "Failed to patch mba_line_approvals",
-      upstream: body,
-    }
-  }
-  return { ok: true, available: true, data: body }
-}
-
-/**
- * Write path follows WRITE_BACKEND (independent of DATA_BACKEND_APPROVALS).
- * Default `postgres` uses local upsert/delete; explicit `xano` keeps the Xano patch.
- */
+/** MBA line approval writes. Postgres. */
 export async function writeMbaLineApprovals(params: {
   mbaNumber: string
   mediaPlanVersion: number
   lines: MbaLineApprovalPatchLine[]
 }): Promise<WriteMbaLineApprovalsResult> {
-  const writeBackend = getWriteBackend()
-
   try {
-    if (writeBackend === "postgres") {
-      const result = await patchMbaLineApprovalsOnPostgres(params)
-      return {
-        ok: true,
-        available: true,
-        data: {
-          mba_number: params.mbaNumber,
-          media_plan_version: params.mediaPlanVersion,
-          results: result.results,
-        },
-      }
+    const result = await patchMbaLineApprovalsOnPostgres(params)
+    return {
+      ok: true,
+      available: true,
+      data: {
+        mba_number: params.mbaNumber,
+        media_plan_version: params.mediaPlanVersion,
+        results: result.results,
+      },
     }
-    return await patchMbaLineApprovalsOnXano(params)
   } catch (err) {
     console.error("[writeMbaLineApprovals]", err)
     return {

@@ -163,7 +163,7 @@ export interface PublisherCampaignRow {
   targetingDetails: string
 }
 
-/** FY market share by media type from Xano `GET /publisher/{id}/market-share`. */
+/** FY market share by media type from published plan lines. */
 export interface PublisherMediaTypeShare {
   mediaType: string
   thisPublisherSpend: number
