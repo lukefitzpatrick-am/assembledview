@@ -37,7 +37,7 @@ export async function getXeroAccessToken(
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64")
   const body = new URLSearchParams({
     grant_type: "client_credentials",
-    scope: "accounting.invoices.read accounting.contacts.read",
+    scope: "accounting.invoices.read accounting.contacts",
   })
 
   const res = await fetchImpl(XERO_IDENTITY_URL, {
