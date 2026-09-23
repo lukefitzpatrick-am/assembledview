@@ -281,7 +281,6 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | POST | `/api/finance/sections/draft-match` | admin-only | requireRole | `app/api/finance/sections/draft-match/route.ts` |
 | POST | `/api/finance/sections/investment/cut` | admin-only | requireRole | `app/api/finance/sections/investment/cut/route.ts` |
 | GET | `/api/finance/sections/owed` | admin-only | requireRole | `app/api/finance/sections/owed/route.ts` |
-| POST | `/api/finance/sections/pull-xero` | admin-only | requireRole | `app/api/finance/sections/pull-xero/route.ts` |
 | GET | `/api/finance/sections/summary` | admin-only | requireRole | `app/api/finance/sections/summary/route.ts` |
 | GET | `/api/finance/sow` | admin-only | requireRole | `app/api/finance/sow/route.ts` |
 | POST | `/api/finance/xero-match` | admin-only | requireRole | `app/api/finance/xero-match/route.ts` |

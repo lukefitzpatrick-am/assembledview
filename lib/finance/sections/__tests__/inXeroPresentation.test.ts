@@ -27,9 +27,9 @@ function row(partial: Partial<DraftMatchRow> & Pick<DraftMatchRow, "id" | "outco
   }
 }
 
-test("Differs → Accept Xero figure; Missing → no primary; Extra → Assign", () => {
+test("Differs → Adopt Xero figure; Missing → no primary; Extra → Assign", () => {
   assert.equal(inXeroPrimaryAction("Differs"), "accept")
-  assert.equal(inXeroPrimaryLabel("accept"), "Accept Xero figure")
+  assert.equal(inXeroPrimaryLabel("accept"), "Adopt Xero figure")
   assert.equal(inXeroPrimaryAction("Missing"), null)
   assert.equal(inXeroPrimaryAction("Extra"), "assign")
   assert.equal(inXeroPrimaryLabel("assign"), "Assign")

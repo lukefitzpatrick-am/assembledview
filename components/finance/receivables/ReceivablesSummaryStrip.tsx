@@ -17,9 +17,12 @@ export type ReceivablesSummaryStripProps = {
   readyCents?: number
   approvedCents?: number
   sentToFinanceCents?: number
+  issuedOutsideCents?: number
+  needsAttentionCount?: number
   readyCaption?: string
   approvedCaption?: string
   sentToFinanceCaption?: string
+  issuedOutsideCaption?: string
   className?: string
   /** When set with onFilterChange, tiles become lifecycle filters. */
   selectedFilter?: InvoicingLifecycleFilter
@@ -29,6 +32,8 @@ export type ReceivablesSummaryStripProps = {
 const READY_BASIS = "Ready invoices in the current scope"
 const APPROVED_BASIS = "Approved invoices in the current scope"
 const SENT_BASIS = "Sent to finance and beyond in the current scope"
+const ISSUED_OUTSIDE_BASIS = "Matched in Xero with no approval in Assembled View"
+const NEEDS_ATTENTION_BASIS = "Matched invoices whose amount differs by more than $1"
 
 function tileState(
   view: ReceivablesSummaryStripView,
@@ -84,16 +89,19 @@ export function ReceivablesSummaryStrip({
   readyCents = 0,
   approvedCents = 0,
   sentToFinanceCents = 0,
+  issuedOutsideCents = 0,
+  needsAttentionCount = 0,
   readyCaption,
   approvedCaption,
   sentToFinanceCaption,
+  issuedOutsideCaption,
   className,
   selectedFilter,
   onFilterChange,
 }: ReceivablesSummaryStripProps) {
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <FilterWrap filterId="ready" selected={selectedFilter} onSelect={onFilterChange}>
           <StatTile
             label={INVOICING_FUNNEL_LABELS.ready}
@@ -122,6 +130,29 @@ export function ReceivablesSummaryStrip({
             state={tileState(view, sentToFinanceCents, errorMessage)}
           />
         </FilterWrap>
+        <FilterWrap
+          filterId="issued_outside_av"
+          selected={selectedFilter}
+          onSelect={onFilterChange}
+        >
+          <StatTile
+            label={INVOICING_FUNNEL_LABELS.issued_outside_av}
+            basisCaption={captionFor(view, issuedOutsideCaption, ISSUED_OUTSIDE_BASIS)}
+            accent="none"
+            state={tileState(view, issuedOutsideCents, errorMessage)}
+          />
+        </FilterWrap>
+        <StatTile
+          label="Needs attention"
+          basisCaption={NEEDS_ATTENTION_BASIS}
+          accent="none"
+          figure={view === "ready" ? String(needsAttentionCount) : undefined}
+          state={
+            view === "ready"
+              ? { status: "ready", cents: 0 }
+              : tileState(view, 0, errorMessage)
+          }
+        />
       </div>
       {onFilterChange ? (
         <button

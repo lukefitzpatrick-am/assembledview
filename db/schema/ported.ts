@@ -322,6 +322,10 @@ export const financeBillingRecords = pgTable(
   matchedAt: timestamp('matched_at', { withTimezone: true, mode: "string" }),
   /** How the Xero match was made: 'auto' | 'manual'. */
   matchedBy: text('matched_by'),
+  /** auto_adopted | differs | adopted | disputed. NULL when unmatched. */
+  xeroMatchResolution: text('xero_match_resolution'),
+  /** approved_snapshot | schedule_month | legacy_billed. */
+  xeroExpectedSource: text('xero_expected_source'),
   },
   (table) => [
     index("idx_finance_billing_records_created_at").on(table.createdAt),

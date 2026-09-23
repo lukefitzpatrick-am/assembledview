@@ -1,12 +1,13 @@
 /**
  * The four nightly Xero cron bodies. Each writes its own xero_sync_log row.
- * Invoices then runs today's reference matcher (matchRunItems). The any-status
- * matcher is XL-4 and is not called here.
+ * Invoices then runs the billing matcher (app records ↔ Xero) and today's
+ * reference matcher (matchRunItems).
  */
 
 import { stageContactsRefresh } from "./stages/contactsRefresh"
 import { stageImportBillingRecords } from "./stages/importBillingRecords"
 import { stageIngestInvoices } from "./stages/ingestInvoices"
+import { stageMatchBillingRecords } from "./stages/matchBillingRecords"
 import { stageMatchRunItems } from "./stages/matchRunItems"
 import { stageSyncPdfs } from "./stages/syncPdfs"
 import {
@@ -60,6 +61,11 @@ export async function runXeroInvoicesCron(): Promise<XeroCronStageResult> {
         ) {
           notes.match_skipped = "budget"
         } else {
+          try {
+            notes.billing_match = await stageMatchBillingRecords()
+          } catch (err) {
+            notes.billing_match_error = err instanceof Error ? err.message : String(err)
+          }
           try {
             notes.match = await stageMatchRunItems()
           } catch (err) {

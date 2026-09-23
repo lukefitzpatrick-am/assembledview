@@ -77,7 +77,7 @@ describe("InXeroMatchRow primary action", () => {
     container.remove()
   })
 
-  it("renders Accept Xero figure on Differs", () => {
+  it("renders Adopt Xero figure on Differs", () => {
     act(() => {
       root.render(
         <InXeroMatchRow
@@ -93,7 +93,7 @@ describe("InXeroMatchRow primary action", () => {
         />,
       )
     })
-    expect(primaryLabel(container)).toBe("Accept Xero figure")
+    expect(primaryLabel(container)).toBe("Adopt Xero figure")
   })
 
   it("renders no primary on Missing", () => {
@@ -170,6 +170,7 @@ describe("InXeroOutcomeList grouping", () => {
           busyId={null}
           assign={noopAssign}
           onAccept={() => undefined}
+          onDispute={() => undefined}
           onAssign={() => undefined}
         />,
       )

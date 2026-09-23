@@ -836,6 +836,95 @@ export async function setFinanceBillingRecordXeroMatch(
   )
 }
 
+export async function applyXeroAmountResolution(
+  input: {
+    invoiceKey: string
+    xeroInvoiceId: string
+    resolution: "adopted" | "disputed"
+    subTotalCents: number
+    expectedSource: string | null
+    editedByName: string
+  },
+  executor?: FinanceExecutor,
+): Promise<Record<string, unknown>> {
+  assertAppInvoiceKey(input.invoiceKey)
+  const xeroInvoiceId = input.xeroInvoiceId.trim()
+  if (!xeroInvoiceId) {
+    throw new FinanceBillingWriteError("BAD_REQUEST", "xero_invoice_id is required.")
+  }
+  if (input.resolution !== "adopted" && input.resolution !== "disputed") {
+    throw new FinanceBillingWriteError("BAD_REQUEST", "resolution must be adopted or disputed.")
+  }
+  const db = financeDb(executor)
+  const prior = rowsOf<Record<string, unknown>>(
+    await db.execute(sql`
+      SELECT id, approved_amount_cents, xero_match_resolution
+      FROM finance_billing_records
+      WHERE invoice_key = ${input.invoiceKey}
+        AND invoice_key NOT LIKE 'xero:%'
+    `),
+  )[0]
+  if (!prior) {
+    throw new FinanceBillingWriteError(
+      "NOT_FOUND",
+      `finance_billing_records invoice_key=${input.invoiceKey} not found`,
+    )
+  }
+  const adopt = input.resolution === "adopted"
+  const rows = rowsOf<Record<string, unknown>>(
+    await db.execute(sql`
+      UPDATE finance_billing_records SET
+        matched_xero_invoice_id = ${xeroInvoiceId},
+        matched_at = now(),
+        matched_by = 'manual',
+        xero_match_resolution = ${input.resolution},
+        xero_expected_source = COALESCE(${input.expectedSource}, xero_expected_source),
+        approved_amount_cents = CASE
+          WHEN ${adopt} THEN ${input.subTotalCents}
+          ELSE approved_amount_cents
+        END,
+        updated_at = now()
+      WHERE invoice_key = ${input.invoiceKey}
+        AND invoice_key NOT LIKE 'xero:%'
+      RETURNING *
+    `),
+  )
+  const row = rows[0]
+  if (!row) {
+    throw new FinanceBillingWriteError(
+      "BAD_REQUEST",
+      `finance_billing_records invoice_key=${input.invoiceKey} did not update`,
+    )
+  }
+  const recordId = Number(prior.id)
+  if (adopt) {
+    await db.execute(sql`
+      INSERT INTO finance_edits (
+        finance_billing_records_id, edit_type, field_name, old_value, new_value,
+        edit_status, record_type, edited_by_name
+      ) VALUES (
+        ${recordId}, 'xero_match', 'approved_amount_cents',
+        ${prior.approved_amount_cents == null ? null : String(prior.approved_amount_cents)},
+        ${String(input.subTotalCents)},
+        'published', 'billing_record', ${input.editedByName}
+      )
+    `)
+  } else {
+    await db.execute(sql`
+      INSERT INTO finance_edits (
+        finance_billing_records_id, edit_type, field_name, old_value, new_value,
+        edit_status, record_type, edited_by_name
+      ) VALUES (
+        ${recordId}, 'xero_match', 'xero_match_resolution',
+        ${prior.xero_match_resolution == null ? null : String(prior.xero_match_resolution)},
+        'disputed',
+        'published', 'billing_record', ${input.editedByName}
+      )
+    `)
+  }
+  return asApiRecord(row)
+}
+
 export async function materialiseAndApproveFinanceBillingRecord(
   input: {
     invoiceKey: string
