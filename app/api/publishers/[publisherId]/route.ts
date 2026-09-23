@@ -32,7 +32,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ publ
     if ("notFound" in result) {
       return NextResponse.json({ error: "Publisher not found" }, { status: 404 })
     }
-    return NextResponse.json({ ...result.row, mirror: result.mirror })
+    return NextResponse.json(result.row)
   } catch (error) {
     console.error("Failed to update publisher:", error)
     const message = error instanceof Error ? error.message : String(error)

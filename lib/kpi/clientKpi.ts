@@ -11,7 +11,7 @@ export async function fetchClientKpis(clientName: string): Promise<ClientKpi[]> 
   return await readClientKpis(clientName)
 }
 
-/** PG-first + Xano mirror (X5 / C-18). */
+/** Postgres write. */
 export async function createClientKpi(
   input: ClientKpiInput,
 ): Promise<ClientKpi | null> {

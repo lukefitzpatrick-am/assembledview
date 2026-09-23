@@ -69,7 +69,6 @@ async function proxyRequest(request: Request, { params }: Params, method: string
     }
   }
 
-  // X4: allowlisted reference creates → PG first + Xano mirror.
   if (method === "POST" && pathSegments.length === 1 && isReferenceWritePath(pathSegments[0])) {
     try {
       const raw = await request.text()
@@ -77,11 +76,11 @@ async function proxyRequest(request: Request, { params }: Params, method: string
         raw && raw.length > 0
           ? (JSON.parse(raw) as Record<string, unknown>)
           : ({} as Record<string, unknown>)
-      const { row, mirror } = await createReferenceMediaDetailPostgresFirst(
+      const { row } = await createReferenceMediaDetailPostgresFirst(
         pathSegments[0],
         body
       )
-      return NextResponse.json({ ...row, mirror }, { status: 201 })
+      return NextResponse.json(row, { status: 201 })
     } catch (error: any) {
       console.error("[media-details reference write] error", {
         path: pathSegments[0],

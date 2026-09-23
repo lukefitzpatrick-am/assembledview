@@ -2,9 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import {
-  KPI_MIRROR_FAILURE_KIND,
   assertKpiPercentDecimal,
-  buildKpiMirrorFailurePayload,
   campaignKpiLineKey,
   pickNewestCampaignKpi,
   resolveCampaignKpiUpsert,
@@ -24,21 +22,6 @@ describe("assertKpiPercentDecimal", () => {
 
   it("does not apply percent gate to cpv", () => {
     assert.equal(assertKpiPercentDecimal("cpv", 12.5), 12.5)
-  })
-})
-
-describe("buildKpiMirrorFailurePayload", () => {
-  it("shapes app_notifications payload", () => {
-    const p = buildKpiMirrorFailurePayload({
-      op: "create",
-      table: "campaign_kpi",
-      rowId: 7,
-      error: "upstream",
-      at: new Date("2026-08-02T00:00:00.000Z"),
-    })
-    assert.equal(p.table, "campaign_kpi")
-    assert.equal(p.timestamp, "2026-08-02T00:00:00.000Z")
-    assert.equal(KPI_MIRROR_FAILURE_KIND, "xano_kpi_mirror_failed")
   })
 })
 

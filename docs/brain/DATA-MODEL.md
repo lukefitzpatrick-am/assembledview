@@ -3,7 +3,7 @@
 System of record: **Supabase Postgres, project `slpdibnxtpdlttbbczvg`, region `ap-southeast-2` (Sydney), Postgres 17.**
 Verified live 2026-08-27: **78 tables in `public`, RLS enabled on all 78.**
 
-Xano is no longer in the runtime read or write path. `lib/api/xano.ts` is the only file that still reads a `XANO_*` env var, and the historical severance record is `XANO-SEVERANCE-REGISTER.md`. Table and column names that still say "xano" (`MART.XANO_LINE_ITEMS_SNAPSHOT`, `xano-line-item-sync`) are frozen contract names, not live dependencies — do not rename them to tidy up.
+Xano is still read by the files in §3/§4 PORT of `XANO-SEVERANCE-REGISTER.md` until XS-2. XS-1 removed the Postgres-then-Xano mirror writes. Table and column names that still say "xano" (`MART.XANO_LINE_ITEMS_SNAPSHOT`, `xano-line-item-sync`) are frozen contract names — do not rename them.
 
 ## How the app reaches the database
 

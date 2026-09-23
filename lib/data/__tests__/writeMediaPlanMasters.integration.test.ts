@@ -55,7 +55,7 @@ describe("X9 createMediaPlanMasterPostgresFirst", () => {
     const beforeRow = (before as unknown as { max_id: string; seq_last: string }[])[0]!
     const maxBefore = Number(beforeRow.max_id)
 
-    const { master, mirror } = await createMediaPlanMasterPostgresFirst({
+    const { master } = await createMediaPlanMasterPostgresFirst({
       mbaNumber: MBA,
       mpClientName: "X9 Seq Test Client",
       campaignName: "X9 Seq Campaign",
@@ -73,7 +73,6 @@ describe("X9 createMediaPlanMasterPostgresFirst", () => {
     )
     assert.equal(master.mba_number, MBA)
     assert.equal(master.version_number, 1)
-    assert.ok(mirror === "ok" || mirror === "failed")
 
     const found = await findExistingMasterByMbaNumberPostgres(MBA)
     assert.equal(found?.id, createdId)

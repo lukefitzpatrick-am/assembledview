@@ -26,8 +26,8 @@ export async function POST(req: NextRequest) {
     if ("response" in gate) return gate.response
 
     const body = (await req.json()) as Record<string, unknown>
-    const { row, mirror } = await createPublisherPostgresFirst(body)
-    return NextResponse.json({ ...row, mirror }, { status: 201 })
+    const { row } = await createPublisherPostgresFirst(body)
+    return NextResponse.json(row, { status: 201 })
   } catch (error) {
     console.error("Failed to create publisher:", error)
     const message = error instanceof Error ? error.message : String(error)

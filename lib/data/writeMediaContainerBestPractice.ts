@@ -1,40 +1,13 @@
 /**
- * Postgres-authoritative media_container_best_practice writes (X4).
- * Order: PG insert/update → invalidate cache → best-effort Xano mirror.
+ * Postgres-authoritative media_container_best_practice writes.
+ * The Postgres insert or update is the whole function.
  */
 import "server-only"
 
 import { eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
-import { xanoPostHeaderRecord, xanoUrl, getXanoTimeoutMs } from "@/lib/api/xano"
 import { invalidateMediaContainerBestPracticeCache } from "@/lib/api/mediaContainerBestPracticeCache"
 import { toApiRow } from "@/lib/data/toApiRow"
-
-export const BP_MIRROR_FAILURE_KIND = "xano_media_container_bp_mirror_failed"
-export const BP_MIRROR_FAILURE_AUDIENCE = "admin"
-
-export type BpMirrorFailurePayload = {
-  op: "create" | "update"
-  id: number
-  error: string
-  timestamp: string
-  retried: boolean
-}
-
-export function buildBpMirrorFailurePayload(input: {
-  op: "create" | "update"
-  id: number
-  error: string
-  at?: Date
-}): BpMirrorFailurePayload {
-  return {
-    op: input.op,
-    id: input.id,
-    error: input.error,
-    timestamp: (input.at ?? new Date()).toISOString(),
-    retried: false,
-  }
-}
 
 export function normalizeBpWritePayload(
   body: Record<string, unknown>,
@@ -90,91 +63,8 @@ export async function syncBpIdSequence(): Promise<void> {
   `)
 }
 
-async function persistBpMirrorFailureNotification(
-  payload: BpMirrorFailurePayload
-): Promise<void> {
-  if (!process.env.DATABASE_URL?.trim()) return
-  try {
-    const db = getDb()
-    await db.execute(sql`
-      INSERT INTO app_notifications (audience, kind, payload)
-      VALUES (
-        ${BP_MIRROR_FAILURE_AUDIENCE},
-        ${BP_MIRROR_FAILURE_KIND},
-        ${JSON.stringify(payload)}::jsonb
-      )
-    `)
-  } catch (err) {
-    console.warn("[bp-mirror] failed to persist app_notifications row", {
-      id: payload.id,
-      err,
-    })
-  }
-}
-
-export type BpMirrorResult = "ok" | "failed"
-
-async function mirrorBpToXano(input: {
-  op: "create" | "update"
-  id: number
-  snakeRow: Record<string, unknown>
-}): Promise<BpMirrorResult> {
-  const timeoutMs = getXanoTimeoutMs()
-  const headers = {
-    "Content-Type": "application/json",
-    ...xanoPostHeaderRecord(),
-  }
-  const payload = { ...input.snakeRow, id: input.id }
-  const base = xanoUrl("media_container_best_practice", "XANO_PUBLISHERS_BASE_URL")
-
-  try {
-    if (input.op === "create") {
-      const res = await fetch(base, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      if (!res.ok) {
-        throw new Error(
-          `Xano POST media_container_best_practice ${res.status}: ${await res.text().catch(() => "")}`
-        )
-      }
-    } else {
-      const res = await fetch(`${base}/${encodeURIComponent(String(input.id))}`, {
-        method: "PUT",
-        headers,
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      if (!res.ok) {
-        throw new Error(
-          `Xano PUT media_container_best_practice/${input.id} ${res.status}: ${await res.text().catch(() => "")}`
-        )
-      }
-    }
-    return "ok"
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error("[bp-mirror] Xano mirror failed", {
-      op: input.op,
-      id: input.id,
-      message,
-    })
-    await persistBpMirrorFailureNotification(
-      buildBpMirrorFailurePayload({
-        op: input.op,
-        id: input.id,
-        error: message,
-      })
-    )
-    return "failed"
-  }
-}
-
 export type BpWriteResult = {
   row: Record<string, unknown>
-  mirror: BpMirrorResult
 }
 
 export async function createMediaContainerBestPracticePostgresFirst(
@@ -192,12 +82,7 @@ export async function createMediaContainerBestPracticePostgresFirst(
   }
   invalidateMediaContainerBestPracticeCache()
   const row = mapBpRow(inserted as Record<string, unknown>)
-  const mirror = await mirrorBpToXano({
-    op: "create",
-    id: Number(inserted.id),
-    snakeRow: snake,
-  })
-  return { row, mirror }
+  return { row }
 }
 
 export async function updateMediaContainerBestPracticePostgresFirst(
@@ -216,7 +101,7 @@ export async function updateMediaContainerBestPracticePostgresFirst(
       .where(eq(schema.mediaContainerBestPractice.id, numericId))
       .limit(1)
     if (!existing) return { notFound: true }
-    return { row: mapBpRow(existing as Record<string, unknown>), mirror: "ok" }
+    return { row: mapBpRow(existing as Record<string, unknown>) }
   }
 
   const values = {
@@ -233,12 +118,7 @@ export async function updateMediaContainerBestPracticePostgresFirst(
 
   invalidateMediaContainerBestPracticeCache()
   const row = mapBpRow(updated as Record<string, unknown>)
-  const mirror = await mirrorBpToXano({
-    op: "update",
-    id: numericId,
-    snakeRow: snake,
-  })
-  return { row, mirror }
+  return { row }
 }
 
 /** Dual-read helper for the TTL cache when publishers backend is postgres. */

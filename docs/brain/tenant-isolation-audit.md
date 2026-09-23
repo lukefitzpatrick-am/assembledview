@@ -125,7 +125,7 @@ Goal: put **cross-tenant reporting and ops** behind one namespace so role is enf
 | `dashboard/global-monthly-*-spend` | `/api/admin/dashboard/global-monthly-*-spend` | `requireAdmin` (already admin) |
 | `dashboard/spend-parity` | `/api/admin/dashboard/spend-parity` | `requireAdmin` + keep non-prod 404 or delete |
 | `pacing/admin/orphans/*` | keep under `/api/pacing/admin/*` **or** `/api/admin/pacing/orphans/*` | already `requireAdmin` |
-| Existing `/api/admin/*` (users, client-hub, migration-diffs, fee-snapshots, finance-periods, xano-mirror) | keep | already role-gated |
+| Existing `/api/admin/*` (users, client-hub, migration-diffs, fee-snapshots, finance-periods) | keep | already role-gated |
 | Finance book-wide reads (`finance/data`, forecast, payables, …) | optional `/api/admin/finance/*` alias; keep current paths during migrate | `requireFinanceAdmin` |
 | **Do not** move: `/api/mediaplans/mba/*`, creative MBA routes, pacing campaign tabs, dashboard `[slug]` — these are tenant-scoped |
 
@@ -156,7 +156,6 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | `admin/migration-diffs` | GET | admin-only | `requireAdmin` | — |
 | `admin/users` | GET, POST, PUT | admin-only | `requireAdmin` | — |
 | `admin/users/mba-numbers` | GET | admin-only | `requireAdmin` | — |
-| `admin/xano-mirror/retry` | POST | admin-only | `requireAdmin` | — |
 
 ### Clients & publishers
 

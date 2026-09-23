@@ -16,7 +16,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if ("notFound" in result) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 })
     }
-    return NextResponse.json({ ...result.row, mirror: result.mirror })
+    return NextResponse.json(result.row)
   } catch (error) {
     console.error("Failed to update client:", error)
     return NextResponse.json({ error: "Failed to update client" }, { status: 500 })
@@ -34,7 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if ("notFound" in result) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 })
     }
-    return NextResponse.json({ ...result.row, mirror: result.mirror })
+    return NextResponse.json(result.row)
   } catch (error) {
     console.error("Failed to patch client:", error)
     return NextResponse.json({ error: "Failed to patch client" }, { status: 500 })

@@ -123,7 +123,6 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | POST | `/api/admin/users` | admin-only | requireRole | `app/api/admin/users/route.ts` |
 | PUT | `/api/admin/users` | admin-only | requireRole | `app/api/admin/users/route.ts` |
 | GET | `/api/admin/users/mba-numbers` | admin-only | requireRole | `app/api/admin/users/mba-numbers/route.ts` |
-| POST | `/api/admin/xano-mirror/retry` | admin-only | requireRole | `app/api/admin/xano-mirror/retry/route.ts` |
 | GET | `/api/billing-overrides` | tenant-scoped | checkClientMbaAccess | `app/api/billing-overrides/route.ts` |
 | POST | `/api/billing-overrides/refetch-anomaly` | tenant-scoped | checkClientMbaAccess | `app/api/billing-overrides/refetch-anomaly/route.ts` |
 | POST | `/api/billing-overrides/replace_line` | tenant-scoped | checkClientMbaAccess | `app/api/billing-overrides/replace_line/route.ts` |

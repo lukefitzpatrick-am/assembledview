@@ -1,13 +1,12 @@
 /**
- * Postgres-authoritative campaign_kpi / client_kpi writes (X5 / C-18 close).
- * Order: PG mutate → best-effort Xano mirror (failure → app_notifications).
+ * Postgres-authoritative campaign_kpi / client_kpi writes.
+ * The Postgres mutate is the whole function.
  * Percent fields stored as decimal (AV-25 / percentUnits) — no magnitude heuristic.
  */
 import "server-only"
 
 import { eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
-import { xanoPostHeaderRecord, xanoUrl, getXanoTimeoutMs } from "@/lib/api/xano"
 import {
   fetchCampaignKpisFromPostgres,
   mapKpiRowFromPostgres,
@@ -18,9 +17,6 @@ import type {
   ClientKpi,
   ClientKpiInput,
 } from "@/lib/kpi/types"
-
-export const KPI_MIRROR_FAILURE_KIND = "xano_kpi_mirror_failed"
-export const KPI_MIRROR_FAILURE_AUDIENCE = "admin"
 
 export function campaignKpiLineKey(
   mbaNumber: string | null | undefined,
@@ -94,32 +90,6 @@ const CLIENT_WRITABLE: Record<string, keyof typeof schema.clientKpi.$inferInsert
 }
 
 const PERCENT_KEYS = new Set(["ctr", "vtr", "conversion_rate"])
-
-export type KpiMirrorFailurePayload = {
-  op: "create" | "update" | "delete" | "sync"
-  table: "campaign_kpi" | "client_kpi"
-  rowId: number | null
-  error: string
-  timestamp: string
-  retried: boolean
-}
-
-export function buildKpiMirrorFailurePayload(input: {
-  op: KpiMirrorFailurePayload["op"]
-  table: KpiMirrorFailurePayload["table"]
-  rowId: number | null
-  error: string
-  at?: Date
-}): KpiMirrorFailurePayload {
-  return {
-    op: input.op,
-    table: input.table,
-    rowId: input.rowId,
-    error: input.error,
-    timestamp: (input.at ?? new Date()).toISOString(),
-    retried: false,
-  }
-}
 
 /** Reject banned magnitude heuristics; pass decimal ≤1 or null through. */
 export function assertKpiPercentDecimal(
@@ -232,99 +202,6 @@ function asClientRow(row: Record<string, unknown>): ClientKpi {
   return mapKpiRowFromPostgres(row) as unknown as ClientKpi
 }
 
-async function persistKpiMirrorFailure(
-  payload: KpiMirrorFailurePayload
-): Promise<void> {
-  if (!process.env.DATABASE_URL?.trim()) return
-  try {
-    const db = getDb()
-    await db.execute(sql`
-      INSERT INTO app_notifications (audience, kind, payload)
-      VALUES (
-        ${KPI_MIRROR_FAILURE_AUDIENCE},
-        ${KPI_MIRROR_FAILURE_KIND},
-        ${JSON.stringify(payload)}::jsonb
-      )
-    `)
-  } catch (err) {
-    console.warn("[kpi-mirror] failed to persist app_notifications row", {
-      table: payload.table,
-      rowId: payload.rowId,
-      err,
-    })
-  }
-}
-
-async function mirrorKpiToXano(input: {
-  op: "create" | "update" | "delete"
-  table: "campaign_kpi" | "client_kpi"
-  rowId: number | null
-  body?: Record<string, unknown>
-}): Promise<"ok" | "failed"> {
-  const timeoutMs = getXanoTimeoutMs()
-  const headers = {
-    "Content-Type": "application/json",
-    ...xanoPostHeaderRecord(),
-  }
-  const base = xanoUrl(input.table, "XANO_CLIENTS_BASE_URL")
-  try {
-    if (input.op === "create") {
-      const res = await fetch(base, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ ...input.body, id: input.rowId }),
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      if (!res.ok) {
-        throw new Error(`Xano POST ${input.table} ${res.status}: ${await res.text().catch(() => "")}`)
-      }
-    } else if (input.op === "update") {
-      if (input.rowId == null) throw new Error("update requires rowId")
-      const res = await fetch(`${base}/${encodeURIComponent(String(input.rowId))}`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify(input.body ?? {}),
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      if (!res.ok) {
-        throw new Error(
-          `Xano PATCH ${input.table}/${input.rowId} ${res.status}: ${await res.text().catch(() => "")}`
-        )
-      }
-    } else {
-      if (input.rowId == null) throw new Error("delete requires rowId")
-      const res = await fetch(`${base}/${encodeURIComponent(String(input.rowId))}`, {
-        method: "DELETE",
-        headers,
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      if (!res.ok) {
-        throw new Error(
-          `Xano DELETE ${input.table}/${input.rowId} ${res.status}: ${await res.text().catch(() => "")}`
-        )
-      }
-    }
-    return "ok"
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error("[kpi-mirror] Xano mirror failed", {
-      op: input.op,
-      table: input.table,
-      rowId: input.rowId,
-      message,
-    })
-    await persistKpiMirrorFailure(
-      buildKpiMirrorFailurePayload({
-        op: input.op,
-        table: input.table,
-        rowId: input.rowId,
-        error: message,
-      })
-    )
-    return "failed"
-  }
-}
-
 export async function syncCampaignKpiIdSequence(): Promise<void> {
   await getDb().execute(sql`
     SELECT setval(
@@ -375,12 +252,6 @@ async function insertCampaignKpiRow(
   if (!inserted?.id) {
     throw new Error("insert returned no id")
   }
-  await mirrorKpiToXano({
-    op: "create",
-    table: "campaign_kpi",
-    rowId: Number(inserted.id),
-    body: snake,
-  })
   return asCampaignRow(inserted as Record<string, unknown>)
 }
 
@@ -467,12 +338,6 @@ export async function updateCampaignKpiPostgresFirst(
     .where(eq(schema.campaignKpi.id, id))
     .returning()
   if (!updated) return null
-  await mirrorKpiToXano({
-    op: "update",
-    table: "campaign_kpi",
-    rowId: id,
-    body: snake,
-  })
   return asCampaignRow(updated as Record<string, unknown>)
 }
 
@@ -482,7 +347,6 @@ export async function deleteCampaignKpiPostgresFirst(id: number): Promise<boolea
     .where(eq(schema.campaignKpi.id, id))
     .returning({ id: schema.campaignKpi.id })
   if (deleted.length === 0) return false
-  await mirrorKpiToXano({ op: "delete", table: "campaign_kpi", rowId: id })
   return true
 }
 
@@ -607,12 +471,6 @@ export async function createClientKpiPostgresFirst(
       .values(clientSnakeToInsert(snake))
       .returning()
     if (!inserted?.id) return null
-    await mirrorKpiToXano({
-      op: "create",
-      table: "client_kpi",
-      rowId: Number(inserted.id),
-      body: snake,
-    })
     return asClientRow(inserted as Record<string, unknown>)
   } catch (e) {
     console.error("createClientKpi", e)
@@ -640,12 +498,6 @@ export async function updateClientKpiPostgresFirst(
       .where(eq(schema.clientKpi.id, id))
       .returning()
     if (!updated) return null
-    await mirrorKpiToXano({
-      op: "update",
-      table: "client_kpi",
-      rowId: id,
-      body: snake,
-    })
     return asClientRow(updated as Record<string, unknown>)
   } catch (e) {
     console.error("updateClientKpi", e)
@@ -660,7 +512,6 @@ export async function deleteClientKpiPostgresFirst(id: number): Promise<boolean>
       .where(eq(schema.clientKpi.id, id))
       .returning({ id: schema.clientKpi.id })
     if (deleted.length === 0) return false
-    await mirrorKpiToXano({ op: "delete", table: "client_kpi", rowId: id })
     return true
   } catch (e) {
     console.error("deleteClientKpi", e)

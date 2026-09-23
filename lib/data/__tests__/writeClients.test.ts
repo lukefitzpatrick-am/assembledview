@@ -2,9 +2,6 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import {
-  CLIENT_MIRROR_FAILURE_KIND,
-  buildClientMirrorFailurePayload,
-  buildXanoClientMirrorPayload,
   normalizeClientWritePayload,
   resolveClientIdForMaster,
 } from "../writeClients"
@@ -34,35 +31,6 @@ describe("normalizeClientWritePayload", () => {
       () => normalizeClientWritePayload({ mp_client_name: "Acme" }),
       /mbaidentifier/
     )
-  })
-})
-
-describe("buildXanoClientMirrorPayload", () => {
-  it("includes PG id so Xano stays aligned", () => {
-    const payload = buildXanoClientMirrorPayload(42, {
-      mp_client_name: "Acme",
-      mbaidentifier: "acme",
-    })
-    assert.equal(payload.id, 42)
-    assert.equal(payload.mp_client_name, "Acme")
-    assert.equal(payload.client_name, "Acme")
-  })
-})
-
-describe("buildClientMirrorFailurePayload", () => {
-  it("shapes app_notifications payload for create", () => {
-    const p = buildClientMirrorFailurePayload({
-      op: "create",
-      clientId: 53,
-      error: "upstream 500",
-      at: new Date("2026-08-02T00:00:00.000Z"),
-    })
-    assert.equal(p.op, "create")
-    assert.equal(p.clientId, 53)
-    assert.equal(p.error, "upstream 500")
-    assert.equal(p.timestamp, "2026-08-02T00:00:00.000Z")
-    assert.equal(p.retried, false)
-    assert.equal(CLIENT_MIRROR_FAILURE_KIND, "xano_client_mirror_failed")
   })
 })
 

@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       console.error("MBA uniqueness pre-check failed (proceeding with create):", preCheckErr)
     }
 
-    const { master, mirror } = await createMediaPlanMasterPostgresFirst({
+    const { master } = await createMediaPlanMasterPostgresFirst({
       mbaNumber,
       mpClientName: data.mp_client_name ?? null,
       campaignName: data.mp_campaignname ?? null,
@@ -65,7 +65,6 @@ export async function POST(request: NextRequest) {
     // POST /api/plans/save — this endpoint only allocates the master identity.
     return NextResponse.json({
       master,
-      mirror,
     })
   } catch (error) {
     console.error("Failed to create media plan:", error)

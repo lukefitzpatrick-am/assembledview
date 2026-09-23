@@ -4,13 +4,9 @@ import { eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { LINE_CHANNELS } from "@/db/schema"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
-import { getWriteBackend, isXanoMirrorEnabled } from "@/lib/data/backend"
+import { getWriteBackend } from "@/lib/data/backend"
 import { plansSaveBodySchema } from "@/lib/mediaplan/plansSaveBodySchema"
 import { missingBuyTypeGateResult } from "@/lib/mediaplan/missingBuyTypeGate"
-import {
-  mirrorInputFromSave,
-  mirrorPlanToXano,
-} from "@/lib/data/mirrorToXano"
 import { SavePlanError, savePlanVersion } from "@/lib/data/savePlan"
 import { completeStagedIngestAfterSave } from "@/lib/mediaplans/ingest/completeStagedIngestAfterSave"
 import { ingestSourceRowRefsFromAttrs } from "@/lib/mediaplans/ingest/ingestSourceRowRefs"
@@ -272,41 +268,6 @@ export async function POST(request: NextRequest) {
   try {
     const result = await savePlanVersion(saveInput)
 
-    // T4b — best-effort Xano mirror AFTER Postgres commit. Never throws.
-    // Gated by XANO_MIRROR_ENABLED (default off).
-    let mirror: "ok" | "failed" | "disabled" = "disabled"
-    let mirrorDurationMs = 0
-    let mirrorError: string | undefined
-    if (isXanoMirrorEnabled()) {
-      let clientName = body.mbaNumber
-      try {
-        const db = getDb()
-        const [master] = await db
-          .select({ mpClientName: schema.mediaPlanMasters.mpClientName })
-          .from(schema.mediaPlanMasters)
-          .where(eq(schema.mediaPlanMasters.id, body.masterId))
-          .limit(1)
-        if (master?.mpClientName?.trim()) clientName = master.mpClientName.trim()
-      } catch {
-        // fall through with mba as client name
-      }
-
-      const mirrored = await mirrorPlanToXano(
-        mirrorInputFromSave(
-          saveInput,
-          {
-            versionId: result.versionId,
-            versionNumber: result.versionNumber,
-            legacySchedules: result.legacySchedules,
-          },
-          clientName
-        )
-      )
-      mirror = mirrored.mirror
-      mirrorDurationMs = mirrored.durationMs
-      if (mirrored.mirror === "failed") mirrorError = mirrored.error
-    }
-
     // PC7 / Stage 2b: clear server working draft once tier 3 (save/publish) lands.
     // Flag off: every save clears. Flag on: only matching-base (the draft whose
     // base_version_id is the version just saved from). Stale-base rows stay.
@@ -352,8 +313,6 @@ export async function POST(request: NextRequest) {
       scheduleRowCount: result.scheduleRowCount,
       published: result.published,
       documents: result.documents,
-      mirror,
-      mirrorDurationMs,
       ...(result.billingCorrection
         ? { billingCorrection: result.billingCorrection }
         : {}),
@@ -361,7 +320,6 @@ export async function POST(request: NextRequest) {
       result.droppedBillingOverrides.length > 0
         ? { droppedBillingOverrides: result.droppedBillingOverrides }
         : {}),
-      ...(mirror === "failed" ? { mirrorError } : {}),
       ...(ingestComplete.ingestStageRetained
         ? { ingestStageRetained: true }
         : {}),
