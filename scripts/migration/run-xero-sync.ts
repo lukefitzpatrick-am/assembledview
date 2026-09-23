@@ -1,5 +1,6 @@
 /**
- * Manual local invocation of the Xero sync pipeline (parity mode).
+ * Manual local invocation of the combined Xero sync (not the nightly cron).
+ * The cron is /api/cron/xero-sync-invoices, -import, -contacts, -pdfs.
  * Usage: npx tsx scripts/migration/run-xero-sync.ts
  */
 import { closeDb } from "@/db"

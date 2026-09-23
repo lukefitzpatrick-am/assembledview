@@ -66,14 +66,93 @@ export type SyncLogWatermarkRow = {
   notes: string | null
   watermark_used: string | null
   new_watermark: string | null
+  status?: string | null
+  /** NULL / absent = legacy combined run. */
+  stage?: string | null
 }
 
+export type XeroCronStageName = "invoices" | "import" | "contacts" | "pdfs"
+
+const WATERMARK_STAGES = new Set<XeroCronStageName>([
+  "invoices",
+  "contacts",
+])
+
+/**
+ * Staged `running` and `failed` rows are not a watermark.
+ * A NULL stage is a legacy combined row and stays eligible even when status
+ * is `failed`: the newest live row is the 11 Jul failed log, and dropping it
+ * restarts ingest at 2024-07-01.
+ */
+export function isWatermarkResumeRow(row: {
+  notes: string | null
+  status?: string | null
+  stage?: string | null
+}): boolean {
+  if (!isCronWatermarkEligibleNotes(row.notes)) return false
+  const status = row.status ?? null
+  if (status !== "running" && status !== "failed") return true
+  return row.stage == null || row.stage === ""
+}
+
+/**
+ * Newest cron watermark. With a stage, prefer that stage's success or
+ * incomplete rows. `running` and `failed` on that stage are skipped. Until
+ * a staged eligible row exists, fall back to the newest legacy NULL-stage row.
+ */
 export function pickLatestCronWatermarkLog(
   rows: SyncLogWatermarkRow[],
+  stage?: "invoices" | "contacts",
 ): SyncLogWatermarkRow | null {
-  return (
-    rows
-      .toSorted((a, b) => b.id - a.id)
-      .find((r) => isCronWatermarkEligibleNotes(r.notes)) ?? null
+  const eligible = rows
+    .toSorted((a, b) => b.id - a.id)
+    .filter((r) => isCronWatermarkEligibleNotes(r.notes))
+  if (!stage) {
+    return eligible.find((r) => isWatermarkResumeRow(r)) ?? null
+  }
+  const staged = eligible.find(
+    (r) =>
+      r.stage === stage && r.status !== "running" && r.status !== "failed",
   )
+  if (staged) return staged
+  return (
+    eligible.find((r) => r.stage == null || r.stage === "") ?? null
+  )
+}
+
+function notesSourceExpr(column: string): string {
+  return `CASE WHEN ${column} ~ '^\\s*[{\\[]' THEN ${column}::jsonb->>'source' ELSE NULL END`
+}
+
+/**
+ * Cron resume predicate for one stage.
+ * Excludes pull-xero notes, and staged running/failed rows.
+ * Legacy NULL-stage rows remain eligible until this stage has its own
+ * success or incomplete row.
+ */
+export function sqlStageWatermarkWhere(stage: "invoices" | "contacts") {
+  if (!WATERMARK_STAGES.has(stage)) {
+    throw new Error(`sqlStageWatermarkWhere: ${stage} has no watermark`)
+  }
+  const stagedNotes = notesSourceExpr("staged.notes")
+  return sql`
+    COALESCE(${sql.raw(SQL_SYNC_LOG_NOTES_SOURCE_EXPR)}, '') IS DISTINCT FROM 'pull-xero'
+    AND (
+      (
+        stage = ${stage}
+        AND status IS DISTINCT FROM 'running'
+        AND status IS DISTINCT FROM 'failed'
+      )
+      OR (
+        stage IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM xero_sync_log staged
+          WHERE staged.stage = ${stage}
+            AND staged.status IS DISTINCT FROM 'running'
+            AND staged.status IS DISTINCT FROM 'failed'
+            AND COALESCE(${sql.raw(stagedNotes)}, '') IS DISTINCT FROM 'pull-xero'
+        )
+      )
+    )
+  `
 }

@@ -90,3 +90,80 @@ describe("cron watermark lookup vs prose xero_sync_log.notes", () => {
     assert.equal(syncLogNotesSource("{not json"), null)
   })
 })
+
+describe("cron watermark vs running and failed rows", () => {
+  it("ignores staged running and failed rows", () => {
+    const picked = pickLatestCronWatermarkLog(
+      [
+        {
+          id: 30,
+          status: "running",
+          stage: "invoices",
+          notes: "{}",
+          watermark_used: "2026-09-22T00:00:00.000Z",
+          new_watermark: "2026-09-22T00:00:00.000Z",
+        },
+        {
+          id: 29,
+          status: "failed",
+          stage: "invoices",
+          notes: "{}",
+          watermark_used: "2026-09-21T00:00:00.000Z",
+          new_watermark: "2026-09-21T00:00:00.000Z",
+        },
+        {
+          id: 11,
+          status: "success",
+          stage: "invoices",
+          notes: "Sync completed successfully",
+          watermark_used: "2026-07-10T18:29:00.000Z",
+          new_watermark: "2026-07-10T18:29:00.000Z",
+        },
+      ],
+      "invoices",
+    )
+    assert.equal(picked?.id, 11)
+  })
+
+  it("resumes from an incomplete staged row ahead of an older success", () => {
+    const picked = pickLatestCronWatermarkLog(
+      [
+        {
+          id: 40,
+          status: "incomplete",
+          stage: "invoices",
+          notes: JSON.stringify({ next_page: 4 }),
+          watermark_used: "2026-07-10T18:29:00.000Z",
+          new_watermark: "2026-07-10T18:29:00.000Z",
+        },
+        {
+          id: 11,
+          status: "success",
+          stage: "invoices",
+          notes: "Sync completed successfully",
+          watermark_used: "2026-07-01T00:00:00.000Z",
+          new_watermark: "2026-07-01T00:00:00.000Z",
+        },
+      ],
+      "invoices",
+    )
+    assert.equal(picked?.id, 40)
+  })
+
+  it("keeps a legacy null-stage row when no staged success exists yet", () => {
+    const picked = pickLatestCronWatermarkLog(
+      [
+        {
+          id: 12,
+          status: "failed",
+          stage: null,
+          notes: "Sync completed successfully",
+          watermark_used: "2026-07-10T18:29:00.000Z",
+          new_watermark: "2026-07-10T18:29:00.000Z",
+        },
+      ],
+      "invoices",
+    )
+    assert.equal(picked?.id, 12)
+  })
+})

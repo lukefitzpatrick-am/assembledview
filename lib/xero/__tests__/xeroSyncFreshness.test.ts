@@ -1,7 +1,10 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
-import { xeroSyncFreshnessFromNewest } from "@/lib/ops/health/checks"
+import {
+  xeroStageConsecutiveFailures,
+  xeroSyncFreshnessFromStages,
+} from "@/lib/ops/health/checks"
 
 const NOW = new Date("2026-09-01T12:00:00.000Z")
 
@@ -9,50 +12,73 @@ function hoursAgo(hours: number): string {
   return new Date(NOW.getTime() - hours * 3_600_000).toISOString()
 }
 
+const fresh = {
+  invoices: { stage: "invoices", run_started_at: hoursAgo(2) },
+  import: { stage: "import", run_started_at: hoursAgo(2) },
+  contacts: { stage: "contacts", run_started_at: hoursAgo(2) },
+  pdfs: { stage: "pdfs", run_started_at: hoursAgo(2) },
+}
+
 describe("Xero sync freshness", () => {
-  it("returns green when the newest run is 2h old", () => {
-    const r = xeroSyncFreshnessFromNewest(
-      { run_started_at: hoursAgo(2), status: "success" },
-      NOW,
-    )
+  it("returns green when every stage succeeded within 36h", () => {
+    const r = xeroSyncFreshnessFromStages(fresh, NOW)
     assert.equal(r.name, "Xero sync freshness")
     assert.equal(r.status, "green")
-    assert.match(r.detail, /status=success/)
-    assert.match(r.detail, /age=2h/)
+    assert.match(r.detail, /invoices=2h/)
   })
 
-  it("returns amber when the newest run is 3d old", () => {
-    const r = xeroSyncFreshnessFromNewest(
-      { run_started_at: hoursAgo(3 * 24), status: "partial_error" },
-      NOW,
-    )
-    assert.equal(r.status, "amber")
-    assert.match(r.detail, /status=partial_error/)
-    assert.match(r.detail, /age=72h/)
-  })
-
-  it("returns red when the newest run is 30d old", () => {
-    const r = xeroSyncFreshnessFromNewest(
-      { run_started_at: hoursAgo(30 * 24), status: "failed" },
+  it("returns red when one stage's newest success is older than 36h", () => {
+    const r = xeroSyncFreshnessFromStages(
+      { ...fresh, pdfs: { stage: "pdfs", run_started_at: hoursAgo(37) } },
       NOW,
     )
     assert.equal(r.status, "red")
-    assert.match(r.detail, /status=failed/)
-    assert.match(r.detail, /age=720h/)
+    assert.match(r.detail, /pdfs=37h/)
   })
 
-  it("returns red when the table is empty", () => {
-    const r = xeroSyncFreshnessFromNewest(null, NOW)
-    assert.equal(r.status, "red")
-    assert.match(r.detail, /empty/i)
-  })
-
-  it("returns red with a distinct detail when the timestamp is unparseable", () => {
-    const r = xeroSyncFreshnessFromNewest(
-      { run_started_at: "not-a-date", status: "success" },
+  it("returns red when a stage has no success row", () => {
+    const r = xeroSyncFreshnessFromStages(
+      { ...fresh, contacts: null },
       NOW,
     )
     assert.equal(r.status, "red")
-    assert.equal(r.detail, "unparseable timestamp")
+    assert.match(r.detail, /contacts=none/)
+  })
+})
+
+describe("Xero sync consecutive stage failures", () => {
+  it("alerts when a stage failed or timed out on two consecutive runs", () => {
+    const alerted = xeroStageConsecutiveFailures(
+      [
+        { id: 8, stage: "pdfs", status: "incomplete", run_started_at: hoursAgo(1) },
+        { id: 7, stage: "pdfs", status: "failed", run_started_at: hoursAgo(25) },
+        { id: 6, stage: "invoices", status: "failed", run_started_at: hoursAgo(1) },
+        { id: 5, stage: "invoices", status: "success", run_started_at: hoursAgo(25) },
+      ],
+      NOW,
+    )
+    assert.deepEqual(alerted, ["pdfs"])
+  })
+
+  it("does not alert on a single failure", () => {
+    const alerted = xeroStageConsecutiveFailures(
+      [
+        { id: 4, stage: "import", status: "failed", run_started_at: hoursAgo(1) },
+        { id: 3, stage: "import", status: "success", run_started_at: hoursAgo(25) },
+      ],
+      NOW,
+    )
+    assert.deepEqual(alerted, [])
+  })
+
+  it("treats a running row older than 2h as a timeout", () => {
+    const alerted = xeroStageConsecutiveFailures(
+      [
+        { id: 10, stage: "contacts", status: "running", run_started_at: hoursAgo(3) },
+        { id: 9, stage: "contacts", status: "incomplete", run_started_at: hoursAgo(27) },
+      ],
+      NOW,
+    )
+    assert.deepEqual(alerted, ["contacts"])
   })
 })

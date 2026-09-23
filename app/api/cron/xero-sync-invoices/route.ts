@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
-import { XERO_SYNC_GONE_MESSAGE } from "@/lib/xero/cronHttp"
+import { handleXeroCronGet } from "@/lib/xero/cronHttp"
+import { runXeroInvoicesCron } from "@/lib/xero/cronStages"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 10
+export const maxDuration = 300
 export const runtime = "nodejs"
 export const preferredRegion = ["syd1"]
 
-/**
- * Retired. The nightly sync is four crons. This route stays for one release
- * so an old schedule gets a clear 410 instead of a 404, then it is deleted.
- */
+/** Ingest AR + AP, then today's reference matcher (matchRunItems). */
 export async function GET(request: Request) {
   if (!assertCronSecret(request)) {
     return NextResponse.json(
@@ -19,10 +17,7 @@ export async function GET(request: Request) {
       { status: 401 },
     )
   }
-  return NextResponse.json(
-    { error: "gone", message: XERO_SYNC_GONE_MESSAGE },
-    { status: 410 },
-  )
+  return handleXeroCronGet(request, "invoices", runXeroInvoicesCron)
 }
 
 export async function POST(request: Request) {

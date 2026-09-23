@@ -3,9 +3,10 @@
  * AP branch verified against XanoScript: identical to AR except table +
  * exception reason prefix ("AP PDF fetch failed:" vs "AR PDF fetch failed:").
  *
- * Default batch size is 50 (`PDF_BATCH_SIZE`). Override with env
+ * Default batch size is 10 (`PDF_BATCH_SIZE`). Override with env
  * `XERO_PDF_BATCH_SIZE` (positive integer) so a catch-up run can be sized
- * without a code change.
+ * without a code change. The stage stops at a 40s budget, on a row boundary,
+ * and returns incomplete with the count already stored.
  */
 
 import { put } from "@vercel/blob"
@@ -18,7 +19,7 @@ import { getXeroAccessToken, xeroApiRequest } from "../client"
 import { rowsOf } from "../dbRows"
 
 /** Default rows processed per stage run. Override via `XERO_PDF_BATCH_SIZE`. */
-export const PDF_BATCH_SIZE = 50
+export const PDF_BATCH_SIZE = 10
 export const PDF_BATCH_SIZE_ENV = "XERO_PDF_BATCH_SIZE"
 
 /** Cap HTTP 429 retries per invoice (initial fetch + this many-1 waits). */
@@ -26,8 +27,8 @@ export const PDF_429_MAX_ATTEMPTS = 5
 export const PDF_429_BASE_DELAY_MS = 1000
 /** Ceiling on each 429 sleep (Retry-After or exponential). Four sleeps ≤ 60s. */
 export const PDF_429_MAX_DELAY_MS = 15_000
-/** Break the row loop and return cleanly before the cron's 300s maxDuration. */
-export const PDF_STAGE_BUDGET_MS = 90_000
+/** Break the row loop and return incomplete before the cron's maxDuration. */
+export const PDF_STAGE_BUDGET_MS = 40_000
 
 /**
  * Xano ETL left pdf_file as a non-null empty stub:
@@ -57,6 +58,8 @@ export type SyncPdfsResult = {
   processed: number
   ar_pending_seen: number
   ap_pending_seen: number
+  /** True when the batch or the 40s budget stopped with rows still pending. */
+  incomplete: boolean
 }
 
 export type PendingPdfRow = {
@@ -362,18 +365,28 @@ export async function stageSyncPdfs(opts?: {
       }
     }
 
+    let incomplete = false
+    const stopForBudgetOrBatch = () =>
+      now() - startedAt >= PDF_STAGE_BUDGET_MS || attempts >= batchSize
+
     for (const row of arPending) {
-      if (now() - startedAt >= PDF_STAGE_BUDGET_MS) break
-      if (attempts >= batchSize) break
+      if (stopForBudgetOrBatch()) {
+        incomplete = true
+        break
+      }
       attempts++
       if (await attach(row, "AR", "xero_ar_invoices")) done++
     }
 
-    for (const row of apPending) {
-      if (now() - startedAt >= PDF_STAGE_BUDGET_MS) break
-      if (attempts >= batchSize) break
-      attempts++
-      if (await attach(row, "AP", "xero_ap_bills")) done++
+    if (!incomplete) {
+      for (const row of apPending) {
+        if (stopForBudgetOrBatch()) {
+          incomplete = true
+          break
+        }
+        attempts++
+        if (await attach(row, "AP", "xero_ap_bills")) done++
+      }
     }
 
     return {
@@ -383,6 +396,7 @@ export async function stageSyncPdfs(opts?: {
       processed: done,
       ar_pending_seen: arPending.length,
       ap_pending_seen: apPending.length,
+      incomplete,
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -394,6 +408,7 @@ export async function stageSyncPdfs(opts?: {
       processed: done,
       ar_pending_seen: 0,
       ap_pending_seen: 0,
+      incomplete: false,
     }
   }
 }
