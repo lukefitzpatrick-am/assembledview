@@ -4,7 +4,7 @@ import type { RelabelActiveMap, RelabelBeforeState, RelabelDeletedRow, RelabelPr
 
 export class RelabelApplyError extends Error {
   constructor(
-    public code: "blocked" | "needs_ack" | "invalid",
+    public code: "blocked" | "needs_ack" | "invalid" | "no_change",
     message: string,
   ) {
     super(message)
@@ -20,6 +20,12 @@ export function assertApplyAllowed(
     throw new RelabelApplyError(
       "blocked",
       `Relabel is blocked: ${preview.blocks.map((b) => b.code).join(", ")}.`,
+    )
+  }
+  if (preview.state === "no_change") {
+    throw new RelabelApplyError(
+      "no_change",
+      `Already attributed to ${preview.lineItemId} for this scope. Nothing to write.`,
     )
   }
   if (preview.warnings.length > 0 && !opts.acknowledgeWarnings) {

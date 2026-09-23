@@ -83,6 +83,9 @@ export type RelabelIssue = {
   message: string
 }
 
+/** `no_change` means every in-scope fact row is already the target line. */
+export type RelabelPreviewState = "apply" | "no_change"
+
 export type RelabelPublishedLine = {
   lineItemId: string
   mbaNumber: string
@@ -128,6 +131,8 @@ export type RelabelPreview = {
   daysMoving: number
   warnings: RelabelIssue[]
   blocks: RelabelIssue[]
+  /** `no_change` when every in-scope fact row already carries `lineItemId`. */
+  state: RelabelPreviewState
   duplicateOldNameDays: string[]
   activeMap: RelabelActiveMap | null
   publishedLine: RelabelPublishedLine | null

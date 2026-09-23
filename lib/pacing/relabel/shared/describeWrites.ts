@@ -1,4 +1,5 @@
 /** Client-reachable — see the boundary note in `./types`. No db/snowflake here. */
+import { formatMoney } from "@/lib/format/money"
 import { factRouteForChannel } from "./channels"
 import {
   LINE_ITEM_LABEL_MAP,
@@ -10,8 +11,9 @@ import {
 export function describeRelabelWrites(preview: RelabelPreview): string[] {
   const route = factRouteForChannel(preview.channel)
   const cols = route.updateLineItemName ? "LINE_ITEM_ID and LINE_ITEM_NAME" : "LINE_ITEM_ID"
+  const spend = formatMoney(preview.spendMoving, { decimals: 2 })
   const lines = [
-    `UPDATE ${route.table} SET ${cols} = ${preview.lineItemId} (${preview.rowsMoving} rows, ${preview.daysMoving} days, spend ${preview.spendMoving})`,
+    `UPDATE ${route.table} SET ${cols} = ${preview.lineItemId} (${preview.rowsMoving} rows, ${preview.daysMoving} days, spend ${spend})`,
     `Deactivate any active ${LINE_ITEM_LABEL_MAP} row for ${preview.channel} / ${preview.platformEntityId}`,
     `INSERT ${LINE_ITEM_LABEL_MAP} → ${preview.lineItemId} (IS_ACTIVE = TRUE)`,
   ]

@@ -44,6 +44,7 @@ function preview(overrides: Partial<RelabelPreview> = {}): RelabelPreview {
     daysMoving: 21,
     warnings: [],
     blocks: [],
+    state: "apply",
     duplicateOldNameDays: [],
     activeMap: null,
     publishedLine: {
