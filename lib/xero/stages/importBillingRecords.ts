@@ -5,6 +5,13 @@
  * and projectXeroArToBillingAmounts (ex-GST sub_total, banker's cents).
  * Campaign name is media_plan_masters.id = mba_match_id. mba_number is the
  * invoice column, not the master id. First line description is line_items_json[0].Description.
+ *
+ * On conflict, Xero-owned columns (status, total, sub_total cents, issue_date)
+ * are always written. clients_id / client_name are written only when the existing
+ * clients_id is null or 0. An unresolved contact with an MBA number takes
+ * media_plan_masters.client_id when that client's mbaidentifier prefixes the MBA.
+ * has_pending_edits is recomputed from the stamped client and MBA. notes and
+ * po_number are insert-only.
  */
 
 import { sql } from "drizzle-orm"
@@ -25,6 +32,83 @@ export type ImportBillingResult = {
 
 export type ImportBillingExecutor = {
   execute: (query: ReturnType<typeof sql>) => Promise<unknown>
+}
+
+export type ImportStampInput = {
+  existingClientsId: number | null
+  existingClientName: string | null
+  contactClientsId: number | null
+  contactClientName: string | null
+  mbaClientsId: number | null
+  mbaClientName: string | null
+  existingMbaNumber: string | null
+  incomingMbaNumber: string | null
+  billingType: string
+  existingNotes: string | null
+  existingPoNumber: string | null
+  incomingPoNumber: string | null
+  incomingStatus: string
+  incomingTotal: string
+}
+
+export type ImportStamp = {
+  clientsId: number | null
+  clientName: string | null
+  mbaNumber: string | null
+  notes: string | null
+  poNumber: string | null
+  status: string
+  total: string
+  hasPendingEdits: boolean
+}
+
+function blank(value: string | null | undefined): string {
+  return (value ?? "").trim()
+}
+
+/** 0 is the import's "no client" sentinel. A human stamp is a positive id. */
+export function unresolvedClientId(id: number | null | undefined): boolean {
+  return id == null || id === 0
+}
+
+/**
+ * Conflict-path stamp. Mirrors the ON CONFLICT SET in IMPORT_BILLING_UPSERT_SQL.
+ * Contact resolution wins over the MBA. An existing positive clients_id wins over both.
+ */
+export function applyImportStamp(input: ImportStampInput): ImportStamp {
+  const keepClient = !unresolvedClientId(input.existingClientsId)
+  const contactResolved = !unresolvedClientId(input.contactClientsId)
+  const mbaResolved = !unresolvedClientId(input.mbaClientsId)
+  const incomingClientsId = contactResolved
+    ? input.contactClientsId
+    : mbaResolved
+      ? input.mbaClientsId
+      : null
+  const incomingClientName = contactResolved
+    ? input.contactClientName
+    : mbaResolved
+      ? input.mbaClientName
+      : input.contactClientName
+
+  const clientsId = keepClient ? input.existingClientsId : incomingClientsId
+  const clientName = keepClient ? input.existingClientName : incomingClientName
+  const existingMba = blank(input.existingMbaNumber)
+  const incomingMba = blank(input.incomingMbaNumber)
+  const mbaNumber = existingMba || incomingMba || null
+  const hasPendingEdits =
+    unresolvedClientId(clientsId) ||
+    (input.billingType === "media" && mbaNumber == null)
+
+  return {
+    clientsId,
+    clientName,
+    mbaNumber,
+    notes: input.existingNotes,
+    poNumber: input.existingPoNumber,
+    status: input.incomingStatus,
+    total: input.incomingTotal,
+    hasPendingEdits,
+  }
 }
 
 /**
@@ -211,7 +295,21 @@ projected AS (
       END
     )::bigint AS billed_amount_cents
   FROM chosen c
-  LEFT JOIN clients cl ON cl.id = c.chosen_client_id
+  LEFT JOIN LATERAL (
+    SELECT owner.id AS client_id
+    FROM media_plan_masters mba_master
+    INNER JOIN clients owner ON owner.id = mba_master.client_id
+    WHERE c.chosen_client_id IS NULL
+      AND NULLIF(btrim(COALESCE(c.mba_number, '')), '') IS NOT NULL
+      AND lower(btrim(mba_master.mba_number)) = lower(btrim(c.mba_number))
+      AND NULLIF(btrim(COALESCE(owner.mbaidentifier, '')), '') IS NOT NULL
+      AND btrim(owner.mbaidentifier) ~ '^[A-Za-z0-9]+$'
+      AND upper(btrim(c.mba_number)) ~ (
+        '^' || upper(btrim(owner.mbaidentifier)) || '[0-9]+$'
+      )
+    LIMIT 1
+  ) mba_owner ON true
+  LEFT JOIN clients cl ON cl.id = COALESCE(c.chosen_client_id, mba_owner.client_id)
   LEFT JOIN media_plan_masters m ON m.id = c.mba_match_id
   CROSS JOIN LATERAL (
     SELECT (COALESCE(c.sub_total, 0)::numeric * 100) AS scaled
@@ -233,21 +331,69 @@ upserted AS (
     billed_amount_cents
   FROM projected
   ON CONFLICT (invoice_key) DO UPDATE SET
-    clients_id = EXCLUDED.clients_id,
-    client_name = EXCLUDED.client_name,
+    clients_id = CASE
+      WHEN finance_billing_records.clients_id IS NOT NULL
+       AND finance_billing_records.clients_id <> 0
+      THEN finance_billing_records.clients_id
+      ELSE EXCLUDED.clients_id
+    END,
+    client_name = CASE
+      WHEN finance_billing_records.clients_id IS NOT NULL
+       AND finance_billing_records.clients_id <> 0
+      THEN finance_billing_records.client_name
+      ELSE EXCLUDED.client_name
+    END,
     billing_type = EXCLUDED.billing_type,
-    mba_number = EXCLUDED.mba_number,
-    campaign_name = EXCLUDED.campaign_name,
-    po_number = EXCLUDED.po_number,
+    mba_number = CASE
+      WHEN NULLIF(btrim(COALESCE(finance_billing_records.mba_number, '')), '') IS NOT NULL
+      THEN finance_billing_records.mba_number
+      ELSE EXCLUDED.mba_number
+    END,
+    campaign_name = CASE
+      WHEN NULLIF(btrim(COALESCE(finance_billing_records.mba_number, '')), '') IS NOT NULL
+      THEN finance_billing_records.campaign_name
+      ELSE EXCLUDED.campaign_name
+    END,
     billing_month = EXCLUDED.billing_month,
     invoice_date = EXCLUDED.invoice_date,
-    payment_days = EXCLUDED.payment_days,
-    payment_terms = EXCLUDED.payment_terms,
+    payment_days = CASE
+      WHEN finance_billing_records.clients_id IS NOT NULL
+       AND finance_billing_records.clients_id <> 0
+      THEN finance_billing_records.payment_days
+      ELSE EXCLUDED.payment_days
+    END,
+    payment_terms = CASE
+      WHEN finance_billing_records.clients_id IS NOT NULL
+       AND finance_billing_records.clients_id <> 0
+      THEN finance_billing_records.payment_terms
+      ELSE EXCLUDED.payment_terms
+    END,
     status = EXCLUDED.status,
     total = EXCLUDED.total,
     billed = EXCLUDED.billed,
     billed_at = EXCLUDED.billed_at,
-    has_pending_edits = EXCLUDED.has_pending_edits,
+    has_pending_edits = (
+      COALESCE(
+        CASE
+          WHEN finance_billing_records.clients_id IS NOT NULL
+           AND finance_billing_records.clients_id <> 0
+          THEN finance_billing_records.clients_id
+          ELSE EXCLUDED.clients_id
+        END,
+        0
+      ) = 0
+      OR (
+        EXCLUDED.billing_type = 'media'
+        AND NULLIF(btrim(COALESCE(
+          CASE
+            WHEN NULLIF(btrim(COALESCE(finance_billing_records.mba_number, '')), '') IS NOT NULL
+            THEN finance_billing_records.mba_number
+            ELSE EXCLUDED.mba_number
+          END,
+          ''
+        )), '') IS NULL
+      )
+    ),
     billed_amount_cents = EXCLUDED.billed_amount_cents,
     updated_at = EXCLUDED.updated_at
   WHERE finance_billing_records.invoice_key LIKE 'xero:%'

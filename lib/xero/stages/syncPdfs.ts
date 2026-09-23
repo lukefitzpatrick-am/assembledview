@@ -153,7 +153,7 @@ function isPdfBuffer(buf: ArrayBuffer, contentType: string | null): boolean {
   return (contentType ?? "").includes("application/pdf")
 }
 
-async function storePdfBlob(
+export async function storePdfBlob(
   invoiceNumber: string | null,
   xeroInvoiceId: string,
   bytes: Buffer,
@@ -172,7 +172,7 @@ async function storePdfBlob(
   }
 }
 
-async function defaultPersistPdfFile(
+export async function defaultPersistPdfFile(
   table: "xero_ar_invoices" | "xero_ap_bills",
   xeroInvoiceId: string,
   pdfFile: PdfBlobMeta,

@@ -10,6 +10,7 @@ import {
   arInvoicePdfPath,
   invoicePdfBlobTarget,
   invoicePdfDispositionFilename,
+  mergeInvoiceClient,
   PDF_NOT_AVAILABLE,
   serveApInvoicePdf,
   serveArInvoicePdf,
@@ -32,6 +33,7 @@ function invoice(partial: Partial<InvoicePdfRecord> = {}): InvoicePdfRecord {
     pdfFile: PDF_FILE,
     xeroContactId: "contact-1",
     contactName: "Acme Pty Ltd",
+    mbaNumber: null,
     ...partial,
   }
 }
@@ -86,6 +88,40 @@ describe("owed pdfAvailable is reused (not a second flag)", () => {
     assert.equal(pdfAvailableFromJson(PDF_FILE), true)
     assert.equal(pdfAvailableFromJson(XANO_EMPTY_PDF_STUB), false)
     assert.equal(pdfAvailableFromJson(null), false)
+  })
+})
+
+describe("invoice client resolution", () => {
+  const linked = {
+    clientsId: 7,
+    clientName: "Linked Co",
+    paymentDays: 14,
+    paymentTerms: "",
+    resolved: true,
+  }
+  const fromMba = {
+    clientsId: 9,
+    clientName: "Penfolds",
+    paymentDays: 30,
+    paymentTerms: "",
+    resolved: true,
+  }
+  const unresolved = {
+    clientsId: 0,
+    clientName: "Unknown",
+    paymentDays: 14,
+    paymentTerms: "",
+    resolved: false,
+  }
+
+  it("keeps the xero_contact_links client ahead of the MBA", () => {
+    assert.equal(mergeInvoiceClient(linked, fromMba).clientsId, 7)
+  })
+
+  it("uses the MBA client when the contact is unresolved", () => {
+    const merged = mergeInvoiceClient(unresolved, fromMba)
+    assert.equal(merged.clientsId, 9)
+    assert.equal(merged.clientName, "Penfolds")
   })
 })
 

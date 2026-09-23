@@ -884,7 +884,7 @@ export const xeroSyncLog = pgTable(
   invoicesUpserted: bigint('invoices_upserted', { mode: "number" }),
   contactsUpserted: bigint('contacts_upserted', { mode: "number" }),
   notes: text('notes'),
-  /** invoices | import | contacts | pdfs. NULL = legacy combined run. */
+  /** invoices | import | contacts | pdfs, or backfill-<step> from scripts/xero-backfill.ts. NULL = legacy combined run. backfill-* is not a cron watermark. */
   stage: text('stage'),
   /** Wall time of the stage. NULL while status=running and on legacy rows. */
   durationMs: bigint('duration_ms', { mode: "number" }),

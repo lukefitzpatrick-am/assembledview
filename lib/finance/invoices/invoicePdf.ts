@@ -8,6 +8,7 @@ import {
   type ClientAccess,
 } from "@/lib/auth/assertClientAccess"
 import { getPrivateBlob } from "@/lib/creative/getPrivateBlob"
+import { mbaNumberMatchesClientIdentifier } from "@/lib/auth/mbaNumberMatchesClientIdentifier"
 import { getUserRoles } from "@/lib/rbac"
 import { loadContactLinks } from "@/lib/xero/contactLinks"
 import { rowsOf } from "@/lib/xero/dbRows"
@@ -33,6 +34,21 @@ export type InvoicePdfRecord = {
   pdfFile: unknown
   xeroContactId: string | null
   contactName: string | null
+  /** AR only. AP bills have no MBA column. */
+  mbaNumber: string | null
+}
+
+/**
+ * Contact links win. When the contact is unresolved, the MBA's client is used
+ * if media_plan_masters.client_id's mbaidentifier prefixes the MBA number.
+ */
+export function mergeInvoiceClient(
+  contact: ResolvedClient,
+  mba: ResolvedClient | null,
+): ResolvedClient {
+  if (contact.resolved && contact.clientsId > 0) return contact
+  if (mba && mba.resolved && mba.clientsId > 0) return mba
+  return contact
 }
 
 export type InvoicePdfBlobResult = {
@@ -99,6 +115,7 @@ function mapRow(row: {
   pdf_file: unknown
   xero_contact_id: string | null
   contact_name: string | null
+  mba_number?: string | null
 }): InvoicePdfRecord | null {
   const id = row.xero_invoice_id?.trim()
   if (!id) return null
@@ -108,6 +125,7 @@ function mapRow(row: {
     pdfFile: row.pdf_file,
     xeroContactId: row.xero_contact_id,
     contactName: row.contact_name,
+    mbaNumber: row.mba_number?.trim() || null,
   }
 }
 
@@ -119,6 +137,7 @@ async function loadArInvoice(xeroInvoiceId: string): Promise<InvoicePdfRecord | 
     pdf_file: unknown
     xero_contact_id: string | null
     contact_name: string | null
+    mba_number: string | null
   }>(
     await db.execute(sql`
       SELECT
@@ -126,7 +145,8 @@ async function loadArInvoice(xeroInvoiceId: string): Promise<InvoicePdfRecord | 
         i.invoice_number,
         i.pdf_file,
         i.xero_contact_id,
-        c.name AS contact_name
+        c.name AS contact_name,
+        i.mba_number
       FROM xero_ar_invoices i
       LEFT JOIN xero_contacts c ON c.xero_contact_id = i.xero_contact_id
       WHERE i.xero_invoice_id = ${xeroInvoiceId}
@@ -187,10 +207,50 @@ async function resolveClientForInvoice(record: InvoicePdfRecord): Promise<Resolv
     contact_key: a.contact_key,
     client_id: Number(a.client_id),
   }))
-  return resolveClientFromContact(record.contactName ?? "", clientRows, aliasRows, {
+  const contact = resolveClientFromContact(record.contactName ?? "", clientRows, aliasRows, {
     xeroContactId: record.xeroContactId,
     links,
   })
+  if (contact.resolved && contact.clientsId > 0) return contact
+  return mergeInvoiceClient(contact, await loadMbaImpliedClient(record.mbaNumber))
+}
+
+async function loadMbaImpliedClient(
+  mbaNumber: string | null,
+): Promise<ResolvedClient | null> {
+  const mba = (mbaNumber ?? "").trim()
+  if (!mba) return null
+  const db = getDb()
+  const rows = await rowsOf<{
+    client_id: number | null
+    mp_client_name: string | null
+    payment_days: number | null
+    payment_terms: string | null
+    mbaidentifier: string | null
+  }>(
+    await db.execute(sql`
+      SELECT
+        c.id AS client_id,
+        c.mp_client_name,
+        c.payment_days,
+        c.payment_terms,
+        c.mbaidentifier
+      FROM media_plan_masters m
+      INNER JOIN clients c ON c.id = m.client_id
+      WHERE lower(btrim(m.mba_number)) = lower(btrim(${mba}))
+      LIMIT 1
+    `),
+  )
+  const row = rows[0]
+  if (!row || row.client_id == null) return null
+  if (!mbaNumberMatchesClientIdentifier(mba, row.mbaidentifier)) return null
+  return {
+    clientsId: Number(row.client_id),
+    clientName: row.mp_client_name ?? "",
+    paymentDays: row.payment_days != null ? Number(row.payment_days) : 14,
+    paymentTerms: row.payment_terms ?? "",
+    resolved: true,
+  }
 }
 
 async function defaultSession(
