@@ -131,6 +131,7 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
       "/admin/users",
       "/admin/m365-reconciliation",
       "/admin/myhours-mapping",
+      "/pacing/admin/relabels",
       "/admin/fireflies-unattributed",
       "/admin/schedule-ingest",
     ],
@@ -607,7 +608,9 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     path: "/pacing/admin/relabels",
     label: "Relabels",
     title: "Pacing · Relabels",
+    icon: "Link2",
     inPalette: true,
+    inSidebar: true,
     roles: ["admin"],
     group: "pacing",
     searchTerms: "relabel delivery unmapped cm360",
@@ -1053,6 +1056,15 @@ export function pageMetadata(path: string): { title: string } {
 export function resolveDocumentTitle(pathname: string): string {
   const hit = matchRoute(pathname)
   return hit?.title ?? "AssembledView"
+}
+
+/**
+ * Sidebar visibility for `/pacing/admin/relabels`.
+ * Same staff rule as the page and `requireRelabelAccess`: authenticated users
+ * who are not client-role. Client-role sessions never see the entry.
+ */
+export function canSeeRelabelNav(roles: readonly string[] | null | undefined): boolean {
+  return !roles?.includes("client")
 }
 
 function rolesAllow(entry: RouteManifestEntry, isAdmin: boolean): boolean {

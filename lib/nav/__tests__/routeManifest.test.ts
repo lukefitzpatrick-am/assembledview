@@ -139,6 +139,7 @@ test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async (
           "/admin/users",
           "/admin/m365-reconciliation",
           "/admin/myhours-mapping",
+          "/pacing/admin/relabels",
           "/admin/fireflies-unattributed",
           "/admin/schedule-ingest",
         ],

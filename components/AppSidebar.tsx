@@ -37,6 +37,7 @@ const CLIENT_MENU_ICONS: Record<ClientMenuKind, typeof BookOpen> = {
   knowledge: BookOpen,
 }
 import {
+  canSeeRelabelNav,
   getAdminBottomNav,
   getAdminSidebarGroups,
   getRouteByExactPath,
@@ -173,7 +174,12 @@ export function AppSidebar() {
   }
 
   const adminGroups = useMemo(() => {
-    const groups = getAdminSidebarGroups()
+    const groups = getAdminSidebarGroups().map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) => item.path !== "/pacing/admin/relabels" || canSeeRelabelNav(userRoles),
+      ),
+    }))
     // Codex shadow: hide sidebar entry for roles outside CODEX_SHADOW_ROLES
     // so a visible "Codex" link never 403s the wider admin team.
     if (userHasCodexShadowAccess(userRoles)) return groups
