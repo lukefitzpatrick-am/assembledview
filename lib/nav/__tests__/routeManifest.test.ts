@@ -126,6 +126,7 @@ test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async (
           "/finance/costs",
           "/finance/forecasting",
           "/finance/investment",
+          "/finance/reports/invoiced-vs-expected",
         ],
       },
       {
@@ -152,7 +153,7 @@ test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async (
   const finance = groups.find((g) => g.id === "finance")
   assert.deepEqual(
     finance?.items.map((i) => i.label),
-    ["Clients billing", "Publishers", "Forecasting", "Investment"]
+    ["Clients billing", "Publishers", "Forecasting", "Investment", "Invoiced vs expected"]
   )
 })
 

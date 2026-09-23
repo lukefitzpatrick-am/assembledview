@@ -63,7 +63,7 @@ test("legacy path redirects land on sections (no ?tab= hop)", () => {
   assert.equal(bySource["/finance/forecast"], "/finance/forecasting")
 })
 
-test("sidebar snapshot is FIN-1 four-item Finance group", () => {
+test("sidebar snapshot is the Finance group", () => {
   const snap = getFinanceSidebarSnapshot()
   assert.deepEqual(snap, {
     mode: "expandable",
@@ -74,9 +74,10 @@ test("sidebar snapshot is FIN-1 four-item Finance group", () => {
       { path: "/finance/costs", label: "Publishers" },
       { path: "/finance/forecasting", label: "Forecasting" },
       { path: "/finance/investment", label: "Investment" },
+      { path: "/finance/reports/invoiced-vs-expected", label: "Invoiced vs expected" },
     ],
   })
-  assert.equal(FINANCE_SECTION_SIDEBAR_ITEMS.length, 4)
+  assert.equal(FINANCE_SECTION_SIDEBAR_ITEMS.length, 5)
   assert.equal(getFinanceSidebarSnapshot(false).mode, "expandable")
 })
 

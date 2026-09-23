@@ -246,6 +246,7 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | GET | `/api/finance/send-to-accounts` | admin-only | requireFinanceAdmin | preview=1 row list, totals, blockers |
 | POST | `/api/finance/send-to-accounts` | admin-only | requireFinanceAdmin | billing pack email + export stamp |
 | POST | `/api/finance/clear-for-issue` | admin-only | requireFinanceAdmin | clearance email now; writes one `finance_edits` row |
+| GET | `/api/finance/reports/invoiced-vs-expected` | admin-only | requireFinanceAdmin | invoiced vs expected view; `format=xlsx` downloads the workbook |
 | GET | `/api/finance/exports/download` | admin-only | requireFinanceAdmin | private Blob proxy for the pack files |
 | POST | `/api/finance/billing/notes` | admin-only | requireRole | `app/api/finance/billing/notes/route.ts` |
 | POST | `/api/finance/billing/unapprove` | admin-only | requireRole | `app/api/finance/billing/unapprove/route.ts` |
