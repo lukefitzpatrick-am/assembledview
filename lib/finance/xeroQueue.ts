@@ -43,13 +43,15 @@ export type OpenXeroException = {
   created_at: string | null
   resolved: boolean | null
   contact_name: string | null
+  /** Ex-GST. `xero_ar_invoices.sub_total`. */
   amount: string | number | null
-  sub_total: string | number | null
+  /** Inc-GST. `xero_ar_invoices.total`. */
+  total_inc_gst: string | number | null
 }
 
 /**
- * Open exceptions, newest first. `amount` is `xero_ar_invoices.total`.
- * Issue-date floor matches the exceptions panel.
+ * Open exceptions, newest first. `amount` is ex-GST `sub_total`; `total` is
+ * returned as `total_inc_gst`. Issue-date floor matches the exceptions panel.
  */
 export async function listOpenXeroExceptions(
   executor?: QueryExecutor
@@ -67,8 +69,8 @@ export async function listOpenXeroExceptions(
         e.created_at,
         e.resolved,
         c.name AS contact_name,
-        i.total AS amount,
-        i.sub_total
+        i.sub_total AS amount,
+        i.total AS total_inc_gst
       FROM xero_sync_exceptions e
       LEFT JOIN xero_ar_invoices i ON i.xero_invoice_id = e.xero_invoice_id
       LEFT JOIN xero_contacts c ON c.xero_contact_id = i.xero_contact_id
@@ -80,9 +82,9 @@ export async function listOpenXeroExceptions(
   )
 }
 
-type ExceptionTarget = { exceptionId: number; xeroInvoiceId: string }
+type AssignTarget = { exceptionId: number | null; xeroInvoiceId: string }
 
-async function loadExceptionTarget(tx: QueryExecutor, id: number): Promise<ExceptionTarget> {
+async function loadAssignTarget(tx: QueryExecutor, id: number): Promise<AssignTarget> {
   const byException = rowsOf<{ id: number; xero_invoice_id: string | null }>(
     await tx.execute(sql`
       SELECT id, xero_invoice_id
@@ -97,42 +99,52 @@ async function loadExceptionTarget(tx: QueryExecutor, id: number): Promise<Excep
     return { exceptionId: Number(direct.id), xeroInvoiceId: String(direct.xero_invoice_id) }
   }
 
-  const byBilling = rowsOf<{ id: number; xero_invoice_id: string | null }>(
+  const billing = rowsOf<{ xero_invoice_id: string | null }>(
     await tx.execute(sql`
-      SELECT e.id, e.xero_invoice_id
+      SELECT substring(b.invoice_key FROM 6) AS xero_invoice_id
       FROM finance_billing_records b
-      JOIN xero_sync_exceptions e
-        ON e.xero_invoice_id = substring(b.invoice_key FROM 6)
-       AND e.resolved IS NOT TRUE
       WHERE b.id = ${id}
         AND b.invoice_key LIKE 'xero:%'
+      LIMIT 1
+    `)
+  )
+  const xeroInvoiceId = billing[0]?.xero_invoice_id
+  if (!xeroInvoiceId) {
+    throw new XeroQueueError("invoice_not_found", `No xero invoice for id ${id}.`)
+  }
+
+  const open = rowsOf<{ id: number }>(
+    await tx.execute(sql`
+      SELECT e.id
+      FROM xero_sync_exceptions e
+      WHERE e.xero_invoice_id = ${String(xeroInvoiceId)}
+        AND e.resolved IS NOT TRUE
       ORDER BY e.created_at DESC NULLS LAST, e.id DESC
       LIMIT 1
     `)
   )
-  const linked = byBilling[0]
-  if (linked?.xero_invoice_id) {
-    return { exceptionId: Number(linked.id), xeroInvoiceId: String(linked.xero_invoice_id) }
+  return {
+    exceptionId: open[0] ? Number(open[0].id) : null,
+    xeroInvoiceId: String(xeroInvoiceId),
   }
-
-  throw new XeroQueueError(
-    "exception_not_found",
-    `No open xero_sync_exceptions row for id ${id}.`
-  )
 }
 
 export type AssignMbaResult = {
-  exceptionId: number
+  exceptionId: number | null
   mbaNumber: string
   masterId: number
   invoiceId: number
+  resolved_exception: boolean
 }
 
 /**
- * Validate the MBA, stamp it on the AR invoice, and close the exception.
- * Both writes run on the same transaction. A thrown error rolls both back.
+ * Validate the MBA and stamp it on the AR invoice. When that invoice has an
+ * open exception, close it in the same transaction. A billing-record id whose
+ * invoice has no open exception still writes `mba_number` and `mba_match_id`
+ * and returns `resolved_exception: false`. An unknown invoice is
+ * `invoice_not_found`. A thrown error rolls the writes back.
  * `id` is an open exception id, or a finance_billing_records id whose
- * invoice_key is `xero:{invoice}` and that invoice has an open exception.
+ * invoice_key is `xero:{invoice}`.
  */
 export async function assignMbaAndResolveException(
   input: { id: number; mbaNumber: string; resolvedBy: string },
@@ -159,7 +171,7 @@ export async function assignMbaAndResolveException(
     const masterId = Number(master.id)
     const storedMba = String(master.mba_number ?? mba).trim()
 
-    const target = await loadExceptionTarget(tx, input.id)
+    const target = await loadAssignTarget(tx, input.id)
 
     const invoices = rowsOf<{ id: number }>(
       await tx.execute(sql`
@@ -176,6 +188,16 @@ export async function assignMbaAndResolveException(
         "invoice_not_found",
         `No xero_ar_invoices row for ${target.xeroInvoiceId}.`
       )
+    }
+
+    if (target.exceptionId == null) {
+      return {
+        exceptionId: null,
+        mbaNumber: storedMba,
+        masterId,
+        invoiceId: Number(invoice.id),
+        resolved_exception: false,
+      }
     }
 
     const closed = rowsOf<{ id: number }>(
@@ -202,6 +224,7 @@ export async function assignMbaAndResolveException(
       mbaNumber: storedMba,
       masterId,
       invoiceId: Number(invoice.id),
+      resolved_exception: true,
     }
   })
 }

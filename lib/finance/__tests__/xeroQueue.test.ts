@@ -4,6 +4,7 @@ import { test } from "node:test"
 import {
   assignMbaAndResolveException,
   listOpenXeroExceptions,
+  XeroQueueError,
 } from "@/lib/finance/xeroQueue"
 
 function sqlText(query: unknown): string {
@@ -41,8 +42,8 @@ test("listOpenXeroExceptions reads open Postgres exceptions newest first", async
             created_at: "2025-08-02T00:00:00.000Z",
             resolved: false,
             contact_name: "Acme",
-            amount: "110.00",
-            sub_total: "100.00",
+            amount: "100.00",
+            total_inc_gst: "110.00",
           },
         ],
       }
@@ -53,11 +54,14 @@ test("listOpenXeroExceptions reads open Postgres exceptions newest first", async
   assert.match(queries[0], /FROM xero_sync_exceptions/)
   assert.match(queries[0], /xero_ar_invoices/)
   assert.match(queries[0], /xero_contacts/)
+  assert.match(queries[0], /i\.sub_total AS amount/)
+  assert.match(queries[0], /i\.total AS total_inc_gst/)
   assert.match(queries[0], /resolved IS NOT TRUE/)
   assert.match(queries[0], /ORDER BY e.created_at DESC/)
   assert.equal(rows[0]?.invoice_number, "INV-4")
   assert.equal(rows[0]?.contact_name, "Acme")
-  assert.equal(rows[0]?.amount, "110.00")
+  assert.equal(rows[0]?.amount, "100.00")
+  assert.equal(rows[0]?.total_inc_gst, "110.00")
   assert.equal(rows[0]?.reference, "PO-4")
 })
 
@@ -112,5 +116,71 @@ test("assign_mba writes the invoice and resolves the exception, and rolls both b
   assert.ok(
     attempted.findIndex((sql) => sql.includes("UPDATE xero_ar_invoices")) <
       attempted.findIndex((sql) => sql.includes("UPDATE xero_sync_exceptions"))
+  )
+})
+
+function billingAssignDb(options: { invoiceFound: boolean }) {
+  const attempted: string[] = []
+  const db = {
+    async transaction<T>(fn: (tx: { execute: (query: unknown) => Promise<unknown> }) => Promise<T>) {
+      const tx = {
+        async execute(query: unknown) {
+          const text = sqlText(query)
+          attempted.push(text)
+          if (text.includes("FROM media_plan_masters")) {
+            return { rows: [{ id: 7, mba_number: "MBA100" }] }
+          }
+          if (text.includes("FROM xero_sync_exceptions")) {
+            return { rows: [] }
+          }
+          if (text.includes("FROM finance_billing_records")) {
+            return { rows: [{ xero_invoice_id: "inv-missing" }] }
+          }
+          if (text.includes("UPDATE xero_ar_invoices")) {
+            return { rows: options.invoiceFound ? [{ id: 9 }] : [] }
+          }
+          if (text.includes("UPDATE xero_sync_exceptions")) {
+            throw new Error("should not resolve an exception")
+          }
+          return { rows: [] }
+        },
+      }
+      return fn(tx)
+    },
+  }
+  return { db, attempted }
+}
+
+test("assign_mba on a billing id with no open exception still writes the invoice", async () => {
+  const { db, attempted } = billingAssignDb({ invoiceFound: true })
+  const result = await assignMbaAndResolveException(
+    { id: 42, mbaNumber: "mba100", resolvedBy: "luke@assembledmedia.com.au" },
+    db
+  )
+
+  assert.equal(result.resolved_exception, false)
+  assert.equal(result.exceptionId, null)
+  assert.equal(result.mbaNumber, "MBA100")
+  assert.equal(result.masterId, 7)
+  assert.equal(result.invoiceId, 9)
+  const invoiceWrite = attempted.find((sql) => sql.includes("UPDATE xero_ar_invoices"))
+  assert.ok(invoiceWrite)
+  assert.match(invoiceWrite, /mba_number/)
+  assert.match(invoiceWrite, /mba_match_id/)
+  assert.equal(
+    attempted.some((sql) => sql.includes("UPDATE xero_sync_exceptions")),
+    false
+  )
+})
+
+test("assign_mba returns invoice_not_found when the invoice is unknown", async () => {
+  const { db } = billingAssignDb({ invoiceFound: false })
+  await assert.rejects(
+    () =>
+      assignMbaAndResolveException(
+        { id: 42, mbaNumber: "mba100", resolvedBy: "luke@assembledmedia.com.au" },
+        db
+      ),
+    (err: unknown) => err instanceof XeroQueueError && err.code === "invoice_not_found"
   )
 })

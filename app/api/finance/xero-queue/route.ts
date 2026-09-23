@@ -109,7 +109,9 @@ export async function GET(request: NextRequest) {
  * - `{ action: "resolve" | "resolve_exception" | "dismiss", id }`
  * - `{ action: "assign_client", id, clients_id, client_name }`
  * - `{ action: "assign_mba", id, mba_number }` — id is an open exception, or a
- *   billing record whose invoice_key is `xero:{id}` with an open exception.
+ *   billing record whose invoice_key is `xero:{invoice}`. A billing id whose
+ *   invoice has no open exception still stamps the invoice and returns
+ *   `resolved_exception: false`. An unknown invoice is 404.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -200,9 +202,10 @@ export async function POST(request: NextRequest) {
       })
       return NextResponse.json({
         ok: true,
-        id: result.exceptionId,
+        id: result.exceptionId ?? id,
         mba_number: result.mbaNumber,
         mba_match_id: result.masterId,
+        resolved_exception: result.resolved_exception,
       })
     }
 
