@@ -13,6 +13,7 @@ import { formatMoney } from "@/lib/format/money"
 import { matchTextAny } from "@/lib/search/matchText"
 import type { UnmappedPlacement } from "@/lib/pacing/admin/unmappedPlacements"
 import type { LineCardModel } from "@/lib/pacing/channel/lineCardTypes"
+import { normalizeLineItemId } from "@/lib/pacing/relabel/shared/channels"
 import { describeRelabelWrites } from "@/lib/pacing/relabel/shared/describeWrites"
 import {
   canRevertRelabel,
@@ -73,6 +74,13 @@ function applyRows(row: DeliveryRelabelRow): number {
 function applySpend(row: DeliveryRelabelRow): number {
   const result = row.applyResult ?? {}
   return Number(result.spendMoving ?? 0) || 0
+}
+
+function mapRowKept(preview: RelabelPreview): boolean {
+  if (preview.state !== "no_change") return false
+  const mapped = normalizeLineItemId(preview.activeMap?.lineItemId)
+  const target = normalizeLineItemId(preview.lineItemId)
+  return mapped.length > 0 && mapped === target
 }
 
 export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
@@ -225,10 +233,11 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
           : null
 
   const blocked = (preview?.blocks.length ?? 0) > 0
+  const noChange = preview?.state === "no_change"
   const hasWarnings = (preview?.warnings.length ?? 0) > 0
   const writes = preview ? describeRelabelWrites(preview) : []
   const canPreview = Boolean(channel.trim() && entity.trim() && lineItemId.trim())
-  const canApply = canPreview && reason.trim().length > 0 && preview && !blocked
+  const canApply = canPreview && reason.trim().length > 0 && preview && !blocked && !noChange
 
   const runPreview = useCallback(async () => {
     if (!canPreview) return
@@ -564,11 +573,17 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
           {preview ? (
             <section className="space-y-3 rounded-card border border-border bg-card p-4 shadow-e1">
               <h2 className="text-sm font-semibold">Preview</h2>
-              <p className="text-sm text-foreground">
-                <span className="num font-semibold">{preview.rowsMoving}</span> rows /{" "}
-                <span className="num font-semibold">{formatMoney(preview.spendMoving, { decimals: 0 })}</span>{" "}
-                moving onto <span className="font-mono">{preview.lineItemId}</span>
-              </p>
+              {preview.state === "no_change" ? (
+                <p className="text-sm text-foreground">
+                  Already attributed to <span className="font-mono">{preview.lineItemId}</span> for this scope. Nothing to write.
+                </p>
+              ) : (
+                <p className="text-sm text-foreground">
+                  <span className="num font-semibold">{preview.rowsMoving}</span> rows /{" "}
+                  <span className="num font-semibold">{formatMoney(preview.spendMoving, { decimals: 0 })}</span>{" "}
+                  moving onto <span className="font-mono">{preview.lineItemId}</span>
+                </p>
+              )}
               <div className="space-y-1 text-xs text-muted-foreground">
                 {preview.moves.map((move) => (
                   <p key={`${move.previousLineItemId}|${move.dateFrom}`}>
@@ -588,7 +603,7 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
                   </Badge>
                 )}
                 <Badge variant="info" size="sm">
-                  Map row will be created
+                  {mapRowKept(preview) ? "Existing map row kept" : "Map row will be created"}
                 </Badge>
                 {preview.activeMap &&
                 preview.activeMap.lineItemId &&

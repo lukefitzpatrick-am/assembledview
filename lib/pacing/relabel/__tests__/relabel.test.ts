@@ -59,6 +59,7 @@ function basePreview(overrides: Partial<RelabelPreview> = {}): RelabelPreview {
     daysMoving: 21,
     warnings: [],
     blocks: [],
+    state: "apply",
     duplicateOldNameDays: [],
     activeMap: null,
     publishedLine: publishedLine({
@@ -295,6 +296,81 @@ test("describeRelabelWrites lists fact UPDATE, map insert, and all-history scope
   assert.ok(lines.some((line) => line.includes("SOCIAL_PACING_FACT")))
   assert.ok(lines.some((line) => line.includes("LINE_ITEM_LABEL_MAP")))
   assert.ok(lines.some((line) => line.includes("Scope: all history")))
+})
+
+test("describeRelabelWrites formats spend to 2 currency decimals", async () => {
+  const { describeRelabelWrites } = await import("../shared/describeWrites.js")
+  const lines = describeRelabelWrites(basePreview({ spendMoving: 1200.5 }))
+  const update = lines.find((line) => line.startsWith("UPDATE"))
+  assert.ok(update)
+  assert.match(update, /spend \$1,200\.50\b/)
+  assert.doesNotMatch(update, /spend 1200\.5\b/)
+})
+
+test("no-op preview returns no_change when every in-scope row is already the target line", async () => {
+  const target = "bicau002sm2"
+  const deps = (rows: Array<{ date: string; lineItemId: string | null; spend: number }>) => ({
+    resolveEntity: async () => ({
+      channel: SOCIAL_CHANNEL,
+      platformEntityId: "120256",
+      entityName: "Meta ad set",
+      cardChannel: "social" as const,
+      route: factRouteForChannel(SOCIAL_CHANNEL),
+      attributions: [],
+    }),
+    lookupPublishedLine: async () =>
+      publishedLine({
+        lineItemId: target,
+        lineChannel: "social",
+        cardChannel: "social",
+      }),
+    lookupActiveLabelMap: async () => ({
+      channel: SOCIAL_CHANNEL,
+      platformLineItemId: "120256",
+      lineItemId: target,
+      lineItemName: "SM2",
+      mbaNumber: "bicau002",
+      notes: null,
+    }),
+    loadMoveRows: async () =>
+      rows.map((row) => ({
+        date: row.date,
+        lineItemId: row.lineItemId,
+        lineItemName: "BICAU002 SM2",
+        spend: row.spend,
+        impressions: 10,
+      })),
+  })
+
+  const noop = await previewRelabel(
+    { channel: SOCIAL_CHANNEL, platformEntityId: "120256", lineItemId: target },
+    deps([
+      { date: "2026-08-04", lineItemId: target, spend: 10 },
+      { date: "2026-08-05", lineItemId: "BICAU002SM2", spend: 12.5 },
+    ]),
+  )
+  assert.equal(noop.state, "no_change")
+  assert.equal(noop.blocks.length, 0)
+  assert.throws(() => assertApplyAllowed(noop), (err: unknown) => {
+    assert.ok(err instanceof RelabelApplyError)
+    assert.equal(err.code, "no_change")
+    return true
+  })
+
+  const partial = await previewRelabel(
+    { channel: SOCIAL_CHANNEL, platformEntityId: "120256", lineItemId: target },
+    deps([
+      { date: "2026-08-04", lineItemId: target, spend: 10 },
+      { date: "2026-08-05", lineItemId: "bicau002sm1", spend: 4 },
+    ]),
+  )
+  assert.equal(partial.state, "apply")
+
+  const empty = await previewRelabel(
+    { channel: SOCIAL_CHANNEL, platformEntityId: "120256", lineItemId: target },
+    deps([]),
+  )
+  assert.equal(empty.state, "apply")
 })
 
 test("relabelsHref and mbaStem encode the admin page entry points", async () => {

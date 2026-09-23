@@ -93,6 +93,7 @@ function previewPayload(preview: RelabelPreview): Record<string, unknown> {
     spendMoving: preview.spendMoving,
     warnings: preview.warnings,
     blocks: preview.blocks,
+    state: preview.state,
   }
 }
 
@@ -260,7 +261,7 @@ export async function runRelabelApply(
     const soft = unavailable(err)
     if (soft) return soft
     if (err instanceof RelabelApplyError) {
-      const status = err.code === "needs_ack" ? 400 : err.code === "blocked" ? 409 : 400
+      const status = err.code === "blocked" || err.code === "no_change" ? 409 : 400
       return NextResponse.json({ error: err.code, message: err.message }, { status })
     }
     console.error("[api/pacing/relabels] POST apply failed", err)

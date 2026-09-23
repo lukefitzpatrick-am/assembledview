@@ -138,6 +138,102 @@ describe("RelabelsClient", () => {
     expect(apply?.hasAttribute("disabled")).toBe(true)
   })
 
+  it("disables Apply when every in-scope row is already the target line", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const method = (init?.method ?? "GET").toUpperCase()
+        if (url.includes("/api/admin/unmapped-placements")) {
+          return { ok: true, json: async () => UNMAPPED }
+        }
+        if (url.includes("/api/pacing/relabels/preview") && method === "POST") {
+          return {
+            ok: true,
+            json: async () => ({
+              preview: {
+                ...BLOCKED_PREVIEW.preview,
+                channel: "Social - Meta",
+                platformEntityId: "120256089860390550",
+                entityName: "BICAU002 SM2",
+                lineItemId: "bicau002sm2",
+                cardChannel: "social",
+                targetCardChannel: "social",
+                moves: [
+                  {
+                    previousLineItemId: "bicau002sm2",
+                    dateFrom: "2026-08-04",
+                    dateTo: "2026-09-16",
+                    dayCount: 44,
+                    spend: 1200.5,
+                    impressions: 100,
+                    rows: 44,
+                  },
+                ],
+                rowsMoving: 44,
+                spendMoving: 1200.5,
+                daysMoving: 44,
+                blocks: [],
+                state: "no_change",
+                activeMap: {
+                  channel: "Social - Meta",
+                  platformLineItemId: "120256089860390550",
+                  lineItemId: "bicau002sm2",
+                  lineItemName: "SM2",
+                  mbaNumber: "bicau002",
+                  notes: null,
+                },
+              },
+            }),
+          }
+        }
+        if (url.includes("/api/pacing/relabels") && method === "GET") {
+          return { ok: true, json: async () => ({ relabels: [], drift: [] }) }
+        }
+        return { ok: true, json: async () => ({}) }
+      }),
+    )
+    act(() => {
+      root.render(
+        <RelabelsClient
+          initial={{
+            tab: "new",
+            channel: "Social - Meta",
+            entity: "120256089860390550",
+            line: "bicau002sm2",
+          }}
+        />,
+      )
+    })
+    await settle()
+    const reason = container.querySelector("#relabel-reason") as HTMLTextAreaElement
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set
+      setter?.call(reason, "already on the line")
+      reason.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await settle()
+    const previewBtn = [...container.querySelectorAll("button")].find((el) => el.textContent === "Preview")
+    await act(async () => {
+      previewBtn?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await settle()
+    expect(container.textContent).toContain(
+      "Already attributed to bicau002sm2 for this scope. Nothing to write.",
+    )
+    expect(container.textContent).toContain("Existing map row kept")
+    expect(container.textContent).not.toContain("Map row will be created")
+    expect(container.textContent).toContain("$1,200.50")
+    const apply = [...container.querySelectorAll("button")].find((el) => el.textContent === "Apply")
+    const save = [...container.querySelectorAll("button")].find(
+      (el) => el.textContent === "Save as request for Luke instead",
+    )
+    expect(apply?.hasAttribute("disabled")).toBe(true)
+    expect(save?.hasAttribute("disabled")).toBe(false)
+  })
+
   it("pre-fills New relabel from an Unmapped row action", async () => {
     act(() => {
       root.render(<RelabelsClient initial={{ tab: "unmapped" }} />)

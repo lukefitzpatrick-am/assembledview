@@ -148,6 +148,10 @@ export async function previewRelabel(
   const spendMoving = moves.reduce((sum, group) => sum + group.spend, 0)
   const daysMoving = new Set(moveRows.map((row) => row.date)).size
   const rowsMoving = moveRows.length
+  const noChange =
+    lineItemId.length > 0 &&
+    moveRows.length > 0 &&
+    moveRows.every((row) => normalizeLineItemId(row.lineItemId) === lineItemId)
 
   const warnings: RelabelIssue[] = []
   const blocks: RelabelIssue[] = []
@@ -170,13 +174,13 @@ export async function previewRelabel(
     })
   }
 
-  if (spendMoving > RELABEL_SPEND_WARNING) {
+  if (!noChange && spendMoving > RELABEL_SPEND_WARNING) {
     warnings.push({
       code: "spend_over_25000",
       message: `Spend moved (${spendMoving}) exceeds ${RELABEL_SPEND_WARNING}.`,
     })
   }
-  if (daysMoving > RELABEL_DAYS_WARNING) {
+  if (!noChange && daysMoving > RELABEL_DAYS_WARNING) {
     warnings.push({
       code: "days_over_90",
       message: `Days moved (${daysMoving}) exceeds ${RELABEL_DAYS_WARNING}.`,
@@ -217,6 +221,7 @@ export async function previewRelabel(
     daysMoving,
     warnings,
     blocks,
+    state: noChange ? "no_change" : "apply",
     duplicateOldNameDays,
     activeMap,
     publishedLine,
