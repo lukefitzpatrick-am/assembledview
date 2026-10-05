@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, inArray, sql } from "drizzle-orm"
 import { type LineChannel } from "@/db/schema"
 import { getDb, schema } from "@/db"
 import { coerceNumericStringsToNumbers, toApiRow } from "@/lib/data/toApiRow"
@@ -47,9 +47,33 @@ function channelFromEndpoint(endpoint: string): LineChannel | null {
 export { publishedVersionIfStamped }
 
 /**
+ * Version columns the master resolvers actually read.
+ *
+ * From the pointer target (`published` / `publishedApi`):
+ * - `publishedAt` / `published_at` — `publishedVersionIfStamped` → `isVersionPublished`
+ * - `versionNumber` / `version_number` — stamped watermark inside `mapPlanMasterFromPostgres`
+ * `toApiRow` renames every key it is given; `coerceNumericStringsToNumbers` coerces
+ * numeric strings on every key it is given. Neither reads a further version column.
+ *
+ * From every version row (published or not), for the id join and the max watermark:
+ * - `id`, `masterId` / `master_id`, `versionNumber` / `version_number`
+ *
+ * `legacy_schedules` and the rest of the version payload are not read here.
+ * Full payloads stay on `fetchPlanVersionsFromPostgres`.
+ */
+export const PLAN_MASTER_VERSION_META_COLUMNS = {
+  id: schema.mediaPlanVersions.id,
+  masterId: schema.mediaPlanVersions.masterId,
+  versionNumber: schema.mediaPlanVersions.versionNumber,
+  publishedAt: schema.mediaPlanVersions.publishedAt,
+} as const
+
+/**
  * Full master shape for plan loaders.
  * version_number: COALESCE(published-stamped, max(vn), 0) —
  * null pointer or pointer→unpublished (`published_at IS NULL`) both fall back to max(vn).
+ * Published identity stays `published_version_id` (the pointer). Max is only the
+ * watermark fallback when that pointer is missing or unstamped.
  */
 export function mapPlanMasterFromPostgres(
   master: Record<string, unknown>,
@@ -103,24 +127,24 @@ export function mapPlanMasterFromPostgres(
   }
 }
 
-export async function fetchPlanMastersFromPostgres(): Promise<Record<string, unknown>[]> {
-  const db = getDb()
-  const [masters, versions] = await Promise.all([
-    db.select().from(schema.mediaPlanMasters),
-    db.select().from(schema.mediaPlanVersions),
-  ])
-  const versionById = new Map(versions.map((v) => [v.id, v as Record<string, unknown>]))
+/**
+ * Map already-loaded master + version rows. Version rows may be full payloads
+ * or {@link PLAN_MASTER_VERSION_META_COLUMNS} only — both produce the same masters.
+ */
+export function mapPlanMastersFromLoadedRows(
+  masters: readonly Record<string, unknown>[],
+  versions: readonly Record<string, unknown>[],
+): Record<string, unknown>[] {
+  const versionById = new Map(versions.map((v) => [v.id, v]))
   const maxVnByMasterId = new Map<number, number>()
   for (const v of versions) {
-    const row = v as Record<string, unknown>
-    const masterId = Number(row.masterId ?? row.master_id)
-    const vn = Number(row.versionNumber ?? row.version_number)
+    const masterId = Number(v.masterId ?? v.master_id)
+    const vn = Number(v.versionNumber ?? v.version_number)
     if (!Number.isFinite(masterId) || !Number.isFinite(vn)) continue
     const prev = maxVnByMasterId.get(masterId)
     if (prev == null || vn > prev) maxVnByMasterId.set(masterId, vn)
   }
-  return masters.map((m) => {
-    const row = m as Record<string, unknown>
+  return masters.map((row) => {
     const masterId = Number(row.id)
     const pubId = row.publishedVersionId ?? row.published_version_id
     const publishedRaw =
@@ -140,12 +164,71 @@ export async function fetchPlanMastersFromPostgres(): Promise<Record<string, unk
   })
 }
 
+function masterMbaKey(row: Record<string, unknown>): string {
+  return normaliseMba(row.mbaNumber ?? row.mba_number)
+}
+
+/**
+ * One MBA: masters whose `mba_number` matches case-insensitively, then only
+ * those masters' versions. Same mapped shape as picking that MBA out of
+ * {@link mapPlanMastersFromLoadedRows}.
+ */
+export function mapPlanMasterByMbaFromLoadedRows(
+  masters: readonly Record<string, unknown>[],
+  versions: readonly Record<string, unknown>[],
+  mbaNumber: string,
+): Record<string, unknown> | null {
+  const target = normaliseMba(mbaNumber)
+  const matchedMasters = masters.filter((row) => masterMbaKey(row) === target)
+  if (matchedMasters.length === 0) return null
+  const masterIds = new Set(
+    matchedMasters.map((row) => Number(row.id)).filter((id) => Number.isFinite(id)),
+  )
+  const matchedVersions = versions.filter((row) =>
+    masterIds.has(Number(row.masterId ?? row.master_id)),
+  )
+  return (
+    mapPlanMastersFromLoadedRows(matchedMasters, matchedVersions).find(
+      (row) => normaliseMba(row.mba_number) === target,
+    ) ?? null
+  )
+}
+
+export async function fetchPlanMastersFromPostgres(): Promise<Record<string, unknown>[]> {
+  const db = getDb()
+  const [masters, versions] = await Promise.all([
+    db.select().from(schema.mediaPlanMasters),
+    db.select(PLAN_MASTER_VERSION_META_COLUMNS).from(schema.mediaPlanVersions),
+  ])
+  return mapPlanMastersFromLoadedRows(
+    masters as Record<string, unknown>[],
+    versions as Record<string, unknown>[],
+  )
+}
+
 export async function fetchPlanMasterByMbaFromPostgres(
   mbaNumber: string
 ): Promise<Record<string, unknown> | null> {
-  const all = await fetchPlanMastersFromPostgres()
+  const db = getDb()
   const target = normaliseMba(mbaNumber)
-  return all.find((r) => normaliseMba(r.mba_number) === target) ?? null
+  const masters = await db
+    .select()
+    .from(schema.mediaPlanMasters)
+    .where(sql`lower(${schema.mediaPlanMasters.mbaNumber}) = ${target}`)
+  if (masters.length === 0) return null
+  const masterIds = masters.map((row) => row.id).filter((id) => Number.isFinite(id))
+  const versions =
+    masterIds.length === 0
+      ? []
+      : await db
+          .select(PLAN_MASTER_VERSION_META_COLUMNS)
+          .from(schema.mediaPlanVersions)
+          .where(inArray(schema.mediaPlanVersions.masterId, masterIds))
+  return mapPlanMasterByMbaFromLoadedRows(
+    masters as Record<string, unknown>[],
+    versions as Record<string, unknown>[],
+    mbaNumber,
+  )
 }
 
 export async function readPlanMasters(): Promise<Record<string, unknown>[]> {
