@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, eq, inArray, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm"
 import { type LineChannel } from "@/db/schema"
 import { getDb, schema } from "@/db"
 import { coerceNumericStringsToNumbers, toApiRow } from "@/lib/data/toApiRow"
@@ -332,6 +332,146 @@ export function mapPlanVersionFromPostgres(
     ...flagFields,
     ...(created != null ? { created_at: created } : {}),
   }
+}
+
+/** Mapper inputs except `legacy_schedules`. List/cache reads omit the blob. */
+function planVersionColumns(includeSchedules: boolean) {
+  const v = schema.mediaPlanVersions
+  const columns = {
+    id: v.id,
+    createdAt: v.createdAt,
+    masterId: v.masterId,
+    versionNumber: v.versionNumber,
+    mbaNumber: v.mbaNumber,
+    campaignName: v.campaignName,
+    campaignStatus: v.campaignStatus,
+    campaignStartDate: v.campaignStartDate,
+    campaignEndDate: v.campaignEndDate,
+    brand: v.brand,
+    clientContact: v.clientContact,
+    poNumber: v.poNumber,
+    campaignBudgetCents: v.campaignBudgetCents,
+    fixedFee: v.fixedFee,
+    channelFlags: v.channelFlags,
+    approvedSlice: v.approvedSlice,
+    mbaScope: v.mbaScope,
+    snapshotChecksum: v.snapshotChecksum,
+    publishedAt: v.publishedAt,
+    publishedBy: v.publishedBy,
+    miResolution: v.miResolution,
+    mediaPlanFile: v.mediaPlanFile,
+    mbaPdfFile: v.mbaPdfFile,
+    aaMediaPlanFile: v.aaMediaPlanFile,
+  }
+  if (!includeSchedules) return columns
+  return { ...columns, legacySchedules: v.legacySchedules }
+}
+
+function mapVersionRows(
+  rows: Record<string, unknown>[],
+): Record<string, unknown>[] {
+  return rows.map((row) => mapPlanVersionFromPostgres(row))
+}
+
+function mbaKeys(mbaNumbers: readonly string[]): string[] {
+  return [...new Set(mbaNumbers.map(normaliseMba).filter((key) => key.length > 0))]
+}
+
+export type ReadPlanVersionsForMbasOptions = {
+  /** Restrict to rows with `published_at` set. */
+  publishedOnly?: boolean
+  /** Select `legacy_schedules`. Off unless the caller reads billing or delivery schedules. */
+  includeSchedules?: boolean
+}
+
+/**
+ * Versions for a set of MBAs. `lower(mba_number) IN (...)`.
+ * Empty input returns [] and does not query.
+ */
+export async function readPlanVersionsForMbas(
+  mbaNumbers: readonly string[],
+  options?: ReadPlanVersionsForMbasOptions,
+): Promise<Record<string, unknown>[]> {
+  const keys = mbaKeys(mbaNumbers)
+  if (keys.length === 0) return []
+  const db = getDb()
+  const v = schema.mediaPlanVersions
+  const mbaMatch = sql`lower(${v.mbaNumber}) in (${sql.join(
+    keys.map((key) => sql`${key}`),
+    sql`, `,
+  )})`
+  const where = options?.publishedOnly
+    ? and(mbaMatch, isNotNull(v.publishedAt))
+    : mbaMatch
+  const rows = await db
+    .select(planVersionColumns(options?.includeSchedules === true))
+    .from(v)
+    .where(where)
+  return mapVersionRows(rows as Record<string, unknown>[])
+}
+
+/**
+ * One row per master whose `published_version_id` points here and `published_at` is set.
+ * Keeps `legacy_schedules` (planned-to-date reads `deliverySchedule`).
+ */
+export async function readPublishedPointerPlanVersions(): Promise<
+  Record<string, unknown>[]
+> {
+  const db = getDb()
+  const v = schema.mediaPlanVersions
+  const masters = schema.mediaPlanMasters
+  const rows = await db
+    .select()
+    .from(v)
+    .where(
+      and(
+        isNotNull(v.publishedAt),
+        sql`${v.id} in (
+          select ${masters.publishedVersionId}
+          from ${masters}
+          where ${masters.publishedVersionId} is not null
+        )`,
+      ),
+    )
+  return mapVersionRows(rows as Record<string, unknown>[])
+}
+
+/**
+ * Published rows, plus approved/booked versions whose campaign dates contain `asOfDate`.
+ * Keeps `legacy_schedules` (portfolio expected-spend reads both schedules).
+ * Live uses the version row's own status and dates, the same window as `isLiveCampaignStatus`.
+ */
+export async function readPublishedOrLivePlanVersions(
+  asOfDate: string,
+): Promise<Record<string, unknown>[]> {
+  const asOf = String(asOfDate ?? "").trim().slice(0, 10)
+  const db = getDb()
+  const v = schema.mediaPlanVersions
+  const rows = await db
+    .select()
+    .from(v)
+    .where(
+      or(
+        isNotNull(v.publishedAt),
+        and(
+          sql`lower(trim(${v.campaignStatus})) in ('approved', 'booked')`,
+          sql`${v.campaignStartDate} <= ${asOf}::date`,
+          sql`${v.campaignEndDate} >= ${asOf}::date`,
+        ),
+      ),
+    )
+  return mapVersionRows(rows as Record<string, unknown>[])
+}
+
+/** Every version, mapped, without `legacy_schedules`. List cache strips schedules anyway. */
+export async function readPlanVersionsWithoutSchedules(): Promise<
+  Record<string, unknown>[]
+> {
+  const db = getDb()
+  const rows = await db
+    .select(planVersionColumns(false))
+    .from(schema.mediaPlanVersions)
+  return mapVersionRows(rows as Record<string, unknown>[])
 }
 
 export async function fetchPlanVersionsFromPostgres(): Promise<Record<string, unknown>[]> {

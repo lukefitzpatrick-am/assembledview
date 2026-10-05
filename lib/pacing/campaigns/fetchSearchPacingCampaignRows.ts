@@ -49,7 +49,7 @@ export async function resolveLiveSearchLineItemInputs(
 async function resolveSearchLineItemsFromPostgres(
   args: GetLiveSearchLineItemsArgs
 ): Promise<LiveSearchLineItemInput[]> {
-  const { readPlanMasters, readPlanVersions, fetchLineItemsFromPostgresByEndpoint } =
+  const { readPlanMasters, readPlanVersionsForMbas, fetchLineItemsFromPostgresByEndpoint } =
     await import("@/lib/data/readMediaPlans");
 
   const masters = (await readPlanMasters())
@@ -69,7 +69,9 @@ async function resolveSearchLineItemsFromPostgres(
   });
   if (liveMasters.length === 0) return [];
 
-  const versions = await readPlanVersions();
+  const versions = await readPlanVersionsForMbas(
+    liveMasters.map((m) => m.mba_number),
+  );
   const versionRowsByMba = new Map<string, VersionRow>();
   const liveMbaSet = new Set(liveMasters.map((m) => norm(m.mba_number)));
   const wantVersion = new Map(

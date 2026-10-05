@@ -12,7 +12,9 @@ const fetchLineItemsFromPostgresByEndpoint = mock.fn(
   async (_endpoint: string, _mba: string, _version: number) => [] as Record<string, unknown>[]
 )
 const readPlanMasters = mock.fn(async () => [] as Record<string, unknown>[])
-const readPlanVersions = mock.fn(async () => [] as Record<string, unknown>[])
+const readPlanVersionsForMbas = mock.fn(
+  async (_mbaNumbers: readonly string[]) => [] as Record<string, unknown>[]
+)
 
 const fetchAllMasters = mock.fn(async () => [] as MediaPlanMaster[])
 const fetchCurrentVersionRowsForMasters = mock.fn(
@@ -44,7 +46,7 @@ if (supportsMockModule()) {
     namedExports: {
       fetchLineItemsFromPostgresByEndpoint,
       readPlanMasters,
-      readPlanVersions,
+      readPlanVersionsForMbas,
     },
   })
   await mock.module!("@/lib/pacing/campaigns/fetchSearchPacingCampaignRows", {
@@ -65,13 +67,13 @@ function resetMocks() {
   getDataBackendFor.mock.resetCalls()
   fetchLineItemsFromPostgresByEndpoint.mock.resetCalls()
   readPlanMasters.mock.resetCalls()
-  readPlanVersions.mock.resetCalls()
+  readPlanVersionsForMbas.mock.resetCalls()
   fetchAllMasters.mock.resetCalls()
   fetchCurrentVersionRowsForMasters.mock.resetCalls()
   fetchAllXanoPages.mock.resetCalls()
   fetchLineItemsFromPostgresByEndpoint.mock.mockImplementation(async () => [])
   readPlanMasters.mock.mockImplementation(async () => [])
-  readPlanVersions.mock.mockImplementation(async () => [])
+  readPlanVersionsForMbas.mock.mockImplementation(async () => [])
   fetchAllMasters.mock.mockImplementation(async () => [])
   fetchCurrentVersionRowsForMasters.mock.mockImplementation(async () => new Map())
   fetchAllXanoPages.mock.mockImplementation(async () => [])
@@ -84,7 +86,7 @@ async function withPostgresLines(
   readPlanMasters.mock.mockImplementation(async () => [
     LIVE_MASTER as unknown as Record<string, unknown>,
   ])
-  readPlanVersions.mock.mockImplementation(async () => [
+  readPlanVersionsForMbas.mock.mockImplementation(async () => [
     { id: VERSION_ROW.id, mba_number: "BICAU002", version_number: 4, brand: "Penfolds" },
   ])
   fetchLineItemsFromPostgresByEndpoint.mock.mockImplementation(
@@ -124,6 +126,7 @@ test(
     assert.equal(rows[0]!.progRow.line_item_id, "bicau002pv1")
     assert.equal(rows[0]!.channelFamily, "progVideo")
     assert.equal(fetchAllXanoPages.mock.calls.length, 0)
+    assert.deepEqual(readPlanVersionsForMbas.mock.calls[0]?.arguments[0], ["BICAU002"])
     const versions = fetchLineItemsFromPostgresByEndpoint.mock.calls.map(
       (call) => (call.arguments as [string, string, number])[2]
     )

@@ -66,19 +66,11 @@ function stripScheduleFields(row: any): any {
   return next
 }
 
-async function fetchVersionsForList(): Promise<{
-  data: any[]
-  stale: boolean
-  fetchedAt?: number
-}> {
-  // Shared `_latest` walk (PAGE_SIZE=50, include_schedules=false). Schedules
-  // are already stripped by mediaPlanVersionsCache.
+async function fetchVersionsForList() {
+  // Shared latest-per-MBA walk. Schedules are already omitted by
+  // mediaPlanVersionsCache. Masters ride along so this cache does not
+  // call readPlanMasters a second time.
   return getCachedMediaPlanVersions()
-}
-
-async function fetchMasters(): Promise<any[]> {
-  const { readPlanMasters } = await import("@/lib/data/readMediaPlans")
-  return readPlanMasters()
 }
 
 async function fetchPublishedVersionRow(
@@ -171,8 +163,7 @@ async function mergeLatestVersionsWithMasters(
 async function fetchUpstream(): Promise<{ data: any[]; stale: boolean; fetchedAt?: number }> {
   // Sequential on purpose: two concurrent multi-page walks contend on the shared Xano instance and can push one past the 15s timeout.
   const versions = await fetchVersionsForList()
-  const mastersData = await fetchMasters()
-  const data = await mergeLatestVersionsWithMasters(versions.data, mastersData)
+  const data = await mergeLatestVersionsWithMasters(versions.data, versions.masters)
   return { data, stale: versions.stale, fetchedAt: versions.fetchedAt }
 }
 
@@ -215,10 +206,7 @@ export async function getCachedMediaPlansList(): Promise<MediaPlansListCacheResu
 
 /** Fallback path used when the primary list cache fetch fails entirely. Postgres only. */
 export async function fetchMediaPlansListFallback(): Promise<any[]> {
-  const [masters, versions] = await Promise.all([
-    fetchMasters(),
-    getCachedMediaPlanVersions(),
-  ])
-  return mergeLatestVersionsWithMasters(versions.data, masters)
+  const versions = await getCachedMediaPlanVersions()
+  return mergeLatestVersionsWithMasters(versions.data, versions.masters)
 }
 

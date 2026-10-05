@@ -1,6 +1,9 @@
 import "server-only"
 
-import { readPlanMasters, readPlanVersions } from "@/lib/data/readMediaPlans"
+import {
+  readPlanMasters,
+  readPublishedPointerPlanVersions,
+} from "@/lib/data/readMediaPlans"
 import { publishedVersionFromMaster } from "@/lib/mediaplan/publishedVersionGuard"
 import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import {
@@ -17,7 +20,7 @@ export async function fetchPlannedToDateByMba(
   allowedMbaKeys?: Set<string>,
 ): Promise<Record<string, number>> {
   const [versions, masters] = await Promise.all([
-    readPlanVersions(),
+    readPublishedPointerPlanVersions(),
     readPlanMasters(),
   ])
 

@@ -29,6 +29,8 @@ const SCHEDULE_KEYS = [
 
 export type MediaPlanVersionsCacheResult = {
   data: any[]
+  /** Masters loaded with this fill. List cache reuses them instead of a second read. */
+  masters: any[]
   stale: boolean
   /** Epoch ms of the last successful upstream fill (undefined if never filled). */
   fetchedAt?: number
@@ -36,6 +38,7 @@ export type MediaPlanVersionsCacheResult = {
 
 type CacheEntry = {
   data: any[]
+  masters: any[]
   fetchedAt: number
 }
 
@@ -67,15 +70,15 @@ function stripScheduleFields(row: any): any {
  * and overlays master-owned scalars (`mp_client_name`) — Xano `_latest` had these
  * inline; Postgres versions do not (DI-9b; twin of mediaPlansListCache / DI-9).
  */
-async function fetchUpstream(): Promise<any[]> {
-  const { readPlanVersions, readPlanMasters } = await import(
+async function fetchUpstream(): Promise<{ data: any[]; masters: any[] }> {
+  const { readPlanVersionsWithoutSchedules, readPlanMasters } = await import(
     "@/lib/data/readMediaPlans"
   )
   const { applyMasterOwnedOverlayByMba } = await import(
     "@/lib/api/overlayMasterOwnedListFields"
   )
   const [all, masters] = await Promise.all([
-    readPlanVersions(),
+    readPlanVersionsWithoutSchedules(),
     readPlanMasters(),
   ])
   const latestByMba = new Map<string, any>()
@@ -94,16 +97,28 @@ async function fetchUpstream(): Promise<any[]> {
     }
   }
   const latest = Array.from(latestByMba.values()).map(stripScheduleFields)
-  return applyMasterOwnedOverlayByMba(latest, masters)
+  return {
+    data: applyMasterOwnedOverlayByMba(latest, masters),
+    masters,
+  }
 }
 
 function startRefresh(): Promise<MediaPlanVersionsCacheResult> {
   const promise = (async (): Promise<MediaPlanVersionsCacheResult> => {
     try {
-      const data = await fetchUpstream()
-      cacheEntry = { data, fetchedAt: Date.now() }
+      const filled = await fetchUpstream()
+      cacheEntry = {
+        data: filled.data,
+        masters: filled.masters,
+        fetchedAt: Date.now(),
+      }
       lastRefreshFailedAt = null
-      return { data, stale: false, fetchedAt: cacheEntry.fetchedAt }
+      return {
+        data: filled.data,
+        masters: filled.masters,
+        stale: false,
+        fetchedAt: cacheEntry.fetchedAt,
+      }
     } catch (err) {
       lastRefreshFailedAt = Date.now()
       if (cacheEntry) {
@@ -113,6 +128,7 @@ function startRefresh(): Promise<MediaPlanVersionsCacheResult> {
         )
         return {
           data: cacheEntry.data,
+          masters: cacheEntry.masters,
           stale: true,
           fetchedAt: cacheEntry.fetchedAt,
         }
@@ -130,6 +146,7 @@ function startRefresh(): Promise<MediaPlanVersionsCacheResult> {
 function serveCached(stale: boolean): MediaPlanVersionsCacheResult {
   return {
     data: cacheEntry!.data,
+    masters: cacheEntry!.masters,
     stale,
     fetchedAt: cacheEntry!.fetchedAt,
   }
