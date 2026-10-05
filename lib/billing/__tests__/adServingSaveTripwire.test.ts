@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 
 import {
   evaluateAdServingZeroTripwire,
+  withAdServingTripwireCompute,
   type AdServingTripwirePerLine,
 } from "@/lib/billing/adServingSaveTripwire"
 
@@ -68,6 +69,70 @@ describe("evaluateAdServingZeroTripwire", () => {
     assert.equal(result, null)
   })
 
+  it("skips fixed_cost lines with no adServingImpressions", () => {
+    const result = evaluateAdServingZeroTripwire({
+      adServingTotal: 0,
+      perLine: [
+        {
+          ...line("billing-progOoh::F", "progOoh", 1),
+          buyType: "fixed cost",
+          adServingImpressions: 0,
+        },
+      ],
+      noAdservingByLineId: new Map(),
+      lineAdServingById: new Map([["billing-progOoh::F", 0]]),
+    })
+    assert.equal(result, null)
+  })
+
+  it("still flags fixed_cost when impressions are set and the schedule is $0", () => {
+    const result = evaluateAdServingZeroTripwire({
+      adServingTotal: 0,
+      perLine: [
+        {
+          ...line("billing-progOoh::F", "progOoh", 1),
+          buyType: "fixed_cost",
+          adServingImpressions: 10_000,
+        },
+      ],
+      noAdservingByLineId: new Map(),
+      lineAdServingById: new Map([["billing-progOoh::F", 0]]),
+    })
+    assert.ok(result)
+    assert.equal(result!.kind, "campaign_zero")
+  })
+
+  it("skips a positive compute that rounds below one cent", () => {
+    const result = evaluateAdServingZeroTripwire({
+      adServingTotal: 0,
+      perLine: [
+        {
+          ...line("billing-progDisplay::A", "progDisplay", 100_000),
+          computedAdServing: 0.004,
+        },
+      ],
+      noAdservingByLineId: new Map(),
+      lineAdServingById: new Map([["billing-progDisplay::A", 0]]),
+    })
+    assert.equal(result, null)
+  })
+
+  it("still flags an exact zero compute (missing rate is not sub-cent by design)", () => {
+    const result = evaluateAdServingZeroTripwire({
+      adServingTotal: 0,
+      perLine: [
+        {
+          ...line("billing-progDisplay::A", "progDisplay", 100_000),
+          computedAdServing: 0,
+        },
+      ],
+      noAdservingByLineId: new Map(),
+      lineAdServingById: new Map([["billing-progDisplay::A", 0]]),
+    })
+    assert.ok(result)
+    assert.equal(result!.kind, "campaign_zero")
+  })
+
   it("silent when all chargeable eligible lines have ad serving", () => {
     const result = evaluateAdServingZeroTripwire({
       adServingTotal: 500,
@@ -82,5 +147,34 @@ describe("evaluateAdServingZeroTripwire", () => {
       ]),
     })
     assert.equal(result, null)
+  })
+})
+
+describe("withAdServingTripwireCompute", () => {
+  it("stamps fixed_cost impressions and a sub-cent cpm compute", () => {
+    const stamped = withAdServingTripwireCompute(
+      [
+        line("billing-progOoh::F", "progOoh", 1),
+        line("billing-progDisplay::A", "progDisplay", 1_000),
+      ],
+      [
+        {
+          lineItemId: "billing-progOoh::F",
+          mediaType: "progOoh",
+          buyType: "fixed_cost",
+          bursts: [{ deliverables: 1 }],
+        },
+        {
+          lineItemId: "billing-progDisplay::A",
+          mediaType: "progDisplay",
+          buyType: "cpm",
+          bursts: [{ deliverables: 1_000 }],
+        },
+      ],
+      (mediaType) => (mediaType === "progDisplay" ? 0.004 : 1),
+    )
+    assert.equal(stamped[0]!.adServingImpressions, 0)
+    assert.equal(stamped[0]!.computedAdServing, 0)
+    assert.equal(stamped[1]!.computedAdServing, 0.004)
   })
 })
