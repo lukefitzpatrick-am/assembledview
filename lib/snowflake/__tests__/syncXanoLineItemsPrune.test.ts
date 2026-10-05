@@ -12,12 +12,18 @@ type QueryCall = {
 }
 
 let orphanCount = 0
+let failMergeOnce = false
 const queryCalls: QueryCall[] = []
 const logLines: string[] = []
 const errorLines: string[] = []
 
 const querySnowflakeMock = mock.fn(async (sql: string, binds: unknown[] = [], options?: { label?: string }) => {
   queryCalls.push({ sql, binds, label: options?.label })
+
+  if (failMergeOnce && options?.label === "xano_snapshot_batch_merge_1") {
+    failMergeOnce = false
+    throw new Error("timeout executing")
+  }
 
   if (options?.label?.startsWith("xano_snapshot_prune_count_")) {
     return [{ ORPHAN_COUNT: orphanCount, FIXED_COST_MEDIA_ORPHAN_COUNT: 0 }]
@@ -61,6 +67,7 @@ function lineItem(overrides: Partial<XanoLineItem> = {}): XanoLineItem {
 beforeEach(() => {
   if (!supportsMockModule()) return
   orphanCount = 0
+  failMergeOnce = false
   queryCalls.length = 0
   logLines.length = 0
   errorLines.length = 0
@@ -139,6 +146,18 @@ test("active incomplete prune skips delete and runs merge only", { skip }, async
   assert.equal(queryCalls.some((call) => call.label === "xano_snapshot_prune_count_active"), false)
   assert.ok(queryCalls.some((call) => call.label === "xano_snapshot_batch_merge_1"))
   assert.ok(logLines.some((line) => line.includes("prune skipped: incomplete fetch")))
+})
+
+test("merge retries a failed batch once", { skip }, async () => {
+  process.env.SNAPSHOT_PRUNE_MODE = "off"
+  failMergeOnce = true
+
+  const result = await syncLineItemsToSnowflake([lineItem()], true)
+
+  assert.equal(result.succeeded, 1)
+  assert.equal(result.failed, 0)
+  assert.ok(queryCalls.some((call) => call.label === "xano_snapshot_batch_merge_1"))
+  assert.ok(queryCalls.some((call) => call.label === "xano_snapshot_batch_merge_1_retry"))
 })
 
 test("dryrun remains log-only after merge", { skip }, async () => {

@@ -1658,7 +1658,7 @@ function createRequestId(existing?: string) {
 export async function execWithRetry<T = any>(
   sqlText: string,
   binds: any[] = [],
-  options: { requestId?: string; signal?: AbortSignal; label?: string } = {}
+  options: { requestId?: string; signal?: AbortSignal; label?: string; timeoutMs?: number } = {}
 ): Promise<T[]> {
   const requestId = createRequestId(options.requestId)
   const startTime = Date.now()
@@ -1756,11 +1756,17 @@ export async function execWithRetry<T = any>(
 
       stage = "query"
       const queryStart = Date.now()
+      const executeTimeoutMs =
+        typeof options.timeoutMs === "number" &&
+        Number.isFinite(options.timeoutMs) &&
+        options.timeoutMs > 0
+          ? options.timeoutMs
+          : EXECUTE_TIMEOUT_MS
       const result = await executeWithTimeout<T>(
         connection,
         sqlText,
         binds,
-        EXECUTE_TIMEOUT_MS,
+        executeTimeoutMs,
         label,
         requestId,
         signal
