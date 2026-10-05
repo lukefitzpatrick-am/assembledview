@@ -72,7 +72,7 @@ export const ROUTE_MANIFEST_EXCLUSIONS: ReadonlyArray<{
 }> = [
   {
     path: "/auth/[auth0]",
-    reason: "Auth0 SDK callback / login handlers — not a product page",
+    reason: "Auth0 login, logout, callback, and profile are served by auth0.middleware — no app route handler",
   },
   {
     path: "/api/**",
