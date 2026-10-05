@@ -4,10 +4,8 @@ import {
   Client,
   ClientHubSummary,
 } from '@/lib/types/dashboard'
-import { parseXanoListPayload, peekXanoEnv } from '@/lib/api/xano'
-import { getXanoClientsCollectionUrl, xanoMediaPlansUrl } from '@/lib/api/xanoClients'
-import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
-import { resolveClientGroup } from '@/lib/clients/clientGroup'
+import { parseXanoListPayload } from '@/lib/api/xano'
+import { resolveClientGroup, clientIdsFromGroup } from '@/lib/clients/clientGroup'
 import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slug'
 import { hasNonEmptyClientBrain, omitClientBrain } from '@/lib/clients/omitClientBrain'
 import { findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
@@ -15,7 +13,6 @@ import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from '@/lib/spend/monthlyPlanCalendar'
 import { normalizeDateToMelbourneISO } from '@/lib/dates/normalizeCampaignDateISO'
 import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
-import { publishedVersionFromMaster, publishedVersionPointerIdFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
 import { australianFyStartYearForDate } from '@/lib/finance/months'
 import {
   campaignFlightOverlapsRange,
@@ -28,7 +25,6 @@ import {
 } from '@/lib/dashboard/clientDateRange'
 import { auFyBoundsDateOnly } from '@/lib/dates/auFinancialYear'
 import {
-  apiClient,
   isDashboardDebug,
   normalizeStatus,
   resolveDashboardLiveVersionRow,
@@ -72,61 +68,11 @@ function collectAvailableFinancialYears(selectedVersions: any[]): number[] {
   return Array.from(years).sort((a, b) => b - a)
 }
 
-function xanoResponseBodyPreview(data: unknown): string {
-  try {
-    const s = typeof data === 'string' ? data : JSON.stringify(data)
-    return s.length > 200 ? `${s.slice(0, 200)}...` : s
-  } catch {
-    return '[unserializable]'
-  }
-}
-
-async function fetchMediaPlanMasterWithFallback(): Promise<{ data: any; endpoint: string }> {
-  const endpoints = ['media_plan_master', 'media_plans_master']
-  const debug = isDashboardDebug()
-  let lastError: any = null
-
-  for (const endpoint of endpoints) {
-    const url = xanoMediaPlansUrl(endpoint)
-    try {
-      const response = await apiClient.get(url)
-      if (debug) {
-        console.log(`Dashboard: fetched media plan master via ${endpoint}`)
-      }
-      return { data: response.data, endpoint }
-    } catch (err: any) {
-      const status = err?.response?.status
-      lastError = err
-      const msg = err?.message != null ? String(err.message) : String(err)
-      console.error('[dashboard] fetchMediaPlanMasterWithFallback catch:', {
-        message: msg,
-        failedUrl: url,
-        responseStatus: err?.response?.status,
-        responseBodyPreview: err?.response?.data != null ? xanoResponseBodyPreview(err.response.data) : undefined,
-        err,
-      })
-
-      if (debug) {
-        console.warn(`Dashboard: ${endpoint} request failed${status ? ` (status ${status})` : ''}`)
-      }
-
-      if (status === 404) {
-        continue
-      }
-
-      throw err
-    }
-  }
-
-  throw lastError ?? new Error('Dashboard: media plan master endpoints unavailable')
-}
-
 export async function getClientBySlug(slug: string): Promise<Client | null> {
-  const url = getXanoClientsCollectionUrl()
   try {
-    const response = await apiClient.get(url)
-    const clients = parseXanoListPayload(response.data)
-
+    const { readClientsList } = await import('@/lib/data/readClients')
+    const result = await readClientsList()
+    const clients = parseXanoListPayload(result.body)
     const raw = findClientRawByDashboardSlug(clients, slug) as Record<string, any> | null
     if (!raw) {
       if (isDashboardDebug()) {
@@ -134,71 +80,13 @@ export async function getClientBySlug(slug: string): Promise<Client | null> {
       }
       return null
     }
-
-    const name = getClientDisplayName(raw)
-    const idVal = raw.id
-    const brandColour =
-      typeof raw.brand_colour === 'string' && raw.brand_colour.trim()
-        ? raw.brand_colour.trim()
-        : typeof raw.brandColour === 'string' && raw.brandColour.trim()
-          ? raw.brandColour.trim()
-          : undefined
-
-    return {
-      id: idVal != null ? String(idVal) : '',
-      name,
-      slug,
-      createdAt:
-        typeof raw.created_at === 'number'
-          ? new Date(raw.created_at).toISOString()
-          : typeof raw.created_at === 'string' && raw.created_at.trim()
-            ? raw.created_at
-            : new Date().toISOString(),
-      updatedAt:
-        typeof raw.updated_at === 'number'
-          ? new Date(raw.updated_at).toISOString()
-          : typeof raw.updated_at === 'string' && raw.updated_at.trim()
-            ? raw.updated_at
-            : new Date().toISOString(),
-      brandColour,
-    }
+    const client = rawClientToFallbackClient(raw)
+    if (!client) return null
+    return { ...client, slug }
   } catch (error: any) {
     const msg = error?.message != null ? String(error.message) : String(error)
-    console.error('[dashboard] getClientBySlug catch:', {
-      message: msg,
-      failedUrl: url,
-      responseStatus: error?.response?.status,
-      responseBodyPreview:
-        error?.response?.data != null ? xanoResponseBodyPreview(error.response.data) : undefined,
-      error,
-    })
+    console.error('[dashboard] getClientBySlug catch:', { message: msg, slug, error })
     return null
-  }
-}
-
-async function fetchMediaPlanVersionsArray(): Promise<any[]> {
-  // Full version history (paged). Needed by fetchVersionsForMba (version switcher).
-  // Do NOT use getCachedMediaPlanVersions / media_plan_versions_latest here.
-  const url = xanoMediaPlansUrl('media_plan_versions')
-  try {
-    return await fetchAllXanoPages(url, {}, 'DASHBOARD_client_media_plan_versions', 100, 50)
-  } catch (error: any) {
-    const msg = error?.message != null ? String(error.message) : String(error)
-    console.error('[dashboard] fetchMediaPlanVersionsArray catch:', {
-      message: msg,
-      failedUrl: url,
-      responseStatus: error?.response?.status,
-      responseBodyPreview:
-        error?.response?.data != null ? xanoResponseBodyPreview(error.response.data) : undefined,
-      error,
-    })
-    if (error?.response?.status === 404) {
-      if (isDashboardDebug()) {
-        console.warn('Dashboard: media_plan_versions returned 404')
-      }
-      return []
-    }
-    throw error
   }
 }
 
@@ -282,17 +170,10 @@ export function mapMbaCampaignResponseVersionsToListEntries(
   return entries
 }
 
-/** All versions for one MBA from Xano (newest first). Paged + mba filter. */
+/** All versions for one MBA from Postgres (newest first). */
 export async function fetchVersionsForMba(mbaNumber: string): Promise<MediaPlanVersionListEntry[]> {
-  // Version history — do NOT use getCachedMediaPlanVersions / media_plan_versions_latest.
-  const url = xanoMediaPlansUrl('media_plan_versions')
-  const all = await fetchAllXanoPages(
-    url,
-    { mba_number: String(mbaNumber).trim() },
-    'DASHBOARD_versions_for_mba',
-    100,
-    20
-  )
+  const { loadDashboardVersionsForMba } = await import('@/lib/api/dashboard/planRows')
+  const all = await loadDashboardVersionsForMba(String(mbaNumber).trim())
   const normalisedMba = String(mbaNumber).trim()
   const out: MediaPlanVersionListEntry[] = []
   for (const raw of all) {
@@ -542,6 +423,9 @@ export function buildClientDashboardDataFromVersions(
     const selectedVersionByMBA: Record<string, any> = {}
 
     Object.entries(versionsByMBA).forEach(([mbaKey, versions]: [string, any[]]) => {
+      if (publishedVersionIdByMba?.has(mbaKey) && publishedVersionIdByMba.get(mbaKey) == null) {
+        return
+      }
       const published = publishedByMba?.get(mbaKey)
       const chosenVersion = resolveDashboardLiveVersionRow(versions, published)
       if (chosenVersion) {
@@ -884,11 +768,7 @@ export async function getClientDashboardData(
     campaignScope?: "row" | "group"
   },
 ): Promise<ClientDashboardData | null> {
-  console.log('[dashboard] getClientDashboardData called with slug:', slug, 'ENV check:', {
-    XANO_BASE_URL: !!peekXanoEnv('XANO_BASE_URL'),
-    XANO_MEDIA_PLANS_BASE_URL: !!peekXanoEnv('XANO_MEDIA_PLANS_BASE_URL'),
-    XANO_CLIENTS_COLLECTION_URL: !!peekXanoEnv('XANO_CLIENTS_COLLECTION_URL'),
-  })
+  console.log('[dashboard] getClientDashboardData called with slug:', slug)
   if (!slug || typeof slug !== 'string' || slug.trim().length === 0) {
     console.error('Invalid slug provided for dashboard:', slug)
     return null
@@ -902,6 +782,7 @@ export async function getClientDashboardData(
     let targetSlugs = new Set([slugifyClientName(sanitizedSlug)].filter(Boolean))
     let fallbackClient: Client | null = null
     let targetClientId: number | null = null
+    let clientIds = new Set<number>()
 
     try {
       const { readClientsList } = await import('@/lib/data/readClients')
@@ -913,6 +794,7 @@ export async function getClientDashboardData(
         if (campaignScope === "group") {
           targetSlugs = group.nameSlugs.size > 0 ? group.nameSlugs : targetSlugs
           targetClientId = null
+          clientIds = clientIdsFromGroup(group)
         } else {
           const rowName = getClientDisplayName(group.anchor)
           const rowSlug = slugifyClientName(rowName)
@@ -920,49 +802,46 @@ export async function getClientDashboardData(
           const id = Number(group.anchor.id)
           targetClientId =
             Number.isFinite(id) && id > 0 ? Math.trunc(id) : null
+          if (targetClientId != null) clientIds = new Set([targetClientId])
         }
       } else {
         fallbackClient = await getClientBySlug(slugifyClientName(sanitizedSlug))
+        const id = Number(fallbackClient?.id)
+        if (Number.isFinite(id) && id > 0) {
+          targetClientId = Math.trunc(id)
+          clientIds = new Set([targetClientId])
+        }
       }
     } catch (err) {
       console.warn('Dashboard: skipping client group/fallback lookup due to error', err)
       try {
         fallbackClient = await getClientBySlug(slugifyClientName(sanitizedSlug))
+        const id = Number(fallbackClient?.id)
+        if (Number.isFinite(id) && id > 0) {
+          targetClientId = Math.trunc(id)
+          clientIds = new Set([targetClientId])
+        }
       } catch {
         fallbackClient = null
       }
     }
 
     let totalCampaignsYTDFromMaster: number | null = null
-    let masterEndpointUsed: string | null = null
     let publishedByMba = new Map<string, number>()
     let publishedVersionIdByMba = new Map<string, number | null>()
-
-    try {
-      const { data: masterData, endpoint } = await fetchMediaPlanMasterWithFallback()
-      masterEndpointUsed = endpoint
-      const masterPlans = parseXanoListPayload(masterData)
-      const ytdMap = buildYtdCountBySlugFromMaster(masterPlans, fyWindow)
-      totalCampaignsYTDFromMaster = sumYtdAcrossSlugs(ytdMap, targetSlugs)
-      for (const master of masterPlans) {
-        const key = mbaJoinKey(master?.mba_number)
-        if (!key) continue
-        const published = publishedVersionFromMaster(master)
-        if (published > 0) publishedByMba.set(key, published)
-        const pointer = publishedVersionPointerIdFromMaster(master)
-        if (pointer !== undefined) publishedVersionIdByMba.set(key, pointer)
-      }
-    } catch (error) {
-      console.warn('Dashboard: failed to load media plan master for totals', error)
-    }
-
-    if (isDashboardDebug() && masterEndpointUsed) {
-      console.log(`Dashboard: master totals sourced from ${masterEndpointUsed}`)
-    }
-
     let allVersions: any[] = []
+
     try {
-      allVersions = await fetchMediaPlanVersionsArray()
+      const { loadClientDashboardPlanRows, publishedCutByMba } = await import(
+        '@/lib/api/dashboard/planRows'
+      )
+      const { masters, versions } = await loadClientDashboardPlanRows(clientIds)
+      const ytdMap = buildYtdCountBySlugFromMaster(masters, fyWindow)
+      totalCampaignsYTDFromMaster = sumYtdAcrossSlugs(ytdMap, targetSlugs)
+      const cut = publishedCutByMba(masters, versions)
+      publishedByMba = cut.publishedByMba
+      publishedVersionIdByMba = cut.publishedVersionIdByMba
+      allVersions = versions
     } catch (versionsError) {
       console.warn('Dashboard: media_plan_versions fetch failed; using partial dashboard if client is known', versionsError)
       if (fallbackClient) {
@@ -1008,25 +887,24 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
   if (!Array.isArray(rawClients) || rawClients.length === 0) return []
 
   const fyWindow = getAustralianFinancialYearWindow(new Date())
-  const [allVersions, masterBundle] = await Promise.all([
-    fetchMediaPlanVersionsArray().catch((err) => {
-      console.warn('getClientHubSummaries: media_plan_versions failed; continuing with empty versions', err)
-      return [] as any[]
-    }),
-    fetchMediaPlanMasterWithFallback().catch(() => ({ data: [] as any[], endpoint: null as string | null })),
-  ])
-  const masterPlans = parseXanoListPayload(masterBundle.data)
-  const ytdMap = buildYtdCountBySlugFromMaster(masterPlans, fyWindow)
-  const publishedByMba = new Map<string, number>()
-  const publishedVersionIdByMba = new Map<string, number | null>()
-  for (const master of masterPlans) {
-    const key = mbaJoinKey(master?.mba_number)
-    if (!key) continue
-    const published = publishedVersionFromMaster(master)
-    if (published > 0) publishedByMba.set(key, published)
-    const pointer = publishedVersionPointerIdFromMaster(master)
-    if (pointer !== undefined) publishedVersionIdByMba.set(key, pointer)
+  let allVersions: any[] = []
+  let masterPlans: any[] = []
+  let publishedByMba = new Map<string, number>()
+  let publishedVersionIdByMba = new Map<string, number | null>()
+  try {
+    const { loadPublishedDashboardPlanRows, publishedCutByMba } = await import(
+      '@/lib/api/dashboard/planRows'
+    )
+    const loaded = await loadPublishedDashboardPlanRows()
+    allVersions = loaded.versions
+    masterPlans = loaded.masters
+    const cut = publishedCutByMba(masterPlans, allVersions)
+    publishedByMba = cut.publishedByMba
+    publishedVersionIdByMba = cut.publishedVersionIdByMba
+  } catch (err) {
+    console.warn('getClientHubSummaries: media plan rows failed; continuing with empty versions', err)
   }
+  const ytdMap = buildYtdCountBySlugFromMaster(masterPlans, fyWindow)
 
   const summaries: ClientHubSummary[] = []
   for (const raw of rawClients) {
@@ -1076,10 +954,10 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
   return summaries
 }
 
-async function fetchXanoClientsWithSlugsForHub(): Promise<any[]> {
-  const url = getXanoClientsCollectionUrl()
-  const response = await apiClient.get(url)
-  const rows = parseXanoListPayload(response.data)
+async function fetchClientsWithSlugsForHub(): Promise<any[]> {
+  const { readClientsList } = await import('@/lib/data/readClients')
+  const result = await readClientsList()
+  const rows = parseXanoListPayload(result.body)
   return rows.map((raw: any) => {
     const stripped = omitClientBrain(
       raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {},
@@ -1091,10 +969,10 @@ async function fetchXanoClientsWithSlugsForHub(): Promise<any[]> {
   })
 }
 
-/** Server-only: loads clients from Xano and builds hub cards in one batched pass (no self-HTTP). */
+/** Loads clients from Postgres and builds hub cards in one pass. */
 export async function getClientHubSummariesForAdminHub(): Promise<ClientHubSummary[]> {
   try {
-    const rows = await fetchXanoClientsWithSlugsForHub()
+    const rows = await fetchClientsWithSlugsForHub()
     return await getClientHubSummaries(rows)
   } catch (e: any) {
     const msg = e?.message != null ? String(e.message) : String(e)

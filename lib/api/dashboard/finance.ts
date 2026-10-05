@@ -1,15 +1,14 @@
-import { parseXanoListPayload } from '@/lib/api/xano'
-import { xanoMediaPlansUrl } from '@/lib/api/xanoClients'
-import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
+import {
+  loadPublishedDashboardPlanRows,
+  publishedCutByMba,
+} from '@/lib/api/dashboard/planRows'
 import {
   australianFyStartYearForDate,
   billingMonthsInAustralianFinancialYear,
   referenceDateForFyStartYear,
 } from '@/lib/finance/months'
 import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
-import { publishedVersionFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
 import {
-  apiClient,
   getTzParts,
   getAustralianFinancialYearWindow,
   normalizeSchedule,
@@ -30,7 +29,8 @@ export type FinanceHubScheduleFytdOptions = {
  * - **billingScheduleYtd**: sum of `sumLineItems` per month row on `billingSchedule` / `billing_schedule` only.
  * - **deliveryScheduleYtd**: same on `deliverySchedule` / `delivery_schedule` only (no fallback to the other);
  *   media line items with `clientPaysForMedia` / `client_pays_for_media` are excluded (aligned with payables).
- * Version per MBA: booked/approved/completed if present, else highest `version_number` (same as global monthly charts).
+ * Version per MBA: the master's `published_version_id` when that row has `published_at`.
+ * Campaign status is the master status (approved/booked/completed include; planned/cancelled follow the existing gate).
  * Months: Australian FY — past FY = full 12 months; current FY = through current calendar month (Melbourne);
  * future FY = empty set (nothing “to date”).
  */
@@ -63,36 +63,8 @@ export async function getFinanceHubScheduleFytdTotals(
 
   const { start: fyStart, end: fyEnd } = getAustralianFinancialYearWindow(reference)
 
-  const [allVersions, mastersRaw] = await Promise.all([
-    fetchAllXanoPages(
-      xanoMediaPlansUrl('media_plan_versions'),
-      {},
-      'DASHBOARD_finance_hub_schedule_fytd',
-      100,
-      50
-    ),
-    (async () => {
-      // Prefer same master endpoints as client dashboard; tolerate missing collection.
-      for (const endpoint of ['media_plan_master', 'media_plans_master'] as const) {
-        try {
-          const response = await apiClient.get(xanoMediaPlansUrl(endpoint))
-          return parseXanoListPayload(response.data)
-        } catch (err: any) {
-          if (err?.response?.status === 404) continue
-          throw err
-        }
-      }
-      return [] as any[]
-    })(),
-  ])
-
-  const publishedByMba = new Map<string, number>()
-  for (const master of mastersRaw || []) {
-    const key = mbaJoinKey(master?.mba_number ?? master?.mbaNumber)
-    if (!key) continue
-    const published = publishedVersionFromMaster(master)
-    if (published > 0) publishedByMba.set(key, published)
-  }
+  const { versions: allVersions, masters: mastersRaw } = await loadPublishedDashboardPlanRows()
+  const { publishedByMba } = publishedCutByMba(mastersRaw, allVersions)
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const key = mbaJoinKey(version?.mba_number)
@@ -102,7 +74,7 @@ export async function getFinanceHubScheduleFytdTotals(
     return acc
   }, {} as Record<string, any[]>)
 
-  // VC1-5: tip = master.version_number (publishedVersionNumber); commercial = BAC on that tip.
+  // Published cut is the stamped pointer's version_number; commercial gate is booked/approved/completed on that row.
   const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce(
     (acc: Record<string, any>, [mbaKey, versions]: [string, any[]]) => {
       const published = publishedByMba.get(mbaKey)

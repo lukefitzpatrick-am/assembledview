@@ -1,7 +1,9 @@
 import type { Publisher, PublisherDashboardData, PublisherCampaignRow } from '@/lib/types/publisher'
 import { buildAllowedScheduleLabels } from '@/lib/publisher/scheduleLabels'
-import { xanoMediaPlansUrl } from '@/lib/api/xanoClients'
-import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
+import {
+  loadPublishedDashboardPlanRows,
+  publishedCutByMba,
+} from '@/lib/api/dashboard/planRows'
 import {
   getAustralianFinancialYear,
   normalizeSchedule,
@@ -46,13 +48,8 @@ export async function getPublisherDashboardData(publisher: Publisher): Promise<P
 
   const allowedLabels = buildAllowedScheduleLabels(publisher as unknown as Record<string, unknown>)
 
-  const allVersions = await fetchAllXanoPages(
-    xanoMediaPlansUrl("media_plan_versions"),
-    {},
-    "DASHBOARD_publisher",
-    100,
-    50
-  )
+  const { masters, versions: allVersions } = await loadPublishedDashboardPlanRows()
+  const { publishedByMba } = publishedCutByMba(masters, allVersions)
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const key = mbaJoinKey(version?.mba_number)
@@ -62,10 +59,10 @@ export async function getPublisherDashboardData(publisher: Publisher): Promise<P
     return acc
   }, {} as Record<string, any[]>)
 
-  // VC1-5: tip via published_at; commercial via BAC on that tip only (no master tip map here).
+  // Published cut is the stamped pointer's version_number; commercial gate is booked/approved/completed on that row.
   const chosenByMBA: Record<string, any> = {}
-  Object.entries(versionsByMBA).forEach(([, versions]: [string, any[]]) => {
-    const picked = resolveDashboardCommercialLiveVersionRow(versions)
+  Object.entries(versionsByMBA).forEach(([mbaKey, versions]: [string, any[]]) => {
+    const picked = resolveDashboardCommercialLiveVersionRow(versions, publishedByMba.get(mbaKey))
     if (picked?.mba_number) chosenByMBA[picked.mba_number] = picked
   })
 
