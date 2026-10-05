@@ -183,7 +183,7 @@ export async function getPlanningMeta(opts?: {
         querySnowflake<MethodologyRow>(
           `
         SELECT
-          METHODOLOGY_ID,
+          METRIC_KEY AS METHODOLOGY_ID,
           TITLE,
           FORMULA_TEXT,
           DESCRIPTION,
@@ -191,7 +191,7 @@ export async function getPlanningMeta(opts?: {
           SORT_ORDER,
           TO_VARCHAR(UPDATED_AT) AS UPDATED_AT
         FROM ${MART}.PLANNING_METHODOLOGY
-        ORDER BY SORT_ORDER ASC NULLS LAST, METHODOLOGY_ID
+        ORDER BY SORT_ORDER ASC NULLS LAST, METRIC_KEY
         `,
           [],
           {
@@ -206,7 +206,7 @@ export async function getPlanningMeta(opts?: {
           `
         SELECT
           PARAM_KEY,
-          PARAM_VALUE
+          VALUE AS PARAM_VALUE
         FROM ${MART}.PLANNING_ENGINE_PARAMS
         ORDER BY PARAM_KEY
         `,
