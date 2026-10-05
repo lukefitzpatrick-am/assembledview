@@ -4,11 +4,14 @@ import { test } from "node:test"
 import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types"
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
 
+import type { CampaignPacingRow } from "@/lib/pacing/portfolio/types"
+
 import {
   adServingStatusToDigestBand,
   buildAdServingDigestCampaignRows,
   buildDigestCampaignRows,
   buildDirectDigestCampaignRows,
+  digestRowsFromPortfolioCampaigns,
   directStatusToDigestBand,
   metricsForSourceRow,
   pillToDigestBand,
@@ -332,4 +335,55 @@ test("email HTML includes Delivery relabels section", () => {
   assert.match(html, /Delivery relabels · 2026-09-20/)
   assert.match(html, /bicau002sm2/)
   assert.match(html, /map drifted on bicau002sm2/)
+})
+
+test("portfolio snapshot campaigns become digest rows with fraction percents", () => {
+  const row: CampaignPacingRow = {
+    mbaNumber: "TheY001",
+    versionNumber: 15,
+    clientName: "The Y",
+    clientSlug: "the-y",
+    campaignName: "Always on",
+    status: "approved",
+    startDate: "2026-08-01",
+    endDate: "2027-06-30",
+    daysElapsed: 60,
+    daysTotal: 300,
+    daysLeft: 240,
+    timePct: 20,
+    budget: 1000,
+    spendToDate: 250,
+    expectedToDate: 200,
+    spendPct: 125,
+    pace: "behind",
+    projectedFinish: 1250,
+    spendYesterday: 0,
+    dailyRateActual: 0,
+    dailyRatePlan: 0,
+    kpi: null,
+    moneyAtRisk: 0,
+    why: "",
+    channels: [
+      {
+        channelKey: "search",
+        label: "Search",
+        spendToDate: 250,
+        budget: 1000,
+        expectedToDate: 200,
+        spendPct: 125,
+        pace: "behind",
+        spendMode: "actual",
+        deliverable: null,
+        sourceState: "reporting",
+        lineItemIds: ["they001se1"],
+      },
+    ],
+  }
+  const [digest] = digestRowsFromPortfolioCampaigns([row])
+  assert.equal(digest?.band, "at-risk")
+  assert.equal(digest?.deliveredPct, 0.25)
+  assert.equal(digest?.timeElapsedPct, 0.2)
+  assert.equal(digest?.channel, "Search")
+  assert.equal(digest?.lineItemCount, 1)
+  assert.equal(digest?.daysLeft, 240)
 })

@@ -1,4 +1,5 @@
 import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types"
+import type { CampaignPacingRow, PortfolioPace } from "@/lib/pacing/portfolio/types"
 import type {
   DirectCampaignGroup,
   DirectLineItemRow,
@@ -93,6 +94,55 @@ export function adServingStatusToDigestBand(
 ): DigestBand {
   if (status === "serving") return "on"
   return "no-data"
+}
+
+/** Portfolio pace → digest band. `behind` and `no_delivery` are the at-risk section. */
+export function portfolioPaceToDigestBand(pace: PortfolioPace | string): DigestBand {
+  if (pace === "ahead") return "ahead"
+  if (pace === "on_track") return "on"
+  if (pace === "behind" || pace === "no_delivery") return "at-risk"
+  return "no-data"
+}
+
+/** One digest row per campaign on a portfolio snapshot. Percents are fractions. */
+export function digestRowsFromPortfolioCampaigns(
+  rows: CampaignPacingRow[],
+): DigestCampaignRow[] {
+  const mapped = rows.map((row) => {
+    const budget = Number(row.budget)
+    const spend = Number(row.spendToDate)
+    const timePct = Number(row.timePct)
+    const channels = Array.isArray(row.channels) ? row.channels : []
+    const lineItemCount = channels.reduce(
+      (sum, channel) =>
+        sum + (Array.isArray(channel.lineItemIds) ? channel.lineItemIds.length : 0),
+      0,
+    )
+    const channel =
+      channels
+        .map((item) => item.label)
+        .filter((label) => typeof label === "string" && label.trim().length > 0)
+        .join(", ") || "portfolio"
+    return {
+      clientName: String(row.clientName ?? ""),
+      mbaNumber: String(row.mbaNumber ?? ""),
+      campaignName: String(row.campaignName ?? ""),
+      channel,
+      band: portfolioPaceToDigestBand(row.pace),
+      deliveredPct: budget > 0 && Number.isFinite(spend) ? spend / budget : null,
+      timeElapsedPct: Number.isFinite(timePct) ? timePct / 100 : null,
+      daysLeft: Number.isFinite(Number(row.daysLeft)) ? Number(row.daysLeft) : null,
+      lineItemCount: lineItemCount > 0 ? lineItemCount : channels.length,
+    }
+  })
+  return mapped.sort((a, b) => {
+    const bandDiff = bandSortKey(a.band) - bandSortKey(b.band)
+    if (bandDiff !== 0) return bandDiff
+    return (
+      a.clientName.localeCompare(b.clientName) ||
+      a.mbaNumber.localeCompare(b.mbaNumber)
+    )
+  })
 }
 
 export function bandSortKey(band: DigestBand): number {

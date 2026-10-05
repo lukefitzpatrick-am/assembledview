@@ -10,7 +10,7 @@ import {
 } from "@/lib/ops/digest/email"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 120
+export const maxDuration = 300
 export const runtime = "nodejs"
 export const preferredRegion = ["syd1"]
 
@@ -23,14 +23,42 @@ export async function GET(request: Request) {
   }
 
   const startedAt = new Date()
+  const handlerStarted = Date.now()
   try {
+    const digestStarted = Date.now()
     const payload = await buildPacingDigest(startedAt)
+    console.log(
+      JSON.stringify({
+        event: "pacing_digest_stage",
+        stage: "build",
+        ms: Date.now() - digestStarted,
+        campaigns: payload.counts.total,
+      }),
+    )
+    const closeStarted = Date.now()
     const closedRelabelTasks = await runCloseUntouchedRelabelTasks(startedAt)
+    console.log(
+      JSON.stringify({
+        event: "pacing_digest_stage",
+        stage: "relabel_close",
+        ms: Date.now() - closeStarted,
+        closedRelabelTasks,
+      }),
+    )
     const subject = buildPacingDigestSubject(payload)
     const html = buildPacingDigestEmailHtml(payload)
     const to = getOpsEmailRecipients()
 
+    const emailStarted = Date.now()
     await sendHtmlEmail({ to, subject, html })
+    console.log(
+      JSON.stringify({
+        event: "pacing_digest_stage",
+        stage: "email",
+        ms: Date.now() - emailStarted,
+        handlerMs: Date.now() - handlerStarted,
+      }),
+    )
 
     console.log(
       JSON.stringify({
