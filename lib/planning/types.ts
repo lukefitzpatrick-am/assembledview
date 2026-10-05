@@ -80,7 +80,7 @@ export type PlanningMeta = {
   genders: readonly PlanningGender[]
   /** Ordered PLANNING_METHODOLOGY rows (empty if table missing/unseeded). */
   methodology: PlanningMethodologyRow[]
-  /** PARAM_KEY → PARAM_VALUE from PLANNING_ENGINE_PARAMS (empty → code defaults). */
+  /** PARAM_KEY → VALUE from PLANNING_ENGINE_PARAMS (query aliases VALUE as PARAM_VALUE; empty → code defaults). */
   engine_params: Record<string, number>
 }
 
