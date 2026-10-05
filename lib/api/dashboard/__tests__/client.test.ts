@@ -213,6 +213,50 @@ describe("buildClientDashboardDataFromVersions — deliveryScheduleByMBA campaig
     expect(allTime!.totalSpend).toBeCloseTo(1400, 2)
     expect(implicit!.totalSpend).not.toBeCloseTo(allTime!.totalSpend, 2)
   })
+
+  it("counts the post-cutover published version, not the older frozen row", () => {
+    const targetSlugs = new Set([slugifyClientName("The Y")])
+    const frozen = version({
+      id: 13,
+      mba_number: "TheY001",
+      version_number: 13,
+      campaign_status: "planned",
+      published_at: "2025-01-01T00:00:00.000Z",
+      mp_client_name: "The Y",
+      client_id: 7,
+      campaign_name: "The Y frozen",
+      deliverySchedule: [typesShapeEntry("$9,000.00")],
+    })
+    const postCutover = version({
+      id: 15,
+      mba_number: "TheY001",
+      version_number: 15,
+      campaign_status: "approved",
+      published_at: "2026-08-01T00:00:00.000Z",
+      mp_client_name: "The Y",
+      client_id: 7,
+      campaign_name: "The Y campaign",
+      deliverySchedule: [typesShapeEntry("$2,000.00")],
+    })
+
+    const dashboard = buildClientDashboardDataFromVersions(targetSlugs, [frozen, postCutover], {
+      fallbackClient: null,
+      totalCampaignsYTDFromMaster: null,
+      urlSlug: "the-y",
+      publishedByMba: new Map([["they001", 15]]),
+      publishedVersionIdByMba: new Map([["they001", 15]]),
+      financialYearStartYear: 2025,
+      targetClientId: 7,
+    })
+
+    expect(dashboard).not.toBeNull()
+    expect(dashboard!.allCampaigns).toHaveLength(1)
+    expect(dashboard!.allCampaigns[0]?.version_number).toBe(15)
+    expect(dashboard!.allCampaigns[0]?.status).toBe("approved")
+    expect(dashboard!.allCampaigns[0]?.mbaNumber).toBe("TheY001")
+    const media = (dashboard!.spendByMediaType ?? []).reduce((sum, row) => sum + row.amount, 0)
+    expect(media).toBeCloseTo(2000, 2)
+  })
 })
 
 describe("getClientDashboardData client group lookup", () => {
@@ -220,6 +264,9 @@ describe("getClientDashboardData client group lookup", () => {
     const src = getClientDashboardDataSource()
     expect(src).toContain("readClientsList")
     expect(src).toContain("parseXanoListPayload(result.body)")
+    expect(src).toContain("loadClientDashboardPlanRows")
+    expect(src).toContain("clientIdsFromGroup")
+    expect(src).not.toMatch(/readPlanVersions\s*\(/)
     expect(src).not.toMatch(/getXanoClientsCollectionUrl\s*\(/)
     expect(src).not.toMatch(/apiClient\.get\(clientsUrl\)/)
   })

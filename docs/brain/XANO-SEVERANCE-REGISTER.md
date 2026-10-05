@@ -51,7 +51,7 @@ No other DATA_BACKEND_* exists. Unset domains fall back to DATA_BACKEND, so plan
 
 LINE_ITEM_SNAPSHOT_SOURCE is set on production (secret). Its value was not read. The code default is xano, which calls fetchAllXanoLineItems. Reach for that cron is **unknown**.
 
-XS-2b reads KPI, publishers, clients, pacing, approvals, best practice, and publisher market share from Postgres, and writes `publisher_kpi` and `pacing_orphan_fixes` to Postgres. `lib/xano/pacingOrphanFixes.ts` is deleted. `lib/api/publishers.ts` still has `fetchPublishersFromXano` for the archived backfill script. Client-collection fetches in lib/api/dashboard/client.ts (`getClientBySlug`, hub client list) stay on Xano until the clients switch. XS-2a removed finance HTTP. Tallies below are not recounted.
+XS-2b reads KPI, publishers, clients, pacing, approvals, best practice, and publisher market share from Postgres, and writes `publisher_kpi` and `pacing_orphan_fixes` to Postgres. `lib/xano/pacingOrphanFixes.ts` is deleted. `lib/api/publishers.ts` still has `fetchPublishersFromXano` for the archived backfill script. `getClientBySlug` and the admin hub client list in `lib/api/dashboard/client.ts` read `readClientsList`. XS-2a removed finance HTTP. Tallies below are not recounted.
 
 **Ten largest PORT files by non-test importers** (direct imports of the file; tests excluded). Dual-read modules rank high because many callers exist; those callers take the Postgres branch today.
 
@@ -162,10 +162,10 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 
 | File | Fetches / writes | Flag | Production | Postgres equivalent | Verdict |
 |---|---|---|---|---|---|
-| `lib/api/dashboard/client.ts` | Plan masters and versions via readPlanMasters / readPlanVersions. Client collection GETs remain Xano | plans: none; clients: unconditional | clients only | lib/api/dashboard/planRows.ts | **DONE** (plans) |
-| `lib/api/dashboard/finance.ts` | FYTD plan rows via readPlanMasters / readPlanVersions | none | no | lib/api/dashboard/planRows.ts | **DONE** |
+| `lib/api/dashboard/client.ts` | Client row via `readClientsList`. Plan rows via `loadClientDashboardPlanRows` (`client_id` set, `readPlanVersionsForMbas` with schedules). Published cut is `published_version_id` with `published_at`. Campaign status is the master status | none | no | lib/data/readClients.ts; lib/api/dashboard/planRows.ts | **DONE** |
+| `lib/api/dashboard/finance.ts` | FYTD totals from `loadPublishedDashboardPlanRows` (pointer versions, master status) | none | no | lib/api/dashboard/planRows.ts | **DONE** |
 | `lib/api/dashboard/global.ts` | dashboard monthly publisher/client spend from Postgres | none | no | lib/data/dashboardMonthlySpend.ts fetchDashboardMonthly*FromPostgres | **DONE** |
-| `lib/api/dashboard/publisher.ts` | Plan versions via readPlanVersions | none | no | lib/api/dashboard/planRows.ts | **DONE** |
+| `lib/api/dashboard/publisher.ts` | Publisher spend from `loadPublishedDashboardPlanRows` (pointer versions, master status) | none | no | lib/api/dashboard/planRows.ts | **DONE** |
 | `lib/api/dashboard/shared.ts` | axios client with Xano auth headers (no request until a caller uses apiClient) | unconditional | yes | none | **TOOLING** |
 | `lib/api/fetchChannelLineItemsByMba.ts` | channel lines from Postgres line_items | none | no | fetchLineItemsFromPostgresByEndpoint | **DONE** |
 | `lib/api/media-containers.ts` | delivery and container line items from Postgres line_items | none | no | fetchLineItemsFromPostgresByEndpoint | **DONE** |
