@@ -1,6 +1,6 @@
 import "server-only"
 
-import { readPlanVersions } from "@/lib/data/readMediaPlans"
+import { readPublishedOrLivePlanVersions } from "@/lib/data/readMediaPlans"
 import {
   getCachedAdServingPacingRows,
   getCachedDirectPacingRows,
@@ -76,7 +76,7 @@ export async function buildCampaignPacingRows(
       },
       { parallel: true }
     ),
-    readPlanVersions(),
+    readPublishedOrLivePlanVersions(args.asOfDate),
   ])
 
   return assembleCampaignPacingRows({

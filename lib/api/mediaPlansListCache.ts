@@ -81,11 +81,13 @@ function mediaPlansUrl(path: string): string {
 
 async function fetchVersionsForList(): Promise<{
   data: any[]
+  masters: any[]
   stale: boolean
   fetchedAt?: number
 }> {
-  // Shared `_latest` walk (PAGE_SIZE=50, include_schedules=false). Schedules
-  // are already stripped by mediaPlanVersionsCache.
+  // Shared latest-per-MBA walk. Schedules are already omitted by
+  // mediaPlanVersionsCache. On postgres, masters ride along so this cache
+  // does not call readPlanMasters a second time.
   return getCachedMediaPlanVersions()
 }
 
@@ -207,7 +209,9 @@ async function mergeLatestVersionsWithMasters(
 async function fetchUpstream(): Promise<{ data: any[]; stale: boolean; fetchedAt?: number }> {
   // Sequential on purpose: two concurrent multi-page walks contend on the shared Xano instance and can push one past the 15s timeout.
   const versions = await fetchVersionsForList()
-  const mastersData = await fetchMasters()
+  const { getDataBackendFor } = await import("@/lib/data/backend")
+  const mastersData =
+    getDataBackendFor("plans") === "postgres" ? versions.masters : await fetchMasters()
   const data = await mergeLatestVersionsWithMasters(versions.data, mastersData)
   return { data, stale: versions.stale, fetchedAt: versions.fetchedAt }
 }

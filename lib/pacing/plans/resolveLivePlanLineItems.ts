@@ -222,7 +222,7 @@ async function resolveFromPostgres(
   args: ResolveLivePlanLineItemsArgs,
   logTag: string
 ): Promise<LivePlanLineItemRow[]> {
-  const { readPlanMasters, readPlanVersions, fetchLineItemsFromPostgresByEndpoint } =
+  const { readPlanMasters, readPlanVersionsForMbas, fetchLineItemsFromPostgresByEndpoint } =
     await import("@/lib/data/readMediaPlans")
 
   const masters = (await readPlanMasters())
@@ -236,7 +236,9 @@ async function resolveFromPostgres(
   )
   if (liveMasters.length === 0) return []
 
-  const versions = await readPlanVersions()
+  const versions = await readPlanVersionsForMbas(
+    liveMasters.map((m) => m.mba_number),
+  )
   const versionRowsByMba = new Map<string, VersionRow>()
   const wantMba = new Set(liveMasters.map((m) => norm(m.mba_number)))
   const wantVersion = new Map(
