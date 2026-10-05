@@ -8,6 +8,8 @@ export type QuerySnowflakeOptions = {
   requestId?: string
   signal?: AbortSignal
   label?: string
+  /** Per-query execute timeout in milliseconds. Defaults to the pool execute timeout. */
+  timeoutMs?: number
 }
 
 export async function querySnowflake<T = any>(
@@ -27,6 +29,7 @@ export async function querySnowflake<T = any>(
     requestId,
     signal: options.signal,
     label: options.label,
+    timeoutMs: options.timeoutMs,
   })
   if (DEBUG_SNOWFLAKE) {
     console.info("[snowflake][query] done", { requestId, ms: Date.now() - start, rows: rows?.length ?? 0 })

@@ -26,7 +26,8 @@ import type { XanoLineItem } from "@/lib/xano/fetchAllLineItems"
 
 const SNAPSHOT = "ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT"
 
-const BATCH_SIZE = 500
+const BATCH_SIZE = 200
+const MERGE_TIMEOUT_MS = 90_000
 
 function dedupeByLineItemId(items: XanoLineItem[]): {
   deduped: XanoLineItem[]
@@ -153,21 +154,37 @@ async function mergeLineItemBatches(deduped: XanoLineItem[], result: SyncLineIte
   for (let i = 0; i < deduped.length; i += BATCH_SIZE) {
     const batch = deduped.slice(i, i + BATCH_SIZE)
     const sql = buildBatchMergeSql(batch.length)
+    const label = `xano_snapshot_batch_merge_${batch.length}`
+    const batchOrdinal = Math.floor(i / BATCH_SIZE) + 1
+
+    const run = (attemptLabel: string) =>
+      querySnowflake(sql, buildRowBinds(batch), {
+        label: attemptLabel,
+        timeoutMs: MERGE_TIMEOUT_MS,
+      })
 
     try {
-      await querySnowflake(sql, buildRowBinds(batch), {
-        label: `xano_snapshot_batch_merge_${batch.length}`,
-      })
+      await run(label)
       result.succeeded += batch.length
       result.batches += 1
     } catch (err) {
-      result.failed += batch.length
-      const batchOrdinal = Math.floor(i / BATCH_SIZE) + 1
-      result.errors.push(
-        `Batch ${batchOrdinal} (${batch.length} rows starting at index ${i}): ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      )
+      try {
+        console.warn(
+          `[xano-sync] batch ${batchOrdinal} failed; retrying once: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        )
+        await run(`${label}_retry`)
+        result.succeeded += batch.length
+        result.batches += 1
+      } catch (retryErr) {
+        result.failed += batch.length
+        result.errors.push(
+          `Batch ${batchOrdinal} (${batch.length} rows starting at index ${i}): ${
+            retryErr instanceof Error ? retryErr.message : String(retryErr)
+          }`
+        )
+      }
     }
   }
 }
