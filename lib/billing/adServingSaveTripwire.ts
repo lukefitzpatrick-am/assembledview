@@ -3,6 +3,7 @@
  * Logs `[savePlan-adserving-zero]` — does not throw.
  */
 
+import { computeAdServingCost } from "@/lib/billing/computeAdServingCost"
 import { isAdServingEligibleMediaType } from "@/lib/billing/adServingRateResolver"
 import type { BillingMonth } from "@/lib/billing/types"
 
@@ -29,6 +30,97 @@ export type AdServingTripwirePerLine = {
   mediaType: string
   deliverables: number
   flags: { excluded: boolean }
+  /** Present when the save path knows the line buy type. */
+  buyType?: string
+  /**
+   * Positive ad-serving impressions on the line (max across bursts).
+   * Absent or not > 0 means the line has none.
+   */
+  adServingImpressions?: number
+  /**
+   * Unrounded sum of `computeAdServingCost` across bursts.
+   * A positive value that rounds below one cent is zero on the schedule by design.
+   */
+  computedAdServing?: number
+}
+
+export type AdServingTripwireComputeSource = {
+  lineItemId: string
+  mediaType: string
+  buyType: string
+  bursts: Array<{
+    deliverables?: number
+    calculatedValue?: number
+    adServingRatePct?: number
+    adServingImpressions?: number
+  }>
+}
+
+function normaliseBuyType(buyType: string | undefined): string {
+  return (buyType ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_")
+}
+
+/** fixed_cost with no impressions, or a positive compute that currency-rounds to $0.00. */
+function isZeroAdServingByDesign(pl: AdServingTripwirePerLine): boolean {
+  if (normaliseBuyType(pl.buyType) === "fixed_cost") {
+    if (!(typeof pl.adServingImpressions === "number" && pl.adServingImpressions > 0)) {
+      return true
+    }
+  }
+  const computed = pl.computedAdServing
+  if (
+    typeof computed === "number" &&
+    Number.isFinite(computed) &&
+    computed > 0 &&
+    Math.round(computed * 100) < 1
+  ) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Stamp buy type, impressions, and unrounded ad-serving cost onto tripwire rows
+ * so the evaluator can ignore zeros the formula produces on purpose.
+ */
+export function withAdServingTripwireCompute(
+  perLine: AdServingTripwirePerLine[],
+  sources: AdServingTripwireComputeSource[],
+  getRateForMediaType: ((mediaType: string) => number) | undefined,
+  adservaudio?: number | null,
+): AdServingTripwirePerLine[] {
+  const byId = new Map(sources.map((line) => [String(line.lineItemId), line]))
+  return perLine.map((pl) => {
+    const line = byId.get(String(pl.lineItemId))
+    if (!line) return pl
+    let impressions = 0
+    let computed = 0
+    const rate = getRateForMediaType?.(line.mediaType) ?? 0
+    for (const burst of line.bursts) {
+      if (
+        typeof burst.adServingImpressions === "number" &&
+        burst.adServingImpressions > impressions
+      ) {
+        impressions = burst.adServingImpressions
+      }
+      const quantity = Number(burst.deliverables ?? burst.calculatedValue ?? 0)
+      computed += computeAdServingCost({
+        quantity: Number.isFinite(quantity) ? quantity : 0,
+        buyType: line.buyType,
+        mediaType: line.mediaType,
+        rate,
+        adservaudio,
+        adServingRatePct: burst.adServingRatePct,
+        adServingImpressions: burst.adServingImpressions,
+      })
+    }
+    return {
+      ...pl,
+      buyType: line.buyType,
+      adServingImpressions: impressions,
+      computedAdServing: computed,
+    }
+  })
 }
 
 /**
@@ -76,6 +168,7 @@ export function evaluateAdServingZeroTripwire(args: {
     if (!isAdServingEligibleMediaType(pl.mediaType)) continue
     if (noAdservingByLineId.get(String(pl.lineItemId))) continue
     if (!(pl.deliverables > 0)) continue
+    if (isZeroAdServingByDesign(pl)) continue
     const adServingAmount = lineAdServingById.get(String(pl.lineItemId)) ?? 0
     chargeable.push({
       lineItemId: String(pl.lineItemId),

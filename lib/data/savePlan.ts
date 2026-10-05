@@ -48,6 +48,7 @@ import {
   evaluateAdServingZeroTripwire,
   lineAdServingTotalsFromSchedule,
   logAdServingZeroTripwire,
+  withAdServingTripwireCompute,
 } from "@/lib/billing/adServingSaveTripwire"
 import { computeApprovedSlice, type ApprovedSlice } from "@/lib/finance/approvedSlice"
 import { computeSnapshotChecksum } from "@/lib/docs/snapshotChecksum"
@@ -989,7 +990,12 @@ export async function savePlanVersion(
         )
         const trip = evaluateAdServingZeroTripwire({
           adServingTotal,
-          perLine: financials.perLine,
+          perLine: withAdServingTripwireCompute(
+            financials.perLine,
+            lineInputs,
+            input.getRateForMediaType,
+            input.adservaudio,
+          ),
           noAdservingByLineId,
           lineAdServingById: lineAdServingTotalsFromSchedule(
             financials.billingSchedule
