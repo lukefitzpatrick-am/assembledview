@@ -25,6 +25,7 @@ export async function GET(request: Request) {
   const asOfDate = getAsOfDate()
   const liveOnly = true
   const scopeKey = pacingScopeKey(null)
+  const handlerStarted = Date.now()
 
   try {
     const snapshot = await buildAndStorePortfolioSnapshot({
@@ -42,6 +43,14 @@ export async function GET(request: Request) {
       durationMs: snapshot.durationMs,
       generatedAt: snapshot.generatedAt,
     }
+    console.log(
+      JSON.stringify({
+        event: "pacing_portfolio_stage",
+        stage: "handler",
+        ms: Date.now() - handlerStarted,
+        rowCount: snapshot.rows.length,
+      }),
+    )
     console.log(JSON.stringify({ event: "pacing_portfolio_snapshot", ...summary }))
     return NextResponse.json(summary)
   } catch (err) {

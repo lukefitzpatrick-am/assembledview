@@ -14,10 +14,13 @@ import {
   getCachedSearchPacingRows,
   getCachedSocialPacingRows,
 } from "@/lib/pacing/campaigns/pacingRowsCache"
+import { pacingScopeKey } from "@/lib/pacing/campaigns/pacingRowsCache"
+import { readPortfolioSnapshot } from "@/lib/pacing/portfolio/portfolioSnapshotStore"
 import {
   buildAdServingDigestCampaignRows,
   buildDigestCampaignRows,
   buildDirectDigestCampaignRows,
+  digestRowsFromPortfolioCampaigns,
   bandSortKey,
   groupDigestByBand,
   type DigestCampaignRow,
@@ -82,17 +85,53 @@ export type PacingDigestPayload = {
   }
 }
 
+function logDigestStage(
+  stage: string,
+  started: number,
+  extra?: Record<string, unknown>,
+): void {
+  console.log(
+    JSON.stringify({
+      event: "pacing_digest_stage",
+      stage,
+      ms: Date.now() - started,
+      ...extra,
+    }),
+  )
+}
+
 /**
- * Build digest from the same cached adapters the pacing tabs use
- * (`getCached*PacingRows`, 4h TTL). Scope = all clients (admin/cron).
+ * Prefer the same-day admin portfolio snapshot (`scope_key` all, live only).
+ * Recompute from the channel caches only when that row is missing.
  */
 export async function buildPacingDigest(now: Date = new Date()): Promise<PacingDigestPayload> {
   const asOfDate = getAsOfDate(now)
   const allowedClientSlugs = null
+  const snapshotStarted = Date.now()
+  const snapshot = await readPortfolioSnapshot({
+    asOfDate,
+    scopeKey: pacingScopeKey(null),
+    liveOnly: true,
+  })
+  logDigestStage("snapshot_read", snapshotStarted, {
+    hit: snapshot != null,
+    asOfDate,
+    campaigns: snapshot?.rows.length ?? 0,
+  })
+
+  if (snapshot && snapshot.asOfDate === asOfDate) {
+    const mapStarted = Date.now()
+    const rows = digestRowsFromPortfolioCampaigns(snapshot.rows)
+    logDigestStage("snapshot_rows", mapStarted, { campaigns: rows.length })
+    return finishDigest(now, asOfDate, rows, {
+      cacheNote: `Same-day admin portfolio snapshot generated ${snapshot.generatedAt}.`,
+    })
+  }
 
   // Direct + ad-serving use distinct status vocabularies; mapped into the
   // existing DigestBand scheme (no new thresholds). Cached getters exist for
   // both — same 4h pacingRowsCache as search/social/programmatic.
+  const cacheStarted = Date.now()
   const [search, social, programmatic, direct, adServing] = await Promise.all([
     getCachedSearchPacingRows(asOfDate, allowedClientSlugs),
     getCachedSocialPacingRows(asOfDate, allowedClientSlugs),
@@ -100,6 +139,7 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
     getCachedDirectPacingRows(asOfDate, allowedClientSlugs, false),
     getCachedAdServingPacingRows(asOfDate, allowedClientSlugs),
   ])
+  logDigestStage("channel_caches", cacheStarted)
 
   const sources: DigestSourceRow[] = [
     ...(search ?? []).map((r) => asSource("search", r)),
@@ -107,6 +147,7 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
     ...(programmatic ?? []).map((r) => asSource("programmatic", r)),
   ]
 
+  const recomputeStarted = Date.now()
   const rows = [
     ...buildDigestCampaignRows(sources, asOfDate),
     ...buildDirectDigestCampaignRows(direct ?? [], asOfDate),
@@ -119,11 +160,24 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
       a.mbaNumber.localeCompare(b.mbaNumber)
     )
   })
+  logDigestStage("recompute_rows", recomputeStarted, { campaigns: rows.length })
+  return finishDigest(now, asOfDate, rows, {
+    cacheNote: "Reads may hit pacingRowsCache (4h revalidate); fine for digest if ≤ TTL.",
+  })
+}
+
+async function finishDigest(
+  now: Date,
+  asOfDate: string,
+  rows: DigestCampaignRow[],
+  meta: { cacheNote: string },
+): Promise<PacingDigestPayload> {
   const groups = groupDigestByBand(rows)
   const atRisk = groups["at-risk"]
   const relabelDay = addMelbourneDays(asOfDate, -1)
   let relabelEvents: DeliveryRelabelLogRow[] = []
   let relabelDrift: RelabelDriftFinding[] = []
+  const relabelStarted = Date.now()
   try {
     relabelEvents = await listRelabelLogForDay(relabelDay)
   } catch (err) {
@@ -134,11 +188,15 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
   } catch (err) {
     console.error("[pacing-digest] relabel drift failed", err)
   }
+  logDigestStage("relabels", relabelStarted, {
+    events: relabelEvents.length,
+    drift: relabelDrift.length,
+  })
 
   return {
     asOfDate,
     builtAt: now.toISOString(),
-    cacheNote: "Reads may hit pacingRowsCache (4h revalidate); fine for digest if ≤ TTL.",
+    cacheNote: meta.cacheNote,
     rows,
     atRisk,
     groups,

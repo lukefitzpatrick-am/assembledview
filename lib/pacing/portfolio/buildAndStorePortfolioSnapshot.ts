@@ -13,14 +13,26 @@ export async function buildAndStorePortfolioSnapshot(
   const started = Date.now()
   const allowedClientSlugs = args.allowedClientSlugs
   const scopeKey = args.scopeKey || pacingScopeKey(allowedClientSlugs)
+  const rowsStarted = Date.now()
   const rows = await buildCampaignPacingRows({
     asOfDate: args.asOfDate,
     allowedClientSlugs,
     liveOnly: args.liveOnly,
   })
+  console.log(
+    JSON.stringify({
+      event: "pacing_portfolio_stage",
+      stage: "build_rows",
+      ms: Date.now() - rowsStarted,
+      rowCount: rows.length,
+      asOfDate: args.asOfDate,
+      scopeKey,
+    }),
+  )
   const counts = countPortfolioRows(rows)
   const durationMs = Date.now() - started
-  return upsertPortfolioSnapshot({
+  const upsertStarted = Date.now()
+  const stored = await upsertPortfolioSnapshot({
     asOfDate: args.asOfDate,
     scopeKey,
     liveOnly: args.liveOnly,
@@ -28,4 +40,13 @@ export async function buildAndStorePortfolioSnapshot(
     counts,
     durationMs,
   })
+  console.log(
+    JSON.stringify({
+      event: "pacing_portfolio_stage",
+      stage: "upsert",
+      ms: Date.now() - upsertStarted,
+      durationMs,
+    }),
+  )
+  return stored
 }
