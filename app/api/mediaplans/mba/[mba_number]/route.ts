@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
+import axios from "axios"
 import { parseDateSafe as safeParseDate } from "@/lib/dates/parseDateSafe"
+import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
+import { getXanoBaseUrl, parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { getCachedClients } from "@/lib/finance/xanoReferenceCache"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
@@ -94,6 +97,10 @@ const createEmptyLineItems = (): MediaLineItems => ({
   influencers: [],
   production: []
 })
+
+function normalise(value: any) {
+  return String(value ?? "").trim().toLowerCase()
+}
 
 function isTruthyFlag(value: any) {
   if (value === undefined || value === null) return false
@@ -981,27 +988,6 @@ export async function PUT(
     }
 
     const savedVersionId = overwriteMode ? overwriteTargetId : versionResponse.data?.id
-    let duplicateWarning: {
-      channels: Array<{ channel: string; rows: number; distinctLineItemIds: number }>
-    } | null = null
-    try {
-      duplicateWarning = await detectDuplicateLineItemWarning(
-        mba_number,
-        savedVersionNumber,
-        savedVersionId,
-        overwriteMode ? { ...newVersionData, version_number: overwriteTargetVersionNumber } : newVersionData
-      )
-      if (duplicateWarning) {
-        console.warn("[mba-put] duplicateWarning: channel rows exceed distinct line_item_ids", {
-          mba_number,
-          versionId: savedVersionId,
-          versionNumber: savedVersionNumber,
-          ...duplicateWarning,
-        })
-      }
-    } catch (dupError) {
-      console.warn("[mba-put] duplicateWarning check failed", dupError)
-    }
 
     return NextResponse.json({
       version: versionResponse.data,
@@ -1011,7 +997,6 @@ export async function PUT(
       versionNumber: savedVersionNumber,
       latestVersionNumber,
       nextVersionNumber: overwriteMode ? overwriteTargetVersionNumber : nextVersionNumber,
-      ...(duplicateWarning ? { duplicateWarning } : {}),
       // REVIEW: when true, master.version_number was intentionally left unpublished
       deferredPublish: !overwriteMode && deferMasterVersionPublish,
       publishedVersionNumber: overwriteMode
