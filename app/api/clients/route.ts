@@ -35,11 +35,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = (await req.json()) as Record<string, unknown>
-    const { row, mirror } = await createClientPostgresFirst(body)
-    return NextResponse.json(
-      { ...row, mirror },
-      { status: 201 }
-    )
+    const { row } = await createClientPostgresFirst(body)
+    return NextResponse.json(row, { status: 201 })
   } catch (error) {
     console.error("Failed to create client:", error)
     const message = error instanceof Error ? error.message : String(error)

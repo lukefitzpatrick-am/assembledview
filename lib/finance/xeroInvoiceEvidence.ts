@@ -37,6 +37,7 @@ export async function fetchXeroBillingEvidenceByInvoiceIds(
       amountDue: schema.xeroArInvoices.amountDue,
       dueDate: schema.xeroArInvoices.dueDate,
       fullyPaidDate: schema.xeroArInvoices.fullyPaidDate,
+      subTotal: schema.xeroArInvoices.subTotal,
     })
     .from(schema.xeroArInvoices)
     .where(inArray(schema.xeroArInvoices.xeroInvoiceId, unique))
@@ -49,6 +50,7 @@ export async function fetchXeroBillingEvidenceByInvoiceIds(
       amountDue: num(row.amountDue),
       dueDate: dateStr(row.dueDate),
       fullyPaidDate: dateStr(row.fullyPaidDate),
+      subTotal: num(row.subTotal),
     })
   }
   return map

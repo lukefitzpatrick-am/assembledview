@@ -1,18 +1,19 @@
 /**
  * Invoicing KPI funnel — same record.total dollars as the old strip, regrouped
- * into Ready / Approved / Sent-to-finance so the three tiles add to the scope
- * total. Sent-to-finance includes every derived state past approved (drafted,
- * issued, paid, overdue) so Xero evidence is not dropped from the sum.
+ * into Ready / Approved / Issued outside AV / Sent-to-finance so those tiles add
+ * to the scope total. Sent-to-finance includes every derived state past approved
+ * except issued_outside_av. Needs attention is a differs count, not a dollar tile.
  */
 
 import type { BillingState } from "@/lib/finance/billingLifecycle"
 
-export type InvoicingFunnelBucketId = "ready" | "approved" | "sent_to_finance"
+export type InvoicingFunnelBucketId = "ready" | "approved" | "sent_to_finance" | "issued_outside_av"
 
 export type InvoicingFunnelRecord = {
   total: number
   state?: BillingState | null
   billing_month?: string | null
+  needs_attention?: boolean
 }
 
 export type InvoicingFunnelBucket = {
@@ -26,12 +27,15 @@ export type InvoicingFunnelSummary = {
   ready: InvoicingFunnelBucket
   approved: InvoicingFunnelBucket
   sentToFinance: InvoicingFunnelBucket
+  issuedOutsideAv: InvoicingFunnelBucket
+  needsAttentionCount: number
 }
 
 export const INVOICING_FUNNEL_LABELS = {
   ready: "Ready to approve",
   approved: "Approved",
   sent_to_finance: "Sent to finance",
+  issued_outside_av: "Issued outside AV",
 } as const
 
 /** To bill list filter. Independent of the campaign STATUS combobox. Default Ready. */
@@ -51,6 +55,7 @@ export function invoicingFunnelBucket(
   state: BillingState | null | undefined
 ): InvoicingFunnelBucketId {
   if (state === "approved") return "approved"
+  if (state === "issued_outside_av") return "issued_outside_av"
   if (state != null && state !== "ready") return "sent_to_finance"
   return "ready"
 }
@@ -68,14 +73,16 @@ export function formatFunnelCountCaption(invoiceCount: number, monthCount: numbe
 export function summariseInvoicingFunnel(
   records: readonly InvoicingFunnelRecord[]
 ): InvoicingFunnelSummary {
-  const dollars = { ready: 0, approved: 0, sent_to_finance: 0 }
-  const invoiceCount = { ready: 0, approved: 0, sent_to_finance: 0 }
+  const dollars = { ready: 0, approved: 0, sent_to_finance: 0, issued_outside_av: 0 }
+  const invoiceCount = { ready: 0, approved: 0, sent_to_finance: 0, issued_outside_av: 0 }
   const months = {
     ready: new Set<string>(),
     approved: new Set<string>(),
     sent_to_finance: new Set<string>(),
+    issued_outside_av: new Set<string>(),
   }
   let totalDollars = 0
+  let needsAttentionCount = 0
 
   for (const record of records) {
     const bucket = invoicingFunnelBucket(record.state)
@@ -84,6 +91,7 @@ export function summariseInvoicingFunnel(
     const month = (record.billing_month ?? "").trim()
     if (month) months[bucket].add(month)
     totalDollars += record.total
+    if (record.needs_attention) needsAttentionCount += 1
   }
 
   const bucketOf = (id: InvoicingFunnelBucketId): InvoicingFunnelBucket => ({
@@ -97,5 +105,7 @@ export function summariseInvoicingFunnel(
     ready: bucketOf("ready"),
     approved: bucketOf("approved"),
     sentToFinance: bucketOf("sent_to_finance"),
+    issuedOutsideAv: bucketOf("issued_outside_av"),
+    needsAttentionCount,
   }
 }

@@ -1,32 +1,16 @@
 /**
- * Postgres-authoritative media_plan_masters create (X9).
- * Order: sync identity seq → PG insert → best-effort Xano mirror with explicit id
- * (failure → app_notifications, never blocks / rolls back PG).
+ * Postgres-authoritative media_plan_masters create.
+ * The Postgres insert is the whole function. Sequence allocation stays on Postgres.
  */
 import "server-only"
 
 import { eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
-import { getXanoBaseUrl, getXanoTimeoutMs, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { mapPlanMasterFromPostgres } from "@/lib/data/readMediaPlans"
 import { resolveClientIdForMaster } from "@/lib/data/writeClients"
 import { dollarsToCampaignBudgetCents } from "@/lib/mediaplan/buildPostgresSavePayload"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import { toMelbourneDateString } from "@/lib/timezone"
-
-export const MASTER_MIRROR_FAILURE_KIND = "xano_master_mirror_failed"
-export const MASTER_MIRROR_FAILURE_AUDIENCE = "admin"
-
-export type MasterMirrorFailurePayload = {
-  op: "create"
-  masterId: number
-  mbaNumber: string
-  error: string
-  timestamp: string
-  retried: boolean
-}
-
-export type MasterMirrorResult = "ok" | "failed"
 
 export type CreateMediaPlanMasterInput = {
   mbaNumber: string
@@ -40,52 +24,9 @@ export type CreateMediaPlanMasterInput = {
   clientId?: number | null
 }
 
-export function buildMasterMirrorFailurePayload(input: {
-  masterId: number
-  mbaNumber: string
-  error: string
-  at?: Date
-}): MasterMirrorFailurePayload {
-  return {
-    op: "create",
-    masterId: input.masterId,
-    mbaNumber: input.mbaNumber,
-    error: input.error,
-    timestamp: (input.at ?? new Date()).toISOString(),
-    retried: false,
-  }
-}
-
-/** Xano media_plan_master create body — explicit `id` so workspace stays aligned (~80% caveat). */
-export function buildXanoMasterMirrorPayload(
-  pgId: number,
-  input: {
-    mbaNumber: string
-    mpClientName?: string | null
-    campaignName?: string | null
-    campaignStatus?: string | null
-    campaignStartDate?: string | null
-    campaignEndDate?: string | null
-    campaignBudgetDollars?: number | null
-  }
-): Record<string, unknown> {
-  return {
-    id: pgId,
-    mba_number: input.mbaNumber,
-    mp_client_name: input.mpClientName ?? "",
-    mp_campaignname: input.campaignName ?? "",
-    version_number: 1,
-    campaign_status: input.campaignStatus ?? "Draft",
-    campaign_start_date: input.campaignStartDate ?? null,
-    campaign_end_date: input.campaignEndDate ?? null,
-    mp_campaignbudget: input.campaignBudgetDollars ?? 0,
-  }
-}
-
 /**
  * After ETL explicit-id loads, identity can lag max(id). Advance the sequence
- * to cover MAX(id) when behind — never rewind when last_value is already ahead
- * (X9.1: setval(MAX) alone reissues ids that may still exist in Xano).
+ * to cover MAX(id) when behind — never rewind when last_value is already ahead.
  */
 export async function syncMediaPlanMastersIdSequence(): Promise<void> {
   const db = getDb()
@@ -116,72 +57,6 @@ export async function findExistingMasterByMbaNumberPostgres(
   return { id: Number(row.id) }
 }
 
-export async function persistMasterMirrorFailureNotification(
-  payload: MasterMirrorFailurePayload
-): Promise<void> {
-  if (!process.env.DATABASE_URL?.trim()) return
-  try {
-    const db = getDb()
-    await db.execute(sql`
-      INSERT INTO app_notifications (audience, kind, payload)
-      VALUES (
-        ${MASTER_MIRROR_FAILURE_AUDIENCE},
-        ${MASTER_MIRROR_FAILURE_KIND},
-        ${JSON.stringify(payload)}::jsonb
-      )
-    `)
-  } catch (err) {
-    console.warn("[masters-mirror] failed to persist app_notifications row", {
-      masterId: payload.masterId,
-      err,
-    })
-  }
-}
-
-async function mirrorMasterToXano(input: {
-  masterId: number
-  mbaNumber: string
-  payload: Record<string, unknown>
-}): Promise<MasterMirrorResult> {
-  try {
-    const baseUrl = getXanoBaseUrl([
-      "XANO_MEDIA_PLANS_BASE_URL",
-      "XANO_MEDIAPLANS_BASE_URL",
-    ])
-    const timeoutMs = getXanoTimeoutMs()
-    const res = await fetch(`${baseUrl}/media_plan_master`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...xanoPostHeaderRecord(),
-      },
-      body: JSON.stringify(input.payload),
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-    if (!res.ok) {
-      throw new Error(
-        `Xano POST media_plan_master ${res.status}: ${await res.text().catch(() => "")}`
-      )
-    }
-    return "ok"
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error("[masters-mirror] Xano mirror failed", {
-      masterId: input.masterId,
-      mbaNumber: input.mbaNumber,
-      message,
-    })
-    await persistMasterMirrorFailureNotification(
-      buildMasterMirrorFailurePayload({
-        masterId: input.masterId,
-        mbaNumber: input.mbaNumber,
-        error: message,
-      })
-    )
-    return "failed"
-  }
-}
-
 function dateToIsoDay(value: string | Date | null | undefined): string | null {
   if (value == null || value === "") return null
   if (value instanceof Date) return toMelbourneDateString(value)
@@ -197,12 +72,10 @@ function dateToIsoDay(value: string | Date | null | undefined): string | null {
 
 export type CreateMediaPlanMasterResult = {
   master: Record<string, unknown>
-  mirror: MasterMirrorResult
 }
 
 /**
- * Insert media_plan_masters with a sequence-allocated id, then mirror to Xano
- * with the same explicit id (non-blocking on mirror failure).
+ * Insert media_plan_masters with a sequence-allocated id.
  */
 export async function createMediaPlanMasterPostgresFirst(
   input: CreateMediaPlanMasterInput
@@ -229,8 +102,6 @@ export async function createMediaPlanMasterPostgresFirst(
   const campaignStartDate = dateToIsoDay(input.campaignStartDate)
   const campaignEndDate = dateToIsoDay(input.campaignEndDate)
   const campaignBudgetCents = dollarsToCampaignBudgetCents(input.campaignBudget)
-  const budgetDollars =
-    campaignBudgetCents != null ? campaignBudgetCents / 100 : null
 
   // Sequence owns allocation on the hot path (X9.1). Post-ETL lag is fixed by
   // syncMediaPlanMastersIdSequence (no-rewind) at migration/ETL — not per insert.
@@ -259,7 +130,6 @@ export async function createMediaPlanMasterPostgresFirst(
     throw new Error("Postgres media_plan_masters insert returned no id")
   }
 
-  const masterId = Number(inserted.id)
   const master = mapPlanMasterFromPostgres(
     inserted as unknown as Record<string, unknown>,
     null,
@@ -268,23 +138,7 @@ export async function createMediaPlanMasterPostgresFirst(
   // Create API historically returned version_number: 1 for brand-new masters.
   master.version_number = 1
 
-  const mirrorPayload = buildXanoMasterMirrorPayload(masterId, {
-    mbaNumber,
-    mpClientName,
-    campaignName,
-    campaignStatus: statusRaw,
-    campaignStartDate,
-    campaignEndDate,
-    campaignBudgetDollars: budgetDollars,
-  })
-
-  const mirror = await mirrorMasterToXano({
-    masterId,
-    mbaNumber,
-    payload: mirrorPayload,
-  })
-
-  return { master, mirror }
+  return { master }
 }
 
 /** Read-back helper for tests / ensureMaster logging. */

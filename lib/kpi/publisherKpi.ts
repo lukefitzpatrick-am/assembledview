@@ -1,15 +1,13 @@
-import axios from "axios"
 import {
   readAllPublisherKpis,
   readPublisherKpis,
 } from "@/lib/data/readKpi"
-import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import {
+  createPublisherKpiPostgresFirst,
+  deletePublisherKpiPostgresFirst,
+  updatePublisherKpiPostgresFirst,
+} from "@/lib/data/writeKpi"
 import type { PublisherKpi, PublisherKpiInput } from "./types"
-
-const apiClient = axios.create({
-  timeout: 10000,
-  headers: xanoPostHeaderRecord(),
-})
 
 /** Route-handler / server only — static import of server-only `readKpi`. */
 export async function fetchAllPublisherKpis(): Promise<PublisherKpi[]> {
@@ -25,42 +23,16 @@ export async function fetchPublisherKpis(
 export async function createPublisherKpi(
   input: PublisherKpiInput,
 ): Promise<PublisherKpi | null> {
-  try {
-    const response = await apiClient.post(
-      xanoUrl("publisher_kpi", "XANO_PUBLISHERS_BASE_URL"),
-      input,
-    )
-    return (response.data ?? null) as PublisherKpi | null
-  } catch (e) {
-    console.error("createPublisherKpi", e)
-    return null
-  }
+  return createPublisherKpiPostgresFirst(input)
 }
 
 export async function updatePublisherKpi(
   id: number,
   input: Partial<PublisherKpiInput>,
 ): Promise<PublisherKpi | null> {
-  try {
-    const response = await apiClient.patch(
-      xanoUrl(`publisher_kpi/${id}`, "XANO_PUBLISHERS_BASE_URL"),
-      input,
-    )
-    return (response.data ?? null) as PublisherKpi | null
-  } catch (e) {
-    console.error("updatePublisherKpi", e)
-    return null
-  }
+  return updatePublisherKpiPostgresFirst(id, input)
 }
 
 export async function deletePublisherKpi(id: number): Promise<boolean> {
-  try {
-    await apiClient.delete(
-      xanoUrl(`publisher_kpi/${id}`, "XANO_PUBLISHERS_BASE_URL"),
-    )
-    return true
-  } catch (e) {
-    console.error("deletePublisherKpi", e)
-    return false
-  }
+  return deletePublisherKpiPostgresFirst(id)
 }

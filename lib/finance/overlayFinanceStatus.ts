@@ -33,11 +33,13 @@ export type PersistedFinanceStatusRow = {
   notes: string | null
   exported_at: number | string | null
   exported_by: number | null
+  export_blob_path?: string | null
   invoice_key: string | null
   approved_at?: string | number | null
   approved_amount?: number | null
   approved_lines_hash?: string | null
   matched_xero_invoice_id?: string | null
+  xero_match_resolution?: string | null
   /** Joined from xero_ar_invoices at overlay time; not stored on the billing row. */
   xero?: BillingXeroEvidence | null
 }
@@ -128,24 +130,46 @@ function overlayStampIso(value: unknown): string | null {
   return s.length > 0 ? s : null
 }
 
+function needsAttention(record: BillingRecord, xero: BillingXeroEvidence | null, resolution: string | null): boolean {
+  if (!xero) return false
+  const status = xero.status.trim().toUpperCase()
+  if (status === "VOIDED" || status === "DELETED" || !status) return false
+  const settled = resolution === "adopted" || resolution === "disputed" || resolution === "auto_adopted"
+  if (settled) return false
+  if (xero.subTotal == null || !Number.isFinite(xero.subTotal)) return false
+  const expected =
+    record.approved_amount != null && Number.isFinite(record.approved_amount)
+      ? record.approved_amount
+      : Number.isFinite(record.total)
+        ? record.total
+        : record.billed_amount != null && Number.isFinite(record.billed_amount)
+          ? record.billed_amount
+          : null
+  if (expected == null) return false
+  return Math.abs(xero.subTotal - expected) > 1
+}
+
 function withDerivedLifecycle(
   record: BillingRecord,
   evidence: {
     approvedAt: unknown
     exportedAt: unknown
     xero: BillingXeroEvidence | null
+    resolution?: string | null
   }
 ): BillingRecord {
   const resolved = resolveBillingState({
     approvedAt: overlayStampIso(evidence.approvedAt),
     exportedAt: overlayStampIso(evidence.exportedAt),
     xero: evidence.xero,
+    unapprovedXeroIsOutsideAv: true,
   })
   return {
     ...record,
     approved_at: overlayStampIso(evidence.approvedAt),
     state: resolved.state,
     state_reason: resolved.reason,
+    needs_attention: needsAttention(record, evidence.xero, evidence.resolution ?? null),
   }
 }
 
@@ -289,12 +313,14 @@ export function applyStatusOverlay(
       notes: persisted.notes ?? null,
       exported_at: persisted.exported_at ?? null,
       exported_by: persisted.exported_by ?? null,
+      export_blob_path: persisted.export_blob_path ?? null,
       invoice_key: persisted.invoice_key ?? key,
     },
     {
       approvedAt: persisted.approved_at,
       exportedAt: persisted.exported_at,
       xero: persisted.xero ?? null,
+      resolution: persisted.xero_match_resolution ?? null,
     }
   )
 }

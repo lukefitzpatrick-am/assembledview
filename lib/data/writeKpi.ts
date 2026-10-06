@@ -1,13 +1,12 @@
 /**
- * Postgres-authoritative campaign_kpi / client_kpi writes (X5 / C-18 close).
- * Order: PG mutate → best-effort Xano mirror (failure → app_notifications).
+ * Postgres-authoritative campaign_kpi / client_kpi / publisher_kpi writes.
+ * The Postgres mutate is the whole function.
  * Percent fields stored as decimal (AV-25 / percentUnits) — no magnitude heuristic.
  */
 import "server-only"
 
 import { eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
-import { xanoPostHeaderRecord, xanoUrl, getXanoTimeoutMs } from "@/lib/api/xano"
 import {
   fetchCampaignKpisFromPostgres,
   mapKpiRowFromPostgres,
@@ -17,10 +16,9 @@ import type {
   CampaignKpiInput,
   ClientKpi,
   ClientKpiInput,
+  PublisherKpi,
+  PublisherKpiInput,
 } from "@/lib/kpi/types"
-
-export const KPI_MIRROR_FAILURE_KIND = "xano_kpi_mirror_failed"
-export const KPI_MIRROR_FAILURE_AUDIENCE = "admin"
 
 export function campaignKpiLineKey(
   mbaNumber: string | null | undefined,
@@ -81,6 +79,17 @@ const CAMPAIGN_WRITABLE: Record<string, keyof typeof schema.campaignKpi.$inferIn
   benchmark_ref: "benchmarkRef",
 }
 
+const PUBLISHER_WRITABLE: Record<string, keyof typeof schema.publisherKpi.$inferInsert> = {
+  publisher: "publisher",
+  bid_strategy: "bidStrategy",
+  media_type: "mediaType",
+  ctr: "ctr",
+  cpv: "cpv",
+  conversion_rate: "conversionRate",
+  vtr: "vtr",
+  frequency: "frequency",
+}
+
 const CLIENT_WRITABLE: Record<string, keyof typeof schema.clientKpi.$inferInsert> = {
   mp_client_name: "mpClientName",
   publisher_name: "publisherName",
@@ -94,32 +103,6 @@ const CLIENT_WRITABLE: Record<string, keyof typeof schema.clientKpi.$inferInsert
 }
 
 const PERCENT_KEYS = new Set(["ctr", "vtr", "conversion_rate"])
-
-export type KpiMirrorFailurePayload = {
-  op: "create" | "update" | "delete" | "sync"
-  table: "campaign_kpi" | "client_kpi"
-  rowId: number | null
-  error: string
-  timestamp: string
-  retried: boolean
-}
-
-export function buildKpiMirrorFailurePayload(input: {
-  op: KpiMirrorFailurePayload["op"]
-  table: KpiMirrorFailurePayload["table"]
-  rowId: number | null
-  error: string
-  at?: Date
-}): KpiMirrorFailurePayload {
-  return {
-    op: input.op,
-    table: input.table,
-    rowId: input.rowId,
-    error: input.error,
-    timestamp: (input.at ?? new Date()).toISOString(),
-    retried: false,
-  }
-}
 
 /** Reject banned magnitude heuristics; pass decimal ≤1 or null through. */
 export function assertKpiPercentDecimal(
@@ -232,97 +215,60 @@ function asClientRow(row: Record<string, unknown>): ClientKpi {
   return mapKpiRowFromPostgres(row) as unknown as ClientKpi
 }
 
-async function persistKpiMirrorFailure(
-  payload: KpiMirrorFailurePayload
-): Promise<void> {
-  if (!process.env.DATABASE_URL?.trim()) return
-  try {
-    const db = getDb()
-    await db.execute(sql`
-      INSERT INTO app_notifications (audience, kind, payload)
-      VALUES (
-        ${KPI_MIRROR_FAILURE_AUDIENCE},
-        ${KPI_MIRROR_FAILURE_KIND},
-        ${JSON.stringify(payload)}::jsonb
-      )
-    `)
-  } catch (err) {
-    console.warn("[kpi-mirror] failed to persist app_notifications row", {
-      table: payload.table,
-      rowId: payload.rowId,
-      err,
-    })
+function normalizePublisherSnake(
+  input: Partial<PublisherKpiInput>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(input)) {
+    if (!(key in PUBLISHER_WRITABLE)) continue
+    if (value === undefined) continue
+    if (PERCENT_KEYS.has(key)) {
+      out[key] = assertKpiPercentDecimal(key, value)
+    } else {
+      out[key] = value
+    }
   }
+  return out
 }
 
-async function mirrorKpiToXano(input: {
-  op: "create" | "update" | "delete"
-  table: "campaign_kpi" | "client_kpi"
-  rowId: number | null
-  body?: Record<string, unknown>
-}): Promise<"ok" | "failed"> {
-  const timeoutMs = getXanoTimeoutMs()
-  const headers = {
-    "Content-Type": "application/json",
-    ...xanoPostHeaderRecord(),
-  }
-  const base = xanoUrl(input.table, "XANO_CLIENTS_BASE_URL")
-  try {
-    if (input.op === "create") {
-      const res = await fetch(base, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ ...input.body, id: input.rowId }),
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      if (!res.ok) {
-        throw new Error(`Xano POST ${input.table} ${res.status}: ${await res.text().catch(() => "")}`)
-      }
-    } else if (input.op === "update") {
-      if (input.rowId == null) throw new Error("update requires rowId")
-      const res = await fetch(`${base}/${encodeURIComponent(String(input.rowId))}`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify(input.body ?? {}),
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      if (!res.ok) {
-        throw new Error(
-          `Xano PATCH ${input.table}/${input.rowId} ${res.status}: ${await res.text().catch(() => "")}`
-        )
-      }
-    } else {
-      if (input.rowId == null) throw new Error("delete requires rowId")
-      const res = await fetch(`${base}/${encodeURIComponent(String(input.rowId))}`, {
-        method: "DELETE",
-        headers,
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      if (!res.ok) {
-        throw new Error(
-          `Xano DELETE ${input.table}/${input.rowId} ${res.status}: ${await res.text().catch(() => "")}`
-        )
-      }
+function publisherSnakeToInsert(
+  snake: Record<string, unknown>
+): typeof schema.publisherKpi.$inferInsert {
+  const values: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(snake)) {
+    const camel = PUBLISHER_WRITABLE[k]
+    if (!camel) continue
+    if (v === null) {
+      values[camel] = null
+      continue
     }
-    return "ok"
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error("[kpi-mirror] Xano mirror failed", {
-      op: input.op,
-      table: input.table,
-      rowId: input.rowId,
-      message,
-    })
-    await persistKpiMirrorFailure(
-      buildKpiMirrorFailurePayload({
-        op: input.op,
-        table: input.table,
-        rowId: input.rowId,
-        error: message,
-      })
-    )
-    return "failed"
+    if (
+      camel === "ctr" ||
+      camel === "cpv" ||
+      camel === "conversionRate" ||
+      camel === "vtr" ||
+      camel === "frequency"
+    ) {
+      values[camel] = String(v)
+    } else {
+      values[camel] = v
+    }
   }
+  return values as typeof schema.publisherKpi.$inferInsert
+}
+
+function asPublisherRow(row: Record<string, unknown>): PublisherKpi {
+  return mapKpiRowFromPostgres(row) as unknown as PublisherKpi
+}
+
+async function syncPublisherKpiIdSequence(): Promise<void> {
+  await getDb().execute(sql`
+    SELECT setval(
+      pg_get_serial_sequence('publisher_kpi', 'id'),
+      COALESCE((SELECT MAX(id) FROM publisher_kpi), 1),
+      true
+    )
+  `)
 }
 
 export async function syncCampaignKpiIdSequence(): Promise<void> {
@@ -375,12 +321,6 @@ async function insertCampaignKpiRow(
   if (!inserted?.id) {
     throw new Error("insert returned no id")
   }
-  await mirrorKpiToXano({
-    op: "create",
-    table: "campaign_kpi",
-    rowId: Number(inserted.id),
-    body: snake,
-  })
   return asCampaignRow(inserted as Record<string, unknown>)
 }
 
@@ -467,12 +407,6 @@ export async function updateCampaignKpiPostgresFirst(
     .where(eq(schema.campaignKpi.id, id))
     .returning()
   if (!updated) return null
-  await mirrorKpiToXano({
-    op: "update",
-    table: "campaign_kpi",
-    rowId: id,
-    body: snake,
-  })
   return asCampaignRow(updated as Record<string, unknown>)
 }
 
@@ -482,7 +416,6 @@ export async function deleteCampaignKpiPostgresFirst(id: number): Promise<boolea
     .where(eq(schema.campaignKpi.id, id))
     .returning({ id: schema.campaignKpi.id })
   if (deleted.length === 0) return false
-  await mirrorKpiToXano({ op: "delete", table: "campaign_kpi", rowId: id })
   return true
 }
 
@@ -520,7 +453,7 @@ export async function syncCampaignKpisPostgresFirst(
     desired.add(lineItemId.toLowerCase())
 
     if (!fetchedPairs.has(pairKey)) {
-      // Always PG for sync pre-read — writes are PG-authoritative regardless of DATA_BACKEND_KPI.
+      // Postgres pre-read. Writes are Postgres.
       const existing = (await fetchCampaignKpisFromPostgres(
         item.mba_number,
         item.version_number
@@ -607,12 +540,6 @@ export async function createClientKpiPostgresFirst(
       .values(clientSnakeToInsert(snake))
       .returning()
     if (!inserted?.id) return null
-    await mirrorKpiToXano({
-      op: "create",
-      table: "client_kpi",
-      rowId: Number(inserted.id),
-      body: snake,
-    })
     return asClientRow(inserted as Record<string, unknown>)
   } catch (e) {
     console.error("createClientKpi", e)
@@ -640,12 +567,6 @@ export async function updateClientKpiPostgresFirst(
       .where(eq(schema.clientKpi.id, id))
       .returning()
     if (!updated) return null
-    await mirrorKpiToXano({
-      op: "update",
-      table: "client_kpi",
-      rowId: id,
-      body: snake,
-    })
     return asClientRow(updated as Record<string, unknown>)
   } catch (e) {
     console.error("updateClientKpi", e)
@@ -660,10 +581,68 @@ export async function deleteClientKpiPostgresFirst(id: number): Promise<boolean>
       .where(eq(schema.clientKpi.id, id))
       .returning({ id: schema.clientKpi.id })
     if (deleted.length === 0) return false
-    await mirrorKpiToXano({ op: "delete", table: "client_kpi", rowId: id })
     return true
   } catch (e) {
     console.error("deleteClientKpi", e)
+    return false
+  }
+}
+
+export async function createPublisherKpiPostgresFirst(
+  input: PublisherKpiInput
+): Promise<PublisherKpi | null> {
+  try {
+    await syncPublisherKpiIdSequence()
+    const snake = normalizePublisherSnake(input)
+    const [inserted] = await getDb()
+      .insert(schema.publisherKpi)
+      .values(publisherSnakeToInsert(snake))
+      .returning()
+    if (!inserted?.id) return null
+    return asPublisherRow(inserted as Record<string, unknown>)
+  } catch (e) {
+    console.error("createPublisherKpi", e)
+    return null
+  }
+}
+
+export async function updatePublisherKpiPostgresFirst(
+  id: number,
+  input: Partial<PublisherKpiInput>
+): Promise<PublisherKpi | null> {
+  try {
+    const snake = normalizePublisherSnake(input)
+    if (Object.keys(snake).length === 0) {
+      const [existing] = await getDb()
+        .select()
+        .from(schema.publisherKpi)
+        .where(eq(schema.publisherKpi.id, id))
+        .limit(1)
+      return existing ? asPublisherRow(existing as Record<string, unknown>) : null
+    }
+    const [updated] = await getDb()
+      .update(schema.publisherKpi)
+      .set(publisherSnakeToInsert(snake))
+      .where(eq(schema.publisherKpi.id, id))
+      .returning()
+    if (!updated) return null
+    return asPublisherRow(updated as Record<string, unknown>)
+  } catch (e) {
+    console.error("updatePublisherKpi", e)
+    return null
+  }
+}
+
+export async function deletePublisherKpiPostgresFirst(id: number): Promise<boolean> {
+  try {
+    const deleted = await getDb()
+      .delete(schema.publisherKpi)
+      .where(eq(schema.publisherKpi.id, id))
+      .returning({ id: schema.publisherKpi.id })
+    if (deleted.length === 0) return false
+    return true
+  } catch (e) {
+    console.error("deletePublisherKpi", e)
     return false
   }
 }

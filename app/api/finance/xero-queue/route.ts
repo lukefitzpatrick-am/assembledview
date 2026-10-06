@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
-import { parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
-import {
-  FINANCE_BILLING_RECORDS_PATH,
-  xanoFinancePatch,
-} from "@/lib/finance/xanoFinanceApi"
 import { readFinanceBillingRecords } from "@/lib/data/readFinance"
 import {
   enrichPendingFromXero,
@@ -18,11 +12,16 @@ import {
   assignClientAndLearnLink,
   countFy26ArClientCoverage,
 } from "@/lib/xero/contactLinks"
+import {
+  assignMbaAndResolveException,
+  EXCEPTIONS_ISSUE_DATE_MIN,
+  listOpenXeroExceptions,
+  PAGE_SIZE_CAP,
+  resolveXeroException,
+  XeroQueueError,
+} from "@/lib/finance/xeroQueue"
 
 export const maxDuration = 60
-
-const PAGE_SIZE_CAP = 500
-const EXCEPTIONS_ISSUE_DATE_MIN = "2025-07-01"
 
 function adminGate(request: NextRequest) {
   return auth0.getSession(request).then((session) => {
@@ -45,20 +44,29 @@ function asRecord(row: unknown): Record<string, unknown> | null {
   return row && typeof row === "object" ? (row as Record<string, unknown>) : null
 }
 
+function queueErrorResponse(error: unknown): NextResponse | null {
+  if (!(error instanceof XeroQueueError)) return null
+  const status =
+    error.code === "mba_not_found" || error.code === "mba_required"
+      ? 400
+      : error.code === "exception_not_open"
+        ? 409
+        : 404
+  return NextResponse.json({ error: error.code, message: error.message }, { status })
+}
+
 export async function GET(request: NextRequest) {
   try {
     const gate = await adminGate(request)
     if ("error" in gate && gate.error) return gate.error
 
-    const [billingRows, exceptionsRaw, fy26Coverage] = await Promise.all([
+    const [billingRows, exceptions, fy26Coverage] = await Promise.all([
       readFinanceBillingRecords(),
-      axios
-        .get(xanoUrl("xero_sync_exceptions", "XANO_CLIENTS_BASE_URL"), { timeout: 15_000 })
-        .then((r) => r.data)
-        .catch((err) => {
-          console.error("[finance-xero-queue] xero_sync_exceptions fetch failed", err?.message)
-          return []
-        }),
+      listOpenXeroExceptions().catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err)
+        console.error("[finance-xero-queue] xero_sync_exceptions fetch failed", message)
+        return []
+      }),
       countFy26ArClientCoverage().catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err)
         console.error("[finance-xero-queue] fy26 coverage failed", message)
@@ -77,18 +85,6 @@ export async function GET(request: NextRequest) {
       enrichPendingFromXero(pendingRaw),
       loadMbaOptionsForQueue(),
     ])
-
-    const exceptionRows = parseXanoListPayload(exceptionsRaw)
-    const exceptions = capRows(
-      exceptionRows.filter((row) => {
-        const r = asRecord(row)
-        if (!r) return false
-        if (r.resolved === true) return false
-        const issueDate = String(r.issue_date ?? "").slice(0, 10)
-        if (!issueDate) return false
-        return issueDate >= EXCEPTIONS_ISSUE_DATE_MIN
-      })
-    )
 
     return NextResponse.json({
       pending,
@@ -110,9 +106,12 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST mutations:
- * - `{ action: "resolve_exception", id: number }`
- * - `{ action: "assign_client", id: number, clients_id: number, client_name: string }`
- * - `{ action: "assign_mba", id: number, mba_number: string }`
+ * - `{ action: "resolve" | "resolve_exception" | "dismiss", id }`
+ * - `{ action: "assign_client", id, clients_id, client_name }`
+ * - `{ action: "assign_mba", id, mba_number }` — id is an open exception, or a
+ *   billing record whose invoice_key is `xero:{invoice}`. A billing id whose
+ *   invoice has no open exception still stamps the invoice and returns
+ *   `resolved_exception: false`. An unknown invoice is 404.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -143,24 +142,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "bad_request", message: "id is required." }, { status: 400 })
     }
 
+    const resolvedBy = currentUser.email ?? currentUser.name ?? String(currentUser.id)
     const auditCtx = {
       editedBy: currentUser.id,
       editedByName: currentUser.name ?? currentUser.email ?? String(currentUser.id),
       recordType: "status_change" as const,
     }
 
-    if (action === "resolve_exception") {
-      await axios.patch(xanoUrl(`xero_sync_exceptions/${id}`, "XANO_CLIENTS_BASE_URL"), { resolved: true }, { headers: xanoPostHeaderRecord(), timeout: 15_000 })
-      await writeStatusChangeEdit(
-        {
-          finance_billing_records_id: null,
-          field_name: `xero_exception_resolved:${id}`,
-          old_value: "false",
-          new_value: "true",
-        },
-        auditCtx
-      )
-      return NextResponse.json({ ok: true, id, resolved: true })
+    if (action === "resolve" || action === "resolve_exception" || action === "dismiss") {
+      const resolution = action === "dismiss" ? "dismissed" : "resolved"
+      const closed = await resolveXeroException({ id, resolvedBy, resolution })
+      return NextResponse.json({ ok: true, id: closed.id, resolved: true, resolution })
     }
 
     if (action === "assign_client") {
@@ -179,16 +171,10 @@ export async function POST(request: NextRequest) {
         )
       }
       const client_name = raw.client_name.trim()
-      // Call site: POST /api/finance/xero-queue action assign_client.
-      // Same PG transaction stamps the billing row and upserts xero_contact_links.
       await assignClientAndLearnLink({
         billingRecordId: id,
         clientsId: clients_id,
         clientName: client_name,
-      })
-      await xanoFinancePatch(`${FINANCE_BILLING_RECORDS_PATH}/${id}`, {
-        clients_id,
-        client_name,
       })
       await writeStatusChangeEdit(
         {
@@ -209,35 +195,18 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         )
       }
-      const mba_number = raw.mba_number.trim()
-
-      const mastersRes = await axios.get(xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), { headers: xanoAuthHeaderRecord(), timeout: 15_000 })
-      const masters = parseXanoListPayload(mastersRes.data)
-      const found = masters.some((m) => {
-        const row = asRecord(m)
-        return row != null && String(row.mba_number ?? "").trim() === mba_number
+      const result = await assignMbaAndResolveException({
+        id,
+        mbaNumber: raw.mba_number,
+        resolvedBy,
       })
-      if (!found) {
-        return NextResponse.json(
-          { error: "mba_not_found", message: `No media plan master for MBA ${mba_number}.` },
-          { status: 400 }
-        )
-      }
-
-      await xanoFinancePatch(`${FINANCE_BILLING_RECORDS_PATH}/${id}`, {
-        mba_number,
-        has_pending_edits: false,
+      return NextResponse.json({
+        ok: true,
+        id: result.exceptionId ?? id,
+        mba_number: result.mbaNumber,
+        mba_match_id: result.masterId,
+        resolved_exception: result.resolved_exception,
       })
-      await writeStatusChangeEdit(
-        {
-          finance_billing_records_id: id,
-          field_name: "mba_number",
-          old_value: null,
-          new_value: mba_number,
-        },
-        auditCtx
-      )
-      return NextResponse.json({ ok: true, id, mba_number, has_pending_edits: false })
     }
 
     return NextResponse.json(
@@ -245,6 +214,8 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     )
   } catch (error: unknown) {
+    const mapped = queueErrorResponse(error)
+    if (mapped) return mapped
     const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json({ error: "xero_queue_mutate_failed", details: message }, { status: 500 })
   }

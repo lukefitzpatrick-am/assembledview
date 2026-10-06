@@ -42,7 +42,7 @@ async function loadClientGroupByUrlSlug(urlSlug: string): Promise<ClientGroup | 
 
 /**
  * List-safe client row for slug resolution (brain blob stripped).
- * Reads via `readClientsList` (DATA_BACKEND_CLIENTS / Postgres when cut over).
+ * Reads via `readClientsList` (Postgres).
  * Resolves through `resolveClientGroup` so `clients.slug`, the name slug and the
  * mbaidentifier slug all identify the same group; returns `group.anchor`.
  * For full profile including `client_brain`, follow with `fetchClientById`.

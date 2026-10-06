@@ -123,7 +123,6 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | POST | `/api/admin/users` | admin-only | requireRole | `app/api/admin/users/route.ts` |
 | PUT | `/api/admin/users` | admin-only | requireRole | `app/api/admin/users/route.ts` |
 | GET | `/api/admin/users/mba-numbers` | admin-only | requireRole | `app/api/admin/users/mba-numbers/route.ts` |
-| POST | `/api/admin/xano-mirror/retry` | admin-only | requireRole | `app/api/admin/xano-mirror/retry/route.ts` |
 | GET | `/api/billing-overrides` | tenant-scoped | checkClientMbaAccess | `app/api/billing-overrides/route.ts` |
 | POST | `/api/billing-overrides/refetch-anomaly` | tenant-scoped | checkClientMbaAccess | `app/api/billing-overrides/refetch-anomaly/route.ts` |
 | POST | `/api/billing-overrides/replace_line` | tenant-scoped | checkClientMbaAccess | `app/api/billing-overrides/replace_line/route.ts` |
@@ -242,10 +241,15 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | DELETE | `/api/finance/billing/line-items/[id]` | admin-only | requireRole | `app/api/finance/billing/line-items/[id]/route.ts` |
 | PATCH | `/api/finance/billing/line-items/[id]` | admin-only | requireRole | `app/api/finance/billing/line-items/[id]/route.ts` |
 | POST | `/api/finance/billing/mark-billed` | admin-only | requireRole | `app/api/finance/billing/mark-billed/route.ts` |
-| POST | `/api/finance/billing/mark-exported` | admin-only | requireRole | `app/api/finance/billing/mark-exported/route.ts` |
+| POST | `/api/finance/billing/mark-exported` | admin-only | requireFinanceAdmin | 410 — retired; Send to accounts is the writer |
+| POST | `/api/finance/billing/unmark-exported` | admin-only | requireFinanceAdmin | 410 — retired with mark-exported |
+| GET | `/api/finance/send-to-accounts` | admin-only | requireFinanceAdmin | preview=1 row list, totals, blockers |
+| POST | `/api/finance/send-to-accounts` | admin-only | requireFinanceAdmin | billing pack email + export stamp |
+| POST | `/api/finance/clear-for-issue` | admin-only | requireFinanceAdmin | clearance email now; writes one `finance_edits` row |
+| GET | `/api/finance/reports/invoiced-vs-expected` | admin-only | requireFinanceAdmin | invoiced vs expected view; `format=xlsx` downloads the workbook |
+| GET | `/api/finance/exports/download` | admin-only | requireFinanceAdmin | private Blob proxy for the pack files |
 | POST | `/api/finance/billing/notes` | admin-only | requireRole | `app/api/finance/billing/notes/route.ts` |
 | POST | `/api/finance/billing/unapprove` | admin-only | requireRole | `app/api/finance/billing/unapprove/route.ts` |
-| POST | `/api/finance/billing/unmark-exported` | admin-only | requireRole | `app/api/finance/billing/unmark-exported/route.ts` |
 | GET | `/api/finance/bills/[xeroInvoiceId]/pdf` | admin-only | requireRole | `app/api/finance/bills/[xeroInvoiceId]/pdf/route.ts` |
 | GET | `/api/finance/data` | admin-only | requireRole | `app/api/finance/data/route.ts` |
 | GET | `/api/finance/edits` | admin-only | requireRole | `app/api/finance/edits/route.ts` |
@@ -282,7 +286,6 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | POST | `/api/finance/sections/draft-match` | admin-only | requireRole | `app/api/finance/sections/draft-match/route.ts` |
 | POST | `/api/finance/sections/investment/cut` | admin-only | requireRole | `app/api/finance/sections/investment/cut/route.ts` |
 | GET | `/api/finance/sections/owed` | admin-only | requireRole | `app/api/finance/sections/owed/route.ts` |
-| POST | `/api/finance/sections/pull-xero` | admin-only | requireRole | `app/api/finance/sections/pull-xero/route.ts` |
 | GET | `/api/finance/sections/summary` | admin-only | requireRole | `app/api/finance/sections/summary/route.ts` |
 | GET | `/api/finance/sow` | admin-only | requireRole | `app/api/finance/sow/route.ts` |
 | POST | `/api/finance/xero-match` | admin-only | requireRole | `app/api/finance/xero-match/route.ts` |

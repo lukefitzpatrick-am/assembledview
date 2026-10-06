@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { xanoUrl, xanoAuthHeader } from "@/lib/api/xano"
 import { requireRole } from "@/lib/requireRole"
 import { checkMediaDetailsProxyPath } from "@/lib/security/proxyAllowlist"
 import { logProxy403 } from "@/lib/security/logProxy403"
@@ -69,7 +68,6 @@ async function proxyRequest(request: Request, { params }: Params, method: string
     }
   }
 
-  // X4: allowlisted reference creates → PG first + Xano mirror.
   if (method === "POST" && pathSegments.length === 1 && isReferenceWritePath(pathSegments[0])) {
     try {
       const raw = await request.text()
@@ -77,11 +75,11 @@ async function proxyRequest(request: Request, { params }: Params, method: string
         raw && raw.length > 0
           ? (JSON.parse(raw) as Record<string, unknown>)
           : ({} as Record<string, unknown>)
-      const { row, mirror } = await createReferenceMediaDetailPostgresFirst(
+      const { row } = await createReferenceMediaDetailPostgresFirst(
         pathSegments[0],
         body
       )
-      return NextResponse.json({ ...row, mirror }, { status: 201 })
+      return NextResponse.json(row, { status: 201 })
     } catch (error: any) {
       console.error("[media-details reference write] error", {
         path: pathSegments[0],
@@ -101,50 +99,10 @@ async function proxyRequest(request: Request, { params }: Params, method: string
     }
   }
 
-  try {
-    const targetUrl = xanoUrl(path, "XANO_MEDIA_DETAILS_BASE_URL")
-    const url = new URL(targetUrl)
-
-    // Forward query params
-    const incoming = new URL(request.url)
-    incoming.searchParams.forEach((value, key) => {
-      url.searchParams.set(key, value)
-    })
-
-    // Forward body for non-GET/HEAD methods
-    const body =
-      method === "GET" || method === "HEAD" ? undefined : await request.text()
-
-    // REVIEW: Route handler proxy — server-only; auth from process.env via xanoAuthHeader().
-    const upstream = await fetch(url.toString(), {
-      method,
-      headers: {
-        "Content-Type": request.headers.get("content-type") || "application/json",
-        ...xanoAuthHeader(),
-      },
-      body: body && body.length > 0 ? body : undefined,
-    })
-
-    const contentType = upstream.headers.get("content-type") || ""
-    const responseBody = contentType.includes("application/json")
-      ? await upstream.json()
-      : await upstream.text()
-
-    if (contentType.includes("application/json")) {
-      return NextResponse.json(responseBody, { status: upstream.status })
-    }
-
-    return new NextResponse(responseBody, {
-      status: upstream.status,
-      headers: { "content-type": contentType || "text/plain" },
-    })
-  } catch (error: any) {
-    console.error("[media-details proxy] error", error)
-    return NextResponse.json(
-      { error: "Failed to proxy media details request", details: error?.message || "Unknown error" },
-      { status: 500 }
-    )
-  }
+  return NextResponse.json(
+    { error: "This media-details path has no Postgres handler", path },
+    { status: 410 }
+  )
 }
 
 export async function GET(request: Request, ctx: Params) {

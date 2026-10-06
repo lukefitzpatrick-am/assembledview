@@ -12,6 +12,7 @@ export type BillingState =
   | "ready"
   | "approved"
   | "sent_to_finance"
+  | "issued_outside_av"
   | "drafted"
   | "issued"
   | "paid"
@@ -22,6 +23,8 @@ export type BillingXeroEvidence = {
   amountDue: number
   dueDate: string | null
   fullyPaidDate: string | null
+  /** Ex-GST dollars. Present when the overlay loaded the AR row. */
+  subTotal?: number | null
 }
 
 export type ResolveBillingStateInput = {
@@ -29,6 +32,11 @@ export type ResolveBillingStateInput = {
   exportedAt: string | null
   xero: BillingXeroEvidence | null
   today?: Date
+  /**
+   * App billing rows only. A live Xero match with no `approved_at` is
+   * `issued_outside_av`. Owed leaves this off: those rows are the AR invoices.
+   */
+  unapprovedXeroIsOutsideAv?: boolean
 }
 
 const ABSENT_XERO_STATUSES = new Set(["VOIDED", "DELETED"])
@@ -89,12 +97,18 @@ export function resolveBillingState(input: ResolveBillingStateInput): {
   const xero = liveXero(input.xero)
 
   if (xero) {
+    if (input.unapprovedXeroIsOutsideAv && !stampPresent(input.approvedAt)) {
+      return {
+        state: "issued_outside_av",
+        reason: "Matched Xero invoice with no approval in Assembled View",
+      }
+    }
     const status = xeroStatus(xero.status)
     const amountDue = Number(xero.amountDue)
     const dueYmd = evidenceToSydneyYmd(xero.dueDate)
     const fullyPaid = stampPresent(xero.fullyPaidDate)
 
-    if (status === "PAID" || (Number.isFinite(amountDue) && amountDue <= 0) || fullyPaid) {
+    if (status === "PAID" || fullyPaid || (status === "AUTHORISED" && Number.isFinite(amountDue) && amountDue <= 0)) {
       return { state: "paid", reason: "Xero invoice is paid (status, amount due, or fully paid date)" }
     }
     if (
@@ -109,9 +123,10 @@ export function resolveBillingState(input: ResolveBillingStateInput): {
     if (status === "AUTHORISED") {
       return { state: "issued", reason: "Xero invoice is AUTHORISED" }
     }
-    if (status === "DRAFT") {
-      return { state: "drafted", reason: "Xero invoice is DRAFT" }
+    if (status === "DRAFT" || status === "SUBMITTED") {
+      return { state: "drafted", reason: "Xero invoice is DRAFT or SUBMITTED" }
     }
+    return { state: "issued", reason: "Matched Xero invoice" }
   }
 
   if (stampPresent(input.exportedAt)) {

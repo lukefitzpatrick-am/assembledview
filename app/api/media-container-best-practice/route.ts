@@ -30,11 +30,11 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as Record<string, unknown>
     const currentUser = await getCurrentUser(req)
-    const { row, mirror } = await createMediaContainerBestPracticePostgresFirst({
+    const { row } = await createMediaContainerBestPracticePostgresFirst({
       ...body,
       _name: currentUser?.email ?? currentUser?.name ?? null,
     })
-    return NextResponse.json({ ...row, mirror }, { status: 201 })
+    return NextResponse.json(row, { status: 201 })
   } catch (error) {
     console.error("Failed to create media-container best practice:", error)
     const message = error instanceof Error ? error.message : String(error)

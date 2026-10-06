@@ -1,6 +1,4 @@
-import axios from "axios"
 import type AvaTool from "./types"
-import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type { MediaContainerBestPractice } from "@/lib/types/publisher"
 import { summariseBestPractice } from "./summaries"
 import { asRecord, asString, jsonContent } from "./helpers"
@@ -29,16 +27,11 @@ export const getBestPracticeTool: AvaTool = {
     const channel = asString(args.channel)?.toLowerCase()
 
     try {
-      const response = await axios.get(
-        xanoUrl("media_container_best_practice", "XANO_PUBLISHERS_BASE_URL"),
-        { headers: xanoAuthHeaderRecord() },
+      const { fetchMediaContainerBestPracticeFromPostgres } = await import(
+        "@/lib/data/writeMediaContainerBestPractice"
       )
-      const raw = response.data
-      const rows: MediaContainerBestPractice[] = Array.isArray(raw)
-        ? raw
-        : Array.isArray(raw?.items)
-          ? raw.items
-          : []
+      const raw = await fetchMediaContainerBestPracticeFromPostgres()
+      const rows = raw as unknown as MediaContainerBestPractice[]
       const filtered = channel
         ? rows.filter((r) => String(r.media_container ?? "").toLowerCase().includes(channel))
         : rows

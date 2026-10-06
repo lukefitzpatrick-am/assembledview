@@ -3,10 +3,7 @@ import {
   GlobalMonthlyPublisherSpend,
   GlobalMonthlyClientSpend,
 } from '@/lib/types/dashboard'
-import { parseXanoListPayload } from '@/lib/api/xano'
-import { xanoDashboardsUrl } from '@/lib/api/xanoClients'
 import { getCachedMediaPlanVersions } from '@/lib/api/mediaPlanVersionsCache'
-import { getDataBackendFor } from '@/lib/data/backend'
 import {
   fetchDashboardMonthlyClientSpendFromPostgres,
   fetchDashboardMonthlyPublisherSpendFromPostgres,
@@ -14,7 +11,6 @@ import {
 import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { getCachedClients } from '@/lib/finance/xanoReferenceCache'
 import {
-  apiClient,
   getAustralianFinancialYear,
   normalizeSchedule,
   parseMonthYear,
@@ -28,19 +24,11 @@ import {
  * postgres → schedule_months aggregate; xano/shadow → existing Xano custom endpoints.
  */
 async function fetchDashboardMonthlyPublisherSpendRows(): Promise<any[]> {
-  if (getDataBackendFor('plans') === 'postgres') {
-    return fetchDashboardMonthlyPublisherSpendFromPostgres()
-  }
-  const rowsResp = await apiClient.get(xanoDashboardsUrl('dashboard_monthly_publisher_spend'))
-  return parseXanoListPayload(rowsResp.data)
+  return fetchDashboardMonthlyPublisherSpendFromPostgres()
 }
 
 async function fetchDashboardMonthlyClientSpendRows(): Promise<any[]> {
-  if (getDataBackendFor('plans') === 'postgres') {
-    return fetchDashboardMonthlyClientSpendFromPostgres()
-  }
-  const rowsResp = await apiClient.get(xanoDashboardsUrl('dashboard_monthly_client_spend'))
-  return parseXanoListPayload(rowsResp.data)
+  return fetchDashboardMonthlyClientSpendFromPostgres()
 }
 
 /**

@@ -7,6 +7,10 @@
 - `0020_clients_m365_identity.sql` — clients slug + M365 SharePoint/Teams identity columns
 - `0021_m365_provisioning_log.sql` — Graph provisioning attempt log
 - `0087_xero_sync_log_stage.sql` — `xero_sync_log.stage` (`invoices` | `import` | `contacts` | `pdfs`) + `duration_ms`. NULL stage = legacy combined run. AUTHOR ONLY. Apply before the split Xero crons deploy. No backfill. Do not drizzle-kit.
+- `0088_matched_xero_invoice_nonunique.sql` — drop `uq_finance_billing_records_matched_xero_invoice_id`, keep the non-unique index, add `xero_match_resolution` and `xero_expected_source`. AUTHOR ONLY. Apply before the invoices cron that stamps many app rows onto one Xero invoice. No backfill. Do not drizzle-kit.
+- `0089_export_blob_path.sql` — `finance_billing_records.export_blob_path` text, JSON of the private CSV and workbook pathnames. AUTHOR ONLY. Apply before Send to accounts. No backfill. Do not drizzle-kit.
+- `0090_finance_clearance_sends.sql` — `finance_clearance_sends` (`month`, `sent_at`, `hash`, `counts`). AUTHOR ONLY. Apply before the clearance email. No backfill. Do not drizzle-kit.
+- `0091_xero_sync_exception_resolution.sql` — `xero_sync_exceptions.resolved_at`, `resolved_by`, `resolution`. AUTHOR ONLY. Apply before xero-queue assign/resolve. No backfill. Do not drizzle-kit. Mirror: `xeroSyncExceptions` in `db/schema/ported.ts`.
 - `0022_campaign_insights_ava_readonly.sql` — GRANT SELECT on campaign_insights to ava_readonly
 - `0023_line_item_panels.sql` — OOH panel/pack detail rows
 - `0024_publisher_profiles.sql` — ingest publisher mapping config (jsonb rows, not code)
@@ -102,7 +106,6 @@ A migration that backfills existing rows **must** be guarded by a `migration_mar
 | `DATA_BACKEND` | `postgres` (default) \| `shadow` \| `xano` (explicit; warns) — unset/unrecognised → `postgres`. See `lib/data/backend.ts` |
 | `WRITE_BACKEND` | `postgres` (default) \| `xano` (explicit; warns) — independent of `DATA_BACKEND` |
 | `DATA_BACKEND_REFERENCE` / `DATA_BACKEND_PUBLISHERS` / `DATA_BACKEND_CLIENTS` / `DATA_BACKEND_KPI` / `DATA_BACKEND_FINANCE` / `DATA_BACKEND_PACING` / `DATA_BACKEND_PLANS` / `DATA_BACKEND_APPROVALS` | Optional per-domain override of `DATA_BACKEND`; empty falls through to global, then `postgres` |
-| `XANO_MIRROR_ENABLED` | `true` enables T4b plan-save Xano write-back after Postgres commit; default **off** (unset / any other value). Post-cutover MBAs have no Xano master row, so the mirror cannot serve as a rollback target. Independent of `DATA_BACKEND` / `WRITE_BACKEND`. See `isXanoMirrorEnabled` in `lib/data/backend.ts`. |
 | `NEXT_PUBLIC_PLAN_DRAFTS` | `on` \| `off` (default **off**). Autosave chrome (3s/15s + soft Save draft). **Off does not delete** `plan_working_drafts` — rows are retained; Stage 2b load offer stays reachable. **Interim `SAVE_PUBLISHES_IMMEDIATELY`:** Save publishes. Local only until Luke sets Vercel at merge. |
 
 ## `ava_readonly` role (0003)

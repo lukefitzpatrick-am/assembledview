@@ -1,84 +1,21 @@
-import axios, { isAxiosError } from "axios"
-import { parseXanoListPayload, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import axios from "axios"
+import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type { Publisher, PublisherMediaTypeShare } from "@/lib/types/publisher"
 
-/** Same resolution as `getXanoClientsCollectionUrl`: Clients API group, then generic base. */
-const MARKET_SHARE_BASE_ENV_KEYS = ["XANO_CLIENTS_BASE_URL", "XANO_BASE_URL"] as const
-
-function marketSharePathCandidates(publishersId: number): string[] {
-  return [
-    `publisher/${publishersId}/market-share`,
-    `publishers/${publishersId}/market-share`,
-  ]
-}
-
-// REVIEW: Imported from app pages; auth header is empty in the browser (no XANO_API_KEY /
-// never NEXT_PUBLIC). Prefer calling via server route handlers for market-share fetches.
 const apiClient = axios.create({
   timeout: 10000,
   headers: xanoPostHeaderRecord(),
 })
 
-function finiteNumberFromUnknown(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value
-  if (typeof value === "string" && value.trim() !== "") {
-    const n = parseFloat(value.replace(/[^0-9.-]/g, ""))
-    return Number.isFinite(n) ? n : null
-  }
-  return null
-}
-
-function normalizeMarketShareRow(raw: unknown): PublisherMediaTypeShare | null {
-  if (!raw || typeof raw !== "object") return null
-  const r = raw as Record<string, unknown>
-  const mediaType =
-    typeof r.mediaType === "string"
-      ? r.mediaType
-      : typeof r.media_type === "string"
-        ? r.media_type
-        : null
-  if (!mediaType) return null
-  const thisPublisherSpend = finiteNumberFromUnknown(
-    r.thisPublisherSpend ?? r.this_publisher_spend,
-  )
-  const totalMarketSpend = finiteNumberFromUnknown(r.totalMarketSpend ?? r.total_market_spend)
-  const sharePercent = finiteNumberFromUnknown(r.sharePercent ?? r.share_percent)
-  if (thisPublisherSpend == null || totalMarketSpend == null || sharePercent == null) return null
-  return { mediaType, thisPublisherSpend, totalMarketSpend, sharePercent }
-}
-
 /**
- * Clients API: FY market share by media type for a publisher (Xano PK `publishers.id`).
- * Returns [] on error or empty response.
+ * FY market share by media type for a publisher (`publishers.id`).
+ * Published commercial plan lines in the current Australian FY. Empty when
+ * that publisher has no FY lines.
  */
 export async function getPublisherMarketShare(publishersId: number): Promise<PublisherMediaTypeShare[]> {
   if (!Number.isFinite(publishersId) || publishersId <= 0) return []
-
-  for (const path of marketSharePathCandidates(publishersId)) {
-    try {
-      const url = xanoUrl(path, [...MARKET_SHARE_BASE_ENV_KEYS])
-      const response = await apiClient.get(url)
-      const list = parseXanoListPayload(response.data)
-      const out: PublisherMediaTypeShare[] = []
-      for (const row of list) {
-        const normalized = normalizeMarketShareRow(row)
-        if (normalized) out.push(normalized)
-      }
-      return out
-    } catch (e) {
-      if (isAxiosError(e) && e.response?.status === 404) continue
-      if (!isAxiosError(e) || e.response?.status !== 404) {
-        console.warn("[getPublisherMarketShare] request failed", {
-          path,
-          status: isAxiosError(e) ? e.response?.status : undefined,
-          message: e instanceof Error ? e.message : String(e),
-        })
-      }
-      return []
-    }
-  }
-
-  return []
+  const { fetchPublisherMarketShareFromPostgres } = await import("@/lib/publishers/marketShare")
+  return fetchPublisherMarketShareFromPostgres(publishersId)
 }
 
 export async function fetchPublishersFromXano(): Promise<Publisher[]> {
@@ -97,7 +34,7 @@ function publisherIdFromUrlSegment(segment: string): string {
   }
 }
 
-/** Resolve by business key `publisherid` (URL segment may be encoded). Honors DATA_BACKEND_PUBLISHERS. */
+/** Resolve by business key `publisherid` (URL segment may be encoded). Postgres via `readPublishersList`. */
 export async function getPublisherByPublisherId(segment: string): Promise<Publisher | null> {
   const key = publisherIdFromUrlSegment(segment)
   if (!key) return null

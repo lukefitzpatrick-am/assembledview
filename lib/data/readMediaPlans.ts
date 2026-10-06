@@ -3,21 +3,12 @@ import "server-only"
 import { and, eq, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm"
 import { type LineChannel } from "@/db/schema"
 import { getDb, schema } from "@/db"
-import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import {
-  parseXanoListPayload,
-  xanoUrl,
-} from "@/lib/api/xano"
-import { getDataBackendFor } from "@/lib/data/backend"
 import { coerceNumericStringsToNumbers, toApiRow } from "@/lib/data/toApiRow"
-import { compareReferenceRows, recordShadowDiff } from "@/lib/data/shadowDiff"
 import { sortLineItemsByLineItemNumber } from "@/lib/mediaplan/lineItemIds"
 import { publishedVersionIfStamped } from "@/lib/mediaplan/publishedVersionGuard"
 import {
   CHANNEL_ENDPOINT_TO_CHANNEL,
-  PLANS_DUPLICATE_CLASS_MBAS,
   mapLineItemFromPostgres,
-  normalizeLineItemForCompare,
   type LineItemAssemblyContext,
 } from "@/lib/data/planShapes"
 
@@ -31,20 +22,6 @@ export {
   spreadAttrsForChannel,
   type LineItemAssemblyContext,
 } from "@/lib/data/planShapes"
-
-const DOMAIN = "plans" as const
-
-const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
-
-function asRecordList(body: unknown): Record<string, unknown>[] {
-  if (Array.isArray(body)) {
-    return body.filter(
-      (row): row is Record<string, unknown> =>
-        !!row && typeof row === "object" && !Array.isArray(row)
-    )
-  }
-  return parseXanoListPayload(body) as Record<string, unknown>[]
-}
 
 /**
  * Prefixes the SQL with an `av:<name>` tag so pg_stat_statements can tell plan
@@ -76,68 +53,6 @@ function normaliseMba(value: unknown): string {
 
 function channelFromEndpoint(endpoint: string): LineChannel | null {
   return CHANNEL_ENDPOINT_TO_CHANNEL[endpoint] ?? null
-}
-
-function lineItemDuplicateNaturalKey(row: Record<string, unknown>): string | null {
-  const mba = normaliseMba(row.mba_number)
-  const line = String(row.line_item_id ?? "").trim()
-  const vn =
-    row.mp_plannumber ?? row.version_number ?? row.media_plan_version ?? ""
-  if (!mba || !line) return null
-  return `plans:${mba}::${String(vn).trim()}::${line}`
-}
-
-function runPlansShadowCompare(
-  table: string,
-  xanoBody: unknown,
-  postgresRows: Record<string, unknown>[],
-  options: {
-    financeDuplicateClass?: boolean
-    duplicateNaturalKey?: (row: Record<string, unknown>) => string | null
-    postgresKeysOnly?: boolean
-  } = {}
-): void {
-  try {
-    const event = compareReferenceRows(table, xanoBody, postgresRows, {
-      domain: DOMAIN,
-      postgresKeysOnly: options.postgresKeysOnly ?? true,
-      financeDuplicateClass: options.financeDuplicateClass ?? true,
-      duplicateNaturalKey:
-        options.duplicateNaturalKey ?? lineItemDuplicateNaturalKey,
-    })
-    // Tag known-corrupt MBA extras as duplicate-class when classifier missed them.
-    if (event.missingInPostgres.length > 0) {
-      const xanoRows = asRecordList(xanoBody)
-      const byId = new Map<string | number, Record<string, unknown>>()
-      for (const r of xanoRows) {
-        const id = r.id
-        if (typeof id === "number" || (typeof id === "string" && id)) {
-          byId.set(id, r)
-        }
-      }
-      const tagged = new Set(event.duplicateClassMissingInPostgres ?? [])
-      for (const id of event.missingInPostgres) {
-        const row = byId.get(id)
-        if (!row) continue
-        if (PLANS_DUPLICATE_CLASS_MBAS.has(normaliseMba(row.mba_number))) {
-          tagged.add(id)
-        }
-      }
-      if (tagged.size > 0) {
-        event.duplicateClassMissingInPostgres = [...tagged]
-        const unexpected = event.missingInPostgres.filter((id) => !tagged.has(id))
-        event.diffClass =
-          unexpected.length === 0 &&
-          event.missingInXano.length === 0 &&
-          event.fieldDiffs.length === 0
-            ? "duplicate-class"
-            : "unexpected"
-      }
-    }
-    recordShadowDiff(event)
-  } catch (err) {
-    console.error("[migration-shadow-diff] compare failed", { domain: DOMAIN, table, err })
-  }
 }
 
 // --- masters ---
@@ -338,73 +253,14 @@ export async function fetchPlanMasterByMbaFromPostgres(
   )
 }
 
-/**
- * Dying-at-T6 (fetchAllXanoPages family). Dual-endpoint 404 → [] is Xano
- * discovery fallback, not a Postgres soft-fail. Do not convert for M7 ViewState.
- * @see docs/brain/READ-FAILURE-REGISTER.md
- */
-export async function fetchPlanMastersFromXano(): Promise<Record<string, unknown>[]> {
-  for (const endpoint of ["media_plan_master", "media_plans_master"] as const) {
-    try {
-      const url = xanoUrl(endpoint, [...MEDIA_PLANS_KEYS])
-      const raw = await fetchAllXanoPages(url, {}, `PLANS_READ_${endpoint}`, 200, 50)
-      return asRecordList(raw)
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status
-      if (status === 404) continue
-      throw err
-    }
-  }
-  return []
-}
-
 export async function readPlanMasters(): Promise<Record<string, unknown>[]> {
-  const backend = getDataBackendFor(DOMAIN)
-  if (backend === "postgres") return fetchPlanMastersFromPostgres()
-
-  const xanoRows = await fetchPlanMastersFromXano()
-  if (backend === "shadow") {
-    void (async () => {
-      try {
-        const postgresRows = await fetchPlanMastersFromPostgres()
-        runPlansShadowCompare("media_plan_master", xanoRows, postgresRows, {
-          financeDuplicateClass: false,
-          postgresKeysOnly: true,
-        })
-      } catch (err) {
-        console.error("[migration-shadow-diff] plans masters compare failed", err)
-      }
-    })()
-  }
-  return xanoRows
+  return fetchPlanMastersFromPostgres()
 }
 
 export async function readPlanMasterByMba(
   mbaNumber: string
 ): Promise<Record<string, unknown> | null> {
-  const backend = getDataBackendFor(DOMAIN)
-  if (backend === "postgres") return fetchPlanMasterByMbaFromPostgres(mbaNumber)
-
-  const xanoRows = await fetchPlanMastersFromXano()
-  const target = normaliseMba(mbaNumber)
-  const xano = xanoRows.find((r) => normaliseMba(r.mba_number) === target) ?? null
-
-  if (backend === "shadow") {
-    void (async () => {
-      try {
-        const pg = await fetchPlanMasterByMbaFromPostgres(mbaNumber)
-        runPlansShadowCompare(
-          "media_plan_master",
-          xano ? [xano] : [],
-          pg ? [pg] : [],
-          { financeDuplicateClass: false, postgresKeysOnly: true }
-        )
-      } catch (err) {
-        console.error("[migration-shadow-diff] plans master-by-mba compare failed", err)
-      }
-    })()
-  }
-  return xano
+  return fetchPlanMasterByMbaFromPostgres(mbaNumber)
 }
 
 // --- versions (incl. legacy_schedules blob passthrough) ---
@@ -696,74 +552,14 @@ export async function fetchPlanVersionByMbaAndNumberFromPostgres(
   return mapPlanVersionFromPostgres(row as Record<string, unknown>)
 }
 
-export async function fetchPlanVersionsFromXano(): Promise<Record<string, unknown>[]> {
-  const url = xanoUrl("media_plan_versions", [...MEDIA_PLANS_KEYS])
-  const raw = await fetchAllXanoPages(url, {}, "PLANS_READ_VERSIONS", 200, 50)
-  return asRecordList(raw)
-}
-
-function versionDuplicateNaturalKey(row: Record<string, unknown>): string | null {
-  const mba = normaliseMba(row.mba_number)
-  const vn = row.version_number
-  if (!mba || vn == null || String(vn).trim() === "") return null
-  return `mba_vn:${mba}::${String(vn).trim()}`
-}
-
 export async function readPlanVersions(): Promise<Record<string, unknown>[]> {
-  const backend = getDataBackendFor(DOMAIN)
-  if (backend === "postgres") return fetchPlanVersionsFromPostgres()
-
-  const xanoRows = await fetchPlanVersionsFromXano()
-  if (backend === "shadow") {
-    void (async () => {
-      try {
-        const postgresRows = await fetchPlanVersionsFromPostgres()
-        runPlansShadowCompare("media_plan_versions", xanoRows, postgresRows, {
-          financeDuplicateClass: true,
-          duplicateNaturalKey: versionDuplicateNaturalKey,
-          postgresKeysOnly: true,
-        })
-      } catch (err) {
-        console.error("[migration-shadow-diff] plans versions compare failed", err)
-      }
-    })()
-  }
-  return xanoRows
+  return fetchPlanVersionsFromPostgres()
 }
 
 export async function readPlanVersionsByMba(
   mbaNumber: string
 ): Promise<Record<string, unknown>[]> {
-  const backend = getDataBackendFor(DOMAIN)
-  if (backend === "postgres") return fetchPlanVersionsByMbaFromPostgres(mbaNumber)
-
-  const url = xanoUrl("media_plan_versions", [...MEDIA_PLANS_KEYS])
-  const raw = await fetchAllXanoPages(
-    url,
-    { mba_number: mbaNumber },
-    "PLANS_READ_VERSIONS_MBA",
-    100,
-    20
-  )
-  const xanoRows = asRecordList(raw).filter(
-    (r) => normaliseMba(r.mba_number) === normaliseMba(mbaNumber)
-  )
-
-  if (backend === "shadow") {
-    void (async () => {
-      try {
-        const postgresRows = await fetchPlanVersionsByMbaFromPostgres(mbaNumber)
-        runPlansShadowCompare("media_plan_versions", xanoRows, postgresRows, {
-          financeDuplicateClass: true,
-          duplicateNaturalKey: versionDuplicateNaturalKey,
-          postgresKeysOnly: true,
-        })
-      } catch (err) {
-        console.error("[migration-shadow-diff] plans versions-by-mba compare failed", err)
-      }
-    })()
-  }
-  return xanoRows
+  return fetchPlanVersionsByMbaFromPostgres(mbaNumber)
 }
 
 // --- per-channel line items ---
@@ -851,103 +647,20 @@ export async function fetchLineItemsFromPostgresByEndpoint(
   return fetchLineItemsFromPostgres(mbaNumber, versionNumber, channel)
 }
 
-/**
- * Channel line-item list with DATA_BACKEND_PLANS / DATA_BACKEND.
- * Writes (POST/PUT/DELETE) stay on Xano until T4.
- */
+/** Channel line-item list from Postgres `line_items`. */
 export async function readChannelLineItems(
   endpoint: string,
   mbaNumber: string,
   versionNumber: number,
-  xanoFetcher: () => Promise<Record<string, unknown>[]>
+  _xanoFetcher?: () => Promise<Record<string, unknown>[]>
 ): Promise<Record<string, unknown>[]> {
-  const backend = getDataBackendFor(DOMAIN)
   const channel = channelFromEndpoint(endpoint)
-  const table = endpoint
-
-  if (backend === "postgres") {
-    if (!channel) return []
-    return fetchLineItemsFromPostgres(mbaNumber, versionNumber, channel)
-  }
-
-  const xanoRows = await xanoFetcher()
-
-  if (backend === "shadow" && channel) {
-    void (async () => {
-      try {
-        const postgresRows = await fetchLineItemsFromPostgres(
-          mbaNumber,
-          versionNumber,
-          channel
-        )
-        // Match on line_item_id (PG ids ≠ Xano ids).
-        const xanoKeyed = xanoRows.map(normalizeLineItemForCompare)
-        const pgKeyed = postgresRows.map(normalizeLineItemForCompare)
-        runPlansShadowCompare(table, xanoKeyed, pgKeyed, {
-          financeDuplicateClass: true,
-          duplicateNaturalKey: lineItemDuplicateNaturalKey,
-          postgresKeysOnly: true,
-        })
-      } catch (err) {
-        console.error("[migration-shadow-diff] plans line-items compare failed", {
-          table,
-          mbaNumber,
-          versionNumber,
-          err,
-        })
-      }
-    })()
-  }
-
-  return xanoRows
+  if (!channel) return []
+  return fetchLineItemsFromPostgres(mbaNumber, versionNumber, channel)
 }
 
-/** One-shot probe for admin migration-diffs / smoke scripts. */
-export async function probePlansShadowDiffs(options?: {
+/** Plans reads are Postgres. Kept so admin migration-diffs still calls a no-op. */
+export async function probePlansShadowDiffs(_options?: {
   mbaNumbers?: string[]
   channels?: LineChannel[]
-}): Promise<void> {
-  const mbas = options?.mbaNumbers ?? ["BICAU001", "BICAU002", "golf009"]
-  const channels = options?.channels ?? [
-    "television",
-    "social",
-    "search",
-    "production",
-    "prog_video",
-    "digi_display",
-  ]
-
-  await readPlanMasters()
-  await readPlanVersions()
-
-  for (const mba of mbas) {
-    const versions = await fetchPlanVersionsByMbaFromPostgres(mba)
-    const published = versions
-      .map((v) => Number(v.version_number))
-      .filter((n) => Number.isFinite(n))
-      .sort((a, b) => b - a)[0]
-    if (published == null) continue
-
-    for (const channel of channels) {
-      const endpoint = Object.entries(CHANNEL_ENDPOINT_TO_CHANNEL).find(
-        ([, c]) => c === channel
-      )?.[0]
-      if (!endpoint) continue
-      try {
-        const url = xanoUrl(endpoint, [...MEDIA_PLANS_KEYS])
-        await readChannelLineItems(endpoint, mba, published, async () => {
-          const raw = await fetchAllXanoPages(
-            url,
-            { mba_number: mba, mp_plannumber: published },
-            `PLANS_PROBE_${endpoint}`,
-            100,
-            20
-          )
-          return asRecordList(raw)
-        })
-      } catch (err) {
-        console.error("[plans-probe] channel failed", { mba, channel, err })
-      }
-    }
-  }
-}
+}): Promise<void> {}

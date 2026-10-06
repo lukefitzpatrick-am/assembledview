@@ -105,6 +105,8 @@ export interface BillingRecord {
   notes?: string | null
   exported_at?: number | string | null
   exported_by?: number | null
+  /** JSON {"csv","xlsx"} Blob pathnames stamped with the export. */
+  export_blob_path?: string | null
   /** Display name at export time when the overlay has it; not a Postgres column. */
   exported_by_name?: string | null
   invoice_key?: string | null
@@ -126,6 +128,8 @@ export interface BillingRecord {
   state?: BillingState
   /** Why `state` resolved as it did — badge title / debug. */
   state_reason?: string
+  /** True when the matched Xero subtotal differs from expected by more than $1. */
+  needs_attention?: boolean
 }
 
 export interface BillingEdit {

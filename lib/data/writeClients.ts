@@ -1,21 +1,15 @@
 /**
- * Postgres-authoritative client writes (X1 split-brain fix).
- * Order: PG insert/update → invalidate caches → best-effort Xano mirror
- * (failure → app_notifications, never blocks / rolls back PG).
+ * Postgres-authoritative client writes.
+ * The Postgres insert or update is the whole function.
  */
 import "server-only"
 
 import { eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
-import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
-import { xanoPostHeaderRecord, getXanoTimeoutMs } from "@/lib/api/xano"
 import { invalidateClientsCache } from "@/lib/cache/clientsCache"
 import { slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { invalidateCachedClients } from "@/lib/finance/xanoReferenceCache"
 import { mapClientRowFromPostgres } from "@/lib/data/readClients"
-
-export const CLIENT_MIRROR_FAILURE_KIND = "xano_client_mirror_failed"
-export const CLIENT_MIRROR_FAILURE_AUDIENCE = "admin"
 
 /** Columns clients writes may set (API snake_case → drizzle). */
 const WRITABLE_SNAKE_TO_CAMEL: Record<string, keyof typeof schema.clients.$inferInsert> = {
@@ -92,29 +86,6 @@ const WRITABLE_SNAKE_TO_CAMEL: Record<string, keyof typeof schema.clients.$infer
   m365_is_anchor: "m365IsAnchor",
 }
 
-export type ClientMirrorFailurePayload = {
-  op: "create" | "update" | "patch"
-  clientId: number
-  error: string
-  timestamp: string
-  retried: boolean
-}
-
-export function buildClientMirrorFailurePayload(input: {
-  op: "create" | "update" | "patch"
-  clientId: number
-  error: string
-  at?: Date
-}): ClientMirrorFailurePayload {
-  return {
-    op: input.op,
-    clientId: input.clientId,
-    error: input.error,
-    timestamp: (input.at ?? new Date()).toISOString(),
-    retried: false,
-  }
-}
-
 /**
  * Normalize create/update body: name aliases → mp_client_name, drop empties,
  * keep only known client columns.
@@ -153,24 +124,6 @@ export function normalizeClientWritePayload(
   return out
 }
 
-export function buildXanoClientMirrorPayload(
-  pgId: number,
-  snakeRow: Record<string, unknown>
-): Record<string, unknown> {
-  const name = snakeRow.mp_client_name
-  return {
-    ...snakeRow,
-    id: pgId,
-    ...(typeof name === "string"
-      ? {
-          mp_client_name: name,
-          client_name: name,
-          clientname_input: name,
-        }
-      : {}),
-  }
-}
-
 function snakeToInsertValues(
   snake: Record<string, unknown>
 ): typeof schema.clients.$inferInsert {
@@ -207,90 +160,8 @@ export async function syncClientsIdSequence(): Promise<void> {
   `)
 }
 
-export async function persistClientMirrorFailureNotification(
-  payload: ClientMirrorFailurePayload
-): Promise<void> {
-  if (!process.env.DATABASE_URL?.trim()) return
-  try {
-    const db = getDb()
-    await db.execute(sql`
-      INSERT INTO app_notifications (audience, kind, payload)
-      VALUES (
-        ${CLIENT_MIRROR_FAILURE_AUDIENCE},
-        ${CLIENT_MIRROR_FAILURE_KIND},
-        ${JSON.stringify(payload)}::jsonb
-      )
-    `)
-  } catch (err) {
-    console.warn("[clients-mirror] failed to persist app_notifications row", {
-      clientId: payload.clientId,
-      err,
-    })
-  }
-}
-
-export type ClientMirrorResult = "ok" | "failed"
-
-async function mirrorClientToXano(input: {
-  op: "create" | "update" | "patch"
-  clientId: number
-  snakeRow: Record<string, unknown>
-}): Promise<ClientMirrorResult> {
-  const base = getXanoClientsCollectionUrl()
-  const timeoutMs = getXanoTimeoutMs()
-  const headers = {
-    "Content-Type": "application/json",
-    ...xanoPostHeaderRecord(),
-  }
-  const payload = buildXanoClientMirrorPayload(input.clientId, input.snakeRow)
-
-  try {
-    if (input.op === "create") {
-      const res = await fetch(base, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      if (!res.ok) {
-        throw new Error(`Xano POST clients ${res.status}: ${await res.text().catch(() => "")}`)
-      }
-    } else {
-      const method = input.op === "update" ? "PUT" : "PATCH"
-      const res = await fetch(`${base}/${encodeURIComponent(String(input.clientId))}`, {
-        method,
-        headers,
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      if (!res.ok) {
-        throw new Error(
-          `Xano ${method} clients/${input.clientId} ${res.status}: ${await res.text().catch(() => "")}`
-        )
-      }
-    }
-    return "ok"
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error("[clients-mirror] Xano mirror failed", {
-      op: input.op,
-      clientId: input.clientId,
-      message,
-    })
-    await persistClientMirrorFailureNotification(
-      buildClientMirrorFailurePayload({
-        op: input.op,
-        clientId: input.clientId,
-        error: message,
-      })
-    )
-    return "failed"
-  }
-}
-
 export type ClientWriteResult = {
   row: Record<string, unknown>
-  mirror: ClientMirrorResult
 }
 
 export async function createClientPostgresFirst(
@@ -328,12 +199,7 @@ export async function createClientPostgresFirst(
   }
   invalidateAllClientsCaches()
   const row = mapClientRowFromPostgres(inserted as Record<string, unknown>)
-  const mirror = await mirrorClientToXano({
-    op: "create",
-    clientId: Number(inserted.id),
-    snakeRow: snake,
-  })
-  return { row, mirror }
+  return { row }
 }
 
 export async function updateClientPostgresFirst(
@@ -359,7 +225,6 @@ export async function updateClientPostgresFirst(
     if (!existing) return { notFound: true }
     return {
       row: mapClientRowFromPostgres(existing as Record<string, unknown>),
-      mirror: "ok",
     }
   }
 
@@ -373,12 +238,7 @@ export async function updateClientPostgresFirst(
 
   invalidateAllClientsCaches()
   const row = mapClientRowFromPostgres(updated as Record<string, unknown>)
-  const mirror = await mirrorClientToXano({
-    op,
-    clientId: numericId,
-    snakeRow: snake,
-  })
-  return { row, mirror }
+  return { row }
 }
 
 export type ResolveClientIdLookup = {

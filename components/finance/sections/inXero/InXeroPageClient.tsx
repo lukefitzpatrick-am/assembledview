@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Download, RefreshCw } from "lucide-react"
+import { Download } from "lucide-react"
 import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSectionsShell"
 import { InXeroOutcomeList } from "@/components/finance/sections/inXero/InXeroOutcomeSection"
 import { SectionScopeBar } from "@/components/finance/sections/SectionScopeBar"
@@ -38,7 +38,6 @@ export function InXeroPageClient() {
   const scopeVersion = useFinanceScopeVersion()
   const [view, setView] = useState<ViewState<DraftMatchReport>>({ status: "loading" })
   const [updating, setUpdating] = useState(false)
-  const [pulling, setPulling] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [assignClient, setAssignClient] = useState<Record<string, string>>({})
@@ -72,49 +71,6 @@ export function InXeroPageClient() {
     ? payload.counts.Differs + payload.counts.Missing + payload.counts.Extra
     : 0
 
-  const onPull = async () => {
-    setPulling(true)
-    try {
-      const res = await fetch("/api/finance/sections/pull-xero", { method: "POST" })
-      const body = (await res.json().catch(() => ({}))) as {
-        error?: string
-        retry_after_seconds?: number
-        ok?: boolean
-        stamps?: { stamped?: number; skipped?: number; unchanged?: number; failed?: number }
-      }
-      if (res.status === 429) {
-        const secs = body.retry_after_seconds ?? 60
-        toast({
-          variant: "destructive",
-          title: "Pull already running",
-          description: `Try again in ${secs}s.`,
-        })
-        return
-      }
-      if (!res.ok) {
-        throw new Error(body.error || `Pull failed (${res.status})`)
-      }
-      const stamped = body.stamps?.stamped ?? 0
-      const skipped = body.stamps?.skipped ?? 0
-      toast({
-        title: "Pulled from Xero",
-        description:
-          skipped > 0
-            ? `${stamped} auto-matched, ${skipped} skipped (already matched manually).`
-            : "Drafts refreshed. Matching again.",
-      })
-      load()
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Pull failed",
-        description: e instanceof Error ? e.message : "Unknown error",
-      })
-    } finally {
-      setPulling(false)
-    }
-  }
-
   const onExport = async () => {
     if (!payload) return
     setExporting(true)
@@ -126,7 +82,11 @@ export function InXeroPageClient() {
     }
   }
 
-  const mutate = async (row: DraftMatchRow, action: "accept" | "assign", invoiceKey: string) => {
+  const mutate = async (
+    row: DraftMatchRow,
+    action: "accept" | "dispute" | "assign",
+    invoiceKey: string,
+  ) => {
     const xeroId = row.drafts[0]?.xero_invoice_id
     if (!xeroId || !invoiceKey) return
     setBusyId(row.id)
@@ -145,11 +105,13 @@ export function InXeroPageClient() {
         throw new Error(err.message || err.error || `Request failed (${res.status})`)
       }
       toast({
-        title: action === "accept" ? "Xero figure recorded" : "Assigned",
+        title: action === "accept" ? "Xero figure adopted" : action === "dispute" ? "Disputed" : "Assigned",
         description:
           action === "accept"
-            ? "Match saved. The approved snapshot is unchanged — the delta stays visible."
-            : "Manual match saved.",
+            ? "Approved snapshot amount now matches the Xero subtotal."
+            : action === "dispute"
+              ? "Difference marked disputed."
+              : "Manual match saved.",
       })
       load()
     } catch (e) {
@@ -177,23 +139,12 @@ export function InXeroPageClient() {
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Match Xero drafts to approved invoices before anyone authorises in Xero. This app
-            never writes to Xero.
+            Match runs each night after the Xero invoice ingest. This app never writes to Xero.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs text-muted-foreground">
               Last pulled {formatPulled(payload?.lastPulledAt ?? null)}
             </p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => void onPull()}
-              disabled={pulling}
-            >
-              <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", pulling && "animate-spin")} />
-              Pull from Xero
-            </Button>
             <Button
               type="button"
               size="sm"
@@ -214,7 +165,7 @@ export function InXeroPageClient() {
         {view.status === "ready" && payload && exceptionCount === 0 && payload.counts.Agrees === 0 ? (
           <EmptyState
             title="No drafts to match"
-            message="Pull from Xero after finance has finished keying drafts. There are no approved invoices waiting, and no live drafts in the last pull."
+            message="Nothing is waiting. The nightly sync matches Xero invoices to app records."
           />
         ) : null}
 
@@ -234,6 +185,7 @@ export function InXeroPageClient() {
                 setAssignKey,
               }}
               onAccept={(row) => void mutate(row, "accept", row.approved[0]?.invoice_key ?? "")}
+              onDispute={(row) => void mutate(row, "dispute", row.approved[0]?.invoice_key ?? "")}
               onAssign={(row, key) => void mutate(row, "assign", key)}
             />
           </div>

@@ -2,20 +2,14 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import {
-  PUBLISHER_MIRROR_FAILURE_KIND,
-  buildPublisherMirrorFailurePayload,
   normalizePublisherWritePayload,
 } from "../writePublishers"
 import {
-  REFERENCE_MIRROR_FAILURE_KIND,
-  buildReferenceMirrorFailurePayload,
   isReferenceWritePath,
   normalizeReferenceWritePayload,
   resolveReferenceWriteTable,
 } from "../writeReferenceMediaDetail"
 import {
-  BP_MIRROR_FAILURE_KIND,
-  buildBpMirrorFailurePayload,
   normalizeBpWritePayload,
 } from "../writeMediaContainerBestPractice"
 
@@ -48,20 +42,6 @@ describe("normalizePublisherWritePayload", () => {
   })
 })
 
-describe("buildPublisherMirrorFailurePayload", () => {
-  it("shapes app_notifications payload", () => {
-    const p = buildPublisherMirrorFailurePayload({
-      op: "create",
-      publisherId: 9,
-      error: "upstream 500",
-      at: new Date("2026-08-02T00:00:00.000Z"),
-    })
-    assert.equal(p.publisherId, 9)
-    assert.equal(p.timestamp, "2026-08-02T00:00:00.000Z")
-    assert.equal(PUBLISHER_MIRROR_FAILURE_KIND, "xano_publisher_mirror_failed")
-  })
-})
-
 describe("reference media-detail write paths", () => {
   it("maps POST_* and bare site paths to tables", () => {
     assert.equal(resolveReferenceWriteTable("POST_tv_stations"), "tv_stations")
@@ -83,16 +63,6 @@ describe("reference media-detail write paths", () => {
     )
   })
 
-  it("shapes mirror failure payload", () => {
-    const p = buildReferenceMirrorFailurePayload({
-      table: "tv_stations",
-      rowId: 3,
-      error: "boom",
-      at: new Date("2026-08-02T00:00:00.000Z"),
-    })
-    assert.equal(p.table, "tv_stations")
-    assert.equal(REFERENCE_MIRROR_FAILURE_KIND, "xano_reference_mirror_failed")
-  })
 })
 
 describe("media_container_best_practice write payload", () => {
@@ -108,14 +78,4 @@ describe("media_container_best_practice write payload", () => {
     assert.equal(out._name, "admin@test")
   })
 
-  it("shapes mirror failure kind", () => {
-    const p = buildBpMirrorFailurePayload({
-      op: "update",
-      id: 2,
-      error: "x",
-      at: new Date("2026-08-02T00:00:00.000Z"),
-    })
-    assert.equal(p.op, "update")
-    assert.equal(BP_MIRROR_FAILURE_KIND, "xano_media_container_bp_mirror_failed")
-  })
 })

@@ -19,7 +19,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if ("notFound" in result) {
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
-    return NextResponse.json({ ...result.row, mirror: result.mirror })
+    return NextResponse.json(result.row)
   } catch (error) {
     console.error("Failed to update media-container best practice:", error)
     const message = error instanceof Error ? error.message : String(error)

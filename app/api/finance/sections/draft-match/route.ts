@@ -6,8 +6,13 @@ import {
 } from "@/lib/finance/sections/draftMatchQuery"
 import {
   FinanceBillingWriteError,
+  applyXeroAmountResolution,
   setFinanceBillingRecordXeroMatch,
 } from "@/lib/data/writeFinance"
+import { getDb } from "@/db"
+import { sql } from "drizzle-orm"
+import { rowsOf } from "@/lib/xero/dbRows"
+import { coerceDollars, dollarsToCents } from "@/lib/xero/money"
 
 export const maxDuration = 60
 
@@ -52,9 +57,9 @@ export async function POST(request: NextRequest) {
   }
   const raw = body as Record<string, unknown>
   const action = typeof raw.action === "string" ? raw.action : ""
-  if (action !== "accept" && action !== "assign") {
+  if (action !== "accept" && action !== "adopt" && action !== "dispute" && action !== "assign") {
     return NextResponse.json(
-      { error: "bad_request", message: "action must be accept or assign." },
+      { error: "bad_request", message: "action must be adopt, dispute, or assign." },
       { status: 400 }
     )
   }
@@ -69,12 +74,38 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { record: row } = await setFinanceBillingRecordXeroMatch({
+    if (action === "assign") {
+      const { record: row } = await setFinanceBillingRecordXeroMatch({
+        invoiceKey,
+        xeroInvoiceId,
+        matchedBy: "manual",
+      })
+      return NextResponse.json({ ok: true, action, invoice_key: invoiceKey, xero_invoice_id: xeroInvoiceId, row })
+    }
+    const resolution = action === "dispute" ? "disputed" : "adopted"
+    const subRow = rowsOf<{ sub_total: unknown }>(
+      await getDb().execute(sql`
+        SELECT sub_total
+        FROM xero_ar_invoices
+        WHERE xero_invoice_id = ${xeroInvoiceId}
+        LIMIT 1
+      `),
+    )[0]
+    if (!subRow) {
+      return NextResponse.json(
+        { error: "NOT_FOUND", message: "Xero invoice not in the local snapshot." },
+        { status: 404 },
+      )
+    }
+    const row = await applyXeroAmountResolution({
       invoiceKey,
       xeroInvoiceId,
-      matchedBy: "manual",
+      resolution,
+      subTotalCents: dollarsToCents(coerceDollars(subRow.sub_total)),
+      expectedSource: typeof raw.expected_source === "string" ? raw.expected_source : null,
+      editedByName: "finance-admin",
     })
-    return NextResponse.json({ ok: true, action, invoice_key: invoiceKey, xero_invoice_id: xeroInvoiceId, row })
+    return NextResponse.json({ ok: true, action: resolution, invoice_key: invoiceKey, xero_invoice_id: xeroInvoiceId, row })
   } catch (error) {
     if (error instanceof FinanceBillingWriteError) {
       const status = error.code === "NOT_FOUND" ? 404 : error.code === "XERO_KEY_REFUSED" ? 400 : 400

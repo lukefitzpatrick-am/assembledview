@@ -1,20 +1,15 @@
 /**
- * Postgres-authoritative publisher writes (X4 reference-data).
- * Order: PG insert/update → invalidate caches → best-effort Xano mirror
- * (failure → app_notifications, never blocks / rolls back PG).
+ * Postgres-authoritative publisher writes.
+ * The Postgres insert or update is the whole function.
  */
 import "server-only"
 
 import { eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
-import { xanoPostHeaderRecord, xanoUrl, getXanoTimeoutMs } from "@/lib/api/xano"
 import { invalidatePublishersCache } from "@/lib/api/publishersCache"
 import { invalidateCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import { bodyForPublisherPut } from "@/lib/publisher/normalizePublisher"
 import { mapPublisherRowFromPostgres } from "@/lib/data/readPublishers"
-
-export const PUBLISHER_MIRROR_FAILURE_KIND = "xano_publisher_mirror_failed"
-export const PUBLISHER_MIRROR_FAILURE_AUDIENCE = "admin"
 
 /** Columns publishers writes may set (API snake_case → drizzle). */
 const WRITABLE_SNAKE_TO_CAMEL: Record<string, keyof typeof schema.publishers.$inferInsert> = {
@@ -124,29 +119,6 @@ const WRITABLE_SNAKE_TO_CAMEL: Record<string, keyof typeof schema.publishers.$in
   best_practice: "bestPractice",
 }
 
-export type PublisherMirrorFailurePayload = {
-  op: "create" | "update"
-  publisherId: number
-  error: string
-  timestamp: string
-  retried: boolean
-}
-
-export function buildPublisherMirrorFailurePayload(input: {
-  op: "create" | "update"
-  publisherId: number
-  error: string
-  at?: Date
-}): PublisherMirrorFailurePayload {
-  return {
-    op: input.op,
-    publisherId: input.publisherId,
-    error: input.error,
-    timestamp: (input.at ?? new Date()).toISOString(),
-    retried: false,
-  }
-}
-
 export function normalizePublisherWritePayload(
   body: Record<string, unknown>,
   options: { requireIdentity?: boolean } = {}
@@ -203,91 +175,8 @@ export async function syncPublishersIdSequence(): Promise<void> {
   `)
 }
 
-export async function persistPublisherMirrorFailureNotification(
-  payload: PublisherMirrorFailurePayload
-): Promise<void> {
-  if (!process.env.DATABASE_URL?.trim()) return
-  try {
-    const db = getDb()
-    await db.execute(sql`
-      INSERT INTO app_notifications (audience, kind, payload)
-      VALUES (
-        ${PUBLISHER_MIRROR_FAILURE_AUDIENCE},
-        ${PUBLISHER_MIRROR_FAILURE_KIND},
-        ${JSON.stringify(payload)}::jsonb
-      )
-    `)
-  } catch (err) {
-    console.warn("[publishers-mirror] failed to persist app_notifications row", {
-      publisherId: payload.publisherId,
-      err,
-    })
-  }
-}
-
-export type PublisherMirrorResult = "ok" | "failed"
-
-async function mirrorPublisherToXano(input: {
-  op: "create" | "update"
-  publisherPk: number
-  snakeRow: Record<string, unknown>
-}): Promise<PublisherMirrorResult> {
-  const timeoutMs = getXanoTimeoutMs()
-  const headers = {
-    "Content-Type": "application/json",
-    ...xanoPostHeaderRecord(),
-  }
-  const payload = { ...input.snakeRow, id: input.publisherPk }
-
-  try {
-    if (input.op === "create") {
-      const res = await fetch(xanoUrl("post_publishers", "XANO_PUBLISHERS_BASE_URL"), {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      if (!res.ok) {
-        throw new Error(`Xano POST publishers ${res.status}: ${await res.text().catch(() => "")}`)
-      }
-    } else {
-      const res = await fetch(
-        `${xanoUrl("edit_publishers", "XANO_PUBLISHERS_BASE_URL")}/${encodeURIComponent(String(input.publisherPk))}`,
-        {
-          method: "PUT",
-          headers,
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(timeoutMs),
-        }
-      )
-      if (!res.ok) {
-        throw new Error(
-          `Xano PUT edit_publishers/${input.publisherPk} ${res.status}: ${await res.text().catch(() => "")}`
-        )
-      }
-    }
-    return "ok"
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error("[publishers-mirror] Xano mirror failed", {
-      op: input.op,
-      publisherPk: input.publisherPk,
-      message,
-    })
-    await persistPublisherMirrorFailureNotification(
-      buildPublisherMirrorFailurePayload({
-        op: input.op,
-        publisherId: input.publisherPk,
-        error: message,
-      })
-    )
-    return "failed"
-  }
-}
-
 export type PublisherWriteResult = {
   row: Record<string, unknown>
-  mirror: PublisherMirrorResult
 }
 
 export async function findPublisherByBusinessId(
@@ -324,12 +213,7 @@ export async function createPublisherPostgresFirst(
   }
   invalidateAllPublishersCaches()
   const row = mapPublisherRowFromPostgres(inserted as Record<string, unknown>)
-  const mirror = await mirrorPublisherToXano({
-    op: "create",
-    publisherPk: Number(inserted.id),
-    snakeRow: snake,
-  })
-  return { row, mirror }
+  return { row }
 }
 
 export async function updatePublisherPostgresFirst(
@@ -343,7 +227,7 @@ export async function updatePublisherPostgresFirst(
 
   const snake = normalizePublisherWritePayload(body, { requireIdentity: false })
   if (Object.keys(snake).length === 0) {
-    return { row: existing, mirror: "ok" }
+    return { row: existing }
   }
 
   const db = getDb()
@@ -356,10 +240,5 @@ export async function updatePublisherPostgresFirst(
 
   invalidateAllPublishersCaches()
   const row = mapPublisherRowFromPostgres(updated as Record<string, unknown>)
-  const mirror = await mirrorPublisherToXano({
-    op: "update",
-    publisherPk: numericId,
-    snakeRow: snake,
-  })
-  return { row, mirror }
+  return { row }
 }

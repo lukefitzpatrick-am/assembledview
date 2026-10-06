@@ -36,6 +36,12 @@ export const FINANCE_SECTION_SIDEBAR_ITEMS: readonly FinanceSectionNavItem[] = [
     legacyTab: "report",
     description: "Spend and margin reporting",
   },
+  {
+    path: "/finance/reports/invoiced-vs-expected",
+    label: "Invoiced vs expected",
+    legacyTab: "invoiced-vs-expected",
+    description: "AV expected against the Xero subtotal",
+  },
 ] as const
 
 /**
@@ -96,6 +102,7 @@ export const FINANCE_SECTION_PAGE_PATHS = [
   "/finance/costs/client-pays",
   "/finance/investment",
   "/finance/forecasting",
+  "/finance/reports/invoiced-vs-expected",
 ] as const
 
 /**

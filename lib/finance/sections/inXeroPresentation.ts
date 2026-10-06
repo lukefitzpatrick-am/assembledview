@@ -32,7 +32,7 @@ export function inXeroPrimaryAction(outcome: DraftMatchOutcome): InXeroPrimaryKi
 }
 
 export function inXeroPrimaryLabel(kind: InXeroPrimaryKind): string {
-  return kind === "accept" ? "Accept Xero figure" : "Assign"
+  return kind === "accept" ? "Adopt Xero figure" : "Assign"
 }
 
 export function isDraftMatchOutcomeCollapsedByDefault(outcome: DraftMatchOutcome): boolean {

@@ -1,27 +1,16 @@
 /**
- * FK-first channel line-item reads (same strategy as MBA GET).
- *
- * Resolves the published media_plan_versions row for an MBA, then fetches
- * children preferring media_plan_version = version row id. This is robust when
- * version_number and mp_plannumber disagree (e.g. first published version = 2).
+ * Channel line-item reads from Postgres `line_items`.
  *
  * Query params media_plan_version / mp_plannumber / version_number from the
  * editor are treated as version *numbers* (client convention), not FK ids.
  */
 
-import axios from "axios"
-import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import { parseXanoListPayload, xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
-import { getDataBackendFor } from "@/lib/data/backend"
 import { sortLineItemsByLineItemNumber } from "@/lib/mediaplan/lineItemIds"
 import {
   clampLatestToPublished,
   parseVersionNumber,
-  pickPublishedVersionRow,
   publishedVersionFromMaster,
 } from "@/lib/mediaplan/publishedVersionGuard"
-
-const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
 
 /** All Xano line-item table endpoints used by channel GETs / catch-all proxy. */
 export const CHANNEL_LINE_ITEM_ENDPOINTS = [
@@ -152,51 +141,21 @@ export function filterByMbaAndVersion(
   })
 }
 
-/**
- * Query Xano with FK-first attempt chain (identical to MBA GET).
- */
+/** Channel lines for one endpoint from Postgres `line_items`. */
 export async function fetchXanoTableForEndpoint(
   endpoint: string,
   mbaNumber: string,
   versionNumber: number,
-  mediaPlanVersionId?: number | null,
-  logTag: string = endpoint
+  _mediaPlanVersionId?: number | null,
+  _logTag: string = endpoint
 ): Promise<any[]> {
-  const url = xanoUrl(endpoint, [...MEDIA_PLANS_KEYS])
-
-  const attempts: Array<Record<string, string | number | boolean | null | undefined>> = [
-    ...(mediaPlanVersionId !== null && mediaPlanVersionId !== undefined
-      ? [
-          { mba_number: mbaNumber, media_plan_version: mediaPlanVersionId },
-          { mba_number: mbaNumber, media_plan_version_id: mediaPlanVersionId },
-        ]
-      : []),
-    { mba_number: mbaNumber, mp_plannumber: versionNumber },
-    { mba_number: mbaNumber, version_number: versionNumber },
-    { mba_number: mbaNumber, media_plan_version: versionNumber },
-  ]
-
-  let bestFiltered: any[] = []
-  let bestRawCount = Number.POSITIVE_INFINITY
-
-  for (const params of attempts) {
-    const raw = await fetchAllXanoPages(url, params, logTag)
-    const filtered = filterByMbaAndVersion(raw, mbaNumber, versionNumber, mediaPlanVersionId)
-
-    if (
-      filtered.length > bestFiltered.length ||
-      (filtered.length === bestFiltered.length && raw.length < bestRawCount)
-    ) {
-      bestFiltered = filtered
-      bestRawCount = raw.length
-    }
-
-    if (raw.length > 0 && raw.length === filtered.length) {
-      break
-    }
-  }
-
-  return sortLineItemsByLineItemNumber(bestFiltered)
+  const { fetchLineItemsFromPostgresByEndpoint } = await import("@/lib/data/readMediaPlans")
+  const rows = await fetchLineItemsFromPostgresByEndpoint(
+    endpoint,
+    mbaNumber,
+    versionNumber
+  )
+  return sortLineItemsByLineItemNumber(rows)
 }
 
 function parseRequestedVersionNumber(hints: ChannelGetVersionHints): number {
@@ -208,39 +167,19 @@ function parseRequestedVersionNumber(hints: ChannelGetVersionHints): number {
 }
 
 async function fetchMasterForMba(mbaNumber: string): Promise<Record<string, unknown> | null> {
-  const requestedNormalized = normalise(mbaNumber)
-  const masterResponse = await axios.get(
-    `${xanoUrl("media_plan_master", [...MEDIA_PLANS_KEYS])}?mba_number=${encodeURIComponent(mbaNumber)}`,
-    { headers: xanoAuthHeaderRecord() }
-  )
-
-  if (Array.isArray(masterResponse.data)) {
-    return (
-      masterResponse.data.find((item: any) => normalise(item?.mba_number) === requestedNormalized) ||
-      null
-    )
-  }
-  if (masterResponse.data && typeof masterResponse.data === "object") {
-    return normalise((masterResponse.data as any).mba_number) === requestedNormalized
-      ? (masterResponse.data as Record<string, unknown>)
-      : null
-  }
-  return null
+  const { readPlanMasterByMba } = await import("@/lib/data/readMediaPlans")
+  return readPlanMasterByMba(mbaNumber)
 }
 
 async function fetchVersionRowForMba(
   mbaNumber: string,
   versionNumber: number
 ): Promise<Record<string, unknown> | null> {
-  const requestedNormalized = normalise(mbaNumber)
-  const versionResponse = await axios.get(
-    `${xanoUrl("media_plan_versions", [...MEDIA_PLANS_KEYS])}?mba_number=${encodeURIComponent(mbaNumber)}&version_number=${versionNumber}&page=1&per_page=50`,
-    { headers: xanoAuthHeaderRecord() }
+  const { readPlanVersionsByMba } = await import("@/lib/data/readMediaPlans")
+  const rows = await readPlanVersionsByMba(mbaNumber)
+  return (
+    rows.find((row) => Number(row.version_number) === versionNumber) ?? null
   )
-  const rows = parseXanoListPayload(versionResponse.data).filter(
-    (v: any) => normalise(v?.mba_number) === requestedNormalized
-  )
-  return (rows[0] as Record<string, unknown>) || null
 }
 
 /**
@@ -271,19 +210,6 @@ export async function resolveVersionScopeForChannelGet(
   }
 
   if (!versionRow) {
-    // Last resort: page versions for MBA and pick published watermark row.
-    const history = await fetchAllXanoPages(
-      xanoUrl("media_plan_versions", [...MEDIA_PLANS_KEYS]),
-      { mba_number: mbaNumber },
-      "CHANNEL_versions",
-      100,
-      20
-    )
-    const forMba = history.filter((v: any) => normalise(v?.mba_number) === normalise(mbaNumber))
-    versionRow = pickPublishedVersionRow(forMba, published) as Record<string, unknown> | null
-  }
-
-  if (!versionRow) {
     throw new Error(`No media plan versions found for MBA number ${mbaNumber}`)
   }
 
@@ -304,59 +230,32 @@ export async function resolveVersionScopeForChannelGet(
   }
 }
 
-/** Resolve version scope + FK-first fetch for one channel endpoint. */
+/** Resolve version scope and fetch one channel endpoint from Postgres. */
 export async function fetchChannelLineItemsForMbaGet(
   endpoint: string,
   mbaNumber: string,
   hints: ChannelGetVersionHints = {},
-  logTag?: string
+  _logTag?: string
 ): Promise<any[]> {
-  const backend = getDataBackendFor("plans")
-
-  // Postgres path: reassemble from consolidated line_items (no Xano master walk).
-  if (backend === "postgres") {
-    const { fetchLineItemsFromPostgresByEndpoint, readPlanMasterByMba } = await import(
-      "@/lib/data/readMediaPlans"
-    )
-    const master = await readPlanMasterByMba(mbaNumber)
-    if (!master) {
-      throw new Error(`Media plan master not found for MBA number ${mbaNumber}`)
-    }
-    const published = publishedVersionFromMaster(master)
-    if (published <= 0) {
-      throw new Error(
-        `Media plan master for MBA ${mbaNumber} is missing published version_number`
-      )
-    }
-    const requested = parseRequestedVersionNumber(hints)
-    const targetVersionNumber =
-      requested > 0 ? clampLatestToPublished(requested, published) : published
-    return fetchLineItemsFromPostgresByEndpoint(
-      endpoint,
-      mbaNumber,
-      targetVersionNumber
+  const { fetchLineItemsFromPostgresByEndpoint, readPlanMasterByMba } = await import(
+    "@/lib/data/readMediaPlans"
+  )
+  const master = await readPlanMasterByMba(mbaNumber)
+  if (!master) {
+    throw new Error(`Media plan master not found for MBA number ${mbaNumber}`)
+  }
+  const published = publishedVersionFromMaster(master)
+  if (published <= 0) {
+    throw new Error(
+      `Media plan master for MBA ${mbaNumber} is missing published version_number`
     )
   }
-
-  const scope = await resolveVersionScopeForChannelGet(mbaNumber, hints)
-  const xanoFetcher = () =>
-    fetchXanoTableForEndpoint(
-      endpoint,
-      mbaNumber,
-      scope.versionNumber,
-      scope.mediaPlanVersionId,
-      logTag ?? endpoint
-    )
-
-  if (backend === "shadow") {
-    const { readChannelLineItems } = await import("@/lib/data/readMediaPlans")
-    return readChannelLineItems(
-      endpoint,
-      mbaNumber,
-      scope.versionNumber,
-      xanoFetcher
-    )
-  }
-
-  return xanoFetcher()
+  const requested = parseRequestedVersionNumber(hints)
+  const targetVersionNumber =
+    requested > 0 ? clampLatestToPublished(requested, published) : published
+  return fetchLineItemsFromPostgresByEndpoint(
+    endpoint,
+    mbaNumber,
+    targetVersionNumber
+  )
 }

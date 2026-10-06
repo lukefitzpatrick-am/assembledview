@@ -14,7 +14,7 @@ export async function fetchCampaignKpis(
   return await readCampaignKpis(mbaNumber, versionNumber)
 }
 
-/** PG-first + Xano mirror (X5 / C-18). */
+/** Postgres write. */
 export async function createCampaignKpis(
   inputs: CampaignKpiInput[],
 ): Promise<CampaignKPI[]> {
@@ -23,7 +23,7 @@ export async function createCampaignKpis(
 
 /**
  * Sync campaign_kpi rows by natural key (mba_number, version_number, line_item_id).
- * PG-authoritative read + write; Xano mirror per mutate.
+ * Postgres read and write.
  */
 export async function syncCampaignKpis(
   inputs: CampaignKpiInput[],

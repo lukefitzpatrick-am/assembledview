@@ -56,6 +56,7 @@ export function InXeroMatchRow({
   setAssignMba,
   setAssignKey,
   onAccept,
+  onDispute,
   onAssign,
 }: {
   row: DraftMatchRow
@@ -69,6 +70,7 @@ export function InXeroMatchRow({
   setAssignMba: (v: string) => void
   setAssignKey: (v: string) => void
   onAccept: () => void
+  onDispute?: () => void
   onAssign: (invoiceKey: string) => void
 }) {
   const [assignOpen, setAssignOpen] = useState(false)
@@ -157,6 +159,13 @@ export function InXeroMatchRow({
         onSelect: () => undefined,
       })
     }
+  }
+  if (row.outcome === "Differs" && onDispute) {
+    menuItems.push({
+      label: "Dispute",
+      disabled: busy,
+      onSelect: () => onDispute(),
+    })
   }
   if (row.outcome === "Differs" && canAssign) {
     menuItems.push({

@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createChannelLineItemsGetHandler } from "@/lib/api/channelLineItemsGetHandler"
 import { resolveChannelLineItemEndpoint } from "@/lib/api/fetchChannelLineItemsByMba"
-import { getDataBackendFor, getWriteBackend } from "@/lib/data/backend"
-import { xanoAuthHeader, xanoUrl } from "@/lib/api/xano"
 import { requireRole } from "@/lib/requireRole"
-import { checkMediaPlansProxyPath } from "@/lib/security/proxyAllowlist"
 import { logProxy403 } from "@/lib/security/logProxy403"
 
 export const dynamic = "force-dynamic"
@@ -25,64 +22,8 @@ async function requireProxyStaff(request: Request, proxyPath: string) {
   return null
 }
 
-async function proxy(request: Request, ctx: Ctx) {
-  const { path: parts } = await ctx.params
-  const pathSegments = parts || []
-  const path = pathSegments.join("/")
-  if (!path) {
-    return NextResponse.json({ error: "Missing media plan path" }, { status: 400 })
-  }
-
-  const gate = checkMediaPlansProxyPath(pathSegments, request.method)
-  if (!gate.allowed) {
-    console.warn(`[proxy-allowlist] blocked ${request.method} ${pathSegments.join("/")} (${gate.reason})`)
-    return NextResponse.json({ error: "forbidden" }, { status: 403 })
-  }
-
-  const targetBase = xanoUrl(path, ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-  const incoming = new URL(request.url)
-  const url = new URL(targetBase)
-  incoming.searchParams.forEach((value, key) => url.searchParams.set(key, value))
-
-  const init: RequestInit = {
-    method: request.method,
-    headers: {
-      "Content-Type": request.headers.get("content-type") || "application/json",
-      ...xanoAuthHeader(),
-    },
-    body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
-  }
-
-  const upstream = await fetch(url.toString(), init)
-  const text = await upstream.text()
-
-  if (!upstream.ok) {
-    console.error("[api/media_plans/[...path]] upstream error", {
-      path,
-      method: request.method,
-      url: url.toString(),
-      status: upstream.status,
-      body: text,
-    })
-    return NextResponse.json({ error: "Media plan request failed" }, { status: upstream.status })
-  }
-
-  const contentType = upstream.headers.get("content-type") || ""
-  if (contentType.includes("application/json")) {
-    return NextResponse.json(JSON.parse(text), { status: upstream.status })
-  }
-
-  return new NextResponse(text, {
-    status: upstream.status,
-    headers: { "content-type": contentType || "text/plain" },
-  })
-}
-
-/** Plan master / version GETs honor DATA_BACKEND_PLANS (shadow serves Xano + async diff). */
+/** Plan master / version GETs from Postgres. */
 async function handlePlansDomainGet(request: Request, path: string): Promise<Response | null> {
-  const backend = getDataBackendFor("plans")
-  if (backend === "xano") return null
-
   const mbaNumber = new URL(request.url).searchParams.get("mba_number")
 
   if (
@@ -131,23 +72,18 @@ export async function GET(request: Request, context: Ctx) {
   const plansResponse = path ? await handlePlansDomainGet(request, path) : null
   if (plansResponse) return plansResponse
 
-  return proxy(request, context)
+  return NextResponse.json(
+    { error: "This media_plans path has no Postgres handler", path },
+    { status: 410 }
+  )
 }
 
-/**
- * X2: under WRITE_BACKEND=postgres, channel line-item mutations go through
- * `POST /api/plans/save` (savePlan txn) — catch-all Xano CRUD is retired.
- * When WRITE_BACKEND=xano, legacy replaceChannelLineItems still proxies.
- */
-function retiredChannelWriteResponse(parts: string[] | undefined): NextResponse | null {
-  if (getWriteBackend() !== "postgres") return null
-  const segment = parts?.[0] ?? ""
-  if (!segment || !resolveChannelLineItemEndpoint(segment)) return null
+function goneResponse(path: string) {
   return NextResponse.json(
     {
       error:
-        "Channel line-item writes via /api/media_plans catch-all are retired under WRITE_BACKEND=postgres. Use POST /api/plans/save.",
-      code: "MEDIA_PLANS_CHANNEL_WRITE_GONE",
+        "This media_plans path has no Postgres handler. Channel writes use POST /api/plans/save.",
+      path,
     },
     { status: 410 }
   )
@@ -155,27 +91,24 @@ function retiredChannelWriteResponse(parts: string[] | undefined): NextResponse 
 
 export async function POST(request: Request, context: Ctx) {
   const { path: parts } = await context.params
-  const denied = await requireProxyStaff(request, (parts || []).join("/") || "media_plans")
+  const path = (parts || []).join("/")
+  const denied = await requireProxyStaff(request, path || "media_plans")
   if (denied) return denied
-  const gone = retiredChannelWriteResponse(parts)
-  if (gone) return gone
-  return proxy(request, context)
+  return goneResponse(path)
 }
 
 export async function PUT(request: Request, context: Ctx) {
   const { path: parts } = await context.params
-  const denied = await requireProxyStaff(request, (parts || []).join("/") || "media_plans")
+  const path = (parts || []).join("/")
+  const denied = await requireProxyStaff(request, path || "media_plans")
   if (denied) return denied
-  const gone = retiredChannelWriteResponse(parts)
-  if (gone) return gone
-  return proxy(request, context)
+  return goneResponse(path)
 }
 
 export async function DELETE(request: Request, context: Ctx) {
   const { path: parts } = await context.params
-  const denied = await requireProxyStaff(request, (parts || []).join("/") || "media_plans")
+  const path = (parts || []).join("/")
+  const denied = await requireProxyStaff(request, path || "media_plans")
   if (denied) return denied
-  const gone = retiredChannelWriteResponse(parts)
-  if (gone) return gone
-  return proxy(request, context)
+  return goneResponse(path)
 }

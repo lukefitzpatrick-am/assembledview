@@ -26,7 +26,7 @@ export type ContactsRefreshResult = {
   errors: string[]
 }
 
-type XeroContact = {
+export type XeroContact = {
   ContactID: string
   Name?: string
   EmailAddress?: string
@@ -39,6 +39,28 @@ function contactRole(c: XeroContact): string | null {
   if (c.IsCustomer) return "customer"
   if (c.IsSupplier) return "supplier"
   return null
+}
+
+/** Same INSERT … ON CONFLICT the nightly contacts refresh uses. */
+export async function upsertPagedXeroContact(c: XeroContact): Promise<void> {
+  await db.execute(sql`
+            INSERT INTO xero_contacts (
+              xero_contact_id, name, role, email, raw_json, synced_at
+            ) VALUES (
+              ${c.ContactID},
+              ${c.Name ?? null},
+              ${contactRole(c)},
+              ${c.EmailAddress ?? null},
+              ${JSON.stringify(c)}::jsonb,
+              now()
+            )
+            ON CONFLICT (xero_contact_id) DO UPDATE SET
+              name = EXCLUDED.name,
+              role = EXCLUDED.role,
+              email = EXCLUDED.email,
+              raw_json = EXCLUDED.raw_json,
+              synced_at = EXCLUDED.synced_at
+          `)
 }
 
 export async function stageContactsRefresh(opts?: {
@@ -98,24 +120,7 @@ export async function stageContactsRefresh(opts?: {
         }
 
         for (const c of contacts) {
-          await db.execute(sql`
-            INSERT INTO xero_contacts (
-              xero_contact_id, name, role, email, raw_json, synced_at
-            ) VALUES (
-              ${c.ContactID},
-              ${c.Name ?? null},
-              ${contactRole(c)},
-              ${c.EmailAddress ?? null},
-              ${JSON.stringify(c)}::jsonb,
-              now()
-            )
-            ON CONFLICT (xero_contact_id) DO UPDATE SET
-              name = EXCLUDED.name,
-              role = EXCLUDED.role,
-              email = EXCLUDED.email,
-              raw_json = EXCLUDED.raw_json,
-              synced_at = EXCLUDED.synced_at
-          `)
+          await upsertPagedXeroContact(c)
           contactsUpserted++
         }
 

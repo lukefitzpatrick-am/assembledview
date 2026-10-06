@@ -7,6 +7,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { BulkApproveReadyButton } from "@/components/finance/sections/invoicing/BulkApproveReadyButton"
+import { ClearForIssueButton } from "@/components/finance/sections/invoicing/ClearForIssueButton"
+import { SendToAccountsButton } from "@/components/finance/sections/invoicing/SendToAccountsButton"
 import { InvoicingClientCard } from "@/components/finance/sections/invoicing/InvoicingClientCard"
 import { InvoicingToolbar } from "@/components/finance/sections/invoicing/InvoicingToolbar"
 import { ReceivablesSummaryStrip } from "@/components/finance/receivables/ReceivablesSummaryStrip"
@@ -14,9 +16,11 @@ import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSecti
 import { EmptyState } from "@/components/finance/sections/EmptyState"
 import { ErrorState } from "@/components/finance/sections/ErrorState"
 import { LoadingState } from "@/components/finance/sections/LoadingState"
-import { exportBillingRecordsCsv } from "@/lib/finance/export"
+import { grainFromBillingRecord } from "@/lib/finance/billingApproveGrain"
 import { hasBillingEvidence } from "@/lib/finance/billingLifecycle"
-import { INVOICING_EXCEL_DISABLED_REASON } from "@/lib/finance/sections/invoicingBulkApproveCopy"
+import { approveBillingRecords } from "@/lib/finance/api"
+import { formatAUD } from "@/lib/format/money"
+import { formatDateShort } from "@/lib/format/date"
 import {
   DEFAULT_INVOICING_LIFECYCLE_FILTER,
   formatFunnelCountCaption,
@@ -24,18 +28,7 @@ import {
   summariseInvoicingFunnel,
   type InvoicingLifecycleFilter,
 } from "@/lib/finance/sections/invoicingFunnel"
-import {
-  filterApprovedReceivablesForExport,
-  invoiceKeysReadyToMarkSent,
-  summariseLastExport,
-} from "@/lib/finance/approvedReceivablesExport"
-import { grainFromBillingRecord } from "@/lib/finance/billingApproveGrain"
-import { approveBillingRecords, markBillingRecordsExported } from "@/lib/finance/api"
-import { markSentResultToast } from "@/lib/finance/markSentToFinanceCopy"
-import { exportReceivablesWorkbook } from "@/lib/finance/exportFinanceHub"
-import { expandMonthRange } from "@/lib/finance/monthRange"
-import { formatAUD } from "@/lib/format/money"
-import { formatDateShort } from "@/lib/format/date"
+import { summariseLastExport } from "@/lib/finance/approvedReceivablesExport"
 import {
   INVOICING_CLIENT_GRID_CLASS,
   INVOICING_EX_GST_HEADER,
@@ -134,7 +127,10 @@ function InvoicingMonthSections({
   onLineAmountCommitted,
   clientMetaById,
   approveBusy,
+  fy,
   onApproveReady,
+  onSent,
+  onCleared,
 }: {
   groups: MonthGroup[]
   refetch: () => void
@@ -150,7 +146,10 @@ function InvoicingMonthSections({
   ) => void
   clientMetaById: Map<number, InvoicingClientBlockerMeta>
   approveBusy?: boolean
+  fy: number
   onApproveReady?: (monthIso: string) => void
+  onSent: () => void
+  onCleared: () => void
 }) {
   if (groups.length === 0) return null
   return (
@@ -169,15 +168,30 @@ function InvoicingMonthSections({
                 · {invoiceCount} {invoiceCount === 1 ? "invoice" : "invoices"}
               </span>
             </p>
-            {ready ? (
-              <BulkApproveReadyButton
-                count={ready.count}
-                amountDollars={ready.amountDollars}
+            <div className="flex flex-wrap items-center gap-2">
+              <SendToAccountsButton
+                fy={fy}
+                month={mg.monthIso}
                 monthLabel={mg.monthLabel}
-                busy={approveBusy}
-                onConfirm={() => onApproveReady?.(mg.monthIso)}
+                disabled={approveBusy}
+                onSent={onSent}
               />
-            ) : null}
+              <ClearForIssueButton
+                month={mg.monthIso}
+                monthLabel={mg.monthLabel}
+                disabled={approveBusy}
+                onSent={onCleared}
+              />
+              {ready ? (
+                <BulkApproveReadyButton
+                  count={ready.count}
+                  amountDollars={ready.amountDollars}
+                  monthLabel={mg.monthLabel}
+                  busy={approveBusy}
+                  onConfirm={() => onApproveReady?.(mg.monthIso)}
+                />
+              ) : null}
+            </div>
           </div>
           <div data-invoicing-client-grid="" className={INVOICING_CLIENT_GRID_CLASS}>
             {mg.clients.map((client) => (
@@ -218,9 +232,7 @@ export function InvoicingPageClient() {
   } = useInvoicingReceivablesData(localFilters)
 
   const { toast } = useToast()
-  const [lastExportName, setLastExportName] = useState<string | null>(null)
   const [approveBusy, setApproveBusy] = useState(false)
-  const [markSentBusy, setMarkSentBusy] = useState(false)
   const [clientMetaById, setClientMetaById] = useState<Map<number, InvoicingClientBlockerMeta>>(
     () => new Map()
   )
@@ -269,10 +281,6 @@ export function InvoicingPageClient() {
     () => collectBillingRecordsFromMonthGroups(visibleMonthGroups),
     [visibleMonthGroups]
   )
-  const approvedRecords = useMemo(
-    () => filterApprovedReceivablesForExport(allRecords),
-    [allRecords]
-  )
   const readyGrains = useMemo(
     () =>
       allRecords.flatMap((r) => {
@@ -282,15 +290,14 @@ export function InvoicingPageClient() {
       }),
     [allRecords]
   )
-  const markSentKeys = useMemo(() => invoiceKeysReadyToMarkSent(allRecords), [allRecords])
   const lastExport = useMemo(() => summariseLastExport(allRecords), [allRecords])
   const lastExportLine = useMemo(() => {
     if (!lastExport) return null
-    const name = lastExport.exportedByName ?? lastExportName ?? "finance admin"
+    const name = lastExport.exportedByName ?? "finance admin"
     const clients =
       lastExport.clientCount === 1 ? "1 client" : `${lastExport.clientCount} clients`
-    return `Last exported ${formatDateShort(lastExport.exportedAt)} by ${name} · ${clients} · ${formatAUD(lastExport.total)}`
-  }, [lastExport, lastExportName])
+    return `Last sent ${formatDateShort(lastExport.exportedAt)} by ${name} · ${clients} · ${formatAUD(lastExport.total)}`
+  }, [lastExport])
 
   const funnel = useMemo(() => summariseInvoicingFunnel(allRecords), [allRecords])
 
@@ -303,48 +310,6 @@ export function InvoicingPageClient() {
   )
   const filteredInvoiceCount = countInvoicesInMonthGroups(filteredGroups)
   const showBulkApprove = lifecycleFilter === "ready" || lifecycleFilter === "all"
-
-  const monthLabel = useMemo(() => {
-    const months = expandMonthRange(applied.monthRange)
-    if (months.length === 0) return "period"
-    if (months.length === 1) return months[0]!
-    return `${months[0]}_${months[months.length - 1]}`
-  }, [applied.monthRange])
-
-  const exportCsv = useCallback(() => {
-    exportBillingRecordsCsv(allRecords, `Finance_invoicing_${monthLabel}.csv`)
-  }, [allRecords, monthLabel])
-
-  const exportExcel = useCallback(async () => {
-    if (approvedRecords.length === 0) return
-    try {
-      // Bookkeeper / Xero invoice-style workbook (hub "Export to Excel"), not the flat grid.
-      const { missingLegalBusinessNames } = await exportReceivablesWorkbook(
-        approvedRecords,
-        monthLabel,
-        "Finance_invoicing"
-      )
-      if (missingLegalBusinessNames.length > 0) {
-        const names = missingLegalBusinessNames.map((c) => c.displayName).join(", ")
-        console.warn(
-          "[FIN-6] Clients missing legalbusinessname (Excel used display name):",
-          missingLegalBusinessNames
-        )
-        toast({
-          title: "Export ready",
-          description: `Invoicing workbook downloaded. ${missingLegalBusinessNames.length} client(s) missing legal business name (used display name): ${names}.`,
-        })
-      } else {
-        toast({ title: "Export ready", description: "Invoicing workbook downloaded." })
-      }
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Export failed",
-        description: e instanceof Error ? e.message : "Unknown error",
-      })
-    }
-  }, [approvedRecords, monthLabel, toast])
 
   const approveReadyForMonth = useCallback(
     async (billing_month: string) => {
@@ -380,32 +345,6 @@ export function InvoicingPageClient() {
     [readyGrains, approveBusy, toast, bumpFetch]
   )
 
-  const markSentToFinance = useCallback(async () => {
-    if (markSentKeys.length === 0 || markSentBusy) return
-    setMarkSentBusy(true)
-    try {
-      const exported = await markBillingRecordsExported({ invoice_keys: markSentKeys })
-      if (exported.records.length > 0) {
-        setLastExportName(exported.exported_by_name)
-      }
-      toast({
-        title: markSentResultToast({
-          marked: exported.records.length,
-          skippedNotApproved: exported.skipped?.length ?? 0,
-        }),
-      })
-      bumpFetch()
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Could not mark as sent",
-        description: e instanceof Error ? e.message : "Unknown error",
-      })
-    } finally {
-      setMarkSentBusy(false)
-    }
-  }, [markSentKeys, markSentBusy, toast, bumpFetch])
-
   const coldLoading = loading && visibleMonthGroups.length === 0 && !loadError
   const showNoReceivables =
     !loading && !isUpdating && !loadError && visibleMonthGroups.length === 0
@@ -421,16 +360,6 @@ export function InvoicingPageClient() {
           lastExportLine={lastExportLine}
           localFilters={localFilters}
           onLocalFiltersChange={setLocalFilters}
-          onExportCsv={exportCsv}
-          onExportExcel={() => void exportExcel()}
-          csvDisabled={allRecords.length === 0 || isUpdating}
-          excelDisabled={approvedRecords.length === 0 || isUpdating}
-          excelDisabledReason={
-            approvedRecords.length === 0 ? INVOICING_EXCEL_DISABLED_REASON : undefined
-          }
-          onMarkSentToFinance={() => void markSentToFinance()}
-          markSentDisabled={markSentKeys.length === 0 || isUpdating}
-          markSentBusy={markSentBusy || isUpdating}
         />
       }
     >
@@ -462,6 +391,8 @@ export function InvoicingPageClient() {
             readyCents={funnel.ready.cents}
             approvedCents={funnel.approved.cents}
             sentToFinanceCents={funnel.sentToFinance.cents}
+            issuedOutsideCents={funnel.issuedOutsideAv.cents}
+            needsAttentionCount={funnel.needsAttentionCount}
             readyCaption={formatFunnelCountCaption(
               funnel.ready.invoiceCount,
               funnel.ready.monthCount
@@ -473,6 +404,10 @@ export function InvoicingPageClient() {
             sentToFinanceCaption={formatFunnelCountCaption(
               funnel.sentToFinance.invoiceCount,
               funnel.sentToFinance.monthCount
+            )}
+            issuedOutsideCaption={formatFunnelCountCaption(
+              funnel.issuedOutsideAv.invoiceCount,
+              funnel.issuedOutsideAv.monthCount
             )}
             selectedFilter={lifecycleFilter}
             onFilterChange={setLifecycleFilter}
@@ -524,6 +459,15 @@ export function InvoicingPageClient() {
                 onLineAmountCommitted={handleLineAmountCommitted}
                 clientMetaById={clientMetaById}
                 approveBusy={approveBusy || isUpdating}
+                fy={applied.fy}
+                onSent={() => {
+                  toast({ title: "Sent to accounts" })
+                  bumpFetch()
+                }}
+                onCleared={() => {
+                  toast({ title: "Clearance sent" })
+                  bumpFetch()
+                }}
                 onApproveReady={
                   showBulkApprove
                     ? (monthIso) => void approveReadyForMonth(monthIso)

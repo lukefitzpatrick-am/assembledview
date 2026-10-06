@@ -26,6 +26,8 @@ export type StatTileProps = {
   className?: string
   /** Colour class for the 3px top bar. `"none"` hides it. */
   accent?: string
+  /** Replaces the money figure. Used for a count tile. */
+  figure?: string
 }
 
 function moneyStateFromViewState(
@@ -45,7 +47,7 @@ export function statTileStateFromViewState(
   return moneyStateFromViewState(vs)
 }
 
-export function StatTile({ label, basisCaption, state, className, accent }: StatTileProps) {
+export function StatTile({ label, basisCaption, state, className, accent, figure }: StatTileProps) {
   if (state.status === "loading") {
     return (
       <div
@@ -132,7 +134,7 @@ export function StatTile({ label, basisCaption, state, className, accent }: Stat
           {label}
         </p>
         <p className="num mt-2 text-[28px] font-extrabold leading-none text-foreground">
-          {formatMoney(dollars)}
+          {figure ?? formatMoney(dollars)}
         </p>
         <p className="mt-2 text-[11px] text-muted-foreground">{basisCaption}</p>
       </div>

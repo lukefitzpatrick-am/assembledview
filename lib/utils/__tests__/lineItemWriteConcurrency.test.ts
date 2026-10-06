@@ -63,20 +63,14 @@ describe("save*LineItems shared write concurrency", () => {
           bursts: [{ startDate: "2026-01-01", endDate: "2026-01-31", budget: 100 }],
         }))
 
-      const [tv, search, social, production] = await Promise.all([
-        saveTelevisionLineItems(1, "MBA-T", "Client", "1", makeItems(8)),
-        saveSearchLineItems(1, "MBA-T", "Client", "1", makeItems(8)),
-        saveSocialMediaLineItems(1, "MBA-T", "Client", "1", makeItems(8)),
-        saveProductionLineItems(1, "MBA-T", "Client", "1", makeItems(8)),
-      ])
-
-      assert.ok(maxInFlight <= 4, `expected maxInFlight <= 4, got ${maxInFlight}`)
-      assert.equal(maxInFlight, 4)
-      assert.equal(posts, 32)
-      assert.equal(tv.length, 8)
-      assert.equal(search.length, 8)
-      assert.equal(social.length, 8)
-      assert.equal(production.length, 8)
+      await assert.rejects(
+        () => saveTelevisionLineItems(1, "MBA-T", "Client", "1", makeItems(8)),
+        /replaceChannelLineItems is deleted/
+      )
+      await assert.rejects(
+        () => saveSearchLineItems(1, "MBA-T", "Client", "1", makeItems(8)),
+        /replaceChannelLineItems is deleted/
+      )
     } finally {
       globalThis.fetch = originalFetch
     }

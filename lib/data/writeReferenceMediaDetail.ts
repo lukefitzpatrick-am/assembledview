@@ -1,21 +1,16 @@
 /**
- * Postgres-authoritative media-details reference writes (X4).
- * Order: PG insert → invalidate browser-facing path key (caller) → Xano mirror.
- * Mirror failure → app_notifications; never rolls back PG.
+ * Postgres-authoritative media-details reference writes.
+ * The Postgres insert is the whole function.
  */
 import "server-only"
 
 import { sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
-import { xanoPostHeaderRecord, xanoUrl, getXanoTimeoutMs } from "@/lib/api/xano"
 import {
   isReferenceTablePath,
   type ReferenceTablePath,
 } from "@/lib/data/referenceTablePaths"
 import { toApiRow } from "@/lib/data/toApiRow"
-
-export const REFERENCE_MIRROR_FAILURE_KIND = "xano_reference_mirror_failed"
-export const REFERENCE_MIRROR_FAILURE_AUDIENCE = "admin"
 
 /** Browser/proxy write path → canonical table path. */
 const WRITE_PATH_TO_TABLE: Record<string, ReferenceTablePath> = {
@@ -124,102 +119,9 @@ export async function syncReferenceTableIdSequence(table: ReferenceTablePath): P
   )
 }
 
-export type ReferenceMirrorFailurePayload = {
-  op: "create"
-  table: string
-  rowId: number
-  error: string
-  timestamp: string
-  retried: boolean
-}
-
-export function buildReferenceMirrorFailurePayload(input: {
-  table: string
-  rowId: number
-  error: string
-  at?: Date
-}): ReferenceMirrorFailurePayload {
-  return {
-    op: "create",
-    table: input.table,
-    rowId: input.rowId,
-    error: input.error,
-    timestamp: (input.at ?? new Date()).toISOString(),
-    retried: false,
-  }
-}
-
-async function persistReferenceMirrorFailureNotification(
-  payload: ReferenceMirrorFailurePayload
-): Promise<void> {
-  if (!process.env.DATABASE_URL?.trim()) return
-  try {
-    const db = getDb()
-    await db.execute(sql`
-      INSERT INTO app_notifications (audience, kind, payload)
-      VALUES (
-        ${REFERENCE_MIRROR_FAILURE_AUDIENCE},
-        ${REFERENCE_MIRROR_FAILURE_KIND},
-        ${JSON.stringify(payload)}::jsonb
-      )
-    `)
-  } catch (err) {
-    console.warn("[reference-mirror] failed to persist app_notifications row", {
-      table: payload.table,
-      rowId: payload.rowId,
-      err,
-    })
-  }
-}
-
-export type ReferenceMirrorResult = "ok" | "failed"
-
-async function mirrorReferenceCreateToXano(input: {
-  xanoPath: string
-  table: ReferenceTablePath
-  rowId: number
-  snakeRow: Record<string, unknown>
-}): Promise<ReferenceMirrorResult> {
-  const timeoutMs = getXanoTimeoutMs()
-  try {
-    const res = await fetch(xanoUrl(input.xanoPath, "XANO_MEDIA_DETAILS_BASE_URL"), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...xanoPostHeaderRecord(),
-      },
-      body: JSON.stringify({ ...input.snakeRow, id: input.rowId }),
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-    if (!res.ok) {
-      throw new Error(
-        `Xano POST ${input.xanoPath} ${res.status}: ${await res.text().catch(() => "")}`
-      )
-    }
-    return "ok"
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error("[reference-mirror] Xano mirror failed", {
-      path: input.xanoPath,
-      table: input.table,
-      rowId: input.rowId,
-      message,
-    })
-    await persistReferenceMirrorFailureNotification(
-      buildReferenceMirrorFailurePayload({
-        table: input.table,
-        rowId: input.rowId,
-        error: message,
-      })
-    )
-    return "failed"
-  }
-}
-
 export type ReferenceWriteResult = {
   row: Record<string, unknown>
   table: ReferenceTablePath
-  mirror: ReferenceMirrorResult
 }
 
 /**
@@ -246,13 +148,6 @@ export async function createReferenceMediaDetailPostgresFirst(
   if (!inserted || (inserted as { id?: number }).id == null) {
     throw new Error(`Postgres ${table} insert returned no id`)
   }
-  const rowId = Number((inserted as { id: number }).id)
   const row = toApiRow(inserted as Record<string, unknown>)
-  const mirror = await mirrorReferenceCreateToXano({
-    xanoPath,
-    table,
-    rowId,
-    snakeRow: snake,
-  })
-  return { row, table, mirror }
+  return { row, table }
 }

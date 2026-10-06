@@ -38,6 +38,7 @@ export function InXeroOutcomeList({
   busyId,
   assign,
   onAccept,
+  onDispute,
   onAssign,
 }: {
   grouped: DraftMatchGrouped
@@ -46,6 +47,7 @@ export function InXeroOutcomeList({
   busyId: string | null
   assign: AssignMaps
   onAccept: (row: DraftMatchRow) => void
+  onDispute: (row: DraftMatchRow) => void
   onAssign: (row: DraftMatchRow, key: string) => void
 }) {
   const outcomes = visibleDraftMatchOutcomes(grouped)
@@ -61,6 +63,7 @@ export function InXeroOutcomeList({
           busyId={busyId}
           assign={assign}
           onAccept={onAccept}
+          onDispute={onDispute}
           onAssign={onAssign}
         />
       ))}
@@ -76,6 +79,7 @@ function InXeroOutcomeSection({
   busyId,
   assign,
   onAccept,
+  onDispute,
   onAssign,
 }: {
   outcome: DraftMatchOutcome
@@ -85,6 +89,7 @@ function InXeroOutcomeSection({
   busyId: string | null
   assign: AssignMaps
   onAccept: (row: DraftMatchRow) => void
+  onDispute: (row: DraftMatchRow) => void
   onAssign: (row: DraftMatchRow, key: string) => void
 }) {
   const collapsedDefault = isDraftMatchOutcomeCollapsedByDefault(outcome)
@@ -131,6 +136,7 @@ function InXeroOutcomeSection({
                 setAssignMba={(v) => assign.setAssignMba((p) => ({ ...p, [row.id]: v }))}
                 setAssignKey={(v) => assign.setAssignKey((p) => ({ ...p, [row.id]: v }))}
                 onAccept={() => onAccept(row)}
+                onDispute={() => onDispute(row)}
                 onAssign={(key) => onAssign(row, key)}
               />
             ))}

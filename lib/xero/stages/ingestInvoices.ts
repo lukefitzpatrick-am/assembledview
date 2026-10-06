@@ -38,7 +38,7 @@ export type IngestInvoicesResult = {
   errors: string[]
 }
 
-type XeroInvoice = {
+export type XeroInvoice = {
   InvoiceID: string
   InvoiceNumber?: string
   Type?: string
@@ -55,6 +55,154 @@ type XeroInvoice = {
   LineItems?: unknown
   UpdatedDateUTC?: string
   Contact?: { ContactID?: string }
+}
+
+export type UpsertPagedInvoiceResult =
+  | {
+      kind: "ar"
+      /** Null when RETURNING produced no row. */
+      id: number | null
+      mbaMatchId: number | null
+      signedTotal: number
+      referenceRaw: string
+      issueDate: string | null
+      invoiceNumber: string | null
+    }
+  | { kind: "ap" }
+  | { kind: "skip" }
+
+/**
+ * Same INSERT … ON CONFLICT the nightly ingest uses for one paged invoice.
+ * Does not match MBA references — the cron calls applyMatchMba after AR rows.
+ */
+export async function upsertPagedXeroInvoice(
+  inv: XeroInvoice,
+  runStartedAt: Date,
+): Promise<UpsertPagedInvoiceResult> {
+  const updated = parseXeroDotNetDate(inv.UpdatedDateUTC)
+  const xeroUpdatedUtc = updated
+    ? updated.toISOString()
+    : runStartedAt.toISOString()
+  const issueDate = parseXeroDateString(inv.DateString)
+  const dueDate = parseXeroDateString(inv.DueDateString)
+  const referenceRaw = inv.Reference ?? ""
+  const contactId = inv.Contact?.ContactID ?? null
+
+  if (inv.Type === "ACCREC" || inv.Type === "ACCRECCREDIT") {
+    const totalDollars = coerceDollars(inv.Total)
+    const signedTotal =
+      inv.Type === "ACCRECCREDIT" && totalDollars > 0
+        ? -totalDollars
+        : totalDollars
+    const row = rowsOf<{
+      id: number
+      mba_match_id: number | null
+    }>(
+      await db.execute(sql`
+              INSERT INTO xero_ar_invoices (
+                xero_invoice_id, invoice_number, xero_contact_id, status,
+                sub_total, total_tax, total, amount_paid, amount_due, currency,
+                issue_date, due_date, line_items_json, xero_updated_utc,
+                last_synced_at, raw_json, reference_raw
+              ) VALUES (
+                ${inv.InvoiceID},
+                ${inv.InvoiceNumber ?? null},
+                ${contactId},
+                ${inv.Status ?? null},
+                ${moneyStr(coerceDollars(inv.SubTotal))},
+                ${moneyStr(coerceDollars(inv.TotalTax))},
+                ${moneyStr(signedTotal)},
+                ${moneyStr(coerceDollars(inv.AmountPaid))},
+                ${moneyStr(coerceDollars(inv.AmountDue))},
+                ${inv.CurrencyCode ?? null},
+                ${issueDate},
+                ${dueDate},
+                ${JSON.stringify(inv.LineItems ?? [])}::jsonb,
+                ${xeroUpdatedUtc}::timestamptz,
+                now(),
+                ${JSON.stringify(inv)}::jsonb,
+                ${referenceRaw}
+              )
+              ON CONFLICT (xero_invoice_id) DO UPDATE SET
+                invoice_number = EXCLUDED.invoice_number,
+                xero_contact_id = EXCLUDED.xero_contact_id,
+                status = EXCLUDED.status,
+                sub_total = EXCLUDED.sub_total,
+                total_tax = EXCLUDED.total_tax,
+                total = EXCLUDED.total,
+                amount_paid = EXCLUDED.amount_paid,
+                amount_due = EXCLUDED.amount_due,
+                currency = EXCLUDED.currency,
+                issue_date = EXCLUDED.issue_date,
+                due_date = EXCLUDED.due_date,
+                line_items_json = EXCLUDED.line_items_json,
+                xero_updated_utc = EXCLUDED.xero_updated_utc,
+                last_synced_at = EXCLUDED.last_synced_at,
+                raw_json = EXCLUDED.raw_json,
+                reference_raw = EXCLUDED.reference_raw
+              RETURNING id, mba_match_id
+            `),
+    )[0]
+    return {
+      kind: "ar",
+      id: row ? Number(row.id) : null,
+      mbaMatchId:
+        row && row.mba_match_id != null ? Number(row.mba_match_id) : null,
+      signedTotal,
+      referenceRaw,
+      issueDate,
+      invoiceNumber: inv.InvoiceNumber ?? null,
+    }
+  }
+
+  if (inv.Type === "ACCPAY") {
+    await db.execute(sql`
+              INSERT INTO xero_ap_bills (
+                xero_invoice_id, invoice_number, xero_contact_id, status,
+                sub_total, total_tax, total, amount_paid, amount_due, currency,
+                issue_date, due_date, line_items_json, xero_updated_utc,
+                last_synced_at, raw_json, reference_raw
+              ) VALUES (
+                ${inv.InvoiceID},
+                ${inv.InvoiceNumber ?? null},
+                ${contactId},
+                ${inv.Status ?? null},
+                ${moneyStr(coerceDollars(inv.SubTotal))},
+                ${moneyStr(coerceDollars(inv.TotalTax))},
+                ${moneyStr(coerceDollars(inv.Total))},
+                ${moneyStr(coerceDollars(inv.AmountPaid))},
+                ${moneyStr(coerceDollars(inv.AmountDue))},
+                ${inv.CurrencyCode ?? null},
+                ${issueDate},
+                ${dueDate},
+                ${JSON.stringify(inv.LineItems ?? [])}::jsonb,
+                ${xeroUpdatedUtc}::timestamptz,
+                now(),
+                ${JSON.stringify(inv)}::jsonb,
+                ${referenceRaw}
+              )
+              ON CONFLICT (xero_invoice_id) DO UPDATE SET
+                invoice_number = EXCLUDED.invoice_number,
+                xero_contact_id = EXCLUDED.xero_contact_id,
+                status = EXCLUDED.status,
+                sub_total = EXCLUDED.sub_total,
+                total_tax = EXCLUDED.total_tax,
+                total = EXCLUDED.total,
+                amount_paid = EXCLUDED.amount_paid,
+                amount_due = EXCLUDED.amount_due,
+                currency = EXCLUDED.currency,
+                issue_date = EXCLUDED.issue_date,
+                due_date = EXCLUDED.due_date,
+                line_items_json = EXCLUDED.line_items_json,
+                xero_updated_utc = EXCLUDED.xero_updated_utc,
+                last_synced_at = EXCLUDED.last_synced_at,
+                raw_json = EXCLUDED.raw_json,
+                reference_raw = EXCLUDED.reference_raw
+            `)
+    return { kind: "ap" }
+  }
+
+  return { kind: "skip" }
 }
 
 function moneyStr(n: number): string {
@@ -131,136 +279,35 @@ export async function stageIngestInvoices(opts?: {
         }
 
         for (const inv of invoices) {
-          const updated = parseXeroDotNetDate(inv.UpdatedDateUTC)
-          const xeroUpdatedUtc = updated
-            ? updated.toISOString()
-            : runStartedAt.toISOString()
-          const issueDate = parseXeroDateString(inv.DateString)
-          const dueDate = parseXeroDateString(inv.DueDateString)
-          const referenceRaw = inv.Reference ?? ""
-          const contactId = inv.Contact?.ContactID ?? null
-
-          if (inv.Type === "ACCREC" || inv.Type === "ACCRECCREDIT") {
-            const totalDollars = coerceDollars(inv.Total)
-            // Credit notes: store signed total (negative) so O7 dispute reconcile can match.
-            const signedTotal =
-              inv.Type === "ACCRECCREDIT" && totalDollars > 0
-                ? -totalDollars
-                : totalDollars
-            const row = rowsOf<{
-              id: number
-              mba_match_id: number | null
-            }>(
-              await db.execute(sql`
-              INSERT INTO xero_ar_invoices (
-                xero_invoice_id, invoice_number, xero_contact_id, status,
-                sub_total, total_tax, total, amount_paid, amount_due, currency,
-                issue_date, due_date, line_items_json, xero_updated_utc,
-                last_synced_at, raw_json, reference_raw
-              ) VALUES (
-                ${inv.InvoiceID},
-                ${inv.InvoiceNumber ?? null},
-                ${contactId},
-                ${inv.Status ?? null},
-                ${moneyStr(coerceDollars(inv.SubTotal))},
-                ${moneyStr(coerceDollars(inv.TotalTax))},
-                ${moneyStr(signedTotal)},
-                ${moneyStr(coerceDollars(inv.AmountPaid))},
-                ${moneyStr(coerceDollars(inv.AmountDue))},
-                ${inv.CurrencyCode ?? null},
-                ${issueDate},
-                ${dueDate},
-                ${JSON.stringify(inv.LineItems ?? [])}::jsonb,
-                ${xeroUpdatedUtc}::timestamptz,
-                now(),
-                ${JSON.stringify(inv)}::jsonb,
-                ${referenceRaw}
-              )
-              ON CONFLICT (xero_invoice_id) DO UPDATE SET
-                invoice_number = EXCLUDED.invoice_number,
-                xero_contact_id = EXCLUDED.xero_contact_id,
-                status = EXCLUDED.status,
-                sub_total = EXCLUDED.sub_total,
-                total_tax = EXCLUDED.total_tax,
-                total = EXCLUDED.total,
-                amount_paid = EXCLUDED.amount_paid,
-                amount_due = EXCLUDED.amount_due,
-                currency = EXCLUDED.currency,
-                issue_date = EXCLUDED.issue_date,
-                due_date = EXCLUDED.due_date,
-                line_items_json = EXCLUDED.line_items_json,
-                xero_updated_utc = EXCLUDED.xero_updated_utc,
-                last_synced_at = EXCLUDED.last_synced_at,
-                raw_json = EXCLUDED.raw_json,
-                reference_raw = EXCLUDED.reference_raw
-              RETURNING id, mba_match_id
-            `),
-            )[0]
+          const persisted = await upsertPagedXeroInvoice(inv, runStartedAt)
+          if (persisted.kind === "ar") {
             arUpserted++
-            if (signedTotal < 0) {
+            // Credit notes: signed total is negative so O7 dispute reconcile can match.
+            if (persisted.signedTotal < 0) {
               sawNegativeAr = true
             }
-            if (row && row.mba_match_id == null && signedTotal >= 0) {
+            if (
+              persisted.id != null &&
+              persisted.mbaMatchId == null &&
+              persisted.signedTotal >= 0
+            ) {
               const result = await applyMatchMba(
                 {
-                  arInvoiceId: Number(row.id),
-                  referenceRaw,
+                  arInvoiceId: persisted.id,
+                  referenceRaw: persisted.referenceRaw,
                   xeroInvoiceId: inv.InvoiceID,
-                  invoiceNumber: inv.InvoiceNumber ?? null,
-                  issueDate,
+                  invoiceNumber: persisted.invoiceNumber,
+                  issueDate: persisted.issueDate,
                 },
                 masters,
                 scopes,
               )
               if (result.matched) matched++
               else unmatched++
-            } else if (signedTotal >= 0) {
+            } else if (persisted.signedTotal >= 0) {
               matched++
             }
-          } else if (inv.Type === "ACCPAY") {
-            await db.execute(sql`
-              INSERT INTO xero_ap_bills (
-                xero_invoice_id, invoice_number, xero_contact_id, status,
-                sub_total, total_tax, total, amount_paid, amount_due, currency,
-                issue_date, due_date, line_items_json, xero_updated_utc,
-                last_synced_at, raw_json, reference_raw
-              ) VALUES (
-                ${inv.InvoiceID},
-                ${inv.InvoiceNumber ?? null},
-                ${contactId},
-                ${inv.Status ?? null},
-                ${moneyStr(coerceDollars(inv.SubTotal))},
-                ${moneyStr(coerceDollars(inv.TotalTax))},
-                ${moneyStr(coerceDollars(inv.Total))},
-                ${moneyStr(coerceDollars(inv.AmountPaid))},
-                ${moneyStr(coerceDollars(inv.AmountDue))},
-                ${inv.CurrencyCode ?? null},
-                ${issueDate},
-                ${dueDate},
-                ${JSON.stringify(inv.LineItems ?? [])}::jsonb,
-                ${xeroUpdatedUtc}::timestamptz,
-                now(),
-                ${JSON.stringify(inv)}::jsonb,
-                ${referenceRaw}
-              )
-              ON CONFLICT (xero_invoice_id) DO UPDATE SET
-                invoice_number = EXCLUDED.invoice_number,
-                xero_contact_id = EXCLUDED.xero_contact_id,
-                status = EXCLUDED.status,
-                sub_total = EXCLUDED.sub_total,
-                total_tax = EXCLUDED.total_tax,
-                total = EXCLUDED.total,
-                amount_paid = EXCLUDED.amount_paid,
-                amount_due = EXCLUDED.amount_due,
-                currency = EXCLUDED.currency,
-                issue_date = EXCLUDED.issue_date,
-                due_date = EXCLUDED.due_date,
-                line_items_json = EXCLUDED.line_items_json,
-                xero_updated_utc = EXCLUDED.xero_updated_utc,
-                last_synced_at = EXCLUDED.last_synced_at,
-                raw_json = EXCLUDED.raw_json,
-                reference_raw = EXCLUDED.reference_raw
-            `)
+          } else if (persisted.kind === "ap") {
             apUpserted++
           }
         }

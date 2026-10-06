@@ -117,6 +117,7 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
       "/finance/costs",
       "/finance/forecasting",
       "/finance/investment",
+      "/finance/reports/invoiced-vs-expected",
     ],
   },
   {
@@ -767,6 +768,17 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     roles: ["admin"],
     group: "finance",
     searchTerms: "forecast booked targets variance finance",
+  },
+  {
+    path: "/finance/reports/invoiced-vs-expected",
+    label: "Invoiced vs expected",
+    title: "Finance · Invoiced vs expected",
+    icon: "FileText",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "invoiced vs expected xero subtotal delta finance report",
   },
 
   // ── Scopes ─────────────────────────────────────────────────────────

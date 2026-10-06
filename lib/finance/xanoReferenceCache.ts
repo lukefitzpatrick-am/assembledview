@@ -1,7 +1,6 @@
-import axios from "axios"
 import { omitClientBrainFromList } from "@/lib/clients/omitClientBrain"
-import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
-import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
+import { readClientsList } from "@/lib/data/readClients"
+import { readPublishersList } from "@/lib/data/readPublishers"
 
 const CACHE_TTL_MS = 30_000
 
@@ -10,6 +9,10 @@ let clientsInFlightPromise: Promise<any[]> | null = null
 
 let publishersCacheEntry: { expiresAt: number; value: any[] } | null = null
 let publishersInFlightPromise: Promise<any[]> | null = null
+
+function asRows(body: unknown): unknown[] {
+  return Array.isArray(body) ? body : []
+}
 
 export async function getCachedClients(): Promise<any[]> {
   const now = Date.now()
@@ -22,23 +25,17 @@ export async function getCachedClients(): Promise<any[]> {
 
   const promise = (async (): Promise<any[]> => {
     try {
-      const res = await axios.get(getXanoClientsCollectionUrl(), {
-        headers: xanoAuthHeaderRecord(),
-      })
-      const raw = res.data
-      const unstripped: any[] = Array.isArray(raw)
-        ? raw
-        : Array.isArray(raw?.items)
-          ? raw.items
-          : []
-      // Never cache multi-KB client_brain blobs on the list path.
-      const data = omitClientBrainFromList(unstripped)
-      // Only successful fetches reach here, so caching the result is safe.
+      const res = await readClientsList()
+      if (res.status >= 400) {
+        console.error("[ref-cache] getCachedClients fetch failed", res.status)
+        return []
+      }
+      const data = omitClientBrainFromList(asRows(res.body))
       clientsCacheEntry = { expiresAt: Date.now() + CACHE_TTL_MS, value: data }
       return data
-    } catch (e: any) {
-      // Do not cache an empty list produced by an error. Next call retries.
-      console.error("[ref-cache] getCachedClients fetch failed", e?.response?.status, e?.message)
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e)
+      console.error("[ref-cache] getCachedClients fetch failed", message)
       return []
     } finally {
       clientsInFlightPromise = null
@@ -54,7 +51,7 @@ export function invalidateCachedClients() {
   clientsCacheEntry = null
 }
 
-/** Drop publishers list cache after publisher writes (X4). */
+/** Drop publishers list cache after publisher writes. */
 export function invalidateCachedPublishers() {
   publishersCacheEntry = null
 }
@@ -70,14 +67,18 @@ export async function getCachedPublishers(): Promise<any[]> {
 
   const promise = (async (): Promise<any[]> => {
     try {
-      const res = await axios
-        .get(xanoUrl("get_publishers", "XANO_CLIENTS_BASE_URL"), {
-          headers: xanoAuthHeaderRecord(),
-        })
-        .catch(() => ({ data: [] as any[] }))
-      const data = Array.isArray(res.data) ? res.data : []
+      const res = await readPublishersList()
+      if (res.status >= 400) {
+        console.error("[ref-cache] getCachedPublishers fetch failed", res.status)
+        return []
+      }
+      const data = asRows(res.body)
       publishersCacheEntry = { expiresAt: Date.now() + CACHE_TTL_MS, value: data }
       return data
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e)
+      console.error("[ref-cache] getCachedPublishers fetch failed", message)
+      return []
     } finally {
       publishersInFlightPromise = null
     }

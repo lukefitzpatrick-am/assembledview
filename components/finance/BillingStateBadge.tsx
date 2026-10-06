@@ -10,6 +10,7 @@ const LABELS: Record<BillingState, string> = {
   sent_to_finance: "Sent to finance",
   drafted: "Drafted",
   issued: "Issued",
+  issued_outside_av: "Issued outside AV",
   paid: "Paid",
   overdue: "Overdue",
 }
@@ -25,6 +26,7 @@ export function BillingStateBadge({
   reason,
   approvedDrift,
   overdueDays,
+  label,
   className,
 }: {
   state: BillingState
@@ -32,14 +34,17 @@ export function BillingStateBadge({
   approvedDrift?: boolean
   /** Owed ledger only — cards omit this and keep the bare "Overdue" label. */
   overdueDays?: number
+  /** Replaces the default state label. The pill stays non-interactive. */
+  label?: string
   className?: string
 }) {
-  const label =
-    state === "approved" && approvedDrift
+  const labelText =
+    label ??
+    (state === "approved" && approvedDrift
       ? "Approved · changed since"
       : state === "overdue" && overdueDays != null && overdueDays > 0
         ? `Overdue ${overdueDays}d`
-        : LABELS[state]
+        : LABELS[state])
   return (
     <Badge
       size="sm"
@@ -48,7 +53,7 @@ export function BillingStateBadge({
       data-billing-state={state}
       className={cn(className)}
     >
-      {label}
+      {labelText}
     </Badge>
   )
 }

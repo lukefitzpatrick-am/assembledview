@@ -309,6 +309,8 @@ export const financeBillingRecords = pgTable(
   notes: text('notes'),
   exportedAt: timestamp('exported_at', { withTimezone: true, mode: "string" }),
   exportedBy: bigint('exported_by', { mode: "number" }),
+  /** JSON {"csv","xlsx"} private Blob pathnames. NULL until Send to accounts. */
+  exportBlobPath: text('export_blob_path'),
   invoiceKey: text('invoice_key'),
   /** Approval stamp. NULL = not yet approved. Lifecycle state is derived. */
   approvedAt: timestamp('approved_at', { withTimezone: true, mode: "string" }),
@@ -322,6 +324,10 @@ export const financeBillingRecords = pgTable(
   matchedAt: timestamp('matched_at', { withTimezone: true, mode: "string" }),
   /** How the Xero match was made: 'auto' | 'manual'. */
   matchedBy: text('matched_by'),
+  /** auto_adopted | differs | adopted | disputed. NULL when unmatched. */
+  xeroMatchResolution: text('xero_match_resolution'),
+  /** approved_snapshot | schedule_month | legacy_billed. */
+  xeroExpectedSource: text('xero_expected_source'),
   },
   (table) => [
     index("idx_finance_billing_records_created_at").on(table.createdAt),
@@ -866,6 +872,9 @@ export const xeroSyncExceptions = pgTable(
   resolved: boolean('resolved'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: "string" }).notNull().defaultNow(),
   issueDate: text('issue_date'),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: "string" }),
+  resolvedBy: text('resolved_by'),
+  resolution: text('resolution'),
   },
 )
 
@@ -881,7 +890,7 @@ export const xeroSyncLog = pgTable(
   invoicesUpserted: bigint('invoices_upserted', { mode: "number" }),
   contactsUpserted: bigint('contacts_upserted', { mode: "number" }),
   notes: text('notes'),
-  /** invoices | import | contacts | pdfs. NULL = legacy combined run. */
+  /** invoices | import | contacts | pdfs, or backfill-<step> from scripts/xero-backfill.ts. NULL = legacy combined run. backfill-* is not a cron watermark. */
   stage: text('stage'),
   /** Wall time of the stage. NULL while status=running and on legacy rows. */
   durationMs: bigint('duration_ms', { mode: "number" }),

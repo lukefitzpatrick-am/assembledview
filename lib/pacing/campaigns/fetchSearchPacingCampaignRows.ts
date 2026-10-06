@@ -1,8 +1,5 @@
 import "server-only";
 
-import { fetchAllXanoPages } from "@/lib/api/xanoPagination";
-import { xanoUrl } from "@/lib/api/xano";
-import { getDataBackendFor } from "@/lib/data/backend";
 import { readPacingMasters, readPacingVersions } from "@/lib/data/readPacing";
 import { publishedVersionFromMaster } from "@/lib/mediaplan/publishedVersionGuard";
 import { aggregateForLineItem } from "@/lib/pacing/campaigns/aggregate";
@@ -21,8 +18,7 @@ import { getSearchCampaignsPacingData } from "@/lib/snowflake/search-campaigns-p
 import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
 import { boundedMap } from "@/lib/utils/boundedMap";
 
-const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const;
-/** Parallel Xano per-master fetches; well under Launch-plan 100 req/s ceiling. */
+/** Parallel per-master fetches; well under Launch-plan 100 req/s ceiling. */
 const XANO_MASTER_FETCH_CONCURRENCY = 8;
 
 export type FetchSearchPacingCampaignRowsArgs = {
@@ -42,16 +38,12 @@ export type LiveSearchLineItemInput = {
 
 /**
  * Resolves live search line items (masters, versions, channel rows)
- * without Snowflake hydration. Postgres when `getDataBackendFor("plans")`
- * is postgres (published watermark); otherwise the Xano per-MBA walk.
+ * without Snowflake hydration. Postgres `line_items` only.
  */
 export async function resolveLiveSearchLineItemInputs(
   args: GetLiveSearchLineItemsArgs
 ): Promise<LiveSearchLineItemInput[]> {
-  if (getDataBackendFor("plans") === "postgres") {
-    return resolveSearchLineItemsFromPostgres(args);
-  }
-  return resolveSearchLineItemsFromXano(args);
+  return resolveSearchLineItemsFromPostgres(args);
 }
 
 async function resolveSearchLineItemsFromPostgres(
@@ -147,67 +139,6 @@ async function resolveSearchLineItemsFromPostgres(
   return out;
 }
 
-async function resolveSearchLineItemsFromXano(
-  args: GetLiveSearchLineItemsArgs
-): Promise<LiveSearchLineItemInput[]> {
-  const masters = await fetchAllMasters();
-  const wantMba = args.mbaNumber?.trim().toLowerCase() || "";
-  const liveMasters = masters.filter((m) => {
-    if (wantMba && norm(m.mba_number) !== wantMba) return false;
-    if (!isLiveCampaignStatus(m.campaign_status, m.campaign_start_date, m.campaign_end_date, args.asOfDate)) return false;
-    if (!m.campaign_start_date || !m.campaign_end_date) return false;
-    if (args.asOfDate < m.campaign_start_date || args.asOfDate > m.campaign_end_date) return false;
-    if (args.allowedClientSlugs !== null) {
-      const slug = slugifyPlanClientName(m.mp_client_name);
-      if (!slug || !args.allowedClientSlugs.has(slug)) return false;
-    }
-    return true;
-  });
-
-  if (liveMasters.length === 0) return [];
-
-  const versionRowsByMba = await fetchCurrentVersionRowsForMasters(liveMasters);
-
-  const perMaster = await boundedMap(
-    liveMasters,
-    async (master) => {
-      const versionRow = versionRowsByMba.get(norm(master.mba_number));
-      if (!versionRow) {
-        console.warn(
-          "[pacing/campaigns] no version row for master",
-          master.mba_number,
-          master.version_number
-        );
-        return [] as LiveSearchLineItemInput[];
-      }
-
-      const searchRows = await fetchSearchLineItemsForMba({
-        mba_number: master.mba_number,
-        versionRowId: versionRow.id,
-        versionNumber: master.version_number,
-      });
-
-      const inputs: LiveSearchLineItemInput[] = [];
-      for (const searchRow of searchRows) {
-        const lineItemId = String(searchRow.line_item_id ?? searchRow.lineItemId ?? "").trim();
-        if (!lineItemId) {
-          console.warn(
-            "[pacing/campaigns] search row missing line_item_id",
-            master.mba_number,
-            searchRow.id
-          );
-          continue;
-        }
-        inputs.push({ master, versionRow, searchRow });
-      }
-      return inputs;
-    },
-    XANO_MASTER_FETCH_CONCURRENCY
-  );
-
-  return perMaster.flat();
-}
-
 export type VersionRow = {
   id: number;
   version_number: number;
@@ -242,49 +173,8 @@ function toMaster(row: Record<string, unknown>): MediaPlanMaster | null {
   };
 }
 
-function filterByMbaAndVersion(
-  items: unknown[],
-  mbaNumber: string,
-  versionNumber: number,
-  mediaPlanVersionId?: number | null
-): Record<string, unknown>[] {
-  if (!Array.isArray(items)) return [];
-  const normalizedMba = norm(mbaNumber);
-  const versionStr = String(versionNumber);
-  const versionIdStr =
-    mediaPlanVersionId !== null && mediaPlanVersionId !== undefined
-      ? String(mediaPlanVersionId)
-      : null;
-
-  return items.filter((item) => {
-    const row = item as Record<string, unknown>;
-    if (norm(row.mba_number) !== normalizedMba) return false;
-
-    const mpPlanNumber = row.mp_plannumber ?? row.mp_plan_number ?? row.mpPlanNumber;
-    const mediaPlanVersion = row.media_plan_version;
-    const mediaPlanVersionIdField = row.media_plan_version_id ?? row.media_plan_versionID;
-    const versionNumberField = row.version_number;
-
-    const hasVersionIdCandidate =
-      (mediaPlanVersion !== null &&
-        mediaPlanVersion !== undefined &&
-        String(mediaPlanVersion).trim() !== "") ||
-      (mediaPlanVersionIdField !== null &&
-        mediaPlanVersionIdField !== undefined &&
-        String(mediaPlanVersionIdField).trim() !== "");
-
-    if (versionIdStr && hasVersionIdCandidate) {
-      const candidates = [mediaPlanVersion, mediaPlanVersionIdField];
-      return candidates.some((value) => String(value ?? "").trim() === versionIdStr);
-    }
-
-    const versionCandidates = [mpPlanNumber, versionNumberField];
-    return versionCandidates.some((value) => String(value ?? "").trim() === versionStr);
-  }) as Record<string, unknown>[];
-}
-
 export async function fetchAllMasters(): Promise<MediaPlanMaster[]> {
-  // DATA_BACKEND_PACING — masters crawl for all pacing composers (T2d).
+  // Postgres masters crawl for all pacing composers.
   const raw = await readPacingMasters();
   return (raw ?? [])
     .map((r) => toMaster(r as Record<string, unknown>))
@@ -294,7 +184,7 @@ export async function fetchAllMasters(): Promise<MediaPlanMaster[]> {
 export async function fetchCurrentVersionRowsForMasters(
   masters: MediaPlanMaster[]
 ): Promise<Map<string, VersionRow>> {
-  // DATA_BACKEND_PACING — versions crawl. Postgres scopes to these MBAs.
+  // Postgres versions crawl, scoped to these MBAs. Search lines come from published `line_items`.
   const wantMba = new Set(masters.map((m) => norm(m.mba_number)));
   const allVersions = await readPacingVersions(wantMba);
 
@@ -323,34 +213,12 @@ export async function fetchSearchLineItemsForMba(args: {
   versionRowId: number;
   versionNumber: number;
 }): Promise<Record<string, unknown>[]> {
-  const url = xanoUrl("media_plan_search", [...MEDIA_PLANS_KEYS]);
-  const attempts: Array<Record<string, string | number | boolean | null | undefined>> = [
-    { mba_number: args.mba_number, media_plan_version: args.versionRowId },
-    { mba_number: args.mba_number, media_plan_version_id: args.versionRowId },
-    { mba_number: args.mba_number, mp_plannumber: args.versionNumber },
-    { mba_number: args.mba_number, version_number: args.versionNumber },
-    { mba_number: args.mba_number, media_plan_version: args.versionNumber },
-  ];
-
-  let best: Record<string, unknown>[] = [];
-  let bestRawCount = Number.POSITIVE_INFINITY;
-
-  for (const params of attempts) {
-    const raw = await fetchAllXanoPages(url, params, "PACING_media_plan_search", 200, 20);
-    const filtered = filterByMbaAndVersion(raw, args.mba_number, args.versionNumber, args.versionRowId);
-    if (
-      filtered.length > best.length ||
-      (filtered.length === best.length && raw.length < bestRawCount)
-    ) {
-      best = filtered;
-      bestRawCount = raw.length;
-    }
-    if (raw.length > 0 && raw.length === filtered.length) {
-      break;
-    }
-  }
-
-  return best;
+  const { fetchLineItemsFromPostgresByEndpoint } = await import("@/lib/data/readMediaPlans");
+  return fetchLineItemsFromPostgresByEndpoint(
+    "media_plan_search",
+    args.mba_number,
+    args.versionNumber,
+  );
 }
 
 function mapSearchRowToCampaignRow(

@@ -182,16 +182,26 @@ export async function fetchVersionsForMba(mbaNumber: string): Promise<MediaPlanV
     if (candidate !== normalisedMba) continue
     const versionNumber = Number(v.version_number ?? v.versionNumber)
     if (!Number.isFinite(versionNumber) || versionNumber <= 0) continue
+    const createdAt =
+      typeof v.created_at === "number" && Number.isFinite(v.created_at)
+        ? new Date(v.created_at).toISOString()
+        : typeof v.created_at === "string"
+          ? v.created_at.trim()
+          : ""
     const planDate =
       typeof v.plan_date === "string" && v.plan_date.trim()
         ? v.plan_date.trim()
-        : typeof v.created_at === "string" && v.created_at.trim()
-          ? v.created_at.trim()
-          : typeof v.updated_at === "string" && v.updated_at.trim()
+        : createdAt ||
+          (typeof v.updated_at === "string" && v.updated_at.trim()
             ? v.updated_at.trim()
-            : undefined
+            : undefined)
     const idRaw = v.id
-    const id = typeof idRaw === "number" ? idRaw : undefined
+    const id =
+      typeof idRaw === "number"
+        ? idRaw
+        : typeof idRaw === "string" && Number.isFinite(Number(idRaw))
+          ? Number(idRaw)
+          : undefined
     out.push({
       versionNumber,
       planDate,

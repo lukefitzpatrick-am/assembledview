@@ -8,7 +8,7 @@ import {
   sessionExecuteVoid,
   withSnowflakeSession,
 } from "@/lib/snowflake/snowflakeSession";
-import { createPacingOrphanFix } from "@/lib/xano/pacingOrphanFixes";
+import { createPacingOrphanFix } from "@/lib/pacing/admin/pacingOrphanFixes";
 import { SEARCH_PACING_CHANNELS } from "./orphanDetection";
 
 export type AssignOrphanLineItemArgs = {

@@ -32,8 +32,6 @@ const requireRoleMock = mock.fn(async () => ({
 const checkClientMbaAccessMock = mock.fn(async () => ({ ok: true as const, isClient: false }))
 
 const getWriteBackendMock = mock.fn(() => "postgres" as const)
-const isXanoMirrorEnabledMock = mock.fn(() => false)
-
 const resolvePublishedVersionIdMock = mock.fn(async (_masterId: number) => currentPublishedId)
 const countVersionLinesMock = mock.fn(async (_id: number) => 4)
 const getWorkingDraftMock = mock.fn(async () => null)
@@ -79,7 +77,6 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/data/backend", {
     namedExports: {
       getWriteBackend: getWriteBackendMock,
-      isXanoMirrorEnabled: isXanoMirrorEnabledMock,
     },
   })
   await mock.module!("@/lib/mediaplan/drafts/serverStore", {

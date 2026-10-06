@@ -6,12 +6,11 @@
  * Filters here apply on change (FN-series auto-load — do not regress).
  */
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Button } from "@/components/ui/button"
 import {
   RECEIVABLE_BILLING_TYPES,
   RECEIVABLE_STATUSES,
@@ -37,12 +36,6 @@ const STATUS_LABELS: Record<(typeof RECEIVABLE_STATUSES)[number], string> = {
 type Props = {
   value: InvoicingLocalFilters
   onChange: (next: InvoicingLocalFilters) => void
-  onExportExcel?: () => void
-  onExportCsv?: () => void
-  csvDisabled?: boolean
-  excelDisabled?: boolean
-  excelDisabledReason?: string
-  markSentButton?: ReactNode
   /** When false, render field row only (parent owns the card — FIN-2 toolbar). */
   framed?: boolean
 }
@@ -50,12 +43,6 @@ type Props = {
 export function InvoicingLocalFiltersBar({
   value,
   onChange,
-  onExportExcel,
-  onExportCsv,
-  csvDisabled,
-  excelDisabled,
-  excelDisabledReason,
-  markSentButton,
   framed = true,
 }: Props) {
   const [publisherOptions, setPublisherOptions] = useState<
@@ -183,41 +170,6 @@ export function InvoicingLocalFiltersBar({
         >
           Include drafts
         </Label>
-      </div>
-      <div className="ml-auto flex items-center gap-2 pb-0.5">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={csvDisabled}
-          onClick={onExportCsv}
-        >
-          CSV
-        </Button>
-        {excelDisabled && excelDisabledReason ? (
-          <span title={excelDisabledReason} className="inline-flex">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled
-              aria-label={`Excel. ${excelDisabledReason}`}
-            >
-              Excel
-            </Button>
-          </span>
-        ) : (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={excelDisabled}
-            onClick={onExportExcel}
-          >
-            Excel
-          </Button>
-        )}
-        {markSentButton}
       </div>
     </div>
   )
