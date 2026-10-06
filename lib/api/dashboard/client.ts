@@ -512,6 +512,10 @@ export function buildClientDashboardDataFromVersions(
         startDate,
         endDate,
         mediaTypes,
+        planClientName:
+          String(
+            version.mp_client_name ?? version.client_name ?? version.mp_clientname ?? "",
+          ).trim() || undefined,
         status: normalizeStatus(version.campaign_status) as Campaign['status'],
         expectedSpendToDate: expectedSpendToDate > 0 ? expectedSpendToDate : undefined,
         ...(hasPublishedVersion !== undefined ? { hasPublishedVersion } : {}),

@@ -38,6 +38,10 @@ export interface HeroKPIBarProps {
   deliveredHasData?: boolean
   /** Melbourne "as of" date (YYYY-MM-DD) — Snowflake facts refresh ~06:30 Melbourne daily. */
   deliveredAsOf?: string
+  /** True when a delivery source failed. The tile must not present the short sum as Delivered. */
+  deliveredPartial?: boolean
+  /** Failed source names from `failedSources` on the delivered response. */
+  deliveredFailedSources?: string[]
 }
 
 function formatDeliveredAsOfCaption(asOf: string | undefined): string | null {
@@ -97,6 +101,8 @@ export function HeroKPIBar({
   deliveredToDate,
   deliveredHasData = false,
   deliveredAsOf,
+  deliveredPartial = false,
+  deliveredFailedSources = [],
 }: HeroKPIBarProps) {
   const shouldReduceMotion = useReducedMotion()
   const normalizedBudgetUtilized = clampBudgetUtilizationPct(budgetUtilized, 0, 100)
@@ -142,6 +148,17 @@ export function HeroKPIBar({
           <>
             <div className="mt-2 h-9 w-28 animate-pulse rounded bg-muted/60" aria-hidden />
             <p className="mt-1.5 text-xs leading-snug text-muted-foreground">Snowflake delivery · loading…</p>
+          </>
+        ) : deliveredPartial ? (
+          <>
+            <p className="mt-2 text-lg font-semibold tracking-tight text-foreground">
+              Some delivery sources unavailable
+            </p>
+            <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
+              {deliveredFailedSources.length > 0
+                ? deliveredFailedSources.join(", ")
+                : "Snowflake delivery"}
+            </p>
           </>
         ) : hasDeliveredSpend ? (
           <>

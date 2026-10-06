@@ -8,6 +8,11 @@ export interface Campaign {
   startDate: string
   endDate: string
   mediaTypes: string[]
+  /**
+   * Plan `mp_client_name` from the version row already loaded for this dashboard.
+   * Pacing scope uses `slugifyPlanClientName` of this, never the dashboard URL slug.
+   */
+  planClientName?: string
   status: 'live' | 'planning' | 'completed' | 'approved' | 'booked' | 'draft'
   /**
    * Expected spend to date from billing schedule (`lib/spend/billingScheduleExpectedToDate`),
