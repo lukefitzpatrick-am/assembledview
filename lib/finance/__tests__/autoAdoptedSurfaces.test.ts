@@ -20,12 +20,18 @@ function rec(): BillingRecord {
     billing_type: "media",
     mba_number: "AC-001",
     campaign_name: "Winter",
+    po_number: null,
     billing_month: "2026-07",
+    invoice_date: null,
+    payment_days: 30,
+    payment_terms: "Net 30 days",
     status: "booked",
-    total: 100,
     line_items: [],
+    total: 100,
+    has_pending_edits: false,
+    source_billing_schedule_id: null,
     billed: false,
-  } as BillingRecord
+  }
 }
 
 function persisted(): PersistedFinanceStatusRow {

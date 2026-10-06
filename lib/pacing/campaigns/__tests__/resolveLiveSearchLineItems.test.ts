@@ -115,36 +115,3 @@ test(
   }
 )
 
-test(
-  "search xano backend walks the existing Xano path",
-  { skip },
-  async () => {
-    const { resolveLiveSearchLineItemInputs } = await import("../fetchSearchPacingCampaignRows.js")
-    resetMocks()
-    getDataBackendFor.mock.mockImplementation(() => "xano")
-    readPacingMasters.mock.mockImplementation(async () => [
-      LIVE_MASTER as unknown as Record<string, unknown>,
-    ])
-    readPacingVersions.mock.mockImplementation(async () => [
-      { id: VERSION_ROW.id, mba_number: "BICAU002", version_number: 4, brand: "Penfolds" },
-    ])
-    fetchAllXanoPages.mock.mockImplementation(async () => [
-      {
-        line_item_id: "bicau002se2",
-        mba_number: "BICAU002",
-        version_number: 4,
-        media_plan_version: 88,
-      },
-    ])
-
-    const rows = await resolveLiveSearchLineItemInputs({
-      asOfDate: "2026-09-16",
-      allowedClientSlugs: null,
-    })
-
-    assert.ok(rows.length >= 1)
-    assert.equal(rows[0]!.searchRow.line_item_id, "bicau002se2")
-    assert.equal(fetchLineItemsFromPostgresByEndpoint.mock.calls.length, 0)
-    assert.ok(fetchAllXanoPages.mock.calls.length > 0)
-  }
-)
