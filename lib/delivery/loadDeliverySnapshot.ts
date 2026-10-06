@@ -52,6 +52,8 @@ export type LoadedDeliverySnapshot = {
   versionNumber: number | null
   channels: DeliveryChannelGroup[]
   planTotals: DeliveryChannelGroup["totals"]
+  /** True when the fixed-cost reported-spend overlay query failed. Other snapshot totals still return. */
+  fixedCostOverlayFailed?: boolean
 }
 
 type PlanLineMeta = {
@@ -453,12 +455,14 @@ export async function loadDeliverySnapshot(
       })
     : Promise.resolve(null)
 
+  let fixedCostOverlayFailed = false
   const overlayPromise =
     fixedCostLineIds.length > 0
       ? queryDailyFacts(
           fixedCostLineIds,
           snowflakeLabel ? { label: snowflakeLabel } : undefined,
         ).catch((err) => {
+          fixedCostOverlayFailed = true
           console.error("[loadDeliverySnapshot] reported daily facts failed", {
             mba,
             error: err instanceof Error ? err.message : String(err),
@@ -544,5 +548,6 @@ export async function loadDeliverySnapshot(
     versionNumber: versionNumber ?? null,
     channels,
     planTotals,
+    ...(fixedCostOverlayFailed ? { fixedCostOverlayFailed: true } : {}),
   }
 }

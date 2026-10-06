@@ -60,11 +60,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         mbaNumber: c.mbaNumber,
         versionNumber: Number.isFinite(c.version_number) ? c.version_number : undefined,
         mediaTypes: c.mediaTypes,
+        planClientName: c.planClientName,
       })),
       range,
     )
 
-    return NextResponse.json(totals)
+    return NextResponse.json({
+      ...totals,
+      partial: totals.partial,
+      failedSources: totals.failedSources,
+    })
   } catch (error) {
     console.error("[dashboard/delivered] error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

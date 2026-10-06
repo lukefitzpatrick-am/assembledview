@@ -8,27 +8,29 @@ import { mockModuleSkip, supportsMockModule } from "../../test/mockModuleHarness
 
 const skip = mockModuleSkip()
 
+const snapshotOk = {
+  asOf: "2026-06-01",
+  planTotals: {
+    spendToDate: 10,
+    impressions: 100,
+    clicks: 2,
+    results: 1,
+    video3sViews: 0,
+  },
+}
+
 const loadDeliverySnapshot = mock.fn(
-  async (_input: { mbaNumber: string; startDate?: string; endDate?: string }) => ({
-    asOf: "2026-06-01",
-    planTotals: {
-      spendToDate: 10,
-      impressions: 100,
-      clicks: 2,
-      results: 1,
-      video3sViews: 0,
-    },
-  }),
+  async (_input: { mbaNumber: string; startDate?: string; endDate?: string }) => snapshotOk,
 )
 
-const fetchDirectPacingRows = mock.fn(async () => [])
+const getCachedDirectPacingRows = mock.fn(async () => [])
 
 if (supportsMockModule()) {
   await mock.module!("@/lib/delivery/loadDeliverySnapshot", {
     namedExports: { loadDeliverySnapshot },
   })
-  await mock.module!("@/lib/pacing/direct/fetchDirectPacingRows", {
-    namedExports: { fetchDirectPacingRows },
+  await mock.module!("@/lib/pacing/campaigns/pacingRowsCache", {
+    namedExports: { getCachedDirectPacingRows },
   })
   await mock.module!("@/lib/pacing/maths", {
     namedExports: { getAsOfDate: () => "2026-06-01" },
@@ -65,6 +67,35 @@ test(
     assert.equal(noRangeArgs.endDate, undefined)
     assert.equal(emptyArgs.startDate, undefined)
     assert.equal(emptyArgs.endDate, undefined)
+    assert.equal(unbounded.partial, false)
+    assert.deepEqual(unbounded.failedSources, [])
+  },
+)
+
+test(
+  "a thrown snapshot is partial and keeps the other campaign totals",
+  { skip },
+  async () => {
+    const { getDeliveredTotalsForClient } = await import("../getDeliveredTotalsForClient.js")
+    loadDeliverySnapshot.mock.mockImplementation(
+      async (input: { mbaNumber: string }) => {
+        if (input.mbaNumber === "bad001") throw new Error("snowflake down")
+        return snapshotOk
+      },
+    )
+    try {
+      const result = await getDeliveredTotalsForClient([
+        { mbaNumber: "bad001", mediaTypes: ["Search"] },
+        { mbaNumber: "good001", mediaTypes: ["Search"], planClientName: "Golf Australia" },
+      ])
+      assert.equal(result.partial, true)
+      assert.deepEqual(result.failedSources, ["snapshot bad001"])
+      assert.equal(result.spendToDate, 10)
+      assert.equal(result.impressions, 100)
+      assert.equal(result.hasDelivery, true)
+    } finally {
+      loadDeliverySnapshot.mock.mockImplementation(async () => snapshotOk)
+    }
   },
 )
 

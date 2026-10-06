@@ -56,6 +56,8 @@ export interface ClientDashboardPageContentProps {
 
 /** `/api/dashboard/[slug]/delivered` response shape — see `getDeliveredTotalsForClient`. */
 type DeliveredTotalsResponse = {
+  partial?: boolean
+  failedSources?: string[]
   spendToDate: number
   impressions: number
   hasDelivery: boolean
@@ -373,6 +375,8 @@ export function ClientDashboardPageContent({
             deliveredToDate={deliveredTotals?.spendToDate}
             deliveredHasData={deliveredTotals?.hasDelivery ?? false}
             deliveredAsOf={deliveredTotals?.asOf}
+            deliveredPartial={deliveredTotals?.partial === true}
+            deliveredFailedSources={deliveredTotals?.failedSources ?? []}
           />
         </motion.section>
 
