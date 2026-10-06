@@ -1,9 +1,10 @@
-export const LEGAL_ENTITY_NAME = "[TO CONFIRM]"
-export const ABN = "[TO CONFIRM]"
-export const PRIVACY_EMAIL = "[TO CONFIRM]"
-export const POSTAL_ADDRESS = "[TO CONFIRM]"
+export const LEGAL_ENTITY_NAME = "Assembled Media Pty Ltd"
+export const ABN = "92 641 510 885"
+export const PRIVACY_EMAIL = "hello@assembledmedia.com.au"
+export const POSTAL_ADDRESS = "1/71 Palmerston Crescent South Melbourne VIC 3205"
 export const LAST_UPDATED = "6 October 2026"
-export const RETENTION_TEXT = "[TO CONFIRM]"
+export const RETENTION_TEXT =
+  "We will retain your personal information for as long as is necessary to fulfil the purposes outlined in this Privacy Policy, or as required by law. We may also retain your personal information for the period necessary to comply with our legal obligations, resolve disputes, and enforce our agreements."
 
 export type ServiceProvider = {
   name: string
@@ -25,7 +26,7 @@ export const SERVICE_PROVIDERS: readonly ServiceProvider[] = [
   {
     name: "Auth0 (Okta)",
     purpose: "sign-in and identity",
-    location: "[TO CONFIRM region]",
+    location: "Australia",
   },
   {
     name: "Twilio SendGrid",
@@ -35,7 +36,7 @@ export const SERVICE_PROVIDERS: readonly ServiceProvider[] = [
   {
     name: "Snowflake",
     purpose: "advertising performance data warehouse",
-    location: "[TO CONFIRM region]",
+    location: "Australia",
   },
   {
     name: "Fivetran",
@@ -70,7 +71,7 @@ export const SERVICE_PROVIDERS: readonly ServiceProvider[] = [
   {
     name: "My Hours",
     purpose: "staff time tracking",
-    location: "[TO CONFIRM region]",
+    location: "Australia",
   },
 ]
 
