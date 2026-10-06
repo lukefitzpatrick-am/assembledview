@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm"
 import { type LineChannel } from "@/db/schema"
 import { getDb, schema } from "@/db"
 import { coerceNumericStringsToNumbers, toApiRow } from "@/lib/data/toApiRow"
@@ -22,6 +22,19 @@ export {
   spreadAttrsForChannel,
   type LineItemAssemblyContext,
 } from "@/lib/data/planShapes"
+
+/**
+ * Prefixes the SQL with an `av:<name>` tag so pg_stat_statements can tell plan
+ * readers apart. `sql.raw` keeps the name in the statement text; a bound value
+ * becomes `$1` and the normalised query drops it. Drizzle's postgres-js session
+ * sends the text through `client.unsafe`, which forces `prepare: false`.
+ */
+function labelPlanQuery<Q>(query: Q, name: string): Q {
+  const q = query as Q & { getSQL(): SQL }
+  const render = q.getSQL.bind(q)
+  q.getSQL = () => sql`${sql.raw(`/* av:${name} */`)} ${render()}`
+  return query
+}
 
 function createdAtMs(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value
@@ -197,8 +210,11 @@ export function mapPlanMasterByMbaFromLoadedRows(
 export async function fetchPlanMastersFromPostgres(): Promise<Record<string, unknown>[]> {
   const db = getDb()
   const [masters, versions] = await Promise.all([
-    db.select().from(schema.mediaPlanMasters),
-    db.select(PLAN_MASTER_VERSION_META_COLUMNS).from(schema.mediaPlanVersions),
+    labelPlanQuery(db.select().from(schema.mediaPlanMasters), "readPlanMasters"),
+    labelPlanQuery(
+      db.select(PLAN_MASTER_VERSION_META_COLUMNS).from(schema.mediaPlanVersions),
+      "readPlanMasters",
+    ),
   ])
   return mapPlanMastersFromLoadedRows(
     masters as Record<string, unknown>[],
@@ -211,19 +227,25 @@ export async function fetchPlanMasterByMbaFromPostgres(
 ): Promise<Record<string, unknown> | null> {
   const db = getDb()
   const target = normaliseMba(mbaNumber)
-  const masters = await db
-    .select()
-    .from(schema.mediaPlanMasters)
-    .where(sql`lower(${schema.mediaPlanMasters.mbaNumber}) = ${target}`)
+  const masters = await labelPlanQuery(
+    db
+      .select()
+      .from(schema.mediaPlanMasters)
+      .where(sql`lower(${schema.mediaPlanMasters.mbaNumber}) = ${target}`),
+    "readPlanMasterByMba",
+  )
   if (masters.length === 0) return null
   const masterIds = masters.map((row) => row.id).filter((id) => Number.isFinite(id))
   const versions =
     masterIds.length === 0
       ? []
-      : await db
-          .select(PLAN_MASTER_VERSION_META_COLUMNS)
-          .from(schema.mediaPlanVersions)
-          .where(inArray(schema.mediaPlanVersions.masterId, masterIds))
+      : await labelPlanQuery(
+          db
+            .select(PLAN_MASTER_VERSION_META_COLUMNS)
+            .from(schema.mediaPlanVersions)
+            .where(inArray(schema.mediaPlanVersions.masterId, masterIds)),
+          "readPlanMasterByMba",
+        )
   return mapPlanMasterByMbaFromLoadedRows(
     masters as Record<string, unknown>[],
     versions as Record<string, unknown>[],
@@ -403,10 +425,13 @@ export async function readPlanVersionsForMbas(
   const where = options?.publishedOnly
     ? and(mbaMatch, isNotNull(v.publishedAt))
     : mbaMatch
-  const rows = await db
-    .select(planVersionColumns(options?.includeSchedules === true))
-    .from(v)
-    .where(where)
+  const rows = await labelPlanQuery(
+    db
+      .select(planVersionColumns(options?.includeSchedules === true))
+      .from(v)
+      .where(where),
+    "readPlanVersionsForMbas",
+  )
   return mapVersionRows(rows as Record<string, unknown>[])
 }
 
@@ -420,19 +445,22 @@ export async function readPublishedPointerPlanVersions(): Promise<
   const db = getDb()
   const v = schema.mediaPlanVersions
   const masters = schema.mediaPlanMasters
-  const rows = await db
-    .select()
-    .from(v)
-    .where(
-      and(
-        isNotNull(v.publishedAt),
-        sql`${v.id} in (
-          select ${masters.publishedVersionId}
-          from ${masters}
-          where ${masters.publishedVersionId} is not null
-        )`,
+  const rows = await labelPlanQuery(
+    db
+      .select()
+      .from(v)
+      .where(
+        and(
+          isNotNull(v.publishedAt),
+          sql`${v.id} in (
+            select ${masters.publishedVersionId}
+            from ${masters}
+            where ${masters.publishedVersionId} is not null
+          )`,
+        ),
       ),
-    )
+    "readPublishedPointerPlanVersions",
+  )
   return mapVersionRows(rows as Record<string, unknown>[])
 }
 
@@ -447,19 +475,22 @@ export async function readPublishedOrLivePlanVersions(
   const asOf = String(asOfDate ?? "").trim().slice(0, 10)
   const db = getDb()
   const v = schema.mediaPlanVersions
-  const rows = await db
-    .select()
-    .from(v)
-    .where(
-      or(
-        isNotNull(v.publishedAt),
-        and(
-          sql`lower(trim(${v.campaignStatus})) in ('approved', 'booked')`,
-          sql`${v.campaignStartDate} <= ${asOf}::date`,
-          sql`${v.campaignEndDate} >= ${asOf}::date`,
+  const rows = await labelPlanQuery(
+    db
+      .select()
+      .from(v)
+      .where(
+        or(
+          isNotNull(v.publishedAt),
+          and(
+            sql`lower(trim(${v.campaignStatus})) in ('approved', 'booked')`,
+            sql`${v.campaignStartDate} <= ${asOf}::date`,
+            sql`${v.campaignEndDate} >= ${asOf}::date`,
+          ),
         ),
       ),
-    )
+    "readPublishedOrLivePlanVersions",
+  )
   return mapVersionRows(rows as Record<string, unknown>[])
 }
 
@@ -468,15 +499,19 @@ export async function readPlanVersionsWithoutSchedules(): Promise<
   Record<string, unknown>[]
 > {
   const db = getDb()
-  const rows = await db
-    .select(planVersionColumns(false))
-    .from(schema.mediaPlanVersions)
+  const rows = await labelPlanQuery(
+    db.select(planVersionColumns(false)).from(schema.mediaPlanVersions),
+    "readPlanVersionsWithoutSchedules",
+  )
   return mapVersionRows(rows as Record<string, unknown>[])
 }
 
 export async function fetchPlanVersionsFromPostgres(): Promise<Record<string, unknown>[]> {
   const db = getDb()
-  const rows = await db.select().from(schema.mediaPlanVersions)
+  const rows = await labelPlanQuery(
+    db.select().from(schema.mediaPlanVersions),
+    "readPlanVersions",
+  )
   return rows.map((row) => mapPlanVersionFromPostgres(row as Record<string, unknown>))
 }
 
@@ -484,10 +519,13 @@ export async function fetchPlanVersionsByMbaFromPostgres(
   mbaNumber: string
 ): Promise<Record<string, unknown>[]> {
   const db = getDb()
-  const rows = await db
-    .select()
-    .from(schema.mediaPlanVersions)
-    .where(sql`lower(${schema.mediaPlanVersions.mbaNumber}) = ${normaliseMba(mbaNumber)}`)
+  const rows = await labelPlanQuery(
+    db
+      .select()
+      .from(schema.mediaPlanVersions)
+      .where(sql`lower(${schema.mediaPlanVersions.mbaNumber}) = ${normaliseMba(mbaNumber)}`),
+    "readPlanVersionsByMba",
+  )
   return rows.map((row) => mapPlanVersionFromPostgres(row as Record<string, unknown>))
 }
 
@@ -496,16 +534,19 @@ export async function fetchPlanVersionByMbaAndNumberFromPostgres(
   versionNumber: number
 ): Promise<Record<string, unknown> | null> {
   const db = getDb()
-  const rows = await db
-    .select()
-    .from(schema.mediaPlanVersions)
-    .where(
-      and(
-        sql`lower(${schema.mediaPlanVersions.mbaNumber}) = ${normaliseMba(mbaNumber)}`,
-        eq(schema.mediaPlanVersions.versionNumber, versionNumber)
+  const rows = await labelPlanQuery(
+    db
+      .select()
+      .from(schema.mediaPlanVersions)
+      .where(
+        and(
+          sql`lower(${schema.mediaPlanVersions.mbaNumber}) = ${normaliseMba(mbaNumber)}`,
+          eq(schema.mediaPlanVersions.versionNumber, versionNumber)
+        )
       )
-    )
-    .limit(1)
+      .limit(1),
+    "readPlanVersionByMbaAndNumber",
+  )
   const row = rows[0]
   if (!row) return null
   return mapPlanVersionFromPostgres(row as Record<string, unknown>)
@@ -528,24 +569,30 @@ async function resolveVersionContext(
   versionNumber: number
 ): Promise<LineItemAssemblyContext | null> {
   const db = getDb()
-  const versions = await db
-    .select()
-    .from(schema.mediaPlanVersions)
-    .where(
-      and(
-        sql`lower(${schema.mediaPlanVersions.mbaNumber}) = ${normaliseMba(mbaNumber)}`,
-        eq(schema.mediaPlanVersions.versionNumber, versionNumber)
+  const versions = await labelPlanQuery(
+    db
+      .select()
+      .from(schema.mediaPlanVersions)
+      .where(
+        and(
+          sql`lower(${schema.mediaPlanVersions.mbaNumber}) = ${normaliseMba(mbaNumber)}`,
+          eq(schema.mediaPlanVersions.versionNumber, versionNumber)
+        )
       )
-    )
-    .limit(1)
+      .limit(1),
+    "resolveVersionContext",
+  )
   const version = versions[0]
   if (!version) return null
 
-  const masters = await db
-    .select()
-    .from(schema.mediaPlanMasters)
-    .where(eq(schema.mediaPlanMasters.id, version.masterId))
-    .limit(1)
+  const masters = await labelPlanQuery(
+    db
+      .select()
+      .from(schema.mediaPlanMasters)
+      .where(eq(schema.mediaPlanMasters.id, version.masterId))
+      .limit(1),
+    "resolveVersionContext",
+  )
   const master = masters[0]
 
   return {
@@ -569,15 +616,18 @@ export async function fetchLineItemsFromPostgres(
   if (!ctx) return []
 
   const db = getDb()
-  const rows = await db
-    .select()
-    .from(schema.lineItems)
-    .where(
-      and(
-        eq(schema.lineItems.versionId, ctx.versionId),
-        eq(schema.lineItems.channel, channel)
-      )
-    )
+  const rows = await labelPlanQuery(
+    db
+      .select()
+      .from(schema.lineItems)
+      .where(
+        and(
+          eq(schema.lineItems.versionId, ctx.versionId),
+          eq(schema.lineItems.channel, channel)
+        )
+      ),
+    "readChannelLineItems",
+  )
 
   const mapped = rows.map((row) =>
     mapLineItemFromPostgres(row as Record<string, unknown>, ctx)
