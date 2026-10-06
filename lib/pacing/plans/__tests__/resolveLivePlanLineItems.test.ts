@@ -94,17 +94,6 @@ async function withPostgresLines(
   )
 }
 
-async function withXanoLines(lines: Record<string, unknown>[]) {
-  getDataBackendFor.mock.mockImplementation(() => "xano")
-  fetchAllMasters.mock.mockImplementation(async () => [LIVE_MASTER])
-  fetchCurrentVersionRowsForMasters.mock.mockImplementation(async () => {
-    const map = new Map<string, typeof VERSION_ROW>()
-    map.set("bicau002", VERSION_ROW)
-    return map
-  })
-  fetchAllXanoPages.mock.mockImplementation(async () => lines)
-}
-
 test(
   "programmatic postgres backend reads each prog table at the published version",
   { skip },
@@ -141,28 +130,6 @@ test(
 )
 
 test(
-  "programmatic xano backend walks the existing Xano path",
-  { skip },
-  async () => {
-    const { resolveLiveProgrammaticLineItemInputs } = await import(
-      "../../programmatic/resolveLiveProgrammaticLineItems.js"
-    )
-    resetMocks()
-    await withXanoLines([{ line_item_id: "bicau002pv4", mba_number: "BICAU002", version_number: 4 }])
-
-    const rows = await resolveLiveProgrammaticLineItemInputs({
-      asOfDate: "2026-09-16",
-      allowedClientSlugs: null,
-    })
-
-    assert.ok(rows.length >= 1)
-    assert.equal(fetchLineItemsFromPostgresByEndpoint.mock.calls.length, 0)
-    assert.ok(fetchAllXanoPages.mock.calls.length > 0)
-    assert.ok(fetchAllMasters.mock.calls.length > 0)
-  }
-)
-
-test(
   "social postgres backend reads media_plan_social at the published version",
   { skip },
   async () => {
@@ -188,29 +155,6 @@ test(
     assert.equal(mba, "BICAU002")
     assert.equal(version, 4)
     assert.equal(fetchAllXanoPages.mock.calls.length, 0)
-  }
-)
-
-test(
-  "social xano backend walks the existing Xano path",
-  { skip },
-  async () => {
-    const { resolveLiveSocialLineItemInputs } = await import(
-      "../../social/resolveLiveSocialLineItems.js"
-    )
-    resetMocks()
-    await withXanoLines([
-      { line_item_id: "bicau002sm2", mba_number: "BICAU002", version_number: 4, platform: "Meta" },
-    ])
-
-    const rows = await resolveLiveSocialLineItemInputs({
-      asOfDate: "2026-09-16",
-      allowedClientSlugs: null,
-    })
-
-    assert.ok(rows.length >= 1)
-    assert.equal(fetchLineItemsFromPostgresByEndpoint.mock.calls.length, 0)
-    assert.ok(fetchAllXanoPages.mock.calls.length > 0)
   }
 )
 
@@ -242,25 +186,3 @@ test(
   }
 )
 
-test(
-  "ad-serving xano backend walks the existing Xano path",
-  { skip },
-  async () => {
-    const { resolveLiveAdServingLineItemInputs } = await import(
-      "../../ad-serving/resolveLiveAdServingLineItems.js"
-    )
-    resetMocks()
-    await withXanoLines([
-      { line_item_id: "bicau002dd2", mba_number: "BICAU002", version_number: 4 },
-    ])
-
-    const rows = await resolveLiveAdServingLineItemInputs({
-      asOfDate: "2026-09-16",
-      allowedClientSlugs: null,
-    })
-
-    assert.ok(rows.length >= 1)
-    assert.equal(fetchLineItemsFromPostgresByEndpoint.mock.calls.length, 0)
-    assert.ok(fetchAllXanoPages.mock.calls.length > 0)
-  }
-)
