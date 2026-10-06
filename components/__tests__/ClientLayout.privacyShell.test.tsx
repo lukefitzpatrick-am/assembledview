@@ -69,6 +69,19 @@ describe("ClientLayout privacy shell", () => {
     expect(container.textContent).toContain("Policy")
   })
 
+  it("hides the sidebar on /data-deletion", () => {
+    nav.pathname = "/data-deletion"
+    act(() => {
+      root.render(
+        <ClientLayout clientSlugs={[]}>
+          <p>Deletion</p>
+        </ClientLayout>,
+      )
+    })
+    expect(container.querySelector("[data-testid='app-sidebar']")).toBeNull()
+    expect(container.textContent).toContain("Deletion")
+  })
+
   it("shows the sidebar on an authenticated route", () => {
     nav.pathname = "/dashboard"
     act(() => {

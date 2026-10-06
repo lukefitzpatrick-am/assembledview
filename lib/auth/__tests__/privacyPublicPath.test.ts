@@ -17,4 +17,11 @@ describe("privacy public path", () => {
     expect(response.headers.get("location")).toBeNull()
     expect(response.headers.get("x-middleware-next")).toBe("1")
   })
+
+  it("passes /data-deletion with no session and does not redirect to login", async () => {
+    const response = await middleware(new NextRequest("http://localhost:3000/data-deletion"))
+    expect(response.status).toBe(200)
+    expect(response.headers.get("location")).toBeNull()
+    expect(response.headers.get("x-middleware-next")).toBe("1")
+  })
 })

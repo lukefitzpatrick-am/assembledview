@@ -29,7 +29,7 @@ export function ClientLayout({
   clientSlugs: string[]
 }) {
   const pathname = usePathname()
-  const isHomePage = pathname === "/" || pathname === "/privacy"
+  const isHomePage = pathname === "/" || pathname === "/privacy" || pathname === "/data-deletion"
   const isAuthPage = pathname?.startsWith("/auth")
   const isShellVisible = !isHomePage && !isAuthPage
   const p = pathname ?? ""

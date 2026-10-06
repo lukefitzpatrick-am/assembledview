@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 
 import {
   Table,
@@ -155,6 +156,18 @@ export default function PrivacyPolicyPage() {
         emailing {PRIVACY_EMAIL} or writing to {POSTAL_ADDRESS}. We will respond within 30 days. If
         you are not satisfied with our response, you can contact the Office of the Australian
         Information Commissioner at oaic.gov.au.
+      </p>
+
+      <h2 className="mt-8 text-lg font-semibold">Deleting your information</h2>
+      <p className="mt-3 text-sm leading-relaxed">
+        You can ask us to delete your personal information at any time. See our{" "}
+        <Link
+          href="/data-deletion"
+          className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Data Deletion
+        </Link>{" "}
+        page for how.
       </p>
 
       <h2 className="mt-8 text-lg font-semibold">Changes</h2>
