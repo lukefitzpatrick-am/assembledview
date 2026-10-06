@@ -184,10 +184,10 @@ export async function fetchAllMasters(): Promise<MediaPlanMaster[]> {
 export async function fetchCurrentVersionRowsForMasters(
   masters: MediaPlanMaster[]
 ): Promise<Map<string, VersionRow>> {
-  // Postgres versions crawl. Search lines come from published `line_items`.
-  const allVersions = await readPacingVersions();
-
+  // Postgres versions crawl, scoped to these MBAs. Search lines come from published `line_items`.
   const wantMba = new Set(masters.map((m) => norm(m.mba_number)));
+  const allVersions = await readPacingVersions(wantMba);
+
   const wantVersion = new Map(
     masters.map((m) => [norm(m.mba_number), m.version_number] as const)
   );
