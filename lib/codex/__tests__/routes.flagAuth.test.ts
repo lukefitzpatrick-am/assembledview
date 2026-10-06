@@ -55,8 +55,10 @@ if (supportsMockModule()) {
       }),
     },
   })
+  const { HELP_ON_DONE_MESSAGE } = await import("../repo.ts")
   await mock.module!("@/lib/codex/repo", {
     namedExports: {
+      HELP_ON_DONE_MESSAGE,
       listTasks: async (filters: {
         assigneeEmail?: string
         mineForEmail?: string
