@@ -1,5 +1,6 @@
 import "server-only"
 
+import { sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import {
@@ -75,6 +76,9 @@ function runPacingShadowCompare(
  * masters: golf022 / krusty009 / test123001), fall back to
  * `COALESCE(published, max(version_number), 0)` so shadow/postgres never emit a
  * spurious `version_number` diff — does not invent a published pointer.
+ *
+ * The published row is read for `version_number` / `versionNumber` only.
+ * `published_at` is not consulted: an unstamped pointer still supplies the watermark.
  */
 export function mapPacingMasterFromPostgres(
   master: Record<string, unknown>,
@@ -127,11 +131,23 @@ export function mapPacingMasterFromPostgres(
   }
 }
 
+/**
+ * Version columns the pacing master crawl reads.
+ * `id` joins `published_version_id`. `masterId` + `versionNumber` are the
+ * max-watermark fallback. The pointer row contributes `versionNumber` only
+ * (`version_number` after `toApiRow`). `published_at` is not selected.
+ */
+export const PACING_MASTER_VERSION_COLUMNS = {
+  id: schema.mediaPlanVersions.id,
+  masterId: schema.mediaPlanVersions.masterId,
+  versionNumber: schema.mediaPlanVersions.versionNumber,
+} as const
+
 export async function fetchPacingMastersFromPostgres(): Promise<Record<string, unknown>[]> {
   const db = getDb()
   const [masters, versions] = await Promise.all([
     db.select().from(schema.mediaPlanMasters),
-    db.select().from(schema.mediaPlanVersions),
+    db.select(PACING_MASTER_VERSION_COLUMNS).from(schema.mediaPlanVersions),
   ])
   const versionById = new Map(
     versions.map((v) => [v.id, v as Record<string, unknown>] as const)
@@ -218,6 +234,21 @@ export async function readPacingMasters(): Promise<Record<string, unknown>[]> {
 
 // --- media_plan_versions (pacing crawl) ---
 
+/**
+ * Columns `mapPacingVersionFromPostgres` reads (`toApiRow` snake_cases them).
+ * `legacy_schedules` and the rest of the version payload stay off this crawl.
+ */
+export const PACING_VERSION_COLUMNS = {
+  id: schema.mediaPlanVersions.id,
+  mbaNumber: schema.mediaPlanVersions.mbaNumber,
+  versionNumber: schema.mediaPlanVersions.versionNumber,
+  brand: schema.mediaPlanVersions.brand,
+  campaignName: schema.mediaPlanVersions.campaignName,
+  campaignStatus: schema.mediaPlanVersions.campaignStatus,
+  campaignStartDate: schema.mediaPlanVersions.campaignStartDate,
+  campaignEndDate: schema.mediaPlanVersions.campaignEndDate,
+} as const
+
 /** Pacing-relevant version fields only (skip legacy blobs / files). */
 export function mapPacingVersionFromPostgres(
   row: Record<string, unknown>
@@ -241,9 +272,40 @@ export function mapPacingVersionFromPostgres(
   }
 }
 
-export async function fetchPacingVersionsFromPostgres(): Promise<Record<string, unknown>[]> {
+function pacingMbaKeys(mbaNumbers: readonly string[] | ReadonlySet<string>): string[] {
+  const keys = new Set<string>()
+  for (const value of mbaNumbers) {
+    const key = String(value ?? "")
+      .trim()
+      .toLowerCase()
+    if (key) keys.add(key)
+  }
+  return [...keys]
+}
+
+/**
+ * Pacing version rows. With no argument, every version (narrow columns only).
+ * With an MBA set, `lower(mba_number) IN (...)`. An empty set returns [] and
+ * does not query.
+ */
+export async function fetchPacingVersionsFromPostgres(
+  mbaNumbers?: readonly string[] | ReadonlySet<string>,
+): Promise<Record<string, unknown>[]> {
+  const keys = mbaNumbers === undefined ? null : pacingMbaKeys(mbaNumbers)
+  if (keys && keys.length === 0) return []
   const db = getDb()
-  const rows = await db.select().from(schema.mediaPlanVersions)
+  const rows =
+    keys === null
+      ? await db.select(PACING_VERSION_COLUMNS).from(schema.mediaPlanVersions)
+      : await db
+          .select(PACING_VERSION_COLUMNS)
+          .from(schema.mediaPlanVersions)
+          .where(
+            sql`lower(${schema.mediaPlanVersions.mbaNumber}) in (${sql.join(
+              keys.map((key) => sql`${key}`),
+              sql`, `,
+            )})`,
+          )
   return rows.map((row) => mapPacingVersionFromPostgres(row as Record<string, unknown>))
 }
 
@@ -280,20 +342,29 @@ function versionDuplicateNaturalKey(row: Record<string, unknown>): string | null
 /**
  * Versions list for pacing (`fetchCurrentVersionRowsForMasters`).
  * Duplicate (mba, version_number) rows collapsed in PG are tagged duplicate-class.
+ * Postgres accepts an MBA set (`lower(mba_number) IN`). Xano still walks the
+ * endpoint, then keeps that set in memory so shadow compares the same rows.
  */
-export async function readPacingVersions(): Promise<Record<string, unknown>[]> {
+export async function readPacingVersions(
+  mbaNumbers?: readonly string[] | ReadonlySet<string>,
+): Promise<Record<string, unknown>[]> {
   const backend = getDataBackendFor(DOMAIN)
 
   if (backend === "postgres") {
-    return fetchPacingVersionsFromPostgres()
+    return fetchPacingVersionsFromPostgres(mbaNumbers)
   }
 
-  const xanoRows = await fetchPacingVersionsFromXano()
+  const scope =
+    mbaNumbers === undefined ? null : new Set(pacingMbaKeys(mbaNumbers))
+  const xanoRows = (await fetchPacingVersionsFromXano()).filter((row) => {
+    if (!scope) return true
+    return scope.has(String(row.mba_number ?? "").trim().toLowerCase())
+  })
 
   if (backend === "shadow") {
     void (async () => {
       try {
-        const postgresRows = await fetchPacingVersionsFromPostgres()
+        const postgresRows = await fetchPacingVersionsFromPostgres(mbaNumbers)
         runPacingShadowCompare("media_plan_versions", xanoRows, postgresRows, {
           financeDuplicateClass: true,
           duplicateNaturalKey: versionDuplicateNaturalKey,

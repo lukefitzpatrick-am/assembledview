@@ -294,10 +294,10 @@ export async function fetchAllMasters(): Promise<MediaPlanMaster[]> {
 export async function fetchCurrentVersionRowsForMasters(
   masters: MediaPlanMaster[]
 ): Promise<Map<string, VersionRow>> {
-  // DATA_BACKEND_PACING — versions crawl (T2d). Channel line tables remain Xano until T2e.
-  const allVersions = await readPacingVersions();
-
+  // DATA_BACKEND_PACING — versions crawl. Postgres scopes to these MBAs.
   const wantMba = new Set(masters.map((m) => norm(m.mba_number)));
+  const allVersions = await readPacingVersions(wantMba);
+
   const wantVersion = new Map(
     masters.map((m) => [norm(m.mba_number), m.version_number] as const)
   );
