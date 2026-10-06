@@ -1,6 +1,5 @@
 import { toMelbourneDateString } from "@/lib/timezone"
 import { throwIfWriteUnauthorized } from "@/lib/auth/writeSessionExpiry"
-import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { coalescedGetJson, invalidateCoalescedGetJson } from "@/lib/api/coalescedGetJson"
 import {
@@ -2671,28 +2670,7 @@ export async function getProgVideoLineItemsByMBA(mbaNumber: string, mediaPlanVer
   if (isBrowser) {
     return fetchLineItemsFromApi(mbaNumber, mediaPlanVersion, "progVideo", timeoutMs)
   }
-  try {
-    const data = await fetchAllXanoPages(
-      `${MEDIA_PLANS_BASE_URL}/media_plan_prog_video`,
-      {
-        mba_number: mbaNumber,
-        version_number: mediaPlanVersion,
-        mp_plannumber: mediaPlanVersion,
-      },
-      "PROG_VIDEO"
-    )
-
-    console.log(
-      `[API] Fetched programmatic video line items for MBA ${mbaNumber}${
-        mediaPlanVersion !== undefined && mediaPlanVersion !== null ? ` with version ${mediaPlanVersion}` : ""
-      }: count=${data.length}`
-    )
-
-    return data
-  } catch (error) {
-    console.error("Error fetching programmatic video line items:", error);
-    return [];
-  }
+  return []
 }
 
 export async function deleteProgVideoLineItem(id: number): Promise<void> {

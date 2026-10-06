@@ -257,7 +257,7 @@ SQL used (Postgres):
 | `lib/kpi/publisherKpi.ts` | KPI writes axios | write still Xano | publisher KPI admin | PORT (writes) |
 | `lib/clients/fetchClientRowByUrlSlug.ts` | `readClientsList` (DATA_BACKEND_CLIENTS) | DATA_BACKEND_CLIENTS | dashboard slug, auth MBA, clients API | DUAL-DONE |
 | `lib/mediaplan/reapUnpublishedStagedVersions.ts` | versions + channel DELETE | none | MBA GET cleanup | PORT |
-| `lib/ops/health/checks.ts` | GET clients probe | none | ops-health cron | TOOLING |
+| `lib/ops/health/checks.ts` | Xano clients liveness GET removed. Remaining checks are warehouse, methodology, and Xero | none | ops-health cron | DONE |
 | `lib/ava/tools/saveClientBrain.ts` | `updateClientPostgresFirst` (+ Xano mirror) | PG write (X8) | Ava | MIRROR (write) |
 | `lib/data/writeScopeOfWork.ts` | `scope_of_work` insert/update/getById | DATABASE_URL | scopes-of-work API | DUAL-DONE (PG) |
 | `lib/ava/tools/getBestPractice.ts` | media_container_best_practice | none | Ava | PORT |
