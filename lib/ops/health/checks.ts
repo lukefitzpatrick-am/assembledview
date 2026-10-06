@@ -8,8 +8,6 @@ import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 import { SOCIAL_PACING_TABLE } from "@/lib/pacing/social-channels"
 import { getAsOfDate, getMelbourneYesterdayISO } from "@/lib/pacing/maths"
 import { getCachedPlanningMeta } from "@/lib/planning/metaCache"
-import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
-import { xanoAuthHeaders } from "@/lib/api/xano"
 import type { OpsCheckResult } from "./types"
 import {
   daysBehindMaxDate,
@@ -157,40 +155,6 @@ export async function checkWarehouseAndVolume(asOfDate: string): Promise<{
     return {
       freshness: { name: "Warehouse freshness", status: "red", detail },
       volume: { name: "Row-volume anomaly", status: "red", detail },
-    }
-  }
-}
-
-/**
- * Authenticated GET against the clients collection (same URL as finance ref cache).
- * Does not use getCachedClients — that swallows errors into [].
- */
-export async function checkXanoProxyLiveness(): Promise<OpsCheckResult> {
-  try {
-    const url = getXanoClientsCollectionUrl()
-    const res = await fetch(url, {
-      method: "GET",
-      headers: xanoAuthHeaders(),
-      cache: "no-store",
-      signal: AbortSignal.timeout(15_000),
-    })
-    if (!res.ok) {
-      return {
-        name: "Xano proxy liveness",
-        status: "red",
-        detail: `GET clients → HTTP ${res.status}`,
-      }
-    }
-    return {
-      name: "Xano proxy liveness",
-      status: "green",
-      detail: `GET clients → HTTP ${res.status}`,
-    }
-  } catch (err) {
-    return {
-      name: "Xano proxy liveness",
-      status: "red",
-      detail: err instanceof Error ? err.message : String(err),
     }
   }
 }
@@ -402,9 +366,8 @@ export async function checkXeroStageFailures(
 export async function runOpsHealthChecks(now: Date = new Date()) {
   const asOfDate = getAsOfDate(now)
 
-  const [platformChecks, xano, methodology, xeroSync, xeroFailures] = await Promise.all([
+  const [platformChecks, methodology, xeroSync, xeroFailures] = await Promise.all([
     checkWarehouseAndVolume(asOfDate),
-    checkXanoProxyLiveness(),
     checkPlanningMethodology(),
     checkXeroSyncFreshness(now),
     checkXeroStageFailures(now),
@@ -416,7 +379,6 @@ export async function runOpsHealthChecks(now: Date = new Date()) {
     results: [
       platformChecks.freshness,
       platformChecks.volume,
-      xano,
       methodology,
       xeroSync,
       xeroFailures,
