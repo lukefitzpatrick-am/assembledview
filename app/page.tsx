@@ -124,6 +124,15 @@ export default function HomePage() {
                 Reset Password
               </Link>
             </div>
+
+            <p className="text-center text-sm text-muted-foreground">
+              <Link
+                href="/privacy"
+                className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Privacy Policy
+              </Link>
+            </p>
           </div>
         </div>
       </main>

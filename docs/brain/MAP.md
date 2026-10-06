@@ -187,6 +187,10 @@ M365 provisioning (SharePoint sites, Teams groups) is flag-off by default and lo
 
 → `modules/m365.md` · `modules/admin-misc.md`
 
+## Public pages
+
+`/privacy` is a public static page (`app/privacy/page.tsx`, `dynamic = "force-static"`). Middleware lists it in `PUBLIC_PATHS`, so a missing session does not redirect to `/auth/login`, and a session does not redirect away. `ClientLayout` treats `/privacy` like `/`: no sidebar and no app chrome, logged out or logged in. Changeable facts live in `lib/legal/privacyConfig.ts`. The logged-out homepage (`app/page.tsx`) links here. Logged-in `/` still redirects to `/dashboard`.
+
 ---
 
 ## Cross-cutting choke points
