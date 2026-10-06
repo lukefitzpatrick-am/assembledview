@@ -67,7 +67,7 @@ function mimeForFile(file: PlanDocumentFileLike, filename: string): string {
   return "application/octet-stream"
 }
 
-async function putPrivatePlanDocument(
+export async function putPrivatePlanDocument(
   pathname: string,
   body: Buffer,
   contentType: string,

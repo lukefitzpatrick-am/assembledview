@@ -386,6 +386,8 @@ Update READ-FAILURE-REGISTER + this register. REPORT: crawl sites removed, soak 
 
 **Decision: Vercel Blob (B)** — not Supabase Storage. Creative/Xero already Blob; ~512 MiB plan files enumerable from PG jsonb only (no vault listing API). Spec + caveats: `docs/superpowers/x6-vault-to-vercel-blob-2026-08-02.md` (checksum every copy; vault-URL read-fallback until a week of zero fallback reads).
 
+XS-3a copy script is `scripts/migration/xs3-vault-to-blob.ts` (private Blob via `putPrivatePlanDocument`, sha256 of the download against the Blob read-back, old url kept as `xano_url`). It is not applied. Marker `xs3_vault_to_blob` is written only after a complete run with zero failures. Read paths are unchanged and still prefer the stored `url`.
+
 ```
 PASTE INTO CURSOR — X6: migrate Xano vault plan files to Vercel Blob
 (Decision locked: Vercel Blob. Checksum + vault fallback required.)
