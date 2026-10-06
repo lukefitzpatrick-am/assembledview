@@ -63,6 +63,8 @@ export default defineConfig({
       "components/__tests__/ChatQuestionCard.test.tsx",
       "components/__tests__/AppSidebar.relabels.test.tsx",
       "components/auth/__tests__/SessionExpiredBanner.render.test.tsx",
+      "components/__tests__/ClientLayout.privacyShell.test.tsx",
+      "lib/auth/__tests__/privacyPublicPath.test.ts",
       "components/finance/receivables/__tests__/InlineScheduleAmountCell.test.tsx",
       "components/finance/receivables/__tests__/ReceivableApproveButton.test.tsx",
       "components/finance/__tests__/rowActionLine.test.tsx",

@@ -6,7 +6,7 @@ import { getUserClientSlugs, getUserRoles } from './lib/rbac';
 import { resolveClientPageFence } from './lib/auth/clientPathFence';
 
 const STATIC_PATHS = ['/favicon.ico', '/robots.txt', '/sitemap.xml'];
-const PUBLIC_PATHS = ['/', '/forbidden'];
+const PUBLIC_PATHS = ['/', '/forbidden', '/privacy'];
 const DEBUG_AUTH_ENABLED = process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true';
 
 const normalizePath = (p: string) => (p !== '/' && p.endsWith('/') ? p.slice(0, -1) : p);
