@@ -1,6 +1,6 @@
 import "server-only"
 
-import { sql } from "drizzle-orm"
+import { sql, type SQL } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import {
@@ -35,6 +35,19 @@ function asRecordList(body: unknown): Record<string, unknown>[] {
     )
   }
   return parseXanoListPayload(body) as Record<string, unknown>[]
+}
+
+/**
+ * Prefixes the SQL with an `av:<name>` tag so pg_stat_statements can tell plan
+ * readers apart. `sql.raw` keeps the name in the statement text; a bound value
+ * becomes `$1` and the normalised query drops it. Drizzle's postgres-js session
+ * sends the text through `client.unsafe`, which forces `prepare: false`.
+ */
+function labelPlanQuery<Q>(query: Q, name: string): Q {
+  const q = query as Q & { getSQL(): SQL }
+  const render = q.getSQL.bind(q)
+  q.getSQL = () => sql`${sql.raw(`/* av:${name} */`)} ${render()}`
+  return query
 }
 
 function createdAtMs(value: unknown): number | undefined {
@@ -146,8 +159,11 @@ export const PACING_MASTER_VERSION_COLUMNS = {
 export async function fetchPacingMastersFromPostgres(): Promise<Record<string, unknown>[]> {
   const db = getDb()
   const [masters, versions] = await Promise.all([
-    db.select().from(schema.mediaPlanMasters),
-    db.select(PACING_MASTER_VERSION_COLUMNS).from(schema.mediaPlanVersions),
+    labelPlanQuery(db.select().from(schema.mediaPlanMasters), "readPacingMasters"),
+    labelPlanQuery(
+      db.select(PACING_MASTER_VERSION_COLUMNS).from(schema.mediaPlanVersions),
+      "readPacingMasters",
+    ),
   ])
   const versionById = new Map(
     versions.map((v) => [v.id, v as Record<string, unknown>] as const)
@@ -296,16 +312,22 @@ export async function fetchPacingVersionsFromPostgres(
   const db = getDb()
   const rows =
     keys === null
-      ? await db.select(PACING_VERSION_COLUMNS).from(schema.mediaPlanVersions)
-      : await db
-          .select(PACING_VERSION_COLUMNS)
-          .from(schema.mediaPlanVersions)
-          .where(
-            sql`lower(${schema.mediaPlanVersions.mbaNumber}) in (${sql.join(
-              keys.map((key) => sql`${key}`),
-              sql`, `,
-            )})`,
-          )
+      ? await labelPlanQuery(
+          db.select(PACING_VERSION_COLUMNS).from(schema.mediaPlanVersions),
+          "readPacingVersions",
+        )
+      : await labelPlanQuery(
+          db
+            .select(PACING_VERSION_COLUMNS)
+            .from(schema.mediaPlanVersions)
+            .where(
+              sql`lower(${schema.mediaPlanVersions.mbaNumber}) in (${sql.join(
+                keys.map((key) => sql`${key}`),
+                sql`, `,
+              )})`,
+            ),
+          "readPacingVersions",
+        )
   return rows.map((row) => mapPacingVersionFromPostgres(row as Record<string, unknown>))
 }
 
