@@ -72,7 +72,7 @@ export function CampaignPacingCard({
   const tick = clampPct(row.timePct)
   const href = `/dashboard/${row.clientSlug}/${row.mbaNumber}`
   const detail = useCampaignDetail()
-  const finishLabel = band === "on-track" ? "Expected by now" : "Projected finish"
+  const finishLabel = band === "on-track" ? "Expected media to date" : "Projected finish"
   const finishValue =
     band === "on-track"
       ? formatMoneyCompact(row.expectedToDate)

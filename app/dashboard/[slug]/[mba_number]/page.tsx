@@ -719,6 +719,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     monthlyOpts: monthlyPlanDateOpts,
     metricsExpectedSpendToDate: metrics.expectedSpendToDate,
     deliverySchedule,
+    basis: "media",
   })
 
   const totalPlannedMonthlySpend = resolveCampaignTotalPlannedSpend({

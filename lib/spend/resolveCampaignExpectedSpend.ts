@@ -20,6 +20,8 @@ export type ResolveCampaignSpendInput = {
   /** From mediaplans API when already computed server-side */
   metricsExpectedSpendToDate?: number
   deliverySchedule?: unknown
+  /** media when this number is compared with platform delivered spend. */
+  basis?: "media" | "all_in"
 }
 
 /**
@@ -39,15 +41,17 @@ export function resolveCampaignExpectedSpendToDate(input: ResolveCampaignSpendIn
     monthlyOpts,
     metricsExpectedSpendToDate,
     deliverySchedule,
+    basis = "all_in",
   } = input
 
   const start = campaignStartISO ?? undefined
   const end = campaignEndISO ?? undefined
+  const opts = { ...monthlyOpts, basis }
 
-  const fromDeliveryMonthly = expectedSpendToDateFromDeliveryScheduleMonthly(deliverySchedule, monthlyOpts)
+  const fromDeliveryMonthly = expectedSpendToDateFromDeliveryScheduleMonthly(deliverySchedule, opts)
   if (fromDeliveryMonthly > 0) return fromDeliveryMonthly
 
-  const fromMonthly = expectedSpendToDateFromMonthlyCalendar(monthlySpend, monthlyOpts)
+  const fromMonthly = expectedSpendToDateFromMonthlyCalendar(monthlySpend, opts)
   if (fromMonthly > 0) return fromMonthly
 
   const metric = Number(metricsExpectedSpendToDate)
@@ -57,6 +61,8 @@ export function resolveCampaignExpectedSpendToDate(input: ResolveCampaignSpendIn
     deliverySchedule,
     start,
     end,
+    new Date(),
+    basis,
   )
   if (fromDelivery > 0) return fromDelivery
 
@@ -75,16 +81,20 @@ export type ResolveCampaignTotalPlannedInput = {
   campaignEndISO: string | null
   /** Final fallback when schedules don’t sum (e.g. fees-only plans) */
   campaignBudget?: number
+  /** Plan and billing totals stay all_in unless a caller asks for media. */
+  basis?: "media" | "all_in"
 }
 
 export function resolveCampaignTotalPlannedSpend(input: ResolveCampaignTotalPlannedInput): number {
+  const basis = input.basis ?? "all_in"
+  const monthlyOpts = { ...input.monthlyOpts, basis }
   const fromDeliveryMonthly = totalPlannedSpendFromDeliveryScheduleMonthly(
     input.deliverySchedule,
-    input.monthlyOpts,
+    monthlyOpts,
   )
   if (fromDeliveryMonthly > 0) return fromDeliveryMonthly
 
-  const fromMonthly = totalPlannedSpendFromMonthly(input.monthlySpend, input.monthlyOpts)
+  const fromMonthly = totalPlannedSpendFromMonthly(input.monthlySpend, monthlyOpts)
   if (fromMonthly > 0) return fromMonthly
 
   const fromBilling = totalPlannedSpendFromBillingSchedule(

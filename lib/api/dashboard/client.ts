@@ -500,6 +500,7 @@ export function buildClientDashboardDataFromVersions(
           ? expectedSpendToDateFromDeliveryScheduleMonthly(rawDeliveryForExpected, {
               campaignStartISO,
               campaignEndISO,
+              basis: "media",
             })
           : 0
 

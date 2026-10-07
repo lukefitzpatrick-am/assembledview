@@ -34,7 +34,7 @@ describe("CampaignPacingCard", () => {
     expect(html).toContain("On track")
     expect(html).toContain("Time elapsed")
     expect(html).toContain("Spend delivered")
-    expect(html).toContain("Expected by now")
+    expect(html).toContain("Expected media to date")
     expect(html).toContain("Days left")
     expect(html).toContain("Daily rate")
     expect(html).toContain("$20,376")

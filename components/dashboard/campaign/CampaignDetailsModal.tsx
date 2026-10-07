@@ -185,7 +185,7 @@ export default function CampaignDetailsModal({
                 </article>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <article className="rounded-lg bg-muted/50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Expected spend to date</p>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Expected media to date</p>
                     <p className="mt-2 text-lg font-semibold text-foreground">{formatMoney(expectedSpend)}</p>
                   </article>
                   <article className="rounded-lg bg-muted/50 p-4">

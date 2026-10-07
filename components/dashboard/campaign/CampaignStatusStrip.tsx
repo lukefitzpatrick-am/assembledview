@@ -211,7 +211,7 @@ export function CampaignStatusStrip({
           />
           <StatCell
             testId="expected-by-now"
-            label="Expected by now"
+            label="Expected media to date"
             value={expectedKnown ? formatMoneyCompact(expectedSpend) : "—"}
             bar={expectedVsBudget}
             caption={`${pctLabel(expectedVsBudget)} of ${budgetCaptionMoney} budget`}

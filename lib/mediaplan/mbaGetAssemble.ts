@@ -726,6 +726,7 @@ export function assembleMbaGetCombinedData(
       ? expectedSpendToDateFromDeliveryScheduleMonthly(filteredDeliverySchedule, {
           campaignStartISO: startForExpectedSpend,
           campaignEndISO: endForExpectedSpend,
+          basis: "media",
         })
       : 0
 

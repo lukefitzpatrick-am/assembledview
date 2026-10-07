@@ -149,15 +149,21 @@ function dataRowAmount(row: unknown): number {
   return lineItemAmount(r)
 }
 
-function monthRowTotal(entry: Record<string, unknown>): number {
+function monthRowTotal(entry: Record<string, unknown>, basis: SpendBasis = "all_in"): number {
   const data = entry.data
   if (Array.isArray(data) && data.length > 0) {
-    const fromData = data.reduce((sum, row) => sum + dataRowAmount(row), 0)
-    if (fromData > 0) return fromData
+    const fromData = data.reduce((sum, row) => {
+      if (!row || typeof row !== "object") return sum
+      const label = String((row as Record<string, unknown>).mediaType ?? "")
+      if (!countsOnBasis(label, basis)) return sum
+      return sum + dataRowAmount(row)
+    }, 0)
+    if (fromData > 0 || basis === "media") return fromData
   }
 
   return Object.entries(entry).reduce((acc, [key, value]) => {
     if (LABEL_KEYS.has(key) || key === "data") return acc
+    if (!countsOnBasis(key, basis)) return acc
     const numericValue = sumNumericValues(value)
     return Number.isFinite(numericValue) ? acc + numericValue : acc
   }, 0)
@@ -382,11 +388,27 @@ export function resolveMonthlySpendForPlan(
   return derived.length > 0 ? derived : []
 }
 
+/** media: compare with platform delivered spend. all_in: plan and billing totals. */
+export type SpendBasis = "media" | "all_in"
+
+const NON_MEDIA_LABELS = new Set(["fees", "production", "ad serving", "ad serving & tech"])
+
 export type MonthlyPlanCampaignOpts = {
   campaignStartISO?: string | null
   campaignEndISO?: string | null
   /** Inclusive Melbourne civil date. Defaults to today in Melbourne. */
   asOfISO?: string | null
+  /** Defaults to all_in so a caller must opt into media. */
+  basis?: SpendBasis
+}
+
+function spendBasisOf(opts?: MonthlyPlanCampaignOpts): SpendBasis {
+  return opts?.basis === "media" ? "media" : "all_in"
+}
+
+function countsOnBasis(label: string, basis: SpendBasis): boolean {
+  if (basis !== "media") return true
+  return !NON_MEDIA_LABELS.has(label.trim().toLowerCase())
 }
 
 export function expectedSpendToDateFromMonthlyCalendar(
@@ -440,7 +462,7 @@ export function expectedSpendToDateFromMonthlyCalendar(
       const monthLabel = e.monthYear ?? e.month ?? e.date ?? e.label
       const parsed = parseMonthLabel(monthLabel)
       if (!parsed) return sum
-      return sum + contribution(parsed, monthRowTotal(e))
+      return sum + contribution(parsed, monthRowTotal(e, spendBasisOf(opts)))
     }, 0)
     return roundMoney2(total)
   }
@@ -479,7 +501,7 @@ export function totalPlannedSpendFromMonthly(monthlySpend: unknown, opts?: Month
       const monthLabel = e.monthYear ?? e.month ?? e.date ?? e.label
       const parsed = parseMonthLabel(monthLabel)
       if (!parsed) return sum
-      return sum + plannedForRow(parsed, monthRowTotal(e))
+      return sum + plannedForRow(parsed, monthRowTotal(e, spendBasisOf(opts)))
     }, 0)
     return roundMoney2(total)
   }

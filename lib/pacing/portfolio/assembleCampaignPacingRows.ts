@@ -394,7 +394,8 @@ function expectedForCampaign(
     monthlySpend,
     campaignStartISO: startDate,
     campaignEndISO: endDate,
-    monthlyOpts: { campaignStartISO: startDate, campaignEndISO: endDate },
+    monthlyOpts: { campaignStartISO: startDate, campaignEndISO: endDate, basis: "media" },
+    basis: "media",
   })
 }
 

@@ -22,7 +22,11 @@ export function attachStripExpected(input: {
   deliveredSpendToDate: number
   asOf: string
 }): StripExpectedFields {
-  const expectedSpendToDate = resolveCampaignExpectedSpendToDate(input.stripInputs)
+  const expectedSpendToDate = resolveCampaignExpectedSpendToDate({
+    ...input.stripInputs,
+    basis: "media",
+    monthlyOpts: { ...input.stripInputs.monthlyOpts, basis: "media" },
+  })
   const start = input.stripInputs.campaignStartISO
   const end = input.stripInputs.campaignEndISO
   const days =

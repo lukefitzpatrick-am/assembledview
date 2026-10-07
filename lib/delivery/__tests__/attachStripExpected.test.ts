@@ -40,7 +40,7 @@ test("campaign-read expected equals the strip resolver for the same inputs", () 
     campaignEndISO,
     monthlyOpts: { campaignStartISO, campaignEndISO },
   }
-  const stripExpected = resolveCampaignExpectedSpendToDate(stripInputs)
+  const stripExpected = resolveCampaignExpectedSpendToDate({ ...stripInputs, basis: "media" })
   const readExpected = attachStripExpected({
     stripInputs,
     deliveredSpendToDate: 53_785,
@@ -51,4 +51,39 @@ test("campaign-read expected equals the strip resolver for the same inputs", () 
   assert.ok(stripExpected > 0)
   assert.equal(readExpected.daysInCampaign, 86)
   assert.equal(readExpected.daysElapsed, 49)
+})
+
+test("a 20% fee is excluded from expected media and from behindBy", () => {
+  const campaignStartISO = "2026-01-01"
+  const campaignEndISO = "2026-01-31"
+  const deliverySchedule = [
+    {
+      month: "January 2026",
+      mediaCosts: { search: "$10,000.00" },
+      feeTotal: "$2,000.00",
+      totalAmount: "$12,000.00",
+    },
+  ]
+  const monthlyOpts = {
+    campaignStartISO,
+    campaignEndISO,
+    asOfISO: "2026-02-01",
+  }
+  const base = {
+    billingSchedule: [],
+    deliverySchedule,
+    monthlySpend: resolveMonthlySpendForPlan(undefined, undefined, deliverySchedule),
+    campaignStartISO,
+    campaignEndISO,
+    monthlyOpts,
+  }
+  assert.equal(resolveCampaignExpectedSpendToDate({ ...base, basis: "media" }), 10000)
+  assert.equal(resolveCampaignExpectedSpendToDate({ ...base, basis: "all_in" }), 12000)
+  const strip = attachStripExpected({
+    stripInputs: base,
+    deliveredSpendToDate: 8000,
+    asOf: "2026-02-01",
+  })
+  assert.equal(strip.expectedSpendToDate, 10000)
+  assert.equal(strip.behindBy, 2000)
 })

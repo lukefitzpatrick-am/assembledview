@@ -344,7 +344,7 @@ export function ClientDashboardPageContent({
             clientLogo={clientData.clientLogo ?? undefined}
             brandColour={clientData.brandColour}
             totalSpend={plannedToDate}
-            spendLabel="Planned to date"
+            spendLabel="Expected media to date"
             activeCampaigns={statusCounts.live}
             onOpenDetails={() => setDetailsModalOpen(true)}
             onOpenFinance={() => setFinanceModalOpen(true)}
@@ -365,7 +365,7 @@ export function ClientDashboardPageContent({
           <HeroKPIBar
             totalSpend={plannedToDate}
             totalBudget={plannedBudget}
-            spendLabel="Planned to date"
+            spendLabel="Expected media to date"
             liveCampaigns={statusCounts.live}
             plannedCampaigns={statusCounts.planned}
             budgetUtilized={budgetUtilizedPct}

@@ -161,7 +161,7 @@ export function buildPlannedToDateByMba(
     const endDate = live.campaign_end_date ?? live.mp_campaigndates_end
     const campaignStartISO = normalizeDateToMelbourneISO(startDate)
     const campaignEndISO = normalizeDateToMelbourneISO(endDate)
-    const monthlyOpts = { campaignStartISO, campaignEndISO }
+    const monthlyOpts = { campaignStartISO, campaignEndISO, basis: "media" as const }
 
     const schedule = scheduleFromVersion(live as Record<string, unknown>)
     const months = plannedMonthsFromSchedule(schedule, monthlyOpts)

@@ -43,7 +43,8 @@ export const calculateExpectedSpendToDateFromDeliverySchedule = (
   deliverySchedule: unknown,
   campaignStart?: string | Date,
   campaignEnd?: string | Date,
-  asAt: Date = new Date()
+  asAt: Date = new Date(),
+  basis: "media" | "all_in" = "all_in",
 ) => {
   const months = normalizeDeliverySchedule(deliverySchedule)
   if (!months.length) return 0
@@ -57,7 +58,7 @@ export const calculateExpectedSpendToDateFromDeliverySchedule = (
   }
 
   const totalPlanned = months.reduce(
-    (sum, month) => sum + getMonthPlannedSpend(month),
+    (sum, month) => sum + getMonthPlannedSpend(month, basis),
     0
   )
 
@@ -73,7 +74,7 @@ export const calculateExpectedSpendToDateFromDeliverySchedule = (
     if (!parsedMonth) continue
 
     const currentMonthKey = monthKey(parsedMonth.year, parsedMonth.monthIndex + 1)
-    const plannedSpend = getMonthPlannedSpend(month)
+    const plannedSpend = getMonthPlannedSpend(month, basis)
 
     if (currentMonthKey < asAtMonthKey) {
       expectedSpend += plannedSpend
@@ -123,7 +124,7 @@ const normalizeDeliverySchedule = (deliverySchedule: unknown): DeliveryMonth[] =
   return []
 }
 
-const getMonthPlannedSpend = (month: DeliveryMonth): number => {
+const getMonthPlannedSpend = (month: DeliveryMonth, basis: "media" | "all_in" = "all_in"): number => {
   let total = 0
 
   // Flat structure: month.lineItems[]
@@ -141,6 +142,8 @@ const getMonthPlannedSpend = (month: DeliveryMonth): number => {
       total += parseCurrencyValue(li?.amount)
     })
   })
+
+  if (basis === "media") return total
 
   total +=
     parseCurrencyValue(month.feeTotal) +

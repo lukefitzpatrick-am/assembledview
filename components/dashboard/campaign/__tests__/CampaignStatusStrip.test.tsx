@@ -29,7 +29,7 @@ describe("CampaignStatusStrip", () => {
   it("renders four stats", () => {
     const html = renderToStaticMarkup(<CampaignStatusStrip {...FULL} />)
     expect(html).toContain("Delivered to date")
-    expect(html).toContain("Expected by now")
+    expect(html).toContain("Expected media to date")
     expect(html).toContain("Impressions")
     expect(html).toContain("Time elapsed")
     expect(html).toContain('data-stat="delivered-to-date"')
@@ -45,7 +45,7 @@ describe("CampaignStatusStrip", () => {
     expect(html).not.toContain("Impressions")
     expect(html).not.toContain('data-stat="impressions"')
     expect(html).toContain("Delivered to date")
-    expect(html).toContain("Expected by now")
+    expect(html).toContain("Expected media to date")
     expect(html).toContain("Time elapsed")
   })
 
