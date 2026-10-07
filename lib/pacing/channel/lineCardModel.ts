@@ -1,3 +1,4 @@
+import { cpm } from "@/lib/money/rates"
 import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types"
 import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types"
 import type { ProgrammaticPacingCampaignRow } from "@/lib/pacing/programmatic/types"
@@ -301,7 +302,7 @@ export function lineCardFromSocial(row: SocialPacingCampaignRow, asOf: string): 
   const metrics: LineCardMetric[] = [
     { label: "Impressions", value: formatCount(row.impressions) },
     { label: "CTR", value: ratioOrDash(row.ctr) },
-    { label: "CPM", value: row.impressions > 0 ? formatRateMoney((row.spend / row.impressions) * 1000) : "—" },
+    { label: "CPM", value: formatRateMoney(cpm(row.spend, row.impressions)) },
   ]
   if (row.videoViews > 0) {
     metrics.push({ label: "3s views", value: formatCount(row.videoViews) })

@@ -1,3 +1,4 @@
+import { cpc, cpm, ctr } from "@/lib/money/rates"
 import type { MediaContainerLineItem } from "@/lib/api/media-containers"
 import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
 import type { MediaContainerBestPractice } from "@/lib/types/publisher"
@@ -387,11 +388,11 @@ function sumReportedTotals(lines: DeliveryLineSnapshot[]) {
   }
   totals.plannedBudget = hasBudget ? planned : null
   if (totals.impressions > 0) {
-    totals.cpm = (totals.spendToDate / totals.impressions) * 1000
-    totals.ctr = totals.clicks / totals.impressions
+    totals.cpm = cpm(totals.spendToDate, totals.impressions)
+    totals.ctr = ctr(totals.clicks, totals.impressions)
   }
   if (totals.clicks > 0) {
-    totals.cpc = totals.spendToDate / totals.clicks
+    totals.cpc = cpc(totals.spendToDate, totals.clicks)
   }
   return totals
 }

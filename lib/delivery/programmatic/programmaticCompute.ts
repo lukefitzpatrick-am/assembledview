@@ -1,3 +1,4 @@
+import { cpa, cpc, cpm, cpv, ctr, vtr } from "@/lib/money/rates"
 import { formatMoney } from "@/lib/format/money"
 import { formatDateShort } from "@/lib/format/date"
 /**
@@ -346,15 +347,15 @@ export function summarizeDv360Actuals(
     { spend: 0, impressions: 0, clicks: 0, conversions: 0, videoViews: 0 }
   )
 
-  const cpm = totals.impressions ? (totals.spend / totals.impressions) * 1000 : null
-  const ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : null
+  const cpmValue = cpm(totals.spend, totals.impressions)
+  const ctrValue = ctr(totals.clicks, totals.impressions)
   const cvr = totals.impressions ? (totals.conversions / totals.impressions) * 100 : null
-  const cpc = totals.clicks ? totals.spend / totals.clicks : null
-  const cpa = totals.conversions ? totals.spend / totals.conversions : null
-  const cpv = totals.videoViews ? totals.spend / totals.videoViews : 0
-  const viewRate = totals.impressions ? (totals.videoViews / totals.impressions) * 100 : 0
+  const cpcValue = cpc(totals.spend, totals.clicks)
+  const cpaValue = cpa(totals.spend, totals.conversions)
+  const cpvValue = cpv(totals.spend, totals.videoViews)
+  const viewRate = vtr(totals.videoViews, totals.impressions)
 
-  return { ...totals, cpm, ctr, cvr, cpc, cpa, cpv, viewRate }
+  return { ...totals, cpm: cpmValue, ctr: ctrValue, cvr, cpc: cpcValue, cpa: cpaValue, cpv: cpvValue, viewRate }
 }
 
 function formatCurrency(value: number | undefined) {

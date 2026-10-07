@@ -1,3 +1,4 @@
+import { cpc, cpm, ctr } from "@/lib/money/rates"
 import {
   SearchPacingKpis,
   AdGroupBreakdown,
@@ -15,9 +16,9 @@ function computeRatios(
   impressions: number,
 ): { cpc: number | null; ctr: number | null; cpm: number | null } {
   return {
-    cpc: clicks > 0 ? spend / clicks : null,
-    ctr: impressions > 0 ? clicks / impressions : null,
-    cpm: impressions > 0 ? (spend / impressions) * 1000 : null,
+    cpc: cpc(spend, clicks),
+    ctr: ctr(clicks, impressions),
+    cpm: cpm(spend, impressions),
   };
 }
 

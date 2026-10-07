@@ -7,6 +7,7 @@
  * aggregate for that group only.
  */
 
+import { cpm, safeRatio } from "@/lib/money/rates"
 import type { ChannelCoverageEntry } from "@/lib/delivery/channelCoverage"
 import { deliverableLabelForBuyType } from "@/lib/delivery/deliverableLabel"
 import type { DeliverySource } from "@/lib/delivery/deliverySourceMap"
@@ -425,7 +426,7 @@ export function resolveCpmPlanRate(
     const spend = Number(group.plannedSpendByLineId[lineId] ?? plan?.plannedSpend ?? 0) || 0
     const impressions = plan?.plannedImpressions ?? 0
     if (impressions > 0 && spend > 0) {
-      parts.push({ spend, rate: (spend / impressions) * 1000 })
+      parts.push({ spend, rate: cpm(spend, impressions) ?? 0 })
     }
   }
   if (parts.length === 0) return null
@@ -470,8 +471,7 @@ export function statusForCostMetric(target: number, delivered: number | null): D
 
 function ratio(numerator: number, denominator: number): number | null {
   if (!(denominator > 0)) return null
-  const n = numerator / denominator
-  return Number.isFinite(n) ? n : null
+  return safeRatio(numerator, denominator)
 }
 
 function deliveredRatio(

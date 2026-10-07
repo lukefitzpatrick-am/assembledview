@@ -222,9 +222,9 @@ function buildKpiTiles(input: {
     ? kpiRow?.vtr
     : aggregateRatioTargetFromLineItems(activeItems, lineItemTargets, mbaNumber, kpiVersionNumber, "vtr")
 
-  const ctrTarget = ratioTargetPercentPoints(ctrRaw)
+  const ctrTarget = ctrRaw != null && ctrRaw > 0 ? normaliseRatioTarget(ctrRaw) : undefined
   const cvrTarget = ratioTargetPercentPoints(cvrRaw)
-  const vtrTarget = ratioTargetPercentPoints(vtrRaw)
+  const vtrTarget = vtrRaw != null && vtrRaw > 0 ? normaliseRatioTarget(vtrRaw) : undefined
 
   const cpmExpected = isPerLine
     ? (() => {
@@ -265,8 +265,8 @@ function buildKpiTiles(input: {
 
   tiles.push({
     label: "CTR",
-    value: tilePct(kpis.ctr),
-    expected: kpis.ctr != null && ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
+    value: kpis.ctr == null ? null : fmtPct(kpis.ctr * 100),
+    expected: kpis.ctr != null && ctrTarget !== undefined ? fmtPct(ctrTarget * 100) : undefined,
     status:
       kpis.ctr != null && ctrTarget !== undefined
         ? compareRateStatus(kpis.ctr, ctrTarget, true)
@@ -312,21 +312,28 @@ function buildKpiTiles(input: {
   if (includeVideoMetrics) {
     tiles.push({
       label: "View rate",
-      value: fmtPct(kpis.view_rate),
-      expected: vtrTarget !== undefined ? fmtPct(vtrTarget) : undefined,
+      value: kpis.view_rate == null ? "—" : fmtPct(kpis.view_rate * 100),
+      expected: vtrTarget !== undefined ? fmtPct(vtrTarget * 100) : undefined,
       status:
-        vtrTarget !== undefined ? compareRateStatus(kpis.view_rate, vtrTarget, true) : undefined,
+        kpis.view_rate != null && vtrTarget !== undefined
+          ? compareRateStatus(kpis.view_rate, vtrTarget, true)
+          : undefined,
       caption:
-        kpis.impressions > 0 ? `${Math.round(kpis.view_rate)}% of impressions` : undefined,
+        kpis.view_rate != null && kpis.impressions > 0
+          ? `${Math.round(kpis.view_rate * 100)}% of impressions`
+          : undefined,
       accentColour,
     })
     tiles.push({
       label: "CPV",
-      value: formatCurrency2dp(kpis.cpv),
+      value: kpis.cpv == null ? "—" : formatCurrency2dp(kpis.cpv),
       expected: cpvExpected !== undefined ? formatCurrency2dp(cpvExpected) : undefined,
-      status: cpvExpected !== undefined ? compareRateStatus(kpis.cpv, cpvExpected, false) : undefined,
+      status:
+        kpis.cpv != null && cpvExpected !== undefined
+          ? compareRateStatus(kpis.cpv, cpvExpected, false)
+          : undefined,
       progress:
-        cpvExpected !== undefined && cpvExpected > 0
+        kpis.cpv != null && kpis.cpv > 0 && cpvExpected !== undefined && cpvExpected > 0
           ? Math.max(0, Math.min(1, cpvExpected / kpis.cpv))
           : undefined,
       accentColour,

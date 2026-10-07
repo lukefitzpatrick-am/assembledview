@@ -1,3 +1,4 @@
+import { cpc, cpm, ctr } from "@/lib/money/rates"
 import {
   fetchAllPlanLineItemsForDelivery,
   MEDIA_CONTAINER_ENDPOINTS,
@@ -145,10 +146,11 @@ function emptyMetrics() {
 }
 
 function deriveRates(m: { spendToDate: number; impressions: number; clicks: number }) {
-  const cpm = m.impressions > 0 ? (m.spendToDate / m.impressions) * 1000 : null
-  const ctr = m.impressions > 0 ? m.clicks / m.impressions : null
-  const cpc = m.clicks > 0 ? m.spendToDate / m.clicks : null
-  return { cpm, ctr, cpc }
+  return {
+    cpm: cpm(m.spendToDate, m.impressions),
+    ctr: ctr(m.clicks, m.impressions),
+    cpc: cpc(m.spendToDate, m.clicks),
+  }
 }
 
 function aggregatePacingRows(rows: PacingRow[]): Map<string, ReturnType<typeof emptyMetrics>> {

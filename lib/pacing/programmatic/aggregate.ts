@@ -1,3 +1,4 @@
+import { cpm, cpv, ctr, vtr } from "@/lib/money/rates"
 import type { DeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
 import type { DateWindows } from "@/lib/pacing/campaigns/aggregate";
 import type {
@@ -24,11 +25,11 @@ function computeProgrammaticRatios(
   videoViews: number
 ): Pick<ProgrammaticPacingMetrics, "ctr" | "conversionRate" | "cpm" | "cpv" | "vtr"> {
   return {
-    ctr: impressions > 0 ? clicks / impressions : null,
+    ctr: ctr(clicks, impressions),
     conversionRate: impressions > 0 ? results / impressions : null,
-    cpm: impressions > 0 ? (spend / impressions) * 1000 : null,
-    cpv: videoViews > 0 ? spend / videoViews : null,
-    vtr: impressions > 0 ? videoViews / impressions : null,
+    cpm: cpm(spend, impressions),
+    cpv: cpv(spend, videoViews),
+    vtr: vtr(videoViews, impressions),
   };
 }
 

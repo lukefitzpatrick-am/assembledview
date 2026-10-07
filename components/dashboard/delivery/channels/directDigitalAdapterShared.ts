@@ -3,6 +3,7 @@ import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { formatMoney } from "@/lib/format/money"
 import { applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
 import { getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
+import { ctr as clickThroughRate } from "@/lib/money/rates"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import { expectedSpendToDateFromBursts } from "@/lib/spend/expectedSpendToDateFromBursts"
@@ -188,6 +189,11 @@ function formatWholeNumber(value: number | undefined) {
 function fmtPct(x: number): string {
   if (!Number.isFinite(x)) return "0.00%"
   return `${x.toFixed(2)}%`
+}
+
+function fmtRatioDecimal(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "—"
+  return `${(value * 100).toFixed(2)}%`
 }
 
 function safeDiv(num: number, den: number): number {
@@ -422,7 +428,7 @@ export function buildDirectDigitalChannelSection(input: {
       : { key: "clicks", label: "Clicks", yAxis: "right" as const, format: "number" as const },
   ]
 
-  const ctr = safeDiv(rollup.clicks, rollup.impressions) * 100
+  const ctrDecimal = clickThroughRate(rollup.clicks, rollup.impressions)
 
   const ctrTargetRaw = (() => {
     const rows = withDelivery
@@ -432,7 +438,7 @@ export function buildDirectDigitalChannelSection(input: {
     const first = rows[0]?.ctr
     if (first == null || first <= 0) return undefined
     if (!rows.every((r) => r.ctr === first)) return undefined
-    return ratioTargetPercentPoints(first)
+    return normaliseRatioTarget(first)
   })()
 
   const aggregateKpiTiles: KpiTileProps[] = [
@@ -448,11 +454,11 @@ export function buildDirectDigitalChannelSection(input: {
     },
     {
       label: "CTR",
-      value: fmtPct(ctr),
-      expected: ctrTargetRaw != null ? fmtPct(ctrTargetRaw) : undefined,
+      value: fmtRatioDecimal(ctrDecimal),
+      expected: ctrTargetRaw != null ? fmtRatioDecimal(ctrTargetRaw) : undefined,
       status:
-        ctrTargetRaw != null && ctrTargetRaw > 0
-          ? deliveryStatusFromPct(safeDiv(ctr, ctrTargetRaw) * 100)
+        ctrDecimal != null && ctrTargetRaw != null && ctrTargetRaw > 0
+          ? deliveryStatusFromPct(safeDiv(ctrDecimal, ctrTargetRaw) * 100)
           : "no-data",
       accentColour,
     },
@@ -559,9 +565,10 @@ export function buildDirectDigitalChannelSection(input: {
   })
 
   const accordionItems = withDelivery.map((m) => {
-    const liCtr = safeDiv(m.totals.clicks, m.totals.impressions) * 100
+    const liCtr = clickThroughRate(m.totals.clicks, m.totals.impressions)
     const kpiRow = getLineItemKpiRow(input.lineItemTargets, input.mbaNumber, input.kpiVersionNumber, m.id)
-    const liCtrTarget = ratioTargetPercentPoints(kpiRow?.ctr)
+    const liCtrTarget =
+      kpiRow?.ctr != null && kpiRow.ctr > 0 ? normaliseRatioTarget(kpiRow.ctr) : undefined
 
     const dailyRows = m.daily.map((d) => ({
       date: d.date,
@@ -618,10 +625,10 @@ export function buildDirectDigitalChannelSection(input: {
           },
           {
             label: "CTR",
-            value: fmtPct(liCtr),
-            expected: liCtrTarget != null ? fmtPct(liCtrTarget) : undefined,
+            value: fmtRatioDecimal(liCtr),
+            expected: liCtrTarget != null ? fmtRatioDecimal(liCtrTarget) : undefined,
             status:
-              liCtrTarget != null && liCtrTarget > 0
+              liCtr != null && liCtrTarget != null && liCtrTarget > 0
                 ? deliveryStatusFromPct(safeDiv(liCtr, liCtrTarget) * 100)
                 : "no-data",
             accentColour,
@@ -711,7 +718,7 @@ export function buildDirectDigitalChannelSection(input: {
         ...(spendCard ? [{ label: FIXED_COST_SPEND_LABEL, value: formatMoney(reportedSpendTotal) }] : []),
         { label: "Served impressions", value: formatWholeNumber(rollup.impressions) },
         { label: "Clicks", value: formatWholeNumber(rollup.clicks) },
-        { label: "CTR", value: fmtPct(ctr) },
+        { label: "CTR", value: fmtRatioDecimal(ctrDecimal) },
         { label: "Video completes", value: formatWholeNumber(rollup.videoCompletes) },
         ...(hasVideoCompletes
           ? [
@@ -743,9 +750,4 @@ export function buildDirectDigitalChannelSection(input: {
     },
     lineItems: accordionItems,
   }
-}
-
-function ratioTargetPercentPoints(raw: number | null | undefined): number | undefined {
-  if (raw == null || raw <= 0) return undefined
-  return normaliseRatioTarget(raw) * 100
 }

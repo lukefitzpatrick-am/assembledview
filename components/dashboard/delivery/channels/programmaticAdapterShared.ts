@@ -103,11 +103,6 @@ function sharedPlanCpm(items: ProgrammaticLineItem[]): number | undefined {
   return first
 }
 
-function ratioTargetPercentPoints(raw: number | null | undefined): number | undefined {
-  if (raw == null || raw <= 0) return undefined
-  return normaliseRatioTarget(raw) * 100
-}
-
 function burstsForLineItem(lineItem: ProgrammaticLineItem): unknown {
   return lineItem.bursts_json ?? lineItem.bursts ?? null
 }
@@ -297,8 +292,8 @@ function buildProgrammaticKpiTiles(input: {
     ? kpiRow?.vtr
     : aggregateRatioTargetFromLineItems(activeItems, lineItemTargets, mbaNumber, kpiVersionNumber, "vtr")
 
-  const ctrTarget = ratioTargetPercentPoints(ctrRaw)
-  const vtrTarget = ratioTargetPercentPoints(vtrRaw)
+  const ctrTarget = ctrRaw != null && ctrRaw > 0 ? normaliseRatioTarget(ctrRaw) : undefined
+  const vtrTarget = vtrRaw != null && vtrRaw > 0 ? normaliseRatioTarget(vtrRaw) : undefined
 
   const cpmExpected = isPerLine
     ? (() => {
@@ -337,8 +332,8 @@ function buildProgrammaticKpiTiles(input: {
 
   const ctrTile: KpiTileProps = {
     label: "CTR",
-    value: tilePct(kpis.ctr),
-    expected: kpis.ctr != null && ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
+    value: kpis.ctr == null ? null : fmtPct(kpis.ctr * 100),
+    expected: kpis.ctr != null && ctrTarget !== undefined ? fmtPct(ctrTarget * 100) : undefined,
     status:
       kpis.ctr != null && ctrTarget !== undefined
         ? compareRateStatus(kpis.ctr, ctrTarget, true)
@@ -375,25 +370,32 @@ function buildProgrammaticKpiTiles(input: {
       cpmTile,
       {
         label: "View rate",
-        value: fmtPct(kpis.viewRate),
-        expected: vtrTarget !== undefined ? fmtPct(vtrTarget) : undefined,
+        value: kpis.viewRate == null ? "—" : fmtPct(kpis.viewRate * 100),
+        expected: vtrTarget !== undefined ? fmtPct(vtrTarget * 100) : undefined,
         status:
-          vtrTarget !== undefined ? compareRateStatus(kpis.viewRate, vtrTarget, true) : undefined,
+          kpis.viewRate != null && vtrTarget !== undefined
+            ? compareRateStatus(kpis.viewRate, vtrTarget, true)
+            : undefined,
         progress:
-          vtrTarget !== undefined
+          kpis.viewRate != null && vtrTarget !== undefined && vtrTarget > 0
             ? Math.max(0, Math.min(1, kpis.viewRate / vtrTarget))
             : undefined,
         caption:
-          kpis.impressions > 0 ? `${Math.round(kpis.viewRate)}% of impressions` : undefined,
+          kpis.viewRate != null && kpis.impressions > 0
+            ? `${Math.round(kpis.viewRate * 100)}% of impressions`
+            : undefined,
         accentColour,
       },
       {
         label: "CPV",
-        value: formatCurrency2dp(kpis.cpv),
+        value: kpis.cpv == null ? "—" : formatCurrency2dp(kpis.cpv),
         expected: cpvExpected !== undefined ? formatCurrency2dp(cpvExpected) : undefined,
-        status: cpvExpected !== undefined ? compareRateStatus(kpis.cpv, cpvExpected, false) : undefined,
+        status:
+          kpis.cpv != null && cpvExpected !== undefined
+            ? compareRateStatus(kpis.cpv, cpvExpected, false)
+            : undefined,
         progress:
-          cpvExpected !== undefined && cpvExpected > 0
+          kpis.cpv != null && kpis.cpv > 0 && cpvExpected !== undefined && cpvExpected > 0
             ? Math.max(0, Math.min(1, cpvExpected / kpis.cpv))
             : undefined,
         accentColour,
@@ -568,7 +570,8 @@ export function buildProgrammaticChannelSection(input: {
   const rateChip = isCpvSection
     ? {
         label: "Avg CPV",
-        value: kpisRollup.videoViews ? formatCurrency2dp(kpisRollup.cpv) : "—",
+        value:
+          kpisRollup.cpv == null ? "—" : formatCurrency2dp(kpisRollup.cpv),
       }
     : {
         label: "Avg CPM",

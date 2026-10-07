@@ -1,3 +1,4 @@
+import { cpc, cpm, cpv, ctr, vtr } from "@/lib/money/rates"
 import { formatMoney } from "@/lib/format/money"
 import { formatDateShort } from "@/lib/format/date"
 /**
@@ -713,8 +714,8 @@ export type ActualKpis = {
   cvr: number | null
   cpc: number | null
   cost_per_result: number | null
-  cpv: number
-  view_rate: number
+  cpv: number | null
+  view_rate: number | null
 }
 
 export function summarizeActuals(rows: (ActualsDaily | (ActualsDaily & { video3sViews?: number }))[]): ActualKpis {
@@ -730,24 +731,22 @@ export function summarizeActuals(rows: (ActualsDaily | (ActualsDaily & { video3s
     { spend: 0, impressions: 0, clicks: 0, results: 0, video_3s_views: 0 }
   )
 
-  const cpm = totals.impressions ? (totals.spend / totals.impressions) * 1000 : null
-  const ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : null
+  const cpmValue = cpm(totals.spend, totals.impressions)
+  const ctrValue = ctr(totals.clicks, totals.impressions)
   const cvr = totals.impressions ? (totals.results / totals.impressions) * 100 : null
-  const cpc = totals.clicks ? totals.spend / totals.clicks : null
+  const cpcValue = cpc(totals.spend, totals.clicks)
   const cost_per_result = totals.results ? totals.spend / totals.results : null
-  const cpv = totals.video_3s_views ? totals.spend / totals.video_3s_views : 0
-  const view_rate = totals.impressions
-    ? (totals.video_3s_views / totals.impressions) * 100
-    : 0
+  const cpvValue = cpv(totals.spend, totals.video_3s_views)
+  const view_rate = vtr(totals.video_3s_views, totals.impressions)
 
   return {
     ...totals,
-    cpm,
-    ctr,
+    cpm: cpmValue,
+    ctr: ctrValue,
     cvr,
-    cpc,
+    cpc: cpcValue,
     cost_per_result,
-    cpv,
+    cpv: cpvValue,
     view_rate,
   }
 }
