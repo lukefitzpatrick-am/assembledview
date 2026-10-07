@@ -1,6 +1,6 @@
 import "./globals.css";
 import { GeistMono } from "geist/font";
-import { Merriweather, Rethink_Sans } from "next/font/google";
+import { Instrument_Serif, Plus_Jakarta_Sans } from "next/font/google";
 
 import ServerAuthScope from "@/components/ServerAuthScope";
 import { ClientBrandProvider } from "@/components/client-dashboard/ClientBrandProvider";
@@ -8,17 +8,19 @@ import { buildAssembledMediaAppDefaultTheme } from "@/lib/client-dashboard/theme
 
 const assembledMediaDefaultTheme = buildAssembledMediaAppDefaultTheme();
 
-const rethink = Rethink_Sans({
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-rethink-sans",
+  variable: "--font-jakarta",
+  display: "swap",
 });
 
-const merriweather = Merriweather({
+const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
-  weight: ["400", "700"],
-  style: ["italic"],
-  variable: "--font-merriweather",
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-instrument-serif",
+  display: "swap",
 });
 
 export const metadata = {
@@ -34,9 +36,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${rethink.variable} ${merriweather.variable} ${GeistMono.variable}`}
+      className={`${jakarta.variable} ${instrumentSerif.variable} ${GeistMono.variable}`}
     >
-      <body className={`${rethink.className} antialiased`}>
+      <body className={`${jakarta.className} antialiased`}>
         <ClientBrandProvider theme={assembledMediaDefaultTheme}>
           <ServerAuthScope>{children}</ServerAuthScope>
         </ClientBrandProvider>

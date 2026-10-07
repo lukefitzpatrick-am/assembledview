@@ -1,30 +1,31 @@
 /** @type {import('tailwindcss').Config} */
 
 /**
- * Brand / marketing palette (hex). Kept flat so utilities stay the same
- * (e.g. bg-primary-hover, text-brand, bg-success).
+ * 05b values kept under legacy names until the component passes rename them.
+ * Flat hex utilities (bg-primary-hover, text-brand, bg-success) stay on these
+ * names and do not follow the CSS variables.
  */
 const brandPalette = {
-  "primary-hover": "#007a50",
-  "secondary-hover": "#3f80b9",
-  "accent-hover": "#a2be31",
-  brand: "#9801b5",
-  "brand-dark": "#472477",
-  highlight: "#fd7adb",
-  warning: "#e8a317",
-  "warning-hover": "#cf8f14",
-  alert: "#e8a317",
-  error: "#e5573e",
-  "error-hover": "#cc4934",
-  success: "#008e5e",
-  "success-hover": "#007a50",
+  "primary-hover": "#1A4D35",
+  "secondary-hover": "#1A4D35",
+  "accent-hover": "#A6C42B",
+  brand: "#246646",
+  "brand-dark": "#0F1D13",
+  highlight: "#B5D337",
+  warning: "#E0A21B",
+  "warning-hover": "#C88E12",
+  alert: "#E0A21B",
+  error: "#D4583C",
+  "error-hover": "#B9472E",
+  success: "#246646",
+  "success-hover": "#1A4D35",
   "success-dark": "#246646",
-  info: "#49c7eb",
-  "info-hover": "#35b5da",
-  "background-secondary": "#f3f5f1",
+  info: "#49C7EB",
+  "info-hover": "#2FB4DA",
+  "background-secondary": "#EFE9DF",
   darkGrey: "#0f1d13",
   /** Client / pacing shell background */
-  "dashboard-surface": "#f3f5f1",
+  "dashboard-surface": "#EFE9DF",
   /** Lime CTA (matches lib/utils limeGreen) */
   lime: "#b5d337",
 }
@@ -185,8 +186,8 @@ module.exports = {
         "3xl": "1920px",
       },
       fontFamily: {
-        sans: ["var(--font-rethink-sans)", "system-ui", "sans-serif"],
-        serif: ["var(--font-merriweather)", "Georgia", "serif"],
+        sans: ["var(--font-jakarta)", "Aptos", "Segoe UI", "system-ui", "sans-serif"],
+        serif: ["var(--font-instrument-serif)", "Georgia Pro", "Georgia", "serif"],
         mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"],
       },
       colors: {

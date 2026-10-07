@@ -26,7 +26,7 @@
 @layer base {
   :root {
     /* Base shadcn tokens */
-    --background: 90 17% 95%;
+    --background: 0 0% 100%;
     --foreground: 137 32% 9%;
 
     --card: 0 0% 100%;
@@ -35,29 +35,29 @@
     --popover: 0 0% 100%;
     --popover-foreground: 137 32% 9%;
 
-    --primary: 160 100% 28%;
+    --primary: 151 48% 27%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 209 54% 55%;
+    --secondary: 151 48% 27%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 90 12% 94%;
-    --muted-foreground: 139 7% 63%;
+    --muted: 38 33% 91%;
+    --muted-foreground: 55 6% 39%;
 
     --accent: 72 64% 52%;
     --accent-foreground: 137 32% 9%;
 
-    --destructive: 9 76% 57%;
+    --destructive: 11 64% 53%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 90 17% 91%;
-    --input: 90 17% 91%;
-    --ring: 160 100% 28%;
+    --border: 40 25% 86%;
+    --input: 40 18% 77%;
+    --ring: 151 48% 27%;
 
     --radius: 0.5rem;
-    --radius-input: 9px;
-    --radius-card: 14px;
-    --radius-frame: 18px;
+    --radius-input: 12px;
+    --radius-card: 16px;
+    --radius-frame: 24px;
     --radius-pill: 99px;
 
     --sidebar-width: 16rem;
@@ -70,74 +70,74 @@
      */
     --sidebar-bg: 137 32% 9%;
     --sidebar-fg: 0 0% 100%;
-    --sidebar-muted: 145 12% 75%;
-    --sidebar-border: 142 26% 16%;
-    --sidebar-hover-bg: 72 64% 52%;
+    --sidebar-muted: 131 7% 70%;
+    --sidebar-border: 139 12% 26%;
+    --sidebar-hover-bg: 150 19% 13%;
     --sidebar-hover-fg: 0 0% 100%;
     --sidebar-active-bg: 72 64% 52%;
     --sidebar-active-fg: 0 0% 100%;
-    --sidebar-icon: 146 14% 52%;
+    --sidebar-icon: 131 7% 70%;
     --sidebar-ring: 72 64% 52%;
     --sidebar-hover-tint: rgba(255, 255, 255, 0.06);
-    --sidebar-active-tint: rgba(181, 211, 55, 0.1);
-    --sidebar-active-bar: #b5d337;
+    --sidebar-active-tint: rgba(181, 211, 55, 0.14);
+    --sidebar-active-bar: #B5D337;
 
     /* Back-compat shadcn/ui sidebar tokens */
     --sidebar-background: var(--sidebar-bg);
     --sidebar-foreground: var(--sidebar-fg);
-    --sidebar-primary: 160 100% 28%;
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary: 72 64% 52%;
+    --sidebar-primary-foreground: 137 32% 9%;
     --sidebar-accent: var(--sidebar-hover-bg);
     --sidebar-accent-foreground: var(--sidebar-hover-fg);
 
     /* ------------------------------------------------------------
      * Semantic app tokens (use these in components vs raw colors)
      * ------------------------------------------------------------ */
-    --app-bg: 90 17% 95%;
+    --app-bg: 38 33% 91%;
     --app-fg: 137 32% 9%;
 
     --surface-panel: 0 0% 100%;
-    --surface-muted: 90 12% 94%;
+    --surface-muted: 38 33% 91%;
     --surface-elevated: 0 0% 100%;
     --surface-input: 0 0% 100%;
     --surface-popover: 0 0% 100%;
 
     --table-row: 0 0% 100%;
-    --table-row-hover: 90 24% 96%;
-    --table-row-active: 90 12% 94%;
+    --table-row-hover: 38 41% 95%;
+    --table-row-active: 38 33% 91%;
 
-    --state-active: 90 12% 94%;
+    --state-active: 38 33% 91%;
 
-    --status-success: 160 100% 28%;
+    --status-success: 151 48% 27%;
     --status-success-foreground: 0 0% 100%;
-    --status-warning: 40 82% 50%;
-    --status-warning-foreground: 36 86% 18%;
-    --status-danger: 9 76% 57%;
+    --status-warning: 41 79% 49%;
+    --status-warning-foreground: 40 100% 24%;
+    --status-danger: 11 64% 53%;
     --status-danger-foreground: 0 0% 100%;
     --status-accent: 72 64% 52%;
     --status-accent-foreground: 137 32% 9%;
 
     /* Dashboard + pacing design tokens (available to charts/components via CSS vars) */
-    --dashboard-surface: #f3f5f1;
-    --dashboard-card: #ffffff;
-    --dashboard-card-hover: #fafbfa;
-    --dashboard-border: #e7ebe3;
-    --dashboard-border-hover: #dde3d8;
-    --dashboard-card-inner: #edf0ea;
+    --dashboard-surface: #EFE9DF;
+    --dashboard-card: #FFFFFF;
+    --dashboard-card-hover: #F7F3EC;
+    --dashboard-border: #E4DED2;
+    --dashboard-border-hover: #CFC8BA;
+    --dashboard-card-inner: #EFE9DF;
 
-    --pacing-ahead: #008e5e;
-    --pacing-ahead-bg: rgba(0, 142, 94, 0.12);
-    --pacing-on-track: #4f8fcb;
-    --pacing-on-track-bg: rgba(79, 143, 203, 0.14);
-    --pacing-behind: #e8a317;
-    --pacing-behind-bg: rgba(232, 163, 23, 0.16);
-    --pacing-critical: #e5573e;
-    --pacing-critical-bg: rgba(229, 87, 62, 0.13);
+    --pacing-ahead: #246646;
+    --pacing-ahead-bg: rgba(36, 102, 70, 0.12);
+    --pacing-on-track: #49C7EB;
+    --pacing-on-track-bg: rgba(73, 199, 235, 0.18);
+    --pacing-behind: #E0A21B;
+    --pacing-behind-bg: rgba(224, 162, 27, 0.18);
+    --pacing-critical: #D4583C;
+    --pacing-critical-bg: rgba(212, 88, 60, 0.14);
 
-    --status-ahead-fg: #00704a;
-    --status-on-track-fg: #356296;
-    --status-behind-fg: #9a6a08;
-    --status-critical-fg: #b23b27;
+    --status-ahead-fg: #246646;
+    --status-on-track-fg: #0F1D13;
+    --status-behind-fg: #7A5200;
+    --status-critical-fg: #9E321C;
 
     /*
      * Meaning aliases (no new hues) — map status vocabulary to pacing tokens.
@@ -157,125 +157,125 @@
     --action-foreground: 0 0% 100%;
     --action-hover: 137 32% 14%;
 
-    --channel-tv: #e5573e;
-    --channel-bvod: #472477;
-    --channel-bvod-bg: rgba(71, 36, 119, 0.12);
-    --channel-social: #49c7eb;
-    --channel-social-bg: rgba(73, 199, 235, 0.16);
-    --channel-social-fg: #1f7fa0;
-    --channel-prog-display: #e8a317;
-    --channel-search: #008e5e;
-    --channel-ooh: #008e5e;
+    --channel-tv: #6B6A5E;
+    --channel-bvod: #4E8F6A;
+    --channel-bvod-bg: rgba(78, 143, 106, 0.14);
+    --channel-social: #49C7EB;
+    --channel-social-bg: rgba(73, 199, 235, 0.18);
+    --channel-social-fg: #0F1D13;
+    --channel-prog-display: #B5D337;
+    --channel-search: #246646;
+    --channel-ooh: #246646;
 
-    --audience-1: #9801b5; /* brand purple */
-    --audience-2: #008e5e; /* brand green (success) */
-    --audience-3: #472477; /* brand dark purple */
+    --audience-1: #49C7EB;
+    --audience-2: #246646;
+    --audience-3: #B5D337;
 
-    --text-secondary: #3c4b41;
-    --text-tertiary: #6b7a70;
-    --fill-track: #eef1ea;
-    --row-hover: #f5f7f2;
-    --canvas: #e9ede6;
+    --text-secondary: #3B4A3F;
+    --text-tertiary: #6B6A5E;
+    --fill-track: #E4DED2;
+    --row-hover: #F7F3EC;
+    --canvas: #E4DED2;
   }
 
   .dark {
     /* Softer dark surfaces (avoid harsh pure-black) */
-    --background: 150 29% 7%;
-    --foreground: 129 16% 92%;
+    --background: 137 32% 9%;
+    --foreground: 0 0% 100%;
 
-    --card: 154 28% 10%;
-    --card-foreground: 129 16% 92%;
+    --card: 150 19% 13%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 154 28% 10%;
-    --popover-foreground: 129 16% 92%;
+    --popover: 150 19% 13%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 154 69% 55%;
-    --primary-foreground: 150 29% 7%;
+    --primary: 72 64% 52%;
+    --primary-foreground: 137 32% 9%;
 
-    --secondary: 209 54% 55%;
+    --secondary: 146 29% 43%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 154 24% 14%;
-    --muted-foreground: 141 10% 46%;
+    --muted: 154 17% 16%;
+    --muted-foreground: 131 7% 70%;
 
     --accent: 72 64% 52%;
-    --accent-foreground: 150 29% 7%;
+    --accent-foreground: 137 32% 9%;
 
-    --destructive: 9 76% 57%;
+    --destructive: 11 64% 53%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 142 26% 16%;
-    --input: 142 26% 16%;
-    --ring: 154 69% 55%;
+    --border: 144 15% 20%;
+    --input: 139 12% 26%;
+    --ring: 72 64% 52%;
 
     /*
      * Sidebar semantics (dark mode) — distinct from light mode navy
      */
-    --sidebar-bg: 150 29% 7%;
-    --sidebar-fg: 129 16% 92%;
-    --sidebar-muted: 141 10% 58%;
-    --sidebar-border: 142 26% 16%;
-    --sidebar-hover-bg: 72 64% 52%;
-    --sidebar-hover-fg: 150 29% 7%;
+    --sidebar-bg: 137 32% 9%;
+    --sidebar-fg: 0 0% 100%;
+    --sidebar-muted: 131 7% 70%;
+    --sidebar-border: 144 15% 20%;
+    --sidebar-hover-bg: 150 19% 13%;
+    --sidebar-hover-fg: 0 0% 100%;
     --sidebar-active-bg: 72 64% 52%;
     --sidebar-active-fg: 0 0% 100%;
-    --sidebar-icon: 141 10% 46%;
+    --sidebar-icon: 131 7% 70%;
     --sidebar-ring: 72 64% 52%;
 
     /* Back-compat shadcn/ui sidebar tokens */
     --sidebar-background: var(--sidebar-bg);
     --sidebar-foreground: var(--sidebar-fg);
-    --sidebar-primary: 154 69% 55%;
-    --sidebar-primary-foreground: 150 29% 7%;
+    --sidebar-primary: 72 64% 52%;
+    --sidebar-primary-foreground: 137 32% 9%;
     --sidebar-accent: var(--sidebar-hover-bg);
     --sidebar-accent-foreground: var(--sidebar-hover-fg);
 
     /* Semantic app tokens */
-    --app-bg: 150 29% 7%;
-    --app-fg: 129 16% 92%;
+    --app-bg: 137 32% 9%;
+    --app-fg: 0 0% 100%;
 
-    --surface-panel: 154 28% 10%;
-    --surface-muted: 154 24% 14%;
-    --surface-elevated: 154 24% 12%;
-    --surface-input: 154 24% 12%;
-    --surface-popover: 154 28% 10%;
+    --surface-panel: 150 19% 13%;
+    --surface-muted: 137 32% 9%;
+    --surface-elevated: 154 17% 16%;
+    --surface-input: 143 23% 11%;
+    --surface-popover: 150 19% 13%;
 
-    --table-row: 154 28% 10%;
-    --table-row-hover: 154 24% 14%;
-    --table-row-active: 142 26% 16%;
+    --table-row: 150 19% 13%;
+    --table-row-hover: 154 17% 16%;
+    --table-row-active: 154 17% 16%;
 
-    --state-active: 142 26% 16%;
+    --state-active: 154 17% 16%;
 
-    --status-success: 154 69% 55%;
+    --status-success: 146 29% 43%;
     --status-success-foreground: 0 0% 100%;
-    --status-warning: 40 82% 50%;
-    --status-warning-foreground: 36 86% 18%;
-    --status-danger: 9 76% 57%;
+    --status-warning: 41 79% 49%;
+    --status-warning-foreground: 137 32% 9%;
+    --status-danger: 11 64% 53%;
     --status-danger-foreground: 0 0% 100%;
     --status-accent: 72 64% 52%;
-    --status-accent-foreground: 150 29% 7%;
+    --status-accent-foreground: 137 32% 9%;
 
     /* Keep dashboard + pacing vars explicit in dark mode for chart parity */
-    --dashboard-surface: #0c1611;
-    --dashboard-card: #12201a;
-    --dashboard-card-hover: #172a22;
-    --dashboard-border: #1f3527;
-    --dashboard-border-hover: #294633;
-    --dashboard-card-inner: #1f3527;
+    --dashboard-surface: #0F1D13;
+    --dashboard-card: #1A2620;
+    --dashboard-card-hover: #22302A;
+    --dashboard-border: #2B3A31;
+    --dashboard-border-hover: #3A4A3F;
+    --dashboard-card-inner: #22302A;
 
-    --pacing-ahead: #3ddc97;
-    --pacing-ahead-bg: rgba(0, 142, 94, 0.12);
-    --pacing-on-track: #4f8fcb;
-    --pacing-on-track-bg: rgba(79, 143, 203, 0.14);
-    --pacing-behind: #e8a317;
-    --pacing-behind-bg: rgba(232, 163, 23, 0.16);
-    --pacing-critical: #e5573e;
-    --pacing-critical-bg: rgba(229, 87, 62, 0.13);
+    --pacing-ahead: #4E8F6A;
+    --pacing-ahead-bg: rgba(78, 143, 106, 0.18);
+    --pacing-on-track: #49C7EB;
+    --pacing-on-track-bg: rgba(73, 199, 235, 0.18);
+    --pacing-behind: #E0A21B;
+    --pacing-behind-bg: rgba(224, 162, 27, 0.2);
+    --pacing-critical: #D4583C;
+    --pacing-critical-bg: rgba(212, 88, 60, 0.2);
 
-    --status-ahead-fg: #3ddc97;
-    --status-on-track-fg: #9fc3e6;
-    --status-behind-fg: #f1c15d;
-    --status-critical-fg: #ef907f;
+    --status-ahead-fg: #9CD3B3;
+    --status-on-track-fg: #49C7EB;
+    --status-behind-fg: #F2C668;
+    --status-critical-fg: #F29A84;
 
     --status-good: var(--pacing-ahead);
     --status-good-bg: var(--pacing-ahead-bg);
@@ -286,21 +286,25 @@
     --status-blocking: var(--pacing-critical);
     --status-blocking-bg: var(--pacing-critical-bg);
     --status-blocking-fg: var(--status-critical-fg);
-    --action: 129 16% 92%;
-    --action-foreground: 150 29% 7%;
-    --action-hover: 129 16% 85%;
+    --action: 0 0% 100%;
+    --action-foreground: 137 32% 9%;
+    --action-hover: 0 0% 90%;
 
-    --channel-bvod-bg: rgba(71, 36, 119, 0.12);
+    --channel-bvod-bg: rgba(78, 143, 106, 0.2);
+    --channel-tv: #AEB9B0;
+    --channel-social-fg: #49C7EB;
+    --channel-search: #4E8F6A;
+    --channel-ooh: #4E8F6A;
 
-    --audience-1: #9801b5; /* brand purple */
-    --audience-2: #008e5e; /* brand green (success) */
-    --audience-3: #472477; /* brand dark purple */
+    --audience-1: #49C7EB;
+    --audience-2: #4E8F6A;
+    --audience-3: #B5D337;
 
-    --text-secondary: #e6ede7;
-    --text-tertiary: #6b8273;
-    --fill-track: #1f3527;
-    --row-hover: #172a22;
-    --canvas: #0c1611;
+    --text-secondary: #D3DBD5;
+    --text-tertiary: #AEB9B0;
+    --fill-track: #2B3A31;
+    --row-hover: #22302A;
+    --canvas: #0F1D13;
   }
 }
 

@@ -7,47 +7,58 @@
 
 :root {
   /* Categorical — maps to shadcn --chart-1..8 */
-  --chart-1: 162 100% 28%;  /* #008E5E green  (HSL, shadcn convention) */
-  --chart-2: 210 53% 55%;   /* #4F8FCB blue   */
-  --chart-3: 38 82% 50%;    /* #E8A317 amber  */
-  --chart-4: 267 53% 30%;   /* #472477 purple */
-  --chart-5: 181 81% 43%;   /* #15C7C9 teal   */
-  --chart-6: 9 76% 57%;     /* #E5573E coral  */
-  --chart-7: 74 64% 52%;    /* #B5D337 lime   */
-  --chart-8: 194 79% 60%;   /* #49C7EB sky    */
+  --chart-1: 151 48% 27%;   /* #246646 forest */
+  --chart-2: 193 80% 60%;   /* #49C7EB sky */
+  --chart-3: 72 64% 52%;    /* #B5D337 lime */
+  --chart-4: 146 29% 43%;   /* #4E8F6A forest light */
+  --chart-5: 40 18% 77%;    /* #CFC8BA context */
+  --chart-6: 55 6% 39%;     /* #6B6A5E muted */
+  --chart-7: 137 32% 9%;    /* #0F1D13 ink */
+  --chart-8: 139 12% 26%;   /* #3A4A3F context black */
 
   /* Hex mirrors — convenient for custom SVG / inline styles */
-  --av-chart-1: #008E5E;
-  --av-chart-2: #4F8FCB;
-  --av-chart-3: #E8A317;
-  --av-chart-4: #472477;
-  --av-chart-5: #15C7C9;
-  --av-chart-6: #E5573E;
-  --av-chart-7: #B5D337;
-  --av-chart-8: #49C7EB;
+  --av-chart-1: #246646;
+  --av-chart-2: #49C7EB;
+  --av-chart-3: #B5D337;
+  --av-chart-4: #4E8F6A;
+  --av-chart-5: #CFC8BA;
+  --av-chart-6: #6B6A5E;
+  --av-chart-7: #0F1D13;
+  --av-chart-8: #3A4A3F;
 
   /* Status */
-  --av-status-ahead:    #008E5E;
-  --av-status-ontrack:  #4F8FCB;
-  --av-status-behind:   #E8A317;
-  --av-status-critical: #E5573E;
+  --av-status-ahead:    #246646;
+  --av-status-ontrack:  #49C7EB;
+  --av-status-behind:   #E0A21B;
+  --av-status-critical: #D4583C;
 
   /* Chart neutrals — light */
-  --av-grid:        #eef1ea;
-  --av-axis:        #9aa79e;
-  --av-label:       #6b7a70;
+  --av-grid:        #E4DED2;
+  --av-axis:        #CFC8BA;
+  --av-label:       #6B6A5E;
   --av-ink:         #0F1D13;
-  --av-surface:     #ffffff;
-  --av-subsurface:  #fcfdfb;
-  --av-cursor:      #cfd6cd;
+  --av-surface:     #FFFFFF;
+  --av-subsurface:  #F7F3EC;
+  --av-cursor:      #E4DED2;
 }
 
 .dark {
-  --av-grid:        #1f2a22;
-  --av-axis:        #7c8a80;
-  --av-label:       #9fb0a4;
-  --av-ink:         #e6ede7;
-  --av-surface:     #11201a;
-  --av-subsurface:  #0d1813;
-  --av-cursor:      #2c3a31;
+  --chart-1: 146 29% 43%;
+  --av-chart-1: #4E8F6A;
+  --av-status-ahead: #4E8F6A;
+  --av-grid:        #2B3A31;
+  --av-axis:        #3A4A3F;
+  --av-label:       #AEB9B0;
+  --av-ink:         #FFFFFF;
+  --av-surface:     #1A2620;
+  --av-subsurface:  #22302A;
+  --av-cursor:      #3A4A3F;
+  --chart-5: 139 12% 26%;
+  --av-chart-5: #3A4A3F;
+  --chart-6: 131 7% 70%;
+  --av-chart-6: #AEB9B0;
+  --chart-7: 0 0% 100%;
+  --av-chart-7: #FFFFFF;
+  --chart-8: 135 10% 84%;
+  --av-chart-8: #D3DBD5;
 }
