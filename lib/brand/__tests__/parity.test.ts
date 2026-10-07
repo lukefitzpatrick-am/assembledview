@@ -138,8 +138,8 @@ const chartsLight: Array<[string, string]> = [
   ["--av-chart-6", tokens.colour.muted],
   ["--av-chart-7", tokens.colour.ink],
   ["--av-chart-8", tokens.colour.contextBlack],
-  ["--av-status-ahead", tokens.colour.forest],
-  ["--av-status-ontrack", tokens.colour.sky],
+  ["--av-status-ahead", tokens.colour.sky],
+  ["--av-status-ontrack", tokens.colour.forest],
   ["--av-status-behind", tokens.functional.amber],
   ["--av-status-critical", tokens.functional.coral],
   ["--av-ink", tokens.colour.ink],
@@ -148,7 +148,8 @@ const chartsLight: Array<[string, string]> = [
 
 const chartsDark: Array<[string, string]> = [
   ["--av-chart-1", tokens.colour.forestLight],
-  ["--av-status-ahead", tokens.colour.forestLight],
+  ["--av-status-ahead", tokens.colour.sky],
+  ["--av-status-ontrack", tokens.colour.forestLight],
   ["--av-ink", tokens.colour.white],
   ["--av-surface", tokens.colour.panel],
 ]

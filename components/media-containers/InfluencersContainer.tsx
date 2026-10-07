@@ -50,6 +50,7 @@ import { getPublishersForInfluencers, getClientInfo } from "@/lib/api"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { cn } from "@/lib/utils"
+import { segmentChipClass } from "@/components/layout/navChip"
 import { Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import {
@@ -62,11 +63,9 @@ import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemId
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   getMediaTypeThemeHex,
-  mediaTypeAccentTextStyle,
   mediaTypeLineItemBadgeStyle,
   mediaTypeSummaryStripeStyle,
-  mediaTypeTotalsRowStyle,
-  rgbaFromHex,
+  mediaTypeOutlineStyle
 } from "@/lib/mediaplan/mediaTypeAccents"
 import {
   InfluencersExpertGrid,
@@ -948,7 +947,7 @@ const getBursts = () => {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <Card className="overflow-hidden border-0 shadow-md">
+        <Card className="overflow-hidden">
           <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3">
@@ -958,17 +957,7 @@ const getBursts = () => {
                     Influencers Media
                   </CardTitle>
                   {influencersExpertModalOpen ? (
-                    <Badge
-                      variant="outline"
-                      className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
-                      style={{
-                        borderColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.55),
-                        backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.14),
-                        color: MEDIA_ACCENT_HEX,
-                      }}
-                    >
-                      Schedule grid open
-                    </Badge>
+                    <Badge variant="neutral" className="gap-1.5 border-transparent text-[10px] font-semibold uppercase tracking-wider" style={mediaTypeLineItemBadgeStyle(MEDIA_ACCENT_HEX)}><span className="size-2 shrink-0 rounded-full border border-foreground/15" style={{ backgroundColor: MEDIA_ACCENT_HEX }} aria-hidden />Schedule grid open</Badge>
                   ) : null}
                   {expertApplyPendingPageSave ? (
                     <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -984,17 +973,7 @@ const getBursts = () => {
                   <button
                     type="button"
                     aria-pressed={!influencersExpertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      !influencersExpertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    style={
-                      !influencersExpertModalOpen
-                        ? { backgroundColor: MEDIA_ACCENT_HEX }
-                        : undefined
-                    }
+                    className={segmentChipClass(!influencersExpertModalOpen)}
                     onClick={() => {
                       if (influencersExpertModalOpen) {
                         writeContainerEntryMode("card")
@@ -1005,25 +984,7 @@ const getBursts = () => {
                   <button
                     type="button"
                     aria-pressed={influencersExpertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      influencersExpertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                      expertSegmentAttention &&
-                        !influencersExpertModalOpen &&
-                        "animate-pulse"
-                    )}
-                    style={{
-                      ...(influencersExpertModalOpen
-                        ? { backgroundColor: MEDIA_ACCENT_HEX }
-                        : {}),
-                      ...(expertSegmentAttention && !influencersExpertModalOpen
-                        ? {
-                            boxShadow: `0 0 0 2px ${rgbaFromHex(MEDIA_ACCENT_HEX, 0.45)}`,
-                          }
-                        : {}),
-                    }}
+                    className={cn(segmentChipClass(influencersExpertModalOpen), expertSegmentAttention && !influencersExpertModalOpen && "animate-pulse")} style={expertSegmentAttention && !influencersExpertModalOpen ? mediaTypeOutlineStyle(MEDIA_ACCENT_HEX) : undefined}
                     onClick={() => {
                       if (!influencersExpertModalOpen) {
                         writeContainerEntryMode("schedule")

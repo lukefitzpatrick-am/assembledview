@@ -27,6 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { Copy, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { segmentChipClass } from "@/components/layout/navChip"
 import { formatCurrencyFull } from "@/lib/format/currency"
 import { formatAUD } from "@/lib/format/money"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
@@ -89,7 +90,7 @@ import {
   mediaTypeAccentTextStyle,
   mediaTypeLineItemBadgeStyle,
   mediaTypeSummaryStripeStyle,
-  rgbaFromHex,
+  mediaTypeOutlineStyle
 } from "@/lib/mediaplan/mediaTypeAccents"
 import { buildLineItemId, MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import {
@@ -657,7 +658,7 @@ export default function ProductionContainer({
 
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden border-0 shadow-md">
+      <Card className="overflow-hidden">
         <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3">
@@ -665,17 +666,7 @@ export default function ProductionContainer({
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <CardTitle className="text-base font-semibold tracking-tight">Production</CardTitle>
                 {productionExpertModalOpen ? (
-                  <Badge
-                    variant="outline"
-                    className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
-                    style={{
-                      borderColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.55),
-                      backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.14),
-                      color: MEDIA_ACCENT_HEX,
-                    }}
-                  >
-                    Schedule grid open
-                  </Badge>
+                  <Badge variant="neutral" className="gap-1.5 border-transparent text-[10px] font-semibold uppercase tracking-wider" style={mediaTypeLineItemBadgeStyle(MEDIA_ACCENT_HEX)}><span className="size-2 shrink-0 rounded-full border border-foreground/15" style={{ backgroundColor: MEDIA_ACCENT_HEX }} aria-hidden />Schedule grid open</Badge>
                 ) : null}
                   {expertApplyPendingPageSave ? (
                     <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -691,17 +682,7 @@ export default function ProductionContainer({
                 <button
                   type="button"
                   aria-pressed={!productionExpertModalOpen}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                    !productionExpertModalOpen
-                      ? "text-white shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  style={
-                    !productionExpertModalOpen
-                      ? { backgroundColor: MEDIA_ACCENT_HEX }
-                      : undefined
-                  }
+                  className={segmentChipClass(!productionExpertModalOpen)}
                   onClick={() => {
                     if (productionExpertModalOpen) {
                       writeContainerEntryMode("card")
@@ -712,25 +693,7 @@ export default function ProductionContainer({
                 <button
                   type="button"
                   aria-pressed={productionExpertModalOpen}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                    productionExpertModalOpen
-                      ? "text-white shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                    expertSegmentAttention &&
-                      !productionExpertModalOpen &&
-                      "animate-pulse"
-                  )}
-                  style={{
-                    ...(productionExpertModalOpen
-                      ? { backgroundColor: MEDIA_ACCENT_HEX }
-                      : {}),
-                    ...(expertSegmentAttention && !productionExpertModalOpen
-                      ? {
-                          boxShadow: `0 0 0 2px ${rgbaFromHex(MEDIA_ACCENT_HEX, 0.45)}`,
-                        }
-                      : {}),
-                  }}
+                  className={cn(segmentChipClass(productionExpertModalOpen), expertSegmentAttention && !productionExpertModalOpen && "animate-pulse")} style={expertSegmentAttention && !productionExpertModalOpen ? mediaTypeOutlineStyle(MEDIA_ACCENT_HEX) : undefined}
                   onClick={() => {
                     if (!productionExpertModalOpen) {
                       writeContainerEntryMode("schedule")

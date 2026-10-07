@@ -31,11 +31,17 @@ import {
 } from "@/components/ui/dialog"
 import { buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { cn } from "@/lib/utils"
+import { segmentChipClass } from "@/components/layout/navChip"
 import { Copy, Plus, Trash2 } from "lucide-react"
 import { formatMoney } from "@/lib/format/money"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import { newBurstReactKey } from "@/lib/mediaplan/burstOperations"
-import { getMediaTypeThemeHex, rgbaFromHex } from "@/lib/mediaplan/mediaTypeAccents"
+import {
+  getMediaTypeThemeHex,
+  mediaTypeLineItemBadgeStyle,
+  mediaTypeOutlineStyle,
+  mediaTypeSummaryStripeStyle
+} from "@/lib/mediaplan/mediaTypeAccents"
 import type { FieldValues, UseFormReturn } from "react-hook-form"
 import type { ReactNode } from "react"
 
@@ -205,8 +211,8 @@ export default function MediaChannelContainer({
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <Card className="overflow-hidden border-0 shadow-md">
-          <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+        <Card className="overflow-hidden">
+          <div className="h-1" style={mediaTypeSummaryStripeStyle(mediaHex)} />
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -215,17 +221,7 @@ export default function MediaChannelContainer({
                     {shell.title}
                   </CardTitle>
                   {expertModalOpen ? (
-                    <Badge
-                      variant="outline"
-                      className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
-                      style={{
-                        borderColor: rgbaFromHex(mediaHex, 0.55),
-                        backgroundColor: rgbaFromHex(mediaHex, 0.14),
-                        color: mediaHex,
-                      }}
-                    >
-                      Schedule grid open
-                    </Badge>
+                    <Badge variant="neutral" className="gap-1.5 border-transparent text-[10px] font-semibold uppercase tracking-wider" style={mediaTypeLineItemBadgeStyle(mediaHex)}><span className="size-2 shrink-0 rounded-full border border-foreground/15" style={{ backgroundColor: mediaHex }} aria-hidden />Schedule grid open</Badge>
                   ) : null}
                   {expertApplyPendingPageSave ? (
                     <Badge
@@ -244,17 +240,7 @@ export default function MediaChannelContainer({
                   <button
                     type="button"
                     aria-pressed={!expertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      !expertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                    style={
-                      !expertModalOpen
-                        ? { backgroundColor: mediaHex }
-                        : undefined
-                    }
+                    className={segmentChipClass(!expertModalOpen)}
                     onClick={() => {
                       if (expertModalOpen) {
                         writeContainerEntryMode("card")
@@ -267,25 +253,7 @@ export default function MediaChannelContainer({
                   <button
                     type="button"
                     aria-pressed={expertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      expertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                      expertSegmentAttention &&
-                        !expertModalOpen &&
-                        "animate-pulse",
-                    )}
-                    style={{
-                      ...(expertModalOpen
-                        ? { backgroundColor: mediaHex }
-                        : {}),
-                      ...(expertSegmentAttention && !expertModalOpen
-                        ? {
-                            boxShadow: `0 0 0 2px ${rgbaFromHex(mediaHex, 0.45)}`,
-                          }
-                        : {}),
-                    }}
+                    className={cn(segmentChipClass(expertModalOpen), expertSegmentAttention && !expertModalOpen && "animate-pulse")} style={expertSegmentAttention && !expertModalOpen ? mediaTypeOutlineStyle(mediaHex) : undefined}
                     onClick={() => {
                       if (!expertModalOpen) {
                         writeContainerEntryMode("schedule")

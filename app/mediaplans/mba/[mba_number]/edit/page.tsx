@@ -1666,7 +1666,7 @@ interface Client {
 function MediaContainerSkeletonCard({ label }: { label?: string }) {
   return (
     <Card className="overflow-hidden border-0 shadow-md">
-      <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+      <div className="h-1 bg-primary" />
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           {label ? (
@@ -12260,7 +12260,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       {wizardDraftDialogs}
       <Dialog open={rollbackModalOpen} onOpenChange={setRollbackModalOpen}>
         <DialogContent className="overflow-hidden p-0 sm:max-w-lg">
-          <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+          <div className="h-1 bg-primary" />
           <div className="p-6">
             <DialogHeader>
               <DialogTitle>Load version v{rollbackTargetVersion}</DialogTitle>

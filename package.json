@@ -22,6 +22,7 @@
     "test:client-server-only": "node scripts/check-client-server-only.mjs",
     "test:brand": "tsx --test lib/brand/__tests__/parity.test.ts",
     "test:status": "tsx --test lib/design/__tests__/status.test.ts",
+    "test:media-families": "tsx --test lib/design/__tests__/mediaFamilies.test.ts",
     "test:client-dashboard": "tsx --test lib/client-dashboard/__tests__/theme.test.ts",
     "test:charts-registry": "tsx --test lib/charts/__tests__/registry.test.ts && vitest run lib/charts/__tests__/wrapGanttLabel.test.ts",
     "test:format-money": "vitest run tests/format/money-date.test.ts",

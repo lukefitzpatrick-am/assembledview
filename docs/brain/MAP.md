@@ -214,7 +214,7 @@ Touch these and you are touching everything. Check `BLAST-RADIUS.md` first, ever
 
 ## Shared layout
 
-`components/layout/PageHeader.tsx` is the page title. `Section.tsx` is the section title. `PageShell.tsx` sets page width (`full` 1920px, `standard` 1600px, `reading` `max-w-3xl`, `narrow` `max-w-xl`). `navChip.ts` (`navChipClass`) is the nav pill. `components/ui/data-table.tsx` is the sortable table with CSV export; `Table` primitives stay for layout-only tables. Visual reference: `/design-system` (`app/(internal)/design-system/page.tsx`). Status colour is `lib/design/status.ts`, rendered by `components/ui/status-pill.tsx`. `app/(internal)/layout.tsx` returns `notFound()` in production. No sidebar entry.
+`components/layout/PageHeader.tsx` is the page title. `Section.tsx` is the section title. `PageShell.tsx` sets page width (`full` 1920px, `standard` 1600px, `reading` `max-w-3xl`, `narrow` `max-w-xl`). `navChip.ts` (`navChipClass`) is the nav pill. `components/ui/data-table.tsx` is the sortable table with CSV export; `Table` primitives stay for layout-only tables. Visual reference: `/design-system` (`app/(internal)/design-system/page.tsx`). Status colour is `lib/design/status.ts`, rendered by `components/ui/status-pill.tsx`. Media type colour is `lib/design/mediaFamilies.ts`. `app/(internal)/layout.tsx` returns `notFound()` in production. No sidebar entry.
 
 ## Scale reference
 

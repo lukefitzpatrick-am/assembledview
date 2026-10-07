@@ -29,30 +29,40 @@ export function rgbaFromHex(hex: string, alpha: number): string {
   return `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`
 }
 
-/** Matches summary card stripe: solid → 70% → 40% opacity. */
+/**
+ * Media colour is a mark only: dots, stripes, rails, accent borders, and chart marks.
+ * It is never text, never a button or toggle fill, and never a shadow or ring.
+ * The hex argument on the text, totals, and badge helpers is ignored.
+ */
+
+/** Solid family colour for the summary card stripe. */
 export function mediaTypeSummaryStripeStyle(hex: string): CSSProperties {
+  return { backgroundColor: hex }
+}
+
+/** Neutral pill. Family colour is not the badge fill or its text. */
+export function mediaTypeLineItemBadgeStyle(_hex: string): CSSProperties {
   return {
-    backgroundImage: `linear-gradient(to right, ${hex}, ${rgbaFromHex(hex, 0.7)}, ${rgbaFromHex(hex, 0.4)})`,
+    backgroundColor: "var(--tone-neutral-bg)",
+    color: "var(--tone-neutral-fg)",
   }
 }
 
-/** Line item index badge: ~primary/10 background, full hex text. */
-export function mediaTypeLineItemBadgeStyle(hex: string): CSSProperties {
+/** Totals hairline. Border token, not the family colour. Use with `className="... border-t-2 border-solid"`. */
+export function mediaTypeTotalsRowStyle(_hex: string): CSSProperties {
   return {
-    backgroundColor: rgbaFromHex(hex, 0.1),
-    color: hex,
+    borderTopColor: "hsl(var(--border))",
   }
 }
 
-/** Totals row: border-t-2 with ~primary/20. Use with `className="... border-t-2 border-solid"`. */
-export function mediaTypeTotalsRowStyle(hex: string): CSSProperties {
-  return {
-    borderTopColor: rgbaFromHex(hex, 0.2),
-  }
+/** Total figure. Foreground token, not the family colour. */
+export function mediaTypeAccentTextStyle(_hex: string): CSSProperties {
+  return { color: "hsl(var(--foreground))" }
 }
 
-export function mediaTypeAccentTextStyle(hex: string): CSSProperties {
-  return { color: hex }
+/** Pulsing schedule segment. An outline, not a shadow or a ring. */
+export function mediaTypeOutlineStyle(hex: string): CSSProperties {
+  return { outline: `2px solid ${hex}`, outlineOffset: 2 }
 }
 
 export function getMediaTypeThemeHex(key: MediaTypeThemeKey): string {

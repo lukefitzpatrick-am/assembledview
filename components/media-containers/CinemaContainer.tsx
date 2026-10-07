@@ -37,7 +37,7 @@ import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstR
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
-import { cn } from "@/lib/utils"
+import { segmentChipClass } from "@/components/layout/navChip"
 import { Copy, Plus, Trash2, PlusCircle } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label";
@@ -57,7 +57,10 @@ import {
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
-import { getMediaTypeThemeHex } from "@/lib/mediaplan/mediaTypeAccents"
+import {
+  getMediaTypeThemeHex,
+  mediaTypeSummaryStripeStyle
+} from "@/lib/mediaplan/mediaTypeAccents"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { ComboboxModalProvider } from "@/components/ui/combobox"
@@ -1104,8 +1107,8 @@ useEffect(() => {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <Card className="overflow-hidden border-0 shadow-md">
-          <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+        <Card className="overflow-hidden">
+          <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1118,18 +1121,12 @@ useEffect(() => {
                   <button
                     type="button"
                     onClick={() => { if (cinemaExpertModalOpen) handleCinemaExpertModalOpenChange(false) }}
-                    className={cn(
-                      "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                      !cinemaExpertModalOpen ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
-                    )}
+                    className={segmentChipClass(!cinemaExpertModalOpen)}
                   >Card entry</button>
                   <button
                     type="button"
                     onClick={() => { if (!cinemaExpertModalOpen) openCinemaExpertModal() }}
-                    className={cn(
-                      "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                      cinemaExpertModalOpen ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
-                    )}
+                    className={segmentChipClass(cinemaExpertModalOpen)}
                   >Schedule grid</button>
                 </div>
               </div>

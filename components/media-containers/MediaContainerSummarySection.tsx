@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { cn } from "@/lib/utils"
+import { segmentChipClass } from "@/components/layout/navChip"
 import { formatAUD, formatMoney } from "@/lib/format/money"
 import {
   aggregateInvestmentShares,
@@ -156,11 +156,7 @@ export default function MediaContainerSummarySection({
                 key={dim}
                 type="button"
                 aria-pressed={groupBy === dim}
-                className={cn(
-                  "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
-                  groupBy === dim ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}
-                style={groupBy === dim ? { backgroundColor: accentHex } : undefined}
+                className={segmentChipClass(groupBy === dim)}
                 onClick={() => setGroupBy(dim)}
               >
                 {dim}
@@ -184,11 +180,7 @@ export default function MediaContainerSummarySection({
                       ? "Split group spend across campaign months"
                       : "Show total spend per group for the whole campaign"
                   }
-                  className={cn(
-                    "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
-                    active ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-                  )}
-                  style={active ? { backgroundColor: accentHex } : undefined}
+                  className={segmentChipClass(active)}
                   onClick={() => setByMonth(view === "By month")}
                 >
                   {view}

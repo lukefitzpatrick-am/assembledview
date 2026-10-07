@@ -55,6 +55,7 @@ import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
+import { segmentChipClass } from "@/components/layout/navChip"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import {
@@ -91,7 +92,12 @@ import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
-import { getMediaTypeThemeHex, rgbaFromHex } from "@/lib/mediaplan/mediaTypeAccents"
+import {
+  getMediaTypeThemeHex,
+  mediaTypeLineItemBadgeStyle,
+  mediaTypeOutlineStyle,
+  mediaTypeSummaryStripeStyle
+} from "@/lib/mediaplan/mediaTypeAccents"
 import {
   BVODExpertGrid,
   createEmptyBvodExpertRow,
@@ -1135,8 +1141,8 @@ useEffect(() => {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <Card className="overflow-hidden border-0 shadow-md">
-          <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+        <Card className="overflow-hidden">
+          <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1145,17 +1151,7 @@ useEffect(() => {
                     BVOD Media
                   </CardTitle>
                   {bvodExpertModalOpen ? (
-                    <Badge
-                      variant="outline"
-                      className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
-                      style={{
-                        borderColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.55),
-                        backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.14),
-                        color: MEDIA_ACCENT_HEX,
-                      }}
-                    >
-                      Schedule grid open
-                    </Badge>
+                    <Badge variant="neutral" className="gap-1.5 border-transparent text-[10px] font-semibold uppercase tracking-wider" style={mediaTypeLineItemBadgeStyle(MEDIA_ACCENT_HEX)}><span className="size-2 shrink-0 rounded-full border border-foreground/15" style={{ backgroundColor: MEDIA_ACCENT_HEX }} aria-hidden />Schedule grid open</Badge>
                   ) : null}
                   {expertApplyPendingPageSave ? (
                     <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1171,17 +1167,7 @@ useEffect(() => {
                   <button
                     type="button"
                     aria-pressed={!bvodExpertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      !bvodExpertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    style={
-                      !bvodExpertModalOpen
-                        ? { backgroundColor: MEDIA_ACCENT_HEX }
-                        : undefined
-                    }
+                    className={segmentChipClass(!bvodExpertModalOpen)}
                     onClick={() => {
                       if (bvodExpertModalOpen) {
                         writeContainerEntryMode("card")
@@ -1192,25 +1178,7 @@ useEffect(() => {
                   <button
                     type="button"
                     aria-pressed={bvodExpertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      bvodExpertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                      expertSegmentAttention &&
-                        !bvodExpertModalOpen &&
-                        "animate-pulse"
-                    )}
-                    style={{
-                      ...(bvodExpertModalOpen
-                        ? { backgroundColor: MEDIA_ACCENT_HEX }
-                        : {}),
-                      ...(expertSegmentAttention && !bvodExpertModalOpen
-                        ? {
-                            boxShadow: `0 0 0 2px ${rgbaFromHex(MEDIA_ACCENT_HEX, 0.45)}`,
-                          }
-                        : {}),
-                    }}
+                    className={cn(segmentChipClass(bvodExpertModalOpen), expertSegmentAttention && !bvodExpertModalOpen && "animate-pulse")} style={expertSegmentAttention && !bvodExpertModalOpen ? mediaTypeOutlineStyle(MEDIA_ACCENT_HEX) : undefined}
                     onClick={() => {
                       if (!bvodExpertModalOpen) {
                         writeContainerEntryMode("schedule")

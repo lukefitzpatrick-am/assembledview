@@ -1,3 +1,6 @@
+import { hexToArgb } from "@/lib/brand"
+import { familyColour } from "@/lib/design/mediaFamilies"
+
 export const MEDIA_TYPE_LABELS: Record<string, string> = {
   television: "Television",
   radio: "Radio",
@@ -21,26 +24,28 @@ export const MEDIA_TYPE_LABELS: Record<string, string> = {
   production: "Production",
 }
 
-/** ARGB format (FF prefix) — used by Excel export, do NOT convert to CSS hex without auditing consumers. */
+/** ARGB format (FF prefix) — used by Excel export, do NOT convert to CSS hex without auditing consumers.
+ *  Values follow the media families in lib/design/mediaFamilies.ts.
+ */
 export const MEDIA_TYPE_COLORS: Record<string, string> = {
-  television: "FF1565C0",
-  radio: "FF6A1B9A",
-  newspaper: "FF37474F",
-  magazines: "FFAD1457",
-  ooh: "FFE65100",
-  cinema: "FFB71C1C",
-  digiDisplay: "FF00695C",
-  digiAudio: "FF1A237E",
-  digiVideo: "FF4527A0",
-  bvod: "FFF57F17",
-  integration: "FF2E7D32",
-  search: "FF1B5E20",
-  socialMedia: "FF0D47A1",
-  progDisplay: "FF263238",
-  progVideo: "FF311B92",
-  progBvod: "FFF9A825",
-  progAudio: "FFBF360C",
-  progOoh: "FF558B2F",
-  influencers: "FF880E4F",
-  production: "FF4E342E",
+  television: hexToArgb(familyColour("television")),
+  radio: hexToArgb(familyColour("radio")),
+  newspaper: hexToArgb(familyColour("newspaper")),
+  magazines: hexToArgb(familyColour("magazines")),
+  ooh: hexToArgb(familyColour("ooh")),
+  cinema: hexToArgb(familyColour("cinema")),
+  digiDisplay: hexToArgb(familyColour("digidisplay")),
+  digiAudio: hexToArgb(familyColour("digiaudio")),
+  digiVideo: hexToArgb(familyColour("digivideo")),
+  bvod: hexToArgb(familyColour("bvod")),
+  integration: hexToArgb(familyColour("integration")),
+  search: hexToArgb(familyColour("search")),
+  socialMedia: hexToArgb(familyColour("socialmedia")),
+  progDisplay: hexToArgb(familyColour("progdisplay")),
+  progVideo: hexToArgb(familyColour("progvideo")),
+  progBvod: hexToArgb(familyColour("progbvod")),
+  progAudio: hexToArgb(familyColour("progaudio")),
+  progOoh: hexToArgb(familyColour("progooh")),
+  influencers: hexToArgb(familyColour("influencers")),
+  production: hexToArgb(familyColour("production")),
 }

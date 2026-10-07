@@ -1,13 +1,15 @@
 /**
  * AssembledView — chart theme
- * Single source of truth for every chart's colour, scale and number format.
+ * Series colours come from `lib/brand` (brand series, channel families, status).
  * No chart should hard-code a hex value; import from here.
  *
- * Per-media-type hues for known channels resolve via `MEDIA_TYPE_REGISTRY`
- * (`lib/charts/registry.ts` / `mediaTypeTheme`). `CHANNEL_COLORS` remains for
- * coarse aggregate series (e.g. chart-gallery "programmatic" / "social").
+ * Known media types resolve through `MEDIA_TYPE_REGISTRY` (family colour).
+ * `CHANNEL_COLORS` remains for coarse aggregate series
+ * (e.g. chart-gallery "programmatic" / "social").
  */
 
+import { BRAND } from '@/lib/brand';
+import { BRAND_SERIES } from '@/lib/design/mediaFamilies';
 import { formatMoney, formatMoneyCompact } from '@/lib/format/money';
 import {
   getMediaColor,
@@ -17,19 +19,9 @@ import {
 } from '@/lib/charts/registry';
 
 // ─────────────────────────────────────────────────────────────
-// Categorical palette — assign series in order.
-// Maps 1:1 to the shadcn CSS vars --chart-1 … --chart-8 (see chart-tokens.css).
+// Categorical palette — brand series, assigned in order.
 // ─────────────────────────────────────────────────────────────
-export const CHART_PALETTE = [
-  '#008E5E', // 1 · Assembled green
-  '#4F8FCB', // 2 · blue
-  '#E8A317', // 3 · amber
-  '#472477', // 4 · purple
-  '#15C7C9', // 5 · teal
-  '#E5573E', // 6 · coral
-  '#B5D337', // 7 · lime
-  '#49C7EB', // 8 · sky
-] as const;
+export const CHART_PALETTE = BRAND_SERIES;
 
 /** Colour-blind-safe alternate (Okabe–Ito derived). Swap in via ChartProvider. */
 export const CHART_PALETTE_CB = [
@@ -37,22 +29,46 @@ export const CHART_PALETTE_CB = [
   '#CC79A7', '#56B4E9', '#8C6BB1', '#117733',
 ] as const;
 
+/**
+ * Derived ramp, sand to forest. Sand, forest light, forest and ink come from BRAND.
+ * The three stops between sand and forest light are mixed.
+ */
+export const SEQUENTIAL_MIXED_STOPS = ['#D6E2D2', '#A9C7B3', '#7BAA90'] as const;
+
 /** Sequential ramp (low → high) — heatmaps, choropleths, magnitude. */
 export const SEQUENTIAL = [
-  '#eaf3ee', '#c5e3d4', '#8ecdae', '#4fb185', '#0f8a5a', '#0c6b46', '#0F3D26',
+  BRAND.colour.sand,
+  SEQUENTIAL_MIXED_STOPS[0],
+  SEQUENTIAL_MIXED_STOPS[1],
+  SEQUENTIAL_MIXED_STOPS[2],
+  BRAND.colour.forestLight,
+  BRAND.colour.forest,
+  BRAND.colour.ink,
 ] as const;
 
-/** Diverging ramp (coral ◄ neutral ► green) — variance vs target. */
+/**
+ * Derived ramp, coral to sand to forest. The ends and the middle come from BRAND.
+ * The stops between them are mixed.
+ */
+export const DIVERGING_MIXED_STOPS = ['#E28F7B', '#EFC6B9', '#B9D3C3', '#6FA287'] as const;
+
+/** Diverging ramp (coral ◄ neutral ► forest) — variance vs target. */
 export const DIVERGING = [
-  '#E5573E', '#ef8a73', '#f4c9bb', '#ece9e2', '#bfe2d0', '#7cc6a2', '#008E5E',
+  BRAND.functional.coral,
+  DIVERGING_MIXED_STOPS[0],
+  DIVERGING_MIXED_STOPS[1],
+  BRAND.colour.sand,
+  DIVERGING_MIXED_STOPS[2],
+  DIVERGING_MIXED_STOPS[3],
+  BRAND.colour.forest,
 ] as const;
 
-/** Status encoding — pacing / health. */
+/** Status encoding — pacing / health. Ahead is sky; on track is forest. */
 export const STATUS = {
-  ahead: '#008E5E',
-  onTrack: '#4F8FCB',
-  behind: '#E8A317',
-  critical: '#E5573E',
+  ahead: BRAND.colour.sky,
+  onTrack: BRAND.colour.forest,
+  behind: BRAND.functional.amber,
+  critical: BRAND.functional.coral,
 } as const;
 
 /**
@@ -60,14 +76,14 @@ export const STATUS = {
  * colour everywhere (don't let palette order reassign it).
  */
 export const CHANNEL_COLORS: Record<string, string> = {
-  television: '#E5573E',
-  bvod: '#472477',
-  social: '#49C7EB',
-  programmatic: '#4F8FCB',
-  search: '#008E5E',
-  display: '#15C7C9',
-  audio: '#E8A317',
-  ooh: '#B5D337',
+  television: BRAND.colour.forest,
+  bvod: BRAND.colour.forest,
+  social: BRAND.colour.sky,
+  programmatic: BRAND.colour.lime,
+  search: BRAND.colour.lime,
+  display: BRAND.colour.lime,
+  audio: BRAND.colour.muted,
+  ooh: BRAND.colour.forestLight,
 };
 
 /** Neutrals — theme-aware via chart-tokens.css (--av-* flip under .dark). */
@@ -123,8 +139,9 @@ export const TABULAR: React.CSSProperties = {
   letterSpacing: '-0.01em',
 };
 
-export const CHART_FONT =
-  "'Rethink Sans', ui-sans-serif, system-ui, sans-serif";
+export const CHART_FONT = [BRAND.font.sans, ...BRAND.font.sansFallback]
+  .map((name) => (name.includes(' ') ? `'${name}'` : name))
+  .join(', ');
 
 const CHANNEL_COLOR_ALIASES: Record<string, keyof typeof CHANNEL_COLORS> = {
   television: 'television',
@@ -157,8 +174,8 @@ const CHANNEL_COLOR_ALIASES: Record<string, keyof typeof CHANNEL_COLORS> = {
 
 /**
  * Fixed channel hue for a media type or coarse aggregate.
- * Prefer `MEDIA_TYPE_REGISTRY` (same hues as pills / `getMediaBadgeStyle`);
- * then coarse `CHANNEL_COLORS`; else palette by index.
+ * Prefer `MEDIA_TYPE_REGISTRY` (family colour); then coarse `CHANNEL_COLORS`;
+ * else palette by index.
  */
 export function channelColorFor(key: string, index = 0): string {
   const registryKey = normalizeEntityKey(key) as MediaTypeRegistryKey;

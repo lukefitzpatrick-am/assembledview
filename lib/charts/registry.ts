@@ -1,37 +1,27 @@
 /**
- * Single source of truth for media-type chart colors and labels.
- * Colours mirror `mediaTypeTheme.colors` in `lib/utils`.
+ * Media-type chart colours and labels.
+ * Each type belongs to one channel family in `lib/design/mediaFamilies.ts`.
+ * The series colour is the family colour. Pills are neutral; the family shows as a dot.
  *
  * Consolidation notes (registry wins; former `lib/media/channelColors.ts` removed):
  * - Aliases `social` → social_media, `consulting` → production, compact `programmatic*` tokens
  *   (`programmaticdisplay`, etc.) → prog_* registry keys, and `line_channel` spellings (`digi_*`,
  *   `integrations`) were added so labels/colours match dashboard, API, and enum strings.
- * - Unknown / non-registry channel strings use `getDeterministicColor` (Tableau ramp + FNV), not the
- *   old channel-only hash ramp — intentional single fallback story for charts and badges.
- * - Empty or whitespace-only inputs for `getMediaBadgeStyle` use `CHART_CHANNEL_FALLBACK_FILL` as the
- *   solid colour (same chart token as before) so chip/badge empty state stays aligned with chart defaults.
+ * - Unknown / non-registry channel strings use `getDeterministicColor` (brand series + FNV).
+ * - `getMediaBadgeStyle` is the neutral pill for every input, including empty and unknown.
  */
 
-import { CHART_CHANNEL_FALLBACK_FILL } from "@/lib/charts/theme"
+import { BRAND } from "@/lib/brand"
+import {
+  BRAND_SERIES,
+  MEDIA_FAMILY,
+  MEDIA_TYPE_FAMILY,
+  type MediaFamily,
+  type MediaTypeThemeKey,
+} from "@/lib/design/mediaFamilies"
 import { mediaTypeTheme } from "@/lib/utils"
 
 const channelColors = mediaTypeTheme.colors
-
-/** Tableau 10–style ramp for non–media-type series (deterministic fallbacks, ranked charts). */
-const TABLEAU_10 = [
-  "#4E79A7",
-  "#F28E2B",
-  "#E15759",
-  "#76B7B2",
-  "#59A14F",
-  "#EDC948",
-  "#B07AA1",
-  "#FF9DA7",
-  "#9C755F",
-  "#BAB0AC",
-  "#499894",
-  "#79706E",
-] as const
 
 export const MEDIA_TYPE_REGISTRY = {
   television: { label: "Television", color: channelColors.television },
@@ -58,8 +48,31 @@ export const MEDIA_TYPE_REGISTRY = {
 
 export type MediaTypeRegistryKey = keyof typeof MEDIA_TYPE_REGISTRY
 
-/** Twelve distinct colours for non-registry entities (Tableau 10). */
-export const FALLBACK_PALETTE: readonly string[] = [...TABLEAU_10]
+/** Brand series for non-registry entities and ranked charts. */
+export const FALLBACK_PALETTE: readonly string[] = [...BRAND_SERIES]
+
+const REGISTRY_TO_THEME_KEY: Record<MediaTypeRegistryKey, MediaTypeThemeKey> = {
+  television: "television",
+  radio: "radio",
+  newspaper: "newspaper",
+  magazines: "magazines",
+  ooh: "ooh",
+  cinema: "cinema",
+  digital_display: "digidisplay",
+  digital_audio: "digiaudio",
+  digital_video: "digivideo",
+  bvod: "bvod",
+  integration: "integration",
+  search: "search",
+  social_media: "socialmedia",
+  prog_display: "progdisplay",
+  prog_video: "progvideo",
+  prog_bvod: "progbvod",
+  prog_audio: "progaudio",
+  prog_ooh: "progooh",
+  influencers: "influencers",
+  production: "production",
+}
 
 /**
  * Theme / DB compact keys and common synonyms → canonical `MEDIA_TYPE_REGISTRY` keys.
@@ -161,7 +174,7 @@ function fnv1a32(input: string): number {
 
 /**
  * Stable hex colour for any string (e.g. publisher / client names not in the media registry).
- * Uses the same ramp as `FALLBACK_PALETTE` so unknowns stay visually consistent with chart defaults.
+ * Uses `FALLBACK_PALETTE` (the brand series) so unknowns stay visually consistent with chart defaults.
  */
 export function getDeterministicColor(name: string): string {
   const key = normalizeEntityKey(name) || name.trim().toLowerCase()
@@ -176,7 +189,21 @@ export function getMediaColor(key: string): string {
   return getDeterministicColor(key)
 }
 
-/** True when `getMediaColor` / `getMediaBadgeStyle` use a registry row, not the Tableau fallback. */
+/** Family for a registry type, via `normalizeEntityKey` and the alias table. Unknown is null. */
+export function getMediaFamily(key: string): MediaFamily | null {
+  const normalized = normalizeEntityKey(key)
+  if (!normalized || !(normalized in MEDIA_TYPE_REGISTRY)) return null
+  return MEDIA_TYPE_FAMILY[REGISTRY_TO_THEME_KEY[normalized as MediaTypeRegistryKey]]
+}
+
+/** Family colour for the pill dot. Unknown types use brand context. */
+export function getMediaDotColour(key: string): string {
+  const family = getMediaFamily(key)
+  if (!family) return BRAND.colour.context
+  return MEDIA_FAMILY[family].colour
+}
+
+/** True when `normalizeEntityKey` lands on a registry row. */
 export function isMediaTypeRegistryKey(raw: string): boolean {
   const n = normalizeEntityKey(raw)
   return Boolean(n) && n in MEDIA_TYPE_REGISTRY
@@ -189,39 +216,20 @@ export function getMediaLabel(key: string): string {
   return humanizeSnake(n) || key.trim()
 }
 
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const normalized = hex.replace("#", "")
-  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return null
-  return {
-    r: parseInt(normalized.slice(0, 2), 16),
-    g: parseInt(normalized.slice(2, 4), 16),
-    b: parseInt(normalized.slice(4, 6), 16),
-  }
-}
-
 /**
- * Badge / pill styles: translucent background and border from the media colour (`getMediaColor`),
- * with the solid hex as the foreground text colour.
+ * Neutral pill for every input, including empty and unknown.
+ * Family colour is the dot (`getMediaDotColour`), not this fill.
  */
 export function getMediaBadgeStyle(key: string): {
   backgroundColor: string
   color: string
   borderColor?: string
 } {
-  const trimmed = key.trim()
-  const color = trimmed ? getMediaColor(key) : CHART_CHANNEL_FALLBACK_FILL
-  const rgb = hexToRgb(color)
-  if (!rgb) {
-    return {
-      backgroundColor: "rgba(79, 70, 229, 0.14)",
-      color,
-      borderColor: "rgba(79, 70, 229, 0.3)",
-    }
-  }
+  void key
   return {
-    backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.14)`,
-    color,
-    borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`,
+    backgroundColor: "var(--tone-neutral-bg)",
+    color: "var(--tone-neutral-fg)",
+    borderColor: "transparent",
   }
 }
 

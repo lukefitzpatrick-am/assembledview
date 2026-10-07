@@ -65,6 +65,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { segmentChipClass } from "@/components/layout/navChip"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import {
@@ -91,11 +92,9 @@ import {
 import { MP_BURST_INPUT } from "@/lib/mediaplan/burstSectionLayout"
 import {
   getMediaTypeThemeHex,
-  mediaTypeAccentTextStyle,
   mediaTypeLineItemBadgeStyle,
   mediaTypeSummaryStripeStyle,
-  mediaTypeTotalsRowStyle,
-  rgbaFromHex,
+  mediaTypeOutlineStyle
 } from "@/lib/mediaplan/mediaTypeAccents"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { TELEVISION_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
@@ -1186,7 +1185,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <Card className="overflow-hidden border-0 shadow-md">
+        <Card className="overflow-hidden">
           <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3">
@@ -1196,17 +1195,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                     Television Media
                   </CardTitle>
                   {tvExpertModalOpen ? (
-                    <Badge
-                      variant="outline"
-                      className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
-                      style={{
-                        borderColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.55),
-                        backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.14),
-                        color: MEDIA_ACCENT_HEX,
-                      }}
-                    >
-                      Schedule grid open
-                    </Badge>
+                    <Badge variant="neutral" className="gap-1.5 border-transparent text-[10px] font-semibold uppercase tracking-wider" style={mediaTypeLineItemBadgeStyle(MEDIA_ACCENT_HEX)}><span className="size-2 shrink-0 rounded-full border border-foreground/15" style={{ backgroundColor: MEDIA_ACCENT_HEX }} aria-hidden />Schedule grid open</Badge>
                   ) : null}
                   {expertApplyPendingPageSave ? (
                     <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1222,17 +1211,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                   <button
                     type="button"
                     aria-pressed={!tvExpertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      !tvExpertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    style={
-                      !tvExpertModalOpen
-                        ? { backgroundColor: MEDIA_ACCENT_HEX }
-                        : undefined
-                    }
+                    className={segmentChipClass(!tvExpertModalOpen)}
                     onClick={() => {
                       if (tvExpertModalOpen) {
                         writeContainerEntryMode("card")
@@ -1243,25 +1222,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                   <button
                     type="button"
                     aria-pressed={tvExpertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      tvExpertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                      expertSegmentAttention &&
-                        !tvExpertModalOpen &&
-                        "animate-pulse"
-                    )}
-                    style={{
-                      ...(tvExpertModalOpen
-                        ? { backgroundColor: MEDIA_ACCENT_HEX }
-                        : {}),
-                      ...(expertSegmentAttention && !tvExpertModalOpen
-                        ? {
-                            boxShadow: `0 0 0 2px ${rgbaFromHex(MEDIA_ACCENT_HEX, 0.45)}`,
-                          }
-                        : {}),
-                    }}
+                    className={cn(segmentChipClass(tvExpertModalOpen), expertSegmentAttention && !tvExpertModalOpen && "animate-pulse")} style={expertSegmentAttention && !tvExpertModalOpen ? mediaTypeOutlineStyle(MEDIA_ACCENT_HEX) : undefined}
                     onClick={() => {
                       if (!tvExpertModalOpen) {
                         writeContainerEntryMode("schedule")

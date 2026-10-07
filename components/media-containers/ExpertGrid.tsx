@@ -5680,7 +5680,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                         <div className="flex h-8 items-center px-1">
                           <span
                             className="text-xs font-semibold uppercase tracking-wide"
-                            style={{ color: MEDIA_ACCENT_HEX }}
+                            style={{ color: "hsl(var(--foreground))" }}
                           >
                             Weekly totals
                           </span>
@@ -5792,16 +5792,16 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                 </span>
               </span>
               <span
-                className="inline-flex items-baseline gap-2 rounded-full border px-3 py-1 text-xs shadow-sm"
+                className="inline-flex items-baseline gap-2 rounded-full border border-transparent px-3 py-1 text-xs"
                 style={{
-                  borderColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.35),
-                  backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.08),
+                  backgroundColor: "var(--tone-neutral-bg)",
+                  color: "var(--tone-neutral-fg)",
                 }}
               >
                 <span className="text-muted-foreground">Total w/ fees</span>
                 <span
                   className="font-semibold tabular-nums"
-                  style={{ color: MEDIA_ACCENT_HEX }}
+                  style={{ color: "hsl(var(--foreground))" }}
                 >
                   {formatAUD(containerTotals.totalWithFee)}
                 </span>

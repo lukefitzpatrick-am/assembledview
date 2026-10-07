@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Plus } from "lucide-react"
 
+import { MediaChannelTag } from "@/components/dashboard/MediaChannelTag"
 import { StatTile } from "@/components/finance/sections/StatTile"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { PageShell } from "@/components/layout/PageShell"
@@ -44,6 +45,93 @@ import {
   XERO_MATCH_STATUS,
   type Tone,
 } from "@/lib/design/status"
+import { getMediaLabel } from "@/lib/charts/registry"
+import { DIVERGING, SEQUENTIAL, STATUS } from "@/lib/chart-theme"
+import {
+  BRAND_SERIES,
+  MEDIA_FAMILY,
+  MEDIA_TYPE_FAMILY,
+  type MediaFamily,
+  type MediaTypeThemeKey,
+} from "@/lib/design/mediaFamilies"
+
+const MEDIA_FAMILY_ORDER = Object.keys(MEDIA_FAMILY) as MediaFamily[]
+
+const BRAND_SERIES_LABELS = [
+  "Forest",
+  "Sky",
+  "Lime",
+  "Forest light",
+  "Muted",
+  "Context",
+  "Muted on black",
+  "Context black",
+] as const
+
+const SEQUENTIAL_LABELS = [
+  "Sand",
+  "Step 2",
+  "Step 3",
+  "Step 4",
+  "Forest light",
+  "Forest",
+  "Ink",
+] as const
+
+const DIVERGING_LABELS = [
+  "Coral",
+  "Step 2",
+  "Step 3",
+  "Sand",
+  "Step 5",
+  "Step 6",
+  "Forest",
+] as const
+
+const STATUS_SWATCHES: Array<{ key: keyof typeof STATUS; label: string }> = [
+  { key: "ahead", label: "Ahead" },
+  { key: "onTrack", label: "On track" },
+  { key: "behind", label: "Behind" },
+  { key: "critical", label: "Critical" },
+]
+
+function mediaTypeLabels(family: MediaFamily): string[] {
+  return (Object.entries(MEDIA_TYPE_FAMILY) as Array<[MediaTypeThemeKey, MediaFamily]>)
+    .filter(([, member]) => member === family)
+    .map(([key]) => getMediaLabel(key))
+}
+
+function Swatch({ colour, label }: { colour: string; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className="size-6 shrink-0 rounded-input border border-foreground/15"
+        style={{ backgroundColor: colour }}
+        aria-hidden
+      />
+      <span className="text-sm text-foreground">{label}</span>
+    </div>
+  )
+}
+
+function SwatchRow({
+  title,
+  items,
+}: {
+  title: string
+  items: ReadonlyArray<{ colour: string; label: string }>
+}) {
+  return (
+    <div>
+      <p className="mb-2 text-[13px] text-muted-foreground">{title}</p>
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
+        {items.map((item) => (
+          <Swatch key={`${title}-${item.label}`} colour={item.colour} label={item.label} />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 const BUTTON_VARIANTS: NonNullable<ButtonProps["variant"]>[] = [
   "default",
@@ -254,6 +342,60 @@ export default function DesignSystemPage() {
               </div>
             </div>
           ))}
+        </div>
+      </Section>
+
+      <Section
+        title="Media types"
+        description="Seven channel families. The pill is neutral. The dot is the family colour."
+      >
+        <div className="space-y-4">
+          {MEDIA_FAMILY_ORDER.map((family) => (
+            <div key={family} className="flex flex-wrap items-center gap-3">
+              <p className="w-56 text-sm text-foreground">{MEDIA_FAMILY[family].label}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {mediaTypeLabels(family).map((label) => (
+                  <MediaChannelTag key={`${family}-${label}`} label={label} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section
+        title="Chart palette"
+        description="Brand series, sequential and diverging ramps, and status colours."
+      >
+        <div className="space-y-6">
+          <SwatchRow
+            title="Brand series"
+            items={BRAND_SERIES.map((colour, index) => ({
+              colour,
+              label: BRAND_SERIES_LABELS[index] ?? `Series ${index + 1}`,
+            }))}
+          />
+          <SwatchRow
+            title="Sequential"
+            items={SEQUENTIAL.map((colour, index) => ({
+              colour,
+              label: SEQUENTIAL_LABELS[index] ?? `Step ${index + 1}`,
+            }))}
+          />
+          <SwatchRow
+            title="Diverging"
+            items={DIVERGING.map((colour, index) => ({
+              colour,
+              label: DIVERGING_LABELS[index] ?? `Step ${index + 1}`,
+            }))}
+          />
+          <SwatchRow
+            title="Status"
+            items={STATUS_SWATCHES.map((item) => ({
+              colour: STATUS[item.key],
+              label: item.label,
+            }))}
+          />
         </div>
       </Section>
 

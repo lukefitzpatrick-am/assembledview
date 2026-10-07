@@ -49,6 +49,7 @@ import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
+import { segmentChipClass } from "@/components/layout/navChip"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { MAGAZINES_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
@@ -106,10 +107,9 @@ import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColu
 import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
 import {
   getMediaTypeThemeHex,
-  mediaTypeAccentTextStyle,
   mediaTypeSummaryStripeStyle,
-  mediaTypeTotalsRowStyle,
-  rgbaFromHex,
+  mediaTypeLineItemBadgeStyle,
+  mediaTypeOutlineStyle
 } from "@/lib/mediaplan/mediaTypeAccents"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("magazines")
@@ -1224,7 +1224,7 @@ useEffect(() => {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <Card className="overflow-hidden border-0 shadow-md">
+        <Card className="overflow-hidden">
           <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1233,17 +1233,7 @@ useEffect(() => {
                   Magazines Media
                 </CardTitle>
                 {magazinesExpertModalOpen ? (
-                  <Badge
-                    variant="outline"
-                    className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
-                    style={{
-                      borderColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.55),
-                      backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.14),
-                      color: MEDIA_ACCENT_HEX,
-                    }}
-                  >
-                    Schedule grid open
-                  </Badge>
+                  <Badge variant="neutral" className="gap-1.5 border-transparent text-[10px] font-semibold uppercase tracking-wider" style={mediaTypeLineItemBadgeStyle(MEDIA_ACCENT_HEX)}><span className="size-2 shrink-0 rounded-full border border-foreground/15" style={{ backgroundColor: MEDIA_ACCENT_HEX }} aria-hidden />Schedule grid open</Badge>
                 ) : null}
                   {expertApplyPendingPageSave ? (
                     <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1259,17 +1249,7 @@ useEffect(() => {
                 <button
                   type="button"
                   aria-pressed={!magazinesExpertModalOpen}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                    !magazinesExpertModalOpen
-                      ? "text-white shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  style={
-                    !magazinesExpertModalOpen
-                      ? { backgroundColor: MEDIA_ACCENT_HEX }
-                      : undefined
-                  }
+                  className={segmentChipClass(!magazinesExpertModalOpen)}
                   onClick={() => {
                     if (magazinesExpertModalOpen) {
                       writeContainerEntryMode("card")
@@ -1280,25 +1260,7 @@ useEffect(() => {
                 <button
                   type="button"
                   aria-pressed={magazinesExpertModalOpen}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                    magazinesExpertModalOpen
-                      ? "text-white shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                    expertSegmentAttention &&
-                      !magazinesExpertModalOpen &&
-                      "animate-pulse"
-                  )}
-                  style={{
-                    ...(magazinesExpertModalOpen
-                      ? { backgroundColor: MEDIA_ACCENT_HEX }
-                      : {}),
-                    ...(expertSegmentAttention && !magazinesExpertModalOpen
-                      ? {
-                          boxShadow: `0 0 0 2px ${rgbaFromHex(MEDIA_ACCENT_HEX, 0.45)}`,
-                        }
-                      : {}),
-                  }}
+                  className={cn(segmentChipClass(magazinesExpertModalOpen), expertSegmentAttention && !magazinesExpertModalOpen && "animate-pulse")} style={expertSegmentAttention && !magazinesExpertModalOpen ? mediaTypeOutlineStyle(MEDIA_ACCENT_HEX) : undefined}
                   onClick={() => {
                     if (!magazinesExpertModalOpen) {
                       writeContainerEntryMode("schedule")

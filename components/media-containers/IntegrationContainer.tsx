@@ -50,6 +50,7 @@ import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { cn } from "@/lib/utils"
+import { segmentChipClass } from "@/components/layout/navChip"
 import { Plus, Trash2, Copy } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import {
@@ -62,11 +63,9 @@ import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemId
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   getMediaTypeThemeHex,
-  mediaTypeAccentTextStyle,
   mediaTypeLineItemBadgeStyle,
   mediaTypeSummaryStripeStyle,
-  mediaTypeTotalsRowStyle,
-  rgbaFromHex,
+  mediaTypeOutlineStyle
 } from "@/lib/mediaplan/mediaTypeAccents"
 import {
   IntegrationExpertGrid,
@@ -1029,7 +1028,7 @@ useEffect(() => {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <Card className="overflow-hidden border-0 shadow-md">
+        <Card className="overflow-hidden">
           <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3">
@@ -1039,17 +1038,7 @@ useEffect(() => {
                     Integration Media
                   </CardTitle>
                   {integrationExpertModalOpen ? (
-                    <Badge
-                      variant="outline"
-                      className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
-                      style={{
-                        borderColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.55),
-                        backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.14),
-                        color: MEDIA_ACCENT_HEX,
-                      }}
-                    >
-                      Schedule grid open
-                    </Badge>
+                    <Badge variant="neutral" className="gap-1.5 border-transparent text-[10px] font-semibold uppercase tracking-wider" style={mediaTypeLineItemBadgeStyle(MEDIA_ACCENT_HEX)}><span className="size-2 shrink-0 rounded-full border border-foreground/15" style={{ backgroundColor: MEDIA_ACCENT_HEX }} aria-hidden />Schedule grid open</Badge>
                   ) : null}
                   {expertApplyPendingPageSave ? (
                     <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1065,17 +1054,7 @@ useEffect(() => {
                   <button
                     type="button"
                     aria-pressed={!integrationExpertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      !integrationExpertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    style={
-                      !integrationExpertModalOpen
-                        ? { backgroundColor: MEDIA_ACCENT_HEX }
-                        : undefined
-                    }
+                    className={segmentChipClass(!integrationExpertModalOpen)}
                     onClick={() => {
                       if (integrationExpertModalOpen) {
                         writeContainerEntryMode("card")
@@ -1086,25 +1065,7 @@ useEffect(() => {
                   <button
                     type="button"
                     aria-pressed={integrationExpertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      integrationExpertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                      expertSegmentAttention &&
-                        !integrationExpertModalOpen &&
-                        "animate-pulse"
-                    )}
-                    style={{
-                      ...(integrationExpertModalOpen
-                        ? { backgroundColor: MEDIA_ACCENT_HEX }
-                        : {}),
-                      ...(expertSegmentAttention && !integrationExpertModalOpen
-                        ? {
-                            boxShadow: `0 0 0 2px ${rgbaFromHex(MEDIA_ACCENT_HEX, 0.45)}`,
-                          }
-                        : {}),
-                    }}
+                    className={cn(segmentChipClass(integrationExpertModalOpen), expertSegmentAttention && !integrationExpertModalOpen && "animate-pulse")} style={expertSegmentAttention && !integrationExpertModalOpen ? mediaTypeOutlineStyle(MEDIA_ACCENT_HEX) : undefined}
                     onClick={() => {
                       if (!integrationExpertModalOpen) {
                         writeContainerEntryMode("schedule")

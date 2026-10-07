@@ -27,8 +27,8 @@
   --av-chart-8: #3A4A3F;
 
   /* Status */
-  --av-status-ahead:    #246646;
-  --av-status-ontrack:  #49C7EB;
+  --av-status-ahead:    #49C7EB;
+  --av-status-ontrack:  #246646;
   --av-status-behind:   #E0A21B;
   --av-status-critical: #D4583C;
 
@@ -45,7 +45,8 @@
 .dark {
   --chart-1: 146 29% 43%;
   --av-chart-1: #4E8F6A;
-  --av-status-ahead: #4E8F6A;
+  --av-status-ahead: #49C7EB;
+  --av-status-ontrack: #4E8F6A;
   --av-grid:        #2B3A31;
   --av-axis:        #3A4A3F;
   --av-label:       #AEB9B0;

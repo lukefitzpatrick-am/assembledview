@@ -51,6 +51,7 @@ import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { cn } from "@/lib/utils"
+import { segmentChipClass } from "@/components/layout/navChip"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import {
   aggregateInvestmentDisplayRows,
@@ -66,7 +67,8 @@ import { formatMoney } from "@/lib/format/money"
 import {
   getMediaTypeThemeHex,
   mediaTypeSummaryStripeStyle,
-  rgbaFromHex,
+  mediaTypeLineItemBadgeStyle,
+  mediaTypeOutlineStyle
 } from "@/lib/mediaplan/mediaTypeAccents"
 import {
   RadioExpertGrid,
@@ -1188,7 +1190,7 @@ useEffect(() => {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <Card className="overflow-hidden border-0 shadow-md">
+        <Card className="overflow-hidden">
           <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3">
@@ -1196,17 +1198,7 @@ useEffect(() => {
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <CardTitle className="text-base font-semibold tracking-tight">Radio Media</CardTitle>
                   {radioExpertModalOpen ? (
-                    <Badge
-                      variant="outline"
-                      className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
-                      style={{
-                        borderColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.55),
-                        backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.14),
-                        color: MEDIA_ACCENT_HEX,
-                      }}
-                    >
-                      Schedule grid open
-                    </Badge>
+                    <Badge variant="neutral" className="gap-1.5 border-transparent text-[10px] font-semibold uppercase tracking-wider" style={mediaTypeLineItemBadgeStyle(MEDIA_ACCENT_HEX)}><span className="size-2 shrink-0 rounded-full border border-foreground/15" style={{ backgroundColor: MEDIA_ACCENT_HEX }} aria-hidden />Schedule grid open</Badge>
                   ) : null}
                   {expertApplyPendingPageSave ? (
                     <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1222,17 +1214,7 @@ useEffect(() => {
                   <button
                     type="button"
                     aria-pressed={!radioExpertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      !radioExpertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    style={
-                      !radioExpertModalOpen
-                        ? { backgroundColor: MEDIA_ACCENT_HEX }
-                        : undefined
-                    }
+                    className={segmentChipClass(!radioExpertModalOpen)}
                     onClick={() => {
                       if (radioExpertModalOpen) {
                         writeContainerEntryMode("card")
@@ -1243,25 +1225,7 @@ useEffect(() => {
                   <button
                     type="button"
                     aria-pressed={radioExpertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      radioExpertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                      expertSegmentAttention &&
-                        !radioExpertModalOpen &&
-                        "animate-pulse"
-                    )}
-                    style={{
-                      ...(radioExpertModalOpen
-                        ? { backgroundColor: MEDIA_ACCENT_HEX }
-                        : {}),
-                      ...(expertSegmentAttention && !radioExpertModalOpen
-                        ? {
-                            boxShadow: `0 0 0 2px ${rgbaFromHex(MEDIA_ACCENT_HEX, 0.45)}`,
-                          }
-                        : {}),
-                    }}
+                    className={cn(segmentChipClass(radioExpertModalOpen), expertSegmentAttention && !radioExpertModalOpen && "animate-pulse")} style={expertSegmentAttention && !radioExpertModalOpen ? mediaTypeOutlineStyle(MEDIA_ACCENT_HEX) : undefined}
                     onClick={() => {
                       if (!radioExpertModalOpen) {
                         writeContainerEntryMode("schedule")
@@ -1545,7 +1509,7 @@ useEffect(() => {
       {/* Add Station Dialog */}
 <Dialog open={isAddStationDialogOpen} onOpenChange={setIsAddStationDialogOpen}>
   <DialogContent className="sm:max-w-[425px] overflow-hidden p-0">
-    <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+    <div className="h-1" style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX)} />
     <div className="p-6">
       <DialogHeader>
         <DialogTitle>Add New Radio Station</DialogTitle>

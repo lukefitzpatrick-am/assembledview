@@ -310,11 +310,11 @@ export default function FloatingSectionNav({
                 "h-auto w-full justify-start rounded-sm border-l-2 border-l-transparent px-2.5 py-[5px] text-xs font-normal leading-snug text-muted-foreground",
                 "hover:bg-muted",
                 accentHex
-                  ? "hover:text-[color:var(--media-accent)]"
+                  ? "hover:text-foreground"
                   : "hover:text-foreground",
                 isActive &&
                   accentHex &&
-                  "rounded-l-none rounded-r-sm border-l-[color:var(--media-accent)] bg-muted font-medium text-[color:var(--media-accent)] hover:bg-muted hover:text-[color:var(--media-accent)]",
+                  "rounded-l-none rounded-r-sm border-l-[color:var(--media-accent)] bg-muted font-medium text-foreground hover:bg-muted hover:text-foreground",
                 isActive &&
                   !accentHex &&
                   "rounded-l-none rounded-r-sm border-l-foreground bg-muted font-medium text-foreground hover:bg-muted",

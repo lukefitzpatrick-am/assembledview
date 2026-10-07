@@ -6,6 +6,7 @@
  * - MediaGanttChart keeps a local Excel-parity constant.
  */
 
+import { BRAND } from "@/lib/brand"
 import { cn } from "@/lib/utils"
 
 /** Recharts default grid / reference stroke in the DOM (matches shadcn chart selectors). */
@@ -14,11 +15,8 @@ const CHART_RECHARTS_GRID_STROKE = "#ccc" as const
 /** Recharts default dot sector stroke in the DOM. */
 const CHART_RECHARTS_DOT_STROKE = "#fff" as const
 
-/**
- * Timeline / media-plan viz: same ramp as categorical but indigo-600 lead (seven stops).
- * Preserves previous MediaPlanViz bar colours.
- */
-export const CHART_CHANNEL_FALLBACK_FILL = "#4f46e5" as const
+/** Fallback series fill when a chart has no channel colour. Brand context, a warm neutral. */
+export const CHART_CHANNEL_FALLBACK_FILL = BRAND.colour.context
 
 /** Fixed plot height for client dashboard spend / insight charts (avoids aspect-video viewport stretch). */
 export const DASHBOARD_CHART_PLOT_HEIGHT = 400

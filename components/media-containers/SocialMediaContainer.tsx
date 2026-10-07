@@ -56,6 +56,7 @@ import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
+import { segmentChipClass } from "@/components/layout/navChip"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import {
@@ -90,7 +91,8 @@ import MediaContainerSummarySection from "@/components/media-containers/MediaCon
 import {
   getMediaTypeThemeHex,
   mediaTypeSummaryStripeStyle,
-  rgbaFromHex,
+  mediaTypeLineItemBadgeStyle,
+  mediaTypeOutlineStyle
 } from "@/lib/mediaplan/mediaTypeAccents"
 import {
   SocialMediaExpertGrid,
@@ -1027,7 +1029,7 @@ const getBursts = () => {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <Card className="overflow-hidden border-0 shadow-md">
+        <Card className="overflow-hidden">
           <div
             className="h-1"
             style={mediaTypeSummaryStripeStyle(MEDIA_ACCENT_HEX_SOCIAL)}
@@ -1040,20 +1042,7 @@ const getBursts = () => {
                     Social Media
                   </CardTitle>
                   {socialExpertModalOpen ? (
-                    <Badge
-                      variant="outline"
-                      className="border-2 text-[10px] font-semibold uppercase tracking-wider shadow-sm"
-                      style={{
-                        borderColor: rgbaFromHex(MEDIA_ACCENT_HEX_SOCIAL, 0.55),
-                        backgroundColor: rgbaFromHex(
-                          MEDIA_ACCENT_HEX_SOCIAL,
-                          0.14
-                        ),
-                        color: MEDIA_ACCENT_HEX_SOCIAL,
-                      }}
-                    >
-                      Schedule grid open
-                    </Badge>
+                    <Badge variant="neutral" className="gap-1.5 border-transparent text-[10px] font-semibold uppercase tracking-wider" style={mediaTypeLineItemBadgeStyle(MEDIA_ACCENT_HEX_SOCIAL)}><span className="size-2 shrink-0 rounded-full border border-foreground/15" style={{ backgroundColor: MEDIA_ACCENT_HEX_SOCIAL }} aria-hidden />Schedule grid open</Badge>
                   ) : null}
                   {expertApplyPendingPageSave ? (
                     <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1069,17 +1058,7 @@ const getBursts = () => {
                   <button
                     type="button"
                     aria-pressed={!socialExpertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      !socialExpertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    style={
-                      !socialExpertModalOpen
-                        ? { backgroundColor: MEDIA_ACCENT_HEX_SOCIAL }
-                        : undefined
-                    }
+                    className={segmentChipClass(!socialExpertModalOpen)}
                     onClick={() => {
                       if (socialExpertModalOpen) {
                         writeContainerEntryMode("card")
@@ -1090,25 +1069,7 @@ const getBursts = () => {
                   <button
                     type="button"
                     aria-pressed={socialExpertModalOpen}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                      socialExpertModalOpen
-                        ? "text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                      expertSegmentAttention &&
-                        !socialExpertModalOpen &&
-                        "animate-pulse"
-                    )}
-                    style={{
-                      ...(socialExpertModalOpen
-                        ? { backgroundColor: MEDIA_ACCENT_HEX_SOCIAL }
-                        : {}),
-                      ...(expertSegmentAttention && !socialExpertModalOpen
-                        ? {
-                            boxShadow: `0 0 0 2px ${rgbaFromHex(MEDIA_ACCENT_HEX_SOCIAL, 0.45)}`,
-                          }
-                        : {}),
-                    }}
+                    className={cn(segmentChipClass(socialExpertModalOpen), expertSegmentAttention && !socialExpertModalOpen && "animate-pulse")} style={expertSegmentAttention && !socialExpertModalOpen ? mediaTypeOutlineStyle(MEDIA_ACCENT_HEX_SOCIAL) : undefined}
                     onClick={() => {
                       if (!socialExpertModalOpen) {
                         writeContainerEntryMode("schedule")
