@@ -1,4 +1,5 @@
 import type ExcelJS from "exceljs"
+import { BRAND, hexToArgb } from "@/lib/brand"
 import {
   DEFAULT_REPORT_METRICS,
   metricDef,
@@ -11,23 +12,15 @@ const currencyFmt = '"$"#,##0.00'
 const countFmt = "#,##0"
 const workbookMimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-const titleFill: ExcelJS.Fill = {
+const sandFill: ExcelJS.Fill = {
   type: "pattern",
   pattern: "solid",
-  fgColor: { argb: "FFEAF4F8" },
+  fgColor: { argb: hexToArgb(BRAND.colour.sand) },
 }
 
-const headerFill: ExcelJS.Fill = {
-  type: "pattern",
-  pattern: "solid",
-  fgColor: { argb: "FFF2F2F2" },
-}
-
-const subtotalFills: ExcelJS.Fill[] = [
-  { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F1F8" } },
-  { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F6FA" } },
-  { type: "pattern", pattern: "solid", fgColor: { argb: "FFF7FAFC" } },
-]
+const titleFill = sandFill
+const headerFill = sandFill
+const subtotalFills: ExcelJS.Fill[] = [sandFill, sandFill, sandFill]
 
 function styleCell(
   cell: ExcelJS.Cell,

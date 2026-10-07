@@ -325,7 +325,7 @@ export function buildMediaItemsFromPlanDetail(
 }
 
 function readAssembledLogoBase64(): string {
-  return readFileSync(join(process.cwd(), "public/assembled-logo.png")).toString("base64")
+  return readFileSync(join(process.cwd(), "public/brand/logo-full-colour.png")).toString("base64")
 }
 
 export async function buildMediaItemsFromPersisted(args: {

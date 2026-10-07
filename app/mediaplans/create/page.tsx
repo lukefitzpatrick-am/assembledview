@@ -2982,7 +2982,7 @@ function CreateMediaPlan() {
     await waitForStateFlush();
 
     // fetch and encode logo
-    const logoBuf = await fetch('/assembled-logo.png').then(r => r.arrayBuffer())
+    const logoBuf = await fetch('/brand/logo-full-colour.png').then(r => r.arrayBuffer())
     const logoBase64 = bufferToBase64(logoBuf)
 
     const header: MediaPlanHeader = {

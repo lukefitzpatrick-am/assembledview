@@ -6,6 +6,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { formatAUD } from "./format/money";
 import { formatMbaScopeLine } from "./docs/mbaScope";
+import { applyBrandFonts, PDF_COLOURS } from "./pdf/brandPdf";
 
 // Keep your existing MBAData interface
 export interface MBAData {
@@ -98,13 +99,14 @@ export async function generateMBA(
   creationDate?: Date,
 ): Promise<Blob> {
   // Fetch the logo first
-  const logoBase64 = await getImageBase64('/assembled-logo.png');
+  const logoBase64 = await getImageBase64('/brand/logo-full-colour.png');
 
   const doc = new jsPDF({
     orientation: 'p',
     unit: 'mm',
     format: 'a4',
   });
+  await applyBrandFonts(doc);
 
   // jsPDF's constructor already called setCreationDate() with new Date().
   // setProperties() does not reach that variable (documentProperties is
@@ -140,8 +142,9 @@ export async function generateMBA(
   const drawChecksumFooter = () => {
     if (mbaData.draft || !mbaData.checksumFooter) return;
     const pageH = doc.internal.pageSize.getHeight();
-    doc.setFont("helvetica", "normal");
+    doc.setFont("PlusJakartaSans", "normal");
     doc.setFontSize(8);
+    doc.setTextColor(...PDF_COLOURS.muted);
     doc.text(
       mbaData.checksumFooter,
       margin.left + pageW,
@@ -155,21 +158,21 @@ export async function generateMBA(
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     doc.setGState(new GState({ opacity: 0.25 }));
-    doc.setFont("helvetica", "bold");
+    doc.setFont("PlusJakartaSans", "bold");
     doc.setFontSize(36);
-    doc.setTextColor(128, 128, 128);
+    doc.setTextColor(...PDF_COLOURS.muted);
     doc.text("DRAFT - NOT FOR CLIENT", pageWidth / 2, pageHeight / 2, {
       align: "center",
       angle: 45,
     });
     doc.setGState(new GState({ opacity: 1 }));
-    doc.setTextColor(0, 0, 0);
+    doc.setTextColor(...PDF_COLOURS.ink);
   };
 
   // --- Add Logo to the top right ---
   if (logoBase64) {
     const logoWidth = 45; // Width of logo in mm
-    const logoHeight = 9; // Height of logo in mm
+    const logoHeight = logoWidth * 148 / 1000; // Height of logo in mm
     const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
     const logoY = margin.top - 15; // Position it within the top margin area
     doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
@@ -178,7 +181,7 @@ export async function generateMBA(
   // --- Document Content Generation ---
 
   // Header
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(9);
   const dateLabel = `Date: ${mbaData.date}`;
   doc.text(dateLabel, margin.left, y);
@@ -192,7 +195,7 @@ export async function generateMBA(
   y += lineHeight * 2;
 
   // Campaign Info
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.text(`MBA: ${mbaData.mba_number}`, margin.left, y);
   y += lineHeight;
   doc.text(`Campaign Name: ${mbaData.campaign_name}`, margin.left, y);
@@ -209,10 +212,10 @@ export async function generateMBA(
   y += lineHeight * 2;
   
   // Client Address
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text(mbaData.client.name, margin.left, y);
   y += lineHeight;
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.text(mbaData.client.streetaddress, margin.left, y);
   y += lineHeight;
   doc.text(`${mbaData.client.suburb}, ${mbaData.client.state} ${mbaData.client.postcode}`, margin.left, y);
@@ -223,15 +226,15 @@ export async function generateMBA(
   y += lineHeight * 2;
 
   // Gross Media Table
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text('Media Type', margin.left, y);
   doc.text('Gross Media', margin.left + pageW, y, { align: 'right' });
   y += 2;
-  doc.setDrawColor(0);
+  doc.setDrawColor(...PDF_COLOURS.line);
   doc.line(margin.left, y, margin.left + pageW, y); // horizontal line
   y += lineHeight;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   mbaData.gross_media.forEach(item => {
     doc.text(item.media_type, margin.left, y);
     doc.text(formatAUD(item.gross_amount), margin.left + pageW, y, { align: 'right' });
@@ -243,57 +246,57 @@ export async function generateMBA(
   const totalsX = margin.left + (pageW / 2);
   const valueX = margin.left + pageW;
 
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text('Total Gross Media:', totalsX, y, { align: 'right' });
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.text(formatAUD(mbaData.totals.gross_media), valueX, y, { align: 'right' });
   y += lineHeight;
 
   if (mbaData.totals.client_paid_media != null) {
-    doc.setFont("helvetica", "bold");
+    doc.setFont("PlusJakartaSans", "bold");
     doc.text('Client Paid Media:', totalsX, y, { align: 'right' });
-    doc.setFont("helvetica", "normal");
+    doc.setFont("PlusJakartaSans", "normal");
     doc.text(formatAUD(mbaData.totals.client_paid_media), valueX, y, { align: 'right' });
     y += lineHeight;
   }
   
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text('Service Fee:', totalsX, y, { align: 'right' });
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.text(formatAUD(mbaData.totals.service_fee), valueX, y, { align: 'right' });
   y += lineHeight;
 
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text('Production:', totalsX, y, { align: 'right' });
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.text(formatAUD(mbaData.totals.production), valueX, y, { align: 'right' });
   y += lineHeight;
 
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text('Adserving/Tech:', totalsX, y, { align: 'right' });
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.text(formatAUD(mbaData.totals.adserving), valueX, y, { align: 'right' });
   y += lineHeight;
 
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text('Total ex. GST:', totalsX, y, { align: 'right' });
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.text(formatAUD(mbaData.totals.totals_ex_gst), valueX, y, { align: 'right' });
   y += lineHeight;
   
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text('Total inc. GST:', totalsX, y, { align: 'right' });
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.text(formatAUD(mbaData.totals.total_inc_gst), valueX, y, { align: 'right' });
   y += lineHeight * 3;
 
   // Client Approval
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text('Client Approval', margin.left, y);
   y += lineHeight * 1.5;
 
   ['Name:', 'Position:', 'Signature:', 'Date:'].forEach(label => {
-    doc.setFont("helvetica", "normal");
+    doc.setFont("PlusJakartaSans", "normal");
     doc.text(label, margin.left, y);
     doc.line(margin.left + 25, y, margin.left + pageW, y); // signature line
     y += lineHeight * 2;
@@ -306,14 +309,14 @@ export async function generateMBA(
   // --- Add Logo to the top right of the second page ---
   if (logoBase64) {
     const logoWidth = 45; // Width of logo in mm
-    const logoHeight = 9; // Height of logo in mm
+    const logoHeight = logoWidth * 148 / 1000; // Height of logo in mm
     const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
     const logoY = margin.top - 15; // Position it within the top margin area
     doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
   }
 
   // --- Billing Schedule Section ---
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(11);
   doc.text('Billing Schedule', margin.left, y);
   y += lineHeight * 2;
@@ -322,11 +325,11 @@ export async function generateMBA(
   doc.text('Month', margin.left, y);
   doc.text('Amount (ex. GST)', margin.left + pageW, y, { align: 'right' });
   y += 2;
-  doc.setDrawColor(0);
+  doc.setDrawColor(...PDF_COLOURS.line);
   doc.line(margin.left, y, margin.left + pageW, y); // horizontal line
   y += lineHeight;
   
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   mbaData.billingSchedule.forEach(b => {
     doc.text(b.monthYear, margin.left, y);
     doc.text(formatAUD(parseCurrency(b.totalAmount)), margin.left + pageW, y, { align: 'right' });
@@ -334,16 +337,16 @@ export async function generateMBA(
   });
 
   y += 2;
-  doc.setDrawColor(0);
+  doc.setDrawColor(...PDF_COLOURS.ink);
   doc.line(margin.left, y, margin.left + pageW, y); // divider above grand totals
   y += lineHeight;
 
   const billingTotalsX = margin.left + (pageW / 2);
   const billingValueX = margin.left + pageW;
 
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text('Total (ex. GST):', billingTotalsX, y, { align: 'right' });
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.text(
     formatAUD(mbaData.totals.billing_ex_gst ?? mbaData.totals.totals_ex_gst),
     billingValueX,
@@ -352,9 +355,9 @@ export async function generateMBA(
   );
   y += lineHeight;
 
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text('Total (inc. GST):', billingTotalsX, y, { align: 'right' });
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.text(
     formatAUD(mbaData.totals.billing_inc_gst ?? mbaData.totals.total_inc_gst),
     billingValueX,

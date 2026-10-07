@@ -268,7 +268,7 @@ pct === 100 → fee = 0 (division guard)
 - No hex colours or arbitrary hex classes in `app/**` or `components/**`. ESLint enforces it. Files on the DS-2 baseline ignore list are debt and the list only shrinks. Chart palette constants and tenant brand colours are excepted.
 - Amber and coral are functional status colours: behind, over-pacing, critical, overdue. Never charts, buttons or decoration.
 - Lime and sky are never text on white or sand.
-- Exports: Excel and email set Aptos by name; PDFs embed Plus Jakarta Sans. Aptos font files are never bundled into the repo or generated files.
+- Exports read lib/brand: PDFs embed Plus Jakarta Sans via lib/pdf/brandPdf.ts; Excel uses Aptos and BRAND ARGB; email uses EMAIL_FONT_STACK. Aptos font files are never bundled into the repo or generated files.
 - No chart hard-codes a hex — use `lib/chart-theme.ts` / `lib/charts/registry.ts`. Media-type pills resolve colour through `getMediaBadgeStyle` / `MEDIA_TYPE_REGISTRY` (`MediaChannelTag`). Home `/dashboard` and `/mediaplans` list flags go through `campaignMediaTypeTagLabels` (registry labels). Do not add a local Tailwind channel-tone switch.
 - Media type colour comes from its channel family in `lib/design/mediaFamilies.ts`. It appears only as dots, stripes, rails, accent borders and chart marks. It is never text, never a button or toggle fill, never a shadow or ring. Active segments use the lime pill with ink text.
 - Delivery daily-chart series (`key` / `label` / `yAxis` / optional `format`) is `DeliveryDailyChartSeries` only — `ChannelAggregate.chart.series` and `LineItemBlock` `DailyChart.series` import it. ComboChart bars default `dollars`, lines default `number`.

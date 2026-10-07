@@ -18,7 +18,7 @@ import { buildMbaDataFromExplodeAdapter } from "../mbaDataFromExplode.js"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const LOGO = readFileSync(
-  join(process.cwd(), "public/assembled-logo.png"),
+  join(process.cwd(), "public/brand/logo-full-colour.png"),
 ).toString("base64")
 
 const plan = JSON.parse(

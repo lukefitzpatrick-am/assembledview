@@ -7,6 +7,7 @@ import { describe, it } from "node:test"
 import ExcelJS from "exceljs"
 
 import { generateMBA, type MBAData } from "../../generateMBA.js"
+import { pdfText } from "./pdfText.js"
 import {
   addKPISheet,
   generateMediaPlan,
@@ -184,45 +185,50 @@ describe("generateMBA draft stamp", () => {
   })
 
   it("draws DRAFT - NOT FOR CLIENT on every page and DRAFT beside the date", async () => {
-    const latin1 = Buffer.from(
+    const buf = Buffer.from(
       await (
         await generateMBA(
           fixtureMbaData({ draft: true }),
           FIXED_PDF_CREATION_DATE
         )
       ).arrayBuffer()
-    ).toString("latin1")
-    const pages = pdfPageCount(latin1)
+    )
+    const pages = pdfPageCount(buf.toString("latin1"))
+    const text = await pdfText(buf)
     assert.ok(pages >= 1)
     assert.ok(
-      countOccurrences(latin1, DRAFT_MARK) >= pages,
+      countOccurrences(text, DRAFT_MARK) >= pages,
       `expected stamp on all ${pages} pages`
     )
-    assert.ok(latin1.includes("Date: 15/09/2026"))
-    assert.ok(latin1.includes("DRAFT"))
+    assert.ok(text.includes("Date: 15/09/2026"))
+    assert.ok(text.includes("DRAFT"))
   })
 
   it("does not draw the checksum footer under draft even when checksumFooter is set", async () => {
-    const latin1 = Buffer.from(
-      await (
-        await generateMBA(
-          fixtureMbaData({ draft: true, checksumFooter: CHECKSUM }),
-          FIXED_PDF_CREATION_DATE
-        )
-      ).arrayBuffer()
-    ).toString("latin1")
-    assert.equal(latin1.includes(CHECKSUM), false)
-    assert.equal(latin1.includes("abcd1234"), false)
+    const text = await pdfText(
+      Buffer.from(
+        await (
+          await generateMBA(
+            fixtureMbaData({ draft: true, checksumFooter: CHECKSUM }),
+            FIXED_PDF_CREATION_DATE
+          )
+        ).arrayBuffer()
+      )
+    )
+    assert.equal(text.includes(CHECKSUM), false)
+    assert.equal(text.includes("abcd1234"), false)
   })
 
   it("still draws the checksum footer when draft is omitted", async () => {
-    const latin1 = Buffer.from(
-      await (
-        await generateMBA(fixtureMbaData(), FIXED_PDF_CREATION_DATE)
-      ).arrayBuffer()
-    ).toString("latin1")
-    assert.ok(latin1.includes(CHECKSUM))
-    assert.equal(latin1.includes(DRAFT_MARK), false)
+    const text = await pdfText(
+      Buffer.from(
+        await (
+          await generateMBA(fixtureMbaData(), FIXED_PDF_CREATION_DATE)
+        ).arrayBuffer()
+      )
+    )
+    assert.ok(text.includes(CHECKSUM))
+    assert.equal(text.includes(DRAFT_MARK), false)
   })
 })
 
@@ -240,10 +246,10 @@ describe("generateMediaPlan draft stamp", () => {
     const kpis = wb.getWorksheet("Campaign KPIs")
     assert.ok(media)
     assert.ok(kpis)
-    assert.equal(media.headerFooter.oddHeader, `&C&"Arial,Bold"&20${DRAFT_MARK}`)
-    assert.equal(media.headerFooter.oddFooter, `&C&"Arial,Bold"&20${DRAFT_MARK}`)
-    assert.equal(kpis.headerFooter.oddHeader, `&C&"Arial,Bold"&20${DRAFT_MARK}`)
-    assert.equal(kpis.headerFooter.oddFooter, `&C&"Arial,Bold"&20${DRAFT_MARK}`)
+    assert.equal(media.headerFooter.oddHeader, `&C&"Aptos,Bold"&20${DRAFT_MARK}`)
+    assert.equal(media.headerFooter.oddFooter, `&C&"Aptos,Bold"&20${DRAFT_MARK}`)
+    assert.equal(kpis.headerFooter.oddHeader, `&C&"Aptos,Bold"&20${DRAFT_MARK}`)
+    assert.equal(kpis.headerFooter.oddFooter, `&C&"Aptos,Bold"&20${DRAFT_MARK}`)
     assert.ok(worksheetHasRotatedDraft(media), "Media Plan missing rotated DRAFT cell")
     assert.ok(worksheetHasRotatedDraft(kpis), "Campaign KPIs missing rotated DRAFT cell")
     assert.equal(media.getCell("G4").value, "Approved")
@@ -261,7 +267,7 @@ describe("generateMediaPlan draft stamp", () => {
     assert.ok(kpis)
     assert.notEqual(
       media.headerFooter.oddHeader,
-      `&C&"Arial,Bold"&20${DRAFT_MARK}`
+      `&C&"Aptos,Bold"&20${DRAFT_MARK}`
     )
     assert.equal(worksheetHasRotatedDraft(media), false)
     assert.equal(worksheetHasRotatedDraft(kpis), false)

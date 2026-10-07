@@ -99,6 +99,8 @@ const nextConfig = {
     "/api/planning/insight": ["./lib/ava/skills/content/**"],
     "/api/chat-v2": ["./lib/ava/skills/content/**"],
     "/api/campaign-reads/generate": ["./lib/ava/skills/content/**"],
+    "/api/mba/generate": ["./public/brand/**"],
+    "/api/scopes-of-work/generate-pdf": ["./public/brand/**"],
   },
   webpack: (config, { isServer, dev }) => {
     config.resolve.extensionAlias = { ".js": [".js", ".ts", ".tsx"] }

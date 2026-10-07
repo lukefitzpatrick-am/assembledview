@@ -110,7 +110,7 @@ function emptyMediaItems(): MediaItems {
 
 function readAssembledLogoBase64(): string {
   try {
-    return readFileSync(join(process.cwd(), "public/assembled-logo.png")).toString(
+    return readFileSync(join(process.cwd(), "public/brand/logo-full-colour.png")).toString(
       "base64"
     )
   } catch {

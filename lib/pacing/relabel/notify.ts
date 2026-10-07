@@ -1,5 +1,7 @@
 import "server-only"
 
+import { BRAND, EMAIL_FONT_STACK } from "@/lib/brand"
+
 import { getAsOfDate } from "@/lib/pacing/maths"
 import type { RelabelPreview } from "./shared/types"
 import type { DeliveryRelabelRow } from "./repo"
@@ -177,7 +179,7 @@ export async function notifyRelabel(input: RelabelNotifyInput, deps: RelabelNoti
   await deps.sendHtmlEmail({
     to,
     subject: title,
-    html: `<pre style="font-family:Arial,Helvetica,sans-serif;font-size:13px;white-space:pre-wrap;">${escapeHtml(body)}</pre>`,
+    html: `<pre style="font-family:${EMAIL_FONT_STACK};font-size:13px;white-space:pre-wrap;">${escapeHtml(body)}</pre>`,
     text: body,
   })
 }

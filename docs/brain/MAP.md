@@ -212,6 +212,7 @@ Touch these and you are touching everything. Check `BLAST-RADIUS.md` first, ever
 | `lib/brand/tokens.json`, `lib/brand/index.ts` | Single source for brand colour, type and radius. `readableTextOn` picks ink or white. CSS variables in `app/globals.css` and `styles/chart-tokens.css` match it (`npm run test:brand`) |
 | `components/brand/EntityMark.tsx` | Only paint for a client or publisher colour (`ClientMark`, `PublisherMark`) |
 | `components/brand/BrandLoading.tsx`, `public/brand/` | Dot-mark loading state. Logos, sign-in arches, and `icon-512.png` live in `public/brand/`. App icons are `app/icon.svg` and `app/apple-icon.png` |
+| `lib/pdf/brandPdf.ts` | Plus Jakarta Sans and `PDF_COLOURS` for MBA, billing schedule and scope PDFs. Excel and email read `lib/brand` (`BRAND.font.excel`, `EMAIL_FONT_STACK`) |
 | `middleware.ts` | Authentication only. Never assume it did a tenant check |
 
 ## Shared layout

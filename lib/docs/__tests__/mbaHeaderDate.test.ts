@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url"
 
 import { generateMBA, type MBAData } from "../../generateMBA.js"
 import { mbaHeaderDateLabel } from "../buildMbaFromPersisted.js"
+import { pdfText } from "./pdfText.js"
 
 const srcPath = join(dirname(fileURLToPath(import.meta.url)), "../buildMbaFromPersisted.ts")
 const src = readFileSync(srcPath, "utf8")
@@ -83,12 +84,12 @@ describe("MBA PDF header Date", () => {
       billingSchedule: [{ monthYear: "January 2026", totalAmount: "110" }],
     }
     const buf = Buffer.from(await (await generateMBA(data)).arrayBuffer())
-    const latin1 = buf.toString("latin1")
-    assert.ok(latin1.includes("Date: 05/09/2026"), "header Date must be Melbourne generation day")
+    const text = await pdfText(buf)
+    assert.ok(text.includes("Date: 05/09/2026"), "header Date must be Melbourne generation day")
     assert.ok(
-      latin1.includes("Campaign Dates: From 01/01/2026 to 31/12/2026"),
+      text.includes("Campaign Dates: From 01/01/2026 to 31/12/2026"),
       "campaign dates stay on their own line"
     )
-    assert.ok(!latin1.includes("Date: 01/01/2026"))
+    assert.ok(!text.includes("Date: 01/01/2026"))
   })
 })

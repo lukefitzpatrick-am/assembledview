@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { addGst } from '@/lib/finance/gst';
 import { formatMoney, parseMoneyInput } from '@/lib/format/money';
+import { applyBrandFonts, PDF_COLOURS } from '@/lib/pdf/brandPdf';
 
 export interface BillingSchedulePDFData {
   date: string;
@@ -61,13 +62,14 @@ const getImageBase64 = async (url: string) => {
 
 export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): Promise<Blob> {
   // Fetch the logo first
-  const logoBase64 = await getImageBase64('/assembled-logo.png');
+  const logoBase64 = await getImageBase64('/brand/logo-full-colour.png');
 
   const doc = new jsPDF({
     orientation: 'p',
     unit: 'mm',
     format: 'a4',
   });
+  await applyBrandFonts(doc);
 
   const margin = {
     top: 25,
@@ -83,20 +85,20 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
   // Add Logo to the top right
   if (logoBase64) {
     const logoWidth = 45;
-    const logoHeight = 9;
+    const logoHeight = logoWidth * 148 / 1000;
     const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
     const logoY = margin.top - 15;
     doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
   }
 
   // Header
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "extrabold");
   doc.setFontSize(11);
   doc.text('Billing Schedule', margin.left, y);
   y += lineHeight * 2;
 
   // Campaign Info
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   doc.text(`Date: ${data.date}`, margin.left, y);
   y += lineHeight;
@@ -109,16 +111,16 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
   y += lineHeight * 2;
 
   // Billing Schedule Table
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(9);
   doc.text('Month', margin.left, y);
   doc.text('Amount (ex. GST)', margin.left + pageW, y, { align: 'right' });
   y += 2;
-  doc.setDrawColor(0);
+  doc.setDrawColor(...PDF_COLOURS.line);
   doc.line(margin.left, y, margin.left + pageW, y);
   y += lineHeight;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   let runningExGst = 0;
 
   // Process billing schedule entries
@@ -131,7 +133,7 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
       // Add logo to new page
       if (logoBase64) {
         const logoWidth = 45;
-        const logoHeight = 9;
+        const logoHeight = logoWidth * 148 / 1000;
         const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
         const logoY = margin.top - 15;
         doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
@@ -139,7 +141,7 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
     }
 
     // Month and total amount
-    doc.setFont("helvetica", "bold");
+    doc.setFont("PlusJakartaSans", "bold");
     doc.text(entry.monthYear, margin.left, y);
     
     // Calculate total for this month (ex-GST in both branches)
@@ -181,14 +183,14 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
           y = margin.top;
           if (logoBase64) {
             const logoWidth = 45;
-            const logoHeight = 9;
+            const logoHeight = logoWidth * 148 / 1000;
             const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
             const logoY = margin.top - 15;
             doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
           }
         }
         
-        doc.setFont("helvetica", "normal");
+        doc.setFont("PlusJakartaSans", "normal");
         doc.setFontSize(8);
         doc.text(`  ${mediaType.mediaType}:`, margin.left + 5, y);
         y += lineHeight * 0.8;
@@ -199,7 +201,7 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
             y = margin.top;
             if (logoBase64) {
               const logoWidth = 45;
-              const logoHeight = 9;
+              const logoHeight = logoWidth * 148 / 1000;
               const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
               const logoY = margin.top - 15;
               doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
@@ -220,13 +222,13 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
         y = margin.top;
         if (logoBase64) {
           const logoWidth = 45;
-          const logoHeight = 9;
+          const logoHeight = logoWidth * 148 / 1000;
           const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
           const logoY = margin.top - 15;
           doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
         }
       }
-      doc.setFont("helvetica", "normal");
+      doc.setFont("PlusJakartaSans", "normal");
       doc.setFontSize(8);
       doc.text(`  Service Fee: ${entry.feeTotal}`, margin.left + 5, y);
       y += lineHeight * 0.8;
@@ -238,13 +240,13 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
         y = margin.top;
         if (logoBase64) {
           const logoWidth = 45;
-          const logoHeight = 9;
+          const logoHeight = logoWidth * 148 / 1000;
           const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
           const logoY = margin.top - 15;
           doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
         }
       }
-      doc.setFont("helvetica", "normal");
+      doc.setFont("PlusJakartaSans", "normal");
       doc.setFontSize(8);
       doc.text(`  Adserving/Tech Fees: ${entry.adservingTechFees}`, margin.left + 5, y);
       y += lineHeight * 0.8;
@@ -256,13 +258,13 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
         y = margin.top;
         if (logoBase64) {
           const logoWidth = 45;
-          const logoHeight = 9;
+          const logoHeight = logoWidth * 148 / 1000;
           const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
           const logoY = margin.top - 15;
           doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
         }
       }
-      doc.setFont("helvetica", "normal");
+      doc.setFont("PlusJakartaSans", "normal");
       doc.setFontSize(8);
       doc.text(`  Production: ${entry.production}`, margin.left + 5, y);
       y += lineHeight * 0.8;
@@ -277,7 +279,7 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
     y = margin.top;
     if (logoBase64) {
       const logoWidth = 45;
-      const logoHeight = 9;
+      const logoHeight = logoWidth * 148 / 1000;
       const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
       const logoY = margin.top - 15;
       doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
@@ -285,22 +287,22 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
   }
 
   y += 2;
-  doc.setDrawColor(0);
+  doc.setDrawColor(...PDF_COLOURS.ink);
   doc.line(margin.left, y, margin.left + pageW, y);
   y += lineHeight;
 
   const totalsX = margin.left + (pageW / 2);
   const valueX = margin.left + pageW;
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(9);
   doc.text('Total (ex. GST):', totalsX, y, { align: 'right' });
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.text(formatCurrency(runningExGst), valueX, y, { align: 'right' });
   y += lineHeight;
 
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text('Total (inc. GST):', totalsX, y, { align: 'right' });
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.text(formatCurrency(addGst(runningExGst)), valueX, y, { align: 'right' });
 
   // Return the generated PDF as a Blob

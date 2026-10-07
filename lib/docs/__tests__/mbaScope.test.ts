@@ -6,6 +6,7 @@ import { describe, it } from "node:test"
 
 import type { ScheduleMonthRowInput } from "@/lib/finance/scheduleMonthsSource.js"
 import { generateMBA, type MBAData } from "../../generateMBA.js"
+import { pdfText } from "./pdfText.js"
 import {
   deriveMbaScope,
   formatMbaScopeLine,
@@ -298,11 +299,11 @@ describe("generateMBA scope header", () => {
       },
     })
     const buf = Buffer.from(await (await generateMBA(data)).arrayBuffer())
-    const latin1 = buf.toString("latin1")
-    assert.ok(latin1.includes("Scope: Partial MBA"))
-    assert.ok(latin1.includes("Radio only"))
-    assert.ok(latin1.includes("September 2026 only"))
-    assert.ok(latin1.includes("4 of 6 lines"))
+    const text = await pdfText(buf)
+    assert.ok(text.includes("Scope: Partial MBA"))
+    assert.ok(text.includes("Radio only"))
+    assert.ok(text.includes("September 2026 only"))
+    assert.ok(text.includes("4 of 6 lines"))
     assert.equal(formatMbaScopeLine(data.scope), RADIO_SEPTEMBER_LINE)
   })
 
@@ -322,9 +323,9 @@ describe("generateMBA scope header", () => {
     const a = Buffer.from(await (await generateMBA(data, FIXED_PDF_CREATION_DATE)).arrayBuffer())
     const b = Buffer.from(await (await generateMBA(data, FIXED_PDF_CREATION_DATE)).arrayBuffer())
     const c = Buffer.from(await (await generateMBA(withFalseScope, FIXED_PDF_CREATION_DATE)).arrayBuffer())
-    const latin1 = a.toString("latin1")
-    assert.equal(latin1.includes("Partial MBA"), false)
-    assert.equal(latin1.includes("Scope:"), false)
+    const text = await pdfText(a)
+    assert.equal(text.includes("Partial MBA"), false)
+    assert.equal(text.includes("Scope:"), false)
     assert.ok(a.equals(b), "same full MBAData must stay byte-identical")
     assert.ok(a.equals(c), "scope.partial false must not change PDF bytes")
   })

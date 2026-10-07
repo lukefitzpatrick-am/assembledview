@@ -35,7 +35,7 @@ const expected = JSON.parse(
 }
 
 const LOGO = readFileSync(
-  join(process.cwd(), "public/assembled-logo.png"),
+  join(process.cwd(), "public/brand/logo-full-colour.png"),
 ).toString("base64")
 
 function versionMapped(overrides: Record<string, unknown> = {}) {

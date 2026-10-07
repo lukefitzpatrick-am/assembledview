@@ -1,4 +1,5 @@
 import type ExcelJS from "exceljs"
+import { BRAND, hexToArgb } from "@/lib/brand"
 import { parseCurrency } from "@/lib/mediaplan/partialMba"
 import { getMediaTypeHeadersForSchedule } from "@/lib/billing/mediaTypeHeaders"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
@@ -82,7 +83,7 @@ export type BillingScheduleExcelMeta = {
   campaignEndLabel?: string
 }
 
-const greyFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } }
+const greyFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: hexToArgb(BRAND.colour.sand) } }
 const currencyFmt = '"$"#,##0.00'
 
 function styleCell(

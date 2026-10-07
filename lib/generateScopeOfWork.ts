@@ -4,6 +4,7 @@ import { jsPDF } from "jspdf";
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { formatAUD } from "./format/money";
+import { applyBrandFonts, PDF_COLOURS } from "./pdf/brandPdf";
 
 export interface ScopeOfWorkData {
   client_name: string;
@@ -66,13 +67,14 @@ const splitText = (doc: jsPDF, text: string, maxWidth: number): string[] => {
 
 export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<Blob> {
   // Fetch the logo first
-  const logoBase64 = await getImageBase64('/assembled-logo.png');
+  const logoBase64 = await getImageBase64('/brand/logo-full-colour.png');
 
   const doc = new jsPDF({
     orientation: 'p',
     unit: 'mm',
     format: 'a4',
   });
+  await applyBrandFonts(doc);
 
   const margin = {
     top: 25, // Increased top margin for logo
@@ -92,7 +94,7 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
       // Add logo to new page
       if (logoBase64) {
         const logoWidth = 45;
-        const logoHeight = 9;
+        const logoHeight = logoWidth * 148 / 1000;
         const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
         const logoY = margin.top - 15;
         doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
@@ -103,7 +105,7 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
   // --- Add Logo to the top right ---
   if (logoBase64) {
     const logoWidth = 45; // Width of logo in mm
-    const logoHeight = 9; // Height of logo in mm
+    const logoHeight = logoWidth * 148 / 1000; // Height of logo in mm
     const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
     const logoY = margin.top - 15; // Position it within the top margin area
     doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
@@ -112,12 +114,12 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
   // --- Document Content Generation ---
 
   // Header
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "extrabold");
   doc.setFontSize(11);
   doc.text("SCOPE OF WORK", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   doc.text(`Date: ${scopeData.scope_date}`, margin.left, y);
   y += lineHeight;
@@ -125,12 +127,12 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
   y += lineHeight * 2;
 
   // Client Information
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Client Information", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   doc.text(`Client Name: ${scopeData.client_name}`, margin.left, y);
   y += lineHeight;
@@ -141,12 +143,12 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
 
   // Project Information
   checkNewPage();
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Project Information", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   doc.text(`Project Name: ${scopeData.project_name}`, margin.left, y);
   y += lineHeight;
@@ -155,12 +157,12 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
 
   // Project Overview
   checkNewPage();
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Project Overview/Objectives", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   const overviewLines = splitText(doc, scopeData.project_overview || "N/A", pageW);
   overviewLines.forEach((line: string) => {
@@ -172,12 +174,12 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
 
   // Deliverables
   checkNewPage();
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Deliverables", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   const deliverablesLines = splitText(doc, scopeData.deliverables || "N/A", pageW);
   deliverablesLines.forEach((line: string) => {
@@ -189,12 +191,12 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
 
   // Tasks/Steps
   checkNewPage();
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Tasks/Steps", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   const tasksLines = splitText(doc, scopeData.tasks_steps || "N/A", pageW);
   tasksLines.forEach((line: string) => {
@@ -206,12 +208,12 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
 
   // Timelines
   checkNewPage();
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Timelines", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   const timelinesLines = splitText(doc, scopeData.timelines || "N/A", pageW);
   timelinesLines.forEach((line: string) => {
@@ -223,12 +225,12 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
 
   // Responsibilities
   checkNewPage();
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Responsibilities", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   const responsibilitiesLines = splitText(doc, scopeData.responsibilities || "N/A", pageW);
   responsibilitiesLines.forEach((line: string) => {
@@ -240,12 +242,12 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
 
   // Requirements
   checkNewPage();
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Requirements", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   const requirementsLines = splitText(doc, scopeData.requirements || "N/A", pageW);
   requirementsLines.forEach((line: string) => {
@@ -257,12 +259,12 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
 
   // Assumptions
   checkNewPage();
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Assumptions", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   const assumptionsLines = splitText(doc, scopeData.assumptions || "N/A", pageW);
   assumptionsLines.forEach((line: string) => {
@@ -274,12 +276,12 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
 
   // Exclusions
   checkNewPage();
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Exclusions", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   const exclusionsLines = splitText(doc, scopeData.exclusions || "N/A", pageW);
   exclusionsLines.forEach((line: string) => {
@@ -291,24 +293,24 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
 
   // Cost Table
   checkNewPage();
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Cost Breakdown", margin.left, y);
   y += lineHeight * 1.5;
 
   // Table headers
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(9);
   doc.text("Expense Category", margin.left, y);
   doc.text("Description", margin.left + 50, y);
   doc.text("Cost", margin.left + pageW, y, { align: 'right' });
   y += 2;
-  doc.setDrawColor(0);
+  doc.setDrawColor(...PDF_COLOURS.line);
   doc.line(margin.left, y, margin.left + pageW, y); // horizontal line
   y += lineHeight;
 
   // Table rows
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   let totalCost = 0;
   
@@ -344,22 +346,22 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
   checkNewPage();
 
   // Total
-  doc.setDrawColor(0);
+  doc.setDrawColor(...PDF_COLOURS.ink);
   doc.line(margin.left, y, margin.left + pageW, y); // horizontal line
   y += lineHeight;
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.text("TOTAL (EX GST):", margin.left + (pageW / 2), y, { align: 'right' });
   doc.text(formatAUD(totalCost), margin.left + pageW, y, { align: 'right' });
   y += lineHeight * 2;
 
   // Payment Terms and Conditions
   checkNewPage();
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Payment Terms and Conditions", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   const paymentLines = splitText(doc, scopeData.payment_terms_and_conditions || "N/A", pageW);
   paymentLines.forEach((line: string) => {
@@ -372,23 +374,23 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
   // Billing Schedule
   if (scopeData.billing_schedule && Array.isArray(scopeData.billing_schedule) && scopeData.billing_schedule.length > 0) {
     checkNewPage();
-    doc.setFont("helvetica", "bold");
+    doc.setFont("PlusJakartaSans", "bold");
     doc.setFontSize(10);
     doc.text("Billing Schedule", margin.left, y);
     y += lineHeight * 1.5;
 
     // Table headers
-    doc.setFont("helvetica", "bold");
+    doc.setFont("PlusJakartaSans", "bold");
     doc.setFontSize(9);
     doc.text("Month", margin.left, y);
     doc.text("Cost", margin.left + pageW, y, { align: 'right' });
     y += 2;
-    doc.setDrawColor(0);
+    doc.setDrawColor(...PDF_COLOURS.line);
     doc.line(margin.left, y, margin.left + pageW, y); // horizontal line
     y += lineHeight;
 
     // Table rows
-    doc.setFont("helvetica", "normal");
+    doc.setFont("PlusJakartaSans", "normal");
     doc.setFontSize(9);
     
     scopeData.billing_schedule.forEach((item) => {
@@ -415,12 +417,12 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
 
   // Client Approval
   checkNewPage();
-  doc.setFont("helvetica", "bold");
+  doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(10);
   doc.text("Client Approval", margin.left, y);
   y += lineHeight * 1.5;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("PlusJakartaSans", "normal");
   doc.setFontSize(9);
   ['Name:', 'Position:', 'Signature:', 'Date:'].forEach(label => {
     checkNewPage();

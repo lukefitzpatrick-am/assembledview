@@ -9,6 +9,7 @@ import ExcelJS from "exceljs"
 
 import type { DraftDocumentsBody } from "../draftDocumentsBody.js"
 import { renderDraftDocuments } from "../renderDraftDocuments.js"
+import { pdfText } from "./pdfText.js"
 
 function fixtureSaveBody(
   overrides: Partial<DraftDocumentsBody> = {}
@@ -79,9 +80,9 @@ describe("renderDraftDocuments MBA", () => {
     assert.equal(result.mime, "application/pdf")
     assert.match(result.filename, /^DRAFT-MBA_/)
     assert.match(result.filename, /not-for-client\.pdf$/)
-    const latin1 = result.buffer.toString("latin1")
-    assert.ok(latin1.includes("DRAFT - NOT FOR CLIENT"))
-    assert.equal(latin1.includes("v1 ·"), false)
+    const text = await pdfText(result.buffer)
+    assert.ok(text.includes("DRAFT - NOT FOR CLIENT"))
+    assert.equal(text.includes("v1 ·"), false)
   })
 })
 
@@ -102,7 +103,7 @@ describe("renderDraftDocuments Media Plan", () => {
     assert.ok(sheet)
     assert.equal(
       sheet.headerFooter.oddHeader,
-      `&C&"Arial,Bold"&20DRAFT - NOT FOR CLIENT`
+      `&C&"Aptos,Bold"&20DRAFT - NOT FOR CLIENT`
     )
   })
 })

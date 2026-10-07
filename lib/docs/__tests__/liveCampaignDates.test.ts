@@ -10,6 +10,7 @@ import { describe, it } from "node:test"
 import { fileURLToPath } from "node:url"
 
 import { generateMBA, type MBAData } from "../../generateMBA.js"
+import { pdfText } from "./pdfText.js"
 import { deriveLiveMbaScopeSelection } from "../liveMbaScopeSelection.js"
 import {
   liveCampaignDatesIfChanged,
@@ -230,10 +231,10 @@ describe("generateMBA datesUnsaved line", () => {
       datesUnsaved: true,
     })
     const buf = Buffer.from(await (await generateMBA(data)).arrayBuffer())
-    const latin1 = buf.toString("latin1")
-    assert.ok(latin1.includes("Campaign Dates: From 01/02/2026 to 30/11/2026"))
-    assert.equal(latin1.includes("Dates as edited in the plan"), false)
-    assert.equal(latin1.includes("not yet saved"), false)
+    const text = await pdfText(buf)
+    assert.ok(text.includes("Campaign Dates: From 01/02/2026 to 30/11/2026"))
+    assert.equal(text.includes("Dates as edited in the plan"), false)
+    assert.equal(text.includes("not yet saved"), false)
   })
 
   it("datesUnsaved true does not change PDF bytes when campaign dates match", async () => {
@@ -252,10 +253,10 @@ describe("generateMBA datesUnsaved line", () => {
     const a = Buffer.from(await (await generateMBA(data, FIXED_PDF_CREATION_DATE)).arrayBuffer())
     const b = Buffer.from(await (await generateMBA(data, FIXED_PDF_CREATION_DATE)).arrayBuffer())
     const c = Buffer.from(await (await generateMBA(withFalse, FIXED_PDF_CREATION_DATE)).arrayBuffer())
-    const latin1 = a.toString("latin1")
-    assert.ok(latin1.includes("Campaign Dates: From 01/01/2026 to 31/12/2026"))
-    assert.equal(latin1.includes("Dates as edited in the plan"), false)
-    assert.equal(latin1.includes("not yet saved"), false)
+    const text = await pdfText(a)
+    assert.ok(text.includes("Campaign Dates: From 01/01/2026 to 31/12/2026"))
+    assert.equal(text.includes("Dates as edited in the plan"), false)
+    assert.equal(text.includes("not yet saved"), false)
     assert.ok(a.equals(b), "same MBAData must stay byte-identical")
     assert.ok(a.equals(c), "datesUnsaved false must not change PDF bytes")
   })

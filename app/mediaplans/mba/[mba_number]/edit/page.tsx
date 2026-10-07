@@ -9329,7 +9329,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     const variant = opts?.variant ?? "standard"
 
     // fetch and encode logo
-    const logoBuf = await fetch("/assembled-logo.png").then(r => r.arrayBuffer())
+    const logoBuf = await fetch("/brand/logo-full-colour.png").then(r => r.arrayBuffer())
     const logoBase64 = bufferToBase64(logoBuf)
 
     const fv = form.getValues()

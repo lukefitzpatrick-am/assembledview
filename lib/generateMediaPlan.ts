@@ -1,7 +1,52 @@
 import type ExcelJS from 'exceljs';
 import { prorateAcrossMonths } from '@/lib/billing/prorateAcrossMonths';
+import { BRAND, hexToArgb, readableTextOn } from '@/lib/brand';
+import { familyColour, MEDIA_TYPE_FAMILY, type MediaTypeThemeKey } from '@/lib/design/mediaFamilies';
 import { formatBuyTypeForExport } from '@/lib/mediaplan/buyTypeLabels';
 import { OOH_FORMAT_LABEL_BY_VALUE } from '@/lib/mediaplan/expertOohFuzzyMatch';
+
+const ARGB_INK = hexToArgb(BRAND.colour.ink)
+const ARGB_SAND = hexToArgb(BRAND.colour.sand)
+const ARGB_LINE = hexToArgb(BRAND.colour.line)
+const ARGB_WHITE = hexToArgb(BRAND.colour.white)
+const ARGB_LIME = hexToArgb(BRAND.colour.lime)
+const ARGB_LIME_TEXT = hexToArgb(readableTextOn(BRAND.colour.lime))
+const ARGB_FOREST = hexToArgb(BRAND.colour.forest)
+const ARGB_MUTED = hexToArgb(BRAND.colour.muted)
+
+const GANTT_MEDIA_KEY: Record<string, MediaTypeThemeKey> = {
+  television: "television",
+  radio: "radio",
+  newspaper: "newspaper",
+  magazines: "magazines",
+  ooh: "ooh",
+  cinema: "cinema",
+  "digital display": "digidisplay",
+  "digital audio": "digiaudio",
+  "digital video": "digivideo",
+  bvod: "bvod",
+  search: "search",
+  "social media": "socialmedia",
+  "programmatic display": "progdisplay",
+  "programmatic video": "progvideo",
+  "programmatic bvod": "progbvod",
+  "programmatic audio": "progaudio",
+  "programmatic ooh": "progooh",
+  integration: "integration",
+  influencers: "influencers",
+  production: "production",
+}
+
+function familyHexForLabel(label: string): string {
+  const key = GANTT_MEDIA_KEY[label]
+  return key ? familyColour(key) : BRAND.colour.forest
+}
+
+function familyHexForKpiKey(mediaType: string): string {
+  const key = mediaType.replace(/[^a-zA-Z]/g, "").toLowerCase()
+  if (key in MEDIA_TYPE_FAMILY) return familyColour(key as MediaTypeThemeKey)
+  return BRAND.colour.forest
+}
 
 const KPI_MEDIA_LABELS: Record<string, string> = {
   television: 'Television', radio: 'Radio', newspaper: 'Newspaper',
@@ -15,30 +60,7 @@ const KPI_MEDIA_LABELS: Record<string, string> = {
   production: 'Production',
 }
 
-// ARGB strings for ExcelJS (FF = fully opaque)
-const KPI_MEDIA_COLORS: Record<string, string> = {
-  television: 'FF1565C0', radio: 'FF6A1B9A', newspaper: 'FF37474F',
-  magazines: 'FFAD1457', ooh: 'FFE65100', cinema: 'FFB71C1C',
-  digiDisplay: 'FF00695C', digiAudio: 'FF1A237E', digiVideo: 'FF4527A0',
-  bvod: 'FFF57F17', integration: 'FF2E7D32', search: 'FF1B5E20',
-  socialMedia: 'FF0D47A1', progDisplay: 'FF263238', progVideo: 'FF311B92',
-  progBvod: 'FFF9A825', progAudio: 'FFBF360C', progOoh: 'FF558B2F',
-  influencers: 'FF880E4F', production: 'FF4E342E',
-}
-
-// Lighter tint (30% opacity approximation) for subtotal rows
-const KPI_MEDIA_TINTS: Record<string, string> = {
-  television: 'FFD6E4F5', radio: 'FFE8D5F5', newspaper: 'FFD6DEE1',
-  magazines: 'FFF5D0E0', ooh: 'FFF5D5C2', cinema: 'FFF5C2C2',
-  digiDisplay: 'FFC8E6E3', digiAudio: 'FFCFD8F5', digiVideo: 'FFD9D1F5',
-  bvod: 'FFFDE8C0', integration: 'FFC8E6C9', search: 'FFC8E6C9',
-  socialMedia: 'FFCCE0F5', progDisplay: 'FFD1D5D8', progVideo: 'FFD3CCF0',
-  progBvod: 'FFFDE8A8', progAudio: 'FFF5D0C5', progOoh: 'FFD7E8C8',
-  influencers: 'FFF2CCDC', production: 'FFD8CEC9',
-}
-
-// Excel export section fills (ARGB) — section totals use FFBDDC52 inline as totalFill
-const SUBTOTAL_FILL = 'FFF2F2F2'; // very light grey; nudge to 'FFE9E9E9' if too subtle
+const SUBTOTAL_FILL = ARGB_SAND
 
 export interface MediaPlanHeader {
   logoBase64: string;
@@ -254,7 +276,7 @@ export type GenerateMediaPlanOptions = {
 }
 
 const DRAFT_STAMP_TEXT = 'DRAFT - NOT FOR CLIENT'
-const DRAFT_HEADER_FOOTER = `&C&"Arial,Bold"&20${DRAFT_STAMP_TEXT}`
+const DRAFT_HEADER_FOOTER = `&C&"${BRAND.font.excel},Bold"&20${DRAFT_STAMP_TEXT}`
 
 function cellText(cell: ExcelJS.Cell): string {
   const v = cell.value
@@ -282,10 +304,10 @@ export function applyDraftStampToWorksheet(sheet: ExcelJS.Worksheet): void {
   const cell = sheet.getCell(1, stampCol)
   cell.value = 'DRAFT'
   cell.font = {
-    name: 'Arial',
+    name: BRAND.font.excel,
     size: 72,
     bold: true,
-    color: { argb: 'FF999999' },
+    color: { argb: ARGB_MUTED },
   }
   cell.alignment = {
     horizontal: 'center',
@@ -467,7 +489,7 @@ export async function generateMediaPlan(
   ) => {
     const c = typeof cellOrRef === 'string' ? sheet.getCell(cellOrRef) : cellOrRef;
     if (options.value !== undefined) c.value = options.value;
-    c.font = { name: 'Aptos', size: options.fontSize ?? 15, bold: options.bold ?? false, color: options.fontColor ? { argb: options.fontColor } : undefined };
+    c.font = { name: BRAND.font.excel, size: options.fontSize ?? 15, bold: options.bold ?? false, color: options.fontColor ? { argb: options.fontColor } : undefined };
     c.alignment = { horizontal: options.align ?? 'left', vertical: options.verticalAlign ?? 'middle', wrapText: false, textRotation: options.textRotation as any }; // wrapText false by default
     if (options.fill) c.fill = options.fill;
     if (options.numFmt) c.numFmt = options.numFmt;
@@ -476,7 +498,7 @@ export async function generateMediaPlan(
   style('D2', { value: 'Media Plan', fontSize: 30, bold: true, align: 'left', verticalAlign: 'middle' });
 
   const headerFontSize = 15;
-  const greyFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+  const greyFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_SAND } };
   // Left column
   style('B3', { value: 'Client', bold: true, align: 'right', fontSize: headerFontSize }); style('C3', { value: client, align: 'left', fontSize: headerFontSize, fill: greyFill });
   style('B4', { value: 'Brand', bold: true, align: 'right', fontSize: headerFontSize }); style('C4', { value: brand, align: 'left', fontSize: headerFontSize, fill: greyFill });
@@ -506,15 +528,15 @@ export async function generateMediaPlan(
 
   const msPerDay = 1000 * 60 * 60 * 24;
   const lightDashedBorder: Partial<ExcelJS.Borders> = {
-   top: { style: 'dashed', color: { argb: 'FFBFBFBF' } }, left: { style: 'dashed', color: { argb: 'FFBFBFBF' } },
-   bottom: { style: 'dashed', color: { argb: 'FFBFBFBF' } }, right: { style: 'dashed', color: { argb: 'FFBFBFBF' } }
+   top: { style: 'dashed', color: { argb: ARGB_LINE } }, left: { style: 'dashed', color: { argb: ARGB_LINE } },
+   bottom: { style: 'dashed', color: { argb: ARGB_LINE } }, right: { style: 'dashed', color: { argb: ARGB_LINE } }
   };
 
   const blackBorder: Partial<ExcelJS.Borders> = {
-    top: { style: 'thin', color: { argb: 'FF000000' } }, 
-    left: { style: 'thin', color: { argb: 'FF000000' } },
-    bottom: { style: 'thin', color: { argb: 'FF000000' } }, 
-    right: { style: 'thin', color: { argb: 'FF000000' } }
+    top: { style: 'thin', color: { argb: ARGB_INK } }, 
+    left: { style: 'thin', color: { argb: ARGB_INK } },
+    bottom: { style: 'thin', color: { argb: ARGB_INK } }, 
+    right: { style: 'thin', color: { argb: ARGB_INK } }
   };
 
   const firstDateCol = 15; // Column O
@@ -524,7 +546,6 @@ export async function generateMediaPlan(
 
   // Track merged gantt ranges per row to avoid double-merging when line items repeat
   const mergedGanttRanges = new Map<number, { start: number; end: number }[]>();
-  const ganttFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD02A60' } };
 
   function mergeBurstCells(
     itemRow: number,
@@ -533,6 +554,9 @@ export async function generateMediaPlan(
     deliverables: number | string,
     errorContext: string
   ) {
+    const ganttHex = familyHexForLabel(errorContext)
+    const ganttFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hexToArgb(ganttHex) } }
+    const ganttText = hexToArgb(readableTextOn(ganttHex))
     const existingRanges = mergedGanttRanges.get(itemRow) ?? [];
     const overlap = existingRanges.find(r => ganttStart <= r.end && ganttEnd >= r.start);
 
@@ -552,7 +576,7 @@ export async function generateMediaPlan(
         align: 'center',
         verticalAlign: 'middle',
         fill: ganttFill,
-        fontColor: 'FFFFFFFF',
+        fontColor: ganttText,
         numFmt: '#,##0'
       });
       targetCell.border = lightDashedBorder;
@@ -568,7 +592,7 @@ export async function generateMediaPlan(
         align: 'center',
         verticalAlign: 'middle',
         fill: ganttFill,
-        fontColor: 'FFFFFFFF',
+        fontColor: ganttText,
         numFmt: '#,##0'
       });
       cell.border = lightDashedBorder;
@@ -767,16 +791,16 @@ export async function generateMediaPlan(
       fontSize: 14,
       bold: true,
       align: 'left',
-      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF000000' } },
-      fontColor: 'FFFFFFFF'
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_INK } },
+      fontColor: ARGB_WHITE
     });
     r++;
 
     // Grey header row (Buy Type, Avg Rate, Gross Media, etc.) - month names in date columns on SAME row
-    const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF808080' } };
+    const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_SAND } };
     headersToUse.forEach((h, i) => {
       style(sheet.getCell(r, 2 + i), {
-        value: h, bold: true, align: 'left', fill: headerFill, fontColor: 'FFFFFFFF', fontSize: 14
+        value: h, bold: true, align: 'left', fill: headerFill, fontColor: ARGB_INK, fontSize: 14
       });
     });
     for (const { monthYear, startCol, endCol } of monthRanges) {
@@ -794,7 +818,7 @@ export async function generateMediaPlan(
         align: 'center',
         verticalAlign: 'middle',
         fill: headerFill,
-        fontColor: 'FFFFFFFF'
+        fontColor: ARGB_INK
       });
       cell.border = lightDashedBorder;
     }
@@ -1041,18 +1065,18 @@ export async function generateMediaPlan(
     }
     r++;
   
-    const totalFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDDC52' } };
+    const totalFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_LIME } };
     for (let colNum = 2; colNum <= headerLastColNum; colNum++) {
         style(sheet.getCell(r, colNum), { fill: totalFill });
     }
     sheet.mergeCells(r, 2, r, 12);
     style(sheet.getCell(r, 2), {
-      value: `Total ${title}`, bold: true, align: 'right', fill: totalFill, fontColor: 'FF000000'
+      value: `Total ${title}`, bold: true, align: 'right', fill: totalFill, fontColor: ARGB_INK
     });
 
     const sumGrossMedia = items.reduce((s, x) => s + x.grossMedia, 0);
     style(sheet.getCell(r, 14), {
-      value: sumGrossMedia, bold: true, align: 'right', numFmt: '$#,##0.00', fill: totalFill, fontColor: 'FF000000'
+      value: sumGrossMedia, bold: true, align: 'right', numFmt: '$#,##0.00', fill: totalFill, fontColor: ARGB_INK
     });
 
     // Monthly costs in date columns (calculated from line items - same as page)
@@ -1075,7 +1099,7 @@ export async function generateMediaPlan(
           align: 'center',
           verticalAlign: 'middle',
           fill: totalFill,
-          fontColor: 'FF000000',
+          fontColor: ARGB_INK,
           numFmt: '$#,##0.00'
         });
         cell.border = lightDashedBorder;
@@ -1090,22 +1114,22 @@ export async function generateMediaPlan(
     
     // Top border
     for (let cIdx = sectionStartCol; cIdx <= sectionEndCol; cIdx++) {
-      sheet.getCell(sectionStartRow, cIdx).border = { ...sheet.getCell(sectionStartRow, cIdx).border, top: { style: 'thin', color: { argb: 'FF000000' } } };
+      sheet.getCell(sectionStartRow, cIdx).border = { ...sheet.getCell(sectionStartRow, cIdx).border, top: { style: 'thin', color: { argb: ARGB_INK } } };
     }
     
     // Bottom border
     for (let cIdx = sectionStartCol; cIdx <= sectionEndCol; cIdx++) {
-      sheet.getCell(sectionEndRow, cIdx).border = { ...sheet.getCell(sectionEndRow, cIdx).border, bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+      sheet.getCell(sectionEndRow, cIdx).border = { ...sheet.getCell(sectionEndRow, cIdx).border, bottom: { style: 'thin', color: { argb: ARGB_INK } } };
     }
     
     // Left border
     for (let rIdx = sectionStartRow; rIdx <= sectionEndRow; rIdx++) {
-      sheet.getCell(rIdx, sectionStartCol).border = { ...sheet.getCell(rIdx, sectionStartCol).border, left: { style: 'thin', color: { argb: 'FF000000' } } };
+      sheet.getCell(rIdx, sectionStartCol).border = { ...sheet.getCell(rIdx, sectionStartCol).border, left: { style: 'thin', color: { argb: ARGB_INK } } };
     }
     
     // Right border
     for (let rIdx = sectionStartRow; rIdx <= sectionEndRow; rIdx++) {
-      sheet.getCell(rIdx, sectionEndCol).border = { ...sheet.getCell(rIdx, sectionEndCol).border, right: { style: 'thin', color: { argb: 'FF000000' } } };
+      sheet.getCell(rIdx, sectionEndCol).border = { ...sheet.getCell(rIdx, sectionEndCol).border, right: { style: 'thin', color: { argb: ARGB_INK } } };
     }
   
     return { dataSectionStartRow, rowByItemIndex, subtotalCount, sectionEndRow };
@@ -1854,7 +1878,7 @@ export async function generateMediaPlan(
       monthlyAdServing[monthYear] = adServingTotal * ratio;
     }
 
-    const summaryRowFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+    const summaryRowFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_SAND } };
 
     if (mbaTotalsLayout === 'standard' && serviceFeeTotal > 0) {
       for (let colNum = 2; colNum <= headerLastColNum; colNum++) {
@@ -1866,7 +1890,7 @@ export async function generateMediaPlan(
         bold: true,
         align: 'right',
         fill: summaryRowFill,
-        fontColor: 'FF000000'
+        fontColor: ARGB_INK
       });
       style(sheet.getCell(currentRow, 14), {
         value: serviceFeeTotal,
@@ -1874,7 +1898,7 @@ export async function generateMediaPlan(
         align: 'right',
         numFmt: '$#,##0.00',
         fill: summaryRowFill,
-        fontColor: 'FF000000'
+        fontColor: ARGB_INK
       });
       for (const { monthYear, startCol, endCol } of monthRanges) {
         const amount = monthlyServiceFee[monthYear] ?? 0;
@@ -1893,7 +1917,7 @@ export async function generateMediaPlan(
           align: 'center',
           verticalAlign: 'middle',
           fill: summaryRowFill,
-          fontColor: 'FF000000',
+          fontColor: ARGB_INK,
           numFmt: '$#,##0.00'
         });
         cell.border = lightDashedBorder;
@@ -1911,7 +1935,7 @@ export async function generateMediaPlan(
         bold: true,
         align: 'right',
         fill: summaryRowFill,
-        fontColor: 'FF000000'
+        fontColor: ARGB_INK
       });
       style(sheet.getCell(currentRow, 14), {
         value: adServingTotal,
@@ -1919,7 +1943,7 @@ export async function generateMediaPlan(
         align: 'right',
         numFmt: '$#,##0.00',
         fill: summaryRowFill,
-        fontColor: 'FF000000'
+        fontColor: ARGB_INK
       });
       for (const { monthYear, startCol, endCol } of monthRanges) {
         const amount = monthlyAdServing[monthYear] ?? 0;
@@ -1938,7 +1962,7 @@ export async function generateMediaPlan(
           align: 'center',
           verticalAlign: 'middle',
           fill: summaryRowFill,
-          fontColor: 'FF000000',
+          fontColor: ARGB_INK,
           numFmt: '$#,##0.00'
         });
         cell.border = lightDashedBorder;
@@ -1946,7 +1970,7 @@ export async function generateMediaPlan(
       currentRow++;
     }
 
-    const totalFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDDC52' } };
+    const totalFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_LIME } };
     // Campaign Total (col N) = core nettExGst (caller-supplied post-R2 totals_ex_gst).
     // Do not re-sum gross_media + fee + adserving — that omitted production and drifted from the MBA block.
     const grandTotalColN = mbaData?.totals?.totals_ex_gst ?? 0;
@@ -1960,7 +1984,7 @@ export async function generateMediaPlan(
       bold: true,
       align: 'right',
       fill: totalFill,
-      fontColor: 'FF000000'
+      fontColor: ARGB_INK
     });
 
     style(sheet.getCell(currentRow, 14), {
@@ -1969,7 +1993,7 @@ export async function generateMediaPlan(
       align: 'right',
       numFmt: '$#,##0.00',
       fill: totalFill,
-      fontColor: 'FF000000'
+      fontColor: ARGB_INK
     });
 
     for (const { monthYear, startCol, endCol } of monthRanges) {
@@ -1999,7 +2023,7 @@ export async function generateMediaPlan(
         align: 'center',
         verticalAlign: 'middle',
         fill: totalFill,
-        fontColor: 'FF000000',
+        fontColor: ARGB_INK,
         numFmt: '$#,##0.00'
       });
       cell.border = lightDashedBorder;
@@ -2125,7 +2149,7 @@ export async function generateMediaPlan(
         fontSize: 15,
         bold: true,
         align: 'left',
-        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } }
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_SAND } }
       });
       style(sheet.getCell(currentRow, 14), {
         value: totals.totals_ex_gst,
@@ -2133,7 +2157,7 @@ export async function generateMediaPlan(
         bold: true,
         align: 'right',
         numFmt: '$#,##0.00',
-        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } }
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_SAND } }
       });
       currentRow++;
 
@@ -2142,7 +2166,7 @@ export async function generateMediaPlan(
         fontSize: 15,
         bold: true,
         align: 'left',
-        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4E6F1' } }
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_SAND } }
       });
       style(sheet.getCell(currentRow, 14), {
         value: totals.total_inc_gst,
@@ -2150,7 +2174,7 @@ export async function generateMediaPlan(
         bold: true,
         align: 'right',
         numFmt: '$#,##0.00',
-        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4E6F1' } }
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_SAND } }
       });
       const tableEndRow = currentRow;
       
@@ -2161,25 +2185,25 @@ export async function generateMediaPlan(
       // Top border
       for (let cIdx = tableStartCol; cIdx <= tableEndCol; cIdx++) {
         const cell = sheet.getCell(tableStartRow, cIdx);
-        cell.border = { ...cell.border, top: { style: 'thin', color: { argb: 'FF000000' } } };
+        cell.border = { ...cell.border, top: { style: 'thin', color: { argb: ARGB_INK } } };
       }
       
       // Bottom border
       for (let cIdx = tableStartCol; cIdx <= tableEndCol; cIdx++) {
         const cell = sheet.getCell(tableEndRow, cIdx);
-        cell.border = { ...cell.border, bottom: { style: 'thin', color: { argb: 'FF000000' } } };
+        cell.border = { ...cell.border, bottom: { style: 'thin', color: { argb: ARGB_INK } } };
       }
       
       // Left border
       for (let rIdx = tableStartRow; rIdx <= tableEndRow; rIdx++) {
         const cell = sheet.getCell(rIdx, tableStartCol);
-        cell.border = { ...cell.border, left: { style: 'thin', color: { argb: 'FF000000' } } };
+        cell.border = { ...cell.border, left: { style: 'thin', color: { argb: ARGB_INK } } };
       }
       
       // Right border
       for (let rIdx = tableStartRow; rIdx <= tableEndRow; rIdx++) {
         const cell = sheet.getCell(rIdx, tableEndCol);
-        cell.border = { ...cell.border, right: { style: 'thin', color: { argb: 'FF000000' } } };
+        cell.border = { ...cell.border, right: { style: 'thin', color: { argb: ARGB_INK } } };
       }
     }
   }
@@ -2212,7 +2236,7 @@ export function addKPISheet(
   ws.mergeCells(r, 1, r, 13)
   const titleCell = ws.getCell(r, 1)
   titleCell.value = 'Campaign KPIs'
-  titleCell.font = { name: 'Aptos', size: 20, bold: true }
+  titleCell.font = { name: BRAND.font.excel, size: 20, bold: true }
   titleCell.alignment = { horizontal: 'left', vertical: 'middle' }
   ws.getRow(r).height = 30
   r++
@@ -2237,7 +2261,7 @@ export function addKPISheet(
     cell.value = value
     cell.numFmt = fmt
     cell.alignment = { horizontal: 'right', vertical: 'middle' }
-    if (bold) cell.font = { name: 'Aptos', size: 10, bold: true }
+    if (bold) cell.font = { name: BRAND.font.excel, size: 10, bold: true }
   }
 
   const writeMetric = (cell: ExcelJS.Cell, format: string, value: number | null) => {
@@ -2251,7 +2275,7 @@ export function addKPISheet(
   const txt = (cell: ExcelJS.Cell, value: string, bold = false, color?: string) => {
     cell.value = value
     cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false }
-    cell.font = { name: 'Aptos', size: 10, bold, color: color ? { argb: color } : undefined }
+    cell.font = { name: BRAND.font.excel, size: 10, bold, color: color ? { argb: color } : undefined }
   }
 
   const fillCell = (cell: ExcelJS.Cell, argb: string) => {
@@ -2260,13 +2284,14 @@ export function addKPISheet(
 
   for (const [mediaType, rows] of groups) {
     const label = KPI_MEDIA_LABELS[mediaType] ?? mediaType
-    const color = KPI_MEDIA_COLORS[mediaType] ?? 'FF333333'
-    const tint  = KPI_MEDIA_TINTS[mediaType]  ?? 'FFF0F0F0'
+    const familyHex = familyHexForKpiKey(mediaType)
+    const color = hexToArgb(familyHex)
+    const tint = ARGB_SAND
 
     // — Media type header row —
     ws.mergeCells(r, 1, r, 13)
     const hdrCell = ws.getCell(r, 1)
-    txt(hdrCell, label, true, 'FFFFFFFF')
+    txt(hdrCell, label, true, hexToArgb(readableTextOn(familyHex)))
     fillCell(hdrCell, color)
     ws.getRow(r).height = 18
     r++
@@ -2275,19 +2300,19 @@ export function addKPISheet(
     COL_HEADERS.forEach((h, i) => {
       const cell = ws.getCell(r, i + 1)
       cell.value = h
-      cell.font = { name: 'Aptos', size: 9, bold: true, color: { argb: 'FF333333' } }
+      cell.font = { name: BRAND.font.excel, size: 9, bold: true, color: { argb: ARGB_INK } }
       cell.alignment = { horizontal: i >= 4 ? 'right' : 'left', vertical: 'middle' }
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_SAND } }
     })
     ws.getRow(r).height = 14
     r++
 
     // — Data rows —
     rows.forEach((row, idx) => {
-      const rowFill = idx % 2 === 0 ? 'FFFFFFFF' : 'FFF8F8F8'
+      const rowFill = idx % 2 === 0 ? ARGB_WHITE : ARGB_SAND
       for (let c = 1; c <= 13; c++) {
         fillCell(ws.getCell(r, c), rowFill)
-        ws.getCell(r, c).font = { name: 'Aptos', size: 10 }
+        ws.getCell(r, c).font = { name: BRAND.font.excel, size: 10 }
       }
       txt(ws.getCell(r, 2), row.publisher)
       txt(ws.getCell(r, 3), row.label)
@@ -2328,10 +2353,10 @@ export function addKPISheet(
 
   // — Grand total row —
   const allRows = kpiRows
-  for (let c = 1; c <= 13; c++) fillCell(ws.getCell(r, c), 'FFBDDC52')
+  for (let c = 1; c <= 13; c++) fillCell(ws.getCell(r, c), ARGB_LIME)
   ws.mergeCells(r, 1, r, 4)
   txt(ws.getCell(r, 1), 'Grand Total', true)
-  fillCell(ws.getCell(r, 1), 'FFBDDC52')
+  fillCell(ws.getCell(r, 1), ARGB_LIME)
   const grandSum = (f: keyof KPISheetRow) =>
     allRows.reduce((s, rw) => s + ((rw[f] as number | null) ?? 0), 0)
   numFmt(ws.getCell(r, 5),  '$#,##0.00', grandSum('spend'),              true)

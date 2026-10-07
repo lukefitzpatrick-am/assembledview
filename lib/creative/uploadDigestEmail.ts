@@ -1,3 +1,4 @@
+import { BRAND, EMAIL_FONT_STACK } from "@/lib/brand"
 import type { UploadDigestPayload } from "./uploadDigest"
 
 function escapeHtml(v: string): string {
@@ -45,29 +46,29 @@ export function buildUploadDigestEmailHtml(p: UploadDigestPayload): string {
       const body = g.assets
         .map(
           (a) => `<tr>
-      <td style="padding:7px 10px;border-bottom:1px solid #e2e6e4;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1c2b25;">${escapeHtml(a.asset_name || a.original_filename || "(unnamed)")}</td>
-      <td style="padding:7px 10px;border-bottom:1px solid #e2e6e4;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6a7772;">${escapeHtml(a.mime_type || "—")}</td>
-      <td style="padding:7px 10px;border-bottom:1px solid #e2e6e4;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6a7772;" align="right">${fmtBytes(a.file_size_bytes)}</td>
-      <td style="padding:7px 10px;border-bottom:1px solid #e2e6e4;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6a7772;">
+      <td style="padding:7px 10px;border-bottom:1px solid ${BRAND.colour.line};font-family:${EMAIL_FONT_STACK};font-size:13px;color:${BRAND.colour.ink};">${escapeHtml(a.asset_name || a.original_filename || "(unnamed)")}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid ${BRAND.colour.line};font-family:${EMAIL_FONT_STACK};font-size:12px;color:${BRAND.colour.muted};">${escapeHtml(a.mime_type || "—")}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid ${BRAND.colour.line};font-family:${EMAIL_FONT_STACK};font-size:12px;color:${BRAND.colour.muted};" align="right">${fmtBytes(a.file_size_bytes)}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid ${BRAND.colour.line};font-family:${EMAIL_FONT_STACK};font-size:12px;color:${BRAND.colour.muted};">
          ${a.uploaded_by_name
-           ? `${escapeHtml(a.uploaded_by_name)}<br><span style="color:#9aa39e;font-size:11px;">${escapeHtml(a.uploaded_by_email || "")}</span>`
+           ? `${escapeHtml(a.uploaded_by_name)}<br><span style="color:${BRAND.colour.muted};font-size:11px;">${escapeHtml(a.uploaded_by_email || "")}</span>`
            : escapeHtml(a.uploaded_by_email || "—")}
        </td>
-      <td style="padding:7px 10px;border-bottom:1px solid #e2e6e4;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6a7772;">${fmtTime(a.created_at)}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid ${BRAND.colour.line};font-family:${EMAIL_FONT_STACK};font-size:12px;color:${BRAND.colour.muted};">${fmtTime(a.created_at)}</td>
     </tr>`,
         )
         .join("")
-      return `<tr><td style="padding:16px 24px 4px;font-family:Arial,Helvetica,sans-serif;">
-      <div style="font-size:14px;font-weight:700;color:#472477;">MBA ${escapeHtml(g.mbaNumber)} · ${g.assets.length} file${g.assets.length === 1 ? "" : "s"}</div>
+      return `<tr><td style="padding:16px 24px 4px;font-family:${EMAIL_FONT_STACK};">
+      <div style="font-size:14px;font-weight:700;color:${BRAND.colour.forest};">MBA ${escapeHtml(g.mbaNumber)} · ${g.assets.length} file${g.assets.length === 1 ? "" : "s"}</div>
     </td></tr>
     <tr><td style="padding:4px 24px 12px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #e2e6e4;">
-        <tr style="background:#f4f6f5;">
-          <th align="left" style="padding:7px 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#6a7772;border-bottom:1px solid #e2e6e4;">File</th>
-          <th align="left" style="padding:7px 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#6a7772;border-bottom:1px solid #e2e6e4;">Type</th>
-          <th align="right" style="padding:7px 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#6a7772;border-bottom:1px solid #e2e6e4;">Size</th>
-          <th align="left" style="padding:7px 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#6a7772;border-bottom:1px solid #e2e6e4;">Uploaded by</th>
-          <th align="left" style="padding:7px 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#6a7772;border-bottom:1px solid #e2e6e4;">When (Syd)</th>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid ${BRAND.colour.line};">
+        <tr style="background:${BRAND.colour.sand};">
+          <th align="left" style="padding:7px 10px;font-family:${EMAIL_FONT_STACK};font-size:11px;color:${BRAND.colour.muted};border-bottom:1px solid ${BRAND.colour.line};">File</th>
+          <th align="left" style="padding:7px 10px;font-family:${EMAIL_FONT_STACK};font-size:11px;color:${BRAND.colour.muted};border-bottom:1px solid ${BRAND.colour.line};">Type</th>
+          <th align="right" style="padding:7px 10px;font-family:${EMAIL_FONT_STACK};font-size:11px;color:${BRAND.colour.muted};border-bottom:1px solid ${BRAND.colour.line};">Size</th>
+          <th align="left" style="padding:7px 10px;font-family:${EMAIL_FONT_STACK};font-size:11px;color:${BRAND.colour.muted};border-bottom:1px solid ${BRAND.colour.line};">Uploaded by</th>
+          <th align="left" style="padding:7px 10px;font-family:${EMAIL_FONT_STACK};font-size:11px;color:${BRAND.colour.muted};border-bottom:1px solid ${BRAND.colour.line};">When (Syd)</th>
         </tr>
         ${body}
       </table>
@@ -77,16 +78,17 @@ export function buildUploadDigestEmailHtml(p: UploadDigestPayload): string {
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f6f5;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f5;padding:24px 12px;">
+<body style="margin:0;padding:0;background:${BRAND.colour.sand};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.colour.sand};padding:24px 12px;">
     <tr><td align="center">
-      <table role="presentation" width="720" cellpadding="0" cellspacing="0" style="max-width:720px;width:100%;background:#ffffff;border:1px solid #e2e6e4;border-radius:10px;overflow:hidden;">
-        <tr><td style="background:#008e5e;padding:18px 24px;font-family:Arial,Helvetica,sans-serif;">
-          <div style="font-size:17px;font-weight:700;color:#ffffff;">New client creative uploads</div>
-          <div style="font-size:12px;color:#d7efe6;margin-top:3px;">${p.totalFiles} file(s) from ${p.totalUploaders} uploader(s) · last ${p.windowMinutes} min</div>
+      <table role="presentation" width="720" cellpadding="0" cellspacing="0" style="max-width:720px;width:100%;background:${BRAND.colour.white};border:1px solid ${BRAND.colour.line};border-radius:8px;overflow:hidden;">
+        <tr><td style="background:${BRAND.colour.ink};padding:18px 24px;font-family:${EMAIL_FONT_STACK};">
+          <div style="font-size:14px;font-weight:700;color:${BRAND.colour.white};">Assembled Media</div>
+          <div style="font-size:17px;font-weight:700;color:${BRAND.colour.white};margin-top:4px;">New client creative uploads</div>
+          <div style="font-size:12px;color:${BRAND.colour.mutedOnBlack};margin-top:3px;">${p.totalFiles} file(s) from ${p.totalUploaders} uploader(s) · last ${p.windowMinutes} min</div>
         </td></tr>
         ${rows}
-        <tr><td style="padding:8px 24px 20px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#9aa39e;">
+        <tr><td style="padding:8px 24px 20px;font-family:${EMAIL_FONT_STACK};font-size:11px;color:${BRAND.colour.muted};">
           Internal ops email · client-role uploads only · AssembledView cron
         </td></tr>
       </table>
