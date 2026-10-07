@@ -1,23 +1,24 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { PageHeader } from "@/components/layout/PageHeader"
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted p-6">
-      <Card className="w-full max-w-md text-center">
-        <CardHeader>
-          <h1 className="text-2xl font-semibold">Page not found</h1>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground">
-            This page doesn&apos;t exist or has moved
-          </p>
+    <div className="flex min-h-screen items-center justify-center bg-canvas p-6">
+      <div className="w-full max-w-xl space-y-6">
+        <PageHeader
+          title="Page not found"
+          lede="This page doesn't exist or has moved."
+        />
+        <div className="flex flex-col gap-3 sm:flex-row">
           <Button asChild>
             <Link href="/dashboard">Back to dashboard</Link>
           </Button>
-        </CardContent>
-      </Card>
+          <Button variant="outline" asChild>
+            <Link href="/">Sign in</Link>
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

@@ -315,6 +315,7 @@ C-numbers are allocated on `localhost` only, and are never reassigned once writt
 | UI-5 | Primary-gradient stripes remain on `DashboardEntityCards`, `AlterBillingDialog`, saving-modal, `PublisherDetailCharts`, `UnsavedChangesDialog`, and `accent-bar.tsx` (DS-8) | Open |
 | UI-6 | Client and publisher brand-hex gradients in slide-overs and publisher cards (DS-6) | FIXED — colour paints only `EntityMark`. `publisherColourStripeBackground` remains until DS-9 if unused |
 | UI-7 | `ContainerEntryModeToggle.tsx` and `searchSeriesPalette.cost` unused; `ChannelCoverageEntry.colour` stored, never painted (DS-9) | Open |
+| UI-8 | The Auth0 hosted login page is branded in the Auth0 dashboard, not in this repo. `app/page.tsx` is the in-app sign-in only | Open — not code |
 | SM-13 | ExpertGrid descriptor auto-compact is off pending live measurement (this doc) | FIXED — SM-24 re-enabled `DESCRIPTOR_AUTO_COMPACT_ENABLED` after SM-17 trailing sticky widths |
 | SM-12 | Trailing sticky (net media / actions / Σ) had no widths on 19 channels — only OOH set `trailingColWidthsPx`, so those cells got `left: 44` and pinned over the descriptor block | FIXED — `expertGridDescriptorColWidths` / `expertGridDescriptorWidthKeys` read `getExpertTrailingColumns` |
 | SM-17 | DialogContent zoom-in made `getBoundingClientRect` 5% short; thead `ResizeObserver` did not re-fire, so `scrollMargin` stayed wrong | FIXED — virtualiser sizing and the body-row assertion use `offsetHeight` |

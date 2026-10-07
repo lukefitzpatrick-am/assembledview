@@ -211,6 +211,7 @@ Touch these and you are touching everything. Check `BLAST-RADIUS.md` first, ever
 | `lib/format/money.ts` / `lib/format/date.ts` | en-AU AUD; rounding changes cause reconciliation drift everywhere |
 | `lib/brand/tokens.json`, `lib/brand/index.ts` | Single source for brand colour, type and radius. `readableTextOn` picks ink or white. CSS variables in `app/globals.css` and `styles/chart-tokens.css` match it (`npm run test:brand`) |
 | `components/brand/EntityMark.tsx` | Only paint for a client or publisher colour (`ClientMark`, `PublisherMark`) |
+| `components/brand/BrandLoading.tsx`, `public/brand/` | Dot-mark loading state. Logos, sign-in arches, and `icon-512.png` live in `public/brand/`. App icons are `app/icon.svg` and `app/apple-icon.png` |
 | `middleware.ts` | Authentication only. Never assume it did a tenant check |
 
 ## Shared layout

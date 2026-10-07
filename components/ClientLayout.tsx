@@ -78,7 +78,7 @@ export function ClientLayout({
                 )}
               >
                 {isShellVisible && (
-                  <header className="flex h-[48px] shrink-0 items-center rounded-t-frame border-b border-border bg-card transition-[width,height] ease-linear">
+                  <header className="flex h-[48px] shrink-0 items-center rounded-t-frame border-b border-border bg-background transition-[width,height] ease-linear dark:bg-am-panel">
                     <div
                       className={cn(
                         "flex h-full w-full items-center gap-2",
@@ -207,7 +207,7 @@ function UserGreeting() {
     "there"
 
   return (
-    <p className="m-0 text-sm font-medium leading-none text-foreground">
+    <p className="m-0 text-sm font-medium leading-none text-muted-foreground">
       Hi {firstName}
     </p>
   )

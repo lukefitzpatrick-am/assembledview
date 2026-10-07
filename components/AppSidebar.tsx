@@ -268,11 +268,19 @@ export function AppSidebar() {
               )}
             >
               <Image
-                src="/amlogo.png"
+                src="/brand/logo-inverted-white.png"
                 alt=""
-                width={150}
-                height={50}
-                className="pointer-events-none"
+                width={1000}
+                height={148}
+                className="pointer-events-none h-auto w-[176px] group-data-[collapsible=icon]:hidden"
+                aria-hidden
+              />
+              <Image
+                src="/brand/dot-mark-lime.svg"
+                alt=""
+                width={28}
+                height={28}
+                className="pointer-events-none hidden h-7 w-7 group-data-[collapsible=icon]:block"
                 aria-hidden
               />
             </Link>
@@ -406,7 +414,7 @@ export function AppSidebar() {
       </Sidebar>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 hidden border-t border-border bg-sidebar/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 text-sidebar-foreground shadow-e2 backdrop-blur max-[768px]:block"
+        className="fixed inset-x-0 bottom-0 z-50 hidden border-t border-border bg-am-ink px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 text-am-white max-[768px]:block"
         aria-label="Primary navigation"
       >
         <ul className="grid grid-cols-5 gap-1">
@@ -420,9 +428,9 @@ export function AppSidebar() {
                       href={financeAwareHref(item.path, applied)}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-input px-1 text-[10px] font-medium leading-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+                        "flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-pill px-1 text-[10px] font-medium leading-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
                         active
-                          ? "bg-[var(--sidebar-active-tint)] text-sidebar-foreground"
+                          ? "bg-[hsl(var(--sidebar-active-bg))] text-[hsl(var(--sidebar-active-fg))]"
                           : "text-[hsl(var(--sidebar-muted))] hover:bg-[var(--sidebar-hover-tint)] hover:text-sidebar-foreground"
                       )}
                     >
@@ -430,7 +438,7 @@ export function AppSidebar() {
                         className={cn(
                           "h-[18px] w-[18px] shrink-0 stroke-[1.8]",
                           active
-                            ? "text-[var(--sidebar-active-bar)]"
+                            ? "text-[hsl(var(--sidebar-active-fg))]"
                             : "text-[hsl(var(--sidebar-icon))]"
                         )}
                         aria-hidden
@@ -449,9 +457,9 @@ export function AppSidebar() {
                       href={item.href}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-input px-1 text-[10px] font-medium leading-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+                        "flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-pill px-1 text-[10px] font-medium leading-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
                         active
-                          ? "bg-[var(--sidebar-active-tint)] text-sidebar-foreground"
+                          ? "bg-[hsl(var(--sidebar-active-bg))] text-[hsl(var(--sidebar-active-fg))]"
                           : "text-[hsl(var(--sidebar-muted))] hover:bg-[var(--sidebar-hover-tint)] hover:text-sidebar-foreground"
                       )}
                     >
@@ -459,7 +467,7 @@ export function AppSidebar() {
                         className={cn(
                           "h-[18px] w-[18px] shrink-0 stroke-[1.8]",
                           active
-                            ? "text-[var(--sidebar-active-bar)]"
+                            ? "text-[hsl(var(--sidebar-active-fg))]"
                             : "text-[hsl(var(--sidebar-icon))]"
                         )}
                         aria-hidden

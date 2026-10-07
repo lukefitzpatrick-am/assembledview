@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { PageHeader } from "@/components/layout/PageHeader"
 
 export default function Error({
   error,
@@ -17,26 +17,20 @@ export default function Error({
   }, [error])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted p-6">
-      <Card className="w-full max-w-md text-center">
-        <CardHeader>
-          <h1 className="text-2xl font-semibold">Couldn&apos;t load the client hub</h1>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground">
-            An unexpected error occurred. Please try again.
-          </p>
-          {error.digest ? (
-            <p className="text-xs text-muted-foreground">Reference: {error.digest}</p>
-          ) : null}
-          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <Button onClick={() => reset()}>Try again</Button>
-            <Button variant="outline" asChild>
-              <Link href="/dashboard">Back to dashboard</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="flex min-h-screen items-center justify-center bg-canvas p-6">
+      <div className="w-full max-w-xl space-y-6">
+        <PageHeader
+          title="Couldn't load the client hub"
+          lede="An unexpected error occurred. Please try again."
+          meta={error.digest ? <span>Reference: {error.digest}</span> : undefined}
+        />
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button onClick={() => reset()}>Try again</Button>
+          <Button variant="outline" asChild>
+            <Link href="/dashboard">Back to dashboard</Link>
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

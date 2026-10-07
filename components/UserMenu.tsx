@@ -10,7 +10,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
 import { User, Settings, LogOut, Shield } from 'lucide-react';
 import Link from 'next/link';
 import { getUserDisplayName, getUserInitials, getUserRoles } from '@/lib/rbac';
@@ -46,30 +45,24 @@ export function UserMenu() {
   const displayName = getUserDisplayName(user);
   const initials = getUserInitials(user);
   const userRoles = getUserRoles(user);
-  const primaryRole = userRoles[0];
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex w-full items-center space-x-3 rounded-lg bg-background p-2 transition-colors hover:bg-accent">
+        <button className="flex w-full items-center space-x-3 rounded-card bg-am-panel p-2 text-left transition-colors hover:bg-am-white/10">
           <Avatar className="h-8 w-8">
             <AvatarImage src={user.picture} alt={displayName} />
             <AvatarFallback className="text-xs">
               {initials}
             </AvatarFallback>
           </Avatar>
-          <div className="flex flex-col items-start min-w-0 flex-1">
-            <span className="truncate text-sm font-medium text-foreground">
+          <div className="flex min-w-0 flex-1 flex-col items-start">
+            <span className="truncate text-sm font-medium text-am-white">
               {displayName}
             </span>
-            {primaryRole && (
-              <Badge 
-                variant="secondary" 
-                className="text-xs px-1.5 py-0.5 capitalize"
-              >
-                {primaryRole}
-              </Badge>
-            )}
+            {user.email ? (
+              <span className="w-full truncate text-xs text-am-muted-on-black">{user.email}</span>
+            ) : null}
           </div>
         </button>
       </DropdownMenuTrigger>

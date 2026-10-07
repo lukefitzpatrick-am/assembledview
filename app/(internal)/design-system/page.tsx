@@ -3,6 +3,10 @@
 import { useState } from "react"
 import { Plus } from "lucide-react"
 
+import Image from "next/image"
+import Link from "next/link"
+
+import { BrandLoading } from "@/components/brand/BrandLoading"
 import { ClientMark, PublisherMark } from "@/components/brand/EntityMark"
 import { MediaChannelTag } from "@/components/dashboard/MediaChannelTag"
 import { StatTile } from "@/components/finance/sections/StatTile"
@@ -354,7 +358,7 @@ export default function DesignSystemPage() {
         <div className="flex flex-wrap items-end gap-6">
           <div className="space-y-2">
             <p className="text-[13px] text-muted-foreground">Logo</p>
-            <ClientMark name="Assembled Media" logoUrl="/assembled-logo.png" size="lg" nameVisible={false} />
+            <ClientMark name="Assembled Media" logoUrl="/brand/logo-full-colour.png" size="lg" nameVisible={false} />
           </div>
           {(["sm", "md", "lg"] as const).map((size) => (
             <div key={size} className="space-y-2">
@@ -372,6 +376,48 @@ export default function DesignSystemPage() {
             <PublisherMark name="North Shore" colour={BRAND.colour.forest} size="md" nameVisible={false} />
           </div>
         </div>
+      </Section>
+
+      <Section
+        title="Brand assets"
+        description="Logos, the dot mark, and the loading state. The sign-in page is the live layout."
+      >
+        <div className="flex flex-wrap items-end gap-8">
+          <div className="space-y-2 rounded-card bg-am-white p-4">
+            <p className="text-[13px] text-muted-foreground">Full colour</p>
+            <Image
+              src="/brand/logo-full-colour.png"
+              alt="Assembled Media"
+              width={1000}
+              height={148}
+              className="h-auto w-[200px]"
+            />
+          </div>
+          <div className="space-y-2 rounded-card bg-am-ink p-4">
+            <p className="text-[13px] text-am-muted-on-black">Inverted</p>
+            <Image
+              src="/brand/logo-inverted-white.png"
+              alt=""
+              width={1000}
+              height={148}
+              className="h-auto w-[200px]"
+            />
+          </div>
+          <div className="space-y-2">
+            <p className="text-[13px] text-muted-foreground">Dot mark</p>
+            <Image src="/brand/dot-mark-lime.svg" alt="" width={48} height={48} />
+          </div>
+          <div className="space-y-2">
+            <p className="text-[13px] text-muted-foreground">Favicon</p>
+            <Image src="/brand/icon-512.png" alt="" width={48} height={48} />
+          </div>
+          <BrandLoading text="Loading AssembledView." />
+        </div>
+        <p className="mt-4 text-sm">
+          <Link href="/" className="underline-offset-4 hover:underline">
+            Sign-in page
+          </Link>
+        </p>
       </Section>
 
       <Section

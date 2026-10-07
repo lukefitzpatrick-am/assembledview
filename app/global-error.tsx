@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect } from "react"
+import { BRAND, EMAIL_FONT_STACK } from "@/lib/brand"
 
 export default function GlobalError({
   error,
@@ -16,31 +17,51 @@ export default function GlobalError({
 
   return (
     <html lang="en">
-      <body className="m-0 bg-background font-sans text-foreground">
-        <div className="flex min-h-screen items-center justify-center p-6">
-          <div className="w-full max-w-md rounded-card border border-border bg-card p-6 text-center shadow-e1">
-            <h1 className="mb-4 text-2xl font-semibold">
-              Something went wrong
+      <body
+        style={{
+          margin: 0,
+          background: BRAND.colour.sand,
+          color: BRAND.colour.ink,
+          fontFamily: EMAIL_FONT_STACK,
+        }}
+      >
+        <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ width: "100%", maxWidth: 28 * 16 }}>
+            <h1 style={{ margin: "0 0 8px", fontSize: 32, fontWeight: 800, letterSpacing: "-0.02em" }}>
+              Something went wrong.
             </h1>
-            <p className="mb-4 text-muted-foreground">
+            <p style={{ margin: "0 0 16px", color: BRAND.colour.muted, fontSize: 15, lineHeight: 1.5 }}>
               An unexpected error occurred. Please try again.
             </p>
             {error.digest ? (
-              <p className="mb-4 text-xs text-muted-foreground">
+              <p style={{ margin: "0 0 16px", color: BRAND.colour.muted, fontSize: 12 }}>
                 Reference: {error.digest}
               </p>
             ) : null}
-            <div className="flex flex-col items-center gap-3">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
               <button
                 type="button"
                 onClick={() => reset()}
-                className="inline-flex min-h-11 items-center justify-center rounded-input bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                style={{
+                  background: BRAND.colour.lime,
+                  color: BRAND.colour.ink,
+                  border: "none",
+                  borderRadius: 999,
+                  padding: "10px 20px",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
               >
                 Try again
               </button>
               <Link
                 href="/dashboard"
-                className="inline-flex min-h-11 items-center justify-center rounded-input px-3 text-sm text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                style={{
+                  color: BRAND.colour.ink,
+                  fontSize: 14,
+                  alignSelf: "center",
+                }}
               >
                 Back to dashboard
               </Link>

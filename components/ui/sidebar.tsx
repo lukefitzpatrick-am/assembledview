@@ -455,7 +455,7 @@ const SidebarGroupLabel = React.forwardRef<
       ref={ref}
       data-sidebar="group-label"
       className={cn(
-        "duration-200 flex h-8 shrink-0 items-center rounded-md px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[hsl(var(--sidebar-muted))] outline-none ring-sidebar-ring transition-[margin,opa] ease-linear focus-visible:ring-2 [&>svg]:size-[17px] [&>svg]:shrink-0",
+        "duration-200 flex h-8 shrink-0 items-center rounded-md px-2 text-[10px] font-semibold uppercase tracking-wide text-[hsl(var(--sidebar-muted))] outline-none ring-sidebar-ring transition-[margin,opa] ease-linear focus-visible:ring-2 [&>svg]:size-[17px] [&>svg]:shrink-0",
         "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
         className
       )}
@@ -528,7 +528,7 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem"
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button relative flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-left text-[13px] font-medium text-[hsl(var(--sidebar-muted))] outline-none ring-sidebar-ring transition-[width,height,padding,background-color,color] hover:bg-[var(--sidebar-hover-tint)] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar active:bg-[var(--sidebar-hover-tint)] disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-[var(--sidebar-active-tint)] data-[active=true]:font-bold data-[active=true]:text-sidebar-foreground data-[active=true]:before:absolute data-[active=true]:before:bottom-1 data-[active=true]:before:left-0 data-[active=true]:before:top-1 data-[active=true]:before:w-[3px] data-[active=true]:before:rounded-pill data-[active=true]:before:bg-[var(--sidebar-active-bar)] data-[active=true]:[&>svg]:text-[var(--sidebar-active-bar)] data-[state=open]:hover:bg-[var(--sidebar-hover-tint)] group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>span:last-child]:truncate [&>svg]:size-[17px] [&>svg]:shrink-0 [&>svg]:text-[hsl(var(--sidebar-icon))]",
+  "peer/menu-button relative flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-left text-[13px] font-medium text-[hsl(var(--sidebar-muted))] outline-none ring-sidebar-ring transition-[width,height,padding,background-color,color] hover:bg-[var(--sidebar-hover-tint)] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar active:bg-[var(--sidebar-hover-tint)] disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:rounded-pill data-[active=true]:bg-[hsl(var(--sidebar-active-bg))] data-[active=true]:font-semibold data-[active=true]:text-[hsl(var(--sidebar-active-fg))] data-[active=true]:[&>svg]:text-[hsl(var(--sidebar-active-fg))] data-[state=open]:hover:bg-[var(--sidebar-hover-tint)] group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>span:last-child]:truncate [&>svg]:size-[17px] [&>svg]:shrink-0 [&>svg]:text-[hsl(var(--sidebar-icon))]",
   {
     variants: {
       variant: {
@@ -622,7 +622,7 @@ const SidebarMenuAction = React.forwardRef<
       ref={ref}
       data-sidebar="menu-action"
       className={cn(
-        "absolute right-1 top-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-[hsl(var(--sidebar-muted))] outline-none ring-sidebar-ring transition-transform hover:bg-[var(--sidebar-hover-tint)] hover:text-sidebar-foreground focus-visible:ring-2 peer-data-[active=true]/menu-button:text-[var(--sidebar-active-bar)] [&>svg]:size-[17px] [&>svg]:shrink-0",
+        "absolute right-1 top-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-[hsl(var(--sidebar-muted))] outline-none ring-sidebar-ring transition-transform hover:bg-[var(--sidebar-hover-tint)] hover:text-sidebar-foreground focus-visible:ring-2 peer-data-[active=true]/menu-button:text-[hsl(var(--sidebar-active-fg))] [&>svg]:size-[17px] [&>svg]:shrink-0",
         // Keep the visual glyph compact, while preserving a larger click target.
         "after:absolute after:-inset-2 after:content-['']",
         "peer-data-[size=sm]/menu-button:top-1",
@@ -739,7 +739,7 @@ const SidebarMenuSubButton = React.forwardRef<
       data-active={isActive}
       className={cn(
         "flex min-h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-pill px-3 text-[13px] font-medium text-[hsl(var(--sidebar-muted))] outline-none ring-sidebar-ring hover:bg-[var(--sidebar-hover-tint)] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar active:bg-[var(--sidebar-hover-tint)] disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>span:last-child]:whitespace-nowrap [&>svg]:size-[17px] [&>svg]:shrink-0 [&>svg]:text-[hsl(var(--sidebar-icon))]",
-        "data-[active=true]:bg-sidebar-accent data-[active=true]:font-semibold data-[active=true]:text-sidebar-accent-foreground",
+        "data-[active=true]:rounded-pill data-[active=true]:bg-[hsl(var(--sidebar-active-bg))] data-[active=true]:font-semibold data-[active=true]:text-[hsl(var(--sidebar-active-fg))]",
         size === "sm" && "text-[12px]",
         size === "md" && "text-[13px]",
         "group-data-[collapsible=icon]:hidden",
