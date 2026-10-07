@@ -31,6 +31,7 @@ import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
 import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
 import { useMediaPlanDirtyController } from "@/lib/mediaplan/useMediaPlanDirtyController"
+import { legacyMonthFeeFromNetMedia } from "@/lib/mediaplan/legacyMonthFeeEstimate"
 import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
 import { pushFinanceBuilderIssues } from "@/lib/mediaplan/pushFinanceBuilderIssues"
 import {
@@ -1310,7 +1311,7 @@ function parseSavedBillingSchedulePayload(
           let feePercentage = 0
           if (mediaKey === "search") feePercentage = searchFee
           else if (mediaKey === "socialMedia") feePercentage = socialFee
-          const feeAmount = (mediaTotal * feePercentage) / 100
+          const feeAmount = legacyMonthFeeFromNetMedia(mediaTotal, feePercentage)
           totalFee += feeAmount
 
           lineItems[mediaKey] = mediaType.lineItems.map((item: any) => {
