@@ -215,10 +215,28 @@ function campaignDayRangeInMonth(
   return { lo, hi }
 }
 
-function linearShare(rowTotal: number, dim: number, lo: number, hi: number): number {
-  if (!Number.isFinite(rowTotal) || rowTotal <= 0 || dim <= 0) return 0
-  if (hi < lo) return 0
-  return rowTotal * ((hi - lo + 1) / dim)
+/**
+ * Delivery-schedule and billing-schedule month buckets are already day-prorated
+ * by prorateAcrossMonths. A partial month's bucket is that month's share of the
+ * flight, so the planned total is the bucket itself. Scaling it again by
+ * campaign days over calendar days understates the plan.
+ *
+ * Expected-to-date inside a month is the bucket times elapsed campaign-window
+ * days in that month (inclusive, through as-of) over campaign-window days in
+ * that month. The calendar has month buckets and the campaign start and end,
+ * not burst dates.
+ */
+function proratedBucketShare(
+  rowTotal: number,
+  window: { lo: number; hi: number },
+  elapsedHi: number,
+): number {
+  if (!Number.isFinite(rowTotal) || rowTotal <= 0) return 0
+  const windowDays = window.hi - window.lo + 1
+  if (windowDays <= 0 || elapsedHi < window.lo) return 0
+  const elapsed = Math.min(elapsedHi, window.hi) - window.lo + 1
+  if (elapsed <= 0) return 0
+  return rowTotal * (elapsed / windowDays)
 }
 
 function parseDeliveryArray(raw: unknown): any[] {
@@ -367,6 +385,8 @@ export function resolveMonthlySpendForPlan(
 export type MonthlyPlanCampaignOpts = {
   campaignStartISO?: string | null
   campaignEndISO?: string | null
+  /** Inclusive Melbourne civil date. Defaults to today in Melbourne. */
+  asOfISO?: string | null
 }
 
 export function expectedSpendToDateFromMonthlyCalendar(
@@ -376,7 +396,9 @@ export function expectedSpendToDateFromMonthlyCalendar(
   const campStart = parseISOCivilDate(opts?.campaignStartISO ?? null)
   const campEnd = parseISOCivilDate(opts?.campaignEndISO ?? null)
 
-  const todayParts = parseMelbourneTodayParts()
+  const todayParts = opts?.asOfISO
+    ? parseISOCivilDate(opts.asOfISO)
+    : parseMelbourneTodayParts()
   if (!todayParts) return 0
 
   let asAt = todayParts
@@ -408,7 +430,7 @@ export function expectedSpendToDateFromMonthlyCalendar(
     }
 
     if (hi < campRange.lo) return 0
-    return linearShare(rowTotal, dim, campRange.lo, hi)
+    return proratedBucketShare(rowTotal, campRange, hi)
   }
 
   if (Array.isArray(monthlySpend)) {
@@ -447,7 +469,7 @@ export function totalPlannedSpendFromMonthly(monthlySpend: unknown, opts?: Month
     if (dim <= 0) return 0
     const campRange = campaignDayRangeInMonth(parsed.year, parsed.month, dim, campStart, campEnd)
     if (!campRange) return 0
-    return linearShare(rowTotal, dim, campRange.lo, campRange.hi)
+    return rowTotal
   }
 
   if (Array.isArray(monthlySpend)) {
