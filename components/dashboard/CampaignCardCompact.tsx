@@ -173,8 +173,8 @@ export function CampaignCardCompact({
         animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
         transition={shouldReduceMotion ? undefined : { duration: 0.25, ease: "easeOut" }}
         className={cn(
-          "pointer-events-none relative z-[1] rounded-xl border border-border bg-card p-4 transition-all",
-          "group-hover:scale-[1.02] group-hover:border-border/80 group-hover:shadow-md",
+          "pointer-events-none relative z-[1] rounded-xl border border-border bg-card p-4 transition-colors",
+          "group-hover:border-[var(--dashboard-border-hover)]",
           "group-active:scale-[0.98]"
         )}
       >

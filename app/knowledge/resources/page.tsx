@@ -10,7 +10,7 @@ import {
   ShieldCheck, TrendingUp, Newspaper, Wrench, type LucideIcon,
 } from "lucide-react";
 
-const LIFT = "cursor-pointer transition-all duration-150 hover:-translate-y-0.5 hover:shadow-e2";
+const LIFT = "cursor-pointer transition-colors duration-150 hover:border-[var(--dashboard-border-hover)]";
 
 const GROUP_ICON: Record<string, LucideIcon> = {
   "platform-training": GraduationCap,
@@ -89,7 +89,7 @@ export default function ResourcesPage() {
                     {g.items.map((item) => (
                       <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer"
                          className="block h-full rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                        <Card className={cn(LIFT, "group h-full rounded-card border-l-2 bg-card shadow-e1", a.border)}>
+                        <Card className={cn(LIFT, "group h-full rounded-card border-l-2 bg-card", a.border)}>
                           <CardContent className="pt-5">
                             <div className="flex items-start justify-between gap-2">
                               <p className="font-semibold leading-tight">{item.label}</p>

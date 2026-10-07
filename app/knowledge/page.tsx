@@ -110,7 +110,7 @@ export default function KnowledgeHubHome() {
 function StartCard({ href, n, title, desc }: { href: string; n: string; title: string; desc: string }) {
   return (
     <Link href={href} className="block h-full rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-      <Card className="h-full cursor-pointer rounded-card shadow-e1 transition hover:shadow-e2">
+      <Card className="h-full cursor-pointer rounded-card transition-colors hover:border-[var(--dashboard-border-hover)]">
         <CardContent className="flex items-start gap-3 pt-5">
           <div className="num flex-none w-7 h-7 rounded-pill bg-primary text-primary-foreground grid place-items-center text-sm font-bold">
             {n}
@@ -182,8 +182,8 @@ function ExploreCard({
   const inner = (
     <Card
       className={cn(
-        "relative h-full overflow-hidden rounded-card shadow-e1 transition-all duration-150",
-        href ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-e2" : "opacity-70"
+        "relative h-full overflow-hidden rounded-card transition-colors duration-150",
+        href ? "cursor-pointer hover:border-[var(--dashboard-border-hover)]" : "opacity-70"
       )}
     >
       <div className={cn("absolute inset-x-0 top-0 h-[3px]", a.bar)} />

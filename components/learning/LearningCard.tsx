@@ -28,7 +28,7 @@ export function LearningCard({ term, onClick, highlight }: Props) {
       onClick={openTerm}
       onKeyDown={handleKeyDown}
       className={cn(
-        "rounded-card border-border/80 shadow-e1 transition hover:shadow-e2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        "rounded-card border-border/80 transition-colors hover:border-[var(--dashboard-border-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         onClick && "cursor-pointer",
         highlight && "ring-2 ring-primary"
       )}

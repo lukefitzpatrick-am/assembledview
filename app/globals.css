@@ -404,7 +404,7 @@
 
 @layer components {
   .interactive {
-    @apply cursor-pointer transition-all duration-150 hover:-translate-y-0.5 hover:shadow-e2 hover:border-[var(--dashboard-border-hover)] active:translate-y-0;
+    @apply cursor-pointer transition-colors duration-150 hover:border-[var(--dashboard-border-hover)];
   }
 
   .interactive-tint {

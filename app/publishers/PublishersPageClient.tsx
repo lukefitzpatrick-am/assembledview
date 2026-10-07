@@ -113,7 +113,7 @@ function PublisherGridCard({ publisher }: { publisher: Publisher }) {
   return (
     <div
       className={cn(
-        "flex h-full flex-col overflow-hidden rounded-card border border-border bg-card shadow-e1 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-e2",
+        "flex h-full flex-col overflow-hidden rounded-card border border-border bg-card transition-colors duration-200",
         !hexAccent && "hover:border-primary/30"
       )}
       style={borderStyle}

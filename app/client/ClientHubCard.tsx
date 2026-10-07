@@ -18,7 +18,7 @@ export function ClientHubCard({ row }: { row: ClientHubSummary }) {
       href={`/client/${encodeURIComponent(row.slug)}`}
       className="block focus:outline-none"
     >
-      <Card className="h-full overflow-hidden rounded-card border border-border bg-card shadow-e1 transition hover:-translate-y-0.5 hover:shadow-e2 focus-within:ring-2 focus-within:ring-ring">
+      <Card className="h-full overflow-hidden rounded-card border border-border bg-card transition-colors hover:border-[var(--dashboard-border-hover)] focus-within:ring-2 focus-within:ring-ring">
         <div className="h-[3px] bg-primary" aria-hidden />
         <CardHeader className="pb-3">
           <div className="flex items-start gap-3">
