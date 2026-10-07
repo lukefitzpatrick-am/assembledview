@@ -1,33 +1,35 @@
 /** @type {import('tailwindcss').Config} */
 
+const brand = require("./lib/brand/tokens.json")
+
 /**
  * 05b values kept under legacy names until the component passes rename them.
  * Flat hex utilities (bg-primary-hover, text-brand, bg-success) stay on these
- * names and do not follow the CSS variables.
+ * names and do not follow the CSS variables. Values come from lib/brand/tokens.json.
  */
 const brandPalette = {
-  "primary-hover": "#1A4D35",
-  "secondary-hover": "#1A4D35",
-  "accent-hover": "#A6C42B",
-  brand: "#246646",
-  "brand-dark": "#0F1D13",
-  highlight: "#B5D337",
-  warning: "#E0A21B",
-  "warning-hover": "#C88E12",
-  alert: "#E0A21B",
-  error: "#D4583C",
-  "error-hover": "#B9472E",
-  success: "#246646",
-  "success-hover": "#1A4D35",
-  "success-dark": "#246646",
-  info: "#49C7EB",
-  "info-hover": "#2FB4DA",
-  "background-secondary": "#EFE9DF",
-  darkGrey: "#0f1d13",
+  "primary-hover": brand.derived.forestHover,
+  "secondary-hover": brand.derived.forestHover,
+  "accent-hover": brand.derived.limeHover,
+  brand: brand.colour.forest,
+  "brand-dark": brand.colour.ink,
+  highlight: brand.colour.lime,
+  warning: brand.functional.amber,
+  "warning-hover": brand.derived.amberHover,
+  alert: brand.functional.amber,
+  error: brand.functional.coral,
+  "error-hover": brand.derived.coralHover,
+  success: brand.colour.forest,
+  "success-hover": brand.derived.forestHover,
+  "success-dark": brand.colour.forest,
+  info: brand.colour.sky,
+  "info-hover": brand.derived.skyHover,
+  "background-secondary": brand.colour.sand,
+  darkGrey: brand.colour.ink,
   /** Client / pacing shell background */
-  "dashboard-surface": "#EFE9DF",
+  "dashboard-surface": brand.colour.sand,
   /** Lime CTA (matches lib/utils limeGreen) */
-  lime: "#b5d337",
+  lime: brand.colour.lime,
 }
 
 /** Semantic tokens for shadcn/ui — driven by CSS variables in app/globals.css */
@@ -186,13 +188,31 @@ module.exports = {
         "3xl": "1920px",
       },
       fontFamily: {
-        sans: ["var(--font-jakarta)", "Aptos", "Segoe UI", "system-ui", "sans-serif"],
-        serif: ["var(--font-instrument-serif)", "Georgia Pro", "Georgia", "serif"],
+        sans: ["var(--font-jakarta)", ...brand.font.sansFallback],
+        serif: ["var(--font-instrument-serif)", ...brand.font.serifFallback],
         mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"],
       },
       colors: {
         ...brandPalette,
         ...semanticColors,
+        am: {
+          ink: brand.colour.ink,
+          white: brand.colour.white,
+          sand: brand.colour.sand,
+          lime: brand.colour.lime,
+          sky: brand.colour.sky,
+          forest: brand.colour.forest,
+          "forest-light": brand.colour.forestLight,
+          panel: brand.colour.panel,
+          context: brand.colour.context,
+          "context-black": brand.colour.contextBlack,
+          line: brand.colour.line,
+          muted: brand.colour.muted,
+          "muted-on-black": brand.colour.mutedOnBlack,
+          body: brand.colour.body,
+          amber: brand.functional.amber,
+          coral: brand.functional.coral,
+        },
       },
       ringOffsetColor: {
         sidebar: "hsl(var(--sidebar-background))",

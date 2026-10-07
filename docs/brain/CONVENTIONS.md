@@ -6,6 +6,8 @@ Patterns that already hold across the repo. Follow them; do not introduce a seco
 
 Next.js 15.5 App Router · React 18.3 · TypeScript 5 (`strict: false`, `strictNullChecks: true`) · Tailwind 3.4 + shadcn/Radix · Zustand 5 · react-hook-form 7 + zod 4 · Recharts 2 · Drizzle 0.45 over `postgres` 3.4 · Auth0 4.11 · Anthropic SDK · snowflake-sdk 2.3 · exceljs, jsPDF 4, pptx-automizer · Vercel Blob · vitest 4 + `tsx --test`.
 
+New UI work takes colour, type and radius from `lib/brand` and the theme token classes (`bg-primary`, `text-foreground`, `bg-am-ink`), not a raw hex or an arbitrary hex class.
+
 ## Directory law
 
 | Put it in | When |

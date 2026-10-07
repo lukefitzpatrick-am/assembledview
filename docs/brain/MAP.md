@@ -209,6 +209,7 @@ Touch these and you are touching everything. Check `BLAST-RADIUS.md` first, ever
 | `lib/api.ts` (3,799 lines) | Isomorphic client/server API monolith; imported by client components, so no Node-only deps |
 | `lib/nav/routeManifest.ts` | Single source of truth for sidebar, breadcrumbs, command palette |
 | `lib/format/money.ts` / `lib/format/date.ts` | en-AU AUD; rounding changes cause reconciliation drift everywhere |
+| `lib/brand/tokens.json`, `lib/brand/index.ts` | Single source for brand colour, type and radius. CSS variables in `app/globals.css` and `styles/chart-tokens.css` match it (`npm run test:brand`) |
 | `middleware.ts` | Authentication only. Never assume it did a tenant check |
 
 ## Scale reference
