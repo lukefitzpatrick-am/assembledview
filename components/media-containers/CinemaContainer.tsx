@@ -1056,53 +1056,6 @@ useEffect(() => {
     return () => clearTimeout(timeoutId);
   }, [watchedLineItems, feecinema, form, onBurstsChange, onInvestmentChange]);
 
-  const getBursts = () => {
-    const formLineItems = form.getValues("cinemalineItems") || [];
-    return formLineItems.flatMap(item =>
-      item.bursts.map(burst => {
-        const budget = parseFloat(burst.budget?.replace(/[^0-9.]/g, "") || "0");
-        let mediaAmount = 0;
-        let feeAmount = 0;
-
-        if (item.budgetIncludesFees && item.clientPaysForMedia) {
-          // Both true: budget is gross, extract fee only, mediaAmount = 0
-          // Media = 0
-          // Fees = Budget * (Fee / 100)
-          feeAmount = budget * ((feecinema || 0) / 100);
-          mediaAmount = 0;
-        } else if (item.budgetIncludesFees) {
-          const pct = feecinema || 0;
-          mediaAmount = (budget * (100 - pct)) / 100;
-          feeAmount = (budget * pct) / 100;
-        } else if (item.clientPaysForMedia) {
-          // Only clientPaysForMedia: budget is net media, only fee is billed
-          feeAmount = (budget / (100 - (feecinema || 0))) * (feecinema || 0);
-          mediaAmount = 0;
-        } else {
-          // Neither: budget is net media, fee calculated on top
-          mediaAmount = budget;
-          feeAmount = (budget * (feecinema || 0)) / 100;
-        }
-
-        const billingBurst: BillingBurst = {
-          startDate: burst.startDate,
-          endDate: burst.endDate,
-          mediaAmount: mediaAmount,
-          feeAmount: feeAmount,
-          totalAmount: mediaAmount + feeAmount,
-          mediaType: 'cinema',
-          feePercentage: feecinema,
-          clientPaysForMedia: item.clientPaysForMedia,
-          budgetIncludesFees: item.budgetIncludesFees,
-          noAdserving: item.noadserving,
-          deliverables: burst.calculatedValue ?? 0,
-          buyType: item.buyType
-        };
-
-        return billingBurst;
-      })
-    );
-  };
 
   return (
     <div className="space-y-6">

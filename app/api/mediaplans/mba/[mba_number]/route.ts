@@ -213,45 +213,6 @@ async function fetchClientBrandColour(clientName?: string | null): Promise<strin
   return null
 }
 
-function calculateTimeElapsed(startDate: string, endDate: string): number {
-  const start = safeParseDate(startDate)
-  const end = safeParseDate(endDate)
-  if (!start || !end) return 0
-  const today = new Date()
-
-  start.setHours(0, 0, 0, 0)
-  end.setHours(0, 0, 0, 0)
-  today.setHours(0, 0, 0, 0)
-
-  const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
-  const daysElapsed = Math.max(0, Math.ceil((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
-
-  if (today > end) return 100
-  if (today < start) return 0
-
-  const percentage = (daysElapsed / totalDays) * 100
-  return Math.min(100, Math.max(0, Math.round(percentage * 100) / 100))
-}
-
-function calculateDayMetrics(startDate: string, endDate: string) {
-  const start = safeParseDate(startDate)
-  const end = safeParseDate(endDate)
-  if (!start || !end) {
-    return { daysInCampaign: 0, daysElapsed: 0, daysRemaining: 0 }
-  }
-  const today = new Date()
-
-  start.setHours(0, 0, 0, 0)
-  end.setHours(0, 0, 0, 0)
-  today.setHours(0, 0, 0, 0)
-
-  const daysInCampaign = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1)
-  const daysElapsed = today < start ? 0 : Math.min(daysInCampaign, Math.ceil((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1)
-  const daysRemaining = Math.max(0, daysInCampaign - daysElapsed)
-
-  return { daysInCampaign, daysElapsed, daysRemaining }
-}
-
 function startOfDay(date: Date) {
   const next = new Date(date)
   next.setHours(0, 0, 0, 0)

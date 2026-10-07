@@ -973,57 +973,6 @@ useEffect(() => {
     return () => clearTimeout(timeoutId);
   }, [watchedLineItems, feeintegration, form, onBurstsChange, onInvestmentChange]);
 
-  const getBursts = () => {
-    const formLineItems = form.getValues("lineItems") || [];
-    return formLineItems.flatMap(item =>
-      item.bursts.map(burst => {
-        const budget = parseFloat(burst.budget?.replace(/[^0-9.]/g, "") || "0");
-        let mediaAmount = 0;
-        let feeAmount = 0;
-
-        if (item.budgetIncludesFees && item.clientPaysForMedia) {
-          // Both true: budget is gross, extract fee only, mediaAmount = 0
-          // Media = 0
-          // Fees = Budget * (Fee / 100)
-          feeAmount = budget * ((feeintegration || 0) / 100);
-          mediaAmount = 0;
-        } else if (item.budgetIncludesFees) {
-          // Only budgetIncludesFees: budget is gross, split into media and fee
-          // Media = Budget * ((100 - Fee) / 100)
-          // Fees = Budget * (Fee / 100)
-          mediaAmount = (budget * (100 - (feeintegration || 0))) / 100;
-          feeAmount = (budget * (feeintegration || 0)) / 100;
-        } else if (item.clientPaysForMedia) {
-          // Only clientPaysForMedia: budget is net media, only fee is billed
-          feeAmount = (budget / (100 - (feeintegration || 0))) * (feeintegration || 0);
-          mediaAmount = 0;
-        } else {
-          // Neither: budget is net media, fee calculated on top
-          // Media = Budget (unchanged)
-          // Fees = Budget * (Fee / (100 - Fee))
-          mediaAmount = budget;
-          feeAmount = (budget * (feeintegration || 0)) / (100 - (feeintegration || 0));
-        }
-
-        const billingBurst: BillingBurst = {
-          startDate: burst.startDate,
-          endDate: burst.endDate,
-          mediaAmount: mediaAmount,
-          feeAmount: feeAmount,
-          totalAmount: mediaAmount + feeAmount,
-          mediaType: 'integration',
-          feePercentage: feeintegration,
-          noAdserving: item.noAdserving || false,
-          deliverables: 0,
-          buyType: item.buyType,
-          clientPaysForMedia: item.clientPaysForMedia,
-          budgetIncludesFees: item.budgetIncludesFees
-        };
-
-        return billingBurst;
-      })
-    );
-  };
 
   return (
     <div className="space-y-6">

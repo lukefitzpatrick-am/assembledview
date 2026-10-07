@@ -900,49 +900,6 @@ useEffect(() => {
   return () => clearTimeout(timeoutId);
 }, [watchedLineItems, feeinfluencers, form, onBurstsChange, onInvestmentChange]);
 
-const getBursts = () => {
-  const formLineItems = form.getValues("lineItems") || [];
-  return formLineItems.flatMap(item =>
-    item.bursts.map(burst => {
-      const budget = parseFloat(burst.budget?.replace(/[^0-9.]/g, "") || "0");
-      let mediaAmount = 0;
-      let feeAmount = 0;
-
-      if (item.budgetIncludesFees && item.clientPaysForMedia) {
-        feeAmount = budget * ((feeinfluencers || 0) / 100);
-        mediaAmount = 0;
-      } else if (item.budgetIncludesFees) {
-        const pct = feeinfluencers || 0;
-        mediaAmount = (budget * (100 - pct)) / 100;
-        feeAmount = (budget * pct) / 100;
-      } else if (item.clientPaysForMedia) {
-        feeAmount = (budget / (100 - (feeinfluencers || 0))) * (feeinfluencers || 0);
-        mediaAmount = 0;
-      } else {
-        mediaAmount = budget;
-        feeAmount =
-          (budget * (feeinfluencers || 0)) / (100 - (feeinfluencers || 0));
-      }
-
-      const billingBurst: BillingBurst = {
-        startDate: burst.startDate,
-        endDate: burst.endDate,
-        mediaAmount: mediaAmount,
-        feeAmount: feeAmount,
-        totalAmount: mediaAmount + feeAmount,
-        mediaType: 'influencers',
-        feePercentage: feeinfluencers,
-        clientPaysForMedia: item.clientPaysForMedia,
-        budgetIncludesFees: item.budgetIncludesFees,
-        noAdserving: false,
-        deliverables: 0,
-        buyType: item.buyType,
-      };
-
-      return billingBurst;
-    })
-  );
-};
 
   return (
     <div className="space-y-6">

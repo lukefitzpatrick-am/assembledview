@@ -1084,59 +1084,6 @@ useEffect(() => {
     return () => clearTimeout(timeoutId);
   }, [watchedLineItems, feebvod, form, mbaNumber, onBurstsChange, onInvestmentChange]);
 
-  const getBursts = () => {
-    const formLineItems = form.getValues("bvodlineItems") || [];
-    return formLineItems.flatMap(item =>
-      item.bursts.map(burst => {
-        const budget = parseFloat(burst.budget?.replace(/[^0-9.]/g, "") || "0");
-        let mediaAmount = 0;
-        let feeAmount = 0;
-
-        if (item.budgetIncludesFees && item.clientPaysForMedia) {
-          // Both true: budget is gross, extract fee only, mediaAmount = 0
-          // Media = 0
-          // Fees = Budget * (Fee / 100)
-          feeAmount = budget * ((feebvod || 0) / 100);
-          mediaAmount = 0;
-        } else if (item.budgetIncludesFees) {
-          // Only budgetIncludesFees: budget is gross, split into media and fee
-          // Media = Budget * ((100 - Fee) / 100)
-          // Fees = Budget * (Fee / 100)
-          mediaAmount = (budget * (100 - (feebvod || 0))) / 100;
-          feeAmount = (budget * (feebvod || 0)) / 100;
-        } else if (item.clientPaysForMedia) {
-          // Only clientPaysForMedia: budget is net media, only fee is billed
-          feeAmount = (budget / (100 - (feebvod || 0))) * (feebvod || 0);
-          mediaAmount = 0;
-        } else {
-          // Neither: budget is net media, fee calculated on top
-          // Media = Budget (unchanged)
-          // Fees = Budget * (Fee / (100 - Fee))
-          mediaAmount = budget;
-          feeAmount = (budget * (feebvod || 0)) / (100 - (feebvod || 0));
-        }
-
-        const billingBurst: BillingBurst = {
-          startDate: burst.startDate,
-          endDate: burst.endDate,
-          mediaAmount: mediaAmount,
-          feeAmount: feeAmount,
-          totalAmount: mediaAmount + feeAmount,
-          mediaType: 'BVOD',
-          feePercentage: feebvod,
-          clientPaysForMedia: item.clientPaysForMedia,
-          budgetIncludesFees: item.budgetIncludesFees,
-          noAdserving: item.noadserving,
-          deliverables: burst.calculatedValue ?? 0,
-          buyType: item.buyType,
-          adServingRatePct: burst.adServingRatePct,
-          adServingImpressions: burst.adServingImpressions,
-        };
-
-        return billingBurst;
-      })
-    );
-  };
 
   return (
     <div className="space-y-6">

@@ -958,52 +958,6 @@ export function useMediaChannelContainer(
     billingLabel,
   ])
 
-  // Dead parity helper (kept from ProgDisplayContainer).
-  const getBursts = () => {
-    const formLineItems = form.getValues(fieldKey) || []
-    return formLineItems.flatMap((item: any) =>
-      (item.bursts || []).map((burst: any) => {
-        const budget = parseMoney(burst.budget) ?? 0
-        let mediaAmount = 0
-        let feeAmount = 0
-
-        if (item.budgetIncludesFees && item.clientPaysForMedia) {
-          feeAmount = budget * ((feePct || 0) / 100)
-          mediaAmount = 0
-        } else if (item.budgetIncludesFees) {
-          const pct = feePct || 0
-          mediaAmount = (budget * (100 - pct)) / 100
-          feeAmount = (budget * pct) / 100
-        } else if (item.clientPaysForMedia) {
-          feeAmount = (budget / (100 - (feePct || 0))) * (feePct || 0)
-          mediaAmount = 0
-        } else {
-          mediaAmount = budget
-          feeAmount = (budget * (feePct || 0)) / 100
-        }
-
-        const billingBurst: BillingBurst = {
-          startDate: burst.startDate,
-          endDate: burst.endDate,
-          mediaAmount: mediaAmount,
-          feeAmount: feeAmount,
-          totalAmount: mediaAmount + feeAmount,
-          mediaType: billingLabel,
-          feePercentage: feePct,
-          clientPaysForMedia: item.clientPaysForMedia,
-          budgetIncludesFees: item.budgetIncludesFees,
-          noAdserving: item.noadserving,
-          deliverables: burst.calculatedValue ?? 0,
-          buyType: item.buyType,
-          adServingRatePct: burst.adServingRatePct,
-          adServingImpressions: burst.adServingImpressions,
-        }
-
-        return billingBurst
-      }),
-    )
-  }
-
   return {
     form,
     lineItemFields,
@@ -1042,7 +996,6 @@ export function useMediaChannelContainer(
     reorderedRef,
     feePct,
     overallDeliverables,
-    getBursts,
     fieldKey,
     config,
   }

@@ -1209,55 +1209,6 @@ useEffect(() => {
     return () => clearTimeout(timeoutId);
   }, [watchedLineItems, feedigidisplay, form, onBurstsChange, onInvestmentChange]);
 
-  const getBursts = () => {
-    const formLineItems = form.getValues("digidisplaylineItems") || [];
-    return formLineItems.flatMap(item =>
-      (item?.bursts || []).map(burst => {
-        const budget = parseBudgetSafe(burst?.budget);
-        let mediaAmount = 0;
-        let feeAmount = 0;
-
-        if (item.budgetIncludesFees && item.clientPaysForMedia) {
-          // Both true: budget is gross, extract fee only, mediaAmount = 0
-          // Media = 0
-          // Fees = Budget * (Fee / 100)
-          feeAmount = budget * ((feedigidisplay || 0) / 100);
-          mediaAmount = 0;
-        } else if (item.budgetIncludesFees) {
-          const pct = feedigidisplay || 0;
-          mediaAmount = (budget * (100 - pct)) / 100;
-          feeAmount = (budget * pct) / 100;
-        } else if (item.clientPaysForMedia) {
-          // Only clientPaysForMedia: budget is net media, only fee is billed
-          feeAmount = (budget / (100 - (feedigidisplay || 0))) * (feedigidisplay || 0);
-          mediaAmount = 0;
-        } else {
-          // Neither: budget is net media, fee calculated on top
-          mediaAmount = budget;
-          feeAmount = (budget * (feedigidisplay || 0)) / 100;
-        }
-
-        const billingBurst: BillingBurst = {
-          startDate: burst.startDate,
-          endDate: burst.endDate,
-          mediaAmount: mediaAmount,
-          feeAmount: feeAmount,
-          totalAmount: mediaAmount + feeAmount,
-          mediaType: 'digi display',
-          feePercentage: feedigidisplay,
-          clientPaysForMedia: item.clientPaysForMedia ?? false,
-          budgetIncludesFees: item.budgetIncludesFees ?? false,
-          noAdserving: item.noadserving ?? false,
-          deliverables: burst.calculatedValue ?? 0,
-          buyType: item.buyType,
-          adServingRatePct: burst.adServingRatePct,
-          adServingImpressions: burst.adServingImpressions,
-        };
-
-        return billingBurst;
-      })
-    );
-  };
 
   return (
     <div className="space-y-6">
