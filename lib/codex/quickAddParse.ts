@@ -17,6 +17,8 @@ import {
 export type QuickAddTeamMember = {
   email: string
   name: string
+  /** Omitted means active. Inactive members are never an @ match. */
+  active?: boolean
 }
 
 export type QuickAddClient = {
@@ -26,7 +28,15 @@ export type QuickAddClient = {
 }
 
 export type QuickAddChip = {
-  kind: "assignee" | "client" | "priority" | "due" | "estimate" | "warning"
+  kind:
+    | "assignee"
+    | "client"
+    | "mba"
+    | "category"
+    | "priority"
+    | "due"
+    | "estimate"
+    | "warning"
   label: string
   ok: boolean
 }
@@ -40,9 +50,15 @@ export type QuickAddParsed = {
   assigneeFromToken: boolean
   clientId: number | null
   clientLabel: string | null
+  /** MBA from the active filter when the text has no MBA token. */
+  mbaNumber: string | null
+  /** Category from the active filter when the text has no category token. */
+  category: string | null
   priority: "low" | "normal" | "high"
   /** YYYY-MM-DD Sydney civil date, or null. */
   dueDate: string | null
+  /** True when a due token matched but is not a real calendar date. */
+  dateError: boolean
   estimatedMinutes: number | null
   chips: QuickAddChip[]
 }
@@ -154,6 +170,7 @@ function matchTeamMember(
   if (!raw) return null
   const lower = raw.toLowerCase()
   const key = normalizeKey(raw)
+  team = team.filter((member) => member.active !== false)
 
   const byEmail = team.find((m) => m.email.toLowerCase() === lower)
   if (byEmail) return byEmail
@@ -208,19 +225,45 @@ function matchClient(
   return null
 }
 
-type DueHit = { full: string; ymd: string; label: string }
+type DueHit =
+  | { ok: true; full: string; ymd: string; label: string }
+  | { ok: false; full: string }
 
-function parseDuePhrase(
-  input: string,
-  now: Date
-): DueHit | null {
+function realYmd(year: number, month: number, day: number): string | null {
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+  const probe = new Date(Date.UTC(year, month - 1, day))
+  if (
+    probe.getUTCFullYear() !== year ||
+    probe.getUTCMonth() !== month - 1 ||
+    probe.getUTCDate() !== day
+  ) {
+    return null
+  }
+  return `${year}-${pad2(month)}-${pad2(day)}`
+}
+
+/** This year's date when it is still ahead, otherwise next year. Null if neither is a real day. */
+function upcomingMonthDay(
+  month: number,
+  day: number,
+  sydney: { year: number; ymd: string }
+): string | null {
+  const thisYear = realYmd(sydney.year, month, day)
+  if (thisYear && thisYear >= sydney.ymd) return thisYear
+  return realYmd(sydney.year + 1, month, day)
+}
+
+function parseDuePhrase(input: string, now: Date): DueHit | null {
   const sydney = sydneyCivilParts(now)
 
   // due YYYY-MM-DD
   {
     const m = input.match(/\bdue\s+(\d{4}-\d{2}-\d{2})\b/i)
     if (m) {
-      return { full: m[0], ymd: m[1]!, label: m[1]! }
+      const [year, month, day] = m[1]!.split("-").map(Number)
+      const ymd = realYmd(year!, month!, day!)
+      if (!ymd) return { ok: false, full: m[0] }
+      return { ok: true, full: m[0], ymd, label: ymd }
     }
   }
 
@@ -232,6 +275,7 @@ function parseDuePhrase(
       const ymd =
         word === "today" ? sydney.ymd : addSydneyDays(sydney.ymd, 1)
       return {
+        ok: true,
         full: m[0],
         ymd,
         label: word === "today" ? "today" : "tomorrow",
@@ -248,7 +292,7 @@ function parseDuePhrase(
       const word = m[1]!.toLowerCase()
       const target = WEEKDAYS[word]!
       const ymd = nextOrSameWeekday(sydney.ymd, sydney.weekday, target)
-      return { full: m[0], ymd, label: word }
+      return { ok: true, full: m[0], ymd, label: word }
     }
   }
 
@@ -261,12 +305,10 @@ function parseDuePhrase(
       const day = Number(m[1])
       const month = MONTHS[m[2]!.toLowerCase()]
       if (month && day >= 1 && day <= 31) {
-        let year = sydney.year
-        const candidate = `${year}-${pad2(month)}-${pad2(day)}`
-        // If that civil date is before today in Sydney, roll to next year.
-        if (candidate < sydney.ymd) year += 1
-        const ymd = `${year}-${pad2(month)}-${pad2(day)}`
+        const ymd = upcomingMonthDay(month, day, sydney)
+        if (!ymd) return { ok: false, full: m[0] }
         return {
+          ok: true,
           full: m[0],
           ymd,
           label: `${day} ${m[2]}`,
@@ -284,11 +326,10 @@ function parseDuePhrase(
       const month = MONTHS[m[1]!.toLowerCase()]
       const day = Number(m[2])
       if (month && day >= 1 && day <= 31) {
-        let year = sydney.year
-        const candidate = `${year}-${pad2(month)}-${pad2(day)}`
-        if (candidate < sydney.ymd) year += 1
-        const ymd = `${year}-${pad2(month)}-${pad2(day)}`
+        const ymd = upcomingMonthDay(month, day, sydney)
+        if (!ymd) return { ok: false, full: m[0] }
         return {
+          ok: true,
           full: m[0],
           ymd,
           label: `${m[1]} ${day}`,
@@ -308,12 +349,16 @@ export type ParseQuickAddInput = {
   text: string
   team: QuickAddTeamMember[]
   clients: QuickAddClient[]
-  /** Default assignee when no @token matches (session user). */
+  /** Default assignee when no @token matches. This is the signed-in user, never another assignee filter. */
   defaultAssigneeEmail?: string | null
   defaultAssigneeName?: string | null
   /** Fallback client when no #token matches (active list filter). */
   fallbackClientId?: number | null
   fallbackClientLabel?: string | null
+  /** Fallback MBA when the text has no MBA token (active list filter). */
+  fallbackMbaNumber?: string | null
+  /** Fallback category when the text has no category token. `none` means no category. */
+  fallbackCategory?: string | null
   now?: Date
 }
 
@@ -361,8 +406,17 @@ export function parseQuickAdd(input: ParseQuickAddInput): QuickAddParsed {
   }
 
   let dueDate: string | null = null
+  let dateError = false
   const dueHit = parseDuePhrase(working, now)
-  if (dueHit) {
+  if (dueHit && !dueHit.ok) {
+    working = working.replace(dueHit.full, " ")
+    dateError = true
+    chips.push({
+      kind: "warning",
+      label: "Unrecognised date",
+      ok: false,
+    })
+  } else if (dueHit) {
     working = working.replace(dueHit.full, " ")
     dueDate = dueHit.ymd
     chips.push({
@@ -525,6 +579,34 @@ export function parseQuickAdd(input: ParseQuickAddInput): QuickAddParsed {
     })
   }
 
+  let mbaNumber: string | null = null
+  const fallbackMba = input.fallbackMbaNumber?.trim() || null
+  if (fallbackMba) {
+    mbaNumber = fallbackMba
+    chips.push({
+      kind: "mba",
+      label: `MBA ${fallbackMba} (filter)`,
+      ok: true,
+    })
+  }
+
+  let category: string | null = null
+  const fallbackCategory = input.fallbackCategory?.trim() || null
+  if (fallbackCategory === "none") {
+    chips.push({
+      kind: "category",
+      label: "Category none (filter)",
+      ok: true,
+    })
+  } else if (fallbackCategory) {
+    category = fallbackCategory
+    chips.push({
+      kind: "category",
+      label: `Category ${fallbackCategory} (filter)`,
+      ok: true,
+    })
+  }
+
   const title = collapseSpaces(working)
 
   return {
@@ -534,8 +616,11 @@ export function parseQuickAdd(input: ParseQuickAddInput): QuickAddParsed {
     assigneeFromToken,
     clientId,
     clientLabel,
+    mbaNumber,
+    category,
     priority,
     dueDate,
+    dateError,
     estimatedMinutes,
     chips,
   }
@@ -545,7 +630,15 @@ function escapeReg(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
-/** My week: today .. today+7 inclusive, Sydney civil dates. */
+/** Sydney civil date seven days after today. My week has no lower bound. */
+export function myWeekDueBefore(now: Date = new Date()): string {
+  return addSydneyDays(sydneyCivilParts(now).ymd, 7)
+}
+
+/**
+ * Kept for the existing quick-add pin. The tasks list uses `myWeekDueBefore`
+ * and does not send a due_after.
+ */
 export function myWeekDueRange(now: Date = new Date()): {
   dueAfter: string
   dueBefore: string
@@ -553,7 +646,7 @@ export function myWeekDueRange(now: Date = new Date()): {
   const { ymd } = sydneyCivilParts(now)
   return {
     dueAfter: ymd,
-    dueBefore: addSydneyDays(ymd, 7),
+    dueBefore: myWeekDueBefore(now),
   }
 }
 

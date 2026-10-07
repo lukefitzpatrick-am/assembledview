@@ -144,6 +144,109 @@ test("@name fuzzy unique match", () => {
   assert.equal(r.title, "Ask")
 })
 
+test("inactive roster name is not matched", () => {
+  const r = parseQuickAdd({
+    text: "Ask @sam",
+    team: [
+      { email: "sam@assembledmedia.com.au", name: "Sam Chen", active: false },
+      { email: "luke@assembledmedia.com.au", name: "Luke Fitzpatrick", active: true },
+    ],
+    clients,
+    fallbackClientId: 10,
+    fallbackClientLabel: "Woolworths",
+    defaultAssigneeEmail: "luke@assembledmedia.com.au",
+    defaultAssigneeName: "Luke Fitzpatrick",
+    now: WED,
+  })
+  assert.equal(r.assigneeFromToken, false)
+  assert.match(r.title, /@sam/)
+  assert.equal(r.assigneeEmail, "luke@assembledmedia.com.au")
+  assert.ok(r.chips.some((c) => !c.ok && /@sam/.test(c.label)))
+})
+
+test("due 31 feb is an unrecognised date", () => {
+  const r = parseQuickAdd({
+    text: "Invoice due 31 feb",
+    team,
+    clients,
+    fallbackClientId: 10,
+    fallbackClientLabel: "Woolworths",
+    now: WED,
+  })
+  assert.equal(r.dueDate, null)
+  assert.equal(r.dateError, true)
+  assert.equal(r.title, "Invoice")
+  assert.ok(r.chips.some((c) => c.label === "Unrecognised date" && !c.ok))
+})
+
+test("due 2026-13-45 is an unrecognised date", () => {
+  const r = parseQuickAdd({
+    text: "File due 2026-13-45",
+    team,
+    clients,
+    fallbackClientId: 10,
+    fallbackClientLabel: "Woolworths",
+    now: WED,
+  })
+  assert.equal(r.dueDate, null)
+  assert.equal(r.dateError, true)
+  assert.equal(r.title, "File")
+  assert.ok(r.chips.some((c) => c.label === "Unrecognised date" && !c.ok))
+})
+
+test("a real ISO due date still resolves", () => {
+  const r = parseQuickAdd({
+    text: "File due 2025-08-15",
+    team,
+    clients,
+    fallbackClientId: 10,
+    fallbackClientLabel: "Woolworths",
+    now: WED,
+  })
+  assert.equal(r.dueDate, "2025-08-15")
+  assert.equal(r.dateError, false)
+  assert.equal(r.title, "File")
+})
+
+test("filter defaults apply to client, mba and category, and assignee stays me", () => {
+  const r = parseQuickAdd({
+    text: "Quick note",
+    team,
+    clients,
+    fallbackClientId: 11,
+    fallbackClientLabel: "Acme Bank",
+    fallbackMbaNumber: "MBA-42",
+    fallbackCategory: "finance",
+    defaultAssigneeEmail: "luke@assembledmedia.com.au",
+    defaultAssigneeName: "Luke Fitzpatrick",
+    now: WED,
+  })
+  assert.equal(r.clientId, 11)
+  assert.equal(r.mbaNumber, "MBA-42")
+  assert.equal(r.category, "finance")
+  assert.equal(r.assigneeFromToken, false)
+  assert.equal(r.assigneeEmail, "luke@assembledmedia.com.au")
+  assert.ok(r.chips.some((c) => c.kind === "mba" && /MBA-42/.test(c.label)))
+  assert.ok(r.chips.some((c) => c.kind === "category" && /finance/.test(c.label)))
+})
+
+test("#client overrides the client filter; mba and category still come from filters", () => {
+  const r = parseQuickAdd({
+    text: "Note #woolworths",
+    team,
+    clients,
+    fallbackClientId: 11,
+    fallbackClientLabel: "Acme Bank",
+    fallbackMbaNumber: "MBA-42",
+    fallbackCategory: "none",
+    now: WED,
+  })
+  assert.equal(r.clientId, 10)
+  assert.equal(r.mbaNumber, "MBA-42")
+  assert.equal(r.category, null)
+  assert.ok(r.chips.some((c) => c.kind === "category" && /none/.test(c.label)))
+})
+
 test("~2h / ~45m tokens become estimatedMinutes and leave the title", () => {
   const hours = parseQuickAdd({
     text: "Write report ~2h #woolworths",

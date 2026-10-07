@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { runCodexRecurring } from "@/lib/codex/runRecurring"
+import { expireStaleProposals } from "@/lib/fireflies/proposalRepo"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -11,7 +12,7 @@ export const preferredRegion = ["syd1"]
 /**
  * Daily Codex retainer generation (Sydney calendar).
  * Auth: CRON_SECRET via x-cron-secret or Authorization: Bearer.
- * Idempotent: (template_id, client_id, period) — safe to re-run same day.
+ * Idempotent: (seed task id, period) — safe to re-run the same Sydney day.
  */
 export async function GET(request: Request) {
   if (!assertCronSecret(request)) {
@@ -36,13 +37,15 @@ export async function GET(request: Request) {
     }
 
     const result = await runCodexRecurring(now)
+    const proposalsExpired = await expireStaleProposals({ now })
+    const body = { ...result, proposalsExpired }
     console.log(
       JSON.stringify({
         event: "codex_recurring",
-        ...result,
+        ...body,
       })
     )
-    return NextResponse.json(result, {
+    return NextResponse.json(body, {
       status: result.status === "error" ? 500 : 200,
     })
   } catch (err) {

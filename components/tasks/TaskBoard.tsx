@@ -7,28 +7,25 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCorners,
+  useDraggable,
   useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core"
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import { CheckSquare } from "lucide-react"
 import Link from "next/link"
-import { isValid, parseISO, startOfDay } from "date-fns"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { formatDueYmd, isOverdueYmd } from "@/lib/codex/dueDate"
+import { compareTasksForSort, type TaskSortKey } from "@/lib/codex/queryHelpers"
 import { TaskAskHelpButton } from "@/components/tasks/TaskAskHelpDialog"
 import { TaskEstimateChip } from "@/components/tasks/TaskEstimateChip"
 import {
   STATUSES,
   TASK_PRIORITIES,
+  TASK_STATUSES,
   isTaskStatus,
   statusMeta,
   type CodexTask,
@@ -36,32 +33,6 @@ import {
   type TeamMember,
 } from "@/lib/codex/types"
 import { cn } from "@/lib/utils"
-
-const SYDNEY_TZ = "Australia/Sydney"
-
-function formatDueDateSydney(value: string | null | undefined): string {
-  if (!value) return "—"
-  const raw = value.includes("T") ? value : `${value}T12:00:00`
-  const d = parseISO(raw)
-  if (!isValid(d)) return value
-  return new Intl.DateTimeFormat("en-AU", {
-    timeZone: SYDNEY_TZ,
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d)
-}
-
-function isOverdue(task: CodexTask): boolean {
-  if (!task.due_date) return false
-  if (task.status === "done") return false
-  const raw = task.due_date.includes("T")
-    ? task.due_date
-    : `${task.due_date}T23:59:59`
-  const due = parseISO(raw)
-  if (!isValid(due)) return false
-  return due < startOfDay(new Date())
-}
 
 function priorityLabel(value: string | null | undefined): string {
   const found = TASK_PRIORITIES.find((p) => p.value === value)
@@ -81,8 +52,22 @@ function parseColumnId(id: string | number): TaskStatus | null {
   return null
 }
 
+/** Empty or missing filter shows every column. A set filter shows those columns, in board order. */
+export function visibleBoardStatuses(
+  statusFilter: readonly string[] | null | undefined
+): TaskStatus[] {
+  if (statusFilter == null || statusFilter.length === 0) {
+    return [...TASK_STATUSES]
+  }
+  const selected = new Set(statusFilter.filter(isTaskStatus))
+  return TASK_STATUSES.filter((status) => selected.has(status))
+}
+
+export type BoardStatusCounts = Record<TaskStatus, number>
+
 type BoardCardProps = {
   task: CodexTask
+  columnStatus: TaskStatus
   clientName: string
   onOpen: (task: CodexTask) => void
   teamMembers: TeamMember[]
@@ -153,7 +138,7 @@ function TaskBoardCardFace({
             overdue && "font-semibold text-status-critical-fg"
           )}
         >
-          {overdue ? `Overdue · ${formatDueDateSydney(task.due_date)}` : formatDueDateSydney(task.due_date)}
+          {overdue ? `Overdue · ${formatDueYmd(task.due_date ?? null)}` : formatDueYmd(task.due_date ?? null)}
         </span>
         {total > 0 ? (
           <span className="inline-flex items-center gap-1 num">
@@ -169,36 +154,24 @@ function TaskBoardCardFace({
   )
 }
 
-function SortableTaskCard({
+function TaskBoardCard({
   task,
+  columnStatus,
   clientName,
   onOpen,
   teamMembers,
   meEmail,
   onHelpAsked,
 }: BoardCardProps) {
-  const overdue = isOverdue(task)
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
+  const overdue = isOverdueYmd(task.due_date ?? null, task.status)
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: String(task.id),
-    data: { type: "card" as const, task, status: task.status },
+    data: { type: "card" as const, task, status: columnStatus },
   })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
       {...attributes}
       {...listeners}
       role="button"
@@ -234,6 +207,9 @@ function BoardColumn({
   status,
   label,
   tasks,
+  count,
+  loadingMore,
+  onLoadMore,
   clientNameById,
   onOpen,
   teamMembers,
@@ -243,6 +219,9 @@ function BoardColumn({
   status: TaskStatus
   label: string
   tasks: CodexTask[]
+  count: number
+  loadingMore: boolean
+  onLoadMore: (status: TaskStatus) => void
   clientNameById: Map<number, string>
   onOpen: (task: CodexTask) => void
   teamMembers: TeamMember[]
@@ -254,9 +233,11 @@ function BoardColumn({
     data: { type: "column" as const, status },
   })
   const meta = statusMeta(status)
+  const remaining = Math.max(0, count - tasks.length)
 
   return (
     <div
+      ref={setNodeRef}
       className={cn(
         "flex min-h-[12rem] min-w-[16.5rem] flex-1 flex-col rounded-card border border-border bg-surface-panel/60",
         isOver && "ring-2 ring-ring"
@@ -266,43 +247,55 @@ function BoardColumn({
         <Badge variant={meta.badgeVariant} size="sm">
           {label}
         </Badge>
-        <span className="num text-xs text-muted-foreground">{tasks.length}</span>
+        <span className="num text-xs text-muted-foreground">{count}</span>
       </div>
-      <div
-        ref={setNodeRef}
-        className="flex flex-1 flex-col gap-2 p-2"
-      >
-        <SortableContext
-          items={tasks.map((t) => String(t.id))}
-          strategy={verticalListSortingStrategy}
-        >
-          {tasks.map((task) => (
-            <SortableTaskCard
-              key={String(task.id)}
-              task={task}
-              clientName={
-                clientNameById.get(Number(task.client_id)) ??
-                String(task.client_id || "—")
-              }
-              onOpen={onOpen}
-              teamMembers={teamMembers}
-              meEmail={meEmail}
-              onHelpAsked={onHelpAsked}
-            />
-          ))}
-        </SortableContext>
+      <div className="flex flex-1 flex-col gap-2 p-2">
+        {tasks.map((task) => (
+          <TaskBoardCard
+            key={String(task.id)}
+            task={task}
+            columnStatus={status}
+            clientName={
+              clientNameById.get(Number(task.client_id)) ??
+              String(task.client_id || "—")
+            }
+            onOpen={onOpen}
+            teamMembers={teamMembers}
+            meEmail={meEmail}
+            onHelpAsked={onHelpAsked}
+          />
+        ))}
         {tasks.length === 0 ? (
           <p className="px-1 py-6 text-center text-xs text-muted-foreground">
             Drop here
           </p>
         ) : null}
       </div>
+      {remaining > 0 ? (
+        <div className="border-t border-border/60 p-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full"
+            disabled={loadingMore}
+            onClick={() => onLoadMore(status)}
+          >
+            {`Load more (${remaining} left)`}
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }
 
 type Props = {
-  tasks: CodexTask[]
+  columns: Record<TaskStatus, CodexTask[]>
+  counts: BoardStatusCounts
+  statusFilter?: readonly string[] | null
+  onLoadMore: (status: TaskStatus) => void
+  loadingMoreStatus?: TaskStatus | null
+  sort?: TaskSortKey
   clientNameById: Map<number, string>
   onOpenTask: (task: CodexTask) => void
   onStatusChange: (
@@ -314,8 +307,23 @@ type Props = {
   onHelpAsked?: () => void
 }
 
+function emptyColumns(): Record<TaskStatus, CodexTask[]> {
+  return {
+    backlog: [],
+    todo: [],
+    in_progress: [],
+    waiting: [],
+    done: [],
+  }
+}
+
 export function TaskBoard({
-  tasks,
+  columns,
+  counts,
+  statusFilter,
+  onLoadMore,
+  loadingMoreStatus = null,
+  sort = "due_asc",
   clientNameById,
   onOpenTask,
   onStatusChange,
@@ -324,35 +332,40 @@ export function TaskBoard({
   onHelpAsked,
 }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null)
+  const visible = useMemo(
+    () => visibleBoardStatuses(statusFilter),
+    [statusFilter]
+  )
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
     }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(KeyboardSensor)
   )
 
   const byStatus = useMemo(() => {
-    const map: Record<TaskStatus, CodexTask[]> = {
-      backlog: [],
-      todo: [],
-      in_progress: [],
-      waiting: [],
-      done: [],
+    const map = emptyColumns()
+    for (const column of TASK_STATUSES) {
+      for (const task of columns[column] ?? []) {
+        const status = isTaskStatus(task.status) ? task.status : "todo"
+        map[status].push(task)
+      }
     }
-    for (const task of tasks) {
-      const status = isTaskStatus(task.status) ? task.status : "todo"
-      map[status].push(task)
+    for (const column of Object.values(map)) {
+      column.sort((a, b) => compareTasksForSort(a, b, sort))
     }
     return map
-  }, [tasks])
+  }, [columns, sort])
 
   const activeTask = useMemo(() => {
     if (!activeId) return null
-    return tasks.find((t) => String(t.id) === activeId) ?? null
-  }, [activeId, tasks])
+    for (const column of TASK_STATUSES) {
+      const found = byStatus[column].find((task) => String(task.id) === activeId)
+      if (found) return found
+    }
+    return null
+  }, [activeId, byStatus])
 
   const resolveDropStatus = (
     overId: string | number,
@@ -368,8 +381,6 @@ export function TaskBoard({
     ) {
       return (overData as { status: TaskStatus }).status
     }
-    const overTask = tasks.find((t) => String(t.id) === String(overId))
-    if (overTask && isTaskStatus(overTask.status)) return overTask.status
     return null
   }
 
@@ -382,12 +393,27 @@ export function TaskBoard({
     const { active, over } = event
     if (!over) return
 
-    const task = tasks.find((t) => String(t.id) === String(active.id))
+    const task =
+      (active.data.current &&
+      typeof active.data.current === "object" &&
+      "task" in active.data.current
+        ? (active.data.current as { task?: CodexTask }).task
+        : null) ?? activeTask
     if (!task) return
 
-    const from = isTaskStatus(task.status) ? task.status : null
+    const fromData =
+      active.data.current &&
+      typeof active.data.current === "object" &&
+      "status" in active.data.current
+        ? (active.data.current as { status?: unknown }).status
+        : null
+    const from = isTaskStatus(fromData)
+      ? fromData
+      : isTaskStatus(task.status)
+        ? task.status
+        : "todo"
     const to = resolveDropStatus(over.id, over.data.current)
-    if (!from || !to || from === to) return
+    if (!to || from === to) return
 
     void onStatusChange(task, to)
   }
@@ -409,12 +435,15 @@ export function TaskBoard({
         role="region"
         aria-label="Task board"
       >
-        {STATUSES.map((s) => (
+        {STATUSES.filter((s) => visible.includes(s.value)).map((s) => (
           <BoardColumn
             key={s.value}
             status={s.value}
             label={s.label}
             tasks={byStatus[s.value]}
+            count={counts[s.value] ?? 0}
+            loadingMore={loadingMoreStatus === s.value}
+            onLoadMore={onLoadMore}
             clientNameById={clientNameById}
             onOpen={onOpenTask}
             teamMembers={teamMembers}
@@ -428,7 +457,8 @@ export function TaskBoard({
           <div
             className={cn(
               "w-[15.5rem] rounded-card border border-border bg-card p-3 shadow-e2",
-              isOverdue(activeTask) && "border-l-[3px] border-l-status-critical-fg"
+              isOverdueYmd(activeTask.due_date ?? null, activeTask.status) &&
+                "border-l-[3px] border-l-status-critical-fg"
             )}
           >
             <TaskBoardCardFace
@@ -437,7 +467,7 @@ export function TaskBoard({
                 clientNameById.get(Number(activeTask.client_id)) ??
                 String(activeTask.client_id || "—")
               }
-              overdue={isOverdue(activeTask)}
+              overdue={isOverdueYmd(activeTask.due_date ?? null, activeTask.status)}
             />
           </div>
         ) : null}

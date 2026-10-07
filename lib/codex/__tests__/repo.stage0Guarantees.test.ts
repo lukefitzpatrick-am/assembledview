@@ -13,6 +13,8 @@ import { and, eq, inArray } from "drizzle-orm"
 import { getDb, schema, closeDb, type Db } from "@/db"
 import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
 import {
+  CodexBulkError,
+  bulkUpdateTasks,
   createTask,
   createTeamMember,
   getTask,
@@ -506,5 +508,112 @@ describe("Codex Stage 0 — activity log", { skip: !hasDb }, () => {
     assert.ok(after.deleted_at, "soft_delete after.deleted_at must be set")
     assert.equal(del.actorEmail, NORMALISED)
     assert.equal(del.actorKind, "user")
+  })
+})
+
+describe("Codex Stage 0 — bulk update", { skip: !hasDb }, () => {
+  it("rolls back every task when one id does not exist", async () => {
+    const database = getDb()
+    const first = await createTask(
+      {
+        title: `${RUN} bulk rollback a`,
+        clientId: CLIENT_ID,
+        status: "todo",
+        createdByEmail: MIXED,
+      },
+      MIXED,
+      database
+    )
+    const second = await createTask(
+      {
+        title: `${RUN} bulk rollback b`,
+        clientId: CLIENT_ID,
+        status: "todo",
+        createdByEmail: MIXED,
+      },
+      MIXED,
+      database
+    )
+    const id1 = Number(first.id)
+    const id2 = Number(second.id)
+    taskIds.push(id1, id2)
+    const missing = 8_000_000_001
+
+    await assert.rejects(
+      () =>
+        bulkUpdateTasks(
+          [id1, id2, missing],
+          { status: "done" },
+          MIXED,
+          database
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof CodexBulkError)
+        assert.equal(error.taskId, missing)
+        assert.equal(error.statusCode, 409)
+        return true
+      }
+    )
+
+    const after1 = await getTask(id1, database)
+    const after2 = await getTask(id2, database)
+    assert.equal(after1?.status, "todo")
+    assert.equal(after2?.status, "todo")
+    const updates1 = (await activityFor("task", id1)).filter(
+      (row) => row.action === "update"
+    )
+    const updates2 = (await activityFor("task", id2)).filter(
+      (row) => row.action === "update"
+    )
+    assert.equal(updates1.length, 0)
+    assert.equal(updates2.length, 0)
+  })
+
+  it("writes one update activity row per task", async () => {
+    const database = getDb()
+    const first = await createTask(
+      {
+        title: `${RUN} bulk activity a`,
+        clientId: CLIENT_ID,
+        status: "todo",
+        createdByEmail: MIXED,
+      },
+      MIXED,
+      database
+    )
+    const second = await createTask(
+      {
+        title: `${RUN} bulk activity b`,
+        clientId: CLIENT_ID,
+        status: "todo",
+        createdByEmail: MIXED,
+      },
+      MIXED,
+      database
+    )
+    const id1 = Number(first.id)
+    const id2 = Number(second.id)
+    taskIds.push(id1, id2)
+
+    const updated = await bulkUpdateTasks(
+      [id1, id2],
+      { status: "waiting", priority: "high" },
+      MIXED,
+      database
+    )
+    assert.equal(updated.length, 2)
+    assert.equal((await getTask(id1, database))?.status, "waiting")
+    assert.equal((await getTask(id2, database))?.status, "waiting")
+    assert.equal((await getTask(id1, database))?.priority, "high")
+
+    for (const id of [id1, id2]) {
+      const rows = (await activityFor("task", id)).filter(
+        (row) => row.action === "update"
+      )
+      assert.equal(rows.length, 1)
+      assert.equal(rows[0]?.actorEmail, NORMALISED)
+      assert.ok(rows[0]?.before)
+      assert.ok(rows[0]?.after)
+    }
   })
 })

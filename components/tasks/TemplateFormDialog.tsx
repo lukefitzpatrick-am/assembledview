@@ -94,119 +94,34 @@ export function TemplateFormDialog({
     }
     setSubmitting(true)
     try {
-      let templateId = template?.id
-      if (isEdit && template) {
-        const res = await fetch(
-          `/api/codex/templates/${encodeURIComponent(String(template.id))}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: trimmed,
-              description: description.trim() || null,
-            }),
-          }
-        )
-        if (!res.ok) {
-          const body = await res.json().catch(() => null)
-          throw new Error(
-            (body && typeof body === "object" && "message" in body
-              ? String((body as { message?: string }).message)
-              : null) || "Failed to update template"
-          )
-        }
-        templateId = template.id
-
-        // Sync items: delete removed, update labels, create new, then reorder.
-        const keepIds = new Set(
-          items.filter((i) => i.id != null).map((i) => i.id!)
-        )
-        const prior = template.items ?? []
-        for (const old of prior) {
-          if (!keepIds.has(old.id)) {
-            const del = await fetch(
-              `/api/codex/templates/${template.id}/items/${old.id}`,
-              { method: "DELETE" }
-            )
-            if (!del.ok) throw new Error("Failed to remove checklist label")
-          }
-        }
-        const orderedIds: number[] = []
-        for (const draft of items) {
-          if (draft.id != null) {
-            const priorItem = prior.find((p) => p.id === draft.id)
-            if (priorItem && priorItem.label !== draft.label.trim()) {
-              const patch = await fetch(
-                `/api/codex/templates/${template.id}/items/${draft.id}`,
-                {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ label: draft.label.trim() }),
-                }
-              )
-              if (!patch.ok) throw new Error("Failed to update label")
-            }
-            orderedIds.push(draft.id)
-          } else {
-            const create = await fetch(
-              `/api/codex/templates/${template.id}/items`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ label: draft.label.trim() }),
-              }
-            )
-            if (!create.ok) throw new Error("Failed to add label")
-            const created = (await create.json()) as TaskTemplateItem
-            orderedIds.push(created.id)
-          }
-        }
-        if (orderedIds.length) {
-          const reorder = await fetch(
-            `/api/codex/templates/${template.id}/items`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ordered_ids: orderedIds }),
-            }
-          )
-          if (!reorder.ok) throw new Error("Failed to reorder labels")
-        }
-        toast({ title: "Template updated" })
-      } else {
-        const res = await fetch("/api/codex/templates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: trimmed,
-            description: description.trim() || null,
-          }),
-        })
-        if (!res.ok) {
-          const body = await res.json().catch(() => null)
-          throw new Error(
-            (body && typeof body === "object" && "message" in body
-              ? String((body as { message?: string }).message)
-              : null) || "Failed to create template"
-          )
-        }
-        const created = (await res.json()) as TaskTemplate
-        templateId = created.id
-        for (const draft of items) {
-          const label = draft.label.trim()
-          if (!label) continue
-          const itemRes = await fetch(
-            `/api/codex/templates/${templateId}/items`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ label }),
-            }
-          )
-          if (!itemRes.ok) throw new Error("Failed to add checklist label")
-        }
-        toast({ title: "Template created" })
+      const payload = {
+        name: trimmed,
+        description: description.trim() || null,
+        items: items.map((draft) => ({
+          ...(draft.id != null ? { id: draft.id } : {}),
+          label: draft.label.trim(),
+        })),
       }
+      const res = await fetch(
+        isEdit && template
+          ? `/api/codex/templates/${encodeURIComponent(String(template.id))}`
+          : "/api/codex/templates",
+        {
+          method: isEdit && template ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      )
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(
+          (body && typeof body === "object" && "message" in body
+            ? String((body as { message?: string }).message)
+            : null) ||
+            (isEdit ? "Failed to update template" : "Failed to create template")
+        )
+      }
+      toast({ title: isEdit ? "Template updated" : "Template created" })
       onOpenChange(false)
       onSaved()
     } catch (err) {

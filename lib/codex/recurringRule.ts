@@ -8,18 +8,23 @@
  *   weekly:<dow>    — e.g. weekly:fri   (mon|tue|wed|thu|fri|sat|sun)
  *   monthly:lbd     — last Mon–Fri of the Sydney month (no public-holiday calendar)
  *
- * Period keys (idempotency + description marker):
+ * Period keys (description marker):
  *   monthly:N  → YYYY-MM-dN
  *   weekly:dow → YYYY-Www-dow  (ISO week of the due Sydney date)
  *   monthly:lbd → YYYY-MM-lbd
  *
- * Generated tasks stamp description with `[codex-period:<key>]` as the first line.
+ * Generated tasks stamp `[codex-period:<key>]` as the first line, then
+ * `[codex-seed:<seed task id>]`. Idempotency is (seed task id, period).
+ * Catch-up walks at most RECURRING_CATCHUP_DAYS back from Sydney today.
  */
 
 import { addSydneyDays, sydneyCivilParts } from "@/lib/codex/quickAddParse"
 
 export const CODEX_PERIOD_PREFIX = "[codex-period:"
 export const CODEX_PERIOD_SUFFIX = "]"
+export const CODEX_SEED_PREFIX = "[codex-seed:"
+/** How far behind Sydney today a missed cron day can still be filled. */
+export const RECURRING_CATCHUP_DAYS = 31
 
 const DOW_TOKENS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const
 export type DowToken = (typeof DOW_TOKENS)[number]
@@ -43,7 +48,7 @@ export type ParsedRecurringRule =
 export type RecurringDue = {
   /** True when the rule fires on this Sydney civil day. */
   shouldGenerate: boolean
-  /** Stable period key for (template_id, client_id, period) idempotency. */
+  /** Stable period key stamped on the generated task. */
   period: string
   /** YYYY-MM-DD due date stamped on the generated task. */
   dueYmd: string
@@ -123,13 +128,22 @@ export function formatPeriodMarker(period: string): string {
   return `${CODEX_PERIOD_PREFIX}${period}${CODEX_PERIOD_SUFFIX}`
 }
 
+export function formatSeedMarker(seedId: number): string {
+  return `${CODEX_SEED_PREFIX}${Math.trunc(seedId)}${CODEX_PERIOD_SUFFIX}`
+}
+
 export function descriptionWithPeriod(
   period: string,
-  body: string | null | undefined
+  body: string | null | undefined,
+  seedId?: number | null
 ): string {
   const marker = formatPeriodMarker(period)
+  const head =
+    seedId != null && Number.isFinite(seedId)
+      ? `${marker}\n${formatSeedMarker(seedId)}`
+      : marker
   const rest = (body ?? "").trim()
-  return rest ? `${marker}\n\n${rest}` : marker
+  return rest ? `${head}\n\n${rest}` : head
 }
 
 export function descriptionHasPeriod(
@@ -143,6 +157,63 @@ export function descriptionHasPeriod(
     description.startsWith(`${marker}\n`) ||
     description.startsWith(`${marker}\r\n`)
   )
+}
+
+export function descriptionHasSeed(
+  description: string | null | undefined,
+  seedId: number
+): boolean {
+  if (!description) return false
+  const line = formatSeedMarker(seedId)
+  return description.split(/\r?\n/).some((part) => part.trim() === line)
+}
+
+function instantForSydneyYmd(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number)
+  return new Date(Date.UTC(y!, m! - 1, d!, 12, 0, 0))
+}
+
+/**
+ * Periods whose due date is on or after the seed's created day (or the day
+ * after the last generated due date) and on or before Sydney today, and not
+ * earlier than today minus RECURRING_CATCHUP_DAYS.
+ */
+export function recurringPeriodsToGenerate(
+  rule: ParsedRecurringRule,
+  args: {
+    todayYmd: string
+    createdYmd: string
+    lastDueYmd?: string | null
+    lookbackDays?: number
+  }
+): Array<{ period: string; dueYmd: string }> {
+  const lookback = args.lookbackDays ?? RECURRING_CATCHUP_DAYS
+  const floor = addSydneyDays(args.todayYmd, -lookback)
+  let start = args.createdYmd > floor ? args.createdYmd : floor
+  if (args.lastDueYmd) {
+    const afterLast = addSydneyDays(args.lastDueYmd, 1)
+    if (afterLast > start) start = afterLast
+  }
+  if (start > args.todayYmd) return []
+
+  const out: Array<{ period: string; dueYmd: string }> = []
+  const seen = new Set<string>()
+  let cursor = start
+  let guard = 0
+  while (cursor <= args.todayYmd && guard <= lookback + 2) {
+    guard += 1
+    const due = resolveRecurringDue(rule, instantForSydneyYmd(cursor))
+    if (
+      due.shouldGenerate &&
+      due.dueYmd === cursor &&
+      !seen.has(due.period)
+    ) {
+      seen.add(due.period)
+      out.push({ period: due.period, dueYmd: due.dueYmd })
+    }
+    cursor = addSydneyDays(cursor, 1)
+  }
+  return out
 }
 
 /**

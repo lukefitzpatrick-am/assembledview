@@ -34,6 +34,24 @@ import type { SyncInsertNote } from "@/lib/fireflies/sync"
 
 type Db = ReturnType<typeof getDb>
 
+const STALE_PROPOSAL_DAYS = 21
+
+function rowsOf<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[]
+  if (
+    result &&
+    typeof result === "object" &&
+    Array.isArray((result as { rows?: unknown }).rows)
+  ) {
+    return (result as { rows: T[] }).rows
+  }
+  return []
+}
+
+function staleProposalCutoff(now: Date, olderThanDays: number): Date {
+  return new Date(now.getTime() - olderThanDays * 24 * 60 * 60 * 1000)
+}
+
 function rowToProposal(row: typeof schema.avaTaskProposals.$inferSelect): ProposalRow {
   return {
     id: row.id,
@@ -322,6 +340,7 @@ export async function listProposedInbox(
 
   const pendingCount = Number(pendingRow?.n ?? 0)
   const itemsTotal = Number(groupCountRow?.n ?? 0)
+  const staleCount = await countStaleProposed(database)
 
   const notePage = await database
     .select({
@@ -346,13 +365,16 @@ export async function listProposedInbox(
 
   const noteIds = notePage.map((r) => Number(r.noteId))
   if (noteIds.length === 0) {
-    return inboxPageEnvelope({
-      groups: [] as InboxMeetingGroup[],
-      pendingCount,
-      itemsTotal,
-      page,
-      perPage,
-    })
+    return {
+      ...inboxPageEnvelope({
+        groups: [] as InboxMeetingGroup[],
+        pendingCount,
+        itemsTotal,
+        page,
+        perPage,
+      }),
+      staleCount,
+    }
   }
 
   const realIds = noteIds.filter((id) => id > 0)
@@ -465,13 +487,64 @@ export async function listProposedInbox(
     return g ? [g] : []
   })
 
-  return inboxPageEnvelope({
-    groups,
-    pendingCount,
-    itemsTotal,
-    page,
-    perPage,
-  })
+  return {
+    ...inboxPageEnvelope({
+      groups,
+      pendingCount,
+      itemsTotal,
+      page,
+      perPage,
+    }),
+    staleCount,
+  }
+}
+
+/**
+ * Marks proposed rows older than `olderThanDays` as expired.
+ * Age is COALESCE(client_notes.meeting_date, ava_task_proposals.created_at).
+ * A missing note uses the proposal's created_at (LEFT JOIN). Rows are never deleted.
+ */
+export async function expireStaleProposals(
+  opts: { olderThanDays?: number; now?: Date } = {},
+  database: Db = getDb()
+): Promise<number> {
+  const olderThanDays = opts.olderThanDays ?? STALE_PROPOSAL_DAYS
+  const now = opts.now ?? new Date()
+  const cutoff = staleProposalCutoff(now, olderThanDays)
+  const updated = await database.execute(sql`
+    UPDATE ava_task_proposals AS p
+    SET
+      status = 'expired',
+      decided_at = ${now.toISOString()}::timestamptz,
+      decided_by_email = NULL,
+      decision_diff = ${JSON.stringify({ reason: "expired_21d" })}::jsonb
+    FROM (
+      SELECT p2.id
+      FROM ava_task_proposals AS p2
+      LEFT JOIN client_notes AS notes ON notes.id = p2.source_note_id
+      WHERE p2.status = 'proposed'
+        AND COALESCE(notes.meeting_date, p2.created_at) < ${cutoff.toISOString()}::timestamptz
+    ) AS stale
+    WHERE p.id = stale.id
+    RETURNING p.id
+  `)
+  return rowsOf(updated).length
+}
+
+async function countStaleProposed(
+  database: Db,
+  now: Date = new Date()
+): Promise<number> {
+  const cutoff = staleProposalCutoff(now, STALE_PROPOSAL_DAYS)
+  const rows = await database.execute(sql`
+    SELECT count(*)::int AS stale_count
+    FROM ava_task_proposals AS p
+    LEFT JOIN client_notes AS notes ON notes.id = p.source_note_id
+    WHERE p.status = 'proposed'
+      AND COALESCE(notes.meeting_date, p.created_at) < ${cutoff.toISOString()}::timestamptz
+  `)
+  const row = rowsOf<{ stale_count: number }>(rows)[0]
+  return Number(row?.stale_count ?? 0)
 }
 
 async function getProposal(

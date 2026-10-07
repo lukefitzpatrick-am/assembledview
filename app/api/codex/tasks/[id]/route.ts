@@ -3,7 +3,11 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { codexClientExists } from "@/lib/codex/clientExists"
 import { getTask, softDeleteTask, updateTask } from "@/lib/codex/repo"
 import { normaliseRecurringRule } from "@/lib/codex/recurringRule"
-import { isTaskCategory } from "@/lib/codex/types"
+import {
+  isTaskCategory,
+  readEstimatedMinutes,
+  validateTaskInput,
+} from "@/lib/codex/types"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
@@ -100,6 +104,24 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const raw = body as Record<string, unknown>
+    const issue = validateTaskInput({
+      ...("title" in raw ? { title: raw.title } : {}),
+      ...("status" in raw ? { status: raw.status } : {}),
+      ...("priority" in raw ? { priority: raw.priority } : {}),
+      ...("due_date" in raw ? { due_date: raw.due_date } : {}),
+      ...("estimated_minutes" in raw
+        ? { estimated_minutes: raw.estimated_minutes }
+        : {}),
+      ...("category" in raw ? { category: raw.category } : {}),
+      ...("assignee_email" in raw ? { assignee_email: raw.assignee_email } : {}),
+    })
+    if (issue) {
+      return NextResponse.json(
+        { error: "invalid", field: issue.field, message: issue.message },
+        { status: 400 }
+      )
+    }
+
     const patch: Parameters<typeof updateTask>[1] = {}
     for (const key of PATCH_ALLOWLIST) {
       if (!(key in raw)) continue
@@ -128,23 +150,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           patch.dueDate = typeof v === "string" ? v : null
           break
         case "estimated_minutes":
-          if (v === null || v === "") {
-            patch.estimatedMinutes = null
-          } else if (typeof v === "number" && Number.isFinite(v)) {
-            patch.estimatedMinutes = Math.round(v)
-          } else if (typeof v === "string" && v.trim() !== "") {
-            const n = Number(v)
-            if (!Number.isFinite(n)) {
-              return NextResponse.json(
-                {
-                  error: "bad_request",
-                  message: "estimated_minutes must be a number or null.",
-                },
-                { status: 400 }
-              )
-            }
-            patch.estimatedMinutes = Math.round(n)
-          }
+          patch.estimatedMinutes = readEstimatedMinutes(v) ?? null
           break
         case "mba_number":
           patch.mbaNumber = typeof v === "string" ? v : null

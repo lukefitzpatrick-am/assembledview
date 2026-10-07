@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { codexClientExists } from "@/lib/codex/clientExists"
-import { resolveListAssigneeScope } from "@/lib/codex/queryHelpers"
+import {
+  parseTaskSort,
+  resolveListAssigneeScope,
+} from "@/lib/codex/queryHelpers"
 import {
   createTask,
   listTasks,
   parseStatusFilter,
-  type TaskSort,
+  type ListTasksFilters,
 } from "@/lib/codex/repo"
 import { normaliseRecurringRule } from "@/lib/codex/recurringRule"
-import { isTaskCategory } from "@/lib/codex/types"
+import { readEstimatedMinutes, validateTaskInput } from "@/lib/codex/types"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
@@ -18,11 +21,82 @@ import {
 
 export const runtime = "nodejs"
 
-function parseSort(raw: string | null): TaskSort | undefined {
-  if (raw === "due_date_asc" || raw === "due_date_desc" || raw === "created_at_desc") {
-    return raw
+function parseTaskSearch(raw: string | null): string | undefined {
+  if (raw == null) return undefined
+  const q = raw.trim().slice(0, 100)
+  return q.length > 0 ? q : undefined
+}
+
+export type ParsedTaskListFilters =
+  | { ok: true; filters: ListTasksFilters }
+  | { ok: false; error: NextResponse }
+
+/** Shared by GET /api/codex/tasks and GET /api/codex/tasks/status-counts. */
+export async function parseTaskListFilters(
+  request: Request
+): Promise<ParsedTaskListFilters> {
+  const url = new URL(request.url)
+  const mineRaw = url.searchParams.get("mine")
+  const mine = mineRaw === "1" || mineRaw === "true" || mineRaw === "yes"
+
+  let sessionEmailForMine: string | null = null
+  if (mine) {
+    const currentUser = await getCurrentUser(request)
+    sessionEmailForMine = currentUser?.email?.trim() || null
+    if (!sessionEmailForMine) {
+      return {
+        ok: false,
+        error: NextResponse.json(
+          {
+            error: "no_user",
+            message: "Could not resolve session email for mine=1.",
+          },
+          { status: 401 }
+        ),
+      }
+    }
   }
-  return undefined
+  // Never trust a client-supplied assignee_email when mine is set.
+  const assigneeScope = resolveListAssigneeScope({
+    mine,
+    sessionEmail: sessionEmailForMine,
+    queryAssigneeEmail: url.searchParams.get("assignee_email"),
+  })
+
+  const clientIdRaw = url.searchParams.get("client_id")
+  const noClient = url.searchParams.get("no_client") === "1"
+  const clientId =
+    noClient || clientIdRaw == null || clientIdRaw === ""
+      ? undefined
+      : Number(clientIdRaw)
+  const unassigned = url.searchParams.get("unassigned") === "1"
+
+  return {
+    ok: true,
+    filters: {
+      clientId:
+        clientId != null && Number.isFinite(clientId) ? clientId : undefined,
+      noClient,
+      unassigned,
+      mineForEmail: unassigned ? undefined : assigneeScope.mineForEmail,
+      assigneeEmail: unassigned ? undefined : assigneeScope.assigneeEmail,
+      createdByEmail: url.searchParams.get("created_by") || undefined,
+      status: parseStatusFilter(url.searchParams.get("status")),
+      mbaNumber: url.searchParams.get("mba_number") || undefined,
+      dueBefore: url.searchParams.get("due_before") || undefined,
+      dueAfter: url.searchParams.get("due_after") || undefined,
+      overdue: url.searchParams.get("overdue") === "1",
+      category: url.searchParams.get("category") || undefined,
+      priority: url.searchParams.get("priority") || undefined,
+      source: url.searchParams.get("source") || undefined,
+      autoCreated: url.searchParams.get("auto_created") === "1" ? true : undefined,
+      q: parseTaskSearch(url.searchParams.get("q")),
+      includeDeleted: url.searchParams.get("include_deleted") === "1",
+      sort: parseTaskSort(url.searchParams.get("sort")),
+      page: Number(url.searchParams.get("page") || 1),
+      perPage: Number(url.searchParams.get("per_page") || 50),
+    },
+  }
 }
 
 export async function GET(request: Request) {
@@ -33,55 +107,10 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error
 
   try {
-    const url = new URL(request.url)
-    const mineRaw = url.searchParams.get("mine")
-    const mine =
-      mineRaw === "1" || mineRaw === "true" || mineRaw === "yes"
+    const parsed = await parseTaskListFilters(request)
+    if (!parsed.ok) return parsed.error
 
-    let sessionEmailForMine: string | null = null
-    if (mine) {
-      const currentUser = await getCurrentUser(request)
-      sessionEmailForMine = currentUser?.email?.trim() || null
-      if (!sessionEmailForMine) {
-        return NextResponse.json(
-          {
-            error: "no_user",
-            message: "Could not resolve session email for mine=1.",
-          },
-          { status: 401 }
-        )
-      }
-    }
-    // Never trust a client-supplied assignee_email when mine is set.
-    const assigneeScope = resolveListAssigneeScope({
-      mine,
-      sessionEmail: sessionEmailForMine,
-      queryAssigneeEmail: url.searchParams.get("assignee_email"),
-    })
-
-    const clientIdRaw = url.searchParams.get("client_id")
-    const clientId =
-      clientIdRaw != null && clientIdRaw !== ""
-        ? Number(clientIdRaw)
-        : undefined
-
-    const data = await listTasks({
-      clientId:
-        clientId != null && Number.isFinite(clientId) ? clientId : undefined,
-      mineForEmail: assigneeScope.mineForEmail,
-      assigneeEmail: assigneeScope.assigneeEmail,
-      status: parseStatusFilter(url.searchParams.get("status")),
-      mbaNumber: url.searchParams.get("mba_number") || undefined,
-      dueBefore: url.searchParams.get("due_before") || undefined,
-      dueAfter: url.searchParams.get("due_after") || undefined,
-      category: url.searchParams.get("category") || undefined,
-      source: url.searchParams.get("source") || undefined,
-      autoCreated: url.searchParams.get("auto_created") === "1" ? true : undefined,
-      includeDeleted: url.searchParams.get("include_deleted") === "1",
-      sort: parseSort(url.searchParams.get("sort")),
-      page: Number(url.searchParams.get("page") || 1),
-      perPage: Number(url.searchParams.get("per_page") || 50),
-    })
+    const data = await listTasks(parsed.filters)
 
     return NextResponse.json(data)
   } catch (error) {
@@ -122,15 +151,26 @@ export async function POST(request: Request) {
     }
 
     const raw = body as Record<string, unknown>
-    const title = typeof raw.title === "string" ? raw.title.trim() : ""
-    const clientId = raw.client_id
-
-    if (!title) {
+    const issue = validateTaskInput({
+      title: raw.title,
+      ...("status" in raw ? { status: raw.status } : {}),
+      ...("priority" in raw ? { priority: raw.priority } : {}),
+      ...("due_date" in raw ? { due_date: raw.due_date } : {}),
+      ...("estimated_minutes" in raw
+        ? { estimated_minutes: raw.estimated_minutes }
+        : {}),
+      ...("category" in raw ? { category: raw.category } : {}),
+      ...("assignee_email" in raw ? { assignee_email: raw.assignee_email } : {}),
+    })
+    if (issue) {
       return NextResponse.json(
-        { error: "bad_request", message: "title is required." },
+        { error: "invalid", field: issue.field, message: issue.message },
         { status: 400 }
       )
     }
+
+    const title = (raw.title as string).trim()
+    const clientId = raw.client_id
     if (
       clientId === undefined ||
       clientId === null ||
@@ -170,21 +210,10 @@ export async function POST(request: Request) {
       )
     }
 
-    // No DB CHECK on tasks.category — enforce TASK_CATEGORIES in the app.
-    let category: string | null = null
-    if (typeof raw.category === "string" && raw.category.trim()) {
-      if (!isTaskCategory(raw.category)) {
-        return NextResponse.json(
-          {
-            error: "bad_request",
-            message:
-              "category must be one of: reporting, pacing, creative, finance, admin, meeting_followup, other.",
-          },
-          { status: 400 }
-        )
-      }
-      category = raw.category
-    }
+    const category =
+      raw.category === null || raw.category === undefined
+        ? null
+        : (raw.category as string)
 
     let templateId: number | null = null
     if (raw.template_id !== undefined && raw.template_id !== null && raw.template_id !== "") {
@@ -234,17 +263,19 @@ export async function POST(request: Request) {
           clientId: clientIdNum,
           description:
             typeof raw.description === "string" ? raw.description : null,
-          status: typeof raw.status === "string" ? raw.status : null,
-          priority: typeof raw.priority === "string" ? raw.priority : null,
+          status: "status" in raw ? (raw.status as string) : null,
+          priority:
+            "priority" in raw ? (raw.priority as string | null) : null,
           assigneeEmail:
-            typeof raw.assignee_email === "string" ? raw.assignee_email : null,
+            "assignee_email" in raw
+              ? (raw.assignee_email as string | null)
+              : null,
           assigneeName:
             typeof raw.assignee_name === "string" ? raw.assignee_name : null,
-          dueDate: typeof raw.due_date === "string" ? raw.due_date : null,
+          dueDate: "due_date" in raw ? (raw.due_date as string | null) : null,
           estimatedMinutes:
-            typeof raw.estimated_minutes === "number" &&
-            Number.isFinite(raw.estimated_minutes)
-              ? Math.round(raw.estimated_minutes)
+            "estimated_minutes" in raw
+              ? readEstimatedMinutes(raw.estimated_minutes) ?? null
               : null,
           mbaNumber: typeof raw.mba_number === "string" ? raw.mba_number : null,
           category,

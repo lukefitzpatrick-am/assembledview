@@ -19,6 +19,7 @@ const auth0GetSession = mock.fn(
 const createTaskCalls: unknown[] = []
 const createTeamMemberCalls: unknown[] = []
 const updateTaskCalls: { id: number; patch: Record<string, unknown> }[] = []
+const bulkUpdateCalls: { ids: number[]; patch: Record<string, unknown> }[] = []
 let clientExistsResult = true
 const clientExistsCalls: number[] = []
 
@@ -70,6 +71,23 @@ if (supportsMockModule()) {
       updateTask: async (id: number, patch: Record<string, unknown>) => {
         updateTaskCalls.push({ id, patch })
         return { id, title: "t", client_id: 2, status: "todo", ...patch }
+      },
+      bulkUpdateTasks: async (
+        ids: number[],
+        patch: Record<string, unknown>
+      ) => {
+        bulkUpdateCalls.push({ ids, patch })
+        return []
+      },
+      bulkSoftDeleteTasks: async () => [],
+      CodexBulkError: class CodexBulkError extends Error {
+        readonly taskId: number
+        readonly statusCode: 400 | 409
+        constructor(taskId: number, statusCode: 400 | 409, message: string) {
+          super(message)
+          this.taskId = taskId
+          this.statusCode = statusCode
+        }
       },
       softDeleteTask: async () => false,
       createTeamMember: async (input: unknown) => {
@@ -262,6 +280,173 @@ test(
       )
       assert.equal(res.status, 400)
       assert.equal(createTeamMemberCalls.length, 0)
+    })
+  }
+)
+
+async function assertInvalid(
+  res: Response,
+  field: string,
+  written: number
+) {
+  assert.equal(res.status, 400)
+  const body = (await res.json()) as {
+    error?: string
+    field?: string
+    message?: string
+  }
+  assert.equal(body.error, "invalid")
+  assert.equal(body.field, field)
+  assert.ok(body.message && body.message.length > 0)
+  assert.equal(written, 0, `${field} must not be written`)
+}
+
+test(
+  "POST title longer than 300 characters → 400 invalid, createTask never called",
+  { skip },
+  async () => {
+    createTaskCalls.length = 0
+    await withCodexFlagOn(async () => {
+      const { POST } = await import("../../../app/api/codex/tasks/route.js")
+      const res = await POST(
+        new Request("http://localhost/api/codex/tasks", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            title: "a".repeat(301),
+            client_id: 2,
+          }),
+        })
+      )
+      await assertInvalid(res, "title", createTaskCalls.length)
+    })
+  }
+)
+
+test(
+  "POST status outside the five → 400 invalid, createTask never called",
+  { skip },
+  async () => {
+    createTaskCalls.length = 0
+    await withCodexFlagOn(async () => {
+      const { POST } = await import("../../../app/api/codex/tasks/route.js")
+      const res = await POST(
+        new Request("http://localhost/api/codex/tasks", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            title: "Valid title",
+            client_id: 2,
+            status: "archived",
+          }),
+        })
+      )
+      await assertInvalid(res, "status", createTaskCalls.length)
+    })
+  }
+)
+
+test(
+  "PATCH priority outside low/normal/high → 400 invalid, updateTask never called",
+  { skip },
+  async () => {
+    updateTaskCalls.length = 0
+    await withCodexFlagOn(async () => {
+      const { PATCH } = await import("../../../app/api/codex/tasks/[id]/route.js")
+      const res = await PATCH(
+        new Request("http://localhost/api/codex/tasks/1", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ priority: "urgent" }),
+        }),
+        { params: Promise.resolve({ id: "1" }) }
+      )
+      await assertInvalid(res, "priority", updateTaskCalls.length)
+    })
+  }
+)
+
+test(
+  "PATCH due_date that is not a calendar date → 400 invalid, updateTask never called",
+  { skip },
+  async () => {
+    updateTaskCalls.length = 0
+    await withCodexFlagOn(async () => {
+      const { PATCH } = await import("../../../app/api/codex/tasks/[id]/route.js")
+      const res = await PATCH(
+        new Request("http://localhost/api/codex/tasks/1", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ due_date: "2026-02-31" }),
+        }),
+        { params: Promise.resolve({ id: "1" }) }
+      )
+      await assertInvalid(res, "due_date", updateTaskCalls.length)
+    })
+  }
+)
+
+test(
+  "PATCH estimated_minutes outside 0..10080 → 400 invalid, updateTask never called",
+  { skip },
+  async () => {
+    updateTaskCalls.length = 0
+    await withCodexFlagOn(async () => {
+      const { PATCH } = await import("../../../app/api/codex/tasks/[id]/route.js")
+      const res = await PATCH(
+        new Request("http://localhost/api/codex/tasks/1", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ estimated_minutes: 10081 }),
+        }),
+        { params: Promise.resolve({ id: "1" }) }
+      )
+      await assertInvalid(res, "estimated_minutes", updateTaskCalls.length)
+    })
+  }
+)
+
+test(
+  "POST category outside TASK_CATEGORIES → 400 invalid, createTask never called",
+  { skip },
+  async () => {
+    createTaskCalls.length = 0
+    await withCodexFlagOn(async () => {
+      const { POST } = await import("../../../app/api/codex/tasks/route.js")
+      const res = await POST(
+        new Request("http://localhost/api/codex/tasks", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            title: "Valid title",
+            client_id: 2,
+            category: "not-a-category",
+          }),
+        })
+      )
+      await assertInvalid(res, "category", createTaskCalls.length)
+    })
+  }
+)
+
+test(
+  "POST bulk assignee_email that is not an email → 400 invalid, bulkUpdateTasks never called",
+  { skip },
+  async () => {
+    bulkUpdateCalls.length = 0
+    await withCodexFlagOn(async () => {
+      const { POST } = await import("../../../app/api/codex/tasks/bulk/route.js")
+      const res = await POST(
+        new Request("http://localhost/api/codex/tasks/bulk", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            ids: [1],
+            patch: { assignee_email: "not-an-email" },
+          }),
+        })
+      )
+      await assertInvalid(res, "assignee_email", bulkUpdateCalls.length)
     })
   }
 )

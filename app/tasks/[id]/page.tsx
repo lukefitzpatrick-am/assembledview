@@ -7,9 +7,12 @@ import { pageMetadata } from "@/lib/nav/routeManifest"
 
 export const metadata = pageMetadata("/tasks/[id]")
 
-type PageProps = { params: Promise<{ id: string }> }
+type PageProps = {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
 
-export default async function TaskDetailPage({ params }: PageProps) {
+export default async function TaskDetailPage({ params, searchParams }: PageProps) {
   if (!isCodexV2Enabled()) {
     return (
       <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-6 md:px-6 md:pt-8">
@@ -32,7 +35,10 @@ export default async function TaskDetailPage({ params }: PageProps) {
     )
   }
 
-  const { id: idRaw } = await params
+  const [{ id: idRaw }, initialSearchParams] = await Promise.all([
+    params,
+    searchParams ?? Promise.resolve({}),
+  ])
   const taskId = Number(idRaw)
   const overlayTaskId =
     Number.isFinite(taskId) && taskId >= 1 ? taskId : null
@@ -49,7 +55,10 @@ export default async function TaskDetailPage({ params }: PageProps) {
         </div>
       }
     >
-      <TasksPageClient overlayTaskId={overlayTaskId} />
+      <TasksPageClient
+        overlayTaskId={overlayTaskId}
+        initialSearchParams={initialSearchParams}
+      />
     </Suspense>
   )
 }

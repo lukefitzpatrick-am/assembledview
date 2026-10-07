@@ -231,6 +231,150 @@ export function isTaskCategory(value: unknown): value is TaskCategory {
   )
 }
 
+export const TASK_TITLE_MAX = 300
+/** One week of minutes. */
+export const TASK_ESTIMATE_MINUTES_MAX = 10_080
+
+const TASK_PRIORITY_VALUES = ["low", "normal", "high"] as const
+
+export type TaskInputField =
+  | "title"
+  | "status"
+  | "priority"
+  | "due_date"
+  | "estimated_minutes"
+  | "category"
+  | "assignee_email"
+
+export type TaskInputIssue = {
+  field: TaskInputField
+  message: string
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function isCalendarYmd(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const year = Number(value.slice(0, 4))
+  const month = Number(value.slice(5, 7))
+  const day = Number(value.slice(8, 10))
+  const probe = new Date(Date.UTC(year, month - 1, day))
+  return (
+    probe.getUTCFullYear() === year &&
+    probe.getUTCMonth() === month - 1 &&
+    probe.getUTCDate() === day
+  )
+}
+
+function isEstimateInRange(value: number): boolean {
+  return (
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= TASK_ESTIMATE_MINUTES_MAX
+  )
+}
+
+/** Integer 0..10080, or null. Empty string clears. Anything else is absent. */
+export function readEstimatedMinutes(value: unknown): number | null | undefined {
+  if (value === null || value === "") return null
+  if (typeof value === "number" && isEstimateInRange(value)) return value
+  if (typeof value === "string" && /^(0|[1-9]\d*)$/.test(value.trim())) {
+    const n = Number(value.trim())
+    if (isEstimateInRange(n)) return n
+  }
+  return undefined
+}
+
+/**
+ * Validates only the keys present on `partial`.
+ * Assignee emails are checked case-insensitively; the route still passes the
+ * raw string through so the repo remains the only place that lowercases.
+ */
+export function validateTaskInput(
+  partial: Partial<Record<TaskInputField, unknown>>
+): TaskInputIssue | null {
+  if ("title" in partial) {
+    const title = partial.title
+    if (typeof title !== "string" || title.trim().length === 0) {
+      return { field: "title", message: "title is required." }
+    }
+    if (title.trim().length > TASK_TITLE_MAX) {
+      return {
+        field: "title",
+        message: `title must be ${TASK_TITLE_MAX} characters or fewer.`,
+      }
+    }
+  }
+
+  if ("status" in partial) {
+    if (!isTaskStatus(partial.status)) {
+      return {
+        field: "status",
+        message: `status must be one of: ${TASK_STATUSES.join(", ")}.`,
+      }
+    }
+  }
+
+  if ("priority" in partial) {
+    const priority = partial.priority
+    if (
+      priority !== null &&
+      (typeof priority !== "string" ||
+        !(TASK_PRIORITY_VALUES as readonly string[]).includes(priority))
+    ) {
+      return {
+        field: "priority",
+        message: "priority must be one of: low, normal, high, or null.",
+      }
+    }
+  }
+
+  if ("due_date" in partial) {
+    const due = partial.due_date
+    if (due !== null && (typeof due !== "string" || !isCalendarYmd(due))) {
+      return {
+        field: "due_date",
+        message: "due_date must be a YYYY-MM-DD calendar date or null.",
+      }
+    }
+  }
+
+  if ("estimated_minutes" in partial) {
+    if (readEstimatedMinutes(partial.estimated_minutes) === undefined) {
+      return {
+        field: "estimated_minutes",
+        message: `estimated_minutes must be an integer from 0 to ${TASK_ESTIMATE_MINUTES_MAX}, or null.`,
+      }
+    }
+  }
+
+  if ("category" in partial) {
+    const category = partial.category
+    if (category !== null && !isTaskCategory(category)) {
+      return {
+        field: "category",
+        message:
+          "category must be one of: reporting, pacing, creative, finance, admin, meeting_followup, other, or null.",
+      }
+    }
+  }
+
+  if ("assignee_email" in partial) {
+    const email = partial.assignee_email
+    if (email !== null) {
+      const trimmed = typeof email === "string" ? email.trim().toLowerCase() : ""
+      if (!EMAIL.test(trimmed)) {
+        return {
+          field: "assignee_email",
+          message: "assignee_email must be an email address or null.",
+        }
+      }
+    }
+  }
+
+  return null
+}
+
 export function isTaskSource(value: unknown): value is TaskSource {
   return (
     typeof value === "string" &&

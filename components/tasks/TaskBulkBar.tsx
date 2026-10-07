@@ -12,7 +12,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
-import { STATUSES, type TaskStatus, type TeamMember } from "@/lib/codex/types"
+import {
+  STATUSES,
+  TASK_CATEGORY_OPTIONS,
+  TASK_PRIORITIES,
+  type TaskCategory,
+  type TaskPriority,
+  type TaskStatus,
+  type TeamMember,
+} from "@/lib/codex/types"
 import { isValid } from "date-fns"
 
 const UNASSIGNED = "__unassigned__"
@@ -25,6 +33,9 @@ type Props = {
   onSetStatus: (status: TaskStatus) => Promise<void>
   onSetAssignee: (email: string | null, name: string | null) => Promise<void>
   onSetDueDate: (dueDate: string | null) => Promise<void>
+  onSetPriority: (priority: TaskPriority) => Promise<void>
+  onSetCategory: (category: TaskCategory) => Promise<void>
+  onDelete: () => Promise<void>
 }
 
 function dueToYmd(d: Date | null | undefined): string | null {
@@ -43,10 +54,16 @@ export function TaskBulkBar({
   onSetStatus,
   onSetAssignee,
   onSetDueDate,
+  onSetPriority,
+  onSetCategory,
+  onDelete,
 }: Props) {
   const [status, setStatus] = useState<string>("")
   const [assignee, setAssignee] = useState<string>("")
   const [due, setDue] = useState<Date | null>(null)
+  const [priority, setPriority] = useState<string>("")
+  const [category, setCategory] = useState<string>("")
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const active = teamMembers.filter((m) => m.active)
 
@@ -146,8 +163,99 @@ export function TaskBulkBar({
         </div>
       </div>
 
+      <div className="space-y-1.5">
+        <Label>Set priority</Label>
+        <div className="flex gap-2">
+          <Select value={priority || undefined} onValueChange={setPriority}>
+            <SelectTrigger className="h-9 w-[10rem]">
+              <SelectValue placeholder="Priority" />
+            </SelectTrigger>
+            <SelectContent>
+              {TASK_PRIORITIES.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy || !priority}
+            onClick={() => {
+              if (priority) void onSetPriority(priority as TaskPriority)
+            }}
+          >
+            Apply
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Set category</Label>
+        <div className="flex gap-2">
+          <Select value={category || undefined} onValueChange={setCategory}>
+            <SelectTrigger className="h-9 w-[12rem]">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              {TASK_CATEGORY_OPTIONS.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy || !category}
+            onClick={() => {
+              if (category) void onSetCategory(category as TaskCategory)
+            }}
+          >
+            Apply
+          </Button>
+        </div>
+      </div>
+
       <div className="flex items-center gap-2 sm:ml-auto">
         {busy ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
+        {confirmDelete ? (
+          <>
+            <p className="text-sm text-foreground">
+              Delete <span className="num">{count}</span> tasks?
+            </p>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={busy}
+              onClick={() => void onDelete()}
+            >
+              Delete
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => setConfirmDelete(false)}
+            >
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy || count < 1}
+            onClick={() => setConfirmDelete(true)}
+          >
+            Delete
+          </Button>
+        )}
         <Button type="button" variant="ghost" size="sm" onClick={onClear} disabled={busy}>
           Clear selection
         </Button>

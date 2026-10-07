@@ -1,15 +1,17 @@
 import "server-only"
 
+import { toSydneyCivilYmd } from "@/lib/codex/dueDate"
 import { isCodexV2Enabled } from "@/lib/codex/flag"
 import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import {
   createGeneratedRecurringTask,
   findGeneratedRecurringTask,
+  latestRecurringInstanceDueYmd,
   listRecurringSeeds,
 } from "@/lib/codex/repo"
 import {
   parseRecurringRule,
-  resolveRecurringDue,
+  recurringPeriodsToGenerate,
 } from "@/lib/codex/recurringRule"
 
 export type RecurringRunResult = {
@@ -26,7 +28,8 @@ export type RecurringRunResult = {
 
 /**
  * Idempotent retainer generation. Safe to run twice in one day.
- * Keys on (template_id, client_id, period) via description period marker.
+ * Keys on (seed task id, period). Catch-up fills missed due dates back
+ * to the later of the seed's created day and 31 Sydney days ago.
  */
 export async function runCodexRecurring(
   now: Date = new Date()
@@ -60,36 +63,43 @@ export async function runCodexRecurring(
       continue
     }
 
-    const due = resolveRecurringDue(parsed, now)
-    if (!due.shouldGenerate) {
+    const lastDue = await latestRecurringInstanceDueYmd(seed.id)
+    const createdYmd = toSydneyCivilYmd(seed.createdAt) ?? sydneyYmd
+    const periods = recurringPeriodsToGenerate(parsed, {
+      todayYmd: sydneyYmd,
+      createdYmd,
+      lastDueYmd: lastDue,
+    })
+    if (periods.length === 0) {
       skippedNotDue += 1
       continue
     }
 
-    const existing = await findGeneratedRecurringTask(
-      seed.templateId,
-      seed.clientId,
-      due.period
-    )
-    if (existing) {
-      skippedExisting += 1
-      continue
-    }
+    for (const due of periods) {
+      const existing = await findGeneratedRecurringTask(seed.id, due.period)
+      if (existing) {
+        skippedExisting += 1
+        continue
+      }
 
-    const created = await createGeneratedRecurringTask({
-      title: seed.title,
-      clientId: seed.clientId,
-      templateId: seed.templateId,
-      period: due.period,
-      dueYmd: due.dueYmd,
-      description: seed.description,
-      priority: seed.priority,
-      assigneeEmail: seed.assigneeEmail,
-      assigneeName: seed.assigneeName,
-      category: seed.category,
-      createdByEmail: seed.createdByEmail || "system@codex.local",
-    })
-    createdIds.push(Number(created.id))
+      const created = await createGeneratedRecurringTask({
+        seedTaskId: seed.id,
+        title: seed.title,
+        clientId: seed.clientId,
+        templateId: seed.templateId,
+        period: due.period,
+        dueYmd: due.dueYmd,
+        description: seed.description,
+        priority: seed.priority,
+        assigneeEmail: seed.assigneeEmail,
+        assigneeName: seed.assigneeName,
+        category: seed.category,
+        mbaNumber: seed.mbaNumber,
+        estimatedMinutes: seed.estimatedMinutes,
+        createdByEmail: seed.createdByEmail || "system@codex.local",
+      })
+      createdIds.push(Number(created.id))
+    }
   }
 
   return {

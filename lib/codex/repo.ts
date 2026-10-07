@@ -10,26 +10,40 @@ import {
   inArray,
   isNotNull,
   isNull,
+  ilike,
   like,
   lt,
   lte,
   max,
   ne,
   or,
+  sql,
   type SQL,
 } from "drizzle-orm"
 import { db, schema, type Db } from "@/db"
 import type { CodexActorKind } from "@/db/schema/codex"
 import {
   applyEstimatedMinutes,
+  estimatedMinutesByTaskId,
   writeTaskEstimatedMinutes,
 } from "@/lib/codex/estimatedMinutesColumn"
-import { clampPage, clampPerPage, parseStatusFilter } from "@/lib/codex/queryHelpers"
+import {
+  clampPage,
+  clampPerPage,
+  parseStatusFilter,
+  parseTaskPriorityFilter,
+  parseTaskSort,
+  parseTaskSourceFilter,
+  type TaskSortKey,
+} from "@/lib/codex/queryHelpers"
+import { sydneyTodayYmd, toSydneyCivilYmd } from "@/lib/codex/dueDate"
 import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import {
   descriptionHasPeriod,
+  descriptionHasSeed,
   descriptionWithPeriod,
   formatPeriodMarker,
+  formatSeedMarker,
   normaliseRecurringRule,
 } from "@/lib/codex/recurringRule"
 import { CodexHelpError, isOpenHelpChildStatus } from "@/lib/codex/helpRoster"
@@ -48,6 +62,9 @@ import type {
 import {
   ASK_HELP_MAX_CHARS,
   FIRST_OPEN_TASK_STATUS,
+  TASK_STATUSES,
+  isTaskStatus,
+  type TaskStatus,
 } from "@/lib/codex/types"
 import {
   assertNewAliasesAvailable,
@@ -72,12 +89,36 @@ const {
 /** Root `db` or a `db.transaction` callback handle — both share the query API. */
 type DbExecutor = Db | Parameters<Parameters<Db["transaction"]>[0]>[0]
 
-export type TaskSort = "due_date_asc" | "due_date_desc" | "created_at_desc"
+/** Canonical sorts, plus the three values the tasks API accepted before `sort` was a URL param. */
+export type TaskSort =
+  | TaskSortKey
+  | "due_date_asc"
+  | "due_date_desc"
+  | "created_at_desc"
+
+function taskListOrder(sort: TaskSortKey): SQL[] {
+  const id = desc(tasks.id)
+  if (sort === "due_desc") return [sql`${tasks.dueDate} desc nulls last`, id]
+  if (sort === "created_desc") return [desc(tasks.createdAt), id]
+  if (sort === "updated_desc") {
+    return [sql`coalesce(${tasks.updatedAt}, ${tasks.createdAt}) desc`, id]
+  }
+  if (sort === "priority_desc") {
+    return [
+      sql`case ${tasks.priority} when 'high' then 0 when 'normal' then 1 when 'low' then 2 else 3 end`,
+      sql`${tasks.dueDate} asc nulls last`,
+      id,
+    ]
+  }
+  return [sql`${tasks.dueDate} asc nulls last`, id]
+}
 
 export type ListTasksFilters = {
   clientId?: number
   /** Exact assignee match (All-tasks filter). Null assignees excluded. */
   assigneeEmail?: string
+  /** assignee_email IS NULL. Wins over mine and assignee_email. */
+  unassigned?: boolean
   /**
    * My-tasks scope: assignee_email = email OR created_by_email = email.
    * Includes unassigned tasks created by this user.
@@ -87,9 +128,21 @@ export type ListTasksFilters = {
   mbaNumber?: string
   dueBefore?: string
   dueAfter?: string
+  /** `none` matches category IS NULL. */
   category?: string
+  /** CSV. `profile` matches source LIKE 'profile:%'. */
   source?: string
+  /** CSV of high, normal, low. */
+  priority?: string
+  overdue?: boolean
+  /** client_id IS NULL. Wins over clientId. */
+  noClient?: boolean
+  createdByEmail?: string
+  /** Clock for the overdue bound. Defaults to now. */
+  now?: Date
   autoCreated?: boolean
+  /** Title, description, or MBA contains this text (case-insensitive). */
+  q?: string
   includeDeleted?: boolean
   sort?: TaskSort
   page?: number
@@ -141,14 +194,31 @@ export type UpdateTaskInput = {
   recurringRule?: string | null
 }
 
+export const TEMPLATE_LABEL_MAX = 200
+
+export class TemplateLabelError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "TemplateLabelError"
+  }
+}
+
+export type TemplateItemWrite = {
+  id?: number | null
+  label: string
+}
+
 export type CreateTemplateInput = {
   name: string
   description?: string | null
+  items?: Array<{ label: string }>
 }
 
 export type UpdateTemplateInput = {
   name?: string
   description?: string | null
+  /** When set, replaces the checklist in one transaction. */
+  items?: TemplateItemWrite[]
 }
 
 export type CreateTemplateItemInput = {
@@ -237,7 +307,7 @@ function taskRowToApi(row: typeof tasks.$inferSelect): CodexTask {
     priority: row.priority,
     assignee_email: row.assigneeEmail,
     assignee_name: row.assigneeName,
-    due_date: row.dueDate,
+    due_date: toSydneyCivilYmd(row.dueDate),
     estimated_minutes: null,
     mba_number: row.mbaNumber,
     description: row.description,
@@ -435,6 +505,31 @@ async function getLiveTaskRow(
   return row ?? null
 }
 
+/** ILIKE pattern with `\`, `%`, and `_` treated as literals. */
+function taskSearchCondition(raw: string | undefined): SQL | undefined {
+  const q = raw?.trim()
+  if (!q) return undefined
+  const escaped = q.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+  const pattern = `%${escaped}%`
+  return or(
+    ilike(tasks.title, pattern),
+    ilike(tasks.description, pattern),
+    ilike(tasks.mbaNumber, pattern)
+  )
+}
+
+/** Exact source tokens, plus `profile` as source LIKE 'profile:%'. */
+function taskSourceCondition(raw: string | undefined): SQL | undefined {
+  const tokens = parseTaskSourceFilter(raw)
+  if (tokens.length === 0) return undefined
+  const exact = tokens.filter((token) => token !== "profile")
+  const parts: SQL[] = []
+  if (exact.length > 0) parts.push(inArray(tasks.source, exact))
+  if (tokens.includes("profile")) parts.push(like(tasks.source, "profile:%"))
+  if (parts.length === 1) return parts[0]
+  return or(...parts)
+}
+
 function checklistRowToApi(
   row: typeof taskChecklistItems.$inferSelect
 ): ChecklistItem {
@@ -460,18 +555,33 @@ function commentRowToApi(row: typeof taskComments.$inferSelect): TaskComment {
   }
 }
 
-export async function listTasks(
-  filters: ListTasksFilters = {},
-  database: Db = db
-): Promise<CodexPagedResponse<CodexTask>> {
-  const page = clampPage(filters.page)
-  const perPage = clampPerPage(filters.perPage)
-  const offset = (page - 1) * perPage
+function knownStatusSqlList() {
+  return sql.join(
+    TASK_STATUSES.map((status) => sql`${status}`),
+    sql`, `
+  )
+}
 
+/**
+ * Status filter shared by the list and the board counts.
+ * A filter that includes `todo` also matches values outside the five columns,
+ * so those rows travel with To do.
+ */
+function taskStatusCondition(statuses: string[] | undefined): SQL | undefined {
+  if (!statuses?.length) return undefined
+  const selected = inArray(tasks.status, statuses)
+  if (!statuses.includes("todo")) return selected
+  const unknown = sql`${tasks.status} not in (${knownStatusSqlList()})`
+  return or(selected, unknown)
+}
+
+function taskListWhere(filters: ListTasksFilters): SQL | undefined {
   const conds: SQL[] = []
   if (!filters.includeDeleted) conds.push(isNull(tasks.deletedAt))
-  if (filters.clientId != null) conds.push(eq(tasks.clientId, filters.clientId))
-  if (filters.mineForEmail) {
+  if (filters.noClient) conds.push(isNull(tasks.clientId))
+  else if (filters.clientId != null) conds.push(eq(tasks.clientId, filters.clientId))
+  if (filters.unassigned) conds.push(isNull(tasks.assigneeEmail))
+  else if (filters.mineForEmail) {
     const email = filters.mineForEmail.trim().toLowerCase()
     const mineScope = or(
       eq(tasks.assigneeEmail, email),
@@ -481,23 +591,45 @@ export async function listTasks(
   } else if (filters.assigneeEmail) {
     conds.push(eq(tasks.assigneeEmail, filters.assigneeEmail.trim().toLowerCase()))
   }
-  if (filters.status?.length) conds.push(inArray(tasks.status, filters.status))
-  if (filters.mbaNumber) conds.push(eq(tasks.mbaNumber, filters.mbaNumber))
+  if (filters.createdByEmail?.trim()) {
+    conds.push(
+      sql`lower(${tasks.createdByEmail}) = ${filters.createdByEmail.trim().toLowerCase()}`
+    )
+  }
+  const statusCond = taskStatusCondition(filters.status)
+  if (statusCond) conds.push(statusCond)
+  if (filters.mbaNumber?.trim()) {
+    conds.push(
+      sql`lower(${tasks.mbaNumber}) = ${filters.mbaNumber.trim().toLowerCase()}`
+    )
+  }
   if (filters.dueBefore) conds.push(lte(tasks.dueDate, filters.dueBefore))
   if (filters.dueAfter) conds.push(gte(tasks.dueDate, filters.dueAfter))
-  if (filters.category) conds.push(eq(tasks.category, filters.category))
-  if (filters.source) conds.push(eq(tasks.source, filters.source))
+  if (filters.overdue) {
+    conds.push(lt(tasks.dueDate, sydneyTodayYmd(filters.now)))
+    conds.push(ne(tasks.status, "done"))
+  }
+  if (filters.category === "none") conds.push(isNull(tasks.category))
+  else if (filters.category) conds.push(eq(tasks.category, filters.category))
+  const priorities = parseTaskPriorityFilter(filters.priority)
+  if (priorities.length > 0) conds.push(inArray(tasks.priority, priorities))
+  const sourceCond = taskSourceCondition(filters.source)
+  if (sourceCond) conds.push(sourceCond)
   if (filters.autoCreated === true) conds.push(eq(tasks.autoCreated, true))
+  const search = taskSearchCondition(filters.q)
+  if (search) conds.push(search)
 
-  const where = conds.length > 0 ? and(...conds) : undefined
+  return conds.length > 0 ? and(...conds) : undefined
+}
 
-  const sort = filters.sort ?? "due_date_asc"
-  const orderBy =
-    sort === "due_date_desc"
-      ? desc(tasks.dueDate)
-      : sort === "created_at_desc"
-        ? desc(tasks.createdAt)
-        : asc(tasks.dueDate)
+export async function listTasks(
+  filters: ListTasksFilters = {},
+  database: Db = db
+): Promise<CodexPagedResponse<CodexTask>> {
+  const page = clampPage(filters.page)
+  const perPage = clampPerPage(filters.perPage)
+  const offset = (page - 1) * perPage
+  const where = taskListWhere(filters)
 
   const [totalRow] = await database
     .select({ c: count() })
@@ -509,7 +641,7 @@ export async function listTasks(
     .select()
     .from(tasks)
     .where(where)
-    .orderBy(orderBy, desc(tasks.id))
+    .orderBy(...taskListOrder(parseTaskSort(filters.sort)))
     .limit(perPage)
     .offset(offset)
 
@@ -549,6 +681,43 @@ export async function listTasks(
   const withEstimates = await applyEstimatedMinutes(database, withProgress)
   const withParents = await attachParentTitles(database, withEstimates)
   return pagedEnvelope(withParents, itemsTotal, page, perPage)
+}
+
+export type TaskStatusCounts = Record<TaskStatus, number>
+
+function emptyStatusCounts(): TaskStatusCounts {
+  return {
+    backlog: 0,
+    todo: 0,
+    in_progress: 0,
+    waiting: 0,
+    done: 0,
+  }
+}
+
+/** One GROUP BY over the same WHERE as `listTasks`. Unknown statuses fold into `todo`. */
+export async function countTasksByStatus(
+  filters: ListTasksFilters = {},
+  database: Db = db
+): Promise<TaskStatusCounts> {
+  const where = taskListWhere(filters)
+  const bucket = sql<string>`case when ${tasks.status} in (${knownStatusSqlList()}) then ${tasks.status} else 'todo' end`
+  const rows = await database
+    .select({
+      status: bucket,
+      c: count(),
+    })
+    .from(tasks)
+    .where(where)
+    .groupBy(bucket)
+
+  const counts = emptyStatusCounts()
+  for (const row of rows) {
+    const key = String(row.status ?? "")
+    if (!isTaskStatus(key)) continue
+    counts[key] += Number(row.c ?? 0)
+  }
+  return counts
 }
 
 export type MbaTaskCounts = {
@@ -756,11 +925,23 @@ export async function createTask(
   })
 }
 
-export async function updateTask(
+export class CodexBulkError extends Error {
+  readonly taskId: number
+  readonly statusCode: 400 | 409
+
+  constructor(taskId: number, statusCode: 400 | 409, message: string) {
+    super(message)
+    this.name = "CodexBulkError"
+    this.taskId = taskId
+    this.statusCode = statusCode
+  }
+}
+
+async function updateLiveTask(
+  tx: DbExecutor,
   id: number,
   patch: UpdateTaskInput,
-  actorEmail: string | null,
-  database: Db = db
+  actorEmail: string | null
 ): Promise<CodexTask | null> {
   if (patch.recurringRule !== undefined && patch.recurringRule != null && patch.recurringRule.trim() !== "") {
     if (!normaliseRecurringRule(patch.recurringRule)) {
@@ -768,7 +949,7 @@ export async function updateTask(
     }
   }
 
-  return database.transaction(async (tx) => {
+  {
     const [before] = await tx.select().from(tasks).where(eq(tasks.id, id)).limit(1)
     if (!before || before.deletedAt) return null
 
@@ -837,11 +1018,28 @@ export async function updateTask(
 
     if (before.status !== "done" && row.status === "done" && row.parentTaskId) {
       await maybeCompleteHelpParent(tx, row, actorEmail)
+    } else if (
+      before.status === "done" &&
+      isOpenHelpChildStatus(row.status) &&
+      row.parentTaskId
+    ) {
+      await maybeRewaitHelpParent(tx, row, actorEmail)
     }
 
     return after
-  })
+  }
 }
+
+export async function updateTask(
+  id: number,
+  patch: UpdateTaskInput,
+  actorEmail: string | null,
+  database: Db = db
+): Promise<CodexTask | null> {
+  return database.transaction((tx) => updateLiveTask(tx, id, patch, actorEmail))
+}
+
+export const HELP_ON_DONE_MESSAGE = "Reopen the task before asking for help"
 
 export type RequestHelpInput = {
   assigneeEmail: string
@@ -894,6 +1092,9 @@ export async function requestHelp(
     }
     if (parent.parentTaskId != null) {
       throw new CodexHelpError("Cannot ask for help on a help request.")
+    }
+    if (parent.status === "done") {
+      throw new CodexHelpError(HELP_ON_DONE_MESSAGE)
     }
 
     const [member] = await tx
@@ -991,7 +1192,8 @@ export async function requestHelp(
 async function maybeCompleteHelpParent(
   tx: DbExecutor,
   child: typeof tasks.$inferSelect,
-  actorEmail: string | null
+  actorEmail: string | null,
+  options?: { onlyWhenParentWaiting?: boolean }
 ): Promise<void> {
   const parentId = child.parentTaskId
   if (parentId == null) return
@@ -1002,6 +1204,7 @@ async function maybeCompleteHelpParent(
     .where(and(eq(tasks.id, parentId), isNull(tasks.deletedAt)))
     .limit(1)
   if (!parent) return
+  if (options?.onlyWhenParentWaiting && parent.status !== "waiting") return
 
   const siblings = await tx
     .select({ id: tasks.id, status: tasks.status })
@@ -1065,12 +1268,47 @@ async function maybeCompleteHelpParent(
   })
 }
 
-export async function softDeleteTask(
+/** Done help child moved back to an open status: parent returns to waiting. */
+async function maybeRewaitHelpParent(
+  tx: DbExecutor,
+  child: typeof tasks.$inferSelect,
+  actorEmail: string | null
+): Promise<void> {
+  const parentId = child.parentTaskId
+  if (parentId == null) return
+
+  const [parent] = await tx
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, parentId), isNull(tasks.deletedAt)))
+    .limit(1)
+  if (!parent || parent.status === "waiting") return
+
+  const now = new Date().toISOString()
+  await tx
+    .update(tasks)
+    .set({
+      status: "waiting",
+      helpPriorStatus: parent.status,
+      updatedAt: now,
+    })
+    .where(and(eq(tasks.id, parentId), isNull(tasks.deletedAt)))
+
+  const helperName =
+    child.assigneeName?.trim() || child.assigneeEmail?.trim() || "someone"
+  await appendActivity(tx, {
+    entityType: "task",
+    entityId: parentId,
+    actorEmail: actorEmail?.toLowerCase() ?? null,
+    action: `help from ${helperName} reopened`,
+  })
+}
+
+async function softDeleteLiveTask(
+  tx: DbExecutor,
   id: number,
-  actorEmail: string | null,
-  database: Db = db
+  actorEmail: string | null
 ): Promise<boolean> {
-  return database.transaction(async (tx) => {
     const [before] = await tx.select().from(tasks).where(eq(tasks.id, id)).limit(1)
     if (!before || before.deletedAt) return false
 
@@ -1090,7 +1328,71 @@ export async function softDeleteTask(
       before: taskRowToApi(before),
       after: { ...taskRowToApi(row), deleted_at: deletedAt },
     })
+
+    if (before.parentTaskId != null && isOpenHelpChildStatus(before.status)) {
+      await maybeCompleteHelpParent(tx, before, actorEmail, {
+        onlyWhenParentWaiting: true,
+      })
+    }
     return true
+}
+
+export async function softDeleteTask(
+  id: number,
+  actorEmail: string | null,
+  database: Db = db
+): Promise<boolean> {
+  return database.transaction((tx) => softDeleteLiveTask(tx, id, actorEmail))
+}
+
+function bulkFailure(id: number, error: unknown): CodexBulkError {
+  if (error instanceof CodexBulkError) return error
+  const message = error instanceof Error ? error.message : String(error)
+  return new CodexBulkError(id, 400, message)
+}
+
+/** One transaction: every update and its activity row, or nothing. */
+export async function bulkUpdateTasks(
+  ids: number[],
+  patch: UpdateTaskInput,
+  actorEmail: string | null,
+  database: Db = db
+): Promise<CodexTask[]> {
+  return database.transaction(async (tx) => {
+    const updated: CodexTask[] = []
+    for (const id of ids) {
+      try {
+        const task = await updateLiveTask(tx, id, patch, actorEmail)
+        if (!task) {
+          throw new CodexBulkError(id, 409, `Task ${id} was not found.`)
+        }
+        updated.push(task)
+      } catch (error) {
+        throw bulkFailure(id, error)
+      }
+    }
+    return updated
+  })
+}
+
+/** One transaction: every soft delete and its activity row, or nothing. */
+export async function bulkSoftDeleteTasks(
+  ids: number[],
+  actorEmail: string | null,
+  database: Db = db
+): Promise<number[]> {
+  return database.transaction(async (tx) => {
+    for (const id of ids) {
+      try {
+        const ok = await softDeleteLiveTask(tx, id, actorEmail)
+        if (!ok) {
+          throw new CodexBulkError(id, 409, `Task ${id} was not found.`)
+        }
+      } catch (error) {
+        throw bulkFailure(id, error)
+      }
+    }
+    return ids
   })
 }
 
@@ -1717,6 +2019,42 @@ export async function getTemplate(
   return api
 }
 
+function normaliseTemplateLabel(label: unknown): string {
+  if (typeof label !== "string" || label.trim().length === 0) {
+    throw new TemplateLabelError("Checklist labels cannot be empty.")
+  }
+  const trimmed = label.trim()
+  if (trimmed.length > TEMPLATE_LABEL_MAX) {
+    throw new TemplateLabelError(
+      `Checklist labels must be ${TEMPLATE_LABEL_MAX} characters or fewer.`
+    )
+  }
+  return trimmed
+}
+
+function normaliseTemplateItemWrites(
+  items: TemplateItemWrite[]
+): Array<{ id: number | null; label: string }> {
+  const seen = new Set<number>()
+  return items.map((item, index) => {
+    const label = normaliseTemplateLabel(item?.label)
+    if (item?.id == null) {
+      return { id: null, label }
+    }
+    const id = Number(item.id)
+    if (!Number.isInteger(id) || id < 1) {
+      throw new TemplateLabelError(
+        `items[${index}].id must be a positive integer.`
+      )
+    }
+    if (seen.has(id)) {
+      throw new TemplateLabelError(`Duplicate checklist item id ${id}.`)
+    }
+    seen.add(id)
+    return { id, label }
+  })
+}
+
 export async function createTemplate(
   input: CreateTemplateInput,
   actorEmail: string | null,
@@ -1724,6 +2062,9 @@ export async function createTemplate(
 ): Promise<TaskTemplate | null> {
   const name = input.name.trim()
   if (!name) return null
+  const labels = (input.items ?? []).map((item) =>
+    normaliseTemplateLabel(item?.label)
+  )
 
   return database.transaction(async (tx) => {
     const [row] = await tx
@@ -1734,14 +2075,35 @@ export async function createTemplate(
       })
       .returning()
     const api = templateRowToApi(row)
+    const actor = actorEmail?.toLowerCase() ?? null
     await appendActivity(tx, {
       entityType: "task_template",
       entityId: api.id,
-      actorEmail: actorEmail?.toLowerCase() ?? null,
+      actorEmail: actor,
       action: "create",
       after: api,
     })
-    return { ...api, items: [] }
+    const items: TaskTemplateItem[] = []
+    for (let index = 0; index < labels.length; index += 1) {
+      const [itemRow] = await tx
+        .insert(taskTemplateItems)
+        .values({
+          templateId: api.id,
+          label: labels[index]!,
+          sort: index,
+        })
+        .returning()
+      const item = templateItemRowToApi(itemRow)
+      items.push(item)
+      await appendActivity(tx, {
+        entityType: "task_template_item",
+        entityId: item.id,
+        actorEmail: actor,
+        action: "create",
+        after: item,
+      })
+    }
+    return { ...api, items }
   })
 }
 
@@ -1751,6 +2113,37 @@ export async function updateTemplate(
   actorEmail: string | null,
   database: Db = db
 ): Promise<TaskTemplate | null> {
+  const name = patch.name !== undefined ? patch.name.trim() : undefined
+  if (name !== undefined && !name) return null
+  const nextItems =
+    patch.items !== undefined
+      ? normaliseTemplateItemWrites(patch.items)
+      : undefined
+
+  if (nextItems) {
+    const [existingTemplate] = await database
+      .select({ id: taskTemplates.id })
+      .from(taskTemplates)
+      .where(eq(taskTemplates.id, id))
+      .limit(1)
+    if (!existingTemplate) return null
+    const existingIds = new Set(
+      (
+        await database
+          .select({ id: taskTemplateItems.id })
+          .from(taskTemplateItems)
+          .where(eq(taskTemplateItems.templateId, id))
+      ).map((row) => row.id)
+    )
+    for (const item of nextItems) {
+      if (item.id != null && !existingIds.has(item.id)) {
+        throw new TemplateLabelError(
+          `Checklist item ${item.id} does not belong to this template.`
+        )
+      }
+    }
+  }
+
   return database.transaction(async (tx) => {
     const [before] = await tx
       .select()
@@ -1759,37 +2152,126 @@ export async function updateTemplate(
       .limit(1)
     if (!before) return null
 
+    const actor = actorEmail?.toLowerCase() ?? null
     const values: Partial<typeof taskTemplates.$inferInsert> = {}
-    if (patch.name !== undefined) {
-      const name = patch.name.trim()
-      if (!name) return null
-      values.name = name
-    }
+    if (name !== undefined) values.name = name
     if (patch.description !== undefined) {
       values.description = patch.description?.trim() || null
     }
-    if (Object.keys(values).length === 0) {
-      const api = templateRowToApi(before)
-      api.items = await listTemplateItems(id, tx)
-      return api
+
+    let templateRow = before
+    if (Object.keys(values).length > 0) {
+      const [row] = await tx
+        .update(taskTemplates)
+        .set(values)
+        .where(eq(taskTemplates.id, id))
+        .returning()
+      if (!row) return null
+      templateRow = row
+      await appendActivity(tx, {
+        entityType: "task_template",
+        entityId: id,
+        actorEmail: actor,
+        action: "update",
+        before: templateRowToApi(before),
+        after: templateRowToApi(row),
+      })
     }
 
-    const [row] = await tx
-      .update(taskTemplates)
-      .set(values)
-      .where(eq(taskTemplates.id, id))
-      .returning()
-    if (!row) return null
+    if (nextItems) {
+      const existing = await tx
+        .select()
+        .from(taskTemplateItems)
+        .where(eq(taskTemplateItems.templateId, id))
+        .orderBy(asc(taskTemplateItems.sort), asc(taskTemplateItems.id))
+      const byId = new Map(existing.map((row) => [row.id, row]))
+      const kept = new Set<number>()
+      const orderedIds: number[] = []
 
-    const api = templateRowToApi(row)
-    await appendActivity(tx, {
-      entityType: "task_template",
-      entityId: id,
-      actorEmail: actorEmail?.toLowerCase() ?? null,
-      action: "update",
-      before: templateRowToApi(before),
-      after: api,
-    })
+      for (let index = 0; index < nextItems.length; index += 1) {
+        const item = nextItems[index]!
+        if (item.id != null) {
+          const prior = byId.get(item.id)
+          if (!prior) {
+            throw new TemplateLabelError(
+              `Checklist item ${item.id} does not belong to this template.`
+            )
+          }
+          kept.add(item.id)
+          orderedIds.push(item.id)
+          const labelChanged = (prior.label ?? "") !== item.label
+          const sortChanged = Number(prior.sort ?? 0) !== index
+          if (labelChanged || sortChanged) {
+            const [row] = await tx
+              .update(taskTemplateItems)
+              .set({ label: item.label, sort: index })
+              .where(
+                and(
+                  eq(taskTemplateItems.id, item.id),
+                  eq(taskTemplateItems.templateId, id)
+                )
+              )
+              .returning()
+            if (labelChanged && row) {
+              await appendActivity(tx, {
+                entityType: "task_template_item",
+                entityId: item.id,
+                actorEmail: actor,
+                action: "update",
+                before: templateItemRowToApi(prior),
+                after: templateItemRowToApi(row),
+              })
+            }
+          }
+        } else {
+          const [row] = await tx
+            .insert(taskTemplateItems)
+            .values({ templateId: id, label: item.label, sort: index })
+            .returning()
+          const created = templateItemRowToApi(row)
+          orderedIds.push(created.id)
+          await appendActivity(tx, {
+            entityType: "task_template_item",
+            entityId: created.id,
+            actorEmail: actor,
+            action: "create",
+            after: created,
+          })
+        }
+      }
+
+      for (const prior of existing) {
+        if (kept.has(prior.id)) continue
+        await tx
+          .delete(taskTemplateItems)
+          .where(
+            and(
+              eq(taskTemplateItems.id, prior.id),
+              eq(taskTemplateItems.templateId, id)
+            )
+          )
+        await appendActivity(tx, {
+          entityType: "task_template_item",
+          entityId: prior.id,
+          actorEmail: actor,
+          action: "delete",
+          before: templateItemRowToApi(prior),
+        })
+      }
+
+      const previousIds = existing.map((row) => row.id)
+      if (previousIds.join(",") !== orderedIds.join(",")) {
+        await appendActivity(tx, {
+          entityType: "task_template",
+          entityId: id,
+          actorEmail: actor,
+          action: "reorder_items",
+          after: { ordered_ids: orderedIds },
+        })
+      }
+    }
+
+    const api = templateRowToApi(templateRow)
     api.items = await listTemplateItems(id, tx)
     return api
   })
@@ -2035,10 +2517,13 @@ export type RecurringSeedRow = {
   assigneeEmail: string | null
   assigneeName: string | null
   category: string | null
+  mbaNumber: string | null
+  estimatedMinutes: number | null
+  createdAt: string
   createdByEmail: string | null
 }
 
-/** Live series seeds: non-null rule + template + client. */
+/** Live series seeds: open (not done), not soft-deleted, rule + template + client. */
 export async function listRecurringSeeds(
   database: Db = db
 ): Promise<RecurringSeedRow[]> {
@@ -2054,76 +2539,122 @@ export async function listRecurringSeeds(
       assigneeEmail: tasks.assigneeEmail,
       assigneeName: tasks.assigneeName,
       category: tasks.category,
+      mbaNumber: tasks.mbaNumber,
+      createdAt: tasks.createdAt,
       createdByEmail: tasks.createdByEmail,
     })
     .from(tasks)
     .where(
       and(
         isNull(tasks.deletedAt),
+        ne(tasks.status, "done"),
         isNotNull(tasks.recurringRule),
         isNotNull(tasks.templateId),
         isNotNull(tasks.clientId)
       )
     )
 
-  return rows
-    .filter(
-      (r) =>
-        r.recurringRule &&
-        r.templateId != null &&
-        r.clientId != null &&
-        Number(r.clientId) > 0 &&
-        Number(r.templateId) > 0
-    )
-    .map((r) => ({
-      id: r.id,
-      title: r.title,
-      clientId: Number(r.clientId),
-      templateId: Number(r.templateId),
-      recurringRule: r.recurringRule!,
-      description: r.description,
-      priority: r.priority,
-      assigneeEmail: r.assigneeEmail,
-      assigneeName: r.assigneeName,
-      category: r.category,
-      createdByEmail: r.createdByEmail,
-    }))
+  const eligible = rows.filter(
+    (r) =>
+      r.recurringRule &&
+      r.templateId != null &&
+      r.clientId != null &&
+      Number(r.clientId) > 0 &&
+      Number(r.templateId) > 0
+  )
+  const minutes = await estimatedMinutesByTaskId(
+    database,
+    eligible.map((r) => r.id)
+  )
+
+  return eligible.map((r) => ({
+    id: r.id,
+    title: r.title,
+    clientId: Number(r.clientId),
+    templateId: Number(r.templateId),
+    recurringRule: r.recurringRule!,
+    description: r.description,
+    priority: r.priority,
+    assigneeEmail: r.assigneeEmail,
+    assigneeName: r.assigneeName,
+    category: r.category,
+    mbaNumber: r.mbaNumber,
+    estimatedMinutes: minutes.get(r.id) ?? null,
+    createdAt: r.createdAt,
+    createdByEmail: r.createdByEmail,
+  }))
 }
 
 /**
- * Idempotency: live task with same (template_id, client_id, period marker).
+ * Idempotency: live instance with the same (seed task id, period).
  * Soft-deleted instances do not block regeneration.
  */
 export async function findGeneratedRecurringTask(
-  templateId: number,
-  clientId: number,
+  seedId: number,
   period: string,
   database: Db = db
 ): Promise<CodexTask | null> {
+  const seedIdNum = Math.trunc(Number(seedId))
+  if (!Number.isFinite(seedIdNum) || seedIdNum < 1) return null
   const marker = formatPeriodMarker(period)
+  const needle = formatSeedMarker(seedIdNum)
   const rows = await database
     .select()
     .from(tasks)
     .where(
       and(
-        eq(tasks.templateId, templateId),
-        eq(tasks.clientId, clientId),
         eq(tasks.source, "recurring"),
         isNull(tasks.deletedAt),
-        like(tasks.description, `${marker}%`)
+        like(tasks.description, `${marker}%`),
+        like(tasks.description, `%${needle}%`)
       )
     )
-    .limit(5)
+    .limit(20)
 
   for (const row of rows) {
-    if (descriptionHasPeriod(row.description, period)) {
-      return taskRowToApi(row)
+    if (
+      descriptionHasPeriod(row.description, period) &&
+      descriptionHasSeed(row.description, seedIdNum)
+    ) {
+      const api = taskRowToApi(row)
+      const [withEst] = await applyEstimatedMinutes(database, [api])
+      return withEst ?? api
     }
   }
   return null
 }
 
+/** Latest live instance due date for a seed, or null when none exist. */
+export async function latestRecurringInstanceDueYmd(
+  seedId: number,
+  database: Db = db
+): Promise<string | null> {
+  const seedIdNum = Math.trunc(Number(seedId))
+  if (!Number.isFinite(seedIdNum) || seedIdNum < 1) return null
+  const needle = formatSeedMarker(seedIdNum)
+  const rows = await database
+    .select({ dueDate: tasks.dueDate, description: tasks.description })
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.source, "recurring"),
+        isNull(tasks.deletedAt),
+        like(tasks.description, `%${needle}%`)
+      )
+    )
+
+  let latest: string | null = null
+  for (const row of rows) {
+    if (!descriptionHasSeed(row.description, seedIdNum)) continue
+    const ymd = toSydneyCivilYmd(row.dueDate)
+    if (!ymd) continue
+    if (!latest || ymd > latest) latest = ymd
+  }
+  return latest
+}
+
 export type CreateGeneratedRecurringInput = {
+  seedTaskId: number
   title: string
   clientId: number
   templateId: number
@@ -2134,6 +2665,8 @@ export type CreateGeneratedRecurringInput = {
   assigneeEmail?: string | null
   assigneeName?: string | null
   category?: string | null
+  mbaNumber?: string | null
+  estimatedMinutes?: number | null
   createdByEmail: string
 }
 
@@ -2145,7 +2678,11 @@ export async function createGeneratedRecurringTask(
   input: CreateGeneratedRecurringInput,
   database: Db = db
 ): Promise<CodexTask> {
-  const description = descriptionWithPeriod(input.period, input.description)
+  const description = descriptionWithPeriod(
+    input.period,
+    input.description,
+    input.seedTaskId
+  )
 
   return database.transaction(async (tx) => {
     const now = new Date().toISOString()
@@ -2160,6 +2697,7 @@ export async function createGeneratedRecurringTask(
         assigneeEmail: input.assigneeEmail?.trim().toLowerCase() || null,
         assigneeName: input.assigneeName ?? null,
         dueDate: input.dueYmd,
+        mbaNumber: input.mbaNumber ?? null,
         category: input.category ?? null,
         clientVisible: false,
         source: "recurring",
@@ -2171,6 +2709,16 @@ export async function createGeneratedRecurringTask(
       })
       .returning()
 
+    const api = taskRowToApi(row)
+    if (
+      input.estimatedMinutes != null &&
+      Number.isFinite(input.estimatedMinutes)
+    ) {
+      const minutes = Math.round(input.estimatedMinutes)
+      const wrote = await writeTaskEstimatedMinutes(tx, row.id, minutes)
+      if (wrote) api.estimated_minutes = minutes
+    }
+
     await copyTemplateItemsToTask(tx, row.id, input.templateId, null)
 
     await appendActivity(tx, {
@@ -2180,10 +2728,10 @@ export async function createGeneratedRecurringTask(
       actorKind: "system",
       action: "create",
       after: {
-        ...taskRowToApi(row),
+        ...api,
         period: input.period,
       },
     })
-    return taskRowToApi(row)
+    return api
   })
 }

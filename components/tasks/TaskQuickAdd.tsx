@@ -19,6 +19,8 @@ type Props = {
   defaultAssigneeName: string | null
   fallbackClientId: number | null
   fallbackClientLabel: string | null
+  fallbackMbaNumber: string | null
+  fallbackCategory: string | null
   /** Clients list failed — block submit (fail-soft). */
   clientsUnavailable: boolean
   onCreate: (payload: {
@@ -30,6 +32,8 @@ type Props = {
     assignee_name: string | null
     due_date: string | null
     estimated_minutes: number | null
+    mba_number: string | null
+    category: string | null
   }) => Promise<void>
 }
 
@@ -40,6 +44,8 @@ export function TaskQuickAdd({
   defaultAssigneeName,
   fallbackClientId,
   fallbackClientLabel,
+  fallbackMbaNumber,
+  fallbackCategory,
   clientsUnavailable,
   onCreate,
 }: Props) {
@@ -56,6 +62,8 @@ export function TaskQuickAdd({
         defaultAssigneeName,
         fallbackClientId,
         fallbackClientLabel,
+        fallbackMbaNumber,
+        fallbackCategory,
       }),
     [
       text,
@@ -65,6 +73,8 @@ export function TaskQuickAdd({
       defaultAssigneeName,
       fallbackClientId,
       fallbackClientLabel,
+      fallbackMbaNumber,
+      fallbackCategory,
     ]
   )
 
@@ -72,6 +82,7 @@ export function TaskQuickAdd({
     !clientsUnavailable &&
     parsed.title.length > 0 &&
     parsed.clientId != null &&
+    !parsed.dateError &&
     !submitting
 
   const submit = async () => {
@@ -87,6 +98,8 @@ export function TaskQuickAdd({
         assignee_name: parsed.assigneeName,
         due_date: parsed.dueDate,
         estimated_minutes: parsed.estimatedMinutes,
+        mba_number: parsed.mbaNumber,
+        category: parsed.category,
       })
       setText("")
     } finally {

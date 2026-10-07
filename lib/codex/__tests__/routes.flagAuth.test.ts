@@ -21,10 +21,74 @@ const auth0GetSession = mock.fn(
 type ListTasksFilterCapture = {
   assigneeEmail?: string
   mineForEmail?: string
+  status?: string[]
+  clientId?: number
+  noClient?: boolean
+  unassigned?: boolean
+  q?: string
+  priority?: string
+  overdue?: boolean
+  source?: string
+  category?: string
+  mbaNumber?: string
+  createdByEmail?: string
+  dueBefore?: string
+  dueAfter?: string
+  sort?: string
+  page?: number
+  perPage?: number
+  [key: string]: unknown
 }
 
 /** Captured by listTasks mock for the mine=1 route pin (do not re-mock.module). */
 const listTasksCapture: { last?: ListTasksFilterCapture } = {}
+const statusCountsCapture: { last?: ListTasksFilterCapture } = {}
+
+const STATUS_COUNT_KEYS = [
+  "backlog",
+  "todo",
+  "in_progress",
+  "waiting",
+  "done",
+] as const
+
+/** Shared stub so status-counts.todo can equal list itemsTotal for the same status. */
+const statusCountStub: { counts: Record<(typeof STATUS_COUNT_KEYS)[number], number> } =
+  {
+    counts: {
+      backlog: 0,
+      todo: 0,
+      in_progress: 0,
+      waiting: 0,
+      done: 0,
+    },
+  }
+
+function itemsTotalFor(filters: { status?: string[] }): number {
+  const keys = filters.status?.length ? filters.status : [...STATUS_COUNT_KEYS]
+  return keys.reduce(
+    (sum, key) =>
+      sum +
+      (statusCountStub.counts[key as (typeof STATUS_COUNT_KEYS)[number]] ?? 0),
+    0
+  )
+}
+
+function countsFor(filters: { status?: string[] }) {
+  const selected = filters.status?.length ? new Set(filters.status) : null
+  return {
+    backlog:
+      !selected || selected.has("backlog") ? statusCountStub.counts.backlog : 0,
+    todo: !selected || selected.has("todo") ? statusCountStub.counts.todo : 0,
+    in_progress:
+      !selected || selected.has("in_progress")
+        ? statusCountStub.counts.in_progress
+        : 0,
+    waiting:
+      !selected || selected.has("waiting") ? statusCountStub.counts.waiting : 0,
+    done: !selected || selected.has("done") ? statusCountStub.counts.done : 0,
+  }
+}
 
 const emptyPage = {
   items: [],
@@ -59,18 +123,29 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/codex/repo", {
     namedExports: {
       HELP_ON_DONE_MESSAGE,
-      listTasks: async (filters: {
-        assigneeEmail?: string
-        mineForEmail?: string
-      }) => {
-        listTasksCapture.last = {
-          assigneeEmail: filters.assigneeEmail,
-          mineForEmail: filters.mineForEmail,
-        }
-        return emptyPage
+      listTasks: async (filters: ListTasksFilterCapture) => {
+        listTasksCapture.last = filters
+        return { ...emptyPage, itemsTotal: itemsTotalFor(filters) }
       },
-      parseStatusFilter: () => undefined,
+      countTasksByStatus: async (filters: ListTasksFilterCapture) => {
+        statusCountsCapture.last = filters
+        return countsFor(filters)
+      },
+      parseStatusFilter: (raw: string | null) => {
+        if (raw == null || raw.trim() === "") return undefined
+        const parts = raw
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean)
+        return parts.length ? parts : undefined
+      },
       createTask: async () => ({ id: 1, title: "t", client_id: 1, status: "todo" }),
+      bulkUpdateTasks: async () => [],
+      bulkSoftDeleteTasks: async () => [],
+      CodexBulkError: class CodexBulkError extends Error {
+        taskId = 0
+        statusCode: 400 | 409 = 400
+      },
       getTask: async () => ({ id: 1, title: "t", client_id: 1, status: "todo" }),
       requestHelp: async () => ({
         parent: { id: 1, title: "t", client_id: 1, status: "waiting" },
@@ -172,6 +247,7 @@ if (supportsMockModule()) {
       }),
       dismissProposal: async () => ({ ok: true }),
       dismissAllProposedForNote: async () => ({ ok: true, dismissed: 0 }),
+      expireStaleProposals: async () => 0,
       dismissAutoCreatedTask: async () => ({ ok: true }),
     },
   })
@@ -232,6 +308,7 @@ type RouteCaller = {
 
 async function loadRouteCallers(): Promise<RouteCaller[]> {
   const tasks = await import("../../../app/api/codex/tasks/route.js")
+  const taskBulk = await import("../../../app/api/codex/tasks/bulk/route.js")
   const taskById = await import("../../../app/api/codex/tasks/[id]/route.js")
   const checklist = await import(
     "../../../app/api/codex/tasks/[id]/checklist/route.js"
@@ -250,6 +327,9 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
   )
   const taskCounts = await import(
     "../../../app/api/codex/tasks/counts/route.js"
+  )
+  const statusCounts = await import(
+    "../../../app/api/codex/tasks/status-counts/route.js"
   )
   const clientMbas = await import(
     "../../../app/api/codex/client-mbas/route.js"
@@ -289,6 +369,9 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
   const proposalDismissAll = await import(
     "../../../app/api/codex/proposals/dismiss-all/route.js"
   )
+  const proposalExpireStale = await import(
+    "../../../app/api/codex/proposals/expire-stale/route.js"
+  )
 
   const taskIdCtx = { params: Promise.resolve({ id: "1" }) }
   const checklistItemCtx = {
@@ -317,6 +400,13 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
         ),
     },
     {
+      label: "GET /api/codex/tasks/status-counts",
+      invoke: () =>
+        statusCounts.GET(
+          new Request("http://localhost/api/codex/tasks/status-counts")
+        ),
+    },
+    {
       label: "GET /api/codex/client-mbas",
       invoke: () =>
         clientMbas.GET(
@@ -328,6 +418,15 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
       invoke: () =>
         tasks.POST(
           new Request("http://localhost/api/codex/tasks", { method: "POST" })
+        ),
+    },
+    {
+      label: "POST /api/codex/tasks/bulk",
+      invoke: () =>
+        taskBulk.POST(
+          new Request("http://localhost/api/codex/tasks/bulk", {
+            method: "POST",
+          })
         ),
     },
     {
@@ -614,6 +713,15 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
         ),
     },
     {
+      label: "POST /api/codex/proposals/expire-stale",
+      invoke: () =>
+        proposalExpireStale.POST(
+          new Request("http://localhost/api/codex/proposals/expire-stale", {
+            method: "POST",
+          })
+        ),
+    },
+    {
       label: "POST /api/codex/proposals/dismiss-all",
       invoke: () =>
         proposalDismissAll.POST(
@@ -639,7 +747,7 @@ test(
   { skip },
   async () => {
     const callers = await loadRouteCallers()
-    assert.equal(callers.length, 37)
+    assert.equal(callers.length, 40)
 
     for (const route of callers) {
       // Flag off: deliberately 404 (not 403). Hidden feature must not confirm it exists.
@@ -708,3 +816,87 @@ test(
     })
   }
 )
+
+test(
+  "GET /api/codex/tasks/status-counts uses the list filters and matches itemsTotal",
+  { skip },
+  async () => {
+    statusCountStub.counts = {
+      backlog: 1,
+      todo: 4,
+      in_progress: 2,
+      waiting: 0,
+      done: 9,
+    }
+    const query =
+      "status=todo&client_id=12&q=plan&priority=high,low&overdue=1&source=manual,profile&category=none&mba_number=AbC&created_by=Maker@Example.com&unassigned=1&due_after=2026-08-01&due_before=2026-08-31&sort=due_desc&page=2&per_page=50"
+    await withCodexFlagOn(async () => {
+      setSession("admin")
+      const tasks = await import("../../../app/api/codex/tasks/route.js")
+      const statusCounts = await import(
+        "../../../app/api/codex/tasks/status-counts/route.js"
+      )
+      const listRes = await tasks.GET(
+        new Request(`http://localhost/api/codex/tasks?${query}`)
+      )
+      const listFilters = listTasksCapture.last
+      const listBody = (await listRes.json()) as { itemsTotal?: number }
+      const countsRes = await statusCounts.GET(
+        new Request(`http://localhost/api/codex/tasks/status-counts?${query}`)
+      )
+      const countFilters = statusCountsCapture.last
+      const countBody = (await countsRes.json()) as {
+        backlog: number
+        todo: number
+        in_progress: number
+        waiting: number
+        done: number
+      }
+
+      assert.equal(listRes.status, 200)
+      assert.equal(countsRes.status, 200)
+      assert.equal(listBody.itemsTotal, 4)
+      assert.equal(countBody.todo, listBody.itemsTotal)
+      assert.deepEqual(countBody, {
+        backlog: 0,
+        todo: 4,
+        in_progress: 0,
+        waiting: 0,
+        done: 0,
+      })
+      assert.deepEqual(listFilters, countFilters)
+      assert.deepEqual(listFilters?.status, ["todo"])
+      assert.equal(listFilters?.clientId, 12)
+      assert.equal(listFilters?.noClient, false)
+      assert.equal(listFilters?.unassigned, true)
+      assert.equal(listFilters?.q, "plan")
+      assert.equal(listFilters?.priority, "high,low")
+      assert.equal(listFilters?.overdue, true)
+      assert.equal(listFilters?.page, 2)
+      assert.equal(listFilters?.perPage, 50)
+    })
+  }
+)
+
+test("visibleBoardStatuses keeps board order and hides unselected columns", async () => {
+  const { visibleBoardStatuses } = await import(
+    "../../../components/tasks/TaskBoard.js"
+  )
+  assert.deepEqual(visibleBoardStatuses(undefined), [
+    "backlog",
+    "todo",
+    "in_progress",
+    "waiting",
+    "done",
+  ])
+  assert.deepEqual(visibleBoardStatuses([]), [
+    "backlog",
+    "todo",
+    "in_progress",
+    "waiting",
+    "done",
+  ])
+  assert.deepEqual(visibleBoardStatuses(["done", "todo"]), ["todo", "done"])
+  assert.deepEqual(visibleBoardStatuses(["nope"]), [])
+  assert.deepEqual(visibleBoardStatuses(["waiting", "bogus"]), ["waiting"])
+})

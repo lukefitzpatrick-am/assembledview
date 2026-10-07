@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { CheckSquare, MessageSquare, Plus } from "lucide-react"
 import { useUser } from "@/components/AuthWrapper"
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
@@ -25,16 +26,19 @@ import { useToast } from "@/components/ui/use-toast"
 import { formatActivityDiff } from "@/lib/codex/activityDiff"
 import {
   STATUSES,
-  TASK_CATEGORY_OPTIONS,
+  TASK_CATEGORIES,
   TASK_PRIORITIES,
+  categoryLabel,
   isTaskCategory,
   isTaskStatus,
   statusMeta,
   type ChecklistItem,
   type CodexActivity,
+  type CodexPagedResponse,
   type CodexTask,
   type TaskComment,
   type TaskPriority,
+  type TaskTemplate,
   type TeamMember,
 } from "@/lib/codex/types"
 import {
@@ -62,12 +66,24 @@ type ClientOption = {
 }
 
 const UNASSIGNED = "__unassigned__"
+const CATEGORY_NONE = "__none__"
+const NO_TEMPLATE = "__none__"
+const NO_RECURRING = "__none__"
+
+const RECURRING_OPTIONS = [
+  { value: NO_RECURRING, label: "Does not recur" },
+  { value: "monthly:lbd", label: "Monthly — last business day" },
+  { value: "monthly:1", label: "Monthly — day 1" },
+  { value: "monthly:15", label: "Monthly — day 15" },
+  { value: "weekly:mon", label: "Weekly — Monday" },
+  { value: "weekly:fri", label: "Weekly — Friday" },
+] as const
 
 function dueDateToFormValue(value: string | null | undefined): Date | null {
-  if (!value) return null
-  const raw = value.includes("T") ? value : `${value}T12:00:00`
-  const d = parseISO(raw)
-  return isValid(d) ? d : null
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const [y, m, d] = value.split("-").map(Number)
+  const date = new Date(y, m - 1, d)
+  return isValid(date) ? date : null
 }
 
 function dueDateToPayload(d: Date | null): string | null {
@@ -93,6 +109,20 @@ function errorMessage(body: unknown, fallback: string): string {
   return fallback
 }
 
+function recoverableText(parts: Array<string | null | undefined>): string {
+  return parts.filter((part) => typeof part === "string" && part.trim()).join("\n\n")
+}
+
+type TextPatch = { title?: string; description?: string | null }
+
+function sameTextPatch(a: TextPatch, b: TextPatch): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  for (const key of keys) {
+    if (a[key as keyof TextPatch] !== b[key as keyof TextPatch]) return false
+  }
+  return true
+}
+
 type Props = { taskId: number }
 
 export function TaskDetailClient({ taskId }: Props) {
@@ -115,6 +145,22 @@ export function TaskDetailClient({ taskId }: Props) {
 
   const [titleDraft, setTitleDraft] = useState("")
   const [descriptionDraft, setDescriptionDraft] = useState("")
+  const titleDraftRef = useRef("")
+  const descriptionDraftRef = useRef("")
+  const savedTextRef = useRef({ title: "", description: "" })
+  const textFlightRef = useRef<TextPatch | null>(null)
+  const taskRef = useRef<CodexTask | null>(null)
+  const draftTaskIdRef = useRef<number | null>(null)
+  const loadGen = useRef(0)
+  const toastRef = useRef(toast)
+  toastRef.current = toast
+  const [templates, setTemplates] = useState<TaskTemplate[]>([])
+  const [recurringIntent, setRecurringIntent] = useState<string | null>(null)
+  const [intentTaskId, setIntentTaskId] = useState(taskId)
+  if (intentTaskId !== taskId) {
+    setIntentTaskId(taskId)
+    setRecurringIntent(null)
+  }
   const [estimateDraft, setEstimateDraft] = useState("")
   const [mbaPlans, setMbaPlans] = useState<MbaPlanRow[]>([])
   const [newCheckLabel, setNewCheckLabel] = useState("")
@@ -124,10 +170,11 @@ export function TaskDetailClient({ taskId }: Props) {
   const [addingComment, setAddingComment] = useState(false)
 
   const loadAll = useCallback(async () => {
+    const gen = ++loadGen.current
     setLoading(true)
     setLoadError(null)
     try {
-      const [taskRes, checkRes, commentRes, activityRes, teamRes, clientsResult] =
+      const [taskRes, checkRes, commentRes, activityRes, teamRes, clientsResult, templateRes] =
         await Promise.all([
           fetch(`/api/codex/tasks/${taskId}`, { cache: "no-store" }),
           fetch(`/api/codex/tasks/${taskId}/checklist`, { cache: "no-store" }),
@@ -135,8 +182,10 @@ export function TaskDetailClient({ taskId }: Props) {
           fetch(`/api/codex/tasks/${taskId}/activity`, { cache: "no-store" }),
           fetch("/api/codex/team?active=0&per_page=100", { cache: "no-store" }),
           fetchClientsList(),
+          fetch("/api/codex/templates?per_page=100", { cache: "no-store" }),
         ])
 
+      if (gen !== loadGen.current) return
       if (taskRes.status === 403 || teamRes.status === 403) {
         setAccessDenied(true)
         return
@@ -152,11 +201,35 @@ export function TaskDetailClient({ taskId }: Props) {
       }
 
       const taskJson = (await taskRes.json()) as CodexTask
+      if (gen !== loadGen.current) return
+      const nextTitle = taskJson.title ?? ""
+      const nextDescription = taskJson.description ?? ""
+      const incomingId = Number(taskJson.id)
+      const sameTask = draftTaskIdRef.current === incomingId
       setTask(taskJson)
-      setTitleDraft(taskJson.title ?? "")
-      setDescriptionDraft(taskJson.description ?? "")
+      taskRef.current = taskJson
+      draftTaskIdRef.current = incomingId
+      if (
+        !sameTask ||
+        titleDraftRef.current.trim() === savedTextRef.current.title ||
+        titleDraftRef.current.trim() === nextTitle
+      ) {
+        titleDraftRef.current = nextTitle
+        setTitleDraft(nextTitle)
+      }
+      if (
+        !sameTask ||
+        descriptionDraftRef.current === savedTextRef.current.description ||
+        descriptionDraftRef.current === nextDescription
+      ) {
+        descriptionDraftRef.current = nextDescription
+        setDescriptionDraft(nextDescription)
+      }
+      savedTextRef.current = { title: nextTitle, description: nextDescription }
+      setRecurringIntent(null)
       setEstimateDraft(formatMinutesAsEstimate(taskJson.estimated_minutes) ?? "")
 
+      if (gen !== loadGen.current) return
       if (taskJson.parent?.id) {
         const [pCheckRes, pCommentRes] = await Promise.all([
           fetch(`/api/codex/tasks/${taskJson.parent.id}/checklist`, {
@@ -166,6 +239,7 @@ export function TaskDetailClient({ taskId }: Props) {
             cache: "no-store",
           }),
         ])
+        if (gen !== loadGen.current) return
         if (pCheckRes.ok) {
           const j = (await pCheckRes.json()) as { items?: ChecklistItem[] }
           setParentChecklist(Array.isArray(j.items) ? j.items : [])
@@ -201,12 +275,20 @@ export function TaskDetailClient({ taskId }: Props) {
       }
       const clientsUi = applyClientsFetchResult(clientsResult)
       setClients(clientsUi.clients as ClientOption[])
+      if (templateRes.ok) {
+        const data = (await templateRes.json()) as CodexPagedResponse<TaskTemplate>
+        setTemplates(Array.isArray(data.items) ? data.items : [])
+      } else {
+        setTemplates([])
+      }
     } catch (error) {
+      if (gen !== loadGen.current) return
       console.error("Task detail load failed:", error)
       setLoadError(
         error instanceof Error ? error.message : "Failed to load task"
       )
     } finally {
+      if (gen !== loadGen.current) return
       setLoading(false)
     }
   }, [taskId])
@@ -288,6 +370,7 @@ export function TaskDetailClient({ taskId }: Props) {
     async (patch: Record<string, unknown>, fieldKey: string) => {
       if (!task) return
       const previous = task
+      const id = Number(taskRef.current?.id ?? task.id)
       const optimistic: CodexTask = {
         ...task,
         ...(patch.title !== undefined
@@ -323,11 +406,40 @@ export function TaskDetailClient({ taskId }: Props) {
         ...(patch.mba_number !== undefined
           ? { mba_number: patch.mba_number as string | null }
           : null),
+        ...(patch.template_id !== undefined
+          ? { template_id: patch.template_id as number | null }
+          : null),
+        ...(patch.recurring_rule !== undefined
+          ? { recurring_rule: patch.recurring_rule as string | null }
+          : null),
+        ...(patch.client_visible !== undefined
+          ? { client_visible: Boolean(patch.client_visible) }
+          : null),
       }
+      const gen = loadGen.current
+      const textFlight: TextPatch = {}
+      if (patch.title !== undefined) textFlight.title = String(patch.title)
+      if (patch.description !== undefined) {
+        textFlight.description =
+          patch.description == null ? null : String(patch.description)
+      }
+      const tracksText = patch.title !== undefined || patch.description !== undefined
+      if (tracksText) textFlightRef.current = textFlight
+
       setTask(optimistic)
+      taskRef.current = optimistic
+      if (patch.title !== undefined) {
+        titleDraftRef.current = String(patch.title)
+        setTitleDraft(titleDraftRef.current)
+      }
+      if (patch.description !== undefined) {
+        descriptionDraftRef.current =
+          patch.description == null ? "" : String(patch.description)
+        setDescriptionDraft(descriptionDraftRef.current)
+      }
       setSavingField(fieldKey)
       try {
-        const res = await fetch(`/api/codex/tasks/${taskId}`, {
+        const res = await fetch(`/api/codex/tasks/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(patch),
@@ -337,33 +449,186 @@ export function TaskDetailClient({ taskId }: Props) {
           throw new Error(errorMessage(body, "Save failed"))
         }
         const next = (await res.json()) as CodexTask
+        if (
+          textFlightRef.current &&
+          sameTextPatch(textFlightRef.current, textFlight)
+        ) {
+          textFlightRef.current = null
+        }
+        const stillHere = gen === loadGen.current
+        if (patch.title !== undefined) {
+          const sent = String(patch.title)
+          const serverTitle = next.title ?? ""
+          if (savedTextRef.current.title === (previous.title ?? "") || savedTextRef.current.title === sent) {
+            savedTextRef.current = { ...savedTextRef.current, title: serverTitle }
+          }
+          if (stillHere && titleDraftRef.current.trim() === sent) {
+            titleDraftRef.current = serverTitle
+            setTitleDraft(serverTitle)
+          }
+        }
+        if (patch.description !== undefined) {
+          const sent = patch.description == null ? "" : String(patch.description)
+          const serverDescription = next.description ?? ""
+          if (
+            savedTextRef.current.description === (previous.description ?? "") ||
+            savedTextRef.current.description === sent
+          ) {
+            savedTextRef.current = {
+              ...savedTextRef.current,
+              description: serverDescription,
+            }
+          }
+          if (stillHere && descriptionDraftRef.current === sent) {
+            descriptionDraftRef.current = serverDescription
+            setDescriptionDraft(serverDescription)
+          }
+        }
+        if (!stillHere) return
         setTask(next)
-        setTitleDraft(next.title ?? "")
-        setDescriptionDraft(next.description ?? "")
+        taskRef.current = next
         setEstimateDraft(formatMinutesAsEstimate(next.estimated_minutes) ?? "")
         void refreshActivity()
       } catch (error) {
-        setTask(previous)
-        setTitleDraft(previous.title ?? "")
-        setDescriptionDraft(previous.description ?? "")
-        setEstimateDraft(formatMinutesAsEstimate(previous.estimated_minutes) ?? "")
-        toast({
-          title: "Could not save",
-          description:
-            error instanceof Error ? error.message : "Please try again.",
-          variant: "destructive",
-        })
+        if (
+          textFlightRef.current &&
+          sameTextPatch(textFlightRef.current, textFlight)
+        ) {
+          textFlightRef.current = null
+        }
+        const stillHere = gen === loadGen.current
+        const message = error instanceof Error ? error.message : "Please try again."
+        const titleSent = patch.title !== undefined ? String(patch.title) : undefined
+        const descriptionSent =
+          patch.description !== undefined
+            ? patch.description == null
+              ? ""
+              : String(patch.description)
+            : undefined
+        const flushOwns =
+          tracksText &&
+          (titleSent === undefined || savedTextRef.current.title === titleSent) &&
+          (descriptionSent === undefined ||
+            savedTextRef.current.description === descriptionSent)
+        if (stillHere && !flushOwns) {
+          setTask(previous)
+          taskRef.current = previous
+          if (titleSent !== undefined && titleDraftRef.current.trim() === titleSent) {
+            titleDraftRef.current = previous.title ?? ""
+            setTitleDraft(titleDraftRef.current)
+          }
+          if (
+            descriptionSent !== undefined &&
+            descriptionDraftRef.current === descriptionSent
+          ) {
+            descriptionDraftRef.current = previous.description ?? ""
+            setDescriptionDraft(descriptionDraftRef.current)
+          }
+          setEstimateDraft(formatMinutesAsEstimate(previous.estimated_minutes) ?? "")
+        }
+        if (!(tracksText && flushOwns)) {
+          const recoverable = recoverableText([
+            titleSent,
+            descriptionSent === "" ? null : descriptionSent,
+          ])
+          toastRef.current({
+            title: "Could not save",
+            description: recoverable ? `${message}\n\n${recoverable}` : message,
+            variant: "destructive",
+          })
+        }
       } finally {
-        setSavingField(null)
+        if (gen === loadGen.current) setSavingField(null)
       }
     },
     [task, taskId, toast, refreshActivity]
   )
 
-  const activeMembers = useMemo(
-    () => teamMembers.filter((m) => m.active),
-    [teamMembers]
-  )
+  const flushTextDrafts = useCallback(() => {
+    const current = taskRef.current
+    if (!current) return
+    const id = Number(current.id)
+    if (!Number.isFinite(id) || id < 1) return
+    const savedTitle = savedTextRef.current.title
+    const savedDescription = savedTextRef.current.description
+    const title = titleDraftRef.current.trim()
+    const description = descriptionDraftRef.current
+    const patch: TextPatch = {}
+    if (title && title !== savedTitle) patch.title = title
+    if (description !== savedDescription) patch.description = description || null
+    if (Object.keys(patch).length === 0) return
+
+    savedTextRef.current = {
+      title: patch.title ?? savedTitle,
+      description:
+        patch.description !== undefined
+          ? patch.description ?? ""
+          : savedDescription,
+    }
+    const recoverable = recoverableText([
+      patch.title,
+      patch.description === undefined ? null : description,
+    ])
+
+    void fetch(`/api/codex/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+      keepalive: true,
+    })
+      .then(async (res) => {
+        if (res.ok) return
+        const body = await res.json().catch(() => null)
+        const message = errorMessage(body, "Save failed")
+        toastRef.current({
+          title: "Could not save",
+          description: recoverable ? `${message}\n\n${recoverable}` : message,
+          variant: "destructive",
+        })
+      })
+      .catch(() => {
+        toastRef.current({
+          title: "Could not save",
+          description: recoverable || "Please try again.",
+          variant: "destructive",
+        })
+      })
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      loadGen.current += 1
+      flushTextDrafts()
+    }
+  }, [taskId, flushTextDrafts])
+
+  const assigneeChoices = useMemo(() => {
+    const active = teamMembers.filter((member) => member.active)
+    const email = task?.assignee_email?.trim() || ""
+    if (!email) return active
+    const current = teamMembers.find(
+      (member) => member.email.toLowerCase() === email.toLowerCase()
+    )
+    if (current?.active) return active
+    const inactive: TeamMember = current ?? {
+      id: -1,
+      email,
+      name: task?.assignee_name?.trim() || email,
+      role_title: null,
+      active: false,
+      capacity_notes: null,
+      working_style: null,
+      default_client_ids: [],
+      created_at: "",
+      updated_at: "",
+    }
+    return [
+      inactive,
+      ...active.filter(
+        (member) => member.email.toLowerCase() !== email.toLowerCase()
+      ),
+    ]
+  }, [teamMembers, task])
 
   const checklistProgress = useMemo(() => {
     const total = checklist.length
@@ -372,20 +637,42 @@ export function TaskDetailClient({ taskId }: Props) {
   }, [checklist])
 
   const commitTitle = () => {
-    const next = titleDraft.trim()
-    if (!task || !next || next === task.title) {
-      setTitleDraft(task?.title ?? "")
+    const current = taskRef.current
+    if (!current || Number(current.id) !== Number(taskId)) return
+    const next = titleDraftRef.current.trim()
+    const saved = savedTextRef.current.title
+    if (!next || next === saved) {
+      titleDraftRef.current = saved
+      setTitleDraft(saved)
       return
     }
     void patchTask({ title: next }, "title")
   }
 
   const commitDescription = () => {
-    if (!task) return
-    const next = descriptionDraft
-    if ((task.description ?? "") === next) return
+    const current = taskRef.current
+    if (!current || Number(current.id) !== Number(taskId)) return
+    const next = descriptionDraftRef.current
+    if (savedTextRef.current.description === next) return
     void patchTask({ description: next || null }, "description")
   }
+
+  useEffect(() => {
+    const rule = recurringIntent
+    if (!rule || !task || Number(task.id) !== Number(taskId)) return
+    if (
+      !(task.template_id != null && Number(task.template_id) > 0) ||
+      !(Number(task.client_id) > 0)
+    ) {
+      return
+    }
+    if ((task.recurring_rule ?? null) === rule) {
+      setRecurringIntent(null)
+      return
+    }
+    setRecurringIntent(null)
+    void patchTask({ recurring_rule: rule }, "recurring")
+  }, [recurringIntent, task, patchTask])
 
   const addChecklistItem = async () => {
     const label = newCheckLabel.trim()
@@ -565,7 +852,13 @@ export function TaskDetailClient({ taskId }: Props) {
 
   const status = isTaskStatus(task.status) ? task.status : "todo"
   const priority = (task.priority as TaskPriority) || "normal"
-  const category = isTaskCategory(task.category) ? task.category : "other"
+  const category = isTaskCategory(task.category) ? task.category : CATEGORY_NONE
+  const recurringValue = recurringIntent ?? (task.recurring_rule?.trim() || NO_RECURRING)
+  const recurringBlocked =
+    recurringValue !== NO_RECURRING &&
+    (!(task.template_id != null && task.template_id > 0) ||
+      !(task.client_id > 0))
+  const assigneeEmail = task.assignee_email?.trim() || ""
   const isComplete = status === "done"
 
   return (
@@ -578,7 +871,10 @@ export function TaskDetailClient({ taskId }: Props) {
           <Input
             id="task-title"
             value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
+            onChange={(e) => {
+              titleDraftRef.current = e.target.value
+              setTitleDraft(e.target.value)
+            }}
             onBlur={commitTitle}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -656,6 +952,10 @@ export function TaskDetailClient({ taskId }: Props) {
           <Select
             value={category}
             onValueChange={(v) => {
+              if (v === CATEGORY_NONE) {
+                void patchTask({ category: null }, "category")
+                return
+              }
               if (isTaskCategory(v)) void patchTask({ category: v }, "category")
             }}
             disabled={savingField === "category"}
@@ -664,9 +964,10 @@ export function TaskDetailClient({ taskId }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TASK_CATEGORY_OPTIONS.map((c) => (
-                <SelectItem key={c.value} value={c.value}>
-                  {c.label}
+              <SelectItem value={CATEGORY_NONE}>None</SelectItem>
+              {TASK_CATEGORIES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {categoryLabel(value)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -737,7 +1038,7 @@ export function TaskDetailClient({ taskId }: Props) {
             />
           </div>
           <Select
-            value={task.assignee_email?.trim() || UNASSIGNED}
+            value={assigneeEmail || UNASSIGNED}
             onValueChange={(v) => {
               if (v === UNASSIGNED) {
                 void patchTask(
@@ -746,7 +1047,9 @@ export function TaskDetailClient({ taskId }: Props) {
                 )
                 return
               }
-              const m = activeMembers.find((x) => x.email === v)
+              const m = teamMembers.find(
+                (member) => member.email.toLowerCase() === v.toLowerCase()
+              )
               void patchTask(
                 {
                   assignee_email: v,
@@ -762,11 +1065,20 @@ export function TaskDetailClient({ taskId }: Props) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-              {activeMembers.map((m) => (
-                <SelectItem key={m.id} value={m.email}>
-                  {m.name}
-                </SelectItem>
-              ))}
+              {assigneeChoices.map((member) => {
+                const value =
+                  assigneeEmail &&
+                  member.email.toLowerCase() === assigneeEmail.toLowerCase()
+                    ? assigneeEmail
+                    : member.email
+                const name = member.name?.trim() || value
+                return (
+                  <SelectItem key={`${member.id}-${value}`} value={value}>
+                    {name}
+                    {member.id !== -1 && !member.active ? " (Inactive)" : ""}
+                  </SelectItem>
+                )
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -820,6 +1132,114 @@ export function TaskDetailClient({ taskId }: Props) {
           </p>
         </div>
       </div>
+
+      <section className="space-y-4 rounded-card border border-border bg-card p-4 shadow-e1">
+        <h2 className="text-sm font-semibold">Series</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>Recurring</Label>
+            <Select
+              value={recurringValue}
+              onValueChange={(v) => {
+                const next = v === NO_RECURRING ? null : v
+                if (
+                  next &&
+                  (!(task.template_id != null && task.template_id > 0) ||
+                    !(task.client_id > 0))
+                ) {
+                  setRecurringIntent(next)
+                  return
+                }
+                setRecurringIntent(null)
+                void patchTask({ recurring_rule: next }, "recurring")
+              }}
+              disabled={savingField === "recurring"}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Does not recur" />
+              </SelectTrigger>
+              <SelectContent>
+                {RECURRING_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+                {recurringValue !== NO_RECURRING &&
+                !RECURRING_OPTIONS.some((option) => option.value === recurringValue) ? (
+                  <SelectItem value={recurringValue}>{recurringValue}</SelectItem>
+                ) : null}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Series seed — requires a template. Cron creates one task per
+              period (Sydney).
+            </p>
+            {recurringBlocked ? (
+              <p className="text-sm text-status-critical-fg">
+                Recurring rule requires a template and a client.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Template</Label>
+            <Select
+              value={
+                task.template_id != null && task.template_id > 0
+                  ? String(task.template_id)
+                  : NO_TEMPLATE
+              }
+              onValueChange={(v) => {
+                void patchTask(
+                  { template_id: v === NO_TEMPLATE ? null : Number(v) },
+                  "template"
+                )
+              }}
+              disabled={savingField === "template"}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="No template" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_TEMPLATE}>No template</SelectItem>
+                {templates.map((template) => (
+                  <SelectItem key={template.id} value={String(template.id)}>
+                    {template.name}
+                  </SelectItem>
+                ))}
+                {task.template_id != null &&
+                task.template_id > 0 &&
+                !templates.some((template) => template.id === task.template_id) ? (
+                  <SelectItem value={String(task.template_id)}>
+                    Template #{task.template_id}
+                  </SelectItem>
+                ) : null}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Links this task to a template (does not re-copy checklist).
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-row items-center justify-between rounded-input border border-border px-3 py-2">
+          <div className="space-y-0.5 pr-3">
+            <Label htmlFor="task-client-visible">Client visible</Label>
+            <p className="text-xs text-muted-foreground">
+              Client can see this task later — leave off for internal work
+            </p>
+          </div>
+          <Switch
+            id="task-client-visible"
+            checked={Boolean(task.client_visible)}
+            onCheckedChange={(checked) =>
+              void patchTask({ client_visible: checked }, "client_visible")
+            }
+            disabled={savingField === "client_visible"}
+            aria-label="Client visible"
+          />
+        </div>
+      </section>
 
       {task.parent ? (
         <section className="space-y-3 rounded-card border border-border bg-surface-panel/50 p-4 shadow-e1">
@@ -904,7 +1324,10 @@ export function TaskDetailClient({ taskId }: Props) {
           id="task-description"
           rows={8}
           value={descriptionDraft}
-          onChange={(e) => setDescriptionDraft(e.target.value)}
+          onChange={(e) => {
+            descriptionDraftRef.current = e.target.value
+            setDescriptionDraft(e.target.value)
+          }}
           onBlur={commitDescription}
           disabled={savingField === "description"}
           placeholder="Write the actual work here — context, decisions, next steps."

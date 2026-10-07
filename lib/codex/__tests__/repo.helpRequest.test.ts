@@ -7,8 +7,10 @@ import { after, describe, it } from "node:test"
 import { and, eq, inArray } from "drizzle-orm"
 
 import { getDb, schema, closeDb } from "@/db"
+import { CodexHelpError } from "@/lib/codex/helpRoster"
 import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
 import {
+  HELP_ON_DONE_MESSAGE,
   createComment,
   createTask,
   createTeamMember,
@@ -16,6 +18,7 @@ import {
   listComments,
   listTaskActivity,
   requestHelp,
+  softDeleteTask,
   updateTask,
 } from "../repo.js"
 
@@ -209,6 +212,156 @@ describe("Codex ask-for-help", { skip: !ready }, () => {
     assert.ok(
       doneActivity.some((row) => row.action === "help from Bea done"),
       "parent activity records help done"
+    )
+  })
+
+  it("soft-deleting the last open help child restores the waiting parent", async () => {
+    const database = getDb()
+    const helperA = await seedHelper("Cara")
+    const helperB = await seedHelper("Dee")
+    const parent = await createTask(
+      {
+        title: `${RUN} delete parent`,
+        clientId: CLIENT_ID,
+        status: "todo",
+        createdByEmail: MIXED,
+      },
+      MIXED,
+      database
+    )
+    const parentId = Number(parent.id)
+    taskIds.push(parentId)
+
+    const first = await requestHelp(
+      parentId,
+      { assigneeEmail: helperA.email, ask: "First ask" },
+      { email: MIXED, name: "Luke" },
+      database
+    )
+    const second = await requestHelp(
+      parentId,
+      { assigneeEmail: helperB.email, ask: "Second ask" },
+      { email: MIXED, name: "Luke" },
+      database
+    )
+    const childAId = Number(first.child.id)
+    const childBId = Number(second.child.id)
+    taskIds.push(childAId, childBId)
+    for (const id of [childAId, childBId, parentId]) {
+      for (const comment of await listComments(id, database)) {
+        commentIds.push(comment.id)
+      }
+    }
+
+    await softDeleteTask(childAId, MIXED, database)
+    const stillWaiting = await getTask(parentId, database)
+    assert.equal(stillWaiting?.status, "waiting")
+    assert.equal(stillWaiting?.help_prior_status, "todo")
+
+    await softDeleteTask(childBId, MIXED, database)
+    const restored = await getTask(parentId, database)
+    assert.equal(restored?.status, "todo")
+    assert.equal(restored?.help_prior_status, null)
+
+    const parentComments = await listComments(parentId, database)
+    for (const comment of parentComments) commentIds.push(comment.id)
+    const activity = await listTaskActivity(parentId, database)
+    assert.ok(activity.some((row) => row.action === "help from Dee done"))
+    const childActivity = await listTaskActivity(childBId, database)
+    assert.ok(childActivity.some((row) => row.action === "soft_delete"))
+  })
+
+  it("reopening a done help child puts a non-waiting parent back to waiting", async () => {
+    const database = getDb()
+    const helper = await seedHelper("Eve")
+    const parent = await createTask(
+      {
+        title: `${RUN} reopen parent`,
+        clientId: CLIENT_ID,
+        status: "todo",
+        createdByEmail: MIXED,
+      },
+      MIXED,
+      database
+    )
+    const parentId = Number(parent.id)
+    taskIds.push(parentId)
+
+    const asked = await requestHelp(
+      parentId,
+      { assigneeEmail: helper.email, ask: "Take this" },
+      { email: MIXED, name: "Luke" },
+      database
+    )
+    const childId = Number(asked.child.id)
+    taskIds.push(childId)
+    const ask = (await listComments(childId, database))[0]
+    if (ask) commentIds.push(ask.id)
+
+    await updateTask(childId, { status: "done" }, helper.email, database)
+    const released = await getTask(parentId, database)
+    assert.equal(released?.status, "todo")
+    const copied = await listComments(parentId, database)
+    for (const comment of copied) commentIds.push(comment.id)
+
+    await updateTask(parentId, { status: "in_progress" }, MIXED, database)
+    await updateTask(childId, { status: "todo" }, helper.email, database)
+
+    const rewaiting = await getTask(parentId, database)
+    assert.equal(rewaiting?.status, "waiting")
+    assert.equal(rewaiting?.help_prior_status, "in_progress")
+    const activity = await listTaskActivity(parentId, database)
+    assert.ok(activity.some((row) => row.action === "help from Eve reopened"))
+
+    const other = await seedHelper("Fay")
+    const second = await requestHelp(
+      parentId,
+      { assigneeEmail: other.email, ask: "Still waiting" },
+      { email: MIXED, name: "Luke" },
+      database
+    )
+    const otherId = Number(second.child.id)
+    taskIds.push(otherId)
+    const secondAsk = (await listComments(otherId, database))[0]
+    if (secondAsk) commentIds.push(secondAsk.id)
+    assert.equal(second.parent.help_prior_status, "in_progress")
+
+    await updateTask(childId, { status: "done" }, helper.email, database)
+    await updateTask(childId, { status: "in_progress" }, helper.email, database)
+    const unchanged = await getTask(parentId, database)
+    assert.equal(unchanged?.status, "waiting")
+    assert.equal(unchanged?.help_prior_status, "in_progress")
+  })
+
+  it("refuses help on a done task", async () => {
+    const database = getDb()
+    const helper = await seedHelper("Gus")
+    const parent = await createTask(
+      {
+        title: `${RUN} done parent`,
+        clientId: CLIENT_ID,
+        status: "done",
+        createdByEmail: MIXED,
+      },
+      MIXED,
+      database
+    )
+    taskIds.push(Number(parent.id))
+
+    await assert.rejects(
+      () =>
+        requestHelp(
+          Number(parent.id),
+          { assigneeEmail: helper.email, ask: "Too late" },
+          { email: MIXED, name: "Luke" },
+          database
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof CodexHelpError)
+        assert.equal(error.status, 400)
+        assert.equal(error.message, HELP_ON_DONE_MESSAGE)
+        return true
+      }
     )
   })
 })

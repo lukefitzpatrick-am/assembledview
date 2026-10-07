@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -186,6 +186,14 @@ export function TaskFormDialog({
 
   const assigneeEmailValue = form.watch("assignee_email")
   const assigneeNameValue = form.watch("assignee_name")
+  const recurringRuleValue = form.watch("recurring_rule")
+  const templateIdValue = form.watch("template_id")
+  const clientIdValue = form.watch("client_id")
+  const recurringBlocked =
+    !isEdit &&
+    Boolean(recurringRuleValue?.trim()) &&
+    (!(templateIdValue != null && templateIdValue > 0) ||
+      !(clientIdValue > 0))
 
   const assigneeOptions = useMemo(() => {
     const currentEmail = (assigneeEmailValue || "").trim().toLowerCase()
@@ -218,10 +226,24 @@ export function TaskFormDialog({
     assigneeNameValue,
   ])
 
-  useEffect(() => {
-    if (!open) return
+  const wasOpenRef = useRef(false)
+  const applyGenRef = useRef(0)
+  const taskRef = useRef(task)
+  const activeMembersRef = useRef(activeMembers)
+  const createPrefillRef = useRef(createPrefill)
+  taskRef.current = task
+  activeMembersRef.current = activeMembers
+  createPrefillRef.current = createPrefill
 
-    let cancelled = false
+  useEffect(() => {
+    const justOpened = open && !wasOpenRef.current
+    wasOpenRef.current = open
+    if (!justOpened) return
+
+    const gen = ++applyGenRef.current
+    const openedTask = taskRef.current
+    const members = activeMembersRef.current
+    const prefill = createPrefillRef.current
 
     const applyDefaults = async () => {
       let meEmail = ""
@@ -237,53 +259,53 @@ export function TaskFormDialog({
       } catch {
         // Prefill is optional
       }
-      if (cancelled) return
+      if (gen !== applyGenRef.current) return
 
-      if (task) {
-        const category: TaskCategory = isTaskCategory(task.category)
-          ? task.category
+      if (openedTask) {
+        const category: TaskCategory = isTaskCategory(openedTask.category)
+          ? openedTask.category
           : "other"
         form.reset({
-          title: task.title ?? "",
-          client_id: Number(task.client_id),
-          mba_number: task.mba_number ?? "",
-          status: (task.status as TaskStatus) || "todo",
-          priority: (task.priority as TaskPriority) || "normal",
+          title: openedTask.title ?? "",
+          client_id: Number(openedTask.client_id),
+          mba_number: openedTask.mba_number ?? "",
+          status: (openedTask.status as TaskStatus) || "todo",
+          priority: (openedTask.priority as TaskPriority) || "normal",
           category,
-          assignee_email: task.assignee_email ?? "",
-          assignee_name: task.assignee_name ?? "",
-          due_date: dueDateToFormValue(task.due_date),
-          description: task.description ?? "",
-          client_visible: Boolean(task.client_visible),
-          template_id: task.template_id ?? null,
-          recurring_rule: task.recurring_rule ?? null,
+          assignee_email: openedTask.assignee_email ?? "",
+          assignee_name: openedTask.assignee_name ?? "",
+          due_date: dueDateToFormValue(openedTask.due_date),
+          description: openedTask.description ?? "",
+          client_visible: Boolean(openedTask.client_visible),
+          template_id: openedTask.template_id ?? null,
+          recurring_rule: openedTask.recurring_rule ?? null,
         })
       } else {
         const meLower = meEmail.trim().toLowerCase()
-        const rosterMatch = activeMembers.find(
+        const rosterMatch = members.find(
           (m) => m.email.toLowerCase() === meLower
         )
         const prefillCategory =
-          createPrefill?.category && isTaskCategory(createPrefill.category)
-            ? createPrefill.category
+          prefill?.category && isTaskCategory(prefill.category)
+            ? prefill.category
             : "other"
         const prefillClientId =
-          typeof createPrefill?.client_id === "number" &&
-          Number.isFinite(createPrefill.client_id) &&
-          createPrefill.client_id > 0
-            ? createPrefill.client_id
+          typeof prefill?.client_id === "number" &&
+          Number.isFinite(prefill.client_id) &&
+          prefill.client_id > 0
+            ? prefill.client_id
             : 0
         form.reset({
-          title: createPrefill?.title?.trim() || "",
+          title: prefill?.title?.trim() || "",
           client_id: prefillClientId,
-          mba_number: createPrefill?.mba_number?.trim() || "",
+          mba_number: prefill?.mba_number?.trim() || "",
           status: "todo",
           priority: "normal",
           category: prefillCategory,
           assignee_email: rosterMatch?.email ?? meEmail,
           assignee_name: rosterMatch?.name ?? (meName || meEmail),
           due_date: null,
-          description: createPrefill?.description ?? "",
+          description: prefill?.description ?? "",
           client_visible: false,
           template_id: null,
           recurring_rule: null,
@@ -292,12 +314,18 @@ export function TaskFormDialog({
     }
 
     void applyDefaults()
-    return () => {
-      cancelled = true
-    }
-  }, [open, task, form, activeMembers, createPrefill])
+  }, [open, form])
 
   const onSubmit = form.handleSubmit(async (values) => {
+    const recurring = values.recurring_rule?.trim()
+    if (
+      !isEdit &&
+      recurring &&
+      (!(values.template_id != null && values.template_id > 0) ||
+        !(values.client_id > 0))
+    ) {
+      return
+    }
     setSubmitting(true)
     try {
       if (isEdit && task) {
@@ -680,7 +708,11 @@ export function TaskFormDialog({
                     Series seed — requires a template. Cron creates one task per
                     period (Sydney).
                   </FormDescription>
-                  <FormMessage />
+                  <FormMessage>
+                    {recurringBlocked
+                      ? "Recurring rule requires a template and a client."
+                      : null}
+                  </FormMessage>
                 </FormItem>
               )}
             />
@@ -735,7 +767,10 @@ export function TaskFormDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={submitting}>
+              <Button
+                type="submit"
+                disabled={submitting || recurringBlocked}
+              >
                 {submitting
                   ? isEdit
                     ? "Saving…"

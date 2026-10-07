@@ -15,12 +15,18 @@ export function TaskMbaSelect({
   plans,
   onChange,
   disabled = false,
+  id = "task-mba",
+  hideLabel = false,
+  buttonClassName = "num max-w-md",
 }: {
   clientId: number | null
   value: string
   plans: MbaPlanRow[]
   onChange: (mbaNumber: string | null) => void
   disabled?: boolean
+  id?: string
+  hideLabel?: boolean
+  buttonClassName?: string
 }) {
   const clientChosen = clientId != null && clientId > 0
   const campaigns = mbaSelectCampaigns(
@@ -39,10 +45,10 @@ export function TaskMbaSelect({
   ]
 
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor="task-mba">MBA number</Label>
+    <div className={hideLabel ? undefined : "space-y-1.5"}>
+      {hideLabel ? null : <Label htmlFor={id}>MBA number</Label>}
       <Combobox
-        id="task-mba"
+        id={id}
         options={options}
         value={locked ? MBA_NONE_VALUE : selectValue}
         onValueChange={(next) => {
@@ -58,7 +64,7 @@ export function TaskMbaSelect({
         searchPlaceholder="Search MBA or campaign…"
         disabled={locked}
         preserveOrder
-        buttonClassName="num max-w-md"
+        buttonClassName={buttonClassName}
       />
       {clientChosen ? (
         <p
@@ -69,10 +75,10 @@ export function TaskMbaSelect({
           Campaign MBA numbers, newest first:{" "}
           {campaigns.map((c) => c.label).join(", ") || "none"}
         </p>
-      ) : (
+      ) : hideLabel ? null : (
         <p className="text-xs text-muted-foreground">Select a client first</p>
       )}
-      {clientChosen && campaigns.length === 0 ? (
+      {!hideLabel && clientChosen && campaigns.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           No campaigns for this client
         </p>

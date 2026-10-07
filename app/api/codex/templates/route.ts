@@ -9,6 +9,25 @@ import {
 
 export const runtime = "nodejs"
 
+function parseTemplateCreateItems(
+  raw: unknown
+): Array<{ label: string }> | undefined | NextResponse {
+  if (raw === undefined) return undefined
+  if (!Array.isArray(raw)) {
+    return NextResponse.json(
+      { error: "invalid", field: "items", message: "items must be an array." },
+      { status: 400 }
+    )
+  }
+  return raw.map((entry) => {
+    const label =
+      entry && typeof entry === "object" && "label" in entry
+        ? (entry as { label?: unknown }).label
+        : ""
+    return { label: typeof label === "string" ? label : "" }
+  })
+}
+
 export async function GET(request: Request) {
   const flag = codexFlagGuard()
   if (flag) return flag
@@ -67,6 +86,8 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+    const items = parseTemplateCreateItems(raw.items)
+    if (items instanceof NextResponse) return items
 
     const currentUser = await getCurrentUser(request)
     const actor = sessionEmail(auth.session, currentUser?.email)
@@ -74,6 +95,7 @@ export async function POST(request: Request) {
       {
         name,
         description: typeof raw.description === "string" ? raw.description : null,
+        ...(items ? { items } : {}),
       },
       actor
     )
@@ -85,6 +107,12 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(template, { status: 201 })
   } catch (error) {
+    if (error instanceof Error && error.name === "TemplateLabelError") {
+      return NextResponse.json(
+        { error: "invalid", field: "items", message: error.message },
+        { status: 400 }
+      )
+    }
     console.error("Failed to create template:", error)
     return NextResponse.json(
       {

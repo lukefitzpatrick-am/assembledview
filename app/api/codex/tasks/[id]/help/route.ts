@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { CodexHelpError } from "@/lib/codex/helpRoster"
-import { requestHelp } from "@/lib/codex/repo"
+import { HELP_ON_DONE_MESSAGE, requestHelp } from "@/lib/codex/repo"
 import { ASK_HELP_MAX_CHARS } from "@/lib/codex/types"
 import {
   codexFlagGuard,
@@ -95,8 +95,14 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof CodexHelpError) {
+      const code =
+        error.status === 404
+          ? "not_found"
+          : error.message === HELP_ON_DONE_MESSAGE
+            ? "invalid"
+            : "bad_request"
       return NextResponse.json(
-        { error: error.status === 404 ? "not_found" : "bad_request", message: error.message },
+        { error: code, message: error.message },
         { status: error.status }
       )
     }

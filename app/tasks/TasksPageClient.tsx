@@ -9,17 +9,18 @@ import {
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table"
-import { Inbox, ListTodo, PlusCircle, Trash2, Users, LayoutTemplate } from "lucide-react"
-import { isValid, parseISO, startOfDay } from "date-fns"
+import { ArrowDown, ArrowUp, Inbox, ListTodo, PlusCircle, Trash2, Users, LayoutTemplate } from "lucide-react"
+import { isValid, parseISO } from "date-fns"
+import { formatDueYmd, isOverdueYmd, toSydneyCivilYmd } from "@/lib/codex/dueDate"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
-import { matchText } from "@/lib/search/matchText"
 import { useUser } from "@/components/AuthWrapper"
 import { TaskAskHelpButton } from "@/components/tasks/TaskAskHelpDialog"
-import { TaskBoard } from "@/components/tasks/TaskBoard"
+import { TaskBoard, visibleBoardStatuses } from "@/components/tasks/TaskBoard"
 import { TaskBulkBar } from "@/components/tasks/TaskBulkBar"
 import { TaskDetailSlideOver } from "@/components/tasks/TaskDetailSlideOver"
 import { TaskEstimateChip } from "@/components/tasks/TaskEstimateChip"
 import { TaskFormDialog } from "@/components/tasks/TaskFormDialog"
+import { TaskMbaSelect } from "@/components/tasks/TaskMbaSelect"
 import { TasksFilterBar } from "@/components/tasks/TasksFilterBar"
 import { TeamMemberFormDialog } from "@/components/tasks/TeamMemberFormDialog"
 import { TemplateFormDialog } from "@/components/tasks/TemplateFormDialog"
@@ -46,7 +47,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Combobox, ComboboxModalProvider } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -67,6 +70,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { EmptyState } from "@/components/ui/states"
 import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
+import { ToastAction } from "@/components/ui/toast"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -74,21 +78,30 @@ import {
   fetchClientsList,
 } from "@/lib/clients/fetchClientsList"
 import { getClientDisplayName } from "@/lib/clients/slug"
+import type { MbaPlanRow } from "@/lib/codex/clientMbas"
+import { MY_WEEK_STATUSES, myWeekDueBefore } from "@/lib/codex/quickAddParse"
 import { resolveListViewState } from "@/lib/ui/viewState"
 import {
-  MY_WEEK_STATUSES,
-  myWeekDueRange,
-} from "@/lib/codex/quickAddParse"
-import {
+  applyTasksFilterChange,
+  buildTasksFetchParams,
+  exitMyWeekState,
   parseTasksFilterParams,
   parseTasksLayoutValue,
   readStoredTasksLayout,
   serializeTasksFilterParams,
+  taskDetailHref,
+  taskListHref,
   writeStoredTasksLayout,
+  type TaskSortKey,
+  type TasksFilterState,
 } from "@/lib/codex/queryHelpers"
 import {
   STATUSES,
+  TASK_CATEGORIES,
+  TASK_PRIORITIES,
+  TASK_STATUSES,
   categoryLabel,
+  isTaskCategory,
   statusMeta,
   type CodexPagedResponse,
   type CodexTask,
@@ -98,6 +111,14 @@ import {
   isTaskStatus,
 } from "@/lib/codex/types"
 import type { TeamWeekTimeSummary } from "@/lib/myhours/timeSummary"
+
+function teamTasksHref(email: string, kind: "open" | "overdue"): string {
+  const assignee = encodeURIComponent(email.trim())
+  if (kind === "overdue") {
+    return `/tasks?all=1&assignee=${assignee}&overdue=1`
+  }
+  return `/tasks?all=1&assignee=${assignee}&status=backlog,todo,in_progress,waiting`
+}
 
 type TeamMemberWithWeek = TeamMember & {
   week_hours: number
@@ -115,21 +136,50 @@ type ClientOption = {
 
 const SYDNEY_TZ = "Australia/Sydney"
 const PER_PAGE = 100
+const BOARD_PER_PAGE = 50
+
+type BoardColumns = Record<TaskStatus, CodexTask[]>
+
+function emptyBoardColumns(): BoardColumns {
+  return {
+    backlog: [],
+    todo: [],
+    in_progress: [],
+    waiting: [],
+    done: [],
+  }
+}
+
+function emptyStatusCounts(): Record<TaskStatus, number> {
+  return {
+    backlog: 0,
+    todo: 0,
+    in_progress: 0,
+    waiting: 0,
+    done: 0,
+  }
+}
+
+function readStatusCounts(body: unknown): Record<TaskStatus, number> {
+  const src =
+    body && typeof body === "object" ? (body as Record<string, unknown>) : {}
+  const counts = emptyStatusCounts()
+  for (const status of TASK_STATUSES) {
+    const value = Number(src[status])
+    counts[status] = Number.isFinite(value) ? value : 0
+  }
+  return counts
+}
+
+function mergeBoardTasks(current: CodexTask[], incoming: CodexTask[]): CodexTask[] {
+  const seen = new Set(current.map((task) => String(task.id)))
+  return [
+    ...current,
+    ...incoming.filter((task) => !seen.has(String(task.id))),
+  ]
+}
 const INBOX_PER_PAGE = 20
 const NOTES_TRUNCATE = 60
-
-function formatDueDateSydney(value: string | null | undefined): string {
-  if (!value) return "—"
-  const raw = value.includes("T") ? value : `${value}T12:00:00`
-  const d = parseISO(raw)
-  if (!isValid(d)) return value
-  return new Intl.DateTimeFormat("en-AU", {
-    timeZone: SYDNEY_TZ,
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d)
-}
 
 function formatUpdatedAt(value: string | null | undefined): string {
   if (!value) return "—"
@@ -145,17 +195,6 @@ function formatUpdatedAt(value: string | null | undefined): string {
   }).format(d)
 }
 
-function isOverdue(task: CodexTask): boolean {
-  if (!task.due_date) return false
-  if (task.status === "done") return false
-  const raw = task.due_date.includes("T")
-    ? task.due_date
-    : `${task.due_date}T23:59:59`
-  const due = parseISO(raw)
-  if (!isValid(due)) return false
-  return due < startOfDay(new Date())
-}
-
 function truncateNotes(value: string | null | undefined): string {
   if (!value) return "—"
   const trimmed = value.trim()
@@ -163,23 +202,260 @@ function truncateNotes(value: string | null | undefined): string {
   return `${trimmed.slice(0, NOTES_TRUNCATE)}…`
 }
 
-function toApiSort(sort: string): string {
-  if (sort === "due_date desc") return "due_date_desc"
-  if (sort === "created_at desc") return "created_at_desc"
-  return "due_date_asc"
+function SortHeaderButton({
+  label,
+  active,
+  direction,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  direction: "asc" | "desc"
+  onClick: () => void
+}) {
+  const Icon = direction === "asc" ? ArrowUp : ArrowDown
+  return (
+    <button
+      type="button"
+      className="inline-flex cursor-pointer items-center gap-1 font-medium text-muted-foreground hover:text-foreground"
+      onClick={onClick}
+    >
+      {label}
+      {active ? <Icon className="h-3.5 w-3.5" aria-hidden /> : null}
+    </button>
+  )
+}
+
+function recordToSearchParams(
+  record: Record<string, string | string[] | undefined>
+): URLSearchParams {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(record)) {
+    if (typeof value === "string") params.append(key, value)
+    else if (Array.isArray(value)) {
+      for (const item of value) params.append(key, item)
+    }
+  }
+  return params
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError"
+}
+
+const EDIT_CATEGORY_NONE = "__none__"
+const EDIT_ASSIGNEE_NONE = "__unassigned__"
+
+function inboxAcceptEdits(
+  proposal: {
+    proposed_title: string
+    proposed_description: string | null
+    proposed_assignee_email: string | null
+    proposed_mba_number: string | null
+    proposed_category: string | null
+    proposed_due_date: string | null
+    client_id: number | null
+  },
+  form: {
+    title: string
+    description: string
+    clientId: string
+    mba: string
+    assignee: string
+    due: string
+    category: string
+  }
+): Record<string, string | number | null> | null {
+  const edits: Record<string, string | number | null> = {}
+  const title = form.title.trim()
+  if (title !== proposal.proposed_title.trim()) edits.title = title
+
+  const description = form.description.trim()
+  const originalDescription = (proposal.proposed_description ?? "").trim()
+  if (description !== originalDescription) {
+    edits.description = description || null
+  }
+
+  const clientId = form.clientId.trim() ? Number(form.clientId) : null
+  if (clientId !== (proposal.client_id ?? null)) {
+    edits.client_id = clientId != null && Number.isFinite(clientId) ? clientId : null
+  }
+
+  const mba = form.mba.trim()
+  if (mba !== (proposal.proposed_mba_number ?? "").trim()) {
+    edits.mba_number = mba || null
+  }
+
+  const assignee = form.assignee.trim().toLowerCase()
+  const originalAssignee = (proposal.proposed_assignee_email ?? "")
+    .trim()
+    .toLowerCase()
+  if (assignee !== originalAssignee) {
+    edits.assignee_email = assignee || null
+  }
+
+  const due = form.due.trim()
+  const originalDue = toSydneyCivilYmd(proposal.proposed_due_date) ?? ""
+  if (due !== originalDue) edits.due_date = due || null
+
+  const category = form.category.trim()
+  if (category !== (proposal.proposed_category ?? "").trim()) {
+    edits.category = category || null
+  }
+
+  return Object.keys(edits).length > 0 ? edits : null
+}
+
+function quickAddVisibleInFilters(
+  task: {
+    title: string
+    clientId: number
+    priority: string
+    assigneeEmail: string | null
+    dueDate: string | null
+    mbaNumber: string | null
+    category: string | null
+    creatorEmail: string | null
+  },
+  filters: {
+    clientId: string
+    mbaFilter: string
+    categoryFilter: string
+    search: string
+    assigneeEmail: string
+    statuses: string[]
+    mine: boolean
+    myWeek: boolean
+    priorities: string[]
+    overdue: boolean
+    unassigned: boolean
+    noClient: boolean
+    createdByEmail: string
+    dueFrom: string
+    dueTo: string
+    sources: string[]
+  },
+  now = new Date()
+): boolean {
+  const assignee = task.assigneeEmail?.trim().toLowerCase() || null
+  const creator = task.creatorEmail?.trim().toLowerCase() || null
+  const mba = task.mbaNumber?.trim() || null
+
+  if (filters.noClient) {
+    if (task.clientId != null) return false
+  } else if (filters.clientId.trim()) {
+    if (Number(filters.clientId) !== task.clientId) return false
+  }
+
+  if (filters.mbaFilter.trim()) {
+    if ((mba ?? "").toLowerCase() !== filters.mbaFilter.trim().toLowerCase()) {
+      return false
+    }
+  }
+
+  if (filters.categoryFilter === "none") {
+    if (task.category) return false
+  } else if (filters.categoryFilter && task.category !== filters.categoryFilter) {
+    return false
+  }
+
+  const query = filters.search.trim().slice(0, 100).toLowerCase()
+  if (query) {
+    const inTitle = task.title.toLowerCase().includes(query)
+    const inMba = (mba ?? "").toLowerCase().includes(query)
+    if (!inTitle && !inMba) return false
+  }
+
+  if (
+    filters.priorities.length > 0 &&
+    !filters.priorities.includes(task.priority)
+  ) {
+    return false
+  }
+
+  if (filters.sources.length > 0 && !filters.sources.includes("manual")) {
+    return false
+  }
+
+  const createdBy = filters.createdByEmail.trim().toLowerCase()
+  if (createdBy && createdBy !== creator) return false
+
+  if (filters.myWeek) {
+    if (!task.dueDate || task.dueDate > myWeekDueBefore(now)) return false
+    return true
+  }
+
+  if (filters.overdue && !isOverdueYmd(task.dueDate, "todo", now)) return false
+  if (filters.dueFrom && (!task.dueDate || task.dueDate < filters.dueFrom)) {
+    return false
+  }
+  if (filters.dueTo && (!task.dueDate || task.dueDate > filters.dueTo)) {
+    return false
+  }
+  if (filters.statuses.length > 0 && !filters.statuses.includes("todo")) {
+    return false
+  }
+
+  if (filters.unassigned) {
+    if (assignee) return false
+  } else if (filters.mine) {
+    const me = creator
+    const onMine = me != null && (assignee === me || creator === me)
+    if (me && !onMine) return false
+  } else if (filters.assigneeEmail.trim()) {
+    if (assignee !== filters.assigneeEmail.trim().toLowerCase()) return false
+  }
+
+  return true
+}
+
+async function loadLiveTemplateSeeds(
+  templateId: number
+): Promise<Array<{ id: number; title: string }>> {
+  const found: Array<{ id: number; title: string }> = []
+  let page = 1
+  for (let guard = 0; guard < 30; guard += 1) {
+    const res = await fetch(
+      `/api/codex/tasks?per_page=100&page=${page}`,
+      { cache: "no-store" }
+    )
+    if (!res.ok) break
+    const data = (await res.json()) as CodexPagedResponse<CodexTask>
+    for (const task of data.items ?? []) {
+      if (
+        Number(task.template_id) === templateId &&
+        Boolean(task.recurring_rule) &&
+        task.status !== "done" &&
+        !task.deleted_at
+      ) {
+        found.push({ id: Number(task.id), title: task.title })
+      }
+    }
+    if (!data.nextPage) break
+    page = data.nextPage
+  }
+  return found
 }
 
 export function TasksPageClient({
   overlayTaskId = null,
+  initialSearchParams,
 }: {
   overlayTaskId?: number | null
+  /** Request query from `/tasks/[id]`, so the list behind the panel matches `/tasks`. */
+  initialSearchParams?: Record<string, string | string[] | undefined>
 }) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const seededSearchParams = useMemo(() => {
+    if (searchParams.toString().length > 0) return searchParams
+    if (initialSearchParams) return recordToSearchParams(initialSearchParams)
+    return searchParams
+  }, [searchParams, initialSearchParams])
   const { toast } = useToast()
-  const { user } = useUser()
-  const urlFilters = parseTasksFilterParams(searchParams)
+  const { user, isLoading: sessionLoading } = useUser()
+  const urlFilters = parseTasksFilterParams(seededSearchParams)
   const [mainTab, setMainTab] = useState<
     "tasks" | "team" | "templates" | "inbox"
   >("tasks")
@@ -209,6 +485,9 @@ export function TasksPageClient({
   }
   const [inboxGroups, setInboxGroups] = useState<InboxGroup[]>([])
   const [inboxPendingCount, setInboxPendingCount] = useState(0)
+  const [inboxStaleCount, setInboxStaleCount] = useState(0)
+  const [confirmExpireStale, setConfirmExpireStale] = useState(false)
+  const [inboxExpiring, setInboxExpiring] = useState(false)
   const [inboxPage, setInboxPage] = useState(1)
   const [inboxPageTotal, setInboxPageTotal] = useState(1)
   const [inboxNextPage, setInboxNextPage] = useState<number | null>(null)
@@ -224,22 +503,28 @@ export function TasksPageClient({
     null
   )
   const [editTitle, setEditTitle] = useState("")
+  const [editDescription, setEditDescription] = useState("")
   const [editAssignee, setEditAssignee] = useState("")
   const [editMba, setEditMba] = useState("")
   const [editClientId, setEditClientId] = useState("")
+  const [editDue, setEditDue] = useState("")
+  const [editCategory, setEditCategory] = useState("")
+  const [editMbaPlans, setEditMbaPlans] = useState<MbaPlanRow[]>([])
   /** List and board share the same filter state — switching must not reset it. */
   const [tasksLayout, setTasksLayout] = useState<"list" | "board">(
     urlFilters.view
   )
+  const tasksLayoutRef = useRef(tasksLayout)
+  tasksLayoutRef.current = tasksLayout
   const appliedStoredLayout = useRef(false)
 
   useEffect(() => {
     if (appliedStoredLayout.current) return
     appliedStoredLayout.current = true
-    if (parseTasksLayoutValue(searchParams.get("view"))) return
+    if (parseTasksLayoutValue(seededSearchParams.get("view"))) return
     const stored = readStoredTasksLayout()
     if (stored) setTasksLayout(stored)
-  }, [searchParams])
+  }, [seededSearchParams])
 
   const [tasks, setTasks] = useState<CodexTask[]>([])
   const [itemsTotal, setItemsTotal] = useState(0)
@@ -248,25 +533,55 @@ export function TasksPageClient({
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [accessDenied, setAccessDenied] = useState(false)
+  const [boardColumns, setBoardColumns] = useState<BoardColumns>(emptyBoardColumns)
+  const [statusCounts, setStatusCounts] = useState(emptyStatusCounts)
+  const [boardPages, setBoardPages] = useState<Record<TaskStatus, number>>({
+    backlog: 1,
+    todo: 1,
+    in_progress: 1,
+    waiting: 1,
+    done: 1,
+  })
+  const [boardLoading, setBoardLoading] = useState(true)
+  const [boardError, setBoardError] = useState<string | null>(null)
+  const [loadingMoreStatus, setLoadingMoreStatus] = useState<TaskStatus | null>(null)
+  const [boardReload, setBoardReload] = useState(0)
+  const boardGen = useRef(0)
+  const tasksFetchAbort = useRef<AbortController | null>(null)
+  const boardFetchAbort = useRef<AbortController | null>(null)
+  const sessionLoadingRef = useRef(sessionLoading)
+  sessionLoadingRef.current = sessionLoading
 
   const [clientId, setClientId] = useState<string>(urlFilters.clientId ?? "")
   const [mbaFilter, setMbaFilter] = useState<string>(urlFilters.mbaNumber ?? "")
-  const [statusFilter, setStatusFilter] = useState<string[]>(() =>
-    urlFilters.myWeek ? [...MY_WEEK_STATUSES] : urlFilters.statuses ?? []
+  const [statusFilter, setStatusFilter] = useState<string[]>(
+    urlFilters.statuses ?? []
   )
   const [categoryFilter, setCategoryFilter] = useState<string>(
     urlFilters.category ?? ""
   )
   const [assigneeEmail, setAssigneeEmail] = useState(
-    urlFilters.myWeek ? "" : urlFilters.assigneeEmail ?? ""
+    urlFilters.assigneeEmail ?? ""
   )
-  const [mine, setMine] = useState(urlFilters.myWeek ? false : urlFilters.mine)
+  const [mine, setMine] = useState(urlFilters.myWeek ? true : urlFilters.mine)
   const [myWeek, setMyWeek] = useState(urlFilters.myWeek)
-  const weekRange0 = urlFilters.myWeek ? myWeekDueRange() : null
-  const [dueAfter, setDueAfter] = useState<string>(weekRange0?.dueAfter ?? "")
-  const [dueBefore, setDueBefore] = useState<string>(weekRange0?.dueBefore ?? "")
   const [search, setSearch] = useState(urlFilters.search ?? "")
-  const [sort, setSort] = useState("due_date")
+  const [taskQuery, setTaskQuery] = useState(() =>
+    (urlFilters.search ?? "").trim().slice(0, 100)
+  )
+  const taskQueryRef = useRef(taskQuery)
+  const [sort, setSort] = useState<TaskSortKey>(urlFilters.sort)
+  const [priorities, setPriorities] = useState<string[]>(urlFilters.priorities)
+  const [overdue, setOverdue] = useState(urlFilters.overdue)
+  const [unassigned, setUnassigned] = useState(urlFilters.unassigned)
+  const [noClient, setNoClient] = useState(urlFilters.noClient)
+  const [createdByEmail, setCreatedByEmail] = useState(
+    urlFilters.createdByEmail ?? ""
+  )
+  const [dueFrom, setDueFrom] = useState(urlFilters.dueFrom ?? "")
+  const [dueTo, setDueTo] = useState(urlFilters.dueTo ?? "")
+  const [sources, setSources] = useState<string[]>(urlFilters.sources)
+  const [mbaPlans, setMbaPlans] = useState<MbaPlanRow[]>([])
 
   const [clients, setClients] = useState<ClientOption[]>([])
   const [clientsError, setClientsError] = useState<string | null>(null)
@@ -300,17 +615,34 @@ export function TasksPageClient({
   const [deleteTemplateTarget, setDeleteTemplateTarget] =
     useState<TaskTemplate | null>(null)
   const [deletingTemplate, setDeletingTemplate] = useState(false)
+  const [templateSeeds, setTemplateSeeds] = useState<
+    Array<{ id: number; title: string }>
+  >([])
+  const [templateSeedsLoading, setTemplateSeedsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!deleteTemplateTarget) {
+      setTemplateSeeds([])
+      setTemplateSeedsLoading(false)
+      return
+    }
+    let cancelled = false
+    setTemplateSeeds([])
+    setTemplateSeedsLoading(true)
+    void loadLiveTemplateSeeds(deleteTemplateTarget.id).then((seeds) => {
+      if (cancelled) return
+      setTemplateSeeds(seeds)
+      setTemplateSeedsLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [deleteTemplateTarget])
 
   const meEmail = (user?.email ?? "").trim().toLowerCase() || null
   const meName =
     teamMembers.find((m) => m.email.toLowerCase() === meEmail)?.name ??
     (typeof user?.name === "string" ? user.name : null)
-
-  useEffect(() => {
-    if (myWeek && meEmail && assigneeEmail !== meEmail) {
-      setAssigneeEmail(meEmail)
-    }
-  }, [myWeek, meEmail, assigneeEmail])
 
   // Slack-friendly deep links: /tasks?task=<id> → /tasks/<id>
   // Scope deep links: /tasks?mba=<mba> and /tasks?client=<id> (combined with other filters).
@@ -319,7 +651,7 @@ export function TasksPageClient({
     if (raw) {
       const id = Number(raw)
       if (Number.isFinite(id) && id >= 1) {
-        router.replace(`/tasks/${id}`)
+        router.replace(taskDetailHref(id, searchParams), { scroll: false })
       }
     }
   }, [searchParams, router])
@@ -340,6 +672,15 @@ export function TasksPageClient({
       mine,
       myWeek,
       view: tasksLayout,
+      sort,
+      priorities,
+      overdue,
+      unassigned,
+      noClient,
+      createdByEmail,
+      dueFrom,
+      dueTo,
+      sources,
     })
     const path = pathname || "/tasks"
     const next = qs ? `${path}?${qs}` : path
@@ -354,9 +695,126 @@ export function TasksPageClient({
     mine,
     myWeek,
     tasksLayout,
+    sort,
+    priorities,
+    overdue,
+    unassigned,
+    noClient,
+    createdByEmail,
+    dueFrom,
+    dueTo,
+    sources,
     pathname,
     router,
   ])
+
+  useEffect(() => {
+    const id = Number(clientId)
+    if (!clientId || noClient || !Number.isFinite(id) || id < 1) {
+      setMbaPlans([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/codex/client-mbas?client_id=${encodeURIComponent(String(id))}`,
+          { cache: "no-store" }
+        )
+        if (!res.ok || cancelled) return
+        const body = (await res.json()) as {
+          mba_numbers?: unknown
+          campaigns?: Array<{
+            mba_number?: unknown
+            campaign_name?: unknown
+          }>
+        }
+        if (cancelled) return
+        if (Array.isArray(body.campaigns) && body.campaigns.length > 0) {
+          setMbaPlans(
+            body.campaigns.flatMap((c) => {
+              if (typeof c.mba_number !== "string") return []
+              return [
+                {
+                  mba_number: c.mba_number,
+                  campaign_name:
+                    typeof c.campaign_name === "string" ? c.campaign_name : "",
+                  client_id: id,
+                },
+              ]
+            })
+          )
+          return
+        }
+        const numbers = Array.isArray(body.mba_numbers)
+          ? body.mba_numbers.filter((n): n is string => typeof n === "string")
+          : []
+        setMbaPlans(numbers.map((mba_number) => ({ mba_number, client_id: id })))
+      } catch {
+        if (!cancelled) setMbaPlans([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [clientId, noClient])
+
+  useEffect(() => {
+    if (!editProposal) {
+      setEditMbaPlans([])
+      return
+    }
+    const id = Number(editClientId)
+    if (!editClientId || !Number.isFinite(id) || id < 1) {
+      setEditMbaPlans([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/codex/client-mbas?client_id=${encodeURIComponent(String(id))}`,
+          { cache: "no-store" }
+        )
+        if (!res.ok || cancelled) return
+        const body = (await res.json()) as {
+          mba_numbers?: unknown
+          campaigns?: Array<{
+            mba_number?: unknown
+            campaign_name?: unknown
+          }>
+        }
+        if (cancelled) return
+        if (Array.isArray(body.campaigns) && body.campaigns.length > 0) {
+          setEditMbaPlans(
+            body.campaigns.flatMap((c) => {
+              if (typeof c.mba_number !== "string") return []
+              return [
+                {
+                  mba_number: c.mba_number,
+                  campaign_name:
+                    typeof c.campaign_name === "string" ? c.campaign_name : "",
+                  client_id: id,
+                },
+              ]
+            })
+          )
+          return
+        }
+        const numbers = Array.isArray(body.mba_numbers)
+          ? body.mba_numbers.filter((n): n is string => typeof n === "string")
+          : []
+        setEditMbaPlans(
+          numbers.map((mba_number) => ({ mba_number, client_id: id }))
+        )
+      } catch {
+        if (!cancelled) setEditMbaPlans([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [editProposal, editClientId])
 
   const clientNameById = useMemo(() => {
     const map = new Map<number, string>()
@@ -365,6 +823,50 @@ export function TasksPageClient({
     }
     return map
   }, [clients])
+
+  const editClientOptions = useMemo(() => {
+    const options = clients.map((c) => ({
+      value: String(c.id),
+      label: getClientDisplayName(c) || String(c.id),
+      keywords: `${getClientDisplayName(c) ?? ""} ${c.id}`,
+    }))
+    if (
+      editClientId &&
+      !options.some((o) => o.value === editClientId)
+    ) {
+      options.push({
+        value: editClientId,
+        label: `Client ${editClientId}`,
+        keywords: editClientId,
+      })
+    }
+    return options
+  }, [clients, editClientId])
+
+  const editAssigneeOptions = useMemo(() => {
+    const options = [
+      { value: EDIT_ASSIGNEE_NONE, label: "Unassigned" },
+      ...teamMembers
+        .filter((m) => m.active)
+        .map((m) => ({
+          value: m.email,
+          label: m.name ? `${m.name} (${m.email})` : m.email,
+          keywords: `${m.name} ${m.email}`,
+        })),
+    ]
+    const email = editAssignee.trim().toLowerCase()
+    if (
+      email &&
+      !options.some((o) => o.value.toLowerCase() === email)
+    ) {
+      options.push({
+        value: editAssignee.trim(),
+        label: editAssignee.trim(),
+        keywords: email,
+      })
+    }
+    return options
+  }, [teamMembers, editAssignee])
 
   const fetchClients = useCallback(async () => {
     const result = await fetchClientsList<ClientOption>()
@@ -457,12 +959,14 @@ export function TasksPageClient({
         setAccessDenied(true)
         setInboxGroups([])
         setInboxPendingCount(0)
+        setInboxStaleCount(0)
         return
       }
       if (!res.ok) {
         setInboxError("Something went wrong while loading the inbox.")
         setInboxGroups([])
         setInboxPendingCount(0)
+        setInboxStaleCount(0)
         return
       }
       const data = (await res.json()) as {
@@ -471,10 +975,14 @@ export function TasksPageClient({
         pageTotal?: number
         nextPage?: number | null
         curPage?: number
+        staleCount?: number
       }
       setInboxGroups(Array.isArray(data.groups) ? data.groups : [])
       setInboxPendingCount(
         typeof data.pendingCount === "number" ? data.pendingCount : 0
+      )
+      setInboxStaleCount(
+        typeof data.staleCount === "number" ? data.staleCount : 0
       )
       setInboxPageTotal(
         typeof data.pageTotal === "number" ? data.pageTotal : 1
@@ -488,6 +996,7 @@ export function TasksPageClient({
       setInboxError("Something went wrong while loading the inbox.")
       setInboxGroups([])
       setInboxPendingCount(0)
+      setInboxStaleCount(0)
     } finally {
       setInboxLoading(false)
     }
@@ -497,6 +1006,36 @@ export function TasksPageClient({
     if (mainTab !== "inbox") return
     void fetchInbox()
   }, [mainTab, fetchInbox])
+
+  const refreshInboxBadge = useCallback(async () => {
+    try {
+      const res = await fetch("/api/codex/proposals?page=1&per_page=1")
+      if (res.status === 403) {
+        setAccessDenied(true)
+        setInboxPendingCount(0)
+        return
+      }
+      if (!res.ok) return
+      const data = (await res.json()) as {
+        pendingCount?: number
+        staleCount?: number
+      }
+      if (typeof data.pendingCount === "number") {
+        setInboxPendingCount(data.pendingCount)
+      }
+      if (typeof data.staleCount === "number") {
+        setInboxStaleCount(data.staleCount)
+      }
+    } catch (error) {
+      if (isAbortError(error)) return
+      console.error("Error fetching inbox count:", error)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (sessionLoading) return
+    void refreshInboxBadge()
+  }, [sessionLoading, refreshInboxBadge])
 
   const fetchTemplates = useCallback(async () => {
     setTemplatesLoading(true)
@@ -526,26 +1065,43 @@ export function TasksPageClient({
   }, [fetchTemplates])
 
   const fetchTasks = useCallback(async () => {
+    if (sessionLoadingRef.current) return
+    if (tasksLayoutRef.current === "board") {
+      setBoardReload((n) => n + 1)
+      return
+    }
+    tasksFetchAbort.current?.abort()
+    const controller = new AbortController()
+    tasksFetchAbort.current = controller
     setIsLoading(true)
     setLoadError(null)
     try {
-      const params = new URLSearchParams()
-      params.set("page", String(page))
-      params.set("per_page", String(PER_PAGE))
-      params.set("sort", toApiSort(sort))
-      if (clientId) params.set("client_id", clientId)
-      if (mbaFilter) params.set("mba_number", mbaFilter)
-      if (statusFilter.length > 0) params.set("status", statusFilter.join(","))
-      if (categoryFilter) params.set("category", categoryFilter)
-      if (dueAfter) params.set("due_after", dueAfter)
-      if (dueBefore) params.set("due_before", dueBefore)
-      if (mine) {
-        params.set("mine", "1")
-      } else if (assigneeEmail.trim()) {
-        params.set("assignee_email", assigneeEmail.trim())
-      }
+      const params = buildTasksFetchParams({
+        page,
+        perPage: PER_PAGE,
+        sort,
+        clientId,
+        mbaNumber: mbaFilter,
+        category: categoryFilter,
+        q: taskQuery,
+        assigneeEmail,
+        statuses: statusFilter,
+        mine,
+        myWeek,
+        priorities,
+        overdue,
+        unassigned,
+        noClient,
+        createdByEmail,
+        dueFrom,
+        dueTo,
+        sources,
+      })
 
-      const response = await fetch(`/api/codex/tasks?${params.toString()}`)
+      const response = await fetch(`/api/codex/tasks?${params.toString()}`, {
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) return
       if (response.status === 403) {
         setAccessDenied(true)
         setTasks([])
@@ -562,6 +1118,7 @@ export function TasksPageClient({
         )
       }
       const data = (await response.json()) as CodexPagedResponse<CodexTask>
+      if (controller.signal.aborted || tasksFetchAbort.current !== controller) return
       setTasks(Array.isArray(data.items) ? data.items : [])
       setItemsTotal(typeof data.itemsTotal === "number" ? data.itemsTotal : 0)
       setNextPage(
@@ -572,6 +1129,7 @@ export function TasksPageClient({
             : Number(data.nextPage) || null
       )
     } catch (error) {
+      if (isAbortError(error) || controller.signal.aborted) return
       console.error("Error fetching tasks:", error)
       const isNetwork =
         error instanceof TypeError ||
@@ -585,23 +1143,218 @@ export function TasksPageClient({
       setItemsTotal(0)
       setNextPage(null)
     } finally {
-      setIsLoading(false)
+      if (!controller.signal.aborted) setIsLoading(false)
     }
-  }, [page, sort, clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, dueAfter, dueBefore])
+  }, [page, sort, clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, myWeek, taskQuery, priorities, overdue, unassigned, noClient, createdByEmail, dueFrom, dueTo, sources])
 
   useEffect(() => {
+    if (sessionLoading) return
+    if (tasksLayout === "board") return
     void fetchTasks()
-  }, [fetchTasks])
+    return () => {
+      tasksFetchAbort.current?.abort()
+    }
+  }, [fetchTasks, tasksLayout, sessionLoading])
+
+  const boardFilterKey = useMemo(() => {
+    const params = buildTasksFetchParams({
+      page: 1,
+      perPage: BOARD_PER_PAGE,
+      sort,
+      clientId,
+      mbaNumber: mbaFilter,
+      category: categoryFilter,
+      q: taskQuery,
+      assigneeEmail,
+      statuses: myWeek ? [...MY_WEEK_STATUSES] : statusFilter,
+      mine,
+      myWeek,
+      priorities,
+      overdue,
+      unassigned,
+      noClient,
+      createdByEmail,
+      dueFrom,
+      dueTo,
+      sources,
+    })
+    params.delete("page")
+    params.delete("per_page")
+    return params.toString()
+  }, [
+    sort,
+    clientId,
+    mbaFilter,
+    categoryFilter,
+    taskQuery,
+    assigneeEmail,
+    statusFilter,
+    mine,
+    myWeek,
+    priorities,
+    overdue,
+    unassigned,
+    noClient,
+    createdByEmail,
+    dueFrom,
+    dueTo,
+    sources,
+  ])
+
+  const boardStatuses = useMemo(
+    () => visibleBoardStatuses(myWeek ? MY_WEEK_STATUSES : statusFilter),
+    [myWeek, statusFilter]
+  )
+
+  useEffect(() => {
+    if (sessionLoading) return
+    if (tasksLayout !== "board") {
+      boardFetchAbort.current?.abort()
+      return
+    }
+    const gen = ++boardGen.current
+    const statuses = boardStatuses
+    boardFetchAbort.current?.abort()
+    const controller = new AbortController()
+    boardFetchAbort.current = controller
+    setBoardLoading(true)
+    setBoardError(null)
+    setLoadingMoreStatus(null)
+
+    void (async () => {
+      try {
+        const [countsRes, columns] = await Promise.all([
+          fetch(`/api/codex/tasks/status-counts?${boardFilterKey}`, {
+            signal: controller.signal,
+          }),
+          Promise.all(
+            statuses.map(async (status) => {
+              const params = new URLSearchParams(boardFilterKey)
+              params.set("status", status)
+              params.set("page", "1")
+              params.set("per_page", String(BOARD_PER_PAGE))
+              const response = await fetch(`/api/codex/tasks?${params.toString()}`, {
+                signal: controller.signal,
+              })
+              if (response.status === 403) {
+                const denied = new Error("forbidden")
+                denied.name = "Forbidden"
+                throw denied
+              }
+              if (!response.ok) {
+                throw new Error("Failed to fetch tasks")
+              }
+              const data = (await response.json()) as CodexPagedResponse<CodexTask>
+              return [
+                status,
+                Array.isArray(data.items) ? data.items : [],
+              ] as const
+            })
+          ),
+        ])
+        if (gen !== boardGen.current) return
+        if (countsRes.status === 403) {
+          setAccessDenied(true)
+          setBoardColumns(emptyBoardColumns())
+          setStatusCounts(emptyStatusCounts())
+          return
+        }
+        if (!countsRes.ok) {
+          throw new Error("Failed to fetch task counts")
+        }
+        const countsBody: unknown = await countsRes.json()
+        if (controller.signal.aborted || gen !== boardGen.current) return
+        const nextColumns = emptyBoardColumns()
+        for (const [status, items] of columns) {
+          nextColumns[status] = items
+        }
+        setBoardColumns(nextColumns)
+        setStatusCounts(readStatusCounts(countsBody))
+        setBoardPages({
+          backlog: 1,
+          todo: 1,
+          in_progress: 1,
+          waiting: 1,
+          done: 1,
+        })
+      } catch (error) {
+        if (isAbortError(error) || controller.signal.aborted) return
+        if (gen !== boardGen.current) return
+        if (error instanceof Error && error.name === "Forbidden") {
+          setAccessDenied(true)
+          setBoardColumns(emptyBoardColumns())
+          setStatusCounts(emptyStatusCounts())
+          return
+        }
+        console.error("Error fetching task board:", error)
+        const isNetwork =
+          error instanceof TypeError ||
+          (error instanceof Error && error.message === "Failed to fetch")
+        setBoardError(
+          isNetwork
+            ? "We couldn't reach the server. Check your connection and try again."
+            : "Something went wrong while loading tasks."
+        )
+        setBoardColumns(emptyBoardColumns())
+        setStatusCounts(emptyStatusCounts())
+      } finally {
+        if (!controller.signal.aborted && gen === boardGen.current) {
+          setBoardLoading(false)
+        }
+      }
+    })()
+    return () => {
+      controller.abort()
+    }
+  }, [tasksLayout, boardFilterKey, boardStatuses, boardReload, sessionLoading])
+
+  const loadMoreBoard = useCallback(
+    async (status: TaskStatus) => {
+      const gen = boardGen.current
+      const nextPage = boardPages[status] + 1
+      const signal = boardFetchAbort.current?.signal
+      setLoadingMoreStatus(status)
+      try {
+        const params = new URLSearchParams(boardFilterKey)
+        params.set("status", status)
+        params.set("page", String(nextPage))
+        params.set("per_page", String(BOARD_PER_PAGE))
+        const response = await fetch(`/api/codex/tasks?${params.toString()}`, {
+          signal,
+        })
+        if (gen !== boardGen.current) return
+        if (!response.ok) {
+          throw new Error("Failed to fetch tasks")
+        }
+        const data = (await response.json()) as CodexPagedResponse<CodexTask>
+        if (signal?.aborted || gen !== boardGen.current) return
+        const items = Array.isArray(data.items) ? data.items : []
+        setBoardColumns((prev) => ({
+          ...prev,
+          [status]: mergeBoardTasks(prev[status], items),
+        }))
+        setBoardPages((prev) => ({ ...prev, [status]: nextPage }))
+      } catch (error) {
+        if (isAbortError(error) || signal?.aborted) return
+        if (gen !== boardGen.current) return
+        console.error("Error loading more board tasks:", error)
+        toast({
+          title: "Could not load more tasks",
+          description:
+            error instanceof Error ? error.message : "Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoadingMoreStatus((current) => (current === status ? null : current))
+      }
+    },
+    [boardFilterKey, boardPages, toast]
+  )
 
   const acceptInboxProposal = useCallback(
     async (
       proposalId: number,
-      edits: {
-        title?: string
-        assignee_email?: string | null
-        mba_number?: string | null
-        client_id?: number | null
-      } | null = null
+      edits: Record<string, string | number | null> | null = null
     ) => {
       setInboxBusyId(proposalId)
       try {
@@ -631,6 +1384,7 @@ export function TasksPageClient({
         })
         setEditProposal(null)
         await fetchInbox()
+        void refreshInboxBadge()
         void fetchTasks()
       } catch (error) {
         console.error(error)
@@ -643,7 +1397,7 @@ export function TasksPageClient({
         setInboxBusyId(null)
       }
     },
-    [fetchInbox, fetchTasks, toast]
+    [fetchInbox, fetchTasks, refreshInboxBadge, toast]
   )
 
   const dismissInboxProposal = useCallback(
@@ -663,6 +1417,7 @@ export function TasksPageClient({
         }
         toast({ title: "Proposal dismissed" })
         await fetchInbox()
+        void refreshInboxBadge()
       } catch (error) {
         console.error(error)
         toast({
@@ -674,7 +1429,7 @@ export function TasksPageClient({
         setInboxBusyId(null)
       }
     },
-    [fetchInbox, toast]
+    [fetchInbox, refreshInboxBadge, toast]
   )
 
   const dismissAllForMeeting = useCallback(
@@ -702,6 +1457,7 @@ export function TasksPageClient({
         toast({ title: `Dismissed ${n} in ${label}` })
         setInboxPendingCount((c) => Math.max(0, c - n))
         await fetchInbox()
+        void refreshInboxBadge()
       } catch (error) {
         console.error(error)
         toast({
@@ -714,7 +1470,7 @@ export function TasksPageClient({
         setDismissAllTarget(null)
       }
     },
-    [fetchInbox, toast]
+    [fetchInbox, refreshInboxBadge, toast]
   )
 
   const batchAcceptMeeting = useCallback(
@@ -748,6 +1504,7 @@ export function TasksPageClient({
           description: `${accepted} accepted${failed ? `, ${failed} skipped` : ""}`,
         })
         await fetchInbox()
+        void refreshInboxBadge()
         void fetchTasks()
       } catch (error) {
         console.error(error)
@@ -760,22 +1517,104 @@ export function TasksPageClient({
         setInboxBusyId(null)
       }
     },
-    [fetchInbox, fetchTasks, toast]
+    [fetchInbox, fetchTasks, refreshInboxBadge, toast]
   )
+
+  const expireStaleInbox = useCallback(async () => {
+    setInboxExpiring(true)
+    try {
+      const res = await fetch("/api/codex/proposals/expire-stale", {
+        method: "POST",
+      })
+      const body = (await res.json().catch(() => null)) as {
+        expired?: number
+        message?: string
+      } | null
+      if (!res.ok) {
+        toast({
+          variant: "destructive",
+          title: "Could not expire proposals",
+          description: body?.message || "Please try again.",
+        })
+        return
+      }
+      const expired = typeof body?.expired === "number" ? body.expired : 0
+      toast({ title: `Expired ${expired} proposals` })
+      setConfirmExpireStale(false)
+      await fetchInbox()
+      void refreshInboxBadge()
+    } catch (error) {
+      console.error(error)
+      toast({
+        variant: "destructive",
+        title: "Could not expire proposals",
+        description: error instanceof Error ? error.message : "Please try again.",
+      })
+    } finally {
+      setInboxExpiring(false)
+    }
+  }, [fetchInbox, refreshInboxBadge, toast])
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const next = search.trim().slice(0, 100)
+      if (taskQueryRef.current === next) return
+      taskQueryRef.current = next
+      setTaskQuery(next)
+      setPage(1)
+    }, 250)
+    return () => window.clearTimeout(handle)
+  }, [search])
 
   useEffect(() => {
     setPage(1)
-  }, [clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, sort, dueAfter, dueBefore])
+  }, [clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, sort, myWeek, priorities, overdue, unassigned, noClient, createdByEmail, dueFrom, dueTo, sources])
 
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [page, clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, dueAfter, dueBefore, search])
+  }, [page, clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, myWeek, search, priorities, overdue, unassigned, noClient, createdByEmail, dueFrom, dueTo, sources])
 
-  const filteredTasks = useMemo(() => {
-    const q = search.trim()
-    if (!q) return tasks
-    return tasks.filter((t) => matchText(t.title, q))
-  }, [tasks, search])
+  const filterState = (): TasksFilterState => ({
+    clientId,
+    mbaNumber: mbaFilter,
+    search,
+    assigneeEmail,
+    category: categoryFilter,
+    statuses: statusFilter,
+    mine,
+    myWeek,
+    priorities,
+    overdue,
+    unassigned,
+    noClient,
+    createdByEmail,
+    dueFrom,
+    dueTo,
+    sources,
+  })
+
+  const commitFilters = (next: TasksFilterState) => {
+    setClientId(next.clientId)
+    setMbaFilter(next.mbaNumber)
+    setSearch(next.search)
+    setAssigneeEmail(next.assigneeEmail)
+    setCategoryFilter(next.category)
+    setStatusFilter(next.statuses)
+    setMine(next.mine)
+    setMyWeek(next.myWeek)
+    setPriorities(next.priorities ?? [])
+    setOverdue(next.overdue ?? false)
+    setUnassigned(next.unassigned ?? false)
+    setNoClient(next.noClient ?? false)
+    setCreatedByEmail(next.createdByEmail ?? "")
+    setDueFrom(next.dueFrom ?? "")
+    setDueTo(next.dueTo ?? "")
+    setSources(next.sources ?? [])
+  }
+
+  const exitMyWeek = () => {
+    commitFilters(exitMyWeekState(filterState()))
+  }
 
   const clearTaskFilters = useCallback(() => {
     setClientId("")
@@ -786,41 +1625,29 @@ export function TasksPageClient({
     setSearch("")
     setMine(true)
     setMyWeek(false)
-    setDueAfter("")
-    setDueBefore("")
+    setPriorities([])
+    setOverdue(false)
+    setUnassigned(false)
+    setNoClient(false)
+    setCreatedByEmail("")
+    setDueFrom("")
+    setDueTo("")
+    setSources([])
     setPage(1)
   }, [])
 
-  const applyMyWeek = useCallback(
-    (on: boolean) => {
-      if (!on) {
-        setMyWeek(false)
-        setDueAfter("")
-        setDueBefore("")
-        setStatusFilter([])
-        setAssigneeEmail("")
-        setMine(true)
-        return
-      }
-      if (!meEmail) {
-        toast({
-          title: "Could not resolve your email",
-          description: "Sign in again to use My week.",
-          variant: "destructive",
-        })
-        return
-      }
-      const range = myWeekDueRange()
-      setMyWeek(true)
-      setMine(false)
-      setAssigneeEmail(meEmail)
-      setStatusFilter([...MY_WEEK_STATUSES])
-      setDueAfter(range.dueAfter)
-      setDueBefore(range.dueBefore)
-      setPage(1)
-    },
-    [meEmail, toast]
-  )
+  const applyMyWeek = (on: boolean) => {
+    if (!on) {
+      exitMyWeek()
+      return
+    }
+    setMyWeek(true)
+    setUnassigned(false)
+    setOverdue(false)
+    setDueFrom("")
+    setDueTo("")
+    setPage(1)
+  }
 
   const tasksFiltersActive = Boolean(
     clientId ||
@@ -830,18 +1657,25 @@ export function TasksPageClient({
       assigneeEmail.trim() ||
       search.trim() ||
       myWeek ||
-      dueAfter ||
-      dueBefore ||
-      !mine
+      !mine ||
+      priorities.length > 0 ||
+      overdue ||
+      unassigned ||
+      noClient ||
+      createdByEmail.trim() ||
+      dueFrom ||
+      dueTo ||
+      sources.length > 0
   )
 
-  const tasksViewState = useMemo(
-    () =>
-      resolveListViewState({
-        loading: isLoading,
-        error: clientsError ?? loadError,
-        items: tasks,
-        visible: filteredTasks,
+  const tasksViewState = useMemo(() => {
+    if (tasksLayout === "board") {
+      const visible = boardStatuses.flatMap((status) => boardColumns[status])
+      return resolveListViewState({
+        loading: boardLoading,
+        error: clientsError ?? boardError,
+        items: visible,
+        visible,
         filtersActive: tasksFiltersActive,
         clear: clearTaskFilters,
         retry: () => {
@@ -850,22 +1684,43 @@ export function TasksPageClient({
             void fetchClients()
             return
           }
-          setLoadError(null)
-          void fetchTasks()
+          setBoardError(null)
+          setBoardReload((n) => n + 1)
         },
-      }),
-    [
-      isLoading,
-      clientsError,
-      loadError,
-      tasks,
-      filteredTasks,
-      tasksFiltersActive,
-      clearTaskFilters,
-      fetchClients,
-      fetchTasks,
-    ]
-  )
+      })
+    }
+    return resolveListViewState({
+      loading: isLoading,
+      error: clientsError ?? loadError,
+      items: tasks,
+      visible: tasks,
+      filtersActive: tasksFiltersActive,
+      clear: clearTaskFilters,
+      retry: () => {
+        if (clientsError) {
+          setClientsError(null)
+          void fetchClients()
+          return
+        }
+        setLoadError(null)
+        void fetchTasks()
+      },
+    })
+  }, [
+    tasksLayout,
+    boardLoading,
+    boardError,
+    boardColumns,
+    boardStatuses,
+    isLoading,
+    clientsError,
+    loadError,
+    tasks,
+    tasksFiltersActive,
+    clearTaskFilters,
+    fetchClients,
+    fetchTasks,
+  ])
 
   const teamViewState = useMemo(
     () =>
@@ -947,6 +1802,29 @@ export function TasksPageClient({
     }
   }
 
+  const requestStatusPatch = async (
+    task: CodexTask,
+    status: TaskStatus
+  ): Promise<CodexTask> => {
+    const res = await fetch(
+      `/api/codex/tasks/${encodeURIComponent(String(task.id))}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      }
+    )
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      throw new Error(
+        (body && typeof body === "object" && "message" in body
+          ? String((body as { message?: string }).message)
+          : null) || "Failed to update status"
+      )
+    }
+    return (await res.json()) as CodexTask
+  }
+
   const patchStatus = async (task: CodexTask, status: TaskStatus) => {
     const previousStatus = task.status
     if (previousStatus === status) return
@@ -958,23 +1836,7 @@ export function TasksPageClient({
     )
 
     try {
-      const res = await fetch(
-        `/api/codex/tasks/${encodeURIComponent(String(task.id))}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status }),
-        }
-      )
-      if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        throw new Error(
-          (body && typeof body === "object" && "message" in body
-            ? String((body as { message?: string }).message)
-            : null) || "Failed to update status"
-        )
-      }
-      const next = (await res.json()) as CodexTask
+      const next = await requestStatusPatch(task, status)
       setTasks((prev) =>
         prev.map((t) => {
           if (String(t.id) !== String(next.id)) return t
@@ -1004,6 +1866,72 @@ export function TasksPageClient({
     }
   }
 
+  const patchBoardStatus = async (task: CodexTask, status: TaskStatus) => {
+    const visible = new Set(boardStatuses)
+    let from: TaskStatus = isTaskStatus(task.status) ? task.status : "todo"
+    let source = task
+    for (const column of TASK_STATUSES) {
+      const found = boardColumns[column].find(
+        (item) => String(item.id) === String(task.id)
+      )
+      if (found) {
+        from = column
+        source = found
+        break
+      }
+    }
+    if (from === status) return
+
+    const previousColumns = boardColumns
+    const previousCounts = statusCounts
+    setBoardColumns((prev) => {
+      const next: BoardColumns = {
+        ...prev,
+        [from]: prev[from].filter((item) => String(item.id) !== String(task.id)),
+      }
+      if (visible.has(status)) {
+        next[status] = [
+          ...prev[status].filter((item) => String(item.id) !== String(task.id)),
+          { ...source, status },
+        ]
+      }
+      return next
+    })
+    setStatusCounts((prev) => ({
+      ...prev,
+      [from]: Math.max(0, prev[from] - 1),
+      [status]: prev[status] + 1,
+    }))
+
+    try {
+      const next = await requestStatusPatch(source, status)
+      setBoardColumns((prev) => {
+        if (!visible.has(status)) return prev
+        return {
+          ...prev,
+          [status]: prev[status].map((item) => {
+            if (String(item.id) !== String(next.id)) return item
+            return {
+              ...next,
+              checklist_done: item.checklist_done,
+              checklist_total: item.checklist_total,
+            }
+          }),
+        }
+      })
+    } catch (error) {
+      console.error("Inline status patch failed:", error)
+      setBoardColumns(previousColumns)
+      setStatusCounts(previousCounts)
+      toast({
+        title: "Could not update status",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const quickCreateTask = async (payload: {
     title: string
     client_id: number
@@ -1013,6 +1941,8 @@ export function TasksPageClient({
     assignee_name: string | null
     due_date: string | null
     estimated_minutes: number | null
+    mba_number: string | null
+    category: string | null
   }) => {
     const res = await fetch("/api/codex/tasks", {
       method: "POST",
@@ -1032,74 +1962,121 @@ export function TasksPageClient({
       })
       throw new Error(message)
     }
-    toast({ title: "Task created" })
+    const visible = quickAddVisibleInFilters(
+      {
+        title: payload.title,
+        clientId: payload.client_id,
+        priority: payload.priority,
+        assigneeEmail: payload.assignee_email,
+        dueDate: payload.due_date,
+        mbaNumber: payload.mba_number,
+        category: payload.category,
+        creatorEmail: meEmail,
+      },
+      {
+        clientId,
+        mbaFilter,
+        categoryFilter,
+        search,
+        assigneeEmail,
+        statuses: statusFilter,
+        mine,
+        myWeek,
+        priorities,
+        overdue,
+        unassigned,
+        noClient,
+        createdByEmail,
+        dueFrom,
+        dueTo,
+        sources,
+      }
+    )
+    if (visible) {
+      toast({ title: "Task created" })
+    } else {
+      toast({
+        title: "Created. Hidden by current filters",
+        action: (
+          <ToastAction altText="Show" onClick={() => clearTaskFilters()}>
+            Show
+          </ToastAction>
+        ),
+      })
+    }
     await fetchTasks()
   }
 
-  const bulkPatch = async (
-    patch: Record<string, unknown>,
+  const bulkApply = async (
+    body: { patch?: Record<string, unknown>; action?: "delete" },
     label: string
   ) => {
     const ids = [...selectedIds]
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
     if (ids.length === 0) return
-    setBulkBusy(true)
-    const previous = tasks
-    // Optimistic local merge for known fields
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (!selectedIds.has(String(t.id))) return t
-        return {
-          ...t,
-          ...(patch.status !== undefined
-            ? { status: String(patch.status) }
-            : null),
-          ...(patch.assignee_email !== undefined
-            ? { assignee_email: patch.assignee_email as string | null }
-            : null),
-          ...(patch.assignee_name !== undefined
-            ? { assignee_name: patch.assignee_name as string | null }
-            : null),
-          ...(patch.due_date !== undefined
-            ? { due_date: patch.due_date as string | null }
-            : null),
-        }
+    if (ids.length > 200) {
+      toast({
+        title: `Could not ${label}`,
+        description: "Select at most 200 tasks.",
+        variant: "destructive",
       })
-    )
+      return
+    }
+    setBulkBusy(true)
     try {
-      const results = await Promise.all(
-        ids.map(async (id) => {
-          const res = await fetch(
-            `/api/codex/tasks/${encodeURIComponent(id)}`,
-            {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(patch),
-            }
-          )
-          return { id, ok: res.ok }
-        })
-      )
-      const failed = results.filter((r) => !r.ok)
-      if (failed.length > 0) {
-        setTasks(previous)
+      const res = await fetch("/api/codex/tasks/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, ...body }),
+      })
+      const payload = (await res.json().catch(() => null)) as {
+        message?: string
+        tasks?: CodexTask[]
+        ids?: number[]
+      } | null
+      if (!res.ok) {
         toast({
           title: `Could not ${label}`,
-          description: `${failed.length} of ${ids.length} updates failed — list restored.`,
+          description: payload?.message || "Please try again.",
           variant: "destructive",
         })
+        await fetchTasks()
         return
       }
-      toast({ title: `Updated ${ids.length} tasks` })
+      if (body.action === "delete") {
+        const deleted = new Set(
+          (payload?.ids ?? ids).map((id) => String(id))
+        )
+        setTasks((prev) => prev.filter((task) => !deleted.has(String(task.id))))
+        setItemsTotal((prev) => Math.max(0, prev - deleted.size))
+        toast({ title: `Deleted ${deleted.size} tasks` })
+      } else {
+        const nextTasks = Array.isArray(payload?.tasks) ? payload.tasks : []
+        const byId = new Map(nextTasks.map((task) => [String(task.id), task]))
+        setTasks((prev) =>
+          prev.map((task) => {
+            const next = byId.get(String(task.id))
+            if (!next) return task
+            return {
+              ...task,
+              ...next,
+              checklist_done: task.checklist_done,
+              checklist_total: task.checklist_total,
+            }
+          })
+        )
+        toast({ title: `Updated ${ids.length} tasks` })
+      }
       setSelectedIds(new Set())
-      await fetchTasks()
     } catch (error) {
-      setTasks(previous)
       toast({
         title: `Could not ${label}`,
         description:
           error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       })
+      await fetchTasks()
     } finally {
       setBulkBusy(false)
     }
@@ -1182,7 +2159,8 @@ export function TasksPageClient({
                   return next
                 })
               }}
-              aria-label="Select all on page"
+              aria-label={`Select all on this page (${rows.length})`}
+              title={`Select all on this page (${rows.length})`}
               onClick={(e) => e.stopPropagation()}
             />
           )
@@ -1320,28 +2298,42 @@ export function TasksPageClient({
         ),
       },
       {
+        id: "priority",
+        header: () => (
+          <SortHeaderButton
+            label="Priority"
+            active={sort === "priority_desc"}
+            direction="desc"
+            onClick={() => setSort("priority_desc")}
+          />
+        ),
+        cell: ({ row }) => {
+          const value = row.original.priority
+          const label = TASK_PRIORITIES.find((p) => p.value === value)?.label
+          return <span>{label ?? (value ? String(value) : "—")}</span>
+        },
+      },
+      {
         accessorKey: "due_date",
         header: () => (
-          <button
-            type="button"
-            className="font-medium text-muted-foreground hover:text-foreground"
+          <SortHeaderButton
+            label="Due date"
+            active={sort === "due_asc" || sort === "due_desc"}
+            direction={sort === "due_desc" ? "desc" : "asc"}
             onClick={() =>
-              setSort((current) =>
-                current === "due_date" ? "due_date desc" : "due_date"
-              )
+              setSort((current) => (current === "due_asc" ? "due_desc" : "due_asc"))
             }
-          >
-            Due date
-          </button>
+          />
         ),
         cell: ({ row }) => (
           <span
             className={cn(
               "num",
-              isOverdue(row.original) && "text-destructive font-medium"
+              isOverdueYmd(row.original.due_date ?? null, row.original.status) &&
+                "text-destructive font-medium"
             )}
           >
-            {formatDueDateSydney(row.original.due_date)}
+            {formatDueYmd(row.original.due_date ?? null)}
           </span>
         ),
       },
@@ -1403,7 +2395,7 @@ export function TasksPageClient({
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- patchStatus closes over fetchTasks
-    [clientNameById, selectedIds, autoBusyId, teamMembers, meEmail, fetchTasks]
+    [clientNameById, selectedIds, autoBusyId, teamMembers, meEmail, fetchTasks, sort]
   )
 
   const teamRows = useMemo<TeamMemberWithWeek[]>(() => {
@@ -1484,21 +2476,33 @@ export function TasksPageClient({
         id: "open_tasks",
         header: "Open",
         cell: ({ row }) => (
-          <span className="num">{row.original.open_tasks}</span>
+          <Link
+            href={teamTasksHref(row.original.email, "open")}
+            className="num text-foreground underline-offset-2 hover:underline"
+            onClick={(event) => event.stopPropagation()}
+            aria-label={`Open tasks for ${row.original.name}`}
+          >
+            {row.original.open_tasks}
+          </Link>
         ),
       },
       {
         id: "overdue_tasks",
         header: "Overdue",
         cell: ({ row }) => (
-          <span
+          <Link
+            href={teamTasksHref(row.original.email, "overdue")}
             className={cn(
-              "num",
-              row.original.overdue_tasks > 0 && "text-status-danger"
+              "num underline-offset-2 hover:underline",
+              row.original.overdue_tasks > 0
+                ? "text-status-danger"
+                : "text-foreground"
             )}
+            onClick={(event) => event.stopPropagation()}
+            aria-label={`Overdue tasks for ${row.original.name}`}
           >
             {row.original.overdue_tasks}
-          </span>
+          </Link>
         ),
       },
       {
@@ -1538,7 +2542,7 @@ export function TasksPageClient({
   )
 
   const table = useReactTable({
-    data: filteredTasks,
+    data: tasks,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => String(row.id),
@@ -1556,14 +2560,11 @@ export function TasksPageClient({
   }
 
   const openTaskDetail = (task: CodexTask) => {
-    router.push(`/tasks/${encodeURIComponent(String(task.id))}`)
+    router.push(taskDetailHref(task.id, searchParams), { scroll: false })
   }
 
   const closeTaskPanel = () => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete("task")
-    const q = params.toString()
-    router.push(q ? `/tasks?${q}` : "/tasks")
+    router.push(taskListHref(searchParams), { scroll: false })
   }
 
   const openCreateMember = () => {
@@ -1717,7 +2718,9 @@ export function TasksPageClient({
         <TabsContent value="tasks" className="mt-6 space-y-6">
           <div className="mx-auto max-w-6xl space-y-6">
           <TaskQuickAdd
-            team={teamMembers.map((m) => ({ email: m.email, name: m.name }))}
+            team={teamMembers
+              .filter((member) => member.active)
+              .map((member) => ({ email: member.email, name: member.name }))}
             clients={clients.map((c) => ({
               id: c.id,
               label: getClientDisplayName(c) || String(c.id),
@@ -1731,6 +2734,8 @@ export function TasksPageClient({
                 ? clientNameById.get(Number(clientId)) ?? clientId
                 : null
             }
+            fallbackMbaNumber={mbaFilter.trim() || null}
+            fallbackCategory={categoryFilter.trim() || null}
             clientsUnavailable={Boolean(clientsError)}
             onCreate={quickCreateTask}
           />
@@ -1739,12 +2744,23 @@ export function TasksPageClient({
             search={search}
             clientId={clientId}
             mbaFilter={mbaFilter}
+            mbaPlans={mbaPlans}
             assigneeEmail={assigneeEmail}
             categoryFilter={categoryFilter}
             statusFilter={statusFilter}
+            priorities={priorities}
+            overdue={overdue}
+            unassigned={unassigned}
+            noClient={noClient}
+            createdByEmail={createdByEmail}
+            dueFrom={dueFrom}
+            dueTo={dueTo}
+            sources={sources}
             mine={mine}
             myWeek={myWeek}
             tasksLayout={tasksLayout}
+            sort={sort}
+            onSort={setSort}
             clients={clients
               .map((c) => ({
                 id: c.id,
@@ -1755,35 +2771,88 @@ export function TasksPageClient({
                   sensitivity: "base",
                 })
               )}
-            members={teamMembers
-              .filter((m) => m.active)
-              .map((m) => ({ email: m.email, name: m.name }))}
-            onSearch={setSearch}
-            onClient={(v) => {
-              setMyWeek(false)
-              setClientId(v)
-            }}
-            onClearMba={() => setMbaFilter("")}
-            onAssignee={(v) => {
-              setMyWeek(false)
-              setDueAfter("")
-              setDueBefore("")
-              setMine(false)
-              setAssigneeEmail(v)
-            }}
-            onCategory={setCategoryFilter}
-            onStatus={(v) => {
-              setMyWeek(false)
-              setStatusFilter(v)
-            }}
-            onMineToggle={(allTasks) => {
-              setMyWeek(false)
-              setDueAfter("")
-              setDueBefore("")
-              setMine(!allTasks)
-              if (allTasks) setAssigneeEmail("")
-            }}
-            onMyWeek={(on) => applyMyWeek(on)}
+            members={teamMembers.map((m) => ({
+              email: m.email,
+              name: m.name,
+              active: m.active,
+            }))}
+            onSearch={(v) =>
+              commitFilters(applyTasksFilterChange(filterState(), { search: v }))
+            }
+            onClient={(v) =>
+              commitFilters(
+                applyTasksFilterChange(filterState(), {
+                  clientId: v,
+                  noClient: false,
+                  mbaNumber: "",
+                })
+              )
+            }
+            onMba={(v) =>
+              commitFilters(applyTasksFilterChange(filterState(), { mbaNumber: v }))
+            }
+            onAssignee={(v) =>
+              commitFilters(
+                applyTasksFilterChange(filterState(), {
+                  assigneeEmail: v,
+                  unassigned: false,
+                  mine: false,
+                })
+              )
+            }
+            onUnassigned={() =>
+              commitFilters(
+                applyTasksFilterChange(filterState(), {
+                  unassigned: true,
+                  mine: false,
+                  assigneeEmail: "",
+                })
+              )
+            }
+            onCategory={(v) =>
+              commitFilters(applyTasksFilterChange(filterState(), { category: v }))
+            }
+            onStatus={(v) =>
+              commitFilters(applyTasksFilterChange(filterState(), { statuses: v }))
+            }
+            onPriorities={(v) =>
+              commitFilters(applyTasksFilterChange(filterState(), { priorities: v }))
+            }
+            onOverdue={(on) =>
+              commitFilters(applyTasksFilterChange(filterState(), { overdue: on }))
+            }
+            onNoClient={(on) =>
+              commitFilters(
+                applyTasksFilterChange(filterState(), {
+                  noClient: on,
+                  ...(on ? { clientId: "", mbaNumber: "" } : {}),
+                })
+              )
+            }
+            onCreatedBy={(v) =>
+              commitFilters(
+                applyTasksFilterChange(filterState(), { createdByEmail: v })
+              )
+            }
+            onDueFrom={(v) =>
+              commitFilters(applyTasksFilterChange(filterState(), { dueFrom: v }))
+            }
+            onDueTo={(v) =>
+              commitFilters(applyTasksFilterChange(filterState(), { dueTo: v }))
+            }
+            onSources={(v) =>
+              commitFilters(applyTasksFilterChange(filterState(), { sources: v }))
+            }
+            onMineToggle={(allTasks) =>
+              commitFilters(
+                applyTasksFilterChange(filterState(), {
+                  mine: !allTasks,
+                  unassigned: false,
+                  ...(allTasks ? { assigneeEmail: "" } : {}),
+                })
+              )
+            }
+            onMyWeek={applyMyWeek}
             onLayout={(v) => {
               writeStoredTasksLayout(v)
               setTasksLayout(v)
@@ -1798,16 +2867,25 @@ export function TasksPageClient({
               busy={bulkBusy}
               onClear={() => setSelectedIds(new Set())}
               onSetStatus={async (status) => {
-                await bulkPatch({ status }, "set status")
+                await bulkApply({ patch: { status } }, "set status")
               }}
               onSetAssignee={async (email, name) => {
-                await bulkPatch(
-                  { assignee_email: email, assignee_name: name },
+                await bulkApply(
+                  { patch: { assignee_email: email, assignee_name: name } },
                   "set assignee"
                 )
               }}
               onSetDueDate={async (due_date) => {
-                await bulkPatch({ due_date }, "set due date")
+                await bulkApply({ patch: { due_date } }, "set due date")
+              }}
+              onSetPriority={async (priority) => {
+                await bulkApply({ patch: { priority } }, "set priority")
+              }}
+              onSetCategory={async (category) => {
+                await bulkApply({ patch: { category } }, "set category")
+              }}
+              onDelete={async () => {
+                await bulkApply({ action: "delete" }, "delete")
               }}
             />
           ) : null}
@@ -1833,15 +2911,22 @@ export function TasksPageClient({
             {() =>
               tasksLayout === "board" ? (
                 <TaskBoard
-                  tasks={filteredTasks}
+                  columns={boardColumns}
+                  counts={statusCounts}
+                  statusFilter={myWeek ? MY_WEEK_STATUSES : statusFilter}
+                  onLoadMore={(status) => {
+                    void loadMoreBoard(status)
+                  }}
+                  loadingMoreStatus={loadingMoreStatus}
+                  sort={sort}
                   clientNameById={clientNameById}
                   onOpenTask={openTaskDetail}
                   onStatusChange={(task, status) => {
-                    void patchStatus(task, status)
+                    void patchBoardStatus(task, status)
                   }}
                   teamMembers={teamMembers}
                   meEmail={meEmail}
-                  onHelpAsked={() => void fetchTasks()}
+                  onHelpAsked={() => setBoardReload((n) => n + 1)}
                 />
               ) : (
               <div className="mx-auto max-w-6xl overflow-hidden rounded-card border border-border bg-card shadow-e1">
@@ -1926,6 +3011,48 @@ export function TasksPageClient({
         </TabsContent>
 
         <TabsContent value="inbox" className="mt-6 space-y-6">
+          {inboxStaleCount > 0 ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-card border border-border bg-card px-4 py-3 shadow-e0">
+              <p className="text-sm text-foreground">
+                <span className="num">{inboxStaleCount}</span> older than 21 days
+              </p>
+              {confirmExpireStale ? (
+                <>
+                  <p className="text-sm text-foreground">
+                    Expire <span className="num">{inboxStaleCount}</span> proposals?
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    disabled={inboxExpiring}
+                    onClick={() => void expireStaleInbox()}
+                  >
+                    Expire them
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={inboxExpiring}
+                    onClick={() => setConfirmExpireStale(false)}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={inboxExpiring}
+                  onClick={() => setConfirmExpireStale(true)}
+                >
+                  Expire them
+                </Button>
+              )}
+            </div>
+          ) : null}
           <ViewStateBoundary
             state={inboxViewState}
             errorTitle="Couldn't load inbox"
@@ -1947,7 +3074,7 @@ export function TasksPageClient({
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {group.meeting_date
-                            ? formatDueDateSydney(group.meeting_date)
+                            ? formatDueYmd(toSydneyCivilYmd(group.meeting_date))
                             : "No date"}
                           {group.mba_number
                             ? ` · ${group.mba_number}`
@@ -2032,12 +3159,22 @@ export function TasksPageClient({
                               onClick={() => {
                                 setEditProposal(p)
                                 setEditTitle(p.proposed_title)
+                                setEditDescription(p.proposed_description ?? "")
                                 setEditAssignee(
                                   p.proposed_assignee_email ?? ""
                                 )
                                 setEditMba(p.proposed_mba_number ?? "")
                                 setEditClientId(
                                   p.client_id != null ? String(p.client_id) : ""
+                                )
+                                setEditDue(
+                                  toSydneyCivilYmd(p.proposed_due_date) ?? ""
+                                )
+                                setEditCategory(
+                                  p.proposed_category &&
+                                    isTaskCategory(p.proposed_category)
+                                    ? p.proposed_category
+                                    : ""
                                 )
                               }}
                             >
@@ -2301,6 +3438,12 @@ export function TasksPageClient({
         clients={clients}
         teamMembers={teamMembers}
         templates={templates}
+        createPrefill={{
+          client_id:
+            !noClient && Number(clientId) > 0 ? Number(clientId) : undefined,
+          mba_number: mbaFilter.trim() || undefined,
+          category: isTaskCategory(categoryFilter) ? categoryFilter : undefined,
+        }}
         onSaved={() => {
           void fetchTasks()
         }}
@@ -2404,8 +3547,20 @@ export function TasksPageClient({
               {deleteTemplateTarget
                 ? `“${deleteTemplateTarget.name}” and its checklist labels will be removed. Existing tasks keep their copied checklists.`
                 : "This template will be removed."}
+              {templateSeedsLoading
+                ? " Checking live series…"
+                : templateSeeds.length > 0
+                  ? " These live series will stop."
+                  : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {templateSeeds.length > 0 ? (
+            <ul className="max-h-40 list-disc space-y-1 overflow-y-auto pl-5 text-sm text-foreground">
+              {templateSeeds.map((seed) => (
+                <li key={seed.id}>{seed.title}</li>
+              ))}
+            </ul>
+          ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deletingTemplate}>
               Cancel
@@ -2429,49 +3584,113 @@ export function TasksPageClient({
           if (!open) setEditProposal(null)
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit proposal then accept</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="proposal-edit-title">Title</Label>
-              <Input
-                id="proposal-edit-title"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="proposal-edit-assignee">Assignee email</Label>
-              <Input
-                id="proposal-edit-assignee"
-                value={editAssignee}
-                onChange={(e) => setEditAssignee(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="proposal-edit-mba">MBA</Label>
-              <Input
+          <ComboboxModalProvider>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="proposal-edit-title">Title</Label>
+                <Input
+                  id="proposal-edit-title"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="proposal-edit-description">Description</Label>
+                <Textarea
+                  id="proposal-edit-description"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="proposal-edit-client">Client</Label>
+                <Combobox
+                  id="proposal-edit-client"
+                  options={editClientOptions}
+                  value={editClientId}
+                  onValueChange={(next) => {
+                    if (next === editClientId) return
+                    setEditClientId(next)
+                    setEditMba("")
+                  }}
+                  placeholder="Select a client"
+                  searchPlaceholder="Search clients…"
+                  emptyText="No clients found."
+                />
+              </div>
+              <TaskMbaSelect
                 id="proposal-edit-mba"
+                clientId={
+                  editClientId && Number.isFinite(Number(editClientId))
+                    ? Number(editClientId)
+                    : null
+                }
                 value={editMba}
-                onChange={(e) => setEditMba(e.target.value)}
+                plans={editMbaPlans}
+                onChange={(mba) => setEditMba(mba ?? "")}
+                buttonClassName="w-full"
               />
+              <div className="space-y-1.5">
+                <Label htmlFor="proposal-edit-assignee">Assignee</Label>
+                <Combobox
+                  id="proposal-edit-assignee"
+                  options={editAssigneeOptions}
+                  value={editAssignee || EDIT_ASSIGNEE_NONE}
+                  onValueChange={(next) => {
+                    setEditAssignee(
+                      next === EDIT_ASSIGNEE_NONE ? "" : next
+                    )
+                  }}
+                  placeholder="Select an assignee"
+                  searchPlaceholder="Search people…"
+                  emptyText="No active people found."
+                  preserveOrder
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="proposal-edit-due">Due date</Label>
+                <Input
+                  id="proposal-edit-due"
+                  type="date"
+                  value={editDue}
+                  onChange={(e) => setEditDue(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="proposal-edit-category">Category</Label>
+                <Select
+                  value={editCategory || EDIT_CATEGORY_NONE}
+                  onValueChange={(next) => {
+                    setEditCategory(
+                      next === EDIT_CATEGORY_NONE ? "" : next
+                    )
+                  }}
+                >
+                  <SelectTrigger id="proposal-edit-category">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EDIT_CATEGORY_NONE}>None</SelectItem>
+                    {TASK_CATEGORIES.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {categoryLabel(category)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {editProposal?.possible_duplicate ? (
+                <Badge variant="outline" size="sm">
+                  Possible duplicate
+                </Badge>
+              ) : null}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="proposal-edit-client">Client id</Label>
-              <Input
-                id="proposal-edit-client"
-                value={editClientId}
-                onChange={(e) => setEditClientId(e.target.value)}
-              />
-            </div>
-            {editProposal?.possible_duplicate ? (
-              <Badge variant="outline" size="sm">
-                Possible duplicate
-              </Badge>
-            ) : null}
-          </div>
+          </ComboboxModalProvider>
           <DialogFooter>
             <Button
               type="button"
@@ -2482,17 +3701,27 @@ export function TasksPageClient({
             </Button>
             <Button
               type="button"
-              disabled={inboxBusyId != null || !editTitle.trim()}
+              disabled={
+                inboxBusyId != null ||
+                !editTitle.trim() ||
+                !editClientId.trim() ||
+                !Number.isFinite(Number(editClientId)) ||
+                Number(editClientId) < 1
+              }
               onClick={() => {
                 if (!editProposal) return
-                void acceptInboxProposal(editProposal.id, {
-                  title: editTitle.trim(),
-                  assignee_email: editAssignee.trim() || null,
-                  mba_number: editMba.trim() || null,
-                  client_id: editClientId.trim()
-                    ? Number(editClientId)
-                    : null,
-                })
+                void acceptInboxProposal(
+                  editProposal.id,
+                  inboxAcceptEdits(editProposal, {
+                    title: editTitle,
+                    description: editDescription,
+                    clientId: editClientId,
+                    mba: editMba,
+                    assignee: editAssignee,
+                    due: editDue,
+                    category: editCategory,
+                  })
+                )
               }}
             >
               Accept
