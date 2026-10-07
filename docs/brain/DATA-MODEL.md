@@ -20,6 +20,8 @@ Xano is still read by the remaining §3/§4 PORT files in `XANO-SEVERANCE-REGIST
 
 **The real gate is `npm run db:drift`** — a comparison against `information_schema`. Run it before any handover that touches the schema. Never apply the file `generate` produces.
 
+`0092_revoke_published_pointer_fn_execute.sql` revokes EXECUTE on `public.enforce_published_pointer_stamped()` from public, anon and authenticated. The function is a trigger (`RETURNS trigger`). Triggers still fire. Authored, not applied. No Drizzle change.
+
 **Backfill rule.** Any migration that backfills existing rows must be guarded by a `migration_markers` key. `WHERE col IS NULL` alone is not a re-run guard: once the feature is live, NULL means a genuine unfilled state and a re-run corrupts it.
 
 ### Postgres enum types (9)
