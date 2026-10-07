@@ -4,25 +4,25 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 max-[375px]:min-h-11 max-[375px]:min-w-11 hover:-translate-y-px hover:shadow-e1 active:translate-y-0 active:scale-[0.98]",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 max-[375px]:min-h-11 max-[375px]:min-w-11",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary-hover",
+        default: "bg-accent text-accent-foreground hover:bg-accent-hover",
         /** Ink/neutral primary CTA — use for Save / Open MBA / Edit timing (not brand green). */
         action: "bg-action text-action-foreground hover:bg-action-hover",
-        destructive: "bg-error text-white hover:bg-error-hover",
-        outline: "border-2 border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-secondary text-white hover:bg-secondary-hover",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-error-hover",
+        outline: "border border-input bg-background text-foreground hover:bg-muted",
+        secondary: "border-2 border-secondary bg-transparent text-secondary hover:bg-secondary/10 dark:text-foreground",
+        ghost: "text-foreground hover:bg-muted",
         link: "text-primary underline-offset-4 hover:underline",
-        success: "bg-success text-white hover:bg-success-hover",
+        success: "bg-primary text-primary-foreground hover:bg-primary-hover",
         warning: "bg-warning text-darkGrey hover:bg-warning-hover",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
+        default: "h-10 px-5",
+        sm: "h-9 px-4",
+        lg: "h-11 px-7",
         icon: "h-10 w-10",
       },
     },

@@ -23,7 +23,7 @@ const Segmented = React.forwardRef<
     ref={ref}
     type="single"
     className={cn(
-      "inline-flex items-center rounded-input bg-[var(--fill-track)] p-[3px]",
+      "inline-flex items-center rounded-full bg-muted p-[3px]",
       className
     )}
     {...props}
@@ -38,7 +38,7 @@ const SegmentedItem = React.forwardRef<
   <ToggleGroupPrimitive.Item
     ref={ref}
     className={cn(
-      "inline-flex h-7 items-center justify-center rounded-[7px] px-3 text-[13px] font-medium text-[var(--text-tertiary)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-card data-[state=on]:font-semibold data-[state=on]:text-foreground data-[state=on]:shadow-e0",
+      "inline-flex h-7 items-center justify-center rounded-full px-3 text-[13px] font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-foreground data-[state=on]:font-semibold data-[state=on]:text-background",
       className
     )}
     {...props}

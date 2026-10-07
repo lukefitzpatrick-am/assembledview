@@ -8,6 +8,8 @@ Next.js 15.5 App Router · React 18.3 · TypeScript 5 (`strict: false`, `strictN
 
 New UI work takes colour, type and radius from `lib/brand` and the theme token classes (`bg-primary`, `text-foreground`, `bg-am-ink`), not a raw hex or an arbitrary hex class.
 
+Buttons are pills. `default` is the lime primary action, `secondary` is the forest outline, `outline` is the neutral button, `ghost` is for icon and inline actions. Cards are filled and bordered, never shadowed.
+
 ## Directory law
 
 | Put it in | When |

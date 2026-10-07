@@ -54,7 +54,7 @@ const Panel = React.forwardRef<HTMLDivElement, PanelProps>(
         <div
           ref={ref}
           className={cn(
-            "overflow-visible rounded-frame border border-border bg-card text-card-foreground shadow-frame",
+            "overflow-visible rounded-frame border border-border bg-card text-card-foreground",
             className
           )}
           data-variant={variant}
