@@ -6,6 +6,7 @@ import { Plus } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 
+import { ChartSamples } from "./ChartSamples"
 import { BrandLoading } from "@/components/brand/BrandLoading"
 import { ClientMark, PublisherMark } from "@/components/brand/EntityMark"
 import { MediaChannelTag } from "@/components/dashboard/MediaChannelTag"
@@ -376,6 +377,13 @@ export default function DesignSystemPage() {
             <PublisherMark name="North Shore" colour={BRAND.colour.forest} size="md" nameVisible={false} />
           </div>
         </div>
+      </Section>
+
+      <Section
+        title="Charts"
+        description="One theme. Family colour when the series are media types. Forest is the single highlight."
+      >
+        <ChartSamples />
       </Section>
 
       <Section

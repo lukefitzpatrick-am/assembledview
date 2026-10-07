@@ -9,7 +9,8 @@
  */
 
 import { BRAND } from '@/lib/brand';
-import { BRAND_SERIES } from '@/lib/design/mediaFamilies';
+import { BRAND_SERIES, MEDIA_FAMILY, MEDIA_TYPE_FAMILY, type MediaFamily, type MediaTypeThemeKey } from '@/lib/design/mediaFamilies';
+import { useTheme } from 'next-themes';
 import { formatMoney, formatMoneyCompact } from '@/lib/format/money';
 import {
   getMediaColor,
@@ -142,6 +143,67 @@ export const TABULAR: React.CSSProperties = {
 export const CHART_FONT = [BRAND.font.sans, ...BRAND.font.sansFallback]
   .map((name) => (name.includes(' ') ? `'${name}'` : name))
   .join(', ');
+
+export type ChartMode = 'light' | 'dark'
+
+/** getComputedStyle transparent black. Kept here so chart files carry no colour literals. */
+export const COMPUTED_TRANSPARENT = 'rgba(0, 0, 0, 0)'
+
+/** Dark series follows the family dark map (confidence 75%, morning smoke). */
+const DARK_SERIES = [
+  BRAND.colour.forestLight,
+  BRAND.colour.sky,
+  BRAND.colour.lime,
+  BRAND.functional.forestTextOnBlack,
+  BRAND.colour.mutedOnBlack,
+  BRAND.colour.contextBlack,
+  BRAND.colour.mutedOnBlack,
+  BRAND.colour.context,
+] as const
+
+export function getChartTheme(mode: ChartMode) {
+  const dark = mode === 'dark'
+  return {
+    series: dark ? DARK_SERIES : BRAND_SERIES,
+    highlight: dark ? BRAND.colour.forestLight : BRAND.colour.forest,
+    context: dark ? BRAND.colour.contextBlack : BRAND.colour.context,
+    axisText: dark ? BRAND.colour.mutedOnBlack : BRAND.colour.muted,
+    grid: dark ? BRAND.derived.lineOnBlack : BRAND.colour.line,
+    valueLabel: dark ? BRAND.colour.white : BRAND.colour.ink,
+    tooltip: {
+      background: dark ? BRAND.colour.panel : BRAND.colour.white,
+      border: dark ? BRAND.derived.lineOnBlack : BRAND.colour.line,
+      text: dark ? BRAND.colour.white : BRAND.colour.ink,
+    },
+    font: CHART_FONT,
+    barRadius: 999,
+    barGap: 2,
+  }
+}
+
+const DARK_FAMILY: Record<MediaFamily, string> = {
+  video: BRAND.colour.forestLight,
+  social: MEDIA_FAMILY.social.colour,
+  search_display: MEDIA_FAMILY.search_display.colour,
+  out_of_home: BRAND.functional.forestTextOnBlack,
+  audio: BRAND.colour.mutedOnBlack,
+  print: BRAND.colour.context,
+  production: BRAND.colour.contextBlack,
+}
+
+export function familyColourFor(mode: ChartMode, mediaTypeKey: string): string {
+  const key = mediaTypeKey.replace(/[^a-zA-Z]/g, '').toLowerCase()
+  if (!(key in MEDIA_TYPE_FAMILY)) {
+    return mode === 'dark' ? BRAND.colour.forestLight : BRAND.colour.forest
+  }
+  const family = MEDIA_TYPE_FAMILY[key as MediaTypeThemeKey]
+  return mode === 'dark' ? DARK_FAMILY[family] : MEDIA_FAMILY[family].colour
+}
+
+export function useChartTheme() {
+  const { resolvedTheme } = useTheme()
+  return getChartTheme(resolvedTheme === 'dark' ? 'dark' : 'light')
+}
 
 const CHANNEL_COLOR_ALIASES: Record<string, keyof typeof CHANNEL_COLORS> = {
   television: 'television',

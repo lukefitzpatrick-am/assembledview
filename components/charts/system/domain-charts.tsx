@@ -13,6 +13,7 @@
 import * as React from 'react';
 import { round } from '@/lib/chart-utils';
 import { wrapGanttLabel } from '@/lib/charts/wrapGanttLabel';
+import { BRAND } from '@/lib/brand';
 import { CHART_PALETTE, CHANNEL_COLORS, SEQUENTIAL, NEUTRAL, STATUS, fmt } from '@/lib/chart-theme';
 
 const INK = NEUTRAL.ink, MUTED = NEUTRAL.axis, MID = NEUTRAL.label, GRID = NEUTRAL.grid;
@@ -106,7 +107,7 @@ export function MediaGanttChart({
       if (fillW > 0) {
         els.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={fillW} height={bh} rx={5} fill={color} fillOpacity={(b.intensity ?? 0.85) * 0.92} />);
       }
-      if (bw > 48 && b.label) els.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill="#fff" style={TAB}>{b.label}</text>);
+      if (bw > 48 && b.label) els.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill={BRAND.colour.white} style={TAB}>{b.label}</text>);
     });
     hitEls.push(
       <rect
@@ -181,7 +182,7 @@ export function BurstGrid({ rows, weeks = 12, className }: { rows: BurstRow[]; w
     row.cells.forEach((c, ci) => {
       const bx = padL + cw * c.startWeek, bw = cw * (c.endWeek - c.startWeek + 1);
       els.push(<rect key={`mc${ri}-${ci}`} x={round(bx) + 2} y={round(y) + 3} width={round(bw) - 4} height={rowH - 6} rx={4} fill={c.color ?? CHART_PALETTE[ri % CHART_PALETTE.length]} />);
-      els.push(<text key={`mt${ri}-${ci}`} x={round(bx + bw / 2)} y={round(y + rowH / 2 + 3.5)} textAnchor="middle" fontSize={9} fontWeight={700} fill="#fff">{c.label}</text>);
+      els.push(<text key={`mt${ri}-${ci}`} x={round(bx + bw / 2)} y={round(y + rowH / 2 + 3.5)} textAnchor="middle" fontSize={9} fontWeight={700} fill={BRAND.colour.white}>{c.label}</text>);
     });
   });
   return <div className={className}><svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>{els}</svg></div>;
@@ -201,7 +202,7 @@ export function MatrixHeatmap({
     cols.forEach((_, ci) => {
       const v = values[ri][ci];
       els.push(<rect key={`mh${ri}-${ci}`} x={round(padL + cw * ci) + gap / 2} y={round(padT + ch * ri) + gap / 2} width={round(cw) - gap} height={ch - gap} rx={3} fill={seq(v)} />);
-      if (showValues) els.push(<text key={`mv${ri}-${ci}`} x={round(padL + cw * ci + cw / 2)} y={round(padT + ch * ri + ch / 2 + 3)} textAnchor="middle" fontSize={8.5} fontWeight={700} fill={v > 0.6 ? '#fff' : MID} style={TAB}>{Math.round(v * 100)}</text>);
+      if (showValues) els.push(<text key={`mv${ri}-${ci}`} x={round(padL + cw * ci + cw / 2)} y={round(padT + ch * ri + ch / 2 + 3)} textAnchor="middle" fontSize={8.5} fontWeight={700} fill={v > 0.6 ? BRAND.colour.white : MID} style={TAB}>{Math.round(v * 100)}</text>);
     });
   });
   els.push(<text key="lgl" x={padL} y={H - 3} fontSize={8.5} fill={MUTED}>Low</text>);

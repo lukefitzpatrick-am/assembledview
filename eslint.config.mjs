@@ -57,15 +57,7 @@ export default [
     files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
     // DS-2 baseline: existing colour debt, cleared in DS-5 and DS-8. Do not add to this list.
     ignores: [
-      "app/(internal)/chart-gallery/sample-data.ts",
-      "components/charts/system/chart-shell.tsx",
-      "components/charts/system/composition-charts.tsx",
-      "components/charts/system/domain-charts.tsx",
-      "components/charts/system/flow-charts.tsx",
-      "components/charts/system/line-charts.tsx",
-      "components/dashboard/campaign/MediaPlanVizSection.tsx",
       "components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx",
-      "components/dashboard/delivery/common/deliveryDailyChartColors.ts",
     ],
     rules: {
       "no-restricted-syntax": [

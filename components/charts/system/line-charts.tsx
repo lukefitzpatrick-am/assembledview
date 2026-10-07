@@ -13,6 +13,7 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent,
   type ChartConfig,
 } from '@/components/ui/chart';
+import { BRAND } from '@/lib/brand';
 import { fmt, NEUTRAL } from '@/lib/chart-theme';
 
 type Datum = Record<string, number | string>;
@@ -67,7 +68,7 @@ export function LineChart({
           <Line
             key={s.key} type={smooth ? 'monotone' : 'linear'} dataKey={s.key}
             stroke={cfg[s.key]?.color as string} strokeWidth={2}
-            dot={dots ? { r: 2.5, fill: '#fff', strokeWidth: 1.5 } : false}
+            dot={dots ? { r: 2.5, fill: BRAND.colour.white, strokeWidth: 1.5 } : false}
             activeDot={{ r: 4 }} isAnimationActive={false}
           />
         ))}

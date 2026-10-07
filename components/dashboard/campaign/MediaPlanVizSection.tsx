@@ -19,7 +19,8 @@ import {
   reshapeChannelSparkline,
   reshapeMediaPlanChannelSummary,
 } from "@/components/dashboard/campaign/mediaPlanChartReshape"
-import { fmt, channelColorFor } from "@/lib/chart-theme"
+import { BRAND } from "@/lib/brand"
+import { COMPUTED_TRANSPARENT, fmt, channelColorFor } from "@/lib/chart-theme"
 import { formatCurrencyAUD } from "@/lib/format/currency"
 import { normaliseLineItemsByType } from "@/lib/mediaplan/normalizeLineItem"
 import { cn } from "@/lib/utils"
@@ -167,7 +168,7 @@ export default function MediaPlanVizSection({
       // Same trap as chart-shell captureNodePng — Canvas/html2canvas need a computed literal, not var().
       const computedBg = getComputedStyle(el).backgroundColor
       const backgroundColor =
-        computedBg && computedBg !== "rgba(0, 0, 0, 0)" ? computedBg : "#ffffff"
+        computedBg && computedBg !== COMPUTED_TRANSPARENT ? computedBg : BRAND.colour.white
 
       // Prefer html2canvas over captureNodePng's SVG fast path: the gantt paints with
       // fill="var(--av-label)" etc., and a standalone serialised SVG cannot resolve CSS

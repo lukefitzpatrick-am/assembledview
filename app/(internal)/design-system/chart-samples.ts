@@ -2,6 +2,7 @@
  * Sample data mirroring the gallery — swap for real query results.
  * Shapes here ARE the contract each component expects.
  */
+import { BRAND } from '@/lib/brand';
 import { STATUS, CHANNEL_COLORS } from '@/lib/chart-theme';
 
 export const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -67,11 +68,11 @@ export const channelProfile = [
 
 /** Funnel — descending stages (value = %). */
 export const conversionFunnel = [
-  { label: 'Impressions', value: 100, color: '#4F8FCB' },
-  { label: 'Clicks', value: 46, color: '#15C7C9' },
-  { label: 'Visits', value: 28, color: '#008E5E' },
-  { label: 'Leads', value: 14, color: '#B5D337' },
-  { label: 'Sales', value: 6, color: '#E8A317' },
+  { label: 'Impressions', value: 100, color: BRAND.colour.sky },
+  { label: 'Clicks', value: 46, color: BRAND.colour.forestLight },
+  { label: 'Visits', value: 28, color: BRAND.colour.forest },
+  { label: 'Leads', value: 14, color: BRAND.colour.lime },
+  { label: 'Sales', value: 6, color: BRAND.colour.forestLight },
 ];
 
 /** Sankey — node list + index-based links. */
@@ -89,25 +90,25 @@ export const budgetFlow = {
 
 /** Sunburst — channel → format. */
 export const spendHierarchy = [
-  { name: 'TV', value: 38, color: '#E5573E', children: [{ name: 'Linear', value: 22 }, { name: 'Sport', value: 16 }] },
-  { name: 'Digital', value: 46, color: '#4F8FCB', children: [{ name: 'BVOD', value: 24 }, { name: 'Social', value: 12 }, { name: 'Display', value: 10 }] },
-  { name: 'Search', value: 16, color: '#008E5E', children: [{ name: 'Brand', value: 9 }, { name: 'PMax', value: 7 }] },
+  { name: 'TV', value: 38, color: BRAND.colour.forest, children: [{ name: 'Linear', value: 22 }, { name: 'Sport', value: 16 }] },
+  { name: 'Digital', value: 46, color: BRAND.colour.sky, children: [{ name: 'BVOD', value: 24 }, { name: 'Social', value: 12 }, { name: 'Display', value: 10 }] },
+  { name: 'Search', value: 16, color: BRAND.colour.forest, children: [{ name: 'Brand', value: 9 }, { name: 'PMax', value: 7 }] },
 ];
 
 /** Marimekko — weighted columns, each stacked. */
 export const mekkoMix = [
-  { name: 'TV', weight: 34, segments: [{ value: 55, color: '#E5573E' }, { value: 45, color: '#f0a08f' }] },
-  { name: 'Digital', weight: 28, segments: [{ value: 40, color: '#4F8FCB' }, { value: 35, color: '#49C7EB' }, { value: 25, color: '#9bc0e6' }] },
-  { name: 'Social', weight: 22, segments: [{ value: 60, color: '#472477' }, { value: 40, color: '#8f6bbf' }] },
-  { name: 'Search', weight: 16, segments: [{ value: 70, color: '#008E5E' }, { value: 30, color: '#7cc6a2' }] },
+  { name: 'TV', weight: 34, segments: [{ value: 55, color: BRAND.colour.forest }, { value: 45, color: BRAND.colour.context }] },
+  { name: 'Digital', weight: 28, segments: [{ value: 40, color: BRAND.colour.sky }, { value: 35, color: BRAND.colour.sky }, { value: 25, color: BRAND.colour.forestLight }] },
+  { name: 'Social', weight: 22, segments: [{ value: 60, color: BRAND.colour.ink }, { value: 40, color: BRAND.colour.muted }] },
+  { name: 'Search', weight: 16, segments: [{ value: 70, color: BRAND.colour.forest }, { value: 30, color: BRAND.colour.forestLight }] },
 ];
 
 /** Slope — rank change between two periods. */
 export const rankShift = [
-  { label: 'TV', left: 62, right: 48, color: '#E5573E' },
-  { label: 'Social', left: 30, right: 52, color: '#008E5E' },
-  { label: 'Search', left: 44, right: 40, color: '#E8A317' },
-  { label: 'BVOD', left: 24, right: 36, color: '#472477' },
+  { label: 'TV', left: 62, right: 48, color: BRAND.colour.forest },
+  { label: 'Social', left: 30, right: 52, color: BRAND.colour.forest },
+  { label: 'Search', left: 44, right: 40, color: BRAND.colour.forestLight },
+  { label: 'BVOD', left: 24, right: 36, color: BRAND.colour.ink },
 ];
 
 /** Histogram — pre-binned counts. */
@@ -128,11 +129,11 @@ export const flightPlan = [
 
 /** Burst week-grid — merged cells per line item. */
 export const burstRows = [
-  { label: 'Television', cells: [{ startWeek: 0, endWeek: 3, label: '320 TARP', color: '#E5573E' }] },
-  { label: 'BVOD', cells: [{ startWeek: 1, endWeek: 5, label: '1.2M imp', color: '#472477' }] },
-  { label: 'Social', cells: [{ startWeek: 0, endWeek: 11, label: 'always-on', color: '#49C7EB' }] },
-  { label: 'Search', cells: [{ startWeek: 2, endWeek: 8, label: '$8k', color: '#008E5E' }] },
-  { label: 'OOH', cells: [{ startWeek: 4, endWeek: 7, label: '45 panels', color: '#B5D337' }] },
+  { label: 'Television', cells: [{ startWeek: 0, endWeek: 3, label: '320 TARP', color: BRAND.colour.forest }] },
+  { label: 'BVOD', cells: [{ startWeek: 1, endWeek: 5, label: '1.2M imp', color: BRAND.colour.ink }] },
+  { label: 'Social', cells: [{ startWeek: 0, endWeek: 11, label: 'always-on', color: BRAND.colour.sky }] },
+  { label: 'Search', cells: [{ startWeek: 2, endWeek: 8, label: '$8k', color: BRAND.colour.forest }] },
+  { label: 'OOH', cells: [{ startWeek: 4, endWeek: 7, label: '45 panels', color: BRAND.colour.lime }] },
 ];
 
 /** Matrix heatmap — daypart × day, values 0..1. */
@@ -154,9 +155,9 @@ export const pacingWeeks = ['W1', '', 'W3', '', 'W5', '', 'W7', '', 'W9', '', 'W
 
 /** Boxplot — CPM spread per channel. */
 export const cpmByChannel = [
-  { label: 'TV', min: 8, q1: 14, med: 19, q3: 26, max: 34, outliers: [42], color: '#E5573E' },
-  { label: 'BVOD', min: 12, q1: 18, med: 24, q3: 30, max: 38, color: '#472477' },
-  { label: 'Social', min: 5, q1: 9, med: 13, q3: 18, max: 24, outliers: [30], color: '#49C7EB' },
-  { label: 'Search', min: 6, q1: 10, med: 13, q3: 17, max: 22, color: '#008E5E' },
-  { label: 'Display', min: 4, q1: 7, med: 10, q3: 14, max: 20, color: '#4F8FCB' },
+  { label: 'TV', min: 8, q1: 14, med: 19, q3: 26, max: 34, outliers: [42], color: BRAND.colour.forest },
+  { label: 'BVOD', min: 12, q1: 18, med: 24, q3: 30, max: 38, color: BRAND.colour.ink },
+  { label: 'Social', min: 5, q1: 9, med: 13, q3: 18, max: 24, outliers: [30], color: BRAND.colour.sky },
+  { label: 'Search', min: 6, q1: 10, med: 13, q3: 17, max: 22, color: BRAND.colour.forest },
+  { label: 'Display', min: 4, q1: 7, med: 10, q3: 14, max: 20, color: BRAND.colour.sky },
 ];

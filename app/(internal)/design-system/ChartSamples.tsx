@@ -16,16 +16,15 @@ import {
 import * as React from 'react';
 import { MediaChannelTag, mediaChannelTagRowClassName } from '@/components/dashboard/MediaChannelTag';
 import { MEDIA_TYPE_REGISTRY } from '@/lib/charts/registry';
-import * as D from './sample-data';
+import * as D from './chart-samples';
 
 const ALL_MEDIA_TYPE_PILL_LABELS = Object.values(MEDIA_TYPE_REGISTRY).map((row) => row.label);
 
 function Card({ title, span = 1, children }: { title: string; span?: number; children: React.ReactNode }) {
   return (
-    <div className="rounded-[14px] border border-[var(--av-grid)] bg-[var(--av-surface)] p-[18px] shadow-[0_1px_3px_rgba(15,29,19,.08)]"
-      style={{ gridColumn: `span ${span}` }}>
-      <div className="mb-3 text-sm font-bold tracking-[-0.01em] text-[var(--av-ink)]">{title}</div>
-      <div className="rounded-[10px] border border-[var(--av-grid)] bg-[var(--av-subsurface)] p-3">{children}</div>
+    <div className="rounded-card border border-border bg-card p-4" style={{ gridColumn: `span ${span}` }}>
+      <div className="mb-3 text-sm font-bold tracking-tight text-foreground">{title}</div>
+      <div className="rounded-input border border-border bg-muted p-3">{children}</div>
     </div>
   );
 }
@@ -34,10 +33,10 @@ const channelSeries = [
   { key: 'budget', label: 'Budget' }, { key: 'actual', label: 'Actual' },
 ];
 
-export default function ChartGallery() {
+export function ChartSamples() {
   return (
-    <div className="min-h-screen bg-[var(--av-subsurface)] p-10 text-[var(--av-ink)]">
-      <div className="mx-auto grid max-w-[1280px] grid-cols-4 gap-[18px]" style={{ alignItems: 'start' }}>
+    <div className="text-foreground">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4" style={{ alignItems: 'start' }}>
         <Card title="Line" span={2}><LineChart data={D.spendTrend} xKey="month" series={[{ key: 'spend', label: 'Spend' }]} valueFormat="dollars" /></Card>
         <Card title="Multi-line" span={2}><MultiLineChart data={D.spendTrend} xKey="month" series={[{ key: 'spend', label: 'Spend' }, { key: 'impressions', label: 'Impr.' }, { key: 'clicks', label: 'Clicks' }]} /></Card>
         <Card title="Area" span={2}><AreaChart data={D.spendTrend} xKey="month" series={[{ key: 'spend', label: 'Spend' }]} valueFormat="dollars" /></Card>

@@ -10,6 +10,7 @@ import {
   Treemap, FunnelChart as RFunnelChart, Funnel, LabelList,
 } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
+import { BRAND } from '@/lib/brand';
 import { fmt, CHART_PALETTE } from '@/lib/chart-theme';
 
 type Slice = { label: string; value: number; color?: string };
@@ -202,7 +203,7 @@ export function FunnelChart({ data, className }: { data: Slice[]; className?: st
       <RFunnelChart>
         <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
         <Funnel dataKey="value" data={rows} isAnimationActive={false}>
-          <LabelList position="center" fill="#fff" stroke="none" fontSize={11} fontWeight={700}
+          <LabelList position="center" fill={BRAND.colour.white} stroke="none" fontSize={11} fontWeight={700}
             formatter={(v: number) => v + '%'} />
         </Funnel>
       </RFunnelChart>

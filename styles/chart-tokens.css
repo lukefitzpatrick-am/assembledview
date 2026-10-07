@@ -11,9 +11,9 @@
   --chart-2: 193 80% 60%;   /* #49C7EB sky */
   --chart-3: 72 64% 52%;    /* #B5D337 lime */
   --chart-4: 146 29% 43%;   /* #4E8F6A forest light */
-  --chart-5: 40 18% 77%;    /* #CFC8BA context */
-  --chart-6: 55 6% 39%;     /* #6B6A5E muted */
-  --chart-7: 137 32% 9%;    /* #0F1D13 ink */
+  --chart-5: 55 6% 39%;     /* #6B6A5E muted */
+  --chart-6: 40 18% 77%;    /* #CFC8BA context */
+  --chart-7: 131 7% 70%;    /* #AEB9B0 muted on black */
   --chart-8: 139 12% 26%;   /* #3A4A3F context black */
 
   /* Hex mirrors — convenient for custom SVG / inline styles */
@@ -21,9 +21,9 @@
   --av-chart-2: #49C7EB;
   --av-chart-3: #B5D337;
   --av-chart-4: #4E8F6A;
-  --av-chart-5: #CFC8BA;
-  --av-chart-6: #6B6A5E;
-  --av-chart-7: #0F1D13;
+  --av-chart-5: #6B6A5E;
+  --av-chart-6: #CFC8BA;
+  --av-chart-7: #AEB9B0;
   --av-chart-8: #3A4A3F;
 
   /* Status */
@@ -54,12 +54,18 @@
   --av-surface:     #1A2620;
   --av-subsurface:  #22302A;
   --av-cursor:      #3A4A3F;
-  --chart-5: 139 12% 26%;
-  --av-chart-5: #3A4A3F;
-  --chart-6: 131 7% 70%;
-  --av-chart-6: #AEB9B0;
-  --chart-7: 0 0% 100%;
-  --av-chart-7: #FFFFFF;
-  --chart-8: 135 10% 84%;
-  --av-chart-8: #D3DBD5;
+  --chart-2: 193 80% 60%;
+  --av-chart-2: #49C7EB;
+  --chart-3: 72 64% 52%;
+  --av-chart-3: #B5D337;
+  --chart-4: 145 38% 72%;
+  --av-chart-4: #9CD3B3;
+  --chart-5: 131 7% 70%;
+  --av-chart-5: #AEB9B0;
+  --chart-6: 139 12% 26%;
+  --av-chart-6: #3A4A3F;
+  --chart-7: 131 7% 70%;
+  --av-chart-7: #AEB9B0;
+  --chart-8: 40 18% 77%;
+  --av-chart-8: #CFC8BA;
 }

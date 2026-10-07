@@ -30,6 +30,7 @@ import {
   normalizeChartExportSeries,
   type ChartExportSeriesInput,
 } from '@/lib/charts/chartExport';
+import { getChartTheme } from '@/lib/chart-theme';
 import { cn } from '@/lib/utils';
 
 export type { ChartExportSeriesInput };
@@ -315,7 +316,8 @@ export async function captureNodePng(
     const ctx = canvas.getContext("2d")
     if (!ctx) return null
     // Canvas 2D fillStyle cannot resolve CSS variables.
-    ctx.fillStyle = "#ffffff"
+    const mode = document.documentElement.classList.contains("dark") ? "dark" : "light"
+    ctx.fillStyle = getChartTheme(mode).tooltip.background
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.scale(scale, scale)
     ctx.drawImage(img, 0, 0)
@@ -329,7 +331,9 @@ export async function captureNodePng(
   const html2canvas = (await import("html2canvas")).default
   const canvas = await html2canvas(el, {
     scale,
-    backgroundColor: "#ffffff",
+    backgroundColor: getChartTheme(
+      document.documentElement.classList.contains("dark") ? "dark" : "light",
+    ).tooltip.background,
     logging: false,
     useCORS: true,
   })

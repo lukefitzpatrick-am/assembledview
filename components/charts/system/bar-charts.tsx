@@ -14,7 +14,10 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent,
   type ChartConfig,
 } from '@/components/ui/chart';
-import { fmt, NEUTRAL } from '@/lib/chart-theme';
+import { fmt, getChartTheme, NEUTRAL } from '@/lib/chart-theme';
+
+const PILL = getChartTheme('light').barRadius
+const BAR_GAP = getChartTheme('light').barGap
 import { ChartFilterLegend } from './chart-shell';
 
 type Datum = Record<string, number | string>;
@@ -126,6 +129,7 @@ export function BarChart({
         layout={horizontal ? 'vertical' : 'horizontal'}
         stackOffset={layout === 'expand' ? 'expand' : undefined}
         margin={{ top: 8, right: 14, left: 4, bottom: bottomMargin }}
+        barGap={BAR_GAP}
         barCategoryGap={layout === 'group' ? '22%' : '32%'}
       >
         <CartesianGrid vertical={false} horizontal={!horizontal} />
@@ -166,9 +170,9 @@ export function BarChart({
               fill={(cfg[s.key]?.color as string) ?? `var(--av-chart-${(i % 8) + 1})`}
               radius={
                 layout === 'group'
-                  ? (horizontal ? [0, 3, 3, 0] : [3, 3, 0, 0])
+                  ? (horizontal ? [0, PILL, PILL, 0] : [PILL, PILL, 0, 0])
                   : isTop
-                    ? [3, 3, 0, 0]
+                    ? [PILL, PILL, 0, 0]
                     : [0, 0, 0, 0]
               }
               cursor={onSeriesClick ? 'pointer' : 'default'}
@@ -253,6 +257,7 @@ export function ComboChart({
         data={data}
         margin={{ top: 8, right: 12, left: 4, bottom: data.length > 8 ? 12 : 4 }}
         barCategoryGap="22%"
+        barGap={BAR_GAP}
       >
         <CartesianGrid vertical={false} />
         <XAxis
@@ -283,7 +288,7 @@ export function ComboChart({
             dataKey={s.key}
             name={s.label}
             fill={(cfg[s.key]?.color as string) ?? `var(--av-chart-${(i % 8) + 1})`}
-            radius={[3, 3, 0, 0]}
+            radius={[PILL, PILL, 0, 0]}
             cursor={onCategoryClick ? 'pointer' : 'default'}
             isAnimationActive={false}
             onClick={

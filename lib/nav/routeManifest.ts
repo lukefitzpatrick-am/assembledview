@@ -973,15 +973,6 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     group: "system",
   },
 
-  // ── Internal (dev-only; layout 404s in production) ─────────────────
-  {
-    path: "/chart-gallery",
-    label: "Chart gallery",
-    title: "Chart gallery",
-    inPalette: false,
-    roles: ["admin"],
-    group: "internal",
-  },
 ]
 
 // ── Helpers ────────────────────────────────────────────────────────────

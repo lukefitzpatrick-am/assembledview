@@ -9,6 +9,7 @@ import {
   BarChart as RBarChart, Bar, Cell, CartesianGrid, XAxis, YAxis, Sankey, Tooltip, Layer, Rectangle,
 } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
+import { BRAND } from '@/lib/brand';
 import { fmt, NEUTRAL, STATUS, CHART_PALETTE } from '@/lib/chart-theme';
 import { waterfallBars, type WaterfallStep } from '@/lib/chart-utils';
 
@@ -59,7 +60,7 @@ export function BulletChart({ rows, className }: { rows: BulletRow[]; className?
         {rows.map((row, i) => {
           const y = 10 + rowH * i, bh = 16;
           const [b1, b2] = row.bands ?? [60, 80];
-          const bands: [number, number, string][] = [[0, b1, '#eef1ea'], [b1, b2, '#e1e7dd'], [b2, 100, '#d4dccf']];
+          const bands: [number, number, string][] = [[0, b1, BRAND.derived.sandTint], [b1, b2, BRAND.colour.sand], [b2, 100, BRAND.colour.context]];
           return (
             <g key={i}>
               {bands.map((b, bi) => (
