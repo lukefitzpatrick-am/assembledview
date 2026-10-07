@@ -23,12 +23,11 @@ import type { FeeLoading } from "@/lib/finance/campaignFinancials.types"
 import { formatAUD } from "@/lib/format/money"
 import { generateMBA } from "@/lib/generateMBA"
 import {
-  addKPISheet,
-  generateMediaPlan,
   type KPISheetRow,
   type MediaItems,
   type MediaPlanHeader,
 } from "@/lib/generateMediaPlan"
+import { buildMediaPlanWorkbook } from "@/lib/docs/mediaPlanWorkbook"
 import { explodeExcelLineItems } from "@/lib/docs/explodeExcelLineItems"
 import { filterMediaItemsForMbaScope } from "@/lib/docs/filterMediaItemsForMbaScope"
 import { buildMbaDataFromFinancials } from "@/lib/docs/buildMbaDataFromFinancials"
@@ -350,27 +349,21 @@ export async function renderDraftDocuments(
     body.kind === "aa_media_plan"
       ? buildAdvertisingAssociatesMbaDataFromMediaItems(itemsForWorkbook)
       : workbookMba
-  const workbook = await generateMediaPlan(
-    header,
-    itemsForWorkbook,
-    mbaForWorkbook,
-    {
-      draft: true,
-      ...(body.kind === "aa_media_plan" ? { mbaTotalsLayout: "aa" as const } : {}),
-    }
-  )
   const kpiRows = asKpiRows(body.kpiRows)
-  if (kpiRows.length > 0) {
-    addKPISheet(workbook, kpiRows, { draft: true })
-  }
-  const buffer = Buffer.from(
-    (await workbook.xlsx.writeBuffer()) as ArrayBuffer
-  )
-  const prefix = body.kind === "aa_media_plan" ? "DRAFT-AA-MediaPlan" : "DRAFT-MediaPlan"
-  const filename = `${prefix}_${filenameToken(campaignName, "campaign")}_not-for-client.xlsx`
+  const built = await buildMediaPlanWorkbook({
+    header,
+    mediaItems: itemsForWorkbook,
+    mbaData: mbaForWorkbook,
+    variant: body.kind === "aa_media_plan" ? "aa" : "standard",
+    draft: true,
+    kpiRows,
+    clientName,
+    campaignName,
+    versionNumber: body.versionNumber,
+  })
   return {
-    filename,
+    filename: built.fileName,
     mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    buffer,
+    buffer: built.buffer,
   }
 }

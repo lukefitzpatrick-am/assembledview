@@ -8,7 +8,7 @@
  */
 
 import { generateMBA } from "@/lib/generateMBA"
-import { generateMediaPlan } from "@/lib/generateMediaPlan"
+import { buildMediaPlanWorkbook } from "@/lib/docs/mediaPlanWorkbook"
 import {
   buildMbaFromPersisted,
   PersistedDocError,
@@ -54,16 +54,6 @@ export type RenderPlanVersionDocumentsResult =
       files: Partial<Record<PlanDocumentKind, RenderedPlanDocumentFile>>
       generatedFrom: Partial<Record<PlanDocumentKind, PlanDocumentGeneratedFrom>>
     }
-
-function mediaPlanFilename(
-  client: string,
-  campaignName: string,
-  versionNumber: number,
-  aa: boolean,
-): string {
-  const base = `${client || "client"}-MediaPlan_${campaignName || "campaign"}-v${versionNumber}.xlsx`
-  return aa ? `AA - ${base}` : base
-}
 
 async function toBuffer(body: unknown): Promise<Buffer> {
   if (Buffer.isBuffer(body)) return body
@@ -151,25 +141,21 @@ export async function renderPlanVersionDocuments(input: {
 
       const built = await loadAdapter()
       if (kind === "media_plan") {
-        const workbook = await generateMediaPlan(
-          built.header,
-          built.mediaItems,
-          built.mbaData,
-        )
-        const filename = mediaPlanFilename(
-          built.header.client,
-          built.header.campaignName,
-          input.versionNumber,
-          false,
-        )
-        const buffer = Buffer.from(
-          (await workbook.xlsx.writeBuffer()) as ArrayBuffer,
-        )
+        const rendered = await buildMediaPlanWorkbook({
+          header: built.header,
+          mediaItems: built.mediaItems,
+          mbaData: built.mbaData,
+          variant: "standard",
+          draft: false,
+          clientName: built.header.client,
+          campaignName: built.header.campaignName,
+          versionNumber: input.versionNumber,
+        })
         files.media_plan = {
           kind,
-          filename,
+          filename: rendered.fileName,
           mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          buffer,
+          buffer: rendered.buffer,
         }
         results.push({ kind, status: "written" })
         generatedFrom.media_plan = "persisted"
@@ -195,23 +181,21 @@ export async function renderPlanVersionDocuments(input: {
         continue
       }
       const aaMba = buildAdvertisingAssociatesMbaDataFromMediaItems(aaFiltered)
-      const workbook = await generateMediaPlan(built.header, aaFiltered, aaMba, {
-        mbaTotalsLayout: "aa",
+      const rendered = await buildMediaPlanWorkbook({
+        header: built.header,
+        mediaItems: aaFiltered,
+        mbaData: aaMba,
+        variant: "aa",
+        draft: false,
+        clientName: built.header.client,
+        campaignName: built.header.campaignName,
+        versionNumber: input.versionNumber,
       })
-      const filename = mediaPlanFilename(
-        built.header.client,
-        built.header.campaignName,
-        input.versionNumber,
-        true,
-      )
-      const buffer = Buffer.from(
-        (await workbook.xlsx.writeBuffer()) as ArrayBuffer,
-      )
       files.aa_media_plan = {
         kind,
-        filename,
+        filename: rendered.fileName,
         mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        buffer,
+        buffer: rendered.buffer,
       }
       generatedFrom.aa_media_plan = "persisted"
       results.push({ kind, status: "written" })
