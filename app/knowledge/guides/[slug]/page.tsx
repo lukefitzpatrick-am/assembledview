@@ -1,6 +1,7 @@
 "use client"
 
 import { use } from "react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,7 @@ export default function GuideDetailPage({ params }: PageProps) {
 
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase text-primary tracking-wide">{guide.group}</p>
-          <h1 className="text-2xl font-semibold tracking-tight">{guide.title}</h1>
+          <PageHeader title={guide.title} punctuate={false} />
           <p className="text-muted-foreground">{guide.summary}</p>
           <div className="flex items-center gap-2">
             {guide.level ? (

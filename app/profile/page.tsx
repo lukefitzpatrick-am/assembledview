@@ -1,5 +1,7 @@
 "use client"
 
+import { PageHeader } from '@/components/layout/PageHeader';
+import { PageShell } from '@/components/layout/PageShell';
 import { useUser } from '@/components/AuthWrapper';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -53,18 +55,16 @@ export default function ProfilePage() {
   const createdAt = user.updated_at ? new Date(user.updated_at).toLocaleDateString() : 'Unknown';
 
   return (
-    <div className="container mx-auto max-w-4xl bg-background px-4 py-8">
+    <PageShell width="reading">
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-foreground">Profile</h1>
-          <Button 
-            variant="outline" 
-            onClick={() => window.location.href = '/auth/logout'}
-          >
-            Sign Out
-          </Button>
-        </div>
+        <PageHeader
+          title="Profile"
+          actions={
+            <Button variant="outline" onClick={() => { window.location.href = '/auth/logout' }}>
+              Sign Out
+            </Button>
+          }
+        />
 
         {/* Profile Card */}
         <Card className="rounded-card border-border bg-card shadow-e1">
@@ -174,6 +174,6 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </PageShell>
   );
 }

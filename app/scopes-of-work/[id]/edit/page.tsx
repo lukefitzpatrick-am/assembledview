@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { format } from "date-fns"
 import { useRouter, useParams } from "next/navigation"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -457,7 +458,7 @@ export default function EditScopePage() {
     <div className="w-full min-h-screen pb-24">
       <div className="w-full px-4 py-6 space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Edit Scope of Work</h1>
+          <PageHeader title="Edit Scope of Work" />
         </div>
 
         <Form {...form}>

@@ -1,5 +1,6 @@
 "use client"
 
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { resourceGroups, resourceCount, resourcesReviewedAt } from "@/src/data/learning/resources";
@@ -30,7 +31,7 @@ export default function ResourcesPage() {
       <div className="sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur">
         <div className="px-4 py-3 md:px-6">
           <p className="text-xs font-semibold uppercase text-primary tracking-wide">Knowledge Hub</p>
-          <h1 className="text-xl font-semibold">Resource Hub</h1>
+          <PageHeader title="Resource Hub" />
           <p className="text-sm text-muted-foreground max-w-2xl">
             Curated links out to the platforms, measurement bodies and publications an outsourced media team should
             live in. <span className="num">{resourceCount}</span> sources · verified {resourcesReviewedAt}.

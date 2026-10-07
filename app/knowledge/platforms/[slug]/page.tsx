@@ -1,6 +1,7 @@
 "use client"
 
 import { use } from "react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -32,7 +33,7 @@ export default function PlatformDetailPage({ params }: PageProps) {
 
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase text-primary tracking-wide">{platform.cert}</p>
-          <h1 className="text-2xl font-semibold tracking-tight">{platform.name}</h1>
+          <PageHeader title={platform.name} punctuate={false} />
           <p className="text-muted-foreground">{platform.summary}</p>
         </div>
 

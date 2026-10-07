@@ -3,8 +3,9 @@
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Lightbulb, Search } from "lucide-react"
+import { Search } from "lucide-react"
 
+import { PageHeader } from "@/components/layout/PageHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -145,15 +146,10 @@ export function InsightsPageClient() {
 
   return (
     <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-6 md:px-6 md:pt-8">
-      <div className="space-y-2">
-        <h1 className="inline-flex flex-wrap items-center gap-2 text-[26px] font-extrabold tracking-tight text-foreground">
-          <Lightbulb className="h-6 w-6 text-muted-foreground" aria-hidden strokeWidth={1.8} />
-          Insights
-        </h1>
-        <p className="max-w-xl text-sm text-muted-foreground">
-          Searchable record of what AVA and the team learned about campaigns. Internal only.
-        </p>
-      </div>
+      <PageHeader
+        title="Insights"
+        lede="Searchable record of what AVA and the team learned about campaigns. Internal only."
+      />
 
       <form
         className="flex flex-col gap-3 rounded-card border border-border bg-card p-4 shadow-e1"

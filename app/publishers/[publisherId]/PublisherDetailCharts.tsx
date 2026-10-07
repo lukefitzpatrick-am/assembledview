@@ -187,8 +187,7 @@ export function PublisherDetailCharts({
 
   return (
     <div className="space-y-6">
-      <Panel className="overflow-hidden border-border/40 bg-card shadow-sm">
-        <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+      <Panel className="overflow-hidden border-border/40 bg-card">
         <PanelHeader className="border-b border-border/40 pb-4">
           <PanelTitle>Campaigns (current financial year)</PanelTitle>
           <PanelDescription>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { AdminGuard } from "@/components/guards/AdminGuard"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -139,9 +140,7 @@ function MyHoursMappingInner() {
   return (
     <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-6 md:px-6 md:pt-8">
       <div className="space-y-1">
-        <h1 className="text-[26px] font-extrabold tracking-tight text-foreground">
-          {pageLabel}
-        </h1>
+        <PageHeader title={pageLabel} />
         <p className="max-w-xl text-sm text-muted-foreground">
           Unmapped MyHours entries for the current Sydney week
           {report

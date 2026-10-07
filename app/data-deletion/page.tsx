@@ -1,6 +1,9 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 
+import { PageHeader } from "@/components/layout/PageHeader"
+import { PageShell } from "@/components/layout/PageShell"
+
 import { LEGAL_ENTITY_NAME, PRIVACY_EMAIL } from "@/lib/legal/privacyConfig"
 
 export const dynamic = "force-static"
@@ -13,14 +16,11 @@ export const metadata: Metadata = {
 
 export default function DataDeletionPage() {
   return (
-    <article className="mx-auto w-full max-w-3xl px-4 py-10 text-foreground sm:px-6">
-      <h1 className="text-2xl font-bold">Data Deletion</h1>
-
-      <p className="mt-3 text-sm leading-relaxed">
-        AssembledView does not use Facebook Login and does not store personal information from
-        Facebook or Instagram accounts. We use Meta&apos;s services only to report on advertising
-        campaigns our clients run, and that reporting is about campaigns, not individual people.
-      </p>
+    <PageShell width="reading">
+      <PageHeader
+        title="Data Deletion"
+        lede="AssembledView does not use Facebook Login and does not store personal information from Facebook or Instagram accounts. We use Meta's services only to report on advertising campaigns our clients run, and that reporting is about campaigns, not individual people."
+      />
 
       <h2 className="mt-8 text-lg font-semibold">How to request deletion</h2>
       <p className="mt-3 text-sm leading-relaxed">
@@ -50,6 +50,6 @@ export default function DataDeletionPage() {
         </Link>
         .
       </p>
-    </article>
+    </PageShell>
   )
 }

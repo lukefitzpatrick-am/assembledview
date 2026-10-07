@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { AdminGuard } from "@/components/guards/AdminGuard"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -81,9 +82,7 @@ function M365ReconciliationPageInner() {
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 bg-background p-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          {pageLabel}
-        </h1>
+        <PageHeader title={pageLabel} />
         <p className="text-sm text-muted-foreground">
           Read-only client ↔ M365 identity check. Graph verification stays pending
           until provisioning credentials are live. Unmatched plan MBA numbers

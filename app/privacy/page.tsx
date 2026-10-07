@@ -1,6 +1,9 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 
+import { PageHeader } from "@/components/layout/PageHeader"
+import { PageShell } from "@/components/layout/PageShell"
+
 import {
   Table,
   TableBody,
@@ -29,9 +32,8 @@ export const metadata: Metadata = {
 
 export default function PrivacyPolicyPage() {
   return (
-    <article className="mx-auto w-full max-w-3xl px-4 py-10 text-foreground sm:px-6">
-      <h1 className="text-2xl font-bold">Privacy Policy</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Last updated: {LAST_UPDATED}</p>
+    <PageShell width="reading">
+      <PageHeader title="Privacy Policy" lede={`Last updated: ${LAST_UPDATED}`} />
 
       <h2 className="mt-8 text-lg font-semibold">About this policy</h2>
       <p className="mt-3 text-sm leading-relaxed">
@@ -174,6 +176,6 @@ export default function PrivacyPolicyPage() {
       <p className="mt-3 text-sm leading-relaxed">
         We may update this policy. The date at the top shows when it last changed.
       </p>
-    </article>
+    </PageShell>
   )
 }

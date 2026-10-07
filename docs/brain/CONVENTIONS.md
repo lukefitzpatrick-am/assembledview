@@ -24,7 +24,7 @@ Buttons are pills. `default` is the lime primary action, `secondary` is the fore
 
 ## Page titles and nav pills
 
-Page titles use `PageHeader`, or `PageHeroTitleBlock` inside hero cards. Section titles use `Section`. Titles get a full stop through `punctuate` (default true). Entity names pass `punctuate={false}`. Nav pills use `navChipClass`. The design-system page (`/design-system`) is the visual reference.
+Every route renders `PageShell` and `PageHeader` (or a hero built on `PageHeroTitleBlock`) and `Section` for headed blocks. Pacing and finance keep their own shells and render `PageHeader` inside them. Titles get a full stop through `punctuate` (default true). Entity names pass `punctuate={false}`. Nav pills use `navChipClass`. The design-system page (`/design-system`) is the visual reference.
 
 ## Tables
 

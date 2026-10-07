@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { platforms } from "@/src/data/learning/platforms";
@@ -21,7 +22,7 @@ export default function PlatformsPage() {
       <div className="sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur">
         <div className="px-4 py-3 md:px-6">
           <p className="text-xs font-semibold uppercase text-primary tracking-wide">Knowledge Hub</p>
-          <h1 className="text-xl font-semibold">Platforms</h1>
+          <PageHeader title="Platforms" />
           <p className="text-sm text-muted-foreground">
             Every platform on the same six-pillar scaffold, with our POV plus curated links to the official source of
             truth.

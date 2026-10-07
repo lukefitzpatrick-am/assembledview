@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -49,7 +50,7 @@ export default function GuidesPage() {
         <div className="px-4 py-3 md:px-6 space-y-3">
           <div>
             <p className="text-xs font-semibold uppercase text-primary tracking-wide">Knowledge Hub</p>
-            <h1 className="text-xl font-semibold">Guides</h1>
+            <PageHeader title="Guides" />
             <p className="text-sm text-muted-foreground">
               Best-practice across planning, measurement and channels - each with sources to read more.
             </p>

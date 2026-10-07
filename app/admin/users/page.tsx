@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { PageHeader } from "@/components/layout/PageHeader"
 import Link from "next/link"
 import { PlusCircle, Search } from "lucide-react"
 import { AdminGuard } from "@/components/guards/AdminGuard"
@@ -183,7 +184,7 @@ function AdminUsersPageInner() {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 bg-background px-4 py-8 sm:px-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">{pageLabel}</h1>
+          <PageHeader title={pageLabel} />
           <p className="mt-1 text-sm text-muted-foreground">
             Auth0 application users. Role shown is a denormalised copy and may drift from Auth0 RBAC.
           </p>

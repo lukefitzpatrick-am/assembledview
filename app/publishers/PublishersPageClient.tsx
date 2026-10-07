@@ -288,7 +288,6 @@ export function PublishersPageClient() {
                 </Button>
               </DialogTrigger>
               <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col gap-0 overflow-hidden p-0">
-                <div className="h-1 shrink-0 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
                 <div className="min-h-0 flex-1 overflow-y-auto p-6">
                   <DialogHeader>
                     <DialogTitle>Add New Publisher</DialogTitle>

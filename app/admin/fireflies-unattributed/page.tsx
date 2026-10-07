@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { FirefliesAssignTargetCombobox } from "@/components/admin/FirefliesAssignTargetCombobox"
 import { FirefliesSyncNowButton } from "@/components/admin/FirefliesSyncNowButton"
 import { AdminGuard } from "@/components/guards/AdminGuard"
@@ -211,9 +212,7 @@ function FirefliesMeetingsInner() {
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            {pageLabel}
-          </h1>
+          <PageHeader title={pageLabel} />
           <p className="mt-1 text-sm text-muted-foreground">
             Assign or reassign a client, publisher, Internal, or New Business.
             Learning still runs; other rows are never updated from this click.

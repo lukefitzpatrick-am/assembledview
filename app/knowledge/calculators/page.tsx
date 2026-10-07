@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,7 +43,7 @@ export default function CalculatorsPage() {
         <div className="px-4 py-3 md:px-6 space-y-3">
           <div>
             <p className="text-xs font-semibold uppercase text-primary tracking-wide">Knowledge Hub</p>
-            <h1 className="text-xl font-semibold">Calculators</h1>
+            <PageHeader title="Calculators" />
             <p className="text-sm text-muted-foreground">
               Solve for any variable — enter what you know, get the rest.
             </p>

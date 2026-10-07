@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { useSearchParams } from "next/navigation"
 import { AdminGuard } from "@/components/guards/AdminGuard"
 import { Button } from "@/components/ui/button"
@@ -530,9 +531,7 @@ function ScheduleIngestPageInner() {
     return (
       <div className="mx-auto flex w-full max-w-[720px] flex-col gap-6 p-6">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Unknown publisher
-          </h1>
+          <PageHeader title="Unknown publisher" />
           <p className="text-sm text-muted-foreground">
             This file did not match an ingest profile. Pick the catalogue
             publisher to link — we never guess.
@@ -605,9 +604,7 @@ function ScheduleIngestPageInner() {
     return (
       <div className="mx-auto flex w-full max-w-[720px] flex-col gap-6 p-6">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Confirm proposed profile
-          </h1>
+          <PageHeader title="Confirm proposed profile" />
           <p className="text-sm text-muted-foreground">
             Review each proposed field, then confirm. The schedule is not
             loaded until you confirm.
@@ -710,9 +707,7 @@ function ScheduleIngestPageInner() {
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-6 p-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          {pageLabel}
-        </h1>
+        <PageHeader title={pageLabel} />
         <p className="text-sm text-muted-foreground">
           Upload a publisher workbook. You will confirm every mapping before
           anything is saved.

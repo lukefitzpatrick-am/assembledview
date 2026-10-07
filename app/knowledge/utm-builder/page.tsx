@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { UtmBuilder } from "@/components/learning/UtmBuilder";
 import { ArrowLeft } from "lucide-react";
 
@@ -14,7 +15,7 @@ export default function UtmBuilderPage() {
 
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase text-primary tracking-wide">Tools</p>
-          <h1 className="text-2xl font-semibold tracking-tight">UTM Builder</h1>
+          <PageHeader title="UTM Builder" />
           <p className="text-muted-foreground max-w-2xl">
             Tag a destination URL with campaign parameters so GA4 attributes the visit correctly. Free-form — the
             helpers just keep things tidy.

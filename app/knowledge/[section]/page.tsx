@@ -1,6 +1,7 @@
 "use client"
 
 import { use, useEffect, useMemo, useState } from "react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Tabs,
@@ -173,7 +174,7 @@ export default function LearningSectionPage({ params }: PageProps) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-xs font-semibold uppercase text-primary tracking-wide">Knowledge Hub</p>
-              <h1 className="text-xl font-semibold">Definitions, Acronyms, Formulas</h1>
+              <PageHeader title="Definitions, Acronyms, Formulas" />
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <BadgeCheck className="h-4 w-4 text-primary" />

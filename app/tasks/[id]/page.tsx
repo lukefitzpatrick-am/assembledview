@@ -1,5 +1,7 @@
 import { Suspense } from "react"
 import { TasksPageClient } from "../TasksPageClient"
+import { PageHeader } from "@/components/layout/PageHeader"
+import { PageShell } from "@/components/layout/PageShell"
 import { EmptyState } from "@/components/ui/states"
 import { Badge } from "@/components/ui/badge"
 import { isCodexV2Enabled } from "@/lib/codex/flag"
@@ -15,23 +17,17 @@ type PageProps = {
 export default async function TaskDetailPage({ params, searchParams }: PageProps) {
   if (!isCodexV2Enabled()) {
     return (
-      <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-6 md:px-6 md:pt-8">
-        <div className="space-y-2">
-          <h1 className="inline-flex flex-wrap items-center gap-2 text-[26px] font-extrabold tracking-tight text-foreground">
-            Codex
-            <Badge variant="secondary" size="sm">
-              shadow
-            </Badge>
-          </h1>
-          <p className="max-w-md text-sm text-muted-foreground">
-            Internal task ops for the Assembled Media team.
-          </p>
-        </div>
+      <PageShell width="standard">
+        <PageHeader
+          title="Codex"
+          lede="Internal task ops for the Assembled Media team."
+          meta={<Badge variant="secondary" size="sm">shadow</Badge>}
+        />
         <EmptyState
           title="Codex is not enabled"
           message="Set CODEX_V2=on in the server environment to turn on the Postgres-native Codex module."
         />
-      </div>
+      </PageShell>
     )
   }
 

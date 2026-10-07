@@ -17,6 +17,7 @@ import {
   Users,
 } from "lucide-react"
 
+import { PageHeader } from "@/components/layout/PageHeader"
 import { useUser } from "@/components/AuthWrapper"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -157,12 +158,10 @@ export default function AccountPage() {
             <Badge variant="outline" className="w-fit capitalize">
               {primaryRole}
             </Badge>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Account Settings</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Manage your profile, connected systems, and notification preferences.
-              </p>
-            </div>
+            <PageHeader
+              title="Account Settings"
+              lede="Manage your profile, connected systems, and notification preferences."
+            />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {isAdmin ? (

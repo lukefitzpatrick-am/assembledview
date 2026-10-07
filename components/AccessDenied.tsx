@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, ArrowLeft, Home } from "lucide-react"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { Button } from "@/components/ui/button"
 import { useUser } from "@/components/AuthWrapper"
 
@@ -78,8 +79,7 @@ export function AccessDenied({ reason }: AccessDeniedProps) {
           </div>
         </div>
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold text-foreground">{copy.title}</h1>
-          <p className="text-muted-foreground">{copy.body}</p>
+          <PageHeader title={copy.title} lede={copy.body} />
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3">
           {copy.showBack ? (

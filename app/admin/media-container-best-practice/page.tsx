@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { AdminGuard } from "@/components/guards/AdminGuard"
 import { BestPracticeEditor } from "@/components/best-practice/BestPracticeEditor"
 import { Button } from "@/components/ui/button"
@@ -147,7 +148,7 @@ export default function MediaContainerBestPracticePage() {
     <AdminGuard>
       <main className="mx-auto flex max-w-5xl flex-col gap-6 bg-background px-4 py-10">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Media-Container Best Practice Notes</h1>
+          <PageHeader title="Media-Container Best Practice Notes" />
           <p className="text-sm text-muted-foreground">
             Manage the notes that appear above naming-convention workbook tabs for each media container.
           </p>

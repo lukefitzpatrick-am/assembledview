@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { usePathname } from "next/navigation"
 
 import {
@@ -608,12 +609,7 @@ export function BehaviouralPlannerClient() {
     <div className="container mx-auto max-w-5xl 2xl:max-w-7xl px-6 py-8">
       <div className="mb-6 flex items-baseline justify-between border-b border-border pb-3">
         <div>
-          <h1 className="text-xl font-medium">
-            Planning
-            <span className="ml-2 text-[11px] font-normal text-muted-foreground">
-              five-stage · live Roy Morgan
-            </span>
-          </h1>
+          <PageHeader title="Planning" lede="five-stage · live Roy Morgan" />
           <p className="mt-1 text-sm text-muted-foreground">
             Brief → audiences → diagnosis → constraints → compare. Wave {waveLabel}.
           </p>

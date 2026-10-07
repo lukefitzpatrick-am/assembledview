@@ -1,6 +1,7 @@
 "use client"
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -224,7 +225,7 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-6 bg-background px-4 py-10">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Create Auth0 User</h1>
+        <PageHeader title="Create Auth0 User" />
         <p className="text-sm text-muted-foreground">
           Creates a user, marks email as verified, generates a password set link, and emails the
           invite.

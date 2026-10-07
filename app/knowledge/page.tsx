@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, type FormEvent, type ComponentType, type ReactNode } from "react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,9 +34,7 @@ export default function KnowledgeHubHome() {
             <div className="space-y-3 rounded-card border border-border bg-card p-6 shadow-e1">
               <div className="max-w-3xl space-y-3">
                 <p className="text-xs font-semibold uppercase text-primary tracking-wide">Assembled Media · Knowledge Hub</p>
-                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-                  Everything you need to plan, buy, measure and explain media
-                </h1>
+                <PageHeader title="Everything you need to plan, buy, measure and explain media" />
                 <p className="text-muted-foreground">
                   Definitions, calculators and best-practice — written so a client and a brand-new planner both get what
                   they need, with every entry sourced.
