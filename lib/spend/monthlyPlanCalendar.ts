@@ -1,15 +1,11 @@
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { toMelbourneDateString } from "@/lib/timezone"
+import { parseMoney } from "@/lib/money"
 import { roundMoney2 } from "@/lib/format/money"
 import { normalizeDeliveryEntryMediaBreakdown } from "@/lib/api/dashboard/shared"
 
 function parseAmountSafe(value: unknown): number {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0
-  if (typeof value === "string") {
-    const parsed = parseFloat(value.replace(/[^0-9.-]+/g, ""))
-    return Number.isNaN(parsed) ? 0 : parsed
-  }
-  return 0
+  return parseMoney(value) ?? 0
 }
 
 type CivilDateParts = { year: number; month: number; day: number }

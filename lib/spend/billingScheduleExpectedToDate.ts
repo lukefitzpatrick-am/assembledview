@@ -1,15 +1,10 @@
 import { parseDateSafe as safeParseDate } from "@/lib/dates/parseDateSafe"
+import { parseMoney } from "@/lib/money"
 import { roundMoney4 } from "@/lib/format/money"
 
 function parseAmount(value: unknown): number {
-  if (value === null || value === undefined) return 0
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0
-  if (typeof value === "string") {
-    const cleaned = value.replace(/[^0-9.-]+/g, "")
-    const parsed = parseFloat(cleaned)
-    return Number.isFinite(parsed) ? parsed : 0
-  }
-  return 0
+  // Callers treat a blank amount as zero.
+  return parseMoney(value) ?? 0
 }
 
 function startOfDay(date: Date): Date {

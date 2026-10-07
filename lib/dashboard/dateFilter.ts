@@ -1,3 +1,4 @@
+import { parseMoney } from "@/lib/money"
 import { getMelbourneTodayISO, inclusiveCampaignDayMetrics } from "@/lib/dates/melbourne"
 import { toDateOnlyString } from "@/lib/timezone"
 
@@ -192,12 +193,7 @@ export function filterMonthlySpendByRange(monthlySpend: unknown, range: DateRang
 }
 
 function parseAmountLoose(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value
-  if (typeof value === "string") {
-    const parsed = parseFloat(value.replace(/[^0-9.-]+/g, ""))
-    return Number.isFinite(parsed) ? parsed : 0
-  }
-  return 0
+  return parseMoney(value) ?? 0
 }
 
 function lineItemAmount(row: unknown): number {

@@ -13,18 +13,14 @@ import { clipDateRangeToCampaign, parseDateOnly, type DateRange } from "@/lib/da
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import type { SearchPacingDailyRow, SearchPacingTotals } from "@/lib/snowflake/search-pacing-service"
+import { parseMoney } from "@/lib/money"
 import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 
 export type SearchApiDailyRow = SearchPacingDailyRow
 export type SearchApiTotals = SearchPacingTotals
 
 function parseAmountSafe(value: unknown): number {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0
-  if (typeof value === "string") {
-    const parsed = parseFloat(value.replace(/[^0-9.-]+/g, ""))
-    return Number.isNaN(parsed) ? 0 : parsed
-  }
-  return 0
+  return parseMoney(value) ?? 0
 }
 
 export function safeDiv(n: number, d: number): number | null {

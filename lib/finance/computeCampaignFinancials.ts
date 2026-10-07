@@ -21,6 +21,7 @@ import {
   type BuyType,
 } from "@/lib/mediaplan/deliverableBudget"
 import { formatAUD, parseMoneyInput, roundMoney2 } from "@/lib/format/money"
+import { parseMoney } from "@/lib/money"
 import {
   attachScheduleLineDetail,
   type ScheduleLineDetailSource,
@@ -283,9 +284,7 @@ function toDate(value: string | Date | undefined, fallback: Date): Date {
 }
 
 function parseAmount(value: unknown): number {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0
-  if (typeof value === "string") return parseMoneyInput(value) ?? 0
-  return 0
+  return parseMoney(value) ?? 0
 }
 
 function moneyMapToMonthAmounts(shares: Record<string, number>): MonthAmount[] {

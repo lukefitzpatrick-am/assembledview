@@ -1,3 +1,5 @@
+import { parseMoney } from "@/lib/money"
+
 export type MonthKey = `${number}-${string}` | string
 
 export type AccrualSource = "delivery" | "billing"
@@ -58,17 +60,8 @@ type VersionInput = {
  * - 1000 -> 1000
  */
 export function parseMoneyToNumber(value: unknown): number {
-  if (value === null || value === undefined) return 0
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0
-
-  const raw = String(value).trim()
-  if (!raw) return 0
-
-  const negativeByParens = /^\(.*\)$/.test(raw)
-  const cleaned = raw.replace(/[^\d.-]/g, "")
-  const num = Number.parseFloat(cleaned)
-  if (!Number.isFinite(num)) return 0
-  return negativeByParens ? -Math.abs(num) : num
+  // Callers treat a blank amount as zero.
+  return parseMoney(value) ?? 0
 }
 
 function round2(value: number): number {

@@ -1,3 +1,4 @@
+import { parseMoney } from "@/lib/money"
 import type { LineItem, MediaItems } from "@/lib/generateMediaPlan"
 import type { Publisher } from "@/lib/types/publisher"
 
@@ -63,9 +64,9 @@ export type AdvertisingAssociatesMbaData = {
 /** Same filter as media plan Excel export (bonus lines or any monetary/deliverable signal). */
 export function shouldIncludeMediaPlanLineItem(item: LineItem): boolean {
   const buyType = (item.buyType || "").toLowerCase()
-  const budgetValue = parseFloat(String(item.deliverablesAmount ?? "").replace(/[^0-9.]/g, "")) || 0
+  const budgetValue = parseMoney(item.deliverablesAmount) ?? 0
   const deliverablesValue = parseFloat(String(item.deliverables ?? "").replace(/[^0-9.]/g, "")) || 0
-  const grossValue = parseFloat(String(item.grossMedia ?? "").replace(/[^0-9.]/g, "")) || 0
+  const grossValue = parseMoney(item.grossMedia) ?? 0
   return buyType === "bonus" || budgetValue > 0 || deliverablesValue > 0 || grossValue > 0
 }
 

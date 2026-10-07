@@ -9,6 +9,7 @@ import {
   parseVersionNumber,
   pickPublishedVersionRow,
 } from '@/lib/mediaplan/publishedVersionGuard'
+import { parseMoney as parseMoneyAmount } from "@/lib/money"
 import { MEDIA_TYPE_LABELS } from '@/lib/media/mediaTypes'
 
 export const MELBOURNE_TZ = 'Australia/Melbourne'
@@ -465,11 +466,8 @@ export function computeSpendFromDelivery(
 }
 
 export function parseMoney(value: any): number {
-  if (typeof value === 'number') return value
-  if (typeof value !== 'string') return 0
-  const cleaned = value.replace(/[^0-9.-]/g, '')
-  const num = parseFloat(cleaned)
-  return isNaN(num) ? 0 : num
+  // Callers treat a blank amount as zero.
+  return parseMoneyAmount(value) ?? 0
 }
 
 export function parseMonthYear(monthYear: any): Date | null {

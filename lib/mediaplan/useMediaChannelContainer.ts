@@ -7,6 +7,7 @@
  * containers keep only their wrapper + descriptor + channel-specific JSX.
  */
 
+import { parseMoney } from "@/lib/money"
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, startTransition } from "react"
 import { useForm, useFieldArray, useWatch, type UseFormReturn } from "react-hook-form"
 import { useToast } from "@/components/ui/use-toast"
@@ -107,7 +108,7 @@ export function getChannelBursts(
 
   return lineItems.flatMap((li: any, liIndex: number) =>
     (li.bursts || []).map((burst: any) => {
-      const rawBudget = parseFloat(String(burst.budget ?? "").replace(/[^0-9.]/g, "")) || 0
+      const rawBudget = parseMoney(burst.budget) ?? 0
       const pct = feePct || 0
 
       const { mediaAmount, deliveryMediaAmount, feeAmount } = computeBurstAmounts({
@@ -152,7 +153,7 @@ export function calculateChannelInvestmentPerMonth(
   const bursts: InvestmentBurstInput[] = []
   items.forEach((lineItem: any) => {
     ;(lineItem.bursts || []).forEach((burst: any) => {
-      const lineMedia = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
+      const lineMedia = parseMoney(burst.budget) ?? 0
       const pct = feePct || 0
       const totalInvestment = lineMedia + (lineMedia / (100 - pct)) * pct
       bursts.push({ amount: totalInvestment, start: burst.startDate, end: burst.endDate })
@@ -521,7 +522,7 @@ export function useMediaChannelContainer(
     const transformedLineItems = stableItems.map((lineItem) => {
       let totalMedia = 0
       lineItem.bursts.forEach((burst: any) => {
-        const budget = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
+        const budget = parseMoney(burst.budget) ?? 0
         if (lineItem.budgetIncludesFees) {
           const pct = feePct || 0
           totalMedia += (budget * (100 - pct)) / 100
@@ -577,7 +578,7 @@ export function useMediaChannelContainer(
       const summaryBursts: InvestmentBurstInput[] = []
 
       ;(lineItem.bursts || []).forEach((burst: any) => {
-        const budget = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
+        const budget = parseMoney(burst.budget) ?? 0
         let burstMedia = 0
         let burstFee = 0
         if (lineItem.budgetIncludesFees) {
@@ -638,7 +639,7 @@ export function useMediaChannelContainer(
         let lineDeliverables = 0
 
         ;(lineItem.bursts || []).forEach((burst: any) => {
-          const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0")
+          const budget = parseMoney(burst?.budget) ?? 0
           if (lineItem.budgetIncludesFees) {
             const pct = feePct || 0
             lineMedia += (budget * (100 - pct)) / 100
@@ -690,7 +691,7 @@ export function useMediaChannelContainer(
     (lineItemIndex: number, burstIndex: number, budgetIncludesFeesOverride?: boolean) => {
       const burst = form.getValues(`${fieldKey}.${lineItemIndex}.bursts.${burstIndex}`)
       const lineItem = form.getValues(`${fieldKey}.${lineItemIndex}`)
-      const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0")
+      const rawBudget = parseMoney(burst?.budget) ?? 0
       const budgetIncludesFees =
         budgetIncludesFeesOverride ?? Boolean(lineItem?.budgetIncludesFees)
       const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1")
@@ -962,7 +963,7 @@ export function useMediaChannelContainer(
     const formLineItems = form.getValues(fieldKey) || []
     return formLineItems.flatMap((item: any) =>
       (item.bursts || []).map((burst: any) => {
-        const budget = parseFloat(burst.budget?.replace(/[^0-9.]/g, "") || "0")
+        const budget = parseMoney(burst.budget) ?? 0
         let mediaAmount = 0
         let feeAmount = 0
 

@@ -3,6 +3,8 @@
  * Money never lands on line_item_panels — proposal/reconciliation only.
  */
 
+import { parseMoney } from "@/lib/money"
+
 export const MONEY_TARGETS = [
   "media_rate:weekly",
   "media_rate:lunar",
@@ -26,12 +28,7 @@ export function isMoneyTarget(canon: string): boolean {
 }
 
 export function parseMoneyCell(raw: string): number | null {
-  const t = String(raw ?? "")
-    .replace(/[$,\s]/g, "")
-    .trim()
-  if (!t || !/^-?\d+(\.\d+)?$/.test(t)) return null
-  const n = Number(t)
-  return Number.isFinite(n) ? n : null
+  return parseMoney(raw)
 }
 
 export type ReconciliationGate = {

@@ -1,3 +1,4 @@
+import { parseMoney } from "@/lib/money"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 
 /** Unwrap string / `{ months: [...] }` / top-level array from media_plan_versions or API. */
@@ -131,10 +132,7 @@ export function parsePersistedBillingScheduleToMonths(
         if (mediaType.lineItems && Array.isArray(mediaType.lineItems)) {
           const mediaTotal = (mediaType.lineItems as Record<string, unknown>[]).reduce((sum: number, item) => {
             const amountStr = item.amount ?? item.__amountValue ?? "0"
-            const amount =
-              typeof amountStr === "string"
-                ? parseFloat(amountStr.replace(/[^0-9.]/g, ""))
-                : Number(amountStr) || 0
+            const amount = parseMoney(amountStr) ?? 0
             return sum + (amount || 0)
           }, 0)
 
@@ -148,8 +146,7 @@ export function parsePersistedBillingScheduleToMonths(
           totalFee += feeAmount
 
           lineItems[mediaKey] = (mediaType.lineItems as Record<string, unknown>[]).map((item) => {
-            const amount =
-              parseFloat((item.amount ?? item.__amountValue ?? "0").toString().replace(/[^0-9.]/g, "")) || 0
+            const amount = parseMoney(item.amount ?? item.__amountValue ?? "0") ?? 0
             const monthlyAmounts: Record<string, number> = {}
             ;(parsed as Record<string, unknown>[]).forEach((e) => {
               const m = String(e.monthYear ?? e.month ?? "").trim()
@@ -203,15 +200,14 @@ export function parsePersistedBillingScheduleToMonths(
 
     let finalFeeTotal = totalFee
     if (entry.feeTotal) {
-      const savedFeeTotal = parseFloat(String(entry.feeTotal).replace(/[^0-9.]/g, "")) || 0
+      const savedFeeTotal = parseMoney(entry.feeTotal) ?? 0
       if (savedFeeTotal > 0) {
         finalFeeTotal = savedFeeTotal
       }
     }
 
-    const adservingTechFees =
-      parseFloat((String(entry.adservingTechFees ?? entry.adServing ?? "0") || "0").replace(/[^0-9.]/g, "")) || 0
-    const production = parseFloat((String(entry.production ?? "0") || "0").replace(/[^0-9.]/g, "")) || 0
+    const adservingTechFees = parseMoney(entry.adservingTechFees ?? entry.adServing ?? 0) ?? 0
+    const production = parseMoney(entry.production ?? 0) ?? 0
     let totalAmountNum = totalMedia + finalFeeTotal + adservingTechFees + production
 
     if (

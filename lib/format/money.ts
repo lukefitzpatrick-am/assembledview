@@ -1,4 +1,4 @@
-import { roundMoney2 as canonicalRoundMoney2 } from "@/lib/money"
+import { parseMoney, roundMoney2 as canonicalRoundMoney2 } from "@/lib/money"
 
 export type MoneyInput = number | string | null | undefined
 
@@ -146,18 +146,7 @@ export type FormatMoneyCompactOptions = {
 
 /** Parses user-entered or formatted currency strings (same rules as legacy {@link formatMoney}). */
 export function parseMoneyInput(value: MoneyInput): number | null {
-  if (value === null || value === undefined) return null
-  if (typeof value === "number") return Number.isFinite(value) ? value : null
-  if (typeof value !== "string") return null
-
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  const cleaned = trimmed.replace(/[^0-9.-]+/g, "")
-  if (!cleaned) return null
-
-  const parsed = Number.parseFloat(cleaned)
-  return Number.isFinite(parsed) ? parsed : null
+  return parseMoney(value)
 }
 
 /**

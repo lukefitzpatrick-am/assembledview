@@ -8,6 +8,7 @@
  */
 
 import { sql } from "drizzle-orm"
+import { parseMoney } from "@/lib/money"
 import { roundMoney2 } from "@/lib/format/money"
 import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 
@@ -66,12 +67,7 @@ function centsToAmount(cents: number): number {
 }
 
 function parseAmountDollars(raw: unknown): number | null {
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw
-  if (typeof raw === "string" && /^-?\d+(\.\d+)?$/.test(raw.trim())) {
-    const n = Number(raw)
-    return Number.isFinite(n) ? n : null
-  }
-  return null
+  return parseMoney(raw)
 }
 
 function executeRows(result: unknown): Record<string, unknown>[] {

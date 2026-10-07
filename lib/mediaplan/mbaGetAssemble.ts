@@ -7,6 +7,7 @@
 import { inclusiveCampaignDayMetrics } from "@/lib/dates/melbourne"
 import { parseDateSafe as safeParseDate } from "@/lib/dates/parseDateSafe"
 import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
+import { parseMoney } from "@/lib/money"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
 
 export type MbaGetMediaLineItems = {
@@ -148,14 +149,8 @@ export function parseMbaGetVersion(value: unknown): number | null {
 }
 
 function parseAmount(value: unknown): number {
-  if (value === null || value === undefined) return 0
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0
-  if (typeof value === "string") {
-    const cleaned = value.replace(/[^0-9.-]+/g, "")
-    const parsed = parseFloat(cleaned)
-    return Number.isFinite(parsed) ? parsed : 0
-  }
-  return 0
+  // Callers treat a blank amount as zero.
+  return parseMoney(value) ?? 0
 }
 
 function normalizeISODateOnlySafe(value: unknown): string | null {
