@@ -8,7 +8,7 @@ import {
   PageHeroShell,
   PageHeroTitleBlock,
 } from "@/components/dashboard/PageHeroShell"
-import { Badge } from "@/components/ui/badge"
+import { CampaignStatusBadge } from "@/components/campaign/CampaignStatusBadge"
 import { Button } from "@/components/ui/button"
 import { formatDateRange } from "@/lib/format/date"
 import { formatMoneyCompact } from "@/lib/format/money"
@@ -57,46 +57,16 @@ function formatHeroDateRange(startDate: string, endDate: string): string {
   return formatDateRange(start, end)
 }
 
-type StatusKind = "booked" | "completed" | "draft" | "default"
-
-function resolveStatusKind(status: string): StatusKind {
-  const s = status.trim().toLowerCase()
-  if (s.includes("booked") || s.includes("approved")) return "booked"
-  if (s.includes("complete") || s.includes("closed")) return "completed"
-  if (s.includes("draft")) return "draft"
-  return "default"
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const kind = resolveStatusKind(status)
-  const label = status.trim() || "—"
-
-  if (kind === "booked") {
-    return (
-      <Badge className="border-0 bg-pacing-ahead-bg capitalize text-status-ahead-fg hover:bg-pacing-ahead-bg">
-        {label}
-      </Badge>
-    )
-  }
-  if (kind === "completed") {
-    return (
-      <Badge variant="secondary" className="capitalize text-muted-foreground">
-        {label}
-      </Badge>
-    )
-  }
-  if (kind === "draft") {
-    return (
-      <Badge variant="outline" className="capitalize">
-        {label}
-      </Badge>
-    )
-  }
-  return (
-    <Badge className="border-0 bg-pacing-on-track-bg capitalize text-status-on-track-fg hover:bg-pacing-on-track-bg">
-      {label}
-    </Badge>
-  )
+function StatusBadge({
+  status,
+  startDate,
+  endDate,
+}: {
+  status: string
+  startDate: string
+  endDate: string
+}) {
+  return <CampaignStatusBadge status={status} startDate={startDate} endDate={endDate} />
 }
 
 export default function CampaignHeroBanner({
@@ -119,7 +89,11 @@ export default function CampaignHeroBanner({
         <span className="inline-flex items-center rounded-input border border-border bg-muted/35 px-2 py-0.5 font-mono text-xs font-medium tabular-nums text-muted-foreground">
           {campaign.mbaNumber}
         </span>
-        <StatusBadge status={campaign.status} />
+        <StatusBadge
+          status={campaign.status}
+          startDate={campaign.startDate}
+          endDate={campaign.endDate}
+        />
       </div>
       <p>{formatHeroDateRange(campaign.startDate, campaign.endDate)}</p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

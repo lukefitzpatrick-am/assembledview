@@ -1,27 +1,6 @@
-import { Badge, type BadgeProps } from "@/components/ui/badge"
-import {
-  resolveCampaignPhase,
-  type CampaignPhase,
-} from "@/lib/mediaplan/campaignPhase"
-
-const PHASE_LABEL: Record<CampaignPhase, string> = {
-  planned: "Planned",
-  approved: "Approved",
-  booked: "Booked",
-  live: "Live",
-  completed: "Completed",
-  cancelled: "Cancelled",
-}
-
-/** Booked = brand primary (list chrome). Live = ahead + dot — distinct from Booked. */
-const PHASE_VARIANT: Record<CampaignPhase, NonNullable<BadgeProps["variant"]>> = {
-  planned: "outline",
-  approved: "info",
-  booked: "default",
-  live: "ahead",
-  completed: "secondary",
-  cancelled: "danger",
-}
+import { StatusPill } from "@/components/ui/status-pill"
+import { CAMPAIGN_PHASE } from "@/lib/design/status"
+import { resolveCampaignPhase } from "@/lib/mediaplan/campaignPhase"
 
 export function CampaignStatusBadge({
   status,
@@ -37,15 +16,15 @@ export function CampaignStatusBadge({
   className?: string
 }) {
   const { phase } = resolveCampaignPhase({ status, startDate, endDate, today })
+  const meta = CAMPAIGN_PHASE[phase]
 
   return (
-    <Badge
-      variant={PHASE_VARIANT[phase]}
+    <StatusPill
+      tone={meta.tone}
+      label={meta.label}
+      pulse={phase === "live"}
       size="sm"
-      dot={phase === "live"}
       className={className}
-    >
-      {PHASE_LABEL[phase]}
-    </Badge>
+    />
   )
 }

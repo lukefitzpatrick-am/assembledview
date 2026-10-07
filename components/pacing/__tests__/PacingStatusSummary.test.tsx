@@ -21,12 +21,14 @@ describe("PacingStatusSummary", () => {
     expect(html).toContain("Ahead")
     expect(html).toContain("Over-pacing")
     expect(html).toContain("No data")
-    expect(html).toContain("KPI Pending")
+    expect(html).toContain("KPI pending")
+    expect(html).not.toContain("KPI Pending")
     expect(html).toContain('aria-label="Pacing status definitions"')
     expect(html).toContain("Status legend")
-    // Ahead is attention (not success green); no-data is problem (critical).
-    expect(html).toContain("text-status-attention-fg")
-    expect(html).toContain("text-status-critical-fg")
+    // Ahead is insight; behind and over-pacing are attention; no-data is neutral.
+    expect(html).toContain("text-tone-insight-fg")
+    expect(html).toContain("text-tone-attention-fg")
+    expect(html).toContain("text-muted-foreground")
     expect(html).toContain("±5%")
     expect(html).toContain("≥15%")
   })

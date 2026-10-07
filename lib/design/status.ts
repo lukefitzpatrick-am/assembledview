@@ -2,6 +2,7 @@ import type { TaskPriority, TaskStatus } from "@/lib/codex/types"
 import type { BillingState } from "@/lib/finance/billingLifecycle"
 import type { DraftMatchOutcome } from "@/lib/finance/sections/draftMatch"
 import type { CampaignPhase } from "@/lib/mediaplan/campaignPhase"
+import type { RowKpiStatus } from "@/lib/pacing/kpi/computeKpiStatus"
 import type { UiPacingStatus } from "@/lib/pacing/status"
 import type { MatchStatus } from "@/lib/xero/matcher/threeTier"
 
@@ -92,6 +93,35 @@ export const TASK_PRIORITY: Record<TaskPriority, { tone: Tone; label: string }> 
   high: { tone: "attention", label: "High" },
   normal: { tone: "neutral", label: "Normal" },
   low: { tone: "neutral", label: "Low" },
+}
+
+/** Portfolio and channel count tiles. `live` has no tone and renders `text-foreground`. */
+export const PACING_TILE: Record<
+  "live" | "behind" | "on_track" | "ahead" | "over_pacing" | "attention" | "kpi_pending",
+  { tone: Tone | null; label?: string }
+> = {
+  live: { tone: null, label: "Live" },
+  behind: { tone: "attention", label: "Behind" },
+  on_track: { tone: "action", label: "On track" },
+  ahead: { tone: "insight", label: "Ahead" },
+  over_pacing: { tone: "attention", label: "Over-pacing" },
+  attention: { tone: "attention", label: "Needs attention" },
+  kpi_pending: { tone: "neutral", label: "KPI pending" },
+}
+
+export const KPI_ROW_STATUS: Record<RowKpiStatus, { tone: Tone; label: string }> = {
+  "kpi-on-track": { tone: "action", label: "KPIs on track" },
+  "kpi-pending": { tone: "neutral", label: "KPI pending" },
+  "kpi-mixed": { tone: "attention", label: "KPIs mixed" },
+  "kpi-no-delivery": { tone: "critical", label: "No delivery" },
+  "kpi-off-target": { tone: "critical", label: "KPIs off" },
+}
+
+/** Same 10 / 20 point bands as `pacingDeviationSparklineClass`. */
+export function DEVIATION_TONE(absDeviationPoints: number): Tone {
+  if (!Number.isFinite(absDeviationPoints) || absDeviationPoints <= 10) return "action"
+  if (absDeviationPoints <= 20) return "attention"
+  return "critical"
 }
 
 /** Live renders a pulsing dot. */

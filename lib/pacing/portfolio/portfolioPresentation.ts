@@ -1,3 +1,4 @@
+import { PACING_UI_STATUS, TONE_DOT, TONE_TEXT, type Tone } from "@/lib/design/status"
 import {
   AHEAD_ABOVE_PCT,
   BEHIND_BELOW_PCT,
@@ -63,81 +64,45 @@ export function campaignPaceLabel(row: CampaignPacingRow): string {
   }
 }
 
-export function displayBandBadgeVariant(
-  band: PortfolioDisplayBand,
-): "on-track" | "ahead" | "behind" | "critical" {
-  switch (band) {
-    case "on-track":
-      return "on-track"
-    case "ahead":
-      return "ahead"
-    case "behind":
-      return "behind"
-    case "over-pacing":
-    case "no-data":
-      return "critical"
-    default: {
-      const _exhaustive: never = band
-      return _exhaustive
-    }
+function bandTone(band: PortfolioDisplayBand): Tone {
+  return PACING_UI_STATUS[band].tone
+}
+
+function borderForTone(tone: Tone): string {
+  switch (tone) {
+    case "outcome":
+      return "border-tone-outcome"
+    case "insight":
+      return "border-tone-insight"
+    case "action":
+      return "border-tone-action"
+    case "attention":
+      return "border-tone-attention"
+    case "critical":
+      return "border-tone-critical"
+    case "neutral":
+      return "border-tone-neutral"
+    case "ink":
+      return "border-tone-ink"
+    case "cancelled":
+      return "border-tone-cancelled"
   }
+}
+
+export function displayBandBadgeVariant(band: PortfolioDisplayBand): Tone {
+  return bandTone(band)
 }
 
 export function displayBandFillClass(band: PortfolioDisplayBand): string {
-  switch (band) {
-    case "behind":
-      return "bg-pacing-behind"
-    case "on-track":
-      return "bg-pacing-on-track"
-    case "ahead":
-      return "bg-pacing-ahead"
-    case "over-pacing":
-      return "bg-pacing-critical"
-    case "no-data":
-      return "bg-muted-foreground"
-    default: {
-      const _exhaustive: never = band
-      return _exhaustive
-    }
-  }
+  return TONE_DOT[bandTone(band)]
 }
 
 export function displayBandTextClass(band: PortfolioDisplayBand): string {
-  switch (band) {
-    case "behind":
-      return "text-status-behind-fg"
-    case "on-track":
-      return "text-status-on-track-fg"
-    case "ahead":
-      return "text-status-ahead-fg"
-    case "over-pacing":
-      return "text-status-critical-fg"
-    case "no-data":
-      return "text-muted-foreground"
-    default: {
-      const _exhaustive: never = band
-      return _exhaustive
-    }
-  }
+  return TONE_TEXT[bandTone(band)]
 }
 
 export function displayBandBorderClass(band: PortfolioDisplayBand): string {
-  switch (band) {
-    case "behind":
-      return "border-pacing-behind"
-    case "on-track":
-      return "border-pacing-on-track"
-    case "ahead":
-      return "border-pacing-ahead"
-    case "over-pacing":
-      return "border-pacing-critical"
-    case "no-data":
-      return "border-muted-foreground"
-    default: {
-      const _exhaustive: never = band
-      return _exhaustive
-    }
-  }
+  return borderForTone(bandTone(band))
 }
 
 export const CHANNEL_SOURCE_STATE_LABEL: Record<Exclude<ChannelSourceState, "reporting">, string> = {
@@ -152,36 +117,35 @@ export function portfolioLegendItems(): StatusLegendItem[] {
       status: "behind",
       label: "Behind",
       role: "attention",
-      textClass: "text-status-behind-fg",
+      textClass: TONE_TEXT[PACING_UI_STATUS.behind.tone],
       definition: `Spend delivered under ${BEHIND_BELOW_PCT}% of expected.`,
     },
     {
       status: "on-track",
       label: "On track",
       role: "ok",
-      textClass: "text-status-on-track-fg",
+      textClass: TONE_TEXT[PACING_UI_STATUS["on-track"].tone],
       definition: `Spend delivered ${BEHIND_BELOW_PCT}–${AHEAD_ABOVE_PCT}% of expected.`,
     },
     {
       status: "ahead",
       label: "Ahead",
       role: "ok",
-      textClass: "text-status-ahead-fg",
-      dotClass: "bg-pacing-ahead",
+      textClass: TONE_TEXT[PACING_UI_STATUS.ahead.tone],
       definition: `Spend delivered over ${AHEAD_ABOVE_PCT}% of expected.`,
     },
     {
       status: "over-pacing",
       label: "Over-pacing",
       role: "problem",
-      textClass: "text-status-critical-fg",
+      textClass: TONE_TEXT[PACING_UI_STATUS["over-pacing"].tone],
       definition: "Projected finish is 15% over booked budget.",
     },
     {
       status: "no-data",
       label: "No data",
       role: "problem",
-      textClass: "text-muted-foreground",
+      textClass: TONE_TEXT[PACING_UI_STATUS["no-data"].tone],
       definition: "Not started, or no source connected.",
     },
   ]

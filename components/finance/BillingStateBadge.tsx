@@ -1,25 +1,9 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
+import { BILLING_STATE } from "@/lib/design/status"
 import type { BillingState } from "@/lib/finance/billingLifecycle"
 import { cn } from "@/lib/utils"
-
-const LABELS: Record<BillingState, string> = {
-  ready: "Ready",
-  approved: "Approved",
-  sent_to_finance: "Sent to finance",
-  drafted: "Drafted",
-  issued: "Issued",
-  issued_outside_av: "Issued outside AV",
-  paid: "Paid",
-  overdue: "Overdue",
-}
-
-function variantFor(state: BillingState): "critical" | "success" | "secondary" {
-  if (state === "overdue") return "critical"
-  if (state === "paid") return "success"
-  return "secondary"
-}
 
 export function BillingStateBadge({
   state,
@@ -44,11 +28,11 @@ export function BillingStateBadge({
       ? "Approved · changed since"
       : state === "overdue" && overdueDays != null && overdueDays > 0
         ? `Overdue ${overdueDays}d`
-        : LABELS[state])
+        : BILLING_STATE[state].label)
   return (
     <Badge
       size="sm"
-      variant={variantFor(state)}
+      variant={BILLING_STATE[state].tone}
       title={reason}
       data-billing-state={state}
       className={cn(className)}

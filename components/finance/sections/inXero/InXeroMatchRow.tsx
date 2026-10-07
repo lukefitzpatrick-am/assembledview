@@ -21,18 +21,9 @@ import {
   inXeroPrimaryAction,
   inXeroPrimaryLabel,
 } from "@/lib/finance/sections/inXeroPresentation"
+import { TONE_TEXT, XERO_DRAFT_MATCH } from "@/lib/design/status"
 import { formatMoney } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
-
-const OUTCOME_BADGE: Record<
-  DraftMatchRow["outcome"],
-  "critical" | "behind" | "attention" | "success"
-> = {
-  Differs: "critical",
-  Missing: "behind",
-  Extra: "attention",
-  Agrees: "success",
-}
 
 function moneyCell(cents: number): string {
   return formatMoney(cents / 100)
@@ -40,8 +31,8 @@ function moneyCell(cents: number): string {
 
 function deltaClass(cents: number): string {
   if (cents === 0) return "text-muted-foreground"
-  if (cents > 0) return "text-status-behind-fg"
-  return "text-status-critical-fg"
+  if (cents > 0) return TONE_TEXT.attention
+  return TONE_TEXT.critical
 }
 
 export function InXeroMatchRow({
@@ -210,7 +201,7 @@ export function InXeroMatchRow({
 
       <RowActionLine
         pill={
-          <Badge variant={OUTCOME_BADGE[row.outcome]} size="sm">
+          <Badge variant={XERO_DRAFT_MATCH[row.outcome].tone} size="sm">
             {row.outcome}
           </Badge>
         }

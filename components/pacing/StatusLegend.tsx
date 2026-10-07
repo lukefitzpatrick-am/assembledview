@@ -1,18 +1,8 @@
 "use client"
 
-import { statusLegendItems, type PacingColourRole, type StatusLegendItem } from "@/lib/pacing/status"
+import { PACING_UI_STATUS, TONE_DOT, TONE_TEXT } from "@/lib/design/status"
+import { statusLegendItems, type StatusLegendItem } from "@/lib/pacing/status"
 import { cn } from "@/lib/utils"
-
-function roleDotClass(role: PacingColourRole): string {
-  switch (role) {
-    case "ok":
-      return "bg-pacing-on-track"
-    case "attention":
-      return "bg-status-attention"
-    case "problem":
-      return "bg-pacing-critical"
-  }
-}
 
 /**
  * Defines all six pacing UI states and their thresholds.
@@ -39,21 +29,21 @@ export function StatusLegend({
         Status legend
       </p>
       <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {resolved.map((item) => (
-          <li key={item.status} className="flex gap-2 text-xs leading-snug">
-            <span
-              className={cn(
-                "mt-1 h-2 w-2 shrink-0 rounded-full",
-                item.dotClass ?? roleDotClass(item.role),
-              )}
-              aria-hidden
-            />
-            <span>
-              <span className={cn("font-semibold", item.textClass)}>{item.label}</span>
-              <span className="text-muted-foreground"> — {item.definition}</span>
-            </span>
-          </li>
-        ))}
+        {resolved.map((item) => {
+          const tone = PACING_UI_STATUS[item.status].tone
+          return (
+            <li key={item.status} className="flex gap-2 text-xs leading-snug">
+              <span
+                className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", TONE_DOT[tone])}
+                aria-hidden
+              />
+              <span>
+                <span className={cn("font-semibold", TONE_TEXT[tone])}>{item.label}</span>
+                <span className="text-muted-foreground"> — {item.definition}</span>
+              </span>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

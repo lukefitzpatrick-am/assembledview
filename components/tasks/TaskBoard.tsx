@@ -17,6 +17,7 @@ import {
 import { CheckSquare } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
+import { TASK_PRIORITY, TONE_TEXT, type Tone } from "@/lib/design/status"
 import { Button } from "@/components/ui/button"
 import { formatDueYmd, isOverdueYmd } from "@/lib/codex/dueDate"
 import { compareTasksForSort, type TaskSortKey } from "@/lib/codex/queryHelpers"
@@ -33,6 +34,13 @@ import {
   type TeamMember,
 } from "@/lib/codex/types"
 import { cn } from "@/lib/utils"
+
+function priorityTone(value: string): Tone {
+  if (value === "high" || value === "normal" || value === "low") {
+    return TASK_PRIORITY[value].tone
+  }
+  return "neutral"
+}
 
 function priorityLabel(value: string | null | undefined): string {
   const found = TASK_PRIORITIES.find((p) => p.value === value)
@@ -100,10 +108,7 @@ function TaskBoardCardFace({
         <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-foreground">
           {task.title}
         </p>
-        <Badge
-          variant={priority === "high" ? "warning" : "secondary"}
-          size="sm"
-        >
+        <Badge variant={priorityTone(priority)} size="sm">
           {priorityLabel(priority)}
         </Badge>
       </div>
@@ -135,7 +140,7 @@ function TaskBoardCardFace({
         <span
           className={cn(
             "num",
-            overdue && "font-semibold text-status-critical-fg"
+            overdue && `font-semibold ${TONE_TEXT.critical}`
           )}
         >
           {overdue ? `Overdue · ${formatDueYmd(task.due_date ?? null)}` : formatDueYmd(task.due_date ?? null)}

@@ -3,6 +3,7 @@
  * Thresholds mirror `computeStatus` in maths/index.ts; do not change values here.
  */
 
+import { KPI_ROW_STATUS, PACING_UI_STATUS, TONE_TEXT, type Tone } from "@/lib/design/status"
 import type { PacingStatus } from "@/lib/pacing/maths"
 import type { RowKpiStatus } from "@/lib/pacing/kpi/computeKpiStatus"
 
@@ -32,7 +33,7 @@ export type ResolvedPacingStatus = {
   status: SpendPacingBand
   label: string
   role: PacingColourRole
-  badgeVariant: BadgeToneVariant
+  badgeVariant: Tone
   /** Text colour utility for summary tiles / legend. */
   textClass: string
 }
@@ -54,13 +55,14 @@ export const PACING_STATUS_THRESHOLDS = {
   kpiTolerance: 0.1,
 } as const
 
-const ROLE_STYLES: Record<
+/** Role compatibility only. Band colour comes from `PACING_UI_STATUS`, never from this map. */
+export const ROLE_STYLES: Record<
   PacingColourRole,
   { badgeVariant: BadgeToneVariant; textClass: string }
 > = {
-  ok: { badgeVariant: "on-track", textClass: "text-status-on-track-fg" },
-  attention: { badgeVariant: "attention", textClass: "text-status-attention-fg" },
-  problem: { badgeVariant: "critical", textClass: "text-status-critical-fg" },
+  ok: { badgeVariant: "on-track", textClass: TONE_TEXT.action },
+  attention: { badgeVariant: "attention", textClass: TONE_TEXT.attention },
+  problem: { badgeVariant: "critical", textClass: TONE_TEXT.critical },
 }
 
 const BAND_META: Record<
@@ -77,13 +79,13 @@ const BAND_META: Record<
 
 function resolveBand(status: SpendPacingBand): ResolvedPacingStatus {
   const meta = BAND_META[status]
-  const style = ROLE_STYLES[meta.role]
+  const tone = PACING_UI_STATUS[status].tone
   return {
     status,
     label: meta.label,
     role: meta.role,
-    badgeVariant: style.badgeVariant,
-    textClass: style.textClass,
+    badgeVariant: tone,
+    textClass: TONE_TEXT[tone],
   }
 }
 
@@ -123,19 +125,20 @@ export function pacingStatusFromBand(band: SpendPacingBand): ResolvedPacingStatu
 export function kpiStatusPresentation(status: RowKpiStatus): {
   label: string
   role: PacingColourRole
-  badgeVariant: BadgeToneVariant
+  badgeVariant: Tone
 } {
+  const visual = KPI_ROW_STATUS[status]
   switch (status) {
     case "kpi-on-track":
-      return { label: "KPIs on track", role: "ok", badgeVariant: "on-track" }
+      return { label: visual.label, role: "ok", badgeVariant: visual.tone }
     case "kpi-pending":
-      return { label: "KPI Pending", role: "attention", badgeVariant: "attention" }
+      return { label: visual.label, role: "attention", badgeVariant: visual.tone }
     case "kpi-mixed":
-      return { label: "KPIs mixed", role: "attention", badgeVariant: "behind" }
+      return { label: visual.label, role: "attention", badgeVariant: visual.tone }
     case "kpi-no-delivery":
-      return { label: "No delivery", role: "problem", badgeVariant: "critical" }
+      return { label: visual.label, role: "problem", badgeVariant: visual.tone }
     case "kpi-off-target":
-      return { label: "KPIs off", role: "problem", badgeVariant: "critical" }
+      return { label: visual.label, role: "problem", badgeVariant: visual.tone }
     default: {
       const _exhaustive: never = status
       return _exhaustive
@@ -166,42 +169,42 @@ export function statusLegendItems(): StatusLegendItem[] {
       status: "behind",
       label: "Behind",
       role: "attention",
-      textClass: ROLE_STYLES.attention.textClass,
+      textClass: TONE_TEXT[PACING_UI_STATUS.behind.tone],
       definition: `Projected finish more than ${mildLo}% under budget, or no delivery after ${t.noDeliveryMinDaysPassed}+ days in-flight.`,
     },
     {
       status: "on-track",
       label: "On track",
       role: "ok",
-      textClass: ROLE_STYLES.ok.textClass,
+      textClass: TONE_TEXT[PACING_UI_STATUS["on-track"].tone],
       definition: `Projected spend within ±${onTrackPct}% of booked budget (95–105% of plan).`,
     },
     {
       status: "ahead",
       label: "Ahead",
       role: "attention",
-      textClass: ROLE_STYLES.attention.textClass,
+      textClass: TONE_TEXT[PACING_UI_STATUS.ahead.tone],
       definition: `Mild over-delivery: projected ${mildLo}–${mildHi}% over booked budget (attention, not success).`,
     },
     {
       status: "over-pacing",
       label: "Over-pacing",
       role: "problem",
-      textClass: ROLE_STYLES.problem.textClass,
+      textClass: TONE_TEXT[PACING_UI_STATUS["over-pacing"].tone],
       definition: `Burning too fast: projected finish ≥${overPct}% over booked budget.`,
     },
     {
       status: "no-data",
       label: "No data",
       role: "problem",
-      textClass: ROLE_STYLES.problem.textClass,
+      textClass: TONE_TEXT[PACING_UI_STATUS["no-data"].tone],
       definition: "Not started, unknown window, or no current burst to pace against.",
     },
     {
       status: "kpi-pending",
-      label: "KPI Pending",
+      label: PACING_UI_STATUS["kpi-pending"].label,
       role: "attention",
-      textClass: ROLE_STYLES.attention.textClass,
+      textClass: TONE_TEXT[PACING_UI_STATUS["kpi-pending"].tone],
       definition: "No campaign KPI targets joined yet (orthogonal to spend pace).",
     },
   ]

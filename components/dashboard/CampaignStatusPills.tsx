@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from "framer-motion"
 import type { KeyboardEvent } from "react"
 import { useId, useMemo, useRef } from "react"
 
+import { CAMPAIGN_PHASE, TONE_DOT } from "@/lib/design/status"
 import { cn } from "@/lib/utils"
 
 export type CampaignStatus = "live" | "planned" | "completed"
@@ -132,9 +133,21 @@ export function CampaignStatusPills({ activeStatus, counts, onChange }: Campaign
               className="relative z-10 inline-flex items-center gap-2"
             >
               {item.key === "live" ? (
-                <span className="inline-flex h-2 w-2 rounded-full bg-pacing-ahead animate-pulse" aria-hidden />
+                <span
+                  className={cn(
+                    "inline-flex h-2 w-2 rounded-full animate-pulse",
+                    TONE_DOT[CAMPAIGN_PHASE.live.tone],
+                  )}
+                  aria-hidden
+                />
               ) : item.key === "planned" ? (
-                <span className="inline-flex h-2 w-2 rounded-full bg-pacing-on-track" aria-hidden />
+                <span
+                  className={cn(
+                    "inline-flex h-2 w-2 rounded-full",
+                    TONE_DOT[CAMPAIGN_PHASE.planned.tone],
+                  )}
+                  aria-hidden
+                />
               ) : (
                 <Check className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
               )}

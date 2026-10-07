@@ -1,6 +1,7 @@
 "use client"
 
 import type { OverviewStatusCounts } from "@/lib/pacing/overview/types"
+import { TONE_TEXT } from "@/lib/design/status"
 import { pacingStatusFromBand, kpiStatusPresentation } from "@/lib/pacing/status"
 import { StatusLegend } from "@/components/pacing/StatusLegend"
 
@@ -21,12 +22,7 @@ export function PacingStatusSummary({ counts }: { counts: OverviewStatusCounts }
     {
       label: kpiPending.label,
       value: counts.kpiPending,
-      tone:
-        kpiPending.role === "ok"
-          ? "text-status-on-track-fg"
-          : kpiPending.role === "problem"
-            ? "text-status-critical-fg"
-            : "text-status-attention-fg",
+      tone: TONE_TEXT[kpiPending.badgeVariant],
     },
   ]
   return (

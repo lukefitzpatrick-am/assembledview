@@ -1,5 +1,6 @@
 "use client"
 
+import { PACING_TILE, TONE_TEXT, type Tone } from "@/lib/design/status"
 import {
   countLineCardTiles,
   type LineCardTileKey,
@@ -7,18 +8,27 @@ import {
 import type { LineCardModel } from "@/lib/pacing/channel/lineCardTypes"
 import { cn } from "@/lib/utils"
 
+const lineCardTileTones = PACING_TILE satisfies Record<
+  LineCardTileKey,
+  { tone: Tone | null; label?: string }
+>
+
 const TILES: Array<{
   key: LineCardTileKey
   label: string
-  tone: string
 }> = [
-  { key: "live", label: "Live lines", tone: "text-foreground" },
-  { key: "behind", label: "Behind", tone: "text-status-behind-fg" },
-  { key: "on_track", label: "On track", tone: "text-status-on-track-fg" },
-  { key: "ahead", label: "Ahead", tone: "text-status-ahead-fg" },
-  { key: "over_pacing", label: "Over-pacing", tone: "text-status-critical-fg" },
-  { key: "kpi_pending", label: "KPI pending", tone: "text-status-attention-fg" },
+  { key: "live", label: "Live lines" },
+  { key: "behind", label: "Behind" },
+  { key: "on_track", label: "On track" },
+  { key: "ahead", label: "Ahead" },
+  { key: "over_pacing", label: "Over-pacing" },
+  { key: "kpi_pending", label: "KPI pending" },
 ]
+
+function tileFigureClass(key: LineCardTileKey): string {
+  const tone = lineCardTileTones[key].tone
+  return tone == null ? "text-foreground" : TONE_TEXT[tone]
+}
 
 export function ChannelStatusTiles({
   models,
@@ -53,7 +63,7 @@ export function ChannelStatusTiles({
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
               {item.label}
             </span>
-            <span className={cn("num mt-0.5 block text-2xl font-semibold", item.tone)}>
+            <span className={cn("num mt-0.5 block text-2xl font-semibold", tileFigureClass(item.key))}>
               {counts[item.key]}
             </span>
           </button>

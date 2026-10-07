@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { useToast } from "@/components/ui/use-toast"
+import { XERO_MATCH_STATUS } from "@/lib/design/status"
 import { formatAUD } from "@/lib/format/money"
 import type { XeroMatchRow, XeroMonthMetric } from "@/lib/xero/matchListTypes"
 import { XeroMonthHealthStrip } from "@/components/finance/sections/xero/XeroMonthHealthStrip"
@@ -36,16 +37,6 @@ import {
 } from "@/components/finance/sections/xero/xeroLinks"
 
 type ConfirmKind = "accept" | "dispute" | "write_off"
-
-const STATUS_VARIANT: Record<
-  XeroMatchRow["status"],
-  "good" | "attention" | "blocking" | "secondary"
-> = {
-  matched: "good",
-  diverged: "attention",
-  disputed: "blocking",
-  written_off: "secondary",
-}
 
 export function XeroMatchesPanel() {
   const { toast } = useToast()
@@ -219,8 +210,8 @@ export function XeroMatchesPanel() {
                       {formatAUD(row.deltaCents / 100)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={STATUS_VARIANT[row.status]} size="sm" className="rounded-pill">
-                        {row.status}
+                      <Badge variant={XERO_MATCH_STATUS[row.status].tone} size="sm" className="rounded-pill">
+                        {XERO_MATCH_STATUS[row.status].label}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs">
@@ -274,7 +265,7 @@ export function XeroMatchesPanel() {
                 ? "Accepting marks the invoice matched and applies any delta as a run-item adjustment when Δ ≠ 0."
                 : confirm?.kind === "dispute"
                   ? "Disputing sets status=disputed and pre-creates an expected credit-note notification for O7 recon."
-                  : "Write-off is admin-only and requires a mandatory reason. Status becomes written_off."}
+                  : "Write-off is admin-only and requires a mandatory reason. Status becomes Written off."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {confirm?.kind === "dispute" || confirm?.kind === "write_off" ? (
@@ -336,8 +327,8 @@ function DivergenceCard({
             {formatAUD(row.deltaCents / 100)}
           </p>
         </div>
-        <Badge variant="attention" size="sm" className="rounded-pill">
-          diverged
+        <Badge variant={XERO_MATCH_STATUS.diverged.tone} size="sm" className="rounded-pill">
+          {XERO_MATCH_STATUS.diverged.label}
         </Badge>
       </div>
       <p className="text-xs text-muted-foreground">

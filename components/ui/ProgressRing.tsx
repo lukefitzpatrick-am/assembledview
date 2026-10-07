@@ -24,14 +24,14 @@ export type ProgressRingProps = React.HTMLAttributes<HTMLDivElement> & {
 }
 
 const STATUS_COLOURS: Record<ProgressRingStatus, string> = {
-  ahead: "var(--pacing-ahead)",
-  "on-track": "var(--pacing-on-track)",
-  behind: "var(--pacing-behind)",
-  critical: "var(--pacing-critical)",
-  "pacing-ahead": "var(--pacing-ahead)",
-  "pacing-on-track": "var(--pacing-on-track)",
-  "pacing-behind": "var(--pacing-behind)",
-  "pacing-critical": "var(--pacing-critical)",
+  ahead: "var(--tone-insight)",
+  "on-track": "var(--tone-action)",
+  behind: "var(--tone-attention)",
+  critical: "var(--tone-critical)",
+  "pacing-ahead": "var(--tone-insight)",
+  "pacing-on-track": "var(--tone-action)",
+  "pacing-behind": "var(--tone-attention)",
+  "pacing-critical": "var(--tone-critical)",
 }
 
 function clampPercent(value: number) {

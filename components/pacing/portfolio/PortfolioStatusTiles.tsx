@@ -1,23 +1,33 @@
 "use client"
 
+import { PACING_TILE, TONE_TEXT, type Tone } from "@/lib/design/status"
 import { countPortfolioRows } from "@/lib/pacing/portfolio/portfolioRowFlags"
 import type { PortfolioTileKey } from "@/lib/pacing/portfolio/filterPortfolioRows"
 import type { CampaignPacingRow, PortfolioPacingCounts } from "@/lib/pacing/portfolio/types"
 import { cn } from "@/lib/utils"
 
+const portfolioTileTones = PACING_TILE satisfies Record<
+  PortfolioTileKey,
+  { tone: Tone | null; label?: string }
+>
+
 const TILES: Array<{
   key: PortfolioTileKey
   label: string
   countKey: keyof PortfolioPacingCounts
-  tone: string
 }> = [
-  { key: "live", label: "Live campaigns", countKey: "live", tone: "text-foreground" },
-  { key: "behind", label: "Behind", countKey: "behind", tone: "text-status-behind-fg" },
-  { key: "on_track", label: "On track", countKey: "on_track", tone: "text-status-on-track-fg" },
-  { key: "ahead", label: "Ahead", countKey: "ahead", tone: "text-status-ahead-fg" },
-  { key: "over_pacing", label: "Over-pacing", countKey: "over_pacing", tone: "text-status-critical-fg" },
-  { key: "attention", label: "Needs attention", countKey: "attention", tone: "text-status-attention-fg" },
+  { key: "live", label: "Live campaigns", countKey: "live" },
+  { key: "behind", label: "Behind", countKey: "behind" },
+  { key: "on_track", label: "On track", countKey: "on_track" },
+  { key: "ahead", label: "Ahead", countKey: "ahead" },
+  { key: "over_pacing", label: "Over-pacing", countKey: "over_pacing" },
+  { key: "attention", label: "Needs attention", countKey: "attention" },
 ]
+
+function tileFigureClass(key: PortfolioTileKey): string {
+  const tone = portfolioTileTones[key].tone
+  return tone == null ? "text-foreground" : TONE_TEXT[tone]
+}
 
 export function PortfolioStatusTiles({
   rows,
@@ -54,7 +64,7 @@ export function PortfolioStatusTiles({
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
               {item.label}
             </span>
-            <span className={cn("num mt-0.5 block text-2xl font-semibold", item.tone)}>
+            <span className={cn("num mt-0.5 block text-2xl font-semibold", tileFigureClass(item.key))}>
               {tileCounts[item.countKey]}
             </span>
           </button>

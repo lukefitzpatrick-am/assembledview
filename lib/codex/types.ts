@@ -1,4 +1,5 @@
 import type { BadgeProps } from "@/components/ui/badge"
+import { CODEX_TASK_STATUS } from "@/lib/design/status"
 
 export const TASK_STATUSES = [
   "backlog",
@@ -17,15 +18,15 @@ export const ASK_HELP_MAX_CHARS = 280
 
 /** Alias used by Tasks page / form — single source of truth. */
 export const STATUSES = [
-  { value: "backlog" as const, label: "Backlog", badgeVariant: "secondary" as const },
-  { value: "todo" as const, label: "To do", badgeVariant: "info" as const },
+  { value: "backlog" as const, label: "Backlog", badgeVariant: CODEX_TASK_STATUS.backlog.tone },
+  { value: "todo" as const, label: "To do", badgeVariant: CODEX_TASK_STATUS.todo.tone },
   {
     value: "in_progress" as const,
     label: "In progress",
-    badgeVariant: "default" as const,
+    badgeVariant: CODEX_TASK_STATUS.in_progress.tone,
   },
-  { value: "waiting" as const, label: "Waiting", badgeVariant: "warning" as const },
-  { value: "done" as const, label: "Done", badgeVariant: "success" as const },
+  { value: "waiting" as const, label: "Waiting", badgeVariant: CODEX_TASK_STATUS.waiting.tone },
+  { value: "done" as const, label: "Done", badgeVariant: CODEX_TASK_STATUS.done.tone },
 ] satisfies ReadonlyArray<{
   value: TaskStatus
   label: string
@@ -212,7 +213,7 @@ export function statusMeta(status: string) {
     STATUSES.find((s) => s.value === status) ?? {
       value: status as TaskStatus,
       label: status,
-      badgeVariant: "outline" as const,
+      badgeVariant: "neutral" as const,
     }
   )
 }
