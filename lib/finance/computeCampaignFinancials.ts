@@ -21,7 +21,7 @@ import {
   type BuyType,
 } from "@/lib/mediaplan/deliverableBudget"
 import { formatAUD, parseMoneyInput, roundMoney2 } from "@/lib/format/money"
-import { parseMoney } from "@/lib/money"
+import { fromCents, parseMoney, sumCents, toCents } from "@/lib/money"
 import {
   attachScheduleLineDetail,
   type ScheduleLineDetailSource,
@@ -764,9 +764,12 @@ function sumScheduleField(
   months: BillingMonth[],
   field: "adservingTechFees" | "production" | "feeTotal" | "mediaTotal"
 ): number {
-  return roundMoney2(
-    months.reduce((sum, m) => sum + parseMonthMoney(m[field]), 0)
-  )
+  return dollarsFromLineCents(months.map((m) => parseMonthMoney(m[field])))
+}
+
+function dollarsFromLineCents(values: number[]): number {
+  if (values.length === 0) return 0
+  return fromCents(sumCents(values.map((value) => toCents(value))))
 }
 
 function buildDeliveryVsBillingDelta(
@@ -986,17 +989,17 @@ export function computeCampaignFinancials(
   const approved = resolved.filter((l) => !l.excluded)
   // Production is its own MBA component (see approvedSlice.ts:120, computeSchedule.ts:145,
   // buildMbaFromPersisted.ts:229). It must never be inside grossMedia or nettExGst counts it twice.
-  const grossMedia = roundMoney2(
-    approved
-      .filter((l) => l.scheduleMediaType !== "production")
-      .reduce((s, l) => s + l.media, 0)
+  const grossMedia = dollarsFromLineCents(
+    approved.filter((l) => l.scheduleMediaType !== "production").map((l) => l.media)
   )
   // MBA fee follows effective per-line fees (override sum where present).
-  const calculatedFeeTotal = roundMoney2(approved.reduce((s, l) => s + l.calculatedFee, 0))
-  const fee = roundMoney2(approved.reduce((s, l) => s + l.fee, 0))
+  const calculatedFeeTotal = dollarsFromLineCents(approved.map((l) => l.calculatedFee))
+  const fee = dollarsFromLineCents(approved.map((l) => l.fee))
   const adServing = sumScheduleField(approvedDelivery, "adservingTechFees")
   const production = sumScheduleField(approvedDelivery, "production")
-  const nettExGst = roundMoney2(grossMedia + fee + adServing + production)
+  const nettExGst = fromCents(
+    sumCents([toCents(grossMedia), toCents(fee), toCents(adServing), toCents(production)])
+  )
   const nettIncGst = addGst(nettExGst)
 
   const mbaScopeTotals: MbaScopeTotals = {
@@ -1111,15 +1114,15 @@ export function scopeCampaignFinancialsToSelectedMonths(
   const approved = perLine.filter((l) => !l.flags.excluded)
   // Production is its own MBA component (see approvedSlice.ts:120, computeSchedule.ts:145,
   // buildMbaFromPersisted.ts:229). It must never be inside grossMedia or nettExGst counts it twice.
-  const grossMedia = roundMoney2(
-    approved
-      .filter((l) => l.mediaType !== "production")
-      .reduce((s, l) => s + l.media, 0)
+  const grossMedia = dollarsFromLineCents(
+    approved.filter((l) => l.mediaType !== "production").map((l) => l.media)
   )
-  const fee = roundMoney2(approved.reduce((s, l) => s + l.fee, 0))
+  const fee = dollarsFromLineCents(approved.map((l) => l.fee))
   const adServing = sumScheduleField(billingSchedule, "adservingTechFees")
   const production = sumScheduleField(billingSchedule, "production")
-  const nettExGst = roundMoney2(grossMedia + fee + adServing + production)
+  const nettExGst = fromCents(
+    sumCents([toCents(grossMedia), toCents(fee), toCents(adServing), toCents(production)])
+  )
   const nettIncGst = addGst(nettExGst)
 
   const mbaScopeTotals: MbaScopeTotals = {

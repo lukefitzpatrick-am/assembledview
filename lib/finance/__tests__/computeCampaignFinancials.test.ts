@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { computeCampaignFinancials } from "../computeCampaignFinancials.js"
+import { fromCents, sumCents, toCents } from "@/lib/money/cents.js"
 import { computeCampaignFinancialsFromVersion } from "../computeCampaignFinancialsFromVersion.js"
 import type { LineItemInput } from "../campaignFinancials.types.js"
 
@@ -387,5 +388,41 @@ test("MBA totals block agrees with its own breakdown rows", () => {
     totals.gross_media,
     rowsSum,
     `totals.gross_media (${totals.gross_media}) must equal sum of gross_media[].gross_amount (${rowsSum})`
+  )
+})
+
+test("seven awkward lines sum in cents, not as a float", () => {
+  const lines: LineItemInput[] = Array.from({ length: 7 }, (_, index) => ({
+    lineItemId: `S${index + 1}`,
+    mediaType: "search",
+    buyType: "cpc",
+    rate: 1,
+    enteredAmount: 333.335,
+    budgetIncludesFees: false,
+    clientPaysForMedia: false,
+    feePct: 0,
+    bursts: [
+      {
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
+        budget: 333.335,
+        buyAmount: 1,
+      },
+    ],
+    approval: "approved" as const,
+  }))
+
+  const result = computeCampaignFinancials(lines, { feeLoading: {} })
+  const mediaCents = sumCents(result.perLine.map((line) => toCents(line.media)))
+  assert.equal(toCents(result.mbaScopeTotals.grossMedia), mediaCents)
+  assert.equal(result.mbaScopeTotals.grossMedia, fromCents(mediaCents))
+  assert.equal(
+    toCents(result.mbaScopeTotals.nettExGst),
+    sumCents([
+      toCents(result.mbaScopeTotals.grossMedia),
+      toCents(result.mbaScopeTotals.fee),
+      toCents(result.mbaScopeTotals.adServing),
+      toCents(result.mbaScopeTotals.production),
+    ])
   )
 })
