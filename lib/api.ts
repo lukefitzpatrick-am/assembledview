@@ -1,3 +1,4 @@
+import { isReferenceTablePath } from "@/lib/data/referenceTablePaths"
 import { toMelbourneDateString } from "@/lib/timezone"
 import { throwIfWriteUnauthorized } from "@/lib/auth/writeSessionExpiry"
 import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
@@ -988,16 +989,19 @@ function invalidateMediaDetailBrowserCache(path: string): void {
 
 async function fetchMediaDetail(path: string): Promise<any> {
   // Server: reference tables honor DATA_BACKEND via shared reader (same as proxy).
-  // webpackIgnore keeps the server-only module out of client chunks of this
+  // webpackIgnore keeps the server-only reader out of client chunks of this
   // isomorphic file (create/edit pages import getTVStations etc. from here).
+  // The path check lives in the browser-safe module so the client graph never
+  // reaches lib/data/referenceTables.ts.
   if (!isBrowser) {
-    const { fetchReferenceTableFromPostgres, isReferenceTablePath } = await import(
-      /* webpackIgnore: true */ "@/lib/data/referenceTables"
-    )
     if (!isReferenceTablePath(path)) {
       throw new Error(`No Postgres media-details handler: ${path}`)
     }
-    return fetchReferenceTableFromPostgres(path)
+    const { readReferenceMediaDetail } = await import(
+      /* webpackIgnore: true */ "@/lib/data/readReferenceMediaDetail"
+    )
+    const result = await readReferenceMediaDetail(path)
+    return result.body
   }
 
   return fetchMediaDetailBrowser(path)
