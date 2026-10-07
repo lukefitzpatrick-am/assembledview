@@ -78,6 +78,14 @@ export const ROUTE_MANIFEST_EXCLUSIONS: ReadonlyArray<{
     path: "/api/**",
     reason: "API route handlers — not user-facing UI (out of scope for this manifest)",
   },
+  {
+    path: "/privacy",
+    reason: "Public legal page, reachable signed out, not in navigation",
+  },
+  {
+    path: "/data-deletion",
+    reason: "Public legal page, reachable signed out, not in navigation",
+  },
 ]
 
 /**
