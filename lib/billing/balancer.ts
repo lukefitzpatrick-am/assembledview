@@ -6,6 +6,7 @@
  */
 
 import { roundMoney2 } from "@/lib/format/money"
+import { toCents } from "@/lib/money"
 
 export type MonthAmountPair = {
   /** Schedule monthYear ("January 2026") or ISO ("2026-01"). */
@@ -106,7 +107,7 @@ export function distributeEvenly(state: BalancerState): BalancerResult {
   }
   const balancingMonth = keyOf(state.balancingMonth) || defaultBalancingMonth(keys)
   const lineTotal = money(state.lineTotal)
-  const cents = Math.round(lineTotal * 100)
+  const cents = toCents(lineTotal)
   const base = Math.floor(cents / n)
   let remainder = cents - base * n
 

@@ -3,6 +3,8 @@
  * Process-local only (survives within a warm lambda / Node process).
  */
 
+import { toCents } from "@/lib/money"
+
 export type FieldDiff = {
   field: string
   xano: unknown
@@ -124,7 +126,7 @@ export function dollarsToCents(value: unknown): number | null {
   const n = normalizeComparableValue(value)
   if (n == null) return null
   if (typeof n === "number" && Number.isFinite(n)) {
-    return Math.round(n * 100)
+    return toCents(n)
   }
   return null
 }

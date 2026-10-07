@@ -15,7 +15,7 @@ import {
   explodeScheduleToMonthRows,
   type ScheduleMonthInsert,
 } from "@/scripts/migration/_scheduleTransform"
-import { toCents } from "@/scripts/migration/_shared"
+import { toCents } from "@/lib/money"
 
 function monthToDate(monthKey: string): string | null {
   if (!/^\d{4}-\d{2}$/.test(monthKey)) return null

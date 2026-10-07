@@ -202,11 +202,12 @@ describe("billing status / invoice_key / PO / type", () => {
 })
 
 describe("money + /Date(ms)/ parse", () => {
-  it("converts dollars to cents with banker's round", () => {
+  it("converts dollars to cents half-up away from zero", () => {
     assert.equal(dollarsToCents(10.5), 1050)
     assert.equal(dollarsToCents(2.5), 250)
-    // 1.005 → 100.5 → half-to-even → 100
-    assert.equal(dollarsToCents(1.005), 100)
+    // 1.005 → 100.5 → half-up → 101
+    assert.equal(dollarsToCents(1.005), 101)
+    assert.equal(dollarsToCents(-1.005), -101)
   })
 
   it("parses /Date(ms)/ via substr(6,13)", () => {

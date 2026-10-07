@@ -10,7 +10,7 @@ import type { BillingMonth, BillingLineItem } from "@/lib/billing/types"
 import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
 import { scheduleMonthYearToIso } from "@/lib/finance/computeCampaignFinancials"
 import { roundMoney2 } from "@/lib/format/money"
-import { toCents } from "@/scripts/migration/_shared"
+import { toCents } from "@/lib/money"
 
 export type ApprovedSliceLine = {
   lineItemId: string

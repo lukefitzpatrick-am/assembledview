@@ -1,4 +1,5 @@
 import { toPeriodMonthKey } from "@/lib/finance/periods/monthKey"
+import { toCents } from "@/lib/money"
 
 /**
  * Retainer eligibility (decision 5):
@@ -24,5 +25,5 @@ export function isRetainerActiveForPeriod(args: {
 }
 
 export function dollarsToCents(dollars: number): number {
-  return Math.round(Number(dollars) * 100)
+  return toCents(dollars)
 }

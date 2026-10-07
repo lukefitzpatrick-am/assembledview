@@ -1,3 +1,5 @@
+import { roundMoney2 as canonicalRoundMoney2 } from "@/lib/money"
+
 export type MoneyInput = number | string | null | undefined
 
 export type MoneyFormatOptions = {
@@ -272,7 +274,7 @@ export function formatRate(value: MoneyInput, options: MoneyFormatOptions = {}):
  */
 export function roundMoney2(value: number): number {
   if (!Number.isFinite(value)) return 0
-  return Math.round(value * 100) / 100
+  return canonicalRoundMoney2(value)
 }
 
 /**

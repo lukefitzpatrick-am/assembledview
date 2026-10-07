@@ -30,7 +30,7 @@ import type {
 } from "@/lib/finance/campaignFinancials.types"
 import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
 import { formatAUD, roundMoney2 } from "@/lib/format/money"
-import { toCents } from "@/scripts/migration/_shared"
+import { toCents } from "@/lib/money"
 
 export type BillingOverrideComponent = "media" | "fee"
 

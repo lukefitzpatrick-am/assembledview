@@ -6,6 +6,7 @@
  */
 
 import type { BillingState } from "@/lib/finance/billingLifecycle"
+import { toCents } from "@/lib/money"
 
 export type InvoicingFunnelBucketId = "ready" | "approved" | "sent_to_finance" | "issued_outside_av"
 
@@ -61,7 +62,7 @@ export function invoicingFunnelBucket(
 }
 
 function dollarsToCents(dollars: number): number {
-  return Math.round(dollars * 100)
+  return toCents(dollars)
 }
 
 export function formatFunnelCountCaption(invoiceCount: number, monthCount: number): string {

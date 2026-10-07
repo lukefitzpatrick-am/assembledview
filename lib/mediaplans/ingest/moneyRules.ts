@@ -3,6 +3,7 @@
  * subtotals, rate-card info. Never a TypeScript per-publisher branch.
  */
 
+import { roundMoney2 } from "@/lib/money"
 import type { DetectedSheetShape } from "@/lib/mediaplans/ingest/detectShape"
 import {
   parseMoneyCell,
@@ -26,7 +27,7 @@ export type SectionReconciliation = {
 }
 
 export function roundCents(n: number): number {
-  return Math.round(n * 100) / 100
+  return roundMoney2(n)
 }
 
 function headerKey(h: string): string {

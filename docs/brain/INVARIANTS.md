@@ -13,6 +13,7 @@ pct === 100 → fee = 0 (division guard)
 ```
 
 - Fee is a **slice of gross**, never `net × fee%` stacked on net (the legacy anti-pattern).
+- Money rounds once, half-up away from zero, at cents, through `lib/money` `toCents`. No other rounding helper in runtime code.
 - Container `get*Bursts` helpers and `useMediaChannelContainer` pass `buyType` into `computeBurstAmounts` so UI rollups match finance for bonus / package_inclusions.
 - Expert-grid Apply must not restore a bonus / package_inclusions card's previous cost: `attachBurstPreserve` passes the generated line's `buyType` into `preservePreviousBurstsIfApplyWouldZeroBudget`.
 - An explicit `"0"` on a non-production burst is **stated money**. `buildEditorLineItemInputs` and `buildSavePlanLineItemsFromSnapshots` back-fill `enteredAmount` from the line total only when every raw burst has `parseMoneyInput(budget) == null` (never entered). Production stays on the mapped-sum `<= 0` path because its budget often lives in `cost`×`amount` with a blank `budget` key.

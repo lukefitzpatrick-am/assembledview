@@ -99,7 +99,7 @@ import {
   explodeScheduleToMonthRows,
   type ScheduleMonthInsert,
 } from "@/scripts/migration/_scheduleTransform"
-import { toCents } from "@/scripts/migration/_shared"
+import { toCents } from "@/lib/money"
 
 export { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
 

@@ -5,6 +5,7 @@
  * when comparing rollups alone — see `assertFeesCommissionsCoverRevenueBody`).
  */
 
+import { roundMoney2 } from "@/lib/money"
 import {
   FINANCE_FORECAST_COMMISSION_LINE_KEYS,
   FINANCE_FORECAST_FEE_LINE_KEYS,
@@ -20,11 +21,9 @@ import {
   type FinanceForecastLineKey,
 } from "@/lib/types/financeForecast"
 
-const CENT = 0.01
+export { roundMoney2 }
 
-export function roundMoney2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100
-}
+const CENT = 0.01
 
 export function sumLineFy(lines: readonly FinanceForecastLine[]): number {
   let t = 0
