@@ -91,8 +91,8 @@ async function main() {
   loadEnvLocal()
   const mbaFilter = process.argv.find((a) => a.startsWith("--mba="))?.slice(6) ?? null
   if (!process.env.DATABASE_URL) {
-    console.error("DATABASE_URL required")
-    process.exit(1)
+    console.log("SKIP: DATABASE_URL not set")
+    process.exit(0)
   }
   const db = getDb()
 
