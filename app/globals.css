@@ -127,17 +127,39 @@
 
     --pacing-ahead: #246646;
     --pacing-ahead-bg: rgba(36, 102, 70, 0.12);
-    --pacing-on-track: #49C7EB;
-    --pacing-on-track-bg: rgba(73, 199, 235, 0.18);
+    --pacing-on-track: #246646;
+    --pacing-on-track-bg: rgba(36, 102, 70, 0.12);
     --pacing-behind: #E0A21B;
     --pacing-behind-bg: rgba(224, 162, 27, 0.18);
     --pacing-critical: #D4583C;
     --pacing-critical-bg: rgba(212, 88, 60, 0.14);
 
     --status-ahead-fg: #246646;
-    --status-on-track-fg: #0F1D13;
+    --status-on-track-fg: #246646;
     --status-behind-fg: #7A5200;
     --status-critical-fg: #9E321C;
+
+    --tone-outcome: #B5D337;
+    --tone-outcome-bg: #B5D337;
+    --tone-outcome-fg: #0F1D13;
+    --tone-insight: #49C7EB;
+    --tone-insight-bg: rgba(73, 199, 235, 0.18);
+    --tone-insight-fg: #0F1D13;
+    --tone-action: #246646;
+    --tone-action-bg: rgba(36, 102, 70, 0.12);
+    --tone-action-fg: #246646;
+    --tone-attention: #E0A21B;
+    --tone-attention-bg: rgba(224, 162, 27, 0.18);
+    --tone-attention-fg: #7A5200;
+    --tone-critical: #D4583C;
+    --tone-critical-bg: rgba(212, 88, 60, 0.14);
+    --tone-critical-fg: #9E321C;
+    --tone-neutral: #CFC8BA;
+    --tone-neutral-bg: #E4DED2;
+    --tone-neutral-fg: #3B4A3F;
+    --tone-ink: #0F1D13;
+    --tone-ink-bg: #0F1D13;
+    --tone-ink-fg: #FFFFFF;
 
     /*
      * Meaning aliases (no new hues) — map status vocabulary to pacing tokens.
@@ -265,17 +287,39 @@
 
     --pacing-ahead: #4E8F6A;
     --pacing-ahead-bg: rgba(78, 143, 106, 0.18);
-    --pacing-on-track: #49C7EB;
-    --pacing-on-track-bg: rgba(73, 199, 235, 0.18);
+    --pacing-on-track: #4E8F6A;
+    --pacing-on-track-bg: rgba(78, 143, 106, 0.18);
     --pacing-behind: #E0A21B;
     --pacing-behind-bg: rgba(224, 162, 27, 0.2);
     --pacing-critical: #D4583C;
     --pacing-critical-bg: rgba(212, 88, 60, 0.2);
 
     --status-ahead-fg: #9CD3B3;
-    --status-on-track-fg: #49C7EB;
+    --status-on-track-fg: #9CD3B3;
     --status-behind-fg: #F2C668;
     --status-critical-fg: #F29A84;
+
+    --tone-outcome: #B5D337;
+    --tone-outcome-bg: #B5D337;
+    --tone-outcome-fg: #0F1D13;
+    --tone-insight: #49C7EB;
+    --tone-insight-bg: rgba(73, 199, 235, 0.18);
+    --tone-insight-fg: #49C7EB;
+    --tone-action: #4E8F6A;
+    --tone-action-bg: rgba(78, 143, 106, 0.18);
+    --tone-action-fg: #9CD3B3;
+    --tone-attention: #E0A21B;
+    --tone-attention-bg: rgba(224, 162, 27, 0.2);
+    --tone-attention-fg: #F2C668;
+    --tone-critical: #D4583C;
+    --tone-critical-bg: rgba(212, 88, 60, 0.2);
+    --tone-critical-fg: #F29A84;
+    --tone-neutral: #3A4A3F;
+    --tone-neutral-bg: #22302A;
+    --tone-neutral-fg: #D3DBD5;
+    --tone-ink: #FFFFFF;
+    --tone-ink-bg: #FFFFFF;
+    --tone-ink-fg: #0F1D13;
 
     --status-good: var(--pacing-ahead);
     --status-good-bg: var(--pacing-ahead-bg);

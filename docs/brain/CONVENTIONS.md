@@ -8,6 +8,18 @@ Next.js 15.5 App Router · React 18.3 · TypeScript 5 (`strict: false`, `strictN
 
 New UI work takes colour, type and radius from `lib/brand` and the theme token classes (`bg-primary`, `text-foreground`, `bg-am-ink`), not a raw hex or an arbitrary hex class.
 
+## Status tones
+
+Status colour comes from `lib/design/status.ts`. One tone, one job:
+
+- **outcome** — a finished good result (live, paid, done).
+- **insight** — information that is not a problem (ahead, approved, to do).
+- **action** — the working state (on track, booked, in progress).
+- **attention** — needs a look (behind, waiting, differs).
+- **critical** — a real problem (overdue, disputed).
+- **neutral** — no signal yet (planned, no data, backlog).
+- **ink** — a closed record (completed, issued).
+
 Buttons are pills. `default` is the lime primary action, `secondary` is the forest outline, `outline` is the neutral button, `ghost` is for icon and inline actions. Cards are filled and bordered, never shadowed.
 
 ## Page titles and nav pills

@@ -87,7 +87,7 @@ const globalsLight: Array<[string, string]> = [
   ["--app-bg", tokens.colour.sand],
   ["--sidebar-bg", tokens.colour.ink],
   ["--pacing-ahead", tokens.colour.forest],
-  ["--pacing-on-track", tokens.colour.sky],
+  ["--pacing-on-track", tokens.colour.forest],
   ["--pacing-behind", tokens.functional.amber],
   ["--pacing-critical", tokens.functional.coral],
   ["--channel-social", tokens.colour.sky],
@@ -98,6 +98,14 @@ const globalsLight: Array<[string, string]> = [
   ["--text-tertiary", tokens.colour.muted],
   ["--status-behind-fg", tokens.functional.amberText],
   ["--status-critical-fg", tokens.functional.coralText],
+  ["--status-on-track-fg", tokens.colour.forest],
+  ["--tone-outcome", tokens.colour.lime],
+  ["--tone-insight", tokens.colour.sky],
+  ["--tone-action", tokens.colour.forest],
+  ["--tone-attention", tokens.functional.amber],
+  ["--tone-critical", tokens.functional.coral],
+  ["--tone-neutral-bg", tokens.colour.line],
+  ["--tone-ink", tokens.colour.ink],
 ]
 
 const globalsDark: Array<[string, string]> = [
@@ -106,12 +114,19 @@ const globalsDark: Array<[string, string]> = [
   ["--primary", tokens.colour.lime],
   ["--secondary", tokens.colour.forestLight],
   ["--pacing-ahead", tokens.colour.forestLight],
+  ["--pacing-on-track", tokens.colour.forestLight],
   ["--channel-search", tokens.colour.forestLight],
   ["--dashboard-card", tokens.colour.panel],
   ["--dashboard-border-hover", tokens.colour.forestLight],
   ["--status-behind-fg", tokens.functional.amberTextOnBlack],
   ["--status-critical-fg", tokens.functional.coralTextOnBlack],
   ["--status-ahead-fg", tokens.functional.forestTextOnBlack],
+  ["--status-on-track-fg", tokens.functional.forestTextOnBlack],
+  ["--tone-outcome", tokens.colour.lime],
+  ["--tone-insight", tokens.colour.sky],
+  ["--tone-action", tokens.colour.forestLight],
+  ["--tone-attention", tokens.functional.amber],
+  ["--tone-critical", tokens.functional.coral],
 ]
 
 const chartsLight: Array<[string, string]> = [

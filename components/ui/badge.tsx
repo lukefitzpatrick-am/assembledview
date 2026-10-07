@@ -3,26 +3,41 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+const toneOutcome = "border-transparent bg-tone-outcome-bg text-tone-outcome-fg"
+const toneInsight = "border-transparent bg-tone-insight-bg text-tone-insight-fg"
+const toneAction = "border-transparent bg-tone-action-bg text-tone-action-fg"
+const toneAttention = "border-transparent bg-tone-attention-bg text-tone-attention-fg"
+const toneCritical = "border-transparent bg-tone-critical-bg text-tone-critical-fg"
+const toneNeutral = "border-transparent bg-tone-neutral-bg text-tone-neutral-fg"
+const toneInk = "border-transparent bg-tone-ink-bg text-tone-ink-fg"
+const toneCancelled = "border-transparent bg-tone-neutral-bg text-muted-foreground line-through"
+
 const badgeVariants = cva(
   "inline-flex items-center rounded-full border font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
   {
     variants: {
       variant: {
         default: "border-transparent bg-primary text-primary-foreground",
-        success: "border-transparent bg-pacing-ahead-bg text-status-ahead-fg",
-        ahead: "border-transparent bg-pacing-ahead-bg text-status-ahead-fg",
+        success: toneAction,
+        ahead: toneAction,
         /** Semantic: soft green — In MBA / billable=MBA / all-in complete */
-        good: "border-transparent bg-status-good-bg text-status-good-fg",
-        info: "border-transparent bg-pacing-on-track-bg text-status-on-track-fg",
-        "on-track": "border-transparent bg-pacing-on-track-bg text-status-on-track-fg",
-        warning: "border-transparent bg-pacing-behind-bg text-status-behind-fg",
-        behind: "border-transparent bg-pacing-behind-bg text-status-behind-fg",
+        good: toneAction,
+        info: toneInsight,
+        "on-track": toneAction,
+        warning: toneAttention,
+        behind: toneAttention,
         /** Semantic: amber — Partial / Manual / Fee adjusted / Prepay */
-        attention: "border-transparent bg-status-attention-bg text-status-attention-fg",
-        danger: "border-transparent bg-pacing-critical-bg text-status-critical-fg",
-        critical: "border-transparent bg-pacing-critical-bg text-status-critical-fg",
+        attention: toneAttention,
+        danger: toneCritical,
+        critical: toneCritical,
         /** Semantic: coral/red — billing ≠ MBA / sum violation */
-        blocking: "border-transparent bg-status-blocking-bg text-status-blocking-fg",
+        blocking: toneCritical,
+        outcome: toneOutcome,
+        insight: toneInsight,
+        action: toneAction,
+        neutral: toneNeutral,
+        ink: toneInk,
+        cancelled: toneCancelled,
         secondary: "border-transparent bg-muted text-foreground",
         destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "border-border text-foreground",

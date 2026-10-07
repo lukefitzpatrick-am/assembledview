@@ -9,6 +9,7 @@ import { PageShell } from "@/components/layout/PageShell"
 import { Section } from "@/components/layout/Section"
 import { navChipClass } from "@/components/layout/navChip"
 import { Badge, type BadgeProps } from "@/components/ui/badge"
+import { StatusPill } from "@/components/ui/status-pill"
 import { Button, type ButtonProps } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -32,6 +33,17 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  BILLING_STATE,
+  CAMPAIGN_PHASE,
+  CODEX_TASK_STATUS,
+  LIVE_PULSE,
+  PACING_UI_STATUS,
+  TASK_PRIORITY,
+  XERO_DRAFT_MATCH,
+  XERO_MATCH_STATUS,
+  type Tone,
+} from "@/lib/design/status"
 
 const BUTTON_VARIANTS: NonNullable<ButtonProps["variant"]>[] = [
   "default",
@@ -62,6 +74,38 @@ const BADGE_VARIANTS: NonNullable<BadgeProps["variant"]>[] = [
   "destructive",
   "outline",
   "interactive",
+  "outcome",
+  "insight",
+  "action",
+  "neutral",
+  "ink",
+  "cancelled",
+]
+
+function statusRow(
+  title: string,
+  map: Record<string, { tone: Tone; label: string }>,
+  pulseKey?: string,
+) {
+  return {
+    title,
+    entries: Object.entries(map).map(([key, value]) => ({
+      key,
+      tone: value.tone,
+      label: value.label,
+      pulse: pulseKey === key && LIVE_PULSE,
+    })),
+  }
+}
+
+const STATUS_ROWS = [
+  statusRow("Pacing", PACING_UI_STATUS),
+  statusRow("Campaign", CAMPAIGN_PHASE, "live"),
+  statusRow("Billing", BILLING_STATE),
+  statusRow("In-Xero match", XERO_DRAFT_MATCH),
+  statusRow("Xero match", XERO_MATCH_STATUS),
+  statusRow("Task status", CODEX_TASK_STATUS),
+  statusRow("Task priority", TASK_PRIORITY),
 ]
 
 const NAV_CHIPS = ["Overview", "Invoicing", "Pacing", "Knowledge"] as const
@@ -189,6 +233,26 @@ export default function DesignSystemPage() {
             <Badge key={variant} variant={variant}>
               {variant}
             </Badge>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Status" description="Every status map. Live pulses.">
+        <div className="space-y-4">
+          {STATUS_ROWS.map((row) => (
+            <div key={row.title}>
+              <p className="mb-2 text-[13px] text-muted-foreground">{row.title}</p>
+              <div className="flex flex-wrap gap-2">
+                {row.entries.map((entry) => (
+                  <StatusPill
+                    key={entry.key}
+                    tone={entry.tone}
+                    label={entry.label}
+                    pulse={entry.pulse}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </Section>
