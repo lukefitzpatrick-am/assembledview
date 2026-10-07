@@ -3,7 +3,7 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
+import { navChipClass } from "@/components/layout/navChip"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { AvaPacingCommentaryAction } from "@/components/ava/AvaSkillActionSets"
 import { PacingFilterToolbar } from "@/components/pacing/PacingFilterToolbar"
@@ -54,7 +54,7 @@ export function PacingShell({ children, isAdmin = false, canRelabel = false }: P
       <nav
         role="tablist"
         aria-label="Pacing sections"
-        className="-mt-1 flex border-b border-border/60"
+        className="flex flex-wrap gap-2"
       >
         {tabs.map(({ href, label }) => {
           const active =
@@ -65,12 +65,7 @@ export function PacingShell({ children, isAdmin = false, canRelabel = false }: P
               href={href}
               role="tab"
               aria-selected={active}
-              className={cn(
-                "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                active
-                  ? "border-foreground text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
+              className={navChipClass(active)}
             >
               {label}
             </Link>

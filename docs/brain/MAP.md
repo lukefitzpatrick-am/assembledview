@@ -212,6 +212,10 @@ Touch these and you are touching everything. Check `BLAST-RADIUS.md` first, ever
 | `lib/brand/tokens.json`, `lib/brand/index.ts` | Single source for brand colour, type and radius. CSS variables in `app/globals.css` and `styles/chart-tokens.css` match it (`npm run test:brand`) |
 | `middleware.ts` | Authentication only. Never assume it did a tenant check |
 
+## Shared layout
+
+`components/layout/PageHeader.tsx` is the page title. `Section.tsx` is the section title. `PageShell.tsx` sets page width (`full` 1920px, `standard` 1600px, `reading` `max-w-3xl`, `narrow` `max-w-xl`). `navChip.ts` (`navChipClass`) is the nav pill. Visual reference: `/design-system` (`app/(internal)/design-system/page.tsx`). `app/(internal)/layout.tsx` returns `notFound()` in production. No sidebar entry.
+
 ## Scale reference
 
 71 pages · 197 API route handlers · ~450 component files · ~1,440 lib files · 78 live Supabase tables · 50 applied migrations · 17 crons · 20 media channels.

@@ -5,13 +5,12 @@ import test from "node:test"
 const heroSourcePath = new URL("../../components/mediaplans/MediaPlanEditorHero.tsx", import.meta.url)
 const shellSourcePath = new URL("../../components/dashboard/PageHeroShell.tsx", import.meta.url)
 
-test("MediaPlanEditorHero uses B2 PageHeroShell with token-based styling", async () => {
+test("MediaPlanEditorHero uses PageHeroShell with 05b token styling", async () => {
   const source = await readFile(heroSourcePath, "utf8")
 
   assert.match(source, /PageHeroShell/)
   assert.match(source, /PageHeroTitleBlock/)
-  assert.match(source, /pe-28/)
-  assert.match(source, /md:pe-32/)
+  assert.doesNotMatch(source, /pe-28/)
   assert.match(source, /basis-\[min\(280px,100%\)\]/)
   assert.match(source, /basis-\[min\(460px,100%\)\]/)
   assert.match(source, /basis-\[min\(780px,100%\)\]/)
@@ -21,12 +20,13 @@ test("MediaPlanEditorHero uses B2 PageHeroShell with token-based styling", async
   assert.doesNotMatch(source, /hero-glass/)
 })
 
-test("PageHeroShell uses sage surface and brand watermark tokens", async () => {
+test("PageHeroShell is a 05b card with no watermark", async () => {
   const source = await readFile(shellSourcePath, "utf8")
 
-  assert.match(source, /bg-background/)
+  assert.match(source, /bg-card/)
   assert.match(source, /rounded-frame/)
-  assert.match(source, /BrandMarkWatermark/)
+  assert.doesNotMatch(source, /BrandMarkWatermark/)
   assert.doesNotMatch(source, /WaveRibbon/)
   assert.doesNotMatch(source, /CornerDotCluster/)
+  assert.doesNotMatch(source, /w-\[60px\]/)
 })

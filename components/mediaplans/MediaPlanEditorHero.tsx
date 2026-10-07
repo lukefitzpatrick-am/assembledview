@@ -6,11 +6,9 @@ import type { ReactNode } from "react"
 import { PageHeroShell, PageHeroTitleBlock } from "@/components/dashboard/PageHeroShell"
 import { cn } from "@/lib/utils"
 
-/** Matches PageHeroShell padding tokens, with extra pe to clear BrandMarkWatermark. */
-const HERO_INSET =
-  "px-6 pb-6 pt-6 pe-28 md:px-7 md:pb-7 md:pt-7 md:pe-32"
-const HERO_INSET_COMPACT =
-  "px-5 pb-5 pt-5 pe-28 md:px-6 md:pb-6 md:pt-6 md:pe-32"
+/** Matches PageHeroShell padding tokens. */
+const HERO_INSET = "px-6 pb-6 pt-6 md:px-7 md:pb-7 md:pt-7"
+const HERO_INSET_COMPACT = "px-5 pb-5 pt-5 md:px-6 md:pb-6 md:pt-6"
 
 /** Content floors: wrap as a unit instead of clipping under overflow-hidden. */
 const TITLE_FLOOR = "basis-[min(280px,100%)]"
@@ -37,7 +35,7 @@ export interface MediaPlanEditorHeroProps {
    * wrapping row so the primary CTA is not orphaned under a mid-header cluster.
    */
   actionsFloor?: keyof typeof ACTIONS_FLOOR
-  /** Brand accent for the title underline; defaults to lime (`bg-accent`). */
+  /** Ignored since 05b (D4): client colour stays on the client mark. */
   brandColour?: string
   className?: string
   /** Optional leading icon; retained for API compatibility (B2 layout is title-first). */
@@ -58,7 +56,7 @@ export function MediaPlanEditorHero({
 }: MediaPlanEditorHeroProps) {
   return (
     <PageHeroShell className={className}>
-      {/* Content floors + shrink-0 wrap; pe clears brand mark (AVU4-1). */}
+      {/* Content floors + shrink-0 wrap. */}
       <div
         className={cn(
           "relative z-10 flex w-full min-w-0 flex-col",

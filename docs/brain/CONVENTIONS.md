@@ -10,6 +10,10 @@ New UI work takes colour, type and radius from `lib/brand` and the theme token c
 
 Buttons are pills. `default` is the lime primary action, `secondary` is the forest outline, `outline` is the neutral button, `ghost` is for icon and inline actions. Cards are filled and bordered, never shadowed.
 
+## Page titles and nav pills
+
+Page titles use `PageHeader`, or `PageHeroTitleBlock` inside hero cards. Section titles use `Section`. Titles get a full stop through `punctuate` (default true). Entity names pass `punctuate={false}`. Nav pills use `navChipClass`. The design-system page (`/design-system`) is the visual reference.
+
 ## Directory law
 
 | Put it in | When |

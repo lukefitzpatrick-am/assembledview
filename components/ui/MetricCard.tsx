@@ -70,11 +70,10 @@ export function MetricCard({
     return (
       <div
         className={cn(
-          "overflow-hidden rounded-card border border-[var(--dashboard-card-inner)] bg-card shadow-e1",
+          "overflow-hidden rounded-card border border-border bg-card",
           className
         )}
       >
-        <div className={cn("h-[3px] w-full", accent)} aria-hidden />
         <div className={padding}>
           <Skeleton className="h-3 w-24" />
           <Skeleton className="mt-2 h-8 w-32" />
@@ -87,21 +86,25 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-card border border-[var(--dashboard-card-inner)] bg-card shadow-e1",
+        "overflow-hidden rounded-card border border-border bg-card",
         className
       )}
     >
-      <div className={cn("h-[3px] w-full", accent)} aria-hidden />
       <div className={padding}>
         <div className="flex items-start justify-between gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+          <p className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {accent && accent !== "none" ? (
+              <span className={cn("h-[8px] w-[8px] shrink-0 rounded-full", accent)} aria-hidden />
+            ) : null}
+            {label}
+          </p>
           {Icon ? (
             <span className={cn("rounded-pill bg-surface-panel p-2", iconContainerClassName)}>
               <Icon className={cn("h-4 w-4", iconClassName)} aria-hidden />
             </span>
           ) : null}
         </div>
-        <p className="num mt-2 text-[28px] font-extrabold leading-none text-foreground">{valueLabel}</p>
+        <p className="num mt-2 text-[28px] font-extrabold leading-none text-primary">{valueLabel}</p>
         {typeof trend === "number" ? (
           <div className={cn("mt-2 inline-flex items-center gap-1 text-xs font-medium", trendTone(trend))}>
             {trendIcon(trend)}

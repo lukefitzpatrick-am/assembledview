@@ -2,9 +2,10 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { PageHeader } from "@/components/layout/PageHeader"
+import { navChipClass } from "@/components/layout/navChip"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { useFinancePeriodsFlag } from "@/components/finance/sections/FinancePeriodsFlagContext"
-import { cn } from "@/lib/utils"
 import { financeSectionPillsForPath } from "@/lib/finance/sections/nav"
 import { financeHref } from "@/lib/finance/sections/financeHref"
 import { useFinanceScopeApplied } from "@/lib/finance/sections/useFinanceScope"
@@ -46,26 +47,16 @@ export function FinanceSectionsShell({
   return (
     <div className="w-full max-w-none px-4 pb-10 pt-4 md:px-6">
       <div className="mb-4 space-y-3">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
-          {headerNote ? (
-            <p className="text-xs text-muted-foreground">{headerNote}</p>
-          ) : null}
-        </div>
+        <PageHeader title={title} lede={headerNote} />
         {pills.length > 0 ? (
-          <nav aria-label="Clients billing sections" className="flex flex-wrap gap-1.5">
+          <nav aria-label="Clients billing sections" className="flex flex-wrap gap-2">
             {pills.map((item) => {
               const active = pillActive(pathname, item.path)
               return (
                 <Link
                   key={item.path}
                   href={financeHref(item.path, applied)}
-                  className={cn(
-                    "interactive-tint rounded-pill border px-3 py-1 text-xs font-medium transition-colors",
-                    active
-                      ? "border-primary bg-primary/10 text-foreground"
-                      : "border-border bg-card text-muted-foreground hover:text-foreground"
-                  )}
+                  className={navChipClass(active)}
                 >
                   {item.label}
                 </Link>

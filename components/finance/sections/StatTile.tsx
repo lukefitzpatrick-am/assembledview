@@ -24,7 +24,7 @@ export type StatTileProps = {
   basisCaption: string
   state: StatTileMoneyState
   className?: string
-  /** Colour class for the 3px top bar. `"none"` hides it. */
+  /** Colour class for the accent dot on ready and empty. `"none"` hides it. */
   accent?: string
   /** Replaces the money figure. Used for a count tile. */
   figure?: string
@@ -52,14 +52,11 @@ export function StatTile({ label, basisCaption, state, className, accent, figure
     return (
       <div
         className={cn(
-          "overflow-hidden rounded-card border border-[var(--dashboard-card-inner)] bg-card shadow-e1",
+          "overflow-hidden rounded-card border border-border bg-card",
           className
         )}
         aria-busy="true"
       >
-        {accent === "none" ? null : (
-          <div className={cn("h-[3px] w-full", accent ?? "bg-primary")} aria-hidden />
-        )}
         <div className="p-4">
           <Skeleton className="h-3 w-24" />
           <Skeleton className="mt-2 h-8 w-32" />
@@ -74,13 +71,10 @@ export function StatTile({ label, basisCaption, state, className, accent, figure
       <div
         role="alert"
         className={cn(
-          "overflow-hidden rounded-card border border-pacing-critical-bg bg-pacing-critical-bg shadow-e1",
+          "overflow-hidden rounded-card border border-pacing-critical-bg bg-pacing-critical-bg",
           className
         )}
       >
-        {accent === "none" ? null : (
-          <div className={cn("h-[3px] w-full", accent ?? "bg-status-danger")} aria-hidden />
-        )}
         <div className="p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-status-critical-fg">
             {label}
@@ -99,15 +93,18 @@ export function StatTile({ label, basisCaption, state, className, accent, figure
     return (
       <div
         className={cn(
-          "overflow-hidden rounded-card border border-dashed border-border bg-surface-panel shadow-e1",
+          "overflow-hidden rounded-card border border-dashed border-border bg-surface-panel",
           className
         )}
       >
-        {accent === "none" ? null : (
-          <div className={cn("h-[3px] w-full", accent ?? "bg-muted")} aria-hidden />
-        )}
         <div className="p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {accent === "none" ? null : (
+              <span
+                className={cn("h-[8px] w-[8px] shrink-0 rounded-full", accent ?? "bg-muted-foreground")}
+                aria-hidden
+              />
+            )}
             {label}
           </p>
           <p className="num mt-2 text-[28px] font-extrabold leading-none text-muted-foreground">—</p>
@@ -122,18 +119,21 @@ export function StatTile({ label, basisCaption, state, className, accent, figure
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-card border border-[var(--dashboard-card-inner)] bg-card shadow-e1",
+        "overflow-hidden rounded-card border border-border bg-card",
         className
       )}
     >
-      {accent === "none" ? null : (
-        <div className={cn("h-[3px] w-full", accent ?? "bg-primary")} aria-hidden />
-      )}
       <div className="p-4 pb-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {accent === "none" ? null : (
+            <span
+              className={cn("h-[8px] w-[8px] shrink-0 rounded-full", accent ?? "bg-primary")}
+              aria-hidden
+            />
+          )}
           {label}
         </p>
-        <p className="num mt-2 text-[28px] font-extrabold leading-none text-foreground">
+        <p className="num mt-2 text-[28px] font-extrabold leading-none text-primary">
           {figure ?? formatMoney(dollars)}
         </p>
         <p className="mt-2 text-[11px] text-muted-foreground">{basisCaption}</p>
