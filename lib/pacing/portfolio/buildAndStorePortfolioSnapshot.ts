@@ -18,6 +18,7 @@ export async function buildAndStorePortfolioSnapshot(
     asOfDate: args.asOfDate,
     allowedClientSlugs,
     liveOnly: args.liveOnly,
+    startedAt: args.startedAt,
   })
   console.log(
     JSON.stringify({

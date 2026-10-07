@@ -15,6 +15,8 @@ export type BuildPortfolioSnapshotArgs = {
   scopeKey: string
   liveOnly: boolean
   allowedClientSlugs: Set<string> | null
+  /** Request start, so the 240s budget includes work before the builder. */
+  startedAt?: number
 }
 
 export type ServePortfolioSnapshotArgs = {

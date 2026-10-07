@@ -33,6 +33,7 @@ export async function GET(request: Request) {
       scopeKey,
       liveOnly,
       allowedClientSlugs: null,
+      startedAt: handlerStarted,
     })
     const summary = {
       status: "ok",

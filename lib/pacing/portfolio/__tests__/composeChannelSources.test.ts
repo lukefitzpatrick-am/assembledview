@@ -2,7 +2,10 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { assembleCampaignPacingRows } from "../assembleCampaignPacingRows.js"
-import { loadPortfolioChannelSources } from "../loadPortfolioChannelSources.js"
+import {
+  loadPortfolioChannelSources,
+  type PortfolioSourceTiming,
+} from "../loadPortfolioChannelSources.js"
 import { p6AssembleInput } from "./p6Fixture.js"
 
 describe("loadPortfolioChannelSources", () => {
@@ -39,5 +42,57 @@ describe("loadPortfolioChannelSources", () => {
       parallelRows.map((row) => row.mbaNumber),
       ["letsgo001", "jayco001", "candel001", "hartm012", "PGAAUS014", "BICAU002"],
     )
+  })
+
+  it("a source that misses its timeout contributes no rows", async () => {
+    const input = p6AssembleInput()
+    const timings: PortfolioSourceTiming[] = []
+    const result = await loadPortfolioChannelSources(
+      { asOfDate: input.asOfDate, allowedClientSlugs: input.allowedClientSlugs },
+      {
+        search: async () => input.search,
+        social: () => new Promise(() => {}),
+        programmatic: async () => input.programmatic,
+        adServing: async () => input.adServing,
+        direct: async () => input.direct,
+      },
+      { parallel: true, perSourceTimeoutMs: 40, overallBudgetMs: 240_000, timings },
+    )
+
+    assert.equal(result.social.length, 0)
+    assert.equal(result.search.length, input.search.length)
+    assert.equal(timings.find((row) => row.source === "social")?.timedOut, true)
+    assert.equal(timings.find((row) => row.source === "search")?.timedOut, false)
+    assert.ok((timings.find((row) => row.source === "search")?.rowCount ?? 0) > 0)
+  })
+
+  it("does not start a source once the overall budget is gone", async () => {
+    const input = p6AssembleInput()
+    const timings: PortfolioSourceTiming[] = []
+    let called = false
+    const result = await loadPortfolioChannelSources(
+      { asOfDate: input.asOfDate, allowedClientSlugs: input.allowedClientSlugs },
+      {
+        search: async () => {
+          called = true
+          return input.search
+        },
+        social: async () => input.social,
+        programmatic: async () => input.programmatic,
+        adServing: async () => input.adServing,
+        direct: async () => input.direct,
+      },
+      {
+        parallel: true,
+        perSourceTimeoutMs: 90_000,
+        overallBudgetMs: 1,
+        startedAt: Date.now() - 50,
+        timings,
+      },
+    )
+
+    assert.equal(called, false)
+    assert.equal(result.search.length, 0)
+    assert.equal(timings.every((row) => row.timedOut), true)
   })
 })

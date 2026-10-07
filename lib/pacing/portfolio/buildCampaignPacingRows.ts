@@ -12,13 +12,33 @@ import {
   assembleCampaignPacingRows,
   countPortfolioRows,
 } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
-import { loadPortfolioChannelSources } from "@/lib/pacing/portfolio/loadPortfolioChannelSources"
+import {
+  loadBoundedSource,
+  loadPortfolioChannelSources,
+  PORTFOLIO_OVERALL_BUDGET_MS,
+  PORTFOLIO_SOURCE_TIMEOUT_MS,
+  type PortfolioSourceTiming,
+} from "@/lib/pacing/portfolio/loadPortfolioChannelSources"
 import type { CampaignScheduleInput } from "@/lib/pacing/portfolio/types"
 
 export type BuildCampaignPacingRowsArgs = {
   asOfDate: string
   allowedClientSlugs: Set<string> | null
   liveOnly?: boolean
+  /** Request start. The overall budget is measured from here. */
+  startedAt?: number
+  overallBudgetMs?: number
+  perSourceTimeoutMs?: number
+}
+
+function logPortfolioSourceTiming(startedAt: number, sources: PortfolioSourceTiming[]): void {
+  console.log(
+    JSON.stringify({
+      event: "pacing_portfolio_source_timing",
+      durationMs: Date.now() - startedAt,
+      sources,
+    }),
+  )
 }
 
 function normMba(value: unknown): string {
@@ -64,20 +84,39 @@ export async function buildCampaignPacingRows(
   args: BuildCampaignPacingRowsArgs,
 ) {
   const liveOnly = args.liveOnly !== false
-  const [sources, versions] = await Promise.all([
-    loadPortfolioChannelSources(
-      { asOfDate: args.asOfDate, allowedClientSlugs: args.allowedClientSlugs },
-      {
-        search: getCachedSearchPacingRows,
-        social: getCachedSocialPacingRows,
-        programmatic: getCachedProgrammaticPacingRows,
-        adServing: getCachedAdServingPacingRows,
-        direct: (asOfDate, slugs) => getCachedDirectPacingRows(asOfDate, slugs, false),
-      },
-      { parallel: true }
-    ),
-    readPublishedOrLivePlanVersions(args.asOfDate),
-  ])
+  const startedAt = args.startedAt ?? Date.now()
+  const timings: PortfolioSourceTiming[] = []
+  const budget = {
+    startedAt,
+    overallBudgetMs: args.overallBudgetMs ?? PORTFOLIO_OVERALL_BUDGET_MS,
+    perSourceTimeoutMs: args.perSourceTimeoutMs ?? PORTFOLIO_SOURCE_TIMEOUT_MS,
+    timings,
+  }
+  let sources
+  let versions: Record<string, unknown>[]
+  try {
+    ;[sources, versions] = await Promise.all([
+      loadPortfolioChannelSources(
+        { asOfDate: args.asOfDate, allowedClientSlugs: args.allowedClientSlugs },
+        {
+          search: getCachedSearchPacingRows,
+          social: getCachedSocialPacingRows,
+          programmatic: getCachedProgrammaticPacingRows,
+          adServing: getCachedAdServingPacingRows,
+          direct: (asOfDate, slugs) => getCachedDirectPacingRows(asOfDate, slugs, false),
+        },
+        { parallel: true, ...budget },
+      ),
+      loadBoundedSource("versions", () => readPublishedOrLivePlanVersions(args.asOfDate), budget),
+    ])
+  } catch (err) {
+    logPortfolioSourceTiming(startedAt, timings)
+    throw err
+  }
+  logPortfolioSourceTiming(startedAt, timings)
+  if (timings.some((row) => row.source === "versions" && row.timedOut)) {
+    throw new Error("portfolio versions read timed out")
+  }
 
   return assembleCampaignPacingRows({
     asOfDate: args.asOfDate,
