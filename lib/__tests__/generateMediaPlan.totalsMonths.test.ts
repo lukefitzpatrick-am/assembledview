@@ -1,12 +1,15 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import { addGst } from "@/lib/finance/gst"
 import {
   generateMediaPlan,
   type LineItem,
   type MediaItems,
   type MediaPlanHeader,
 } from "@/lib/generateMediaPlan"
+import { buildAdvertisingAssociatesMbaDataFromMediaItems } from "@/lib/mediaplan/advertisingAssociatesExcel"
+import { fromCents, toCents } from "@/lib/money"
 
 const HEADER: MediaPlanHeader = {
   logoBase64: "",
@@ -224,4 +227,31 @@ test("a client-pays row shows net media, and the AA row is zero", async () => {
     if (typeof gross === "number") aaNationalGross.push(gross)
   })
   assert.deepEqual(aaNationalGross, [5000])
+})
+
+test("plan date is the Sydney civil date and an invalid end stays blank", async () => {
+  const workbook = await generateMediaPlan(
+    { ...HEADER, campaignEnd: "not-a-date", campaignBudgetCents: 123456 },
+    emptyMedia(),
+    undefined,
+    { asOf: new Date("2026-10-07T22:30:00Z") },
+  )
+  const sheet = workbook.getWorksheet("Media Plan")
+  assert.ok(sheet)
+  const planDate = sheet.getCell("E5").value
+  assert.ok(planDate instanceof Date)
+  assert.equal(planDate.getUTCFullYear(), 2026)
+  assert.equal(planDate.getUTCMonth(), 9)
+  assert.equal(planDate.getUTCDate(), 8)
+  assert.equal(sheet.getCell("G6").value, null)
+  assert.equal(sheet.getCell("G3").value, 1234.56)
+})
+
+test("AA inc GST uses addGst on the cents total", () => {
+  const data = buildAdvertisingAssociatesMbaDataFromMediaItems(
+    emptyMedia({
+      search: [searchLine({ grossMedia: "10.005", deliverablesAmount: "10.005" })],
+    }),
+  )
+  assert.equal(data.totals.total_inc_gst, addGst(fromCents(toCents(10.005))))
 })

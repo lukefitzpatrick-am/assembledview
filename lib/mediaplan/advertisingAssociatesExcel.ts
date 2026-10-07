@@ -1,4 +1,5 @@
-import { parseMoney } from "@/lib/money"
+import { addGst } from "@/lib/finance/gst"
+import { fromCents, parseMoney, toCents } from "@/lib/money"
 import type { LineItem, MediaItems } from "@/lib/generateMediaPlan"
 import type { Publisher } from "@/lib/types/publisher"
 
@@ -207,7 +208,7 @@ export function buildAdvertisingAssociatesMbaDataFromMediaItems(
   }
 
   const totals_ex_gst = mediaGrossTotal + productionTotal
-  const total_inc_gst = totals_ex_gst * 1.1
+  const total_inc_gst = addGst(fromCents(toCents(totals_ex_gst)))
 
   return {
     gross_media,

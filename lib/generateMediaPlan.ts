@@ -1,5 +1,7 @@
 import type ExcelJS from 'exceljs';
 import { prorateAcrossMonths } from '@/lib/billing/prorateAcrossMonths';
+import { getMelbourneTodayISO } from '@/lib/dates/melbourne';
+import { fromCents, parseMoney } from '@/lib/money';
 import { BRAND, hexToArgb, readableTextOn } from '@/lib/brand';
 import { familyColour, MEDIA_TYPE_FAMILY, type MediaTypeThemeKey } from '@/lib/design/mediaFamilies';
 import { formatBuyTypeForExport } from '@/lib/mediaplan/buyTypeLabels';
@@ -74,6 +76,8 @@ export interface MediaPlanHeader {
   planVersion: string;
   poNumber: string;
   campaignBudget: string;
+  /** When set, the budget header is this many cents. Otherwise campaignBudget is parsed. */
+  campaignBudgetCents?: number;
   campaignStatus: string;
   campaignStart: string; // Expected as dd/MM/yyyy
   campaignEnd: string;   // Expected as dd/MM/yyyy
@@ -245,16 +249,13 @@ function parseDateStringYYYYMMDD(dateStr: string): Date {
 
 // Helper to parse dd/MM/yyyy to Date
 // Ensures UTC parsing for consistency
-function parseDateStringDDMMYYYY(dateStr: string): Date {
-   if (!dateStr || !/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
-    console.warn(`Invalid dd/MM/yyyy date string: ${dateStr}. Using current date as fallback.`);
-    const now = new Date();
-    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())); // Fallback to current date UTC
+function parseDateStringDDMMYYYY(dateStr: string, field: string): Date | null {
+  if (!dateStr || !/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+    console.warn(`Invalid ${field}: ${dateStr || "(blank)"}. Leaving the cell blank.`)
+    return null
   }
-   const parts = dateStr.split('/'); // dd/MM/yyyy
-   return new Date(Date.UTC(
-     Number(parts[2]), Number(parts[1]) - 1, Number(parts[0])
-   ));
+  const parts = dateStr.split("/")
+  return new Date(Date.UTC(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0])))
 }
 
 // format bid strategy code to human readable
@@ -286,6 +287,8 @@ export type GenerateMediaPlanOptions = {
   mbaTotalsLayout?: 'standard' | 'aa'
   /** Unpublished dry-run: print header/footer + on-sheet rotated DRAFT. */
   draft?: boolean
+  /** Clock for the Plan Date cell. Defaults to now. Sydney civil date. */
+  asOf?: Date
 }
 
 const DRAFT_STAMP_TEXT = 'DRAFT - NOT FOR CLIENT'
@@ -527,20 +530,27 @@ export async function generateMediaPlan(
   // Middle column
   style('D3', { value: 'Client Contact', bold: true, align: 'right', fontSize: headerFontSize }); style('E3', { value: clientContact, align: 'left', fontSize: headerFontSize, fill: greyFill });
   style('D4', { value: 'Plan Version', bold: true, align: 'right', fontSize: headerFontSize }); style('E4', { value: planVersion, align: 'left', fontSize: headerFontSize, fill: greyFill });
-  style('D5', { value: 'Plan Date', bold: true, align: 'right', fontSize: headerFontSize }); style('E5', { value: (new Date()).toLocaleDateString('en-AU', {timeZone: 'UTC'}), align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: 'dd/mm/yyyy' });
+  const planIso = getMelbourneTodayISO(options?.asOf ?? new Date())
+  const [planYear, planMonth, planDay] = planIso.split("-").map(Number)
+  const planDate = new Date(Date.UTC(planYear, planMonth - 1, planDay))
+  const budgetDollars = typeof header.campaignBudgetCents === "number"
+    ? fromCents(header.campaignBudgetCents)
+    : (parseMoney(campaignBudget) ?? 0)
+  const parsedCampaignStartDate = parseDateStringDDMMYYYY(campaignStart, "campaign start")
+  const parsedCampaignEndDate = parseDateStringDDMMYYYY(campaignEnd, "campaign end")
+
+  style('D5', { value: 'Plan Date', bold: true, align: 'right', fontSize: headerFontSize }); style('E5', { value: planDate, align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: 'dd/mm/yyyy' });
   style('D6', { value: 'PO Number', bold: true, align: 'right', fontSize: headerFontSize }); style('E6', { value: poNumber, align: 'left', fontSize: headerFontSize, fill: greyFill });
   // Right column
-  style('F3', { value: 'Campaign Budget', bold: true, align: 'right', fontSize: headerFontSize }); style('G3', { value: parseFloat(campaignBudget.replace(/[^0-9.-]+/g,"")) || 0, align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: '$#,##0.00' });
+  style('F3', { value: 'Campaign Budget', bold: true, align: 'right', fontSize: headerFontSize }); style('G3', { value: budgetDollars, align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: '$#,##0.00' });
   style('F4', { value: 'Campaign Status', bold: true, align: 'right', fontSize: headerFontSize }); style('G4', { value: campaignStatus, align: 'left', fontSize: headerFontSize, fill: greyFill });
-  style('F5', { value: 'Campaign Start Date', bold: true, align: 'right', fontSize: headerFontSize }); style('G5', { value: parseDateStringDDMMYYYY(campaignStart), align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: 'dd/mm/yyyy' });
-  style('F6', { value: 'Campaign End Date', bold: true, align: 'right', fontSize: headerFontSize }); style('G6', { value: parseDateStringDDMMYYYY(campaignEnd), align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: 'dd/mm/yyyy' });
-
-  const parsedCampaignStartDate = parseDateStringDDMMYYYY(campaignStart);
-  const parsedCampaignEndDate = parseDateStringDDMMYYYY(campaignEnd);
+  style('F5', { value: 'Campaign Start Date', bold: true, align: 'right', fontSize: headerFontSize }); style('G5', { value: parsedCampaignStartDate, align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: 'dd/mm/yyyy' });
+  style('F6', { value: 'Campaign End Date', bold: true, align: 'right', fontSize: headerFontSize }); style('G6', { value: parsedCampaignEndDate, align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: 'dd/mm/yyyy' });
 
   // Columns span every burst, including ones that start before or end after the campaign.
-  let timelineStart = parsedCampaignStartDate;
-  let timelineEnd = parsedCampaignEndDate;
+  const axisFallback = planDate
+  let timelineStart = parsedCampaignStartDate ?? parsedCampaignEndDate ?? axisFallback
+  let timelineEnd = parsedCampaignEndDate ?? parsedCampaignStartDate ?? axisFallback
   for (const list of Object.values(mediaItems)) {
     if (!Array.isArray(list)) continue;
     for (const item of list) {
@@ -671,10 +681,10 @@ export async function generateMediaPlan(
 
   // Build month-to-column mapping for date columns (partial months merge)
   type MonthRange = { monthYear: string; startCol: number; endCol: number; outsideCampaign: boolean };
-  const campaignStartMonth =
-    parsedCampaignStartDate.getUTCFullYear() * 12 + parsedCampaignStartDate.getUTCMonth();
-  const campaignEndMonth =
-    parsedCampaignEndDate.getUTCFullYear() * 12 + parsedCampaignEndDate.getUTCMonth();
+  const startBound = parsedCampaignStartDate ?? timelineStart
+  const endBound = parsedCampaignEndDate ?? parsedCampaignStartDate ?? timelineEnd
+  const campaignStartMonth = startBound.getUTCFullYear() * 12 + startBound.getUTCMonth()
+  const campaignEndMonth = endBound.getUTCFullYear() * 12 + endBound.getUTCMonth()
   const monthIsOutside = (d: Date) => {
     const idx = d.getUTCFullYear() * 12 + d.getUTCMonth();
     return idx < campaignStartMonth || idx > campaignEndMonth;
