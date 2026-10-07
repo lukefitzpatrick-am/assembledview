@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select"
 import { Segmented, SegmentedItem } from "@/components/ui/segmented"
 import { Switch } from "@/components/ui/switch"
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table"
 import {
   Table,
   TableBody,
@@ -70,6 +71,42 @@ const EXAMPLE_ROWS = [
   { campaign: "Always on", client: "Northwind", channel: "Social", amount: "8,150" },
   { campaign: "Retail burst", client: "Example Co", channel: "BVOD", amount: "21,000" },
   { campaign: "Brand film", client: "Contoso", channel: "Television", amount: "46,800" },
+]
+
+type ExampleCampaign = {
+  id: string
+  client: string
+  campaign: string
+  mba: string
+  status: string
+  budget: number
+  endDate: Date
+}
+
+const EXAMPLE_CAMPAIGNS: ExampleCampaign[] = [
+  { id: "ex-1", client: "Northwind", campaign: "Always on", mba: "NW-014", status: "Live", budget: 8150, endDate: new Date(2026, 10, 30) },
+  { id: "ex-2", client: "Example Co", campaign: "Spring launch", mba: "EX-102", status: "Booked", budget: 12400, endDate: new Date(2026, 8, 18) },
+  { id: "ex-3", client: "Contoso", campaign: "Brand film", mba: "CO-008", status: "Live", budget: 46800, endDate: new Date(2026, 11, 12) },
+  { id: "ex-4", client: "Example Co", campaign: "Retail burst", mba: "EX-118", status: "Completed", budget: 21000, endDate: new Date(2026, 5, 2) },
+  { id: "ex-5", client: "Fabrikam", campaign: "Search always on", mba: "FB-221", status: "Live", budget: 6400, endDate: new Date(2027, 0, 31) },
+  { id: "ex-6", client: "Adventure Works", campaign: "Summer OOH", mba: "AW-044", status: "Booked", budget: 33250, endDate: new Date(2026, 7, 9) },
+  { id: "ex-7", client: "Northwind", campaign: "BVOD burst", mba: "NW-019", status: "Draft", budget: 15775, endDate: new Date(2026, 9, 4) },
+  { id: "ex-8", client: "Wide World", campaign: "Social always on", mba: "WW-303", status: "Live", budget: 9800, endDate: new Date(2026, 6, 21) },
+]
+
+const EXAMPLE_CAMPAIGN_COLUMNS: DataTableColumn<ExampleCampaign>[] = [
+  { id: "client", header: "Client", accessor: (row) => row.client },
+  { id: "campaign", header: "Campaign", accessor: (row) => row.campaign },
+  { id: "mba", header: "MBA", accessor: (row) => row.mba, sortable: false },
+  { id: "status", header: "Status", accessor: (row) => row.status },
+  {
+    id: "budget",
+    header: "Budget",
+    accessor: (row) => row.budget,
+    align: "right",
+    cell: (row) => row.budget.toLocaleString("en-AU"),
+  },
+  { id: "endDate", header: "End date", accessor: (row) => row.endDate },
 ]
 
 export default function DesignSystemPage() {
@@ -226,6 +263,20 @@ export default function DesignSystemPage() {
             ))}
           </TableBody>
         </Table>
+      </Section>
+
+      <Section
+        title="Data table"
+        description="Example data. Eight campaigns. MBA does not sort."
+      >
+        <DataTable
+          columns={EXAMPLE_CAMPAIGN_COLUMNS}
+          rows={EXAMPLE_CAMPAIGNS}
+          getRowId={(row) => row.id}
+          csvFilename="example-campaigns"
+          maxHeight="320px"
+          caption="Example campaigns"
+        />
       </Section>
 
       <Section title="Inputs" description="Example fields. Nothing here is submitted.">

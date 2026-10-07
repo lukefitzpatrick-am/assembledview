@@ -56,12 +56,15 @@ export const SortableTableHeader: React.FC<SortableTableHeaderProps> = ({
         type="button"
         onClick={onToggle}
         className={cn(
-          "flex w-full items-center gap-2 px-4 py-3 font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          "flex h-10 w-full items-center gap-1.5 whitespace-nowrap px-4 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
           align === "right" ? "justify-end text-right" : "justify-start text-left"
         )}
       >
-        <span className={cn(align !== "right" && "flex-1")}>{label}</span>
-        <Icon className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="whitespace-nowrap">{label}</span>
+        <Icon
+          className={cn("h-3.5 w-3.5 shrink-0", direction === null && "opacity-40")}
+          aria-hidden
+        />
       </button>
     </TableHead>
   )

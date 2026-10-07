@@ -26,24 +26,7 @@ function convertToCSV<T extends Record<string, any>>(
 
   // Create data rows
   const rows = data.map(item => {
-    return allKeys.map(key => {
-      const value = item[key];
-      
-      // Handle different data types
-      if (value === null || value === undefined) {
-        return '';
-      } else if (typeof value === 'string') {
-        // Escape quotes and wrap in quotes if contains comma, newline, or quote
-        const escaped = value.replace(/"/g, '""');
-        return /[,\n"]/.test(value) ? `"${escaped}"` : escaped;
-      } else if (typeof value === 'object') {
-        // Convert objects to JSON string
-        return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
-      } else {
-        // Numbers, booleans, etc.
-        return value;
-      }
-    }).join(',');
+    return allKeys.map(key => formatCsvField(item[key])).join(',');
   });
 
   // Combine header and data rows
@@ -61,23 +44,40 @@ export function downloadCSV<T extends Record<string, any>>(
   filename: string,
   headers?: Record<string, string>
 ): void {
-  const csv = convertToCSV(data, headers);
-  
-  // Create a blob with the CSV data
+  downloadCsvText(convertToCSV(data, headers), filename);
+}
+
+/**
+ * Downloads a rectangular CSV. The first row is the header row.
+ * Cell escaping matches convertToCSV (quotes, commas, newlines).
+ */
+export function downloadCsvRows(
+  rows: Array<Array<string | number | null | undefined>>,
+  filename: string
+): void {
+  const csv = rows.map(row => row.map(cell => formatCsvField(cell)).join(',')).join('\n');
+  downloadCsvText(csv, filename);
+}
+
+function formatCsvField(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '';
+  } else if (typeof value === 'string') {
+    const escaped = value.replace(/"/g, '""');
+    return /[,\n"]/.test(value) ? `"${escaped}"` : escaped;
+  } else if (typeof value === 'object') {
+    return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
+  }
+  return String(value);
+}
+
+function downloadCsvText(csv: string, filename: string): void {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  
-  // Create a link element
   const link = document.createElement('a');
-  
-  // Create a URL for the blob
   const url = URL.createObjectURL(blob);
-  
-  // Set link properties
   link.setAttribute('href', url);
   link.setAttribute('download', `${filename}.csv`);
   link.style.visibility = 'hidden';
-  
-  // Append to document, click, and remove
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

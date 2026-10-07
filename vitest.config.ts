@@ -94,6 +94,7 @@ export default defineConfig({
       "components/dashboard/delivery/__tests__/shouldShowChannelAggregate.test.ts",
       "components/dashboard/delivery/__tests__/entityBreakdown.test.tsx",
       "components/dashboard/delivery/channels/__tests__/directDigitalChart.test.ts",
+      "components/ui/__tests__/data-table.test.tsx",
     ],
     exclude: [
       "**/node_modules/**",

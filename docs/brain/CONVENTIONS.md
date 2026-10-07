@@ -14,6 +14,10 @@ Buttons are pills. `default` is the lime primary action, `secondary` is the fore
 
 Page titles use `PageHeader`, or `PageHeroTitleBlock` inside hero cards. Section titles use `Section`. Titles get a full stop through `punctuate` (default true). Entity names pass `punctuate={false}`. Nav pills use `navChipClass`. The design-system page (`/design-system`) is the visual reference.
 
+## Tables
+
+New and migrated tables use `DataTable` (`components/ui/data-table.tsx`). `Table` primitives stay for layout-only tables (forms, key-value grids). Bespoke table components are debt to move onto `DataTable`.
+
 ## Directory law
 
 | Put it in | When |
