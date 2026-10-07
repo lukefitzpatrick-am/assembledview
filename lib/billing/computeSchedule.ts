@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { fromCents, sumCents, toCents } from "@/lib/money/cents";
 import { computeAdServingCost } from "./computeAdServingCost";
 import { prorateAcrossMonths } from "./prorateAcrossMonths";
 import type { BillingBurst, BillingMonth } from "./types";
@@ -189,29 +190,28 @@ export function computeBillingAndDeliveryMonths(
     // burst-json input — never treat bursts_json.noAdserving as a second source.
     if (burst.noAdserving) return;
     const monthKeys = Object.keys(billingMap);
-    const deliverableShares = prorateAcrossMonths({
-      amount: burst.deliverables,
+    // Cost the whole deliverable, then split that dollar total with the same
+    // largest-remainder proration as media, so the months sum to the line.
+    const lineTotal = computeAdServingCost({
+      quantity: burst.deliverables,
+      buyType: burst.buyType || "",
+      mediaType,
+      rate: getRateForMediaType(mediaType),
+      adservaudio,
+      adServingRatePct: burst.adServingRatePct,
+      adServingImpressions: burst.adServingImpressions,
+    });
+    const shares = prorateAcrossMonths({
+      amount: lineTotal,
       burstStart: burst.startDate,
       burstEnd: burst.endDate,
       monthKeys,
     });
 
     for (const monthKey of monthKeys) {
-      if (!Object.prototype.hasOwnProperty.call(deliverableShares, monthKey)) continue;
-      const share = deliverableShares[monthKey] ?? 0;
-
-      const cost = computeAdServingCost({
-        quantity: share,
-        buyType: burst.buyType || "",
-        mediaType,
-        rate: getRateForMediaType(mediaType),
-        adservaudio,
-        adServingRatePct: burst.adServingRatePct,
-        adServingImpressions: burst.adServingImpressions,
-      });
-
-      billingMap[monthKey].adServing += cost;
-      deliveryMap[monthKey].adServing += cost;
+      const share = shares[monthKey] ?? 0;
+      billingMap[monthKey].adServing += share;
+      deliveryMap[monthKey].adServing += share;
     }
   }
 
@@ -220,13 +220,20 @@ export function computeBillingAndDeliveryMonths(
   }
 
   const billingMonths: BillingMonth[] = Object.entries(billingMap).map(
-    ([monthYear, { totalMedia, totalFee, adServing, productionTotal, mediaCosts }]) => ({
+    ([monthYear, { totalMedia, totalFee, adServing, productionTotal, mediaCosts }]) => {
+      const mediaCents = toCents(totalMedia);
+      const feeCents = toCents(totalFee);
+      const adServingCents = toCents(adServing);
+      const productionCents = toCents(productionTotal || 0);
+      return {
       monthYear,
-      mediaTotal: formatter.format(totalMedia),
-      feeTotal: formatter.format(totalFee),
-      totalAmount: formatter.format(totalMedia + totalFee + adServing + productionTotal),
-      adservingTechFees: formatter.format(adServing),
-      production: formatter.format(productionTotal || 0),
+      mediaTotal: formatter.format(fromCents(mediaCents)),
+      feeTotal: formatter.format(fromCents(feeCents)),
+      totalAmount: formatter.format(
+        fromCents(sumCents([mediaCents, feeCents, adServingCents, productionCents])),
+      ),
+      adservingTechFees: formatter.format(fromCents(adServingCents)),
+      production: formatter.format(fromCents(productionCents)),
       mediaCosts: {
         search: formatter.format(mediaCosts.search || 0),
         socialMedia: formatter.format(mediaCosts.socialMedia || 0),
@@ -249,17 +256,25 @@ export function computeBillingAndDeliveryMonths(
         influencers: formatter.format(mediaCosts.influencers || 0),
         production: formatter.format(mediaCosts.production || 0),
       },
-    })
+      };
+    },
   );
 
   const deliveryMonths: BillingMonth[] = Object.entries(deliveryMap).map(
-    ([monthYear, { totalMedia, totalFee, adServing, productionTotal, mediaCosts }]) => ({
+    ([monthYear, { totalMedia, totalFee, adServing, productionTotal, mediaCosts }]) => {
+      const mediaCents = toCents(totalMedia);
+      const feeCents = toCents(totalFee);
+      const adServingCents = toCents(adServing);
+      const productionCents = toCents(productionTotal || 0);
+      return {
       monthYear,
-      mediaTotal: formatter.format(totalMedia),
-      feeTotal: formatter.format(totalFee),
-      totalAmount: formatter.format(totalMedia + totalFee + adServing + productionTotal),
-      adservingTechFees: formatter.format(adServing),
-      production: formatter.format(productionTotal || 0),
+      mediaTotal: formatter.format(fromCents(mediaCents)),
+      feeTotal: formatter.format(fromCents(feeCents)),
+      totalAmount: formatter.format(
+        fromCents(sumCents([mediaCents, feeCents, adServingCents, productionCents])),
+      ),
+      adservingTechFees: formatter.format(fromCents(adServingCents)),
+      production: formatter.format(fromCents(productionCents)),
       mediaCosts: {
         search: formatter.format(mediaCosts.search || 0),
         socialMedia: formatter.format(mediaCosts.socialMedia || 0),
@@ -282,7 +297,8 @@ export function computeBillingAndDeliveryMonths(
         influencers: formatter.format(mediaCosts.influencers || 0),
         production: formatter.format(mediaCosts.production || 0),
       },
-    })
+      };
+    },
   );
 
   return { billingMonths, deliveryMonths };
