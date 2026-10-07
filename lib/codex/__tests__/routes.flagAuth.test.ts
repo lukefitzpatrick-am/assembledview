@@ -119,7 +119,7 @@ if (supportsMockModule()) {
       }),
     },
   })
-  const { HELP_ON_DONE_MESSAGE } = await import("../repo.ts")
+  const { HELP_ON_DONE_MESSAGE } = await import("../repo.js")
   await mock.module!("@/lib/codex/repo", {
     namedExports: {
       HELP_ON_DONE_MESSAGE,
