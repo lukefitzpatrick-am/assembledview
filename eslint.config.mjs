@@ -6,10 +6,7 @@ const compat = new FlatCompat({
   baseDirectory: dirname(fileURLToPath(import.meta.url)),
 })
 
-/**
- * ESLint 9 reads this file. `.eslintrc.json` is the same rule set for
- * `ESLINT_USE_FLAT_CONFIG=false` / older Next lint. Keep them in lockstep.
- */
+/** ESLint 9 reads this file. */
 export default [
   ...compat.extends("next/core-web-vitals"),
   {

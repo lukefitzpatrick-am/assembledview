@@ -61,12 +61,3 @@ export function publisherColourOrFallback(
   const parsed = parsePublisherColour(raw)
   return parsed.ok ? parsed.hex : parsed.fallback
 }
-
-/** Header stripe gradient from a validated hex; undefined when fallback (caller uses token stripe). */
-export function publisherColourStripeBackground(
-  raw: string | null | undefined,
-): string | undefined {
-  const hex = publisherColourOrFallback(raw)
-  if (!hex) return undefined
-  return `linear-gradient(to right, ${hex}99, ${hex}, ${hex}99)`
-}

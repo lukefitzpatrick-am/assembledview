@@ -3,10 +3,6 @@ import { GeistMono } from "geist/font";
 import { Instrument_Serif, Plus_Jakarta_Sans } from "next/font/google";
 
 import ServerAuthScope from "@/components/ServerAuthScope";
-import { ClientBrandProvider } from "@/components/client-dashboard/ClientBrandProvider";
-import { buildAssembledMediaAppDefaultTheme } from "@/lib/client-dashboard/theme";
-
-const assembledMediaDefaultTheme = buildAssembledMediaAppDefaultTheme();
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -39,9 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${jakarta.variable} ${instrumentSerif.variable} ${GeistMono.variable}`}
     >
       <body className={`${jakarta.className} antialiased`}>
-        <ClientBrandProvider theme={assembledMediaDefaultTheme}>
-          <ServerAuthScope>{children}</ServerAuthScope>
-        </ClientBrandProvider>
+        <ServerAuthScope>{children}</ServerAuthScope>
       </body>
     </html>
   );
