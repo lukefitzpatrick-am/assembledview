@@ -161,3 +161,67 @@ test("a burst past the campaign end keeps its month and the remainder", async ()
   assert.equal(sawFebruary, true)
   assert.equal(sumTotalRowMonths(sheet), 2000)
 })
+
+test("a client-pays row shows net media, and the AA row is zero", async () => {
+  const line = searchLine({
+    grossMedia: "0",
+    deliverablesAmount: "12500",
+    deliveryMediaAmount: "10000",
+    clientPaysForMedia: true,
+    budgetIncludesFees: true,
+  })
+  const standard = await generateMediaPlan(HEADER, emptyMedia({ search: [line] }), {
+    gross_media: [],
+    totals: {
+      gross_media: 10000,
+      service_fee: 2500,
+      production: 0,
+      adserving: 0,
+      totals_ex_gst: 12500,
+      total_inc_gst: 13750,
+    },
+  })
+  const standardSheet = standard.getWorksheet("Media Plan")
+  assert.ok(standardSheet)
+  let clientPaysGross: unknown = null
+  standardSheet.eachRow((row) => {
+    if (String(row.getCell(2).value ?? "") === "National") {
+      clientPaysGross = row.getCell(14).value
+    }
+  })
+  assert.equal(clientPaysGross, 10000)
+
+  const aa = await generateMediaPlan(
+    HEADER,
+    emptyMedia({ search: [line, searchLine({ grossMedia: "5000", deliverablesAmount: "5000" })] }),
+    {
+      gross_media: [{ media_type: "Search", gross_amount: 5000 }],
+      totals: {
+        gross_media: 5000,
+        service_fee: 0,
+        production: 0,
+        adserving: 0,
+        totals_ex_gst: 5000,
+        total_inc_gst: 5500,
+      },
+    },
+    { mbaTotalsLayout: "aa" },
+  )
+  const aaSheet = aa.getWorksheet("Media Plan")
+  assert.ok(aaSheet)
+  let totalN = 0
+  aaSheet.eachRow((row) => {
+    if (String(row.getCell(2).value ?? "") === "Total") {
+      totalN = Number(row.getCell(14).value)
+    }
+  })
+  assert.equal(totalN, 5000)
+  assert.equal(sumTotalRowMonths(aaSheet), 5000)
+  let aaNationalGross: number[] = []
+  aaSheet.eachRow((row) => {
+    if (String(row.getCell(2).value ?? "") !== "National") return
+    const gross = row.getCell(14).value
+    if (typeof gross === "number") aaNationalGross.push(gross)
+  })
+  assert.deepEqual(aaNationalGross, [5000])
+})

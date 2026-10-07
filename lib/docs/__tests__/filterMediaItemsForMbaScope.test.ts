@@ -157,3 +157,25 @@ test("partial scope omits the excluded line from the OOH section; totals match t
     true,
   )
 })
+
+test("an influencers line with a line id survives a partial scope filter", () => {
+  const rows = explodeExcelLineItems(
+    "influencers",
+    {
+      line_item_id: "inf-1",
+      platform: "Instagram",
+      clientPaysForMedia: false,
+      budgetIncludesFees: false,
+      buyType: "cpm",
+      bursts: [{ ...BURST, budget: 4000 }],
+    },
+    0,
+    0,
+  )
+  assert.equal(rows[0]?.line_item_id, "inf-1")
+  const scoped = filterMediaItemsForMbaScope(
+    emptyMedia({ influencers: rows }),
+    { lineItemIds: ["inf-1"] },
+  )
+  assert.equal(scoped.influencers.length, 1)
+})

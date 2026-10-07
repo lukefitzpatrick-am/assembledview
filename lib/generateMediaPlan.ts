@@ -144,6 +144,8 @@ export interface LineItem {
   digitalDuration?: string;// e.g., for video/audio ad length if not 'size'
   clientPaysForMedia?: boolean;
   budgetIncludesFees?: boolean;
+  /** Net media the client pays the publisher. Set by the server explode. */
+  deliveryMediaAmount?: string;
   noAdserving?: boolean;
   fixedCostMedia?: boolean;
   creativeTargeting?: string; // often synonymous with 'targeting'
@@ -153,6 +155,17 @@ export interface LineItem {
 function lineItemIsClientPaysForMedia(item: LineItem): boolean {
   const o = item as LineItem & { client_pays_for_media?: boolean }
   return o.clientPaysForMedia === true || o.client_pays_for_media === true
+}
+
+/** Net media on a client-pays row. Never the fee-inclusive entered budget. AA shows $0 so section totals match the AA block. */
+function clientPaysDisplayMedia(item: LineItem, aaLayout: boolean): number | null {
+  if (!lineItemIsClientPaysForMedia(item)) return null
+  if (aaLayout) return 0
+  if (item.deliveryMediaAmount != null && String(item.deliveryMediaAmount).trim() !== "") {
+    return parseFloat(String(item.deliveryMediaAmount).replace(/[^0-9.-]+/g, "")) || 0
+  }
+  if (item.budgetIncludesFees) return 0
+  return parseFloat(String(item.deliverablesAmount).replace(/[^0-9.-]+/g, "")) || 0
 }
 
 // Enhanced GroupedItem
@@ -382,6 +395,10 @@ export async function generateMediaPlan(
 
   function groupLineItems(itemsToGroup: LineItem[], mediaTypeTitle: string): GroupedItem[] {
     const groupedResult: GroupedItem[] = [];
+    // AA totals exclude client-pays media. Drop those rows so they cannot merge into an agency line.
+    if (mbaTotalsLayout === "aa") {
+      itemsToGroup = itemsToGroup.filter((item) => !lineItemIsClientPaysForMedia(item))
+    }
     if (!itemsToGroup || itemsToGroup.length === 0) {
       return groupedResult;
     }
@@ -405,10 +422,9 @@ export async function generateMediaPlan(
       const itemEndDate = item.endDate;   // YYYY-MM-DD
       const deliverablesAmtNum = parseFloat(String(item.deliverablesAmount).replace(/[^0-9.-]+/g,"")) || 0;
       let grossMediaNum = parseFloat(String(item.grossMedia).replace(/[^0-9.-]+/g,"")) || 0;
-      // For clientPaysForMedia items, grossMedia is set to 0 by containers.
-      // The Excel media plan should always show the full media value, so fall back to deliverablesAmount.
-      if (grossMediaNum === 0 && lineItemIsClientPaysForMedia(item)) {
-        grossMediaNum = parseFloat(String(item.deliverablesAmount).replace(/[^0-9.-]+/g,"")) || 0;
+      const clientPaysMedia = clientPaysDisplayMedia(item, mbaTotalsLayout === "aa");
+      if (clientPaysMedia != null && grossMediaNum === 0) {
+        grossMediaNum = clientPaysMedia;
       }
       const calculatedDeliverablesNum = parseFloat(String(item.deliverables).replace(/[^0-9.-]+/g,"")) || 0;
 
@@ -416,7 +432,11 @@ export async function generateMediaPlan(
         group = {
           market: item.market, platform: item.platform, network: item.network, station: item.station,
           bidStrategy: item.bidStrategy, targeting: item.targeting, creative: item.creative,
-          buyingDemo: item.buyingDemo, buyType: item.buyType, daypart: item.daypart,
+          buyingDemo: item.buyingDemo,
+          buyType: lineItemIsClientPaysForMedia(item)
+            ? `${item.buyType ?? ""} · Client pays`.replace(/^\s*·\s*/, "")
+            : item.buyType,
+          daypart: item.daypart,
           placement: item.placement, size: item.size, format: item.format, duration: item.duration,
           oohFormat: item.oohFormat, oohType: item.oohType,
           panels: item.panels, cinemaTarget: item.cinemaTarget, screens: item.screens, title: item.title,
@@ -734,10 +754,8 @@ export async function generateMediaPlan(
     const items = mediaItems[key] || [];
     for (const item of items) {
       let amt = parseFloat(String(item.grossMedia).replace(/[^0-9.-]+/g, '')) || 0;
-      // For clientPaysForMedia items, grossMedia is 0 but deliverablesAmount has the real budget
-      if (amt === 0 && lineItemIsClientPaysForMedia(item)) {
-        amt = parseFloat(String(item.deliverablesAmount).replace(/[^0-9.-]+/g, '')) || 0;
-      }
+      const clientPaysMedia = clientPaysDisplayMedia(item, mbaTotalsLayout === "aa");
+      if (clientPaysMedia != null && amt === 0) amt = clientPaysMedia;
       if (amt > 0 && item.startDate && item.endDate) {
         distributeBurstToMonths(item.startDate, item.endDate, amt, mediaKey);
       }
