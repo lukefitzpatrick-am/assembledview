@@ -96,6 +96,7 @@ import {
 } from "@/lib/mediaplan/partialMba"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { generateBillingLineItems } from "@/lib/billing/generateBillingLineItems"
+import { billingSnapshotFeeTotals } from "@/lib/billing/billingSnapshotFeeTotals"
 import { mergeInvestmentMonths } from "@/lib/billing/mergeInvestmentMonths"
 import { MbaBillingAutoCalcSummary } from "@/components/billing/MbaBillingAutoCalcSummary"
 import {
@@ -180,7 +181,6 @@ import {
 import { PrebillScopeDialog } from "@/components/billing/PrebillScopeDialog"
 import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type { BurstDateLike } from "@/lib/finance/billingOverrideDateBasis"
-import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import { extractPlanGlobals } from '@/lib/naming/fromPlan'
 import { fetchNamingWorkbook } from '@/lib/naming/fetchNamingWorkbook'
@@ -4192,42 +4192,6 @@ function CreateMediaPlan() {
     const deepCopiedMonths = deepCloneBillingMonths(months)
     const mediaTypeMap = buildCreateManualBillingMediaTypeMap()
     const allLineItems: Record<string, BillingLineItem[]> = {}
-    const parseMoney = (v: any) => parseFloat(String(v ?? "").replace(/[^0-9.-]/g, "")) || 0
-    const calculateExpectedLineItemFeeTotal = (sourceLineItem: any): number => {
-      const bursts = resolveLineItemBursts(sourceLineItem)
-      return bursts.reduce((sum: number, burst: any) => {
-        const budget = parseMoney(burst?.budget) || parseMoney(burst?.buyAmount)
-        const feePctRaw =
-          burst?.feePercentage ??
-          burst?.fee_percentage ??
-          sourceLineItem?.feePercentage ??
-          sourceLineItem?.fee_percentage
-        const feePct = Number.isFinite(Number(feePctRaw))
-          ? Math.max(0, Math.min(100, Number(feePctRaw)))
-          : 0
-        const budgetIncludesFees = Boolean(
-          burst?.budgetIncludesFees ??
-            burst?.budget_includes_fees ??
-            sourceLineItem?.budgetIncludesFees ??
-            sourceLineItem?.budget_includes_fees
-        )
-        const clientPaysForMedia = Boolean(
-          burst?.clientPaysForMedia ??
-            burst?.client_pays_for_media ??
-            sourceLineItem?.clientPaysForMedia ??
-            sourceLineItem?.client_pays_for_media
-        )
-        if (budget <= 0 || feePct <= 0) return sum
-        if (budgetIncludesFees) return sum + (budget * feePct) / 100
-        if (feePct >= 100) return sum
-        return (
-          sum +
-          (clientPaysForMedia
-            ? (budget / (100 - feePct)) * feePct
-            : (budget * feePct) / (100 - feePct))
-        )
-      }, 0)
-    }
 
     manualBillingAutoLineItemSnapshotRef.current = {}
     Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
@@ -4244,11 +4208,9 @@ function CreateMediaPlan() {
         })
         if (billingLineItems.length > 0) {
           allLineItems[key] = billingLineItems
+          const feeTotals = billingSnapshotFeeTotals(lineItems, key, deepCopiedMonths)
           billingLineItems.forEach((billingLineItem, index) => {
-            const sourceLineItem = lineItems[index]
-            const feeTotal = sourceLineItem
-              ? calculateExpectedLineItemFeeTotal(sourceLineItem)
-              : 0
+            const feeTotal = feeTotals[index] ?? 0
             const snapshotKey = `${key}::${billingLineItem.id}`
             manualBillingAutoLineItemSnapshotRef.current[snapshotKey] = {
               mediaKey: key,
