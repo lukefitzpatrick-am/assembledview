@@ -518,12 +518,31 @@ export async function generateMediaPlan(
   const parsedCampaignStartDate = parseDateStringDDMMYYYY(campaignStart);
   const parsedCampaignEndDate = parseDateStringDDMMYYYY(campaignEnd);
 
-  const firstSunday = new Date(parsedCampaignStartDate); // Will be UTC
-  firstSunday.setUTCDate(parsedCampaignStartDate.getUTCDate() - parsedCampaignStartDate.getUTCDay());
+  // Columns span every burst, including ones that start before or end after the campaign.
+  let timelineStart = parsedCampaignStartDate;
+  let timelineEnd = parsedCampaignEndDate;
+  for (const list of Object.values(mediaItems)) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const startRaw = String(item?.startDate ?? "");
+      const endRaw = String(item?.endDate ?? "");
+      if (/^\d{4}-\d{2}-\d{2}$/.test(startRaw)) {
+        const start = parseDateStringYYYYMMDD(startRaw);
+        if (!isNaN(start.getTime()) && start < timelineStart) timelineStart = start;
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(endRaw)) {
+        const end = parseDateStringYYYYMMDD(endRaw);
+        if (!isNaN(end.getTime()) && end > timelineEnd) timelineEnd = end;
+      }
+    }
+  }
 
-  const lastSunday = new Date(parsedCampaignEndDate); // Will be UTC
-  if (parsedCampaignEndDate.getUTCDay() !== 0) {
-    lastSunday.setUTCDate(parsedCampaignEndDate.getUTCDate() + (7 - parsedCampaignEndDate.getUTCDay()));
+  const firstSunday = new Date(timelineStart); // Will be UTC
+  firstSunday.setUTCDate(timelineStart.getUTCDate() - timelineStart.getUTCDay());
+
+  const lastSunday = new Date(timelineEnd); // Will be UTC
+  if (timelineEnd.getUTCDay() !== 0) {
+    lastSunday.setUTCDate(timelineEnd.getUTCDate() + (7 - timelineEnd.getUTCDay()));
   }
 
   const msPerDay = 1000 * 60 * 60 * 24;
@@ -631,7 +650,15 @@ export async function generateMediaPlan(
   }
 
   // Build month-to-column mapping for date columns (partial months merge)
-  type MonthRange = { monthYear: string; startCol: number; endCol: number };
+  type MonthRange = { monthYear: string; startCol: number; endCol: number; outsideCampaign: boolean };
+  const campaignStartMonth =
+    parsedCampaignStartDate.getUTCFullYear() * 12 + parsedCampaignStartDate.getUTCMonth();
+  const campaignEndMonth =
+    parsedCampaignEndDate.getUTCFullYear() * 12 + parsedCampaignEndDate.getUTCMonth();
+  const monthIsOutside = (d: Date) => {
+    const idx = d.getUTCFullYear() * 12 + d.getUTCMonth();
+    return idx < campaignStartMonth || idx > campaignEndMonth;
+  };
   const monthRanges: MonthRange[] = [];
   let currentMonth = '';
   let rangeStart = firstDateCol;
@@ -642,13 +669,23 @@ export async function generateMediaPlan(
   ) {
     const monthYear = d.toLocaleString('en-AU', { month: 'long', year: 'numeric', timeZone: 'UTC' });
     if (monthYear !== currentMonth && currentMonth) {
-      monthRanges.push({ monthYear: currentMonth, startCol: rangeStart, endCol: col - 1 });
+      monthRanges.push({
+        monthYear: currentMonth,
+        startCol: rangeStart,
+        endCol: col - 1,
+        outsideCampaign: monthIsOutside(new Date(d.getTime() - 86400000)),
+      });
       rangeStart = col;
     }
     currentMonth = monthYear;
   }
   if (currentMonth) {
-    monthRanges.push({ monthYear: currentMonth, startCol: rangeStart, endCol: lastDateCol });
+    monthRanges.push({
+      monthYear: currentMonth,
+      startCol: rangeStart,
+      endCol: lastDateCol,
+      outsideCampaign: monthIsOutside(timelineEnd),
+    });
   }
 
   // Calculate monthly media by channel from line items (same logic as billing/delivery schedule)
@@ -803,7 +840,7 @@ export async function generateMediaPlan(
         value: h, bold: true, align: 'left', fill: headerFill, fontColor: ARGB_INK, fontSize: 14
       });
     });
-    for (const { monthYear, startCol, endCol } of monthRanges) {
+    for (const { monthYear, startCol, endCol, outsideCampaign } of monthRanges) {
       if (startCol < endCol) {
         try {
           sheet.mergeCells(r, startCol, r, endCol);
@@ -813,7 +850,7 @@ export async function generateMediaPlan(
       }
       const cell = sheet.getCell(r, startCol);
       style(cell, {
-        value: monthYear,
+        value: outsideCampaign ? `${monthYear}\nOutside campaign dates` : monthYear,
         fontSize: 14,
         align: 'center',
         verticalAlign: 'middle',
@@ -1997,17 +2034,17 @@ export async function generateMediaPlan(
     });
 
     for (const { monthYear, startCol, endCol } of monthRanges) {
-      // Issue 4: production has its own section + totals line; exclude it from the
-      // media total row so it is not counted twice. Mirrors column N which already
-      // uses media-only gross. monthlyByChannel['production'] is left intact for the
-      // Production section's own monthly columns.
+      // Billing months include production (computeSchedule month total). Column N is
+      // totals_ex_gst, which includes production, so the Total row months do too.
+      // The Production section keeps its own monthly columns.
       const grossForMonth = Object.keys(monthlyByChannel).reduce((sum, key) => {
         if (key === "production") return sum;
         return sum + (monthlyByChannel[key]?.[monthYear] ?? 0);
       }, 0);
+      const productionForMonth = monthlyByChannel["production"]?.[monthYear] ?? 0;
       const totalForMonth = mbaTotalsLayout === 'standard'
-        ? grossForMonth + (monthlyServiceFee[monthYear] ?? 0) + (monthlyAdServing[monthYear] ?? 0)
-        : grossForMonth;
+        ? grossForMonth + productionForMonth + (monthlyServiceFee[monthYear] ?? 0) + (monthlyAdServing[monthYear] ?? 0)
+        : grossForMonth + productionForMonth;
       if (startCol < endCol) {
         try {
           sheet.mergeCells(currentRow, startCol, currentRow, endCol);
