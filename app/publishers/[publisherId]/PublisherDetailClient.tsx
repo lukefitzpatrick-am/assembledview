@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { BarChart3, FileText } from "lucide-react"
+import { PublisherMark } from "@/components/brand/EntityMark"
 import { PAGE_HERO_PADDING, PageHeroShell, PageHeroTitleBlock } from "@/components/dashboard/PageHeroShell"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -16,15 +17,6 @@ import { normalizePublisherRecord } from "@/lib/publisher/normalizePublisher"
 import { publisherApiRecordPath, publisherHubPath } from "@/lib/publisher/publisherHubPath"
 import type { Publisher, PublisherDashboardData } from "@/lib/types/publisher"
 import { cn } from "@/lib/utils"
-
-const PUBLISHER_HERO_ACCENT = "var(--pacing-on-track)"
-
-function publisherInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (!parts.length) return "?"
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-}
 
 interface PublisherDetailClientProps {
   initialPublisher: Publisher
@@ -60,34 +52,22 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
     [publisher, router],
   )
 
-  const brandColour = PUBLISHER_HERO_ACCENT
-
   return (
     <div className="mx-auto w-full max-w-[1800px] space-y-6 px-4 py-6 pb-12 sm:px-6 lg:px-8 lg:py-8 xl:px-12 2xl:px-16">
-      <PageHeroShell brandColour={brandColour}>
+      <PageHeroShell>
         <div className={cn("relative z-10", PAGE_HERO_PADDING, "pr-14 sm:pr-16 md:pr-20")}>
           <Button variant="ghost" size="sm" asChild className="-ml-2 mb-4 h-auto p-0 text-xs text-muted-foreground hover:bg-transparent hover:text-foreground">
             <Link href="/publishers">← Back to publishers</Link>
           </Button>
           <div className="flex w-full flex-col gap-5 sm:flex-row sm:items-start sm:gap-5">
-            <div className="relative h-14 w-14 shrink-0">
-              <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-pill border border-border shadow-e1">
-                <span
-                  className="flex h-full w-full items-center justify-center bg-pacing-on-track text-base font-semibold text-primary-foreground"
-                  aria-label={`${publisher.publisher_name} initials`}
-                >
-                  {publisherInitials(publisher.publisher_name || "")}
-                </span>
-              </div>
-              <span
-                className="absolute bottom-px right-px h-[10px] w-[10px] rounded-pill bg-accent shadow-e0 ring-2 ring-card"
-                aria-hidden
-              />
-            </div>
+            <PublisherMark
+              name={publisher.publisher_name || "Publisher"}
+              colour={publisher.publisher_colour}
+              size="lg"
+            />
 
             <PageHeroTitleBlock
               title={publisher.publisher_name}
-              brandColour={brandColour}
               detail={
                 <p>
                   <span className="inline-flex items-center gap-1.5">
@@ -149,7 +129,6 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
 
       <PublisherDetailCharts
         analytics={analytics}
-        brandColour={brandColour}
         publisherId={publisher.id}
         publisherName={publisher.publisher_name}
       />

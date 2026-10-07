@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { PublisherMark } from "@/components/brand/EntityMark"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -228,15 +229,10 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
                   <FormLabel className="text-sm font-medium text-muted-foreground">Brand Colour</FormLabel>
                   <FormControl>
                     <div className="flex items-center gap-3">
-                      <div
-                        className={cn(
-                          "h-9 w-9 shrink-0 rounded-lg border",
-                          hasValidHex
-                            ? "border-border"
-                            : "border-dashed border-muted-foreground/40 bg-muted"
-                        )}
-                        style={hasValidHex ? { backgroundColor: cssHex } : undefined}
-                        aria-hidden
+                      <PublisherMark
+                        name={form.watch("publisher_name") || "Publisher"}
+                        colour={cssHex}
+                        size="md"
                       />
                       <input
                         id="publisher-brand-colour-picker"

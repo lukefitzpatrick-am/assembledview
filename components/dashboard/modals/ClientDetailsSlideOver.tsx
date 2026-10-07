@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { AlertCircle, Building2, Save } from "lucide-react"
+import { AlertCircle, Save } from "lucide-react"
 
+import { ClientMark } from "@/components/brand/EntityMark"
 import { EditClientForm } from "@/components/EditClientForm"
 import { SlideOver } from "@/components/ui/SlideOver"
 
@@ -10,6 +11,7 @@ export interface ClientDetailsSlideOverProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   clientRecord: Record<string, unknown> | null
+  /** @deprecated Paints only ClientMark. */
   brandColour?: string
 }
 
@@ -48,25 +50,11 @@ export function ClientDetailsSlideOver({
       description={`View and manage ${clientName} information`}
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        <div
-          className="h-1 w-full"
-          style={{
-            background: brandColour
-              ? `linear-gradient(to right, ${brandColour}99, ${brandColour}, ${brandColour}99)`
-              : undefined,
-          }}
-        />
-        {!brandColour && (
-          <div className="h-1 w-full bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
-        )}
-
         <div className="min-h-0 flex-1 overflow-y-auto">
           {formClient ? (
             <div className="space-y-6 p-6">
               <div className="flex items-center gap-3 border-b border-border pb-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                  <Building2 className="h-5 w-5 text-primary" />
-                </div>
+                <ClientMark name={clientName} colour={brandColour} size="lg" />
                 <div>
                   <h3 className="font-semibold text-foreground">Account Information</h3>
                   <p className="text-sm text-muted-foreground">Core client details and contact information</p>

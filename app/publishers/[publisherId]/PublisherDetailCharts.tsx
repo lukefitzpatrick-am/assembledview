@@ -23,12 +23,8 @@ import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
 import { TableWithExport } from "@/components/ui/table-with-export"
 import { ProgressBar } from "@/components/ui/ProgressBar"
 import { EmptyState } from "@/components/ui/states"
-import {
-  FALLBACK_PALETTE,
-  getDeterministicColor,
-  getMediaColor,
-  getMediaLabel,
-} from "@/lib/charts/registry"
+import { BRAND_SERIES } from "@/lib/design/mediaFamilies"
+import { getMediaLabel } from "@/lib/charts/registry"
 import { channelColorFor, fmt } from "@/lib/chart-theme"
 import { normalizeCampaignMediaTypeKey } from "@/lib/publisher/mediaTypeBadges"
 import { MEDIA_TYPE_SLUG_TO_DASHBOARD_LABEL } from "@/lib/publisher/scheduleLabels"
@@ -36,6 +32,7 @@ import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashb
 
 interface PublisherDetailChartsProps {
   analytics: PublisherDashboardData
+  /** @deprecated Unused for paint. Client slices use the brand series. */
   brandColour?: string
   publisherId: number
   publisherName: string
@@ -55,17 +52,10 @@ type CampaignCsvRow = {
 
 export function PublisherDetailCharts({
   analytics,
-  brandColour,
+  brandColour: _brandColour,
   publisherId,
   publisherName,
 }: PublisherDetailChartsProps) {
-  const accent = brandColour?.trim() ?? ""
-  const hasBrandColour = Boolean(accent)
-  const chartColourOverride = useMemo(() => {
-    if (!accent) return undefined
-    return [accent, ...FALLBACK_PALETTE]
-  }, [accent])
-
   const stackedData = useMemo(
     () =>
       analytics.monthlySpend.map((month) => {
@@ -118,12 +108,10 @@ export function PublisherDetailCharts({
       data: slices.map((slice, i) => ({
         label: slice.label,
         value: slice.value,
-        color: chartColourOverride?.length
-          ? chartColourOverride[i % chartColourOverride.length]!
-          : getDeterministicColor(slice.key),
+        color: BRAND_SERIES[i % BRAND_SERIES.length],
       })),
     }
-  }, [analytics.spendByClient, chartColourOverride])
+  }, [analytics.spendByClient])
 
   const pieDataByMediaType = useMemo(() => {
     const byType: Record<string, number> = {}
@@ -263,10 +251,7 @@ export function PublisherDetailCharts({
                         </TableCell>
                       </TableRow>
                     ))}
-                    <TableRow
-                      className="border-t-2 bg-muted/30 font-semibold"
-                      style={{ borderTopColor: hasBrandColour ? `${accent}33` : undefined }}
-                    >
+                    <TableRow className="border-t-2 border-border bg-muted/30 font-semibold">
                       <TableCell colSpan={5}>Totals</TableCell>
                       <TableCell>—</TableCell>
                       <TableCell>—</TableCell>

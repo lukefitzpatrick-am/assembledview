@@ -20,7 +20,7 @@
     "test:coverage": "node scripts/run-test-coverage.mjs",
     "test:billing-line-id-match": "tsx --test lib/billing/__tests__/billingLineIdMatch.mb4.test.ts lib/billing/__tests__/canonicalBillingLineIdMembership.mb11.test.ts",
     "test:client-server-only": "node scripts/check-client-server-only.mjs",
-    "test:brand": "tsx --test lib/brand/__tests__/parity.test.ts",
+    "test:brand": "tsx --test lib/brand/__tests__/parity.test.ts lib/brand/__tests__/readableTextOn.test.ts",
     "test:status": "tsx --test lib/design/__tests__/status.test.ts",
     "test:media-families": "tsx --test lib/design/__tests__/mediaFamilies.test.ts",
     "test:client-dashboard": "tsx --test lib/client-dashboard/__tests__/theme.test.ts",

@@ -35,7 +35,7 @@ export interface MediaPlanEditorHeroProps {
    * wrapping row so the primary CTA is not orphaned under a mid-header cluster.
    */
   actionsFloor?: keyof typeof ACTIONS_FLOOR
-  /** Ignored since 05b (D4): client colour stays on the client mark. */
+  /** @deprecated Client colour paints only EntityMark. This hero has no entity mark. */
   brandColour?: string
   className?: string
   /** Optional leading icon; retained for API compatibility (B2 layout is title-first). */

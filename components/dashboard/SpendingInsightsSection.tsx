@@ -56,6 +56,7 @@ interface SpendingInsightsSectionProps {
   monthlySpendByCampaign: MonthlySpendByCampaignData[]
   campaignData: SpendByCampaignData[]
   mediaTypeData: SpendByMediaTypeData[]
+  /** @deprecated Unused for paint. */
   brandColour?: string
   rangeCaption?: string
   isExactAuFy?: boolean

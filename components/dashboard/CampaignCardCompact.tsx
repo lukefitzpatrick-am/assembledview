@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { motion, useReducedMotion } from "framer-motion"
 import { Copy, MoreHorizontal } from "lucide-react"
-import type { CSSProperties } from "react"
+
+import { ClientMark } from "@/components/brand/EntityMark"
 
 import {
   DropdownMenu,
@@ -48,11 +49,10 @@ export interface CampaignCardCompactProps {
   viewMenuLabel?: string
   /** Full `aria-label` for the card-sized dashboard link (defaults to “Open campaign {name}”). */
   viewLinkAriaLabel?: string
+  /** Shown beside ClientMark. The card otherwise has only `clientSlug`. */
+  clientName?: string
+  /** @deprecated Unused for paint. Passed through to ClientMark. */
   brandColour?: string
-}
-
-type BrandStyle = CSSProperties & {
-  "--brand-color"?: string
 }
 
 type StatusTone = {
@@ -126,6 +126,7 @@ export function CampaignCardCompact({
   href: viewHref,
   canEdit = false,
   viewLinkAriaLabel,
+  clientName,
   brandColour,
   versionNumber,
   hasPublishedVersion,
@@ -154,11 +155,7 @@ export function CampaignCardCompact({
   }
 
   return (
-    <div
-      className="group relative rounded-xl"
-      data-campaign-id={id}
-      style={brandColour ? ({ "--brand-color": brandColour } as BrandStyle) : undefined}
-    >
+    <div className="group relative rounded-xl" data-campaign-id={id}>
       <Link
         href={viewHref}
         aria-label={viewLinkAriaLabel ?? `Open campaign ${name}`}
@@ -181,6 +178,12 @@ export function CampaignCardCompact({
         {/* Identity: status pill + copy-MBA stay in the title row. Open/Download sit in the footer. */}
         <div className="pointer-events-auto relative z-20 flex flex-wrap items-start gap-x-3 gap-y-2">
           <div className="min-w-[11rem] flex-1 basis-[11rem]">
+            {clientName ? (
+              <p className="mb-1.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                <ClientMark name={clientName} colour={brandColour} size="sm" />
+                <span className="truncate">{clientName}</span>
+              </p>
+            ) : null}
             <h3 className="line-clamp-2 text-balance break-words text-base font-semibold leading-snug tracking-tight text-foreground">
               {name}
             </h3>

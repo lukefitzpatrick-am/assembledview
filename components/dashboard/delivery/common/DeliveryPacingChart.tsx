@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 
 import { BaseChartCard, PacingBandChart } from "@/components/charts/system"
-import { channelColorFor, STATUS } from "@/lib/chart-theme"
+import { BRAND } from "@/lib/brand"
 import type { TargetCurvePoint } from "@/lib/kpi/deliveryTargetCurve"
 
 import { reshapeCumulativeToPacingBand } from "./deliveryChartReshape"
@@ -13,6 +13,7 @@ export interface DeliveryPacingChartProps {
   cumulativeActual: Array<{ date: string; actual: number }>
   asAtDate: string | null
   deliverableLabel: string
+  /** @deprecated Unused for paint. Actual is forest; expected is context. */
   brandColour?: string
 }
 
@@ -21,7 +22,7 @@ export function DeliveryPacingChart({
   cumulativeActual,
   asAtDate,
   deliverableLabel,
-  brandColour,
+  brandColour: _brandColour,
 }: DeliveryPacingChartProps) {
   const pacing = useMemo(
     () => reshapeCumulativeToPacingBand(targetCurve, cumulativeActual, asAtDate),
@@ -30,8 +31,8 @@ export function DeliveryPacingChart({
 
   if (targetCurve.length < 2) return null
 
-  const targetColor = brandColour ?? STATUS.ahead
-  const actualColor = channelColorFor(deliverableLabel, 1)
+  const targetColor = BRAND.colour.context
+  const actualColor = BRAND.colour.forest
 
   const exportRows = pacing.weekLabels.map((week, i) => ({
     week: week || String(i + 1),

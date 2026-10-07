@@ -1,12 +1,9 @@
 "use client"
 
-import { BarChart3, Save } from "lucide-react"
+import { Save } from "lucide-react"
+import { PublisherMark } from "@/components/brand/EntityMark"
 import { PublisherKpiForm } from "@/components/PublisherKpiForm"
 import { SlideOver } from "@/components/ui/SlideOver"
-import {
-  publisherColourOrFallback,
-  publisherColourStripeBackground,
-} from "@/lib/publisher/publisherColour"
 import type { Publisher } from "@/lib/types/publisher"
 
 interface PublisherKpiSlideOverProps {
@@ -22,9 +19,6 @@ export function PublisherKpiSlideOver({
   publisher,
   onSuccess,
 }: PublisherKpiSlideOverProps) {
-  const accentHex = publisherColourOrFallback(publisher.publisher_colour)
-  const stripe = publisherColourStripeBackground(publisher.publisher_colour)
-
   const handleSuccess = async () => {
     await onSuccess?.()
   }
@@ -38,25 +32,14 @@ export function PublisherKpiSlideOver({
       contentClassName="w-full sm:max-w-3xl md:max-w-4xl lg:max-w-5xl"
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="h-1 w-full" style={{ background: stripe }} />
-        {!accentHex && (
-          <div className="h-1 w-full bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
-        )}
-
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="w-full min-w-0 space-y-6 p-6">
             <div className="flex items-center gap-3 border-b border-border pb-4">
-              <div
-                className="flex h-10 w-10 items-center justify-center rounded-full"
-                style={{
-                  backgroundColor: accentHex ? `${accentHex}15` : undefined,
-                }}
-              >
-                <BarChart3
-                  className="h-5 w-5"
-                  style={{ color: accentHex || undefined }}
-                />
-              </div>
+              <PublisherMark
+                name={publisher.publisher_name || "Publisher"}
+                colour={publisher.publisher_colour}
+                size="lg"
+              />
               <div>
                 <h3 className="font-semibold text-foreground">KPIs & Targets</h3>
                 <p className="text-sm text-muted-foreground">

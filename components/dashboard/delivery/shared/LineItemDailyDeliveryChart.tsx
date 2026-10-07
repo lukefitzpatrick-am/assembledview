@@ -8,6 +8,7 @@ export interface LineItemDailyDeliveryChartProps {
   daily: Array<Record<string, string | number>>
   series: Array<{ key: string; label: string; yAxis?: "left" | "right" }>
   asAtDate: string | null
+  /** @deprecated Unused for paint. */
   brandColour?: string
   height?: number
   /** Chart title displayed at the top of the chart card. */

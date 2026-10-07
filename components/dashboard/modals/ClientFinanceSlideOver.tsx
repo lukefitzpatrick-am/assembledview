@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { AlertTriangle, ArrowUpRight, FileDown, FileSpreadsheet, ReceiptText } from "lucide-react"
 
+import { ClientMark } from "@/components/brand/EntityMark"
 import { ClientFinanceExcelExportDialog } from "@/components/client-hub/ClientFinanceExcelExportDialog"
 import { UpcomingBillingSection } from "@/components/client-hub/UpcomingBillingSection"
 import { Button } from "@/components/ui/button"
@@ -63,6 +64,7 @@ export interface ClientFinanceSlideOverProps {
   variant?: "default" | "clientHub"
   clientName?: string
   clientRecord?: Record<string, unknown> | null
+  /** @deprecated Paints only ClientMark. */
   brandColour?: string
 }
 
@@ -120,19 +122,11 @@ export function ClientFinanceSlideOver({
     <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full p-0 sm:max-w-2xl">
-        <div
-          className="h-1 w-full shrink-0"
-          style={{
-            background: brandColour
-              ? `linear-gradient(to right, ${brandColour}99, ${brandColour}, ${brandColour}99)`
-              : undefined,
-          }}
-        />
-        {!brandColour && (
-          <div className="h-1 w-full shrink-0 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
-        )}
         <SheetHeader className="border-b border-border/70 px-6 py-5 text-left">
-          <SheetTitle>Finance</SheetTitle>
+          <div className="flex items-center gap-3">
+            <ClientMark name={clientName || "Client"} colour={brandColour} size="md" />
+            <SheetTitle>Finance</SheetTitle>
+          </div>
           <SheetDescription>
             {isClientHub
               ? "Budget status, upcoming billing, and finance exports for this client."

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, type CSSProperties } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -19,9 +19,9 @@ import { CSVExportButton } from "@/components/ui/csv-export-button"
 import { Panel, PanelActions, PanelContent, PanelDescription, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Publisher } from "@/lib/types/publisher"
+import { PublisherMark } from "@/components/brand/EntityMark"
 import { publisherHubPath } from "@/lib/publisher/publisherHubPath"
 import { MEDIA_TYPE_SLUG_TO_DASHBOARD_LABEL } from "@/lib/publisher/scheduleLabels"
-import { publisherColourOrFallback } from "@/lib/publisher/publisherColour"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
 import { matchTextAny, normalizeSearchText } from "@/lib/search/matchText"
 
@@ -51,28 +51,8 @@ const MEDIA_TYPES = [
 
 type PublisherSortKey = "name" | "id" | "type" | "media"
 
-function topStripeStyle(rawColour: string | null | undefined): CSSProperties {
-  const hex = publisherColourOrFallback(rawColour)
-  if (hex) {
-    return {
-      background: `linear-gradient(to right, ${hex}, ${hex}B3, ${hex}66)`,
-    }
-  }
-  return {
-    background:
-      "linear-gradient(to right, hsl(var(--primary)), hsl(var(--primary) / 0.7), hsl(var(--primary) / 0.4))",
-  }
-}
-
 function publisherTypeLabel(type: Publisher["publishertype"]): string {
   return type === "internal_biddable" ? "Internal biddable" : "Direct"
-}
-
-function publisherInitials(name: string): string {
-  const t = name.trim()
-  if (t.length === 0) return "??"
-  if (t.length === 1) return t.toUpperCase()
-  return (t[0] + t[1]).toUpperCase()
 }
 
 function publisherMediaTypeLabels(publisher: Publisher): string[] {
@@ -100,47 +80,19 @@ function listMediaTypeBadges(publisher: Publisher) {
 }
 
 function PublisherGridCard({ publisher }: { publisher: Publisher }) {
-  const [hover, setHover] = useState(false)
-  const hexAccent = publisherColourOrFallback(publisher.publisher_colour)
-
   const allLabels = publisherMediaTypeLabels(publisher)
   const visibleLabels = allLabels.slice(0, 6)
   const moreCount = allLabels.length - visibleLabels.length
 
-  const borderStyle: CSSProperties | undefined =
-    hover && hexAccent ? { borderColor: `${hexAccent}4D` } : undefined
-
   return (
-    <div
-      className={cn(
-        "flex h-full flex-col overflow-hidden rounded-card border border-border bg-card transition-colors duration-200",
-        !hexAccent && "hover:border-primary/30"
-      )}
-      style={borderStyle}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      <div className="h-[3px] shrink-0" style={topStripeStyle(publisher.publisher_colour)} />
-
+    <div className="flex h-full flex-col overflow-hidden rounded-card border border-border bg-card">
       <div className="flex min-h-0 flex-1 flex-col p-4">
         <div className="flex min-w-0 gap-3">
-          <div
-            className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-              !hexAccent && "bg-primary/10 text-primary"
-            )}
-            style={
-              hexAccent
-                ? {
-                    backgroundColor: `${hexAccent}15`,
-                    color: hexAccent,
-                  }
-                : undefined
-            }
-            aria-hidden
-          >
-            {publisherInitials(publisher.publisher_name || "")}
-          </div>
+          <PublisherMark
+            name={publisher.publisher_name || "Publisher"}
+            colour={publisher.publisher_colour}
+            size="lg"
+          />
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-semibold leading-snug">{publisher.publisher_name}</p>
             <p className="truncate text-xs text-muted-foreground">{publisher.publisherid}</p>
@@ -567,7 +519,6 @@ export function PublishersPageClient() {
                 ) : (
                   sortedPublishers.map((publisher) => {
                     const hubHref = publisherHubPath(publisher)
-                    const accentHex = publisherColourOrFallback(publisher.publisher_colour)
                     return (
                       <TableRow
                         key={publisher.id}
@@ -576,23 +527,15 @@ export function PublishersPageClient() {
                       >
                         <TableCell className="w-[40px] p-2 align-middle">
                           <div className="flex justify-center">
-                            <div
-                              className={cn(
-                                "h-2.5 w-2.5 shrink-0 rounded-full",
-                                !accentHex && "bg-muted-foreground/20"
-                              )}
-                              style={accentHex ? { backgroundColor: accentHex } : undefined}
-                              aria-hidden
+                            <PublisherMark
+                              name={publisher.publisher_name || "Publisher"}
+                              colour={publisher.publisher_colour}
+                              size="sm"
                             />
                           </div>
                         </TableCell>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
-                            <div
-                              className="w-1 shrink-0 self-stretch rounded-full"
-                              style={{ backgroundColor: accentHex || "transparent" }}
-                              aria-hidden
-                            />
                             <div className="min-w-0">
                               <div className="truncate">{publisher.publisher_name}</div>
                               <div className="mt-0.5 truncate text-xs text-muted-foreground sm:hidden">

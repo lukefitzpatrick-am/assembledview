@@ -2,7 +2,6 @@
 
 import { CircleDollarSign } from "lucide-react"
 
-import { getMediaColor } from "@/lib/charts/registry"
 import { computeBudgetSpendTileValues } from "@/lib/dashboard/budgetSpendTiles"
 import {
   campaignPacingVerdict,
@@ -39,6 +38,7 @@ export interface CampaignSummarySectionProps {
     /** Melbourne "as of" date (YYYY-MM-DD) — Snowflake facts refresh ~06:30 Melbourne daily. */
     asOf?: string
   }
+  /** @deprecated Elapsed bar is forest on the context track. Unused for paint. */
   brandColour?: string
   layout?: "side-by-side" | "stacked"
   hideStatus?: boolean
@@ -50,13 +50,6 @@ function clampPct(value: number): number {
   return Math.max(0, Math.min(100, value))
 }
 
-/** Elapsed % fallback when `brandColour` is not set: blue &lt;50%, green 50–90%, amber 90–100%. */
-function timelineElapsedFallbackColor(elapsedPct: number): string {
-  if (elapsedPct < 50) return getMediaColor("search")
-  if (elapsedPct < 90) return getMediaColor("ooh")
-  return getMediaColor("radio")
-}
-
 function formatAxisDate(iso: string): string {
   return formatDateShort(iso)
 }
@@ -65,12 +58,11 @@ export default function CampaignSummaryRow({
   time,
   spend,
   delivered,
-  brandColour,
+  brandColour: _brandColour,
   layout = "side-by-side",
   embedded = false,
 }: CampaignSummarySectionProps) {
   const timePct = clampPct(time.timeElapsedPct)
-  const timeColor = brandColour?.trim() ? brandColour : timelineElapsedFallbackColor(timePct)
 
   // Campaign has started once any day has elapsed — before that, "no delivery yet" is expected
   // and unremarkable, so we show the neutral "—" rather than the "No delivery reported yet" nudge.
@@ -205,16 +197,13 @@ export default function CampaignSummaryRow({
             )}
 
             <div className="relative mt-3 h-6 w-full overflow-visible">
-              <div className="absolute inset-0 rounded-full bg-muted/80" aria-hidden />
+              <div className="absolute inset-0 rounded-full bg-am-context" aria-hidden />
               <div
                 className={cn(
-                  "absolute left-0 top-0 h-full transition-[width] duration-500 ease-out",
+                  "absolute left-0 top-0 h-full bg-am-forest transition-[width] duration-500 ease-out dark:bg-am-forest-light",
                   timePct >= 99.5 ? "rounded-full" : "rounded-l-full",
                 )}
-                style={{
-                  width: `${timePct}%`,
-                  backgroundColor: timeColor,
-                }}
+                style={{ width: `${timePct}%` }}
               />
               <div
                 className="pointer-events-none absolute top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
@@ -222,7 +211,7 @@ export default function CampaignSummaryRow({
                 aria-label="Today"
                 role="img"
               >
-                <span className="h-1.5 w-1.5 rounded-full border-2 border-background bg-foreground shadow-md ring-1 ring-border/50" />
+                <span className="h-1.5 w-1.5 rounded-full border-2 border-background bg-foreground ring-1 ring-border/50" />
                 <span className="-mt-px h-4 w-0.5 rounded-full bg-foreground/90" />
               </div>
             </div>

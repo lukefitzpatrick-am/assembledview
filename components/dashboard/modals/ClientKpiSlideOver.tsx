@@ -1,7 +1,8 @@
 "use client"
 
-import { AlertCircle, BarChart3, Target } from "lucide-react"
+import { AlertCircle, BarChart3 } from "lucide-react"
 
+import { ClientMark } from "@/components/brand/EntityMark"
 import { ClientKpiSection } from "@/components/dashboard/ClientKpiSection"
 import { SlideOver } from "@/components/ui/SlideOver"
 
@@ -10,6 +11,7 @@ export interface ClientKpiSlideOverProps {
   onOpenChange: (open: boolean) => void
   urlSlug: string
   clientName: string
+  /** @deprecated Paints only ClientMark. */
   brandColour?: string
 }
 
@@ -32,25 +34,11 @@ export function ClientKpiSlideOver({
       contentClassName="sm:max-w-[63rem]"
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        <div
-          className="h-1 w-full"
-          style={{
-            background: brandColour
-              ? `linear-gradient(to right, ${brandColour}99, ${brandColour}, ${brandColour}99)`
-              : undefined,
-          }}
-        />
-        {!brandColour && (
-          <div className="h-1 w-full bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
-        )}
-
         <div className="min-h-0 flex-1 overflow-y-auto">
           {hasSlug && hasClientName ? (
             <div className="space-y-6 p-6">
               <div className="flex items-center gap-3 border-b border-border pb-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pacing-ahead-bg">
-                  <Target className="h-5 w-5 text-status-ahead-fg" />
-                </div>
+                <ClientMark name={clientName} colour={brandColour} size="lg" />
                 <div>
                   <h3 className="font-semibold text-foreground">Performance Targets</h3>
                   <p className="text-sm text-muted-foreground">KPI defaults and publisher-specific requirements</p>

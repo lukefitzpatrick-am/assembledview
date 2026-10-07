@@ -36,6 +36,7 @@ type SpendChartsRowProps = {
   spendByChannel: Record<string, number> | ChannelSpend[]
   monthlySpendByChannel: Record<string, Record<string, number>> | MonthlySpendEntry[]
   deliverySchedule?: any[]
+  /** @deprecated Unused for paint. Media mix uses family colours. */
   brandColour?: string
 }
 

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Plus } from "lucide-react"
 
+import { ClientMark, PublisherMark } from "@/components/brand/EntityMark"
 import { MediaChannelTag } from "@/components/dashboard/MediaChannelTag"
 import { StatTile } from "@/components/finance/sections/StatTile"
 import { PageHeader } from "@/components/layout/PageHeader"
@@ -46,6 +47,7 @@ import {
   type Tone,
 } from "@/lib/design/status"
 import { getMediaLabel } from "@/lib/charts/registry"
+import { BRAND } from "@/lib/brand"
 import { DIVERGING, SEQUENTIAL, STATUS } from "@/lib/chart-theme"
 import {
   BRAND_SERIES,
@@ -342,6 +344,33 @@ export default function DesignSystemPage() {
               </div>
             </div>
           ))}
+        </div>
+      </Section>
+
+      <Section
+        title="Entity marks"
+        description="Client and publisher colour paints only the mark. Invalid colour falls back to context."
+      >
+        <div className="flex flex-wrap items-end gap-6">
+          <div className="space-y-2">
+            <p className="text-[13px] text-muted-foreground">Logo</p>
+            <ClientMark name="Assembled Media" logoUrl="/assembled-logo.png" size="lg" nameVisible={false} />
+          </div>
+          {(["sm", "md", "lg"] as const).map((size) => (
+            <div key={size} className="space-y-2">
+              <p className="text-[13px] text-muted-foreground">{size}</p>
+              <div className="flex items-center gap-2">
+                <ClientMark name="Lime Co" colour={BRAND.colour.lime} size={size} nameVisible={false} />
+                <ClientMark name="Forest Co" colour={BRAND.colour.forest} size={size} nameVisible={false} />
+                <ClientMark name="Sky Co" colour={BRAND.colour.sky} size={size} nameVisible={false} />
+                <ClientMark name="Bad Co" colour="not-a-colour" size={size} nameVisible={false} />
+              </div>
+            </div>
+          ))}
+          <div className="space-y-2">
+            <p className="text-[13px] text-muted-foreground">Publisher</p>
+            <PublisherMark name="North Shore" colour={BRAND.colour.forest} size="md" nameVisible={false} />
+          </div>
         </div>
       </Section>
 

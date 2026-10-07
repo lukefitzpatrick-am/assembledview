@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
+import { ClientMark } from "@/components/brand/EntityMark"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -899,6 +900,11 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
                       maxLength={7}
                     />
                   </FormControl>
+                  <ClientMark
+                    name={form.watch("clientname_input") || "Client"}
+                    colour={field.value}
+                    size="md"
+                  />
                   <input
                     type="color"
                     className="h-10 w-16 rounded border"

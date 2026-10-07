@@ -12,6 +12,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { ErrorModal } from "@/components/ui/error-modal"
+import { ClientMark } from "@/components/brand/EntityMark"
 import { DEFAULT_CLIENT_BRAND_COLOUR } from "@/lib/clients/brandColour"
 const formatHexColour = (value: string) => {
   const cleaned = value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6)
@@ -813,6 +814,11 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                       maxLength={7}
                     />
                   </FormControl>
+                  <ClientMark
+                    name={form.watch("clientname_input") || "Client"}
+                    colour={field.value}
+                    size="md"
+                  />
                   <input
                     id="client-brand-colour-picker"
                     type="color"

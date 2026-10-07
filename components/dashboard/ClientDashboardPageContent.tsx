@@ -448,6 +448,7 @@ export function ClientDashboardPageContent({
                   versionNumber={campaign.versionNumber}
                   hasPublishedVersion={campaign.hasPublishedVersion}
                   clientSlug={slug}
+                  clientName={clientData.clientName}
                   viewLinkAriaLabel={isClientHub ? `View campaign dashboard: ${campaign.name}` : undefined}
                   brandColour={clientData.brandColour}
                 />

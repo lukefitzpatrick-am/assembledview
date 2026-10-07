@@ -10,7 +10,7 @@ export const PAGE_HERO_PADDING_COMPACT = "p-5 md:p-6"
 export interface PageHeroTitleBlockProps {
   title: ReactNode
   detail?: ReactNode
-  /** Ignored since 05b (D4): client colour stays on the client mark. */
+  /** @deprecated Client colour paints only EntityMark. */
   brandColour?: string
   titleAs?: "h1" | "h2"
   /** Serif italic phrase after the title. No automatic full stop — hero titles are often entity names. */
@@ -44,6 +44,7 @@ export function PageHeroTitleBlock({
 }
 
 export interface PageHeroShellProps {
+  /** @deprecated Client colour paints only EntityMark. */
   brandColour?: string
   className?: string
   children: ReactNode

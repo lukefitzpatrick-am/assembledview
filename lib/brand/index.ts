@@ -43,6 +43,32 @@ export function hexToRgb(hex: string): [number, number, number] {
   ]
 }
 
+function linearChannel(channel: number): number {
+  const s = channel / 255
+  return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+}
+
+function relativeLuminance(hex: string): number {
+  const [red, green, blue] = hexToRgb(hex)
+  return 0.2126 * linearChannel(red) + 0.7152 * linearChannel(green) + 0.0722 * linearChannel(blue)
+}
+
+function contrastRatio(a: number, b: number): number {
+  const lighter = Math.max(a, b)
+  const darker = Math.min(a, b)
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+/** Ink or white, whichever has the higher WCAG contrast on `hex`. */
+export function readableTextOn(hex: string): string {
+  const background = relativeLuminance(hex)
+  const ink = BRAND.colour.ink
+  const white = BRAND.colour.white
+  const inkContrast = contrastRatio(relativeLuminance(ink), background)
+  const whiteContrast = contrastRatio(relativeLuminance(white), background)
+  return inkContrast >= whiteContrast ? ink : white
+}
+
 /** H 0–360, S and L 0–100, unrounded. */
 export function hexToHslTriplet(hex: string): [number, number, number] {
   const [red, green, blue] = hexToRgb(hex)

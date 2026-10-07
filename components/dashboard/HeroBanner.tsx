@@ -1,8 +1,8 @@
 "use client"
 
-import Image from "next/image"
 import { BarChart3, Brain, DollarSign, FileText } from "lucide-react"
 
+import { ClientMark } from "@/components/brand/EntityMark"
 import {
   PAGE_HERO_PADDING_COMPACT,
   PageHeroShell,
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 export interface HeroBannerProps {
   clientName: string
   clientLogo?: string | null
+  /** @deprecated Client colour paints only ClientMark. */
   brandColour?: string
   totalSpend: number
   /** Label for the `totalSpend` figure. Defaults to "Total spend"; callers pass "Planned to
@@ -37,19 +38,8 @@ export interface HeroBannerProps {
   clientRecord?: Record<string, unknown> | null
 }
 
-function getClientInitials(clientName: string): string {
-  const parts = clientName.trim().split(/\s+/).filter(Boolean)
-  if (!parts.length) return "?"
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-}
-
 function formatRoas(value: number): string {
   return `${new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 }).format(value)}x`
-}
-
-function colorMix(color: string, percentage: number): string {
-  return `color-mix(in srgb, ${color} ${percentage}%, transparent)`
 }
 
 const heroIconButtonClassName =
@@ -58,7 +48,7 @@ const heroIconButtonClassName =
 export function HeroBanner({
   clientName,
   clientLogo,
-  brandColour = "var(--pacing-on-track)",
+  brandColour,
   totalSpend,
   spendLabel = "Total spend",
   activeCampaigns,
@@ -91,8 +81,7 @@ export function HeroBanner({
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-pill" style={{ backgroundColor: brandColour }} aria-hidden />
+        <span>
           {spendLabel}: {formatMoneyCompact(totalSpend)}
         </span>
         <span aria-hidden className="text-border">
@@ -121,34 +110,12 @@ export function HeroBanner({
         )}
       >
         <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <div className="relative h-12 w-12 shrink-0">
-            <div
-              className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-pill border border-border shadow-e1"
-              style={clientLogo ? undefined : { borderColor: colorMix(brandColour, 30) }}
-            >
-              {clientLogo ? (
-                <Image
-                  src={clientLogo}
-                  alt={`${clientName} logo`}
-                  fill
-                  className="object-cover"
-                  sizes="48px"
-                />
-              ) : (
-                <span
-                  className="flex h-full w-full items-center justify-center text-sm font-semibold text-primary-foreground"
-                  style={{ backgroundColor: brandColour }}
-                  aria-label={`${clientName} initials`}
-                >
-                  {getClientInitials(clientName)}
-                </span>
-              )}
-            </div>
-            <span
-              className="absolute bottom-px right-px h-2 w-2 rounded-pill bg-accent shadow-e0"
-              aria-hidden
-            />
-          </div>
+          <ClientMark
+            name={clientName}
+            colour={brandColour}
+            logoUrl={clientLogo}
+            size="lg"
+          />
 
           <PageHeroTitleBlock
             title={`Welcome back, ${clientName}`}

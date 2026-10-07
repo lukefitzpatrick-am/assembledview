@@ -3,6 +3,7 @@
 import { isValid, parseISO } from "date-fns"
 import { Download, FileText } from "lucide-react"
 
+import { ClientMark } from "@/components/brand/EntityMark"
 import {
   PAGE_HERO_PADDING,
   PageHeroShell,
@@ -33,6 +34,7 @@ interface CampaignHeroBannerProps {
     poNumber?: string
     clientContact?: string
   }
+  /** @deprecated Client colour paints only ClientMark. */
   brandColour?: string
   daysRemaining: number
   onOpenDetails: () => void
@@ -71,7 +73,7 @@ function StatusBadge({
 
 export default function CampaignHeroBanner({
   campaign,
-  brandColour = "var(--pacing-on-track)",
+  brandColour,
   daysRemaining,
   onOpenDetails,
   onDownload,
@@ -84,7 +86,10 @@ export default function CampaignHeroBanner({
 
   const detail = (
     <>
-      <p>{subtitle}</p>
+      <p className="flex items-center gap-2">
+        <ClientMark name={campaign.clientName} colour={brandColour} size="sm" />
+        <span>{subtitle}</span>
+      </p>
       <div className="flex flex-wrap items-center gap-2 pt-0.5">
         <span className="inline-flex items-center rounded-input border border-border bg-muted/35 px-2 py-0.5 font-mono text-xs font-medium tabular-nums text-muted-foreground">
           {campaign.mbaNumber}
@@ -97,10 +102,7 @@ export default function CampaignHeroBanner({
       </div>
       <p>{formatHeroDateRange(campaign.startDate, campaign.endDate)}</p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 shrink-0 rounded-pill" style={{ backgroundColor: brandColour }} aria-hidden />
-          Budget: {formatMoneyCompact(budget)}
-        </span>
+        <span>Budget: {formatMoneyCompact(budget)}</span>
         <span aria-hidden className="text-border">
           •
         </span>
