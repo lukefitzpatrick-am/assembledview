@@ -145,7 +145,7 @@ In-repo callers grepped under components/, app/, and lib/. A route with no calle
 | `app/api/admin/users/mba-numbers/route.ts` | parses readClientsList body | DATA_BACKEND_CLIENTS (inside readClientsList) | no | lib/data/readClients.ts readClientsList | **NAME-ONLY** | app/admin/users/new/NewAdminUserForm.tsx |
 | `app/api/admin/users/route.ts` | parses readClientsList body | DATA_BACKEND_CLIENTS (inside readClientsList) | no | lib/data/readClients.ts readClientsList | **NAME-ONLY** | app/admin/users/new/NewAdminUserForm.tsx |
 | `app/api/admin/xano-mirror/retry/route.ts` | deleted (XS-1) | — | no | none | **DONE** | none; no cron |
-| `app/api/finance/receivables/aa-media-plan/route.ts` | proxies aa_media_plan file URL with Xano auth header | unconditional | yes | media_plan_versions.aa_media_plan_file via resolveRelevantVersionAaMediaPlan | **VAULT** | components/finance/MediaPlanActionBar.tsx |
+| `app/api/finance/receivables/aa-media-plan/route.ts` | streams stored aa_media_plan jsonb through servePlanFile | none | no | media_plan_versions.aa_media_plan_file via resolveRelevantVersionAaMediaPlan | **DONE** | components/finance/MediaPlanActionBar.tsx |
 | `app/api/finance/xero-queue/route.ts` | GET open xero_sync_exceptions; assign_mba writes xero_ar_invoices and resolves the exception | — | no | lib/finance/xeroQueue.ts | **DONE** | XeroExceptionsPanel.tsx, XeroPageClient.tsx |
 | `app/api/media-details/[...path]/route.ts` | GET reference tables from Postgres; POST reference writes; any other path returns 410 with the path | none | no | lib/data/referenceTables.ts fetchReferenceTableFromPostgres; createReferenceMediaDetailPostgresFirst | **DONE** | lib/api.ts → container get* helpers |
 | `app/api/mediaplans/mba/[mba_number]/documents/__tests__/documents.route.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** | — |
@@ -153,7 +153,7 @@ In-repo callers grepped under components/, app/, and lib/. A route with no calle
 | `app/api/mediaplans/[id]/download/__tests__/download.route.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** | — |
 | `app/api/media_plans/[...path]/route.ts` | GET masters/versions/channel lines from Postgres; any other path returns 410 with the path | none | no | readPlanMasters / readPlanVersions; createChannelLineItemsGetHandler | **DONE** | lib/api.ts browser GET |
 | `app/api/plans/save/route.ts` | Postgres save only; mirrorPlanToXano removed (XS-1) | — | no | lib/data/savePlan.ts savePlanVersion | **DONE** | lib/mediaplan/buildPostgresSavePayload.ts; create + edit pages |
-| `app/dashboard/[slug]/[mba_number]/page.tsx` | origin for relative plan-file paths (XANO_SAVE_FILE_BASE_URL / media-plans bases) | unconditional | yes | none (file bytes stay in version jsonb) | **VAULT** | page |
+| `app/dashboard/[slug]/[mba_number]/page.tsx` | Media Plan and MBA downloads call GET /api/mediaplans/[id]/download | none | no | servePlanFile | **DONE** | page |
 | `app/mediaplans/[id]/edit/page.tsx` | Looks up media_plan_versions.id in Postgres and redirects to the MBA editor | none | no | media_plan_versions | **DONE** | page |
 
 ## §4 Lib and scripts
@@ -386,7 +386,7 @@ Update READ-FAILURE-REGISTER + this register. REPORT: crawl sites removed, soak 
 
 **Decision: Vercel Blob (B)** — not Supabase Storage. Creative/Xero already Blob; ~512 MiB plan files enumerable from PG jsonb only (no vault listing API). Spec + caveats: `docs/superpowers/x6-vault-to-vercel-blob-2026-08-02.md` (checksum every copy; vault-URL read-fallback until a week of zero fallback reads).
 
-XS-3a copy script is `scripts/migration/xs3-vault-to-blob.ts` (private Blob via `putPrivatePlanDocument`, sha256 of the download against the Blob read-back, old url kept as `xano_url`). It is not applied. Marker `xs3_vault_to_blob` is written only after a complete run with zero failures. Read paths are unchanged and still prefer the stored `url`.
+XS-3a copy script is `scripts/migration/xs3-vault-to-blob.ts` (private Blob via `putPrivatePlanDocument`, sha256 of the download against the Blob read-back, old url kept as `xano_url`). A verify mismatch deletes the just-uploaded Blob object before the next file. It is not applied. Marker `xs3_vault_to_blob` is written only after a complete run with zero failures. Readers stream the stored url through `servePlanFile` (Blob via `getPrivateBlob`; http(s) vault urls are a fetch pass-through with no Xano auth).
 
 ```
 PASTE INTO CURSOR — X6: migrate Xano vault plan files to Vercel Blob

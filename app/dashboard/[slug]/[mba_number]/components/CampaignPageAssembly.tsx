@@ -224,9 +224,8 @@ type CampaignPageAssemblyProps = {
   monthlySpend: any
   lineItemsMap: Record<string, any[]>
   billingSchedule: any
-  xanoFileOrigin: string
-  mediaPlanFileMeta: any
-  mbaPdfFileMeta: any
+  /** media_plan_versions.id for the version on screen. */
+  versionId: number | null
   showDeliverySection: boolean
   socialItemsActive: any[]
   searchItemsActive: any[]
@@ -313,9 +312,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     monthlySpend,
     lineItemsMap,
     billingSchedule,
-    xanoFileOrigin,
-    mediaPlanFileMeta,
-    mbaPdfFileMeta,
+    versionId,
     showDeliverySection,
     socialItemsActive,
     searchItemsActive,
@@ -902,9 +899,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
           campaign={campaign}
           lineItems={lineItemsMap}
           billingSchedule={billingSchedule}
-          xanoFileOrigin={xanoFileOrigin}
-          mediaPlanFileMeta={mediaPlanFileMeta}
-          mbaPdfFileMeta={mbaPdfFileMeta}
+          versionId={versionId}
           availableVersions={availableVersions}
           currentVersion={currentVersion}
           isAdmin={isAdmin}

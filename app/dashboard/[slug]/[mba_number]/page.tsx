@@ -14,8 +14,6 @@ import {
 import { ErrorState } from "@/components/ui/states"
 import { hasReportedDeliveredSpend } from "@/lib/delivery/deliveredTotals"
 import { getDeliveredTotalsForCampaign } from "@/lib/delivery/getDeliveredTotalsForCampaign"
-import { peekXanoEnv } from "@/lib/api/xano"
-
 export const maxDuration = 60
 
 interface CampaignDetailPageProps {
@@ -464,33 +462,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const billingSchedule = campaignData.billingSchedule
   const deliverySchedule = campaignData.deliverySchedule || []
 
-  const resolveXanoOrigin = (raw: string | undefined): string => {
-    if (!raw || typeof raw !== "string") return ""
-    try {
-      const url = new URL(raw)
-      return url.origin
-    } catch {
-      return ""
-    }
-  }
-
-  const xanoFileOrigin =
-    resolveXanoOrigin(peekXanoEnv("XANO_SAVE_FILE_BASE_URL")) ||
-    resolveXanoOrigin(peekXanoEnv("XANO_MEDIA_PLANS_BASE_URL")) ||
-    resolveXanoOrigin(peekXanoEnv("XANO_MEDIAPLANS_BASE_URL"))
-
-  // Public File metadata fields are stored on media_plan_versions
-  const mediaPlanFileMeta =
-    campaignVersion?.media_plan ??
-    campaign?.media_plan ??
-    campaignData?.media_plan ??
-    null
-  const mbaPdfFileMeta =
-    campaignVersion?.mba_pdf ??
-    campaign?.mba_pdf ??
-    campaignData?.mba_pdf ??
-    null
-  
   const mpSearchEnabled = isTruthyFlag(
     campaign?.mp_search ??
       campaignVersion?.mp_search ??
@@ -836,9 +807,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       monthlySpend={monthlySpend}
       lineItemsMap={lineItemsMap}
       billingSchedule={billingSchedule}
-      xanoFileOrigin={xanoFileOrigin}
-      mediaPlanFileMeta={mediaPlanFileMeta}
-      mbaPdfFileMeta={mbaPdfFileMeta}
+      versionId={versionRecordId}
       showDeliverySection={showDeliverySection}
       socialItemsActive={socialItemsActive}
       searchItemsActive={searchItemsActive}

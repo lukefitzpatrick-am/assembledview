@@ -1,10 +1,10 @@
 /**
  * XS-3: copy plan files still on the Xano vault into private Vercel Blob
- * and repoint `media_plan_versions`. Readers are unchanged.
+ * and repoint `media_plan_versions`. App readers stream through `servePlanFile`.
  *
- * Download uses `XANO_API_KEY` via `xanoAuthHeader()`, the same header as
- * `app/api/finance/receivables/aa-media-plan/route.ts`.
+ * Vault download uses `XANO_API_KEY` via `xanoAuthHeader()`. App readers do not.
  * Upload uses `putPrivatePlanDocument` (`access: "private"`, `addRandomSuffix: true`).
+ * A verify mismatch deletes the just-uploaded Blob object before the next file.
  *
  *   npm run xs3:vault-to-blob -- --dry-run
  *   npm run xs3:vault-to-blob -- --limit 1 --kind mba_pdf
@@ -18,6 +18,7 @@ import { createHash } from "node:crypto"
 import { appendFileSync, existsSync, mkdirSync } from "node:fs"
 import path from "node:path"
 
+import { del } from "@vercel/blob"
 import { eq, or, sql } from "drizzle-orm"
 
 import { closeDb, getDb, schema } from "@/db"
@@ -75,6 +76,21 @@ async function downloadVault(url: string): Promise<Buffer> {
     throw new Error(`download ${response.status}`)
   }
   return Buffer.from(await response.arrayBuffer())
+}
+
+async function deleteUploadedBlob(uploaded: { url: string; pathname: string }): Promise<void> {
+  const token = process.env.BLOB_READ_WRITE_TOKEN
+  const opts = token ? { token } : {}
+  try {
+    await del(uploaded.url, opts)
+  } catch {
+    try {
+      await del(uploaded.pathname, opts)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error(`blob delete failed ${uploaded.url}: ${message}`)
+    }
+  }
 }
 
 async function readBlobBytes(url: string): Promise<{ bytes: Buffer; declaredSize: number | null }> {
@@ -164,6 +180,7 @@ async function processFile(item: Xs3WorkItem, dryRun: boolean): Promise<"ok" | "
       readback.bytes.length === downloaded.length &&
       (readback.declaredSize == null || readback.declaredSize === downloaded.length)
     if (!sizeMatches || readbackDigest !== digest) {
+      await deleteUploadedBlob(uploaded)
       throw new Error(
         `verify mismatch size ${downloaded.length}/${readback.bytes.length} declared ${readback.declaredSize ?? "n/a"}`,
       )

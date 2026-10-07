@@ -28,25 +28,13 @@ import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
 import { buildBillingScheduleExcelBlob } from "@/lib/billing/exportBillingScheduleExcel"
 import type { BillingMonth } from "@/lib/billing/types"
 
-type XanoPublicFile = {
-  access?: string
-  path?: string
-  name?: string
-  type?: string
-  size?: number
-  mime?: string
-  meta?: Record<string, any>
-  url?: string
-}
-
 interface CampaignActionsProps {
   mbaNumber: string
   campaign: any
   lineItems: Record<string, any[]>
   billingSchedule: any
-  xanoFileOrigin: string
-  mediaPlanFileMeta: XanoPublicFile | null
-  mbaPdfFileMeta: XanoPublicFile | null
+  /** media_plan_versions.id for the version on screen. Downloads use the signed route. */
+  versionId: number | null
   variant?: "floating" | "inline" | "minimal"
   availableVersions: MediaPlanVersionListEntry[]
   currentVersion: number
@@ -78,9 +66,7 @@ export default function CampaignActions({
   campaign: _campaign,
   lineItems,
   billingSchedule,
-  xanoFileOrigin,
-  mediaPlanFileMeta,
-  mbaPdfFileMeta,
+  versionId,
   variant = "floating",
   availableVersions,
   currentVersion,
@@ -149,33 +135,31 @@ export default function CampaignActions({
     setTimeout(() => setCompletedAction((current) => (current === action ? null : current)), 1200)
   }
 
-  const downloadFromXano = async (opts: {
+  const downloadPlanFile = async (opts: {
+    kind: "media_plan" | "mba_pdf"
     label: string
-    meta: XanoPublicFile | null
     fallbackFileName: string
   }) => {
-    const { label, meta, fallbackFileName } = opts
-    if (!meta) {
+    const { kind, label, fallbackFileName } = opts
+    if (versionId == null) {
       throw new Error(`${label} file not found for this version yet.`)
     }
 
-    const directUrl = typeof meta.url === "string" && meta.url.trim() ? meta.url.trim() : null
-    const path = typeof meta.path === "string" && meta.path.trim() ? meta.path.trim() : null
-    const fileName = (typeof meta.name === "string" && meta.name.trim()) ? meta.name.trim() : fallbackFileName
-
-    const url =
-      directUrl ||
-      (path && xanoFileOrigin ? `${xanoFileOrigin}${path.startsWith("/") ? "" : "/"}${path}` : null)
-
-    if (!url) {
-      throw new Error(`${label} file metadata is missing a download URL/path.`)
-    }
-
-    const response = await fetch(url)
+    const response = await fetch(`/api/mediaplans/${versionId}/download?kind=${kind}`)
     if (!response.ok) {
-      throw new Error(`Failed to download ${label} (${response.status})`)
+      let message = `Failed to download ${label} (${response.status})`
+      try {
+        const body = (await response.json()) as { error?: string }
+        if (body.error) message = body.error
+      } catch {
+        // Non-JSON error body: keep the status message.
+      }
+      throw new Error(message)
     }
 
+    const disposition = response.headers.get("Content-Disposition")
+    const quoted = disposition ? /filename="([^"]+)"/i.exec(disposition) : null
+    const fileName = quoted?.[1] || fallbackFileName
     const blob = await response.blob()
     const objectUrl = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -211,9 +195,9 @@ export default function CampaignActions({
     setIsDownloadingMediaPlan(true)
     setAriaStatus("Downloading media plan")
     try {
-      await downloadFromXano({
+      await downloadPlanFile({
+        kind: "media_plan",
         label: "Media plan",
-        meta: mediaPlanFileMeta,
         fallbackFileName: `media-plan-${mbaNumber}.xlsx`,
       })
 
@@ -240,9 +224,9 @@ export default function CampaignActions({
     setIsDownloadingMba(true)
     setAriaStatus("Downloading MBA")
     try {
-      await downloadFromXano({
+      await downloadPlanFile({
+        kind: "mba_pdf",
         label: "MBA",
-        meta: mbaPdfFileMeta,
         fallbackFileName: `mba-${mbaNumber}.pdf`,
       })
 

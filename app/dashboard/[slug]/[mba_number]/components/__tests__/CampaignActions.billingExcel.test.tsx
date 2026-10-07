@@ -132,9 +132,7 @@ describe("CampaignActions billing Excel download", () => {
           }}
           lineItems={{}}
           billingSchedule={billingSchedule}
-          xanoFileOrigin=""
-          mediaPlanFileMeta={null}
-          mbaPdfFileMeta={null}
+          versionId={null}
           availableVersions={[]}
           currentVersion={1}
         />,
