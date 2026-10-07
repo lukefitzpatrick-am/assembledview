@@ -86,7 +86,7 @@ Middleware only authenticates; tenant/role is per-route. Writes stamp email iden
 
 | Table | Status | Notes |
 |---|---|---|
-| `tasks` | **Live** | Create / list / patch / soft-delete; `auto_created` + `ava_auto_key` (0040, partial unique `uq_tasks_ava_auto_key` when set); `estimated_minutes` integer NULL (0048; mirrored in `db/schema/codex.ts`); help-request columns `parent_task_id` / `help_requested_by_email` / `help_prior_status` (0078 AUTHOR ONLY — do not SELECT until applied) |
+| `tasks` | **Live** | Create / list / patch / soft-delete; `auto_created` + `ava_auto_key` (0040, partial unique `uq_tasks_ava_auto_key` when set); `estimated_minutes` integer NULL (0048; mirrored in `db/schema/codex.ts`); help-request columns `parent_task_id` / `help_requested_by_email` / `help_prior_status` (0078 applied) |
 | `client_notes` | **Live** (read API + Fireflies writes) | GET list; Fireflies sync inserts; `attributed_type` + `publisher_id`; assign + Sync now at `/admin/fireflies-unattributed` (Fireflies meetings) |
 | `team_members` | **Live** | Roster CRUD; `email_aliases` jsonb; `auth0_user_id` / `roster_source` / `last_login_at` (0045). New aliases that another **active** row already holds are refused. `roster_source` is set only on insert (`manual` / `auth0_login` / `auth0_sync`); login and sync updates never overwrite it. |
 | `codex_activity` | **Live** (writes + GET list) | Append-only from repo; `GET .../activity` reads task-scoped rows; UI formats diffs via `lib/codex/activityDiff.ts` |
@@ -175,3 +175,4 @@ Append dated one-liners during the fortnight. Format:
 - 2026-08-11 — Stage 1 addendum: `/tasks?mba=` + `/tasks?client=` deep-link filters; detail MBA one-way link to campaign edit; `countTasksByMba` + `GET /api/codex/tasks/counts` (open/overdue, Sydney).
 - 2026-08-11 — Campaign seed plumbing: `seedTasksForCampaign` + `CAMPAIGN_PROFILE` (no create trigger); `tasks_source_check` allows `profile:%` (0025).
 - 2026-08-28 — Shared `email_aliases` (`samantha@` on two active rows) is detect-not-resolve: resolution declines, Auth0/create/PATCH refuse a new colliding alias, Team tab reports holders. Luke picks who keeps the address (C-58).
+- 2026-10-06 — R0 repair pack started (av-review/PACK-codex-R0-repair-2026-10-06.md). 0078 confirmed applied. Inbox held 1,427 proposed rows, 1,403 older than 21 days.
