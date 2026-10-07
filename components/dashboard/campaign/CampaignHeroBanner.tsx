@@ -6,7 +6,6 @@ import { Download, FileText } from "lucide-react"
 import { ClientMark } from "@/components/brand/EntityMark"
 import {
   PAGE_HERO_PADDING,
-  PageHeroShell,
   PageHeroTitleBlock,
 } from "@/components/dashboard/PageHeroShell"
 import { CampaignStatusBadge } from "@/components/campaign/CampaignStatusBadge"
@@ -91,7 +90,7 @@ export default function CampaignHeroBanner({
         <span>{subtitle}</span>
       </p>
       <div className="flex flex-wrap items-center gap-2 pt-0.5">
-        <span className="inline-flex items-center rounded-input border border-border bg-muted/35 px-2 py-0.5 font-mono text-xs font-medium tabular-nums text-muted-foreground">
+        <span className="inline-flex items-center rounded-input border border-am-muted-on-black px-2 py-0.5 font-mono text-xs font-medium tabular-nums text-am-muted-on-black">
           {campaign.mbaNumber}
         </span>
         <StatusBadge
@@ -103,11 +102,11 @@ export default function CampaignHeroBanner({
       <p>{formatHeroDateRange(campaign.startDate, campaign.endDate)}</p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span>Budget: {formatMoneyCompact(budget)}</span>
-        <span aria-hidden className="text-border">
+        <span aria-hidden className="text-am-muted-on-black">
           •
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 shrink-0 rounded-pill bg-muted-foreground/70" aria-hidden />
+          <span className="h-2 w-2 shrink-0 rounded-pill bg-am-muted-on-black" aria-hidden />
           Days remaining: {Math.max(0, Math.round(daysRemaining))}
         </span>
       </div>
@@ -115,9 +114,15 @@ export default function CampaignHeroBanner({
   )
 
   return (
-    <PageHeroShell brandColour={brandColour} className={cn("animate-in fade-in-0 duration-500")}>
+    <section className="relative w-full overflow-hidden rounded-frame bg-am-ink text-am-white">
       <div className={cn("relative z-10 flex min-h-[140px] flex-col md:flex-row md:items-start md:justify-between", PAGE_HERO_PADDING, "pr-28 sm:pr-32 md:pr-40 lg:pr-44")}>
-        <PageHeroTitleBlock title={campaign.campaignName} detail={detail} brandColour={brandColour} />
+        <PageHeroTitleBlock
+          title={campaign.campaignName}
+          detail={detail}
+          brandColour={brandColour}
+          punctuate={false}
+          surface="ink"
+        />
 
         <div className="absolute right-6 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-2 md:right-7">
           <AdminDateRangeSelector
@@ -130,7 +135,7 @@ export default function CampaignHeroBanner({
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-pill border-border bg-card text-xs font-medium shadow-e0 transition-all hover:bg-muted max-[375px]:h-11"
+            className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-pill border-am-muted-on-black bg-transparent text-xs font-medium text-am-white hover:bg-am-white/10 max-[375px]:h-11"
             onClick={onOpenDetails}
           >
             <FileText className="h-3.5 w-3.5" aria-hidden />
@@ -140,7 +145,7 @@ export default function CampaignHeroBanner({
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-pill border-border bg-card text-xs font-medium shadow-e0 transition-all hover:bg-muted max-[375px]:h-11"
+            className="h-9 min-w-[7.5rem] justify-center gap-2 rounded-pill border-am-muted-on-black bg-transparent text-xs font-medium text-am-white hover:bg-am-white/10 max-[375px]:h-11"
             onClick={onDownload}
           >
             <Download className="h-3.5 w-3.5" aria-hidden />
@@ -150,6 +155,6 @@ export default function CampaignHeroBanner({
           <AvaCampaignScenarioAction />
         </div>
       </div>
-    </PageHeroShell>
+    </section>
   )
 }

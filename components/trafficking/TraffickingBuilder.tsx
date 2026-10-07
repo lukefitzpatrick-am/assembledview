@@ -726,6 +726,7 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
     <div className="space-y-6">
       <MediaPlanEditorHero
         title={campaignName || "Trafficking"}
+        punctuate={!campaignName}
         detail={
           <div className="space-y-1 text-sm text-muted-foreground">
             <p>MBA {mbaNumber}</p>

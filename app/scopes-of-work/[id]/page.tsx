@@ -142,6 +142,7 @@ export default function ScopeOfWorkViewPage() {
       <div className="w-full space-y-6 px-4 py-6 md:px-6">
         <MediaPlanEditorHero
           title={scope.project_name || "Scope of Work"}
+          punctuate={!scope.project_name}
           Icon={FileText}
           detail={
             <p>

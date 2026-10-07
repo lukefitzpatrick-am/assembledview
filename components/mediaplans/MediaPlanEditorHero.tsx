@@ -42,6 +42,8 @@ export interface MediaPlanEditorHeroProps {
   Icon?: LucideIcon
   /** Tighter padding and gaps (e.g. dashboard overview). */
   compact?: boolean
+  /** Page titles take a full stop. Plan and campaign names pass false. */
+  punctuate?: boolean
 }
 
 export function MediaPlanEditorHero({
@@ -53,6 +55,7 @@ export function MediaPlanEditorHero({
   brandColour,
   className,
   compact = false,
+  punctuate = true,
 }: MediaPlanEditorHeroProps) {
   return (
     <PageHeroShell className={className}>
@@ -70,7 +73,7 @@ export function MediaPlanEditorHero({
           )}
         >
           <div className={cn("min-w-0 grow shrink-0", TITLE_FLOOR)}>
-            <PageHeroTitleBlock title={title} detail={detail} brandColour={brandColour} />
+            <PageHeroTitleBlock title={title} detail={detail} brandColour={brandColour} punctuate={punctuate} />
           </div>
 
           {actions ? (

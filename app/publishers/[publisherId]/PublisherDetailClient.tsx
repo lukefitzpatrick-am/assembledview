@@ -68,6 +68,7 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
 
             <PageHeroTitleBlock
               title={publisher.publisher_name}
+              punctuate={false}
               detail={
                 <p>
                   <span className="inline-flex items-center gap-1.5">

@@ -59,6 +59,7 @@ export function PlanWizardHeader({
       <MediaPlanEditorHero
         className="mb-2"
         title={title}
+        punctuate={false}
         detail={subtitle}
         secondary={secondary}
       />

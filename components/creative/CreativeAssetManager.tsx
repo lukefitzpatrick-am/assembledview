@@ -421,6 +421,7 @@ export function CreativeAssetManager({
       {showPageHeader ? (
         <MediaPlanEditorHero
           title={campaignName || "Creative assets"}
+          punctuate={!campaignName}
           detail={
             <div className="space-y-1 text-sm text-muted-foreground">
               <p>MBA {mbaNumber}</p>

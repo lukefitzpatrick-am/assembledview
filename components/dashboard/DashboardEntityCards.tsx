@@ -61,8 +61,7 @@ export function DashboardCampaignPlanCard({
   canEdit: boolean
 }) {
   return (
-    <Card className="interactive flex h-full flex-col overflow-hidden shadow-e1">
-      <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+    <Card className="interactive flex h-full flex-col overflow-hidden">
       <CardHeader className="space-y-1 pb-3 pt-4 px-5">
         <CardTitle className="text-base font-semibold leading-snug line-clamp-2">{plan.mp_campaignname}</CardTitle>
         <p className="text-sm text-muted-foreground line-clamp-2">{plan.mp_clientname}</p>
@@ -117,8 +116,7 @@ export function DashboardScopeCard({
 }) {
   const overview = scope.project_overview?.trim() ? scope.project_overview : "N/A"
   return (
-    <Card className="flex h-full flex-col overflow-hidden border-0 shadow-e1">
-      <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+    <Card className="flex h-full flex-col overflow-hidden">
       <CardHeader className="space-y-1 pb-3 pt-4 px-5">
         <CardTitle className="text-base font-semibold leading-snug line-clamp-2">{scope.project_name}</CardTitle>
       </CardHeader>
