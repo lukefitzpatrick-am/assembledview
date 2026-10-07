@@ -1,5 +1,8 @@
 import { parse, format, startOfMonth, endOfMonth, isWithinInterval, getDaysInMonth } from "date-fns"
+import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
+import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
+import { fromCents, parseMoney, sumCents, toCents } from "@/lib/money"
 
 export interface FinanceLineItem {
   itemCode: string
@@ -240,22 +243,73 @@ export function buildDescription(
   return parts.filter(Boolean).join(" ")
 }
 
+const FORECAST_MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+]
+
+function forecastMonthLabel(year: number, month1to12: number): string {
+  return `${FORECAST_MONTH_NAMES[month1to12 - 1]} ${year}`
+}
+
+function monthKeysForBurst(start: Date, end: Date): string[] {
+  const keys: string[] = []
+  let year = start.getFullYear()
+  let month = start.getMonth() + 1
+  const endYear = end.getFullYear()
+  const endMonth = end.getMonth() + 1
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    keys.push(forecastMonthLabel(year, month))
+    month += 1
+    if (month > 12) {
+      month = 1
+      year += 1
+    }
+  }
+  return keys
+}
+
+function burstRawBudget(burst: Record<string, unknown>): number | null {
+  const raw =
+    burst.budget ?? burst.cost ?? burst.spend ?? burst.investment ?? burst.amount ?? burst.totalAmount
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null
+  return parseMoney(raw)
+}
+
+function burstFeePct(burst: Record<string, unknown>): number {
+  const raw = burst.feePct ?? burst.fee_pct ?? burst.feePercentage ?? burst.fee_percentage
+  const parsed = typeof raw === "number" ? raw : parseMoney(raw)
+  return parsed != null && Number.isFinite(parsed) ? parsed : 0
+}
+
+function burstFlag(burst: Record<string, unknown>, keys: string[]): boolean {
+  return keys.some((key) => burst[key] === true || burst[key] === "true")
+}
+
 /**
- * Calculate monthly amount from line item bursts
+ * Media billed to the client for one calendar month, from bursts.
+ * The finance forecast uses this only when a month has no billing or delivery
+ * schedule. Client-pays and bonus media are 0. Fee stays off this figure.
+ * Months come from prorateAcrossMonths so the shares sum to the burst media.
  */
 export function calculateMonthlyAmountFromBursts(
-  bursts: any,
+  bursts: unknown,
   selectedYear: number,
-  selectedMonth: number
+  selectedMonth: number,
 ): number {
   if (!bursts) return 0
 
-  let total = 0
-  const monthStart = startOfMonth(new Date(selectedYear, selectedMonth - 1, 1))
-  const monthEnd = endOfMonth(new Date(selectedYear, selectedMonth - 1, 1))
-
-  // Parse bursts if it's a JSON string
-  let burstArray: any[] = []
+  let burstArray: unknown[] = []
   if (typeof bursts === "string") {
     try {
       const parsed = JSON.parse(bursts)
@@ -266,57 +320,46 @@ export function calculateMonthlyAmountFromBursts(
     }
   } else if (Array.isArray(bursts)) {
     burstArray = bursts
-  } else if (bursts && typeof bursts === "object") {
+  } else if (typeof bursts === "object") {
     burstArray = [bursts]
   }
 
-  burstArray.forEach((burst: any) => {
-    if (!burst.startDate && !burst.start_date) return
-    if (!burst.endDate && !burst.end_date) return
+  const wanted = forecastMonthLabel(selectedYear, selectedMonth)
+  const cents: number[] = []
 
-    const burstStart = coerceBurstDateLocal(burst.startDate || burst.start_date)
-    const burstEnd = coerceBurstDateLocal(burst.endDate || burst.end_date)
+  for (const item of burstArray) {
+    if (!item || typeof item !== "object") continue
+    const burst = item as Record<string, unknown>
+    const startRaw = burst.startDate ?? burst.start_date
+    const endRaw = burst.endDate ?? burst.end_date
+    if (startRaw == null || endRaw == null) continue
+    const start = coerceBurstDateLocal(startRaw as Date | string)
+    const end = coerceBurstDateLocal(endRaw as Date | string)
+    if (!start || !end) continue
 
-    // Validate dates
-    if (!burstStart || !burstEnd) return
+    const budget = burstRawBudget(burst)
+    if (budget == null) continue
+    const buyType = burst.buyType ?? burst.buy_type
+    const amounts = computeBurstAmounts({
+      rawBudget: budget,
+      budgetIncludesFees: burstFlag(burst, ["budgetIncludesFees", "budget_includes_fees"]),
+      clientPaysForMedia: burstFlag(burst, ["clientPaysForMedia", "client_pays_for_media"]),
+      feePct: burstFeePct(burst),
+      buyType: typeof buyType === "string" ? buyType : undefined,
+    })
+    if (!(amounts.mediaAmount > 0)) continue
 
-    // Check if burst overlaps with selected month
-    if (burstEnd < monthStart || burstStart > monthEnd) return
+    const shares = prorateAcrossMonths({
+      amount: amounts.mediaAmount,
+      burstStart: start,
+      burstEnd: end,
+      monthKeys: monthKeysForBurst(start, end),
+    })
+    const slice = shares[wanted]
+    if (slice != null && slice !== 0) cents.push(toCents(slice))
+  }
 
-    // Calculate overlap
-    const overlapStart = burstStart > monthStart ? burstStart : monthStart
-    const overlapEnd = burstEnd < monthEnd ? burstEnd : monthEnd
-
-    // Calculate days in burst and overlap
-    const totalBurstDays =
-      Math.ceil((burstEnd.getTime() - burstStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    const overlapDays =
-      Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
-
-    // Get burst amount (could be budget, cost, spend, investment, etc.)
-    // Also handle string amounts that need parsing
-    let burstAmount =
-      burst.budget ||
-      burst.cost ||
-      burst.spend ||
-      burst.investment ||
-      burst.amount ||
-      burst.totalAmount ||
-      0
-
-    // If amount is a string, try to parse it
-    if (typeof burstAmount === "string") {
-      burstAmount = parseFloat(burstAmount.replace(/[^0-9.-]/g, "")) || 0
-    }
-
-    // Calculate proportional amount for this month
-    if (totalBurstDays > 0 && burstAmount > 0) {
-      const monthlyAmount = (burstAmount / totalBurstDays) * overlapDays
-      total += monthlyAmount
-    }
-  })
-
-  return Math.round(total * 100) / 100 // Round to 2 decimal places
+  return cents.length > 0 ? fromCents(sumCents(cents)) : 0
 }
 
 /**
