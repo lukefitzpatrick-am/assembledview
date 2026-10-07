@@ -2,6 +2,9 @@
 
 import { useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
+import { PageHeader } from "@/components/layout/PageHeader"
+import { PageShell } from "@/components/layout/PageShell"
+import { Section } from "@/components/layout/Section"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type {
@@ -693,22 +696,13 @@ export function IngestReviewScreen({
   )
 
   return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-8 p-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Review schedule import
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Completeness is the plan template, not leftover file columns. AVA
-          asks only when a required field has no source. Nothing enters a plan
-          until you accept.
-        </p>
-      </header>
+    <PageShell width="standard">
+      <PageHeader
+        title="Review schedule import"
+        lede="Completeness is the plan template, not leftover file columns. AVA asks only when a required field has no source. Nothing enters a plan until you accept."
+      />
 
-      <section className="space-y-3 rounded-card border border-border bg-card p-4 shadow-e1">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Detected publisher
-        </h2>
+      <Section title="Detected publisher" className="rounded-card border border-border bg-card p-4">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-xl font-semibold text-foreground">
             {review.detected_publisher ?? "Unknown"}
@@ -748,12 +742,9 @@ export function IngestReviewScreen({
             {w}
           </p>
         ))}
-      </section>
+      </Section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          A · Your plan
-        </h2>
+      <Section title="A · Your plan">
         {cardSurface && cardSurface.rows.length > 0 ? (
           <PlanFieldsTable
             rows={cardSurface.rows}
@@ -793,13 +784,10 @@ export function IngestReviewScreen({
             onAcceptAvaProposal={onAcceptAvaProposal}
           />
         ) : null}
-      </section>
+      </Section>
 
       {leftoverRows.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            C · Not used
-          </h2>
+        <Section title="C · Not used">
           <p className="text-sm text-muted-foreground">
             Leftover publisher columns are ignored by default. Map one only if
             a required field above is missing.
@@ -811,29 +799,20 @@ export function IngestReviewScreen({
             avaByHeader={avaByHeader}
             onAcceptAvaProposal={onAcceptAvaProposal}
           />
-        </section>
+        </Section>
       ) : null}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Ignored
-        </h2>
+      <Section title="Ignored">
         <IgnoredBlock ignored={review.ignored} />
-      </section>
+      </Section>
 
       {review.proposal ? (
         <>
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Reconciliation
-            </h2>
+          <Section title="Reconciliation">
             <ReconciliationBlock proposal={review.proposal} />
-          </section>
+          </Section>
 
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Proposed line items
-            </h2>
+          <Section title="Proposed line items">
             <p className="text-sm text-muted-foreground">
               Panels stay collapsed. Expand a line to load its panel list —
               large packs (hundreds of panels) must not render open by default.
@@ -843,7 +822,7 @@ export function IngestReviewScreen({
                 <LineItemCard key={i} item={item} index={i} />
               ))}
             </div>
-          </section>
+          </Section>
         </>
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -875,6 +854,6 @@ export function IngestReviewScreen({
           {accepting ? "Accepting…" : "Accept into campaign"}
         </Button>
       </footer>
-    </div>
+    </PageShell>
   )
 }

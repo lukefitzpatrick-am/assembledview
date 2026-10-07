@@ -92,7 +92,6 @@ export function SavingModal({
       }}
     >
       <DialogContent className="flex min-h-[200px] flex-col overflow-hidden border-2 border-secondary bg-background p-0 sm:max-w-[500px]">
-        <div className="h-1 shrink-0 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
         <div className="flex flex-col gap-4 p-6">
         <DialogTitle className="text-lg font-semibold">{dialogTitle}</DialogTitle>
         {hasItems && (

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -213,13 +214,13 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
 
   return (
     <div className="space-y-4 pb-20">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            Parse review · {publisher} → {campaignLabel}
+      <PageHeader
+        title="Parse review"
+        lede={
+          <>
+            {publisher} → {campaignLabel}
             {mbaNumber !== "create" ? ` (${mbaNumber})` : ""}
-          </h1>
-          <p className="mt-1 text-xs text-muted-foreground">
+            {" · "}
             {fileName ?? "workbook"}
             {" · "}
             stage {stageId.slice(0, 8)}
@@ -228,9 +229,10 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
             {audit
               ? ` · audit: ${audit.model}, ${audit.chunks} section${audit.chunks === 1 ? "" : "s"}`
               : " · audit skipped"}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+          </>
+        }
+        actions={
+          <>
           <Button type="button" variant="outline" onClick={downloadParity}>
             Download parity report
           </Button>
@@ -255,8 +257,9 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
           >
             Load {loadCount} lines into {channelLabel}
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {!sourceFileRetained ? (
         <div className="rounded-card border border-border bg-card px-4 py-3 text-sm text-status-critical-fg shadow-e1">

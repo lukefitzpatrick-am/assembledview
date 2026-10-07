@@ -12,6 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Section } from "@/components/layout/Section";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -194,13 +195,11 @@ export function OrphansClient() {
   return (
     <>
       <div className="space-y-4 p-4">
-        <div>
-          <h1 className="text-lg font-semibold">Orphan ad groups</h1>
-          <p className="text-xs text-muted-foreground">
-            {orphans.length} pending. Daily refresh runs with a 7-day window — if an override
-            isn&apos;t followed by a Google Ads rename within 7 days, the orphan may reappear.
-          </p>
-        </div>
+        <Section
+          as="h2"
+          title="Orphan ad groups"
+          description={`${orphans.length} pending. Daily refresh runs with a 7-day window — if an override isn't followed by a Google Ads rename within 7 days, the orphan may reappear.`}
+        />
 
         <div className="overflow-auto rounded border">
           <table className="w-full text-xs">

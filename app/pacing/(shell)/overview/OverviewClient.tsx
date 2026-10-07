@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { Section } from "@/components/layout/Section";
 import { PacingStatusSummary } from "@/components/pacing/PacingStatusSummary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -114,14 +115,11 @@ export function OverviewClient({ isAdmin: _isAdmin }: OverviewClientProps) {
 
   return (
     <div className={`space-y-4 p-4 ${isPending ? "opacity-70" : ""}`}>
-      <header className="space-y-1">
-        <h1 className="text-lg font-semibold">Pacing overview</h1>
-        <p className="text-xs text-muted-foreground">
-          Line items across Search, Social, Programmatic, Ad Serving, and Direct
-          in your scope. As of {data.asOfDate}. Channel tabs have full
-          drill-down.
-        </p>
-      </header>
+      <Section
+        as="h2"
+        title="Pacing overview"
+        description={`Line items across Search, Social, Programmatic, Ad Serving, and Direct in your scope. As of ${data.asOfDate}. Channel tabs have full drill-down.`}
+      />
 
       {unavailable.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-card border border-status-blocking-fg/30 bg-status-blocking-bg px-3 py-2">

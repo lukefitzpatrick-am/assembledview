@@ -48,7 +48,6 @@ export function UnsavedChangesDialog({
       }}
     >
       <DialogContent className="overflow-hidden p-0 sm:max-w-lg">
-        <div className="h-1 bg-gradient-to-r from-pacing-behind via-pacing-behind/70 to-pacing-behind/40" />
         <div className="p-6">
           {draftSaved ? (
             <>

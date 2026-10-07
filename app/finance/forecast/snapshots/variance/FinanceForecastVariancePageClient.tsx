@@ -20,6 +20,8 @@ import type {
 } from "@/lib/types/financeForecastVariance"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
+import { PageHeader } from "@/components/layout/PageHeader"
+import { PageShell } from "@/components/layout/PageShell"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -317,14 +319,11 @@ export default function FinanceForecastVariancePageClient() {
   const probableDelta = bothProbableScope ? report?.fy_total.absolute_change ?? null : null
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Forecast snapshot variance</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Compare two saved forecasts (read-only). Older snapshot amounts are treated as the baseline; newer as the
-          current view.
-        </p>
-      </div>
+    <PageShell width="standard">
+      <PageHeader
+        title="Forecast snapshot variance"
+        lede="Compare two saved forecasts (read-only). Older snapshot amounts are treated as the baseline; newer as the current view."
+      />
 
       {listError ? (
         <Alert variant="destructive">
@@ -719,7 +718,7 @@ export default function FinanceForecastVariancePageClient() {
           </Card>
         </>
       ) : null}
-    </div>
+    </PageShell>
   )
 }
 

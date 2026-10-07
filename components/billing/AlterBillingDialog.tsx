@@ -185,7 +185,6 @@ export function AlterBillingDialog({
         layer={layer}
         className="flex max-h-[90vh] max-w-5xl flex-col overflow-hidden p-0"
       >
-        <div className="h-1 shrink-0 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="shrink-0 border-b px-6 py-4">
             <DialogHeader>

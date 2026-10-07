@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
+import { Section } from "@/components/layout/Section"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -367,13 +368,11 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold">Delivery relabels</h1>
-        <p className="text-xs text-muted-foreground">
-          Move a fact-table entity onto a published plan line. Apply writes Snowflake in one
-          transaction; blocked previews can be saved as a request for Luke.
-        </p>
-      </div>
+      <Section
+        as="h2"
+        title="Delivery relabels"
+        description="Move a fact-table entity onto a published plan line. Apply writes Snowflake in one transaction; blocked previews can be saved as a request for Luke."
+      />
 
       <Tabs value={tab} onValueChange={(value) => setTab(parseRelabelsTab(value))}>
         <TabsList>

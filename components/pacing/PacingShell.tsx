@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { navChipClass } from "@/components/layout/navChip"
-import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { AvaPacingCommentaryAction } from "@/components/ava/AvaSkillActionSets"
 import { PacingFilterToolbar } from "@/components/pacing/PacingFilterToolbar"
 
@@ -39,14 +39,9 @@ export function PacingShell({ children, isAdmin = false, canRelabel = false }: P
         <PacingFilterToolbar />
       </div>
 
-      <MediaPlanEditorHero
+      <PageHeader
         title="Pacing"
-        detail={
-          <p>
-            Portfolio pacing across all clients and channels in your scope
-            (Search, Social, Programmatic, Ad Serving, Direct).
-          </p>
-        }
+        lede="Portfolio pacing across all clients and channels in your scope (Search, Social, Programmatic, Ad Serving, Direct)."
         actions={<AvaPacingCommentaryAction />}
       />
 
