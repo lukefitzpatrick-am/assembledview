@@ -45,6 +45,11 @@ import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancia
 import { resolveFeePctFromFeeLoading } from "@/lib/finance/computeCampaignFinancials"
 import { addGst } from "@/lib/finance/gst"
 import {
+  attachOverridesToLineInputs,
+  type BillingOverrideRow,
+} from "@/lib/finance/billingOverrides"
+import { fromCents, sumCents } from "@/lib/money/cents"
+import {
   feeSnapshotHasRates,
   sumLegacyBillingTotals,
 } from "@/lib/docs/legacyBillingTotals"
@@ -192,6 +197,30 @@ export type BuildMediaItemsFromPlanDetailArgs = {
   feeSnapshot: EditorFeeState | Record<string, unknown>
   publishers: Publisher[]
   logoBase64: string
+  /** Frozen publish slice. Ad serving on the workbook comes from here, not live rates. */
+  approvedSlice?: unknown
+  /** Persisted billing_overrides for this version (media and fee only). */
+  billingOverrideRows?: BillingOverrideRow[]
+}
+
+/**
+ * Sum per-line adservingCents on a frozen approved slice.
+ * Null when the slice has no ad serving fields, so the legacy billing blob can stand.
+ */
+export function adServingDollarsFromApprovedSlice(slice: unknown): number | null {
+  if (!slice || typeof slice !== "object") return null
+  const lines = (slice as { lines?: unknown }).lines
+  if (!Array.isArray(lines)) return null
+  const cents: number[] = []
+  for (const line of lines) {
+    if (!line || typeof line !== "object") continue
+    const record = line as { adservingCents?: unknown; adserving_cents?: unknown }
+    if (!("adservingCents" in record) && !("adserving_cents" in record)) continue
+    const raw = Number(record.adservingCents ?? record.adserving_cents)
+    cents.push(Number.isFinite(raw) ? Math.trunc(raw) : 0)
+  }
+  if (cents.length === 0) return null
+  return fromCents(sumCents(cents))
 }
 
 export type BuildMediaItemsFromPlanDetailResult = {
@@ -240,9 +269,16 @@ export function buildMediaItemsFromPlanDetail(
   )
   const mediaItems = filterMediaItemsForMbaScope(exploded, persistedScope)
   const unscopedInputs = buildEditorLineItemInputs(seedConfigs)
-  const lineInputs = persistedScope
+  const scopedInputs = persistedScope
     ? applyMbaScopeLineApprovals(unscopedInputs, persistedScope.lineItemIds)
     : unscopedInputs
+  const lineInputs = attachOverridesToLineInputs(
+    scopedInputs,
+    (args.billingOverrideRows ?? []).filter((row) => {
+      const component = String(row.component ?? "media").trim().toLowerCase()
+      return component === "media" || component === "fee"
+    }),
+  )
   const campaignStartRaw =
     args.versionData.campaign_start_date ?? args.versionData.mp_campaigndates_start
   const campaignEndRaw =
@@ -276,6 +312,7 @@ export function buildMediaItemsFromPlanDetail(
   // Historic published cuts often have no mba_fee_snapshots row. Explode still
   // uses burstAmounts (gross media). Totals fee/adserving come from the frozen
   // billing blob so regenerated Excel matches the Xano-era workbook.
+  let adServingSource: "approved_slice" | "legacy_billing_blob" | "none" = "none"
   if (!feeSnapshotHasRates(args.feeSnapshot)) {
     const blob = sumLegacyBillingTotals(args.versionData.billingSchedule)
     if (blob.fee !== 0 || blob.adserving !== 0) {
@@ -295,7 +332,27 @@ export function buildMediaItemsFromPlanDetail(
           total_inc_gst: addGst(exGst),
         },
       }
+      adServingSource = "legacy_billing_blob"
     }
+  }
+
+  const persistedAdServing = adServingDollarsFromApprovedSlice(args.approvedSlice)
+  if (persistedAdServing != null) {
+    const delta = roundMoney2(persistedAdServing - mbaData.totals.adserving)
+    const exGst = roundMoney2(mbaData.totals.totals_ex_gst + delta)
+    mbaData = {
+      ...mbaData,
+      totals: {
+        ...mbaData.totals,
+        adserving: persistedAdServing,
+        totals_ex_gst: exGst,
+        total_inc_gst: addGst(exGst),
+      },
+    }
+    adServingSource = "approved_slice"
+  }
+  if (adServingSource !== "none") {
+    console.info(`[media-plan] published ad serving source=${adServingSource}`)
   }
 
   const budgetRaw = args.versionData.mp_campaignbudget
@@ -357,6 +414,8 @@ export async function buildMediaItemsFromPersisted(args: {
 
   const versionId = Number(data.id)
   let feeSnapshot: Record<string, unknown> = {}
+  let approvedSlice: unknown = null
+  let billingOverrideRows: BillingOverrideRow[] = []
   if (Number.isFinite(versionId) && versionId > 0) {
     const db = getDb()
     const [snap] = await db
@@ -367,6 +426,31 @@ export async function buildMediaItemsFromPersisted(args: {
     if (snap?.fees && typeof snap.fees === "object") {
       feeSnapshot = snap.fees as Record<string, unknown>
     }
+    const [versionRow] = await db
+      .select({ approvedSlice: schema.mediaPlanVersions.approvedSlice })
+      .from(schema.mediaPlanVersions)
+      .where(eq(schema.mediaPlanVersions.id, versionId))
+      .limit(1)
+    approvedSlice = versionRow?.approvedSlice ?? null
+    const overrideRows = await db
+      .select({
+        lineItemId: schema.billingOverrides.lineItemId,
+        component: schema.billingOverrides.component,
+        mode: schema.billingOverrides.mode,
+        reason: schema.billingOverrides.reason,
+        months: schema.billingOverrides.months,
+        dateBasis: schema.billingOverrides.dateBasis,
+      })
+      .from(schema.billingOverrides)
+      .where(eq(schema.billingOverrides.versionId, versionId))
+    billingOverrideRows = overrideRows.map((row) => ({
+      line_item_id: row.lineItemId,
+      component: row.component,
+      mode: row.mode,
+      reason: row.reason,
+      months: row.months as BillingOverrideRow["months"],
+      date_basis: row.dateBasis,
+    }))
   }
 
   const publishers = (await fetchPublishersFromPostgres()) as unknown as Publisher[]
@@ -382,5 +466,7 @@ export async function buildMediaItemsFromPersisted(args: {
     feeSnapshot,
     publishers,
     logoBase64: readAssembledLogoBase64(),
+    approvedSlice,
+    billingOverrideRows,
   })
 }

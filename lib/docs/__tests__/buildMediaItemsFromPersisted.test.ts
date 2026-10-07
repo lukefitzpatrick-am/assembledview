@@ -13,8 +13,10 @@ import { generateMediaPlan } from "@/lib/generateMediaPlan"
 import { parseMoneyInput } from "@/lib/format/money"
 import { PersistedDocError } from "@/lib/docs/buildMbaFromPersisted"
 import {
+  adServingDollarsFromApprovedSlice,
   buildMediaItemsFromPlanDetail,
 } from "@/lib/docs/buildMediaItemsFromPersisted"
+import { centsToDollars } from "@/lib/finance/scheduleMonthsSource"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const dump = JSON.parse(
@@ -294,5 +296,55 @@ describe("buildMediaItemsFromPlanDetail DOC-3 dumps (empty snapshot)", () => {
     )
     assert.equal(result.mbaData.totals.service_fee, 9_852.55)
     assert.equal(result.mbaData.totals.adserving, 3_180.66)
+  })
+})
+
+describe("published workbook ad serving from the approved slice", () => {
+  const slice = {
+    totalCents: 23_500,
+    lines: [
+      {
+        lineItemId: "line-a",
+        months: ["2026-01"],
+        mediaCents: 10_000,
+        feeCents: 0,
+        adservingCents: 15_000,
+        productionCents: 0,
+      },
+      {
+        lineItemId: "line-b",
+        months: ["2026-01"],
+        mediaCents: 10_000,
+        feeCents: 0,
+        adservingCents: 8_500,
+        productionCents: 0,
+      },
+    ],
+  }
+
+  it("sums per-line cents the same way the persisted MBA does", () => {
+    assert.equal(adServingDollarsFromApprovedSlice(null), null)
+    assert.equal(adServingDollarsFromApprovedSlice({ lines: [{ mediaCents: 1 }] }), null)
+    const expected = centsToDollars(15_000 + 8_500)
+    assert.equal(adServingDollarsFromApprovedSlice(slice), expected)
+  })
+
+  it("puts that sum on the workbook MBA block and moves ex GST by the same amount", () => {
+    const base = {
+      versionData: versionMapped(),
+      clientName: dump.master.mpClientName,
+      lineItems: groupedLines(),
+      feeSnapshot: dump.feeSnapshot,
+      publishers: [],
+      logoBase64: LOGO,
+    }
+    const without = buildMediaItemsFromPlanDetail(base)
+    const withSlice = buildMediaItemsFromPlanDetail({ ...base, approvedSlice: slice })
+    const expected = centsToDollars(15_000 + 8_500)
+    assert.equal(withSlice.mbaData.totals.adserving, expected)
+    assert.equal(
+      Math.round((withSlice.mbaData.totals.totals_ex_gst - without.mbaData.totals.totals_ex_gst) * 100),
+      Math.round(expected * 100),
+    )
   })
 })
