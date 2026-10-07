@@ -147,7 +147,7 @@ export function computeRowKpiStatus(row: SearchPacingCampaignRow): RowKpiStatus 
 export function copyForRowKpiStatus(status: RowKpiStatus): string {
   switch (status) {
     case "kpi-pending":
-      return "KPI Pending";
+      return "KPI pending";
     case "kpi-no-delivery":
       return "No delivery";
     case "kpi-on-track":

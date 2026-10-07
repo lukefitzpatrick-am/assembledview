@@ -12412,13 +12412,13 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-sm font-medium text-muted-foreground">
-                      Client Name <span className="text-status-critical-fg" aria-hidden>*</span>
+                      Client Name <span className="text-tone-critical-fg" aria-hidden>*</span>
                     </FormLabel>
                     <FormControl>
                       <Input {...field} disabled />
                     </FormControl>
                     {clientsError ? (
-                      <p role="alert" className="text-sm text-status-critical-fg">
+                      <p role="alert" className="text-sm text-tone-critical-fg">
                         {clientsError}{" "}
                         <button
                           type="button"
@@ -12451,7 +12451,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-sm font-medium text-muted-foreground">
-                      Campaign Name <span className="text-status-critical-fg" aria-hidden>*</span>
+                      Campaign Name <span className="text-tone-critical-fg" aria-hidden>*</span>
                     </FormLabel>
                     <FormControl>
                       <Input {...field} value={String(field.value)} />
@@ -12537,7 +12537,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-sm font-medium text-muted-foreground">
-                      Campaign Start Date <span className="text-status-critical-fg" aria-hidden>*</span>
+                      Campaign Start Date <span className="text-tone-critical-fg" aria-hidden>*</span>
                     </FormLabel>
                     <FormControl>
                       <SingleDatePicker
@@ -12565,7 +12565,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-sm font-medium text-muted-foreground">
-                      Campaign End Date <span className="text-status-critical-fg" aria-hidden>*</span>
+                      Campaign End Date <span className="text-tone-critical-fg" aria-hidden>*</span>
                     </FormLabel>
                     <FormControl>
                       <SingleDatePicker
@@ -12595,7 +12595,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                 render={({ field }) => (
                   <FormItem id="builder-field-campaign-budget" className="scroll-mt-24">
                     <FormLabel className="text-sm font-medium text-muted-foreground">
-                      Campaign Budget <span className="text-status-critical-fg" aria-hidden>*</span>
+                      Campaign Budget <span className="text-tone-critical-fg" aria-hidden>*</span>
                     </FormLabel>
                     <FormControl>
                       <MoneyInput
@@ -13950,7 +13950,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                           {Math.abs(agencyFeeMonthTotalDrift) >= 10 ? (
                             <>
                               <span className="mx-2">Â·</span>
-                              <span className="text-status-behind-fg">
+                              <span className="text-tone-attention-fg">
                                 Diff: {agencyFeeMonthTotalDrift >= 0 ? "+" : "−"}
                                 {mbaCurrencyFormatter.format(Math.abs(agencyFeeMonthTotalDrift))}
                               </span>
@@ -14170,9 +14170,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                   </div>
                 )}
                 {billingError.preservedOverrides.length > 0 && (
-                  <div className="rounded-card border border-pacing-behind bg-pacing-behind-bg p-3 text-status-behind-fg">
+                  <div className="rounded-card border border-tone-attention bg-tone-attention-bg p-3 text-tone-attention-fg">
                     <p className="font-semibold">Preserved manual billing (informational)</p>
-                    <p className="mt-1 text-xs text-status-behind-fg/90">
+                    <p className="mt-1 text-xs text-tone-attention-fg/90">
                       Billing differs from current bursts or fee auto-calculation — normal if you edited amounts on purpose.
                       Campaign save still allows these unless you fix them.
                     </p>

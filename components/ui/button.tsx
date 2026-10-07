@@ -11,13 +11,13 @@ const buttonVariants = cva(
         default: "bg-accent text-accent-foreground hover:bg-accent-hover",
         /** Ink/neutral primary CTA — use for Save / Open MBA / Edit timing (not brand green). */
         action: "bg-action text-action-foreground hover:bg-action-hover",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-error-hover",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline: "border border-input bg-background text-foreground hover:bg-muted",
         secondary: "border-2 border-secondary bg-transparent text-secondary hover:bg-secondary/10 dark:text-foreground",
         ghost: "text-foreground hover:bg-muted",
         link: "text-primary underline-offset-4 hover:underline",
         success: "bg-primary text-primary-foreground hover:bg-primary-hover",
-        warning: "bg-warning text-darkGrey hover:bg-warning-hover",
+        warning: "bg-tone-attention text-am-ink hover:bg-tone-attention/90",
       },
       size: {
         default: "h-10 px-5",

@@ -598,8 +598,8 @@ export default function ForecastingPageClient() {
 
       {panelMode === "variance" ? (
         <>
-          <Alert className="rounded-card border-pacing-behind-bg bg-pacing-behind-bg text-status-behind-fg">
-            <Info className="h-4 w-4 text-status-behind-fg" aria-hidden />
+          <Alert className="rounded-card border-tone-attention-bg bg-tone-attention-bg text-tone-attention-fg">
+            <Info className="h-4 w-4 text-tone-attention-fg" aria-hidden />
             <AlertTitle className="text-sm font-semibold text-foreground">Target vs billed actual</AlertTitle>
             <AlertDescription className="text-sm text-muted-foreground">
               Variance compares targets to billed actuals for FY{fyDisplayLabel(fyStart)} (scope bar).
@@ -668,8 +668,8 @@ export default function ForecastingPageClient() {
 
       {panelMode === "target" ? (
         <>
-          <Alert className="rounded-card border-pacing-behind-bg bg-pacing-behind-bg text-status-behind-fg">
-            <Info className="h-4 w-4 text-status-behind-fg" aria-hidden />
+          <Alert className="rounded-card border-tone-attention-bg bg-tone-attention-bg text-tone-attention-fg">
+            <Info className="h-4 w-4 text-tone-attention-fg" aria-hidden />
             <AlertTitle className="text-sm font-semibold text-foreground">Target entry</AlertTitle>
             <AlertDescription className="text-sm text-muted-foreground">
               Target amounts are scoped to FY{fyDisplayLabel(fyStart)} from the scope bar.
@@ -899,7 +899,7 @@ export default function ForecastingPageClient() {
           ) : null}
 
           {snapshotBanner?.kind === "success" ? (
-            <Alert className="rounded-card border-pacing-ahead-bg bg-pacing-ahead-bg text-status-ahead-fg">
+            <Alert className="rounded-card border-tone-insight-bg bg-tone-insight-bg text-tone-insight-fg">
               <AlertTitle>Snapshot saved</AlertTitle>
               <AlertDescription className="space-y-1 text-sm">
                 <p>
@@ -931,7 +931,7 @@ export default function ForecastingPageClient() {
                     .
                   </p>
                 ) : (
-                  <p className="text-status-behind-fg">
+                  <p className="text-tone-attention-fg">
                     Snapshot storage is not configured on the server ({snapshotBanner.reason ?? "no base URL"}). Label
                     and counts reflect what would be saved to Xano.
                   </p>
@@ -941,7 +941,7 @@ export default function ForecastingPageClient() {
           ) : null}
 
           {snapshotBanner?.kind === "duplicate" ? (
-            <Alert className="rounded-card border-pacing-behind-bg bg-pacing-behind-bg text-status-behind-fg">
+            <Alert className="rounded-card border-tone-attention-bg bg-tone-attention-bg text-tone-attention-fg">
               <AlertTitle>Duplicate snapshot</AlertTitle>
               <AlertDescription className="flex flex-col gap-3 text-sm">
                 <p>{snapshotBanner.message}</p>
@@ -1132,11 +1132,11 @@ function PortfolioSummaryRows({ dataset }: { dataset: FinanceForecastDataset }) 
 
   return (
     <>
-      <tr className="border-b border-border bg-pacing-on-track-bg">
+      <tr className="border-b border-border bg-tone-action-bg">
         <td rowSpan={3} className={cn(STICKY_CLIENT, STICKY_HEAD, headLabel, "align-top")}>
           Summary
         </td>
-        <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel, "border-l-2 border-l-pacing-on-track")}>
+        <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel, "border-l-2 border-l-tone-action")}>
           Subtotal — billing
         </td>
         <ForecastSummaryAmountCells monthly={billing.monthly} fy={billing.fy} />
@@ -1161,7 +1161,7 @@ function ClientBillingSubtotalRow(props: {
   fy: number
 }) {
   return (
-      <tr className="border-b border-border bg-pacing-on-track-bg font-medium">
+      <tr className="border-b border-border bg-tone-action-bg font-medium">
       <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-muted-foreground")}>
         {props.clientName}
       </td>
@@ -1318,7 +1318,7 @@ function FragmentBlock(props: {
           <td
             className={cn(
               STICKY_LINE,
-              "border-l-2 border-l-pacing-on-track bg-pacing-on-track-bg px-3 py-1.5 text-xs font-semibold text-foreground"
+              "border-l-2 border-l-tone-action bg-tone-action-bg px-3 py-1.5 text-xs font-semibold text-foreground"
             )}
           >
             Subtotal — billing
@@ -1408,7 +1408,7 @@ function FragmentBlock(props: {
 
       {mediaByType.length > 0 ? (
         <>
-          <tr className="border-l-2 border-l-pacing-on-track bg-surface-panel">
+          <tr className="border-l-2 border-l-tone-action bg-surface-panel">
             <td
               colSpan={colCount}
               className="px-3 py-1.5 pl-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
@@ -1504,7 +1504,7 @@ function RollupHeaderRow(props: {
   tooltip?: string
 }) {
   const border =
-    props.accent === "billing" ? "border-l-pacing-on-track" : "border-l-channel-bvod"
+    props.accent === "billing" ? "border-l-tone-action" : "border-l-channel-bvod"
   return (
     <tr className={cn("border-b border-border bg-surface-panel font-medium", "border-l-2", border)}>
       <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-muted-foreground")}>
@@ -1545,7 +1545,7 @@ function ExpandableRollupRow(props: {
 }) {
   const indent = props.indent ?? 0
   const border =
-    props.accent === "billing" ? "border-l-pacing-on-track" : "border-l-channel-bvod"
+    props.accent === "billing" ? "border-l-tone-action" : "border-l-channel-bvod"
   return (
     <tr className={cn("border-b border-border transition-colors hover:bg-table-row-hover", "border-l-2", border)}>
       <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-foreground")}>
@@ -1600,7 +1600,7 @@ function ForecastLineRow(props: {
     <tr
       className={cn(
         "border-b border-border transition-colors hover:bg-table-row-hover",
-        isTotal && "bg-pacing-ahead-bg font-semibold"
+        isTotal && "bg-tone-insight-bg font-semibold"
       )}
     >
       <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-foreground")}>{clientName}</td>
@@ -1612,7 +1612,7 @@ function ForecastLineRow(props: {
             indent >= 2 && "pl-6"
           )}
         >
-          <span className={cn("text-xs leading-snug", isTotal && "text-status-ahead-fg")}>
+          <span className={cn("text-xs leading-snug", isTotal && "text-tone-insight-fg")}>
             {lineDescription}
           </span>
           <Button
@@ -1633,7 +1633,7 @@ function ForecastLineRow(props: {
           key={k}
           className={cn(
             "num whitespace-nowrap px-2 py-1.5 text-right font-mono text-xs text-foreground/90",
-            isTotal && "text-status-ahead-fg"
+            isTotal && "text-tone-insight-fg"
           )}
         >
           {money(line.monthly[k] ?? 0)}
@@ -1642,7 +1642,7 @@ function ForecastLineRow(props: {
       <td
         className={cn(
           "num whitespace-nowrap px-3 py-1.5 text-right font-mono text-xs font-medium",
-          isTotal && "text-status-ahead-fg"
+          isTotal && "text-tone-insight-fg"
         )}
       >
         {money(line.fy_total)}

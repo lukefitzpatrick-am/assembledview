@@ -352,10 +352,10 @@ function deliverableCellTint(row: ProgrammaticPacingCampaignRow, asOfDate: strin
   const pct = lineDeliverablePacingPct(row, asOfDate);
   if (pct === null) return "";
   const deviation = Math.abs(Number(pct) - 100);
-  if (!Number.isFinite(deviation)) return "text-status-on-track-fg";
-  if (deviation <= 10) return "text-status-on-track-fg";
-  if (deviation <= 20) return "text-status-behind-fg";
-  return "text-status-critical-fg";
+  if (!Number.isFinite(deviation)) return "text-tone-action-fg";
+  if (deviation <= 10) return "text-tone-action-fg";
+  if (deviation <= 20) return "text-tone-attention-fg";
+  return "text-tone-critical-fg";
 }
 
 function deliverableMetricTitle(metric: DeliverableMetric, kind: "delivered" | "target"): string {
@@ -1172,11 +1172,11 @@ function ProgrammaticKpiComparisonRow({ comparison: c }: { comparison: Programma
       ? "text-muted-foreground"
       : isLowerBetter
         ? c.variancePercent <= 0
-          ? "text-status-ahead-fg"
-          : "text-status-critical-fg"
+          ? "text-tone-insight-fg"
+          : "text-tone-critical-fg"
         : c.variancePercent >= 0
-          ? "text-status-ahead-fg"
-          : "text-status-critical-fg";
+          ? "text-tone-insight-fg"
+          : "text-tone-critical-fg";
 
   const actualDisplay =
     c.status === "no-target" ? (

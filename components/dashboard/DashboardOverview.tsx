@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
+import { Section } from "@/components/layout/Section"
 import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -529,7 +530,7 @@ type DashboardCollapsiblePanelProps = {
   panelTitle: ReactNode
   badge: ReactNode
   children: ReactNode
-  /** Full Tailwind gradient classes including `bg-gradient-to-r` (static string for JIT). */
+  /** @deprecated Accent strip removed. Callers may still pass it; it no longer paints. */
   gradientClassName?: string
   /** Anchor id for KPI tile scroll targets. */
   id?: string
@@ -543,7 +544,6 @@ function DashboardCollapsiblePanel({
   panelTitle,
   badge,
   children,
-  gradientClassName,
   id,
 }: DashboardCollapsiblePanelProps) {
   const expanded = isMd || open
@@ -556,8 +556,7 @@ function DashboardCollapsiblePanel({
       }}
       className="w-full scroll-mt-4"
     >
-      <Panel className="w-full overflow-hidden border-0 shadow-md">
-        {gradientClassName ? <div className={`h-1 ${gradientClassName}`} /> : null}
+      <Panel className="w-full overflow-hidden border-0">
         <PanelHeader className="items-center pb-2">
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             {isMd ? (
@@ -756,9 +755,9 @@ export default function DashboardOverview({
         value: String(counts.liveCampaigns),
         icon: BarChart3,
         tooltip: "Campaigns booked/approved/completed running today (respects active filters)",
-        accent: "bg-pacing-on-track",
-        iconBg: "bg-pacing-on-track-bg",
-        iconText: "text-status-on-track-fg",
+        accent: "bg-tone-action",
+        iconBg: "bg-muted",
+        iconText: "text-muted-foreground",
         panelId: "dashboard-panel-live-campaigns",
       },
       {
@@ -766,9 +765,9 @@ export default function DashboardOverview({
         value: String(counts.liveScopes),
         icon: TrendingUp,
         tooltip: "Scopes with status Approved or In-Progress (respects active filters)",
-        accent: "bg-pacing-ahead",
-        iconBg: "bg-pacing-ahead-bg",
-        iconText: "text-status-ahead-fg",
+        accent: "bg-tone-insight",
+        iconBg: "bg-muted",
+        iconText: "text-muted-foreground",
         panelId: "dashboard-panel-live-scopes",
       },
       {
@@ -777,8 +776,8 @@ export default function DashboardOverview({
         icon: Users,
         tooltip: "Unique clients with live campaigns or scopes (respects active filters)",
         accent: "bg-channel-bvod",
-        iconBg: "bg-surface-panel",
-        iconText: "text-channel-bvod",
+        iconBg: "bg-muted",
+        iconText: "text-muted-foreground",
         panelId: "dashboard-section-campaigns-scope",
       },
     ]
@@ -789,8 +788,8 @@ export default function DashboardOverview({
         icon: DollarSign,
         tooltip: formatHomeMediaSpendTooltip(mediaSpendTile.amount),
         accent: "bg-channel-search",
-        iconBg: "bg-surface-panel",
-        iconText: "text-channel-search",
+        iconBg: "bg-muted",
+        iconText: "text-muted-foreground",
         panelId: "dashboard-panel-live-campaigns",
       })
     }
@@ -1910,19 +1909,19 @@ export default function DashboardOverview({
     if (!status) return "bg-surface-panel text-muted-foreground border-0"
     switch (status.toLowerCase()) {
       case "booked":
-        return "bg-pacing-on-track-bg text-status-on-track-fg border-0"
+        return "bg-tone-action-bg text-tone-action-fg border-0"
       case "approved":
-        return "bg-pacing-ahead-bg text-status-ahead-fg border-0"
+        return "bg-tone-insight-bg text-tone-insight-fg border-0"
       case "planned":
-        return "bg-pacing-on-track-bg text-status-on-track-fg border-0"
+        return "bg-tone-action-bg text-tone-action-fg border-0"
       case "draft":
         return "bg-surface-panel text-muted-foreground border-0"
       case "completed":
-        return "bg-pacing-ahead-bg text-status-ahead-fg border-0"
+        return "bg-tone-insight-bg text-tone-insight-fg border-0"
       case "cancelled":
-        return "bg-pacing-critical-bg text-status-critical-fg border-0"
+        return "bg-tone-critical-bg text-tone-critical-fg border-0"
       case "in-progress":
-        return "bg-pacing-on-track-bg text-status-on-track-fg border-0"
+        return "bg-tone-action-bg text-tone-action-fg border-0"
       default:
         return "bg-surface-panel text-muted-foreground border-0"
     }
@@ -2116,21 +2115,21 @@ export default function DashboardOverview({
 
       {showTables && tableSectionVisible ? (
         <>
-          <div
-            id="dashboard-section-campaigns-scope"
-            className="mb-4 flex flex-col gap-3 pt-4 scroll-mt-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Campaigns & scope data</h2>
-            <div className="flex flex-wrap items-center gap-3">
-              <AuFinancialYearFilterPills value={fyFilter} onChange={setFyFilter} />
-              <ListGridToggle value={listGridMode} onChange={setListGridMode} />
-            </div>
+          <div id="dashboard-section-campaigns-scope" className="scroll-mt-4 pt-4">
+            <Section
+              title="Campaigns & scope data"
+              actions={
+                <div className="flex flex-wrap items-center gap-3">
+                  <AuFinancialYearFilterPills value={fyFilter} onChange={setFyFilter} />
+                  <ListGridToggle value={listGridMode} onChange={setListGridMode} />
+                </div>
+              }
+            />
           </div>
           <PanelRow className="space-y-0">
           {layoutPanels.liveCampaigns ? (
           <PanelRowCell span="full">
-            <Panel id="dashboard-panel-live-campaigns" className="w-full scroll-mt-4 overflow-hidden border-0 shadow-md">
-              <div className="h-1 bg-pacing-ahead" />
+            <Panel id="dashboard-panel-live-campaigns" className="w-full scroll-mt-4 overflow-hidden border-0">
               <PanelHeader className="items-center pb-2">
                 <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <PanelTitle as="h3" className="text-base">Live Campaigns (Booked / Approved / Completed)</PanelTitle>
@@ -2228,7 +2227,7 @@ export default function DashboardOverview({
               open={openScopesPanel}
               onOpenChange={setOpenScopesPanel}
               panelTitle="Live Scopes of Work"
-              gradientClassName="bg-pacing-ahead"
+              gradientClassName="bg-tone-insight"
               badge={
                 <Badge variant="ahead" className="num ml-auto w-fit shrink-0 text-xs font-medium">
                   {liveScopes.length} {liveScopes.length === 1 ? "Scope" : "Scopes"}
@@ -2311,7 +2310,7 @@ export default function DashboardOverview({
               open={openDueSoonPanel}
               onOpenChange={setOpenDueSoonPanel}
               panelTitle="Campaigns Starting Soon (Next 10 Days)"
-              gradientClassName="bg-pacing-on-track"
+              gradientClassName="bg-tone-action"
               badge={
                 <Badge variant="on-track" className="num ml-auto w-fit shrink-0 text-xs font-medium">
                   {campaignsDueToStart.length} {campaignsDueToStart.length === 1 ? "Campaign" : "Campaigns"}
@@ -2405,7 +2404,7 @@ export default function DashboardOverview({
               open={openFinishedPanel}
               onOpenChange={setOpenFinishedPanel}
               panelTitle="Campaigns Finished in Past 40 Days"
-              gradientClassName="bg-pacing-ahead"
+              gradientClassName="bg-tone-insight"
               badge={
                 <Badge variant="ahead" className="num ml-auto w-fit shrink-0 text-xs font-medium">
                   {campaignsFinishedRecently.length}{" "}

@@ -262,14 +262,14 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
       />
 
       {!sourceFileRetained ? (
-        <div className="rounded-card border border-border bg-card px-4 py-3 text-sm text-status-critical-fg shadow-e1">
+        <div className="rounded-card border border-border bg-card px-4 py-3 text-sm text-tone-critical-fg">
           The workbook was not retained for this stage. Re-upload needed to
           re-run audit.
         </div>
       ) : null}
 
       {error ? (
-        <div className="rounded-card border border-border bg-card px-4 py-3 text-sm text-status-critical-fg shadow-e1">
+        <div className="rounded-card border border-border bg-card px-4 py-3 text-sm text-tone-critical-fg">
           {error}
         </div>
       ) : null}
@@ -507,9 +507,9 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
                 className={cn(
                   "interactive-row",
                   row.state === "decide" || row.state === "value_card"
-                    ? "bg-pacing-critical-bg/40"
+                    ? "bg-tone-critical-bg/40"
                     : row.state === "waits"
-                      ? "bg-pacing-behind-bg/40"
+                      ? "bg-tone-attention-bg/40"
                       : row.state === "excluded"
                         ? "text-muted-foreground"
                         : null,
@@ -589,7 +589,7 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
           </div>
           <div className="h-2 w-full max-w-xs overflow-hidden rounded-pill bg-muted">
             <div
-              className="h-full bg-pacing-ahead"
+              className="h-full bg-tone-insight"
               style={{
                 width: `${
                   counts.proposed === 0
@@ -626,9 +626,9 @@ function StatTile(props: {
       <div
         className={cn(
           "num mt-1 text-xl font-semibold",
-          props.tone === "ok" && "text-status-ahead-fg",
-          props.tone === "warn" && "text-status-behind-fg",
-          props.tone === "bad" && "text-status-critical-fg",
+          props.tone === "ok" && "text-tone-insight-fg",
+          props.tone === "warn" && "text-tone-attention-fg",
+          props.tone === "bad" && "text-tone-critical-fg",
         )}
       >
         {props.value}

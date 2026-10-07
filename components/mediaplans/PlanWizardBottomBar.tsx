@@ -251,7 +251,7 @@ export function PlanWizardBottomBar({
                     onClick={draftAa}
                     disabled={aaDisabled}
                     title={draftHint}
-                    className="text-brand-dark focus:bg-highlight/25 focus:text-brand-dark"
+                    className="text-am-ink focus:bg-am-lime/25 focus:text-am-ink"
                   >
                     {controls.draftAaLabel}
                   </DropdownMenuItem>
@@ -279,7 +279,7 @@ export function PlanWizardBottomBar({
                   disabled={aaDisabled}
                   title={gateDownloadsOnPublish ? unpublishedTitle : undefined}
                   className={cn(
-                    "text-brand-dark focus:bg-highlight/25 focus:text-brand-dark",
+                    "text-am-ink focus:bg-am-lime/25 focus:text-am-ink",
                     (!hasAdvertisingAssociatesBilling || downloadBlocked) && "opacity-50",
                   )}
                 >
@@ -386,7 +386,7 @@ export function PlanWizardBottomBar({
         disabled={aaDisabled}
         title={gateDownloadsOnPublish ? unpublishedTitle : undefined}
         className={cn(
-          "hidden h-9 shrink-0 rounded-pill bg-brand-dark px-4 py-2 text-primary-foreground hover:bg-brand-dark/90 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring",
+          "hidden h-9 shrink-0 rounded-pill bg-am-ink px-4 py-2 text-primary-foreground hover:bg-am-ink/90 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring",
           (!hasAdvertisingAssociatesBilling || downloadBlocked) && "opacity-50 grayscale",
         )}
       >

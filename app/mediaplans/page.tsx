@@ -419,15 +419,15 @@ function MediaPlansPageInner() {
       case "Draft":
         return "bg-surface-muted text-muted-foreground"
       case "Planned":
-        return "bg-pacing-on-track-bg text-status-on-track-fg"
+        return "bg-tone-action-bg text-tone-action-fg"
       case "Approved":
-        return "bg-pacing-ahead-bg text-status-ahead-fg"
+        return "bg-tone-insight-bg text-tone-insight-fg"
       case "Booked":
         return "bg-primary text-primary-foreground"
       case "Completed":
-        return "bg-pacing-ahead-bg text-status-ahead-fg"
+        return "bg-tone-insight-bg text-tone-insight-fg"
       case "Cancelled":
-        return "bg-pacing-critical-bg text-status-critical-fg"
+        return "bg-tone-critical-bg text-tone-critical-fg"
       default:
         return "bg-surface-muted text-muted-foreground"
     }
@@ -604,7 +604,7 @@ function MediaPlansPageInner() {
           campaignsViewState.freshness?.stale ? (
             <div
               role="status"
-              className="rounded-card border border-pacing-behind bg-pacing-behind-bg px-4 py-3 text-sm text-status-behind-fg"
+              className="rounded-card border border-tone-attention bg-tone-attention-bg px-4 py-3 text-sm text-tone-attention-fg"
             >
               Campaign list may be out of date
               {campaignsViewState.freshness.fetchedAt
@@ -644,11 +644,11 @@ function MediaPlansPageInner() {
                           className={cn(
                             "h-2.5 w-2.5 rounded-full",
                             status === "Booked" && "bg-primary",
-                            status === "Approved" && "bg-pacing-ahead",
-                            status === "Planned" && "bg-pacing-on-track",
+                            status === "Approved" && "bg-tone-insight",
+                            status === "Planned" && "bg-tone-action",
                             status === "Draft" && "bg-muted-foreground",
-                            status === "Completed" && "bg-pacing-ahead",
-                            status === "Cancelled" && "bg-pacing-critical",
+                            status === "Completed" && "bg-tone-insight",
+                            status === "Cancelled" && "bg-tone-critical",
                           )}
                         />
                         <span className="text-sm font-semibold">{status}</span>

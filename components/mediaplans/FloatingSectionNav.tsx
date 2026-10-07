@@ -274,15 +274,15 @@ export default function FloatingSectionNav({
         onClick={handleHeaderClick}
         title="Drag to move · Click to expand or collapse"
         className={cn(
-          "flex w-full cursor-grab select-none items-center justify-between gap-2 border-b border-black/10 bg-lime px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-darkGrey transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-darkGrey focus-visible:ring-offset-2 focus-visible:ring-offset-lime active:cursor-grabbing",
+          "flex w-full cursor-grab select-none items-center justify-between gap-2 border-b border-border bg-am-lime px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-am-ink transition-colors hover:bg-am-lime/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-am-ink focus-visible:ring-offset-2 focus-visible:ring-offset-am-lime active:cursor-grabbing",
           isDragging && "cursor-grabbing",
         )}
       >
         <span>Jump to section</span>
         {showCollapsed ? (
-          <ChevronUp className="size-4 shrink-0 text-darkGrey/80" aria-hidden />
+          <ChevronUp className="size-4 shrink-0 text-am-ink/80" aria-hidden />
         ) : (
-          <ChevronDown className="size-4 shrink-0 text-darkGrey/80" aria-hidden />
+          <ChevronDown className="size-4 shrink-0 text-am-ink/80" aria-hidden />
         )}
       </button>
 

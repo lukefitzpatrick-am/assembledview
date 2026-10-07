@@ -127,32 +127,32 @@ export function buildPublisherKpiCreateBody(
 function sourceBadgeClass(source: ResolvedKPIRow["source"]): string {
   switch (source) {
     case "client":
-      return "bg-pacing-on-track-bg text-status-on-track-fg border-transparent"
+      return "bg-tone-action-bg text-tone-action-fg border-transparent"
     case "publisher":
       return "bg-surface-panel text-muted-foreground border-border"
     case "saved":
-      return "bg-pacing-ahead-bg text-status-ahead-fg border-transparent"
+      return "bg-tone-insight-bg text-tone-insight-fg border-transparent"
     case "manual":
-      return "bg-pacing-behind-bg text-status-behind-fg border-transparent"
+      return "bg-tone-attention-bg text-tone-attention-fg border-transparent"
     case "default":
     default:
-      return "bg-pacing-critical-bg text-status-critical-fg border-transparent"
+      return "bg-tone-critical-bg text-tone-critical-fg border-transparent"
   }
 }
 
 function sourceDotClassName(source: ResolvedKPIRow["source"]): string {
   switch (source) {
     case "client":
-      return "text-status-on-track-fg"
+      return "text-tone-action-fg"
     case "publisher":
       return "text-muted-foreground"
     case "saved":
-      return "text-status-ahead-fg"
+      return "text-tone-insight-fg"
     case "manual":
-      return "text-status-behind-fg"
+      return "text-tone-attention-fg"
     case "default":
     default:
-      return "text-status-critical-fg"
+      return "text-tone-critical-fg"
   }
 }
 
@@ -464,7 +464,7 @@ export function KPIEditModal({
                             id={row.lineItemId ? `kpi-row-${row.lineItemId}` : undefined}
                             className={cn(
                               row.hasPublisherKpi === false &&
-                                "bg-pacing-behind-bg/40"
+                                "bg-tone-attention-bg/40"
                             )}
                           >
                             {isFirst ? (
@@ -712,7 +712,7 @@ export function KPIEditModal({
                                 ) : null}
                               </div>
                               {publisherKpiDraftRowId === row.lineItemId ? (
-                                <div className="mt-2 w-[360px] max-w-[75vw] rounded-card border border-border bg-pacing-behind-bg p-2 text-left shadow-e1">
+                                <div className="mt-2 w-[360px] max-w-[75vw] rounded-card border border-border bg-tone-attention-bg p-2 text-left">
                                   <div className="mb-2 flex items-start justify-between gap-2">
                                     <div className="min-w-0">
                                       <p className="text-[11px] font-semibold text-foreground">
@@ -723,7 +723,7 @@ export function KPIEditModal({
                                         {row.bid_strategy || "No bid strategy"}
                                       </p>
                                       {!resolvePublisherForPublisherKpi(row, publishers).resolvedByPublisherId ? (
-                                        <p className="mt-1 text-[10px] text-status-behind-fg">
+                                        <p className="mt-1 text-[10px] text-tone-attention-fg">
                                           Publisher ID not found; this will be saved by name.
                                         </p>
                                       ) : null}

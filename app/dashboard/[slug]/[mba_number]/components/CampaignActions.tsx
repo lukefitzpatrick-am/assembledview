@@ -400,7 +400,7 @@ export default function CampaignActions({
         className={cn(
           "h-9 rounded-pill px-4 py-2 text-destructive-foreground",
           showFloating ? "hidden md:inline-flex" : "inline-flex",
-          "bg-brand-dark hover:bg-brand-dark/90 focus-visible:ring-2 focus-visible:ring-ring",
+          "bg-am-ink hover:bg-am-ink/90 focus-visible:ring-2 focus-visible:ring-ring",
         )}
       >
         <ActionIcon action="mba" loading={isDownloadingMba} icon={<FileText className="h-4 w-4" />} />

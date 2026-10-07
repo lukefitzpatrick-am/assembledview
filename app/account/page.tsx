@@ -200,7 +200,7 @@ export default function AccountPage() {
                 <div className="flex flex-col gap-5 rounded-card border border-border bg-surface-panel p-4 sm:flex-row sm:items-center">
                   <Avatar className="h-20 w-20 border border-border">
                     <AvatarImage src={user.picture} alt={displayName} />
-                    <AvatarFallback className="bg-pacing-on-track-bg text-xl text-status-on-track-fg">
+                    <AvatarFallback className="bg-tone-action-bg text-xl text-tone-action-fg">
                       {initials}
                     </AvatarFallback>
                   </Avatar>
@@ -303,24 +303,24 @@ export default function AccountPage() {
               </Card>
             </div>
 
-            <Card className="rounded-card border-pacing-critical-bg bg-pacing-critical-bg shadow-e0">
+            <Card className="rounded-card border-tone-critical-bg bg-tone-critical-bg shadow-e0">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-status-critical-fg">
+                <CardTitle className="flex items-center gap-2 text-tone-critical-fg">
                   <AlertTriangle className="h-5 w-5" aria-hidden />
                   Danger Zone
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col gap-4 rounded-card border border-pacing-critical-bg bg-card p-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-col gap-4 rounded-card border border-tone-critical-bg bg-card p-4 md:flex-row md:items-center md:justify-between">
                   <div className="flex items-start gap-3">
-                    <Trash2 className="mt-0.5 h-5 w-5 text-status-critical-fg" aria-hidden />
+                    <Trash2 className="mt-0.5 h-5 w-5 text-tone-critical-fg" aria-hidden />
                     <div>
                       <h3 className="font-medium text-foreground">Delete Account</h3>
                       <p className="text-sm text-muted-foreground">
                         Permanently delete your account and all associated data.
                       </p>
                       {isAdmin ? (
-                        <p className="mt-2 text-xs text-status-critical-fg">
+                        <p className="mt-2 text-xs text-tone-critical-fg">
                           Admin accounts cannot be self-deleted. Contact a system administrator.
                         </p>
                       ) : null}
@@ -356,7 +356,7 @@ export default function AccountPage() {
                         {integration.connected ? "Connected" : "Reconnect"}
                       </span>
                       <span
-                        className={integration.connected ? "h-2.5 w-2.5 rounded-pill bg-status-success" : "h-2.5 w-2.5 rounded-pill bg-pacing-critical"}
+                        className={integration.connected ? "h-2.5 w-2.5 rounded-pill bg-status-success" : "h-2.5 w-2.5 rounded-pill bg-tone-critical"}
                         aria-hidden
                       />
                     </div>

@@ -17,7 +17,7 @@ export function SuccessModal({ isOpen, onClose, message }: SuccessModalProps) {
         <DialogTitle className="sr-only">Success</DialogTitle>
         <CheckCircle className="w-16 h-16 text-success" />
         <DialogDescription className="text-lg font-semibold text-center text-foreground">{message}</DialogDescription>
-        <Button onClick={onClose} className="bg-success hover:bg-success-hover text-white">
+        <Button onClick={onClose} className="bg-am-forest text-am-white hover:bg-am-forest/90">
           Close
         </Button>
       </DialogContent>
