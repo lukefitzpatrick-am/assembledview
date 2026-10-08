@@ -181,6 +181,8 @@ erDiagram
 | `pacing_orphan_fixes` | 1 | admin reassignment audit for unmatched platform line items |
 | `m365_provisioning_log` | 0 | every Graph provisioning attempt: success / failure / skipped |
 | `migration_markers` | 5 | backfill guards |
+| `report_runs` | 0 (0095 not applied) | One campaign report run. `id` uuid. `kind` defaults to `monthly_campaign`. `mba_number`, nullable `client_id` → `clients.id` (bigint). `period_start` and `period_end` are dates. `status` is queued, generating, generated, failed or skipped. Unique `(kind, mba_number, period_start)`. Index `(kind, period_start, status)`. `commentary_generated` is nullable. RLS on, no policies. Do not SELECT until 0095 is applied (C-76) |
+| `report_digest_sends` | 0 (0095 not applied) | One digest email per kind and period. Primary key `(kind, period_start)`. `recipients` text[], `run_count`, `sent_at`. RLS on, no policies. Do not SELECT until 0095 is applied (C-76) |
 
 ## Warehouse (Snowflake)
 
