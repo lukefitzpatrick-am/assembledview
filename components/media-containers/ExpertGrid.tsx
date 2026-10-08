@@ -142,11 +142,12 @@ import {
   ExpertGridDescriptorPinButton,
 } from "@/components/media-containers/ExpertGridDescriptorChrome"
 import {
-  expertRowCostSplit,
+  expertRowGrossCost,
   expertRowNetMedia,
   expertRowNetMediaTooltip,
   expertRowQuantitySum,
 } from "@/lib/mediaplan/expertRowCost"
+import { campaignTotals, fromCents } from "@/lib/money"
 import type {
   ExpertGridChannelConfig,
   ExpertScheduleRowCommon,
@@ -3353,16 +3354,28 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   )
 
   const containerTotals = useMemo(() => {
-    let sumNet = 0
-    let sumFee = 0
     let sumQty = 0
     const perWeek: Record<string, number> = {}
     for (const k of weekKeys) perWeek[k] = 0
+    const lines: Parameters<typeof campaignTotals>[0] = []
 
     for (const row of normalizedRows) {
-      const { net, fee } = expertRowCostSplit(row, weekKeys, feePercent)
-      sumNet += net
-      sumFee += fee
+      const budgetIncludesFees = !!row.budgetIncludesFees
+      const clientPaysForMedia = !!row.clientPaysForMedia
+      const buyType = row.buyType ?? undefined
+      lines.push({
+        buyType,
+        budgetIncludesFees,
+        clientPaysForMedia,
+        bursts: [
+          {
+            budget: expertRowGrossCost(row, weekKeys),
+            buyType,
+            budgetIncludesFees,
+            clientPaysForMedia,
+          },
+        ],
+      })
       for (const k of weekKeys) {
         const q = parseNum(row.weeklyValues[k])
         perWeek[k] += q
@@ -3390,9 +3403,15 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       }
     }
 
-    const totalWithFee = sumNet + sumFee
+    const money = campaignTotals(lines, { feePct: feePercent })
 
-    return { sumNet, sumQty, perWeek, fee: sumFee, totalWithFee }
+    return {
+      sumNet: fromCents(money.mediaCents),
+      sumQty,
+      perWeek,
+      fee: fromCents(money.feeCents),
+      totalWithFee: fromCents(money.totalCents),
+    }
   }, [dayKeysByWeekKey, feePercent, normalizedRows, weekKeys])
 
   const descriptorHeadLabels = useMemo(
