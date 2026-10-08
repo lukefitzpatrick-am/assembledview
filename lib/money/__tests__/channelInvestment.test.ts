@@ -4,6 +4,7 @@ import { join } from "node:path"
 import test from "node:test"
 import { aggregateInvestmentDisplayRows } from "@/lib/billing/prorateInvestmentDisplay"
 import { channelInvestmentByMonth } from "@/lib/mediaplan/channelInvestment"
+import { channelSummaryTotals } from "@/lib/money/burst"
 import { parseMoney, toCents } from "@/lib/money"
 
 const TWO_MONTHS = {
@@ -33,7 +34,7 @@ function monthCents(rows: { monthYear: string; amount: string }[]) {
   }))
 }
 
-/** Same split as the fat containers' calculateInvestmentPerMonth. Not the new chart. */
+/** The gross-up the fat containers used before they called channelInvestmentByMonth. */
 function legacyInvestmentRows(item: ReturnType<typeof line>, feePct: number) {
   const includesFees = !!item.budgetIncludesFees
   const bursts = (item.bursts as { budget: unknown; startDate: string; endDate: string }[]).map(
@@ -61,12 +62,30 @@ test("net-in $1,000 at 15% across two months sums to about $1,176.47", () => {
   assert.equal(sumCents(rows), 117_647)
 })
 
-test("bonus and package inclusions chart as zero; client-pays keeps planned media", () => {
-  assert.equal(channelInvestmentByMonth([line({ buyType: "bonus" })], 15).length, 0)
+test("bonus and package inclusions chart as zero; package is not zeroed", () => {
+  assert.equal(sumCents(channelInvestmentByMonth([line({ buyType: "bonus" })], 15)), 0)
   assert.equal(
     channelInvestmentByMonth([line({ buyType: "package_inclusions" })], 15).length,
     0,
   )
+  const packaged = channelInvestmentByMonth(
+    [line({ buyType: "package", budgetIncludesFees: true })],
+    15,
+  )
+  assert.equal(sumCents(packaged), 100_000)
+})
+
+test("a 100% fee on a $1,000 net budget charts $1,000 media and $0 fee", () => {
+  const item = line({ budgetIncludesFees: false })
+  const money = channelSummaryTotals([item], 100)
+  assert.equal(toCents(money.overallMedia), 100_000)
+  assert.equal(toCents(money.overallFee), 0)
+  assert.equal(Number.isFinite(money.overallMedia), true)
+  assert.equal(Number.isFinite(money.overallFee), true)
+  assert.equal(sumCents(channelInvestmentByMonth([item], 100)), 100_000)
+})
+
+test("client-pays keeps planned media on the chart", () => {
   const clientPays = channelInvestmentByMonth(
     [line({ clientPaysForMedia: true, budgetIncludesFees: false })],
     15,
@@ -87,33 +106,64 @@ test("the hook passes the form lines through and does not gross up again", () =>
   assert.doesNotMatch(fn, /100 - pct/)
 })
 
-test("legacy fat containers still use the includes-fees gross-up", () => {
-  const files = [
-    "BVODContainer.tsx",
-    "CinemaContainer.tsx",
-    "DigitalAudioContainer.tsx",
-    "DigitalDisplayContainer.tsx",
-    "DigitalVideoContainer.tsx",
-    "InfluencersContainer.tsx",
-    "IntegrationContainer.tsx",
-    "MagazinesContainer.tsx",
-    "NewspaperContainer.tsx",
-    "OOHContainer.tsx",
-    "RadioContainer.tsx",
-    "SocialMediaContainer.tsx",
-    "TelevisionContainer.tsx",
-  ]
-  for (const file of files) {
-    const source = readFileSync(
-      join(process.cwd(), "components/media-containers", file),
-      "utf8",
-    )
-    assert.match(
-      source,
-      /const totalInvestment = includesFees\s*\?\s*lineMedia\s*:\s*lineMedia \+ \(\(lineMedia \/ \(100 - feePct\)\) \* feePct\)/,
-      file,
-    )
+const DIGITAL_CHARTS = [
+  ["BVODContainer.tsx", "bvodlineItems", "feebvod"],
+  ["DigitalAudioContainer.tsx", "digiaudiolineItems", "feedigiaudio"],
+  ["DigitalDisplayContainer.tsx", "digidisplaylineItems", "feedigidisplay"],
+  ["DigitalVideoContainer.tsx", "digivideolineItems", "feedigivideo"],
+  ["IntegrationContainer.tsx", "lineItems", "feeintegration"],
+  ["SocialMediaContainer.tsx", "lineItems", "feesocial"],
+] as const
+
+const OFFLINE_CHARTS = [
+  ["CinemaContainer.tsx", "cinemalineItems", "feecinema"],
+  ["InfluencersContainer.tsx", "lineItems", "feeinfluencers"],
+  ["MagazinesContainer.tsx", "magazineslineItems", "feemagazines"],
+  ["NewspaperContainer.tsx", "newspaperlineItems", "feenewspapers"],
+  ["OOHContainer.tsx", "lineItems", "feeooh"],
+  ["RadioContainer.tsx", "radiolineItems", "feeradio"],
+  ["TelevisionContainer.tsx", "televisionlineItems", "feetelevision"],
+] as const
+
+function assertChartDelegates(
+  file: string,
+  fieldKey: string,
+  feeName: string,
+) {
+  const source = readFileSync(
+    join(process.cwd(), "components/media-containers", file),
+    "utf8",
+  )
+  const start = source.indexOf("export function calculateInvestmentPerMonth")
+  const end = source.indexOf("export default function", start)
+  const fn = source.slice(start, end)
+  assert.match(fn, new RegExp(`form\\.getValues\\("${fieldKey}"\\)`), file)
+  assert.match(
+    fn,
+    new RegExp(`return channelInvestmentByMonth\\(items, ${feeName} \\|\\| 0\\)`),
+    file,
+  )
+  assert.doesNotMatch(fn, /100 - feePct/, file)
+}
+
+test("digital container charts equal the shared helper", () => {
+  for (const [file, fieldKey, feeName] of DIGITAL_CHARTS) {
+    assertChartDelegates(file, fieldKey, feeName)
   }
+  const items = [line({ budgetIncludesFees: true })]
+  const chart = channelInvestmentByMonth(items, 15)
+  assert.deepEqual(monthCents(chart), monthCents(channelInvestmentByMonth(items, 15)))
+  assert.equal(sumCents(chart), 100_000)
+})
+
+test("offline container charts equal the shared helper", () => {
+  for (const [file, fieldKey, feeName] of OFFLINE_CHARTS) {
+    assertChartDelegates(file, fieldKey, feeName)
+  }
+  const items = [line({ budgetIncludesFees: false })]
+  const chart = channelInvestmentByMonth(items, 15)
+  assert.deepEqual(monthCents(chart), monthCents(channelInvestmentByMonth(items, 15)))
+  assert.equal(sumCents(chart), 117_647)
 })
 
 test("a normal gross-in and net-in line matches the legacy months", () => {

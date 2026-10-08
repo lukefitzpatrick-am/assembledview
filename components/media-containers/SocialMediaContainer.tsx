@@ -59,10 +59,7 @@ import { cn } from "@/lib/utils"
 import { segmentChipClass } from "@/components/layout/navChip"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
-import {
-  aggregateInvestmentDisplayRows,
-  type InvestmentBurstInput,
-} from "@/lib/billing/prorateInvestmentDisplay"
+import { channelInvestmentByMonth } from "@/lib/mediaplan/channelInvestment"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { channelSummaryTotals } from "@/lib/money/burst"
@@ -218,19 +215,7 @@ export function getSocialMediaBursts(
 
 export function calculateInvestmentPerMonth(form, feesocial) {
   const items = form.getValues("lineItems") || []
-  const bursts: InvestmentBurstInput[] = []
-  items.forEach((lineItem: any) => {
-    const includesFees = !!lineItem.budgetIncludesFees
-    ;(lineItem.bursts || []).forEach((burst: any) => {
-      const lineMedia = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
-      const feePct = feesocial || 0
-      const totalInvestment = includesFees
-        ? lineMedia
-        : lineMedia + ((lineMedia / (100 - feePct)) * feePct)
-      bursts.push({ amount: totalInvestment, start: burst.startDate, end: burst.endDate })
-    })
-  })
-  return aggregateInvestmentDisplayRows(bursts)
+  return channelInvestmentByMonth(items, feesocial || 0)
 }
 export default function SocialMediaContainer({
   clientId,

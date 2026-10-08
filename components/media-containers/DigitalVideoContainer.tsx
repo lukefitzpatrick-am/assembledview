@@ -52,10 +52,7 @@ import { cn } from "@/lib/utils"
 import { segmentChipClass } from "@/components/layout/navChip"
 import { PlusCircle, Copy, Plus, Trash2 } from "lucide-react"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
-import {
-  aggregateInvestmentDisplayRows,
-  type InvestmentBurstInput,
-} from "@/lib/billing/prorateInvestmentDisplay"
+import { channelInvestmentByMonth } from "@/lib/mediaplan/channelInvestment"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { channelSummaryTotals } from "@/lib/money/burst"
@@ -195,19 +192,7 @@ export function getDigiVideoBursts(
 
 export function calculateInvestmentPerMonth(form, feedigivideo) {
   const items = form.getValues("digivideolineItems") || []
-  const bursts: InvestmentBurstInput[] = []
-  items.forEach((lineItem: any) => {
-    const includesFees = !!lineItem.budgetIncludesFees
-    ;(lineItem.bursts || []).forEach((burst: any) => {
-      const lineMedia = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
-      const feePct = feedigivideo || 0
-      const totalInvestment = includesFees
-        ? lineMedia
-        : lineMedia + ((lineMedia / (100 - feePct)) * feePct)
-      bursts.push({ amount: totalInvestment, start: burst.startDate, end: burst.endDate })
-    })
-  })
-  return aggregateInvestmentDisplayRows(bursts)
+  return channelInvestmentByMonth(items, feedigivideo || 0)
 }
 export default function DigiVideoContainer({
   clientId,

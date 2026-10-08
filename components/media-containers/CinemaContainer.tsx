@@ -42,10 +42,7 @@ import { Copy, Plus, Trash2, PlusCircle } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label";
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
-import {
-  aggregateInvestmentDisplayRows,
-  type InvestmentBurstInput,
-} from "@/lib/billing/prorateInvestmentDisplay"
+import { channelInvestmentByMonth } from "@/lib/mediaplan/channelInvestment"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { channelSummaryTotals } from "@/lib/money/burst"
@@ -182,19 +179,7 @@ export function getCinemaBursts(
 
 export function calculateInvestmentPerMonth(form, feecinema) {
   const items = form.getValues("cinemalineItems") || []
-  const bursts: InvestmentBurstInput[] = []
-  items.forEach((lineItem: any) => {
-    const includesFees = !!lineItem.budgetIncludesFees
-    ;(lineItem.bursts || []).forEach((burst: any) => {
-      const lineMedia = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
-      const feePct = feecinema || 0
-      const totalInvestment = includesFees
-        ? lineMedia
-        : lineMedia + ((lineMedia / (100 - feePct)) * feePct)
-      bursts.push({ amount: totalInvestment, start: burst.startDate, end: burst.endDate })
-    })
-  })
-  return aggregateInvestmentDisplayRows(bursts)
+  return channelInvestmentByMonth(items, feecinema || 0)
 }
 
 export default function CinemaContainer({

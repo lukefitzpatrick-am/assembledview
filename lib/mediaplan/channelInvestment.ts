@@ -9,10 +9,10 @@ import {
 } from "@/lib/money/burst"
 
 /**
- * Month rows for the Search and programmatic investment charts.
+ * Month rows for every container investment chart.
  * Each burst amount is lineTotals media plus fee (client-pays planned media
- * included, bonus and package inclusions zero), then the same day-weighted
- * split the billing schedule uses. Display only.
+ * included, bonus and package inclusions zero, package not zeroed), then the
+ * same day-weighted split the billing schedule uses. Display only.
  */
 export function channelInvestmentByMonth(
   lines: readonly ChannelSummarySourceLine[],

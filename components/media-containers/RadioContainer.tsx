@@ -53,10 +53,7 @@ import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { cn } from "@/lib/utils"
 import { segmentChipClass } from "@/components/layout/navChip"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
-import {
-  aggregateInvestmentDisplayRows,
-  type InvestmentBurstInput,
-} from "@/lib/billing/prorateInvestmentDisplay"
+import { channelInvestmentByMonth } from "@/lib/mediaplan/channelInvestment"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
@@ -188,19 +185,7 @@ export function getRadioBursts(
 
 export function calculateInvestmentPerMonth(form, feeradio) {
   const items = form.getValues("radiolineItems") || []
-  const bursts: InvestmentBurstInput[] = []
-  items.forEach((lineItem: any) => {
-    const includesFees = !!lineItem.budgetIncludesFees
-    ;(lineItem.bursts || []).forEach((burst: any) => {
-      const lineMedia = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
-      const feePct = feeradio || 0
-      const totalInvestment = includesFees
-        ? lineMedia
-        : lineMedia + ((lineMedia / (100 - feePct)) * feePct)
-      bursts.push({ amount: totalInvestment, start: burst.startDate, end: burst.endDate })
-    })
-  })
-  return aggregateInvestmentDisplayRows(bursts)
+  return channelInvestmentByMonth(items, feeradio || 0)
 }
 
 export default function RadioContainer({
