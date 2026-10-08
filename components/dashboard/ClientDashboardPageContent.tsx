@@ -20,8 +20,14 @@ import { ClientBrainSlideOver } from "@/components/dashboard/modals/ClientBrainS
 import { ClientDetailsSlideOver } from "@/components/dashboard/modals/ClientDetailsSlideOver"
 import {
   ClientInvoicesPanel,
+  type ClientInvoicesReady,
   type OutstandingInvoicesFeed,
 } from "@/components/dashboard/ClientInvoicesSection"
+import {
+  CLIENT_INVOICES_SECTION_ID,
+  ClientOverdueNotice,
+  overdueNoticeFact,
+} from "@/components/dashboard/ClientOverdueNotice"
 import { ClientFinanceSlideOver } from "@/components/dashboard/modals/ClientFinanceSlideOver"
 import { ClientKpiSlideOver } from "@/components/dashboard/modals/ClientKpiSlideOver"
 import { CampaignCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeletons"
@@ -56,6 +62,8 @@ export interface ClientDashboardPageContentProps {
   rangeEndISO: string
   defaultRangeStartISO: string
   defaultRangeEndISO: string
+  /** Server-read `ACCOUNTS_CONTACT_EMAIL`. Omitted when unset. */
+  accountsContactEmail?: string | null
 }
 
 /** `/api/dashboard/[slug]/delivered` response shape — see `getDeliveredTotalsForClient`. */
@@ -152,6 +160,7 @@ export function ClientDashboardPageContent({
   rangeEndISO,
   defaultRangeStartISO,
   defaultRangeEndISO,
+  accountsContactEmail,
 }: ClientDashboardPageContentProps) {
   const isAdmin = campaignLinkMode === "adminHub"
   const clientIdRaw = clientData.clientRecord?.id
@@ -259,6 +268,7 @@ export function ClientDashboardPageContent({
    */
   const [deliveredTotals, setDeliveredTotals] = useState<DeliveredTotalsResponse | undefined>(undefined)
   const [outstandingInvoices, setOutstandingInvoices] = useState<OutstandingInvoicesFeed | null>(null)
+  const [invoiceData, setInvoiceData] = useState<ClientInvoicesReady | null>(null)
   useEffect(() => {
     let cancelled = false
     setDeliveredTotals(undefined)
@@ -360,6 +370,12 @@ export function ClientDashboardPageContent({
             clientRecord={isClientHub ? clientData.clientRecord : null}
           />
         </motion.section>
+
+        {invoiceData && overdueNoticeFact(invoiceData) ? (
+          <motion.section variants={sectionVariants} className="mt-6 w-full lg:mt-8">
+            <ClientOverdueNotice data={invoiceData} accountsContactEmail={accountsContactEmail} />
+          </motion.section>
+        ) : null}
 
         <motion.section variants={sectionVariants} className="mt-6 w-full lg:mt-8">
           {/* HeroKPIBar: averageRoas / roasTrend omitted (fabricated); restore with real KPI aggregation (Domain 10). */}
@@ -465,8 +481,16 @@ export function ClientDashboardPageContent({
         </ViewStateBoundary>
         </motion.section>
 
-        <motion.section variants={sectionVariants} className="mt-8 w-full lg:mt-10">
-          <ClientInvoicesPanel slug={slug} onOutstanding={setOutstandingInvoices} />
+        <motion.section
+          id={CLIENT_INVOICES_SECTION_ID}
+          variants={sectionVariants}
+          className="mt-8 w-full scroll-mt-24 lg:mt-10"
+        >
+          <ClientInvoicesPanel
+            slug={slug}
+            onOutstanding={setOutstandingInvoices}
+            onInvoices={setInvoiceData}
+          />
         </motion.section>
 
         <motion.section variants={sectionVariants} className="mt-8 w-full lg:mt-10">

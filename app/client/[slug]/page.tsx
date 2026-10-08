@@ -65,6 +65,7 @@ export default async function ClientHubDetailPage({ params, searchParams }: Page
       rangeEndISO={range.rangeEndISO}
       defaultRangeStartISO={defaultRange.rangeStartISO}
       defaultRangeEndISO={defaultRange.rangeEndISO}
+      accountsContactEmail={process.env.ACCOUNTS_CONTACT_EMAIL?.trim() || null}
     />
   )
 }

@@ -30,7 +30,11 @@ export type ClientInvoiceTableRow = {
 
 export type ClientInvoicesReady = {
   invoices: ClientInvoiceTableRow[]
-  summary: { outstandingCents: number }
+  summary: {
+    outstandingCents: number
+    overdueCents?: number
+    overdueCount?: number
+  }
 }
 
 export type ClientInvoicesView =
@@ -134,8 +138,17 @@ export function readClientInvoicesPayload(body: unknown): ClientInvoicesReady | 
   const summary = record.summary
   if (!summary || typeof summary !== "object") return null
   const outstandingCents = (summary as Record<string, unknown>).outstandingCents
+  const overdueCents = (summary as Record<string, unknown>).overdueCents
+  const overdueCount = (summary as Record<string, unknown>).overdueCount
   if (typeof outstandingCents !== "number" || !Number.isFinite(outstandingCents)) return null
-  return { invoices: record.invoices, summary: { outstandingCents } }
+  if (typeof overdueCents !== "number" || !Number.isFinite(overdueCents)) return null
+  if (typeof overdueCount !== "number" || !Number.isInteger(overdueCount) || overdueCount < 0) {
+    return null
+  }
+  return {
+    invoices: record.invoices,
+    summary: { outstandingCents, overdueCents, overdueCount },
+  }
 }
 
 /** 404 hides the section. Any other non-200, or a 200 that is not the payload, is an error. */
@@ -228,19 +241,24 @@ export function ClientInvoicesSection({
 export function ClientInvoicesPanel({
   slug,
   onOutstanding,
+  onInvoices,
 }: {
   slug: string
   onOutstanding?: (outstanding: OutstandingInvoicesFeed | null) => void
+  onInvoices?: (data: ClientInvoicesReady | null) => void
 }) {
   const [view, setView] = useState<ClientInvoicesView>({ status: "loading" })
   const [retryToken, setRetryToken] = useState(0)
   const onOutstandingRef = useRef(onOutstanding)
+  const onInvoicesRef = useRef(onInvoices)
   onOutstandingRef.current = onOutstanding
+  onInvoicesRef.current = onInvoices
 
   useEffect(() => {
     let cancelled = false
     setView({ status: "loading" })
     onOutstandingRef.current?.(null)
+    onInvoicesRef.current?.(null)
 
     fetch(`/api/dashboard/${encodeURIComponent(slug)}/invoices`)
       .then(async (res) => {
@@ -251,11 +269,13 @@ export function ClientInvoicesPanel({
         onOutstandingRef.current?.(
           next.status === "ready" ? outstandingInvoicesFeed(next.data) : null,
         )
+        onInvoicesRef.current?.(next.status === "ready" ? next.data : null)
       })
       .catch(() => {
         if (cancelled) return
         setView({ status: "error" })
         onOutstandingRef.current?.(null)
+        onInvoicesRef.current?.(null)
       })
 
     return () => {

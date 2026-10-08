@@ -124,6 +124,7 @@ export default async function ClientDashboard({ params, searchParams }: ClientDa
       rangeEndISO={range.rangeEndISO}
       defaultRangeStartISO={defaultRange.rangeStartISO}
       defaultRangeEndISO={defaultRange.rangeEndISO}
+      accountsContactEmail={process.env.ACCOUNTS_CONTACT_EMAIL?.trim() || null}
     />
   )
 }

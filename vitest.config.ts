@@ -49,6 +49,7 @@ export default defineConfig({
       "components/tasks/__tests__/TaskChecklist.render.test.tsx",
       "components/dashboard/__tests__/SpendingInsightsSection.render.test.tsx",
       "components/dashboard/__tests__/ClientInvoicesSection.test.tsx",
+      "components/dashboard/__tests__/ClientOverdueNotice.test.tsx",
       "components/planning/__tests__/UploadCoveragePanel.render.test.tsx",
       "components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx",
       "components/dashboard/campaign/__tests__/CampaignStatusStrip.test.tsx",
