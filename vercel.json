@@ -33,6 +33,10 @@
       "schedule": "0 1 * * *"
     },
     {
+      "path": "/api/cron/overdue-digest",
+      "schedule": "30 1 * * 1-5"
+    },
+    {
       "path": "/api/cron/fireflies-sync",
       "schedule": "0 */6 * * *"
     },
