@@ -11,6 +11,7 @@
 - `0089_export_blob_path.sql` — `finance_billing_records.export_blob_path` text, JSON of the private CSV and workbook pathnames. AUTHOR ONLY. Apply before Send to accounts. No backfill. Do not drizzle-kit.
 - `0090_finance_clearance_sends.sql` — `finance_clearance_sends` (`month`, `sent_at`, `hash`, `counts`). AUTHOR ONLY. Apply before the clearance email. No backfill. Do not drizzle-kit.
 - `0093_overdue_digest_sends.sql` — `overdue_digest_sends` (`as_of_date` primary key, `sent_at`, `invoice_count`, `total_due_cents`, `recipients`). RLS on, no policies. AUTHOR ONLY. Apply before the weekday overdue digest. No backfill. Do not drizzle-kit. Do not SELECT this table against live Postgres before applying (C-76).
+- `0094_campaign_insights_action_outcome.sql` — `campaign_insights.action`, `action_owner`, `outcome`, `outcome_kind` (null, `achieved`, or `expected`). Nullable. `insight_type` unchanged. AUTHOR ONLY. Apply before any deploy that selects these columns. No backfill. Do not drizzle-kit. Mirror: `db/schema/insights.ts`.
 - `0091_xero_sync_exception_resolution.sql` — `xero_sync_exceptions.resolved_at`, `resolved_by`, `resolution`. AUTHOR ONLY. Apply before xero-queue assign/resolve. No backfill. Do not drizzle-kit. Mirror: `xeroSyncExceptions` in `db/schema/ported.ts`.
 - `0022_campaign_insights_ava_readonly.sql` — GRANT SELECT on campaign_insights to ava_readonly
 - `0023_line_item_panels.sql` — OOH panel/pack detail rows

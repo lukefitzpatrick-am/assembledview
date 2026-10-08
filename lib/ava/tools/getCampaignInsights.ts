@@ -31,6 +31,10 @@ function mapInsight(row: {
   period: string | null
   insightType: string
   body: string
+  action: string | null
+  actionOwner: string | null
+  outcome: string | null
+  outcomeKind: string | null
   source: string
   createdBy: string
   createdAt: string
@@ -42,6 +46,10 @@ function mapInsight(row: {
     period: row.period,
     insight_type: row.insightType,
     body: row.body,
+    action: row.action,
+    action_owner: row.actionOwner,
+    outcome: row.outcome,
+    outcome_kind: row.outcomeKind,
     source: row.source,
     created_by: row.createdBy,
     created_at: row.createdAt,
@@ -128,6 +136,10 @@ export const getClientInsightsTool: AvaTool = {
         period: schema.campaignInsights.period,
         insightType: schema.campaignInsights.insightType,
         body: schema.campaignInsights.body,
+        action: schema.campaignInsights.action,
+        actionOwner: schema.campaignInsights.actionOwner,
+        outcome: schema.campaignInsights.outcome,
+        outcomeKind: schema.campaignInsights.outcomeKind,
         source: schema.campaignInsights.source,
         createdBy: schema.campaignInsights.createdBy,
         createdAt: schema.campaignInsights.createdAt,
@@ -208,6 +220,10 @@ export const getCampaignInsightsTool: AvaTool = {
         period: schema.campaignInsights.period,
         insightType: schema.campaignInsights.insightType,
         body: schema.campaignInsights.body,
+        action: schema.campaignInsights.action,
+        actionOwner: schema.campaignInsights.actionOwner,
+        outcome: schema.campaignInsights.outcome,
+        outcomeKind: schema.campaignInsights.outcomeKind,
         source: schema.campaignInsights.source,
         createdBy: schema.campaignInsights.createdBy,
         createdAt: schema.campaignInsights.createdAt,

@@ -71,6 +71,10 @@ const INSIGHT_SELECT = {
   period: schema.campaignInsights.period,
   insightType: schema.campaignInsights.insightType,
   body: schema.campaignInsights.body,
+  action: schema.campaignInsights.action,
+  actionOwner: schema.campaignInsights.actionOwner,
+  outcome: schema.campaignInsights.outcome,
+  outcomeKind: schema.campaignInsights.outcomeKind,
   source: schema.campaignInsights.source,
   confidence: schema.campaignInsights.confidence,
   createdBy: schema.campaignInsights.createdBy,
@@ -86,6 +90,10 @@ function mapRow(row: {
   period: string | null
   insightType: string
   body: string
+  action: string | null
+  actionOwner: string | null
+  outcome: string | null
+  outcomeKind: string | null
   source: string
   confidence: string | null
   createdBy: string
@@ -100,6 +108,10 @@ function mapRow(row: {
     period: row.period,
     insightType: row.insightType,
     body: row.body,
+    action: row.action,
+    actionOwner: row.actionOwner,
+    outcome: row.outcome,
+    outcomeKind: row.outcomeKind,
     source: row.source,
     confidence: row.confidence,
     createdBy: row.createdBy,

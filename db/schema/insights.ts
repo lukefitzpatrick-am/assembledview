@@ -1,8 +1,9 @@
 /**
- * Campaign insights (migration 0019) — Postgres-native insight store.
+ * Campaign insights (migration 0019, columns in 0094) — Postgres-native insight store.
  * CHECK constraints are mirrored here for generate/diff fidelity; SQL is source of truth.
  * No FK to clients (ETL truncate-reload collision until T6).
  * mba_number is lowercase by DB CHECK — do not add app-side casing that fights it.
+ * action, action_owner, outcome and outcome_kind are nullable (0094, author only).
  */
 import { sql } from "drizzle-orm"
 import {
@@ -24,6 +25,8 @@ export type CampaignInsightType =
 
 export type CampaignInsightSource = "ava" | "human"
 
+export type CampaignInsightOutcomeKind = "achieved" | "expected"
+
 export const campaignInsights = pgTable(
   "campaign_insights",
   {
@@ -33,6 +36,10 @@ export const campaignInsights = pgTable(
     period: text("period"),
     insightType: text("insight_type").notNull(),
     body: text("body").notNull(),
+    action: text("action"),
+    actionOwner: text("action_owner"),
+    outcome: text("outcome"),
+    outcomeKind: text("outcome_kind"),
     source: text("source").notNull(),
     confidence: text("confidence"),
     createdBy: text("created_by").notNull(),
@@ -70,6 +77,10 @@ export const campaignInsights = pgTable(
     check(
       "campaign_insights_no_self_supersede",
       sql`(${table.supersededBy} IS NULL) OR (${table.supersededBy} <> ${table.id})`,
+    ),
+    check(
+      "campaign_insights_outcome_kind_check",
+      sql`${table.outcomeKind} IS NULL OR ${table.outcomeKind} = ANY (ARRAY['achieved'::text, 'expected'::text])`,
     ),
     index("idx_campaign_insights_client_created").on(
       table.clientId,

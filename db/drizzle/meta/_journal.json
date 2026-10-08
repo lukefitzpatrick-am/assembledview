@@ -78,6 +78,13 @@
       "when": 1791451540041,
       "tag": "0010_gifted_ben_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791452401708,
+      "tag": "0011_acoustic_shinko_yamashiro",
+      "breakpoints": true
     }
   ]
 }
