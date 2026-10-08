@@ -8,7 +8,7 @@
  * Allowed insight_type values (CHECK): delivery | audience | creative | channel | commercial.
  * No sixth type. Uncertain inference → delivery + confidence records the fallback.
  */
-import { sql } from "drizzle-orm"
+import { and, eq, isNull, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import type { CampaignInsightOutcomeKind, CampaignInsightType } from "@/db/schema/insights"
@@ -38,8 +38,16 @@ export type CampaignInsightInsert = {
   createdBy: string
 }
 
+export type CommentaryInsightItem = {
+  insight: string
+  action: string
+  actionOwner: string
+  outcome: string
+  outcomeKind: "achieved" | "expected"
+}
+
 export type PersistPerformanceReportInsightsInput = {
-  narrative: Pick<
+  narrative?: Pick<
     PerformanceReportPayload,
     "keyInsight" | "insights" | "recsInFlight" | "recsNextPeriod"
   > & {
@@ -51,6 +59,11 @@ export type PersistPerformanceReportInsightsInput = {
      */
     findings?: Array<PerformanceReportFinding | null | undefined>
   }
+  /**
+   * Review & Report items. One row each. The insight is the body. Action, owner
+   * and outcome use the 0094 columns. Origin is stored on `confidence`.
+   */
+  commentaryItems?: CommentaryInsightItem[]
   mbaNumber: string
   reportMonth: string
   createdByEmail: string | undefined
@@ -61,6 +74,7 @@ export type PersistPerformanceReportInsightsInput = {
 export type PersistPerformanceReportInsightsDeps = {
   resolveClientIdFromMba: (mbaNumber: string) => Promise<number | null>
   insertInsight: (row: CampaignInsightInsert) => Promise<void>
+  listExistingBodies?: (mbaNumber: string, period: string) => Promise<string[]>
   logError?: (err: unknown, context?: Record<string, unknown>) => void
 }
 
@@ -99,6 +113,7 @@ const MONTH_INDEX: Record<string, number> = {
 }
 
 const TYPE_FALLBACK_CONFIDENCE = "insight_type_fallback:delivery"
+const REVIEW_REPORT_ORIGIN = "origin:review-report"
 
 const TYPE_RULES: { type: CampaignInsightType; patterns: RegExp[] }[] = [
   {
@@ -210,7 +225,7 @@ export function inferInsightType(body: string): {
 }
 
 export function buildPerformanceReportInsightDrafts(input: {
-  narrative: PersistPerformanceReportInsightsInput["narrative"]
+  narrative: NonNullable<PersistPerformanceReportInsightsInput["narrative"]>
   mbaNumber: string
   clientId: number
   reportMonth: string
@@ -243,6 +258,43 @@ export function buildPerformanceReportInsightDrafts(input: {
       confidence: inferred.confidence,
       createdBy,
     }
+  })
+}
+
+export function buildCommentaryInsightDrafts(input: {
+  items: CommentaryInsightItem[]
+  mbaNumber: string
+  clientId: number
+  reportMonth: string
+  createdByEmail: string
+}): CampaignInsightInsert[] {
+  const mbaNumber = input.mbaNumber.trim().toLowerCase()
+  const createdBy = input.createdByEmail.trim().toLowerCase()
+  const period = reportMonthToPeriod(input.reportMonth)
+
+  return input.items.flatMap((item) => {
+    const body = item.insight.trim()
+    if (!body) return []
+    const inferred = inferInsightType(body)
+    const confidence = inferred.confidence
+      ? `${inferred.confidence}; ${REVIEW_REPORT_ORIGIN}`
+      : REVIEW_REPORT_ORIGIN
+    return [
+      {
+        mbaNumber,
+        clientId: input.clientId,
+        period,
+        insightType: inferred.insightType,
+        body,
+        action: item.action.trim() || null,
+        actionOwner: item.actionOwner.trim() || null,
+        outcome: item.outcome.trim() || null,
+        outcomeKind: item.outcomeKind,
+        source: "ava" as const,
+        confidence,
+        createdBy,
+      },
+    ]
   })
 }
 
@@ -286,6 +338,24 @@ async function defaultResolveClientIdFromMba(mbaNumber: string): Promise<number 
   return typeof id === "number" && Number.isFinite(id) && id > 0 ? id : null
 }
 
+async function defaultListExistingBodies(
+  mbaNumber: string,
+  period: string,
+): Promise<string[]> {
+  const mba = mbaNumber.trim().toLowerCase()
+  const rows = await getDb()
+    .select({ body: schema.campaignInsights.body })
+    .from(schema.campaignInsights)
+    .where(
+      and(
+        eq(schema.campaignInsights.mbaNumber, mba),
+        eq(schema.campaignInsights.period, period),
+        isNull(schema.campaignInsights.supersededBy),
+      ),
+    )
+  return rows.map((row) => row.body)
+}
+
 async function defaultInsertInsight(row: CampaignInsightInsert): Promise<void> {
   await getDb().insert(schema.campaignInsights).values({
     mbaNumber: row.mbaNumber,
@@ -321,6 +391,7 @@ export async function persistPerformanceReportInsights(
   const resolveClientIdFromMba =
     deps?.resolveClientIdFromMba ?? defaultResolveClientIdFromMba
   const insertInsight = deps?.insertInsight ?? defaultInsertInsight
+  const listExistingBodies = deps?.listExistingBodies ?? defaultListExistingBodies
   const logError = deps?.logError ?? defaultLogError
 
   if (input.preview || input.dryRun) {
@@ -348,20 +419,53 @@ export async function persistPerformanceReportInsights(
 
   let drafts: CampaignInsightInsert[] = []
   try {
-    drafts = buildPerformanceReportInsightDrafts({
-      narrative: input.narrative,
-      mbaNumber: input.mbaNumber,
-      clientId,
-      reportMonth: input.reportMonth,
-      createdByEmail: email,
-    })
+    if (input.commentaryItems) {
+      drafts = buildCommentaryInsightDrafts({
+        items: input.commentaryItems,
+        mbaNumber: input.mbaNumber,
+        clientId,
+        reportMonth: input.reportMonth,
+        createdByEmail: email,
+      })
+    } else if (input.narrative) {
+      drafts = buildPerformanceReportInsightDrafts({
+        narrative: input.narrative,
+        mbaNumber: input.mbaNumber,
+        clientId,
+        reportMonth: input.reportMonth,
+        createdByEmail: email,
+      })
+    }
   } catch (err) {
     logError(err, { stage: "build_drafts", mbaNumber: input.mbaNumber })
     return { attempted: 0, written: 0, skipped: true, reason: "build_failed" }
   }
 
+  let toWrite = drafts
+  if (input.commentaryItems) {
+    try {
+      const existing = new Set(
+        (await listExistingBodies(input.mbaNumber, reportMonthToPeriod(input.reportMonth))).map(
+          (body) => body.trim(),
+        ),
+      )
+      toWrite = drafts.filter((draft) => !existing.has(draft.body.trim()))
+      if (drafts.length > 0 && toWrite.length === 0) {
+        return {
+          attempted: drafts.length,
+          written: 0,
+          skipped: true,
+          reason: "duplicate_period",
+        }
+      }
+    } catch (err) {
+      logError(err, { stage: "list_existing", mbaNumber: input.mbaNumber })
+      return { attempted: drafts.length, written: 0, skipped: true, reason: "list_existing_failed" }
+    }
+  }
+
   let written = 0
-  for (const draft of drafts) {
+  for (const draft of toWrite) {
     try {
       await insertInsight(draft)
       written += 1

@@ -212,6 +212,68 @@ test("persist writes action, owner and outcome when the payload has them", async
   assert.equal(inserted[5]?.outcomeKind, null)
 })
 
+test("commentary items persist action, owner and outcome and skip a duplicate period", async () => {
+  const inserted: CampaignInsightInsert[] = []
+  const items = [
+    {
+      insight: "Search delivered the largest share of spend.",
+      action: "Hold the search mix this month.",
+      actionOwner: "Assembled",
+      outcome: "Spend stays with the plan.",
+      outcomeKind: "expected" as const,
+    },
+    {
+      insight: "Social trailed search on delivery.",
+      action: "Review social creative next week.",
+      actionOwner: "Meta",
+      outcome: "Delivery is measured again next period.",
+      outcomeKind: "achieved" as const,
+    },
+  ]
+  const first = await persistPerformanceReportInsights(
+    {
+      commentaryItems: items,
+      mbaNumber: "PENFOLD013",
+      reportMonth: "2026-08",
+      createdByEmail: "Luke@Assembled.Media",
+    },
+    {
+      resolveClientIdFromMba: async () => 7,
+      insertInsight: async (row) => {
+        inserted.push(row)
+      },
+      listExistingBodies: async () => [],
+    },
+  )
+  assert.equal(first.written, 2)
+  assert.equal(inserted[0]?.source, "ava")
+  assert.equal(inserted[0]?.action, "Hold the search mix this month.")
+  assert.equal(inserted[0]?.actionOwner, "Assembled")
+  assert.equal(inserted[0]?.outcomeKind, "expected")
+  assert.equal(inserted[0]?.period, "2026-08")
+  assert.match(String(inserted[0]?.confidence), /origin:review-report/)
+  assert.equal(inserted[1]?.outcomeKind, "achieved")
+
+  const second = await persistPerformanceReportInsights(
+    {
+      commentaryItems: items,
+      mbaNumber: "PENFOLD013",
+      reportMonth: "2026-08",
+      createdByEmail: "Luke@Assembled.Media",
+    },
+    {
+      resolveClientIdFromMba: async () => 7,
+      insertInsight: async () => {
+        throw new Error("duplicate should not insert")
+      },
+      listExistingBodies: async () => items.map((item) => item.insight),
+    },
+  )
+  assert.equal(second.written, 0)
+  assert.equal(second.skipped, true)
+  assert.equal(second.reason, "duplicate_period")
+})
+
 test("preview or dryRun skips all writes", async () => {
   let calls = 0
   const preview = await persistPerformanceReportInsights(

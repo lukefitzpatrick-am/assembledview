@@ -22,6 +22,7 @@ import {
 } from "@/lib/reports/campaignReport/periods"
 import { computeExpectedPct, computeCampaignDays, computeDaysPassed, getAsOfDate } from "@/lib/pacing/maths"
 import { formatReportInt, formatReportMoney } from "@/lib/reports/campaignReport/formatters"
+import { generateReportCommentary } from "@/lib/reports/campaignReport/generateReportCommentary"
 
 export { formatReportInt, formatReportMoney }
 
@@ -95,7 +96,7 @@ export type CampaignReportPayload = {
   }
   channels: CampaignReportChannelRow[]
   kpis: CampaignReportKpiRow[]
-  /** Null until a later writer supplies Insight, Action and Outcome items. */
+  /** Null when commentary was not generated. The deck then shows the not-generated line. */
   commentary: ReportCommentary | null
 }
 
@@ -197,6 +198,8 @@ export type AssembleCampaignReportInput = {
   customEndISO?: string | null
   mpSearchEnabled?: boolean
   todayISO?: string
+  /** Tests inject a stub. The export route uses the AVA writer. */
+  generateCommentary?: typeof generateReportCommentary
 }
 
 export async function assembleCampaignReportData(
@@ -285,7 +288,7 @@ export async function assembleCampaignReportData(
     spend: currentSnap.planTotals.spendToDate,
   })
 
-  return {
+  const reportData: CampaignReportPayload = {
     mbaNumber,
     clientName: (input.clientName ?? "").trim() || "Client",
     campaignName: (input.campaignName ?? "").trim() || mbaNumber,
@@ -311,4 +314,21 @@ export async function assembleCampaignReportData(
     kpis,
     commentary: null,
   }
+
+  const writeCommentary = input.generateCommentary ?? generateReportCommentary
+  try {
+    reportData.commentary = await writeCommentary({
+      mbaNumber,
+      period: reportData.period,
+      reportData,
+    })
+  } catch (err) {
+    console.error("[campaign-report] commentary failed", {
+      mbaNumber,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    reportData.commentary = null
+  }
+
+  return reportData
 }

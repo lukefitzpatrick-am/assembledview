@@ -74,6 +74,23 @@ test("findInventedMoneyInNarrative rejects free-text $ figures", () => {
   assert.match(hit!.match, /\$\s*12k/i)
 })
 
+test("findInventedMoneyInNarrative allows a figure that is already in the input", () => {
+  const hit = findInventedMoneyInNarrative(
+    { outcome: "Search delivered $18,450 of spend, 54% of the plan." },
+    "spend 18450 planned share 54%",
+  )
+  assert.equal(hit, null)
+})
+
+test("findInventedMoneyInNarrative rejects a percent that is not in the input", () => {
+  const hit = findInventedMoneyInNarrative(
+    { outcome: "Search delivered 54% of spend." },
+    "spend 18450",
+  )
+  assert.ok(hit)
+  assert.match(hit!.match, /54\s*%/)
+})
+
 test("findInventedMoneyInNarrative allows narrative without money", () => {
   const hit = findInventedMoneyInNarrative({
     execSummary: "Delivery is on track; search leads efficiency.",

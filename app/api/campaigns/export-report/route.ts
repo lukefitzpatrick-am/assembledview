@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/requireRole"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { assembleCampaignReportData } from "@/lib/reports/campaignReport/assembleCampaignReportData"
 import { buildCampaignReportDeck } from "@/lib/reports/campaignReport/buildCampaignReportDeck"
+import { persistPerformanceReportInsights } from "@/lib/reports/persistPerformanceReportInsights"
 import { campaignReportFilename } from "@/lib/reports/campaignReport/filename"
 import { checkCampaignReportRateLimit } from "@/lib/reports/campaignReport/rateLimit"
 import type { CampaignReportPeriodKind } from "@/lib/reports/campaignReport/periods"
@@ -10,7 +11,7 @@ import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-export const maxDuration = 120
+export const maxDuration = 300
 
 const PERIOD_KINDS = new Set<CampaignReportPeriodKind>([
   "this_month",
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
   if (!access.ok) return access.response
 
   try {
+    const started = Date.now()
     const payload = await assembleCampaignReportData({
       mbaNumber,
       clientName: asString(body.clientName, 120),
@@ -98,8 +100,34 @@ export async function POST(request: NextRequest) {
       customEndISO: asString(body.customEndISO, 32),
       mpSearchEnabled: body.mpSearchEnabled !== false,
     })
+    const assembledMs = Date.now() - started
 
+    const deckStarted = Date.now()
     const buf = await buildCampaignReportDeck(payload)
+    const deckMs = Date.now() - deckStarted
+    console.log("[export-report] timing", {
+      mbaNumber,
+      assembledMs,
+      deckMs,
+      commentary: payload.commentary ? "written" : "null",
+    })
+
+    if (payload.commentary && payload.commentary.items.length > 0) {
+      const email = gate.session?.user?.email
+      try {
+        await persistPerformanceReportInsights({
+          commentaryItems: payload.commentary.items,
+          mbaNumber: payload.mbaNumber,
+          reportMonth: payload.period.current.startISO.slice(0, 7),
+          createdByEmail: typeof email === "string" ? email : undefined,
+        })
+      } catch (persistErr) {
+        console.error("[export-report] insight persist failed", {
+          mbaNumber,
+          error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+        })
+      }
+    }
     const filename = campaignReportFilename({
       mbaNumber: payload.mbaNumber,
       periodSlug: payload.period.slug,
