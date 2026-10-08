@@ -17,6 +17,10 @@ import {
   type InvoicePdfRecord,
   type ServeInvoicePdfDeps,
 } from "../invoicePdf"
+import {
+  resolveInvoiceClient,
+  type InvoiceClientContext,
+} from "../resolveInvoiceClient"
 
 const INVOICE_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
@@ -122,6 +126,137 @@ describe("invoice client resolution", () => {
     const merged = mergeInvoiceClient(unresolved, fromMba)
     assert.equal(merged.clientsId, 9)
     assert.equal(merged.clientName, "Penfolds")
+  })
+})
+
+describe("resolveInvoiceClient", () => {
+  const clients = [
+    { id: 7, mp_client_name: "Acme" },
+    { id: 8, mp_client_name: "Other Co" },
+    { id: 9, mp_client_name: "Penfolds" },
+  ]
+
+  function ctx(partial: Partial<InvoiceClientContext> = {}): InvoiceClientContext {
+    return {
+      clients,
+      aliases: [],
+      links: [],
+      mbaClients: [],
+      ...partial,
+    }
+  }
+
+  const fuzzyOnly = {
+    contactName: "Acme Pty Ltd",
+    xeroContactId: "contact-fuzzy",
+    mbaNumber: null,
+  }
+
+  it("refuses a fuzzy-only invoice in strict mode and resolves it for best effort", () => {
+    const base = ctx()
+    assert.equal(resolveInvoiceClient(fuzzyOnly, base, { mode: "strict" }), null)
+    assert.deepEqual(resolveInvoiceClient(fuzzyOnly, base, { mode: "best_effort" }), {
+      clientId: 7,
+      via: "fuzzy",
+    })
+  })
+
+  it("a fuzzy-only invoice is refused to a client and still downloads for an admin", async () => {
+    const blob = streamBlob()
+    const clientRes = await serveArInvoicePdf(arRequest(), INVOICE_ID, adminDeps({
+      getUserRoles: () => ["client"],
+      resolveClient: async () => {
+        const hit = resolveInvoiceClient(fuzzyOnly, ctx(), { mode: "strict" })
+        return {
+          clientsId: hit?.clientId ?? 0,
+          clientName: "Acme",
+          paymentDays: 14,
+          paymentTerms: "",
+          resolved: hit != null,
+        }
+      },
+      getPrivateBlob: async () => {
+        throw new Error("must not read blob for a fuzzy-only client")
+      },
+    }))
+    assert.equal(clientRes.status, 403)
+
+    let adminResolved = 0
+    const adminRes = await serveArInvoicePdf(arRequest(), INVOICE_ID, adminDeps({
+      resolveClient: async () => {
+        adminResolved += 1
+        throw new Error("admin must not resolve")
+      },
+      getPrivateBlob: async () => blob,
+    }))
+    assert.equal(adminRes.status, 200)
+    assert.equal(adminResolved, 0)
+  })
+
+  it("link beats alias", () => {
+    const base = ctx({
+      links: [{ xeroContactKey: "contact-1", clientId: 7 }],
+      aliases: [{ contact_key: "foo bar", client_id: 8 }],
+    })
+    const invoiceInput = {
+      contactName: "Foo Bar",
+      xeroContactId: "contact-1",
+      mbaNumber: "PENFOLD018",
+    }
+    const withMba = {
+      ...base,
+      mbaClients: [{ mbaNumber: "PENFOLD018", clientId: 9, mbaIdentifier: "PENFOLD" }],
+    }
+    for (const mode of ["strict", "best_effort"] as const) {
+      assert.deepEqual(resolveInvoiceClient(invoiceInput, withMba, { mode }), {
+        clientId: 7,
+        via: "link",
+      })
+    }
+  })
+
+  it("alias beats MBA", () => {
+    const base = ctx({
+      aliases: [{ contact_key: "foo bar", client_id: 8 }],
+      mbaClients: [{ mbaNumber: "PENFOLD018", clientId: 9, mbaIdentifier: "PENFOLD" }],
+    })
+    const invoiceInput = {
+      contactName: "Foo Bar",
+      xeroContactId: "contact-alias",
+      mbaNumber: "PENFOLD018",
+    }
+    for (const mode of ["strict", "best_effort"] as const) {
+      assert.deepEqual(resolveInvoiceClient(invoiceInput, base, { mode }), {
+        clientId: 8,
+        via: "alias",
+      })
+    }
+  })
+
+  it("an MBA from another client's prefix never resolves to this client", () => {
+    const base = ctx({
+      mbaClients: [{ mbaNumber: "ACME001", clientId: 9, mbaIdentifier: "PENFOLD" }],
+    })
+    const invoiceInput = {
+      contactName: "Nobody Pty Ltd",
+      xeroContactId: "contact-mba",
+      mbaNumber: "ACME001",
+    }
+    for (const mode of ["strict", "best_effort"] as const) {
+      assert.equal(resolveInvoiceClient(invoiceInput, base, { mode }), null)
+    }
+
+    const owned = ctx({
+      mbaClients: [{ mbaNumber: "PENFOLD018", clientId: 9, mbaIdentifier: "PENFOLD" }],
+    })
+    assert.deepEqual(
+      resolveInvoiceClient(
+        { ...invoiceInput, mbaNumber: "PENFOLD018" },
+        owned,
+        { mode: "strict" },
+      ),
+      { clientId: 9, via: "mba" },
+    )
   })
 })
 

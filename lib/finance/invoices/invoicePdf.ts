@@ -8,18 +8,12 @@ import {
   type ClientAccess,
 } from "@/lib/auth/assertClientAccess"
 import { getPrivateBlob } from "@/lib/creative/getPrivateBlob"
-import { mbaNumberMatchesClientIdentifier } from "@/lib/auth/mbaNumberMatchesClientIdentifier"
 import { getUserRoles } from "@/lib/rbac"
-import { loadContactLinks } from "@/lib/xero/contactLinks"
 import { rowsOf } from "@/lib/xero/dbRows"
-import {
-  resolveClientFromContact,
-  type AliasRow,
-  type ClientRow,
-  type ResolvedClient,
-} from "@/lib/xero/normalizeContact"
+import { type ResolvedClient } from "@/lib/xero/normalizeContact"
 
 import { apInvoicePdfPath, arInvoicePdfPath } from "./invoicePdfPaths"
+import { resolveInvoiceClients } from "./resolveInvoiceClient"
 
 export { apInvoicePdfPath, arInvoicePdfPath }
 
@@ -181,76 +175,41 @@ async function loadApInvoice(xeroInvoiceId: string): Promise<InvoicePdfRecord | 
   return rows[0] ? mapRow(rows[0]) : null
 }
 
-async function resolveClientForInvoice(record: InvoicePdfRecord): Promise<ResolvedClient> {
-  const db = getDb()
-  const [clients, aliases, links] = await Promise.all([
-    rowsOf<{
-      id: number
-      mp_client_name: string | null
-      payment_days: number | null
-      payment_terms: string | null
-    }>(await db.execute(sql`SELECT id, mp_client_name, payment_days, payment_terms FROM clients`)),
-    rowsOf<{ contact_key: string; client_id: number }>(
-      await db
-        .execute(sql`SELECT contact_key, client_id FROM xero_client_aliases`)
-        .catch(() => [] as { contact_key: string; client_id: number }[]),
-    ),
-    loadContactLinks(),
-  ])
-  const clientRows: ClientRow[] = clients.map((c) => ({
-    id: Number(c.id),
-    mp_client_name: c.mp_client_name,
-    payment_days: c.payment_days != null ? Number(c.payment_days) : null,
-    payment_terms: c.payment_terms,
-  }))
-  const aliasRows: AliasRow[] = aliases.map((a) => ({
-    contact_key: a.contact_key,
-    client_id: Number(a.client_id),
-  }))
-  const contact = resolveClientFromContact(record.contactName ?? "", clientRows, aliasRows, {
-    xeroContactId: record.xeroContactId,
-    links,
-  })
-  if (contact.resolved && contact.clientsId > 0) return contact
-  return mergeInvoiceClient(contact, await loadMbaImpliedClient(record.mbaNumber))
-}
-
-async function loadMbaImpliedClient(
-  mbaNumber: string | null,
-): Promise<ResolvedClient | null> {
-  const mba = (mbaNumber ?? "").trim()
-  if (!mba) return null
-  const db = getDb()
-  const rows = await rowsOf<{
-    client_id: number | null
-    mp_client_name: string | null
-    payment_days: number | null
-    payment_terms: string | null
-    mbaidentifier: string | null
-  }>(
-    await db.execute(sql`
-      SELECT
-        c.id AS client_id,
-        c.mp_client_name,
-        c.payment_days,
-        c.payment_terms,
-        c.mbaidentifier
-      FROM media_plan_masters m
-      INNER JOIN clients c ON c.id = m.client_id
-      WHERE lower(btrim(m.mba_number)) = lower(btrim(${mba}))
-      LIMIT 1
-    `),
-  )
-  const row = rows[0]
-  if (!row || row.client_id == null) return null
-  if (!mbaNumberMatchesClientIdentifier(mba, row.mbaidentifier)) return null
+function resolvedFromHit(
+  clientId: number | null,
+  contactName: string,
+): ResolvedClient {
+  if (clientId == null || clientId <= 0) {
+    return {
+      clientsId: 0,
+      clientName: contactName,
+      paymentDays: 14,
+      paymentTerms: "",
+      resolved: false,
+    }
+  }
   return {
-    clientsId: Number(row.client_id),
-    clientName: row.mp_client_name ?? "",
-    paymentDays: row.payment_days != null ? Number(row.payment_days) : 14,
-    paymentTerms: row.payment_terms ?? "",
+    clientsId: clientId,
+    clientName: contactName,
+    paymentDays: 14,
+    paymentTerms: "",
     resolved: true,
   }
+}
+
+/** Client-role PDF access. Admins never call this. Strict: link, alias, or MBA. */
+async function resolveClientForInvoice(record: InvoicePdfRecord): Promise<ResolvedClient> {
+  const [hit] = await resolveInvoiceClients(
+    [
+      {
+        contactName: record.contactName,
+        xeroContactId: record.xeroContactId,
+        mbaNumber: record.mbaNumber,
+      },
+    ],
+    { mode: "strict" },
+  )
+  return resolvedFromHit(hit?.clientId ?? null, record.contactName ?? "")
 }
 
 async function defaultSession(
