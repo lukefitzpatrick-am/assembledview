@@ -730,3 +730,12 @@ Gate passed. Night 1 continues at AV-E1.
 - Under 90%: the note sits on the market cell so the start and end stay real dates. A date cell cannot carry the sentence and the date format together.
 - Morning smoke: Download the published media plan for golf021 (v517): the ML1 row shows the note, and its months fall inside the campaign. Not exercised in the browser here.
 
+## AV-M10a DONE 3758226c
+
+- Discovery still matches. `containerTotals` is at 3355 and still summed `expertRowCostSplit` in floats. Net media, fees and total with fees render at 5783, 5791 and 5806. The weekly totals net cell is 5696. Apply does not read those sums.
+- The footer and that weekly net cell now come from `campaignTotals` in cents. Each row is one line with one burst whose budget is `expertRowGrossCost`. `formatAUD` still formats dollars at the edge via `fromCents`. Quantity and per-week counts are unchanged. No `setValue`.
+- Files: components/media-containers/ExpertGrid.tsx, docs/brain/INVARIANTS.md, docs/brain/modules/media-plans.md, docs/brain/BLAST-RADIUS.md, docs/superpowers/overnight-av-fixes/RUNLOG.md.
+- Tests: typecheck 0, lint 0 (same warning set), test:expert-goldens pass (9), test:expert-grid-selection pass (14 + 5), test:money pass (74, 1 todo for buildMbaFromPersisted).
+- Under 90%: a normal single line should match the old footer to the cent, because both paths call `computeBurstAmounts` and the cent round is at the burst. Several rows can move by a cent where the old footer summed floats first. Channel virtualisation tests still mirror the old float sum locally. They were not in this prompt's checks.
+- Morning smoke: Open an expert grid: footer totals unchanged (to the cent) for a normal line. Not exercised in the browser here.
+
