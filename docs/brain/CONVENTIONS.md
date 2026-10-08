@@ -73,6 +73,7 @@ Crons bypass middleware entirely — `/api/cron/*` is protected only by `assertC
 ## Formatting and locale
 
 - Money display: `lib/format/money.ts` — en-AU, AUD, null/NaN renders `—`. Rounding changes cause reconciliation drift across finance, pacing and exports.
+- Money maths lives in lib/money. check:money-inline ratchets the rest down.
 - Dates display: `lib/format/date.ts` — en-AU only.
 - Date parsing: `parseDateSafe` (local midnight) and `parseDateNativeSafe` (UTC midnight) are **not** interchangeable. Swapping them shifts dates by a day.
 - `fy` always means the Australian financial year **ending** year.
