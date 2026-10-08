@@ -181,14 +181,13 @@ import {
 import { PrebillScopeDialog } from "@/components/billing/PrebillScopeDialog"
 import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type { BurstDateLike } from "@/lib/finance/billingOverrideDateBasis"
-import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
+import { LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import { extractPlanGlobals } from '@/lib/naming/fromPlan'
 import { fetchNamingWorkbook } from '@/lib/naming/fetchNamingWorkbook'
 import { saveAs } from 'file-saver'
 import { useUnsavedChangesPrompt } from "@/hooks/use-unsaved-changes-prompt"
 import { 
   createMediaPlan, 
-  uploadMediaPlanVersionDocuments,
   editMediaPlan, 
   saveTelevisionLineItems, 
   saveRadioLineItems,
@@ -239,9 +238,6 @@ import type {
 } from "@/lib/kpi/types"
 import type { MediaContainerBestPractice, Publisher } from "@/lib/types/publisher"
 import {
-  advertisingAssociatesFilteredPlanHasLineItems,
-  buildAdvertisingAssociatesMbaDataFromMediaItems,
-  filterMediaItemsForAdvertisingAssociates,
   planHasAdvertisingAssociatesLineItem,
   shouldIncludeMediaPlanLineItem,
 } from "@/lib/mediaplan/advertisingAssociatesExcel"
@@ -260,9 +256,6 @@ import {
   editorBillingStableLineItemId,
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
-import { buildMediaPlanWorkbookMbaData } from "@/lib/mediaplan/buildMediaPlanWorkbookMbaData"
-import { excludedFromMbaScopeNoteFromLines } from "@/lib/mediaplan/excludedMbaScopeNote"
-import { filterMediaItemsForMbaScope } from "@/lib/docs/filterMediaItemsForMbaScope"
 import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
@@ -309,12 +302,7 @@ import {
   publishedBillingTimingLockedMessage,
 } from "@/lib/docs/isApprovedOrBeyond"
 import {
-  DOC_SKIP_REASON,
-  DOC_STEP_MBA,
-  DOC_STEP_MEDIA_PLAN,
   applyPublishDocumentsStep,
-  classifyDocStepFailure,
-  shouldSkipDocsForCampaignStatus,
   skipUnrunPostgresSaveSteps,
 } from "@/lib/docs/saveDocSteps"
 import {
@@ -1916,13 +1904,6 @@ function CreateMediaPlan() {
     mediaTypes,
   ])
 
-  function bufferToBase64(buffer: ArrayBuffer) {
-    let binary = ''
-    const bytes = new Uint8Array(buffer)
-    bytes.forEach(b => binary += String.fromCharCode(b))
-    return window.btoa(binary)
-  }
-
   // Give pending container effects a frame to push latest line items before export
   const waitForStateFlush = () =>
     new Promise<void>((resolve) => {
@@ -2979,157 +2960,6 @@ function CreateMediaPlan() {
     const fileName = `${fv.mp_client_name || "client"}-${mbaBase}-v${resolvedPlanVersion}.pdf`;
     return { blob, fileName, planVersion: resolvedPlanVersion };
   };
-
-  const generateMediaPlanXlsxBlob = async (opts?: { planVersion?: string; variant?: "standard" | "aa" }) => {
-    const planVersion = String(opts?.planVersion || form.getValues('mp_plannumber') || '1');
-    const variant = opts?.variant ?? "standard"
-    // Allow container effects to emit latest duplicated line items before export
-    await waitForStateFlush();
-
-    // fetch and encode logo
-    const logoBuf = await fetch('/brand/logo-full-colour.png').then(r => r.arrayBuffer())
-    const logoBase64 = bufferToBase64(logoBuf)
-
-    const header: MediaPlanHeader = {
-      logoBase64,
-      logoWidth: 457,
-      logoHeight: 71,
-      client:         form.getValues('mp_client_name'),
-      brand:          form.getValues('mp_brand'),
-      campaignName:   form.getValues('mp_campaignname'),
-      mbaNumber:      form.getValues('mba_number'),
-      clientContact:  form.getValues('mp_clientcontact'),
-      planVersion,
-      poNumber:       form.getValues('mp_ponumber'),
-      campaignBudget: new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD'}).format(form.getValues('mp_campaignbudget')),
-      campaignStatus: form.getValues('mp_campaignstatus'),
-      campaignStart:  format(form.getValues('mp_campaigndates_start'), "dd/MM/yyyy"),
-      campaignEnd:    format(form.getValues('mp_campaigndates_end'), "dd/MM/yyyy"),
-    }
-
-    // Helper to ensure each line item has a stable identifier for Excel grouping
-    const assignLineItemIds = (items: LineItem[], prefix: string) =>
-      items.map((item, idx) => {
-        const existingId = item.line_item_id || item.lineItemId;
-        const generatedId =
-          existingId ||
-          `${prefix}-${typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? (crypto as any).randomUUID()
-            : `${Date.now()}-${idx}-${Math.random().toString(16).slice(2, 8)}`}`;
-        const lineNumber = item.line_item ?? item.lineItem ?? idx + 1;
-
-        return {
-          ...item,
-          line_item_id: generatedId,
-          lineItemId: generatedId,
-          line_item: lineNumber,
-          lineItem: lineNumber,
-        };
-      });
-
-    const validSearchItems = searchItems.filter(shouldIncludeMediaPlanLineItem);
-    const validSocialMediaItems = socialMediaItems.filter(shouldIncludeMediaPlanLineItem);
-    const validDigiAudioItems = digiAudioItems.filter(shouldIncludeMediaPlanLineItem);
-    const validDigiDisplayItems = digiDisplayItems.filter(shouldIncludeMediaPlanLineItem);
-    const validDigiVideoItems = digiVideoItems.filter(shouldIncludeMediaPlanLineItem);
-    const validBvodItems = bvodItems.filter(shouldIncludeMediaPlanLineItem);
-    const validProgDisplayItems = progDisplayItems.filter(shouldIncludeMediaPlanLineItem);
-    const validProgVideoItems = progVideoItems.filter(shouldIncludeMediaPlanLineItem);
-    const validProgBvodItems = progBvodItems.filter(shouldIncludeMediaPlanLineItem);
-    const validProgOohItems = progOohItems.filter(shouldIncludeMediaPlanLineItem);
-    const validProgAudioItems = progAudioItems.filter(shouldIncludeMediaPlanLineItem);
-    const validNewspaperItems = newspaperItems.filter(shouldIncludeMediaPlanLineItem);
-    const validMagazinesItems = magazineItems.filter(shouldIncludeMediaPlanLineItem);
-    const validTelevisionItems = televisionItems.filter(shouldIncludeMediaPlanLineItem);
-    const validRadioItems = radioItems.filter(shouldIncludeMediaPlanLineItem);
-    const validOohItems = oohItems.filter(shouldIncludeMediaPlanLineItem);
-    const validCinemaItems = cinemaItems.filter(shouldIncludeMediaPlanLineItem);
-    const validIntegrationItems = integrationItems.filter(shouldIncludeMediaPlanLineItem);
-    const validInfluencersItems = influencersItems.filter(shouldIncludeMediaPlanLineItem);
-    const validProductionLineItems = productionItems.filter(shouldIncludeMediaPlanLineItem);
-
-    const assembledMediaItems: MediaItems = {
-      search:       assignLineItemIds(validSearchItems,       "SRC"),
-      socialMedia:  assignLineItemIds(validSocialMediaItems,  "SOC"),
-      digiAudio:    assignLineItemIds(validDigiAudioItems,    "DA"),
-      digiDisplay:  assignLineItemIds(validDigiDisplayItems,  "DD"),
-      digiVideo:    assignLineItemIds(validDigiVideoItems,    "DV"),
-      bvod:         assignLineItemIds(validBvodItems,         "BVOD"),
-      progDisplay:  assignLineItemIds(validProgDisplayItems,  "PD"),
-      progVideo:    assignLineItemIds(validProgVideoItems,    "PV"),
-      progBvod:     assignLineItemIds(validProgBvodItems,     "PBVOD"),
-      progOoh:      assignLineItemIds(validProgOohItems,      "POOH"),
-      progAudio:    assignLineItemIds(validProgAudioItems,    "PA"),
-      newspaper:    assignLineItemIds(validNewspaperItems,    "NEWS"),
-      magazines:    assignLineItemIds(validMagazinesItems,    "MAG"),
-      television:   assignLineItemIds(validTelevisionItems,   "TV"),
-      radio:        assignLineItemIds(validRadioItems,        "RAD"),
-      ooh:          assignLineItemIds(validOohItems,          "OOH"),
-      cinema:       assignLineItemIds(validCinemaItems,       "CIN"),
-      integration:  assignLineItemIds(validIntegrationItems,  "INT"),
-      influencers:  assignLineItemIds(validInfluencersItems,  "INF"),
-      production:   assignLineItemIds(validProductionLineItems,   MEDIA_TYPE_ID_CODES.production),
-    };
-
-    const mediaItems = filterMediaItemsForMbaScope(
-      assembledMediaItems,
-      buildMbaScopeForSaveBody({
-        isPartialMBA,
-        partialMBASelectedLineItemIds,
-        partialMBAMonthYears,
-      }),
-    )
-
-    // MBA totals for Excel — same core as MBA Details / PDF (partial via selected line ids).
-    const coreTotals = campaignFinancials.mbaScopeTotals
-
-    let mediaItemsForWorkbook: MediaItems = mediaItems
-    let mbaData: Parameters<typeof generateMediaPlan>[2]
-
-    if (variant === "aa") {
-      const pubRes = await fetch("/api/publishers")
-      if (!pubRes.ok) {
-        throw new Error("Failed to load publishers for Advertising Associates export")
-      }
-      const publishersList = (await pubRes.json()) as Publisher[]
-      const aaFiltered = filterMediaItemsForAdvertisingAssociates(mediaItems, publishersList)
-      if (!advertisingAssociatesFilteredPlanHasLineItems(aaFiltered)) {
-        throw new Error(
-          "No Advertising Associates–billed line items to include in this export after applying publisher filter",
-        )
-      }
-      mediaItemsForWorkbook = aaFiltered
-      mbaData = buildAdvertisingAssociatesMbaDataFromMediaItems(aaFiltered)
-    } else {
-      mbaData = buildMediaPlanWorkbookMbaData({
-        mediaTypes,
-        formFlags: form.getValues() as Record<string, unknown>,
-        mediaKeyMap,
-        campaignFinancialsMediaByKey,
-        mbaScopeTotals: coreTotals,
-        excludedFromMbaScopeNote: excludedFromMbaScopeNoteFromLines(
-          campaignFinancials.perLine,
-        ),
-      })
-    }
-
-    const workbook = await generateMediaPlan(header, mediaItemsForWorkbook, mbaData, {
-      mbaTotalsLayout: variant === "aa" ? "aa" : "standard",
-    })
-    if (variant === "standard" && kpiRows.length > 0) {
-      const { addKPISheet } = await import("@/lib/generateMediaPlan")
-      const { toKpiSheetRows } = await import("@/lib/kpi/kpiWorkbook")
-      addKPISheet(workbook, toKpiSheetRows(kpiRows))
-    }
-    const arrayBuffer = await workbook.xlsx.writeBuffer() as ArrayBuffer
-    const blob = new Blob([ arrayBuffer ], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    })
-    const mediaPlanBase = `MediaPlan_${header.campaignName}`;
-    const baseFileName = `${header.client}-${mediaPlanBase}-v${planVersion}.xlsx`;
-    const fileName = variant === "aa" ? `AA - ${baseFileName}` : baseFileName;
-    return { blob, fileName, planVersion };
-  }
 
   const buildCreateDraftDocumentsBody = (
     kind: "mba_pdf" | "media_plan" | "aa_media_plan"
@@ -6371,170 +6201,6 @@ function CreateMediaPlan() {
       // Update Media Plan Version status to success
       updateSaveStatus('Media Plan Version', 'success')
 
-      // 3b. Generate + upload documents (MBA PDF + Media Plan XLSX) to Xano.
-      // Below approved: PC3 correctly refuses render — show SKIPPED, not ✗.
-      // Do not block core save on upload failures: show in modal as partial success.
-      updateSaveStatus(DOC_STEP_MBA, "pending")
-      updateSaveStatus(DOC_STEP_MEDIA_PLAN, "pending")
-      const documentUploadPromise = (async () => {
-        if (shouldSkipDocsForCampaignStatus(
-          // Create first-save always publishes v1 — docs must run (VC Stage 1).
-          { publishedAt: "this-save" }
-        )) {
-          updateSaveStatus(DOC_STEP_MBA, "skipped", DOC_SKIP_REASON)
-          updateSaveStatus(DOC_STEP_MEDIA_PLAN, "skipped", DOC_SKIP_REASON)
-          return
-        }
-
-        const planVersionForDocs = String(
-          version.version_number ?? fv.mp_plannumber ?? "1"
-        )
-
-        let mbaBlob: Blob | null = null
-        let mbaFileName = ""
-        try {
-          const mba = await generateMbaPdfBlob({ planVersion: planVersionForDocs })
-          mbaBlob = mba.blob
-          mbaFileName = mba.fileName
-        } catch (mbaErr: any) {
-          console.warn("MBA PDF skipped or failed:", mbaErr?.message || mbaErr)
-          const classified = classifyDocStepFailure(
-            mbaErr?.message || "MBA requires approved-or-beyond published version"
-          )
-          updateSaveStatus(DOC_STEP_MBA, classified.status, classified.error)
-        }
-
-        let mpBlob: Blob
-        let mpFileName: string
-        try {
-          const mp = await generateMediaPlanXlsxBlob({
-            planVersion: planVersionForDocs,
-          })
-          mpBlob = mp.blob
-          mpFileName = mp.fileName
-        } catch (mpErr: any) {
-          const message = mpErr?.message || String(mpErr)
-          console.error("Media plan workbook generation failed:", mpErr)
-          const classified = classifyDocStepFailure(message)
-          updateSaveStatus(DOC_STEP_MEDIA_PLAN, classified.status, classified.error)
-          return
-        }
-
-        const mbaPdfFile = mbaBlob
-          ? new File([mbaBlob], mbaFileName, { type: "application/pdf" })
-          : undefined
-        const mediaPlanFile = new File([mpBlob], mpFileName, {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        })
-
-        const mediaItemsForAaCheck: MediaItems = {
-          search: searchItems,
-          socialMedia: socialMediaItems,
-          digiAudio: digiAudioItems,
-          digiDisplay: digiDisplayItems,
-          digiVideo: digiVideoItems,
-          bvod: bvodItems,
-          progDisplay: progDisplayItems,
-          progVideo: progVideoItems,
-          progBvod: progBvodItems,
-          progOoh: progOohItems,
-          progAudio: progAudioItems,
-          newspaper: newspaperItems,
-          magazines: magazineItems,
-          television: televisionItems,
-          radio: radioItems,
-          ooh: oohItems,
-          cinema: cinemaItems,
-          integration: integrationItems,
-          influencers: influencersItems,
-          production: productionItems,
-        }
-
-        let aaMediaPlanFile: File | undefined
-        try {
-          const pubRes = await fetch("/api/publishers")
-          if (pubRes.ok) {
-            const publishersForAa = (await pubRes.json()) as Publisher[]
-            if (
-              planHasAdvertisingAssociatesLineItem(
-                mediaItemsForAaCheck,
-                publishersForAa,
-                shouldIncludeMediaPlanLineItem,
-              )
-            ) {
-              updateSaveStatus("AA Media Plan Upload", "pending")
-              try {
-                const { blob: aaBlob, fileName: aaFileName } = await generateMediaPlanXlsxBlob({
-                  planVersion: planVersionForDocs,
-                  variant: "aa",
-                })
-                aaMediaPlanFile = new File([aaBlob], aaFileName, {
-                  type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                })
-              } catch (genErr: any) {
-                console.warn("AA media plan generation failed:", genErr)
-                updateSaveStatus(
-                  "AA Media Plan Upload",
-                  "error",
-                  genErr?.message || "Failed to generate AA media plan",
-                )
-              }
-            }
-          }
-        } catch (aaErr) {
-          console.warn("AA media plan generation skipped or failed:", aaErr)
-        }
-
-        try {
-          await uploadMediaPlanVersionDocuments(version.id, {
-            mbaPdf: mbaPdfFile,
-            mediaPlan: mediaPlanFile,
-            aaMediaPlan: aaMediaPlanFile,
-            mpClientName: clientName,
-          })
-
-          if (mbaPdfFile) {
-            updateSaveStatus(DOC_STEP_MBA, "success")
-          } else {
-            setSaveStatus((prev) =>
-              prev.map((item) =>
-                item.name === DOC_STEP_MBA && item.status === "pending"
-                  ? { ...item, status: "skipped", error: DOC_SKIP_REASON }
-                  : item
-              )
-            )
-          }
-          updateSaveStatus(DOC_STEP_MEDIA_PLAN, "success")
-          if (aaMediaPlanFile) {
-            updateSaveStatus("AA Media Plan Upload", "success")
-          }
-        } catch (err: any) {
-          const message = err?.message || String(err)
-          console.error("Document upload failed:", err)
-          const classified = classifyDocStepFailure(message)
-          if (mbaPdfFile) {
-            updateSaveStatus(DOC_STEP_MBA, classified.status, classified.error)
-          }
-          updateSaveStatus(DOC_STEP_MEDIA_PLAN, classified.status, classified.error)
-          if (aaMediaPlanFile) {
-            updateSaveStatus("AA Media Plan Upload", "error", message)
-          }
-        }
-      })().catch((err: any) => {
-        const message = err?.message || String(err)
-        console.error("Document upload failed:", err)
-        const classified = classifyDocStepFailure(message)
-        setSaveStatus((prev) =>
-          prev.map((item) => {
-            if (item.name !== DOC_STEP_MBA && item.name !== DOC_STEP_MEDIA_PLAN) {
-              return item
-            }
-            if (item.status === "skipped" || item.status === "success") return item
-            return { ...item, status: classified.status, error: classified.error }
-          })
-        )
-      })
-  
       // 4. Save all media line items for enabled media types
       const mediaTypeSavePromises: Array<Promise<any[] | { type: string; error: any; }>> = [];
       
@@ -7088,8 +6754,6 @@ function CreateMediaPlan() {
         setPendingPublishRetry(null)
       }
 
-      // Wait for document generation+upload (do not throw; errors already handled above)
-      await documentUploadPromise
   
       // 7. Notify user
       toast({ title: 'Version saved', description: `Version ID ${version.id}` });

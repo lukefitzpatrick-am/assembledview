@@ -133,7 +133,6 @@ import {
   saveProgOOHLineItems,
   saveInfluencersLineItems,
   saveProductionLineItems,
-  uploadMediaPlanVersionDocuments,
 } from "@/lib/api"
 import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst } from "@/lib/billing/types"
 import { computeAppendNewMediaTypeBucket } from "@/lib/billing/appendNewMediaTypeBucket"
@@ -164,9 +163,6 @@ import {
   editorBillingStableLineItemId,
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials, scheduleMonthYearToIso } from "@/lib/finance/computeCampaignFinancials"
-import { buildMediaPlanWorkbookMbaData } from "@/lib/mediaplan/buildMediaPlanWorkbookMbaData"
-import { excludedFromMbaScopeNoteFromLines } from "@/lib/mediaplan/excludedMbaScopeNote"
-import { filterMediaItemsForMbaScope } from "@/lib/docs/filterMediaItemsForMbaScope"
 import {
   buildHydrationToastItems,
   computeAllChannelsHydrated,
@@ -410,7 +406,7 @@ import {
   validateAgencyFeeMonthTotalDrift,
   type FeeDriftValidationResult,
 } from "@/lib/billing/validateAgencyFeeMonthTotalDrift"
-import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
+import { LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import type { MediaContainerBestPractice, Publisher } from "@/lib/types/publisher"
 import { fetchMediaPlanMbaCoalesced } from "@/lib/mediaplan/fetchMediaPlanMbaCoalesced"
 import { coalescedGetJson } from "@/lib/api/coalescedGetJson"
@@ -432,9 +428,6 @@ import { buildCampaignKpiSavePayload } from "@/lib/kpi/buildCampaignKpiSavePaylo
 import { buildKpiLineItemsByMediaType } from "@/lib/kpi/lineItemsForFanOut"
 import type { CampaignKPI, ClientKPI, PublisherKPI, ResolvedKPIRow } from "@/lib/kpi/types"
 import {
-  advertisingAssociatesFilteredPlanHasLineItems,
-  buildAdvertisingAssociatesMbaDataFromMediaItems,
-  filterMediaItemsForAdvertisingAssociates,
   planHasAdvertisingAssociatesLineItem,
   shouldIncludeMediaPlanLineItem,
 } from "@/lib/mediaplan/advertisingAssociatesExcel"
@@ -455,12 +448,7 @@ import {
   publishedBillingTimingLockedMessage,
 } from "@/lib/docs/isApprovedOrBeyond"
 import {
-  DOC_SKIP_REASON,
-  DOC_STEP_MBA,
-  DOC_STEP_MEDIA_PLAN,
   applyPublishDocumentsStep,
-  classifyDocStepFailure,
-  shouldSkipDocsForCampaignStatus,
   skipUnrunPostgresSaveSteps,
 } from "@/lib/docs/saveDocSteps"
 import { deriveLiveMbaScopeSelection } from "@/lib/docs/liveMbaScopeSelection"
@@ -8624,178 +8612,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       const savePromises: Promise<any>[] = []
       const clientName = formValues.mp_clientname || selectedClient?.clientname_input || ""
 
-      // 4a. Generate + upload documents to Xano (no downloads).
-      // Below approved: PC3 correctly refuses render — show SKIPPED, not ✗.
-      updateSaveStatus(DOC_STEP_MBA, "pending")
-      updateSaveStatus(DOC_STEP_MEDIA_PLAN, "pending")
-      const uploadVersionDocuments = async (): Promise<void> => {
-        if (!versionId) {
-          throw new Error("Missing media plan version ID for document upload")
-        }
-
-        if (shouldSkipDocsForCampaignStatus(
-          isOverwriteMode ? { publishedAt: null } : { publishedAt: "this-save" }
-        )) {
-          updateSaveStatus(DOC_STEP_MBA, "skipped", DOC_SKIP_REASON)
-          updateSaveStatus(DOC_STEP_MEDIA_PLAN, "skipped", DOC_SKIP_REASON)
-          return
-        }
-
-        const planVersionForDocs = String(numericSavedVersion || nextVersion || targetSaveVersion)
-
-        let mbaBlob: Blob | null = null
-        let mbaFileName = ""
-        try {
-          const mba = await generateMbaPdfBlob({ planVersion: planVersionForDocs })
-          mbaBlob = mba.blob
-          mbaFileName = mba.fileName
-        } catch (mbaErr: any) {
-          // Defense: PC3 gate message → skipped; real MBA failures stay errors.
-          console.warn("MBA PDF skipped or failed:", mbaErr?.message || mbaErr)
-          const classified = classifyDocStepFailure(
-            mbaErr?.message || "MBA requires approved-or-beyond published version"
-          )
-          updateSaveStatus(DOC_STEP_MBA, classified.status, classified.error)
-        }
-
-        let mpBlob: Blob
-        let mpFileName: string
-        try {
-          const mp = await generateMediaPlanXlsxBlob({
-            planVersion: planVersionForDocs,
-          })
-          mpBlob = mp.blob
-          mpFileName = mp.fileName
-        } catch (mpErr: any) {
-          const message = mpErr?.message || String(mpErr)
-          console.error("Media plan workbook generation failed:", mpErr)
-          const classified = classifyDocStepFailure(message)
-          updateSaveStatus(DOC_STEP_MEDIA_PLAN, classified.status, classified.error)
-          // Do not paint MBA as failed when only Excel generation failed.
-          return
-        }
-
-        const mbaPdfFile = mbaBlob
-          ? new File([mbaBlob], mbaFileName, { type: "application/pdf" })
-          : undefined
-        const mediaPlanFile = new File([mpBlob], mpFileName, {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        })
-
-        const mediaItemsForAaCheck: MediaItems = {
-          search: searchItems,
-          socialMedia: socialMediaItems,
-          digiAudio: digitalAudioItems,
-          digiDisplay: digitalDisplayItems,
-          digiVideo: digitalVideoItems,
-          bvod: bvodItems,
-          progDisplay: progDisplayItems,
-          progVideo: progVideoItems,
-          progBvod: progBvodItems,
-          progOoh: progOohItems,
-          progAudio: progAudioItems,
-          newspaper: newspaperItems,
-          magazines: magazinesItems,
-          television: televisionItems,
-          radio: radioItems,
-          ooh: oohItems,
-          cinema: cinemaItems,
-          integration: integrationItems,
-          influencers: influencersItems,
-          production: productionItems,
-        }
-
-        let aaMediaPlanFile: File | undefined
-        try {
-          const pubRes = await fetch("/api/publishers")
-          if (pubRes.ok) {
-            const publishersForAa = (await pubRes.json()) as Publisher[]
-            if (
-              planHasAdvertisingAssociatesLineItem(
-                mediaItemsForAaCheck,
-                publishersForAa,
-                shouldIncludeMediaPlanLineItem,
-              )
-            ) {
-              updateSaveStatus("AA Media Plan Upload", "pending")
-              try {
-                const { blob: aaBlob, fileName: aaFileName } = await generateMediaPlanXlsxBlob({
-                  planVersion: planVersionForDocs,
-                  variant: "aa",
-                })
-                aaMediaPlanFile = new File([aaBlob], aaFileName, {
-                  type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                })
-              } catch (genErr: any) {
-                console.warn("AA media plan generation failed:", genErr)
-                updateSaveStatus(
-                  "AA Media Plan Upload",
-                  "error",
-                  genErr?.message || "Failed to generate AA media plan",
-                )
-              }
-            }
-          }
-        } catch (aaErr) {
-          console.warn("AA media plan generation skipped or failed:", aaErr)
-        }
-
-        try {
-          await uploadMediaPlanVersionDocuments(versionId, {
-            mbaPdf: mbaPdfFile,
-            mediaPlan: mediaPlanFile,
-            aaMediaPlan: aaMediaPlanFile,
-            mpClientName: formValues.mp_clientname || selectedClient?.clientname_input || "",
-          })
-
-          if (mbaPdfFile) {
-            updateSaveStatus(DOC_STEP_MBA, "success")
-          } else {
-            // Leave an earlier skip/error alone; only settle if still pending.
-            setSaveStatus((prev) =>
-              prev.map((item) =>
-                item.name === DOC_STEP_MBA && item.status === "pending"
-                  ? { ...item, status: "skipped", error: DOC_SKIP_REASON }
-                  : item
-              )
-            )
-          }
-          updateSaveStatus(DOC_STEP_MEDIA_PLAN, "success")
-          if (aaMediaPlanFile) {
-            updateSaveStatus("AA Media Plan Upload", "success")
-          }
-        } catch (err: any) {
-          const message = err?.message || String(err)
-          console.error("Document upload failed:", err)
-          const classified = classifyDocStepFailure(message)
-          // Upload failure is real for files we attempted; don't overwrite MBA skip.
-          if (mbaPdfFile) {
-            updateSaveStatus(DOC_STEP_MBA, classified.status, classified.error)
-          }
-          updateSaveStatus(DOC_STEP_MEDIA_PLAN, classified.status, classified.error)
-          if (aaMediaPlanFile) {
-            updateSaveStatus("AA Media Plan Upload", "error", message)
-          }
-        }
-      }
-      let documentUploadPromise: Promise<void> | null = null
-      if (!isOverwriteMode) {
-        documentUploadPromise = uploadVersionDocuments().catch((err: any) => {
-          const message = err?.message || String(err)
-          console.error("Document upload failed:", err)
-          const classified = classifyDocStepFailure(message)
-          setSaveStatus((prev) =>
-            prev.map((item) => {
-              if (item.name !== DOC_STEP_MBA && item.name !== DOC_STEP_MEDIA_PLAN) {
-                return item
-              }
-              if (item.status === "skipped" || item.status === "success") return item
-              return { ...item, status: classified.status, error: classified.error }
-            })
-          )
-        })
-      }
-
       // Draft overwrite no longer runs clearVersionChildren/clearVersionKpis here —
       // those hard-coded version-1 deletes were no-ops for v2+ and burned ~20
       // requests per save. Channel replace is owned by replaceChannelLineItems
@@ -9212,24 +9028,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
 
       if (isOverwriteMode) {
         startCampaignKpiSync()
-        documentUploadPromise = uploadVersionDocuments().catch((err: any) => {
-          const message = err?.message || String(err)
-          console.error("Document upload failed:", err)
-          const classified = classifyDocStepFailure(message)
-          setSaveStatus((prev) =>
-            prev.map((item) => {
-              if (item.name !== DOC_STEP_MBA && item.name !== DOC_STEP_MEDIA_PLAN) {
-                return item
-              }
-              if (item.status === "skipped" || item.status === "success") return item
-              return { ...item, status: classified.status, error: classified.error }
-            })
-          )
-        })
       }
-
-      // Wait for document generation+upload (do not throw; errors already handled above)
-      await documentUploadPromise
       
       // Refresh media plan data to show updated version
       const refreshResponse = await fetch(`/api/mediaplans/mba/${mbaNumber}?skipLineItems=true`)
@@ -9350,137 +9149,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     const fileName =
       response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ||
       `MBA_${fv.mp_clientname || "client"}_${fv.mp_campaignname || "campaign"}_v${resolvedPlanVersion}.pdf`
-    return { blob, fileName, planVersion: resolvedPlanVersion }
-  }
-
-  const generateMediaPlanXlsxBlob = async (opts?: { planVersion?: string; variant?: "standard" | "aa" }) => {
-    await waitForStateFlush()
-
-    const variant = opts?.variant ?? "standard"
-
-    // fetch and encode logo
-    const logoBuf = await fetch("/brand/logo-full-colour.png").then(r => r.arrayBuffer())
-    const logoBase64 = bufferToBase64(logoBuf)
-
-    const fv = form.getValues()
-
-    const resolvedPlanVersion = String(
-      opts?.planVersion ||
-        fv.mp_plannumber ||
-        selectedVersionNumber ||
-        (versionNumber ? Number(versionNumber) : null) ||
-        mediaPlan?.version_number ||
-        latestVersionNumber ||
-        1
-    )
-
-    const header: MediaPlanHeader = {
-      logoBase64,
-      logoWidth: 457,
-      logoHeight: 71,
-      client: fv.mp_clientname,
-      brand: fv.mp_brand,
-      campaignName: fv.mp_campaignname,
-      mbaNumber: fv.mbanumber || mbaNumber,
-      clientContact: fv.mp_clientcontact,
-      planVersion: resolvedPlanVersion,
-      poNumber: fv.mp_ponumber,
-      campaignBudget: new Intl.NumberFormat("en-AU", {
-        style: "currency",
-        currency: "AUD",
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(fv.mp_campaignbudget),
-      campaignStatus: fv.mp_campaignstatus,
-      campaignStart: format(fv.mp_campaigndates_start, "dd/MM/yyyy"),
-      campaignEnd: format(fv.mp_campaigndates_end, "dd/MM/yyyy"),
-    }
-
-    const assembledMediaItems: MediaItems = {
-      search: searchItems.filter(shouldIncludeMediaPlanLineItem),
-      socialMedia: socialMediaItems.filter(shouldIncludeMediaPlanLineItem),
-      digiAudio: digitalAudioItems.filter(shouldIncludeMediaPlanLineItem),
-      digiDisplay: digitalDisplayItems.filter(shouldIncludeMediaPlanLineItem),
-      digiVideo: digitalVideoItems.filter(shouldIncludeMediaPlanLineItem),
-      bvod: bvodItems.filter(shouldIncludeMediaPlanLineItem),
-      progDisplay: progDisplayItems.filter(shouldIncludeMediaPlanLineItem),
-      progVideo: progVideoItems.filter(shouldIncludeMediaPlanLineItem),
-      progBvod: progBvodItems.filter(shouldIncludeMediaPlanLineItem),
-      progOoh: progOohItems.filter(shouldIncludeMediaPlanLineItem),
-      progAudio: progAudioItems.filter(shouldIncludeMediaPlanLineItem),
-      newspaper: newspaperItems.filter(shouldIncludeMediaPlanLineItem),
-      magazines: magazinesItems.filter(shouldIncludeMediaPlanLineItem),
-      television: televisionItems.filter(shouldIncludeMediaPlanLineItem),
-      radio: radioItems.filter(shouldIncludeMediaPlanLineItem),
-      ooh: oohItems.filter(shouldIncludeMediaPlanLineItem),
-      cinema: cinemaItems.filter(shouldIncludeMediaPlanLineItem),
-      integration: integrationItems.filter(shouldIncludeMediaPlanLineItem),
-      influencers: influencersItems.filter(shouldIncludeMediaPlanLineItem),
-      production: productionItems.filter(shouldIncludeMediaPlanLineItem),
-    }
-
-    const mediaItems = filterMediaItemsForMbaScope(
-      assembledMediaItems,
-      buildMbaScopeForSaveBody({
-        isPartialMBA,
-        partialMBASelectedLineItemIds,
-        partialMBAMonthYears,
-      }),
-    )
-
-    // MBA totals for Excel — same core as MBA Details / PDF (partial via selected line ids).
-    const coreTotals = campaignFinancials.mbaScopeTotals
-
-    let mediaItemsForWorkbook: MediaItems = mediaItems
-    let mbaData: Parameters<typeof generateMediaPlan>[2]
-
-    if (variant === "aa") {
-      const pubRes = await fetch("/api/publishers")
-      if (!pubRes.ok) {
-        throw new Error("Failed to load publishers for Advertising Associates export")
-      }
-      const publishersList = (await pubRes.json()) as Publisher[]
-      const aaFiltered = filterMediaItemsForAdvertisingAssociates(mediaItems, publishersList)
-      if (!advertisingAssociatesFilteredPlanHasLineItems(aaFiltered)) {
-        throw new Error(
-          "No Advertising Associates–billed line items to include in this export after applying publisher filter",
-        )
-      }
-      mediaItemsForWorkbook = aaFiltered
-      mbaData = buildAdvertisingAssociatesMbaDataFromMediaItems(aaFiltered)
-    } else {
-      mbaData = buildMediaPlanWorkbookMbaData({
-        mediaTypes,
-        formFlags: fv as Record<string, unknown>,
-        mediaKeyMap,
-        campaignFinancialsMediaByKey,
-        mbaScopeTotals: coreTotals,
-        excludedFromMbaScopeNote: excludedFromMbaScopeNoteFromLines(
-          campaignFinancials.perLine,
-        ),
-      })
-    }
-
-    const workbook = await generateMediaPlan(header, mediaItemsForWorkbook, mbaData, {
-      mbaTotalsLayout: variant === "aa" ? "aa" : "standard",
-    })
-
-    // --- KPI: append KPI sheet to standard variant (Stage 2) ---
-    if (variant === "standard" && kpiRows.length > 0) {
-      const { addKPISheet } = await import("@/lib/generateMediaPlan")
-      const { toKpiSheetRows } = await import("@/lib/kpi/kpiWorkbook")
-      addKPISheet(workbook, toKpiSheetRows(kpiRows))
-    }
-
-    const arrayBuffer = (await workbook.xlsx.writeBuffer()) as ArrayBuffer
-    const blob = new Blob([arrayBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    })
-
-    const mediaPlanBase = `MediaPlan_${header.campaignName || "campaign"}`
-    const baseFileName = `${header.client || "client"}-${mediaPlanBase}-v${resolvedPlanVersion}.xlsx`
-    const fileName = variant === "aa" ? `AA - ${baseFileName}` : baseFileName
-
     return { blob, fileName, planVersion: resolvedPlanVersion }
   }
 
@@ -11480,16 +11148,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     adservvideo,
     calculateBillingSchedule
   ]);
-
-  // Helper function to convert buffer to base64
-  const bufferToBase64 = (buf: ArrayBuffer): string => {
-    const bytes = new Uint8Array(buf)
-    let binary = ''
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i])
-    }
-    return btoa(binary)
-  }
 
   const waitForStateFlush = useCallback(
     () =>

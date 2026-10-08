@@ -516,7 +516,7 @@ describe("DD-3 draft downloads", () => {
     assert.doesNotMatch(draftBody, /\/api\/mba\/generate/)
     assert.match(createSrc, /DRAFT_MBA_TOAST/)
     const genStart = createSrc.indexOf("const generateMbaPdfBlob")
-    const genEnd = createSrc.indexOf("const generateMediaPlanXlsxBlob", genStart)
+    const genEnd = createSrc.indexOf("const buildCreateDraftDocumentsBody", genStart)
     assert.doesNotMatch(
       createSrc.slice(genStart, genEnd),
       /campaign_status/
