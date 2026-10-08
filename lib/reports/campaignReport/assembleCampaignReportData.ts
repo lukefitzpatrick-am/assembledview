@@ -5,6 +5,7 @@
  */
 import "server-only"
 
+import type { DeliveryState } from "@/lib/delivery/deliveryState"
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import type { DeliveryChannelGroup } from "@/lib/ava/tools/summaries"
 import { fetchCampaignKpis } from "@/lib/kpi/campaignKpi"
@@ -95,6 +96,11 @@ export type CampaignReportPayload = {
     timeElapsedPct: number | null
   }
   channels: CampaignReportChannelRow[]
+  /**
+   * Delivery state of every plan line in the current window.
+   * The headless generator skips a deck when every state is no_source or no_rows_yet.
+   */
+  deliveryStates?: DeliveryState[]
   kpis: CampaignReportKpiRow[]
   /** Null when commentary was not generated. The deck then shows the not-generated line. */
   commentary: ReportCommentary | null
@@ -311,6 +317,9 @@ export async function assembleCampaignReportData(
       timeElapsedPct,
     },
     channels,
+    deliveryStates: currentSnap.channels.flatMap((ch) =>
+      ch.lines.map((line) => line.deliveryState),
+    ),
     kpis,
     commentary: null,
   }

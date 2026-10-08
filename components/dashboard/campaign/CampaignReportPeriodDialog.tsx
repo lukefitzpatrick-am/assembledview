@@ -21,6 +21,7 @@ export type CampaignReportPeriodDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   mbaNumber: string
+  /** Callers may still pass these. The export route resolves them on the server. */
   clientName?: string | null
   campaignName?: string | null
   versionNumber?: number
@@ -55,11 +56,6 @@ export function CampaignReportPeriodDialog({
   open,
   onOpenChange,
   mbaNumber,
-  clientName,
-  campaignName,
-  versionNumber,
-  campaignStartISO,
-  campaignEndISO,
 }: CampaignReportPeriodDialogProps) {
   const { toast } = useToast()
   const [periodKind, setPeriodKind] = useState<CampaignReportPeriodKind>("this_month")
@@ -82,14 +78,11 @@ export function CampaignReportPeriodDialog({
         headers: { "Content-Type": "application/json", Accept: "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
         body: JSON.stringify({
           mbaNumber,
-          clientName: clientName ?? undefined,
-          campaignName: campaignName ?? undefined,
-          versionNumber,
-          campaignStartISO: campaignStartISO ?? undefined,
-          campaignEndISO: campaignEndISO ?? undefined,
-          periodKind,
-          customStartISO: periodKind === "custom" ? customStart : undefined,
-          customEndISO: periodKind === "custom" ? customEnd : undefined,
+          period: {
+            kind: periodKind,
+            start: periodKind === "custom" ? customStart : undefined,
+            end: periodKind === "custom" ? customEnd : undefined,
+          },
         }),
       })
 

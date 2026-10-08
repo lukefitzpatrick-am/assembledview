@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireRole } from "@/lib/requireRole"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
-import { assembleCampaignReportData } from "@/lib/reports/campaignReport/assembleCampaignReportData"
-import { buildCampaignReportDeck } from "@/lib/reports/campaignReport/buildCampaignReportDeck"
+import { generateCampaignReportForMba } from "@/lib/reports/campaignReport/generateCampaignReportForMba"
 import { persistPerformanceReportInsights } from "@/lib/reports/persistPerformanceReportInsights"
-import { campaignReportFilename } from "@/lib/reports/campaignReport/filename"
 import { checkCampaignReportRateLimit } from "@/lib/reports/campaignReport/rateLimit"
 import type { CampaignReportPeriodKind } from "@/lib/reports/campaignReport/periods"
-import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -20,12 +17,20 @@ const PERIOD_KINDS = new Set<CampaignReportPeriodKind>([
   "custom",
 ])
 
+const IGNORED_BODY_FIELDS = [
+  "clientName",
+  "campaignName",
+  "versionNumber",
+  "campaignStartISO",
+  "campaignEndISO",
+  "mpSearchEnabled",
+  "periodKind",
+  "customStartISO",
+  "customEndISO",
+] as const
+
 function badRequest(reason: string) {
   return NextResponse.json({ error: reason }, { status: 400 })
-}
-
-function yyyymmdd(): string {
-  return getMelbourneTodayISO().replace(/-/g, "")
 }
 
 function asString(value: unknown, max = 200): string | undefined {
@@ -35,12 +40,37 @@ function asString(value: unknown, max = 200): string | undefined {
   return s.length <= max ? s : s.slice(0, max)
 }
 
-function asNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value
-  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) {
-    return Number(value)
+function readPeriod(body: Record<string, unknown>):
+  | { kind: CampaignReportPeriodKind; start?: string; end?: string }
+  | { error: string } {
+  const period = body.period
+  if (period && typeof period === "object") {
+    const record = period as Record<string, unknown>
+    const kind = asString(record.kind, 40)
+    if (!kind || !PERIOD_KINDS.has(kind as CampaignReportPeriodKind)) {
+      return {
+        error: "period.kind must be this_month, last_month, campaign_to_date, or custom",
+      }
+    }
+    return {
+      kind: kind as CampaignReportPeriodKind,
+      start: asString(record.start, 32),
+      end: asString(record.end, 32),
+    }
   }
-  return undefined
+
+  const legacyKind = asString(body.periodKind, 40)
+  if (legacyKind && PERIOD_KINDS.has(legacyKind as CampaignReportPeriodKind)) {
+    return {
+      kind: legacyKind as CampaignReportPeriodKind,
+      start: asString(body.customStartISO, 32),
+      end: asString(body.customEndISO, 32),
+    }
+  }
+
+  return {
+    error: "period.kind must be this_month, last_month, campaign_to_date, or custom",
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -75,50 +105,46 @@ export async function POST(request: NextRequest) {
   const mbaNumber = asString(body.mbaNumber, 64)
   if (!mbaNumber) return badRequest("mbaNumber is required")
 
-  const periodKindRaw = asString(body.periodKind, 40)
-  if (!periodKindRaw || !PERIOD_KINDS.has(periodKindRaw as CampaignReportPeriodKind)) {
-    return badRequest(
-      "periodKind must be this_month, last_month, campaign_to_date, or custom",
-    )
+  const period = readPeriod(body)
+  if ("error" in period) return badRequest(period.error)
+
+  const ignored = IGNORED_BODY_FIELDS.filter((key) => body[key] != null && body[key] !== "")
+  if (ignored.length > 0) {
+    console.log("[export-report] deprecated body fields ignored", { mbaNumber, fields: ignored })
   }
-  const periodKind = periodKindRaw as CampaignReportPeriodKind
 
   const access = await checkClientMbaAccess(request, mbaNumber)
   if (!access.ok) return access.response
 
   try {
     const started = Date.now()
-    const payload = await assembleCampaignReportData({
+    const result = await generateCampaignReportForMba({
       mbaNumber,
-      clientName: asString(body.clientName, 120),
-      campaignName: asString(body.campaignName, 200),
-      versionNumber: asNumber(body.versionNumber),
-      campaignStartISO: asString(body.campaignStartISO, 32),
-      campaignEndISO: asString(body.campaignEndISO, 32),
-      periodKind,
-      customStartISO: asString(body.customStartISO, 32),
-      customEndISO: asString(body.customEndISO, 32),
-      mpSearchEnabled: body.mpSearchEnabled !== false,
+      period,
+      store: false,
+      withCommentary: true,
     })
-    const assembledMs = Date.now() - started
-
-    const deckStarted = Date.now()
-    const buf = await buildCampaignReportDeck(payload)
-    const deckMs = Date.now() - deckStarted
     console.log("[export-report] timing", {
       mbaNumber,
-      assembledMs,
-      deckMs,
-      commentary: payload.commentary ? "written" : "null",
+      ms: Date.now() - started,
+      commentary: result.commentaryGenerated ? "written" : "null",
+      skipped: result.skipped ?? null,
     })
 
-    if (payload.commentary && payload.commentary.items.length > 0) {
+    if (result.skipped) {
+      return NextResponse.json(
+        { error: "skipped", message: result.skipped },
+        { status: 409 },
+      )
+    }
+
+    if (result.commentary && result.commentary.items.length > 0) {
       const email = gate.session?.user?.email
       try {
         await persistPerformanceReportInsights({
-          commentaryItems: payload.commentary.items,
-          mbaNumber: payload.mbaNumber,
-          reportMonth: payload.period.current.startISO.slice(0, 7),
+          commentaryItems: result.commentary.items,
+          mbaNumber,
+          reportMonth: result.periodMonth,
           createdByEmail: typeof email === "string" ? email : undefined,
         })
       } catch (persistErr) {
@@ -128,18 +154,13 @@ export async function POST(request: NextRequest) {
         })
       }
     }
-    const filename = campaignReportFilename({
-      mbaNumber: payload.mbaNumber,
-      periodSlug: payload.period.slug,
-      yyyymmdd: yyyymmdd(),
-    })
 
-    return new NextResponse(new Uint8Array(buf), {
+    return new NextResponse(new Uint8Array(result.buffer), {
       status: 200,
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": `attachment; filename="${result.fileName}"`,
         "Cache-Control": "no-store",
       },
     })
