@@ -766,3 +766,17 @@ Gate passed. Night 1 continues at AV-E1.
 - Under 90%: the same float ulp as AV-M10c when the header adds the two dollar figures. The cent comparison is the one that matches the MBA gross media plus fee.
 - Morning smoke: A plan with TV, radio and OOH: the header total equals the MBA preview. Not exercised in the browser here.
 
+## AV-M10e DONE b0667199
+
+- Discovery still matches. `calculateChannelInvestmentPerMonth` was at 147 and always grossed the entered budget up. Search and the programmatic containers call that function. The fat containers' `calculateInvestmentPerMonth` still honours `budgetIncludesFees` and was not changed.
+- Each month is now `lineTotals` media plus fee (client-pays planned media included, bonus and package inclusions zero), converted with `fromCents`, then `prorateAcrossMonths` through `aggregateInvestmentDisplayRows`. `onInvestmentChange` still receives the display rows. Bursts are not written.
+- A gross-in $1,000 at 15% across January and February 2026 sums to $1,000.00. A net-in $1,000 at 15% sums to $1,176.47.
+- Legacy month comparison (same formula as BVOD and Television, pinned against all 13 fat containers). The container modules were not imported: they load the API client, which throws without Xano environment variables.
+  - Gross-in, net-in, and client-pays (gross-in and net-in) match the legacy months to the cent on that two-month fixture, including a "$1,000.00" budget string. Client-pays matches because the legacy formula never drops planned media.
+  - Bonus and package inclusions: the new chart is empty. The legacy chart still shows the grossed-up budget ($1,176.47).
+  - A 100% fee on a net budget: the new chart is the entered $1,000 (fee $0). The legacy amount is not finite (divide by zero).
+- Files: lib/mediaplan/channelInvestment.ts, lib/mediaplan/useMediaChannelContainer.ts, lib/money/__tests__/channelInvestment.test.ts, docs/brain/INVARIANTS.md, docs/brain/modules/media-plans.md, docs/superpowers/overnight-av-fixes/RUNLOG.md.
+- Tests: typecheck 0, lint 0 (same warning set), test:money pass (87, 1 todo for buildMbaFromPersisted), test:plan-drafts pass (59 + 12 + 68, 6 skipped).
+- Under 90%: another fee rate or amount can still move one month by a cent where the legacy float and `toCents` disagree before proration. The locked $1,000 at 15% cases matched.
+- Morning smoke: A gross-in search line: the investment chart total equals the entered budget. Not exercised in the browser here.
+
