@@ -152,3 +152,55 @@ export function resolveClientFromContact(
     clientName: contactName,
   }
 }
+
+/** True when a stored link matches this contact id or its normalised name. */
+export function contactHasStoredLink(
+  contactName: string,
+  xeroContactId: string,
+  links: ContactLinkRow[],
+): boolean {
+  return linkedClientId(contactName, { xeroContactId, links }) != null
+}
+
+export type UnlinkedNameSuggestion = {
+  clientId: number
+  clientName: string
+  via: "fuzzy" | "alias"
+}
+
+/**
+ * Suggestion only. Same steps as the resolver after stored links:
+ * unique normalised name (`fuzzy`), then alias. Two or more name matches
+ * stay unresolved and do not fall through to an alias.
+ */
+export function suggestClientWithoutStoredLink(
+  contactName: string,
+  clients: ClientRow[],
+  aliases: AliasRow[],
+): UnlinkedNameSuggestion | null {
+  const nameIds = nameMatchClientIds(contactName, clients)
+  if (nameIds.length === 1) {
+    const cl = clientById(clients, nameIds[0]!)
+    if (!cl) return null
+    return {
+      clientId: cl.id,
+      clientName: cl.mp_client_name ?? contactName,
+      via: "fuzzy",
+    }
+  }
+  if (nameIds.length >= 2) return null
+
+  const rawKey = contactName.toLowerCase().trim()
+  const normContact = normalizeContactKey(contactName)
+  const aliasByRaw = aliases.find((a) => a.contact_key === rawKey)
+  const aliasByNorm =
+    aliasByRaw ?? aliases.find((a) => a.contact_key === normContact)
+  if (!aliasByNorm) return null
+  const cl = clientById(clients, aliasByNorm.client_id)
+  if (!cl) return null
+  return {
+    clientId: cl.id,
+    clientName: cl.mp_client_name ?? contactName,
+    via: "alias",
+  }
+}

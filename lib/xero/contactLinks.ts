@@ -19,6 +19,7 @@ import {
 } from "@/lib/xero/normalizeContact"
 
 export const ASSIGN_CLIENT_LEARNED_FROM = "assign_client"
+export const MANUAL_LINK_LEARNED_FROM = "manual_link"
 export const FY26_AR_START = "2025-07-01"
 
 export type ContactLinkStoreRow = {

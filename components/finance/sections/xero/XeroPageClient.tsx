@@ -5,6 +5,7 @@ import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSecti
 import { XeroSubNav } from "@/components/finance/sections/xero/XeroSubNav"
 import { XeroExceptionsPanel } from "@/components/finance/sections/xero/XeroExceptionsPanel"
 import { XeroMatchesPanel } from "@/components/finance/sections/xero/XeroMatchesPanel"
+import { XeroUnlinkedContacts } from "@/components/finance/sections/xero/XeroUnlinkedContacts"
 
 type Fy26Coverage = { resolved: number; total: number }
 
@@ -50,7 +51,14 @@ export function XeroPageClient({ section }: { section: "exceptions" | "matches" 
             ? "Exceptions · pending finance_billing_records + xero_sync_exceptions (parity with hub queue)."
             : "Matches · PC6 xero_invoice_matches. Mutations: accept / dispute / write-off. Reassign exists server-side but is not exposed here."}
         </p>
-        {section === "exceptions" ? <XeroExceptionsPanel /> : <XeroMatchesPanel />}
+        {section === "exceptions" ? (
+          <>
+            <XeroUnlinkedContacts />
+            <XeroExceptionsPanel />
+          </>
+        ) : (
+          <XeroMatchesPanel />
+        )}
       </div>
     </FinanceSectionsShell>
   )
