@@ -241,6 +241,10 @@ export function buildMediaItemsFromPlanDetail(
   }
 
   const feeLoading = buildFeeLoadingFromEditorFees(args.feeSnapshot as EditorFeeState)
+  const campaignStartRaw =
+    args.versionData.campaign_start_date ?? args.versionData.mp_campaigndates_start
+  const campaignEndRaw =
+    args.versionData.campaign_end_date ?? args.versionData.mp_campaigndates_end
   const exploded = emptyMediaItems()
   const seedConfigs: SeedLineFeesMediaConfig[] = []
 
@@ -254,7 +258,10 @@ export function buildMediaItemsFromPlanDetail(
     )
     const feePct = resolveFeePctFromFeeLoading(mediaItemsKey, feeLoading)
     const excelRows = formLines.flatMap((formLine, lineIndex) =>
-      explodeExcelLineItems(mediaItemsKey, formLine, feePct, lineIndex),
+      explodeExcelLineItems(mediaItemsKey, formLine, feePct, lineIndex, {
+        campaignStart: campaignStartRaw,
+        campaignEnd: campaignEndRaw,
+      }),
     )
     exploded[mediaItemsKey] = excelRows.filter(shouldIncludeMediaPlanLineItem)
     seedConfigs.push({
@@ -279,10 +286,6 @@ export function buildMediaItemsFromPlanDetail(
       return component === "media" || component === "fee"
     }),
   )
-  const campaignStartRaw =
-    args.versionData.campaign_start_date ?? args.versionData.mp_campaigndates_start
-  const campaignEndRaw =
-    args.versionData.campaign_end_date ?? args.versionData.mp_campaigndates_end
   const campaignStart = campaignStartRaw
     ? new Date(String(campaignStartRaw).slice(0, 10) + "T00:00:00")
     : undefined

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import {
+  DATE_MISSING_CAMPAIGN_DATES_NOTE,
+  explodeExcelLineItems,
+} from "@/lib/docs/explodeExcelLineItems"
 import { addGst } from "@/lib/finance/gst"
 import {
   generateMediaPlan,
@@ -299,4 +303,114 @@ test("AA inc GST uses addGst on the cents total", () => {
     }),
   )
   assert.equal(data.totals.total_inc_gst, addGst(fromCents(toCents(10.005))))
+})
+
+const MARCH_HEADER: MediaPlanHeader = {
+  ...HEADER,
+  campaignStart: "01/03/2026",
+  campaignEnd: "31/03/2026",
+}
+
+function sheetText(sheet: import("exceljs").Worksheet): string {
+  const parts: string[] = []
+  sheet.eachRow((row) => {
+    row.eachCell({ includeEmpty: false }, (cell) => {
+      parts.push(String(cell.value ?? ""))
+    })
+  })
+  return parts.join("\n")
+}
+
+function explodedSearch(bursts: Record<string, unknown>[]): LineItem[] {
+  return explodeExcelLineItems(
+    "search",
+    {
+      market: "National",
+      platform: "Google",
+      line_item_id: "GOLF021ML1",
+      buyType: "cpc",
+      bursts,
+    },
+    0,
+    0,
+    { campaignStart: "2026-03-01", campaignEnd: "2026-03-31" },
+  )
+}
+
+test("a blank start fills to the campaign start and the months sum to the line", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2030-06-15T00:00:00Z") })
+  const [line] = explodedSearch([
+    { budget: "3100", buyAmount: "1", startDate: "", endDate: "2026-03-31" },
+  ])
+  assert.ok(line)
+  assert.equal(line.startDate, "2026-03-01")
+  assert.equal(line.endDate, "2026-03-31")
+  assert.equal(line.dateFilled, "start")
+  const workbook = await generateMediaPlan(
+    MARCH_HEADER,
+    emptyMedia({ search: [line] }),
+    {
+      gross_media: [{ media_type: "Search", gross_amount: 3100 }],
+      totals: {
+        gross_media: 3100,
+        service_fee: 0,
+        production: 0,
+        adserving: 0,
+        totals_ex_gst: 3100,
+        total_inc_gst: 3410,
+      },
+    },
+  )
+  const sheet = workbook.getWorksheet("Media Plan")
+  assert.ok(sheet)
+  assert.equal(sumTotalRowMonths(sheet), 3100)
+  const text = sheetText(sheet)
+  assert.match(text, new RegExp(DATE_MISSING_CAMPAIGN_DATES_NOTE))
+  assert.match(text, /March 2026/)
+  assert.doesNotMatch(text, /June 2030/)
+  assert.doesNotMatch(text, /October 2026/)
+  t.mock.timers.reset()
+})
+
+test("a blank end fills to the campaign end and the months sum to the line", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2030-06-15T00:00:00Z") })
+  const [line] = explodedSearch([
+    { budget: "3100", buyAmount: "1", startDate: "2026-03-01", endDate: "" },
+  ])
+  assert.ok(line)
+  assert.equal(line.startDate, "2026-03-01")
+  assert.equal(line.endDate, "2026-03-31")
+  assert.equal(line.dateFilled, "end")
+  const workbook = await generateMediaPlan(
+    MARCH_HEADER,
+    emptyMedia({ search: [line] }),
+    {
+      gross_media: [{ media_type: "Search", gross_amount: 3100 }],
+      totals: {
+        gross_media: 3100,
+        service_fee: 0,
+        production: 0,
+        adserving: 0,
+        totals_ex_gst: 3100,
+        total_inc_gst: 3410,
+      },
+    },
+  )
+  const sheet = workbook.getWorksheet("Media Plan")
+  assert.ok(sheet)
+  assert.equal(sumTotalRowMonths(sheet), 3100)
+  assert.match(sheetText(sheet), new RegExp(DATE_MISSING_CAMPAIGN_DATES_NOTE))
+  assert.doesNotMatch(sheetText(sheet), /June 2030/)
+  t.mock.timers.reset()
+})
+
+test("a blank burst date throws instead of using today", async () => {
+  await assert.rejects(
+    () =>
+      generateMediaPlan(
+        MARCH_HEADER,
+        emptyMedia({ search: [searchLine({ startDate: "", endDate: "2026-03-31" })] }),
+      ),
+    /Invalid start date: blank/,
+  )
 })

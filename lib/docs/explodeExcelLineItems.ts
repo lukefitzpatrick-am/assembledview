@@ -11,6 +11,15 @@ import {
 } from "@/lib/mediaplan/deliverableBudget"
 import { parseMoneyInput } from "@/lib/format/money"
 import type { LineItem, MediaItems } from "@/lib/generateMediaPlan"
+
+export const DATE_MISSING_CAMPAIGN_DATES_NOTE = "Date missing, campaign dates used"
+
+export type BurstDateFilled = "start" | "end" | "both"
+
+export type ExplodeExcelCampaignDates = {
+  campaignStart?: unknown
+  campaignEnd?: unknown
+}
 import { excelBuyTypeFromLine } from "@/lib/mediaplan/buyTypeLabels"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 
@@ -24,7 +33,32 @@ function money(value: unknown): number {
 function burstDateYmd(value: unknown): string {
   if (value == null || value === "") return ""
   if (value instanceof Date) return formatBurstDateLocal(value)
-  return formatBurstDateLocal(String(value))
+  const text = String(value).trim()
+  const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text)
+  if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`
+  return formatBurstDateLocal(text)
+}
+
+function campaignYmd(value: unknown): string {
+  return burstDateYmd(value)
+}
+
+/** Blank start uses the campaign start. Blank end uses the campaign end. */
+export function fillBlankBurstDates(
+  rawStart: string,
+  rawEnd: string,
+  campaignStart: string,
+  campaignEnd: string,
+): { startDate: string; endDate: string; dateFilled?: BurstDateFilled } {
+  const startMissing = !rawStart
+  const endMissing = !rawEnd
+  const startDate = startMissing && campaignStart ? campaignStart : rawStart
+  const endDate = endMissing && campaignEnd ? campaignEnd : rawEnd
+  const filledStart = startMissing && Boolean(campaignStart)
+  const filledEnd = endMissing && Boolean(campaignEnd)
+  const dateFilled: BurstDateFilled | undefined =
+    filledStart && filledEnd ? "both" : filledStart ? "start" : filledEnd ? "end" : undefined
+  return { startDate, endDate, dateFilled }
 }
 
 export function explodeExcelLineItems(
@@ -32,7 +66,10 @@ export function explodeExcelLineItems(
   formLine: Record<string, unknown>,
   feePct: number,
   lineIndex: number,
+  campaignDates?: ExplodeExcelCampaignDates,
 ): LineItem[] {
+  const campaignStart = campaignYmd(campaignDates?.campaignStart)
+  const campaignEnd = campaignYmd(campaignDates?.campaignEnd)
   const bursts = resolveLineItemBursts(formLine)
   if (bursts.length === 0) return []
   const lineId = String(formLine.line_item_id ?? formLine.lineItemId ?? "")
@@ -48,13 +85,20 @@ export function explodeExcelLineItems(
       const cost = money(burst.cost)
       const amount = money(burst.amount)
       const mediaAmount = cost * amount
+      const filled = fillBlankBurstDates(
+        burstDateYmd(burst.startDate ?? burst.start_date),
+        burstDateYmd(burst.endDate ?? burst.end_date),
+        campaignStart,
+        campaignEnd,
+      )
       return {
         market: String(formLine.market ?? ""),
         platform: "production",
         network: String(formLine.publisher ?? ""),
         creative: String(formLine.description ?? ""),
-        startDate: burstDateYmd(burst.startDate ?? burst.start_date),
-        endDate: burstDateYmd(burst.endDate ?? burst.end_date),
+        startDate: filled.startDate,
+        endDate: filled.endDate,
+        dateFilled: filled.dateFilled,
         deliverables: amount,
         buyType: "production",
         deliverablesAmount: String(cost),
@@ -88,12 +132,17 @@ export function explodeExcelLineItems(
       ? money(burst.calculatedValue ?? burst.deliverables ?? burst.tarps)
       : recomputed
 
-    const startDate = burstDateYmd(burst.startDate ?? burst.start_date)
-    const endDate = burstDateYmd(burst.endDate ?? burst.end_date)
+    const filled = fillBlankBurstDates(
+      burstDateYmd(burst.startDate ?? burst.start_date),
+      burstDateYmd(burst.endDate ?? burst.end_date),
+      campaignStart,
+      campaignEnd,
+    )
     const base: LineItem = {
       market: String(formLine.market ?? ""),
-      startDate,
-      endDate,
+      startDate: filled.startDate,
+      endDate: filled.endDate,
+      dateFilled: filled.dateFilled,
       deliverables:
         mediaItemsKey === "television"
           ? money(burst.tarps ?? burst.deliverables ?? burst.calculatedValue)

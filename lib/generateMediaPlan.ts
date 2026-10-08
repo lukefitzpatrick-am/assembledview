@@ -125,6 +125,8 @@ export interface LineItem {
   creative?: string;      // General creative name/ID
   startDate: string;       // Burst start date: YYYY-MM-DD
   endDate: string;         // Burst end date: YYYY-MM-DD
+  /** Set when a blank burst date was filled from the campaign. */
+  dateFilled?: "start" | "end" | "both"
   deliverables: number | string; // The primary metric (TARPs, Clicks, Impressions, Spots, Panels, Screens, Insertions)
   buyingDemo?: string;
   buyType?: string;
@@ -209,6 +211,7 @@ interface GroupedItem {
   bursts: Burst[];
   groupStartDate: string; // Overall start date for the group (YYYY-MM-DD)
   groupEndDate: string;   // Overall end date for the group (YYYY-MM-DD)
+  dateFilled?: boolean
   groupKey?: string;       // Internal key used for grouping
 }
 
@@ -237,14 +240,13 @@ export interface MediaItems {
 
 // Helper to parse YYYY-MM-DD to Date (for burst dates from LineItem)
 // Ensures UTC parsing for consistency
-function parseDateStringYYYYMMDD(dateStr: string): Date {
+function parseDateStringYYYYMMDD(dateStr: string, field = "burst date"): Date {
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    console.warn(`Invalid YYYY-MM-DD date string: ${dateStr}. Using current date as fallback.`);
-    const now = new Date();
-    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())); // Fallback to current date UTC
+    const shown = dateStr ? `"${dateStr}"` : "blank"
+    throw new Error(`Invalid ${field}: ${shown}. Expected YYYY-MM-DD.`)
   }
-  const parts = dateStr.split('-');
-  return new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
+  const parts = dateStr.split("-")
+  return new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])))
 }
 
 // Helper to parse dd/MM/yyyy to Date
@@ -451,6 +453,7 @@ export async function generateMediaPlan(
           bursts: [],
           groupStartDate: itemStartDate,
           groupEndDate: itemEndDate,
+          dateFilled: Boolean(item.dateFilled),
           groupKey: key,
         };
         groupedResult.push(group);
@@ -467,10 +470,11 @@ export async function generateMediaPlan(
         group.grossMedia += grossMediaNum;
         group.totalCalculatedDeliverables += calculatedDeliverablesNum;
 
-        if (parseDateStringYYYYMMDD(itemStartDate) < parseDateStringYYYYMMDD(group.groupStartDate)) {
+        if (item.dateFilled) group.dateFilled = true
+        if (parseDateStringYYYYMMDD(itemStartDate, "start date") < parseDateStringYYYYMMDD(group.groupStartDate, "start date")) {
             group.groupStartDate = itemStartDate;
         }
-        if (parseDateStringYYYYMMDD(itemEndDate) > parseDateStringYYYYMMDD(group.groupEndDate)) {
+        if (parseDateStringYYYYMMDD(itemEndDate, "end date") > parseDateStringYYYYMMDD(group.groupEndDate, "end date")) {
             group.groupEndDate = itemEndDate;
         }
       }
@@ -742,8 +746,8 @@ export async function generateMediaPlan(
     mediaAmount: number,
     mediaKey: MediaKey
   ) {
-    const s = parseDateStringYYYYMMDD(startDate);
-    const e = parseDateStringYYYYMMDD(endDate);
+    const s = parseDateStringYYYYMMDD(startDate, "start date");
+    const e = parseDateStringYYYYMMDD(endDate, "end date");
     if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return;
 
     const shares = prorateAcrossMonths({
@@ -944,8 +948,8 @@ export async function generateMediaPlan(
             '',
             it.creative || '',
             '',
-            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
-            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
+            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate, "start date") : null,
+            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate, "end date") : null,
             '',
             it.totalCalculatedDeliverables,
             '', '', '',
@@ -961,8 +965,8 @@ export async function generateMediaPlan(
             it.station || '',
             it.daypart || '',
             it.placement || '',
-            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
-            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
+            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate, "start date") : null,
+            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate, "end date") : null,
             it.size || '', // Length column
             it.totalCalculatedDeliverables, // TARPs
             it.buyingDemo || '',
@@ -980,8 +984,8 @@ export async function generateMediaPlan(
             it.title || '',
             it.placement || '', // Placement column
             '', // Blank column
-            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
-            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
+            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate, "start date") : null,
+            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate, "end date") : null,
             it.size || '', // Ad Size column
             it.totalCalculatedDeliverables, // Insertions
             it.buyingDemo || '',
@@ -999,8 +1003,8 @@ export async function generateMediaPlan(
             it.station || '',
             it.placement || '',
             it.creative || it.format || '', // Format column - RadioContainer maps format to creative
-            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
-            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
+            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate, "start date") : null,
+            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate, "end date") : null,
             it.radioDuration || it.duration || '', // Duration column
             it.totalCalculatedDeliverables, // Spots
             it.buyingDemo || '',
@@ -1022,8 +1026,8 @@ export async function generateMediaPlan(
             it.station || '',
             it.placement || '',
             it.format || it.creative || '', // Format column
-            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
-            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
+            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate, "start date") : null,
+            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate, "end date") : null,
             it.duration || it.radioDuration || '', // Duration column
             it.totalCalculatedDeliverables, // Screens
             it.buyingDemo || '',
@@ -1041,8 +1045,8 @@ export async function generateMediaPlan(
             (it.oohFormat && OOH_FORMAT_LABEL_BY_VALUE[it.oohFormat]) || it.oohFormat || '',
             it.placement || '',
             it.oohType || '',
-            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
-            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
+            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate, "start date") : null,
+            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate, "end date") : null,
             it.size || '', // Size column
             it.totalCalculatedDeliverables, // Panels
             it.buyingDemo || '',
@@ -1069,8 +1073,8 @@ export async function generateMediaPlan(
             thirdColumnValue,
             it.targeting || '',
             it.creative || '',
-            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate) : null,
-            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate) : null,
+            it.groupStartDate ? parseDateStringYYYYMMDD(it.groupStartDate, "start date") : null,
+            it.groupEndDate ? parseDateStringYYYYMMDD(it.groupEndDate, "end date") : null,
             it.size || '', // Length column
             it.totalCalculatedDeliverables,
             it.buyingDemo || '',
@@ -1080,6 +1084,13 @@ export async function generateMediaPlan(
           ];
         }
   
+        if (it.dateFilled) {
+          const market = String(dataRowValues[0] ?? "")
+          dataRowValues[0] = market
+            ? `${market}\nDate missing, campaign dates used`
+            : "Date missing, campaign dates used"
+        }
+
         // FIX: This loop is now OUTSIDE the if/else chain, so it runs for ALL section types.
         dataRowValues.forEach((val, i) => {
           const cell = sheet.getCell(r, 2 + i);
@@ -1105,6 +1116,9 @@ export async function generateMediaPlan(
              cellStyleOptions.align = 'left';
           }
           style(cell, cellStyleOptions);
+          if (i === 0 && it.dateFilled && cell.alignment) {
+            cell.alignment = { ...cell.alignment, wrapText: true }
+          }
         });
 
         for (let cIdx = firstDateCol; cIdx <= lastDateCol; cIdx++) {
@@ -1216,11 +1230,11 @@ export async function generateMediaPlan(
 
       groupedTelevision.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at televisionDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1253,11 +1267,11 @@ export async function generateMediaPlan(
 
       groupedRadio.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at radioDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1289,11 +1303,11 @@ export async function generateMediaPlan(
 
       groupedNewspaper.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at newspaperDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1326,11 +1340,11 @@ export async function generateMediaPlan(
 
       groupedMagazines.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at magazinesDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1363,11 +1377,11 @@ export async function generateMediaPlan(
 
       groupedOoh.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at oohDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1399,11 +1413,11 @@ export async function generateMediaPlan(
 
       groupedCinema.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at cinemaDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1435,11 +1449,11 @@ export async function generateMediaPlan(
 
       groupedDigiDisplay.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at digiDisplayDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1471,11 +1485,11 @@ export async function generateMediaPlan(
 
       groupedDigiAudio.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at digiAudioDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1507,11 +1521,11 @@ export async function generateMediaPlan(
 
       groupedDigiVideo.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at digiVideoDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1543,11 +1557,11 @@ export async function generateMediaPlan(
 
       groupedBvod.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at bvodDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1579,11 +1593,11 @@ export async function generateMediaPlan(
 
       groupedSearch.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at searchDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1615,11 +1629,11 @@ export async function generateMediaPlan(
 
       groupedSocialMedia.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at socialMediaDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1651,11 +1665,11 @@ export async function generateMediaPlan(
 
       groupedProgDisplay.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at progDisplayDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1688,11 +1702,11 @@ export async function generateMediaPlan(
 
       groupedProgVideo.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at progVideoDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1725,11 +1739,11 @@ export async function generateMediaPlan(
 
       groupedProgBVOD.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at progBVODDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1762,11 +1776,11 @@ export async function generateMediaPlan(
 
       groupedProgAudio.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at progAudioDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1799,11 +1813,11 @@ export async function generateMediaPlan(
 
       groupedProgOoh.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx]; // Data rows start at progOohDataStartActualRow
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime()); //
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime()); //
         
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate); //
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate); //
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date"); //
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date"); //
           
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay); //
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay); //
@@ -1836,11 +1850,11 @@ export async function generateMediaPlan(
 
       groupedIntegration.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx];
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime());
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime());
 
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate);
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate);
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date");
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date");
 
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay);
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay);
@@ -1868,11 +1882,11 @@ export async function generateMediaPlan(
 
       groupedInfluencers.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx];
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime());
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime());
 
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate);
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate);
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date");
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date");
 
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay);
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay);
@@ -1900,11 +1914,11 @@ export async function generateMediaPlan(
 
       groupedProduction.forEach((it, idx) => {
         const itemRow = rowByItemIndex[idx];
-        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate).getTime() - parseDateStringYYYYMMDD(b.startDate).getTime());
+        const sortedBursts = [...it.bursts].sort((a, b) => parseDateStringYYYYMMDD(a.startDate, "start date").getTime() - parseDateStringYYYYMMDD(b.startDate, "start date").getTime());
 
         sortedBursts.forEach(b => {
-          const burstStart = parseDateStringYYYYMMDD(b.startDate);
-          const burstEnd = parseDateStringYYYYMMDD(b.endDate);
+          const burstStart = parseDateStringYYYYMMDD(b.startDate, "start date");
+          const burstEnd = parseDateStringYYYYMMDD(b.endDate, "end date");
 
           const startOffset = Math.round((burstStart.getTime() - firstSundayUTC.getTime()) / msPerDay);
           const endOffset = Math.round((burstEnd.getTime() - firstSundayUTC.getTime()) / msPerDay);

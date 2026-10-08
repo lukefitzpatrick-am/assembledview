@@ -290,7 +290,11 @@ export async function renderDraftDocuments(
       mediaKey,
       formLine,
       feePct,
-      0
+      0,
+      {
+        campaignStart: body.campaignStartDate,
+        campaignEnd: body.campaignEndDate,
+      }
     ).filter(shouldIncludeMediaPlanLineItem)
     mediaItems[mediaKey] = [...mediaItems[mediaKey], ...excelRows]
   }
