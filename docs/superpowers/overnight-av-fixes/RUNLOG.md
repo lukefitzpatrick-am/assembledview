@@ -708,3 +708,14 @@ Gate passed. Night 1 continues at AV-E1.
 - Under 90%: none. Cost 2000 and quantity 1 is the container's Cost and Quantity fields. Any pair that multiplies to 2,000 would feed the same gross.
 - Morning smoke: none.
 
+## AV-F6a DONE 5d33c03e
+
+- Publishing is refused until every burst on every included line has a valid start and end, and start is on or before end. Draft and new_version still save. The save route returns 422 `MISSING_BURST_DATES`, the same code family as the buy type gate, with "Add start and end dates to every burst before publishing." and the line ids (up to five, then "and N more").
+- Included means the line is not approval `excluded`. Partial MBA scope is not used, because a blank date still has no honest month split on lines outside the MBA document.
+- Production bursts carry startDate and endDate (`formatProductionBurstForPersist`), so they follow the same rule. They are not excluded the way the buy type gate excludes them.
+- Create and edit clear the highlight at the start of a save, then toast "Burst dates required" and mark the Issues panel the same way as a missing buy type.
+- Files: lib/mediaplan/missingBurstDatesGate.ts, lib/mediaplan/__tests__/missingBurstDatesGate.test.ts, app/api/plans/save/route.ts, app/mediaplans/create/page.tsx, app/mediaplans/mba/[mba_number]/edit/page.tsx, package.json, docs/brain/INVARIANTS.md, docs/brain/modules/media-plans.md, docs/brain/BLAST-RADIUS.md, docs/superpowers/overnight-av-fixes/RUNLOG.md.
+- Tests: typecheck 0, lint 0 (same warning set), test:postgres-save-mode pass (249, 20 skipped), test:plan-drafts pass (59 + 12 + 68, 6 skipped).
+- Under 90%: "included" is approval not equal to excluded. The buy type gate does not filter approval. The toast title "Burst dates required" follows "Buy type required". The specified sentence is the description.
+- Morning smoke: Blank one burst's end date on a test plan: draft save works, publish is refused with the line named. Not exercised in the browser here.
+
