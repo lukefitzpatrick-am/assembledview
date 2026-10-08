@@ -313,6 +313,11 @@ import {
   postPlansSave,
 } from "@/lib/mediaplan/buildPostgresSavePayload"
 import {
+  MISSING_BURST_DATES,
+  formatMissingBurstDatesMessage,
+  missingBurstDatesBuilderIssues,
+} from "@/lib/mediaplan/missingBurstDatesGate"
+import {
   MISSING_BUY_TYPE,
   formatMissingBuyTypeMessage,
   missingBuyTypeBuilderIssues,
@@ -657,6 +662,7 @@ function CreateMediaPlan() {
   const [reportId, setReportId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [missingBuyTypeLineIds, setMissingBuyTypeLineIds] = useState<string[]>([])
+  const [missingBurstDateLineIds, setMissingBurstDateLineIds] = useState<string[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   /** Monotonic token so stale MBA-number responses never overwrite a newer client pick. */
   const mbaNumberRequestTokenRef = useRef(0)
@@ -2344,6 +2350,7 @@ function CreateMediaPlan() {
       })
     }
     issues.push(...missingBuyTypeBuilderIssues(missingBuyTypeLineIds))
+    issues.push(...missingBurstDatesBuilderIssues(missingBurstDateLineIds))
     return issues
   }, [
     watchedClientName,
@@ -2356,6 +2363,7 @@ function CreateMediaPlan() {
     panelIndicators,
     missingPublisherKpiCount,
     missingBuyTypeLineIds,
+    missingBurstDateLineIds,
   ])
 
 
@@ -5707,6 +5715,7 @@ function CreateMediaPlan() {
           throw new Error("working_draft must not POST /api/plans/save")
         }
         setMissingBuyTypeLineIds([])
+        setMissingBurstDateLineIds([])
         const saveResult = await postPlansSave(
           assemblePlansSaveRequestBody(
             {
@@ -5833,6 +5842,18 @@ function CreateMediaPlan() {
             toast({
               variant: "destructive",
               title: "Buy type required",
+              description: human,
+            })
+            return
+          }
+          if (saveResult.data.code === MISSING_BURST_DATES) {
+            const ids = saveResult.data.lineItemIds ?? []
+            setMissingBurstDateLineIds(ids)
+            const human = formatMissingBurstDatesMessage(ids)
+            updateSaveStatus("Save plan (transactional)", "error", human)
+            toast({
+              variant: "destructive",
+              title: "Burst dates required",
               description: human,
             })
             return
@@ -7450,6 +7471,9 @@ const handleSaveAll = async (opts?: {
   }
   if (missingBuyTypeLineIds.length > 0) {
     extraProblemTexts.push(formatMissingBuyTypeMessage(missingBuyTypeLineIds))
+  }
+  if (missingBurstDateLineIds.length > 0) {
+    extraProblemTexts.push(formatMissingBurstDatesMessage(missingBurstDateLineIds))
   }
 
   const wizardStatusPanel = (

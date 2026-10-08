@@ -226,6 +226,11 @@ import {
   resolveMasterIdFromCombinedPlan,
 } from "@/lib/mediaplan/buildPostgresSavePayload"
 import {
+  MISSING_BURST_DATES,
+  formatMissingBurstDatesMessage,
+  missingBurstDatesBuilderIssues,
+} from "@/lib/mediaplan/missingBurstDatesGate"
+import {
   MISSING_BUY_TYPE,
   formatMissingBuyTypeMessage,
   missingBuyTypeBuilderIssues,
@@ -2313,6 +2318,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const [partialApprovalMetadata, setPartialApprovalMetadata] = useState<PartialApprovalMetadata | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [missingBuyTypeLineIds, setMissingBuyTypeLineIds] = useState<string[]>([])
+  const [missingBurstDateLineIds, setMissingBurstDateLineIds] = useState<string[]>([])
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([])
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
   /** Children saved, master.version_number bump failed — retry publishes only. */
@@ -7061,6 +7067,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       })
     }
     issues.push(...missingBuyTypeBuilderIssues(missingBuyTypeLineIds))
+    issues.push(...missingBurstDatesBuilderIssues(missingBurstDateLineIds))
     return issues
   }, [
     watchedClientName,
@@ -7076,6 +7083,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     campaignFinancials.mbaScopeTotals.production,
     missingPublisherKpiCount,
     missingBuyTypeLineIds,
+    missingBurstDateLineIds,
   ])
 
   const mediaLabelByBillingKey = useMemo(() => {
@@ -7986,6 +7994,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         //   "overwrite"             → mode "draft" (in-place tip; versionNumber === tip)
         //   "working_draft"         → never reaches here
         setMissingBuyTypeLineIds([])
+        setMissingBurstDateLineIds([])
         const saveResult = await postPlansSave(
           assemblePlansSaveRequestBody(
             {
@@ -8106,6 +8115,19 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             toast({
               variant: "destructive",
               title: "Buy type required",
+              description: human,
+            })
+            setIsSaving(false)
+            return
+          }
+          if (saveResult.data.code === MISSING_BURST_DATES) {
+            const ids = saveResult.data.lineItemIds ?? []
+            setMissingBurstDateLineIds(ids)
+            const human = formatMissingBurstDatesMessage(ids)
+            updateSaveStatus("Save plan (transactional)", "error", human)
+            toast({
+              variant: "destructive",
+              title: "Burst dates required",
               description: human,
             })
             setIsSaving(false)
@@ -11684,6 +11706,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   }
   if (missingBuyTypeLineIds.length > 0) {
     extraProblemTexts.push(formatMissingBuyTypeMessage(missingBuyTypeLineIds))
+  }
+  if (missingBurstDateLineIds.length > 0) {
+    extraProblemTexts.push(formatMissingBurstDatesMessage(missingBurstDateLineIds))
   }
 
   const wizardStatusPanel = (

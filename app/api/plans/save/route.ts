@@ -6,6 +6,7 @@ import { LINE_CHANNELS } from "@/db/schema"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { getWriteBackend } from "@/lib/data/backend"
 import { plansSaveBodySchema } from "@/lib/mediaplan/plansSaveBodySchema"
+import { missingBurstDatesGateResult } from "@/lib/mediaplan/missingBurstDatesGate"
 import { missingBuyTypeGateResult } from "@/lib/mediaplan/missingBuyTypeGate"
 import { SavePlanError, savePlanVersion } from "@/lib/data/savePlan"
 import { completeStagedIngestAfterSave } from "@/lib/mediaplans/ingest/completeStagedIngestAfterSave"
@@ -78,6 +79,12 @@ export async function POST(request: NextRequest) {
   const buyTypeGate = missingBuyTypeGateResult(body.mode, body.lineItems)
   if (buyTypeGate.reject) {
     return NextResponse.json(buyTypeGate.body, { status: 422 })
+  }
+
+  // AV-D12 — same publish intent as the buy type gate. Draft and new_version pass.
+  const burstDatesGate = missingBurstDatesGateResult(body.mode, body.lineItems)
+  if (burstDatesGate.reject) {
+    return NextResponse.json(burstDatesGate.body, { status: 422 })
   }
 
   // SV-1 stale-base: another editor published during this session.
