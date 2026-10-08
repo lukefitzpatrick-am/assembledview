@@ -685,7 +685,7 @@ Gate passed. Night 1 continues at AV-E1.
 - Under 90%: whether any live non-production line has bursts with no stated budget, which is the only case where swapping the snapshot `totalMedia` would change a stored dollar. Card and header numbers will change for bonus, client pays, and a 100% fee if those displays move to `lineTotals`. That product change is in the doc for approval. Confidence on the commit plan is in the doc (90, 90, 90, 80, 70).
 - Morning smoke: none. Discovery.
 
-## AV-F4 DONE AVF4HASH
+## AV-F4 DONE 7d4760f0
 
 - Publish downloads on create and edit no longer read the dirty flag or `publishedVersionId` state. `handleSaveAll` passes the save response version id into `handleDownloadMediaPlan({ fromPublish: true, versionId })`. That id is the same value stored as `publishedVersionId` after a successful publish. The button downloads still use the stored file when the form is clean and the draft file when it is dirty.
 - A documents error on that save downloads nothing. The existing "Plan saved without documents" toast stays. On create, the redirect to edit is also skipped so the save modal stays up. `NotSavedError` retries the stored fetch once after 2 seconds, then toasts "File not ready. Regenerate documents from the plan list."
