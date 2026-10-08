@@ -6823,14 +6823,20 @@ const handleSaveAll = async (opts?: {
       form.reset(form.getValues())
       const fv = form.getValues()
       const mba = String(fv.mba_number || mbaNumber || "").trim()
+      const zipCtx = publishZipContextRef.current
+      const documentsError = zipCtx.documentsStatus === "error"
+      const documentsFailed = Boolean(opts?.zipAfter && documentsError)
       const side = await runSaveSuccessSideEffects({
         succeeded: true,
-        opts,
+        opts: documentsError ? { ...opts, download: false } : opts,
         navigate: () => router.push("/mediaplans"),
-        downloadPlan: () => handleDownloadMediaPlan({ fromPublish: true }),
+        downloadPlan: () =>
+          handleDownloadMediaPlan({
+            fromPublish: true,
+            versionId:
+              typeof zipCtx.versionId === "number" ? zipCtx.versionId : undefined,
+          }),
       })
-      const zipCtx = publishZipContextRef.current
-      const documentsFailed = opts?.zipAfter && zipCtx.documentsStatus === "error"
       if (opts?.zipAfter && !documentsFailed) {
         try {
           if (typeof zipCtx.versionId === "number" && zipCtx.versionId > 0) {
@@ -6856,14 +6862,14 @@ const handleSaveAll = async (opts?: {
           })
         }
       }
-      if (opts?.download) {
+      if (opts?.download && !documentsError) {
         const published = describePublishSuccessToast({
           versionNumber: fv.mp_plannumber ?? "",
           downloadOk: side.downloaded === true,
         })
         toast({ title: published.title, description: published.description })
       }
-      if (!documentsFailed && !opts?.exitAfter) {
+      if (!documentsError && !opts?.exitAfter) {
         router.push(
           mba
             ? `/mediaplans/mba/${encodeURIComponent(mba)}/edit`
@@ -7072,8 +7078,55 @@ const handleSaveAll = async (opts?: {
   
   const handleDownloadMediaPlan = async (opts?: {
     fromPublish?: boolean
+    versionId?: number
   }): Promise<boolean> => {
     const quiet = opts?.fromPublish === true
+    // Publish downloads use the version id from this turn's save response.
+    // publishedVersionId and the dirty flag have not re-rendered yet.
+    if (opts?.fromPublish === true) {
+      const versionId = opts.versionId
+      if (typeof versionId !== "number" || !(versionId > 0)) {
+        toast({
+          title: "File not ready",
+          description: "Regenerate documents from the plan list.",
+        })
+        return false
+      }
+      setIsDownloading(true)
+      const fetchStored = async () => {
+        try {
+          return await downloadStoredPlanFile({ versionId, kind: "media_plan" })
+        } catch (error) {
+          if (!(error instanceof NotSavedError)) throw error
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+          return downloadStoredPlanFile({ versionId, kind: "media_plan" })
+        }
+      }
+      try {
+        const { blob, fileName } = await fetchStored()
+        saveAs(blob, fileName)
+        return true
+      } catch (error: unknown) {
+        if (error instanceof NotSavedError) {
+          toast({
+            title: "File not ready",
+            description: "Regenerate documents from the plan list.",
+          })
+          return false
+        }
+        console.error(error)
+        if (!quiet) {
+          toast({
+            title: "Error",
+            description: error instanceof Error ? error.message : "Failed to download media plan",
+            variant: "destructive",
+          })
+        }
+        return false
+      } finally {
+        setIsDownloading(false)
+      }
+    }
     // Create keeps isPublished false. A publish in this session is publishedVersionId.
     // Same dirty signal as the bottom bar: a working draft or unsaved changes.
     const hasWorkingDraftOrDirty = Boolean(planDraft.activeDraft) || hasUnsavedChanges

@@ -491,6 +491,11 @@ describe("DD-3 draft downloads", () => {
     const landOnEdit = handleBody.indexOf("encodeURIComponent(mba)")
     assert.ok(zipCall >= 0 && landOnEdit > zipCall)
     assert.match(handleBody, /documentsStatus === "error"/)
+    assert.match(handleBody, /download: false/)
+    assert.match(
+      handleBody,
+      /fromPublish:\s*true[\s\S]{0,200}versionId:[\s\S]{0,80}zipCtx\.versionId/
+    )
     const zipFnStart = createSrc.indexOf("const zipPublishedCreateDocuments")
     const zipFnEnd = createSrc.indexOf("const handleSaveAndDownloadAll", zipFnStart)
     const zipFn = createSrc.slice(zipFnStart, zipFnEnd)
@@ -542,6 +547,17 @@ describe("DD-3 draft downloads", () => {
     assert.match(planFn, /NotApprovedError/)
     assert.match(planFn, /fromPublish/)
     assert.doesNotMatch(planFn, /generateMediaPlanXlsxBlob/)
+    const publishStart = planFn.indexOf("opts?.fromPublish === true")
+    const publishEnd = planFn.indexOf("const hasWorkingDraftOrDirty", publishStart)
+    const publishPath = planFn.slice(publishStart, publishEnd)
+    assert.ok(publishStart >= 0 && publishEnd > publishStart)
+    assert.match(publishPath, /downloadStoredPlanFile\(/)
+    assert.match(publishPath, /opts\.versionId/)
+    assert.match(publishPath, /kind:\s*"media_plan"/)
+    assert.match(publishPath, /setTimeout\(resolve, 2000\)/)
+    assert.match(publishPath, /NotSavedError/)
+    assert.doesNotMatch(publishPath, /hasUnsavedChanges/)
+    assert.doesNotMatch(publishPath, /handleDraftMediaPlan/)
 
     const aaStart = planEnd
     const aaEnd = createSrc.indexOf("const transformedMediaTypes", aaStart)
@@ -580,6 +596,17 @@ describe("DD-3 draft downloads", () => {
     assert.match(planFn, /NotApprovedError/)
     assert.match(planFn, /fromPublish/)
     assert.doesNotMatch(planFn, /generateMediaPlanXlsxBlob/)
+    const publishStart = planFn.indexOf("opts?.fromPublish === true")
+    const publishEnd = planFn.indexOf("const hasWorkingDraftOrDirty", publishStart)
+    const publishPath = planFn.slice(publishStart, publishEnd)
+    assert.ok(publishStart >= 0 && publishEnd > publishStart)
+    assert.match(publishPath, /downloadStoredPlanFile\(/)
+    assert.match(publishPath, /opts\.versionId/)
+    assert.match(publishPath, /kind:\s*"media_plan"/)
+    assert.match(publishPath, /setTimeout\(resolve, 2000\)/)
+    assert.match(publishPath, /NotSavedError/)
+    assert.doesNotMatch(publishPath, /hasUnsavedChanges/)
+    assert.doesNotMatch(publishPath, /handleDraftMediaPlan/)
 
     const aaStart = planEnd
     const aaEnd = editSrc.indexOf("const handleDownloadNamingConventions", aaStart)
@@ -617,6 +644,9 @@ describe("DD-3 draft downloads", () => {
     const saveStart = editSrc.indexOf("const handleSaveAll = async")
     const saveBody = editSrc.slice(saveStart, zipFnStart)
     assert.match(saveBody, /documentsStatus !== "error"/)
+    assert.match(saveBody, /documentsStatus === "error"/)
+    assert.match(saveBody, /download: false/)
+    assert.match(saveBody, /fromPublish:\s*true[\s\S]{0,160}versionId:\s*args\.versionId/)
     assert.match(saveBody, /zipPublishedEditDocuments\(args\.versionId\)/)
   })
 })
