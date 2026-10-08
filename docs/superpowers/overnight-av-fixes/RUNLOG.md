@@ -719,3 +719,14 @@ Gate passed. Night 1 continues at AV-E1.
 - Under 90%: "included" is approval not equal to excluded. The buy type gate does not filter approval. The toast title "Burst dates required" follows "Buy type required". The specified sentence is the description.
 - Morning smoke: Blank one burst's end date on a test plan: draft save works, publish is refused with the line named. Not exercised in the browser here.
 
+## AV-F6b DONE 54daea77
+
+- `computeCampaignFinancials` already treats a blank burst date as the campaign start or end (`toDate` falls back to those bounds). If neither campaign date is passed and no burst has a finite date, that fallback is the current month. A published MBA does not re-prorate bursts. `buildMbaFromPersisted` uses the frozen schedule months and the approved slice, so filling workbook dates does not change an MBA total.
+- There is no single builder that feeds both the workbook rows and that money path. `explodeExcelLineItems` builds the workbook. `buildEditorLineItemInputs` builds the money inputs, and the editor also uses it for live totals. Filling only in explode keeps the MBA total where it is. Draft and published workbook callers pass the campaign dates into explode.
+- A blank start becomes the campaign start. A blank end becomes the campaign end. Both are Sydney civil YYYY-MM-DD. The burst is flagged `dateFilled` `start`, `end`, or `both`. The row market cell shows "Date missing, campaign dates used" on a new line, the same approach as the "Outside campaign dates" month header. This ExcelJS build has no cell notes.
+- `parseDateStringYYYYMMDD` throws `Invalid start date: blank. Expected YYYY-MM-DD.` (or the matching field). It no longer uses today. The gantt and the month split both use that parser.
+- Files: lib/docs/explodeExcelLineItems.ts, lib/docs/buildMediaItemsFromPersisted.ts, lib/docs/renderDraftDocuments.ts, lib/generateMediaPlan.ts, lib/__tests__/generateMediaPlan.totalsMonths.test.ts, docs/brain/INVARIANTS.md, docs/brain/modules/media-plans.md, docs/brain/BLAST-RADIUS.md, docs/superpowers/overnight-av-fixes/RUNLOG.md.
+- Tests: typecheck 0, lint 0 (same warning set), test:media-plan-excel pass (17), test:campaign-documents pass (41 + 14 + 20), test:money-golden pass (55, 1 todo for buildMbaFromPersisted), test:weekly-gantt pass (8).
+- Under 90%: the note sits on the market cell so the start and end stay real dates. A date cell cannot carry the sentence and the date format together.
+- Morning smoke: Download the published media plan for golf021 (v517): the ML1 row shows the note, and its months fall inside the campaign. Not exercised in the browser here.
+
