@@ -2,11 +2,29 @@ import "server-only"
 
 import sendgridMail from "@sendgrid/mail"
 
+export type SendHtmlEmailAttachment = {
+  filename: string
+  contentType: string
+  contentBase64: string
+}
+
 export type SendHtmlEmailParams = {
   to: string | string[]
   subject: string
   html: string
   text?: string
+  replyTo?: string
+  attachments?: SendHtmlEmailAttachment[]
+}
+
+const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024
+
+function totalAttachmentBytes(attachments: readonly SendHtmlEmailAttachment[]): number {
+  let total = 0
+  for (const attachment of attachments) {
+    total += Buffer.from(attachment.contentBase64, "base64").length
+  }
+  return total
 }
 
 function getFromEmail(): string {
@@ -25,13 +43,33 @@ export async function sendHtmlEmail(params: SendHtmlEmailParams): Promise<void> 
   if (!process.env.SENDGRID_API_KEY) {
     throw new Error("SENDGRID_API_KEY not configured")
   }
+  const from = getFromEmail()
+  const attachments = params.attachments ?? []
+  if (attachments.length > 0) {
+    const bytes = totalAttachmentBytes(attachments)
+    if (bytes > MAX_ATTACHMENT_BYTES) {
+      throw new Error(`Email attachments total ${bytes} bytes, over the 3 MB limit.`)
+    }
+  }
+  const replyTo = params.replyTo?.trim()
   sendgridMail.setApiKey(process.env.SENDGRID_API_KEY)
   await sendgridMail.send({
     to: params.to,
-    from: getFromEmail(),
+    from,
     subject: params.subject,
     html: params.html,
     text: params.text ?? stripHtml(params.html),
+    ...(replyTo ? { replyTo } : {}),
+    ...(attachments.length > 0
+      ? {
+          attachments: attachments.map((attachment) => ({
+            content: attachment.contentBase64,
+            filename: attachment.filename,
+            type: attachment.contentType,
+            disposition: "attachment" as const,
+          })),
+        }
+      : {}),
   })
 }
 
