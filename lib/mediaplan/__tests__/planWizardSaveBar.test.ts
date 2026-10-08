@@ -519,10 +519,27 @@ describe("DD-3 draft downloads", () => {
       "const handleDownloadAdvertisingAssociatesMediaPlan",
       planStart
     )
-    assert.doesNotMatch(
-      editSrc.slice(planStart, planEnd),
-      /if \(!opts\?\.fromPublish && !isPublished\)/
-    )
+    const planFn = editSrc.slice(planStart, planEnd)
+    // Unpublished still does not toast-and-return; it falls through to the draft handler.
+    assert.doesNotMatch(planFn, /if \(!opts\?\.fromPublish && !isPublished\)/)
+    assert.match(planFn, /downloadStoredPlanFile\(/)
+    assert.match(planFn, /kind:\s*"media_plan"/)
+    assert.match(planFn, /handleDraftMediaPlan\(/)
+    assert.match(planFn, /hasUnsavedChanges/)
+    assert.match(planFn, /NotSavedError/)
+    assert.match(planFn, /Regenerate documents from the plan list/)
+    assert.match(planFn, /NotApprovedError/)
+    assert.match(planFn, /fromPublish/)
+    assert.doesNotMatch(planFn, /generateMediaPlanXlsxBlob/)
+
+    const aaStart = planEnd
+    const aaEnd = editSrc.indexOf("const handleDownloadNamingConventions", aaStart)
+    const aaFn = editSrc.slice(aaStart, aaEnd)
+    assert.match(aaFn, /kind:\s*"aa_media_plan"/)
+    assert.match(aaFn, /handleDraftAa\(/)
+    assert.match(aaFn, /NotSavedError/)
+    assert.match(aaFn, /NotApprovedError/)
+    assert.doesNotMatch(aaFn, /generateMediaPlanXlsxBlob/)
   })
 
   it("edit unpublished zip publishes first", () => {
