@@ -699,7 +699,7 @@ Gate passed. Night 1 continues at AV-E1.
 - Under 90%: a documents error on create now skips the redirect even when the user did not ask for the zip, so the save modal stays visible. The Xano save tail still calls `afterSuccessfulSave` without a version id. That path is after the postgres return. A publish download there toasts file not ready instead of building a draft.
 - Morning smoke: Publish a plan with download on: the file has no DRAFT stamp and matches the row-menu download. Do this on create and on edit. Not exercised in the browser here.
 
-## AV-F5 DONE AVF5HASH
+## AV-F5 DONE ff0853f8
 
 - The F8 production burst now matches `formatProductionBurstForPersist`: cost 2000, quantity 1, budget "2000", buyAmount "1", calculatedValue 1. `explodeExcelLineItems` sets production gross media to cost times amount, so the workbook row is $2,000.
 - "F8 workbook Total row months sum to Total Ex GST" is now a passing assertion. Both sides are 450,000 cents. The previous gap was the missing $2,000 (250,000 cents of months against 450,000 cents of Total Ex GST).
