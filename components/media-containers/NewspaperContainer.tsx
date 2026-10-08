@@ -60,6 +60,7 @@ import {
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
+import { channelSummaryTotals } from "@/lib/money/burst"
 import {
   CpcFamilyBurstCalculatedField,
   getCpcFamilyBurstCalculatedColumnLabel,
@@ -719,105 +720,56 @@ const handleAddNewNewspaperAdSize = async () => {
     publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
   }, [watchedLineItems, mbaNumber, feenewspapers, form, onMediaLineItemsChange]);
   
-  // Memoized calculations
-  // Note: For display purposes, always show media amounts regardless of clientPaysForMedia
-  // The billing schedule will handle excluding media when clientPaysForMedia is true
+  // Header and summary money is channelSummaryTotals (lineTotals and campaignTotals, in cents).
+  // Client-pays media counts in the total, matching Total Ex GST. Deliverable counts stay on the bursts.
   const overallTotals = useMemo(() => {
-    let overallMedia = 0;
-    let overallFee = 0;
-    let overallCost = 0;
-    
+    const money = channelSummaryTotals(watchedLineItems, feenewspapers || 0);
+
     const lineItemTotals = watchedLineItems.map((lineItem, index) => {
-      let lineMedia = 0;
       let lineDeliverables = 0;
-      let lineFee = 0;
-      let lineCost = 0;
-      const summaryBursts: InvestmentBurstInput[] = [];
-
       lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-        let burstMedia = 0;
-        let burstFee = 0;
-        // Always calculate media for display purposes (ignore clientPaysForMedia)
-        if (lineItem.budgetIncludesFees) {
-          const pct = feenewspapers || 0;
-          burstMedia = (budget * (100 - pct)) / 100;
-          burstFee = (budget * pct) / 100;
-        } else {
-          // Budget is net media, fee calculated on top
-          burstMedia = budget;
-          burstFee = feenewspapers ? (budget / (100 - feenewspapers)) * feenewspapers : 0;
-        }
-        lineMedia += burstMedia;
-        lineFee += burstFee;
         lineDeliverables += burst.calculatedValue || 0;
-        summaryBursts.push({
-          amount: burstMedia + burstFee,
-          start: burst.startDate,
-          end: burst.endDate,
-        });
       });
-
-      lineCost = lineMedia + lineFee;
-
-      overallMedia += lineMedia;
-      overallFee += lineFee;
-      overallCost += lineCost;
+      const row = money.lines[index];
 
       return {
         index: index + 1,
         deliverables: lineDeliverables,
-        media: lineMedia,
-        fee: lineFee,
-        totalCost: lineCost,
+        media: row.media,
+        fee: row.fee,
+        totalCost: row.totalCost,
         buyType: lineItem.buyType || "",
         dimensions: {
           Network: lineItem.network || "",
           Title: lineItem.title || "",
           "Buy Type": lineItem.buyType || "",
         },
-        bursts: summaryBursts,
+        bursts: row.bursts,
       };
     });
-    
-    return { lineItemTotals, overallMedia, overallFee, overallCost };
+
+    return {
+      lineItemTotals,
+      overallMedia: money.overallMedia,
+      overallFee: money.overallFee,
+      overallCost: money.overallCost,
+    };
   }, [watchedLineItems, feenewspapers]);
   
   // Callback handlers
   const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
     const newspaperlineItems = form.getValues("newspaperlineItems") || [];
-    let overallMedia = 0;
-    let overallFee = 0;
-    let overallCost = 0;
+    const money = channelSummaryTotals(newspaperlineItems, feenewspapers || 0);
     let overallDeliverableCount = 0;
 
     newspaperlineItems.forEach((lineItem) => {
-      let lineMedia = 0;
-      let lineFee = 0;
-      let lineDeliverables = 0;
-
       lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
-        if (lineItem.budgetIncludesFees) {
-          const pct = feenewspapers || 0;
-          lineMedia += (budget * (100 - pct)) / 100;
-          lineFee += (budget * pct) / 100;
-        } else {
-          lineMedia += budget;
-          const fee = feenewspapers ? (budget / (100 - feenewspapers)) * feenewspapers : 0;
-          lineFee += fee;
-        }
-        lineDeliverables += burst?.calculatedValue || 0;
+        overallDeliverableCount += burst?.calculatedValue || 0;
       });
-
-      overallMedia += lineMedia;
-      overallFee += lineFee;
-      overallCost += lineMedia + lineFee;
-      overallDeliverableCount += lineDeliverables;
     });
 
     setOverallDeliverables(overallDeliverableCount);
-    onTotalMediaChange(overallMedia, overallFee);
+    onTotalMediaChange(money.overallMedia, money.overallFee);
   }, [form, feenewspapers, onTotalMediaChange]);
 
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {

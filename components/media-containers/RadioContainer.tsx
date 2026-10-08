@@ -64,6 +64,7 @@ import {
   reassignLineItemNumbers,
 } from "@/lib/mediaplan/lineItemOrder"
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
+import { channelSummaryTotals } from "@/lib/money/burst"
 import {
   getMediaTypeThemeHex,
   mediaTypeSummaryStripeStyle,
@@ -721,61 +722,24 @@ export default function RadioContainer({
   publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
 }, [watchedLineItems, mbaNumber, feeradio, form, onMediaLineItemsChange, createLineItemId]);
   
-  // Memoized calculations
-  // Note: For display purposes, always show media amounts regardless of clientPaysForMedia
-  // The billing schedule will handle excluding media when clientPaysForMedia is true
+  // Header and summary money is channelSummaryTotals (lineTotals and campaignTotals, in cents).
+  // Client-pays media counts in the total, matching Total Ex GST. Deliverable counts stay on the bursts.
   const overallTotals = useMemo(() => {
-    let overallMedia = 0;
-    let overallFee = 0;
-    let overallCost = 0;
-    
+    const money = channelSummaryTotals(watchedLineItems, feeradio || 0);
+
     const lineItemTotals = watchedLineItems.map((lineItem, index) => {
-      let lineMedia = 0;
       let lineDeliverables = 0;
-      let lineFee = 0;
-      let lineCost = 0;
-      const summaryBursts: InvestmentBurstInput[] = [];
-
       lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-        let burstMedia = 0;
-        let burstFee = 0;
-        // Always calculate media for display purposes (ignore clientPaysForMedia)
-        if (lineItem.budgetIncludesFees) {
-          // Budget is gross, split into media and fee
-          // Media = Budget * ((100 - Fee) / 100)
-          // Fees = Budget * (Fee / 100)
-          burstMedia = (budget * (100 - (feeradio || 0))) / 100;
-          burstFee = (budget * (feeradio || 0)) / 100;
-        } else {
-          // Budget is net media, fee calculated on top
-          // Media = Budget (unchanged)
-          // Fees = Budget * (Fee / (100 - Fee))
-          burstMedia = budget;
-          burstFee = feeradio ? (budget * feeradio) / (100 - feeradio) : 0;
-        }
-        lineMedia += burstMedia;
-        lineFee += burstFee;
         lineDeliverables += burst.calculatedValue || 0;
-        summaryBursts.push({
-          amount: burstMedia + burstFee,
-          start: burst.startDate,
-          end: burst.endDate,
-        });
       });
-
-      lineCost = lineMedia + lineFee;
-
-      overallMedia += lineMedia;
-      overallFee += lineFee;
-      overallCost += lineCost;
+      const row = money.lines[index];
 
       return {
         index: index + 1,
         deliverables: lineDeliverables,
-        media: lineMedia,
-        fee: lineFee,
-        totalCost: lineCost,
+        media: row.media,
+        fee: row.fee,
+        totalCost: row.totalCost,
         buyType: lineItem.buyType || "",
         dimensions: {
           Network: lineItem.network || "",
@@ -783,47 +747,32 @@ export default function RadioContainer({
           "Bid Strategy": lineItem.bidStrategy || "",
           "Buy Type": lineItem.buyType || "",
         },
-        bursts: summaryBursts,
+        bursts: row.bursts,
       };
     });
-    
-    return { lineItemTotals, overallMedia, overallFee, overallCost };
+
+    return {
+      lineItemTotals,
+      overallMedia: money.overallMedia,
+      overallFee: money.overallFee,
+      overallCost: money.overallCost,
+    };
   }, [watchedLineItems, feeradio]);
   
   // Callback handlers
   const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
     const radiolineItems = form.getValues("radiolineItems") || [];
-    let overallMedia = 0;
-    let overallFee = 0;
-    let overallCost = 0;
+    const money = channelSummaryTotals(radiolineItems, feeradio || 0);
     let overallDeliverableCount = 0;
 
     radiolineItems.forEach((lineItem) => {
-      let lineMedia = 0;
-      let lineFee = 0;
-      let lineDeliverables = 0;
-
       lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
-        if (lineItem.budgetIncludesFees) {
-          lineMedia += (budget * (100 - (feeradio || 0))) / 100;
-          lineFee += (budget * (feeradio || 0)) / 100;
-        } else {
-          lineMedia += budget;
-          const fee = feeradio ? (budget * feeradio) / (100 - feeradio) : 0;
-          lineFee += fee;
-        }
-        lineDeliverables += burst?.calculatedValue || 0;
+        overallDeliverableCount += burst?.calculatedValue || 0;
       });
-
-      overallMedia += lineMedia;
-      overallFee += lineFee;
-      overallCost += lineMedia + lineFee;
-      overallDeliverableCount += lineDeliverables;
     });
 
     setOverallDeliverables(overallDeliverableCount);
-    onTotalMediaChange(overallMedia, overallFee);
+    onTotalMediaChange(money.overallMedia, money.overallFee);
   }, [form, feeradio, onTotalMediaChange]);
 
   const handleBuyTypeChange = useCallback(
