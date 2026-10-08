@@ -31,10 +31,7 @@ import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemId
 
 export type MediaCode = (typeof MEDIA_TYPE_ID_CODES)[keyof typeof MEDIA_TYPE_ID_CODES]
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
-import {
-  aggregateInvestmentDisplayRows,
-  type InvestmentBurstInput,
-} from "@/lib/billing/prorateInvestmentDisplay"
+import { channelInvestmentByMonth } from "@/lib/mediaplan/channelInvestment"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import type { BillingBurst } from "@/lib/billing/types"
 import type { LineItem } from "@/lib/generateMediaPlan"
@@ -150,16 +147,7 @@ export function calculateChannelInvestmentPerMonth(
   fieldKey: string,
 ) {
   const items = form.getValues(fieldKey) || []
-  const bursts: InvestmentBurstInput[] = []
-  items.forEach((lineItem: any) => {
-    ;(lineItem.bursts || []).forEach((burst: any) => {
-      const lineMedia = parseMoney(burst.budget) ?? 0
-      const pct = feePct || 0
-      const totalInvestment = lineMedia + (lineMedia / (100 - pct)) * pct
-      bursts.push({ amount: totalInvestment, start: burst.startDate, end: burst.endDate })
-    })
-  })
-  return aggregateInvestmentDisplayRows(bursts)
+  return channelInvestmentByMonth(items, feePct || 0)
 }
 
 export function useMediaChannelContainer(
