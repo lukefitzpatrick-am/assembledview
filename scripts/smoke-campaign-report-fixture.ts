@@ -9,7 +9,7 @@ import type { CampaignReportPayload } from "@/lib/reports/campaignReport/assembl
 import { campaignReportFilename } from "@/lib/reports/campaignReport/filename"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
-const payload: CampaignReportPayload = {
+export const campaignReportFixture: CampaignReportPayload = {
   mbaNumber: "PENFOLD013",
   clientName: "Penfold",
   campaignName: "Penfold always on",
@@ -74,19 +74,16 @@ const payload: CampaignReportPayload = {
       omitReason: "Pending KPI data review",
     },
   ],
-  commentaryPlaceholder:
-    "PLACEHOLDER: insight commentary will be written by the assembled-insight-commentary skill after delivery review. Do not treat this slide as final client copy.",
-  hasPublishedCampaignRead: false,
-  readAsAt: null,
+  commentary: null,
 }
 
 async function main() {
-  const buf = await buildCampaignReportDeck(payload)
+  const buf = await buildCampaignReportDeck(campaignReportFixture)
   const outDir = path.join(process.cwd(), ".claude-scratch")
   fs.mkdirSync(outDir, { recursive: true })
   const filename = campaignReportFilename({
-    mbaNumber: payload.mbaNumber,
-    periodSlug: payload.period.slug,
+    mbaNumber: campaignReportFixture.mbaNumber,
+    periodSlug: campaignReportFixture.period.slug,
     yyyymmdd: getMelbourneTodayISO().replace(/-/g, ""),
   })
   const outPath = path.join(outDir, filename)
@@ -94,7 +91,10 @@ async function main() {
   console.log(JSON.stringify({ outPath, filename, bytes: buf.byteLength }, null, 2))
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+const isEntry = process.argv[1]?.replace(/\\/g, "/").includes("smoke-campaign-report-fixture")
+if (isEntry) {
+  main().catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })
+}
