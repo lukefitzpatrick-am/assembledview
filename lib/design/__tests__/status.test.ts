@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   BILLING_STATE,
   CAMPAIGN_PHASE,
+  INVOICE_STATUS,
   CODEX_TASK_STATUS,
   DEVIATION_TONE,
   KPI_ROW_STATUS,
@@ -30,6 +31,7 @@ const MAPS = {
   PACING_UI_STATUS,
   CAMPAIGN_PHASE,
   BILLING_STATE,
+  INVOICE_STATUS,
   XERO_DRAFT_MATCH,
   XERO_MATCH_STATUS,
   CODEX_TASK_STATUS,
@@ -61,6 +63,12 @@ test("spot checks", () => {
   assert.equal(CAMPAIGN_PHASE.approved.tone, "insight")
   assert.equal(CAMPAIGN_PHASE.booked.tone, "action")
   assert.equal(BILLING_STATE.overdue.tone, "critical")
+  assert.equal(INVOICE_STATUS.paid.tone, "outcome")
+  assert.equal(INVOICE_STATUS.paid.label, "Paid")
+  assert.equal(INVOICE_STATUS.due.tone, "neutral")
+  assert.equal(INVOICE_STATUS.due.label, "Due")
+  assert.equal(INVOICE_STATUS.overdue.tone, "critical")
+  assert.equal(INVOICE_STATUS.overdue.label, "Overdue")
   assert.equal(PACING_UI_STATUS["on-track"].tone, "action")
   assert.equal(PACING_UI_STATUS.ahead.tone, "insight")
   assert.equal(PACING_UI_STATUS.behind.tone, "attention")

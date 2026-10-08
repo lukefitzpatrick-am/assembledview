@@ -18,6 +18,10 @@ import { RecentInsightsPanel } from "@/components/insights/RecentInsightsPanel"
 import { ClientMeetingsSection } from "@/components/dashboard/ClientMeetingsSection"
 import { ClientBrainSlideOver } from "@/components/dashboard/modals/ClientBrainSlideOver"
 import { ClientDetailsSlideOver } from "@/components/dashboard/modals/ClientDetailsSlideOver"
+import {
+  ClientInvoicesPanel,
+  type OutstandingInvoicesFeed,
+} from "@/components/dashboard/ClientInvoicesSection"
 import { ClientFinanceSlideOver } from "@/components/dashboard/modals/ClientFinanceSlideOver"
 import { ClientKpiSlideOver } from "@/components/dashboard/modals/ClientKpiSlideOver"
 import { CampaignCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeletons"
@@ -254,6 +258,7 @@ export function ClientDashboardPageContent({
    * indefinitely whenever Snowflake is unavailable.
    */
   const [deliveredTotals, setDeliveredTotals] = useState<DeliveredTotalsResponse | undefined>(undefined)
+  const [outstandingInvoices, setOutstandingInvoices] = useState<OutstandingInvoicesFeed | null>(null)
   useEffect(() => {
     let cancelled = false
     setDeliveredTotals(undefined)
@@ -461,6 +466,10 @@ export function ClientDashboardPageContent({
         </motion.section>
 
         <motion.section variants={sectionVariants} className="mt-8 w-full lg:mt-10">
+          <ClientInvoicesPanel slug={slug} onOutstanding={setOutstandingInvoices} />
+        </motion.section>
+
+        <motion.section variants={sectionVariants} className="mt-8 w-full lg:mt-10">
           <Suspense fallback={loadingFallback}>
             <SpendingInsightsSection
               monthlyData={clientData.monthlySpend}
@@ -514,7 +523,10 @@ export function ClientDashboardPageContent({
           <ClientFinanceSlideOver
             open={financeModalOpen}
             onOpenChange={setFinanceModalOpen}
-            finance={clientData.finance ?? financeData}
+            finance={{
+              ...(clientData.finance ?? financeData),
+              outstandingInvoices: outstandingInvoices ?? undefined,
+            }}
             onDownloadReport={() => window.print()}
             variant={campaignLinkMode === "adminHub" ? "clientHub" : "default"}
             brandColour={clientData.brandColour}

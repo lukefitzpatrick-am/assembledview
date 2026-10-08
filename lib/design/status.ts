@@ -67,6 +67,13 @@ export const BILLING_STATE: Record<BillingState, { tone: Tone; label: string }> 
   overdue: { tone: "critical", label: "Overdue" },
 }
 
+/** Client invoice list. Overdue uses the same coral tone as billing overdue. */
+export const INVOICE_STATUS: Record<"paid" | "due" | "overdue", { tone: Tone; label: string }> = {
+  paid: { tone: "outcome", label: "Paid" },
+  due: { tone: "neutral", label: "Due" },
+  overdue: { tone: "critical", label: "Overdue" },
+}
+
 export const XERO_DRAFT_MATCH: Record<DraftMatchOutcome, { tone: Tone; label: string }> = {
   Agrees: { tone: "action", label: "Agrees" },
   Differs: { tone: "attention", label: "Differs" },
