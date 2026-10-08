@@ -934,7 +934,7 @@ export async function generateMediaPlan(
         rowByItemIndex.push(r);
         // FIX: Declared dataRowValues with `let` to be populated in the if/else blocks.
         let dataRowValues: any[];
-        let averageRate = 0;
+        let averageRate: number | null = 0;
   
         // FIX: Correctly structured if/else if/else chain.
         if (sectionType === 'Production') {
@@ -1009,9 +1009,12 @@ export async function generateMediaPlan(
             it.grossMedia
           ];
         } else if (sectionType === 'Cinema') {
-          if (it.totalCalculatedDeliverables && it.totalCalculatedDeliverables !== 0) {
-            // Cost Per Screen - fixed calculation (was 10 times less than it should be)
-            averageRate = (it.grossMedia / it.totalCalculatedDeliverables) * 1000; // Cost Per Screen
+          const screens = it.totalCalculatedDeliverables
+          // Cost per screen: gross divided by screens. Zero or missing screens stay blank.
+          if (typeof screens === 'number' && Number.isFinite(screens) && screens !== 0 && Number.isFinite(it.grossMedia)) {
+            averageRate = it.grossMedia / screens
+          } else {
+            averageRate = null
           }
           dataRowValues = [
             it.market,

@@ -247,6 +247,51 @@ test("plan date is the Sydney civil date and an invalid end stays blank", async 
   assert.equal(sheet.getCell("G3").value, 1234.56)
 })
 
+function cinemaLine(overrides: Partial<LineItem>): LineItem {
+  return {
+    market: "National",
+    network: "Val Morgan",
+    station: "Hoyts",
+    placement: "Pre-show",
+    format: "30s",
+    buyingDemo: "All",
+    buyType: "screens",
+    startDate: "2026-01-01",
+    endDate: "2026-01-31",
+    deliverables: 10,
+    deliverablesAmount: "50000",
+    grossMedia: "50000",
+    ...overrides,
+  }
+}
+
+function cinemaAvgRate(sheet: import("exceljs").Worksheet, station: string): unknown {
+  let rate: unknown = "missing"
+  sheet.eachRow((row) => {
+    if (String(row.getCell(4).value ?? "") !== station) return
+    rate = row.getCell(13).value
+  })
+  return rate
+}
+
+test("cinema Avg. Rate is gross divided by screens", async () => {
+  const workbook = await generateMediaPlan(
+    HEADER,
+    emptyMedia({
+      cinema: [
+        cinemaLine({ station: "Hoyts", deliverables: 10, grossMedia: "50000" }),
+        cinemaLine({ station: "Event", deliverables: 0, grossMedia: "50000" }),
+        cinemaLine({ station: "Village", deliverables: undefined, grossMedia: "50000" }),
+      ],
+    }),
+  )
+  const sheet = workbook.getWorksheet("Media Plan")
+  assert.ok(sheet)
+  assert.equal(cinemaAvgRate(sheet, "Hoyts"), 5000)
+  assert.equal(cinemaAvgRate(sheet, "Event"), null)
+  assert.equal(cinemaAvgRate(sheet, "Village"), null)
+})
+
 test("AA inc GST uses addGst on the cents total", () => {
   const data = buildAdvertisingAssociatesMbaDataFromMediaItems(
     emptyMedia({
