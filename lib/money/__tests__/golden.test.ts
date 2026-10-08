@@ -15,7 +15,11 @@ import { buildMediaPlanWorkbook } from "@/lib/docs/mediaPlanWorkbook"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import type { LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import type { MediaItems, MediaPlanHeader } from "@/lib/generateMediaPlan"
-import { buildMediaPlanWorkbookMbaData } from "@/lib/mediaplan/buildMediaPlanWorkbookMbaData"
+import {
+  buildMediaPlanWorkbookMbaData,
+  MEDIA_PLAN_WORKBOOK_FLAG_TO_BILLING_KEY,
+  MEDIA_PLAN_WORKBOOK_MEDIA_TYPES,
+} from "@/lib/mediaplan/buildMediaPlanWorkbookMbaData"
 import { lineTotals } from "@/lib/money/burst"
 import { sumCents, toCents } from "@/lib/money/cents"
 import { parseMoney } from "@/lib/money/parse"
@@ -27,6 +31,10 @@ import {
 import { GOLDEN_PLANS } from "./fixtures/plans"
 
 type Check = { name: string; ok: boolean; actual: number; expected: number }
+
+const BILLING_KEY_TO_FLAG: Record<string, string> = Object.fromEntries(
+  Object.entries(MEDIA_PLAN_WORKBOOK_FLAG_TO_BILLING_KEY).map(([flag, key]) => [key, flag]),
+)
 
 const MEDIA_KEY: Record<string, keyof MediaItems> = {
   search: "search",
@@ -74,6 +82,7 @@ function totalsFor(lines: LineItemInput[]) {
   const parts = lines.map((item) =>
     lineTotals(
       {
+        mediaType: item.mediaType,
         buyType: item.buyType,
         budgetIncludesFees: item.budgetIncludesFees,
         clientPaysForMedia: item.clientPaysForMedia,
@@ -89,6 +98,8 @@ function totalsFor(lines: LineItemInput[]) {
     mediaCents: sumCents(parts.map((part) => part.mediaCents)),
     feeCents: sumCents(parts.map((part) => part.feeCents)),
     totalCents: sumCents(parts.map((part) => part.totalCents)),
+    clientPaysMediaCents: sumCents(parts.map((part) => part.clientPaysMediaCents)),
+    productionCents: sumCents(parts.map((part) => part.productionCents)),
   }
 }
 
@@ -126,8 +137,21 @@ async function collect(): Promise<Check[]> {
       getRateForMediaType: (mediaType) => (mediaType === "digiDisplay" ? 2.5 : 0),
     })
     const scope = financials.mbaScopeTotals
-    checks.push(check(`${plan.id} media cents`, totals.mediaCents, dollarsToCents(scope.grossMedia)))
+    checks.push(
+      check(
+        `${plan.id} gross media equals billed plus client-paid`,
+        totals.mediaCents + totals.clientPaysMediaCents,
+        dollarsToCents(scope.grossMedia),
+      ),
+    )
     checks.push(check(`${plan.id} fee cents`, totals.feeCents, dollarsToCents(scope.fee)))
+    checks.push(
+      check(
+        `${plan.id} production cents`,
+        totals.productionCents,
+        dollarsToCents(scope.production),
+      ),
+    )
 
     const monthParts = financials.billingSchedule.reduce(
       (sum, month) =>
@@ -163,10 +187,18 @@ async function collect(): Promise<Check[]> {
         ),
       )
     })
+    const formFlags: Record<string, boolean> = {}
+    const mediaByKey: Record<string, number> = {}
+    for (const line of financials.perLine) {
+      if (line.flags.excluded) continue
+      mediaByKey[line.mediaType] = (mediaByKey[line.mediaType] ?? 0) + line.media
+      const flag = BILLING_KEY_TO_FLAG[line.mediaType]
+      if (flag) formFlags[flag] = true
+    }
     const mbaData = buildMediaPlanWorkbookMbaData({
-      mediaTypes: [{ name: "mp_search", label: "Search" }],
-      formFlags: { mp_search: true },
-      campaignFinancialsMediaByKey: { search: scope.grossMedia },
+      mediaTypes: MEDIA_PLAN_WORKBOOK_MEDIA_TYPES,
+      formFlags,
+      campaignFinancialsMediaByKey: mediaByKey,
       mbaScopeTotals: scope,
     })
     const { buffer } = await buildMediaPlanWorkbook({

@@ -56,6 +56,26 @@ test("a 100% fee stays finite", () => {
   assert.equal(totals.totalCents, 100000)
 })
 
+test("production media type is its own bucket", () => {
+  const totals = lineTotals(
+    { mediaType: "production", buyType: "production", bursts: [{ budget: 2000 }] },
+    { feePct: 0 },
+  )
+  assert.equal(totals.mediaCents, 0)
+  assert.equal(totals.productionCents, 200000)
+  assert.equal(totals.totalCents, 200000)
+  const campaign = campaignTotals(
+    [
+      { mediaType: "production", buyType: "production", bursts: [{ budget: 2000 }] },
+      { bursts: [{ budget: 1000 }] },
+    ],
+    { feePct: 0 },
+  )
+  assert.equal(campaign.mediaCents, 100000)
+  assert.equal(campaign.productionCents, 200000)
+  assert.equal(campaign.totalCents, 300000)
+})
+
 test("several bursts sum exactly in cents", () => {
   const totals = lineTotals(
     { bursts: [{ budget: 10.005 }, { budget: 10.005 }, { budget: "10.00" }] },

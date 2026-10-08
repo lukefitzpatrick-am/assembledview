@@ -102,13 +102,14 @@ export const f8: LineItemInput[] = [
   line({
     lineItemId: "f8-production",
     mediaType: "production",
-    buyType: "fixed cost",
+    buyType: "production",
     bursts: [{ startDate: "2026-06-01", endDate: "2026-06-30", budget: 2000 }],
   }),
   line({
     lineItemId: "f8-display-a",
     mediaType: "digiDisplay",
     buyType: "cpm",
+    rate: 10,
     bursts: [
       {
         startDate: "2026-06-01",
@@ -122,6 +123,7 @@ export const f8: LineItemInput[] = [
     lineItemId: "f8-display-b",
     mediaType: "digiDisplay",
     buyType: "cpm",
+    rate: 10,
     bursts: [
       {
         startDate: "2026-06-01",

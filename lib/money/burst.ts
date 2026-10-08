@@ -24,6 +24,8 @@ type LineMoney = {
   buyType?: string
   budgetIncludesFees?: boolean
   clientPaysForMedia?: boolean
+  /** Schedule media type. Production is its own bucket, same rule as computeCampaignFinancials. */
+  mediaType?: string
 }
 
 export type LineTotals = {
@@ -32,7 +34,13 @@ export type LineTotals = {
   totalCents: number
   deliverableMediaCents: number
   clientPaysMediaCents: number
+  productionCents: number
   adServingCents?: number
+}
+
+/** Same token fold as normaliseScheduleMediaType. Only the production alias leaves media. */
+function isProductionMediaType(mediaType: string | undefined): boolean {
+  return String(mediaType ?? "").trim().toLowerCase().replace(/[\s_-]+/g, "") === "production"
 }
 
 function flag(value: unknown): boolean {
@@ -50,12 +58,14 @@ function burstBudget(burst: BurstMoney): number | null {
  */
 export function lineTotals(line: LineMoney, ctx: LineTotalsContext): LineTotals {
   const media: number[] = []
+  const production: number[] = []
   const fee: number[] = []
   const total: number[] = []
   const deliverable: number[] = []
   const clientPays: number[] = []
   const adServing: number[] = []
   let sawAdServing = false
+  const productionLine = isProductionMediaType(line.mediaType)
 
   for (const burst of line.bursts ?? []) {
     const budget = burstBudget(burst)
@@ -69,7 +79,9 @@ export function lineTotals(line: LineMoney, ctx: LineTotalsContext): LineTotals 
       feePct: ctx.feePct,
       buyType: burst.buyType ?? line.buyType,
     })
-    media.push(toCents(amounts.mediaAmount))
+    const billedMediaCents = toCents(amounts.mediaAmount)
+    if (productionLine) production.push(billedMediaCents)
+    else media.push(billedMediaCents)
     fee.push(toCents(amounts.feeAmount))
     total.push(toCents(amounts.totalAmount))
     deliverable.push(toCents(amounts.deliveryMediaAmount))
@@ -87,6 +99,7 @@ export function lineTotals(line: LineMoney, ctx: LineTotalsContext): LineTotals 
     totalCents: sumCents(total),
     deliverableMediaCents: sumCents(deliverable),
     clientPaysMediaCents: sumCents(clientPays),
+    productionCents: sumCents(production),
     ...(sawAdServing ? { adServingCents: sumCents(adServing) } : {}),
   }
 }
@@ -100,6 +113,7 @@ export function campaignTotals(lines: LineMoney[], ctx: LineTotalsContext): Line
     totalCents: sumCents(parts.map((part) => part.totalCents)),
     deliverableMediaCents: sumCents(parts.map((part) => part.deliverableMediaCents)),
     clientPaysMediaCents: sumCents(parts.map((part) => part.clientPaysMediaCents)),
+    productionCents: sumCents(parts.map((part) => part.productionCents)),
     ...(sawAdServing
       ? { adServingCents: sumCents(parts.map((part) => part.adServingCents ?? 0)) }
       : {}),
