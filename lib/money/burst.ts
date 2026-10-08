@@ -1,7 +1,7 @@
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { grossFromNet, netFromGross } from "@/lib/mediaplan/deliverableBudget"
+import { fromCents, sumCents, toCents } from "@/lib/money/cents"
 import { parseMoney } from "@/lib/money/parse"
-import { sumCents, toCents } from "@/lib/money/cents"
 
 export { computeBurstAmounts, grossFromNet, netFromGross }
 
@@ -156,5 +156,113 @@ export function campaignTotals(lines: LineMoney[], ctx: LineTotalsContext): Line
     ...(sawAdServing
       ? { adServingCents: sumCents(parts.map((part) => part.adServingCents ?? 0)) }
       : {}),
+  }
+}
+
+export type ChannelSummarySourceBurst = {
+  budget?: unknown
+  buyType?: string | null
+  budgetIncludesFees?: boolean | string | null
+  clientPaysForMedia?: boolean | string | null
+  startDate?: Date | string | null
+  endDate?: Date | string | null
+}
+
+export type ChannelSummarySourceLine = {
+  buyType?: string | null
+  budgetIncludesFees?: boolean | string | null
+  clientPaysForMedia?: boolean | string | null
+  bursts?: readonly ChannelSummarySourceBurst[] | null
+}
+
+export type ChannelSummaryBurst = {
+  amount: number
+  start: Date | string
+  end: Date | string
+}
+
+export type ChannelSummaryLine = {
+  media: number
+  fee: number
+  totalCost: number
+  bursts: ChannelSummaryBurst[]
+}
+
+export type ChannelSummaryTotals = {
+  lines: ChannelSummaryLine[]
+  overallMedia: number
+  overallFee: number
+  overallCost: number
+}
+
+function optionalText(value: string | null | undefined): string | undefined {
+  if (typeof value !== "string" || value.trim() === "") return undefined
+  return value
+}
+
+function optionalFlag(value: boolean | string | null | undefined): boolean | undefined {
+  if (value == null) return undefined
+  return value === true || value === "true"
+}
+
+function burstSpan(value: Date | string | null | undefined): Date | string {
+  if (value instanceof Date || typeof value === "string") return value
+  return ""
+}
+
+function toLineMoney(line: ChannelSummarySourceLine, bursts = line.bursts): LineMoney {
+  return {
+    buyType: optionalText(line.buyType),
+    budgetIncludesFees: optionalFlag(line.budgetIncludesFees),
+    clientPaysForMedia: optionalFlag(line.clientPaysForMedia),
+    bursts: (bursts ?? []).map((burst) => ({
+      budget: burst.budget,
+      buyType: optionalText(burst.buyType) ?? optionalText(line.buyType),
+      budgetIncludesFees: optionalFlag(burst.budgetIncludesFees) ?? optionalFlag(line.budgetIncludesFees),
+      clientPaysForMedia: optionalFlag(burst.clientPaysForMedia) ?? optionalFlag(line.clientPaysForMedia),
+    })),
+  }
+}
+
+function shownMediaCents(totals: LineTotals): number {
+  return totals.mediaCents + totals.clientPaysMediaCents
+}
+
+/**
+ * Campaign header and container summary money.
+ * Client-pays media is included, matching Total Ex GST. Dollars are converted once, at the edge.
+ */
+export function channelSummaryTotals(
+  lines: readonly ChannelSummarySourceLine[],
+  feePct: number,
+): ChannelSummaryTotals {
+  const pct = Number.isFinite(feePct) ? feePct : 0
+  const ctx = { feePct: pct }
+  const moneyLines = lines.map((line) => toLineMoney(line))
+  const campaign = campaignTotals(moneyLines, ctx)
+  const mediaCents = shownMediaCents(campaign)
+  const summarised = lines.map((line) => {
+    const whole = lineTotals(toLineMoney(line), ctx)
+    const lineMediaCents = shownMediaCents(whole)
+    const bursts = (line.bursts ?? []).map((burst) => {
+      const one = lineTotals(toLineMoney(line, [burst]), ctx)
+      return {
+        amount: fromCents(shownMediaCents(one) + one.feeCents),
+        start: burstSpan(burst.startDate),
+        end: burstSpan(burst.endDate),
+      }
+    })
+    return {
+      media: fromCents(lineMediaCents),
+      fee: fromCents(whole.feeCents),
+      totalCost: fromCents(lineMediaCents + whole.feeCents),
+      bursts,
+    }
+  })
+  return {
+    lines: summarised,
+    overallMedia: fromCents(mediaCents),
+    overallFee: fromCents(campaign.feeCents),
+    overallCost: fromCents(mediaCents + campaign.feeCents),
   }
 }

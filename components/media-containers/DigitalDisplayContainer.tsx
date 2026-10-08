@@ -69,6 +69,7 @@ import {
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
+import { channelSummaryTotals } from "@/lib/money/burst"
 import {
   CpcFamilyBurstCalculatedField,
   getCpcFamilyBurstCalculatedColumnLabel,
@@ -799,108 +800,60 @@ export default function DigiDisplayContainer({
     publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
   }, [watchedLineItems, mbaNumber, feedigidisplay, form, onMediaLineItemsChange]);
   
-  // Memoized calculations
-  // Note: For display purposes, always show media amounts regardless of clientPaysForMedia
-  // The billing schedule will handle excluding media when clientPaysForMedia is true
+  // Header and summary money is channelSummaryTotals (lineTotals and campaignTotals, in cents).
+  // Client-pays media counts in the total, matching Total Ex GST. Deliverable counts stay on the bursts.
   const overallTotals = useMemo(() => {
-    let overallMedia = 0;
-    let overallFee = 0;
-    let overallCost = 0;
-    
-    const lineItemTotals = (watchedLineItems || []).map((lineItem, index) => {
-      let lineMedia = 0;
+    const source = watchedLineItems || [];
+    const money = channelSummaryTotals(source, feedigidisplay || 0);
+
+    const lineItemTotals = source.map((lineItem, index) => {
       let lineDeliverables = 0;
-      let lineFee = 0;
-      let lineCost = 0;
-      const summaryBursts: InvestmentBurstInput[] = [];
-
       (lineItem?.bursts || []).forEach((burst) => {
-        const budget = parseBudgetSafe(burst?.budget);
-        let burstMedia = 0;
-        let burstFee = 0;
-        // Always calculate media for display purposes (ignore clientPaysForMedia)
-        if (lineItem.budgetIncludesFees) {
-          const pct = feedigidisplay || 0;
-          burstMedia = (budget * (100 - pct)) / 100;
-          burstFee = (budget * pct) / 100;
-        } else {
-          // Budget is net media, fee calculated on top
-          burstMedia = budget;
-          burstFee = feedigidisplay ? (budget / (100 - feedigidisplay)) * feedigidisplay : 0;
-        }
-        lineMedia += burstMedia;
-        lineFee += burstFee;
         lineDeliverables += (typeof burst?.calculatedValue === "number" ? burst.calculatedValue : parseBudgetSafe(burst?.calculatedValue)) || 0;
-        summaryBursts.push({
-          amount: burstMedia + burstFee,
-          start: burst.startDate,
-          end: burst.endDate,
-        });
       });
-
-      lineCost = lineMedia + lineFee;
-
-      overallMedia += lineMedia;
-      overallFee += lineFee;
-      overallCost += lineCost;
+      const row = money.lines[index];
 
       return {
         index: index + 1,
         deliverables: lineDeliverables,
-        media: lineMedia,
-        fee: lineFee,
-        totalCost: lineCost,
+        media: row.media,
+        fee: row.fee,
+        totalCost: row.totalCost,
         buyType: lineItem.buyType || "",
         dimensions: {
           Publisher: lineItem.publisher || "",
           Platform: lineItem.platform || "",
           "Buy Type": lineItem.buyType || "",
         },
-        bursts: summaryBursts,
+        bursts: row.bursts,
       };
     });
-    
-    return { lineItemTotals, overallMedia, overallFee, overallCost };
+
+    return {
+      lineItemTotals,
+      overallMedia: money.overallMedia,
+      overallFee: money.overallFee,
+      overallCost: money.overallCost,
+    };
   }, [watchedLineItems, feedigidisplay]);
   
   // Callback handlers
   const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
     const digidisplaylineItems = form.getValues("digidisplaylineItems") || [];
-    let overallMedia = 0;
-    let overallFee = 0;
-    let overallCost = 0;
+    const money = channelSummaryTotals(digidisplaylineItems, feedigidisplay || 0);
     let overallDeliverableCount = 0;
 
     digidisplaylineItems.forEach((lineItem) => {
-      let lineMedia = 0;
-      let lineFee = 0;
-      let lineDeliverables = 0;
-
       (lineItem?.bursts || []).forEach((burst) => {
-        const budget = parseBudgetSafe(burst?.budget);
-        if (lineItem.budgetIncludesFees) {
-          const pct = feedigidisplay || 0;
-          lineMedia += (budget * (100 - pct)) / 100;
-          lineFee += (budget * pct) / 100;
-        } else {
-          lineMedia += budget;
-          const fee = feedigidisplay ? (budget / (100 - feedigidisplay)) * feedigidisplay : 0;
-          lineFee += fee;
-        }
-        lineDeliverables +=
+        overallDeliverableCount +=
           (typeof burst?.calculatedValue === "number"
             ? burst.calculatedValue
             : parseBudgetSafe(burst?.calculatedValue)) || 0;
       });
-
-      overallMedia += lineMedia;
-      overallFee += lineFee;
-      overallCost += lineMedia + lineFee;
-      overallDeliverableCount += lineDeliverables;
     });
 
     setOverallDeliverables(overallDeliverableCount);
-    onTotalMediaChange(overallMedia, overallFee);
+    onTotalMediaChange(money.overallMedia, money.overallFee);
   }, [feedigidisplay, form, onTotalMediaChange]); // include deps
 
   const handleBuyTypeChange = useCallback(

@@ -7,7 +7,7 @@
  * containers keep only their wrapper + descriptor + channel-specific JSX.
  */
 
-import { parseMoney } from "@/lib/money"
+import { channelSummaryTotals, parseMoney } from "@/lib/money"
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, startTransition } from "react"
 import { useForm, useFieldArray, useWatch, type UseFormReturn } from "react-hook-form"
 import { useToast } from "@/components/ui/use-toast"
@@ -566,44 +566,15 @@ export function useMediaChannelContainer(
   ])
 
   const overallTotals = useMemo(() => {
-    let overallMedia = 0
-    let overallFee = 0
-    let overallCost = 0
+    const source = watchedLineItems || []
+    const money = channelSummaryTotals(source, feePct || 0)
 
-    const lineItemTotals = (watchedLineItems || []).map((lineItem: any, index: number) => {
-      let lineMedia = 0
+    const lineItemTotals = source.map((lineItem: any, index: number) => {
       let lineDeliverables = 0
-      let lineFee = 0
-      let lineCost = 0
-      const summaryBursts: InvestmentBurstInput[] = []
-
       ;(lineItem.bursts || []).forEach((burst: any) => {
-        const budget = parseMoney(burst.budget) ?? 0
-        let burstMedia = 0
-        let burstFee = 0
-        if (lineItem.budgetIncludesFees) {
-          const pct = feePct || 0
-          burstMedia = (budget * (100 - pct)) / 100
-          burstFee = (budget * pct) / 100
-        } else {
-          burstMedia = budget
-          burstFee = feePct ? (budget / (100 - feePct)) * feePct : 0
-        }
-        lineMedia += burstMedia
-        lineFee += burstFee
         lineDeliverables += burst.calculatedValue || 0
-        summaryBursts.push({
-          amount: burstMedia + burstFee,
-          start: burst.startDate,
-          end: burst.endDate,
-        })
       })
-
-      lineCost = lineMedia + lineFee
-
-      overallMedia += lineMedia
-      overallFee += lineFee
-      overallCost += lineCost
+      const row = money.lines[index]
 
       const dimensions: Record<string, string> = {}
       for (const [label, camel] of Object.entries(config.summaryDimensions)) {
@@ -613,53 +584,37 @@ export function useMediaChannelContainer(
       return {
         index: index + 1,
         deliverables: lineDeliverables,
-        media: lineMedia,
-        fee: lineFee,
-        totalCost: lineCost,
+        media: row.media,
+        fee: row.fee,
+        totalCost: row.totalCost,
         buyType: lineItem.buyType || "",
         dimensions,
-        bursts: summaryBursts,
+        bursts: row.bursts,
       }
     })
 
-    return { lineItemTotals, overallMedia, overallFee, overallCost }
+    return {
+      lineItemTotals,
+      overallMedia: money.overallMedia,
+      overallFee: money.overallFee,
+      overallCost: money.overallCost,
+    }
   }, [watchedLineItems, feePct, config.summaryDimensions])
 
   const handleLineItemValueChange = useCallback(
     (_lineItemIndex: number) => {
       const lineItems = form.getValues(fieldKey) || []
-      let overallMedia = 0
-      let overallFee = 0
-      let overallCost = 0
+      const money = channelSummaryTotals(lineItems, feePct || 0)
       let overallDeliverableCount = 0
 
       lineItems.forEach((lineItem: any) => {
-        let lineMedia = 0
-        let lineFee = 0
-        let lineDeliverables = 0
-
         ;(lineItem.bursts || []).forEach((burst: any) => {
-          const budget = parseMoney(burst?.budget) ?? 0
-          if (lineItem.budgetIncludesFees) {
-            const pct = feePct || 0
-            lineMedia += (budget * (100 - pct)) / 100
-            lineFee += (budget * pct) / 100
-          } else {
-            lineMedia += budget
-            const fee = feePct ? (budget / (100 - feePct)) * feePct : 0
-            lineFee += fee
-          }
-          lineDeliverables += burst?.calculatedValue || 0
+          overallDeliverableCount += burst?.calculatedValue || 0
         })
-
-        overallMedia += lineMedia
-        overallFee += lineFee
-        overallCost += lineMedia + lineFee
-        overallDeliverableCount += lineDeliverables
       })
 
       setOverallDeliverables(overallDeliverableCount)
-      onTotalMediaChange(overallMedia, overallFee)
+      onTotalMediaChange(money.overallMedia, money.overallFee)
     },
     [form, feePct, onTotalMediaChange, fieldKey],
   )
