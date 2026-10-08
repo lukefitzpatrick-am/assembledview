@@ -87,6 +87,10 @@
     {
       "path": "/api/cron/reports-enqueue",
       "schedule": "5 20 3,4 * *"
+    },
+    {
+      "path": "/api/cron/reports-worker",
+      "schedule": "20 * 3-5 * *"
     }
   ]
 }

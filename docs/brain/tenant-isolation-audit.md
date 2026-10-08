@@ -296,6 +296,7 @@ All finance handlers below are **admin-only** (`requireFinanceAdmin`, `requireRo
 | `cron/pacing-digest` | GET | public | `assertCronSecret` |
 | `cron/relabel-drift` | GET, POST | public | `assertCronSecret` |
 | `cron/reports-enqueue` | GET | public | `assertCronSecret` |
+| `cron/reports-worker` | GET | public | `assertCronSecret` |
 | `cron/snapshot-checksum` | GET | public | `assertCronSecret` |
 | `cron/xano-line-item-sync` | GET | public | `assertCronSecret` |
 | `cron/xero-sync` | GET, POST | public | `assertCronSecret` (410) |
