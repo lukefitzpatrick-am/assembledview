@@ -210,6 +210,7 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | GET | `/api/cron/pacing-portfolio` | internal-cron | CRON_SECRET | `app/api/cron/pacing-portfolio/route.ts` |
 | POST | `/api/cron/pacing-portfolio` | internal-cron | CRON_SECRET | `app/api/cron/pacing-portfolio/route.ts` |
 | GET | `/api/cron/relabel-drift` | internal-cron | CRON_SECRET | `app/api/cron/relabel-drift/route.ts` |
+| GET | `/api/cron/reports-enqueue` | internal-cron | CRON_SECRET | `app/api/cron/reports-enqueue/route.ts` |
 | POST | `/api/cron/relabel-drift` | internal-cron | CRON_SECRET | `app/api/cron/relabel-drift/route.ts` |
 | GET | `/api/cron/partner-ingest` | internal-cron | CRON_SECRET | `app/api/cron/partner-ingest/route.ts` |
 | POST | `/api/cron/partner-ingest` | internal-cron | CRON_SECRET | `app/api/cron/partner-ingest/route.ts` |
