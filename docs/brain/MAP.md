@@ -181,7 +181,7 @@ Client-accessible learning centre. Content is file-driven from `src/data/learnin
 
 ## 14. Admin & M365
 
-`/admin/users`, `/admin/users/new` (Auth0 Management API), `/admin/media-container-best-practice`, `/admin/m365-reconciliation`, `/admin/schedule-ingest`, `/admin/myhours-mapping`, `/admin/fireflies-unattributed`, `/pacing/(shell)/admin/orphans`, `/pacing/(shell)/admin/relabels`, `/pacing/(shell)/admin/unmapped-placements` (redirects to relabels Unmapped).
+`/admin/users`, `/admin/users/new` (Auth0 Management API), `/admin/media-container-best-practice`, `/admin/m365-reconciliation`, `/admin/schedule-ingest`, `/admin/myhours-mapping`, `/admin/fireflies-unattributed`, `/admin/reports`, `/pacing/(shell)/admin/orphans`, `/pacing/(shell)/admin/relabels`, `/pacing/(shell)/admin/unmapped-placements` (redirects to relabels Unmapped).
 
 M365 provisioning (SharePoint sites, Teams groups) is flag-off by default and logs every attempt to `m365_provisioning_log`. Anchor client per `mbaidentifier` group is enforced by a partial unique index.
 

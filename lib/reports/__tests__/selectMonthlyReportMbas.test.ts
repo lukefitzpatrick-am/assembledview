@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   enqueueMonthlyReportRuns,
   isMonthlyReportEnqueueDay,
+  periodFromYearMonth,
   previousSydneyMonth,
   selectMonthlyReportMbas,
   type MonthlyReportMbaCandidate,
@@ -22,6 +23,16 @@ test("previous Sydney month crosses the year boundary", () => {
     periodStart: "2024-02-01",
     periodEnd: "2024-02-29",
   })
+  assert.deepEqual(periodFromYearMonth("2025-12"), {
+    periodStart: "2025-12-01",
+    periodEnd: "2025-12-31",
+  })
+  assert.deepEqual(periodFromYearMonth("2024-02"), {
+    periodStart: "2024-02-01",
+    periodEnd: "2024-02-29",
+  })
+  assert.equal(periodFromYearMonth("2025-13"), null)
+  assert.equal(periodFromYearMonth("December"), null)
 })
 
 test("selection includes a booked plan that ended mid-month and excludes a planned one", () => {

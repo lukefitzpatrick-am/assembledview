@@ -154,6 +154,9 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | `admin/finance-periods/lock` | POST | admin-only | `requireRole(admin)` | — |
 | `admin/finance-periods/run` | POST | admin-only | `requireRole(admin)` | — |
 | `admin/migration-diffs` | GET | admin-only | `requireAdmin` | — |
+| `admin/reports` | GET | admin-only | `requireAdmin` | — |
+| `admin/reports/enqueue` | POST | admin-only | `requireAdmin` | — |
+| `admin/reports/runs/[id]/generate` | POST | admin-only | `requireAdmin` | — |
 | `admin/users` | GET, POST, PUT | admin-only | `requireAdmin` | — |
 | `admin/users/mba-numbers` | GET | admin-only | `requireAdmin` | — |
 

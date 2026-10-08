@@ -86,6 +86,11 @@ export const ROUTE_MANIFEST_EXCLUSIONS: ReadonlyArray<{
     path: "/data-deletion",
     reason: "Public legal page, reachable signed out, not in navigation",
   },
+  {
+    path: "/design-system",
+    reason:
+      "Internal living style guide, dev only (app/(internal)/layout.tsx returns notFound in production)",
+  },
 ]
 
 /**
@@ -143,6 +148,7 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
       "/pacing/admin/relabels",
       "/admin/fireflies-unattributed",
       "/admin/schedule-ingest",
+      "/admin/reports",
     ],
   },
 ] as const
@@ -397,6 +403,17 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     roles: ["admin"],
     searchTerms:
       "schedule ingest upload qms sca jcdecaux publisher review accept panels",
+    group: "admin",
+  },
+  {
+    path: "/admin/reports",
+    label: "Reports",
+    title: "Reports",
+    icon: "FileText",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    searchTerms: "reports campaign monthly download generate mba commentary",
     group: "admin",
   },
 

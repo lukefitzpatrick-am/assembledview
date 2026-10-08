@@ -81,6 +81,20 @@ export function previousSydneyMonth(todayISO: string): MonthlyReportPeriod {
   return { periodStart: `${periodEnd.slice(0, 8)}01`, periodEnd }
 }
 
+/** `YYYY-MM` to the first and last civil day of that month. Invalid input is null. */
+export function periodFromYearMonth(month: string): MonthlyReportPeriod | null {
+  const match = /^(\d{4})-(\d{2})$/.exec(month.trim())
+  if (!match) return null
+  const year = Number(match[1])
+  const mon = Number(match[2])
+  if (mon < 1 || mon > 12) return null
+  const last = new Date(Date.UTC(year, mon, 0)).getUTCDate()
+  return {
+    periodStart: `${match[1]}-${match[2]}-01`,
+    periodEnd: `${match[1]}-${match[2]}-${String(last).padStart(2, "0")}`,
+  }
+}
+
 function commercialStatus(candidate: MonthlyReportMbaCandidate): string {
   const master = candidate.masterCampaignStatus?.trim() ?? ""
   if (master) {

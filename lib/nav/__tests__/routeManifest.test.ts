@@ -95,6 +95,9 @@ test("Home / Clients / Users labels and Create Campaign is palette-only", () => 
   assert.ok(
     (ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/schedule-ingest")
   )
+  assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/reports"))
+  assert.equal(getRouteByExactPath("/admin/reports")!.label, "Reports")
+  assert.equal(getRouteByExactPath("/admin/reports")!.roles?.[0], "admin")
   assert.ok(!(ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/users/new"))
   assert.equal(
     getRouteByExactPath("/admin/m365-reconciliation")!.label,
@@ -143,6 +146,7 @@ test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async (
           "/pacing/admin/relabels",
           "/admin/fireflies-unattributed",
           "/admin/schedule-ingest",
+          "/admin/reports",
         ],
       },
     ]

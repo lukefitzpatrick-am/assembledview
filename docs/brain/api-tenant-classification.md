@@ -118,6 +118,9 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | GET | `/api/admin/myhours-mapping` | admin-only | requireRole | `app/api/admin/myhours-mapping/route.ts` |
 | POST | `/api/admin/myhours-mapping` | admin-only | requireRole | `app/api/admin/myhours-mapping/route.ts` |
 | GET | `/api/admin/publisher-profiles` | admin-only | requireRole | `app/api/admin/publisher-profiles/route.ts` |
+| GET | `/api/admin/reports` | admin-only | requireAdmin | `app/api/admin/reports/route.ts` |
+| POST | `/api/admin/reports/enqueue` | admin-only | requireAdmin | `app/api/admin/reports/enqueue/route.ts` |
+| POST | `/api/admin/reports/runs/[id]/generate` | admin-only | requireAdmin | `app/api/admin/reports/runs/[id]/generate/route.ts` |
 | GET | `/api/admin/unmapped-placements` | admin-only | requireRole | `app/api/admin/unmapped-placements/route.ts` |
 | GET | `/api/admin/users` | admin-only | requireRole | `app/api/admin/users/route.ts` |
 | POST | `/api/admin/users` | admin-only | requireRole | `app/api/admin/users/route.ts` |
