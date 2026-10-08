@@ -758,3 +758,11 @@ Gate passed. Night 1 continues at AV-E1.
 - Under 90%: adding the two dollar figures the header receives can sit a float ulp off the single cent total. The check compares them in cents. Each summary burst amount is converted on its own, so a multi-burst line's burst dollars can sit a fraction of a cent off the line total.
 - Morning smoke: Campaign header total equals the MBA preview total on a digital-only plan. Not exercised in the browser here.
 
+## AV-M10d DONE f1fad989
+
+- Same pattern as AV-M10c (`channelSummaryTotals`). Television, Radio, Cinema, Newspaper, Magazines, OOH and Influencers still had the inline float split in overallTotals and handleLineItemValueChange. Television's header recalc stays above the snapshot (handler at 680, snapshot totalMedia at 1054). Snapshot totalMedia assignments were left as they were. Television deliverable counts still come from TARPs. Cinema deliverable counts still come from cinemaBurstDeliverables.
+- Files: TelevisionContainer.tsx, RadioContainer.tsx, CinemaContainer.tsx, NewspaperContainer.tsx, MagazinesContainer.tsx, OOHContainer.tsx, InfluencersContainer.tsx, docs/brain/INVARIANTS.md, docs/brain/modules/media-plans.md, docs/superpowers/overnight-av-fixes/RUNLOG.md.
+- Tests: typecheck 0, lint 0 (same warning set; the mbaNumber warnings on Television, Newspaper, Magazines and Influencers moved one line because of the new import), test:money pass (80, 1 todo for buildMbaFromPersisted), test:money-golden pass (55, 1 todo), test:plan-drafts pass (59 + 12 + 68, 6 skipped), test:dirty-controller pass (30 + 40), test:expert-goldens pass (9).
+- Under 90%: the same float ulp as AV-M10c when the header adds the two dollar figures. The cent comparison is the one that matches the MBA gross media plus fee.
+- Morning smoke: A plan with TV, radio and OOH: the header total equals the MBA preview. Not exercised in the browser here.
+
