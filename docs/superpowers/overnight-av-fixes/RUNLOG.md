@@ -1,3 +1,148 @@
+# AV overnight, Night 2
+
+## Morning summary (AV-Z, 9 Oct 2026, Australia/Sydney)
+
+HEAD before this commit is f7ee22fc. Nothing pushed. Night 2 AV-00 parked with a dirty tree and ran no baseline, so these checks are compared with the Night 1 AV-Z result (121/124, three named suites). The Night 1 summary below still says Night 2 was not started. That line is the Night 1 record. This section is the Night 2 record.
+
+| ID | Result | Hash |
+|---|---|---|
+| AV-X4 | DONE | no commit |
+| AV-M10f | DONE | 989070a8 |
+| AV-00 | PARKED | no commit |
+| AV-I1 | DONE | a45ad177 |
+| AV-I2 | DONE | da3756bf |
+| AV-I3 | DONE | 75d8d20e |
+| AV-I4 | DONE | 88574499 |
+| AV-I5 | DONE | 8cd6d64a |
+| AV-I6 | DONE | 55ec0a1c |
+| AV-A1 | DONE | 9e70ccd8 |
+| AV-A2 | DONE | 9130d5d1 |
+| AV-A3 | DONE | 7ac409f1 |
+| AV-A4 | DONE | fa62e7c2 |
+| AV-A5 | DONE | 7bcc686f |
+| AV-A6 | DONE | d8ac482f |
+| AV-A7 | DONE | 221b2760 |
+| AV-A8 | DONE | 9de9916f |
+| AV-A9 | PARKED | no commit |
+| AV-R1 | DONE | fe9ae287 |
+| AV-R2 | DONE | 92e61793 |
+| AV-R3 | DONE | 73f47fd9 |
+| AV-R4 | DONE | d2cadb08 |
+| AV-R5 | DONE | b63eea91 |
+| AV-R6 | DONE | de83957c |
+| AV-R7 | DONE | 7ef667c6 |
+| AV-G2 | DONE | 23735bb5 |
+| AV-G3 | DONE | f7ee22fc |
+| AV-Z | DONE | this commit |
+
+F4, F5, F6a, F6b, M10a to M10e and the X3 series were already DONE before the Night 2 preflight. They are in the log under the Night 1 summary. They are not repeated in this table.
+
+Parked patches: none. AV-00 changed no product files (dirty tree, baseline not run). AV-A9 changed no files (KPI gap, do not un-park).
+
+Decisions waiting for Luke:
+
+- AV-A9 / C-153. Do not switch `generate_performance_report` onto the v5 deck until this gap is accepted or dropped: CPM, CPC, snapshot CTR, 3-second video views, and the spend-pace percent box. The token template stays.
+- Apply these by hand in the SQL editor. Do not apply the Drizzle snapshot files named beside them.
+  - `db/migrations/0093_overdue_digest_sends.sql`. Not `db/drizzle/0010_gifted_ben_parker.sql`.
+  - `db/migrations/0094_campaign_insights_action_outcome.sql`. Not `db/drizzle/0011_acoustic_shinko_yamashiro.sql`.
+  - `db/migrations/0095_report_runs.sql`. Not `db/drizzle/0012_wild_firelord.sql`.
+  - Night 1 `db/migrations/0092_revoke_published_pointer_fn_execute.sql` is still not applied.
+- The Night 1 money questions are already in the code. C-155: full-scope Total Ex GST includes client-pays net media. Billing months exclude it. The agency still bills the fee. C-156 (`c1e7d75c`): cinema Avg. Rate is gross divided by screens. Biddable CPM still multiplies by 1000.
+- `test:mba-live-dates` is a new failure on HEAD. See the checks below. It was not fixed in this wrap-up.
+
+Migrations authored tonight, all NOT applied: `0093_overdue_digest_sends.sql`, `0094_campaign_insights_action_outcome.sql`, `0095_report_runs.sql`. `0090` and `0091` are marked authored, not applied, in the brain. They were not part of tonight's prompt list.
+
+Env vars introduced, and their defaults:
+
+- `CLIENT_INVOICES_ENABLED`. Unset is off. `on`, `1` or `true` turns client-role invoice access on. Admins are unaffected.
+- `OVERDUE_DIGEST_ENABLED`. Must be exactly `true` or the digest does not send.
+- `AUTO_REPORTS_ENABLED`. Must be exactly `true` or enqueue and the worker return skipped.
+- `REPORTS_EMAIL_TO`. Optional. Unset uses the ops recipient list.
+- `REPORTS_WORKER_BATCH`. Default 3.
+
+`vercel.json` crons added:
+
+- `/api/cron/overdue-digest` at `30 1 * * 1-5` (01:30 UTC, weekdays, plus a Sydney Saturday and Sunday skip in the route).
+- `/api/cron/reports-enqueue` at `5 20 3,4 * *` (Sydney 4th and 5th).
+- `/api/cron/reports-worker` at `20 * 3-5 * *`.
+
+Do not run either report cron, and do not send the overdue digest, until the matching migration is applied and the flag is exactly `true`.
+
+Wrap-up checks. Night 2 AV-00 ran none of these.
+
+- `npm run typecheck` exit 0.
+- `npm run lint` exit 0. Same pre-existing warning set.
+- `npm run check:client-server-only` exit 0.
+- `npm run test:all` exit 1, about 945s, 123/124 suites.
+  - Fixed versus the Night 1 baseline: `test:finance-sections` (route manifest is clean, so the `/design-system` exclusion is on HEAD).
+  - Fixed only in the dirty working tree, not on HEAD: `test:campaign-dashboard-range` (`SpendChartsRow.test.tsx.snap` is modified and uncommitted) and `test:social-delivery` (`channelMediaTypeColour.test.ts` is modified and uncommitted). A clean checkout of HEAD would still be expected to fail those two colour suites.
+  - New failure: `test:mba-live-dates`. It passed in the Night 1 AV-00 log. Two source pins fail. Edit save-time upload must call `generateMbaPdfBlob({ planVersion: planVersionForDocs })`. Create must contain that same call and must not contain `liveCampaignDates`. Edit Generate now calls `generateMbaPdfBlob({ liveScope: true })`. Create `handleGenerateMBA` calls `generateMbaPdfBlob()` with no arguments. Those two pages are clean versus HEAD, so the failure is committed. 19 of 21 tests in the file still pass.
+- `npm run build` exit 0, about 419s. Next.js 15.5.24. Compiled with the existing Auth0 dpop and jose Edge warnings. `/admin/reports` is in the route table.
+
+Morning smoke, in run order. None of this was exercised in the browser tonight. Do not send email from here.
+
+1. Create and edit a plan. Every container renders and saves. Naming conventions still downloads. The draft media plan still downloads. (AV-X4)
+2. A TV line set to bonus with a budget: the investment chart shows $0. A normal radio line: the chart total equals the entered budget (gross-in) or budget plus fee (net-in). (AV-M10f)
+3. `/finance/xero` as admin: unlinked contacts, link one, coverage rises. A non-admin call to the link API is 403. (AV-I1)
+4. Admin download of any invoice PDF from Owed still works. (AV-I2)
+5. Admin `GET /api/dashboard/<slug>/invoices` for a linked client returns rows. A client user with the flag off gets 404. (AV-I3)
+6. Admin on `/dashboard/<linked client>`: Invoices section with PDFs. The slide-over shows outstanding. Check light and dark. (AV-I4)
+7. Admin on a client with an overdue invoice: read the banner copy. (AV-I5)
+8. After 0093 is applied and `OVERDUE_DIGEST_ENABLED=true`: trigger the cron with the secret on a preview. One email. A second call is already sent. (AV-I6)
+9. AVA "Write commentary" on a campaign: summary, then Insight, Action, Outcome. (AV-A1)
+10. AVA review-and-report style chat: those labels, no old colours. (AV-A2)
+11. AVA "how is this campaign going?": the three labels. (AV-A3)
+12. After 0094 is applied: `/insights` loads. Tags are sky, forest and lime. Old insights are unchanged. (AV-A4, AV-A5)
+13. Open the v5 pptx. Review and Report on a live campaign: v5 look, then the commentary not-generated line, then two campaigns with 2 to 4 traceable items and new `/insights` rows. (AV-A6, AV-A7, AV-A8)
+14. Do not expect a performance-review download to be the v5 deck. AV-A9 is parked. (AV-A9)
+15. After 0095 is applied: Review and Report still downloads the same deck. Do not run enqueue or the worker until 0095 is applied. (AV-R1, AV-R2, AV-R4, AV-R5, AV-R6)
+16. After 0095 is applied: `/admin/reports` for last month, Generate now on one live MBA, then download. The page will fail until 0095 is applied. Generate now does not send email. (AV-R7)
+
+`git log --oneline -40` at HEAD f7ee22fc, before this commit:
+
+```
+f7ee22fc docs(brain): record the AV pack: money, workbook, invoices, AVA and reports
+23735bb5 chore(gate): ratchet inline money maths outside lib/money
+7ef667c6 feat(reports): admin reports page with download and generate now
+de83957c feat(reports): monthly digest email of generated campaign reports
+b63eea91 feat(reports): hourly worker generates queued campaign reports on the 4th and 5th
+d2cadb08 feat(reports): monthly enqueue of campaign reports for live MBAs
+73f47fd9 feat(email): attachments and reply-to in the SendGrid helper
+92e61793 feat(reports): headless campaign report generator with server-resolved inputs
+fe9ae287 feat(reports): report_runs and report_digest_sends tables
+9de9916f feat(reports): AVA writes Insight, Action, Outcome commentary for campaign reports
+221b2760 feat(reports): campaign report deck on the 05b v5 template
+d8ac482f chore(reports): add the 05b v5 deck template and its layout map
+7bcc686f feat(insights): cards show Insight, Action and Outcome tags
+fa62e7c2 feat(insights): store action, owner and outcome with each insight
+7ac409f1 feat(ava): voice rule for Insight, Action, Outcome
+9130d5d1 feat(ava): report, presentation and campaign read skills on I/A/O and the 05b brand
+9e70ccd8 feat(ava): insight commentary skill 1.2.0 writes Insight, Action, Outcome
+55ec0a1c feat(finance): weekday overdue invoices digest email to ops
+8cd6d64a feat(dashboard): factual overdue notice for clients with overdue invoices
+88574499 feat(dashboard): invoices section on the client dashboard
+75d8d20e feat(finance): client invoices API scoped to the client, FY26 onwards
+da3756bf fix(finance): one invoice client resolver, strict for client access
+a45ad177 feat(finance): unlinked Xero contacts panel to link contacts to clients
+989070a8 fix(plans): legacy container investment charts use the shared money helper
+f796ad23 docs: record the AV-M10e commit hash in the overnight runlog
+b0667199 fix(plans): search and prog investment charts honour gross-in budgets
+8de60459 docs: record the AV-M10d commit hash in the overnight runlog
+f1fad989 refactor(plans): offline container summaries and header use canonical totals
+7708a053 docs: record the AV-M10c commit hash in the overnight runlog
+56df1206 refactor(plans): digital container summaries and header use canonical totals
+9ad17f43 docs: record the AV-M10b commit hash in the overnight runlog
+7a23d821 refactor(plans): card cells and titles show canonical line totals
+115ee130 docs: record the AV-M10a commit hash in the overnight runlog
+3758226c refactor(plans): expert grid footer totals in cents from lineTotals
+b7992d51 docs: record the AV-F6b commit hash in the overnight runlog
+54daea77 fix(excel): blank burst dates use the campaign dates with a note, never today
+5e031a93 docs: record the AV-F6a commit hash in the overnight runlog
+5d33c03e feat(plans): publishing needs a start and end date on every burst
+7754a910 docs: record the AV-F5 commit hash in the overnight runlog
+ff0853f8 test(money): F8 production fixture matches the saved production shape
+```
+
 # AV overnight — Night 1
 
 ## Morning summary (AV-Z, 2026-10-07 23:54 Australia/Sydney)
@@ -779,4 +924,383 @@ Gate passed. Night 1 continues at AV-E1.
 - Tests: typecheck 0, lint 0 (same warning set), test:money pass (87, 1 todo for buildMbaFromPersisted), test:plan-drafts pass (59 + 12 + 68, 6 skipped).
 - Under 90%: another fee rate or amount can still move one month by a cent where the legacy float and `toCents` disagree before proration. The locked $1,000 at 15% cases matched.
 - Morning smoke: A gross-in search line: the investment chart total equals the entered budget. Not exercised in the browser here.
+
+## AV-M10f DONE 989070a8
+
+- `channelInvestmentByMonth` from AV-M10e was already in `lib/mediaplan/channelInvestment.ts`, so it stayed there. The 13 legacy `calculateInvestmentPerMonth` functions now return that helper and keep their form field key and fee argument. `onInvestmentChange` still receives the same month rows. Nothing is written.
+- Bonus and package inclusions chart $0. Package is not zeroed. A 100% fee on a $1,000 net budget charts $1,000 media and $0 fee. Gross-in $1,000 at 15% sums to $1,000.00. Net-in sums to $1,176.47.
+- Files: lib/mediaplan/channelInvestment.ts, the 13 legacy containers (BVOD, Cinema, Digital Audio, Digital Display, Digital Video, Influencers, Integration, Magazines, Newspaper, OOH, Radio, Social, Television), lib/money/__tests__/channelInvestment.test.ts, docs/brain/INVARIANTS.md, docs/brain/modules/media-plans.md.
+- Tests: typecheck 0, lint 0 (same warning set), test:money pass (91, 1 todo for buildMbaFromPersisted), test:money-golden pass (55, 1 todo), test:plan-drafts pass (59 + 12 + 68, 6 skipped), test:dirty-controller pass (30 + 40), test:expert-goldens pass (9).
+- Under 90%: none. The digital and offline checks read the wrapper source rather than importing the containers, because those modules load the API client.
+- Morning smoke: A TV line set to bonus with a budget: the investment chart shows $0 for it. A normal radio line: the chart total equals the entered budget (gross-in) or budget plus fee (net-in). Not exercised in the browser here.
+
+## AV-X4 DONE no commit
+
+The client workbook builder is gone (AV-X3e, c93d74d9). The container mappers that used to feed it are still the only writers of the `LineItem[]` state on create and edit. That state still has readers, so every mapper stays whole. No props, callbacks or page state were removed. `lib/generateMediaPlan.ts` was not touched.
+
+KEEP (reader: file:line). The same export arrays are read on the edit page at the twin call sites (naming 9719, KPI pairs from 2910, save pairs 8266 and 8582, container callbacks from 12730).
+
+- `useMediaChannelContainer` export builder (795), used by Search and the five programmatic containers through `MediaChannelContainer`. KEEP: naming `create/page.tsx:6965`, KPI `create/page.tsx:1265` via `pickKpiLineItems` (`lib/kpi/lineItemsForFanOut.ts:23`), KPI save `create/page.tsx:5465`, Advertising Associates `create/page.tsx:1196`.
+- TelevisionContainer 967. KEEP: `create/page.tsx:1209` and `create/page.tsx:1277`.
+- RadioContainer 992. KEEP: `create/page.tsx:1210` and `create/page.tsx:1278`.
+- NewspaperContainer 1034. KEEP: `create/page.tsx:1207` and `create/page.tsx:1279`.
+- MagazinesContainer 1037. KEEP: `create/page.tsx:1208` and `create/page.tsx:1280`.
+- OOHContainer 895. KEEP: `create/page.tsx:1211` and `create/page.tsx:1281`.
+- CinemaContainer 904. KEEP: `create/page.tsx:1212` and `create/page.tsx:1282`.
+- ProductionContainer `mapLineItemsForExport` (207, called at 600). KEEP: `create/page.tsx:1215` and `create/page.tsx:1284`.
+- InfluencersContainer 783. KEEP: `create/page.tsx:1214` and `create/page.tsx:1283`.
+- BVODContainer 958. KEEP: naming `create/page.tsx:6970` and KPI `create/page.tsx:1275`.
+- DigitalDisplayContainer 1076. KEEP: naming `create/page.tsx:6968` and KPI `create/page.tsx:1272`.
+- DigitalAudioContainer 950. KEEP: naming `create/page.tsx:6967` and KPI `create/page.tsx:1273`.
+- DigitalVideoContainer 906. KEEP: naming `create/page.tsx:6969` and KPI `create/page.tsx:1274`.
+- SocialMediaContainer 841. KEEP: naming `create/page.tsx:6966` and KPI `create/page.tsx:1266`.
+- IntegrationContainer 837. KEEP: naming `create/page.tsx:6971` and KPI `create/page.tsx:1276`.
+
+Not container Excel row mappers, left alone:
+
+- `formatBuyTypeForExport` (`lib/mediaplan/buyTypeLabels.ts:64`). KEEP: `lib/generateMediaPlan.ts:273`.
+- `monthsForExport` on create (5001) and edit (5069). KEEP: billing schedule blob at create 5034 and edit 5103.
+- `onTelevisionLineItemsChange` and `onMediaLineItemsChange` pass form rows, not Excel rows.
+
+DELETE: none.
+
+- Files changed: none in the product. This log only.
+- Tests: not run. No product file changed.
+- Under 90%: KPI prefers the media rows and only falls back to the export rows when the media array is empty (`lineItemsForFanOut.ts:23`). Naming and the Advertising Associates check read the export arrays directly. That is enough to keep them.
+- Morning smoke: Create and edit pages load. Every container renders and saves. "Naming conventions" still downloads. The draft media plan still downloads. Not exercised in the browser here.
+
+## AV-00 PARKED no commit
+
+Night 2 stopped at the pre-flight. Branch is localhost. The required log entries are present: AV-F4, AV-F5, AV-F6a, AV-F6b, AV-M10a, AV-M10b, AV-M10c, AV-M10d, AV-M10e, AV-M10f and AV-X4 are all DONE.
+
+Git status shows modified tracked files other than this log. Untracked discovery files were ignored. The working tree was left as it is. No baseline was run. No Night 2 header was written. Tonight's prompts were not started.
+
+Modified tracked files:
+
+- app/globals.css
+- app/scopes-of-work/[id]/edit/page.tsx
+- app/scopes-of-work/create/page.tsx
+- components/charts/system/domain-charts.tsx
+- components/creative/CreativeAdminLanding.tsx
+- components/dashboard/campaign/__tests__/__snapshots__/SpendChartsRow.test.tsx.snap
+- components/dashboard/delivery/channels/__tests__/channelMediaTypeColour.test.ts
+- components/ingest/ParseReviewScreen.tsx
+- components/mediaplans/PlanWizardShell.tsx
+- components/ui/ProgressBar.tsx
+- components/ui/alert-dialog.tsx
+- components/ui/badge.tsx
+- components/ui/chart.tsx
+- components/ui/command.tsx
+- components/ui/dialog.tsx
+- components/ui/dropdown-menu.tsx
+- components/ui/popover.tsx
+- components/ui/select.tsx
+- components/ui/sheet.tsx
+- components/ui/toast.tsx
+- components/ui/tooltip.tsx
+- docs/brain/BLAST-RADIUS.md
+- docs/brain/INVARIANTS.md
+- docs/brain/KNOWN-ISSUES.md
+- docs/client-dashboard/README.md
+- lib/brand/__tests__/parity.test.ts
+- lib/chart-theme.ts
+- lib/finance/accrualExcel.ts
+- lib/finance/excelFinanceExport.ts
+- lib/finance/forecast/exportFinanceForecast.ts
+- lib/finance/forecast/exportTargetVsActual.ts
+- lib/generateBillingSchedulePDF.ts
+- lib/generateMBA.ts
+- lib/generateScopeOfWork.ts
+- lib/naming/bestPractice.ts
+- lib/naming/exportNamingWorkbook.ts
+- lib/naming/exportTraffickingWorkbook.ts
+- lib/nav/routeManifest.ts
+- lib/ops/digest/email.ts
+- lib/ops/health/email.ts
+- lib/pacing/status.ts
+- lib/pdf/brandPdf.ts
+- lib/specs/buildMiWorkbook.ts
+- lib/utils.ts
+- package.json
+- scripts/brand/render-sample-exports.ts
+- styles/chart-tokens.css
+- tailwind.config.cjs
+
+- Files changed by this prompt: this log only.
+- Tests: not run.
+- Under 90%: none. The dirty files match the uncommitted design-system follow-up that was left in the tree.
+- Morning smoke: none. The night did not start.
+
+## AV-I1 DONE a45ad177
+
+No equivalent panel. The exceptions queue assigns a client on a billing row and learns a link as a side effect. It does not list unlinked contacts.
+
+`/finance/xero` now has an Unlinked contacts section above the exceptions queue. GET and POST use `requireFinanceAdmin`. POST checks the client exists and writes one `xero_contact_links` row through `upsertXeroContactLink` with `learned_from` `manual_link`. Suggestions are not saved until Link. The row is removed optimistically and restored with a toast if the write fails.
+
+- Files: lib/xero/contactLinks.ts, lib/xero/normalizeContact.ts, lib/xero/unlinkedContacts.ts, lib/xero/__tests__/unlinkedContacts.test.ts, app/api/finance/xero/contact-links/route.ts, app/api/finance/xero/contact-links/unlinked/route.ts, app/api/finance/xero/contact-links/__tests__/route.test.ts, components/finance/sections/xero/XeroUnlinkedContacts.tsx, components/finance/sections/xero/XeroPageClient.tsx, docs/brain/modules/finance-billing.md, docs/brain/BLAST-RADIUS.md (the panel sentence only; the design-system lines in that file stayed unstaged).
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), test:finance-sections pass (231 + 5 + 28 vitest), unlinkedContacts tests pass, contactLinks `applyContactLinkUpsert` pass, route tests pass (non-admin 403, one insert with `manual_link`). The contactLinks postgres case was not run. `DATABASE_URL` is the Sydney Supabase pooler, and that case writes a row.
+- Under 90%: `fuzzy` is the resolver's unique normalised-name match (suffix strip), not a distance score. `mba` is the existing master-client prefix check (`mbaNumberMatchesClientIdentifier`), used only when the name and alias steps do not resolve. The hidden-invoice count also includes FY26 invoices with no contact id. The list does not filter invoice status.
+- Morning smoke: `/finance/xero` as admin: about 34 unlinked contacts with suggestions. Link one. It disappears and the coverage goes up. As a non-admin the API returns 403. Not exercised in the browser here.
+
+## AV-I2 DONE da3756bf
+
+Client-role invoice PDF access now goes through `resolveInvoiceClient` in strict mode (contact link, alias, or MBA). A unique name match is never enough for a client download. Admins still skip resolution and stream the blob. Unresolved stays 403. Owed and draft-match still call `resolveClientFromContact` and were left as they are: they do not run the MBA step.
+
+`best_effort` keeps the existing order: stored link, unique normalised name, alias, then MBA. An ambiguous name still skips the alias and can still take the MBA. The prompt's why-clause listed alias before the name match; the code did not, so the order was not rearranged.
+
+- Files: lib/finance/invoices/resolveInvoiceClient.ts, lib/finance/invoices/invoicePdf.ts, lib/finance/invoices/__tests__/invoicePdf.test.ts, docs/brain/INVARIANTS.md, docs/brain/modules/finance-billing.md, docs/brain/BLAST-RADIUS.md (the invoice-PDF sentence only; the design-system lines in INVARIANTS and BLAST-RADIUS stayed unstaged).
+- Tests: typecheck 0, lint 0 (same warning set), test:finance-sections pass (236 + 5 + 28 vitest). The invoice PDF suite is inside that script (21 tests, including the new resolver cases).
+- Under 90%: if two `media_plan_masters` rows share an MBA number and both pass the prefix check, the resolver returns null. The old SQL used LIMIT 1. I did not check live data for that collision.
+- Morning smoke: As admin, download any invoice PDF from Owed: still works. Not exercised in the browser here.
+
+## AV-I3 DONE 75d8d20e
+
+`GET /api/dashboard/[slug]/invoices` lists FY26 `AUTHORISED` and `PAID` Xero invoices for that client. Resolution is `resolveInvoiceClients` in strict mode, so a name-only match is absent. Admins may read any slug. A client must pass the dashboard slug gate and `assertClientAccess`. `CLIENT_INVOICES_ENABLED` defaults off: a client-role caller gets 404 while it is off, and an admin still gets the list. `totalCents` is the Xero total, GST inclusive (`totalBasis: "inc_gst"`). Overdue is authorised, amount due above zero, and due before today's Sydney civil date. Due today is not overdue.
+
+- Files: app/api/dashboard/[slug]/invoices/route.ts, lib/finance/invoices/clientInvoices.ts, lib/finance/invoices/__tests__/clientInvoices.test.ts, lib/api/__tests__/dashboardSlug.invoices.route.test.ts, docs/brain/API-DYNAMIC-ROUTE-GATES.md, docs/brain/api-tenant-classification.md, docs/brain/modules/dashboards-charts-exports.md, docs/brain/modules/finance-billing.md, docs/brain/INVARIANTS.md, docs/brain/BLAST-RADIUS.md (the new invoices row only; the design-system lines stayed unstaged).
+- Tests: typecheck 0, lint 0 (same warning set), test:finance-sections pass (236 + 5 + 28 vitest), test:tenant-isolation pass (54, including the route-guard harness). clientInvoices tests pass (4). dashboardSlug.invoices route tests pass (4). Those two files are not in a package.json script; package.json was left untouched.
+- Under 90%: an `AUTHORISED` invoice with amount due of zero is labelled `due`, not `paid`. Only status `PAID` is `paid`. A full regenerate of the tenant classification counted 258 route files because untracked routes are on disk, so that output was not committed. The table row was inserted by hand and the previous recount was increased by one.
+- Morning smoke: As admin, GET /api/dashboard/<slug>/invoices for a linked client returns rows. As a client user (flag off): 404. Not exercised in the browser here.
+
+## AV-I4 DONE 88574499
+
+`/dashboard/[slug]` renders an Invoices section below the campaign list. The title is "Invoices." Amounts are the API cents converted to dollars, and the summary says they include GST once. The PDF control is `InvoiceDocumentButton`, so a row with no PDF renders nothing. Ten rows, then Show all. Empty is "No invoices yet." A failed load uses the error card and does not show $0.00. A 404 hides the section. Admins are not 404'd by the flag, so the section stays for them. The admin finance slide-over outstanding block is that same payload, outstanding rows only.
+
+- Files: components/dashboard/ClientInvoicesSection.tsx, components/dashboard/__tests__/ClientInvoicesSection.test.tsx, components/dashboard/ClientDashboardPageContent.tsx, lib/design/status.ts, lib/design/__tests__/status.test.ts, vitest.config.ts, docs/brain/modules/dashboards-charts-exports.md, docs/brain/INVARIANTS.md (the client invoice list sentence only; the design-system shadow line stayed unstaged).
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), test:status pass (4), test:finance-sections pass (236 + 5 + 28 vitest), test:client-dashboard-range pass (25 + 3 + 22 vitest). ClientInvoicesSection render tests pass (5). There is no `test:client-dashboard` script. The new file was added to the vitest include list. package.json was left untouched.
+- Under 90%: I did not find a written DS decision D2. Invoice overdue uses `critical`, the same tone as billing overdue. The finance slide-over still mounts only when `campaignLinkMode` is `adminHub` (`/client/[slug]`). `/dashboard/[slug]` does not open that slide-over. The section itself is on the shared page, so it shows on `/dashboard/[slug]`.
+- Morning smoke: Admin on /dashboard/<linked client>: Invoices section with PDFs downloading. Slide-over shows outstanding. Light and dark. Not exercised in the browser here. The slide-over is on the admin client hub, not the tenant dashboard.
+
+## AV-I5 DONE 8cd6d64a
+
+The client dashboard shows one factual overdue line when the invoices payload has `overdueCount` above zero. There is no dollar threshold and no dismiss control. A 404 hides it with the invoices section. The amount is `overdueCents` converted to dollars. One overdue invoice uses its number and the civil due date (`1 September 2026` for `2026-09-01`). Several use the count and the total. "View invoices" scrolls to the invoices section. `ACCOUNTS_CONTACT_EMAIL` is read on the server and passed in. The thank-you sentence is omitted when that value is unset or blank.
+
+- Files: components/dashboard/ClientOverdueNotice.tsx, components/dashboard/__tests__/ClientOverdueNotice.test.tsx, components/dashboard/ClientInvoicesSection.tsx, components/dashboard/ClientDashboardPageContent.tsx, app/dashboard/[slug]/page.tsx, app/client/[slug]/page.tsx, vitest.config.ts, docs/brain/modules/dashboards-charts-exports.md, docs/brain/INVARIANTS.md (the Owed reminder sentence only; the design-system shadow line stayed unstaged).
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), test:status pass (4), test:finance-sections pass (236 + 5 + 28 vitest), test:client-dashboard-range pass (25 + 3 + 22 vitest). ClientOverdueNotice render tests pass (4). ClientInvoicesSection render tests still pass (5). There is no `test:client-dashboard` script. package.json was left untouched.
+- Under 90%: a single overdue invoice with a blank number says "An invoice" rather than inventing a number. The summary has no invoice number, so the number and due date come from the one overdue row in the same response.
+- Morning smoke: Admin on a client with an overdue invoice (16 are overdue in FY26 data): the banner shows with correct copy. Not exercised in the browser here.
+
+## AV-I6 DONE 55ec0a1c
+
+`GET /api/cron/overdue-digest` emails ops a weekday list of overdue FY26 invoices. `OVERDUE_DIGEST_ENABLED` must be exactly `true`. Saturday and Sunday in Sydney are skipped. A row in `overdue_digest_sends` for today's Sydney date returns `already_sent` and does not send. Nothing overdue sends nothing and writes no row. The email uses the ops digest shell and `EMAIL_FONT_STACK`. Subject is `Overdue invoices: {n} totalling {amount}`. Clients resolve with `best_effort`. Unresolved contacts sit under "No client link" with the Xero contact name and a link to `/finance/xero`. Ageing matches owed: day 60 is 31-60, day 61 is 60+. Totals are Xero amount due, GST inclusive. The row is inserted after the email succeeds. A failed insert is logged and the route still returns 200.
+
+Migration `0093_overdue_digest_sends.sql` is authored only. Do not apply `db/drizzle/0010_gifted_ben_parker.sql`. That snapshot catch-up also creates `finance_clearance_sends` and adds three billing columns that were already in `db/schema` but missing from snapshot 0009. Apply `0093` in the SQL editor. RLS is on with no policies.
+
+Vercel cron is `30 1 * * 1-5` (01:30 UTC, after the Xero sync).
+
+- Files: db/migrations/0093_overdue_digest_sends.sql, db/schema/overdueDigestSends.ts, db/schema/index.ts, db/drizzle/0010_gifted_ben_parker.sql, db/drizzle/meta/0010_snapshot.json, db/drizzle/meta/_journal.json, lib/finance/overdueDigest.ts, lib/finance/__tests__/overdueDigest.test.ts, app/api/cron/overdue-digest/route.ts, vercel.json, docs/brain/DATA-MODEL.md, db/README.md, docs/brain/modules/finance-billing.md, docs/brain/INVARIANTS.md (the digest sentence only; the design-system shadow line stayed unstaged).
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), test:finance-sections pass (236 + 5 + 28 vitest), check:drizzle-snapshot pass, overdueDigest tests pass (7). The new test is not in a package.json script. package.json was left untouched.
+- Under 90%: if `OPS_EMAIL_TO` is unset, `getOpsEmailRecipients()` still returns its existing default address. The link uses `APP_BASE_URL` when that is set, otherwise the path `/finance/xero`.
+- Morning smoke: After `0093` is applied and `OVERDUE_DIGEST_ENABLED=true`: trigger the cron with the secret on a preview; one email; a second call says `already_sent`. Not exercised here. The cron was not run and no email was sent.
+
+## AV-A1 DONE 9e70ccd8
+
+`assembled-insight-commentary` is 1.2.0. The four-rung ladder is gone. Each finding is Insight, then Action, then Outcome, in that order, with those labels. The output is a one-sentence Summary, then 2 to 4 of those items. What, how, why and what next stay a thinking checklist. AV rules kept: priors from `get_campaign_insights`, numbers from the page, no invented dollars, ask below 90% confidence, three anchors, three rings, Australian English, no em dashes. `VERSION.json` sets this skill to 1.2.0 and adds `editedInRepo`. The worked example was rewritten to the same shape so it no longer demonstrates the old headings. Injection budget still passes. The new section was not shortened.
+
+Sibling skills still describe the old ladder (`assembled-audience-insight`, `assembled-performance-review-report`, `assembled-presentations`). They were left as they are.
+
+- Files: lib/ava/skills/content/assembled-insight-commentary/SKILL.md, lib/ava/skills/content/assembled-insight-commentary/references/example-output.md, lib/ava/skills/content/VERSION.json.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), test:ava-skills pass (11), test:campaign-read pass (31 + 8 vitest).
+- Under 90%: none.
+- Morning smoke: In AVA on a campaign page, press "Write commentary". The reply should have a summary, then labelled Insight, Action and Outcome items. Not exercised here.
+
+## AV-A2 DONE 9130d5d1
+
+`assembled-performance-review-report` is 1.1.0. Commentary is a Summary plus 2 to 4 Insight, Action and Outcome items, following commentary 1.2.0. The separate insights-and-recommendations stage is gone. Recommendations are the Actions, and each Action says in-flight (this campaign) or next period. Chat still shows the narrative and builds the deck only after an explicit yes. When the app builds the report without chat, the same structure is returned as JSON. The model supplies text only. The deck is the v5 template applied by the app. Tool field names are unchanged: `execSummary`, `keyInsight`, `insights`, `recsInFlight`, `recsNextPeriod`.
+
+`assembled-presentations` is 1.3.0. Sand grounds, ink text, sky for Insight, forest for Action, lime for Outcome. Never teal, steel blue, purple, emerald, gradients or drop shadows. Slide title is the Insight as a sentence ending in a full stop. Body is the evidence. Kicker is the Action. Hero numbers carry the Outcome. Outline-only mode inside Assembled View is kept. The skill tells the model never to load `assets/assembled-template.pptx`.
+
+`assembled-campaign-read` is 1.4.0. Still six beats. Coming up is an Action with an owner and an Outcome. The reject rules for KPIs and for promising a follow-up are unchanged. `skillGuidance.ts` names Insight, Action and Outcome for commentary and reports, and still says "four questions" and "outline-only".
+
+- Files: lib/ava/skills/content/assembled-performance-review-report/SKILL.md, lib/ava/skills/content/assembled-presentations/SKILL.md, lib/ava/skills/content/assembled-campaign-read/SKILL.md, lib/ava/skills/skillGuidance.ts, lib/ava/skills/content/VERSION.json.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), test:ava-skills pass (11), test:campaign-read pass (31 + 8 vitest), test:performance-report-insights pass (13).
+- Under 90%: the file's commentary stage was Stage 2 and the insights stage was Stage 3. The prompt called those Stage 3 and Stage 4. I merged the insights stage into commentary and left the report as Stage 4. Deck narrative fields still may not contain a free-text dollar amount, so an Outcome that is money is named without a `$` in those fields. The presentations python block still lists old slide numbers for use outside Assembled View. `slide-catalogue.md` and `buildCampaignReportDeck.ts` still name `assembled-template.pptx`. They were outside this prompt. `assembled-audience-insight` still describes the old ladder.
+- Morning smoke: AVA "Review & Report" style request in chat: commentary in Insight, Action and Outcome; no mention of old colours. Not exercised here.
+
+## AV-A3 DONE 7ac409f1
+
+Every chat now has one voice rule: a finding or a recommendation is Insight, Action, Outcome. The so-what carries its number, the next step names an owner, and the effect is a number or a measurement plan. The labels are inline bold words, so they do not break the no-headers rule. The 150-word default holds at most two of those items. If more belong, AVA says "Ask for more" and stops. A loaded skill that sets its own length, such as a performance review, follows that skill. Decision AV-D3 is on `docs/brain/AVA-VOICE.md`.
+
+- Files: src/ava/voiceSpec.ts, lib/ava/buildAvaSystemPrompt.ts, docs/brain/AVA-VOICE.md.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), test:ava-skills pass (11), loadIngestIntoForm.test.ts pass (16), including the create/edit system prompt assertions. No snapshot of the system prompt exists, so none was updated.
+- Under 90%: none on the rule itself. The two-item cap is scoped to the default 150-word reply so it does not override the performance-review skill, which already allows 2 to 4 items and about 500 words.
+- Morning smoke: Ask AVA "how is this campaign going?" on a campaign page: the answer uses the three labels. Not exercised here.
+
+## AV-A4 DONE fa62e7c2
+
+`campaign_insights` gains nullable `action`, `action_owner`, `outcome` and `outcome_kind`. `insight_type` stays the category. `outcome_kind` is null, `achieved`, or `expected`. Old rows stay valid. Reads return the four fields (null when unset): the library query, the write path's returning select, and `get_campaign_insights` / `get_client_insights`. Inserts still omit them. Writers that store the values are AV-A5.
+
+Pre-push: apply `0094_campaign_insights_action_outcome.sql` in the SQL editor before this code is deployed. Reads that select the new columns will fail until then. Do not apply `db/drizzle/0011_acoustic_shinko_yamashiro.sql`. That file is the snapshot bookkeeping only.
+
+- Files: db/migrations/0094_campaign_insights_action_outcome.sql, db/schema/insights.ts, db/drizzle/0011_acoustic_shinko_yamashiro.sql, db/drizzle/meta/0011_snapshot.json, db/drizzle/meta/_journal.json, docs/brain/DATA-MODEL.md, db/README.md, lib/insights/queryCampaignInsights.ts, lib/insights/writeCampaignInsights.ts, lib/ava/tools/getCampaignInsights.ts, lib/insights/__tests__/insightsLibrary.ui.test.ts.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), check:drizzle-snapshot pass, test:insights-library pass (31, 1 skipped), test:performance-report-insights pass (13), test:ava-skills pass (11).
+- Under 90%: the live EXPLAIN test skipped because the database host was unreachable (ENOTFOUND). That skip is the test's own unreachable-database path, not a new failure. The write module now selects the new columns on return so the shared row type stays honest. It does not write them.
+- Morning smoke: After the migration is applied: /insights loads. Not exercised here. The migration was not applied.
+
+## AV-A5 DONE 7bcc686f
+
+Insight cards on /insights and the dashboard recent-insights panel show an Insight tag on the body. When the row has an action, an Action tag, the action text, and "Owner: {name}" when an owner is stored. When the row has an outcome, an Outcome tag, the outcome text, and a small Achieved or Expected label. Tags use StatusPill tones insight, action and outcome. Rows with no action and no outcome keep the existing type and source badges and the body, plus the Insight tag only.
+
+The performance-report writer stores action, action_owner, outcome and outcome_kind when the narrative carries a `findings` array, in the same order as keyInsight, the three insights, recsInFlight and recsNextPeriod. Camel case and snake case are both read. A kind that is not achieved or expected is stored as null so the check does not drop the row. Payloads without findings still write nulls. priorInsightGuard and the invented-money check stay on the report tool, unchanged.
+
+The human create and edit path still does not send these fields. A body-only edit does not clear them.
+
+- Files: components/insights/InsightFinding.tsx, app/insights/InsightsPageClient.tsx, components/insights/InsightListRow.tsx, components/insights/RecentInsightsPanel.tsx, lib/reports/persistPerformanceReportInsights.ts, lib/reports/__tests__/persistPerformanceReportInsights.test.ts, lib/insights/__tests__/insightsLibrary.ui.test.ts.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), test:insights-library pass (34, 1 skipped ENOTFOUND on the live EXPLAIN), test:performance-report-insights pass (14), test:status pass (4).
+- Under 90%: AV-A8 and AV-A9 were not in this prompt, so the optional `findings` array is the shape they need to pass. The human Quick Add form was left as a body-only writer.
+- Morning smoke: /insights in light and dark: tags in sky, forest and lime; old insights unchanged. Not exercised here. Apply 0094 before this is deployed. The migration was not applied.
+
+## AV-A6 DONE d8ac482f
+
+The v5 deck is in the repo at `lib/reports/assets/v5/am-template-deck-16x9.pptx`. It is not fetched at runtime. First bytes are PK (zip). Size 7171584 bytes. SHA-256 9AC7E8A3936C589FAF966A2E83DA25D9A845DD606EFE9F8E47C52C434E2B2C23.
+
+`scripts/reports/describe-pptx-layouts.ts` lists each slide layout and the slide master (name, index, placeholder type, idx, name, position and size in EMU) plus theme fonts and colours. Output is `lib/reports/assets/v5/LAYOUTS.md`. One master, 20 layouts, 70 placeholders. Every `p:ph` tag was listed.
+
+Theme `ppt/theme/theme1.xml` is named Assembled Media 05b and is the one the presentation and slide master use. Sand, ink, forest, lime and sky match tokens.json. The other scheme colours are also tokens: white, forestLight, context, panel. The major font is Plus Jakarta Sans ExtraBold, not Plus Jakarta Sans. The minor font is Plus Jakarta Sans. Instrument Serif is not a theme font. That name does appear in 25 XML parts. `ppt/theme/theme2.xml` is the Office notes theme (Aptos), not the slide master.
+
+`outputFileTracingIncludes` now traces `./lib/reports/assets/v5/**` for `/api/chat-v2` (skills were already traced), and both the v5 assets and `./lib/ava/skills/content/**` for `/api/campaigns/export-report`, `/api/cron/reports-worker` and `/api/admin/reports/runs/[id]/generate`. The old templates were left in place.
+
+- Files: lib/reports/assets/v5/am-template-deck-16x9.pptx, lib/reports/assets/v5/LAYOUTS.md, scripts/reports/describe-pptx-layouts.ts, next.config.mjs.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files). No test script was named.
+- Under 90%: none on the file or the map. The theme font difference is recorded in LAYOUTS.md, not guessed.
+- Morning smoke: Open lib/reports/assets/v5/am-template-deck-16x9.pptx in PowerPoint: it's the v5 deck. Not exercised here.
+
+## AV-A7 DONE 221b2760
+
+The campaign report deck is built on `lib/reports/assets/v5/am-template-deck-16x9.pptx` through pptx-automizer. Each slide is chosen by layout name (Cover - Sand, Title and Text, Two Column, Statement - Sky, Thank You - Black). The slide number is read from the template at build time. Colours and the sans font come from `lib/brand`. There is no literal hex. Chart bars are pill-ended shapes in forest (delivered) and context grey (previous and planned), with a value label and no gridlines. A family-colour dot marks the channel. Every chart slide has a sand insight card tagged Insight, and the sentence is the data headline (for example "Search delivered 34% of spend."). Commentary is `ReportCommentary | null`. The assembler returns null, and the slide says "Commentary not generated for this period." The PLACEHOLDER strings are gone. Titles are sentence case and end in a full stop. Client and campaign names stay as entered.
+
+`scripts/reports/render-sample-campaign-report.ts` wrote `tmp/overnight-reports/campaign-report-PENFOLD013-this-month-20261008.pptx` (7,241,299 bytes, nine slides). tmp is not staged. The fixture script no longer builds a deck when it is imported.
+
+Follow-up: `buildPlannerDeck` still uses `assembled-template.pptx`. It was not touched. `docs/brain/modules/dashboards-charts-exports.md` still describes the old template and the PLACEHOLDER. It was outside this prompt.
+
+- Files: lib/reports/campaignReport/buildCampaignReportDeck.ts, lib/reports/campaignReport/assembleCampaignReportData.ts, scripts/smoke-campaign-report-fixture.ts, scripts/reports/render-sample-campaign-report.ts.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), campaign report tests pass (24: filename, periods, buildPerformanceReport, parseReportExportPath, performanceReportHardNumbers, persistPerformanceReportInsights), test:charts-registry pass (6 + 2 vitest), test:brand pass (80).
+- Under 90%: bars are shapes, because a native chart bar cannot pill its ends. The family colour is a dot, not the bar, because the series are spend measures and the highlight stays forest. Cover, Statement - Sky and Thank You still carry the template's arches and images under the new text. That was not opened in PowerPoint. The published campaign read is no longer pasted onto this slide.
+- Morning smoke: Open tmp/overnight-reports/*.pptx, then press Review & Report on a live campaign (admin): the v5 look, brand colours, insight cards, and the commentary slide shows the not-generated line. The file was rendered here. PowerPoint and the live button were not exercised.
+
+## AV-A8 DONE 9de9916f
+
+Review & Report now asks AVA for Insight, Action and Outcome commentary and puts it on the v5 commentary slide. `generateReportCommentary` loads `assembled-insight-commentary` 1.2.0 the way `load_skill` does, plus the report skill's commentary stage. The model sees the assembled report, the published campaign read when one exists, and live priors. It must return JSON. Zod checks 2 to 4 items and the character caps. A dollar or percent figure is rejected unless that number is already in the input. An unattributed prior restatement is rejected. One retry, then null. A 60 second timeout returns null. The deck still downloads.
+
+The export route `maxDuration` is 300 because two model attempts plus the delivery snapshots can exceed 120 seconds. The route logs assembled time and deck time. After the deck is built, the items are saved with `persistPerformanceReportInsights`, source `ava`, and the action, owner and outcome columns. The origin is `origin:review-report` on the existing `confidence` field. The period is the window's start month (`YYYY-MM`). A second export for the same MBA and period skips bodies that are already stored. Persist did not dedupe before this.
+
+- Files: lib/reports/campaignReport/generateReportCommentary.ts, lib/reports/campaignReport/__tests__/generateReportCommentary.test.ts, lib/reports/campaignReport/assembleCampaignReportData.ts, lib/reports/performanceReportHardNumbers.ts, lib/reports/__tests__/performanceReportHardNumbers.test.ts, lib/reports/persistPerformanceReportInsights.ts, lib/reports/__tests__/persistPerformanceReportInsights.test.ts, app/api/campaigns/export-report/route.ts.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), generateReportCommentary pass (4), test:performance-report-insights pass (17), campaign report filename/periods/buildPerformanceReport/parseReportExportPath pass (10), test:insights-library pass (34, 1 skipped ENOTFOUND on the live EXPLAIN), test:campaign-read pass (31 + 8 vitest), test:ava-skills pass (11).
+- Under 90%: the report skill has no Stage 3 heading. AV-A2 folded that stage into Stage 2 commentary, and that is the section loaded. Priors use `listRecentLiveInsightsForMba` on the app database (live rows, limit 15). `get_campaign_insights` reads the same table through the read-only AVA client. A share the model calculates, such as 54% of spend, is rejected unless that number is already in the input text. `docs/brain/modules/dashboards-charts-exports.md` still describes the old template and the PLACEHOLDER. It was outside this prompt.
+- Morning smoke: Review & Report on two live campaigns: the commentary slide has 2 to 4 items, every number traceable to the data slides; /insights shows the new items with tags. Not exercised here. No email was sent and no cron was run.
+
+## AV-A9 PARKED
+
+The token template was not deleted and the tool was not switched. The old deck shows figures the campaign report does not.
+
+Old deck fields the campaign report does not show:
+
+- CPM, always, from delivery totals. The campaign report has no CPM line.
+- CPC, always, from delivery totals. The campaign report has no CPC line.
+- CTR from the delivery snapshot, always. The campaign report shows CTR only when a stored campaign KPI target exists, as target versus actual. The metrics it can show are ctr, cpv, conversion rate, vtr and frequency.
+- 3-second video views, when the snapshot has any. The campaign report does not show them.
+- A spend-pace percent box. The period summary shows delivered, planned and expected to date, and time elapsed, but not that pace percent.
+- Four channel commentary sentences, four next steps (when and what), and the fixed insight and recommendation lines. Those are narrative shapes the commentary items replace. They are not missing measurements.
+
+CPM, CPC and snapshot CTR are the material gap. No files were changed. No patch. No commit.
+
+- Morning smoke: In AVA on a campaign: ask for a performance review, approve, download: the same v5 deck as Review & Report. Not exercised. Blocked on the KPI gap above.
+
+## AV-R1 DONE fe9ae287
+
+Authored `0095_report_runs.sql` only. It was not applied. `clients.id` is bigint, so `report_runs.client_id` is a nullable bigint foreign key to `clients.id`. `report_runs` is unique on `(kind, mba_number, period_start)` and indexed on `(kind, period_start, status)`. `report_digest_sends` has primary key `(kind, period_start)`. Both tables have RLS enabled and no policies. The Drizzle mirror is `db/schema/reportRuns.ts`, exported from the schema index. Constraint names match the names Postgres will give the authored SQL (`report_runs_client_id_fkey`, `report_digest_sends_pkey`). Do not apply `db/drizzle/0012_wild_firelord.sql`. That file is the snapshot bookkeeping only.
+
+- Files: db/migrations/0095_report_runs.sql, db/schema/reportRuns.ts, db/schema/index.ts, db/drizzle/0012_wild_firelord.sql, db/drizzle/meta/0012_snapshot.json, db/drizzle/meta/_journal.json, docs/brain/DATA-MODEL.md, db/README.md.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), check:drizzle-snapshot pass. No test file was named or touched.
+- Under 90%: none. RLS is in the SQL and not in the Drizzle snapshot, which is the same as the other server tables.
+- Morning smoke: None until applied. The migration was not applied.
+
+## AV-R2 DONE 92e61793
+
+`generateCampaignReportForMba` resolves the published version from `media_plan_masters.published_version_id` (and requires `published_at`), then the client name, campaign name, flight dates and search flag. It assembles the deck from those values. Commentary runs only when `withCommentary` is true, and only after the skip check. A period whose lines are all `no_source` or `no_rows_yet`, or that has no lines, returns `skipped` and does not build a deck. `store: true` writes through `storePerformanceReport` under `exports/reports/{mba}/`. The clean download name is `{client}-{campaign}-report-{yyyy-mm}.pptx`.
+
+The export route still requires admin and the rate limit. The body is `mbaNumber` and `period`. Client name, campaign name, version, dates and `mpSearchEnabled` are ignored, with a deprecation log when they are sent. `periodKind` is still read when `period` is absent, and that send is logged too. The route streams the buffer (`store: false`). Review & Report now posts `period` only.
+
+- Files: lib/reports/campaignReport/generateCampaignReportForMba.ts, lib/reports/campaignReport/__tests__/generateCampaignReportForMba.test.ts, lib/reports/campaignReport/assembleCampaignReportData.ts, app/api/campaigns/export-report/route.ts, app/api/campaigns/export-report/__tests__/export-report.route.test.ts, components/dashboard/campaign/CampaignReportPeriodDialog.tsx.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), campaign report tests pass (19, including the new generator tests and commentary, periods, filename, parseReportExportPath, buildPerformanceReport), export route test pass (1), test:campaign-documents pass (41 + 14 + 20).
+- Under 90%: search is on only when the published version channel flag `search` or `mp_search` is set. A missing flag is off, matching the campaign page. The old export treated a missing body flag as on, because the dialog never sent it. `docs/brain/modules/dashboards-charts-exports.md` still describes the old template and the old request body. It was outside this prompt.
+- Morning smoke: Review & Report still downloads the same deck. Not exercised here.
+
+## AV-R3 DONE 73f47fd9
+
+`sendHtmlEmail` accepts optional `attachments` (`filename`, `contentType`, `contentBase64`) and `replyTo`. Attachments are mapped to SendGrid's `content`, `filename`, `type` and `disposition: attachment`. The 3 MB cap is the decoded byte total. One byte over throws `Email attachments total N bytes, over the 3 MB limit.` and SendGrid is not called. Callers that omit the new fields send the same payload as before. No email was sent.
+
+- Files: lib/email/sendHtmlEmail.ts, lib/email/__tests__/sendHtmlEmail.test.ts.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), sendHtmlEmail tests pass (3). package.json has no digest script. The email match is `test:codex-auth0-roster`, which passed (34).
+- Under 90%: none. The cap counts decoded bytes, so a 3 MB file is allowed and 3 MB plus one byte is refused.
+- Morning smoke: None.
+
+## AV-R4 DONE d2cadb08
+
+`GET /api/cron/reports-enqueue` checks the cron secret first (401), then `AUTO_REPORTS_ENABLED` (200 `{ skipped: "disabled" }` unless the value is exactly `true`), then the Sydney civil day. It queues only on the 4th and 5th. The period is the previous Sydney calendar month. Selection is `selectMonthlyReportMbas`: published version (`published_version_id` and `published_at`), commercial status through `resolveFinanceCampaignStatus` and `isApprovedOrBeyond`, campaign dates overlapping the period. Cancelled is excluded. Inserts are `status: queued` with `on conflict do nothing` on `(kind, mba_number, period_start)`. The Vercel schedule is `5 20 3,4 * *`. 20:05 UTC on the 3rd is 07:05 AEDT on the 4th (06:05 AEST). 20:05 UTC on the 4th is the 5th in Sydney, the retry. The cron was not run. 0095 was not applied.
+
+- Files: app/api/cron/reports-enqueue/route.ts, lib/reports/selectMonthlyReportMbas.ts, lib/reports/__tests__/selectMonthlyReportMbas.test.ts, vercel.json, docs/brain/DATA-MODEL.md, docs/brain/modules/shared-core.md, docs/brain/api-tenant-classification.md, docs/brain/tenant-isolation-audit.md.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), selectMonthlyReportMbas tests pass (3).
+- Under 90%: a non-blank master `campaign_status` wins, so a booked published version whose master is still planned is excluded. Stored `completed` is included because `isApprovedOrBeyond` treats it as beyond. An MBA with no start or end date is excluded. Version dates are used, and a blank side falls back to the master. Sydney today is `getMelbourneTodayISO` (same civil calendar). `MAP.md` still says 17 crons. That count was already short of `vercel.json`, so it was left alone.
+- Morning smoke: None until the flag is set. Do not run the cron until 0095 is applied.
+
+## AV-R5 DONE b63eea91
+
+`GET /api/cron/reports-worker` checks the cron secret, then `AUTO_REPORTS_ENABLED`, then the Sydney 4th or 5th. `maxDuration` is 300 and the region is syd1. Each run resets rows stuck in `generating` for more than 30 minutes (back to queued under 3 attempts, otherwise failed with `timed out 3 times`), then claims one row at a time with `for update skip locked`, up to `REPORTS_WORKER_BATCH` (default 3). A claim only starts when more than 60 seconds of the 240 second budget remains. Each claimed row calls `generateCampaignReportForMba` with `store: true` and `withCommentary: true`, using the row's period as a custom range. Success writes `generated` with the blob path, file name and commentary flag. A skip writes `skip_reason`. A throw writes `failed` with the error trimmed to 500 characters. One log line records claimed, generated, skipped, failed and duration. The Vercel schedule is `20 * 3-5 * *`. The cron was not run. 0095 was not applied.
+
+- Files: app/api/cron/reports-worker/route.ts, lib/reports/runReportsWorker.ts, lib/reports/reportsWorkerStore.ts, lib/reports/__tests__/runReportsWorker.test.ts, vercel.json, docs/brain/DATA-MODEL.md, docs/brain/modules/shared-core.md, docs/brain/api-tenant-classification.md, docs/brain/tenant-isolation-audit.md.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), runReportsWorker tests pass (4), check:client-server-only pass.
+- Under 90%: the deck period is the row's `period_start` and `period_end` passed as `custom`, so the slide label says custom range. A generated result with no blob path is marked failed. Requeue clears `error` and `finished_at`.
+- Morning smoke: None until the flag is set. Do not run the cron until 0095 is applied.
+
+## AV-R6 DONE de83957c
+
+At the end of each reports-worker run, one internal email goes out for the previous Sydney month when that period already has `report_runs` rows, nothing for the period is queued or generating (or it is 16:00 or later on the Sydney 5th), and `report_digest_sends` has no row for `(monthly_campaign, period_start)`. Zero rows never send. A second run sees the digest row and does not send again. Recipients are `REPORTS_EMAIL_TO` when set, otherwise `getOpsEmailRecipients()`. The mail goes through `sendHtmlEmail` with no attachments. Subject is `Monthly campaign reports: {Month yyyy}`. The body uses the ink-band email shell, then counts, then one table per client (campaign, MBA, status, and a Download link to `{APP_BASE_URL}/api/reports/download?path=`). Skipped and failed rows show their reason. No email was sent. 0095 was not applied.
+
+- Files: app/api/cron/reports-worker/route.ts, lib/reports/reportDigest.ts, lib/reports/reportDigestStore.ts, lib/reports/__tests__/reportDigest.test.ts, docs/brain/DATA-MODEL.md, docs/brain/modules/shared-core.md.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), reportDigest tests pass (4).
+- Under 90%: if the digest insert fails after the email is sent, the error is logged and the route still returns. The next hour could send again. A missing `APP_BASE_URL` makes the download link a path, with no host filled in. Client names come from `media_plan_masters.mp_client_name`. There is no shared email layout function, so the shell matches the ops health ink band.
+- Morning smoke: None until the flag is set. Do not run the cron until 0095 is applied.
+
+## AV-R7 DONE 7ef667c6
+
+`/admin/reports` uses the same client `AdminGuard` as the other admin pages, inside PageShell and PageHeader, so the heading reads "Reports." The month picker defaults to the previous Sydney month. The table is `report_runs` for that month: client name from `media_plan_masters`, MBA, a status pill (generated is outcome, queued or generating is neutral, skipped is neutral with the reason, failed is critical), commentary yes or no, generated at, Download via `/api/reports/download?path=`, and Generate now.
+
+`GET /api/admin/reports?period=YYYY-MM` supplies the table. `requireAdmin` gates it. Generate now is `POST /api/admin/reports/runs/[id]/generate` with `maxDuration` 300. It marks the row generating, then runs `generateCampaignReportForMba` for that MBA and period (`store: true`, `withCommentary: true`) and writes generated, skipped, or failed. It does not send email. Queue for the month is `POST /api/admin/reports/enqueue` with `{ period }`. It inserts missing queued rows for that month through `selectMonthlyReportMbas` and does not generate. The page says the worker runs on the 4th and 5th. The page is in the route manifest and the admin sidebar, after Schedule ingest. 0095 was not applied. The list and queue routes surface an error if the table is missing, rather than an empty month.
+
+- Files: app/admin/reports/page.tsx, app/api/admin/reports/route.ts, app/api/admin/reports/enqueue/route.ts, app/api/admin/reports/runs/[id]/generate/route.ts, app/api/admin/reports/__tests__/admin-reports.route.test.ts, lib/reports/adminReportRunsStore.ts, lib/reports/selectMonthlyReportMbas.ts, lib/reports/__tests__/selectMonthlyReportMbas.test.ts, lib/nav/routeManifest.ts, lib/nav/__tests__/routeManifest.test.ts, docs/brain/MAP.md, docs/brain/DATA-MODEL.md, docs/brain/modules/admin-misc.md, docs/brain/modules/shared-core.md, docs/brain/api-tenant-classification.md, docs/brain/tenant-isolation-audit.md.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), admin report route tests pass (4), selectMonthlyReportMbas tests pass (3), routeManifest tests pass (8), test:finance-sections pass, check:client-server-only pass.
+- Under 90%: the list GET was not named in the prompt. The page is a client component, so it needs a JSON source. Manual generate does not increment `attempts`, so it does not use the worker's three-attempt cap. The row is set to generating first. Region is syd1, matching the worker. The prompt only named `maxDuration`. The published-version candidate query is copied from the enqueue cron. The selection helper is shared. The page was not opened in the browser. Auth is required, and 0095 is not applied, so a live query would fail.
+- Morning smoke: After the migrations are applied, open `/admin/reports` for last month, use Generate now on one live MBA, and download it. Do not expect the page to work until 0095 is applied.
+
+## AV-G2 DONE 23735bb5
+
+`scripts/check-money-inline.mjs` counts inline money maths in `.ts` and `.tsx` files outside `lib/money`, tests, `scripts/`, and `tmp`. The patterns are `(100 -` or `(100-` near a fee or pct identifier, `* 100) / 100`, `Math.round` whose argument contains `* 100`, a money identifier (amount, budget, cost, spend, fee, total, gross, net, media) calling `toFixed(2)`, `/ 100` next to a fee identifier, and local functions named `parseMoney`, `parseAmount`, `formatCurrency`, `roundCents`, or `toCents`. Counts live in `scripts/money-inline-baseline.json` (115 files, 250 hits). A higher count or a new file fails and prints the lines with `use lib/money`. A lower count passes. `--update` rewrites the baseline. `npm run check:money-inline` is in `gate:main` after `check:hardcoded-urls`. ESLint `no-restricted-syntax` was not added. The same patterns already match the baseline, so a warn would fire on existing debt on every lint.
+
+- Files: scripts/check-money-inline.mjs, scripts/money-inline-baseline.json, package.json, docs/brain/CONVENTIONS.md.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), check:money-inline pass. A throwaway file with the patterns failed the gate, then was deleted.
+- Under 90%: "near" is the match plus about 80 characters, not a full expression parse. `Math.round` with `* 100` also counts percent formatting, which is what the pattern says. `tmp/` is skipped so untracked scratch is not in the baseline. The prompt did not name `tmp`.
+- Morning smoke: None.
+
+## AV-G3 DONE f7ee22fc
+
+The brain now matches the code for this pack. Money rounds through `lib/money` `toCents`. Expected spend compared with delivered spend is media only. The app builds media plan workbooks only through `lib/docs/mediaPlanWorkbook.ts`. Tests still call `generateMediaPlan` directly. A clean file comes from a published version's stored file. Client invoice access is strict. The overdue notice is derived at render. The overdue digest is internal. AVA commentary, the campaign read, and the performance review write Insight, Action and Outcome. Monthly campaign reports are internal and are generated on the Sydney 4th and 5th.
+
+C-152 names `3d150b67`. C-5 is closed: one `computeLoadedDeliverables` remains. C-154 records the published workbook ad serving fix (`8bfdd2e3`). B-3 (client-server-only) was already closed. The route manifest row for `/design-system` is the unstaged design-system UI-11 line, already marked fixed, and was not staged. Public legal pages are already in `ROUTE_MANIFEST_EXCLUSIONS`.
+
+C-153 is the planner deck, still `assembled-template.pptx`, including `generate_performance_report`. C-155 records the client-pays Total Ex GST decision: full-scope totals include that net media, billing months do not. C-156 records cinema Avg. Rate as cost per screen (`c1e7d75c`). AV-F3 was not opened. The date parser now throws on a blank or invalid date and does not use today. AV-M10 and AV-X3 were finished later, so they are not open. AV-00 night 2 was a dirty tree, not a product defect. Migrations 0090, 0091, 0092, 0093, 0094 and 0095 are each marked authored, not applied, once.
+
+- Files: docs/brain/INVARIANTS.md, docs/brain/KNOWN-ISSUES.md, docs/brain/MAP.md, docs/brain/DATA-MODEL.md, docs/brain/modules/media-plans.md, docs/brain/modules/finance-billing.md, docs/brain/modules/ava.md, docs/brain/modules/dashboards-charts-exports.md, docs/brain/modules/shared-core.md.
+- Tests: lint 0 (same warning set). Docs only.
+- Under 90%: the old "no other rounding helper" line was stronger than the code. `roundMoney4` and `roundDeliverables` still exist, and the migration script keeps half-even `toCents`. The workbook invariant used to say no other code calls `generateMediaPlan`. Tests do. C-155 and C-156 are recorded as decided and fixed, not left open, because the code and the AV-D9 line already say so. Which commit removed the nine `computeLoadedDeliverables` copies was not re-found. The design-system shadow line in INVARIANTS and the UI-7 to UI-12 hunks in KNOWN-ISSUES stayed unstaged.
+- Morning smoke: None.
+
+## AV-Z DONE this commit
+
+The Night 2 morning summary is at the top of this file. This commit is that summary. The hash is the commit itself. Nothing was pushed. Design-system files, `package.json`, and the discovery files stayed unstaged.
+
+- Files: docs/superpowers/overnight-av-fixes/RUNLOG.md.
+- Tests: typecheck 0, lint 0 (same warning set), check:client-server-only 0, test:all exit 1 (123/124). New failure: test:mba-live-dates, on HEAD. Fixed on HEAD: test:finance-sections. Fixed only in the dirty tree: test:campaign-dashboard-range, test:social-delivery. build exit 0.
+- Under 90%: the two colour suites pass against uncommitted design-system files, so a clean HEAD is not claimed to pass them. `0090` and `0091` are marked authored, not applied, and were not in tonight's prompt list, so they are not listed as Night 2 migrations. The shared STOP rule treats a new suite failure as a park. This prompt's job is to record that failure and commit the log, so the failure is listed and the product was not changed.
+- Morning smoke: the consolidated list at the top. Do not send email. Do not run a cron until 0093 or 0095 is applied and the matching flag is exactly true.
 
