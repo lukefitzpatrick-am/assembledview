@@ -11,6 +11,7 @@ import {
   saveSkippedReportRun,
 } from "@/lib/reports/reportsWorkerStore"
 import { isMonthlyReportEnqueueDay } from "@/lib/reports/selectMonthlyReportMbas"
+import { sendMonthlyReportDigestIfReady } from "@/lib/reports/reportDigestStore"
 import {
   reportsWorkerBatchSize,
   runReportsWorker,
@@ -53,7 +54,8 @@ export async function GET(request: Request) {
       saveSkipped: saveSkippedReportRun,
       saveFailed: saveFailedReportRun,
     })
-    return NextResponse.json(summary)
+    const digest = await sendMonthlyReportDigestIfReady()
+    return NextResponse.json({ ...summary, digest })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Reports worker failed"
     console.error("[reports-worker]", err)
