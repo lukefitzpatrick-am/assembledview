@@ -7387,6 +7387,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     const saveIntent = opts?.intent === "publish" ? "publish" : "save"
     const afterSuccessfulSave = async (args: {
       versionNumber?: number | string
+      versionId?: number
+      documentsStatus?: "ok" | "error" | "skipped"
       skipDownload?: boolean
       existingToast?: { title: string; description: string }
     }) => {
@@ -7400,9 +7402,16 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         navigate: () => router.push("/mediaplans"),
         downloadPlan: () => handleDownloadMediaPlan({ fromPublish: true }),
       })
-      if (opts?.zipAfter) {
+      if (opts?.zipAfter && args.documentsStatus !== "error") {
         try {
-          await zipPublishedEditDocuments()
+          if (typeof args.versionId === "number" && args.versionId > 0) {
+            await zipPublishedEditDocuments(args.versionId)
+          } else {
+            toast({
+              title: "File not ready",
+              description: "Regenerate documents from the plan list.",
+            })
+          }
         } catch (error: unknown) {
           const message =
             error instanceof Error
@@ -8274,6 +8283,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         pendingBillingOverrideMetaRef.current = new Map()
         await afterSuccessfulSave({
           versionNumber: numericSavedVersion,
+          versionId,
+          documentsStatus: saveResult.data.documents?.status,
           existingToast: {
             title: "Success",
             description:
@@ -9977,23 +9988,51 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     return { blob, fileName, tokenPath }
   };
 
-  const zipPublishedEditDocuments = async () => {
+  const zipPublishedEditDocuments = async (versionId: number) => {
     const fv = form.getValues()
     setIsDownloading(true)
     setModalOpen(true)
     setModalLoading(true)
     setModalTitle("Downloading Media Plan")
     setModalOutcome("Preparing your media plan for download...")
+    const fetchStored = async (kind: "media_plan" | "mba_pdf") => {
+      try {
+        return await downloadStoredPlanFile({ versionId, kind })
+      } catch (error) {
+        if (!(error instanceof NotSavedError)) throw error
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        return downloadStoredPlanFile({ versionId, kind })
+      }
+    }
     try {
-      const [
-        { blob: mbaBlob, fileName: mbaFileName },
-        { blob: mediaPlanBlob, fileName: mediaPlanFileName },
-        { blob: namingBlob, fileName: namingFileName },
-      ] = await Promise.all([
-        generateMbaPdfBlob({ liveScope: true }),
-        generateMediaPlanXlsxBlob(),
-        generateNamingConventionsXlsxBlob(),
-      ])
+      let mbaBlob: Blob
+      let mbaFileName: string
+      let mediaPlanBlob: Blob
+      let mediaPlanFileName: string
+      try {
+        const [mba, mediaPlan] = await Promise.all([
+          fetchStored("mba_pdf"),
+          fetchStored("media_plan"),
+        ])
+        mbaBlob = mba.blob
+        mbaFileName = mba.fileName
+        mediaPlanBlob = mediaPlan.blob
+        mediaPlanFileName = mediaPlan.fileName
+      } catch (error) {
+        if (error instanceof NotSavedError) {
+          setModalLoading(false)
+          setModalTitle("File not ready")
+          setModalOutcome("Regenerate documents from the plan list.")
+          toast({
+            title: "File not ready",
+            description: "Regenerate documents from the plan list.",
+          })
+          return
+        }
+        throw error
+      }
+      const { blob: namingBlob, fileName: namingFileName } =
+        await generateNamingConventionsXlsxBlob()
       const JSZip = (await import("jszip")).default
       const zip = new JSZip()
       zip.file(mbaFileName, mbaBlob)
@@ -10026,7 +10065,14 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       return
     }
     try {
-      await zipPublishedEditDocuments()
+      if (typeof publishedVersionId !== "number" || publishedVersionId <= 0) {
+        toast({
+          title: "File not ready",
+          description: "Regenerate documents from the plan list.",
+        })
+        return
+      }
+      await zipPublishedEditDocuments(publishedVersionId)
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "Failed to save and download all files"

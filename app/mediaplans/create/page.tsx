@@ -5223,6 +5223,11 @@ function CreateMediaPlan() {
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<number | null>(null)
   /** Set from PlansSaveResponse.versionId after a publish. A draft save does not set it. */
   const [publishedVersionId, setPublishedVersionId] = useState<number | null>(null)
+  /** Just-published version and document step, read by the zip in the same turn. */
+  const publishZipContextRef = useRef<{
+    versionId: number | null
+    documentsStatus: "ok" | "error" | "skipped" | null
+  }>({ versionId: null, documentsStatus: null })
 
   const draftBaseVersionId =
     typeof mediaPlanVersionId === "number"
@@ -6041,6 +6046,13 @@ function CreateMediaPlan() {
         setMediaPlanVersionId(saveResult.data.versionId)
         if (modeResolved.mode === "publish" && saveResult.data.published) {
           setPublishedVersionId(saveResult.data.versionId)
+        }
+        publishZipContextRef.current = {
+          versionId:
+            modeResolved.mode === "publish" && saveResult.data.published
+              ? saveResult.data.versionId
+              : null,
+          documentsStatus: saveResult.data.documents?.status ?? null,
         }
         updateSaveStatus("KPI sync", "pending")
         if (kpiRows.length > 0) {
@@ -7119,6 +7131,7 @@ const handleSaveAll = async (opts?: {
     if (!proceed) return
   }
   saveAllInFlightRef.current = true
+  publishZipContextRef.current = { versionId: null, documentsStatus: null }
   try {
     setIsSaveModalOpen(true);
     // Initialize save status array
@@ -7152,9 +7165,18 @@ const handleSaveAll = async (opts?: {
         navigate: () => router.push("/mediaplans"),
         downloadPlan: () => handleDownloadMediaPlan({ fromPublish: true }),
       })
-      if (opts?.zipAfter) {
+      const zipCtx = publishZipContextRef.current
+      const documentsFailed = opts?.zipAfter && zipCtx.documentsStatus === "error"
+      if (opts?.zipAfter && !documentsFailed) {
         try {
-          await zipPublishedCreateDocuments()
+          if (typeof zipCtx.versionId === "number" && zipCtx.versionId > 0) {
+            await zipPublishedCreateDocuments(zipCtx.versionId)
+          } else {
+            toast({
+              title: "File not ready",
+              description: "Regenerate documents from the plan list.",
+            })
+          }
         } catch (error: unknown) {
           const message =
             error instanceof Error
@@ -7177,7 +7199,7 @@ const handleSaveAll = async (opts?: {
         })
         toast({ title: published.title, description: published.description })
       }
-      if (!opts?.exitAfter) {
+      if (!documentsFailed && !opts?.exitAfter) {
         router.push(
           mba
             ? `/mediaplans/mba/${encodeURIComponent(mba)}/edit`
@@ -7268,23 +7290,51 @@ const handleSaveAll = async (opts?: {
     return { blob, fileName, tokenPath }
   };
 
-  const zipPublishedCreateDocuments = async () => {
+  const zipPublishedCreateDocuments = async (versionId: number) => {
     const fv = form.getValues()
     setIsDownloading(true)
     setModalOpen(true)
     setModalLoading(true)
     setModalTitle("Downloading Media Plan")
     setModalOutcome("Preparing your media plan for download...")
+    const fetchStored = async (kind: "media_plan" | "mba_pdf") => {
+      try {
+        return await downloadStoredPlanFile({ versionId, kind })
+      } catch (error) {
+        if (!(error instanceof NotSavedError)) throw error
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        return downloadStoredPlanFile({ versionId, kind })
+      }
+    }
     try {
-      const [
-        { blob: mbaBlob, fileName: mbaFileName },
-        { blob: mediaPlanBlob, fileName: mediaPlanFileName },
-        { blob: namingBlob, fileName: namingFileName },
-      ] = await Promise.all([
-        generateMbaPdfBlob(),
-        generateMediaPlanXlsxBlob(),
-        generateNamingConventionsXlsxBlob(),
-      ])
+      let mbaBlob: Blob
+      let mbaFileName: string
+      let mediaPlanBlob: Blob
+      let mediaPlanFileName: string
+      try {
+        const [mba, mediaPlan] = await Promise.all([
+          fetchStored("mba_pdf"),
+          fetchStored("media_plan"),
+        ])
+        mbaBlob = mba.blob
+        mbaFileName = mba.fileName
+        mediaPlanBlob = mediaPlan.blob
+        mediaPlanFileName = mediaPlan.fileName
+      } catch (error) {
+        if (error instanceof NotSavedError) {
+          setModalLoading(false)
+          setModalTitle("File not ready")
+          setModalOutcome("Regenerate documents from the plan list.")
+          toast({
+            title: "File not ready",
+            description: "Regenerate documents from the plan list.",
+          })
+          return
+        }
+        throw error
+      }
+      const { blob: namingBlob, fileName: namingFileName } =
+        await generateNamingConventionsXlsxBlob()
       const JSZip = (await import("jszip")).default
       const zip = new JSZip()
       zip.file(mbaFileName, mbaBlob)
