@@ -370,53 +370,6 @@
   }
 }
 
-/* Custom button styles */
-.btn-primary {
-  @apply bg-primary text-white hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
-}
-
-.btn-secondary {
-  @apply bg-secondary text-white hover:bg-secondary-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
-}
-
-.btn-success {
-  @apply bg-success text-white hover:bg-success-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
-}
-
-.btn-warning {
-  @apply bg-warning text-foreground hover:bg-warning-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
-}
-
-.btn-danger {
-  @apply bg-error text-white hover:bg-error-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
-}
-
-/* Form element styles */
-.form-input {
-  @apply bg-surface-input border-border focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
-}
-
-.form-select {
-  @apply bg-surface-input border-border focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
-}
-
-.form-checkbox {
-  @apply text-primary border-border focus:ring-2 focus:ring-info;
-}
-
-/* Alert styles */
-.alert-success {
-  @apply bg-success text-white border-success-dark;
-}
-
-.alert-warning {
-  @apply bg-warning text-foreground border-alert;
-}
-
-.alert-info {
-  @apply bg-info text-foreground border-secondary;
-}
-
 /*
  * ExpertGrid schedule body rows: height is enforced on the cells, not only
  * the <tr>. `max-height` does not apply to table-row; `height` is a minimum.
@@ -471,22 +424,6 @@
     @apply rounded-2xl border border-border/60 bg-card;
   }
 
-  .status-bar {
-    @apply h-1 w-full rounded-t-2xl;
-  }
-
-  .status-bar-ahead {
-    background: linear-gradient(90deg, var(--pacing-ahead) 0%, transparent 100%);
-  }
-
-  .status-bar-on-track {
-    background: linear-gradient(90deg, var(--pacing-on-track) 0%, transparent 100%);
-  }
-
-  .status-bar-behind {
-    background: linear-gradient(90deg, var(--pacing-behind) 0%, transparent 100%);
-  }
-
   /* Instagram-style avatar ring — channel tokens only, no raw hex */
   .social-ig-ring {
     background: conic-gradient(
@@ -497,10 +434,6 @@
       var(--channel-bvod),
       var(--channel-tv)
     );
-  }
-
-  .status-bar-critical {
-    background: linear-gradient(90deg, var(--pacing-critical) 0%, transparent 100%);
   }
 
   .chart-tooltip {

@@ -6,7 +6,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { formatAUD } from "./format/money";
 import { formatMbaScopeLine } from "./docs/mbaScope";
-import { applyBrandFonts, PDF_COLOURS } from "./pdf/brandPdf";
+import { applyBrandFonts, drawWrappedLeftHeader, PDF_COLOURS } from "./pdf/brandPdf";
 
 // Keep your existing MBAData interface
 export interface MBAData {
@@ -198,12 +198,26 @@ export async function generateMBA(
   doc.setFont("PlusJakartaSans", "normal");
   doc.text(`MBA: ${mbaData.mba_number}`, margin.left, y);
   y += lineHeight;
-  doc.text(`Campaign Name: ${mbaData.campaign_name}`, margin.left, y);
+  const campaignNameExtra = drawWrappedLeftHeader(
+    doc,
+    `Campaign Name: ${mbaData.campaign_name}`,
+    margin.left,
+    y,
+    pageW,
+    lineHeight,
+  );
   doc.text(`Campaign Brand: ${mbaData.campaign_brand}`, margin.left + pageW, y, { align: 'right' });
-  y += lineHeight;
-  doc.text(`PO Number: ${mbaData.po_number}`, margin.left, y);
+  y += lineHeight + campaignNameExtra;
+  const poExtra = drawWrappedLeftHeader(
+    doc,
+    `PO Number: ${mbaData.po_number}`,
+    margin.left,
+    y,
+    pageW,
+    lineHeight,
+  );
   doc.text(`Media Plan Version: ${mbaData.media_plan_version}`, margin.left + pageW, y, { align: 'right' });
-  y += lineHeight;
+  y += lineHeight + poExtra;
   const scopeLine = formatMbaScopeLine(mbaData.scope);
   if (scopeLine) {
     doc.text(scopeLine, margin.left, y);
@@ -227,9 +241,16 @@ export async function generateMBA(
 
   // Gross Media Table
   doc.setFont("PlusJakartaSans", "bold");
-  doc.text('Media Type', margin.left, y);
+  const mediaTypeHeaderExtra = drawWrappedLeftHeader(
+    doc,
+    "Media Type",
+    margin.left,
+    y,
+    pageW,
+    lineHeight,
+  );
   doc.text('Gross Media', margin.left + pageW, y, { align: 'right' });
-  y += 2;
+  y += 2 + mediaTypeHeaderExtra;
   doc.setDrawColor(...PDF_COLOURS.line);
   doc.line(margin.left, y, margin.left + pageW, y); // horizontal line
   y += lineHeight;
@@ -322,9 +343,16 @@ export async function generateMBA(
   y += lineHeight * 2;
   
   doc.setFontSize(9);
-  doc.text('Month', margin.left, y);
+  const monthHeaderExtra = drawWrappedLeftHeader(
+    doc,
+    "Month",
+    margin.left,
+    y,
+    pageW,
+    lineHeight,
+  );
   doc.text('Amount (ex. GST)', margin.left + pageW, y, { align: 'right' });
-  y += 2;
+  y += 2 + monthHeaderExtra;
   doc.setDrawColor(...PDF_COLOURS.line);
   doc.line(margin.left, y, margin.left + pageW, y); // horizontal line
   y += lineHeight;

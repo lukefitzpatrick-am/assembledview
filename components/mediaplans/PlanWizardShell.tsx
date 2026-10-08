@@ -432,7 +432,7 @@ export function PlanWizardShell({
         className="pointer-events-none fixed inset-x-0 bottom-0 z-40 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"
       >
         <div className="mx-auto flex w-full max-w-[1920px] justify-center px-4 sm:px-5 md:px-6 xl:px-8 2xl:px-10">
-          <div className="pointer-events-auto flex min-w-0 max-w-full flex-row items-center rounded-frame border border-border/60 bg-card/85 px-3 py-2 shadow-e2 backdrop-blur-md sm:px-4">
+          <div className="pointer-events-auto flex min-w-0 max-w-full flex-row items-center rounded-frame border border-border/60 bg-card/85 px-3 py-2 backdrop-blur-md sm:px-4">
             {bottomBar}
           </div>
         </div>

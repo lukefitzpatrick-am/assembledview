@@ -572,7 +572,7 @@ export function ParseReviewScreen({ mbaNumber, stageId }: Props) {
         </Table>
       </section>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card px-4 py-3 shadow-e2">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card px-4 py-3">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3">
           <div className="text-sm">
             <span className="font-semibold">

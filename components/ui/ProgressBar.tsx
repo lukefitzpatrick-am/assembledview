@@ -12,7 +12,6 @@ export interface ProgressBarProps {
   max?: number
   size?: ProgressSize
   color?: ProgressColor
-  customColor?: string
   showLabel?: boolean
   animated?: boolean
   className?: string
@@ -38,7 +37,6 @@ export function ProgressBar({
   max = 100,
   size = "md",
   color = "default",
-  customColor,
   showLabel = false,
   animated = true,
   className,
@@ -52,10 +50,9 @@ export function ProgressBar({
     <div className={cn("w-full", className)}>
       <div className={cn("w-full overflow-hidden rounded-full bg-[var(--fill-track)]", sizeClass[size])}>
         <div
-          className={cn("h-full rounded-full", customColor ? "" : toneClass[color])}
+          className={cn("h-full rounded-full", toneClass[color])}
           style={{
             width: `${percentage}%`,
-            backgroundColor: customColor,
             transition: animated ? "width 700ms cubic-bezier(0.22, 1, 0.36, 1)" : undefined,
           }}
           aria-hidden

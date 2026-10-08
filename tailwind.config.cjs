@@ -3,33 +3,14 @@
 const brand = require("./lib/brand/tokens.json")
 
 /**
- * 05b values kept under legacy names until the component passes rename them.
- * Flat hex utilities (bg-primary-hover, text-brand, bg-success) stay on these
- * names and do not follow the CSS variables. Values come from lib/brand/tokens.json.
+ * Flat utilities that still have class uses. They do not follow `.dark`.
+ * Values come from lib/brand/tokens.json. Unused keys were removed (D18 / DS-11).
  */
 const brandPalette = {
   "primary-hover": brand.derived.forestHover,
-  "secondary-hover": brand.derived.forestHover,
   "accent-hover": brand.derived.limeHover,
-  brand: brand.colour.forest,
-  "brand-dark": brand.colour.ink,
-  highlight: brand.colour.lime,
-  warning: brand.functional.amber,
-  "warning-hover": brand.derived.amberHover,
-  alert: brand.functional.amber,
-  error: brand.functional.coral,
-  "error-hover": brand.derived.coralHover,
   success: brand.colour.forest,
-  "success-hover": brand.derived.forestHover,
-  "success-dark": brand.colour.forest,
   info: brand.colour.sky,
-  "info-hover": brand.derived.skyHover,
-  "background-secondary": brand.colour.sand,
-  darkGrey: brand.colour.ink,
-  /** Client / pacing shell background */
-  "dashboard-surface": brand.colour.sand,
-  /** Lime CTA (matches lib/utils limeGreen) */
-  lime: brand.colour.lime,
 }
 
 /** Semantic tokens for shadcn/ui — driven by CSS variables in app/globals.css */
@@ -275,16 +256,23 @@ module.exports = {
         "eg-cell-float-hi": "40",
       },
       boxShadow: {
+        sm: "none",
+        DEFAULT: "none",
+        md: "none",
+        lg: "none",
+        xl: "none",
+        "2xl": "none",
+        inner: "none",
         card: "none",
         "card-hover": "none",
         tooltip: "0 10px 40px rgba(0,0,0,0.15)",
-        "glow-success": "0 0 20px rgba(16, 185, 129, 0.3)",
-        "glow-danger": "0 0 20px rgba(239, 68, 68, 0.3)",
+        "glow-success": "none",
+        "glow-danger": "none",
         e0: "none",
         e1: "none",
         e2: "0 8px 24px rgba(15,29,19,.12)",
-        frame: "0 12px 40px rgba(15,29,19,.14)",
-        hero: "0 20px 60px rgba(15,29,19,.18)",
+        frame: "none",
+        hero: "none",
       },
       keyframes: {
         "accordion-down": {

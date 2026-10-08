@@ -1,5 +1,7 @@
 import type ExcelJS from "exceljs"
 
+import { BRAND, hexToArgb, readableTextOn } from "@/lib/brand"
+import { excelFont, fillForHex, LINE_BORDER, stampAptos } from "@/lib/excel/brandSheet"
 import { loadTemplateStructure } from "./library.js"
 import type {
   MiAnswer,
@@ -14,12 +16,19 @@ const TAB_ORDER = [
 ]
 
 const NEEDS_SPEC = "NEEDS_SPEC"
-const THIN_BORDER = {
-  top: { style: "thin" as const, color: { argb: "FFB7B7B7" } },
-  left: { style: "thin" as const, color: { argb: "FFB7B7B7" } },
-  bottom: { style: "thin" as const, color: { argb: "FFB7B7B7" } },
-  right: { style: "thin" as const, color: { argb: "FFB7B7B7" } },
-}
+
+/** Section fills are brand surfaces. Banded rows use the next warmer brand fill so families stay distinct. */
+const SECTION_HEX = {
+  AM: BRAND.colour.sand,
+  SPECS: BRAND.colour.context,
+  CLIENT: BRAND.derived.sandTint,
+} as const
+const SECTION_BANDED_HEX = {
+  AM: BRAND.colour.context,
+  SPECS: BRAND.colour.line,
+  CLIENT: BRAND.colour.sand,
+} as const
+type MiSection = keyof typeof SECTION_HEX
 
 export type MiWorkbookCampaign = {
   name: string
@@ -142,17 +151,17 @@ function hasQuestionForRow(question: MiOpenQuestion, row: MiResolvedSpec): boole
   return question.rowRef.line_item_id === row.line_item_id
 }
 
-function styleCell(cell: ExcelJS.Cell, fill: string, banded: boolean): void {
-  cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fill } }
-  if (banded) {
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: fill === "FFDCE6F1" ? "FFC5D9F1" : fill === "FFFFF2CC" ? "FFFFE699" : "FFC6E0B4" },
-    }
+function styleCell(cell: ExcelJS.Cell, section: MiSection, banded: boolean): void {
+  const hex = banded ? SECTION_BANDED_HEX[section] : SECTION_HEX[section]
+  cell.fill = fillForHex(hex)
+  const existing = cell.font ?? {}
+  cell.font = {
+    ...existing,
+    name: BRAND.font.excel,
+    color: { argb: hexToArgb(readableTextOn(hex)) },
   }
   cell.alignment = { wrapText: true, vertical: "top" }
-  cell.border = THIN_BORDER
+  cell.border = LINE_BORDER
 }
 
 function writeCoverSheet(workbook: ExcelJS.Workbook, campaign: MiWorkbookCampaign): void {
@@ -162,8 +171,12 @@ function writeCoverSheet(workbook: ExcelJS.Workbook, campaign: MiWorkbookCampaig
   sheet.mergeCells("A1:B1")
   const title = sheet.getCell("A1")
   title.value = "MATERIAL INSTRUCTIONS"
-  title.font = { bold: true, size: 16 }
-  title.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCE6F1" } }
+  title.font = excelFont({
+    bold: true,
+    size: 16,
+    color: { argb: hexToArgb(readableTextOn(BRAND.colour.sand)) },
+  })
+  title.fill = fillForHex(BRAND.colour.sand)
   title.alignment = { horizontal: "center" }
 
   const values: Array<[string, string]> = [
@@ -177,23 +190,26 @@ function writeCoverSheet(workbook: ExcelJS.Workbook, campaign: MiWorkbookCampaig
   values.forEach(([label, value], index) => {
     const row = index + 3
     sheet.getCell(row, 1).value = label
-    sheet.getCell(row, 1).font = { bold: true }
+    sheet.getCell(row, 1).font = excelFont({ bold: true })
     sheet.getCell(row, 2).value = value
     for (const col of [1, 2]) {
       const cell = sheet.getCell(row, col)
-      cell.border = THIN_BORDER
+      cell.border = LINE_BORDER
       cell.alignment = { wrapText: true, vertical: "top" }
     }
   })
 
   sheet.getCell("A11").value = "Colour legend"
-  sheet.getCell("A11").font = { bold: true }
-  ;[["AM", "FFDCE6F1"], ["SPECS", "FFFFF2CC"], ["CLIENT", "FFE2EFDA"]].forEach(([label, fill], index) => {
+  sheet.getCell("A11").font = excelFont({ bold: true })
+  ;(["AM", "SPECS", "CLIENT"] as const).forEach((label, index) => {
     const cell = sheet.getCell(12 + index, 1)
     cell.value = label
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fill } }
-    cell.border = THIN_BORDER
+    const hex = SECTION_HEX[label]
+    cell.fill = fillForHex(hex)
+    cell.font = excelFont({ color: { argb: hexToArgb(readableTextOn(hex)) } })
+    cell.border = LINE_BORDER
   })
+  stampAptos(sheet)
 }
 
 function writeContainerSheet(
@@ -204,27 +220,31 @@ function writeContainerSheet(
 ): number {
   const template = loadTemplateStructure().tabs[container]
   const sheet = workbook.addWorksheet(container)
-  const sections: Array<["AM" | "SPECS" | "CLIENT", string, string[]]> = [
-    ["AM", "FFDCE6F1", template.AM],
-    ["SPECS", "FFFFF2CC", template.SPECS],
-    ["CLIENT", "FFE2EFDA", template.CLIENT],
+  const sections: Array<[MiSection, string[]]> = [
+    ["AM", template.AM],
+    ["SPECS", template.SPECS],
+    ["CLIENT", template.CLIENT],
   ]
-  const headers = sections.flatMap(([, , fields]) => fields)
+  const headers = sections.flatMap(([, fields]) => fields)
   let column = 1
-  for (const [section, fill, fields] of sections) {
+  for (const [section, fields] of sections) {
     const start = column
     const end = column + fields.length - 1
     if (fields.length > 1) sheet.mergeCells(1, start, 1, end)
     const banner = sheet.getCell(1, start)
     banner.value = section
-    banner.font = { bold: true }
     banner.alignment = { horizontal: "center", vertical: "middle" }
-    banner.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fill } }
+    const bannerHex = SECTION_HEX[section]
+    banner.fill = fillForHex(bannerHex)
+    banner.font = excelFont({
+      bold: true,
+      color: { argb: hexToArgb(readableTextOn(bannerHex)) },
+    })
     for (const field of fields) {
       const cell = sheet.getCell(2, column)
       cell.value = field
-      cell.font = { bold: true }
-      styleCell(cell, fill, false)
+      cell.font = excelFont({ bold: true })
+      styleCell(cell, section, false)
       sheet.getColumn(column).width = Math.min(42, Math.max(16, field.length + 4))
       column += 1
     }
@@ -238,7 +258,7 @@ function writeContainerSheet(
     const excelRow = index + 3
     const rowQuestions = unanswered.filter((question) => hasQuestionForRow(question, row))
     let col = 1
-    for (const [section, fill, fields] of sections) {
+    for (const [section, fields] of sections) {
       for (const field of fields) {
         let value = valueForColumn(field, section, row, input.campaign)
         if (section === "SPECS" && rowQuestions.length > 0 && !value) value = NEEDS_SPEC
@@ -249,7 +269,7 @@ function writeContainerSheet(
         }
         const cell = sheet.getCell(excelRow, col)
         cell.value = value
-        styleCell(cell, fill, index % 2 === 1)
+        styleCell(cell, section, index % 2 === 1)
         if (value === NEEDS_SPEC) gapCount += 1
         col += 1
       }
@@ -258,6 +278,7 @@ function writeContainerSheet(
   })
   sheet.views = [{ state: "frozen", xSplit: 3, ySplit: 2 }]
   sheet.autoFilter = { from: { row: 2, column: 1 }, to: { row: Math.max(2, rows.length + 2), column: headers.length } }
+  stampAptos(sheet)
   return gapCount
 }
 

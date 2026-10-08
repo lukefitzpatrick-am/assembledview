@@ -31,7 +31,7 @@ Command.displayName = CommandPrimitive.displayName
 const CommandDialog = ({ children, ...props }: DialogProps) => {
   return (
     <Dialog {...props}>
-      <DialogContent className="overflow-hidden p-0 shadow-lg">
+      <DialogContent className="overflow-hidden p-0 shadow-e2">
         <DialogTitle className="sr-only">Command menu</DialogTitle>
         <DialogDescription className="sr-only">
           Search for a command to run.

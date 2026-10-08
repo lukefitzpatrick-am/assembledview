@@ -379,7 +379,7 @@ export function CreativeAdminLanding({ codexEnabled }: CreativeAdminLandingProps
                   "interactive group flex h-full flex-col overflow-hidden rounded-card border border-border bg-card text-left shadow-e1",
                   "border-l-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   tile.accentBorder,
-                  active && "shadow-e2 ring-1 ring-ring/40"
+                  active && "ring-1 ring-ring/40"
                 )}
               >
                 <div className={cn("h-[3px] w-full", tile.accentBar)} aria-hidden />

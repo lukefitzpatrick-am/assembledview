@@ -1,5 +1,6 @@
 import type ExcelJS from "exceljs"
 
+import { paintSandHeader, stampAptos } from "@/lib/excel/brandSheet"
 import type { MediaContainerBestPractice, Publisher } from "@/lib/types/publisher"
 
 import { chosenPublishersFor, renderBestPracticeBlock } from "./bestPractice"
@@ -186,7 +187,7 @@ function writeInputSheet(
   INPUT_COLUMNS.forEach((h, i) => {
     const cell = sheet.getCell(INPUT_TABLE_HEADER_ROW, i + 1)
     cell.value = h
-    cell.font = { bold: true }
+    paintSandHeader(cell)
   })
 
   sheet.views = [
@@ -236,9 +237,9 @@ function writeInputSheet(
     sheet.getCell(noteRow, 1).value = "channel"
     sheet.getCell(noteRow, 2).value = "publisher"
     sheet.getCell(noteRow, 3).value = "count"
-    sheet.getCell(noteRow, 1).font = { bold: true }
-    sheet.getCell(noteRow, 2).font = { bold: true }
-    sheet.getCell(noteRow, 3).font = { bold: true }
+    paintSandHeader(sheet.getCell(noteRow, 1))
+    paintSandHeader(sheet.getCell(noteRow, 2))
+    paintSandHeader(sheet.getCell(noteRow, 3))
     noteRow++
     for (const g of skipped) {
       sheet.getCell(noteRow, 1).value = g.channelKey
@@ -248,6 +249,7 @@ function writeInputSheet(
     }
   }
 
+  stampAptos(sheet)
   return rowByLineItemId
 }
 
@@ -499,7 +501,7 @@ function writeChannelSheet(
     headers.forEach((h, i) => {
       const cell = sheet.getCell(rowIndex, i + 1)
       cell.value = h
-      cell.font = { bold: true }
+      paintSandHeader(cell)
     })
     rowIndex++
 
@@ -628,6 +630,7 @@ function writeChannelSheet(
   for (let c = 1; c <= 14; c++) {
     if (!sheet.getColumn(c).width) sheet.getColumn(c).width = 18
   }
+  stampAptos(sheet)
 }
 
 function writeRulesSheet(workbook: ExcelJS.Workbook): void {
@@ -641,7 +644,7 @@ function writeRulesSheet(workbook: ExcelJS.Workbook): void {
   headers.forEach((h, i) => {
     const cell = sheet.getCell(1, i + 1)
     cell.value = h
-    cell.font = { bold: true }
+    paintSandHeader(cell)
   })
 
   let rowIndex = 2
@@ -662,6 +665,7 @@ function writeRulesSheet(workbook: ExcelJS.Workbook): void {
     sheet.mergeCells(rowIndex, 1, rowIndex, 4)
     rowIndex++
   }
+  stampAptos(sheet)
 }
 
 /**

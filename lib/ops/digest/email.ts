@@ -11,8 +11,8 @@ const BAND_LABEL: Record<DigestBand, string> = {
 }
 
 const BAND_COLOUR: Record<DigestBand, string> = {
-  "at-risk": BRAND.functional.coral,
-  behind: BRAND.functional.amber,
+  "at-risk": BRAND.functional.coralText,
+  behind: BRAND.functional.amberText,
   on: BRAND.colour.forest,
   ahead: BRAND.colour.forest,
   "no-data": BRAND.colour.muted,
@@ -136,7 +136,7 @@ export function buildPacingDigestEmailHtml(payload: PacingDigestPayload): string
           <div style="font-size:20px;font-weight:700;color:${BRAND.colour.ink};">AssembledView pacing digest</div>
           <div style="font-size:13px;color:${BRAND.colour.muted};margin-top:4px;">As of ${escapeHtml(asOfDate)} (Melbourne) · built ${escapeHtml(builtAt)}</div>
           <div style="font-size:13px;color:${BRAND.colour.muted};margin-top:8px;">
-            <span style="display:inline-block;padding:4px 8px;margin-right:6px;background:${BRAND.derived.sandTint};color:${BRAND.functional.coral};border-radius:999px;font-size:12px;font-weight:700;">${counts.atRisk} at risk</span>
+            <span style="display:inline-block;padding:4px 8px;margin-right:6px;background:${BRAND.derived.sandTint};color:${BRAND.functional.coralText};border-radius:999px;font-size:12px;font-weight:700;">${counts.atRisk} at risk</span>
             <span style="display:inline-block;padding:4px 8px;margin-right:6px;background:${BRAND.derived.sandTint};color:${BRAND.colour.forest};border-radius:999px;font-size:12px;font-weight:700;">${counts.on} on track</span>
             <span style="display:inline-block;padding:4px 8px;margin-right:6px;background:${BRAND.derived.sandTint};color:${BRAND.colour.forest};border-radius:999px;font-size:12px;font-weight:700;">${counts.ahead} ahead</span>
             <span style="display:inline-block;padding:4px 8px;background:${BRAND.colour.sand};color:${BRAND.colour.muted};border-radius:999px;font-size:12px;font-weight:700;">${counts.noData} no data</span>

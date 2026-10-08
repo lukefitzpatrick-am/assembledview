@@ -4,8 +4,8 @@ import { buildOpsHealthSubject, summariseStatuses } from "./status"
 
 const STATUS_COLOUR: Record<string, string> = {
   green: BRAND.colour.forest,
-  amber: BRAND.functional.amber,
-  red: BRAND.functional.coral,
+  amber: BRAND.functional.amberText,
+  red: BRAND.functional.coralText,
 }
 
 const STATUS_BG: Record<string, string> = {

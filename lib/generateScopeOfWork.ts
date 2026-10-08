@@ -4,7 +4,7 @@ import { jsPDF } from "jspdf";
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { formatAUD } from "./format/money";
-import { applyBrandFonts, PDF_COLOURS } from "./pdf/brandPdf";
+import { applyBrandFonts, drawWrappedLeftHeader, PDF_COLOURS } from "./pdf/brandPdf";
 
 export interface ScopeOfWorkData {
   client_name: string;
@@ -301,10 +301,17 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
   // Table headers
   doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(9);
-  doc.text("Expense Category", margin.left, y);
+  const expenseHeaderExtra = drawWrappedLeftHeader(
+    doc,
+    "Expense Category",
+    margin.left,
+    y,
+    pageW,
+    lineHeight,
+  );
   doc.text("Description", margin.left + 50, y);
   doc.text("Cost", margin.left + pageW, y, { align: 'right' });
-  y += 2;
+  y += 2 + expenseHeaderExtra;
   doc.setDrawColor(...PDF_COLOURS.line);
   doc.line(margin.left, y, margin.left + pageW, y); // horizontal line
   y += lineHeight;
@@ -382,9 +389,16 @@ export async function generateScopeOfWork(scopeData: ScopeOfWorkData): Promise<B
     // Table headers
     doc.setFont("PlusJakartaSans", "bold");
     doc.setFontSize(9);
-    doc.text("Month", margin.left, y);
+    const monthHeaderExtra = drawWrappedLeftHeader(
+      doc,
+      "Month",
+      margin.left,
+      y,
+      pageW,
+      lineHeight,
+    );
     doc.text("Cost", margin.left + pageW, y, { align: 'right' });
-    y += 2;
+    y += 2 + monthHeaderExtra;
     doc.setDrawColor(...PDF_COLOURS.line);
     doc.line(margin.left, y, margin.left + pageW, y); // horizontal line
     y += lineHeight;

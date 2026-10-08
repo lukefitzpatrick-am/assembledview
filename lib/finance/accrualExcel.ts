@@ -1,6 +1,7 @@
 import type ExcelJS from "exceljs"
 import { saveAs } from "file-saver"
 import type { AccrualRow } from "@/lib/finance/computeAccrual"
+import { paintSandHeader, stampAptos } from "@/lib/excel/brandSheet"
 
 const TEXT_ALIGNMENT: Partial<ExcelJS.Alignment> = {
   horizontal: "left",
@@ -71,6 +72,8 @@ export async function exportAccrualWorkbook(rows: AccrualRow[], filename: string
     summary.getColumn(col).numFmt = "$#,##0.00"
   }
   applyAccrualSummaryAlignment(summary)
+  summary.getRow(1).eachCell({ includeEmpty: false }, (cell) => paintSandHeader(cell))
+  stampAptos(summary)
 
   const detail = workbook.addWorksheet("Detail (contributors)")
   detail.columns = [
@@ -113,6 +116,8 @@ export async function exportAccrualWorkbook(rows: AccrualRow[], filename: string
   }
   detail.getColumn("amount").numFmt = "$#,##0.00"
   applyAccrualDetailAlignment(detail)
+  detail.getRow(1).eachCell({ includeEmpty: false }, (cell) => paintSandHeader(cell))
+  stampAptos(detail)
 
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })

@@ -60,25 +60,14 @@ export interface BadgeProps
   extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof badgeVariants> {
   dot?: boolean
-  customColor?: string
 }
 
-function Badge({ className, variant, size, dot = false, customColor, style, children, ...props }: BadgeProps) {
-  const mergedStyle = customColor
-    ? {
-        backgroundColor: `${customColor}1f`,
-        color: customColor,
-        borderColor: "transparent",
-        ...style,
-      }
-    : style
-
+function Badge({ className, variant, size, dot = false, style, children, ...props }: BadgeProps) {
   return (
-    <span className={cn(badgeVariants({ variant, size }), className)} style={mergedStyle} {...props}>
+    <span className={cn(badgeVariants({ variant, size }), className)} style={style} {...props}>
       {dot ? (
         <span
           className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current"
-          style={customColor ? { backgroundColor: customColor } : undefined}
           aria-hidden
         />
       ) : null}

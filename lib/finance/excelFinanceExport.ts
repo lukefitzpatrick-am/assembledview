@@ -3,6 +3,13 @@ import { format } from "date-fns"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import type { FinanceCampaignData } from "@/lib/finance/utils"
+import {
+  ARGB_SAND_TEXT,
+  excelFont,
+  LINE_BORDER,
+  SAND_FILL,
+  stampAptos,
+} from "@/lib/excel/brandSheet"
 
 /** When set (e.g. client hub export), legal business name and ABN appear under client name on each section. */
 export type FinanceExcelClientMeta = {
@@ -141,18 +148,9 @@ const AMOUNT_HEADER_ALIGNMENT: Partial<ExcelJS.Alignment> = {
 }
 
 const headerStyle: Partial<ExcelJS.Style> = {
-  font: { bold: true, size: 12 },
-  fill: {
-    type: "pattern" as const,
-    pattern: "solid" as const,
-    fgColor: { argb: "FFE0E0E0" },
-  },
-  border: {
-    top: { style: "thin" as const },
-    bottom: { style: "thin" as const },
-    left: { style: "thin" as const },
-    right: { style: "thin" as const },
-  },
+  font: excelFont({ bold: true, size: 12, color: { argb: ARGB_SAND_TEXT } }),
+  fill: SAND_FILL,
+  border: LINE_BORDER,
   alignment: TEXT_ALIGNMENT,
 }
 
@@ -185,12 +183,8 @@ export async function writeMediaFinanceWorksheet(
     worksheet.mergeCells(rowIndex, 1, rowIndex, 4)
     const headerCell = worksheet.getCell(rowIndex, 1)
     headerCell.value = `${campaign.clientName} - ${campaign.campaignName} (${campaign.mbaNumber})`
-    headerCell.font = { bold: true, size: 14 }
-    headerCell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFD0D0D0" },
-    }
+    headerCell.font = excelFont({ bold: true, size: 14, color: { argb: ARGB_SAND_TEXT } })
+    headerCell.fill = SAND_FILL
     headerCell.alignment = TEXT_ALIGNMENT
     rowIndex++
 
@@ -207,7 +201,7 @@ export async function writeMediaFinanceWorksheet(
     details.forEach(([label, value]) => {
       const labelCell = worksheet.getCell(rowIndex, 1)
       labelCell.value = label
-      labelCell.font = { bold: true }
+      labelCell.font = excelFont({ bold: true })
       labelCell.alignment = TEXT_ALIGNMENT
       const valueCell = worksheet.getCell(rowIndex, 2)
       valueCell.value = value
@@ -254,17 +248,18 @@ export async function writeMediaFinanceWorksheet(
     worksheet.mergeCells(rowIndex, 1, rowIndex, 3)
     const totalLabelCell = worksheet.getCell(rowIndex, 1)
     totalLabelCell.value = "Total"
-    totalLabelCell.font = { bold: true }
+    totalLabelCell.font = excelFont({ bold: true })
     totalLabelCell.alignment = TEXT_ALIGNMENT
     const totalAmountCell = worksheet.getCell(rowIndex, 4)
     totalAmountCell.value = campaign.total
     totalAmountCell.alignment = AMOUNT_ALIGNMENT
     totalAmountCell.numFmt = "$#,##0.00"
-    totalAmountCell.font = { bold: true }
+    totalAmountCell.font = excelFont({ bold: true })
     rowIndex++
 
     rowIndex += 2
   })
+  stampAptos(worksheet)
 }
 
 /**
@@ -291,12 +286,8 @@ export async function writeSowFinanceWorksheet(
     worksheet.mergeCells(rowIndex, 1, rowIndex, 4)
     const headerCell = worksheet.getCell(rowIndex, 1)
     headerCell.value = `${campaign.clientName} - ${campaign.campaignName} (${campaign.mbaNumber})`
-    headerCell.font = { bold: true, size: 14 }
-    headerCell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFD0D0D0" },
-    }
+    headerCell.font = excelFont({ bold: true, size: 14, color: { argb: ARGB_SAND_TEXT } })
+    headerCell.fill = SAND_FILL
     headerCell.alignment = TEXT_ALIGNMENT
     rowIndex++
 
@@ -312,7 +303,7 @@ export async function writeSowFinanceWorksheet(
     details.forEach(([label, value]) => {
       const labelCell = worksheet.getCell(rowIndex, 1)
       labelCell.value = label
-      labelCell.font = { bold: true }
+      labelCell.font = excelFont({ bold: true })
       labelCell.alignment = TEXT_ALIGNMENT
       const valueCell = worksheet.getCell(rowIndex, 2)
       valueCell.value = value
@@ -359,15 +350,16 @@ export async function writeSowFinanceWorksheet(
     worksheet.mergeCells(rowIndex, 1, rowIndex, 3)
     const sowTotalLabel = worksheet.getCell(rowIndex, 1)
     sowTotalLabel.value = "Total"
-    sowTotalLabel.font = { bold: true }
+    sowTotalLabel.font = excelFont({ bold: true })
     sowTotalLabel.alignment = TEXT_ALIGNMENT
     const sowTotalAmount = worksheet.getCell(rowIndex, 4)
     sowTotalAmount.value = campaign.total
     sowTotalAmount.alignment = AMOUNT_ALIGNMENT
     sowTotalAmount.numFmt = "$#,##0.00"
-    sowTotalAmount.font = { bold: true }
+    sowTotalAmount.font = excelFont({ bold: true })
     rowIndex += 3
   })
+  stampAptos(worksheet)
 }
 
 export type RetainerFinanceSheetInput = {
@@ -404,12 +396,8 @@ export async function writeRetainerFinanceWorksheet(
   worksheet.mergeCells(rowIndex, 1, rowIndex, 4)
   const headerCell = worksheet.getCell(rowIndex, 1)
   headerCell.value = `${input.clientName} - Monthly retainer`
-  headerCell.font = { bold: true, size: 14 }
-  headerCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FFD0D0D0" },
-  }
+  headerCell.font = excelFont({ bold: true, size: 14, color: { argb: ARGB_SAND_TEXT } })
+  headerCell.fill = SAND_FILL
   headerCell.alignment = TEXT_ALIGNMENT
   rowIndex++
 
@@ -430,7 +418,7 @@ export async function writeRetainerFinanceWorksheet(
   details.forEach(([label, value]) => {
     const labelCell = worksheet.getCell(rowIndex, 1)
     labelCell.value = label
-    labelCell.font = { bold: true }
+    labelCell.font = excelFont({ bold: true })
     labelCell.alignment = TEXT_ALIGNMENT
     const valueCell = worksheet.getCell(rowIndex, 2)
     valueCell.value = value
@@ -464,13 +452,14 @@ export async function writeRetainerFinanceWorksheet(
   worksheet.mergeCells(rowIndex, 1, rowIndex, 3)
   const retainerTotalLabel = worksheet.getCell(rowIndex, 1)
   retainerTotalLabel.value = "Total"
-  retainerTotalLabel.font = { bold: true }
+  retainerTotalLabel.font = excelFont({ bold: true })
   retainerTotalLabel.alignment = TEXT_ALIGNMENT
   const retainerTotalAmount = worksheet.getCell(rowIndex, 4)
   retainerTotalAmount.value = total
   retainerTotalAmount.alignment = AMOUNT_ALIGNMENT
   retainerTotalAmount.numFmt = "$#,##0.00"
-  retainerTotalAmount.font = { bold: true }
+  retainerTotalAmount.font = excelFont({ bold: true })
+  stampAptos(worksheet)
 }
 
 export async function workbookToXlsxBuffer(workbook: ExcelJS.Workbook): Promise<ArrayBuffer> {

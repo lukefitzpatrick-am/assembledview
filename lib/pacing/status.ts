@@ -22,13 +22,6 @@ export type SpendPacingBand = Exclude<UiPacingStatus, "kpi-pending">
 /** Semantic colour role — map to existing design tokens only. */
 export type PacingColourRole = "ok" | "attention" | "problem"
 
-export type BadgeToneVariant =
-  | "on-track"
-  | "attention"
-  | "behind"
-  | "critical"
-  | "secondary"
-
 export type ResolvedPacingStatus = {
   status: SpendPacingBand
   label: string
@@ -54,16 +47,6 @@ export const PACING_STATUS_THRESHOLDS = {
   /** KPI actual within this fraction of target counts on-track. */
   kpiTolerance: 0.1,
 } as const
-
-/** Role compatibility only. Band colour comes from `PACING_UI_STATUS`, never from this map. */
-export const ROLE_STYLES: Record<
-  PacingColourRole,
-  { badgeVariant: BadgeToneVariant; textClass: string }
-> = {
-  ok: { badgeVariant: "on-track", textClass: TONE_TEXT.action },
-  attention: { badgeVariant: "attention", textClass: TONE_TEXT.attention },
-  problem: { badgeVariant: "critical", textClass: TONE_TEXT.critical },
-}
 
 const BAND_META: Record<
   SpendPacingBand,

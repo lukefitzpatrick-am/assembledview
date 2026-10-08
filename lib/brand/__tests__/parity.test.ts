@@ -4,6 +4,7 @@ import path from "node:path"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
 
+import { getChartTheme } from "../../chart-theme"
 import { hexToHslTriplet } from "../index"
 import tokens from "../tokens.json"
 
@@ -153,7 +154,7 @@ const chartsDark: Array<[string, string]> = [
   ["--av-chart-4", tokens.functional.forestTextOnBlack],
   ["--av-chart-5", tokens.colour.mutedOnBlack],
   ["--av-chart-6", tokens.colour.contextBlack],
-  ["--av-chart-7", tokens.colour.mutedOnBlack],
+  ["--av-chart-7", tokens.colour.muted],
   ["--av-chart-8", tokens.colour.context],
   ["--av-status-ahead", tokens.colour.sky],
   ["--av-status-ontrack", tokens.colour.forestLight],
@@ -181,3 +182,22 @@ for (const suite of suites) {
     })
   }
 }
+
+test("light and dark chart series are eight distinct colours", () => {
+  const chartCss = readFileSync(path.join(root, "styles/chart-tokens.css"), "utf8")
+  const darkDeclarations = extractBlock(chartCss, ".dark")
+  for (const mode of ["light", "dark"] as const) {
+    const series = [...getChartTheme(mode).series]
+    assert.equal(series.length, 8, `${mode} series length`)
+    assert.equal(new Set(series).size, 8, `${mode} series must be eight distinct values`)
+  }
+  const darkSeries = getChartTheme("dark").series
+  for (let index = 0; index < darkSeries.length; index++) {
+    const variable = `--av-chart-${index + 1}`
+    assert.equal(
+      darkSeries[index]?.toLowerCase(),
+      darkDeclarations.get(variable)?.toLowerCase(),
+      `dark series ${index + 1} must match ${variable}`,
+    )
+  }
+})

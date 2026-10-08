@@ -1,5 +1,6 @@
 import type ExcelJS from "exceljs"
 
+import { paintSandHeader, stampAptos } from "@/lib/excel/brandSheet"
 import { composeName } from "./compose"
 import type { BaseLineRow, NamingPlatform, PlanGlobals } from "./fromPlan"
 import { TEMPLATES } from "./templates"
@@ -176,7 +177,7 @@ function writeInputSheet(
   headers.forEach((h, i) => {
     const cell = sheet.getCell(tableStart, i + 1)
     cell.value = h
-    cell.font = { bold: true }
+    paintSandHeader(cell)
   })
 
   inputRows.forEach((row, idx) => {
@@ -186,6 +187,7 @@ function writeInputSheet(
     sheet.getCell(r, 3).value = row.line_item_id
     sheet.getCell(r, 4).value = row.targeting
   })
+  stampAptos(sheet)
 }
 
 function writePlatformSheet(
@@ -207,7 +209,7 @@ function writePlatformSheet(
     headers.forEach((h, i) => {
       const cell = sheet.getCell(rowIndex, i + 1)
       cell.value = h
-      cell.font = { bold: true }
+      paintSandHeader(cell)
     })
     rowIndex++
 
@@ -236,6 +238,7 @@ function writePlatformSheet(
   for (let c = 1; c <= 12; c++) {
     if (!sheet.getColumn(c).width) sheet.getColumn(c).width = 18
   }
+  stampAptos(sheet)
 }
 
 function writeRulesSheet(workbook: ExcelJS.Workbook): void {
@@ -249,7 +252,7 @@ function writeRulesSheet(workbook: ExcelJS.Workbook): void {
   headers.forEach((h, i) => {
     const cell = sheet.getCell(1, i + 1)
     cell.value = h
-    cell.font = { bold: true }
+    paintSandHeader(cell)
   })
 
   let rowIndex = 2
@@ -270,6 +273,7 @@ function writeRulesSheet(workbook: ExcelJS.Workbook): void {
     sheet.mergeCells(rowIndex, 1, rowIndex, 4)
     rowIndex++
   }
+  stampAptos(sheet)
 }
 
 /**

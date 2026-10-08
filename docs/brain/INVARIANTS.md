@@ -278,6 +278,7 @@ pct === 100 → fee = 0 (division guard)
 - Client and publisher colour paint only EntityMark (`components/brand/EntityMark.tsx`).
 - Page titles rendered by `PageHeroTitleBlock` take a full stop. Entity names pass `punctuate={false}`. Campaign covers use an ink band (`CampaignHeroBanner`).
 - No hex colours or arbitrary hex classes in `app/**` or `components/**`. ESLint enforces it. Files on the DS-2 baseline ignore list are debt and the list only shrinks. Chart palette constants and tenant brand colours are excepted.
+- No shadows except floating overlays (shadow-e2, shadow-tooltip).
 - Amber and coral are functional status colours: behind, over-pacing, critical, overdue. Never charts, buttons or decoration.
 - Lime and sky are never text on white or sand.
 - Exports read lib/brand: PDFs embed Plus Jakarta Sans via lib/pdf/brandPdf.ts; Excel uses Aptos and BRAND ARGB; email uses EMAIL_FONT_STACK. Aptos font files are never bundled into the repo or generated files.

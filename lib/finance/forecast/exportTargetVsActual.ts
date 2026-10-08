@@ -8,6 +8,13 @@ import { format } from "date-fns"
 import type { FinanceForecastMonthKey } from "@/lib/types/financeForecast"
 import type { TargetVsActualReport } from "@/lib/finance/forecast/variance/targetVsActual"
 import { fyExportLabel } from "@/lib/finance/forecast/exportFinanceForecast"
+import {
+  ARGB_SAND_TEXT,
+  excelFont,
+  LINE_BORDER,
+  SAND_FILL,
+  stampAptos,
+} from "@/lib/excel/brandSheet"
 
 function monthColumnLabel(key: FinanceForecastMonthKey, fyStart: number): string {
   const calMonth: Record<FinanceForecastMonthKey, number> = {
@@ -30,18 +37,9 @@ function monthColumnLabel(key: FinanceForecastMonthKey, fyStart: number): string
 }
 
 const headerStyle: Partial<ExcelJS.Style> = {
-  font: { bold: true, size: 11 },
-  fill: {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FFE8E8E8" },
-  },
-  border: {
-    top: { style: "thin" },
-    bottom: { style: "thin" },
-    left: { style: "thin" },
-    right: { style: "thin" },
-  },
+  font: excelFont({ bold: true, size: 11, color: { argb: ARGB_SAND_TEXT } }),
+  fill: SAND_FILL,
+  border: LINE_BORDER,
 }
 
 export function targetVsActualExportFilenameStem(
@@ -85,7 +83,7 @@ export async function buildTargetVsActualWorkbook(
   let r = 1
   for (const [label, value] of meta) {
     about.getCell(r, 1).value = label
-    about.getCell(r, 1).font = { bold: true }
+    about.getCell(r, 1).font = excelFont({ bold: true })
     about.getCell(r, 2).value = value
     r++
   }
@@ -135,7 +133,7 @@ export async function buildTargetVsActualWorkbook(
     ws.getCell(rowIndex, 1).value = client.client_name
     ws.getCell(rowIndex, 2).value = client.client_id
     ws.getCell(rowIndex, 3).value = "FY total"
-    ws.getCell(rowIndex, 3).font = { bold: true }
+    ws.getCell(rowIndex, 3).font = excelFont({ bold: true })
     for (const [col, val] of [
       [4, client.fy.target],
       [5, client.fy.actual],
@@ -145,11 +143,11 @@ export async function buildTargetVsActualWorkbook(
       const cell = ws.getCell(rowIndex, col)
       cell.value = val
       cell.numFmt = "$#,##0.00"
-      cell.font = { bold: true }
+      cell.font = excelFont({ bold: true })
     }
     ws.getCell(rowIndex, 7).value = client.fy.delta_pct
     if (client.fy.delta_pct != null) ws.getCell(rowIndex, 7).numFmt = "0.0"
-    ws.getCell(rowIndex, 7).font = { bold: true }
+    ws.getCell(rowIndex, 7).font = excelFont({ bold: true })
     ws.getCell(rowIndex, 9).value = client.fy.rag
     rowIndex++
   }
@@ -166,7 +164,7 @@ export async function buildTargetVsActualWorkbook(
     const cell = ws.getCell(rowIndex, col)
     cell.value = val
     cell.numFmt = "$#,##0.00"
-    cell.font = { bold: true }
+    cell.font = excelFont({ bold: true })
   }
   ws.getCell(rowIndex, 7).value = report.totals.delta_pct
   if (report.totals.delta_pct != null) ws.getCell(rowIndex, 7).numFmt = "0.0"
@@ -178,5 +176,7 @@ export async function buildTargetVsActualWorkbook(
   for (let c = 4; c <= 8; c++) ws.getColumn(c).width = 14
   ws.getColumn(9).width = 10
 
+  stampAptos(about)
+  stampAptos(ws)
   return workbook
 }

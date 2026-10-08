@@ -7,6 +7,14 @@ import type ExcelJS from "exceljs"
 import { format } from "date-fns"
 
 import {
+  ARGB_SAND_TEXT,
+  excelFont,
+  LINE_BORDER,
+  SAND_FILL,
+  stampAptos,
+} from "@/lib/excel/brandSheet"
+
+import {
   FINANCE_FORECAST_FISCAL_MONTH_ORDER,
   FINANCE_FORECAST_GROUP_LABELS,
   FINANCE_FORECAST_LINE_KEYS,
@@ -212,18 +220,9 @@ export function financeForecastExportFilenameStem(
 }
 
 const forecastHeaderStyle: Partial<ExcelJS.Style> = {
-  font: { bold: true, size: 11 },
-  fill: {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FFE8E8E8" },
-  },
-  border: {
-    top: { style: "thin" },
-    bottom: { style: "thin" },
-    left: { style: "thin" },
-    right: { style: "thin" },
-  },
+  font: excelFont({ bold: true, size: 11, color: { argb: ARGB_SAND_TEXT } }),
+  fill: SAND_FILL,
+  border: LINE_BORDER,
 }
 
 /**
@@ -248,7 +247,7 @@ export async function buildFinanceForecastWorkbook(
   let r = 1
   for (const [label, value] of buildMetadataPairs(dataset, filters, apiMeta, exportedAt)) {
     about.getCell(r, 1).value = label
-    about.getCell(r, 1).font = { bold: true }
+    about.getCell(r, 1).font = excelFont({ bold: true })
     about.getCell(r, 2).value = value
     r++
   }
@@ -295,5 +294,7 @@ export async function buildFinanceForecastWorkbook(
 
   ws.views = [{ state: "frozen", ySplit: 1, activeCell: "A2", showGridLines: true }]
 
+  stampAptos(about)
+  stampAptos(ws)
   return workbook
 }

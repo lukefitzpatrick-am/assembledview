@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 
 /** shadcn `ChartTooltipContent` shell (kept local; chart tooltips also use `UnifiedTooltip` in feature charts). */
 const CHART_TOOLTIP_CONTENT_CLASS =
-  "grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-xl" as const
+  "grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-tooltip" as const
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const

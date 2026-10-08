@@ -157,7 +157,7 @@ const DARK_SERIES = [
   BRAND.functional.forestTextOnBlack,
   BRAND.colour.mutedOnBlack,
   BRAND.colour.contextBlack,
-  BRAND.colour.mutedOnBlack,
+  BRAND.colour.muted,
   BRAND.colour.context,
 ] as const
 

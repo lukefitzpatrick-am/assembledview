@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { addGst } from '@/lib/finance/gst';
 import { formatMoney, parseMoneyInput } from '@/lib/format/money';
-import { applyBrandFonts, PDF_COLOURS } from '@/lib/pdf/brandPdf';
+import { applyBrandFonts, drawWrappedLeftHeader, PDF_COLOURS } from '@/lib/pdf/brandPdf';
 
 export interface BillingSchedulePDFData {
   date: string;
@@ -104,18 +104,32 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
   y += lineHeight;
   doc.text(`MBA: ${data.mba_number}`, margin.left, y);
   y += lineHeight;
-  doc.text(`Campaign: ${data.campaign_name}`, margin.left, y);
+  const campaignExtra = drawWrappedLeftHeader(
+    doc,
+    `Campaign: ${data.campaign_name}`,
+    margin.left,
+    y,
+    pageW,
+    lineHeight,
+  );
   doc.text(`Brand: ${data.campaign_brand}`, margin.left + pageW, y, { align: 'right' });
-  y += lineHeight;
+  y += lineHeight + campaignExtra;
   doc.text(`Client: ${data.client_name}`, margin.left, y);
   y += lineHeight * 2;
 
   // Billing Schedule Table
   doc.setFont("PlusJakartaSans", "bold");
   doc.setFontSize(9);
-  doc.text('Month', margin.left, y);
+  const monthHeaderExtra = drawWrappedLeftHeader(
+    doc,
+    'Month',
+    margin.left,
+    y,
+    pageW,
+    lineHeight,
+  );
   doc.text('Amount (ex. GST)', margin.left + pageW, y, { align: 'right' });
-  y += 2;
+  y += 2 + monthHeaderExtra;
   doc.setDrawColor(...PDF_COLOURS.line);
   doc.line(margin.left, y, margin.left + pageW, y);
   y += lineHeight;

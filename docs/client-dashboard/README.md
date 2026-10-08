@@ -1,19 +1,7 @@
-# Client-branded dashboards
+# Client dashboards
 
-## Theming foundation
+Client dashboard screens use the app brand tokens (`lib/brand`) and the shared status and channel colours. There is no per-client theme object.
 
-Runtime colours and chart palettes are built in `lib/client-dashboard/theme.ts` from a minimal client payload. The React shell exposes CSS variables via `components/client-dashboard/ClientBrandProvider.tsx` (`--brand-primary`, `--brand-primary-dark`, `--brand-tint`) for dashboard UI and charts.
+The page shell is `components/dashboard/ClientDashboardPageContent.tsx`. Keyboard focus on dashboard controls uses `CLIENT_DASHBOARD_FOCUS_RING` in `components/client-dashboard/focus-styles.ts`.
 
-## Xano TODO
-
-Add the following fields to the **clients** table (and return them on client payloads the app already loads):
-
-| Field | Purpose |
-| --- | --- |
-| `brand_primary_hex` | Primary brand colour; drives `ClientBrandTheme.primary` and chart series order. |
-| `brand_primary_dark_hex` | Darker primary for headers, emphasis, and contrast surfaces (`ClientBrandTheme.primaryDark`). |
-| `dashboard_logo_url` | Optional logo for the client dashboard chrome (`ClientBrandTheme.logoUrl`). |
-
-Optional tint override: `brand_primary_tint_hex` — if omitted, the app derives a light tint by mixing the effective primary with white.
-
-Until these exist in Xano, `buildClientTheme` falls back to the in-app AV defaults (see `theme.ts`).
+A client can still carry a brand colour string via `lib/clients/brandColour.ts` (`DEFAULT_CLIENT_BRAND_COLOUR`). That value is sky (`#49C7EB`). It does not restyle the dashboard chrome.

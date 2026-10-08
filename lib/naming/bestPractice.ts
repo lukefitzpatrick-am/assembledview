@@ -1,5 +1,6 @@
 import type ExcelJS from "exceljs"
 
+import { ARGB_INK_TEXT, excelFont, INK_FILL } from "@/lib/excel/brandSheet"
 import type { BestPractice } from "@/lib/types/bestPractice"
 import { isEmptyBestPractice } from "@/lib/types/bestPractice"
 import type { Publisher } from "@/lib/types/publisher"
@@ -64,19 +65,15 @@ export function renderBestPracticeBlock(
   sheet.mergeCells(rowIndex, 1, rowIndex, colSpan)
   const titleCell = sheet.getCell(rowIndex, 1)
   titleCell.value = title
-  titleCell.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } }
-  titleCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF305496" },
-  }
+  titleCell.font = excelFont({ bold: true, size: 11, color: { argb: ARGB_INK_TEXT } })
+  titleCell.fill = INK_FILL
   rowIndex++
 
   for (const section of bp.sections) {
     if ((section.heading?.trim() ?? "") !== "") {
       const headingCell = sheet.getCell(rowIndex, 1)
       headingCell.value = section.heading
-      headingCell.font = { bold: true }
+      headingCell.font = excelFont({ bold: true })
       rowIndex++
     }
 

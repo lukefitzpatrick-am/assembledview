@@ -151,7 +151,7 @@ export function MediaGanttChart({
         {/* Class string mirrors CHART_TOOLTIP_CONTENT_CLASS in components/ui/chart.tsx — sync manually if that changes. */}
         {tip && (
           <div
-            className="pointer-events-none absolute z-50 grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-xl"
+            className="pointer-events-none absolute z-50 grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-tooltip"
             style={{ left: tip.x + 12, top: tip.y + 12 }}
           >
             <div className="font-medium">{tip.label}</div>

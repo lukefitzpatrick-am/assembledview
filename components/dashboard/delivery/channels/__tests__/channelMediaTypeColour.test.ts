@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { getMediaColor } from "@/lib/charts/registry"
+import { familyColour, MEDIA_FAMILY, MEDIA_TYPE_FAMILY, type MediaFamily, type MediaTypeThemeKey } from "@/lib/design/mediaFamilies"
 
 import { channelMediaTypeColour } from "../channelMediaTypeColour"
 import type { ChannelKey } from "../types"
@@ -45,44 +46,48 @@ describe("channelMediaTypeColour", () => {
     }
   })
 
-  it("keeps distinct media-type identities distinct (prog display ≠ prog video)", () => {
-    const colours = {
-      search: channelMediaTypeColour("search"),
-      social: channelMediaTypeColour("social-meta"),
-      progDisplay: channelMediaTypeColour("programmatic-display"),
-      progVideo: channelMediaTypeColour("programmatic-video"),
-      progOoh: channelMediaTypeColour("programmatic-ooh"),
-      digitalDisplay: channelMediaTypeColour("digital-display"),
-      digitalVideo: channelMediaTypeColour("digital-video"),
-      digitalAudio: channelMediaTypeColour("digital-audio"),
-      bvod: channelMediaTypeColour("bvod"),
+  it("media types colour by channel family (D11)", () => {
+    const fixture: Array<{
+      channel: ChannelKey
+      mediaType: MediaTypeThemeKey
+      family: MediaFamily
+    }> = [
+      { channel: "search", mediaType: "search", family: "search_display" },
+      { channel: "social-meta", mediaType: "socialmedia", family: "social" },
+      { channel: "programmatic-display", mediaType: "progdisplay", family: "search_display" },
+      { channel: "programmatic-video", mediaType: "progvideo", family: "video" },
+      { channel: "programmatic-ooh", mediaType: "progooh", family: "out_of_home" },
+      { channel: "digital-display", mediaType: "digidisplay", family: "search_display" },
+      { channel: "digital-video", mediaType: "digivideo", family: "video" },
+      { channel: "digital-audio", mediaType: "digiaudio", family: "audio" },
+      { channel: "bvod", mediaType: "bvod", family: "video" },
+    ]
+
+    for (const row of fixture) {
+      assert.equal(MEDIA_TYPE_FAMILY[row.mediaType], row.family)
+      assert.equal(
+        channelMediaTypeColour(row.channel),
+        familyColour(row.mediaType),
+        `${row.channel} must use the ${row.family} family colour`,
+      )
     }
+
+    const familyColours = new Set(fixture.map((row) => MEDIA_FAMILY[row.family].colour))
+    assert.equal(
+      familyColours.size,
+      5,
+      "search_display, social, video, out_of_home and audio are five colours",
+    )
 
     // Meta + TikTok + Reddit + plan-only share social_media by design (same media type)
     assert.equal(channelMediaTypeColour("social-meta"), channelMediaTypeColour("social-tiktok"))
     assert.equal(channelMediaTypeColour("social-meta"), channelMediaTypeColour("social-reddit"))
     assert.equal(channelMediaTypeColour("plan-only"), channelMediaTypeColour("social-meta"))
 
-    const distinct = new Set(Object.values(colours))
-    assert.equal(
-      distinct.size,
-      9,
-      `expected 9 distinct media-type hexes, got ${JSON.stringify(colours)}`,
-    )
-
-    assert.notEqual(colours.progDisplay, colours.progVideo)
-    assert.notEqual(colours.progDisplay, colours.progOoh)
-    assert.notEqual(colours.progVideo, colours.progOoh)
-    assert.notEqual(colours.digitalDisplay, colours.progDisplay)
-    assert.equal(colours.digitalDisplay, getMediaColor("digital_display"))
-    assert.equal(colours.digitalVideo, getMediaColor("digital_video"))
-    assert.equal(colours.digitalAudio, getMediaColor("digital_audio"))
-    assert.equal(colours.bvod, getMediaColor("bvod"))
-    // Regression: bare "programmatic" must not be what display/video resolve to
-    const badProgrammatic = getMediaColor("programmatic")
-    assert.notEqual(colours.progDisplay, badProgrammatic)
-    assert.notEqual(colours.progVideo, badProgrammatic)
-    assert.notEqual(colours.progOoh, badProgrammatic)
+    assert.equal(channelMediaTypeColour("digital-display"), getMediaColor("digital_display"))
+    assert.equal(channelMediaTypeColour("digital-video"), getMediaColor("digital_video"))
+    assert.equal(channelMediaTypeColour("digital-audio"), getMediaColor("digital_audio"))
+    assert.equal(channelMediaTypeColour("bvod"), getMediaColor("bvod"))
   })
 
   it("searchSeriesPalette.cost equals getMediaColor(search)", () => {
