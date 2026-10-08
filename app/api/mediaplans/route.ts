@@ -6,20 +6,57 @@ import {
   fetchMediaPlansListFallback,
   getCachedMediaPlansList,
 } from "@/lib/api/mediaPlansListCache"
+import { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
 import { createMediaPlanMasterPostgresFirst } from "@/lib/data/writeMediaPlanMasters"
+import { readPlanMasters } from "@/lib/data/readMediaPlans"
+import { nextMbaNumberAfterTaken } from "@/lib/mediaplan/mbaNumberTaken"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
 
+function isUniqueViolation(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false
+  const e = err as { code?: string; cause?: { code?: string }; message?: string }
+  return (
+    e.code === "23505" ||
+    e.cause?.code === "23505" ||
+    /unique|duplicate key/i.test(String(e.message ?? ""))
+  )
+}
+
+/** 409 for a new master whose number is already taken. The insert is not committed. */
+async function mbaNumberTakenResponse(mbaNumber: string, existingMasterId?: number) {
+  let nextMbaNumber: string | null = null
+  try {
+    const existingPlans = await readPlanMasters()
+    const existingMbaNumbers = existingPlans.map((plan) =>
+      plan && typeof plan.mba_number === "string" ? plan.mba_number : null,
+    )
+    nextMbaNumber = nextMbaNumberAfterTaken(existingMbaNumbers, mbaNumber)
+  } catch (allocErr) {
+    console.error("[api/mediaplans POST] next MBA number failed", allocErr)
+  }
+  return NextResponse.json(
+    {
+      error: `A media plan with MBA number "${mbaNumber}" already exists.`,
+      code: "MBA_NUMBER_TAKEN",
+      ...(existingMasterId != null ? { existingMasterId } : {}),
+      ...(nextMbaNumber ? { nextMbaNumber } : {}),
+    },
+    { status: 409 },
+  )
+}
+
 export async function POST(request: NextRequest) {
+  let mbaNumber = ""
   try {
     const gate = await requireRole(request, ["admin"])
     if ("response" in gate) return gate.response
 
     const data = await request.json()
     const mbaNumberRaw = data.mbanumber ?? data.mba_number ?? ""
-    const mbaNumber =
+    mbaNumber =
       typeof mbaNumberRaw === "string" ? mbaNumberRaw.trim() : String(mbaNumberRaw).trim()
 
     if (!mbaNumber) {
@@ -32,14 +69,7 @@ export async function POST(request: NextRequest) {
     try {
       const existing = await findExistingMasterByMbaNumber(mbaNumber)
       if (existing) {
-        return NextResponse.json(
-          {
-            error: `A media plan with MBA number "${mbaNumber}" already exists.`,
-            code: "MBA_NUMBER_TAKEN",
-            existingMasterId: existing.id,
-          },
-          { status: 409 }
-        )
+        return mbaNumberTakenResponse(mbaNumber, existing.id)
       }
     } catch (preCheckErr) {
       console.error("MBA uniqueness pre-check failed (proceeding with create):", preCheckErr)
@@ -71,23 +101,18 @@ export async function POST(request: NextRequest) {
 
     let errorMessage = "Failed to create media plan"
     let statusCode = 500
-    let code: string | undefined
 
-    if (error && typeof error === "object" && "code" in error) {
-      const pgCode = String((error as { code?: unknown }).code ?? "")
-      if (pgCode === "23505") {
-        errorMessage = "A media plan with this MBA number already exists."
-        statusCode = 409
-        code = "MBA_NUMBER_TAKEN"
+    if (mbaNumber && isUniqueViolation(error)) {
+      const classified = classifySaveUniqueViolation(error, { creatingNewMaster: true })
+      if (classified.code === "MBA_NUMBER_TAKEN") {
+        return mbaNumberTakenResponse(mbaNumber)
       }
-    } else if (error instanceof Error && error.message) {
+    }
+    if (error instanceof Error && error.message) {
       errorMessage = error.message
     }
 
-    return NextResponse.json(
-      { error: errorMessage, ...(code ? { code } : {}) },
-      { status: statusCode }
-    )
+    return NextResponse.json({ error: errorMessage }, { status: statusCode })
   }
 }
 

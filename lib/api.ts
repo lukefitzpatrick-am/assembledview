@@ -14,6 +14,7 @@ import {
 import { extractAndFormatBursts } from "@/lib/mediaplan/formatBurstsForPersist"
 import { formatProductionBurstForPersist } from "@/lib/mediaplan/resolveProductionBurstBudget"
 import { getBooleanField } from "@/lib/util/getBooleanField"
+import { CreateMediaPlanError } from "@/lib/mediaplan/mbaNumberTaken"
 
 /** Xano channel replace is deleted. Callers must use POST /api/plans/save. */
 export async function replaceChannelLineItems(
@@ -827,7 +828,15 @@ export async function createMediaPlan(data: {
     if (!response.ok) {
       throwIfWriteUnauthorized(response.status)
       const errorData = await response.json();
-      throw new Error(errorData.error || errorData.message || "Failed to create media plan");
+      const message = errorData.error || errorData.message || "Failed to create media plan"
+      if (errorData.code === "MBA_NUMBER_TAKEN") {
+        throw new CreateMediaPlanError(message, {
+          code: "MBA_NUMBER_TAKEN",
+          nextMbaNumber:
+            typeof errorData.nextMbaNumber === "string" ? errorData.nextMbaNumber : undefined,
+        })
+      }
+      throw new Error(message);
     }
     const result = await response.json();
     // Return the master data with id for compatibility

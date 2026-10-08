@@ -27,6 +27,10 @@ import {
 } from "@/lib/mediaplan/campaignStatusGuard"
 import { formatSaveModeLabel } from "@/lib/mediaplan/channelHydrationGate"
 import { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
+import {
+  mbaNumberTakenRetry,
+  nextMbaNumberAfterTaken,
+} from "@/lib/mediaplan/mbaNumberTaken"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import {
   assignStableLineItemNumbers,
@@ -317,6 +321,20 @@ describe("4. stable line ids + unique-violation disambiguation", () => {
     assert.equal(r.code, "DUPLICATE_LINE_ITEM_ID")
   })
 
+  it("new-master mba unique → MBA_NUMBER_TAKEN; existing master stays UNIQUE_VIOLATION", () => {
+    const err = {
+      code: "23505",
+      constraint: "media_plan_masters_mba_number_unique",
+      message:
+        'duplicate key value violates unique constraint "media_plan_masters_mba_number_unique"',
+    }
+    assert.equal(
+      classifySaveUniqueViolation(err, { creatingNewMaster: true }).code,
+      "MBA_NUMBER_TAKEN",
+    )
+    assert.equal(classifySaveUniqueViolation(err).code, "UNIQUE_VIOLATION")
+  })
+
   it("version unique collision → VERSION_ALREADY_EXISTS (constraint-name)", () => {
     const r = classifySaveUniqueViolation({
       code: "23505",
@@ -325,6 +343,46 @@ describe("4. stable line ids + unique-violation disambiguation", () => {
         'duplicate key value violates unique constraint "media_plan_versions_master_id_version_number_key"',
     })
     assert.equal(r.code, "VERSION_ALREADY_EXISTS")
+  })
+
+  it("a taken new number moves once; a second collision and an existing master do not", () => {
+    const first = mbaNumberTakenRetry({
+      code: "MBA_NUMBER_TAKEN",
+      nextMbaNumber: "penfold024",
+      alreadyRetried: false,
+    })
+    assert.deepEqual(first, { action: "retry", nextMbaNumber: "penfold024" })
+    assert.deepEqual(
+      mbaNumberTakenRetry({
+        code: "MBA_NUMBER_TAKEN",
+        nextMbaNumber: "penfold025",
+        alreadyRetried: true,
+      }),
+      { action: "error" },
+    )
+    assert.deepEqual(
+      mbaNumberTakenRetry({
+        code: "VERSION_ALREADY_EXISTS",
+        nextMbaNumber: "penfold024",
+        alreadyRetried: false,
+      }),
+      { action: "error" },
+    )
+    assert.equal(
+      nextMbaNumberAfterTaken(["penfold023", "penfold030", "other001"], "penfold023"),
+      "penfold031",
+    )
+
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    assert.match(createSrc, /mbaNumberTakenRetry/)
+    assert.match(createSrc, /mbaNumberTakenRetriedRef/)
+    assert.match(
+      createSrc,
+      /was used by another plan while you were working\. This plan will save as/,
+    )
+    assert.match(createSrc, /setMbaNumber\(decision\.nextMbaNumber\)/)
+    assert.doesNotMatch(editSrc, /mbaNumberTakenRetry/)
   })
 })
 

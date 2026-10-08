@@ -210,6 +210,7 @@ import {
   saveInfluencersLineItems,
   saveProductionLineItems
 } from "@/lib/api"
+import { CreateMediaPlanError, mbaNumberTakenRetry } from "@/lib/mediaplan/mbaNumberTaken"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { toDateOnlyString } from "@/lib/timezone"
 import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
@@ -5056,6 +5057,8 @@ function CreateMediaPlan() {
   /** Keeps latest master id for synchronous guards (double-submit) */
   const mediaPlanIdRef = useRef<number | null>(null)
   const saveAllInFlightRef = useRef(false)
+  /** One automatic MBA-number retry per user save. A second collision stays on the error modal. */
+  const mbaNumberTakenRetriedRef = useRef(false)
   const [isPlanSaving, setIsPlanSaving] = useState<boolean>(false)
   const [isVersionSaving, setIsVersionSaving] = useState<boolean>(false)
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<number | null>(null)
@@ -5392,6 +5395,22 @@ function CreateMediaPlan() {
       toast({ title: 'Plan created', description: `ID ${mediaPlan.id}` })
       return mediaPlan.id
     } catch (err: any) {
+      const taken = err instanceof CreateMediaPlanError ? err : null
+      const decision = mbaNumberTakenRetry({
+        code: taken?.code,
+        nextMbaNumber: taken?.nextMbaNumber,
+        alreadyRetried: mbaNumberTakenRetriedRef.current,
+      })
+      if (decision.action === "retry") {
+        mbaNumberTakenRetriedRef.current = true
+        const oldNumber = String(form.getValues("mba_number") ?? "").trim()
+        form.setValue("mba_number", decision.nextMbaNumber)
+        setMbaNumber(decision.nextMbaNumber)
+        toast({
+          title: `${oldNumber} was used by another plan while you were working. This plan will save as ${decision.nextMbaNumber}.`,
+        })
+        return await handleSaveMediaPlan()
+      }
       const expired = isWriteSessionExpiredError(err)
       const message = expired ? SESSION_EXPIRED_SAVE_MESSAGE : err.message
       setSaveStatus(prev => prev.map(item => 
@@ -6816,6 +6835,7 @@ const handleSaveAll = async (opts?: {
     if (!proceed) return
   }
   saveAllInFlightRef.current = true
+  mbaNumberTakenRetriedRef.current = false
   publishZipContextRef.current = { versionId: null, documentsStatus: null }
   try {
     setIsSaveModalOpen(true);

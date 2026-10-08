@@ -41,6 +41,36 @@ describe("classifySaveUniqueViolation", () => {
     assert.equal(r.code, "VERSION_ALREADY_EXISTS")
   })
 
+  it("new master mba_number unique → MBA_NUMBER_TAKEN", () => {
+    const r = classifySaveUniqueViolation(
+      {
+        code: "23505",
+        constraint: "media_plan_masters_mba_number_unique",
+        message:
+          'duplicate key value violates unique constraint "media_plan_masters_mba_number_unique"',
+      },
+      { creatingNewMaster: true },
+    )
+    assert.equal(r.code, "MBA_NUMBER_TAKEN")
+    assert.equal(r.constraint, "media_plan_masters_mba_number_unique")
+  })
+
+  it("existing master mba_number unique stays UNIQUE_VIOLATION", () => {
+    const err = {
+      code: "23505",
+      cause: {
+        constraint: "media_plan_masters_mba_number_unique",
+        message:
+          'duplicate key value violates unique constraint "media_plan_masters_mba_number_unique"',
+      },
+    }
+    assert.equal(classifySaveUniqueViolation(err).code, "UNIQUE_VIOLATION")
+    assert.equal(
+      classifySaveUniqueViolation(err, { creatingNewMaster: false }).code,
+      "UNIQUE_VIOLATION",
+    )
+  })
+
   it("unknown unique → UNIQUE_VIOLATION", () => {
     const r = classifySaveUniqueViolation({
       code: "23505",
