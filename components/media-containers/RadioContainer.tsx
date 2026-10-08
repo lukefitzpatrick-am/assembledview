@@ -63,7 +63,7 @@ import {
   assignStableLineItemNumbers,
   reassignLineItemNumbers,
 } from "@/lib/mediaplan/lineItemOrder"
-import { formatMoney } from "@/lib/format/money"
+import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import {
   getMediaTypeThemeHex,
   mediaTypeSummaryStripeStyle,
@@ -114,11 +114,6 @@ const formatDateString = (d?: Date | string): string => {
 };
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("radio")
-
-function netMediaPctOfGross(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
-  if (!budgetIncludesFees) return rawBudget;
-  return (rawBudget * (100 - (feePct || 0))) / 100;
-}
 
 // Exported utility function to get bursts
 
@@ -1248,19 +1243,6 @@ useEffect(() => {
                     MEDIA_TYPE_ID_CODES.radio,
                     lineItemIndex + 1
                   );
-                  const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.getValues(`radiolineItems.${lineItemIndex}`);
-                    let totalMedia = 0;
-                    let totalCalculatedValue = 0;
-
-                    lineItem.bursts.forEach((burst) => {
-                      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-                      totalMedia += budget;
-                      totalCalculatedValue += burst.calculatedValue || 0;
-                    });
-
-                    return { totalMedia, totalCalculatedValue };
-                  };
 
                   const selectedNetwork = form.watch(`radiolineItems.${lineItemIndex}.network`);
 
@@ -1273,7 +1255,6 @@ useEffect(() => {
                     filteredRadioStations = radioStations.filter(station => station.network === selectedNetwork);
                   }
 
-                  const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                   return (
                     <ExpertCard<RadioFormValues>
@@ -1285,12 +1266,10 @@ useEffect(() => {
                       lineItemId={lineItemId}
                       collapsed={collapsedLineItems.has(lineItemIndex)}
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
-                      totalDisplay={formatMoney(
-                        form.getValues(`radiolineItems.${lineItemIndex}.budgetIncludesFees`)
-                          ? totalMedia
-                          : totalMedia + (totalMedia / (100 - (feeradio || 0))) * (feeradio || 0),
-                        { locale: "en-AU", currency: "AUD" }
-                      )}
+                      totalDisplay={formatCardTitleFromLine(
+                        form.getValues(`radiolineItems.${lineItemIndex}`),
+                        feeradio || 0,
+                        )}
                       publishers={publishers}
                       stationOptions={filteredRadioStations.map((radioStation) => ({
                         value: radioStation.station || `station-${radioStation.id}`,

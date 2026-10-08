@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { AutoGrowField } from "@/components/media-containers/AutoGrowField"
+import { CanonicalBurstMoney } from "@/components/media-containers/CanonicalBurstMoney"
 import { DraftHighlightedField } from "@/components/mediaplan/DraftHighlightedField"
 import { useDraftLineMeta } from "@/hooks/useDraftFieldDiff"
 import { Badge } from "@/components/ui/badge"
@@ -523,6 +524,10 @@ function ExpertCardBursts<T extends FieldValues>({
     control: form.control,
     name: fieldName<T>(itemsKey, lineItemIndex, "budgetIncludesFees"),
   }) as boolean | undefined
+  const clientPaysForMedia = useWatch({
+    control: form.control,
+    name: fieldName<T>(itemsKey, lineItemIndex, "clientPaysForMedia"),
+  }) as boolean | undefined
   const bursts =
     (useWatch({
       control: form.control,
@@ -572,14 +577,6 @@ function ExpertCardBursts<T extends FieldValues>({
         const budgetRaw = parseBudgetRaw(
           form.getValues(burstFieldName<T>(itemsKey, lineItemIndex, burstIndex, "budget"))
         )
-        const mediaValue = budgetIncludesFees
-          ? (budgetRaw / 100) * (100 - feePct)
-          : budgetRaw
-        const feeValue = budgetIncludesFees
-          ? (budgetRaw / 100) * feePct
-          : feePct === 100
-            ? 0
-            : (budgetRaw / (100 - feePct)) * feePct
 
         return (
           <Card key={burstKey} className={MP_BURST_CARD}>
@@ -777,23 +774,12 @@ function ExpertCardBursts<T extends FieldValues>({
                     <div />
                   )}
 
-                  <Input
-                    type="text"
-                    readOnly
-                    className="h-10 w-full border-border/40 bg-muted/30 text-sm text-muted-foreground"
-                    value={formatMoney(mediaValue, {
-                      locale: "en-AU",
-                      currency: "AUD",
-                    })}
-                  />
-                  <Input
-                    type="text"
-                    readOnly
-                    className="h-10 w-full border-border/40 bg-muted/30 text-sm text-muted-foreground"
-                    value={formatMoney(feeValue, {
-                      locale: "en-AU",
-                      currency: "AUD",
-                    })}
+                  <CanonicalBurstMoney
+                    budget={budgetRaw}
+                    buyType={buyType}
+                    budgetIncludesFees={budgetIncludesFees}
+                    clientPaysForMedia={clientPaysForMedia}
+                    feePct={feePct}
                   />
                 </div>
 
@@ -877,6 +863,10 @@ export function ExpertCard<T extends FieldValues>({
   className,
 }: ExpertCardProps<T>) {
   const { isNew } = useDraftLineMeta(lineItemId)
+  const lineClientPays = useWatch({
+    control: form.control,
+    name: fieldName<T>(itemsKey, lineItemIndex, "clientPaysForMedia"),
+  }) as boolean | undefined
   const cardFields = getExpertCardSurfaceFields(config)
   const optionFlags = getExpertOptionFlags(config)
   const dropdownFields = cardFields.filter((d) =>
@@ -986,6 +976,9 @@ export function ExpertCard<T extends FieldValues>({
             <div className="text-right">
               <span className="block text-[11px] text-muted-foreground">Total</span>
               <span className="num text-sm font-bold">{totalDisplay}</span>
+              {lineClientPays ? (
+                <span className="block text-[11px] text-muted-foreground">Client paid</span>
+              ) : null}
             </div>
             {onToggleCollapsed ? (
               <Button

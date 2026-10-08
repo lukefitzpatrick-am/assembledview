@@ -104,6 +104,45 @@ export function lineTotals(line: LineMoney, ctx: LineTotalsContext): LineTotals 
   }
 }
 
+export type DisplayLineTotals = {
+  /** Billed media plus planned media the client pays the publisher. */
+  mediaCents: number
+  feeCents: number
+  /** Shown media plus fee. Not `totalCents` from lineTotals, which drops client-paid media. */
+  totalCents: number
+  clientPaid: boolean
+  /** A 100% fee on a net budget. Fee cents stay 0. */
+  invalidNetFee: boolean
+}
+
+function flagged(value: unknown): boolean {
+  return value === true || value === "true"
+}
+
+/**
+ * What a card cell or title shows. Money still comes from lineTotals.
+ * Bonus and package inclusions stay at zero. Package is not zeroed.
+ */
+export function displayLineTotals(line: LineMoney, ctx: LineTotalsContext): DisplayLineTotals {
+  const totals = lineTotals(line, ctx)
+  const clientPaid =
+    flagged(ctx.clientPaysForMedia) ||
+    flagged(line.clientPaysForMedia) ||
+    (line.bursts ?? []).some((burst) => flagged(burst.clientPaysForMedia))
+  const includesFees =
+    flagged(ctx.budgetIncludesFees) ||
+    flagged(line.budgetIncludesFees) ||
+    (line.bursts ?? []).some((burst) => flagged(burst.budgetIncludesFees))
+  const mediaCents = totals.mediaCents + totals.clientPaysMediaCents
+  return {
+    mediaCents,
+    feeCents: totals.feeCents,
+    totalCents: mediaCents + totals.feeCents,
+    clientPaid,
+    invalidNetFee: ctx.feePct === 100 && !includesFees,
+  }
+}
+
 export function campaignTotals(lines: LineMoney[], ctx: LineTotalsContext): LineTotals {
   const parts = lines.map((line) => lineTotals(line, ctx))
   const sawAdServing = parts.some((part) => part.adServingCents != null)

@@ -64,7 +64,7 @@ import {
   type InvestmentBurstInput,
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
+import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
@@ -1089,21 +1089,7 @@ useEffect(() => {
                   MEDIA_TYPE_ID_CODES.socialMedia,
                   lineItemIndex + 1
                 );
-                const getTotals = (lineItemIndex: number) => {
-                  const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
-                  let totalMedia = 0;
-                  let totalCalculatedValue = 0;
 
-                  lineItem.bursts.forEach((burst) => {
-                    const budget = parseFloat((burst.budget || "").toString().replace(/[^0-9.]/g, "")) || 0;
-                    totalMedia += budget;
-                    totalCalculatedValue += burst.calculatedValue || 0;
-                  });
-
-                  return { totalMedia, totalCalculatedValue };
-                };
-
-                const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                 return (
                     <ExpertCard<SocialMediaFormValues>
@@ -1115,12 +1101,10 @@ useEffect(() => {
                       lineItemId={lineItemId}
                       collapsed={collapsedLineItems.has(lineItemIndex)}
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
-                      totalDisplay={formatMoney(
-                        form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                          ? totalMedia
-                          : totalMedia + (totalMedia / (100 - (feesocial || 0))) * (feesocial || 0),
-                        { locale: "en-AU", currency: "AUD" }
-                      )}
+                      totalDisplay={formatCardTitleFromLine(
+                        form.getValues(`lineItems.${lineItemIndex}`),
+                        feesocial || 0,
+                        )}
                       publishers={publishers}
                       feePct={feesocial || 0}
                       calculatedVariant="cpcCpvCpm"

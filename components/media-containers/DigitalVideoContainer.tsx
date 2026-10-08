@@ -57,7 +57,7 @@ import {
   type InvestmentBurstInput,
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatMoney } from "@/lib/format/money"
+import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
@@ -1141,17 +1141,6 @@ useEffect(() => {
                     MEDIA_TYPE_ID_CODES.digitalVideo,
                     lineItemIndex + 1
                   );
-                  const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.getValues(`digivideolineItems.${lineItemIndex}`);
-                    let totalMedia = 0;
-
-                    lineItem.bursts.forEach((burst) => {
-                      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-                      totalMedia += budget;
-                    });
-
-                    return { totalMedia };
-                  };
 
                   const selectedPublisher = form.watch(`digivideolineItems.${lineItemIndex}.publisher`);
 
@@ -1161,8 +1150,6 @@ useEffect(() => {
                   } else {
                     filteredDigiVideoSites = digivideoSites.filter((site) => normalizeKey(site.platform) === normalizeKey(selectedPublisher));
                   }
-
-                  const { totalMedia } = getTotals(lineItemIndex);
 
                   return (
                     <ExpertCard<DigiVideoFormValues>
@@ -1174,12 +1161,10 @@ useEffect(() => {
                       lineItemId={lineItemId}
                       collapsed={collapsedLineItems.has(lineItemIndex)}
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
-                      totalDisplay={formatMoney(
-                        form.getValues(`digivideolineItems.${lineItemIndex}.budgetIncludesFees`)
-                          ? totalMedia
-                          : totalMedia + (totalMedia / (100 - (feedigivideo || 0))) * (feedigivideo || 0),
-                        { locale: "en-AU", currency: "AUD" }
-                      )}
+                      totalDisplay={formatCardTitleFromLine(
+                        form.getValues(`digivideolineItems.${lineItemIndex}`),
+                        feedigivideo || 0,
+                        )}
                       publishers={publishers}
                       dynamicOptionsByKey={{
                         site: filteredDigiVideoSites.map((site) => ({

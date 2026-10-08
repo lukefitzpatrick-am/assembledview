@@ -47,7 +47,7 @@ import {
   type InvestmentBurstInput,
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatMoney } from "@/lib/format/money"
+import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -177,17 +177,6 @@ export function getCinemaBursts(
       }
     })
   )
-}
-
-/** Net media when budget is gross incl. fee - must match `getCinemaBursts` / burst row readouts (linear split). */
-function cinemaLineBurstNetMedia(
-  rawBudget: number,
-  budgetIncludesFees: boolean,
-  feePct: number
-): number {
-  if (!budgetIncludesFees) return rawBudget;
-  const pct = feePct || 0;
-  return (rawBudget * (100 - pct)) / 100
 }
 
 export function calculateInvestmentPerMonth(form, feecinema) {
@@ -1148,21 +1137,7 @@ useEffect(() => {
                     MEDIA_TYPE_ID_CODES.cinema,
                     lineItemIndex + 1
                   );
-                  const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.getValues(`cinemalineItems.${lineItemIndex}`);
-                    let totalMedia = 0;
-                    let totalCalculatedValue = 0;
 
-                    lineItem.bursts.forEach((burst) => {
-                      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-                      totalMedia += budget;
-                      totalCalculatedValue += burst.calculatedValue || 0;
-                    });
-
-                    return { totalMedia, totalCalculatedValue };
-                  };
-
-                  const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                   return (
                     <ExpertCard<CinemaFormValues>
@@ -1174,12 +1149,10 @@ useEffect(() => {
                       lineItemId={lineItemId}
                       collapsed={collapsedLineItems.has(lineItemIndex)}
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
-                      totalDisplay={formatMoney(
-                        form.getValues(`cinemalineItems.${lineItemIndex}.budgetIncludesFees`)
-                          ? totalMedia
-                          : totalMedia + (totalMedia / (100 - (feecinema || 0))) * (feecinema || 0),
-                        { locale: "en-AU", currency: "AUD" }
-                      )}
+                      totalDisplay={formatCardTitleFromLine(
+                        form.getValues(`cinemalineItems.${lineItemIndex}`),
+                        feecinema || 0,
+                        )}
                       publishers={publishers}
                       stationOptions={cinemaStations.map((station) => ({
                         value: station.station || `station-${station.id}`,

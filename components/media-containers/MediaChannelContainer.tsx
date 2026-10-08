@@ -33,7 +33,7 @@ import { buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { cn } from "@/lib/utils"
 import { segmentChipClass } from "@/components/layout/navChip"
 import { Copy, Plus, Trash2 } from "lucide-react"
-import { formatMoney } from "@/lib/format/money"
+import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import { newBurstReactKey } from "@/lib/mediaplan/burstOperations"
 import {
@@ -100,14 +100,6 @@ function buildEmptyLineItemPayload(
     totalDeliverables: 0,
     totalFee: 0,
   }
-}
-
-function defaultTotalDisplay(totalMedia: number, feePct: number) {
-  const pct = feePct || 0
-  return formatMoney(
-    totalMedia + (totalMedia / (100 - pct)) * pct,
-    { locale: "en-AU", currency: "AUD" },
-  )
 }
 
 /**
@@ -346,17 +338,12 @@ export default function MediaChannelContainer({
                       fieldKey,
                     })
 
-                    const includesFees = form.getValues(
-                      `${fieldKey}.${lineItemIndex}.budgetIncludesFees`,
-                    )
                     const totalDisplay =
                       override?.totalDisplay ??
-                      (includesFees
-                        ? formatMoney(totalMedia, {
-                            locale: "en-AU",
-                            currency: "AUD",
-                          })
-                        : defaultTotalDisplay(totalMedia, feePct))
+                      formatCardTitleFromLine(
+                        form.getValues(`${fieldKey}.${lineItemIndex}`),
+                        feePct || 0,
+                      )
 
                     return (
                       <ExpertCard

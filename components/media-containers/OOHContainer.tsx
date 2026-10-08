@@ -67,7 +67,7 @@ import {
   assignStableLineItemNumbers,
   reassignOohLineItemNumbers,
 } from "@/lib/mediaplan/lineItemOrder"
-import { formatMoney } from "@/lib/format/money"
+import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import {
   Dialog,
   DialogContent,
@@ -1175,21 +1175,7 @@ useEffect(() => {
                     row?.line_item_id ||
                     row?.lineItemId ||
                     buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.ooh, lineNumber);
-                  const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
-                    let totalMedia = 0;
-                    let totalCalculatedValue = 0;
 
-                    lineItem.bursts.forEach((burst) => {
-                      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-                      totalMedia += budget;
-                      totalCalculatedValue += burst.calculatedValue || 0;
-                    });
-
-                    return { totalMedia, totalCalculatedValue };
-                  };
-
-                  const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                   return (
                     <ExpertCard<OohFormValues>
@@ -1201,12 +1187,10 @@ useEffect(() => {
                       lineItemId={lineItemId}
                       collapsed={collapsedLineItems.has(lineItemIndex)}
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
-                      totalDisplay={formatMoney(
-                        form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                          ? totalMedia
-                          : totalMedia + (totalMedia / (100 - (feeooh || 0))) * (feeooh || 0),
-                        { locale: "en-AU", currency: "AUD" }
-                      )}
+                      totalDisplay={formatCardTitleFromLine(
+                        form.getValues(`lineItems.${lineItemIndex}`),
+                        feeooh || 0,
+                        )}
                       publishers={publishers}
                       feePct={feeooh || 0}
                       calculatedVariant="ooh"

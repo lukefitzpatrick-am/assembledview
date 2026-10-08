@@ -63,7 +63,7 @@ import {
   type InvestmentBurstInput,
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
+import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -1185,19 +1185,6 @@ useEffect(() => {
                     MEDIA_TYPE_ID_CODES.digitalAudio,
                     lineItemIndex + 1
                   );
-                  const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.getValues(`digiaudiolineItems.${lineItemIndex}`);
-                    let totalMedia = 0;
-                    let totalCalculatedValue = 0;
-
-                    lineItem.bursts.forEach((burst) => {
-                      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-                      totalMedia += budget;
-                      totalCalculatedValue += burst.calculatedValue || 0;
-                    });
-
-                    return { totalMedia, totalCalculatedValue };
-                  };
 
                   const selectedPublisher =
                     form.watch(`digiaudiolineItems.${lineItemIndex}.publisher`) ||
@@ -1210,7 +1197,6 @@ useEffect(() => {
                     filteredDigiAudioSites = audioSites.filter((site) => normalizeKey(site.platform) === normalizeKey(selectedPublisher));
                   }
 
-                  const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                   return (
                     <ExpertCard<DigiAudioFormValues>
@@ -1222,12 +1208,10 @@ useEffect(() => {
                       lineItemId={lineItemId}
                       collapsed={collapsedLineItems.has(lineItemIndex)}
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
-                      totalDisplay={formatMoney(
-                        form.getValues(`digiaudiolineItems.${lineItemIndex}.budgetIncludesFees`)
-                          ? totalMedia
-                          : totalMedia + (totalMedia / (100 - (feedigiaudio || 0))) * (feedigiaudio || 0),
-                        { locale: "en-AU", currency: "AUD" }
-                      )}
+                      totalDisplay={formatCardTitleFromLine(
+                        form.getValues(`digiaudiolineItems.${lineItemIndex}`),
+                        feedigiaudio || 0,
+                        )}
                       publishers={publishers}
                       dynamicOptionsByKey={{
                         site: filteredDigiAudioSites.map((site) => ({

@@ -59,7 +59,7 @@ import {
   type InvestmentBurstInput,
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
+import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import {
   CpcFamilyBurstCalculatedField,
   getCpcFamilyBurstCalculatedColumnLabel,
@@ -1297,19 +1297,6 @@ useEffect(() => {
                     MEDIA_TYPE_ID_CODES.newspaper,
                     lineItemIndex + 1
                   );
-                  const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.watch(`newspaperlineItems.${lineItemIndex}`);
-                    let totalMedia = 0;
-                    let totalCalculatedValue = 0;
-
-                    lineItem.bursts.forEach((burst) => {
-                      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-                      totalMedia += budget;
-                      totalCalculatedValue += burst.calculatedValue || 0;
-                    });
-
-                    return { totalMedia, totalCalculatedValue };
-                  };
 
                   const selectedNetwork = form.watch(`newspaperlineItems.${lineItemIndex}.network`);
 
@@ -1322,7 +1309,6 @@ useEffect(() => {
                     filteredNewspapers = newspapers.filter(newspaper => newspaper.network === selectedNetwork);
                   }
 
-                  const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                   return (
                     <ExpertCard<NewspapersFormValues>
@@ -1334,12 +1320,10 @@ useEffect(() => {
                       lineItemId={lineItemId}
                       collapsed={collapsedLineItems.has(lineItemIndex)}
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
-                      totalDisplay={formatMoney(
-                        form.getValues(`newspaperlineItems.${lineItemIndex}.budgetIncludesFees`)
-                          ? totalMedia
-                          : totalMedia + (totalMedia / (100 - (feenewspapers || 0))) * (feenewspapers || 0),
-                        { locale: "en-AU", currency: "AUD" }
-                      )}
+                      totalDisplay={formatCardTitleFromLine(
+                        form.getValues(`newspaperlineItems.${lineItemIndex}`),
+                        feenewspapers || 0,
+                        )}
                       publishers={publishers}
                       dynamicOptionsByKey={{
                         title: filteredNewspapers.map((newspaper) => ({

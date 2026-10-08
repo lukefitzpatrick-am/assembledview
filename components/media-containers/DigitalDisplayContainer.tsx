@@ -68,7 +68,7 @@ import {
 } from "@/lib/billing/prorateInvestmentDisplay"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
+import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import {
   CpcFamilyBurstCalculatedField,
   getCpcFamilyBurstCalculatedColumnLabel,
@@ -201,17 +201,6 @@ function resolveDigiDisplayLineItemId(
   const stored = String(lineItem.line_item_id ?? lineItem.lineItemId ?? "").trim()
   if (stored) return stored
   return buildLineItemId(mba, MEDIA_TYPE_ID_CODES.digitalDisplay, lineNumber)
-}
-
-/** Display-only: net media when budget is gross incl. fee (read-only Media/Fee columns). Burst deliverables use {@link computeDeliverableFromMedia}. */
-function netMediaForDeliverablesDigiDisplay(
-  rawBudget: number,
-  budgetIncludesFees: boolean,
-  feePct: number
-): number {
-  if (!budgetIncludesFees) return rawBudget;
-  const pct = feePct || 0;
-  return (rawBudget * (100 - pct)) / 100;
 }
 
 // Format Dates
@@ -1334,18 +1323,6 @@ useEffect(() => {
                     lineNumber,
                     mbaNumber
                   )
-                  const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.getValues(`digidisplaylineItems.${lineItemIndex}`);
-                    let totalMedia = 0;
-                    let totalCalculatedValue = 0;
-
-                    (lineItem?.bursts || []).forEach((burst) => {
-                      totalMedia += parseBudgetSafe(burst?.budget);
-                      totalCalculatedValue += (typeof burst?.calculatedValue === "number" ? burst.calculatedValue : parseBudgetSafe(burst?.calculatedValue)) || 0;
-                    });
-
-                    return { totalMedia, totalCalculatedValue };
-                  };
 
                   const selectedPublisher =
                     form.watch(`digidisplaylineItems.${lineItemIndex}.publisher`) ||
@@ -1359,7 +1336,6 @@ useEffect(() => {
                   }
 
 
-                  const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                   return (
                     <ExpertCard<DigiDisplayFormValues>
@@ -1371,12 +1347,10 @@ useEffect(() => {
                       lineItemId={lineItemId}
                       collapsed={collapsedLineItems.has(lineItemIndex)}
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
-                      totalDisplay={formatMoney(
-                        form.getValues(`digidisplaylineItems.${lineItemIndex}.budgetIncludesFees`)
-                          ? totalMedia
-                          : totalMedia + (totalMedia / (100 - (feedigidisplay || 0))) * (feedigidisplay || 0),
-                        { locale: "en-AU", currency: "AUD" }
-                      )}
+                      totalDisplay={formatCardTitleFromLine(
+                        form.getValues(`digidisplaylineItems.${lineItemIndex}`),
+                        feedigidisplay || 0,
+                        )}
                       publishers={publishers}
                       dynamicOptionsByKey={{
                         site: filteredDigiDisplaySites.map((site) => ({

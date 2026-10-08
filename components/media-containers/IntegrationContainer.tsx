@@ -58,7 +58,7 @@ import {
   type InvestmentBurstInput,
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatMoney } from "@/lib/format/money"
+import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
@@ -122,12 +122,6 @@ const formatDateString = (d?: Date | string): string => {
   
   return `${year}-${month}-${day}`;
 };
-
-/** Display-only: net media when budget is gross incl. fee (read-only Media/Fee columns). Burst deliverables use {@link computeDeliverableFromMedia}. */
-function netMediaPctOfGross(rawBudget: number, budgetIncludesFees: boolean, feePct: number): number {
-  if (!budgetIncludesFees) return rawBudget;
-  return (rawBudget * (100 - (feePct || 0))) / 100;
-}
 
 // Exported utility function to get bursts
 
@@ -1084,21 +1078,7 @@ useEffect(() => {
                     MEDIA_TYPE_ID_CODES.integration,
                     lineItemIndex + 1
                   );
-                  const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.getValues(`lineItems.${lineItemIndex}`);
-                    let totalMedia = 0;
-                    let totalCalculatedValue = 0;
 
-                    lineItem.bursts.forEach((burst) => {
-                      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-                      totalMedia += budget;
-                      totalCalculatedValue += burst.calculatedValue || 0;
-                    });
-
-                    return { totalMedia, totalCalculatedValue };
-                  };
-
-                  const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                   return (
                     <ExpertCard<IntegrationFormValues>
@@ -1110,12 +1090,10 @@ useEffect(() => {
                       lineItemId={lineItemId}
                       collapsed={collapsedLineItems.has(lineItemIndex)}
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
-                      totalDisplay={formatMoney(
-                        form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                          ? totalMedia
-                          : totalMedia + (totalMedia / (100 - (feeintegration || 0))) * (feeintegration || 0),
-                        { locale: "en-AU", currency: "AUD" }
-                      )}
+                      totalDisplay={formatCardTitleFromLine(
+                        form.getValues(`lineItems.${lineItemIndex}`),
+                        feeintegration || 0,
+                        )}
                       publishers={publishers}
                       feePct={feeintegration || 0}
                       calculatedVariant="cpcCpvCpm"

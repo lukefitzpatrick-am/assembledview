@@ -73,7 +73,11 @@ import {
   type InvestmentBurstInput,
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
+import { formatMoney, parseMoneyInput } from "@/lib/format/money"
+import { NetFeeWarning } from "@/components/media-containers/CanonicalBurstMoney"
+import { displayLineTotals } from "@/lib/money/burst"
+import { fromCents } from "@/lib/money/cents"
+import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { computeLoadedDeliverables } from "@/lib/mediaplan/deliverableBudget"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
@@ -1255,19 +1259,6 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                     MEDIA_TYPE_ID_CODES.television,
                     lineItemIndex + 1
                   );
-                  const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.getValues(`televisionlineItems.${lineItemIndex}`);
-                    let totalMedia = 0;
-                    let totalTarps = 0;
-
-                    lineItem.bursts.forEach((burst) => {
-                      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-                      totalMedia += budget;
-                      totalTarps += parseFloat(burst.tarps.replace(/[^0-9.]/g, "")) || 0; // Parse TARPs
-                    });
-
-                    return { totalMedia, totalTarps };
-                  };
 
                   const selectedNetwork = form.watch(`televisionlineItems.${lineItemIndex}.network`);
 
@@ -1280,7 +1271,6 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                     filteredTvStations = tvStations.filter(station => station.network === selectedNetwork);
                   }
 
-                  const { totalMedia, totalTarps } = getTotals(lineItemIndex);
 
                   return (
                     <ExpertCard<TelevisionFormValues>
@@ -1292,12 +1282,10 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                       lineItemId={lineItemId}
                       collapsed={collapsedLineItems.has(lineItemIndex)}
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
-                      totalDisplay={formatMoney(
-                        form.getValues(`televisionlineItems.${lineItemIndex}.budgetIncludesFees`)
-                          ? totalMedia
-                          : totalMedia + (totalMedia / (100 - (feetelevision || 0))) * (feetelevision || 0),
-                        { locale: "en-AU", currency: "AUD" }
-                      )}
+                      totalDisplay={formatCardTitleFromLine(
+                        form.getValues(`televisionlineItems.${lineItemIndex}`),
+                        feetelevision || 0,
+                        )}
                       publishers={publishers}
                       stationOptions={filteredTvStations.map((tvStation) => ({
                         value: tvStation.station || `station-${tvStation.id}`,
@@ -1578,22 +1566,36 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                       )}
                                     />
 
-                                    <BurstReadonlyMetric
-                                      label="Media"
-                                      value={formatMoney(
-                                        form.getValues(`televisionlineItems.${lineItemIndex}.budgetIncludesFees`)
-                                          ? (parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feetelevision || 0))
-                                          : parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                      , { locale: "en-AU", currency: "AUD" })}
-                                    />
-                                    <BurstReadonlyMetric
-                                      label={`Fee (${feetelevision}%)`}
-                                      value={formatMoney(
-                                        form.getValues(`televisionlineItems.${lineItemIndex}.budgetIncludesFees`)
-                                          ? (parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feetelevision || 0)
-                                          : (parseFloat(form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feetelevision || 0))) * (feetelevision || 0)
-                                      , { locale: "en-AU", currency: "AUD" })}
-                                    />
+                                    {(() => {
+                                      const burstBudget = parseFloat(
+                                        form.getValues(`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0",
+                                      ) || 0
+                                      const shown = displayLineTotals(
+                                        {
+                                          buyType: form.getValues(`televisionlineItems.${lineItemIndex}.buyType`),
+                                          budgetIncludesFees: !!form.getValues(`televisionlineItems.${lineItemIndex}.budgetIncludesFees`),
+                                          clientPaysForMedia: !!form.getValues(`televisionlineItems.${lineItemIndex}.clientPaysForMedia`),
+                                          bursts: [{ budget: burstBudget }],
+                                        },
+                                        { feePct: feetelevision || 0 },
+                                      )
+                                      const moneyText = (cents: number) =>
+                                        formatMoney(fromCents(cents), { locale: "en-AU", currency: "AUD" })
+                                      return (
+                                        <>
+                                          <BurstReadonlyMetric
+                                            label="Media"
+                                            value={moneyText(shown.mediaCents)}
+                                            note={shown.clientPaid ? "Client paid" : undefined}
+                                          />
+                                          <BurstReadonlyMetric
+                                            label={`Fee (${feetelevision}%)`}
+                                            value={moneyText(shown.feeCents)}
+                                            warning={shown.invalidNetFee ? <NetFeeWarning /> : undefined}
+                                          />
+                                        </>
+                                      )
+                                    })()}
                                   </BurstFieldGrid>
 
                                   <BurstRowActions

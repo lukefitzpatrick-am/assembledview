@@ -78,6 +78,7 @@ export default defineConfig({
       "hooks/__tests__/useDraftFieldDiff.test.tsx",
       "hooks/__tests__/useStableHydration.test.tsx",
       "components/media-containers/__tests__/ExpertGridWeekContextMenu.test.tsx",
+    "components/media-containers/__tests__/CanonicalBurstMoney.test.tsx",
       "components/mediaplans/__tests__/ExpertApplyDirtyClearOnSave.characterisation.test.tsx",
       "components/mediaplans/__tests__/PlanWizardSaveMessages.test.tsx",
       "components/mediaplans/__tests__/UnsavedChangesDialog.test.tsx",

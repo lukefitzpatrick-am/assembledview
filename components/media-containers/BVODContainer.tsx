@@ -63,7 +63,7 @@ import {
   type InvestmentBurstInput,
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
+import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -1195,19 +1195,6 @@ useEffect(() => {
                     MEDIA_TYPE_ID_CODES.bvod,
                     lineItemIndex + 1
                   );
-                  const getTotals = (lineItemIndex: number) => {
-                    const lineItem = form.getValues(`bvodlineItems.${lineItemIndex}`);
-                    let totalMedia = 0;
-                    let totalCalculatedValue = 0;
-
-                    lineItem.bursts.forEach((burst) => {
-                      const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-                      totalMedia += budget;
-                      totalCalculatedValue += burst.calculatedValue || 0;
-                    });
-
-                    return { totalMedia, totalCalculatedValue };
-                  };
 
                   const selectedPublisher =
                     form.watch(`bvodlineItems.${lineItemIndex}.publisher`) ||
@@ -1237,7 +1224,6 @@ useEffect(() => {
                     return options
                   })()
 
-                  const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                   return (
                     <ExpertCard<BVODFormValues>
@@ -1249,12 +1235,10 @@ useEffect(() => {
                       lineItemId={lineItemId}
                       collapsed={collapsedLineItems.has(lineItemIndex)}
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
-                      totalDisplay={formatMoney(
-                        form.getValues(`bvodlineItems.${lineItemIndex}.budgetIncludesFees`)
-                          ? totalMedia
-                          : totalMedia + (totalMedia / (100 - (feebvod || 0))) * (feebvod || 0),
-                        { locale: "en-AU", currency: "AUD" }
-                      )}
+                      totalDisplay={formatCardTitleFromLine(
+                        form.getValues(`bvodlineItems.${lineItemIndex}`),
+                        feebvod || 0,
+                        )}
                       publishers={publishers}
                       dynamicOptionsByKey={{
                         site: filteredBVODSites.map((site) => ({

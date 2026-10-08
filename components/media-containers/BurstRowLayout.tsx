@@ -74,25 +74,35 @@ export function BurstReadonlyMetric({
   label,
   value,
   muted = false,
+  note,
+  warning,
 }: {
   label: string
   value: string
   muted?: boolean
+  note?: string
+  warning?: ReactNode
 }) {
   return (
     <div className={MP_BURST_READONLY_CELL}>
       <FormLabel className={cn(MP_BURST_FIELD_LABEL, "leading-tight")}>
         {label}
       </FormLabel>
-      <Input
-        type="text"
-        className={cn(
-          MP_BURST_READONLY_INPUT,
-          muted && "bg-muted/30 border-border/40 text-muted-foreground",
-        )}
-        value={value}
-        readOnly
-      />
+      <div className="flex items-center gap-1">
+        <Input
+          type="text"
+          className={cn(
+            MP_BURST_READONLY_INPUT,
+            muted && "bg-muted/30 border-border/40 text-muted-foreground",
+          )}
+          value={value}
+          readOnly
+        />
+        {warning}
+      </div>
+      {note ? (
+        <span className="text-[11px] text-muted-foreground">{note}</span>
+      ) : null}
     </div>
   )
 }
