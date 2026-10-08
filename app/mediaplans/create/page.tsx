@@ -5187,6 +5187,9 @@ function CreateMediaPlan() {
   const [isPlanSaving, setIsPlanSaving] = useState<boolean>(false)
   const [isVersionSaving, setIsVersionSaving] = useState<boolean>(false)
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<number | null>(null)
+  /** Set from PlansSaveResponse.versionId after a publish. A draft save does not set it. */
+  const [publishedVersionId, setPublishedVersionId] = useState<number | null>(null)
+  void publishedVersionId
 
   const draftBaseVersionId =
     typeof mediaPlanVersionId === "number"
@@ -5383,7 +5386,7 @@ function CreateMediaPlan() {
 
   const handleRetryPublish = useCallback(async () => {
     if (!pendingPublishRetry || isRetryingPublish) return
-    const { mbaNumber, versionNumber, publishedBefore } = pendingPublishRetry
+    const { mbaNumber, versionNumber, versionId, publishedBefore } = pendingPublishRetry
     setIsRetryingPublish(true)
     setIsSaveModalOpen(true)
     patchPublishStatus("pending")
@@ -5424,6 +5427,9 @@ function CreateMediaPlan() {
       }
       patchPublishStatus("success")
       setPendingPublishRetry(null)
+      if (typeof versionId === "number" && versionId > 0) {
+        setPublishedVersionId(versionId)
+      }
       toast({
         title: "Version published",
         description: `Version ${versionNumber} is now live.`,
@@ -6000,6 +6006,9 @@ function CreateMediaPlan() {
         catchPlanDraftAction(planDraft.clearAfterPublish(), toast)
 
         setMediaPlanVersionId(saveResult.data.versionId)
+        if (modeResolved.mode === "publish" && saveResult.data.published) {
+          setPublishedVersionId(saveResult.data.versionId)
+        }
         updateSaveStatus("KPI sync", "pending")
         if (kpiRows.length > 0) {
           const kpiPayload: CampaignKPI[] = buildCampaignKpiSavePayload({

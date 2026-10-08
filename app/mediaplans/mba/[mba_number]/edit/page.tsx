@@ -259,6 +259,7 @@ import {
   describeVersionHeaderTrail,
   resolveTipVersionIdAtLoad,
 } from "@/lib/mediaplan/drafts/pill"
+import { publishedVersionPointerIdFromMaster } from "@/lib/mediaplan/publishedVersionGuard"
 import {
   buildMbaScopeForSaveBody,
   countablePartialMbaLineCount,
@@ -1914,6 +1915,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const writeBackend = useWriteBackend()
   /** DB row id of the current `media_plan_versions` record — NOT `version_number`. */
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<string | number | null>(null)
+  /** Master's published_version_id. Set from the load response, and from versionId after a publish. */
+  const [publishedVersionId, setPublishedVersionId] = useState<number | null>(null)
+  void publishedVersionId
   /** Published pointer the editor saw at first load — stale-base compares this, not the chosen base. */
   const tipVersionIdAtLoadRef = useRef<number | null>(null)
   /** Latest identity for anomaly callbacks — avoid putting these in billing-schedule deps (would re-append). */
@@ -2774,19 +2778,22 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       }
       patchPublishStatus("success")
       setPendingPublishRetry(null)
+      const resolvedPublishedId =
+        typeof versionId === "number"
+          ? versionId
+          : typeof versionId === "string" && versionId.trim() !== "" && Number.isFinite(Number(versionId))
+            ? Number(versionId)
+            : null
+      if (resolvedPublishedId != null && resolvedPublishedId > 0) {
+        setPublishedVersionId(resolvedPublishedId)
+      }
       const updatedLatest = Math.max(latestVersionNumber || 0, versionNumber)
       setLatestVersionNumber(updatedLatest)
       setNextSaveVersionNumber(updatedLatest + 1)
       setSelectedVersionNumber(versionNumber)
       setAvailableVersions((prev) => {
         const existing = prev.some((v) => v.version_number === versionNumber)
-        // availableVersions.id is number | undefined; pendingPublishRetry.versionId is number | string | null
-        const resolvedId =
-          typeof versionId === "number"
-            ? versionId
-            : typeof versionId === "string" && versionId.trim() !== "" && Number.isFinite(Number(versionId))
-              ? Number(versionId)
-              : undefined
+        const resolvedId = resolvedPublishedId ?? undefined
         const newEntry = {
           id: resolvedId,
           version_number: versionNumber,
@@ -3850,6 +3857,10 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             versions: versionsFromApi,
             latestVersionNumber: latestFromApi,
           })
+        }
+        const loadedPublishedVersionId = publishedVersionPointerIdFromMaster(data)
+        if (loadedPublishedVersionId !== undefined) {
+          setPublishedVersionId(loadedPublishedVersionId)
         }
 
         const nextFromApi = data.nextVersionNumber
@@ -8163,6 +8174,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         }
 
         setMediaPlanVersionId(versionId)
+        if (modeResolved.mode === "publish" && saveResult.data.published) {
+          setPublishedVersionId(versionId)
+        }
         const updatedLatest = Math.max(latestVersionNumber || 0, numericSavedVersion)
         setLatestVersionNumber(updatedLatest)
         setNextSaveVersionNumber(updatedLatest + 1)
