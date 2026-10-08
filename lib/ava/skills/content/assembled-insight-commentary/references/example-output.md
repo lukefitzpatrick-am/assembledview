@@ -1,37 +1,61 @@
 # Example - monthly delivery commentary
 
-Fictional client: Coastline Caravans (caravan dealer group, VIC/QLD). Illustrates structure, voice and the marketing brain applied. Numbers are illustrative.
+Fictional client: Coastline Caravans (caravan dealer group, VIC/QLD). Illustrates structure, voice and the marketing brain applied. Numbers are the ones already in this example. Do not treat them as live data.
 
 ---
 
-## June performance summary
+## Summary
 
-Enquiries finished 8% ahead of target (412 vs 380) at a CPA of $61, 12% better than plan. The gain came from cheaper Meta reach after Easter auction pressure eased, plus the new "Weekend Ready" creative holding CTR for a full month. We are carrying the same structure into July with one creative refresh queued.
+Enquiries finished 8% ahead of target (412 vs 380) and CPA is $61, 12% better than the $69 plan, so the July action is to hold this structure.
 
-### What happened
-- Enquiries: 412 vs 380 target (+8%); May: 371; 3-month norm: 385.
-- CPA: $61 vs $69 target; May: $73.
-- Search impression share on "caravans + [state]" terms held at 82% (target 80%).
-- Brand: branded search volume +11% year on year, our share of category search up 1.2 points since March.
+## Insight
 
-### How it happened
-CPA improved on both sides. Meta CPMs fell 14% month on month as post-Easter auction pressure eased, and CVR held at 2.1% rather than decaying with frequency (average frequency 1.8, inside our cap). Search CPCs were flat; the volume gain came from the June budget top-up reaching more evening auctions rather than bidding harder in the same ones.
+CPA is $61 against a $69 target and $73 in May because Meta CPMs fell 14% once Easter auction pressure eased, and "Weekend Ready" held CTR at 1.4% versus 0.9% for the retired ads. Search impression share held at 82% against an 80% target.
 
-### Why
-Two drivers, one internal, one external:
-- Internal: "Weekend Ready" launched 2 June with the brand lockup in the first second. It is holding attention where the retired "Open Road" ads had faded (CTR 1.4% vs 0.9% in its final fortnight). Consistent assets, fresh execution - this is the rotation pattern working.
-- External: Westpac-MI consumer sentiment lifted to 97.2 in June (+3.1 pts), and ABS household spending on recreation rose for a second month. Demand for big-ticket leisure is warming, and our always-on presence means we harvest it first. Competitor SOV was stable (Nielsen Ad Intel, June), so the efficiency gain is not a competitor going quiet.
+## Action
 
-### What the future holds
-- July: school holidays lift dealership foot traffic in weeks 1-2; we expect enquiry quality to dip slightly as browsers enter the mix. No action - this is seasonal and recovers by week 3.
-- August: "Weekend Ready" will be 10 weeks old. Refresh executions on the same platform (same assets, new footage) rather than a new campaign. Creative brief due to client 18 July.
-- Q1 FY27 planning: branded search growth says the brand layer is compounding. Hold the 60:40 split; do not raid brand budget for a short-term enquiry push we are already beating.
+Hold. Assembled keeps frequency caps at 2 per week through July, and reviews only if July CPMs move more than 10%. Owner: Assembled activation team.
 
-### Actions
-- Creative refresh brief to Coastline by 18 July (Assembled - Luke).
-- Hold frequency caps at 2 per week; review if July CPMs move more than 10% (Assembled - activation team).
-- No budget change requested.
+## Outcome
+
+CPA is already $61, 12% inside the $69 target. July CPMs will be measured against the June level. A move above 10% is the trigger to reopen the cap.
+
+## Insight
+
+"Weekend Ready" launched 2 June and is still holding attention. It will be about 10 weeks old in August, which is when this client's executions usually need a refresh on the same platform.
+
+## Action
+
+Assembled sends Coastline a creative refresh brief by 18 July. Same assets, new footage. Owner: Assembled.
+
+## Outcome
+
+CTR is 1.4% now. The 18 July review will measure the refresh against that 1.4%. No lift is estimated, because the data does not show what the new footage will return.
+
+## Insight
+
+Branded search is up 11% year on year and share of category search is up 1.2 points since March. That is the brand layer compounding. It is not a reason to move budget into short-term enquiries the plan is already beating. Westpac-MI consumer sentiment was 97.2 in June (up 3.1 points) and competitor SOV was stable, so the June efficiency gain is not a competitor going quiet.
+
+## Action
+
+Hold the 60:40 split through Q1 FY27 planning. No budget change. Owner: Assembled.
+
+## Outcome
+
+Branded search is already up 11% year on year. The next read is August, measured against that 11% and the 1.2 point share gain.
+
+## Insight
+
+July school holidays lift dealership foot traffic in weeks 1 and 2. The data does not yet show an enquiry-quality dip; the expectation is a slight dip that recovers by week 3, and that is seasonal rather than a change to the media plan.
+
+## Action
+
+Hold. Assembled makes no budget change for the holiday weeks. Owner: Assembled. Review enquiry quality at the end of week 2 of July.
+
+## Outcome
+
+No separate holiday CPA is estimated. Enquiry quality will be measured in weeks 1 and 2 of July against the June CPA of $61, with recovery checked by week 3.
 
 ---
 
-Why this passes the checks: leads with the answer; three anchors on every number; decomposes the CPA move; separates internal and external causes and rules out the competitor explanation; frames brand vs activation on the right clocks; every section ends in an action or an explicit no-action; short sentences, AU English, no em dashes.
+Why this passes the checks: the summary states the main Insight and its Outcome; each item is labelled Insight, Action and Outcome; every Action has an owner and a time frame; a Hold says why; every Outcome has a number or names what will be measured and when; three anchors sit on the CPA; causes are stated only where the data shows them; short sentences, Australian English, no em dashes.
