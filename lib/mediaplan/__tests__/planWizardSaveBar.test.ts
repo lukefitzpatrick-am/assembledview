@@ -509,6 +509,41 @@ describe("DD-3 draft downloads", () => {
     )
   })
 
+  it("create handleDownloadMediaPlan serves the stored file or the draft", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const planStart = createSrc.indexOf("const handleDownloadMediaPlan = async")
+    const planEnd = createSrc.indexOf(
+      "const handleDownloadAdvertisingAssociatesMediaPlan",
+      planStart
+    )
+    const planFn = createSrc.slice(planStart, planEnd)
+    assert.ok(planStart >= 0 && planEnd > planStart)
+    assert.match(planFn, /downloadStoredPlanFile\(/)
+    assert.match(planFn, /kind:\s*"media_plan"/)
+    assert.match(planFn, /handleDraftMediaPlan\(/)
+    assert.match(planFn, /publishedVersionId/)
+    assert.match(planFn, /hasUnsavedChanges/)
+    assert.match(planFn, /NotSavedError/)
+    assert.match(planFn, /Regenerate documents from the plan list/)
+    assert.match(planFn, /NotApprovedError/)
+    assert.match(planFn, /fromPublish/)
+    assert.doesNotMatch(planFn, /generateMediaPlanXlsxBlob/)
+
+    const aaStart = planEnd
+    const aaEnd = createSrc.indexOf("const transformedMediaTypes", aaStart)
+    const aaFn = createSrc.slice(aaStart, aaEnd)
+    assert.match(aaFn, /kind:\s*"aa_media_plan"/)
+    assert.match(aaFn, /handleDraftAa\(/)
+    assert.match(aaFn, /NotSavedError/)
+    assert.match(aaFn, /NotApprovedError/)
+    assert.doesNotMatch(aaFn, /generateMediaPlanXlsxBlob/)
+
+    const draftAaStart = createSrc.indexOf("const handleDraftAa = async")
+    const draftAaEnd = createSrc.indexOf("const handleGenerateMBA", draftAaStart)
+    const draftAa = createSrc.slice(draftAaStart, draftAaEnd)
+    assert.match(draftAa, /buildCreateDraftDocumentsBody\("aa_media_plan"\)/)
+  })
+
   it("edit handleGenerateMBA / handleDownloadMediaPlan no longer toast-and-return on unpublished", () => {
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
     const mbaStart = editSrc.indexOf("const handleGenerateMBA = async")

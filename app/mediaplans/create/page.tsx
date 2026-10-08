@@ -288,6 +288,11 @@ import {
 } from "@/lib/mediaplan/planWizardSaveBar"
 import { postDraftDocuments } from "@/lib/docs/postDraftDocuments"
 import {
+  NotApprovedError,
+  NotSavedError,
+  downloadStoredPlanFile,
+} from "@/lib/docs/downloadStoredPlanFile"
+import {
   flattenPartialMbaSelectedLineIds,
   kpiRowsForDraftDocuments,
   mergeDraftDocumentsBody,
@@ -3127,7 +3132,7 @@ function CreateMediaPlan() {
   }
 
   const buildCreateDraftDocumentsBody = (
-    kind: "mba_pdf" | "media_plan"
+    kind: "mba_pdf" | "media_plan" | "aa_media_plan"
   ): Record<string, unknown> => {
     const fv = form.getValues()
     const clientName =
@@ -3378,7 +3383,7 @@ function CreateMediaPlan() {
     }
   }
 
-  const handleDraftMediaPlan = async () => {
+  const handleDraftMediaPlan = async (opts?: { quiet?: boolean }): Promise<boolean> => {
     setIsDownloading(true)
     try {
       await waitForStateFlush()
@@ -3386,15 +3391,44 @@ function CreateMediaPlan() {
         buildCreateDraftDocumentsBody("media_plan")
       )
       saveAs(blob, filename)
-      toast({ title: DRAFT_MBA_TOAST })
+      if (!opts?.quiet) toast({ title: DRAFT_MBA_TOAST })
+      return true
     } catch (e: unknown) {
-      toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to download draft media plan",
-        variant: "destructive",
-      })
+      if (!opts?.quiet) {
+        toast({
+          title: "Error",
+          description: e instanceof Error ? e.message : "Failed to download draft media plan",
+          variant: "destructive",
+        })
+      }
+      return false
     } finally {
       setIsDownloading(false)
+    }
+  }
+
+  const handleDraftAa = async (opts?: { quiet?: boolean }): Promise<boolean> => {
+    if (!hasAdvertisingAssociatesBilling) return false
+    setIsDownloadingAa(true)
+    try {
+      await waitForStateFlush()
+      const { blob, filename } = await postDraftDocuments(
+        buildCreateDraftDocumentsBody("aa_media_plan")
+      )
+      saveAs(blob, filename)
+      if (!opts?.quiet) toast({ title: DRAFT_MBA_TOAST })
+      return true
+    } catch (e: unknown) {
+      if (!opts?.quiet) {
+        toast({
+          title: "Error",
+          description: e instanceof Error ? e.message : "Failed to download draft AA media plan",
+          variant: "destructive",
+        })
+      }
+      return false
+    } finally {
+      setIsDownloadingAa(false)
     }
   }
 
@@ -5189,7 +5223,6 @@ function CreateMediaPlan() {
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<number | null>(null)
   /** Set from PlansSaveResponse.versionId after a publish. A draft save does not set it. */
   const [publishedVersionId, setPublishedVersionId] = useState<number | null>(null)
-  void publishedVersionId
 
   const draftBaseVersionId =
     typeof mediaPlanVersionId === "number"
@@ -7326,20 +7359,49 @@ const handleSaveAll = async (opts?: {
   const handleDownloadMediaPlan = async (opts?: {
     fromPublish?: boolean
   }): Promise<boolean> => {
+    const quiet = opts?.fromPublish === true
+    // Create keeps isPublished false. A publish in this session is publishedVersionId.
+    // Same dirty signal as the bottom bar: a working draft or unsaved changes.
+    const hasWorkingDraftOrDirty = Boolean(planDraft.activeDraft) || hasUnsavedChanges
+    const cleanPublished =
+      typeof publishedVersionId === "number" &&
+      publishedVersionId > 0 &&
+      !hasWorkingDraftOrDirty
+
+    if (!cleanPublished) {
+      return handleDraftMediaPlan({ quiet })
+    }
+
     setIsDownloading(true)
     try {
-      const { blob, fileName } = await generateMediaPlanXlsxBlob()
+      const { blob, fileName } = await downloadStoredPlanFile({
+        versionId: publishedVersionId,
+        kind: "media_plan",
+      })
       saveAs(blob, fileName)
-      if (!opts?.fromPublish) {
-        toast({ title: "Success", description: "Media plan generated successfully" })
+      if (!quiet) {
+        toast({ title: "Success", description: "Media plan downloaded" })
       }
       return true
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to generate media plan",
-        variant: "destructive",
-      })
+    } catch (error: unknown) {
+      if (error instanceof NotApprovedError) {
+        return await handleDraftMediaPlan({ quiet })
+      }
+      if (error instanceof NotSavedError) {
+        toast({
+          title: "File not ready",
+          description: "Regenerate documents from the plan list.",
+        })
+        return false
+      }
+      console.error(error)
+      if (!quiet) {
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to download media plan",
+          variant: "destructive",
+        })
+      }
       return false
     } finally {
       setIsDownloading(false)
@@ -7348,18 +7410,44 @@ const handleSaveAll = async (opts?: {
 
   const handleDownloadAdvertisingAssociatesMediaPlan = async () => {
     if (!hasAdvertisingAssociatesBilling) return
+    const hasWorkingDraftOrDirty = Boolean(planDraft.activeDraft) || hasUnsavedChanges
+    const cleanPublished =
+      typeof publishedVersionId === "number" &&
+      publishedVersionId > 0 &&
+      !hasWorkingDraftOrDirty
+
+    if (!cleanPublished) {
+      await handleDraftAa()
+      return
+    }
+
     setIsDownloadingAa(true)
     try {
-      const { blob, fileName } = await generateMediaPlanXlsxBlob({ variant: "aa" })
+      const { blob, fileName } = await downloadStoredPlanFile({
+        versionId: publishedVersionId,
+        kind: "aa_media_plan",
+      })
       saveAs(blob, fileName)
       toast({
         title: "Success",
         description: "Advertising Associates media plan downloaded",
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (error instanceof NotApprovedError) {
+        await handleDraftAa()
+        return
+      }
+      if (error instanceof NotSavedError) {
+        toast({
+          title: "File not ready",
+          description: "Regenerate documents from the plan list.",
+        })
+        return
+      }
+      console.error(error)
       toast({
         title: "Error",
-        description: error.message || "Failed to generate media plan",
+        description: error instanceof Error ? error.message : "Failed to download media plan",
         variant: "destructive",
       })
     } finally {
