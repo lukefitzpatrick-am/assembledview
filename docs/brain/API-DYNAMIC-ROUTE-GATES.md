@@ -38,6 +38,7 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `codex/tasks/[id]` | PATCH | `codex/tasks` | `requireCodexInternalAccess` | same | OK |
 | `dashboard/[slug]` | GET | client dashboard | — | session + slug / admin | OK |
 | `dashboard/[slug]/delivered` | GET | same | — | session + slug / admin | OK |
+| `dashboard/[slug]/invoices` | GET | same | — | session + slug gate + `assertClientAccess`; client-role 404 while `CLIENT_INVOICES_ENABLED` is off | OK |
 | `mediaplans/mba/[mba_number]` | GET/PUT/PATCH | `mediaplans` list | scope / `requireRole` | `checkClientMbaAccess` | OK |
 | `mediaplans/mba/[mba_number]/expected-spend-to-date` | GET | MBA peer | `checkClientMbaAccess` | cookie-forwards to gated MBA | OK |
 | `mediaplans/mba/[mba_number]/material-instructions` | GET/POST | MBA peer | `checkClientMbaAccess` | session + admin (inline) | OK |
