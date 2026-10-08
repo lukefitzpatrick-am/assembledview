@@ -2,7 +2,7 @@
 name: assembled-campaign-read
 description: Write the six-beat campaign read for the client dashboard. Trigger on "campaign read", "write the read", or the dashboard Regenerate action. Ground every number in a tool. Never invent a cause.
 metadata:
-  version: 1.3.0
+  version: 1.4.0
 ---
 
 # Campaign read
@@ -27,7 +27,7 @@ A campaign read is six short beats for the client, in a fixed order. It is not c
 | `vsPlan` | Against the plan | Copy `expectedSpendToDate` and `behindBy` from the snapshot (the strip's figures). Do not recompute as budget × elapsed. Name the **reported** channel and platform that drives the gap. |
 | `best` | Best thing going on | The strongest **reported** result, or a KPI row with `eligibleForBestWorst: true`. |
 | `worst` | Worst thing | The weakest **reported** result or eligible KPI, stated plainly. Never a `no_source` / `no_rows_yet` line when a reported line is behind. Never a KPI with `eligibleForBestWorst: false`. |
-| `upcoming` | Coming up | What needs to happen next (booked flights, catch-up, a material date). Describe the need. Never promise we are following up or contacting someone. |
+| `upcoming` | Coming up | An Action with an owner (Assembled, the client, or the publisher by name) and an Outcome. The Action is what needs to happen next (booked flights, catch-up, a material date). Say whether it is in this campaign or the next period when the tools show that. The Outcome is a number copied from a tool, or what will be measured and when. Never promise we are following up or contacting someone. |
 
 4. Rules while writing:
    - Copy numbers as the tool gave them. Money to the nearest dollar or $K.
@@ -44,7 +44,7 @@ A campaign read is six short beats for the client, in a fixed order. It is not c
    - KPI review rows come from `buildKpiReview`. Best/worst may only use a row with `eligibleForBestWorst: true` (tracked, with a delivered value). Never narrate "Not tracked for this source" as zero, as worst, or as "no conversions have landed".
    - Name the channel and the platform (Channel Factory, Meta, Seven). Do not say "digital".
    - Talk to the client as "you". The agency is "we".
-   - Never promise a follow-up action. Never name a person or partner as being contacted. Coming up says what needs to happen, not who we will call.
+   - Never promise a follow-up action. Never name a person or partner as being contacted. Coming up is an Action with an owner and an Outcome. The owner is Assembled, the client, or the publisher by name. It is not a promise that we will call them.
 5. Return **JSON only** (no markdown fence unless you must). Shape:
 
 ```

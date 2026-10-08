@@ -1,14 +1,14 @@
 ---
 name: assembled-performance-review-report
-description: Review campaign delivery on an Assembled View client dashboard page, write commentary and insights, make recommendations, and on confirmation build a client-facing PowerPoint report on the Assembled template. Use whenever AVA or Luke asks to "review performance", "review delivery", "provide insight", "write the monthly report", "build the report", or when the Review & Report button is pressed on a client dashboard page. One run covers the campaign (MBA) on the page. Composes assembled-insight-commentary (the narrative) and assembled-presentations (the deck).
+description: Review campaign delivery on an Assembled View client dashboard page, write commentary as Insight, Action and Outcome, and on confirmation supply the text for a client-facing PowerPoint report. The app applies the v5 Assembled template. Use whenever AVA or Luke asks to "review performance", "review delivery", "provide insight", "write the monthly report", "build the report", or when the Review & Report button is pressed on a client dashboard page. One run covers the campaign (MBA) on the page. Composes assembled-insight-commentary 1.2.0 (the narrative) and assembled-presentations (the deck text).
 metadata:
-  version: 1.0.1
+  version: 1.1.0
   surface: Assembled View / AVA client dashboard pages, and Cowork
 ---
 
 # Client performance review and report
 
-One flow, four stages, one gate. Review the delivery on the page, write the commentary, land the insights and recommendations in chat for Luke (or the account lead) to sanity-check, and only then build the client-facing deck. The deck is never the first artefact. The narrative is.
+One flow, one gate. Review the delivery on the page, write the commentary as a Summary plus Insight, Action and Outcome items, land that narrative in chat for Luke (or the account lead) to sanity-check, and only then hand the text to the app. The deck is never the first artefact. The narrative is.
 
 Scope of one run: the single campaign (MBA) on the current page. Whole-client roll-ups are out of scope for this version - if asked for one, say so and offer to run per campaign.
 
@@ -43,55 +43,56 @@ Output of this stage (internal): a short structured review table - channel line,
 
 ## Stage 2: commentary
 
-Apply **assembled-insight-commentary** in full (and **assembled-marketing-brain** for every explanation). Non-negotiables restated:
+Apply **assembled-insight-commentary** 1.2.0 in full (and **assembled-marketing-brain** for every explanation). This is the narrative. There is no separate insights-and-recommendations stage. Recommendations are the Actions.
 
-- Structure: BLUF executive summary, then WHAT / HOW / WHY / WHAT NEXT.
+**Summary.** One sentence: the most important Insight and its Outcome.
+
+Then 2 to 4 items. Each item is Insight, then Action, then Outcome, labelled with those words.
+
+Each Action says whether it is in-flight (this campaign) or next period, names an owner (Assembled, the client, or the publisher by name), and a time frame. One Action per Insight. If nothing should change, the Action is "Hold" with the reason.
+
+The Outcome is a number. For work already done, the achieved result. For a recommendation, the expected effect and its basis. Never invent a figure. If it cannot be estimated from the data provided, say what will be measured and when.
+
+Non-negotiables restated:
+
 - Three anchors on every performance claim: target, prior period, benchmark or norm. Name any anchor that is unavailable.
-- Decompose mechanics before assigning causes (CPA moved because CPM or CVR moved; CPM moved because of auction, frequency, fatigue, or mix).
-- Causes: rule out seasonality, promotions, and competitor activity before attributing to our work. "Cause under investigation" beats fabricated causality.
+- Decompose mechanics before assigning causes (CPA moved because CPM or CVR moved; CPM moved because of auction, frequency, fatigue, or mix). What and how are the Insight's evidence. Why is its cause. What next is the Action and Outcome.
+- Causes: rule out seasonality, promotions, and competitor activity before attributing to our work. State a cause only when the data shows it. Otherwise say what would confirm it.
 - Search the AVA Learnings doc for this client's calibrations before writing. Client entries override defaults.
 - No jokes anywhere in this flow. This is delivery and money.
-
-## Stage 3: insights and recommendations
-
-Every insight climbs the full ladder: observation, insight, implication, action. Apply the so-what test; anything that would not change the client's next decision is an observation - cut it or climb further.
-
-Split recommendations into two lists:
-
-1. **In-flight optimisations**: changes to make now, each with an owner and expected effect (cite reconciled snapshot numbers in chat; when mapping to deck fields, drop free-text `$` amounts — slides 3/5 carry the figures).
-2. **Next-period recommendations**: planning moves for the next month/quarter/campaign, grounded in the marketing brain (reach, continuity, attention, brand/activation balance).
-
-Aim for 2-4 insights and 2-5 recommendations. Fewer, sharper items beat a list that pads.
+- Deck narrative fields carry no free-text dollar amounts. Slides 3 and 5 carry the figures, injected by the app.
 
 ## The gate: review in chat, then build
 
-Post the full narrative in the chat panel in this order: executive summary, delivery review summary, commentary, insights, recommendations. Then stop and ask one question: build the report, or change anything first?
+Post the full narrative in the chat panel in this order: Summary, delivery review summary, then the Insight, Action and Outcome items. Then stop and ask one question: build the report, or change anything first?
+
+When the app builds the report without chat (Review & Report, scheduled reports), the same structure is returned as JSON for the app to render.
 
 - Edits requested: apply them, restate only what changed, ask again.
 - Only on an explicit yes: build the deck. Never generate the file unprompted, and never silently include narrative the user has not seen.
 
 ## Stage 4: the report
 
-Client-facing monthly/WIP report on the fixed 10-slide Assembled report template (derived from the master brand template - never build from scratch, never restyle).
+The deck is the v5 Assembled template, applied by the app. The model supplies text only. Never build or restyle the file. Never use `assets/assembled-template.pptx`.
 
 **In Ava (Assembled View)**: call the `generate_performance_report` tool with the confirmed **narrative only** (execSummary, channels, keyInsight, insights, recs*, steps). Do **not** pass `deliverySpend`, `deliveryDeliverables`, or `kpis` — the tool injects those DETERMINISTICALLY from reconciled `get_delivery_snapshot` figures (same Snowflake source as on-page delivery) plus page planned-to-date. Call it ONLY after the explicit yes at the gate. Narrative fields must contain **no free-text dollar amounts** (`$…` / `AUD …`); the tool refuses invented `$` figures (`invented_money_figure`). Near-verbatim restatement of a live prior insight without attributing what was believed before and what has changed is refused the same way (`unattributed_prior_insight`).
 
 On a successful issued report, the tool also persists discrete insights into `campaign_insights` (source `ava`): `keyInsight`, each of `insights[3]`, and each recommendation (`recsInFlight`, `recsNextPeriod`). **`execSummary` is not persisted** — it is a summary of those fields, not a separate insight. Preview / dry-run generation does not write rows. Insight write failures are fail-soft and never abort the deck.
 
-**In Cowork/Claude**: build the same structure with the **assembled-presentations** skill from the master template.
+**In Cowork/Claude**: supply the same text. The app applies the v5 template. Do not load a template file.
 
 The fixed report structure (every field filled - if a campaign has fewer than 4 channel lines or KPIs, combine lines or close the set with a flight-dates/pacing line, never leave a box empty):
 
 | Slide | Content | Fields |
 |---|---|---|
 | 1 Cover | logo cover, no text | - |
-| 2 Executive summary | the BLUF, one bold statement | execSummary |
+| 2 Summary | one sentence: the lead Insight and its Outcome | execSummary |
 | 3 Delivery vs plan | spend and deliverables vs expected to date | **server-injected** deliverySpend, deliveryDeliverables |
 | 4 Channel commentary | one point per channel group (no $ figures) | channels x4 |
-| 5 Delivery KPIs | numbers lead, lime on dark | **server-injected** kpis x4 |
-| 6 Key insight | the one lead insight, full ladder compressed | keyInsight |
-| 7 Insights | supporting insights | insights x3 |
-| 8 Recommendations | in-flight vs next period | recsInFlight, recsNextPeriod |
+| 5 Delivery KPIs | numbers lead. The app styles them. | **server-injected** kpis x4 |
+| 6 Lead Insight | the lead Insight, plain text | keyInsight |
+| 7 Insights | the other Insights, so the set is 2 to 4 including the lead | insights x3 |
+| 8 Actions | in-flight Actions, then next-period Actions. These are the recommendations. | recsInFlight, recsNextPeriod |
 | 9 Next steps | 4 steps, when + what | steps x4 (when, what) |
 | 10 End | logo close, no text | - |
 
@@ -105,7 +106,7 @@ Below ~90% confidence, never guess - ask. This applies at every stage: unknown o
 
 ## Failure modes - self-check before the gate
 
-Reject the draft if any of: commentary merely restates the containers; a cause asserted without ruling out alternatives; a miss hidden or softened; pacing judged against end-of-flight instead of expected-to-date; a metric dump instead of the 3-5 metrics that map to the objective; recommendations without owners; deck narrative fields containing free-text `$` / AUD amounts (hard numbers are server-injected); humour anywhere.
+Reject the draft if any of: commentary merely restates the containers; a cause asserted without ruling out alternatives; a miss hidden or softened; pacing judged against end-of-flight instead of expected-to-date; a metric dump instead of the 3-5 metrics that map to the objective; an Action with no owner, or that does not say in-flight or next period; an Outcome with no number and no measurement plan; deck narrative fields containing free-text `$` / AUD amounts (hard numbers are server-injected); humour anywhere.
 
 ## Learnings and improvement loop
 
