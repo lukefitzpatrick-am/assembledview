@@ -97,13 +97,28 @@ export const f7: LineItemInput[] = [
   }),
 ]
 
-/** F8. Production plus two digital lines with ad serving. */
+/**
+ * F8. Production plus two digital lines with ad serving.
+ * The production burst matches formatProductionBurstForPersist: cost 2000, quantity 1.
+ */
+const f8ProductionBurst = {
+  startDate: "2026-06-01",
+  endDate: "2026-06-30",
+  cost: 2000,
+  amount: 1,
+  budget: "2000",
+  buyAmount: "1",
+  calculatedValue: 1,
+  description: "",
+  market: "",
+}
+
 export const f8: LineItemInput[] = [
   line({
     lineItemId: "f8-production",
     mediaType: "production",
     buyType: "production",
-    bursts: [{ startDate: "2026-06-01", endDate: "2026-06-30", budget: 2000 }],
+    bursts: [f8ProductionBurst],
   }),
   line({
     lineItemId: "f8-display-a",
