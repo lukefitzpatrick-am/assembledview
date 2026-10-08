@@ -159,6 +159,59 @@ test("database failure during write leaves caller unaffected (no throw)", async 
   })
 })
 
+test("persist writes action, owner and outcome when the payload has them", async () => {
+  const inserted: CampaignInsightInsert[] = []
+  const narrative = {
+    ...sampleNarrative(),
+    findings: [
+      {
+        action: "Hold the current search mix.",
+        actionOwner: "Assembled",
+        outcome: "CPA stays at the July rate.",
+        outcomeKind: "expected",
+      },
+      null,
+      {
+        action: "Refresh the fatigued set.",
+        action_owner: "Meta",
+        outcome: "Frequency is under 3.",
+        outcome_kind: "achieved",
+      },
+      { outcomeKind: "later" },
+    ],
+  }
+  const result = await persistPerformanceReportInsights(
+    {
+      narrative,
+      mbaNumber: "BICAU001",
+      reportMonth: "Jul 2026",
+      createdByEmail: "User@Example.com",
+    },
+    {
+      resolveClientIdFromMba: async () => 99,
+      insertInsight: async (row) => {
+        inserted.push(row)
+      },
+    },
+  )
+
+  assert.equal(result.written, 6)
+  assert.equal(inserted[0]?.action, "Hold the current search mix.")
+  assert.equal(inserted[0]?.actionOwner, "Assembled")
+  assert.equal(inserted[0]?.outcome, "CPA stays at the July rate.")
+  assert.equal(inserted[0]?.outcomeKind, "expected")
+  assert.equal(inserted[1]?.action, null)
+  assert.equal(inserted[1]?.outcome, null)
+  assert.equal(inserted[2]?.action, "Refresh the fatigued set.")
+  assert.equal(inserted[2]?.actionOwner, "Meta")
+  assert.equal(inserted[2]?.outcomeKind, "achieved")
+  assert.equal(inserted[3]?.action, null)
+  assert.equal(inserted[3]?.outcome, null)
+  assert.equal(inserted[3]?.outcomeKind, null)
+  assert.equal(inserted[5]?.action, null)
+  assert.equal(inserted[5]?.outcomeKind, null)
+})
+
 test("preview or dryRun skips all writes", async () => {
   let calls = 0
   const preview = await persistPerformanceReportInsights(

@@ -11,8 +11,17 @@
 import { sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
-import type { CampaignInsightType } from "@/db/schema/insights"
+import type { CampaignInsightOutcomeKind, CampaignInsightType } from "@/db/schema/insights"
 import type { PerformanceReportPayload } from "@/lib/reports/buildPerformanceReport"
+
+export type PerformanceReportFinding = {
+  action?: string | null
+  actionOwner?: string | null
+  action_owner?: string | null
+  outcome?: string | null
+  outcomeKind?: string | null
+  outcome_kind?: string | null
+}
 
 export type CampaignInsightInsert = {
   mbaNumber: string
@@ -20,6 +29,10 @@ export type CampaignInsightInsert = {
   period: string
   insightType: CampaignInsightType
   body: string
+  action: string | null
+  actionOwner: string | null
+  outcome: string | null
+  outcomeKind: CampaignInsightOutcomeKind | null
   source: "ava"
   confidence: string | null
   createdBy: string
@@ -32,6 +45,11 @@ export type PersistPerformanceReportInsightsInput = {
   > & {
     /** Present on the payload but never written — documented intentionally. */
     execSummary?: string
+    /**
+     * Optional Action / Outcome for each discrete row, in the same order as
+     * keyInsight, insights, recsInFlight, recsNextPeriod. Absent entries stay null.
+     */
+    findings?: Array<PerformanceReportFinding | null | undefined>
   }
   mbaNumber: string
   reportMonth: string
@@ -208,19 +226,52 @@ export function buildPerformanceReportInsightDrafts(input: {
     input.narrative.recsNextPeriod,
   ]
 
-  return bodies.map((body) => {
+  return bodies.map((body, index) => {
     const inferred = inferInsightType(body)
+    const finding = readFinding(input.narrative.findings?.[index])
     return {
       mbaNumber,
       clientId: input.clientId,
       period,
       insightType: inferred.insightType,
       body,
+      action: finding.action,
+      actionOwner: finding.actionOwner,
+      outcome: finding.outcome,
+      outcomeKind: finding.outcomeKind,
       source: "ava" as const,
       confidence: inferred.confidence,
       createdBy,
     }
   })
+}
+
+function readText(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  const text = value.trim()
+  return text ? text : null
+}
+
+function readOutcomeKind(value: unknown): CampaignInsightOutcomeKind | null {
+  if (value === "achieved" || value === "expected") return value
+  return null
+}
+
+function readFinding(raw: PerformanceReportFinding | null | undefined): {
+  action: string | null
+  actionOwner: string | null
+  outcome: string | null
+  outcomeKind: CampaignInsightOutcomeKind | null
+} {
+  if (!raw) {
+    return { action: null, actionOwner: null, outcome: null, outcomeKind: null }
+  }
+  return {
+    action: readText(raw.action),
+    actionOwner: readText(raw.actionOwner ?? raw.action_owner),
+    outcome: readText(raw.outcome),
+    outcomeKind: readOutcomeKind(raw.outcomeKind ?? raw.outcome_kind),
+  }
 }
 
 async function defaultResolveClientIdFromMba(mbaNumber: string): Promise<number | null> {
@@ -242,6 +293,10 @@ async function defaultInsertInsight(row: CampaignInsightInsert): Promise<void> {
     period: row.period,
     insightType: row.insightType,
     body: row.body,
+    action: row.action,
+    actionOwner: row.actionOwner,
+    outcome: row.outcome,
+    outcomeKind: row.outcomeKind,
     source: row.source,
     confidence: row.confidence,
     createdBy: row.createdBy,

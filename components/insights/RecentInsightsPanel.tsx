@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Lightbulb } from "lucide-react"
 
+import { InsightFinding } from "@/components/insights/InsightFinding"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
@@ -14,6 +15,10 @@ export type RecentInsightCard = {
   period: string | null
   insightType: string
   body: string
+  action?: string | null
+  actionOwner?: string | null
+  outcome?: string | null
+  outcomeKind?: string | null
   source: string
   createdAt: string
 }
@@ -150,7 +155,14 @@ export function RecentInsightsPanel({
                     </span>
                   ) : null}
                 </div>
-                <p className="line-clamp-2 text-sm text-foreground">{item.body}</p>
+                <InsightFinding
+                  body={item.body}
+                  action={item.action}
+                  actionOwner={item.actionOwner}
+                  outcome={item.outcome}
+                  outcomeKind={item.outcomeKind}
+                  bodyClassName="line-clamp-2"
+                />
               </Link>
             </li>
           ))}

@@ -1,7 +1,14 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import React, { createElement } from "react"
+import { renderToStaticMarkup } from "react-dom/server"
 
+import { InsightFinding } from "../../../components/insights/InsightFinding.js"
 import type { CampaignInsightListItem, CampaignInsightRow } from "../queryCampaignInsights.js"
+
+// The node test runner compiles JSX with the classic runtime. App components
+// rely on the automatic runtime, so the render harness supplies React.
+;(globalThis as { React?: typeof React }).React = React
 
 /** Pure collapse helper mirrored for unit tests of the UI grouping contract. */
 export function collapseSupersededForDisplay(
@@ -82,6 +89,60 @@ test("campaign panel filter keeps only that MBA", () => {
   const scoped = items.filter((i) => i.mbaNumber === mba)
   assert.equal(scoped.length, 2)
   assert.ok(scoped.every((i) => i.mbaNumber === "bicau001"))
+})
+
+test("insight card renders Insight, Action and Outcome when all three are present", () => {
+  const html = renderToStaticMarkup(
+    createElement(InsightFinding, {
+      body: "Branded search CPA improved 18% MoM.",
+      action: "Shift 8% of social into branded search.",
+      actionOwner: "Assembled",
+      outcome: "CPA holds at the July rate.",
+      outcomeKind: "expected",
+    }),
+  )
+  assert.match(html, /Insight/)
+  assert.match(html, /Branded search CPA improved 18% MoM\./)
+  assert.match(html, /Action/)
+  assert.match(html, /Shift 8% of social into branded search\./)
+  assert.match(html, /Owner: Assembled/)
+  assert.match(html, /Outcome/)
+  assert.match(html, /Expected/)
+  assert.match(html, /CPA holds at the July rate\./)
+  assert.match(html, /bg-tone-insight-bg/)
+  assert.match(html, /bg-tone-action-bg/)
+  assert.match(html, /bg-tone-outcome-bg/)
+})
+
+test("insight card with body only renders the Insight tag", () => {
+  const html = renderToStaticMarkup(
+    createElement(InsightFinding, {
+      body: "BVOD delivery lag is flighting, not inventory.",
+      action: null,
+      actionOwner: null,
+      outcome: null,
+      outcomeKind: null,
+    }),
+  )
+  assert.match(html, /Insight/)
+  assert.match(html, /BVOD delivery lag is flighting, not inventory\./)
+  assert.equal(html.includes("Action"), false)
+  assert.equal(html.includes("Outcome"), false)
+  assert.equal(html.includes("Owner:"), false)
+  assert.equal(html.includes("Achieved"), false)
+  assert.equal(html.includes("Expected"), false)
+})
+
+test("achieved outcome uses the Achieved label", () => {
+  const html = renderToStaticMarkup(
+    createElement(InsightFinding, {
+      body: "Frequency came back under 3.",
+      outcome: "Core audience frequency is 2.8.",
+      outcomeKind: "achieved",
+    }),
+  )
+  assert.match(html, /Achieved/)
+  assert.equal(html.includes("Expected"), false)
 })
 
 test("search match is on body content", () => {

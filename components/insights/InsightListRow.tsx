@@ -5,10 +5,10 @@ import { useEffect, useState, useTransition, type ReactNode } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 
+import { InsightFinding } from "@/components/insights/InsightFinding"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
 
 const INSIGHT_TYPES = ["delivery", "audience", "creative", "channel", "commercial"] as const
 
@@ -21,6 +21,10 @@ export type InsightListItem = {
   period: string | null
   insightType: string
   body: string
+  action?: string | null
+  actionOwner?: string | null
+  outcome?: string | null
+  outcomeKind?: string | null
   source: string
   confidence: string | null
   createdBy: string
@@ -212,12 +216,21 @@ export function InsightListRow({ item, compact, onUpdated }: Props) {
             ) : null}
           </div>
           {!open ? (
-            <p className={cn("whitespace-pre-wrap text-sm text-foreground", compact && "line-clamp-3")}>
-              {preview}
-              {item.body.trim() !== preview.trim() ? (
-                <span className="text-muted-foreground"> …</span>
-              ) : null}
-            </p>
+            <InsightFinding
+              body={
+                <>
+                  {preview}
+                  {item.body.trim() !== preview.trim() ? (
+                    <span className="text-muted-foreground"> …</span>
+                  ) : null}
+                </>
+              }
+              action={item.action}
+              actionOwner={item.actionOwner}
+              outcome={item.outcome}
+              outcomeKind={item.outcomeKind}
+              compact={compact}
+            />
           ) : null}
         </div>
       </button>
@@ -383,9 +396,13 @@ export function InsightListRow({ item, compact, onUpdated }: Props) {
           ) : null}
 
           {!editing && !retyping && !retiring ? (
-            <div className="space-y-3 text-sm text-foreground">
-              <ReactMarkdown components={markdownComponents}>{item.body}</ReactMarkdown>
-            </div>
+            <InsightFinding
+              body={<ReactMarkdown components={markdownComponents}>{item.body}</ReactMarkdown>}
+              action={item.action}
+              actionOwner={item.actionOwner}
+              outcome={item.outcome}
+              outcomeKind={item.outcomeKind}
+            />
           ) : null}
 
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
+import { InsightFinding } from "@/components/insights/InsightFinding"
 import { QuickAddInsightForm } from "@/components/insights/QuickAddInsightForm"
 import { cn } from "@/lib/utils"
 
@@ -21,6 +22,10 @@ type InsightRow = {
   period: string | null
   insightType: string
   body: string
+  action?: string | null
+  actionOwner?: string | null
+  outcome?: string | null
+  outcomeKind?: string | null
   source: string
   confidence: string | null
   createdBy: string
@@ -425,7 +430,14 @@ function InsightCard({
           </div>
         </div>
       ) : (
-        <p className={cn("text-sm text-foreground", compact ? "line-clamp-3" : "")}>{item.body}</p>
+        <InsightFinding
+          body={item.body}
+          action={item.action}
+          actionOwner={item.actionOwner}
+          outcome={item.outcome}
+          outcomeKind={item.outcomeKind}
+          compact={compact}
+        />
       )}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <p className="text-[11px] text-muted-foreground">
