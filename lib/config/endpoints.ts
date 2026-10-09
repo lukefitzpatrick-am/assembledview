@@ -90,6 +90,12 @@ export const APP_ASSET_BASE_URL = withDefault(
   "https://hebbkx1anhila5yf.public.blob.vercel-storage.com",
 )
 
+/** Public Vercel Blob host for the assembled brand kit (logos and photos). */
+export const BRAND_ASSET_BASE_URL = withDefault(
+  "BRAND_ASSET_BASE_URL",
+  "https://rzpuygzq2ull7c9x.public.blob.vercel-storage.com",
+)
+
 /** In-memory blob store URL prefix (ingest tests / memory mode). */
 export const MEMORY_BLOB_BASE_URL = withDefault(
   "MEMORY_BLOB_BASE_URL",

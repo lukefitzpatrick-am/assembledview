@@ -15,6 +15,7 @@ const ENV_KEYS = [
   "XANO_INSTANCE_BASE",
   "FACEBOOK_GRAPH_URL",
   "APP_ASSET_BASE_URL",
+  "BRAND_ASSET_BASE_URL",
   "MEMORY_BLOB_BASE_URL",
   "NEXT_PUBLIC_APP_URL",
   "AUTH0_BASE_URL",
@@ -73,6 +74,10 @@ describe("lib/config/endpoints", () => {
       ep.APP_ASSET_BASE_URL,
       "https://hebbkx1anhila5yf.public.blob.vercel-storage.com",
     )
+    assert.equal(
+      ep.BRAND_ASSET_BASE_URL,
+      "https://rzpuygzq2ull7c9x.public.blob.vercel-storage.com",
+    )
     assert.equal(ep.resolvePublicOrigin(), "http://localhost:3000")
   })
 
@@ -91,6 +96,7 @@ describe("lib/config/endpoints", () => {
     process.env.XANO_EXPORT_INSTANCE_URL = "https://xano.example"
     process.env.FACEBOOK_GRAPH_URL = "https://fb.example"
     process.env.APP_ASSET_BASE_URL = "https://assets.example"
+    process.env.BRAND_ASSET_BASE_URL = "https://brand.example"
     process.env.NEXT_PUBLIC_APP_URL = "https://app.example/"
 
     const ep = await loadEndpoints()
@@ -106,6 +112,7 @@ describe("lib/config/endpoints", () => {
     assert.equal(ep.XANO_EXPORT_INSTANCE_URL, "https://xano.example")
     assert.equal(ep.FACEBOOK_GRAPH_URL, "https://fb.example")
     assert.equal(ep.APP_ASSET_BASE_URL, "https://assets.example")
+    assert.equal(ep.BRAND_ASSET_BASE_URL, "https://brand.example")
     assert.equal(ep.resolvePublicOrigin(), "https://app.example")
   })
 

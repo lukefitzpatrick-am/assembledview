@@ -2,8 +2,9 @@ import "server-only"
 
 import fs from "node:fs"
 import path from "node:path"
+import { BRAND_ASSET_BASE_URL } from "@/lib/config/endpoints"
 
-export const BRAND_STORE_HOST = "rzpuygzq2ull7c9x.public.blob.vercel-storage.com"
+export const BRAND_STORE_HOST = new URL(BRAND_ASSET_BASE_URL).hostname
 export const COVER_PHOTO_TIMEOUT_MS = 10_000
 
 export type BrandAssetKind = "logo" | "photo"

@@ -6,8 +6,23 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import JSZip from "jszip"
+import { BRAND_ASSET_BASE_URL } from "../../lib/config/endpoints"
 
-const STORE = "https://rzpuygzq2ull7c9x.public.blob.vercel-storage.com"
+function brandAssetBaseUrl(): string {
+  const base = BRAND_ASSET_BASE_URL.trim().replace(/\/$/, "")
+  let parsed: URL
+  try {
+    parsed = new URL(base)
+  } catch {
+    throw new Error("BRAND_ASSET_BASE_URL is not a valid URL")
+  }
+  if (parsed.protocol !== "https:") {
+    throw new Error("BRAND_ASSET_BASE_URL must be an https URL")
+  }
+  return base
+}
+
+const STORE = brandAssetBaseUrl()
 const ZIP_URL = `${STORE}/assembled-brand-kit-v1.zip`
 const OUT = path.join(process.cwd(), "lib", "ava", "brand", "assetCatalog.json")
 
