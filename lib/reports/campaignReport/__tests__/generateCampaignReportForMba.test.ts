@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import type { AssembleCampaignReportInput, CampaignReportPayload } from "@/lib/reports/campaignReport/assembleCampaignReportData"
+import { campaignReportPeriodMetrics } from "@/lib/reports/campaignReport/periodMetrics"
 import {
   campaignReportDownloadName,
   campaignReportSkipReason,
@@ -34,6 +35,13 @@ function payload(overrides: Partial<CampaignReportPayload> = {}): CampaignReport
       previousImpressions: null,
       expectedSpendToDate: null,
       timeElapsedPct: null,
+      metrics: campaignReportPeriodMetrics({
+        spend: 100,
+        impressions: 10,
+        clicks: 1,
+        expectedSpend: null,
+      }),
+      previousMetrics: null,
     },
     channels: [],
     deliveryStates: ["reported"],

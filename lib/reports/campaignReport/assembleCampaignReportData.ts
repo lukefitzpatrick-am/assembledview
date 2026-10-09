@@ -21,9 +21,15 @@ import {
   type CampaignReportPeriodKind,
   type ResolvedCampaignReportPeriod,
 } from "@/lib/reports/campaignReport/periods"
-import { computeExpectedPct, computeCampaignDays, computeDaysPassed, getAsOfDate } from "@/lib/pacing/maths"
+import { getAsOfDate } from "@/lib/pacing/maths"
 import { formatReportInt, formatReportMoney } from "@/lib/reports/campaignReport/formatters"
 import { generateReportCommentary } from "@/lib/reports/campaignReport/generateReportCommentary"
+import {
+  campaignReportPeriodMetrics,
+  expectedMediaAtElapsed,
+  expectedMediaToDate,
+  type CampaignReportPeriodMetrics,
+} from "@/lib/reports/campaignReport/periodMetrics"
 
 export { formatReportInt, formatReportMoney }
 
@@ -53,6 +59,9 @@ export type CampaignReportChannelRow = {
   /** Previous-period spend when available. */
   previousSpend: number | null
   previousImpressions: number | null
+  metrics: CampaignReportPeriodMetrics
+  /** Null when this report has no previous window. */
+  previousMetrics: CampaignReportPeriodMetrics | null
 }
 
 export type ReportCommentary = {
@@ -94,6 +103,9 @@ export type CampaignReportPayload = {
     previousImpressions: number | null
     expectedSpendToDate: number | null
     timeElapsedPct: number | null
+    metrics: CampaignReportPeriodMetrics
+    /** Null when this report has no previous window. */
+    previousMetrics: CampaignReportPeriodMetrics | null
   }
   channels: CampaignReportChannelRow[]
   /**
@@ -255,37 +267,61 @@ export async function assembleCampaignReportData(
   ])
 
   const prevByGroup = previousSnap ? indexChannels(previousSnap.channels) : new Map()
+  const plannedBudget = typeof currentSnap.planTotals.plannedBudget === "number"
+    ? currentSnap.planTotals.plannedBudget
+    : currentSnap.channels.reduce((s, ch) => s + plannedBudgetOf(ch), 0)
+
+  const start = input.campaignStartISO ?? currentWindow.startISO
+  const end = input.campaignEndISO ?? currentWindow.endISO
+  const asOf = currentSnap.asOf || getAsOfDate()
+  const currentExpected = expectedMediaToDate({
+    plannedBudget,
+    startISO: start,
+    endISO: end,
+    asOfISO: asOf,
+  })
+  const previousExpected = previousWindow
+    ? expectedMediaToDate({
+        plannedBudget,
+        startISO: start,
+        endISO: end,
+        asOfISO: previousWindow.endISO,
+      })
+    : null
+  const expectedSpendToDate = currentExpected.expectedSpendToDate
+  const timeElapsedPct = currentExpected.timeElapsedPct
+
   const channels: CampaignReportChannelRow[] = currentSnap.channels.map((ch) => {
     const prev = prevByGroup.get(ch.group)
+    const planned = plannedBudgetOf(ch)
     return {
       group: ch.group,
       label: channelLabel(ch.group),
-      plannedBudget: plannedBudgetOf(ch),
+      plannedBudget: planned,
       spend: ch.totals.spendToDate,
       impressions: ch.totals.impressions,
       clicks: ch.totals.clicks,
       results: ch.totals.results,
       previousSpend: prev ? prev.totals.spendToDate : previousSnap ? 0 : null,
       previousImpressions: prev ? prev.totals.impressions : previousSnap ? 0 : null,
+      metrics: campaignReportPeriodMetrics({
+        spend: ch.totals.spendToDate,
+        impressions: ch.totals.impressions,
+        clicks: ch.totals.clicks,
+        video3sViews: ch.totals.video3sViews,
+        expectedSpend: expectedMediaAtElapsed(planned, timeElapsedPct),
+      }),
+      previousMetrics: previousSnap
+        ? campaignReportPeriodMetrics({
+            spend: prev ? prev.totals.spendToDate : 0,
+            impressions: prev ? prev.totals.impressions : 0,
+            clicks: prev ? prev.totals.clicks : 0,
+            video3sViews: prev ? prev.totals.video3sViews : 0,
+            expectedSpend: expectedMediaAtElapsed(planned, previousExpected?.timeElapsedPct ?? null),
+          })
+        : null,
     }
   })
-
-  const plannedBudget = typeof currentSnap.planTotals.plannedBudget === "number"
-    ? currentSnap.planTotals.plannedBudget
-    : channels.reduce((s, c) => s + c.plannedBudget, 0)
-
-  const start = input.campaignStartISO ?? currentWindow.startISO
-  const end = input.campaignEndISO ?? currentWindow.endISO
-  const asOf = currentSnap.asOf || getAsOfDate()
-  let expectedSpendToDate: number | null = null
-  let timeElapsedPct: number | null = null
-  if (start && end && plannedBudget > 0) {
-    const campaignDays = computeCampaignDays(start, end)
-    const daysPassed = computeDaysPassed(start, end, asOf)
-    const expectedPct = computeExpectedPct(daysPassed, campaignDays)
-    expectedSpendToDate = plannedBudget * expectedPct
-    timeElapsedPct = expectedPct
-  }
 
   const kpis = buildKpiRows(kpiRows, {
     impressions: currentSnap.planTotals.impressions,
@@ -315,6 +351,22 @@ export async function assembleCampaignReportData(
       previousImpressions: previousSnap ? previousSnap.planTotals.impressions : null,
       expectedSpendToDate,
       timeElapsedPct,
+      metrics: campaignReportPeriodMetrics({
+        spend: currentSnap.planTotals.spendToDate,
+        impressions: currentSnap.planTotals.impressions,
+        clicks: currentSnap.planTotals.clicks,
+        video3sViews: currentSnap.planTotals.video3sViews,
+        expectedSpend: expectedSpendToDate,
+      }),
+      previousMetrics: previousSnap
+        ? campaignReportPeriodMetrics({
+            spend: previousSnap.planTotals.spendToDate,
+            impressions: previousSnap.planTotals.impressions,
+            clicks: previousSnap.planTotals.clicks,
+            video3sViews: previousSnap.planTotals.video3sViews,
+            expectedSpend: previousExpected?.expectedSpendToDate ?? null,
+          })
+        : null,
     },
     channels,
     deliveryStates: currentSnap.channels.flatMap((ch) =>

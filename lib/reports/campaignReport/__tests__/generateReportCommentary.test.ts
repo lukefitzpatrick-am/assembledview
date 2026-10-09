@@ -8,6 +8,7 @@ import {
   type CommentaryCompletion,
 } from "@/lib/reports/campaignReport/generateReportCommentary"
 import type { CampaignReportPayload } from "@/lib/reports/campaignReport/assembleCampaignReportData"
+import { campaignReportPeriodMetrics } from "@/lib/reports/campaignReport/periodMetrics"
 
 const NOT_GENERATED = "Commentary not generated for this period."
 
@@ -35,6 +36,18 @@ function payload(): CampaignReportPayload {
       previousImpressions: 5100000,
       expectedSpendToDate: 4000,
       timeElapsedPct: 0.033,
+      metrics: campaignReportPeriodMetrics({
+        spend: 18450,
+        impressions: 2450000,
+        clicks: 18200,
+        expectedSpend: 4000,
+      }),
+      previousMetrics: campaignReportPeriodMetrics({
+        spend: 42100,
+        impressions: 5100000,
+        clicks: 0,
+        expectedSpend: null,
+      }),
     },
     channels: [],
     kpis: [],

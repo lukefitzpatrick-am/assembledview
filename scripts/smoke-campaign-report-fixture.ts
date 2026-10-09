@@ -6,6 +6,7 @@ import fs from "fs"
 import path from "path"
 import { buildCampaignReportDeck } from "@/lib/reports/campaignReport/buildCampaignReportDeck"
 import type { CampaignReportPayload } from "@/lib/reports/campaignReport/assembleCampaignReportData"
+import { campaignReportPeriodMetrics } from "@/lib/reports/campaignReport/periodMetrics"
 import { campaignReportFilename } from "@/lib/reports/campaignReport/filename"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
@@ -32,6 +33,19 @@ export const campaignReportFixture: CampaignReportPayload = {
     previousImpressions: 5_100_000,
     expectedSpendToDate: 4000,
     timeElapsedPct: 0.033,
+    metrics: campaignReportPeriodMetrics({
+      spend: 18450,
+      impressions: 2_450_000,
+      clicks: 18200,
+      video3sViews: 84_000,
+      expectedSpend: 4000,
+    }),
+    previousMetrics: campaignReportPeriodMetrics({
+      spend: 42100,
+      impressions: 5_100_000,
+      clicks: 31000,
+      expectedSpend: 2000,
+    }),
   },
   channels: [
     {
@@ -44,6 +58,20 @@ export const campaignReportFixture: CampaignReportPayload = {
       results: 120,
       previousSpend: 21000,
       previousImpressions: 2_400_000,
+      metrics: campaignReportPeriodMetrics({
+        spend: 9200,
+        impressions: 1_200_000,
+        clicks: 9800,
+        video3sViews: 84_000,
+        expectedSpend: 1650,
+      }),
+      previousMetrics: campaignReportPeriodMetrics({
+        spend: 21000,
+        impressions: 2_400_000,
+        clicks: 14000,
+        video3sViews: 40_000,
+        expectedSpend: 800,
+      }),
     },
     {
       group: "search",
@@ -55,6 +83,19 @@ export const campaignReportFixture: CampaignReportPayload = {
       results: 260,
       previousSpend: 14000,
       previousImpressions: 1_900_000,
+      metrics: campaignReportPeriodMetrics({
+        spend: 6250,
+        impressions: 850_000,
+        clicks: 7400,
+        video3sViews: 0,
+        expectedSpend: 1320,
+      }),
+      previousMetrics: campaignReportPeriodMetrics({
+        spend: 14000,
+        impressions: 1_900_000,
+        clicks: 9000,
+        expectedSpend: 700,
+      }),
     },
   ],
   kpis: [
