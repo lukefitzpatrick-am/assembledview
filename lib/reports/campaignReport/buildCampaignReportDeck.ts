@@ -27,15 +27,21 @@ import JSZip from "jszip"
 import { Automizer } from "pptx-automizer"
 import { BRAND } from "@/lib/brand"
 import { channelColorFor, getChartTheme } from "@/lib/chart-theme"
+import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import type {
   CampaignReportChannelRow,
   CampaignReportPayload,
   ReportCommentary,
 } from "@/lib/reports/campaignReport/assembleCampaignReportData"
 import {
+  formatReportCtr,
   formatReportInt,
   formatReportMoney,
+  formatReportPace,
+  formatReportRate,
+  REPORT_FIGURE_DASH,
 } from "@/lib/reports/campaignReport/formatters"
+import type { CampaignReportPeriodMetrics } from "@/lib/reports/campaignReport/periodMetrics"
 
 const TEMPLATE_FILE = "am-template-deck-16x9.pptx"
 const NOT_GENERATED = "Commentary not generated for this period."
@@ -95,6 +101,22 @@ function safe(text: string | null | undefined, fallback = "Not available"): stri
 function pctLabel(fraction: number | null): string {
   if (fraction == null || !Number.isFinite(fraction)) return "Not available"
   return `${(fraction * 100).toFixed(1)}%`
+}
+
+function paceColour(pace: number | null): string {
+  if (pace == null || !Number.isFinite(pace)) return INK
+  const status = deliveryStatusFromPct(pace * 100)
+  if (status === "behind") return pptColour(BRAND.functional.amber)
+  if (status === "ahead") return pptColour(BRAND.functional.coral)
+  return INK
+}
+
+function previousFigure(
+  metrics: CampaignReportPeriodMetrics | null,
+  value: string,
+): string {
+  if (!metrics) return "Not available"
+  return value
 }
 
 function spendShareSentence(channel: CampaignReportChannelRow, totalSpend: number): string {
@@ -241,6 +263,64 @@ function insightCard(page: DrawSlide, x: number, y: number, w: number, sentence:
     fontSize: 14,
     color: INK,
     margin: 0,
+  })
+}
+
+function drawKeyMetrics(page: DrawSlide, payload: CampaignReportPayload): void {
+  const metrics = payload.totals.metrics
+  const tiles: { label: string; value: string; colour: string }[] = [
+    { label: "CPM", value: formatReportRate(metrics.cpm), colour: INK },
+    { label: "CPC", value: formatReportRate(metrics.cpc), colour: INK },
+    { label: "CTR", value: formatReportCtr(metrics.ctr), colour: INK },
+    {
+      label: "Spend pace",
+      value: formatReportPace(metrics.spendPacePct),
+      colour: paceColour(metrics.spendPacePct),
+    },
+  ]
+  if (metrics.videoViews3s != null) {
+    tiles.push({
+      label: "3-second views",
+      value: formatReportInt(metrics.videoViews3s),
+      colour: INK,
+    })
+  }
+
+  page.addText("Key metrics.", {
+    x: 0.55,
+    y: 3.55,
+    w: 12.2,
+    h: 0.36,
+    fontFace: FONT,
+    fontSize: 16,
+    color: INK,
+    margin: 0,
+  })
+
+  const gap = 0.16
+  const width = (12.2 - gap * (tiles.length - 1)) / tiles.length
+  tiles.forEach((tile, index) => {
+    const x = 0.55 + index * (width + gap)
+    page.addText(tile.label, {
+      x,
+      y: 4.02,
+      w: width,
+      h: 0.28,
+      fontFace: FONT,
+      fontSize: 12,
+      color: MUTED,
+      margin: 0,
+    })
+    page.addText(tile.value, {
+      x,
+      y: 4.32,
+      w: width,
+      h: 0.46,
+      fontFace: FONT,
+      fontSize: 20,
+      color: tile.colour,
+      margin: 0,
+    })
   })
 }
 
@@ -425,16 +505,24 @@ export async function buildCampaignReportDeck(
       ].join("\n\n"),
       {
         x: 0.55,
-        y: 1.2,
+        y: 1.15,
         w: 12.2,
-        h: 5.4,
+        h: 2.25,
         fontFace: FONT,
         fontSize: 16,
         color: INK,
         margin: 0,
       },
     )
+    drawKeyMetrics(page, payload)
   })
+
+  // Metric, Selected, Previous and Planned already span 12.2in. Extra columns
+  // for CPM, CPC, CTR, spend pace and 3-second views do not fit, so those
+  // figures are additional rows on the same table.
+  console.info(
+    "campaign-report deck: no room for key-metric columns on the per-channel table; CPM, CPC, CTR, spend pace and 3-second views are rows.",
+  )
 
   for (const channel of payload.channels) {
     const hasPrev = channel.previousSpend != null
@@ -503,12 +591,61 @@ export async function buildCampaignReportDeck(
         ],
         [cell("Clicks"), cell(formatReportInt(channel.clicks)), cell("Not available"), cell("Not available")],
         [cell("Results"), cell(formatReportInt(channel.results)), cell("Not available"), cell("Not available")],
+        [
+          cell("CPM"),
+          cell(formatReportRate(channel.metrics.cpm)),
+          cell(previousFigure(channel.previousMetrics, formatReportRate(channel.previousMetrics?.cpm ?? null))),
+          cell(REPORT_FIGURE_DASH),
+        ],
+        [
+          cell("CPC"),
+          cell(formatReportRate(channel.metrics.cpc)),
+          cell(previousFigure(channel.previousMetrics, formatReportRate(channel.previousMetrics?.cpc ?? null))),
+          cell(REPORT_FIGURE_DASH),
+        ],
+        [
+          cell("CTR"),
+          cell(formatReportCtr(channel.metrics.ctr)),
+          cell(previousFigure(channel.previousMetrics, formatReportCtr(channel.previousMetrics?.ctr ?? null))),
+          cell(REPORT_FIGURE_DASH),
+        ],
+        [
+          cell("Spend pace"),
+          cell(formatReportPace(channel.metrics.spendPacePct)),
+          cell(
+            previousFigure(
+              channel.previousMetrics,
+              formatReportPace(channel.previousMetrics?.spendPacePct ?? null),
+            ),
+          ),
+          cell(REPORT_FIGURE_DASH),
+        ],
+        ...(channel.metrics.videoViews3s != null || channel.previousMetrics?.videoViews3s != null
+          ? [[
+              cell("3-second views"),
+              cell(
+                channel.metrics.videoViews3s == null
+                  ? REPORT_FIGURE_DASH
+                  : formatReportInt(channel.metrics.videoViews3s),
+              ),
+              cell(
+                previousFigure(
+                  channel.previousMetrics,
+                  channel.previousMetrics?.videoViews3s == null
+                    ? REPORT_FIGURE_DASH
+                    : formatReportInt(channel.previousMetrics.videoViews3s),
+                ),
+              ),
+              cell(REPORT_FIGURE_DASH),
+            ]]
+          : []),
       ]
       page.addTable(rows, {
         x: 0.55,
         y: 1.3,
         w: 12.2,
         colW: [3, 3.1, 3.1, 3],
+        rowH: 0.32,
         border: { type: "solid", pt: 0.5, color: LINE },
         fontFace: FONT,
         fontSize: 12,
