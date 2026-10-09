@@ -1,10 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   getAnthropicClient,
-  AVA_MODEL,
-  AVA_MAX_TOKENS,
   AVA_MAX_TOOL_ITERATIONS,
 } from "./anthropic";
+import {
+  anthropicParamsFor,
+  completeClaudeMessage,
+  resolveTurnProfile,
+  type AvaModelProfileName,
+} from "./modelConfig";
 import { avaToolDefinitionsForPage, getToolByName } from "./tools/registry";
 import type { AvaToolContext } from "./tools/types";
 import type { PageContext } from "@/lib/ava/types";
@@ -20,6 +24,14 @@ export type AvaAgentInput = {
   context: AvaToolContext;
   /** Append Anthropic server `web_search` (admin AVA chats). */
   enableWebSearch?: boolean;
+  /**
+   * `report` for campaign-read generation. Chat stays `chat` until a report
+   * skill is loaded into the message history, then the rest of the turn uses
+   * the report profile.
+   */
+  profile?: AvaModelProfileName;
+  /** Tests inject a client. Production uses {@link getAnthropicClient}. */
+  client?: Anthropic;
 };
 
 export type AvaAgentResult = {
@@ -39,6 +51,10 @@ export type AvaAgentResult = {
     cacheCreationInputTokens: number;
     cacheReadInputTokens: number;
   };
+  /** Profile, model and effort of the call that produced the reply. */
+  profile: AvaModelProfileName;
+  model: string;
+  effort: string;
 };
 
 const FALLBACK_REPLY = "I did not produce a response. Please try again.";
@@ -86,14 +102,20 @@ function truncatePreview(text: string, maxLen: number): string {
   return text.slice(0, maxLen);
 }
 
+function isTextBlock(
+  block: Anthropic.ContentBlock,
+): block is Anthropic.TextBlock {
+  return block.type === "text";
+}
+
+/** Reply text only. Thinking blocks stay in the content array and are not spoken. */
 function extractFirstTextBlock(
   content: Anthropic.ContentBlock[] | null | undefined,
 ): string | null {
   if (!content?.length) return null;
   for (const block of content) {
-    if (block && typeof block === "object" && block.type === "text") {
-      const text = (block as Anthropic.TextBlock).text;
-      if (typeof text === "string") return text;
+    if (block && typeof block === "object" && isTextBlock(block)) {
+      if (typeof block.text === "string") return block.text;
     }
   }
   return null;
@@ -105,9 +127,10 @@ function extractAllTextBlocks(
   if (!content?.length) return "";
   const parts: string[] = [];
   for (const block of content) {
-    if (block && typeof block === "object" && block.type === "text") {
-      const text = (block as Anthropic.TextBlock).text;
-      if (typeof text === "string" && text.length > 0) parts.push(text);
+    if (block && typeof block === "object" && isTextBlock(block)) {
+      if (typeof block.text === "string" && block.text.length > 0) {
+        parts.push(block.text);
+      }
     }
   }
   return parts.join("\n\n");
@@ -150,6 +173,7 @@ function finishTurn(
   context: AvaToolContext,
   toolCalls: AvaAgentResult["toolCalls"],
   usage: AvaAgentResult["usage"],
+  call: { profile: AvaModelProfileName; model: string; effort: string },
 ): AvaAgentResult {
   return {
     replyText,
@@ -164,6 +188,9 @@ function finishTurn(
     toolCalls,
     ingestStageMissing: context.ingestStageMissing === true,
     usage,
+    profile: call.profile,
+    model: call.model,
+    effort: call.effort,
   };
 }
 
@@ -171,7 +198,7 @@ export async function runAvaAgent(
   input: AvaAgentInput,
 ): Promise<AvaAgentResult> {
   try {
-    const client = getAnthropicClient();
+    const client = input.client ?? getAnthropicClient();
 
     const system: Anthropic.TextBlockParam[] = [
       {
@@ -191,6 +218,11 @@ export async function runAvaAgent(
     };
 
     const toolCalls: AvaAgentResult["toolCalls"] = [];
+    let call: { profile: AvaModelProfileName; model: string; effort: string } = {
+      profile: input.profile === "report" ? "report" : "chat",
+      model: "",
+      effort: "",
+    };
     const tools = buildTools(
       input.enableWebSearch === true,
       input.context.pageContext,
@@ -204,14 +236,18 @@ export async function runAvaAgent(
     );
 
     for (let iter = 0; iter < AVA_MAX_TOOL_ITERATIONS; iter++) {
-      const response = await client.messages.create({
-        model: AVA_MODEL,
-        max_tokens: AVA_MAX_TOKENS,
+      const profile = resolveTurnProfile(messages, input.profile);
+      const params = anthropicParamsFor(profile);
+      const response = await completeClaudeMessage(client, profile, {
         system,
         tools,
         messages,
-        stream: false,
       });
+      call = {
+        profile,
+        model: response.model,
+        effort: params.output_config.effort,
+      };
 
       accumulateUsage(usage, response.usage);
 
@@ -220,11 +256,12 @@ export async function runAvaAgent(
       if (stopReason === "end_turn" || stopReason === "stop_sequence") {
         const replyText =
           extractFirstTextBlock(response.content) ?? FALLBACK_REPLY;
-        return finishTurn(replyText, input.context, toolCalls, usage);
+        return finishTurn(replyText, input.context, toolCalls, usage, call);
       }
 
       // Anthropic server tools (web_search) may pause until the next request.
       if (stopReason === "pause_turn") {
+        // Full content array, thinking blocks included and unmodified.
         messages.push({
           role: "assistant",
           content: response.content as Anthropic.ContentBlockParam[],
@@ -238,6 +275,7 @@ export async function runAvaAgent(
       }
 
       if (stopReason === "tool_use") {
+        // Full content array, thinking blocks included and unmodified.
         messages.push({
           role: "assistant",
           content: response.content as Anthropic.ContentBlockParam[],
@@ -256,7 +294,7 @@ export async function runAvaAgent(
           // Server-only tool turn (e.g. web_search finished in-content) — continue.
           const replyText = extractAllTextBlocks(response.content);
           if (replyText) {
-            return finishTurn(replyText, input.context, toolCalls, usage);
+            return finishTurn(replyText, input.context, toolCalls, usage, call);
           }
           continue;
         }
@@ -356,6 +394,7 @@ export async function runAvaAgent(
             input.context,
             toolCalls,
             usage,
+            call,
           );
         }
         return finishTurn(
@@ -363,6 +402,7 @@ export async function runAvaAgent(
           input.context,
           toolCalls,
           usage,
+          call,
         );
       }
 
@@ -375,10 +415,10 @@ export async function runAvaAgent(
       });
       const replyText =
         replyFromBlocks.length > 0 ? replyFromBlocks : FALLBACK_REPLY;
-      return finishTurn(replyText, input.context, toolCalls, usage);
+      return finishTurn(replyText, input.context, toolCalls, usage, call);
     }
 
-    return finishTurn(TOOL_LIMIT_REPLY, input.context, toolCalls, usage);
+    return finishTurn(TOOL_LIMIT_REPLY, input.context, toolCalls, usage, call);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`AVA agent loop failed: ${message}`);

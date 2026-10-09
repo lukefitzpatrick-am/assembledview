@@ -2,10 +2,10 @@ import "server-only"
 
 import type Anthropic from "@anthropic-ai/sdk"
 
-import { AVA_MODEL, getAnthropicClient } from "@/lib/ava/anthropic"
+import { getAnthropicClient } from "@/lib/ava/anthropic"
+import { completeClaudeMessage } from "@/lib/ava/modelConfig"
 
 const RESEARCH_TIMEOUT_MS = 20_000
-const RESEARCH_MAX_TOKENS = 700
 
 const WEB_SEARCH_TOOL: Anthropic.WebSearchTool20250305 = {
   type: "web_search_20250305",
@@ -66,10 +66,10 @@ Do not use bullet-heavy citation markup; write a clean prose brief.`
 
   try {
     const client = getAnthropicClient()
-    const response = await client.messages.create(
+    const response = await completeClaudeMessage(
+      client,
+      "chat",
       {
-        model: AVA_MODEL,
-        max_tokens: RESEARCH_MAX_TOKENS,
         tools: [WEB_SEARCH_TOOL],
         tool_choice: { type: "auto" },
         messages: [{ role: "user", content: prompt }],

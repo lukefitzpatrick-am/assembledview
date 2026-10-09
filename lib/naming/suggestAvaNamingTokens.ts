@@ -1,4 +1,5 @@
-import { AVA_MODEL, getAnthropicClient } from "@/lib/ava/anthropic"
+import { getAnthropicClient } from "@/lib/ava/anthropic"
+import { completeClaudeMessage } from "@/lib/ava/modelConfig"
 import {
   NAMING_TOKEN_MAX_LEN,
   type AvaTokenSuggestions,
@@ -72,9 +73,7 @@ export async function suggestAvaNamingTokens(
 ): Promise<AvaTokenSuggestions> {
   if (!items.length) return {}
   const client = getAnthropicClient()
-  const response = await client.messages.create({
-    model: AVA_MODEL,
-    max_tokens: 1500,
+  const response = await completeClaudeMessage(client, "chat", {
     system: SYSTEM,
     messages: [{ role: "user", content: buildAvaNamingTokensPrompt(items) }],
   })

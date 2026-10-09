@@ -10,7 +10,7 @@ import { requireAdmin } from "@/lib/requireRole"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-export const maxDuration = 120
+export const maxDuration = 180
 
 function asNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) {

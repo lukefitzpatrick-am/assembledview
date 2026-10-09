@@ -10,7 +10,8 @@ import type {
   SearchAssetPin,
   SearchLimits,
 } from "@/components/creative/searchads/types"
-import { AVA_MODEL, getAnthropicClient } from "@/lib/ava/anthropic"
+import { getAnthropicClient } from "@/lib/ava/anthropic"
+import { completeClaudeMessage } from "@/lib/ava/modelConfig"
 import { getSkillById } from "@/lib/ava/skills/registry"
 import { fetchClientBrainForAdCopy } from "@/lib/creative/adCopy/fetchClientBrain"
 import { researchClientBrief } from "@/lib/creative/adCopy/researchClient"
@@ -397,9 +398,7 @@ export async function POST(request: NextRequest) {
     }))
 
     const client = getAnthropicClient()
-    const response = await client.messages.create({
-      model: AVA_MODEL,
-      max_tokens: 4500,
+    const response = await completeClaudeMessage(client, "chat", {
       system: systemPrompt,
       tools: [EMIT_SEARCH_COPY_TOOL],
       tool_choice: { type: "tool", name: "emit_search_copy" },

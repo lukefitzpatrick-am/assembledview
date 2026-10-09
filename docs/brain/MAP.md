@@ -177,7 +177,8 @@ Client-accessible learning centre. Content is file-driven from `src/data/learnin
 
 **Entry** `POST /api/chat-v2`. Widget mounted for admins only via `AdminAssistantGate`; the API 403s non-admins.
 
-- `lib/ava/agentLoop.ts` — the tool loop
+- `lib/ava/modelConfig.ts` — Claude profiles (`chat` medium / `report` high). Opus 5.5. Report calls stream. `ANTHROPIC_MODEL` is ignored.
+- `lib/ava/agentLoop.ts` — the tool loop. Replays thinking blocks. Switches to `report` after a report skill is loaded in the turn.
 - `lib/ava/tools/registry.ts` — the tool surface (~33 tools: `getCampaignContext`, `queryCampaignLines`, `queryScheduleMonths`, `queryFinanceSummary`, `getPacingSnapshot`, `runScenario`, `applyFormPatch`, `adjustLineItems`, `calculateMediaMath`, `loadIngestIntoForm`, `acceptIngestProposal`, `saveClientBrain`, `generatePerformanceReport`, …). Offer of `accept_ingest_proposal` is surface-aware (`avaToolDefinitionsForPage`); `run_scenario` is offered only on `/pacing/*` and `/dashboard/*`.
 - `lib/ava/applyIngestLineItemsLoad.ts` — create/edit `handleSetLineItems`: enable channel flag if off, dual-write hydration on edit, scroll to the section. Partial MBA unions loaded billing-stable ids into the channel selected set (all-in).
 - `lib/ava/skills/registry.ts` — skill guidance loaded on demand. `assembled-insight-commentary` is 1.2.0, `assembled-presentations` is 1.3.0, and `assembled-campaign-read` is 1.4.0. Commentary, the campaign read, and the performance review write Insight, Action and Outcome. `assembled-campaign-read` writes the dashboard six-beat read via `POST /api/campaign-reads/generate` (202 + `after()` job + campaign-scoped tools). `generate_performance_report` builds the campaign report on the 05b v5 template. `assembled-scenario-planner` pairs `run_scenario` + `get_campaign_context` + `get_delivery_snapshot` and chains the marketing brain.

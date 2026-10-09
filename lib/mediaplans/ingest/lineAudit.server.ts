@@ -6,6 +6,7 @@ import "server-only"
 
 import type Anthropic from "@anthropic-ai/sdk"
 import { getAnthropicClient } from "@/lib/ava/anthropic"
+import { anthropicParamsFor, completeClaudeMessage } from "@/lib/ava/modelConfig"
 import {
   LINE_AUDIT_SYSTEM_PROMPT,
   LINE_AUDIT_TOOL_NAME,
@@ -15,9 +16,6 @@ import {
   type LineAuditChunkRequest,
   type LineAuditRow,
 } from "@/lib/mediaplans/ingest/lineAudit"
-
-export const INGEST_AUDIT_MODEL =
-  process.env.INGEST_AUDIT_MODEL ?? "claude-opus-4-6"
 
 const EMIT_TOOL: Anthropic.Tool = {
   name: LINE_AUDIT_TOOL_NAME,
@@ -104,24 +102,20 @@ function rowsFromResponse(response: Anthropic.Message): LineAuditRow[] {
 
 export function createAnthropicLineAuditClient(): LineAuditClient {
   return {
-    model: INGEST_AUDIT_MODEL,
+    model: anthropicParamsFor("chat").model,
     async auditChunk(request: LineAuditChunkRequest) {
       const client = getAnthropicClient()
-      const response = await client.messages.create({
-        model: INGEST_AUDIT_MODEL,
-        max_tokens: 16000,
-        stream: false,
+      const response = await completeClaudeMessage(client, "chat", {
         system: LINE_AUDIT_SYSTEM_PROMPT,
         tools: [EMIT_TOOL],
         tool_choice: { type: "tool", name: LINE_AUDIT_TOOL_NAME },
-        thinking: { type: "enabled", budget_tokens: 10000 },
         messages: [
           {
             role: "user",
             content: serializeChunkForModel(request),
           },
         ],
-      } as Anthropic.MessageCreateParamsNonStreaming)
+      })
       const rows = rowsFromResponse(response)
       if (rows.length === 0 && request.data_rows.length > 0) {
         throw new Error(

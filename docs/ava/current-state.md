@@ -2,9 +2,9 @@
 
 - **Chat endpoint:** `POST /api/chat-v2` only (legacy `/api/chat` and GPT handler removed).
 - **Engine:** Anthropic Claude via `lib/ava/agentLoop.ts`. Optional kill-switch: `AVA_ENGINE=off` → 503.
-- **Required env:** `ANTHROPIC_API_KEY`. Optional: `ANTHROPIC_MODEL` (default `claude-sonnet-4-5`), `AVA_ENGINE=off`.
+- **Required env:** `ANTHROPIC_API_KEY`. Optional profile overrides: `AVA_CHAT_MODEL` / `AVA_CHAT_EFFORT` / `AVA_CHAT_MAX_TOKENS` (default `claude-opus-5-5`, `medium`, 16000) and `AVA_REPORT_MODEL` / `AVA_REPORT_EFFORT` / `AVA_REPORT_MAX_TOKENS` (default `claude-opus-5-5`, `high`, 32000). `ANTHROPIC_MODEL` is ignored. `AVA_ENGINE=off` is the kill switch.
 - **Admin-only:** unauthenticated → 401; non-admin → 403.
-- **Route:** `maxDuration = 60` (multi-tool turns; streaming is a later phase).
+- **Route:** `maxDuration = 300`. The HTTP response stays JSON. Report-profile turns stream the Claude call.
 
 ## Prompting
 

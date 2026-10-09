@@ -6,7 +6,8 @@
  */
 import "server-only"
 
-import { getAnthropicClient, AVA_MODEL } from "@/lib/ava/anthropic"
+import { getAnthropicClient } from "@/lib/ava/anthropic"
+import { completeClaudeMessage } from "@/lib/ava/modelConfig"
 import { buildLoadSkillPayload } from "@/lib/ava/tools/loadSkill"
 import { getPublishedCampaignRead } from "@/lib/campaign-read/repo"
 import { listRecentLiveInsightsForMba } from "@/lib/insights/queryCampaignInsights"
@@ -29,7 +30,7 @@ import type {
 import type { ResolvedCampaignReportPeriod } from "@/lib/reports/campaignReport/periods"
 import { z } from "zod"
 
-const TIMEOUT_MS = 60_000
+const TIMEOUT_MS = 180_000
 const COMMENTARY_SKILL = "assembled-insight-commentary"
 const REPORT_SKILL = "assembled-performance-review-report"
 
@@ -319,10 +320,10 @@ async function defaultComplete(input: {
   signal: AbortSignal
 }): Promise<string> {
   const client = getAnthropicClient()
-  const response = await client.messages.create(
+  const response = await completeClaudeMessage(
+    client,
+    "report",
     {
-      model: AVA_MODEL,
-      max_tokens: 1200,
       system: input.system,
       messages: [{ role: "user", content: input.user }],
     },

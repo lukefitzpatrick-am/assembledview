@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk"
-import { AVA_MODEL, getAnthropicClient } from "@/lib/ava/anthropic"
+import { getAnthropicClient } from "@/lib/ava/anthropic"
+import { completeClaudeMessage } from "@/lib/ava/modelConfig"
 import {
   buildMapperSystemPrompt,
   EMIT_MAPPED_PLAN_TOOL,
@@ -234,23 +235,18 @@ async function mapSingleBatch(input: {
   const system = buildMapperSystemPrompt(input.channel)
   const userContent = JSON.stringify(buildUserPayload(input.detected, input.channel))
 
-  // Stream: SDK requires streaming when max_tokens may take >10 min
-  // (claude-sonnet-4-5 ceiling is 64k).
-  const response = await client.messages
-    .stream({
-      model: AVA_MODEL,
-      max_tokens: 64000,
-      system,
-      tools: [EMIT_MAPPED_PLAN_TOOL as unknown as Anthropic.Tool],
-      tool_choice: { type: "tool", name: EMIT_MAPPED_PLAN_TOOL_NAME },
-      messages: [
-        {
-          role: "user",
-          content: `Map this detected ${input.channel} plan to Assembled View line items.\n\n${userContent}`,
-        },
-      ],
-    })
-    .finalMessage()
+  // Stream via the autopopulate job: report model, effort medium, 64k cap.
+  const response = await completeClaudeMessage(client, "autopopulate", {
+    system,
+    tools: [EMIT_MAPPED_PLAN_TOOL as unknown as Anthropic.Tool],
+    tool_choice: { type: "tool", name: EMIT_MAPPED_PLAN_TOOL_NAME },
+    messages: [
+      {
+        role: "user",
+        content: `Map this detected ${input.channel} plan to Assembled View line items.\n\n${userContent}`,
+      },
+    ],
+  })
 
   const toolBlock = response.content.find(
     (b): b is Anthropic.ToolUseBlock =>

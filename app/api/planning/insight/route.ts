@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import {
-  AVA_MAX_TOKENS,
-  AVA_MODEL,
   getAnthropicClient,
 } from "@/lib/ava/anthropic"
+import { completeClaudeMessage } from "@/lib/ava/modelConfig"
 import { buildLoadSkillPayload } from "@/lib/ava/tools/loadSkill"
 import { checkInsightRateLimit } from "@/lib/planning/insightRateLimit"
 import { requireRole } from "@/lib/requireRole"
@@ -216,9 +215,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const client = getAnthropicClient()
-    const response = await client.messages.create({
-      model: AVA_MODEL,
-      max_tokens: AVA_MAX_TOKENS,
+    const response = await completeClaudeMessage(client, "chat", {
       system,
       messages: [
         {

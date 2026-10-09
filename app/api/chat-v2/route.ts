@@ -1,7 +1,7 @@
 /**
  * Canonical AVA chat API — Anthropic Claude agent loop only.
  * Optional kill-switch: AVA_ENGINE=off → 503.
- * Streaming is a later phase; maxDuration mitigates Vercel timeout risk for multi-tool turns.
+ * The HTTP response stays JSON. Report-profile turns stream the Claude call.
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -24,8 +24,8 @@ import type { AvaToolContext, PendingIngest, PendingParsedPlan } from "@/lib/ava
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-/** Multi-tool Claude turns can exceed the default serverless limit; streaming is a later phase. */
-export const maxDuration = 60
+/** Report-profile turns can run at high effort. */
+export const maxDuration = 300
 
 /** Minimal inbound chat message shape (previously openai ChatApiMessage). */
 type ChatApiMessage = {
@@ -197,7 +197,7 @@ export async function POST(req: NextRequest) {
       questions: result.questions,
       meta: {
         engine: "claude",
-        model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
+        model: result.model,
         toolCalls: result.toolCalls.map((tc) => ({ name: tc.name })),
         usage: result.usage,
         ...(result.ingestStageMissing ? { ingestStageMissing: true } : {}),

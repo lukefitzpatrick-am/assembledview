@@ -53,6 +53,7 @@ async function defaultAgentRunner(input: {
     messages: [{ role: "user", content: input.userMessage }],
     context: input.context,
     enableWebSearch: false,
+    profile: "report",
   })
   return {
     replyText: result.replyText,

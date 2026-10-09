@@ -6,7 +6,8 @@ import {
   SOCIAL_CTA_OPTIONS,
   type SocialCtaLabel,
 } from "@/components/creative/mockups/social/types"
-import { AVA_MODEL, getAnthropicClient } from "@/lib/ava/anthropic"
+import { getAnthropicClient } from "@/lib/ava/anthropic"
+import { completeClaudeMessage } from "@/lib/ava/modelConfig"
 import {
   buildAdCopySystemPrompt,
   trimVariantToLimits,
@@ -386,9 +387,7 @@ export async function POST(request: NextRequest) {
             : msg.text),
       }))
 
-      const response = await client.messages.create({
-        model: AVA_MODEL,
-        max_tokens: 4500,
+      const response = await completeClaudeMessage(client, "chat", {
         system: systemPrompt,
         tools: [EMIT_COPY_CHAT_TOOL],
         tool_choice: { type: "tool", name: "emit_copy_chat" },
@@ -422,9 +421,7 @@ export async function POST(request: NextRequest) {
         ? `Existing copy to diverge from:\n${existingLines.join("\n")}\n\nWrite 3 new variants.`
         : "Write 3 ad copy variants for this creative."
 
-    const response = await client.messages.create({
-      model: AVA_MODEL,
-      max_tokens: 1500,
+    const response = await completeClaudeMessage(client, "chat", {
       system: buildAdCopySystemPrompt({
         platform: parsed.platform,
         brandName: parsed.brandName,

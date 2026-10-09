@@ -137,6 +137,10 @@ Never a third hero row. Long client / campaign names wrap (`break-words`, `min-w
 
 Step 01 `#campaign-setup` on both pages uses the same frame (`rounded-frame … shadow-e1 sm:p-5`), inner `#builder-section-campaign` card (`overflow-visible rounded-card … bg-surface-panel`), and field grid (`md:grid-cols-2 xl:grid-cols-4`). Create may carry `data-create-step` (no consumer); edit must not. Edit keeps `mp_plannumber` in the field grid and does not mount `PlannerCreateTargetsStrip`. Edit bootstrapping paints that same `#campaign-setup` frame inside `PlanWizardShell` (rail placeholder + content column) so xl swap does not shift width. Pin: `lib/mediaplan/__tests__/postgresSavePayload.integration.test.ts`. Do not rebuild this chrome as a second shared component unless both pages are extracted together.
 
+## Claude
+
+Claude calls go through `lib/ava/modelConfig`. Profiles are `chat` and `report` (`anthropicParamsFor`). Do not read `ANTHROPIC_MODEL` or hard-code a model id, effort, or `max_tokens` at the call site. Opus 5.5 keeps adaptive thinking on — never send `thinking: { type: "disabled" }`. Assistant turns in the tool loop go back with their full content array, thinking blocks included.
+
 ## Change protocol
 
 One prompt = one commit = one gate review. Claude and Cursor propose; a human applies. Anything ambiguous is reported, not guessed.

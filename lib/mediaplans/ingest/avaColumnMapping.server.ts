@@ -6,7 +6,8 @@
 import "server-only"
 
 import type Anthropic from "@anthropic-ai/sdk"
-import { AVA_MODEL, getAnthropicClient } from "@/lib/ava/anthropic"
+import { getAnthropicClient } from "@/lib/ava/anthropic"
+import { completeClaudeMessage } from "@/lib/ava/modelConfig"
 import {
   AVA_MAPPING_TARGET_DESCRIPTORS,
   parseToolProposals,
@@ -76,9 +77,7 @@ export function createAnthropicAvaMappingClient(): AvaMappingClient {
         instruction:
           "Propose mapped_to for each unmapped column. Mapping only — no value parsing.",
       }
-      const response = await client.messages.create({
-        model: AVA_MODEL,
-        max_tokens: 2048,
+      const response = await completeClaudeMessage(client, "chat", {
         system: buildSystemPrompt(targets),
         tools: [EMIT_TOOL],
         tool_choice: { type: "tool", name: EMIT_TOOL_NAME },
