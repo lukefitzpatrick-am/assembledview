@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ChevronDown } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -67,11 +67,22 @@ export function SplitActionButton({
   const compact = size === "compact"
   const heightClass = heightClassForSize(size)
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   const setMenuOpen = (next: boolean) => {
     setOpen(next)
     onMenuOpenChange?.(next)
   }
+
+  // Radix focuses the trigger on close, then the modal focus scope returns focus
+  // to whatever was focused before open. A pointerdown on the caret prevents that
+  // focus, so Escape lands on document.body. Put it back on the trigger after close.
+  useEffect(() => {
+    if (!open) return
+    return () => {
+      triggerRef.current?.focus()
+    }
+  }, [open])
 
   useEffect(() => {
     if (bothDisabled) setOpen(false)
@@ -152,6 +163,7 @@ export function SplitActionButton({
       <DropdownMenu open={open} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button
+            ref={triggerRef}
             type="button"
             variant={variant}
             disabled={bothDisabled}
@@ -203,6 +215,7 @@ export function SplitActionButton({
         </Button>
         <DropdownMenuTrigger asChild>
           <Button
+            ref={triggerRef}
             type="button"
             variant={variant}
             disabled={bothDisabled}
