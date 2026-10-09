@@ -330,7 +330,7 @@ describe("POST /api/mba/generate liveCampaignDates", () => {
   })
 })
 
-describe("edit page sends live dates only on Generate, never on save-time upload", () => {
+describe("edit page sends live dates only on Generate; publish uses the stored file", () => {
   it("generateMbaPdfBlob posts liveCampaignDates when liveScope and dates differ", () => {
     assert.match(editSrc, /liveCampaignDatesIfChanged/)
     assert.match(editSrc, /mp_campaigndates_start/)
@@ -341,23 +341,52 @@ describe("edit page sends live dates only on Generate, never on save-time upload
     )
   })
 
-  it("save-time upload calls generateMbaPdfBlob with planVersion only", () => {
-    assert.match(
-      editSrc,
-      /generateMbaPdfBlob\(\{\s*planVersion:\s*planVersionForDocs\s*\}\)/
-    )
-    const saveCall = editSrc.match(
-      /const mba = await generateMbaPdfBlob\(\{\s*planVersion:\s*planVersionForDocs\s*\}\)/
-    )
-    assert.ok(saveCall, "save-time MBA upload must stay planVersion-only")
+  it("publish zip fetches the stored MBA for the saved version and does not post live dates", () => {
+    const zipStart = editSrc.indexOf("const zipPublishedEditDocuments")
+    const zipEnd = editSrc.indexOf("const handleSaveAndDownloadAll", zipStart)
+    assert.ok(zipStart > 0 && zipEnd > zipStart)
+    const zipFn = editSrc.slice(zipStart, zipEnd)
+    assert.match(zipFn, /downloadStoredPlanFile\(\{ versionId, kind \}\)/)
+    assert.match(zipFn, /fetchStored\("mba_pdf"\)/)
+    assert.doesNotMatch(zipFn, /generateMbaPdfBlob/)
+    assert.doesNotMatch(zipFn, /liveCampaignDates/)
+    assert.match(editSrc, /zipPublishedEditDocuments\(args\.versionId\)/)
+    assert.doesNotMatch(editSrc, /planVersionForDocs/)
   })
 
-  it("create save-time upload never posts liveCampaignDates", () => {
+  it("create draft MBA posts the form version and campaign dates, and the publish zip uses the stored file", () => {
     assert.equal(createSrc.includes("liveCampaignDates"), false)
+    assert.doesNotMatch(createSrc, /planVersionForDocs/)
+    const bodyStart = createSrc.indexOf("const buildCreateDraftDocumentsBody")
+    const bodyEnd = createSrc.indexOf("const handleDraftMba", bodyStart)
+    assert.ok(bodyStart > 0 && bodyEnd > bodyStart)
+    const body = createSrc.slice(bodyStart, bodyEnd)
+    assert.match(body, /versionNumber:\s*parseInt\(fv\.mp_plannumber/)
     assert.match(
-      createSrc,
-      /generateMbaPdfBlob\(\{\s*planVersion:\s*planVersionForDocs\s*\}\)/
+      body,
+      /campaignStartDate:\s*toDateOnlyString\(fv\.mp_campaigndates_start\)/
     )
+    assert.match(
+      body,
+      /campaignEndDate:\s*toDateOnlyString\(fv\.mp_campaigndates_end\)/
+    )
+    const draftStart = createSrc.indexOf("const handleDraftMba")
+    const draftEnd = createSrc.indexOf("const handleDraftMediaPlan", draftStart)
+    assert.ok(draftStart > 0 && draftEnd > draftStart)
+    assert.match(
+      createSrc.slice(draftStart, draftEnd),
+      /buildCreateDraftDocumentsBody\("mba_pdf"\)/
+    )
+    const zipStart = createSrc.indexOf("const zipPublishedCreateDocuments")
+    const zipEnd = createSrc.indexOf("const handleSaveAndDownloadAll", zipStart)
+    assert.ok(zipStart > 0 && zipEnd > zipStart)
+    const zipFn = createSrc.slice(zipStart, zipEnd)
+    assert.match(zipFn, /downloadStoredPlanFile\(\{ versionId, kind \}\)/)
+    assert.match(zipFn, /fetchStored\("mba_pdf"\)/)
+    assert.doesNotMatch(zipFn, /generateMbaPdfBlob/)
+    assert.match(createSrc, /zipPublishedCreateDocuments\(zipCtx\.versionId\)/)
+    assert.match(createSrc, /const isPublished = false/)
+    assert.match(createSrc, /onDraftMba=\{\(\) => void handleDraftMba\(\)\}/)
   })
 })
 
