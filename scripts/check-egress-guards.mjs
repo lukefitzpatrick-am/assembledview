@@ -8,7 +8,10 @@
  * 2. Runtime calls of `xanoMediaPlansUrl`, `getXanoClientsCollectionUrl`, or
  *    `fetchAllXanoPages` under app/ or lib/. Definitions are not calls.
  *    `fetchAllXanoPagesWithCompleteness` is a different function.
- *    No call allowlist.
+ *    A call is allowed only when its enclosing function is on
+ *    `MAIN_ONLY_COLD_XANO_BRANCHES` or `MAIN_ONLY_KNOWN_LIVE_XANO`.
+ *    The known-live list is printed as a WARNING on every run.
+ *    Any other call fails.
  *
  * Frozen names this check does not flag (do not rename them):
  *   MART.XANO_LINE_ITEMS_SNAPSHOT
@@ -28,13 +31,133 @@ const XANO_CALLS = new Set([
   "fetchAllXanoPages",
 ])
 
-/** Unscoped full version reads that are still intentional. */
+/** Unscoped full version reads that are still intentional. Rule 1 only — do not add entries. */
 const UNSCOPED_VERSION_ALLOWLIST = [
   {
     file: "lib/data/readMediaPlans.ts",
     fn: "fetchPlanVersionsFromPostgres",
     reason:
       "full history for lib/finance/relevantPlanVersions.ts; scoping pending finance decision",
+  },
+]
+
+function coldXanoReason(flag) {
+  return `cold Xano branch behind ${flag}; removed when localhost severance lands on main`
+}
+
+/** Rule 2. Flag-gated Xano branches. Not printed. */
+const MAIN_ONLY_COLD_XANO_BRANCHES = [
+  {
+    file: "lib/api/fetchChannelLineItemsByMba.ts",
+    fn: "resolveVersionScopeForChannelGet",
+    reason: coldXanoReason("DATA_BACKEND_PLANS"),
+  },
+  {
+    file: "lib/api/replaceChannelLineItems.ts",
+    fn: "listExistingRows",
+    reason: coldXanoReason("WRITE_BACKEND"),
+  },
+  {
+    file: "lib/api.ts",
+    fn: "getMediaPlanVersions",
+    reason: coldXanoReason("DATA_BACKEND_PLANS"),
+  },
+  {
+    file: "lib/data/mirrorToXano.ts",
+    fn: "defaultUpsertVersion",
+    reason: coldXanoReason("XANO_MIRROR_ENABLED"),
+  },
+  {
+    file: "lib/data/readClients.ts",
+    fn: "fetchClientsFromXano",
+    reason: coldXanoReason("DATA_BACKEND_CLIENTS"),
+  },
+  {
+    file: "lib/data/readClients.ts",
+    fn: "fetchClientByIdFromXano",
+    reason: coldXanoReason("DATA_BACKEND_CLIENTS"),
+  },
+  {
+    file: "lib/data/readKpi.ts",
+    fn: "fetchCampaignKpisForMbasFromXano",
+    reason: coldXanoReason("DATA_BACKEND_KPI"),
+  },
+  {
+    file: "lib/data/readMediaPlans.ts",
+    fn: "fetchPlanMastersFromXano",
+    reason: coldXanoReason("DATA_BACKEND_PLANS"),
+  },
+  {
+    file: "lib/data/readMediaPlans.ts",
+    fn: "fetchPlanVersionsFromXano",
+    reason: coldXanoReason("DATA_BACKEND_PLANS"),
+  },
+  {
+    file: "lib/data/readMediaPlans.ts",
+    fn: "readPlanVersionsByMba",
+    reason: coldXanoReason("DATA_BACKEND_PLANS"),
+  },
+  {
+    file: "lib/data/readMediaPlans.ts",
+    fn: "probePlansShadowDiffs",
+    reason: coldXanoReason("DATA_BACKEND_PLANS"),
+  },
+  {
+    file: "lib/data/readPacing.ts",
+    fn: "fetchPacingMastersFromXano",
+    reason: coldXanoReason("DATA_BACKEND_PACING"),
+  },
+  {
+    file: "lib/data/readPacing.ts",
+    fn: "fetchPacingVersionsFromXano",
+    reason: coldXanoReason("DATA_BACKEND_PACING"),
+  },
+  {
+    file: "lib/finance/relevantPlanVersions.ts",
+    fn: "fetchMastersAndAllVersions",
+    reason: coldXanoReason("DATA_BACKEND_PLANS"),
+  },
+  {
+    file: "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
+    fn: "fetchSearchLineItemsForMba",
+    reason: coldXanoReason("DATA_BACKEND_PLANS"),
+  },
+  {
+    file: "lib/pacing/plans/resolveLivePlanLineItems.ts",
+    fn: "fetchXanoLineItemsForMba",
+    reason: coldXanoReason("DATA_BACKEND_PLANS"),
+  },
+]
+
+const KNOWN_LIVE_XANO_REASON =
+  "live in production before this push; tracked FX-1; port from localhost"
+
+/** Rule 2. Printed as a WARNING on every run. */
+const MAIN_ONLY_KNOWN_LIVE_XANO = [
+  {
+    file: "app/api/mediaplans/mba/[mba_number]/route.ts",
+    fn: "PUT",
+    reason: KNOWN_LIVE_XANO_REASON,
+  },
+  {
+    file: "lib/api/fetchChannelLineItemsByMba.ts",
+    fn: "fetchXanoTableForEndpoint",
+    reason: KNOWN_LIVE_XANO_REASON,
+  },
+  {
+    file: "lib/data/writeClients.ts",
+    fn: "mirrorClientToXano",
+    reason: KNOWN_LIVE_XANO_REASON,
+  },
+  {
+    file: "lib/finance/forecast/server/loadFinanceForecastDataset.ts",
+    fn: "fetchFinanceForecastRawFromXanoUncached",
+    reason: KNOWN_LIVE_XANO_REASON,
+  },
+  {
+    file: "lib/finance/xanoReferenceCache.ts",
+    fn: "getCachedClients",
+    reason: KNOWN_LIVE_XANO_REASON,
   },
 ]
 
@@ -275,6 +398,13 @@ function isAllowlisted(rel, fn) {
   return UNSCOPED_VERSION_ALLOWLIST.some((entry) => entry.file === rel && entry.fn === fn)
 }
 
+function isListedXanoCall(rel, fn) {
+  return (
+    MAIN_ONLY_COLD_XANO_BRANCHES.some((entry) => entry.file === rel && entry.fn === fn) ||
+    MAIN_ONLY_KNOWN_LIVE_XANO.some((entry) => entry.file === rel && entry.fn === fn)
+  )
+}
+
 function unscopedVersionHits(rel, src) {
   const hits = []
   const aliases = versionAliases(src)
@@ -304,15 +434,26 @@ function unscopedVersionHits(rel, src) {
 
 function xanoCallHits(rel, src) {
   const hits = []
+  const ranges = functionRanges(src)
   const re = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
   let m
   while ((m = re.exec(src))) {
     if (!XANO_CALLS.has(m[1])) continue
     const before = src.slice(Math.max(0, m.index - 30), m.index)
     if (/\bfunction\s+$/.test(before)) continue
-    hits.push(`${rel}:${lineAt(src, m.index)} calls ${m[1]}`)
+    const fn = enclosingFunction(ranges, m.index)
+    if (isListedXanoCall(rel, fn)) continue
+    const where = fn ? ` in ${fn}` : ""
+    hits.push(`${rel}:${lineAt(src, m.index)} calls ${m[1]}${where}`)
   }
   return hits
+}
+
+function printKnownLiveXanoWarning() {
+  console.warn("WARNING: known-live Xano calls on main:")
+  for (const entry of MAIN_ONLY_KNOWN_LIVE_XANO) {
+    console.warn(`  ${entry.file}:${entry.fn} — ${entry.reason}`)
+  }
 }
 
 const files = []
@@ -328,6 +469,8 @@ for (const file of files) {
   hits.push(...unscopedVersionHits(rel, masked))
   if (!isTestPath(rel)) hits.push(...xanoCallHits(rel, masked))
 }
+
+printKnownLiveXanoWarning()
 
 if (hits.length) {
   console.error("egress guards failed:\n")
