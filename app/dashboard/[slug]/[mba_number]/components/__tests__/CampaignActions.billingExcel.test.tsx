@@ -100,6 +100,8 @@ describe("CampaignActions billing Excel download", () => {
     vi.restoreAllMocks()
   })
 
+  // ExcelJS plus the rest of this jsdom suite exceeds the 5000ms default.
+  // Alone the test finishes in under a second. The wait below is already 15000.
   it("saves an xlsx blob named billing-schedule-{mba}.xlsx", async () => {
     const downloads: { blob: Blob; filename: string }[] = []
     vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => {
@@ -162,5 +164,5 @@ describe("CampaignActions billing Excel download", () => {
 
     expect(downloads[0].blob.type).toBe(XLSX_MIME)
     expect(downloads[0].filename).toBe("billing-schedule-MBA-1.xlsx")
-  })
+  }, 15000)
 })
