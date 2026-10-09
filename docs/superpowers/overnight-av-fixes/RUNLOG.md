@@ -46,11 +46,11 @@ Decisions waiting for Luke:
   - `db/migrations/0093_overdue_digest_sends.sql`. Not `db/drizzle/0010_gifted_ben_parker.sql`.
   - `db/migrations/0094_campaign_insights_action_outcome.sql`. Not `db/drizzle/0011_acoustic_shinko_yamashiro.sql`.
   - `db/migrations/0095_report_runs.sql`. Not `db/drizzle/0012_wild_firelord.sql`.
-  - Night 1 `db/migrations/0092_revoke_published_pointer_fn_execute.sql` is still not applied.
+  - Night 1 `db/migrations/0092_revoke_published_pointer_fn_execute.sql` is applied (8 Oct 2026, Claude). Supabase migration history checked 9 Oct 2026.
 - The Night 1 money questions are already in the code. C-155: full-scope Total Ex GST includes client-pays net media. Billing months exclude it. The agency still bills the fee. C-156 (`c1e7d75c`): cinema Avg. Rate is gross divided by screens. Biddable CPM still multiplies by 1000.
 - `test:mba-live-dates` is a new failure on HEAD. See the checks below. It was not fixed in this wrap-up.
 
-Migrations authored tonight, all NOT applied: `0093_overdue_digest_sends.sql`, `0094_campaign_insights_action_outcome.sql`, `0095_report_runs.sql`. `0090` and `0091` are marked authored, not applied, in the brain. They were not part of tonight's prompt list.
+Migrations authored tonight: `0093_overdue_digest_sends.sql`, `0094_campaign_insights_action_outcome.sql`, `0095_report_runs.sql`. All three applied 9 Oct 2026 (Claude, Supabase MCP). `0090` and `0091` are applied. Supabase migration history checked 9 Oct 2026. They were not part of tonight's prompt list.
 
 Env vars introduced, and their defaults:
 
@@ -1303,4 +1303,39 @@ The Night 2 morning summary is at the top of this file. This commit is that summ
 - Tests: typecheck 0, lint 0 (same warning set), check:client-server-only 0, test:all exit 1 (123/124). New failure: test:mba-live-dates, on HEAD. Fixed on HEAD: test:finance-sections. Fixed only in the dirty tree: test:campaign-dashboard-range, test:social-delivery. build exit 0.
 - Under 90%: the two colour suites pass against uncommitted design-system files, so a clean HEAD is not claimed to pass them. `0090` and `0091` are marked authored, not applied, and were not in tonight's prompt list, so they are not listed as Night 2 migrations. The shared STOP rule treats a new suite failure as a park. This prompt's job is to record that failure and commit the log, so the failure is listed and the product was not changed.
 - Morning smoke: the consolidated list at the top. Do not send email. Do not run a cron until 0093 or 0095 is applied and the matching flag is exactly true.
+
+## AV-H1 DONE 6d8aa9cc
+
+A new master whose MBA number is already taken returns 409 `MBA_NUMBER_TAKEN` with `nextMbaNumber` from `allocateNextMbaNumber` and writes nothing. The create page sets that number on the form and in context, toasts that the old number was used, and retries the save once. A second collision uses the existing save-error modal. An existing master save does not reallocate.
+
+- Files: lib/data/classifySaveUniqueViolation.ts, lib/data/__tests__/classifySaveUniqueViolation.test.ts, lib/mediaplan/mbaNumberTaken.ts, lib/mediaplan/__tests__/postgresSavePayload.integration.test.ts, app/api/mediaplans/route.ts, lib/api.ts, app/mediaplans/create/page.tsx, docs/brain/INVARIANTS.md, docs/brain/modules/media-plans.md.
+- Tests: typecheck 0, lint 0 (same warning set, none in these files), test:postgres-save-mode pass (253 pass, 20 skip, 0 fail), test:plan-drafts pass (68).
+- Under 90%: the unique insert the prompt attributed to `savePlan` is `POST /api/mediaplans`. `savePlan` always has a master id. The 9 Oct message is the pre-check string, so both the pre-check and the `mba_number` unique violation return the same 409. `savePlan` and `POST /api/plans/save` are unchanged.
+- Morning smoke: Open create in two tabs for the same client. Save tab A, then tab B. B saves as the next number and says so.
+
+## AV-H2 DONE 9dd32d8a
+
+Case (a). The live-dates assertions were stale. Create did not lose the plan version on the PDF a planner actually downloads.
+
+`planVersionForDocs` is gone from both pages. AV-X3e (`c93d74d9`) deleted the client upload that used to call `generateMbaPdfBlob({ planVersion: planVersionForDocs })` after the postgres return. That was the only call the two failing tests matched.
+
+The published MBA is the stored file. `regeneratePlanVersionDocuments` renders `renderPlanVersionDocuments` with the saved row's `versionNumber` and does not pass `liveCampaignDates`. `buildMbaFromPersisted` then prints `media_plan_version` from that number and campaign dates from `version.campaignStartDate` / `campaignEndDate` unless a live overlay is sent. Create and edit zips fetch that file with `downloadStoredPlanFile({ versionId, kind })` and `fetchStored("mba_pdf")`. The version id is the save response (`zipCtx.versionId` on create, `args.versionId` on edit). Neither zip calls `generateMbaPdfBlob`.
+
+The draft MBA is the form. Create's visible button is `onDraftMba` → `handleDraftMba` → `buildCreateDraftDocumentsBody("mba_pdf")`. That body sets `versionNumber` from `fv.mp_plannumber` and `campaignStartDate` / `campaignEndDate` from the form. `renderDraftDocuments` puts those on the PDF through `buildMbaDataFromFinancials`. Create's source still has no `liveCampaignDates` string. `isPublished` is hardcoded false and `isCreate` hides the published group, so `handleGenerateMBA`'s no-argument `generateMbaPdfBlob()` is not the button. Edit Generate still posts live dates: `handleGenerateMBA` calls `generateMbaPdfBlob({ liveScope: true })`, and that helper posts `liveCampaignDates` only when the form dates differ from the loaded row.
+
+- Files: lib/docs/__tests__/liveCampaignDates.test.ts.
+- Tests: typecheck 0, lint 0 (same warning set), test:mba-live-dates 21 pass, test:mba-header-date 13 pass, test:plan-drafts pass (59 + 12 + 68, 6 skipped), test:postgres-save-mode 253 pass, 20 skip.
+- Under 90%: none on the path choice. The no-argument create `generateMbaPdfBlob()` would post `fv.mp_plannumber` and persisted dates if the published button were shown. It is not shown.
+- Morning smoke: Create a plan and generate the MBA. The version and campaign dates on the PDF match the form. Not exercised in the browser. This change does not alter the PDF path, and creating a plan would write.
+
+## AV-H3 DONE 6ab57a96
+
+0090, 0091 and 0092 are applied. Supabase migration history was checked 9 Oct 2026. 0092 was applied 8 Oct by Claude. 0093, 0094 and 0095 stay authored, not applied.
+
+KNOWN-ISSUES has no row for these six migrations. The status lived in DATA-MODEL, and the same unapplied claim for 0091 was in INVARIANTS and BLAST-RADIUS. `db/README.md` still said AUTHOR ONLY and "apply before" for 0090 and 0091.
+
+- Files: docs/brain/DATA-MODEL.md, docs/brain/INVARIANTS.md, docs/brain/BLAST-RADIUS.md, db/README.md.
+- Tests: docs only.
+- Under 90%: none.
+- Morning smoke: none.
 
