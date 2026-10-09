@@ -12,7 +12,15 @@ import { and, eq, isNull, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import type { CampaignInsightOutcomeKind, CampaignInsightType } from "@/db/schema/insights"
-import type { PerformanceReportPayload } from "@/lib/reports/buildPerformanceReport"
+
+type LegacyPerformanceNarrative = {
+  keyInsight: string
+  insights: readonly string[]
+  recsInFlight: string
+  recsNextPeriod: string
+  execSummary?: string
+  findings?: Array<PerformanceReportFinding | null | undefined>
+}
 
 export type PerformanceReportFinding = {
   action?: string | null
@@ -47,18 +55,7 @@ export type CommentaryInsightItem = {
 }
 
 export type PersistPerformanceReportInsightsInput = {
-  narrative?: Pick<
-    PerformanceReportPayload,
-    "keyInsight" | "insights" | "recsInFlight" | "recsNextPeriod"
-  > & {
-    /** Present on the payload but never written — documented intentionally. */
-    execSummary?: string
-    /**
-     * Optional Action / Outcome for each discrete row, in the same order as
-     * keyInsight, insights, recsInFlight, recsNextPeriod. Absent entries stay null.
-     */
-    findings?: Array<PerformanceReportFinding | null | undefined>
-  }
+  narrative?: LegacyPerformanceNarrative
   /**
    * Review & Report items. One row each. The insight is the body. Action, owner
    * and outcome use the 0094 columns. Origin is stored on `confidence`.

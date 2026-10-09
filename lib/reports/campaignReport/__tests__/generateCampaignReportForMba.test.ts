@@ -162,3 +162,55 @@ test("generateCampaignReportForMba skips a period with no delivery", async () =>
   assert.match(result.skipped ?? "", /No delivery reported/)
   assert.equal(result.blobPathname, undefined)
 })
+
+test("generateCampaignReportForMba uses supplied commentary and does not call the model", async () => {
+  const commentary = {
+    summary: "Search led the month.",
+    items: [
+      {
+        insight: "Search took most of the delivery.",
+        action: "Hold the search mix.",
+        actionOwner: "Assembled",
+        outcome: "Efficiency stays with search.",
+        outcomeKind: "expected" as const,
+      },
+      {
+        insight: "Social delivered the video.",
+        action: "Refresh the social cut next period.",
+        actionOwner: "Client",
+        outcome: "Video completions hold.",
+        outcomeKind: "achieved" as const,
+      },
+    ],
+  }
+  const decks: CampaignReportPayload[] = []
+  const result = await generateCampaignReportForMba(
+    {
+      mbaNumber: "PENFOLD013",
+      period: { kind: "this_month" },
+      store: true,
+      withCommentary: true,
+      commentary,
+    },
+    {
+      resolvePublished: async () => published,
+      assemble: async () => payload(),
+      buildDeck: async (deckPayload) => {
+        decks.push(deckPayload)
+        return Buffer.from("deck")
+      },
+      generateCommentary: async () => {
+        throw new Error("commentary should not run")
+      },
+      storeReport: async (mba, filename) => ({
+        pathname: `exports/reports/${mba}/${filename}`,
+        filename,
+      }),
+    },
+  )
+
+  assert.equal(decks[0]?.commentary?.summary, "Search led the month.")
+  assert.equal(result.commentaryGenerated, true)
+  assert.equal(result.commentary?.items[1]?.actionOwner, "Client")
+  assert.match(result.blobPathname ?? "", /^exports\/reports\/PENFOLD013\//)
+})

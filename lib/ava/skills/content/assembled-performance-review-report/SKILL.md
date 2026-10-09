@@ -2,7 +2,7 @@
 name: assembled-performance-review-report
 description: Review campaign delivery on an Assembled View client dashboard page, write commentary as Insight, Action and Outcome, and on confirmation supply the text for a client-facing PowerPoint report. The app applies the v5 Assembled template. Use whenever AVA or Luke asks to "review performance", "review delivery", "provide insight", "write the monthly report", "build the report", or when the Review & Report button is pressed on a client dashboard page. One run covers the campaign (MBA) on the page. Composes assembled-insight-commentary 1.2.0 (the narrative) and assembled-presentations (the deck text).
 metadata:
-  version: 1.1.0
+  version: 1.2.0
   surface: Assembled View / AVA client dashboard pages, and Cowork
 ---
 
@@ -60,7 +60,7 @@ Non-negotiables restated:
 - Causes: rule out seasonality, promotions, and competitor activity before attributing to our work. State a cause only when the data shows it. Otherwise say what would confirm it.
 - Search the AVA Learnings doc for this client's calibrations before writing. Client entries override defaults.
 - No jokes anywhere in this flow. This is delivery and money.
-- Deck narrative fields carry no free-text dollar amounts. Slides 3 and 5 carry the figures, injected by the app.
+- Deck narrative fields carry no free-text dollar amounts. CPM, CPC, CTR, spend pace and 3-second views are assembled by the app.
 
 ## The gate: review in chat, then build
 
@@ -75,30 +75,17 @@ When the app builds the report without chat (Review & Report, scheduled reports)
 
 The deck is the v5 Assembled template, applied by the app. The model supplies text only. Never build or restyle the file. Never use `assets/assembled-template.pptx`.
 
-**In Ava (Assembled View)**: call the `generate_performance_report` tool with the confirmed **narrative only** (execSummary, channels, keyInsight, insights, recs*, steps). Do **not** pass `deliverySpend`, `deliveryDeliverables`, or `kpis` — the tool injects those DETERMINISTICALLY from reconciled `get_delivery_snapshot` figures (same Snowflake source as on-page delivery) plus page planned-to-date. Call it ONLY after the explicit yes at the gate. Narrative fields must contain **no free-text dollar amounts** (`$…` / `AUD …`); the tool refuses invented `$` figures (`invented_money_figure`). Near-verbatim restatement of a live prior insight without attributing what was believed before and what has changed is refused the same way (`unattributed_prior_insight`).
+**In Ava (Assembled View)**: call `generate_performance_report` with `{ period, commentary }`. `commentary` is the approved ReportCommentary: `summary` plus 2 to 4 items of `insight`, `action`, `actionOwner`, `outcome` and `outcomeKind` (`achieved` or `expected`). The server builds the campaign report deck. It does not accept the old execSummary, channels, keyInsight, insights, recs or steps fields. Call it ONLY after the explicit yes at the gate. A dollar amount or percent that is not already in the assembled report is refused (`invented_money_figure`). Near-verbatim restatement of a live prior insight without attributing what was believed before and what has changed is refused the same way (`unattributed_prior_insight`).
 
-On a successful issued report, the tool also persists discrete insights into `campaign_insights` (source `ava`): `keyInsight`, each of `insights[3]`, and each recommendation (`recsInFlight`, `recsNextPeriod`). **`execSummary` is not persisted** — it is a summary of those fields, not a separate insight. Preview / dry-run generation does not write rows. Insight write failures are fail-soft and never abort the deck.
+On a successful issued report, each commentary item is persisted into `campaign_insights` (source `ava`) with its action, owner and outcome. The summary is not its own row. Insight write failures are fail-soft and never abort the deck.
 
 **In Cowork/Claude**: supply the same text. The app applies the v5 template. Do not load a template file.
 
-The fixed report structure (every field filled - if a campaign has fewer than 4 channel lines or KPIs, combine lines or close the set with a flight-dates/pacing line, never leave a box empty):
+The deck is the campaign report on the v5 template: cover, period summary (including the Key metrics block: CPM, CPC, CTR, spend pace, and 3-second views when the delivery snapshot has them), one spend chart and data table per channel, KPI summary, the approved commentary, and the close. The model does not place those figures. Null rates render as a dash.
 
-| Slide | Content | Fields |
-|---|---|---|
-| 1 Cover | logo cover, no text | - |
-| 2 Summary | one sentence: the lead Insight and its Outcome | execSummary |
-| 3 Delivery vs plan | spend and deliverables vs expected to date | **server-injected** deliverySpend, deliveryDeliverables |
-| 4 Channel commentary | one point per channel group (no $ figures) | channels x4 |
-| 5 Delivery KPIs | numbers lead. The app styles them. | **server-injected** kpis x4 |
-| 6 Lead Insight | the lead Insight, plain text | keyInsight |
-| 7 Insights | the other Insights, so the set is 2 to 4 including the lead | insights x3 |
-| 8 Actions | in-flight Actions, then next-period Actions. These are the recommendations. | recsInFlight, recsNextPeriod |
-| 9 Next steps | 4 steps, when + what | steps x4 (when, what) |
-| 10 End | logo close, no text | - |
+Slide copy rules: single-line strings per field (no line breaks), Australian English, sentence case, short lines, no em dashes, no filler. Caps: summary 160, insight 240, action 160, outcome 160, actionOwner 40. If the tool rejects a field, tighten the copy. Do not invent a `$` amount or a percent that is not already in the delivery data.
 
-Slide copy rules: single-line strings per field (no line breaks), Australian English, sentence case, short lines, no em dashes, no filler. Match copy length to the box - shorten copy rather than crowd it (the tool enforces character caps; if it rejects a field, tighten the copy, never pad elsewhere). Hard money and KPI figures on slides 3 and 5 are injected server-side — never re-type them in narrative fields, and never invent `$` amounts in chat copy that will become deck narrative.
-
-File name: `{Client} {MBA} performance report {Mon YYYY}.pptx`.
+File name: `{client}-{campaign}-report-{yyyy-mm}.pptx`, stored under `exports/reports/{mba}/`.
 
 ## The 90% rule
 
@@ -106,7 +93,7 @@ Below ~90% confidence, never guess - ask. This applies at every stage: unknown o
 
 ## Failure modes - self-check before the gate
 
-Reject the draft if any of: commentary merely restates the containers; a cause asserted without ruling out alternatives; a miss hidden or softened; pacing judged against end-of-flight instead of expected-to-date; a metric dump instead of the 3-5 metrics that map to the objective; an Action with no owner, or that does not say in-flight or next period; an Outcome with no number and no measurement plan; deck narrative fields containing free-text `$` / AUD amounts (hard numbers are server-injected); humour anywhere.
+Reject the draft if any of: commentary merely restates the containers; a cause asserted without ruling out alternatives; a miss hidden or softened; pacing judged against end-of-flight instead of expected-to-date; a metric dump instead of the 3-5 metrics that map to the objective; an Action with no owner, or that does not say in-flight or next period; an Outcome with no number and no measurement plan; deck narrative fields containing a dollar amount or a percent that is not already in the delivery data; humour anywhere.
 
 ## Learnings and improvement loop
 

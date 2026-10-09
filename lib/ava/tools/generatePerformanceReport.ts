@@ -1,201 +1,250 @@
 import type AvaTool from "./types"
+import type { AvaToolContext } from "./types"
 import { toChatFileAttachment } from "@/lib/ava/chatFileAttachment"
-import {
-  buildPerformanceReport,
-  type PerformanceReportPayload,
-} from "@/lib/reports/buildPerformanceReport"
-import {
-  buildPerformanceReportHardNumbers,
-  findInventedMoneyInNarrative,
-  plannedToDateFromPageContext,
-  type DeliverySnapshotTotals,
-} from "@/lib/reports/performanceReportHardNumbers"
+import { getPublishedCampaignRead } from "@/lib/campaign-read/repo"
+import { findUnattributedPriorRestatement } from "@/lib/insights/priorInsightGuard"
+import { listCampaignInsights } from "@/lib/insights/queryCampaignInsights"
+import { findInventedMoneyInNarrative } from "@/lib/reports/performanceReportHardNumbers"
 import { persistPerformanceReportInsights } from "@/lib/reports/persistPerformanceReportInsights"
 import {
-  PPTX_CONTENT_TYPE,
-  storePerformanceReport,
-} from "@/lib/reports/storePerformanceReport"
-import { listCampaignInsights } from "@/lib/insights/queryCampaignInsights"
-import { findUnattributedPriorRestatement } from "@/lib/insights/priorInsightGuard"
-import { getPublishedCampaignRead } from "@/lib/campaign-read/repo"
-import { getDeliverySnapshotTool } from "./getDeliverySnapshot"
+  assembleCampaignReportData,
+  type ReportCommentary,
+} from "@/lib/reports/campaignReport/assembleCampaignReportData"
+import {
+  generateCampaignReportForMba,
+  type GenerateCampaignReportDeps,
+  type GenerateCampaignReportInput,
+  type GenerateCampaignReportResult,
+} from "@/lib/reports/campaignReport/generateCampaignReportForMba"
+import {
+  commentaryNarrativeFields,
+  parseReportCommentary,
+  reportAllowedCorpus,
+} from "@/lib/reports/campaignReport/generateReportCommentary"
+import type { CampaignReportPeriodKind } from "@/lib/reports/campaignReport/periods"
+import { PPTX_CONTENT_TYPE } from "@/lib/reports/storePerformanceReport"
 import { asRecord, asString, jsonContent, resolveScopedMba } from "./helpers"
 
-type CapViolation = { field: string; cap: number; length: number }
+const PERIOD_KINDS: readonly CampaignReportPeriodKind[] = [
+  "this_month",
+  "last_month",
+  "campaign_to_date",
+  "custom",
+]
 
-function singleLine(value: unknown): string {
-  return String(value ?? "")
-    .replace(/[\r\n]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
+class PerformanceReportGuardError extends Error {
+  constructor(readonly payload: Record<string, unknown>) {
+    super(typeof payload.message === "string" ? payload.message : "commentary rejected")
+    this.name = "PerformanceReportGuardError"
+  }
 }
 
-function requireString(
-  value: unknown,
-  field: string,
-  cap: number,
-  violations: CapViolation[],
-): string {
-  const text = singleLine(value)
-  if (text.length > cap) {
-    violations.push({ field, cap, length: text.length })
-  }
-  return text
+export type GeneratePerformanceReportDeps = {
+  generateReport?: (
+    input: GenerateCampaignReportInput,
+    deps?: GenerateCampaignReportDeps,
+  ) => Promise<GenerateCampaignReportResult>
+  reportDeps?: GenerateCampaignReportDeps
+  listPriors?: (mbaNumber: string) => Promise<{ id: number; body: string }[]>
+  loadPublishedRead?: (mbaNumber: string, versionNumber: number) => Promise<string | null>
+  persistInsights?: typeof persistPerformanceReportInsights
 }
 
-function requireExactStringArray(
-  value: unknown,
-  field: string,
-  count: number,
-  cap: number,
-  violations: CapViolation[],
-): string[] | null {
-  if (!Array.isArray(value) || value.length !== count) {
-    return null
-  }
-  return value.map((item, i) => requireString(item, `${field}[${i}]`, cap, violations))
-}
-
-function requireSteps(
-  value: unknown,
-  violations: CapViolation[],
-): PerformanceReportPayload["steps"] | null {
-  if (!Array.isArray(value) || value.length !== 4) return null
-  const steps = value.map((raw, i) => {
-    const row = asRecord(raw)
-    return {
-      when: requireString(row.when, `steps[${i}].when`, 16, violations),
-      what: requireString(row.what, `steps[${i}].what`, 40, violations),
-    }
-  })
-  return steps as PerformanceReportPayload["steps"]
-}
-
-/**
- * Narrative-only validation. Hard number fields (deliverySpend, deliveryDeliverables, kpis)
- * are injected server-side from reconciled delivery — model input for those is ignored.
- */
-function validateNarrativePayload(
-  args: Record<string, unknown>,
-):
-  | { ok: true; clientName: string; reportMonth: string; mbaHint?: string; narrative: Omit<
-      PerformanceReportPayload,
-      "deliverySpend" | "deliveryDeliverables" | "kpis"
-    > }
-  | { ok: false; content: string } {
-  const violations: CapViolation[] = []
-  const clientName = requireString(args.clientName, "clientName", 40, violations)
-  const reportMonth = requireString(args.reportMonth, "reportMonth", 20, violations)
-  const mbaHint = asString(args.mbaNumber) ?? asString(args.mba)
-
-  const channels = requireExactStringArray(args.channels, "channels", 4, 90, violations)
-  const insights = requireExactStringArray(args.insights, "insights", 3, 110, violations)
-  const steps = requireSteps(args.steps, violations)
-
-  if (!clientName) {
-    return { ok: false, content: "clientName is required." }
-  }
-  if (!reportMonth) {
-    return { ok: false, content: "reportMonth is required." }
-  }
-  if (!channels) {
-    return { ok: false, content: "channels must be an array of exactly 4 strings (≤90 each)." }
-  }
-  if (!insights) {
-    return { ok: false, content: "insights must be an array of exactly 3 strings (≤110 each)." }
-  }
-  if (!steps) {
+function parsePeriod(
+  raw: unknown,
+): { ok: true; period: GenerateCampaignReportInput["period"] } | { ok: false; content: string } {
+  const row = asRecord(raw)
+  const kind = asString(row.kind)
+  if (!kind || !PERIOD_KINDS.includes(kind as CampaignReportPeriodKind)) {
     return {
       ok: false,
-      content: "steps must be an array of exactly 4 { when ≤16, what ≤40 } objects.",
+      content:
+        "period.kind must be this_month, last_month, campaign_to_date or custom.",
     }
   }
-
-  const narrative = {
-    execSummary: requireString(args.execSummary, "execSummary", 120, violations),
-    channels: channels as PerformanceReportPayload["channels"],
-    keyInsight: requireString(args.keyInsight, "keyInsight", 240, violations),
-    insights: insights as PerformanceReportPayload["insights"],
-    recsInFlight: requireString(args.recsInFlight, "recsInFlight", 140, violations),
-    recsNextPeriod: requireString(args.recsNextPeriod, "recsNextPeriod", 140, violations),
-    steps,
-  }
-
-  if (violations.length) {
-    const first = violations[0]!
-    return {
-      ok: false,
-      content: jsonContent({
-        error: "field_too_long",
-        field: first.field,
-        cap: first.cap,
-        length: first.length,
-        message: `Shorten ${first.field} to ≤${first.cap} characters (got ${first.length}).`,
-        violations,
-      }),
+  if (kind === "custom") {
+    const start = asString(row.start)
+    const end = asString(row.end)
+    if (!start || !end) {
+      return { ok: false, content: "A custom period requires start and end (YYYY-MM-DD)." }
     }
+    return { ok: true, period: { kind, start, end } }
   }
+  return { ok: true, period: { kind: kind as CampaignReportPeriodKind } }
+}
 
-  const invented = findInventedMoneyInNarrative({
-    execSummary: narrative.execSummary,
-    channels: [...narrative.channels],
-    keyInsight: narrative.keyInsight,
-    insights: [...narrative.insights],
-    recsInFlight: narrative.recsInFlight,
-    recsNextPeriod: narrative.recsNextPeriod,
-    steps: [...narrative.steps],
-  })
+/** AV-A8: figures must already be in the assembled report; priors need attribution. */
+export function performanceReportCommentaryRejection(
+  commentary: ReportCommentary,
+  allowedText: string,
+  priors: { id: number; body: string }[],
+): Record<string, unknown> | null {
+  const fields = commentaryNarrativeFields(commentary)
+  const invented = findInventedMoneyInNarrative(fields, allowedText)
   if (invented) {
     return {
-      ok: false,
-      content: jsonContent({
-        error: "invented_money_figure",
-        field: invented.field,
-        match: invented.match,
-        message: `Do not include free-text dollar amounts in narrative (found "${invented.match}" in ${invented.field}). Hard numbers are injected server-side from reconciled delivery; rewrite without $ figures.`,
-      }),
+      error: "invented_money_figure",
+      field: invented.field,
+      match: invented.match,
+      message: `Do not include a figure that is not already in the report (found "${invented.match}" in ${invented.field}). Rewrite using the assembled numbers only.`,
     }
   }
-
-  return { ok: true, clientName, reportMonth, mbaHint: mbaHint || undefined, narrative }
-}
-
-function narrativeFieldsForPriorScan(
-  narrative: Omit<
-    PerformanceReportPayload,
-    "deliverySpend" | "deliveryDeliverables" | "kpis"
-  >,
-) {
-  return {
-    execSummary: narrative.execSummary,
-    channels: [...narrative.channels],
-    keyInsight: narrative.keyInsight,
-    insights: [...narrative.insights],
-    recsInFlight: narrative.recsInFlight,
-    recsNextPeriod: narrative.recsNextPeriod,
-    steps: [...narrative.steps],
-  }
-}
-
-function parseDeliveryTotals(raw: string): DeliverySnapshotTotals | null {
-  try {
-    const parsed = JSON.parse(raw) as { planTotals?: DeliverySnapshotTotals }
-    const t = parsed.planTotals
-    if (!t || typeof t !== "object") return null
-    if (typeof t.spendToDate !== "number") return null
+  const priorHit = findUnattributedPriorRestatement(fields, priors)
+  if (priorHit) {
     return {
-      spendToDate: t.spendToDate,
-      impressions: Number(t.impressions) || 0,
-      clicks: Number(t.clicks) || 0,
-      results: Number(t.results) || 0,
-      video3sViews: Number(t.video3sViews) || 0,
-      plannedBudget: typeof t.plannedBudget === "number" ? t.plannedBudget : null,
-      cpm: typeof t.cpm === "number" ? t.cpm : null,
-      ctr: typeof t.ctr === "number" ? t.ctr : null,
-      cpc: typeof t.cpc === "number" ? t.cpc : null,
+      error: "unattributed_prior_insight",
+      field: priorHit.field,
+      match: priorHit.match,
+      insightId: priorHit.insightId,
+      message: `Do not restate a prior insight as current analysis (near-verbatim match of insight #${priorHit.insightId} in ${priorHit.field}). Attribute what was believed before and what has changed, then regenerate.`,
     }
-  } catch {
-    return null
+  }
+  return null
+}
+
+async function defaultPriors(mbaNumber: string): Promise<{ id: number; body: string }[]> {
+  const priors = await listCampaignInsights({
+    mbaNumber,
+    includeSuperseded: false,
+    limit: 30,
+  })
+  return priors.map((prior) => ({ id: prior.id, body: prior.body }))
+}
+
+export async function executeGeneratePerformanceReport(
+  input: unknown,
+  context: AvaToolContext,
+  deps?: GeneratePerformanceReportDeps,
+): Promise<{ content: string; attachments?: ReturnType<typeof toChatFileAttachment>[]; isError: boolean }> {
+  const usingStandIn = Boolean(deps?.generateReport || deps?.reportDeps?.storeReport)
+  if (!usingStandIn && !process.env.BLOB_READ_WRITE_TOKEN) {
+    return {
+      content: "Performance report export is unavailable: BLOB_READ_WRITE_TOKEN is not configured.",
+      isError: true,
+    }
+  }
+
+  const args = asRecord(input)
+  const period = parsePeriod(args.period)
+  if (!period.ok) return { content: period.content, isError: true }
+
+  const parsed = parseReportCommentary(args.commentary)
+  if (!parsed.ok) return { content: parsed.reasons, isError: true }
+  const commentary = parsed.commentary
+
+  const scopedMba = resolveScopedMba(context, asString(args.mbaNumber) ?? asString(args.mba))
+  if (!scopedMba.ok) return { content: scopedMba.error, isError: true }
+  if (!scopedMba.mba) {
+    return {
+      content: "mbaNumber is required to generate a performance report (page context or argument).",
+      isError: true,
+    }
+  }
+
+  let priors: { id: number; body: string }[] = []
+  try {
+    priors = await (deps?.listPriors ?? defaultPriors)(scopedMba.mba)
+  } catch (priorErr) {
+    console.error("[generate_performance_report] prior insight load failed", {
+      mbaNumber: scopedMba.mba,
+      error: priorErr instanceof Error ? priorErr.message : String(priorErr),
+    })
+  }
+
+  const versionHint = context.versionNumber ?? context.pageContext?.entities?.versionNumber
+  let publishedRead: string | null = null
+  if (typeof versionHint === "number" && Number.isFinite(versionHint)) {
+    try {
+      const loadRead = deps?.loadPublishedRead ?? (async (mba: string, version: number) => {
+        const published = await getPublishedCampaignRead(mba, version)
+        return published?.bodyMarkdown ?? null
+      })
+      publishedRead = await loadRead(scopedMba.mba, versionHint)
+    } catch (readErr) {
+      console.error("[generate_performance_report] campaign read load failed", {
+        mbaNumber: scopedMba.mba,
+        error: readErr instanceof Error ? readErr.message : String(readErr),
+      })
+    }
+  }
+
+  const generate = deps?.generateReport ?? generateCampaignReportForMba
+  const reportDeps: GenerateCampaignReportDeps = {
+    ...deps?.reportDeps,
+    assemble: async (assembleInput) => {
+      const assemble = deps?.reportDeps?.assemble ?? assembleCampaignReportData
+      const payload = await assemble(assembleInput)
+      const rejection = performanceReportCommentaryRejection(
+        commentary,
+        reportAllowedCorpus(payload, { publishedRead, priors }),
+        priors,
+      )
+      if (rejection) throw new PerformanceReportGuardError(rejection)
+      return payload
+    },
+  }
+
+  try {
+    const result = await generate(
+      {
+        mbaNumber: scopedMba.mba,
+        period: period.period,
+        store: true,
+        withCommentary: false,
+        commentary,
+      },
+      deps?.generateReport ? undefined : reportDeps,
+    )
+
+    if (result.skipped) {
+      return { content: result.skipped, isError: true }
+    }
+
+    const skipInsightPersist = args.preview === true || args.dryRun === true
+    if (!skipInsightPersist && result.commentary && result.commentary.items.length > 0) {
+      try {
+        await (deps?.persistInsights ?? persistPerformanceReportInsights)({
+          commentaryItems: result.commentary.items,
+          mbaNumber: scopedMba.mba,
+          reportMonth: result.periodMonth,
+          createdByEmail: context.userEmail,
+          preview: false,
+          dryRun: false,
+        })
+      } catch (insightErr) {
+        console.error("[generate_performance_report] insight persist threw", {
+          mbaNumber: scopedMba.mba,
+          error: insightErr instanceof Error ? insightErr.message : String(insightErr),
+        })
+      }
+    }
+
+    if (!result.blobPathname) {
+      return { content: "Performance report was built but not stored.", isError: true }
+    }
+
+    const attachment = toChatFileAttachment({
+      fileName: result.fileName,
+      url: `/api/reports/download?path=${encodeURIComponent(result.blobPathname)}`,
+      contentType: PPTX_CONTENT_TYPE,
+      sizeBytes: result.buffer.byteLength,
+    })
+
+    return {
+      content: jsonContent({
+        filename: result.fileName,
+        pathname: result.blobPathname,
+        note: "A download card is shown in the chat UI. Reply briefly (for example, Report ready). Do not paste a download URL. The deck is the campaign report, with the commentary that was approved.",
+      }),
+      attachments: [attachment],
+      isError: false,
+    }
+  } catch (error) {
+    if (error instanceof PerformanceReportGuardError) {
+      return { content: jsonContent(error.payload), isError: true }
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    return { content: `Failed to generate performance report: ${message}`, isError: true }
   }
 }
 
@@ -203,247 +252,62 @@ export const generatePerformanceReportTool: AvaTool = {
   definition: {
     name: "generate_performance_report",
     description:
-      "Build the client performance report deck (.pptx) for the campaign on the page and return a download card. Call ONLY after the user has explicitly confirmed the reviewed narrative in chat. Call get_campaign_insights (and get_client_insights when useful) BEFORE drafting narrative. Hard numbers (spend, deliverables, KPIs) are injected server-side from reconciled delivery — pass narrative only; do not invent $ figures; do not copy prior insights as current findings without attribution. All strings single-line.",
+      "Build the campaign report deck (.pptx) for the MBA on the page and return a download card. Call ONLY after the user has explicitly confirmed the commentary in chat. Input is the period and the approved ReportCommentary (summary plus 2 to 4 Insight, Action and Outcome items). The server assembles CPM, CPC, CTR, 3-second views and spend pace. Do not invent a dollar amount or a percent that is not already in the delivery data. Do not copy a prior insight as a current finding without attribution.",
     input_schema: {
       type: "object",
       properties: {
-        clientName: {
-          type: "string",
-          description: "Client display name (≤40).",
-        },
         mbaNumber: {
           type: "string",
-          description: "Optional MBA — defaults to page context via resolveScopedMba.",
+          description: "Optional MBA. Defaults to the page.",
         },
-        mba: {
-          type: "string",
-          description: "Alias for mbaNumber.",
-        },
-        reportMonth: {
-          type: "string",
-          description: 'Report month label (≤20), e.g. "Jul 2026".',
-        },
-        execSummary: {
-          type: "string",
-          description: "Executive summary narrative only — no $ figures (≤120).",
-        },
-        channels: {
-          type: "array",
-          description: "Exactly 4 channel commentary lines — no $ figures (≤90 each).",
-          items: { type: "string" },
-          minItems: 4,
-          maxItems: 4,
-        },
-        keyInsight: {
-          type: "string",
-          description: "Key insight headline — no $ figures (≤240).",
-        },
-        insights: {
-          type: "array",
-          description: "Exactly 3 insight lines — no $ figures (≤110 each).",
-          items: { type: "string" },
-          minItems: 3,
-          maxItems: 3,
-        },
-        recsInFlight: {
-          type: "string",
-          description: "In-flight recommendations — no $ figures (≤140).",
-        },
-        recsNextPeriod: {
-          type: "string",
-          description: "Next-period recommendations — no $ figures (≤140).",
-        },
-        steps: {
-          type: "array",
-          description: "Exactly 4 next steps with when (≤16) and what (≤40) — no $ figures.",
-          items: {
-            type: "object",
-            properties: {
-              when: { type: "string" },
-              what: { type: "string" },
+        period: {
+          type: "object",
+          description:
+            "Report window. kind is this_month, last_month, campaign_to_date, or custom. Custom requires start and end as YYYY-MM-DD.",
+          properties: {
+            kind: {
+              type: "string",
+              enum: ["this_month", "last_month", "campaign_to_date", "custom"],
             },
-            required: ["when", "what"],
-            additionalProperties: false,
+            start: { type: "string" },
+            end: { type: "string" },
           },
-          minItems: 4,
-          maxItems: 4,
+          required: ["kind"],
+          additionalProperties: false,
+        },
+        commentary: {
+          type: "object",
+          description:
+            "Approved commentary. summary ≤160. items is 2 to 4. insight ≤240, action ≤160, outcome ≤160, actionOwner ≤40. outcomeKind is achieved or expected.",
+          properties: {
+            summary: { type: "string" },
+            items: {
+              type: "array",
+              minItems: 2,
+              maxItems: 4,
+              items: {
+                type: "object",
+                properties: {
+                  insight: { type: "string" },
+                  action: { type: "string" },
+                  actionOwner: { type: "string" },
+                  outcome: { type: "string" },
+                  outcomeKind: { type: "string", enum: ["achieved", "expected"] },
+                },
+                required: ["insight", "action", "actionOwner", "outcome", "outcomeKind"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["summary", "items"],
+          additionalProperties: false,
         },
       },
-      required: [
-        "clientName",
-        "reportMonth",
-        "execSummary",
-        "channels",
-        "keyInsight",
-        "insights",
-        "recsInFlight",
-        "recsNextPeriod",
-        "steps",
-      ],
+      required: ["period", "commentary"],
       additionalProperties: false,
     },
   },
-  async execute(input, context) {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      return {
-        content:
-          "Performance report export is unavailable: BLOB_READ_WRITE_TOKEN is not configured.",
-        isError: true,
-      }
-    }
-
-    const args = asRecord(input)
-    const validated = validateNarrativePayload(args)
-    if (!validated.ok) {
-      return { content: validated.content, isError: true }
-    }
-
-    const scopedMba = resolveScopedMba(context, validated.mbaHint)
-    if (!scopedMba.ok) return { content: scopedMba.error, isError: true }
-    if (!scopedMba.mba) {
-      return {
-        content: "mbaNumber is required to generate a performance report (page context or argument).",
-        isError: true,
-      }
-    }
-
-    // Live priors only — same shape as invented_money_figure when restated without attribution.
-    // Empty library → no-op (generate exactly as today). Never feeds deck numeric fields.
-    try {
-      const priors = await listCampaignInsights({
-        mbaNumber: scopedMba.mba,
-        includeSuperseded: false,
-        limit: 30,
-      })
-      const priorHit = findUnattributedPriorRestatement(
-        narrativeFieldsForPriorScan(validated.narrative),
-        priors.map((p) => ({ id: p.id, body: p.body })),
-      )
-      if (priorHit) {
-        return {
-          content: jsonContent({
-            error: "unattributed_prior_insight",
-            field: priorHit.field,
-            match: priorHit.match,
-            insightId: priorHit.insightId,
-            message: `Do not restate a prior insight as current analysis (near-verbatim match of insight #${priorHit.insightId} in ${priorHit.field}). Retrieved insights are context — attribute what was believed before and what has changed, then regenerate.`,
-          }),
-          isError: true,
-        }
-      }
-    } catch (priorErr) {
-      console.error("[generate_performance_report] prior insight load failed", {
-        mbaNumber: scopedMba.mba,
-        error: priorErr instanceof Error ? priorErr.message : String(priorErr),
-      })
-      // Fail-open on read errors so deck delivery is not blocked by library outage.
-    }
-
-    const snapshotResult = await getDeliverySnapshotTool.execute(
-      { mbaNumber: scopedMba.mba },
-      context,
-    )
-    if (snapshotResult.isError) {
-      return {
-        content: `Cannot build performance report without reconciled delivery: ${snapshotResult.content}`,
-        isError: true,
-      }
-    }
-
-    const totals = parseDeliveryTotals(String(snapshotResult.content ?? ""))
-    if (!totals) {
-      return {
-        content: "Failed to parse reconciled delivery totals for the performance report.",
-        isError: true,
-      }
-    }
-
-    const plannedToDate = plannedToDateFromPageContext(context.pageContext)
-    const hard = buildPerformanceReportHardNumbers({ totals, plannedToDate })
-
-    const payload: PerformanceReportPayload = {
-      ...validated.narrative,
-      deliverySpend: hard.deliverySpend,
-      deliveryDeliverables: hard.deliveryDeliverables,
-      kpis: hard.kpis,
-    }
-
-    const versionHint =
-      context.versionNumber
-      ?? context.pageContext?.entities?.versionNumber
-    if (typeof versionHint === "number" && Number.isFinite(versionHint)) {
-      try {
-        const published = await getPublishedCampaignRead(scopedMba.mba, versionHint)
-        if (published?.bodyMarkdown) {
-          payload.execSummary = published.bodyMarkdown
-        }
-      } catch (readErr) {
-        console.error("[generate_performance_report] campaign read load failed", {
-          mbaNumber: scopedMba.mba,
-          error: readErr instanceof Error ? readErr.message : String(readErr),
-        })
-      }
-    }
-
-    const skipInsightPersist = args.preview === true || args.dryRun === true
-
-    try {
-      const buffer = await buildPerformanceReport(payload)
-      const fileName = `${validated.clientName} ${scopedMba.mba} performance report ${validated.reportMonth}.pptx`
-      const exportResult = await storePerformanceReport(scopedMba.mba, fileName, buffer)
-
-      // Issued deck only. Insights are a by-product — never fail the report on write errors.
-      // execSummary is not persisted (roll-up of the discrete insights/recs).
-      if (!skipInsightPersist) {
-        try {
-          await persistPerformanceReportInsights({
-            narrative: {
-              execSummary: validated.narrative.execSummary,
-              keyInsight: validated.narrative.keyInsight,
-              insights: validated.narrative.insights,
-              recsInFlight: validated.narrative.recsInFlight,
-              recsNextPeriod: validated.narrative.recsNextPeriod,
-            },
-            mbaNumber: scopedMba.mba,
-            reportMonth: validated.reportMonth,
-            createdByEmail: context.userEmail,
-            preview: false,
-            dryRun: false,
-          })
-        } catch (insightErr) {
-          console.error("[generate_performance_report] insight persist threw", {
-            mbaNumber: scopedMba.mba,
-            error:
-              insightErr instanceof Error ? insightErr.message : String(insightErr),
-          })
-        }
-      }
-
-      const attachment = toChatFileAttachment({
-        fileName: exportResult.filename,
-        url: `/api/reports/download?path=${encodeURIComponent(exportResult.pathname)}`,
-        contentType: PPTX_CONTENT_TYPE,
-        sizeBytes: buffer.byteLength,
-      })
-
-      return {
-        content: jsonContent({
-          filename: exportResult.filename,
-          reconciled: hard.reconciled,
-          injected: {
-            deliverySpend: hard.deliverySpend,
-            deliveryDeliverables: hard.deliveryDeliverables,
-            kpis: hard.kpis,
-          },
-          note:
-            "A download card is shown in the chat UI — reply briefly (e.g. Report ready); do not paste a download URL or markdown link. Hard numbers were injected from reconciled delivery.",
-        }),
-        attachments: [attachment],
-        isError: false,
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      return { content: `Failed to generate performance report: ${message}`, isError: true }
-    }
+  execute(input, context) {
+    return executeGeneratePerformanceReport(input, context)
   },
 }

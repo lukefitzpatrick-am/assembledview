@@ -13,6 +13,7 @@ import {
   assembleCampaignReportData,
   type AssembleCampaignReportInput,
   type CampaignReportPayload,
+  type ReportCommentary,
 } from "@/lib/reports/campaignReport/assembleCampaignReportData"
 import { buildCampaignReportDeck } from "@/lib/reports/campaignReport/buildCampaignReportDeck"
 import {
@@ -33,6 +34,11 @@ export type GenerateCampaignReportInput = {
   period: CampaignReportPeriodInput
   store: boolean
   withCommentary: boolean
+  /**
+   * Commentary already written and approved. When set, the model is not called.
+   * Review & Report still generates its own when this is absent and withCommentary is true.
+   */
+  commentary?: ReportCommentary
 }
 
 export type PublishedCampaignReport = {
@@ -224,7 +230,9 @@ export async function generateCampaignReportForMba(
     }
   }
 
-  if (input.withCommentary) {
+  if (input.commentary) {
+    payload.commentary = input.commentary
+  } else if (input.withCommentary) {
     const write = deps?.generateCommentary ?? generateReportCommentary
     try {
       payload.commentary = await write({

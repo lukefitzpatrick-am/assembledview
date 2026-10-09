@@ -15,7 +15,13 @@ import {
   type PriorInsightRef,
 } from "@/lib/insights/priorInsightGuard"
 import { findInventedMoneyInNarrative } from "@/lib/reports/performanceReportHardNumbers"
-import { formatReportInt, formatReportMoney } from "@/lib/reports/campaignReport/formatters"
+import {
+  formatReportCtr,
+  formatReportInt,
+  formatReportMoney,
+  formatReportPace,
+  formatReportRate,
+} from "@/lib/reports/campaignReport/formatters"
 import type {
   CampaignReportPayload,
   ReportCommentary,
@@ -121,6 +127,17 @@ function pctDisplay(fraction: number | null): string | null {
   return `${(fraction * 100).toFixed(1)}%`
 }
 
+function metricDisplays(metrics: CampaignReportPayload["totals"]["metrics"]) {
+  return {
+    cpmDisplay: formatReportRate(metrics.cpm),
+    cpcDisplay: formatReportRate(metrics.cpc),
+    ctrDisplay: formatReportCtr(metrics.ctr),
+    spendPaceDisplay: formatReportPace(metrics.spendPacePct),
+    videoViews3sDisplay:
+      metrics.videoViews3s == null ? null : formatReportInt(metrics.videoViews3s),
+  }
+}
+
 function modelView(payload: CampaignReportPayload) {
   return {
     mbaNumber: payload.mbaNumber,
@@ -143,6 +160,7 @@ function modelView(payload: CampaignReportPayload) {
       impressionsDisplay: formatReportInt(payload.totals.impressions),
       clicksDisplay: formatReportInt(payload.totals.clicks),
       timeElapsedDisplay: pctDisplay(payload.totals.timeElapsedPct),
+      ...metricDisplays(payload.totals.metrics),
     },
     channels: payload.channels.map((channel) => ({
       ...channel,
@@ -151,6 +169,7 @@ function modelView(payload: CampaignReportPayload) {
       previousSpendDisplay:
         channel.previousSpend == null ? null : formatReportMoney(channel.previousSpend),
       impressionsDisplay: formatReportInt(channel.impressions),
+      ...metricDisplays(channel.metrics),
     })),
     kpis: payload.kpis.filter((kpi) => !kpi.omitted),
   }
@@ -184,32 +203,20 @@ function buildUserMessage(input: {
   return parts.join("\n\n")
 }
 
-function allowedCorpus(input: {
-  view: ReturnType<typeof modelView>
-  publishedRead: string | null
-  priors: PriorInsightRef[]
-}): string {
-  return [
-    JSON.stringify(input.view),
-    input.publishedRead ?? "",
-    ...input.priors.map((prior) => prior.body),
-  ].join("\n")
+export function reportAllowedCorpus(
+  payload: CampaignReportPayload,
+  extras?: { publishedRead?: string | null; priors?: PriorInsightRef[] },
+): string {
+  return allowedCorpus({
+    view: modelView(payload),
+    publishedRead: extras?.publishedRead ?? null,
+    priors: extras?.priors ?? [],
+  })
 }
 
-function narrativeFields(commentary: ReportCommentary): Record<string, string | string[]> {
-  return {
-    summary: commentary.summary,
-    insight: commentary.items.map((item) => item.insight),
-    action: commentary.items.map((item) => item.action),
-    outcome: commentary.items.map((item) => item.outcome),
-    actionOwner: commentary.items.map((item) => item.actionOwner),
-  }
-}
-
-function validateCommentary(
+/** Shape and length only. Money and prior-insight guards run against the assembled report. */
+export function parseReportCommentary(
   raw: unknown,
-  corpus: string,
-  priors: PriorInsightRef[],
 ): { ok: true; commentary: ReportCommentary } | { ok: false; reasons: string } {
   const parsed = commentarySchema.safeParse(raw)
   if (!parsed.success) {
@@ -241,8 +248,43 @@ function validateCommentary(
     }
   })
   if (lengthReasons.length) return { ok: false, reasons: lengthReasons.join("; ") }
+  return { ok: true, commentary }
+}
 
-  const invented = findInventedMoneyInNarrative(narrativeFields(commentary), corpus)
+function allowedCorpus(input: {
+  view: ReturnType<typeof modelView>
+  publishedRead: string | null
+  priors: PriorInsightRef[]
+}): string {
+  return [
+    JSON.stringify(input.view),
+    input.publishedRead ?? "",
+    ...input.priors.map((prior) => prior.body),
+  ].join("\n")
+}
+
+export function commentaryNarrativeFields(
+  commentary: ReportCommentary,
+): Record<string, string | string[]> {
+  return {
+    summary: commentary.summary,
+    insight: commentary.items.map((item) => item.insight),
+    action: commentary.items.map((item) => item.action),
+    outcome: commentary.items.map((item) => item.outcome),
+    actionOwner: commentary.items.map((item) => item.actionOwner),
+  }
+}
+
+function validateCommentary(
+  raw: unknown,
+  corpus: string,
+  priors: PriorInsightRef[],
+): { ok: true; commentary: ReportCommentary } | { ok: false; reasons: string } {
+  const parsed = parseReportCommentary(raw)
+  if (!parsed.ok) return parsed
+  const commentary = parsed.commentary
+
+  const invented = findInventedMoneyInNarrative(commentaryNarrativeFields(commentary), corpus)
   if (invented) {
     return {
       ok: false,
@@ -250,7 +292,7 @@ function validateCommentary(
     }
   }
 
-  const prior = findUnattributedPriorRestatement(narrativeFields(commentary), priors)
+  const prior = findUnattributedPriorRestatement(commentaryNarrativeFields(commentary), priors)
   if (prior) {
     return {
       ok: false,

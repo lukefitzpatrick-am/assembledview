@@ -1,19 +1,16 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import type { PerformanceReportPayload } from "../buildPerformanceReport.js"
 import {
   buildPerformanceReportInsightDrafts,
   inferInsightType,
   persistPerformanceReportInsights,
   reportMonthToPeriod,
   type CampaignInsightInsert,
+  type PersistPerformanceReportInsightsInput,
 } from "../persistPerformanceReportInsights.js"
 
-function sampleNarrative(): Pick<
-  PerformanceReportPayload,
-  "execSummary" | "keyInsight" | "insights" | "recsInFlight" | "recsNextPeriod"
-> {
+function sampleNarrative(): NonNullable<PersistPerformanceReportInsightsInput["narrative"]> {
   return {
     execSummary: "Spend is on track; search leads efficiency gains this month.",
     keyInsight:
