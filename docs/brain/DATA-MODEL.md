@@ -20,7 +20,7 @@ Xano is still read by the remaining §3/§4 PORT files in `XANO-SEVERANCE-REGIST
 
 **The real gate is `npm run db:drift`** — a comparison against `information_schema`. Run it before any handover that touches the schema. Never apply the file `generate` produces.
 
-`0092_revoke_published_pointer_fn_execute.sql` revokes EXECUTE on `public.enforce_published_pointer_stamped()` from public, anon and authenticated. The function is a trigger (`RETURNS trigger`). Triggers still fire. Authored, not applied. No Drizzle change.
+`0092_revoke_published_pointer_fn_execute.sql` revokes EXECUTE on `public.enforce_published_pointer_stamped()` from public, anon and authenticated. The function is a trigger (`RETURNS trigger`). Triggers still fire. Applied. No Drizzle change.
 
 **Backfill rule.** Any migration that backfills existing rows must be guarded by a `migration_markers` key. `WHERE col IS NULL` alone is not a re-run guard: once the feature is live, NULL means a genuine unfilled state and a re-run corrupts it.
 
@@ -119,7 +119,7 @@ Metrics on all three: `ctr`, `cpv`, `conversion_rate`, `vtr`, `frequency`. Campa
 | `revenue_forecast_lines` | 0 | UNIQUE(`clients_id`,`fy`,`line_key`,`month`) |
 | `revenue_line_catalog` | 10 | `line_key` UNIQUE, `fee_pct`, `booked_mapping` |
 | `finance_saved_views` | 0 | note: column is `user_id` (`user` is reserved) |
-| `finance_clearance_sends` | 0 | `0090` authored, not applied. `month`, `sent_at`, `hash` (sha256 of the sorted invoice id / state / amount list), `counts` jsonb `{cleared, differs, missing}`. Written only after the clearance email succeeds. |
+| `finance_clearance_sends` | 0 | `0090` applied. `month`, `sent_at`, `hash` (sha256 of the sorted invoice id / state / amount list), `counts` jsonb `{cleared, differs, missing}`. Written only after the clearance email succeeds. |
 | `overdue_digest_sends` | 0 | `0093` authored, not applied. Primary key `as_of_date` (Sydney civil date). `sent_at`, `invoice_count`, `total_due_cents`, `recipients` text[]. Written only after the weekday overdue digest email succeeds. RLS on, no policies. Do not SELECT until applied (C-76). |
 | `app_notifications` | 902 | Cross-cutting anomaly log, keyed by `audience` + `kind`. Partial index on unread. Dominated by `billing_overrides_publish_carry` (884) |
 
@@ -127,7 +127,7 @@ Metrics on all three: `ctr`, `cpv`, `conversion_rate`, `vtr`, `frequency`. Campa
 
 ## Xero
 
-`xero_ar_invoices` (1,433) · `xero_ap_bills` (2,180) · `xero_contacts` (223) · `xero_sync_exceptions` (1,381; `0091` adds `resolved_at`, `resolved_by`, `resolution`, authored, not applied; apply before xero-queue assign/resolve) · `xero_sync_log` (12) · `xero_client_aliases` (0, manual normalised-name → `clients.id`) · `xero_contact_links` (0 until `0054_seed_xero_contact_links` is applied; AR identity keys on `xero_contacts.xero_contact_id`; PC6 reassign still writes normalised-name keys) · `xero_invoice_matches` (0, → `finance_run_items`) · `xero_match_month_metrics` (0)
+`xero_ar_invoices` (1,433) · `xero_ap_bills` (2,180) · `xero_contacts` (223) · `xero_sync_exceptions` (1,381; `0091` applied: `resolved_at`, `resolved_by`, `resolution`) · `xero_sync_log` (12) · `xero_client_aliases` (0, manual normalised-name → `clients.id`) · `xero_contact_links` (0 until `0054_seed_xero_contact_links` is applied; AR identity keys on `xero_contacts.xero_contact_id`; PC6 reassign still writes normalised-name keys) · `xero_invoice_matches` (0, → `finance_run_items`) · `xero_match_month_metrics` (0)
 
 All nine are **postgres-authoritative**: `db:etl` must not truncate-reload them (`POSTGRES_AUTHORITATIVE_TABLES` in `scripts/migration/_etlTables.ts`). Recon reports Xano vs Supabase counts but never fails on mismatch. The five ingest tables (`xero_ar_invoices`, `xero_ap_bills`, `xero_contacts`, `xero_sync_exceptions`, `xero_sync_log`) still have a 10 Jul Xano snapshot twin — that snapshot is stale; live state is written by `lib/xero/**`. The matcher/alias four (`xero_invoice_matches`, `xero_match_month_metrics`, `xero_contact_links`, `xero_client_aliases`) have no Xano twin.
 
