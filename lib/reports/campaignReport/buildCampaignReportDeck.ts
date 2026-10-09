@@ -24,7 +24,8 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 import JSZip from "jszip"
-import { Automizer } from "pptx-automizer"
+import { Automizer, modify } from "pptx-automizer"
+import { fetchBrandCoverPhoto } from "@/lib/ava/brand/catalog"
 import { BRAND } from "@/lib/brand"
 import { channelColorFor, getChartTheme } from "@/lib/chart-theme"
 import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
@@ -44,6 +45,7 @@ import {
 import type { CampaignReportPeriodMetrics } from "@/lib/reports/campaignReport/periodMetrics"
 
 const TEMPLATE_FILE = "am-template-deck-16x9.pptx"
+const COVER_MEDIA_FILE = "am-cover.jpg"
 const NOT_GENERATED = "Commentary not generated for this period."
 
 const LAYOUT = {
@@ -445,8 +447,41 @@ function drawCommentary(page: DrawSlide, commentary: ReportCommentary): void {
   })
 }
 
+export type BuildCampaignReportDeckOptions = {
+  fetch?: typeof fetch
+}
+
 export async function buildCampaignReportDeck(
   payload: CampaignReportPayload,
+  options?: BuildCampaignReportDeckOptions,
+): Promise<Buffer> {
+  const coverPhotoId = payload.coverPhotoId?.trim() ?? ""
+  let coverBytes: Buffer | null = null
+  if (coverPhotoId) {
+    const fetched = await fetchBrandCoverPhoto(coverPhotoId, options?.fetch)
+    if (fetched.ok) coverBytes = fetched.bytes
+    else {
+      console.error("[campaign-report] cover photo skipped", {
+        coverPhotoId,
+        reason: fetched.reason,
+      })
+    }
+  }
+  try {
+    return await assembleCampaignReportDeck(payload, coverBytes)
+  } catch (err) {
+    if (!coverBytes) throw err
+    console.error("[campaign-report] cover photo skipped", {
+      coverPhotoId,
+      reason: err instanceof Error ? err.message : String(err),
+    })
+    return assembleCampaignReportDeck(payload, null)
+  }
+}
+
+async function assembleCampaignReportDeck(
+  payload: CampaignReportPayload,
+  coverBytes: Buffer | null,
 ): Promise<Buffer> {
   const filePath = templatePath()
   if (!fs.existsSync(filePath)) throw new Error(`v5 deck template missing at ${filePath}`)
@@ -468,6 +503,7 @@ export async function buildCampaignReportDeck(
   })
 
   const pres = automizer.loadRoot(TEMPLATE_FILE).load(TEMPLATE_FILE, "v5")
+  if (coverBytes) pres.loadMediaBuffer(COVER_MEDIA_FILE, coverBytes)
 
   const add = (layoutName: string, draw: (page: DrawSlide) => void) => {
     pres.addSlide("v5", requireLayout(layouts, layoutName), (slide) => {
@@ -475,23 +511,28 @@ export async function buildCampaignReportDeck(
     })
   }
 
-  add(LAYOUT.cover, (page) => {
-    heading(page, "Campaign report.")
-    page.addText(
-      [client, campaign, `MBA ${payload.mbaNumber}`, payload.period.label, `As of ${payload.asOf}.`].join(
-        "\n",
-      ),
-      {
-        x: 0.55,
-        y: 1.2,
-        w: 10,
-        h: 2.4,
-        fontFace: FONT,
-        fontSize: 18,
-        color: INK,
-        margin: 0,
-      },
-    )
+  pres.addSlide("v5", requireLayout(layouts, LAYOUT.cover), (slide) => {
+    paint(slide, (page) => {
+      heading(page, "Campaign report.")
+      page.addText(
+        [client, campaign, `MBA ${payload.mbaNumber}`, payload.period.label, `As of ${payload.asOf}.`].join(
+          "\n",
+        ),
+        {
+          x: 0.55,
+          y: 1.2,
+          w: 10,
+          h: 2.4,
+          fontFace: FONT,
+          fontSize: 18,
+          color: INK,
+          margin: 0,
+        },
+      )
+    })
+    if (coverBytes) {
+      slide.modifyElement("Image 0", modify.setRelationTarget(COVER_MEDIA_FILE))
+    }
   })
 
   add(LAYOUT.section, (page) => {

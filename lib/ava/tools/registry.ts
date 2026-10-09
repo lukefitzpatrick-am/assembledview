@@ -17,6 +17,7 @@ import { getSavedAudiencesTool } from "./getSavedAudiences";
 import { getBestPracticeTool } from "./getBestPractice";
 import { getNamingRulesTool } from "./getNamingRules";
 import { getCreativeAssetsTool } from "./getCreativeAssets";
+import { getBrandAssetsTool } from "./getBrandAssets";
 import { getMethodologyTool } from "./getMethodology";
 import { getPacingSnapshotTool } from "./getPacingSnapshot";
 import { getDeliverySnapshotTool } from "./getDeliverySnapshot";
@@ -54,6 +55,7 @@ const AVA_TOOLS: AvaTool[] = [
   getBestPracticeTool,
   getNamingRulesTool,
   getCreativeAssetsTool,
+  getBrandAssetsTool,
   getMethodologyTool,
   getPacingSnapshotTool,
   getDeliverySnapshotTool,

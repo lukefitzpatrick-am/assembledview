@@ -7,6 +7,7 @@
 import "server-only"
 
 import { getAnthropicClient } from "@/lib/ava/anthropic"
+import { isKnownBrandPhotoId, loadBrandAssetCatalog } from "@/lib/ava/brand/catalog"
 import { completeClaudeMessage } from "@/lib/ava/modelConfig"
 import { buildLoadSkillPayload } from "@/lib/ava/tools/loadSkill"
 import { getPublishedCampaignRead } from "@/lib/campaign-read/repo"
@@ -48,6 +49,7 @@ const commentarySchema = z.object({
     )
     .min(2)
     .max(4),
+  coverPhotoId: z.string().nullish(),
 })
 
 export type GenerateReportCommentaryInput = {
@@ -113,8 +115,9 @@ export function buildCommentarySystemPrompt(): string | null {
     [
       "The app is building the Review & Report deck with no chat step.",
       "Reply with one JSON object only. No preamble and no markdown fence.",
-      "Shape: { summary: string, items: { insight, action, actionOwner, outcome, outcomeKind }[] }.",
+      "Shape: { summary: string, items: { insight, action, actionOwner, outcome, outcomeKind }[], coverPhotoId?: string }.",
       "items length is 2 to 4. outcomeKind is achieved or expected.",
+      "When a brand photo in the user message fits the campaign, set coverPhotoId to that photo id. Omit it when none fits. Never invent an id or an image URL.",
       "Caps: summary 160, insight 240, action 160, outcome 160, actionOwner 40 characters.",
       "Every dollar amount and every percent must already appear in the user message. Do not compute a new figure.",
       "Do not restate a prior insight unless the same sentence says what was believed before and what has changed.",
@@ -195,6 +198,15 @@ function buildUserMessage(input: {
         )}`
       : "Live priors: none.",
   ]
+  const photos = loadBrandAssetCatalog().filter((asset) => asset.kind === "photo")
+  if (photos.length > 0) {
+    parts.push(
+      "Brand photos from get_brand_assets. Optional coverPhotoId must be one of these ids:",
+      photos
+        .map((asset) => `${asset.id} ${asset.tags.join(" ")} ${asset.description}`)
+        .join("\n"),
+    )
+  }
   if (input.retryReasons) {
     parts.push(
       "The previous draft was rejected. Fix these points and return JSON only:",
@@ -236,6 +248,16 @@ export function parseReportCommentary(
       outcome: singleLine(item.outcome),
       outcomeKind: item.outcomeKind,
     })),
+  }
+  const requestedCover = parsed.data.coverPhotoId?.trim() ?? ""
+  if (requestedCover) {
+    if (isKnownBrandPhotoId(requestedCover)) commentary.coverPhotoId = requestedCover
+    else {
+      console.error("[campaign-report] cover photo skipped", {
+        coverPhotoId: requestedCover,
+        reason: "unknown photo id",
+      })
+    }
   }
 
   const lengthReasons: string[] = []

@@ -278,9 +278,13 @@ export const generatePerformanceReportTool: AvaTool = {
         commentary: {
           type: "object",
           description:
-            "Approved commentary. summary ≤160. items is 2 to 4. insight ≤240, action ≤160, outcome ≤160, actionOwner ≤40. outcomeKind is achieved or expected.",
+            "Approved commentary. summary ≤160. items is 2 to 4. insight ≤240, action ≤160, outcome ≤160, actionOwner ≤40. outcomeKind is achieved or expected. Optional coverPhotoId is a photo id from get_brand_assets.",
           properties: {
             summary: { type: "string" },
+            coverPhotoId: {
+              type: "string",
+              description: "Optional photo id from get_brand_assets. Omit when none fits.",
+            },
             items: {
               type: "array",
               minItems: 2,

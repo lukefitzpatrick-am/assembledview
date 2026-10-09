@@ -97,6 +97,11 @@ const SKILL_META: Record<
     chains: [MARKETING_BRAIN_ID],
     pairedTools: ["get_campaign_context", "get_pacing_snapshot"],
   },
+  "assembled-brand": {
+    title: "Assembled brand",
+    chains: [MARKETING_BRAIN_ID],
+    pairedTools: ["get_brand_assets"],
+  },
   "assembled-performance-review-report": {
     title: "Performance review & report",
     chains: [MARKETING_BRAIN_ID],

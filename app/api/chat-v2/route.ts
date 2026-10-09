@@ -49,6 +49,7 @@ Reach for this when:
 - get_pacing_snapshot — pacing/delivery story for a client or MBA (cached channel rows)
 - run_scenario — what-if pacing for one MBA (campaign scenario lines + V3 engine). Offered on /pacing/* and /dashboard/* only. Never invent a rate.
 - get_creative_assets — creative files attached to an MBA
+- get_brand_assets — Assembled logos and photos. Use the returned URLs. Never invent an image URL. Load assembled-brand first when the work is branded.
 - get_naming_rules — naming template order or a composed name preview
 - get_saved_audiences — saved planning audiences by client or MBA
 - get_best_practice — media-container best-practice copy by channel

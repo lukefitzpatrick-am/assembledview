@@ -31,6 +31,7 @@ test("ava tool catalog: names unique and complete", () => {
     "get_best_practice",
     "get_naming_rules",
     "get_creative_assets",
+    "get_brand_assets",
     "get_methodology",
     "get_pacing_snapshot",
     "get_delivery_snapshot",

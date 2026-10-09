@@ -249,6 +249,7 @@ export async function generateCampaignReportForMba(
     }
   }
 
+  payload.coverPhotoId = payload.commentary?.coverPhotoId ?? null
   const build = deps?.buildDeck ?? buildCampaignReportDeck
   const buffer = await build(payload)
   let blobPathname: string | undefined

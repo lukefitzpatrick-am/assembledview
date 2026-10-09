@@ -14,13 +14,13 @@ import {
   skillsContentDir,
 } from "../registry.js"
 
-test("skills: all 13 load with frontmatter, unique ids, chained brain", () => {
+test("skills: all 14 load with frontmatter, unique ids, chained brain", () => {
   __resetSkillRegistryCacheForTests()
   const entries = loadSkillRegistry()
-  assert.equal(entries.length, 13)
+  assert.equal(entries.length, 14)
 
   const ids = entries.map((e) => e.id)
-  assert.equal(new Set(ids).size, 13)
+  assert.equal(new Set(ids).size, 14)
   assert.ok(ids.includes(MARKETING_BRAIN_ID))
   assert.ok(ids.includes("assembled-performance-review-report"))
   assert.ok(ids.includes("assembled-campaign-read"))
@@ -35,6 +35,15 @@ test("skills: all 13 load with frontmatter, unique ids, chained brain", () => {
     "get_campaign_insights",
   ])
   assert.ok(campaignRead.references.some((r) => r.name === "voice.md"))
+
+  const brand = entries.find((e) => e.id === "assembled-brand")
+  assert.ok(brand)
+  assert.equal(brand.version, "1.0.0-av")
+  assert.deepEqual(brand.pairedTools, ["get_brand_assets"])
+  assert.deepEqual(brand.chains, [MARKETING_BRAIN_ID])
+  assert.ok(brand.references.some((r) => r.name === "create-patterns.md"))
+  assert.match(brand.body, /get_brand_assets/)
+  assert.match(brand.body, /Never invent an image URL/)
 
   const planner = entries.find((e) => e.id === "assembled-scenario-planner")
   assert.ok(planner)

@@ -73,6 +73,8 @@ export type ReportCommentary = {
     outcome: string
     outcomeKind: "achieved" | "expected"
   }[]
+  /** Photo id from the brand catalogue. Omitted when none fits. */
+  coverPhotoId?: string
 }
 
 export type CampaignReportKpiRow = {
@@ -116,6 +118,8 @@ export type CampaignReportPayload = {
   kpis: CampaignReportKpiRow[]
   /** Null when commentary was not generated. The deck then shows the not-generated line. */
   commentary: ReportCommentary | null
+  /** Optional brand-library photo for the cover picture placeholder. */
+  coverPhotoId?: string | null
 }
 
 function channelLabel(group: string): string {
