@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table"
 import { formatMoney } from "@/lib/format/money"
 import {
+  defaultInvoicedVsExpectedFy,
   invoicedVsExpectedFilename,
   type FyChoice,
   type InvoicedVsExpectedReport,
@@ -25,8 +26,8 @@ import {
 } from "@/lib/finance/invoicedVsExpected"
 
 const FY_OPTIONS: { value: FyChoice; label: string }[] = [
-  { value: "fy26", label: "FY26" },
   { value: "fy27", label: "FY27" },
+  { value: "fy26", label: "FY26" },
   { value: "all", label: "All since FY26" },
 ]
 
@@ -92,7 +93,7 @@ function ReportTable({ rows }: { rows: PairRow[] }) {
 }
 
 export function InvoicedVsExpectedPageClient() {
-  const [fy, setFy] = useState<FyChoice>("fy26")
+  const [fy, setFy] = useState<FyChoice>(() => defaultInvoicedVsExpectedFy())
   const [clientId, setClientId] = useState<string>("")
   const [type, setType] = useState<TypeChoice>("all")
   const [view, setView] = useState<ViewChoice>("differences")

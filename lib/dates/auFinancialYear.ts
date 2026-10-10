@@ -2,10 +2,9 @@
  * Australian financial year helpers for presentation filters (Home / Campaigns).
  *
  * Twin-check (FY-1 / DI-9b):
- * - Reuses start-year identity from `lib/finance/months.ts`
- *   (`australianFyStartYearForDate`, `fyDisplayLabel`) — same convention as finance hub
- *   `?fy=2026` (= Jul 2026 – Jun 2027).
- * - Does NOT use `lib/ava/tools/fyToRange.ts` (ending-year convention for AVA spoken "FY26").
+ * - `?fy=` is the July start year (`2026` = Jul 2026 – Jun 2027), same as the finance hub.
+ *   Chip labels are the ending year (`FY27` for that window). Default is `currentFy` (Melbourne).
+ * - Does NOT use `lib/ava/tools/fyToRange.ts` (AVA `fy=2026` means Jul 2025 – Jun 2026).
  * - Does NOT use `getAustralianFinancialYear*` Date windows in `lib/api/dashboard/shared.ts`
  *   (local/Melbourne Date objects; overlap here is string compare on YYYY-MM-DD).
  * - Forecast's private `campaignTouchesFinancialYear` uses `new Date(iso)` (UTC drift risk)
@@ -16,13 +15,14 @@ import {
   australianFyStartYearForDate,
   fyDisplayLabel,
 } from "@/lib/finance/months"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 
 /** FY start calendar year, or `"all"`. */
 export type AuFyFilterValue = number | "all"
 
 export type AuFyFilterOption = {
   value: AuFyFilterValue
-  /** Short control label, e.g. `FY26`. */
+  /** Short control label, ending year, e.g. `FY27`. */
   label: string
   /** Full range for title/tooltip, e.g. `2026–27 (1 Jul 2026 – 30 Jun 2027)`. */
   title: string
@@ -55,8 +55,48 @@ export function auFyBoundsDateOnly(fyStartYear: number): { start: string; end: s
   }
 }
 
+/**
+ * July start year of the Australian FY containing `now`, on the Melbourne civil date.
+ * 30 Jun stays in the year that started the previous July; 1 Jul starts the next.
+ */
+export function currentFy(now: Date = new Date()): number {
+  const iso = getMelbourneTodayISO(now)
+  const year = Number(iso.slice(0, 4))
+  const month = Number(iso.slice(5, 7))
+  return month >= 7 ? year : year - 1
+}
+
+/** Ending-year chip label. Start year 2026 (Jul 2026–Jun 2027) is `FY27`. */
 export function auFyShortLabel(fyStartYear: number): string {
-  return `FY${String(Math.trunc(fyStartYear)).slice(-2)}`
+  const ending = Math.trunc(fyStartYear) + 1
+  return `FY${String(ending).slice(-2)}`
+}
+
+function shiftIsoDate(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number)
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
+  dt.setUTCDate(dt.getUTCDate() + days)
+  return dt.toISOString().slice(0, 10)
+}
+
+/**
+ * Finished from the Melbourne day after the end date. An end date of today is still live.
+ */
+export function campaignIsFinished(endDate: unknown, todayIso: string): boolean {
+  const end = campaignDateOnly(endDate)
+  if (!end || !/^\d{4}-\d{2}-\d{2}$/.test(todayIso)) return false
+  return end < todayIso
+}
+
+/** Finished, and the end date is within the last `days` Melbourne civil days (not including today). */
+export function campaignFinishedInPastDays(
+  endDate: unknown,
+  todayIso: string,
+  days = 40,
+): boolean {
+  const end = campaignDateOnly(endDate)
+  if (!campaignIsFinished(end, todayIso) || !end) return false
+  return end >= shiftIsoDate(todayIso, -days)
 }
 
 /**
@@ -90,13 +130,13 @@ export function parseAuFySearchParam(
   raw: string | null | undefined,
   today: Date = new Date(),
 ): AuFyFilterValue {
-  if (raw == null) return australianFyStartYearForDate(today)
+  if (raw == null) return currentFy(today)
   const trimmed = String(raw).trim().toLowerCase()
-  if (!trimmed) return australianFyStartYearForDate(today)
+  if (!trimmed) return currentFy(today)
   if (trimmed === "all") return "all"
   const n = Number(trimmed)
   if (!Number.isFinite(n) || !Number.isInteger(n) || n < 2000 || n > 2100) {
-    return australianFyStartYearForDate(today)
+    return currentFy(today)
   }
   return n
 }
@@ -110,18 +150,18 @@ export function serializeAuFySearchParam(
   today: Date = new Date(),
 ): string | null {
   if (fy === "all") return "all"
-  const current = australianFyStartYearForDate(today)
+  const current = currentFy(today)
   if (fy === current) return null
   return String(fy)
 }
 
 export function auFyFilterOptions(today: Date = new Date()): AuFyFilterOption[] {
-  const current = australianFyStartYearForDate(today)
-  const mk = (fyStartYear: number, role: "current" | "previous" | "next"): AuFyFilterOption => {
+  const current = currentFy(today)
+  const mk = (fyStartYear: number, role: "current" | "previous" | "earlier"): AuFyFilterOption => {
     const range = fyDisplayLabel(fyStartYear)
     const { start, end } = auFyBoundsDateOnly(fyStartYear)
     const roleLabel =
-      role === "current" ? "Current" : role === "previous" ? "Previous" : "Next"
+      role === "current" ? "Current" : role === "previous" ? "Previous" : "Earlier"
     return {
       value: fyStartYear,
       label: auFyShortLabel(fyStartYear),
@@ -131,7 +171,7 @@ export function auFyFilterOptions(today: Date = new Date()): AuFyFilterOption[] 
   return [
     mk(current, "current"),
     mk(current - 1, "previous"),
-    mk(current + 1, "next"),
+    mk(current - 2, "earlier"),
     {
       value: "all",
       label: "All",

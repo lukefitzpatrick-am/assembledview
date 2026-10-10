@@ -6,6 +6,7 @@ import { buildInvoicedVsExpectedWorkbook } from "../exportInvoicedVsExpected.js"
 import {
   INVOICED_VS_EXPECTED_COLUMNS,
   buildInvoicedVsExpected,
+  defaultInvoicedVsExpectedFy,
   formatSignedDelta,
   invoicedVsExpectedFilename,
   type PlanExpectedRow,
@@ -144,4 +145,9 @@ test("excel uses the same columns", async () => {
   const delta = sheet?.getRow(2).getCell(8).value
   assert.equal(typeof delta, "number")
   assert.ok(Math.abs((delta as number) - -375.34) < 0.001)
+})
+
+test("default FY is the Melbourne year: FY26 on 30 Jun, FY27 on 1 Jul", () => {
+  assert.equal(defaultInvoicedVsExpectedFy(new Date("2026-06-30T13:30:00.000Z")), "fy26")
+  assert.equal(defaultInvoicedVsExpectedFy(new Date("2026-06-30T14:30:00.000Z")), "fy27")
 })

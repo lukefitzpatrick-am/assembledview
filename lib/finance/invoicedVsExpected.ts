@@ -4,6 +4,8 @@
  * legacy billed amount. Delta is invoiced minus expected, ex-GST cents.
  */
 
+import { currentFy } from "@/lib/dates/auFinancialYear"
+
 export const XERO_PAIR_TOLERANCE_CENTS = 100
 
 export const INVOICED_VS_EXPECTED_COLUMNS = [
@@ -21,6 +23,11 @@ export const INVOICED_VS_EXPECTED_COLUMNS = [
 ] as const
 
 export type FyChoice = "fy26" | "fy27" | "all"
+
+/** Report windows this page can select. Current Melbourne FY maps onto them. */
+export function defaultInvoicedVsExpectedFy(now: Date = new Date()): FyChoice {
+  return currentFy(now) <= 2025 ? "fy26" : "fy27"
+}
 export type TypeChoice = "all" | "media" | "sow" | "retainer"
 export type ViewChoice = "differences" | "all" | "unmatched_invoices" | "unmatched_months"
 export type ExpectedSourceLabel = "approved snapshot" | "schedule" | "billed_amount"

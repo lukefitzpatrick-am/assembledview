@@ -48,11 +48,13 @@ import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar"
 import { AuFinancialYearFilterPills } from "@/components/dashboard/AuFinancialYearFilterPills"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import {
+  campaignFinishedInPastDays,
   campaignOverlapsAuFinancialYear,
   parseAuFySearchParam,
   serializeAuFySearchParam,
   type AuFyFilterValue,
 } from "@/lib/dates/auFinancialYear"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import {
   CampaignCardSkeleton,
   KPICardSkeleton,
@@ -1394,14 +1396,10 @@ export default function DashboardOverview({
     }
 
     const getCampaignsFinishedRecently = () => {
-      const { endOfToday } = getTodayBounds()
-      const fortyDaysAgo = new Date(endOfToday)
-      fortyDaysAgo.setDate(endOfToday.getDate() - 40)
-      return getHighestBookedApprovedCompletedVersionPerMba(mediaPlans).filter((plan) => {
-        const endDate = new Date(plan.mp_campaigndates_end)
-        if (isNaN(endDate.getTime())) return false
-        return endDate >= fortyDaysAgo && endDate <= endOfToday
-      })
+      const todayIso = getMelbourneTodayISO()
+      return getHighestBookedApprovedCompletedVersionPerMba(mediaPlans).filter((plan) =>
+        campaignFinishedInPastDays(plan.mp_campaigndates_end, todayIso),
+      )
     }
 
     const getLiveScopes = () => scopes.filter((scope) => isLiveScopeStatus(scope.project_status))
@@ -1884,14 +1882,10 @@ export default function DashboardOverview({
   }
 
   const getCampaignsFinishedRecently = () => {
-    const { endOfToday } = getTodayBounds()
-    const fortyDaysAgo = new Date(endOfToday)
-    fortyDaysAgo.setDate(endOfToday.getDate() - 40)
+    const todayIso = getMelbourneTodayISO()
 
     return getHighestBookedApprovedCompletedVersionPerMba(mediaPlans).filter((plan) => {
-      const endDate = new Date(plan.mp_campaigndates_end)
-      if (isNaN(endDate.getTime())) return false
-      if (!(endDate >= fortyDaysAgo && endDate <= endOfToday)) return false
+      if (!campaignFinishedInPastDays(plan.mp_campaigndates_end, todayIso)) return false
       return campaignOverlapsAuFinancialYear(
         plan.mp_campaigndates_start,
         plan.mp_campaigndates_end,

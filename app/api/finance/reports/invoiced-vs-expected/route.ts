@@ -5,7 +5,12 @@ import {
   invoicedVsExpectedFilename,
 } from "@/lib/finance/exportInvoicedVsExpected"
 import { loadInvoicedVsExpected } from "@/lib/finance/loadInvoicedVsExpected"
-import type { FyChoice, TypeChoice, ViewChoice } from "@/lib/finance/invoicedVsExpected"
+import {
+  defaultInvoicedVsExpectedFy,
+  type FyChoice,
+  type TypeChoice,
+  type ViewChoice,
+} from "@/lib/finance/invoicedVsExpected"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const runtime = "nodejs"
@@ -26,7 +31,7 @@ export async function GET(request: NextRequest) {
   if ("response" in gate) return gate.response
 
   const sp = request.nextUrl.searchParams
-  const fy = choice(sp.get("fy"), FY, "fy26")
+  const fy = choice(sp.get("fy"), FY, defaultInvoicedVsExpectedFy())
   const type = choice(sp.get("type"), TYPES, "all")
   const view = choice(sp.get("view"), VIEWS, "differences")
   const clientRaw = sp.get("client")

@@ -6,7 +6,10 @@ import {
   auFyFilterOptions,
   auFyShortLabel,
   campaignDateOnly,
+  campaignFinishedInPastDays,
+  campaignIsFinished,
   campaignOverlapsAuFinancialYear,
+  currentFy,
   parseAuFySearchParam,
   serializeAuFySearchParam,
 } from "@/lib/dates/auFinancialYear"
@@ -27,14 +30,36 @@ test("campaignDateOnly: leading YYYY-MM-DD only — no UTC reinterpretation", ()
   assert.equal(campaignDateOnly("2026-13-01"), null)
 })
 
-test("auFyShortLabel / options default to current start-year FY", () => {
-  assert.equal(auFyShortLabel(2026), "FY26")
-  const opts = auFyFilterOptions(new Date(2026, 7, 2)) // 2 Aug 2026 local → FY26
+test("auFyShortLabel / options: ending-year label, newest first", () => {
+  assert.equal(auFyShortLabel(2026), "FY27")
+  assert.equal(auFyShortLabel(2025), "FY26")
+  const opts = auFyFilterOptions(new Date("2026-08-02T02:00:00.000Z"))
   assert.equal(opts[0]!.value, 2026)
-  assert.equal(opts[0]!.label, "FY26")
+  assert.equal(opts[0]!.label, "FY27")
   assert.equal(opts[1]!.value, 2025)
-  assert.equal(opts[2]!.value, 2027)
+  assert.equal(opts[1]!.label, "FY26")
+  assert.equal(opts[2]!.value, 2024)
+  assert.equal(opts[2]!.label, "FY25")
   assert.equal(opts[3]!.value, "all")
+})
+
+test("currentFy uses the Melbourne civil date across 30 Jun / 1 Jul", () => {
+  // 30 Jun 2026 23:30 AEST (UTC+10) is still the FY that started July 2025.
+  assert.equal(currentFy(new Date("2026-06-30T13:30:00.000Z")), 2025)
+  assert.equal(auFyShortLabel(currentFy(new Date("2026-06-30T13:30:00.000Z"))), "FY26")
+  // 1 Jul 2026 00:30 AEST is 30 Jun 14:30 UTC, and starts the FY labelled FY27.
+  assert.equal(currentFy(new Date("2026-06-30T14:30:00.000Z")), 2026)
+  assert.equal(auFyShortLabel(currentFy(new Date("2026-06-30T14:30:00.000Z"))), "FY27")
+})
+
+test("a campaign is finished from the Melbourne day after its end date", () => {
+  const today = "2026-10-10"
+  assert.equal(campaignIsFinished("2026-10-10", today), false)
+  assert.equal(campaignIsFinished("2026-10-09", today), true)
+  assert.equal(campaignFinishedInPastDays("2026-10-10", today), false)
+  assert.equal(campaignFinishedInPastDays("2026-10-09", today), true)
+  assert.equal(campaignFinishedInPastDays("2026-08-31", today), true)
+  assert.equal(campaignFinishedInPastDays("2026-08-30", today), false)
 })
 
 test("parse/serialize URL: absent = current; all; previous year", () => {

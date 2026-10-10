@@ -24,7 +24,7 @@ function wrapIndex(index: number, length: number): number {
 
 /**
  * Filter pills matching CampaignStatusPills / finance rounded-pill chrome.
- * Options: current AU FY, previous, next, All.
+ * Options: current AU FY, then the two prior years, then All. Newest first.
  */
 export function AuFinancialYearFilterPills({
   value,
