@@ -489,6 +489,10 @@
   }
 }
 
+html[data-plan-wizard-bar] [data-ask-ava] {
+  bottom: 7.5rem;
+}
+
 @media print {
   .dashboard-export-btn {
     display: none;

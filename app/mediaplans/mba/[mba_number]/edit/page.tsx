@@ -50,6 +50,7 @@ import { editCampaignLede } from "@/components/layout/pageTitleCopy"
 import { PlanPresenceBanner } from "@/components/mediaplans/PlanPresenceBanner"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
+import { MediaTypeChipRow } from "@/components/mediaplans/MediaTypeChipRow"
 import { PlanWizardBottomBar } from "@/components/mediaplans/PlanWizardBottomBar"
 import { formatAUD, formatMoney } from "@/lib/format/money"
 import { MoneyInput } from "@/components/ui/MoneyInput"
@@ -11767,16 +11768,14 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   })
 
   const wizardBottomBar = (
-    <>
-      <CampaignExportsSection
-        variant="embedded"
-        mbaNumber={mbaNumber}
-        lineItemCount={editLineItemCount}
-        isBusy={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
-        ariaStatus=""
-        className="max-w-full justify-center"
-      >
         <PlanWizardBottomBar
+          totals={{
+            budget: wizardSummary.budget,
+            allocated: formatMoney(totalInvestment),
+            unallocated: wizardSummary.budgetRemaining,
+            unallocatedTone:
+              budgetRemaining === 0 ? "lime" : budgetRemainingOverspend ? "amber" : "default",
+          }}
           savePublishesImmediately={SAVE_PUBLISHES_IMMEDIATELY}
           isPublished={isPublished}
           primaryLabel={primarySaveLabel}
@@ -11881,8 +11880,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           gateDownloadsOnPublish
           draftBlocksDownloadMessage={draftBlocksDownloadMessage}
         />
-      </CampaignExportsSection>
-    </>
   )
 
 
@@ -11965,18 +11962,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           </section>
 
           <section id="channel-allocation" className="scroll-mt-[18px] space-y-6">
-            <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
-              <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-                <Skeleton className="h-5 w-28" />
-              </div>
-              <div className="grid min-h-0 w-full flex-1 grid-cols-1 content-start gap-x-3 gap-y-1.5 px-6 py-4 md:grid-cols-2">
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 py-0.5">
-                    <Skeleton className="h-5 w-9 shrink-0 rounded-full" />
-                    <Skeleton className="h-4 flex-1" />
-                  </div>
-                ))}
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Skeleton className="h-8 w-24 rounded-pill" />
+              <Skeleton className="h-8 w-36 rounded-pill" />
             </div>
           </section>
 
@@ -12095,6 +12083,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             <PlanWizardHeader
             title="Edit"
             accent={editTitleAccent}
+            unpublishedChanges={hasUnsavedChanges}
             lede={editTitleLede}
             secondary={
               <div className="flex min-w-0 w-full flex-1 flex-wrap items-center gap-x-4 gap-y-3">
@@ -12480,11 +12469,14 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             </section>
 
             <section id="channel-allocation" className="scroll-mt-[18px] space-y-6">
-          <div className="rounded-card border border-border bg-surface-panel shadow-e0">
-            <div className="border-b border-border bg-[var(--fill-track)] px-6 pb-3 pt-5">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Media Types</h3>
-            </div>
-            <div className="grid min-h-0 w-full grid-cols-2 content-start gap-2 px-6 py-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          <MediaTypeChipRow
+            chips={enabledSections.map((section) => ({
+              id: section.id,
+              label: section.label,
+              targetId: section.id,
+            }))}
+          >
+            <div className="grid min-h-0 w-full grid-cols-2 content-start gap-2 md:grid-cols-3">
               {mediaTypes.map((medium) => {
                 const switchId = `media-type-${medium.name}`
                 const accentColor = getMediaTypeAccentColor(medium.name)
@@ -12532,7 +12524,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                 )
               })}
             </div>
-          </div>
+          </MediaTypeChipRow>
 
             <section id="mba-billing" className="scroll-mt-[18px]">
           {billingOverridesLoadNotice ? (

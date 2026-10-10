@@ -916,7 +916,7 @@ export function ExpertCard<T extends FieldValues>({
   return (
     <Card
       className={cn(
-        "space-y-3 overflow-hidden border border-border/50 transition-colors duration-200 hover:border-[var(--dashboard-border-hover)]",
+        "space-y-3 overflow-hidden border border-border/50 bg-surface-muted shadow-none transition-colors duration-200 hover:border-[var(--dashboard-border-hover)]",
         isNew && "ring-2 ring-status-warning/70 ring-offset-1 ring-offset-background",
         className
       )}

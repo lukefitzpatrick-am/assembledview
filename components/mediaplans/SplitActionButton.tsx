@@ -33,6 +33,10 @@ export type SplitActionButtonProps = {
   menuAlign?: "start" | "end"
   menuMatchTriggerWidth?: boolean
   fullWidth?: boolean
+  /** Extra classes on the split chrome (border, shadow). */
+  className?: string
+  /** Extra classes on the primary and caret buttons. */
+  buttonClassName?: string
 }
 
 function heightClassForSize(size: NonNullable<SplitActionButtonProps["size"]>): string {
@@ -61,6 +65,8 @@ export function SplitActionButton({
   menuAlign = "end",
   menuMatchTriggerWidth = false,
   fullWidth = false,
+  className,
+  buttonClassName,
 }: SplitActionButtonProps) {
   const bothDisabled = disabled || isBusy
   const shownLabel = isBusy ? busyLabel ?? label : label
@@ -93,6 +99,7 @@ export function SplitActionButton({
     "shrink-0 overflow-hidden rounded-pill shadow-sm",
     heightClass,
     variant === "outline" && "border-2 border-input",
+    className,
   )
 
   const primaryClass = cn(
@@ -102,6 +109,7 @@ export function SplitActionButton({
     hideCaret ? "rounded-pill" : "rounded-l-pill",
     fullWidth && "flex-1",
     variant === "outline" && "border-0",
+    buttonClassName,
   )
 
   const caretClass = cn(
@@ -109,6 +117,7 @@ export function SplitActionButton({
     "w-8 rounded-none rounded-r-pill border-l border-border px-0 shadow-none hover:translate-y-0 hover:shadow-none active:scale-100",
     compact && "w-7",
     variant === "outline" && "border-0 border-l border-border",
+    buttonClassName,
   )
 
   const menuItems = menu.map((item) => (

@@ -41,6 +41,7 @@ import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
 import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
 import { CreateDraftLanding } from "@/components/mediaplans/CreateDraftLanding"
+import { MediaTypeChipRow } from "@/components/mediaplans/MediaTypeChipRow"
 import { PlanWizardBottomBar } from "@/components/mediaplans/PlanWizardBottomBar"
 import { useMediaPlanDirtyController } from "@/lib/mediaplan/useMediaPlanDirtyController"
 import { applyChannelTotalPair } from "@/lib/mediaplan/channelTotalChange"
@@ -7677,23 +7678,14 @@ const handleSaveAll = async (opts?: {
   })
 
   const wizardBottomBar = (
-    <>
-      <CampaignExportsSection
-        variant="embedded"
-        mbaNumber={mbaNumber?.trim() ? String(mbaNumber) : "—"}
-        lineItemCount={builderLineItemCount}
-        isBusy={
-          isDownloading ||
-          isDownloadingAa ||
-          isNamingDownloading ||
-          isLoading ||
-          isPlanSaving ||
-          isVersionSaving
-        }
-        ariaStatus=""
-        className="max-w-full justify-center"
-      >
         <PlanWizardBottomBar
+          totals={{
+            budget: wizardSummary.budget,
+            allocated: formatMoney(totalInvestmentAllocated),
+            unallocated: wizardSummary.budgetRemaining,
+            unallocatedTone:
+              budgetRemaining === 0 ? "lime" : budgetRemainingOverspend ? "amber" : "default",
+          }}
           savePublishesImmediately={SAVE_PUBLISHES_IMMEDIATELY}
           isPublished={isPublished}
           primaryLabel={primarySaveLabel}
@@ -7774,8 +7766,6 @@ const handleSaveAll = async (opts?: {
           gateDownloadsOnPublish={false}
           draftBlocksDownloadMessage={draftBlocksDownloadMessage}
         />
-      </CampaignExportsSection>
-    </>
   )
   
   return (
@@ -8181,11 +8171,14 @@ const handleSaveAll = async (opts?: {
                 <p className="text-sm text-muted-foreground">Select channel families and build the active media line items in one continuous flow.</p>
               </div>
 
-              <div className="rounded-card border border-border bg-surface-panel shadow-e0">
-                <div className="border-b border-border bg-[var(--fill-track)] px-6 pb-3 pt-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Media channels</h3>
-                </div>
-                <div className="grid min-h-0 w-full grid-cols-2 content-start gap-2 px-6 py-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              <MediaTypeChipRow
+                chips={selectedChannels.map((channel) => ({
+                  id: channel.name,
+                  label: channel.label,
+                  targetId: `media-section-${channel.name}`,
+                }))}
+              >
+                <div className="grid min-h-0 w-full grid-cols-2 content-start gap-2 md:grid-cols-3">
                 {mediaTypes.filter(medium => medium.name !== "mp_fixedfee").map((medium) => {
                   const accentColor = getMediaTypeAccentColor(medium.name)
                   return (
@@ -8233,7 +8226,7 @@ const handleSaveAll = async (opts?: {
                   )
                 })}
                 </div>
-              </div>
+              </MediaTypeChipRow>
 
             </section>
 

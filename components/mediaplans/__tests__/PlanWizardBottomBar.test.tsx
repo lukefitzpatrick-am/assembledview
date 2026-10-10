@@ -1,6 +1,6 @@
 /**
- * SM-30 / SM-30b — create and edit share PlanWizardBottomBar:
- * Publish, Save draft, then download group (MBA first).
+ * SM-30 / SM-30b — create and edit share PlanWizardBottomBar.
+ * Visible row is Save draft, Files, Publish. Downloads live in the Files menu.
  *
  * @vitest-environment jsdom
  */
@@ -19,6 +19,21 @@ function pointerCaptureShim() {
 }
 
 const NOOP = () => undefined
+
+function buttonByLabel(root: ParentNode, label: string) {
+  return Array.from(root.querySelectorAll("button")).find(
+    (el) => el.textContent?.replace(/\s+/g, " ").trim() === label,
+  )
+}
+
+async function openFiles(container: HTMLElement) {
+  const files = buttonByLabel(container, "Files")
+  expect(files).toBeTruthy()
+  await act(async () => {
+    files!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+    files!.click()
+  })
+}
 
 function renderBar(overrides: Partial<ComponentProps<typeof PlanWizardBottomBar>> = {}) {
   return createElement(PlanWizardBottomBar, {
@@ -73,28 +88,14 @@ describe("PlanWizardBottomBar", () => {
     container.remove()
   })
 
-  it("renders Publish, Save draft, then draft MBA first in the download group", async () => {
+  it("renders Save draft, Files, then Publish, with draft downloads in Files", async () => {
     act(() => {
       root.render(renderBar({ isCreate: true }))
     })
     const labels = Array.from(container.querySelectorAll("button"))
       .map((el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "")
-      .filter(
-        (text) =>
-          text === "Publish" ||
-          text === "Save draft" ||
-          text === "Download draft MBA" ||
-          text === "Download draft Media Plan" ||
-          text === "Media Plan (AA)" ||
-          text === "Generate Naming (Ava)",
-      )
-    expect(labels.slice(0, 5)).toEqual([
-      "Publish",
-      "Save draft",
-      "Download draft MBA",
-      "Download draft Media Plan",
-      "Generate Naming (Ava)",
-    ])
+      .filter((text) => text === "Publish" || text === "Save draft" || text === "Files")
+    expect(labels).toEqual(["Save draft", "Files", "Publish"])
     const allButtonLabels = Array.from(container.querySelectorAll("button")).map(
       (el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "",
     )
@@ -110,26 +111,37 @@ describe("PlanWizardBottomBar", () => {
       "Publishes, then downloads the MBA, media plan and naming as one zip",
     )
     expect(container.querySelector('[aria-label="Save draft menu"]')).not.toBeNull()
-    const mba = Array.from(container.querySelectorAll("button")).find(
-      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "Download draft MBA",
-    )
+    await openFiles(container)
+    const fileLabels = Array.from(document.body.querySelectorAll("button"))
+      .map((el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "")
+      .filter(
+        (text) =>
+          text === "Download draft MBA" ||
+          text === "Download draft Media Plan" ||
+          text === "Generate Naming (Ava)",
+      )
+    expect(fileLabels).toEqual([
+      "Download draft MBA",
+      "Download draft Media Plan",
+      "Generate Naming (Ava)",
+    ])
+    const mba = buttonByLabel(document.body, "Download draft MBA")
     expect(mba?.className).not.toContain("bg-primary")
     expect(mba?.querySelector("svg")).toBeTruthy()
   })
 
-  it("enables draft MBA on create and uses the watermark hint", () => {
+  it("enables draft MBA on create and uses the watermark hint", async () => {
     act(() => {
       root.render(renderBar({ isCreate: true, isPublished: false }))
     })
-    const mba = Array.from(container.querySelectorAll("button")).find(
-      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "Download draft MBA",
-    )
+    await openFiles(container)
+    const mba = buttonByLabel(document.body, "Download draft MBA")
     expect(mba).toBeTruthy()
     expect(mba?.disabled).toBe(false)
     expect(mba?.getAttribute("title")).toBe("Watermarked DRAFT. Clients still have vN.")
   })
 
-  it("edit dirty Published Media Plan calls the published handler, not the draft handler", () => {
+  it("edit dirty Published Media Plan calls the published handler, not the draft handler", async () => {
     let publishedCalls = 0
     let draftCalls = 0
     act(() => {
@@ -148,9 +160,8 @@ describe("PlanWizardBottomBar", () => {
         }),
       )
     })
-    const published = Array.from(container.querySelectorAll("button")).find(
-      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "Published Media Plan (v1)",
-    )
+    await openFiles(container)
+    const published = buttonByLabel(document.body, "Published Media Plan (v1)")
     expect(published).toBeTruthy()
     expect(published?.disabled).toBe(false)
     act(() => {
@@ -160,7 +171,7 @@ describe("PlanWizardBottomBar", () => {
     expect(draftCalls).toBe(0)
   })
 
-  it("edit dirty Published Media Plan (AA) calls the published handler, not the draft handler", () => {
+  it("edit dirty Published Media Plan (AA) calls the published handler, not the draft handler", async () => {
     let publishedCalls = 0
     let draftCalls = 0
     act(() => {
@@ -180,9 +191,8 @@ describe("PlanWizardBottomBar", () => {
         }),
       )
     })
-    const published = Array.from(container.querySelectorAll("button")).find(
-      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "Published Media Plan (AA) (v2)",
-    )
+    await openFiles(container)
+    const published = buttonByLabel(document.body, "Published Media Plan (AA) (v2)")
     expect(published).toBeTruthy()
     expect(published?.disabled).toBe(false)
     act(() => {
@@ -192,7 +202,7 @@ describe("PlanWizardBottomBar", () => {
     expect(draftCalls).toBe(0)
   })
 
-  it("edit dirty shows Draft MBA and Published MBA (vN)", () => {
+  it("edit dirty shows Draft MBA and Published MBA (vN)", async () => {
     act(() => {
       root.render(
         renderBar({
@@ -202,34 +212,33 @@ describe("PlanWizardBottomBar", () => {
         }),
       )
     })
-    const labels = Array.from(container.querySelectorAll("button")).map(
+    await openFiles(container)
+    const labels = Array.from(document.body.querySelectorAll("button")).map(
       (el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "",
     )
     expect(labels).toContain("Draft MBA")
     expect(labels).toContain("Published MBA (v33)")
-    const draft = Array.from(container.querySelectorAll("button")).find(
-      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "Draft MBA",
-    )
+    const draft = buttonByLabel(document.body, "Draft MBA")
     expect(draft?.className).not.toContain("bg-primary")
   })
 
-  it("shows Generating MBA… while busy", () => {
+  it("shows Generating MBA… while busy", async () => {
     act(() => {
       root.render(renderBar({ isPublished: true, mbaBusy: true }))
     })
-    const mba = Array.from(container.querySelectorAll("button")).find((el) =>
+    await openFiles(container)
+    const mba = Array.from(document.body.querySelectorAll("button")).find((el) =>
       el.textContent?.includes("Generating MBA"),
     )
     expect(mba?.textContent).toContain("Generating MBA…")
   })
 
-  it("keeps idle MBA label when downloads are locked for page load", () => {
+  it("keeps idle MBA label when downloads are locked for page load", async () => {
     act(() => {
       root.render(renderBar({ mbaBusy: false, downloadsLocked: true, isPublished: true }))
     })
-    const mba = Array.from(container.querySelectorAll("button")).find(
-      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "MBA",
-    )
+    await openFiles(container)
+    const mba = buttonByLabel(document.body, "MBA")
     expect(mba).toBeTruthy()
     expect(mba?.disabled).toBe(true)
     expect(mba?.textContent).not.toContain("Generating MBA")

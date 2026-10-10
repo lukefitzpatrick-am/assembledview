@@ -15,6 +15,8 @@ export type PlanWizardHeaderProps = {
    * actions on both twins). Never a third row — wrap inside this slot.
    */
   secondary?: ReactNode
+  /** Edit only. Context pill beside the title while the form is dirty. */
+  unpublishedChanges?: boolean
 }
 
 /**
@@ -27,10 +29,22 @@ export function PlanWizardHeader({
   accent,
   lede,
   secondary,
+  unpublishedChanges = false,
 }: PlanWizardHeaderProps) {
+  const heading = unpublishedChanges ? (
+    <span className="inline-flex flex-wrap items-center gap-3">
+      {title}
+      <Badge variant="neutral" size="sm" className="rounded-pill font-sans tracking-normal">
+        Unpublished changes
+      </Badge>
+    </span>
+  ) : (
+    title
+  )
+
   return (
     <div className="mb-2 space-y-3">
-      <PageHeader title={title} accent={accent} lede={lede} />
+      <PageHeader title={heading} accent={accent} lede={lede} />
       {secondary ? <div className="min-w-0">{secondary}</div> : null}
     </div>
   )

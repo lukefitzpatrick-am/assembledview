@@ -643,6 +643,7 @@ export function ChatWidget({
 
   return (
     <div
+      data-ask-ava=""
       className={cn("fixed bottom-6 right-6 z-assistant", className)}
       style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
     >

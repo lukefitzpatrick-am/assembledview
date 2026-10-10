@@ -1,7 +1,8 @@
 "use client"
 
-import { Download, Loader2, MoreHorizontal } from "lucide-react"
+import { Download, Loader2 } from "lucide-react"
 
+import { heroBandSecondaryClassName } from "@/components/brand/HeroBand"
 import { SplitActionButton } from "@/components/mediaplans/SplitActionButton"
 import { Button } from "@/components/ui/button"
 import {
@@ -64,6 +65,16 @@ export type PlanWizardBottomBarProps = {
   } | null
   /** Create only. Downloads the current form as a draft JSON file. */
   onExportDraft?: () => void
+  /**
+   * Draft-summary figures already formatted by the page.
+   * Unallocated is lime at zero and amber when the remaining figure is negative.
+   */
+  totals?: {
+    budget: string
+    allocated: string
+    unallocated: string
+    unallocatedTone?: "lime" | "amber" | "default"
+  } | null
 }
 
 export function PlanWizardBottomBar({
@@ -106,6 +117,7 @@ export function PlanWizardBottomBar({
   draftBlocksDownloadMessage = DRAFT_BLOCKS_DOWNLOAD_MESSAGE,
   failedLoadRetry = null,
   onExportDraft,
+  totals = null,
 }: PlanWizardBottomBarProps) {
   const controls = wizardDownloadControls({
     isCreate,
@@ -133,39 +145,142 @@ export function PlanWizardBottomBar({
   const draftMba = onDraftMba ?? onPublishMba
   const draftMediaPlan = onDraftMediaPlan ?? onDownloadMediaPlan
   const draftAa = onDraftAa ?? onDownloadAa
-  const draftBtnClass =
-    "hidden h-9 shrink-0 rounded-pill border border-border bg-background px-4 py-2 text-foreground hover:bg-muted md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
+  const inkOutline = cn(
+    heroBandSecondaryClassName,
+    "border-am-forest-light bg-transparent shadow-none",
+  )
+  const unallocatedClass =
+    totals?.unallocatedTone === "lime"
+      ? "text-am-lime"
+      : totals?.unallocatedTone === "amber"
+        ? "text-pacing-behind"
+        : "text-am-white"
+
+  type FileItem = {
+    key: string
+    label: string
+    onClick: () => void
+    disabled?: boolean
+    title?: string
+    busy?: boolean
+  }
+  const fileItems: FileItem[] = []
+  if (controls.showDraftGroup) {
+    fileItems.push({
+      key: "draft-mba",
+      label: wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.draftMbaLabel }),
+      onClick: draftMba,
+      disabled: mbaBusy || downloadsLocked,
+      title: draftHint,
+      busy: mbaBusy,
+    })
+    fileItems.push({
+      key: "draft-media-plan",
+      label: controls.draftMediaPlanLabel,
+      onClick: draftMediaPlan,
+      disabled: downloadsBusy,
+      title: draftHint,
+      busy: isDownloading,
+    })
+    if (!draftAaHidden) {
+      fileItems.push({
+        key: "draft-aa",
+        label: controls.draftAaLabel,
+        onClick: draftAa,
+        disabled: aaDisabled,
+        title: draftHint,
+        busy: isDownloadingAa,
+      })
+    }
+  }
+  if (controls.showPublishedGroup) {
+    fileItems.push({
+      key: "published-mba",
+      label: wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.publishedMbaLabel }),
+      onClick: onPublishMba,
+      disabled: mbaBusy || downloadsLocked || !isPublished,
+      title: unpublishedTitle,
+      busy: mbaBusy,
+    })
+    fileItems.push({
+      key: "published-media-plan",
+      label: isDownloading ? "Downloading..." : controls.publishedMediaPlanLabel,
+      onClick: onDownloadMediaPlan,
+      disabled: mediaPlanDisabled,
+      title: gateDownloadsOnPublish ? unpublishedTitle : undefined,
+      busy: isDownloading,
+    })
+    fileItems.push({
+      key: "published-aa",
+      label: isDownloadingAa ? "Creating AA Plan..." : controls.publishedAaLabel,
+      onClick: onDownloadAa,
+      disabled: aaDisabled,
+      title: gateDownloadsOnPublish ? unpublishedTitle : undefined,
+      busy: isDownloadingAa,
+    })
+  }
+  fileItems.push({
+    key: "naming",
+    label: isNamingDownloading ? "Generating Names..." : "Generate Naming (Ava)",
+    onClick: onDownloadNaming,
+    disabled: downloadsBusy,
+    busy: isNamingDownloading,
+  })
+  if (onExportDraft) {
+    fileItems.push({
+      key: "export-draft",
+      label: "Export draft",
+      onClick: onExportDraft,
+    })
+  }
+
+  const primaryMenu = savePublishesImmediately
+    ? [
+        {
+          label: "Publish and exit",
+          hint: "Publishes, then returns to Campaigns",
+          onSelect: onPublishAndExit,
+        },
+        publishAndDownloadAllItem,
+      ]
+    : [
+        {
+          label: isPublished ? "Save draft and exit" : "Save and exit",
+          hint: isPublished
+            ? "Keeps your working draft, then returns to Campaigns"
+            : "Saves, then returns to Campaigns",
+          onSelect: onSaveAndExit,
+        },
+      ]
 
   return (
-    <>
-      <SplitActionButton
-        label={primaryLabel}
-        busyLabel={savePublishesImmediately ? "Publishing…" : "Saving…"}
-        isBusy={isSaving}
-        disabled={saveBarDisabled}
-        title={saveBarTitle}
-        onPrimary={onPrimary}
-        menu={
-          savePublishesImmediately
-            ? [
-                {
-                  label: "Publish and exit",
-                  hint: "Publishes, then returns to Campaigns",
-                  onSelect: onPublishAndExit,
-                },
-                publishAndDownloadAllItem,
-              ]
-            : [
-                {
-                  label: isPublished ? "Save draft and exit" : "Save and exit",
-                  hint: isPublished
-                    ? "Keeps your working draft, then returns to Campaigns"
-                    : "Saves, then returns to Campaigns",
-                  onSelect: onSaveAndExit,
-                },
-              ]
-        }
-      />
+    <div className="flex w-full min-w-0 items-center gap-3 overflow-x-hidden">
+      {totals ? (
+        <div className="flex shrink-0 items-end gap-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-am-muted-on-black">
+              Budget
+            </p>
+            <p className="num text-sm font-semibold text-am-white">{totals.budget}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-am-muted-on-black">
+              Allocated
+            </p>
+            <p className="num text-sm font-semibold text-am-white">{totals.allocated}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-am-muted-on-black">
+              Unallocated
+            </p>
+            <p className={cn("num text-sm font-semibold", unallocatedClass)}>{totals.unallocated}</p>
+          </div>
+        </div>
+      ) : null}
+      <p className="min-w-0 flex-1 truncate text-center text-[11px] leading-snug text-am-muted-on-black">
+        {autosaveStatus}
+      </p>
+      <div className="flex shrink-0 items-center gap-2">
       {failedLoadRetry ? (
         <Button
           type="button"
@@ -174,10 +289,61 @@ export function PlanWizardBottomBar({
           onClick={failedLoadRetry.onRetry}
           disabled={failedLoadRetry.retrying}
           title={failedLoadRetry.reason}
+          className={cn("h-9 rounded-pill", inkOutline)}
         >
           {failedLoadRetry.retrying ? "Retrying…" : failedLoadRetry.retryLabel}
         </Button>
       ) : null}
+      {showSaveDraft ? (
+          <SplitActionButton
+            variant="outline"
+            label="Save draft"
+            onPrimary={onSaveDraft}
+            disabled={saveDraftDisabled}
+            title={saveDraftTitle}
+            className="border-am-forest-light shadow-none"
+            buttonClassName={inkOutline}
+            menu={[
+              {
+                label: "Save draft and exit",
+                hint: "Keeps your working draft, then returns to Campaigns",
+                onSelect: onSaveDraftAndExit,
+                disabled: saveDraftDisabled,
+              },
+            ]}
+          />
+      ) : null}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className={cn("h-9 rounded-pill px-4", inkOutline)}
+          >
+            Files
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="max-h-[70vh] overflow-y-auto">
+          {fileItems.map((item) => (
+            <DropdownMenuItem key={item.key} asChild disabled={item.disabled}>
+              <button
+                type="button"
+                onClick={item.onClick}
+                disabled={item.disabled}
+                title={item.title}
+                className="flex w-full items-center"
+              >
+                {item.busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                <span className="ml-2">{item.label}</span>
+              </button>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
       {showExplicitPublish ? (
         <SplitActionButton
           label="Publish"
@@ -185,6 +351,7 @@ export function PlanWizardBottomBar({
           isBusy={isSaving}
           disabled={saveBarDisabled}
           onPrimary={onExplicitPublish}
+          className="shadow-none"
           menu={[
             {
               label: "Publish and exit",
@@ -195,250 +362,17 @@ export function PlanWizardBottomBar({
           ]}
         />
       ) : null}
-      {showSaveDraft ? (
-        <>
-          <SplitActionButton
-            variant="outline"
-            label="Save draft"
-            onPrimary={onSaveDraft}
-            disabled={saveDraftDisabled}
-            title={saveDraftTitle}
-            menu={[
-              {
-                label: "Save draft and exit",
-                hint: "Keeps your working draft, then returns to Campaigns",
-                onSelect: onSaveDraftAndExit,
-                disabled: saveDraftDisabled,
-              },
-            ]}
-          />
-          {autosaveStatus ? (
-            <span className="hidden max-w-[14rem] text-[11px] leading-snug text-muted-foreground md:inline">
-              {autosaveStatus}
-            </span>
-          ) : null}
-        </>
-      ) : null}
-      <div className="flex items-center gap-2 md:hidden">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-9 rounded-pill px-4 focus-visible:ring-2 focus-visible:ring-ring"
-              disabled={downloadsBusy}
-            >
-              <MoreHorizontal className="mr-1.5 h-4 w-4" />
-              Downloads
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {controls.showDraftGroup ? (
-              <>
-                <DropdownMenuItem
-                  onClick={draftMba}
-                  disabled={mbaBusy || downloadsLocked}
-                  title={draftHint}
-                >
-                  {wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.draftMbaLabel })}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={draftMediaPlan}
-                  disabled={downloadsBusy}
-                  title={draftHint}
-                >
-                  {controls.draftMediaPlanLabel}
-                </DropdownMenuItem>
-                {draftAaHidden ? null : (
-                  <DropdownMenuItem
-                    onClick={draftAa}
-                    disabled={aaDisabled}
-                    title={draftHint}
-                    className="text-am-ink focus:bg-am-lime/25 focus:text-am-ink"
-                  >
-                    {controls.draftAaLabel}
-                  </DropdownMenuItem>
-                )}
-              </>
-            ) : null}
-            {controls.showPublishedGroup ? (
-              <>
-                <DropdownMenuItem
-                  onClick={onPublishMba}
-                  disabled={mbaBusy || downloadsLocked || !isPublished}
-                  title={unpublishedTitle}
-                >
-                  {wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.publishedMbaLabel })}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={onDownloadMediaPlan}
-                  disabled={mediaPlanDisabled}
-                  title={gateDownloadsOnPublish ? unpublishedTitle : undefined}
-                >
-                  {controls.publishedMediaPlanLabel}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={onDownloadAa}
-                  disabled={aaDisabled}
-                  title={gateDownloadsOnPublish ? unpublishedTitle : undefined}
-                  className={cn(
-                    "text-am-ink focus:bg-am-lime/25 focus:text-am-ink",
-                    (!hasAdvertisingAssociatesBilling || downloadBlocked) && "opacity-50",
-                  )}
-                >
-                  {controls.publishedAaLabel}
-                </DropdownMenuItem>
-              </>
-            ) : null}
-            <DropdownMenuItem onClick={onDownloadNaming} disabled={downloadsBusy}>
-              Generate Naming (Ava)
-            </DropdownMenuItem>
-            {onExportDraft ? (
-              <DropdownMenuItem onClick={onExportDraft}>Export draft</DropdownMenuItem>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <SplitActionButton
+        label={primaryLabel}
+        busyLabel={savePublishesImmediately ? "Publishing…" : "Saving…"}
+        isBusy={isSaving}
+        disabled={saveBarDisabled}
+        title={saveBarTitle}
+        onPrimary={onPrimary}
+        className="shadow-none"
+        menu={primaryMenu}
+      />
       </div>
-      {controls.showDraftGroup ? (
-        <Button
-          type="button"
-          onClick={draftMba}
-          disabled={mbaBusy || downloadsLocked}
-          title={draftHint}
-          className={draftBtnClass}
-        >
-          {mbaBusy ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4" />
-          )}
-          <span className="ml-2">
-            {wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.draftMbaLabel })}
-          </span>
-        </Button>
-      ) : null}
-      {controls.showDraftGroup ? (
-        <Button
-          type="button"
-          onClick={draftMediaPlan}
-          disabled={downloadsBusy}
-          title={draftHint}
-          className={draftBtnClass}
-        >
-          {isDownloading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4" />
-          )}
-          <span className="ml-2">{controls.draftMediaPlanLabel}</span>
-        </Button>
-      ) : null}
-      {controls.showDraftGroup && !draftAaHidden ? (
-        <Button
-          type="button"
-          onClick={draftAa}
-          disabled={aaDisabled}
-          title={draftHint}
-          className={cn(draftBtnClass, "text-foreground")}
-        >
-          {isDownloadingAa ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4" />
-          )}
-          <span className="ml-2">{controls.draftAaLabel}</span>
-        </Button>
-      ) : null}
-      {controls.showPublishedGroup ? (
-      <Button
-        type="button"
-        onClick={onPublishMba}
-        disabled={mbaBusy || downloadsLocked || !isPublished}
-        title={unpublishedTitle}
-        className="hidden h-9 shrink-0 rounded-pill bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {mbaBusy ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Download className="h-4 w-4" />
-        )}
-        <span className="ml-2">
-          {wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.publishedMbaLabel })}
-        </span>
-      </Button>
-      ) : null}
-      {controls.showPublishedGroup ? (
-      <Button
-        type="button"
-        onClick={onDownloadMediaPlan}
-        disabled={mediaPlanDisabled}
-        title={gateDownloadsOnPublish ? unpublishedTitle : undefined}
-        className="hidden h-9 shrink-0 rounded-pill bg-accent px-4 py-2 text-foreground hover:bg-accent/90 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {isDownloading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Download className="h-4 w-4" />
-        )}
-        <span className="ml-2">
-          {isDownloading ? "Downloading..." : controls.publishedMediaPlanLabel}
-        </span>
-      </Button>
-      ) : null}
-      {controls.showPublishedGroup ? (
-      <Button
-        type="button"
-        onClick={onDownloadAa}
-        disabled={aaDisabled}
-        title={gateDownloadsOnPublish ? unpublishedTitle : undefined}
-        className={cn(
-          "hidden h-9 shrink-0 rounded-pill bg-am-ink px-4 py-2 text-primary-foreground hover:bg-am-ink/90 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring",
-          (!hasAdvertisingAssociatesBilling || downloadBlocked) && "opacity-50 grayscale",
-        )}
-      >
-        {isDownloadingAa ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Download className="h-4 w-4" />
-        )}
-        <span className="ml-2">
-          {isDownloadingAa ? "Creating AA Plan..." : controls.publishedAaLabel}
-        </span>
-      </Button>
-      ) : null}
-      {onExportDraft ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              className="hidden h-9 shrink-0 rounded-pill border border-border bg-background px-4 py-2 text-foreground hover:bg-muted md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              Draft file
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onExportDraft}>Export draft</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
-      <div className="hidden items-center gap-2 md:flex">
-        <Button
-          type="button"
-          onClick={onDownloadNaming}
-          disabled={downloadsBusy}
-          className="h-9 shrink-0 rounded-pill border-border px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {isNamingDownloading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4" />
-          )}
-          <span className="ml-2">
-            {isNamingDownloading ? "Generating Names..." : "Generate Naming (Ava)"}
-          </span>
-        </Button>
-      </div>
-    </>
+    </div>
   )
 }
