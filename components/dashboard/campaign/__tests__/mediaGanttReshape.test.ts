@@ -3,6 +3,7 @@ import test from "node:test"
 
 import { reshapeLineItemsToMediaGantt } from "../mediaGanttReshape.js"
 import type { NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
+import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 
 function item(overrides: Partial<NormalisedLineItem> = {}): NormalisedLineItem {
   return {
@@ -20,6 +21,32 @@ function item(overrides: Partial<NormalisedLineItem> = {}): NormalisedLineItem {
     ...overrides,
   } as NormalisedLineItem
 }
+
+test("flighting marks an in-range burst active and a finished burst context", () => {
+  const today = getMelbourneTodayISO()
+  const gantt = reshapeLineItemsToMediaGantt(
+    {
+      search: [
+        item({
+          lineItemId: "live",
+          bursts: [{ startDate: today, endDate: today, deliverables: 10, deliverablesAmount: 10, budget: 1 }],
+        }),
+        item({
+          lineItemId: "done",
+          bursts: [{ startDate: "2000-01-05", endDate: "2000-01-20", deliverables: 10, deliverablesAmount: 10, budget: 1 }],
+        }),
+      ],
+    },
+    "2000-01-01",
+    "2099-12-31",
+    "weekly",
+    undefined,
+    true,
+  )
+  assert.ok(gantt)
+  const tones = gantt!.rows.map((row) => row.bursts[0]?.tone)
+  assert.deepEqual(tones, ["active", "context"])
+})
 
 test("weekly month bands follow calendar months (variable week spans)", () => {
   const gantt = reshapeLineItemsToMediaGantt(

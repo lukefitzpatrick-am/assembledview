@@ -27,6 +27,8 @@ export interface GanttBurst {
   intensity?: number;       // 0..1 — weight/share, drives fill opacity
   /** Delivered ÷ planned. Visual width is capped at 1; omit for planned-only bars. */
   fillRatio?: number;
+  /** Flighting palette. Active is forest; past or future is context. */
+  tone?: "active" | "context";
 }
 export interface GanttRow {
   label: string;            // line item (publisher / placement)
@@ -100,6 +102,13 @@ export function MediaGanttChart({
     }
     row.bursts.forEach((b, bi) => {
       const bx = wx(b.startWeek), bw = weekW * (b.endWeek - b.startWeek) - 3, by = y + rowHeight / 2 - 9, bh = 18;
+      if (b.tone === "active" || b.tone === "context") {
+        const fill = b.tone === "active" ? BRAND.colour.forest : BRAND.colour.context;
+        const labelFill = b.tone === "active" ? BRAND.colour.white : BRAND.colour.ink;
+        els.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={fill} />);
+        if (bw > 48 && b.label) els.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill={labelFill} style={TAB}>{b.label}</text>);
+        return;
+      }
       const fillRatio = b.fillRatio;
       const hasDeliveryFill = typeof fillRatio === "number" && Number.isFinite(fillRatio);
       const fillW = hasDeliveryFill ? round(bw * Math.min(1, Math.max(0, fillRatio))) : round(bw);

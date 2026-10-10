@@ -237,7 +237,9 @@ export default function MediaPlanVizSection({
     <Panel className="border-border/60 bg-card shadow-sm">
       <PanelHeader className="flex flex-col gap-3 border-b border-border/60">
         <div className="flex items-center justify-between gap-2">
-          <PanelTitle className="text-base">Media plan</PanelTitle>
+          <PanelTitle className="text-base">
+            {view === "timeline" ? "Flighting." : "Media plan"}
+          </PanelTitle>
           <Badge variant="outline" className="rounded-full">
             {lineItemCount} line items
           </Badge>
@@ -317,14 +319,20 @@ export default function MediaPlanVizSection({
 
       <PanelContent standalone className="p-4">
         {view === "timeline" ? (
-          <MediaGanttChart
-            ref={timelineRef}
-            lineItems={normalised}
-            startDate={campaignStart || ""}
-            endDate={campaignEnd || ""}
-            granularity={timelineGranularity}
-            deliveredByLineId={deliveredByLineId}
-          />
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Bars show planned bursts. Line marks today.
+            </p>
+            <MediaGanttChart
+              ref={timelineRef}
+              lineItems={normalised}
+              startDate={campaignStart || ""}
+              endDate={campaignEnd || ""}
+              granularity={timelineGranularity}
+              deliveredByLineId={deliveredByLineId}
+              flighting
+            />
+          </div>
         ) : null}
 
         {view === "table" ? (

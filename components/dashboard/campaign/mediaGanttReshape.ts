@@ -112,6 +112,7 @@ export function reshapeLineItemsToMediaGantt(
   endDate: string,
   granularity: MediaGanttGranularity = "weekly",
   deliveredByLineId?: ReadonlyMap<string, number>,
+  flighting = false,
 ): ReshapedMediaGantt | null {
   const safeStart = safeParseDate(startDate)
   const safeEnd = safeParseDate(endDate)
@@ -155,6 +156,7 @@ export function reshapeLineItemsToMediaGantt(
 
   const rows: GanttRow[] = []
   let rowIndex = 0
+  const todayISO = getMelbourneTodayISO()
 
   Object.entries(lineItems || {}).forEach(([mediaType, items]) => {
     if (!Array.isArray(items)) return
@@ -168,7 +170,12 @@ export function reshapeLineItemsToMediaGantt(
       const hasDelivery = lineId != null && deliveredByLineId?.has(lineId) === true
       const delivered = hasDelivery ? (deliveredByLineId!.get(lineId!) ?? 0) : null
 
-      const pendingBursts: Array<{ burst: GanttBurst; deliverables: number }> = []
+      const pendingBursts: Array<{
+        burst: GanttBurst
+        deliverables: number
+        startYmd: string
+        endYmd: string
+      }> = []
 
       item.bursts.forEach((burst) => {
         const barStart = safeParseDate(burst.startDate)
@@ -197,6 +204,8 @@ export function reshapeLineItemsToMediaGantt(
 
         pendingBursts.push({
           deliverables,
+          startYmd: format(barStart, "yyyy-MM-dd"),
+          endYmd: format(barEnd, "yyyy-MM-dd"),
           burst: {
             startWeek,
             endWeek,
@@ -207,7 +216,6 @@ export function reshapeLineItemsToMediaGantt(
 
       if (pendingBursts.length === 0) return
 
-      const todayISO = getMelbourneTodayISO()
       const startsAfterToday =
         earliestStart != null && format(earliestStart, "yyyy-MM-dd") > todayISO
       const startLabel = startsAfterToday && earliestStart && !hasDelivery
@@ -216,12 +224,17 @@ export function reshapeLineItemsToMediaGantt(
       const linePlanned = pendingBursts.reduce((sum, pending) => sum + pending.deliverables, 0)
 
       const intensityBase = rowMaxDeliverables > 0 ? rowMaxDeliverables : 1
-      pendingBursts.forEach(({ burst, deliverables }) => {
+      pendingBursts.forEach(({ burst, deliverables, startYmd, endYmd }) => {
         const planned = linePlanned > 0 ? linePlanned : deliverables
         const deliveryLabel =
           hasDelivery && delivered != null
             ? `${formatDeliverablesDisplay(delivered)} / ${formatDeliverablesDisplay(planned)}`
             : undefined
+        const tone = flighting
+          ? todayISO >= startYmd && todayISO <= endYmd
+            ? "active"
+            : "context"
+          : undefined
         bursts.push({
           ...burst,
           label: deliveryLabel ?? startLabel ?? burst.label,
@@ -231,6 +244,7 @@ export function reshapeLineItemsToMediaGantt(
               : undefined,
           intensity:
             deliverables > 0 ? Math.max(0.35, deliverables / intensityBase) : 0.75,
+          tone,
         })
       })
 

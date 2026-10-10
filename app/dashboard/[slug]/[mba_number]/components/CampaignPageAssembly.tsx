@@ -22,6 +22,7 @@ import type { PageContext } from "@/lib/ava/types"
 
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
 import { CampaignReadSection } from "@/components/dashboard/campaign/CampaignReadSection"
+import { CampaignInsightCards } from "@/components/dashboard/campaign/CampaignInsightCards"
 import { CampaignStatusStrip } from "@/components/dashboard/campaign/CampaignStatusStrip"
 import { ChannelsAtAGlance } from "@/components/dashboard/campaign/ChannelsAtAGlance"
 import { KpiReview } from "@/components/dashboard/campaign/KpiReview"
@@ -538,6 +539,15 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
       planDate: campaign?.plan_date || campaign?.created_at || campaign?.updated_at,
       poNumber: campaign?.po_number || campaign?.poNumber,
       clientContact: campaign?.client_contact || campaign?.contact_name || campaign?.contactName,
+      publishedAt:
+        (typeof campaign?.published_at === "string" && campaign.published_at) ||
+        (typeof campaign?.publishedAt === "string" && campaign.publishedAt) ||
+        undefined,
+      creativeLine:
+        (typeof campaign?.creative_line === "string" && campaign.creative_line) ||
+        (typeof campaign?.creativeLine === "string" && campaign.creativeLine) ||
+        (typeof campaign?.mp_creative_line === "string" && campaign.mp_creative_line) ||
+        undefined,
       expectedSpend,
       actualSpend,
       timeElapsedPct: filteredTimeMetrics.timeElapsedPct,
@@ -712,6 +722,8 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               campaignStart={campaignStartISO ?? startDate ?? undefined}
               campaignEnd={campaignEndISO ?? endDate ?? undefined}
               onAskRead={() => setReadRegenToken((n) => n + 1)}
+              versionId={versionId}
+              canEdit={Boolean(isAdmin)}
             />
           </div>
         </Suspense>
@@ -763,6 +775,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               channelsTotal={coverageCards.length > 0 ? coverageCounts.channelsTotal : undefined}
               aheadChannelName={aheadChannelName}
             />
+            <CampaignInsightCards mbaNumber={mbaNumber} />
             </div>
           </Suspense>
         </SectionBoundary>
