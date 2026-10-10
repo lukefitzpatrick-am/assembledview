@@ -2,6 +2,10 @@ import type ExcelJS from 'exceljs';
 import { prorateAcrossMonths } from '@/lib/billing/prorateAcrossMonths';
 import { getMelbourneTodayISO } from '@/lib/dates/melbourne';
 import { fromCents, parseMoney } from '@/lib/money';
+import {
+  allocateLineAcrossMonths,
+  dollarsFromPartCents,
+} from '@/lib/docs/allocateLineAcrossMonths';
 import { BRAND, hexToArgb, readableTextOn } from '@/lib/brand';
 import { familyColour, MEDIA_TYPE_FAMILY, type MediaTypeThemeKey } from '@/lib/design/mediaFamilies';
 import { formatBuyTypeForExport } from '@/lib/mediaplan/buyTypeLabels';
@@ -1945,20 +1949,20 @@ export async function generateMediaPlan(
         return sum + (monthlyByChannel[key]?.[monthYear] ?? 0);
       }, 0);
     }
-    const totalGrossMediaFromMonths = Object.values(monthlyGrandTotals).reduce((s, v) => s + v, 0);
 
     const serviceFeeTotal = mbaData?.totals?.service_fee ?? 0;
     const adServingTotal = mbaData?.totals?.adserving ?? 0;
-
-    const monthlyServiceFee: Record<string, number> = {};
-    const monthlyAdServing: Record<string, number> = {};
-    for (const { monthYear } of monthRanges) {
-      const ratio = totalGrossMediaFromMonths > 0
-        ? (monthlyGrandTotals[monthYear] ?? 0) / totalGrossMediaFromMonths
-        : 0;
-      monthlyServiceFee[monthYear] = serviceFeeTotal * ratio;
-      monthlyAdServing[monthYear] = adServingTotal * ratio;
-    }
+    const monthKeys = monthRanges.map((range) => range.monthYear);
+    const monthlyServiceFee = allocateLineAcrossMonths({
+      lineTotal: serviceFeeTotal,
+      monthKeys,
+      weights: monthlyGrandTotals,
+    });
+    const monthlyAdServing = allocateLineAcrossMonths({
+      lineTotal: adServingTotal,
+      monthKeys,
+      weights: monthlyGrandTotals,
+    });
 
     const summaryRowFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_SAND } };
 
@@ -2088,8 +2092,13 @@ export async function generateMediaPlan(
       }, 0);
       const productionForMonth = monthlyByChannel["production"]?.[monthYear] ?? 0;
       const totalForMonth = mbaTotalsLayout === 'standard'
-        ? grossForMonth + productionForMonth + (monthlyServiceFee[monthYear] ?? 0) + (monthlyAdServing[monthYear] ?? 0)
-        : grossForMonth + productionForMonth;
+        ? dollarsFromPartCents([
+            grossForMonth,
+            productionForMonth,
+            monthlyServiceFee[monthYear] ?? 0,
+            monthlyAdServing[monthYear] ?? 0,
+          ])
+        : dollarsFromPartCents([grossForMonth, productionForMonth]);
       if (startCol < endCol) {
         try {
           sheet.mergeCells(currentRow, startCol, currentRow, endCol);
