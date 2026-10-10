@@ -7,6 +7,7 @@ import { BillingMonthChipRow } from "../../../../components/finance/sections/inv
 import { BillingStatCards } from "../../../../components/finance/sections/invoicing/BillingStatCards.js"
 import {
   billingDifferencePill,
+  billingInXeroCell,
   billingMonthChipLabel,
   fyBillingMonthChips,
   pressedBillingMonth,
@@ -96,6 +97,21 @@ test("month chip row uses the lime active style", () => {
   assert.ok(html.includes("bg-accent"))
   assert.ok(html.includes(">Oct<"))
   assert.ok(html.includes(">Sep<"))
+})
+
+test("paid and issued rows without a Xero amount read In Xero; ready reads Not in Xero", () => {
+  const paid = billingInXeroCell("paid", null)
+  const issued = billingInXeroCell("issued", null)
+  const ready = billingInXeroCell("ready", null)
+  assert.equal(paid.text, "In Xero")
+  assert.equal(issued.text, "In Xero")
+  assert.equal(ready.text, "Not in Xero")
+  assert.equal(paid.kind, "in_xero")
+  if (paid.kind === "in_xero") {
+    assert.equal(paid.title, "Xero amount not loaded on this page")
+  }
+  assert.equal(billingInXeroCell("paid", 120).kind, "amount")
+  assert.equal(billingDifferencePill(100, null), null)
 })
 
 test("difference pill only when a Xero figure exists", () => {

@@ -1,8 +1,8 @@
 /**
  * Presentation sums for the Clients billing stat cards and the Difference pill.
  * Dollars are loaded `record.total` grouped by the derived billing state.
- * A Xero subtotal is not on the client record, so the Difference pill stays
- * empty unless a caller already has that figure.
+ * A loaded `xero_amount` fills In Xero and the Difference pill. Without it,
+ * drafted, issued, issued outside AV, paid and overdue still read "In Xero".
  */
 
 import type { BillingState } from "@/lib/finance/billingLifecycle"
@@ -94,6 +94,47 @@ export function pressedBillingMonth(
   const current = getCurrentBillingMonth(today)
   if (months.includes(current) && current >= range.from && current <= range.to) return current
   return null
+}
+
+const IN_XERO_WITHOUT_AMOUNT = new Set<BillingState>([
+  "drafted",
+  "issued",
+  "issued_outside_av",
+  "paid",
+  "overdue",
+])
+
+export type BillingInXeroCell =
+  | { kind: "amount"; text: string }
+  | { kind: "in_xero"; text: "In Xero"; title: "Xero amount not loaded on this page" }
+  | { kind: "absent"; text: "Not in Xero" }
+
+/** Dollars already on the row. The invoicing overlay does not copy the Xero subtotal. */
+export function xeroAmountOnBillingRecord(record: { xero_amount?: number | null }): number | null {
+  const value = record.xero_amount
+  if (value == null || !Number.isFinite(value)) return null
+  return value
+}
+
+/**
+ * In Xero column. A loaded dollar wins. Drafted, issued, issued outside AV,
+ * paid and overdue are in Xero even when that dollar is not on the page.
+ */
+export function billingInXeroCell(
+  state: BillingState | null | undefined,
+  xeroDollars: number | null | undefined,
+): BillingInXeroCell {
+  if (xeroDollars != null && Number.isFinite(xeroDollars)) {
+    return { kind: "amount", text: formatAUD(xeroDollars) }
+  }
+  if (state != null && IN_XERO_WITHOUT_AMOUNT.has(state)) {
+    return {
+      kind: "in_xero",
+      text: "In Xero",
+      title: "Xero amount not loaded on this page",
+    }
+  }
+  return { kind: "absent", text: "Not in Xero" }
 }
 
 export function billingDifferencePill(

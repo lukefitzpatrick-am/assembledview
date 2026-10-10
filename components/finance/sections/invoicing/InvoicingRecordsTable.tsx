@@ -7,7 +7,12 @@ import { Badge } from "@/components/ui/badge"
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table"
 import { formatAUD } from "@/lib/format/money"
 import { formatDateShort } from "@/lib/format/date"
-import { billingDifferencePill, billingMonthChipLabel } from "@/lib/finance/sections/billingPresentation"
+import {
+  billingDifferencePill,
+  billingInXeroCell,
+  billingMonthChipLabel,
+  xeroAmountOnBillingRecord,
+} from "@/lib/finance/sections/billingPresentation"
 import type { InvoicingClientBlockerMeta } from "@/lib/finance/sections/invoicingRowPresentation"
 import type { InlineScheduleEditContext } from "@/lib/finance/commitInlineScheduleAmountEdit"
 import { receivableRecordSectionLabel, type MediaPlanGroup } from "@/lib/finance/useReceivablesData"
@@ -96,9 +101,20 @@ export function InvoicingRecordsTable({
       {
         id: "inXero",
         header: "In Xero",
-        accessor: () => null,
+        accessor: (row) => xeroAmountOnBillingRecord(row.record),
         sortable: false,
-        cell: () => <span className="text-muted-foreground">Not in Xero</span>,
+        cell: (row) => {
+          const cell = billingInXeroCell(row.record.state ?? "ready", xeroAmountOnBillingRecord(row.record))
+          if (cell.kind === "amount") return <span className="num">{cell.text}</span>
+          if (cell.kind === "in_xero") {
+            return (
+              <span className="text-muted-foreground" title={cell.title}>
+                {cell.text}
+              </span>
+            )
+          }
+          return <span className="text-muted-foreground">{cell.text}</span>
+        },
       },
       {
         id: "difference",
@@ -106,7 +122,7 @@ export function InvoicingRecordsTable({
         accessor: () => null,
         sortable: false,
         cell: (row) => {
-          const pill = billingDifferencePill(row.record.total, null)
+          const pill = billingDifferencePill(row.record.total, xeroAmountOnBillingRecord(row.record))
           if (!pill) return null
           return (
             <Badge size="sm" variant={pill.tone}>

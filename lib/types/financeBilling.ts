@@ -130,6 +130,11 @@ export interface BillingRecord {
   state_reason?: string
   /** True when the matched Xero subtotal differs from expected by more than $1. */
   needs_attention?: boolean
+  /**
+   * Xero ex-GST dollars when a caller already put them on the row.
+   * The invoicing overlay does not load this.
+   */
+  xero_amount?: number | null
 }
 
 export interface BillingEdit {
