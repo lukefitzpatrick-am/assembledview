@@ -1,5 +1,4 @@
 import { cpc, cpm, ctr } from "@/lib/money/rates"
-import { computeCampaignDays, computeDaysPassed, computeExpectedPct } from "@/lib/pacing/maths"
 
 /**
  * CPM, CPC and CTR for one window. CTR is a decimal. videoViews3s is null
@@ -37,28 +36,6 @@ export function campaignReportPeriodMetrics(input: {
         ? input.spend / expected
         : null,
   }
-}
-
-/**
- * Same expected figure the period summary already shows: media planned budget
- * times the elapsed share of the flight. Null when the flight or the budget
- * is missing. Zero when the flight has not started.
- */
-export function expectedMediaToDate(input: {
-  plannedBudget: number
-  startISO: string | null | undefined
-  endISO: string | null | undefined
-  asOfISO: string
-}): { expectedSpendToDate: number | null; timeElapsedPct: number | null } {
-  const { plannedBudget, startISO, endISO, asOfISO } = input
-  if (!startISO || !endISO || !(plannedBudget > 0)) {
-    return { expectedSpendToDate: null, timeElapsedPct: null }
-  }
-  const elapsed = computeExpectedPct(
-    computeDaysPassed(startISO, endISO, asOfISO),
-    computeCampaignDays(startISO, endISO),
-  )
-  return { expectedSpendToDate: plannedBudget * elapsed, timeElapsedPct: elapsed }
 }
 
 /** Channel expected uses the campaign elapsed share already on the summary. */

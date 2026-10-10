@@ -8,6 +8,7 @@ import "server-only"
 import type { DeliveryState } from "@/lib/delivery/deliveryState"
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import type { DeliveryChannelGroup, DeliveryLineSnapshot } from "@/lib/ava/tools/summaries"
+import { readPlanVersionsByMba } from "@/lib/data/readMediaPlans"
 import { fetchCampaignKpis } from "@/lib/kpi/campaignKpi"
 import {
   classifyStoredKpiPercentForScan,
@@ -21,14 +22,18 @@ import {
   type CampaignReportPeriodKind,
   type ResolvedCampaignReportPeriod,
 } from "@/lib/reports/campaignReport/periods"
-import { getAsOfDate } from "@/lib/pacing/maths"
+import { computeCampaignDays, computeDaysPassed, computeExpectedPct, getAsOfDate } from "@/lib/pacing/maths"
 import { formatReportInt, formatReportMoney } from "@/lib/reports/campaignReport/formatters"
 import { generateReportCommentary } from "@/lib/reports/campaignReport/generateReportCommentary"
 import {
+  expectedMediaForReportWindow,
+  reportPeriodIsSlice,
+} from "@/lib/reports/campaignReport/expectedMedia"
+import {
   expectedMediaAtElapsed,
-  expectedMediaToDate,
   type CampaignReportPeriodMetrics,
 } from "@/lib/reports/campaignReport/periodMetrics"
+import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
 import {
   isBlankKpiTarget,
   rateMetricsFromLines,
@@ -290,7 +295,7 @@ export async function assembleCampaignReportData(
     ? clipWindowToCampaign(period.previous, input.campaignStartISO, input.campaignEndISO)
     : null
 
-  const [currentSnap, previousSnap, kpiRows] = await Promise.all([
+  const [currentSnap, previousSnap, kpiRows, versions] = await Promise.all([
     loadDeliverySnapshot({
       mbaNumber,
       versionNumber: input.versionNumber,
@@ -310,6 +315,13 @@ export async function assembleCampaignReportData(
     input.versionNumber != null && Number.isFinite(input.versionNumber)
       ? fetchCampaignKpis(mbaNumber, input.versionNumber).catch(() => [] as CampaignKPI[])
       : Promise.resolve([] as CampaignKPI[]),
+    readPlanVersionsByMba(mbaNumber).catch((err) => {
+      console.error("[campaign-report] plan version schedules failed", {
+        mbaNumber,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return [] as Record<string, unknown>[]
+    }),
   ])
 
   const prevByGroup = previousSnap ? indexChannels(previousSnap.channels) : new Map()
@@ -320,22 +332,40 @@ export async function assembleCampaignReportData(
   const start = input.campaignStartISO ?? currentWindow.startISO
   const end = input.campaignEndISO ?? currentWindow.endISO
   const asOf = currentSnap.asOf || getAsOfDate()
-  const currentExpected = expectedMediaToDate({
-    plannedBudget,
-    startISO: start,
-    endISO: end,
-    asOfISO: asOf,
+  const versionNumber = input.versionNumber ?? currentSnap.versionNumber
+  const version =
+    versions.find((row) => Number(row.version_number) === versionNumber) ??
+    versions.find((row) => row.published_at)
+  const deliverySchedule = version?.deliverySchedule
+  const scheduleInput = {
+    billingSchedule: version?.billingSchedule ?? null,
+    deliverySchedule,
+    monthlySpend: resolveMonthlySpendForPlan(undefined, undefined, deliverySchedule),
+    campaignStartISO: start,
+    campaignEndISO: end,
+  }
+  const periodSlice = reportPeriodIsSlice(period.kind)
+  const expectedSpendToDate = expectedMediaForReportWindow({
+    ...scheduleInput,
+    windowStartISO: currentWindow.startISO,
+    windowEndISO: currentWindow.endISO,
+    periodSlice,
   })
-  const previousExpected = previousWindow
-    ? expectedMediaToDate({
-        plannedBudget,
-        startISO: start,
-        endISO: end,
-        asOfISO: previousWindow.endISO,
+  const previousExpectedSpend = previousWindow
+    ? expectedMediaForReportWindow({
+        ...scheduleInput,
+        windowStartISO: previousWindow.startISO,
+        windowEndISO: previousWindow.endISO,
+        periodSlice: true,
       })
     : null
-  const expectedSpendToDate = currentExpected.expectedSpendToDate
-  const timeElapsedPct = currentExpected.timeElapsedPct
+  const timeElapsedPct =
+    start && end
+      ? computeExpectedPct(
+          computeDaysPassed(start, end, currentWindow.endISO),
+          computeCampaignDays(start, end),
+        )
+      : null
 
   const flight = { startISO: start, endISO: end }
   const channels: CampaignReportChannelRow[] = currentSnap.channels.map((ch) => {
@@ -348,7 +378,15 @@ export async function assembleCampaignReportData(
     const previousRates = previousSnap
       ? rateMetricsFromLines(
           prev ? linesForRates(prev.lines) : [],
-          expectedMediaAtElapsed(planned, previousExpected?.timeElapsedPct ?? null),
+          expectedMediaAtElapsed(
+            planned,
+            previousWindow && start && end
+              ? computeExpectedPct(
+                  computeDaysPassed(start, end, previousWindow.endISO),
+                  computeCampaignDays(start, end),
+                )
+              : null,
+          ),
         )
       : null
     return {
@@ -407,7 +445,7 @@ export async function assembleCampaignReportData(
       previousMetrics: previousSnap
         ? rateMetricsFromLines(
             linesForRates(previousSnap.channels.flatMap((ch) => ch.lines)),
-            previousExpected?.expectedSpendToDate ?? null,
+            previousExpectedSpend,
           ).metrics
         : null,
     },

@@ -129,7 +129,11 @@ export const getDeliverySnapshotTool: AvaTool = {
               monthlySpend: resolveMonthlySpendForPlan(undefined, undefined, version.deliverySchedule),
               campaignStartISO,
               campaignEndISO,
-              monthlyOpts: { campaignStartISO, campaignEndISO },
+              monthlyOpts: {
+                campaignStartISO,
+                campaignEndISO,
+                asOfISO: snapshot.asOf,
+              },
             },
             deliveredSpendToDate: summarised.reportedTotals.spendToDate,
             asOf: snapshot.asOf,
