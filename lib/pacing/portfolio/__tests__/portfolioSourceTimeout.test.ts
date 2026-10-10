@@ -183,6 +183,72 @@ test(
 )
 
 test(
+  "versions imply 3 live campaigns and rows hold 2: warn with the missing id, still upsert",
+  { skip },
+  async () => {
+    resetSources()
+    state.search = async () =>
+      input.search.filter(
+        (row) => row.mbaNumber === "letsgo001" || row.mbaNumber === "jayco001",
+      )
+    state.social = async () => []
+    state.programmatic = async () => []
+    state.adServing = async () => []
+    state.direct = async () => []
+    const live = (mba: string) => ({
+      mba_number: mba,
+      campaign_status: "booked",
+      campaign_start_date: "2026-07-01",
+      campaign_end_date: "2026-12-31",
+    })
+    state.versions = async () => [
+      live("letsgo001"),
+      live("jayco001"),
+      live("missing001"),
+      {
+        mba_number: "done001",
+        campaign_status: "completed",
+        campaign_start_date: "2026-07-01",
+        campaign_end_date: "2026-12-31",
+      },
+    ]
+    const { buildAndStorePortfolioSnapshot } = await import(
+      "../buildAndStorePortfolioSnapshot.js"
+    )
+    const lines: string[] = []
+    const prev = console.log
+    console.log = (...args: unknown[]) => {
+      lines.push(args.map((part) => String(part)).join(" "))
+    }
+    try {
+      await buildAndStorePortfolioSnapshot(buildArgs())
+    } finally {
+      console.log = prev
+    }
+
+    assert.equal(upsert.mock.callCount(), 1)
+    const warning = lines
+      .map((line) => {
+        try {
+          return JSON.parse(line) as {
+            event?: string
+            counts?: { live?: number }
+            expectedLive?: number
+            missingCampaignIds?: string[]
+          }
+        } catch {
+          return null
+        }
+      })
+      .find((row) => row?.event === "pacing_portfolio_live_count_low")
+    assert.ok(warning)
+    assert.equal(warning.counts?.live, 2)
+    assert.equal(warning.expectedLive, 3)
+    assert.deepEqual(warning.missingCampaignIds, ["missing001"])
+  },
+)
+
+test(
   "a versions-read timeout still throws and does not upsert",
   { skip },
   async () => {

@@ -19,7 +19,8 @@ import {
   PORTFOLIO_SOURCE_TIMEOUT_MS,
   type PortfolioSourceTiming,
 } from "@/lib/pacing/portfolio/loadPortfolioChannelSources"
-import type { CampaignScheduleInput } from "@/lib/pacing/portfolio/types"
+import type { CampaignPacingRow, CampaignScheduleInput } from "@/lib/pacing/portfolio/types"
+import { isLiveCampaignStatus } from "@/lib/types/mediaPlanMaster"
 
 export type BuildCampaignPacingRowsArgs = {
   asOfDate: string
@@ -58,6 +59,28 @@ function scheduleFromVersion(row: Record<string, unknown>): CampaignScheduleInpu
   }
 }
 
+/**
+ * Distinct campaign ids from the versions read that pass the builder's live gate
+ * (`isLiveCampaignStatus` on the version row's status and dates).
+ */
+export function liveCampaignIdsFromVersions(
+  versions: Record<string, unknown>[],
+  asOfDate: string,
+): string[] {
+  const seen = new Map<string, string>()
+  for (const row of versions) {
+    const mba = String(row.mba_number ?? "").trim()
+    const key = normMba(mba)
+    if (!key) continue
+    const status = row.campaign_status == null ? null : String(row.campaign_status)
+    const start = row.campaign_start_date == null ? null : String(row.campaign_start_date)
+    const end = row.campaign_end_date == null ? null : String(row.campaign_end_date)
+    if (!isLiveCampaignStatus(status, start, end, asOfDate)) continue
+    if (!seen.has(key)) seen.set(key, mba)
+  }
+  return [...seen.values()]
+}
+
 /** Keys `${mba}:${versionNumber}` plus mba-only for published_at rows (never max vn). */
 export function schedulesByMbaFromVersions(
   versions: Record<string, unknown>[],
@@ -82,7 +105,7 @@ export function schedulesByMbaFromVersions(
  */
 export async function buildCampaignPacingRows(
   args: BuildCampaignPacingRowsArgs,
-) {
+): Promise<{ rows: CampaignPacingRow[]; expectedLiveIds: string[] }> {
   const liveOnly = args.liveOnly !== false
   const startedAt = args.startedAt ?? Date.now()
   const timings: PortfolioSourceTiming[] = []
@@ -125,13 +148,17 @@ export async function buildCampaignPacingRows(
     throw new Error(`portfolio source timeout: ${timedOutSource.source}`)
   }
 
-  return assembleCampaignPacingRows({
+  const rows = assembleCampaignPacingRows({
     asOfDate: args.asOfDate,
     allowedClientSlugs: args.allowedClientSlugs,
     liveOnly,
     ...sources,
     schedulesByMba: schedulesByMbaFromVersions(versions),
   })
+  return {
+    rows,
+    expectedLiveIds: liveCampaignIdsFromVersions(versions, args.asOfDate),
+  }
 }
 
 export { assembleCampaignPacingRows, countPortfolioRows }

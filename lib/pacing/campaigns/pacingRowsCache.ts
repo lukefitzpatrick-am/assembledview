@@ -95,7 +95,8 @@ export async function getCachedPortfolioPacingRows(
       const { buildCampaignPacingRows } = await import(
         "@/lib/pacing/portfolio/buildCampaignPacingRows"
       )
-      return buildCampaignPacingRows({ asOfDate, allowedClientSlugs, liveOnly })
+      const built = await buildCampaignPacingRows({ asOfDate, allowedClientSlugs, liveOnly })
+      return built.rows
     },
     ["pacing-rows", "portfolio", asOfDate, scopeKey, liveKey],
     { revalidate: REVALIDATE_SECONDS, tags: [PACING_CAMPAIGNS_TAG] }

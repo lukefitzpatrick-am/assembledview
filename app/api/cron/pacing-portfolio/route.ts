@@ -13,7 +13,7 @@ export const preferredRegion = ["syd1"]
 
 /**
  * Build the admin-scope daily portfolio snapshot for today's Melbourne as-of.
- * Auth: CRON_SECRET. Cron: 0 21 * * * (07:00 Melbourne, after the 06:30 warehouse refresh).
+ * Auth: CRON_SECRET. Cron: 0 21 * * * — 21:00 UTC (08:00 Melbourne AEDT, 07:00 AEST), after the 06:30 warehouse refresh.
  */
 export async function GET(request: Request) {
   if (!assertCronSecret(request)) {
