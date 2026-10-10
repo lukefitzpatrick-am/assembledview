@@ -19,6 +19,7 @@ export async function buildAndStorePortfolioSnapshot(
     allowedClientSlugs,
     liveOnly: args.liveOnly,
     startedAt: args.startedAt,
+    perSourceTimeoutMs: args.perSourceTimeoutMs,
   })
   console.log(
     JSON.stringify({

@@ -111,11 +111,18 @@ export async function buildCampaignPacingRows(
     ])
   } catch (err) {
     logPortfolioSourceTiming(startedAt, timings)
+    if (err instanceof Error && err.message === "portfolio source timeout: versions") {
+      throw new Error("portfolio versions read timed out")
+    }
     throw err
   }
   logPortfolioSourceTiming(startedAt, timings)
   if (timings.some((row) => row.source === "versions" && row.timedOut)) {
     throw new Error("portfolio versions read timed out")
+  }
+  const timedOutSource = timings.find((row) => row.timedOut)
+  if (timedOutSource) {
+    throw new Error(`portfolio source timeout: ${timedOutSource.source}`)
   }
 
   return assembleCampaignPacingRows({

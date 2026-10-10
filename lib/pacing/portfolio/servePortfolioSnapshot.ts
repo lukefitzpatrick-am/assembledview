@@ -17,6 +17,8 @@ export type BuildPortfolioSnapshotArgs = {
   allowedClientSlugs: Set<string> | null
   /** Request start, so the 240s budget includes work before the builder. */
   startedAt?: number
+  /** Unset on the serving path, so each source keeps the 90s cap. */
+  perSourceTimeoutMs?: number
 }
 
 export type ServePortfolioSnapshotArgs = {

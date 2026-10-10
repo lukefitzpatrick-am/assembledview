@@ -44,23 +44,29 @@ describe("loadPortfolioChannelSources", () => {
     )
   })
 
-  it("a source that misses its timeout contributes no rows", async () => {
+  it("a source that misses its timeout fails the load and names the source", async () => {
     const input = p6AssembleInput()
     const timings: PortfolioSourceTiming[] = []
-    const result = await loadPortfolioChannelSources(
-      { asOfDate: input.asOfDate, allowedClientSlugs: input.allowedClientSlugs },
-      {
-        search: async () => input.search,
-        social: () => new Promise(() => {}),
-        programmatic: async () => input.programmatic,
-        adServing: async () => input.adServing,
-        direct: async () => input.direct,
+    await assert.rejects(
+      () =>
+        loadPortfolioChannelSources(
+          { asOfDate: input.asOfDate, allowedClientSlugs: input.allowedClientSlugs },
+          {
+            search: async () => input.search,
+            social: () => new Promise(() => {}),
+            programmatic: async () => input.programmatic,
+            adServing: async () => input.adServing,
+            direct: async () => input.direct,
+          },
+          { parallel: true, perSourceTimeoutMs: 40, overallBudgetMs: 240_000, timings },
+        ),
+      (err: unknown) => {
+        assert.ok(err instanceof Error)
+        assert.equal(err.message, "portfolio source timeout: social")
+        return true
       },
-      { parallel: true, perSourceTimeoutMs: 40, overallBudgetMs: 240_000, timings },
     )
 
-    assert.equal(result.social.length, 0)
-    assert.equal(result.search.length, input.search.length)
     assert.equal(timings.find((row) => row.source === "social")?.timedOut, true)
     assert.equal(timings.find((row) => row.source === "search")?.timedOut, false)
     assert.ok((timings.find((row) => row.source === "search")?.rowCount ?? 0) > 0)

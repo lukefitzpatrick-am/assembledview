@@ -130,14 +130,15 @@ async function loadBounded<T>(
     })
     return rows
   } catch (err) {
+    const timedOut = isSourceTimeout(err)
     timings?.push({
       source,
       ms: Date.now() - started,
       rowCount: 0,
-      timedOut: isSourceTimeout(err),
+      timedOut,
     })
-    if (!isSourceTimeout(err)) throw err
-    return []
+    if (!timedOut) throw err
+    throw new Error(`portfolio source timeout: ${source}`)
   }
 }
 
