@@ -2082,3 +2082,118 @@ Checks:
   - `postgresSavePayload.integration.test.ts` “both pages host banners under the header and keep buttons in bottomBar” — the create wizard bar no longer contains `CampaignExportsSection`; those downloads are in the Files menu.
 - No snapshot updates.
 
+## AV-P1 DONE aee4bc3a
+
+Commit `aee4bc3a` `fix(pacing): a source timeout fails the portfolio build instead of storing a partial snapshot`.
+
+`loadBounded` still returned `[]` on `portfolio source timeout` (confirmed before the edit). It now records the timing row and throws `portfolio source timeout: <source>`. `buildCampaignPacingRows` logs `pacing_portfolio_source_timing` and rethrows. A versions timeout is rewritten to the existing `portfolio versions read timed out`. If any timing is `timedOut` after the loads return (the overall-budget path still returns `[]` without the timeout error), the build throws before `assembleCampaignPacingRows`. `buildAndStorePortfolioSnapshot` has no catch, so that throw never reaches `upsertPortfolioSnapshot`. A successful read of zero rows is still assembled and upserted.
+
+Callers were not changed.
+
+- Cron `app/api/cron/pacing-portfolio/route.ts`: the `catch` logs `[cron/pacing-portfolio] fatal` and returns `NextResponse.json({ status: "error", message }, { status: 500 })`.
+- Admin inline: `servePortfolioSnapshot` awaits `buildAndStore` with no catch (`if (args.isAdmin) { const built = await args.buildAndStore(...) }`). `GET /api/pacing/portfolio` catches that and returns `{ error: "internal_error" }` with status 500.
+- `after()` path: a non-admin miss returns 202 `{ building: true }` and `after(() => { void work().catch(...) })` logs `[api/pacing/portfolio] background build failed`. The throw does not upsert.
+
+- Files: `lib/pacing/portfolio/loadPortfolioChannelSources.ts`, `buildCampaignPacingRows.ts`, `buildAndStorePortfolioSnapshot.ts`, `servePortfolioSnapshot.ts` (optional `perSourceTimeoutMs`, unset on the serving path), `lib/pacing/portfolio/__tests__/composeChannelSources.test.ts`, `lib/pacing/portfolio/__tests__/portfolioSourceTimeout.test.ts`, `package.json`, and one sentence each in `docs/brain/modules/pacing.md`, `docs/brain/INVARIANTS.md`, `docs/brain/BLAST-RADIUS.md`.
+- Checks: typecheck 0. lint 0 (existing warnings only). `test:pacing-portfolio` 24 node + 4 timeout tests + 7 vitest, all pass.
+- Morning smoke: nothing to see until a rebuild. A slow source should show as a failed build in the logs, not an upsert. Not exercised here.
+- Under 90%: `git add` of the three brain paths also committed pre-existing dirty sentences that were already in the working tree (partner-ingest T4 no longer gates the load; invoicing lede / `accent="none"`; plan wizard `PageHeader`). The partner-ingest source files are still uncommitted. Those extra sentences are in `aee4bc3a`. Not amended.
+
+## AV-P2 DONE 333bb5db
+
+Commit `333bb5db` `chore(pacing): warn when the stored live count is below the live set; correct cron time comment`.
+
+Live is the builder's existing gate: `isLiveCampaignStatus` on a version row's `campaign_status`, `campaign_start_date`, and `campaign_end_date` for the same asOfDate. Distinct campaigns are distinct `mba_number` values. After a successful unscoped build, if `counts.live` is below that set, `logJob` writes `pacing_portfolio_live_count_low` with asOfDate, scopeKey, `counts.live`, expectedLive, and the first 20 missing ids. The upsert still runs. A version row has no client name, so a scoped build does not use this comparison (it would warn about every other client's live campaigns).
+
+The cron route comment now says 21:00 UTC (08:00 Melbourne AEDT, 07:00 AEST). `vercel.json` is still `0 21 * * *`.
+
+- Files: `lib/pacing/portfolio/buildCampaignPacingRows.ts`, `buildAndStorePortfolioSnapshot.ts`, `lib/pacing/campaigns/pacingRowsCache.ts` (unwraps `.rows`), `app/api/cron/pacing-portfolio/route.ts`, `lib/pacing/portfolio/__tests__/portfolioSourceTimeout.test.ts`, `package.json`, `docs/brain/modules/pacing.md`, `docs/brain/INVARIANTS.md`, `docs/brain/BLAST-RADIUS.md`.
+- Checks: typecheck 0. lint 0 (existing warnings only). `test:pacing-portfolio` 24 node + 5 timeout/live-count tests + 7 vitest, all pass. The new test stores 2 rows against 3 live version campaigns and logs `missing001`.
+- Morning smoke: none in the UI. A short unscoped snapshot should log `pacing_portfolio_live_count_low` and still upsert.
+- Under 90%: a scoped snapshot that drops a live campaign in that scope does not warn. The versions read cannot be filtered by client.
+
+## AV-P3 DISCOVERY (no commit)
+
+Wrote `docs/superpowers/overnight-av-fixes/discovery/AV-P3-portfolio-build-design.md`. No code change. File left untracked. No SHA.
+
+Recommend a lease on `pacing_portfolio_snapshots` (one statement, survives the transaction pooler) plus a conditional upsert on a new `build_started_at`. `generated_at` is the write time, and the page's `Updated` label reads it in Melbourne. Session advisory locks do not cover a multi-minute build on port 6543. A second cron at 21:30 UTC that no-ops when today's ready row exists covers a single 504 and does not backfill 8 or 9 Oct. Serve the latest ready same-scope snapshot as 200 with `As of` that date while today builds, and do not put the ~4 MB body in the Next data cache.
+
+- Checks: none. Read-only.
+- Morning smoke: none. Luke picks the options.
+- Under 90%: 8 and 9 Oct cron invocations were not in the logs this pack could read (70%). Failing fast on postgres.js `Unknown Message` is 75% — on the bad 10 Oct request the versions query still finished. The lease SQL must not hide a ready `rows` value during admin refresh (85%).
+
+## AV-P4 DISCOVERY (no commit)
+
+Wrote `docs/superpowers/overnight-av-fixes/discovery/AV-P4-client-expected-to-date.md`. No code change. File left untracked. No SHA.
+
+The $500.0K is krusty001 `campaign_budget_cents` 50000000 ($500,000), flight 1–31 Aug 2026. The August delivery row is $0 media. The completed-card fallback copies that budget into both expected-to-date and plan budget, so the division is 100%. The tiles do not call `resolveCampaignExpectedSpendToDate` (that returns $0 here). The 0.0% and Campaigns 0 are `useCountUp` starting at 0; “1 planned” is krusty002 and is not animated. Default range is FY 2026-07-01 to 2027-06-30.
+
+- Checks: none. Read-only, plus a Postgres read of the Krusty Krab published rows. Temporary query script removed.
+- Morning smoke: none.
+- Under 90%: did not watch the signed-in page after the one-second count-up (90% the settled percent is 100). Dropping the completed fallback also changes other completed campaigns with no positive expected-to-date (85%).
+
+## AV-P5 DONE 25f673de
+
+Commit `25f673de` `fix(mediaplans): draft downloads respect the end-after-start check`.
+
+Create and edit pass the existing `datesOutOfOrder` flag into `PlanWizardBottomBar` as `draftDownloadsBlocked`. That is the same result that disables Publish (`campaignDatesOutOfOrder` from `endIsBeforeStart`, or a burst end before its start). The three draft file items (Download draft MBA, Download draft Media Plan, Download draft Media Plan (AA), and the published-dirty Draft labels) disable and take `END_BEFORE_START_MESSAGE` as `title`. Published downloads and Export draft stay enabled.
+
+`campaignStartDate` and `campaignEndDate` are on the save body, so the server step was not skipped. `draftDocumentsBodySchema` `superRefine` calls `endIsBeforeStart` and the route's existing 400 `{ error: "Validation failed", issues }` carries the message. Equal civil days still render. Missing dates stay allowed. Burst dates in the body stay `z.unknown()`; the UI flag still blocks those, the route does not re-check them.
+
+- Files: `components/mediaplans/PlanWizardBottomBar.tsx`, both wizard pages, `lib/docs/draftDocumentsBody.ts`, bottom-bar and draft-documents tests, `docs/brain/modules/media-plans.md`, `docs/brain/INVARIANTS.md`, `docs/brain/BLAST-RADIUS.md`.
+- Checks: typecheck 0. `next lint` on the touched files exit 0 (pre-existing hook warnings on the wizard pages only). `vitest run components/mediaplans/__tests__/PlanWizardBottomBar.test.tsx` 10 pass. Draft-documents route test 7 pass, including 400 for 15 Nov 2026 to 31 Oct 2026 and 200 for equal dates.
+- Morning smoke: create a Krusty draft with end before start. Download draft MBA and Download draft Media Plan in Files are disabled, title "End date must be on or after the start date". Export draft stays enabled. Not exercised here (Auth0).
+
+## AV-PZ DONE
+
+Commit message `docs(runlog): AV pacing snapshot pack wrap-up`. This entry is that commit. No product code.
+
+### Prompts
+
+| ID | Result | SHA | What |
+|---|---|---|---|
+| AV-P1 | DONE | aee4bc3a | A source timeout fails the portfolio build and does not upsert |
+| AV-P2 | DONE | 333bb5db | Warn when the stored live count is below the live set; cron comment is 21:00 UTC |
+| AV-P3 | DISCOVERY | none | Portfolio build concurrency, cron timeout, and what users see while it builds |
+| AV-P4 | DISCOVERY | none | Client dashboard expected-to-date vs plan committed |
+| AV-P5 | DONE | 25f673de | Draft downloads respect the end-after-start check |
+| AV-PZ | DONE | this commit | Full suite recorded; run log committed |
+
+None PARKED. None STOPPED.
+
+Discovery files, left untracked:
+
+- `docs/superpowers/overnight-av-fixes/discovery/AV-P3-portfolio-build-design.md`
+- `docs/superpowers/overnight-av-fixes/discovery/AV-P4-client-expected-to-date.md`
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| typecheck | PASS exit 0 |
+| lint | PASS exit 0 (pre-existing warnings only) |
+| check:billing-line-id-equality | PASS exit 0 |
+| check:stacking-layers | PASS exit 0 |
+| check:client-server-only | PASS exit 0 |
+| check:drizzle-snapshot | PASS exit 0 (empty `db:generate` diff) |
+| check:hardcoded-urls | PASS exit 0 |
+| check:money-inline | PASS exit 0 (115 files, 250 hits) |
+| check:egress-guards | PASS exit 0 (known FX-1 Xano warning, then ok) |
+| test:all | FAIL exit 1, about 615s, 123/124 suites |
+
+`test:postgres-save-mode` is the only failed suite. Both assertions are the same ones recorded under BR-Z, from `90d9e437` (`style(plans): ink bottom bar with totals and files menu, media-type chips`), not from AV-P1, AV-P2, or AV-P5:
+
+- `planWizardSaveBar.test.ts` “shared component order is Publish, Save draft, then MBA first in the download group” — `Save draft must follow Publish`.
+- `postgresSavePayload.integration.test.ts` — the create wizard bar no longer matches `/CampaignExportsSection/`.
+
+Not fixed here.
+
+### Morning smoke
+
+| Look at | Expect |
+|---|---|
+| Portfolio build logs | A source timeout is a failed build. No partial snapshot is stored. |
+| Unscoped portfolio snapshot | If `counts.live` is below the live set, `pacing_portfolio_live_count_low` is logged and the upsert still happens. |
+| AV-P3 / AV-P4 | Nothing to click. Luke picks the options in the two discovery files. |
+| Create a Krusty draft with end before start | Download draft MBA and Download draft Media Plan are disabled, title "End date must be on or after the start date". Export draft stays enabled. |
+
