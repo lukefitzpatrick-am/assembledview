@@ -226,6 +226,7 @@ export default function RadioContainer({
     return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
   }, [])
   const mediaLineItemsPublishFpRef = useRef("");
+  const radioOwnPublishRef = useRef<any[] | null>(null);
   const [radioExpertExitConfirmOpen, setRadioExpertExitConfirmOpen] = useState(false);
   /** Brief visual cue on Expert segment so users notice the toggle on first paint. */
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true);
@@ -644,6 +645,7 @@ export default function RadioContainer({
       setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
     },
     radioExpertModalOpenRef,
+    radioOwnPublishRef,
   )
 
   // Transform form data to API schema format
@@ -693,7 +695,10 @@ export default function RadioContainer({
       };
     });
 
-  publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
+  publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, (items) => {
+    radioOwnPublishRef.current = items
+    onMediaLineItemsChange(items)
+  });
 }, [watchedLineItems, mbaNumber, feeradio, form, onMediaLineItemsChange, createLineItemId]);
   
   // Header and summary money is channelSummaryTotals (lineTotals and campaignTotals, in cents).

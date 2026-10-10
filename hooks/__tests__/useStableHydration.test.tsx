@@ -58,6 +58,42 @@ describe("useStableHydration — draft resume", () => {
     expect(hydrated.at(-1)?.[0]?.budget).toBe("$20,000.00")
   })
 
+  it("stays expanded after a buy type change: an own publish does not hydrate", () => {
+    const loaded = [{ budget: "$25,000.00" }]
+    const ownPublishRef: { current: { budget: string }[] | null } = { current: null }
+    function ProbeWithPublish({
+      items,
+      onHydrate,
+    }: {
+      items: { budget: string }[] | undefined
+      onHydrate: (rows: { budget: string }[]) => void
+    }) {
+      useStableHydration(items, onHydrate, undefined, ownPublishRef)
+      return null
+    }
+
+    act(() => {
+      root.render(<ProbeWithPublish items={loaded} onHydrate={(rows) => hydrated.push(rows)} />)
+    })
+    expect(hydrated).toHaveLength(1)
+
+    const afterBuyType = [{ budget: "$25,000.00", buyType: "network" } as { budget: string }]
+    ownPublishRef.current = afterBuyType
+    act(() => {
+      root.render(
+        <ProbeWithPublish items={afterBuyType} onHydrate={(rows) => hydrated.push(rows)} />,
+      )
+    })
+    expect(hydrated).toHaveLength(1)
+
+    const ingested = [{ budget: "$10,000.00" }]
+    act(() => {
+      root.render(<ProbeWithPublish items={ingested} onHydrate={(rows) => hydrated.push(rows)} />)
+    })
+    expect(hydrated).toHaveLength(2)
+    expect(hydrated.at(-1)?.[0]?.budget).toBe("$10,000.00")
+  })
+
   it("re-hydrates to empty after a prior load (deleted line)", () => {
     const tip = [{ budget: "$25,000.00" }]
     act(() => {

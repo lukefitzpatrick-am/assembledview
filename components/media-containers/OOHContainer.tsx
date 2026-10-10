@@ -239,6 +239,7 @@ export default function OohContainer({
     return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
   }, [])
   const mediaLineItemsPublishFpRef = useRef("");
+  const oohOwnPublishRef = useRef<any[] | null>(null);
   const [oohExpertExitConfirmOpen, setOohExpertExitConfirmOpen] = useState(false);
   /** Brief visual cue on Expert segment so users notice the toggle on first paint. */
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true);
@@ -568,6 +569,7 @@ export default function OohContainer({
       setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
     },
     oohExpertModalOpenRef,
+    oohOwnPublishRef,
   )
 
   // Transform form data to API schema format
@@ -608,7 +610,10 @@ export default function OohContainer({
       };
     });
 
-    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, (items) => {
+      oohOwnPublishRef.current = items
+      onMediaLineItemsChange(items)
+    });
   }, [watchedLineItems, mbaNumber, feeooh, createLineItemId, form, onMediaLineItemsChange]);
   
   // Header and summary money is channelSummaryTotals (lineTotals and campaignTotals, in cents).

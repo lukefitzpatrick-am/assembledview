@@ -54,6 +54,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Combobox, type ComboboxOption } from "@/components/media-containers/ExpertGridCombobox"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { EndDateOrderMessage } from "@/components/mediaplan/EndDateOrderMessage"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
@@ -3999,6 +4000,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                     }
                                     title={row.endDate}
                                   />
+                                  <EndDateOrderMessage start={row.startDate} end={row.endDate} />
                                 </td>
                               )
                             }

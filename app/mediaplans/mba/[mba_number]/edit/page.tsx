@@ -232,6 +232,12 @@ import {
   missingBurstDatesBuilderIssues,
 } from "@/lib/mediaplan/missingBurstDatesGate"
 import {
+  END_BEFORE_START_MESSAGE,
+  campaignDateOrderSuperRefine,
+  lineGroupsHaveEndBeforeStart,
+} from "@/lib/mediaplan/dateOrder"
+import { useCampaignDateOrderError } from "@/lib/mediaplan/useCampaignDateOrderError"
+import {
   MISSING_BUY_TYPE,
   formatMissingBuyTypeMessage,
   missingBuyTypeBuilderIssues,
@@ -1577,7 +1583,7 @@ const mediaPlanSchema = z.object({
       ),
     })
   ),
-})
+}).superRefine(campaignDateOrderSuperRefine)
 
 type MediaPlanFormValues = z.infer<typeof mediaPlanSchema>
 
@@ -2975,6 +2981,100 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const mpInfluencers = useWatch({ control: form.control, name: 'mp_influencers' })
   const campaignStartDate = useWatch({ control: form.control, name: 'mp_campaigndates_start' })
   const campaignEndDate = useWatch({ control: form.control, name: 'mp_campaigndates_end' })
+  const campaignDatesOutOfOrder = useCampaignDateOrderError(
+    form,
+    campaignStartDate,
+    campaignEndDate,
+    "mp_campaigndates_end",
+  )
+  const burstsEndBeforeStart = useMemo(
+    () =>
+      lineGroupsHaveEndBeforeStart([
+        televisionLineItems,
+        televisionMediaLineItems,
+        radioLineItems,
+        radioMediaLineItems,
+        newspaperLineItems,
+        newspaperMediaLineItems,
+        magazinesLineItems,
+        magazinesMediaLineItems,
+        oohLineItems,
+        oohMediaLineItems,
+        cinemaLineItems,
+        cinemaMediaLineItems,
+        digitalDisplayLineItems,
+        digitalDisplayMediaLineItems,
+        digitalAudioLineItems,
+        digitalAudioMediaLineItems,
+        digitalVideoLineItems,
+        digitalVideoMediaLineItems,
+        bvodLineItems,
+        bvodMediaLineItems,
+        integrationLineItems,
+        integrationMediaLineItems,
+        searchLineItems,
+        searchMediaLineItems,
+        socialMediaLineItems,
+        socialMediaMediaLineItems,
+        progDisplayLineItems,
+        progDisplayMediaLineItems,
+        progVideoLineItems,
+        progVideoMediaLineItems,
+        progBvodLineItems,
+        progBvodMediaLineItems,
+        progAudioLineItems,
+        progAudioMediaLineItems,
+        progOohLineItems,
+        progOohMediaLineItems,
+        influencersLineItems,
+        influencersMediaLineItems,
+        productionLineItems,
+        productionMediaLineItems,
+      ]),
+    [
+      televisionLineItems,
+      televisionMediaLineItems,
+      radioLineItems,
+      radioMediaLineItems,
+      newspaperLineItems,
+      newspaperMediaLineItems,
+      magazinesLineItems,
+      magazinesMediaLineItems,
+      oohLineItems,
+      oohMediaLineItems,
+      cinemaLineItems,
+      cinemaMediaLineItems,
+      digitalDisplayLineItems,
+      digitalDisplayMediaLineItems,
+      digitalAudioLineItems,
+      digitalAudioMediaLineItems,
+      digitalVideoLineItems,
+      digitalVideoMediaLineItems,
+      bvodLineItems,
+      bvodMediaLineItems,
+      integrationLineItems,
+      integrationMediaLineItems,
+      searchLineItems,
+      searchMediaLineItems,
+      socialMediaLineItems,
+      socialMediaMediaLineItems,
+      progDisplayLineItems,
+      progDisplayMediaLineItems,
+      progVideoLineItems,
+      progVideoMediaLineItems,
+      progBvodLineItems,
+      progBvodMediaLineItems,
+      progAudioLineItems,
+      progAudioMediaLineItems,
+      progOohLineItems,
+      progOohMediaLineItems,
+      influencersLineItems,
+      influencersMediaLineItems,
+      productionLineItems,
+      productionMediaLineItems,
+    ],
+  )
+  const datesOutOfOrder = campaignDatesOutOfOrder || burstsEndBeforeStart
   const campaignBudget = useWatch({ control: form.control, name: 'mp_campaignbudget' })
   const watchedCampaignName = useWatch({ control: form.control, name: 'mp_campaignname' })
   const watchedCampaignStatus = useWatch({ control: form.control, name: 'mp_campaignstatus' })
@@ -7297,6 +7397,14 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       })
       return
     }
+    if (datesOutOfOrder) {
+      toast({
+        title: "Publish disabled",
+        description: END_BEFORE_START_MESSAGE,
+        variant: "destructive",
+      })
+      return
+    }
     if (saveBlockedByDuplicates) {
       toast({
         title: "Save disabled",
@@ -11611,14 +11719,17 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     saveBlockedByDuplicates ||
     saveHeldForHydration ||
     saveBlockedByFailedChannelLoad ||
-    saveBlockedByClientsError
+    saveBlockedByClientsError ||
+    datesOutOfOrder
   const saveBarTitle = saveBlockedByClientsError
     ? clientsError ?? "Client list unavailable"
     : saveBlockedByFailedChannelLoad
       ? saveFailedChannelLoadReason ?? "Channel failed to load — Retry before saving"
       : saveHeldForHydration || isLoading
         ? saveHydrationHoldReason ?? "Waiting for channels to load — you can't save yet"
-        : undefined
+        : datesOutOfOrder
+          ? END_BEFORE_START_MESSAGE
+          : undefined
   const primarySaveLabel = wizardPrimarySaveLabel({
     savePublishesImmediately: SAVE_PUBLISHES_IMMEDIATELY,
     isPublished,

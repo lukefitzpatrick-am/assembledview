@@ -28,6 +28,7 @@ import {
   getCpcFamilyBurstCalculatedColumnLabel,
   type CpcFamilyVariant,
 } from "@/components/media-containers/burst-calculated-fields"
+import { EndDateOrderMessage } from "@/components/mediaplan/EndDateOrderMessage"
 import { formatBurstLabel } from "@/lib/bursts"
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import { withInjectedComboboxValue } from "@/lib/mediaplan/comboboxCurrentValue"
@@ -745,6 +746,14 @@ function ExpertCardBursts<T extends FieldValues>({
                           </DraftHighlightedField>
                         </FormControl>
                         <FormMessage />
+                        <EndDateOrderMessage
+                          start={
+                            form.watch(
+                              burstFieldName<T>(itemsKey, lineItemIndex, burstIndex, "startDate")
+                            )
+                          }
+                          end={field.value}
+                        />
                       </FormItem>
                     )}
                   />

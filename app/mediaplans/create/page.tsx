@@ -320,6 +320,12 @@ import {
   missingBurstDatesBuilderIssues,
 } from "@/lib/mediaplan/missingBurstDatesGate"
 import {
+  END_BEFORE_START_MESSAGE,
+  campaignDateOrderSuperRefine,
+  lineGroupsHaveEndBeforeStart,
+} from "@/lib/mediaplan/dateOrder"
+import { useCampaignDateOrderError } from "@/lib/mediaplan/useCampaignDateOrderError"
+import {
   MISSING_BUY_TYPE,
   formatMissingBuyTypeMessage,
   missingBuyTypeBuilderIssues,
@@ -424,7 +430,7 @@ const mediaPlanSchema = z.object({
       ),
     })
   ),
-})
+}).superRefine(campaignDateOrderSuperRefine)
 
 type MediaPlanFormValues = z.infer<typeof mediaPlanSchema>
 
@@ -1122,6 +1128,60 @@ function CreateMediaPlan() {
   // Use useWatch to properly watch form values without causing infinite loops
   const campaignStart = useWatch({ control: form.control, name: "mp_campaigndates_start" })
   const campaignEnd = useWatch({ control: form.control, name: "mp_campaigndates_end" })
+  const campaignDatesOutOfOrder = useCampaignDateOrderError(
+    form,
+    campaignStart,
+    campaignEnd,
+    "mp_campaigndates_end",
+  )
+  const burstsEndBeforeStart = useMemo(
+    () =>
+      lineGroupsHaveEndBeforeStart([
+        televisionMediaLineItems,
+        radioMediaLineItems,
+        newspaperMediaLineItems,
+        magazineMediaLineItems,
+        oohMediaLineItems,
+        cinemaMediaLineItems,
+        digiDisplayMediaLineItems,
+        digiAudioMediaLineItems,
+        digiVideoMediaLineItems,
+        bvodMediaLineItems,
+        integrationMediaLineItems,
+        productionMediaLineItems,
+        searchMediaLineItems,
+        socialMediaMediaLineItems,
+        progDisplayMediaLineItems,
+        progVideoMediaLineItems,
+        progBvodMediaLineItems,
+        progAudioMediaLineItems,
+        progOohMediaLineItems,
+        influencersMediaLineItems,
+      ]),
+    [
+      televisionMediaLineItems,
+      radioMediaLineItems,
+      newspaperMediaLineItems,
+      magazineMediaLineItems,
+      oohMediaLineItems,
+      cinemaMediaLineItems,
+      digiDisplayMediaLineItems,
+      digiAudioMediaLineItems,
+      digiVideoMediaLineItems,
+      bvodMediaLineItems,
+      integrationMediaLineItems,
+      productionMediaLineItems,
+      searchMediaLineItems,
+      socialMediaMediaLineItems,
+      progDisplayMediaLineItems,
+      progVideoMediaLineItems,
+      progBvodMediaLineItems,
+      progAudioMediaLineItems,
+      progOohMediaLineItems,
+      influencersMediaLineItems,
+    ],
+  )
+  const datesOutOfOrder = campaignDatesOutOfOrder || burstsEndBeforeStart
   const mbaNumber = useWatch({ control: form.control, name: "mba_number" })
   const planNumber = useWatch({ control: form.control, name: "mp_plannumber" })
 
@@ -6813,6 +6873,14 @@ const handleSaveAll = async (opts?: {
       })
       return
     }
+    if (datesOutOfOrder) {
+      toast({
+        title: "Publish disabled",
+        description: END_BEFORE_START_MESSAGE,
+        variant: "destructive",
+      })
+      return
+    }
   if (saveAllInFlightRef.current) return
   if (budgetRemaining < 0) {
     const proceed = window.confirm(
@@ -7564,10 +7632,12 @@ const handleSaveAll = async (opts?: {
   const isPublished = false
   const draftBlocksDownloadMessage = DRAFT_BLOCKS_DOWNLOAD_MESSAGE
   const saveBarDisabled =
-    isWizardSaving || saveBlockedByClientsError
+    isWizardSaving || saveBlockedByClientsError || datesOutOfOrder
   const saveBarTitle = saveBlockedByClientsError
     ? clientsError ?? "Client list unavailable"
-    : undefined
+    : datesOutOfOrder
+      ? END_BEFORE_START_MESSAGE
+      : undefined
   const primarySaveLabel = wizardPrimarySaveLabel({
     savePublishesImmediately: SAVE_PUBLISHES_IMMEDIATELY,
     isPublished,

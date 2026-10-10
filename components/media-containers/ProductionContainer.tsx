@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils"
 import { segmentChipClass } from "@/components/layout/navChip"
 import { formatCurrencyFull } from "@/lib/format/currency"
 import { formatAUD } from "@/lib/format/money"
+import { EndDateOrderMessage } from "@/components/mediaplan/EndDateOrderMessage"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { PRODUCTION_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
 import { resolveBuyTypeForChannel } from "@/lib/mediaplan/deliverableBudget"
@@ -920,6 +921,12 @@ export default function ProductionContainer({
                                         />
                                       </FormControl>
                                       <FormMessage />
+                                      <EndDateOrderMessage
+                                        start={form.watch(
+                                          `lineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`
+                                        )}
+                                        end={field.value}
+                                      />
                                     </FormItem>
                                   )}
                                 />
