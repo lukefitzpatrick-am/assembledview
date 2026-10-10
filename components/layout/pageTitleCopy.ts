@@ -1,3 +1,5 @@
+import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
+
 const MONTH_NAMES = [
   "January",
   "February",
@@ -77,6 +79,53 @@ export function billingMonthAccent(from: string, to: string): string {
   if (!start) return end ?? ""
   if (!end || start === end) return start
   return `${start} to ${end}`
+}
+
+type EditLedeVersion = {
+  id?: number
+  version_number: number
+  published_at?: string | null
+}
+
+/**
+ * Ordinal for the edit lede. The version list is empty until the picker opens,
+ * so a published cut is the pointer row's `published_at`, or the loaded version
+ * when that row is the published cut. No stamp stays unpublished.
+ */
+export function publishedVersionNumberForEditLede(args: {
+  publishedVersionId: number | null
+  versions: EditLedeVersion[]
+  loadedVersionId: number | null
+  loadedVersionNumber: number | null
+  loadedPublishedAt: string | null
+}): number | null {
+  const pointer = args.publishedVersionId
+  if (pointer != null) {
+    const fromList = args.versions.find((version) => version.id === pointer)
+    if (
+      fromList &&
+      fromList.version_number > 0 &&
+      isVersionPublished({ publishedAt: fromList.published_at ?? null })
+    ) {
+      return fromList.version_number
+    }
+    if (
+      args.loadedVersionId === pointer &&
+      args.loadedVersionNumber != null &&
+      args.loadedVersionNumber > 0 &&
+      isVersionPublished({ publishedAt: args.loadedPublishedAt })
+    ) {
+      return args.loadedVersionNumber
+    }
+  }
+  if (
+    args.loadedVersionNumber != null &&
+    args.loadedVersionNumber > 0 &&
+    isVersionPublished({ publishedAt: args.loadedPublishedAt })
+  ) {
+    return args.loadedVersionNumber
+  }
+  return null
 }
 
 export function editCampaignLede(args: {

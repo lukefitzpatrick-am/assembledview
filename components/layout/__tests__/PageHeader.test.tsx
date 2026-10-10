@@ -9,6 +9,7 @@ import {
   editCampaignLede,
   greetingFirstName,
   melbourneDayPart,
+  publishedVersionNumberForEditLede,
 } from "@/components/layout/pageTitleCopy"
 
 describe("PageHeader", () => {
@@ -73,5 +74,42 @@ describe("page title copy", () => {
     expect(editCampaignLede({ clientName: "Krusty Krab", mba: "KKAU004", publishedVersion: null })).toBe(
       "Krusty Krab, MBA KKAU004. Not published yet. Changes save as an unpublished draft.",
     )
+  })
+
+  it("names published v2 from published_at, and stays unpublished when nothing is stamped", () => {
+    const publishedV2 = publishedVersionNumberForEditLede({
+      publishedVersionId: 88,
+      versions: [],
+      loadedVersionId: 88,
+      loadedVersionNumber: 2,
+      loadedPublishedAt: "2026-10-10T01:44:00.000Z",
+    })
+    expect(publishedV2).toBe(2)
+    expect(
+      editCampaignLede({ clientName: "Krusty Krab", mba: "krusty002", publishedVersion: publishedV2 }),
+    ).toBe(
+      "Krusty Krab, MBA krusty002, version 2 published. Changes save as an unpublished draft.",
+    )
+
+    const fromList = publishedVersionNumberForEditLede({
+      publishedVersionId: 88,
+      versions: [{ id: 88, version_number: 2, published_at: "2026-10-10T01:44:00.000Z" }],
+      loadedVersionId: 40,
+      loadedVersionNumber: 1,
+      loadedPublishedAt: null,
+    })
+    expect(fromList).toBe(2)
+
+    const unpublished = publishedVersionNumberForEditLede({
+      publishedVersionId: null,
+      versions: [{ id: 40, version_number: 1, published_at: null }],
+      loadedVersionId: 40,
+      loadedVersionNumber: 1,
+      loadedPublishedAt: null,
+    })
+    expect(unpublished).toBeNull()
+    expect(
+      editCampaignLede({ clientName: "Krusty Krab", mba: "krusty002", publishedVersion: unpublished }),
+    ).toBe("Krusty Krab, MBA krusty002. Not published yet. Changes save as an unpublished draft.")
   })
 })

@@ -46,7 +46,7 @@ import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { AvaMediaplanEditActions } from "@/components/ava/AvaSkillActionSets"
 import { PlanWizardHeader, PlanWizardVersionChrome } from "@/components/mediaplans/PlanWizardHeader"
-import { editCampaignLede } from "@/components/layout/pageTitleCopy"
+import { editCampaignLede, publishedVersionNumberForEditLede } from "@/components/layout/pageTitleCopy"
 import { PlanPresenceBanner } from "@/components/mediaplans/PlanPresenceBanner"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
@@ -11885,10 +11885,21 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   )
 
 
-  const publishedVersionForTitle =
-    publishedVersionId == null
-      ? null
-      : (availableVersions.find((version) => version.id === publishedVersionId)?.version_number ?? null)
+  const loadedVersionIdForLede =
+    typeof mediaPlanVersionId === "number"
+      ? mediaPlanVersionId
+      : mediaPlanVersionId != null && Number.isFinite(Number(mediaPlanVersionId))
+        ? Number(mediaPlanVersionId)
+        : null
+  const publishedVersionForTitle = publishedVersionNumberForEditLede({
+    publishedVersionId,
+    versions: availableVersions,
+    loadedVersionId: loadedVersionIdForLede,
+    loadedVersionNumber:
+      selectedVersionNumber ??
+      (typeof mediaPlan?.version_number === "number" ? mediaPlan.version_number : null),
+    loadedPublishedAt: selectedVersionPublishedAt,
+  })
   const editTitleAccent = (typeof watchedCampaignName === "string" ? watchedCampaignName : "").trim() || "campaign"
   const editTitleLede = editCampaignLede({
     clientName: typeof watchedClientName === "string" ? watchedClientName : "",
