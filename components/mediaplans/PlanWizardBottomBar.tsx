@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { END_BEFORE_START_MESSAGE } from "@/lib/mediaplan/dateOrder"
 import {
   DRAFT_BLOCKS_DOWNLOAD_MESSAGE,
   wizardDownloadControls,
@@ -63,6 +64,11 @@ export type PlanWizardBottomBarProps = {
     onRetry: () => void
     retrying?: boolean
   } | null
+  /**
+   * Same flag that disables Publish (`datesOutOfOrder` on create and edit).
+   * Draft MBA / Media Plan / AA only. Published downloads and Export draft stay available.
+   */
+  draftDownloadsBlocked?: boolean
   /** Create only. Downloads the current form as a draft JSON file. */
   onExportDraft?: () => void
   /**
@@ -116,6 +122,7 @@ export function PlanWizardBottomBar({
   gateDownloadsOnPublish,
   draftBlocksDownloadMessage = DRAFT_BLOCKS_DOWNLOAD_MESSAGE,
   failedLoadRetry = null,
+  draftDownloadsBlocked = false,
   onExportDraft,
   totals = null,
 }: PlanWizardBottomBarProps) {
@@ -145,6 +152,7 @@ export function PlanWizardBottomBar({
   const draftMba = onDraftMba ?? onPublishMba
   const draftMediaPlan = onDraftMediaPlan ?? onDownloadMediaPlan
   const draftAa = onDraftAa ?? onDownloadAa
+  const draftDownloadTitle = draftDownloadsBlocked ? END_BEFORE_START_MESSAGE : draftHint
   const inkOutline = cn(
     heroBandSecondaryClassName,
     "border-am-forest-light bg-transparent shadow-none",
@@ -170,16 +178,16 @@ export function PlanWizardBottomBar({
       key: "draft-mba",
       label: wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.draftMbaLabel }),
       onClick: draftMba,
-      disabled: mbaBusy || downloadsLocked,
-      title: draftHint,
+      disabled: mbaBusy || downloadsLocked || draftDownloadsBlocked,
+      title: draftDownloadTitle,
       busy: mbaBusy,
     })
     fileItems.push({
       key: "draft-media-plan",
       label: controls.draftMediaPlanLabel,
       onClick: draftMediaPlan,
-      disabled: downloadsBusy,
-      title: draftHint,
+      disabled: downloadsBusy || draftDownloadsBlocked,
+      title: draftDownloadTitle,
       busy: isDownloading,
     })
     if (!draftAaHidden) {
@@ -187,8 +195,8 @@ export function PlanWizardBottomBar({
         key: "draft-aa",
         label: controls.draftAaLabel,
         onClick: draftAa,
-        disabled: aaDisabled,
-        title: draftHint,
+        disabled: aaDisabled || draftDownloadsBlocked,
+        title: draftDownloadTitle,
         busy: isDownloadingAa,
       })
     }

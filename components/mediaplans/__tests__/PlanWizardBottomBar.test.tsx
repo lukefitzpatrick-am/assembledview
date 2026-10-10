@@ -9,6 +9,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { PlanWizardBottomBar } from "@/components/mediaplans/PlanWizardBottomBar"
+import { END_BEFORE_START_MESSAGE } from "@/lib/mediaplan/dateOrder"
 
 function pointerCaptureShim() {
   if (!Element.prototype.hasPointerCapture) {
@@ -242,6 +243,61 @@ describe("PlanWizardBottomBar", () => {
     expect(mba).toBeTruthy()
     expect(mba?.disabled).toBe(true)
     expect(mba?.textContent).not.toContain("Generating MBA")
+  })
+
+  it("disables draft downloads when the end date is before the start", async () => {
+    act(() => {
+      root.render(
+        renderBar({
+          isCreate: true,
+          isPublished: false,
+          draftDownloadsBlocked: true,
+          onExportDraft: NOOP,
+        }),
+      )
+    })
+    await openFiles(container)
+    for (const label of ["Download draft MBA", "Download draft Media Plan"]) {
+      const button = buttonByLabel(document.body, label)
+      expect(button).toBeTruthy()
+      expect(button?.disabled).toBe(true)
+      expect(button?.getAttribute("title")).toBe(END_BEFORE_START_MESSAGE)
+    }
+    const exportDraft = buttonByLabel(document.body, "Export draft")
+    expect(exportDraft).toBeTruthy()
+    expect(exportDraft?.disabled).toBe(false)
+    expect(exportDraft?.getAttribute("title")).not.toBe(END_BEFORE_START_MESSAGE)
+  })
+
+  it("disables draft AA and leaves published downloads enabled when dates are out of order", async () => {
+    act(() => {
+      root.render(
+        renderBar({
+          isPublished: true,
+          hasWorkingDraftOrDirty: true,
+          publishedVersionNumber: 3,
+          hasAdvertisingAssociatesBilling: true,
+          draftDownloadsBlocked: true,
+        }),
+      )
+    })
+    await openFiles(container)
+    for (const label of ["Draft MBA", "Draft Media Plan", "Draft Media Plan (AA)"]) {
+      const button = buttonByLabel(document.body, label)
+      expect(button).toBeTruthy()
+      expect(button?.disabled).toBe(true)
+      expect(button?.getAttribute("title")).toBe(END_BEFORE_START_MESSAGE)
+    }
+    for (const label of [
+      "Published MBA (v3)",
+      "Published Media Plan (v3)",
+      "Published Media Plan (AA) (v3)",
+    ]) {
+      const button = buttonByLabel(document.body, label)
+      expect(button).toBeTruthy()
+      expect(button?.disabled).toBe(false)
+      expect(button?.getAttribute("title")).not.toBe(END_BEFORE_START_MESSAGE)
+    }
   })
 
   it("SD-1: disabled Save draft exposes the create tooltip", () => {

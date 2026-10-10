@@ -11879,6 +11879,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           hasAdvertisingAssociatesBilling={hasAdvertisingAssociatesBilling}
           gateDownloadsOnPublish
           draftBlocksDownloadMessage={draftBlocksDownloadMessage}
+          draftDownloadsBlocked={datesOutOfOrder}
         />
   )
 

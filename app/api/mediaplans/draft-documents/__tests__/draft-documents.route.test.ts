@@ -8,6 +8,7 @@ import { mock, test } from "node:test"
 import { NextRequest, NextResponse } from "next/server"
 
 import { pdfText } from "../../../../../lib/docs/__tests__/pdfText.js"
+import { END_BEFORE_START_MESSAGE } from "../../../../../lib/mediaplan/dateOrder.js"
 import { mockModuleSkip, supportsMockModule } from "../../../../../lib/test/mockModuleHarness.js"
 
 const skip = mockModuleSkip()
@@ -162,6 +163,40 @@ test("POST draft-documents — null client address fields are 200", { skip }, as
     const buf = Buffer.from(await res.arrayBuffer())
     assert.ok(buf.length > 100)
   }
+  assert.equal(getDbMock.mock.calls.length, 0)
+})
+
+test("POST draft-documents — end before start is 400 with the date message", { skip }, async () => {
+  reset()
+  const { POST } = await import("../route.js")
+  const res = await POST(
+    postRequest(
+      validBody({
+        campaignStartDate: "2026-11-15",
+        campaignEndDate: "2026-10-31",
+      }),
+    ),
+  )
+  assert.equal(res.status, 400)
+  const json = await res.json()
+  assert.equal(json.error, "Validation failed")
+  assert.match(JSON.stringify(json.issues), new RegExp(END_BEFORE_START_MESSAGE))
+  assert.equal(getDbMock.mock.calls.length, 0)
+})
+
+test("POST draft-documents — equal campaign dates are 200", { skip }, async () => {
+  reset()
+  const { POST } = await import("../route.js")
+  const res = await POST(
+    postRequest(
+      validBody({
+        campaignStartDate: "2026-11-15",
+        campaignEndDate: "2026-11-15",
+      }),
+    ),
+  )
+  assert.equal(res.status, 200)
+  assert.equal(res.headers.get("X-Document-State"), "draft")
   assert.equal(getDbMock.mock.calls.length, 0)
 })
 

@@ -7765,6 +7765,7 @@ const handleSaveAll = async (opts?: {
           }}
           gateDownloadsOnPublish={false}
           draftBlocksDownloadMessage={draftBlocksDownloadMessage}
+          draftDownloadsBlocked={datesOutOfOrder}
         />
   )
   

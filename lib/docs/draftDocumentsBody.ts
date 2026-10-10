@@ -4,6 +4,7 @@
  */
 import { z } from "zod"
 
+import { END_BEFORE_START_MESSAGE, endIsBeforeStart } from "@/lib/mediaplan/dateOrder"
 import { plansSaveBodySchema } from "@/lib/mediaplan/plansSaveBodySchema"
 
 /** Null from a client row becomes undefined before renderDraftDocuments. */
@@ -39,6 +40,14 @@ export const draftDocumentsBodySchema = plansSaveBodySchema
     partialMba: partialMbaSchema,
     kpiRows: z.array(z.record(z.string(), z.unknown())).optional(),
     publishers: z.array(z.any()).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!endIsBeforeStart(data.campaignStartDate, data.campaignEndDate)) return
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["campaignEndDate"],
+      message: END_BEFORE_START_MESSAGE,
+    })
   })
 
 export type DraftDocumentsBody = z.infer<typeof draftDocumentsBodySchema>
