@@ -120,6 +120,7 @@ export default async function ClientDashboard({ params, searchParams }: ClientDa
       slug={slug}
       clientData={clientData}
       campaignLinkMode="tenant"
+      viewerIsClient={role === 'client'}
       rangeStartISO={range.rangeStartISO}
       rangeEndISO={range.rangeEndISO}
       defaultRangeStartISO={defaultRange.rangeStartISO}

@@ -21,6 +21,8 @@ export interface HeroKPIBarProps {
    * computed over the SAME campaign set as `totalSpend` or the tiles will contradict again.
    * `budgetUtilized` is planned-to-date ÷ plan budget (UI label: "Plan committed") — not delivered. */
   spendLabel?: string
+  /** Same gate as the header figure. Skeleton until the shared expected value is final. */
+  spendLoading?: boolean
   liveCampaigns: number
   plannedCampaigns: number
   averageRoas?: number
@@ -90,6 +92,7 @@ export function HeroKPIBar({
   totalSpend,
   totalBudget,
   spendLabel = "Total Spend",
+  spendLoading = false,
   liveCampaigns,
   plannedCampaigns,
   averageRoas,
@@ -107,7 +110,6 @@ export function HeroKPIBar({
   const shouldReduceMotion = useReducedMotion()
   const normalizedBudgetUtilized = clampBudgetUtilizationPct(budgetUtilized, 0, 100)
   const budgetTone = getBudgetUtilizationKpiTone(normalizedBudgetUtilized)
-  const animatedSpend = useCountUp(totalSpend, 1000)
   const animatedLive = useCountUp(liveCampaigns, 1000)
   const roasTarget = typeof averageRoas === "number" ? averageRoas : 0
   const animatedRoas = useCountUp(roasTarget, 1000)
@@ -134,12 +136,25 @@ export function HeroKPIBar({
     <section className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:gap-4">
       <article className="min-w-0 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">{spendLabel}</p>
-        <p className="num mt-2 text-3xl font-semibold tracking-tight text-foreground">
-          {formatMoneyCompact(animatedSpend)}
-        </p>
-        <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
-          of {formatMoneyCompact(totalBudget)} plan budget · monthly plan prorated to date
-        </p>
+        {spendLoading ? (
+          <>
+            <div
+              className="mt-2 h-9 w-28 animate-pulse rounded bg-muted/60"
+              aria-busy="true"
+              aria-label={`${spendLabel} loading`}
+            />
+            <p className="mt-1.5 text-xs leading-snug text-muted-foreground">Loading…</p>
+          </>
+        ) : (
+          <>
+            <p className="num mt-2 text-3xl font-semibold tracking-tight text-foreground">
+              {formatMoneyCompact(totalSpend)}
+            </p>
+            <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
+              of {formatMoneyCompact(totalBudget)} plan budget · monthly plan prorated to date
+            </p>
+          </>
+        )}
       </article>
 
       <article className="min-w-0 rounded-xl border border-border/60 bg-card p-4 sm:p-5">

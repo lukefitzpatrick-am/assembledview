@@ -57,6 +57,8 @@ export interface ClientDashboardPageContentProps {
   slug: string
   clientData: LegacyClientDashboardData
   campaignLinkMode?: CampaignLinkMode
+  /** Client-role viewers get "Welcome back". Admin and staff get the client name. */
+  viewerIsClient?: boolean
   headerDescription?: string
   rangeStartISO: string
   rangeEndISO: string
@@ -155,6 +157,7 @@ export function ClientDashboardPageContent({
   slug,
   clientData,
   campaignLinkMode = "tenant",
+  viewerIsClient = false,
   headerDescription,
   rangeStartISO,
   rangeEndISO,
@@ -257,6 +260,24 @@ export function ClientDashboardPageContent({
     () => computePlannedSpendTotals(allCampaigns, { rangeStartISO, rangeEndISO }),
     [allCampaigns, rangeEndISO, rangeStartISO]
   )
+  /**
+   * One committed figure for the header and the expected-media tile.
+   * `useCountUp` used to paint the plan budget (reduced motion starts at the target)
+   * and then $0 (the animation's first frames, and the server's null reduced-motion
+   * initial state). Neither surface shows a number until this effect commits the
+   * same `plannedToDate`.
+   */
+  const [committedExpected, setCommittedExpected] = useState<{
+    toDate: number
+    budget: number
+  } | null>(null)
+  useEffect(() => {
+    setCommittedExpected({ toDate: plannedToDate, budget: plannedBudget })
+  }, [plannedBudget, plannedToDate])
+  const expectedLoading =
+    committedExpected == null ||
+    committedExpected.toDate !== plannedToDate ||
+    committedExpected.budget !== plannedBudget
 
   /**
    * "Delivered" KPI tile (Task 3) — fetched client-side from `/api/dashboard/[slug]/delivered`
@@ -360,6 +381,8 @@ export function ClientDashboardPageContent({
             brandColour={clientData.brandColour}
             totalSpend={plannedToDate}
             spendLabel="Expected media to date"
+            spendLoading={expectedLoading}
+            viewerIsClient={viewerIsClient}
             activeCampaigns={statusCounts.live}
             onOpenDetails={() => setDetailsModalOpen(true)}
             onOpenFinance={() => setFinanceModalOpen(true)}
@@ -387,6 +410,7 @@ export function ClientDashboardPageContent({
             totalSpend={plannedToDate}
             totalBudget={plannedBudget}
             spendLabel="Expected media to date"
+            spendLoading={expectedLoading}
             liveCampaigns={statusCounts.live}
             plannedCampaigns={statusCounts.planned}
             budgetUtilized={budgetUtilizedPct}

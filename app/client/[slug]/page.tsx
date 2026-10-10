@@ -60,6 +60,7 @@ export default async function ClientHubDetailPage({ params, searchParams }: Page
       slug={slug}
       clientData={{ ...clientData, clientRecord, clientLogo }}
       campaignLinkMode="adminHub"
+      viewerIsClient={false}
       headerDescription="Client hub — campaign dashboard"
       rangeStartISO={range.rangeStartISO}
       rangeEndISO={range.rangeEndISO}

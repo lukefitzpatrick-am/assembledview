@@ -8,10 +8,10 @@ describe("spendInsightsCaption", () => {
     const total = 43_000
     const compact = fmt.currencyCompact(total)
     expect(spendInsightsCaption({ by: "campaign", total })).toBe(
-      `planned media by campaign · delivery schedule months · excludes fees · Total: ${compact}`,
+      `booked and live campaigns · planned media by campaign · delivery schedule months · excludes fees · Total: ${compact}`,
     )
     expect(spendInsightsCaption({ by: "type", total })).toBe(
-      `planned media by type · delivery schedule months · excludes fees · Total: ${compact}`,
+      `booked and live campaigns · planned media by type · delivery schedule months · excludes fees · Total: ${compact}`,
     )
   })
 
@@ -21,7 +21,7 @@ describe("spendInsightsCaption", () => {
     expect(
       spendInsightsCaption({ by: "month", total, rangeLabel: "2026–27" }),
     ).toBe(
-      `planned media by month · delivery schedule months · excludes fees · 2026–27 · Total: ${compact}`,
+      `booked and live campaigns · planned media by month · delivery schedule months · excludes fees · 2026–27 · Total: ${compact}`,
     )
   })
 

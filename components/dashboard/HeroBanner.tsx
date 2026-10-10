@@ -32,6 +32,10 @@ export interface HeroBannerProps {
   /** Opens Client Brain slide-over (hub/admin rail — same gate as sibling icons). */
   onOpenBrain?: () => void
   isAdmin?: boolean
+  /** True only for a client-role viewer. Admin and staff see the client name. */
+  viewerIsClient?: boolean
+  /** Same gate as the expected-media tile. Hides the figure until it is final. */
+  spendLoading?: boolean
   /** Client hub (/client/[slug]): omit benchmark line and Avg ROAS meta. */
   clientHubLayout?: boolean
   /** Raw Xano client row — used for profile link icons on admin hub. */
@@ -59,6 +63,8 @@ export function HeroBanner({
   onOpenKPIs,
   onOpenBrain,
   isAdmin = false,
+  viewerIsClient = false,
+  spendLoading = false,
   clientHubLayout = false,
   clientRecord = null,
 }: HeroBannerProps) {
@@ -81,9 +87,17 @@ export function HeroBanner({
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span>
-          {spendLabel}: {formatMoneyCompact(totalSpend)}
-        </span>
+        {spendLoading ? (
+          <span
+            className="inline-block h-4 w-40 animate-pulse rounded bg-muted/60"
+            aria-busy="true"
+            aria-label={`${spendLabel} loading`}
+          />
+        ) : (
+          <span>
+            {spendLabel}: {formatMoneyCompact(totalSpend)}
+          </span>
+        )}
         <span aria-hidden className="text-border">
           •
         </span>
@@ -118,7 +132,8 @@ export function HeroBanner({
           />
 
           <PageHeroTitleBlock
-            title={`Welcome back, ${clientName}`}
+            title={viewerIsClient ? `Welcome back, ${clientName}` : clientName}
+            punctuate={viewerIsClient}
             detail={detail}
             brandColour={brandColour}
           />

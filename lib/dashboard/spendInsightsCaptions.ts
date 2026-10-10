@@ -10,6 +10,8 @@ import { fmt } from "@/lib/chart-theme"
 
 const BASIS = "delivery schedule months"
 const FEES = "excludes fees"
+/** Campaign status Planned is outside the commercial set on purpose. */
+const CAMPAIGN_SET = "booked and live campaigns"
 
 export type SpendInsightsCaptionBy = "campaign" | "type" | "month"
 
@@ -24,7 +26,7 @@ export function spendInsightsCaption(args: {
       : args.by === "type"
         ? "planned media by type"
         : "planned media by month"
-  const parts = [by, BASIS, FEES]
+  const parts = [`${CAMPAIGN_SET} · ${by}`, BASIS, FEES]
   if (args.by === "month" && args.rangeLabel) parts.push(args.rangeLabel)
   parts.push(`Total: ${fmt.currencyCompact(args.total)}`)
   return parts.join(" · ")
