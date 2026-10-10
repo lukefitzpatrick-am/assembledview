@@ -19,7 +19,7 @@ describe("local draft key — re-login survival (existing mechanism, not a new s
     assert.equal(after, before)
   })
 
-  it("create-page drafts key on MBA + userId (case-insensitive MBA)", () => {
+  it("legacy create-page key is still mba + userId so migration can find it", () => {
     assert.equal(
       localDraftStorageKey({
         masterId: null,

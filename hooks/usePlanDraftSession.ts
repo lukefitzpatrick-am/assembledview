@@ -85,6 +85,11 @@ export function usePlanDraftSession(args: {
   forceIncrement?: boolean
   /** VC Stage 2b — default save; pass publish for explicit version cut. */
   intent?: "save" | "publish"
+  /**
+   * Create tab only. Edit leaves this unset and keeps `m{masterId}::{userId}`.
+   * Without it, Create does not read or write a shared MBA key.
+   */
+  createDraftId?: string | null
   getSnapshot: () => PlanDraftStateV1
   /**
    * Fires on every accepted dirty-mark, including already-dirty.
@@ -237,6 +242,7 @@ export function usePlanDraftSession(args: {
     async (opts?: { force?: boolean }) => {
       return enqueuePersist(async () => {
         if ((!autosaveEnabled && !opts?.force) || !userId) return
+        if (args.masterId == null && !args.createDraftId) return
         const state = getSnapshotRef.current()
         if (args.masterId == null && !isMeaningfulCreateDraft(state)) return
         setPayloadBytes(estimateDraftPayloadBytes(state))
@@ -245,6 +251,7 @@ export function usePlanDraftSession(args: {
           mbaNumber: args.mbaNumber,
           userId,
           state,
+          createDraftId: args.masterId == null ? args.createDraftId : null,
         })
         setLastAutosaveAt(Date.now())
         setActiveDraft((prev) =>
@@ -252,7 +259,7 @@ export function usePlanDraftSession(args: {
         )
       })
     },
-    [autosaveEnabled, args.masterId, args.mbaNumber, userId, enqueuePersist]
+    [autosaveEnabled, args.masterId, args.mbaNumber, args.createDraftId, userId, enqueuePersist]
   )
 
   const persistServer = useCallback(
@@ -390,10 +397,15 @@ export function usePlanDraftSession(args: {
     if (!userId) return
     let cancelled = false
     ;(async () => {
+      if (args.masterId == null && !args.createDraftId) {
+        if (!cancelled) setOffer(null)
+        return
+      }
       const local = await readLocalDraft({
         masterId: args.masterId,
         mbaNumber: args.mbaNumber,
         userId,
+        createDraftId: args.masterId == null ? args.createDraftId : null,
       })
       let server: { updatedAt: string; state: PlanDraftStateV1; baseVersionId: number | null } | null =
         null
@@ -446,6 +458,7 @@ export function usePlanDraftSession(args: {
           masterId: args.masterId,
           mbaNumber: args.mbaNumber,
           userId,
+          createDraftId: args.masterId == null ? args.createDraftId : null,
         })
         if (cancelled) return
         setOffer(null)
@@ -495,7 +508,7 @@ export function usePlanDraftSession(args: {
     return () => {
       cancelled = true
     }
-  }, [args.masterId, args.mbaNumber, userId])
+  }, [args.masterId, args.mbaNumber, args.createDraftId, userId])
 
   useEffect(() => {
     if (!offer || activeDraft || restoreGateRef.current.applied) return
@@ -540,12 +553,13 @@ export function usePlanDraftSession(args: {
       masterId: args.masterId,
       mbaNumber: args.mbaNumber,
       userId,
+      createDraftId: args.createDraftId,
     })
     if (args.masterId != null) {
       await fetch(`/api/plans/drafts?masterId=${args.masterId}`, { method: "DELETE" })
     }
     setLastAutosaveAt(null)
-  }, [args.masterId, args.mbaNumber, userId, activeDraft])
+  }, [args.masterId, args.mbaNumber, args.createDraftId, userId, activeDraft])
 
   const resume = useCallback(() => {
     const stale = recovery
@@ -598,6 +612,7 @@ export function usePlanDraftSession(args: {
       masterId: args.masterId,
       mbaNumber: args.mbaNumber,
       userId,
+      createDraftId: args.createDraftId,
     })
     // Save route owns matching-base delete while Save publishes. Do not
     // bulk-delete stale-base rows from the client after a successful save.
@@ -605,7 +620,7 @@ export function usePlanDraftSession(args: {
       await fetch(`/api/plans/drafts?masterId=${args.masterId}`, { method: "DELETE" })
     }
     setLastAutosaveAt(null)
-  }, [args.masterId, args.mbaNumber, userId])
+  }, [args.masterId, args.mbaNumber, args.createDraftId, userId])
 
   const presenceLine = useMemo(
     () => formatPlanPresenceBanner(presenceOthers),

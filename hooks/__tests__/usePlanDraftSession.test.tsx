@@ -154,10 +154,12 @@ function ResumeProbe(props: {
 function CreateProbe(props: {
   onResult: (result: HookResult) => void
   onRestore: (state: PlanDraftStateV1) => void
+  createDraftId?: string | null
 }) {
   const result = usePlanDraftSession({
     masterId: null,
     mbaNumber: "TEST001",
+    createDraftId: props.createDraftId,
     userId: "luke.fitzpatrick@assembledmedia.com.au",
     dirty: false,
     baseVersionId: null,
@@ -254,10 +256,13 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
     })
   }
 
-  async function renderCreateProbe() {
+  async function renderCreateProbe(
+    createDraftId: string | null = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  ) {
     await act(async () => {
       root.render(
         <CreateProbe
+          createDraftId={createDraftId}
           onResult={(result) => {
             latest = result
           }}
@@ -416,7 +421,7 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
     expect(clearSpy).toHaveBeenCalled()
   })
 
-  it("create page: meaningful local draft auto-applies with descriptive label", async () => {
+  it("create page: opening one draft id restores that snapshot and not another client's shared MBA key", async () => {
     const meaningful: PlanDraftStateV1 = {
       ...EMPTY_SNAPSHOT,
       formValues: { mp_client_name: "Penfold", mp_campaignname: "Summer brand" },
@@ -463,8 +468,30 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
       await latest?.clearAfterPublish()
     })
     expect(clearSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ masterId: null, mbaNumber: "TEST001" })
+      expect.objectContaining({
+        masterId: null,
+        mbaNumber: "TEST001",
+        createDraftId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      })
     )
+  })
+
+  it("create page: no draft id does not restore a shared MBA snapshot", async () => {
+    const readSpy = vi.spyOn(localStore, "readLocalDraft").mockResolvedValue({
+      key: "mba:TEST001::luke",
+      updatedAt: new Date().toISOString(),
+      state: {
+        ...EMPTY_SNAPSHOT,
+        formValues: { mp_client_name: "Penfold" },
+      },
+    })
+    await renderCreateProbe(null)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(readSpy).not.toHaveBeenCalled()
+    expect(restored).toEqual([])
+    expect(latest?.activeDraft).toBeNull()
   })
 
   it("a fresh editor with no draft has no banner and no activeDraft", async () => {
@@ -588,6 +615,7 @@ describe("usePlanDraftSession autosave latch (NEXT_PUBLIC_PLAN_DRAFTS on)", () =
       usePlanDraftSession({
         masterId: null,
         mbaNumber: "TEST001",
+        createDraftId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         userId: "luke",
         dirty: true,
         subscribeDirty,

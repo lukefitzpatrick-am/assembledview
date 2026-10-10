@@ -62,6 +62,8 @@ export type PlanWizardBottomBarProps = {
     onRetry: () => void
     retrying?: boolean
   } | null
+  /** Create only. Downloads the current form as a draft JSON file. */
+  onExportDraft?: () => void
 }
 
 export function PlanWizardBottomBar({
@@ -103,6 +105,7 @@ export function PlanWizardBottomBar({
   gateDownloadsOnPublish,
   draftBlocksDownloadMessage = DRAFT_BLOCKS_DOWNLOAD_MESSAGE,
   failedLoadRetry = null,
+  onExportDraft,
 }: PlanWizardBottomBarProps) {
   const controls = wizardDownloadControls({
     isCreate,
@@ -290,6 +293,9 @@ export function PlanWizardBottomBar({
             <DropdownMenuItem onClick={onDownloadNaming} disabled={downloadsBusy}>
               Generate Naming (Ava)
             </DropdownMenuItem>
+            {onExportDraft ? (
+              <DropdownMenuItem onClick={onExportDraft}>Export draft</DropdownMenuItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -399,6 +405,22 @@ export function PlanWizardBottomBar({
           {isDownloadingAa ? "Creating AA Plan..." : controls.publishedAaLabel}
         </span>
       </Button>
+      ) : null}
+      {onExportDraft ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="hidden h-9 shrink-0 rounded-pill border border-border bg-background px-4 py-2 text-foreground hover:bg-muted md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Draft file
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onExportDraft}>Export draft</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : null}
       <div className="hidden items-center gap-2 md:flex">
         <Button

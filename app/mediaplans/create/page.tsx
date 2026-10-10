@@ -40,6 +40,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
 import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
+import { CreateDraftLanding } from "@/components/mediaplans/CreateDraftLanding"
 import { PlanWizardBottomBar } from "@/components/mediaplans/PlanWizardBottomBar"
 import { useMediaPlanDirtyController } from "@/lib/mediaplan/useMediaPlanDirtyController"
 import { applyChannelTotalPair } from "@/lib/mediaplan/channelTotalChange"
@@ -352,6 +353,12 @@ import {
 import { DraftDiffProvider } from "@/hooks/useDraftFieldDiff"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
+import {
+  CREATE_DRAFT_SESSION_KEY,
+  createDraftExportFilename,
+  exportCreateDraftFile,
+  isCreateDraftId,
+} from "@/lib/mediaplan/drafts/createBrowserDraft"
 import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
 import { isPlanDraftsEnabled } from "@/lib/mediaplan/drafts/flag"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
@@ -5128,9 +5135,52 @@ function CreateMediaPlan() {
         ? Number(mediaPlanVersionId)
         : null
 
+  const createDraftParam = (searchParams.get("draft") ?? "").trim()
+  const createDraftId = isCreateDraftId(createDraftParam) ? createDraftParam : null
+  const draftSnapshotRef = useRef<(() => PlanDraftStateV1) | null>(null)
+  draftSnapshotRef.current = () =>
+    buildPlanDraftSnapshot({
+      mbaNumber: String(mbaNumber ?? ""),
+      masterId: mediaPlanId,
+      baseVersionId: draftBaseVersionId,
+      formValues: form.getValues() as Record<string, unknown>,
+      channels: {
+        television: televisionMediaLineItems,
+        radio: radioMediaLineItems,
+        newspaper: newspaperMediaLineItems,
+        magazines: magazineMediaLineItems,
+        ooh: oohMediaLineItems,
+        cinema: cinemaMediaLineItems,
+        digiDisplay: digiDisplayMediaLineItems,
+        digiAudio: digiAudioMediaLineItems,
+        digiVideo: digiVideoMediaLineItems,
+        bvod: bvodMediaLineItems,
+        integration: integrationMediaLineItems,
+        production: productionMediaLineItems,
+        search: searchMediaLineItems,
+        socialMedia: socialMediaMediaLineItems,
+        progDisplay: progDisplayMediaLineItems,
+        progVideo: progVideoMediaLineItems,
+        progBvod: progBvodMediaLineItems,
+        progAudio: progAudioMediaLineItems,
+        progOoh: progOohMediaLineItems,
+        influencers: influencersMediaLineItems,
+      },
+    })
+
+  useEffect(() => {
+    if (!createDraftId) return
+    try {
+      sessionStorage.setItem(CREATE_DRAFT_SESSION_KEY, createDraftId)
+    } catch {
+      /* private mode */
+    }
+  }, [createDraftId])
+
   const planDraft = usePlanDraftSession({
     masterId: mediaPlanId,
     mbaNumber: String(mbaNumber ?? ""),
+    createDraftId,
     dirty: hasUnsavedChanges,
     subscribeDirty: dirty.subscribe,
     baseVersionId: draftBaseVersionId,
@@ -5138,33 +5188,13 @@ function CreateMediaPlan() {
     publishedVersionNumber: 0,
     versionRowCount: 0,
     getSnapshot: () =>
+      draftSnapshotRef.current?.() ??
       buildPlanDraftSnapshot({
         mbaNumber: String(mbaNumber ?? ""),
         masterId: mediaPlanId,
         baseVersionId: draftBaseVersionId,
-        formValues: form.getValues() as Record<string, unknown>,
-        channels: {
-          television: televisionMediaLineItems,
-          radio: radioMediaLineItems,
-          newspaper: newspaperMediaLineItems,
-          magazines: magazineMediaLineItems,
-          ooh: oohMediaLineItems,
-          cinema: cinemaMediaLineItems,
-          digiDisplay: digiDisplayMediaLineItems,
-          digiAudio: digiAudioMediaLineItems,
-          digiVideo: digiVideoMediaLineItems,
-          bvod: bvodMediaLineItems,
-          integration: integrationMediaLineItems,
-          production: productionMediaLineItems,
-          search: searchMediaLineItems,
-          socialMedia: socialMediaMediaLineItems,
-          progDisplay: progDisplayMediaLineItems,
-          progVideo: progVideoMediaLineItems,
-          progBvod: progBvodMediaLineItems,
-          progAudio: progAudioMediaLineItems,
-          progOoh: progOohMediaLineItems,
-          influencers: influencersMediaLineItems,
-        },
+        formValues: {},
+        channels: {},
       }),
     onRestore: (state: PlanDraftStateV1) => {
       if (state.formValues) form.reset(state.formValues as never)
@@ -7722,6 +7752,25 @@ const handleSaveAll = async (opts?: {
           isNamingDownloading={isNamingDownloading}
           downloadsLocked={isWizardSaving}
           hasAdvertisingAssociatesBilling={hasAdvertisingAssociatesBilling}
+          onExportDraft={() => {
+            const state = draftSnapshotRef.current?.()
+            if (!state) return
+            const file = exportCreateDraftFile(state)
+            const fv = state.formValues ?? {}
+            const filename = createDraftExportFilename(
+              String(fv.mp_client_name ?? ""),
+              String(fv.mp_campaignname ?? ""),
+            )
+            const blob = new Blob([JSON.stringify(file, null, 2)], {
+              type: "application/json",
+            })
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement("a")
+            link.href = url
+            link.download = filename
+            link.click()
+            URL.revokeObjectURL(url)
+          }}
           gateDownloadsOnPublish={false}
           draftBlocksDownloadMessage={draftBlocksDownloadMessage}
         />
@@ -9416,10 +9465,17 @@ const handleSaveAll = async (opts?: {
   )
 }
 
+function CreateMediaPlanGate() {
+  const searchParams = useSearchParams()
+  const draftId = (searchParams.get("draft") ?? "").trim()
+  if (!isCreateDraftId(draftId)) return <CreateDraftLanding />
+  return <CreateMediaPlan />
+}
+
 export default function CreateMediaPlanPage() {
   return (
     <Suspense fallback={<MediaContainerSuspenseFallback label="campaign form" />}>
-      <CreateMediaPlan />
+      <CreateMediaPlanGate />
     </Suspense>
   )
 }
