@@ -141,13 +141,11 @@ export function InXeroPageClient() {
   return (
     <FinanceSectionsShell
       title="In Xero"
+      headerNote="Match runs each night after the Xero invoice ingest. This app never writes to Xero."
       scopeBar={<SectionScopeBar showingLabel={showingLabel} />}
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            Match runs each night after the Xero invoice ingest. This app never writes to Xero.
-          </p>
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs text-muted-foreground">
               Xero synced {formatMelbourneStamp(payload?.lastNightlySyncAt ?? null, "never")} · Last manual pull {formatMelbourneStamp(payload?.lastPulledAt ?? null, "none")}

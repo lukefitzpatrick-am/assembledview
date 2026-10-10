@@ -26,6 +26,7 @@ function pillActive(pathname: string, href: string): boolean {
 
 export function FinanceSectionsShell({
   title,
+  accent,
   headerNote,
   children,
   scopeBar,
@@ -33,7 +34,9 @@ export function FinanceSectionsShell({
   scopeBarFramed = true,
 }: {
   title: string
-  /** One-line basis note under the title (e.g. ex-GST). */
+  /** Serif phrase after the title. The full stop lands on this word. */
+  accent?: string
+  /** One-line basis note under the title. */
   headerNote?: string
   children: React.ReactNode
   scopeBar?: React.ReactNode
@@ -47,7 +50,7 @@ export function FinanceSectionsShell({
   return (
     <div className="w-full max-w-none px-4 pb-10 pt-4 md:px-6">
       <div className="mb-4 space-y-3">
-        <PageHeader title={title} lede={headerNote} />
+        <PageHeader title={title} accent={accent} lede={headerNote} />
         {pills.length > 0 ? (
           <nav aria-label="Clients billing sections" className="flex flex-wrap gap-2">
             {pills.map((item) => {

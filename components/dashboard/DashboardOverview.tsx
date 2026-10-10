@@ -46,7 +46,8 @@ import {
 } from "@/components/dashboard/templates"
 import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar"
 import { AuFinancialYearFilterPills } from "@/components/dashboard/AuFinancialYearFilterPills"
-import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { PageHeader } from "@/components/layout/PageHeader"
+import { greetingFirstName, melbourneDayPart } from "@/components/layout/pageTitleCopy"
 import {
   campaignFinishedInPastDays,
   campaignOverlapsAuFinancialYear,
@@ -145,8 +146,6 @@ interface ScopeOfWork {
 interface DashboardOverviewProps {
   /** Path used for login redirect when unauthenticated */
   returnTo?: string
-  /** Optional title override */
-  title?: string
   /** Hide the top metric cards */
   showMetrics?: boolean
   /** Hide the campaign/scope tables */
@@ -643,7 +642,6 @@ function DashboardPanelBodySkeleton({
 
 export default function DashboardOverview({
   returnTo = "/dashboard",
-  title = "Assembled Media Overview",
   showMetrics = true,
   showTables = true,
 }: DashboardOverviewProps) {
@@ -1355,6 +1353,10 @@ export default function DashboardOverview({
     return entries.filter(([, enabled]) => enabled).map(([key]) => key)
   }, [])
 
+  const dayPart = melbourneDayPart()
+  const firstName = greetingFirstName(user)
+  const homeTitle = `Good ${dayPart},`
+
   const getPageContext = useCallback((): PageContext => {
     const latestPlans = getLatestPlanVersions(mediaPlans)
 
@@ -1590,8 +1592,8 @@ export default function DashboardOverview({
       fields,
       generatedAt: new Date().toISOString(),
       pageText: {
-        title,
-        headings: [title],
+        title: `Good ${dayPart}, ${firstName}.`,
+        headings: [`Good ${dayPart}, ${firstName}.`],
         breadcrumbs: ["Dashboard"],
       },
       state: {
@@ -1656,7 +1658,8 @@ export default function DashboardOverview({
     savedViews,
     scopes,
     showTables,
-    title,
+    dayPart,
+    firstName,
   ])
 
   const handleSetField = useCallback(
@@ -1988,17 +1991,16 @@ export default function DashboardOverview({
   return (
     <>
     <div className="flex h-full w-full flex-col gap-6 px-4 pb-10 pt-6 max-[375px]:pb-28 md:px-6">
-      <MediaPlanEditorHero
-        className="mb-1"
-        compact
-        title={title}
-        Icon={BarChart3}
-        detail={
+      <PageHeader
+        title={homeTitle}
+        accent={firstName}
+        lede="Live campaigns, pacing and billing at a glance."
+        meta={
           timeRangeDescription || dataLastRefreshedAt ? (
-            <p className="text-xs text-muted-foreground">
+            <p>
               {timeRangeDescription}
               {dataLastRefreshedAt ? (
-                <span className={timeRangeDescription ? "ml-2 opacity-80" : "opacity-80"}>
+                <span className={timeRangeDescription ? "ml-2" : undefined}>
                   {timeRangeDescription ? "· " : null}
                   Updated {format(dataLastRefreshedAt, "h:mm a")}
                 </span>

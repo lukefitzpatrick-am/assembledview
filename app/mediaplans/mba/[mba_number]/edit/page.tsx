@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { AvaMediaplanEditActions } from "@/components/ava/AvaSkillActionSets"
 import { PlanWizardHeader, PlanWizardVersionChrome } from "@/components/mediaplans/PlanWizardHeader"
+import { editCampaignLede } from "@/components/layout/pageTitleCopy"
 import { PlanPresenceBanner } from "@/components/mediaplans/PlanPresenceBanner"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
@@ -11384,8 +11385,14 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         ...(enabledMediaTypes.length ? { enabledMediaTypes } : {}),
       },
       pageText: {
-        title: "Edit Campaign",
-        headings: ["Edit Campaign"],
+        title: values.mp_campaignname?.trim()
+          ? `Edit ${values.mp_campaignname.trim()}.`
+          : "Edit.",
+        headings: [
+          values.mp_campaignname?.trim()
+            ? `Edit ${values.mp_campaignname.trim()}.`
+            : "Edit.",
+        ],
         breadcrumbs: ["Media Plans", "Edit"],
       },
     };
@@ -11879,19 +11886,29 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   )
 
 
+  const publishedVersionForTitle =
+    publishedVersionId == null
+      ? null
+      : (availableVersions.find((version) => version.id === publishedVersionId)?.version_number ?? null)
+  const editTitleAccent = (typeof watchedCampaignName === "string" ? watchedCampaignName : "").trim() || "campaign"
+  const editTitleLede = editCampaignLede({
+    clientName: typeof watchedClientName === "string" ? watchedClientName : "",
+    mba: String(mbaNumber ?? ""),
+    publishedVersion: typeof publishedVersionForTitle === "number" ? publishedVersionForTitle : null,
+  })
+
   if (loadPhase === "bootstrapping") {
     return (
       <PlanWizardShell
         header={
           <>
             <PlanWizardHeader
-              title="Edit Campaign"
-              breadcrumbCurrent="Edit Campaign"
-              subtitle={
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              title="Edit"
+              lede={
+                <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  <span>Loading campaign details…</span>
-                </div>
+                  Loading campaign details.
+                </span>
               }
               secondary={
                 <div className="flex min-w-0 flex-wrap items-center gap-3">
@@ -12076,9 +12093,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         header={
           <>
             <PlanWizardHeader
-            title="Edit Campaign"
-            breadcrumbCurrent="Edit Campaign"
-            subtitle={<p>Update campaign settings, media types, and line item details.</p>}
+            title="Edit"
+            accent={editTitleAccent}
+            lede={editTitleLede}
             secondary={
               <div className="flex min-w-0 w-full flex-1 flex-wrap items-center gap-x-4 gap-y-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-3">

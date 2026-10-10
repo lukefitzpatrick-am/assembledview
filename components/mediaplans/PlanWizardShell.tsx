@@ -45,7 +45,7 @@ export type PlanWizardToolLink = {
 }
 
 export type PlanWizardShellProps = {
-  /** Breadcrumb + hero. Both create and edit pass `PlanWizardHeader`. */
+  /** Page title. Both create and edit pass `PlanWizardHeader`. The top bar owns the breadcrumb. */
   header: ReactNode
   steps: PlanWizardStep[]
   activeStep?: string

@@ -1,69 +1,38 @@
 "use client"
 
 import type { ReactNode } from "react"
-import Link from "next/link"
 
-import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { Badge } from "@/components/ui/badge"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
 
 export type PlanWizardHeaderProps = {
   title: ReactNode
-  subtitle?: ReactNode
-  /** Current page crumb (e.g. "Edit Campaign"). */
-  breadcrumbCurrent?: string
+  /** Serif phrase after the title. The full stop lands on this word. */
+  accent?: string
+  lede?: ReactNode
   /**
-   * Optional second row inside the same hero card (edit version chrome + AVA
-   * skill actions on both twins). Never a third hero row — wrap inside this slot.
+   * Optional second row under the title (edit version chrome + AVA skill
+   * actions on both twins). Never a third row — wrap inside this slot.
    */
   secondary?: ReactNode
 }
 
 /**
- * Shared create/edit wizard page header (breadcrumb + hero).
+ * Shared create/edit wizard page header.
  * Both mega-pages render this so row structure cannot drift.
- * Primary row is title + helper copy only — no actions slot.
+ * Primary row is title + lede only — no actions slot. The top bar owns the breadcrumb.
  */
 export function PlanWizardHeader({
   title,
-  subtitle,
-  breadcrumbCurrent,
+  accent,
+  lede,
   secondary,
 }: PlanWizardHeaderProps) {
-  const crumb =
-    breadcrumbCurrent ?? (typeof title === "string" ? title : "Campaign")
-
   return (
-    <>
-      <Breadcrumb className="pt-1">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link href="/mediaplans">Campaigns</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{crumb}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-
-      <MediaPlanEditorHero
-        className="mb-2"
-        title={title}
-        punctuate={false}
-        detail={subtitle}
-        secondary={secondary}
-      />
-    </>
+    <div className="mb-2 space-y-3">
+      <PageHeader title={title} accent={accent} lede={lede} />
+      {secondary ? <div className="min-w-0">{secondary}</div> : null}
+    </div>
   )
 }
 

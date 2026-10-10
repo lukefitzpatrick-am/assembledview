@@ -156,12 +156,12 @@ export function OwedPageClient() {
   return (
     <FinanceSectionsShell
       title="Owed"
+      headerNote="Live Xero AR ageing. Amounts are ex-GST. This page reports; it does not chase."
       scopeBar={<SectionScopeBar showingLabel={showingLabel} />}
     >
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Live Xero AR ageing. Amounts are ex-GST. Client filter applies; FY and month range do
-          not — overdue invoices stay visible. This tab reports; it does not chase.
+          Client filter applies. FY and month range do not, so overdue invoices stay visible.
         </p>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">

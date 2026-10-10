@@ -41,7 +41,7 @@ export function PacingShell({ children, isAdmin = false, canRelabel = false }: P
 
       <PageHeader
         title="Pacing"
-        lede="Portfolio pacing across all clients and channels in your scope (Search, Social, Programmatic, Ad Serving, Direct)."
+        lede="Every live line against its plan. Behind is under 90% of expected, ahead is over 110%."
         actions={<AvaPacingCommentaryAction />}
       />
 

@@ -7495,8 +7495,8 @@ const handleSaveAll = async (opts?: {
           : {}),
       },
       pageText: {
-        title: "Create a Campaign",
-        headings: ["Create a Campaign"],
+        title: "Create a campaign.",
+        headings: ["Create a campaign."],
         breadcrumbs: ["Media Plans", "Create"],
       },
     };
@@ -7787,9 +7787,8 @@ const handleSaveAll = async (opts?: {
         header={
           <>
             <PlanWizardHeader
-              title="Create a Campaign"
-              breadcrumbCurrent="Create Campaign"
-              subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}
+              title="Create a campaign"
+              lede="Set up the campaign, add media types, then publish."
               secondary={
                 <div
                   className="flex min-w-0 flex-wrap items-center gap-2"

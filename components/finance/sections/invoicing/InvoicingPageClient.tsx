@@ -13,6 +13,7 @@ import { InvoicingClientCard } from "@/components/finance/sections/invoicing/Inv
 import { InvoicingToolbar } from "@/components/finance/sections/invoicing/InvoicingToolbar"
 import { ReceivablesSummaryStrip } from "@/components/finance/receivables/ReceivablesSummaryStrip"
 import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSectionsShell"
+import { billingMonthAccent } from "@/components/layout/pageTitleCopy"
 import { EmptyState } from "@/components/finance/sections/EmptyState"
 import { ErrorState } from "@/components/finance/sections/ErrorState"
 import { LoadingState } from "@/components/finance/sections/LoadingState"
@@ -31,7 +32,6 @@ import {
 import { summariseLastExport } from "@/lib/finance/approvedReceivablesExport"
 import {
   INVOICING_CLIENT_GRID_CLASS,
-  INVOICING_EX_GST_HEADER,
   type InvoicingClientBlockerMeta,
 } from "@/lib/finance/sections/invoicingRowPresentation"
 import { loadInvoicingClientBlockerMeta } from "@/lib/finance/sections/invoicingClientBlockerMeta"
@@ -351,8 +351,9 @@ export function InvoicingPageClient() {
 
   return (
     <FinanceSectionsShell
-      title="To bill"
-      headerNote={INVOICING_EX_GST_HEADER}
+      title="Clients billing,"
+      accent={billingMonthAccent(applied.monthRange.from, applied.monthRange.to) || undefined}
+      headerNote="Expected billing from AssembledView matched against Xero. All figures ex GST."
       scopeBarFramed={false}
       scopeBar={
         <InvoicingToolbar

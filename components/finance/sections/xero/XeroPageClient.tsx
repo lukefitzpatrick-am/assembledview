@@ -35,7 +35,10 @@ export function XeroPageClient({ section }: { section: "exceptions" | "matches" 
   }, [])
 
   return (
-    <FinanceSectionsShell title="Exceptions">
+    <FinanceSectionsShell
+      title="Exceptions"
+      headerNote="Billing rows waiting for a client or MBA, and Xero invoices we could not match."
+    >
       <div className="space-y-4">
         <XeroSubNav />
         {coverage ? (

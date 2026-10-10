@@ -50,8 +50,8 @@ export function AvaCreateClientBrainAction({
 export function AvaMediaplanCreateActions() {
   return (
     <>
-      <AvaSkillAction label="Create MI for Specs" message={AVA_SKILL_MESSAGES.createMi} />
-      <AvaSkillAction label="Plan rationale" message={AVA_SKILL_MESSAGES.planRationale} />
+      <AvaSkillAction label="Create MI for Specs" message={AVA_SKILL_MESSAGES.createMi} variant="secondary" />
+      <AvaSkillAction label="Plan rationale" message={AVA_SKILL_MESSAGES.planRationale} variant="secondary" />
     </>
   )
 }
@@ -59,9 +59,9 @@ export function AvaMediaplanCreateActions() {
 export function AvaMediaplanEditActions() {
   return (
     <>
-      <AvaSkillAction label="Create MI for Specs" message={AVA_SKILL_MESSAGES.createMi} />
-      <AvaSkillAction label="Draft ad copy" message={AVA_SKILL_MESSAGES.draftCopy} />
-      <AvaSkillAction label="Plan rationale" message={AVA_SKILL_MESSAGES.planRationale} />
+      <AvaSkillAction label="Create MI for Specs" message={AVA_SKILL_MESSAGES.createMi} variant="secondary" />
+      <AvaSkillAction label="Draft ad copy" message={AVA_SKILL_MESSAGES.draftCopy} variant="secondary" />
+      <AvaSkillAction label="Plan rationale" message={AVA_SKILL_MESSAGES.planRationale} variant="secondary" />
     </>
   )
 }
@@ -69,8 +69,8 @@ export function AvaMediaplanEditActions() {
 export function AvaPacingCommentaryAction() {
   return (
     <>
-      <AvaSkillAction label="Write commentary" message={AVA_SKILL_MESSAGES.writeCommentary} />
-      <AvaSkillAction label="Plan a scenario" message={AVA_SKILL_MESSAGES.planScenario} />
+      <AvaSkillAction label="Write commentary" message={AVA_SKILL_MESSAGES.writeCommentary} variant="secondary" />
+      <AvaSkillAction label="Plan a scenario" message={AVA_SKILL_MESSAGES.planScenario} variant="secondary" />
     </>
   )
 }

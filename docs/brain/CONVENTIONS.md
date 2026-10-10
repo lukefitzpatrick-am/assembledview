@@ -124,16 +124,16 @@ Primitives: `components/finance/RowActionLine.tsx`, `RowActionMenu.tsx`, `Invoic
 
 ## Twin wizard headers
 
-Create (`/mediaplans/create`) and edit (`/mediaplans/mba/[mba_number]/edit`) share `PlanWizardHeader` inside `PlanWizardShell`. Do not rebuild breadcrumb + hero on either mega-page.
+Create (`/mediaplans/create`) and edit (`/mediaplans/mba/[mba_number]/edit`) share `PlanWizardHeader` inside `PlanWizardShell`. The top bar owns the breadcrumb. Do not add a second one on either mega-page.
 
 | Row | Create | Edit |
 |---|---|---|
-| Primary | Title + subtitle only (no actions slot) | Same title row |
-| Secondary | omitted | Version pill · trail (`describeVersionHeaderTrail`) + version picker |
+| Primary | `PageHeader` title + lede only (no actions slot) | Title "Edit" plus the campaign name as the serif accent, and the client / MBA / published-version lede |
+| Secondary | AVA skill actions | Version pill · trail (`describeVersionHeaderTrail`) + version picker, plus AVA skill actions |
 | Rail | steps · Draft Summary · status panel | steps · Campaign tools (edit only: Creative, Trafficking) · Draft Summary · status panel |
 | Campaign Details card | Heading + date presets; Campaign Status field is the only status control | Same |
 
-Never a third hero row. Long client / campaign names wrap (`break-words`, `min-w-0`); do not clip under the hero `overflow-hidden`.
+Never a third title row. Long client / campaign names wrap (`break-words`, `min-w-0`).
 
 Step 01 `#campaign-setup` on both pages uses the same frame (`rounded-frame … shadow-e1 sm:p-5`), inner `#builder-section-campaign` card (`overflow-visible rounded-card … bg-surface-panel`), and field grid (`md:grid-cols-2 xl:grid-cols-4`). Create may carry `data-create-step` (no consumer); edit must not. Edit keeps `mp_plannumber` in the field grid and does not mount `PlannerCreateTargetsStrip`. Edit bootstrapping paints that same `#campaign-setup` frame inside `PlanWizardShell` (rail placeholder + content column) so xl swap does not shift width. Pin: `lib/mediaplan/__tests__/postgresSavePayload.integration.test.ts`. Do not rebuild this chrome as a second shared component unless both pages are extracted together.
 

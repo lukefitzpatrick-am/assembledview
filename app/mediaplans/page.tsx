@@ -13,7 +13,7 @@ import { campaignMediaTypeTagLabels } from "@/lib/dashboard/campaignMediaTypeTag
 import { cn } from "@/lib/utils"
 import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
 import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
-import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { Panel, PanelActions, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
@@ -518,13 +518,9 @@ function MediaPlansPageInner() {
 
   return (
     <div className="flex h-full w-full flex-col gap-6 px-4 pb-10 pt-6 max-[375px]:pb-28 md:px-6">
-      <MediaPlanEditorHero
-        className="mb-1"
-        compact
+      <PageHeader
         title="Campaigns"
-        detail={
-          <p>Search campaigns, create a new plan, and jump into edits or dashboards.</p>
-        }
+        lede="Every media plan, newest first. Live and Completed come from campaign dates."
         actions={
           <Button
             type="button"
