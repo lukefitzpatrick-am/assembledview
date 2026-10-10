@@ -3,6 +3,7 @@ import { and, desc, eq, lt, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 
 import { emptyCampaignReadBeats, parseCampaignReadBeats, renderCampaignReadMarkdown } from "./beats"
+import { campaignReadFailureToShow } from "./show"
 import { GENERATING_STALE_ERROR, GENERATING_STALE_MS } from "./stale"
 import type {
   CampaignRead,
@@ -334,7 +335,7 @@ export async function listCampaignReadsForMba(input: {
   const published = rows.find((r) => r.status === "published") ?? null
   const draft = rows.find((r) => r.status === "draft") ?? null
   const generating = rows.find((r) => r.status === "generating") ?? null
-  const failed = rows.find((r) => r.status === "failed") ?? null
+  const failed = campaignReadFailureToShow(rows)
   if (!input.includeDrafts) {
     return { published, draft: null, generating: null, failed: null, history: [] }
   }

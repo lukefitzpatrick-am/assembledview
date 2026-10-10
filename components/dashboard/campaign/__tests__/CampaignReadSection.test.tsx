@@ -2,7 +2,9 @@
 import { describe, expect, it } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
 
+import { campaignReadIsOutOfDate } from "@/lib/campaign-read/show"
 import {
+  CampaignReadAsAt,
   CampaignReadBeatsView,
   CampaignReadFailedState,
   CampaignReadSection,
@@ -68,6 +70,18 @@ describe("CampaignReadSection views", () => {
   it("stops polling after the cap with a refresh hint", () => {
     const html = renderToStaticMarkup(<CampaignReadStillWritingState />)
     expect(html).toContain("Still writing, refresh to check")
+  })
+
+  it("shows the out-of-date cue when the read is more than 7 days old", () => {
+    const now = new Date("2026-10-10T00:00:00.000Z")
+    expect(campaignReadIsOutOfDate("2026-09-18T00:00:00.000Z", now)).toBe(true)
+    const html = renderToStaticMarkup(
+      <CampaignReadAsAt readAsAt="18 Sep 2026" outOfDate />,
+    )
+    expect(html).toContain("Read as at 18 Sep 2026")
+    expect(html).toContain("Out of date. Regenerate for current figures.")
+    expect(html).toContain("text-muted-foreground")
+    expect(html).not.toContain("button")
   })
 
   it("failed state shows the message and Regenerate", () => {

@@ -19,6 +19,10 @@ import {
   campaignReadPollShouldStop,
 } from "@/lib/campaign-read/poll"
 import {
+  CAMPAIGN_READ_OUT_OF_DATE_CUE,
+  campaignReadIsOutOfDate,
+} from "@/lib/campaign-read/show"
+import {
   CAMPAIGN_READ_BEAT_KEYS,
   CAMPAIGN_READ_HEADINGS,
   type CampaignRead,
@@ -77,6 +81,21 @@ function BeatBlock({
   )
 }
 
+export function CampaignReadAsAt({
+  readAsAt,
+  outOfDate,
+}: {
+  readAsAt: string
+  outOfDate: boolean
+}) {
+  return (
+    <p className="text-xs text-muted-foreground">
+      Read as at {readAsAt}
+      {outOfDate ? <span className="ml-2">{CAMPAIGN_READ_OUT_OF_DATE_CUE}</span> : null}
+    </p>
+  )
+}
+
 export function CampaignReadBeatsView({
   beats,
   readAsAt,
@@ -86,7 +105,7 @@ export function CampaignReadBeatsView({
 }) {
   return (
     <>
-      <p className="text-xs text-muted-foreground">Read as at {readAsAt}</p>
+      <CampaignReadAsAt readAsAt={readAsAt} outOfDate={false} />
       {CAMPAIGN_READ_BEAT_KEYS.map((key) => (
         <BeatBlock
           key={key}
@@ -331,9 +350,13 @@ export function CampaignReadSection({
               {generating ? "Writing" : visible.status === "published" ? "Published" : "Draft"}
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Read as at {formatReadAsAt(visible.publishedAt ?? visible.generatedAt)}
-          </p>
+          <CampaignReadAsAt
+            readAsAt={formatReadAsAt(visible.publishedAt ?? visible.generatedAt)}
+            outOfDate={campaignReadIsOutOfDate(
+              visible.publishedAt ?? visible.generatedAt,
+              new Date(),
+            )}
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={() => void regenerate()} disabled={busy || Boolean(generating)}>
