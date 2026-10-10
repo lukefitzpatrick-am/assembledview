@@ -267,6 +267,7 @@ import {
 } from "@/components/mediaplan/PlanDraftChrome"
 import { DraftDiffProvider } from "@/hooks/useDraftFieldDiff"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
+import { restoreDraftFormValues } from "@/lib/mediaplan/drafts/campaignDraftDates"
 import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
 import { EMPTY_DRAFT_DIFF_SUMMARY } from "@/lib/mediaplan/drafts/fieldDiff"
 import { isPlanDraftsEnabled } from "@/lib/mediaplan/drafts/flag"
@@ -6798,7 +6799,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       }),
     onRestore: (state: PlanDraftStateV1) => {
       skipTipLineItemWritesRef.current = true
-      if (state.formValues) form.reset(state.formValues as never)
+      if (state.formValues) form.reset(restoreDraftFormValues(state.formValues) as never)
       const { hydration, media } = buildDraftChannelApply(state.channels ?? {})
       const hydrateSetters: Record<string, Dispatch<SetStateAction<any[]>>> = {
         television: setTelevisionLineItems,
@@ -6854,7 +6855,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     },
     onRevertToBase: (state: PlanDraftStateV1) => {
       skipTipLineItemWritesRef.current = false
-      if (state.formValues) form.reset(state.formValues as never)
+      if (state.formValues) form.reset(restoreDraftFormValues(state.formValues) as never)
       const { hydration, media } = buildDraftChannelApply(state.channels ?? {})
       const hydrateSetters: Record<string, Dispatch<SetStateAction<any[]>>> = {
         television: setTelevisionLineItems,

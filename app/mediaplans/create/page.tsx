@@ -354,6 +354,7 @@ import {
 import { DraftDiffProvider } from "@/hooks/useDraftFieldDiff"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
+import { restoreDraftFormValues } from "@/lib/mediaplan/drafts/campaignDraftDates"
 import {
   CREATE_DRAFT_SESSION_KEY,
   createDraftExportFilename,
@@ -5198,7 +5199,7 @@ function CreateMediaPlan() {
         channels: {},
       }),
     onRestore: (state: PlanDraftStateV1) => {
-      if (state.formValues) form.reset(state.formValues as never)
+      if (state.formValues) form.reset(restoreDraftFormValues(state.formValues) as never)
       const { media } = buildDraftChannelApply(state.channels ?? {})
       const mediaSetters: Record<string, Dispatch<SetStateAction<any[]>>> = {
         television: setTelevisionMediaLineItems,
@@ -5228,7 +5229,7 @@ function CreateMediaPlan() {
       forceDirty()
     },
     onRevertToBase: (state: PlanDraftStateV1) => {
-      if (state.formValues) form.reset(state.formValues as never)
+      if (state.formValues) form.reset(restoreDraftFormValues(state.formValues) as never)
       const { media } = buildDraftChannelApply(state.channels ?? {})
       const mediaSetters: Record<string, Dispatch<SetStateAction<any[]>>> = {
         television: setTelevisionMediaLineItems,

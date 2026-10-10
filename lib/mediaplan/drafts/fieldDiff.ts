@@ -1,5 +1,6 @@
 import { formatDateShort } from "../../format/date.js"
 import { formatMoney, parseMoneyInput } from "../../format/money.js"
+import { draftCampaignCivilDay } from "./campaignDraftDates.js"
 import {
   CAMPAIGN_DRAFT_LINE_ID,
   DRAFT_CHANNEL_ORDER,
@@ -176,23 +177,8 @@ export function getValueAtPath(row: unknown, fieldPath: string): unknown {
   return cur
 }
 
-function localYmd(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
-}
-
 function calendarDay(value: unknown): string | null {
-  if (value == null || value === "") return null
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return localYmd(value)
-  }
-  const s = String(value).trim()
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
-  const d = new Date(s)
-  if (!Number.isNaN(d.getTime())) return localYmd(d)
-  return s
+  return draftCampaignCivilDay(value)
 }
 
 export function valuesEqualForDraftDiff(
