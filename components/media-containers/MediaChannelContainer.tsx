@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils"
 import { segmentChipClass } from "@/components/layout/navChip"
 import { Copy, Plus, Trash2 } from "lucide-react"
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
+import { formatBuyTypeForExport } from "@/lib/mediaplan/buyTypeLabels"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import { newBurstReactKey } from "@/lib/mediaplan/burstOperations"
 import {
@@ -388,8 +389,10 @@ export default function MediaChannelContainer({
                               </div>
                               <div>
                                 <span className="font-medium">Buy Type:</span>{" "}
-                                {form.watch(
-                                  `${fieldKey}.${lineItemIndex}.buyType`,
+                                {formatBuyTypeForExport(
+                                  form.watch(
+                                    `${fieldKey}.${lineItemIndex}.buyType`,
+                                  ) || undefined,
                                 ) || "Not selected"}
                               </div>
                               <div>

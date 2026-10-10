@@ -1,5 +1,7 @@
 "use client"
 
+import { formatBuyTypeForExport } from "@/lib/mediaplan/buyTypeLabels"
+
 import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
 import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 
@@ -777,7 +779,7 @@ export default function IntegrationContainer({
       case "fixed_cost":
         return "Fixed Cost";
       default:
-        return buyType;
+        return formatBuyTypeForExport(buyType) || buyType;
     }
   }, []);
   

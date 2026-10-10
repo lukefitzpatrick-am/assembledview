@@ -335,7 +335,7 @@ function ScheduleIngestPageInner() {
     if (!review?.proposal) return
     const mid = Number(masterId)
     if (!Number.isFinite(mid) || mid <= 0 || !mbaNumber.trim()) {
-      setError("Enter masterId and mbaNumber before Accept")
+      setError("Enter a Plan ID and MBA number before Accept")
       return
     }
     setAccepting(true)
@@ -698,7 +698,7 @@ function ScheduleIngestPageInner() {
           onCancel={onCancel}
           accepting={accepting}
           remapping={remapping}
-          campaignHint={`Target MBA ${mbaNumber || "?"} · master ${masterId || "?"} · v${versionNumber || "1"}`}
+          campaignHint={`MBA ${mbaNumber || "?"} · Plan ${masterId || "?"} · Version ${versionNumber || "1"}`}
         />
       </>
     )
@@ -730,11 +730,11 @@ function ScheduleIngestPageInner() {
           Campaign target
         </h2>
         <p className="text-xs text-muted-foreground">
-          Accept writes through the normal save path against this master.
+          Accept saves this workbook onto the plan below.
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="space-y-1 text-sm">
-            <span className="text-muted-foreground">masterId</span>
+            <span className="text-muted-foreground">Plan ID</span>
             <Input
               value={masterId}
               onChange={(e) => setMasterId(e.target.value)}
@@ -742,14 +742,14 @@ function ScheduleIngestPageInner() {
             />
           </label>
           <label className="space-y-1 text-sm">
-            <span className="text-muted-foreground">mbaNumber</span>
+            <span className="text-muted-foreground">MBA number</span>
             <Input
               value={mbaNumber}
               onChange={(e) => setMbaNumber(e.target.value)}
             />
           </label>
           <label className="space-y-1 text-sm">
-            <span className="text-muted-foreground">versionNumber</span>
+            <span className="text-muted-foreground">Version</span>
             <Input
               value={versionNumber}
               onChange={(e) => setVersionNumber(e.target.value)}

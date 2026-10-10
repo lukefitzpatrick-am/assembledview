@@ -1,5 +1,7 @@
 "use client"
 
+import { formatBuyTypeForExport } from "@/lib/mediaplan/buyTypeLabels"
+
 import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
 import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 
@@ -945,7 +947,7 @@ const handleAddNewNewspaperAdSize = async () => {
       case "screens":
         return "Screens";
       default:
-        return buyType;
+        return formatBuyTypeForExport(buyType) || buyType;
     }
   }, []);
   

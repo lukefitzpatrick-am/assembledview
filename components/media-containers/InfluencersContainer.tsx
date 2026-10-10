@@ -1,5 +1,7 @@
 "use client"
 
+import { formatBuyTypeForExport } from "@/lib/mediaplan/buyTypeLabels"
+
 import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
 import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 
@@ -723,7 +725,7 @@ export default function InfluencersContainer({
       case "screens":
         return "Screens";
       default:
-        return buyType;
+        return formatBuyTypeForExport(buyType) || buyType;
     }
   }, []);
 

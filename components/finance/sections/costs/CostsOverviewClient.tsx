@@ -155,11 +155,8 @@ export function CostsOverviewClient() {
             </p>
             <p>{view.data.coverage.excludedByStatusCaption}</p>
             <p>
-              Coverage: {view.data.coverage.bookedWithPublisherIdentityPct}% of booked cost has a
-              publisher identity; {view.data.coverage.bookedInMonthsWithAnyApBillPct}% falls in months
-              with any AP bill. Orphan schedule media:{" "}
-              {formatMoney(view.data.coverage.orphanLineCents / 100)}.{" "}
-              {view.data.coverage.note}
+              {view.data.coverage.bookedWithPublisherIdentityPct}% of booked spend is matched to a
+              publisher. Unmatched lines are shown in the Orphans view.
             </p>
           </div>
         ) : null}
@@ -177,7 +174,6 @@ export function CostsOverviewClient() {
             <div className="grid gap-3 lg:grid-cols-2">
               <BaseChartCard
                 title="Publisher spend (booked, delivery)"
-                subtitle="From costs/summary — not global-monthly-* dashboard endpoints"
                 className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
                 exportPage="finance"
                 exportSeries={{

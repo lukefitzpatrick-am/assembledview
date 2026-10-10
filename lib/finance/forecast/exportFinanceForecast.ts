@@ -154,7 +154,7 @@ function buildMetadataPairs(
       "Search versions (UI)",
       filters.searchVersions.trim().length > 0 ? filters.searchVersions.trim() : "(none)",
     ],
-    ["Include row debug (UI)", filters.includeRowDebug ? "yes" : "no"],
+    ["Show debug details", filters.includeRowDebug ? "yes" : "no"],
   ]
   if (apiMeta) {
     pairs.push(

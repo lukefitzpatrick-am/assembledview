@@ -31,6 +31,7 @@ import {
 import { workbookToXlsxBuffer } from "@/lib/finance/excelFinanceExport"
 import { formatCurrencyFull } from "@/lib/format/currency"
 import { fyDisplayLabel } from "@/lib/finance/months"
+import { useAuthContext } from "@/contexts/AuthContext"
 import { useFinanceScopeApplied } from "@/lib/finance/sections/useFinanceScope"
 import { SectionScopeBar } from "@/components/finance/sections/SectionScopeBar"
 import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSectionsShell"
@@ -250,6 +251,7 @@ function writeFmodeToLocation(mode: ForecastPanelMode) {
  * FY from shared section scope; ?fmode= booked|target|variance preserved.
  */
 export default function ForecastingPageClient() {
+  const { isAdmin } = useAuthContext()
   const applied = useFinanceScopeApplied()
   const fyStart = applied.fy
   const [panelMode, setPanelMode] = useState<ForecastPanelMode>(() => readFmodeFromLocation())
@@ -556,7 +558,7 @@ export default function ForecastingPageClient() {
       scopeBar={
         <SectionScopeBar
           variant="fy-only"
-          showingLabel={`FY${fyDisplayLabel(fyStart)} · modes via ?fmode=`}
+          showingLabel={`FY${fyDisplayLabel(fyStart)}`}
         />
       }
     >
@@ -879,16 +881,18 @@ export default function ForecastingPageClient() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 border-t border-border/40 pt-3">
-            <Checkbox
-              id="include-debug"
-              checked={includeDebug}
-              onCheckedChange={(v) => setIncludeDebug(v === true)}
-            />
-            <Label htmlFor="include-debug" className="cursor-pointer text-sm font-normal text-muted-foreground">
-              Include row debug metadata (larger response; use row actions to inspect)
-            </Label>
-          </div>
+          {isAdmin ? (
+            <div className="flex items-center gap-2 border-t border-border/40 pt-3">
+              <Checkbox
+                id="include-debug"
+                checked={includeDebug}
+                onCheckedChange={(v) => setIncludeDebug(v === true)}
+              />
+              <Label htmlFor="include-debug" className="cursor-pointer text-sm font-normal text-muted-foreground">
+                Show debug details
+              </Label>
+            </div>
+          ) : null}
 
           {error ? (
             <ErrorState
@@ -1051,7 +1055,7 @@ export default function ForecastingPageClient() {
           <SheetHeader>
             <SheetTitle>Row metadata</SheetTitle>
             <SheetDescription>
-              Source and debug fields returned by the forecast API{includeDebug ? "" : " (enable “Include row debug” and reload for full debug fields)"}.
+              Source and debug fields returned by the forecast API{includeDebug ? "" : " (turn on “Show debug details” and reload for full debug fields)"}.
             </SheetDescription>
           </SheetHeader>
           {detailLine ? (
@@ -1076,7 +1080,7 @@ export default function ForecastingPageClient() {
                     {JSON.stringify(detailLine.debug, null, 2)}
                   </pre>
                 ) : (
-                  <p className="text-muted-foreground">No debug payload (toggle “Include row debug” and reload).</p>
+                  <p className="text-muted-foreground">No debug payload (turn on “Show debug details” and reload).</p>
                 )}
               </div>
             </div>
@@ -1280,9 +1284,6 @@ function FragmentBlock(props: {
           )}
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold tracking-tight text-foreground">{block.client_name}</span>
-            <span className="mt-0.5 block font-mono text-[11px] font-normal text-muted-foreground">
-              {block.client_id}
-            </span>
           </span>
         </button>
       </td>
@@ -1309,9 +1310,6 @@ function FragmentBlock(props: {
               <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold tracking-tight text-foreground">{block.client_name}</span>
-                <span className="mt-0.5 block font-mono text-[11px] font-normal text-muted-foreground">
-                  {block.client_id}
-                </span>
               </span>
             </button>
           </td>

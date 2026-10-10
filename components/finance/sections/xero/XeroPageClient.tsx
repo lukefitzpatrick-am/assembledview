@@ -48,8 +48,8 @@ export function XeroPageClient({ section }: { section: "exceptions" | "matches" 
         ) : null}
         <p className="text-xs text-muted-foreground">
           {section === "exceptions"
-            ? "Exceptions · pending finance_billing_records + xero_sync_exceptions (parity with hub queue)."
-            : "Matches · PC6 xero_invoice_matches. Mutations: accept / dispute / write-off. Reassign exists server-side but is not exposed here."}
+            ? "Billing rows waiting for a client or MBA, and Xero invoices we couldn't match."
+            : "Matched invoices. You can accept, dispute, or write one off."}
         </p>
         {section === "exceptions" ? (
           <>

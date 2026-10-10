@@ -162,7 +162,7 @@ export function HeroKPIBar({
         {deliveredLoading ? (
           <>
             <div className="mt-2 h-9 w-28 animate-pulse rounded bg-muted/60" aria-hidden />
-            <p className="mt-1.5 text-xs leading-snug text-muted-foreground">Snowflake delivery · loading…</p>
+            <p className="mt-1.5 text-xs leading-snug text-muted-foreground">Platform delivery · loading…</p>
           </>
         ) : deliveredPartial ? (
           <>
@@ -172,7 +172,7 @@ export function HeroKPIBar({
             <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
               {deliveredFailedSources.length > 0
                 ? deliveredFailedSources.join(", ")
-                : "Snowflake delivery"}
+                : "Platform delivery"}
             </p>
           </>
         ) : hasDeliveredSpend ? (
@@ -181,7 +181,7 @@ export function HeroKPIBar({
               {formatMoneyCompact(animatedDelivered)}
             </p>
             <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
-              Snowflake delivery
+              Platform delivery
               {deliveredAsOfCaption ? ` · ${deliveredAsOfCaption}` : ""}
             </p>
           </>
@@ -189,7 +189,7 @@ export function HeroKPIBar({
           <>
             <p className="num mt-2 text-3xl font-semibold tracking-tight text-muted-foreground">—</p>
             <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
-              Snowflake delivery · no delivery reported yet
+              Platform delivery · no delivery reported yet
             </p>
           </>
         )}
@@ -201,7 +201,7 @@ export function HeroKPIBar({
           {formatNumber(Math.round(animatedLive))}
         </p>
         <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
-          Live bucket · {formatNumber(plannedCampaigns)} planned
+          Live · {formatNumber(plannedCampaigns)} planned
         </p>
       </article>
 
