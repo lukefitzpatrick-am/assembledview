@@ -211,6 +211,7 @@ import { postDraftDocuments } from "@/lib/docs/postDraftDocuments"
 import {
   NotApprovedError,
   NotSavedError,
+  downloadRenderedPublishedAa,
   downloadStoredPlanFile,
 } from "@/lib/docs/downloadStoredPlanFile"
 import {
@@ -9565,14 +9566,14 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
 
   const handleDownloadAdvertisingAssociatesMediaPlan = async () => {
     if (!hasAdvertisingAssociatesBilling) return
-    const hasWorkingDraftOrDirty = Boolean(planDraft.activeDraft) || hasUnsavedChanges
-    const cleanPublished =
+    // Published Media Plan (AA) (vN) is the stored file, even when the form is dirty.
+    // Unpublished (no published version) still falls through to the draft handler.
+    const publishedVersionReady =
       isPublished &&
       typeof publishedVersionId === "number" &&
-      publishedVersionId > 0 &&
-      !hasWorkingDraftOrDirty
+      publishedVersionId > 0
 
-    if (!cleanPublished) {
+    if (!publishedVersionReady) {
       await handleDraftAa()
       return
     }
@@ -9594,10 +9595,26 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         return
       }
       if (error instanceof NotSavedError) {
-        toast({
-          title: "File not ready",
-          description: "Regenerate documents from the plan list.",
-        })
+        try {
+          const rendered = await downloadRenderedPublishedAa({
+            versionId: publishedVersionId,
+          })
+          saveAs(rendered.blob, rendered.fileName)
+          toast({
+            title: "Success",
+            description: "Advertising Associates media plan downloaded",
+          })
+        } catch (renderError: unknown) {
+          console.error(renderError)
+          toast({
+            title: "Error",
+            description:
+              renderError instanceof Error
+                ? renderError.message
+                : "Failed to download media plan",
+            variant: "destructive",
+          })
+        }
         return
       }
       console.error(error)

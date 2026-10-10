@@ -73,3 +73,29 @@ export async function downloadStoredPlanFile(args: {
   const blob = await response.blob()
   return { blob, fileName }
 }
+
+/**
+ * AA workbook built from the published version when no stored file exists.
+ * The server reads persisted rows. This does not post the live form.
+ */
+export async function downloadRenderedPublishedAa(args: {
+  versionId: number
+}): Promise<{ blob: Blob; fileName: string }> {
+  const versionId = args.versionId
+  if (!Number.isFinite(versionId) || versionId <= 0) {
+    throw new Error("Invalid version id")
+  }
+  const url = `/api/mediaplans/${encodeURIComponent(String(versionId))}/aa-workbook`
+  const response = await fetch(url, { method: "POST" })
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    const message = typeof body.error === "string" && body.error.trim() ? body.error : undefined
+    throw new Error(message || `Download failed (${response.status})`)
+  }
+  const fileName = fileNameFromContentDisposition(response.headers.get("Content-Disposition"))
+  if (!fileName) {
+    throw new Error("Rendered file has no file name")
+  }
+  const blob = await response.blob()
+  return { blob, fileName }
+}

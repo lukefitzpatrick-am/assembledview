@@ -617,7 +617,17 @@ describe("DD-3 draft downloads", () => {
     assert.match(aaFn, /handleDraftAa\(/)
     assert.match(aaFn, /NotSavedError/)
     assert.match(aaFn, /NotApprovedError/)
+    assert.match(aaFn, /publishedVersionReady/)
+    assert.doesNotMatch(aaFn, /hasUnsavedChanges/)
+    assert.doesNotMatch(aaFn, /hasWorkingDraftOrDirty/)
+    assert.match(aaFn, /downloadRenderedPublishedAa\(/)
     assert.doesNotMatch(aaFn, /generateMediaPlanXlsxBlob/)
+    const missingStart = aaFn.indexOf("instanceof NotSavedError")
+    const missingEnd = aaFn.indexOf("console.error(error)", missingStart)
+    const missingPath = aaFn.slice(missingStart, missingEnd)
+    assert.ok(missingStart >= 0 && missingEnd > missingStart)
+    assert.match(missingPath, /downloadRenderedPublishedAa\(/)
+    assert.doesNotMatch(missingPath, /handleDraftAa/)
   })
 
   it("edit unpublished zip publishes first", () => {

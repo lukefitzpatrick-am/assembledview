@@ -160,6 +160,38 @@ describe("PlanWizardBottomBar", () => {
     expect(draftCalls).toBe(0)
   })
 
+  it("edit dirty Published Media Plan (AA) calls the published handler, not the draft handler", () => {
+    let publishedCalls = 0
+    let draftCalls = 0
+    act(() => {
+      root.render(
+        renderBar({
+          isPublished: true,
+          hasWorkingDraftOrDirty: true,
+          hasAdvertisingAssociatesBilling: true,
+          publishedVersionNumber: 2,
+          gateDownloadsOnPublish: true,
+          onDownloadAa: () => {
+            publishedCalls += 1
+          },
+          onDraftAa: () => {
+            draftCalls += 1
+          },
+        }),
+      )
+    })
+    const published = Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "Published Media Plan (AA) (v2)",
+    )
+    expect(published).toBeTruthy()
+    expect(published?.disabled).toBe(false)
+    act(() => {
+      published!.click()
+    })
+    expect(publishedCalls).toBe(1)
+    expect(draftCalls).toBe(0)
+  })
+
   it("edit dirty shows Draft MBA and Published MBA (vN)", () => {
     act(() => {
       root.render(
