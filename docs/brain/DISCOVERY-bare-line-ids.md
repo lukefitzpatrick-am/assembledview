@@ -110,7 +110,7 @@ Secondary write: `patchBillingScheduleOnPostgres` (`lib/data/writeBillingSchedul
 
 **Writes verbatim:** for each `month.lineItems[*].id` → `ScheduleMonthInsert.lineItemId` (`:175`, `:191-193`, fee `:204-211`, adserving `:224-231`). No prefix, no `toBillingOverrideLineItemId`, no media-type wrap. Amounts go through `toCents`; ids do not.
 
-Empty blob → empty rows. Missing `li.id` → hard fail (`line item missing id`). Synthetics `__service__adserving` / `__service__production` / `__service__fees` / `__service__media_total` are the only ids explode *invents*, and only as header fallbacks.
+Empty blob → empty rows. Missing `li.id` → hard fail (`line item missing id`). Synthetics `__service__adserving` / `__service__production` / `__service__fees` / `__service__media_total` are the only ids explode invents. `__service__fees` is written when the month produced no per-line fee row and the header `feeTotal` is greater than zero, including months that have media lines. A per-line fee row suppresses it. `__service__media_total` is still only when the month has no line items. `__service__adserving` and `__service__production` stay header fallbacks when that component has no per-line amount.
 
 The Plan-C golden (`lib/finance/__tests__/attachScheduleLineDetail.test.ts:234-261`) expects decorated ids (`billing-search::BOSS001SEA001`, …) **because the fixture’s `LineItemInput.lineItemId` values are already decorated**. Explode does not create that shape; it preserves the compute input.
 

@@ -8,6 +8,7 @@ import {
   parsePersistedBillingScheduleToMonths,
 } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
 import { normalizeMonthKey } from "@/lib/finance/accrual"
+import { toCents as toCentsHalfUp } from "@/lib/money"
 import { parseMoneyStrict, toCents } from "./_shared"
 
 export type ScheduleBasis = "billing" | "delivery"
@@ -166,6 +167,7 @@ export function explodeScheduleToMonthRows(
 
     const lineItems = month.lineItems
     let hadLineItems = false
+    let hadLineFee = false
 
     if (lineItems && typeof lineItems === "object") {
       for (const [, items] of Object.entries(lineItems)) {
@@ -201,6 +203,7 @@ export function explodeScheduleToMonthRows(
 
           const feeAmt = feeFromLineForMonth(li, monthYear)
           if (feeAmt != null && feeAmt !== 0) {
+            hadLineFee = true
             addRow(acc, {
               versionId,
               lineItemId,
@@ -276,7 +279,11 @@ export function explodeScheduleToMonthRows(
           ]),
     ]
 
-    // Only emit top-level feeTotal as synthetic when there were no per-line fees.
+    // Header feeTotal becomes __service__fees when this month produced no
+    // per-line fee row. Months with media lines are included. A per-line fee
+    // row suppresses the synthetic so the fee is not counted twice. The row
+    // stays on __service__fees (campaign totals), never a publisher line.
+    // __service__media_total stays limited to months with no line items.
     if (!hadLineItems) {
       services.push({
         id: "__service__fees",
@@ -292,6 +299,19 @@ export function explodeScheduleToMonthRows(
           basis,
           month: monthDate,
           amountCents: toCents(mediaTotal),
+          source: "computed",
+        })
+      }
+    } else if (!hadLineFee) {
+      const headerFee = parseMoneyStrict(month.feeTotal)
+      if (headerFee != null && headerFee > 0) {
+        addRow(acc, {
+          versionId,
+          lineItemId: "__service__fees",
+          component: "fee",
+          basis,
+          month: monthDate,
+          amountCents: toCentsHalfUp(headerFee),
           source: "computed",
         })
       }
