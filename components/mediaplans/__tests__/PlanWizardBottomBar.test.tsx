@@ -129,6 +129,37 @@ describe("PlanWizardBottomBar", () => {
     expect(mba?.getAttribute("title")).toBe("Watermarked DRAFT. Clients still have vN.")
   })
 
+  it("edit dirty Published Media Plan calls the published handler, not the draft handler", () => {
+    let publishedCalls = 0
+    let draftCalls = 0
+    act(() => {
+      root.render(
+        renderBar({
+          isPublished: true,
+          hasWorkingDraftOrDirty: true,
+          publishedVersionNumber: 1,
+          gateDownloadsOnPublish: true,
+          onDownloadMediaPlan: () => {
+            publishedCalls += 1
+          },
+          onDraftMediaPlan: () => {
+            draftCalls += 1
+          },
+        }),
+      )
+    })
+    const published = Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.replace(/\s+/g, " ").trim() === "Published Media Plan (v1)",
+    )
+    expect(published).toBeTruthy()
+    expect(published?.disabled).toBe(false)
+    act(() => {
+      published!.click()
+    })
+    expect(publishedCalls).toBe(1)
+    expect(draftCalls).toBe(0)
+  })
+
   it("edit dirty shows Draft MBA and Published MBA (vN)", () => {
     act(() => {
       root.render(

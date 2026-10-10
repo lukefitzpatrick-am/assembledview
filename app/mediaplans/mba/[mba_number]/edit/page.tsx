@@ -9570,15 +9570,14 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         setIsDownloading(false)
       }
     }
-    // Same dirty signal as the bottom bar: a working draft or unsaved changes.
-    const hasWorkingDraftOrDirty = Boolean(planDraft.activeDraft) || hasUnsavedChanges
-    const cleanPublished =
+    // Published Media Plan (vN) is the stored file, even when the form is dirty.
+    // Unpublished (no published version) still falls through to the draft handler.
+    const publishedVersionReady =
       isPublished &&
       typeof publishedVersionId === "number" &&
-      publishedVersionId > 0 &&
-      !hasWorkingDraftOrDirty
+      publishedVersionId > 0
 
-    if (!cleanPublished) {
+    if (!publishedVersionReady) {
       return handleDraftMediaPlan({ quiet })
     }
 
