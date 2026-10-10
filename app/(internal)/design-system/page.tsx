@@ -7,8 +7,12 @@ import Image from "next/image"
 import Link from "next/link"
 
 import { ChartSamples } from "./ChartSamples"
+import { ArchTrio } from "@/components/brand/ArchTrio"
 import { BrandLoading } from "@/components/brand/BrandLoading"
 import { ClientMark, PublisherMark } from "@/components/brand/EntityMark"
+import { HeroBand, heroBandSecondaryClassName } from "@/components/brand/HeroBand"
+import { IAOCards } from "@/components/brand/IAOCards"
+import { JourneyLine } from "@/components/brand/JourneyLine"
 import { MediaChannelTag } from "@/components/dashboard/MediaChannelTag"
 import { StatTile } from "@/components/finance/sections/StatTile"
 import { PageHeader } from "@/components/layout/PageHeader"
@@ -277,6 +281,72 @@ export default function DesignSystemPage() {
             actions={
               <Button type="button">Example action</Button>
             }
+          />
+        </div>
+      </Section>
+
+      <Section
+        title="Campaign hero"
+        description="Ink band, arches, journey and insight cards. Not mounted on live pages yet."
+      >
+        <div className="space-y-8">
+          <HeroBand
+            chips={
+              <>
+                <span className="inline-flex items-center gap-2 rounded-pill bg-am-panel py-1 pl-1.5 pr-3 text-[13px] font-bold">
+                  <span className="grid size-[22px] place-items-center rounded-full bg-am-muted-on-black text-[11px] font-extrabold text-am-ink">
+                    KK
+                  </span>
+                  Krusty Krab
+                </span>
+                <span className="inline-flex items-center rounded-pill bg-am-lime px-3 py-1 text-[13px] font-bold text-am-ink">
+                  Live
+                </span>
+              </>
+            }
+            title="Summer menu launch,"
+            accent="built for the beach crowd"
+            meta={
+              <>
+                <span>
+                  MBA <b className="num">KKAU004</b>
+                </span>
+                <span>1 Sep to 30 Nov 2026</span>
+                <span>
+                  Budget <b className="num">$186,400</b> ex GST
+                </span>
+              </>
+            }
+            journey={<JourneyLine status="live" />}
+            arches={<ArchTrio />}
+            actions={
+              <>
+                <Button type="button" variant="secondary" className={heroBandSecondaryClassName}>
+                  Edit plan
+                </Button>
+                <Button type="button">Download MBA</Button>
+              </>
+            }
+          />
+          <div className="grid gap-4 min-[980px]:grid-cols-2">
+            <div className="rounded-frame bg-am-ink p-5">
+              <p className="mb-3 text-[13px] text-am-muted-on-black">Planned</p>
+              <JourneyLine status="planned" />
+            </div>
+            <div className="rounded-frame bg-am-ink p-5">
+              <p className="mb-3 text-[13px] text-am-muted-on-black">Cancelled</p>
+              <JourneyLine status="cancelled" />
+            </div>
+          </div>
+          <IAOCards
+            insight={{
+              body: "Meta CPM is running 18% under plan, so impressions are ahead while spend sits close to target.",
+              action: "Moved from Prog display to Meta Reels on 3 Oct to use the cheaper reach before the long weekend.",
+              actionOwner: "Luke",
+              outcome: "Store finder clicks to date, 112% of the pro rata target. Source: GA4 key events.",
+              outcomeKind: "achieved",
+            }}
+            figures={{ insight: "$5.20", action: "+$4,000", outcome: "1,940" }}
           />
         </div>
       </Section>

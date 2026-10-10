@@ -68,6 +68,8 @@ export default defineConfig({
       "components/auth/__tests__/SessionExpiredBanner.render.test.tsx",
       "components/__tests__/ClientLayout.privacyShell.test.tsx",
       "components/layout/__tests__/PageHeader.test.tsx",
+      "components/brand/__tests__/JourneyLine.test.tsx",
+      "components/brand/__tests__/IAOCards.test.tsx",
       "lib/auth/__tests__/privacyPublicPath.test.ts",
       "components/finance/receivables/__tests__/InlineScheduleAmountCell.test.tsx",
       "components/finance/receivables/__tests__/ReceivableApproveButton.test.tsx",
