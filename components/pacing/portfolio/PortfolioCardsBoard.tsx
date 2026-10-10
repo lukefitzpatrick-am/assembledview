@@ -1,7 +1,6 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { StatusLegend } from "@/components/pacing/StatusLegend"
 import { CampaignPacingCard } from "@/components/pacing/portfolio/CampaignPacingCard"
 import { CampaignPacingTable } from "@/components/pacing/portfolio/CampaignPacingTable"
 import { PortfolioStatusTiles } from "@/components/pacing/portfolio/PortfolioStatusTiles"
@@ -15,7 +14,6 @@ import {
   type PortfolioTileKey,
 } from "@/lib/pacing/portfolio/filterPortfolioRows"
 import type { PortfolioLayout } from "@/lib/pacing/portfolio/portfolioLayout"
-import { portfolioLegendItems } from "@/lib/pacing/portfolio/portfolioPresentation"
 import type { CampaignPacingRow, PortfolioPacingCounts } from "@/lib/pacing/portfolio/types"
 
 const GRID_CLASS =
@@ -42,10 +40,7 @@ export function PortfolioCardsBoard({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <PortfolioStatusTiles rows={rows} counts={counts} tile={tile} onToggle={toggleTile} />
-        <StatusLegend items={portfolioLegendItems()} />
-      </div>
+      <PortfolioStatusTiles rows={rows} counts={counts} tile={tile} onToggle={toggleTile} />
 
       {visible.length === 0 ? (
         <EmptyState

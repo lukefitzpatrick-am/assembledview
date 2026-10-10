@@ -1,9 +1,9 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
 import { CampaignDetailTrigger, useCampaignDetail } from "@/components/pacing/detail/CampaignDetailContext"
 import { ScenarioPlannerTrigger } from "@/components/pacing/scenario/ScenarioPlannerContext"
 import { Card } from "@/components/ui/card"
+import { StatusPill } from "@/components/ui/status-pill"
 import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import type { CampaignPacingRow, ChannelPacingRow } from "@/lib/pacing/portfolio/types"
 import {
@@ -11,7 +11,6 @@ import {
   campaignDisplayBand,
   campaignPaceLabel,
   displayBandBadgeVariant,
-  displayBandBorderClass,
   displayBandFillClass,
   displayBandTextClass,
   paceToDisplayBand,
@@ -67,9 +66,9 @@ export function CampaignPacingCard({
   muted?: boolean
 }) {
   const band = campaignDisplayBand(row)
-  const spendFill = clampPct(row.spendPct)
+  const spendFill = clampPct(row.budget > 0 ? (row.spendToDate / row.budget) * 100 : 0)
   const timeFill = clampPct(row.timePct)
-  const tick = clampPct(row.timePct)
+  const expectedTick = clampPct(row.budget > 0 ? (row.expectedToDate / row.budget) * 100 : 0)
   const href = `/dashboard/${row.clientSlug}/${row.mbaNumber}`
   const detail = useCampaignDetail()
   const finishLabel = band === "on-track" ? "Expected media to date" : "Projected finish"
@@ -104,9 +103,7 @@ export function CampaignPacingCard({
             </span>
           </p>
         </div>
-        <Badge variant={displayBandBadgeVariant(band)} size="sm" dot>
-          {campaignPaceLabel(row)}
-        </Badge>
+        <StatusPill tone={displayBandBadgeVariant(band)} label={campaignPaceLabel(row)} size="sm" />
       </div>
 
       <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2">
@@ -116,7 +113,7 @@ export function CampaignPacingCard({
           </p>
           <div className="relative mt-1 h-2 overflow-hidden rounded-pill bg-fill-track">
             <span
-              className="absolute inset-y-0 left-0 rounded-pill bg-muted-foreground/40"
+              className="absolute inset-y-0 left-0 rounded-pill bg-am-forest"
               style={{ width: `${timeFill}%` }}
             />
           </div>
@@ -134,8 +131,9 @@ export function CampaignPacingCard({
               style={{ width: `${spendFill}%` }}
             />
             <span
-              className="absolute top-[-3px] bottom-[-3px] w-0.5 bg-foreground/70"
-              style={{ left: `${tick}%` }}
+              className="absolute top-[-3px] bottom-[-3px] w-0.5 bg-am-ink"
+              style={{ left: `${expectedTick}%` }}
+              data-expected-tick
               aria-hidden
             />
           </div>
@@ -162,11 +160,11 @@ export function CampaignPacingCard({
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-input bg-surface-panel px-2.5 py-2">
+        <div className="rounded-card border border-border bg-card px-2.5 py-2">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Days left</p>
           <p className="num text-sm font-semibold text-foreground">{row.daysLeft}</p>
         </div>
-        <div className="rounded-input bg-surface-panel px-2.5 py-2">
+        <div className="rounded-card border border-border bg-card px-2.5 py-2">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Daily rate</p>
           <p className="num text-sm font-semibold text-foreground">
             {formatWhole(row.dailyRateActual)}{" "}
@@ -175,7 +173,7 @@ export function CampaignPacingCard({
             </span>
           </p>
         </div>
-        <div className="rounded-input bg-surface-panel px-2.5 py-2">
+        <div className="rounded-card border border-border bg-card px-2.5 py-2">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">KPIs</p>
           <p className="num text-sm font-semibold text-foreground">
             {kpiValue}
@@ -210,14 +208,7 @@ export function CampaignPacingCard({
       ) : null}
 
       {showWhy && row.why ? (
-        <p
-          className={cn(
-            "rounded-r-input border-l-[3px] bg-surface-panel px-2.5 py-2 text-xs text-foreground",
-            displayBandBorderClass(band),
-          )}
-        >
-          {row.why}
-        </p>
+        <p className="border-t border-border pt-2.5 text-xs text-foreground">{row.why}</p>
       ) : null}
 
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">

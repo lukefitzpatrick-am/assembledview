@@ -3,7 +3,9 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { navChipClass } from "@/components/layout/navChip"
+import { segmentChipClass } from "@/components/layout/navChip"
+import { PacingCalculateLink } from "@/components/pacing/PacingCalculateLink"
+import { cn } from "@/lib/utils"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { AvaPacingCommentaryAction } from "@/components/ava/AvaSkillActionSets"
 import { PacingFilterToolbar } from "@/components/pacing/PacingFilterToolbar"
@@ -41,7 +43,12 @@ export function PacingShell({ children, isAdmin = false, canRelabel = false }: P
 
       <PageHeader
         title="Pacing"
-        lede="Every live line against its plan. Behind is under 90% of expected, ahead is over 110%."
+        lede={
+          <>
+            Every live line against its plan. Behind is under 90% of expected, ahead is over 110%.{" "}
+            <PacingCalculateLink />
+          </>
+        }
         actions={<AvaPacingCommentaryAction />}
       />
 
@@ -60,7 +67,7 @@ export function PacingShell({ children, isAdmin = false, canRelabel = false }: P
               href={href}
               role="tab"
               aria-selected={active}
-              className={navChipClass(active)}
+              className={cn("inline-flex items-center", segmentChipClass(active))}
             >
               {label}
             </Link>

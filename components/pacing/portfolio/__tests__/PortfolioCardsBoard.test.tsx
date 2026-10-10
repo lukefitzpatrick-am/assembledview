@@ -89,6 +89,8 @@ describe("PortfolioCardsBoard", () => {
       behind!.click()
     })
     expect(behind!.getAttribute("aria-pressed")).toBe("true")
+    expect(behind!.className).toContain("bg-am-ink")
+    expect(container.textContent).not.toContain("Status legend")
     expect(container.textContent).toContain("Jayco Mixed")
     expect(container.textContent).not.toContain("Lets Go Over")
     expect(container.textContent).not.toContain("Penfolds Always On")

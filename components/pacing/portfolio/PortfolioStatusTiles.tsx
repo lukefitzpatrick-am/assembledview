@@ -16,7 +16,7 @@ const TILES: Array<{
   label: string
   countKey: keyof PortfolioPacingCounts
 }> = [
-  { key: "live", label: "Live campaigns", countKey: "live" },
+  { key: "live", label: "Live", countKey: "live" },
   { key: "behind", label: "Behind", countKey: "behind" },
   { key: "on_track", label: "On track", countKey: "on_track" },
   { key: "ahead", label: "Ahead", countKey: "ahead" },
@@ -57,14 +57,26 @@ export function PortfolioStatusTiles({
             aria-pressed={selected}
             onClick={() => onToggle(item.key)}
             className={cn(
-              "interactive rounded-card border bg-card p-3 text-left shadow-e0",
-              selected ? "border-foreground" : "border-border",
+              "interactive rounded-card border p-3 text-left",
+              selected
+                ? "border-am-ink bg-am-ink text-am-white"
+                : "border-border bg-card",
             )}
           >
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            <span
+              className={cn(
+                "text-[10px] uppercase tracking-wide",
+                selected ? "text-am-white" : "text-muted-foreground",
+              )}
+            >
               {item.label}
             </span>
-            <span className={cn("num mt-0.5 block text-2xl font-semibold", tileFigureClass(item.key))}>
+            <span
+              className={cn(
+                "num mt-0.5 block text-2xl font-semibold",
+                selected ? "text-am-white" : tileFigureClass(item.key),
+              )}
+            >
               {tileCounts[item.countKey]}
             </span>
           </button>
