@@ -45,32 +45,120 @@ export function invoicingPrimaryLabel(kind: InvoicingPrimaryKind): string {
 }
 
 /**
+ * Named parts that replace a blank media type. Order is the caption order
+ * after any real media-type labels. A zero total is omitted.
+ */
+const TO_BILL_NAMED_PARTS = [
+  "Fees",
+  "Ad serving",
+  "Production",
+  "Retainer",
+  "Untyped media",
+  "Other",
+] as const
+
+const TO_BILL_NAMED_PART_SET = new Set<string>(TO_BILL_NAMED_PARTS)
+
+function normToken(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase()
+}
+
+/**
+ * Caption bucket for one billing line.
+ *
+ * A media line (`line_type` "media") keeps its `media_type`. A blank type is
+ * "Untyped media".
+ *
+ * Service lines are identified the way `deriveReceivableRecords` and
+ * `deriveRetainerReceivables` write them:
+ * - Retainer: `line_type` "retainer", item code "Retainer", or description
+ *   "Monthly retainer".
+ * - Ad serving: item code "T.Adserving" or description "Adserving and Tech Fees".
+ * - Production: `line_type` "service" with item code or description "Production".
+ * - Fees: `line_type` "fee", item code "Service" or "FEE", or description
+ *   "Assembled Fee", "Service fee", or "Fee".
+ *
+ * Anything else with a media type uses that type. A line that matches none of
+ * these goes to "Other" so the caption still sums to the card.
+ */
+export function toBillCaptionLabel(li: BillingLineItem): string {
+  const lineType = normToken(li.line_type)
+  const itemCode = normToken(li.item_code)
+  const description = normToken(li.description)
+  const mediaType = (li.media_type ?? "").trim()
+
+  if (lineType === "media") {
+    return mediaType || "Untyped media"
+  }
+
+  if (
+    lineType === "retainer" ||
+    itemCode === "retainer" ||
+    description === "monthly retainer"
+  ) {
+    return "Retainer"
+  }
+
+  if (itemCode === "t.adserving" || description === "adserving and tech fees") {
+    return "Ad serving"
+  }
+
+  if (
+    lineType === "service" &&
+    (itemCode === "production" || description === "production")
+  ) {
+    return "Production"
+  }
+
+  if (
+    lineType === "fee" ||
+    itemCode === "fee" ||
+    itemCode === "service" ||
+    description === "assembled fee" ||
+    description === "service fee" ||
+    description === "fee"
+  ) {
+    return "Fees"
+  }
+
+  return mediaType || "Other"
+}
+
+/**
  * Same rollup math the previous stacked rows used (`InvoicingMediaPlanSection`).
  * Totals round to cents the same way; do not change the arithmetic.
+ * Real media types stay in first-seen order. Named parts follow, and a part
+ * whose rounded total is 0 is left out.
  */
 export function buildMediaTypeRollups(records: BillingRecord[]): MediaTypeRollup[] {
   const byType = new Map<string, BillingLineItem[]>()
-  const order: string[] = []
+  const mediaOrder: string[] = []
 
   for (const rec of records) {
     for (const li of rec.line_items ?? []) {
-      const key = (li.media_type ?? "").trim() || "Other"
+      const key = toBillCaptionLabel(li)
       if (!byType.has(key)) {
         byType.set(key, [])
-        order.push(key)
+        if (!TO_BILL_NAMED_PART_SET.has(key)) mediaOrder.push(key)
       }
       byType.get(key)!.push(li)
     }
   }
 
-  return order.map((mediaType) => {
+  const order = [
+    ...mediaOrder,
+    ...TO_BILL_NAMED_PARTS.filter((part) => byType.has(part)),
+  ]
+
+  return order.flatMap((mediaType) => {
     const lineItems = byType.get(mediaType)!
     const total = Math.round(lineItems.reduce((s, li) => s + li.amount, 0) * 100) / 100
-    return { mediaType, total, lineItems }
+    if (total === 0) return []
+    return [{ mediaType, total, lineItems }]
   })
 }
 
-/** One caption line: `Social Media $2,625.00 · Other $292.00`. */
+/** One caption line: `Social Media $3,439.00 · Fees $859.75`. */
 export function formatMediaTypeCaption(rollups: MediaTypeRollup[]): string {
   return rollups.map((r) => `${r.mediaType} ${formatAUD(r.total)}`).join(" · ")
 }

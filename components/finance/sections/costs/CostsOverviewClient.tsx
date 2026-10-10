@@ -156,7 +156,7 @@ export function CostsOverviewClient() {
             <p>{view.data.coverage.excludedByStatusCaption}</p>
             <p>
               {view.data.coverage.bookedWithPublisherIdentityPct}% of booked spend is matched to a
-              publisher. Unmatched lines are shown in the Orphans view.
+              publisher.
             </p>
           </div>
         ) : null}

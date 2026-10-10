@@ -2,12 +2,13 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { clientMissingBlockers } from "../../periods/preRunSweep.js"
 import { formatAUD } from "../../../../lib/format/money.js"
-import type { BillingRecord } from "../../../types/financeBilling.js"
+import type { BillingLineItem, BillingRecord } from "../../../types/financeBilling.js"
 import {
   INVOICING_CLIENT_GRID_CLASS,
   INVOICING_EX_GST_HEADER,
   buildMediaTypeRollups,
   formatMediaTypeCaption,
+  toBillCaptionLabel,
   invoicingPrimaryAction,
   invoicingPrimaryLabel,
   invoicingRowBlockers,
@@ -215,7 +216,8 @@ test("fixture month totals are byte-identical to the pre-change formatAUD render
   assert.equal(formatAUD(clientTotal), formatAUD(2916.66))
   assert.equal(formatAUD(rollups[0]!.total), formatAUD(2625))
   assert.equal(formatAUD(rollups[1]!.total), formatAUD(291.66))
-  assert.equal(caption, `Social Media ${formatAUD(2625)} · Other ${formatAUD(291.66)}`)
+  assert.equal(caption, `Social Media ${formatAUD(2625)} · Fees ${formatAUD(291.66)}`)
+  assert.equal(toBillCaptionLabel(records[0]!.line_items[1]!), "Fees")
   assert.equal(
     formatAUD(rollups.reduce((s, r) => s + r.total, 0)),
     formatAUD(clientTotal)
@@ -224,4 +226,160 @@ test("fixture month totals are byte-identical to the pre-change formatAUD render
 
 test("page header states the GST basis once", () => {
   assert.equal(INVOICING_EX_GST_HEADER, "All amounts ex-GST")
+})
+
+function line(partial: Partial<BillingLineItem> & Pick<BillingLineItem, "amount">): BillingLineItem {
+  return {
+    id: 1,
+    finance_billing_records_id: 1,
+    item_code: "X",
+    line_type: "media",
+    media_type: null,
+    description: null,
+    publisher_name: null,
+    client_pays_media: false,
+    sort_order: 0,
+    ...partial,
+  }
+}
+
+test("PGAAUS015 July names the fee instead of Other", () => {
+  const social = 3439
+  const fee = 859.75
+  const records = [
+    rec({
+      mba_number: "PGAAUS015",
+      billing_month: "2026-07",
+      total: social + fee,
+      line_items: [
+        line({
+          id: 1,
+          item_code: "SOC",
+          line_type: "media",
+          media_type: "Social Media",
+          description: "Meta",
+          amount: social,
+        }),
+        line({
+          id: 2,
+          item_code: "Service",
+          line_type: "service",
+          media_type: null,
+          description: "Assembled Fee",
+          amount: fee,
+        }),
+      ],
+    }),
+  ]
+  const rollups = buildMediaTypeRollups(records)
+  const caption = formatMediaTypeCaption(rollups)
+  assert.equal(caption, "Social Media $3,439.00 · Fees $859.75")
+  assert.equal(
+    formatAUD(rollups.reduce((s, r) => s + r.total, 0)),
+    formatAUD(records[0]!.total)
+  )
+})
+
+test("production and a retainer are named, and an unknown line stays Other", () => {
+  const production = 400
+  const retainer = 1500
+  const mystery = 25
+  const records = [
+    rec({
+      total: production + retainer + mystery,
+      line_items: [
+        line({
+          id: 1,
+          item_code: "Production",
+          line_type: "service",
+          description: "Production",
+          amount: production,
+        }),
+        line({
+          id: 2,
+          item_code: "Retainer",
+          line_type: "retainer",
+          description: "Monthly retainer",
+          amount: retainer,
+        }),
+        line({
+          id: 3,
+          item_code: "??",
+          line_type: "service",
+          description: "Something else",
+          amount: mystery,
+        }),
+      ],
+    }),
+  ]
+  const rollups = buildMediaTypeRollups(records)
+  assert.equal(
+    formatMediaTypeCaption(rollups),
+    `Production ${formatAUD(production)} · Retainer ${formatAUD(retainer)} · Other ${formatAUD(mystery)}`
+  )
+  assert.equal(
+    formatAUD(rollups.reduce((s, r) => s + r.total, 0)),
+    formatAUD(records[0]!.total)
+  )
+})
+
+test("named parts follow media types and a zero part is omitted", () => {
+  const records = [
+    rec({
+      total: 100 + 10 + 20 + 30 + 40 + 5,
+      line_items: [
+        line({
+          item_code: "T.Adserving",
+          line_type: "service",
+          description: "Adserving and Tech Fees",
+          amount: 10,
+        }),
+        line({
+          item_code: "SOC",
+          line_type: "media",
+          media_type: "Social Media",
+          amount: 100,
+        }),
+        line({
+          item_code: "Service",
+          line_type: "service",
+          description: "Assembled Fee",
+          amount: 20,
+        }),
+        line({
+          line_type: "media",
+          media_type: null,
+          description: "No type",
+          amount: 30,
+        }),
+        line({
+          item_code: "Production",
+          line_type: "service",
+          description: "Production",
+          amount: 40,
+        }),
+        line({
+          item_code: "Retainer",
+          line_type: "retainer",
+          description: "Monthly retainer",
+          amount: 0,
+        }),
+        line({
+          item_code: "??",
+          line_type: "service",
+          description: "Unknown",
+          amount: 5,
+        }),
+      ],
+    }),
+  ]
+  const rollups = buildMediaTypeRollups(records)
+  assert.deepEqual(
+    rollups.map((r) => r.mediaType),
+    ["Social Media", "Fees", "Ad serving", "Production", "Untyped media", "Other"]
+  )
+  assert.equal(
+    formatAUD(rollups.reduce((s, r) => s + r.total, 0)),
+    formatAUD(100 + 10 + 20 + 30 + 40 + 5)
+  )
 })
