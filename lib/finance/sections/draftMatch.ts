@@ -72,6 +72,7 @@ export type DraftMatchGrouped = {
 }
 
 export type DraftMatchPayload = {
+  lastNightlySyncAt: string | null
   lastPulledAt: string | null
   grouped: DraftMatchGrouped
   counts: Record<keyof DraftMatchGrouped, number>

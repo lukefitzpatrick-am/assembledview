@@ -19,6 +19,7 @@ const state: {
   txUpdates: number
   matchedAt: string
   lastPullAt: string | null
+  lastNightlyAt: string | null
 } = {
   mode: "report",
   sql: [],
@@ -27,6 +28,7 @@ const state: {
   txUpdates: 0,
   matchedAt: "2026-01-15T00:00:00.000Z",
   lastPullAt: "2026-09-01T00:00:00.000Z",
+  lastNightlyAt: "2026-10-10T00:15:00.000Z",
 }
 
 function sqlText(query: unknown): string {
@@ -98,8 +100,11 @@ function selectRows(text: string): unknown[] {
   if (/FROM xero_sync_log/i.test(text) && /pulled_by/i.test(text)) {
     return state.lastPullAt ? [{ run_finished_at: state.lastPullAt }] : []
   }
+  if (/FROM xero_sync_log/i.test(text) && /stage = 'invoices'/i.test(text)) {
+    return state.lastNightlyAt ? [{ run_finished_at: state.lastNightlyAt }] : []
+  }
   if (/FROM xero_sync_log/i.test(text)) {
-    return [{ run_finished_at: "2026-09-01T00:00:00.000Z" }]
+    return state.lastPullAt ? [{ run_finished_at: state.lastPullAt }] : []
   }
   if (/FROM finance_billing_records/i.test(text) && /invoice_key/i.test(text)) {
     if (state.mode === "manual-skip") {
@@ -206,7 +211,40 @@ function reset(mode: Mode): void {
   state.txUpdates = 0
   state.matchedAt = "2026-01-15T00:00:00.000Z"
   state.lastPullAt = "2026-09-01T00:00:00.000Z"
+  state.lastNightlyAt = "2026-10-10T00:15:00.000Z"
 }
+
+test("loadLastPulledAt reads only manual pull-xero rows", { skip }, async () => {
+  assert.ok(draftMatchQuery)
+  reset("report")
+  state.lastPullAt = "2026-10-09T04:00:00.000Z"
+  const at = await draftMatchQuery.loadLastPulledAt()
+  assert.equal(at, "2026-10-09T04:00:00.000Z")
+  const pulled = state.sql.find(
+    (s) => /FROM xero_sync_log/i.test(s) && /= 'pull-xero'/i.test(s) && !/stage = 'invoices'/i.test(s),
+  )
+  assert.ok(pulled, "expected a pull-xero lookup")
+  assert.match(pulled!, /CASE/i)
+  assert.match(pulled!, /notes::jsonb->>'source'/i)
+  assert.doesNotMatch(pulled!, /IS DISTINCT FROM 'pull-xero'/i)
+  assert.doesNotMatch(pulled!, /stage = 'invoices'/i)
+})
+
+test("loadLastNightlySyncAt reads the latest successful invoices cron row", { skip }, async () => {
+  assert.ok(draftMatchQuery)
+  reset("report")
+  state.lastNightlyAt = "2026-10-10T00:15:00.000Z"
+  const at = await draftMatchQuery.loadLastNightlySyncAt()
+  assert.equal(at, "2026-10-10T00:15:00.000Z")
+  const nightly = state.sql.find((s) => /FROM xero_sync_log/i.test(s) && /stage = 'invoices'/i.test(s))
+  assert.ok(nightly, "expected an invoices-stage lookup")
+  assert.match(nightly!, /status = 'success'/i)
+  assert.match(nightly!, /run_finished_at IS NOT NULL/i)
+  assert.match(nightly!, /IS DISTINCT FROM 'pull-xero'/i)
+  assert.match(nightly!, /CASE/i)
+  assert.match(nightly!, /ORDER BY run_finished_at DESC/i)
+  assert.doesNotMatch(nightly!, /= 'pull-xero'/i)
+})
 
 test("GET draft-match report performs no writes", { skip }, async () => {
   assert.ok(draftMatchQuery)
@@ -216,6 +254,8 @@ test("GET draft-match report performs no writes", { skip }, async () => {
   assert.equal(writes.length, 0, `unexpected writes:\n${writes.join("\n")}`)
   assert.ok(payload.rows.length > 0)
   assert.equal(payload.rows[0]?.stamps[0]?.matched_by, "auto")
+  assert.equal(payload.lastNightlySyncAt, "2026-10-10T00:15:00.000Z")
+  assert.equal(payload.lastPulledAt, "2026-09-01T00:00:00.000Z")
 })
 
 test("re-running the stamp with an unchanged match does not move matched_at", { skip }, async () => {

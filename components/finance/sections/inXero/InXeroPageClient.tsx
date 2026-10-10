@@ -21,15 +21,22 @@ import {
 import type { ViewState } from "@/lib/ui/viewState"
 import { cn } from "@/lib/utils"
 
-function formatPulled(iso: string | null): string {
-  if (!iso) return "Never pulled"
+function formatMelbourneStamp(iso: string | null, empty: string): string {
+  if (!iso) return empty
   const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return "Never pulled"
-  return d.toLocaleString("en-AU", {
+  if (Number.isNaN(d.getTime())) return empty
+  const parts = new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Sydney",
-    dateStyle: "medium",
-    timeStyle: "short",
-  })
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(d)
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ""
+  const dayPeriod = pick("dayPeriod").toLowerCase()
+  return `${pick("day")} ${pick("month")}, ${pick("hour")}:${pick("minute")} ${dayPeriod}`
 }
 
 export function InXeroPageClient() {
@@ -143,7 +150,7 @@ export function InXeroPageClient() {
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs text-muted-foreground">
-              Last pulled {formatPulled(payload?.lastPulledAt ?? null)}
+              Xero synced {formatMelbourneStamp(payload?.lastNightlySyncAt ?? null, "never")} · Last manual pull {formatMelbourneStamp(payload?.lastPulledAt ?? null, "none")}
             </p>
             <Button
               type="button"

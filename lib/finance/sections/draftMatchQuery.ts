@@ -19,7 +19,7 @@ import { loadMbaOptionsForQueue } from "@/lib/finance/sections/xero/enrichPendin
 import { setFinanceBillingRecordXeroMatch } from "@/lib/data/writeFinance"
 import { coerceDollars, dollarsToCents } from "@/lib/xero/money"
 import { rowsOf } from "@/lib/xero/dbRows"
-import { sqlPullXeroLogWhere } from "@/lib/xero/syncLogNotes"
+import { sqlCronWatermarkLogWhere, sqlPullXeroLogWhere } from "@/lib/xero/syncLogNotes"
 import { loadMbaMasters, loadScopeOfWorkRefs } from "@/lib/xero/applyMatchMba"
 import { loadContactLinks } from "@/lib/xero/contactLinks"
 import {
@@ -78,7 +78,7 @@ export function normalizeDraftMatchQuery(raw: { clients?: number[] }): DraftMatc
   }
 }
 
-async function loadLastPulledAt(): Promise<string | null> {
+export async function loadLastPulledAt(): Promise<string | null> {
   const db = getDb()
   const row = rowsOf<{ run_finished_at: string | null }>(
     await db.execute(sql`
@@ -86,6 +86,24 @@ async function loadLastPulledAt(): Promise<string | null> {
       FROM xero_sync_log
       WHERE ${sqlPullXeroLogWhere}
       ORDER BY id DESC
+      LIMIT 1
+    `)
+  )[0]
+  return row?.run_finished_at ?? null
+}
+
+/** Newest finished nightly invoices stage. Manual pull-xero rows are excluded. */
+export async function loadLastNightlySyncAt(): Promise<string | null> {
+  const db = getDb()
+  const row = rowsOf<{ run_finished_at: string | null }>(
+    await db.execute(sql`
+      SELECT run_finished_at::text AS run_finished_at
+      FROM xero_sync_log
+      WHERE stage = 'invoices'
+        AND status = 'success'
+        AND run_finished_at IS NOT NULL
+        AND ${sqlCronWatermarkLogWhere}
+      ORDER BY run_finished_at DESC
       LIMIT 1
     `)
   )[0]
@@ -145,7 +163,7 @@ export async function fetchDraftMatchReport(
   query: DraftMatchQuery
 ): Promise<DraftMatchReport> {
   const db = getDb()
-  const [approvedRaw, ar, clients, aliases, links, masters, scopes, mbaOptions, lastPulledAt] =
+  const [approvedRaw, ar, clients, aliases, links, masters, scopes, mbaOptions, lastPulledAt, lastNightlySyncAt] =
     await Promise.all([
       rowsOf<ApprovedRow>(
         await db.execute(sql`
@@ -189,6 +207,7 @@ export async function fetchDraftMatchReport(
       loadScopeOfWorkRefs(),
       loadMbaOptionsForQueue(),
       loadLastPulledAt().catch(() => null),
+      loadLastNightlySyncAt().catch(() => null),
     ])
 
   const clientRows: ClientRow[] = clients.map((c) => ({
@@ -257,6 +276,7 @@ export async function fetchDraftMatchReport(
 
   const grouped = groupDraftMatchRows(rows)
   return {
+    lastNightlySyncAt,
     lastPulledAt,
     grouped,
     counts: {
