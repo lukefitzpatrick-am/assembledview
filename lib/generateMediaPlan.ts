@@ -20,6 +20,47 @@ const ARGB_LIME_TEXT = hexToArgb(readableTextOn(BRAND.colour.lime))
 const ARGB_FOREST = hexToArgb(BRAND.colour.forest)
 const ARGB_MUTED = hexToArgb(BRAND.colour.muted)
 
+type PublisherNameRef = {
+  publisherid?: string | null
+  publisher_name?: string | null
+}
+
+function sentenceCaseStatus(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return trimmed
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
+}
+
+function planVersionCellValue(planVersion: string): string | number {
+  const trimmed = planVersion.trim()
+  if (!trimmed) return ""
+  const n = Number(trimmed)
+  return Number.isFinite(n) ? n : planVersion
+}
+
+function publisherDisplayName(raw: string, publishers: readonly PublisherNameRef[] | undefined): string {
+  const trimmed = raw.trim()
+  if (!trimmed || !publishers?.length) return raw
+  const key = trimmed.toLowerCase()
+  for (const publisher of publishers) {
+    const id = String(publisher.publisherid ?? "").trim().toLowerCase()
+    const name = String(publisher.publisher_name ?? "").trim()
+    if (id && id === key && name) return name
+  }
+  return raw
+}
+
+function applyWorkbookPrintSetup(ws: ExcelJS.Worksheet, printTitlesRow: string): void {
+  ws.pageSetup = {
+    ...ws.pageSetup,
+    orientation: "landscape",
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    printTitlesRow,
+  }
+}
+
 const GANTT_MEDIA_KEY: Record<string, MediaTypeThemeKey> = {
   television: "television",
   radio: "radio",
@@ -537,7 +578,7 @@ export async function generateMediaPlan(
   style('B6', { value: 'MBA Number', bold: true, align: 'right', fontSize: headerFontSize }); style('C6', { value: mbaNumber, align: 'left', fontSize: headerFontSize, fill: greyFill });
   // Middle column
   style('D3', { value: 'Client Contact', bold: true, align: 'right', fontSize: headerFontSize }); style('E3', { value: clientContact, align: 'left', fontSize: headerFontSize, fill: greyFill });
-  style('D4', { value: 'Plan Version', bold: true, align: 'right', fontSize: headerFontSize }); style('E4', { value: planVersion, align: 'left', fontSize: headerFontSize, fill: greyFill });
+  style('D4', { value: 'Plan Version', bold: true, align: 'right', fontSize: headerFontSize }); style('E4', { value: planVersionCellValue(planVersion), align: 'left', fontSize: headerFontSize, fill: greyFill });
   const planIso = getMelbourneTodayISO(options?.asOf ?? new Date())
   const [planYear, planMonth, planDay] = planIso.split("-").map(Number)
   const planDate = new Date(Date.UTC(planYear, planMonth - 1, planDay))
@@ -551,7 +592,7 @@ export async function generateMediaPlan(
   style('D6', { value: 'PO Number', bold: true, align: 'right', fontSize: headerFontSize }); style('E6', { value: poNumber, align: 'left', fontSize: headerFontSize, fill: greyFill });
   // Right column
   style('F3', { value: 'Campaign Budget', bold: true, align: 'right', fontSize: headerFontSize }); style('G3', { value: budgetDollars, align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: '$#,##0.00' });
-  style('F4', { value: 'Campaign Status', bold: true, align: 'right', fontSize: headerFontSize }); style('G4', { value: campaignStatus, align: 'left', fontSize: headerFontSize, fill: greyFill });
+  style('F4', { value: 'Campaign Status', bold: true, align: 'right', fontSize: headerFontSize }); style('G4', { value: sentenceCaseStatus(campaignStatus), align: 'left', fontSize: headerFontSize, fill: greyFill });
   style('F5', { value: 'Campaign Start Date', bold: true, align: 'right', fontSize: headerFontSize }); style('G5', { value: parsedCampaignStartDate, align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: 'dd/mm/yyyy' });
   style('F6', { value: 'Campaign End Date', bold: true, align: 'right', fontSize: headerFontSize }); style('G6', { value: parsedCampaignEndDate, align: 'left', fontSize: headerFontSize, fill: greyFill, numFmt: 'dd/mm/yyyy' });
 
@@ -2303,13 +2344,15 @@ export async function generateMediaPlan(
     applyDraftStampToWorksheet(sheet)
   }
 
+  applyWorkbookPrintSetup(sheet, "1:8")
+
   return workbook;
 }
 
 export function addKPISheet(
   workbook: ExcelJS.Workbook,
   kpiRows: KPISheetRow[],
-  options?: { draft?: boolean }
+  options?: { draft?: boolean; publishers?: readonly PublisherNameRef[] }
 ): void {
   if (!kpiRows || kpiRows.length === 0) return
 
@@ -2405,7 +2448,7 @@ export function addKPISheet(
         fillCell(ws.getCell(r, c), rowFill)
         ws.getCell(r, c).font = { name: BRAND.font.excel, size: 10 }
       }
-      txt(ws.getCell(r, 2), row.publisher)
+      txt(ws.getCell(r, 2), publisherDisplayName(row.publisher, options?.publishers))
       txt(ws.getCell(r, 3), row.label)
       txt(ws.getCell(r, 4), formatBuyType(row.buyType))
       numFmt(ws.getCell(r, 5),  '$#,##0.00', row.spend)
@@ -2451,7 +2494,7 @@ export function addKPISheet(
   const grandSum = (f: keyof KPISheetRow) =>
     allRows.reduce((s, rw) => s + ((rw[f] as number | null) ?? 0), 0)
   numFmt(ws.getCell(r, 5),  '$#,##0.00', grandSum('spend'),              true)
-  numFmt(ws.getCell(r, 6),  '#,##0',     grandSum('deliverables'),       true)
+  // Deliverables mix units (clicks, impressions, spots). Leave the total blank.
   numFmt(ws.getCell(r, 11), '#,##0',     grandSum('calculatedClicks'),   true)
   numFmt(ws.getCell(r, 12), '#,##0',     grandSum('calculatedViews'),    true)
   numFmt(ws.getCell(r, 13), '#,##0',     grandSum('calculatedReach'),    true)
@@ -2460,4 +2503,6 @@ export function addKPISheet(
   if (options?.draft) {
     applyDraftStampToWorksheet(ws)
   }
+
+  applyWorkbookPrintSetup(ws, "1:1")
 }

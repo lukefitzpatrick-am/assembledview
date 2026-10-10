@@ -11,6 +11,7 @@ import {
 } from "@/lib/finance/scheduleMonthsSource"
 import { MEDIA_TYPE_LABELS } from "@/lib/media/mediaTypes"
 
+import { planDocumentFileName } from "./planDocumentFileName"
 import { renderMonthKey, rowInApprovedSlice, type MbaRenderFilters } from "./mbaRenderFilters"
 
 export type MbaDocumentScope = {
@@ -162,8 +163,12 @@ export function mbaDocumentFilename(args: {
   versionNumber: number | string
   partial: boolean
 }): string {
-  const safeClient = (args.clientName || "client").replace(/[^\w\-]+/g, "_")
-  const safeCampaign = (args.campaignName || "campaign").replace(/[^\w\-]+/g, "_")
-  const base = `MBA_${safeClient}_${safeCampaign}_v${args.versionNumber}`
-  return args.partial ? `${base}_partial.pdf` : `${base}.pdf`
+  return planDocumentFileName({
+    clientName: args.clientName,
+    campaignName: args.campaignName,
+    kind: "mba",
+    draft: false,
+    versionNumber: args.versionNumber,
+    partial: args.partial,
+  })
 }

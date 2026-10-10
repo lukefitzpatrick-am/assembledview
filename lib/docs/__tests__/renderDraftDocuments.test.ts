@@ -78,8 +78,8 @@ describe("renderDraftDocuments MBA", () => {
   it("returns a DRAFT PDF with the stamp and no checksum footer", async () => {
     const result = await renderDraftDocuments(fixtureSaveBody())
     assert.equal(result.mime, "application/pdf")
-    assert.match(result.filename, /^DRAFT-MBA_/)
-    assert.match(result.filename, /not-for-client\.pdf$/)
+    assert.match(result.filename, /^DRAFT - /)
+    assert.match(result.filename, / - MBA - not for client\.pdf$/)
     const text = await pdfText(result.buffer)
     assert.ok(text.includes("DRAFT - NOT FOR CLIENT"))
     assert.equal(text.includes("v1 ·"), false)
@@ -95,8 +95,8 @@ describe("renderDraftDocuments Media Plan", () => {
       result.mime,
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-    assert.match(result.filename, /^DRAFT-MediaPlan_/)
-    assert.match(result.filename, /not-for-client\.xlsx$/)
+    assert.match(result.filename, /^DRAFT - /)
+    assert.match(result.filename, / - Media Plan - not for client\.xlsx$/)
     const wb = new ExcelJS.Workbook()
     await wb.xlsx.load(result.buffer as unknown as ExcelJS.Buffer)
     const sheet = wb.getWorksheet("Media Plan")

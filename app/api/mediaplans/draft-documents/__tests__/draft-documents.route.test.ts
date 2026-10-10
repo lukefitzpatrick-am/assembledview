@@ -172,8 +172,8 @@ test("POST draft-documents — valid body is 200 DRAFT file and does not write",
   assert.equal(res.status, 200)
   assert.equal(res.headers.get("X-Document-State"), "draft")
   const disp = res.headers.get("Content-Disposition") ?? ""
-  assert.match(disp, /DRAFT-MBA_/)
-  assert.match(disp, /not-for-client\.pdf/)
+  assert.match(disp, /DRAFT - /)
+  assert.match(disp, / - MBA - not for client\.pdf/)
   const buf = Buffer.from(await res.arrayBuffer())
   assert.ok(buf.length > 100)
   const text = await pdfText(buf)

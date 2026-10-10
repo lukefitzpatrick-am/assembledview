@@ -9,6 +9,7 @@
 
 import { generateMBA } from "@/lib/generateMBA"
 import { buildMediaPlanWorkbook } from "@/lib/docs/mediaPlanWorkbook"
+import { publishedKpiSheetRows } from "@/lib/docs/publishedKpiSheetRows"
 import {
   buildMbaFromPersisted,
   PersistedDocError,
@@ -141,12 +142,22 @@ export async function renderPlanVersionDocuments(input: {
 
       const built = await loadAdapter()
       if (kind === "media_plan") {
+        const kpiRows = await publishedKpiSheetRows({
+          mediaItems: built.mediaItems,
+          publishers: built.publishers,
+          clientName: built.header.client,
+          mbaNumber: input.mbaNumber,
+          versionNumber: input.versionNumber,
+          campaignName: built.header.campaignName,
+        })
         const rendered = await buildMediaPlanWorkbook({
           header: built.header,
           mediaItems: built.mediaItems,
           mbaData: built.mbaData,
           variant: "standard",
           draft: false,
+          kpiRows,
+          publishers: built.publishers,
           clientName: built.header.client,
           campaignName: built.header.campaignName,
           versionNumber: input.versionNumber,

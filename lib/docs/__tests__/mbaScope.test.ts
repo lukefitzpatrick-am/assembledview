@@ -236,7 +236,7 @@ describe("deriveMbaScope / formatMbaScopeLine", () => {
         versionNumber: 2,
         partial: false,
       }),
-      "MBA_Fixture_Client_Fixture_Campaign_v2.pdf"
+      "Fixture Client - Fixture Campaign - MBA - v2.pdf"
     )
   })
 })
@@ -250,7 +250,7 @@ describe("mbaDocumentFilename", () => {
         versionNumber: 2,
         partial: true,
       }),
-      "MBA_Fixture_Client_Fixture_Campaign_v2_partial.pdf"
+      "Fixture Client - Fixture Campaign - MBA - v2 partial.pdf"
     )
   })
 })

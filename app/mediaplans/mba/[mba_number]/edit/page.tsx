@@ -206,6 +206,7 @@ import {
   showPlanDraftSaveButton,
   wizardPrimarySaveLabel,
 } from "@/lib/mediaplan/planWizardSaveBar"
+import { planDocumentFileName } from "@/lib/docs/planDocumentFileName"
 import { postDraftDocuments } from "@/lib/docs/postDraftDocuments"
 import {
   NotApprovedError,
@@ -9178,7 +9179,13 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     const blob = await response.blob()
     const fileName =
       response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ||
-      `MBA_${fv.mp_clientname || "client"}_${fv.mp_campaignname || "campaign"}_v${resolvedPlanVersion}.pdf`
+      planDocumentFileName({
+        clientName: fv.mp_clientname || "client",
+        campaignName: fv.mp_campaignname || "campaign",
+        kind: "mba",
+        draft: false,
+        versionNumber: resolvedPlanVersion,
+      })
     return { blob, fileName, planVersion: resolvedPlanVersion }
   }
 

@@ -11,6 +11,7 @@ import type {
   MediaItems,
   MediaPlanHeader,
 } from "@/lib/generateMediaPlan"
+import { planDocumentFileName } from "@/lib/docs/planDocumentFileName"
 
 type WorkbookMbaData = NonNullable<Parameters<typeof generateMediaPlan>[2]>
 
@@ -21,14 +22,13 @@ export type MediaPlanWorkbookInput = {
   variant: "standard" | "aa"
   draft: boolean
   kpiRows?: KPISheetRow[]
+  publishers?: ReadonlyArray<{
+    publisherid?: string | null
+    publisher_name?: string | null
+  }>
   clientName: string
   campaignName: string
   versionNumber: number
-}
-
-function filenameToken(raw: string): string {
-  const s = raw.trim() || "campaign"
-  return s.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "").replace(/\s+/g, "_")
 }
 
 export function mediaPlanFileName(input: {
@@ -38,14 +38,13 @@ export function mediaPlanFileName(input: {
   variant: "standard" | "aa"
   draft: boolean
 }): string {
-  if (input.draft) {
-    const campaign = filenameToken(input.campaignName)
-    return input.variant === "aa"
-      ? `DRAFT-AA-MediaPlan_${campaign}_not-for-client.xlsx`
-      : `DRAFT-MediaPlan_${campaign}_not-for-client.xlsx`
-  }
-  const base = `${input.clientName || "client"}-MediaPlan_${input.campaignName || "campaign"}-v${input.versionNumber}.xlsx`
-  return input.variant === "aa" ? `AA - ${base}` : base
+  return planDocumentFileName({
+    clientName: input.clientName,
+    campaignName: input.campaignName,
+    kind: input.variant === "aa" ? "aa_media_plan" : "media_plan",
+    draft: input.draft,
+    versionNumber: input.versionNumber,
+  })
 }
 
 export async function buildMediaPlanWorkbook(
@@ -63,7 +62,10 @@ export async function buildMediaPlanWorkbook(
   )
   const kpiRows = input.kpiRows ?? []
   if (input.variant === "standard" && kpiRows.length > 0) {
-    addKPISheet(workbook, kpiRows, { draft: input.draft })
+    addKPISheet(workbook, kpiRows, {
+      draft: input.draft,
+      publishers: input.publishers,
+    })
   }
   const buffer = Buffer.from((await workbook.xlsx.writeBuffer()) as ArrayBuffer)
   return {

@@ -28,6 +28,7 @@ import {
   type MediaPlanHeader,
 } from "@/lib/generateMediaPlan"
 import { buildMediaPlanWorkbook } from "@/lib/docs/mediaPlanWorkbook"
+import { planDocumentFileName } from "@/lib/docs/planDocumentFileName"
 import { explodeExcelLineItems } from "@/lib/docs/explodeExcelLineItems"
 import { filterMediaItemsForMbaScope } from "@/lib/docs/filterMediaItemsForMbaScope"
 import { buildMbaDataFromFinancials } from "@/lib/docs/buildMbaDataFromFinancials"
@@ -61,11 +62,6 @@ const BILLING_KEY_TO_FLAG: Record<string, string> = Object.fromEntries(
     flag,
   ])
 )
-
-function filenameToken(raw: string | null | undefined, fallback: string): string {
-  const s = String(raw ?? "").trim() || fallback
-  return s.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "").replace(/\s+/g, "_")
-}
 
 function formatDateDdMmYyyy(raw: unknown): string {
   if (raw == null || raw === "") return ""
@@ -252,7 +248,12 @@ export async function renderDraftDocuments(
       now,
     })
     const pdf = await generateMBA(mbaData)
-    const filename = `DRAFT-MBA_${filenameToken(clientName, "client")}_${filenameToken(campaignName, "campaign")}_not-for-client.pdf`
+    const filename = planDocumentFileName({
+      clientName,
+      campaignName,
+      kind: "mba",
+      draft: true,
+    })
     return {
       filename,
       mime: "application/pdf",
@@ -361,6 +362,7 @@ export async function renderDraftDocuments(
     variant: body.kind === "aa_media_plan" ? "aa" : "standard",
     draft: true,
     kpiRows,
+    publishers,
     clientName,
     campaignName,
     versionNumber: body.versionNumber,

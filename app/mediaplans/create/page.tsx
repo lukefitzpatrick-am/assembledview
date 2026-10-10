@@ -280,6 +280,7 @@ import {
   showPlanDraftSaveButton,
   wizardPrimarySaveLabel,
 } from "@/lib/mediaplan/planWizardSaveBar"
+import { planDocumentFileName } from "@/lib/docs/planDocumentFileName"
 import { postDraftDocuments } from "@/lib/docs/postDraftDocuments"
 import {
   NotApprovedError,
@@ -2965,8 +2966,13 @@ function CreateMediaPlan() {
     }
 
     const blob = await response.blob();
-    const mbaBase = `MBA_${fv.mp_campaignname || "campaign"}`;
-    const fileName = `${fv.mp_client_name || "client"}-${mbaBase}-v${resolvedPlanVersion}.pdf`;
+    const fileName = planDocumentFileName({
+      clientName: fv.mp_client_name || "client",
+      campaignName: fv.mp_campaignname || "campaign",
+      kind: "mba",
+      draft: false,
+      versionNumber: resolvedPlanVersion,
+    });
     return { blob, fileName, planVersion: resolvedPlanVersion };
   };
 
