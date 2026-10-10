@@ -1,33 +1,41 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from "react"
+import Link from "next/link"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
 import { resolveListViewState } from "@/lib/ui/viewState"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { format } from "date-fns"
-import { PlusCircle } from "lucide-react"
-import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
+import { Download, PlusCircle } from "lucide-react"
+import { MediaChannelTag } from "@/components/dashboard/MediaChannelTag"
 import { campaignMediaTypeTagLabels } from "@/lib/dashboard/campaignMediaTypeTags"
-import { cn } from "@/lib/utils"
-import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
 import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
 import { PageHeader } from "@/components/layout/PageHeader"
-import { Panel, PanelActions, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
-import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
+import { useCampaignsLayout } from "@/lib/hooks/useCampaignsLayout"
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import { DashboardCampaignPlanCard, dashboardCampaignGridClassName } from "@/components/dashboard/DashboardEntityCards"
-import { CampaignRowActions, hasPublishedVersionFromPointer } from "@/components/campaign/CampaignRowActions"
+import { CampaignStatusBadge } from "@/components/campaign/CampaignStatusBadge"
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table"
 import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar"
 import { formatAUD } from "@/lib/format/money"
 import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
 import {
-  CAMPAIGN_LIST_STATUSES,
   isScheduleEnded,
   normalizeStoredCampaignStatus,
 } from "@/lib/mediaplans/campaignListStatus"
+import {
+  CAMPAIGN_LIST_CHIP_LABEL,
+  CAMPAIGN_LIST_CHIPS,
+  campaignListCsvRows,
+  filterCampaignsByStatusChip,
+  formatCampaignDateRange,
+  mediaPillWindow,
+  type CampaignListChip,
+} from "@/lib/mediaplans/campaignListView"
 import { matchesMediaPlanSearch } from "@/lib/mediaplans/matchesMediaPlanSearch"
+import { segmentChipClass } from "@/components/layout/navChip"
+import { downloadCsvRows } from "@/lib/utils/csv-export"
 import { AuFinancialYearFilterPills } from "@/components/dashboard/AuFinancialYearFilterPills"
 import {
   campaignOverlapsAuFinancialYear,
@@ -107,21 +115,27 @@ interface MediaPlan {
   scheduleEnded?: boolean;
 }
 
-type SortableValue = string | number | Date | boolean | null | undefined
-
-type SortState = {
-  column: string
-  direction: SortDirection
+function campaignEditHref(plan: MediaPlan): string {
+  return `/mediaplans/mba/${encodeURIComponent(plan.mba_number)}/edit?version=${plan.version_number}`
 }
 
-const CAMPAIGN_STATUSES = [...CAMPAIGN_LIST_STATUSES]
+function CampaignMediaPills({ plan }: { plan: MediaPlan }) {
+  const { shown, extra } = mediaPillWindow(campaignMediaTypeTagLabels(plan))
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {shown.map((label, index) => (
+        <MediaChannelTag key={`${label}-${index}`} label={label} />
+      ))}
+      {extra > 0 ? <span className="text-xs text-muted-foreground">+{extra}</span> : null}
+    </div>
+  )
+}
 
 function MediaPlansPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const { user, isLoading: authLoading } = useAuthContext()
-  const { mode: listGridMode, setMode: setListGridMode } = useListGridLayoutPreference()
   const [mediaPlans, setMediaPlans] = useState<MediaPlan[]>([])
   const [filteredPlans, setFilteredPlans] = useState<MediaPlan[]>([])
   const [loading, setLoading] = useState(true)
@@ -133,7 +147,7 @@ function MediaPlansPageInner() {
   const [fyFilter, setFyFilter] = useState<AuFyFilterValue>(() =>
     parseAuFySearchParam(searchParams.get("fy")),
   )
-  const [sortStates, setSortStates] = useState<Record<string, SortState>>({})
+  const [statusChip, setStatusChip] = useState<CampaignListChip>("all")
   const [urlHydrated, setUrlHydrated] = useState(false)
   const [pinsHydrated, setPinsHydrated] = useState(false)
   const [savedViews, setSavedViews] = useState<SavedDashboardViewRecord[]>([])
@@ -145,6 +159,7 @@ function MediaPlansPageInner() {
     const id = (anyUser?.sub || anyUser?.email || anyUser?.name || "").toString().trim()
     return id || null
   }, [user])
+  const { mode: layoutMode, setMode: setLayoutMode } = useCampaignsLayout(dashboardStorageUserId)
 
   const savedViewsListKey = savedViewsListKeyForUser(dashboardStorageUserId)
   const legacyPinnedClientsKey = legacyPinnedClientsKeyForUser(dashboardStorageUserId)
@@ -171,46 +186,6 @@ function MediaPlansPageInner() {
     }
     return options.sort((a, b) => a.label.localeCompare(b.label))
   }, [mediaPlans])
-
-  const getNextDirection = (current: SortDirection) =>
-    current === "asc" ? "desc" : current === "desc" ? null : "asc"
-
-  const toggleSortForStatus = (status: string, column: string) => {
-    setSortStates(prev => {
-      const prevState = prev[status] || { column: "", direction: null }
-      const direction = prevState.column === column ? getNextDirection(prevState.direction) : "asc"
-      return { ...prev, [status]: { column, direction } }
-    })
-  }
-
-  const safeDate = (value: string) => {
-    const d = new Date(value)
-    return isNaN(d.getTime()) ? new Date(0) : d
-  }
-
-  const getSortDirection = (status: string, column: string): SortDirection =>
-    sortStates[status]?.column === column ? sortStates[status]?.direction ?? null : null
-
-  const planSelectors: Record<string, (plan: MediaPlan) => SortableValue> = {
-    id: plan => plan.id,
-    client: plan => plan.mp_client_name || "",
-    mba: plan => plan.mba_number || "",
-    campaign: plan => plan.mp_campaignname || plan.campaign_name || "",
-    version: plan => plan.version_number,
-    budget: plan => plan.mp_campaignbudget || 0,
-    startDate: plan => safeDate(plan.campaign_start_date),
-    endDate: plan => safeDate(plan.campaign_end_date),
-    status: plan => plan.campaign_status || "",
-  }
-
-  const applySortForStatus = (plans: MediaPlan[], status: string) => {
-    const sortState = sortStates[status]
-    if (!sortState?.direction || !planSelectors[sortState.column]) return plans
-    const select = planSelectors[sortState.column]
-    return [...plans].sort((a, b) =>
-      compareValues(select(a), select(b), sortState.direction as Exclude<SortDirection, null>)
-    )
-  }
 
   // Fetch media plans from the API
   useEffect(() => {
@@ -353,11 +328,6 @@ function MediaPlansPageInner() {
     router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false })
   }, [searchTerm, fyFilter, urlHydrated, pathname, router, searchParams])
 
-  // Filter media plans by status from filtered results
-  const getMediaPlansByStatus = (status: string) => {
-    return filteredPlans.filter(plan => plan.campaign_status === status);
-  };
-
   // Search + client pins + AU FY overlap — fail-closed: never throw on missing string fields
   useEffect(() => {
     const selectedClientKeys = new Set(
@@ -383,35 +353,95 @@ function MediaPlansPageInner() {
     setFilteredPlans(filtered)
   }, [searchTerm, selectedClients, fyFilter, mediaPlans])
 
-  const getMediaTypeTags = (plan: MediaPlan) =>
-    campaignMediaTypeTagLabels(plan).map((label) => (
-      <MediaChannelTag key={`${plan.id}-${label}`} label={label} />
-    ))
+  const visiblePlans = useMemo(() => {
+    const matched = filterCampaignsByStatusChip(filteredPlans, statusChip)
+    return [...matched].sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0))
+  }, [filteredPlans, statusChip])
 
-  // Get status badge color
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case "Draft":
-        return "bg-surface-muted text-muted-foreground"
-      case "Planned":
-        return "bg-tone-action-bg text-tone-action-fg"
-      case "Approved":
-        return "bg-tone-insight-bg text-tone-insight-fg"
-      case "Booked":
-        return "bg-primary text-primary-foreground"
-      case "Completed":
-        return "bg-tone-insight-bg text-tone-insight-fg"
-      case "Cancelled":
-        return "bg-tone-critical-bg text-tone-critical-fg"
-      default:
-        return "bg-surface-muted text-muted-foreground"
-    }
-  }
+  const tableColumns = useMemo<DataTableColumn<MediaPlan>[]>(
+    () => [
+      {
+        id: "campaign",
+        header: "Campaign",
+        accessor: (plan) => plan.mp_campaignname || plan.campaign_name || "",
+        cell: (plan) => (
+          <span className="block min-w-[12rem]">
+            <span className="block font-semibold text-foreground">
+              {plan.mp_campaignname || plan.campaign_name || "—"}
+            </span>
+            <span className="block text-xs text-muted-foreground">{plan.mp_client_name}</span>
+          </span>
+        ),
+      },
+      {
+        id: "mba",
+        header: "MBA",
+        accessor: (plan) => plan.mba_number || "",
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessor: (plan) => plan.campaign_status || "",
+        sortable: false,
+        cell: (plan) => (
+          <CampaignStatusBadge
+            status={plan.campaign_status}
+            startDate={plan.campaign_start_date}
+            endDate={plan.campaign_end_date}
+          />
+        ),
+      },
+      {
+        id: "dates",
+        header: "Dates",
+        accessor: (plan) => plan.campaign_start_date || "",
+        cell: (plan) => formatCampaignDateRange(plan.campaign_start_date, plan.campaign_end_date) || "—",
+      },
+      {
+        id: "media",
+        header: "Media types",
+        accessor: (plan) => campaignMediaTypeTagLabels(plan).join(", "),
+        sortable: false,
+        cell: (plan) => <CampaignMediaPills plan={plan} />,
+      },
+      {
+        id: "budget",
+        header: "Budget",
+        align: "right",
+        accessor: (plan) => plan.mp_campaignbudget || 0,
+        cell: (plan) => <span className="num">{formatAUD(plan.mp_campaignbudget)}</span>,
+      },
+      {
+        id: "version",
+        header: "Version",
+        align: "right",
+        accessor: (plan) => plan.version_number,
+      },
+      {
+        id: "open",
+        header: "Open",
+        accessor: () => "",
+        sortable: false,
+        csv: false,
+        cell: (plan) => (
+          <Link
+            href={campaignEditHref(plan)}
+            className="text-sm font-medium text-foreground"
+            onClick={(event) => event.stopPropagation()}
+          >
+            Open
+          </Link>
+        ),
+      },
+    ],
+    [],
+  )
 
   const clearCampaignFilters = useCallback(() => {
     // Active filter only — do not wipe FY or saved client pins (Home clear semantics).
     setSearchTerm("")
     setSelectedClients([])
+    setStatusChip("all")
   }, [])
 
   const handleFiltersChange = useCallback((next: DashboardViewFilters) => {
@@ -482,8 +512,20 @@ function MediaPlansPageInner() {
 
   const fyIsDefault = fyFilter === parseAuFySearchParam(null)
   const filtersActive =
-    Boolean(searchTerm.trim()) || selectedClients.length > 0 || !fyIsDefault
-  const countActive = filtersActive
+    Boolean(searchTerm.trim()) ||
+    selectedClients.length > 0 ||
+    !fyIsDefault ||
+    statusChip !== "all"
+
+  const exportFilteredCsv = useCallback(() => {
+    downloadCsvRows(
+      campaignListCsvRows(visiblePlans, {
+        mediaLabels: (row) => campaignMediaTypeTagLabels(row),
+        formatBudget: (amount) => formatAUD(amount ?? 0),
+      }),
+      "campaigns",
+    )
+  }, [visiblePlans])
 
   const campaignsViewState = useMemo(
     () =>
@@ -491,7 +533,7 @@ function MediaPlansPageInner() {
         loading,
         error,
         items: mediaPlans,
-        visible: filteredPlans,
+        visible: visiblePlans,
         filtersActive,
         clear: clearCampaignFilters,
         retry: () => {
@@ -508,7 +550,7 @@ function MediaPlansPageInner() {
       loading,
       error,
       mediaPlans,
-      filteredPlans,
+      visiblePlans,
       filtersActive,
       clearCampaignFilters,
       listMayBeStale,
@@ -522,14 +564,26 @@ function MediaPlansPageInner() {
         title="Campaigns"
         lede="Every media plan, newest first. Live and Completed come from campaign dates."
         actions={
-          <Button
-            type="button"
-            className="h-9 whitespace-nowrap"
-            onClick={() => router.push("/mediaplans/create")}
-          >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Create Campaign
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-9 whitespace-nowrap"
+              disabled={visiblePlans.length === 0}
+              onClick={exportFilteredCsv}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+            <Button
+              type="button"
+              className="h-9 whitespace-nowrap"
+              onClick={() => router.push("/mediaplans/create")}
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create campaign
+            </Button>
+          </>
         }
       />
 
@@ -543,27 +597,31 @@ function MediaPlansPageInner() {
         onSaveSelectedClients={handleSaveSelectedClients}
         onClearAllSavedViews={handleClearAllSavedViews}
         onClearFilters={clearCampaignFilters}
+        searchPlaceholder="Search client, campaign or MBA"
       />
 
-      <div className="mb-4 flex flex-col gap-3 pt-4 scroll-mt-4 sm:flex-row sm:items-center sm:justify-between">
-        <span
-          className="inline-flex h-9 w-[11.5rem] shrink-0 items-center text-xs tabular-nums text-muted-foreground"
-          aria-live="polite"
-        >
-          {loading ? (
-            countActive ? (
-              <span className="inline-block h-3 w-24 animate-pulse rounded bg-muted" aria-hidden />
-            ) : null
-          ) : countActive ? (
-            <>
-              {filteredPlans.length} of {mediaPlans.length} campaigns
-            </>
-          ) : null}
-        </span>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
         <div className="flex flex-wrap items-center gap-3">
           <AuFinancialYearFilterPills value={fyFilter} onChange={setFyFilter} />
-          <ListGridToggle value={listGridMode} onChange={setListGridMode} />
+          <ListGridToggle
+            value={layoutMode === "cards" ? "grid" : "list"}
+            onChange={(next) => setLayoutMode(next === "grid" ? "cards" : "table")}
+          />
         </div>
+      </div>
+
+      <div role="group" aria-label="Campaign status" className="flex flex-wrap gap-1">
+        {CAMPAIGN_LIST_CHIPS.map((chip) => (
+          <button
+            key={chip}
+            type="button"
+            className={segmentChipClass(statusChip === chip)}
+            aria-pressed={statusChip === chip}
+            onClick={() => setStatusChip(chip)}
+          >
+            {CAMPAIGN_LIST_CHIP_LABEL[chip]}
+          </button>
+        ))}
       </div>
 
       <PanelRow>
@@ -593,182 +651,56 @@ function MediaPlansPageInner() {
             emptyAction={
               <Button type="button" onClick={() => router.push("/mediaplans/create")}>
                 <PlusCircle className="mr-2 h-4 w-4" />
-                Create Campaign
+                Create campaign
               </Button>
             }
             filteredEmptyTitle="No campaigns match these filters"
-            filteredEmptyMessage="Clear search and client filters to see more campaigns, or adjust the financial year."
+            filteredEmptyMessage="Clear search, status or client filters to see more campaigns, or adjust the financial year."
             loadingRows={6}
           >
-            {() => (
-            <div className="space-y-6">
-              {CAMPAIGN_STATUSES.map((status) => {
-                const plans = getMediaPlansByStatus(status)
-                const sortedPlans = applySortForStatus(plans, status)
-                const shouldScrollTable = sortedPlans.length > 12
-
-                return (
-                  <Panel key={status} className="overflow-hidden border-border/40 shadow-sm">
-                    <PanelHeader className="border-b border-border/40 bg-muted/20 pb-3">
-                      <PanelTitle className="flex items-center gap-2.5">
-                        <div
-                          className={cn(
-                            "h-2.5 w-2.5 rounded-full",
-                            status === "Booked" && "bg-primary",
-                            status === "Approved" && "bg-tone-insight",
-                            status === "Planned" && "bg-tone-action",
-                            status === "Draft" && "bg-muted-foreground",
-                            status === "Completed" && "bg-tone-insight",
-                            status === "Cancelled" && "bg-tone-critical",
-                          )}
-                        />
-                        <span className="text-sm font-semibold">{status}</span>
-                        <span className="text-xs tabular-nums text-muted-foreground">
-                          ({plans.length})
-                        </span>
-                      </PanelTitle>
-                      <PanelActions />
-                    </PanelHeader>
-
-                    <PanelContent className="px-0 pb-0 pt-0">
-                      {plans.length === 0 ? (
-                        <div className="py-12 text-center">
-                          <span className="text-sm text-muted-foreground/70">
-                            No {status.toLowerCase()} plans
-                          </span>
-                        </div>
-                      ) : listGridMode === "grid" ? (
-                        <div className="px-4 py-4">
-                          <div className={dashboardCampaignGridClassName(shouldScrollTable)}>
-                            {sortedPlans.map((plan) => (
-                              <DashboardCampaignPlanCard
-                                key={plan.id}
-                                plan={{
-                                  id: plan.id,
-                                  mp_clientname: plan.mp_client_name,
-                                  mp_campaignname: plan.mp_campaignname || plan.campaign_name || "",
-                                  mp_mba_number: plan.mba_number,
-                                  mp_version: plan.version_number,
-                                  mp_campaignstatus: plan.campaign_status,
-                                  mp_campaigndates_start: plan.campaign_start_date,
-                                  mp_campaigndates_end: plan.campaign_end_date,
-                                  mp_campaignbudget: plan.mp_campaignbudget,
-                                  published_version_id: plan.published_version_id,
-                                }}
-                                formatDate={formatDate}
-                                formatCurrency={formatAUD}
-                                mediaTypeTags={getMediaTypeTags(plan)}
-                                showStatus={true}
-                                statusBadgeClassName={getStatusBadgeColor(plan.campaign_status)}
-                                clientSlug={slugifyClientName(plan.mp_client_name)}
-                                canEdit
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          className={`overflow-x-auto ${
-                            shouldScrollTable ? "max-h-[1008px] overflow-y-auto" : ""
-                          }`}
-                        >
-                          <Table>
-                            <TableHeader className="sticky top-0 z-10 bg-muted/30">
-                              <TableRow className="border-b border-border/40 hover:bg-transparent">
-                                <SortableTableHeader
-                                  label="ID"
-                                  direction={getSortDirection(status, "id")}
-                                  onToggle={() => toggleSortForStatus(status, "id")}
-                                  className="w-16"
-                                />
-                                <SortableTableHeader
-                                  label="Client Name"
-                                  direction={getSortDirection(status, "client")}
-                                  onToggle={() => toggleSortForStatus(status, "client")}
-                                  className="w-32"
-                                />
-                                <SortableTableHeader
-                                  label="MBA Number"
-                                  direction={getSortDirection(status, "mba")}
-                                  onToggle={() => toggleSortForStatus(status, "mba")}
-                                  className="w-24"
-                                />
-                                <SortableTableHeader
-                                  label="Campaign Name"
-                                  direction={getSortDirection(status, "campaign")}
-                                  onToggle={() => toggleSortForStatus(status, "campaign")}
-                                  className="w-40"
-                                />
-                                <SortableTableHeader
-                                  label="Version"
-                                  direction={getSortDirection(status, "version")}
-                                  onToggle={() => toggleSortForStatus(status, "version")}
-                                  className="w-20"
-                                />
-                                <SortableTableHeader
-                                  label="Budget"
-                                  direction={getSortDirection(status, "budget")}
-                                  onToggle={() => toggleSortForStatus(status, "budget")}
-                                  className="w-24"
-                                />
-                                <SortableTableHeader
-                                  label="Start Date"
-                                  direction={getSortDirection(status, "startDate")}
-                                  onToggle={() => toggleSortForStatus(status, "startDate")}
-                                  className="w-24"
-                                />
-                                <SortableTableHeader
-                                  label="End Date"
-                                  direction={getSortDirection(status, "endDate")}
-                                  onToggle={() => toggleSortForStatus(status, "endDate")}
-                                  className="w-24"
-                                />
-                                <TableHead className="w-48">Media Types</TableHead>
-                                <TableHead className="text-left">Actions</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody className="[&_tr:nth-child(even)]:bg-muted/5">
-                              {sortedPlans.map((plan) => (
-                                <TableRow
-                                  key={plan.id}
-                                  className="border-b border-border/20 transition-colors duration-100 hover:bg-muted/30"
-                                >
-                                  <TableCell className="w-16 font-medium">{plan.id}</TableCell>
-                                  <TableCell className="w-32">{plan.mp_client_name}</TableCell>
-                                  <TableCell className="w-24">{plan.mba_number}</TableCell>
-                                  <TableCell className="w-40">{plan.mp_campaignname || plan.campaign_name}</TableCell>
-                                  <TableCell className="w-20">{plan.version_number}</TableCell>
-                                  <TableCell className="w-24">{formatAUD(plan.mp_campaignbudget)}</TableCell>
-                                  <TableCell className="w-24">{formatDate(plan.campaign_start_date)}</TableCell>
-                                  <TableCell className="w-24">{formatDate(plan.campaign_end_date)}</TableCell>
-                                  <TableCell className="w-48">
-                                    <div className={mediaChannelTagRowClassName}>{getMediaTypeTags(plan)}</div>
-                                  </TableCell>
-                                  <TableCell className="w-full min-w-[10rem] align-top">
-                                    <CampaignRowActions
-                                      layout="stacked"
-                                      mbaNumber={plan.mba_number}
-                                      versionNumber={plan.version_number}
-                                      clientSlug={slugifyClientName(plan.mp_client_name)}
-                                      canEdit
-                                      hasPublishedVersion={hasPublishedVersionFromPointer(
-                                        plan.published_version_id,
-                                      )}
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
-                    </PanelContent>
-                  </Panel>
-                )
-              })}
-            </div>
-            )}
+            {() =>
+              layoutMode === "cards" ? (
+                <div className={dashboardCampaignGridClassName(visiblePlans.length > 12)}>
+                  {visiblePlans.map((plan) => (
+                    <DashboardCampaignPlanCard
+                      key={plan.id}
+                      plan={{
+                        id: plan.id,
+                        mp_clientname: plan.mp_client_name,
+                        mp_campaignname: plan.mp_campaignname || plan.campaign_name || "",
+                        mp_mba_number: plan.mba_number,
+                        mp_version: plan.version_number,
+                        mp_campaignstatus: plan.campaign_status,
+                        mp_campaigndates_start: plan.campaign_start_date,
+                        mp_campaigndates_end: plan.campaign_end_date,
+                        mp_campaignbudget: plan.mp_campaignbudget,
+                        published_version_id: plan.published_version_id,
+                      }}
+                      formatDate={formatDate}
+                      formatCurrency={formatAUD}
+                      mediaTypeTags={<CampaignMediaPills plan={plan} />}
+                      showStatus
+                      statusBadgeClassName=""
+                      clientSlug={slugifyClientName(plan.mp_client_name)}
+                      canEdit
+                    />
+                  ))}
+                </div>
+              ) : (
+                <DataTable
+                  columns={tableColumns}
+                  rows={visiblePlans}
+                  getRowId={(plan) => String(plan.id)}
+                  onRowClick={(plan) => router.push(campaignEditHref(plan))}
+                />
+              )
+            }
           </ViewStateBoundary>
+          {!loading && !error ? (
+            <p className="text-xs tabular-nums text-muted-foreground" aria-live="polite">
+              {visiblePlans.length} {visiblePlans.length === 1 ? "campaign" : "campaigns"}
+            </p>
+          ) : null}
           </PanelRowCell>
       </PanelRow>
     </div>

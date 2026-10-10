@@ -18,6 +18,7 @@ export type DashboardFilterBarProps = {
   onSaveSelectedClients: () => void
   onClearAllSavedViews: () => void
   onClearFilters: () => void
+  searchPlaceholder?: string
 }
 
 export function DashboardFilterBar({
@@ -30,6 +31,7 @@ export function DashboardFilterBar({
   onSaveSelectedClients,
   onClearAllSavedViews,
   onClearFilters,
+  searchPlaceholder = "Search campaigns...",
 }: DashboardFilterBarProps) {
   const clearDisabled =
     !filters.campaignSearch.trim() &&
@@ -50,7 +52,7 @@ export function DashboardFilterBar({
               id="dashboard-campaign-search"
               value={filters.campaignSearch}
               onChange={(e) => onFiltersChange({ ...filters, campaignSearch: e.target.value })}
-              placeholder="Search campaigns..."
+              placeholder={searchPlaceholder}
               className="h-9 border-border bg-surface-panel pl-10 transition-colors focus:bg-background"
             />
           </div>
