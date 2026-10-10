@@ -78,8 +78,7 @@ describe("CampaignReadSection views", () => {
     const html = renderToStaticMarkup(
       <CampaignReadAsAt readAsAt="18 Sep 2026" outOfDate />,
     )
-    expect(html).toContain("Read as at 18 Sep 2026")
-    expect(html).toContain("Out of date. Regenerate for current figures.")
+    expect(html).toContain("Read as at 18 Sep 2026 · Out of date.")
     expect(html).toContain("text-muted-foreground")
     expect(html).not.toContain("button")
   })

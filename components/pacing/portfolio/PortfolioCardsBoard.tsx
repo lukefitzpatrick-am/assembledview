@@ -13,11 +13,20 @@ import {
   splitPortfolioSections,
   type PortfolioTileKey,
 } from "@/lib/pacing/portfolio/filterPortfolioRows"
+import { isAttentionRow } from "@/lib/pacing/portfolio/portfolioRowFlags"
 import type { PortfolioLayout } from "@/lib/pacing/portfolio/portfolioLayout"
 import type { CampaignPacingRow, PortfolioPacingCounts } from "@/lib/pacing/portfolio/types"
 
 const GRID_CLASS =
   "grid grid-cols-1 min-[900px]:grid-cols-2 min-[1280px]:grid-cols-3 gap-3.5"
+
+const TILE_HEADING: Record<Exclude<PortfolioTileKey, "live">, string> = {
+  behind: "Behind",
+  on_track: "On track",
+  ahead: "Ahead",
+  over_pacing: "Over-pacing",
+  attention: "Needs attention",
+}
 
 export function PortfolioCardsBoard({
   rows,
@@ -33,6 +42,7 @@ export function PortfolioCardsBoard({
   const [tile, setTile] = useState<PortfolioTileKey | null>(null)
   const visible = useMemo(() => filterPortfolioByTile(rows, tile), [rows, tile])
   const { attention, rest } = useMemo(() => splitPortfolioSections(visible), [visible])
+  const filterHeading = tile && tile !== "live" ? TILE_HEADING[tile] : null
 
   function toggleTile(key: PortfolioTileKey) {
     setTile((prev) => (prev === key ? null : key))
@@ -64,6 +74,26 @@ export function PortfolioCardsBoard({
         </div>
       ) : (
         <>
+          {filterHeading ? (
+            <section aria-label={filterHeading}>
+              <h2 className="mb-2.5 text-sm font-semibold text-foreground">
+                {filterHeading}{" "}
+                <span className="font-normal text-muted-foreground">{visible.length}</span>
+              </h2>
+              <div className={GRID_CLASS}>
+                {visible.map((row) => (
+                  <CampaignPacingCard
+                    key={row.mbaNumber}
+                    row={row}
+                    asOf={asOf}
+                    showWhy={isAttentionRow(row)}
+                    muted={!isAttentionRow(row)}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : (
+            <>
           {attention.length > 0 ? (
             <section aria-label="Needs a look today">
               <h2 className="mb-2.5 text-sm font-semibold text-foreground">
@@ -101,6 +131,8 @@ export function PortfolioCardsBoard({
               </div>
             </section>
           ) : null}
+            </>
+          )}
         </>
       )}
     </div>

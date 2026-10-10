@@ -196,7 +196,9 @@ export function HomeSpendRow() {
                     tickLine={false}
                     axisLine={false}
                     width={48}
-                    tickFormatter={(value) => formatMoneyCompact(Number(value))}
+                    tickFormatter={(value) =>
+                      formatMoneyCompact(Number(value), { millionScale: "home-spend" })
+                    }
                     tick={{ fontSize: 11, fill: theme.axisText }}
                   />
                   <ChartTooltip
@@ -227,7 +229,7 @@ export function HomeSpendRow() {
                 </span>
               </div>
               <p className="mt-2 text-[12px] text-muted-foreground">
-                Planned media from published schedules. Delivered by month is not loaded on Home.
+                Planned media from published schedules.
               </p>
             </>
           )}
@@ -238,7 +240,7 @@ export function HomeSpendRow() {
           Insight
         </span>
         <p className="text-[16px] font-semibold leading-snug text-foreground">
-          {insight ?? "Last month's delivered spend is not loaded on Home."}
+          {insight ?? "Last month's planned spend is not available."}
         </p>
         <p className="text-[12px] text-muted-foreground">Calculated from published plans.</p>
       </div>

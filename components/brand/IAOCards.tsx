@@ -84,13 +84,8 @@ export function IAOCards({
     ) : null,
     action || owner || actionFigure ? (
       <Card key="action" id="action" tag="Action" figure={actionFigure}>
-        {action || owner ? (
-          <p className="m-0">
-            {action}
-            {action && owner ? " " : null}
-            {owner}
-          </p>
-        ) : null}
+        {action ? <p className="m-0">{action}</p> : null}
+        {owner ? <p className="m-0 mt-1 text-xs text-muted-foreground">Owner: {owner}</p> : null}
       </Card>
     ) : null,
     outcome || outcomeFigure ? (

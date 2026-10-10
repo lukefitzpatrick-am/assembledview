@@ -94,6 +94,8 @@ describe("PortfolioCardsBoard", () => {
     expect(container.textContent).toContain("Jayco Mixed")
     expect(container.textContent).not.toContain("Lets Go Over")
     expect(container.textContent).not.toContain("Penfolds Always On")
+    expect(container.querySelector('[aria-label="Needs a look today"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Behind"]')?.textContent).toContain("Behind")
     expect(container.querySelector('[aria-label="Everything else"]')).toBeNull()
 
     act(() => {

@@ -13,7 +13,7 @@ const toneInk = "border-transparent bg-tone-ink-bg text-tone-ink-fg"
 const toneCancelled = "border-transparent bg-tone-neutral-bg text-muted-foreground line-through"
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex items-center whitespace-nowrap rounded-full border font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
   {
     variants: {
       variant: {

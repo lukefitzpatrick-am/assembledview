@@ -59,8 +59,6 @@ describe("home spend insight", () => {
       "2026-10-10",
     )
     expect(bars.find((bar) => bar.month === "Oct")?.inProgress).toBe(true)
-    expect(homeSpendInsight(bars, "2026-10-10")).toBe(
-      "September planned $431.0K. Delivered by month is not loaded on Home.",
-    )
+    expect(homeSpendInsight(bars, "2026-10-10")).toBe("September planned $431.0K.")
   })
 })

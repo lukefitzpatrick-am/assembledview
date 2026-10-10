@@ -116,8 +116,8 @@ export function plannedBarsFromClientMonths(
 }
 
 /**
- * Last complete month's planned total. Delivered-by-month is not on Home,
- * so the sentence does not invent a delivered figure.
+ * Last complete month's planned total. Home has no delivered-by-month series,
+ * so the sentence names the planned figure only.
  */
 export function homeSpendInsight(bars: HomeMonthBar[], todayIso: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(todayIso) || bars.length === 0) return null
@@ -128,5 +128,5 @@ export function homeSpendInsight(bars: HomeMonthBar[], todayIso: string): string
   const bar = bars.find((item) => item.month === previousShort)
   if (!bar) return null
   const planned = formatMoneyCompact(bar.planned, { millionScale: "home-spend" })
-  return `${previousLong} planned ${planned}. Delivered by month is not loaded on Home.`
+  return `${previousLong} planned ${planned}.`
 }

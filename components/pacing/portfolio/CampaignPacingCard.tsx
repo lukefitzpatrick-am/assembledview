@@ -12,7 +12,6 @@ import {
   campaignPaceLabel,
   displayBandBadgeVariant,
   displayBandFillClass,
-  displayBandTextClass,
   paceToDisplayBand,
 } from "@/lib/pacing/portfolio/portfolioPresentation"
 import { cn } from "@/lib/utils"
@@ -47,10 +46,9 @@ function channelPctOrState(channel: ChannelPacingRow): { text: string; className
       className: "text-muted-foreground",
     }
   }
-  const band = paceToDisplayBand(channel.pace)
   return {
     text: formatPercent(channel.spendPct, { decimals: 0 }),
-    className: displayBandTextClass(band),
+    className: "text-foreground",
   }
 }
 
@@ -138,7 +136,7 @@ export function CampaignPacingCard({
             />
           </div>
         </div>
-        <span className={cn("num text-xs font-semibold", displayBandTextClass(band))}>
+        <span className="num text-xs font-semibold text-foreground">
           {formatPercent(row.spendPct, { decimals: 0 })}
         </span>
       </div>

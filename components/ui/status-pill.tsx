@@ -18,7 +18,7 @@ export function StatusPill({
   className?: string
 }) {
   return (
-    <Badge variant={tone} size={size} className={className}>
+    <Badge variant={tone} size={size} className={cn("shrink-0", className)}>
       {dot ? (
         <span
           className={cn(

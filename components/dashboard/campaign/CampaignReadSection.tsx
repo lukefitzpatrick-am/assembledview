@@ -19,7 +19,6 @@ import {
   campaignReadPollShouldStop,
 } from "@/lib/campaign-read/poll"
 import {
-  CAMPAIGN_READ_OUT_OF_DATE_CUE,
   campaignReadIsOutOfDate,
 } from "@/lib/campaign-read/show"
 import {
@@ -37,6 +36,7 @@ type Props = {
   clientSlug?: string
   isAdmin: boolean
   regenerateToken?: number
+  onStaleDraftChange?: (stale: boolean) => void
 }
 
 function formatReadAsAt(iso: string | null | undefined): string {
@@ -90,8 +90,7 @@ export function CampaignReadAsAt({
 }) {
   return (
     <p className="text-xs text-muted-foreground">
-      Read as at {readAsAt}
-      {outOfDate ? <span className="ml-2">{CAMPAIGN_READ_OUT_OF_DATE_CUE}</span> : null}
+      {outOfDate ? `Read as at ${readAsAt} · Out of date.` : `Read as at ${readAsAt}`}
     </p>
   )
 }
@@ -153,6 +152,7 @@ export function CampaignReadSection({
   clientSlug,
   isAdmin,
   regenerateToken = 0,
+  onStaleDraftChange,
 }: Props) {
   const [payload, setPayload] = useState<CampaignReadListPayload | null>(null)
   const [loading, setLoading] = useState(true)
@@ -171,6 +171,11 @@ export function CampaignReadSection({
     : payload?.published ?? null
   const generating = isAdmin ? payload?.generating ?? null : null
   const failed = isAdmin ? payload?.failed ?? null : null
+  const staleDraft = Boolean(
+    isAdmin &&
+      visible?.status === "draft" &&
+      campaignReadIsOutOfDate(visible?.publishedAt ?? visible?.generatedAt, new Date()),
+  )
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true)
@@ -252,6 +257,10 @@ export function CampaignReadSection({
     rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
     void regenerate()
   }, [isAdmin, regenerate, regenerateToken])
+
+  useEffect(() => {
+    onStaleDraftChange?.(staleDraft)
+  }, [onStaleDraftChange, staleDraft])
 
   async function mutate(path: string, method = "POST", body?: unknown) {
     if (!visible) return
@@ -336,6 +345,10 @@ export function CampaignReadSection({
 
   if (!visible) return null
 
+  const readInstant = visible.publishedAt ?? visible.generatedAt
+  const outOfDate = campaignReadIsOutOfDate(readInstant, new Date())
+  const collapsed = staleDraft && !editing
+
   return (
     <section
       id="campaign-read"
@@ -351,11 +364,8 @@ export function CampaignReadSection({
             </Badge>
           </div>
           <CampaignReadAsAt
-            readAsAt={formatReadAsAt(visible.publishedAt ?? visible.generatedAt)}
-            outOfDate={campaignReadIsOutOfDate(
-              visible.publishedAt ?? visible.generatedAt,
-              new Date(),
-            )}
+            readAsAt={formatReadAsAt(readInstant)}
+            outOfDate={outOfDate}
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -424,7 +434,9 @@ export function CampaignReadSection({
       ) : null}
       {error ? <p className="text-sm text-status-critical-fg">{error}</p> : null}
 
-      {CAMPAIGN_READ_BEAT_KEYS.map((key) => (
+      {collapsed
+        ? null
+        : CAMPAIGN_READ_BEAT_KEYS.map((key) => (
         <BeatBlock
           key={key}
           beatKey={key}

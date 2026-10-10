@@ -17,7 +17,6 @@ import {
   campaignPaceLabel,
   displayBandBadgeVariant,
   displayBandFillClass,
-  displayBandTextClass,
   paceToDisplayBand,
 } from "@/lib/pacing/portfolio/portfolioPresentation"
 import {
@@ -300,7 +299,7 @@ function CampaignGroup({
             spendPct={row.spendPct}
             timePct={row.timePct}
             fillClass={displayBandFillClass(band)}
-            textClass={displayBandTextClass(band)}
+            textClass="text-foreground"
           />
         </td>
         <td className="num px-3 py-2.5 text-right align-middle">{formatWhole(row.spendToDate)}</td>
@@ -350,7 +349,7 @@ function CampaignGroup({
                     spendPct={channel.spendPct}
                     timePct={row.timePct}
                     fillClass={displayBandFillClass(chBand)}
-                    textClass={displayBandTextClass(chBand)}
+                    textClass="text-foreground"
                   />
                 </td>
                 <td className="num px-3 py-2 text-right align-middle">

@@ -266,6 +266,7 @@ function filterLineItemsByBurstWindow(
 export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [readRegenToken, setReadRegenToken] = useState(0)
+  const [staleDraftRead, setStaleDraftRead] = useState(false)
   const [coverage, setCoverage] = useState<ChannelCoverageEntry[]>([])
   const [kpiReviewGroups, setKpiReviewGroups] = useState<KpiReviewGroup[]>([])
   const [deliveredByLineId, setDeliveredByLineId] = useState<Map<string, number>>(() => new Map())
@@ -729,7 +730,8 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         </Suspense>
       </SectionBoundary>
 
-      <section className="mt-6">
+      <div className="flex flex-col gap-6">
+      <section className={staleDraftRead ? "order-3" : "order-1"}>
         <SectionBoundary title="Campaign read">
           <div className="campaign-section-enter" style={{ animationDelay: "40ms" }}>
             <CampaignReadSection
@@ -738,12 +740,13 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               clientSlug={slug}
               isAdmin={Boolean(isAdmin)}
               regenerateToken={readRegenToken}
+              onStaleDraftChange={setStaleDraftRead}
             />
           </div>
         </SectionBoundary>
       </section>
 
-      <section className="mt-6">
+      <section className="order-2">
         <SectionBoundary title="Planned audience">
           <div className="campaign-section-enter" style={{ animationDelay: "50ms" }}>
             <PlannedAudienceSection mbaNumber={mbaNumber} />
@@ -751,10 +754,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         </SectionBoundary>
       </section>
 
-      <section className="mt-6">
+      <section className={staleDraftRead ? "order-2" : "order-3"}>
         <SectionBoundary title="Where we are">
           <Suspense fallback={<CampaignSummarySectionSkeleton />}>
-            <div className="campaign-section-enter" style={{ animationDelay: "100ms" }}>
+            <div className="campaign-section-enter space-y-6" style={{ animationDelay: "100ms" }}>
             <CampaignStatusStrip
               daysElapsed={filteredTimeMetrics.daysElapsed}
               daysInCampaign={filteredTimeMetrics.daysInCampaign}
@@ -780,6 +783,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
           </Suspense>
         </SectionBoundary>
       </section>
+      </div>
 
       {coverageCards.length > 0 ? (
         <section className="mt-6">
