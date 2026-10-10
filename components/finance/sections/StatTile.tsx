@@ -28,6 +28,8 @@ export type StatTileProps = {
   accent?: string
   /** Replaces the money figure. Used for a count tile. */
   figure?: string
+  /** Ready-figure colour. Defaults to the primary token. */
+  valueClassName?: string
 }
 
 function moneyStateFromViewState(
@@ -47,7 +49,15 @@ export function statTileStateFromViewState(
   return moneyStateFromViewState(vs)
 }
 
-export function StatTile({ label, basisCaption, state, className, accent, figure }: StatTileProps) {
+export function StatTile({
+  label,
+  basisCaption,
+  state,
+  className,
+  accent,
+  figure,
+  valueClassName,
+}: StatTileProps) {
   if (state.status === "loading") {
     return (
       <div
@@ -133,7 +143,12 @@ export function StatTile({ label, basisCaption, state, className, accent, figure
           )}
           {label}
         </p>
-        <p className="num mt-2 text-[28px] font-extrabold leading-none text-primary">
+        <p
+          className={cn(
+            "num mt-2 text-[28px] font-extrabold leading-none",
+            valueClassName ?? "text-primary"
+          )}
+        >
           {figure ?? formatMoney(dollars)}
         </p>
         <p className="mt-2 text-[11px] text-muted-foreground">{basisCaption}</p>

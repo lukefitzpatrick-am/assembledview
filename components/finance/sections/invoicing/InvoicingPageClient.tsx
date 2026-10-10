@@ -9,26 +9,22 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { BulkApproveReadyButton } from "@/components/finance/sections/invoicing/BulkApproveReadyButton"
 import { ClearForIssueButton } from "@/components/finance/sections/invoicing/ClearForIssueButton"
 import { SendToAccountsButton } from "@/components/finance/sections/invoicing/SendToAccountsButton"
+import { BillingMonthChips } from "@/components/finance/sections/invoicing/BillingMonthChips"
+import { BillingStatCards } from "@/components/finance/sections/invoicing/BillingStatCards"
 import { InvoicingClientCard } from "@/components/finance/sections/invoicing/InvoicingClientCard"
+import { InvoicingRecordsTable, type InvoicingTableRow } from "@/components/finance/sections/invoicing/InvoicingRecordsTable"
 import { InvoicingToolbar } from "@/components/finance/sections/invoicing/InvoicingToolbar"
-import { ReceivablesSummaryStrip } from "@/components/finance/receivables/ReceivablesSummaryStrip"
 import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSectionsShell"
+import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import { billingMonthAccent } from "@/components/layout/pageTitleCopy"
 import { EmptyState } from "@/components/finance/sections/EmptyState"
 import { ErrorState } from "@/components/finance/sections/ErrorState"
 import { LoadingState } from "@/components/finance/sections/LoadingState"
 import { grainFromBillingRecord } from "@/lib/finance/billingApproveGrain"
-import { hasBillingEvidence } from "@/lib/finance/billingLifecycle"
 import { approveBillingRecords } from "@/lib/finance/api"
 import { formatAUD } from "@/lib/format/money"
 import { formatDateShort } from "@/lib/format/date"
-import {
-  DEFAULT_INVOICING_LIFECYCLE_FILTER,
-  formatFunnelCountCaption,
-  recordMatchesLifecycleFilter,
-  summariseInvoicingFunnel,
-  type InvoicingLifecycleFilter,
-} from "@/lib/finance/sections/invoicingFunnel"
+import { summariseBillingStatCards } from "@/lib/finance/sections/billingPresentation"
 import { summariseLastExport } from "@/lib/finance/approvedReceivablesExport"
 import {
   INVOICING_CLIENT_GRID_CLASS,
@@ -46,50 +42,6 @@ import { useFinanceScopeApplied } from "@/lib/finance/sections/useFinanceScope"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 
-function filterReceivablesMonthGroups(
-  groups: MonthGroup[],
-  predicate: (r: BillingRecord) => boolean
-): MonthGroup[] {
-  const out: MonthGroup[] = []
-  for (const mg of groups) {
-    const clients = mg.clients
-      .map((client) => {
-        const mediaPlans = client.mediaPlans
-          .map((mp) => {
-            const records = mp.records.filter(predicate)
-            if (records.length === 0) return null
-            return { ...mp, records, total: records.reduce((s, r) => s + r.total, 0) }
-          })
-          .filter((mp): mp is NonNullable<typeof mp> => mp != null)
-        const scopeOfWorks = client.scopeOfWorks
-          .map((mp) => {
-            const records = mp.records.filter(predicate)
-            if (records.length === 0) return null
-            return { ...mp, records, total: records.reduce((s, r) => s + r.total, 0) }
-          })
-          .filter((mp): mp is NonNullable<typeof mp> => mp != null)
-        const retainers = client.retainers.filter(predicate)
-        if (mediaPlans.length === 0 && scopeOfWorks.length === 0 && retainers.length === 0) {
-          return null
-        }
-        return {
-          ...client,
-          mediaPlans,
-          scopeOfWorks,
-          retainers,
-          total:
-            mediaPlans.reduce((s, mp) => s + mp.total, 0) +
-            scopeOfWorks.reduce((s, mp) => s + mp.total, 0) +
-            retainers.reduce((s, r) => s + r.total, 0),
-        }
-      })
-      .filter((c): c is NonNullable<typeof c> => c != null)
-    if (clients.length === 0) continue
-    out.push({ ...mg, clients, total: clients.reduce((s, c) => s + c.total, 0) })
-  }
-  return out
-}
-
 function collectBillingRecordsFromMonthGroups(groups: MonthGroup[]): BillingRecord[] {
   const out: BillingRecord[] = []
   for (const mg of groups) {
@@ -99,10 +51,6 @@ function collectBillingRecordsFromMonthGroups(groups: MonthGroup[]): BillingReco
     }
   }
   return out
-}
-
-function countInvoicesInMonthGroups(groups: MonthGroup[]): number {
-  return collectBillingRecordsFromMonthGroups(groups).length
 }
 
 function collectBillingRecordsFromMonthGroup(mg: MonthGroup): BillingRecord[] {
@@ -120,8 +68,25 @@ function monthReadyStats(mg: MonthGroup): { count: number; amountDollars: number
   return { count, amountDollars }
 }
 
+function monthTableRows(mg: MonthGroup): InvoicingTableRow[] {
+  const rows: InvoicingTableRow[] = []
+  for (const client of mg.clients) {
+    for (const mp of client.mediaPlans) {
+      for (const record of mp.records) rows.push({ record, kind: "media", mp })
+    }
+    for (const mp of client.scopeOfWorks) {
+      for (const record of mp.records) rows.push({ record, kind: "sow", mp })
+    }
+    for (const record of client.retainers) {
+      rows.push({ record, kind: "retainer", mp: null })
+    }
+  }
+  return rows
+}
+
 function InvoicingMonthSections({
   groups,
+  layout,
   refetch,
   onNotesSaved,
   onLineAmountCommitted,
@@ -133,6 +98,7 @@ function InvoicingMonthSections({
   onCleared,
 }: {
   groups: MonthGroup[]
+  layout: "cards" | "table"
   refetch: () => void
   onNotesSaved?: (result: {
     invoice_key: string
@@ -193,19 +159,29 @@ function InvoicingMonthSections({
               ) : null}
             </div>
           </div>
-          <div data-invoicing-client-grid="" className={INVOICING_CLIENT_GRID_CLASS}>
-            {mg.clients.map((client) => (
-              <InvoicingClientCard
-                key={`${mg.monthIso}-${client.clientsId}`}
-                client={client}
-                monthLabel={mg.monthLabel}
-                refetch={refetch}
-                onNotesSaved={onNotesSaved}
-                onLineAmountCommitted={onLineAmountCommitted}
-                clientMeta={clientMetaById.get(client.clientsId) ?? null}
-              />
-            ))}
-          </div>
+          {layout === "table" ? (
+            <InvoicingRecordsTable
+              rows={monthTableRows(mg)}
+              refetch={refetch}
+              onNotesSaved={onNotesSaved}
+              onLineAmountCommitted={onLineAmountCommitted}
+              clientMetaById={clientMetaById}
+            />
+          ) : (
+            <div data-invoicing-client-grid="" className={INVOICING_CLIENT_GRID_CLASS}>
+              {mg.clients.map((client) => (
+                <InvoicingClientCard
+                  key={`${mg.monthIso}-${client.clientsId}`}
+                  client={client}
+                  monthLabel={mg.monthLabel}
+                  refetch={refetch}
+                  onNotesSaved={onNotesSaved}
+                  onLineAmountCommitted={onLineAmountCommitted}
+                  clientMeta={clientMetaById.get(client.clientsId) ?? null}
+                />
+              ))}
+            </div>
+          )}
         </section>
         )
       })}
@@ -218,9 +194,7 @@ export function InvoicingPageClient() {
   const [localFilters, setLocalFilters] = useState<InvoicingLocalFilters>(
     () => DEFAULT_INVOICING_LOCAL_FILTERS
   )
-  const [lifecycleFilter, setLifecycleFilter] = useState<InvoicingLifecycleFilter>(
-    DEFAULT_INVOICING_LIFECYCLE_FILTER
-  )
+  const [layout, setLayout] = useState<"cards" | "table">("cards")
   const {
     loading,
     isUpdating,
@@ -299,17 +273,7 @@ export function InvoicingPageClient() {
     return `Last sent ${formatDateShort(lastExport.exportedAt)} by ${name} · ${clients} · ${formatAUD(lastExport.total)}`
   }, [lastExport])
 
-  const funnel = useMemo(() => summariseInvoicingFunnel(allRecords), [allRecords])
-
-  const filteredGroups = useMemo(
-    () =>
-      filterReceivablesMonthGroups(visibleMonthGroups, (r) =>
-        recordMatchesLifecycleFilter(r.state, lifecycleFilter)
-      ),
-    [visibleMonthGroups, lifecycleFilter]
-  )
-  const filteredInvoiceCount = countInvoicesInMonthGroups(filteredGroups)
-  const showBulkApprove = lifecycleFilter === "ready" || lifecycleFilter === "all"
+  const statCards = useMemo(() => summariseBillingStatCards(allRecords), [allRecords])
 
   const approveReadyForMonth = useCallback(
     async (billing_month: string) => {
@@ -356,12 +320,15 @@ export function InvoicingPageClient() {
       headerNote="Expected billing from AssembledView matched against Xero. All figures ex GST."
       scopeBarFramed={false}
       scopeBar={
-        <InvoicingToolbar
-          showingLabel={`Receivables · ${applied.monthRange.from} → ${applied.monthRange.to}`}
-          lastExportLine={lastExportLine}
-          localFilters={localFilters}
-          onLocalFiltersChange={setLocalFilters}
-        />
+        <div className="space-y-3">
+          <BillingMonthChips />
+          <InvoicingToolbar
+            showingLabel={`Receivables · ${applied.monthRange.from} → ${applied.monthRange.to}`}
+            lastExportLine={lastExportLine}
+            localFilters={localFilters}
+            onLocalFiltersChange={setLocalFilters}
+          />
+        </div>
       }
     >
       <div className="space-y-4">
@@ -378,7 +345,7 @@ export function InvoicingPageClient() {
         ) : null}
 
         {coldLoading || loadError || showNoReceivables || visibleMonthGroups.length > 0 ? (
-          <ReceivablesSummaryStrip
+          <BillingStatCards
             view={
               coldLoading
                 ? "loading"
@@ -389,29 +356,7 @@ export function InvoicingPageClient() {
                     : "ready"
             }
             errorMessage={loadError ?? undefined}
-            readyCents={funnel.ready.cents}
-            approvedCents={funnel.approved.cents}
-            sentToFinanceCents={funnel.sentToFinance.cents}
-            issuedOutsideCents={funnel.issuedOutsideAv.cents}
-            needsAttentionCount={funnel.needsAttentionCount}
-            readyCaption={formatFunnelCountCaption(
-              funnel.ready.invoiceCount,
-              funnel.ready.monthCount
-            )}
-            approvedCaption={formatFunnelCountCaption(
-              funnel.approved.invoiceCount,
-              funnel.approved.monthCount
-            )}
-            sentToFinanceCaption={formatFunnelCountCaption(
-              funnel.sentToFinance.invoiceCount,
-              funnel.sentToFinance.monthCount
-            )}
-            issuedOutsideCaption={formatFunnelCountCaption(
-              funnel.issuedOutsideAv.invoiceCount,
-              funnel.issuedOutsideAv.monthCount
-            )}
-            selectedFilter={lifecycleFilter}
-            onFilterChange={setLifecycleFilter}
+            cards={statCards}
           />
         ) : null}
 
@@ -434,27 +379,16 @@ export function InvoicingPageClient() {
             aria-busy={isUpdating || undefined}
           >
             <div className="relative mt-4 space-y-6 pt-1">
-              {lifecycleFilter === "ready" &&
-              filteredInvoiceCount === 0 &&
-              allRecords.some((r) => hasBillingEvidence(r.state)) ? (
-                <p className="text-sm text-muted-foreground">
-                  All invoices have moved past ready for this period.
-                </p>
-              ) : null}
-
-              {filteredInvoiceCount === 0 &&
-              !(
-                lifecycleFilter === "ready" &&
-                allRecords.some((r) => hasBillingEvidence(r.state))
-              ) ? (
-                <EmptyState
-                  title="No invoices in this state"
-                  message="Nothing matches the selected lifecycle filter. Try All, or another tile."
+              <div className="flex justify-end">
+                <ListGridToggle
+                  label="Layout"
+                  value={layout === "cards" ? "grid" : "list"}
+                  onChange={(next) => setLayout(next === "grid" ? "cards" : "table")}
                 />
-              ) : null}
-
+              </div>
               <InvoicingMonthSections
-                groups={filteredGroups}
+                groups={visibleMonthGroups}
+                layout={layout}
                 refetch={bumpFetch}
                 onNotesSaved={handleNotesSaved}
                 onLineAmountCommitted={handleLineAmountCommitted}
@@ -469,11 +403,7 @@ export function InvoicingPageClient() {
                   toast({ title: "Clearance sent" })
                   bumpFetch()
                 }}
-                onApproveReady={
-                  showBulkApprove
-                    ? (monthIso) => void approveReadyForMonth(monthIso)
-                    : undefined
-                }
+                onApproveReady={(monthIso) => void approveReadyForMonth(monthIso)}
               />
             </div>
           </div>

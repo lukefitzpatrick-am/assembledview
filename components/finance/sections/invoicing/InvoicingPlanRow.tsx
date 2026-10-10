@@ -103,6 +103,8 @@ export type InvoicingPlanRowProps = {
     ctx: InlineScheduleEditContext
   ) => void
   clientMeta?: InvoicingClientBlockerMeta | null
+  /** Table layout: actions only. The state pill lives in the State column. */
+  actionsOnly?: boolean
 }
 
 export function InvoicingPlanRow({
@@ -113,6 +115,7 @@ export function InvoicingPlanRow({
   onNotesSaved,
   onLineAmountCommitted,
   clientMeta,
+  actionsOnly = false,
 }: InvoicingPlanRowProps) {
   const { toast } = useToast()
   const amountFrozen = hasBillingEvidence(record.state)
@@ -302,6 +305,49 @@ export function InvoicingPlanRow({
     </span>
   ) : null
 
+  const actionLine = (
+    <>
+      {blocked ? (
+        <p data-invoicing-blockers="" className="text-[11px] text-status-critical-fg">
+          {blockerReasons.join(" · ")}
+        </p>
+      ) : null}
+      <RowActionLine
+        state={state}
+        pill={
+          actionsOnly ? (
+            <span className="sr-only">{state}</span>
+          ) : state === "sent_to_finance" ? (
+            <BillingStateBadge state="sent_to_finance" label="Sent to accounts" />
+          ) : undefined
+        }
+        approvedDrift={false}
+        reason={record.state_reason}
+        context={sentDate ?? driftContext}
+        primary={primary}
+        document={sentDocument}
+        menuItems={menuItems}
+      />
+      <div className="sr-only">
+        <ReceivableNotesButton ref={notesTriggerRef} record={record} onSaved={onNotesSaved} />
+      </div>
+      {kind === "media" ? mediaActions.alterDialog : null}
+    </>
+  )
+
+  if (actionsOnly) {
+    return (
+      <div
+        data-invoicing-plan-row=""
+        data-invoice-key={record.invoice_key ?? ""}
+        data-amount-frozen={amountFrozen ? "" : undefined}
+        className="min-w-[10rem] space-y-1.5"
+      >
+        {actionLine}
+      </div>
+    )
+  }
+
   return (
     <div
       data-invoicing-plan-row=""
@@ -350,38 +396,7 @@ export function InvoicingPlanRow({
         <p className="text-[11px] text-muted-foreground">No line items</p>
       )}
 
-      {blocked ? (
-        <p
-          data-invoicing-blockers=""
-          className="text-[11px] text-status-critical-fg"
-        >
-          {blockerReasons.join(" · ")}
-        </p>
-      ) : null}
-
-      <RowActionLine
-        state={state}
-        pill={
-          state === "sent_to_finance" ? (
-            <BillingStateBadge state="sent_to_finance" label="Sent to accounts" />
-          ) : undefined
-        }
-        approvedDrift={false}
-        reason={record.state_reason}
-        context={sentDate ?? driftContext}
-        primary={primary}
-        document={sentDocument}
-        menuItems={menuItems}
-      />
-
-      <div className="sr-only">
-        <ReceivableNotesButton
-          ref={notesTriggerRef}
-          record={record}
-          onSaved={onNotesSaved}
-        />
-      </div>
-      {kind === "media" ? mediaActions.alterDialog : null}
+      {actionLine}
     </div>
   )
 }
