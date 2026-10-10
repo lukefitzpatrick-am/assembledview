@@ -8,10 +8,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MetricCard } from "@/components/ui/MetricCard"
+import { HomeAttentionList, HomeSpendRow, HomeStartingSoon, type HomeAttentionState } from "@/components/dashboard/HomeBrief"
+import { HomeStatTile } from "@/components/dashboard/HomeStatTile"
 import { EmptyState, ErrorState } from "@/components/ui/states"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { BarChart3, ChevronDown, DollarSign, TrendingUp, Users, type LucideIcon } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import {
@@ -48,6 +49,13 @@ import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar"
 import { AuFinancialYearFilterPills } from "@/components/dashboard/AuFinancialYearFilterPills"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { greetingFirstName, melbourneDayPart } from "@/components/layout/pageTitleCopy"
+import {
+  countCampaignStartsWithinDays,
+  homeAttentionLede,
+  homeMediaSpendLabel,
+  homeStartsWithinLabel,
+} from "@/lib/dashboard/homeBrief"
+import type { CampaignPacingRow } from "@/lib/pacing/portfolio/types"
 import {
   campaignFinishedInPastDays,
   campaignOverlapsAuFinancialYear,
@@ -162,11 +170,9 @@ type SortState = {
 type DashboardMetricCard = {
   title: string
   value: string
-  icon: LucideIcon
   tooltip: string
-  accent: string
-  iconBg: string
-  iconText: string
+  /** Coloured-dot sub-line. Omitted when the page cannot compute it. */
+  detail?: { dotClass: string; text: string } | null
   /** Element id to scroll into view when the tile is activated. */
   panelId: string
 }
@@ -655,6 +661,7 @@ export default function DashboardOverview({
   const [fetchError, setFetchError] = useState<DashboardErrorCopy | null>(null)
   const [plannedToDateByMba, setPlannedToDateByMba] = useState<Record<string, number> | null>(null)
   const [plannedToDateStatus, setPlannedToDateStatus] = useState<HomeMediaSpendFetchStatus>("loading")
+  const [attention, setAttention] = useState<HomeAttentionState>({ status: "loading" })
   const [dataLastRefreshedAt, setDataLastRefreshedAt] = useState<Date | null>(null)
   const [liveCampaignSort, setLiveCampaignSort] = useState<SortState>({ column: "", direction: null })
   const [liveScopesSort, setLiveScopesSort] = useState<SortState>({ column: "", direction: null })
@@ -747,54 +754,47 @@ export default function DashboardOverview({
     [plannedToDateStatus, filteredLiveCampaigns, plannedToDateByMba],
   )
 
+  const startsIn14Days = useMemo(() => {
+    const latest = applyDashboardTableFiltersToPlans(getLatestPlanVersions(mediaPlans), dashboardFilters).filter(
+      (plan) =>
+        campaignOverlapsAuFinancialYear(plan.mp_campaigndates_start, plan.mp_campaigndates_end, fyFilter),
+    )
+    return countCampaignStartsWithinDays(latest, 14, getMelbourneTodayISO())
+  }, [mediaPlans, dashboardFilters, fyFilter])
+
   const dashboardMetrics = useMemo((): DashboardMetricCard[] => {
     const counts = computeHomeLiveKpiCounts(filteredLiveCampaigns, filteredLiveScopes)
     const metrics: DashboardMetricCard[] = [
       {
-        title: "Total Live Campaigns",
+        title: "Live campaigns",
         value: String(counts.liveCampaigns),
-        icon: BarChart3,
         tooltip: "Campaigns booked/approved/completed running today (respects active filters)",
-        accent: "bg-tone-action",
-        iconBg: "bg-muted",
-        iconText: "text-muted-foreground",
+        detail: { dotClass: "bg-am-lime", text: homeStartsWithinLabel(startsIn14Days) },
         panelId: "dashboard-panel-live-campaigns",
       },
       {
-        title: "Total Live Scopes of Work",
+        title: "Live scopes of work",
         value: String(counts.liveScopes),
-        icon: TrendingUp,
         tooltip: "Scopes with status Approved or In-Progress (respects active filters)",
-        accent: "bg-tone-insight",
-        iconBg: "bg-muted",
-        iconText: "text-muted-foreground",
         panelId: "dashboard-panel-live-scopes",
       },
       {
-        title: "Total Live Clients",
+        title: "Live clients",
         value: String(counts.liveClients),
-        icon: Users,
         tooltip: "Unique clients with live campaigns or scopes (respects active filters)",
-        accent: "bg-channel-bvod",
-        iconBg: "bg-muted",
-        iconText: "text-muted-foreground",
         panelId: "dashboard-section-campaigns-scope",
       },
     ]
     if (mediaSpendTile.show && mediaSpendTile.amount !== null) {
       metrics.push({
-        title: "Media Spend to Date",
+        title: homeMediaSpendLabel(fyFilter),
         value: formatMoneyCompact(mediaSpendTile.amount, { millionScale: "home-spend" }),
-        icon: DollarSign,
         tooltip: formatHomeMediaSpendTooltip(mediaSpendTile.amount),
-        accent: "bg-channel-search",
-        iconBg: "bg-muted",
-        iconText: "text-muted-foreground",
         panelId: "dashboard-panel-live-campaigns",
       })
     }
     return metrics
-  }, [filteredLiveCampaigns, filteredLiveScopes, mediaSpendTile])
+  }, [filteredLiveCampaigns, filteredLiveScopes, mediaSpendTile, startsIn14Days, fyFilter])
 
   const scrollToDashboardPanel = useCallback((panelId: string, ensureOpen?: () => void) => {
     ensureOpen?.()
@@ -1328,6 +1328,39 @@ export default function DashboardOverview({
     }
   }, [mounted, user, isClient, showMetrics, fyFilter])
 
+  useEffect(() => {
+    if (!mounted || !user || isClient) return
+    let cancelled = false
+    fetch("/api/pacing/portfolio", { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(String(response.status))
+        return response.json() as Promise<{
+          building?: boolean
+          counts?: { attention?: number }
+          rows?: CampaignPacingRow[]
+        }>
+      })
+      .then((body) => {
+        if (cancelled) return
+        if (body.building) {
+          setAttention({ status: "building" })
+          return
+        }
+        setAttention({
+          status: "ready",
+          count: typeof body.counts?.attention === "number" ? body.counts.attention : 0,
+          rows: Array.isArray(body.rows) ? body.rows : [],
+        })
+      })
+      .catch((err) => {
+        console.error("Dashboard: Pacing portfolio error:", err)
+        if (!cancelled) setAttention({ status: "error" })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mounted, user, isClient])
+
   const getEnabledMediaTypes = useCallback((plan: MediaPlan): string[] => {
     const entries: Array<[string, boolean]> = [
       ["television", Boolean(plan.mp_television)],
@@ -1620,11 +1653,11 @@ export default function DashboardOverview({
         },
         counts: {
           metrics: [
-            { title: "Total Live Campaigns", value: String(kpiCounts.liveCampaigns) },
-            { title: "Total Live Scopes of Work", value: String(kpiCounts.liveScopes) },
-            { title: "Total Live Clients", value: String(kpiCounts.liveClients) },
+            { title: "Live campaigns", value: String(kpiCounts.liveCampaigns) },
+            { title: "Live scopes of work", value: String(kpiCounts.liveScopes) },
+            { title: "Live clients", value: String(kpiCounts.liveClients) },
             ...(mediaSpendTile.show && mediaSpendTile.amount !== null
-              ? [{ title: "Media Spend to Date", value: formatMoneyCompact(mediaSpendTile.amount, { millionScale: "home-spend" }) }]
+              ? [{ title: homeMediaSpendLabel(fyFilter), value: formatMoneyCompact(mediaSpendTile.amount, { millionScale: "home-spend" }) }]
               : []),
           ],
           liveCampaigns: liveCampaigns.length,
@@ -1653,6 +1686,7 @@ export default function DashboardOverview({
     loading,
     mediaPlans,
     mediaSpendTile,
+    fyFilter,
     pathname,
     baselineTemplateId,
     savedViews,
@@ -1994,7 +2028,7 @@ export default function DashboardOverview({
       <PageHeader
         title={homeTitle}
         accent={firstName}
-        lede="Live campaigns, pacing and billing at a glance."
+        lede={attention.status === "ready" ? homeAttentionLede(attention.count) : undefined}
         meta={
           timeRangeDescription || dataLastRefreshedAt ? (
             <p>
@@ -2082,15 +2116,7 @@ export default function DashboardOverview({
                         }
                       }}
                     >
-                      <MetricCard
-                        label={metric.title}
-                        value={metric.value}
-                        accent={metric.accent}
-                        icon={metric.icon}
-                        iconContainerClassName={metric.iconBg}
-                        iconClassName={metric.iconText}
-                        className="h-full"
-                      />
+                      <HomeStatTile label={metric.title} value={metric.value} detail={metric.detail} />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -2109,11 +2135,20 @@ export default function DashboardOverview({
         </PanelRow>
       ) : null}
 
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <HomeAttentionList attention={attention} />
+        <HomeStartingSoon campaigns={campaignsDueToStart} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <HomeSpendRow />
+      </div>
+
       {showTables && tableSectionVisible ? (
         <>
           <div id="dashboard-section-campaigns-scope" className="scroll-mt-4 pt-4">
             <Section
-              title="Campaigns & scope data"
+              title="All campaigns"
               actions={
                 <div className="flex flex-wrap items-center gap-3">
                   <AuFinancialYearFilterPills value={fyFilter} onChange={setFyFilter} />

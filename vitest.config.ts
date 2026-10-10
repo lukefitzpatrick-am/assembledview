@@ -29,6 +29,7 @@ export default defineConfig({
       "tests/learning/solver-roundtrip.test.ts",
       "lib/dashboard/__tests__/budgetSpendTiles.test.ts",
       "lib/dashboard/__tests__/homeDashboardFilters.test.ts",
+      "lib/dashboard/__tests__/homeBrief.test.ts",
       "lib/dashboard/__tests__/mediaMixFromDeliverySchedule.test.ts",
       "lib/dashboard/__tests__/plannedSpendConsistency.test.ts",
       "lib/dashboard/__tests__/spendInsightsCaptions.test.ts",
