@@ -235,11 +235,11 @@ export function VarianceTargetVsActualView({
                               {client.client_name}
                             </button>
                           </td>
-                          <td className="num px-2 py-2 text-right font-mono text-xs">{formatAUD(client.fy.target)}</td>
-                          <td className="num px-2 py-2 text-right font-mono text-xs">{formatAUD(client.fy.actual)}</td>
-                          <td className="num px-2 py-2 text-right font-mono text-xs">{formatAUD(client.fy.delta)}</td>
-                          <td className="num px-2 py-2 text-right font-mono text-xs">{formatPct(client.fy.delta_pct)}</td>
-                          <td className="num px-2 py-2 text-right font-mono text-xs text-muted-foreground">
+                          <td className="num px-2 py-2 text-right text-xs">{formatAUD(client.fy.target)}</td>
+                          <td className="num px-2 py-2 text-right text-xs">{formatAUD(client.fy.actual)}</td>
+                          <td className="num px-2 py-2 text-right text-xs">{formatAUD(client.fy.delta)}</td>
+                          <td className="num px-2 py-2 text-right text-xs">{formatPct(client.fy.delta_pct)}</td>
+                          <td className="num px-2 py-2 text-right text-xs text-muted-foreground">
                             {formatAUD(client.fy.booked)}
                           </td>
                           <td className="px-2 py-2">
@@ -262,19 +262,19 @@ export function VarianceTargetVsActualView({
                                 <td className="px-3 py-1.5 pl-10 text-xs text-muted-foreground">
                                   {monthLabel(month.month_key, report.financial_year_start_year)}
                                 </td>
-                                <td className="num px-2 py-1.5 text-right font-mono text-xs">
+                                <td className="num px-2 py-1.5 text-right text-xs">
                                   {formatAUD(month.target)}
                                 </td>
-                                <td className="num px-2 py-1.5 text-right font-mono text-xs">
+                                <td className="num px-2 py-1.5 text-right text-xs">
                                   {formatAUD(month.actual)}
                                 </td>
-                                <td className="num px-2 py-1.5 text-right font-mono text-xs">
+                                <td className="num px-2 py-1.5 text-right text-xs">
                                   {formatAUD(month.delta)}
                                 </td>
-                                <td className="num px-2 py-1.5 text-right font-mono text-xs">
+                                <td className="num px-2 py-1.5 text-right text-xs">
                                   {formatPct(month.delta_pct)}
                                 </td>
-                                <td className="num px-2 py-1.5 text-right font-mono text-xs text-muted-foreground">
+                                <td className="num px-2 py-1.5 text-right text-xs text-muted-foreground">
                                   {formatAUD(month.booked)}
                                 </td>
                                 <td className="px-2 py-1.5">
@@ -295,11 +295,11 @@ export function VarianceTargetVsActualView({
                   })}
                   <tr className="border-t border-border bg-surface-panel font-semibold">
                     <td className="px-3 py-2 text-xs">Portfolio FY</td>
-                    <td className="num px-2 py-2 text-right font-mono text-xs">{formatAUD(report.totals.target)}</td>
-                    <td className="num px-2 py-2 text-right font-mono text-xs">{formatAUD(report.totals.actual)}</td>
-                    <td className="num px-2 py-2 text-right font-mono text-xs">{formatAUD(report.totals.delta)}</td>
-                    <td className="num px-2 py-2 text-right font-mono text-xs">{formatPct(report.totals.delta_pct)}</td>
-                    <td className="num px-2 py-2 text-right font-mono text-xs text-muted-foreground">
+                    <td className="num px-2 py-2 text-right text-xs">{formatAUD(report.totals.target)}</td>
+                    <td className="num px-2 py-2 text-right text-xs">{formatAUD(report.totals.actual)}</td>
+                    <td className="num px-2 py-2 text-right text-xs">{formatAUD(report.totals.delta)}</td>
+                    <td className="num px-2 py-2 text-right text-xs">{formatPct(report.totals.delta_pct)}</td>
+                    <td className="num px-2 py-2 text-right text-xs text-muted-foreground">
                       {formatAUD(report.totals.booked)}
                     </td>
                     <td className="px-2 py-2">

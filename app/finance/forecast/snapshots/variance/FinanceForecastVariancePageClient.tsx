@@ -427,7 +427,7 @@ export default function FinanceForecastVariancePageClient() {
             <Card className="border-border/60 shadow-sm" title="Net movement across the full newer snapshot total vs older.">
               <CardHeader className="pb-1 pt-4">
                 <CardDescription>Total forecast change</CardDescription>
-                <CardTitle className={cn("font-mono text-xl tabular-nums", deltaToneClass(report.fy_total.absolute_change))}>
+                <CardTitle className={cn("text-xl tabular-nums", deltaToneClass(report.fy_total.absolute_change))}>
                   {moneyFmt(report.fy_total.absolute_change)}
                 </CardTitle>
               </CardHeader>
@@ -444,7 +444,7 @@ export default function FinanceForecastVariancePageClient() {
                 <CardDescription>Confirmed scenario change</CardDescription>
                 <CardTitle
                   className={cn(
-                    "font-mono text-xl tabular-nums",
+                    "text-xl tabular-nums",
                     confirmedDelta === null ? "text-muted-foreground" : deltaToneClass(confirmedDelta)
                   )}
                 >
@@ -464,7 +464,7 @@ export default function FinanceForecastVariancePageClient() {
                 <CardDescription>Confirmed + probable change</CardDescription>
                 <CardTitle
                   className={cn(
-                    "font-mono text-xl tabular-nums",
+                    "text-xl tabular-nums",
                     probableDelta === null ? "text-muted-foreground" : deltaToneClass(probableDelta)
                   )}
                 >
@@ -475,7 +475,7 @@ export default function FinanceForecastVariancePageClient() {
             <Card className="border-border/60 shadow-sm">
               <CardHeader className="pb-1 pt-4">
                 <CardDescription>Clients with movement</CardDescription>
-                <CardTitle className="font-mono text-xl tabular-nums text-foreground">{clientsImpacted}</CardTitle>
+                <CardTitle className="text-xl tabular-nums text-foreground">{clientsImpacted}</CardTitle>
               </CardHeader>
             </Card>
           </div>
@@ -610,21 +610,21 @@ export default function FinanceForecastVariancePageClient() {
                                   <TableCell className="text-sm text-muted-foreground">
                                     {monthColumnLabel(r.month_key, fyYear)}
                                   </TableCell>
-                                  <TableCell className="text-right font-mono text-sm tabular-nums">
+                                  <TableCell className="text-right text-sm tabular-nums">
                                     {moneyFmt(r.old_amount)}
                                   </TableCell>
-                                  <TableCell className="text-right font-mono text-sm tabular-nums">
+                                  <TableCell className="text-right text-sm tabular-nums">
                                     {moneyFmt(r.new_amount)}
                                   </TableCell>
                                   <TableCell
                                     className={cn(
-                                      "text-right font-mono text-sm font-medium tabular-nums",
+                                      "text-right text-sm font-medium tabular-nums",
                                       deltaToneClass(r.absolute_change)
                                     )}
                                   >
                                     {moneyFmt(r.absolute_change)}
                                   </TableCell>
-                                  <TableCell className="text-right font-mono text-xs text-muted-foreground tabular-nums">
+                                  <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
                                     {r.percent_change === null ? "—" : `${r.percent_change.toFixed(1)}%`}
                                   </TableCell>
                                   <TableCell>{changeTypeBadge(r.change_type)}</TableCell>

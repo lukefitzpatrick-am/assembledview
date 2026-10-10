@@ -27,13 +27,13 @@
   :root {
     /* Base shadcn tokens */
     --background: 0 0% 100%;
-    --foreground: 137 32% 9%;
+    --foreground: 137.1 31.8% 8.6%;
 
     --card: 0 0% 100%;
-    --card-foreground: 137 32% 9%;
+    --card-foreground: 137.1 31.8% 8.6%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 137 32% 9%;
+    --popover-foreground: 137.1 31.8% 8.6%;
 
     --primary: 151 48% 27%;
     --primary-foreground: 0 0% 100%;
@@ -41,11 +41,11 @@
     --secondary: 151 48% 27%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 38 33% 91%;
-    --muted-foreground: 55 6% 39%;
+    --muted: 37.5 33.3% 90.6%;
+    --muted-foreground: 55.4 6.5% 39.4%;
 
-    --accent: 72 64% 52%;
-    --accent-foreground: 137 32% 9%;
+    --accent: 71.5 63.9% 52.2%;
+    --accent-foreground: 137.1 31.8% 8.6%;
 
     --destructive: 11 64% 53%;
     --destructive-foreground: 0 0% 100%;
@@ -68,16 +68,16 @@
     /*
      * Sidebar-specific semantic tokens (separate from general page tokens)
      */
-    --sidebar-bg: 137 32% 9%;
+    --sidebar-bg: 137.1 31.8% 8.6%;
     --sidebar-fg: 0 0% 100%;
-    --sidebar-muted: 131 7% 70%;
+    --sidebar-muted: 130.9 7.3% 70.4%;
     --sidebar-border: 139 12% 26%;
     --sidebar-hover-bg: 150 19% 13%;
     --sidebar-hover-fg: 0 0% 100%;
-    --sidebar-active-bg: 72 64% 52%;
-    --sidebar-active-fg: 137 32% 9%;
-    --sidebar-icon: 131 7% 70%;
-    --sidebar-ring: 72 64% 52%;
+    --sidebar-active-bg: 71.5 63.9% 52.2%;
+    --sidebar-active-fg: 137.1 31.8% 8.6%;
+    --sidebar-icon: 130.9 7.3% 70.4%;
+    --sidebar-ring: 71.5 63.9% 52.2%;
     --sidebar-hover-tint: rgba(255, 255, 255, 0.06);
     --sidebar-active-tint: rgba(181, 211, 55, 0.14);
     --sidebar-active-bar: #B5D337;
@@ -85,28 +85,28 @@
     /* Back-compat shadcn/ui sidebar tokens */
     --sidebar-background: var(--sidebar-bg);
     --sidebar-foreground: var(--sidebar-fg);
-    --sidebar-primary: 72 64% 52%;
-    --sidebar-primary-foreground: 137 32% 9%;
+    --sidebar-primary: 71.5 63.9% 52.2%;
+    --sidebar-primary-foreground: 137.1 31.8% 8.6%;
     --sidebar-accent: var(--sidebar-hover-bg);
     --sidebar-accent-foreground: var(--sidebar-hover-fg);
 
     /* ------------------------------------------------------------
      * Semantic app tokens (use these in components vs raw colors)
      * ------------------------------------------------------------ */
-    --app-bg: 38 33% 91%;
-    --app-fg: 137 32% 9%;
+    --app-bg: 37.5 33.3% 90.6%;
+    --app-fg: 137.1 31.8% 8.6%;
 
     --surface-panel: 0 0% 100%;
-    --surface-muted: 38 33% 91%;
+    --surface-muted: 37.5 33.3% 90.6%;
     --surface-elevated: 0 0% 100%;
     --surface-input: 0 0% 100%;
     --surface-popover: 0 0% 100%;
 
     --table-row: 0 0% 100%;
     --table-row-hover: 38 41% 95%;
-    --table-row-active: 38 33% 91%;
+    --table-row-active: 37.5 33.3% 90.6%;
 
-    --state-active: 38 33% 91%;
+    --state-active: 37.5 33.3% 90.6%;
 
     --status-success: 151 48% 27%;
     --status-success-foreground: 0 0% 100%;
@@ -114,8 +114,8 @@
     --status-warning-foreground: 40 100% 24%;
     --status-danger: 11 64% 53%;
     --status-danger-foreground: 0 0% 100%;
-    --status-accent: 72 64% 52%;
-    --status-accent-foreground: 137 32% 9%;
+    --status-accent: 71.5 63.9% 52.2%;
+    --status-accent-foreground: 137.1 31.8% 8.6%;
 
     /* Dashboard + pacing design tokens (available to charts/components via CSS vars) */
     --dashboard-surface: #EFE9DF;
@@ -175,7 +175,7 @@
     --status-blocking: var(--pacing-critical);
     --status-blocking-bg: var(--pacing-critical-bg);
     --status-blocking-fg: var(--status-critical-fg);
-    --action: 137 32% 9%;
+    --action: 137.1 31.8% 8.6%;
     --action-foreground: 0 0% 100%;
     --action-hover: 137 32% 14%;
 
@@ -202,7 +202,7 @@
 
   .dark {
     /* Softer dark surfaces (avoid harsh pure-black) */
-    --background: 137 32% 9%;
+    --background: 137.1 31.8% 8.6%;
     --foreground: 0 0% 100%;
 
     --card: 150 19% 13%;
@@ -211,53 +211,53 @@
     --popover: 150 19% 13%;
     --popover-foreground: 0 0% 100%;
 
-    --primary: 72 64% 52%;
-    --primary-foreground: 137 32% 9%;
+    --primary: 71.5 63.9% 52.2%;
+    --primary-foreground: 137.1 31.8% 8.6%;
 
     --secondary: 146 29% 43%;
     --secondary-foreground: 0 0% 100%;
 
     --muted: 154 17% 16%;
-    --muted-foreground: 131 7% 70%;
+    --muted-foreground: 130.9 7.3% 70.4%;
 
-    --accent: 72 64% 52%;
-    --accent-foreground: 137 32% 9%;
+    --accent: 71.5 63.9% 52.2%;
+    --accent-foreground: 137.1 31.8% 8.6%;
 
     --destructive: 11 64% 53%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 144 15% 20%;
     --input: 139 12% 26%;
-    --ring: 72 64% 52%;
+    --ring: 71.5 63.9% 52.2%;
 
     /*
      * Sidebar semantics (dark mode) — distinct from light mode navy
      */
-    --sidebar-bg: 137 32% 9%;
+    --sidebar-bg: 137.1 31.8% 8.6%;
     --sidebar-fg: 0 0% 100%;
-    --sidebar-muted: 131 7% 70%;
+    --sidebar-muted: 130.9 7.3% 70.4%;
     --sidebar-border: 144 15% 20%;
     --sidebar-hover-bg: 150 19% 13%;
     --sidebar-hover-fg: 0 0% 100%;
-    --sidebar-active-bg: 72 64% 52%;
-    --sidebar-active-fg: 137 32% 9%;
-    --sidebar-icon: 131 7% 70%;
-    --sidebar-ring: 72 64% 52%;
+    --sidebar-active-bg: 71.5 63.9% 52.2%;
+    --sidebar-active-fg: 137.1 31.8% 8.6%;
+    --sidebar-icon: 130.9 7.3% 70.4%;
+    --sidebar-ring: 71.5 63.9% 52.2%;
 
     /* Back-compat shadcn/ui sidebar tokens */
     --sidebar-background: var(--sidebar-bg);
     --sidebar-foreground: var(--sidebar-fg);
-    --sidebar-primary: 72 64% 52%;
-    --sidebar-primary-foreground: 137 32% 9%;
+    --sidebar-primary: 71.5 63.9% 52.2%;
+    --sidebar-primary-foreground: 137.1 31.8% 8.6%;
     --sidebar-accent: var(--sidebar-hover-bg);
     --sidebar-accent-foreground: var(--sidebar-hover-fg);
 
     /* Semantic app tokens */
-    --app-bg: 137 32% 9%;
+    --app-bg: 137.1 31.8% 8.6%;
     --app-fg: 0 0% 100%;
 
     --surface-panel: 150 19% 13%;
-    --surface-muted: 137 32% 9%;
+    --surface-muted: 137.1 31.8% 8.6%;
     --surface-elevated: 154 17% 16%;
     --surface-input: 143 23% 11%;
     --surface-popover: 150 19% 13%;
@@ -271,11 +271,11 @@
     --status-success: 146 29% 43%;
     --status-success-foreground: 0 0% 100%;
     --status-warning: 41 79% 49%;
-    --status-warning-foreground: 137 32% 9%;
+    --status-warning-foreground: 137.1 31.8% 8.6%;
     --status-danger: 11 64% 53%;
     --status-danger-foreground: 0 0% 100%;
-    --status-accent: 72 64% 52%;
-    --status-accent-foreground: 137 32% 9%;
+    --status-accent: 71.5 63.9% 52.2%;
+    --status-accent-foreground: 137.1 31.8% 8.6%;
 
     /* Keep dashboard + pacing vars explicit in dark mode for chart parity */
     --dashboard-surface: #0F1D13;
@@ -331,7 +331,7 @@
     --status-blocking-bg: var(--pacing-critical-bg);
     --status-blocking-fg: var(--status-critical-fg);
     --action: 0 0% 100%;
-    --action-foreground: 137 32% 9%;
+    --action-foreground: 137.1 31.8% 8.6%;
     --action-hover: 0 0% 90%;
 
     --channel-bvod-bg: rgba(78, 143, 106, 0.2);

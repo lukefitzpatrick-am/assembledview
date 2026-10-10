@@ -373,7 +373,7 @@ export function TargetGrid({ fyStart, clientId, clientName }: TargetGridProps) {
                       />
                     </td>
                   ))}
-                  <td className="num whitespace-nowrap px-3 py-1.5 text-right font-mono text-xs font-semibold text-foreground">
+                  <td className="num whitespace-nowrap px-3 py-1.5 text-right text-xs font-semibold text-foreground">
                     {formatAUD(rowTotal)}
                   </td>
                 </tr>
@@ -386,12 +386,12 @@ export function TargetGrid({ fyStart, clientId, clientName }: TargetGridProps) {
               {FINANCE_FORECAST_FISCAL_MONTH_ORDER.map((month) => (
                 <td
                   key={month}
-                  className="num whitespace-nowrap px-2 py-2 text-right font-mono text-xs text-foreground"
+                  className="num whitespace-nowrap px-2 py-2 text-right text-xs text-foreground"
                 >
                   {formatAUD(sumColumn(grid, month))}
                 </td>
               ))}
-              <td className="num whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-foreground">
+              <td className="num whitespace-nowrap px-3 py-2 text-right text-xs text-foreground">
                 {formatAUD(grand)}
               </td>
             </tr>

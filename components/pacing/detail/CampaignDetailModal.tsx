@@ -257,7 +257,7 @@ export function CampaignDetailModal({
             </p>
             <h2 className="text-lg font-semibold text-foreground">
               {row?.campaignName ?? mba}{" "}
-              <span className="font-mono text-sm font-normal text-muted-foreground">{mba}</span>
+              <span className="text-sm font-normal tabular-nums text-muted-foreground">{mba}</span>
             </h2>
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {row ? (

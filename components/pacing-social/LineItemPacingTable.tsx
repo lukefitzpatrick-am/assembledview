@@ -720,7 +720,7 @@ function FragmentForLineItem({
           {row.campaignName}
         </td>
         {isColumnVisible("mbaNumber", moreColumns) && (
-          <td className="p-2 font-mono text-[10px]">{row.mbaNumber}</td>
+          <td className="p-2 text-[10px] tabular-nums">{row.mbaNumber}</td>
         )}
         {isColumnVisible("lineItemId", moreColumns) && (
           <td className="p-2 font-mono text-[10px]">{row.lineItemId}</td>

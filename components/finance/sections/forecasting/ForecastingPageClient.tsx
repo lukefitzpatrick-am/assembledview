@@ -1106,7 +1106,7 @@ function ForecastSummaryAmountCells(props: {
         <td
           key={k}
           className={cn(
-            "num whitespace-nowrap px-2 py-1.5 text-right font-mono text-xs text-foreground/90",
+            "num whitespace-nowrap px-2 py-1.5 text-right text-xs text-foreground/90",
             cellClassName
           )}
         >
@@ -1115,7 +1115,7 @@ function ForecastSummaryAmountCells(props: {
       ))}
       <td
         className={cn(
-          "num whitespace-nowrap px-3 py-1.5 text-right font-mono text-xs font-medium text-foreground",
+          "num whitespace-nowrap px-3 py-1.5 text-right text-xs font-medium text-foreground",
           cellClassName
         )}
       >
@@ -1630,7 +1630,7 @@ function ForecastLineRow(props: {
         <td
           key={k}
           className={cn(
-            "num whitespace-nowrap px-2 py-1.5 text-right font-mono text-xs text-foreground/90",
+            "num whitespace-nowrap px-2 py-1.5 text-right text-xs text-foreground/90",
             isTotal && "text-tone-insight-fg"
           )}
         >
@@ -1639,7 +1639,7 @@ function ForecastLineRow(props: {
       ))}
       <td
         className={cn(
-          "num whitespace-nowrap px-3 py-1.5 text-right font-mono text-xs font-medium",
+          "num whitespace-nowrap px-3 py-1.5 text-right text-xs font-medium",
           isTotal && "text-tone-insight-fg"
         )}
       >

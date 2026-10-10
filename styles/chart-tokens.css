@@ -9,11 +9,11 @@
   /* Categorical — maps to shadcn --chart-1..8 */
   --chart-1: 151 48% 27%;   /* #246646 forest */
   --chart-2: 193 80% 60%;   /* #49C7EB sky */
-  --chart-3: 72 64% 52%;    /* #B5D337 lime */
+  --chart-3: 71.5 63.9% 52.2%;    /* #B5D337 lime */
   --chart-4: 146 29% 43%;   /* #4E8F6A forest light */
-  --chart-5: 55 6% 39%;     /* #6B6A5E muted */
+  --chart-5: 55.4 6.5% 39.4%;     /* #6B6A5E muted */
   --chart-6: 40 18% 77%;    /* #CFC8BA context */
-  --chart-7: 131 7% 70%;    /* #AEB9B0 muted on black */
+  --chart-7: 130.9 7.3% 70.4%;    /* #AEB9B0 muted on black */
   --chart-8: 139 12% 26%;   /* #3A4A3F context black */
 
   /* Hex mirrors — convenient for custom SVG / inline styles */
@@ -56,15 +56,15 @@
   --av-cursor:      #3A4A3F;
   --chart-2: 193 80% 60%;
   --av-chart-2: #49C7EB;
-  --chart-3: 72 64% 52%;
+  --chart-3: 71.5 63.9% 52.2%;
   --av-chart-3: #B5D337;
   --chart-4: 145 38% 72%;
   --av-chart-4: #9CD3B3;
-  --chart-5: 131 7% 70%;
+  --chart-5: 130.9 7.3% 70.4%;
   --av-chart-5: #AEB9B0;
   --chart-6: 139 12% 26%;
   --av-chart-6: #3A4A3F;
-  --chart-7: 55 6% 39%;     /* #6B6A5E muted */
+  --chart-7: 55.4 6.5% 39.4%;     /* #6B6A5E muted */
   --av-chart-7: #6B6A5E;
   --chart-8: 40 18% 77%;
   --av-chart-8: #CFC8BA;

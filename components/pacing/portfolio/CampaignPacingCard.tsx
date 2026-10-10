@@ -99,7 +99,7 @@ export function CampaignPacingCard({
           </p>
           <p className="text-[15px] font-semibold leading-snug text-foreground">
             {row.campaignName}{" "}
-            <span className="font-mono text-[11px] font-normal text-muted-foreground">
+            <span className="text-[11px] font-normal tabular-nums text-muted-foreground">
               {row.mbaNumber}
             </span>
           </p>

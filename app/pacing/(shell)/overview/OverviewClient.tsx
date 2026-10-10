@@ -281,7 +281,7 @@ function AttentionSection({
               </td>
               <td className="px-3 py-2">{item.clientName}</td>
               <td className="px-3 py-2">{item.campaignName}</td>
-              <td className="px-3 py-2 font-mono text-xs">{item.mbaNumber}</td>
+              <td className="px-3 py-2 text-xs tabular-nums">{item.mbaNumber}</td>
               <td className="px-3 py-2 font-mono text-xs">{item.lineItemLabel}</td>
               <td className="px-3 py-2">
                 <Badge variant={badgeVariant} size="sm">

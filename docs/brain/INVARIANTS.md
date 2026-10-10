@@ -263,6 +263,7 @@ pct === 100 → fee = 0 (division guard)
 - AVA tool `fy` = Australian FY **ending** year (`lib/ava/tools/fyToRange.ts`); finance sections `fyMonthRange` stays start-year. Do not conflate.
 - Home and Campaigns `?fy=` is the July start year. Chip labels are the ending year (`FY27` for start year 2026). Absent `?fy=` is `currentFy` (Melbourne civil date). A campaign is finished from the Melbourne day after its end date.
 - Date pickers start the week on Monday (`Calendar` `weekStartsOn` 1). The expert-grid week toggle is a separate preference (default Sunday, localStorage `av:week-starts-on`).
+- Ink, lime, sand, muted, and muted-on-black shadcn channels use one-decimal HSL so `hsl()` rounds to the 05b hex. Integer HSL is one step off. Status colours stay as decided.
 - Create feeds Radio and OOH published line items back as `initialLineItems`. `useStableHydration` skips that own-publish array, so a network or buy-type change does not reset or collapse the card. A real ingest, draft, or edit load still hydrates and starts collapsed.
 - Client hub with no params = current AU FY (`lib/dashboard/clientDateRange.ts`, Jul–Jun). Not all-time. Legacy `?fy=` still translates.
 - **Plan committed** is planned-to-date ÷ planned-in-range, never in-range planned ÷ itself. `computePlannedSpendTotals` with a range clamps months to `[rangeStart, min(rangeEnd, today)]` for the numerator and `[rangeStart, rangeEnd]` for the denominator. No range → `spentAmount / totalBudget`.

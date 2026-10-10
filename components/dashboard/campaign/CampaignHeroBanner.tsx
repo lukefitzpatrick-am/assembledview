@@ -90,7 +90,7 @@ export default function CampaignHeroBanner({
         <span>{subtitle}</span>
       </p>
       <div className="flex flex-wrap items-center gap-2 pt-0.5">
-        <span className="inline-flex items-center rounded-input border border-am-muted-on-black px-2 py-0.5 font-mono text-xs font-medium tabular-nums text-am-muted-on-black">
+        <span className="inline-flex items-center rounded-input border border-am-muted-on-black px-2 py-0.5 text-xs font-medium tabular-nums text-am-muted-on-black">
           {campaign.mbaNumber}
         </span>
         <StatusBadge

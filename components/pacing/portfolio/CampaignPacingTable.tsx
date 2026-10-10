@@ -280,7 +280,7 @@ function CampaignGroup({
             <div className="min-w-0">
               <p className="text-sm text-foreground">
                 {row.clientName} · {row.campaignName}{" "}
-                <span className="font-mono text-[11px] font-normal text-muted-foreground">
+                <span className="text-[11px] font-normal tabular-nums text-muted-foreground">
                   {row.mbaNumber}
                 </span>
               </p>

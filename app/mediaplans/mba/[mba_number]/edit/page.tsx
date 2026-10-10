@@ -12418,7 +12418,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                         !field.value && "text-muted-foreground"
                       )}
                     >
-                      <span className="truncate">{field.value || "No MBA Number generated"}</span>
+                      <span className="truncate tabular-nums">{field.value || "No MBA Number generated"}</span>
                     </div>
                     <FormDescription className="text-[11px]">
                       This field is automatically generated when the campaign is saved.

@@ -424,7 +424,7 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
                             key={mba}
                             className="inline-flex items-center gap-1 rounded-pill border border-border bg-surface-panel px-2 py-1"
                           >
-                            <span className="font-mono text-xs text-foreground">{mba}</span>
+                            <span className="text-xs tabular-nums text-foreground">{mba}</span>
                             <Button
                               type="button"
                               variant="ghost"
