@@ -25,6 +25,7 @@ import {
   resolveDeliveryState,
 } from "@/lib/delivery/deliveryState"
 import { expectedSpendToDateFromBursts } from "@/lib/spend/expectedSpendToDateFromBursts"
+import { planDeliverablesFromItem } from "@/lib/reports/campaignReport/reportFigures"
 
 type MediaTypeKey = keyof typeof MEDIA_CONTAINER_ENDPOINTS
 
@@ -62,6 +63,9 @@ type PlanLineMeta = {
   name: string
   plannedBudget: number | null
   plannedUnits: number | null
+  plannedImpressions: number | null
+  plannedClicks: number | null
+  plannedViews: number | null
   startDate: string | null
   endDate: string | null
   hasSource: boolean
@@ -119,11 +123,15 @@ function toPlanLineMeta(item: MediaContainerLineItem, group: string): PlanLineMe
   const plannedBudget = plannedBudgetFromItem(item)
   if (plannedBudget === 0) return null
   const rec = item as Record<string, unknown>
+  const deliverables = planDeliverablesFromItem(rec)
   return {
     id,
     name: asString(item.name) || asString(item.placementName) || id,
     plannedBudget,
     plannedUnits: plannedUnitsFromItem(item),
+    plannedImpressions: deliverables.impressions,
+    plannedClicks: deliverables.clicks,
+    plannedViews: deliverables.views,
     startDate: dateFromItem(item, ["start_date", "startDate", "placement_date", "flight_start"]),
     endDate: dateFromItem(item, ["end_date", "endDate", "flight_end"]),
     hasSource: lineHasDeliverySource({
@@ -194,6 +202,9 @@ function buildLines(
       name: plan?.name || id,
       plannedBudget: plan?.plannedBudget ?? null,
       plannedUnits: plan?.plannedUnits ?? null,
+      plannedImpressions: plan?.plannedImpressions ?? null,
+      plannedClicks: plan?.plannedClicks ?? null,
+      plannedViews: plan?.plannedViews ?? null,
       startDate: plan?.startDate ?? null,
       endDate: plan?.endDate ?? null,
       spendToDate: delivered.spendToDate,

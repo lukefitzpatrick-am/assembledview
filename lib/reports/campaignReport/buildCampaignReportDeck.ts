@@ -36,6 +36,7 @@ import type {
 } from "@/lib/reports/campaignReport/assembleCampaignReportData"
 import {
   formatReportCtr,
+  formatReportDate,
   formatReportInt,
   formatReportMoney,
   formatReportPace,
@@ -43,6 +44,7 @@ import {
   REPORT_FIGURE_DASH,
 } from "@/lib/reports/campaignReport/formatters"
 import type { CampaignReportPeriodMetrics } from "@/lib/reports/campaignReport/periodMetrics"
+import { campaignSpendShareSentence } from "@/lib/reports/campaignReport/reportFigures"
 
 const TEMPLATE_FILE = "am-template-deck-16x9.pptx"
 const COVER_MEDIA_FILE = "am-cover.jpg"
@@ -124,7 +126,7 @@ function previousFigure(
 function spendShareSentence(channel: CampaignReportChannelRow, totalSpend: number): string {
   if (!(totalSpend > 0)) return `${channel.label} delivered no spend in this period.`
   const share = Math.round((channel.spend / totalSpend) * 100)
-  return `${channel.label} delivered ${share}% of spend.`
+  return campaignSpendShareSentence(channel.label, share)
 }
 
 function spendVsPlanLine(payload: CampaignReportPayload): string {
@@ -137,9 +139,20 @@ function spendVsPlanLine(payload: CampaignReportPayload): string {
 }
 
 function previousCompareLine(payload: CampaignReportPayload): string {
+  if (payload.period.previous == null) return ""
   const prev = payload.totals.previousSpend
   if (prev == null) return "Previous period delivery is not available for this window."
   return `Previous period delivered ${formatReportMoney(prev)} spend and ${formatReportInt(payload.totals.previousImpressions ?? 0)} impressions.`
+}
+
+function plannedCountLabel(value: number | null | undefined): string {
+  if (value == null || !(value > 0)) return "No plan"
+  return formatReportInt(value)
+}
+
+function isBlankTargetDisplay(target: string): boolean {
+  const value = target.trim()
+  return value === "" || value === "—" || value === "0" || value === "0.0%" || value === "0.00%" || value === "$0" || value === "$0.00"
 }
 
 function insideSlideNumber(node: XmlNode): boolean {
@@ -280,6 +293,9 @@ function drawKeyMetrics(page: DrawSlide, payload: CampaignReportPayload): void {
       colour: paceColour(metrics.spendPacePct),
     },
   ]
+  if (metrics.cpv != null) {
+    tiles.push({ label: "CPV", value: formatReportRate(metrics.cpv), colour: INK })
+  }
   if (metrics.videoViews3s != null) {
     tiles.push({
       label: "3-second views",
@@ -324,6 +340,23 @@ function drawKeyMetrics(page: DrawSlide, payload: CampaignReportPayload): void {
       margin: 0,
     })
   })
+
+  const excluded = payload.totals.rateExcludedSpend ?? 0
+  if (excluded > 0) {
+    page.addText(
+      `Rates exclude ${formatReportMoney(excluded)} of spend with no reported impressions or clicks.`,
+      {
+        x: 0.55,
+        y: 4.9,
+        w: 12.2,
+        h: 0.32,
+        fontFace: FONT,
+        fontSize: 11,
+        color: MUTED,
+        margin: 0,
+      },
+    )
+  }
 }
 
 function heading(page: DrawSlide, text: string, colour = INK): void {
@@ -515,7 +548,7 @@ async function assembleCampaignReportDeck(
     paint(slide, (page) => {
       heading(page, "Campaign report.")
       page.addText(
-        [client, campaign, `MBA ${payload.mbaNumber}`, payload.period.label, `As of ${payload.asOf}.`].join(
+        [client, campaign, `MBA ${payload.mbaNumber}`, payload.period.label, `As of ${formatReportDate(payload.asOf)}.` ].join(
           "\n",
         ),
         {
@@ -540,9 +573,14 @@ async function assembleCampaignReportDeck(
     page.addText(
       [
         `Period. ${payload.period.label}.`,
-        `Window. ${payload.period.current.startISO} to ${payload.period.current.endISO}.`,
+        `Window. ${formatReportDate(payload.period.current.startISO)} to ${formatReportDate(payload.period.current.endISO)}.`,
         `Spend vs plan. ${spendVsPlanLine(payload)}`,
-        `Delivery. Impressions ${formatReportInt(payload.totals.impressions)}. Clicks ${formatReportInt(payload.totals.clicks)}. Time elapsed ${pctLabel(payload.totals.timeElapsedPct)}. ${previousCompareLine(payload)}`,
+        [
+          `Delivery. Impressions ${formatReportInt(payload.totals.impressions)}. Clicks ${formatReportInt(payload.totals.clicks)}. Time elapsed ${pctLabel(payload.totals.timeElapsedPct)}.`,
+          previousCompareLine(payload),
+        ]
+          .filter(Boolean)
+          .join(" "),
       ].join("\n\n"),
       {
         x: 0.55,
@@ -566,7 +604,8 @@ async function assembleCampaignReportDeck(
   )
 
   for (const channel of payload.channels) {
-    const hasPrev = channel.previousSpend != null
+    const showPrevious = payload.period.previous != null
+    const hasPrev = showPrevious && channel.previousSpend != null
     const bars: Bar[] = [
       { label: "Delivered", value: channel.spend, colour: HIGHLIGHT },
       ...(hasPrev
@@ -612,80 +651,101 @@ async function assembleCampaignReportDeck(
           valign: "middle" as const,
         },
       })
+      const row = (metric: string, selected: string, previous: string, planned: string) => {
+        const cells = [cell(metric), cell(selected)]
+        if (showPrevious) cells.push(cell(previous))
+        cells.push(cell(planned))
+        return cells
+      }
+      const showViews =
+        channel.metrics.videoViews3s != null ||
+        channel.previousMetrics?.videoViews3s != null ||
+        (channel.plannedViews != null && channel.plannedViews > 0)
+      const showCpv = channel.metrics.cpv != null || channel.previousMetrics?.cpv != null
       const rows = [
-        ["Metric", "Selected", "Previous", "Planned"].map((label) => cell(label, true)),
-        [
-          cell("Spend"),
-          cell(formatReportMoney(channel.spend)),
-          cell(channel.previousSpend == null ? "Not available" : formatReportMoney(channel.previousSpend)),
-          cell(formatReportMoney(channel.plannedBudget)),
-        ],
-        [
-          cell("Impressions"),
-          cell(formatReportInt(channel.impressions)),
-          cell(
-            channel.previousImpressions == null
-              ? "Not available"
-              : formatReportInt(channel.previousImpressions),
+        (showPrevious
+          ? ["Metric", "Selected", "Previous", "Planned"]
+          : ["Metric", "Selected", "Planned"]
+        ).map((label) => cell(label, true)),
+        row(
+          "Spend",
+          formatReportMoney(channel.spend),
+          channel.previousSpend == null ? "Not available" : formatReportMoney(channel.previousSpend),
+          formatReportMoney(channel.plannedBudget),
+        ),
+        row(
+          "Impressions",
+          formatReportInt(channel.impressions),
+          channel.previousImpressions == null
+            ? "Not available"
+            : formatReportInt(channel.previousImpressions),
+          plannedCountLabel(channel.plannedImpressions),
+        ),
+        row("Clicks", formatReportInt(channel.clicks), "Not available", plannedCountLabel(channel.plannedClicks)),
+        row("Results", formatReportInt(channel.results), "Not available", "Not available"),
+        row(
+          "CPM",
+          formatReportRate(channel.metrics.cpm),
+          previousFigure(channel.previousMetrics, formatReportRate(channel.previousMetrics?.cpm ?? null)),
+          REPORT_FIGURE_DASH,
+        ),
+        row(
+          "CPC",
+          formatReportRate(channel.metrics.cpc),
+          previousFigure(channel.previousMetrics, formatReportRate(channel.previousMetrics?.cpc ?? null)),
+          REPORT_FIGURE_DASH,
+        ),
+        row(
+          "CTR",
+          formatReportCtr(channel.metrics.ctr),
+          previousFigure(channel.previousMetrics, formatReportCtr(channel.previousMetrics?.ctr ?? null)),
+          REPORT_FIGURE_DASH,
+        ),
+        row(
+          "Spend pace",
+          formatReportPace(channel.metrics.spendPacePct),
+          previousFigure(
+            channel.previousMetrics,
+            formatReportPace(channel.previousMetrics?.spendPacePct ?? null),
           ),
-          cell("Not available"),
-        ],
-        [cell("Clicks"), cell(formatReportInt(channel.clicks)), cell("Not available"), cell("Not available")],
-        [cell("Results"), cell(formatReportInt(channel.results)), cell("Not available"), cell("Not available")],
-        [
-          cell("CPM"),
-          cell(formatReportRate(channel.metrics.cpm)),
-          cell(previousFigure(channel.previousMetrics, formatReportRate(channel.previousMetrics?.cpm ?? null))),
-          cell(REPORT_FIGURE_DASH),
-        ],
-        [
-          cell("CPC"),
-          cell(formatReportRate(channel.metrics.cpc)),
-          cell(previousFigure(channel.previousMetrics, formatReportRate(channel.previousMetrics?.cpc ?? null))),
-          cell(REPORT_FIGURE_DASH),
-        ],
-        [
-          cell("CTR"),
-          cell(formatReportCtr(channel.metrics.ctr)),
-          cell(previousFigure(channel.previousMetrics, formatReportCtr(channel.previousMetrics?.ctr ?? null))),
-          cell(REPORT_FIGURE_DASH),
-        ],
-        [
-          cell("Spend pace"),
-          cell(formatReportPace(channel.metrics.spendPacePct)),
-          cell(
-            previousFigure(
-              channel.previousMetrics,
-              formatReportPace(channel.previousMetrics?.spendPacePct ?? null),
-            ),
-          ),
-          cell(REPORT_FIGURE_DASH),
-        ],
-        ...(channel.metrics.videoViews3s != null || channel.previousMetrics?.videoViews3s != null
-          ? [[
-              cell("3-second views"),
-              cell(
+          REPORT_FIGURE_DASH,
+        ),
+        ...(showCpv
+          ? [
+              row(
+                "CPV",
+                formatReportRate(channel.metrics.cpv ?? null),
+                previousFigure(
+                  channel.previousMetrics,
+                  formatReportRate(channel.previousMetrics?.cpv ?? null),
+                ),
+                REPORT_FIGURE_DASH,
+              ),
+            ]
+          : []),
+        ...(showViews
+          ? [
+              row(
+                "3-second views",
                 channel.metrics.videoViews3s == null
                   ? REPORT_FIGURE_DASH
                   : formatReportInt(channel.metrics.videoViews3s),
-              ),
-              cell(
                 previousFigure(
                   channel.previousMetrics,
                   channel.previousMetrics?.videoViews3s == null
                     ? REPORT_FIGURE_DASH
                     : formatReportInt(channel.previousMetrics.videoViews3s),
                 ),
+                plannedCountLabel(channel.plannedViews),
               ),
-              cell(REPORT_FIGURE_DASH),
-            ]]
+            ]
           : []),
       ]
       page.addTable(rows, {
         x: 0.55,
         y: 1.3,
         w: 12.2,
-        colW: [3, 3.1, 3.1, 3],
+        colW: showPrevious ? [3, 3.1, 3.1, 3] : [4, 4.1, 4.1],
         rowH: 0.32,
         border: { type: "solid", pt: 0.5, color: LINE },
         fontFace: FONT,
@@ -701,7 +761,12 @@ async function assembleCampaignReportDeck(
     add(LAYOUT.section, (page) => {
       heading(page, "Delivery by channel.")
       page.addText(
-        `No digital delivery channels reported for this period. ${previousCompareLine(payload)}`,
+        [
+          "No digital delivery channels reported for this period.",
+          previousCompareLine(payload),
+        ]
+          .filter(Boolean)
+          .join(" "),
         {
           x: 0.55,
           y: 1.3,
@@ -717,8 +782,8 @@ async function assembleCampaignReportDeck(
   }
 
   const kpiLines = payload.kpis
-    .filter((kpi) => !kpi.omitted)
-    .map((kpi) => `${kpi.label}. Target ${kpi.targetDisplay}, delivered ${kpi.actualDisplay ?? "No delivery feed"}.`)
+    .filter((kpi) => !kpi.omitted && !isBlankTargetDisplay(kpi.targetDisplay))
+    .map((kpi) => `${kpi.label}. Target ${kpi.targetDisplay}, delivered ${kpi.actualDisplay ?? "No data yet"}.`)
   const omittedNote = payload.kpis.some((kpi) => kpi.omitted)
     ? "Some KPI targets were omitted pending KPI data review."
     : ""

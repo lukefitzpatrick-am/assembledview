@@ -122,10 +122,10 @@ test("generateCampaignReportForMba resolves inputs from the published version", 
   assert.equal(assembled[0].periodKind, "custom")
   assert.equal(assembled[0].customStartISO, "2026-08-01")
   assert.equal(assembled[0].customEndISO, "2026-08-31")
-  assert.equal(result.fileName, "Penfold-Always-on-report-2026-08.pptx")
+  assert.equal(result.fileName, "Penfold-Always-on-report-2026-08-01-to-2026-08-31.pptx")
   assert.equal(
     result.blobPathname,
-    "exports/reports/penfold013/Penfold-Always-on-report-2026-08-Ab12.pptx",
+    "exports/reports/penfold013/Penfold-Always-on-report-2026-08-01-to-2026-08-31-Ab12.pptx",
   )
   assert.equal(result.commentaryGenerated, false)
   assert.equal(result.skipped, undefined)

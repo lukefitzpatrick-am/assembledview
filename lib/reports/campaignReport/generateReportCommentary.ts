@@ -30,6 +30,7 @@ import type {
 } from "@/lib/reports/campaignReport/assembleCampaignReportData"
 import type { ResolvedCampaignReportPeriod } from "@/lib/reports/campaignReport/periods"
 import { z } from "zod"
+import { rewriteCampaignSpendShare } from "@/lib/reports/campaignReport/reportFigures"
 
 const TIMEOUT_MS = 180_000
 const COMMENTARY_SKILL = "assembled-insight-commentary"
@@ -122,6 +123,7 @@ export function buildCommentarySystemPrompt(): string | null {
       "Every dollar amount and every percent must already appear in the user message. Do not compute a new figure.",
       "Do not restate a prior insight unless the same sentence says what was believed before and what has changed.",
       "If a needed figure is missing, say it is not available. Never invent a number.",
+      "When an insight states a channel's share of campaign spend, write '<Channel> was <N>% of campaign spend.'",
     ].join(" "),
   ].join("\n\n")
 }
@@ -242,7 +244,7 @@ export function parseReportCommentary(
   const commentary: ReportCommentary = {
     summary: singleLine(parsed.data.summary),
     items: parsed.data.items.map((item) => ({
-      insight: singleLine(item.insight),
+      insight: rewriteCampaignSpendShare(singleLine(item.insight)),
       action: singleLine(item.action),
       actionOwner: singleLine(item.actionOwner),
       outcome: singleLine(item.outcome),

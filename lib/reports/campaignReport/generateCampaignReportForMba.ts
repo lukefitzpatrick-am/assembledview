@@ -21,6 +21,7 @@ import {
   type GenerateReportCommentaryInput,
 } from "@/lib/reports/campaignReport/generateReportCommentary"
 import type { CampaignReportPeriodKind } from "@/lib/reports/campaignReport/periods"
+import { campaignReportPeriodFilePart } from "@/lib/reports/campaignReport/reportFigures"
 import { storePerformanceReport } from "@/lib/reports/storePerformanceReport"
 
 export type CampaignReportPeriodInput = {
@@ -112,11 +113,17 @@ export function campaignReportDownloadName(input: {
   clientName: string
   campaignName: string
   periodStartISO: string
+  periodEndISO?: string
+  periodKind?: CampaignReportPeriodKind
 }): string {
-  const month = input.periodStartISO.slice(0, 7)
   const client = namePart(input.clientName, "client")
   const campaign = namePart(input.campaignName, "campaign")
-  return `${client}-${campaign}-report-${month}.pptx`
+  const period = campaignReportPeriodFilePart({
+    kind: input.periodKind ?? "this_month",
+    startISO: input.periodStartISO,
+    endISO: input.periodEndISO ?? input.periodStartISO,
+  })
+  return `${client}-${campaign}-report-${period}.pptx`
 }
 
 /**
@@ -218,6 +225,8 @@ export async function generateCampaignReportForMba(
     clientName: payload.clientName,
     campaignName: payload.campaignName,
     periodStartISO: payload.period.current.startISO,
+    periodEndISO: payload.period.current.endISO,
+    periodKind: payload.period.kind,
   })
   if (skipped) {
     return {

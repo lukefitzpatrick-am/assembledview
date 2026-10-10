@@ -30,7 +30,7 @@ describe("resolveCampaignReportPeriod", () => {
     assert.equal(r.previous?.endISO, "2026-06-30")
   })
 
-  it("resolves campaign to date with equal-length previous window", () => {
+  it("campaign to date has no previous window", () => {
     const r = resolveCampaignReportPeriod({
       kind: "campaign_to_date",
       campaignStartISO: "2026-06-01",
@@ -40,8 +40,7 @@ describe("resolveCampaignReportPeriod", () => {
     assert.equal(r.slug, "campaign-to-date")
     assert.equal(r.current.startISO, "2026-06-01")
     assert.equal(r.current.endISO, "2026-08-10")
-    assert.ok(r.previous)
-    assert.equal(r.previous!.endISO, "2026-05-31")
+    assert.equal(r.previous, null)
   })
 
   it("requires custom bounds", () => {

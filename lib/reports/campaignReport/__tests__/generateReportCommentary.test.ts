@@ -123,7 +123,7 @@ test("valid JSON renders on the commentary slide", async () => {
 
   const deck = await buildCampaignReportDeck({ ...payload(), commentary })
   const text = await slideText(deck)
-  assert.match(text, /Search delivered the largest share of spend/)
+  assert.match(text, /Search delivered the largest share of campaign spend/)
   assert.doesNotMatch(text, /PLACEHOLDER/)
 })
 

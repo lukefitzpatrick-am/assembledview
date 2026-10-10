@@ -1,3 +1,18 @@
+/** Deck dates are "10 Oct 2026". A non-ISO value is returned unchanged. */
+export function formatReportDate(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso.trim())
+  if (!match) return iso
+  const dt = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+    .format(dt)
+    .replace(/\u202f/g, " ")
+}
+
 export function formatReportMoney(n: number): string {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",

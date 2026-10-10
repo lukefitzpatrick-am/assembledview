@@ -279,6 +279,10 @@ export type DeliveryLineSnapshot = {
   name: string
   plannedBudget: number | null
   plannedUnits: number | null
+  /** Plan deliverables. The AVA summary strips these before it returns a line. */
+  plannedImpressions?: number | null
+  plannedClicks?: number | null
+  plannedViews?: number | null
   startDate: string | null
   endDate: string | null
   spendToDate: number
@@ -325,14 +329,20 @@ function countsTowardDeliveredSpend(state: DeliveryLineSnapshot["deliveryState"]
   return state === "reported" || state === "spend_only"
 }
 
+function lineForSummary(line: DeliveryLineSnapshot): DeliveryLineSnapshot {
+  const { plannedImpressions: _impressions, plannedClicks: _clicks, plannedViews: _views, ...rest } = line
+  return rest
+}
+
 function blankUnreportedLine(line: DeliveryLineSnapshot) {
   const name = truncateText(line.name, 80)
+  const publicLine = lineForSummary(line)
   if (line.deliveryState === "reported") {
-    return { ...line, name }
+    return { ...publicLine, name }
   }
   if (line.deliveryState === "spend_only") {
     return {
-      ...line,
+      ...publicLine,
       name,
       impressions: null,
       clicks: null,
@@ -345,7 +355,7 @@ function blankUnreportedLine(line: DeliveryLineSnapshot) {
     }
   }
   return {
-    ...line,
+    ...publicLine,
     name,
     spendToDate: null,
     impressions: null,

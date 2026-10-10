@@ -3,6 +3,7 @@
  */
 
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import { formatReportDate } from "@/lib/reports/campaignReport/formatters"
 
 export type CampaignReportPeriodKind =
   | "this_month"
@@ -156,7 +157,7 @@ export function resolveCampaignReportPeriod(
       slug: "campaign-to-date",
       label: "Campaign to date",
       current,
-      previous: previousEqualLength(current),
+      previous: null,
     }
   }
 
@@ -170,12 +171,16 @@ export function resolveCampaignReportPeriod(
     throw new Error("Custom period end must be on or after start")
   }
   const current: DateWindow = { startISO: start, endISO: end }
+  const rawPrevious = previousEqualLength(current)
+  const flightStart = input.campaignStartISO?.trim() || null
+  const startsOnOrBeforeFlight = flightStart != null && start <= flightStart
+  const previousEndsBeforeFlight = flightStart != null && rawPrevious.endISO < flightStart
   return {
     kind: "custom",
     slug: "custom",
-    label: `Custom range (${start} to ${end})`,
+    label: `Custom range (${formatReportDate(start)} to ${formatReportDate(end)})`,
     current,
-    previous: previousEqualLength(current),
+    previous: startsOnOrBeforeFlight || previousEndsBeforeFlight ? null : rawPrevious,
   }
 }
 

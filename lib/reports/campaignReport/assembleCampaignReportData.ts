@@ -7,7 +7,7 @@ import "server-only"
 
 import type { DeliveryState } from "@/lib/delivery/deliveryState"
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
-import type { DeliveryChannelGroup } from "@/lib/ava/tools/summaries"
+import type { DeliveryChannelGroup, DeliveryLineSnapshot } from "@/lib/ava/tools/summaries"
 import { fetchCampaignKpis } from "@/lib/kpi/campaignKpi"
 import {
   classifyStoredKpiPercentForScan,
@@ -25,11 +25,16 @@ import { getAsOfDate } from "@/lib/pacing/maths"
 import { formatReportInt, formatReportMoney } from "@/lib/reports/campaignReport/formatters"
 import { generateReportCommentary } from "@/lib/reports/campaignReport/generateReportCommentary"
 import {
-  campaignReportPeriodMetrics,
   expectedMediaAtElapsed,
   expectedMediaToDate,
   type CampaignReportPeriodMetrics,
 } from "@/lib/reports/campaignReport/periodMetrics"
+import {
+  isBlankKpiTarget,
+  rateMetricsFromLines,
+  sumProratedDeliverable,
+  type RateSourceLine,
+} from "@/lib/reports/campaignReport/reportFigures"
 
 export { formatReportInt, formatReportMoney }
 
@@ -62,6 +67,10 @@ export type CampaignReportChannelRow = {
   metrics: CampaignReportPeriodMetrics
   /** Null when this report has no previous window. */
   previousMetrics: CampaignReportPeriodMetrics | null
+  /** Plan deliverables in the selected window. Null when the plan has none. */
+  plannedImpressions?: number | null
+  plannedClicks?: number | null
+  plannedViews?: number | null
 }
 
 export type ReportCommentary = {
@@ -108,6 +117,11 @@ export type CampaignReportPayload = {
     metrics: CampaignReportPeriodMetrics
     /** Null when this report has no previous window. */
     previousMetrics: CampaignReportPeriodMetrics | null
+    /**
+     * Spend on lines with neither impressions nor clicks.
+     * The key-metrics footnote shows this only when it is above zero.
+     */
+    rateExcludedSpend?: number
   }
   channels: CampaignReportChannelRow[]
   /**
@@ -135,13 +149,41 @@ function plannedBudgetOf(ch: DeliveryChannelGroup | undefined): number {
   return typeof n === "number" && Number.isFinite(n) ? n : 0
 }
 
+function linesForRates(lines: DeliveryLineSnapshot[]): RateSourceLine[] {
+  return lines
+    .filter((line) => line.deliveryState === "reported" || line.deliveryState === "spend_only")
+    .map((line) => ({
+      spend: line.spendToDate,
+      impressions: line.deliveryState === "reported" ? line.impressions : 0,
+      clicks: line.deliveryState === "reported" ? line.clicks : 0,
+      views: line.deliveryState === "reported" ? line.video3sViews : 0,
+    }))
+}
+
+function plannedCount(
+  lines: DeliveryLineSnapshot[],
+  key: "plannedImpressions" | "plannedClicks" | "plannedViews",
+  flight: { startISO: string; endISO: string },
+  period: { startISO: string; endISO: string },
+): number | null {
+  return sumProratedDeliverable(
+    lines.map((line) => ({
+      total: line[key] ?? null,
+      lineStartISO: line.startDate,
+      lineEndISO: line.endDate,
+    })),
+    flight,
+    period,
+  )
+}
+
 function firstTarget(
   rows: CampaignKPI[],
   metric: "ctr" | "cpv" | "conversion_rate" | "vtr" | "frequency",
 ): number | null {
   for (const row of rows) {
     const raw = row[metric]
-    if (raw === null || raw === undefined) continue
+    if (isBlankKpiTarget(raw)) continue
     const n = typeof raw === "number" ? raw : Number(raw)
     if (Number.isFinite(n)) return n
   }
@@ -295,9 +337,20 @@ export async function assembleCampaignReportData(
   const expectedSpendToDate = currentExpected.expectedSpendToDate
   const timeElapsedPct = currentExpected.timeElapsedPct
 
+  const flight = { startISO: start, endISO: end }
   const channels: CampaignReportChannelRow[] = currentSnap.channels.map((ch) => {
     const prev = prevByGroup.get(ch.group)
     const planned = plannedBudgetOf(ch)
+    const rates = rateMetricsFromLines(
+      linesForRates(ch.lines),
+      expectedMediaAtElapsed(planned, timeElapsedPct),
+    )
+    const previousRates = previousSnap
+      ? rateMetricsFromLines(
+          prev ? linesForRates(prev.lines) : [],
+          expectedMediaAtElapsed(planned, previousExpected?.timeElapsedPct ?? null),
+        )
+      : null
     return {
       group: ch.group,
       label: channelLabel(ch.group),
@@ -308,24 +361,18 @@ export async function assembleCampaignReportData(
       results: ch.totals.results,
       previousSpend: prev ? prev.totals.spendToDate : previousSnap ? 0 : null,
       previousImpressions: prev ? prev.totals.impressions : previousSnap ? 0 : null,
-      metrics: campaignReportPeriodMetrics({
-        spend: ch.totals.spendToDate,
-        impressions: ch.totals.impressions,
-        clicks: ch.totals.clicks,
-        video3sViews: ch.totals.video3sViews,
-        expectedSpend: expectedMediaAtElapsed(planned, timeElapsedPct),
-      }),
-      previousMetrics: previousSnap
-        ? campaignReportPeriodMetrics({
-            spend: prev ? prev.totals.spendToDate : 0,
-            impressions: prev ? prev.totals.impressions : 0,
-            clicks: prev ? prev.totals.clicks : 0,
-            video3sViews: prev ? prev.totals.video3sViews : 0,
-            expectedSpend: expectedMediaAtElapsed(planned, previousExpected?.timeElapsedPct ?? null),
-          })
-        : null,
+      plannedImpressions: plannedCount(ch.lines, "plannedImpressions", flight, currentWindow),
+      plannedClicks: plannedCount(ch.lines, "plannedClicks", flight, currentWindow),
+      plannedViews: plannedCount(ch.lines, "plannedViews", flight, currentWindow),
+      metrics: rates.metrics,
+      previousMetrics: previousRates?.metrics ?? null,
     }
   })
+
+  const currentRates = rateMetricsFromLines(
+    linesForRates(currentSnap.channels.flatMap((ch) => ch.lines)),
+    expectedSpendToDate,
+  )
 
   const kpis = buildKpiRows(kpiRows, {
     impressions: currentSnap.planTotals.impressions,
@@ -355,21 +402,13 @@ export async function assembleCampaignReportData(
       previousImpressions: previousSnap ? previousSnap.planTotals.impressions : null,
       expectedSpendToDate,
       timeElapsedPct,
-      metrics: campaignReportPeriodMetrics({
-        spend: currentSnap.planTotals.spendToDate,
-        impressions: currentSnap.planTotals.impressions,
-        clicks: currentSnap.planTotals.clicks,
-        video3sViews: currentSnap.planTotals.video3sViews,
-        expectedSpend: expectedSpendToDate,
-      }),
+      metrics: currentRates.metrics,
+      rateExcludedSpend: currentRates.excludedSpend,
       previousMetrics: previousSnap
-        ? campaignReportPeriodMetrics({
-            spend: previousSnap.planTotals.spendToDate,
-            impressions: previousSnap.planTotals.impressions,
-            clicks: previousSnap.planTotals.clicks,
-            video3sViews: previousSnap.planTotals.video3sViews,
-            expectedSpend: previousExpected?.expectedSpendToDate ?? null,
-          })
+        ? rateMetricsFromLines(
+            linesForRates(previousSnap.channels.flatMap((ch) => ch.lines)),
+            previousExpected?.expectedSpendToDate ?? null,
+          ).metrics
         : null,
     },
     channels,

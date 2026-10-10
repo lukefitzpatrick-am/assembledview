@@ -10,6 +10,8 @@ export type CampaignReportPeriodMetrics = {
   cpm: number | null
   cpc: number | null
   ctr: number | null
+  /** Spend on lines with views, divided by those views. Null when there are no views. */
+  cpv: number | null
   videoViews3s: number | null
   spendPacePct: number | null
 }
@@ -27,6 +29,7 @@ export function campaignReportPeriodMetrics(input: {
     cpm: cpm(input.spend, input.impressions),
     cpc: cpc(input.spend, input.clicks),
     ctr: ctr(input.clicks, input.impressions),
+    cpv: null,
     videoViews3s:
       typeof video === "number" && Number.isFinite(video) && video > 0 ? video : null,
     spendPacePct:
