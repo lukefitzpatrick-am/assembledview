@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs"
 import { mock, test } from "node:test"
 import { NextRequest, NextResponse } from "next/server"
 
+import { pdfText } from "../../../../../lib/docs/__tests__/pdfText.js"
 import { mockModuleSkip, supportsMockModule } from "../../../../../lib/test/mockModuleHarness.js"
 
 const skip = mockModuleSkip()
@@ -144,6 +145,26 @@ test("POST draft-documents — invalid body is 400 with save error shape", { ski
   assert.equal(getDbMock.mock.calls.length, 0)
 })
 
+test("POST draft-documents — null client address fields are 200", { skip }, async () => {
+  reset()
+  const { POST } = await import("../route.js")
+  const nullAddress = {
+    name: null,
+    streetaddress: null,
+    suburb: null,
+    state: null,
+    postcode: null,
+  }
+  for (const kind of ["mba_pdf", "media_plan"] as const) {
+    const res = await POST(postRequest(validBody({ kind, clientAddress: nullAddress })))
+    assert.equal(res.status, 200, kind)
+    assert.equal(res.headers.get("X-Document-State"), "draft")
+    const buf = Buffer.from(await res.arrayBuffer())
+    assert.ok(buf.length > 100)
+  }
+  assert.equal(getDbMock.mock.calls.length, 0)
+})
+
 test("POST draft-documents — valid body is 200 DRAFT file and does not write", { skip }, async () => {
   reset()
   const { POST } = await import("../route.js")
@@ -155,6 +176,7 @@ test("POST draft-documents — valid body is 200 DRAFT file and does not write",
   assert.match(disp, /not-for-client\.pdf/)
   const buf = Buffer.from(await res.arrayBuffer())
   assert.ok(buf.length > 100)
-  assert.ok(buf.toString("latin1").includes("DRAFT - NOT FOR CLIENT"))
+  const text = await pdfText(buf)
+  assert.ok(text.includes("DRAFT - NOT FOR CLIENT"))
   assert.equal(getDbMock.mock.calls.length, 0)
 })

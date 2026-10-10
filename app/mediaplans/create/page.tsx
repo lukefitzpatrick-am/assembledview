@@ -3453,10 +3453,10 @@ function CreateMediaPlan() {
           })
           .catch(console.error)
       }
-      setClientAddress(selectedClient.streetaddress);
-      setClientSuburb(selectedClient.suburb);
-      setClientState(selectedClient.state_dropdown);
-      setClientPostcode(selectedClient.postcode);
+      setClientAddress(selectedClient.streetaddress || "");
+      setClientSuburb(selectedClient.suburb || "");
+      setClientState(selectedClient.state_dropdown || "");
+      setClientPostcode(String(selectedClient.postcode || ""));
     } else {
       if (form.getValues("mp_client_name") !== "") {
         form.setValue("mp_client_name", "")

@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { formatAUD } from "./format/money";
+import { formatMbaClientAddressLines } from "./docs/mbaClientAddress";
 import { formatMbaScopeLine } from "./docs/mbaScope";
 import { applyBrandFonts, drawWrappedLeftHeader, PDF_COLOURS } from "./pdf/brandPdf";
 
@@ -230,10 +231,11 @@ export async function generateMBA(
   doc.text(mbaData.client.name, margin.left, y);
   y += lineHeight;
   doc.setFont("PlusJakartaSans", "normal");
-  doc.text(mbaData.client.streetaddress, margin.left, y);
-  y += lineHeight;
-  doc.text(`${mbaData.client.suburb}, ${mbaData.client.state} ${mbaData.client.postcode}`, margin.left, y);
-  y += lineHeight * 2;
+  const addressLines = formatMbaClientAddressLines(mbaData.client);
+  for (let i = 0; i < addressLines.length; i++) {
+    doc.text(addressLines[i], margin.left, y);
+    y += i === addressLines.length - 1 ? lineHeight * 2 : lineHeight;
+  }
 
   // Dates
   doc.text(`Campaign Dates: From ${mbaData.campaign.date_start} to ${mbaData.campaign.date_end}`, margin.left, y);

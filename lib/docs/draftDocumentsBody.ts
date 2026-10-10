@@ -6,15 +6,22 @@ import { z } from "zod"
 
 import { plansSaveBodySchema } from "@/lib/mediaplan/plansSaveBodySchema"
 
+/** Null from a client row becomes undefined before renderDraftDocuments. */
+const addressField = z
+  .string()
+  .nullish()
+  .transform((value): string | undefined => value ?? undefined)
+
 const clientAddressSchema = z
   .object({
-    name: z.string().optional(),
-    streetaddress: z.string().optional(),
-    suburb: z.string().optional(),
-    state: z.string().optional(),
-    postcode: z.string().optional(),
+    name: addressField,
+    streetaddress: addressField,
+    suburb: addressField,
+    state: addressField,
+    postcode: addressField,
   })
-  .optional()
+  .nullish()
+  .transform((value) => value ?? undefined)
 
 const partialMbaSchema = z
   .object({
