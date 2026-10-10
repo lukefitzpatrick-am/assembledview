@@ -4,6 +4,8 @@ import React, { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 
 import { InsightFinding } from "../../../components/insights/InsightFinding.js"
+import { QuickAddInsightForm } from "../../../components/insights/QuickAddInsightForm.js"
+import { buildInsightCreatePayload } from "../insightActionFields.js"
 import type { CampaignInsightListItem, CampaignInsightRow } from "../queryCampaignInsights.js"
 
 // The node test runner compiles JSX with the classic runtime. App components
@@ -143,6 +145,41 @@ test("achieved outcome uses the Achieved label", () => {
   )
   assert.match(html, /Achieved/)
   assert.equal(html.includes("Expected"), false)
+})
+
+test("record form posts action, owner, outcome and outcome kind", () => {
+  const payload = buildInsightCreatePayload({
+    clientId: 12,
+    mbaNumber: "KRUSTY001",
+    body: "  Krabby Patties sold through by Thursday. ",
+    insightType: "delivery",
+    period: "",
+    action: " Restock the formula ",
+    actionOwner: "Assembled",
+    outcome: "Thursday sell-through holds",
+    outcomeKind: "expected",
+  })
+  assert.deepEqual(payload, {
+    clientId: 12,
+    mbaNumber: "krusty001",
+    body: "Krabby Patties sold through by Thursday.",
+    insightType: "delivery",
+    period: null,
+    action: "Restock the formula",
+    actionOwner: "Assembled",
+    outcome: "Thursday sell-through holds",
+    outcomeKind: "expected",
+  })
+
+  const html = renderToStaticMarkup(createElement(QuickAddInsightForm))
+  assert.match(html, /Action \(optional\)/)
+  assert.match(html, /Owner \(optional\)/)
+  assert.match(html, /Outcome \(optional\)/)
+  assert.match(html, /Outcome kind \(optional\)/)
+  assert.match(html, /value="achieved"/)
+  assert.match(html, /value="expected"/)
+  assert.match(html, /aria-label="Client"/)
+  assert.match(html, /aria-label="MBA"/)
 })
 
 test("search match is on body content", () => {

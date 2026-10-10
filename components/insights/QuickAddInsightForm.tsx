@@ -3,12 +3,20 @@
 import { useState, useTransition } from "react"
 import { Plus } from "lucide-react"
 
+import { InsightScopePickers } from "@/components/insights/InsightScopePickers"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  INSIGHT_OUTCOME_KINDS,
+  buildInsightCreatePayload,
+  type InsightOutcomeKind,
+} from "@/lib/insights/insightActionFields"
 import { cn } from "@/lib/utils"
 
 const INSIGHT_TYPES = ["delivery", "audience", "creative", "channel", "commercial"] as const
+const selectClass =
+  "flex h-10 w-full rounded-input border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
 type QuickAddInsightFormProps = {
   clientId?: number | null
@@ -33,19 +41,35 @@ export function QuickAddInsightForm({
   compact = false,
 }: QuickAddInsightFormProps) {
   const [open, setOpen] = useState(!compact)
+  const lockedScope = clientId != null || Boolean(mbaNumber?.trim())
+  const [pickedClientId, setPickedClientId] = useState("")
+  const [pickedMba, setPickedMba] = useState("")
   const [body, setBody] = useState("")
   const [insightType, setInsightType] = useState<(typeof INSIGHT_TYPES)[number]>("delivery")
   const [period, setPeriod] = useState(defaultPeriod ?? "")
+  const [action, setAction] = useState("")
+  const [actionOwner, setActionOwner] = useState("")
+  const [outcome, setOutcome] = useState("")
+  const [outcomeKind, setOutcomeKind] = useState<"" | InsightOutcomeKind>("")
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
+  const scopeClientId = lockedScope ? clientId : pickedClientId ? Number(pickedClientId) : null
+  const scopeMba = lockedScope ? mbaNumber : pickedMba || null
   const canSubmit =
-    body.trim().length > 0 && (clientId != null || (mbaNumber != null && mbaNumber.trim() !== ""))
+    body.trim().length > 0 &&
+    (scopeClientId != null || (scopeMba != null && scopeMba.trim() !== ""))
 
   function reset() {
     setBody("")
     setInsightType("delivery")
     setPeriod(defaultPeriod ?? "")
+    setAction("")
+    setActionOwner("")
+    setOutcome("")
+    setOutcomeKind("")
+    setPickedClientId("")
+    setPickedMba("")
     setError(null)
   }
 
@@ -57,13 +81,19 @@ export function QuickAddInsightForm({
         const res = await fetch("/api/insights", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            clientId: clientId ?? undefined,
-            mbaNumber: mbaNumber?.trim().toLowerCase() || undefined,
-            body: body.trim(),
-            insightType,
-            period: period.trim() || null,
-          }),
+          body: JSON.stringify(
+            buildInsightCreatePayload({
+              clientId: scopeClientId,
+              mbaNumber: scopeMba,
+              body,
+              insightType,
+              period,
+              action,
+              actionOwner,
+              outcome,
+              outcomeKind: outcomeKind || null,
+            }),
+          ),
         })
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as { message?: string } | null
@@ -139,11 +169,25 @@ export function QuickAddInsightForm({
         />
       </label>
 
+      {!lockedScope ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <InsightScopePickers
+            clientId={pickedClientId}
+            mbaNumber={pickedMba}
+            onClientId={(id) => {
+              setPickedClientId(id ?? "")
+              setPickedMba("")
+            }}
+            onMbaNumber={(mba) => setPickedMba(mba ?? "")}
+          />
+        </div>
+      ) : null}
+
       <div className={cn("grid gap-3", compact ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
         <label className="space-y-1.5">
           <span className="text-xs font-medium text-muted-foreground">Type</span>
           <select
-            className="flex h-10 w-full rounded-input border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={selectClass}
             value={insightType}
             onChange={(e) => setInsightType(e.target.value as (typeof INSIGHT_TYPES)[number])}
           >
@@ -173,7 +217,57 @@ export function QuickAddInsightForm({
         ) : null}
       </div>
 
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="space-y-1.5 sm:col-span-2">
+          <span className="text-xs font-medium text-muted-foreground">Action (optional)</span>
+          <Textarea
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+            placeholder="The next step"
+            rows={2}
+            className="resize-y"
+            maxLength={2000}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-muted-foreground">Owner (optional)</span>
+          <Input
+            value={actionOwner}
+            onChange={(e) => setActionOwner(e.target.value)}
+            placeholder="Who owns it"
+            maxLength={200}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-muted-foreground">Outcome kind (optional)</span>
+          <select
+            className={selectClass}
+            value={outcomeKind}
+            aria-label="Outcome kind"
+            onChange={(e) => setOutcomeKind(e.target.value as "" | InsightOutcomeKind)}
+          >
+            <option value="">Not set</option>
+            {INSIGHT_OUTCOME_KINDS.map((kind) => (
+              <option key={kind} value={kind}>
+                {kind}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1.5 sm:col-span-2">
+          <span className="text-xs font-medium text-muted-foreground">Outcome (optional)</span>
+          <Textarea
+            value={outcome}
+            onChange={(e) => setOutcome(e.target.value)}
+            placeholder="What changed, or what will be measured"
+            rows={2}
+            className="resize-y"
+            maxLength={2000}
+          />
+        </label>
+      </div>
+
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       <div className="flex items-center gap-2">
         <Button type="submit" disabled={!canSubmit || pending} size="sm">

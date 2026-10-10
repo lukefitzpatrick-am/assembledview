@@ -181,3 +181,92 @@ test("POST /api/insights — admin creates human insight", { skip }, async () =>
   assert.equal(arg.createdBy, "admin@example.com")
   assert.equal(arg.body, "Quick note")
 })
+
+test("POST /api/insights — accepts and returns action, owner and outcome", { skip }, async () => {
+  requireAdminMock.mock.resetCalls()
+  createCampaignInsightMock.mock.resetCalls()
+  requireAdminMock.mock.mockImplementation(async () => ({
+    session: { user: { email: "admin@example.com" } },
+    roles: ["admin"],
+    clientSlug: null,
+    grantedByAllowlist: false,
+  }))
+  createCampaignInsightMock.mock.mockImplementation(async (input: Record<string, unknown>) => ({
+    id: 18,
+    mbaNumber: "krusty001",
+    clientId: 12,
+    period: null,
+    insightType: "delivery",
+    body: "Krabby Patties sold through by Thursday.",
+    action: input.action,
+    actionOwner: input.actionOwner,
+    outcome: input.outcome,
+    outcomeKind: input.outcomeKind,
+    source: "human",
+    confidence: null,
+    createdBy: "admin@example.com",
+    createdAt: "2026-10-10T00:00:00Z",
+    supersededBy: null,
+    supersededAt: null,
+  }))
+
+  const { POST } = await import("../../../app/api/insights/route.js")
+  const { NextRequest } = await import("next/server")
+  const res = await POST(
+    new NextRequest("http://localhost/api/insights", {
+      method: "POST",
+      body: JSON.stringify({
+        clientId: 12,
+        mbaNumber: "krusty001",
+        body: "Krabby Patties sold through by Thursday.",
+        insightType: "delivery",
+        action: "Restock the formula",
+        actionOwner: "Assembled",
+        outcome: "Thursday sell-through holds",
+        outcomeKind: "expected",
+      }),
+      headers: { "Content-Type": "application/json" },
+    }),
+  )
+  assert.equal(res.status, 201)
+  const arg = createCampaignInsightMock.mock.calls[0]!.arguments[0] as Record<string, unknown>
+  assert.equal(arg.action, "Restock the formula")
+  assert.equal(arg.actionOwner, "Assembled")
+  assert.equal(arg.outcome, "Thursday sell-through holds")
+  assert.equal(arg.outcomeKind, "expected")
+  const json = (await res.json()) as { item: Record<string, unknown> }
+  assert.equal(json.item.action, "Restock the formula")
+  assert.equal(json.item.actionOwner, "Assembled")
+  assert.equal(json.item.outcome, "Thursday sell-through holds")
+  assert.equal(json.item.outcomeKind, "expected")
+})
+
+test("POST /api/insights — rejects an outcome kind outside the check", { skip }, async () => {
+  requireAdminMock.mock.resetCalls()
+  createCampaignInsightMock.mock.resetCalls()
+  requireAdminMock.mock.mockImplementation(async () => ({
+    session: { user: { email: "admin@example.com" } },
+    roles: ["admin"],
+    clientSlug: null,
+    grantedByAllowlist: false,
+  }))
+
+  const { POST } = await import("../../../app/api/insights/route.js")
+  const { NextRequest } = await import("next/server")
+  const res = await POST(
+    new NextRequest("http://localhost/api/insights", {
+      method: "POST",
+      body: JSON.stringify({
+        clientId: 12,
+        body: "A note",
+        insightType: "delivery",
+        outcomeKind: "maybe",
+      }),
+      headers: { "Content-Type": "application/json" },
+    }),
+  )
+  assert.equal(res.status, 400)
+  assert.equal(createCampaignInsightMock.mock.calls.length, 0)
+  const json = (await res.json()) as { message?: string }
+  assert.match(json.message ?? "", /achieved or expected/)
+})

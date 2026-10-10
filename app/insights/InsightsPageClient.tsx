@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { InsightFinding } from "@/components/insights/InsightFinding"
+import { InsightScopePickers } from "@/components/insights/InsightScopePickers"
 import { QuickAddInsightForm } from "@/components/insights/QuickAddInsightForm"
 import { cn } from "@/lib/utils"
 
@@ -186,23 +187,12 @@ export function InsightsPageClient() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Client ID</span>
-            <Input
-              value={clientId}
-              onChange={(e) => replaceParams({ clientId: e.target.value.trim() || null })}
-              inputMode="numeric"
-              placeholder="e.g. 42"
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">MBA</span>
-            <Input
-              value={mba}
-              onChange={(e) => replaceParams({ mba: e.target.value.trim().toLowerCase() || null })}
-              placeholder="mba number"
-            />
-          </label>
+          <InsightScopePickers
+            clientId={clientId}
+            mbaNumber={mba}
+            onClientId={(id) => replaceParams({ clientId: id, mba: null })}
+            onMbaNumber={(next) => replaceParams({ mba: next })}
+          />
           <label className="space-y-1.5">
             <span className="text-xs font-medium text-muted-foreground">Period</span>
             <Input
@@ -255,12 +245,7 @@ export function InsightsPageClient() {
         </div>
       </form>
 
-      <QuickAddInsightForm
-        clientId={clientId && /^\d+$/.test(clientId) ? Number(clientId) : null}
-        mbaNumber={mba || null}
-        defaultPeriod={period || null}
-        onCreated={reload}
-      />
+      <QuickAddInsightForm defaultPeriod={period || null} onCreated={reload} />
 
       {items == null && !error ? <LoadingState /> : null}
       {error ? <ErrorState title="Could not load" message={error} /> : null}

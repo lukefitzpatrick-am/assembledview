@@ -12,6 +12,10 @@ import { and, eq, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import type { CampaignInsightType } from "@/db/schema/insights"
+import {
+  parseInsightActionFields,
+  type InsightActionFields,
+} from "@/lib/insights/insightActionFields"
 import type { CampaignInsightRow } from "@/lib/insights/queryCampaignInsights"
 
 /** In-place edit window for the author's own insight. After this → supersede. */
@@ -50,6 +54,10 @@ export type CreateInsightInput = {
   insightType: string
   period?: string | null
   createdBy: string
+  action?: string | null
+  actionOwner?: string | null
+  outcome?: string | null
+  outcomeKind?: string | null
   /** When set, create the new row and supersede this id in the same txn. */
   supersedesId?: number | null
 }
@@ -158,6 +166,12 @@ function assertPeriod(period: string | null | undefined): string | null {
   return p
 }
 
+function assertActionFields(input: CreateInsightInput): InsightActionFields {
+  const parsed = parseInsightActionFields(input)
+  if (!parsed.ok) throw new WriteInsightError("VALIDATION", parsed.message)
+  return parsed.value
+}
+
 /**
  * Walk replacement → superseded_by → … .
  * Returns true if `originalId` appears (creating original→replacement would cycle).
@@ -247,6 +261,7 @@ export async function createCampaignInsight(
   const body = assertBody(input.body)
   const insightType = assertInsightType(input.insightType)
   const period = assertPeriod(input.period)
+  const actionFields = assertActionFields(input)
   const mbaNumber = normaliseMba(input.mbaNumber)
   const supersedesId =
     typeof input.supersedesId === "number" && Number.isFinite(input.supersedesId)
@@ -302,6 +317,10 @@ export async function createCampaignInsight(
         period,
         insightType,
         body,
+        action: actionFields.action,
+        actionOwner: actionFields.actionOwner,
+        outcome: actionFields.outcome,
+        outcomeKind: actionFields.outcomeKind,
         source: "human",
         confidence,
         createdBy,
@@ -406,6 +425,10 @@ export async function editCampaignInsight(
     body,
     insightType,
     period,
+    action: existing.action,
+    actionOwner: existing.actionOwner,
+    outcome: existing.outcome,
+    outcomeKind: existing.outcomeKind,
     createdBy: actor,
     supersedesId: existing.id,
   })

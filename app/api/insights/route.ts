@@ -4,6 +4,7 @@ import {
   listCampaignInsights,
   type ListCampaignInsightsFilters,
 } from "@/lib/insights/queryCampaignInsights"
+import { parseInsightActionFields } from "@/lib/insights/insightActionFields"
 import {
   createCampaignInsight,
   WriteInsightError,
@@ -108,6 +109,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "validation", message: "Invalid JSON body" }, { status: 400 })
   }
 
+  const actionFields = parseInsightActionFields(body)
+  if (!actionFields.ok) {
+    return NextResponse.json(
+      { error: "validation", message: actionFields.message },
+      { status: 400 },
+    )
+  }
+
   try {
     const row = await createCampaignInsight({
       clientId:
@@ -141,6 +150,10 @@ export async function POST(request: NextRequest) {
           : typeof body.period === "string"
             ? body.period
             : undefined,
+      action: actionFields.value.action,
+      actionOwner: actionFields.value.actionOwner,
+      outcome: actionFields.value.outcome,
+      outcomeKind: actionFields.value.outcomeKind,
       createdBy: email,
       supersedesId:
         typeof body.supersedesId === "number"
