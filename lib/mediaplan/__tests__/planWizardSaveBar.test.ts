@@ -374,19 +374,24 @@ describe("edit page wiring (SF-1)", () => {
 })
 
 describe("SM-30: create bar is the edit bar", () => {
-  it("shared component order is Publish, Save draft, then MBA first in the download group", () => {
+  it("shared component order is Save draft before Publish, with downloads in Files", () => {
     const barSrc = readFileSync(BOTTOM_BAR, "utf8")
     const publish = barSrc.indexOf("label={primaryLabel}")
     const saveDraft = barSrc.indexOf('label="Save draft"')
-    const mba = barSrc.indexOf("onClick={onPublishMba}")
-    const mediaPlan = barSrc.indexOf("onClick={onDownloadMediaPlan}")
+    const files = barSrc.indexOf("Files")
+    const fileItems = barSrc.indexOf("const fileItems")
+    const mba = barSrc.indexOf("onClick: onPublishMba")
+    const mediaPlan = barSrc.indexOf("onClick: onDownloadMediaPlan")
     assert.ok(publish >= 0, "missing primary SplitActionButton")
-    assert.ok(saveDraft > publish, "Save draft must follow Publish")
-    assert.ok(mba > saveDraft, "MBA download must follow Save draft")
-    assert.ok(mediaPlan > mba, "MBA must precede Media Plan in the download group")
-    assert.match(barSrc, /<SplitActionButton[\s\S]*label=\{primaryLabel\}/)
+    assert.ok(saveDraft >= 0 && saveDraft < publish, "Save draft must precede Publish")
+    assert.ok(files > saveDraft && files < publish, "Files sits between Save draft and Publish")
+    assert.ok(
+      fileItems >= 0 && mba > fileItems && mediaPlan > mba,
+      "MBA must precede Media Plan in the Files menu",
+    )
     assert.match(barSrc, /<SplitActionButton[\s\S]*label="Save draft"/)
-    assert.match(barSrc, /bg-primary/)
+    assert.match(barSrc, /<SplitActionButton[\s\S]*label=\{primaryLabel\}/)
+    assert.match(barSrc, /bg-accent/)
     assert.doesNotMatch(barSrc, /Publish MBA/)
   })
 

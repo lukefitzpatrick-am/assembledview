@@ -437,8 +437,8 @@ export function PlanWizardShell({
       <div
         ref={stickyBarRef}
         className={cn(
-          "pointer-events-none fixed bottom-0 right-0 z-40",
-          isSidebarMobile ? "left-0" : "left-12",
+          "pointer-events-none fixed bottom-0 right-0 z-40 transition-[left] duration-200 ease-linear",
+          isSidebarMobile ? "left-0" : open ? "left-[var(--sidebar-width)]" : "left-12",
         )}
       >
         <div className="pointer-events-auto border-t border-am-forest-light/40 bg-am-ink pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 text-am-white">

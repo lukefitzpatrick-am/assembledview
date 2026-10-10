@@ -795,7 +795,9 @@ describe("UI-1 twin: save messages live in the sidebar panel, bar is actions onl
       assert.match(src, /flight dates outside the campaign window/)
 
       const bar = sliceBottomBar(src)
-      assert.match(bar, /CampaignExportsSection/)
+      assert.doesNotMatch(bar, /CampaignExportsSection/)
+      assert.match(bar, /onPublishMba=/)
+      assert.match(bar, /onDownloadMediaPlan=/)
       assert.match(bar, /handleSaveAll/)
       assert.match(bar, /autosaveStatus=/)
       assert.doesNotMatch(bar, /PlanDraftActiveBanner/)

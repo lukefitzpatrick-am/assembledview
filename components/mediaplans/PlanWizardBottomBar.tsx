@@ -157,6 +157,7 @@ export function PlanWizardBottomBar({
     heroBandSecondaryClassName,
     "border-am-forest-light bg-transparent shadow-none",
   )
+  const limePill = "bg-accent text-accent-foreground hover:bg-accent-hover"
   const unallocatedClass =
     totals?.unallocatedTone === "lime"
       ? "text-am-lime"
@@ -360,6 +361,7 @@ export function PlanWizardBottomBar({
           disabled={saveBarDisabled}
           onPrimary={onExplicitPublish}
           className="shadow-none"
+          buttonClassName={limePill}
           menu={[
             {
               label: "Publish and exit",
@@ -378,6 +380,7 @@ export function PlanWizardBottomBar({
         title={saveBarTitle}
         onPrimary={onPrimary}
         className="shadow-none"
+        buttonClassName={savePublishesImmediately ? limePill : undefined}
         menu={primaryMenu}
       />
       </div>

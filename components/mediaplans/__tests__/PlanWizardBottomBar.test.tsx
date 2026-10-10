@@ -97,11 +97,17 @@ describe("PlanWizardBottomBar", () => {
       .map((el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "")
       .filter((text) => text === "Publish" || text === "Save draft" || text === "Files")
     expect(labels).toEqual(["Save draft", "Files", "Publish"])
+    const publish = buttonByLabel(container, "Publish")
+    expect(publish?.className).toContain("bg-accent")
+    expect(publish?.className).toContain("text-accent-foreground")
+    const publishMenu = container.querySelector('[aria-label="Publish menu"]')
+    expect(publishMenu?.className).toContain("bg-accent")
+    const saveDraft = buttonByLabel(container, "Save draft")
+    expect(saveDraft?.className).toContain("border-am-forest-light")
     const allButtonLabels = Array.from(container.querySelectorAll("button")).map(
       (el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "",
     )
     expect(allButtonLabels.includes("Save & Download All")).toBe(false)
-    const publishMenu = container.querySelector('[aria-label="Publish menu"]')
     expect(publishMenu).not.toBeNull()
     await act(async () => {
       publishMenu!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
