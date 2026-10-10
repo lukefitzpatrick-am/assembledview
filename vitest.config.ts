@@ -53,6 +53,7 @@ export default defineConfig({
       "components/dashboard/__tests__/ClientOverdueNotice.test.tsx",
       "components/planning/__tests__/UploadCoveragePanel.render.test.tsx",
       "components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx",
+      "components/dashboard/campaign/__tests__/CampaignHeroBanner.test.tsx",
       "components/dashboard/campaign/__tests__/CampaignStatusStrip.test.tsx",
       "components/dashboard/campaign/__tests__/CampaignReadSection.test.tsx",
       "components/dashboard/campaign/__tests__/ChannelsAtAGlance.test.tsx",

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 
 /** Forest-light outline for a secondary button sitting on the ink band. */
 export const heroBandSecondaryClassName =
-  "border-am-forest-light text-am-white hover:bg-am-panel hover:text-am-white dark:text-am-white dark:hover:text-am-white"
+  "border-am-forest-light bg-transparent text-am-white hover:bg-am-panel hover:text-am-white dark:text-am-white dark:hover:text-am-white"
 
 export type HeroBandProps = {
   chips?: ReactNode
