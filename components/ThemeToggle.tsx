@@ -1,10 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import { Button } from "@/components/ui/button"
+import { segmentChipClass } from "@/components/layout/navChip"
 import { cn } from "@/lib/utils"
 
 export function ThemeToggle({ className }: { className?: string }) {
@@ -16,17 +15,28 @@ export function ThemeToggle({ className }: { className?: string }) {
   const isDark = mounted ? resolvedTheme === "dark" : false
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className={cn("h-9 w-9 rounded-full", className)}
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+    <div
+      role="group"
+      aria-label="Colour mode"
+      className={cn("inline-flex rounded-pill bg-[var(--fill-track)] p-0.5", className)}
     >
-      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-    </Button>
+      <button
+        type="button"
+        aria-pressed={!isDark}
+        className={segmentChipClass(!isDark)}
+        onClick={() => setTheme("light")}
+      >
+        Light
+      </button>
+      <button
+        type="button"
+        aria-pressed={isDark}
+        className={segmentChipClass(isDark)}
+        onClick={() => setTheme("dark")}
+      >
+        Black
+      </button>
+    </div>
   )
 }
 

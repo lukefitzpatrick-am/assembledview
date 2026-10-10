@@ -14,7 +14,7 @@ import { AuthWrapper } from "@/components/AuthWrapper"
 import { AuthContextProvider, useAuthContext } from "@/contexts/AuthContext"
 import type React from "react"
 import { getAssistantContext } from "@/lib/assistantBridge"
-import { CommandPalette } from "@/components/CommandPalette"
+import { CommandPalette, CommandPaletteTrigger } from "@/components/CommandPalette"
 import { DocumentTitleFromManifest } from "@/components/DocumentTitleFromManifest"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { cn } from "@/lib/utils"
@@ -98,8 +98,8 @@ export function ClientLayout({
                         <DynamicBreadcrumbs />
                       </div>
                       <div className="ml-auto flex shrink-0 items-center gap-2">
+                        <CommandPaletteTrigger />
                         <ThemeToggle />
-                        <UserGreeting />
                       </div>
                     </div>
                   </header>
@@ -197,18 +197,3 @@ function AssistantMount({ isShellVisible }: { isShellVisible: boolean }) {
   return <ChatWidget getPageContext={getPageContext} mode={mode} />
 }
 
-function UserGreeting() {
-  const { user } = useAuthContext()
-
-  const firstName =
-    user?.given_name ||
-    (user?.name ? user.name.split(" ")[0] : undefined) ||
-    user?.nickname ||
-    "there"
-
-  return (
-    <p className="m-0 text-sm font-medium leading-none text-muted-foreground">
-      Hi {firstName}
-    </p>
-  )
-}

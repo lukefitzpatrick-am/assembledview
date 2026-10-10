@@ -137,6 +137,12 @@ describe("AppSidebar relabels entry", () => {
     renderNav()
     await settle()
     expect(relabelLink(container)?.getAttribute("data-active")).toBe("false")
+
+    const card = [...container.querySelectorAll("button")].find((el) =>
+      el.textContent?.includes("Staff User"),
+    )
+    expect(card?.textContent).toContain("Admin")
+    expect(card?.textContent).not.toContain("@")
   })
 
   it("omits Relabels for a client session", async () => {
@@ -148,5 +154,10 @@ describe("AppSidebar relabels entry", () => {
     await settle()
     expect(relabelLink(container)).toBeUndefined()
     expect(container.textContent).not.toContain("Relabels")
+    const card = [...container.querySelectorAll("button")].find((el) =>
+      el.textContent?.includes("Staff User"),
+    )
+    expect(card?.textContent).toContain("Client")
+    expect(card?.textContent).not.toContain("@")
   })
 })

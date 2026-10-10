@@ -26,6 +26,20 @@ vi.mock("@/contexts/AuthContext", () => ({
 }))
 
 import { ClientLayout } from "@/components/ClientLayout"
+import { shellUserIdentity } from "@/components/UserMenu"
+
+describe("shell user card identity", () => {
+  it("uses the name, and the email local part when the name is an address", () => {
+    expect(shellUserIdentity({ name: "Luke Fitzpatrick", email: "luke.fitzpatrick@assembledmedia.com.au" })).toEqual({
+      name: "Luke Fitzpatrick",
+      initials: "LF",
+    })
+    expect(shellUserIdentity({ name: "luke.fitzpatrick@assembledmedia.com.au", email: "luke.fitzpatrick@assembledmedia.com.au" })).toEqual({
+      name: "Luke Fitzpatrick",
+      initials: "LF",
+    })
+  })
+})
 
 describe("ClientLayout privacy shell", () => {
   let container: HTMLDivElement
@@ -92,5 +106,43 @@ describe("ClientLayout privacy shell", () => {
       )
     })
     expect(container.querySelector("[data-testid='app-sidebar']")).not.toBeNull()
+  })
+
+  it("opens the command palette from the search pill", () => {
+    if (!Element.prototype.hasPointerCapture) {
+      Element.prototype.hasPointerCapture = () => false
+    }
+    if (!Element.prototype.releasePointerCapture) {
+      Element.prototype.releasePointerCapture = () => undefined
+    }
+    if (!Element.prototype.scrollIntoView) {
+      Element.prototype.scrollIntoView = () => undefined
+    }
+    if (typeof globalThis.ResizeObserver === "undefined") {
+      globalThis.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver
+    }
+    nav.pathname = "/dashboard"
+    act(() => {
+      root.render(
+        <ClientLayout clientSlugs={[]}>
+          <p>Dashboard</p>
+        </ClientLayout>,
+      )
+    })
+    const pill = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Search campaigns, clients and publishers"]',
+    )
+    expect(pill?.textContent).toContain("Search")
+    expect(pill?.textContent).toContain("Ctrl K")
+    expect(container.textContent).not.toContain("Hi ")
+    expect(document.body.textContent).not.toContain("Command menu")
+    act(() => {
+      pill?.click()
+    })
+    expect(document.body.textContent).toContain("Command menu")
   })
 })

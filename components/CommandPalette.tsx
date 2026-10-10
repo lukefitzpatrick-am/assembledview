@@ -16,6 +16,7 @@ import {
   CommandShortcut,
 } from "@/components/ui/command"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import {
   getAdminSidebarFooterNav,
   getAdminSidebarNav,
@@ -100,23 +101,24 @@ function getPrimaryNavItems(isAdmin: boolean, userClient: string | null): NavLin
 
 export function CommandPaletteTrigger({ className }: { className?: string }) {
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
-      size="sm"
-      className={className}
+      className={cn(
+        "inline-flex min-w-0 items-center gap-2 rounded-pill bg-am-sand px-3.5 py-1.5 text-[13px] text-am-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-[220px]",
+        className,
+      )}
       onClick={() => {
         window.dispatchEvent(new CustomEvent("av:open-command-palette"))
       }}
-      aria-label="Open command palette"
-      title="Search pages (⌘K / Ctrl+K)"
+      aria-label="Search campaigns, clients and publishers"
+      title="Search (Ctrl K)"
     >
-      <Search className="mr-1.5 h-3.5 w-3.5" />
-      <span className="hidden sm:inline">Search</span>
-      <kbd className="pointer-events-none ml-2 hidden h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:inline-flex">
-        ⌘K
+      <Search className="h-4 w-4 shrink-0" strokeWidth={1.8} aria-hidden />
+      <span>Search</span>
+      <kbd className="pointer-events-none ml-auto hidden select-none rounded-md bg-[var(--fill-track)] px-1.5 py-px text-[11px] font-medium text-am-muted sm:inline">
+        Ctrl K
       </kbd>
-    </Button>
+    </button>
   )
 }
 
