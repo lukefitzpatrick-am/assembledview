@@ -4,6 +4,7 @@ import { desc, isNotNull } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { computeChecksumForVersionId } from "@/lib/docs/buildMbaFromPersisted"
+import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -85,7 +86,7 @@ export async function GET(request: Request) {
     missingStored,
     mismatches: mismatches.slice(0, 50),
   }
-  console.log(JSON.stringify(report))
+  logJob(JSON.stringify(report))
 
   return NextResponse.json(report)
 }

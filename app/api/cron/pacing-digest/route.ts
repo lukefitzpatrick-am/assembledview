@@ -8,6 +8,7 @@ import {
   buildPacingDigestEmailHtml,
   buildPacingDigestSubject,
 } from "@/lib/ops/digest/email"
+import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
   try {
     const digestStarted = Date.now()
     const payload = await buildPacingDigest(startedAt)
-    console.log(
+    logJob(
       JSON.stringify({
         event: "pacing_digest_stage",
         stage: "build",
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
     )
     const closeStarted = Date.now()
     const closedRelabelTasks = await runCloseUntouchedRelabelTasks(startedAt)
-    console.log(
+    logJob(
       JSON.stringify({
         event: "pacing_digest_stage",
         stage: "relabel_close",
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
 
     const emailStarted = Date.now()
     await sendHtmlEmail({ to, subject, html })
-    console.log(
+    logJob(
       JSON.stringify({
         event: "pacing_digest_stage",
         stage: "email",
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
       }),
     )
 
-    console.log(
+    logJob(
       JSON.stringify({
         event: "pacing_digest",
         asOfDate: payload.asOfDate,

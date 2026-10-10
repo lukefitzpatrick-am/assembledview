@@ -114,7 +114,6 @@ export function TvSceneMockup({ asset }: TvSceneMockupProps) {
     const rect = canvas.getBoundingClientRect()
     const x = (event.clientX - rect.left) / rect.width
     const y = (event.clientY - rect.top) / rect.height
-    console.info(`[tv-scene-calibrate] [${x.toFixed(4)}, ${y.toFixed(4)}]`)
   }
 
   async function downloadFrame(label: string) {

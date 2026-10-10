@@ -671,7 +671,6 @@ export default function DigiDisplayContainer({
   useStableHydration(
     initialLineItems,
     (items) => {
-      console.log("[DigitalDisplayContainer] Loading initialLineItems:", initialLineItems);
       
       const sortedItems = sortLineItemsByLineItemNumber(
         assignStableLineItemNumbers<any>(
@@ -683,13 +682,6 @@ export default function DigiDisplayContainer({
       const transformedLineItems = sortedItems.map((item: any, index: number) => {
         const lineNumber = pickLineItemNumber(item, index + 1)
         const lineItemId = resolveDigiDisplayLineItemId(item, lineNumber, mbaNumber)
-        console.log(`[DigitalDisplayContainer] Processing item ${index}:`, {
-          site: item.site,
-          placement: item.placement,
-          buy_type: item.buy_type,
-          bursts_json: item.bursts_json,
-          bursts_json_type: typeof item.bursts_json,
-        });
 
         const parsedBursts = resolveLineItemBursts(item);
 
@@ -728,7 +720,6 @@ export default function DigiDisplayContainer({
         };
       });
 
-      console.log("[DigitalDisplayContainer] Transformed line items:", transformedLineItems);
 
       form.reset({
         digidisplaylineItems: stampBurstReactKeys(transformedLineItems),

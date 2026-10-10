@@ -728,7 +728,6 @@ function appendMissingLineItemsOnly(
         const oldId = billingLineItemIdKey(only.id)
         only.id = tLi.id
         didAppend = true
-        billingAppendDebug("scheme-drift reconcile (single-line)", { from: oldId, to: tLi.id })
         continue
       }
     }
@@ -748,16 +747,8 @@ function appendMissingMediaTypesOnly(
   return templateItems.map((tLi) => seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys))
 }
 
-const isBillingAppendDebug =
-  typeof process !== "undefined" && process.env.NODE_ENV === "development"
 
-function billingAppendDebug(...args: unknown[]) {
-  if (isBillingAppendDebug) console.log("[billing-append]", ...args)
-}
 
-function billingFeeSeedDebug(...args: unknown[]) {
-  if (isBillingAppendDebug) console.log("[billing-fee-seed]", ...args)
-}
 
 /**
  * `billingPlanStructureKey` uses `flag#id1(bursts),…`; an empty tail (`mp_bvod#`) means the media type is on but
@@ -875,15 +866,6 @@ function appendNewMediaTypeIntoWorkingMonth(
   const { nextBucket, bucketDelta } = computeAppendNewMediaTypeBucket(priorBucket, sumNewLines)
   ;(base.mediaCosts as Record<string, string>)[mediaKey] = formatter.format(nextBucket)
 
-  billingAppendDebug("appendNewMediaTypeIntoWorkingMonth", {
-    monthYear: base.monthYear,
-    mediaKey,
-    lineItemCount: seeded.length,
-    priorBucket,
-    sumNewLines,
-    bucketDelta,
-    mediaCostForKey: formatter.format(nextBucket),
-  })
 
   return { bucketDelta, mediaKey }
 }
@@ -953,10 +935,6 @@ function mergeAppendIntoExistingMonth(
     return ex.length === 0
   })
   if (newMediaKeysForMonth.length > 0) {
-    billingAppendDebug("mergeAppendIntoExistingMonth: new media keys on saved month", {
-      monthYear: base.monthYear,
-      newMediaKeysForMonth,
-    })
   }
 
   if (!base.lineItems) base.lineItems = {}
@@ -994,17 +972,7 @@ function mergeAppendIntoExistingMonth(
           ;(base.mediaCosts as Record<string, string>)[mk] = formatter.format(newBucket)
           deltaAppliedToTotal += delta
           if (mk !== "production") deltaNonProductionMedia += delta
-          billingAppendDebug("append line items (existing media key)", {
-            monthYear: base.monthYear,
-            mediaKey: mk,
-            delta,
-            newBucket: formatter.format(newBucket),
-          })
         } else {
-          billingAppendDebug("append line items zero delta (ids added/updated, $0 this month)", {
-            monthYear: base.monthYear,
-            mediaKey: mk,
-          })
         }
       }
     }
@@ -1074,21 +1042,11 @@ function appendAutoLineItemTemplateIntoWorking(
       newCampaignMonths++
       const fresh = cloneBillingMonthGraph(row)
       recomputeFullMonthFromLineItems(fresh, formatter)
-      billingAppendDebug("new campaign month row", {
-        monthYear: tRow.monthYear,
-        mediaKeys: fresh.lineItems ? Object.keys(fresh.lineItems) : [],
-      })
       return fresh
     }
     return mergeAppendIntoExistingMonth(row, tRow, allCampaignMonthKeys, formatter, opts)
   })
 
-  billingAppendDebug("appendAutoLineItemTemplateIntoWorking done", {
-    workingInputMonths: workingMonths.length,
-    templateMonths: templateWithLineItems.length,
-    newCampaignMonths,
-    outputMonths: out.length,
-  })
 
   return out
 }
@@ -1124,12 +1082,6 @@ function appendAutoReferenceIntoWorkingBilling(
     ) => void
   }
 ): BillingMonth[] {
-  billingAppendDebug("appendAutoReferenceIntoWorkingBilling", {
-    autoRefMonths: autoReferenceMonths.length,
-    workingMonths: workingMonths.length,
-    skeleton: autoReferenceMonths.length > 0 ? "autoReference" : "working",
-    resyncExistingFromTemplate: Boolean(opts?.resyncExistingFromTemplate),
-  })
   const templateWithLineItems = buildWorkingBillingAppendTemplate(
     autoReferenceMonths,
     workingMonths,
@@ -3539,13 +3491,11 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     
     const fetchMediaPlan = async () => {
       if (!mbaNumber || mbaNumber.trim() === '') {
-        console.log("MBA number is empty, skipping fetch")
         setLoading(false)
         setIsLoading(false) // Also set isLoading to false
         return
       }
       
-      console.log(`[FETCH] Starting fetch for MBA: "${mbaNumber}"`)
       
       // Reset state when MBA number changes to ensure fresh data
       setLoading(true)
@@ -3647,7 +3597,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         // Include version parameter if available
         const versionParam = versionNumber ? `&version=${encodeURIComponent(versionNumber)}` : ''
         const apiUrl = `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?skipLineItems=true&billingScheduleFull=1${versionParam}`
-        console.log(`[FETCH] Calling API: ${apiUrl}`)
         
         const response = await fetchMediaPlanMbaCoalesced(apiUrl, {
           cache: 'no-store',
@@ -3657,7 +3606,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           }
         })
         
-        console.log(`[FETCH] API Response status: ${response.status} for MBA: ${mbaNumber}`)
         
         if (isCancelled) return
         
@@ -3675,15 +3623,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             // Read response as text first to inspect it
             const responseText = await response.text()
             
-            console.log(`[FETCH] Error response details:`, {
-              status: response.status,
-              statusText: response.statusText,
-              contentType,
-              contentLength,
-              hasText: !!responseText,
-              textLength: responseText?.length || 0,
-              textPreview: responseText?.substring(0, 200)
-            })
             
             if (responseText && responseText.trim()) {
               try {
@@ -3771,46 +3710,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         if (isCancelled) return
         
         // Comprehensive logging to debug data structure
-        console.log("[DATA LOAD] Full API response:", JSON.stringify(data, null, 2))
-        console.log("[DATA LOAD] Key fields check:", {
-          mba_number: data.mba_number,
-          mp_client_name: data.mp_client_name,
-          client_name: data.client_name,
-          campaign_name: data.campaign_name,
-          mp_campaignname: data.mp_campaignname,
-          campaign_status: data.campaign_status,
-          mp_campaignstatus: data.mp_campaignstatus,
-          campaign_start_date: data.campaign_start_date,
-          campaign_end_date: data.campaign_end_date,
-          brand: data.brand,
-          client_contact: data.client_contact,
-          po_number: data.po_number,
-          mp_campaignbudget: data.mp_campaignbudget,
-          version_number: data.version_number,
-          media_types: {
-            mp_television: data.mp_television,
-            mp_radio: data.mp_radio,
-            mp_newspaper: data.mp_newspaper,
-            mp_magazines: data.mp_magazines,
-            mp_ooh: data.mp_ooh,
-            mp_cinema: data.mp_cinema,
-            mp_digidisplay: data.mp_digidisplay,
-            mp_digiaudio: data.mp_digiaudio,
-            mp_digivideo: data.mp_digivideo,
-            mp_bvod: data.mp_bvod,
-            mp_integration: data.mp_integration,
-            mp_search: data.mp_search,
-            mp_socialmedia: data.mp_socialmedia,
-            mp_progdisplay: data.mp_progdisplay,
-            mp_progvideo: data.mp_progvideo,
-            mp_progbvod: data.mp_progbvod,
-            mp_progaudio: data.mp_progaudio,
-            mp_progooh: data.mp_progooh,
-            mp_influencers: data.mp_influencers,
-          }
-        })
-        console.log("[DATA LOAD] Media plan line items:", data.lineItems)
-        console.log("[DATA LOAD] Billing schedule in response:", data.billingSchedule ? "Present" : "Missing")
         
         // Validate that the loaded version matches the requested version
         const loadedVersionNumber = data.version_number 
@@ -3870,10 +3769,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         if (requestedVersionNumber !== null && loadedVersionNumber !== null && loadedVersionNumber !== requestedVersionNumber) {
           console.warn(`[DATA LOAD] Version mismatch! Requested: ${requestedVersionNumber}, Loaded: ${loadedVersionNumber}`)
           // Still set the data, but log the warning - the API should have handled this correctly
-        } else if (requestedVersionNumber !== null && loadedVersionNumber === requestedVersionNumber) {
-          console.log(`[DATA LOAD] Version match confirmed: ${loadedVersionNumber}`)
-        }
-        
+        } else         
         // Set the media plan data (needed for version number display)
         setMediaPlan(data)
 
@@ -3903,7 +3799,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           socialFee: feeSocialRef.current ?? 0,
         })
         if (billingHydrated) {
-          console.log("[BILLING LOAD] Hydrating billing schedule from fetch (batched with media plan)")
           const persistedMonths = billingHydrated.months
           const deepSaved = JSON.parse(JSON.stringify(persistedMonths)) as BillingMonth[]
           const deepWorking = JSON.parse(JSON.stringify(persistedMonths)) as BillingMonth[]
@@ -3948,14 +3843,12 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           }
           if (typeof dateValue === 'number') {
             const date = new Date(dateValue)
-            console.log(`[DATA LOAD] Parsed numeric date ${dateValue} to:`, date)
             return date
           }
           if (typeof dateValue === 'string') {
             try {
               // Preserve exact day for plain YYYY-MM-DD without timezone shifts
               const parsed = parseDateOnlyString(dateValue)
-              console.log(`[DATA LOAD] Parsed date-only string "${dateValue}" to:`, parsed)
               return parsed
             } catch {
               const parsed = new Date(dateValue)
@@ -3963,7 +3856,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                 console.warn(`[DATA LOAD] Invalid date string: ${dateValue}`)
                 return new Date()
               }
-              console.log(`[DATA LOAD] Parsed string date "${dateValue}" to:`, parsed)
               return parsed
             }
           }
@@ -4018,7 +3910,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           lineItems: [],
         }
         
-        console.log("[DATA LOAD] Form data to be set:", formData)
         
         // Update form with the fetched data
         form.reset(formData)
@@ -4026,7 +3917,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         closeGate()
         clearDirtyForHydration()
         
-        console.log("[DATA LOAD] Form reset completed")
         
         // Set the MBA number in the context
         if (data.mba_number) {
@@ -4042,7 +3932,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         // This ensures fees are available even if client lookup fails
         if (data.clientData || data.client) {
           const clientData = data.clientData || data.client
-          console.log("[DATA LOAD] Loading client fees from API response:", clientData)
           applyClientFees(clientData)
         }
         
@@ -4095,8 +3984,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     }
 
     if (clients.length > 0 && selectedClientId && mediaPlan) {
-      console.log("[CLIENT LOOKUP] Looking for client with name:", selectedClientId)
-      console.log("[CLIENT LOOKUP] Available clients:", clients.map(c => ({ id: c.id, name: c.clientname_input, mp_client_name: c.mp_client_name })))
       
       // Helper function to normalize names for comparison
       const normalizeName = (name: string | undefined | null): string => {
@@ -4122,7 +4009,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       }
       
       if (client) {
-        console.log("[CLIENT LOOKUP] Found matching client:", client)
         if (!selectedClient || selectedClient.id !== client.id) {
           setSelectedClient(client)
           // Set all fees from client data (ensuring they're applied to state)
@@ -4137,7 +4023,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           setClientPostcode(String(client.postcode || ""))
           
           // Update the MBA identifier in the form
-          console.log("[CLIENT LOOKUP] Setting mbaidentifier:", client.mbaidentifier)
           const nextMbaId = client.mbaidentifier || ""
           if (form.getValues("mbaidentifier") !== nextMbaId) {
             // Bootstrap write: must not trip form.watch → unsaved dialog.
@@ -4146,28 +4031,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             })
           }
           
-          console.log("[CLIENT LOOKUP] Client fees loaded:", {
-            feesearch: client.feesearch,
-            feesocial: client.feesocial,
-            feetelevision: client.feetelevision,
-            feeradio: client.feeradio,
-            feenewspapers: client.feenewspapers,
-            feemagazines: client.feemagazines,
-            feeooh: client.feeooh,
-            feecinema: client.feecinema,
-            feedigidisplay: client.feedigidisplay,
-            feedigiaudio: client.feedigiaudio,
-            feedigivideo: client.feedigivideo,
-            feebvod: client.feebvod,
-            feeintegration: client.feeintegration,
-            feeinfluencers: client.feeinfluencers,
-            feeprogdisplay: client.feeprogdisplay,
-            feeprogvideo: client.feeprogvideo,
-            feeprogbvod: client.feeprogbvod,
-            feeprogaudio: client.feeprogaudio,
-            feeprogooh: client.feeprogooh,
-            feecontentcreator: client.feecontentcreator
-          })
         }
       } else {
         console.warn("[CLIENT LOOKUP] No matching client found for:", selectedClientId)
@@ -4357,7 +4220,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           }))
 
         if (enabledInOrder.length === 0) {
-          console.log("[DATA LOAD] No enabled media types to load")
           return
         }
 
@@ -4372,9 +4234,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         setChannelHydrationSettled({})
         channelHydrationSettledRef.current = {}
 
-        console.log(
-          `[DATA LOAD] Parallel loading ${enabledInOrder.length} media types (version ${versionToUse})`
-        )
 
         await Promise.all(
           enabledInOrder.map(async ({ flag, label, fetchFn, setter }) => {
@@ -4436,11 +4295,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                   })
                 }
                 if (hydrationWatchdogFiredRef.current) {
-                  console.log(
-                    `[DATA LOAD] ${flag} late success after watchdog — cleared warning (${processedItems.length} items)`
-                  )
                 } else {
-                  console.log(`[DATA LOAD] ${flag} loaded (${processedItems.length} items)`)
                 }
               }
             } catch (loadError) {
@@ -4471,9 +4326,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           })
         )
 
-        if (!cancelled) {
-          console.log("[DATA LOAD] Parallel line item load complete")
-        }
       } finally {
         // Watchdog may already have forced ready; don't regress phase if we were cancelled mid-flight.
         if (!cancelled && !hydrationWatchdogFiredRef.current) {
@@ -7872,17 +7724,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           campaignStatus: formValues.mp_campaignstatus,
         })
         const modeResolved = resolvePostgresSaveMode(saveModeInput)
-        console.info("[save-mode]", {
-          mbaNumber,
-          saveIntent,
-          publishedVersionNumber: saveModeInput.publishedVersionNumber,
-          editingVersionNumber: saveModeInput.editingVersionNumber,
-          versionRowCount: availableVersions.length,
-          tipPublishedAt: saveModeInput.tipPublishedAt,
-          uiMode: modeResolved.uiMode,
-          mode: modeResolved.mode,
-          versionNumber: modeResolved.versionNumber,
-        })
 
         setSaveModeLabel(
           formatSaveModeLabel(modeResolved.uiMode, modeResolved.versionNumber)
@@ -8418,16 +8259,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           ? snapshot
           : (autoReferenceBillingMonths.length > 0 ? autoReferenceBillingMonths : workingBillingMonths)
 
-      if (process.env.NODE_ENV !== "production") {
-        console.log(`delivery schedule source = ${deliveryScheduleSource}`, {
-          monthCount: deliveryMonthsSource.length,
-          firstMonthYear: deliveryMonthsSource[0]?.monthYear,
-        })
-        console.log(`billing schedule source = ${billingScheduleSource}`, {
-          monthCount: workingBillingMonths.length,
-          firstMonthYear: workingBillingMonths[0]?.monthYear,
-        })
-      }
 
       // 3. Create new media_plan_versions record using PUT.
       // REVIEW (integrity P0): deferMasterVersionPublish stages the version row without
@@ -10899,16 +10730,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       const pendingEmptyLineSlots = billingStructureKeyHasPendingEmptyLineSlots(billingPlanStructureKey)
 
       if (autoRef.length === 0) {
-        billingAppendDebug("append skipped: autoReferenceBillingMonths empty", {
-          billingPlanStructureKey,
-          pendingEmptyLineSlots,
-          enabledFlags,
-          enabledMissingLineItems,
-          enabledWithLineItems,
-          workingMonths: source.length,
-          lineItemsFingerprint: billingLineItemsLengthFingerprint,
-          isManualBilling: isManualBillingRef.current,
-        })
         return
       }
 
@@ -10919,17 +10740,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         maximumFractionDigits: 2,
       })
 
-      billingAppendDebug("append readiness", {
-        billingPlanStructureKey,
-        pendingEmptyLineSlots,
-        autoRefMonths: autoRef.length,
-        workingMonths: source.length,
-        isManualBilling: isManualBillingRef.current,
-        enabledFlags,
-        enabledMissingLineItems,
-        enabledWithLineItems,
-        lineItemsFingerprint: billingLineItemsLengthFingerprint,
-      })
 
       const followAuto = billingLineItemsFollowAutoRef.current
       const merged = appendAutoReferenceIntoWorkingBilling(
@@ -10965,20 +10775,11 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             }
       )
       if (JSON.stringify(merged) === JSON.stringify(source)) {
-        billingAppendDebug("append skipped: merged deep-equals working snapshot", {
-          billingPlanStructureKey,
-          workingMonths: source.length,
-        })
         return
       }
       setWorkingBillingMonths(merged)
       workingBillingMonthsRef.current = merged
 
-      billingAppendDebug("append applied", {
-        outputMonths: merged.length,
-        billingPlanStructureKey,
-        pendingEmptyLineSlots,
-      })
     }, 250)
 
     return () => window.clearTimeout(tid)
@@ -11075,23 +10876,16 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     })
 
     if (enabledConfigs.length === 0) {
-      billingFeeSeedDebug("seed skipped (no enabled line items)")
       return
     }
 
     const burstsReady = enabledConfigs.some((c) => c.containerBursts.length > 0)
     if (!burstsReady) {
-      billingFeeSeedDebug("seed skipped (bursts empty)", {
-        enabled: enabledConfigs.map((c) => c.billingKey),
-      })
       return
     }
 
     const workingResult = seedBillingMonthsLineFees(working, enabledConfigs, billingStableLineItemId)
     if (workingResult.linesSeeded === 0 && workingResult.skippedAlreadySeeded > 0) {
-      billingFeeSeedDebug("seed skipped (already seeded)", {
-        skipped: workingResult.skippedAlreadySeeded,
-      })
       return
     }
     if (workingResult.linesSeeded === 0) {
@@ -11100,7 +10894,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
 
     setWorkingBillingMonths(workingResult.months)
     workingBillingMonthsRef.current = workingResult.months
-    billingFeeSeedDebug("seed applied (working)", { lines: workingResult.linesSeeded })
 
     const saved = savedBillingMonthsRef.current
     if (saved.length > 0) {
@@ -11109,7 +10902,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         setSavedBillingMonths(savedResult.months)
         savedBillingMonthsRef.current = savedResult.months
         persistedBillingLineIdsRef.current = collectPersistedBillingLineIds(savedResult.months)
-        billingFeeSeedDebug("seed applied (saved)", { lines: savedResult.linesSeeded })
       }
     }
   }, [

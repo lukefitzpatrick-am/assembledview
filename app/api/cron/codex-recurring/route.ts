@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { runCodexRecurring } from "@/lib/codex/runRecurring"
 import { expireStaleProposals } from "@/lib/fireflies/proposalRepo"
+import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
     const result = await runCodexRecurring(now)
     const proposalsExpired = await expireStaleProposals({ now })
     const body = { ...result, proposalsExpired }
-    console.log(
+    logJob(
       JSON.stringify({
         event: "codex_recurring",
         ...body,

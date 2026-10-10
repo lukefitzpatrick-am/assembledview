@@ -47,10 +47,6 @@ export async function GET(request: NextRequest) {
       ? latestPerMba.filter((plan) => scope.allows(planMbaNumber(plan)))
       : latestPerMba
 
-    console.log(
-      `[media_plans] served ${filteredData.length} rows in ${Date.now() - t0}ms stale=${stale}` +
-        (scope.isClient ? ` (client-filtered from ${latestPerMba.length})` : "")
-    )
 
     const headers: Record<string, string> = {}
     if (fetchedAt != null) {

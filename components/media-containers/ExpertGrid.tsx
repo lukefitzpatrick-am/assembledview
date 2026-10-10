@@ -856,12 +856,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         // Each accepted span contributes its own anchor/interior occupancy maps.
         for (const span of row.mergedWeekSpans ?? []) {
           if (spanById[span.id]) {
-            if (DEBUG_SEARCH_MERGE) {
-              console.debug("[Search merge] occupancy duplicate span id ignored", {
-                rowId: row.id,
-                spanId: span.id,
-              })
-            }
             continue
           }
           const keysRaw = weekKeysInSpanInclusive(
@@ -873,13 +867,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
           if (keys.length === 0) continue
           // Prefer first valid span: later overlapping/conflicting spans are ignored.
           if (keys.some((k) => occupiedWeekKeys.has(k))) {
-            if (DEBUG_SEARCH_MERGE) {
-              console.debug("[Search merge] occupancy overlap ignored", {
-                rowId: row.id,
-                spanId: span.id,
-                keys,
-              })
-            }
             continue
           }
           const anchorWeekKey = keys[0]!
@@ -918,7 +905,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       : "null"
     if (lastPendingMergeSelectionLogRef.current === nextSig) return
     lastPendingMergeSelectionLogRef.current = nextSig
-    console.debug("[Search merge] pending selection updated", pendingMergeSelection)
   }, [pendingMergeSelection])
 
   const normalizedRowsRef = useRef(normalizedRows)
@@ -2140,9 +2126,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       }))
       if (next) pushRows(next)
       resetTransientWeekUiState()
-      if (DEBUG_SEARCH_MERGE) {
-        console.debug("[Search merge] unmerge applied", { rowIndex, spanId })
-      }
     },
     [pushRows, resetTransientWeekUiState]
   )
@@ -2393,12 +2376,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       } else {
         postDragWeekClickRectRef.current = null
       }
-      if (DEBUG_SEARCH_MERGE) {
-        console.debug("[Search merge] drag end", {
-          lastRect: r,
-          postDragClickGuard: multiCellDrag,
-        })
-      }
     }
     window.addEventListener("pointerup", endDrag)
     window.addEventListener("pointercancel", endDrag)
@@ -2458,12 +2435,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     const row = rowsNow[rowIndex]
     if (!row) return
     if (selectionOverlapsMergedSpan(rowMergeMaps[rowIndex], sorted, weekKeys)) {
-      if (DEBUG_SEARCH_MERGE) {
-        console.debug("[Search merge] validation overlap failure", {
-          rowIndex,
-          selectedWeekKeys: sorted,
-        })
-      }
       toast({
         variant: "destructive",
         title: "Selection overlaps a merged block",
@@ -2497,16 +2468,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     for (const k of sorted) weeklyValues[k] = ""
     // Append-only for merge topology: existing non-overlapping spans on this row remain untouched.
     const mergedWeekSpans = [...(row.mergedWeekSpans ?? []), newSpan]
-    if (DEBUG_SEARCH_MERGE) {
-      console.debug("[Search merge] merge applied", {
-        rowIndex,
-        spanId: newSpan.id,
-        startWeekKey: newSpan.startWeekKey,
-        endWeekKey: newSpan.endWeekKey,
-        totalQty: newSpan.totalQty,
-        mergedWeekKeys: sorted,
-      })
-    }
     pushRows(
       rowsNow.map((r, i) =>
         i === rowIndex ? { ...r, weeklyValues, mergedWeekSpans } : r
@@ -2542,13 +2503,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
 
   useEffect(() => {
     if (!DEBUG_SEARCH_MERGE) return
-    console.debug("[Search merge] merge eligibility derived", {
-      mergeTarget,
-      derivedMergeTarget,
-      mergeWeeksReady,
-      weekRectSelection,
-      weekMultiSelect,
-    })
   }, [
     mergeTarget,
     derivedMergeTarget,
@@ -5038,11 +4992,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                     setWeekRectSelection(next)
                                     setWeekMultiSelect(null)
                                     setWeekStripSelection(null)
-                                    if (DEBUG_SEARCH_MERGE) {
-                                      console.debug("[Search merge] drag update", {
-                                        rect: next,
-                                      })
-                                    }
                                   }}
                                   onDragOver={(e) => {
                                     if (!weekDragSource) return
@@ -5296,12 +5245,6 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                         weekKey: col.weekKey,
                                       }
                                       setIsSelecting(true)
-                                      if (DEBUG_SEARCH_MERGE) {
-                                        console.debug("[Search merge] drag start", {
-                                          rowIndex,
-                                          weekKey: col.weekKey,
-                                        })
-                                      }
                                       clearPendingMergeSelection(
                                         "brand new incompatible selection"
                                       )

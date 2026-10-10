@@ -63,7 +63,6 @@ function buildDateRange(startDate?: string, endDate?: string) {
 }
 
 export async function POST(request: NextRequest) {
-  console.log("[PACING ROUTE HIT] social/tiktok", { time: new Date().toISOString() })
   const requestId = crypto.randomUUID()
   try {
     const ac = new AbortController()
@@ -110,12 +109,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    console.log("[api/pacing/social/tiktok][" + requestId + "] start", {
-      mbaNumber,
-      startDate: start,
-      endDate: end,
-      lineItemIdsCount: lineItemIds?.length ?? 0,
-    })
 
     const cacheKey = buildPacingCacheKey({
       scope: "pacing:tiktok",
@@ -134,7 +127,6 @@ export async function POST(request: NextRequest) {
         endDate: end,
       }, { requestId, signal: ac.signal })
       const t1 = Date.now()
-      console.log("[api/pacing/social/tiktok][" + requestId + "] snowflake_ms", t1 - t0)
 
       // TEMPORARY DEBUG: Calculate max date and synced timestamp from results
       const dateDays = rows.map((r) => r.DATE_DAY).filter(Boolean)
@@ -155,18 +147,6 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      if (DEBUG) {
-        console.info("[api/pacing/social/tiktok] rows", {
-          mbaNumber,
-          startDate: start,
-          endDate: end,
-          lineItemIds,
-          rowCount: rows.length,
-          maxDateDay,
-          maxSyncedAt,
-          hitRowLimit,
-        })
-      }
 
       return rows.map((row) => ({
         dateDay: row.DATE_DAY,

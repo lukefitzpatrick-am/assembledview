@@ -139,11 +139,6 @@ export async function GET(request: NextRequest) {
       const plans = scope.isClient
         ? data.filter((plan) => scope.allows(planMbaNumber(plan)))
         : data
-      console.log(
-        `[MEDIAPLANS_LIST] cache hit/fresh in ${Date.now() - t0}ms count=${plans.length}` +
-          (scope.isClient ? ` (client-filtered from ${data.length})` : "") +
-          ` stale=${stale}`
-      )
       const headers: Record<string, string> = {}
       if (fetchedAt != null) {
         headers["x-cache-fetched-at"] = String(fetchedAt)
@@ -156,19 +151,12 @@ export async function GET(request: NextRequest) {
         headers: Object.keys(headers).length > 0 ? headers : undefined,
       })
     } catch (versionsError) {
-      console.log(
-        "MediaPlanVersions failed, trying original endpoint:",
-        versionsError instanceof Error ? versionsError.message : versionsError
-      )
 
       try {
         const mergedFallbackData = await fetchMediaPlansListFallback()
         const plans = scope.isClient
           ? mergedFallbackData.filter((plan) => scope.allows(planMbaNumber(plan)))
           : mergedFallbackData
-        console.log(
-          `[MEDIAPLANS_LIST] fallback in ${Date.now() - t0}ms count=${plans.length}`
-        )
         return NextResponse.json(plans)
       } catch (fallbackError) {
         console.error("Fallback endpoint also failed:", fallbackError)

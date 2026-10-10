@@ -181,7 +181,6 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
   async function onSubmit(data: ClientFormValues) {
     setIsSaving(true)
     try {
-      console.log("Submitting client data:", JSON.stringify(data, null, 2))
       const { clientname_input, ...restData } = data
       const payload = {
         ...restData,
@@ -198,13 +197,11 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
       })
 
       const result = await response.json()
-      console.log("API response:", JSON.stringify(result, null, 2))
 
       if (!response.ok) {
         throw new Error(JSON.stringify(result))
       }
 
-      console.log("Client created successfully:", result)
       setShowSuccess(true)
       onSuccess()
     } catch (error) {

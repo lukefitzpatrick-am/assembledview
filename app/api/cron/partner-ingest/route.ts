@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { runPartnerIngestJob } from "@/lib/partner-ingest/runPartnerIngestJob"
+import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
 
   try {
     const summary = await runPartnerIngestJob()
-    console.log(JSON.stringify({ event: "partner_ingest", ...summary }))
+    logJob(JSON.stringify({ event: "partner_ingest", ...summary }))
     return NextResponse.json(summary, {
       status: summary.failed > 0 ? 207 : 200,
     })

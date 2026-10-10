@@ -51,14 +51,12 @@ export async function POST(request: NextRequest) {
   const t0 = Date.now()
 
   try {
-    console.info("[api/pacing/bulk] start", { requestId })
 
     // Parse request body
     let body: RequestBody
     try {
       body = await request.json()
     } catch (err) {
-      console.info("[api/pacing/bulk] timing", { requestId, stage: "parse_json", ms: Date.now() - t0 })
       return NextResponse.json(
         { ok: false, error: "Invalid JSON body" },
         { status: 400 }
@@ -68,7 +66,6 @@ export async function POST(request: NextRequest) {
     // Validate mbaNumber
     const mbaNumber = body?.mbaNumber
     if (!mbaNumber || typeof mbaNumber !== "string" || !mbaNumber.trim()) {
-      console.info("[api/pacing/bulk] timing", { requestId, stage: "validate", ms: Date.now() - t0 })
       return NextResponse.json(
         { ok: false, error: "mbaNumber is required and must be a non-empty string" },
         { status: 400 }
@@ -88,7 +85,6 @@ export async function POST(request: NextRequest) {
     const searchStartDate = body?.searchStartDate
     const searchEndDate = body?.searchEndDate
 
-    console.info("[api/pacing/bulk] timing", { requestId, stage: "parsed_validated", ms: Date.now() - t0 })
 
     const access = await checkClientMbaAccess(request, mbaNumber)
     if (!access.ok) return access.response
@@ -101,18 +97,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (DEBUG) {
-      console.log("[api/pacing/bulk] request", {
-        mbaNumber,
-        lineItemIdsCount: normalizedLineItemIds.length,
-        startDate,
-        endDate,
-        includeSearch,
-        searchLineItemIdsCount: searchLineItemIds.length,
-        searchStartDate,
-        searchEndDate,
-      })
-    }
 
     // If we're not returning any bulk rows, only allow the request when Search pacing was explicitly requested.
     if (normalizedLineItemIds.length === 0 && !includeSearch) {
@@ -191,7 +175,6 @@ export async function POST(request: NextRequest) {
       clearTimeout(timer)
     }
 
-    console.info("[api/pacing/bulk] timing", { requestId, stage: "snowflake_done", ms: Date.now() - t0 })
 
     const dateDays = rows.map((r) => r.dateDay).filter(Boolean)
     const maxDateDay = dateDays.length > 0 ? dateDays.sort().slice(-1)[0] : null
@@ -213,20 +196,8 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    if (DEBUG) {
-      console.log("[api/pacing/bulk] response", {
-        mbaNumber,
-        rowCount: rows.length,
-        maxDateDay,
-        channels: channelCounts,
-        hitRowLimit,
-        includeSearch,
-        searchOk: includeSearch ? Boolean(search && !search.error) : undefined,
-      })
-    }
 
     // Return success response
-    console.info("[api/pacing/bulk] timing", { requestId, stage: "respond", ms: Date.now() - t0 })
     return NextResponse.json({
       ok: true,
       rows,

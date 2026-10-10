@@ -44,12 +44,10 @@ export async function GET(
       })
     }
 
-    console.log('API: Fetching dashboard data for slug:', slug)
     const dashboardData = await getClientDashboardData(slug, {
       rangeStartISO: range.rangeStartISO,
       rangeEndISO: range.rangeEndISO,
     })
-    console.log('API: Dashboard data result:', dashboardData ? 'Found' : 'Not found')
     
     if (!dashboardData) {
       return NextResponse.json(

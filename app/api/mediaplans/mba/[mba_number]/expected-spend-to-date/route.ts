@@ -11,8 +11,6 @@ export const revalidate = 0
 export const maxDuration = 60
 import { roundMoney4 } from "@/lib/format/money"
 
-const DEBUG_SPEND = process.env.NEXT_PUBLIC_DEBUG_SPEND === "true"
-
 type NormalizedBurst = {
   startDate: string
   endDate: string
@@ -257,25 +255,8 @@ function computeExpectedFromMonthlySpend(params: {
     const weighted = monthBudget * (elapsedDays / totalActiveDays)
     total += weighted
 
-    if (DEBUG_SPEND) {
-      console.log("[expected-spend-to-date] monthly entry", {
-        monthLabel,
-        monthBudget,
-        activeStart: activeStart.toISOString(),
-        activeEnd: activeEnd.toISOString(),
-        totalActiveDays,
-        elapsedDays,
-        weighted,
-      })
-    }
   })
 
-  if (DEBUG_SPEND) {
-    console.log("[expected-spend-to-date] monthly spend summary", {
-      monthlyCount: monthlySpend.length,
-      total,
-    })
-  }
 
   return roundMoney4(total)
 }
@@ -307,14 +288,6 @@ export async function GET(
     })
     if (!response.ok) {
       const body = await response.text().catch(() => "")
-      if (DEBUG_SPEND) {
-        console.log("[expected-spend-to-date] fetch media plan failed", {
-          url: mediaPlanUrl,
-          status: response.status,
-          statusText: response.statusText,
-          body,
-        })
-      }
       return NextResponse.json(
         { error: "Failed to load media plan data" },
         { status: response.status }
@@ -343,19 +316,6 @@ export async function GET(
         ? data.metrics.deliveryMonthlySpend
         : data?.metrics?.monthlySpend) || []
 
-    if (DEBUG_SPEND) {
-      console.log("[expected-spend-to-date] inputs", {
-        mba_number,
-        campaignStart,
-        campaignEnd,
-        monthlyCount: Array.isArray(monthlySpendData) ? monthlySpendData.length : 0,
-        hasDeliveryMonthlySpend: Array.isArray(data?.metrics?.deliveryMonthlySpend),
-        hasMonthlySpend: Array.isArray(data?.metrics?.monthlySpend),
-        burstsCount: bursts.length,
-      })
-      const sample = Array.isArray(monthlySpendData) ? monthlySpendData.slice(0, 3) : []
-      console.log("[expected-spend-to-date] monthlySpend sample", sample)
-    }
 
     const expectedFromMonthly =
       computeExpectedFromMonthlySpend({
@@ -373,17 +333,6 @@ export async function GET(
           campaignEnd,
         })
 
-    if (DEBUG_SPEND) {
-      console.log("[expected-spend-to-date] result", {
-        expectedFromMonthly,
-        expectedFromBursts: computeExpectedSpendToDate({
-          bursts,
-          campaignStart,
-          campaignEnd,
-        }),
-        chosen: expectedSpendToDate,
-      })
-    }
 
     return NextResponse.json({
       expectedSpendToDate,

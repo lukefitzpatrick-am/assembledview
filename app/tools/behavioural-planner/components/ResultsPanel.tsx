@@ -89,49 +89,16 @@ export function ResultsPanel({ state, adapted, loading, error }: ResultsPanelPro
 
   const handleStressTest = () => {
     if (!computation) return;
-    console.log("[BCP action] stress_test", {
-      currentBudget: state.budget,
-      proposedBudget: Math.round(state.budget * 0.7),
-      currentMix: computation.allocated.map((a) => ({
-        ch: a.ch.id,
-        pct: Math.round(a.pct),
-      })),
-    });
   };
 
   const handleExplainTop = () => {
     if (!computation) return;
     const top = computation.allocated[0];
     if (!top) return;
-    console.log("[BCP action] explain_top_channel", {
-      channel: top.ch.name,
-      bcs: Math.round(top.bcs),
-      components: {
-        A: Math.round(top.A),
-        T: Math.round(top.T),
-        E: Math.round(top.E),
-        C: Math.round(top.C),
-      },
-      affAvg: top.affAvg == null ? null : Math.round(top.affAvg),
-      ageMod: top.ageMod.toFixed(2),
-    });
   };
 
   const handleHandoff = () => {
     if (!computation) return;
-    console.log("[BCP action] handoff_payload", {
-      campaignName: state.campaignName,
-      flight: state.flight,
-      successMetric: state.successMetric,
-      totalBcs: Math.round(computation.total),
-      mix: computation.allocated.map((a) => ({
-        channel: a.ch.id,
-        name: a.ch.name,
-        dollars: a.dollars,
-        pct: Math.round(a.pct * 10) / 10,
-        bcs: Math.round(a.bcs),
-      })),
-    });
   };
 
   if (loading && !adapted) {

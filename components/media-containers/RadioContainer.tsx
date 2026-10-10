@@ -578,24 +578,13 @@ export default function RadioContainer({
       })));
       
       if (hasProcessedInitialLineItemsRef.current && lastProcessedLineItemsRef.current === lineItemsKey) {
-        console.log("[RadioContainer] Skipping duplicate initialLineItems load");
-      } else {
-      console.log("[RadioContainer] Loading initialLineItems:", dedupedInitialLineItems);
+        return
+      }
 
       hasProcessedInitialLineItemsRef.current = true;
       lastProcessedLineItemsRef.current = lineItemsKey;
 
       const transformedLineItems = dedupedInitialLineItems.map((item: any, index: number) => {
-        console.log(`[RadioContainer] Processing item ${index}:`, {
-          market: item.market,
-          network: item.network,
-          station: item.station,
-          buy_type: item.buy_type,
-          bursts: item.bursts,
-          bursts_type: typeof item.bursts,
-          bursts_json: item.bursts_json,
-          bursts_json_type: typeof item.bursts_json,
-        });
 
         const parsedBursts = resolveLineItemBursts(item);
 
@@ -645,14 +634,12 @@ export default function RadioContainer({
         };
       });
 
-      console.log("[RadioContainer] Transformed line items:", transformedLineItems);
 
       form.reset({
         radiolineItems: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       });
       setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
-      }
     },
     radioExpertModalOpenRef,
   )
@@ -1270,7 +1257,7 @@ useEffect(() => {
                         <div className="border-b px-6 py-2">
                           <div className="grid grid-cols-4 gap-4 text-sm">
                             <div>
-                              <span className="font-medium">Netowrk:</span>{" "}
+                              <span className="font-medium">Network:</span>{" "}
                               {form.watch(`radiolineItems.${lineItemIndex}.network`) ||
                                 "Not selected"}
                             </div>

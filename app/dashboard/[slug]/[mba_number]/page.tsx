@@ -28,11 +28,6 @@ interface CampaignDetailPageProps {
   }>
 }
 
-const DEBUG_LINE_ITEMS = process.env.NEXT_PUBLIC_DEBUG_LINEITEMS === "true"
-const DEBUG_BRAND = process.env.NEXT_PUBLIC_DEBUG_BRAND === "true"
-const DEBUG_SPEND = process.env.NEXT_PUBLIC_DEBUG_SPEND === "true"
-const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
-
 function isTruthyFlag(value: unknown): boolean {
   if (value === true) return true
   if (value === 1) return true
@@ -330,15 +325,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   }
 
   // Log for debugging
-  console.log("[dashboard/[slug]/[mba_number]] Tenant safety check", {
-    email: user.email,
-    role,
-    requestedSlug: slug,
-    requestedMba: mba_number,
-    userClientSlug,
-    userClientSlugs,
-    app_metadata: user['app_metadata'],
-  })
 
   // Enforce tenant safety: client users can only access their own slugs
   if (role === "client") {
@@ -452,12 +438,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     versionRecordId,
   })
   const lineItemsMap = (campaignData?.lineItems ?? {}) as Record<string, any[]>
-  if (DEBUG_LINE_ITEMS) {
-    console.log("[DATA LOAD] campaign data version info", {
-      mba_number: campaignVersion?.mba_number ?? campaign?.mba_number ?? mba_number,
-      version_number: versionNumber ?? null,
-    })
-  }
   const metrics = campaignData.metrics || {}
   const billingSchedule = campaignData.billingSchedule
   const deliverySchedule = campaignData.deliverySchedule || []
@@ -604,34 +584,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   )
   
   // DEBUG logging
-  if (DEBUG_PACING) {
-    const sampleIds = deliveryLineItemIds.slice(0, 5)
-    console.log("[PACING DEBUG] Media types and line items", {
-      keysUsed: {
-        social: socialKeyUsed,
-        search: searchKeyUsed,
-        progDisplay: progDisplayKeyUsed,
-        progVideo: progVideoKeyUsed,
-        progOoh: progOohKeyUsed,
-      },
-      resolvedRunningMediaTypes: runningMediaTypes,
-      normalizedRunningTypes,
-      isSocialRunning,
-      isProgrammaticDisplayRunning,
-      isProgrammaticVideoRunning,
-      isProgrammaticOohRunning,
-      lineItemCounts: {
-        social: { total: socialItems.length, running: socialItemsRunning.length, active: socialItemsActive.length },
-        search: { total: searchItems.length, allKeys: searchItemsAllKeys.length, active: searchItemsActive.length },
-        progDisplay: { total: progDisplayItems.length, running: progDisplayItemsRunning.length, active: progDisplayItemsActive.length },
-        progVideo: { total: progVideoItems.length, running: progVideoItemsRunning.length, active: progVideoItemsActive.length },
-        progOoh: { total: progOohItems.length, running: progOohItemsRunning.length, active: progOohItemsActive.length },
-      },
-      deliveryLineItemIdsCount: deliveryLineItemIds.length,
-      sampleLineItemIds: sampleIds,
-      searchLineItemIdsCount: searchLineItemIds.length,
-    })
-  }
   const debugLineItemCounts = Object.entries(lineItemsMap).map(
     ([key, value]) => `${key}: ${Array.isArray(value) ? value.length : 0}`
   )
@@ -732,16 +684,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     campaignBudget: budget,
   })
 
-  if (DEBUG_SPEND) {
-    console.log("[Spend Debug] spend resolution", {
-      actualSpend,
-      deliverySpendToDatePlanned: deliverySpendToDate,
-      metricsActualSpendToDate: metrics.actualSpendToDate,
-      expectedSpend,
-      totalPlannedMonthlySpend,
-      metricsExpectedSpendToDate: metrics.expectedSpendToDate,
-    })
-  }
 
   const pacingSectionStartISO =
     effectiveStartISO ?? campaignStartISO ?? toISODateOnlySafe(startDate)
@@ -767,9 +709,6 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     },
   })
 
-  if (DEBUG_BRAND) {
-    console.log("[Brand Debug] client brand colour ignored; dashboard uses design-system tokens")
-  }
 
   const showDeliverySection =
     shouldUseDeliveryWrapper ||

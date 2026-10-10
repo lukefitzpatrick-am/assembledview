@@ -227,36 +227,11 @@ function MediaPlansPageInner() {
         setListMayBeStale(warning === "served-stale-after-upstream-failure")
         setListFetchedAt(Number.isFinite(fetchedAtMs) ? fetchedAtMs : null)
         const data = await response.json();
-        console.log("Fetched media plans data:", data);
   
         // Handle both MediaPlanMaster and MediaPlanVersions data structures
         const mediaPlansData = Array.isArray(data) ? data : [data];
-        console.log("Processed media plans data:", mediaPlansData);
         
         // Debug: Log media type flags for first plan
-        if (mediaPlansData.length > 0) {
-          console.log("First plan media type flags:", {
-            mp_television: mediaPlansData[0].mp_television,
-            mp_radio: mediaPlansData[0].mp_radio,
-            mp_newspaper: mediaPlansData[0].mp_newspaper,
-            mp_magazines: mediaPlansData[0].mp_magazines,
-            mp_ooh: mediaPlansData[0].mp_ooh,
-            mp_cinema: mediaPlansData[0].mp_cinema,
-            mp_digidisplay: mediaPlansData[0].mp_digidisplay,
-            mp_digiaudio: mediaPlansData[0].mp_digiaudio,
-            mp_digivideo: mediaPlansData[0].mp_digivideo,
-            mp_bvod: mediaPlansData[0].mp_bvod,
-            mp_integration: mediaPlansData[0].mp_integration,
-            mp_search: mediaPlansData[0].mp_search,
-            mp_socialmedia: mediaPlansData[0].mp_socialmedia,
-            mp_progdisplay: mediaPlansData[0].mp_progdisplay,
-            mp_progvideo: mediaPlansData[0].mp_progvideo,
-            mp_progbvod: mediaPlansData[0].mp_progbvod,
-            mp_progaudio: mediaPlansData[0].mp_progaudio,
-            mp_progooh: mediaPlansData[0].mp_progooh,
-            mp_influencers: mediaPlansData[0].mp_influencers,
-          });
-        }
 
         // Helper function to normalize boolean values from API
         const normalizeBoolean = (value: any): boolean => {

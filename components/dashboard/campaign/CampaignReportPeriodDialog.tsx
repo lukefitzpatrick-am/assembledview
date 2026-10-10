@@ -132,8 +132,7 @@ export function CampaignReportPeriodDialog({
         <DialogHeader>
           <DialogTitle>Review and report</DialogTitle>
           <DialogDescription>
-            Choose the reporting period for MBA {mbaNumber}. Admin only. Commentary on the
-            deck is a placeholder until the insight skill is wired.
+            Choose the reporting period for MBA {mbaNumber}. AVA writes the commentary. Admin only.
           </DialogDescription>
         </DialogHeader>
 

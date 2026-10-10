@@ -51,6 +51,19 @@ export default [
     },
   },
   {
+    files: ["app/**/*.{js,jsx,ts,tsx}", "components/**/*.{js,jsx,ts,tsx}"],
+    ignores: [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.test.js",
+      "**/*.test.jsx",
+      "**/__tests__/**",
+    ],
+    rules: {
+      "no-console": ["error", { allow: ["warn", "error"] }],
+    },
+  },
+  {
     files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
     // DS-2 baseline: existing colour debt, cleared in DS-5 and DS-8. Do not add to this list.
     ignores: [

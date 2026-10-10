@@ -115,17 +115,6 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json(data)
     response.headers.set("Cache-Control", "no-store, max-age=0")
 
-    if (process.env.NODE_ENV !== "production") {
-      console.info("[api/pacing/search] done", {
-        requestId,
-        startDate: body?.startDate ?? null,
-        endDate: body?.endDate ?? null,
-        lineItemIdsCount: parseableLineItemIds.length,
-        skippedUnparseable: unparseableLineItemIds.length,
-        daily: Array.isArray(data?.daily) ? data.daily.length : 0,
-        ms: Date.now() - t0,
-      })
-    }
 
     return response
   } catch (err) {

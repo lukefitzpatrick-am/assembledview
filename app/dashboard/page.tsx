@@ -20,13 +20,6 @@ export default async function DashboardPage() {
   const isAdmin = roles.includes("admin")
 
   // Log for debugging
-  console.log("[dashboard] User access check", {
-    email: user.email,
-    roles,
-    clientSlug,
-    isClient,
-    isAdmin,
-  })
 
   // Client users must be redirected to their client dashboard
   if (isClient) {
@@ -44,27 +37,15 @@ export default async function DashboardPage() {
     
     // If primary_mba_number exists, redirect to that campaign
     if (primaryMba) {
-      console.log("[dashboard] Redirecting client to primary MBA", {
-        clientSlug,
-        primaryMba,
-      })
       redirect(`/dashboard/${clientSlug}/${primaryMba}`)
     }
     
     // If only one MBA is assigned, redirect to that campaign
     if (mbaNumbers.length === 1) {
-      console.log("[dashboard] Redirecting client to single MBA", {
-        clientSlug,
-        mbaNumber: mbaNumbers[0],
-      })
       redirect(`/dashboard/${clientSlug}/${mbaNumbers[0]}`)
     }
 
     // Otherwise redirect to client dashboard
-    console.log("[dashboard] Redirecting client to client dashboard", {
-      clientSlug,
-      mbaCount: mbaNumbers.length,
-    })
     redirect(`/dashboard/${clientSlug}`)
   }
 
@@ -78,6 +59,5 @@ export default async function DashboardPage() {
   }
 
   // Admin access granted
-  console.log("[dashboard] Admin access granted to global dashboard")
   return <DashboardOverview returnTo="/dashboard" />
 }

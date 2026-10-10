@@ -470,8 +470,9 @@ export default function IntegrationContainer({
       })));
 
       if (hasProcessedInitialLineItemsRef.current && lastProcessedLineItemsRef.current === lineItemsKey) {
-        console.log("[IntegrationContainer] Skipping duplicate initialLineItems load");
-      } else {
+        return
+      }
+
       hasProcessedInitialLineItemsRef.current = true;
       lastProcessedLineItemsRef.current = lineItemsKey;
 
@@ -524,7 +525,6 @@ export default function IntegrationContainer({
         overallDeliverables: 0,
       });
       setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
-      }
     },
     integrationExpertModalOpenRef,
   )

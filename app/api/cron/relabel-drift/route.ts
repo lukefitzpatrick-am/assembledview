@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { getAsOfDate } from "@/lib/pacing/maths"
 import { runRelabelDriftCheck } from "@/lib/pacing/relabel/listRelabelDrift"
+import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
       durationMs: snapshot.durationMs,
       generatedAt: snapshot.generatedAt,
     }
-    console.log(JSON.stringify({ event: "relabel_drift_check", ...summary }))
+    logJob(JSON.stringify({ event: "relabel_drift_check", ...summary }))
     return NextResponse.json(summary)
   } catch (err) {
     console.error("[cron/relabel-drift] fatal", err)

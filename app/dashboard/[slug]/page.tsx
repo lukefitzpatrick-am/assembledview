@@ -40,14 +40,6 @@ export default async function ClientDashboard({ params, searchParams }: ClientDa
     redirect(`/auth/login?returnTo=/dashboard/${slug}`)
   }
 
-  console.log('[dashboard/[slug]] Tenant safety check', {
-    email: user.email,
-    role,
-    requestedSlug: slug,
-    userClientSlug,
-    userClientSlugs,
-    app_metadata: user['app_metadata'],
-  })
 
   if (role === 'client') {
     if (userClientSlugs.length === 0) {

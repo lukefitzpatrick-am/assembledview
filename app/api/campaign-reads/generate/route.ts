@@ -7,6 +7,7 @@ import {
 } from "@/lib/campaign-read/generate"
 import { CampaignReadError } from "@/lib/campaign-read/repo"
 import { requireAdmin } from "@/lib/requireRole"
+import { logJob } from "@/lib/log"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
       generatedByEmail: email,
     })
     after(async () => {
-      console.log("[campaign-read] generate job start", {
+      logJob("[campaign-read] generate job start", {
         id: item.id,
         mba: mbaNumber,
         version: versionNumber,
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.error("[campaign-read] generate job failed", err)
       } finally {
-        console.log("[campaign-read] generate job end", {
+        logJob("[campaign-read] generate job end", {
           id: item.id,
           mba: mbaNumber,
           version: versionNumber,

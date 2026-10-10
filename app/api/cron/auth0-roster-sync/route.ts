@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { runAuth0RosterSync } from "@/lib/codex/auth0RosterSync"
+import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
 
   try {
     const result = await runAuth0RosterSync()
-    console.log(JSON.stringify({ event: "auth0_roster_sync", ...result }))
+    logJob(JSON.stringify({ event: "auth0_roster_sync", ...result }))
     const status =
       result.status === "ok" ? 200 : result.status === "not_configured" ? 200 : 500
     return NextResponse.json(result, { status })

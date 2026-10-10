@@ -63,7 +63,6 @@ function buildDateRange(startDate?: string, endDate?: string) {
 }
 
 export async function POST(request: NextRequest) {
-  console.log("[PACING ROUTE HIT] social/meta", { time: new Date().toISOString() })
   const requestId = crypto.randomUUID()
   try {
     const ac = new AbortController()
@@ -110,12 +109,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    console.log("[api/pacing/social/meta][" + requestId + "] start", {
-      mbaNumber,
-      startDate: start,
-      endDate: end,
-      lineItemIdsCount: lineItemIds?.length ?? 0,
-    })
 
     const cacheKey = buildPacingCacheKey({
       scope: "pacing:meta-social",
@@ -134,7 +127,6 @@ export async function POST(request: NextRequest) {
         endDate: end,
       }, { requestId, signal: ac.signal })
       const elapsedMs = Date.now() - t0
-      console.log("[api/pacing/social/meta][" + requestId + "] snowflake_ms", elapsedMs)
 
       // TEMPORARY DEBUG: Calculate max date and synced timestamp from results
       const dateDays = rows.map((r) => r.DATE_DAY).filter(Boolean)
@@ -156,20 +148,6 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      if (DEBUG) {
-        console.info("[api/pacing/social/meta] rows", {
-          mbaNumber,
-          startDate: start,
-          endDate: end,
-          lineItemIds,
-          rowCount: rows.length,
-          elapsedMs,
-          maxDateDay,
-          maxSyncedAt,
-          serverTimestamp,
-          hitRowLimit,
-        })
-      }
       if (elapsedMs > 5000) {
         console.warn("[api/pacing/social/meta] slow query", {
           mbaNumber,

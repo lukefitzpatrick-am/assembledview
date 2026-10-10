@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { runMyHoursSyncToPostgres } from "@/lib/myhours/runSync"
+import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
 
   try {
     const result = await runMyHoursSyncToPostgres()
-    console.log(
+    logJob(
       JSON.stringify({
         event: "myhours_sync",
         status: result.status,

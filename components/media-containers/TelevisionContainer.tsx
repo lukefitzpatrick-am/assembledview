@@ -554,11 +554,9 @@ export default function TelevisionContainer({
       
       // Skip if we've already processed these exact line items
       if (hasProcessedInitialLineItemsRef.current && lastProcessedLineItemsRef.current === lineItemsKey) {
-        console.log("[TelevisionContainer] Skipping duplicate initialLineItems load");
         return;
       }
       
-      console.log("[TelevisionContainer] Loading initialLineItems:", initialLineItems);
       
       // Mark as processed and store the key
       hasProcessedInitialLineItemsRef.current = true;
@@ -566,16 +564,6 @@ export default function TelevisionContainer({
       
       const transformedLineItems = items.map((item: any, index: number) => {
         // Log each item for debugging
-        console.log(`[TelevisionContainer] Processing item ${index}:`, {
-          market: item.market,
-          network: item.network,
-          station: item.station,
-          daypart: item.daypart,
-          placement: item.placement,
-          buy_type: item.buy_type,
-          bursts_json: item.bursts_json,
-          bursts_json_type: typeof item.bursts_json,
-        });
 
         const parsedBursts = resolveLineItemBursts(item);
 
@@ -650,7 +638,6 @@ export default function TelevisionContainer({
         };
       });
 
-      console.log("[TelevisionContainer] Transformed line items:", transformedLineItems);
 
       form.reset({
         televisionlineItems: stampBurstReactKeys(transformedLineItems),

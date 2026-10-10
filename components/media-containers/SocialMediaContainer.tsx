@@ -508,17 +508,9 @@ export default function SocialMediaContainer({
   useStableHydration(
     initialLineItems,
     (items) => {
-      console.log("[SocialMediaContainer] Loading initialLineItems:", items);
       
       const transformedLineItems = items.map((item: any, index: number) => {
         // Log each item for debugging
-        console.log(`[SocialMediaContainer] Processing item ${index}:`, {
-          platform: item.platform,
-          bid_strategy: item.bid_strategy,
-          buy_type: item.buy_type,
-          bursts_json: item.bursts_json,
-          bursts_json_type: typeof item.bursts_json,
-        });
 
         const parsedBursts = resolveLineItemBursts(item);
 
@@ -561,7 +553,6 @@ export default function SocialMediaContainer({
         };
       });
 
-      console.log("[SocialMediaContainer] Transformed line items:", transformedLineItems);
 
       form.reset({
         lineItems: stampBurstReactKeys(transformedLineItems),

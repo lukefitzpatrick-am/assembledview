@@ -573,16 +573,8 @@ export default function BVODContainer({
   useStableHydration(
     initialLineItems,
     (items) => {
-      console.log("[BVODContainer] Loading initialLineItems:", initialLineItems);
       
       const transformedLineItems = items.map((item: any, index: number) => {
-        console.log(`[BVODContainer] Processing item ${index}:`, {
-          site: item.site,
-          placement: item.placement,
-          buy_type: item.buy_type,
-          bursts_json: item.bursts_json,
-          bursts_json_type: typeof item.bursts_json,
-        });
 
         const parsedBursts = resolveLineItemBursts(item);
 
@@ -631,7 +623,6 @@ export default function BVODContainer({
         };
       });
 
-      console.log("[BVODContainer] Transformed line items:", transformedLineItems);
 
       form.reset({
         bvodlineItems: transformedLineItems,

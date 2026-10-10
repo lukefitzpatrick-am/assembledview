@@ -109,9 +109,6 @@ export async function POST(request: NextRequest) {
   if ("error" in period) return badRequest(period.error)
 
   const ignored = IGNORED_BODY_FIELDS.filter((key) => body[key] != null && body[key] !== "")
-  if (ignored.length > 0) {
-    console.log("[export-report] deprecated body fields ignored", { mbaNumber, fields: ignored })
-  }
 
   const access = await checkClientMbaAccess(request, mbaNumber)
   if (!access.ok) return access.response
@@ -123,12 +120,6 @@ export async function POST(request: NextRequest) {
       period,
       store: false,
       withCommentary: true,
-    })
-    console.log("[export-report] timing", {
-      mbaNumber,
-      ms: Date.now() - started,
-      commentary: result.commentaryGenerated ? "written" : "null",
-      skipped: result.skipped ?? null,
     })
 
     if (result.skipped) {

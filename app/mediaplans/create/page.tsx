@@ -1252,15 +1252,6 @@ function CreateMediaPlan() {
         return
       }
 
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[KPI] rebuild fired", {
-          searchItemCount: searchItems.length,
-          publisherKPICount: publisherKPIs.length,
-          clientKPICount: clientKPIs.length,
-          savedKPICount: savedCampaignKPIs.length,
-          clientName: fv.mp_client_name,
-        })
-      }
 
       const resolved = resolveAllKPIs({
         mediaItemsByType: buildKpiLineItemsByMediaType({
@@ -1296,9 +1287,6 @@ function CreateMediaPlan() {
       })
       setKpiRows(mergeManualKpiOverrides(resolved, kpiRowsRef.current))
 
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[KPI] resolved rows", resolved.length, resolved.slice(0, 3))
-      }
     }, 600)
     return () => {
       if (kpiRebuildTimerRef.current) clearTimeout(kpiRebuildTimerRef.current)
@@ -3321,9 +3309,6 @@ function CreateMediaPlan() {
   useEffect(() => {
     getPublisherKPIs()
       .then((data) => {
-        if (process.env.NODE_ENV !== "production") {
-          console.log("[KPI] publisher KPIs loaded:", data.length, data[0])
-        }
         setPublisherKPIs(data)
         setKpiTrigger((t) => t + 1)
       })
@@ -5983,11 +5968,6 @@ function CreateMediaPlan() {
         return
       }
 
-      console.log("Form values for media plan version:", {
-        mp_client_name: clientName,
-        mba_number: fv.mba_number,
-        mp_plannumber: fv.mp_plannumber,
-      })
 
       /**
        * C1 preferred: MBA PUT omit-mode (server recomputes billing/delivery + inputs_hash).

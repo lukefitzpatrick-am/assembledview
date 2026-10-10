@@ -9,6 +9,7 @@ import {
   buildOpsHealthReport,
   buildOpsHealthSubject,
 } from "@/lib/ops/health/email"
+import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
         detail: r.detail.slice(0, 200),
       })),
     }
-    console.log(JSON.stringify(logLine))
+    logJob(JSON.stringify(logLine))
 
     return NextResponse.json({
       status: "ok",

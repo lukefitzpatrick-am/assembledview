@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { runFirefliesSyncToPostgres } from "@/lib/fireflies/runSync"
+import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
 
   try {
     const result = await runFirefliesSyncToPostgres()
-    console.log(
+    logJob(
       JSON.stringify({
         event: "fireflies_sync",
         status: result.status,

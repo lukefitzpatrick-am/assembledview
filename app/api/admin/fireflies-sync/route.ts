@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { requireAdmin } from "@/lib/requireRole"
 import { runFirefliesSyncToPostgres } from "@/lib/fireflies/runSync"
+import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await runFirefliesSyncToPostgres({ lookbackDays })
-    console.log(
+    logJob(
       JSON.stringify({
         event: "fireflies_sync_admin",
         status: result.status,

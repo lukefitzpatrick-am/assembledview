@@ -5,6 +5,7 @@ import {
   normaliseLineItemSnapshotSource,
   runLineItemSnapshotSync,
 } from "@/lib/snowflake/syncPgLineItems"
+import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
   const source = normaliseLineItemSnapshotSource(
     process.env.LINE_ITEM_SNAPSHOT_SOURCE
   )
-  console.log(
+  logJob(
     `[line-item-snapshot] Started at ${startedAt.toISOString()} source=${source}`
   )
 
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
     const durationMs = completedAt.getTime() - startedAt.getTime()
     const sync = result.sync
 
-    console.log(
+    logJob(
       `[line-item-snapshot] Completed in ${durationMs}ms write=${result.write_source}` +
         (sync
           ? `: ${sync.succeeded} succeeded, ${sync.failed} failed, ${sync.batches} batches, ${sync.duplicates_collapsed} duplicates_collapsed`
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
     }
 
     if (result.parity) {
-      console.log(
+      logJob(
         `[line-item-snapshot] parity summary: mismatches=${result.parity.mba_mismatches} row_delta_abs=${result.parity.row_delta_abs_sum} spend_delta_abs=${result.parity.spend_delta_abs_sum}`
       )
     }

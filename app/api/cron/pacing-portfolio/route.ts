@@ -4,6 +4,7 @@ import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { pacingScopeKey } from "@/lib/pacing/campaigns/pacingRowsCache"
 import { getAsOfDate } from "@/lib/pacing/maths"
 import { buildAndStorePortfolioSnapshot } from "@/lib/pacing/portfolio/buildAndStorePortfolioSnapshot"
+import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
       durationMs: snapshot.durationMs,
       generatedAt: snapshot.generatedAt,
     }
-    console.log(
+    logJob(
       JSON.stringify({
         event: "pacing_portfolio_stage",
         stage: "handler",
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
         rowCount: snapshot.rows.length,
       }),
     )
-    console.log(JSON.stringify({ event: "pacing_portfolio_snapshot", ...summary }))
+    logJob(JSON.stringify({ event: "pacing_portfolio_snapshot", ...summary }))
     return NextResponse.json(summary)
   } catch (err) {
     console.error("[cron/pacing-portfolio] fatal", err)
