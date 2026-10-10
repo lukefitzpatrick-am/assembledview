@@ -1339,3 +1339,746 @@ KNOWN-ISSUES has no row for these six migrations. The status lived in DATA-MODEL
 - Under 90%: none.
 - Morning smoke: none.
 
+# AV smoke fix pack (10 Oct 2026)
+
+Date: 2026-10-10. Started 13:20 Australia/Sydney (+11:00).
+Branch: localhost.
+HEAD: b8b9ac42d08fd3f79dfab87040a9931ae57eb1eb
+Node: v24.14.1
+
+Tracked tree was clean. Untracked discovery files only. Gate passed. Baseline follows. Fix nothing.
+
+## AV-S0 DONE (no commit)
+
+Pre-flight only. No product files changed. Nothing fixed.
+
+- `npm run typecheck` PASS, exit 0, about 21s.
+- `npm run lint` PASS, exit 0, about 47s. 38 warnings. The set is react-hooks/exhaustive-deps, unused eslint-disable directives, and the AppSidebar `<img>` warning. `next lint` also prints the Next.js 16 deprecation notice.
+- `npm run check:client-server-only` PASS, exit 0. 482 use-client seeds, 158 server-only modules, 1095 reachable, 4 webpackIgnore allowlist edges.
+- `npm run check:money-inline` PASS, exit 0. 115 files, 250 hits.
+- `npm run test:all` PASS, exit 0, about 559s. 124/124 suites.
+
+```
+suite                                 result  exit  ms
+test:billing-line-id-match            PASS       0      2237
+test:client-server-only               PASS       0      1505
+test:brand                            PASS       0       872
+test:status                           PASS       0       731
+test:media-families                   PASS       0       806
+test:charts-registry                  PASS       0      2699
+test:format-money                     PASS       0      1327
+test:planned-to-date                  PASS       0      2792
+test:client-dashboard-range           PASS       0      4079
+test:campaign-read                    PASS       0      4618
+test:ava-skills                       PASS       0     17786
+test:campaign-dashboard-range         PASS       0      6040
+test:delivery-ui                      PASS       0      2759
+test:search-delivery-tiles            PASS       0      1075
+test:social-delivery                  PASS       0      2291
+test:programmatic-delivery            PASS       0      1514
+test:solver                           PASS       0       831
+test:utm                              PASS       0       739
+test:weekly-gantt                     PASS       0      3303
+test:week-starts-on                   PASS       0      2176
+test:expert-mappings                  PASS       0      1881
+test:expert-goldens                   PASS       0      2104
+test:expert-paste                     PASS       0      1796
+test:expert-grid-selection            PASS       0      3721
+test:spreadsheet                      PASS       0       699
+test:finance-forecast                 PASS       0      2407
+test:retained-commission              PASS       0       733
+test:deliverable-budget               PASS       0       819
+test:editor-line-inputs               PASS       0      3023
+test:finance-filters                  PASS       0       920
+test:finance-derive                   PASS       0      5171
+test:billing-divergence               PASS       0      2219
+test:billing-seed-fees                PASS       0      1904
+test:billing-fee-drift                PASS       0      3556
+test:kpi-resolve                      PASS       0       810
+test:kpi-percent-units                PASS       0      1024
+test:kpi-writes                       PASS       0      1608
+test:money                            PASS       0      3876
+test:money-golden                     PASS       0      3915
+test:monthly-plan-calendar            PASS       0      1043
+test:kpi-review                       PASS       0      2564
+test:kpi-backfill                     PASS       0       849
+test:pacing-maths                     PASS       0       897
+test:pacing-portfolio                 PASS       0      5364
+test:pacing-channel                   PASS       0      3965
+test:pacing-detail                    PASS       0      4214
+test:pacing-scenario                  PASS       0      3564
+test:pacing-relabel                   PASS       0      7678
+test:pacing-plan-lines                PASS       0       912
+test:unmapped-placements              PASS       0       831
+test:partner-ingest                   PASS       0      2677
+test:ava-tools                        PASS       0      8297
+test:ava-chat-ui                      PASS       0      6072
+test:ava-autopopulate                 PASS       0      2182
+test:ava-detect-goldens               PASS       0      2379
+test:db-drift                         PASS       0       835
+test:forecast-targets                 PASS       0      3574
+test:write-kpi                        PASS       0      1507
+test:line-item-snapshot-parity        PASS       0      1668
+test:xero                             PASS       0      6502
+test:finance-periods-flag             PASS       0       829
+test:inline-schedule-amount           PASS       0      2918
+test:line-item-attrs                  PASS       0      1610
+test:shadow-diff                      PASS       0       842
+test:mba-plan-detail                  PASS       0      2312
+test:mba-number-alloc                 PASS       0      2182
+test:channel-line-item-routes         PASS       0      1080
+test:tenant-isolation                 PASS       0      4441
+test:match-text                       PASS       0      1012
+test:approvals                        PASS       0      4941
+test:write-clients                    PASS       0      1620
+test:write-reference                  PASS       0      1659
+test:mba-header-date                  PASS       0      5885
+test:mba-scope                        PASS       0      3747
+test:mba-media-breakdown              PASS       0      3147
+test:derive-approved-slice            PASS       0      2782
+test:live-mba-scope                   PASS       0       828
+test:mba-live-dates                   PASS       0      3903
+test:finance-schedule                 PASS       0      2887
+test:finance-sections                 PASS       0     14229
+test:approved-slice                   PASS       0      2258
+test:c1-fullscope-drift               PASS       0     23494
+test:save-plan                        PASS       0     67834
+test:write-billing-overrides          PASS       0     12390
+test:write-finance                    PASS       0     12198
+test:mb13-fee-override-publish        PASS       0     10082
+test:mb15c-published-immutable        PASS       0     15042
+test:vc2a-published-immutable         PASS       0     10331
+test:vc2b-working-draft               PASS       0     19028
+test:dirty-controller                 PASS       0      2320
+test:write-media-plan-masters         PASS       0      6106
+test:xano-mirror                      PASS       0      1007
+test:campaign-documents               PASS       0      9282
+test:media-plan-excel                 PASS       0      3220
+test:campaign-row-actions             PASS       0      2951
+test:postgres-save-mode               PASS       0      4793
+test:session-expiry                   PASS       0      4044
+test:plan-drafts                      PASS       0      5979
+test:codex-flag-auth                  PASS       0      3097
+test:codex-stage0-guarantees          PASS       0     10521
+test:codex-stage1-detail              PASS       0     13000
+test:codex-task-detail-ui             PASS       0      2066
+test:codex-stage1-scope               PASS       0     11645
+test:codex-stage1-templates           PASS       0     12250
+test:codex-auth0-roster               PASS       0       902
+test:dashboard-vc15-tip               PASS       0      1011
+test:clients-fail-soft                PASS       0       760
+test:m365-site-url                    PASS       0       725
+test:m365-graph                       PASS       0       749
+test:m365-reconciliation              PASS       0       749
+test:myhours                          PASS       0      1295
+test:fireflies                        PASS       0      4421
+test:performance-report-insights      PASS       0      1758
+test:insights-library                 PASS       0      2449
+test:empty-channel-defaults           PASS       0       773
+test:line-item-panels                 PASS       0       982
+test:line-item-panel-flights          PASS       0      1838
+test:publisher-profiles               PASS       0      2175
+test:ingest-propose                   PASS       0      2815
+test:ingest-review                    PASS       0     22615
+test:ingest-eval                      PASS       0      3989
+test:ooh-expert-gate                  PASS       0       784
+test:ooh-standard-bench               PASS       0      1905
+test:specs                            PASS       0      2808
+```
+
+Morning smoke: this baseline is 124/124 on HEAD `b8b9ac42`. A later suite failure is new against this run.
+
+## This pack, in order
+
+AV-S0, AV-S1, AV-S2, AV-S3, AV-S4, AV-S5, AV-S6, AV-S7, AV-S8, AV-S9, AV-S10, AV-S11, AV-S12, AV-S13, AV-S14, AV-S15, AV-S16, AV-S17, AV-S18, AV-SZ.
+
+## AV-S1 DONE 6da479b7
+
+Draft documents accept a client address whose fields are null. The Create page stores those fields as empty strings, the same way Edit does. The MBA PDF prints only the non-empty address parts. Postcode `0` is not printed. A lone `NSW` with no street, suburb, or postcode is the add-client default and is not printed. A full address is still the street line, then `suburb, state postcode`.
+
+The route test's latin1 scan for the draft stamp fails on the previous `generateMBA` as well. Custom fonts are not WinAnsi (`pdfText.ts`). That assertion now uses `pdfText`, and it still requires `DRAFT - NOT FOR CLIENT`.
+
+- Files: lib/docs/draftDocumentsBody.ts, lib/docs/mbaClientAddress.ts, lib/docs/__tests__/mbaClientAddress.test.ts, lib/generateMBA.ts, app/mediaplans/create/page.tsx, app/api/mediaplans/draft-documents/__tests__/draft-documents.route.test.ts, docs/brain/INVARIANTS.md, docs/brain/modules/media-plans.md, docs/brain/modules/dashboards-charts-exports.md, docs/brain/BLAST-RADIUS.md.
+- Tests: typecheck 0, lint 0 (same warning set), check:money-inline pass (115 files, 250 hits), draft-documents route + render + address formatter 12 pass, test:media-plan-excel 17 pass, test:mba-header-date 13 pass, test:mba-scope 8 pass, test:mba-live-dates 21 pass. No `__tests__` file names `buildMbaDataFromFinancials`.
+- Under 90%: `NSW` is treated as the default state only when it is the only remaining part. A stored NSW with a street, suburb, or real postcode still prints. A client whose only real address is the state NSW would print nothing.
+- Morning smoke: Create a campaign for Krusty Krab. Download draft MBA and Download draft Media Plan. Both download. The MBA has no `, NSW 0` line.
+
+## AV-S2 DONE 431483b0
+
+Edit bar map, dirty published tip. Each desktop button calls its own prop. The bar test passes: clicking Published Media Plan (v1) calls `onDownloadMediaPlan` and does not call `onDraftMediaPlan`.
+
+| Button | Edit handler |
+|---|---|
+| Draft MBA | `onDraftMba` → `handleDraftMba` → `postDraftDocuments` `mba_pdf` |
+| Draft Media Plan | `onDraftMediaPlan` → `handleDraftMediaPlan` → `postDraftDocuments` `media_plan` |
+| Draft Media Plan (AA) | `onDraftAa` → `handleDraftAa` → `postDraftDocuments` `aa_media_plan` |
+| Published MBA (vN) | `onPublishMba` → `handleGenerateMBA` → `POST /api/mba/generate` with `liveScope: true` |
+| Published Media Plan (vN) | `onDownloadMediaPlan` → `handleDownloadMediaPlan()` |
+| Published Media Plan (AA) (vN) | `onDownloadAa` → `handleDownloadAdvertisingAssociatesMediaPlan` |
+
+The bug was inside `handleDownloadMediaPlan`, not the button. While the form was dirty it called `handleDraftMediaPlan`, which posts the live form and stamps DRAFT. It now calls `downloadStoredPlanFile({ versionId: publishedVersionId, kind: "media_plan" })` whenever the plan is published. Unpublished still falls through to the draft handler. A 422 `NotApprovedError` still falls through to the draft handler. Draft handlers are unchanged.
+
+- Files: app/mediaplans/mba/[mba_number]/edit/page.tsx, components/mediaplans/__tests__/PlanWizardBottomBar.test.tsx, lib/mediaplan/__tests__/planWizardSaveBar.test.ts, docs/brain/modules/media-plans.md.
+- Tests: typecheck 0, lint 0 (same warning set), PlanWizardBottomBar 7 pass, planWizardSaveBar 35 pass, test:media-plan-excel 17 pass, test:plan-drafts pass (59 + 12 + 69, 6 skipped).
+- Under 90%: Create's `handleDownloadMediaPlan` still serves the draft when the form is dirty. Edit Published MBA (vN) still posts `/api/mba/generate` with live scope. Edit Published Media Plan (AA) still serves the draft when dirty.
+- Morning smoke: Open krusty002 in Edit and change a budget without saving. Click Published Media Plan (v2). The file has no DRAFT stamp and matches v2.
+
+## AV-S3 DONE (no commit)
+
+Discovery only. Findings in `docs/superpowers/overnight-av-fixes/discovery/AV-S3-create-server-draft.md`. No product code.
+
+Create Save draft stays disabled because `plan_working_drafts.master_id` is required and unique with `user_id`. The browser store is IndexedDB `av-plan-drafts`, keyed `mba:{PREVIEW MBA}::{userId}` while there is no master. Two tabs for one client share that key because `GET /api/mediaplans/mbanumber` does not reserve the number. Autosave is about 3 seconds and last write wins, which is the stale restore. A server draft without an MBA reservation needs a new table (option A). Option B must insert master and version in one transaction; `POST /api/mediaplans` alone is the penfold024 writer. Option C stops the two-tab clash and does not put the plan on the server.
+
+- Checks: none. Docs only.
+- Morning smoke: do not implement until Luke picks A, B, or C. Do not insert a `media_plan_masters` row without a version.
+
+## AV-S4 DONE e4cf6c20
+
+Workbook Service Fee and Ad Serving months were a raw media-share ratio, so krusty002 showed 1333.332857 and 26.666657. They now go through `allocateLineAcrossMonths`: each month except the last is `toCents` half-up, and the last month is the residue so the months sum to the line. Cell values are cents / 100. The Total row month is the cent sum of media, production, fee and ad serving.
+
+krusty002 v1: fee 3000 over 18666.66 / 23333.34 is 1333.33 / 1666.67; ad serving 60 is 26.67 / 33.33; month totals are 20026.66 / 25033.34.
+
+- Files: lib/docs/allocateLineAcrossMonths.ts, lib/docs/__tests__/allocateLineAcrossMonths.test.ts, lib/generateMediaPlan.ts, package.json, docs/brain/INVARIANTS.md, docs/brain/BLAST-RADIUS.md, docs/brain/modules/dashboards-charts-exports.md.
+- Tests: typecheck 0, lint 0 (same warning set), test:money 90 pass (1 todo), test:money-golden 55 pass (1 todo), test:media-plan-excel 19 pass, check:money-inline ok (115 files, 250 hits).
+- Morning smoke: Download krusty002's media plan. Fee by month shows 2 decimals, and the month totals equal the MBA billing schedule.
+
+## AV-S5 DONE 99ba01e4
+
+Published media plans now include the Campaign KPIs sheet. `renderPlanVersionDocuments` loads rows through `publishedKpiSheetRows` (persisted lines plus campaign, client and publisher KPI rates) and passes them into `buildMediaPlanWorkbook`. An empty resolve still leaves a one-sheet workbook. AA still skips the KPI sheet.
+
+KPI Grand Total leaves Deliverables blank. Spend, Est. Clicks, Est. Views and Est. Reach still total. Channel subtotals still sum deliverables. Column B is the publisher display name when `publisherid` matches; otherwise the raw value stays. Campaign Status is sentence case. Plan Version is a number. Each sheet is landscape, fit to 1 page wide. The Media Plan repeats rows 1:8. Campaign KPIs repeats row 1.
+
+Download names come from `planDocumentFileName`. Published: `<Client> - <Campaign> - Media Plan - v<N>.xlsx` and `... - MBA - v<N>.pdf`. Draft: `DRAFT - <Client> - <Campaign> - Media Plan - not for client.xlsx` and the MBA twin. AA uses `Media Plan (AA)` so it does not collide with the standard plan. A partial MBA adds ` partial` before `.pdf`. Windows-illegal characters are stripped. Stored blob names such as `Glendale_MediaPlan_v6.xlsx` are unchanged.
+
+- Files: lib/docs/planDocumentFileName.ts, lib/docs/publishedKpiSheetRows.ts, lib/docs/mediaPlanWorkbook.ts, lib/docs/mbaScope.ts, lib/docs/renderDraftDocuments.ts, lib/docs/renderPlanVersionDocuments.ts, lib/generateMediaPlan.ts, app/mediaplans/create/page.tsx, app/mediaplans/mba/[mba_number]/edit/page.tsx, package.json, the matching tests, docs/brain/INVARIANTS.md, docs/brain/BLAST-RADIUS.md, docs/brain/modules/dashboards-charts-exports.md.
+- Tests: typecheck 0, lint 0 (same warning set), test:media-plan-excel 22 pass, test:expert-goldens 9 pass, test:plan-drafts pass (59 + 12 + 69, 6 skipped).
+- Morning smoke: Download krusty002's published and draft media plans. Both have 2 sheets. The names follow the new pattern. Print preview fits one page wide.
+
+## AV-S6 DONE 55cf1a9f
+
+`loadLastPulledAt` still reads only manual `pull-xero` rows. `loadLastNightlySyncAt` reads the latest `xero_sync_log.run_finished_at` where `stage = 'invoices'`, `status = 'success'`, and `sqlCronWatermarkLogWhere` excludes manual pulls. The draft-match payload returns both. In Xero shows `Xero synced <d MMM, h:mm am> · Last manual pull <d MMM, h:mm am | none>` in Melbourne time. A missing nightly sync reads `never`.
+
+- Files: lib/finance/sections/draftMatchQuery.ts, lib/finance/sections/draftMatch.ts, lib/finance/sections/__tests__/draftMatchHonesty.test.ts, components/finance/sections/inXero/InXeroPageClient.tsx, docs/brain/modules/finance-billing.md.
+- Tests: typecheck 0, lint 0 (same warning set), draftMatch + draftMatchHonesty 18 pass, check:client-server-only OK.
+- Morning smoke: /finance/in-xero shows today's invoices sync time (00:15 UTC is 10:15 am Melbourne). A manual pull, if none, reads `none`.
+
+## AV-S7 DONE (no commit)
+
+Discovery only. Findings in `docs/superpowers/overnight-av-fixes/discovery/AV-S7-investment-fee.md`. No product code.
+
+Investment `fee_cents` is `SUM(schedule_months.amount_cents)` where `component = 'fee'` on the published version. It is not a publisher column. Broadcast / Nine $126,371.00 / $0.00 is three radio plans: hartm015 and glenda008 have no Jul–Oct fee in the billing schedule either; CHALLEN005's $2,750.64 sits on a YouTube line, not on Nine. PGAAUS015 July matches To bill: media $3,439.00 and fee $859.75 on `PGAAUS015SM3` (Social / Meta). The caption's "Other" is the fee because the fee line has no media type. Social / Meta in the same window is $57,262.80 fee, so fee is not $0 on every row.
+
+A separate drop: 28 version-months have a blob `feeTotal` ($27,619.57) and no schedule fee row, because `explodeScheduleToMonthRows` writes `__service__fees` only when the month has no line items. Smallest fix is that condition. The fee then stays on the existing campaign-totals row. Do not allocate it onto publishers. Published versions need a re-explode before the page changes.
+
+- Checks: none. Docs only. Read-only SQL against published `schedule_months` and `legacy_schedules`.
+- Morning smoke: on the Investment cut, Social / Meta should show a fee; Broadcast / Nine stays $0 until a later fix. Do not expect Nine to gain a fee from the explode condition alone.
+
+## AV-S8 DONE (no commit)
+
+Discovery only. Findings in `docs/superpowers/overnight-av-fixes/discovery/AV-S8-pacing-scope.md`. No product code.
+
+Spend delivered % is spend / expected-to-date. The adjacent dollars are spend of `mp_campaignbudget` (`campaign_budget_cents / 100`). A channel % is spend / (campaign expected × channel budget / contributing budgets). Ad-serving rows are forced to $0 / $0 and use delivered units against time. Thresholds are 90 and 110. `no_adserving`, `client_pays_for_media`, bonus, and package inclusions are not filtered out of budget or expected. `fixed_cost_media` is deferred onto `FIXED_COST_REPORTED_DAILY_FACT`. ATL with no composer row stays inside the card budget and the expected and adds no spend.
+
+Worked from `pacing_portfolio_snapshots`: buxton004 $25,000 of $122,185, channel 21.96% (card rounds to 22%) against expected $113,840.63; Home $147,777.62 is the current `campaign_budget_cents`. PENFOLD015 $36,405 of $418,878 is 10.13% → 10%; Channel Factory $36,405 / $40,000 is 27.82% → 28%; time 90% is the 10 Oct day count (80/89), on a partial snapshot that stored spend 0. golf025 $0 / $0 at 8% and 41% is the 10 Oct ad-serving rows. $36,887 / 51% and BICAU002's 93% are not in the snapshot table. BICAU002's Direct · Digital Video row on 7 Oct is $18,240 / $18,240 at 118% → 119%. KNOWN-ISSUES B-1 is the fixed build failure, not this pacing choice.
+
+- Checks: none. Docs only. Read-only SQL against `pacing_portfolio_snapshots`, `media_plan_masters`, `media_plan_versions`, `line_items`.
+- Morning smoke: do not treat the 10 Oct snapshot as the screen. It is a 16-campaign partial with spend 0. The last full snapshot is 7 Oct (33 / 21 / 3 / 30). A portfolio rebuild is what would show whether $36,887 and 93% were live that morning.
+
+## AV-S9 DONE (no commit)
+
+Discovery only. Findings in `docs/superpowers/overnight-av-fixes/discovery/AV-S9-expected-to-date.md`. No product code.
+
+BICAU002 has three expected figures because they are three calculations. Review & Report is live line media $102,402.10 × 71/86 = $84,541 (94.5% of $79,884). Pacing and AVA are the delivery-schedule media proration through 10 Oct = $85,729.39 (93.2% of $79,884.21). The campaign read's $60,051 is draft id 7 from 18 Sep, which matches all-in (media + fee + ad serving) through 18 Sep ($60,050.63). The live dashboard strip already uses the pacing resolver and is not that draft.
+
+"Timed out" is failed rows id 1 and id 2 from 17 Sep. `error_message` is the 10-minute stale flip. Their beats are still the placeholder. The list returns that failed row next to the newer draft, so the banner stays. Nothing retries. Regenerate is the only way to start again.
+
+The shared helper already exists: `resolveCampaignExpectedSpendToDate`, with `basis: "media"` and `monthlyOpts.asOfISO`. The report does not call it. AVA passes the as-of into the day count only.
+
+- Checks: none. Docs only. Read-only SQL against `media_plan_versions.legacy_schedules`, `line_items`, and `campaign_reads`.
+- Morning smoke: BICAU002's read will still say 18 Sep and Timed out until someone regenerates. Do not expect the deck's $84,541 and the pacing card's $85,729.39 to match until the report uses the monthly resolver.
+
+## AV-S10 DONE
+
+Commit `08574c1f` `fix(reports): deck share wording, no empty previous period, honest rate metrics`.
+
+A channel share now reads "<Channel> was <N>% of campaign spend." Campaign to date, and a custom range that starts on or before the flight, has no previous window, so the deck drops the Previous series, column and sentence. Planned impressions, clicks and views come from the line deliverable (buy type, or the burst calculated value), prorated when the window is shorter than the flight, and show "No plan" only when the plan has none. CPM, CPC, CTR and CPV use spend only from lines that report that delivery. The key-metrics footnote is "Rates exclude $X of spend with no reported impressions or clicks." and appears only when X is above zero. A KPI whose target is 0 or empty is hidden. "No delivery feed" is "No data yet". Deck dates are "10 Oct 2026". The download name is `{client}-{campaign}-report-{period}.pptx`: `campaign-to-date-{yyyy-mm-dd}`, `{yyyy-mm}` for a calendar month, `{start}-to-{end}` for a custom range. The period dialog was left for AV-S12. The report's expected-to-date formula is unchanged.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). campaignReport tests 37 pass. test:money 90 pass, 1 todo. check:money-inline ok (115 files, 250 hits).
+- Morning smoke: Run Review & Report on BICAU002 for campaign to date. There should be no Previous. CPM should exclude Digital Video, with a footnote for that spend. The cover date should be 10 Oct 2026. The file name should end in `campaign-to-date-2026-10-10.pptx`. The deck's expected figure is still the flat flight share, not the pacing card's monthly figure.
+
+## AV-S11 DONE 427e16a9
+
+Commit `427e16a9` `fix(dashboard): client header and tile share one expected value`.
+
+The header and the expected-media tile already took `plannedToDate` from one `computePlannedSpendTotals` call. The tile did not show that number. `useCountUp` starts at 0 when reduced motion is off, and at the target when it is on. `useReducedMotion()` is null on the server, so the first paint of the tile was $0 while the header printed the real figure. A reduced-motion client initialises to the full target, then the animation writes `target * eased` and the first frames read as $0. There is no second expected-media fetch. The Delivered fetch does not feed this tile. Both surfaces now share one skeleton until that same `plannedToDate` is committed, then both print it. The expected-media tile no longer counts up.
+
+Spending insights exclude campaign status Planned on purpose. `isBookedApprovedCompleted` is booked, approved, or completed, and `plannedSpendConsistency` uses the same set. krusty002 and krusty003 stay out, so a Planned-only client can total $0. The caption now says "booked and live campaigns". Completed campaigns are still in the set. "Live" in the caption is that commercial set, not the Live pill.
+
+"Welcome back, {client}." is the title only when `viewerIsClient` is set. `/client/[slug]` passes false. `/dashboard/[slug]` passes true only for role `client`. Admin and staff see the client name, without a full stop.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). test:campaign-dashboard-range pass (72 + 31 + 5). test:client-dashboard-range pass (25 + 3 + 22). clientHeroExpected 3 pass. spendInsightsCaptions 3 pass.
+- Morning smoke: /client/krusty-krab header and tile show the same expected figure, with a skeleton first and no $500.0K then $0. No "Welcome back" for an admin. Spending insights can still total $0 while only Planned campaigns are published.
+
+## AV-S12 DONE 2c54da83
+
+Commit `2c54da83` `chore: remove debug logs, fix Network typo and report dialog copy`.
+
+There was no shared logger. Job-result `console.log` calls now go through `logJob` in `lib/log.ts`, which still writes `console.log` so Vercel stdout is unchanged. `eslint.config.mjs` sets `no-console` to error for `app/**` and `components/**`, allowing `warn` and `error` only. Tests are ignored. `console.error` and `console.warn` are unchanged. Pacing `DEBUG` flags that still gate a warning or a response field were left in place. Flags that only gated logs were removed (`DEBUG_SPEND` on expected-spend-to-date, and the four dashboard campaign-page flags).
+
+Radio and Integration already-processed hydration now returns before the work, instead of an empty then-branch. Skip behaviour is the same.
+
+`Netowrk` was only the Radio collapsed label. It now reads Network. No `Netwrok` hits.
+
+The period dialog reads "Choose the reporting period for MBA {mba}. AVA writes the commentary. Admin only."
+
+Removed `console.log` (101). The other 22 of the 123 were renamed to `logJob`, listed under kept.
+
+- app/api/campaigns/export-report/route.ts: 2
+- app/api/dashboard/[slug]/route.ts: 2
+- app/api/mediaplans/mba/[mba_number]/expected-spend-to-date/route.ts: 6
+- app/api/mediaplans/route.ts: 3
+- app/api/media_plans/route.ts: 1
+- app/api/pacing/bulk/route.ts: 2
+- app/api/pacing/programmatic/display/route.ts: 3
+- app/api/pacing/programmatic/video/route.ts: 3
+- app/api/pacing/social/meta/route.ts: 3
+- app/api/pacing/social/tiktok/route.ts: 3
+- app/dashboard/page.tsx: 5
+- app/dashboard/[slug]/page.tsx: 1
+- app/dashboard/[slug]/[mba_number]/page.tsx: 5
+- app/mediaplans/create/page.tsx: 4
+- app/mediaplans/mba/[mba_number]/edit/page.tsx: 31 (includes the two logs inside the billing-append helpers). Also removed 17 `billingAppendDebug` / `billingFeeSeedDebug` call sites and those helpers, which only logged.
+- app/mediaplans/page.tsx: 3
+- app/tools/behavioural-planner/components/ResultsPanel.tsx: 3
+- components/AddClientForm.tsx: 3
+- components/media-containers/BVODContainer.tsx: 3
+- components/media-containers/DigitalDisplayContainer.tsx: 3
+- components/media-containers/IntegrationContainer.tsx: 1
+- components/media-containers/RadioContainer.tsx: 4
+- components/media-containers/SocialMediaContainer.tsx: 3
+- components/media-containers/TelevisionContainer.tsx: 4
+
+Removed `console.info` (15), because the new rule forbids it: pacing bulk 6, programmatic display 1, programmatic video 1, search 1, meta 1, tiktok 1, edit page 1, behavioural planner client 2, TvSceneMockup 1.
+
+Removed `console.debug` (10): components/media-containers/ExpertGrid.tsx.
+
+Kept as `logJob` (22): admin auth0-roster-sync 1, admin fireflies-sync 1, campaign-reads generate 2, cron auth0-roster-sync 1, codex-recurring 1, creative-upload-digest 1, fireflies-sync 1, myhours-sync 1, ops-health 1, pacing-digest 4, pacing-portfolio 2, partner-ingest 1, relabel-drift 1, snapshot-checksum 1, xano-line-item-sync 3.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). test:all 124/124 suites passed.
+- Morning smoke: Open a plan in Edit with devtools open. There should be no `[RadioContainer]` logs.
+
+## AV-S13 DONE f562b984
+
+Commit `f562b984` `fix(ava): suggestion chips send their question`.
+
+The three chips on `/dashboard/bic/BICAU002` are `STARTER_CHIPS.general` in `components/ChatWidget.tsx`. The click already called `sendMessage(chip)`, the same function as Send, and the chips already unmounted once `messages.length > 0`. They were rendered inside the conversation log (`role="log"`, `aria-live`, `overflow-y-auto`). The input and Send sit outside that scroller, and that is the path that reached `/api/chat-v2`. The chips now sit in a shrink-0 block above the log. `mousedown` stops propagation so the panel drag cannot take the gesture. `onClick` still calls `sendMessage` with the chip label. After that user message is appended, the chips unmount.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). test:ava-chat-ui 35 pass (4 files), including `ChatWidget.starterChips.test.tsx`: the pacing chip POSTs `/api/chat-v2` with that text as the user message, is not inside the log, and is gone afterwards. Send posts typed text on the same endpoint.
+- Morning smoke: On `/dashboard/bic/BICAU002`, open Ask Ava and click a chip. Devtools should show `POST /api/chat-v2` and AVA should answer. The chips should disappear once that message is in the thread. Not exercised in the browser here.
+
+## AV-S14 DONE 6f324669
+
+Commit `6f324669` `fix(ui): current financial year by default and the finished-campaign boundary`.
+
+Home and Campaigns default to `currentFy` (Melbourne civil date). On 10 Oct 2026 that is start year 2026, labelled FY27 (Jul 2026–Jun 2027). `?fy=` stays the July start year. An explicit `?fy=` or `all` is kept; saved views still store client pins, not the year. Chips are newest first: current, then the two prior years, then All (FY27, FY26, FY25, All). Invoiced vs expected uses the same Melbourne year, mapped onto its windows (`fy27` from 1 Jul 2026, `fy26` on 30 Jun 2026). Its chips are FY27, FY26, All since FY26. An explicit `fy` query on that API is kept.
+
+A campaign is finished from the Melbourne day after its end date. An end date of today stays out of “Campaigns Finished in Past 40 Days” and stays in the live list.
+
+`/finance/xero` already says “FY26 invoices resolved to a client”. `countFy26ArClientCoverage` counts `xero_ar_invoices` with `issue_date >= 2025-07-01` and no end date. That is the app’s FY26 cohort on purpose (same open start as import, PDFs, and the client invoice list). The label stays FY26. It is not the closed current year.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). `auFinancialYear` + `invoicedVsExpected` 13 pass, including 30 Jun / 1 Jul Melbourne and finished today vs yesterday.
+- Morning smoke: Home and Campaigns open on FY27 (chips FY27, FY26, FY25, All). A campaign ending today shows as Live and is not in Finished. Invoiced vs expected opens on FY27. The Xero header still says FY26. Not exercised in the browser here.
+
+## AV-S15 DONE e3169c2b
+
+Commit `e3169c2b` `chore(ui): plain labels on finance, forecasting and admin pages`.
+
+**Other → Fees: PARKED (this item only).** The To bill caption segment "Other" is every line whose `media_type` is blank (`buildMediaTypeRollups`). That bucket holds the Assembled Fee, Adserving, Production, a Monthly retainer, and any media line with a blank media type. Production and the retainer are not fees, so the label stays "Other".
+
+Costs overview no longer prints "From costs/summary — not global-monthly-* dashboard endpoints". The coverage line is the live `bookedWithPublisherIdentityPct` plus "of booked spend is matched to a publisher. Unmatched lines are shown in the Orphans view." The Costs nav is Overview, Publisher invoices, Accruals, and Client-pays. There is no view named Orphans. The API `coverage.note` still mentions `orphanLineCents` and is no longer rendered on this page.
+
+Xero exceptions now read "Billing rows waiting for a client or MBA, and Xero invoices we couldn't match." The matches line on the same paragraph no longer names `xero_invoice_matches`.
+
+Forecasting scope label is `FY{year}` only. "Show debug details" is visible only when `useAuthContext().isAdmin`. The row sheet and the export filter row use that same label. The CLIENT column stays "Client": `resolveClientName` is `mp_client_name`, and uses `campaign_name` only when the client name is blank. The mono line under the name was `client_id` (a numeric id when the client matches, otherwise a lowercase `normalizeName` slug). That line is gone.
+
+Schedule ingest fields are Plan ID, MBA number, and Version. Accept's error and the review hint use those words.
+
+The client dashboard Delivered caption is "Platform delivery". Live campaigns read "Live · {n} planned".
+
+Search and programmatic line summaries go through `formatBuyTypeForExport`, so `cpc` shows CPC. The other containers already mapped known buy types; an unlisted value now uses the same display label.
+
+No snapshots changed.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). No snapshot updates.
+- Morning smoke: `/finance/costs`, `/finance/xero`, `/finance/forecasting` and `/admin/schedule-ingest` should not show the engineering strings listed above. The To bill cards still say "Other" for the mixed fee/production/retainer bucket. Forecasting still has an admin-only snapshot alert that names `DATABASE_URL` when snapshot storage is missing. Not exercised in the browser here.
+
+## AV-S16 DONE ceefe7e9
+
+Commit `ceefe7e9` `fix(plans): line cards stay open, date order validation, Monday week start`.
+
+Create feeds Radio and OOH published line items back as `initialLineItems`. A network or buy-type change republished that array, hydration ran `form.reset`, and `allCollapsedIndices` closed every card. `useStableHydration` now skips that own-publish reference. Ingest, draft restore, and an edit load still hydrate and start collapsed. Television and the other legacy containers collapse only when hydration runs. On create they do not echo the published array, so a select change does not close them. Expert apply and expert exit still collapse on purpose.
+
+When the campaign end is before the start, End date shows "End date must be on or after the start date" and Publish is disabled on create and edit. The same message sits under a burst end date in the line card, the expert grid, and production. Stored dates are not rewritten. Edit Save draft stays the existing dirty-state control (that expression is pinned). While every save publishes, `handleSaveAll` still returns before writing if the dates are out of order.
+
+`Calendar` sets `weekStartsOn={1}` after its props, so every date picker starts on Monday. The expert-grid week toggle stays a separate preference, default Sunday.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). test:plan-drafts pass (hydration skip included). test:dirty-controller pass after leaving the pinned Save draft expression unchanged. test:expert-goldens 9 pass. test:empty-channel-defaults 3 pass. `dateOrder.test.ts` 4 pass (15 Nov 2026 vs 31 Oct 2026, same day, missing date, Monday source pin).
+- Morning smoke: Create a Radio line and pick a network and a buy type: the card stays open. Set a start date after the end date: the inline error shows and Publish is disabled. Calendars start on Monday. Not exercised in the browser here.
+
+## AV-S17 DONE 6ded57fc
+
+Commit `6ded57fc` `style(brand): one token set on the 05b hexes, tabular Jakarta for numbers`.
+
+The five off-by-one colours were not hex literals. They were integer HSL channels in `app/globals.css` and `styles/chart-tokens.css` that `hsl()` rounds one step off the 05b hex. Each channel is now one decimal place, which rounds to the brand hex: ink `#0F1D13`, lime `#B5D337`, sand `#EFE9DF`, muted `#6B6A5E`, muted on black `#AEB9B0`. Existing hex tokens were already those values. Status colours (`#D4583C`, `#9E321C`, `#7A5200`) are unchanged. No new tokens.
+
+Select-String of `app/**` and `components/**` found no `#101E14`, `#B4D336`, `#F0EAE0`, `#69685D`, or `#ADB8AF` literals, so no component file was rewritten for a raw hex.
+
+Forecasting figures dropped Geist Mono and keep tabular numbers (Jakarta from the page font): `ForecastingPageClient.tsx`, `VarianceTargetVsActualView.tsx`, `TargetGrid.tsx`, `FinanceForecastVariancePageClient.tsx`. Code stays mono (`DATABASE_URL`, the migration name, error details, snapshot id, `<pre>`). MBA number labels dropped Geist Mono and use `tabular-nums`: create and edit MBA Number, `CampaignHeroBanner.tsx`, `CampaignPacingCard.tsx`, `CampaignPacingTable.tsx`, `CampaignDetailModal.tsx`, `OverviewClient.tsx`, `NewAdminUserForm.tsx`, and the MBA column in the ad-serving, search, social, and programmatic pacing tables.
+
+Colour snapshot tests: none contained these hexes. None updated.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). test:brand 80 pass.
+- Morning smoke: Forecasting numbers are Jakarta. Sidebar ink and lime buttons look unchanged to the eye. Not exercised in the browser here.
+
+## AV-S18 DONE 65e3c3e7
+
+Commit `65e3c3e7` `feat(insights): record action, owner and outcome with a client picker`.
+
+0094 already has nullable `action`, `action_owner`, `outcome`, and `outcome_kind` (`achieved` or `expected`, or null). The record form now sends those optional fields. POST `/api/insights` validates them and `createCampaignInsight` stores them. A body-only supersede copies the existing action, owner, and outcome onto the replacement so an edit does not clear them.
+
+`/insights` filter and the record form pick a client from `/api/clients` and an optional MBA for that client from `/api/mediaplans`. The free-text Client ID is gone. A campaign page that already has an MBA still records against that MBA. Insight cards already show Action, Owner, and Outcome through `InsightFinding` (sky Insight, forest Action, lime Outcome) when the row has them.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). test:insights-library 37 pass, 1 skipped (live EXPLAIN, DB unreachable). check:client-server-only OK.
+- Morning smoke: `/insights` — record an insight for Krusty Krab with an action and an outcome. The card shows the I/A/O tags. Not exercised in the browser here (admin session).
+
+## AV-S19 DONE 4bb467af
+
+Commit `4bb467af` `fix(finance): header-only fee months reach schedule_months and Investment`.
+
+`explodeScheduleToMonthRows` is on the live save path, not only the migration. Callers:
+
+- `lib/data/savePlan.ts` (`savePlanVersion`, including publish) writes billing and delivery `schedule_months`.
+- `lib/data/writeBillingSchedule.ts` (`patchBillingScheduleOnPostgres`) writes the billing explode, and delivery when a delivery schedule is sent.
+- Migration and verify only: `scripts/migration/etl-xano-to-supabase.ts`, `scripts/migration/recon.ts`, `scripts/verify/byte-diff-schedules.ts`.
+
+A month that already produced a per-line fee row still writes no `__service__fees`. A month with lines, no per-line fee, and a header `feeTotal` greater than zero now writes one `__service__fees` row. Cents for that new row go through `lib/money` `toCents` (half-up). The fee stays on `__service__fees` (campaign totals). `__service__media_total` is still only when the month has no line items. A month with no line items is unchanged.
+
+Dry-run of `scripts/backfill/rebuild-service-fee-months.ts` (no writes). Published tips only (`published_version_id` with `published_at` set). 200 tips scanned, 0 explode failures.
+
+The AV-S7 window matches: billing basis, master status approved/booked/completed, months 2026-07 through 2026-10: **28 rows, 2,761,957 cents ($27,619.57)**.
+
+The unrestricted set is larger, because the same gap exists outside that window and on the delivery basis: **568 rows, 95,277,322 cents ($952,773.22)**. Billing 280 rows / $484,359.50. Delivery 288 rows / $468,413.72. `--apply` inserts that full set, one transaction per version. It does not rewrite `approved_slice` or `snapshot_checksum`. Luke reviews before `--apply`.
+
+First 10 rows of the full dry-run:
+
+| mba | version | basis | month | cents |
+| --- | --- | --- | --- | --- |
+| 001001 | 7 / 618 | billing | 2026-04-01 | 105000 |
+| 001001 | 7 / 618 | delivery | 2026-04-01 | 105000 |
+| 001001 | 7 / 618 | billing | 2026-05-01 | 105000 |
+| 001001 | 7 / 618 | delivery | 2026-05-01 | 105000 |
+| 001001 | 7 / 618 | billing | 2026-06-01 | 105000 |
+| 001001 | 7 / 618 | delivery | 2026-06-01 | 105000 |
+| 001001 | 7 / 618 | billing | 2026-07-01 | 105000 |
+| 001001 | 7 / 618 | delivery | 2026-07-01 | 105000 |
+| 001001 | 7 / 618 | billing | 2026-08-01 | 105000 |
+| 001001 | 7 / 618 | delivery | 2026-08-01 | 105000 |
+
+candel001 v23 (807) billing Jul–Oct is 195000 cents ($1,950.00) each month. letsgo001 v3 (625) billing Jul–Oct is 142735, 163125, 163125, 163125 cents.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). test:money 90 pass, 1 todo. Schedule transform tests 12 pass (`scheduleTransform.serviceFees.test.ts` 3, `dispositionFixes.test.ts`, golden explode in `attachScheduleLineDetail.test.ts`). `approvedSlice.test.ts` 10 pass. check:money-inline ok (115 files, 250 hits).
+- Morning smoke: After Luke runs `--apply`, `/finance/investment` shows fee on the Campaign totals rows for candel001 and letsgo001. Nine stays at $0.00 fee. `--apply` also inserts the months outside Jul–Oct and the delivery-basis rows listed above. Document footers still show the old `snapshot_checksum`. Not exercised in the browser here.
+
+## AV-S20 DONE 44a91246
+
+Commit `44a91246` `fix(reports): deck and AVA use the shared expected-to-date resolver`.
+
+Review & Report expected media now comes from `resolveCampaignExpectedSpendToDate` (`basis: "media"`, `monthlyOpts.asOfISO` = the report period end). This month, last month, and custom ranges are that figure minus the resolver at the day before the period start (`toCents` / `fromCents`). Campaign to date is one call at the period end. The flat `expectedMediaToDate` helper is gone. Channel rows still use the flight elapsed share.
+
+`get_delivery_snapshot` passes the snapshot as-of (Melbourne) into `monthlyOpts.asOfISO`. The pacing card and the portfolio assembler were not changed.
+
+A BICAU002-shaped front-loaded schedule (Aug $27,749.73, Sep $46,864.52, Oct $27,787.85, flight 1 Aug–25 Oct) is $85,729.39 on 10 Oct, the same as the resolver, and more than a flat 71/86 of the media.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). Campaign report tests 39 pass. test:ava-tools 103 pass, 1 skipped (live golden, no AVA_DATABASE_URL), plus the as-of test 1 pass. test:money 90 pass, 1 todo. test:money-golden 55 pass, 1 todo. check:money-inline ok (115 files, 250 hits).
+- Morning smoke: Review & Report on BICAU002, campaign to date. The deck expected to date and spend pace should match the pacing card for the same day ($85,729.39 and about 93.2% on 10 Oct, before dollar rounding on the deck). Not exercised in the browser here.
+
+## AV-S21 DONE e78e5abb
+
+Commit `e78e5abb` `fix(dashboard): campaign read hides superseded failures and shows its age`.
+
+The campaign-read list now shows a failed row only when that failure is the newest row for the MBA and version. A Timed out row older than a later draft or published read stays in history and is not returned as `failed`, so the banner does not sit beside the newer read. Generation and stored beats are unchanged. Nothing auto-regenerates.
+
+Beside "Read as at", a read whose as-at instant is more than 7 days old shows "Out of date. Regenerate for current figures." in muted text. The existing Regenerate button stays beside it.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). test:campaign-read 35 pass plus vitest 9 pass. test:campaign-dashboard-range 72 pass, vitest 32 pass, delivered-totals 5 pass.
+- Morning smoke: `/dashboard/bic/BICAU002` should have no "Timed out" banner, and "Read as at 18 Sep 2026" should show the out-of-date cue. Not exercised in the browser here.
+
+## AV-S22 DONE a92e1732
+
+Commit `a92e1732` `fix(plans): published AA media plan downloads the published version`.
+
+Edit `handleDownloadAdvertisingAssociatesMediaPlan` now uses the same published-version gate as the media plan button. A published plan downloads the stored AA file for `publishedVersionId` even when the form is dirty. If that file was never saved, `POST /api/mediaplans/[id]/aa-workbook` builds the workbook from the published version (`renderPlanVersionDocuments`, draft false) and writes nothing. The live form is not used on that path. The draft AA button and the Create page are unchanged.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). PlanWizardBottomBar 8 pass. planWizardSaveBar 35 pass. AA workbook route 1 pass. test:media-plan-excel 22 pass. test:plan-drafts 59 pass, 6 skipped, plus route tests 12 pass, plus vitest 71 pass.
+- Morning smoke: krusty002 Edit, with a budget change unsaved. "Published Media Plan (AA) (v2)" has no DRAFT stamp and matches v2. Not exercised in the browser here.
+
+## AV-S23 DONE
+
+Discovery only. No commit. Findings in `docs/superpowers/overnight-av-fixes/discovery/AV-S23-pacing-snapshot.md` (left untracked).
+
+The 10 Oct `pacing_portfolio_snapshots` row is a complete upsert of a build that timed out search, social, and direct and kept going. Ad-serving returned 16 campaign rows and programmatic 55 line rows; `build_rows` stored 16. Spend is $0 because those three sources were replaced with `[]` and ad-serving never contributes spend. `Postgres.js : Unknown Message: 0` and `Unknown Message: 55` are on that same request (`2026-10-10T00:05:56Z`). The upsert still ran at ~90s (`2026-10-10T00:07:26Z`, 11:07am Melbourne).
+
+A second `GET /api/pacing/portfolio` at `2026-10-10T00:06:27Z` finished in 6.6s with all five sources and upserted 33 campaigns. That is the page at 11:06am (33 live, 20 Behind, 6 On track, 27 needing attention). The slower build then replaced that key. The 10 Oct cron (`2026-10-09T21:00:21Z`) was a 504 at 300s and stored nothing. 8 and 9 Oct are absent from the retained logs; the cron has no date skip.
+
+`fab33866` is the Snowflake `XANO_LINE_ITEMS_SNAPSHOT` merge, not this writer.
+
+- Checks: none (discovery).
+- Morning smoke: after a later fix, a second portfolio load must not replace a 33-campaign snapshot with a timed-out one, and a cron 504 must leave the previous good row in place. Not exercised here.
+
+## AV-S24 DONE 9257e523
+
+Commit `9257e523` `fix(plans): one browser draft per tab with a resume list and draft export/import`.
+
+Create no longer keys IndexedDB on the shared preview MBA. Each tab gets `crypto.randomUUID()`, stored in `sessionStorage` (`av-create-draft-id`) and in `?draft=`. The record key is `draft:{draftId}::{userId}`, with client, campaign, preview MBA, line count and `updatedAt` beside the autosave payload. Opening `/mediaplans/create` with no valid `?draft` lists this user's drafts newest first (Resume, Start new, Delete via `AlertDialog`). It does not auto-restore by client. Legacy `mba:{MBA}::{userId}` rows for this user move to the new key on that landing load. Empty and ≥14-day create drafts are still dropped. Export draft (bottom bar) downloads `{ schemaVersion: 1, payload }` as `DRAFT - Client - Campaign - draft.json`. Import on the landing rejects any other schema version and loads a new id. Publish deletes that draft id. Edit stays on `m{masterId}::{userId}`. Create Save draft stays disabled.
+
+The migration test logged `create-draft migration count: 2` (two `mba:` rows for this user moved; another user's `mba:` row and an edit `m283` row stayed).
+
+- Checks: typecheck 0. lint 0 (existing warnings only). test:plan-drafts 63 pass, 6 skipped, route tests 12 pass, vitest 72 pass (includes the four create-browser-draft cases and the hook cases). test:dirty-controller 30 pass plus vitest 40 pass. check:client-server-only ok.
+- Morning smoke: Open Create in two tabs for Krusty Krab, add different lines, and reload both. Each keeps its own lines. The landing list shows both drafts. Export one, delete it, import it, and it comes back. Not opened in the browser here (auth).
+
+## AV-S25 DONE
+
+Design only. No commit. No code change. Findings in `docs/superpowers/overnight-av-fixes/discovery/AV-S25-server-drafts-design.md` (left untracked).
+
+Option A is a new `create_drafts` table, not a nullable `plan_working_drafts.master_id`. The AV-S24 `?draft=` uuid is the row id, so two tabs for one client stay two rows. `published_master_id` stays null until publish. RLS matches `0012` (enabled, no policies, no `ava_readonly` grant). The SQL is written in the discovery file as `db/migrations/0096_create_drafts.sql` and was not added under `db/migrations/`.
+
+Publish becomes `publishCreatePlan`: one transaction inserts the master, runs the current `savePlanVersion` body, and sets `published_master_id`. A version-save throw rolls back, so no penfold024 master is left. `POST /api/mediaplans` is still the orphan writer if Create keeps calling it. Documents stay after commit.
+
+Server save is the 3 second local autosave plus blur and leave. IndexedDB remains until the PUT returns 200; the pill stays "Saved on this device only" until then. An admin page lists another user's open drafts and exports JSON. It does not publish as that user.
+
+- Checks: none (design).
+- Morning smoke: none until a later prompt builds it. After that, a failed version save must leave no new master, and a second machine signed in as the same user must see the Create draft. Not exercised here.
+
+## AV-S26 DONE
+
+Design only. No commit. No code change. Findings in `docs/superpowers/overnight-av-fixes/discovery/AV-S26-flat-allocation-design.md` (left untracked).
+
+`BACKLOG-av-2026-10.md` is not in the repo. `KNOWN-ISSUES.md` B-1 is the fixed Edge build failure, not this item. The Golf Australia request is golf025 (master 244, published version 17009). DS-4 is the unconfirmed note in `docs/superpowers/delivery-source-registry-backlog-2026-09-16.md`.
+
+The nightly procedure only backfills `FIXED_COST_MEDIA = true` partner-file lines. The inner procedure drops every other id. golf025 radio, newspaper, and OOH are `fixed_cost_media` false, so they never get a row. `no_adserving` is not on the snapshot and is the wrong test on its own: golf025 DV360 has a map row, and digital video has CM360 impressions even with the flag on. Both procedures need a hand deploy. A null-id backfill is the wrong call.
+
+On 10 Oct, AV-M5 media expected is $72,739.65. The only allocation is newspaper $12,823.06. Radio and OOH are November and December, so they add $0. Last full reported spend is the 7 Oct social figure $35,775.33 (the 10 Oct card spend of $0 is the partial snapshot). Gap before $36,964.32. Gap after $24,141.26 (66.8%, still Behind). Display and video stay $0 spend (ZERO-$).
+
+Bonus and `package_inclusions` stay out. Client-pays is included via delivery media; golf025 has none. Spots, package, and insertions on this plan have burst dates and empty spots arrays. The card's expected is a month-window proration, not a burst-day split; the design recommends matching the month window so the allocation equals the media already inside expected.
+
+- Checks: none (design). Postgres read of golf025 and the portfolio snapshots only. Temp query scripts were deleted.
+- Morning smoke: after a later build and Luke's Snowsight backfill, golf025 Newspaper shows Booked spend (flat allocation) of about $12,823 to date and is not mixed into reported spend. Radio and OOH stay $0 until November. Digital Display and Digital Video stay impression rows with $0 spend. Not exercised here.
+
+## AV-S27 DONE ac56dd15
+
+Commit `ac56dd15` `fix(finance): To bill names fees, ad serving, production and retainer; Costs coverage copy`.
+
+Caption rule (`toBillCaptionLabel`). A `line_type` "media" line keeps its `media_type`; a blank type is "Untyped media". The other parts match the lines `deriveReceivableRecords` and `deriveRetainerReceivables` already write: Retainer is `line_type` "retainer", item code "Retainer", or description "Monthly retainer". Ad serving is item code "T.Adserving" or description "Adserving and Tech Fees". Production is `line_type` "service" with item code or description "Production". Fees is `line_type` "fee", item code "Service" or "FEE", or description "Assembled Fee", "Service fee", or "Fee". Anything else with a media type uses that type. A line that matches none of these is "Other". Named parts follow the media types, in that order, and a rounded total of 0 is left out. The card total is the same cent rounding as before.
+
+Costs coverage now ends at the percentage. Publisher invoices does not list unmatched schedule lines. It shows publisher × month rows (including "Unspecified" and the campaign-level bucket) and an "Unattributed bills" group for Xero AP bills that did not match a publisher. That is not a line list, so the sentence is not "Unmatched lines are listed under Publisher invoices."
+
+- Checks: typecheck 0. lint 0 (existing warnings only). invoicingRowPresentation 10 pass, including PGAAUS015 July "Social Media $3,439.00 · Fees $859.75" and a production + retainer card. invoicingPlanRow 10 pass. check:money-inline ok (115 files, 250 hits). No Costs page test covers this sentence.
+- Morning smoke: `/finance/invoicing` PGAAUS015 July reads "Social Media $3,439.00 · Fees $859.75". `/finance/costs` coverage line does not mention an Orphans view. Not exercised in the browser here.
+
+## AV brand UI pack (05b)
+
+Pre-flight date: 10 Oct 2026 (Australia/Sydney). Branch `localhost`. HEAD `ac56dd15114d85ebcdc42554dacf487c106c25ee`. `node -v` is v24.14.1.
+
+## BR-0 STOPPED
+
+No commit. Stopped at the dirty-tree gate. `git status` is not limited to `docs/superpowers/overnight-av-fixes/RUNLOG.md`, so the building-block list was not written and no product files were read for this prompt.
+
+Tracked modifications besides the run log:
+
+- `docs/brain/BLAST-RADIUS.md`
+- `docs/brain/INVARIANTS.md`
+- `docs/brain/modules/pacing.md`
+- `lib/partner-ingest/parseTests.ts`
+- `lib/partner-ingest/runPartnerIngest.ts`
+- `lib/partner-ingest/__tests__/parseChannelFactory.test.ts`
+- `lib/partner-ingest/__tests__/parseTests.test.ts`
+- `lib/partner-ingest/__tests__/runPartnerIngest.test.ts`
+
+Untracked:
+
+- `CF-T4-PREFLIGHT.md`
+- `CODEX_FOUNDATION_DISCOVERY.md`
+- `CODEX_REPAIR_DISCOVERY.md`
+- `CONTAINER_TOTALS_DISCOVERY.md`
+- `RL-0-DISCOVERY.md`
+- `VISTAR-SCHEDULED-DISCOVERY.md`
+- `avmediaplanClaude outputsmerge-diag.txt` (filename ends with U+F8E2)
+- `docs/superpowers/DISCOVERY-brand-05b-ui.md`
+- `docs/superpowers/DISCOVERY-design-system-consolidation.md`
+- `docs/superpowers/discovery-delivered-tile-2026-10-05.md`
+- `docs/superpowers/discovery-fx1-main-live-xano-2026-10-06.md`
+- `docs/superpowers/overnight-av-fixes/discovery/`
+
+The design file is present at `Claude outputs/design/assembledview-05b-design.html`. It was not opened. Confidence in the stop is above 90%.
+
+- SHA: none
+- Files: `docs/superpowers/overnight-av-fixes/RUNLOG.md` only
+- Checks: none (pre-flight stopped)
+- Morning smoke: none
+
+## BR-1 DONE e68264d5
+
+Commit `e68264d5` `style(shell): search pill, light/black segment and sidebar user card (05b)`.
+
+The signed-in top bar is breadcrumbs, a sand Search pill (`CommandPaletteTrigger`, Ctrl K hint from `sm` up) that dispatches `av:open-command-palette`, then the Light / Black segment (`segmentChipClass`, active lime). The moon icon and "Hi …" greeting are gone. Ctrl and Cmd K still toggle the palette. The sidebar trigger and its separator stay beside the breadcrumbs.
+
+The sidebar card is a forest circle with white initials, the name at 13px bold, and Admin, Staff, or Client at 12px muted. No email and no photo. An email-shaped name uses the local part (`luke.fitzpatrick` → Luke Fitzpatrick, LF). Staff is neither admin nor client. Nav order is unchanged. No snapshots.
+
+- Files: `components/ClientLayout.tsx`, `components/CommandPalette.tsx`, `components/ThemeToggle.tsx`, `components/UserMenu.tsx`, `components/__tests__/ClientLayout.privacyShell.test.tsx`, `components/__tests__/AppSidebar.relabels.test.tsx`, `docs/brain/modules/admin-misc.md`
+- Checks: typecheck 0. lint 0 (existing warnings only). vitest ClientLayout.privacyShell and AppSidebar.relabels 7 pass.
+- Morning smoke: every signed-in page shows the Search pill; Ctrl K opens search; the footer shows initials, name and role, not the email. Not exercised in the browser here (auth).
+- Under 90%: kept the sidebar trigger beside the breadcrumbs. The prompt's left-to-right list starts at breadcrumbs, and the design's menu button is hidden on desktop. Removing the trigger would drop the control that opens the nav. Staff as a label is anyone who is not admin and not client; those sessions are sent to `/unauthorized`, so the label is rare in the shell.
+
+## BR-2 DONE d4592f74
+
+Commit `d4592f74` `style(pages): 05b page titles with serif accent and lede`.
+
+Home, Campaigns, Pacing, Create, Edit and the four Clients billing sections use `PageHeader`. Home is "Good morning|afternoon|evening," plus the first name in serif (Melbourne hour: before 12, before 17, else evening). Campaigns, Pacing and Create use the specified ledes. Edit is "Edit" plus the campaign name, with client, MBA and the published version number in the lede. Clients billing is "Clients billing," plus the selected month. In Xero, Owed and Exceptions keep their titles and gain a one-line lede. Create and Edit no longer render a second breadcrumb. The primary create buttons stay the default lime pill. Header AVA actions on those pages are `variant="secondary"` (forest outline). No snapshots changed.
+
+- Files: `components/layout/pageTitleCopy.ts`, `components/layout/PageHeader.tsx` (unchanged, used), `components/layout/__tests__/PageHeader.test.tsx`, `vitest.config.ts`, `components/dashboard/DashboardOverview.tsx`, `app/mediaplans/page.tsx`, `components/pacing/PacingShell.tsx`, `components/mediaplans/PlanWizardHeader.tsx`, `components/mediaplans/PlanWizardShell.tsx`, `app/mediaplans/create/page.tsx`, `app/mediaplans/mba/[mba_number]/edit/page.tsx`, `components/ava/AvaSkillActionSets.tsx`, `components/finance/sections/FinanceSectionsShell.tsx`, invoicing / in-xero / owed / xero page clients, `docs/brain/CONVENTIONS.md`, `docs/brain/modules/media-plans.md`, `docs/brain/modules/finance-billing.md`
+- Checks: typecheck 0. lint 0 (existing warnings only). vitest PageHeader 4 pass. No snapshot updates.
+- Morning smoke: each listed page shows the new title and lede; Create and Edit have one breadcrumb (the top bar). Not exercised in the browser here (auth).
+- Under 90%: a billing range of more than one month uses "October to December" as the accent. An edit with no resolved published version says "Not published yet" rather than a version number. The Exceptions lede describes unmatched rows; the matches tab still sits under that title. Home keeps the time-range and updated line under the lede. `docs/brain/INVARIANTS.md` and `docs/brain/BLAST-RADIUS.md` have the matching sentences in the working tree and were not staged: those files already held unrelated partner-ingest edits.
+
+## BR-3 DONE 91fecd8a
+
+Commit `91fecd8a` `feat(brand): HeroBand, ArchTrio, JourneyLine and I/A/O cards`.
+
+`HeroBand` is an ink band (`rounded-frame`, white type, muted-on-black captions) with slots for chips, a title plus serif accent, meta, the journey, right-side actions, and an optional `ArchTrio`. The primary button stays the lime pill. The secondary button on the band uses a forest-light outline and white text. `ArchTrio` is three rising bars (sky, forest light, lime), `aria-hidden`, hidden below 980px. `JourneyLine` takes a `CAMPAIGN_PHASE` key. Done steps and connectors are forest light, the first done step is sky, the current step is lime with a soft ring, and later steps are an outline. Cancelled is one "Cancelled" pill and no steps. `IAOCards` takes one insight record (`body`, `action`, `action_owner` / `actionOwner`, `outcome`, `outcome_kind` / `outcomeKind`) and renders only the cards that have text. `action_owner` sits in the Action paragraph. A card also renders when an optional figure is passed. All four are shown on `/design-system` only. No live page was changed. No snapshots.
+
+- Files: `components/brand/HeroBand.tsx`, `components/brand/ArchTrio.tsx`, `components/brand/JourneyLine.tsx`, `components/brand/journeySteps.ts`, `components/brand/IAOCards.tsx`, `components/brand/__tests__/JourneyLine.test.tsx`, `components/brand/__tests__/IAOCards.test.tsx`, `app/(internal)/design-system/page.tsx`, `vitest.config.ts`, `docs/brain/MAP.md`
+- Checks: typecheck 0. lint 0 (existing warnings only). vitest JourneyLine and IAOCards 5 pass. No snapshot updates.
+- Morning smoke: `/design-system` shows the ink hero (arches from 980px), Planned and Cancelled journeys, and the three insight cards. Not exercised in the browser here (auth). The route is `notFound()` in production.
+- Under 90%: `campaign_insights` has no figure column, so the big numbers are an optional `figures` prop used by the design-system example (`$5.20`, `+$4,000`, `1,940`). The Cancelled pill is panel fill with muted-on-black text, so it stays readable on the ink band.
+
+## BR-4 DONE 0d391b75
+
+Commit `0d391b75` `style(home): 05b home with needs attention, starting soon and spend by month`.
+
+The greeting lede is `homeAttentionLede` from `GET /api/pacing/portfolio` `counts.attention`. Zero is "Everything is pacing to plan." A positive count is "<n> campaigns need a look today. Everything else is pacing to plan." One campaign uses the singular. While the snapshot is loading, building, or failed, the lede is left off so the page does not claim the book is on plan. Tiles are white cards with no icon chips. Live campaigns has a lime dot and "<n> start in the next 14 days" (Melbourne date-only, filtered latest plans in the selected FY). Live scopes and live clients have no sub-line. Media spend keeps the existing planned-to-date figure, labelled "Media spend FY27 to date" for the selected year, with no "of $planned" line. Needs attention is the first five attention rows (client, campaign, StatusPill, why) and Open pacing. Starting soon is the same next-10-day set as the grid, dated "12 Oct". The existing Live, Starting soon, Finished and scopes grids stay under "All campaigns." with the FY pills and list/grid toggle. No snapshots.
+
+Spend by month plots planned only. `GET /api/dashboard/global-monthly-client-spend` is current-FY `schedule_months` (published plan), not platform delivery, and it does not take an FY parameter. There is no delivered-by-month source on Home. Other FY chips say monthly planned is loaded for the current year only. The month in progress is lime; other months are context. No gridlines. The Insight card states last month's planned total and says delivered by month is not loaded. The caption is "Calculated from published plans." The specified caption names platform delivery, which this page does not have.
+
+- Files: `lib/dashboard/homeBrief.ts`, `lib/dashboard/__tests__/homeBrief.test.ts`, `components/dashboard/HomeStatTile.tsx`, `components/dashboard/HomeBrief.tsx`, `components/dashboard/DashboardOverview.tsx`, `vitest.config.ts`, `docs/brain/modules/dashboards-charts-exports.md`
+- Checks: typecheck 0. lint 0 (existing warnings only). vitest homeBrief and homeDashboardFilters 17 pass. No snapshot updates.
+- Morning smoke: `/dashboard` shows the greeting, lede, four tiles without icons, both lists, the planned chart and Insight card, then all campaigns. Not exercised in the browser here (auth).
+- Under 90%: the media-spend tile is still planned media to date, not delivered. Scopes have no renewal date and clients have no "new this quarter" flag, so those dots are omitted. A count of 1 uses "campaign needs" rather than "campaigns need".
+
+## BR-5 DONE 40c27f8e
+
+Commit `40c27f8e` `style(campaigns): table view with lifecycle pills and CSV export`.
+
+`/mediaplans` opens as a `DataTable` (newest `created_at` first). The existing layout toggle still switches to cards. The choice is stored per user in `avmp:campaignsLayout:v1` (try/catch), separate from the shared Home list/grid key, and defaults to table. Columns are Campaign (bold name, client underneath), MBA, Status, Dates ("1 Aug 2026 to 25 Oct 2026"), media types (neutral `MediaChannelTag` pills, first 3 then "+n"), Budget, Version, and Open. Row click and the Open link both go to the campaign edit page. Status pills are `CampaignStatusBadge` (`resolveCampaignPhase` + `CAMPAIGN_PHASE`): Planned context, Approved sky, Booked forest, Live lime with a pulse dot, Completed ink, Cancelled struck-through context. The stored status is not rewritten. Search placeholder is "Search client, campaign or MBA". Status chips (All, Live, Planned, Approved, Booked, Completed, Cancelled) filter the derived phase for both layouts. The filtered count sits under the list and stays hidden while loading. Create campaign stays the lime pill. Export CSV is a ghost button of the filtered rows, client-side, no new endpoint. Client pins and FY chips stay. No snapshots.
+
+- Files: `app/mediaplans/page.tsx`, `lib/mediaplans/campaignListView.ts`, `lib/mediaplans/__tests__/campaignListView.test.ts`, `lib/hooks/useCampaignsLayout.ts`, `components/dashboard/DashboardFilterBar.tsx`, `vitest.config.ts`, `docs/brain/modules/media-plans.md`
+- Checks: typecheck 0. lint 0 (existing warnings only). vitest campaignListView 3 pass (status chip filter and CSV columns). No snapshot updates.
+- Morning smoke: `/mediaplans` opens as a table; chips filter; CSV downloads; Cards still available. Not exercised in the browser here (auth).
+- Under 90%: the CSV adds a Client column so the muted line under the campaign name is not dropped. Cards are one grid of the same filtered rows, not the old per-status groups. Draft has no chip and displays as Planned. Open goes to the edit page, which was the staff item on the old Open menu.
+
+## BR-6 DONE 378918ef
+
+Commit `378918ef` `style(dashboard): 05b campaign hero, journey, I/A/O row and flighting`.
+
+The campaign hero is `HeroBand` (`as="h1"`, punctuate false). Chips are the client mark and `CampaignStatusBadge`. The title is the campaign name. There is no creative-line column on the campaign, so the accent is omitted unless `creative_line`, `creativeLine`, or `mp_creative_line` is already a non-empty string on the payload. Meta is MBA, `d MMM` to `d MMM yyyy`, budget ex GST via `formatMoney` (whole dollars, same number), and version. "published d MMM" is added only when `published_at` or `publishedAt` is already on that object. `plan_date` is not used as a published date. `JourneyLine` uses `resolveCampaignPhase`. `ArchTrio` sits on the right. Download MBA is the lime primary and calls `downloadStoredPlanFile` (`mba_pdf`). Edit plan is admin-only, forest-light outline, and links to the edit page. More keeps Change range (`AdminDateRangeSelector`), View details, Downloads (scroll to the existing actions), Get AVA's read (`onAskRead` only), and Plan a scenario (`openAvaChat`). The two AVA items stay admin-only. There is no client-accent toggle.
+
+Where we are keeps the same sentence, labels, captions, and figures. The four mini cards use a pacing-tone bar for delivered, forest for expected, sky for impressions, and forest for time elapsed. The insight row under the strip is `IAOCards` from the latest `GET /api/insights` item for the MBA that has an action or an outcome. It stays hidden while loading, on 401/403, on error, and when no such row exists. No figures are passed.
+
+The existing media-plan gantt is the flighting chart. Timeline title is "Flighting." with the caption "Bars show planned bursts. Line marks today." `flighting` paints the full planned span: active bursts forest, past or future context, today line already ink. Other gantt callers are unchanged. `SpendChartsRow` is a planned-media donut and monthly stack. There is no cumulative expected-versus-delivered chart on this dashboard, so none was added. Numbers and data sources are unchanged. No snapshots.
+
+- Files: `components/dashboard/campaign/CampaignHeroBanner.tsx`, `components/dashboard/campaign/CampaignStatusStrip.tsx`, `components/dashboard/campaign/CampaignInsightCards.tsx`, `components/dashboard/campaign/MediaPlanVizSection.tsx`, `components/dashboard/campaign/mediaGanttReshape.ts`, `components/charts/system/domain-charts.tsx`, `app/dashboard/[slug]/[mba_number]/components/CampaignPageAssembly.tsx`, `app/dashboard/[slug]/[mba_number]/components/MediaGanttChart.tsx`, `components/dashboard/campaign/__tests__/mediaGanttReshape.test.ts`, `docs/brain/modules/dashboards-charts-exports.md`
+- Checks: typecheck 0. lint 0 (existing warnings only). `test:campaign-dashboard-range` node tests 73 pass, including the flighting tone test. Vitest in that script passed 32 on a rerun; the billing Excel case timed out once at 15s while typecheck and lint were running beside it, then passed alone in under a second. JourneyLine and IAOCards 5 pass. No snapshot updates.
+- Morning smoke: `/dashboard/golf-australia/golf025` and `/dashboard/bic/BICAU002` show the hero with journey and arches, Download MBA as the lime primary, the old actions under More, and flighting. Not exercised in the browser here (auth).
+- Under 90%: no creative-line field was found, so live campaigns will have no accent. The page object does not currently copy `published_at`, so the published date will be missing until that field is on the payload. Flighting bar width is the full planned span; the delivered / planned label is unchanged. Change range sits inside More; the calendar is a second popover, and `onInteractOutside` tries to keep the menu open while it is up. Last updated stays the existing date caption. `docs/brain/INVARIANTS.md` and `docs/brain/BLAST-RADIUS.md` were left unstaged.
+
+## BR-7 DONE 57ac2557
+
+Commit `57ac2557` `style(pacing): click-to-filter tiles and 05b line cards`.
+
+Portfolio tiles are Live, Behind, On track, Ahead, Over-pacing, and Needs attention. Clicking a tile filters the cards (`aria-pressed`); the active tile is ink with white text. Clicking it again clears the filter. The separate status legend card is gone from the portfolio board. The pacing lede keeps the 90% / 110% sentence, and How we calculate opens a popover of the five `portfolioLegendItems` lines. There was no separate explanation page. Section tabs use `segmentChipClass` (lime when selected).
+
+Each campaign card keeps the same figures and channel rows. The header is client, campaign, MBA, and `StatusPill`. The time bar is forest. The spend bar is coloured by status, filled as spend against budget, with an ink tick at expected against budget. The pace percent beside the bar is still `spendPct`. KPI chips are white bordered mini cards. The why line is plain text under a hairline, and it still hides on the "everything else" section. No snapshots.
+
+- Files: `components/pacing/portfolio/PortfolioStatusTiles.tsx`, `components/pacing/portfolio/PortfolioCardsBoard.tsx`, `components/pacing/portfolio/CampaignPacingCard.tsx`, `components/pacing/PacingCalculateLink.tsx`, `components/pacing/PacingShell.tsx`, `components/pacing/portfolio/__tests__/PortfolioCardsBoard.test.tsx`, `components/pacing/portfolio/__tests__/CampaignPacingCard.test.tsx`, `docs/brain/CONVENTIONS.md`
+- Checks: typecheck 0. lint 0 (existing warnings only). `test:pacing-portfolio` 24 node tests and 7 vitest pass, including tile click filters then clears. No snapshot updates.
+- Morning smoke: `/pacing/portfolio` — Behind shows only Behind cards, the legend card is gone, and the spend bar has the expected tick. Not exercised in the browser here (auth).
+- Under 90%: the spend bar width is now spend against budget so the tick can sit at expected. The printed dollars, percents, days, rates, and channel rows are the same. Overview and the channel boards still render their own legend cards. `docs/brain/modules/pacing.md` and `docs/brain/BLAST-RADIUS.md` still say the portfolio passes a legend card and that tabs use `navChipClass`; those files were already dirty and were not staged. The matching sentences are in `docs/brain/CONVENTIONS.md`.
+
+## BR-8 DONE 90d9e437
+
+Commit `90d9e437` `style(plans): ink bottom bar with totals and files menu, media-type chips`.
+
+Create and edit share an ink bottom bar the width of the content column (offset by the collapsed sidebar). Left: Budget, Allocated, Unallocated. Middle: autosave text. Right: Save draft (forest-light outline), Files, Publish (lime, existing split). Files holds every draft and published download, Generate Naming (Ava), and Export draft, with the same handlers, disabled rules, and busy labels. The page reserves the measured bar height. Ask Ava lifts while the wizard shell is mounted. A dirty edit shows Unpublished changes beside the title. Enabled media types are sticky chips that scroll to their section; + Add media type opens the existing switches. The steps rail stays. Line-item cards (`ExpertCard`) use the sand fill.
+
+- Files: `components/mediaplans/PlanWizardBottomBar.tsx`, `components/mediaplans/MediaTypeChipRow.tsx`, `components/mediaplans/PlanWizardShell.tsx`, `components/mediaplans/PlanWizardHeader.tsx`, `components/mediaplans/SplitActionButton.tsx`, `components/ChatWidget.tsx`, `components/media-containers/ExpertCard.tsx`, `app/globals.css`, `app/mediaplans/create/page.tsx`, `app/mediaplans/mba/[mba_number]/edit/page.tsx`, `components/mediaplans/__tests__/PlanWizardBottomBar.test.tsx`, `docs/brain/modules/media-plans.md`
+- Checks: typecheck 0. lint 0 (existing warnings only). `test:plan-drafts` pass (6 skipped, pre-existing). `test:dirty-controller` pass. `test:expert-goldens` pass. No snapshot updates.
+- Morning smoke: Create and Edit at 1280 and 1440 — ink bar with totals, Files holds every download, no sideways scroll, Ask Ava clear, + Add media type adds a container. Not exercised in the browser here (auth).
+- Under 90%: Allocated is `formatMoney(totalInvestmentAllocated)` on create and `formatMoney(totalInvestment)` on edit. Those are the figures already passed into budget remaining. The draft summary card labels Budget and Budget remaining, not Allocated. Budget and Unallocated on the bar are the same formatted strings as that card. Unallocated is lime when the remaining number is 0 and amber (`text-pacing-behind`) when it is negative. The in-page exports block and the dashboard download bar are unchanged. `docs/brain/BLAST-RADIUS.md` still describes the old floating bar; it was already dirty and was not staged. The matching sentences are in `docs/brain/modules/media-plans.md`.
+
+## BR-9 DONE 35e54ef7
+
+Commit `35e54ef7` `style(finance): billing month chips, stat cards and lifecycle table`.
+
+Month chips for the selected FY (Jul–Jun) sit above the existing FY / month-from / month-to / clients filters. The pressed chip is the applied single month, or the current month when it sits inside a wider range (so FY-to-date landing still highlights this month). Choosing a chip sets month-from and month-to to that month and applies, including the URL. The filter row stays for ranges.
+
+Stat cards are Expected, Drafted in Xero, Issued and paid, and Overdue. Each dollar is the sum of loaded `record.total` for that derived state. Issued and paid is issued + paid. Issued outside AV stays in Expected only. Overdue uses `text-status-critical-fg` (the light token is `BRAND.functional.coralText`) and a `bg-tone-critical` dot. The list is every derived state in the loaded scope, so Approve still shows on Ready rows. Cards stay the default. Table is the list side of `ListGridToggle`.
+
+Table columns: Client, Reference (`mba_number`), Type, State (`BillingStateBadge` / `BILLING_STATE`, including Ready, Approved, Sent to finance, Drafted, Issued, Paid, Overdue), Expected, In Xero, Difference, Approved by, plus Actions. Send to accounts, Clear for issue, and Approve ready stay on the month bar in both layouts. Row Approve, Un-approve, and the rest of `RowActionLine` stay on the table via `actionsOnly`. No new billing states were added. No snapshots.
+
+- Files: `components/finance/sections/invoicing/BillingMonthChips.tsx`, `components/finance/sections/invoicing/BillingStatCards.tsx`, `components/finance/sections/invoicing/InvoicingRecordsTable.tsx`, `components/finance/sections/invoicing/InvoicingPageClient.tsx`, `components/finance/sections/invoicing/InvoicingPlanRow.tsx`, `components/finance/sections/StatTile.tsx`, `lib/finance/sections/billingPresentation.ts`, `lib/finance/sections/__tests__/billingPresentation.test.ts`, `package.json`, `docs/brain/modules/finance-billing.md`
+- Checks: typecheck 0. lint 0 (existing warnings only). `test:finance-sections` 246 node tests, 7 draft-match tests, and 28 vitest pass. No snapshot updates.
+- Morning smoke: `/finance/invoicing` — month chips switch the month, Table shows state pills, Approve / Send to accounts still work. Not exercised in the browser here (auth).
+- Under 90%: Drafted in Xero, Issued and paid, and Overdue are schedule expected dollars for rows already in that derived state, not a separate Xero ledger total. The Xero subtotal is used to derive state and is not on the client `BillingRecord`, so In Xero reads “Not in Xero” and Difference stays empty even when a match exists. Approved by is “Waiting” until `approved_at`, then the approval date — `approved_by_name` is stored and not on the loaded record. The current-month chip is pressed on the FY-to-date landing even though from and to are still a range; the range narrows only when a chip is chosen. The old funnel strip is no longer mounted; its helper and tests remain. `docs/brain/BLAST-RADIUS.md` and `docs/brain/INVARIANTS.md` were already dirty and were not staged.
+
+## BR-Z DONE
+
+Wrap-up on `localhost`, 10 Oct 2026 (Australia/Sydney). HEAD before this commit is `35e54ef7`. Nothing pushed. No snapshot files were updated. The two failing pins are source-order checks, not snapshots, and were left as they are.
+
+| ID | Status | SHA | One line |
+|---|---|---|---|
+| BR-0 | STOPPED | none | Dirty tree; building-block list was not written |
+| BR-1 | DONE | e68264d5 | Search pill, Light/Black segment, sidebar initials card |
+| BR-2 | DONE | d4592f74 | Page titles with a serif accent and a lede |
+| BR-3 | DONE | 91fecd8a | HeroBand, ArchTrio, JourneyLine and I/A/O cards |
+| BR-4 | DONE | 0d391b75 | Home needs attention, starting soon, planned spend by month |
+| BR-5 | DONE | 40c27f8e | Campaigns table, lifecycle pills and CSV export |
+| BR-6 | DONE | 378918ef | Campaign hero, journey, I/A/O row and flighting |
+| BR-7 | DONE | 57ac2557 | Pacing tiles filter the cards; line cards restyled |
+| BR-8 | DONE | 90d9e437 | Ink plan bar with totals and Files; media-type chips |
+| BR-9 | DONE | 35e54ef7 | Billing month chips, stat cards and lifecycle table |
+| BR-Z | DONE | this commit | Full gate and test suite recorded; run log committed |
+
+Morning smoke. None of these were opened in the browser (Auth0). Look for:
+
+| Route | Look for |
+|---|---|
+| Any signed-in page | Sand Search pill; Ctrl K opens search; Light/Black segment; sidebar shows initials, name and role, not the email |
+| `/dashboard` | Greeting and lede, four tiles with no icons, Needs attention, Starting soon, planned spend by month, then all campaigns |
+| `/mediaplans` | Opens as a table; status chips filter; Export CSV; Cards still available |
+| `/mediaplans/create` | One breadcrumb; ink bar with Budget, Allocated, Unallocated; Files holds the downloads; media-type chips; Ask Ava sits above the bar |
+| `/mediaplans/mba/[mba_number]/edit` | Same ink bar and chips; Unpublished changes beside the title when the form is dirty |
+| `/dashboard/golf-australia/golf025` and `/dashboard/bic/BICAU002` | Ink hero, journey, arches, Download MBA as the lime primary, other actions under More, flighting bars |
+| `/pacing` | Title and lede |
+| `/pacing/portfolio` | Clicking Behind shows only Behind cards; the legend card is gone; the spend bar has an expected tick |
+| `/finance/invoicing` | Jul–Jun chips switch the month; Expected, Drafted in Xero, Issued and paid, Overdue; Table shows state pills; Approve and Send to accounts still work |
+| `/finance/in-xero`, `/finance/owed`, `/finance/xero` | Existing titles, plus a one-line lede |
+| `/design-system` | Ink hero, Planned and Cancelled journeys, three insight cards. The route is `notFound()` in production |
+
+Checks:
+
+- `npm run gate:main` exit 134. typecheck, check:egress-guards, lint, check:client-server-only, check:drizzle-snapshot, check:hardcoded-urls and check:money-inline all passed, then `next build` died: `FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory` at about 4 GB. check:egress-guards still prints the known FX-1 Xano warning and then `check:egress-guards ok`. lint exit 0, same pre-existing warning set.
+- `npm run build` retried with `NODE_OPTIONS=--max-old-space-size=8192`. Exit 0, about 243s. Next.js 15.5.24. Route table includes `/finance/invoicing`, `/pacing/portfolio`, `/mediaplans` and the campaign dashboard.
+- `npm run test:all` exit 1, about 702s, 123/124 suites. Failed: `test:postgres-save-mode` (251 pass, 2 fail, 20 skipped). Both failures are the BR-8 bar, not snapshots.
+  - `planWizardSaveBar.test.ts` “shared component order is Publish, Save draft, then MBA first in the download group” — Save draft now sits before Publish.
+  - `postgresSavePayload.integration.test.ts` “both pages host banners under the header and keep buttons in bottomBar” — the create wizard bar no longer contains `CampaignExportsSection`; those downloads are in the Files menu.
+- No snapshot updates.
+
