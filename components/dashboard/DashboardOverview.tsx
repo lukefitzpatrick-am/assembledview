@@ -54,6 +54,7 @@ import {
   homeAttentionLede,
   homeMediaSpendLabel,
   homeStartsWithinLabel,
+  sortCampaignsStartingSoon,
 } from "@/lib/dashboard/homeBrief"
 import type { CampaignPacingRow } from "@/lib/pacing/portfolio/types"
 import {
@@ -1466,7 +1467,9 @@ export default function DashboardOverview({
     const liveScopesFiltered = applyDashboardTableFiltersToScopes(getLiveScopes(), dashboardFilters)
     const liveCampaigns = showTables ? liveCampaignsFiltered : []
     const liveScopes = showTables ? liveScopesFiltered : []
-    const campaignsDueToStart = showTables ? applyDashboardTableFiltersToPlans(getCampaignsDueToStart(), dashboardFilters) : []
+    const campaignsDueToStart = showTables
+      ? sortCampaignsStartingSoon(applyDashboardTableFiltersToPlans(getCampaignsDueToStart(), dashboardFilters))
+      : []
     const campaignsFinishedRecently = showTables
       ? applyDashboardTableFiltersToPlans(getCampaignsFinishedRecently(), dashboardFilters)
       : []
@@ -1986,7 +1989,9 @@ export default function DashboardOverview({
 
   const liveCampaigns = showTables ? filteredLiveCampaigns : []
   const liveScopes = showTables ? filteredLiveScopes : []
-  const campaignsDueToStart = showTables ? applyDashboardTableFiltersToPlans(getCampaignsDueToStart(), dashboardFilters) : []
+  const campaignsDueToStart = showTables
+    ? sortCampaignsStartingSoon(applyDashboardTableFiltersToPlans(getCampaignsDueToStart(), dashboardFilters))
+    : []
   const campaignsFinishedRecently = showTables
     ? applyDashboardTableFiltersToPlans(getCampaignsFinishedRecently(), dashboardFilters)
     : []

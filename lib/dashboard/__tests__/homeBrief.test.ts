@@ -6,6 +6,7 @@ import {
   homeAttentionLede,
   homeSpendInsight,
   plannedBarsFromClientMonths,
+  sortCampaignsStartingSoon,
 } from "@/lib/dashboard/homeBrief"
 
 describe("home attention lede", () => {
@@ -33,6 +34,21 @@ describe("home start window", () => {
     ]
     expect(countCampaignStartsWithinDays(plans, 14, "2026-10-10")).toBe(3)
     expect(formatHomeStartDay("2026-10-12")).toBe("12 Oct")
+  })
+
+  it("renders starting soon as 11, 12, 19 Oct when the campaigns arrive out of date order", () => {
+    const campaigns = [
+      { id: 1, mp_campaignname: "The Leak", mp_campaigndates_start: "2026-10-11" },
+      { id: 2, mp_campaignname: "Squealini", mp_campaigndates_start: "2026-10-19" },
+      { id: 3, mp_campaignname: "J-Tech", mp_campaigndates_start: "2026-10-12" },
+    ]
+    const ordered = sortCampaignsStartingSoon(campaigns)
+    expect(ordered.map((plan) => formatHomeStartDay(plan.mp_campaigndates_start))).toEqual([
+      "11 Oct",
+      "12 Oct",
+      "19 Oct",
+    ])
+    expect(ordered.map((plan) => plan.mp_campaignname)).toEqual(["The Leak", "J-Tech", "Squealini"])
   })
 })
 

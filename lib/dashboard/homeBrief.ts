@@ -64,6 +64,18 @@ export function countCampaignStartsWithinDays(
   return count
 }
 
+/** Start date ascending, then campaign name. Missing dates sort last. */
+export function sortCampaignsStartingSoon<
+  T extends { mp_campaigndates_start?: string | null; mp_campaignname?: string | null },
+>(campaigns: readonly T[]): T[] {
+  return campaigns.toSorted((a, b) => {
+    const startA = campaignDateOnly(a.mp_campaigndates_start) ?? "9999-99-99"
+    const startB = campaignDateOnly(b.mp_campaigndates_start) ?? "9999-99-99"
+    if (startA !== startB) return startA < startB ? -1 : 1
+    return (a.mp_campaignname ?? "").localeCompare(b.mp_campaignname ?? "", "en-AU")
+  })
+}
+
 /** "12 Oct". Blank when the value is not a date. */
 export function formatHomeStartDay(value: string | null | undefined): string {
   const iso = campaignDateOnly(value)

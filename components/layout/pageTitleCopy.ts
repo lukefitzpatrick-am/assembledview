@@ -1,3 +1,4 @@
+import { shellUserIdentity } from "@/components/UserMenu"
 import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 
 const MONTH_NAMES = [
@@ -17,16 +18,13 @@ const MONTH_NAMES = [
 
 export type GreetingIdentity = {
   given_name?: string | null
+  family_name?: string | null
   name?: string | null
   nickname?: string | null
   email?: string | null
 } | null | undefined
 
 export type MelbourneDayPart = "morning" | "afternoon" | "evening"
-
-function firstWord(value: string): string {
-  return value.trim().split(/\s+/)[0] ?? ""
-}
 
 /** Hour in Australia/Melbourne. Morning before 12, afternoon before 17, else evening. */
 export function melbourneDayPart(now: Date = new Date()): MelbourneDayPart {
@@ -44,25 +42,16 @@ export function melbourneDayPart(now: Date = new Date()): MelbourneDayPart {
   return "evening"
 }
 
+/** First word of the sidebar card name. Email-only accounts use that helper's title-cased local part. */
 export function greetingFirstName(user: GreetingIdentity): string {
-  const given = user?.given_name?.trim()
-  if (given && !given.includes("@")) {
-    const word = firstWord(given)
-    if (word) return word
-  }
-  const name = user?.name?.trim()
-  if (name && !name.includes("@")) {
-    const word = firstWord(name)
-    if (word) return word
-  }
-  const nick = user?.nickname?.trim()
-  if (nick && !nick.includes("@")) {
-    const word = firstWord(nick)
-    if (word) return word
-  }
-  const local = user?.email?.split("@")[0]?.split(/[._+-]/).filter(Boolean)[0]
-  if (local) return local.charAt(0).toUpperCase() + local.slice(1).toLowerCase()
-  return "there"
+  const display = shellUserIdentity({
+    given_name: user?.given_name,
+    family_name: user?.family_name,
+    name: user?.name,
+    email: user?.email,
+  }).name
+  if (!display || display === "Signed in") return "there"
+  return display.trim().split(/\s+/)[0] ?? "there"
 }
 
 function monthName(yyyyMm: string): string | null {

@@ -62,7 +62,13 @@ describe("page title copy", () => {
     expect(melbourneDayPart(new Date("2026-10-10T02:00:00Z"))).toBe("afternoon")
     expect(melbourneDayPart(new Date("2026-10-10T08:00:00Z"))).toBe("evening")
     expect(greetingFirstName({ given_name: "Luke", name: "Luke Fitzpatrick" })).toBe("Luke")
-    expect(greetingFirstName({ name: "luke.fitzpatrick@assembledmedia.com.au", email: "luke.fitzpatrick@assembledmedia.com.au" })).toBe("Luke")
+    expect(
+      greetingFirstName({
+        nickname: "luke.fitzpatrick",
+        name: "luke.fitzpatrick@assembledmedia.com.au",
+        email: "luke.fitzpatrick@assembledmedia.com.au",
+      }),
+    ).toBe("Luke")
   })
 
   it("names the billing month and the edit lede", () => {
