@@ -104,6 +104,14 @@ describe("PlanWizardBottomBar", () => {
     expect(publishMenu?.className).toContain("bg-accent")
     const saveDraft = buttonByLabel(container, "Save draft")
     expect(saveDraft?.className).toContain("border-am-forest-light")
+    expect(saveDraft?.className).toContain("bg-transparent")
+    expect(saveDraft?.className).not.toContain("bg-background")
+    const saveDraftMenu = container.querySelector('[aria-label="Save draft menu"]')
+    expect(saveDraftMenu?.className).toContain("bg-transparent")
+    expect(saveDraftMenu?.className).not.toContain("bg-background")
+    const files = buttonByLabel(container, "Files")
+    expect(files?.className).toContain("bg-transparent")
+    expect(files?.className).not.toContain("bg-background")
     const allButtonLabels = Array.from(container.querySelectorAll("button")).map(
       (el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "",
     )

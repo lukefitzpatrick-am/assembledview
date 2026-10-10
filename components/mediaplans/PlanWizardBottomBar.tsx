@@ -263,7 +263,7 @@ export function PlanWizardBottomBar({
       ]
 
   return (
-    <div className="flex w-full min-w-0 items-center gap-3 overflow-x-hidden">
+    <div className="flex w-max max-w-full min-w-0 items-center gap-3 overflow-x-hidden">
       {totals ? (
         <div className="flex shrink-0 items-end gap-4">
           <div>
@@ -286,9 +286,11 @@ export function PlanWizardBottomBar({
           </div>
         </div>
       ) : null}
-      <p className="min-w-0 flex-1 truncate text-center text-[11px] leading-snug text-am-muted-on-black">
-        {autosaveStatus}
-      </p>
+      {autosaveStatus ? (
+        <p className="hidden min-w-0 max-w-48 shrink truncate text-center text-[11px] leading-snug text-am-muted-on-black xl:block">
+          {autosaveStatus}
+        </p>
+      ) : null}
       <div className="flex shrink-0 items-center gap-2">
       {failedLoadRetry ? (
         <Button
