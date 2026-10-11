@@ -44,6 +44,7 @@ export async function GET(request: Request) {
           allowedClientSlugs: null,
           startedAt: handlerStarted,
           logPgTimeout: true,
+          cache: false,
         }),
     })
     if (action.status === "already built") {

@@ -21,6 +21,8 @@ export type BuildPortfolioSnapshotArgs = {
   perSourceTimeoutMs?: number
   /** Cron only. A Postgres lock or statement timeout logs one line. */
   logPgTimeout?: boolean
+  /** Unset uses the 4h composer cache. The cron passes false. */
+  cache?: boolean
 }
 
 export type ServePortfolioSnapshotArgs = {
