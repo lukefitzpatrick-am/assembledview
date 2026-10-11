@@ -12,6 +12,7 @@ import {
   zeroDeliverableWarnings,
 } from "@/lib/mediaplan/deliverableBudget"
 import { missingBuyTypeGateResult } from "@/lib/mediaplan/missingBuyTypeGate"
+import { stripEmptyLinesOnPublish } from "@/lib/mediaplan/stripEmptyLineItems"
 import { SavePlanError, savePlanVersion } from "@/lib/data/savePlan"
 import { completeStagedIngestAfterSave } from "@/lib/mediaplans/ingest/completeStagedIngestAfterSave"
 import { ingestSourceRowRefsFromAttrs } from "@/lib/mediaplans/ingest/ingestSourceRowRefs"
@@ -78,6 +79,11 @@ export async function POST(request: NextRequest) {
   body.lineItems = normaliseSaveLineDeliverables(body.lineItems)
   const deliverableWarnings =
     body.mode === "publish" ? zeroDeliverableWarnings(body.lineItems) : []
+  // Publish only. Draft and new_version keep every line. An all-empty plan is
+  // left intact so the buy-type and burst-date gates still answer.
+  const strippedPublish = stripEmptyLinesOnPublish(body.mode, body.lineItems)
+  body.lineItems = strippedPublish.lineItems
+  const removedIds = strippedPublish.removedIds
   const access = await checkClientMbaAccess(request, body.mbaNumber)
   if (!access.ok) return access.response
 
@@ -328,6 +334,7 @@ export async function POST(request: NextRequest) {
       scheduleRowCount: result.scheduleRowCount,
       published: result.published,
       documents: result.documents,
+      ...(removedIds.length > 0 ? { removedIds: strippedPublish.removedIds } : {}),
       ...(deliverableWarnings.length > 0 ? { deliverableWarnings } : {}),
       ...(result.billingCorrection
         ? { billingCorrection: result.billingCorrection }

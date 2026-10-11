@@ -230,6 +230,10 @@ import {
   resolveMasterIdFromCombinedPlan,
 } from "@/lib/mediaplan/buildPostgresSavePayload"
 import {
+  emptyLinesRemovedNotice,
+  removedEmptyLineUpdates,
+} from "@/lib/mediaplan/stripEmptyLineItems"
+import {
   MISSING_BURST_DATES,
   formatMissingBurstDatesMessage,
   missingBurstDatesBuilderIssues,
@@ -8125,6 +8129,68 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         }
         for (const warning of saveResult.data.deliverableWarnings ?? []) {
           toast({ title: "Check the rate", description: warning.message })
+        }
+        const { updates, removedCount } = removedEmptyLineUpdates(
+          [
+            { key: "television", lines: televisionMediaLineItems },
+            { key: "radio", lines: radioMediaLineItems },
+            { key: "newspaper", lines: newspaperMediaLineItems },
+            { key: "magazines", lines: magazinesMediaLineItems },
+            { key: "ooh", lines: oohMediaLineItems },
+            { key: "cinema", lines: cinemaMediaLineItems },
+            { key: "digiDisplay", lines: digitalDisplayMediaLineItems },
+            { key: "digiAudio", lines: digitalAudioMediaLineItems },
+            { key: "digiVideo", lines: digitalVideoMediaLineItems },
+            { key: "bvod", lines: bvodMediaLineItems },
+            { key: "integration", lines: integrationMediaLineItems },
+            { key: "production", lines: productionMediaLineItems, channel: "production" },
+            { key: "search", lines: searchMediaLineItems },
+            { key: "social", lines: socialMediaMediaLineItems },
+            { key: "progDisplay", lines: progDisplayMediaLineItems },
+            { key: "progVideo", lines: progVideoMediaLineItems },
+            { key: "progBvod", lines: progBvodMediaLineItems },
+            { key: "progAudio", lines: progAudioMediaLineItems },
+            { key: "progOoh", lines: progOohMediaLineItems },
+            { key: "influencers", lines: influencersMediaLineItems },
+          ],
+          saveResult.data.removedIds ?? [],
+        )
+        if (updates.length > 0) {
+          const writers: Record<
+            string,
+            { media: (lines: any[]) => void; initial?: (lines: any[]) => void }
+          > = {
+            television: { media: setTelevisionMediaLineItems, initial: setTelevisionLineItems },
+            radio: { media: setRadioMediaLineItems, initial: setRadioLineItems },
+            newspaper: { media: setNewspaperMediaLineItems, initial: setNewspaperLineItems },
+            magazines: { media: setMagazinesMediaLineItems, initial: setMagazinesLineItems },
+            ooh: { media: setOohMediaLineItems, initial: setOohLineItems },
+            cinema: { media: setCinemaMediaLineItems, initial: setCinemaLineItems },
+            digiDisplay: { media: setDigitalDisplayMediaLineItems, initial: setDigitalDisplayLineItems },
+            digiAudio: { media: setDigitalAudioMediaLineItems, initial: setDigitalAudioLineItems },
+            digiVideo: { media: setDigitalVideoMediaLineItems, initial: setDigitalVideoLineItems },
+            bvod: { media: setBvodMediaLineItems, initial: setBvodLineItems },
+            integration: { media: setIntegrationMediaLineItems, initial: setIntegrationLineItems },
+            production: { media: setProductionMediaLineItems, initial: setProductionLineItems },
+            search: { media: setSearchMediaLineItems, initial: setSearchLineItems },
+            social: { media: setSocialMediaMediaLineItems, initial: setSocialMediaLineItems },
+            progDisplay: { media: setProgDisplayMediaLineItems, initial: setProgDisplayLineItems },
+            progVideo: { media: setProgVideoMediaLineItems, initial: setProgVideoLineItems },
+            progBvod: { media: setProgBvodMediaLineItems, initial: setProgBvodLineItems },
+            progAudio: { media: setProgAudioMediaLineItems, initial: setProgAudioLineItems },
+            progOoh: { media: setProgOohMediaLineItems, initial: setProgOohLineItems },
+            influencers: { media: setInfluencersMediaLineItems, initial: setInfluencersLineItems },
+          }
+          for (const update of updates) {
+            const writer = writers[update.key]
+            if (!writer) continue
+            const next = update.lines
+            writer.media(next)
+            writer.initial?.(next)
+          }
+        }
+        if (removedCount > 0) {
+          toast({ title: emptyLinesRemovedNotice(removedCount) })
         }
         if (saveResult.data.ingestStageRetained) {
           ingestStageIdRef.current = null

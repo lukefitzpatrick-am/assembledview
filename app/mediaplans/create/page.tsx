@@ -97,6 +97,10 @@ import {
   type PartialMbaValues,
 } from "@/lib/mediaplan/partialMba"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
+import {
+  emptyLinesRemovedNotice,
+  removedEmptyLineUpdates,
+} from "@/lib/mediaplan/stripEmptyLineItems"
 import { generateBillingLineItems } from "@/lib/billing/generateBillingLineItems"
 import { billingSnapshotFeeTotals } from "@/lib/billing/billingSnapshotFeeTotals"
 import { mergeInvestmentMonths } from "@/lib/billing/mergeInvestmentMonths"
@@ -959,6 +963,7 @@ function CreateMediaPlan() {
   const productionFeeTotalRef = useRef(0)
   const [productionItems, setProductionItems] = useState<LineItem[]>([])
   const [productionMediaLineItems, setProductionMediaLineItems] = useState<any[]>([])
+  const [emptyLineResume, setEmptyLineResume] = useState<Record<string, any[] | undefined>>({})
 
   //Ad Serving
   const [adservvideo, setAdServVideo] = useState<number | null>(null)
@@ -5975,6 +5980,66 @@ function CreateMediaPlan() {
         for (const warning of saveResult.data.deliverableWarnings ?? []) {
           toast({ title: "Check the rate", description: warning.message })
         }
+        const { updates, removedCount } = removedEmptyLineUpdates(
+          [
+            { key: "television", lines: televisionMediaLineItems },
+            { key: "radio", lines: radioMediaLineItems },
+            { key: "newspaper", lines: newspaperMediaLineItems },
+            { key: "magazines", lines: magazineMediaLineItems },
+            { key: "ooh", lines: oohMediaLineItems },
+            { key: "cinema", lines: cinemaMediaLineItems },
+            { key: "digiDisplay", lines: digiDisplayMediaLineItems },
+            { key: "digiAudio", lines: digiAudioMediaLineItems },
+            { key: "digiVideo", lines: digiVideoMediaLineItems },
+            { key: "bvod", lines: bvodMediaLineItems },
+            { key: "integration", lines: integrationMediaLineItems },
+            { key: "production", lines: productionMediaLineItems, channel: "production" },
+            { key: "search", lines: searchMediaLineItems },
+            { key: "social", lines: socialMediaMediaLineItems },
+            { key: "progDisplay", lines: progDisplayMediaLineItems },
+            { key: "progVideo", lines: progVideoMediaLineItems },
+            { key: "progBvod", lines: progBvodMediaLineItems },
+            { key: "progAudio", lines: progAudioMediaLineItems },
+            { key: "progOoh", lines: progOohMediaLineItems },
+            { key: "influencers", lines: influencersMediaLineItems },
+          ],
+          saveResult.data.removedIds ?? [],
+        )
+        if (updates.length > 0) {
+          const byKey = new Map(updates.map((update) => [update.key, update.lines]))
+          const write = (key: string, setLines: (lines: any[]) => void) => {
+            const next = byKey.get(key)
+            if (next) setLines(next)
+          }
+          write("television", setTelevisionMediaLineItems)
+          write("radio", setRadioMediaLineItems)
+          write("newspaper", setNewspaperMediaLineItems)
+          write("magazines", setMagazineMediaLineItems)
+          write("ooh", setOohMediaLineItems)
+          write("cinema", setCinemaMediaLineItems)
+          write("digiDisplay", setDigiDisplayMediaLineItems)
+          write("digiAudio", setDigiAudioMediaLineItems)
+          write("digiVideo", setDigiVideoMediaLineItems)
+          write("bvod", setBvodMediaLineItems)
+          write("integration", setIntegrationMediaLineItems)
+          write("production", setProductionMediaLineItems)
+          write("search", setSearchMediaLineItems)
+          write("social", setSocialMediaMediaLineItems)
+          write("progDisplay", setProgDisplayMediaLineItems)
+          write("progVideo", setProgVideoMediaLineItems)
+          write("progBvod", setProgBvodMediaLineItems)
+          write("progAudio", setProgAudioMediaLineItems)
+          write("progOoh", setProgOohMediaLineItems)
+          write("influencers", setInfluencersMediaLineItems)
+          setEmptyLineResume((prev) => {
+            const next = { ...prev }
+            for (const update of updates) next[update.key] = update.lines
+            return next
+          })
+        }
+        if (removedCount > 0) {
+          toast({ title: emptyLinesRemovedNotice(removedCount) })
+        }
         if (saveResult.data.ingestStageRetained) {
           ingestStageIdRef.current = null
         }
@@ -9019,6 +9084,7 @@ const handleSaveAll = async (opts?: {
                             onInvestmentChange={(rows) => handleInvestmentChange("search", rows)}
                             onLineItemsChange={handleSearchItemsChange}
                             onMediaLineItemsChange={handleSearchMediaLineItemsChange}
+                            initialLineItems={emptyLineResume.search}
                             campaignStartDate={campaignStart}
                             campaignEndDate={campaignEnd}
                             campaignBudget={watchedCampaignBudget}
@@ -9036,6 +9102,7 @@ const handleSaveAll = async (opts?: {
                             onInvestmentChange={(rows) => handleInvestmentChange("production", rows)}
                             onLineItemsChange={handleProductionItemsChange}
                             onMediaLineItemsChange={handleProductionMediaLineItemsChange}
+                            initialLineItems={emptyLineResume.production}
                             campaignStartDate={campaignStart}
                             campaignEndDate={campaignEnd}
                             campaignBudget={watchedCampaignBudget}
@@ -9055,6 +9122,7 @@ const handleSaveAll = async (opts?: {
                             onLineItemsChange={handleSocialMediaItemsChange}
                             onSocialMediaLineItemsChange={handleSocialMediaLineItemsStateChange}
                             onMediaLineItemsChange={handleSocialMediaMediaLineItemsChange}
+                            initialLineItems={emptyLineResume.social}
                             campaignStartDate={campaignStart}
                             campaignEndDate={campaignEnd}
                             campaignBudget={watchedCampaignBudget}
@@ -9073,6 +9141,7 @@ const handleSaveAll = async (opts?: {
                             onInvestmentChange={(rows) => handleInvestmentChange("bvod", rows)}
                             onLineItemsChange={handleBVODItemsChange}
                             onMediaLineItemsChange={handleBvodMediaLineItemsChange}
+                            initialLineItems={emptyLineResume.bvod}
                             campaignStartDate={campaignStart}
                             campaignEndDate={campaignEnd}
                             campaignBudget={watchedCampaignBudget}
@@ -9091,6 +9160,7 @@ const handleSaveAll = async (opts?: {
                             onInvestmentChange={(rows) => handleInvestmentChange("integration", rows)}
                             onLineItemsChange={handleIntegrationItemsChange}
                             onMediaLineItemsChange={handleIntegrationMediaLineItemsChange}
+                            initialLineItems={emptyLineResume.integration}
                             campaignStartDate={campaignStart}
                             campaignEndDate={campaignEnd}
                             campaignBudget={watchedCampaignBudget}
@@ -9109,6 +9179,7 @@ const handleSaveAll = async (opts?: {
                             onInvestmentChange={(rows) => handleInvestmentChange("cinema", rows)}
                             onLineItemsChange={handleCinemaItemsChange}
                             onMediaLineItemsChange={handleCinemaMediaLineItemsChange}
+                            initialLineItems={emptyLineResume.cinema}
                             campaignStartDate={campaignStart}
                             campaignEndDate={campaignEnd}
                             campaignBudget={watchedCampaignBudget}
@@ -9127,6 +9198,7 @@ const handleSaveAll = async (opts?: {
                             onInvestmentChange={(rows) => handleInvestmentChange("progaudio", rows)}
                             onLineItemsChange={handleProgAudioItemsChange}
                             onMediaLineItemsChange={handleProgAudioMediaLineItemsChange}
+                            initialLineItems={emptyLineResume.progAudio}
                             campaignStartDate={campaignStart}
                             campaignEndDate={campaignEnd}
                             campaignBudget={watchedCampaignBudget}
@@ -9145,6 +9217,7 @@ const handleSaveAll = async (opts?: {
                             onInvestmentChange={(rows) => handleInvestmentChange("progbvod", rows)}
                             onLineItemsChange={handleProgBvodItemsChange}
                             onMediaLineItemsChange={handleProgBvodMediaLineItemsChange}
+                            initialLineItems={emptyLineResume.progBvod}
                             campaignStartDate={campaignStart}
                             campaignEndDate={campaignEnd}
                             campaignBudget={watchedCampaignBudget}
@@ -9163,6 +9236,7 @@ const handleSaveAll = async (opts?: {
                             onInvestmentChange={(rows) => handleInvestmentChange("progooh", rows)}
                             onLineItemsChange={setProgOohItems}
                             onMediaLineItemsChange={handleProgOohMediaLineItemsChange}
+                            initialLineItems={emptyLineResume.progOoh}
                             campaignStartDate={campaignStart}
                             campaignEndDate={campaignEnd}
                             campaignBudget={watchedCampaignBudget}
@@ -9182,6 +9256,7 @@ const handleSaveAll = async (opts?: {
                           onInvestmentChange={(rows) => handleInvestmentChange("digiaudio", rows)}
                           onLineItemsChange={setDigiAudioItems}
                           onMediaLineItemsChange={handleDigiAudioMediaLineItemsChange}
+                          initialLineItems={emptyLineResume.digiAudio}
                           campaignStartDate={campaignStart}
                           campaignEndDate={campaignEnd}
                           campaignBudget={watchedCampaignBudget}
@@ -9200,6 +9275,7 @@ const handleSaveAll = async (opts?: {
                           onInvestmentChange={(rows) => handleInvestmentChange("digidisplay", rows)}
                           onLineItemsChange={setDigiDisplayItems}
                           onMediaLineItemsChange={handleDigiDisplayMediaLineItemsChange}
+                          initialLineItems={emptyLineResume.digiDisplay}
                           campaignStartDate={campaignStart}
                           campaignEndDate={campaignEnd}
                           campaignBudget={watchedCampaignBudget}
@@ -9218,6 +9294,7 @@ const handleSaveAll = async (opts?: {
                           onInvestmentChange={(rows) => handleInvestmentChange("digivideo", rows)}
                           onLineItemsChange={setDigiVideoItems}
                           onMediaLineItemsChange={handleDigiVideoMediaLineItemsChange}
+                          initialLineItems={emptyLineResume.digiVideo}
                           campaignStartDate={campaignStart}
                           campaignEndDate={campaignEnd}
                           campaignBudget={watchedCampaignBudget}
@@ -9236,6 +9313,7 @@ const handleSaveAll = async (opts?: {
                           onInvestmentChange={(rows) => handleInvestmentChange("progdisplay", rows)}
                           onLineItemsChange={setProgDisplayItems}
                           onMediaLineItemsChange={handleProgDisplayMediaLineItemsChange}
+                          initialLineItems={emptyLineResume.progDisplay}
                           campaignStartDate={campaignStart}
                           campaignEndDate={campaignEnd}
                           campaignBudget={watchedCampaignBudget}
@@ -9254,6 +9332,7 @@ const handleSaveAll = async (opts?: {
                           onInvestmentChange={(rows) => handleInvestmentChange("progvideo", rows)}
                           onLineItemsChange={setProgVideoItems}
                           onMediaLineItemsChange={handleProgVideoMediaLineItemsChange}
+                          initialLineItems={emptyLineResume.progVideo}
                           campaignStartDate={campaignStart}
                           campaignEndDate={campaignEnd}
                           campaignBudget={watchedCampaignBudget}
@@ -9273,6 +9352,7 @@ const handleSaveAll = async (opts?: {
                           onLineItemsChange={setTelevisionItems}
                           onTelevisionLineItemsChange={setTelevisionLineItems}
                           onMediaLineItemsChange={handleTelevisionMediaLineItemsChange}
+                          initialLineItems={emptyLineResume.television}
                           campaignStartDate={campaignStart}
                           campaignEndDate={campaignEnd}
                           campaignBudget={watchedCampaignBudget}
@@ -9297,9 +9377,10 @@ const handleSaveAll = async (opts?: {
                          campaignId={""}
                          mediaTypes={["radio"]}
                          initialLineItems={
-                           radioMediaLineItems.length > 0
+                           emptyLineResume.radio ??
+                           (radioMediaLineItems.length > 0
                              ? radioMediaLineItems
-                             : undefined
+                             : undefined)
                          }
                        />
                       </Suspense>
@@ -9315,6 +9396,7 @@ const handleSaveAll = async (opts?: {
                             onLineItemsChange={setNewspaperItems}
                             onNewspaperLineItemsChange={setNewspaperLineItems}
                             onMediaLineItemsChange={handleNewspaperMediaLineItemsChange}
+                            initialLineItems={emptyLineResume.newspaper}
                             campaignStartDate={campaignStart}
                             campaignEndDate={campaignEnd}
                             campaignBudget={watchedCampaignBudget}
@@ -9333,6 +9415,7 @@ const handleSaveAll = async (opts?: {
                             onInvestmentChange={(rows) => handleInvestmentChange("magazines", rows)}
                             onLineItemsChange={setMagazineItems}
                             onMediaLineItemsChange={handleMagazineMediaLineItemsChange}
+                            initialLineItems={emptyLineResume.magazines}
                             campaignStartDate={campaignStart}
                             campaignEndDate={campaignEnd}
                             campaignBudget={watchedCampaignBudget}
@@ -9357,9 +9440,10 @@ const handleSaveAll = async (opts?: {
                             campaignId={""}
                             mediaTypes={["ooh"]}
                             initialLineItems={
-                              oohMediaLineItems.length > 0
+                              emptyLineResume.ooh ??
+                              (oohMediaLineItems.length > 0
                                 ? oohMediaLineItems
-                                : undefined
+                                : undefined)
                             }
                           />
                         </Suspense>
@@ -9374,6 +9458,7 @@ const handleSaveAll = async (opts?: {
                             onInvestmentChange={(rows) => handleInvestmentChange("influencers", rows)}
                             onLineItemsChange={setInfluencersItems}
                             onMediaLineItemsChange={handleInfluencersMediaLineItemsChange}
+                            initialLineItems={emptyLineResume.influencers}
                             campaignStartDate={campaignStart}
                             campaignEndDate={campaignEnd}
                             campaignBudget={watchedCampaignBudget}

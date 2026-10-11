@@ -386,6 +386,11 @@ export type PlansSaveResponse = {
     buyType: string
     message: string
   }>
+  /**
+   * Publish only. Line ids stripped because they had no buy type and no
+   * burst budget, rate, or quantity. Absent when nothing was stripped.
+   */
+  removedIds?: string[]
 }
 
 export async function postPlansSave(

@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react"
 
+import { isEmptyLineResume } from "@/lib/mediaplan/stripEmptyLineItems"
+
 /**
  * Seam 1: shared edit-mode hydration control flow.
  * Owns the modal-open guard, the empty guard, and an IDENTITY guard so a
@@ -27,7 +29,14 @@ export function useStableHydration<T>(
     if (initialLineItems == null) return
     // First paint is often [] while the tip fetch is in flight — skip that.
     // After a real hydrate, a new empty array is a deleted-line resume.
-    if (initialLineItems.length === 0 && lastHydratedRef.current == null) return
+    // A strip that empties a channel marks the array so the first [] applies.
+    if (
+      initialLineItems.length === 0 &&
+      lastHydratedRef.current == null &&
+      !isEmptyLineResume(initialLineItems)
+    ) {
+      return
+    }
     if (lastHydratedRef.current === initialLineItems) return
     if (ownPublishRef && initialLineItems === ownPublishRef.current) {
       lastHydratedRef.current = initialLineItems
