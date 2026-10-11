@@ -12,6 +12,7 @@ import {
   isOrphanLocalDraft,
   buildStaleBaseCompare,
   isStalePublishedTip,
+  tipVersionIdAfterSave,
   draftAgeDays,
   shouldNudgeStaleDraft,
 } from "../pill.js"
@@ -341,6 +342,35 @@ describe("PC7 compare + stale-base", () => {
     assert.equal(c.baseVersionId, 10)
     assert.equal(c.currentVersionId, 12)
     assert.ok(c.sections.base && c.sections.yours && c.sections.current)
+  })
+
+  it("a second publish sends the first publish's versionId as tipVersionIdAtLoad", () => {
+    let tipVersionIdAtLoad: number | null = 100
+    const firstVersionId = 18748
+    tipVersionIdAtLoad = tipVersionIdAfterSave({
+      mode: "publish",
+      published: true,
+      versionId: firstVersionId,
+      tipVersionIdAtLoad,
+    })
+    const secondCall = { tipVersionIdAtLoad }
+    assert.equal(secondCall.tipVersionIdAtLoad, firstVersionId)
+
+    const afterNewVersion = tipVersionIdAfterSave({
+      mode: "new_version",
+      published: false,
+      versionId: 20000,
+      tipVersionIdAtLoad,
+    })
+    assert.equal(afterNewVersion, firstVersionId)
+
+    const afterDraft = tipVersionIdAfterSave({
+      mode: "draft",
+      published: false,
+      versionId: 20001,
+      tipVersionIdAtLoad,
+    })
+    assert.equal(afterDraft, firstVersionId)
   })
 
   it("SV-1: stale guard checks tip-at-load vs tip-now, not the chosen base", () => {

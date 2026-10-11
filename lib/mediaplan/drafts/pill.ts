@@ -188,6 +188,20 @@ export function isStalePublishedTip(args: {
  * Published pointer the editor saw at load. Prefers the version-picker row
  * for the newest ordinal; falls back to master `published_version_id`.
  */
+/**
+ * Tip the next save should send. A publish that moved the pointer replaces it
+ * with the version just returned. Draft and new_version leave the load-time tip.
+ */
+export function tipVersionIdAfterSave(args: {
+  mode: "draft" | "new_version" | "publish" | null
+  published: boolean | undefined
+  versionId: number
+  tipVersionIdAtLoad: number | null
+}): number | null {
+  if (args.mode === "publish" && args.published) return args.versionId
+  return args.tipVersionIdAtLoad
+}
+
 export function resolveTipVersionIdAtLoad(args: {
   publishedVersionId?: unknown
   versions: Array<{ id?: number; version_number: number }>
