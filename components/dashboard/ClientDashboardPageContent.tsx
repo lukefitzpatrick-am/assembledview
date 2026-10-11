@@ -352,7 +352,7 @@ export function ClientDashboardPageContent({
       }
 
   return (
-    <div className="min-h-screen w-full bg-background">
+    <div className="min-h-screen w-full bg-surface-muted">
       <motion.div
         initial={shouldReduceMotion ? undefined : "hidden"}
         animate={shouldReduceMotion ? undefined : "visible"}
@@ -360,19 +360,7 @@ export function ClientDashboardPageContent({
         className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8 xl:px-12 2xl:px-16"
       >
         <motion.section variants={sectionVariants} className="w-full">
-          <div className="mb-3 flex justify-end">
-            <Suspense fallback={null}>
-              <DateRangeSelector
-                presetSet="client"
-                campaignStart={defaultRangeStartISO}
-                campaignEnd={defaultRangeEndISO}
-                variant="minimal"
-                showPresets
-              />
-            </Suspense>
-          </div>
-          {/* HeroBanner: averageRoas / performanceVsBenchmark omitted (fabricated); restore with real KPI aggregation (Domain 10). */}
-          {/* totalSpend/spendLabel: "Planned to date" — same basis + campaign set as HeroKPIBar below (Task 2). */}
+          {/* Header: PageHeader. Expected media matches HeroKPIBar below. */}
           <HeroBanner
             clientName={headerDescription ? `${clientData.clientName}` : clientData.clientName}
             clientLogo={clientData.clientLogo ?? undefined}
@@ -389,6 +377,17 @@ export function ClientDashboardPageContent({
             isAdmin={isAdmin}
             clientHubLayout={isClientHub}
             clientRecord={isClientHub ? clientData.clientRecord : null}
+            actions={
+              <Suspense fallback={null}>
+                <DateRangeSelector
+                  presetSet="client"
+                  campaignStart={defaultRangeStartISO}
+                  campaignEnd={defaultRangeEndISO}
+                  variant="minimal"
+                  showPresets
+                />
+              </Suspense>
+            }
           />
         </motion.section>
 

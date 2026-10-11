@@ -11,7 +11,7 @@ const UPCOMING_PLACEHOLDER_COUNT = 4
 
 export function ClientDashboardSkeleton() {
   return (
-    <div className="min-h-screen w-full bg-background">
+    <div className="min-h-screen w-full bg-surface-muted">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8 xl:px-12 2xl:px-16">
         <section className="w-full">
           <HeroBannerSkeleton />

@@ -114,6 +114,25 @@ describe("client dashboard expected media", () => {
     expect(tile).toContain("0.0%")
     expect(committed).toContain("37.5%")
     expect(committed.includes("0.0%")).toBe(false)
+    expect(committed.includes("text-amber-")).toBe(false)
+    expect(committed).toContain("text-foreground")
+    expect(committed).toContain("bg-pacing-behind")
+  })
+
+  it("renders the client name and the expected-to-date lede", () => {
+    const header = renderToStaticMarkup(
+      <HeroBanner
+        clientName="Golf Australia"
+        totalSpend={159_800}
+        spendLabel="Expected media to date"
+        activeCampaigns={4}
+        clientHubLayout
+        {...bannerActions}
+      />,
+    )
+    expect(header).toContain("Golf Australia")
+    expect(header).toContain(`Expected media to date: ${formatMoneyCompact(159_800)}`)
+    expect(header.includes("Welcome back")).toBe(false)
   })
 
   it("greets a client viewer and titles admin and staff with the client name", () => {

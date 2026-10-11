@@ -1,14 +1,11 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { BarChart3, Brain, DollarSign, FileText } from "lucide-react"
 
 import { ClientMark } from "@/components/brand/EntityMark"
-import {
-  PAGE_HERO_PADDING_COMPACT,
-  PageHeroShell,
-  PageHeroTitleBlock,
-} from "@/components/dashboard/PageHeroShell"
 import { ClientProfileLinks } from "@/components/dashboard/ClientProfileLinks"
+import { PageHeader, withFullStop } from "@/components/layout/PageHeader"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
@@ -40,6 +37,8 @@ export interface HeroBannerProps {
   clientHubLayout?: boolean
   /** Raw Xano client row — used for profile link icons on admin hub. */
   clientRecord?: Record<string, unknown> | null
+  /** Header actions. The client hub passes Change range. */
+  actions?: ReactNode
 }
 
 function formatRoas(value: number): string {
@@ -67,6 +66,7 @@ export function HeroBanner({
   spendLoading = false,
   clientHubLayout = false,
   clientRecord = null,
+  actions,
 }: HeroBannerProps) {
   const showBenchmarkLine = !clientHubLayout
   const showProfileLinks = clientHubLayout && isAdmin
@@ -114,49 +114,25 @@ export function HeroBanner({
     </>
   )
 
+  const heading = viewerIsClient ? withFullStop(`Welcome back, ${clientName}`) : clientName
+
   return (
-    <PageHeroShell brandColour={brandColour}>
-      <div
-        className={cn(
-          "relative z-10 flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-6",
-          PAGE_HERO_PADDING_COMPACT,
-          showAdminRail && "pr-[5.75rem] sm:pr-[6.25rem]",
-        )}
-      >
-        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <ClientMark
-            name={clientName}
-            colour={brandColour}
-            logoUrl={clientLogo}
-            size="lg"
-          />
-
-          <PageHeroTitleBlock
-            title={viewerIsClient ? `Welcome back, ${clientName}` : clientName}
-            punctuate={viewerIsClient}
-            detail={detail}
-            brandColour={brandColour}
-          />
-        </div>
-      </div>
-
-      {showProfileLinks ? (
-        <div
-          className={cn(
-            "relative z-10 border-t border-border/50 pt-3",
-            PAGE_HERO_PADDING_COMPACT,
-            "pt-3",
-            showAdminRail && "pr-[5.75rem] sm:pr-[6.25rem]",
-          )}
-        >
-          <ClientProfileLinks record={clientRecord} />
-        </div>
-      ) : null}
-
-      {showAdminRail ? (
-        <div className="absolute right-3 top-1/2 z-20 -translate-y-1/2 sm:right-4 md:right-5">
+    <PageHeader
+      punctuate={false}
+      title={
+        <span className="inline-flex items-center gap-3">
+          <ClientMark name={clientName} colour={brandColour} logoUrl={clientLogo} size="lg" />
+          <span>{heading}</span>
+        </span>
+      }
+      lede={detail}
+      meta={showProfileLinks ? <ClientProfileLinks record={clientRecord} /> : undefined}
+      actions={
+        actions || showAdminRail ? (
+          <>
+            {actions}
+            {showAdminRail ? (
           <TooltipProvider delayDuration={100}>
-            {/* 2×2 grid — shorter than the old vertical stack so the hero can compress. */}
             <div
               className="grid grid-cols-2 gap-1.5"
               role="toolbar"
@@ -227,8 +203,10 @@ export function HeroBanner({
               )}
             </div>
           </TooltipProvider>
-        </div>
-      ) : null}
-    </PageHeroShell>
+            ) : null}
+          </>
+        ) : undefined
+      }
+    />
   )
 }
