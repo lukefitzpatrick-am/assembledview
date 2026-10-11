@@ -3,6 +3,7 @@ import "server-only"
 import { and, eq, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm"
 import { type LineChannel } from "@/db/schema"
 import { getDb, schema } from "@/db"
+import { pgRead, withPgReadLimits } from "@/lib/data/pgReadLimits"
 import { coerceNumericStringsToNumbers, toApiRow } from "@/lib/data/toApiRow"
 import { sortLineItemsByLineItemNumber } from "@/lib/mediaplan/lineItemIds"
 import { publishedVersionIfStamped } from "@/lib/mediaplan/publishedVersionGuard"
@@ -207,13 +208,18 @@ export function mapPlanMasterByMbaFromLoadedRows(
   )
 }
 
-export async function fetchPlanMastersFromPostgres(): Promise<Record<string, unknown>[]> {
-  const db = getDb()
+export async function fetchPlanMastersFromPostgres(
+  readLimits?: boolean,
+): Promise<Record<string, unknown>[]> {
   const [masters, versions] = await Promise.all([
-    labelPlanQuery(db.select().from(schema.mediaPlanMasters), "readPlanMasters"),
-    labelPlanQuery(
-      db.select(PLAN_MASTER_VERSION_META_COLUMNS).from(schema.mediaPlanVersions),
-      "readPlanMasters",
+    pgRead(readLimits, (db) =>
+      labelPlanQuery(db.select().from(schema.mediaPlanMasters), "readPlanMasters"),
+    ),
+    pgRead(readLimits, (db) =>
+      labelPlanQuery(
+        db.select(PLAN_MASTER_VERSION_META_COLUMNS).from(schema.mediaPlanVersions),
+        "readPlanMasters",
+      ),
     ),
   ])
   return mapPlanMastersFromLoadedRows(
@@ -253,8 +259,10 @@ export async function fetchPlanMasterByMbaFromPostgres(
   )
 }
 
-export async function readPlanMasters(): Promise<Record<string, unknown>[]> {
-  return fetchPlanMastersFromPostgres()
+export async function readPlanMasters(options?: {
+  readLimits?: boolean
+}): Promise<Record<string, unknown>[]> {
+  return fetchPlanMastersFromPostgres(options?.readLimits)
 }
 
 export async function readPlanMasterByMba(
@@ -404,6 +412,8 @@ export type ReadPlanVersionsForMbasOptions = {
   publishedOnly?: boolean
   /** Select `legacy_schedules`. Off unless the caller reads billing or delivery schedules. */
   includeSchedules?: boolean
+  /** Portfolio reads: 5s lock_timeout and 15s statement_timeout. */
+  readLimits?: boolean
 }
 
 /**
@@ -416,7 +426,6 @@ export async function readPlanVersionsForMbas(
 ): Promise<Record<string, unknown>[]> {
   const keys = mbaKeys(mbaNumbers)
   if (keys.length === 0) return []
-  const db = getDb()
   const v = schema.mediaPlanVersions
   const mbaMatch = sql`lower(${v.mbaNumber}) in (${sql.join(
     keys.map((key) => sql`${key}`),
@@ -425,12 +434,14 @@ export async function readPlanVersionsForMbas(
   const where = options?.publishedOnly
     ? and(mbaMatch, isNotNull(v.publishedAt))
     : mbaMatch
-  const rows = await labelPlanQuery(
-    db
-      .select(planVersionColumns(options?.includeSchedules === true))
-      .from(v)
-      .where(where),
-    "readPlanVersionsForMbas",
+  const rows = await pgRead(options?.readLimits, (db) =>
+    labelPlanQuery(
+      db
+        .select(planVersionColumns(options?.includeSchedules === true))
+        .from(v)
+        .where(where),
+      "readPlanVersionsForMbas",
+    ),
   )
   return mapVersionRows(rows as Record<string, unknown>[])
 }
@@ -473,23 +484,24 @@ export async function readPublishedOrLivePlanVersions(
   asOfDate: string,
 ): Promise<Record<string, unknown>[]> {
   const asOf = String(asOfDate ?? "").trim().slice(0, 10)
-  const db = getDb()
   const v = schema.mediaPlanVersions
-  const rows = await labelPlanQuery(
-    db
-      .select()
-      .from(v)
-      .where(
-        or(
-          isNotNull(v.publishedAt),
-          and(
-            sql`lower(trim(${v.campaignStatus})) in ('approved', 'booked')`,
-            sql`${v.campaignStartDate} <= ${asOf}::date`,
-            sql`${v.campaignEndDate} >= ${asOf}::date`,
+  const rows = await withPgReadLimits((tx) =>
+    labelPlanQuery(
+      tx
+        .select()
+        .from(v)
+        .where(
+          or(
+            isNotNull(v.publishedAt),
+            and(
+              sql`lower(trim(${v.campaignStatus})) in ('approved', 'booked')`,
+              sql`${v.campaignStartDate} <= ${asOf}::date`,
+              sql`${v.campaignEndDate} >= ${asOf}::date`,
+            ),
           ),
         ),
-      ),
-    "readPublishedOrLivePlanVersions",
+      "readPublishedOrLivePlanVersions",
+    ),
   )
   return mapVersionRows(rows as Record<string, unknown>[])
 }
@@ -566,34 +578,40 @@ export async function readPlanVersionsByMba(
 
 async function resolveVersionContext(
   mbaNumber: string,
-  versionNumber: number
+  versionNumber: number,
+  readLimits?: boolean,
 ): Promise<LineItemAssemblyContext | null> {
-  const db = getDb()
-  const versions = await labelPlanQuery(
-    db
-      .select()
-      .from(schema.mediaPlanVersions)
-      .where(
-        and(
-          sql`lower(${schema.mediaPlanVersions.mbaNumber}) = ${normaliseMba(mbaNumber)}`,
-          eq(schema.mediaPlanVersions.versionNumber, versionNumber)
+  const load = async (db: { select: ReturnType<typeof getDb>["select"] }) => {
+    const versions = await labelPlanQuery(
+      db
+        .select()
+        .from(schema.mediaPlanVersions)
+        .where(
+          and(
+            sql`lower(${schema.mediaPlanVersions.mbaNumber}) = ${normaliseMba(mbaNumber)}`,
+            eq(schema.mediaPlanVersions.versionNumber, versionNumber)
+          )
         )
-      )
-      .limit(1),
-    "resolveVersionContext",
-  )
-  const version = versions[0]
-  if (!version) return null
+        .limit(1),
+      "resolveVersionContext",
+    )
+    const version = versions[0]
+    if (!version) return null
 
-  const masters = await labelPlanQuery(
-    db
-      .select()
-      .from(schema.mediaPlanMasters)
-      .where(eq(schema.mediaPlanMasters.id, version.masterId))
-      .limit(1),
-    "resolveVersionContext",
-  )
-  const master = masters[0]
+    const masters = await labelPlanQuery(
+      db
+        .select()
+        .from(schema.mediaPlanMasters)
+        .where(eq(schema.mediaPlanMasters.id, version.masterId))
+        .limit(1),
+      "resolveVersionContext",
+    )
+    return masters[0] ? { version, master: masters[0] } : { version, master: undefined }
+  }
+  const loaded = readLimits ? await withPgReadLimits(load) : await load(getDb())
+  const version = loaded?.version
+  if (!version) return null
+  const master = loaded.master
 
   return {
     versionId: version.id,
@@ -610,23 +628,25 @@ async function resolveVersionContext(
 export async function fetchLineItemsFromPostgres(
   mbaNumber: string,
   versionNumber: number,
-  channel: LineChannel
+  channel: LineChannel,
+  options?: { readLimits?: boolean },
 ): Promise<Record<string, unknown>[]> {
-  const ctx = await resolveVersionContext(mbaNumber, versionNumber)
+  const ctx = await resolveVersionContext(mbaNumber, versionNumber, options?.readLimits)
   if (!ctx) return []
 
-  const db = getDb()
-  const rows = await labelPlanQuery(
-    db
-      .select()
-      .from(schema.lineItems)
-      .where(
-        and(
-          eq(schema.lineItems.versionId, ctx.versionId),
-          eq(schema.lineItems.channel, channel)
-        )
-      ),
-    "readChannelLineItems",
+  const rows = await pgRead(options?.readLimits, (db) =>
+    labelPlanQuery(
+      db
+        .select()
+        .from(schema.lineItems)
+        .where(
+          and(
+            eq(schema.lineItems.versionId, ctx.versionId),
+            eq(schema.lineItems.channel, channel)
+          )
+        ),
+      "readChannelLineItems",
+    ),
   )
 
   const mapped = rows.map((row) =>
@@ -638,13 +658,14 @@ export async function fetchLineItemsFromPostgres(
 export async function fetchLineItemsFromPostgresByEndpoint(
   endpoint: string,
   mbaNumber: string,
-  versionNumber: number
+  versionNumber: number,
+  options?: { readLimits?: boolean },
 ): Promise<Record<string, unknown>[]> {
   const channel = channelFromEndpoint(endpoint)
   if (!channel) {
     throw new Error(`Unknown channel endpoint for plans read: ${endpoint}`)
   }
-  return fetchLineItemsFromPostgres(mbaNumber, versionNumber, channel)
+  return fetchLineItemsFromPostgres(mbaNumber, versionNumber, channel, options)
 }
 
 /** Channel line-item list from Postgres `line_items`. */

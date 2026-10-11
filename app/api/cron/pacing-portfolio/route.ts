@@ -43,6 +43,7 @@ export async function GET(request: Request) {
           liveOnly,
           allowedClientSlugs: null,
           startedAt: handlerStarted,
+          logPgTimeout: true,
         }),
     })
     if (action.status === "already built") {

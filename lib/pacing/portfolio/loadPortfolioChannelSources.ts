@@ -87,6 +87,24 @@ export type LoadPortfolioChannelSourcesOptions = {
   /** Cap on one source. Ignored when unset, so fixture loads stay unbounded. */
   perSourceTimeoutMs?: number
   timings?: PortfolioSourceTiming[]
+  /** Cron only. A 55P03 or 57014 logs pacing_portfolio_pg_timeout. */
+  logPgTimeout?: boolean
+}
+
+const PG_TIMEOUT_CODES = new Set(["55P03", "57014"])
+
+function pgTimeoutCode(err: unknown): "55P03" | "57014" | null {
+  const seen = new Set<unknown>()
+  let current: unknown = err
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current)
+    const code = (current as { code?: unknown }).code
+    if (typeof code === "string" && PG_TIMEOUT_CODES.has(code)) {
+      return code as "55P03" | "57014"
+    }
+    current = (current as { cause?: unknown }).cause
+  }
+  return null
 }
 
 function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -177,6 +195,7 @@ async function loadBounded<T>(
       return { rows, timing }
     } catch (err) {
       const timedOut = isSourceTimeout(err)
+      const pgCode = pgTimeoutCode(err)
       const timing: PortfolioSourceTiming = {
         source,
         ms: Date.now() - attemptStarted,
@@ -185,7 +204,17 @@ async function loadBounded<T>(
         attempt,
       }
       logSourceAttempt(timing)
-      if (!timedOut) return { rows: null, timing, hardError: err }
+      if (pgCode && options?.logPgTimeout) {
+        console.log(
+          JSON.stringify({
+            event: "pacing_portfolio_pg_timeout",
+            source,
+            code: pgCode,
+            ms: Date.now() - attemptStarted,
+          }),
+        )
+      }
+      if (!timedOut && pgCode == null) return { rows: null, timing, hardError: err }
       return { rows: null, timing }
     }
   }
