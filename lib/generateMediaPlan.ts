@@ -557,12 +557,12 @@ export async function generateMediaPlan(
 
   const style = (
     cellOrRef: string | ExcelJS.Cell,
-    options: Partial<{ value: any; fontSize: number; bold: boolean; align: 'left' | 'right' | 'center'; verticalAlign: 'top' | 'middle' | 'bottom'; fill: ExcelJS.Fill; numFmt: string; fontColor: string, textRotation: number | 'vertical', border: Partial<ExcelJS.Borders> }>
+    options: Partial<{ value: any; fontSize: number; bold: boolean; align: 'left' | 'right' | 'center'; verticalAlign: 'top' | 'middle' | 'bottom'; indent: number; fill: ExcelJS.Fill; numFmt: string; fontColor: string, textRotation: number | 'vertical', border: Partial<ExcelJS.Borders> }>
   ) => {
     const c = typeof cellOrRef === 'string' ? sheet.getCell(cellOrRef) : cellOrRef;
     if (options.value !== undefined) c.value = options.value;
     c.font = { name: BRAND.font.excel, size: options.fontSize ?? 15, bold: options.bold ?? false, color: options.fontColor ? { argb: options.fontColor } : undefined };
-    c.alignment = { horizontal: options.align ?? 'left', vertical: options.verticalAlign ?? 'middle', wrapText: false, textRotation: options.textRotation as any }; // wrapText false by default
+    c.alignment = { horizontal: options.align ?? 'left', vertical: options.verticalAlign ?? 'middle', wrapText: false, textRotation: options.textRotation as any, ...(options.indent != null ? { indent: options.indent } : {}) }; // wrapText false by default
     if (options.fill) c.fill = options.fill;
     if (options.numFmt) c.numFmt = options.numFmt;
   };
@@ -1143,9 +1143,9 @@ export async function generateMediaPlan(
 
           if (i === 5 || i === 6) { // Start/End Date
              cellStyleOptions.numFmt = 'dd/mm/yyyy'; cellStyleOptions.align = 'center';
-          } else if (sectionType === 'Television' && i === 8) { // TARPs
-             cellStyleOptions.numFmt = '#,##0'; cellStyleOptions.align = 'right';
-          } else if (i === 8) { // Default Deliverables
+          } else if (i === 8 && sectionType !== 'Production') { // Deliverables (TARPs on Television)
+             cellStyleOptions.numFmt = '#,##0'; cellStyleOptions.align = 'left'; cellStyleOptions.indent = 1;
+          } else if (i === 8) { // Production Amount
              cellStyleOptions.numFmt = '#,##0'; cellStyleOptions.align = 'right';
           } else if (i === 11) { // Avg Rate - keep higher precision for rates
              cellStyleOptions.numFmt = '$#,##0.00##'; cellStyleOptions.align = 'right';

@@ -9,7 +9,7 @@ import {
   buildMediaPlanWorkbook,
   mediaPlanFileName,
 } from "../mediaPlanWorkbook.js"
-import type { KPISheetRow, MediaItems, MediaPlanHeader } from "@/lib/generateMediaPlan"
+import type { KPISheetRow, LineItem, MediaItems, MediaPlanHeader } from "@/lib/generateMediaPlan"
 
 function emptyItems(): MediaItems {
   return {
@@ -210,4 +210,63 @@ test("draft and published share cells apart from the stamp, and AA skips the KPI
   assert.equal(String(draftSheet?.headerFooter?.oddHeader ?? "").includes("DRAFT - NOT FOR CLIENT"), true)
   assert.equal(String(publishedSheet?.headerFooter?.oddHeader ?? "").includes("DRAFT - NOT FOR CLIENT"), false)
   assert.equal(draftSheet?.getCell(1, 1).value, "DRAFT")
+})
+
+function deliverablesDataCell(sheet: ExcelJS.Worksheet): ExcelJS.Cell {
+  const headers: { row: number; col: number }[] = []
+  sheet.eachRow((row, rowNumber) => {
+    row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+      if (cell.value === "Deliverables") headers.push({ row: rowNumber, col: colNumber })
+    })
+  })
+  for (const headerCell of headers) {
+    for (let r = headerCell.row + 1; r <= sheet.rowCount; r++) {
+      const cell = sheet.getCell(r, headerCell.col)
+      if (typeof cell.value === "number") return cell
+    }
+  }
+  assert.fail("Deliverables data cell")
+}
+
+test("Deliverables data cells are left-aligned on the standard and AA files", async () => {
+  const line: LineItem = {
+    market: "National",
+    platform: "Google",
+    buyingDemo: "All",
+    buyType: "cpc",
+    startDate: "2026-01-01",
+    endDate: "2026-01-31",
+    deliverables: 1000,
+    deliverablesAmount: "4000",
+    grossMedia: "4000",
+  }
+  const shared = {
+    header,
+    mediaItems: { ...emptyItems(), search: [line] },
+    mbaData,
+    clientName: "Acme",
+    campaignName: "Spring push",
+    versionNumber: 3,
+    kpiRows: [kpi],
+    publishers,
+  }
+  for (const variant of ["standard", "aa"] as const) {
+    const built = await buildMediaPlanWorkbook({ ...shared, variant, draft: false })
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(built.buffer as unknown as ExcelJS.Buffer)
+    const sheet = workbook.getWorksheet("Media Plan")
+    assert.ok(sheet)
+    const cell = deliverablesDataCell(sheet)
+    assert.equal(cell.value, 1000)
+    assert.equal(cell.numFmt, "#,##0")
+    assert.equal(cell.alignment?.horizontal, "left")
+    assert.equal(cell.alignment?.indent, 1)
+    const buyingDemo = sheet.getCell(Number(cell.row), Number(cell.col) + 1)
+    assert.equal(buyingDemo.value, "All")
+    assert.equal(buyingDemo.alignment?.horizontal, "left")
+    assert.equal(buyingDemo.alignment?.indent ?? 0, 0)
+    const gross = sheet.getCell(Number(cell.row), Number(cell.col) + 4)
+    assert.equal(gross.numFmt, "$#,##0.00")
+    assert.equal(gross.alignment?.horizontal, "right")
+  }
 })
