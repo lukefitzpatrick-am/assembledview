@@ -2940,3 +2940,115 @@ Not opened in this wrap-up.
 | test:ooh-standard-bench | PASS |
 | test:specs | PASS |
 
+
+## AV-TF1 DONE 177c8ab3
+
+Completed cards no longer copy the campaign budget into expected-to-date when the delivery schedule has no positive media. krusty001-shaped input (approved, empty months, missing expected) is $0 expected, $500,000 campaign budget, 0%. The half-inside clamp (500/500) and the in-range straddle (200/300) are unchanged. The expected tile says "campaign budget" when every booked/approved/completed campaign has an empty month list. Plan committed paints the computed percent on first render. The campaigns count still counts up from 0.
+
+- Files: lib/dashboard/plannedSpendConsistency.ts, lib/dashboard/__tests__/plannedSpendConsistency.test.ts, components/dashboard/ClientDashboardPageContent.tsx, components/dashboard/HeroKPIBar.tsx, components/dashboard/__tests__/clientHeroExpected.test.tsx, vitest.config.ts, docs/brain/INVARIANTS.md, docs/brain/modules/dashboards-charts-exports.md.
+- Checks: typecheck 0. lint 0 (existing warnings only, none in these files). test:client-dashboard-range pass (25 + 3 + 25). plannedSpendConsistency 12 pass. clientHeroExpected 5 pass. No snapshots.
+- Under 90%: the prompt's "$0 planned" could mean the denominator is also $0. Morning smoke and AV-P4 section 5 both say $0 of $500.0K campaign budget, so the denominator stays the campaign budget. The signed-in page was not opened.
+- Morning smoke: /dashboard/krusty-krab: Expected $0 of $500.0K campaign budget. /dashboard/golf-australia: figures unchanged ($159.8K expected on 11 Oct, give or take a day's proration).
+
+## AV-TF2 DONE ab8a9b72
+
+Deliverables data cells on the media plan sheet are left-aligned with indent 1 and number format #,##0, on the standard and AA workbooks. Buying Demo stays left with no indent. Gross Media stays right with $#,##0.00. Production Amount stays right-aligned #,##0. Gantt burst cells and the Campaign KPIs Deliverables column are unchanged.
+
+- Files: lib/generateMediaPlan.ts, lib/docs/__tests__/mediaPlanWorkbook.test.ts, docs/brain/INVARIANTS.md, docs/brain/modules/media-plans.md.
+- Checks: typecheck 0. lint 0 (existing warnings only, none in these files). test:media-plan-excel 23 pass. No snapshots.
+- Morning smoke: Draft Media Plan for krusty002: Deliverables reads left-aligned with a gap before Buying Demo. The signed-in export was not opened.
+
+## AV-TF3 DISCOVERY (no commit)
+
+Wrote `docs/superpowers/overnight-av-fixes/discovery/AV-TF3.md`. No code change. File left untracked. No SHA.
+
+Publish checks buy type only, on `POST /api/plans/save` since 15 Sep 2026 (`missingBuyTypeGate`, 422 `MISSING_BUY_TYPE`). The legacy PATCH stamp does not. Nothing recomputes or rounds `calculatedValue` on save. The named plans were published before the gate (buxton001 11 May, PENFOLD017 26 May, PGAAUS003 25 Jun, krusty001 2 Aug). In the current published window (campaign end on or after 1 Jul 2026): 8 lines fail (a), 607 non-production lines fail (b), 18 lines fail a broad (c). PGAAUS003 has no safe UPDATE until a buy type is chosen.
+
+- Checks: none. Read-only, plus a Postgres read. Temporary query scripts were outside the repo.
+- Morning smoke: none.
+- Under 90%: strip versus block for empty lines is 75% (the block already exists). DD7 rate rewrite to $9,000 is 70% and left commented. Excluding package from the deliverable warning is 85%. The exact float 208333.33333333334 was not on a current published line in this window; TheY001DD1 has the same class of unrounded value (233333.33333333334). 226 fractional stored deliverables.
+
+## AV-TF4 DONE aca768f0
+
+Client hub canvas is sand (`bg-surface-muted`), matching the campaign page. Cards stay white. The header is `PageHeader`: client name with `ClientMark` beside it, the existing expected-to-date line as the lede, and Change range in actions. Client logins still see "Welcome back, {name}." The admin slide-over rail and profile links stay in that header. Plan committed numbers are ink (`text-foreground`). The bar and ring use pacing tokens for the same bands (above 50 ahead, 25–50 behind, else critical). Sections, figures, and the overdue notice are unchanged.
+
+- Files: components/dashboard/ClientDashboardPageContent.tsx, components/dashboard/ClientDashboardSkeleton.tsx, components/dashboard/HeroBanner.tsx, components/dashboard/__tests__/clientHeroExpected.test.tsx, lib/dashboard/budgetUtilKpi.ts, docs/brain/modules/dashboards-charts-exports.md, docs/brain/BLAST-RADIUS.md.
+- Checks: typecheck 0. lint 0 (existing warnings only, none in these files). test:client-dashboard-range pass (25 + 3 + 25). clientHeroExpected 6 pass. plannedSpendConsistency 12 pass (included in the vitest run with the hero file). No snapshots.
+- Under 90%: the old bar used raw emerald/amber/rose. Those classes are banned, so the bar is `bg-pacing-ahead` / `bg-pacing-behind` / `bg-pacing-critical` on the same 50/25 bands. 36.7% stays the behind (amber) bar. The signed-in page was not opened.
+- Morning smoke: /dashboard/golf-australia: sand canvas, PageHeader, ink numbers, and the same figures as before.
+
+## AV-TF5 DISCOVERY (no commit)
+
+Wrote `docs/superpowers/overnight-av-fixes/discovery/AV-TF5.md`. No code change. File left untracked. No SHA.
+
+Expected media is every delivery-schedule media channel (fees, production, and ad serving dropped). Delivered is platform facts, plus television, radio, and newspaper only when a line is currently fixed-cost. Static OOH, magazines, cinema, integration, and influencers never enter Delivered. Pick is option (a): platform expected beside a "Booked, no platform delivery" figure. Home copy: "33 with platform delivery" under the live count of 38.
+
+- Checks: none. Read-only of the code. The 11 Oct dollars and the 38/33 split were not re-counted.
+- Morning smoke: none.
+- Under 90%: how many of the five Home campaigns fail the pacing phase gate, rather than having no source, was not checked. Pick confidence 80%.
+
+## AV-TF6 DISCOVERY (no commit)
+
+Wrote `docs/superpowers/overnight-av-fixes/discovery/AV-TF6.md`. No code change. File left untracked. No SHA.
+
+Edit drafts are not per tab. IndexedDB key is `m{masterId}::{email}` in `av-plan-drafts` / `drafts`. Create's `sessionStorage` id is not used. A matching-base server or newer local draft auto-applies when `allChannelsHydrated` becomes true. The PO input is already editable. A local-only draft would have asked first. The silent "SMOKE-11OCT" fill was the auto path. Pick: prompt "Restore your draft from {time}?" instead of applying it. Restoring earlier still leaks the other tab.
+
+- Checks: none. Read-only of the code. The 11 Oct browser store was not opened.
+- Morning smoke: none.
+- Under 90%: which store held the string (IndexedDB vs `plan_working_drafts`) was not read. Append is the focused input taking `form.reset`, not a concat in the draft code. Pick confidence 88%.
+
+## AV-TF7 DISCOVERY (no commit)
+
+Wrote `docs/superpowers/overnight-av-fixes/discovery/AV-TF7.md` and `docs/superpowers/overnight-av-fixes/discovery/AV-TF7-audit.json`. No code change. No install, no `npm audit fix`. Files left untracked. No SHA.
+
+GitHub's 41 open alerts (17 high, 18 moderate, 6 low) are the same packages as `npm audit` on this lockfile. npm's metadata says 36 because it collapses version lines and counts parent nodes. Safe follow-up is patch/minor only: next 15.5.27 (with eslint-config-next), and overrides for sharp 0.35.5, undici 6.28.1, brace-expansion 1.1.21 / 2.1.7 / 5.0.12, dompurify 3.4.16, plus moment 2.31.0 and source-map-js 1.2.2. undici 7.29.1 and smol-toml 1.9.0 are dev-only and can ride along. Majors held back: nodemailer 10, snowflake 3 (which also drops toml 3), uuid 11, image-size 2, braces (no 3.x fix), postcss-selector-parser 7, esbuild under drizzle-kit, sprintf-js (no release).
+
+- Checks: none. `npm audit` exited 1, which is the vulnerability result, not a failed run. `npm view` was read-only.
+- Morning smoke: none.
+- Under 90%: whether the two next cache-poisoning advisories apply on Vercel is about 70% (both texts say self-hosted SSG/ISR). nodemailer 10, snowflake 3, uuid 11, and image-size 2 were not installed. braces and postcss-selector-parser not running on a request is about 90% from the lockfile trace.
+
+## AV-TF8 DONE d86f8e4a
+
+Spend by month Y-axis ticks use one compact scale: $0, $500K, $1M, $1.5M, $2M. Trailing zeros are dropped and a decimal appears only when the tick needs it ($1.5M). The Media Spend tile still uses `millionScale: "home-spend"`. The chart tooltip is exact `formatMoney` (`$1,500,000.00`).
+
+- Files: lib/format/money.ts, components/dashboard/HomeBrief.tsx, tests/format/money-date.test.ts, docs/brain/modules/dashboards-charts-exports.md, docs/brain/modules/shared-core.md.
+- SHA: d86f8e4a06b511cf0242010fe4b2218445767478
+- Checks: typecheck 0. lint 0 (existing warnings only, none in these files). homeBrief  pass and money-date pass (22 tests across both files). No snapshots.
+- Morning smoke: Home Spend by month axis reads $0, $500K, $1M, $1.5M, $2M. Hover still shows full dollars. The signed-in page was not opened.
+- Under 90%: none on the formatter. Recharts chooses the tick numbers from the data; the five values in the test are the ones the prompt named.
+
+## AV-TFZ DONE
+
+`npm run gate:main` with `NODE_OPTIONS=--max-old-space-size=8192` exit 0, about 248s. `npm run test:all` once, exit 0, 124/124 suites, about 543s. No suite was rerun.
+
+### Prompts
+
+| ID | Status | SHA |
+| --- | --- | --- |
+| AV-TF1 | DONE | `177c8ab3` |
+| AV-TF2 | DONE | `ab8a9b72` |
+| AV-TF3 | DISCOVERY | none |
+| AV-TF4 | DONE | `aca768f0` |
+| AV-TF5 | DISCOVERY | none |
+| AV-TF6 | DISCOVERY | none |
+| AV-TF7 | DISCOVERY | none |
+| AV-TF8 | DONE | `d86f8e4a` |
+| AV-TFZ | DONE | this commit |
+
+### Discovery files
+
+- `docs/superpowers/overnight-av-fixes/discovery/AV-TF3.md` — publish checks buy type only. Current window: 8 lines with no buy type, 607 empty non-production shells, 18 unrounded deliverable warnings. UPDATE text is in the note. Not run.
+- `docs/superpowers/overnight-av-fixes/discovery/AV-TF5.md` — expected counts every media channel; Delivered is platform plus TV/radio/newspaper only when fixed-cost. Pick is platform expected beside "Booked, no platform delivery". Confidence 80%.
+- `docs/superpowers/overnight-av-fixes/discovery/AV-TF6.md` — edit drafts share `m{masterId}::{email}`. A matching-base draft auto-applies after containers settle. Pick is "Restore your draft from {time}?". Confidence 88%.
+- `docs/superpowers/overnight-av-fixes/discovery/AV-TF7.md` — GitHub's 41 alerts match this lockfile. Safe follow-up is patch/minor (next 15.5.27, sharp, undici 6, brace-expansion, dompurify, moment, source-map-js). Majors held back.
+- `docs/superpowers/overnight-av-fixes/discovery/AV-TF7-audit.json` — `npm audit --json` for that note. No fix was applied.
+
+### Morning smoke
+
+None of these were opened in the browser.
+
+- AV-TF1: `/dashboard/krusty-krab` Expected $0 of $500.0K campaign budget. `/dashboard/golf-australia` figures unchanged.
+- AV-TF2: Draft Media Plan for krusty002. Deliverables left-aligned, gap before Buying Demo.
+- AV-TF3, AV-TF5, AV-TF6, AV-TF7: nothing to click.
+- AV-TF4: `/dashboard/golf-australia` sand canvas, PageHeader, ink numbers, same figures.
+- AV-TF8: Home Spend by month reads $0, $500K, $1M, $1.5M, $2M. Hover is full dollars.
