@@ -377,6 +377,15 @@ export type PlansSaveResponse = {
     error?: string
     results?: Array<{ kind: string; status: string; error?: string }>
   }
+  /**
+   * Publish only. A derived line with a budget and a zero quantity.
+   * The save still commits.
+   */
+  deliverableWarnings?: Array<{
+    lineItemId: string
+    buyType: string
+    message: string
+  }>
 }
 
 export async function postPlansSave(

@@ -430,6 +430,45 @@ export function normaliseSaveLineDeliverables<T extends DeliverableLine>(lines: 
   return lines.map((line) => normaliseBurstDeliverables(line));
 }
 
+export type ZeroDeliverableWarning = {
+  lineItemId: string;
+  buyType: string;
+  message: string;
+};
+
+function calculatedValueEmpty(value: unknown): boolean {
+  if (value == null || value === "") return true;
+  return storedDeliverable(value) === 0;
+}
+
+/**
+ * After rounding. A derived line (same exclusions as save rounding) warns
+ * when any burst has a budget above 0 and a zero or blank quantity.
+ * Publishing still commits.
+ */
+export function zeroDeliverableWarnings(
+  lines: Array<{ lineItemId: string; buyType?: string | null; bursts: unknown }>
+): ZeroDeliverableWarning[] {
+  const warnings: ZeroDeliverableWarning[] = [];
+  for (const line of lines) {
+    if (!isSaveRoundedBuyType(line.buyType)) continue;
+    if (!Array.isArray(line.bursts)) continue;
+    const hit = line.bursts.some((burst) => {
+      if (!burst || typeof burst !== "object") return false;
+      const row = burst as Record<string, unknown>;
+      return burstBudgetAmount(row.budget) > 0 && calculatedValueEmpty(row.calculatedValue);
+    });
+    if (!hit) continue;
+    const buyType = String(line.buyType ?? "").trim();
+    warnings.push({
+      lineItemId: line.lineItemId,
+      buyType,
+      message: `${line.lineItemId} (${buyType}) has a budget and no deliverables. Check the rate. Publishing will continue.`,
+    });
+  }
+  return warnings;
+}
+
 function parseWeekCell(prev: number | string | undefined | null): number {
   if (prev === "" || prev === undefined || prev === null) return 0;
   if (typeof prev === "number") return Number.isFinite(prev) ? prev : 0;

@@ -8121,6 +8121,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             description: saveResult.data.documents.error || "Document generation failed",
           })
         }
+        for (const warning of saveResult.data.deliverableWarnings ?? []) {
+          toast({ title: "Check the rate", description: warning.message })
+        }
         if (saveResult.data.ingestStageRetained) {
           ingestStageIdRef.current = null
         }

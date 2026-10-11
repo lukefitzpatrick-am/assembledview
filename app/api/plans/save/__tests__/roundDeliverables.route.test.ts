@@ -160,6 +160,49 @@ test("publish rounds the sent CPM calculatedValue before savePlanVersion", { ski
   assert.equal(bursts[0]?.calculatedValue, 11)
 })
 
+test("publish of a cpm line at rate 0 with a budget returns one warning and still saves", { skip }, async () => {
+  reset()
+  const POST = await loadRoute()
+  const res = await POST(
+    postReq(
+      saveBody({
+        lineItems: [
+          {
+            lineItemId: LINE_ID,
+            channel: "digi_display",
+            mediaType: "digi_display",
+            buyType: "cpm",
+            rate: 0,
+            enteredAmount: 3000,
+            bursts: [
+              {
+                budget: "$3,000.00",
+                buyAmount: "0",
+                calculatedValue: 0,
+                startDate: "2026-01-01",
+                endDate: "2026-01-31",
+              },
+            ],
+          },
+        ],
+      })
+    )
+  )
+  assert.equal(res.status, 200)
+  const json = (await res.json()) as {
+    published?: boolean
+    deliverableWarnings?: Array<{ message: string }>
+  }
+  assert.equal(json.deliverableWarnings?.length, 1)
+  assert.equal(
+    json.deliverableWarnings?.[0]?.message,
+    `${LINE_ID} (cpm) has a budget and no deliverables. Check the rate. Publishing will continue.`
+  )
+  assert.equal(savePlanVersionMock.mock.calls.length, 1)
+  const bursts = lastSaveInput?.lineItems?.[0]?.bursts as Array<{ calculatedValue: number }>
+  assert.equal(bursts[0]?.calculatedValue, 0)
+})
+
 test("draft rounds the sent CPM calculatedValue before savePlanVersion", { skip }, async () => {
   reset()
   const POST = await loadRoute()

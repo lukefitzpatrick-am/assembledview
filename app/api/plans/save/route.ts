@@ -7,7 +7,10 @@ import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { getWriteBackend } from "@/lib/data/backend"
 import { plansSaveBodySchema } from "@/lib/mediaplan/plansSaveBodySchema"
 import { missingBurstDatesGateResult } from "@/lib/mediaplan/missingBurstDatesGate"
-import { normaliseSaveLineDeliverables } from "@/lib/mediaplan/deliverableBudget"
+import {
+  normaliseSaveLineDeliverables,
+  zeroDeliverableWarnings,
+} from "@/lib/mediaplan/deliverableBudget"
 import { missingBuyTypeGateResult } from "@/lib/mediaplan/missingBuyTypeGate"
 import { SavePlanError, savePlanVersion } from "@/lib/data/savePlan"
 import { completeStagedIngestAfterSave } from "@/lib/mediaplans/ingest/completeStagedIngestAfterSave"
@@ -73,6 +76,8 @@ export async function POST(request: NextRequest) {
   const body = parsed.data
   // Every mode. Round the quantity the editor sent. Do not recompute from budget and rate.
   body.lineItems = normaliseSaveLineDeliverables(body.lineItems)
+  const deliverableWarnings =
+    body.mode === "publish" ? zeroDeliverableWarnings(body.lineItems) : []
   const access = await checkClientMbaAccess(request, body.mbaNumber)
   if (!access.ok) return access.response
 
@@ -323,6 +328,7 @@ export async function POST(request: NextRequest) {
       scheduleRowCount: result.scheduleRowCount,
       published: result.published,
       documents: result.documents,
+      ...(deliverableWarnings.length > 0 ? { deliverableWarnings } : {}),
       ...(result.billingCorrection
         ? { billingCorrection: result.billingCorrection }
         : {}),

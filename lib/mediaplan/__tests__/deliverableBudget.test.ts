@@ -7,7 +7,9 @@ import test from "node:test"
 import {
   coerceBuyTypeWithDevWarn,
   normaliseBurstDeliverables,
+  normaliseSaveLineDeliverables,
   resolveBuyTypeForChannel,
+  zeroDeliverableWarnings,
   shouldMountCpcFamilyBurstCalculatedField,
 } from "@/lib/mediaplan/deliverableBudget"
 
@@ -144,4 +146,30 @@ test("normaliseBurstDeliverables leaves package and bonus quantities untouched",
     bursts: [{ budget: "100", calculatedValue: 2.4 }],
   }
   assert.equal(normaliseBurstDeliverables(bonus), bonus)
+})
+
+test("zeroDeliverableWarnings names a cpm line with a budget and no quantity", () => {
+  const rounded = normaliseSaveLineDeliverables([
+    {
+      lineItemId: "KRUSTY002DD001",
+      buyType: "cpm",
+      bursts: [{ budget: "$3,000.00", buyAmount: "0", calculatedValue: 0 }],
+    },
+    {
+      lineItemId: "KRUSTY002DD002",
+      buyType: "fixed_cost",
+      bursts: [{ budget: "$9,000.00", calculatedValue: 0 }],
+    },
+    {
+      lineItemId: "KRUSTY002DD003",
+      buyType: "package",
+      bursts: [{ budget: "100", calculatedValue: 0 }],
+    },
+  ])
+  const warnings = zeroDeliverableWarnings(rounded)
+  assert.equal(warnings.length, 1)
+  assert.equal(
+    warnings[0]?.message,
+    "KRUSTY002DD001 (cpm) has a budget and no deliverables. Check the rate. Publishing will continue."
+  )
 })
