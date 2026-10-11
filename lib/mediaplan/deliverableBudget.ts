@@ -1,3 +1,5 @@
+import { parseMoneyInput, type MoneyInput } from "@/lib/format/money";
+
 export type BuyType =
   | "package"
   | "spots"
@@ -351,6 +353,81 @@ export function roundDeliverables(buyType: BuyType, value: number): number {
     default:
       return Math.round(value);
   }
+}
+
+/**
+ * Package, bonus, and package inclusions keep the quantity the editor sent.
+ * They are derived or manual, and save does not rewrite them.
+ */
+const SAVE_ROUND_EXCLUSIONS = new Set<string>(["package", "bonus", "package_inclusions"]);
+
+export function isSaveRoundedBuyType(buyType: string | null | undefined): boolean {
+  const key = String(buyType ?? "").trim().toLowerCase();
+  return (
+    (BUY_TYPES_WITH_DERIVED_DELIVERABLES as readonly string[]).includes(key) &&
+    !SAVE_ROUND_EXCLUSIONS.has(key)
+  );
+}
+
+function burstBudgetAmount(value: unknown): number {
+  if (typeof value === "number" || typeof value === "string" || value == null) {
+    return parseMoneyInput(value as MoneyInput) ?? 0;
+  }
+  return 0;
+}
+
+function storedDeliverable(value: unknown): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const trimmed = value.trim().replace(/,/g, "");
+    if (!trimmed) return 0;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+type DeliverableLine = {
+  buyType?: string | null;
+  bursts: unknown;
+};
+
+/**
+ * Round the quantity the editor already stored on each burst.
+ * Does not recompute from budget and rate.
+ *
+ * `fixed_cost` with a burst budget above 0 stores 1 here, including a zero
+ * rate. That rule stays in this helper: `roundDeliverables` has no budget
+ * and returns 1 for every `fixed_cost` value, which would stamp 1 on an
+ * empty shell. A zero budget keeps the stored quantity.
+ * `deliverablesFromBudget` still returns 0 for a zero rate before its
+ * `fixed_cost` case.
+ */
+export function normaliseBurstDeliverables<T extends DeliverableLine>(line: T): T {
+  const buyType = String(line.buyType ?? "").trim().toLowerCase();
+  if (!isSaveRoundedBuyType(buyType)) return line;
+  if (!Array.isArray(line.bursts)) return line;
+
+  const bursts = line.bursts.map((burst) => {
+    if (!burst || typeof burst !== "object") return burst;
+    const row = burst as Record<string, unknown>;
+    const budget = burstBudgetAmount(row.budget);
+    const stored = storedDeliverable(row.calculatedValue);
+    const calculatedValue =
+      buyType === "fixed_cost" && budget > 0
+        ? 1
+        : buyType === "fixed_cost"
+          ? stored
+          : roundDeliverables(buyType as BuyType, stored);
+    if (calculatedValue === row.calculatedValue) return burst;
+    return { ...row, calculatedValue };
+  });
+
+  return { ...line, bursts };
+}
+
+export function normaliseSaveLineDeliverables<T extends DeliverableLine>(lines: T[]): T[] {
+  return lines.map((line) => normaliseBurstDeliverables(line));
 }
 
 function parseWeekCell(prev: number | string | undefined | null): number {

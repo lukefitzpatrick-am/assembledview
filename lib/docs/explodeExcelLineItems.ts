@@ -7,6 +7,7 @@ import { formatBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import {
   computeDeliverableFromMedia,
+  roundDeliverables,
   type BuyType,
 } from "@/lib/mediaplan/deliverableBudget"
 import { parseMoneyInput } from "@/lib/format/money"
@@ -130,7 +131,7 @@ export function explodeExcelLineItems(
     })
     const deliverableForExcel = Number.isNaN(recomputed)
       ? money(burst.calculatedValue ?? burst.deliverables ?? burst.tarps)
-      : recomputed
+      : roundDeliverables(buyType as BuyType, recomputed)
 
     const filled = fillBlankBurstDates(
       burstDateYmd(burst.startDate ?? burst.start_date),
