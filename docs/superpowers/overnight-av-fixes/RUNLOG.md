@@ -3242,3 +3242,58 @@ Other readers keep using `amount`. `SpendingInsightsSection` `toCampaignStacked`
 | Ask before restoring an edit draft | DONE | `312baf96` |
 | Split expected into platform and booked | DONE | `0414c1c7` |
 | AV-THZ | DONE | this commit |
+
+## New line number from the max, then strip empty lines on publish
+
+Two commits on `localhost`. `lib/partner-ingest` was not staged. The wrap-up commit below stages this section.
+
+### Commit 1 — next line number from the max
+
+`assignStableLineItemNumbers` was not changed. Add and duplicate now call `nextLineNumber` (highest `parseLineNumberFromLineItemId` suffix already in use, plus one). Existing lines are not renumbered.
+
+Sites that mint on add or duplicate, now `nextLineFields`:
+
+- `useMediaChannelContainer.handleDuplicateLineItem`
+- `MediaChannelContainer.emptyPayload` (empty-state add and the last-row Add). Search and the Prog* containers go through this.
+- Radio, Television, Newspaper, Cinema, Magazines add and duplicate
+- OOH duplicate (still runs `assignStableLineItemNumbers` after the append)
+- Digital Display, Digital Audio, BVOD, Digital Video, Social add and duplicate
+- Integration and Influencers add and duplicate (they used to clear the id and wait for save)
+- Production add and duplicate (no longer stamps a blank `lineItemId`)
+
+Excel `onLineItemsChange` paths still use `lineItemIndex + 1` (Radio, Digital Audio, BVOD, Digital Video, Social, Integration, and the shared hook). Those lists are the export rows, not the save payload.
+
+Card titles use `resolvedLineItemId` so the stamped id is what shows. The ExpertCard index circle is still the row position.
+
+The radio container test does not mount `RadioContainer`. A full jsdom mount never quiesces. The test is a field-array harness that calls `nextLineFields` the same way the Add button does, plus a source read that the container calls `nextLineFields(` and not `lineItemFields.length + 1`.
+
+No container builds the save payload from a ref or a store outside the form and `initialLineItems`. No container mints a uuid. No existing test pins `length + 1` as the line number.
+
+- SHA: f1258793
+- Checks: `nextLineNumber` tests pass. `radioAddAfterDelete` 2/2. typecheck 0. lint 0, with the pre-existing exhaustive-deps warnings.
+- Morning smoke: not run in that commit. See below.
+
+### Commit 2 — strip empty lines on publish
+
+`stripEmptyLineItems` drops a line only when the buy type is blank and every burst budget, buy amount, and calculated value is 0 or blank (`$1,000.00`, `$0.00`, blank, null, and numbers through `parseMoneyInput`). Production uses the burst test only and stays exempt from the buy-type clause (C-91). If every line is empty, nothing is stripped.
+
+`POST /api/plans/save` runs `stripEmptyLinesOnPublish` after `normaliseSaveLineDeliverables` and before `missingBuyTypeGateResult`, and only `mode === "publish"` strips. `removedIds` is on the 200 next to `deliverableWarnings`.
+
+Create and edit drop a returned id only while that line is still empty. Only a channel that lost a line gets a new array. Create passes that array as `initialLineItems` (`emptyLineResume`); edit writes the fetch-state array the container already receives. An emptied channel is marked so the first `[]` hydrates. The toast is the count actually removed: `Removed {n} empty lines with no buy type, budget, or rate.`
+
+- SHA: cce10f75a4d8e26bf230af4879240f8315e1c392
+- Checks: `stripEmptyLineItems` tests 11/11. typecheck 0. lint 0 on the touched files. Pre-existing exhaustive-deps warnings on create and edit remain.
+- Morning smoke: not run. Nothing is listening on localhost:3000, so krusty002 was not opened. The checks still to do there: delete line 2 of 3 and add (the line id should be 4), add one blank line and save (the notice), save again without reloading (no 422), reload (the blank line is gone).
+- Under 90%: none.
+
+## AV-TIZ DONE
+
+`npm run gate:main` exit 0, 448.0s. `npm run test:all` once, exit 0, 124/124 suites, 694.5s. No suite was rerun. Only this run log was staged.
+
+### Prompts
+
+| ID | Status | SHA |
+| --- | --- | --- |
+| New line number from the max | DONE | `f1258793` |
+| Strip empty lines on publish | DONE | `cce10f75` |
+| AV-TIZ | DONE | this commit |
