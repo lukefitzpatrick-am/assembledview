@@ -378,6 +378,7 @@ test(
       campaign_status: "booked",
       campaign_start_date: "2026-07-01",
       campaign_end_date: "2026-12-31",
+      is_published_tip: true,
     })
     state.versions = async () => [
       live("letsgo001"),
@@ -388,6 +389,7 @@ test(
         campaign_status: "completed",
         campaign_start_date: "2026-07-01",
         campaign_end_date: "2026-12-31",
+        is_published_tip: true,
       },
     ]
     const { buildAndStorePortfolioSnapshot } = await import(
@@ -423,6 +425,41 @@ test(
     assert.equal(warning.counts?.live, 2)
     assert.equal(warning.expectedLive, 3)
     assert.deepEqual(warning.missingCampaignIds, ["missing001"])
+  },
+)
+
+test(
+  "a cancelled published tip is not counted when an older approved version is in range",
+  { skip },
+  async () => {
+    const { liveCampaignIdsFromVersions } = await import("../buildCampaignPacingRows.js")
+    const ids = liveCampaignIdsFromVersions(
+      [
+        {
+          mba_number: "bicau007",
+          campaign_status: "approved",
+          campaign_start_date: "2026-10-01",
+          campaign_end_date: "2026-10-31",
+          is_published_tip: false,
+        },
+        {
+          mba_number: "bicau007",
+          campaign_status: "cancelled",
+          campaign_start_date: "2026-10-01",
+          campaign_end_date: "2026-10-31",
+          is_published_tip: true,
+        },
+        {
+          mba_number: "letsgo001",
+          campaign_status: "booked",
+          campaign_start_date: "2026-07-01",
+          campaign_end_date: "2026-12-31",
+          is_published_tip: true,
+        },
+      ],
+      "2026-10-12",
+    )
+    assert.deepEqual(ids, ["letsgo001"])
   },
 )
 
