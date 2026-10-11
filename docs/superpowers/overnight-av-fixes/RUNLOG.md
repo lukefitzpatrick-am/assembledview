@@ -2197,3 +2197,338 @@ Not fixed here.
 | AV-P3 / AV-P4 | Nothing to click. Luke picks the options in the two discovery files. |
 | Create a Krusty draft with end before start | Download draft MBA and Download draft Media Plan are disabled, title "End date must be on or after the start date". Export draft stays enabled. |
 
+## AV-SF1 DONE 5202c930
+
+Commit `5202c930` `fix(plans): browser-draft restore keeps campaign dates on Edit`.
+
+Date paths before the fix. Both pages put `form.getValues()` into `buildPlanDraftSnapshot` and both restored with `form.reset(state.formValues)`.
+
+Create serialise (`app/mediaplans/create/page.tsx`, snapshot callback): `formValues: form.getValues()`. Create has no server draft (`masterId` null), so IndexedDB structured-clone keeps `Date`s. Export JSON (`exportCreateDraftFile` → `JSON.stringify`) turns a Melbourne midnight into a UTC instant, e.g. 15 Nov 2026 → `2026-11-14T13:00:00.000Z`. Create restore was `if (state.formValues) form.reset(state.formValues as never)` inside `onRestore` / `onRevertToBase`. A live Create draft still held `Date`s, so the pickers stayed on the right day.
+
+Edit serialise (`app/mediaplans/mba/[mba_number]/edit/page.tsx`, `getSnapshot`): the same `formValues: form.getValues()`. Edit also writes the server draft, and `GET /api/plans/drafts` returns `draftStateJson` after JSON, so those `Date`s come back as ISO strings. Edit restore was the same `form.reset(state.formValues)` in `onRestore` and `onRevertToBase`.
+
+Cause. `SingleDatePicker` shows "Pick a date" unless `isValidPickerDate` sees a `Date`. The changes list used `calendarDay`, which sliced any string matching `YYYY-MM-DD` to the first 10 characters, so `2026-11-14T13:00:00.000Z` (15 Nov in Melbourne) compared as 14 Nov, and `2026-12-19T13:00:00.000Z` as 19 Dec.
+
+Red, `TZ=Australia/Melbourne`, before the helper did anything but return the stored values: round-trip failed with `expected a Date, got string 2026-11-14T13:00:00.000Z`. A budget-only restore listed `mp_campaignbudget`, `mp_campaigndates_end`, and `mp_campaigndates_start`.
+
+Fix. `draftCampaignCivilDay` / `restoreDraftFormValues` (`lib/mediaplan/drafts/campaignDraftDates.ts`). A `Date` stays the local civil day. A UTC ISO string is the Australia/Melbourne civil day of that instant, then `parseDateOnlyString` makes a local `Date`. Both pages call it in `onRestore` and `onRevertToBase`. `calendarDay` uses the same helper, so the banner does not treat the instant as the UTC date prefix. Plan save is still `toDateOnlyString`. No snapshot files changed.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). test:plan-drafts 65 pass, 6 skipped, route tests 12 pass, vitest 74 pass (includes the new round-trip). test:dirty-controller 30 pass plus vitest 40 pass. The new test also passed with `TZ=UTC`.
+- Morning smoke: Open krusty002 Edit, change the PO, reload. The banner lists the PO change only. Dates still read 15 Nov to 20 Dec 2026. Not opened in the browser here (auth).
+- The production banner said "3 changes" and the note quoted two date rows. This fix removes those date rows. A third field, if there was one, was not in the quoted list.
+
+## AV-SF3 DONE 2f63266c
+
+Commit `2f63266c` `style(plans): lime Publish pill and bar follows the sidebar width`.
+
+Publish (the primary split while `SAVE_PUBLISHES_IMMEDIATELY` is on, and the explicit Publish split) uses `bg-accent` / `text-accent-foreground`. The caret gets the same classes. Save draft stays the forest outline (`border-am-forest-light`, transparent, white text). Disabled states, labels, and the split menu are unchanged.
+
+The bar in `PlanWizardShell` is `left-0` on mobile, `left-[var(--sidebar-width)]` while the sidebar is open, and `left-12` when it is collapsed. `--sidebar-width` is the variable `SidebarProvider` already sets (`224px`). Collapsed is the same `left-12` as before. No hard-coded 230.
+
+Source pins updated because they still failed after the style change:
+
+- `lib/mediaplan/__tests__/planWizardSaveBar.test.ts` — “shared component order is Save draft before Publish, with downloads in Files” (was “Save draft must follow Publish”). Also pins `bg-accent` instead of `bg-primary`, and MBA before Media Plan inside `fileItems`.
+- `lib/mediaplan/__tests__/postgresSavePayload.integration.test.ts` — the wizard bar must not contain `CampaignExportsSection`. Downloads are the `onPublishMba` / `onDownloadMediaPlan` props the Files menu uses.
+
+No snapshot files changed.
+
+- Checks: typecheck 0. lint 0 (existing warnings only). Bottom-bar and shell vitest 16 pass. `test:postgres-save-mode` 253 pass, 20 skipped, 0 fail.
+- Morning smoke: krusty002 Edit with the sidebar open. The footer card shows, the bar starts at the content edge, and Publish is lime. Not opened in the browser here (auth). The wizard still collapses the sidebar on mount; reopen it to see the open-width offset.
+- Under 90%: the content frame also has an 8px inset (`md:m-2`). The bar starts at `--sidebar-width`, which is the sidebar’s right edge, not 8px inside that margin. Confidence on the footer card being clear of the bar is high.
+
+## AV-SF4 DONE 63b32517
+
+Commit `63b32517` `fix(plans): Edit lede names the published version`.
+
+BR-2 lede is `editCampaignLede` in `components/layout/pageTitleCopy.ts`. The edit page passed `publishedVersionForTitle`, which looked up `publishedVersionId` in `availableVersions`. The MBA GET leaves `versions` empty until the picker asks for version meta, so that lookup was null and the lede said "Not published yet" while the loaded row was v2 with `published_at`. The header "v2" is the loaded version number. "Publishing creates v3" is `describeVersionHeaderTrail` on the next save ordinal (`SAVE_PUBLISHES_IMMEDIATELY`), not the published ordinal, so the lede uses `published_at` instead.
+
+`publishedVersionNumberForEditLede` takes the pointer row when that row has `published_at`, or the loaded version when that row is the published cut. No stamp stays "Not published yet."
+
+- Files: `components/layout/pageTitleCopy.ts`, `app/mediaplans/mba/[mba_number]/edit/page.tsx`, `components/layout/__tests__/PageHeader.test.tsx`, `docs/brain/modules/media-plans.md`.
+- Checks: typecheck 0. lint 0 (existing warnings only). PageHeader vitest 5 pass. Edit-page `planWizardSaveBar.test.ts` 35 pass. No snapshot files changed.
+- Morning smoke: krusty002 Edit lede says version 2 published. Not opened in the browser here (auth).
+- Under 90%: an older unpublished version opened before the version list loads, with a published pointer that is not the loaded row, still has no ordinal to name. The default edit load is the published cut, which is the krusty002 case. Confidence on that case is high.
+
+## AV-SF5 DONE 966ceee6
+
+Commit `966ceee6` `fix(home): first-name greeting and Starting soon by date`.
+
+Greeting. `greetingFirstName` now calls `shellUserIdentity` (the sidebar card helper) and takes the first word. An email-only account (`name` and `email` are `luke.fitzpatrick@assembledmedia.com.au`, nickname `luke.fitzpatrick`) becomes "Luke". The old helper returned the nickname as one word, which is why Home read "luke.fitzpatrick." No second parser.
+
+Starting soon. `sortCampaignsStartingSoon` orders by start date ascending (`campaignDateOnly`), then campaign name. The Leak 11 Oct, Squealini 19 Oct, J-Tech 12 Oct sort to 11, 12, 19 Oct.
+
+Shared source. The Starting soon card and the "Campaigns Starting Soon" grid both read the render-path `campaignsDueToStart` in `DashboardOverview`. That array is sorted before either surface. `applySort` leaves it alone until a column is chosen, so the grid's default order matches the card and a column click still wins. The AVA page-context preview builds its own `getCampaignsDueToStart()` and uses the same helper, so that preview matches too.
+
+- Files: `components/layout/pageTitleCopy.ts`, `components/dashboard/DashboardOverview.tsx`, `lib/dashboard/homeBrief.ts`, `components/layout/__tests__/PageHeader.test.tsx`, `lib/dashboard/__tests__/homeBrief.test.ts`, `docs/brain/modules/dashboards-charts-exports.md`.
+- Checks: typecheck 0. lint 0 (existing warnings only). vitest homeBrief + PageHeader 10 pass. No snapshot files changed.
+- Morning smoke: `/dashboard` reads "Good evening, Luke." after 17:00 Melbourne (the day part still follows the hour) and Starting soon runs 11, 12, 19 Oct. Not opened in the browser here (auth).
+- Under 90%: if Auth0 `name` is the dotted local part with no `@` (`luke.fitzpatrick`), `shellUserIdentity` returns that string unchanged, and the greeting stays `luke.fitzpatrick`. The sidebar only title-cases when the name contains `@` or is empty and the email local part is used. The quoted Home string matches the nickname-plus-email case, which this fix covers. Confidence on that case is high.
+
+## AV-SF6 DONE 45111d8e
+
+Commit `45111d8e` `fix(finance): In Xero column doesn't call issued or paid rows not in Xero`.
+
+BR-9's table (`InvoicingRecordsTable`) always printed "Not in Xero" and passed `null` into the Difference pill, because the Xero subtotal is used to derive `state` and is not copied onto `BillingRecord`. A paid, issued, or issued-outside-AV row was labelled as if it were absent from Xero.
+
+`billingInXeroCell` shows `xero_amount` when that dollar is already on the row, and Difference uses the same figure. With no dollar, Drafted, Issued, Issued outside AV, Paid and Overdue read "In Xero" in muted text, title "Xero amount not loaded on this page". Ready, Approved and Sent to finance stay "Not in Xero". Difference stays empty without a dollar. The overlay still does not load the Xero amount.
+
+- Files: `lib/finance/sections/billingPresentation.ts`, `lib/finance/sections/__tests__/billingPresentation.test.ts`, `components/finance/sections/invoicing/InvoicingRecordsTable.tsx`, `lib/types/financeBilling.ts`, `docs/brain/modules/finance-billing.md`.
+- Checks: typecheck 0. lint 0 (existing warnings only). `test:finance-sections` 247 node pass, 7 draft-match pass, 28 vitest pass. No snapshot files changed.
+- Morning smoke: `/finance/invoicing` table layout — Paid rows read "In Xero". Not opened in the browser here (auth).
+- Under 90%: none. The loaded rows have no `xero_amount`, so the lifecycle text is what production will show. Drafted is included with the issued and paid states, as the prompt lists it. Confidence is high.
+
+## AV-SF7 DISCOVERY (no commit)
+
+Wrote `docs/superpowers/overnight-av-fixes/discovery/AV-SF7.md`. No code change. No SHA.
+
+Overdue and Drafted in Xero sum `record.total` for AV plan months in the selected range whose derived state is exactly `overdue` or `drafted`. They are not the Owed ledger. An unapproved Xero match becomes `issued_outside_av` before either state. Owed is every open AUTHORISED invoice with amount due, not clipped to July–October. 24 of 60 is unresolved invoices (36), not a confirmed count of 34 contacts. No database query.
+
+Pick in the note: keep the AV sum and relabel the tile (option b). Confidence 75% on the pick, 92% on the code path. Luke decides.
+
+- Checks: none. Discovery only.
+- Morning smoke: none. `/finance/invoicing` and `/finance/owed` were not opened.
+
+## AV-SF8 DISCOVERY (no commit)
+
+Wrote `docs/superpowers/overnight-av-fixes/discovery/AV-SF8.md`. No code change. No SHA.
+
+The Where-we-are pill is `campaignPacingVerdict` → `computePacing` → `pacingStatus`: straight-line budget, on track only inside ±5% projection variance. `slightly_under` (−15% to −5%) is the label "Behind plan on spend". The 93% on the card is delivered ÷ schedule expected (`resolveCampaignExpectedSpendToDate`). The portfolio `on_track` pace is that ratio through `deliveryStatusFromPct` (90–110). `portfolioRowFlags` only counts it. Same band: no. Same expected: the caption and the snapshot call the schedule helper; the pill does not.
+
+Shared rule in the note: both surfaces use `deliveryStatusFromPct` of delivered ÷ that schedule expected. Do not reorder the Snowflake `PacingStatus` ladder. Confidence 93% on the split, 70% that BICAU002's two expected calls and two spend totals are the same dollars. No database query.
+
+- Checks: none. Discovery only.
+- Morning smoke: none. `/dashboard/bic/BICAU002` was not opened.
+
+## AV-SF9 DISCOVERY (no commit)
+
+Wrote `docs/superpowers/overnight-av-fixes/discovery/AV-SF9.md`. No code change. No SHA.
+
+Files items are a Radix item around a `<button onClick>`. The button handler runs, then Radix closes the menu. A throwaway component test (not left in the tree) saw Draft MBA and Published MBA (v2) each fire once, and the item gone after the click. `pointerup` alone does not fire the handler. `handleDraftMba` and `handleGenerateMBA` have no dirty, autosave, or first-click return. `downloadsLocked` is `isLoading || isSaving` only.
+
+The same test dropped the click when opening Files blurred a field that set `downloadsLocked`. A PO blur does not set that flag. If the handler did start, draft `saveAs` clicks on a timeout and published MBA revokes the blob URL in the same turn as `link.click()`. Either can produce no file and no console error.
+
+Fix in the note: `onSelect` items like `SplitActionButton`, plus a synchronous anchor click with a deferred revoke. Confidence 70% that the pair covers both sightings. Under 90% until a krusty002 click says whether a toast appeared.
+
+- Checks: none. Discovery only. Throwaway vitest was deleted.
+- Morning smoke: none. The Files menu was not clicked.
+
+## AV-SF2 DONE 1bc14974
+
+Commit `1bc14974` `fix(brand): hero secondary buttons are visible on the ink band`.
+
+Edit plan and More use `variant="outline"`, whose `bg-background` was the white fill. `heroBandSecondaryClassName` set the forest-light border and white text, and had no background class, so the outline fill won. The shared class now includes `bg-transparent`. Hover stays `hover:bg-am-panel`. Every HeroBand secondary, including the design-system sample and the plan-wizard ink outline, picks that up.
+
+- Files: `components/brand/HeroBand.tsx`, `components/dashboard/campaign/__tests__/CampaignHeroBanner.test.tsx`, `docs/brain/modules/dashboards-charts-exports.md`, `vitest.config.ts`, `package.json`.
+- Checks: typecheck 0. lint 0 (existing warnings only). `test:campaign-dashboard-range` 73 node pass, 33 vitest pass, 5 range pass. Brand component vitest (JourneyLine, IAOCards) 5 pass. No snapshot files changed.
+- Morning smoke: `/dashboard/bic/BICAU002` — Edit plan and More read in white on the ink band. Not opened in the browser here (auth).
+- Under 90%: none. The rendered class on both buttons is `bg-transparent` and does not contain `bg-background`. Confidence is high.
+
+## AV-SF3b DONE c93d26fe
+
+Commit `c93d26fe` `style(plans): plan bar back to a floating ink island with lime Publish`.
+
+The full-width ink band is a floating island again: fixed to the bottom, centred in the content column, `pointer-events-none` outside and `pointer-events-auto` on the island, with the measured spacer and safe-area padding. The column starts at `var(--sidebar-width)` while the sidebar is open, `var(--sidebar-width-icon)` when it is collapsed, and the viewport edge on mobile. The island hugs its content (`rounded-pill`, solid `bg-am-ink`, `shadow-e2`, no blur). Autosave copy hides below `xl`. Publish stays the lime pill. Save draft, its caret, and Files stay the forest outline with `bg-transparent`. The Ask Ava lift in `app/globals.css` stays: it is the wizard-bar offset, not a rule that only the full-width band used.
+
+- Files: `components/mediaplans/PlanWizardShell.tsx`, `components/mediaplans/PlanWizardBottomBar.tsx`, `components/mediaplans/__tests__/PlanWizardBottomBar.test.tsx`, `docs/brain/modules/media-plans.md`.
+- Checks: typecheck 0. lint 0 (existing warnings only). PlanWizardBottomBar + PlanWizardShell vitest 16 pass. `test:plan-drafts` 65 node pass, 6 skipped, 12 route pass, 74 vitest pass. `test:dirty-controller` 30 node pass, 40 vitest pass. `test:postgres-save-mode` 253 pass, 20 skipped, 0 fail. Source pins `shared component order is Save draft before Publish, with downloads in Files` were not edited. No snapshot files changed.
+- Morning smoke: Create and krusty002 Edit at 1280 and 1440, sidebar open and collapsed. Not opened here (auth). The wizard still collapses the sidebar on mount.
+- Under 90%: Ask Ava clearance at 1280 and 1440. The lift is `bottom: 7.5rem` and the island is shorter than the old band, so it should sit above the island. Not measured in the browser.
+
+## AV-SF10 DONE aeb3322c
+
+Commit `aeb3322c` `style(05b): smoke polish across pacing, home and campaign page`.
+
+Pacing pills are `whitespace-nowrap` and do not shrink. Portfolio tile counts and spend percents are ink; the dot, bar and pill keep the status colour. A selected tile other than Live titles the list with that filter ("Behind" plus the count) instead of "Needs a look today". The Home insight is "September planned $431.0K." The chart caption no longer says delivered-by-month is not loaded. Spend-by-month ticks use the same `formatMoneyCompact` `home-spend` formatter as the tooltip. The I/A/O action owner is its own "Owner:" line. A draft read that is out of date keeps its controls, hides the beats until Edit, reads "Read as at 18 Sep 2026 · Out of date.", and moves below Where we are and the I/A/O row with flex order. The strip and the I/A/O row use `space-y-6`.
+
+- Files: `components/ui/badge.tsx`, `components/ui/status-pill.tsx`, `components/pacing/portfolio/PortfolioStatusTiles.tsx`, `CampaignPacingCard.tsx`, `CampaignPacingTable.tsx`, `PortfolioCardsBoard.tsx`, `PortfolioCardsBoard.test.tsx`, `lib/dashboard/homeBrief.ts`, `homeBrief.test.ts`, `components/dashboard/HomeBrief.tsx`, `components/brand/IAOCards.tsx`, `IAOCards.test.tsx`, `components/dashboard/campaign/CampaignReadSection.tsx`, `CampaignReadSection.test.tsx`, `CampaignPageAssembly.tsx`, `docs/brain/modules/dashboards-charts-exports.md`, `docs/brain/modules/pacing.md`, `docs/brain/BLAST-RADIUS.md`.
+- Checks: typecheck 0. lint 0 (existing warnings only). `test:pacing-portfolio` 24 + 5 node pass, 7 vitest pass. homeBrief + IAOCards vitest 8 pass. `test:campaign-dashboard-range` 73 node pass, 33 vitest pass, 5 range pass. `test:brand` 80 pass. No snapshot files changed.
+- Morning smoke: pacing pills, ink tile numbers, Home insight, and a stale campaign read below the current figures. Not opened here (auth).
+- Under 90%: none on the copy. The monthly spend payload is client totals, so the insight does not say "across N campaigns". The stale read stays mounted and moves with flex `order`, so it does not refetch.
+
+## AV-SFZ DONE
+
+`npm run gate:main` with `NODE_OPTIONS=--max-old-space-size=8192` exit 0, about 279s. `npm run test:all` once, exit 1, 123/124 suites. The only failure is `test:mb15c-published-immutable`. It is a dropped Supabase pooler connection, not a commit in this pack. Not fixed here.
+
+### Prompts
+
+| ID | Status | SHA |
+| --- | --- | --- |
+| AV-SF1 | DONE | `5202c930` |
+| AV-SF2 | DONE | `1bc14974` |
+| AV-SF3 | DONE | `2f63266c` |
+| AV-SF3b | DONE | `c93d26fe` |
+| AV-SF4 | DONE | `63b32517` |
+| AV-SF5 | DONE | `966ceee6` |
+| AV-SF6 | DONE | `45111d8e` |
+| AV-SF7 | DISCOVERY | none |
+| AV-SF8 | DISCOVERY | none |
+| AV-SF9 | DISCOVERY | none |
+| AV-SF10 | DONE | `aeb3322c` |
+| AV-SFZ | DONE | this commit |
+
+### Discovery files
+
+- `docs/superpowers/overnight-av-fixes/discovery/AV-SF7.md` — billing Overdue tile is the AV plan-month sum, not the Owed ledger. Pick in the note is option b. Luke decides.
+- `docs/superpowers/overnight-av-fixes/discovery/AV-SF8.md` — Where-we-are pill is ±5% straight-line projection; portfolio pace is delivered ÷ schedule expected through the 90–110 band.
+- `docs/superpowers/overnight-av-fixes/discovery/AV-SF9.md` — first Files click. Handler runs, then the menu closes. Recommended fix is `onSelect` plus a synchronous anchor click. Not implemented.
+
+### Morning smoke
+
+None of these were opened in the browser. Auth0 blocked them.
+
+- AV-SF1: krusty002 Edit, change the PO, reload. Banner lists the PO only. Dates still 15 Nov–20 Dec 2026.
+- AV-SF2: `/dashboard/bic/BICAU002` Edit plan and More read in white on the ink band.
+- AV-SF3: Create and Edit. Publish is lime. Save draft is the forest outline. The bar follows the sidebar. The sidebar footer stays visible. The wizard still collapses the sidebar on mount.
+- AV-SF3b: Create and krusty002 Edit at 1280 and 1440, sidebar open and collapsed. Centred ink island, sidebar footer visible, Publish lime, Save draft forest outline, last line item above the island, Ask Ava clear of the island. Reopen the sidebar after mount. Ask Ava clearance was not measured.
+- AV-SF4: krusty002 Edit lede names the published version.
+- AV-SF5: `/dashboard` reads "Good evening, Luke." Starting soon runs 11, 12, 19 Oct.
+- AV-SF6: Paid rows on `/finance/invoicing` read "In Xero".
+- AV-SF7, AV-SF8, AV-SF9: nothing to click. BICAU002 was not opened. The Files menu was not clicked.
+- AV-SF10: pacing pills stay on one line and tile numbers are ink. Home insight has no dev copy. A stale campaign read sits below the current figures.
+
+### gate:main
+
+| Gate | Result |
+| --- | --- |
+| typecheck | PASS |
+| check:egress-guards | PASS |
+| lint | PASS (existing warnings only) |
+| check:client-server-only | PASS |
+| check:drizzle-snapshot | PASS (empty diff) |
+| check:hardcoded-urls | PASS |
+| check:money-inline | PASS |
+| build | PASS |
+
+### test:all
+
+123/124 PASS. FAILED: `test:mb15c-published-immutable` (exit 1, about 6.4h). Inside that file, MB-15c (i) and (ii) passed. VC1-3 published+draft then died with `read ECONNRESET` after about 15 minutes. The next four cases failed in `wipeMba` with `getaddrinfo ENOTFOUND aws-0-ap-southeast-2.pooler.supabase.com`. Closing the pool then hung about 6.1h, which is why the suite clock is about 6.7h. The next suite, `test:vc2a-published-immutable`, passed 5/5 against the same published-immutable contract once DNS answered. No commit in this pack touches `publishedBillingImmutable.mb15c.test.ts` or the pooler.
+
+| Suite | Result |
+| --- | --- |
+| test:billing-line-id-match | PASS |
+| test:client-server-only | PASS |
+| test:brand | PASS |
+| test:status | PASS |
+| test:media-families | PASS |
+| test:charts-registry | PASS |
+| test:format-money | PASS |
+| test:planned-to-date | PASS |
+| test:client-dashboard-range | PASS |
+| test:campaign-read | PASS |
+| test:ava-skills | PASS |
+| test:campaign-dashboard-range | PASS |
+| test:delivery-ui | PASS |
+| test:search-delivery-tiles | PASS |
+| test:social-delivery | PASS |
+| test:programmatic-delivery | PASS |
+| test:solver | PASS |
+| test:utm | PASS |
+| test:weekly-gantt | PASS |
+| test:week-starts-on | PASS |
+| test:expert-mappings | PASS |
+| test:expert-goldens | PASS |
+| test:expert-paste | PASS |
+| test:expert-grid-selection | PASS |
+| test:spreadsheet | PASS |
+| test:finance-forecast | PASS |
+| test:retained-commission | PASS |
+| test:deliverable-budget | PASS |
+| test:editor-line-inputs | PASS |
+| test:finance-filters | PASS |
+| test:finance-derive | PASS |
+| test:billing-divergence | PASS |
+| test:billing-seed-fees | PASS |
+| test:billing-fee-drift | PASS |
+| test:kpi-resolve | PASS |
+| test:kpi-percent-units | PASS |
+| test:kpi-writes | PASS |
+| test:money | PASS |
+| test:money-golden | PASS |
+| test:monthly-plan-calendar | PASS |
+| test:kpi-review | PASS |
+| test:kpi-backfill | PASS |
+| test:pacing-maths | PASS |
+| test:pacing-portfolio | PASS |
+| test:pacing-channel | PASS |
+| test:pacing-detail | PASS |
+| test:pacing-scenario | PASS |
+| test:pacing-relabel | PASS |
+| test:pacing-plan-lines | PASS |
+| test:unmapped-placements | PASS |
+| test:partner-ingest | PASS |
+| test:ava-tools | PASS |
+| test:ava-chat-ui | PASS |
+| test:ava-autopopulate | PASS |
+| test:ava-detect-goldens | PASS |
+| test:db-drift | PASS |
+| test:forecast-targets | PASS |
+| test:write-kpi | PASS |
+| test:line-item-snapshot-parity | PASS |
+| test:xero | PASS |
+| test:finance-periods-flag | PASS |
+| test:inline-schedule-amount | PASS |
+| test:line-item-attrs | PASS |
+| test:shadow-diff | PASS |
+| test:mba-plan-detail | PASS |
+| test:mba-number-alloc | PASS |
+| test:channel-line-item-routes | PASS |
+| test:tenant-isolation | PASS |
+| test:match-text | PASS |
+| test:approvals | PASS |
+| test:write-clients | PASS |
+| test:write-reference | PASS |
+| test:mba-header-date | PASS |
+| test:mba-scope | PASS |
+| test:mba-media-breakdown | PASS |
+| test:derive-approved-slice | PASS |
+| test:live-mba-scope | PASS |
+| test:mba-live-dates | PASS |
+| test:finance-schedule | PASS |
+| test:finance-sections | PASS |
+| test:approved-slice | PASS |
+| test:c1-fullscope-drift | PASS |
+| test:save-plan | PASS |
+| test:write-billing-overrides | PASS |
+| test:write-finance | PASS |
+| test:mb13-fee-override-publish | PASS |
+| test:mb15c-published-immutable | FAIL |
+| test:vc2a-published-immutable | PASS |
+| test:vc2b-working-draft | PASS |
+| test:dirty-controller | PASS |
+| test:write-media-plan-masters | PASS |
+| test:xano-mirror | PASS |
+| test:campaign-documents | PASS |
+| test:media-plan-excel | PASS |
+| test:campaign-row-actions | PASS |
+| test:postgres-save-mode | PASS |
+| test:session-expiry | PASS |
+| test:plan-drafts | PASS |
+| test:codex-flag-auth | PASS |
+| test:codex-stage0-guarantees | PASS |
+| test:codex-stage1-detail | PASS |
+| test:codex-task-detail-ui | PASS |
+| test:codex-stage1-scope | PASS |
+| test:codex-stage1-templates | PASS |
+| test:codex-auth0-roster | PASS |
+| test:dashboard-vc15-tip | PASS |
+| test:clients-fail-soft | PASS |
+| test:m365-site-url | PASS |
+| test:m365-graph | PASS |
+| test:m365-reconciliation | PASS |
+| test:myhours | PASS |
+| test:fireflies | PASS |
+| test:performance-report-insights | PASS |
+| test:insights-library | PASS |
+| test:empty-channel-defaults | PASS |
+| test:line-item-panels | PASS |
+| test:line-item-panel-flights | PASS |
+| test:publisher-profiles | PASS |
+| test:ingest-propose | PASS |
+| test:ingest-review | PASS |
+| test:ingest-eval | PASS |
+| test:ooh-expert-gate | PASS |
+| test:ooh-standard-bench | PASS |
+| test:specs | PASS |
+
+- Under 90%: the mb15c failure is the pooler (`ECONNRESET`, then `ENOTFOUND`). Confidence is high that no pack commit caused it. Ask Ava clearance (AV-SF3b) is still unmeasured. AV-SF7's option pick stays at 75%. AV-SF8's dollar match stays at 70%. AV-SF9's click fix stays at 70%.
+
