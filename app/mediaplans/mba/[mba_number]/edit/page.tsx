@@ -280,6 +280,7 @@ import {
   describePartialMbaPublishRail,
   describeVersionHeaderTrail,
   resolveTipVersionIdAtLoad,
+  tipVersionIdAfterSave,
 } from "@/lib/mediaplan/drafts/pill"
 import { publishedVersionPointerIdFromMaster } from "@/lib/mediaplan/publishedVersionGuard"
 import {
@@ -8233,6 +8234,12 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         setMediaPlanVersionId(versionId)
         if (modeResolved.mode === "publish" && saveResult.data.published) {
           setPublishedVersionId(versionId)
+          tipVersionIdAtLoadRef.current = tipVersionIdAfterSave({
+            mode: "publish",
+            published: true,
+            versionId,
+            tipVersionIdAtLoad: tipVersionIdAtLoadRef.current,
+          })
         }
         const updatedLatest = Math.max(latestVersionNumber || 0, numericSavedVersion)
         setLatestVersionNumber(updatedLatest)
