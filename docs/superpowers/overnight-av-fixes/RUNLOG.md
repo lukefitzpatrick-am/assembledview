@@ -3165,3 +3165,80 @@ Production build used `NODE_OPTIONS=--max-old-space-size=6144`. Next.js 15.5.27 
 | Show live campaigns with platform delivery | DONE | `f549d3f7` |
 | Patch dependency alerts | DONE | `af8bc87b` |
 | AV-TGZ | DONE | this commit |
+
+## Inverted quartiles warn instead of failing the file DONE 79adc5cc
+
+One commit on `localhost`. The working-tree diff was still the five `lib/partner-ingest` files, +151 / −30, matching AV-TG0.
+
+`npm run test:partner-ingest` passed 69, failed 0.
+
+`ERROR_TEXT` is written by `ingestLogBinds` and defined on `PARTNER_FILE_INGEST_LOG`. No app route, partner inbox UI, or `sql/snowflake` query reads it back. The duplicate check selects `STATUS = 'loaded'` and ignores `ERROR_TEXT`, so a warning row still counts as loaded. `summary.failed` and the cron's 207 still follow the load gate, which is T1, T5, T6, a parse throw, an unknown `LOAD_MODE`, or zero data rows. `VW_PACING_PARTNER_FILE` reads `PARTNER_DELIVERY_DAILY`, not the log. Other `errorText` names in the app are HTTP response bodies.
+
+- SHA: 79adc5cc82c99c519c602832d52bc1351c0e48f9
+- Checks: test:partner-ingest 69 pass, 0 fail.
+- Morning smoke: not run.
+- Under 90%: none.
+
+## Strip empty lines on publish STOPPED
+
+No commit. No product files changed. A line added while the save is in flight can be given the same id as an empty line the response is about to remove.
+
+Add and duplicate build the id from `lineItemFields.length + 1` (`buildLineItemId`). That is positional. `assignStableLineItemNumbers`, which runs on the save snapshot, keeps an existing number and never fills a gap. After a delete, a later line can sit above a hole. `length + 1` then lands on that later line's number.
+
+Example: digital display holds a real line numbered 1 and an empty line numbered 3. Save starts. The empty line's id is in the payload and will come back on `removedIds`. During the request the user adds a line. The form length is 2, so the new line is numbered 3, the same id as the empty line. Filtering `removedIds` drops both. The new line is gone and the notice still says an empty line was removed.
+
+The save payload itself is not a third store. Each container publishes the form through `onMediaLineItemsChange` into `*MediaLineItems`, and `useStableHydration` would reset that form when `initialLineItems` changes. That part can be wired. The id collision stops it first.
+
+- Checks: none.
+- Morning smoke: not run. krusty002 was not opened.
+- Confidence the add path reuses a gapped number: 94%.
+
+## Ask before restoring an edit draft DONE 312baf96
+
+One commit on `localhost`. Create is unchanged. `masterId` is not the Create/Edit signal, because the create page sets it after the first save. Only the edit page passes `page: "edit"`. `classifyDraftLoad` is still pure.
+
+Edit, matching base: the banner is "Restore your draft from {time}?" with Restore and Keep the saved plan. `{time}` is `Date#toLocaleString`, the same label as the orphan offer. Restore goes through `clickResume` and `flushWhenHydrationSettled`. Keep the saved plan clears the offer for this page load. It does not call `discard`, clear IndexedDB, or `DELETE /api/plans/drafts`. Until the next `subscribeDirty` (or the dirty flag flipping true after Keep), local writes and draft PUTs no-op, including blur.
+
+Changed tests, and why:
+- "auto-applies when base === tip after hydration, without a Resume click" is now "edit matching base offers and does not apply until Restore". Edit no longer applies a matching base on its own.
+- "Discard after auto-apply reverts to the captured tip and deletes the server row" now clicks Restore first. Discard-after-restore still deletes; the old setup assumed the auto-apply that Edit no longer does.
+- "deleted line: empty search array is in the auto-applied state" now clicks Restore before reading the applied channels. The empty array is still the deleted-line signal, and it arrives only after Restore.
+
+Create tests were not edited. The create matching-base test still auto-restores. The orphan Apply/Discard test is unchanged.
+
+- SHA: 312baf96d1cef6a123158c3673423ee8a4ffa9a9
+- Checks: vitest usePlanDraftSession 16 pass, PlanWizardSaveMessages pass (matching banner included), drafts.test.ts 15 pass / 6 skip, typecheck 0, lint 0. Pre-existing hook `args` exhaustive-deps warnings and edit-page hook warnings remain.
+- Morning smoke: not run. Nothing is listening on localhost:3000, so krusty002 Edit was not opened.
+
+## Split expected into platform and booked DONE 0414c1c7
+
+One commit on `localhost`. `lib/partner-ingest` was not staged. The run log stays uncommitted.
+
+Hard stops did not fire.
+
+Fixed-cost television, radio, and newspaper are not in Delivered for Golf Australia or Krusty Krab. The direct leg only loads snapshot rows with `FIXED_COST_MEDIA = TRUE`. Every version of those two clients has that flag false on television, radio, and newspaper, including golf025's `fixed_cost` buy-type lines (the flag is still false). Krusty Krab's published tips have no television, radio, or newspaper with the flag on.
+
+`monthlySpendByCampaign` is built inside `getClientDashboardData` on the request. It is not wrapped in `unstable_cache`, and it is not written to a snapshot table, Blob, or KV. `exportDashboardData` JSON is the live payload. CSV does not include the series.
+
+Other readers keep using `amount`. `SpendingInsightsSection` `toCampaignStacked` maps `campaignName` and `amount` only. The new field is optional.
+
+`isPlatformMediaType` is the `collectChannelPlans` channel keys mapped once through `MEDIA_TYPE_LABELS`. Programmatic BVOD and Programmatic Audio are schedule labels and are not in that snapshot, so they stay booked. `amount` is still the full month. `platformAmount` rides beside it. `computePlannedSpendTotals` clamps that field with the same to-date window as `amount`. The headline is the platform figure. The tile adds "Booked, no platform delivery" for the remainder. A payload with no `platformAmount` keeps today's single figure and hides that line. Plan committed and the plan budget line stay on the full expected. Delivered is unchanged.
+
+- SHA: 0414c1c783f5c5b17612b52df156f094d0192a9b
+- Checks: typecheck 0. lint 0 on the touched files. test:client-dashboard-range pass (tsx 28, delivered range 3, vitest 34). Mapping, search/radio split, half-elapsed platform clamp, and the hero booked line are in that run.
+- Morning smoke: not run. Nothing is listening on localhost:3000. On `/dashboard/golf-australia`, platform expected plus booked should be about $159.8K for the same range, and Delivered should stay about $59.2K. `/dashboard/krusty-krab` should show $0 with no errors.
+- Under 90%: none.
+
+## AV-THZ DONE
+
+`npm run gate:main` exit 0, 124.4s. `npm run test:all` once, exit 0, 124/124 suites, 594.7s. No suite was rerun. Only this run log was staged.
+
+### Prompts
+
+| ID | Status | SHA |
+| --- | --- | --- |
+| Inverted quartiles warn instead of failing the file | DONE | `79adc5cc` |
+| Strip empty lines on publish | STOPPED | none |
+| Ask before restoring an edit draft | DONE | `312baf96` |
+| Split expected into platform and booked | DONE | `0414c1c7` |
+| AV-THZ | DONE | this commit |
