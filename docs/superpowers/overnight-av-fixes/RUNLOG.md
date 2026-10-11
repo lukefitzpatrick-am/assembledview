@@ -2532,3 +2532,213 @@ None of these were opened in the browser. Auth0 blocked them.
 
 - Under 90%: the mb15c failure is the pooler (`ECONNRESET`, then `ENOTFOUND`). Confidence is high that no pack commit caused it. Ask Ava clearance (AV-SF3b) is still unmeasured. AV-SF7's option pick stays at 75%. AV-SF8's dollar match stays at 70%. AV-SF9's click fix stays at 70%.
 
+## AV-SG1 DONE 01037154
+
+Commit `01037154` `fix(pacing): campaign page status uses the portfolio pace band`.
+
+The Where-we-are pill is `deliveryStatusFromPct` of delivered ÷ the schedule expected the card already prints (behind below 90, on track 90–110, ahead above 110). Copy is unchanged: Behind plan on spend / On track / Ahead of plan / Critical. `deliveryStatusFromPct` does not emit over-pacing, so the strip does not turn the portfolio over-pacing flag into Critical. The sentence takes that same band. The Snowflake `PacingStatus` ladder is untouched.
+
+`campaignPacingVerdict` stays. Callers: `CampaignSummaryRow.tsx` (not mounted; helper tests) and `lib/dashboard/__tests__/campaignPacingVerdict.test.ts`.
+
+Portfolio `expectedForCampaign` now passes `metricsExpectedSpendToDate`: an explicit schedule value, otherwise `expectedSpendToDateFromDeliveryScheduleMonthly` on the same delivery schedule and dates, basis media — the figure the campaign page builds as `metrics.expectedSpendToDate`. Step 1 still wins when that monthly total is already above 0. Stored row shape is unchanged (`metricsExpectedSpendToDate` is not a row field). The fallback test asserts the existing key list.
+
+- Files: `components/dashboard/campaign/CampaignStatusStrip.tsx`, `components/dashboard/campaign/__tests__/CampaignStatusStrip.test.tsx`, `lib/pacing/portfolio/assembleCampaignPacingRows.ts`, `lib/pacing/portfolio/types.ts`, `lib/pacing/portfolio/buildCampaignPacingRows.ts`, `lib/pacing/portfolio/__tests__/buildCampaignPacingRows.test.ts`, `docs/brain/modules/dashboards-charts-exports.md`, `docs/brain/modules/pacing.md`, `docs/brain/BLAST-RADIUS.md`, `docs/brain/INVARIANTS.md`.
+- Checks: typecheck 0. lint 0 (existing warnings only). `test:pacing-portfolio` 25 node pass, 5 timeout pass, 7 vitest pass. `test:campaign-dashboard-range` isolated rerun: 73 node pass, 36 vitest pass, 5 range pass. A first run of that suite failed `CampaignActions.billingExcel` on a 15s timeout while portfolio vitest ran at the same time; the isolated rerun passed. No snapshot files changed.
+- Morning smoke: `/dashboard/bic/BICAU002` — the pill should match the BICAU002 card on `/pacing/portfolio`. Not opened here (auth).
+- Under 90%: live BICAU002 delivered dollars and the two expected-to-date dollars were not re-queried. AV-SF8 left that match at 70%. The band rule is now the same. If those dollar figures still differ, the labels can still differ.
+
+## AV-SG2 DONE 00329ca1
+
+Commit `00329ca1` `fix(plans): Files menu downloads fire on the first click`.
+
+Files items are `DropdownMenuItem` `onSelect`, matching the Publish menu. The inner button `onClick` is gone. Disabled and `title` stay (watermark hint, end-before-start, unpublished).
+
+`lib/docs/clickBlobDownload.ts` is new. Nothing in lib already appended an anchor, clicked it, and revoked on a timeout (`chart-shell` and `ExportDeckButton` do that locally and were left alone). The helper appends the anchor, clicks it synchronously, removes it, and revokes the blob URL after 1000ms. Both `handleGenerateMBA` copies and the draft MBA, draft Media Plan, and draft AA `saveAs` calls on create and edit use it. The existing success toast runs after that click returns. Other `saveAs` calls (xlsx, naming, stored published files, zip) stay on file-saver.
+
+- Files: `lib/docs/clickBlobDownload.ts`, `components/mediaplans/PlanWizardBottomBar.tsx`, `components/mediaplans/__tests__/PlanWizardBottomBar.test.tsx`, `app/mediaplans/create/page.tsx`, `app/mediaplans/mba/[mba_number]/edit/page.tsx`, `docs/brain/BLAST-RADIUS.md`, `docs/brain/INVARIANTS.md`, `docs/brain/modules/media-plans.md`.
+- Checks: typecheck 0. lint 0 (existing warnings only). `test:campaign-row-actions` 4 files, 34 pass. `test:plan-drafts` 65 node pass, 6 skipped, 12 route pass, 76 vitest pass. No snapshot files changed.
+- Morning smoke: krusty002 Edit — change the PO, then Files > Draft MBA once. The file should arrive on the first click. Not opened here (auth).
+- Under 90%: AV-SF9 stayed at 70% that this pair of fixes covers both production sightings until the krusty002 click is watched. `@testing-library/user-event` is not installed; the select test dispatches pointerdown, pointerup, then click (the sequence the discovery verified), not `element.click()` alone. That test asserts the first Draft MBA select fires the handler once and `clickBlobDownload` once.
+
+## AV-SG3 DONE 70cf2c26
+
+Commit `70cf2c26` `style(finance): Overdue tile names its source and links to Owed`.
+
+The tile label is Overdue on these plans. The ready caption is the overdue row count (`1 plan month` or `N plan months`) then `· Xero overdue is on` and a link to `/finance/owed`. The link carries the applied client ids only (`?clients=`), not FY or month range. `summariseBillingStatCards` is unchanged. Drafted in Xero is unchanged.
+
+- Files: `components/finance/sections/invoicing/BillingStatCards.tsx`, `components/finance/sections/invoicing/InvoicingPageClient.tsx`, `components/finance/sections/StatTile.tsx`, `lib/finance/sections/__tests__/billingPresentation.test.ts`, `docs/brain/modules/finance-billing.md`, `docs/brain/BLAST-RADIUS.md`.
+- Checks: typecheck 0. lint 0 (existing warnings only). `test:finance-sections` 248 node pass, 7 draft-match pass, 28 vitest pass. No snapshot files changed.
+- Morning smoke: `/finance/invoicing` — the tile reads Overdue on these plans and its link opens Owed. Not opened here (auth).
+
+## AV-SGZ DONE
+
+Commit message `docs(runlog): AV SG pack wrap-up`. This entry is that commit. No product code.
+
+`npm run gate:main` with `NODE_OPTIONS=--max-old-space-size=8192` exit 0, about 215s. `npm run test:all` once, exit 1, 123/124 suites, about 9.1 min. The only failure is `test:postgres-save-mode`. It is not a pooler or DNS error, so it was not rerun.
+
+### Prompts
+
+| ID | Status | SHA |
+| --- | --- | --- |
+| AV-SG1 | DONE | `01037154` |
+| AV-SG2 | DONE | `00329ca1` |
+| AV-SG3 | DONE | `70cf2c26` |
+| AV-SF11 | not in this pack | none |
+| AV-SGZ | DONE | this commit |
+
+AV-SF11 has no section in this run log and no commit on `localhost`. This pack ran AV-SG1, AV-SG2, and AV-SG3.
+
+### Morning smoke
+
+None of these were opened in the browser. Auth0 blocked them.
+
+- AV-SG1: `/dashboard/bic/BICAU002` pill matches the BICAU002 card on `/pacing/portfolio`.
+- AV-SG2: krusty002 Edit — change the PO, then Files > Draft MBA once. The file should arrive on the first click.
+- AV-SG3: `/finance/invoicing` reads "Overdue on these plans" and its link opens Owed.
+
+### gate:main
+
+| Gate | Result |
+| --- | --- |
+| typecheck | PASS |
+| check:egress-guards | PASS |
+| lint | PASS (existing warnings only) |
+| check:client-server-only | PASS |
+| check:drizzle-snapshot | PASS (empty diff) |
+| check:hardcoded-urls | PASS |
+| check:money-inline | PASS |
+| build | PASS |
+
+### test:all
+
+123/124 PASS. FAILED: `test:postgres-save-mode` (exit 1, about 4s). Inside that suite, 252 passed, 20 skipped, 1 failed: `planWizardSaveBar.test.ts` "shared component order is Save draft before Publish, with downloads in Files". The assertion looks for the source strings `onClick: onPublishMba` and `onClick: onDownloadMediaPlan`. AV-SG2 (`00329ca1`) renamed those fields to `onSelect`, so `indexOf` returns -1 and the "MBA must precede Media Plan" check fails. The Files list in `PlanWizardBottomBar.tsx` is still MBA, then Media Plan. `test:mb15c-published-immutable` passed this run (about 14s). No `ECONNRESET` or `ENOTFOUND`.
+
+| Suite | Result |
+| --- | --- |
+| test:billing-line-id-match | PASS |
+| test:client-server-only | PASS |
+| test:brand | PASS |
+| test:status | PASS |
+| test:media-families | PASS |
+| test:charts-registry | PASS |
+| test:format-money | PASS |
+| test:planned-to-date | PASS |
+| test:client-dashboard-range | PASS |
+| test:campaign-read | PASS |
+| test:ava-skills | PASS |
+| test:campaign-dashboard-range | PASS |
+| test:delivery-ui | PASS |
+| test:search-delivery-tiles | PASS |
+| test:social-delivery | PASS |
+| test:programmatic-delivery | PASS |
+| test:solver | PASS |
+| test:utm | PASS |
+| test:weekly-gantt | PASS |
+| test:week-starts-on | PASS |
+| test:expert-mappings | PASS |
+| test:expert-goldens | PASS |
+| test:expert-paste | PASS |
+| test:expert-grid-selection | PASS |
+| test:spreadsheet | PASS |
+| test:finance-forecast | PASS |
+| test:retained-commission | PASS |
+| test:deliverable-budget | PASS |
+| test:editor-line-inputs | PASS |
+| test:finance-filters | PASS |
+| test:finance-derive | PASS |
+| test:billing-divergence | PASS |
+| test:billing-seed-fees | PASS |
+| test:billing-fee-drift | PASS |
+| test:kpi-resolve | PASS |
+| test:kpi-percent-units | PASS |
+| test:kpi-writes | PASS |
+| test:money | PASS |
+| test:money-golden | PASS |
+| test:monthly-plan-calendar | PASS |
+| test:kpi-review | PASS |
+| test:kpi-backfill | PASS |
+| test:pacing-maths | PASS |
+| test:pacing-portfolio | PASS |
+| test:pacing-channel | PASS |
+| test:pacing-detail | PASS |
+| test:pacing-scenario | PASS |
+| test:pacing-relabel | PASS |
+| test:pacing-plan-lines | PASS |
+| test:unmapped-placements | PASS |
+| test:partner-ingest | PASS |
+| test:ava-tools | PASS |
+| test:ava-chat-ui | PASS |
+| test:ava-autopopulate | PASS |
+| test:ava-detect-goldens | PASS |
+| test:db-drift | PASS |
+| test:forecast-targets | PASS |
+| test:write-kpi | PASS |
+| test:line-item-snapshot-parity | PASS |
+| test:xero | PASS |
+| test:finance-periods-flag | PASS |
+| test:inline-schedule-amount | PASS |
+| test:line-item-attrs | PASS |
+| test:shadow-diff | PASS |
+| test:mba-plan-detail | PASS |
+| test:mba-number-alloc | PASS |
+| test:channel-line-item-routes | PASS |
+| test:tenant-isolation | PASS |
+| test:match-text | PASS |
+| test:approvals | PASS |
+| test:write-clients | PASS |
+| test:write-reference | PASS |
+| test:mba-header-date | PASS |
+| test:mba-scope | PASS |
+| test:mba-media-breakdown | PASS |
+| test:derive-approved-slice | PASS |
+| test:live-mba-scope | PASS |
+| test:mba-live-dates | PASS |
+| test:finance-schedule | PASS |
+| test:finance-sections | PASS |
+| test:approved-slice | PASS |
+| test:c1-fullscope-drift | PASS |
+| test:save-plan | PASS |
+| test:write-billing-overrides | PASS |
+| test:write-finance | PASS |
+| test:mb13-fee-override-publish | PASS |
+| test:mb15c-published-immutable | PASS |
+| test:vc2a-published-immutable | PASS |
+| test:vc2b-working-draft | PASS |
+| test:dirty-controller | PASS |
+| test:write-media-plan-masters | PASS |
+| test:xano-mirror | PASS |
+| test:campaign-documents | PASS |
+| test:media-plan-excel | PASS |
+| test:campaign-row-actions | PASS |
+| test:postgres-save-mode | FAIL |
+| test:session-expiry | PASS |
+| test:plan-drafts | PASS |
+| test:codex-flag-auth | PASS |
+| test:codex-stage0-guarantees | PASS |
+| test:codex-stage1-detail | PASS |
+| test:codex-task-detail-ui | PASS |
+| test:codex-stage1-scope | PASS |
+| test:codex-stage1-templates | PASS |
+| test:codex-auth0-roster | PASS |
+| test:dashboard-vc15-tip | PASS |
+| test:clients-fail-soft | PASS |
+| test:m365-site-url | PASS |
+| test:m365-graph | PASS |
+| test:m365-reconciliation | PASS |
+| test:myhours | PASS |
+| test:fireflies | PASS |
+| test:performance-report-insights | PASS |
+| test:insights-library | PASS |
+| test:empty-channel-defaults | PASS |
+| test:line-item-panels | PASS |
+| test:line-item-panel-flights | PASS |
+| test:publisher-profiles | PASS |
+| test:ingest-propose | PASS |
+| test:ingest-review | PASS |
+| test:ingest-eval | PASS |
+| test:ooh-expert-gate | PASS |
+| test:ooh-standard-bench | PASS |
+| test:specs | PASS |
+
+- Under 90%: live BICAU002 delivered dollars versus the two expected-to-date figures were not re-queried (AV-SG1, still 70% from AV-SF8). AV-SG2's first-click fix stays at 70% until krusty002 Files > Draft MBA is watched. The `test:postgres-save-mode` failure is the renamed `onSelect` source scan, not a menu-order change. AV-SF11 was not in this pack.
+
