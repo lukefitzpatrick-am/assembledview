@@ -28,6 +28,8 @@ export interface HeroKPIBarProps {
   averageRoas?: number
   roasTrend?: number
   budgetUtilized: number
+  /** "campaign" when no in-scope delivery schedule has month amounts. */
+  budgetCaption?: "prorated" | "campaign"
   /** When set, replaces the Avg. ROAS card (client hub). */
   campaignsYtd?: number
   /** Subtitle under the YTD campaigns count. */
@@ -98,6 +100,7 @@ export function HeroKPIBar({
   averageRoas,
   roasTrend,
   budgetUtilized,
+  budgetCaption = "prorated",
   campaignsYtd,
   campaignsYtdCaption,
   deliveredLoading = false,
@@ -115,7 +118,7 @@ export function HeroKPIBar({
   const animatedRoas = useCountUp(roasTarget, 1000)
   const ytdTarget = typeof campaignsYtd === "number" ? campaignsYtd : 0
   const animatedCampaignsYtd = useCountUp(ytdTarget, 1000)
-  const animatedBudgetPct = useCountUp(normalizedBudgetUtilized, 1000)
+  const budgetPct = normalizedBudgetUtilized
   /**
    * Gated on the spend figure itself (not just `deliveredHasData`, which is also true for
    * impressions-only delivery) so an impressions-only campaign never renders a fabricated "$0
@@ -128,7 +131,7 @@ export function HeroKPIBar({
 
   const ringRadius = 7
   const ringCircumference = 2 * Math.PI * ringRadius
-  const ringOffset = ringCircumference * (1 - animatedBudgetPct / 100)
+  const ringOffset = ringCircumference * (1 - budgetPct / 100)
 
   const isRoasPositive = typeof roasTrend === "number" ? roasTrend >= 0 : null
 
@@ -151,7 +154,9 @@ export function HeroKPIBar({
               {formatMoneyCompact(totalSpend)}
             </p>
             <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
-              of {formatMoneyCompact(totalBudget)} plan budget · monthly plan prorated to date
+              {budgetCaption === "campaign"
+                ? `of ${formatMoneyCompact(totalBudget)} campaign budget`
+                : `of ${formatMoneyCompact(totalBudget)} plan budget · monthly plan prorated to date`}
             </p>
           </>
         )}
@@ -262,7 +267,7 @@ export function HeroKPIBar({
             />
           </svg>
           <p className={cn("num text-3xl font-semibold tracking-tight", budgetTone.text)}>
-            {formatPercent(animatedBudgetPct)}
+            {formatPercent(budgetPct)}
           </p>
         </div>
         <p className="mt-1.5 text-xs leading-snug text-muted-foreground">planned to date ÷ plan budget</p>
@@ -270,7 +275,7 @@ export function HeroKPIBar({
           <div
             className={cn("h-full rounded-full", budgetTone.fill)}
             style={{
-              width: `${animatedBudgetPct}%`,
+              width: `${budgetPct}%`,
               transition: shouldReduceMotion ? undefined : "width 750ms cubic-bezier(0.22, 1, 0.36, 1)",
             }}
             aria-hidden

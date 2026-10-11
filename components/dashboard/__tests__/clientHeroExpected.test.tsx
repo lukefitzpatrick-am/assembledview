@@ -74,6 +74,48 @@ describe("client dashboard expected media", () => {
     expect(tile).toContain(`of ${formatted} plan budget`)
   })
 
+  it("names the campaign budget when the delivery schedule has no months", () => {
+    const tile = renderToStaticMarkup(
+      <HeroKPIBar
+        totalSpend={0}
+        totalBudget={FIGURE}
+        spendLabel="Expected media to date"
+        liveCampaigns={0}
+        plannedCampaigns={1}
+        budgetUtilized={0}
+        budgetCaption="campaign"
+      />,
+    )
+    expect(tile).toContain(`of ${formatted} campaign budget`)
+    expect(tile.includes("monthly plan prorated to date")).toBe(false)
+  })
+
+  it("paints plan committed at its computed percent on first render", () => {
+    const tile = renderToStaticMarkup(
+      <HeroKPIBar
+        totalSpend={0}
+        totalBudget={FIGURE}
+        spendLabel="Expected media to date"
+        liveCampaigns={0}
+        plannedCampaigns={1}
+        budgetUtilized={0}
+      />,
+    )
+    const committed = renderToStaticMarkup(
+      <HeroKPIBar
+        totalSpend={159_800}
+        totalBudget={200_000}
+        spendLabel="Expected media to date"
+        liveCampaigns={1}
+        plannedCampaigns={0}
+        budgetUtilized={37.5}
+      />,
+    )
+    expect(tile).toContain("0.0%")
+    expect(committed).toContain("37.5%")
+    expect(committed.includes("0.0%")).toBe(false)
+  })
+
   it("greets a client viewer and titles admin and staff with the client name", () => {
     const client = renderToStaticMarkup(
       <HeroBanner

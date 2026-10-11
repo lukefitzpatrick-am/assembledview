@@ -42,12 +42,36 @@ export function isPlannedBasisCampaignStatus(status: string | null | undefined):
   return normalized === "booked" || normalized === "approved" || normalized === "completed"
 }
 
+/**
+ * Expected figure on a client-hub card. Positive finite expected-to-date only.
+ * A missing or $0 delivery schedule stays absent, including on a completed card.
+ * Callers must not substitute the campaign budget.
+ */
+export function dashboardCardSpentAmount(
+  expectedSpendToDate: number | null | undefined,
+): number | null {
+  if (
+    typeof expectedSpendToDate === "number" &&
+    Number.isFinite(expectedSpendToDate) &&
+    expectedSpendToDate > 0
+  ) {
+    return expectedSpendToDate
+  }
+  return null
+}
+
+/** True when every booked/approved/completed campaign has no delivery-schedule months. */
+export function expectedTileUsesCampaignBudget(campaigns: PlannedBasisCampaign[]): boolean {
+  const inScope = campaigns.filter((campaign) => isPlannedBasisCampaignStatus(campaign.rawStatus))
+  return inScope.length > 0 && inScope.every((campaign) => !(campaign.months && campaign.months.length > 0))
+}
+
 export type PlannedMonthAmount = { yearMonth: string; amount: number }
 
 export type PlannedBasisCampaign = {
   /** Normalized campaign status (already lowercase/trimmed server-side via `normalizeStatus`). */
   rawStatus: string | null | undefined
-  /** Per-campaign planned spend to date (expected-spend-to-date, or full budget once completed). */
+  /** Per-campaign expected spend to date. Null when the schedule has no positive media — never the campaign budget. */
   spentAmount: number | null
   totalBudget: number
   /** Delivery-schedule months; with a range, to-date clamps through today and budget uses the full window. */
@@ -72,9 +96,11 @@ export type PlannedSpendTotals = {
 
 /**
  * Booked/approved/completed only. Without a range: `spentAmount / totalBudget`.
- * With a range: planned-to-date is months clamped to `[rangeStart, min(rangeEnd, today)]`;
+ * With a range and month amounts: planned-to-date is months clamped to `[rangeStart, min(rangeEnd, today)]`;
  * planned budget is the same months clamped to `[rangeStart, rangeEnd]`. A range entirely
  * in the past → 100%; entirely in the future → 0%; straddling today → partial.
+ * With a range and no month amounts, to-date is `spentAmount ?? 0` (a $0 schedule stays $0)
+ * and the denominator stays `totalBudget`.
  */
 export function computePlannedSpendTotals(
   campaigns: PlannedBasisCampaign[],

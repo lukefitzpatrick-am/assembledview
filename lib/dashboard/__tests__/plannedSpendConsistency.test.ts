@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   computePlannedSpendTotals,
+  dashboardCardSpentAmount,
+  expectedTileUsesCampaignBudget,
   isPlannedBasisCampaignStatus,
   type PlannedBasisCampaign,
 } from "../plannedSpendConsistency"
@@ -142,6 +144,77 @@ describe("computePlannedSpendTotals", () => {
     expect(straddle.plannedToDate).toBe(200)
     expect(straddle.plannedBudget).toBe(300)
     expect(straddle.budgetUtilizedPct).toBeCloseTo((200 / 300) * 100, 10)
+  })
+
+  it("krusty001: a $0 delivery schedule is $0 expected and 0% of the campaign budget", () => {
+    const campaigns: PlannedBasisCampaign[] = [
+      {
+        rawStatus: "approved",
+        spentAmount: dashboardCardSpentAmount(undefined),
+        totalBudget: 500_000,
+        months: [],
+      },
+    ]
+    const totals = computePlannedSpendTotals(campaigns, {
+      rangeStartISO: "2026-07-01",
+      rangeEndISO: "2027-06-30",
+      todayISO: "2026-10-11",
+    })
+    expect(totals.plannedToDate).toBe(0)
+    expect(totals.plannedBudget).toBe(500_000)
+    expect(totals.budgetUtilizedPct).toBe(0)
+    expect(expectedTileUsesCampaignBudget(campaigns)).toBe(true)
+  })
+
+  it("does not copy the campaign budget onto a completed card with no positive expected spend", () => {
+    expect(dashboardCardSpentAmount(undefined)).toBeNull()
+    expect(dashboardCardSpentAmount(0)).toBeNull()
+    expect(dashboardCardSpentAmount(Number.NaN)).toBeNull()
+    expect(dashboardCardSpentAmount(12_500)).toBe(12_500)
+  })
+
+  it("keeps the half-inside clamp and the in-range straddle", () => {
+    const halfInside: PlannedBasisCampaign[] = [
+      {
+        rawStatus: "booked",
+        spentAmount: 600,
+        totalBudget: 600,
+        months: [
+          { yearMonth: "2026-06", amount: 100 },
+          { yearMonth: "2026-07", amount: 200 },
+          { yearMonth: "2026-08", amount: 300 },
+        ],
+      },
+    ]
+    const half = computePlannedSpendTotals(halfInside, {
+      rangeStartISO: "2026-07-01",
+      rangeEndISO: "2027-06-30",
+      todayISO: "2026-09-06",
+    })
+    expect(half.plannedToDate).toBe(500)
+    expect(half.plannedBudget).toBe(500)
+
+    const straddleCampaign: PlannedBasisCampaign[] = [
+      {
+        rawStatus: "booked",
+        spentAmount: 300,
+        totalBudget: 300,
+        months: [
+          { yearMonth: "2026-08", amount: 100 },
+          { yearMonth: "2026-09", amount: 100 },
+          { yearMonth: "2026-10", amount: 100 },
+        ],
+      },
+    ]
+    const straddle = computePlannedSpendTotals(straddleCampaign, {
+      rangeStartISO: "2026-08-01",
+      rangeEndISO: "2026-10-31",
+      todayISO: "2026-09-06",
+    })
+    expect(straddle.plannedToDate).toBe(200)
+    expect(straddle.plannedBudget).toBe(300)
+    expect(straddle.budgetUtilizedPct).toBeCloseTo((200 / 300) * 100, 10)
+    expect(expectedTileUsesCampaignBudget(straddleCampaign)).toBe(false)
   })
 
   it("FX-1: without a range, still spentAmount / totalBudget (months ignored)", () => {

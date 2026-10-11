@@ -31,7 +31,11 @@ import {
 import { ClientFinanceSlideOver } from "@/components/dashboard/modals/ClientFinanceSlideOver"
 import { ClientKpiSlideOver } from "@/components/dashboard/modals/ClientKpiSlideOver"
 import { CampaignCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeletons"
-import { computePlannedSpendTotals } from "@/lib/dashboard/plannedSpendConsistency"
+import {
+  computePlannedSpendTotals,
+  dashboardCardSpentAmount,
+  expectedTileUsesCampaignBudget,
+} from "@/lib/dashboard/plannedSpendConsistency"
 import {
   campaignMonthsFromStacked,
   exactAuFyStartYear,
@@ -123,14 +127,7 @@ function toDashboardCampaign(
 ): DashboardCampaign {
   // Card progress binds to expected spend to date (plan pace), NOT Snowflake delivered —
   // same word/basis as campaign-page "Expected Spend".
-  const spentApprox =
-    typeof campaign.expectedSpendToDate === "number" &&
-    Number.isFinite(campaign.expectedSpendToDate) &&
-    campaign.expectedSpendToDate > 0
-      ? campaign.expectedSpendToDate
-      : bucketStatus === "completed"
-        ? campaign.budget
-        : null
+  const spentApprox = dashboardCardSpentAmount(campaign.expectedSpendToDate)
   const canEdit = mode === "adminHub"
   return {
     id: `${campaign.mbaNumber}-${campaign.version_number}`,
@@ -260,6 +257,7 @@ export function ClientDashboardPageContent({
     () => computePlannedSpendTotals(allCampaigns, { rangeStartISO, rangeEndISO }),
     [allCampaigns, rangeEndISO, rangeStartISO]
   )
+  const budgetCaption = expectedTileUsesCampaignBudget(allCampaigns) ? "campaign" : "prorated"
   /**
    * One committed figure for the header and the expected-media tile.
    * `useCountUp` used to paint the plan budget (reduced motion starts at the target)
@@ -414,6 +412,7 @@ export function ClientDashboardPageContent({
             liveCampaigns={statusCounts.live}
             plannedCampaigns={statusCounts.planned}
             budgetUtilized={budgetUtilizedPct}
+            budgetCaption={budgetCaption}
             campaignsYtd={campaignsYtdCount}
             campaignsYtdCaption={campaignsYtdCaption}
             deliveredLoading={deliveredTotals === undefined}
