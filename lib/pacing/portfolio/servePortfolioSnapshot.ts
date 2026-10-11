@@ -19,6 +19,8 @@ export type BuildPortfolioSnapshotArgs = {
   startedAt?: number
   /** Unset on the serving path, so each source keeps the 90s cap. */
   perSourceTimeoutMs?: number
+  /** Cron only. A Postgres lock or statement timeout logs one line. */
+  logPgTimeout?: boolean
 }
 
 export type ServePortfolioSnapshotArgs = {

@@ -52,7 +52,7 @@ async function resolveSearchLineItemsFromPostgres(
   const { readPlanMasters, readPlanVersionsForMbas, fetchLineItemsFromPostgresByEndpoint } =
     await import("@/lib/data/readMediaPlans");
 
-  const masters = (await readPlanMasters())
+  const masters = (await readPlanMasters({ readLimits: true }))
     .map((r) => toMaster(r as Record<string, unknown>))
     .filter((m): m is MediaPlanMaster => m !== null);
   const wantMba = args.mbaNumber?.trim().toLowerCase() || "";
@@ -71,6 +71,7 @@ async function resolveSearchLineItemsFromPostgres(
 
   const versions = await readPlanVersionsForMbas(
     liveMasters.map((m) => m.mba_number),
+    { readLimits: true },
   );
   const versionRowsByMba = new Map<string, VersionRow>();
   const liveMbaSet = new Set(liveMasters.map((m) => norm(m.mba_number)));
@@ -107,7 +108,8 @@ async function resolveSearchLineItemsFromPostgres(
       const searchRows = await fetchLineItemsFromPostgresByEndpoint(
         "media_plan_search",
         master.mba_number,
-        published
+        published,
+        { readLimits: true },
       );
       const inputs: LiveSearchLineItemInput[] = [];
       for (const searchRow of searchRows) {
@@ -218,6 +220,7 @@ export async function fetchSearchLineItemsForMba(args: {
     "media_plan_search",
     args.mba_number,
     args.versionNumber,
+    { readLimits: true },
   );
 }
 

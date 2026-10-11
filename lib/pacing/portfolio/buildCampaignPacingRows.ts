@@ -37,6 +37,8 @@ export type BuildCampaignPacingRowsArgs = {
   startedAt?: number
   overallBudgetMs?: number
   perSourceTimeoutMs?: number
+  /** Cron only. Logs pacing_portfolio_pg_timeout on 55P03 or 57014. */
+  logPgTimeout?: boolean
 }
 
 function logPortfolioSourceTiming(startedAt: number, sources: PortfolioSourceTiming[]): void {
@@ -148,6 +150,7 @@ export async function buildCampaignPacingRows(
     overallBudgetMs: args.overallBudgetMs ?? PORTFOLIO_OVERALL_BUDGET_MS,
     perSourceTimeoutMs: args.perSourceTimeoutMs ?? PORTFOLIO_SOURCE_TIMEOUT_MS,
     timings,
+    logPgTimeout: args.logPgTimeout,
   }
   let sources
   let versions: Record<string, unknown>[]

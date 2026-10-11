@@ -113,14 +113,21 @@ function resetSources() {
   upsert.mock.resetCalls()
 }
 
-function buildArgs(perSourceTimeoutMs?: number) {
+function buildArgs(perSourceTimeoutMs?: number, logPgTimeout?: boolean) {
   return {
     asOfDate: input.asOfDate,
     scopeKey: "all",
     liveOnly: true,
     allowedClientSlugs: null as Set<string> | null,
     perSourceTimeoutMs,
+    logPgTimeout,
   }
+}
+
+function lockTimeoutError(): Error {
+  const err = new Error("canceling statement due to lock timeout")
+  ;(err as Error & { code: string }).code = "55P03"
+  return err
 }
 
 test(
@@ -391,5 +398,60 @@ test(
       },
     )
     assert.equal(upsert.mock.callCount(), 0)
+  },
+)
+
+test(
+  "a lock_timeout on the direct masters read retries, then surfaces as a source failure",
+  { skip },
+  async () => {
+    resetSources()
+    let calls = 0
+    state.direct = () => {
+      calls += 1
+      return Promise.reject(lockTimeoutError())
+    }
+    const { buildAndStorePortfolioSnapshot } = await import(
+      "../buildAndStorePortfolioSnapshot.js"
+    )
+    const lines: string[] = []
+    const prev = console.log
+    console.log = (...args: unknown[]) => {
+      lines.push(args.map((arg) => String(arg)).join(" "))
+    }
+
+    try {
+      await assert.rejects(
+        () => buildAndStorePortfolioSnapshot(buildArgs(40, true)),
+        (err: unknown) => {
+          assert.ok(err instanceof Error)
+          assert.equal(err.message, "portfolio source timeout: direct")
+          return true
+        },
+      )
+    } finally {
+      console.log = prev
+    }
+
+    assert.equal(calls, 2)
+    assert.equal(upsert.mock.callCount(), 0)
+    const logged = lines
+      .map((line) => {
+        try {
+          return JSON.parse(line) as {
+            event?: string
+            source?: string
+            code?: string
+            ms?: number
+          }
+        } catch {
+          return null
+        }
+      })
+      .filter((row) => row?.event === "pacing_portfolio_pg_timeout")
+    assert.ok(logged.length >= 1)
+    assert.equal(logged[0]?.source, "direct")
+    assert.equal(logged[0]?.code, "55P03")
+    assert.equal(typeof logged[0]?.ms, "number")
   },
 )

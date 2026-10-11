@@ -90,6 +90,7 @@ export async function fetchXanoLineItemsForMba(args: {
     args.tableName,
     args.mba_number,
     args.versionNumber,
+    { readLimits: true },
   )
 }
 
@@ -143,7 +144,7 @@ async function resolveFromPostgres(
   const { readPlanMasters, readPlanVersionsForMbas, fetchLineItemsFromPostgresByEndpoint } =
     await import("@/lib/data/readMediaPlans")
 
-  const masters = (await readPlanMasters())
+  const masters = (await readPlanMasters({ readLimits: true }))
     .map((r) => toMaster(r as Record<string, unknown>))
     .filter((m): m is MediaPlanMaster => m !== null)
   const liveMasters = filterLiveMasters(
@@ -156,6 +157,7 @@ async function resolveFromPostgres(
 
   const versions = await readPlanVersionsForMbas(
     liveMasters.map((m) => m.mba_number),
+    { readLimits: true },
   )
   const versionRowsByMba = new Map<string, VersionRow>()
   const wantMba = new Set(liveMasters.map((m) => norm(m.mba_number)))
@@ -194,7 +196,8 @@ async function resolveFromPostgres(
         const lines = await fetchLineItemsFromPostgresByEndpoint(
           endpoint,
           master.mba_number,
-          published
+          published,
+          { readLimits: true },
         )
         inputs.push(
           ...rowsFromFetchedLines({

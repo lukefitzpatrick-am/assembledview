@@ -1,7 +1,8 @@
 import "server-only"
 
 import { sql, type SQL } from "drizzle-orm"
-import { getDb, schema } from "@/db"
+import { schema } from "@/db"
+import { withPgReadLimits } from "@/lib/data/pgReadLimits"
 import { coerceNumericStringsToNumbers, toApiRow } from "@/lib/data/toApiRow"
 import { readPacingOrphanFixRows } from "@/lib/pacing/admin/pacingOrphanFixes"
 
@@ -112,12 +113,15 @@ export const PACING_MASTER_VERSION_COLUMNS = {
 } as const
 
 export async function fetchPacingMastersFromPostgres(): Promise<Record<string, unknown>[]> {
-  const db = getDb()
   const [masters, versions] = await Promise.all([
-    labelPlanQuery(db.select().from(schema.mediaPlanMasters), "readPacingMasters"),
-    labelPlanQuery(
-      db.select(PACING_MASTER_VERSION_COLUMNS).from(schema.mediaPlanVersions),
-      "readPacingMasters",
+    withPgReadLimits((tx) =>
+      labelPlanQuery(tx.select().from(schema.mediaPlanMasters), "readPacingMasters"),
+    ),
+    withPgReadLimits((tx) =>
+      labelPlanQuery(
+        tx.select(PACING_MASTER_VERSION_COLUMNS).from(schema.mediaPlanVersions),
+        "readPacingMasters",
+      ),
     ),
   ])
   const versionById = new Map(
@@ -217,15 +221,14 @@ export async function fetchPacingVersionsFromPostgres(
 ): Promise<Record<string, unknown>[]> {
   const keys = mbaNumbers === undefined ? null : pacingMbaKeys(mbaNumbers)
   if (keys && keys.length === 0) return []
-  const db = getDb()
-  const rows =
+  const rows = await withPgReadLimits((tx) =>
     keys === null
-      ? await labelPlanQuery(
-          db.select(PACING_VERSION_COLUMNS).from(schema.mediaPlanVersions),
+      ? labelPlanQuery(
+          tx.select(PACING_VERSION_COLUMNS).from(schema.mediaPlanVersions),
           "readPacingVersions",
         )
-      : await labelPlanQuery(
-          db
+      : labelPlanQuery(
+          tx
             .select(PACING_VERSION_COLUMNS)
             .from(schema.mediaPlanVersions)
             .where(
@@ -235,7 +238,8 @@ export async function fetchPacingVersionsFromPostgres(
               )})`,
             ),
           "readPacingVersions",
-        )
+        ),
+  )
   return rows.map((row) => mapPacingVersionFromPostgres(row as Record<string, unknown>))
 }
 
