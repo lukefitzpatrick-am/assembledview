@@ -3,6 +3,7 @@
  * A successful read of zero rows is still stored.
  */
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import { mock, test } from "node:test"
 
 import { assembleCampaignPacingRows } from "../assembleCampaignPacingRows.js"
@@ -27,6 +28,11 @@ const state: {
   adServing: async () => input.adServing,
   direct: async () => input.direct,
   versions: async () => [],
+}
+
+const hits = {
+  cached: { search: 0, social: 0, programmatic: 0, adServing: 0, direct: 0 },
+  fresh: { search: 0, social: 0, programmatic: 0, adServing: 0, direct: 0 },
 }
 
 const upsert = mock.fn(
@@ -59,11 +65,26 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/pacing/campaigns/pacingRowsCache", {
     namedExports: {
       pacingScopeKey: (slugs: Set<string> | null) => (slugs == null ? "all" : "scoped"),
-      getCachedSearchPacingRows: () => state.search(),
-      getCachedSocialPacingRows: () => state.social(),
-      getCachedProgrammaticPacingRows: () => state.programmatic(),
-      getCachedAdServingPacingRows: () => state.adServing(),
-      getCachedDirectPacingRows: () => state.direct(),
+      getCachedSearchPacingRows: () => {
+        hits.cached.search += 1
+        return state.search()
+      },
+      getCachedSocialPacingRows: () => {
+        hits.cached.social += 1
+        return state.social()
+      },
+      getCachedProgrammaticPacingRows: () => {
+        hits.cached.programmatic += 1
+        return state.programmatic()
+      },
+      getCachedAdServingPacingRows: () => {
+        hits.cached.adServing += 1
+        return state.adServing()
+      },
+      getCachedDirectPacingRows: () => {
+        hits.cached.direct += 1
+        return state.direct()
+      },
     },
   })
   await mock.module!("@/lib/data/readMediaPlans", {
@@ -78,29 +99,54 @@ if (supportsMockModule()) {
   })
   await mock.module!("@/lib/pacing/campaigns/fetchSearchPacingCampaignRows", {
     namedExports: {
-      fetchSearchPacingCampaignRows: () => state.search(),
+      fetchSearchPacingCampaignRows: () => {
+        hits.fresh.search += 1
+        return state.search()
+      },
     },
   })
   await mock.module!("@/lib/pacing/social/fetchSocialPacingCampaignRows", {
     namedExports: {
-      fetchSocialPacingCampaignRows: () => state.social(),
+      fetchSocialPacingCampaignRows: () => {
+        hits.fresh.social += 1
+        return state.social()
+      },
     },
   })
   await mock.module!("@/lib/pacing/programmatic/fetchProgrammaticPacingCampaignRows", {
     namedExports: {
-      fetchProgrammaticPacingCampaignRows: () => state.programmatic(),
+      fetchProgrammaticPacingCampaignRows: () => {
+        hits.fresh.programmatic += 1
+        return state.programmatic()
+      },
     },
   })
   await mock.module!("@/lib/pacing/ad-serving/fetchAdServingPacingCampaignRows", {
     namedExports: {
-      fetchAdServingPacingCampaignRows: () => state.adServing(),
+      fetchAdServingPacingCampaignRows: () => {
+        hits.fresh.adServing += 1
+        return state.adServing()
+      },
     },
   })
   await mock.module!("@/lib/pacing/direct/fetchDirectPacingRows", {
     namedExports: {
-      fetchDirectPacingRows: () => state.direct(),
+      fetchDirectPacingRows: () => {
+        hits.fresh.direct += 1
+        return state.direct()
+      },
     },
   })
+}
+
+function resetHits() {
+  for (const bucket of [hits.cached, hits.fresh]) {
+    bucket.search = 0
+    bucket.social = 0
+    bucket.programmatic = 0
+    bucket.adServing = 0
+    bucket.direct = 0
+  }
 }
 
 function resetSources() {
@@ -110,6 +156,7 @@ function resetSources() {
   state.adServing = async () => input.adServing
   state.direct = async () => input.direct
   state.versions = async () => []
+  resetHits()
   upsert.mock.resetCalls()
 }
 
@@ -455,3 +502,34 @@ test(
     assert.equal(typeof logged[0]?.ms, "number")
   },
 )
+
+const cachedOnce = { search: 1, social: 1, programmatic: 1, adServing: 1, direct: 1 }
+const freshNone = { search: 0, social: 0, programmatic: 0, adServing: 0, direct: 0 }
+
+test(
+  "cache: false calls the composers without the cache wrapper; the default path uses it",
+  { skip },
+  async () => {
+    resetSources()
+    const { buildAndStorePortfolioSnapshot } = await import(
+      "../buildAndStorePortfolioSnapshot.js"
+    )
+
+    await buildAndStorePortfolioSnapshot(buildArgs())
+    assert.deepEqual(hits.cached, cachedOnce)
+    assert.deepEqual(hits.fresh, freshNone)
+
+    resetSources()
+    await buildAndStorePortfolioSnapshot({ ...buildArgs(), cache: false })
+    assert.deepEqual(hits.cached, freshNone)
+    assert.deepEqual(hits.fresh, cachedOnce)
+  },
+)
+
+test("the cron handler passes cache: false and the user build does not", () => {
+  const cron = readFileSync("app/api/cron/pacing-portfolio/route.ts", "utf8")
+  assert.match(cron, /cache:\s*false/)
+  const serve = readFileSync("lib/pacing/portfolio/servePortfolioSnapshot.ts", "utf8")
+  const buildArgsSource = serve.slice(serve.indexOf("function buildArgs"))
+  assert.equal(buildArgsSource.includes("cache:"), false)
+})

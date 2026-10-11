@@ -39,6 +39,8 @@ export type BuildCampaignPacingRowsArgs = {
   perSourceTimeoutMs?: number
   /** Cron only. Logs pacing_portfolio_pg_timeout on 55P03 or 57014. */
   logPgTimeout?: boolean
+  /** Unset uses the 4h composer cache. The cron passes false. */
+  cache?: boolean
 }
 
 function logPortfolioSourceTiming(startedAt: number, sources: PortfolioSourceTiming[]): void {
@@ -54,15 +56,18 @@ function logPortfolioSourceTiming(startedAt: number, sources: PortfolioSourceTim
 /**
  * First call uses the 4h cache. The retry calls `fetch*` so it does not join
  * the in-flight `unstable_cache` promise. Production Snowflake is serverless:
- * that fetch opens a connection and destroys it.
+ * that fetch opens a connection and destroys it. `useCache: false` calls
+ * `fetch*` on every attempt and does not write the cache.
  */
 function channelLoader<T>(
   cached: (asOfDate: string, slugs: Set<string> | null) => Promise<T>,
   fresh: (asOfDate: string, slugs: Set<string> | null) => Promise<T>,
+  useCache: boolean,
 ): (asOfDate: string, slugs: Set<string> | null) => Promise<T> {
   let attempt = 0
   return (asOfDate, slugs) => {
     attempt += 1
+    if (!useCache) return fresh(asOfDate, slugs)
     return attempt === 1 ? cached(asOfDate, slugs) : fresh(asOfDate, slugs)
   }
 }
@@ -143,6 +148,7 @@ export async function buildCampaignPacingRows(
   args: BuildCampaignPacingRowsArgs,
 ): Promise<{ rows: CampaignPacingRow[]; expectedLiveIds: string[] }> {
   const liveOnly = args.liveOnly !== false
+  const useCache = args.cache !== false
   const startedAt = args.startedAt ?? Date.now()
   const timings: PortfolioSourceTiming[] = []
   const budget = {
@@ -159,17 +165,29 @@ export async function buildCampaignPacingRows(
       loadPortfolioChannelSources(
         { asOfDate: args.asOfDate, allowedClientSlugs: args.allowedClientSlugs },
         {
-          search: channelLoader(getCachedSearchPacingRows, (asOfDate, slugs) =>
-            fetchSearchPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+          search: channelLoader(
+            getCachedSearchPacingRows,
+            (asOfDate, slugs) =>
+              fetchSearchPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+            useCache,
           ),
-          social: channelLoader(getCachedSocialPacingRows, (asOfDate, slugs) =>
-            fetchSocialPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+          social: channelLoader(
+            getCachedSocialPacingRows,
+            (asOfDate, slugs) =>
+              fetchSocialPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+            useCache,
           ),
-          programmatic: channelLoader(getCachedProgrammaticPacingRows, (asOfDate, slugs) =>
-            fetchProgrammaticPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+          programmatic: channelLoader(
+            getCachedProgrammaticPacingRows,
+            (asOfDate, slugs) =>
+              fetchProgrammaticPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+            useCache,
           ),
-          adServing: channelLoader(getCachedAdServingPacingRows, (asOfDate, slugs) =>
-            fetchAdServingPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+          adServing: channelLoader(
+            getCachedAdServingPacingRows,
+            (asOfDate, slugs) =>
+              fetchAdServingPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+            useCache,
           ),
           direct: channelLoader(
             (asOfDate, slugs) => getCachedDirectPacingRows(asOfDate, slugs, false),
@@ -179,6 +197,7 @@ export async function buildCampaignPacingRows(
                 allowedClientSlugs: slugs,
                 includeHistorical: false,
               }),
+            useCache,
           ),
         },
         { parallel: true, ...budget },
