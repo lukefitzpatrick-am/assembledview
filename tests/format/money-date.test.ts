@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest"
 
 import { formatDateLong, formatDateRange, formatDateShort } from "@/lib/format/date"
-import { formatMoney, formatMoneyCompact, formatPercent, formatRate } from "@/lib/format/money"
+import {
+  formatHomeSpendAxisTick,
+  formatMoney,
+  formatMoneyCompact,
+  formatPercent,
+  formatRate,
+} from "@/lib/format/money"
 
 describe("formatMoney", () => {
   it("returns em dash for null, undefined, and NaN", () => {
@@ -40,6 +46,14 @@ describe("formatMoneyCompact", () => {
 
   it("home-spend thousands keep the compact K rule", () => {
     expect(formatMoneyCompact(948_101, { millionScale: "home-spend" })).toBe("$948.1K")
+  })
+})
+
+describe("formatHomeSpendAxisTick", () => {
+  it("uses one compact scale on every Spend by month tick", () => {
+    expect(
+      [0, 500_000, 1_000_000, 1_500_000, 2_000_000].map((tick) => formatHomeSpendAxisTick(tick)),
+    ).toEqual(["$0", "$500K", "$1M", "$1.5M", "$2M"])
   })
 })
 

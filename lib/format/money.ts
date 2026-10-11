@@ -119,6 +119,15 @@ const compactMoneyFormatter = new Intl.NumberFormat(AUD_LOCALE, {
   maximumFractionDigits: 1,
 })
 
+/** Home Spend by month Y-axis. At most one decimal; trailing zeros dropped. */
+const homeSpendAxisFormatter = new Intl.NumberFormat(AUD_LOCALE, {
+  style: "currency",
+  currency: AUD_CURRENCY,
+  notation: "compact",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+})
+
 const compactMoneyFormatterByFraction = new Map<number, Intl.NumberFormat>()
 
 function compactMoneyFormatterWithFraction(fractionDigits: 1 | 2): Intl.NumberFormat {
@@ -222,6 +231,16 @@ export function formatMoneyCompact(
     return compactMoneyFormatterWithFraction(fractionDigits).format(value)
   }
   return compactMoneyFormatter.format(value)
+}
+
+/**
+ * Home Spend by month Y-axis only. One compact scale on every tick:
+ * `$0`, `$500K`, `$1M`, `$1.5M`, `$2M`. Not the Media Spend tile.
+ */
+export function formatHomeSpendAxisTick(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—"
+  if (!Number.isFinite(value)) return "—"
+  return homeSpendAxisFormatter.format(value)
 }
 
 /**

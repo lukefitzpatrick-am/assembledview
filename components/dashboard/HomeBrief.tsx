@@ -16,7 +16,7 @@ import {
   plannedBarsFromClientMonths,
   type HomeMonthBar,
 } from "@/lib/dashboard/homeBrief"
-import { formatMoneyCompact } from "@/lib/format/money"
+import { formatHomeSpendAxisTick, formatMoney } from "@/lib/format/money"
 import { BRAND } from "@/lib/brand"
 import { useChartTheme } from "@/lib/chart-theme"
 import {
@@ -196,15 +196,13 @@ export function HomeSpendRow() {
                     tickLine={false}
                     axisLine={false}
                     width={48}
-                    tickFormatter={(value) =>
-                      formatMoneyCompact(Number(value), { millionScale: "home-spend" })
-                    }
+                    tickFormatter={(value) => formatHomeSpendAxisTick(Number(value))}
                     tick={{ fontSize: 11, fill: theme.axisText }}
                   />
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
-                        formatter={(value) => formatMoneyCompact(Number(value), { millionScale: "home-spend" })}
+                        formatter={(value) => formatMoney(Number(value))}
                       />
                     }
                   />
