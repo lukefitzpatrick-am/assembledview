@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
+import { runPortfolioCronBuild } from "../runPortfolioCron.js"
 import { servePortfolioSnapshot } from "../servePortfolioSnapshot.js"
 import type { CampaignPacingRow, PortfolioPacingCounts } from "../types.js"
 import { P6_AS_OF, p6FixtureRows } from "./p6Fixture.js"
@@ -147,5 +148,55 @@ describe("servePortfolioSnapshot", () => {
     if (result.status !== 200) return
     assert.equal(result.body.generated_at, "2026-09-17T08:30:00.000Z")
     assert.equal(builds, 1)
+  })
+
+  it("a failed build with a 10 Oct row returns 200 and stale.asOf", async () => {
+    const prior = { ...snapshotRow(), asOfDate: "2026-10-10" }
+    let builds = 0
+    const result = await servePortfolioSnapshot({
+      asOf: "2026-10-11",
+      liveOnly: true,
+      scopeKey: "all",
+      allowedClientSlugs: null,
+      isAdmin: true,
+      refresh: false,
+      readSnapshot: async () => null,
+      readLatestPrior: async (key) => {
+        assert.equal(key.asOfDate, "2026-10-11")
+        assert.equal(key.scopeKey, "all")
+        assert.equal(key.liveOnly, true)
+        return prior
+      },
+      buildAndStore: async () => {
+        builds += 1
+        throw new Error("portfolio source timeout: search")
+      },
+      scheduleBuild: () => {
+        throw new Error("admin failure does not schedule")
+      },
+    })
+
+    assert.equal(builds, 1)
+    assert.equal(result.status, 200)
+    if (result.status !== 200) return
+    assert.equal(result.body.stale?.asOf, "2026-10-10")
+    assert.equal(result.body.asOf, "2026-10-10")
+  })
+})
+
+describe("runPortfolioCronBuild", () => {
+  it("retry flag with today's row present skips the build", async () => {
+    let builds = 0
+    const result = await runPortfolioCronBuild({
+      retry: true,
+      readToday: async () => ({ asOfDate: "2026-10-11" }),
+      build: async () => {
+        builds += 1
+        return { asOfDate: "2026-10-11" }
+      },
+    })
+
+    assert.equal(result.status, "already built")
+    assert.equal(builds, 0)
   })
 })

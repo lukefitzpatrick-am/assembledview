@@ -1,6 +1,9 @@
 import "server-only"
 
+import { discardHungPostgresClient } from "@/db"
 import { readPublishedOrLivePlanVersions } from "@/lib/data/readMediaPlans"
+import { fetchAdServingPacingCampaignRows } from "@/lib/pacing/ad-serving/fetchAdServingPacingCampaignRows"
+import { fetchSearchPacingCampaignRows } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows"
 import {
   getCachedAdServingPacingRows,
   getCachedDirectPacingRows,
@@ -8,11 +11,15 @@ import {
   getCachedSearchPacingRows,
   getCachedSocialPacingRows,
 } from "@/lib/pacing/campaigns/pacingRowsCache"
+import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
+import { fetchProgrammaticPacingCampaignRows } from "@/lib/pacing/programmatic/fetchProgrammaticPacingCampaignRows"
+import { fetchSocialPacingCampaignRows } from "@/lib/pacing/social/fetchSocialPacingCampaignRows"
 import {
   assembleCampaignPacingRows,
   countPortfolioRows,
 } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
 import {
+  completePortfolioSourceTimings,
   loadBoundedSource,
   loadPortfolioChannelSources,
   PORTFOLIO_OVERALL_BUDGET_MS,
@@ -37,9 +44,35 @@ function logPortfolioSourceTiming(startedAt: number, sources: PortfolioSourceTim
     JSON.stringify({
       event: "pacing_portfolio_source_timing",
       durationMs: Date.now() - startedAt,
-      sources,
+      sources: completePortfolioSourceTimings(sources),
     }),
   )
+}
+
+/**
+ * First call uses the 4h cache. The retry calls `fetch*` so it does not join
+ * the in-flight `unstable_cache` promise. Production Snowflake is serverless:
+ * that fetch opens a connection and destroys it.
+ */
+function channelLoader<T>(
+  cached: (asOfDate: string, slugs: Set<string> | null) => Promise<T>,
+  fresh: (asOfDate: string, slugs: Set<string> | null) => Promise<T>,
+): (asOfDate: string, slugs: Set<string> | null) => Promise<T> {
+  let attempt = 0
+  return (asOfDate, slugs) => {
+    attempt += 1
+    return attempt === 1 ? cached(asOfDate, slugs) : fresh(asOfDate, slugs)
+  }
+}
+
+/** Second versions read drops the postgres.js client so the hung checkout is not reused. */
+function versionsWithFreshClient(asOfDate: string): () => Promise<Record<string, unknown>[]> {
+  let attempt = 0
+  return async () => {
+    attempt += 1
+    if (attempt > 1) await discardHungPostgresClient()
+    return readPublishedOrLivePlanVersions(asOfDate)
+  }
 }
 
 function normMba(value: unknown): string {
@@ -123,15 +156,31 @@ export async function buildCampaignPacingRows(
       loadPortfolioChannelSources(
         { asOfDate: args.asOfDate, allowedClientSlugs: args.allowedClientSlugs },
         {
-          search: getCachedSearchPacingRows,
-          social: getCachedSocialPacingRows,
-          programmatic: getCachedProgrammaticPacingRows,
-          adServing: getCachedAdServingPacingRows,
-          direct: (asOfDate, slugs) => getCachedDirectPacingRows(asOfDate, slugs, false),
+          search: channelLoader(getCachedSearchPacingRows, (asOfDate, slugs) =>
+            fetchSearchPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+          ),
+          social: channelLoader(getCachedSocialPacingRows, (asOfDate, slugs) =>
+            fetchSocialPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+          ),
+          programmatic: channelLoader(getCachedProgrammaticPacingRows, (asOfDate, slugs) =>
+            fetchProgrammaticPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+          ),
+          adServing: channelLoader(getCachedAdServingPacingRows, (asOfDate, slugs) =>
+            fetchAdServingPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+          ),
+          direct: channelLoader(
+            (asOfDate, slugs) => getCachedDirectPacingRows(asOfDate, slugs, false),
+            (asOfDate, slugs) =>
+              fetchDirectPacingRows({
+                asOfDate,
+                allowedClientSlugs: slugs,
+                includeHistorical: false,
+              }),
+          ),
         },
         { parallel: true, ...budget },
       ),
-      loadBoundedSource("versions", () => readPublishedOrLivePlanVersions(args.asOfDate), budget),
+      loadBoundedSource("versions", versionsWithFreshClient(args.asOfDate), budget),
     ])
   } catch (err) {
     logPortfolioSourceTiming(startedAt, timings)

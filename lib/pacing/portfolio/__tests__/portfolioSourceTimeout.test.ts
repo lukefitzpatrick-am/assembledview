@@ -76,6 +76,31 @@ if (supportsMockModule()) {
       upsertPortfolioSnapshot: upsert,
     },
   })
+  await mock.module!("@/lib/pacing/campaigns/fetchSearchPacingCampaignRows", {
+    namedExports: {
+      fetchSearchPacingCampaignRows: () => state.search(),
+    },
+  })
+  await mock.module!("@/lib/pacing/social/fetchSocialPacingCampaignRows", {
+    namedExports: {
+      fetchSocialPacingCampaignRows: () => state.social(),
+    },
+  })
+  await mock.module!("@/lib/pacing/programmatic/fetchProgrammaticPacingCampaignRows", {
+    namedExports: {
+      fetchProgrammaticPacingCampaignRows: () => state.programmatic(),
+    },
+  })
+  await mock.module!("@/lib/pacing/ad-serving/fetchAdServingPacingCampaignRows", {
+    namedExports: {
+      fetchAdServingPacingCampaignRows: () => state.adServing(),
+    },
+  })
+  await mock.module!("@/lib/pacing/direct/fetchDirectPacingRows", {
+    namedExports: {
+      fetchDirectPacingRows: () => state.direct(),
+    },
+  })
 }
 
 function resetSources() {
@@ -157,6 +182,105 @@ test(
           line.includes('"timedOut":true'),
       ),
     )
+  },
+)
+
+test(
+  "search times out once then resolves: the build stores the row",
+  { skip },
+  async () => {
+    resetSources()
+    let calls = 0
+    state.search = () => {
+      calls += 1
+      if (calls === 1) return new Promise(() => {})
+      return Promise.resolve(input.search)
+    }
+    const { buildAndStorePortfolioSnapshot } = await import(
+      "../buildAndStorePortfolioSnapshot.js"
+    )
+    const lines: string[] = []
+    const prev = console.log
+    console.log = (...args: unknown[]) => {
+      lines.push(args.map((part) => String(part)).join(" "))
+    }
+    try {
+      const stored = await buildAndStorePortfolioSnapshot(buildArgs(40))
+      assert.ok(stored.rows.length > 0)
+    } finally {
+      console.log = prev
+    }
+
+    assert.equal(calls, 2)
+    assert.equal(upsert.mock.callCount(), 1)
+    const attempts = lines
+      .map((line) => {
+        try {
+          return JSON.parse(line) as { event?: string; source?: string; attempt?: number; timedOut?: boolean }
+        } catch {
+          return null
+        }
+      })
+      .filter((row) => row?.event === "pacing_portfolio_source_attempt" && row.source === "search")
+    assert.equal(attempts.length, 2)
+    assert.equal(attempts[0]?.attempt, 1)
+    assert.equal(attempts[0]?.timedOut, true)
+    assert.equal(attempts[1]?.attempt, 2)
+    assert.equal(attempts[1]?.timedOut, false)
+  },
+)
+
+test(
+  "search times out twice: the build throws and upsert is not called",
+  { skip },
+  async () => {
+    resetSources()
+    let calls = 0
+    state.search = () => {
+      calls += 1
+      return new Promise(() => {})
+    }
+    const { buildAndStorePortfolioSnapshot } = await import(
+      "../buildAndStorePortfolioSnapshot.js"
+    )
+    const lines: string[] = []
+    const prev = console.log
+    console.log = (...args: unknown[]) => {
+      lines.push(args.map((part) => String(part)).join(" "))
+    }
+    try {
+      await assert.rejects(
+        () => buildAndStorePortfolioSnapshot(buildArgs(40)),
+        (err: unknown) => {
+          assert.ok(err instanceof Error)
+          assert.equal(err.message, "portfolio source timeout: search")
+          return true
+        },
+      )
+    } finally {
+      console.log = prev
+    }
+
+    assert.equal(calls, 2)
+    assert.equal(upsert.mock.callCount(), 0)
+    const parsed = lines.flatMap((line) => {
+      try {
+        return [JSON.parse(line) as { event?: string; source?: string; attempt?: number; timedOut?: boolean; pending?: boolean; sources?: Array<{ source?: string; pending?: boolean }> }]
+      } catch {
+        return []
+      }
+    })
+    const attempts = parsed.filter(
+      (row) => row.event === "pacing_portfolio_source_attempt" && row.source === "search",
+    )
+    assert.equal(attempts.length, 2)
+    assert.equal(attempts[0]?.timedOut, true)
+    assert.equal(attempts[1]?.timedOut, true)
+    const summary = parsed.find((row) => row.event === "pacing_portfolio_source_timing")
+    const names = (summary?.sources ?? []).map((row) => row.source)
+    for (const name of ["search", "social", "programmatic", "adServing", "direct", "versions"]) {
+      assert.ok(names.includes(name), name)
+    }
   },
 )
 

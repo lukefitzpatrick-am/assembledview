@@ -62,4 +62,21 @@ export async function closeDb(): Promise<void> {
   if (client) await client.end({ timeout: 5 })
 }
 
+/**
+ * Drop the process-wide postgres.js client after a query has hung past its
+ * deadline. The next `getDb()` opens a new pool, so a retry does not check
+ * out the connection that is still inside the timed-out statement.
+ */
+export async function discardHungPostgresClient(): Promise<void> {
+  const client = globalForDb.__avPostgres
+  globalForDb.__avPostgres = undefined
+  globalForDb.__avDb = undefined
+  if (!client) return
+  try {
+    await client.end({ timeout: 0 })
+  } catch {
+    // The hung checkout is abandoned with this client.
+  }
+}
+
 export { schema }

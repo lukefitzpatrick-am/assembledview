@@ -50,6 +50,32 @@ export type PortfolioSourceTiming = {
   ms: number
   rowCount: number
   timedOut: boolean
+  /** 1 on the first wait, 2 on the single retry. */
+  attempt?: number
+  /** Still inside its deadline when the build logged. */
+  pending?: boolean
+}
+
+export const PORTFOLIO_TIMING_SOURCES = [
+  "search",
+  "social",
+  "programmatic",
+  "adServing",
+  "direct",
+  "versions",
+] as const
+
+/** Every source is present. One still inside its deadline is `pending: true`. */
+export function completePortfolioSourceTimings(
+  timings: PortfolioSourceTiming[],
+): PortfolioSourceTiming[] {
+  const seen = new Set(timings.map((row) => row.source))
+  const completed = timings.slice()
+  for (const source of PORTFOLIO_TIMING_SOURCES) {
+    if (seen.has(source)) continue
+    completed.push({ source, ms: 0, rowCount: 0, timedOut: false, pending: true })
+  }
+  return completed
 }
 
 export type LoadPortfolioChannelSourcesOptions = {
@@ -85,6 +111,19 @@ function isSourceTimeout(err: unknown): boolean {
   return err instanceof Error && err.message === "portfolio source timeout"
 }
 
+function logSourceAttempt(timing: PortfolioSourceTiming): void {
+  console.log(
+    JSON.stringify({
+      event: "pacing_portfolio_source_attempt",
+      source: timing.source,
+      attempt: timing.attempt ?? 1,
+      ms: timing.ms,
+      rowCount: timing.rowCount,
+      timedOut: timing.timedOut,
+    }),
+  )
+}
+
 export async function loadBoundedSource<T>(
   source: PortfolioSourceTiming["source"],
   run: () => Promise<T[]>,
@@ -113,33 +152,66 @@ async function loadBounded<T>(
     return rows
   }
 
-  const remaining =
-    (options?.overallBudgetMs ?? PORTFOLIO_OVERALL_BUDGET_MS) - (started - budgetStart)
-  if (remaining <= 0) {
+  const overall = options?.overallBudgetMs ?? PORTFOLIO_OVERALL_BUDGET_MS
+  const remainingAt = () => overall - (Date.now() - budgetStart)
+  if (remainingAt() <= 0) {
     timings?.push({ source, ms: 0, rowCount: 0, timedOut: true })
     return []
   }
 
-  try {
-    const rows = await withDeadline(run(), Math.min(perSource, remaining))
-    timings?.push({
-      source,
-      ms: Date.now() - started,
-      rowCount: rows.length,
-      timedOut: false,
-    })
-    return rows
-  } catch (err) {
-    const timedOut = isSourceTimeout(err)
-    timings?.push({
-      source,
-      ms: Date.now() - started,
-      rowCount: 0,
-      timedOut,
-    })
-    if (!timedOut) throw err
+  const runAttempt = async (
+    attempt: number,
+    cap: number,
+  ): Promise<{ rows: T[] | null; timing: PortfolioSourceTiming; hardError?: unknown }> => {
+    const attemptStarted = Date.now()
+    try {
+      const rows = await withDeadline(run(), cap)
+      const timing: PortfolioSourceTiming = {
+        source,
+        ms: Date.now() - attemptStarted,
+        rowCount: rows.length,
+        timedOut: false,
+        attempt,
+      }
+      logSourceAttempt(timing)
+      return { rows, timing }
+    } catch (err) {
+      const timedOut = isSourceTimeout(err)
+      const timing: PortfolioSourceTiming = {
+        source,
+        ms: Date.now() - attemptStarted,
+        rowCount: 0,
+        timedOut,
+        attempt,
+      }
+      logSourceAttempt(timing)
+      if (!timedOut) return { rows: null, timing, hardError: err }
+      return { rows: null, timing }
+    }
+  }
+
+  const firstCap = Math.min(perSource, remainingAt())
+  const first = await runAttempt(1, firstCap)
+  if (first.hardError) {
+    timings?.push(first.timing)
+    throw first.hardError
+  }
+  if (first.rows) {
+    timings?.push(first.timing)
+    return first.rows
+  }
+
+  const remaining = remainingAt()
+  if (remaining <= 0) {
+    timings?.push(first.timing)
     throw new Error(`portfolio source timeout: ${source}`)
   }
+
+  const second = await runAttempt(2, Math.min(perSource, remaining))
+  timings?.push(second.timing)
+  if (second.hardError) throw second.hardError
+  if (second.rows) return second.rows
+  throw new Error(`portfolio source timeout: ${source}`)
 }
 
 /**

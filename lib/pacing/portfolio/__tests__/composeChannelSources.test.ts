@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 
 import { assembleCampaignPacingRows } from "../assembleCampaignPacingRows.js"
 import {
+  completePortfolioSourceTimings,
   loadPortfolioChannelSources,
   type PortfolioSourceTiming,
 } from "../loadPortfolioChannelSources.js"
@@ -100,5 +101,14 @@ describe("loadPortfolioChannelSources", () => {
     assert.equal(called, false)
     assert.equal(result.search.length, 0)
     assert.equal(timings.every((row) => row.timedOut), true)
+  })
+
+  it("a source still in flight at the deadline is pending", () => {
+    const completed = completePortfolioSourceTimings([
+      { source: "search", ms: 90_000, rowCount: 0, timedOut: true, attempt: 1 },
+    ])
+    const direct = completed.find((row) => row.source === "direct")
+    assert.equal(direct?.pending, true)
+    assert.equal(completed.length, 6)
   })
 })

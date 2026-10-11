@@ -24,6 +24,17 @@ type ApiShape = {
   rows: CampaignPacingRow[]
   counts: PortfolioPacingCounts
   generated_at?: string
+  stale?: { asOf: string; reason: string }
+}
+
+function formatPortfolioDay(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-").map(Number)
+  if (!year || !month || !day) return isoDate
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)))
 }
 
 function formatUpdatedAt(iso: string): string {
@@ -148,6 +159,11 @@ export function PortfolioClient() {
           </span>
         ) : null}
       </div>
+      {data.stale ? (
+        <p className="text-sm text-muted-foreground">
+          Showing {formatPortfolioDay(data.stale.asOf)}. Today&apos;s pacing hasn&apos;t built yet.
+        </p>
+      ) : null}
       {clientFilterPending ? (
         <LoadingState rows={4} />
       ) : clientFilterUnresolved ? (

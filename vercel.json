@@ -81,6 +81,10 @@
       "schedule": "0 21 * * *"
     },
     {
+      "path": "/api/cron/pacing-portfolio?retry=1",
+      "schedule": "30 21 * * *"
+    },
+    {
       "path": "/api/cron/relabel-drift",
       "schedule": "15 21 * * *"
     },

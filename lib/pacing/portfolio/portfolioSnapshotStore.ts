@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, eq } from "drizzle-orm"
+import { and, desc, eq, lt } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import type { CampaignPacingRow, PortfolioPacingCounts } from "@/lib/pacing/portfolio/types"
@@ -71,6 +71,43 @@ export async function readPortfolioSnapshot(key: {
           eq(schema.pacingPortfolioSnapshots.liveOnly, key.liveOnly)
         )
       )
+      .limit(1)
+    return row ? mapRow(row) : null
+  } catch (err) {
+    if (isMissingTable(err)) {
+      console.warn("[pacing/portfolio] snapshot table missing (0081 not applied)")
+      return null
+    }
+    throw err
+  }
+}
+
+/** Latest stored row for the same scope whose as-of is before `key.asOfDate`. */
+export async function readLatestPriorPortfolioSnapshot(key: {
+  asOfDate: string
+  scopeKey: string
+  liveOnly: boolean
+}): Promise<PortfolioSnapshotRecord | null> {
+  try {
+    const [row] = await getDb()
+      .select({
+        asOfDate: schema.pacingPortfolioSnapshots.asOfDate,
+        scopeKey: schema.pacingPortfolioSnapshots.scopeKey,
+        liveOnly: schema.pacingPortfolioSnapshots.liveOnly,
+        rows: schema.pacingPortfolioSnapshots.rows,
+        counts: schema.pacingPortfolioSnapshots.counts,
+        generatedAt: schema.pacingPortfolioSnapshots.generatedAt,
+        durationMs: schema.pacingPortfolioSnapshots.durationMs,
+      })
+      .from(schema.pacingPortfolioSnapshots)
+      .where(
+        and(
+          eq(schema.pacingPortfolioSnapshots.scopeKey, key.scopeKey),
+          eq(schema.pacingPortfolioSnapshots.liveOnly, key.liveOnly),
+          lt(schema.pacingPortfolioSnapshots.asOfDate, key.asOfDate),
+        ),
+      )
+      .orderBy(desc(schema.pacingPortfolioSnapshots.asOfDate))
       .limit(1)
     return row ? mapRow(row) : null
   } catch (err) {

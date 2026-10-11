@@ -4,6 +4,8 @@ import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { pacingScopeKey } from "@/lib/pacing/campaigns/pacingRowsCache"
 import { getAsOfDate } from "@/lib/pacing/maths"
 import { buildAndStorePortfolioSnapshot } from "@/lib/pacing/portfolio/buildAndStorePortfolioSnapshot"
+import { readPortfolioSnapshot } from "@/lib/pacing/portfolio/portfolioSnapshotStore"
+import { runPortfolioCronBuild } from "@/lib/pacing/portfolio/runPortfolioCron"
 import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
@@ -14,6 +16,7 @@ export const preferredRegion = ["syd1"]
 /**
  * Build the admin-scope daily portfolio snapshot for today's Melbourne as-of.
  * Auth: CRON_SECRET. Cron: 0 21 * * * — 21:00 UTC (08:00 Melbourne AEDT, 07:00 AEST), after the 06:30 warehouse refresh.
+ * Retry: 30 21 * * * with ?retry=1 builds only when today's (as_of, all, live_only) row is missing.
  */
 export async function GET(request: Request) {
   if (!assertCronSecret(request)) {
@@ -27,15 +30,25 @@ export async function GET(request: Request) {
   const liveOnly = true
   const scopeKey = pacingScopeKey(null)
   const handlerStarted = Date.now()
+  const retry = new URL(request.url).searchParams.get("retry") === "1"
 
   try {
-    const snapshot = await buildAndStorePortfolioSnapshot({
-      asOfDate,
-      scopeKey,
-      liveOnly,
-      allowedClientSlugs: null,
-      startedAt: handlerStarted,
+    const action = await runPortfolioCronBuild({
+      retry,
+      readToday: () => readPortfolioSnapshot({ asOfDate, scopeKey, liveOnly }),
+      build: () =>
+        buildAndStorePortfolioSnapshot({
+          asOfDate,
+          scopeKey,
+          liveOnly,
+          allowedClientSlugs: null,
+          startedAt: handlerStarted,
+        }),
     })
+    if (action.status === "already built") {
+      return NextResponse.json({ status: "already built" })
+    }
+    const snapshot = action.snapshot
     const summary = {
       status: "ok",
       asOfDate: snapshot.asOfDate,

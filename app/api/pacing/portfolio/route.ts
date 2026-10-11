@@ -4,12 +4,16 @@ import { NextRequest, NextResponse } from "next/server"
 import { pacingScopeKey } from "@/lib/pacing/campaigns/pacingRowsCache"
 import { requirePacingAccess } from "@/lib/pacing/pacingAuth"
 import { buildAndStorePortfolioSnapshot } from "@/lib/pacing/portfolio/buildAndStorePortfolioSnapshot"
-import { readPortfolioSnapshot } from "@/lib/pacing/portfolio/portfolioSnapshotStore"
+import {
+  readLatestPriorPortfolioSnapshot,
+  readPortfolioSnapshot,
+} from "@/lib/pacing/portfolio/portfolioSnapshotStore"
 import { servePortfolioSnapshot } from "@/lib/pacing/portfolio/servePortfolioSnapshot"
 import { resolveClientSlugs } from "@/lib/pacing/scope/resolveClientSlugs"
 import { getAsOfDate } from "@/lib/pacing/maths"
 
 export const dynamic = "force-dynamic"
+export const fetchCache = "force-no-store"
 export const maxDuration = 300
 
 /**
@@ -17,6 +21,8 @@ export const maxDuration = 300
  *
  * Serves the daily snapshot for (asOf, scope_key, liveOnly).
  * Query: asOfDate?, liveOnly? (default true), refresh=1 (admin only)
+ * A failed or still-running build returns the latest earlier row for the same
+ * scope with `stale`. The body is not stored in the Next data cache.
  */
 export async function GET(request: NextRequest) {
   const gate = await requirePacingAccess(request)
@@ -45,6 +51,7 @@ export async function GET(request: NextRequest) {
       isAdmin,
       refresh,
       readSnapshot: readPortfolioSnapshot,
+      readLatestPrior: readLatestPriorPortfolioSnapshot,
       buildAndStore: buildAndStorePortfolioSnapshot,
       scheduleBuild: (work) => {
         after(() => {
@@ -54,7 +61,10 @@ export async function GET(request: NextRequest) {
         })
       },
     })
-    return NextResponse.json(result.body, { status: result.status })
+    return NextResponse.json(result.body, {
+      status: result.status,
+      headers: { "Cache-Control": "no-store" },
+    })
   } catch (err) {
     console.error("[api/pacing/portfolio] failed", err)
     return NextResponse.json({ error: "internal_error" }, { status: 500 })

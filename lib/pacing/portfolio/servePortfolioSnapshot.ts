@@ -33,6 +33,12 @@ export type ServePortfolioSnapshotArgs = {
     scopeKey: string
     liveOnly: boolean
   }) => Promise<PortfolioSnapshotRecord | null>
+  /** Same scope, earlier as-of. Used when today's build fails or is still running. */
+  readLatestPrior?: (key: {
+    asOfDate: string
+    scopeKey: string
+    liveOnly: boolean
+  }) => Promise<PortfolioSnapshotRecord | null>
   buildAndStore: (args: BuildPortfolioSnapshotArgs) => Promise<PortfolioSnapshotRecord>
   scheduleBuild: (work: () => Promise<void>) => void
 }
@@ -45,16 +51,35 @@ export type ServePortfolioSnapshotResult =
         rows: CampaignPacingRow[]
         counts: PortfolioPacingCounts
         generated_at: string
+        stale?: { asOf: string; reason: string }
       }
     }
   | { status: 202; body: { building: true } }
 
-function toBody(record: PortfolioSnapshotRecord) {
+function toBody(record: PortfolioSnapshotRecord, stale?: { asOf: string; reason: string }) {
   return {
     asOf: record.asOfDate,
     rows: record.rows,
     counts: record.counts,
     generated_at: record.generatedAt,
+    ...(stale ? { stale } : {}),
+  }
+}
+
+async function staleBody(
+  args: ServePortfolioSnapshotArgs,
+  reason: string,
+): Promise<ServePortfolioSnapshotResult | null> {
+  if (!args.readLatestPrior) return null
+  const prior = await args.readLatestPrior({
+    asOfDate: args.asOf,
+    scopeKey: args.scopeKey,
+    liveOnly: args.liveOnly,
+  })
+  if (!prior) return null
+  return {
+    status: 200,
+    body: toBody(prior, { asOf: prior.asOfDate, reason }),
   }
 }
 
@@ -87,12 +112,20 @@ export async function servePortfolioSnapshot(
   }
 
   if (args.isAdmin) {
-    const built = await args.buildAndStore(buildArgs(args))
-    return { status: 200, body: toBody(built) }
+    try {
+      const built = await args.buildAndStore(buildArgs(args))
+      return { status: 200, body: toBody(built) }
+    } catch (err) {
+      const stale = await staleBody(args, "today's build failed")
+      if (stale) return stale
+      throw err
+    }
   }
 
   args.scheduleBuild(async () => {
     await args.buildAndStore(buildArgs(args))
   })
+  const stale = await staleBody(args, "today's pacing is still building")
+  if (stale) return stale
   return { status: 202, body: { building: true } }
 }
