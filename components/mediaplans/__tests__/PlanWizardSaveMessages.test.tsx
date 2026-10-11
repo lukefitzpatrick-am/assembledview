@@ -13,6 +13,7 @@ import {
   PlanDraftDiscardConfirmDialog,
   PlanDraftFieldDiffDialog,
   PlanDraftLocalOnlyBanner,
+  PlanDraftMatchingBanner,
   PlanDraftStaleBanner,
 } from "@/components/mediaplan/PlanDraftChrome"
 import { EMPTY_DRAFT_DIFF_SUMMARY } from "@/lib/mediaplan/drafts/fieldDiff"
@@ -336,6 +337,23 @@ describe("PlanDraftStaleBanner", () => {
     expect(html).toContain("Someone published v5 after you started this draft")
     expect(html.includes("based on")).toBe(false)
     expect(html.includes("v?")).toBe(false)
+  })
+})
+
+describe("PlanDraftMatchingBanner", () => {
+  it("asks to restore and offers to keep the saved plan", () => {
+    const html = renderToStaticMarkup(
+      <PlanDraftMatchingBanner
+        updatedAt="2026-08-14T00:00:00.000Z"
+        onRestore={() => undefined}
+        onKeepSavedPlan={() => undefined}
+      />,
+    )
+    expect(html).toContain("Restore your draft from")
+    expect(html).toContain("Restore")
+    expect(html).toContain("Keep the saved plan")
+    expect(html.includes("Load anyway")).toBe(false)
+    expect(html.includes("Discard")).toBe(false)
   })
 })
 

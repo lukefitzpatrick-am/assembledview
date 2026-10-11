@@ -261,6 +261,7 @@ import {
   PlanDraftActiveBanner,
   PlanDraftFieldDiffDialog,
   PlanDraftLocalOnlyBanner,
+  PlanDraftMatchingBanner,
   PlanDraftStaleBanner,
   PlanDraftTipCompareDialog,
   PlanStaleBaseDialog,
@@ -6767,6 +6768,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
                 ? latestVersionNumber
                 : Number(mediaPlan?.version_number) || 0)
           )?.published_at,
+    page: "edit",
     hydrationSettled: allChannelsHydrated,
     getSnapshot: () =>
       buildPlanDraftSnapshot({
@@ -11666,6 +11668,12 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         }
         onViewChanges={() => planDraft.setCompareOpen(true)}
         onDiscard={() => requestDiscardDraft(planDraft.activeDraft!.updatedAt)}
+      />
+    ) : planDraft.recovery?.source === "matching" ? (
+      <PlanDraftMatchingBanner
+        updatedAt={planDraft.recovery.updatedAt}
+        onRestore={() => planDraft.resume()}
+        onKeepSavedPlan={() => planDraft.keepSavedPlan()}
       />
     ) : planDraft.recovery?.source === "local_only" ? (
       <PlanDraftLocalOnlyBanner

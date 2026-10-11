@@ -104,10 +104,14 @@ export function summarizeDraftOffer(args: {
   return `Draft from ${whenLabel} — ${args.linesChanged} lines changed, ${deltaLabel}. Resume · Compare · Discard`
 }
 
-export function summarizeLocalOnlyDraftOffer(updatedAt: string): string {
+/** Same clock label the orphan banner uses (`Date#toLocaleString`). */
+export function formatDraftOfferTimestamp(updatedAt: string): string {
   const when = new Date(updatedAt)
-  const whenLabel = Number.isNaN(when.getTime()) ? updatedAt : when.toLocaleString()
-  return `You have unsaved local changes from ${whenLabel}`
+  return Number.isNaN(when.getTime()) ? updatedAt : when.toLocaleString()
+}
+
+export function summarizeLocalOnlyDraftOffer(updatedAt: string): string {
+  return `You have unsaved local changes from ${formatDraftOfferTimestamp(updatedAt)}`
 }
 
 /**

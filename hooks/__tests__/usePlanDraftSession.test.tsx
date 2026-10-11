@@ -128,6 +128,8 @@ const GLENDA_DRAFT: PlanDraftStateV1 = {
 function ResumeProbe(props: {
   hydrationSettled: boolean
   baseVersionId?: number | null
+  dirty?: boolean
+  subscribeDirty?: (listener: () => void) => () => void
   onResult: (result: HookResult) => void
   onRestore: (state: PlanDraftStateV1) => void
   onRevertToBase?: (state: PlanDraftStateV1) => void
@@ -136,12 +138,14 @@ function ResumeProbe(props: {
     masterId: 1,
     mbaNumber: "glenda006",
     userId: "luke.fitzpatrick@assembledmedia.com.au",
-    dirty: true,
+    dirty: props.dirty ?? true,
+    subscribeDirty: props.subscribeDirty,
     baseVersionId: props.baseVersionId === undefined ? 4347 : props.baseVersionId,
     campaignStatus: "Approved",
     publishedVersionNumber: 2,
     versionRowCount: 2,
     tipPublishedAt: "2026-01-01T00:00:00.000Z",
+    page: "edit",
     hydrationSettled: props.hydrationSettled,
     getSnapshot: () => EMPTY_SNAPSHOT,
     onRestore: props.onRestore,
@@ -213,6 +217,9 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
       if (url.includes("/api/plans/drafts") && init?.method === "DELETE") {
         return new Response(JSON.stringify({ ok: true }), { status: 200 })
       }
+      if (url.includes("/api/plans/drafts") && init?.method === "PUT") {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      }
       if (url.includes("/api/plans/presence")) {
         return new Response(JSON.stringify({ ok: true, others: [] }), {
           status: 200,
@@ -231,17 +238,24 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
     container.remove()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
   })
 
   async function renderProbe(
     hydrationSettled: boolean,
     baseVersionId?: number | null,
+    extra?: {
+      dirty?: boolean
+      subscribeDirty?: (listener: () => void) => () => void
+    },
   ) {
     await act(async () => {
       root.render(
         <ResumeProbe
           hydrationSettled={hydrationSettled}
           baseVersionId={baseVersionId}
+          dirty={extra?.dirty}
+          subscribeDirty={extra?.subscribeDirty}
           onResult={(result) => {
             latest = result
           }}
@@ -282,20 +296,110 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
     }
   }
 
-  it("auto-applies when base === tip after hydration, without a Resume click", async () => {
-    await renderProbe(false)
-    await waitUntil(() => latest != null)
-    expect(restored).toEqual([])
-    expect(latest?.recovery).toBeNull()
-
+  it("edit matching base offers and does not apply until Restore", async () => {
     await renderProbe(true)
-    await waitUntil(() => restored.length > 0)
+    await waitUntil(() => latest?.recovery?.source === "matching")
+    expect(restored).toEqual([])
+    expect(latest?.activeDraft).toBeNull()
+    expect(latest?.loadKind).toBe("auto")
+
+    await act(async () => {
+      latest?.resume()
+    })
     expect(restored).toHaveLength(1)
     expect(
       (restored[0].channels.search[0] as { bursts: { budget: string }[] }).bursts[0]
         .budget
     ).toBe("$20,000.00")
     expect(latest?.recovery).toBeNull()
+    expect(latest?.activeDraft).toBeTruthy()
+  })
+
+  it("Keep the saved plan calls no delete and makes no PUT until an edit", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PLAN_DRAFTS", "on")
+    const writeSpy = vi.spyOn(localStore, "writeLocalDraft").mockResolvedValue({
+      key: "m1::luke",
+      updatedAt: "2026-08-14T00:00:00.000Z",
+      state: GLENDA_DRAFT,
+    })
+    const listeners = new Set<() => void>()
+    const subscribeDirty = (listener: () => void) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    }
+    const draftWrites = () =>
+      fetchMock.mock.calls.filter((call) => {
+        const init = call[1] as RequestInit | undefined
+        const url = String(call[0])
+        return url.includes("/api/plans/drafts") && (init?.method === "PUT" || init?.method === "DELETE")
+      })
+
+    await renderProbe(true, undefined, { dirty: true, subscribeDirty })
+    await waitUntil(() => latest?.recovery?.source === "matching")
+    expect(restored).toEqual([])
+
+    await act(async () => {
+      window.dispatchEvent(new Event("blur"))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(draftWrites()).toEqual([])
+    expect(writeSpy).not.toHaveBeenCalled()
+
+    await act(async () => {
+      latest?.keepSavedPlan()
+    })
+    expect(latest?.recovery).toBeNull()
+    expect(restored).toEqual([])
+
+    await act(async () => {
+      window.dispatchEvent(new Event("blur"))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(draftWrites()).toEqual([])
+    expect(writeSpy).not.toHaveBeenCalled()
+
+    await act(async () => {
+      for (const listener of listeners) listener()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event("blur"))
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(
+      fetchMock.mock.calls.some((call) => {
+        const init = call[1] as RequestInit | undefined
+        return String(call[0]).includes("/api/plans/drafts") && init?.method === "PUT"
+      })
+    ).toBe(true)
+    expect(
+      fetchMock.mock.calls.some((call) => {
+        const init = call[1] as RequestInit | undefined
+        return String(call[0]).includes("/api/plans/drafts") && init?.method === "DELETE"
+      })
+    ).toBe(false)
+  })
+
+  it("Restore applies after hydration settles", async () => {
+    await renderProbe(false)
+    await waitUntil(() => latest?.recovery?.source === "matching")
+    expect(restored).toEqual([])
+
+    await act(async () => {
+      latest?.resume()
+    })
+    expect(restored).toEqual([])
+    expect(latest?.activeDraft).toBeNull()
+
+    await renderProbe(true)
+    await waitUntil(() => restored.length > 0)
+    expect(restored).toHaveLength(1)
     expect(latest?.activeDraft).toBeTruthy()
   })
 
@@ -360,9 +464,13 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
     expect(latest?.activeDraft).toBeTruthy()
   })
 
-  it("Discard after auto-apply reverts to the captured tip and deletes the server row", async () => {
+  it("Discard after Restore reverts to the captured tip and deletes the server row", async () => {
     await renderProbe(true)
-    await waitUntil(() => restored.length > 0)
+    await waitUntil(() => latest?.recovery?.source === "matching")
+    await act(async () => {
+      latest?.resume()
+    })
+    expect(restored).toHaveLength(1)
     expect(latest?.activeDraft).toBeTruthy()
 
     await act(async () => {
@@ -401,7 +509,10 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
       return new Response("not found", { status: 404 })
     })
     await renderProbe(true)
-    await waitUntil(() => restored.length > 0)
+    await waitUntil(() => latest?.recovery?.source === "matching")
+    await act(async () => {
+      latest?.resume()
+    })
     expect(restored[0]?.channels.search).toEqual([])
   })
 

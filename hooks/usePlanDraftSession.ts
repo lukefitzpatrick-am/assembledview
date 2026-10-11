@@ -55,7 +55,7 @@ type OtherDraft = {
 }
 
 type RecoveryOffer = {
-  source: "local" | "server" | "local_only"
+  source: "local" | "server" | "local_only" | "matching"
   reason: string
   summary: string
   headline?: string
@@ -90,6 +90,11 @@ export function usePlanDraftSession(args: {
    * Without it, Create does not read or write a shared MBA key.
    */
   createDraftId?: string | null
+  /**
+   * Edit passes `"edit"`. Create omits it and keeps matching-base auto-restore.
+   * `masterId` is not the signal: Create sets it after the first save.
+   */
+  page?: "create" | "edit"
   getSnapshot: () => PlanDraftStateV1
   /**
    * Fires on every accepted dirty-mark, including already-dirty.
@@ -126,7 +131,19 @@ export function usePlanDraftSession(args: {
   onRevertToBaseRef.current = args.onRevertToBase
   const restoreGateRef = useRef(initialPlanDraftRestoreGate())
   const pendingUpdatedAtRef = useRef<string | null>(null)
+  /** Edit matching-base: do not write IndexedDB or PUT the tip over the shared row. */
+  const suppressDraftPersistRef = useRef(false)
+  /** Set by Keep the saved plan. The next subscribeDirty in this tab releases the hold. */
+  const releaseSuppressOnNextEditRef = useRef(false)
+  /** This page load already dismissed the matching-base offer. */
+  const dismissedMatchingRef = useRef(false)
   const hydrationSettled = args.hydrationSettled !== false
+  const isEditPage = args.page === "edit"
+  const releaseDraftPersistOnEditRef = useRef(() => {
+    if (!releaseSuppressOnNextEditRef.current) return
+    releaseSuppressOnNextEditRef.current = false
+    suppressDraftPersistRef.current = false
+  })
 
   // Stage 2b: always resolve user for offer / working-draft save (flag may be off).
   useEffect(() => {
@@ -241,6 +258,7 @@ export function usePlanDraftSession(args: {
   const persistLocal = useCallback(
     async (opts?: { force?: boolean }) => {
       return enqueuePersist(async () => {
+        if (suppressDraftPersistRef.current && !opts?.force) return
         if ((!autosaveEnabled && !opts?.force) || !userId) return
         if (args.masterId == null && !args.createDraftId) return
         const state = getSnapshotRef.current()
@@ -268,6 +286,7 @@ export function usePlanDraftSession(args: {
       // second timer for presence.
       void beatPresenceRef.current()
       return enqueuePersist(async () => {
+        if (suppressDraftPersistRef.current && !opts?.force) return
         if ((!autosaveEnabled && !opts?.force) || args.masterId == null || !userId) return
         const state = getSnapshotRef.current()
         setPayloadBytes(estimateDraftPayloadBytes(state))
@@ -305,6 +324,7 @@ export function usePlanDraftSession(args: {
   // Tier 1 ~3s after last accepted edit (not the sticky dirty boolean).
   useEffect(() => {
     if (!autosaveEnabled || !args.dirty) return
+    releaseDraftPersistOnEditRef.current()
     const arm = () => {
       if (localTimer.current) clearTimeout(localTimer.current)
       localTimer.current = setTimeout(() => {
@@ -312,7 +332,10 @@ export function usePlanDraftSession(args: {
       }, 3000)
     }
     arm()
-    const unsub = args.subscribeDirty?.(arm)
+    const unsub = args.subscribeDirty?.(() => {
+      releaseDraftPersistOnEditRef.current()
+      arm()
+    })
     return () => {
       unsub?.()
       if (localTimer.current) clearTimeout(localTimer.current)
@@ -322,6 +345,7 @@ export function usePlanDraftSession(args: {
   // Tier 2 ~15s + blur
   useEffect(() => {
     if (!autosaveEnabled || !args.dirty || args.masterId == null) return
+    releaseDraftPersistOnEditRef.current()
     const arm = () => {
       if (serverTimer.current) clearTimeout(serverTimer.current)
       serverTimer.current = setTimeout(() => {
@@ -333,7 +357,10 @@ export function usePlanDraftSession(args: {
       void persistServerRef.current()
     }
     window.addEventListener("blur", onBlur)
-    const unsub = args.subscribeDirty?.(arm)
+    const unsub = args.subscribeDirty?.(() => {
+      releaseDraftPersistOnEditRef.current()
+      arm()
+    })
     return () => {
       unsub?.()
       if (serverTimer.current) clearTimeout(serverTimer.current)
@@ -383,6 +410,8 @@ export function usePlanDraftSession(args: {
     (state: PlanDraftStateV1, updatedAt: string) => {
       const base = cloneDraftState(getSnapshotRef.current())
       pendingUpdatedAtRef.current = null
+      suppressDraftPersistRef.current = false
+      releaseSuppressOnNextEditRef.current = false
       setActiveDraft({ updatedAt, baseSnapshot: base })
       setRecovery(null)
       onRestoreRef.current(state)
@@ -397,6 +426,7 @@ export function usePlanDraftSession(args: {
     if (!userId) return
     let cancelled = false
     ;(async () => {
+      if (dismissedMatchingRef.current) return
       if (args.masterId == null && !args.createDraftId) {
         if (!cancelled) setOffer(null)
         return
@@ -511,6 +541,7 @@ export function usePlanDraftSession(args: {
   }, [args.masterId, args.mbaNumber, args.createDraftId, userId])
 
   useEffect(() => {
+    if (dismissedMatchingRef.current) return
     if (!offer || activeDraft || restoreGateRef.current.applied) return
     if (offer.source === "local_only") {
       setRecovery(offer)
@@ -529,6 +560,11 @@ export function usePlanDraftSession(args: {
       setRecovery(offer)
       return
     }
+    if (isEditPage) {
+      suppressDraftPersistRef.current = true
+      setRecovery({ ...offer, source: "matching" })
+      return
+    }
     setRecovery(null)
     pendingUpdatedAtRef.current = offer.updatedAt
     const result = clickResume(
@@ -538,7 +574,16 @@ export function usePlanDraftSession(args: {
     )
     restoreGateRef.current = result.gate
     if (result.apply) commitApply(result.apply, offer.updatedAt)
-  }, [offer, args.baseVersionId, hydrationSettled, activeDraft, commitApply])
+  }, [offer, args.baseVersionId, hydrationSettled, activeDraft, commitApply, isEditPage])
+
+  const keepSavedPlan = useCallback(() => {
+    dismissedMatchingRef.current = true
+    suppressDraftPersistRef.current = true
+    releaseSuppressOnNextEditRef.current = true
+    pendingUpdatedAtRef.current = null
+    setOffer(null)
+    setRecovery(null)
+  }, [])
 
   const discard = useCallback(async () => {
     const base = activeDraft?.baseSnapshot ?? null
@@ -629,15 +674,17 @@ export function usePlanDraftSession(args: {
 
   const loadKind: DraftLoadKind = activeDraft
     ? "auto"
-    : recovery
-      ? "stale"
-      : offer
-        ? classifyDraftLoad({
-            hasDraft: true,
-            draftBaseVersionId: offer.draftBaseVersionId,
-            tipVersionId: args.baseVersionId,
-          })
-        : "none"
+    : recovery?.source === "matching"
+      ? "auto"
+      : recovery
+        ? "stale"
+        : offer
+          ? classifyDraftLoad({
+              hasDraft: true,
+              draftBaseVersionId: offer.draftBaseVersionId,
+              tipVersionId: args.baseVersionId,
+            })
+          : "none"
 
   const diffLive = useCallback((): DraftDiffSummary | null => {
     if (!activeDraft) return null
@@ -660,6 +707,7 @@ export function usePlanDraftSession(args: {
     setStaleCompare,
     payloadBytes,
     resume,
+    keepSavedPlan,
     discard,
     saveDraftNow,
     clearAfterPublish,
