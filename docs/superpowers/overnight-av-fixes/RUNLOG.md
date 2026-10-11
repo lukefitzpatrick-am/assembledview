@@ -2742,3 +2742,201 @@ None of these were opened in the browser. Auth0 blocked them.
 
 - Under 90%: live BICAU002 delivered dollars versus the two expected-to-date figures were not re-queried (AV-SG1, still 70% from AV-SF8). AV-SG2's first-click fix stays at 70% until krusty002 Files > Draft MBA is watched. The `test:postgres-save-mode` failure is the renamed `onSelect` source scan, not a menu-order change. AV-SF11 was not in this pack.
 
+## AV-SH1 DONE 1b84c47b
+
+Commit `1b84c47b` `test(plans): save-mode pin follows Files menu onSelect`.
+
+The failing assertion is in `lib/mediaplan/__tests__/planWizardSaveBar.test.ts`, test "shared component order is Save draft before Publish, with downloads in Files". It still requires the MBA `onSelect` to sit after `const fileItems` and before the Media Plan `onSelect`. The needles are now `onSelect: onPublishMba` and `onSelect: onDownloadMediaPlan`. The other assertions in that test are unchanged.
+
+- Files: `lib/mediaplan/__tests__/planWizardSaveBar.test.ts`.
+- Checks: `npm run test:postgres-save-mode` exit 0. 273 tests, 253 pass, 0 fail, 20 skipped.
+- Morning smoke: none. Test pin only.
+
+## AV-SF11 DONE 02f346f5
+
+Commit `02f346f5` `fix(pacing): retry a hung source, retry cron, and serve the last good snapshot`.
+
+`direct` was missing from the 11 Oct timing logs because the parallel load does start it. `loadBounded` only recorded a source after it settled, and the catch logged as soon as the first source rejected. Direct was still inside its 90s wait, so it was omitted. The summary now always lists search, social, programmatic, adServing, direct, and versions, and marks any not yet settled `pending: true`.
+
+A timed-out source is retried once when the 240s budget remains. Both attempts are logged. The channel retry calls `fetch*` so it does not join the in-flight `unstable_cache` promise (production Snowflake is serverless: connect per request, then destroy). The versions retry calls `discardHungPostgresClient` (`end({ timeout: 0 })` and a new pool) before the second `readPublishedOrLivePlanVersions`. The build throws and does not upsert only when the retry also times out.
+
+`vercel.json` adds `30 21 * * *` on `/api/cron/pacing-portfolio?retry=1`. That flag returns 200 `already built` when today's `(as_of, all, live_only)` row exists. GET `/api/pacing/portfolio` returns the latest earlier same-scope snapshot with 200 and `stale: { asOf, reason }` when today's build fails or is still running. The page shows "Showing 10 Oct. Today's pacing hasn't built yet." above the tiles. No prior row keeps the 500 or the 202. The response sets `Cache-Control: no-store` and is not put in the Next data cache. Region was not changed.
+
+Region: the cron route already exports `preferredRegion = ["syd1"]`, and `vercel.json` has no region. The 11 Oct 21:00 UTC cron still logged iad1; the 21:20 page load logged syd1. Supabase `DATABASE_URL` is the transaction pooler in ap-southeast-2. Snowflake `SNOWFLAKE_ACCOUNT` is a locator with no region suffix, and there is no `SNOWFLAKE_REGION` (production `SNOWFLAKE_MODE` defaults to serverless). Recommend Luke confirm why the syd1 export did not pin that cron (project function region is the likely lever). Do not add a second pin until that is checked. Sydney is still the right region: the database is there.
+
+- Files: `lib/pacing/portfolio/loadPortfolioChannelSources.ts`, `buildCampaignPacingRows.ts`, `portfolioSnapshotStore.ts`, `servePortfolioSnapshot.ts`, `runPortfolioCron.ts`, `db/index.ts`, `app/api/cron/pacing-portfolio/route.ts`, `app/api/pacing/portfolio/route.ts`, `app/pacing/(shell)/portfolio/PortfolioClient.tsx`, `vercel.json`, the three portfolio tests, `docs/brain/modules/pacing.md`, `INVARIANTS.md`, `BLAST-RADIUS.md`, `MAP.md`.
+- Checks: `npm run typecheck` exit 0. `npm run lint` exit 0 (existing warnings only). `npm run test:pacing-portfolio` exit 0. Node 28 pass + timeout file 7 pass + vitest 7 pass. No snapshot updates.
+- Morning smoke: not opened. After the next 08:00 run, `pacing_portfolio_snapshots` should have today's row. If not, `/pacing/portfolio` should show the previous day with the notice instead of HTTP 500.
+- Under 90%: why `preferredRegion` syd1 still ran in iad1 on 11 Oct is about 70% (the export is in the route; the log is the evidence it did not apply). Snowflake's region is not in the config. The notice was not clicked through in a browser.
+
+## AV-SH1 replay — already done, no second commit
+
+The assertion in `lib/mediaplan/__tests__/planWizardSaveBar.test.ts` ("shared component order is Save draft before Publish, with downloads in Files") already uses `onSelect: onPublishMba` then `onSelect: onDownloadMediaPlan`, and still requires the MBA needle to sit after `const fileItems` and before the Media Plan needle. That is commit `1b84c47b`. The other assertions in that test are unchanged. No files staged. Pass count from that commit: `npm run test:postgres-save-mode` exit 0, 273 tests, 253 pass, 0 fail, 20 skipped.
+
+## AV-SHZ DONE
+
+Commit message `docs(runlog): AV SF11 and SH1 wrap-up`. This entry is that commit. No product code.
+
+`npm run gate:main` with `NODE_OPTIONS=--max-old-space-size=8192` exit 0, about 286s. `npm run test:all` once, exit 0, 124/124 suites, about 10.2 min. No `ECONNRESET` or `ENOTFOUND`, so nothing was rerun.
+
+### Prompts
+
+| ID | Status | SHA | Checks |
+| --- | --- | --- | --- |
+| AV-SF11 | DONE | `02f346f5` | typecheck 0, lint 0 (existing warnings), `test:pacing-portfolio` 28 node + 7 timeout + 7 vitest |
+| AV-SH1 | DONE | `1b84c47b` | `test:postgres-save-mode` 273 tests, 253 pass, 0 fail, 20 skipped. A later replay found the pin already on `onSelect` and made no second commit. |
+| AV-SHZ | DONE | this commit | gate:main 0, test:all 124/124 |
+
+AV-SF11 region (step 6, not changed): the cron route already exports `preferredRegion = ["syd1"]`, and `vercel.json` has no region. The 11 Oct 21:00 UTC cron still logged iad1; the 21:20 page load logged syd1. Supabase `DATABASE_URL` is the transaction pooler in ap-southeast-2. Snowflake `SNOWFLAKE_ACCOUNT` is a locator with no region suffix, and there is no `SNOWFLAKE_REGION` (production `SNOWFLAKE_MODE` defaults to serverless). Sydney is still the right region because the database is there. Luke should confirm why the syd1 export did not pin that cron before adding another pin.
+
+### Morning smoke
+
+Not opened in this wrap-up.
+
+- AV-SF11: after the next 08:00 run, `pacing_portfolio_snapshots` has today's row. If not, `/pacing/portfolio` shows the previous day with "Showing 10 Oct. Today's pacing hasn't built yet." instead of HTTP 500.
+- AV-SH1: none. Test pin only.
+
+### gate:main
+
+| Gate | Result |
+| --- | --- |
+| typecheck | PASS |
+| check:egress-guards | PASS (known FX-1 Xano warning, then ok) |
+| lint | PASS (existing warnings only) |
+| check:client-server-only | PASS |
+| check:drizzle-snapshot | PASS (empty diff) |
+| check:hardcoded-urls | PASS |
+| check:money-inline | PASS (115 files, 250 hits) |
+| build | PASS (compiled with the existing Auth0 warning) |
+
+### test:all
+
+124/124 PASS. `test:postgres-save-mode` passed (about 4.3s). `test:mb15c-published-immutable` passed (about 18s). No `ECONNRESET` or `ENOTFOUND`.
+
+| Suite | Result |
+| --- | --- |
+| test:billing-line-id-match | PASS |
+| test:client-server-only | PASS |
+| test:brand | PASS |
+| test:status | PASS |
+| test:media-families | PASS |
+| test:charts-registry | PASS |
+| test:format-money | PASS |
+| test:planned-to-date | PASS |
+| test:client-dashboard-range | PASS |
+| test:campaign-read | PASS |
+| test:ava-skills | PASS |
+| test:campaign-dashboard-range | PASS |
+| test:delivery-ui | PASS |
+| test:search-delivery-tiles | PASS |
+| test:social-delivery | PASS |
+| test:programmatic-delivery | PASS |
+| test:solver | PASS |
+| test:utm | PASS |
+| test:weekly-gantt | PASS |
+| test:week-starts-on | PASS |
+| test:expert-mappings | PASS |
+| test:expert-goldens | PASS |
+| test:expert-paste | PASS |
+| test:expert-grid-selection | PASS |
+| test:spreadsheet | PASS |
+| test:finance-forecast | PASS |
+| test:retained-commission | PASS |
+| test:deliverable-budget | PASS |
+| test:editor-line-inputs | PASS |
+| test:finance-filters | PASS |
+| test:finance-derive | PASS |
+| test:billing-divergence | PASS |
+| test:billing-seed-fees | PASS |
+| test:billing-fee-drift | PASS |
+| test:kpi-resolve | PASS |
+| test:kpi-percent-units | PASS |
+| test:kpi-writes | PASS |
+| test:money | PASS |
+| test:money-golden | PASS |
+| test:monthly-plan-calendar | PASS |
+| test:kpi-review | PASS |
+| test:kpi-backfill | PASS |
+| test:pacing-maths | PASS |
+| test:pacing-portfolio | PASS |
+| test:pacing-channel | PASS |
+| test:pacing-detail | PASS |
+| test:pacing-scenario | PASS |
+| test:pacing-relabel | PASS |
+| test:pacing-plan-lines | PASS |
+| test:unmapped-placements | PASS |
+| test:partner-ingest | PASS |
+| test:ava-tools | PASS |
+| test:ava-chat-ui | PASS |
+| test:ava-autopopulate | PASS |
+| test:ava-detect-goldens | PASS |
+| test:db-drift | PASS |
+| test:forecast-targets | PASS |
+| test:write-kpi | PASS |
+| test:line-item-snapshot-parity | PASS |
+| test:xero | PASS |
+| test:finance-periods-flag | PASS |
+| test:inline-schedule-amount | PASS |
+| test:line-item-attrs | PASS |
+| test:shadow-diff | PASS |
+| test:mba-plan-detail | PASS |
+| test:mba-number-alloc | PASS |
+| test:channel-line-item-routes | PASS |
+| test:tenant-isolation | PASS |
+| test:match-text | PASS |
+| test:approvals | PASS |
+| test:write-clients | PASS |
+| test:write-reference | PASS |
+| test:mba-header-date | PASS |
+| test:mba-scope | PASS |
+| test:mba-media-breakdown | PASS |
+| test:derive-approved-slice | PASS |
+| test:live-mba-scope | PASS |
+| test:mba-live-dates | PASS |
+| test:finance-schedule | PASS |
+| test:finance-sections | PASS |
+| test:approved-slice | PASS |
+| test:c1-fullscope-drift | PASS |
+| test:save-plan | PASS |
+| test:write-billing-overrides | PASS |
+| test:write-finance | PASS |
+| test:mb13-fee-override-publish | PASS |
+| test:mb15c-published-immutable | PASS |
+| test:vc2a-published-immutable | PASS |
+| test:vc2b-working-draft | PASS |
+| test:dirty-controller | PASS |
+| test:write-media-plan-masters | PASS |
+| test:xano-mirror | PASS |
+| test:campaign-documents | PASS |
+| test:media-plan-excel | PASS |
+| test:campaign-row-actions | PASS |
+| test:postgres-save-mode | PASS |
+| test:session-expiry | PASS |
+| test:plan-drafts | PASS |
+| test:codex-flag-auth | PASS |
+| test:codex-stage0-guarantees | PASS |
+| test:codex-stage1-detail | PASS |
+| test:codex-task-detail-ui | PASS |
+| test:codex-stage1-scope | PASS |
+| test:codex-stage1-templates | PASS |
+| test:codex-auth0-roster | PASS |
+| test:dashboard-vc15-tip | PASS |
+| test:clients-fail-soft | PASS |
+| test:m365-site-url | PASS |
+| test:m365-graph | PASS |
+| test:m365-reconciliation | PASS |
+| test:myhours | PASS |
+| test:fireflies | PASS |
+| test:performance-report-insights | PASS |
+| test:insights-library | PASS |
+| test:empty-channel-defaults | PASS |
+| test:line-item-panels | PASS |
+| test:line-item-panel-flights | PASS |
+| test:publisher-profiles | PASS |
+| test:ingest-propose | PASS |
+| test:ingest-review | PASS |
+| test:ingest-eval | PASS |
+| test:ooh-expert-gate | PASS |
+| test:ooh-standard-bench | PASS |
+| test:specs | PASS |
+
