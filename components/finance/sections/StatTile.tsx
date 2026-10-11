@@ -20,8 +20,8 @@ export type StatTileMoneyState =
 
 export type StatTileProps = {
   label: string
-  /** Mandatory basis / scope caption (July walkthrough pattern). */
-  basisCaption: string
+  /** Mandatory basis / scope caption. A node lets one caption include a link. */
+  basisCaption: React.ReactNode
   state: StatTileMoneyState
   className?: string
   /** Colour class for the accent dot on ready and empty. `"none"` hides it. */

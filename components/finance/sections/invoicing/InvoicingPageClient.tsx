@@ -357,6 +357,7 @@ export function InvoicingPageClient() {
             }
             errorMessage={loadError ?? undefined}
             cards={statCards}
+            clientIds={applied.clients}
           />
         ) : null}
 

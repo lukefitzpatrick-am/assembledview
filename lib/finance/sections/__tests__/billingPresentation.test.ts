@@ -51,6 +51,34 @@ test("overdue card uses the critical text token and a coral dot", () => {
   assert.equal(html.includes("$0.00") && html.includes("Overdue") ? html.includes("text-status-critical-fg") : true, true)
 })
 
+test("overdue tile names plan months and links Owed with the client filter", () => {
+  const html = renderToStaticMarkup(
+    createElement(BillingStatCards, {
+      view: "ready",
+      clientIds: [12, 34],
+      cards: summariseBillingStatCards([
+        { total: 15.2, state: "overdue" },
+        { total: 4, state: "overdue" },
+      ]),
+    })
+  )
+  assert.ok(html.includes("Overdue on these plans"))
+  assert.ok(html.includes("Drafted in Xero"))
+  assert.ok(html.includes("2 plan months · Xero overdue is on "))
+  assert.match(html, /href="\/finance\/owed\?clients=12(?:,|%2C)34"/)
+  assert.ok(html.includes(">Owed<"))
+
+  const open = renderToStaticMarkup(
+    createElement(BillingStatCards, {
+      view: "ready",
+      cards: summariseBillingStatCards([{ total: 8, state: "overdue" }]),
+    })
+  )
+  assert.ok(open.includes("1 plan month · Xero overdue is on "))
+  assert.match(open, /href="\/finance\/owed"/)
+  assert.equal(open.includes("clients="), false)
+})
+
 test("stat cards loading never shows $0.00", () => {
   const html = renderToStaticMarkup(
     createElement(BillingStatCards, {

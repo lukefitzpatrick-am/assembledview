@@ -27,12 +27,17 @@ export function BillingStatCards({
   view,
   cards,
   errorMessage,
+  clientIds = [],
 }: {
   view: View
   cards: BillingStatCards
   errorMessage?: string
+  /** Applied finance client filter. The Owed link carries these ids and nothing else. */
+  clientIds?: number[]
 }) {
   const basis = "Expected billing in the current scope, ex GST."
+  const owedHref =
+    clientIds.length > 0 ? `/finance/owed?clients=${clientIds.join(",")}` : "/finance/owed"
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <StatTile
@@ -59,8 +64,23 @@ export function BillingStatCards({
         valueClassName="text-foreground"
       />
       <StatTile
-        label="Overdue"
-        basisCaption={view === "ready" ? countCaption(cards.overdueCount, "invoice", "invoices") : basis}
+        label="Overdue on these plans"
+        basisCaption={
+          view === "ready" ? (
+            <>
+              {countCaption(cards.overdueCount, "plan month", "plan months")}
+              {" · Xero overdue is on "}
+              <a
+                href={owedHref}
+                className="underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Owed
+              </a>
+            </>
+          ) : (
+            basis
+          )
+        }
         state={tileState(view, cards.overdueCents, errorMessage)}
         accent="bg-tone-critical"
         valueClassName="text-status-critical-fg"
