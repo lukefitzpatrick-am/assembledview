@@ -357,6 +357,7 @@ export function mapPlanVersionFromPostgres(
     // VC Stage 1 — publication columns (null = unpublished). Do not drop.
     published_at: api.published_at ?? null,
     published_by: api.published_by ?? null,
+    is_published_tip: api.is_published_tip === true,
     /** null = pre-scope legacy version; object = saved MBA scope (full or partial). */
     mba_scope: api.mba_scope ?? null,
     ...flagFields,
@@ -478,17 +479,25 @@ export async function readPublishedPointerPlanVersions(): Promise<
 /**
  * Published rows, plus approved/booked versions whose campaign dates contain `asOfDate`.
  * Keeps `legacy_schedules` (portfolio expected-spend reads both schedules).
- * Live uses the version row's own status and dates, the same window as `isLiveCampaignStatus`.
+ * `is_published_tip` is the master's current `published_version_id`.
  */
 export async function readPublishedOrLivePlanVersions(
   asOfDate: string,
 ): Promise<Record<string, unknown>[]> {
   const asOf = String(asOfDate ?? "").trim().slice(0, 10)
   const v = schema.mediaPlanVersions
+  const masters = schema.mediaPlanMasters
   const rows = await withPgReadLimits((tx) =>
     labelPlanQuery(
       tx
-        .select()
+        .select({
+          ...planVersionColumns(true),
+          isPublishedTip: sql<boolean>`${v.id} in (
+            select ${masters.publishedVersionId}
+            from ${masters}
+            where ${masters.publishedVersionId} is not null
+          )`.as("is_published_tip"),
+        })
         .from(v)
         .where(
           or(

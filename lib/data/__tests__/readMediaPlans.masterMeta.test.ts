@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 import {
   mapPlanMasterByMbaFromLoadedRows,
   mapPlanMastersFromLoadedRows,
+  mapPlanVersionFromPostgres,
 } from "@/lib/data/readMediaPlans"
 
 /**
@@ -165,5 +166,26 @@ describe("readMediaPlans master meta parity", () => {
       )
       assert.deepEqual(fromMba, fromList, mba)
     }
+  })
+})
+
+describe("mapPlanVersionFromPostgres published tip", () => {
+  it("keeps is_published_tip from the versions select", () => {
+    const tip = mapPlanVersionFromPostgres({
+      id: 2,
+      mbaNumber: "bicau007",
+      versionNumber: 2,
+      campaignStatus: "cancelled",
+      isPublishedTip: true,
+    })
+    const older = mapPlanVersionFromPostgres({
+      id: 1,
+      mbaNumber: "bicau007",
+      versionNumber: 1,
+      campaignStatus: "approved",
+      isPublishedTip: false,
+    })
+    assert.equal(tip.is_published_tip, true)
+    assert.equal(older.is_published_tip, false)
   })
 })

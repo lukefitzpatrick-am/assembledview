@@ -100,8 +100,8 @@ function scheduleFromVersion(row: Record<string, unknown>): CampaignScheduleInpu
 }
 
 /**
- * Distinct campaign ids from the versions read that pass the builder's live gate
- * (`isLiveCampaignStatus` on the version row's status and dates).
+ * Distinct campaign ids whose current published tip passes `isLiveCampaignStatus`.
+ * An older approved or booked version does not count.
  */
 export function liveCampaignIdsFromVersions(
   versions: Record<string, unknown>[],
@@ -109,6 +109,7 @@ export function liveCampaignIdsFromVersions(
 ): string[] {
   const seen = new Map<string, string>()
   for (const row of versions) {
+    if (row.is_published_tip !== true) continue
     const mba = String(row.mba_number ?? "").trim()
     const key = normMba(mba)
     if (!key) continue
