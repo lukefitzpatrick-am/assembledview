@@ -3052,3 +3052,116 @@ None of these were opened in the browser.
 - AV-TF3, AV-TF5, AV-TF6, AV-TF7: nothing to click.
 - AV-TF4: `/dashboard/golf-australia` sand canvas, PageHeader, ink numbers, same figures.
 - AV-TF8: Home Spend by month reads $0, $500K, $1M, $1.5M, $2M. Hover is full dollars.
+
+## Strip empty lines on publish STOPPED
+
+No commit. No product files changed. The editor does not reload channel rows after a successful `POST /api/plans/save`, so stripping on the server would leave the removed lines in the form. The next save builds `lineItems` from those in-memory snapshots and would send the empty rows again.
+
+Postgres success (`handleSaveAll` in `app/mediaplans/mba/[mba_number]/edit/page.tsx`, around the `postPlansSave` 2xx branch) updates version ids, the billing snapshot, and KPI sync, then `afterSuccessfulSave` toasts, clears dirty, and may download. It does not call the channel setters. Line items load only while `loadPhase === "loadingLineItems"`, which is the bootstrap effect, not the save effect. `useStableHydration` resets a container only when its `initialLineItems` reference changes. Save does not replace that array. The next payload is `buildSavePlanLineItemsFromSnapshots` of `*MediaLineItemsForSave`, which the containers publish from the live form. Create's postgres success path is the same shape.
+
+A full reload is not the same as that in-session path. Bootstrap fetches `/api/mediaplans/mba/{mba}?skipLineItems=true` and, when the URL has `?version=`, that query wins. Save does not rewrite the query. A reload with no `?version=` follows the published pointer, so the new version's stripped rows would show. A reload that keeps `?version=` of the version that was open still shows that older row, empty lines included.
+
+`checkPublishLineItemIntegrity` does not fail a publish because one enabled channel has zero rows. It sums children across every enabled channel and returns 409 only when that sum is 0. Query errors fail open. The function runs on `PATCH /api/mediaplans/mba/[mba_number]`, not on `POST /api/plans/save`. `savePlanVersion` has a separate gate: `BOSS006_EMPTY_PUBLISH` aborts `publish` and `new_version` when the version has zero `line_items`. A strip that keeps one real line would pass both. A strip that removes every line would roll back on BOSS006.
+
+The save body does match the described burst shape on the editor path. `plansSaveBodySchema` types `bursts` as `z.unknown()`. `buildSavePlanLineItemsFromSnapshots` sends `resolveLineItemBursts`, an array. Each form burst has `budget`, `buyAmount`, and `calculatedValue` (`serializeBurstsJson` / container hydration).
+
+Proposed option: on `removedIds`, give each container a new `initialLineItems` array with those ids removed. `useStableHydration` will reset the form from that reference, and the next save will not resend them. Do this on create and edit. Do not refetch via `loadPhase` unless the loader is pointed at the new version number, because `?version=` would otherwise reload the pre-strip row.
+
+- Checks: none (stopped before the helper).
+- Morning smoke: not run. krusty002 was not opened.
+- Confidence the editor does not reload after save: 94%.
+
+## Round deliverables on save DONE 4c913162 / f29c38d5
+
+Two commits on `localhost`. `lib/partner-ingest` was not staged.
+
+`normaliseBurstDeliverables` rounds the `calculatedValue` the editor sent, on every save mode, before the gates. It does not recompute from budget and rate. Buy types in `BUY_TYPES_WITH_DERIVED_DELIVERABLES` are rounded, except `package`, `bonus`, and `package_inclusions`. The `fixed_cost` rule lives in that helper, not in `roundDeliverables` and not in `deliverablesFromBudget`: a burst budget above 0 stores 1, including a zero rate. A zero budget keeps the stored quantity, because `roundDeliverables("fixed_cost", …)` always returns 1 and would stamp an empty shell. `deliverablesFromBudget` still returns 0 for a zero rate before its `fixed_cost` case. Excel explode rounds a finite recomputed quantity with `roundDeliverables`. The television sheet still reads `burst.tarps`.
+
+Publish returns `deliverableWarnings` when a rounded derived line has any burst budget above 0 and `calculatedValue` 0. The save still commits. Create and edit toast each line: `{id} ({buy type}) has a budget and no deliverables. Check the rate. Publishing will continue.` AV-TG1 was never built, so this uses the existing save toast.
+
+Hard stops did not fire. Pacing, modelled spend, KPI grouping, and AVA read burst `calculatedValue`. Television also writes the same derived quantity onto `burst.tarps`; that field is a quantity, and this change does not round it. Production Excel uses cost times amount. No workbook snapshot pinned a fractional deliverable. Existing media plan workbook tests passed without snapshot edits.
+
+- Files: lib/mediaplan/deliverableBudget.ts, lib/docs/explodeExcelLineItems.ts, app/api/plans/save/route.ts, lib/mediaplan/buildPostgresSavePayload.ts, app/mediaplans/create/page.tsx, app/mediaplans/mba/[mba_number]/edit/page.tsx, tests, docs/brain/INVARIANTS.md, docs/brain/modules/media-plans.md, docs/brain/BLAST-RADIUS.md, package.json.
+- SHA: 4c913162f78ea712585e4c4385e9ca34f228d2e2 then f29c38d5316cbc21d24c5b37b66444d6d26c5632
+- Checks: typecheck 0. lint 0 on the touched files (existing hook warnings on the twin pages, none from this change). test:deliverable-budget pass. test:media-plan-excel pass. roundDeliverables route tests pass (publish rounds 10.6 to 11, draft rounds, cpm at rate 0 with a budget publishes and returns one warning).
+- Morning smoke: not run. krusty002 was not opened. On a digital display CPM line, save a budget that produces a fractional quantity, reload, and confirm a whole number. Export the media plan and confirm the same number. A rate of 0 with a budget should toast and still publish.
+- Under 90%: none.
+
+## Ask before restoring an edit draft STOPPED
+
+No commit. No product files changed.
+
+Discard of a matching-base edit draft deletes the draft the other tab is still writing. Edit drafts are one IndexedDB key `m{masterId}::{userId}` (`localStore.ts`) and one `plan_working_drafts` row, `UNIQUE(master_id, user_id)`. `discard` in `hooks/usePlanDraftSession.ts` clears that key and `DELETE /api/plans/drafts?masterId=` which runs `deleteWorkingDraft` for the caller's user id only. The DELETE has no `updated_at` check and no tab id. Presence is informational and excludes the signed-in user (`filterFreshPlanPresence`), and the presence module says it is never a lock.
+
+Race: tab A is dirty on krusty002. Local save is about 3s after an edit; the server PUT is about 15s, or immediately on window blur. Tab C of the same user loads that same row and clicks "Keep the saved plan". That DELETE removes the row. Tab A's blur PUT, or its next 15s PUT, upserts the PO draft back with no generation check, so the discard does not stick while tab A is still editing. A local record tab A wrote and has not PUT yet is cleared by the same `clearLocalDraft` call. Another user's row is not deleted.
+
+Create also relies on the `"auto"` result, so the classifier cannot change for everyone. `usePlanDraftSession` is the only caller of `classifyDraftLoad` outside tests, and Create (`app/mediaplans/create/page.tsx`, `masterId` null) and Edit both use it. The load effect auto-applies whenever the kind is `"auto"` and the offer is not `local_only`. Create is never `local_only` (`isOrphanLocalDraft` is false when `masterId` is null). The test "create page: opening one draft id restores that snapshot and not another client's shared MBA key" expects `loadKind` `"auto"` and a restore with no click. No copy flow calls the hook.
+
+- Checks: none (stopped before the offer).
+- Morning smoke: not run. krusty002 was not opened.
+- Confidence the shared row is deleted by the existing discard: 96%.
+
+## Split hub expected into platform and booked STOPPED
+
+No commit. No product files changed. The month rows the expected tile clamps have already lost the channel label.
+
+`normalizeDeliveryEntryMediaBreakdown` (`lib/api/dashboard/shared.ts`) still returns a label per media type (`MEDIA_TYPE_LABELS` for the costs shape, the schedule's own media type for the types shape). `getClientDashboardData` (`lib/api/dashboard/client.ts`, the booked/approved/completed loop around the `deliveryMonthlyCampaignMap` write) adds every label's amount into one number per campaign per month. `monthlySpendByCampaign` is then `{ month, data: [{ campaignName, amount }] }` (`lib/types/dashboard.ts`). The hub (`ClientDashboardPageContent`) maps that through `campaignMonthsFromStacked` onto `{ yearMonth, amount }` and `computePlannedSpendTotals` clamps those amounts. No label remains. Schedules were not re-fetched.
+
+`monthlySpend` on the same payload still has `mediaType` per month (`deliveryMonthlyMap`). The expected tile does not clamp that series. Admin `/client/[slug]` and the client role `/dashboard/[slug]` both render `ClientDashboardPageContent`, so they share the hero. That was not the stop.
+
+Fixed-cost television, radio, and newspaper were not counted on Golf Australia or Krusty Krab. The label drop stops the change before that decision.
+
+- Checks: none.
+- Morning smoke: not run. `/dashboard/golf-australia` was not opened.
+- Confidence the campaign month amount has no channel: 96%.
+
+## Show live campaigns with platform delivery DONE f549d3f7
+
+One commit on `localhost`. `lib/partner-ingest` was not staged.
+
+Home's Live campaigns tile keeps the booked/approved/completed flight count as the headline. Beside "start in the next 14 days" it shows `{counts.live} with platform delivery` from the portfolio response Home already loads. The line is hidden when that fetch fails, the body is `building`, the snapshot is `stale`, or `counts.live` is missing, not finite, or not above 0. Zero is not shown. No second fetch.
+
+Hard stop did not fire. Home calls `GET /api/pacing/portfolio` with no query. The route defaults `liveOnly` to true and `asOf` to `getAsOfDate()`. `scope_key` is `pacingScopeKey` of the caller on both Home and the pacing page. The pacing page's default request is `?asOfDate=<getAsOfDate()>&liveOnly=true`, and with empty client-side filters its displayed live count is `rows.length`, which is `body.counts.live`.
+
+- Files: components/dashboard/DashboardOverview.tsx, components/dashboard/HomeStatTile.tsx, lib/dashboard/homeBrief.ts, components/dashboard/__tests__/HomeStatTile.platformDelivery.test.tsx, vitest.config.ts, docs/brain/modules/dashboards-charts-exports.md.
+- SHA: f549d3f7
+- Checks: typecheck 0. lint 0 on the touched files. vitest HomeStatTile.platformDelivery 2 pass (line shows for counts.live 33; hidden when absent, 0, or stale).
+- Morning smoke: not run. Home was not opened. The Live campaigns tile should still read 38, with "33 with platform delivery" beside the 14-day line when the portfolio snapshot is current.
+- Under 90%: none.
+
+## Patch dependency alerts DONE af8bc87b
+
+One commit on `localhost`. `lib/partner-ingest` was not staged. `npm audit fix` was not run.
+
+AV-TF7 and the prompt name the same versions. The note also allows `smol-toml` `1.9.1`; the prompt pins `1.9.0`, which the note lists first, so that is what landed. No other version disagreed.
+
+`moment` `2.31.0` and `source-map-js` `1.2.2` are new overrides. They were transitive with no pin, so the lockfile would not have moved without one. Left untouched: nodemailer, snowflake-sdk, uuid, image-size, Tailwind, postcss-selector-parser, drizzle-kit, mammoth.
+
+`npm install` changed 17 packages. No major version moved. The only extra movement is `@img/sharp-libvips-*` `1.3.3` → `1.3.4`, which ships with `sharp` `0.35.5`. No peer dependency error.
+
+Audit before (AV-TF7-audit.json): 36 (20 high, 14 moderate, 2 low). After (`AV-TG6-audit.json`, uncommitted): 22 (11 high, 11 moderate, 0 low).
+
+Production build used `NODE_OPTIONS=--max-old-space-size=6144`. Next.js 15.5.27 finished in 140s and printed the route table (137 static pages). Largest sampled node working set was about 5,290 MB. The cap was not raised. No earlier build time was recorded in this session.
+
+- Files: package.json, package-lock.json. Audit JSON is uncommitted.
+- SHA: af8bc87b
+- Checks: typecheck 0. lint 0 (existing hook warnings only). test:media-plan-excel 24 pass. Campaign report deck tests 10 pass (server-only shim). jsPDF path: test:mba-scope 8, test:mba-header-date 13, test:mba-live-dates 21, brandPdf 1, all pass.
+- Morning smoke: not run.
+- Under 90%: none.
+
+## AV-TGZ DONE
+
+`npm run gate:main` with no `NODE_OPTIONS` exit 0, 90.3s. `npm run test:all` once, exit 0, 124/124 suites, 513.8s. No suite was rerun. `lib/partner-ingest` was not staged.
+
+### Prompts
+
+| ID | Status | SHA |
+| --- | --- | --- |
+| AV-TG0 | DISCOVERY | none |
+| Strip empty lines on publish | STOPPED | none |
+| Round deliverables on save | DONE | `4c913162` then `f29c38d5` |
+| Ask before restoring an edit draft | STOPPED | none |
+| Split hub expected into platform and booked | STOPPED | none |
+| Show live campaigns with platform delivery | DONE | `f549d3f7` |
+| Patch dependency alerts | DONE | `af8bc87b` |
+| AV-TGZ | DONE | this commit |
