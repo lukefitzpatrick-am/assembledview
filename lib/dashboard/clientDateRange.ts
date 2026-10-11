@@ -67,13 +67,19 @@ export function campaignFlightOverlapsRange(
   return end! >= rangeStartISO && end! <= rangeEndISO
 }
 
-export type PlannedMonthAmount = { yearMonth: string; amount: number }
+export type PlannedMonthAmount = {
+  yearMonth: string
+  amount: number
+  /** Platform-channel slice of `amount`. Absent on an older payload. */
+  platformAmount?: number
+}
 
 /** Inclusive YYYY-MM overlap with [rangeStart, rangeEnd]. */
 export function clampMonthlyAmountsToRange(
   months: PlannedMonthAmount[] | undefined,
   rangeStartISO: string,
   rangeEndISO: string,
+  field: "amount" | "platformAmount" = "amount",
 ): number {
   if (!months?.length) return 0
   const from = rangeStartISO.slice(0, 7)
@@ -82,7 +88,8 @@ export function clampMonthlyAmountsToRange(
   for (const row of months) {
     const key = row.yearMonth.slice(0, 7)
     if (key < from || key > to) continue
-    const n = Number(row.amount)
+    const raw = field === "platformAmount" ? row.platformAmount : row.amount
+    const n = Number(raw)
     if (Number.isFinite(n)) sum += n
   }
   return sum
@@ -154,7 +161,10 @@ const FY_MONTH_INDEX: Record<string, number> = {
 
 /** Map stacked monthly spend (FY labels or MMM yy) onto YYYY-MM per campaign. */
 export function campaignMonthsFromStacked(
-  monthly: Array<{ month: string; data: Array<{ campaignName: string; amount: number }> }>,
+  monthly: Array<{
+    month: string
+    data: Array<{ campaignName: string; amount: number; platformAmount?: number }>
+  }>,
   range: ClientDashboardRange,
 ): Map<string, PlannedMonthAmount[]> {
   const fyYear = exactAuFyStartYear(range)
@@ -176,7 +186,11 @@ export function campaignMonthsFromStacked(
     if (!yearMonth) continue
     for (const item of row.data) {
       const list = out.get(item.campaignName) ?? []
-      list.push({ yearMonth, amount: item.amount })
+      const month: PlannedMonthAmount = { yearMonth, amount: item.amount }
+      if (typeof item.platformAmount === "number" && Number.isFinite(item.platformAmount)) {
+        month.platformAmount = item.platformAmount
+      }
+      list.push(month)
       out.set(item.campaignName, list)
     }
   }

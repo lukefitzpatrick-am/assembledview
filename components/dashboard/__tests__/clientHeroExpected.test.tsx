@@ -74,6 +74,38 @@ describe("client dashboard expected media", () => {
     expect(tile).toContain(`of ${formatted} plan budget`)
   })
 
+  it("shows platform expected and the booked line, and hides the booked line when it is omitted", () => {
+    const platform = formatMoneyCompact(100)
+    const booked = formatMoneyCompact(50)
+    const withSplit = renderToStaticMarkup(
+      <HeroKPIBar
+        totalSpend={100}
+        totalBudget={FIGURE}
+        spendLabel="Expected media to date"
+        liveCampaigns={1}
+        plannedCampaigns={0}
+        budgetUtilized={20}
+        bookedNoPlatform={50}
+      />,
+    )
+    const missing = renderToStaticMarkup(
+      <HeroKPIBar
+        totalSpend={150}
+        totalBudget={FIGURE}
+        spendLabel="Expected media to date"
+        liveCampaigns={1}
+        plannedCampaigns={0}
+        budgetUtilized={30}
+      />,
+    )
+
+    expect(withSplit).toContain(platform)
+    expect(withSplit).toContain(`Booked, no platform delivery: ${booked}`)
+    expect(withSplit).toContain(`of ${formatted} plan budget`)
+    expect(missing).toContain(formatMoneyCompact(150))
+    expect(missing.includes("Booked, no platform delivery")).toBe(false)
+  })
+
   it("names the campaign budget when the delivery schedule has no months", () => {
     const tile = renderToStaticMarkup(
       <HeroKPIBar

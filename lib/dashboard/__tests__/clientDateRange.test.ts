@@ -5,6 +5,7 @@ import {
   CLIENT_ALL_TIME_END,
   CLIENT_ALL_TIME_START,
   campaignFlightOverlapsRange,
+  campaignMonthsFromStacked,
   clampMonthlyAmountsToRange,
   resolveClientDashboardRange,
 } from "../clientDateRange"
@@ -77,4 +78,23 @@ test("clampMonthlyAmountsToRange: half-inside campaign contributes only inside m
   ]
   assert.equal(clampMonthlyAmountsToRange(months, "2026-07-01", "2027-06-30"), 500)
   assert.equal(clampMonthlyAmountsToRange(months, "2026-08-01", "2026-08-31"), 300)
+})
+
+test("campaignMonthsFromStacked carries platformAmount and omits it when absent", () => {
+  const range = { rangeStartISO: "2026-07-01", rangeEndISO: "2027-06-30" }
+  const withPlatform = campaignMonthsFromStacked(
+    [{ month: "Sep", data: [{ campaignName: "Open", amount: 150, platformAmount: 100 }] }],
+    range,
+  )
+  assert.deepEqual(withPlatform.get("Open"), [
+    { yearMonth: "2026-09", amount: 150, platformAmount: 100 },
+  ])
+
+  const missing = campaignMonthsFromStacked(
+    [{ month: "Sep", data: [{ campaignName: "Open", amount: 150 }] }],
+    range,
+  )
+  const row = missing.get("Open")?.[0]
+  assert.equal(row?.amount, 150)
+  assert.equal(row?.platformAmount, undefined)
 })

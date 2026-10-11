@@ -10,6 +10,7 @@ import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slu
 import { hasNonEmptyClientBrain, omitClientBrain } from '@/lib/clients/omitClientBrain'
 import { findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
 import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
+import { isPlatformMediaType } from "@/lib/delivery/platformChannels"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from '@/lib/spend/monthlyPlanCalendar'
 import { normalizeDateToMelbourneISO } from '@/lib/dates/normalizeCampaignDateISO'
 import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
@@ -586,7 +587,10 @@ export function buildClientDashboardDataFromVersions(
     const deliveryMediaTypeSpend: Record<string, number> = {}
     const deliveryCampaignSpend: Record<string, number> = {}
     const deliveryMonthlyMap: Record<string, Record<string, number>> = {}
-    const deliveryMonthlyCampaignMap: Record<string, Record<string, number>> = {}
+    const deliveryMonthlyCampaignMap: Record<
+      string,
+      Record<string, { amount: number; platformAmount: number }>
+    > = {}
     monthBuckets.forEach((bucket) => {
       deliveryMonthlyMap[bucket.label] = {}
       deliveryMonthlyCampaignMap[bucket.label] = {}
@@ -625,8 +629,12 @@ export function buildClientDashboardDataFromVersions(
             deliveryMediaTypeSpend['Unspecified'] = (deliveryMediaTypeSpend['Unspecified'] || 0) + amount
             deliveryCampaignSpend[campaignKey] = (deliveryCampaignSpend[campaignKey] || 0) + amount
             deliveryMonthlyMap[monthLabel]['Unspecified'] = (deliveryMonthlyMap[monthLabel]['Unspecified'] || 0) + amount
-            deliveryMonthlyCampaignMap[monthLabel][campaignKey] =
-              (deliveryMonthlyCampaignMap[monthLabel][campaignKey] || 0) + amount
+            const legacyRow = deliveryMonthlyCampaignMap[monthLabel][campaignKey] ?? {
+              amount: 0,
+              platformAmount: 0,
+            }
+            legacyRow.amount += amount
+            deliveryMonthlyCampaignMap[monthLabel][campaignKey] = legacyRow
           }
           return
         }
@@ -635,8 +643,13 @@ export function buildClientDashboardDataFromVersions(
           deliveryMediaTypeSpend[mediaTypeLabel] = (deliveryMediaTypeSpend[mediaTypeLabel] || 0) + totalForType
           deliveryCampaignSpend[campaignKey] = (deliveryCampaignSpend[campaignKey] || 0) + totalForType
           deliveryMonthlyMap[monthLabel][mediaTypeLabel] = (deliveryMonthlyMap[monthLabel][mediaTypeLabel] || 0) + totalForType
-          deliveryMonthlyCampaignMap[monthLabel][campaignKey] =
-            (deliveryMonthlyCampaignMap[monthLabel][campaignKey] || 0) + totalForType
+          const campaignMonth = deliveryMonthlyCampaignMap[monthLabel][campaignKey] ?? {
+            amount: 0,
+            platformAmount: 0,
+          }
+          campaignMonth.amount += totalForType
+          if (isPlatformMediaType(mediaTypeLabel)) campaignMonth.platformAmount += totalForType
+          deliveryMonthlyCampaignMap[monthLabel][campaignKey] = campaignMonth
         })
       })
     })
@@ -707,11 +720,16 @@ export function buildClientDashboardDataFromVersions(
       data: Array<{
         campaignName: string
         amount: number
+        platformAmount: number
       }>
     }> = monthBuckets.map((bucket) => ({
       month: bucket.label,
       data: Object.entries(deliveryMonthlyCampaignMap[bucket.label] || {})
-        .map(([campaignName, amount]) => ({ campaignName, amount }))
+        .map(([campaignName, row]) => ({
+          campaignName,
+          amount: row.amount,
+          platformAmount: row.platformAmount,
+        }))
         .filter(item => item.amount > 0)
     }))
 

@@ -98,7 +98,7 @@ type DashboardCampaign = {
   /** Expected spend to date (plan) — same basis as campaign-page Expected Spend. */
   spentAmount: number | null
   totalBudget: number
-  months?: Array<{ yearMonth: string; amount: number }>
+  months?: Array<{ yearMonth: string; amount: number; platformAmount?: number }>
   startDate?: string
   endDate?: string
   /** Alias of startDate — used by UpcomingCampaignsSection sort/display. */
@@ -123,7 +123,7 @@ function toDashboardCampaign(
   mode: CampaignLinkMode,
   campaign: LegacyCampaign,
   bucketStatus: CampaignStatus, // "live" | "planned" | "completed" — the server list this came from
-  months?: Array<{ yearMonth: string; amount: number }>,
+  months?: Array<{ yearMonth: string; amount: number; platformAmount?: number }>,
 ): DashboardCampaign {
   // Card progress binds to expected spend to date (plan pace), NOT Snowflake delivered —
   // same word/basis as campaign-page "Expected Spend".
@@ -253,28 +253,30 @@ export function ClientDashboardPageContent({
    * KPI-bar (Task 2 / FX-1): "Planned to date" and "Plan committed" share the booked/approved/completed
    * set. With the hub range, committed is elapsed-in-range ÷ planned-in-range — not the same clamp twice.
    */
-  const { plannedToDate, plannedBudget, budgetUtilizedPct } = useMemo(
+  const { plannedToDate, plannedBudget, budgetUtilizedPct, platformToDate } = useMemo(
     () => computePlannedSpendTotals(allCampaigns, { rangeStartISO, rangeEndISO }),
     [allCampaigns, rangeEndISO, rangeStartISO]
   )
+  const expectedHeadline = platformToDate != null ? platformToDate : plannedToDate
+  const bookedNoPlatform = platformToDate != null ? plannedToDate - platformToDate : undefined
   const budgetCaption = expectedTileUsesCampaignBudget(allCampaigns) ? "campaign" : "prorated"
   /**
    * One committed figure for the header and the expected-media tile.
    * `useCountUp` used to paint the plan budget (reduced motion starts at the target)
    * and then $0 (the animation's first frames, and the server's null reduced-motion
    * initial state). Neither surface shows a number until this effect commits the
-   * same `plannedToDate`.
+   * same headline (platform expected when `platformAmount` is present).
    */
   const [committedExpected, setCommittedExpected] = useState<{
     toDate: number
     budget: number
   } | null>(null)
   useEffect(() => {
-    setCommittedExpected({ toDate: plannedToDate, budget: plannedBudget })
-  }, [plannedBudget, plannedToDate])
+    setCommittedExpected({ toDate: expectedHeadline, budget: plannedBudget })
+  }, [expectedHeadline, plannedBudget])
   const expectedLoading =
     committedExpected == null ||
-    committedExpected.toDate !== plannedToDate ||
+    committedExpected.toDate !== expectedHeadline ||
     committedExpected.budget !== plannedBudget
 
   /**
@@ -318,7 +320,7 @@ export function ClientDashboardPageContent({
   /** Fallback when API omits `finance` (`getClientDashboardData` does not populate it yet). No fabricated quarters/transactions. */
   const financeData = {
     totalBudget: plannedBudget,
-    ytdSpend: plannedToDate,
+    ytdSpend: expectedHeadline,
     budgetByQuarter: [],
     spendByMediaType: clientData.spendByMediaType.map((m) => ({
       mediaType: m.mediaType,
@@ -365,7 +367,7 @@ export function ClientDashboardPageContent({
             clientName={headerDescription ? `${clientData.clientName}` : clientData.clientName}
             clientLogo={clientData.clientLogo ?? undefined}
             brandColour={clientData.brandColour}
-            totalSpend={plannedToDate}
+            totalSpend={expectedHeadline}
             spendLabel="Expected media to date"
             spendLoading={expectedLoading}
             viewerIsClient={viewerIsClient}
@@ -404,10 +406,11 @@ export function ClientDashboardPageContent({
               lib/dashboard/plannedSpendConsistency.ts. Do NOT swap in clientData.totalSpend or
               the unfiltered totalBudget/totalSpent (different bases — that was the Task 2 bug). */}
           <HeroKPIBar
-            totalSpend={plannedToDate}
+            totalSpend={expectedHeadline}
             totalBudget={plannedBudget}
             spendLabel="Expected media to date"
             spendLoading={expectedLoading}
+            bookedNoPlatform={bookedNoPlatform}
             liveCampaigns={statusCounts.live}
             plannedCampaigns={statusCounts.planned}
             budgetUtilized={budgetUtilizedPct}

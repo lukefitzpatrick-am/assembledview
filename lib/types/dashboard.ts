@@ -110,6 +110,8 @@ export interface ClientDashboardData {
     data: Array<{
       campaignName: string
       amount: number
+      /** Platform-channel slice of `amount`. Absent on an older payload. */
+      platformAmount?: number
     }>
   }>
   /** Australian FY start years with spend on any selected version (descending). */

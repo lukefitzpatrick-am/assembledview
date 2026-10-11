@@ -30,6 +30,11 @@ export interface HeroKPIBarProps {
   budgetUtilized: number
   /** "campaign" when no in-scope delivery schedule has month amounts. */
   budgetCaption?: "prorated" | "campaign"
+  /**
+   * Clamped full expected minus clamped platform expected.
+   * Omit when the payload has no `platformAmount` — the tile then shows `totalSpend` alone.
+   */
+  bookedNoPlatform?: number | null
   /** When set, replaces the Avg. ROAS card (client hub). */
   campaignsYtd?: number
   /** Subtitle under the YTD campaigns count. */
@@ -101,6 +106,7 @@ export function HeroKPIBar({
   roasTrend,
   budgetUtilized,
   budgetCaption = "prorated",
+  bookedNoPlatform,
   campaignsYtd,
   campaignsYtdCaption,
   deliveredLoading = false,
@@ -153,6 +159,11 @@ export function HeroKPIBar({
             <p className="num mt-2 text-3xl font-semibold tracking-tight text-foreground">
               {formatMoneyCompact(totalSpend)}
             </p>
+            {typeof bookedNoPlatform === "number" ? (
+              <p className="num mt-1.5 text-xs leading-snug text-muted-foreground">
+                Booked, no platform delivery: {formatMoneyCompact(bookedNoPlatform)}
+              </p>
+            ) : null}
             <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
               {budgetCaption === "campaign"
                 ? `of ${formatMoneyCompact(totalBudget)} campaign budget`

@@ -78,7 +78,12 @@ describe("computePlannedSpendTotals", () => {
 
   it("returns all zeros for an empty campaign list (empty-state safe)", () => {
     const totals = computePlannedSpendTotals([])
-    expect(totals).toEqual({ plannedToDate: 0, plannedBudget: 0, budgetUtilizedPct: 0 })
+    expect(totals).toEqual({
+      plannedToDate: 0,
+      plannedBudget: 0,
+      budgetUtilizedPct: 0,
+      platformToDate: null,
+    })
   })
 
   it("clamps monthly amounts so a half-inside campaign contributes only inside months", () => {
@@ -215,6 +220,47 @@ describe("computePlannedSpendTotals", () => {
     expect(straddle.plannedBudget).toBe(300)
     expect(straddle.budgetUtilizedPct).toBeCloseTo((200 / 300) * 100, 10)
     expect(expectedTileUsesCampaignBudget(straddleCampaign)).toBe(false)
+  })
+
+  it("clamps platformAmount on the same half-elapsed window as amount", () => {
+    const campaigns: PlannedBasisCampaign[] = [
+      {
+        rawStatus: "booked",
+        spentAmount: 300,
+        totalBudget: 300,
+        months: [
+          { yearMonth: "2026-08", amount: 100, platformAmount: 40 },
+          { yearMonth: "2026-09", amount: 100, platformAmount: 40 },
+          { yearMonth: "2026-10", amount: 100, platformAmount: 40 },
+        ],
+      },
+    ]
+    const totals = computePlannedSpendTotals(campaigns, {
+      rangeStartISO: "2026-08-01",
+      rangeEndISO: "2026-10-31",
+      todayISO: "2026-09-06",
+    })
+    expect(totals.plannedToDate).toBe(200)
+    expect(totals.platformToDate).toBe(80)
+    expect(totals.plannedBudget).toBe(300)
+  })
+
+  it("leaves platformToDate null when month rows omit platformAmount", () => {
+    const campaigns: PlannedBasisCampaign[] = [
+      {
+        rawStatus: "booked",
+        spentAmount: 100,
+        totalBudget: 100,
+        months: [{ yearMonth: "2026-09", amount: 100 }],
+      },
+    ]
+    const totals = computePlannedSpendTotals(campaigns, {
+      rangeStartISO: "2026-08-01",
+      rangeEndISO: "2026-10-31",
+      todayISO: "2026-09-06",
+    })
+    expect(totals.plannedToDate).toBe(100)
+    expect(totals.platformToDate).toBeNull()
   })
 
   it("FX-1: without a range, still spentAmount / totalBudget (months ignored)", () => {

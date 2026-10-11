@@ -66,7 +66,12 @@ export function expectedTileUsesCampaignBudget(campaigns: PlannedBasisCampaign[]
   return inScope.length > 0 && inScope.every((campaign) => !(campaign.months && campaign.months.length > 0))
 }
 
-export type PlannedMonthAmount = { yearMonth: string; amount: number }
+export type PlannedMonthAmount = {
+  yearMonth: string
+  amount: number
+  /** Platform-channel slice of `amount`. Absent on an older payload. */
+  platformAmount?: number
+}
 
 export type PlannedBasisCampaign = {
   /** Normalized campaign status (already lowercase/trimmed server-side via `normalizeStatus`). */
@@ -92,6 +97,11 @@ export type PlannedSpendTotals = {
   plannedBudget: number
   /** `plannedToDate / plannedBudget * 100` — Plan committed. */
   budgetUtilizedPct: number
+  /**
+   * Platform-channel slice of `plannedToDate`, clamped on the same to-date window.
+   * Null when no in-scope month row carries `platformAmount` (older payload, or no range).
+   */
+  platformToDate: number | null
 }
 
 /**
@@ -108,13 +118,26 @@ export function computePlannedSpendTotals(
 ): PlannedSpendTotals {
   const inScope = campaigns.filter((campaign) => isPlannedBasisCampaignStatus(campaign.rawStatus))
   const todayISO = range?.todayISO ?? getMelbourneTodayISO()
-  const plannedToDate = inScope.reduce((sum, campaign) => {
+  let plannedToDate = 0
+  let platformSum = 0
+  let sawPlatform = false
+  for (const campaign of inScope) {
     if (range && campaign.months?.length) {
       const toDateEnd = todayISO < range.rangeEndISO ? todayISO : range.rangeEndISO
-      return sum + clampMonthlyAmountsToRange(campaign.months, range.rangeStartISO, toDateEnd)
+      plannedToDate += clampMonthlyAmountsToRange(campaign.months, range.rangeStartISO, toDateEnd)
+      if (campaign.months.some((month) => typeof month.platformAmount === "number")) {
+        sawPlatform = true
+        platformSum += clampMonthlyAmountsToRange(
+          campaign.months,
+          range.rangeStartISO,
+          toDateEnd,
+          "platformAmount",
+        )
+      }
+      continue
     }
-    return sum + (campaign.spentAmount ?? 0)
-  }, 0)
+    plannedToDate += campaign.spentAmount ?? 0
+  }
   const plannedBudget = inScope.reduce((sum, campaign) => {
     if (range && campaign.months?.length) {
       return sum + clampMonthlyAmountsToRange(campaign.months, range.rangeStartISO, range.rangeEndISO)
@@ -122,5 +145,10 @@ export function computePlannedSpendTotals(
     return sum + campaign.totalBudget
   }, 0)
   const budgetUtilizedPct = plannedBudget > 0 ? (plannedToDate / plannedBudget) * 100 : 0
-  return { plannedToDate, plannedBudget, budgetUtilizedPct }
+  return {
+    plannedToDate,
+    plannedBudget,
+    budgetUtilizedPct,
+    platformToDate: sawPlatform ? platformSum : null,
+  }
 }
