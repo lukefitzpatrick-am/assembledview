@@ -6,9 +6,10 @@
  */
 import { act, createElement, type ComponentProps } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { PlanWizardBottomBar } from "@/components/mediaplans/PlanWizardBottomBar"
+import { BLOB_DOWNLOAD_REVOKE_MS, clickBlobDownload } from "@/lib/docs/clickBlobDownload"
 import { END_BEFORE_START_MESSAGE } from "@/lib/mediaplan/dateOrder"
 
 function pointerCaptureShim() {
@@ -25,6 +26,45 @@ function buttonByLabel(root: ParentNode, label: string) {
   return Array.from(root.querySelectorAll("button")).find(
     (el) => el.textContent?.replace(/\s+/g, " ").trim() === label,
   )
+}
+
+function itemText(el: Element): string {
+  return el.textContent?.replace(/\s+/g, " ").trim() ?? ""
+}
+
+function menuItemByLabel(root: ParentNode, label: string) {
+  return Array.from(root.querySelectorAll('[role="menuitem"]')).find(
+    (el) => itemText(el) === label,
+  ) as HTMLElement | undefined
+}
+
+function itemDisabled(el: Element | undefined): boolean {
+  return el?.getAttribute("aria-disabled") === "true"
+}
+
+/** Pointer sequence Radix uses for a menu item. Not element.click() on its own. */
+async function pointerSelect(el: HTMLElement) {
+  await act(async () => {
+    el.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 1,
+        pointerType: "mouse",
+        button: 0,
+      }),
+    )
+    el.dispatchEvent(
+      new PointerEvent("pointerup", {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 1,
+        pointerType: "mouse",
+        button: 0,
+      }),
+    )
+    el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }))
+  })
 }
 
 async function openFiles(container: HTMLElement) {
@@ -127,8 +167,8 @@ describe("PlanWizardBottomBar", () => {
     )
     expect(container.querySelector('[aria-label="Save draft menu"]')).not.toBeNull()
     await openFiles(container)
-    const fileLabels = Array.from(document.body.querySelectorAll("button"))
-      .map((el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "")
+    const fileLabels = Array.from(document.body.querySelectorAll('[role="menuitem"]'))
+      .map((el) => itemText(el))
       .filter(
         (text) =>
           text === "Download draft MBA" ||
@@ -140,7 +180,7 @@ describe("PlanWizardBottomBar", () => {
       "Download draft Media Plan",
       "Generate Naming (Ava)",
     ])
-    const mba = buttonByLabel(document.body, "Download draft MBA")
+    const mba = menuItemByLabel(document.body, "Download draft MBA")
     expect(mba?.className).not.toContain("bg-primary")
     expect(mba?.querySelector("svg")).toBeTruthy()
   })
@@ -150,9 +190,9 @@ describe("PlanWizardBottomBar", () => {
       root.render(renderBar({ isCreate: true, isPublished: false }))
     })
     await openFiles(container)
-    const mba = buttonByLabel(document.body, "Download draft MBA")
+    const mba = menuItemByLabel(document.body, "Download draft MBA")
     expect(mba).toBeTruthy()
-    expect(mba?.disabled).toBe(false)
+    expect(itemDisabled(mba)).toBe(false)
     expect(mba?.getAttribute("title")).toBe("Watermarked DRAFT. Clients still have vN.")
   })
 
@@ -176,12 +216,10 @@ describe("PlanWizardBottomBar", () => {
       )
     })
     await openFiles(container)
-    const published = buttonByLabel(document.body, "Published Media Plan (v1)")
+    const published = menuItemByLabel(document.body, "Published Media Plan (v1)")
     expect(published).toBeTruthy()
-    expect(published?.disabled).toBe(false)
-    act(() => {
-      published!.click()
-    })
+    expect(itemDisabled(published)).toBe(false)
+    await pointerSelect(published!)
     expect(publishedCalls).toBe(1)
     expect(draftCalls).toBe(0)
   })
@@ -207,12 +245,10 @@ describe("PlanWizardBottomBar", () => {
       )
     })
     await openFiles(container)
-    const published = buttonByLabel(document.body, "Published Media Plan (AA) (v2)")
+    const published = menuItemByLabel(document.body, "Published Media Plan (AA) (v2)")
     expect(published).toBeTruthy()
-    expect(published?.disabled).toBe(false)
-    act(() => {
-      published!.click()
-    })
+    expect(itemDisabled(published)).toBe(false)
+    await pointerSelect(published!)
     expect(publishedCalls).toBe(1)
     expect(draftCalls).toBe(0)
   })
@@ -228,12 +264,12 @@ describe("PlanWizardBottomBar", () => {
       )
     })
     await openFiles(container)
-    const labels = Array.from(document.body.querySelectorAll("button")).map(
-      (el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "",
+    const labels = Array.from(document.body.querySelectorAll('[role="menuitem"]')).map(
+      (el) => itemText(el),
     )
     expect(labels).toContain("Draft MBA")
     expect(labels).toContain("Published MBA (v33)")
-    const draft = buttonByLabel(document.body, "Draft MBA")
+    const draft = menuItemByLabel(document.body, "Draft MBA")
     expect(draft?.className).not.toContain("bg-primary")
   })
 
@@ -242,7 +278,7 @@ describe("PlanWizardBottomBar", () => {
       root.render(renderBar({ isPublished: true, mbaBusy: true }))
     })
     await openFiles(container)
-    const mba = Array.from(document.body.querySelectorAll("button")).find((el) =>
+    const mba = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find((el) =>
       el.textContent?.includes("Generating MBA"),
     )
     expect(mba?.textContent).toContain("Generating MBA…")
@@ -253,9 +289,9 @@ describe("PlanWizardBottomBar", () => {
       root.render(renderBar({ mbaBusy: false, downloadsLocked: true, isPublished: true }))
     })
     await openFiles(container)
-    const mba = buttonByLabel(document.body, "MBA")
+    const mba = menuItemByLabel(document.body, "MBA")
     expect(mba).toBeTruthy()
-    expect(mba?.disabled).toBe(true)
+    expect(itemDisabled(mba)).toBe(true)
     expect(mba?.textContent).not.toContain("Generating MBA")
   })
 
@@ -272,14 +308,14 @@ describe("PlanWizardBottomBar", () => {
     })
     await openFiles(container)
     for (const label of ["Download draft MBA", "Download draft Media Plan"]) {
-      const button = buttonByLabel(document.body, label)
-      expect(button).toBeTruthy()
-      expect(button?.disabled).toBe(true)
-      expect(button?.getAttribute("title")).toBe(END_BEFORE_START_MESSAGE)
+      const item = menuItemByLabel(document.body, label)
+      expect(item).toBeTruthy()
+      expect(itemDisabled(item)).toBe(true)
+      expect(item?.getAttribute("title")).toBe(END_BEFORE_START_MESSAGE)
     }
-    const exportDraft = buttonByLabel(document.body, "Export draft")
+    const exportDraft = menuItemByLabel(document.body, "Export draft")
     expect(exportDraft).toBeTruthy()
-    expect(exportDraft?.disabled).toBe(false)
+    expect(itemDisabled(exportDraft)).toBe(false)
     expect(exportDraft?.getAttribute("title")).not.toBe(END_BEFORE_START_MESSAGE)
   })
 
@@ -297,20 +333,20 @@ describe("PlanWizardBottomBar", () => {
     })
     await openFiles(container)
     for (const label of ["Draft MBA", "Draft Media Plan", "Draft Media Plan (AA)"]) {
-      const button = buttonByLabel(document.body, label)
-      expect(button).toBeTruthy()
-      expect(button?.disabled).toBe(true)
-      expect(button?.getAttribute("title")).toBe(END_BEFORE_START_MESSAGE)
+      const item = menuItemByLabel(document.body, label)
+      expect(item).toBeTruthy()
+      expect(itemDisabled(item)).toBe(true)
+      expect(item?.getAttribute("title")).toBe(END_BEFORE_START_MESSAGE)
     }
     for (const label of [
       "Published MBA (v3)",
       "Published Media Plan (v3)",
       "Published Media Plan (AA) (v3)",
     ]) {
-      const button = buttonByLabel(document.body, label)
-      expect(button).toBeTruthy()
-      expect(button?.disabled).toBe(false)
-      expect(button?.getAttribute("title")).not.toBe(END_BEFORE_START_MESSAGE)
+      const item = menuItemByLabel(document.body, label)
+      expect(item).toBeTruthy()
+      expect(itemDisabled(item)).toBe(false)
+      expect(item?.getAttribute("title")).not.toBe(END_BEFORE_START_MESSAGE)
     }
   })
 
@@ -331,5 +367,61 @@ describe("PlanWizardBottomBar", () => {
     expect(saveDraft?.getAttribute("title")).toBe(
       "Drafts save to this browser until the plan is published",
     )
+  })
+
+  it("first Files select fires the handler once and downloads once", async () => {
+    let draftCalls = 0
+    const downloads: string[] = []
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:menu")
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined)
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloads.push(this.download)
+      })
+    act(() => {
+      root.render(
+        renderBar({
+          isPublished: true,
+          hasWorkingDraftOrDirty: true,
+          publishedVersionNumber: 2,
+          onDraftMba: () => {
+            draftCalls += 1
+            clickBlobDownload(new Blob(["draft"]), "draft-mba.pdf")
+          },
+        }),
+      )
+    })
+    await openFiles(container)
+    const draft = menuItemByLabel(document.body, "Draft MBA")
+    expect(draft).toBeTruthy()
+    await pointerSelect(draft!)
+    expect(draftCalls).toBe(1)
+    expect(downloads).toEqual(["draft-mba.pdf"])
+    click.mockRestore()
+    vi.restoreAllMocks()
+  })
+
+  it("clickBlobDownload clicks an attached anchor and revokes after the timeout", () => {
+    vi.useFakeTimers()
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined)
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:plan-test")
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        expect(document.body.contains(this)).toBe(true)
+      })
+    try {
+      clickBlobDownload(new Blob(["pdf"]), "draft.pdf")
+      expect(click).toHaveBeenCalledTimes(1)
+      expect(document.body.querySelector("a[download='draft.pdf']")).toBeNull()
+      expect(revoke).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(BLOB_DOWNLOAD_REVOKE_MS)
+      expect(revoke).toHaveBeenCalledTimes(1)
+      expect(revoke).toHaveBeenCalledWith("blob:plan-test")
+    } finally {
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+    }
   })
 })

@@ -187,6 +187,7 @@ import { LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import { extractPlanGlobals } from '@/lib/naming/fromPlan'
 import { fetchNamingWorkbook } from '@/lib/naming/fetchNamingWorkbook'
 import { saveAs } from 'file-saver'
+import { clickBlobDownload } from "@/lib/docs/clickBlobDownload"
 import { useUnsavedChangesPrompt } from "@/hooks/use-unsaved-changes-prompt"
 import { 
   createMediaPlan, 
@@ -3272,7 +3273,7 @@ function CreateMediaPlan() {
       const { blob, filename } = await postDraftDocuments(
         buildCreateDraftDocumentsBody("mba_pdf")
       )
-      saveAs(blob, filename)
+      clickBlobDownload(blob, filename)
       toast({ title: DRAFT_MBA_TOAST })
     } catch (e: unknown) {
       toast({
@@ -3292,7 +3293,7 @@ function CreateMediaPlan() {
       const { blob, filename } = await postDraftDocuments(
         buildCreateDraftDocumentsBody("media_plan")
       )
-      saveAs(blob, filename)
+      clickBlobDownload(blob, filename)
       if (!opts?.quiet) toast({ title: DRAFT_MBA_TOAST })
       return true
     } catch (e: unknown) {
@@ -3317,7 +3318,7 @@ function CreateMediaPlan() {
       const { blob, filename } = await postDraftDocuments(
         buildCreateDraftDocumentsBody("aa_media_plan")
       )
-      saveAs(blob, filename)
+      clickBlobDownload(blob, filename)
       if (!opts?.quiet) toast({ title: DRAFT_MBA_TOAST })
       return true
     } catch (e: unknown) {
@@ -3341,20 +3342,7 @@ function CreateMediaPlan() {
       const { blob: pdfBlob, fileName } = await generateMbaPdfBlob();
 
       // Create a URL for the blob
-      const url = window.URL.createObjectURL(pdfBlob);
-
-      // Create a temporary link element
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-
-      // Append the link to the body, click it, and remove it
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      // Revoke the URL to free up memory
-      window.URL.revokeObjectURL(url);
+      clickBlobDownload(pdfBlob, fileName);
 
       toast({
         title: "Success",

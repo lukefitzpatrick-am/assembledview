@@ -168,7 +168,7 @@ export function PlanWizardBottomBar({
   type FileItem = {
     key: string
     label: string
-    onClick: () => void
+    onSelect: () => void
     disabled?: boolean
     title?: string
     busy?: boolean
@@ -178,7 +178,7 @@ export function PlanWizardBottomBar({
     fileItems.push({
       key: "draft-mba",
       label: wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.draftMbaLabel }),
-      onClick: draftMba,
+      onSelect: draftMba,
       disabled: mbaBusy || downloadsLocked || draftDownloadsBlocked,
       title: draftDownloadTitle,
       busy: mbaBusy,
@@ -186,7 +186,7 @@ export function PlanWizardBottomBar({
     fileItems.push({
       key: "draft-media-plan",
       label: controls.draftMediaPlanLabel,
-      onClick: draftMediaPlan,
+      onSelect: draftMediaPlan,
       disabled: downloadsBusy || draftDownloadsBlocked,
       title: draftDownloadTitle,
       busy: isDownloading,
@@ -195,7 +195,7 @@ export function PlanWizardBottomBar({
       fileItems.push({
         key: "draft-aa",
         label: controls.draftAaLabel,
-        onClick: draftAa,
+        onSelect: draftAa,
         disabled: aaDisabled || draftDownloadsBlocked,
         title: draftDownloadTitle,
         busy: isDownloadingAa,
@@ -206,7 +206,7 @@ export function PlanWizardBottomBar({
     fileItems.push({
       key: "published-mba",
       label: wizardPublishMbaLabel({ isBusy: mbaBusy, label: controls.publishedMbaLabel }),
-      onClick: onPublishMba,
+      onSelect: onPublishMba,
       disabled: mbaBusy || downloadsLocked || !isPublished,
       title: unpublishedTitle,
       busy: mbaBusy,
@@ -214,7 +214,7 @@ export function PlanWizardBottomBar({
     fileItems.push({
       key: "published-media-plan",
       label: isDownloading ? "Downloading..." : controls.publishedMediaPlanLabel,
-      onClick: onDownloadMediaPlan,
+      onSelect: onDownloadMediaPlan,
       disabled: mediaPlanDisabled,
       title: gateDownloadsOnPublish ? unpublishedTitle : undefined,
       busy: isDownloading,
@@ -222,7 +222,7 @@ export function PlanWizardBottomBar({
     fileItems.push({
       key: "published-aa",
       label: isDownloadingAa ? "Creating AA Plan..." : controls.publishedAaLabel,
-      onClick: onDownloadAa,
+      onSelect: onDownloadAa,
       disabled: aaDisabled,
       title: gateDownloadsOnPublish ? unpublishedTitle : undefined,
       busy: isDownloadingAa,
@@ -231,7 +231,7 @@ export function PlanWizardBottomBar({
   fileItems.push({
     key: "naming",
     label: isNamingDownloading ? "Generating Names..." : "Generate Naming (Ava)",
-    onClick: onDownloadNaming,
+    onSelect: onDownloadNaming,
     disabled: downloadsBusy,
     busy: isNamingDownloading,
   })
@@ -239,7 +239,7 @@ export function PlanWizardBottomBar({
     fileItems.push({
       key: "export-draft",
       label: "Export draft",
-      onClick: onExportDraft,
+      onSelect: onExportDraft,
     })
   }
 
@@ -336,21 +336,22 @@ export function PlanWizardBottomBar({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="max-h-[70vh] overflow-y-auto">
           {fileItems.map((item) => (
-            <DropdownMenuItem key={item.key} asChild disabled={item.disabled}>
-              <button
-                type="button"
-                onClick={item.onClick}
-                disabled={item.disabled}
-                title={item.title}
-                className="flex w-full items-center"
-              >
-                {item.busy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="h-4 w-4" />
-                )}
-                <span className="ml-2">{item.label}</span>
-              </button>
+            <DropdownMenuItem
+              key={item.key}
+              disabled={item.disabled}
+              title={item.title}
+              className="cursor-pointer"
+              onSelect={() => {
+                if (item.disabled) return
+                item.onSelect()
+              }}
+            >
+              {item.busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              <span className="ml-2">{item.label}</span>
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
