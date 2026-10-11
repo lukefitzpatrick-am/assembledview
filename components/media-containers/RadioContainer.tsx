@@ -57,7 +57,7 @@ import { segmentChipClass } from "@/components/layout/navChip"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import { channelInvestmentByMonth } from "@/lib/mediaplan/channelInvestment"
 import type { LineItem } from '@/lib/generateMediaPlan'
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
   assignStableLineItemNumbers,
   reassignLineItemNumbers,
@@ -496,15 +496,11 @@ export default function RadioContainer({
       return;
     }
 
-    const lineNumber = (source.line_item ?? source.lineItem ?? lineItemIndex + 1) + 1;
-    const newId = createLineItemId(lineNumber);
+    const identity = nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.radio);
 
     const clone = {
       ...source,
-      lineItemId: newId,
-      line_item_id: newId,
-      line_item: lineNumber,
-      lineItem: lineNumber,
+      ...identity,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
@@ -516,7 +512,7 @@ export default function RadioContainer({
     };
 
     appendLineItem(clone);
-  }, [appendLineItem, createLineItemId, form, toast]);
+  }, [appendLineItem, form, mbaNumber, toast]);
 
   // Watch hook
   const watchedLineItems = useWatch({ 
@@ -1147,7 +1143,7 @@ useEffect(() => {
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
                                                           ...buildDefaultLineItem(RADIO_CONTAINER_CONFIG.fieldMap),
-                                                          ...(() => { const nextNumber = lineItemFields.length + 1; const id = createLineItemId(nextNumber); return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber }; })(),
+                                                          ...nextLineFields(form.getValues("radiolineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.radio),
                                                           bursts: [
                                                             {
                                                               _reactKey: newBurstReactKey(),
@@ -1166,10 +1162,11 @@ useEffect(() => {
                   />
                 ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const lineItemId = buildLineItemId(
+                  const lineItemId = resolvedLineItemId(
+                    form.getValues(`radiolineItems.${lineItemIndex}`),
                     mbaNumber,
                     MEDIA_TYPE_ID_CODES.radio,
-                    lineItemIndex + 1
+                    lineItemIndex + 1,
                   );
 
                   const selectedNetwork = form.watch(`radiolineItems.${lineItemIndex}.network`);
@@ -1315,16 +1312,11 @@ useEffect(() => {
                                 onClick={() =>
                                   appendLineItem({
                                     ...buildDefaultLineItem(RADIO_CONTAINER_CONFIG.fieldMap),
-                                    ...(() => {
-                                      const nextNumber = lineItemFields.length + 1;
-                                      const id = createLineItemId(nextNumber);
-                                      return {
-                                        lineItemId: id,
-                                        line_item_id: id,
-                                        line_item: nextNumber,
-                                        lineItem: nextNumber,
-                                      };
-                                    })(),
+                                    ...nextLineFields(
+                                      form.getValues("radiolineItems") || [],
+                                      mbaNumber,
+                                      MEDIA_TYPE_ID_CODES.radio,
+                                    ),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),

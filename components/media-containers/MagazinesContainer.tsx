@@ -40,7 +40,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   coerceBuyTypeWithDevWarn,
@@ -608,16 +608,11 @@ const form = useForm<MagazinesFormValues>({
       return;
     }
 
-    const lineNumber =
-      (Number(source.line_item ?? source.lineItem ?? lineItemIndex + 1) || lineItemIndex + 1) + 1;
-    const newId = createLineItemId(lineNumber);
+    const identity = nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.magazines);
 
     const clone = {
       ...source,
-      lineItemId: newId,
-      line_item_id: newId,
-      line_item: lineNumber,
-      lineItem: lineNumber,
+      ...identity,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
@@ -629,7 +624,7 @@ const form = useForm<MagazinesFormValues>({
     };
 
     appendLineItem(clone);
-  }, [appendLineItem, createLineItemId, form, toast]);
+  }, [appendLineItem, form, mbaNumber, toast]);
 
   // Watch hook
   const watchedLineItems = useWatch({ 
@@ -1202,7 +1197,7 @@ useEffect(() => {
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
                                                           ...buildDefaultLineItem(MAGAZINES_CONTAINER_CONFIG.fieldMap),
-                                                        ...(() => { const nextNumber = lineItemFields.length + 1; const id = createLineItemId(nextNumber); return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber }; })(),
+                                                        ...nextLineFields(form.getValues("magazineslineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.magazines),
                                                           bursts: [
                                                             {
                                                               _reactKey: newBurstReactKey(),
@@ -1221,10 +1216,11 @@ useEffect(() => {
                   />
                 ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const lineItemId = buildLineItemId(
+                  const lineItemId = resolvedLineItemId(
+                    form.getValues(`magazineslineItems.${lineItemIndex}`),
                     mbaNumber,
                     MEDIA_TYPE_ID_CODES.magazines,
-                    lineItemIndex + 1
+                    lineItemIndex + 1,
                   );
 
                   const selectedNetwork = form.watch(`magazineslineItems.${lineItemIndex}.network`);
@@ -1407,16 +1403,11 @@ useEffect(() => {
                                 onClick={() =>
                                   appendLineItem({
                                     ...buildDefaultLineItem(MAGAZINES_CONTAINER_CONFIG.fieldMap),
-                                    ...(() => {
-                                      const nextNumber = lineItemFields.length + 1;
-                                      const id = createLineItemId(nextNumber);
-                                      return {
-                                        lineItemId: id,
-                                        line_item_id: id,
-                                        line_item: nextNumber,
-                                        lineItem: nextNumber,
-                                      };
-                                    })(),
+                                    ...nextLineFields(
+                                      form.getValues("magazineslineItems") || [],
+                                      mbaNumber,
+                                      MEDIA_TYPE_ID_CODES.magazines,
+                                    ),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),

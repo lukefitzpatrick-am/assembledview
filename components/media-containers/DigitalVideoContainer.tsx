@@ -47,7 +47,7 @@ import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOv
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { cn } from "@/lib/utils"
@@ -518,6 +518,7 @@ export default function DigiVideoContainer({
 
     const clone = {
       ...source,
+      ...nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo),
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
@@ -529,7 +530,7 @@ export default function DigiVideoContainer({
     };
 
     appendLineItem(clone);
-  }, [appendLineItem, form, toast]);
+  }, [appendLineItem, form, mbaNumber, toast]);
 
   // Watch hook
   const watchedLineItems = useWatch({ 
@@ -1060,6 +1061,7 @@ useEffect(() => {
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
                                                               ...buildDefaultLineItem(DIGITALVIDEO_CONTAINER_CONFIG.fieldMap),
+                                                              ...nextLineFields(form.getValues("digivideolineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo),
                                                               bursts: [
                                                                 {
                                                                   _reactKey: newBurstReactKey(),
@@ -1075,10 +1077,11 @@ useEffect(() => {
                   />
                 ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const lineItemId = buildLineItemId(
+                  const lineItemId = resolvedLineItemId(
+                    form.getValues(`digivideolineItems.${lineItemIndex}`),
                     mbaNumber,
                     MEDIA_TYPE_ID_CODES.digitalVideo,
-                    lineItemIndex + 1
+                    lineItemIndex + 1,
                   );
 
                   const selectedPublisher = form.watch(`digivideolineItems.${lineItemIndex}.publisher`);
@@ -1231,6 +1234,7 @@ useEffect(() => {
                                 onClick={() =>
                                   appendLineItem({
                                     ...buildDefaultLineItem(DIGITALVIDEO_CONTAINER_CONFIG.fieldMap),
+                                    ...nextLineFields(form.getValues("digivideolineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),

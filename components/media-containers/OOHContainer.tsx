@@ -59,6 +59,7 @@ import { excelBuyTypeFromLine } from "@/lib/mediaplan/buyTypeLabels"
 import {
   MEDIA_TYPE_ID_CODES,
   buildLineItemId,
+  nextLineFields,
   pickLineItemNumber,
   sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
@@ -437,6 +438,7 @@ export default function OohContainer({
 
     const clone = {
       ...source,
+      ...nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.ooh),
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
@@ -1065,7 +1067,7 @@ useEffect(() => {
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
                                                           ...buildDefaultLineItem(OOH_CONTAINER_CONFIG.fieldMap),
-                                                          ...(() => { const nextNumber = lineItemFields.length + 1; const id = createLineItemId(nextNumber); return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber }; })(),
+                                                          ...nextLineFields(form.getValues("lineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.ooh),
                                                           bursts: [
                                                             {
                                                               _reactKey: newBurstReactKey(),
@@ -1206,16 +1208,11 @@ useEffect(() => {
                                 onClick={() =>
                                   appendLineItem({
                                     ...buildDefaultLineItem(OOH_CONTAINER_CONFIG.fieldMap),
-                                    ...(() => {
-                                      const nextNumber = lineItemFields.length + 1;
-                                      const id = createLineItemId(nextNumber);
-                                      return {
-                                        lineItemId: id,
-                                        line_item_id: id,
-                                        line_item: nextNumber,
-                                        lineItem: nextNumber,
-                                      };
-                                    })(),
+                                    ...nextLineFields(
+                                      form.getValues("lineItems") || [],
+                                      mbaNumber,
+                                      MEDIA_TYPE_ID_CODES.ooh,
+                                    ),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),

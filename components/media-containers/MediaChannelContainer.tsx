@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { cn } from "@/lib/utils"
 import { segmentChipClass } from "@/components/layout/navChip"
 import { Copy, Plus, Trash2 } from "lucide-react"
@@ -198,8 +198,14 @@ export default function MediaChannelContainer({
   const extra =
     typeof renderExtra === "function" ? renderExtra(renderCtx) : renderExtra
 
-  const emptyPayload = () =>
-    buildEmptyLineItemPayload(config, campaignStartDate, campaignEndDate)
+  const emptyPayload = () => ({
+    ...buildEmptyLineItemPayload(config, campaignStartDate, campaignEndDate),
+    ...nextLineFields(
+      form.getValues(fieldKey) || [],
+      mbaNumber,
+      config.mediaTypeIdCode,
+    ),
+  })
 
   return (
     <div className="space-y-6">
@@ -300,7 +306,8 @@ export default function MediaChannelContainer({
                     />
                   ) : null}
                   {lineItemFields.map((field, lineItemIndex) => {
-                    const lineItemId = buildLineItemId(
+                    const lineItemId = resolvedLineItemId(
+                      form.getValues(`${fieldKey}.${lineItemIndex}`),
                       mbaNumber,
                       config.mediaTypeIdCode,
                       lineItemIndex + 1,

@@ -119,7 +119,7 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
   assignStableLineItemNumbers,
   reassignLineItemNumbers,
@@ -679,16 +679,11 @@ export default function TelevisionContainer({
       return;
     }
 
-    const nextLineNumber =
-      (source.line_item ?? source.lineItem ?? lineItemIndex + 1) + 1;
-    const newId = createLineItemId(nextLineNumber);
+    const identity = nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.television);
 
     const clone = {
       ...source,
-      lineItemId: newId,
-      line_item_id: newId,
-      line_item: nextLineNumber,
-      lineItem: nextLineNumber,
+      ...identity,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         startDate: coerceBurstDateLocal(burst?.startDate) ?? new Date(),
@@ -702,7 +697,7 @@ export default function TelevisionContainer({
     };
 
     appendLineItem(clone);
-  }, [appendLineItem, createLineItemId, form, toast]);
+  }, [appendLineItem, form, mbaNumber, toast]);
 
   const handleBuyTypeChange = useCallback(
     (lineItemIndex: number, value: string) => {
@@ -1155,13 +1150,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                     onAdd={() => appendLineItem({
                                                           ...buildDefaultLineItem(TELEVISION_CONTAINER_CONFIG.fieldMap),
                                                           buyType: "",
-                                                        ...(() => {
-                                                          const nextNum = lineItemFields.length + 1;
-                                                          const id = createLineItemId(nextNum);
-                                                          return { lineItemId: id, line_item_id: id };
-                                                        })(),
-                                                        line_item: lineItemFields.length + 1,
-                                                        lineItem: lineItemFields.length + 1,
+                                                        ...nextLineFields(form.getValues("televisionlineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.television),
                                                           bursts: [
                                                             {
                                                               budget: "",
@@ -1179,10 +1168,11 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                   />
                 ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const lineItemId = buildLineItemId(
+                  const lineItemId = resolvedLineItemId(
+                    form.getValues(`televisionlineItems.${lineItemIndex}`),
                     mbaNumber,
                     MEDIA_TYPE_ID_CODES.television,
-                    lineItemIndex + 1
+                    lineItemIndex + 1,
                   );
 
                   const selectedNetwork = form.watch(`televisionlineItems.${lineItemIndex}.network`);
@@ -1566,13 +1556,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                     buyType: "",
                                     size: "30s",
                                     tarps: "",
-                                    ...(() => {
-                                      const nextNum = lineItemFields.length + 1;
-                                      const id = createLineItemId(nextNum);
-                                      return { lineItemId: id, line_item_id: id };
-                                    })(),
-                                    line_item: lineItemFields.length + 1,
-                                    lineItem: lineItemFields.length + 1,
+                                    ...nextLineFields(form.getValues("televisionlineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.television),
                                     bursts: [
                                       {
                                         budget: "",

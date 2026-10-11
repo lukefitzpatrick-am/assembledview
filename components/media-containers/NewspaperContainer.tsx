@@ -104,7 +104,7 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, normalizeLineItemsForSave, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   coerceBuyTypeWithDevWarn,
@@ -772,20 +772,11 @@ const handleAddNewNewspaperAdSize = async () => {
       return;
     }
 
-    const baseLineItem = source.line_item ?? source.lineItem;
-    const normalizedLineItemNumber: number =
-      typeof baseLineItem === "string"
-        ? Number.parseFloat(baseLineItem) || 0
-        : baseLineItem ?? lineItemIndex + 1;
-    const nextLineItemNumber = normalizedLineItemNumber + 1;
-    const newId = createLineItemId(nextLineItemNumber);
+    const identity = nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper);
 
     const clone = {
       ...source,
-      lineItemId: newId,
-      line_item_id: newId,
-      line_item: nextLineItemNumber,
-      lineItem: nextLineItemNumber,
+      ...identity,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
@@ -797,7 +788,7 @@ const handleAddNewNewspaperAdSize = async () => {
     };
 
     appendLineItem(clone);
-  }, [appendLineItem, createLineItemId, form, toast]);
+  }, [appendLineItem, form, mbaNumber, toast]);
 
   const handleBuyTypeChange = useCallback(
     (lineItemIndex: number, value: string) => {
@@ -1211,11 +1202,7 @@ useEffect(() => {
                     onAdd={() => appendLineItem({
                                                           ...buildDefaultLineItem(NEWSPAPER_CONTAINER_CONFIG.fieldMap),
                                                           size: "",
-                                                          ...(() => {
-                                                            const nextNum = lineItemFields.length + 1;
-                                                            const id = createLineItemId(nextNum);
-                                                            return { lineItemId: id, line_item_id: id, line_item: nextNum, lineItem: nextNum };
-                                                          })(),
+                                                          ...nextLineFields(form.getValues("newspaperlineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.newspaper),
                                                           bursts: [
                                                             {
                                                               _reactKey: newBurstReactKey(),
@@ -1231,10 +1218,11 @@ useEffect(() => {
                   />
                 ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const lineItemId = buildLineItemId(
+                  const lineItemId = resolvedLineItemId(
+                    form.getValues(`newspaperlineItems.${lineItemIndex}`),
                     mbaNumber,
                     MEDIA_TYPE_ID_CODES.newspaper,
-                    lineItemIndex + 1
+                    lineItemIndex + 1,
                   );
 
                   const selectedNetwork = form.watch(`newspaperlineItems.${lineItemIndex}.network`);
@@ -1405,16 +1393,11 @@ useEffect(() => {
                                   appendLineItem({
                                     ...buildDefaultLineItem(NEWSPAPER_CONTAINER_CONFIG.fieldMap),
                                     size: "",
-                                    ...(() => {
-                                      const nextNum = lineItemFields.length + 1;
-                                      const id = createLineItemId(nextNum);
-                                      return {
-                                        lineItemId: id,
-                                        line_item_id: id,
-                                        line_item: nextNum,
-                                        lineItem: nextNum,
-                                      };
-                                    })(),
+                                    ...nextLineFields(
+                                      form.getValues("newspaperlineItems") || [],
+                                      mbaNumber,
+                                      MEDIA_TYPE_ID_CODES.newspaper,
+                                    ),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),

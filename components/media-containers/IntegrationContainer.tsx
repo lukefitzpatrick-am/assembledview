@@ -59,7 +59,7 @@ import { channelInvestmentByMonth } from "@/lib/mediaplan/channelInvestment"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { channelSummaryTotals } from "@/lib/money/burst"
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   getMediaTypeThemeHex,
@@ -696,14 +696,10 @@ export default function IntegrationContainer({
   const handleDuplicateLineItem = useCallback((lineItemIndex: number) => {
     const source = form.getValues(`lineItems.${lineItemIndex}`) as any
     if (!source) return
+    const items = form.getValues("lineItems") || []
     const clone = {
       ...source,
-      // Path A: a duplicate is a NEW line - clear identity so assignStableLineItemNumbers
-      // mints a fresh number above max at save (source keeps its id).
-      line_item: undefined,
-      lineItem: undefined,
-      line_item_id: undefined,
-      lineItemId: undefined,
+      ...nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.integration),
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
@@ -714,7 +710,7 @@ export default function IntegrationContainer({
       })),
     }
     insertLineItem(lineItemIndex + 1, clone as IntegrationFormValues["lineItems"][number])
-  }, [form, insertLineItem])
+  }, [form, insertLineItem, mbaNumber])
 
   const handleDuplicateBurst = useCallback((lineItemIndex: number) => {
     duplicateBurst({
@@ -994,6 +990,7 @@ useEffect(() => {
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
                                                           ...buildDefaultLineItem(INTEGRATION_CONTAINER_CONFIG.fieldMap),
+                                                          ...nextLineFields(form.getValues("lineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.integration),
                                                           bursts: [
                                                             {
                                                               _reactKey: newBurstReactKey(),
@@ -1009,10 +1006,11 @@ useEffect(() => {
                   />
                 ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const lineItemId = buildLineItemId(
+                  const lineItemId = resolvedLineItemId(
+                    form.getValues(`lineItems.${lineItemIndex}`),
                     mbaNumber,
                     MEDIA_TYPE_ID_CODES.integration,
-                    lineItemIndex + 1
+                    lineItemIndex + 1,
                   );
 
 
@@ -1101,6 +1099,7 @@ useEffect(() => {
                                 onClick={() =>
                                   appendLineItem({
                                     ...buildDefaultLineItem(INTEGRATION_CONTAINER_CONFIG.fieldMap),
+                                    ...nextLineFields(form.getValues("lineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.integration),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),

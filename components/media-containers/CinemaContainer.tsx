@@ -61,7 +61,7 @@ import {
   getMediaTypeThemeHex,
   mediaTypeSummaryStripeStyle
 } from "@/lib/mediaplan/mediaTypeAccents"
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { ComboboxModalProvider } from "@/components/ui/combobox"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
@@ -470,19 +470,11 @@ export default function CinemaContainer({
       return;
     }
 
-    const baseLineNumber = Number(
-      source.line_item ?? source.lineItem ?? lineItemIndex + 1
-    );
-    const lineNumber =
-      (Number.isFinite(baseLineNumber) ? baseLineNumber : lineItemIndex + 1) + 1;
-    const newId = createLineItemId(lineNumber);
+    const identity = nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.cinema);
 
     const clone = {
       ...source,
-      lineItemId: newId,
-      line_item_id: newId,
-      line_item: lineNumber,
-      lineItem: lineNumber,
+      ...identity,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
@@ -494,7 +486,7 @@ export default function CinemaContainer({
     };
 
     appendLineItem(clone);
-  }, [appendLineItem, createLineItemId, form, toast]);
+  }, [appendLineItem, form, mbaNumber, toast]);
 
   // Watch hook
   const watchedLineItems = useWatch({ 
@@ -1050,11 +1042,7 @@ useEffect(() => {
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
                                                           ...buildDefaultLineItem(CINEMA_CONTAINER_CONFIG.fieldMap),
-                                                          ...(() => {
-                                                            const nextNum = lineItemFields.length + 1;
-                                                            const id = createLineItemId(nextNum);
-                                                            return { lineItemId: id, line_item_id: id, line_item: nextNum, lineItem: nextNum };
-                                                          })(),
+                                                          ...nextLineFields(form.getValues("cinemalineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.cinema),
                                                           bursts: [
                                                             {
                                                               _reactKey: newBurstReactKey(),
@@ -1070,10 +1058,11 @@ useEffect(() => {
                   />
                 ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const lineItemId = buildLineItemId(
+                  const lineItemId = resolvedLineItemId(
+                    form.getValues(`cinemalineItems.${lineItemIndex}`),
                     mbaNumber,
                     MEDIA_TYPE_ID_CODES.cinema,
-                    lineItemIndex + 1
+                    lineItemIndex + 1,
                   );
 
 
@@ -1195,16 +1184,11 @@ useEffect(() => {
                                 onClick={() =>
                                   appendLineItem({
                                     ...buildDefaultLineItem(CINEMA_CONTAINER_CONFIG.fieldMap),
-                                    ...(() => {
-                                      const nextNum = lineItemFields.length + 1;
-                                      const id = createLineItemId(nextNum);
-                                      return {
-                                        lineItemId: id,
-                                        line_item_id: id,
-                                        line_item: nextNum,
-                                        lineItem: nextNum,
-                                      };
-                                    })(),
+                                    ...nextLineFields(
+                                      form.getValues("cinemalineItems") || [],
+                                      mbaNumber,
+                                      MEDIA_TYPE_ID_CODES.cinema,
+                                    ),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),

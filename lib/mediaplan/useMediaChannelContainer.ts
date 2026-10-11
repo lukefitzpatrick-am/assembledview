@@ -27,7 +27,7 @@ import {
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields } from "@/lib/mediaplan/lineItemIds"
 
 export type MediaCode = (typeof MEDIA_TYPE_ID_CODES)[keyof typeof MEDIA_TYPE_ID_CODES]
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
@@ -419,6 +419,7 @@ export function useMediaChannelContainer(
 
       const clone = {
         ...source,
+        ...nextLineFields(items, mbaNumber, mediaTypeIdCode),
         bursts: (source.bursts || []).map((burst: any) => ({
           ...burst,
           startDate: coerceBurstDateLocal(burst?.startDate) ?? new Date(),
@@ -431,7 +432,7 @@ export function useMediaChannelContainer(
 
       appendLineItem(clone)
     },
-    [appendLineItem, fieldKey, form, toast],
+    [appendLineItem, fieldKey, form, mbaNumber, mediaTypeIdCode, toast],
   )
 
   const watchedLineItems = useWatch({

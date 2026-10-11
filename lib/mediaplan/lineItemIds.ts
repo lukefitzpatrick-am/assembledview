@@ -251,6 +251,81 @@ export function parseLineNumberFromLineItemId(lineItemId: string): number | null
   return null;
 }
 
+/**
+ * Next line number for an add or a duplicate: one past the highest numeric
+ * suffix already in use. Uses `parseLineNumberFromLineItemId` (the same
+ * suffix rules `assignStableLineItemNumbers` uses). Does not fill gaps and
+ * does not renumber existing lines. An empty list returns 1.
+ */
+export function nextLineNumber(
+  existingIds: readonly (string | null | undefined)[],
+): number {
+  let max = 0
+  for (const id of existingIds) {
+    if (id == null) continue
+    const trimmed = String(id).trim()
+    if (!trimmed) continue
+    const parsed = parseLineNumberFromLineItemId(trimmed)
+    if (parsed != null && parsed > max) max = parsed
+  }
+  return max + 1
+}
+
+/**
+ * Ids already claimed on these rows, plus a synthetic id for a numeric
+ * `line_item` that has no id yet, so `nextLineNumber` sees that suffix.
+ * The synthetic id is not persisted.
+ */
+export function lineItemIdsInUse(
+  items: readonly any[] | null | undefined,
+): string[] {
+  if (!items?.length) return []
+  const ids: string[] = []
+  for (const item of items) {
+    for (const rawId of [item?.line_item_id, item?.lineItemId]) {
+      if (typeof rawId === "string" && rawId.trim()) ids.push(rawId.trim())
+    }
+    const n = parseLineItemFieldValue(item?.line_item ?? item?.lineItem)
+    if (n != null) ids.push(buildLineItemId("n", "LN", n))
+  }
+  return ids
+}
+
+/** Identity fields for a new line. Existing rows are left unchanged. */
+export function nextLineFields(
+  items: readonly any[] | null | undefined,
+  mbaNumber: string,
+  mediaTypeIdCode: string,
+): {
+  lineItemId: string
+  line_item_id: string
+  line_item: number
+  lineItem: number
+} {
+  const lineNumber = nextLineNumber(lineItemIdsInUse(items))
+  const id = buildLineItemId(mbaNumber || "", mediaTypeIdCode, lineNumber)
+  return {
+    lineItemId: id,
+    line_item_id: id,
+    line_item: lineNumber,
+    lineItem: lineNumber,
+  }
+}
+
+/** Card label: the stored id when the row has one, otherwise the stored number. */
+export function resolvedLineItemId(
+  row: any,
+  mbaNumber: string,
+  mediaTypeIdCode: string,
+  indexFallback: number,
+): string {
+  const stored = row?.line_item_id ?? row?.lineItemId
+  if (typeof stored === "string" && stored.trim()) return stored.trim()
+  const n = parseLineItemFieldValue(row?.line_item ?? row?.lineItem)
+  const num = n ?? (indexFallback > 0 ? Math.trunc(indexFallback) : 1)
+  return buildLineItemId(mbaNumber || "", mediaTypeIdCode, num)
+}
+
 function parseLineItemFieldValue(value: unknown): number | null {
   if (value === undefined || value === null) return null;
   if (typeof value === "number" && Number.isFinite(value) && value > 0) {

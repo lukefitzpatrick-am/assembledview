@@ -93,7 +93,7 @@ import {
   mediaTypeSummaryStripeStyle,
   mediaTypeOutlineStyle
 } from "@/lib/mediaplan/mediaTypeAccents"
-import { buildLineItemId, MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
+import { buildLineItemId, MEDIA_TYPE_ID_CODES, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
   assignStableLineItemNumbers,
   reassignLineItemNumbers,
@@ -607,17 +607,18 @@ export default function ProductionContainer({
     appendLineItem({
       ...buildDefaultLineItem(PRODUCTION_CONTAINER_CONFIG.fieldMap),
       mediaType: mediaTypeOptions[0]?.value || "",
-      lineItemId: "",
+      ...nextLineFields(form.getValues("lineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.production),
       bursts: [makeDefaultBurst()],
     })
   }
 
   const handleDuplicateLineItem = (index: number) => {
-    const current = form.getValues(`lineItems.${index}`)
+    const items = form.getValues("lineItems") || []
+    const current = items[index]
     if (current) {
       insertLineItem(index + 1, {
         ...current,
-        lineItemId: "",
+        ...nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.production),
         bursts: current.bursts.map((b) => ({ ...b, _reactKey: newBurstReactKey() })),
       })
     }
@@ -744,18 +745,16 @@ export default function ProductionContainer({
         <div className="space-y-6">
           {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
-                    onAdd={() => appendLineItem({
-      ...buildDefaultLineItem(PRODUCTION_CONTAINER_CONFIG.fieldMap),
-      mediaType: mediaTypeOptions[0]?.value || "",
-      lineItemId: "",
-      bursts: [makeDefaultBurst()],
-    })}
+                    onAdd={() => handleAddLineItem()}
                   />
                 ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
-            const lineItemId =
-              form.watch(`lineItems.${lineItemIndex}.lineItemId`) ||
-              buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.production, lineItemIndex + 1)
+            const lineItemId = resolvedLineItemId(
+              form.getValues(`lineItems.${lineItemIndex}`),
+              mbaNumber,
+              MEDIA_TYPE_ID_CODES.production,
+              lineItemIndex + 1,
+            )
             const lineItemBursts = form.watch(`lineItems.${lineItemIndex}.bursts`) || []
             const lineItemMediaTotal =
               lineItemBursts.reduce(

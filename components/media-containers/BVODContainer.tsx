@@ -50,7 +50,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { format } from "date-fns"
@@ -551,6 +551,7 @@ export default function BVODContainer({
 
     const clone = {
       ...source,
+      ...nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.bvod),
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
@@ -562,7 +563,7 @@ export default function BVODContainer({
     };
 
     appendLineItem(clone);
-  }, [appendLineItem, form, toast]);
+  }, [appendLineItem, form, mbaNumber, toast]);
 
   // Watch hook
   const watchedLineItems = useWatch({ 
@@ -1102,6 +1103,7 @@ useEffect(() => {
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
                                                           ...buildDefaultLineItem(BVOD_CONTAINER_CONFIG.fieldMap),
+                                                          ...nextLineFields(form.getValues("bvodlineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.bvod),
                                                           bursts: [
                                                             {
                                                               _reactKey: newBurstReactKey(),
@@ -1117,10 +1119,11 @@ useEffect(() => {
                   />
                 ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const lineItemId = buildLineItemId(
+                  const lineItemId = resolvedLineItemId(
+                    form.getValues(`bvodlineItems.${lineItemIndex}`),
                     mbaNumber,
                     MEDIA_TYPE_ID_CODES.bvod,
-                    lineItemIndex + 1
+                    lineItemIndex + 1,
                   );
 
                   const selectedPublisher =
@@ -1294,20 +1297,11 @@ useEffect(() => {
                                 onClick={() =>
                                   appendLineItem({
                                     ...buildDefaultLineItem(BVOD_CONTAINER_CONFIG.fieldMap),
-                                    ...(() => {
-                                      const nextNumber = lineItemFields.length + 1;
-                                      const id = buildLineItemId(
-                                        mbaNumber,
-                                        MEDIA_TYPE_ID_CODES.bvod,
-                                        nextNumber
-                                      );
-                                      return {
-                                        lineItemId: id,
-                                        line_item_id: id,
-                                        line_item: nextNumber,
-                                        lineItem: nextNumber,
-                                      };
-                                    })(),
+                                    ...nextLineFields(
+                                      form.getValues("bvodlineItems") || [],
+                                      mbaNumber,
+                                      MEDIA_TYPE_ID_CODES.bvod,
+                                    ),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),

@@ -65,7 +65,7 @@ import { channelInvestmentByMonth } from "@/lib/mediaplan/channelInvestment"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { channelSummaryTotals } from "@/lib/money/burst"
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   getSocialBurstCalculatedColumnLabel,
@@ -445,6 +445,7 @@ export default function SocialMediaContainer({
 
     const clone = {
       ...source,
+      ...nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia),
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
@@ -456,7 +457,7 @@ export default function SocialMediaContainer({
     };
 
     appendLineItem(clone);
-  }, [appendLineItem, form, toast]);
+  }, [appendLineItem, form, mbaNumber, toast]);
 
   const handleLineItemValueChange = useCallback((lineItemIndex: number) => {
     const lineItems = form.getValues("lineItems") || [];
@@ -996,6 +997,7 @@ useEffect(() => {
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
                                                           ...buildDefaultLineItem(SOCIALMEDIA_CONTAINER_CONFIG.fieldMap),
+                                                          ...nextLineFields(form.getValues("lineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia),
                                                           bursts: [
                                                             {
                                                               _reactKey: newBurstReactKey(),
@@ -1011,10 +1013,11 @@ useEffect(() => {
                   />
                 ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
-                const lineItemId = buildLineItemId(
+                const lineItemId = resolvedLineItemId(
+                  form.getValues(`lineItems.${lineItemIndex}`),
                   mbaNumber,
                   MEDIA_TYPE_ID_CODES.socialMedia,
-                  lineItemIndex + 1
+                  lineItemIndex + 1,
                 );
 
 
@@ -1103,6 +1106,7 @@ useEffect(() => {
                                 onClick={() =>
                                   appendLineItem({
                                     ...buildDefaultLineItem(SOCIALMEDIA_CONTAINER_CONFIG.fieldMap),
+                                    ...nextLineFields(form.getValues("lineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),

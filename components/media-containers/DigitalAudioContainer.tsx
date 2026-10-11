@@ -52,7 +52,7 @@ import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOv
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
-import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -557,6 +557,7 @@ export default function DigiAudioContainer({
 
     const clone = {
       ...source,
+      ...nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio),
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
@@ -568,7 +569,7 @@ export default function DigiAudioContainer({
     };
 
     appendLineItem(clone);
-  }, [appendLineItem, form, toast]);
+  }, [appendLineItem, form, mbaNumber, toast]);
 
   // Watch hook
   const watchedLineItems = useWatch({ 
@@ -1104,6 +1105,7 @@ useEffect(() => {
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
                                                           ...buildDefaultLineItem(DIGITALAUDIO_CONTAINER_CONFIG.fieldMap),
+                                                          ...nextLineFields(form.getValues("digiaudiolineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio),
                                                           bursts: [
                                                             {
                                                               _reactKey: newBurstReactKey(),
@@ -1119,10 +1121,11 @@ useEffect(() => {
                   />
                 ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
-                  const lineItemId = buildLineItemId(
+                  const lineItemId = resolvedLineItemId(
+                    form.getValues(`digiaudiolineItems.${lineItemIndex}`),
                     mbaNumber,
                     MEDIA_TYPE_ID_CODES.digitalAudio,
-                    lineItemIndex + 1
+                    lineItemIndex + 1,
                   );
 
                   const selectedPublisher =
@@ -1279,20 +1282,11 @@ useEffect(() => {
                                 onClick={() =>
                                   appendLineItem({
                                     ...buildDefaultLineItem(DIGITALAUDIO_CONTAINER_CONFIG.fieldMap),
-                                    ...(() => {
-                                      const nextNumber = lineItemFields.length + 1;
-                                      const id = buildLineItemId(
-                                        mbaNumber,
-                                        MEDIA_TYPE_ID_CODES.digitalAudio,
-                                        nextNumber
-                                      );
-                                      return {
-                                        lineItemId: id,
-                                        line_item_id: id,
-                                        line_item: nextNumber,
-                                        lineItem: nextNumber,
-                                      };
-                                    })(),
+                                    ...nextLineFields(
+                                      form.getValues("digiaudiolineItems") || [],
+                                      mbaNumber,
+                                      MEDIA_TYPE_ID_CODES.digitalAudio,
+                                    ),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),

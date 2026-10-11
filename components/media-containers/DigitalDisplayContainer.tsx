@@ -48,6 +48,7 @@ import { formatBurstLabel } from "@/lib/bursts"
 import {
   MEDIA_TYPE_ID_CODES,
   buildLineItemId,
+  nextLineFields,
   pickLineItemNumber,
   sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
@@ -640,15 +641,11 @@ export default function DigiDisplayContainer({
       return;
     }
 
-    const nextNumber = (form.getValues("digidisplaylineItems") || []).length + 1;
-    const newId = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, nextNumber);
+    const identity = nextLineFields(items, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay);
 
     const clone = {
       ...source,
-      lineItemId: newId,
-      line_item_id: newId,
-      line_item: nextNumber,
-      lineItem: nextNumber,
+      ...identity,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
@@ -1221,11 +1218,7 @@ useEffect(() => {
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
                                                               ...buildDefaultLineItem(DIGITALDISPLAY_CONTAINER_CONFIG.fieldMap),
-                                                              ...(() => {
-                                                                const nextNumber = lineItemFields.length + 1;
-                                                                const id = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, nextNumber);
-                                                                return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber };
-                                                              })(),
+                                                              ...nextLineFields(form.getValues("digidisplaylineItems") || [], mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay),
                                                               bursts: [
                                                                 {
                                                                   _reactKey: newBurstReactKey(),
@@ -1410,20 +1403,11 @@ useEffect(() => {
                                 onClick={() =>
                                   appendLineItem({
                                     ...buildDefaultLineItem(DIGITALDISPLAY_CONTAINER_CONFIG.fieldMap),
-                                    ...(() => {
-                                      const nextNumber = lineItemFields.length + 1;
-                                      const id = buildLineItemId(
-                                        mbaNumber,
-                                        MEDIA_TYPE_ID_CODES.digitalDisplay,
-                                        nextNumber
-                                      );
-                                      return {
-                                        lineItemId: id,
-                                        line_item_id: id,
-                                        line_item: nextNumber,
-                                        lineItem: nextNumber,
-                                      };
-                                    })(),
+                                    ...nextLineFields(
+                                      form.getValues("digidisplaylineItems") || [],
+                                      mbaNumber,
+                                      MEDIA_TYPE_ID_CODES.digitalDisplay,
+                                    ),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),
