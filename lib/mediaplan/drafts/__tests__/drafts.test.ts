@@ -6,6 +6,7 @@ import {
   describePlanSavePill,
   describeVersionHeaderTrail,
   describePartialMbaPublishRail,
+  formatDraftOfferTimestamp,
   summarizeDraftOffer,
   summarizeLocalOnlyDraftOffer,
   pickNewerDraft,
@@ -249,6 +250,14 @@ describe("version header trail shares resolvePostgresSaveMode with pill", () => 
 })
 
 describe("PC7 draft offer + newer wins", () => {
+  it("formats 12 Oct as day/month in Melbourne", () => {
+    const label = formatDraftOfferTimestamp("2026-10-11T22:01:00.000Z")
+    assert.match(label, /^12\/10\/2026/)
+    assert.match(label, /9:01/)
+    assert.match(label, /am/i)
+    assert.doesNotMatch(label, /10\/12\/2026/)
+  })
+
   it("summarises resume offer", () => {
     const s = summarizeDraftOffer({
       updatedAt: "2026-07-30T10:00:00.000Z",
