@@ -269,7 +269,7 @@ test("T1 fails when the detected header drifts from EXPECTED_HEADER", async () =
   assert.equal(tests.failed, true)
 })
 
-test("T4 fails when quartile rates are not monotonically decreasing", async () => {
+test("T4 warns when quartile rates are not monotonically decreasing and does not fail the load", async () => {
   const buffer = await workbookFromSeed([
     {
       REPORT_DATE: "2026-09-13",
@@ -288,7 +288,8 @@ test("T4 fails when quartile rates are not monotonically decreasing", async () =
   const parsed = await parseChannelFactoryBuffer(buffer, "rates.xlsx")
   const tests = runPartnerFileParseTests(parsed, CHANNEL_FACTORY_EXPECTED_HEADER)
   assert.equal(tests.t4.ok, false)
-  assert.equal(tests.failed, true)
+  assert.equal(tests.failed, false)
+  assert.match(tests.t4.detail, /x 2026-09-13/)
 })
 
 test("T5 on the 14 Sep file scopes VIDEO_VIEWS > 0 and gates at 0.00094", async () => {

@@ -186,9 +186,10 @@ test("loaded duplicate skips without rewriting lines", async () => {
 })
 
 test("parse_failed writes raw lines and does not load daily", async () => {
-  const bytes = await xlsx([
-    validRow({ rateQ25: 0.4, rateQ50: 0.5, rateQ75: 0.6, rateFull: 0.9 }),
-  ])
+  const bytes = await xlsx(
+    [validRow()],
+    ["Day", "Campaign Advertiser ID", "Campaign Name", "Media Buy Name", "Impressions"]
+  )
   const sf = snowflakeStub()
   const box = mailbox([{ name: "cf.xlsx", bytes }])
   const summary = await runPartnerIngest({ mailbox: box, snowflake: sf })
@@ -197,7 +198,48 @@ test("parse_failed writes raw lines and does not load daily", async () => {
   assert.ok(sf.lines.length > 0)
   assert.equal(sf.lastLoad, null)
   assert.equal(sf.logs[0]?.status, "parse_failed")
+  assert.match(sf.logs[0]?.errorText ?? "", /^T1:/)
+  assert.equal(summary.tests[0]?.tests.t1.ok, false)
+  assert.equal(summary.tests[0]?.tests.failed, true)
   assert.deepEqual(box.moves, ["Failed"])
+})
+
+test("one inverted low-volume row loads and records T4 as a warning", async () => {
+  const bytes = await xlsx([
+    validRow({
+      impressions: 10000,
+      videoViews: 8000,
+      rateQ25: 0.9,
+      rateQ50: 0.85,
+      rateQ75: 0.82,
+      rateFull: 0.8,
+    }),
+    validRow({
+      day: "2026-10-01",
+      mediaBuy: "CF12_AT1_P25-44_STRMEA001PV1",
+      impressions: 26,
+      videoViews: 26,
+      rateQ25: 0.846,
+      rateQ50: 0.769,
+      rateQ75: 0.615,
+      rateFull: 0.654,
+    }),
+  ])
+  const sf = snowflakeStub()
+  const box = mailbox([{ name: "cf.xlsx", bytes }])
+  const summary = await runPartnerIngest({ mailbox: box, snowflake: sf })
+  assert.equal(summary.loaded, 1)
+  assert.equal(summary.failed, 0)
+  assert.equal(sf.logs[0]?.status, "loaded")
+  assert.equal(sf.lastLoad?.length, 2)
+  assert.match(sf.logs[0]?.errorText ?? "", /^T4 warning:/)
+  assert.match(sf.logs[0]?.errorText ?? "", /CF12_AT1_P25-44_STRMEA001PV1 2026-10-01/)
+  assert.equal(summary.files[0]?.errorText, sf.logs[0]?.errorText)
+  assert.equal(summary.tests[0]?.tests.t4.ok, false)
+  assert.equal(summary.tests[0]?.tests.t1.ok, true)
+  assert.equal(summary.tests[0]?.tests.t5.ok, true)
+  assert.equal(summary.tests[0]?.tests.failed, false)
+  assert.deepEqual(box.moves, ["Processed"])
 })
 
 test("successful load inserts lines first then range-replaces daily including uncoded rows", async () => {

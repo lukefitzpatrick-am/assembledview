@@ -105,6 +105,28 @@ function minMaxDates(rows: PartnerDeliveryRow[]): { minDate: string; maxDate: st
   return { minDate, maxDate }
 }
 
+function ingestErrorText(input: {
+  parseError: string | null
+  loadModeError: string | null
+  tests: PartnerFileParseTests | undefined
+  rowCount: number
+}): string | null {
+  if (input.parseError) return input.parseError
+  if (input.loadModeError) return input.loadModeError
+  const blocking = input.tests
+    ? [input.tests.t1, input.tests.t5, input.tests.t6]
+        .filter((t): t is NonNullable<typeof t> => t != null && !t.ok)
+        .map((t) => `${t.name}: ${t.detail}`)
+    : []
+  const t4Warning =
+    input.tests && !input.tests.t4.ok ? `T4 warning: ${input.tests.t4.detail}` : null
+  if (blocking.length > 0) {
+    return [blocking.join("; "), t4Warning].filter((part): part is string => part != null).join("; ")
+  }
+  if (input.rowCount === 0) return "no data rows"
+  return t4Warning
+}
+
 function emptySummary(): PartnerIngestRunSummary {
   return {
     filesSeen: 0,
@@ -326,18 +348,12 @@ export async function runPartnerIngest(
       const range = parsed.rows.length > 0 ? minMaxDates(parsed.rows) : null
       const t5Drift = tests?.t5.value ?? null
       if (t5Drift != null) summary.t5Drift = t5Drift
-      const errorText = parseError
-        ? parseError
-        : loadModeError
-          ? loadModeError
-          : tests?.failed
-            ? [tests.t1, tests.t4, tests.t5, tests.t6]
-                .filter((t): t is NonNullable<typeof t> => t != null && !t.ok)
-                .map((t) => `${t.name}: ${t.detail}`)
-                .join("; ") || "parse_failed"
-            : parsed.rows.length === 0
-              ? "no data rows"
-              : null
+      const errorText = ingestErrorText({
+        parseError,
+        loadModeError,
+        tests,
+        rowCount: parsed.rows.length,
+      })
 
       await deps.snowflake.writeLoadAndLog({
         load:

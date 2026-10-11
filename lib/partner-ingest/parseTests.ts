@@ -27,23 +27,41 @@ function hasNoVideo(parsed: ParsedPartnerFile): boolean {
   return parsed.rows.every((r) => r.videoViews === 0)
 }
 
+const T4_ROW_CAP = 20
+
+function rateOrderInverted(row: ParsedPartnerFile["rows"][number]): boolean {
+  return (
+    row.rateQ25 < row.rateQ50 ||
+    row.rateQ50 < row.rateQ75 ||
+    row.rateQ75 < row.rateFullyPlayed
+  )
+}
+
+/** Computed on every file. Does not gate the load; callers persist `ok: false` as a warning. */
 function t4(parsed: ParsedPartnerFile): ParseTestResult {
   if (hasNoVideo(parsed)) return { name: "T4", ok: true, detail: NO_VIDEO }
+  const inverted: Array<{ index: number; row: ParsedPartnerFile["rows"][number] }> = []
   for (let i = 0; i < parsed.rows.length; i++) {
     const row = parsed.rows[i]!
-    if (
-      row.rateQ25 < row.rateQ50 ||
-      row.rateQ50 < row.rateQ75 ||
-      row.rateQ75 < row.rateFullyPlayed
-    ) {
-      return {
-        name: "T4",
-        ok: false,
-        detail: `rate order inverted on data row ${i + 1} (${row.partnerLineItemName ?? ""} ${row.reportDate}): Q25=${row.rateQ25} Q50=${row.rateQ50} Q75=${row.rateQ75} full=${row.rateFullyPlayed}`,
-      }
-    }
+    if (rateOrderInverted(row)) inverted.push({ index: i, row })
   }
-  return { name: "T4", ok: true, detail: "quartile rates are monotonically decreasing" }
+  if (inverted.length === 0) {
+    return { name: "T4", ok: true, detail: "quartile rates are monotonically decreasing" }
+  }
+  const shown = inverted.slice(0, T4_ROW_CAP)
+  const listed = shown
+    .map(
+      ({ index, row }) =>
+        `data row ${index + 1} (${row.partnerLineItemName ?? ""} ${row.reportDate}): Q25=${row.rateQ25} Q50=${row.rateQ50} Q75=${row.rateQ75} full=${row.rateFullyPlayed}`
+    )
+    .join("; ")
+  const remainder = inverted.length - shown.length
+  const suffix = remainder > 0 ? `; and ${remainder} more` : ""
+  return {
+    name: "T4",
+    ok: false,
+    detail: `rate order inverted on ${listed}${suffix}`,
+  }
 }
 
 function t5(parsed: ParsedPartnerFile): ParseTestResult {
@@ -139,6 +157,6 @@ export function runPartnerFileParseTests(
     t4: t4r,
     t5: t5r,
     t6: t6r,
-    failed: !t1r.ok || !t4r.ok || !t5r.ok || !t6r.ok,
+    failed: !t1r.ok || !t5r.ok || !t6r.ok,
   }
 }

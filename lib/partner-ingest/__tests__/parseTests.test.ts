@@ -9,6 +9,7 @@ import { runPartnerFileParseTests } from "../parseTests"
 import { readPartnerFileMatrix } from "../parsers"
 import { parsePartnerFileMatrix } from "../parsers/parseChannelFactory"
 import { parseVistarMatrix } from "../parsers/parseVistar"
+import type { PartnerDeliveryRow } from "../types"
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures")
 const VISTAR_CSV = path.join(FIXTURES, "vistar-exchange-sample.csv")
@@ -68,6 +69,49 @@ test("T4 and T5 are n/a for a source with no video columns", async () => {
   assert.equal(tests.t5.ok, true)
   assert.match(tests.t4.detail, /n\/a/)
   assert.match(tests.t5.detail, /n\/a/)
+})
+
+function deliveryRow(name: string, inverted: boolean): PartnerDeliveryRow {
+  return {
+    reportDate: "2026-10-01",
+    partnerAdvertiserId: null,
+    partnerCampaignName: null,
+    partnerLineItemName: name,
+    avLineItemId: null,
+    impressions: 10,
+    clicks: 0,
+    videoViews: 6,
+    videoQ25: 9,
+    videoQ50: 8,
+    videoQ75: 7,
+    completedViews: 6,
+    rateQ25: inverted ? 0.5 : 0.9,
+    rateQ50: 0.8,
+    rateQ75: 0.7,
+    rateFullyPlayed: inverted ? 0.4 : 0.6,
+  }
+}
+
+test("T4 lists every inverted row up to 20 and counts the remainder without failing the load", () => {
+  const rows = Array.from({ length: 21 }, (_, i) =>
+    deliveryRow(`line-${String(i + 1).padStart(2, "0")}`, true)
+  )
+  const tests = runPartnerFileParseTests(
+    {
+      headerRow: 1,
+      preambleRowCount: 0,
+      detectedHeader: CHANNEL_FACTORY_EXPECTED_HEADER,
+      rawLines: [],
+      rows,
+    },
+    CHANNEL_FACTORY_EXPECTED_HEADER
+  )
+  assert.equal(tests.t4.ok, false)
+  assert.equal(tests.failed, false)
+  assert.match(tests.t4.detail, /line-01 2026-10-01/)
+  assert.match(tests.t4.detail, /line-20 2026-10-01/)
+  assert.equal(tests.t4.detail.includes("line-21"), false)
+  assert.match(tests.t4.detail, /and 1 more/)
 })
 
 test("T6 is n/a for the Channel Factory file, which has no totals row", async () => {
