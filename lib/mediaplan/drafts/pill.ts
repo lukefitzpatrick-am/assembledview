@@ -94,20 +94,26 @@ export function summarizeDraftOffer(args: {
   linesChanged: number
   budgetDeltaDollars: number
 }): string {
-  const when = new Date(args.updatedAt)
-  const whenLabel = Number.isNaN(when.getTime())
-    ? args.updatedAt
-    : when.toLocaleString()
+  const whenLabel = formatDraftOfferTimestamp(args.updatedAt)
   const delta = args.budgetDeltaDollars
   const deltaLabel =
     delta >= 0 ? `+$${Math.round(delta)}` : `-$${Math.round(Math.abs(delta))}`
   return `Draft from ${whenLabel} — ${args.linesChanged} lines changed, ${deltaLabel}. Resume · Compare · Discard`
 }
 
-/** Same clock label the orphan banner uses (`Date#toLocaleString`). */
+/** Restore prompt and orphan offer. Day/month, Melbourne, en-AU. */
 export function formatDraftOfferTimestamp(updatedAt: string): string {
   const when = new Date(updatedAt)
-  return Number.isNaN(when.getTime()) ? updatedAt : when.toLocaleString()
+  if (Number.isNaN(when.getTime())) return updatedAt
+  return when.toLocaleString("en-AU", {
+    timeZone: "Australia/Melbourne",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
 }
 
 export function summarizeLocalOnlyDraftOffer(updatedAt: string): string {
