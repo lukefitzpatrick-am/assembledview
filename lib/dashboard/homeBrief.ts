@@ -40,6 +40,25 @@ export function homeStartsWithinLabel(count: number): string {
   return `${count} start in the next 14 days`
 }
 
+/**
+ * Pacing portfolio `counts.live` for the Live campaigns tile.
+ * A failed, building, stale, missing, or zero count stays hidden.
+ */
+export function platformLiveFromPortfolioBody(body: {
+  building?: boolean
+  stale?: unknown
+  counts?: { live?: unknown }
+} | null | undefined): number | null {
+  if (!body || body.building || body.stale) return null
+  const live = body.counts?.live
+  if (typeof live !== "number" || !Number.isFinite(live) || live <= 0) return null
+  return Math.trunc(live)
+}
+
+export function homePlatformDeliveryLabel(live: number): string {
+  return `${live} with platform delivery`
+}
+
 function addIsoDays(iso: string, days: number): string {
   const [year, month, day] = iso.split("-").map(Number)
   const date = new Date(Date.UTC(year, (month ?? 1) - 1, day ?? 1))

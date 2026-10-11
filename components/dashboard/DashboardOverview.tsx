@@ -53,7 +53,9 @@ import {
   countCampaignStartsWithinDays,
   homeAttentionLede,
   homeMediaSpendLabel,
+  homePlatformDeliveryLabel,
   homeStartsWithinLabel,
+  platformLiveFromPortfolioBody,
   sortCampaignsStartingSoon,
 } from "@/lib/dashboard/homeBrief"
 import type { CampaignPacingRow } from "@/lib/pacing/portfolio/types"
@@ -174,6 +176,8 @@ type DashboardMetricCard = {
   tooltip: string
   /** Coloured-dot sub-line. Omitted when the page cannot compute it. */
   detail?: { dotClass: string; text: string } | null
+  /** Pacing `counts.live`. Hidden when the portfolio read failed, is stale, or has no count. */
+  platformDelivery?: string | null
   /** Element id to scroll into view when the tile is activated. */
   panelId: string
 }
@@ -663,6 +667,7 @@ export default function DashboardOverview({
   const [plannedToDateByMba, setPlannedToDateByMba] = useState<Record<string, number> | null>(null)
   const [plannedToDateStatus, setPlannedToDateStatus] = useState<HomeMediaSpendFetchStatus>("loading")
   const [attention, setAttention] = useState<HomeAttentionState>({ status: "loading" })
+  const [platformLive, setPlatformLive] = useState<number | null>(null)
   const [dataLastRefreshedAt, setDataLastRefreshedAt] = useState<Date | null>(null)
   const [liveCampaignSort, setLiveCampaignSort] = useState<SortState>({ column: "", direction: null })
   const [liveScopesSort, setLiveScopesSort] = useState<SortState>({ column: "", direction: null })
@@ -771,6 +776,8 @@ export default function DashboardOverview({
         value: String(counts.liveCampaigns),
         tooltip: "Campaigns booked/approved/completed running today (respects active filters)",
         detail: { dotClass: "bg-am-lime", text: homeStartsWithinLabel(startsIn14Days) },
+        platformDelivery:
+          platformLive == null ? null : homePlatformDeliveryLabel(platformLive),
         panelId: "dashboard-panel-live-campaigns",
       },
       {
@@ -795,7 +802,7 @@ export default function DashboardOverview({
       })
     }
     return metrics
-  }, [filteredLiveCampaigns, filteredLiveScopes, mediaSpendTile, startsIn14Days, fyFilter])
+  }, [filteredLiveCampaigns, filteredLiveScopes, mediaSpendTile, platformLive, startsIn14Days, fyFilter])
 
   const scrollToDashboardPanel = useCallback((panelId: string, ensureOpen?: () => void) => {
     ensureOpen?.()
@@ -1337,7 +1344,8 @@ export default function DashboardOverview({
         if (!response.ok) throw new Error(String(response.status))
         return response.json() as Promise<{
           building?: boolean
-          counts?: { attention?: number }
+          stale?: { asOf?: string }
+          counts?: { attention?: number; live?: number }
           rows?: CampaignPacingRow[]
         }>
       })
@@ -1345,6 +1353,7 @@ export default function DashboardOverview({
         if (cancelled) return
         if (body.building) {
           setAttention({ status: "building" })
+          setPlatformLive(null)
           return
         }
         setAttention({
@@ -1352,10 +1361,14 @@ export default function DashboardOverview({
           count: typeof body.counts?.attention === "number" ? body.counts.attention : 0,
           rows: Array.isArray(body.rows) ? body.rows : [],
         })
+        setPlatformLive(platformLiveFromPortfolioBody(body))
       })
       .catch((err) => {
         console.error("Dashboard: Pacing portfolio error:", err)
-        if (!cancelled) setAttention({ status: "error" })
+        if (!cancelled) {
+          setAttention({ status: "error" })
+          setPlatformLive(null)
+        }
       })
     return () => {
       cancelled = true
@@ -2121,7 +2134,12 @@ export default function DashboardOverview({
                         }
                       }}
                     >
-                      <HomeStatTile label={metric.title} value={metric.value} detail={metric.detail} />
+                      <HomeStatTile
+                        label={metric.title}
+                        value={metric.value}
+                        detail={metric.detail}
+                        platformDelivery={metric.platformDelivery}
+                      />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>
