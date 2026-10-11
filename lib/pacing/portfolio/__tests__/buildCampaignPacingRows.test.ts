@@ -145,6 +145,93 @@ describe("assembleCampaignPacingRows fixtures", () => {
     assert.equal(row.spendToDate, 2_500)
   })
 
+  it("uses the campaign-page metrics fallback when the schedule steps are zero", () => {
+    const line: DirectLineItemRow = {
+      lineItemId: "BICAU002TV1",
+      mbaNumber: "BICAU002",
+      lineItemName: "Seven",
+      buyType: "fixed_cost",
+      isCurrentlyFixedCost: true,
+      wasEverFixedCost: true,
+      totalBudget: 20_000,
+      totalReported: 9_300,
+      totalActual: 0,
+      variance: 9_300,
+      variancePct: 1,
+      burstCount: 1,
+      burstsDeliveredOver: 0,
+      burstsDeliveredUnder: 0,
+      lineItemStatus: "in_progress",
+      bursts: [],
+      daily: [],
+    }
+    const group: DirectCampaignGroup = {
+      mbaNumber: "BICAU002",
+      clientName: "Penfolds",
+      campaignName: "Metrics fallback",
+      campaignStatus: "booked",
+      campaignStartDate: "2026-07-01",
+      campaignEndDate: "2026-12-31",
+      brand: null,
+      lineItems: [line],
+      totalBudget: 20_000,
+      totalReported: 9_300,
+      totalActual: 0,
+      variance: 9_300,
+    }
+    const [row] = assembleCampaignPacingRows({
+      asOfDate: P6_AS_OF,
+      allowedClientSlugs: null,
+      liveOnly: true,
+      search: [],
+      social: [],
+      programmatic: [],
+      adServing: [],
+      direct: [group],
+      schedulesByMba: new Map([
+        [
+          "bicau002",
+          {
+            metricsExpectedSpendToDate: 10_000,
+            campaignBudget: 20_000,
+          },
+        ],
+      ]),
+    })
+    assert.ok(row)
+    assert.equal(row.expectedToDate, 10_000)
+    assert.equal(row.spendPct, 93)
+    assert.equal(row.pace, "on_track")
+    assert.equal("metricsExpectedSpendToDate" in row, false)
+    assert.deepEqual(Object.keys(row).sort(), [
+      "budget",
+      "campaignName",
+      "channels",
+      "clientName",
+      "clientSlug",
+      "dailyRateActual",
+      "dailyRatePlan",
+      "daysElapsed",
+      "daysLeft",
+      "daysTotal",
+      "endDate",
+      "expectedToDate",
+      "kpi",
+      "mbaNumber",
+      "moneyAtRisk",
+      "pace",
+      "projectedFinish",
+      "spendPct",
+      "spendToDate",
+      "spendYesterday",
+      "startDate",
+      "status",
+      "timePct",
+      "versionNumber",
+      "why",
+    ])
+  })
+
   it("counts live / behind / on_track / ahead / over_pacing / attention", () => {
     assert.deepEqual(countPortfolioRows(rows), {
       live: 6,

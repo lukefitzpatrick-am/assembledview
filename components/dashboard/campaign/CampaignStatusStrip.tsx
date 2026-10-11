@@ -1,8 +1,8 @@
 import { Badge, type BadgeProps } from "@/components/ui/badge"
-import { campaignPacingVerdict } from "@/lib/dashboard/campaignPacingVerdict"
 import { statusSentence } from "@/lib/dashboard/statusSentence"
 import { formatDateShort } from "@/lib/format/date"
 import { formatMoneyCompact } from "@/lib/format/money"
+import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import type { SpendPacingBand } from "@/lib/pacing/status"
 import { cn } from "@/lib/utils"
 
@@ -31,12 +31,29 @@ export type CampaignStatusStripProps = {
 
 type PillMeta = { label: string; variant: NonNullable<BadgeProps["variant"]> }
 
+/** Delivery band → existing Where-we-are labels. `deliveryStatusFromPct` does not emit over-pacing. */
 const PILL_BY_BAND: Record<SpendPacingBand, PillMeta> = {
   ahead: { label: "Ahead of plan", variant: "ahead" },
   "on-track": { label: "On track", variant: "on-track" },
   behind: { label: "Behind plan on spend", variant: "behind" },
   "over-pacing": { label: "Critical", variant: "critical" },
   "no-data": { label: "No data", variant: "secondary" },
+}
+
+/** Delivered ÷ the schedule expected the card prints. 90–110 is on track. */
+function deliveryBand(
+  actualSpend: number | undefined,
+  expectedSpend: number | undefined,
+): SpendPacingBand | null {
+  if (typeof actualSpend !== "number" || !Number.isFinite(actualSpend)) return null
+  if (
+    typeof expectedSpend !== "number" ||
+    !Number.isFinite(expectedSpend) ||
+    expectedSpend <= 0
+  ) {
+    return "no-data"
+  }
+  return deliveryStatusFromPct((actualSpend / expectedSpend) * 100)
 }
 
 function clamp01(n: number): number {
@@ -116,8 +133,6 @@ export function CampaignStatusStrip({
   daysInCampaign,
   daysRemaining,
   timeElapsedPct,
-  startDate,
-  endDate,
   budget,
   actualSpend,
   expectedSpend,
@@ -148,19 +163,11 @@ export function CampaignStatusStrip({
   const expectedVsBudget = ratio(expectedSpend, budget)
   const impressionsPct = ratio(deliveredImpressions, plannedImpressions)
 
-  const pacingResolved = spendKnown
-    ? campaignPacingVerdict({
-        budget,
-        startDate,
-        endDate,
-        spendToDate: actualSpend,
-        asOfDate: deliveredAsOf,
-      })
-    : null
-  const pill = pacingResolved ? PILL_BY_BAND[pacingResolved.status] : null
+  const band = deliveryBand(spendKnown ? actualSpend : undefined, expectedSpend)
+  const pill = band ? PILL_BY_BAND[band] : null
 
   const sentence = statusSentence({
-    pacingStatus: spendKnown ? pacingResolved?.status ?? "no-data" : "no-data",
+    pacingStatus: band ?? "no-data",
     spendPct,
     impressionsPct,
     channelsReporting,
@@ -194,7 +201,7 @@ export function CampaignStatusStrip({
             Day {dayCurrent} of {dayTotal}
           </p>
           {pill ? (
-            <Badge variant={pill.variant} size="md" data-pacing-status={pacingResolved?.status}>
+            <Badge variant={pill.variant} size="md" data-pacing-status={band}>
               {pill.label}
             </Badge>
           ) : null}
@@ -217,7 +224,7 @@ export function CampaignStatusStrip({
             label="Delivered to date"
             value={spendKnown ? formatMoneyCompact(actualSpend) : "—"}
             bar={spendVsExpected}
-            barClassName={pacingResolved ? DELIVERED_BAR[pacingResolved.status] : "bg-am-context"}
+            barClassName={band ? DELIVERED_BAR[band] : "bg-am-context"}
             caption={`${pctLabel(spendVsExpected)} of expected ${expectedCaptionMoney}`}
           />
           <StatCell

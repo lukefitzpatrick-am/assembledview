@@ -100,8 +100,9 @@ export function schedulesByMbaFromVersions(
 /**
  * One campaign-level pacing row per live campaign, channels nested.
  * Reuses the five cached channel composers — no new Snowflake queries.
- * Campaign expectedToDate is resolveCampaignExpectedSpendToDate (schedule),
- * not a straight-line of budget.
+ * Campaign expectedToDate is resolveCampaignExpectedSpendToDate (schedule,
+ * basis media), including the campaign page's metricsExpectedSpendToDate
+ * fallback. Not a straight-line of budget. The stored row shape is unchanged.
  */
 export async function buildCampaignPacingRows(
   args: BuildCampaignPacingRowsArgs,

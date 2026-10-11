@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
 
 import { CampaignStatusStrip } from "../CampaignStatusStrip"
+import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
+import { p6FixtureRows } from "@/lib/pacing/portfolio/__tests__/p6Fixture"
 
 const FULL = {
   daysElapsed: 12,
@@ -95,5 +97,47 @@ describe("CampaignStatusStrip", () => {
       "2 of 5 channels are reporting so far, which is why delivered spend looks low.",
     )
     expect(html).not.toContain("behind the plan by")
+  })
+
+  it("93% of schedule expected is On track", () => {
+    const html = renderToStaticMarkup(
+      <CampaignStatusStrip {...FULL} budget={200_000} actualSpend={93_000} expectedSpend={100_000} />,
+    )
+    expect(html).toContain('data-pacing-status="on-track"')
+    expect(html).toContain("On track")
+    expect(html).not.toContain("Behind plan on spend")
+    expect(html).toContain("Delivery is on track against the plan.")
+    expect(html).toContain("93% of expected")
+  })
+
+  it("85% of schedule expected is Behind", () => {
+    const html = renderToStaticMarkup(
+      <CampaignStatusStrip {...FULL} actualSpend={85_000} expectedSpend={100_000} />,
+    )
+    expect(html).toContain('data-pacing-status="behind"')
+    expect(html).toContain("Behind plan on spend")
+    expect(html).toContain("Spend is behind the plan by")
+    expect(html).not.toContain('data-pacing-status="on-track"')
+  })
+
+  it("BICAU002-shaped input uses the same status as the portfolio pace", () => {
+    const row = p6FixtureRows().find((entry) => entry.mbaNumber === "BICAU002")
+    expect(row).toBeTruthy()
+    const portfolioBand = deliveryStatusFromPct(row!.spendPct)
+    const html = renderToStaticMarkup(
+      <CampaignStatusStrip
+        {...FULL}
+        startDate={row!.startDate}
+        endDate={row!.endDate}
+        budget={row!.budget}
+        actualSpend={row!.spendToDate}
+        expectedSpend={row!.expectedToDate}
+      />,
+    )
+    expect(row!.pace).toBe("on_track")
+    expect(portfolioBand).toBe("on-track")
+    expect(html).toContain('data-pacing-status="on-track"')
+    expect(html).toContain("On track")
+    expect(html).not.toContain("Behind plan on spend")
   })
 })

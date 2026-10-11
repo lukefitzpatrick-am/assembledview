@@ -20,7 +20,10 @@ import type { DirectCampaignGroup, DirectLineItemRow } from "@/lib/pacing/direct
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs"
 import { isLiveCampaignStatus } from "@/lib/types/mediaPlanMaster"
-import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
+import {
+  expectedSpendToDateFromDeliveryScheduleMonthly,
+  resolveMonthlySpendForPlan,
+} from "@/lib/spend/monthlyPlanCalendar"
 import { resolveCampaignExpectedSpendToDate } from "@/lib/spend/resolveCampaignExpectedSpend"
 import { isAttentionRow, isOverPacing } from "./portfolioRowFlags"
 import type {
@@ -380,6 +383,26 @@ function whySentence(row: CampaignPacingRow): string {
   return `Delivery is ${Math.round(row.spendPct)}% of expected with ${row.daysLeft} days left.`
 }
 
+/**
+ * Same step-3 figure the campaign page passes (`metrics.expectedSpendToDate`):
+ * delivery-schedule monthly media on the campaign dates. An explicit schedule
+ * value wins so a caller can hand in the page's already-computed metric.
+ */
+function metricsExpectedForCampaign(
+  schedule: CampaignScheduleInput | undefined,
+  startDate: string,
+  endDate: string,
+): number | undefined {
+  const explicit = schedule?.metricsExpectedSpendToDate
+  if (typeof explicit === "number" && Number.isFinite(explicit)) return explicit
+  const computed = expectedSpendToDateFromDeliveryScheduleMonthly(schedule?.deliverySchedule, {
+    campaignStartISO: startDate,
+    campaignEndISO: endDate,
+    basis: "media",
+  })
+  return computed > 0 ? computed : undefined
+}
+
 function expectedForCampaign(
   schedule: CampaignScheduleInput | undefined,
   startDate: string,
@@ -395,6 +418,7 @@ function expectedForCampaign(
     campaignStartISO: startDate,
     campaignEndISO: endDate,
     monthlyOpts: { campaignStartISO: startDate, campaignEndISO: endDate, basis: "media" },
+    metricsExpectedSpendToDate: metricsExpectedForCampaign(schedule, startDate, endDate),
     basis: "media",
   })
 }

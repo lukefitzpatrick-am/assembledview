@@ -66,4 +66,10 @@ export type CampaignScheduleInput = {
   deliverySchedule?: unknown
   monthlySpend?: unknown
   campaignBudget?: number
+  /**
+   * Step-3 fallback for `resolveCampaignExpectedSpendToDate`, the same figure
+   * the campaign page passes as `metrics.expectedSpendToDate`. Not stored on
+   * the portfolio snapshot row.
+   */
+  metricsExpectedSpendToDate?: number
 }
