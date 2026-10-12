@@ -15,6 +15,7 @@ import {
   channelCoverageBundle,
   type ChannelCoverageEntry,
 } from "@/lib/delivery/channelCoverage"
+import { channelExpectedToDate } from "@/lib/spend/channelExpectedToDate"
 import { deliveredByLineIdFromChannelSections } from "@/lib/delivery/ganttDeliveredByLineId"
 import {
   buildKpiReviewGroups,
@@ -71,6 +72,10 @@ export type CampaignDeliverySectionProps = {
   digitalAudioLineItems: unknown[]
   bvodLineItems: unknown[]
   atlLineItems?: unknown[]
+  deliverySchedule?: unknown
+  campaignStartISO?: string | null
+  campaignEndISO?: string | null
+  asOfISO?: string | null
   onCoverage?: (entries: ChannelCoverageEntry[]) => void
   onKpiReviewGroups?: (groups: KpiReviewGroup[]) => void
   onDeliveredByLineId?: (map: Map<string, number>) => void
@@ -107,6 +112,10 @@ type DeliveryBodyProps = {
   digitalAudioLineItems: unknown[]
   bvodLineItems: unknown[]
   atlLineItems: unknown[]
+  deliverySchedule?: unknown
+  campaignStartISO?: string | null
+  campaignEndISO?: string | null
+  asOfISO?: string | null
   remainderItems: unknown[]
   reportedSpendByLineDate?: Map<string, Map<string, number>>
   socialLineItems: SocialLineItem[]
@@ -146,6 +155,10 @@ function CampaignDeliveryBody({
   digitalAudioLineItems,
   bvodLineItems,
   atlLineItems,
+  deliverySchedule,
+  campaignStartISO,
+  campaignEndISO,
+  asOfISO,
   remainderItems,
   reportedSpendByLineDate,
   socialLineItems,
@@ -460,9 +473,16 @@ function CampaignDeliveryBody({
           digitalVideoLineItems,
           digitalAudioLineItems,
           bvodLineItems,
+          offlineLineItems: atlLineItems,
         },
         sections: channels,
-        todayISO: getMelbourneTodayISO(),
+        todayISO: asOfISO || getMelbourneTodayISO(),
+        channelExpected: channelExpectedToDate({
+          deliverySchedule,
+          campaignStartISO: campaignStartISO || campaignStart,
+          campaignEndISO: campaignEndISO || campaignEnd,
+          asOfISO: asOfISO || getMelbourneTodayISO(),
+        }),
       }),
     [
       socialLineItems,
@@ -474,7 +494,14 @@ function CampaignDeliveryBody({
       digitalVideoLineItems,
       digitalAudioLineItems,
       bvodLineItems,
+      atlLineItems,
       channels,
+      deliverySchedule,
+      campaignStartISO,
+      campaignEndISO,
+      campaignStart,
+      campaignEnd,
+      asOfISO,
     ],
   )
 
@@ -550,6 +577,10 @@ export function CampaignDeliverySection({
   digitalAudioLineItems,
   bvodLineItems,
   atlLineItems = [],
+  deliverySchedule,
+  campaignStartISO,
+  campaignEndISO,
+  asOfISO,
   onCoverage,
   onKpiReviewGroups,
   onDeliveredByLineId,
@@ -721,6 +752,10 @@ export function CampaignDeliverySection({
           digitalAudioLineItems={digitalAudioLineItems}
           bvodLineItems={bvodLineItems}
           atlLineItems={atlLineItems}
+          deliverySchedule={deliverySchedule}
+          campaignStartISO={campaignStartISO}
+          campaignEndISO={campaignEndISO}
+          asOfISO={asOfISO}
           remainderItems={remainderItems}
           reportedSpendByLineDate={reportedSpendByLineDate}
           socialLineItems={socialLineItems}

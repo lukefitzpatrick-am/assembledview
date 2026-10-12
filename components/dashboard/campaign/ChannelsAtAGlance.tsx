@@ -6,11 +6,14 @@ import { formatDateShort } from "@/lib/format/date"
 import { formatMoneyCompact } from "@/lib/format/money"
 import type { ChannelCoverageEntry } from "@/lib/delivery/channelCoverage"
 import type { DeliveryStatus } from "@/components/dashboard/delivery/shared/statusColours"
+import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { cn } from "@/lib/utils"
 
 export type ChannelsAtAGlanceProps = {
   entries: ChannelCoverageEntry[]
   className?: string
+  todayISO?: string
 }
 
 type PillMeta = { label: string; variant: NonNullable<BadgeProps["variant"]> }
@@ -47,53 +50,62 @@ function MetricPair({
   label,
   delivered,
   planned,
-  modelled,
-  estimated,
 }: {
   label: string
   delivered: string
   planned: string
-  modelled?: boolean
-  estimated?: boolean
 }) {
   return (
     <div className="min-w-0 space-y-0.5">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="num text-lg font-semibold tabular-nums text-foreground">{delivered}</p>
       <p className="text-xs text-muted-foreground">of planned {planned}</p>
-      {estimated ? <p className="text-[11px] text-muted-foreground">Estimated</p> : null}
-      {modelled && !estimated ? <p className="text-[11px] text-muted-foreground">modelled</p> : null}
     </div>
   )
 }
 
-function GlanceCard({ entry }: { entry: ChannelCoverageEntry }) {
-  const reporting = entry.status === "reporting"
-  const pill: PillMeta =
-    entry.status === "connecting"
-      ? { label: "Connecting", variant: "secondary" }
-      : entry.status === "not_started"
-        ? {
-            label: `Starts ${formatDateShort(entry.startsOn)}`,
-            variant: "secondary",
-          }
-        : reportingPill(entry.deliveryStatus)
+function GlanceCard({ entry, todayISO }: { entry: ChannelCoverageEntry; todayISO: string }) {
+  const expected = entry.expectedToDate ?? 0
+  const notStarted =
+    expected === 0 && entry.startsOn != null && entry.startsOn > todayISO
+  const noSource = entry.status === "no_source" && entry.spendAssumed !== true
+  const reporting = entry.status === "reporting" || (expected > 0 && entry.deliveredSpend != null)
+  const paceStatus: DeliveryStatus | null =
+    expected > 0 && entry.deliveredSpend != null
+      ? deliveryStatusFromPct((entry.deliveredSpend / expected) * 100)
+      : entry.deliveryStatus
+  const pill: PillMeta | null = notStarted
+    ? { label: "Not started", variant: "secondary" }
+    : noSource
+      ? null
+      : entry.status === "connecting"
+        ? { label: "Connecting", variant: "secondary" }
+        : entry.status === "not_started"
+          ? {
+              label: `Starts ${formatDateShort(entry.startsOn)}`,
+              variant: "secondary",
+            }
+          : reportingPill(paceStatus)
 
   const spendDelivered =
     entry.deliveredSpend === null ? "—" : formatMoneyCompact(entry.deliveredSpend)
-  const impressionsRatio =
-    entry.plannedImpressions > 0 ? entry.deliveredImpressions / entry.plannedImpressions : 0
-  const spendRatio =
-    entry.deliveredSpend !== null && entry.plannedSpend > 0
-      ? entry.deliveredSpend / entry.plannedSpend
-      : impressionsRatio
-  const barValue = Math.max(0, Math.min(1, spendRatio)) * 100
+  const barValue =
+    entry.deliveredSpend != null && entry.plannedSpend > 0
+      ? Math.max(0, Math.min(1, entry.deliveredSpend / entry.plannedSpend)) * 100
+      : 0
+  const marker =
+    expected > 0 && entry.plannedSpend > 0
+      ? Math.max(0, Math.min(100, (expected / entry.plannedSpend) * 100))
+      : undefined
   const caption =
-    entry.status === "connecting"
-      ? "Awaiting first report"
-      : entry.status === "not_started"
-        ? `Starts ${formatDateShort(entry.startsOn)}`
-        : null
+    noSource
+      ? null
+      : entry.status === "connecting"
+        ? "Awaiting first report"
+        : notStarted || entry.status === "not_started"
+          ? `Starts ${formatDateShort(entry.startsOn)}`
+          : null
+  const showBar = reporting && entry.plannedSpend > 0 && !noSource && !notStarted
 
   return (
     <article
@@ -109,19 +121,34 @@ function GlanceCard({ entry }: { entry: ChannelCoverageEntry }) {
           />
           <h3 className="truncate text-sm font-semibold text-foreground">{entry.label}</h3>
         </div>
-        <Badge variant={pill.variant} size="sm">
-          {pill.label}
-        </Badge>
+        {pill ? (
+          <Badge variant={pill.variant} size="sm">
+            {pill.label}
+          </Badge>
+        ) : (
+          <p className="text-xs text-muted-foreground">No source</p>
+        )}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <MetricPair
-          label="Spend"
-          delivered={spendDelivered}
-          planned={formatMoneyCompact(entry.plannedSpend)}
-          modelled={entry.spendModelled}
-          estimated={entry.spendEstimated === true}
-        />
+      <div className="mt-4 space-y-1">
+        <p className="num text-lg font-semibold tabular-nums text-foreground">
+          {spendDelivered} of {formatMoneyCompact(expected)} expected to date
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {formatMoneyCompact(entry.plannedSpend)} planned in total
+        </p>
+        {entry.spendEstimated === true ? (
+          <p className="text-[11px] text-muted-foreground">Estimated</p>
+        ) : null}
+        {entry.spendAssumed === true ? (
+          <p className="text-[11px] text-muted-foreground">Assumed spend</p>
+        ) : null}
+        {entry.spendModelled && entry.spendEstimated !== true ? (
+          <p className="text-[11px] text-muted-foreground">modelled</p>
+        ) : null}
+      </div>
+
+      <div className="mt-3">
         <MetricPair
           label={entry.deliverableLabel}
           delivered={formatImpressions(entry.deliveredImpressions)}
@@ -129,13 +156,14 @@ function GlanceCard({ entry }: { entry: ChannelCoverageEntry }) {
         />
       </div>
 
-      {reporting ? (
+      {showBar ? (
         <div className="mt-4" data-progress="true">
           <ProgressBar
             value={barValue}
             max={100}
             size="pacing"
-            color={progressTone(entry.deliveryStatus)}
+            color={progressTone(paceStatus)}
+            marker={marker}
             animated={false}
           />
         </div>
@@ -146,18 +174,22 @@ function GlanceCard({ entry }: { entry: ChannelCoverageEntry }) {
   )
 }
 
-export function ChannelsAtAGlance({ entries, className }: ChannelsAtAGlanceProps) {
+export function ChannelsAtAGlance({ entries, className, todayISO }: ChannelsAtAGlanceProps) {
   if (entries.length === 0) return null
+  const today = todayISO ?? getMelbourneTodayISO()
+  const ordered = [...entries].sort(
+    (a, b) => (b.expectedToDate ?? 0) - (a.expectedToDate ?? 0) || b.plannedSpend - a.plannedSpend,
+  )
 
   return (
     <section aria-label="Channels at a glance" className={cn("space-y-3", className)}>
       <div>
         <h2 className="text-base font-semibold text-foreground">Channels at a glance</h2>
-        <p className="text-sm text-muted-foreground">Delivered vs planned · updated daily</p>
+        <p className="text-sm text-muted-foreground">Delivered vs expected to date</p>
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {entries.map((entry) => (
-          <GlanceCard key={entry.key} entry={entry} />
+        {ordered.map((entry) => (
+          <GlanceCard key={entry.key} entry={entry} todayISO={today} />
         ))}
       </div>
     </section>

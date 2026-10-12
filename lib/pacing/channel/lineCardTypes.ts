@@ -48,6 +48,8 @@ export type LineCardModel = {
   kpiStatus: RowKpiStatus | null
   timePct: number
   linePct: number
+  /** Dollar expected after the channel slice is allocated. */
+  expectedToDate: number
   burstPct: number | null
   spend: number
   budget: number

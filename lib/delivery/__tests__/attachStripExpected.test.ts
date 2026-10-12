@@ -40,7 +40,11 @@ test("campaign-read expected equals the strip resolver for the same inputs", () 
     campaignEndISO,
     monthlyOpts: { campaignStartISO, campaignEndISO },
   }
-  const stripExpected = resolveCampaignExpectedSpendToDate({ ...stripInputs, basis: "media" })
+  const stripExpected = resolveCampaignExpectedSpendToDate({
+    ...stripInputs,
+    basis: "media",
+    monthlyOpts: { ...stripInputs.monthlyOpts, asOfISO: "2026-09-18", basis: "media" },
+  })
   const readExpected = attachStripExpected({
     stripInputs,
     deliveredSpendToDate: 53_785,

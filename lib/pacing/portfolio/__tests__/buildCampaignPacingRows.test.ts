@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
+import { adServingFixture } from "@/lib/pacing/channel/__tests__/fixtures"
 import type { DirectCampaignGroup, DirectLineItemRow } from "../../direct/types.js"
 import { assembleCampaignPacingRows, countPortfolioRows } from "../assembleCampaignPacingRows.js"
 import {
@@ -230,6 +231,56 @@ describe("assembleCampaignPacingRows fixtures", () => {
       "versionNumber",
       "why",
     ])
+  })
+
+  it("keeps CM360 budget at planned media when the estimate is 0", () => {
+    const line = adServingFixture({
+      mbaNumber: "cmzero001",
+      clientName: "Zero",
+      campaignName: "Estimate zero",
+      lineItemId: "cmzero001dd1",
+      impressions: 0,
+      clicks: 0,
+      daysActive: 0,
+      deliverableActual: 0,
+      results: 0,
+      videoCompletes: 0,
+      deliverableProgress: 0,
+    })
+    const [row] = assembleCampaignPacingRows({
+      asOfDate: "2026-10-12",
+      allowedClientSlugs: null,
+      liveOnly: true,
+      search: [],
+      social: [],
+      programmatic: [],
+      adServing: [line],
+      direct: [],
+      schedulesByMba: new Map([
+        [
+          "cmzero001",
+          {
+            deliverySchedule: [
+              {
+                month: "October 2026",
+                mediaCosts: { digiDisplay: "$31,000.00" },
+                mediaTotal: "$31,000.00",
+                feeTotal: "$0.00",
+                totalAmount: "$31,000.00",
+              },
+            ],
+            campaignBudget: 30_000,
+          },
+        ],
+      ]),
+    })
+    assert.ok(row)
+    const channel = row.channels.find((item) => item.channelKey === "digital-display")
+    assert.ok(channel)
+    assert.ok(channel.budget > 0)
+    assert.equal(channel.spendToDate, 0)
+    assert.ok(channel.expectedToDate > 0)
+    assert.ok(Math.abs(channel.expectedToDate - row.expectedToDate) < 0.02)
   })
 
   it("counts live / behind / on_track / ahead / over_pacing / attention", () => {

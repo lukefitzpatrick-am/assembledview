@@ -25,7 +25,11 @@ export function attachStripExpected(input: {
   const expectedSpendToDate = resolveCampaignExpectedSpendToDate({
     ...input.stripInputs,
     basis: "media",
-    monthlyOpts: { ...input.stripInputs.monthlyOpts, basis: "media" },
+    monthlyOpts: {
+      ...input.stripInputs.monthlyOpts,
+      basis: "media",
+      asOfISO: input.asOf,
+    },
   })
   const start = input.stripInputs.campaignStartISO
   const end = input.stripInputs.campaignEndISO

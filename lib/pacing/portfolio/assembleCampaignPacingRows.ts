@@ -32,6 +32,12 @@ import {
   resolveMonthlySpendForPlan,
 } from "@/lib/spend/monthlyPlanCalendar"
 import { resolveCampaignExpectedSpendToDate } from "@/lib/spend/resolveCampaignExpectedSpend"
+import {
+  channelExpectedToDate,
+  reconcileLineExpected,
+  scheduleKeyForPortfolioChannel,
+  slicesByKey,
+} from "@/lib/spend/channelExpectedToDate"
 import { isAttentionRow, isOverPacing } from "./portfolioRowFlags"
 import type {
   CampaignPacingRow,
@@ -418,12 +424,14 @@ function metricsExpectedForCampaign(
   schedule: CampaignScheduleInput | undefined,
   startDate: string,
   endDate: string,
+  asOfISO: string,
 ): number | undefined {
   const explicit = schedule?.metricsExpectedSpendToDate
   if (typeof explicit === "number" && Number.isFinite(explicit)) return explicit
   const computed = expectedSpendToDateFromDeliveryScheduleMonthly(schedule?.deliverySchedule, {
     campaignStartISO: startDate,
     campaignEndISO: endDate,
+    asOfISO,
     basis: "media",
   })
   return computed > 0 ? computed : undefined
@@ -433,6 +441,7 @@ function expectedForCampaign(
   schedule: CampaignScheduleInput | undefined,
   startDate: string,
   endDate: string,
+  asOfISO: string,
 ): number {
   const monthlySpend =
     schedule?.monthlySpend ??
@@ -443,10 +452,65 @@ function expectedForCampaign(
     monthlySpend,
     campaignStartISO: startDate,
     campaignEndISO: endDate,
-    monthlyOpts: { campaignStartISO: startDate, campaignEndISO: endDate, basis: "media" },
-    metricsExpectedSpendToDate: metricsExpectedForCampaign(schedule, startDate, endDate),
+    monthlyOpts: {
+      campaignStartISO: startDate,
+      campaignEndISO: endDate,
+      asOfISO,
+      basis: "media",
+    },
+    metricsExpectedSpendToDate: metricsExpectedForCampaign(schedule, startDate, endDate, asOfISO),
     basis: "media",
   })
+}
+
+function channelExpectedDollars(
+  channels: DraftChannel[],
+  schedule: CampaignScheduleInput | undefined,
+  startDate: string,
+  endDate: string,
+  asOfISO: string,
+  campaignExpected: number,
+  spendBudget: number,
+): Map<string, number> {
+  const slices = slicesByKey(
+    channelExpectedToDate({
+      deliverySchedule: schedule?.deliverySchedule,
+      campaignStartISO: startDate,
+      campaignEndISO: endDate,
+      asOfISO,
+    }),
+  )
+  const out = new Map<string, number>()
+  if (slices.size === 0) {
+    for (const channel of channels) {
+      const share = spendBudget > 0 && channel.contributesSpend ? channel.budget / spendBudget : 0
+      out.set(channel.channelKey, channel.contributesSpend ? campaignExpected * share : 0)
+    }
+    return out
+  }
+  const groups = new Map<string, DraftChannel[]>()
+  for (const channel of channels) {
+    const key = scheduleKeyForPortfolioChannel(channel.channelKey, channel.label)
+    if (!key || !slices.has(key)) {
+      out.set(channel.channelKey, 0)
+      continue
+    }
+    const list = groups.get(key) ?? []
+    list.push(channel)
+    groups.set(key, list)
+  }
+  for (const [key, members] of groups) {
+    const allocated = reconcileLineExpected(
+      slices.get(key) ?? 0,
+      members.map((channel) => ({
+        id: channel.channelKey,
+        lineExpected: 0,
+        plannedMedia: channel.budget,
+      })),
+    )
+    for (const [channelKey, dollars] of allocated) out.set(channelKey, dollars)
+  }
+  return out
 }
 
 export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInput): CampaignPacingRow[] {
@@ -607,7 +671,8 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
             ],
           })
     const estimatedAmount = estimate?.amount != null && estimate.amount > 0 ? estimate.amount : 0
-    const estimatedBudget = estimatedAmount > 0 ? estimate?.plannedMedia ?? 0 : 0
+    const plannedMedia = estimate?.plannedMedia ?? 0
+    const estimatedBudget = plannedMedia > 0 ? plannedMedia : 0
     const lineKey = row.lineItemId.trim().toLowerCase()
     notePlatformLine(row.lineItemId)
     upsertChannel(campaign, {
@@ -751,7 +816,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
     const daysElapsed = computeDaysPassed(draft.startDate, draft.endDate, input.asOfDate)
     const daysLeft = computeDaysRemaining(draft.startDate, draft.endDate, input.asOfDate)
     const timePct = daysTotal > 0 ? (daysElapsed / daysTotal) * 100 : 0
-    const expectedToDate = expectedForCampaign(schedule, draft.startDate, draft.endDate)
+    const expectedToDate = expectedForCampaign(schedule, draft.startDate, draft.endDate, input.asOfDate)
 
     const channelList = [...draft.channels.values()]
     const spendBudget = channelList
@@ -773,9 +838,17 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
     const kpiTotal = channelList.reduce((sum, ch) => sum + ch.kpiTotal, 0)
     const kpiTracked = channelList.reduce((sum, ch) => sum + ch.kpiTracked, 0)
 
+    const expectedByChannel = channelExpectedDollars(
+      channelList,
+      schedule,
+      draft.startDate,
+      draft.endDate,
+      input.asOfDate,
+      expectedToDate,
+      spendBudget,
+    )
     const channels: ChannelPacingRow[] = channelList.map((ch) => {
-      const share = spendBudget > 0 && ch.contributesSpend ? ch.budget / spendBudget : 0
-      const channelExpected = ch.contributesSpend ? expectedToDate * share : 0
+      const channelExpected = expectedByChannel.get(ch.channelKey) ?? 0
       const sourceState = sourceStateFor({
         asOfDate: input.asOfDate,
         lineStart: ch.lineStart,

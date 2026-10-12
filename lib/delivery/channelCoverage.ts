@@ -14,6 +14,14 @@ import {
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import { extractPacingLineItemIdFromItem } from "@/lib/pacing/delivery/lineItemIds"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform"
+import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
+import { fromCents, toCents } from "@/lib/money/cents"
+import {
+  allocateCents,
+  labelForScheduleKey,
+  scheduleKeyForCoverageKey,
+  scheduleKeyForLineItemId,
+} from "@/lib/spend/channelExpectedToDate"
 
 export type ChannelCoverageStatus = "reporting" | "connecting" | "not_started" | "no_source"
 
@@ -36,6 +44,10 @@ export type ChannelCoverageEntry = {
   impressionsStatus: DeliveryStatus | null
   /** Glance noun. "Views" only when every line in the group is CPV. */
   deliverableLabel: "Impressions" | "Views"
+  /** Delivery-schedule media slice at the same as-of as the campaign headline. */
+  expectedToDate?: number
+  /** True when the channel's dollars include assumed spend. */
+  spendAssumed?: boolean
 }
 
 export type ChannelCoverageBuckets = {
@@ -48,6 +60,7 @@ export type ChannelCoverageBuckets = {
   digitalVideoLineItems: unknown[]
   digitalAudioLineItems: unknown[]
   bvodLineItems: unknown[]
+  offlineLineItems?: unknown[]
 }
 
 export type ChannelCoverageInput = {
@@ -55,6 +68,8 @@ export type ChannelCoverageInput = {
   sections: ChannelSectionData[]
   todayISO: string
   sourceMap?: readonly DeliverySourceMapRow[]
+  /** Delivery-schedule slices at the same as-of as the headline. */
+  channelExpected?: ReadonlyArray<{ key: string; expected: number; planned: number }>
 }
 
 const STATUS_RANK: Record<Exclude<ChannelCoverageStatus, "no_source">, number> = {
@@ -469,8 +484,20 @@ function resolveStatus(acc: Acc, hasFacts: boolean, todayISO: string): ChannelCo
   return "connecting"
 }
 
-export function visibleCoverageCards(entries: ChannelCoverageEntry[]): ChannelCoverageEntry[] {
-  return entries.filter((entry) => entry.status !== "no_source")
+export function visibleCoverageCards(
+  entries: ChannelCoverageEntry[],
+  todayISO?: string,
+): ChannelCoverageEntry[] {
+  const kept = entries.filter((entry) => {
+    if (entry.status !== "no_source") return true
+    if ((entry.expectedToDate ?? 0) > 0) return true
+    if (todayISO && entry.startsOn && entry.startsOn > todayISO) return true
+    return false
+  })
+  if (!kept.some((entry) => (entry.expectedToDate ?? 0) > 0)) return kept
+  return kept.toSorted(
+    (a, b) => (b.expectedToDate ?? 0) - (a.expectedToDate ?? 0) || b.plannedSpend - a.plannedSpend,
+  )
 }
 
 export function coverageReportingCounts(entries: ChannelCoverageEntry[]): {
@@ -606,7 +633,98 @@ function entriesFromGroups(groups: Map<string, Acc>, input: ChannelCoverageInput
     return b.plannedSpend - a.plannedSpend
   })
 
+  appendOfflineEntries(entries, input.buckets.offlineLineItems ?? [])
+  stampChannelExpected(entries, input.channelExpected)
+
   return entries
+}
+
+function appendOfflineEntries(entries: ChannelCoverageEntry[], items: unknown[]): void {
+  const claimed = new Set(
+    entries.flatMap((entry) => {
+      const key = scheduleKeyForCoverageKey(entry.key)
+      return key ? [key] : []
+    }),
+  )
+  const groups = new Map<string, { planned: number; start: string | null }>()
+  for (const item of items) {
+    const lineId = extractPacingLineItemIdFromItem(item)
+    const key = lineId ? scheduleKeyForLineItemId(lineId) : null
+    if (!key || claimed.has(key)) continue
+    const planned = plannedSpendFromItem(item)
+    const start = earliestBurstStart(item)
+    const existing = groups.get(key)
+    if (!existing) {
+      groups.set(key, { planned, start })
+      continue
+    }
+    existing.planned += planned
+    if (start && (!existing.start || start < existing.start)) existing.start = start
+  }
+  for (const [key, bucket] of groups) {
+    entries.push(offlineCard(key, bucket.planned, bucket.start, true))
+  }
+}
+
+function offlineCard(
+  key: string,
+  plannedSpend: number,
+  startsOn: string | null,
+  spendAssumed: boolean,
+): ChannelCoverageEntry {
+  return {
+    key,
+    label: labelForScheduleKey(key),
+    colour: getMediaColor(key === "newspaper" ? "newspaper" : key),
+    plannedSpend,
+    plannedImpressions: 0,
+    deliveredSpend: spendAssumed ? 0 : null,
+    deliveredImpressions: 0,
+    status: "no_source",
+    spendModelled: false,
+    spendAssumed,
+    startsOn,
+    deliveryStatus: null,
+    impressionsStatus: null,
+    deliverableLabel: "Impressions",
+  }
+}
+
+function stampChannelExpected(
+  entries: ChannelCoverageEntry[],
+  slices: ChannelCoverageInput["channelExpected"],
+): void {
+  if (!slices || slices.length === 0) return
+  const groups = new Map<string, ChannelCoverageEntry[]>()
+  for (const entry of entries) {
+    const key = scheduleKeyForCoverageKey(entry.key)
+    if (!key) continue
+    const list = groups.get(key) ?? []
+    list.push(entry)
+    groups.set(key, list)
+  }
+  for (const slice of slices) {
+    if (!(slice.expected > 0)) continue
+    const members = groups.get(slice.key) ?? []
+    if (members.length === 0) {
+      const card = offlineCard(slice.key, slice.planned, null, false)
+      card.expectedToDate = slice.expected
+      entries.push(card)
+      continue
+    }
+    const parts = allocateCents(
+      toCents(slice.expected),
+      members.map((member) => member.plannedSpend),
+    )
+    members.forEach((member, index) => {
+      member.expectedToDate = fromCents(parts[index] ?? 0)
+      if ((member.expectedToDate ?? 0) > 0 && member.deliveredSpend != null) {
+        member.deliveryStatus = deliveryStatusFromPct(
+          (member.deliveredSpend / member.expectedToDate) * 100,
+        )
+      }
+    })
+  }
 }
 
 function draftsFromGroups(groups: Map<string, Acc>): KpiReviewCoverageDraft[] {
