@@ -97,8 +97,7 @@ test("direct Radio/OOH-style lines map into overview bands", () => {
 });
 
 test("ad serving is delivery-only (never spend over-pacing)", () => {
-  // ZERO-$ LAW: derive_spend_from_plan is OFF for all Direct Booked Digital,
-  // so mapAdServingRowToOverviewItem keeps no-spend row shapes.
+  // Overview keeps no-spend row shapes. The direct-digital estimate is not applied here.
   const serving = mapAdServingRowToOverviewItem({
     clientName: "Krusty",
     campaignName: "krusty002",

@@ -11,7 +11,9 @@ export const maxDuration = 60;
  * GET /api/pacing/ad-serving-campaigns
  *
  * CM360 ad-serving verification rows for live digital line items.
- * Delivery counts only — no spend pacing (zero-spend law).
+ * Delivery counts only. Estimated spend for direct digital is applied later
+ * by `estimateDirectDigitalSpend` in campaign delivery and the portfolio
+ * assembler. This route does not pace on dollars.
  *
  * Query params:
  *   asOfDate? — YYYY-MM-DD, defaults to Melbourne timezone today

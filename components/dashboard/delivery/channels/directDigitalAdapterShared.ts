@@ -3,7 +3,13 @@ import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { formatMoney } from "@/lib/format/money"
 import { applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
 import { getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
-import { ctr as clickThroughRate } from "@/lib/money/rates"
+import { cpm, ctr as clickThroughRate } from "@/lib/money/rates"
+import {
+  ESTIMATED_SPEND_LABEL,
+  estimateDirectDigitalSpend,
+  NO_PLANNED_IMPRESSIONS,
+} from "@/lib/delivery/estimateDirectDigitalSpend"
+import { isCpcBuyType } from "@/lib/kpi/kpiReview"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import { expectedSpendToDateFromBursts } from "@/lib/spend/expectedSpendToDateFromBursts"
@@ -22,8 +28,9 @@ import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 
 const FIXED_COST_SPEND_LABEL = "Reported spend (fixed cost)"
-const CM360_NO_SPEND_CONNECTION =
-  "Ad server verification (CM360) — delivery counts, no spend data"
+const CM360_ESTIMATED_CONNECTION =
+  "Ad server verification (CM360) — spend estimated from the plan rate"
+const CM360_COUNTS_CONNECTION = "Ad server verification (CM360) — delivery counts"
 
 type AdServingLineItem = {
   line_item_id?: string
@@ -218,8 +225,10 @@ function deliveryProgressCard(input: {
   planned: number
   sparkline: number[]
   dense?: boolean
+  /** Shown instead of "No plan goal" when the estimate cannot be priced. */
+  emptyReason?: string | null
 }): ProgressCardProps {
-  const { title, actual, planned, sparkline, dense } = input
+  const { title, actual, planned, sparkline, dense, emptyReason } = input
   const hasGoal = planned > 0
   const progress = hasGoal ? Math.max(0, Math.min(1, safeDiv(actual, planned))) : 0
   const pacingPct = hasGoal ? safeDiv(actual, planned) * 100 : undefined
@@ -228,7 +237,7 @@ function deliveryProgressCard(input: {
     value: formatWholeNumber(actual),
     detail: hasGoal
       ? `Delivered ${formatWholeNumber(actual)} · Planned ${formatWholeNumber(planned)}`
-      : `Delivered ${formatWholeNumber(actual)} · No plan goal`,
+      : `Delivered ${formatWholeNumber(actual)} · ${emptyReason || "No plan goal"}`,
     progress,
     variance: hasGoal ? pctVarianceFromPacingPct(pacingPct) : 0,
     varianceLabel: hasGoal ? "vs plan deliverable" : "verification counts only",
@@ -245,8 +254,10 @@ function spendDeliveryProgressCard(input: {
   expectedToDate?: number | null
   sparkline: number[]
   dense?: boolean
+  spendMode?: "reported" | "estimated"
+  detailOverride?: string
 }): ProgressCardProps {
-  const { title, actual, planned, expectedToDate, sparkline, dense } = input
+  const { title, actual, planned, expectedToDate, sparkline, dense, spendMode = "reported", detailOverride } = input
   const hasGoal = planned > 0
   const hasExpected = expectedToDate != null && expectedToDate > 0
   const progress = hasGoal ? Math.max(0, Math.min(1, safeDiv(actual, planned))) : 0
@@ -255,14 +266,22 @@ function spendDeliveryProgressCard(input: {
     : hasGoal
       ? safeDiv(actual, planned) * 100
       : undefined
+  const lead =
+    spendMode === "estimated" ? "Estimated" : hasExpected ? "Reported" : "Delivered"
   return {
     title,
+    titleTooltip:
+      spendMode === "estimated"
+        ? "Estimated from the plan rate (planned media ÷ planned deliverables), capped at planned media."
+        : undefined,
     value: formatMoney(actual),
-    detail: hasExpected
-      ? `Reported ${formatMoney(actual)} · Planned ${formatMoney(planned)} · Expected to date ${formatMoney(expectedToDate)}`
-      : hasGoal
-        ? `Delivered ${formatMoney(actual)} · Planned ${formatMoney(planned)}`
-        : `Delivered ${formatMoney(actual)} · No plan goal`,
+    detail:
+      detailOverride ??
+      (hasExpected
+        ? `${lead} ${formatMoney(actual)} · Planned ${formatMoney(planned)} · Expected to date ${formatMoney(expectedToDate)}`
+        : hasGoal
+          ? `${lead} ${formatMoney(actual)} · Planned ${formatMoney(planned)}`
+          : `${lead} ${formatMoney(actual)} · No plan goal`),
     progress,
     variance: pacingPct != null ? pctVarianceFromPacingPct(pacingPct) : 0,
     varianceLabel: hasExpected ? "vs expected to date" : hasGoal ? "vs plan spend" : "reported spend",
@@ -270,6 +289,15 @@ function spendDeliveryProgressCard(input: {
     sparkline,
     dense,
   }
+}
+
+function markEstimatedCostTiles(tiles: KpiTileProps[], estimated: boolean): KpiTileProps[] {
+  if (!estimated) return tiles
+  return tiles.map((tile) =>
+    tile.label === "CPM" || tile.label === "CPV" || tile.label === "CPC"
+      ? { ...tile, caption: "Estimated" }
+      : tile,
+  )
 }
 
 function normalizeAdServingLineItems(items: unknown[] | undefined): AdServingLineItem[] {
@@ -283,9 +311,10 @@ function normalizeAdServingLineItems(items: unknown[] | undefined): AdServingLin
 }
 
 /**
- * Direct Booked Digital (CM360 verification). ZERO-$ LAW: never surfaces
- * platform spend. Fixed-cost lines overlay REPORTED_SPEND from
- * FIXED_COST_REPORTED_DAILY_FACT when `reportedSpendByLineDate` has entries.
+ * Direct Booked Digital (CM360). Spend is estimated from the plan rate
+ * (`estimateDirectDigitalSpend`) and labelled from `spendMode`. Platform
+ * `amount_spent` is not used. Fixed-cost lines keep REPORTED_SPEND from
+ * FIXED_COST_REPORTED_DAILY_FACT; reported replaces the estimate.
  */
 export function buildDirectDigitalChannelSection(input: {
   key: ChannelKey
@@ -378,6 +407,23 @@ export function buildDirectDigitalChannelSection(input: {
     const spendPlanned = bookedSpend(item)
     const reportedByDate = isFixedCostMedia(item) ? reportedSpendByLineDate?.get(id) : undefined
     const hasReportedEntries = Boolean(reportedByDate && reportedByDate.size > 0)
+    const estimate = hasReportedEntries
+      ? null
+      : estimateDirectDigitalSpend({
+          lineItemId: id,
+          buyType: item.buy_type,
+          fixedCost: isFixedCostMedia(item),
+          bursts: item.bursts_json ?? item.bursts,
+          days: daily.map((d) => ({
+            date: d.date,
+            impressions: d.impressions,
+            clicks: d.clicks,
+            results: d.results,
+            video3sViews: d.videoCompletes,
+          })),
+        })
+    const estimatedAmount = estimate?.amount != null && estimate.amount > 0 ? estimate.amount : 0
+    const estimateByDate = new Map((estimate?.days ?? []).map((day) => [day.date, day.derivedSpend]))
     return {
       item,
       id,
@@ -394,6 +440,9 @@ export function buildDirectDigitalChannelSection(input: {
       hasReportedEntries,
       reportedTotal: hasReportedEntries ? sumReportedSpend(reportedByDate) : 0,
       reportedByDate,
+      estimatedAmount,
+      estimateReason: estimate?.reason ?? null,
+      estimateByDate,
     }
   })
 
@@ -511,25 +560,53 @@ export function buildDirectDigitalChannelSection(input: {
     sparkline: clicksSpark,
   })
   const reportedLines = withDelivery.filter((m) => m.hasReportedEntries)
+  const estimatedLines = withDelivery.filter((m) => m.estimatedAmount > 0)
   const reportedSpendTotal = reportedLines.reduce((sum, m) => sum + m.reportedTotal, 0)
+  const estimatedSpendTotal = estimatedLines.reduce((sum, m) => sum + m.estimatedAmount, 0)
   const reportedSpendPlanned = reportedLines.reduce((sum, m) => sum + m.bookedSpend, 0)
+  const estimatedSpendPlanned = estimatedLines.reduce((sum, m) => sum + m.bookedSpend, 0)
   const reportedSpendSpark = aggDaily.map((d) => {
     const date = String(d.date ?? "")
     return reportedLines.reduce((sum, m) => sum + (m.reportedByDate?.get(date) ?? 0), 0)
   })
+  const estimatedSpendSpark = aggDaily.map((d) => {
+    const date = String(d.date ?? "")
+    return estimatedLines.reduce((sum, m) => sum + (m.estimateByDate.get(date) ?? 0), 0)
+  })
   const reportedExpectedToDate = reportedLines.every((m) => m.expectedSpendToDate != null)
     ? reportedLines.reduce((sum, m) => sum + (m.expectedSpendToDate ?? 0), 0)
     : null
+  const estimatedExpectedToDate = estimatedLines.every((m) => m.expectedSpendToDate != null)
+    ? estimatedLines.reduce((sum, m) => sum + (m.expectedSpendToDate ?? 0), 0)
+    : null
   const spendCard =
-    reportedLines.length > 0
+    reportedLines.length > 0 && estimatedLines.length > 0
       ? spendDeliveryProgressCard({
-          title: FIXED_COST_SPEND_LABEL,
-          actual: reportedSpendTotal,
-          planned: reportedSpendPlanned,
-          expectedToDate: reportedExpectedToDate,
-          sparkline: reportedSpendSpark,
+          title: "Spend",
+          actual: reportedSpendTotal + estimatedSpendTotal,
+          planned: reportedSpendPlanned + estimatedSpendPlanned,
+          sparkline: reportedSpendSpark.map((value, index) => value + (estimatedSpendSpark[index] ?? 0)),
+          spendMode: "estimated",
         })
-      : null
+      : reportedLines.length > 0
+        ? spendDeliveryProgressCard({
+            title: FIXED_COST_SPEND_LABEL,
+            actual: reportedSpendTotal,
+            planned: reportedSpendPlanned,
+            expectedToDate: reportedExpectedToDate,
+            sparkline: reportedSpendSpark,
+            spendMode: "reported",
+          })
+        : estimatedLines.length > 0
+          ? spendDeliveryProgressCard({
+              title: ESTIMATED_SPEND_LABEL,
+              actual: estimatedSpendTotal,
+              planned: estimatedSpendPlanned,
+              expectedToDate: estimatedExpectedToDate,
+              sparkline: estimatedSpendSpark,
+              spendMode: "estimated",
+            })
+          : null
   const aggregateProgressCards: [ProgressCardProps, ProgressCardProps] = spendCard
     ? [spendCard, impressionsCard]
     : [impressionsCard, clicksCard]
@@ -538,20 +615,48 @@ export function buildDirectDigitalChannelSection(input: {
   for (const m of withDelivery) {
     plannedSpendByLineId[m.id] = m.bookedSpend
   }
+  const aggregateSpend =
+    reportedSpendTotal + estimatedSpendTotal > 0 ? reportedSpendTotal + estimatedSpendTotal : null
+  const aggregateSpendEstimated = estimatedLines.length > 0 && reportedLines.length === 0
   const cpvTile: KpiTileProps[] =
     hasVideoCompletes || key === "bvod"
       ? [
           {
             label: "CPV",
             value:
-              reportedLines.length > 0 && rollup.videoCompletes > 0
-                ? formatMoney(reportedSpendTotal / rollup.videoCompletes)
+              aggregateSpend != null && rollup.videoCompletes > 0
+                ? formatMoney(aggregateSpend / rollup.videoCompletes)
                 : "—",
+            caption: aggregateSpendEstimated && rollup.videoCompletes > 0 ? "Estimated" : undefined,
             accentColour,
           },
         ]
       : []
-  const bandTiles = applyKpiBandTargetsFromPlan([...aggregateKpiTiles, ...cpvTile], {
+  const aggregateCostTiles: KpiTileProps[] = aggregateSpendEstimated
+    ? [
+        ...(rollup.impressions > 0
+          ? [
+              {
+                label: "CPM",
+                value: formatMoney(cpm(aggregateSpend ?? 0, rollup.impressions)),
+                caption: "Estimated",
+                accentColour,
+              } satisfies KpiTileProps,
+            ]
+          : []),
+        ...(estimatedLines.every((m) => isCpcBuyType(m.item.buy_type)) && rollup.clicks > 0
+          ? [
+              {
+                label: "CPC",
+                value: formatMoney((aggregateSpend ?? 0) / rollup.clicks),
+                caption: "Estimated",
+                accentColour,
+              } satisfies KpiTileProps,
+            ]
+          : []),
+      ]
+    : []
+  const bandTiles = markEstimatedCostTiles(applyKpiBandTargetsFromPlan([...aggregateKpiTiles, ...cpvTile, ...aggregateCostTiles], {
     key,
     items: withDelivery.map((m) => m.item),
     plannedSpendByLineId,
@@ -559,10 +664,10 @@ export function buildDirectDigitalChannelSection(input: {
     clicks: rollup.clicks,
     results: rollup.results,
     views: rollup.videoCompletes > 0 ? rollup.videoCompletes : null,
-    spend: reportedLines.length > 0 ? reportedSpendTotal : null,
+    spend: aggregateSpend,
     lineItemTargets,
     isAdmin,
-  })
+  }), aggregateSpendEstimated)
 
   const accordionItems = withDelivery.map((m) => {
     const liCtr = clickThroughRate(m.totals.clicks, m.totals.impressions)
@@ -586,6 +691,7 @@ export function buildDirectDigitalChannelSection(input: {
       planned: m.booked.impressions,
       sparkline: m.daily.map((d) => d.impressions),
       dense: true,
+      emptyReason: m.estimateReason === NO_PLANNED_IMPRESSIONS ? m.estimateReason : null,
     })
     const clicksCard = deliveryProgressCard({
       title: "Clicks delivery",
@@ -594,6 +700,16 @@ export function buildDirectDigitalChannelSection(input: {
       sparkline: m.daily.map((d) => d.clicks),
       dense: true,
     })
+    const lineSpend = m.hasReportedEntries
+      ? m.reportedTotal
+      : m.estimatedAmount > 0
+        ? m.estimatedAmount
+        : null
+    const lineSpendMode = m.hasReportedEntries
+      ? "reported"
+      : m.estimatedAmount > 0
+        ? "estimated"
+        : null
     const lineSpendCard = m.hasReportedEntries
       ? spendDeliveryProgressCard({
           title: FIXED_COST_SPEND_LABEL,
@@ -602,8 +718,19 @@ export function buildDirectDigitalChannelSection(input: {
           expectedToDate: m.expectedSpendToDate,
           sparkline: m.daily.map((d) => m.reportedByDate?.get(d.date) ?? 0),
           dense: true,
+          spendMode: "reported",
         })
-      : null
+      : m.estimatedAmount > 0
+        ? spendDeliveryProgressCard({
+            title: ESTIMATED_SPEND_LABEL,
+            actual: m.estimatedAmount,
+            planned: m.bookedSpend,
+            expectedToDate: m.expectedSpendToDate,
+            sparkline: m.daily.map((d) => m.estimateByDate.get(d.date) ?? 0),
+            dense: true,
+            spendMode: "estimated",
+          })
+        : null
     const block: LineItemBlockProps = {
       name: displayName.label,
       fullName: displayName.full,
@@ -611,7 +738,7 @@ export function buildDirectDigitalChannelSection(input: {
       progressCards: lineSpendCard ? [lineSpendCard, impressionCard] : [impressionCard, clicksCard],
       kpiBand: {
         title: "Verification KPIs",
-        tiles: applyKpiBandTargetsFromPlan(
+        tiles: markEstimatedCostTiles(applyKpiBandTargetsFromPlan(
           [
           {
             label: "Served impressions",
@@ -657,9 +784,30 @@ export function buildDirectDigitalChannelSection(input: {
                 {
                   label: "CPV",
                   value:
-                    m.hasReportedEntries && m.totals.videoCompletes > 0
-                      ? formatMoney(m.reportedTotal / m.totals.videoCompletes)
+                    lineSpend != null && m.totals.videoCompletes > 0
+                      ? formatMoney(lineSpend / m.totals.videoCompletes)
                       : "—",
+                  caption: lineSpendMode === "estimated" && m.totals.videoCompletes > 0 ? "Estimated" : undefined,
+                  accentColour,
+                } satisfies KpiTileProps,
+              ]
+            : []),
+          ...(lineSpendMode === "estimated" && m.totals.impressions > 0
+            ? [
+                {
+                  label: "CPM",
+                  value: formatMoney(cpm(lineSpend ?? 0, m.totals.impressions)),
+                  caption: "Estimated",
+                  accentColour,
+                } satisfies KpiTileProps,
+              ]
+            : []),
+          ...(lineSpendMode === "estimated" && isCpcBuyType(m.item.buy_type) && m.totals.clicks > 0
+            ? [
+                {
+                  label: "CPC",
+                  value: formatMoney((lineSpend ?? 0) / m.totals.clicks),
+                  caption: "Estimated",
                   accentColour,
                 } satisfies KpiTileProps,
               ]
@@ -673,11 +821,11 @@ export function buildDirectDigitalChannelSection(input: {
             clicks: m.totals.clicks,
             results: m.totals.results,
             views: m.totals.videoCompletes > 0 ? m.totals.videoCompletes : null,
-            spend: m.hasReportedEntries ? m.reportedTotal : null,
+            spend: lineSpend,
             lineItemTargets,
             isAdmin,
           },
-        ),
+        ), lineSpendMode === "estimated"),
       },
       chart: {
         kind: "daily-delivery",
@@ -708,14 +856,21 @@ export function buildDirectDigitalChannelSection(input: {
     lastSyncedAt: input.lastSyncedAt,
     connections: [
       {
-        label: CM360_NO_SPEND_CONNECTION,
+        label: estimatedLines.length > 0 ? CM360_ESTIMATED_CONNECTION : CM360_COUNTS_CONNECTION,
         tone: "cm360",
       },
     ],
     mediaTypeColour,
     aggregate: {
       summaryChips: [
-        ...(spendCard ? [{ label: FIXED_COST_SPEND_LABEL, value: formatMoney(reportedSpendTotal) }] : []),
+        ...(spendCard
+          ? [
+              {
+                label: spendCard.title,
+                value: formatMoney(reportedSpendTotal + estimatedSpendTotal),
+              },
+            ]
+          : []),
         { label: "Served impressions", value: formatWholeNumber(rollup.impressions) },
         { label: "Clicks", value: formatWholeNumber(rollup.clicks) },
         { label: "CTR", value: fmtRatioDecimal(ctrDecimal) },
@@ -732,7 +887,11 @@ export function buildDirectDigitalChannelSection(input: {
       progressCards: aggregateProgressCards,
       kpiBand: {
         title: "Verification KPIs",
-        subtitle: "CM360 delivery counts — spend not applicable",
+        subtitle: aggregateSpendEstimated
+          ? "Spend estimated from the plan rate"
+          : reportedLines.length > 0
+            ? "Reported spend on fixed-cost lines"
+            : "CM360 delivery counts",
         tiles: bandTiles,
       },
       chart: {

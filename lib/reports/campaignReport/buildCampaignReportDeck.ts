@@ -607,7 +607,7 @@ async function assembleCampaignReportDeck(
     const showPrevious = payload.period.previous != null
     const hasPrev = showPrevious && channel.previousSpend != null
     const bars: Bar[] = [
-      { label: "Delivered", value: channel.spend, colour: HIGHLIGHT },
+      { label: channel.spendEstimated ? "Estimated" : "Delivered", value: channel.spend, colour: HIGHLIGHT },
       ...(hasPrev
         ? [{ label: "Previous", value: channel.previousSpend ?? 0, colour: CONTEXT }]
         : []),
@@ -668,7 +668,7 @@ async function assembleCampaignReportDeck(
           : ["Metric", "Selected", "Planned"]
         ).map((label) => cell(label, true)),
         row(
-          "Spend",
+          channel.spendEstimated ? "Estimated spend" : "Spend",
           formatReportMoney(channel.spend),
           channel.previousSpend == null ? "Not available" : formatReportMoney(channel.previousSpend),
           formatReportMoney(channel.plannedBudget),

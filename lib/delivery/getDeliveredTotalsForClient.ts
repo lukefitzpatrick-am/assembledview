@@ -163,7 +163,13 @@ export async function getDeliveredTotalsForClient(
     const snapshot = snapshots[i]
     const mbaKey = c.mbaNumber.trim().toLowerCase()
     return combineDeliveredTotals(
-      snapshot ? { spendToDate: snapshot.planTotals.spendToDate, impressions: snapshot.planTotals.impressions } : null,
+      snapshot
+        ? {
+            spendToDate: snapshot.planTotals.spendToDate,
+            impressions: snapshot.planTotals.impressions,
+            includesEstimatedSpend: snapshot.includesEstimatedSpend === true,
+          }
+        : null,
       fixedCostByMba.get(mbaKey) ?? 0,
     )
   })

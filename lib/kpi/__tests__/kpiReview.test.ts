@@ -248,7 +248,40 @@ describe("buildKpiReview delivered", () => {
     assert.equal(cpv?.modelled, true)
   })
 
-  it("does not invent $0 CPV when spend is hidden (ZERO-$ LAW)", () => {
+  it("shows estimated CPM and CPV, and hides CPC when clicks are not the unit", () => {
+    const cards = buildKpiReview({
+      groups: [
+        socialGroup({
+          key: "digital-display",
+          spend: 2_000,
+          spendEstimated: true,
+          impressions: 100_000,
+          clicks: 40,
+          views: 0,
+          planByLineId: {
+            bicau002sm1: {
+              buyType: "cpm",
+              plannedSpend: 10_000,
+              buyAmount: null,
+              plannedViews: null,
+              plannedImpressions: 500_000,
+            },
+          },
+        }),
+      ],
+      lineItemTargets: targets([]),
+      isAdmin: true,
+    })
+    const cpmRow = cards[0]?.rows.find((row) => row.metric === "cpm")
+    const cpv = cards[0]?.rows.find((row) => row.metric === "cpv")
+    const cpc = cards[0]?.rows.find((row) => row.metric === "cpc")
+    assert.equal(cpmRow?.deliveredDisplay, "$20.00")
+    assert.equal(cpmRow?.spendEstimated, true)
+    assert.equal(cpv?.spendEstimated, false)
+    assert.equal(cpc, undefined)
+  })
+
+  it("does not invent $0 CPV when spend is hidden", () => {
     const cards = buildKpiReview({
       groups: [
         socialGroup({

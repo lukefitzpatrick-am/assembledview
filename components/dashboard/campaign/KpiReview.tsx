@@ -129,7 +129,9 @@ export function KpiReview({
                       >
                         {row.deliveredDisplay}
                       </p>
-                      {row.modelled ? (
+                      {row.spendEstimated ? (
+                        <p className="text-[11px] text-muted-foreground">Estimated</p>
+                      ) : row.modelled ? (
                         <p className="text-[11px] text-muted-foreground">modelled</p>
                       ) : null}
                     </div>

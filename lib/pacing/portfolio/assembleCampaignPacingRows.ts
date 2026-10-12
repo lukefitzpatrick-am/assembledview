@@ -2,6 +2,7 @@ import {
   deliverySourceLookupKey,
   lookupActiveDeliverySource,
 } from "@/lib/delivery/deliverySourceMap"
+import { estimateDirectDigitalSpend } from "@/lib/delivery/estimateDirectDigitalSpend"
 import {
   computeCampaignDays,
   computeDaysPassed,
@@ -64,6 +65,8 @@ type DraftChannel = {
   kpiTotal: number
   kpiTracked: number
   contributesSpend: boolean
+  /** Estimated dollars already added, so reported spend can replace them. */
+  estimatedByLine?: Map<string, { spend: number; budget: number }>
 }
 
 type DraftCampaign = {
@@ -192,10 +195,17 @@ function attributeReportedToChannel(
   li: DirectLineItemRow,
   yesterdayISO: string,
 ): void {
+  const prior = owner.estimatedByLine?.get(li.lineItemId.trim().toLowerCase())
+  if (prior) {
+    owner.spendToDate -= prior.spend
+    owner.budget -= prior.budget
+    owner.estimatedByLine?.delete(li.lineItemId.trim().toLowerCase())
+  }
   owner.spendToDate += finite(li.totalReported)
   owner.budget += finite(li.totalBudget)
   owner.spendYesterday += lineYesterdayReported(li, yesterdayISO)
-  owner.spendMode = "reported"
+  const stillEstimated = [...(owner.estimatedByLine?.values() ?? [])].some((entry) => entry.spend > 0)
+  owner.spendMode = stillEstimated ? "estimated" : "reported"
   owner.contributesSpend = true
   owner.hasSource = true
   owner.hasFactRows =
@@ -257,6 +267,14 @@ function upsertChannel(campaign: DraftCampaign, next: DraftChannel): DraftChanne
   existing.hasSource = existing.hasSource || next.hasSource
   existing.kpiTotal += next.kpiTotal
   existing.kpiTracked += next.kpiTracked
+  existing.contributesSpend = existing.contributesSpend || next.contributesSpend
+  if (next.spendMode === "estimated" && existing.spendMode !== "reported") {
+    existing.spendMode = "estimated"
+  }
+  if (next.estimatedByLine) {
+    if (!existing.estimatedByLine) existing.estimatedByLine = new Map()
+    for (const [id, entry] of next.estimatedByLine) existing.estimatedByLine.set(id, entry)
+  }
   if (next.lineStart && (!existing.lineStart || next.lineStart < existing.lineStart)) {
     existing.lineStart = next.lineStart
   }
@@ -546,13 +564,43 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
     const hasFacts =
       finite(row.impressions) > 0 || finite(row.clicks) > 0 || finite(row.daysActive) > 0
     const planned = finite(row.deliverableTarget) || finite(row.plannedImpressions)
+    const buy = String(row.buyType ?? "").trim().toLowerCase()
+    const estimate =
+      mapRow?.derive_spend_from_plan === true || buy === "fixed_cost"
+        ? null
+        : estimateDirectDigitalSpend({
+            lineItemId: row.lineItemId,
+            buyType: row.buyType,
+            bursts: row.bursts,
+            days: [
+              {
+                date: row.lineItemEndDate || row.campaignEndDate || input.asOfDate,
+                impressions: row.impressions,
+                clicks: row.clicks,
+                results: row.results,
+                video3sViews: row.videoCompletes,
+              },
+            ],
+          })
+    const estimatedAmount = estimate?.amount != null && estimate.amount > 0 ? estimate.amount : 0
+    const estimatedBudget = estimatedAmount > 0 ? estimate?.plannedMedia ?? 0 : 0
+    const lineKey = row.lineItemId.trim().toLowerCase()
     upsertChannel(campaign, {
       channelKey: adServingKey(row.channelFamily),
       label: adServingLabel(row.channelFamily),
-      spendToDate: 0,
-      budget: 0,
+      spendToDate: estimatedAmount,
+      budget: estimatedBudget,
       spendYesterday: 0,
-      spendMode: mapRow?.derive_spend_from_plan ? "modelled" : "actual",
+      spendMode: mapRow?.derive_spend_from_plan
+        ? "modelled"
+        : estimatedAmount > 0
+          ? "estimated"
+          : "actual",
+      ...(estimatedAmount > 0
+        ? {
+            estimatedByLine: new Map([[lineKey, { spend: estimatedAmount, budget: estimatedBudget }]]),
+          }
+        : {}),
       deliverable:
         planned > 0 || finite(row.deliverableActual) > 0
           ? {
@@ -565,7 +613,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       lineStart: row.lineItemStartDate,
       hasSource: Boolean(mapRow),
       hasFactRows: hasFacts,
-      contributesSpend: false,
+      contributesSpend: estimatedAmount > 0,
       kpiTotal: 0,
       kpiTracked: 0,
     })

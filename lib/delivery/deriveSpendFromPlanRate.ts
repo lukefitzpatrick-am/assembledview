@@ -34,6 +34,7 @@ export type DeriveSpendFromPlanRateInput = {
 export type DeriveSpendFromPlanRateResult = {
   effectiveRate: number
   plannedTotal: number
+  plannedDeliverables: number
   unitsField: DerivedSpendUnitsField
   buyTypeFallbackToImpressions: boolean
   usedBudgetFallback: boolean
@@ -174,6 +175,7 @@ export function deriveSpendFromPlanRate(
     return {
       effectiveRate,
       plannedTotal: round2(plannedTotal),
+      plannedDeliverables: round2(plannedDeliverables),
       unitsField,
       buyTypeFallbackToImpressions,
       usedBudgetFallback,
@@ -203,6 +205,7 @@ export function deriveSpendFromPlanRate(
   return {
     effectiveRate,
     plannedTotal: round2(plannedTotal),
+    plannedDeliverables: round2(plannedDeliverables),
     unitsField,
     buyTypeFallbackToImpressions,
     usedBudgetFallback,

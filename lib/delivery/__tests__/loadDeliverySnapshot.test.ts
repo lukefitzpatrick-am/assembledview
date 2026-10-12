@@ -210,6 +210,82 @@ test(
 )
 
 test(
+  "direct digital CPM estimate is in hub totals; fixed-cost reported spend replaces it",
+  { skip },
+  async () => {
+    const { loadDeliverySnapshot } = await import("../loadDeliverySnapshot.js")
+
+    getCampaignPacingData.mock.mockImplementation(async () => [
+      {
+        lineItemId: "golf025dd1",
+        dateDay: "2026-09-01",
+        amountSpent: 99,
+        impressions: 100_000,
+        clicks: 0,
+        results: 0,
+        video3sViews: 0,
+      },
+      {
+        lineItemId: "golf025bv1",
+        dateDay: "2026-09-01",
+        amountSpent: 99,
+        impressions: 100_000,
+        clicks: 0,
+        results: 0,
+        video3sViews: 0,
+      },
+    ])
+    queryDailyFacts.mock.mockImplementation(async () => [
+      {
+        LINE_ITEM_ID: "golf025bv1",
+        DATE_DAY: "2026-09-01",
+        REPORTED_SPEND: 4_700,
+      },
+    ])
+
+    const snap = await loadDeliverySnapshot({
+      mbaNumber: "GOLF025",
+      versionNumber: 1,
+      startDate: "2026-08-01",
+      endDate: "2026-10-25",
+      lineItemsByChannel: {
+        digitalDisplay: [
+          {
+            line_item_id: "golf025dd1",
+            name: "Display",
+            budget: 10_000,
+            buy_type: "cpm",
+            bursts: [{ budget: 10_000, calculatedValue: 500_000 }],
+          },
+        ],
+        bvod: [
+          {
+            line_item_id: "golf025bv1",
+            name: "BVOD",
+            budget: 10_000,
+            buy_type: "cpm",
+            fixedCostMedia: true,
+            bursts: [{ budget: 10_000, calculatedValue: 500_000 }],
+          },
+        ],
+      },
+    })
+
+    const byId = new Map(
+      snap.channels.flatMap((ch) => ch.lines).map((line) => [line.lineItemId, line]),
+    )
+    assert.equal(byId.get("golf025dd1")?.spendToDate, 2_000)
+    assert.equal(byId.get("golf025dd1")?.spendMode, "estimated")
+    assert.equal(byId.get("golf025bv1")?.spendToDate, 4_700)
+    assert.equal(byId.get("golf025bv1")?.spendMode, "reported")
+    assert.equal(snap.planTotals.spendToDate, 2_000 + 4_700)
+    assert.equal(snap.includesEstimatedSpend, true)
+    getCampaignPacingData.mock.mockImplementation(async () => [])
+    queryDailyFacts.mock.mockImplementation(async () => [])
+  },
+)
+
+test(
   "postgres backend fetches each media-container endpoint at the requested version",
   { skip },
   async () => {

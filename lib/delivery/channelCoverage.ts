@@ -23,11 +23,14 @@ export type ChannelCoverageEntry = {
   colour: string
   plannedSpend: number
   plannedImpressions: number
-  /** Null when ZERO-$ LAW hides spend (CM360 without overlay or derive_spend_from_plan). */
+  /** Null when no spend card exists (no estimate and no reported overlay). */
   deliveredSpend: number | null
   deliveredImpressions: number
   status: ChannelCoverageStatus
+  /** Programmatic `derive_spend_from_plan`. Direct digital estimates use `spendEstimated`. */
   spendModelled: boolean
+  /** True when a dollar on this group is a CM360 direct-digital estimate. */
+  spendEstimated?: boolean
   startsOn: string | null
   deliveryStatus: DeliveryStatus | null
   impressionsStatus: DeliveryStatus | null
@@ -75,6 +78,7 @@ const PUBLISHER_LABELS: Record<string, string> = {
   broadsign: "Broadsign",
 }
 
+/** Hide spend until a card title matches /spend/i (Estimated spend or Reported spend). */
 const ZERO_SPEND_FAMILIES = new Set<ChannelKey>([
   "digital-display",
   "digital-video",
@@ -429,6 +433,16 @@ function deliveredFromCards(
   }
 }
 
+function groupHasEstimatedSpend(acc: Acc, section: ChannelSectionData | undefined): boolean {
+  if (!section) return false
+  const subset = matchingLineItems(section, acc.lineIds)
+  const cards =
+    subset.length > 0
+      ? subset.flatMap((row) => row.block.progressCards)
+      : section.aggregate.progressCards
+  return cards.some((card) => /estimated/i.test(card.title))
+}
+
 function groupHasReportedSpend(acc: Acc, section: ChannelSectionData | undefined): boolean {
   if (!section) return false
   const subset = matchingLineItems(section, acc.lineIds)
@@ -563,6 +577,7 @@ function entriesFromGroups(groups: Map<string, Acc>, input: ChannelCoverageInput
     const status = resolveStatus(acc, hasFacts, input.todayISO)
     const hideSpend = spendHidden(acc, section)
     const modelled = acc.mapRow?.derive_spend_from_plan === true
+    const spendEstimated = groupHasEstimatedSpend(acc, section)
     const plannedFromSection = plannedDeliverablesFromCards(acc, section)
     entries.push({
       key: acc.key,
@@ -575,6 +590,7 @@ function entriesFromGroups(groups: Map<string, Acc>, input: ChannelCoverageInput
       deliveredImpressions: delivered.impressions,
       status,
       spendModelled: modelled,
+      ...(spendEstimated ? { spendEstimated: true } : {}),
       startsOn: acc.earliestStart,
       deliveryStatus: status === "reporting" ? delivered.deliveryStatus : null,
       impressionsStatus: status === "reporting" ? delivered.impressionsStatus : null,

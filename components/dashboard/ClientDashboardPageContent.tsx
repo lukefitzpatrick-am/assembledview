@@ -80,6 +80,7 @@ type DeliveredTotalsResponse = {
   impressions: number
   hasDelivery: boolean
   asOf: string
+  includesEstimatedSpend?: boolean
 }
 
 type DashboardCampaign = {
@@ -423,6 +424,7 @@ export function ClientDashboardPageContent({
             deliveredAsOf={deliveredTotals?.asOf}
             deliveredPartial={deliveredTotals?.partial === true}
             deliveredFailedSources={deliveredTotals?.failedSources ?? []}
+            deliveredIncludesEstimated={deliveredTotals?.includesEstimatedSpend === true}
           />
         </motion.section>
 

@@ -296,6 +296,11 @@ export type DeliveryLineSnapshot = {
   expectedSpendToDate?: number | null
   noDeliveryRows: boolean
   deliveryState: "reported" | "no_rows_yet" | "no_source" | "spend_only"
+  /**
+   * How `spendToDate` was derived. UI labels come from this flag.
+   * Omitted when the line has no dollar.
+   */
+  spendMode?: "estimated" | "actual" | "reported"
 }
 
 export type DeliveryChannelGroup = {

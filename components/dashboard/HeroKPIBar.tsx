@@ -51,6 +51,8 @@ export interface HeroKPIBarProps {
   deliveredPartial?: boolean
   /** Failed source names from `failedSources` on the delivered response. */
   deliveredFailedSources?: string[]
+  /** True when the delivered dollar includes CM360 direct-digital estimated spend. */
+  deliveredIncludesEstimated?: boolean
 }
 
 function formatDeliveredAsOfCaption(asOf: string | undefined): string | null {
@@ -115,6 +117,7 @@ export function HeroKPIBar({
   deliveredAsOf,
   deliveredPartial = false,
   deliveredFailedSources = [],
+  deliveredIncludesEstimated = false,
 }: HeroKPIBarProps) {
   const shouldReduceMotion = useReducedMotion()
   const normalizedBudgetUtilized = clampBudgetUtilizationPct(budgetUtilized, 0, 100)
@@ -198,6 +201,7 @@ export function HeroKPIBar({
             </p>
             <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
               Platform delivery
+              {deliveredIncludesEstimated ? " · Estimated" : ""}
               {deliveredAsOfCaption ? ` · ${deliveredAsOfCaption}` : ""}
             </p>
           </>

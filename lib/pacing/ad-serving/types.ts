@@ -1,6 +1,9 @@
 /**
- * Ad Serving (CM360) pacing row types — verification counts only.
- * Zero-spend law: no budget variance, no computePacing spend status, no $ columns.
+ * Ad Serving (CM360) pacing row types — verification counts on this DTO.
+ * Direct digital dollars are estimated later by `estimateDirectDigitalSpend`
+ * (campaign delivery and the portfolio assembler). This row stays
+ * `serving | no-data` and does not run `computePacing`.
+ * Programmatic `derive_spend_from_plan` is a different path and stays modelled.
  */
 
 import type { NormalisedBurst } from "@/lib/pacing/campaigns/types";

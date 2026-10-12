@@ -38,7 +38,7 @@ export type EntityBreakdownTableProps = {
   /** Campaign plan line ids — used to strip safe suffixes for display. */
   knownPlanLineIds: string[]
   entityNoun: EntityBreakdownNoun
-  /** spend = search's 6 cols; delivery = CM360 6 cols (ZERO-$ LAW: no Spend/CPC). */
+  /** spend = search's 6 cols; delivery = CM360 counts. The estimate is a line total, so this table has no per-placement dollar. */
   columns: "spend" | "delivery"
   className?: string
   /** Tests expand the table; production stays collapsed. */

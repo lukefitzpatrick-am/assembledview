@@ -30,6 +30,9 @@ function formatDeliverableCount(value: number): string {
 }
 
 function channelAmount(channel: ChannelPacingRow): string {
+  if (channel.spendMode === "estimated" && channel.spendToDate > 0) {
+    return `Estimated ${formatWhole(channel.spendToDate)} / ${formatWhole(channel.budget)}`
+  }
   if (channel.spendMode === "reported" && channel.spendToDate > 0) {
     return `${formatWhole(channel.spendToDate)} / ${formatWhole(channel.budget)}`
   }
