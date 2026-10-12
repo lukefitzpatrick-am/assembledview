@@ -16,6 +16,7 @@ import type {
   OverviewChannel,
   OverviewPayload,
 } from "@/lib/pacing/overview/types";
+import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status";
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore";
 
 export type OverviewClientProps = {
@@ -185,7 +186,7 @@ export function OverviewClient({ isAdmin: _isAdmin }: OverviewClientProps) {
 
       <AttentionSection
         title="Over-pacing — burning budget too fast"
-        description="Projection ≥15% over expected spend. Act before the period overshoots."
+        description={`At or above ${PACING_STATUS_THRESHOLDS.overPacingFromPct}% of expected. Act before the period overshoots.`}
         tone="critical"
         emptyLabel="No over-pacing burn warnings right now."
         items={data.overPacing}

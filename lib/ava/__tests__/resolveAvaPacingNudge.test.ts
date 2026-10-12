@@ -2,21 +2,21 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { resolveAvaPacingNudge } from "../resolveAvaPacingNudge.js"
 
-test("resolveAvaPacingNudge: over-pacing above 115%", () => {
-  const nudge = resolveAvaPacingNudge(115.1)
+test("resolveAvaPacingNudge: over-pacing at 115% of expected", () => {
+  const nudge = resolveAvaPacingNudge(115)
   assert.equal(nudge?.kind, "over")
   assert.equal(nudge?.copy, "Over-pacing — burning budget faster than planned.")
 })
 
-test("resolveAvaPacingNudge: under-pacing below 85%", () => {
-  const nudge = resolveAvaPacingNudge(84.9)
+test("resolveAvaPacingNudge: under-pacing below 90% of expected", () => {
+  const nudge = resolveAvaPacingNudge(89.9)
   assert.equal(nudge?.kind, "under")
   assert.equal(nudge?.copy, "Under-delivering vs plan to date.")
 })
 
-test("resolveAvaPacingNudge: on-pace and boundaries show nothing", () => {
-  assert.equal(resolveAvaPacingNudge(115), null)
-  assert.equal(resolveAvaPacingNudge(85), null)
+test("resolveAvaPacingNudge: on-pace and the ahead band show nothing", () => {
+  assert.equal(resolveAvaPacingNudge(114.9), null)
+  assert.equal(resolveAvaPacingNudge(90), null)
   assert.equal(resolveAvaPacingNudge(100), null)
 })
 

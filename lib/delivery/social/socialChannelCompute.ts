@@ -1,3 +1,4 @@
+import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import { cpc, cpm, cpv, ctr, vtr } from "@/lib/money/rates"
 import { formatMoney } from "@/lib/format/money"
 import { formatDateShort } from "@/lib/format/date"
@@ -936,7 +937,7 @@ export function computeSocialLineMetricsForPlatform(input: {
             lineItems: [tcli],
             kpiTargets,
             metric: targetMetric,
-            tolerance: 0.15,
+            tolerance: PACING_STATUS_THRESHOLDS.targetBandTolerance,
           })
 
           if (clippedFilter?.start && clippedFilter?.end && targetCurve.length) {
@@ -1038,7 +1039,7 @@ export function buildSocialAggregateTargetCurve(
     lineItems: tclis,
     kpiTargets,
     metric: sharedMetric,
-    tolerance: 0.15,
+    tolerance: PACING_STATUS_THRESHOLDS.targetBandTolerance,
   })
   const clipped = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
   if (clipped?.start && clipped?.end && curve.length) {

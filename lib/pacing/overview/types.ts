@@ -20,7 +20,7 @@ export type OverviewChannel =
  * - behind: under-pacing / completed under / delivery risk
  * - on-track: healthy spend or serving
  * - ahead: slightly over projected spend (mild — still actionable, not critical)
- * - over-pacing: ≥15% over projection — burn too fast (warning list)
+ * - over-pacing: at or above `overPacingFromPct` of expected — burn too fast (warning list)
  * - no-data: missing mapping / not started / pending / no delivery window
  */
 export type OverviewAttentionStatus =
@@ -73,7 +73,7 @@ export type OverviewPayload = {
   counts: OverviewStatusCounts;
   /** Under-pacing / delivery-risk items (sorted worst-first by spend gap when known). */
   underperforming: OverviewAttentionItem[];
-  /** Over-pacing burn warnings (projection ≥15% over). */
+  /** Over-pacing burn warnings (at or above `overPacingFromPct` of expected). */
   overPacing: OverviewAttentionItem[];
   /** Mild ahead-on-delivery (slightly_over) — not in the warning list. */
   aheadOnDelivery: OverviewAttentionItem[];

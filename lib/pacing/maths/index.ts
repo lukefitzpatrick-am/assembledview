@@ -1,6 +1,8 @@
+import { PACING_STATUS_THRESHOLDS, projectionVarianceBounds } from "@/lib/pacing/status"
 import { div0 } from "./div0"
 
 // Status strings from V_LINE_ITEM_PACING; order in computeStatus matches SQL CASE order.
+// Band edges come from PACING_STATUS_THRESHOLDS (percent of expected).
 export type PacingStatus =
   | "not_started"
   | "completed"
@@ -146,16 +148,19 @@ export function computeStatus(input: {
   projectionVariancePct: number
 }): PacingStatus {
   const { asOfDate, startDate, endDate, spendToDate, daysPassed, projectionVariancePct } = input
+  const { onTrackLow, onTrackHigh, overFrom } = projectionVarianceBounds()
 
   // Order from V_LINE_ITEM_PACING — DO NOT REORDER
   if (asOfDate < startDate) return "not_started"
   if (asOfDate > endDate) return "completed"
-  if (spendToDate === 0 && daysPassed >= 2) return "no_delivery"
-  if (Math.abs(projectionVariancePct) <= 0.05) return "on_track"
-  if (projectionVariancePct > -0.15 && projectionVariancePct < -0.05) return "slightly_under"
-  if (projectionVariancePct <= -0.15) return "under_pacing"
-  if (projectionVariancePct > 0.05 && projectionVariancePct < 0.15) return "slightly_over"
-  if (projectionVariancePct >= 0.15) return "over_pacing"
+  if (spendToDate === 0 && daysPassed >= PACING_STATUS_THRESHOLDS.noDeliveryMinDaysPassed) {
+    return "no_delivery"
+  }
+  if (projectionVariancePct >= onTrackLow && projectionVariancePct <= onTrackHigh) return "on_track"
+  if (projectionVariancePct < onTrackLow && projectionVariancePct > -overFrom) return "slightly_under"
+  if (projectionVariancePct <= -overFrom) return "under_pacing"
+  if (projectionVariancePct > onTrackHigh && projectionVariancePct < overFrom) return "slightly_over"
+  if (projectionVariancePct >= overFrom) return "over_pacing"
 
   return "unknown"
 }
