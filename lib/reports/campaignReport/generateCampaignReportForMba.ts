@@ -128,7 +128,7 @@ export function campaignReportDownloadName(input: {
 
 /**
  * Skip a blank deck when every line is unconnected or has not reported.
- * spend_only and reported lines are real delivery and are not skipped.
+ * spend_only, assumed, and reported lines are real spend and are not skipped.
  */
 export function campaignReportSkipReason(
   states: readonly DeliveryState[] | undefined,

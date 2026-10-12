@@ -4,6 +4,8 @@
  */
 
 import { cpc, cpm, cpv, ctr } from "@/lib/money/rates"
+import { formatReportMoney } from "@/lib/reports/campaignReport/formatters"
+import { ASSUMED_SPEND_LABEL } from "@/lib/spend/assumedSpend"
 import { computeCampaignDays } from "@/lib/pacing/maths"
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import type { CampaignReportPeriodKind } from "@/lib/reports/campaignReport/periods"
@@ -23,6 +25,78 @@ export type RateSourceLine = {
   impressions: number
   clicks: number
   views: number
+}
+
+const CAMPAIGN_REPORT_CHANNEL_LABELS: Record<string, string> = {
+  social_meta: "Social (Meta)",
+  social_tiktok: "Social (TikTok)",
+  social_reddit: "Social (Reddit)",
+  programmatic_display: "Programmatic display",
+  programmatic_video: "Programmatic video",
+  programmatic_ooh: "Programmatic OOH",
+  digital_display: "Digital Display",
+  digital_video: "Digital Video",
+  digital_audio: "Digital Audio",
+  bvod: "BVOD",
+  search: "Search",
+  plan_only: "Awaiting delivery",
+  assumed_spend: ASSUMED_SPEND_LABEL,
+}
+
+/** Deck channel name. Assumed spend is one channel, not the family name. */
+export function campaignReportChannelLabel(group: string): string {
+  return CAMPAIGN_REPORT_CHANNEL_LABELS[group] ?? group.replace(/_/g, " ")
+}
+
+/**
+ * Lines that count in campaign spend. Assumed lines keep their dollars and
+ * contribute no impressions, clicks, or views, so they cannot fill a rate.
+ */
+export function deliveryLinesForRates(
+  lines: Array<{
+    deliveryState: string
+    spendToDate: number
+    impressions: number
+    clicks: number
+    video3sViews: number
+  }>,
+): RateSourceLine[] {
+  return lines
+    .filter(
+      (line) =>
+        line.deliveryState === "reported" ||
+        line.deliveryState === "spend_only" ||
+        line.deliveryState === "assumed",
+    )
+    .map((line) => ({
+      spend: line.spendToDate,
+      impressions: line.deliveryState === "reported" ? line.impressions : 0,
+      clicks: line.deliveryState === "reported" ? line.clicks : 0,
+      views: line.deliveryState === "reported" ? line.video3sViews : 0,
+    }))
+}
+
+/**
+ * Plan totals omit the assumed channel so the hub does not add those dollars
+ * twice. Campaign spend on the deck adds them back once.
+ */
+export function campaignSpendIncludingAssumed(
+  planSpend: number,
+  channels: Array<{ group: string; totals: { spendToDate: number } }>,
+): number {
+  const base = Number.isFinite(planSpend) ? planSpend : 0
+  const assumed = channels.reduce((sum, channel) => {
+    if (channel.group !== "assumed_spend") return sum
+    const spend = channel.totals.spendToDate
+    return sum + (Number.isFinite(spend) && spend > 0 ? spend : 0)
+  }, 0)
+  return base + assumed
+}
+
+/** Key-metrics footnote. Null when nothing was excluded. */
+export function rateExclusionFootnote(excludedSpend: number): string | null {
+  if (!(excludedSpend > 0)) return null
+  return `Rates exclude ${formatReportMoney(excludedSpend)} of spend with no reported impressions or clicks.`
 }
 
 function positive(value: number | null): number | null {

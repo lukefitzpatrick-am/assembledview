@@ -5,12 +5,17 @@ import { cpc, cpm, cpv } from "@/lib/money/rates"
 import { formatReportDate } from "@/lib/reports/campaignReport/formatters"
 import { campaignReportDownloadName } from "@/lib/reports/campaignReport/generateCampaignReportForMba"
 import { resolveCampaignReportPeriod } from "@/lib/reports/campaignReport/periods"
+import { formatReportMoney } from "@/lib/reports/campaignReport/formatters"
 import {
+  campaignReportChannelLabel,
   campaignReportPeriodFilePart,
+  campaignSpendIncludingAssumed,
   campaignSpendShareSentence,
+  deliveryLinesForRates,
   isBlankKpiTarget,
   planDeliverablesFromItem,
   prorateDeliverable,
+  rateExclusionFootnote,
   rateMetricsFromLines,
   rewriteCampaignSpendShare,
 } from "@/lib/reports/campaignReport/reportFigures"
@@ -58,6 +63,45 @@ test("rates exclude spend with no impressions or clicks", () => {
   assert.equal(metrics.cpc, cpc(61_644, 4_070))
   assert.equal(metrics.cpv, cpv(61_644, 12_000))
   assert.equal(metrics.spendPacePct, (61_644 + 18_240) / 84_541)
+})
+
+test("the deck footnote includes assumed spend and leaves estimated rates alone", () => {
+  const lines = deliveryLinesForRates([
+    {
+      deliveryState: "reported",
+      spendToDate: 1_000,
+      impressions: 100_000,
+      clicks: 50,
+      video3sViews: 0,
+    },
+    {
+      deliveryState: "assumed",
+      spendToDate: 200,
+      impressions: 40_000,
+      clicks: 10,
+      video3sViews: 5,
+    },
+  ])
+  const { metrics, excludedSpend } = rateMetricsFromLines(lines, 1_500)
+  assert.equal(excludedSpend, 200)
+  assert.equal(metrics.cpm, cpm(1_000, 100_000))
+  assert.equal(metrics.cpc, cpc(1_000, 50))
+  assert.equal(metrics.cpv, null)
+  assert.equal(metrics.spendPacePct, (1_000 + 200) / 1_500)
+  const footnote = rateExclusionFootnote(excludedSpend)
+  assert.equal(
+    footnote,
+    `Rates exclude ${formatReportMoney(200)} of spend with no reported impressions or clicks.`,
+  )
+  assert.equal(campaignReportChannelLabel("assumed_spend"), "Assumed spend")
+  assert.equal(campaignReportChannelLabel("bvod"), "BVOD")
+  assert.equal(
+    campaignSpendIncludingAssumed(1_000, [
+      { group: "bvod", totals: { spendToDate: 1_000 } },
+      { group: "assumed_spend", totals: { spendToDate: 200 } },
+    ]),
+    1_200,
+  )
 })
 
 test("a channel share is worded as campaign spend", () => {

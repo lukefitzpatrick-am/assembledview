@@ -27,6 +27,7 @@ import {
 import { estimateDirectDigitalSpend } from "@/lib/delivery/estimateDirectDigitalSpend"
 import {
   channelKeyForEstimateGroup,
+  feePctForScheduleMedia,
   feePctFromVersionMap,
   positiveVersionId,
   versionIdFromLine,
@@ -35,6 +36,11 @@ import {
 } from "@/lib/delivery/directDigitalFeeLookup"
 import { expectedSpendToDateFromBursts } from "@/lib/spend/expectedSpendToDateFromBursts"
 import { planDeliverablesFromItem } from "@/lib/reports/campaignReport/reportFigures"
+import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
+import { fromCents, toCents } from "@/lib/money/cents"
+import { parseMoney } from "@/lib/money/parse"
+import { assumedSpendForBurst } from "@/lib/spend/assumedSpend"
+import { assumeSpendForSnapshotLine } from "@/lib/snowflake/pgLineItemSnapshotMap"
 
 type MediaTypeKey = keyof typeof MEDIA_CONTAINER_ENDPOINTS
 
@@ -92,6 +98,12 @@ type PlanLineMeta = {
   budgetIncludesFees: boolean
   versionId: number | null
   feeChannel: DirectDigitalFeeChannelKey | null
+  sourceTable: string
+  mediaTypeLabel: string
+  noAdserving: boolean
+  publisher: string | null
+  platform: string | null
+  clientPaysForMedia: boolean
 }
 
 function asNumber(value: unknown): number | null {
@@ -143,6 +155,7 @@ function toPlanLineMeta(
   item: MediaContainerLineItem,
   group: string,
   fallbackVersionId: number | null,
+  origin?: { sourceTable: string; mediaTypeLabel: string },
 ): PlanLineMeta | null {
   const id = extractPacingLineItemIdFromItem(item as Record<string, unknown>)
   if (!id) return null
@@ -170,6 +183,12 @@ function toPlanLineMeta(
     budgetIncludesFees: rec.budget_includes_fees === true,
     versionId: versionIdFromLine(rec) ?? fallbackVersionId,
     feeChannel: channelKeyForEstimateGroup(group),
+    sourceTable: origin?.sourceTable ?? "",
+    mediaTypeLabel: origin?.mediaTypeLabel ?? "",
+    noAdserving: rec.no_adserving === true || rec.noAdserving === true,
+    publisher: asString(rec.publisher),
+    platform: asString(rec.platform),
+    clientPaysForMedia: rec.client_pays_for_media === true || rec.clientPaysForMedia === true,
   }
 }
 
@@ -412,12 +431,138 @@ function overlayReportedSpendOnSnapshot(
   return overlaySpendIds
 }
 
+const ATL_PLAN_KEYS = [
+  ["television", "media_plan_television", "Television"],
+  ["radio", "media_plan_radio", "Radio"],
+  ["newspaper", "media_plan_newspaper", "Newspaper"],
+  ["magazines", "media_plan_magazines", "Magazines"],
+  ["ooh", "media_plan_ooh", "OOH"],
+  ["cinema", "media_plan_cinema", "Cinema"],
+] as const
+
+const DIGITAL_PLAN_ORIGIN: Record<string, { sourceTable: string; mediaTypeLabel: string }> = {
+  digital_display: { sourceTable: "media_plan_digi_display", mediaTypeLabel: "Digital Display" },
+  digital_video: { sourceTable: "media_plan_digi_video", mediaTypeLabel: "Digital Video" },
+  digital_audio: { sourceTable: "media_plan_digi_audio", mediaTypeLabel: "Digital Audio" },
+  bvod: { sourceTable: "media_plan_digi_bvod", mediaTypeLabel: "BVOD" },
+}
+
+function burstRecords(raw: unknown): Record<string, unknown>[] {
+  let list: unknown[] = []
+  if (Array.isArray(raw)) list = raw
+  else if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      if (Array.isArray(parsed)) list = parsed
+    } catch {
+      list = []
+    }
+  }
+  return list.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
+}
+
+function lineFeePct(plan: PlanLineMeta, feePctsByVersionId: FeePctsByVersionId): number {
+  return plan.mediaTypeLabel
+    ? feePctForScheduleMedia(feePctsByVersionId, plan.versionId, plan.mediaTypeLabel)
+    : 0
+}
+
+function deliveryMediaCentsForPlan(plan: PlanLineMeta, feePct: number): number {
+  let media = 0
+  for (const burst of burstRecords(plan.bursts)) {
+    const rawBudget = parseMoney(burst.budget ?? burst.mediaAmount ?? burst.media_amount) ?? 0
+    const amounts = computeBurstAmounts({
+      rawBudget,
+      budgetIncludesFees: plan.budgetIncludesFees,
+      clientPaysForMedia: plan.clientPaysForMedia,
+      feePct,
+      buyType: asString(burst.buy_type) ?? asString(burst.buyType) ?? plan.buyType ?? undefined,
+    })
+    if (amounts.deliveryMediaAmount > 0) media += amounts.deliveryMediaAmount
+  }
+  return toCents(media)
+}
+
+function planCanAssumeSpend(plan: PlanLineMeta, feePct: number): boolean {
+  return assumeSpendForSnapshotLine({
+    buyType: plan.buyType,
+    sourceTable: plan.sourceTable,
+    noAdserving: plan.noAdserving,
+    publisher: plan.publisher,
+    platform: plan.platform,
+    deliveryMediaCents: deliveryMediaCentsForPlan(plan, feePct),
+  })
+}
+
+function assumedSpendDollars(
+  plan: PlanLineMeta,
+  feePct: number,
+  windowStart: string | undefined,
+  windowEnd: string | undefined,
+  asOf: string,
+): number {
+  const cap = windowEnd && windowEnd < asOf ? windowEnd : asOf
+  let cents = 0
+  for (const burst of burstRecords(plan.bursts)) {
+    const rawBudget = parseMoney(burst.budget ?? burst.mediaAmount ?? burst.media_amount) ?? 0
+    const startDate = String(burst.startDate ?? burst.start_date ?? "")
+    const endDate = String(burst.endDate ?? burst.end_date ?? "")
+    if (!startDate || !endDate) continue
+    const days = assumedSpendForBurst({
+      rawBudget,
+      budgetIncludesFees: plan.budgetIncludesFees,
+      clientPaysForMedia: plan.clientPaysForMedia,
+      feePct,
+      buyType: asString(burst.buy_type) ?? asString(burst.buyType) ?? plan.buyType ?? undefined,
+      startDate,
+      endDate,
+      asOfDate: cap,
+    })
+    for (const day of days) {
+      if (windowStart && day.date < windowStart) continue
+      cents += day.cents
+    }
+  }
+  return fromCents(cents)
+}
+
+function assumedSnapshotLine(
+  plan: PlanLineMeta,
+  spend: number,
+  asOf: string,
+): DeliveryLineSnapshot {
+  return {
+    lineItemId: plan.id,
+    name: plan.name,
+    plannedBudget: plan.plannedBudget,
+    plannedUnits: plan.plannedUnits,
+    plannedImpressions: plan.plannedImpressions,
+    plannedClicks: plan.plannedClicks,
+    plannedViews: plan.plannedViews,
+    startDate: plan.startDate,
+    endDate: plan.endDate,
+    spendToDate: spend,
+    impressions: 0,
+    clicks: 0,
+    results: 0,
+    video3sViews: 0,
+    cpm: null,
+    ctr: null,
+    cpc: null,
+    expectedSpendToDate: expectedSpendToDateFromBursts(plan.bursts, plan.plannedBudget ?? 0, asOf),
+    noDeliveryRows: true,
+    deliveryState: "assumed",
+    spendMode: "assumed",
+  }
+}
+
 function collectChannelPlans(
   byChannel: Record<string, MediaContainerLineItem[]>,
   fallbackVersionId: number | null,
 ): {
   groups: Map<string, Map<string, PlanLineMeta>>
   allMetas: PlanLineMeta[]
+  assumedOffline: PlanLineMeta[]
   searchIds: string[]
   nonSearchIds: string[]
 } {
@@ -467,9 +612,10 @@ function collectChannelPlans(
   }
 
   const ingestDirectDigital = (keys: readonly string[], group: string) => {
+    const origin = DIGITAL_PLAN_ORIGIN[group]
     for (const key of keys) {
       for (const item of byChannel[key] ?? []) {
-        const meta = toPlanLineMeta(item, group, fallbackVersionId)
+        const meta = toPlanLineMeta(item, group, fallbackVersionId, origin)
         if (!meta) continue
         allMetas.push(meta)
         ensure(group).set(meta.id, meta)
@@ -480,6 +626,19 @@ function collectChannelPlans(
   ingestDirectDigital(["digitalVideo", "digiVideo"], "digital_video")
   ingestDirectDigital(["digitalAudio", "digiAudio"], "digital_audio")
   ingestDirectDigital(["bvod", "digiBvod", "digi_bvod"], "bvod")
+
+  const assumedOffline: PlanLineMeta[] = []
+  for (const [key, sourceTable, mediaTypeLabel] of ATL_PLAN_KEYS) {
+    for (const item of byChannel[key] ?? []) {
+      const meta = toPlanLineMeta(item, "assumed_spend", fallbackVersionId, {
+        sourceTable,
+        mediaTypeLabel,
+      })
+      if (!meta) continue
+      allMetas.push(meta)
+      assumedOffline.push(meta)
+    }
+  }
 
   for (const item of byChannel.search ?? []) {
     const meta = toPlanLineMeta(item, "search", fallbackVersionId)
@@ -498,6 +657,7 @@ function collectChannelPlans(
   return {
     groups,
     allMetas,
+    assumedOffline,
     searchIds,
     nonSearchIds: [...nonSearchIds].sort(),
   }
@@ -537,7 +697,7 @@ export async function loadDeliverySnapshot(
     ? (input.lineItemsByChannel as Record<string, MediaContainerLineItem[]>)
     : await fetchAllPlanLineItemsForDelivery(mba, versionNumber, input.mediaTypeFilter)
   const fallbackVersionId = positiveVersionId(input.estimateVersionId)
-  const { groups, allMetas, searchIds, nonSearchIds } = collectChannelPlans(
+  const { groups, allMetas, assumedOffline, searchIds, nonSearchIds } = collectChannelPlans(
     byChannel,
     fallbackVersionId,
   )
@@ -546,6 +706,9 @@ export async function loadDeliverySnapshot(
     for (const plan of groups.get(group)?.values() ?? []) {
       if (plan.versionId != null) feeVersionIds.push(plan.versionId)
     }
+  }
+  for (const plan of assumedOffline) {
+    if (plan.versionId != null) feeVersionIds.push(plan.versionId)
   }
   const feePctsByVersionId = await feePctsForDirectDigital(
     input.feePctsByVersionId,
@@ -669,11 +832,33 @@ export async function loadDeliverySnapshot(
 
   const asOf = getAsOfDate()
   const channels: DeliveryChannelGroup[] = []
+  const assumedLines: DeliveryLineSnapshot[] = []
   for (const group of channelOrder) {
     const planMap = groups.get(group)
     if (!planMap || planMap.size === 0) continue
     if (group === "search" && !includeSearch) continue
-    const lines = buildLines(planMap, deliveredById, factIds, overlaySpendIds, estimatedIds, asOf)
+    let lines = buildLines(planMap, deliveredById, factIds, overlaySpendIds, estimatedIds, asOf)
+    if (DIRECT_DIGITAL_ESTIMATE_GROUPS.has(group)) {
+      const kept: DeliveryLineSnapshot[] = []
+      for (const line of lines) {
+        const plan = planMap.get(line.lineItemId)
+        const hasDelivery =
+          factIds.has(line.lineItemId) ||
+          estimatedIds.has(line.lineItemId) ||
+          overlaySpendIds.has(line.lineItemId)
+        const feePct = plan ? lineFeePct(plan, feePctsByVersionId) : 0
+        if (plan && !hasDelivery && planCanAssumeSpend(plan, feePct)) {
+          const spend = assumedSpendDollars(plan, feePct, startDate, endDate, asOf)
+          if (spend > 0) {
+            assumedLines.push(assumedSnapshotLine(plan, spend, asOf))
+            continue
+          }
+        }
+        kept.push(line)
+      }
+      lines = kept
+    }
+    if (lines.length === 0) continue
     channels.push({
       group,
       lines,
@@ -681,7 +866,24 @@ export async function loadDeliverySnapshot(
     })
   }
 
-  const planTotals = sumLines(channels.flatMap((c) => c.lines))
+  for (const plan of assumedOffline) {
+    const feePct = lineFeePct(plan, feePctsByVersionId)
+    if (!planCanAssumeSpend(plan, feePct)) continue
+    const spend = assumedSpendDollars(plan, feePct, startDate, endDate, asOf)
+    if (!(spend > 0)) continue
+    assumedLines.push(assumedSnapshotLine(plan, spend, asOf))
+  }
+  if (assumedLines.length > 0) {
+    channels.push({
+      group: "assumed_spend",
+      lines: assumedLines,
+      totals: sumLines(assumedLines),
+    })
+  }
+
+  const planTotals = sumLines(
+    channels.filter((channel) => channel.group !== "assumed_spend").flatMap((c) => c.lines),
+  )
   const includesEstimatedSpend = channels.some((channel) =>
     channel.lines.some((line) => line.spendMode === "estimated" && line.spendToDate > 0),
   )

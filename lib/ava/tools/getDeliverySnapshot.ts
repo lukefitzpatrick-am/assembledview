@@ -2,7 +2,10 @@
 import type { AvaToolContext } from "./types"
 import { attachStripExpected } from "@/lib/delivery/attachStripExpected"
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
-import { summariseDeliverySnapshot } from "@/lib/ava/tools/summaries"
+import {
+  DELIVERY_SNAPSHOT_TOTALS_NOTE,
+  summariseDeliverySnapshot,
+} from "@/lib/ava/tools/summaries"
 import { MEDIA_CONTAINER_ENDPOINTS } from "@/lib/api/media-containers"
 import { readPlanVersionsByMba } from "@/lib/data/readMediaPlans"
 import { normalizeDateToMelbourneISO } from "@/lib/dates/normalizeCampaignDateISO"
@@ -142,8 +145,7 @@ export const getDeliverySnapshotTool: AvaTool = {
             content: jsonContent({
               ...summarised,
               ...strip,
-              reportedTotalsNote:
-                "Copy expectedSpendToDate, behindBy, daysElapsed and daysInCampaign — they are the Where we are strip figures. Do not recompute as budget × elapsed. Delivered is reported + spend_only spend.",
+              reportedTotalsNote: DELIVERY_SNAPSHOT_TOTALS_NOTE,
             }),
           }
         }
