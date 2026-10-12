@@ -62,6 +62,7 @@
     "test:money": "tsx --test lib/money/__tests__/*.test.ts",
     "test:money-golden": "tsx --test lib/money/__tests__/golden.test.ts",
     "test:monthly-plan-calendar": "tsx --test lib/spend/__tests__/monthlyPlanCalendar.test.ts",
+    "test:assumed-spend": "tsx --test lib/spend/__tests__/assumedSpend.test.ts",
     "test:kpi-review": "tsx --test lib/kpi/__tests__/kpiReview.test.ts lib/kpi/__tests__/kpiBandTargets.test.ts && vitest run components/dashboard/campaign/__tests__/KpiReview.test.tsx \"app/dashboard/[slug]/[mba_number]/components/__tests__/CampaignPageAssembly.order.test.ts\"",
     "test:kpi-backfill": "tsx --test scripts/kpi/__tests__/backfill-benchmarks.test.mjs lib/kpi/__tests__/fanOut.test.ts lib/kpi/__tests__/buildCampaignKpiSavePayload.test.ts",
     "test:pacing-maths": "tsx --test lib/pacing/maths/__tests__/*.test.ts",
