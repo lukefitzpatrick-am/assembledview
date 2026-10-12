@@ -26,6 +26,25 @@ export function reportModel(): string {
   return name
 }
 
+const REPORT_EFFORTS = ["low", "medium", "high"] as const
+
+export type ReportEffort = (typeof REPORT_EFFORTS)[number]
+
+export function reportEffort(): ReportEffort {
+  const effort = process.env.ANTHROPIC_REPORT_EFFORT
+  if (!effort) {
+    throw new Error(
+      "ANTHROPIC_REPORT_EFFORT is unset. Set it to low, medium, or high and rerun. This script does not pick a default.",
+    )
+  }
+  if (effort !== "low" && effort !== "medium" && effort !== "high") {
+    throw new Error(
+      `ANTHROPIC_REPORT_EFFORT must be low, medium, or high. Got ${JSON.stringify(effort)}.`,
+    )
+  }
+  return effort
+}
+
 export function spikeClient(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is missing")
   return new Anthropic({ timeout: HTTP_TIMEOUT_MS })

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { clipCommand, lastToolCommand, overInputCap, spikeInputCaps } from "./deck-guardrails"
-import { reportModel } from "./spike-client"
+import { reportEffort, reportModel } from "./spike-client"
 
 test("last tool command is the latest code or command field", () => {
   const content = [
@@ -42,4 +42,16 @@ test("report model is ANTHROPIC_REPORT_MODEL only", () => {
   else process.env.ANTHROPIC_REPORT_MODEL = previousReport
   if (previousModel === undefined) delete process.env.ANTHROPIC_MODEL
   else process.env.ANTHROPIC_MODEL = previousModel
+})
+
+test("report effort is ANTHROPIC_REPORT_EFFORT only", () => {
+  const previous = process.env.ANTHROPIC_REPORT_EFFORT
+  delete process.env.ANTHROPIC_REPORT_EFFORT
+  assert.throws(() => reportEffort(), /ANTHROPIC_REPORT_EFFORT is unset/)
+  process.env.ANTHROPIC_REPORT_EFFORT = "max"
+  assert.throws(() => reportEffort(), /must be low, medium, or high/)
+  process.env.ANTHROPIC_REPORT_EFFORT = "high"
+  assert.equal(reportEffort(), "high")
+  if (previous === undefined) delete process.env.ANTHROPIC_REPORT_EFFORT
+  else process.env.ANTHROPIC_REPORT_EFFORT = previous
 })
