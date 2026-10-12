@@ -41,7 +41,13 @@ import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstR
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  keepLineIdsOnReorder,
+  lineDisplayNumber,
+  prepareEditorLines,
+  stripUnmintedLineIdentity,
+} from "@/lib/mediaplan/lineItemOrder"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -568,9 +574,11 @@ const form = useForm<MagazinesFormValues>({
       standard,
       prevLineItems as StandardMagazineFormLineItem[]
     )
-    const orderedForApply = reorderedRef.current
-      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.magazines)
-      : merged
+    const orderedForApply = keepLineIdsOnReorder(
+      stripUnmintedLineIdentity(merged),
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.magazines,
+    )
     reorderedRef.current = false
     const keyedMerged = stampBurstReactKeys(orderedForApply)
     form.setValue("magazineslineItems", keyedMerged as MagazinesFormValues["magazineslineItems"], {
@@ -592,6 +600,7 @@ const form = useForm<MagazinesFormValues>({
     expertMagazinesRows,
     feemagazines,
     form,
+    mbaNumber,
     magazinesExpertWeekColumns,
   ])
 
@@ -637,7 +646,7 @@ const form = useForm<MagazinesFormValues>({
   useStableHydration(
     initialLineItems,
     (items) => {
-      const transformedLineItems = items.map((item: any, index: number) => {
+      const transformedLineItems = prepareEditorLines(items, mbaNumber, MEDIA_TYPE_ID_CODES.magazines).map((item: any, index: number) => {
         const lineNumber = item.line_item ?? item.lineItem ?? index + 1;
         const lineItemId = item.line_item_id || item.lineItemId || createLineItemId(lineNumber);
 
@@ -746,7 +755,7 @@ const form = useForm<MagazinesFormValues>({
       const row = money.lines[index];
 
       return {
-        index: index + 1,
+        index: lineDisplayNumber(lineItem, index),
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,
@@ -1022,10 +1031,14 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
-      const lineNumber = Number(lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1) || lineItemIndex + 1;
+      const lineNumber = lineDisplayNumber(lineItem, lineItemIndex);
       let lineItemId = lineItem.lineItemId || lineItem.line_item_id;
       if (!lineItemId) {
-        lineItemId = createLineItemId(lineNumber);
+        lineItemId = nextLineFields(
+          form.getValues("magazineslineItems") || [],
+          mbaNumber,
+          MEDIA_TYPE_ID_CODES.magazines,
+        ).line_item_id
         form.setValue(`magazineslineItems.${lineItemIndex}.lineItemId`, lineItemId);
         form.setValue(`magazineslineItems.${lineItemIndex}.line_item_id`, lineItemId);
       }
@@ -1073,7 +1086,7 @@ useEffect(() => {
   
   // push it up to page.tsx
   onLineItemsChange(items);
-}, [watchedLineItems, feemagazines, createLineItemId, form, onLineItemsChange]);
+}, [watchedLineItems, feemagazines, createLineItemId, form, mbaNumber, onLineItemsChange]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {

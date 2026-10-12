@@ -105,7 +105,13 @@ import {
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers, normalizeLineItemsForSave, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  keepLineIdsOnReorder,
+  lineDisplayNumber,
+  prepareEditorLines,
+  stripUnmintedLineIdentity,
+} from "@/lib/mediaplan/lineItemOrder"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -569,9 +575,11 @@ const handleAddNewNewspaperAdSize = async () => {
       standard,
       prevLineItems as StandardNewspaperFormLineItem[]
     )
-    const orderedForApply = reorderedRef.current
-      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper)
-      : merged
+    const orderedForApply = keepLineIdsOnReorder(
+      stripUnmintedLineIdentity(merged),
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.newspaper,
+    )
     reorderedRef.current = false
     const keyedMerged = stampBurstReactKeys(orderedForApply)
     form.setValue("newspaperlineItems", keyedMerged as NewspapersFormValues["newspaperlineItems"], {
@@ -593,6 +601,7 @@ const handleAddNewNewspaperAdSize = async () => {
     expertNewspaperRows,
     feenewspapers,
     form,
+    mbaNumber,
     newspaperExpertWeekColumns,
   ])
 
@@ -607,7 +616,7 @@ const handleAddNewNewspaperAdSize = async () => {
   useStableHydration(
     initialLineItems,
     (items) => {
-      const transformedLineItems = items.map((item: any, index: number) => {
+      const transformedLineItems = prepareEditorLines(items, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper).map((item: any, index: number) => {
         const lineNum =
           Number(item.line_item ?? item.lineItem ?? index + 1) || index + 1;
         const lineItemId =
@@ -720,7 +729,7 @@ const handleAddNewNewspaperAdSize = async () => {
       const row = money.lines[index];
 
       return {
-        index: index + 1,
+        index: lineDisplayNumber(lineItem, index),
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,
@@ -1003,7 +1012,7 @@ useEffect(() => {
   // convert each form lineItem into the shape needed for Excel
   const calculatedBursts = getNewspapersBursts(form, feenewspapers || 0);
   let burstIndex = 0;
-  const normalizedLineItems = normalizeLineItemsForSave<any>(
+  const normalizedLineItems = keepLineIdsOnReorder<any>(
     form.getValues('newspaperlineItems') || [],
     mbaNumber,
     MEDIA_TYPE_ID_CODES.newspaper,
@@ -1021,7 +1030,7 @@ useEffect(() => {
         form.setValue(`newspaperlineItems.${lineItemIndex}.lineItemId`, lineItemId);
         form.setValue(`newspaperlineItems.${lineItemIndex}.line_item_id`, lineItemId);
       }
-      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1;
+      const lineNumber = lineDisplayNumber(lineItem, lineItemIndex);
       const buyTypeLower = String(lineItem.buyType || "").toLowerCase();
       const isManualBuyType =
         buyTypeLower === "bonus" ||
@@ -1070,7 +1079,7 @@ useEffect(() => {
 
 // Add new useEffect to capture raw newspaper line items data
 useEffect(() => {
-  const rawLineItems = normalizeLineItemsForSave<any>(
+  const rawLineItems = keepLineIdsOnReorder<any>(
     watchedLineItems || [],
     mbaNumber,
     MEDIA_TYPE_ID_CODES.newspaper,

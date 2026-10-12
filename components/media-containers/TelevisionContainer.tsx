@@ -122,7 +122,10 @@ import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
   assignStableLineItemNumbers,
-  reassignLineItemNumbers,
+  keepLineIdsOnReorder,
+  lineDisplayNumber,
+  prepareEditorLines,
+  stripUnmintedLineIdentity,
 } from "@/lib/mediaplan/lineItemOrder"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("television")
@@ -514,9 +517,11 @@ export default function TelevisionContainer({
       standard,
       prevLineItems as StandardTelevisionFormLineItem[]
     )
-    const orderedForApply = reorderedRef.current
-      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.television)
-      : merged
+    const orderedForApply = keepLineIdsOnReorder(
+      stripUnmintedLineIdentity(merged),
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.television,
+    )
     reorderedRef.current = false
     const keyedMerged = stampBurstReactKeys(orderedForApply);
     form.setValue("televisionlineItems", keyedMerged as any, {
@@ -537,6 +542,7 @@ export default function TelevisionContainer({
     expertTvRows,
     feetelevision,
     form,
+    mbaNumber,
     tvExpertWeekColumns,
   ])
 
@@ -564,7 +570,7 @@ export default function TelevisionContainer({
       hasProcessedInitialLineItemsRef.current = true;
       lastProcessedLineItemsRef.current = lineItemsKey;
       
-      const transformedLineItems = items.map((item: any, index: number) => {
+      const transformedLineItems = prepareEditorLines(items, mbaNumber, MEDIA_TYPE_ID_CODES.television).map((item: any, index: number) => {
         // Log each item for debugging
 
         const parsedBursts = resolveLineItemBursts(item);
@@ -747,7 +753,7 @@ export default function TelevisionContainer({
       const row = money.lines[index];
 
       return {
-        index: index + 1,
+        index: lineDisplayNumber(lineItem, index),
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,
@@ -945,7 +951,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
         form.setValue(`televisionlineItems.${lineItemIndex}.lineItemId`, lineItemId);
         form.setValue(`televisionlineItems.${lineItemIndex}.line_item_id`, lineItemId);
       }
-      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1;
+      const lineNumber = lineDisplayNumber(lineItem, lineItemIndex);
 
       return {
         market: lineItem.market,                                // or fixed value

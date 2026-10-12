@@ -66,7 +66,13 @@ import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { channelSummaryTotals } from "@/lib/money/burst"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  keepLineIdsOnReorder,
+  lineDisplayNumber,
+  prepareEditorLines,
+  stripUnmintedLineIdentity,
+} from "@/lib/mediaplan/lineItemOrder"
 import {
   getSocialBurstCalculatedColumnLabel,
   SocialLineBurstCalculatedField,
@@ -405,9 +411,11 @@ export default function SocialMediaContainer({
       standard,
       prevLineItems as StandardSocialMediaFormLineItem[]
     )
-    const orderedForApply = reorderedRef.current
-      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia)
-      : merged
+    const orderedForApply = keepLineIdsOnReorder(
+      stripUnmintedLineIdentity(merged),
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.socialMedia,
+    )
     reorderedRef.current = false
     const keyedMerged = stampBurstReactKeys(orderedForApply);
     form.setValue("lineItems", keyedMerged as any, {
@@ -427,6 +435,7 @@ export default function SocialMediaContainer({
     expertSocialRows,
     feesocial,
     form,
+    mbaNumber,
     socialExpertWeekColumns,
   ])
 
@@ -512,7 +521,7 @@ export default function SocialMediaContainer({
     initialLineItems,
     (items) => {
       
-      const transformedLineItems = items.map((item: any, index: number) => {
+      const transformedLineItems = prepareEditorLines(items, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia).map((item: any, index: number) => {
         // Log each item for debugging
 
         const parsedBursts = resolveLineItemBursts(item);
@@ -626,7 +635,7 @@ export default function SocialMediaContainer({
       const row = money.lines[index];
 
       return {
-        index: index + 1,
+        index: lineDisplayNumber(lineItem, index),
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,

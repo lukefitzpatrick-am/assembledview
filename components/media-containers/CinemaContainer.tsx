@@ -62,7 +62,13 @@ import {
   mediaTypeSummaryStripeStyle
 } from "@/lib/mediaplan/mediaTypeAccents"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  keepLineIdsOnReorder,
+  lineDisplayNumber,
+  prepareEditorLines,
+  stripUnmintedLineIdentity,
+} from "@/lib/mediaplan/lineItemOrder"
 import { ComboboxModalProvider } from "@/components/ui/combobox"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { useWeekStartsOn } from "@/lib/mediaplan/useWeekStartsOn"
@@ -415,9 +421,11 @@ export default function CinemaContainer({
       standard,
       prevLineItems as StandardCinemaFormLineItem[]
     )
-    const orderedForApply = reorderedRef.current
-      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.cinema)
-      : merged
+    const orderedForApply = keepLineIdsOnReorder(
+      stripUnmintedLineIdentity(merged),
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.cinema,
+    )
     reorderedRef.current = false
     const keyedMerged = stampBurstReactKeys(orderedForApply)
     form.setValue("cinemalineItems", keyedMerged as any, {
@@ -539,7 +547,7 @@ export default function CinemaContainer({
   useStableHydration(
     initialLineItems,
     (items) => {
-      const transformedLineItems = items.map((item: any, index: number) => {
+      const transformedLineItems = prepareEditorLines(items, mbaNumber, MEDIA_TYPE_ID_CODES.cinema).map((item: any, index: number) => {
         const lineNum =
           Number(item.line_item ?? item.lineItem ?? index + 1) || index + 1;
         const lineItemId =
@@ -638,7 +646,7 @@ export default function CinemaContainer({
       const row = money.lines[index];
 
       return {
-        index: index + 1,
+        index: lineDisplayNumber(lineItem, index),
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,
@@ -913,7 +921,7 @@ useEffect(() => {
         form.setValue(`cinemalineItems.${lineItemIndex}.lineItemId`, lineItemId);
         form.setValue(`cinemalineItems.${lineItemIndex}.line_item_id`, lineItemId);
       }
-      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1;
+      const lineNumber = lineDisplayNumber(lineItem, lineItemIndex);
 
       return {
         market: lineItem.market,                                // or fixed value

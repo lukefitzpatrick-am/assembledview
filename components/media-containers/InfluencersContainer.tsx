@@ -60,7 +60,13 @@ import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { channelSummaryTotals } from "@/lib/money/burst"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  keepLineIdsOnReorder,
+  lineDisplayNumber,
+  prepareEditorLines,
+  stripUnmintedLineIdentity,
+} from "@/lib/mediaplan/lineItemOrder"
 import {
   getMediaTypeThemeHex,
   mediaTypeLineItemBadgeStyle,
@@ -384,9 +390,11 @@ export default function InfluencersContainer({
       standard,
       prevLineItems as StandardInfluencersFormLineItem[]
     )
-    const orderedForApply = reorderedRef.current
-      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.influencers)
-      : merged
+    const orderedForApply = keepLineIdsOnReorder(
+      stripUnmintedLineIdentity(merged),
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.influencers,
+    )
     reorderedRef.current = false
     const keyedMerged = stampBurstReactKeys(orderedForApply)
     form.setValue("lineItems", keyedMerged as InfluencersFormValues["lineItems"], {
@@ -406,6 +414,7 @@ export default function InfluencersContainer({
     expertInfluencersRows,
     feeinfluencers,
     form,
+    mbaNumber,
     influencersExpertWeekColumns,
   ])
 
@@ -420,7 +429,7 @@ export default function InfluencersContainer({
   useStableHydration(
     initialLineItems,
     (items) => {
-      const transformedLineItems = items.map((item: any, idx: number) => {
+      const transformedLineItems = prepareEditorLines(items, mbaNumber, MEDIA_TYPE_ID_CODES.influencers).map((item: any, idx: number) => {
         const parsedBursts = resolveLineItemBursts(item);
         return {
         ...mapHydrationToForm(INFLUENCERS_CONTAINER_CONFIG.fieldMap, item),
@@ -521,7 +530,7 @@ export default function InfluencersContainer({
       const row = money.lines[index];
 
       return {
-        index: index + 1,
+        index: lineDisplayNumber(lineItem, index),
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,

@@ -50,9 +50,14 @@ import {
   buildLineItemId,
   nextLineFields,
   pickLineItemNumber,
-  sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers, reassignDigiDisplayLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  keepLineIdsOnReorder,
+  lineDisplayNumber,
+  prepareEditorLines,
+  stripUnmintedLineIdentity,
+} from "@/lib/mediaplan/lineItemOrder"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
@@ -584,13 +589,11 @@ export default function DigiDisplayContainer({
       standard,
       asStandardDigiDisplayItems(prevLineItems)
     )
-    const reassigned = reorderedRef.current
-      ? reassignDigiDisplayLineItemNumbers(merged, mbaNumber)
-      : assignStableLineItemNumbers<any>(
-          merged,
-          mbaNumber,
-          MEDIA_TYPE_ID_CODES.digitalDisplay
-        )
+    const reassigned = keepLineIdsOnReorder(
+      stripUnmintedLineIdentity(merged),
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.digitalDisplay,
+    )
     reorderedRef.current = false
     const keyedMerged = stampBurstReactKeys(reassigned)
     const clearedOverride = expertApplyClearedAdServingOverride(
@@ -671,12 +674,10 @@ export default function DigiDisplayContainer({
     initialLineItems,
     (items) => {
       
-      const sortedItems = sortLineItemsByLineItemNumber(
-        assignStableLineItemNumbers<any>(
-          items,
-          mbaNumber,
-          MEDIA_TYPE_ID_CODES.digitalDisplay
-        )
+      const sortedItems = prepareEditorLines(
+        items,
+        mbaNumber,
+        MEDIA_TYPE_ID_CODES.digitalDisplay,
       )
       const transformedLineItems = sortedItems.map((item: any, index: number) => {
         const lineNumber = pickLineItemNumber(item, index + 1)
@@ -789,7 +790,7 @@ export default function DigiDisplayContainer({
       const row = money.lines[index];
 
       return {
-        index: index + 1,
+        index: lineDisplayNumber(lineItem, index),
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,
@@ -1054,7 +1055,7 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseBudgetSafe(burst?.budget);
-      const lineNumber = resolveDigiDisplayLineNumber(lineItem, lineItemIndex + 1)
+      const lineNumber = lineDisplayNumber(lineItem, lineItemIndex)
       const lineItemId = resolveDigiDisplayLineItemId(lineItem, lineNumber, mbaNumber)
       const recomputedDeliverable = computeDeliverableFromMedia({
         buyType: lineItem.buyType as Parameters<typeof computeDeliverableFromMedia>[0]["buyType"],
@@ -1124,7 +1125,7 @@ useEffect(() => {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [watchedLineItems, feedigidisplay, form, onBurstsChange, onInvestmentChange]);
+  }, [watchedLineItems, feedigidisplay, form, mbaNumber, onBurstsChange, onInvestmentChange]);
 
 
   return (

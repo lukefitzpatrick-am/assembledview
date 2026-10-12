@@ -67,6 +67,7 @@ import {
   keepOohLineIdsOnReorder,
   oohLineDisplayNumber,
   prepareOohEditorLines,
+  stripUnmintedLineIdentity,
 } from "@/lib/mediaplan/lineItemOrder"
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { channelSummaryTotals } from "@/lib/money/burst"
@@ -399,7 +400,7 @@ export default function OohContainer({
       standard,
       prevLineItems as StandardOohFormLineItem[]
     );
-    const reassigned = keepOohLineIdsOnReorder(merged, mbaNumber)
+    const reassigned = keepOohLineIdsOnReorder(stripUnmintedLineIdentity(merged), mbaNumber)
     const keyedMerged = stampBurstReactKeys(reassigned);
     form.setValue("lineItems", keyedMerged as any, { shouldDirty: true, shouldValidate: false });
     oohStandardBaselineRef.current = serializeOohStandardLineItemsBaseline(
@@ -887,7 +888,7 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
-      const lineNumber = Number(lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1) || lineItemIndex + 1;
+      const lineNumber = oohLineDisplayNumber(lineItem, lineItemIndex);
       let lineItemId = lineItem.lineItemId || lineItem.line_item_id;
       if (!lineItemId) {
         lineItemId = createLineItemId(lineNumber);

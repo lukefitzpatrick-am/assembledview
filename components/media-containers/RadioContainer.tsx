@@ -60,7 +60,10 @@ import type { LineItem } from '@/lib/generateMediaPlan'
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
   assignStableLineItemNumbers,
-  reassignLineItemNumbers,
+  keepLineIdsOnReorder,
+  lineDisplayNumber,
+  prepareEditorLines,
+  stripUnmintedLineIdentity,
 } from "@/lib/mediaplan/lineItemOrder"
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { channelSummaryTotals } from "@/lib/money/burst"
@@ -456,9 +459,11 @@ export default function RadioContainer({
       }
     );
     const merged = mergeRadioStandardFromExpertWithPrevious(standard, prevLineItems);
-    const orderedForApply = reorderedRef.current
-      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.radio)
-      : merged;
+    const orderedForApply = keepLineIdsOnReorder(
+      stripUnmintedLineIdentity(merged),
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.radio,
+    );
     reorderedRef.current = false;
     const keyedMerged = stampBurstReactKeys(orderedForApply);
     form.setValue("radiolineItems", keyedMerged as any, {
@@ -583,7 +588,11 @@ export default function RadioContainer({
       hasProcessedInitialLineItemsRef.current = true;
       lastProcessedLineItemsRef.current = lineItemsKey;
 
-      const transformedLineItems = dedupedInitialLineItems.map((item: any, index: number) => {
+      const transformedLineItems = prepareEditorLines(
+        dedupedInitialLineItems,
+        mbaNumber,
+        MEDIA_TYPE_ID_CODES.radio,
+      ).map((item: any, index: number) => {
 
         const parsedBursts = resolveLineItemBursts(item);
 
@@ -710,7 +719,7 @@ export default function RadioContainer({
       const row = money.lines[index];
 
       return {
-        index: index + 1,
+        index: lineDisplayNumber(lineItem, index),
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,
@@ -970,7 +979,7 @@ useEffect(() => {
       const mediaAmount = computedBurst
         ? computedBurst.mediaAmount
         : parseFloat(String(burst.budget).replace(/[^0-9.-]+/g, "")) || 0;
-      const lineNumber = lineItem.line_item ?? lineItem.lineItem ?? lineItemIndex + 1;
+      const lineNumber = lineDisplayNumber(lineItem, lineItemIndex);
       let lineItemId = lineItem.lineItemId || lineItem.line_item_id;
       if (!lineItemId) {
         lineItemId = createLineItemId(lineNumber);
