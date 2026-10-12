@@ -331,6 +331,7 @@ export default function MediaPlanVizSection({
               granularity={timelineGranularity}
               deliveredByLineId={deliveredByLineId}
               flighting
+              grouped
             />
           </div>
         ) : null}
