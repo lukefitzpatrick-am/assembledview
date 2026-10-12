@@ -129,15 +129,17 @@ SELECT
   DIV0(p.spend_to_date,  p.conversions_to_date)        AS cpa,
   DIV0(p.conversions_to_date, p.clicks_to_date)        AS cr,
   DIV0(p.revenue_to_date, p.spend_to_date)             AS roas,
-  -- Single source of truth for status. Order matters.
+  -- Status order matches computeStatus. Do not reorder.
+  -- projection_variance_pct = projected/budget - 1 (= spend/expected - 1 on a linear flight).
+  -- on_track is -0.10 to 0.10 (90–110% of expected). over_pacing is >= 0.15 (115%).
   CASE
     WHEN p.as_of_date < p.start_date                                                          THEN 'not_started'
     WHEN p.as_of_date > p.end_date                                                            THEN 'completed'
     WHEN p.spend_to_date = 0 AND p.days_passed >= 2                                           THEN 'no_delivery'
-    WHEN ABS(p.projection_variance_pct) <= 0.05                                               THEN 'on_track'
-    WHEN p.projection_variance_pct > -0.15 AND p.projection_variance_pct < -0.05              THEN 'slightly_under'
+    WHEN p.projection_variance_pct >= -0.10 AND p.projection_variance_pct <= 0.10             THEN 'on_track'
+    WHEN p.projection_variance_pct < -0.10 AND p.projection_variance_pct > -0.15              THEN 'slightly_under'
     WHEN p.projection_variance_pct <= -0.15                                                   THEN 'under_pacing'
-    WHEN p.projection_variance_pct > 0.05  AND p.projection_variance_pct < 0.15               THEN 'slightly_over'
+    WHEN p.projection_variance_pct > 0.10 AND p.projection_variance_pct < 0.15                THEN 'slightly_over'
     WHEN p.projection_variance_pct >= 0.15                                                    THEN 'over_pacing'
     ELSE 'unknown'
   END                                                                                        AS status
