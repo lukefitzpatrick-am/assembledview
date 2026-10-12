@@ -5,7 +5,7 @@ import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
 import { getAsOfDate } from "@/lib/pacing/maths"
-import { combineDeliveredTotals, deliveredQueryWindow, hasFixedCostMediaLineItems, sumDirectReportedSpendInRange, asOfForDeliveredRange, programmaticLineItemIdsFromSnapshot, type DeliveredTotals } from "@/lib/delivery/deliveredTotals"
+import { combineDeliveredTotals, deliveredQueryWindow, hasFixedCostMediaLineItems, directSpendWithAssumed, snapshotSpendByLineId, asOfForDeliveredRange, programmaticLineItemIdsFromSnapshot, type DeliveredTotals } from "@/lib/delivery/deliveredTotals"
 
 export type GetDeliveredTotalsForCampaignInput = {
   mbaNumber: string
@@ -106,16 +106,18 @@ export async function getDeliveredTotalsForCampaign(
 
   const fixedCostGroup = directGroups.find((group) => group.mbaNumber.trim().toLowerCase() === mbaKey)
 
+  const direct = directSpendWithAssumed(
+    fixedCostGroup,
+    window?.startDate,
+    window?.endDate,
+    programmaticLineItemIdsFromSnapshot(snapshot),
+    snapshotSpendByLineId(snapshot),
+  )
   const totals = combineDeliveredTotals(
     snapshot
       ? { spendToDate: snapshot.planTotals.spendToDate, impressions: snapshot.planTotals.impressions }
       : null,
-    sumDirectReportedSpendInRange(
-      fixedCostGroup,
-      window?.startDate,
-      window?.endDate,
-      programmaticLineItemIdsFromSnapshot(snapshot),
-    ),
+    direct.spend,
   )
 
   return {

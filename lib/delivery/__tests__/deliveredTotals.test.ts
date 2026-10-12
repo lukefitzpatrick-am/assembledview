@@ -79,6 +79,8 @@ describe("hasFixedCostMediaLineItems", () => {
     expect(hasFixedCostMediaLineItems({ television: [{ id: 1 }] })).toBe(true)
     expect(hasFixedCostMediaLineItems({ radio: [{ id: 1 }] })).toBe(true)
     expect(hasFixedCostMediaLineItems({ newspaper: [{ id: 1 }] })).toBe(true)
+    expect(hasFixedCostMediaLineItems({ magazines: [{ id: 1 }] })).toBe(true)
+    expect(hasFixedCostMediaLineItems({ digitalDisplay: [{ id: 1 }] })).toBe(true)
   })
 
   it("returns false for purely-digital line item maps", () => {
@@ -156,6 +158,8 @@ describe("hasFixedCostMediaTypeLabel", () => {
     expect(hasFixedCostMediaTypeLabel(["Television"])).toBe(true)
     expect(hasFixedCostMediaTypeLabel(["radio"])).toBe(true)
     expect(hasFixedCostMediaTypeLabel(["NEWSPAPER"])).toBe(true)
+    expect(hasFixedCostMediaTypeLabel(["Magazines"])).toBe(true)
+    expect(hasFixedCostMediaTypeLabel(["Digital Display"])).toBe(true)
     expect(hasFixedCostMediaTypeLabel(["Search", "Television", "BVOD"])).toBe(true)
   })
 

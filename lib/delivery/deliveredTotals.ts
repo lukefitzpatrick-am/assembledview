@@ -1,3 +1,5 @@
+import { lineIsAssumedSpend } from "@/lib/pacing/direct/assumedSpendLine"
+
 /**
  * Delivered-to-date composition (dashboard Task 3).
  *
@@ -31,6 +33,16 @@ export type DeliveredTotals = {
   hasDelivery: boolean
   /** True when the figure includes CM360 direct-digital estimated spend. */
   includesEstimatedSpend?: boolean
+  /**
+   * Assumed dollars already inside `spendToDate`. The hub labels this
+   * "includes $X assumed" and does not add it again.
+   */
+  assumedSpend?: number
+  /**
+   * The part of `assumedSpend` that was in "Booked, no platform delivery".
+   * Direct-digital assumed dollars stay in the platform expected figure.
+   */
+  assumedInBooked?: number
 }
 
 /**
@@ -211,26 +223,198 @@ export function sumDeliveredTotals(totals: DeliveredTotals[]): DeliveredTotals {
   const impressions = totals.reduce((sum, t) => sum + (Number.isFinite(t.impressions) ? t.impressions : 0), 0)
   const hasDelivery = totals.some((t) => t.hasDelivery)
   const includesEstimatedSpend = totals.some((t) => t.includesEstimatedSpend === true)
+  const assumedSpend = totals.reduce(
+    (sum, t) => sum + (Number.isFinite(t.assumedSpend) ? Number(t.assumedSpend) : 0),
+    0,
+  )
+  const assumedInBooked = totals.reduce(
+    (sum, t) => sum + (Number.isFinite(t.assumedInBooked) ? Number(t.assumedInBooked) : 0),
+    0,
+  )
   return {
     spendToDate,
     impressions,
     hasDelivery,
     ...(includesEstimatedSpend ? { includesEstimatedSpend: true } : {}),
+    ...(assumedSpend > 0 ? { assumedSpend, assumedInBooked } : {}),
   }
 }
 
-const FIXED_COST_MEDIA_TYPE_KEYS = new Set(["television", "radio", "newspaper"])
+function finiteSpend(value: number | null | undefined): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0
+}
+
+type DirectSpendLine = {
+  lineItemId?: string
+  totalReported?: number
+  daily?: Array<{ dateDay: string; reportedSpend: number; capApplied?: string }>
+}
+
+function lineReportedSpend(
+  line: DirectSpendLine,
+  window: { startDate: string; endDate: string } | null,
+): number {
+  if (!window) {
+    const lineTotal = Number(line.totalReported)
+    if (Number.isFinite(lineTotal)) return lineTotal
+    let sum = 0
+    for (const day of line.daily ?? []) {
+      const n = Number(day.reportedSpend)
+      if (Number.isFinite(n)) sum += n
+    }
+    return sum
+  }
+  if (!Array.isArray(line.daily) || line.daily.length === 0) return 0
+  let sum = 0
+  for (const day of line.daily) {
+    if (day.dateDay < window.startDate || day.dateDay > window.endDate) continue
+    const n = Number(day.reportedSpend)
+    if (Number.isFinite(n)) sum += n
+  }
+  return sum
+}
 
 /**
- * Whether a campaign's line-item map (`campaignData.lineItems` — keys from
- * `MEDIA_CONTAINER_ENDPOINTS`) has any fixed-cost media, so callers can skip the
- * `fetchDirectPacingRows` Snowflake read entirely for purely-digital campaigns.
+ * Assumed dollars inside a direct group.
+ * `included` is already in `sumDirectReportedSpendInRange` (not an overlay line).
+ * `omitted` is an overlay line whose snapshot spend is still 0, so the caller adds it once.
+ */
+export function splitAssumedDirectSpend(
+  group: { lineItems?: DirectSpendLine[] } | null | undefined,
+  startDate?: string | null,
+  endDate?: string | null,
+  excludeLineItemIds?: Set<string> | null,
+  snapshotSpendById?: ReadonlyMap<string, number> | null,
+): { included: number; omitted: number } {
+  const window = deliveredQueryWindow(startDate, endDate)
+  let included = 0
+  let omitted = 0
+  for (const line of group?.lineItems ?? []) {
+    const daily = (line.daily ?? []).map((day) => ({ capApplied: String(day.capApplied ?? "") }))
+    if (!lineIsAssumedSpend({ daily })) continue
+    const amount = lineReportedSpend(line, window)
+    if (!(amount > 0)) continue
+    const id = String(line.lineItemId ?? "").trim().toLowerCase()
+    const excluded = Boolean(id) && Boolean(excludeLineItemIds?.has(id))
+    if (!excluded) {
+      included += amount
+      continue
+    }
+    const already = snapshotSpendById?.get(id) ?? 0
+    if (!(already > 0)) omitted += amount
+  }
+  return { included, omitted }
+}
+
+export function directSpendWithAssumed(
+  group: Parameters<typeof sumDirectReportedSpendInRange>[0],
+  startDate?: string | null,
+  endDate?: string | null,
+  excludeLineItemIds?: Set<string> | null,
+  snapshotSpendById?: ReadonlyMap<string, number> | null,
+): { spend: number; assumedSpend: number; assumedInBooked: number } {
+  const base = sumDirectReportedSpendInRange(group, startDate, endDate, excludeLineItemIds)
+  const split = splitAssumedDirectSpend(
+    group,
+    startDate,
+    endDate,
+    excludeLineItemIds,
+    snapshotSpendById,
+  )
+  return {
+    spend: base + split.omitted,
+    assumedSpend: split.included + split.omitted,
+    assumedInBooked: split.included,
+  }
+}
+
+export function snapshotSpendByLineId(
+  snapshot:
+    | {
+        channels?: Array<{
+          lines?: Array<{ lineItemId?: string; spendToDate?: number }>
+        }>
+      }
+    | null
+    | undefined,
+): Map<string, number> {
+  const map = new Map<string, number>()
+  for (const channel of snapshot?.channels ?? []) {
+    for (const line of channel.lines ?? []) {
+      const id = String(line.lineItemId ?? "").trim().toLowerCase()
+      if (!id) continue
+      map.set(id, finiteSpend(line.spendToDate))
+    }
+  }
+  return map
+}
+
+/**
+ * Delivered already contains `assumedSpend`. Booked falls by `assumedInBooked`
+ * (the same amount when every assumed dollar was non-platform). Neither figure
+ * receives those dollars a second time.
+ */
+export function applyAssumedToHubTotals(args: {
+  deliveredSpend: number
+  bookedNoPlatform?: number | null
+  assumedSpend: number
+  assumedInBooked?: number
+}): { deliveredSpend: number; bookedNoPlatform: number | null; assumedSpend: number } {
+  const assumedSpend = Math.max(0, finiteSpend(args.assumedSpend))
+  const assumedInBooked =
+    args.assumedInBooked == null ? assumedSpend : Math.max(0, finiteSpend(args.assumedInBooked))
+  const booked =
+    args.bookedNoPlatform == null || !Number.isFinite(args.bookedNoPlatform)
+      ? null
+      : Math.max(0, args.bookedNoPlatform - assumedInBooked)
+  return {
+    deliveredSpend: finiteSpend(args.deliveredSpend),
+    bookedNoPlatform: booked,
+    assumedSpend,
+  }
+}
+
+const FIXED_COST_MEDIA_TYPE_KEYS = new Set([
+  "television",
+  "radio",
+  "newspaper",
+  "magazines",
+  "ooh",
+  "cinema",
+  "digital display",
+  "digital video",
+  "digital audio",
+  "bvod",
+  "digitaldisplay",
+  "digidisplay",
+  "digitalvideo",
+  "digivideo",
+  "digitalaudio",
+  "digiaudio",
+  "digibvod",
+])
+
+/**
+ * Whether a campaign's line-item map has offline, magazine, OOH, cinema, or
+ * direct-digital lines. Those campaigns read the fixed-cost daily fact, which
+ * also holds assumed-spend rows. Search, social, and programmatic maps do not.
  */
 export function hasFixedCostMediaLineItems(
   lineItemsMap: Record<string, unknown[] | undefined> | null | undefined,
 ): boolean {
   if (!lineItemsMap || typeof lineItemsMap !== "object") return false
-  for (const key of FIXED_COST_MEDIA_TYPE_KEYS) {
+  const keys = new Set([
+    ...FIXED_COST_MEDIA_TYPE_KEYS,
+    "digitalDisplay",
+    "digiDisplay",
+    "digitalVideo",
+    "digiVideo",
+    "digitalAudio",
+    "digiAudio",
+    "digiBvod",
+    "digi_bvod",
+  ])
+  for (const key of keys) {
     const items = lineItemsMap[key]
     if (Array.isArray(items) && items.length > 0) return true
   }
@@ -245,5 +429,8 @@ export function hasFixedCostMediaLineItems(
  */
 export function hasFixedCostMediaTypeLabel(mediaTypes: string[] | null | undefined): boolean {
   if (!Array.isArray(mediaTypes)) return false
-  return mediaTypes.some((m) => typeof m === "string" && FIXED_COST_MEDIA_TYPE_KEYS.has(m.trim().toLowerCase()))
+  return mediaTypes.some((m) => {
+    if (typeof m !== "string") return false
+    return FIXED_COST_MEDIA_TYPE_KEYS.has(m.trim().toLowerCase())
+  })
 }

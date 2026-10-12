@@ -222,6 +222,8 @@ function coverageColour(key: ChannelKey): string {
       return getMediaColor("digital_audio")
     case "bvod":
       return getMediaColor("bvod")
+    case "assumed-spend":
+      return getMediaColor("television")
   }
 }
 

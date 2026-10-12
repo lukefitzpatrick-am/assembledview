@@ -740,7 +740,10 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     digitalDisplayItemsActive.length > 0 ||
     digitalVideoItemsActive.length > 0 ||
     digitalAudioItemsActive.length > 0 ||
-    bvodItemsActive.length > 0
+    bvodItemsActive.length > 0 ||
+    ["television", "radio", "newspaper", "magazines", "ooh", "cinema"].some(
+      (key) => Array.isArray(lineItemsMap[key]) && lineItemsMap[key].length > 0,
+    )
 
   return (
     <CampaignPageAssembly

@@ -25,6 +25,8 @@ export function channelMediaRegistryKey(key: ChannelKey): string {
       return "digital_audio"
     case "bvod":
       return "bvod"
+    case "assumed-spend":
+      return "television"
     case "plan-only":
       return "socialmedia"
   }

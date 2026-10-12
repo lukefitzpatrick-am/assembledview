@@ -42,7 +42,7 @@ import {
 } from "@/lib/dashboard/clientDateRange"
 import { fyDisplayLabel } from "@/lib/finance/months"
 import DateRangeSelector from "@/components/dashboard/shared/DateRangeSelector"
-import { EMPTY_DELIVERED_TOTALS_WITH_AS_OF } from "@/lib/delivery/deliveredTotals"
+import { applyAssumedToHubTotals, EMPTY_DELIVERED_TOTALS_WITH_AS_OF } from "@/lib/delivery/deliveredTotals"
 import { formatDateShort } from "@/lib/format/date"
 import type { Campaign as LegacyCampaign, ClientDashboardData as LegacyClientDashboardData } from "@/lib/types/dashboard"
 
@@ -81,6 +81,8 @@ type DeliveredTotalsResponse = {
   hasDelivery: boolean
   asOf: string
   includesEstimatedSpend?: boolean
+  assumedSpend?: number
+  assumedInBooked?: number
 }
 
 type DashboardCampaign = {
@@ -259,7 +261,7 @@ export function ClientDashboardPageContent({
     [allCampaigns, rangeEndISO, rangeStartISO]
   )
   const expectedHeadline = platformToDate != null ? platformToDate : plannedToDate
-  const bookedNoPlatform = platformToDate != null ? plannedToDate - platformToDate : undefined
+  const bookedBeforeAssumed = platformToDate != null ? plannedToDate - platformToDate : undefined
   const budgetCaption = expectedTileUsesCampaignBudget(allCampaigns) ? "campaign" : "prorated"
   /**
    * One committed figure for the header and the expected-media tile.
@@ -306,6 +308,14 @@ export function ClientDashboardPageContent({
       cancelled = true
     }
   }, [slug, rangeStartISO, rangeEndISO])
+
+  const hubAssumed = applyAssumedToHubTotals({
+    deliveredSpend: deliveredTotals?.spendToDate ?? 0,
+    bookedNoPlatform: bookedBeforeAssumed ?? null,
+    assumedSpend: deliveredTotals?.assumedSpend ?? 0,
+    assumedInBooked: deliveredTotals?.assumedInBooked,
+  })
+  const bookedNoPlatform = hubAssumed.bookedNoPlatform ?? undefined
 
   const isClientHub = campaignLinkMode === "adminHub"
   const deliveryFreshness = formatDeliveryFreshness(deliveredTotals?.asOf)
@@ -425,6 +435,7 @@ export function ClientDashboardPageContent({
             deliveredPartial={deliveredTotals?.partial === true}
             deliveredFailedSources={deliveredTotals?.failedSources ?? []}
             deliveredIncludesEstimated={deliveredTotals?.includesEstimatedSpend === true}
+            deliveredAssumedSpend={hubAssumed.assumedSpend}
           />
         </motion.section>
 

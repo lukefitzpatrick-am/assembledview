@@ -53,6 +53,8 @@ export interface HeroKPIBarProps {
   deliveredFailedSources?: string[]
   /** True when the delivered dollar includes CM360 direct-digital estimated spend. */
   deliveredIncludesEstimated?: boolean
+  /** Assumed dollars already inside `deliveredToDate`. */
+  deliveredAssumedSpend?: number
 }
 
 function formatDeliveredAsOfCaption(asOf: string | undefined): string | null {
@@ -118,6 +120,7 @@ export function HeroKPIBar({
   deliveredPartial = false,
   deliveredFailedSources = [],
   deliveredIncludesEstimated = false,
+  deliveredAssumedSpend = 0,
 }: HeroKPIBarProps) {
   const shouldReduceMotion = useReducedMotion()
   const normalizedBudgetUtilized = clampBudgetUtilizationPct(budgetUtilized, 0, 100)
@@ -202,6 +205,9 @@ export function HeroKPIBar({
             <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
               Platform delivery
               {deliveredIncludesEstimated ? " · Estimated" : ""}
+              {deliveredAssumedSpend > 0
+                ? ` · includes ${formatMoneyCompact(deliveredAssumedSpend)} assumed`
+                : ""}
               {deliveredAsOfCaption ? ` · ${deliveredAsOfCaption}` : ""}
             </p>
           </>

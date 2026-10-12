@@ -34,6 +34,7 @@ import { buildSearchSection } from "./channels/searchAdapter"
 import { buildSocialMetaSection } from "./channels/socialMetaAdapter"
 import { buildSocialTiktokSection } from "./channels/socialTiktokAdapter"
 import { buildSocialRedditSection } from "./channels/socialRedditAdapter"
+import { buildAssumedSpendSection } from "./channels/assumedSpendAdapter"
 import { buildPlanOnlyRemainderSection } from "./channels/planOnlyAdapter"
 import type { ChannelSectionData } from "./channels/types"
 import {
@@ -69,6 +70,7 @@ export type CampaignDeliverySectionProps = {
   digitalVideoLineItems: unknown[]
   digitalAudioLineItems: unknown[]
   bvodLineItems: unknown[]
+  atlLineItems?: unknown[]
   onCoverage?: (entries: ChannelCoverageEntry[]) => void
   onKpiReviewGroups?: (groups: KpiReviewGroup[]) => void
   onDeliveredByLineId?: (map: Map<string, number>) => void
@@ -104,6 +106,7 @@ type DeliveryBodyProps = {
   digitalVideoLineItems: unknown[]
   digitalAudioLineItems: unknown[]
   bvodLineItems: unknown[]
+  atlLineItems: unknown[]
   remainderItems: unknown[]
   reportedSpendByLineDate?: Map<string, Map<string, number>>
   socialLineItems: SocialLineItem[]
@@ -142,6 +145,7 @@ function CampaignDeliveryBody({
   digitalVideoLineItems,
   digitalAudioLineItems,
   bvodLineItems,
+  atlLineItems,
   remainderItems,
   reportedSpendByLineDate,
   socialLineItems,
@@ -389,6 +393,18 @@ function CampaignDeliveryBody({
       if (s) out.push(s)
     }
 
+    const assumed = buildAssumedSpendSection({
+      key: "assumed-spend",
+      lineItems: atlLineItems,
+      campaignStart,
+      campaignEnd,
+      lastSyncedAt,
+      asOfDate: getMelbourneTodayISO(),
+      feePctsByVersionId,
+      estimateVersionId,
+    })
+    if (assumed) out.push(assumed)
+
     const remainder = buildPlanOnlyRemainderSection({
       lineItems: [...remainderItems, ...redditAwaiting, ...oohAwaiting],
       campaignStart,
@@ -412,6 +428,7 @@ function CampaignDeliveryBody({
     digitalVideoLineItems,
     digitalAudioLineItems,
     bvodLineItems,
+    atlLineItems,
     remainderItems,
     campaignStart,
     campaignEnd,
@@ -532,6 +549,7 @@ export function CampaignDeliverySection({
   digitalVideoLineItems,
   digitalAudioLineItems,
   bvodLineItems,
+  atlLineItems = [],
   onCoverage,
   onKpiReviewGroups,
   onDeliveredByLineId,
@@ -702,6 +720,7 @@ export function CampaignDeliverySection({
           digitalVideoLineItems={digitalVideoLineItems}
           digitalAudioLineItems={digitalAudioLineItems}
           bvodLineItems={bvodLineItems}
+          atlLineItems={atlLineItems}
           remainderItems={remainderItems}
           reportedSpendByLineDate={reportedSpendByLineDate}
           socialLineItems={socialLineItems}
