@@ -4925,3 +4925,51 @@ The round-trip ran before the stamp changed. The same `package_inclusions` OOH l
 | Reordering OOH lines keeps their line ids | DONE | `e74f6767` |
 | Package inclusion bursts keep their own buy type | DONE | `42e99a60` |
 | AV-TS wrap-up | DONE | this commit |
+
+## Flighting expands from the channel row
+
+One commit on `localhost`. The run log stays uncommitted.
+
+The separate channel header is gone. The summary row is the only channel row: chevron, colour tick, channel name, and "N lines · $planned". The label cell is the button (`aria-expanded`, Enter, Space). Expanded lines sit under that row in plan order, indented, one bar each. One axis for the chart, sticky while the page scrolls. Weekly columns are Monday week-start dates (`5 Oct`) with the month name on the first week of each month. Monthly bands are unchanged. Under 20 lines start open; 20 or more start collapsed. Expand all, Collapse all, Download PNG, and the Table and Summary tabs stay.
+
+Download PNG cannot keep `position: sticky`. The existing clone prep sets `.sticky` to `position: relative`, so the axis is in normal flow at the top of the PNG and is not stuck to the viewport.
+
+- SHA: c0dca3d6
+- Checks: `GroupedMediaGantt.test.tsx` 7/7. `mediaGanttReshape.test.ts` and `groupGanttRowsByChannel.test.ts` 15/15. typecheck 0. eslint on the touched files, 0.
+- Under 90%: none on the row, the single axis, or the Monday labels. The PNG sticky limitation is the clone behaviour above.
+- Morning smoke was not run. Snowflake was not called.
+
+## Reordering lines keeps their line ids in every channel
+
+One commit on `localhost`. The run log stays uncommitted.
+
+Expert reorder no longer renumbers. `keepLineIdsOnReorder` stamps `position` and leaves `line_item_id` on the line it was minted for. That replaces `reassignLineItemNumbers` on Expert Apply for television, radio, newspaper, magazines, cinema, digital display, digital audio, digital video, BVOD, integration, social, production, influencers, and the shared shell (search, programmatic display, video, BVOD, audio, OOH). OOH uses the same helper. A row Expert Apply did not already have a minted id for, a new line, and a duplicate take max suffix + 1. Excel, the MBA workbook, and the on-screen "Line N" label follow position.
+
+Load sorts by the number stored on `line_item`. Postgres copies `position` onto that field, so the sort follows position and does not rewrite ids. Digital display used to run `assignStableLineItemNumbers` on that copy during hydrate, which would rebuild the id from the display index. Hydrate now restores the id suffix first (`prepareEditorLines`).
+
+`reassignLineItemNumbers` remains for tests and for `normalizeLineItemsForSave`. No container calls it. Nothing in Excel, the MBA workbook, billing, naming, or the Snowflake sync requires ids to be contiguous `XX1..XXn`.
+
+- SHA: c900cde9
+- Checks: `tests/lib/lineItemReorderKeepsIds.test.ts` 120/120 (20 channels × 6). Existing OOH and line-order tests 11/11. typecheck 0. eslint on the touched files, 0.
+- Under 90%: none. No ingest re-import renumber was found. A missing-id fallback in a few live Excel syncs still mints from the row index when a line has no id yet. That path is not reorder.
+- Morning smoke was not run. Snowflake was not called.
+
+## Channel cards pace against expected to date
+
+Stopped. No commit. golf025 published version 17009, as of 2026-10-12: headline media expected to date `$75,838.65`. The sum of line expected net to date was `$75,051.31`, gap `-$787.34`. That is outside `$1`, so the channel-card change was not built.
+
+## AV-TT wrap-up
+
+`npm run gate:main` with `NODE_OPTIONS=--max-old-space-size=6144` for that run only, exit 0, 284.3s. `npm run test:all` once, exit 0, 125/125 suites, 681.2s. `test:codex-stage1-templates` passed. No suite was rerun. Only this run log was staged.
+
+krusty002 `snapshot_checksum` is the same on v2, v3, v4 and v5 (`33258dc74159c385deb5dbbd4f489c5f03cc60582cefab3f72ce7259e6be93ff`). v5 (version id 19136) is the only one of those with line `krusty002RA3`. The hash is `computeSnapshotChecksum` in `lib/docs/snapshotChecksum.ts:69`, over the canonical payload at line 60: `schedule_months` (each row's `lineItemId`, component, basis, month, amount cents, source), `approved_slice`, and the fee snapshot. Publish writes it in `lib/data/savePlan.ts:1294`. It does not hash the `line_items` table. A line changes the checksum only when it changes a schedule row, the approved slice, or fees. `krusty002RA3` has zero `schedule_months` rows, and v2 through v5 each have 24 schedule rows, so the equal checksum matches the contract. Not fixed in this pack.
+
+### Prompts
+
+| ID | Status | SHA |
+| --- | --- | --- |
+| Channel cards pace against expected to date | STOPPED | none |
+| Flighting expands from the channel row | DONE | `c0dca3d6` |
+| Reordering lines keeps their line ids in every channel | DONE | `c900cde9` |
+| krusty002 snapshot checksum covers schedule, slice, and fees | REPORTED | none |
+| AV-TT wrap-up | DONE | this commit |
