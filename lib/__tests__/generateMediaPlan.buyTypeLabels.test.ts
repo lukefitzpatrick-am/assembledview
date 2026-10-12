@@ -292,7 +292,7 @@ test("Excel Buy Type column matches the UI label for every BuyType", async () =>
   )
 })
 
-/** OOH line the planner set to package_inclusions; Apply still stamps bursts[].buyType bonus. */
+/** Historic OOH row: the line is package_inclusions and the burst is still stamped bonus. Excel reads the line. */
 const OOH_PACKAGE_INCLUSIONS_STAMPED_BONUS = {
   buyType: "package_inclusions",
   market: "Sydney",

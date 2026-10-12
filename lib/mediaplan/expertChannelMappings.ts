@@ -1232,7 +1232,7 @@ export function mapOohExpertRowsToStandardLineItems(
         startDate: start,
         endDate: end,
         calculatedValue,
-        ...(isInclusionBuyType ? { buyType: "bonus" } : {}),
+        ...(isInclusionBuyType ? { buyType: bt } : {}),
       })
     }
 
@@ -1613,7 +1613,14 @@ export function mapStandardOohLineItemsToExpertRows(
       if (!sd || Number.isNaN(sd.getTime())) continue
 
       const burstBuyType = String(b.buyType ?? buyType ?? "")
-      const isBonusBurst = burstBuyType.toLowerCase() === "bonus"
+      const burstBtLower = burstBuyType.toLowerCase()
+      const lineBtLower = buyType.toLowerCase()
+      const isBonusBurst = burstBtLower === "bonus"
+      const keepsZeroDeliverable =
+        isBonusBurst ||
+        burstBtLower === "package_inclusions" ||
+        lineBtLower === "bonus" ||
+        lineBtLower === "package_inclusions"
 
       let totalDeliverables =
         buyType.toLowerCase() === "panels"
@@ -1625,7 +1632,7 @@ export function mapStandardOohLineItemsToExpertRows(
       if (buyType.toLowerCase() === "fixed_cost") {
         totalDeliverables = totalDeliverables > 0 ? totalDeliverables : 1
       }
-      if (totalDeliverables === 0 && !isBonusBurst && buyType.toLowerCase() !== "bonus") continue
+      if (totalDeliverables === 0 && !keepsZeroDeliverable) continue
 
       importCtx.mergeIdx = mergeIdx
       accumulateDistributableBurstForExpertImport(importCtx, {
