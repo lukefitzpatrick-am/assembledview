@@ -12,6 +12,7 @@ import {
   LINE_AS_OF,
   adServingFixture,
   directGroupFixture,
+  directLineFixture,
   programmaticFixture,
   searchFixture,
   socialFixture,
@@ -94,5 +95,35 @@ describe("lineCardFromDirect", () => {
     assert.equal(model.metrics[2]?.label, "Buy type")
     assert.equal(model.burstSpend, 6_000)
     assert.match(model.why, /September burst/)
+  })
+
+  it("labels assumed spend on an assumed daily series", () => {
+    const group = directGroupFixture()
+    const line = directLineFixture({
+      buyType: "spots",
+      isCurrentlyFixedCost: false,
+      daily: [
+        {
+          dateDay: "2026-10-01",
+          burstIndex: 0,
+          reportedSpend: 500,
+          actualPlatformSpend: 0,
+          actualDeliverables: 0,
+          expectedDailyDeliverables: 0,
+          reportedCumulative: 500,
+          actualCumulative: 0,
+          expectedCumulative: 0,
+          isSquareupDay: false,
+          isLocked: true,
+          buyType: "spots",
+          capApplied: "assumed_spend",
+        },
+      ],
+    })
+    const model = lineCardFromDirect(group, line, LINE_AS_OF)
+    assert.equal(model.spendMode, "assumed")
+    assert.equal(model.metrics[0]?.label, "Assumed spend")
+    assert.equal(model.sourceState, "reporting")
+    assert.equal(model.fixedCost, false)
   })
 })

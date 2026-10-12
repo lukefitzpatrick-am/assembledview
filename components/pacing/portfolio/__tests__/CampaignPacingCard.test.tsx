@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
 import { p6FixtureRows, P6_AS_OF } from "@/lib/pacing/portfolio/__tests__/p6Fixture"
 import { CampaignPacingCard } from "@/components/pacing/portfolio/CampaignPacingCard"
+import type { CampaignPacingRow } from "@/lib/pacing/portfolio/types"
 
 vi.mock("next/link", () => ({
   default: ({
@@ -52,6 +53,31 @@ describe("CampaignPacingCard", () => {
     expect(html).toContain(`/dashboard/${row.clientSlug}/BICAU002`)
     expect(html).toContain("Open campaign")
     expect(html).toContain(`dateTime="${P6_AS_OF}"`)
+  })
+
+  it("prints Assumed spend on an assumed channel", () => {
+    const row = byMba.BICAU002!
+    const assumed: CampaignPacingRow = {
+      ...row,
+      channels: [
+        {
+          channelKey: "assumed-ra",
+          label: "Radio",
+          spendToDate: 500,
+          budget: 1_000,
+          expectedToDate: 500,
+          spendPct: 100,
+          pace: "on_track",
+          spendMode: "assumed",
+          deliverable: null,
+          sourceState: "reporting",
+          lineItemIds: ["golf025RA1"],
+        },
+      ],
+    }
+    const html = renderToStaticMarkup(<CampaignPacingCard row={assumed} asOf={P6_AS_OF} />)
+    expect(html).toContain("Assumed spend")
+    expect(html).toContain("Radio")
   })
 
   it("hides the why line when asked", () => {

@@ -25,7 +25,9 @@ import {
 import { labelForMetric } from "@/lib/pacing/kpi/formatKpi"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/slugifyPlanClientName"
 import { computeDaysPassed } from "@/lib/pacing/maths"
+import { lineIsAssumedSpend } from "@/lib/pacing/direct/assumedSpendLine"
 import type { ChannelSpendMode } from "@/lib/pacing/portfolio/types"
+import { ASSUMED_SPEND_LABEL } from "@/lib/spend/assumedSpend"
 import type { LineCardKpi, LineCardMetric, LineCardModel, LineCardPlanBurst } from "./lineCardTypes"
 import {
   burstMonthLabel,
@@ -594,6 +596,7 @@ export function lineCardFromDirect(
   line: DirectLineItemRow,
   asOf: string,
 ): LineCardModel {
+  const assumed = lineIsAssumedSpend(line)
   const burst = directCurrentBurst(line)
   const currentIndex = burst ? line.bursts.findIndex((item) => item.burstIndex === burst.burstIndex) : null
   const start = line.bursts[0]?.startDate ?? group.campaignStartDate
@@ -617,12 +620,14 @@ export function lineCardFromDirect(
     yesterday: 0,
     currentBurstIndex: currentIndex != null && currentIndex >= 0 ? currentIndex : null,
     totalBursts: line.burstCount || line.bursts.length,
-    hasFactRows: line.totalReported > 0 || line.totalActual > 0,
-    spendMode: "reported",
+    hasFactRows: assumed
+      ? line.daily.length > 0
+      : line.totalReported > 0 || line.totalActual > 0,
+    spendMode: assumed ? "assumed" : "reported",
     kpiStatus: null,
     channel: "direct",
     buyType: line.buyType || null,
-    fixedCost: true,
+    fixedCost: !assumed,
     remainingBurst: burst ? burst.budget - burst.reportedSpend : null,
     rate: {
       bursts: line.bursts.map((item) => ({
@@ -642,7 +647,7 @@ export function lineCardFromDirect(
       reportedSpend: item.reportedSpend,
     })),
     metrics: [
-      { label: "Reported", value: formatWholeMoney(line.totalReported) },
+      { label: assumed ? ASSUMED_SPEND_LABEL : "Reported", value: formatWholeMoney(line.totalReported) },
       { label: "Actual platform", value: formatWholeMoney(line.totalActual) },
       { label: "Buy type", value: line.buyType || "—" },
       { label: "Variance", value: formatWholeMoney(line.variance) },

@@ -6,7 +6,7 @@ export type PortfolioPace =
   | "no_source"
   | "not_started"
 
-export type ChannelSpendMode = "actual" | "reported" | "modelled" | "estimated"
+export type ChannelSpendMode = "actual" | "reported" | "modelled" | "estimated" | "assumed"
 
 export type ChannelSourceState = "reporting" | "connecting" | "not_started" | "no_source"
 
