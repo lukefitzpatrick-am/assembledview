@@ -5,9 +5,10 @@
  *
  * Requires ANTHROPIC_REPORT_MODEL and ANTHROPIC_REPORT_EFFORT (low, medium, or high).
  * Does not fall back to ANTHROPIC_MODEL and does not pick an effort default.
- * Aborts when one call's input_tokens exceeds ANTHROPIC_SPIKE_MAX_INPUT
- * (default 150000) or the run's cumulative input exceeds
- * ANTHROPIC_SPIKE_MAX_RUN_INPUT (default 600000).
+ * ANTHROPIC_SPIKE_MAX_INPUT (default 150000) applies to a pause_turn
+ * continuation only. ANTHROPIC_SPIKE_MAX_RUN_INPUT (default 600000) applies
+ * to the whole run. Each response is saved and its output files are
+ * downloaded before either cap stops the next continuation.
  */
 import { execFile } from "node:child_process"
 import fs from "node:fs"
@@ -17,11 +18,13 @@ import { promisify } from "node:util"
 import Anthropic, { toFile } from "@anthropic-ai/sdk"
 import {
   clipCommand,
+  containerSteps,
   HTTP_TIMEOUT_MS,
   lastToolCommand,
   MAX_CONTINUATIONS,
   overInputCap,
   spikeInputCaps,
+  type ContainerStep,
 } from "./deck-guardrails"
 import { checkDeckNumbers } from "./number-check"
 import { slimDeckPayload } from "./slim-deck-payload"
@@ -140,6 +143,88 @@ function appendCallLog(mba: string, line: unknown): void {
   fs.appendFileSync(path.join(outDir, `${mba}-calls.jsonl`), `${JSON.stringify(line)}\n`)
 }
 
+function saveCallResponse(mba: string, call: number, response: unknown): void {
+  fs.mkdirSync(outDir, { recursive: true })
+  fs.writeFileSync(path.join(outDir, `${mba}-call${call}.json`), `${JSON.stringify(response, null, 2)}\n`)
+}
+
+function printSteps(mba: string, call: number, steps: ContainerStep[]): void {
+  console.log(`steps mba=${mba} call=${call} count=${steps.length}`)
+  for (const step of steps) {
+    const command = step.command.length > 200 ? `${step.command.slice(0, 200)}…` : step.command
+    console.log(
+      [
+        String(step.step).padStart(3),
+        step.tool.padEnd(32),
+        String(step.resultChars).padStart(8),
+        step.errored ? "error" : "ok   ",
+        command,
+      ].join("  "),
+    )
+  }
+  const largest = [...steps].sort((a, b) => b.resultChars - a.resultChars).slice(0, 5)
+  const line = {
+    event: "largest_results",
+    mba,
+    call,
+    results: largest.map((step) => ({
+      step: step.step,
+      tool: step.tool,
+      resultChars: step.resultChars,
+      errored: step.errored,
+      result: step.resultText.length > 4000 ? `${step.resultText.slice(0, 4000)}…` : step.resultText,
+    })),
+  }
+  console.log(JSON.stringify(line))
+  appendCallLog(mba, line)
+}
+
+async function downloadOutputs(
+  client: Anthropic,
+  mba: string,
+  call: number,
+  fileIds: Set<string>,
+  seen: Set<string>,
+): Promise<void> {
+  fs.mkdirSync(outDir, { recursive: true })
+  for (const fileId of fileIds) {
+    if (seen.has(fileId)) continue
+    try {
+      const meta = await client.beta.files.retrieveMetadata(fileId, { betas: ["files-api-2025-04-14"] })
+      const downloaded = await client.beta.files.download(fileId, { betas: ["files-api-2025-04-14"] })
+      const bytes = Buffer.from(await downloaded.arrayBuffer())
+      const safe = meta.filename.replace(/[^\w.\-]+/g, "_") || fileId
+      const dest = path.join(outDir, `${mba}-call${call}-${safe}`)
+      fs.writeFileSync(dest, bytes)
+      seen.add(fileId)
+      if (meta.filename.toLowerCase().endsWith(".pptx")) {
+        fs.writeFileSync(path.join(outDir, `${mba}.pptx`), bytes)
+      }
+      const line = {
+        event: "download",
+        mba,
+        call,
+        file_id: fileId,
+        filename: meta.filename,
+        bytes: bytes.length,
+        path: dest,
+      }
+      console.log(JSON.stringify(line))
+      appendCallLog(mba, line)
+    } catch (err) {
+      const line = {
+        event: "download_error",
+        mba,
+        call,
+        file_id: fileId,
+        message: err instanceof Error ? err.message : String(err),
+      }
+      console.log(JSON.stringify(line))
+      appendCallLog(mba, line)
+    }
+  }
+}
+
 async function runOne(client: Anthropic, id: string, mba: string): Promise<number> {
   const jsonPath = path.join(
     repoRoot,
@@ -194,7 +279,7 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
   let containerId: string | undefined
   let continuations = 0
   let stopReason = ""
-  let commandBeforeCall: string | null = null
+  const seenFiles = new Set<string>()
   const model = reportModel()
   const effort = reportEffort()
   const outputConfig: Anthropic.Beta.BetaOutputConfig = { effort }
@@ -229,13 +314,10 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
           mba,
           call,
           elapsed_ms: elapsedMs,
-          last_tool_command: clipCommand(commandBeforeCall),
         }
         console.log(JSON.stringify(line))
         appendCallLog(mba, line)
-        throw new Error(
-          `HTTP 499 after ${elapsedMs}ms. Last tool command:\n${clipCommand(commandBeforeCall)}`,
-        )
+        throw new Error(`HTTP 499 after ${elapsedMs}ms.`)
       }
       const status = err instanceof Anthropic.APIError ? err.status : undefined
       const line = {
@@ -245,7 +327,6 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
         status: status ?? null,
         elapsed_ms: elapsedMs,
         message: err instanceof Error ? err.message : String(err),
-        last_tool_command: clipCommand(commandBeforeCall),
       }
       console.log(JSON.stringify(line))
       appendCallLog(mba, line)
@@ -253,18 +334,26 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
     }
 
     const elapsedMs = Date.now() - callStarted
+    saveCallResponse(mba, call, response)
     containerId = response.container?.id ?? containerId
     addUsage(usage, response.usage)
     walkOutputs(response.content, fileIds, logs)
+    await downloadOutputs(client, mba, call, fileIds, seenFiles)
+    const steps = containerSteps(response.content)
+    printSteps(mba, call, steps)
+    const lastCommand = steps.length
+      ? steps[steps.length - 1].command
+      : lastToolCommand(response.content)
     stopReason = response.stop_reason ?? ""
     const inputTokens = response.usage.input_tokens
+    const continuation = call > 1
     const usageLine = {
       event: "usage",
       mba,
       model,
       effort,
       call,
-      continuation: call > 1,
+      continuation,
       input_tokens: inputTokens,
       output_tokens: response.usage.output_tokens,
       cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
@@ -275,33 +364,33 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
     console.log(JSON.stringify(usageLine))
     appendCallLog(mba, usageLine)
 
-    const breach = overInputCap(inputTokens, usage.input, caps)
+    const breach = overInputCap(inputTokens, usage.input, caps, continuation)
     if (breach) {
       const reason = breach === "per_call"
-        ? `input_tokens ${inputTokens} exceeds ANTHROPIC_SPIKE_MAX_INPUT ${caps.perCall}`
+        ? `continuation input_tokens ${inputTokens} exceeds ANTHROPIC_SPIKE_MAX_INPUT ${caps.perCall}`
         : `cumulative input_tokens ${usage.input} exceeds ANTHROPIC_SPIKE_MAX_RUN_INPUT ${caps.perRun}`
       const line = {
         event: "guardrail",
         mba,
         call,
         breach,
+        continuation,
         input_tokens: inputTokens,
         cumulative_input_tokens: usage.input,
-        last_tool_command: clipCommand(commandBeforeCall),
+        last_tool_command: clipCommand(lastCommand),
       }
       console.log(JSON.stringify(line))
       appendCallLog(mba, line)
-      throw new Error(`${reason}. Last tool command:\n${clipCommand(commandBeforeCall)}`)
+      throw new Error(`${reason}. Last tool command:\n${clipCommand(lastCommand)}`)
     }
 
-    commandBeforeCall = lastToolCommand(response.content) ?? commandBeforeCall
     if (stopReason !== "pause_turn") break
     if (continuations >= MAX_CONTINUATIONS) {
       const line = {
         event: "max_continuations",
         mba,
         continuations,
-        last_tool_command: clipCommand(commandBeforeCall),
+        last_tool_command: clipCommand(lastCommand),
       }
       console.log(JSON.stringify(line))
       appendCallLog(mba, line)
@@ -314,26 +403,14 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
     })
   }
 
-  const pptxIds: string[] = []
-  for (const fileId of fileIds) {
-    const meta = await client.beta.files.retrieveMetadata(fileId, { betas: ["files-api-2025-04-14"] })
-    if (meta.filename.toLowerCase().endsWith(".pptx")) pptxIds.push(fileId)
-  }
-  if (pptxIds.length === 0) {
-    fs.mkdirSync(outDir, { recursive: true })
-    fs.writeFileSync(path.join(outDir, `${mba}-container.log`), logs.join("\n"))
+  const pptxPath = path.join(outDir, `${mba}.pptx`)
+  fs.mkdirSync(outDir, { recursive: true })
+  fs.writeFileSync(path.join(outDir, `${mba}-container.log`), logs.join("\n"))
+  if (!fs.existsSync(pptxPath)) {
     throw new Error(
       `container wrote no pptx for ${mba}. stop_reason=${stopReason} file_ids=${[...fileIds].join(",") || "none"}`,
     )
   }
-
-  const chosen = pptxIds[pptxIds.length - 1]
-  const downloaded = await client.beta.files.download(chosen, { betas: ["files-api-2025-04-14"] })
-  const bytes = Buffer.from(await downloaded.arrayBuffer())
-  fs.mkdirSync(outDir, { recursive: true })
-  const pptxPath = path.join(outDir, `${mba}.pptx`)
-  fs.writeFileSync(pptxPath, bytes)
-  fs.writeFileSync(path.join(outDir, `${mba}-container.log`), logs.join("\n"))
 
   const numberCheck = await checkDeckNumbers(pptxPath, deckJsonPath)
   const soffice = await localSoffice()
@@ -368,12 +445,14 @@ async function main() {
   if (targets.length === 0) {
     throw new Error("Pass an mba number. Example: hema007")
   }
+  const caps = spikeInputCaps()
   console.log(JSON.stringify({
     model,
     effort,
     http_timeout_ms: HTTP_TIMEOUT_MS,
     max_continuations: MAX_CONTINUATIONS,
-    ...spikeInputCaps(),
+    continuation_input_cap: caps.perCall,
+    run_input_cap: caps.perRun,
   }))
   const client = spikeClient()
   const id = await skillId(client)
