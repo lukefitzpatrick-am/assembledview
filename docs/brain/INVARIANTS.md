@@ -112,7 +112,7 @@ pct === 100 → fee = 0 (division guard)
 - The visible calculator (`components/ava/AvaMediaMathPanel.tsx`) never writes the plan form. Send to Ava prefills the composer only. Clear empties budget / rate / deliverables / weeks / months and returns the cold-start hint; buy type is not reset. Disabled when every field is already empty. Solved rate displays via `formatRate`; budget via `formatAUD`.
 - `fixed_cost` → 1 deliverable, everywhere.
 - 18 runtime buy types: package, spots, cpt, cpp, panels, insertions, cpm, cpc, screens, cpcv, cpi, cps, cpv, fixed_cost, weekly_rate, monthly_rate, package_inclusions, bonus.
-- Excel Buy Type column labels are `BUY_TYPE_UI_LABELS` (`lib/mediaplan/buyTypeLabels.ts`) — the same strings as the expert-grid combobox. `package_inclusions` is **Package Inclusions**, never Bonus. OOH explode (client `OOHContainer` and persisted `explodeExcelLineItems`) takes Buy Type from the **line** via `excelBuyTypeFromLine` — never `bursts[].buyType` (OOH Expert Apply stamps that `"bonus"` for bonus and package_inclusions, round-trip only). `addKPISheet` runs Buy Type through `formatBuyTypeForExport`.
+- Excel Buy Type column labels are `BUY_TYPE_UI_LABELS` (`lib/mediaplan/buyTypeLabels.ts`) — the same strings as the expert-grid combobox. `package_inclusions` is **Package Inclusions**, never Bonus. OOH explode (client `OOHContainer` and persisted `explodeExcelLineItems`) takes Buy Type from the **line** via `excelBuyTypeFromLine` — never `bursts[].buyType`. OOH Expert Apply stamps the burst with that line buy type (`package_inclusions` stays `package_inclusions`). Rows saved before that still carry `"bonus"` on the burst. `addKPISheet` runs Buy Type through `formatBuyTypeForExport`.
 - `ProductionContainer` is structurally outside every shared container model — exclude it from "apply to all containers" changes.
 
 ## bursts_json contract (`lib/mediaplan/serializeBurstsJson.ts`)
@@ -121,7 +121,7 @@ pct === 100 → fee = 0 (division guard)
 - `mediaAmount` = *planned* media, sourced from `deliveryMediaAmount` → non-zero for client-pays lines.
 - Persist path passes line `buy_type`/`buyType` into `serializeBurstsJson` → `computeBurstAmounts`, so `bonus` / `package_inclusions` always write zero media/fee.
 - Expert Apply `preservePreviousBurstsIfApplyWouldZeroBudget` does **not** restore previous bursts when the **generated** line's buy type is `bonus` / `package_inclusions` — generated zero is the intended budget. Every other buy type still refuses Apply that would wipe a non-zero card total. Match is case-insensitive and trimmed (same as fee math).
-- OOH Expert Apply stores the week quantity on `calculatedValue` for `bonus` and `package_inclusions` via `roundDeliverables`. Budget and buy amount stay `"0"`. Reopen shows that stored quantity, including 0.
+- OOH Expert Apply stores the week quantity on `calculatedValue` for `bonus` and `package_inclusions` via `roundDeliverables`. Budget and buy amount stay `"0"`. The burst `buyType` is that same line buy type. Reopen shows that stored quantity, including 0.
 - `lib/pacing/burst/parseBursts.ts` key names are contractually aligned with the serializer — change both or neither.
 - Expert grids' `sumFee` reads `expertRowFeeSplit` output, NOT `bursts_json[].fee` — orthogonal paths that look identical.
 - Burst money as `z.number()` vs string: `baseBurstShape` in `lib/mediaplan/schemas.ts` is extended by every channel schema — a type change there fans out to all of them.

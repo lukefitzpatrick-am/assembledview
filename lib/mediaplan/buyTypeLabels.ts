@@ -50,8 +50,8 @@ const ACRONYM_PATTERN = /^[A-Z]{2,4}$/i
 
 /**
  * Excel Buy Type for a media-plan line. Always the LINE field.
- * Do not fall back to `bursts[].buyType` — OOH Expert Apply stamps that
- * `"bonus"` for both bonus and package_inclusions (expert round-trip only).
+ * Do not fall back to `bursts[].buyType`. Older OOH Expert Apply rows
+ * stamped that `"bonus"` for package_inclusions as well.
  */
 export function excelBuyTypeFromLine(
   lineItem: { buyType?: string | null },
