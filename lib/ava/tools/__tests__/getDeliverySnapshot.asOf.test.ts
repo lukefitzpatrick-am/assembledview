@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { mock, test } from "node:test"
 
 import { mockModuleSkip, supportsMockModule } from "../../../test/mockModuleHarness.js"
+import { DELIVERY_SNAPSHOT_TOTALS_NOTE } from "../summaries.js"
 
 const skip = mockModuleSkip()
 
@@ -41,6 +42,7 @@ if (supportsMockModule()) {
   })
   await mock.module!("@/lib/ava/tools/summaries", {
     namedExports: {
+      DELIVERY_SNAPSHOT_TOTALS_NOTE,
       summariseDeliverySnapshot: () => ({
         reportedTotals: { spendToDate: 79884.21 },
       }),
