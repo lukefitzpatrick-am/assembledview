@@ -13,6 +13,7 @@ import { type LineChannel } from "@/db/schema"
 import { getDb, schema } from "@/db"
 import { getCachedClients } from "@/lib/finance/xanoReferenceCache"
 import {
+  isPublishedTipVersion,
   mapPlanMasterFromPostgres,
   mapPlanVersionFromPostgres,
   publishedVersionIfStamped,
@@ -164,6 +165,11 @@ export const MBA_PLAN_DETAIL_INTENTIONAL_DIFFS = [
     reason:
       "Postgres version mapper surfaces media_plan_versions.mba_scope (null on pre-scope rows). Xano GET never had this column.",
   },
+  {
+    path: "is_published_tip",
+    reason:
+      "Postgres MBA detail sets is_published_tip from media_plan_masters.published_version_id. Xano GET never returned the field.",
+  },
 ] as const
 
 async function loadMasterAndVersions(mbaNumber: string): Promise<{
@@ -217,8 +223,12 @@ async function loadMasterAndVersions(mbaNumber: string): Promise<{
     published == null ? tipVersionNumber : null
   )
 
+  const publishedVersionId = masterRow.publishedVersionId
   const versions = versionRows.map((row) =>
-    mapPlanVersionFromPostgres(row as Record<string, unknown>)
+    mapPlanVersionFromPostgres({
+      ...(row as Record<string, unknown>),
+      isPublishedTip: isPublishedTipVersion(row.id, publishedVersionId),
+    })
   )
 
   return { master, versions, tipVersionNumber }

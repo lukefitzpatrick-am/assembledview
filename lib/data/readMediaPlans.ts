@@ -273,6 +273,17 @@ export async function readPlanMasterByMba(
 
 // --- versions (incl. legacy_schedules blob passthrough) ---
 
+/** True when this version id is `media_plan_masters.published_version_id`. */
+export function isPublishedTipVersion(
+  versionId: unknown,
+  publishedVersionId: unknown,
+): boolean {
+  if (versionId == null || publishedVersionId == null) return false
+  const id = Number(versionId)
+  const published = Number(publishedVersionId)
+  return Number.isFinite(id) && Number.isFinite(published) && id === published
+}
+
 /**
  * Map Postgres version → Xano media_plan_versions shape.
  * Spreads `legacy_schedules.billingSchedule` / `deliverySchedule` to top-level

@@ -17,6 +17,7 @@ import {
   PLAN_DETAIL_POSTGRES_ERROR_CODE,
 } from "../readMbaPlanDetail"
 import {
+  isPublishedTipVersion,
   mapPlanMasterFromPostgres,
   mapPlanVersionFromPostgres,
 } from "../readMediaPlans"
@@ -45,6 +46,8 @@ const INTENTIONAL_PATH_PREFIXES = [
   "versionData.rebill_needed",
   "versionData.latest_version_id",
   "versionData.temp_version_number",
+  "is_published_tip",
+  "versionData.is_published_tip",
 ] as const
 
 function isIntentionalPath(path: string): boolean {
@@ -203,7 +206,13 @@ function assemblePostgresPath(opts?: {
     version_number: published,
   }
   const master = mapPlanMasterFromPostgres(pgMasterRow, publishedApi, null)
-  let versionData = mapPlanVersionFromPostgres(pgVersionRow)
+  let versionData = mapPlanVersionFromPostgres({
+    ...pgVersionRow,
+    isPublishedTip: isPublishedTipVersion(
+      pgVersionRow.id,
+      pgMasterRow.publishedVersionId,
+    ),
+  })
   versionData = {
     ...versionData,
     mp_client_name:
@@ -244,6 +253,24 @@ describe("MBA plan detail shape parity (C-22)", () => {
     const paths = MBA_PLAN_DETAIL_INTENTIONAL_DIFFS.map((d) => d.path)
     assert.ok(paths.some((p) => p.includes("nextVersionNumber")))
     assert.equal(PLAN_DETAIL_POSTGRES_ERROR_CODE, "PLAN_DETAIL_POSTGRES_FAILED")
+  })
+
+  it("is_published_tip is true when the version id is the published pointer", () => {
+    const published = mapPlanVersionFromPostgres({
+      id: 2202,
+      isPublishedTip: isPublishedTipVersion(2202, 2202),
+    })
+    const older = mapPlanVersionFromPostgres({
+      id: 2201,
+      isPublishedTip: isPublishedTipVersion(2201, 2202),
+    })
+    const missing = mapPlanVersionFromPostgres({
+      id: 2202,
+      isPublishedTip: isPublishedTipVersion(2202, null),
+    })
+    assert.equal(published.is_published_tip, true)
+    assert.equal(older.is_published_tip, false)
+    assert.equal(missing.is_published_tip, false)
   })
 
   it("DI-10: mba_number / line_item_id stay identifier strings", () => {
