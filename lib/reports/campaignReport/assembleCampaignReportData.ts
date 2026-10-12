@@ -76,6 +76,8 @@ export type CampaignReportChannelRow = {
   plannedImpressions?: number | null
   plannedClicks?: number | null
   plannedViews?: number | null
+  /** True when this channel's delivered dollars are a CM360 direct-digital estimate. */
+  spendEstimated?: boolean
 }
 
 export type ReportCommentary = {
@@ -402,6 +404,9 @@ export async function assembleCampaignReportData(
       plannedImpressions: plannedCount(ch.lines, "plannedImpressions", flight, currentWindow),
       plannedClicks: plannedCount(ch.lines, "plannedClicks", flight, currentWindow),
       plannedViews: plannedCount(ch.lines, "plannedViews", flight, currentWindow),
+      spendEstimated:
+        ch.lines.some((line) => line.spendMode === "estimated" && line.spendToDate > 0) &&
+        !ch.lines.some((line) => line.spendMode === "reported" && line.spendToDate > 0),
       metrics: rates.metrics,
       previousMetrics: previousRates?.metrics ?? null,
     }

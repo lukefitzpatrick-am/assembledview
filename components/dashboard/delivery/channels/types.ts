@@ -6,7 +6,7 @@ import type { LineItemBlockProps } from "../shared/LineItemBlock"
 /**
  * Identity for a channel section. The icon is rendered by ChannelSection.
  * `digital-display` | `digital-video` | `digital-audio` | `bvod` are Direct
- * Booked Digital (CM360-verified, zero-spend). `plan-only` is classified plan
+ * Booked Digital (CM360 counts; spend is estimated from the plan rate). `plan-only` is classified plan
  * lines with no live delivery adapter yet (unclassified social, unmapped
  * programmatic, Reddit with no SOCIAL_PACING_FACT rows).
  */

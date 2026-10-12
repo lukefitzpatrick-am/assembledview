@@ -193,4 +193,20 @@ describe("client dashboard expected media", () => {
     expect(admin).toContain("Krusty Krab")
     expect(admin.includes("Krusty Krab.")).toBe(false)
   })
+
+  it("labels the Delivered tile Estimated when the total includes an estimate", () => {
+    const tile = renderToStaticMarkup(
+      <HeroKPIBar
+        totalSpend={0}
+        totalBudget={FIGURE}
+        liveCampaigns={1}
+        plannedCampaigns={0}
+        budgetUtilized={0}
+        deliveredToDate={2_000}
+        deliveredHasData
+        deliveredIncludesEstimated
+      />,
+    )
+    expect(tile).toContain("Platform delivery · Estimated")
+  })
 })

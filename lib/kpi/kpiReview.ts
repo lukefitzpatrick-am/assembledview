@@ -29,7 +29,7 @@ export const KPI_REVIEW_METRICS = [
   "frequency",
 ] as const
 
-export type KpiReviewMetricKey = (typeof KPI_REVIEW_METRICS)[number]
+export type KpiReviewMetricKey = (typeof KPI_REVIEW_METRICS)[number] | "cpm" | "cpc"
 
 export type LineDeliveryActuals = {
   impressions: number
@@ -78,9 +78,11 @@ export type KpiReviewGroup = {
   views: number | null
   /** COMPLETED_VIEWS when the source tracks them. */
   completes: number | null
-  /** Spend the glance card shows (actual, reported fixed-cost, or modelled). */
+  /** Spend the glance card shows (actual, reported, modelled, or estimated). */
   spend: number | null
   spendModelled: boolean
+  /** CM360 direct-digital estimate. The UI labels the dollar from this flag. */
+  spendEstimated?: boolean
   vtrTracked: boolean
 }
 
@@ -94,6 +96,8 @@ export type KpiReviewRow = {
   status: DeliveryStatus
   omitted: boolean
   modelled?: boolean
+  /** Dollar was estimated from the plan rate. UI prints "Estimated", not "modelled". */
+  spendEstimated?: boolean
   targetSource: KpiReviewTargetSource | null
   benchmarkRef?: string | null
   /** CPV plan-rate caption (a/b/c). Other metrics keep plan target / benchmark. */
@@ -277,6 +281,7 @@ export function buildKpiReviewGroups(input: {
       completes: tracked ? video3sViews : null,
       spend: coverage?.deliveredSpend ?? null,
       spendModelled: coverage?.spendModelled === true,
+      spendEstimated: coverage?.spendEstimated === true,
       vtrTracked: tracked,
     })
   }
@@ -496,7 +501,7 @@ function deliveredRatio(
     const value = ratio(group.completes ?? 0, group.impressions)
     return { value, display: value == null ? "—" : formatStoredDecimalAsPercent(value) }
   }
-  // cpv — never invent $0 when spend is hidden (ZERO-$ LAW)
+  // cpv — no dollar when spend is hidden. An estimate is a real spend figure.
   if (group.spend == null) return { value: null, display: "—" }
   if (group.views == null || !(group.views > 0)) {
     return { value: null, display: "Not tracked for this source" }
@@ -539,7 +544,7 @@ export function kpiRowEligibleForReadBeat(
 }
 
 export function formatTarget(metric: KpiReviewMetricKey, target: number): string {
-  if (metric === "cpv") return formatMoney(target)
+  if (metric === "cpv" || metric === "cpm" || metric === "cpc") return formatMoney(target)
   if (metric === "frequency") return target.toFixed(2)
   return formatStoredDecimalAsPercent(target)
 }
@@ -565,6 +570,7 @@ export function buildKpiReview(input: {
             status: statusForMetric(metric, planRate.value, delivered.value),
             omitted: false,
             modelled: delivered.modelled,
+            spendEstimated: group.spendEstimated === true && delivered.value != null,
             targetSource: "target",
             targetCaption: planRate.caption,
           })
@@ -578,6 +584,7 @@ export function buildKpiReview(input: {
           status: "no-data",
           omitted: false,
           modelled: delivered.modelled,
+          spendEstimated: group.spendEstimated === true && delivered.value != null,
           targetSource: null,
           targetCaption: null,
         })
@@ -608,6 +615,40 @@ export function buildKpiReview(input: {
         modelled: delivered.modelled,
         targetSource: target.source,
         benchmarkRef: target.benchmarkRef,
+      })
+    }
+    if (group.spendEstimated && group.spend != null && group.spend > 0 && group.impressions > 0) {
+      const deliveredCpm = cpm(group.spend, group.impressions)
+      const planRate = resolveCpmPlanRate(group)
+      rows.push({
+        metric: "cpm",
+        label: "CPM",
+        targetDisplay: planRate ? formatMoney(planRate.value) : "—",
+        deliveredDisplay: deliveredCpm == null ? "—" : formatMoney(deliveredCpm),
+        status:
+          planRate && deliveredCpm != null ? statusForCostMetric(planRate.value, deliveredCpm) : "no-data",
+        omitted: false,
+        modelled: false,
+        spendEstimated: true,
+        targetSource: planRate ? "target" : null,
+        targetCaption: planRate?.caption ?? null,
+      })
+    }
+    const clickBuy = group.lineItemIds.some((lineId) => isCpcBuyType(group.planByLineId[lineId]?.buyType))
+    if (group.spendEstimated && clickBuy && group.spend != null && group.spend > 0 && group.clicks > 0) {
+      const deliveredCpc = group.spend / group.clicks
+      const planRate = resolveCpcPlanRate(group)
+      rows.push({
+        metric: "cpc",
+        label: "CPC",
+        targetDisplay: planRate.value == null ? planRate.caption : formatMoney(planRate.value),
+        deliveredDisplay: formatMoney(deliveredCpc),
+        status: planRate.value == null ? "no-data" : statusForCostMetric(planRate.value, deliveredCpc),
+        omitted: false,
+        modelled: false,
+        spendEstimated: true,
+        targetSource: planRate.value == null ? null : "target",
+        targetCaption: planRate.caption,
       })
     }
     const noTargets = !rows.some((row) => rowCountsAsTarget(row))

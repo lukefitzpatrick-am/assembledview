@@ -5,7 +5,8 @@
  * Twitch is 0075; Vistar/Broadsign are 0077). Do not SELECT the table until
  * 0063 is applied (C-76). `derive_spend_from_plan` is consumed by
  * `lib/delivery/deriveSpendFromPlanRate.ts` for modelled delivered spend on
- * cm360-sourced programmatic lines. Direct Booked Digital stays ZERO-$.
+ * cm360-sourced programmatic lines (Quantcast, Twitch). Direct Booked Digital
+ * does not use this flag; its dollar is `estimateDirectDigitalSpend`.
  * `partner_file` consumes the PACING_FACT channel for the line's family:
  * prog_video keeps the DSP video channel; prog_ooh is Programmatic - OOH.
  */

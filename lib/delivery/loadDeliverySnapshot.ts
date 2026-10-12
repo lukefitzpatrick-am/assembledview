@@ -24,6 +24,7 @@ import {
   lineHasDeliverySource,
   resolveDeliveryState,
 } from "@/lib/delivery/deliveryState"
+import { estimateDirectDigitalSpend } from "@/lib/delivery/estimateDirectDigitalSpend"
 import { expectedSpendToDateFromBursts } from "@/lib/spend/expectedSpendToDateFromBursts"
 import { planDeliverablesFromItem } from "@/lib/reports/campaignReport/reportFigures"
 
@@ -56,6 +57,8 @@ export type LoadedDeliverySnapshot = {
   planTotals: DeliveryChannelGroup["totals"]
   /** True when the fixed-cost reported-spend overlay query failed. Other snapshot totals still return. */
   fixedCostOverlayFailed?: boolean
+  /** True when plan totals include CM360 direct-digital estimated spend. */
+  includesEstimatedSpend?: boolean
 }
 
 type PlanLineMeta = {
@@ -70,6 +73,7 @@ type PlanLineMeta = {
   endDate: string | null
   hasSource: boolean
   bursts: unknown
+  buyType: string | null
 }
 
 function asNumber(value: unknown): number | null {
@@ -140,6 +144,7 @@ function toPlanLineMeta(item: MediaContainerLineItem, group: string): PlanLineMe
       platform: rec.platform,
     }),
     bursts: rec.bursts_json ?? rec.bursts ?? null,
+    buyType: asString(rec.buy_type) ?? asString(rec.buyType),
   }
 }
 
@@ -177,11 +182,66 @@ function aggregatePacingRows(rows: PacingRow[]): Map<string, ReturnType<typeof e
   return byId
 }
 
+const DIRECT_DIGITAL_ESTIMATE_GROUPS = new Set([
+  "digital_display",
+  "digital_video",
+  "digital_audio",
+  "bvod",
+])
+
+function applyDirectDigitalEstimates(
+  groups: Map<string, Map<string, PlanLineMeta>>,
+  deliveredById: Map<string, ReturnType<typeof emptyMetrics>>,
+  pacingRows: PacingRow[],
+  fixedCostIds: ReadonlySet<string>,
+): Set<string> {
+  const estimatedIds = new Set<string>()
+  const daysByLine = new Map<string, PacingRow[]>()
+  for (const row of pacingRows) {
+    const id = cleanPacingLineItemId(row.lineItemId)
+    if (!id) continue
+    const list = daysByLine.get(id) ?? []
+    list.push(row)
+    daysByLine.set(id, list)
+  }
+
+  for (const group of DIRECT_DIGITAL_ESTIMATE_GROUPS) {
+    const planMap = groups.get(group)
+    if (!planMap) continue
+    for (const [id, plan] of planMap) {
+      if (fixedCostIds.has(id)) continue
+      const days = (daysByLine.get(id) ?? []).map((row) => ({
+        date: (row.dateDay || "").slice(0, 10) || "1970-01-01",
+        impressions: row.impressions,
+        clicks: row.clicks,
+        results: row.results,
+        video3sViews: row.video3sViews,
+      }))
+      const estimate = estimateDirectDigitalSpend({
+        lineItemId: id,
+        buyType: plan.buyType,
+        bursts: plan.bursts,
+        days,
+      })
+      const cur = deliveredById.get(id) ?? emptyMetrics()
+      if (estimate.amount == null) {
+        cur.spendToDate = 0
+      } else {
+        cur.spendToDate = estimate.amount
+        if (estimate.spendMode === "estimated" && estimate.amount > 0) estimatedIds.add(id)
+      }
+      deliveredById.set(id, cur)
+    }
+  }
+  return estimatedIds
+}
+
 function buildLines(
   planById: Map<string, PlanLineMeta>,
   deliveredById: Map<string, ReturnType<typeof emptyMetrics>>,
   factIds: ReadonlySet<string>,
   overlaySpendIds: ReadonlySet<string>,
+  estimatedIds: ReadonlySet<string>,
   asOf: string,
 ): DeliveryLineSnapshot[] {
   const lines: DeliveryLineSnapshot[] = []
@@ -222,6 +282,13 @@ function buildLines(
       ),
       noDeliveryRows,
       deliveryState,
+      ...(overlaySpendIds.has(id)
+        ? { spendMode: "reported" as const }
+        : estimatedIds.has(id)
+          ? { spendMode: "estimated" as const }
+          : delivered.spendToDate > 0
+            ? { spendMode: "actual" as const }
+            : {}),
     })
   }
   return lines
@@ -506,6 +573,13 @@ export async function loadDeliverySnapshot(
     deliveredById.set(id, metrics)
   }
 
+  const estimatedIds = applyDirectDigitalEstimates(
+    groups,
+    deliveredById,
+    pacingRows,
+    new Set(fixedCostLineIds),
+  )
+
   let overlaySpendIds = new Set<string>()
   if (fixedCostLineIds.length > 0 && facts.length > 0) {
     overlaySpendIds = overlayReportedSpendOnSnapshot(
@@ -544,7 +618,7 @@ export async function loadDeliverySnapshot(
     const planMap = groups.get(group)
     if (!planMap || planMap.size === 0) continue
     if (group === "search" && !includeSearch) continue
-    const lines = buildLines(planMap, deliveredById, factIds, overlaySpendIds, asOf)
+    const lines = buildLines(planMap, deliveredById, factIds, overlaySpendIds, estimatedIds, asOf)
     channels.push({
       group,
       lines,
@@ -553,6 +627,9 @@ export async function loadDeliverySnapshot(
   }
 
   const planTotals = sumLines(channels.flatMap((c) => c.lines))
+  const includesEstimatedSpend = channels.some((channel) =>
+    channel.lines.some((line) => line.spendMode === "estimated" && line.spendToDate > 0),
+  )
 
   return {
     asOf,
@@ -562,5 +639,6 @@ export async function loadDeliverySnapshot(
     channels,
     planTotals,
     ...(fixedCostOverlayFailed ? { fixedCostOverlayFailed: true } : {}),
+    ...(includesEstimatedSpend ? { includesEstimatedSpend: true } : {}),
   }
 }

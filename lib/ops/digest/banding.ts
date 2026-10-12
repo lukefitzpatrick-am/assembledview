@@ -85,9 +85,9 @@ export function directStatusToDigestBand(
 }
 
 /**
- * Ad-serving (CM360) rows can never be at-risk / ahead / behind — that is
- * correct (zero-spend law; no spend pacing signal). Status is delivery
- * presence only: serving → on, no-data → no-data.
+ * Ad-serving status is delivery presence only: serving → on, no-data →
+ * no-data. Estimated direct-digital spend is applied on the portfolio
+ * channel and in campaign delivery, not on this status.
  */
 export function adServingStatusToDigestBand(
   status: "serving" | "no-data",

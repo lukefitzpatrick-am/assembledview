@@ -118,7 +118,7 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     })
   })
 
-  it("ZERO-$ LAW: derive_spend_from_plan is OFF for Direct Booked Digital — no amount_spent series", () => {
+  it("platform amount_spent is not charted; the estimate is a card, not a series", () => {
     const section = buildSection(
       [
         factRow({
@@ -214,7 +214,7 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     assert.equal(section.aggregate.chart.daily[0]?.impressions, 50_000)
   })
 
-  it("non-fixed-cost BVOD line keeps zero-$ and the CM360 no-spend label", () => {
+  it("planned deliverables 0 shows no estimate and says why; platform spend is ignored", () => {
     const section = buildSection(
       [
         factRow({
@@ -232,6 +232,7 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
             buy_type: "cpm",
             fixedCostMedia: false,
             budget: 6_500,
+            bursts: [{ budget: 6_500, calculatedValue: 0 }],
           },
         ],
         reportedSpendByLineDate: new Map([
@@ -247,11 +248,50 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     assert.equal(spendCard, undefined)
     assert.equal(
       section.connections[0]?.label,
-      "Ad server verification (CM360) — delivery counts, no spend data",
+      "Ad server verification (CM360) — delivery counts",
     )
-    assert.equal(section.aggregate.kpiBand.subtitle, "CM360 delivery counts — spend not applicable")
+    assert.equal(section.aggregate.kpiBand.subtitle, "CM360 delivery counts")
     assert.equal(section.lineItems[0]?.block.progressCards[0]?.title, "Impressions delivery")
     assert.equal(section.lineItems[0]?.block.progressCards[0]?.value, "50,000")
+    assert.match(section.lineItems[0]?.block.progressCards[0]?.detail ?? "", /No planned impressions/)
+  })
+
+  it("CPM line shows $2,000 estimated spend and a CPM at the plan rate", () => {
+    const section = buildSection(
+      [
+        factRow({
+          lineItemId: LINE_A,
+          impressions: 100_000,
+          clicks: 40,
+          amountSpent: 99,
+        }),
+      ],
+      [LINE_A],
+      {
+        lineItems: [
+          {
+            line_item_id: LINE_A,
+            buy_type: "cpm",
+            budget: 10_000,
+            bursts: [{ budget: 10_000, calculatedValue: 500_000, buyAmount: 15 }],
+          },
+        ],
+      },
+    )
+
+    assert.ok(section)
+    const spendCard = section.lineItems[0]?.block.progressCards.find((c) =>
+      /spend/i.test(c.title),
+    )
+    assert.ok(spendCard)
+    assert.equal(spendCard.title, "Estimated spend")
+    assert.equal(spendCard.value, "$2,000.00")
+    assert.match(spendCard.detail, /Estimated/)
+    const cpmTile = section.lineItems[0]?.block.kpiBand.tiles.find((tile) => tile.label === "CPM")
+    assert.equal(cpmTile?.caption, "Estimated")
+    assert.equal(cpmTile?.value, "$20.00")
+    const cpcTile = section.lineItems[0]?.block.kpiBand.tiles.find((tile) => tile.label === "CPC")
+    assert.equal(cpcTile, undefined)
   })
 
   it("BICAU002 bv2 at day 47 of 86 paces reported spend against expected to date", () => {

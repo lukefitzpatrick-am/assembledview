@@ -18,6 +18,8 @@
 export type DigitalDeliveryTotals = {
   spendToDate: number
   impressions: number
+  /** True when the digital spend includes a CM360 direct-digital estimate. */
+  includesEstimatedSpend?: boolean
 }
 
 export type DeliveredTotals = {
@@ -27,6 +29,8 @@ export type DeliveredTotals = {
   impressions: number
   /** True when there is a real, positive delivered figure to show (spend or impressions > 0). */
   hasDelivery: boolean
+  /** True when the figure includes CM360 direct-digital estimated spend. */
+  includesEstimatedSpend?: boolean
 }
 
 /**
@@ -50,8 +54,14 @@ export function combineDeliveredTotals(
 
   const spendToDate = digitalSpend + fixedSpend
   const hasDelivery = spendToDate > 0 || impressions > 0
+  const includesEstimatedSpend = digital?.includesEstimatedSpend === true
 
-  return { spendToDate, impressions, hasDelivery }
+  return {
+    spendToDate,
+    impressions,
+    hasDelivery,
+    ...(includesEstimatedSpend ? { includesEstimatedSpend: true } : {}),
+  }
 }
 
 /** Both ISO dates required; otherwise the delivered query stays unbounded. */
@@ -200,7 +210,13 @@ export function sumDeliveredTotals(totals: DeliveredTotals[]): DeliveredTotals {
   const spendToDate = totals.reduce((sum, t) => sum + (Number.isFinite(t.spendToDate) ? t.spendToDate : 0), 0)
   const impressions = totals.reduce((sum, t) => sum + (Number.isFinite(t.impressions) ? t.impressions : 0), 0)
   const hasDelivery = totals.some((t) => t.hasDelivery)
-  return { spendToDate, impressions, hasDelivery }
+  const includesEstimatedSpend = totals.some((t) => t.includesEstimatedSpend === true)
+  return {
+    spendToDate,
+    impressions,
+    hasDelivery,
+    ...(includesEstimatedSpend ? { includesEstimatedSpend: true } : {}),
+  }
 }
 
 const FIXED_COST_MEDIA_TYPE_KEYS = new Set(["television", "radio", "newspaper"])

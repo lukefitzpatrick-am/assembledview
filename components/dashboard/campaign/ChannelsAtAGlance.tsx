@@ -48,18 +48,21 @@ function MetricPair({
   delivered,
   planned,
   modelled,
+  estimated,
 }: {
   label: string
   delivered: string
   planned: string
   modelled?: boolean
+  estimated?: boolean
 }) {
   return (
     <div className="min-w-0 space-y-0.5">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="num text-lg font-semibold tabular-nums text-foreground">{delivered}</p>
       <p className="text-xs text-muted-foreground">of planned {planned}</p>
-      {modelled ? <p className="text-[11px] text-muted-foreground">modelled</p> : null}
+      {estimated ? <p className="text-[11px] text-muted-foreground">Estimated</p> : null}
+      {modelled && !estimated ? <p className="text-[11px] text-muted-foreground">modelled</p> : null}
     </div>
   )
 }
@@ -117,6 +120,7 @@ function GlanceCard({ entry }: { entry: ChannelCoverageEntry }) {
           delivered={spendDelivered}
           planned={formatMoneyCompact(entry.plannedSpend)}
           modelled={entry.spendModelled}
+          estimated={entry.spendEstimated === true}
         />
         <MetricPair
           label={entry.deliverableLabel}
