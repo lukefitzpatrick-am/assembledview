@@ -233,6 +233,23 @@ export function computeToDateFromBursts(
   return { bookedTotal, expectedToDate }
 }
 
+/** Same day proration as `computeToDateFromBursts`, on a caller-supplied amount per burst. */
+export function computeToDateFromBurstAmounts(
+  bursts: readonly { startISO: string; endISO: string; amount: number }[],
+  asAtISO: string,
+): { bookedTotal: number; expectedToDate: number } {
+  return computeToDateFromBursts(
+    bursts.map((burst) => ({
+      startISO: burst.startISO,
+      endISO: burst.endISO,
+      budget: burst.amount,
+      clicksGoal: 0,
+    })),
+    asAtISO,
+    "budget",
+  )
+}
+
 export function searchExpectedInWindow(
   bursts: NormalizedBurst[],
   range: DateRange,

@@ -16,6 +16,10 @@ import {
 import type { LineCardModel } from "@/lib/pacing/channel/lineCardTypes"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import { getAsOfDate } from "@/lib/pacing/maths"
+import {
+  feePctForScheduleMedia,
+  type FeePctsByVersionId,
+} from "@/lib/delivery/directDigitalFeeLookup"
 import { loadDirectDigitalFeePctsOrGross } from "@/lib/delivery/readMbaFeeSnapshots"
 import { assembleCampaignPacingRows } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
 import { schedulesByMbaFromVersions } from "@/lib/pacing/portfolio/buildCampaignPacingRows"
@@ -101,11 +105,26 @@ function versionIdsFromSources(
 function linesFromSources(
   sources: Awaited<ReturnType<typeof fetchMbaChannelRows>>,
   asOf: string,
+  feePcts: FeePctsByVersionId,
 ): LineCardModel[] {
   return [
-    ...sources.search.map((row) => lineCardFromSearch(row, asOf)),
-    ...sources.social.map((row) => lineCardFromSocial(row, asOf)),
-    ...sources.programmatic.map((row) => lineCardFromProgrammatic(row, asOf)),
+    ...sources.search.map((row) =>
+      lineCardFromSearch(row, asOf, feePctForScheduleMedia(feePcts, row.mediaPlanVersionId, "search")),
+    ),
+    ...sources.social.map((row) =>
+      lineCardFromSocial(
+        row,
+        asOf,
+        feePctForScheduleMedia(feePcts, row.mediaPlanVersionId, "socialMedia"),
+      ),
+    ),
+    ...sources.programmatic.map((row) =>
+      lineCardFromProgrammatic(
+        row,
+        asOf,
+        feePctForScheduleMedia(feePcts, row.mediaPlanVersionId, row.channelFamily),
+      ),
+    ),
     ...sources.adServing.map((row) => lineCardFromAdServing(row, asOf)),
     ...sources.direct.flatMap((group) => lineCardsFromDirectGroup(group, asOf)),
   ]
@@ -233,16 +252,15 @@ export async function buildCampaignDetail(
     asOfDate: asOf,
     allowedClientSlugs: args.allowedClientSlugs,
   })
-  const lines = linesFromSources(sources, asOf)
 
   const versionIds = versionIdsFromSources(sources)
-  const scheduleVersions =
-    versionIds.length > 0 ? await readPlanVersionSchedulesByIds(versionIds) : []
+  const [scheduleVersions, feePctsByVersionId] = await Promise.all([
+    versionIds.length > 0 ? readPlanVersionSchedulesByIds(versionIds) : Promise.resolve([]),
+    loadDirectDigitalFeePctsOrGross(versionIds),
+  ])
+  const lines = linesFromSources(sources, asOf, feePctsByVersionId)
   const schedulesByMba = schedulesByMbaFromVersions(scheduleVersions)
   const scheduleLoaded = scheduleLoadedForMba(schedulesByMba, mbaKey)
-
-  const feeVersionIds = sources.adServing.map((item) => item.mediaPlanVersionId)
-  const feePctsByVersionId = await loadDirectDigitalFeePctsOrGross(feeVersionIds)
   const assembled = assembleCampaignPacingRows({
     asOfDate: asOf,
     allowedClientSlugs: args.allowedClientSlugs,

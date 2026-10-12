@@ -1,4 +1,9 @@
 import { cpm } from "@/lib/money/rates"
+import {
+  lineExpectedNetToDate,
+  spendPctOfExpected,
+  type PacingBurstMoney,
+} from "@/lib/pacing/detail/netBurstMediaForPacing"
 import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types"
 import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types"
 import type { ProgrammaticPacingCampaignRow } from "@/lib/pacing/programmatic/types"
@@ -152,13 +157,32 @@ function spendDraft(input: {
   remainingBurst?: number | null
   burstDays?: number | null
   planBursts?: LineCardModel["planBursts"]
+  rate?: {
+    bursts: readonly PacingBurstMoney[]
+    budgetIncludesFees: boolean
+    feePct: number
+  }
 }): Draft {
   const timePct = lineTimePct(input.start, input.end, input.asOf)
   const burstTimePct =
     input.burstStart && input.burstEnd && input.burstBudget != null
       ? lineTimePct(input.burstStart, input.burstEnd, input.asOf)
       : 0
-  const linePct = spendVsExpectedPct(input.spend, input.budget, timePct)
+  const linePct = input.rate
+    ? spendPctOfExpected(
+        input.spend,
+        lineExpectedNetToDate({
+          bursts: input.rate.bursts,
+          budgetIncludesFees: input.rate.budgetIncludesFees,
+          feePct: input.rate.feePct,
+          lineBudget: input.budget,
+          lineStart: input.start,
+          lineEnd: input.end,
+          asOf: input.asOf,
+          lineItemId: input.lineItemId,
+        }),
+      )
+    : spendVsExpectedPct(input.spend, input.budget, timePct)
   const burstPct =
     input.burstSpend != null && input.burstBudget != null && input.burstStart
       ? spendVsExpectedPct(input.burstSpend, input.burstBudget, burstTimePct)
@@ -232,7 +256,11 @@ function spendDraft(input: {
   }
 }
 
-export function lineCardFromSearch(row: SearchPacingCampaignRow, asOf: string): LineCardModel {
+export function lineCardFromSearch(
+  row: SearchPacingCampaignRow,
+  asOf: string,
+  feePct = 0,
+): LineCardModel {
   const burst = row.currentBurst
   const kpis: LineCardKpi[] = buildKpiComparisons(row).map((cmp) =>
     comparisonToKpi(
@@ -286,6 +314,11 @@ export function lineCardFromSearch(row: SearchPacingCampaignRow, asOf: string): 
     remainingBurst: row.spendRemainingCurrentBurst,
     burstDays: row.burstDays,
     planBursts: planBurstsFromNormalised(row.bursts),
+    rate: {
+      bursts: row.bursts,
+      budgetIncludesFees: row.budgetIncludesFees,
+      feePct,
+    },
     metrics: [
       { label: "Clicks", value: formatCount(row.clicks) },
       { label: "Conversions", value: formatCount(row.conversions) },
@@ -297,7 +330,11 @@ export function lineCardFromSearch(row: SearchPacingCampaignRow, asOf: string): 
   return finishModel(draft)
 }
 
-export function lineCardFromSocial(row: SocialPacingCampaignRow, asOf: string): LineCardModel {
+export function lineCardFromSocial(
+  row: SocialPacingCampaignRow,
+  asOf: string,
+  feePct = 0,
+): LineCardModel {
   const burst = row.currentBurst
   const metrics: LineCardMetric[] = [
     { label: "Impressions", value: formatCount(row.impressions) },
@@ -353,6 +390,11 @@ export function lineCardFromSocial(row: SocialPacingCampaignRow, asOf: string): 
     remainingBurst: row.spendRemainingCurrentBurst,
     burstDays: row.burstDays,
     planBursts: planBurstsFromNormalised(row.bursts),
+    rate: {
+      bursts: row.bursts,
+      budgetIncludesFees: row.budgetIncludesFees,
+      feePct,
+    },
     metrics,
     kpis,
   })
@@ -367,6 +409,7 @@ function programmaticSpendMode(row: ProgrammaticPacingCampaignRow): ChannelSpend
 export function lineCardFromProgrammatic(
   row: ProgrammaticPacingCampaignRow,
   asOf: string,
+  feePct = 0,
 ): LineCardModel {
   const burst = row.currentBurst
   const isVideo = row.videoViews > 0 || row.deliverableMetric === "VIDEO_3S_VIEWS"
@@ -430,6 +473,11 @@ export function lineCardFromProgrammatic(
     remainingBurst: row.spendRemainingCurrentBurst,
     burstDays: row.burstDays,
     planBursts: planBurstsFromNormalised(row.bursts),
+    rate: {
+      bursts: row.bursts,
+      budgetIncludesFees: row.budgetIncludesFees,
+      feePct,
+    },
     metrics,
     kpis,
   })
@@ -576,6 +624,15 @@ export function lineCardFromDirect(
     buyType: line.buyType || null,
     fixedCost: true,
     remainingBurst: burst ? burst.budget - burst.reportedSpend : null,
+    rate: {
+      bursts: line.bursts.map((item) => ({
+        startDate: item.startDate,
+        endDate: item.endDate,
+        budget: item.budget,
+      })),
+      budgetIncludesFees: false,
+      feePct: 0,
+    },
     planBursts: line.bursts.map((item) => ({
       index: item.burstIndex,
       start: item.startDate,
