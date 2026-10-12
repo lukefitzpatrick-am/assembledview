@@ -39,6 +39,7 @@ export function expectedMediaForReportWindow(
       campaignStartISO: input.campaignStartISO,
       campaignEndISO: input.campaignEndISO,
       basis: "media",
+      assumedLines: input.assumedLines,
       monthlyOpts: {
         campaignStartISO: input.campaignStartISO,
         campaignEndISO: input.campaignEndISO,

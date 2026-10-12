@@ -31,6 +31,9 @@ import {
   expectedSpendToDateFromDeliveryScheduleMonthly,
   resolveMonthlySpendForPlan,
 } from "@/lib/spend/monthlyPlanCalendar"
+import { assumedDeliveryPacePct, assumedLineToDateCents } from "@/lib/spend/assumedSpend"
+import type { AssumedExpectedLine } from "@/lib/spend/assumedSpend"
+import { fromCents, toCents } from "@/lib/money/cents"
 import { resolveCampaignExpectedSpendToDate } from "@/lib/spend/resolveCampaignExpectedSpend"
 import {
   channelExpectedToDate,
@@ -354,9 +357,14 @@ function channelPace(args: {
   sourceState: ChannelSourceState
   hasFactRows: boolean
   spendPct: number
+  /** Assumed spend is on track from its own burst figure, including before Snowflake rows exist. */
+  assumedDelivery?: boolean
 }): PortfolioPace {
   const start = args.lineStart ?? args.campaignStart
   if (start && start > args.asOfDate) return "not_started"
+  if (args.assumedDelivery) {
+    return mapDeliveryPace(deliveryStatusFromPct(Number.isFinite(args.spendPct) ? args.spendPct : undefined))
+  }
   if (args.sourceState === "no_source") return "no_source"
   if (args.daysElapsed >= 2 && !args.hasFactRows) return "no_delivery"
   return mapDeliveryPace(deliveryStatusFromPct(Number.isFinite(args.spendPct) ? args.spendPct : undefined))
@@ -460,7 +468,75 @@ function expectedForCampaign(
     },
     metricsExpectedSpendToDate: metricsExpectedForCampaign(schedule, startDate, endDate, asOfISO),
     basis: "media",
+    assumedLines: schedule?.assumedLines,
   })
+}
+
+function assumedDollarsByChannel(
+  lines: readonly AssumedExpectedLine[] | undefined,
+  asOf: string,
+): Map<string, number> {
+  const cents = new Map<string, number>()
+  for (const line of lines ?? []) {
+    const media = mediaTypeFromLineItemId(line.id)
+    const key = `assumed-${media.key}`
+    cents.set(key, (cents.get(key) ?? 0) + assumedLineToDateCents(line, asOf))
+  }
+  const out = new Map<string, number>()
+  for (const [key, value] of cents) out.set(key, fromCents(value))
+  return out
+}
+
+function applyAssumedPlanChannels(
+  campaign: DraftCampaign,
+  lines: readonly AssumedExpectedLine[] | undefined,
+  asOf: string,
+): void {
+  if (!lines || lines.length === 0) return
+  const groups = new Map<string, { label: string; ids: string[]; cents: number; planned: number }>()
+  for (const line of lines) {
+    const owner = owningChannelForLine(campaign, line.id)
+    if (owner && owner.spendMode !== "assumed") continue
+    const media = mediaTypeFromLineItemId(line.id)
+    const bucket = groups.get(media.key) ?? { label: media.label, ids: [], cents: 0, planned: 0 }
+    bucket.ids.push(line.id)
+    bucket.cents += assumedLineToDateCents(line, asOf)
+    bucket.planned += line.plannedMedia
+    groups.set(media.key, bucket)
+  }
+  for (const [code, bucket] of groups) {
+    const channelKey = `assumed-${code}`
+    const spend = fromCents(bucket.cents)
+    const existing = campaign.channels.get(channelKey)
+    if (existing) {
+      if (!(existing.spendToDate > 0)) existing.spendToDate = spend
+      if (!(existing.budget > 0)) existing.budget = bucket.planned
+      existing.hasFactRows = true
+      existing.hasSource = true
+      existing.contributesSpend = true
+      existing.spendMode = "assumed"
+      for (const id of bucket.ids) {
+        if (!existing.lineItemIds.includes(id)) existing.lineItemIds.push(id)
+      }
+      continue
+    }
+    upsertChannel(campaign, {
+      channelKey,
+      label: bucket.label,
+      spendToDate: spend,
+      budget: bucket.planned,
+      spendYesterday: 0,
+      spendMode: "assumed",
+      deliverable: null,
+      lineItemIds: bucket.ids,
+      lineStart: campaign.startDate,
+      hasSource: true,
+      hasFactRows: true,
+      contributesSpend: true,
+      kpiTotal: 0,
+      kpiTracked: 0,
+    })
+  }
 }
 
 function channelExpectedDollars(
@@ -478,6 +554,7 @@ function channelExpectedDollars(
       campaignStartISO: startDate,
       campaignEndISO: endDate,
       asOfISO,
+      assumedLines: schedule?.assumedLines,
     }),
   )
   const out = new Map<string, number>()
@@ -499,10 +576,20 @@ function channelExpectedDollars(
     list.push(channel)
     groups.set(key, list)
   }
+  const assumedByChannel = assumedDollarsByChannel(schedule?.assumedLines, asOfISO)
   for (const [key, members] of groups) {
+    const assumedMembers = members.filter((channel) => assumedByChannel.has(channel.channelKey))
+    const reported = members.filter((channel) => !assumedByChannel.has(channel.channelKey))
+    let remainingCents = toCents(slices.get(key) ?? 0)
+    for (const member of assumedMembers) {
+      const dollars = assumedByChannel.get(member.channelKey) ?? 0
+      out.set(member.channelKey, dollars)
+      remainingCents -= toCents(dollars)
+    }
+    if (reported.length === 0) continue
     const allocated = reconcileLineExpected(
-      slices.get(key) ?? 0,
-      members.map((channel) => ({
+      fromCents(Math.max(0, remainingCents)),
+      reported.map((channel) => ({
         id: channel.channelKey,
         lineExpected: 0,
         plannedMedia: channel.budget,
@@ -812,6 +899,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
     const schedule =
       input.schedulesByMba.get(`${mbaKey}:${draft.versionNumber}`) ??
       input.schedulesByMba.get(mbaKey)
+    applyAssumedPlanChannels(draft, schedule?.assumedLines, input.asOfDate)
     const daysTotal = computeCampaignDays(draft.startDate, draft.endDate)
     const daysElapsed = computeDaysPassed(draft.startDate, draft.endDate, input.asOfDate)
     const daysLeft = computeDaysRemaining(draft.startDate, draft.endDate, input.asOfDate)
@@ -830,7 +918,12 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
     const spendYesterday = channelList
       .filter((ch) => ch.contributesSpend)
       .reduce((sum, ch) => sum + ch.spendYesterday, 0)
-    const spendPct = expectedToDate > 0 ? (spendToDate / expectedToDate) * 100 : Number.NaN
+    const spendPct =
+      expectedToDate > 0
+        ? (spendToDate / expectedToDate) * 100
+        : toCents(spendToDate) === 0 && channelList.some((ch) => ch.spendMode === "assumed")
+          ? 100
+          : Number.NaN
     const projectedFinish = timePct > 0 ? (spendToDate / timePct) * 100 : null
     const dailyRateActual = daysElapsed > 0 ? spendToDate / daysElapsed : 0
     const dailyRatePlan = daysElapsed > 0 ? expectedToDate / daysElapsed : 0
@@ -847,30 +940,35 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       expectedToDate,
       spendBudget,
     )
+    const assumedByChannel = assumedDollarsByChannel(schedule?.assumedLines, input.asOfDate)
     const channels: ChannelPacingRow[] = channelList.map((ch) => {
       const channelExpected = expectedByChannel.get(ch.channelKey) ?? 0
+      const assumedDelivery = ch.spendMode === "assumed" && assumedByChannel.has(ch.channelKey)
       const sourceState = sourceStateFor({
         asOfDate: input.asOfDate,
         lineStart: ch.lineStart,
         campaignStart: draft.startDate,
-        hasSource: ch.hasSource,
-        hasFactRows: ch.hasFactRows,
+        hasSource: assumedDelivery || ch.hasSource,
+        hasFactRows: assumedDelivery || ch.hasFactRows,
       })
-      const pct = channelSpendPct({
-        spendToDate: ch.spendToDate,
-        expectedToDate: channelExpected,
-        deliverable: ch.deliverable,
-        timePct,
-        contributesSpend: ch.contributesSpend,
-      })
+      const pct = assumedDelivery
+        ? assumedDeliveryPacePct(ch.spendToDate, channelExpected)
+        : channelSpendPct({
+            spendToDate: ch.spendToDate,
+            expectedToDate: channelExpected,
+            deliverable: ch.deliverable,
+            timePct,
+            contributesSpend: ch.contributesSpend,
+          })
       const pace = channelPace({
         asOfDate: input.asOfDate,
         campaignStart: draft.startDate,
         lineStart: ch.lineStart,
         daysElapsed,
         sourceState,
-        hasFactRows: ch.hasFactRows,
+        hasFactRows: assumedDelivery || ch.hasFactRows,
         spendPct: pct,
+        assumedDelivery,
       })
       return {
         channelKey: ch.channelKey,

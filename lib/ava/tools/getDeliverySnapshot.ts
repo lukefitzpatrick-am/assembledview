@@ -77,9 +77,15 @@ function applyScheduleLineExpected(
     campaignStartISO: string | null
     campaignEndISO: string | null
     asOfISO: string
+    assumedLines?: import("@/lib/spend/assumedSpend").AssumedExpectedLine[]
   },
 ): void {
-  const slices = slicesByKey(channelExpectedToDate(input))
+  const slices = slicesByKey(
+    channelExpectedToDate({
+      ...input,
+      assumedLines: input.assumedLines,
+    }),
+  )
   if (slices.size === 0) return
   const byKey = new Map<string, DeliveryLineSnapshot[]>()
   for (const channel of channels) {
@@ -95,13 +101,19 @@ function applyScheduleLineExpected(
     }
   }
   for (const [key, lines] of byKey) {
+    const fixed = new Map<string, number>()
+    for (const line of lines) {
+      if (line.spendMode !== "assumed") continue
+      fixed.set(line.lineItemId, line.expectedNetToDate ?? 0)
+    }
     const allocated = reconcileLineExpected(
       slices.get(key) ?? 0,
       lines.map((line) => ({
         id: line.lineItemId,
-        lineExpected: line.expectedNetToDate ?? 0,
+        lineExpected: fixed.has(line.lineItemId) ? 0 : line.expectedNetToDate ?? 0,
         plannedMedia: line.plannedBudget ?? 0,
       })),
+      fixed.size > 0 ? fixed : undefined,
     )
     for (const line of lines) {
       const next = allocated.get(line.lineItemId)
@@ -178,6 +190,7 @@ export const getDeliverySnapshotTool: AvaTool = {
             campaignStartISO,
             campaignEndISO,
             asOfISO: snapshot.asOf,
+            assumedLines: snapshot.assumedExpectedLines,
           })
           summarised = summariseDeliverySnapshot(snapshot)
           const strip = attachStripExpected({
@@ -187,6 +200,7 @@ export const getDeliverySnapshotTool: AvaTool = {
               monthlySpend: resolveMonthlySpendForPlan(undefined, undefined, version.deliverySchedule),
               campaignStartISO,
               campaignEndISO,
+              assumedLines: snapshot.assumedExpectedLines,
               monthlyOpts: {
                 campaignStartISO,
                 campaignEndISO,

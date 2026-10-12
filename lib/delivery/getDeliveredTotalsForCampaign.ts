@@ -5,7 +5,7 @@ import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
 import { getAsOfDate } from "@/lib/pacing/maths"
-import { combineDeliveredTotals, deliveredQueryWindow, hasFixedCostMediaLineItems, directSpendWithAssumed, snapshotSpendByLineId, asOfForDeliveredRange, programmaticLineItemIdsFromSnapshot, type DeliveredTotals } from "@/lib/delivery/deliveredTotals"
+import { combineDeliveredTotals, deliveredQueryWindow, hasFixedCostMediaLineItems, directSpendWithAssumed, snapshotAssumedSupplement, snapshotSpendByLineId, asOfForDeliveredRange, programmaticLineItemIdsFromSnapshot, type DeliveredTotals } from "@/lib/delivery/deliveredTotals"
 
 export type GetDeliveredTotalsForCampaignInput = {
   mbaNumber: string
@@ -117,7 +117,7 @@ export async function getDeliveredTotalsForCampaign(
     snapshot
       ? { spendToDate: snapshot.planTotals.spendToDate, impressions: snapshot.planTotals.impressions }
       : null,
-    direct.spend,
+    direct.spend + snapshotAssumedSupplement(snapshot, fixedCostGroup),
   )
 
   return {

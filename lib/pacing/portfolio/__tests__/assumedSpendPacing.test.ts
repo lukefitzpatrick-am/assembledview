@@ -10,6 +10,7 @@ import {
 } from "@/lib/pacing/channel/__tests__/fixtures"
 import type { DirectDailyPoint, DirectLineItemRow } from "@/lib/pacing/direct/types"
 import { assembleCampaignPacingRows } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
+import { assumedLineToDateCents, type AssumedExpectedLine } from "@/lib/spend/assumedSpend"
 import { channelSpendCaption } from "@/lib/pacing/portfolio/channelSpendCaption"
 import type { ChannelPacingRow } from "@/lib/pacing/portfolio/types"
 
@@ -238,5 +239,89 @@ describe("assumed spend pacing rows", () => {
       lineItemIds: ["golf025RA1"],
     } satisfies ChannelPacingRow
     assert.equal(channelSpendCaption(channel), "Assumed spend $500 / $1,000")
+  })
+
+  it("keeps a newspaper burst that has not started On track, then matches two burst days", () => {
+    const line: AssumedExpectedLine = {
+      id: "golf025NP7",
+      scheduleKey: "newspaper",
+      plannedMedia: 3_100,
+      buyType: "insertions",
+      bursts: [
+        {
+          rawBudget: 3_100,
+          budgetIncludesFees: false,
+          clientPaysForMedia: true,
+          feePct: 0,
+          buyType: "insertions",
+          startDate: "2026-10-25",
+          endDate: "2026-10-31",
+        },
+      ],
+    }
+    const deliverySchedule = [
+      {
+        month: "October 2026",
+        mediaCosts: { newspaper: "$3,100.00", socialMedia: "$3,100.00" },
+        mediaTotal: "$6,200.00",
+        feeTotal: "$0.00",
+        totalAmount: "$6,200.00",
+      },
+    ]
+    function rowAt(asOfDate: string) {
+      const [row] = assembleCampaignPacingRows({
+        asOfDate,
+        allowedClientSlugs: null,
+        liveOnly: true,
+        search: [],
+        social: [
+          socialFixture({
+            mbaNumber: "golf025",
+            clientName: "Golf",
+            campaignName: "Australian Open",
+            lineItemId: "golf025SM1",
+            spendToDateLineTotal: 100,
+            totalLineItemBudget: 1_000,
+          }),
+        ],
+        programmatic: [],
+        adServing: [],
+        direct: [],
+        schedulesByMba: new Map([
+          [
+            "golf025",
+            {
+              deliverySchedule,
+              campaignStartISO: "2026-07-01",
+              campaignEndISO: "2026-12-31",
+              assumedLines: [line],
+            },
+          ],
+        ]),
+      })
+      assert.ok(row)
+      return row
+    }
+
+    const early = rowAt("2026-10-12")
+    const newspaper = early.channels.find((channel) => channel.channelKey === "assumed-np")
+    assert.ok(newspaper)
+    assert.equal(newspaper.spendToDate, 0)
+    assert.equal(newspaper.expectedToDate, 0)
+    assert.equal(newspaper.spendPct, 100)
+    assert.equal(newspaper.pace, "on_track")
+    assert.equal(newspaper.spendMode, "assumed")
+
+    const later = rowAt("2026-10-26")
+    const started = later.channels.find((channel) => channel.channelKey === "assumed-np")
+    const twoDays = assumedLineToDateCents(line, "2026-10-26") / 100
+    assert.ok(started)
+    assert.ok(twoDays > 0)
+    assert.equal(started.spendToDate, twoDays)
+    assert.equal(started.expectedToDate, twoDays)
+    assert.equal(started.pace, "on_track")
+
+    const channelCents = later.channels.reduce((sum, channel) => sum + Math.round(channel.expectedToDate * 100), 0)
+    assert.equal(channelCents, Math.round(later.expectedToDate * 100))
   })
 })

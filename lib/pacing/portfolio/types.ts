@@ -1,3 +1,5 @@
+import type { AssumedExpectedLine } from "@/lib/spend/assumedSpend"
+
 export type PortfolioPace =
   | "behind"
   | "on_track"
@@ -66,6 +68,8 @@ export type CampaignScheduleInput = {
   deliverySchedule?: unknown
   monthlySpend?: unknown
   campaignBudget?: number
+  /** Plan lines paced as assumed spend. Expected and, when Snowflake has no rows, delivered follow their bursts. */
+  assumedLines?: AssumedExpectedLine[]
   /**
    * Step-3 fallback for `resolveCampaignExpectedSpendToDate`, the same figure
    * the campaign page passes as `metrics.expectedSpendToDate`. Not stored on

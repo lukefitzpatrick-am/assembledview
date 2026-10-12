@@ -15,6 +15,7 @@ import {
   withReconciledLineExpected,
 } from "@/lib/pacing/channel/lineCardModel"
 import { reconcileLineExpected } from "@/lib/spend/channelExpectedToDate"
+import { loadAssumedExpectedLinesByVersion } from "@/lib/spend/loadAssumedExpectedLines"
 import type { LineCardModel } from "@/lib/pacing/channel/lineCardTypes"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import { getAsOfDate } from "@/lib/pacing/maths"
@@ -291,7 +292,8 @@ export async function buildCampaignDetail(
     loadDirectDigitalFeePctsOrGross(versionIds),
   ])
   const builtLines = linesFromSources(sources, asOf, feePctsByVersionId)
-  const schedulesByMba = schedulesByMbaFromVersions(scheduleVersions)
+  const assumedByVersion = await loadAssumedExpectedLinesByVersion(versionIds, feePctsByVersionId)
+  const schedulesByMba = schedulesByMbaFromVersions(scheduleVersions, assumedByVersion)
   const scheduleLoaded = scheduleLoadedForMba(schedulesByMba, mbaKey)
   const assembled = assembleCampaignPacingRows({
     asOfDate: asOf,

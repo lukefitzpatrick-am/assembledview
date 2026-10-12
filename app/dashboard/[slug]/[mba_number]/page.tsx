@@ -17,6 +17,7 @@ import { getDeliveredTotalsForCampaign } from "@/lib/delivery/getDeliveredTotals
 import { getAsOfDate } from "@/lib/pacing/maths"
 import { positiveVersionId, versionIdFromLine } from "@/lib/delivery/directDigitalFeeLookup"
 import { loadDirectDigitalFeePctsOrGross } from "@/lib/delivery/readMbaFeeSnapshots"
+import { assumedExpectedLinesFromLineItemMap } from "@/lib/spend/assumedExpectedLines"
 export const maxDuration = 60
 
 interface CampaignDetailPageProps {
@@ -694,6 +695,11 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     metricsExpectedSpendToDate: metrics.expectedSpendToDate,
     deliverySchedule,
     basis: "media",
+    assumedLines: assumedExpectedLinesFromLineItemMap(
+      lineItemsMap,
+      feePctsByVersionId,
+      versionRecordId,
+    ),
   })
 
   const totalPlannedMonthlySpend = resolveCampaignTotalPlannedSpend({

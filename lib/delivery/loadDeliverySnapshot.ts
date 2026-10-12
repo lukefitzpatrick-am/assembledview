@@ -43,6 +43,11 @@ import { fromCents, toCents } from "@/lib/money/cents"
 import { parseMoney } from "@/lib/money/parse"
 import { assumedSpendForBurst } from "@/lib/spend/assumedSpend"
 import { assumeSpendForSnapshotLine } from "@/lib/spend/assumeSpendRule"
+import {
+  assumedExpectedLineFromFields,
+  channelMetaForKey,
+} from "@/lib/spend/assumedExpectedLines"
+import type { AssumedExpectedLine } from "@/lib/spend/assumedSpend"
 
 type MediaTypeKey = keyof typeof MEDIA_CONTAINER_ENDPOINTS
 
@@ -82,6 +87,8 @@ export type LoadedDeliverySnapshot = {
   fixedCostOverlayFailed?: boolean
   /** True when plan totals include CM360 direct-digital estimated spend. */
   includesEstimatedSpend?: boolean
+  /** Assumed-spend lines, including bursts that have not started. */
+  assumedExpectedLines?: AssumedExpectedLine[]
 }
 
 type PlanLineMeta = {
@@ -521,6 +528,43 @@ function deliveryMediaCentsForPlan(plan: PlanLineMeta, feePct: number): number {
   return toCents(media)
 }
 
+function expectedLineFromPlan(plan: PlanLineMeta, feePct: number): AssumedExpectedLine | null {
+  const meta = channelMetaForKey(plan.sourceTable)
+  if (!meta) return null
+  const bursts = burstRecords(plan.bursts).flatMap((burst) => {
+    const startDate = String(burst.startDate ?? burst.start_date ?? "").slice(0, 10)
+    const endDate = String(burst.endDate ?? burst.end_date ?? "").slice(0, 10)
+    if (!startDate || !endDate) return []
+    const rawBudget = parseMoney(burst.budget ?? burst.mediaAmount ?? burst.media_amount) ?? 0
+    return [
+      {
+        rawBudget,
+        budgetIncludesFees: plan.budgetIncludesFees,
+        clientPaysForMedia: plan.clientPaysForMedia,
+        feePct,
+        buyType: asString(burst.buy_type) ?? asString(burst.buyType) ?? plan.buyType ?? undefined,
+        startDate,
+        endDate,
+      },
+    ]
+  })
+  return assumedExpectedLineFromFields(
+    {
+      id: plan.id,
+      buyType: plan.buyType,
+      sourceTable: plan.sourceTable,
+      noAdserving: plan.noAdserving,
+      publisher: plan.publisher,
+      platform: plan.platform,
+      budgetIncludesFees: plan.budgetIncludesFees,
+      clientPaysForMedia: plan.clientPaysForMedia,
+      feePct,
+      bursts,
+    },
+    meta.scheduleKey,
+  )
+}
+
 function planCanAssumeSpend(plan: PlanLineMeta, feePct: number): boolean {
   return assumeSpendForSnapshotLine({
     buyType: plan.buyType,
@@ -564,14 +608,7 @@ function assumedSpendDollars(
   return fromCents(cents)
 }
 
-function assumedSnapshotLine(
-  plan: PlanLineMeta,
-  spend: number,
-  asOf: string,
-  feePcts: FeePctsByVersionId,
-  windowStart: string | undefined,
-  windowEnd: string | undefined,
-): DeliveryLineSnapshot {
+function assumedSnapshotLine(plan: PlanLineMeta, spend: number): DeliveryLineSnapshot {
   return {
     lineItemId: plan.id,
     name: plan.name,
@@ -590,8 +627,8 @@ function assumedSnapshotLine(
     cpm: null,
     ctr: null,
     cpc: null,
-    expectedSpendToDate: expectedSpendToDateFromBursts(plan.bursts, plan.plannedBudget ?? 0, asOf),
-    expectedNetToDate: expectedNetForPlan(plan, feePcts, windowStart, windowEnd, asOf),
+    expectedSpendToDate: spend,
+    expectedNetToDate: spend,
     noDeliveryRows: true,
     deliveryState: "assumed",
     spendMode: "assumed",
@@ -870,6 +907,12 @@ export async function loadDeliverySnapshot(
   const asOf = getAsOfDate()
   const channels: DeliveryChannelGroup[] = []
   const assumedLines: DeliveryLineSnapshot[] = []
+  const assumedExpectedLines: AssumedExpectedLine[] = []
+  const pushAssumed = (plan: PlanLineMeta, feePct: number, spend: number) => {
+    assumedLines.push(assumedSnapshotLine(plan, spend))
+    const expected = expectedLineFromPlan(plan, feePct)
+    if (expected) assumedExpectedLines.push(expected)
+  }
   for (const group of channelOrder) {
     const planMap = groups.get(group)
     if (!planMap || planMap.size === 0) continue
@@ -896,12 +939,8 @@ export async function loadDeliverySnapshot(
         const feePct = plan ? lineFeePct(plan, feePctsByVersionId) : 0
         if (plan && !hasDelivery && planCanAssumeSpend(plan, feePct)) {
           const spend = assumedSpendDollars(plan, feePct, startDate, endDate, asOf)
-          if (spend > 0) {
-            assumedLines.push(
-              assumedSnapshotLine(plan, spend, asOf, feePctsByVersionId, startDate, endDate),
-            )
-            continue
-          }
+          pushAssumed(plan, feePct, spend)
+          continue
         }
         kept.push(line)
       }
@@ -919,10 +958,7 @@ export async function loadDeliverySnapshot(
     const feePct = lineFeePct(plan, feePctsByVersionId)
     if (!planCanAssumeSpend(plan, feePct)) continue
     const spend = assumedSpendDollars(plan, feePct, startDate, endDate, asOf)
-    if (!(spend > 0)) continue
-    assumedLines.push(
-      assumedSnapshotLine(plan, spend, asOf, feePctsByVersionId, startDate, endDate),
-    )
+    pushAssumed(plan, feePct, spend)
   }
   if (assumedLines.length > 0) {
     channels.push({
@@ -948,5 +984,6 @@ export async function loadDeliverySnapshot(
     planTotals,
     ...(fixedCostOverlayFailed ? { fixedCostOverlayFailed: true } : {}),
     ...(includesEstimatedSpend ? { includesEstimatedSpend: true } : {}),
+    assumedExpectedLines,
   }
 }
