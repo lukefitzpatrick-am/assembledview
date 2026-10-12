@@ -3297,3 +3297,1631 @@ Create and edit drop a returned id only while that line is still empty. Only a c
 | New line number from the max | DONE | `f1258793` |
 | Strip empty lines on publish | DONE | `cce10f75` |
 | AV-TIZ | DONE | this commit |
+
+## AV-TK1
+
+Part A is `docs/superpowers/overnight-av-fixes/discovery/AV-TK1.md`. The app does not set `statement_timeout`. The live pooler session is 2 minutes from the configuration file. The six `PARSE` cancels at 21:24:03 are that cap on `fetchLineItemsFromPostgres` (`readChannelLineItems`), not a statement that started at session start 21:18:08. Direct and the versions source do not issue that select. No write path holds a transaction across network I/O, so the fail-fast was built.
+
+Portfolio masters, versions, and line-item reads each run in a short transaction with `SET LOCAL lock_timeout = '5s'` and `statement_timeout = '15s'`. `55P03` and `57014` retry once inside the existing 90s source cap. The cron logs `pacing_portfolio_pg_timeout` with source, code, and elapsed ms. Snowflake SQL and the 90s deadline are unchanged. `readPlanMasters` stays uncapped unless the caller passes `readLimits`.
+
+- SHA: a7678c72
+- Checks: `portfolioSourceTimeout` 8/8, including the lock_timeout retry. typecheck 0. lint 0 on the touched files.
+- Morning smoke: not run. This is a server read path. Nothing was opened in the browser.
+- Under 90%: the lock holder on 11 Oct is still unnamed. Next `55P03` or `57014` needs `pg_blocking_pids` plus `pg_locks` / `pg_stat_activity` (`query_start`, not only session start). Confidence on the 2-minute setting and the query identity is 95%. Confidence the six statements began about 21:22:03 is 90%.
+
+## Second publish in the same tab
+
+`tipVersionIdAtLoadRef` is read only when the edit page builds a save body (`handleSaveAll` and the draft-documents body). Draft restore uses `planDraft` / `restoreDraftFormValues`, not this ref, so advancing it after publish does not change the TH2 offer. Create has no ref and still sends `tipVersionIdAtLoad: null`.
+
+On a successful publish (`mode === "publish"` and `published`), the edit page sets the ref through `tipVersionIdAfterSave` to the returned version id, beside `setPublishedVersionId`. Draft and `new_version` do not write it.
+
+- SHA: fd2298a9
+- Checks: `drafts.test.ts` 16 pass, 6 skipped (the new case is in the pass count). typecheck 0. lint 0 new findings. The edit page still has the pre-existing exhaustive-deps warnings.
+- Morning smoke: not run. Nothing accepted a connection on localhost:3000, and no browser session was logged in. krusty002 was not published.
+- Under 90%: none.
+
+## Portfolio cron region and composer cache
+
+Two commits on `localhost`. This section is uncommitted.
+
+### Commit 1 — syd1
+
+`vercel.json` `functions` sets `app/api/cron/pacing-portfolio/route.ts` to `"regions": ["syd1"]`. The `crons` array is unchanged, so both `0 21 * * *` and `30 21 * * *` (`?retry=1`) use that route. Project-level `regions` was not set. `export const preferredRegion = ["syd1"]` is still on the route. It has no effect on Node routes.
+
+`next.config.mjs` has no `regions` or `functions` entry, and the route's `maxDuration` 300 stays on the export. The new key sets only `regions`, so it does not override duration. No conflict.
+
+Doc relied on, from [Configuring regions](https://vercel.com/docs/functions/configuring-functions/region) and the [vercel.json functions schema](https://vercel.com/docs/project-configuration/vercel-json#functions):
+
+> You can override regions for individual functions using the `functions` property in your project configuration.
+
+> `regions` (optional): An array of region identifiers specifying where this specific function should be deployed. This overrides the project-level `regions` setting for the matched functions.
+
+The schema marks `includeFiles` and `excludeFiles` as not supported in Next.js. `regions` is not in that exclusion. An older "Valid Next.js Function Pattern" note says only `memory` and `maxDuration` can be configured within `functions`; the current schema lists `regions` as a first-class optional property, and that is what this commit follows.
+
+- SHA: a83fba1d
+- Under 90%: none for the config itself. Whether the next deploy actually places the invocation in syd1 is the after-deploy check below.
+
+### Commit 2 — skip the composer cache on the cron
+
+The cron handler passes `{ cache: false }` into `buildAndStorePortfolioSnapshot`. Both attempts of each composer call `fetch*`. User GET and admin inline rebuild leave the flag unset, so the first attempt still uses the 4h `unstable_cache` wrappers. The retry schedule hits the same handler, so it does not sniff the URL.
+
+Shared callers of `getCached*`: the five channel routes, overview, AVA `getPacingSnapshot`, `getDeliveredTotalsForClient`, and the pacing digest. A miss runs the composer. The digest prefers the same-day admin snapshot and only falls through to those wrappers when that snapshot is missing. The direct cache write already fails every run (4,018,521 bytes, over 2 MB), so nothing depends on the cron having stored that entry. None of these require the cron to warm the cache, so commit 2 was not stopped.
+
+- SHA: d98dc41a
+- Checks: `portfolioSourceTimeout` 10/10. The new cases: default build hits the five cache wrappers and not `fetch*`; `cache: false` is the reverse; the cron source passes `cache: false` and the user `buildArgs` does not. typecheck 0. lint 0 on the touched files.
+- After deploy (not run): the next 21:00 UTC cron log should show `region=syd1` and no "items over 2MB" warning.
+- Under 90%: none. Confidence the listed callers do not depend on a cron warm is about 92%, because a cold cache still fetches.
+
+## Published tip live count, then AU draft clock
+
+Two commits on `localhost`. This section is uncommitted.
+
+### Commit 1 — expectedLive
+
+`liveCampaignIdsFromVersions` now counts an MBA only when `is_published_tip` is true and that version passes `isLiveCampaignStatus`. The versions read sets the flag from `media_plan_masters.published_version_id`. An older approved or booked version no longer counts. The warning event and fields are unchanged. After the next unscoped build, `missingCampaignIds` should be the plans with no platform source: hartm016, qatar003, myhab001 (radio only), and noelj001 (ChatGPT social). That list was not replayed against Postgres in this commit.
+
+Composers still gate on the master row's status and dates. For the three cancelled plans in AV-TJ1 the master matches the published tip, so the tip version's own status is the same rule.
+
+- SHA: 5f61637d
+- Checks: `portfolioSourceTimeout` includes the cancelled-tip case and the existing warning still upserts. `mapPlanVersionFromPostgres` keeps `is_published_tip`. Both files pass (17/17 together). typecheck 0. lint 0 on the touched files.
+- Under 90%: none.
+
+### Commit 2 — draft prompt date
+
+`formatDateShort` is date-only (`1 Apr 2026`), so the restore prompt and the orphan offer use `formatDraftOfferTimestamp`: `toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })` with day, month, year, hour, and minute. `2026-10-11T22:01:00.000Z` formats as day/month `12/10/2026` and `9:01 am`.
+
+Locale-less `toLocaleString` / `toLocaleDateString` in `components/mediaplan` and `app/mediaplans`: none. Left unchanged, and not those two APIs: `toLocaleTimeString()` with no locale on the "Draft saved" toast — `app/mediaplans/create/page.tsx` (one call) and `app/mediaplans/mba/[mba_number]/edit/page.tsx` (two calls).
+
+- SHA: a5bacb15
+- Checks: `drafts.test.ts` 17 pass, 6 skipped. The new case is in the pass count. typecheck 0. lint 0 on the touched files.
+- Under 90%: none.
+
+## One On track rule, 90 to 110
+
+Two commits on `localhost`. This section is uncommitted. SQL was not run.
+
+### Commit 1 — one source of truth
+
+`PACING_STATUS_THRESHOLDS` in `lib/pacing/status.ts`: behind below 90, on track 90–110 inclusive, ahead above 110 and below 115, over-pacing at 115, KPI tolerance 0.1, chart band ±0.10. `computeStatus` reads those edges as projection variance (−0.10 / +0.10 / +0.15) and keeps the Snowflake CASE order. `statusFromExpectedPct` returns Over-pacing at 115. `deliveryStatusFromPct` maps 115 and above to Ahead.
+
+Callers that cannot render Over-pacing, so the helper stays Ahead:
+
+- `components/dashboard/delivery/shared/statusColours.ts` (progress cards, status pills, KPI tiles, search / social / programmatic / direct-digital adapters). Behind is labelled Off pace. There is no Over-pacing colour.
+- Report deck `paceColour` in `lib/reports/campaignReport/buildCampaignReportDeck.ts`. Ahead is coral. Every other band is ink, so a new status would look On track.
+- `evaluateOnTrack` (`lib/kpi/deliveryTargetCurve.ts`). The chart band is inside ±10% = on-track, outside = behind or ahead. No Over-pacing label.
+- `CampaignStatusStrip` has an Over-pacing pill, but it calls `deliveryStatusFromPct`, so 115 and above still reads Ahead of plan.
+
+Callers that do show Over-pacing, from the same table: portfolio `isOverPacing`, line cards `isLineOverPacing`, `computeStatus` / overview, AVA nudge. The old extra gate (projected finish strictly above 115% of budget, and spend percent strictly above 110) is gone. Over-pacing is now 115% of expected and above.
+
+- SHA: cf71ce35
+- Checks: status, delivery helper, band table, AVA nudge, overview map, KPI pacing, line cards, portfolio fixtures (67 node tests), vitest `statusUi` + `PacingStatusSummary` (6). typecheck 0. lint 0 on the touched files. No browser. Morning smoke was not run.
+
+Tests changed, and why:
+
+- `lib/pacing/__tests__/statusBands.test.ts` — new table: 89.9 behind, 90 on track, 110 on track, 110.1 ahead, 114.9 ahead, 115 over-pacing, on `statusFromExpectedPct`.
+- `lib/pacing/__tests__/deliveryStatusFromPct.test.ts` — 114.9 and 115 stay Ahead in this helper, because its callers have no Over-pacing colour.
+- `lib/pacing/maths/__tests__/status.test.ts` — ±0.10 is on track (90 and 110). −0.08 (92%) is on track, where it used to be slightly under. −0.101 is slightly under. 0.101 and 0.149 are slightly over. ±0.15 stays under / over.
+- `lib/ava/__tests__/resolveAvaPacingNudge.test.ts` — under is below 90, not 85. 115 is over, not silent. 90 and 114.9 stay silent (the nudge has no Ahead copy).
+- `components/pacing/__tests__/PacingStatusSummary.test.tsx` — legend text is now "90–110% of expected" and "115% of expected and above". This pins legend copy, not a campaign snapshot.
+- `lib/kpi/__tests__/kpiPacing.test.ts` — title only. The assertion was already "on track or a mild band" and still passes.
+
+Snapshot tests: `components/dashboard/campaign/__tests__/SpendChartsRow.test.tsx` has `toMatchSnapshot`. It was not opened and not updated. It does not pin a pacing status.
+
+Not changed, because the number is not percent of expected:
+
+- Client hub Plan committed bar (`lib/dashboard/budgetUtilKpi.ts`, `HeroKPIBar`). Colour at 25 and 50 of planned-to-date ÷ plan budget. Left as it is.
+- Direct digital and BVOD progress cards pass percent of total planned impressions or clicks into the shared helper. The basis is unchanged. 115 and above still paints Ahead.
+- KPI review (`lib/kpi/kpiReview.ts`) is rate vs target through the same helper. Hidden spend stays no-data. Basis unchanged.
+- Finance forecast RAG (`lib/finance/forecast/variance/targetVsActual.ts`): on track within 5% shortfall, behind within 15%, else critical. Left as it is.
+- Search `compareCpcStatus` / `compareHigherIsBetter` stay ±8% of a rate vs target.
+- Ad-serving overview maps `serving` to on-track. Not a percent.
+- Direct fixed-cost `deriveLineItemStatus` rolls up burst statuses. Not a percent.
+- `PacingBandChart` fallback `tolerance = 8` is percentage points when the chart is not given a band. Live `DeliveryPacingChart` passes the ±10% curve. The 8 was not changed.
+- `statusSentence` still mentions impressions running 15 points ahead of spend. That is a sentence, not a status band.
+- Ops digest still folds Ahead and Over-pacing into one "ahead" bucket. It has no 90/110 number of its own.
+
+Under 90%, listed and left:
+
+- Live `V_LINE_ITEM_PACING` matching this file: 65% in TL0. The file is updated. The live view was not read and the SQL was not run.
+- Campaign strip expected matching the snapshot dollar for the same day: 88%. The expected builder was not changed.
+- AVA "on track" prose beyond the skill sentence: 80%. The skill sentence now says 90 / 110 / 115. No campaign-read classifier was found to retune.
+- golf026 line-card observation: 72%. That page was not loaded. Not a code surface.
+
+Social and programmatic `pacingPct` is spend ÷ should-spend × 100. That row is percent of expected. Confidence is about 92% after reading the assignment. The expected builder was not changed.
+
+Morning smoke (not run): one campaign should show the same status on Home, the pacing portfolio, pacing detail, and the client dashboard channel card. BICAU002 on snapshot 17 is 91.9% of schedule expected (On track on Home, portfolio, and the strip) and about 86.5% of budget on a straight-line projection (Behind on `computeStatus`, variance about −13.5%). Those two expecteds can still disagree after this commit. A single linear channel on a Krusty Krab plan is the check that should match.
+
+### Commit 2 — Snowflake CASE, text only
+
+The only pacing-status CASE is `sql/snowflake/pacing/16_capture_v_line_item_pacing_pre_retirement.sql`. It is not under `sql/snowflake/mart`. `sql/snowflake/mart/README.md` says Pattern A objects, including `V_LINE_ITEM_PACING`, are kept out of that folder. No `lib/` or `app/` code selects the view. Home, portfolio, pacing detail, and the client dashboard already use the app bands from commit 1. They do not wait on Snowsight.
+
+- SHA: 73573ae2
+- Not run. Paste the block below into Snowsight as `ASSEMBLEDVIEW.VW_PACING.V_LINE_ITEM_PACING`.
+
+```sql
+USE SCHEMA ASSEMBLEDVIEW.VW_PACING;
+
+create or replace view V_LINE_ITEM_PACING(
+	CLIENTS_ID,
+	AV_LINE_ITEM_ID,
+	MEDIA_PLAN_ID,
+	AV_LINE_ITEM_LABEL,
+	MEDIA_TYPE,
+	START_DATE,
+	END_DATE,
+	AS_OF_DATE,
+	CAMPAIGN_DAYS,
+	DAYS_PASSED,
+	DAYS_REMAINING,
+	LINE_ITEM_BUDGET,
+	SPEND_TO_DATE,
+	SPEND_YESTERDAY,
+	EXPECTED_SPEND,
+	EXPECTED_PCT,
+	SPEND_VARIANCE,
+	SPEND_VARIANCE_PCT,
+	DAILY_PACE,
+	REQUIRED_DAILY,
+	PROJECTED_TOTAL,
+	PROJECTION_VARIANCE_PCT,
+	IMPRESSIONS_TO_DATE,
+	CLICKS_TO_DATE,
+	CONVERSIONS_TO_DATE,
+	REVENUE_TO_DATE,
+	CTR,
+	CPC,
+	CPA,
+	CR,
+	ROAS,
+	STATUS
+) as
+WITH today AS (
+  SELECT CONVERT_TIMEZONE('UTC','Australia/Melbourne', CURRENT_TIMESTAMP())::DATE AS today_date
+),
+li AS (
+  SELECT
+    clients_id,
+    av_line_item_id,
+    ANY_VALUE(media_plan_id)        AS media_plan_id,
+    ANY_VALUE(av_line_item_label)   AS av_line_item_label,
+    ANY_VALUE(media_type)           AS media_type,
+    ANY_VALUE(line_item_budget)     AS line_item_budget,
+    ANY_VALUE(line_item_start_date) AS start_date,
+    ANY_VALUE(line_item_end_date)   AS end_date,
+    SUM(CASE WHEN date <= (SELECT today_date FROM today) THEN spend       ELSE 0 END) AS spend_to_date,
+    SUM(CASE WHEN date <= (SELECT today_date FROM today) THEN impressions ELSE 0 END) AS impressions_to_date,
+    SUM(CASE WHEN date <= (SELECT today_date FROM today) THEN clicks      ELSE 0 END) AS clicks_to_date,
+    SUM(CASE WHEN date <= (SELECT today_date FROM today) THEN conversions ELSE 0 END) AS conversions_to_date,
+    SUM(CASE WHEN date <= (SELECT today_date FROM today) THEN revenue     ELSE 0 END) AS revenue_to_date,
+    SUM(CASE WHEN date  = (SELECT today_date FROM today) - 1 THEN spend   ELSE 0 END) AS spend_yesterday
+  FROM ASSEMBLEDVIEW.MART_PACING.FACT_LINE_ITEM_PACING_DAILY
+  GROUP BY clients_id, av_line_item_id
+),
+maths AS (
+  SELECT
+    li.*,
+    (SELECT today_date FROM today)                                              AS as_of_date,
+    DATEDIFF('day', li.start_date, li.end_date) + 1                             AS campaign_days,
+    GREATEST(0, LEAST(
+      DATEDIFF('day', li.start_date, li.end_date) + 1,
+      DATEDIFF('day', li.start_date, (SELECT today_date FROM today)) + 1
+    ))                                                                          AS days_passed,
+    GREATEST(0,
+      DATEDIFF('day', li.start_date, li.end_date) + 1
+      - GREATEST(0, LEAST(
+          DATEDIFF('day', li.start_date, li.end_date) + 1,
+          DATEDIFF('day', li.start_date, (SELECT today_date FROM today)) + 1
+        ))
+    )                                                                           AS days_remaining
+  FROM li
+),
+pacing AS (
+  SELECT
+    m.*,
+    DIV0(m.days_passed::FLOAT, m.campaign_days)                                 AS expected_pct,
+    m.line_item_budget * DIV0(m.days_passed::FLOAT, m.campaign_days)            AS expected_spend,
+    m.spend_to_date - (m.line_item_budget * DIV0(m.days_passed::FLOAT, m.campaign_days)) AS spend_variance,
+    DIV0(
+      m.spend_to_date - (m.line_item_budget * DIV0(m.days_passed::FLOAT, m.campaign_days)),
+      m.line_item_budget * DIV0(m.days_passed::FLOAT, m.campaign_days)
+    )                                                                           AS spend_variance_pct,
+    DIV0(m.spend_to_date, m.days_passed)                                        AS daily_pace,
+    DIV0(m.line_item_budget - m.spend_to_date, m.days_remaining)                AS required_daily,
+    DIV0(m.spend_to_date, m.days_passed) * m.campaign_days                      AS projected_total,
+    DIV0(
+      (DIV0(m.spend_to_date, m.days_passed) * m.campaign_days) - m.line_item_budget,
+      m.line_item_budget
+    )                                                                           AS projection_variance_pct
+  FROM maths m
+)
+SELECT
+  p.clients_id,
+  p.av_line_item_id,
+  p.media_plan_id,
+  p.av_line_item_label,
+  p.media_type,
+  p.start_date,
+  p.end_date,
+  p.as_of_date,
+  p.campaign_days,
+  p.days_passed,
+  p.days_remaining,
+  p.line_item_budget,
+  p.spend_to_date,
+  p.spend_yesterday,
+  p.expected_spend,
+  p.expected_pct,
+  p.spend_variance,
+  p.spend_variance_pct,
+  p.daily_pace,
+  p.required_daily,
+  p.projected_total,
+  p.projection_variance_pct,
+  p.impressions_to_date,
+  p.clicks_to_date,
+  p.conversions_to_date,
+  p.revenue_to_date,
+  DIV0(p.clicks_to_date, p.impressions_to_date)        AS ctr,
+  DIV0(p.spend_to_date,  p.clicks_to_date)             AS cpc,
+  DIV0(p.spend_to_date,  p.conversions_to_date)        AS cpa,
+  DIV0(p.conversions_to_date, p.clicks_to_date)        AS cr,
+  DIV0(p.revenue_to_date, p.spend_to_date)             AS roas,
+  -- Status order matches computeStatus. Do not reorder.
+  -- projection_variance_pct = projected/budget - 1 (= spend/expected - 1 on a linear flight).
+  -- on_track is -0.10 to 0.10 (90–110% of expected). over_pacing is >= 0.15 (115%).
+  CASE
+    WHEN p.as_of_date < p.start_date                                                          THEN 'not_started'
+    WHEN p.as_of_date > p.end_date                                                            THEN 'completed'
+    WHEN p.spend_to_date = 0 AND p.days_passed >= 2                                           THEN 'no_delivery'
+    WHEN p.projection_variance_pct >= -0.10 AND p.projection_variance_pct <= 0.10             THEN 'on_track'
+    WHEN p.projection_variance_pct < -0.10 AND p.projection_variance_pct > -0.15              THEN 'slightly_under'
+    WHEN p.projection_variance_pct <= -0.15                                                   THEN 'under_pacing'
+    WHEN p.projection_variance_pct > 0.10 AND p.projection_variance_pct < 0.15                THEN 'slightly_over'
+    WHEN p.projection_variance_pct >= 0.15                                                    THEN 'over_pacing'
+    ELSE 'unknown'
+  END                                                                                        AS status
+FROM pacing p;
+```
+
+## Estimated spend for CM360 direct digital
+
+Commit `633d7660` on `localhost`. This section is uncommitted.
+
+CM360 direct digital (digital display, digital video, digital audio, BVOD) now shows estimated spend from `estimateDirectDigitalSpend`, which calls `deriveSpendFromPlanRate`. Rate is planned media ÷ planned deliverables. CPM uses impressions. Direct-digital CPV maps `video3sViews` onto the helper's `results` field before the call. Programmatic CPV still uses `results`. Other buy types use the helper's own units and its warning. Spend is capped at planned media. `spendMode` is `estimated`, `actual`, or `reported`. The UI label comes from that flag. Planned deliverables of 0 return no estimate and the copy "No planned impressions". Fixed-cost lines keep `REPORTED_SPEND`. Reported replaces the estimate. `delivery_source_map` programmatic behaviour (Quantcast, Twitch, `derive_spend_from_plan`) is unchanged and stays labelled modelled.
+
+Fact grain: placement-day. `TSK_REFRESH_PACING_FACT` merges `VW_PACING_CM360` into `MART.PACING_FACT`. Dedup grain is channel + date_day + platform_line_item_id. Each row also carries `line_item_id` after `LINE_ITEM_LABEL_MAP`. Daily impressions exist at placement grain and are stamped with a plan line id. `aggregatePacingRows` already sums by cleaned line id, so the estimate at plan-line grain is the sum of those rows. Confidence about 95%.
+
+Finance: `lib/finance` and `lib/billing` do not read `getDeliveredTotals`, `loadDeliverySnapshot`, `amountSpent`, or `PACING_FACT`. Billing, Xero, and invoice routes under `app/api` do not call the snapshot loader. Xero is invoice and contact matching. No path found that would carry this estimate into finance.
+
+CPV warehouse column behind `VIDEO_3S_VIEWS`: 55% in AV-TL0 (`VW_PACING_CM360` DDL is not in the repo). The decision is to use the column TL0 named. Not aborted.
+
+`deriveSpendFromPlanRate` falls back to burst `budget` when `mediaAmount` is missing, and warns. Live direct-digital bursts often have `budget` and no `mediaAmount`. Some lines have `budget_includes_fees`, so the cap can be gross budget. The wrapper does not strip a fee.
+
+Left as verification counts, on purpose:
+
+- Admin ad-serving line cards and `GET /api/pacing/ad-serving-campaigns`.
+- Overview `mapOverviewItems` no-spend row shapes. `computePacing` is not run on these lines.
+- Placement entity table (`columns: "delivery"`). The estimate is a line total.
+- Gantt stays deliverable-based.
+
+Checks: helper 6, derive 10, KPI review including estimated CPM, portfolio fixtures, snapshot hub-total test (module mocks), delivered totals 19, direct-digital chart and hero caption. typecheck 0. lint 0 on the touched files. No browser.
+
+Morning smoke was not run. `/dashboard/golf-australia` and a CM360 line card were not loaded. The hub Delivered tile should rise by the estimated CM360 spend and say Estimated. A CM360 line card should show spend and a CPM close to the planned CPM.
+
+## Direct digital estimate uses lib/money
+
+`gate:main` failed in `check:money-inline` because `estimateDirectDigitalSpend` rounded the summed days with `Math.round(... * 100) / 100`. That line is now `roundMoney2` from `lib/money` (`fromCents(toCents(...))`, half-up away from zero). No new helper.
+
+- SHA: fd3e7380
+- Checks: `check:money-inline` ok (248 hits, 2 under baseline). `estimateDirectDigitalSpend` tests 6/6. typecheck 0. lint 0 on the file.
+- Under 90%: none.
+
+## Flighting grouped by media channel
+
+Two commits on `localhost`. This section is uncommitted.
+
+- `6f13ec4a` `refactor(dashboard): gantt rows carry their media channel`. Each `GanttRow` now has `channelKey` (the media-type key already in the reshape loop). `sub` is still `getMediaLabel`. Normalised bursts already have `budget`, so each row also gets `plannedMedia`: in-window burst budgets parsed with `parseMoney` and summed with `sumCents` / `fromCents`. A budget outside the campaign window is left out. Nothing new is fetched.
+- `e0668ff9` `feat(dashboard): flighting grouped by media channel, collapsed at 20+ lines`. `groupGanttRowsByChannel` keeps plan order (first-seen `channelKey`). A group is `{ channelKey, label, lineCount, start, end, plannedMedia?, rows }`. `collapsed` is true when the line count is 20 or more. `MediaPlanVizSection` passes `grouped`. `MediaContainerTimelineCollapsible` does not, so the plan editor stays one row per line. The summary is a button with `aria-expanded`, the channel label, "{n} lines", `plannedMedia` when the rows have it, and a bar from the earliest start week to the latest end week. That bar has no delivered overlay. Child rows are the existing chart (sideline wrap, week columns, delivered `fillRatio`). Expand all and Collapse all sit above the chart. Below 20 lines the groups start open.
+
+Checks: reshape 10/10 (every row has `channelKey`; two in-window budgets 10.1 + 20.2 = 30.3, a burst outside the window is excluded). Grouping 3/3 (22 lines across 3 channels collapsed; 19 open; span is min start to max end). Render 2/2 (expand one channel shows its lines and the delivered label; Collapse all hides them; the editor timeline has no Expand all and still shows each line). typecheck 0. lint 0 on the touched files.
+
+Morning smoke was not run. A client campaign with 20 or more lines was not opened. It should open collapsed by channel, and Expand all should show every line.
+
+## Pacing detail vs the delivery schedule — stopped
+
+No commit. Pacing detail does not load the inputs `resolveCampaignExpectedSpendToDate` needs.
+
+That helper (`lib/spend/resolveCampaignExpectedSpend.ts`) is the one Home and the portfolio use. Order: delivery-schedule months, then monthly plan, then the API metric, then the legacy delivery parser, then the billing schedule. Portfolio calls it from `expectedForCampaign` in `assembleCampaignPacingRows.ts`. Home Needs attention reads the portfolio row. The campaign strip uses the same resolver.
+
+| Surface | Basis today | Status |
+|---|---|---|
+| Home, portfolio, campaign strip | Spend ÷ `resolveCampaignExpectedSpendToDate` | `deliveryStatusFromPct` / `statusFromExpectedPct` (90 / 110 / 115) |
+| Pacing detail lines (search, social, programmatic) | `computePacing` on the current burst: projected finish vs that burst's budget | `computeStatus` → `pacingStatus` |
+| Pacing detail line cards | Spend ÷ straight-line expected (`spendVsExpectedPct`) | `deliveryStatusFromPct`, Over-pacing via `statusFromExpectedPct` |
+| Pacing detail campaign | Snapshot row when present (already the schedule figure). If the snapshot is missing, `buildCampaignDetail` calls `assembleCampaignPacingRows` with `schedulesByMba: new Map()` | Portfolio pace, with expected 0 when no schedule is passed |
+
+`resolveCampaignExpectedSpendToDate` needs `deliverySchedule`, `billingSchedule`, `monthlySpend`, and optional `metricsExpectedSpendToDate`, plus campaign start and end. Portfolio loads those from `readPublishedOrLivePlanVersions` (`legacy_schedules`). Pacing detail does not. `readPacingVersions` / `PACING_VERSION_COLUMNS` leave `legacy_schedules` off. Channel composers load line bursts only.
+
+Line bursts are already on the search, social, and programmatic rows. That is not this helper's input. Using them would be a different calculator (`computeToDateFromBursts`), which Home and the portfolio do not use for the campaign pill.
+
+Snowflake `V_LINE_ITEM_PACING` stays straight-line. No app route reads it. The name appears only as a comment on `computeStatus` in `lib/pacing/maths/index.ts`. Left as-is.
+
+BICAU002 was not opened. Morning smoke was not run.
+
+## is_published_tip on the published version
+
+`5f61637d` added `is_published_tip` in `lib/data/readMediaPlans.ts` so `liveCampaignIdsFromVersions` counts a campaign only when the flag is true and the tip is live. `readPublishedOrLivePlanVersions` sets it in SQL from `media_plan_masters.published_version_id`. The only reader is that live-count filter. It does not feed the stale-tip guard (`tipVersionIdAtLoad` / `STALE_BASE_VERSION`) or the same-tab publish ref.
+
+MBA detail maps every version without that flag, and the mapper treats a missing flag as `false`. The published version (id equals `published_version_id`) therefore came back false. That is a wrong value. `loadMasterAndVersions` now stamps `isPublishedTip` with `isPublishedTipVersion` before the map. The parity test lists `is_published_tip` and `versionData.is_published_tip` with the other Postgres-only fields. Xano never returns them.
+
+- Checks: `test:mba-plan-detail` 17/17. Mapper test keeps the select flag (6/6). `portfolioSourceTimeout` 11/11, including the cancelled published tip. typecheck 0. lint 0 on the touched files.
+- Under 90%: none.
+- Morning smoke: not run.
+
+## Direct digital estimate uses the version fee snapshot
+
+`mba_fee_snapshots.fees` is the client fee loading: a flat object keyed by `feedigidisplay`, `feedigivideo`, `feedigiaudio`, `feebvod`, and the other client fee fields. One row per version. The new read is `loadDirectDigitalFeePcts`: one autocommit `getDb().select()` on those version ids. It is not inside `withPgReadLimits`.
+
+`estimateDirectDigitalSpend` takes the channel percent. When `budget_includes_fees` is true and a burst has no media amount, `netFromGross` rewrites the budget the rate helper reads, so the cap is planned net media. No snapshot row, and no client fee loading already on the path, keeps the gross budget and logs `[direct-digital-estimate] no fee snapshot for version {id}; using gross`. The flag false is unchanged. `deriveSpendFromPlanRate` is unchanged, including Quantcast and Twitch.
+
+The campaign page loads the map once and passes it into the delivered snapshot and the four channel sections. The portfolio builder, and the pacing-detail fallback that assembles a row when the snapshot is missing, each do their own select after the line reads return.
+
+- Commit: `e06090a9` `fix(delivery): direct digital estimate uses net media from the version fee snapshot`. This section is uncommitted.
+- Checks: estimate tests 12/12 ($10,000 gross at 15% and 100,000 of 500,000 impressions is $1,700; no snapshot is $2,000 plus the log line; the flag false stays $2,000). Fee-channel tests 2/2. Snapshot tests 5/5, including the existing $2,000 hub total. Portfolio fixtures 10/10. typecheck 0. lint 0 on the touched files.
+- Under 90%: none.
+- Morning smoke was not run. A fee-inclusive CM360 line was not opened.
+
+## Pacing detail campaign rates against the delivery schedule
+
+Campaign level landed. Line level stopped.
+
+`buildCampaignDetail` now reads `legacy_schedules` for the version ids on the page's search, social, programmatic, and ad-serving lines. The read is `readPlanVersionSchedulesByIds`: one autocommit `getDb().select()`, `planVersionColumns(true)`, mapped with `mapPlanVersionFromPostgres`. It is not `readPublishedOrLivePlanVersions` and not `withPgReadLimits`. `PACING_VERSION_COLUMNS` still omits `legacy_schedules`. Those rows become `schedulesByMba` and `assembleCampaignPacingRows` calls `resolveCampaignExpectedSpendToDate` with basis media, the same call the portfolio makes. A snapshot whose expected is within $1 of that figure is kept. A larger gap logs `[pacing-detail] campaign expected differs from snapshot for {mba}: snapshot {a} fresh {b}` and the page uses the fresh row. No loaded schedule keeps the snapshot, so a missed read cannot zero expected. Admin status stays `campaignDisplayBand`: spend ÷ expected through `PACING_STATUS_THRESHOLDS`, Over-pacing at 115.
+
+- Commit: `53792f09` `fix(pacing): pacing detail campaign rates against the delivery schedule`. This section is uncommitted.
+- Checks: `chooseCampaignDetailRow` 3/3. BICAU002 assembled from the portfolio fixture with that MBA's sources and the same `schedulesByMba` matches the portfolio row's expected, pace, and `campaignDisplayBand`. typecheck 0. lint 0 on the touched files.
+- Under 90%: none on the campaign read.
+
+Line level was not committed. `computeToDateFromBursts` (`normalizeBursts`) prorates `media_investment ?? budget_number ?? spend ?? amount ?? budget`. It does not read `media_amount`, `budget_includes_fees`, or a fee percent, and it does not call `netFromGross` or `computeBurstAmounts`. The portfolio's campaign expected is the delivery schedule on basis media. Those months are `deliveryMediaAmount` from `computeBurstAmounts`: when `budget_includes_fees` is true that figure is net media, not the entered gross. `expectedSpendToDateFromBursts` prefers a stored `mediaAmount` and otherwise uses `budget` (`budget_number` first). It also does not apply the fee percent when `mediaAmount` is absent. Rating a fee-inclusive line with `computeToDateFromBursts` would use gross. The portfolio rates the same money as net. Stopped before the line-card change. Projected finish, the current-burst `computePacing` status, and the straight-line line-card expected are unchanged.
+
+- Morning smoke was not run. BICAU002 was not opened on Home, the portfolio, pacing detail, or its client dashboard card.
+
+## AU time on the Draft saved toast
+
+The three "Draft saved" toasts called `toLocaleTimeString()` with no locale, so the clock followed the browser. They now use `formatDraftSavedTime`, next to `formatDraftOfferTimestamp`: en-AU, Australia/Melbourne, time only. `2026-10-11T22:01:00Z` is `9:01 am`.
+
+- Commit: `6fdff942` `fix(plans): AU time on the Draft saved toast`. This section is uncommitted.
+- Checks: draft tests 18 pass, 6 skipped. The new case asserts the exact string. typecheck 0. lint 0 on the touched files (existing hook warnings on the create and edit pages, none on these lines).
+- Under 90%: none.
+- Morning smoke was not run. The Draft saved toast was not opened.
+
+## Pacing detail lines rate against net burst media — stopped
+
+No commit. Line expected on the BICAU002 fixture does not reconcile to the campaign expected from `53792f09` within $1.
+
+Campaign expected is `p6FixtureRows()` for BICAU002: **$51,243.36**. That is `resolveCampaignExpectedSpendToDate` on basis media. The fixture schedule is one July 2026 search bucket equal to `BICAU002_SPEND_TO_DATE`. July is fully elapsed by the fixture as-of `2026-09-16`, so the whole bucket counts. Spend to date on that row is the same $51,243.36.
+
+The lines have empty `bursts` arrays. The specified no-burst path is a straight line of the line's net budget across the line dates. There is no fee snapshot on the fixture, so a fee-inclusive budget stays gross (the `e06090a9` fallback). Dates are `2026-07-01` to `2026-12-31`. At `2026-09-16` that is 78 of 184 days.
+
+| Line | Budget used | Expected |
+|---|---|---|
+| Social `BICAU002SM1` | $11,894.36 | $5,042.17 |
+| Programmatic `BICAU002PV1` (stub) | $5,000 | $2,119.57 |
+| Direct Channel Factory | $20,376 | $8,637.65 |
+| Direct BVOD | $19,500 | $8,266.30 |
+| Direct UMG | $9,120 | $3,866.09 |
+| Sum | | **$27,931.78** |
+
+Gap: **−$23,311.58** (line sum minus campaign expected). Ad-serving cards add no money. Dropping the $5,000 programmatic stub, which is not in the schedule, leaves $25,812.22 and a gap of −$25,431.14.
+
+The schedule is a July lump of reported and actual spend. The line budgets are a Jul–Dec flight, BVOD's budget is $19,500 against reported spend of $9,853, and the programmatic stub is a second Channel Factory budget beside the direct reported line. `computeToDateFromBursts`, line-card status, and projected finish are unchanged.
+
+## Fee snapshot read no longer fails the portfolio
+
+One commit on `localhost`. The run log stays uncommitted.
+
+`buildCampaignPacingRows` takes `loadFeePcts` and threads it through `buildAndStorePortfolioSnapshot`. Unset calls `loadDirectDigitalFeePcts`. `loadDirectDigitalFeePctsOrGross` wraps that call: a throw logs `[direct-digital-estimate] fee snapshot read failed: {message}; using gross` once and the build continues with an empty map. The campaign page and the pacing-detail fallback use the same wrapper. `loadDeliverySnapshot` still calls the throwing loader when the caller does not pass a map.
+
+The four portfolio tests that reached the real select now pass an empty stub. A fifth passes a loader that throws `DATABASE_URL is not set`. That build upserts, and the Lets Go digital-display estimate is $2,000 on a $10,000 gross budget (15% would have been $1,700 on $8,500).
+
+- SHA: ab57ef02
+- Checks: `test:pacing-portfolio` exit 0. Node 28 pass, then `portfolioSourceTimeout` 12 pass, then vitest 7 pass. typecheck 0. lint 0 (existing warnings only; none on these files).
+- Under 90%: none.
+- Morning smoke was not run. A fee-inclusive CM360 line was not opened.
+
+## White line item cards in the plan editor
+
+One commit on `localhost`. The run log stays uncommitted.
+
+The shared line item card is `ExpertCard` in `components/media-containers/ExpertCard.tsx`. Every media container renders card-entry lines through it. The card fill is `bg-card`, the existing `border-border/50` stays, radius stays `rounded-card` from the Card primitive, and `shadow-none` stays. The title row is `bg-card`. The collapsed summary strip (`summaryRow`) is wrapped in `bg-surface-muted`. Field inputs are unchanged (`border-input`).
+
+Burst rows use `MP_BURST_CARD` in `lib/mediaplan/burstSectionLayout.ts`: `bg-card`, the existing `border-border`, `shadow-none`. `ExpertCard` and `BurstRowCard` (Television and Production `burstsSlot`) both use that token. The burst column header is `MP_BURST_HEADER_SHELL`: `bg-surface-muted` with the existing hairline. Container header cards and `ExpertGrid` were not touched.
+
+No snapshot or class test pinned `bg-surface-muted` on the line item card or `MP_BURST_CARD`. `expertCardFields.test.ts` asserts field keys and labels only. Nothing to update.
+
+- SHA: edb21ebb
+- Checks: typecheck 0. lint 0 (existing warnings only; none on these files).
+- Under 90%: none on the class change.
+- Smoke: hartm017 edit was not opened. `http://localhost:3000/mediaplans/mba/hartm017/edit` redirected to the Auth0 login. Nothing was saved.
+
+## Pacing detail lines rate against net burst media
+
+One commit on `localhost`. The run log stays uncommitted. This is the line-level change that stopped above. BICAU002 is still not required to reconcile: its lines have empty bursts and its schedule is one July lump, and campaign expected includes channels pacing detail does not rate. That fixture still only asserts the same campaign status as the portfolio.
+
+The fee-snapshot read returns the fee percent for every editor channel through `resolveFeePctFromFeeLoading`. The four direct-digital keys stay on the map for the estimate. Campaign detail loads it once per request, for every version id on the page, through `loadDirectDigitalFeePctsOrGross`.
+
+`netBurstMediaForPacing` uses `mediaAmount` when it is present. Otherwise a fee-inclusive burst is `netFromGross(budget, true, feePct)`, and a non-fee burst is the budget. `lineExpectedNetToDate` prorates those amounts across the line's bursts via `computeToDateFromBurstAmounts`. `computeToDateFromBursts` is unchanged. A line with no bursts logs `[pacing-detail] no bursts for {id}; straight-line net budget` and uses a straight line of the line's net budget across the line dates.
+
+Each spend line's status is spend to date ÷ that expected, through `PACING_STATUS_THRESHOLDS`. Search, social, programmatic, and direct line cards use that percent. The straight-line expected no longer sets the line card status. Projected finish is still computed and shown; it does not set the status. Ad-serving cards stay verification counts.
+
+The new fixture is MBA `netrec001`: search and social only, every line has a full July burst, and every channel is a platform channel. Line expected sums to the campaign expected within $1.
+
+- SHA: d5f3092f
+- Checks: `test:pacing-detail` exit 0 (node 23, vitest 8). `lineExpectedNet` 5/5, including the fee-inclusive $11,500 at 15% on track at $4,887.50, the non-fee line on the burst budget, week 1 on track, the card and the line row agreeing, and `netrec001` within $1. Fee-channel tests 2/2. Line card model 7/7. typecheck 0. lint 0 (existing warnings only; none on these files).
+- Under 90%: none.
+- Morning smoke was not run. A fee-inclusive line was not opened on pacing detail.
+
+## Assumed spend daily cents for offline lines
+
+One commit on `localhost`. The run log stays uncommitted. This is step 1 of AV-S26, with Luke's 12 Oct overrides: the spread is the burst's exact days, not the month window; the label is Assumed spend, `spendMode` `assumed`, `CAP_APPLIED` `assumed_spend`. Channels stay television, radio, newspaper, magazines, static OOH, cinema, and digital lines with no source. Nothing is wired into pacing rows, the warehouse, or the dashboard yet.
+
+`assumedDailyCents` walks the inclusive window and gives each day through the as-of date the same integer cents. Half-up is `toCents` of the dollar amount divided by the day count. The remainder sits on the last day only once that day is on or before the as-of date. Later days are 0. `$1,000` over 7 days is 14286 cents on day 1 and 14284 on day 7, and the seven days sum to 100000 cents. A 3 July as-of on that week is 14286, 14286, 14286, then zeros.
+
+`assumedSpendForBurst` takes `computeBurstAmounts` `deliveryMediaAmount` and converts it with `toCents`. Bonus and `package_inclusions` return nothing. A client-pays line with fees inside a `$1,000` budget uses the net delivery media, not the invoiced media of 0. Panel flights replace the burst dates. Several flights share one delivery-media amount across their days, without filling the gaps.
+
+Published offline lines with panel flights: 0. `line_item_panels` and `line_item_panel_flights` are empty in the connected database (0 rows), so no television, radio, newspaper, magazines, OOH, or cinema line on a published version has a flight, and no other channel does either.
+
+- SHA: 09d68dec
+- Checks: `test:assumed-spend` 6/6. typecheck 0. lint 0 (existing warnings only; none on these files). `check:money-inline` ok.
+- Under 90%: none on the cents split. The panel count is this database; it is empty, not a sample of one campaign.
+- Morning smoke was not run. No offline line was opened.
+
+## Line snapshot carries assume-spend flag and daily cents
+
+One commit on `localhost`. The run log stays uncommitted. SQL was authored and not run.
+
+Production `LINE_ITEM_SNAPSHOT_SOURCE` is `postgres`, so the nightly MERGE writes `fetchAllPgLineItems` rows. These two columns are computed in `mapPgLineItemToSnapshot`, not by the Xano crawl. A row that omits them binds null, and the MERGE uses `COALESCE` so that null does not clear a value already on the snapshot.
+
+`ASSUME_SPEND` is true only when the buy type is not bonus or `package_inclusions`, line delivery-media cents are above 0, and either the source table is television, radio, newspaper, magazines, static OOH (`media_plan_ooh`), or cinema, or the line is digital (`digi_*` or `prog_*`), `no_adserving` is true, and `lookupActiveDeliverySource` finds no active row. The map check is the TypeScript seed, not a SELECT on `delivery_source_map`. Each burst in `BURSTS_JSON` gets `assumedDailyCents` from `assumedSpendForBurst` at sync time, using the version fee snapshot and Melbourne today as the as-of date.
+
+The TypeScript flag cannot see Snowflake fact rows. A digital line that later gets facts stays `ASSUME_SPEND` true until the next sync only if it still has no map and `no_adserving` is still true. The procedure (TP6, not in this commit) has to delete that line's `CAP_APPLIED = 'assumed_spend'` rows when facts exist, so assumed spend is not added on top of a real source.
+
+Luke, apply this in Snowsight. Do not re-run the `CREATE OR REPLACE` above it in the same file.
+
+```sql
+ALTER TABLE ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
+  ADD COLUMN IF NOT EXISTS NO_ADSERVING BOOLEAN;
+
+ALTER TABLE ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
+  ADD COLUMN IF NOT EXISTS ASSUME_SPEND BOOLEAN;
+```
+
+- SHA: ecfa0086
+- Checks: assume-spend snapshot tests 6/6 (radio paid true, radio bonus false, DV360 with a map row false, CM360 display with `no_adserving` false, digital with no map and `no_adserving` true). Parity map tests 6/6. typecheck 0. lint 0 (existing warnings only; none on these files).
+- Under 90%: none on the flag. The procedure that deletes assumed rows when facts arrive is not written yet.
+- Morning smoke was not run. The ALTER was not applied.
+
+
+## Assumed spend rows in the fixed-cost daily fact
+
+One commit on `localhost`. The run log stays uncommitted. Nothing was executed in Snowflake. There is no JavaScript harness for this procedure logic, so no assumed-row or delete-on-fact cases were added. The procedure body was syntax-checked after unescaping the doubled quotes.
+
+`fetchLineItems` keeps a line when `FIXED_COST_MEDIA` is true or `ASSUME_SPEND` is true. An assume-spend line skips `fetchDeliveryForBurst` and the CPM cap. Each burst day comes from `assumedDailyCents` already on `BURSTS_JSON`. `REPORTED_SPEND` is cents / 100. `CAP_APPLIED` is `assumed_spend`. `ACTUAL_PLATFORM_SPEND` and `ACTUAL_DELIVERABLES` are 0. The same call deletes `assumed_spend` rows when the latest snapshot row is no longer `ASSUME_SPEND`, or when that line id has a row in `PACING_FACT`, `SEARCH_PACING_FACT`, or `SOCIAL_PACING_FACT`. A line that still has the flag and now has facts is not written again.
+
+The nightly procedure still calls the inner procedure once with a null id and `false` for the 3-day window. It then backfills partner-file and direct-digital lines as before. A second cursor calls the inner procedure with `BACKFILL_MODE` true once per `ASSUME_SPEND` id, and skips a null id. The return string reports that count separately.
+
+Luke, apply these in this order. Do not re-run the snapshot `CREATE OR REPLACE`.
+
+### (a) Snapshot columns
+
+```sql
+ALTER TABLE ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
+  ADD COLUMN IF NOT EXISTS NO_ADSERVING BOOLEAN;
+
+ALTER TABLE ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
+  ADD COLUMN IF NOT EXISTS ASSUME_SPEND BOOLEAN;
+```
+
+### (b) Procedures
+
+```sql
+-- ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_REPORTED_DAILY
+-- Rev 2026-09-16. Signature (VARCHAR DEFAULT NULL, BOOLEAN DEFAULT FALSE).
+-- Reads MART.XANO_LINE_ITEMS_SNAPSHOT (frozen name). prog_* and digi_* route to PACING_FACT; cpv reads VIDEO_3S_VIEWS.
+-- ASSUME_SPEND lines copy BURSTS_JSON assumedDailyCents into daily rows (cents / 100). They skip delivery and the CPM cap.
+-- A line that is no longer ASSUME_SPEND, or that has a pacing fact row, loses its assumed_spend daily rows.
+-- Safety (author only; Luke applies in Snowsight): LOWER filter on LINE_ITEM_ID; QUALIFY latest SYNCED_AT per id.
+-- Do not CALL with a null id and BACKFILL_MODE true.
+USE SCHEMA ASSEMBLEDVIEW.MART;
+
+CREATE OR REPLACE PROCEDURE "SP_REFRESH_FIXED_COST_REPORTED_DAILY"("LINE_ITEM_ID_FILTER" VARCHAR DEFAULT null, "BACKFILL_MODE" BOOLEAN DEFAULT FALSE)
+RETURNS VARCHAR
+LANGUAGE JAVASCRIPT
+EXECUTE AS OWNER
+AS '
+
+const CAP_LOW = 0.5;
+const CAP_HIGH = 1.3;
+const ROLLING_WINDOW_DAYS = 3;
+const DAILY_FACT_BATCH_SIZE = 500;
+
+const lineItemIdFilter = LINE_ITEM_ID_FILTER;
+const backfillMode = BACKFILL_MODE;
+
+// =====================================================
+// HELPERS
+// =====================================================
+
+function safeDiv(num, den) {
+    if (!den || den === 0) return 0;
+    const r = num / den;
+    return Number.isFinite(r) ? r : 0;
+}
+
+function isFixedCostBuyType(buyType) {
+    return (buyType || '''').toLowerCase() === ''fixed_cost'';
+}
+
+function metricColumnForBuyType(buyType) {
+    const bt = (buyType || '''').toLowerCase();
+    if (bt === ''cpm'') return ''IMPRESSIONS'';
+    if (bt === ''cpc'') return ''CLICKS'';
+    if (bt === ''cpv'') return ''VIDEO_3S_VIEWS'';
+    if (bt === ''cpa'') return ''RESULTS'';
+    if (bt === ''fixed_cost'') return null;  // no platform-side deliverable metric
+    return ''IMPRESSIONS'';
+}
+
+function factTableForSource(sourceTable) {
+    if (sourceTable === ''media_plan_search'') return ''ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT'';
+    if (sourceTable === ''media_plan_social'') return ''ASSEMBLEDVIEW.MART.SOCIAL_PACING_FACT'';
+    if (sourceTable === ''media_plan_prog_display'' ||
+        sourceTable === ''media_plan_prog_video'' ||
+        sourceTable === ''media_plan_prog_bvod'' ||
+        sourceTable === ''media_plan_prog_audio'' ||
+        sourceTable === ''media_plan_prog_ooh'' ||
+        sourceTable === ''media_plan_digi_bvod'' ||
+        sourceTable === ''media_plan_digi_video'' ||
+        sourceTable === ''media_plan_digi_display'' ||
+        sourceTable === ''media_plan_digi_audio'') return ''ASSEMBLEDVIEW.MART.PACING_FACT'';
+    return null;
+}
+
+function clamp(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
+}
+
+function parseMoney(s) {
+    if (s == null) return 0;
+    if (typeof s === ''number'') return s;
+    return parseFloat(String(s).replace(/[$,]/g, '''')) || 0;
+}
+
+function toDateString(d) {
+    if (typeof d === ''string'') return d.slice(0, 10);
+    return new Date(d).toISOString().slice(0, 10);
+}
+
+function dateRange(startStr, endStr) {
+    const dates = [];
+    const cur = new Date(startStr + ''T00:00:00Z'');
+    const end = new Date(endStr + ''T00:00:00Z'');
+    while (cur <= end) {
+        dates.push(cur.toISOString().slice(0, 10));
+        cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return dates;
+}
+
+function daysBetween(startStr, endStr) {
+    const s = new Date(startStr + ''T00:00:00Z'');
+    const e = new Date(endStr + ''T00:00:00Z'');
+    return Math.round((e - s) / 86400000) + 1;
+}
+
+function fetchLineItems() {
+    let sql = `
+        SELECT 
+            LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME,
+            BUY_TYPE, FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, ASSUME_SPEND
+        FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
+        WHERE (
+            FIXED_COST_MEDIA = TRUE
+            OR ASSUME_SPEND = TRUE
+        )
+    `;
+    if (lineItemIdFilter) sql += ` AND LOWER(LINE_ITEM_ID) = LOWER(?)`;
+    sql += ` QUALIFY ROW_NUMBER() OVER (PARTITION BY LINE_ITEM_ID ORDER BY SYNCED_AT DESC) = 1`;
+    sql += ` ORDER BY LINE_ITEM_ID`;
+
+    const stmt = snowflake.createStatement({
+        sqlText: sql,
+        binds: lineItemIdFilter ? [lineItemIdFilter] : []
+    });
+    const rs = stmt.execute();
+    const items = [];
+    while (rs.next()) {
+        items.push({
+            lineItemId: rs.getColumnValue(1),
+            mbaNumber: rs.getColumnValue(2),
+            lineItemName: rs.getColumnValue(3),
+            buyType: rs.getColumnValue(4),
+            fixedCostMedia: rs.getColumnValue(5),
+            burstsJson: rs.getColumnValue(6),
+            sourceTable: rs.getColumnValue(7),
+            assumeSpend: rs.getColumnValue(8) === true
+        });
+    }
+    return items;
+}
+
+function parseBursts(burstsJson) {
+    let bursts = burstsJson;
+    if (typeof burstsJson === ''string'') {
+        bursts = JSON.parse(burstsJson);
+    }
+    if (!Array.isArray(bursts)) return [];
+
+    return bursts.map((b, idx) => {
+        const budget = parseMoney(b.budget);
+        const buyAmount = parseMoney(b.buyAmount);
+        const calculatedValue = parseFloat(b.calculatedValue) || 0;
+        return {
+            index: idx,
+            startDate: toDateString(b.startDate),
+            endDate: toDateString(b.endDate),
+            budget: budget,
+            buyAmount: buyAmount,
+            calculatedValue: calculatedValue,
+            durationDays: daysBetween(toDateString(b.startDate), toDateString(b.endDate)),
+            assumedDailyCents: Array.isArray(b.assumedDailyCents) ? b.assumedDailyCents : []
+        };
+    });
+}
+
+function assumedSpendDailyData(burst) {
+    const series = burst.assumedDailyCents || [];
+    const reported = {};
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const n = series.length;
+    for (let i = 0; i < n; i++) {
+        const point = series[i] || {};
+        const day = toDateString(point.date);
+        const cents = Number(point.cents);
+        const reportedSpend = Number.isFinite(cents) ? cents / 100 : 0;
+        const dayHasPassed = day <= todayStr;
+        reported[day] = {
+            reportedSpend: reportedSpend,
+            actualSpend: 0,
+            actualDeliverables: 0,
+            shareToday: dayHasPassed ? safeDiv(i + 1, n) : 0,
+            capApplied: ''assumed_spend'',
+            isSquareup: false
+        };
+    }
+    return reported;
+}
+
+function lineHasDeliveryFact(lineItemId) {
+    const sql = `
+        SELECT 1
+        WHERE EXISTS (
+            SELECT 1 FROM ASSEMBLEDVIEW.MART.PACING_FACT
+            WHERE LOWER(LINE_ITEM_ID) = LOWER(?)
+        )
+        OR EXISTS (
+            SELECT 1 FROM ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT
+            WHERE LOWER(LINE_ITEM_ID) = LOWER(?)
+        )
+        OR EXISTS (
+            SELECT 1 FROM ASSEMBLEDVIEW.MART.SOCIAL_PACING_FACT
+            WHERE LOWER(LINE_ITEM_ID) = LOWER(?)
+        )
+    `;
+    const stmt = snowflake.createStatement({
+        sqlText: sql,
+        binds: [lineItemId, lineItemId, lineItemId]
+    });
+    const rs = stmt.execute();
+    return rs.next();
+}
+
+function deleteStaleAssumedSpendRows() {
+    let sql = `
+        DELETE FROM ASSEMBLEDVIEW.MART.FIXED_COST_REPORTED_DAILY_FACT f
+        WHERE f.CAP_APPLIED = ''assumed_spend''
+          AND (
+            NOT EXISTS (
+              SELECT 1
+              FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT s
+              WHERE LOWER(s.LINE_ITEM_ID) = LOWER(f.LINE_ITEM_ID)
+                AND s.ASSUME_SPEND = TRUE
+                AND s.SYNCED_AT = (
+                  SELECT MAX(s2.SYNCED_AT)
+                  FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT s2
+                  WHERE LOWER(s2.LINE_ITEM_ID) = LOWER(s.LINE_ITEM_ID)
+                )
+            )
+            OR EXISTS (
+              SELECT 1 FROM ASSEMBLEDVIEW.MART.PACING_FACT p
+              WHERE LOWER(p.LINE_ITEM_ID) = LOWER(f.LINE_ITEM_ID)
+            )
+            OR EXISTS (
+              SELECT 1 FROM ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT p
+              WHERE LOWER(p.LINE_ITEM_ID) = LOWER(f.LINE_ITEM_ID)
+            )
+            OR EXISTS (
+              SELECT 1 FROM ASSEMBLEDVIEW.MART.SOCIAL_PACING_FACT p
+              WHERE LOWER(p.LINE_ITEM_ID) = LOWER(f.LINE_ITEM_ID)
+            )
+          )
+    `;
+    const binds = [];
+    if (lineItemIdFilter) {
+        sql += ` AND LOWER(f.LINE_ITEM_ID) = LOWER(?)`;
+        binds.push(lineItemIdFilter);
+    }
+    snowflake.createStatement({ sqlText: sql, binds: binds }).execute();
+}
+
+function fetchDeliveryForBurst(lineItemId, sourceTable, buyType, burstStart, burstEnd) {
+    const factTable = factTableForSource(sourceTable);
+    if (!factTable) return {};
+
+    const metricCol = metricColumnForBuyType(buyType);
+    let sql;
+
+    if (metricCol === null) {
+        // fixed_cost — fetch only platform spend; deliverables are not meaningful
+        sql = `
+            SELECT 
+                DATE_DAY,
+                SUM(AMOUNT_SPENT) AS ACTUAL_SPEND,
+                0 AS ACTUAL_DELIVERABLES
+            FROM ${factTable}
+            WHERE LOWER(LINE_ITEM_ID) = LOWER(?)
+            AND DATE_DAY BETWEEN ? AND ?
+            GROUP BY DATE_DAY
+            ORDER BY DATE_DAY
+        `;
+    } else {
+        sql = `
+            SELECT 
+                DATE_DAY,
+                SUM(AMOUNT_SPENT) AS ACTUAL_SPEND,
+                SUM(${metricCol}) AS ACTUAL_DELIVERABLES
+            FROM ${factTable}
+            WHERE LOWER(LINE_ITEM_ID) = LOWER(?)
+            AND DATE_DAY BETWEEN ? AND ?
+            GROUP BY DATE_DAY
+            ORDER BY DATE_DAY
+        `;
+    }
+
+    const stmt = snowflake.createStatement({
+        sqlText: sql,
+        binds: [lineItemId, burstStart, burstEnd]
+    });
+    const rs = stmt.execute();
+    const byDate = {};
+    while (rs.next()) {
+        const d = rs.getColumnValue(1);
+        const dateStr = (d instanceof Date)
+            ? d.toISOString().slice(0, 10)
+            : String(d).slice(0, 10);
+        byDate[dateStr] = {
+            actualSpend: parseFloat(rs.getColumnValue(2) || 0),
+            actualDeliverables: parseFloat(rs.getColumnValue(3) || 0)
+        };
+    }
+    return byDate;
+}
+
+function computeBurstReportedSpends(burst, deliveryByDate, buyType) {
+    const fixedCost = isFixedCostBuyType(buyType);
+    const evenDailyRate = safeDiv(burst.budget, burst.durationDays);
+
+    // ---------- fixed_cost branch: date-based linear smoothing ----------
+if (fixedCost) {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const burstComplete = todayStr > burst.endDate;
+    const dates = dateRange(burst.startDate, burst.endDate);
+    const reported = {};
+    for (let i = 0; i < dates.length; i++) {
+        const day = dates[i];
+        const delivery = deliveryByDate[day] || { actualSpend: 0, actualDeliverables: 0 };
+        const daysCompleted = i + 1;
+        // Only accrue reported spend for days that have passed (day <= today)
+        const dayHasPassed = day <= todayStr;
+        const reportedSpend = dayHasPassed ? evenDailyRate : 0;
+        reported[day] = {
+            reportedSpend: reportedSpend,
+            actualSpend: delivery.actualSpend,
+            actualDeliverables: 0,
+            shareToday: dayHasPassed ? safeDiv(daysCompleted, burst.durationDays) : 0,
+            capApplied: ''fixed_cost'',
+            isSquareup: false
+        };
+    }
+    // Final-day rounding squareup ONLY when burst is fully complete
+    if (burstComplete && dates.length > 0) {
+        const totalReported = Object.values(reported)
+            .reduce(function(s, r) { return s + r.reportedSpend; }, 0);
+        const drift = burst.budget - totalReported;
+        if (Math.abs(drift) > 0.0001) {
+            reported[dates[dates.length - 1]].reportedSpend += drift;
+            reported[dates[dates.length - 1]].isSquareup = true;
+            reported[dates[dates.length - 1]].capApplied = ''fixed_cost_rounding'';
+        }
+    }
+    return reported;
+}
+
+    // ---------- delivery-shaped logic for cpm/cpc/cpv/cpa ----------
+    const expectedDaily = safeDiv(burst.calculatedValue, burst.durationDays);
+    const capLowAmount = CAP_LOW * evenDailyRate;
+    const capHighAmount = CAP_HIGH * evenDailyRate;
+
+    const dates = dateRange(burst.startDate, burst.endDate);
+    const reported = {};
+    let runningReported = 0;
+
+    for (let i = 0; i < dates.length; i++) {
+        const day = dates[i];
+        const daysCompleted = i + 1;
+        const delivery = deliveryByDate[day] || { actualSpend: 0, actualDeliverables: 0 };
+
+        if (delivery.actualDeliverables === 0) {
+            reported[day] = {
+                reportedSpend: 0,
+                actualSpend: delivery.actualSpend,
+                actualDeliverables: 0,
+                shareToday: 0,
+                capApplied: ''none'',
+                isSquareup: false
+            };
+            continue;
+        }
+
+        // safeDiv guards against expectedDaily=0 (calculatedValue=0 data-entry case)
+        const shareTodayRaw = safeDiv(delivery.actualDeliverables, expectedDaily);
+        // Bound stored shareToday to fit NUMBER(8,4) regardless of plan-shape edge cases
+        const shareToday = Math.min(shareTodayRaw, 9999.9999);
+        const shareCapped = clamp(shareToday, CAP_LOW, CAP_HIGH);
+        const initialReported = evenDailyRate * shareCapped;
+
+        let adjustedReported;
+        let capApplied = ''none'';
+
+        if (shareToday < 1.0) {
+            adjustedReported = initialReported;
+            if (shareToday < CAP_LOW) capApplied = ''low'';
+        } else {
+            const paceTarget = burst.budget * (daysCompleted / burst.durationDays);
+            const idealToday = paceTarget - runningReported;
+            adjustedReported = clamp(idealToday, capLowAmount, capHighAmount);
+            adjustedReported = Math.min(adjustedReported, initialReported);
+            if (shareToday > CAP_HIGH) capApplied = ''high'';
+        }
+
+        adjustedReported = clamp(adjustedReported, capLowAmount, capHighAmount);
+
+        reported[day] = {
+            reportedSpend: adjustedReported,
+            actualSpend: delivery.actualSpend,
+            actualDeliverables: delivery.actualDeliverables,
+            shareToday: shareToday,
+            capApplied: capApplied,
+            isSquareup: false
+        };
+        runningReported += adjustedReported;
+    }
+
+    let lastDeliveryDay = null;
+    for (let i = dates.length - 1; i >= 0; i--) {
+        if (reported[dates[i]].actualDeliverables > 0) {
+            lastDeliveryDay = dates[i];
+            break;
+        }
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const burstHasCompleted = today > burst.endDate;
+
+    if (burstHasCompleted && lastDeliveryDay) {
+        const totalActualDeliverables = Object.values(reported)
+            .reduce(function(s, r) { return s + r.actualDeliverables; }, 0);
+        const deliveryRatio = safeDiv(totalActualDeliverables, burst.calculatedValue);
+
+        if (deliveryRatio >= 1.0) {
+            const runningWithoutLast = runningReported - reported[lastDeliveryDay].reportedSpend;
+            const squareupAmount = burst.budget - runningWithoutLast;
+            reported[lastDeliveryDay].reportedSpend = squareupAmount;
+            reported[lastDeliveryDay].isSquareup = true;
+            reported[lastDeliveryDay].capApplied = ''squareup'';
+        }
+    }
+
+    return reported;
+}
+
+function isLockedDay(dayStr, today, isBackfill) {
+    if (isBackfill) return true;
+    const dayDate = new Date(dayStr + ''T00:00:00Z'');
+    const todayDate = new Date(today + ''T00:00:00Z'');
+    const diffDays = Math.round((todayDate - dayDate) / 86400000);
+    return diffDays >= ROLLING_WINDOW_DAYS;
+}
+
+// =====================================================
+// BATCH MERGE FOR DAILY FACT
+// =====================================================
+
+function buildDailyFactBatchMergeSql(rowCount) {
+    const placeholders = Array(rowCount)
+        .fill(''(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'')
+        .join('',\\n        '');
+
+    return `
+        MERGE INTO ASSEMBLEDVIEW.MART.FIXED_COST_REPORTED_DAILY_FACT t
+        USING (
+          SELECT
+            column1::VARCHAR AS LINE_ITEM_ID,
+            column2::NUMBER AS BURST_INDEX,
+            column3::DATE AS DATE_DAY,
+            column4::DECIMAL(18,4) AS REPORTED_SPEND,
+            column5::DECIMAL(18,4) AS ACTUAL_PLATFORM_SPEND,
+            column6::DECIMAL(18,4) AS ACTUAL_DELIVERABLES,
+            column7::DECIMAL(18,4) AS EXPECTED_DAILY_DELIVERABLES,
+            column8::DECIMAL(18,4) AS BURST_BUDGET,
+            column9::DATE AS BURST_START_DATE,
+            column10::DATE AS BURST_END_DATE,
+            column11::VARCHAR AS BUY_TYPE,
+            column12::DECIMAL(18,4) AS BUY_AMOUNT,
+            column13::DECIMAL(8,4) AS SHARE_TODAY,
+            column14::VARCHAR AS CAP_APPLIED,
+            column15::NUMBER::BOOLEAN AS IS_SQUAREUP_DAY,
+            column16::NUMBER::BOOLEAN AS IS_LOCKED
+          FROM VALUES
+            ${placeholders}
+        ) s
+        ON t.LINE_ITEM_ID = s.LINE_ITEM_ID
+           AND t.BURST_INDEX = s.BURST_INDEX
+           AND t.DATE_DAY = s.DATE_DAY
+        WHEN MATCHED THEN UPDATE SET
+            REPORTED_SPEND = s.REPORTED_SPEND,
+            ACTUAL_PLATFORM_SPEND = s.ACTUAL_PLATFORM_SPEND,
+            ACTUAL_DELIVERABLES = s.ACTUAL_DELIVERABLES,
+            EXPECTED_DAILY_DELIVERABLES = s.EXPECTED_DAILY_DELIVERABLES,
+            BURST_BUDGET = s.BURST_BUDGET,
+            BURST_START_DATE = s.BURST_START_DATE,
+            BURST_END_DATE = s.BURST_END_DATE,
+            BUY_TYPE = s.BUY_TYPE,
+            BUY_AMOUNT = s.BUY_AMOUNT,
+            SHARE_TODAY = s.SHARE_TODAY,
+            CAP_APPLIED = s.CAP_APPLIED,
+            IS_SQUAREUP_DAY = s.IS_SQUAREUP_DAY,
+            IS_LOCKED = s.IS_LOCKED,
+            CALCULATED_AT = CURRENT_TIMESTAMP()
+        WHEN NOT MATCHED THEN INSERT (
+            LINE_ITEM_ID, BURST_INDEX, DATE_DAY,
+            REPORTED_SPEND, ACTUAL_PLATFORM_SPEND, ACTUAL_DELIVERABLES, EXPECTED_DAILY_DELIVERABLES,
+            BURST_BUDGET, BURST_START_DATE, BURST_END_DATE,
+            BUY_TYPE, BUY_AMOUNT, SHARE_TODAY, CAP_APPLIED,
+            IS_SQUAREUP_DAY, IS_LOCKED, CALCULATED_AT
+        ) VALUES (
+            s.LINE_ITEM_ID, s.BURST_INDEX, s.DATE_DAY,
+            s.REPORTED_SPEND, s.ACTUAL_PLATFORM_SPEND, s.ACTUAL_DELIVERABLES, s.EXPECTED_DAILY_DELIVERABLES,
+            s.BURST_BUDGET, s.BURST_START_DATE, s.BURST_END_DATE,
+            s.BUY_TYPE, s.BUY_AMOUNT, s.SHARE_TODAY, s.CAP_APPLIED,
+            s.IS_SQUAREUP_DAY, s.IS_LOCKED, CURRENT_TIMESTAMP()
+        )
+    `;
+}
+
+function batchUpsertDailyFacts(allDailyRows) {
+    let upserted = 0;
+    for (let i = 0; i < allDailyRows.length; i += DAILY_FACT_BATCH_SIZE) {
+        const batch = allDailyRows.slice(i, i + DAILY_FACT_BATCH_SIZE);
+        const sql = buildDailyFactBatchMergeSql(batch.length);
+        const binds = [];
+        for (const row of batch) {
+            binds.push(
+                row.lineItemId,
+                row.burstIndex,
+                row.dateDay,
+                row.reportedSpend,
+                row.actualPlatformSpend,
+                row.actualDeliverables,
+                row.expectedDailyDeliverables,
+                row.burstBudget,
+                row.burstStartDate,
+                row.burstEndDate,
+                row.buyType,
+                row.buyAmount,
+                row.shareToday,
+                row.capApplied,
+                row.isSquareup ? 1 : 0,
+                row.isLocked ? 1 : 0
+            );
+        }
+        const stmt = snowflake.createStatement({ sqlText: sql, binds: binds });
+        stmt.execute();
+        upserted += batch.length;
+    }
+    return upserted;
+}
+
+// =====================================================
+// PER-ROW MERGE FOR BURST FACT
+// =====================================================
+
+const BURST_FACT_MERGE_SQL = `
+    MERGE INTO ASSEMBLEDVIEW.MART.FIXED_COST_BURST_FACT t
+    USING (
+      SELECT
+        ?::VARCHAR AS LINE_ITEM_ID,
+        ?::NUMBER AS BURST_INDEX,
+        ?::DATE AS BURST_START_DATE,
+        ?::DATE AS BURST_END_DATE,
+        ?::DECIMAL(18,4) AS BURST_BUDGET,
+        ?::DECIMAL(18,4) AS BURST_EXPECTED_DELIVERABLES,
+        ?::DECIMAL(18,4) AS BURST_ACTUAL_DELIVERABLES,
+        ?::DECIMAL(8,4) AS BURST_DELIVERY_RATIO,
+        ?::DECIMAL(18,4) AS BURST_REPORTED_SPEND,
+        ?::DECIMAL(18,4) AS BURST_ACTUAL_PLATFORM_SPEND,
+        ?::DECIMAL(18,4) AS BURST_VARIANCE,
+        ?::VARCHAR AS BURST_STATUS
+    ) s
+    ON t.LINE_ITEM_ID = s.LINE_ITEM_ID
+       AND t.BURST_INDEX = s.BURST_INDEX
+    WHEN MATCHED THEN UPDATE SET
+        BURST_START_DATE = s.BURST_START_DATE,
+        BURST_END_DATE = s.BURST_END_DATE,
+        BURST_BUDGET = s.BURST_BUDGET,
+        BURST_EXPECTED_DELIVERABLES = s.BURST_EXPECTED_DELIVERABLES,
+        BURST_ACTUAL_DELIVERABLES = s.BURST_ACTUAL_DELIVERABLES,
+        BURST_DELIVERY_RATIO = s.BURST_DELIVERY_RATIO,
+        BURST_REPORTED_SPEND = s.BURST_REPORTED_SPEND,
+        BURST_ACTUAL_PLATFORM_SPEND = s.BURST_ACTUAL_PLATFORM_SPEND,
+        BURST_VARIANCE = s.BURST_VARIANCE,
+        BURST_STATUS = s.BURST_STATUS,
+        LAST_CALCULATED_AT = CURRENT_TIMESTAMP()
+    WHEN NOT MATCHED THEN INSERT (
+        LINE_ITEM_ID, BURST_INDEX, BURST_START_DATE, BURST_END_DATE,
+        BURST_BUDGET, BURST_EXPECTED_DELIVERABLES, BURST_ACTUAL_DELIVERABLES, BURST_DELIVERY_RATIO,
+        BURST_REPORTED_SPEND, BURST_ACTUAL_PLATFORM_SPEND, BURST_VARIANCE, BURST_STATUS,
+        LAST_CALCULATED_AT
+    ) VALUES (
+        s.LINE_ITEM_ID, s.BURST_INDEX, s.BURST_START_DATE, s.BURST_END_DATE,
+        s.BURST_BUDGET, s.BURST_EXPECTED_DELIVERABLES, s.BURST_ACTUAL_DELIVERABLES, s.BURST_DELIVERY_RATIO,
+        s.BURST_REPORTED_SPEND, s.BURST_ACTUAL_PLATFORM_SPEND, s.BURST_VARIANCE, s.BURST_STATUS,
+        CURRENT_TIMESTAMP()
+    )
+`;
+
+function upsertBurstFact(lineItemId, burst, dailyData, today, buyType) {
+    const fixedCost = isFixedCostBuyType(buyType);
+
+    const burstReported = Object.values(dailyData)
+        .reduce(function(s, r) { return s + r.reportedSpend; }, 0);
+    const burstActual = Object.values(dailyData)
+        .reduce(function(s, r) { return s + r.actualSpend; }, 0);
+    const burstActualDeliverables = Object.values(dailyData)
+        .reduce(function(s, r) { return s + r.actualDeliverables; }, 0);
+
+    // For fixed_cost: deliverables and ratio are not meaningful
+    const burstExpectedDeliverables = fixedCost ? 0 : burst.calculatedValue;
+    const burstActualDeliverablesForBind = fixedCost ? 0 : burstActualDeliverables;
+    const deliveryRatioRaw = fixedCost ? 0 : safeDiv(burstActualDeliverables, burst.calculatedValue);
+    const deliveryRatio = Math.min(deliveryRatioRaw, 9999.9999);  // bound to NUMBER(8,4)
+
+    let burstStatus;
+    if (today < burst.startDate) burstStatus = ''pending'';
+    else if (today <= burst.endDate) burstStatus = ''in_progress'';
+    else if (fixedCost) burstStatus = ''completed'';  // no over/under for fixed_cost
+    else if (deliveryRatioRaw >= 1.0) burstStatus = ''completed_over'';
+    else burstStatus = ''completed_under'';
+
+    const stmt = snowflake.createStatement({
+        sqlText: BURST_FACT_MERGE_SQL,
+        binds: [
+            lineItemId, burst.index,
+            burst.startDate, burst.endDate,
+            burst.budget,
+            burstExpectedDeliverables,
+            burstActualDeliverablesForBind,
+            deliveryRatio,
+            burstReported,
+            burstActual,
+            burstReported - burstActual,
+            burstStatus
+        ]
+    });
+    stmt.execute();
+}
+
+// =====================================================
+// PER-ROW MERGE FOR LINE ITEM FACT
+// =====================================================
+
+const LINE_ITEM_FACT_MERGE_SQL = `
+    MERGE INTO ASSEMBLEDVIEW.MART.FIXED_COST_LINE_ITEM_FACT t
+    USING (
+      SELECT
+        ?::VARCHAR AS LINE_ITEM_ID,
+        ?::VARCHAR AS MBA_NUMBER,
+        ?::VARCHAR AS LINE_ITEM_NAME,
+        ?::NUMBER::BOOLEAN AS IS_CURRENTLY_FIXED_COST,
+        ?::DECIMAL(18,4) AS LINE_ITEM_TOTAL_BUDGET,
+        ?::DECIMAL(18,4) AS LINE_ITEM_TOTAL_REPORTED,
+        ?::DECIMAL(18,4) AS LINE_ITEM_TOTAL_ACTUAL,
+        ?::DECIMAL(18,4) AS LINE_ITEM_VARIANCE,
+        ?::NUMBER AS BURST_COUNT,
+        ?::NUMBER AS BURSTS_DELIVERED_OVER,
+        ?::NUMBER AS BURSTS_DELIVERED_UNDER
+    ) s
+    ON t.LINE_ITEM_ID = s.LINE_ITEM_ID
+    WHEN MATCHED THEN UPDATE SET
+        MBA_NUMBER = s.MBA_NUMBER,
+        LINE_ITEM_NAME = s.LINE_ITEM_NAME,
+        IS_CURRENTLY_FIXED_COST = s.IS_CURRENTLY_FIXED_COST,
+        WAS_EVER_FIXED_COST = COALESCE(t.WAS_EVER_FIXED_COST, FALSE) OR s.IS_CURRENTLY_FIXED_COST,
+        LINE_ITEM_TOTAL_BUDGET = s.LINE_ITEM_TOTAL_BUDGET,
+        LINE_ITEM_TOTAL_REPORTED = s.LINE_ITEM_TOTAL_REPORTED,
+        LINE_ITEM_TOTAL_ACTUAL = s.LINE_ITEM_TOTAL_ACTUAL,
+        LINE_ITEM_VARIANCE = s.LINE_ITEM_VARIANCE,
+        BURST_COUNT = s.BURST_COUNT,
+        BURSTS_DELIVERED_OVER = s.BURSTS_DELIVERED_OVER,
+        BURSTS_DELIVERED_UNDER = s.BURSTS_DELIVERED_UNDER,
+        LAST_CALCULATED_AT = CURRENT_TIMESTAMP()
+    WHEN NOT MATCHED THEN INSERT (
+        LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME,
+        IS_CURRENTLY_FIXED_COST, WAS_EVER_FIXED_COST,
+        LINE_ITEM_TOTAL_BUDGET, LINE_ITEM_TOTAL_REPORTED, LINE_ITEM_TOTAL_ACTUAL, LINE_ITEM_VARIANCE,
+        BURST_COUNT, BURSTS_DELIVERED_OVER, BURSTS_DELIVERED_UNDER,
+        LAST_CALCULATED_AT
+    ) VALUES (
+        s.LINE_ITEM_ID, s.MBA_NUMBER, s.LINE_ITEM_NAME,
+        s.IS_CURRENTLY_FIXED_COST, s.IS_CURRENTLY_FIXED_COST,
+        s.LINE_ITEM_TOTAL_BUDGET, s.LINE_ITEM_TOTAL_REPORTED, s.LINE_ITEM_TOTAL_ACTUAL, s.LINE_ITEM_VARIANCE,
+        s.BURST_COUNT, s.BURSTS_DELIVERED_OVER, s.BURSTS_DELIVERED_UNDER,
+        CURRENT_TIMESTAMP()
+    )
+`;
+
+function upsertLineItemFact(lineItem, allBurstData, today) {
+    const fixedCost = isFixedCostBuyType(lineItem.buyType);
+
+    let totalBudget = 0;
+    let totalReported = 0;
+    let totalActual = 0;
+    let burstsOver = 0;
+    let burstsUnder = 0;
+    const burstIndices = Object.keys(allBurstData);
+
+    for (const idx of burstIndices) {
+        const { burst, dailyData } = allBurstData[idx];
+        totalBudget += burst.budget;
+        totalReported += Object.values(dailyData).reduce(function(s, r) { return s + r.reportedSpend; }, 0);
+        totalActual += Object.values(dailyData).reduce(function(s, r) { return s + r.actualSpend; }, 0);
+
+        // Skip over/under counting for fixed_cost (no delivery concept)
+        if (!fixedCost && today > burst.endDate) {
+            const burstActualDeliverables = Object.values(dailyData)
+                .reduce(function(s, r) { return s + r.actualDeliverables; }, 0);
+            const ratio = safeDiv(burstActualDeliverables, burst.calculatedValue);
+            if (ratio >= 1.0) burstsOver++;
+            else burstsUnder++;
+        }
+    }
+
+    const stmt = snowflake.createStatement({
+        sqlText: LINE_ITEM_FACT_MERGE_SQL,
+        binds: [
+            lineItem.lineItemId, lineItem.mbaNumber, lineItem.lineItemName,
+            lineItem.fixedCostMedia ? 1 : 0,
+            totalBudget, totalReported, totalActual, totalReported - totalActual,
+            burstIndices.length, burstsOver, burstsUnder
+        ]
+    });
+    stmt.execute();
+}
+
+// =====================================================
+// MAIN
+// =====================================================
+
+const today = new Date().toISOString().slice(0, 10);
+deleteStaleAssumedSpendRows();
+const lineItems = fetchLineItems();
+const result = {
+    line_items_processed: 0,
+    line_items_errored: 0,
+    daily_rows_upserted: 0,
+    burst_rows_upserted: 0,
+    daily_batches: 0,
+    errors: [],
+    backfill_mode: backfillMode,
+    line_item_filter: lineItemIdFilter,
+    today: today
+};
+
+for (const li of lineItems) {
+    try {
+        const assumeSpend = li.assumeSpend === true;
+        if (assumeSpend && lineHasDeliveryFact(li.lineItemId)) {
+            continue;
+        }
+        const fixedCost = isFixedCostBuyType(li.buyType);
+        const bursts = parseBursts(li.burstsJson);
+        const allBurstData = {};
+        const dailyRowsForLineItem = [];
+
+        for (const burst of bursts) {
+            let dailyData;
+            if (assumeSpend) {
+                dailyData = assumedSpendDailyData(burst);
+            } else {
+                const delivery = fetchDeliveryForBurst(
+                    li.lineItemId, li.sourceTable, li.buyType,
+                    burst.startDate, burst.endDate
+                );
+                dailyData = computeBurstReportedSpends(burst, delivery, li.buyType);
+            }
+            allBurstData[burst.index] = { burst: burst, dailyData: dailyData };
+
+            // For fixed_cost and assumed spend, expectedDailyDeliverables is meaningless → 0
+            const expectedDaily = (assumeSpend || fixedCost) ? 0 : safeDiv(burst.calculatedValue, burst.durationDays);
+
+            for (const [day, data] of Object.entries(dailyData)) {
+                const locked = isLockedDay(day, today, backfillMode);
+                if (!backfillMode && locked) continue;
+
+                dailyRowsForLineItem.push({
+                    lineItemId: li.lineItemId,
+                    burstIndex: burst.index,
+                    dateDay: day,
+                    reportedSpend: data.reportedSpend,
+                    actualPlatformSpend: data.actualSpend,
+                    actualDeliverables: data.actualDeliverables,
+                    expectedDailyDeliverables: expectedDaily,
+                    burstBudget: burst.budget,
+                    burstStartDate: burst.startDate,
+                    burstEndDate: burst.endDate,
+                    buyType: li.buyType,
+                    buyAmount: burst.buyAmount,
+                    shareToday: data.shareToday,
+                    capApplied: data.capApplied,
+                    isSquareup: data.isSquareup,
+                    isLocked: locked
+                });
+            }
+        }
+
+        if (dailyRowsForLineItem.length > 0) {
+            const upserted = batchUpsertDailyFacts(dailyRowsForLineItem);
+            result.daily_rows_upserted += upserted;
+            result.daily_batches += Math.ceil(dailyRowsForLineItem.length / DAILY_FACT_BATCH_SIZE);
+        }
+
+        for (const idx of Object.keys(allBurstData)) {
+            const { burst, dailyData } = allBurstData[idx];
+            upsertBurstFact(li.lineItemId, burst, dailyData, today, li.buyType);
+            result.burst_rows_upserted += 1;
+        }
+
+        upsertLineItemFact(li, allBurstData, today);
+        result.line_items_processed += 1;
+    } catch (err) {
+        result.line_items_errored += 1;
+        result.errors.push(li.lineItemId + '': '' + (err.message || err));
+        if (result.errors.length >= 10) {
+            break;
+        }
+    }
+}
+
+return JSON.stringify(result);
+
+';
+```
+
+```sql
+-- ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_NIGHTLY
+-- Wrapper: 3-day window for all lines, then a full backfill for every fixed-cost
+-- line on a partner-file or direct-digital source so late files never leave locked zeros,
+-- then a full backfill per ASSUME_SPEND line id.
+-- Never calls the inner procedure with a null id and BACKFILL_MODE true.
+-- AUTHOR ONLY — Luke applies in Snowsight (S1, 2026-09-16).
+create or replace procedure ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_NIGHTLY()
+returns varchar
+language sql
+execute as owner
+as
+$$
+begin
+  let none varchar := null;
+  call ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_REPORTED_DAILY(:none, false);
+
+  let n integer := 0;
+  let c cursor for
+    select distinct lower(LINE_ITEM_ID) as id
+    from ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
+    where FIXED_COST_MEDIA = true
+      and (
+        SOURCE_TABLE in ('media_plan_prog_ooh','media_plan_digi_bvod','media_plan_digi_video',
+                         'media_plan_digi_display','media_plan_digi_audio')
+        or lower(PLATFORM) in ('channel factory','vistar','broadsign')
+      );
+  for r in c do
+    let id varchar := r.id;
+    call ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_REPORTED_DAILY(:id, true);
+    n := n + 1;
+  end for;
+
+  let assumed integer := 0;
+  let c2 cursor for
+    select distinct lower(LINE_ITEM_ID) as id
+    from ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
+    where ASSUME_SPEND = true
+      and LINE_ITEM_ID is not null;
+  for r2 in c2 do
+    let id2 varchar := r2.id;
+    if (id2 is not null) then
+      call ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_REPORTED_DAILY(:id2, true);
+      assumed := assumed + 1;
+    end if;
+  end for;
+
+  return 'window refresh done; full backfill on ' || n::varchar
+    || ' partner-file / direct-digital lines; assumed spend backfill on '
+    || assumed::varchar || ' lines';
+end;
+$$;
+```
+
+### (c) Backfill
+
+```sql
+CALL ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_NIGHTLY();
+```
+
+### (d) Confirm
+
+```sql
+select SOURCE_TABLE, count(*)
+from ASSEMBLEDVIEW.MART.FIXED_COST_REPORTED_DAILY_FACT f
+join ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT s
+  on lower(s.LINE_ITEM_ID) = lower(f.LINE_ITEM_ID)
+where f.CAP_APPLIED = 'assumed_spend'
+group by 1;
+```
+
+Expected families: television, radio, newspaper, magazines, ooh, cinema, plus any digital line whose `ASSUME_SPEND` is still true and which has no pacing fact row. golf025 social, DV360, and the CM360 display and video lines must not appear.
+
+- SHA: c17f89ea
+- Checks: no procedure-logic harness in the repo. Unescaped procedure JavaScript passes `node --check`. The nightly script has no null-id call with `true`.
+- Under 90%: none on the row shape. Direct still reads every `REPORTED_SPEND` on this table, so once this is applied those dollars count before the pacing label change.
+- Morning smoke was not run. Snowflake was not called.
+
+## Assumed spend for offline channels in pacing
+
+One commit on `localhost`. The run log stays uncommitted. This is S26 section 2, with the Assumed spend rename. Snowflake was not called. The client dashboard, reports, and AVA are not wired.
+
+The direct reader still reads `FIXED_COST_REPORTED_DAILY_FACT`. A line whose daily caps are `assumed_spend`, and not `fixed_cost`, becomes one channel row per family. The pacing card and the pacing detail print Assumed spend. `spendMode` is `assumed`. Line ids stay on the row.
+
+Those dollars count in spend to date and pace. Campaign expected stays `resolveCampaignExpectedSpendToDate`. An assumed channel with daily rows is `reporting`, so it is rated on the 90/110/115 ladder and does not force campaign `no_source`. A sibling channel with no source still does.
+
+A line id already on search, social, programmatic, or ad-serving is skipped, so its assumed dollars are not added. CM360 stays on the direct-digital estimate. Programmatic `fixed_cost` stays on the reported path.
+
+- SHA: b425343b
+- Checks: assumed spend pacing 5/5. Line card model 8/8. Campaign pacing card vitest 3/3, including the Assumed spend caption. typecheck 0. lint 0 (existing warnings only; none on these files).
+- Under 90%: none on the row shape. The warehouse procedures from the previous entry are still authored and not applied, so no `assumed_spend` rows exist in Snowflake until they are run.
+- Morning smoke was not run. Snowflake was not called.
+
+## Assumed spend section and hub totals
+
+One commit on `localhost`. The run log stays uncommitted. This is S26 section 3, with the Assumed spend rename. Snowflake was not called. Reports and AVA are not wired.
+
+Television, radio, newspaper, magazines, static OOH, and cinema get one campaign delivery section titled Assumed spend. Progress is assumed-to-date divided by the line delivery media. The cards do not show impressions, clicks, or CPM. Awaiting delivery is unchanged.
+
+A direct digital or BVOD plan with no ad-serving rows and ASSUME_SPEND lines uses that same title. When ad-serving rows exist, the section stays on the current estimate. Those assumed dollars are not added on top of the ad-serving rows.
+
+The client hub Delivered tile counts assumed spend that is already inside the delivered sum, and labels it includes `$X` assumed. Booked, no platform delivery falls by the non-platform part of that sum. An overlay line whose snapshot spend is already positive is not added again.
+
+- SHA: ac4e1880
+- Checks: assumed spend section 5/5. Direct digital chart vitest 8/8. Client hub hero vitest 9/9. typecheck 0. lint 0 (existing warnings only; none on these files).
+- Under 90%: none on the section or the hub split. The warehouse procedures are still authored and not applied, so the hub label stays at zero until those rows exist. The campaign section computes from the plan bursts either way.
+- Morning smoke was not run. Snowflake was not called.
+
+## Assumed spend excluded from rate metrics
+
+One commit on `localhost`. The run log stays uncommitted. This is S26 section 4, with the Assumed spend rename. Snowflake was not called.
+
+The report deck counts assumed spend in campaign spend and in the "Rates exclude $X of spend with no reported impressions or clicks." footnote. It is not in the impression, click, or view spend. The channel is labelled Assumed spend. A direct-digital estimate that has impressions stays in CPM. The footnote still names only the spend that has neither impressions nor clicks when both an estimate and assumed spend are present.
+
+AVA carries `assumedSpend` separately, includes it in the spend the tool names, and passes only reported or estimated delivery spend into CPM, CPC, and CTR. The tool text says assumed spend is booked media assumed delivered to plan, not reported. The snapshot's plan total still omits the assumed channel so the hub does not add it twice.
+
+- SHA: c6780ede
+- Checks: campaign report figures 9/9, including the deck footnote. AVA tools 13/13, including CPM unchanged when assumed spend is added. typecheck 0. lint 0 (existing warnings only; none on these files).
+- Under 90%: none on the rate split. The warehouse procedures are still authored and not applied. The deck and AVA use plan-burst assumed spend, so they can show dollars before the hub fact does.
+- Morning smoke was not run. Snowflake was not called.
+
+## Assume-spend rule in a client-safe module
+
+One commit on `localhost`. The run log stays uncommitted. Snowflake was not called.
+
+`gate:main` failed `check:client-server-only` because the campaign page client reached `db/schema` through `assumedSpendAdapter` → `pgLineItemSnapshotMap` → `planShapes`. The adapter only needed `assumeSpendForSnapshotLine`. That rule is a pure lookup against the in-memory delivery-source seed, so it now lives in `lib/spend/assumeSpendRule.ts`. The snapshot map, the dashboard adapter, and `loadDeliverySnapshot` import it from there. The flag logic is unchanged.
+
+- SHA: e1b61a55
+- Checks: client-server-only OK. Assumed spend 6/6. Snapshot 6/6. Assumed-spend section 5/5. typecheck 0. lint 0 (existing warnings only; none on these files).
+- Under 90%: none. The rule does not read the database.
+- Morning smoke was not run. Snowflake was not called.
+
+## Report dump closes its pools
+
+One commit on `localhost`. The run log stays uncommitted.
+
+`scripts/reports/dump-report.mjs` is the TP10 dump that wrote both September fixtures and then stayed open on the Snowflake pool. `pool.ts` had no closer, so `closeSnowflakePool` drains the existing pool and destroys its connections. The script's `finally` calls that and `closeDb`. The dump logic is unchanged.
+
+Ran once for hema007, September 2026 (`last_month` as of 2026-10-12). It wrote the fixture and exited 0 on its own in 17.4 seconds. The rewritten fixture is uncommitted.
+
+- SHA: 71ee571c
+- Checks: the hema007 dump, exit 0, 17.4s. typecheck 0.
+- Under 90%: none on the exit. The 17.4s is this run with a warm warehouse, not the earlier hung attempt.
+- Morning smoke was not run. Snowflake was read for the dump and then closed.
+
+## Report deck skill spike stopped on API credits
+
+No commit. The deck was not built, so the spike commit was not made. The scripts and wrapper skill are in the working tree. Decks and renders were not produced. `scripts/spikes/report-deck-skill/out/` is gitignored.
+
+SDK `@anthropic-ai/sdk` 0.97.1 supports `container.skills`, the Skills API, and the `container_upload` input block. `ANTHROPIC_REPORT_MODEL` is unset. `ANTHROPIC_MODEL` is `claude-opus-5.5`, which the API rejects. The calls used `claude-opus-5-5`.
+
+Container paths, from a code-execution probe with the Anthropic pptx skill: `/mnt/skills/public/pptx/SKILL.md` is missing, `/mnt/user-data/outputs/` is missing, `/usr/bin/soffice` exists, and finished files go in `$OUTPUT_DIR` (`/files/output/...`). The wrapper text uses those paths. General pptx mechanics are at `/skills/pptx/SKILL.md`.
+
+The first deck request, with the 16MB template inside the custom skill, was rejected: prompt 1,177,171 tokens, over the 1,000,000 maximum. The template stays in the skill folder and is omitted from the API bundle. The run script sends it with a second `container_upload` block. A replacement skill then fit: 3,943 input tokens with both skills loaded.
+
+Custom skill: `skill_01JF9e5zWXC9oo7sdddVgga4`, version `1791786474444362`.
+
+The hema007 deck call uploaded `report-data.json` and `assembled-template.pptx` as `container_upload`, then the API returned 400: credit balance too low. No pptx, no number check, no render. Claude did not get as far as running soffice on a deck. The path probe had already shown `/usr/bin/soffice`.
+
+curatif004 September was regenerated with `scripts/reports/dump-report.mjs` so the fixture has `notLive`. That fixture is uncommitted.
+
+LibreOffice 26.8.1.1 was installed locally so the PNG step can run once a deck exists. It was not used.
+
+- SHA: none
+- Path probe: 8,544 input tokens, 709 output tokens. Prompt-fit probe: 3,943 input tokens. Estimated at $5 / $25 per million tokens, about $0.08 for those two probes. The deck call returned no usage.
+- Under 90%: the dollar estimate. These are Opus-class published rates, not a pricing-API quote for `claude-opus-5-5`.
+- Morning smoke was not run. Snowflake was read only for the curatif004 fixture dump.
+
+## Lean deck payload and token guardrails
+
+One commit on `localhost`. The run log stays uncommitted. No Messages API call.
+
+`run-deck.ts` kept none of the three console runs. It wrote `out/{mba}-container.log` only after the loop finished, and `scripts/spikes/report-deck-skill/out/` was not on disk. The command that added about 370k tokens is not in the repo.
+
+The fixtures cannot be that jump. hema007 is 4,626 bytes, about 1,200 tokens. curatif004 is 5,974 bytes, about 1,500 tokens. The largest keys are `channels`, then `totals`, then `kpis`. Neither file has a daily series. `placeholders()` over all 68 template slides is about 421 lines and about 13k tokens. The 68 slide XML parts are 277 KB, about 69k tokens. The template is the only input large enough: slide layout XML is 4.25 MB, about 1.1M tokens, and base64 of `image6.png` or `image8.png` is about 430k or 550k tokens.
+
+The deck upload is now `slimDeckPayload` from the assembled fixture: campaign summary, channel totals, weekly points only when the source has day rows, KPIs, commentary, and `notLive`. hema007 slim is 3,355 bytes. curatif004 slim is 4,318 bytes. The app assembler is unchanged.
+
+`run-deck.ts` logs input, output, cache read, and cache write on every call, including each continuation. It aborts when one call's `input_tokens` exceeds `ANTHROPIC_SPIKE_MAX_INPUT` (default 150000) or the run's cumulative input exceeds `ANTHROPIC_SPIKE_MAX_RUN_INPUT` (default 600000), and prints the previous tool command. At most 8 continuations. HTTP timeout is 10 minutes. A 499 is logged with elapsed time. The model is `ANTHROPIC_REPORT_MODEL` only.
+
+The hema007 dry run exited before any API call. `ANTHROPIC_REPORT_MODEL` is unset. No per-call tokens, no pptx. Wall time was the process exit, 789ms. curatif004 was not run. The custom skill on Anthropic was not re-uploaded, so the container copy of `SKILL.md` is still the previous version until `upload-skill.ts` runs.
+
+- SHA: e9ff1e88
+- Checks: slim payload and guardrail tests 5/5.
+- Under 90%: the exact tool command behind the 370k jump. The transcript was not saved.
+- Morning smoke was not run. Snowflake was not called.
+
+## Delivery snapshot as-of test sees the totals note
+
+One commit on `localhost`. The run log stays uncommitted.
+
+`git log -S DELIVERY_SNAPSHOT_TOTALS_NOTE` has one hit. `c6780ede` added the export on `summaries.ts` and the import in `getDeliverySnapshot.ts`, next to the assumed-spend wording. Nothing later removed or renamed it. The constant is still that sentence.
+
+The as-of test failed on import because `mock.module` replaces `@/lib/ava/tools/summaries` and its `namedExports` listed only `summariseDeliverySnapshot`. The tool import of `DELIVERY_SNAPSHOT_TOTALS_NOTE` then had nothing to link. The mock now passes the real note through. The tool is unchanged.
+
+- SHA: 6afd4f10
+- Checks: `npm run test:ava-tools` exit 0. First process 104 pass, 1 skipped (live golden, `AVA_DATABASE_URL` unset). Second process: the Melbourne as-of test passes. typecheck 0. lint 0 (existing warnings only; none on this file).
+- Under 90%: none. The failure was the mock's export list, reproduced before the change.
+- Morning smoke was not run. Snowflake was not called.
+
+## OOH expert grid keeps package inclusion and bonus quantities
+
+One commit on `localhost`. The run log stays uncommitted.
+
+`appendOohBurstFromExpertQty` now stores `roundDeliverables` of the week quantity on `calculatedValue` for `package_inclusions` and `bonus`. Budget and buy amount stay `"0"`. Reopen no longer substitutes 1 when that stored value is 0. A stored 0 shows as 0. The burst `buyType: "bonus"` stamp is unchanged.
+
+Other Expert Apply paths do not assign `calculatedValue = 0` for those buy types, so they were left. Television, radio, BVOD, and digital audio already store `roundDeliverables` of the week quantity. Digital display, digital video, and cinema use `bvodCalculatedDeliverables`, which returns 1 for `package_inclusions` and the week quantity for bonus. Newspaper and magazines use `newspaperCalculatedDeliverables`, which does the same. Their reopen mappers also substitute 1 when a stored `package_inclusions` quantity is 0. That is a different path from the OOH apply zero.
+
+Money stays 0. `computeBurstAmounts` for `package_inclusions` is still all zeros, and the stored budget is `"0"`. Static OOH is outside the ad-serving schedule. The export gross and delivery media for the fixture are 0. The OOH average-rate cell is gross divided by deliverables, so a zero gross with quantity 4 prints 0 there. That is not a billing, MBA, or delivery-media total.
+
+- SHA: 024bdfd2
+- Checks: inclusion quantity tests 5/5, including the workbook Deliverables cell and the flighting cell. typecheck 0. lint 0 (existing warnings only; none on these files).
+- Under 90%: none on the stored quantity or the zero money. The other channels were read and left.
+- Morning smoke was not run. Snowflake was not called.
+
+## Reordering OOH lines keeps their line ids
+
+One commit on localhost. The run log stays uncommitted.
+
+Part A. Joins on `line_item_id` with no version, which would attach v1 facts to whoever holds that id after a reorder:
+
+- Snowflake pacing facts (`PACING_FACT`, `SEARCH_PACING_FACT`, `SOCIAL_PACING_FACT`) group and match on `LINE_ITEM_ID` only (`lib/snowflake/search-pacing-service.ts`).
+- `MART.XANO_LINE_ITEMS_SNAPSHOT` merges on `LINE_ITEM_ID` (`lib/snowflake/syncXanoLineItems.ts`).
+- Partner files: `vw_pacing_partner_file` projects `AV_LINE_ITEM_ID` as `LINE_ITEM_ID` with no version (`sql/snowflake/mart/views/vw_pacing_partner_file.sql`). `partner_line_map` stores the same id.
+- Pacing relabels key `platform_line_item_id` (`lib/pacing/relabel/shared/channels.ts`).
+- Platform naming puts `line_item_id` last on the pacing grain (naming invariant). CM360 and DV360 names follow that id.
+- Publish copies `billing_overrides` onto the next version by living line id (`savePlan.ts`).
+
+Version-scoped, so a reorder does not move them onto another line of the same version: `campaign_kpi` (mba + version_number + line id) and `schedule_months` (version id). `delivery_source_map` is a platform-to-source seed. It does not join on `line_item_id`.
+
+Not only OOH. Expert reorder still calls `reassignLineItemNumbers` (or the digital-display wrapper) in Television, Radio, Newspaper, Magazines, Cinema, BVOD, Digital Video, Digital Audio, Digital Display, Social, Production, Integration, Influencers, and `useMediaChannelContainer`. Those were left.
+
+`line_items.position` already exists (`db/schema/planCore.ts`). Save writes it as the 0-based array index. On read, `mapLineItemFromPostgres` copies that column onto `line_item`, so the editor was treating display order as the id suffix. Nothing required `OH1..OHn` with no gaps. `nextLineNumber` and `assignStableLineItemNumbers` already leave gaps.
+
+Part B. OOH expert apply now calls `keepOohLineIdsOnReorder`. The id stays with the line it was minted for. `position` is the new array order. Hydrate sorts by the persisted position, then puts the id suffix back on `line_item` before the stable assign, so a later open does not rebuild the id from the display index. Excel OOH rows sort by that position, and the "Line N" label is position + 1. Add and duplicate still use `nextLineNumber`.
+
+- SHA: e74f6767
+- Checks: `tests/lib/oohLineItemOrder.test.ts` 7/7. typecheck 0. `next lint` on the touched files, 0.
+- Under 90%: none on the OOH path. Other channels still renumber; that was listed and left.
+- Morning smoke was not run. Snowflake was not called.
+
+## Package inclusion bursts keep their own buy type
+
+One commit on localhost. The run log stays uncommitted.
+
+The round-trip ran before the stamp changed. The same `package_inclusions` OOH line was saved, reloaded, and saved again with the burst labelled `bonus`, then with `package_inclusions`. Billing month totals, MBA totals, the snapshot row, and the Excel rows matched. The only difference was the burst `buyType` string. `assume_spend` stayed false. `assumedSpendForBurst` still returns nothing for both labels, including a non-zero raw budget.
+
+`appendOohBurstFromExpertQty` now stamps that line buy type. A `package_inclusions` week stays `package_inclusions`. A bonus week stays `bonus`. Reopen still shows a stored 0 for either label. Excel still reads the line, so a row saved with the old bonus stamp still prints Package Inclusions. Day-detail bursts in the same mapper were already unstamped and still fall back to the line.
+
+- SHA: 42e99a60
+- Checks: `lib/mediaplan/__tests__/oohPackageInclusionBurstLabel.test.ts` 2/2, inclusion quantity tests 5/5, Excel buy-type tests 6/6. typecheck 0. `next lint` on the touched files, 0.
+- Under 90%: none. The round-trip totals matched, so the stamp changed.
+- Morning smoke was not run. Snowflake was not called.
+
+## AV-TS wrap-up
+
+`npm run gate:main` with `NODE_OPTIONS=--max-old-space-size=6144` for that run only, exit 0, 153.2s. `npm run test:all` once, exit 0, 125/125 suites, 599.9s. `test:codex-stage1-templates` passed. No suite was rerun. Only this run log was staged.
+
+### Prompts
+
+| ID | Status | SHA |
+| --- | --- | --- |
+| AV-TK1 portfolio lock timeout | DONE | `a7678c72` |
+| Second publish in the same tab | DONE | `fd2298a9` |
+| Portfolio cron in syd1 | DONE | `a83fba1d` |
+| Skip the composer cache on the cron | DONE | `d98dc41a` |
+| Published tip live count | DONE | `5f61637d` |
+| AU date on the draft restore prompt | DONE | `a5bacb15` |
+| One On track rule, 90 to 110 | DONE | `cf71ce35` |
+| V_LINE_ITEM_PACING CASE | DONE | `73573ae2` |
+| Estimated spend for CM360 direct digital | DONE | `633d7660` |
+| Direct digital estimate uses lib/money | DONE | `fd3e7380` |
+| Gantt rows carry their media channel | DONE | `6f13ec4a` |
+| Flighting grouped by media channel | DONE | `e0668ff9` |
+| Pacing detail vs the delivery schedule | STOPPED | none |
+| is_published_tip on the published version | DONE | `1493b4fc` |
+| Direct digital estimate uses the version fee snapshot | DONE | `e06090a9` |
+| Pacing detail campaign rates against the delivery schedule | DONE | `53792f09` |
+| AU time on the Draft saved toast | DONE | `6fdff942` |
+| Pacing detail lines rate against net burst media | STOPPED | none |
+| Fee snapshot read no longer fails the portfolio | DONE | `ab57ef02` |
+| White line item cards | DONE | `edb21ebb` |
+| Pacing detail lines rate against net burst media | DONE | `d5f3092f` |
+| Assumed spend daily cents | DONE | `09d68dec` |
+| Line snapshot assume-spend flag | DONE | `ecfa0086` |
+| Assumed spend rows in the fixed-cost daily fact | DONE | `c17f89ea` |
+| Assumed spend for offline channels in pacing | DONE | `b425343b` |
+| Assumed spend section and hub totals | DONE | `ac4e1880` |
+| Assumed spend excluded from rate metrics | DONE | `c6780ede` |
+| Report data uses one pace basis | DONE | `674c6325` |
+| Assume-spend rule in a client-safe module | DONE | `e1b61a55` |
+| Report dump closes its pools | DONE | `71ee571c` |
+| Report deck skill spike | STOPPED | none |
+| Lean deck payload and token guardrails | DONE | `e9ff1e88` |
+| Delivery snapshot as-of totals note | DONE | `6afd4f10` |
+| OOH expert grid package inclusion quantities | DONE | `024bdfd2` |
+| Reordering OOH lines keeps their line ids | DONE | `e74f6767` |
+| Package inclusion bursts keep their own buy type | DONE | `42e99a60` |
+| AV-TS wrap-up | DONE | this commit |
