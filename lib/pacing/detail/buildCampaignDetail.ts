@@ -1,6 +1,7 @@
 import "server-only"
 
 import { getCachedClientsList } from "@/lib/cache/clientsCache"
+import { readPlanVersionSchedulesByIds } from "@/lib/data/readMediaPlans"
 import { getLatestPublishedCampaignRead } from "@/lib/campaign-read/repo"
 import { fetchAdServingPacingCampaignRows } from "@/lib/pacing/ad-serving/fetchAdServingPacingCampaignRows"
 import { fetchSearchPacingCampaignRows } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows"
@@ -17,6 +18,8 @@ import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows
 import { getAsOfDate } from "@/lib/pacing/maths"
 import { loadDirectDigitalFeePcts } from "@/lib/delivery/readMbaFeeSnapshots"
 import { assembleCampaignPacingRows } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
+import { schedulesByMbaFromVersions } from "@/lib/pacing/portfolio/buildCampaignPacingRows"
+import { chooseCampaignDetailRow, scheduleLoadedForMba } from "./chooseCampaignDetailRow"
 import { readPortfolioSnapshot } from "@/lib/pacing/portfolio/portfolioSnapshotStore"
 import type { CampaignPacingRow } from "@/lib/pacing/portfolio/types"
 import { fetchProgrammaticPacingCampaignRows } from "@/lib/pacing/programmatic/fetchProgrammaticPacingCampaignRows"
@@ -76,6 +79,23 @@ async function fetchMbaChannelRows(args: {
     fetchDirectPacingRows({ ...common, includeHistorical: false }),
   ])
   return { search, social, programmatic, adServing, direct }
+}
+
+function versionIdsFromSources(
+  sources: Awaited<ReturnType<typeof fetchMbaChannelRows>>,
+): number[] {
+  const ids = new Set<number>()
+  for (const row of [
+    ...sources.search,
+    ...sources.social,
+    ...sources.programmatic,
+    ...sources.adServing,
+  ]) {
+    if (Number.isInteger(row.mediaPlanVersionId) && row.mediaPlanVersionId > 0) {
+      ids.add(row.mediaPlanVersionId)
+    }
+  }
+  return [...ids]
 }
 
 function linesFromSources(
@@ -187,8 +207,10 @@ function assertTenant(row: CampaignPacingRow, allowedClientSlugs: Set<string> | 
 }
 
 /**
- * Per-MBA campaign detail. Snapshot supplies the campaign row when present.
- * Channel composers run only for this MBA — never the portfolio book build.
+ * Per-MBA campaign detail. Channel composers run only for this MBA.
+ * Campaign expected is the delivery schedule on those version ids, the same
+ * resolver the portfolio uses. A snapshot whose expected matches within $1
+ * is kept. Never the portfolio book build, and never the lock-timed versions read.
  */
 export async function buildCampaignDetail(
   args: BuildCampaignDetailArgs,
@@ -213,26 +235,34 @@ export async function buildCampaignDetail(
   })
   const lines = linesFromSources(sources, asOf)
 
-  let row: CampaignPacingRow | undefined = snapshotRow ?? undefined
-  if (!row) {
-    const feeVersionIds = sources.adServing.map((item) => item.mediaPlanVersionId)
-    const feePctsByVersionId =
-      feeVersionIds.length > 0
-        ? await loadDirectDigitalFeePcts({ versionIds: feeVersionIds })
-        : {}
-    const assembled = assembleCampaignPacingRows({
-      asOfDate: asOf,
-      allowedClientSlugs: args.allowedClientSlugs,
-      search: sources.search,
-      social: sources.social,
-      programmatic: sources.programmatic,
-      adServing: sources.adServing,
-      direct: sources.direct,
-      schedulesByMba: new Map(),
-      feePctsByVersionId,
-    })
-    row = assembled.find((item) => normMba(item.mbaNumber) === mbaKey)
-  }
+  const versionIds = versionIdsFromSources(sources)
+  const scheduleVersions =
+    versionIds.length > 0 ? await readPlanVersionSchedulesByIds(versionIds) : []
+  const schedulesByMba = schedulesByMbaFromVersions(scheduleVersions)
+  const scheduleLoaded = scheduleLoadedForMba(schedulesByMba, mbaKey)
+
+  const feeVersionIds = sources.adServing.map((item) => item.mediaPlanVersionId)
+  const feePctsByVersionId =
+    feeVersionIds.length > 0 ? await loadDirectDigitalFeePcts({ versionIds: feeVersionIds }) : {}
+  const assembled = assembleCampaignPacingRows({
+    asOfDate: asOf,
+    allowedClientSlugs: args.allowedClientSlugs,
+    search: sources.search,
+    social: sources.social,
+    programmatic: sources.programmatic,
+    adServing: sources.adServing,
+    direct: sources.direct,
+    schedulesByMba,
+    feePctsByVersionId,
+  })
+  const freshRow = assembled.find((item) => normMba(item.mbaNumber) === mbaKey) ?? null
+  const row =
+    chooseCampaignDetailRow({
+      mbaNumber: mba,
+      snapshotRow,
+      freshRow,
+      scheduleLoaded,
+    }) ?? undefined
 
   if (!row) throw new CampaignDetailError(404, "campaign_not_found")
   assertTenant(row, args.allowedClientSlugs)
