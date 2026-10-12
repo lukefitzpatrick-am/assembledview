@@ -1,3 +1,5 @@
+import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
+
 export type AvaPacingNudgeKind = "over" | "under"
 
 export type AvaPacingNudgeResult = {
@@ -5,16 +7,17 @@ export type AvaPacingNudgeResult = {
   copy: string
 }
 
-/** v1 thresholds — tune later. Matches hero KPI pacePct (actual / expected × 100). */
+/** Hero pace is actual ÷ expected × 100. Bands are `PACING_STATUS_THRESHOLDS`. */
 export function resolveAvaPacingNudge(pacePct: number): AvaPacingNudgeResult | null {
   if (!Number.isFinite(pacePct)) return null
-  if (pacePct > 115) {
+  const t = PACING_STATUS_THRESHOLDS
+  if (pacePct >= t.overPacingFromPct) {
     return {
       kind: "over",
       copy: "Over-pacing — burning budget faster than planned.",
     }
   }
-  if (pacePct < 85) {
+  if (pacePct < t.behindBelowPct) {
     return {
       kind: "under",
       copy: "Under-delivering vs plan to date.",

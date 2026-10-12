@@ -14,6 +14,7 @@ import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import type { SearchPacingDailyRow, SearchPacingTotals } from "@/lib/snowflake/search-pacing-service"
 import { parseMoney } from "@/lib/money"
+import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 
 export type SearchApiDailyRow = SearchPacingDailyRow
@@ -448,7 +449,7 @@ export function buildSearchAggregateTargetCurve(input: {
     lineItems,
     kpiTargets,
     metric: "clicks",
-    tolerance: 0.15,
+    tolerance: PACING_STATUS_THRESHOLDS.targetBandTolerance,
   })
   const clipped = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
   if (clipped?.start && clipped?.end && curve.length) {

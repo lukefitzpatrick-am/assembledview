@@ -45,7 +45,7 @@ describe("computeKpiExpectedToDate", () => {
 })
 
 describe("computeKpiPacingMathsStatus (delivery ladder)", () => {
-  it("marks on_track when projected finish matches target within 5%", () => {
+  it("marks on_track when projected finish matches target inside 90–110%", () => {
     // Mid-flight: delivered half of target at half time → project to target
     const status = computeKpiPacingMathsStatus({
       asOfDate: "2026-01-16",

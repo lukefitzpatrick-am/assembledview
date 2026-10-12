@@ -1,14 +1,11 @@
+import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import type { CampaignPacingRow, PortfolioPacingCounts } from "./types"
 
 /** Client-safe flags + counts. Do not import assembleCampaignPacingRows from a client graph. */
-export function isOverPacing(
-  row: Pick<CampaignPacingRow, "spendPct" | "projectedFinish" | "budget">,
-): boolean {
+export function isOverPacing(row: Pick<CampaignPacingRow, "spendPct">): boolean {
   return (
-    row.spendPct > 110 &&
-    row.projectedFinish != null &&
-    row.budget > 0 &&
-    row.projectedFinish > row.budget * 1.15
+    Number.isFinite(row.spendPct) &&
+    row.spendPct >= PACING_STATUS_THRESHOLDS.overPacingFromPct
   )
 }
 

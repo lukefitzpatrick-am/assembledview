@@ -1,4 +1,5 @@
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget";
+import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status";
 import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
 
 /**
@@ -40,7 +41,7 @@ export type KpiComparison = {
  * Tolerance in percentage points relative to target.
  * 0.10 = within 10% below target counts as on-track.
  */
-export const KPI_TOLERANCE = 0.10;
+export const KPI_TOLERANCE = PACING_STATUS_THRESHOLDS.kpiTolerance;
 
 /**
  * Determines status of a single KPI where higher-is-better.

@@ -43,16 +43,20 @@ test("on_track for small positive variance", () => {
   assert.equal(s({ projectionVariancePct: 0.03 }), "on_track")
 })
 
-test("on_track boundary: exactly 0.05", () => {
-  assert.equal(s({ projectionVariancePct: 0.05 }), "on_track")
+test("on_track boundary: exactly 0.10 is 110% of expected", () => {
+  assert.equal(s({ projectionVariancePct: 0.1 }), "on_track")
 })
 
-test("on_track boundary: exactly -0.05", () => {
-  assert.equal(s({ projectionVariancePct: -0.05 }), "on_track")
+test("on_track boundary: exactly -0.10 is 90% of expected", () => {
+  assert.equal(s({ projectionVariancePct: -0.1 }), "on_track")
 })
 
-test("slightly_under", () => {
-  assert.equal(s({ projectionVariancePct: -0.08 }), "slightly_under")
+test("92% of expected stays on_track (was slightly_under under ±5%)", () => {
+  assert.equal(s({ projectionVariancePct: -0.08 }), "on_track")
+})
+
+test("slightly_under is 89.9% of expected", () => {
+  assert.equal(s({ projectionVariancePct: -0.101 }), "slightly_under")
 })
 
 test("under_pacing", () => {
@@ -63,8 +67,12 @@ test("under_pacing boundary: exactly -0.15", () => {
   assert.equal(s({ projectionVariancePct: -0.15 }), "under_pacing")
 })
 
-test("slightly_over", () => {
-  assert.equal(s({ projectionVariancePct: 0.1 }), "slightly_over")
+test("slightly_over is 110.1% of expected", () => {
+  assert.equal(s({ projectionVariancePct: 0.101 }), "slightly_over")
+})
+
+test("114.9% of expected stays slightly_over", () => {
+  assert.equal(s({ projectionVariancePct: 0.149 }), "slightly_over")
 })
 
 test("over_pacing", () => {

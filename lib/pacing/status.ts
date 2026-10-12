@@ -1,6 +1,7 @@
 /**
  * UI pacing status — one vocabulary for summary tiles and Status columns.
- * Thresholds mirror `computeStatus` in maths/index.ts; do not change values here.
+ * `PACING_STATUS_THRESHOLDS` is the only band table. `computeStatus` and
+ * `deliveryStatusFromPct` read it. Do not put a second number in a component.
  */
 
 import { KPI_ROW_STATUS, PACING_UI_STATUS, TONE_TEXT, type Tone } from "@/lib/design/status"
@@ -32,21 +33,52 @@ export type ResolvedPacingStatus = {
 }
 
 /**
- * Documented thresholds (same numbers as `computeStatus` / KPI helpers).
- * Legend UI reads these — never invent a second band in components.
+ * Percent of expected. Legend, `computeStatus`, and `deliveryStatusFromPct`
+ * read these. KPI cells stay at 10%. Chart target curves use `targetBandTolerance`.
  */
 export const PACING_STATUS_THRESHOLDS = {
-  /** |projectionVariancePct| ≤ this → on track (95–105% of projected). */
-  onTrackAbsProjectionVariance: 0.05,
-  /** Mild ahead/behind band upper bound (exclusive of over-pacing). */
-  mildBandAbsProjectionVariance: 0.15,
-  /** projectionVariancePct ≥ this → over-pacing. */
-  overPacingMinProjectionVariance: 0.15,
+  /** Below this percent of expected → Behind. */
+  behindBelowPct: 90,
+  /** Above this percent of expected, and below over-pacing → Ahead. */
+  aheadAbovePct: 110,
+  /** This percent of expected and above → Over-pacing. */
+  overPacingFromPct: 115,
   /** spendToDate === 0 and daysPassed ≥ this → no_delivery (counts as Behind). */
   noDeliveryMinDaysPassed: 2,
   /** KPI actual within this fraction of target counts on-track. */
   kpiTolerance: 0.1,
+  /** Cumulative target curve band, ± this fraction of the target. */
+  targetBandTolerance: 0.1,
 } as const
+
+export type ExpectedPaceBand = "behind" | "on-track" | "ahead" | "over-pacing" | "no-data"
+
+/** One band from a percent of expected. Undefined and NaN are no data. */
+export function statusFromExpectedPct(pct: number | undefined): ExpectedPaceBand {
+  const t = PACING_STATUS_THRESHOLDS
+  if (pct === undefined || Number.isNaN(pct)) return "no-data"
+  if (pct < t.behindBelowPct) return "behind"
+  if (pct >= t.overPacingFromPct) return "over-pacing"
+  if (pct > t.aheadAbovePct) return "ahead"
+  return "on-track"
+}
+
+/**
+ * `projectionVariancePct` is projected ÷ budget − 1. On a linear flight that
+ * equals spend ÷ expected − 1, so these bounds are the same percents.
+ */
+export function projectionVarianceBounds(): {
+  onTrackLow: number
+  onTrackHigh: number
+  overFrom: number
+} {
+  const t = PACING_STATUS_THRESHOLDS
+  return {
+    onTrackLow: (t.behindBelowPct - 100) / 100,
+    onTrackHigh: (t.aheadAbovePct - 100) / 100,
+    overFrom: (t.overPacingFromPct - 100) / 100,
+  }
+}
 
 const BAND_META: Record<
   SpendPacingBand,
@@ -142,10 +174,6 @@ export type StatusLegendItem = {
 /** Legend copy — thresholds from PACING_STATUS_THRESHOLDS only. */
 export function statusLegendItems(): StatusLegendItem[] {
   const t = PACING_STATUS_THRESHOLDS
-  const onTrackPct = Math.round(t.onTrackAbsProjectionVariance * 100)
-  const overPct = Math.round(t.overPacingMinProjectionVariance * 100)
-  const mildLo = onTrackPct
-  const mildHi = overPct
 
   return [
     {
@@ -153,28 +181,28 @@ export function statusLegendItems(): StatusLegendItem[] {
       label: "Behind",
       role: "attention",
       textClass: TONE_TEXT[PACING_UI_STATUS.behind.tone],
-      definition: `Projected finish more than ${mildLo}% under budget, or no delivery after ${t.noDeliveryMinDaysPassed}+ days in-flight.`,
+      definition: `Below ${t.behindBelowPct}% of expected, or no delivery after ${t.noDeliveryMinDaysPassed}+ days in-flight.`,
     },
     {
       status: "on-track",
       label: "On track",
       role: "ok",
       textClass: TONE_TEXT[PACING_UI_STATUS["on-track"].tone],
-      definition: `Projected spend within ±${onTrackPct}% of booked budget (95–105% of plan).`,
+      definition: `${t.behindBelowPct}–${t.aheadAbovePct}% of expected.`,
     },
     {
       status: "ahead",
       label: "Ahead",
       role: "attention",
       textClass: TONE_TEXT[PACING_UI_STATUS.ahead.tone],
-      definition: `Mild over-delivery: projected ${mildLo}–${mildHi}% over booked budget (attention, not success).`,
+      definition: `Above ${t.aheadAbovePct}% and below ${t.overPacingFromPct}% of expected.`,
     },
     {
       status: "over-pacing",
       label: "Over-pacing",
       role: "problem",
       textClass: TONE_TEXT[PACING_UI_STATUS["over-pacing"].tone],
-      definition: `Burning too fast: projected finish ≥${overPct}% over booked budget.`,
+      definition: `${t.overPacingFromPct}% of expected and above.`,
     },
     {
       status: "no-data",

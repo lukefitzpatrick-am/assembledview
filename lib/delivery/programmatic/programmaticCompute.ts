@@ -1,3 +1,4 @@
+import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import { cpa, cpc, cpm, cpv, ctr, vtr } from "@/lib/money/rates"
 import { formatMoney } from "@/lib/format/money"
 import { formatDateShort } from "@/lib/format/date"
@@ -716,7 +717,7 @@ export function buildProgrammaticLineItemMetrics(
           lineItems: [tcli],
           kpiTargets,
           metric: targetMetric,
-          tolerance: 0.15,
+          tolerance: PACING_STATUS_THRESHOLDS.targetBandTolerance,
         })
         if (clippedFilter?.start && clippedFilter?.end && targetCurve.length) {
           const rs = clippedFilter.start

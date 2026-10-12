@@ -28,6 +28,14 @@ test("110.1 is ahead", () => {
   assert.equal(deliveryStatusFromPct(110.1), "ahead")
 })
 
+test("114.9 is ahead", () => {
+  assert.equal(deliveryStatusFromPct(114.9), "ahead")
+})
+
+test("115 maps to ahead because this helper has no Over-pacing colour", () => {
+  assert.equal(deliveryStatusFromPct(115), "ahead")
+})
+
 test("undefined is no-data", () => {
   assert.equal(deliveryStatusFromPct(undefined), "no-data")
 })

@@ -7,10 +7,9 @@ import {
   computeRequiredDaily,
 } from "@/lib/pacing/maths"
 import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
+import { statusFromExpectedPct } from "@/lib/pacing/status"
 import type { ChannelSourceState } from "@/lib/pacing/portfolio/types"
 import type { LineCardBurstState, LineCardBursts, LineCardPace } from "./lineCardTypes"
-
-export const OVER_PACING_FINISH_RATIO = 1.15
 
 export function clampPct(value: number): number {
   if (!Number.isFinite(value)) return 0
@@ -49,17 +48,8 @@ export function projectLineFinish(spend: number, timePct: number): number | null
   return spend / (timePct / 100)
 }
 
-export function isLineOverPacing(
-  linePct: number,
-  projected: number | null,
-  budget: number,
-): boolean {
-  return (
-    linePct > 110 &&
-    projected != null &&
-    budget > 0 &&
-    projected > budget * OVER_PACING_FINISH_RATIO
-  )
+export function isLineOverPacing(linePct: number): boolean {
+  return statusFromExpectedPct(linePct) === "over-pacing"
 }
 
 export function resolveLinePace(input: {
@@ -75,8 +65,7 @@ export function resolveLinePace(input: {
   if (start && asOf < start) return "no_data"
   if (!hasFactRows && timePct > 0 && !(spend > 0)) return "no_data"
   if (timePct > 0 && !(spend > 0) && !(budget > 0)) return "no_data"
-  const projected = projectLineFinish(spend, timePct)
-  if (isLineOverPacing(linePct, projected, budget)) return "over_pacing"
+  if (isLineOverPacing(linePct)) return "over_pacing"
   const status = deliveryStatusFromPct(linePct)
   if (status === "ahead") return "ahead"
   if (status === "behind") return "behind"

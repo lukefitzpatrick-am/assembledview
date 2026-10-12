@@ -40,7 +40,7 @@ const PILL_BY_BAND: Record<SpendPacingBand, PillMeta> = {
   "no-data": { label: "No data", variant: "secondary" },
 }
 
-/** Delivered ÷ the schedule expected the card prints. 90–110 is on track. */
+/** Delivered ÷ the schedule expected the card prints. Bands are `PACING_STATUS_THRESHOLDS`. ≥115 maps to Ahead here. */
 function deliveryBand(
   actualSpend: number | undefined,
   expectedSpend: number | undefined,

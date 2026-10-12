@@ -37,7 +37,7 @@ For each of the following, record planned, delivered, variance, and an on/off pa
 - **Spend delivery**: delivered vs planned spend, pacing % vs 100% expected delivery, days elapsed vs flight length.
 - **Deliverable delivery**: impressions/views/clicks delivered vs planned, by channel line (e.g. Meta, BVOD lines, programmatic video, TikTok, influencers).
 - **Delivery KPIs**: CPM, CTR, CPC, CVR, CPA (and channel-appropriate equivalents like CPCV, VTR) vs target, prior period, and benchmark where available.
-- **Flags**: anything off pace beyond ±5%, overdelivery, KPIs at implausible values (a 0.00% CVR is a tracking question before it is a performance question), channel lines not yet live vs plan, lines ending soon with delivery outstanding.
+- **Flags**: Behind below 90% of expected, Ahead above 110% and below 115%, Over-pacing at 115% and above. KPIs at implausible values (a 0.00% CVR is a tracking question before it is a performance question), channel lines not yet live vs plan, lines ending soon with delivery outstanding.
 
 Output of this stage (internal): a short structured review table - channel line, planned, delivered, pace, KPI reads, flags. This is the evidence base every later number must trace back to.
 

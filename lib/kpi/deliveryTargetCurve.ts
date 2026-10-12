@@ -1,3 +1,4 @@
+import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import type { KPITargetsMap } from "./deliveryTargets"
 import { kpiTargetKey } from "./deliveryTargets"
 import { normaliseRatioTarget } from "./normaliseRatioTarget"
@@ -27,9 +28,9 @@ export interface TargetCurvePoint {
   date: string
   /** Cumulative expected value by this date, pro-rated linearly across the campaign window */
   target: number
-  /** Lower bound of the ±15% band */
+  /** Lower bound of the target band (`targetBandTolerance`). */
   targetLow: number
-  /** Upper bound of the ±15% band */
+  /** Upper bound of the target band (`targetBandTolerance`). */
   targetHigh: number
 }
 
@@ -39,7 +40,7 @@ export interface BuildTargetCurveOptions {
   lineItems: TargetCurveLineItem[]
   kpiTargets: KPITargetsMap
   metric: TargetMetric
-  /** 0–1 tolerance. Default 0.15 (±15%). */
+  /** 0–1 tolerance. Default `PACING_STATUS_THRESHOLDS.targetBandTolerance`. */
   tolerance?: number
 }
 
@@ -136,7 +137,7 @@ export function buildCumulativeTargetCurve(
   opts: BuildTargetCurveOptions,
 ): TargetCurvePoint[] {
   const { campaignStartISO, campaignEndISO, lineItems, kpiTargets, metric } = opts
-  const tolerance = opts.tolerance ?? 0.15
+  const tolerance = opts.tolerance ?? PACING_STATUS_THRESHOLDS.targetBandTolerance
 
   const days = eachDayISO(campaignStartISO, campaignEndISO)
   if (days.length === 0) return []

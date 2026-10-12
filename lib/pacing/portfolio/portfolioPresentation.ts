@@ -9,7 +9,7 @@ import type {
   ChannelSourceState,
   PortfolioPace,
 } from "@/lib/pacing/portfolio/types"
-import type { StatusLegendItem } from "@/lib/pacing/status"
+import { PACING_STATUS_THRESHOLDS, type StatusLegendItem } from "@/lib/pacing/status"
 
 export type PortfolioDisplayBand =
   | "behind"
@@ -132,14 +132,14 @@ export function portfolioLegendItems(): StatusLegendItem[] {
       label: "Ahead",
       role: "ok",
       textClass: TONE_TEXT[PACING_UI_STATUS.ahead.tone],
-      definition: `Spend delivered over ${AHEAD_ABOVE_PCT}% of expected.`,
+      definition: `Spend delivered above ${AHEAD_ABOVE_PCT}% and below ${PACING_STATUS_THRESHOLDS.overPacingFromPct}% of expected.`,
     },
     {
       status: "over-pacing",
       label: "Over-pacing",
       role: "problem",
       textClass: TONE_TEXT[PACING_UI_STATUS["over-pacing"].tone],
-      definition: "Projected finish is 15% over booked budget.",
+      definition: `Spend delivered ${PACING_STATUS_THRESHOLDS.overPacingFromPct}% of expected and above.`,
     },
     {
       status: "no-data",
