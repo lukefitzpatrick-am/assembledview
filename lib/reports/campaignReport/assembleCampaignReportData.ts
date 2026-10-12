@@ -197,13 +197,19 @@ function reconciledReportExpected(
   }
   const out = new Map<string, number>()
   for (const [key, lines] of byKey) {
+    const fixed = new Map<string, number>()
+    for (const line of lines) {
+      if (line.spendMode !== "assumed") continue
+      fixed.set(line.lineItemId, line.expectedNetToDate ?? 0)
+    }
     const allocated = reconcileLineExpected(
       slices.get(key) ?? 0,
       lines.map((line) => ({
         id: line.lineItemId,
-        lineExpected: line.expectedNetToDate ?? 0,
+        lineExpected: fixed.has(line.lineItemId) ? 0 : line.expectedNetToDate ?? 0,
         plannedMedia: line.plannedBudget ?? 0,
       })),
+      fixed.size > 0 ? fixed : undefined,
     )
     for (const [id, dollars] of allocated) out.set(id, dollars)
   }
@@ -404,6 +410,7 @@ export async function assembleCampaignReportData(
     monthlySpend: resolveMonthlySpendForPlan(undefined, undefined, deliverySchedule),
     campaignStartISO: start,
     campaignEndISO: end,
+    assumedLines: currentSnap.assumedExpectedLines,
   }
   const periodSlice = reportPeriodIsSlice(period.kind)
   const expectedSpendToDate = expectedMediaForReportWindow({
@@ -437,6 +444,7 @@ export async function assembleCampaignReportData(
       windowStartISO: currentWindow.startISO,
       windowEndISO: currentWindow.endISO,
       periodSlice,
+      assumedLines: currentSnap.assumedExpectedLines,
     }),
   )
   const previousSlices = previousWindow
@@ -448,6 +456,7 @@ export async function assembleCampaignReportData(
           windowStartISO: previousWindow.startISO,
           windowEndISO: previousWindow.endISO,
           periodSlice: true,
+          assumedLines: currentSnap.assumedExpectedLines,
         }),
       )
     : null

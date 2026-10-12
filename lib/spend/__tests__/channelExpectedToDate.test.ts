@@ -1,6 +1,12 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
+import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
+import {
+  assumedDeliveryPacePct,
+  assumedLineToDateCents,
+  type AssumedExpectedLine,
+} from "@/lib/spend/assumedSpend"
 import { resolveCampaignExpectedSpendToDate } from "@/lib/spend/resolveCampaignExpectedSpend"
 import {
   channelExpectedToDate,
@@ -121,5 +127,163 @@ describe("reconcileLineExpected", () => {
     ])
     assert.equal(allocated.get("a"), 2.5)
     assert.equal(allocated.get("b"), 7.5)
+  })
+
+  it("keeps assumed lines fixed and gives the remainder to reported lines", () => {
+    const allocated = reconcileLineExpected(
+      150,
+      [
+        { id: "assumed", lineExpected: 0, plannedMedia: 50 },
+        { id: "reported", lineExpected: 100, plannedMedia: 100 },
+      ],
+      new Map([["assumed", 50]]),
+    )
+    assert.equal(allocated.get("assumed"), 50)
+    assert.equal(allocated.get("reported"), 100)
+    const sum = [...allocated.values()].reduce((total, value) => total + value, 0)
+    assert.equal(Math.round(sum * 100), 15000)
+  })
+})
+
+function octoberSchedule() {
+  return [
+    {
+      month: "October 2026",
+      mediaCosts: { socialMedia: "$3,100.00", newspaper: "$3,100.00" },
+      mediaTotal: "$6,200.00",
+    },
+  ]
+}
+
+function newspaperBurst(buyType = "package"): AssumedExpectedLine {
+  return {
+    id: "golf025NP7",
+    scheduleKey: "newspaper",
+    plannedMedia: 3100,
+    buyType,
+    bursts: [
+      {
+        rawBudget: 3100,
+        budgetIncludesFees: false,
+        clientPaysForMedia: false,
+        feePct: 0,
+        buyType,
+        startDate: "2026-10-25",
+        endDate: "2026-10-31",
+      },
+    ],
+  }
+}
+
+function octoberInput(asOfISO: string, assumedLines?: AssumedExpectedLine[]) {
+  return {
+    deliverySchedule: octoberSchedule(),
+    campaignStartISO: "2026-10-01",
+    campaignEndISO: "2026-10-31",
+    asOfISO,
+    assumedLines,
+    billingSchedule: [],
+    monthlySpend: [],
+    monthlyOpts: {
+      campaignStartISO: "2026-10-01",
+      campaignEndISO: "2026-10-31",
+      asOfISO,
+      basis: "media" as const,
+    },
+    basis: "media" as const,
+  }
+}
+
+describe("assumed spend expected follows bursts", () => {
+  it("is $0 on the 12th and two burst days on the 26th, both On track", () => {
+    const line = newspaperBurst()
+    const beforeStart = channelExpectedToDate(octoberInput("2026-10-12", [line]))
+    const newspaperEarly = beforeStart.find((slice) => slice.key === "newspaper")
+    assert.ok(newspaperEarly)
+    assert.equal(newspaperEarly.expected, 0)
+    assert.equal(assumedLineToDateCents(line, "2026-10-12"), 0)
+    assert.equal(deliveryStatusFromPct(assumedDeliveryPacePct(0, 0)), "on-track")
+
+    const started = channelExpectedToDate(octoberInput("2026-10-26", [line]))
+    const newspaperLater = started.find((slice) => slice.key === "newspaper")
+    const twoDays = assumedLineToDateCents(line, "2026-10-26") / 100
+    assert.ok(newspaperLater)
+    assert.equal(newspaperLater.expected, twoDays)
+    assert.ok(twoDays > 0)
+    assert.equal(deliveryStatusFromPct(assumedDeliveryPacePct(twoDays, twoDays)), "on-track")
+
+    const unadjusted = channelExpectedToDate(octoberInput("2026-10-12"))
+    const scheduleSlice = unadjusted.find((slice) => slice.key === "newspaper")
+    assert.ok(scheduleSlice)
+    assert.ok(scheduleSlice.expected > 0)
+  })
+
+  it("keeps a channel of only assumed lines on track and drops that slice from the headline", () => {
+    const line = newspaperBurst()
+    const slices = channelExpectedToDate(octoberInput("2026-10-12", [line]))
+    const newspaper = slices.find((slice) => slice.key === "newspaper")
+    assert.equal(newspaper?.expected, 0)
+    assert.equal(deliveryStatusFromPct(assumedDeliveryPacePct(0, newspaper?.expected ?? 0)), "on-track")
+
+    const headline = resolveCampaignExpectedSpendToDate(octoberInput("2026-10-12", [line]))
+    const plain = resolveCampaignExpectedSpendToDate(octoberInput("2026-10-12"))
+    const sum = slices.reduce((total, slice) => total + Math.round(slice.expected * 100), 0)
+    assert.equal(sum, Math.round(headline * 100))
+    assert.ok(plain > headline)
+  })
+
+  it("weights a mixed channel by expected, and lines still sum to the cent", () => {
+    const mixed: AssumedExpectedLine = {
+      ...newspaperBurst(),
+      plannedMedia: 1550,
+      bursts: [
+        {
+          ...newspaperBurst().bursts[0],
+          rawBudget: 1550,
+        },
+      ],
+    }
+    const asOf = "2026-10-12"
+    const slices = channelExpectedToDate(octoberInput(asOf, [mixed]))
+    const plain = channelExpectedToDate(octoberInput(asOf))
+    const newspaper = slices.find((slice) => slice.key === "newspaper")
+    const schedule = plain.find((slice) => slice.key === "newspaper")
+    assert.ok(newspaper && schedule)
+    const assumedToDate = assumedLineToDateCents(mixed, asOf) / 100
+    const reportedExpected = Math.round((schedule.expected / 2) * 100) / 100
+    assert.equal(Math.round(newspaper.expected * 100), Math.round((reportedExpected + assumedToDate) * 100))
+
+    const reportedSpend = reportedExpected / 2
+    const delivered = reportedSpend + assumedToDate
+    const expected = newspaper.expected
+    assert.equal(
+      Math.round(assumedDeliveryPacePct(delivered, expected) * 100) / 100,
+      Math.round((delivered / expected) * 100 * 100) / 100,
+    )
+
+    const allocated = reconcileLineExpected(
+      newspaper.expected,
+      [
+        { id: mixed.id, lineExpected: assumedToDate, plannedMedia: mixed.plannedMedia },
+        { id: "reported", lineExpected: reportedExpected, plannedMedia: 1550 },
+      ],
+      new Map([[mixed.id, assumedToDate]]),
+    )
+    const lineSum = [...allocated.values()].reduce((total, value) => total + value, 0)
+    assert.equal(Math.round(lineSum * 100), Math.round(newspaper.expected * 100))
+
+    const headline = resolveCampaignExpectedSpendToDate(octoberInput(asOf, [mixed]))
+    const channelSum = slices.reduce((total, slice) => total + Math.round(slice.expected * 100), 0)
+    assert.equal(channelSum, Math.round(headline * 100))
+  })
+
+  it("does not treat bonus or package_inclusions as assumed", () => {
+    const plain = channelExpectedToDate(octoberInput("2026-10-12"))
+    for (const buyType of ["bonus", "package_inclusions"]) {
+      const slices = channelExpectedToDate(octoberInput("2026-10-12", [newspaperBurst(buyType)]))
+      const before = plain.find((slice) => slice.key === "newspaper")
+      const after = slices.find((slice) => slice.key === "newspaper")
+      assert.equal(after?.expected, before?.expected)
+    }
   })
 })

@@ -1,12 +1,19 @@
 /**
  * Channel expected is the delivery-schedule media split at the same as-of
- * as resolveCampaignExpectedSpendToDate. Line expected shown on a channel
- * is that slice, allocated by lineExpectedNetToDate (planned media when
- * that sum is 0), largest-remainder to the cent.
+ * as resolveCampaignExpectedSpendToDate. Assumed-spend lines replace their
+ * share of that slice with assumedDailyCents through the as-of. Line expected
+ * shown on a reported line is the remainder, allocated by lineExpectedNetToDate
+ * (planned media when that sum is 0), largest-remainder to the cent.
  */
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { MEDIA_TYPE_LABELS } from "@/lib/media/mediaTypes"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { fromCents, roundMoney2, toCents } from "@/lib/money/cents"
+import {
+  assumedLineToDateCents,
+  isAssumedValueAddBuyType,
+  type AssumedExpectedLine,
+} from "@/lib/spend/assumedSpend"
 import {
   expectedSpendToDateFromDeliveryScheduleMonthly,
   expectedSpendToDateFromMonthlyCalendar,
@@ -118,6 +125,8 @@ export type ChannelExpectedInput = {
   campaignStartISO?: string | null
   campaignEndISO?: string | null
   asOfISO?: string | null
+  /** Assumed-spend lines. Their burst sum replaces their share of the schedule slice. */
+  assumedLines?: readonly AssumedExpectedLine[]
 }
 
 export type ChannelExpectedSlice = {
@@ -259,7 +268,23 @@ export function allocateCents(totalCents: number, weights: readonly number[]): n
 export function reconcileLineExpected(
   channelDollars: number,
   lines: readonly LineExpectedWeight[],
+  /** Assumed lines keep these dollars. The remainder is split across the other lines. */
+  fixed?: ReadonlyMap<string, number>,
 ): Map<string, number> {
+  if (fixed && fixed.size > 0 && lines.some((line) => fixed.has(line.id))) {
+    const flex = lines.filter((line) => !fixed.has(line.id))
+    const fixedCents = lines.reduce((sum, line) => {
+      if (!fixed.has(line.id)) return sum
+      return sum + Math.max(0, toCents(fixed.get(line.id) ?? 0))
+    }, 0)
+    const remain = Math.max(0, toCents(channelDollars) - fixedCents)
+    const out = reconcileLineExpected(fromCents(remain), flex)
+    for (const line of lines) {
+      if (!fixed.has(line.id)) continue
+      out.set(line.id, fromCents(Math.max(0, toCents(fixed.get(line.id) ?? 0))))
+    }
+    return out
+  }
   const weightSum = lines.reduce(
     (sum, line) => sum + (line.lineExpected > 0 ? line.lineExpected : 0),
     0,
@@ -333,8 +358,60 @@ export function channelExpectedToDate(input: ChannelExpectedInput): ChannelExpec
     })
   }
 
-  slices.sort((a, b) => b.expected - a.expected || a.key.localeCompare(b.key))
-  return slices
+  const adjusted = applyAssumedExpected(slices, input.assumedLines, asOfISO(input))
+  adjusted.sort((a, b) => b.expected - a.expected || a.key.localeCompare(b.key))
+  return adjusted
+}
+
+function asOfISO(input: ChannelExpectedInput): string {
+  return input.asOfISO?.trim() || getMelbourneTodayISO()
+}
+
+/**
+ * Assumed planned media at least the slice's planned media: the slice becomes
+ * the burst sum. Otherwise the schedule slice keeps the reported share and
+ * the burst sum is added.
+ */
+function applyAssumedExpected(
+  slices: ChannelExpectedSlice[],
+  lines: readonly AssumedExpectedLine[] | undefined,
+  asOf: string,
+): ChannelExpectedSlice[] {
+  const usable = (lines ?? []).filter((line) => !isAssumedValueAddBuyType(line.buyType))
+  if (usable.length === 0) return slices
+  const byKey = new Map<string, { plannedCents: number; toDateCents: number }>()
+  for (const line of usable) {
+    const key = line.scheduleKey
+    if (!key) continue
+    const bucket = byKey.get(key) ?? { plannedCents: 0, toDateCents: 0 }
+    bucket.plannedCents += Math.max(0, toCents(line.plannedMedia))
+    bucket.toDateCents += assumedLineToDateCents(line, asOf)
+    byKey.set(key, bucket)
+  }
+  if (byKey.size === 0) return slices
+
+  const out = slices.map((slice) => ({ ...slice }))
+  for (const [key, bucket] of byKey) {
+    let slice = out.find((row) => row.key === key)
+    if (!slice) {
+      slice = {
+        key,
+        label: labelForScheduleKey(key),
+        expected: 0,
+        planned: fromCents(bucket.plannedCents),
+      }
+      out.push(slice)
+    }
+    const plannedCents = toCents(slice.planned)
+    if (!(plannedCents > 0) || bucket.plannedCents >= plannedCents) {
+      slice.expected = fromCents(bucket.toDateCents)
+      continue
+    }
+    const reportedPlanned = plannedCents - bucket.plannedCents
+    const reportedCents = Math.round((toCents(slice.expected) * reportedPlanned) / plannedCents)
+    slice.expected = fromCents(reportedCents + bucket.toDateCents)
+  }
+  return out.filter((slice) => slice.expected > 0 || slice.planned > 0)
 }
 
 function dayBeforeISO(iso: string): string {

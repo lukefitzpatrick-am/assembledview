@@ -328,6 +328,42 @@ export function directSpendWithAssumed(
   }
 }
 
+/**
+ * App-side assumed spend for lines Snowflake has not written yet.
+ * A positive Snowflake assumed row already counted by directSpendWithAssumed is left alone.
+ */
+export function snapshotAssumedSupplement(
+  snapshot:
+    | {
+        channels?: Array<{
+          group?: string
+          lines?: Array<{ lineItemId?: string; spendToDate?: number }>
+        }>
+      }
+    | null
+    | undefined,
+  group: { lineItems?: DirectSpendLine[] } | null | undefined,
+): number {
+  const covered = new Set<string>()
+  for (const line of group?.lineItems ?? []) {
+    const daily = (line.daily ?? []).map((day) => ({ capApplied: String(day.capApplied ?? "") }))
+    if (!lineIsAssumedSpend({ daily })) continue
+    if (!(lineReportedSpend(line, null) > 0)) continue
+    const id = String(line.lineItemId ?? "").trim().toLowerCase()
+    if (id) covered.add(id)
+  }
+  let extra = 0
+  for (const channel of snapshot?.channels ?? []) {
+    if (channel.group !== "assumed_spend") continue
+    for (const line of channel.lines ?? []) {
+      const id = String(line.lineItemId ?? "").trim().toLowerCase()
+      if (id && covered.has(id)) continue
+      extra += finiteSpend(line.spendToDate)
+    }
+  }
+  return extra
+}
+
 export function snapshotSpendByLineId(
   snapshot:
     | {

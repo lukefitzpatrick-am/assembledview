@@ -16,6 +16,7 @@ import {
   type ChannelCoverageEntry,
 } from "@/lib/delivery/channelCoverage"
 import { channelExpectedToDate } from "@/lib/spend/channelExpectedToDate"
+import { assumedExpectedLinesForDelivery } from "@/lib/spend/assumedExpectedLines"
 import { deliveredByLineIdFromChannelSections } from "@/lib/delivery/ganttDeliveredByLineId"
 import {
   buildKpiReviewGroups,
@@ -461,8 +462,21 @@ function CampaignDeliveryBody({
   ])
 
   const { entries: coverage, kpiDrafts } = useMemo(
-    () =>
-      channelCoverageBundle({
+    () => {
+      const asOf = asOfISO || getMelbourneTodayISO()
+      const assumedLines = assumedExpectedLinesForDelivery({
+        atlLineItems,
+        digitalDisplayLineItems,
+        digitalVideoLineItems,
+        digitalAudioLineItems,
+        bvodLineItems,
+        progDisplayLineItems,
+        progVideoLineItems,
+        progOohLineItems,
+        feePctsByVersionId,
+        estimateVersionId,
+      })
+      return channelCoverageBundle({
         buckets: {
           socialLineItems,
           searchLineItems,
@@ -476,14 +490,17 @@ function CampaignDeliveryBody({
           offlineLineItems: atlLineItems,
         },
         sections: channels,
-        todayISO: asOfISO || getMelbourneTodayISO(),
+        todayISO: asOf,
+        assumedLines,
         channelExpected: channelExpectedToDate({
           deliverySchedule,
           campaignStartISO: campaignStartISO || campaignStart,
           campaignEndISO: campaignEndISO || campaignEnd,
-          asOfISO: asOfISO || getMelbourneTodayISO(),
+          asOfISO: asOf,
+          assumedLines,
         }),
-      }),
+      })
+    },
     [
       socialLineItems,
       searchLineItems,
@@ -502,6 +519,8 @@ function CampaignDeliveryBody({
       campaignStart,
       campaignEnd,
       asOfISO,
+      feePctsByVersionId,
+      estimateVersionId,
     ],
   )
 

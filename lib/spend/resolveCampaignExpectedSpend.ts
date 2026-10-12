@@ -1,3 +1,6 @@
+import { fromCents, toCents } from "@/lib/money/cents"
+import type { AssumedExpectedLine } from "@/lib/spend/assumedSpend"
+import { channelExpectedToDate } from "@/lib/spend/channelExpectedToDate"
 import { calculateExpectedSpendToDateFromDeliverySchedule } from "@/lib/spend/expectedSpend"
 import {
   calculateExpectedSpendToDateFromBillingSchedule,
@@ -22,6 +25,11 @@ export type ResolveCampaignSpendInput = {
   deliverySchedule?: unknown
   /** media when this number is compared with platform delivered spend. */
   basis?: "media" | "all_in"
+  /**
+   * Assumed-spend lines. When the delivery schedule produced the headline,
+   * their burst sum replaces their share of that headline.
+   */
+  assumedLines?: readonly AssumedExpectedLine[]
 }
 
 /**
@@ -42,6 +50,7 @@ export function resolveCampaignExpectedSpendToDate(input: ResolveCampaignSpendIn
     metricsExpectedSpendToDate,
     deliverySchedule,
     basis = "all_in",
+    assumedLines,
   } = input
 
   const start = campaignStartISO ?? undefined
@@ -49,7 +58,16 @@ export function resolveCampaignExpectedSpendToDate(input: ResolveCampaignSpendIn
   const opts = { ...monthlyOpts, basis }
 
   const fromDeliveryMonthly = expectedSpendToDateFromDeliveryScheduleMonthly(deliverySchedule, opts)
-  if (fromDeliveryMonthly > 0) return fromDeliveryMonthly
+  if (fromDeliveryMonthly > 0) {
+    return headlineAfterAssumedLines({
+      headline: fromDeliveryMonthly,
+      deliverySchedule,
+      campaignStartISO,
+      campaignEndISO,
+      asOfISO: monthlyOpts?.asOfISO,
+      assumedLines,
+    })
+  }
 
   const fromMonthly = expectedSpendToDateFromMonthlyCalendar(monthlySpend, opts)
   if (fromMonthly > 0) return fromMonthly
@@ -70,6 +88,48 @@ export function resolveCampaignExpectedSpendToDate(input: ResolveCampaignSpendIn
   if (fromBilling > 0) return fromBilling
 
   return 0
+}
+
+function sliceExpectedCents(
+  deliverySchedule: unknown,
+  campaignStartISO: string | null,
+  campaignEndISO: string | null,
+  asOfISO: string | null | undefined,
+  assumedLines?: readonly AssumedExpectedLine[],
+): number {
+  return channelExpectedToDate({
+    deliverySchedule,
+    campaignStartISO,
+    campaignEndISO,
+    asOfISO,
+    assumedLines,
+  }).reduce((sum, slice) => sum + toCents(slice.expected), 0)
+}
+
+/** Headline minus the schedule slices, plus the slices after assumed lines replace their share. */
+function headlineAfterAssumedLines(args: {
+  headline: number
+  deliverySchedule: unknown
+  campaignStartISO: string | null
+  campaignEndISO: string | null
+  asOfISO: string | null | undefined
+  assumedLines?: readonly AssumedExpectedLine[]
+}): number {
+  if (!args.assumedLines || args.assumedLines.length === 0) return args.headline
+  const before = sliceExpectedCents(
+    args.deliverySchedule,
+    args.campaignStartISO,
+    args.campaignEndISO,
+    args.asOfISO,
+  )
+  const after = sliceExpectedCents(
+    args.deliverySchedule,
+    args.campaignStartISO,
+    args.campaignEndISO,
+    args.asOfISO,
+    args.assumedLines,
+  )
+  return fromCents(toCents(args.headline) - before + after)
 }
 
 export type ResolveCampaignTotalPlannedInput = {

@@ -29,6 +29,8 @@ import {
   type PortfolioSourceTiming,
 } from "@/lib/pacing/portfolio/loadPortfolioChannelSources"
 import type { CampaignPacingRow, CampaignScheduleInput } from "@/lib/pacing/portfolio/types"
+import { loadAssumedExpectedLinesByVersion } from "@/lib/spend/loadAssumedExpectedLines"
+import type { AssumedExpectedLine } from "@/lib/spend/assumedSpend"
 import { isLiveCampaignStatus } from "@/lib/types/mediaPlanMaster"
 
 export type BuildCampaignPacingRowsArgs = {
@@ -132,6 +134,7 @@ export function liveCampaignIdsFromVersions(
 /** Keys `${mba}:${versionNumber}` plus mba-only for published_at rows (never max vn). */
 export function schedulesByMbaFromVersions(
   versions: Record<string, unknown>[],
+  assumedByVersion?: ReadonlyMap<number, AssumedExpectedLine[]>,
 ): Map<string, CampaignScheduleInput> {
   const map = new Map<string, CampaignScheduleInput>()
   for (const row of versions) {
@@ -139,6 +142,11 @@ export function schedulesByMbaFromVersions(
     if (!mba) continue
     const vn = Number(row.version_number)
     const schedule = scheduleFromVersion(row)
+    const versionId = Number(row.id)
+    if (assumedByVersion && Number.isInteger(versionId)) {
+      const lines = assumedByVersion.get(versionId)
+      if (lines && lines.length > 0) schedule.assumedLines = lines
+    }
     if (Number.isFinite(vn)) map.set(`${mba}:${vn}`, schedule)
     if (row.published_at) map.set(mba, schedule)
   }
@@ -228,18 +236,25 @@ export async function buildCampaignPacingRows(
     throw new Error(`portfolio source timeout: ${timedOutSource.source}`)
   }
 
-  const feeVersionIds = sources.adServing.map((row) => row.mediaPlanVersionId)
+  const versionIds = versions
+    .map((row) => Number(row.id))
+    .filter((id) => Number.isInteger(id) && id > 0)
+  const feeVersionIds = [
+    ...sources.adServing.map((row) => row.mediaPlanVersionId),
+    ...versionIds,
+  ]
   const feePctsByVersionId = await loadDirectDigitalFeePctsOrGross(
     feeVersionIds,
     args.loadFeePcts,
   )
+  const assumedByVersion = await loadAssumedExpectedLinesByVersion(versionIds, feePctsByVersionId)
 
   const rows = assembleCampaignPacingRows({
     asOfDate: args.asOfDate,
     allowedClientSlugs: args.allowedClientSlugs,
     liveOnly,
     ...sources,
-    schedulesByMba: schedulesByMbaFromVersions(versions),
+    schedulesByMba: schedulesByMbaFromVersions(versions, assumedByVersion),
     feePctsByVersionId,
   })
   return {

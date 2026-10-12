@@ -15,6 +15,7 @@ import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import { extractPacingLineItemIdFromItem } from "@/lib/pacing/delivery/lineItemIds"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/classifySocialPacingPlatform"
 import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
+import { assumedDeliveryPacePct, assumedLineToDateCents } from "@/lib/spend/assumedSpend"
 import { fromCents, toCents } from "@/lib/money/cents"
 import {
   allocateCents,
@@ -70,6 +71,8 @@ export type ChannelCoverageInput = {
   sourceMap?: readonly DeliverySourceMapRow[]
   /** Delivery-schedule slices at the same as-of as the headline. */
   channelExpected?: ReadonlyArray<{ key: string; expected: number; planned: number }>
+  /** Assumed-spend lines. Their burst sum is delivered and expected on that channel. */
+  assumedLines?: readonly import("@/lib/spend/assumedSpend").AssumedExpectedLine[]
 }
 
 const STATUS_RANK: Record<Exclude<ChannelCoverageStatus, "no_source">, number> = {
@@ -633,13 +636,31 @@ function entriesFromGroups(groups: Map<string, Acc>, input: ChannelCoverageInput
     return b.plannedSpend - a.plannedSpend
   })
 
-  appendOfflineEntries(entries, input.buckets.offlineLineItems ?? [])
-  stampChannelExpected(entries, input.channelExpected)
+  appendOfflineEntries(entries, input.buckets.offlineLineItems ?? [], input.assumedLines, input.todayISO)
+  stampChannelExpected(entries, input.channelExpected, input.assumedLines, input.todayISO)
 
   return entries
 }
 
-function appendOfflineEntries(entries: ChannelCoverageEntry[], items: unknown[]): void {
+function assumedToDateForKey(
+  lines: ChannelCoverageInput["assumedLines"],
+  key: string,
+  asOf: string,
+): number {
+  let cents = 0
+  for (const line of lines ?? []) {
+    if (line.scheduleKey !== key) continue
+    cents += assumedLineToDateCents(line, asOf)
+  }
+  return fromCents(cents)
+}
+
+function appendOfflineEntries(
+  entries: ChannelCoverageEntry[],
+  items: unknown[],
+  assumedLines: ChannelCoverageInput["assumedLines"],
+  asOf: string,
+): void {
   const claimed = new Set(
     entries.flatMap((entry) => {
       const key = scheduleKeyForCoverageKey(entry.key)
@@ -662,7 +683,12 @@ function appendOfflineEntries(entries: ChannelCoverageEntry[], items: unknown[])
     if (start && (!existing.start || start < existing.start)) existing.start = start
   }
   for (const [key, bucket] of groups) {
-    entries.push(offlineCard(key, bucket.planned, bucket.start, true))
+    const delivered = assumedToDateForKey(assumedLines, key, asOf)
+    const card = offlineCard(key, bucket.planned, bucket.start, true)
+    card.deliveredSpend = delivered
+    card.status = "reporting"
+    card.deliveryStatus = deliveryStatusFromPct(assumedDeliveryPacePct(delivered, delivered))
+    entries.push(card)
   }
 }
 
@@ -693,6 +719,8 @@ function offlineCard(
 function stampChannelExpected(
   entries: ChannelCoverageEntry[],
   slices: ChannelCoverageInput["channelExpected"],
+  assumedLines: ChannelCoverageInput["assumedLines"],
+  asOf: string,
 ): void {
   if (!slices || slices.length === 0) return
   const groups = new Map<string, ChannelCoverageEntry[]>()
@@ -704,23 +732,50 @@ function stampChannelExpected(
     groups.set(key, list)
   }
   for (const slice of slices) {
-    if (!(slice.expected > 0)) continue
     const members = groups.get(slice.key) ?? []
+    const assumedToDate = assumedToDateForKey(assumedLines, slice.key, asOf)
+    const assumedOnly = members.length > 0 && members.every((member) => member.spendAssumed)
+    if (!(slice.expected > 0) && !assumedOnly && !(assumedToDate > 0)) continue
     if (members.length === 0) {
+      if (!(slice.expected > 0)) continue
       const card = offlineCard(slice.key, slice.planned, null, false)
       card.expectedToDate = slice.expected
       entries.push(card)
       continue
     }
+    if (assumedOnly) {
+      const parts = allocateCents(
+        toCents(slice.expected),
+        members.map((member) => (member.plannedSpend > 0 ? member.plannedSpend : 1)),
+      )
+      members.forEach((member, index) => {
+        member.expectedToDate = fromCents(parts[index] ?? 0)
+        member.status = "reporting"
+        member.deliveryStatus = deliveryStatusFromPct(
+          assumedDeliveryPacePct(member.deliveredSpend ?? 0, member.expectedToDate ?? 0),
+        )
+      })
+      continue
+    }
+    if (!(slice.expected > 0) && !(assumedToDate > 0)) continue
     const parts = allocateCents(
       toCents(slice.expected),
       members.map((member) => member.plannedSpend),
     )
     members.forEach((member, index) => {
       member.expectedToDate = fromCents(parts[index] ?? 0)
+      if (members.length === 1 && !member.spendAssumed && assumedToDate > 0) {
+        member.deliveredSpend = (member.deliveredSpend ?? 0) + assumedToDate
+      }
       if ((member.expectedToDate ?? 0) > 0 && member.deliveredSpend != null) {
+        const pct =
+          member.spendAssumed || assumedToDate > 0
+            ? assumedDeliveryPacePct(member.deliveredSpend, member.expectedToDate)
+            : (member.deliveredSpend / member.expectedToDate) * 100
+        member.deliveryStatus = deliveryStatusFromPct(pct)
+      } else if (member.spendAssumed) {
         member.deliveryStatus = deliveryStatusFromPct(
-          (member.deliveredSpend / member.expectedToDate) * 100,
+          assumedDeliveryPacePct(member.deliveredSpend ?? 0, member.expectedToDate ?? 0),
         )
       }
     })

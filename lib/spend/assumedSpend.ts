@@ -53,6 +53,47 @@ export type AssumedBurstInput = {
   panelFlights?: readonly AssumedDateWindow[]
 }
 
+/** One assumed line's bursts, without an as-of. The as-of is applied when the sum is taken. */
+export type AssumedExpectedBurst = Omit<AssumedBurstInput, "asOfDate">
+
+export type AssumedExpectedLine = {
+  id: string
+  scheduleKey: string
+  /** Delivery media for the line, same basis as the delivery schedule. */
+  plannedMedia: number
+  buyType?: string | null
+  bursts: readonly AssumedExpectedBurst[]
+}
+
+export function isAssumedValueAddBuyType(buyType: string | null | undefined): boolean {
+  const bt = String(buyType ?? "").trim().toLowerCase()
+  return bt === "bonus" || bt === "package_inclusions"
+}
+
+/** Burst cents through asOf. Bonus and package_inclusions contribute nothing. */
+export function assumedLineToDateCents(line: AssumedExpectedLine, asOfDate: string): number {
+  if (isAssumedValueAddBuyType(line.buyType)) return 0
+  let cents = 0
+  for (const burst of line.bursts) {
+    if (isAssumedValueAddBuyType(burst.buyType)) continue
+    for (const day of assumedSpendForBurst({ ...burst, asOfDate })) cents += day.cents
+  }
+  return cents
+}
+
+/**
+ * Percent for a figure that is its own expected.
+ * Both zero is 100, so deliveryStatusFromPct reads On track.
+ * A real gap stays the ratio.
+ */
+export function assumedDeliveryPacePct(delivered: number, expected: number): number {
+  const deliveredCents = toCents(delivered)
+  const expectedCents = toCents(expected)
+  if (deliveredCents === expectedCents) return 100
+  if (expectedCents === 0) return 100
+  return (delivered / expected) * 100
+}
+
 /**
  * Daily cents for one burst. The amount is computeBurstAmounts deliveryMediaAmount.
  * Bonus and package_inclusions return nothing. Client-pays uses delivery media.

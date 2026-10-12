@@ -13,6 +13,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { fromCents, toCents } from "@/lib/money/cents"
 import { parseMoney } from "@/lib/money/parse"
 import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
+import { assumedDeliveryPacePct } from "@/lib/spend/assumedSpend"
 import { assumeSpendForSnapshotLine } from "@/lib/spend/assumeSpendRule"
 import { ASSUMED_SPEND_LABEL, assumedSpendForBurst } from "@/lib/spend/assumedSpend"
 
@@ -65,7 +66,7 @@ function spendCard(assumed: number, media: number): ProgressCardProps {
     detail: `${ASSUMED_SPEND_LABEL} ${assumedText} · Delivery media ${mediaText}`,
     progress,
     variance: pct == null ? 0 : (pct - 100) / 100,
-    status: deliveryStatusFromPct(pct),
+    status: deliveryStatusFromPct(assumedDeliveryPacePct(assumed, assumed)),
   }
 }
 
