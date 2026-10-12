@@ -1,5 +1,5 @@
 /**
- * Build one campaign report deck with the av-campaign-report skill.
+ * Build one campaign report deck with the av-campaign-report-v5 skill.
  *
  * node --env-file=.env.local --import tsx scripts/spikes/report-deck-skill/run-deck.ts hema007
  *
@@ -12,10 +12,13 @@
  */
 import { execFile } from "node:child_process"
 import fs from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import Anthropic, { toFile } from "@anthropic-ai/sdk"
+import sharp from "sharp"
+import { checkBrand } from "./brand-check"
 import {
   clipCommand,
   containerSteps,
@@ -28,25 +31,51 @@ import {
 } from "./deck-guardrails"
 import { checkDeckNumbers } from "./number-check"
 import { slimDeckPayload } from "./slim-deck-payload"
-import { estimateUsd, reportEffort, reportModel, SPIKE_BETAS, spikeClient } from "./spike-client"
+import {
+  estimateUsd,
+  PRICE_USD_PER_MTOK,
+  reportEffort,
+  reportModel,
+  SPIKE_BETAS,
+  spikeClient,
+} from "./spike-client"
 
 const execFileAsync = promisify(execFile)
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, "../../..")
 const outDir = path.join(here, "out")
-const DISPLAY_TITLE = "av-campaign-report"
+const DISPLAY_TITLE = "av-campaign-report-v5"
+const KIT = path.join(here, "kit", "assembled-brand-kit")
 
 const USER_MESSAGE = [
-  "The input file is report-data.json.",
-  "assembled-template.pptx is in the same input directory. Copy it to assets/assembled-template.pptx before loading the template.",
-  "Build the Assembled Media campaign performance report deck from report-data.json.",
-  "Follow the av-campaign-report skill, including its slide plan and inspection limits.",
-  "Never print a whole file or a whole tool listing. Pipe every inspection through head -c 4000.",
-  "Use references/slide-catalogue.md to choose slides. Call placeholders() only on the slides being used, after keep_slides.",
-  "Don't base64 or print images or XML.",
-  "Copy numeral strings from report-data.json exactly.",
-  "Save the pptx in the container output directory.",
+  "The input files are report-data.json, Assembled-Media-Template-v5.potx, and three library photos.",
+  "They are already in the container input directory. Do not fetch anything.",
+  "Build the Assembled Media campaign performance report on the v5 brand from report-data.json.",
+  "Follow the av-campaign-report-v5 skill, including its slide plan and run rules.",
+  "Find the files with one ls. Don't print any file.",
+  "Use only the formatted strings in report-data.json.",
+  "Save the deck to $OUTPUT_DIR/<mbaNumber>.pptx.",
 ].join(" ")
+
+type LibraryPhoto = {
+  id: string
+  file: string
+  theme: string
+  orientation: string
+}
+
+function pickCoverPhotos(): LibraryPhoto[] {
+  const index = JSON.parse(fs.readFileSync(path.join(KIT, "library", "index.json"), "utf8")) as LibraryPhoto[]
+  const portrait = (theme: string) =>
+    index
+      .filter((photo) => photo.orientation === "portrait" && photo.theme === theme)
+      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+  const family = portrait("family-and-outdoors")
+  const travel = portrait("road-trips-and-travel")
+  const picked = [family[0], travel[0], family[1]].filter((photo): photo is LibraryPhoto => !!photo)
+  if (picked.length < 3) throw new Error("need 3 portrait photos from family-and-outdoors and road-trips-and-travel")
+  return picked
+}
 
 type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number }
 
@@ -91,7 +120,7 @@ async function skillId(client: Anthropic): Promise<string> {
   for await (const skill of client.beta.skills.list({ betas: ["skills-2025-10-02"] })) {
     if (skill.display_title === DISPLAY_TITLE) return skill.id
   }
-  throw new Error("custom skill av-campaign-report is not uploaded")
+  throw new Error("custom skill av-campaign-report-v5 is not uploaded")
 }
 
 function sofficeUsed(logs: string[]): boolean {
@@ -101,37 +130,95 @@ function sofficeUsed(logs: string[]): boolean {
   return true
 }
 
-async function localSoffice(): Promise<string | null> {
+function localSoffice(): string | null {
   const candidates = [
-    "soffice",
     "C:\\Program Files\\LibreOffice\\program\\soffice.exe",
     "C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe",
   ]
-  for (const candidate of candidates) {
-    try {
-      await execFileAsync(candidate, ["--version"])
-      return candidate
-    } catch {
-      // try the next path
-    }
-  }
-  return null
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null
 }
 
-async function renderPngs(soffice: string | null, pptxPath: string, mba: string): Promise<string[]> {
-  if (!soffice) return []
-  const pdfPath = path.join(outDir, `${mba}.pdf`)
-  await execFileAsync(soffice, ["--headless", "--convert-to", "pdf", "--outdir", outDir, pptxPath])
-  const rendered: string[] = []
-  try {
-    await execFileAsync("pdftoppm", ["-png", pdfPath, path.join(outDir, mba)])
-    rendered.push(...fs.readdirSync(outDir).filter((name) => name.startsWith(`${mba}-`) && name.endsWith(".png")).map((name) => path.join(outDir, name)))
-  } catch {
-    const pngPath = path.join(outDir, `${mba}.png`)
-    await execFileAsync(soffice, ["--headless", "--convert-to", "png", "--outdir", outDir, pptxPath])
-    if (fs.existsSync(pngPath)) rendered.push(pngPath)
+async function contactSheet(slides: string[], dest: string): Promise<void> {
+  const cols = 4
+  const thumbW = 320
+  const gap = 8
+  const first = await sharp(slides[0]).metadata()
+  const thumbH = Math.max(1, Math.round(thumbW * ((first.height ?? 1) / (first.width ?? 1))))
+  const rows = Math.ceil(slides.length / cols)
+  const width = cols * thumbW + (cols + 1) * gap
+  const height = rows * thumbH + (rows + 1) * gap
+  const composites = []
+  for (let i = 0; i < slides.length; i += 1) {
+    const input = await sharp(slides[i]).resize(thumbW, thumbH).png().toBuffer()
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    composites.push({
+      input,
+      left: gap + col * (thumbW + gap),
+      top: gap + row * (thumbH + gap),
+    })
   }
-  return rendered
+  await sharp({
+    create: { width, height, channels: 3, background: { r: 239, g: 233, b: 223 } },
+  })
+    .composite(composites)
+    .png()
+    .toFile(dest)
+}
+
+function localPdftoppm(): string {
+  const root = path.join(process.env.LOCALAPPDATA ?? "", "Microsoft", "WinGet", "Packages")
+  const found: string[] = []
+  const walk = (dir: string, depth: number) => {
+    if (depth > 6 || !fs.existsSync(dir)) return
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name)
+      if (entry.isFile() && entry.name.toLowerCase() === "pdftoppm.exe") found.push(full)
+      else if (entry.isDirectory()) walk(full, depth + 1)
+    }
+  }
+  walk(root, 0)
+  return found[0] ?? "pdftoppm"
+}
+
+async function renderSlides(
+  soffice: string | null,
+  pptxPath: string,
+  stem: string,
+): Promise<{ slides: string[]; sheet: string | null }> {
+  if (!soffice) return { slides: [], sheet: null }
+  const pdfPath = path.join(outDir, `${stem}.pdf`)
+  const profile = `file:///${path.join(os.tmpdir(), `lo-${stem}`).replace(/\\/g, "/")}`
+  await execFileAsync(soffice, [
+    "--headless",
+    "--norestore",
+    "--nolockcheck",
+    `--env:UserInstallation=${profile}`,
+    "--convert-to",
+    "pdf",
+    "--outdir",
+    outDir,
+    pptxPath,
+  ])
+  const slideDir = path.join(outDir, stem)
+  fs.mkdirSync(slideDir, { recursive: true })
+  await execFileAsync(localPdftoppm(), ["-png", "-r", "40", pdfPath, path.join(slideDir, "slide")])
+  const numbered = fs
+    .readdirSync(slideDir)
+    .filter((name) => /^slide-?\d+\.png$/.test(name))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+  const slides: string[] = []
+  for (const name of numbered) {
+    const num = Number(name.match(/(\d+)/)?.[1] ?? "0")
+    const dest = path.join(slideDir, `slide-${String(num).padStart(2, "0")}.png`)
+    const src = path.join(slideDir, name)
+    if (src !== dest) fs.renameSync(src, dest)
+    slides.push(dest)
+  }
+  if (slides.length === 0) return { slides, sheet: null }
+  const sheet = path.join(outDir, `${stem}-sheet.png`)
+  await contactSheet(slides, sheet)
+  return { slides, sheet }
 }
 
 function is499(err: unknown): boolean {
@@ -226,6 +313,7 @@ async function downloadOutputs(
 }
 
 async function runOne(client: Anthropic, id: string, mba: string): Promise<number> {
+  const stem = `${mba}-v5`
   const jsonPath = path.join(
     repoRoot,
     "docs/superpowers/overnight-av-fixes/discovery",
@@ -237,21 +325,33 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
   const deckJson = JSON.stringify(deckPayload)
   const deckBytes = Buffer.byteLength(deckJson)
   fs.mkdirSync(outDir, { recursive: true })
-  const deckJsonPath = path.join(outDir, `${mba}-report-data.json`)
+  const deckJsonPath = path.join(outDir, `${stem}-report-data.json`)
   fs.writeFileSync(deckJsonPath, deckJson)
   console.log(JSON.stringify({ mba, deck_payload_bytes: deckBytes, deck_payload: deckJsonPath }))
 
   const started = Date.now()
-  const templatePath = path.join(here, "av-campaign-report", "assets", "assembled-template.pptx")
-  const [reportFile, templateFile] = await Promise.all([
+  const photos = pickCoverPhotos()
+  console.log(JSON.stringify({
+    mba,
+    photo_ids: photos.map((photo) => photo.id),
+    photo_themes: photos.map((photo) => photo.theme),
+  }))
+  const templatePath = path.join(KIT, "templates", "Assembled-Media-Template-v5.potx")
+  const [reportFile, templateFile, ...photoFiles] = await Promise.all([
     toFile(Buffer.from(deckJson), "report-data.json", { type: "application/json" }),
-    toFile(fs.readFileSync(templatePath), "assembled-template.pptx", {
-      type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    toFile(fs.readFileSync(templatePath), "Assembled-Media-Template-v5.potx", {
+      type: "application/vnd.openxmlformats-officedocument.presentationml.template",
     }),
+    ...photos.map((photo) =>
+      toFile(fs.readFileSync(path.join(KIT, photo.file)), path.basename(photo.file), {
+        type: "image/jpeg",
+      }),
+    ),
   ])
-  const [uploaded, template] = await Promise.all([
+  const [uploaded, template, ...uploadedPhotos] = await Promise.all([
     client.beta.files.upload({ file: reportFile, betas: ["files-api-2025-04-14"] }),
     client.beta.files.upload({ file: templateFile, betas: ["files-api-2025-04-14"] }),
+    ...photoFiles.map((file) => client.beta.files.upload({ file, betas: ["files-api-2025-04-14"] })),
   ])
   console.log(JSON.stringify({
     mba,
@@ -260,15 +360,21 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
     input_filename: uploaded.filename,
     template_file_id: template.id,
     template_filename: template.filename,
+    photo_file_ids: uploadedPhotos.map((photo, index) => ({
+      library_id: photos[index]?.id,
+      file_id: photo.id,
+      filename: photo.filename,
+    })),
   }))
 
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     {
       role: "user",
       content: [
-        { type: "text", text: USER_MESSAGE },
+        { type: "text", text: USER_MESSAGE, cache_control: { type: "ephemeral" } },
         { type: "container_upload", file_id: uploaded.id },
         { type: "container_upload", file_id: template.id },
+        ...uploadedPhotos.map((photo) => ({ type: "container_upload" as const, file_id: photo.id })),
       ],
     },
   ]
@@ -296,10 +402,7 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
           tools: [{ type: "code_execution_20250825", name: "code_execution" }],
           container: {
             id: containerId,
-            skills: [
-              { type: "custom", skill_id: id, version: "latest" },
-              { type: "anthropic", skill_id: "pptx", version: "latest" },
-            ],
+            skills: [{ type: "custom", skill_id: id, version: "latest" }],
           },
           output_config: outputConfig,
           messages,
@@ -316,7 +419,7 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
           elapsed_ms: elapsedMs,
         }
         console.log(JSON.stringify(line))
-        appendCallLog(mba, line)
+        appendCallLog(stem, line)
         throw new Error(`HTTP 499 after ${elapsedMs}ms.`)
       }
       const status = err instanceof Anthropic.APIError ? err.status : undefined
@@ -329,24 +432,30 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
         message: err instanceof Error ? err.message : String(err),
       }
       console.log(JSON.stringify(line))
-      appendCallLog(mba, line)
+      appendCallLog(stem, line)
       throw err
     }
 
     const elapsedMs = Date.now() - callStarted
-    saveCallResponse(mba, call, response)
+    saveCallResponse(stem, call, response)
     containerId = response.container?.id ?? containerId
     addUsage(usage, response.usage)
     walkOutputs(response.content, fileIds, logs)
-    await downloadOutputs(client, mba, call, fileIds, seenFiles)
+    await downloadOutputs(client, stem, call, fileIds, seenFiles)
     const steps = containerSteps(response.content)
-    printSteps(mba, call, steps)
+    printSteps(stem, call, steps)
     const lastCommand = steps.length
       ? steps[steps.length - 1].command
       : lastToolCommand(response.content)
     stopReason = response.stop_reason ?? ""
     const inputTokens = response.usage.input_tokens
     const continuation = call > 1
+    const callUsage = {
+      input: inputTokens,
+      output: response.usage.output_tokens,
+      cacheRead: response.usage.cache_read_input_tokens ?? 0,
+      cacheWrite: response.usage.cache_creation_input_tokens ?? 0,
+    }
     const usageLine = {
       event: "usage",
       mba,
@@ -354,15 +463,17 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
       effort,
       call,
       continuation,
-      input_tokens: inputTokens,
-      output_tokens: response.usage.output_tokens,
-      cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
-      cache_write_input_tokens: response.usage.cache_creation_input_tokens ?? 0,
+      input_tokens: callUsage.input,
+      output_tokens: callUsage.output,
+      cache_read_input_tokens: callUsage.cacheRead,
+      cache_write_input_tokens: callUsage.cacheWrite,
+      call_cost_usd: Number(estimateUsd(callUsage).toFixed(4)),
+      run_cost_usd: Number(estimateUsd(usage).toFixed(4)),
       stop_reason: stopReason,
       elapsed_ms: elapsedMs,
     }
     console.log(JSON.stringify(usageLine))
-    appendCallLog(mba, usageLine)
+    appendCallLog(stem, usageLine)
 
     const breach = overInputCap(inputTokens, usage.input, caps, continuation)
     if (breach) {
@@ -380,7 +491,7 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
         last_tool_command: clipCommand(lastCommand),
       }
       console.log(JSON.stringify(line))
-      appendCallLog(mba, line)
+      appendCallLog(stem, line)
       throw new Error(`${reason}. Last tool command:\n${clipCommand(lastCommand)}`)
     }
 
@@ -393,7 +504,7 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
         last_tool_command: clipCommand(lastCommand),
       }
       console.log(JSON.stringify(line))
-      appendCallLog(mba, line)
+      appendCallLog(stem, line)
       break
     }
     continuations += 1
@@ -403,9 +514,9 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
     })
   }
 
-  const pptxPath = path.join(outDir, `${mba}.pptx`)
+  const pptxPath = path.join(outDir, `${stem}.pptx`)
   fs.mkdirSync(outDir, { recursive: true })
-  fs.writeFileSync(path.join(outDir, `${mba}-container.log`), logs.join("\n"))
+  fs.writeFileSync(path.join(outDir, `${stem}-container.log`), logs.join("\n"))
   if (!fs.existsSync(pptxPath)) {
     throw new Error(
       `container wrote no pptx for ${mba}. stop_reason=${stopReason} file_ids=${[...fileIds].join(",") || "none"}`,
@@ -413,9 +524,11 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
   }
 
   const numberCheck = await checkDeckNumbers(pptxPath, deckJsonPath)
+  const brand = await checkBrand(pptxPath)
   const soffice = await localSoffice()
-  const renders = await renderPngs(soffice, pptxPath, mba)
+  const renders = await renderSlides(soffice, pptxPath, stem)
   const wallMs = Date.now() - started
+  const runCost = Number(estimateUsd(usage).toFixed(4))
   console.log(JSON.stringify({
     mba,
     wall_ms: wallMs,
@@ -425,16 +538,22 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
     cache_write_tokens: usage.cacheWrite,
     pause_turn_count: continuations,
     stop_reason: stopReason,
-    estimated_usd: Number(estimateUsd(usage).toFixed(4)),
-    price_usd_per_mtok: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+    estimated_usd: runCost,
+    run_cost_usd: runCost,
+    price_usd_per_mtok: PRICE_USD_PER_MTOK,
     model: reportModel(),
     soffice_in_container: sofficeUsed(logs),
     local_soffice: soffice,
     pptx: pptxPath,
     number_check_stray: numberCheck.stray,
     slide_count: numberCheck.slideCount,
-    renders,
+    brand_failures: brand,
+    slides: renders.slides,
+    contact_sheet: renders.sheet,
   }))
+  if (runCost > 1) {
+    console.log(JSON.stringify({ event: "cost_cap", mba, run_cost_usd: runCost, rerun: false }))
+  }
   return numberCheck.stray.length
 }
 
@@ -444,6 +563,9 @@ async function main() {
   const targets = process.argv.slice(2)
   if (targets.length === 0) {
     throw new Error("Pass an mba number. Example: hema007")
+  }
+  if (targets.some((mba) => mba.toLowerCase() === "curatif004")) {
+    throw new Error("curatif004 is not part of this run")
   }
   const caps = spikeInputCaps()
   console.log(JSON.stringify({
