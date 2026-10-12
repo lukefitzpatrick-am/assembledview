@@ -64,6 +64,7 @@ import { excludedFromMbaScopeNoteFromLines } from "@/lib/mediaplan/excludedMbaSc
 import type { MediaItems, MediaPlanHeader } from "@/lib/generateMediaPlan"
 import { explodeExcelLineItems } from "@/lib/docs/explodeExcelLineItems"
 import { filterMediaItemsForMbaScope } from "@/lib/docs/filterMediaItemsForMbaScope"
+import { orderOohLinesForExport } from "@/lib/mediaplan/lineItemOrder"
 import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 import { applyMbaScopeLineApprovals } from "@/lib/mediaplan/mbaScopeForSave"
 import { parsePersistedMbaScope } from "@/lib/mediaplan/mbaScopeClient"
@@ -253,9 +254,11 @@ export function buildMediaItemsFromPlanDetail(
     if (!Array.isArray(apiRows) || apiRows.length === 0) continue
     const mediaItemsKey = MBA_GET_TO_MEDIA_ITEMS[mbaKey]
     const config = CONTAINER_BY_MBA_GET[mbaKey]
-    const formLines = apiRows.map((raw) =>
+    const hydrated = apiRows.map((raw) =>
       hydrateFormLine(config, (raw ?? {}) as Record<string, unknown>, mediaItemsKey),
     )
+    const formLines =
+      mediaItemsKey === "ooh" ? orderOohLinesForExport(hydrated) : hydrated
     const feePct = resolveFeePctFromFeeLoading(mediaItemsKey, feeLoading)
     const excelRows = formLines.flatMap((formLine, lineIndex) =>
       explodeExcelLineItems(mediaItemsKey, formLine, feePct, lineIndex, {
