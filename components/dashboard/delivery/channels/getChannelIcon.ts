@@ -1,4 +1,4 @@
-import { AudioLines, Facebook, Gauge, MapPin, MessagesSquare, MonitorPlay, Music2, Search, Tv, Video } from "lucide-react"
+import { AudioLines, Facebook, Gauge, MapPin, MessagesSquare, MonitorPlay, Music2, Radio, Search, Tv, Video } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { ChannelKey } from "./types"
 
@@ -26,6 +26,8 @@ export function getChannelIcon(key: ChannelKey): LucideIcon {
       return AudioLines
     case "bvod":
       return Tv
+    case "assumed-spend":
+      return Radio
     case "plan-only":
       return Gauge
   }

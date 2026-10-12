@@ -106,6 +106,27 @@ describe("client dashboard expected media", () => {
     expect(missing.includes("Booked, no platform delivery")).toBe(false)
   })
 
+  it("labels assumed spend on Delivered and shows the reduced booked figure", () => {
+    const assumed = formatMoneyCompact(200)
+    const booked = formatMoneyCompact(300)
+    const tile = renderToStaticMarkup(
+      <HeroKPIBar
+        totalSpend={800}
+        totalBudget={FIGURE}
+        spendLabel="Expected media to date"
+        liveCampaigns={1}
+        plannedCampaigns={0}
+        budgetUtilized={20}
+        bookedNoPlatform={300}
+        deliveredHasData
+        deliveredToDate={1000}
+        deliveredAssumedSpend={200}
+      />,
+    )
+    expect(tile).toContain(`includes ${assumed} assumed`)
+    expect(tile).toContain(`Booked, no platform delivery: ${booked}`)
+  })
+
   it("names the campaign budget when the delivery schedule has no months", () => {
     const tile = renderToStaticMarkup(
       <HeroKPIBar

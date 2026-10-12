@@ -30,6 +30,7 @@ import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
 import MediaPlanVizSection from "@/components/dashboard/campaign/MediaPlanVizSection"
 import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetailsModal"
 import { PlannedAudienceSection } from "@/components/dashboard/campaign/PlannedAudienceSection"
+import { atlAssumedLineItems } from "@/components/dashboard/delivery/channels/assumedSpendAdapter"
 import { CampaignDeliverySection } from "@/components/dashboard/delivery/CampaignDeliverySection"
 import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
 import {
@@ -701,6 +702,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     digitalVideoLineItems: filteredDigitalVideo,
     digitalAudioLineItems: filteredDigitalAudio,
     bvodLineItems: filteredBvod,
+    atlLineItems: atlAssumedLineItems(filteredLineItemsMap),
     onCoverage: handleCoverage,
     onKpiReviewGroups: handleKpiReviewGroups,
     onDeliveredByLineId: handleDeliveredByLineId,

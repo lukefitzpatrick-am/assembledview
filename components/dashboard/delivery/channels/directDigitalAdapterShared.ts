@@ -1,3 +1,4 @@
+import { buildAssumedSpendSection, digitalAssumedSource } from "./assumedSpendAdapter"
 import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { formatMoney } from "@/lib/format/money"
@@ -375,8 +376,22 @@ export function buildDirectDigitalChannelSection(input: {
   const adRows = combinedRows.filter(
     (r) => r.channel === "ad-serving" && r.lineItemId && idSet.has(String(r.lineItemId).toLowerCase()),
   )
-  // No CM360 verification rows for these plan ids → hide the block entirely.
-  if (!adRows.length) return null
+  // No CM360 rows: an assume-spend plan renders Assumed spend. Anything else stays hidden.
+  if (!adRows.length) {
+    const source = digitalAssumedSource(key)
+    if (!source) return null
+    return buildAssumedSpendSection({
+      key,
+      lineItems: normalized.map((item) => ({ ...item, sourceTable: source.sourceTable })),
+      campaignStart,
+      campaignEnd,
+      lastSyncedAt,
+      asOfDate: asOfDate || getMelbourneTodayISO(),
+      feePctsByVersionId,
+      estimateVersionId,
+      mediaType: source.mediaType,
+    })
+  }
 
   const asAtISO = asOfDate || getMelbourneTodayISO()
   // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).

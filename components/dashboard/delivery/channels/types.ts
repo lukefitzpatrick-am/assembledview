@@ -22,6 +22,7 @@ export type ChannelKey =
   | "digital-video"
   | "digital-audio"
   | "bvod"
+  | "assumed-spend"
   | "plan-only"
 
 /**

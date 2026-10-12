@@ -10,7 +10,8 @@ import {
   deliveredQueryWindow,
   hasFixedCostMediaTypeLabel,
   sumDeliveredTotals,
-  sumDirectReportedSpendInRange,
+  directSpendWithAssumed,
+  snapshotSpendByLineId,
   asOfForDeliveredRange,
   programmaticLineItemIdsFromSnapshot,
   type DeliveredTotals,
@@ -143,26 +144,31 @@ export async function getDeliveredTotalsForClient(
     snapshotByMba.set(c.mbaNumber.trim().toLowerCase(), snapshots[i] ?? null)
   })
 
-  const fixedCostByMba = new Map<string, number>()
+  const fixedCostByMba = new Map<string, { spend: number; assumedSpend: number; assumedInBooked: number }>()
   for (const group of directGroups) {
     const key = group.mbaNumber.trim().toLowerCase()
     if (!mbaKeys.has(key)) continue
-    fixedCostByMba.set(
-      key,
-      (fixedCostByMba.get(key) ?? 0) +
-        sumDirectReportedSpendInRange(
-          group,
-          window?.startDate,
-          window?.endDate,
-          programmaticLineItemIdsFromSnapshot(snapshotByMba.get(key) ?? null),
-        ),
+    const snapshot = snapshotByMba.get(key) ?? null
+    const part = directSpendWithAssumed(
+      group,
+      window?.startDate,
+      window?.endDate,
+      programmaticLineItemIdsFromSnapshot(snapshot),
+      snapshotSpendByLineId(snapshot),
     )
+    const prev = fixedCostByMba.get(key) ?? { spend: 0, assumedSpend: 0, assumedInBooked: 0 }
+    fixedCostByMba.set(key, {
+      spend: prev.spend + part.spend,
+      assumedSpend: prev.assumedSpend + part.assumedSpend,
+      assumedInBooked: prev.assumedInBooked + part.assumedInBooked,
+    })
   }
 
   const perCampaign = campaigns.map((c, i) => {
     const snapshot = snapshots[i]
     const mbaKey = c.mbaNumber.trim().toLowerCase()
-    return combineDeliveredTotals(
+    const fixed = fixedCostByMba.get(mbaKey)
+    const combined = combineDeliveredTotals(
       snapshot
         ? {
             spendToDate: snapshot.planTotals.spendToDate,
@@ -170,8 +176,14 @@ export async function getDeliveredTotalsForClient(
             includesEstimatedSpend: snapshot.includesEstimatedSpend === true,
           }
         : null,
-      fixedCostByMba.get(mbaKey) ?? 0,
+      fixed?.spend ?? 0,
     )
+    return {
+      ...combined,
+      ...(fixed && fixed.assumedSpend > 0
+        ? { assumedSpend: fixed.assumedSpend, assumedInBooked: fixed.assumedInBooked }
+        : {}),
+    }
   })
 
   const totals = sumDeliveredTotals(perCampaign)
