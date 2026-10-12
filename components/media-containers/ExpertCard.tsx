@@ -916,14 +916,14 @@ export function ExpertCard<T extends FieldValues>({
   return (
     <Card
       className={cn(
-        "space-y-3 overflow-hidden border border-border/50 bg-surface-muted shadow-none transition-colors duration-200 hover:border-[var(--dashboard-border-hover)]",
+        "space-y-3 overflow-hidden border border-border/50 bg-card shadow-none transition-colors duration-200 hover:border-[var(--dashboard-border-hover)]",
         isNew && "ring-2 ring-status-warning/70 ring-offset-1 ring-offset-background",
         className
       )}
       data-draft-new-line={isNew ? "true" : undefined}
       data-line-item-id={lineItemId}
     >
-      <CardHeader className="bg-muted/30 py-2.5">
+      <CardHeader className="bg-card py-2.5">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
@@ -1016,7 +1016,9 @@ export function ExpertCard<T extends FieldValues>({
         </div>
       </CardHeader>
 
-      {summaryRow}
+      {summaryRow ? (
+        <div className="bg-surface-muted">{summaryRow}</div>
+      ) : null}
 
       {!collapsed ? (
         <>

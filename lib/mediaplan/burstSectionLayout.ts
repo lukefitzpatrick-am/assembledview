@@ -14,13 +14,13 @@ export const MP_BURST_ACTION_COLUMN =
   "flex items-end gap-2 self-end pb-1 shrink-0"
 
 export const MP_BURST_CARD =
-  "mx-2 rounded-card border border-border bg-surface-muted shadow-e0"
+  "mx-2 rounded-card border border-border bg-card shadow-none"
 
 export const MP_BURST_CARD_CONTENT = "py-2 px-4"
 
 /** @deprecated Header row removed — Television uses inline field labels per row. */
 export const MP_BURST_HEADER_SHELL =
-  "w-full rounded-t-lg border-b border-border/50 bg-gradient-to-r from-muted/60 to-muted/30 sticky top-0 z-10 backdrop-blur-sm"
+  "w-full border-b border-border/50 bg-surface-muted sticky top-0 z-10"
 
 /** @deprecated */
 export const MP_BURST_HEADER_INNER = "flex items-end gap-3 px-4 py-1.5"
