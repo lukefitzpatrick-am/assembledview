@@ -121,6 +121,7 @@ pct === 100 → fee = 0 (division guard)
 - `mediaAmount` = *planned* media, sourced from `deliveryMediaAmount` → non-zero for client-pays lines.
 - Persist path passes line `buy_type`/`buyType` into `serializeBurstsJson` → `computeBurstAmounts`, so `bonus` / `package_inclusions` always write zero media/fee.
 - Expert Apply `preservePreviousBurstsIfApplyWouldZeroBudget` does **not** restore previous bursts when the **generated** line's buy type is `bonus` / `package_inclusions` — generated zero is the intended budget. Every other buy type still refuses Apply that would wipe a non-zero card total. Match is case-insensitive and trimmed (same as fee math).
+- OOH Expert Apply stores the week quantity on `calculatedValue` for `bonus` and `package_inclusions` via `roundDeliverables`. Budget and buy amount stay `"0"`. Reopen shows that stored quantity, including 0.
 - `lib/pacing/burst/parseBursts.ts` key names are contractually aligned with the serializer — change both or neither.
 - Expert grids' `sumFee` reads `expertRowFeeSplit` output, NOT `bursts_json[].fee` — orthogonal paths that look identical.
 - Burst money as `z.number()` vs string: `baseBurstShape` in `lib/mediaplan/schemas.ts` is extended by every channel schema — a type change there fans out to all of them.

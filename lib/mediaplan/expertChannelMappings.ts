@@ -1213,9 +1213,7 @@ export function mapOohExpertRowsToStandardLineItems(
             ? formatBurstBudget(unitRate)
             : formatRate(unitRate)
       let calculatedValue: number
-      if (isInclusionBuyType) {
-        calculatedValue = 0
-      } else if (usesManualDeliverable) {
+      if (usesManualDeliverable) {
         calculatedValue = roundDeliverables(bt, qty)
       } else if (btLower === "cpm") {
         calculatedValue = roundDeliverables(
@@ -1624,9 +1622,7 @@ export function mapStandardOohLineItemsToExpertRows(
             ? b.calculatedValue
             : parseNum(b.calculatedValue)
       if (!Number.isFinite(totalDeliverables)) continue
-      if (isBonusBurst) {
-        totalDeliverables = totalDeliverables > 0 ? totalDeliverables : 1
-      } else if (buyType.toLowerCase() === "fixed_cost") {
+      if (buyType.toLowerCase() === "fixed_cost") {
         totalDeliverables = totalDeliverables > 0 ? totalDeliverables : 1
       }
       if (totalDeliverables === 0 && !isBonusBurst && buyType.toLowerCase() !== "bonus") continue
