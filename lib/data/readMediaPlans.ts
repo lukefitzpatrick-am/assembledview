@@ -459,6 +459,25 @@ export async function readPlanVersionsForMbas(
 }
 
 /**
+ * Schedule fields for the version ids on one pacing-detail page.
+ * One autocommit `getDb()` select. Not `withPgReadLimits` and not
+ * `readPublishedOrLivePlanVersions`.
+ */
+export async function readPlanVersionSchedulesByIds(
+  versionIds: readonly number[],
+): Promise<Record<string, unknown>[]> {
+  const ids = [...new Set(versionIds.filter((id) => Number.isInteger(id) && id > 0))]
+  if (ids.length === 0) return []
+  const db = getDb()
+  const v = schema.mediaPlanVersions
+  const rows = await labelPlanQuery(
+    db.select(planVersionColumns(true)).from(v).where(inArray(v.id, ids)),
+    "readPlanVersionSchedulesByIds",
+  )
+  return mapVersionRows(rows as Record<string, unknown>[])
+}
+
+/**
  * One row per master whose `published_version_id` points here and `published_at` is set.
  * Keeps `legacy_schedules` (planned-to-date reads `deliverySchedule`).
  */
