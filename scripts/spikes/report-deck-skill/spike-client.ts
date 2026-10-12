@@ -8,12 +8,12 @@ export const SPIKE_BETAS = [
   "output-128k-2025-02-19",
 ] as const
 
-/** Opus-class published rates. This script does not call a pricing API. */
+/** Opus 5.5 rates from platform.claude.com, 12 Oct 2026. This script does not call a pricing API. */
 export const PRICE_USD_PER_MTOK = {
-  input: 5,
-  output: 25,
-  cacheRead: 0.5,
-  cacheWrite: 6.25,
+  input: 4,
+  output: 20,
+  cacheRead: 0.2,
+  cacheWrite: 5,
 } as const
 
 export function reportModel(): string {

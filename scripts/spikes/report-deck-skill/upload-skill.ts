@@ -1,7 +1,10 @@
 /**
- * Create or update the av-campaign-report custom skill.
+ * Create or update a report-deck custom skill.
  *
  * node --env-file=.env.local --import tsx scripts/spikes/report-deck-skill/upload-skill.ts
+ * node --env-file=.env.local --import tsx scripts/spikes/report-deck-skill/upload-skill.ts v5
+ *
+ * `v5` creates av-campaign-report-v5 and does not touch av-campaign-report.
  */
 import fs from "node:fs"
 import path from "node:path"
@@ -10,8 +13,9 @@ import { toFile } from "@anthropic-ai/sdk"
 import { spikeClient } from "./spike-client"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const skillDir = path.join(here, "av-campaign-report")
-const DISPLAY_TITLE = "av-campaign-report"
+const v5 = process.argv.includes("v5")
+const skillDir = path.join(here, v5 ? "av-campaign-report-v5" : "av-campaign-report")
+const DISPLAY_TITLE = v5 ? "av-campaign-report-v5" : "av-campaign-report"
 
 function skillPaths(dir: string): string[] {
   const found: string[] = []
@@ -27,16 +31,18 @@ async function main() {
   const client = spikeClient()
   const uploads = await Promise.all(
     skillPaths(skillDir)
-      .filter((full) => path.basename(full) !== "assembled-template.pptx")
+      .filter((full) => v5 || path.basename(full) !== "assembled-template.pptx")
       .map((full) => {
         const rel = path.relative(skillDir, full).split(path.sep).join("/")
         return toFile(fs.readFileSync(full), `${DISPLAY_TITLE}/${rel}`)
       }),
   )
-  console.log(JSON.stringify({
-    omitted: "assets/assembled-template.pptx",
-    reason: "bundling the 16MB template made the prompt 1177171 tokens, over the 1000000 limit",
-  }))
+  if (!v5) {
+    console.log(JSON.stringify({
+      omitted: "assets/assembled-template.pptx",
+      reason: "bundling the 16MB template made the prompt 1177171 tokens, over the 1000000 limit",
+    }))
+  }
 
   let skillId: string | null = null
   for await (const skill of client.beta.skills.list({ betas: ["skills-2025-10-02"] })) {
