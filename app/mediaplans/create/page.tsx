@@ -299,7 +299,7 @@ import {
   kpiRowsForDraftDocuments,
   mergeDraftDocumentsBody,
 } from "@/lib/mediaplan/mergeDraftDocumentsBody"
-import { describePartialMbaPublishRail } from "@/lib/mediaplan/drafts/pill"
+import { describePartialMbaPublishRail, formatDraftSavedTime } from "@/lib/mediaplan/drafts/pill"
 import {
   buildMbaScopeForSaveBody,
   countablePartialMbaLineCount,
@@ -7075,7 +7075,7 @@ const handleSaveAll = async (opts?: {
     try {
       await planDraft.saveDraftNow()
       toast({
-        title: `Draft saved · ${new Date().toLocaleTimeString()}`,
+        title: `Draft saved · ${formatDraftSavedTime()}`,
       })
       clearDirtyOnSaveSuccess()
       router.push("/mediaplans")
