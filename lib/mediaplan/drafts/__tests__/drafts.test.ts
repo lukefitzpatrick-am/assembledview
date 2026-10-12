@@ -7,6 +7,7 @@ import {
   describeVersionHeaderTrail,
   describePartialMbaPublishRail,
   formatDraftOfferTimestamp,
+  formatDraftSavedTime,
   summarizeDraftOffer,
   summarizeLocalOnlyDraftOffer,
   pickNewerDraft,
@@ -256,6 +257,10 @@ describe("PC7 draft offer + newer wins", () => {
     assert.match(label, /9:01/)
     assert.match(label, /am/i)
     assert.doesNotMatch(label, /10\/12\/2026/)
+  })
+
+  it("formats the Draft saved toast as Melbourne time only", () => {
+    assert.equal(formatDraftSavedTime("2026-10-11T22:01:00Z"), "9:01 am")
   })
 
   it("summarises resume offer", () => {

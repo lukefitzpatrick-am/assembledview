@@ -279,6 +279,7 @@ import { isPlanDraftsEnabled } from "@/lib/mediaplan/drafts/flag"
 import {
   describePartialMbaPublishRail,
   describeVersionHeaderTrail,
+  formatDraftSavedTime,
   resolveTipVersionIdAtLoad,
   tipVersionIdAfterSave,
 } from "@/lib/mediaplan/drafts/pill"
@@ -11625,7 +11626,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     try {
       await planDraft.saveDraftNow()
       toast({
-        title: `Draft saved · ${new Date().toLocaleTimeString()}`,
+        title: `Draft saved · ${formatDraftSavedTime()}`,
       })
       clearDirtyOnSaveSuccess()
       router.push("/mediaplans")
@@ -11907,7 +11908,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
               try {
                 await planDraft.saveDraftNow()
                 toast({
-                  title: `Draft saved · ${new Date().toLocaleTimeString()}`,
+                  title: `Draft saved · ${formatDraftSavedTime()}`,
                 })
               } catch (err: unknown) {
                 const expired = isWriteSessionExpiredError(err)

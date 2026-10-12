@@ -116,6 +116,20 @@ export function formatDraftOfferTimestamp(updatedAt: string): string {
   })
 }
 
+/** Draft saved toast. Time only, same locale and zone as the offer timestamp. */
+export function formatDraftSavedTime(when: Date | string = new Date()): string {
+  const date = when instanceof Date ? when : new Date(when)
+  if (Number.isNaN(date.getTime())) return typeof when === "string" ? when : ""
+  return date
+    .toLocaleTimeString("en-AU", {
+      timeZone: "Australia/Melbourne",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    })
+    .replace(/[\u202f\u00a0]/g, " ")
+}
+
 export function summarizeLocalOnlyDraftOffer(updatedAt: string): string {
   return `You have unsaved local changes from ${formatDraftOfferTimestamp(updatedAt)}`
 }
