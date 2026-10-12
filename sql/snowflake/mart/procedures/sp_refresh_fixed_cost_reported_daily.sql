@@ -1,7 +1,8 @@
 -- ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_REPORTED_DAILY
 -- Rev 2026-09-16. Signature (VARCHAR DEFAULT NULL, BOOLEAN DEFAULT FALSE).
 -- Reads MART.XANO_LINE_ITEMS_SNAPSHOT (frozen name). prog_* and digi_* route to PACING_FACT; cpv reads VIDEO_3S_VIEWS.
--- ASSUME_SPEND lines copy BURSTS_JSON assumedDailyCents into daily rows (cents / 100). They skip delivery and the CPM cap.
+-- ASSUME_SPEND lines are written by SP_REFRESH_ASSUMED_SPEND_DAILY (cents / 100, CAP_APPLIED assumed_spend).
+-- A filtered CALL delegates that one line. The unfiltered window skips them.
 -- A line that is no longer ASSUME_SPEND, or that has a pacing fact row, loses its assumed_spend daily rows.
 -- Safety (author only; Luke applies in Snowsight): LOWER filter on LINE_ITEM_ID; QUALIFY latest SYNCED_AT per id.
 -- Do not CALL with a null id and BACKFILL_MODE true.
@@ -152,6 +153,7 @@ function parseBursts(burstsJson) {
     });
 }
 
+// Formula kept so the set-based proc can be checked against it. The main loop does not call this.
 function assumedSpendDailyData(burst) {
     const series = burst.assumedDailyCents || [];
     const reported = {};
@@ -723,7 +725,15 @@ const result = {
 for (const li of lineItems) {
     try {
         const assumeSpend = li.assumeSpend === true;
-        if (assumeSpend && lineHasDeliveryFact(li.lineItemId)) {
+        if (assumeSpend) {
+            // Single-line refresh delegates. The unfiltered window skips these lines.
+            if (lineItemIdFilter) {
+                snowflake.createStatement({
+                    sqlText: "CALL ASSEMBLEDVIEW.MART.SP_REFRESH_ASSUMED_SPEND_DAILY(''all'', ?)",
+                    binds: [lineItemIdFilter]
+                }).execute();
+                result.line_items_processed += 1;
+            }
             continue;
         }
         const fixedCost = isFixedCostBuyType(li.buyType);
