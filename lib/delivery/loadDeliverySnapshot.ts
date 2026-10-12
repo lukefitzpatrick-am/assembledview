@@ -25,6 +25,14 @@ import {
   resolveDeliveryState,
 } from "@/lib/delivery/deliveryState"
 import { estimateDirectDigitalSpend } from "@/lib/delivery/estimateDirectDigitalSpend"
+import {
+  channelKeyForEstimateGroup,
+  feePctFromVersionMap,
+  positiveVersionId,
+  versionIdFromLine,
+  type DirectDigitalFeeChannelKey,
+  type FeePctsByVersionId,
+} from "@/lib/delivery/directDigitalFeeLookup"
 import { expectedSpendToDateFromBursts } from "@/lib/spend/expectedSpendToDateFromBursts"
 import { planDeliverablesFromItem } from "@/lib/reports/campaignReport/reportFigures"
 
@@ -46,6 +54,13 @@ export type LoadDeliverySnapshotInput = {
    * Keys match `collectChannelPlans` (both spellings: bvod / digiBvod, progVideo, …).
    */
   lineItemsByChannel?: Record<string, unknown[]>
+  /**
+   * Channel fee percents already loaded for this request. When set, the
+   * snapshot does not read `mba_fee_snapshots` again.
+   */
+  feePctsByVersionId?: FeePctsByVersionId
+  /** Version on screen when a line omits `media_plan_version`. */
+  estimateVersionId?: number | null
 }
 
 export type LoadedDeliverySnapshot = {
@@ -74,6 +89,9 @@ type PlanLineMeta = {
   hasSource: boolean
   bursts: unknown
   buyType: string | null
+  budgetIncludesFees: boolean
+  versionId: number | null
+  feeChannel: DirectDigitalFeeChannelKey | null
 }
 
 function asNumber(value: unknown): number | null {
@@ -121,7 +139,11 @@ function dateFromItem(item: MediaContainerLineItem, keys: string[]): string | nu
   return null
 }
 
-function toPlanLineMeta(item: MediaContainerLineItem, group: string): PlanLineMeta | null {
+function toPlanLineMeta(
+  item: MediaContainerLineItem,
+  group: string,
+  fallbackVersionId: number | null,
+): PlanLineMeta | null {
   const id = extractPacingLineItemIdFromItem(item as Record<string, unknown>)
   if (!id) return null
   const plannedBudget = plannedBudgetFromItem(item)
@@ -145,6 +167,9 @@ function toPlanLineMeta(item: MediaContainerLineItem, group: string): PlanLineMe
     }),
     bursts: rec.bursts_json ?? rec.bursts ?? null,
     buyType: asString(rec.buy_type) ?? asString(rec.buyType),
+    budgetIncludesFees: rec.budget_includes_fees === true,
+    versionId: versionIdFromLine(rec) ?? fallbackVersionId,
+    feeChannel: channelKeyForEstimateGroup(group),
   }
 }
 
@@ -194,6 +219,7 @@ function applyDirectDigitalEstimates(
   deliveredById: Map<string, ReturnType<typeof emptyMetrics>>,
   pacingRows: PacingRow[],
   fixedCostIds: ReadonlySet<string>,
+  feePctsByVersionId: FeePctsByVersionId,
 ): Set<string> {
   const estimatedIds = new Set<string>()
   const daysByLine = new Map<string, PacingRow[]>()
@@ -220,6 +246,9 @@ function applyDirectDigitalEstimates(
       const estimate = estimateDirectDigitalSpend({
         lineItemId: id,
         buyType: plan.buyType,
+        budgetIncludesFees: plan.budgetIncludesFees,
+        feePct: feePctFromVersionMap(feePctsByVersionId, plan.versionId, plan.feeChannel),
+        versionId: plan.versionId,
         bursts: plan.bursts,
         days,
       })
@@ -385,6 +414,7 @@ function overlayReportedSpendOnSnapshot(
 
 function collectChannelPlans(
   byChannel: Record<string, MediaContainerLineItem[]>,
+  fallbackVersionId: number | null,
 ): {
   groups: Map<string, Map<string, PlanLineMeta>>
   allMetas: PlanLineMeta[]
@@ -409,28 +439,28 @@ function collectChannelPlans(
           : platform === "reddit"
             ? "social_reddit"
             : "plan_only"
-    const meta = toPlanLineMeta(item, group)
+    const meta = toPlanLineMeta(item, group, fallbackVersionId)
     if (!meta) continue
     allMetas.push(meta)
     ensure(group).set(meta.id, meta)
   }
 
   for (const item of byChannel.progDisplay ?? []) {
-    const meta = toPlanLineMeta(item, "programmatic_display")
+    const meta = toPlanLineMeta(item, "programmatic_display", fallbackVersionId)
     if (!meta) continue
     allMetas.push(meta)
     ensure("programmatic_display").set(meta.id, meta)
   }
 
   for (const item of byChannel.progVideo ?? []) {
-    const meta = toPlanLineMeta(item, "programmatic_video")
+    const meta = toPlanLineMeta(item, "programmatic_video", fallbackVersionId)
     if (!meta) continue
     allMetas.push(meta)
     ensure("programmatic_video").set(meta.id, meta)
   }
 
   for (const item of [...(byChannel.progOoh ?? []), ...(byChannel.progOOH ?? [])]) {
-    const meta = toPlanLineMeta(item, "programmatic_ooh")
+    const meta = toPlanLineMeta(item, "programmatic_ooh", fallbackVersionId)
     if (!meta) continue
     allMetas.push(meta)
     ensure("programmatic_ooh").set(meta.id, meta)
@@ -439,7 +469,7 @@ function collectChannelPlans(
   const ingestDirectDigital = (keys: readonly string[], group: string) => {
     for (const key of keys) {
       for (const item of byChannel[key] ?? []) {
-        const meta = toPlanLineMeta(item, group)
+        const meta = toPlanLineMeta(item, group, fallbackVersionId)
         if (!meta) continue
         allMetas.push(meta)
         ensure(group).set(meta.id, meta)
@@ -452,7 +482,7 @@ function collectChannelPlans(
   ingestDirectDigital(["bvod", "digiBvod", "digi_bvod"], "bvod")
 
   for (const item of byChannel.search ?? []) {
-    const meta = toPlanLineMeta(item, "search")
+    const meta = toPlanLineMeta(item, "search", fallbackVersionId)
     if (!meta) continue
     allMetas.push(meta)
     ensure("search").set(meta.id, meta)
@@ -471,6 +501,16 @@ function collectChannelPlans(
     searchIds,
     nonSearchIds: [...nonSearchIds].sort(),
   }
+}
+
+async function feePctsForDirectDigital(
+  provided: FeePctsByVersionId | undefined,
+  versionIds: number[],
+): Promise<FeePctsByVersionId> {
+  if (provided) return provided
+  if (versionIds.length === 0) return {}
+  const { loadDirectDigitalFeePcts } = await import("@/lib/delivery/readMbaFeeSnapshots")
+  return loadDirectDigitalFeePcts({ versionIds })
 }
 
 function hasProvidedLineItems(
@@ -496,7 +536,21 @@ export async function loadDeliverySnapshot(
   const byChannel = hasProvidedLineItems(input.lineItemsByChannel)
     ? (input.lineItemsByChannel as Record<string, MediaContainerLineItem[]>)
     : await fetchAllPlanLineItemsForDelivery(mba, versionNumber, input.mediaTypeFilter)
-  const { groups, allMetas, searchIds, nonSearchIds } = collectChannelPlans(byChannel)
+  const fallbackVersionId = positiveVersionId(input.estimateVersionId)
+  const { groups, allMetas, searchIds, nonSearchIds } = collectChannelPlans(
+    byChannel,
+    fallbackVersionId,
+  )
+  const feeVersionIds: number[] = []
+  for (const group of DIRECT_DIGITAL_ESTIMATE_GROUPS) {
+    for (const plan of groups.get(group)?.values() ?? []) {
+      if (plan.versionId != null) feeVersionIds.push(plan.versionId)
+    }
+  }
+  const feePctsByVersionId = await feePctsForDirectDigital(
+    input.feePctsByVersionId,
+    feeVersionIds,
+  )
   const fixedCostLineIds = collectFixedCostLineIds(byChannel)
   if (allMetas.length === 0) {
     console.warn("[loadDeliverySnapshot] no plan lines resolved", {
@@ -578,6 +632,7 @@ export async function loadDeliverySnapshot(
     deliveredById,
     pacingRows,
     new Set(fixedCostLineIds),
+    feePctsByVersionId,
   )
 
   let overlaySpendIds = new Set<string>()

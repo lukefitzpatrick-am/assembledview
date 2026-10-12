@@ -31,6 +31,7 @@ import MediaPlanVizSection from "@/components/dashboard/campaign/MediaPlanVizSec
 import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetailsModal"
 import { PlannedAudienceSection } from "@/components/dashboard/campaign/PlannedAudienceSection"
 import { CampaignDeliverySection } from "@/components/dashboard/delivery/CampaignDeliverySection"
+import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
 import {
   buildKpiReview,
   kpiReviewGroupsIdentity,
@@ -244,6 +245,8 @@ type CampaignPageAssemblyProps = {
   currentVersion: number
   /** Admin-only surfaces (Team hours, Recent insights). Clients never see them. */
   isAdmin?: boolean
+  feePctsByVersionId?: FeePctsByVersionId
+  estimateVersionId?: number | null
 }
 
 function formatLocalYmd(d: Date): string {
@@ -331,6 +334,8 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     availableVersions,
     currentVersion,
     isAdmin = false,
+    feePctsByVersionId,
+    estimateVersionId,
   } = props
 
   const filterRange: DateRange = useMemo(
@@ -700,6 +705,8 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     onKpiReviewGroups: handleKpiReviewGroups,
     onDeliveredByLineId: handleDeliveredByLineId,
     isAdmin: Boolean(isAdmin),
+    feePctsByVersionId,
+    estimateVersionId,
   }
 
   return (

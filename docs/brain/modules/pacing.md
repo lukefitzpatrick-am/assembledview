@@ -1,6 +1,6 @@
 # Module: Pacing & Delivery
 
-Tracks actual delivery (Snowflake facts) against plan (Xano media plans) at line-item + burst grain, for live campaigns, "as of" a Melbourne date. Four philosophies coexist: **spend pacing** (search/social/programmatic, including modelled spend when `derive_spend_from_plan`), **estimated CM360 direct digital** (`estimateDirectDigitalSpend`, labelled from `spendMode`), **verification counts** on the ad-serving DTO (`serving | no-data`, no `computePacing`), **fixed-cost** (direct — pre-computed in warehouse; reported replaces an estimate).
+Tracks actual delivery (Snowflake facts) against plan (Xano media plans) at line-item + burst grain, for live campaigns, "as of" a Melbourne date. Four philosophies coexist: **spend pacing** (search/social/programmatic, including modelled spend when `derive_spend_from_plan`), **estimated CM360 direct digital** (`estimateDirectDigitalSpend`, labelled from `spendMode`; a fee-inclusive budget with no media amount uses net media from that version's `mba_fee_snapshots` row), **verification counts** on the ad-serving DTO (`serving | no-data`, no `computePacing`), **fixed-cost** (direct — pre-computed in warehouse; reported replaces an estimate).
 
 ## Key files
 

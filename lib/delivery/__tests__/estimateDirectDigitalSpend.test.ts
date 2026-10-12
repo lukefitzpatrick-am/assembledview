@@ -104,3 +104,83 @@ test("hub Delivered total includes the estimated spend and keeps the flag", () =
   assert.equal(totals.spendToDate, 2_000)
   assert.equal(totals.includesEstimatedSpend, true)
 })
+
+test("$10,000 gross at 15% fee, 100,000 of 500,000 impressions, is the net rate times delivery", () => {
+  const result = estimateDirectDigitalSpend({
+    lineItemId: "golf025dd1",
+    buyType: "cpm",
+    budgetIncludesFees: true,
+    feePct: 15,
+    versionId: 42,
+    bursts: CPM_BURSTS,
+    days: [{ date: "2026-09-01", impressions: 100_000, clicks: 0, results: 0 }],
+  })
+  assert.equal(result.amount, 1_700)
+  assert.equal(result.plannedMedia, 8_500)
+  assert.equal(result.spendMode, "estimated")
+})
+
+test("a burst that already has mediaAmount is not converted", () => {
+  const result = estimateDirectDigitalSpend({
+    lineItemId: "golf025dd1",
+    buyType: "cpm",
+    budgetIncludesFees: true,
+    feePct: 15,
+    versionId: 42,
+    bursts: [{ budget: 10_000, mediaAmount: 10_000, calculatedValue: 500_000 }],
+    days: [{ date: "2026-09-01", impressions: 100_000 }],
+  })
+  assert.equal(result.amount, 2_000)
+})
+
+test("no fee snapshot keeps the gross budget and logs the version", () => {
+  const warnings: unknown[][] = []
+  const original = console.warn
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args)
+  }
+  try {
+    const result = estimateDirectDigitalSpend({
+      lineItemId: "golf025dd1",
+      buyType: "cpm",
+      budgetIncludesFees: true,
+      feePct: null,
+      versionId: 42,
+      bursts: CPM_BURSTS,
+      days: [{ date: "2026-09-01", impressions: 100_000 }],
+    })
+    assert.equal(result.amount, 2_000)
+    assert.equal(result.plannedMedia, 10_000)
+    assert.ok(
+      warnings.some(
+        (args) =>
+          args[0] === "[direct-digital-estimate] no fee snapshot for version 42; using gross",
+      ),
+    )
+  } finally {
+    console.warn = original
+  }
+})
+
+test("budget_includes_fees false keeps the gross budget", () => {
+  const warnings: unknown[][] = []
+  const original = console.warn
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args)
+  }
+  try {
+    const result = estimateDirectDigitalSpend({
+      lineItemId: "golf025dd1",
+      buyType: "cpm",
+      budgetIncludesFees: false,
+      feePct: 15,
+      versionId: 42,
+      bursts: CPM_BURSTS,
+      days: [{ date: "2026-09-01", impressions: 100_000 }],
+    })
+    assert.equal(result.amount, 2_000)
+    assert.equal(warnings.length, 0)
+  } finally {
+    console.warn = original
+  }
+})

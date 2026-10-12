@@ -14,6 +14,8 @@ import {
 import { ErrorState } from "@/components/ui/states"
 import { hasReportedDeliveredSpend } from "@/lib/delivery/deliveredTotals"
 import { getDeliveredTotalsForCampaign } from "@/lib/delivery/getDeliveredTotalsForCampaign"
+import { positiveVersionId, versionIdFromLine } from "@/lib/delivery/directDigitalFeeLookup"
+import { loadDirectDigitalFeePcts } from "@/lib/delivery/readMbaFeeSnapshots"
 export const maxDuration = 60
 
 interface CampaignDetailPageProps {
@@ -625,6 +627,23 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   // delivered (Task 3). Show a $ only when there is a real positive figure;
   // otherwise leave unset so the UI shows "Not available"/"No delivery reported
   // yet" (never a fabricated $0).
+  const directDigitalLines = [
+    ...digitalDisplayItemsActive,
+    ...digitalVideoItemsActive,
+    ...digitalAudioItemsActive,
+    ...bvodItemsActive,
+  ]
+  const feeVersionIds: number[] = []
+  const seenFeeVersions = new Set<number>()
+  for (const raw of [versionRecordId, ...directDigitalLines.map((item) => versionIdFromLine(item))]) {
+    const id = positiveVersionId(raw)
+    if (id == null || seenFeeVersions.has(id)) continue
+    seenFeeVersions.add(id)
+    feeVersionIds.push(id)
+  }
+  const feePctsByVersionId =
+    feeVersionIds.length > 0 ? await loadDirectDigitalFeePcts({ versionIds: feeVersionIds }) : {}
+
   const deliverySpendToDate = deriveSpendToDate(deliverySchedule)
   let actualSpend: number | undefined
   let deliveredImpressions: number | undefined
@@ -639,6 +658,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       versionNumber: Number.isFinite(vn) ? vn : undefined,
       mpSearchEnabled,
       lineItemsMap,
+      feePctsByVersionId,
+      estimateVersionId: versionRecordId,
     })
     // Gated on the spend figure itself, not `hasDelivery` (also true for impressions-only
     // delivery) — an impressions-only campaign must never show a fabricated "$0 delivered".
@@ -764,6 +785,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       availableVersions={availableVersions}
       currentVersion={resolvedVersionNumber ?? versionNumberFromQuery ?? 1}
       isAdmin={isAdminRole(role)}
+      feePctsByVersionId={feePctsByVersionId}
+      estimateVersionId={versionRecordId}
     />
   )
 }

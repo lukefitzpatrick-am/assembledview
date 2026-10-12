@@ -1,6 +1,7 @@
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
+import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
 import { buildDirectDigitalChannelSection } from "./directDigitalAdapterShared"
 import type { ChannelSectionData } from "./types"
 
@@ -17,6 +18,8 @@ export function buildBvodSection(input: {
   lastSyncedAt: Date | null
   reportedSpendByLineDate?: Map<string, Map<string, number>>
   isAdmin?: boolean
+  feePctsByVersionId?: FeePctsByVersionId
+  estimateVersionId?: number | null
 }): ChannelSectionData | null {
   return buildDirectDigitalChannelSection({
     key: "bvod",
