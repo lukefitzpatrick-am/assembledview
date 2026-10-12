@@ -160,6 +160,9 @@ export function oohLineDisplayNumber(item: object, index: number): number {
   return oohPersistedPosition(item as PositionedLine, index) + 1
 }
 
+/** Same label for every channel. */
+export const lineDisplayNumber = oohLineDisplayNumber
+
 /** Export / summary order follows position, not the id suffix. */
 export function orderOohLinesForExport<T>(items: readonly T[]): T[] {
   return items
@@ -172,15 +175,56 @@ export function orderOohLinesForExport<T>(items: readonly T[]): T[] {
     .map(({ item }) => item)
 }
 
+/** Same order for every channel. */
+export const orderLinesForExport = orderOohLinesForExport
+
+const MINTED_LINE_ID = new RegExp(
+  `(?:${[...Object.values(MEDIA_TYPE_ID_CODES), "ML"]
+    .sort((a, b) => b.length - a.length)
+    .join("|")})\\d+$`,
+  "i",
+)
+
+function restoreMintedSuffix<T extends LineItemWithIdentity>(item: T): T {
+  const id = String(item.line_item_id ?? item.lineItemId ?? "").trim()
+  const suffix = id ? parseLineNumberFromLineItemId(id) : null
+  if (suffix == null || !MINTED_LINE_ID.test(id)) return item
+  return { ...item, line_item: suffix, lineItem: suffix }
+}
+
 /**
- * OOH expert reorder: keep the id each line was minted with.
+ * Expert rows that are not an already-minted line id (a grid index or a
+ * row uuid) drop their identity so the next assign mints max + 1.
+ * Updated lines keep the id they already have.
+ */
+export function stripUnmintedLineIdentity<T extends LineItemWithIdentity>(items: T[]): T[] {
+  return items.map((item) => {
+    const id = String(item.line_item_id ?? item.lineItemId ?? "").trim()
+    if (id && MINTED_LINE_ID.test(id)) return item
+    return {
+      ...item,
+      line_item: undefined,
+      lineItem: undefined,
+      line_item_id: undefined,
+      lineItemId: undefined,
+    }
+  })
+}
+
+/**
+ * Reorder keeps the id each line was minted with.
  * `position` is the new array order (0-based, same as `line_items.position` on save).
  */
-export function keepOohLineIdsOnReorder<T extends LineItemWithIdentity>(
+export function keepLineIdsOnReorder<T extends LineItemWithIdentity>(
   items: T[],
   mbaNumber: string,
+  mediaTypeCode: MediaCode,
 ): Array<T & { position: number }> {
-  const stable = assignStableLineItemNumbers(items, mbaNumber, MEDIA_TYPE_ID_CODES.ooh)
+  const stable = assignStableLineItemNumbers(
+    items.map(restoreMintedSuffix),
+    mbaNumber,
+    mediaTypeCode,
+  )
   return stable.map((item, index) => ({ ...item, position: index }))
 }
 
@@ -189,16 +233,25 @@ export function keepOohLineIdsOnReorder<T extends LineItemWithIdentity>(
  * key first, then put the id suffix back on `line_item` before the stable
  * assign. Otherwise assign would rebuild the id from the display index.
  */
+export function prepareEditorLines<T extends LineItemWithIdentity>(
+  items: T[],
+  mbaNumber: string,
+  mediaTypeCode: MediaCode,
+): Array<T & { position: number }> {
+  return keepLineIdsOnReorder(orderLinesForExport(items), mbaNumber, mediaTypeCode)
+}
+
+/** OOH wrappers. Same behaviour as the channel-generic helpers. */
+export function keepOohLineIdsOnReorder<T extends LineItemWithIdentity>(
+  items: T[],
+  mbaNumber: string,
+): Array<T & { position: number }> {
+  return keepLineIdsOnReorder(items, mbaNumber, MEDIA_TYPE_ID_CODES.ooh)
+}
+
 export function prepareOohEditorLines<T extends LineItemWithIdentity>(
   items: T[],
   mbaNumber: string,
 ): Array<T & { position: number }> {
-  const ordered = orderOohLinesForExport(items)
-  const restored = ordered.map((item) => {
-    const id = String(item.line_item_id ?? item.lineItemId ?? "").trim()
-    const suffix = id ? parseLineNumberFromLineItemId(id) : null
-    if (suffix == null) return item
-    return { ...item, line_item: suffix, lineItem: suffix }
-  })
-  return keepOohLineIdsOnReorder(restored, mbaNumber)
+  return prepareEditorLines(items, mbaNumber, MEDIA_TYPE_ID_CODES.ooh)
 }

@@ -30,7 +30,13 @@ import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOv
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields } from "@/lib/mediaplan/lineItemIds"
 
 export type MediaCode = (typeof MEDIA_TYPE_ID_CODES)[keyof typeof MEDIA_TYPE_ID_CODES]
-import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  keepLineIdsOnReorder,
+  lineDisplayNumber,
+  prepareEditorLines,
+  stripUnmintedLineIdentity,
+} from "@/lib/mediaplan/lineItemOrder"
 import { channelInvestmentByMonth } from "@/lib/mediaplan/channelInvestment"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import type { BillingBurst } from "@/lib/billing/types"
@@ -361,9 +367,11 @@ export function useMediaChannelContainer(
       feeOpts,
     )
     const merged = config.mergeFromExpert(standard, prevLineItems)
-    const orderedForApply = reorderedRef.current
-      ? reassignLineItemNumbers(merged, mbaNumber, mediaTypeIdCode)
-      : merged
+    const orderedForApply = keepLineIdsOnReorder(
+      stripUnmintedLineIdentity(merged as any[]),
+      mbaNumber,
+      mediaTypeIdCode,
+    )
     reorderedRef.current = false
     const keyedMerged = stampBurstReactKeys(orderedForApply)
     const clearedOverride = expertApplyClearedAdServingOverride(
@@ -444,7 +452,7 @@ export function useMediaChannelContainer(
   useStableHydration(
     initialLineItems,
     (items) => {
-      const transformedLineItems = items.map((item: any) => {
+      const transformedLineItems = prepareEditorLines(items, mbaNumber, mediaTypeIdCode).map((item: any) => {
         const parsedBursts = resolveLineItemBursts(item)
         return {
           ...mapHydrationToForm(config.fieldMap, item),
@@ -571,7 +579,7 @@ export function useMediaChannelContainer(
       }
 
       return {
-        index: index + 1,
+        index: lineDisplayNumber(lineItem, index),
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,

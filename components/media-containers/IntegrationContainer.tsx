@@ -60,7 +60,13 @@ import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { channelSummaryTotals } from "@/lib/money/burst"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  keepLineIdsOnReorder,
+  lineDisplayNumber,
+  prepareEditorLines,
+  stripUnmintedLineIdentity,
+} from "@/lib/mediaplan/lineItemOrder"
 import {
   getMediaTypeThemeHex,
   mediaTypeLineItemBadgeStyle,
@@ -388,9 +394,11 @@ export default function IntegrationContainer({
       standard,
       prevLineItems as StandardIntegrationFormLineItem[]
     )
-    const orderedForApply = reorderedRef.current
-      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.integration)
-      : merged
+    const orderedForApply = keepLineIdsOnReorder(
+      stripUnmintedLineIdentity(merged),
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.integration,
+    )
     reorderedRef.current = false
     const keyedMerged = stampBurstReactKeys(orderedForApply);
     form.setValue("lineItems", keyedMerged as IntegrationFormValues["lineItems"], {
@@ -410,6 +418,7 @@ export default function IntegrationContainer({
     expertIntegrationRows,
     feeintegration,
     form,
+    mbaNumber,
     integrationExpertWeekColumns,
   ])
 
@@ -478,7 +487,11 @@ export default function IntegrationContainer({
       hasProcessedInitialLineItemsRef.current = true;
       lastProcessedLineItemsRef.current = lineItemsKey;
 
-      const transformedLineItems = dedupedInitialLineItems.map((item: any, index: number) => {
+      const transformedLineItems = prepareEditorLines(
+        dedupedInitialLineItems,
+        mbaNumber,
+        MEDIA_TYPE_ID_CODES.integration,
+      ).map((item: any, index: number) => {
         const parsedBursts = resolveLineItemBursts(item);
 
         const budgetIncludesFees = Boolean(item.budget_includes_fees || item.budgetIncludesFees);
@@ -581,7 +594,7 @@ export default function IntegrationContainer({
       const row = money.lines[index];
 
       return {
-        index: index + 1,
+        index: lineDisplayNumber(lineItem, index),
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,

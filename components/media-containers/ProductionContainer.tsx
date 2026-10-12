@@ -96,7 +96,9 @@ import {
 import { buildLineItemId, MEDIA_TYPE_ID_CODES, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
   assignStableLineItemNumbers,
-  reassignLineItemNumbers,
+  keepLineIdsOnReorder,
+  prepareEditorLines,
+  stripUnmintedLineIdentity,
 } from "@/lib/mediaplan/lineItemOrder"
 import { formatProductionBurstForPersist } from "@/lib/mediaplan/resolveProductionBurstBudget"
 import {
@@ -452,9 +454,11 @@ export default function ProductionContainer({
       standard,
       prevLineItems as StandardProductionFormLineItem[]
     )
-    const orderedForApply = reorderedRef.current
-      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.production)
-      : merged
+    const orderedForApply = keepLineIdsOnReorder(
+      stripUnmintedLineIdentity(merged),
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.production,
+    )
     reorderedRef.current = false
     const keyedMerged = stampBurstReactKeys(orderedForApply)
     form.setValue("lineItems", keyedMerged as any, {
@@ -484,7 +488,7 @@ export default function ProductionContainer({
     initialLineItems,
     (items) => {
       try {
-        const normalized = items.map((item: any, idx: number) => {
+        const normalized = prepareEditorLines(items, mbaNumber, MEDIA_TYPE_ID_CODES.production).map((item: any, idx: number) => {
           const rawBursts =
             typeof item.bursts_json === "string"
               ? (() => {

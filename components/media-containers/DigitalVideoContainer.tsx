@@ -48,7 +48,13 @@ import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstR
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId, nextLineFields, resolvedLineItemId } from "@/lib/mediaplan/lineItemIds"
-import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  assignStableLineItemNumbers,
+  keepLineIdsOnReorder,
+  lineDisplayNumber,
+  prepareEditorLines,
+  stripUnmintedLineIdentity,
+} from "@/lib/mediaplan/lineItemOrder"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { cn } from "@/lib/utils"
 import { segmentChipClass } from "@/components/layout/navChip"
@@ -464,9 +470,11 @@ export default function DigiVideoContainer({
       standard,
       prevLineItems as StandardDigiVideoFormLineItem[]
     )
-    const orderedForApply = reorderedRef.current
-      ? reassignLineItemNumbers(merged, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo)
-      : merged
+    const orderedForApply = keepLineIdsOnReorder(
+      stripUnmintedLineIdentity(merged),
+      mbaNumber,
+      MEDIA_TYPE_ID_CODES.digitalVideo,
+    )
     reorderedRef.current = false
     const keyedMerged = stampBurstReactKeys(orderedForApply)
     const clearedOverride = expertApplyClearedAdServingOverride(
@@ -499,6 +507,7 @@ export default function DigiVideoContainer({
     expertDigiVideoRows,
     feedigivideo,
     form,
+    mbaNumber,
     digiVideoExpertWeekColumns,
     toast,
   ])
@@ -543,7 +552,7 @@ export default function DigiVideoContainer({
   useStableHydration(
     initialLineItems,
     (items) => {
-      const transformedLineItems = items.map((item: any) => {
+      const transformedLineItems = prepareEditorLines(items, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo).map((item: any) => {
         const parsedBursts = resolveLineItemBursts(item);
         return {
         ...mapHydrationToForm(DIGITALVIDEO_CONTAINER_CONFIG.fieldMap, item),
@@ -634,7 +643,7 @@ export default function DigiVideoContainer({
       const row = money.lines[index];
 
       return {
-        index: index + 1,
+        index: lineDisplayNumber(lineItem, index),
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,
