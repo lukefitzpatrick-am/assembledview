@@ -14,6 +14,7 @@ import {
   type DeriveSpendBurstInput,
   type DeriveSpendDayInput,
 } from "@/lib/delivery/deriveSpendFromPlanRate"
+import { roundMoney2 } from "@/lib/money"
 
 export const ESTIMATED_SPEND_LABEL = "Estimated spend"
 export const NO_PLANNED_IMPRESSIONS = "No planned impressions"
@@ -100,8 +101,7 @@ export function estimateDirectDigitalSpend(
     }
   }
 
-  const amount =
-    Math.round(derived.days.reduce((sum, day) => sum + day.derivedSpend, 0) * 100) / 100
+  const amount = roundMoney2(derived.days.reduce((sum, day) => sum + day.derivedSpend, 0))
 
   return {
     amount,
