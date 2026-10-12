@@ -170,20 +170,20 @@ function spendDraft(input: {
     input.burstStart && input.burstEnd && input.burstBudget != null
       ? lineTimePct(input.burstStart, input.burstEnd, input.asOf)
       : 0
+  const expectedToDate = input.rate
+    ? lineExpectedNetToDate({
+        bursts: input.rate.bursts,
+        budgetIncludesFees: input.rate.budgetIncludesFees,
+        feePct: input.rate.feePct,
+        lineBudget: input.budget,
+        lineStart: input.start,
+        lineEnd: input.end,
+        asOf: input.asOf,
+        lineItemId: input.lineItemId,
+      })
+    : 0
   const linePct = input.rate
-    ? spendPctOfExpected(
-        input.spend,
-        lineExpectedNetToDate({
-          bursts: input.rate.bursts,
-          budgetIncludesFees: input.rate.budgetIncludesFees,
-          feePct: input.rate.feePct,
-          lineBudget: input.budget,
-          lineStart: input.start,
-          lineEnd: input.end,
-          asOf: input.asOf,
-          lineItemId: input.lineItemId,
-        }),
-      )
+    ? spendPctOfExpected(input.spend, expectedToDate)
     : spendVsExpectedPct(input.spend, input.budget, timePct)
   const burstPct =
     input.burstSpend != null && input.burstBudget != null && input.burstStart
@@ -219,6 +219,7 @@ function spendDraft(input: {
     kpiStatus: input.kpiStatus,
     timePct,
     linePct,
+    expectedToDate,
     burstPct,
     spend: input.spend,
     budget: input.budget,
@@ -530,6 +531,7 @@ export function lineCardFromAdServing(
     kpiStatus: null,
     timePct,
     linePct,
+    expectedToDate: 0,
     burstPct,
     spend: 0,
     budget: 0,
@@ -662,4 +664,25 @@ export function lineCardsFromDirectGroup(
   asOf: string,
 ): LineCardModel[] {
   return group.lineItems.map((line) => lineCardFromDirect(group, line, asOf))
+}
+
+/** Point a line card at its reconciled dollar expected and refresh the pace percent. */
+export function withReconciledLineExpected(
+  card: LineCardModel,
+  expected: number,
+  asOf: string,
+): LineCardModel {
+  if (card.verificationOnly) return card
+  const linePct = expected > 0 ? (card.spend / expected) * 100 : card.spend > 0 ? 100 : 0
+  const pace = resolveLinePace({
+    timePct: card.timePct,
+    linePct,
+    spend: card.spend,
+    budget: card.budget,
+    start: card.lineStart,
+    asOf,
+    hasFactRows: card.sourceState === "reporting" || card.spend > 0,
+  })
+  const why = card.why.replace(/(\d+)% of expected/g, `${Math.round(linePct)}% of expected`)
+  return { ...card, linePct, pace, expectedToDate: expected, why }
 }

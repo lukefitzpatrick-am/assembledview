@@ -10,6 +10,14 @@ import { MEDIA_CONTAINER_ENDPOINTS } from "@/lib/api/media-containers"
 import { readPlanVersionsByMba } from "@/lib/data/readMediaPlans"
 import { normalizeDateToMelbourneISO } from "@/lib/dates/normalizeCampaignDateISO"
 import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
+import {
+  channelExpectedToDate,
+  reconcileLineExpected,
+  scheduleKeyForLineItemId,
+  scheduleKeyForReportGroup,
+  slicesByKey,
+} from "@/lib/spend/channelExpectedToDate"
+import type { DeliveryLineSnapshot } from "@/lib/ava/tools/summaries"
 
 type MediaTypeKey = keyof typeof MEDIA_CONTAINER_ENDPOINTS
 
@@ -59,6 +67,46 @@ function resolveMediaContainerScope(context: AvaToolContext): {
   return {
     versionNumber,
     mediaTypeFilter: mediaTypeFilter.length > 0 ? mediaTypeFilter : undefined,
+  }
+}
+
+function applyScheduleLineExpected(
+  channels: Array<{ group: string; lines: DeliveryLineSnapshot[] }>,
+  input: {
+    deliverySchedule: unknown
+    campaignStartISO: string | null
+    campaignEndISO: string | null
+    asOfISO: string
+  },
+): void {
+  const slices = slicesByKey(channelExpectedToDate(input))
+  if (slices.size === 0) return
+  const byKey = new Map<string, DeliveryLineSnapshot[]>()
+  for (const channel of channels) {
+    for (const line of channel.lines) {
+      const key =
+        channel.group === "assumed_spend"
+          ? scheduleKeyForLineItemId(line.lineItemId)
+          : scheduleKeyForReportGroup(channel.group)
+      if (!key || !slices.has(key)) continue
+      const list = byKey.get(key) ?? []
+      list.push(line)
+      byKey.set(key, list)
+    }
+  }
+  for (const [key, lines] of byKey) {
+    const allocated = reconcileLineExpected(
+      slices.get(key) ?? 0,
+      lines.map((line) => ({
+        id: line.lineItemId,
+        lineExpected: line.expectedNetToDate ?? 0,
+        plannedMedia: line.plannedBudget ?? 0,
+      })),
+    )
+    for (const line of lines) {
+      const next = allocated.get(line.lineItemId)
+      if (next != null) line.expectedNetToDate = next
+    }
   }
 }
 
@@ -114,7 +162,7 @@ export const getDeliverySnapshotTool: AvaTool = {
         endDate: asString(args.endDate),
       })
 
-      const summarised = summariseDeliverySnapshot(snapshot)
+      let summarised = summariseDeliverySnapshot(snapshot)
       try {
         const versions = await readPlanVersionsByMba(mba)
         const vn = snapshot.versionNumber
@@ -125,6 +173,13 @@ export const getDeliverySnapshotTool: AvaTool = {
         if (version) {
           const campaignStartISO = normalizeDateToMelbourneISO(version.campaign_start_date)
           const campaignEndISO = normalizeDateToMelbourneISO(version.campaign_end_date)
+          applyScheduleLineExpected(snapshot.channels, {
+            deliverySchedule: version.deliverySchedule,
+            campaignStartISO,
+            campaignEndISO,
+            asOfISO: snapshot.asOf,
+          })
+          summarised = summariseDeliverySnapshot(snapshot)
           const strip = attachStripExpected({
             stripInputs: {
               billingSchedule: version.billingSchedule,

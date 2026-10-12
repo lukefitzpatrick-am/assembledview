@@ -14,6 +14,7 @@ import {
 import { ErrorState } from "@/components/ui/states"
 import { hasReportedDeliveredSpend } from "@/lib/delivery/deliveredTotals"
 import { getDeliveredTotalsForCampaign } from "@/lib/delivery/getDeliveredTotalsForCampaign"
+import { getAsOfDate } from "@/lib/pacing/maths"
 import { positiveVersionId, versionIdFromLine } from "@/lib/delivery/directDigitalFeeLookup"
 import { loadDirectDigitalFeePctsOrGross } from "@/lib/delivery/readMbaFeeSnapshots"
 export const maxDuration = 60
@@ -681,6 +682,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const monthlyPlanDateOpts = {
     campaignStartISO: effectiveStartISO,
     campaignEndISO: effectiveEndISO,
+    asOfISO: deliveredAsOf ?? getAsOfDate(),
   }
 
   const expectedSpend = resolveCampaignExpectedSpendToDate({

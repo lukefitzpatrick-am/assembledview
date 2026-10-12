@@ -20,15 +20,25 @@ export const P6_AS_OF = "2026-09-16"
 const START = "2026-07-01"
 const END = "2026-12-31"
 
-function julySchedule(amount: number): CampaignScheduleInput["deliverySchedule"] {
+function julySchedule(
+  amount: number,
+  media: Record<string, number> = { search: amount },
+): CampaignScheduleInput["deliverySchedule"] {
   const dollars = amount.toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
   })
+  const mediaCosts: Record<string, string> = {}
+  for (const [key, value] of Object.entries(media)) {
+    mediaCosts[key] = value.toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+    })
+  }
   return [
     {
       month: "July 2026",
-      mediaCosts: { search: dollars },
+      mediaCosts,
       mediaTotal: dollars,
       feeTotal: "$0.00",
       totalAmount: dollars,
@@ -359,7 +369,13 @@ function directGroup(partial: {
 export function p6AssembleInput() {
   const schedulesByMba = new Map<string, CampaignScheduleInput>([
     schedule("letsgo001", 40_000, 100_000),
-    schedule("jayco001", 20_000, 50_000),
+    [
+      "jayco001",
+      {
+        deliverySchedule: julySchedule(20_000, { search: 16_000, socialMedia: 4_000 }),
+        campaignBudget: 50_000,
+      },
+    ],
     schedule("candel001", 5_000, 5_000),
     schedule("BICAU002", BICAU002_SPEND_TO_DATE, 100_000),
     schedule("hartm012", 2_000, 10_000),

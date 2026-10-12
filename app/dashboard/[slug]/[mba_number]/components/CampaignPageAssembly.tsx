@@ -56,6 +56,7 @@ import {
   recomputeTimeMetrics,
   type DateRange,
 } from "@/lib/dashboard/dateFilter"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { sumPlannedImpressionsFromLineItems } from "@/lib/dashboard/plannedImpressions"
 import {
   firstAheadChannelName,
@@ -385,7 +386,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     () => sumPlannedImpressionsFromLineItems(filteredLineItemsMap),
     [filteredLineItemsMap],
   )
-  const coverageCards = useMemo(() => visibleCoverageCards(coverage), [coverage])
+  const coverageCards = useMemo(
+    () => visibleCoverageCards(coverage, deliveredAsOf ?? getMelbourneTodayISO()),
+    [coverage, deliveredAsOf],
+  )
   const coverageCounts = useMemo(() => coverageReportingCounts(coverage), [coverage])
   const plannedImpressions =
     coverageCards.length > 0 ? sumReportingPlannedImpressions(coverage) : plannedImpressionsAll
@@ -703,6 +707,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     digitalAudioLineItems: filteredDigitalAudio,
     bvodLineItems: filteredBvod,
     atlLineItems: atlAssumedLineItems(filteredLineItemsMap),
+    deliverySchedule,
+    campaignStartISO,
+    campaignEndISO,
+    asOfISO: deliveredAsOf,
     onCoverage: handleCoverage,
     onKpiReviewGroups: handleKpiReviewGroups,
     onDeliveredByLineId: handleDeliveredByLineId,

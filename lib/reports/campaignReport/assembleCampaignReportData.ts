@@ -38,6 +38,13 @@ import {
 } from "@/lib/reports/campaignReport/reportPace"
 import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
 import {
+  channelExpectedForWindow,
+  reconcileLineExpected,
+  scheduleKeyForLineItemId,
+  scheduleKeyForReportGroup,
+  slicesByKey,
+} from "@/lib/spend/channelExpectedToDate"
+import {
   campaignReportChannelLabel,
   campaignSpendIncludingAssumed,
   deliveryLinesForRates,
@@ -167,6 +174,52 @@ function indexChannels(channels: DeliveryChannelGroup[]): Map<string, DeliveryCh
 function plannedBudgetOf(ch: DeliveryChannelGroup | undefined): number {
   const n = ch?.totals.plannedBudget
   return typeof n === "number" && Number.isFinite(n) ? n : 0
+}
+
+function reportLineScheduleKey(group: string, lineItemId: string): string | null {
+  if (group === "assumed_spend") return scheduleKeyForLineItemId(lineItemId)
+  return scheduleKeyForReportGroup(group)
+}
+
+function reconciledReportExpected(
+  channels: Array<{ group: string; lines: DeliveryLineSnapshot[] }>,
+  slices: Map<string, number>,
+): Map<string, number> {
+  const byKey = new Map<string, DeliveryLineSnapshot[]>()
+  for (const channel of channels) {
+    for (const line of channel.lines) {
+      const key = reportLineScheduleKey(channel.group, line.lineItemId)
+      if (!key || !slices.has(key)) continue
+      const list = byKey.get(key) ?? []
+      list.push(line)
+      byKey.set(key, list)
+    }
+  }
+  const out = new Map<string, number>()
+  for (const [key, lines] of byKey) {
+    const allocated = reconcileLineExpected(
+      slices.get(key) ?? 0,
+      lines.map((line) => ({
+        id: line.lineItemId,
+        lineExpected: line.expectedNetToDate ?? 0,
+        plannedMedia: line.plannedBudget ?? 0,
+      })),
+    )
+    for (const [id, dollars] of allocated) out.set(id, dollars)
+  }
+  return out
+}
+
+function withReconciledExpected(
+  lines: DeliveryLineSnapshot[],
+  allocated: Map<string, number>,
+): DeliveryLineSnapshot[] {
+  if (allocated.size === 0) return lines
+  return lines.map((line) => {
+    const next = allocated.get(line.lineItemId)
+    if (next == null) return line
+    return { ...line, expectedNetToDate: next }
+  })
 }
 
 function linesForRates(lines: DeliveryLineSnapshot[]): RateSourceLine[] {
@@ -376,11 +429,38 @@ export async function assembleCampaignReportData(
       : null
 
   const flight = { startISO: start, endISO: end }
+  const windowSlices = slicesByKey(
+    channelExpectedForWindow({
+      deliverySchedule,
+      campaignStartISO: start,
+      campaignEndISO: end,
+      windowStartISO: currentWindow.startISO,
+      windowEndISO: currentWindow.endISO,
+      periodSlice,
+    }),
+  )
+  const previousSlices = previousWindow
+    ? slicesByKey(
+        channelExpectedForWindow({
+          deliverySchedule,
+          campaignStartISO: start,
+          campaignEndISO: end,
+          windowStartISO: previousWindow.startISO,
+          windowEndISO: previousWindow.endISO,
+          periodSlice: true,
+        }),
+      )
+    : null
+  const reconciledNow = reconciledReportExpected(currentSnap.channels, windowSlices)
+  const reconciledPrev = previousSlices
+    ? reconciledReportExpected(previousSnap?.channels ?? [], previousSlices)
+    : null
   const channels: CampaignReportChannelRow[] = currentSnap.channels.map((ch) => {
     const prev = prevByGroup.get(ch.group)
     const planned = plannedBudgetOf(ch)
     const spend = ch.totals.spendToDate
-    const pace = channelReportPace({ spend, plannedBudget: planned, lines: ch.lines })
+    const lines = withReconciledExpected(ch.lines, reconciledNow)
+    const pace = channelReportPace({ spend, plannedBudget: planned, lines })
     const rates = rateMetricsFromLines(linesForRates(ch.lines), pace.expectedSpendToDate)
     const previousSpend = prev ? prev.totals.spendToDate : previousSnap ? 0 : null
     const previousImpressions = prev ? prev.totals.impressions : previousSnap ? 0 : null
@@ -388,7 +468,9 @@ export async function assembleCampaignReportData(
       ? channelReportPace({
           spend: prev ? prev.totals.spendToDate : 0,
           plannedBudget: planned,
-          lines: prev?.lines ?? [],
+          lines: reconciledPrev
+            ? withReconciledExpected(prev?.lines ?? [], reconciledPrev)
+            : (prev?.lines ?? []),
         })
       : null
     const previousRates = previousPace

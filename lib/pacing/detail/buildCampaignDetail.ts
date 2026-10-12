@@ -12,7 +12,9 @@ import {
   lineCardFromSearch,
   lineCardFromSocial,
   lineCardsFromDirectGroup,
+  withReconciledLineExpected,
 } from "@/lib/pacing/channel/lineCardModel"
+import { reconcileLineExpected } from "@/lib/spend/channelExpectedToDate"
 import type { LineCardModel } from "@/lib/pacing/channel/lineCardTypes"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import { getAsOfDate } from "@/lib/pacing/maths"
@@ -100,6 +102,36 @@ function versionIdsFromSources(
     }
   }
   return [...ids]
+}
+
+function reconcileDetailLines(
+  lines: LineCardModel[],
+  channels: CampaignPacingRow["channels"] | undefined,
+  asOf: string,
+): LineCardModel[] {
+  if (!channels || channels.length === 0) return lines
+  const byId = new Map(lines.map((line) => [line.lineItemId.trim().toLowerCase(), line]))
+  const next = new Map<string, LineCardModel>()
+  for (const channel of channels) {
+    const members = channel.lineItemIds
+      .map((id) => byId.get(id.trim().toLowerCase()))
+      .filter((line): line is LineCardModel => Boolean(line && !line.verificationOnly))
+    if (members.length === 0) continue
+    const allocated = reconcileLineExpected(
+      channel.expectedToDate,
+      members.map((line) => ({
+        id: line.lineItemId,
+        lineExpected: line.expectedToDate,
+        plannedMedia: line.budget,
+      })),
+    )
+    for (const line of members) {
+      const dollars = allocated.get(line.lineItemId)
+      if (dollars == null) continue
+      next.set(line.lineItemId.trim().toLowerCase(), withReconciledLineExpected(line, dollars, asOf))
+    }
+  }
+  return lines.map((line) => next.get(line.lineItemId.trim().toLowerCase()) ?? line)
 }
 
 function linesFromSources(
@@ -258,7 +290,7 @@ export async function buildCampaignDetail(
     versionIds.length > 0 ? readPlanVersionSchedulesByIds(versionIds) : Promise.resolve([]),
     loadDirectDigitalFeePctsOrGross(versionIds),
   ])
-  const lines = linesFromSources(sources, asOf, feePctsByVersionId)
+  const builtLines = linesFromSources(sources, asOf, feePctsByVersionId)
   const schedulesByMba = schedulesByMbaFromVersions(scheduleVersions)
   const scheduleLoaded = scheduleLoadedForMba(schedulesByMba, mbaKey)
   const assembled = assembleCampaignPacingRows({
@@ -273,6 +305,7 @@ export async function buildCampaignDetail(
     feePctsByVersionId,
   })
   const freshRow = assembled.find((item) => normMba(item.mbaNumber) === mbaKey) ?? null
+  const lines = reconcileDetailLines(builtLines, freshRow?.channels, asOf)
   const row =
     chooseCampaignDetailRow({
       mbaNumber: mba,

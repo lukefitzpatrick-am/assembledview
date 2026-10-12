@@ -295,9 +295,9 @@ export type DeliveryLineSnapshot = {
   cpc: number | null
   expectedSpendToDate?: number | null
   /**
-   * Net burst expected inside the snapshot window (`lineExpectedNetToDate` at the
-   * window end, minus the day before the window start). Cumulative to `asOf`
-   * when the snapshot has no window.
+   * Channel delivery-schedule slice allocated by `lineExpectedNetToDate`
+   * (planned media when that sum is 0). The weight is the burst figure at the
+   * window end, minus the day before the window start.
    */
   expectedNetToDate?: number | null
   noDeliveryRows: boolean

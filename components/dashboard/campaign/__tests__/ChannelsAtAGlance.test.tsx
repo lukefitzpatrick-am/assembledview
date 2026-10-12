@@ -36,7 +36,7 @@ describe("ChannelsAtAGlance", () => {
       />,
     )
     expect(html).toContain("Channels at a glance")
-    expect(html).toContain("Delivered vs planned · updated daily")
+    expect(html).toContain("Delivered vs expected to date")
     expect(html).toContain("Social · Meta")
     expect(html).toContain("Ahead")
     expect(html).toContain("of planned")
@@ -137,5 +137,93 @@ describe("ChannelsAtAGlance", () => {
     )
     expect(html).toContain("Views")
     expect(html).not.toMatch(/>Impressions</)
+  })
+
+  it("reads On track at 98% of expected and Behind at 44%", () => {
+    const social = renderToStaticMarkup(
+      <ChannelsAtAGlance
+        todayISO="2026-10-12"
+        entries={[
+          entry({
+            key: "social-meta",
+            label: "Social · Meta",
+            status: "reporting",
+            deliveredSpend: 98,
+            expectedToDate: 100,
+            plannedSpend: 200,
+            deliveryStatus: "behind",
+          }),
+        ]}
+      />,
+    )
+    expect(social).toContain("On track")
+    expect(social).toContain("expected to date")
+    expect(social).toContain("planned in total")
+
+    const display = renderToStaticMarkup(
+      <ChannelsAtAGlance
+        todayISO="2026-10-12"
+        entries={[
+          entry({
+            key: "digital-display",
+            label: "Digital Display",
+            status: "reporting",
+            deliveredSpend: 44,
+            expectedToDate: 100,
+            plannedSpend: 200,
+            deliveryStatus: "on-track",
+            spendEstimated: true,
+          }),
+        ]}
+      />,
+    )
+    expect(display).toContain("Behind")
+    expect(display).toContain("Estimated")
+    expect(display).toContain('data-expected-marker="true"')
+  })
+
+  it("shows Newspaper with no source and no pace pill", () => {
+    const html = renderToStaticMarkup(
+      <ChannelsAtAGlance
+        todayISO="2026-10-12"
+        entries={[
+          entry({
+            key: "newspaper",
+            label: "Newspaper",
+            status: "no_source",
+            deliveredSpend: null,
+            expectedToDate: 12_952.09,
+            plannedSpend: 30_000,
+            deliveryStatus: null,
+            spendAssumed: false,
+          }),
+        ]}
+      />,
+    )
+    expect(html).toContain("Newspaper")
+    expect(html).toContain("No source")
+    expect(html).not.toContain("On track")
+    expect(html).not.toContain("Behind")
+    expect(html).not.toContain("Ahead")
+  })
+
+  it("labels Not started when expected is 0 and the start is still ahead", () => {
+    const html = renderToStaticMarkup(
+      <ChannelsAtAGlance
+        todayISO="2026-10-12"
+        entries={[
+          entry({
+            key: "cinema",
+            label: "Cinema",
+            status: "no_source",
+            startsOn: "2026-11-01",
+            expectedToDate: 0,
+            deliveredSpend: null,
+            deliveryStatus: null,
+          }),
+        ]}
+      />,
+    )
+    expect(html).toContain("Not started")
   })
 })

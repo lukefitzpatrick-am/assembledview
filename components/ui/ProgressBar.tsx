@@ -15,6 +15,8 @@ export interface ProgressBarProps {
   showLabel?: boolean
   animated?: boolean
   className?: string
+  /** 0–100 position of an expected-to-date marker on the track. */
+  marker?: number
 }
 
 const sizeClass: Record<ProgressSize, string> = {
@@ -40,23 +42,36 @@ export function ProgressBar({
   showLabel = false,
   animated = true,
   className,
+  marker,
 }: ProgressBarProps) {
   const percentage = useMemo(() => {
     if (max <= 0) return 0
     return Math.max(0, Math.min(100, (value / max) * 100))
   }, [max, value])
+  const markerPct =
+    marker == null || !Number.isFinite(marker) ? null : Math.max(0, Math.min(100, marker))
 
   return (
     <div className={cn("w-full", className)}>
-      <div className={cn("w-full overflow-hidden rounded-full bg-[var(--fill-track)]", sizeClass[size])}>
-        <div
-          className={cn("h-full rounded-full", toneClass[color])}
-          style={{
-            width: `${percentage}%`,
-            transition: animated ? "width 700ms cubic-bezier(0.22, 1, 0.36, 1)" : undefined,
-          }}
-          aria-hidden
-        />
+      <div className="relative w-full">
+        <div className={cn("w-full overflow-hidden rounded-full bg-[var(--fill-track)]", sizeClass[size])}>
+          <div
+            className={cn("h-full rounded-full", toneClass[color])}
+            style={{
+              width: `${percentage}%`,
+              transition: animated ? "width 700ms cubic-bezier(0.22, 1, 0.36, 1)" : undefined,
+            }}
+            aria-hidden
+          />
+        </div>
+        {markerPct != null ? (
+          <span
+            className="pointer-events-none absolute top-0 h-full w-0.5 bg-foreground"
+            style={{ left: `${markerPct}%` }}
+            data-expected-marker="true"
+            aria-hidden
+          />
+        ) : null}
       </div>
       {showLabel ? <p className="mt-1 text-xs text-muted-foreground">{Math.round(percentage)}%</p> : null}
     </div>
