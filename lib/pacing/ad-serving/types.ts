@@ -72,4 +72,7 @@ export type AdServingPacingCampaignRow = {
   deliverableActual: number;
   deliverableTarget: number;
   deliverableKind: "impressions" | "clicks" | null;
+
+  /** True when the plan budget is gross. Omitted on older fixtures. */
+  budgetIncludesFees?: boolean;
 };

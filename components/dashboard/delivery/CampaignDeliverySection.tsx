@@ -46,6 +46,7 @@ import {
   deliverySourceLookupKey,
   lookupActiveDeliverySource,
 } from "@/lib/delivery/deliverySourceMap"
+import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
 
 export type CampaignDeliverySectionProps = {
   mbaNumber: string
@@ -73,6 +74,8 @@ export type CampaignDeliverySectionProps = {
   onDeliveredByLineId?: (map: Map<string, number>) => void
   showAccordion?: boolean
   isAdmin?: boolean
+  feePctsByVersionId?: FeePctsByVersionId
+  estimateVersionId?: number | null
 }
 
 type DeliveryBodyProps = {
@@ -109,6 +112,8 @@ type DeliveryBodyProps = {
   onDeliveredByLineId?: (map: Map<string, number>) => void
   showAccordion?: boolean
   isAdmin?: boolean
+  feePctsByVersionId?: FeePctsByVersionId
+  estimateVersionId?: number | null
 }
 
 function CampaignDeliveryBody({
@@ -145,6 +150,8 @@ function CampaignDeliveryBody({
   onDeliveredByLineId,
   showAccordion = true,
   isAdmin = false,
+  feePctsByVersionId,
+  estimateVersionId,
 }: DeliveryBodyProps) {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
 
@@ -316,6 +323,8 @@ function CampaignDeliveryBody({
         lastSyncedAt,
         reportedSpendByLineDate,
         isAdmin,
+        feePctsByVersionId,
+        estimateVersionId,
       })
       if (s) out.push(s)
     }
@@ -334,6 +343,8 @@ function CampaignDeliveryBody({
         lastSyncedAt,
         reportedSpendByLineDate,
         isAdmin,
+        feePctsByVersionId,
+        estimateVersionId,
       })
       if (s) out.push(s)
     }
@@ -352,6 +363,8 @@ function CampaignDeliveryBody({
         lastSyncedAt,
         reportedSpendByLineDate,
         isAdmin,
+        feePctsByVersionId,
+        estimateVersionId,
       })
       if (s) out.push(s)
     }
@@ -370,6 +383,8 @@ function CampaignDeliveryBody({
         lastSyncedAt,
         reportedSpendByLineDate,
         isAdmin,
+        feePctsByVersionId,
+        estimateVersionId,
       })
       if (s) out.push(s)
     }
@@ -411,6 +426,8 @@ function CampaignDeliveryBody({
     lastSyncedAt,
     reportedSpendByLineDate,
     isAdmin,
+    feePctsByVersionId,
+    estimateVersionId,
   ])
 
   const { entries: coverage, kpiDrafts } = useMemo(
@@ -520,6 +537,8 @@ export function CampaignDeliverySection({
   onDeliveredByLineId,
   showAccordion = true,
   isAdmin = false,
+  feePctsByVersionId,
+  estimateVersionId,
 }: CampaignDeliverySectionProps) {
   const pacingWindow = useMemo(() => getPacingWindow(campaignStart, campaignEnd), [campaignStart, campaignEnd])
 
@@ -691,6 +710,8 @@ export function CampaignDeliverySection({
           onDeliveredByLineId={onDeliveredByLineId}
           showAccordion={showAccordion}
           isAdmin={isAdmin}
+          feePctsByVersionId={feePctsByVersionId}
+          estimateVersionId={estimateVersionId}
         />
       )}
     </DeliveryDataProvider>

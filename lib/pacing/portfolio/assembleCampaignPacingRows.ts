@@ -4,6 +4,11 @@ import {
 } from "@/lib/delivery/deliverySourceMap"
 import { estimateDirectDigitalSpend } from "@/lib/delivery/estimateDirectDigitalSpend"
 import {
+  channelKeyForAdServingFamily,
+  feePctFromVersionMap,
+  type FeePctsByVersionId,
+} from "@/lib/delivery/directDigitalFeeLookup"
+import {
   computeCampaignDays,
   computeDaysPassed,
   computeDaysRemaining,
@@ -48,6 +53,8 @@ export type AssembleCampaignPacingRowsInput = {
   adServing: AdServingPacingCampaignRow[]
   direct: DirectCampaignGroup[]
   schedulesByMba: Map<string, CampaignScheduleInput>
+  /** Channel fee percents from `mba_fee_snapshots` for the versions in this build. */
+  feePctsByVersionId?: FeePctsByVersionId
 }
 
 type DraftChannel = {
@@ -571,6 +578,13 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
         : estimateDirectDigitalSpend({
             lineItemId: row.lineItemId,
             buyType: row.buyType,
+            budgetIncludesFees: row.budgetIncludesFees === true,
+            feePct: feePctFromVersionMap(
+              input.feePctsByVersionId,
+              row.mediaPlanVersionId,
+              channelKeyForAdServingFamily(row.channelFamily),
+            ),
+            versionId: row.mediaPlanVersionId,
             bursts: row.bursts,
             days: [
               {

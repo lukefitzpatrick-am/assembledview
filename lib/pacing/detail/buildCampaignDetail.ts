@@ -15,6 +15,7 @@ import {
 import type { LineCardModel } from "@/lib/pacing/channel/lineCardTypes"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import { getAsOfDate } from "@/lib/pacing/maths"
+import { loadDirectDigitalFeePcts } from "@/lib/delivery/readMbaFeeSnapshots"
 import { assembleCampaignPacingRows } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
 import { readPortfolioSnapshot } from "@/lib/pacing/portfolio/portfolioSnapshotStore"
 import type { CampaignPacingRow } from "@/lib/pacing/portfolio/types"
@@ -214,6 +215,11 @@ export async function buildCampaignDetail(
 
   let row: CampaignPacingRow | undefined = snapshotRow ?? undefined
   if (!row) {
+    const feeVersionIds = sources.adServing.map((item) => item.mediaPlanVersionId)
+    const feePctsByVersionId =
+      feeVersionIds.length > 0
+        ? await loadDirectDigitalFeePcts({ versionIds: feeVersionIds })
+        : {}
     const assembled = assembleCampaignPacingRows({
       asOfDate: asOf,
       allowedClientSlugs: args.allowedClientSlugs,
@@ -223,6 +229,7 @@ export async function buildCampaignDetail(
       adServing: sources.adServing,
       direct: sources.direct,
       schedulesByMba: new Map(),
+      feePctsByVersionId,
     })
     row = assembled.find((item) => normMba(item.mbaNumber) === mbaKey)
   }

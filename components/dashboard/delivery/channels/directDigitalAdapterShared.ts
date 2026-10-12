@@ -9,6 +9,12 @@ import {
   estimateDirectDigitalSpend,
   NO_PLANNED_IMPRESSIONS,
 } from "@/lib/delivery/estimateDirectDigitalSpend"
+import {
+  feePctFromVersionMap,
+  positiveVersionId,
+  versionIdFromLine,
+  type FeePctsByVersionId,
+} from "@/lib/delivery/directDigitalFeeLookup"
 import { isCpcBuyType } from "@/lib/kpi/kpiReview"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import type { CampaignKPI } from "@/lib/kpi/types"
@@ -50,6 +56,8 @@ type AdServingLineItem = {
   spend?: unknown
   investment?: unknown
   media_investment?: unknown
+  budget_includes_fees?: boolean
+  media_plan_version?: unknown
 }
 
 type DailyActuals = {
@@ -333,6 +341,8 @@ export function buildDirectDigitalChannelSection(input: {
   /** Melbourne civil date for expected-to-date; defaults to today. */
   asOfDate?: string
   isAdmin?: boolean
+  feePctsByVersionId?: FeePctsByVersionId
+  estimateVersionId?: number | null
 }): ChannelSectionData | null {
   const {
     key,
@@ -349,6 +359,8 @@ export function buildDirectDigitalChannelSection(input: {
     reportedSpendByLineDate,
     asOfDate,
     isAdmin = false,
+    feePctsByVersionId,
+    estimateVersionId,
   } = input
   // filterRange reserved for future date-window clipping (parity with other adapters)
   void input.filterRange
@@ -407,12 +419,23 @@ export function buildDirectDigitalChannelSection(input: {
     const spendPlanned = bookedSpend(item)
     const reportedByDate = isFixedCostMedia(item) ? reportedSpendByLineDate?.get(id) : undefined
     const hasReportedEntries = Boolean(reportedByDate && reportedByDate.size > 0)
+    const versionId = versionIdFromLine(item) ?? positiveVersionId(estimateVersionId)
+    const feeChannel =
+      key === "digital-display" ||
+      key === "digital-video" ||
+      key === "digital-audio" ||
+      key === "bvod"
+        ? key
+        : null
     const estimate = hasReportedEntries
       ? null
       : estimateDirectDigitalSpend({
           lineItemId: id,
           buyType: item.buy_type,
           fixedCost: isFixedCostMedia(item),
+          budgetIncludesFees: item.budget_includes_fees === true,
+          feePct: feePctFromVersionMap(feePctsByVersionId, versionId, feeChannel),
+          versionId,
           bursts: item.bursts_json ?? item.bursts,
           days: daily.map((d) => ({
             date: d.date,

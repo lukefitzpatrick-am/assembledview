@@ -1,6 +1,7 @@
 import "server-only"
 
 import { discardHungPostgresClient } from "@/db"
+import { loadDirectDigitalFeePcts } from "@/lib/delivery/readMbaFeeSnapshots"
 import { readPublishedOrLivePlanVersions } from "@/lib/data/readMediaPlans"
 import { fetchAdServingPacingCampaignRows } from "@/lib/pacing/ad-serving/fetchAdServingPacingCampaignRows"
 import { fetchSearchPacingCampaignRows } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows"
@@ -221,12 +222,19 @@ export async function buildCampaignPacingRows(
     throw new Error(`portfolio source timeout: ${timedOutSource.source}`)
   }
 
+  const feeVersionIds = sources.adServing.map((row) => row.mediaPlanVersionId)
+  const feePctsByVersionId =
+    feeVersionIds.length > 0
+      ? await loadDirectDigitalFeePcts({ versionIds: feeVersionIds })
+      : {}
+
   const rows = assembleCampaignPacingRows({
     asOfDate: args.asOfDate,
     allowedClientSlugs: args.allowedClientSlugs,
     liveOnly,
     ...sources,
     schedulesByMba: schedulesByMbaFromVersions(versions),
+    feePctsByVersionId,
   })
   return {
     rows,

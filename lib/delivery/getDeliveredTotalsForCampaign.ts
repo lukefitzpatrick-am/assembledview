@@ -1,5 +1,6 @@
 import "server-only"
 
+import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
@@ -14,6 +15,9 @@ export type GetDeliveredTotalsForCampaignInput = {
   lineItemsMap?: Record<string, unknown[] | undefined> | null
   startDate?: string | null
   endDate?: string | null
+  /** Already-loaded channel fee percents. The snapshot does not query again. */
+  feePctsByVersionId?: FeePctsByVersionId
+  estimateVersionId?: number | null
 }
 
 export type DeliveredTotalsForCampaign = DeliveredTotals & {
@@ -74,6 +78,8 @@ export async function getDeliveredTotalsForCampaign(
       snowflakeLabel: "delivered-totals",
       ...(lineItemsByChannel ? { lineItemsByChannel } : {}),
       ...(window ?? {}),
+      ...(input.feePctsByVersionId ? { feePctsByVersionId: input.feePctsByVersionId } : {}),
+      ...(input.estimateVersionId != null ? { estimateVersionId: input.estimateVersionId } : {}),
     }).catch((error) => {
       console.error("[getDeliveredTotalsForCampaign] loadDeliverySnapshot failed", {
         mbaNumber: input.mbaNumber,

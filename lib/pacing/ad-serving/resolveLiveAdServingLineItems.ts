@@ -162,6 +162,7 @@ function mapDigitalRowToCampaignRow(
     deliverableActual: 0,
     deliverableTarget,
     deliverableKind,
+    budgetIncludesFees: dr.budget_includes_fees === true,
   };
 }
 
