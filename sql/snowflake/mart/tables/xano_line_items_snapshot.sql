@@ -17,3 +17,12 @@ create or replace TABLE XANO_LINE_ITEMS_SNAPSHOT (
 	primary key (LINE_ITEM_ID)
 )COMMENT='Snapshot of Xano line item data for fixed cost procedure consumption. Synced daily from Vercel cron.'
 ;
+
+-- Apply in Snowsight. Do not re-run the CREATE OR REPLACE above.
+-- Table name stays XANO_LINE_ITEMS_SNAPSHOT.
+ALTER TABLE ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
+  ADD COLUMN IF NOT EXISTS NO_ADSERVING BOOLEAN;
+
+ALTER TABLE ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
+  ADD COLUMN IF NOT EXISTS ASSUME_SPEND BOOLEAN;
+

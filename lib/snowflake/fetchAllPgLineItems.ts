@@ -3,6 +3,9 @@ import "server-only"
 import { and, eq, isNotNull } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import type { FeeLoading } from "@/lib/finance/campaignFinancials.types"
+import { resolveFeePctFromFeeLoading } from "@/lib/finance/computeCampaignFinancials"
 import {
   mapPgLineItemToSnapshot,
   CHANNEL_TO_SOURCE_TABLE,
@@ -53,25 +56,35 @@ export async function fetchAllPgLineItems(
     bidStrategy: schema.lineItems.bidStrategy,
     fixedCostMedia: schema.lineItems.fixedCostMedia,
     bursts: schema.lineItems.bursts,
+    publisher: schema.lineItems.publisher,
+    noAdserving: schema.lineItems.noAdserving,
+    clientPaysForMedia: schema.lineItems.clientPaysForMedia,
+    budgetIncludesFees: schema.lineItems.budgetIncludesFees,
+    fees: schema.mbaFeeSnapshots.fees,
     mbaNumber: schema.mediaPlanVersions.mbaNumber,
   }
 
+function feeLoadingFrom(raw: unknown): FeeLoading {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw as FeeLoading
+  return {}
+}
+
+  const withFees = db
+    .select(baseSelect)
+    .from(schema.lineItems)
+    .innerJoin(
+      schema.mediaPlanVersions,
+      eq(schema.lineItems.versionId, schema.mediaPlanVersions.id)
+    )
+    .leftJoin(
+      schema.mbaFeeSnapshots,
+      eq(schema.mbaFeeSnapshots.versionId, schema.mediaPlanVersions.id)
+    )
+
   const rows =
     scope === "all"
-      ? await db
-          .select(baseSelect)
-          .from(schema.lineItems)
-          .innerJoin(
-            schema.mediaPlanVersions,
-            eq(schema.lineItems.versionId, schema.mediaPlanVersions.id)
-          )
-      : await db
-          .select(baseSelect)
-          .from(schema.lineItems)
-          .innerJoin(
-            schema.mediaPlanVersions,
-            eq(schema.lineItems.versionId, schema.mediaPlanVersions.id)
-          )
+      ? await withFees
+      : await withFees
           .innerJoin(
             schema.mediaPlanMasters,
             eq(schema.mediaPlanVersions.masterId, schema.mediaPlanMasters.id)
@@ -86,9 +99,14 @@ export async function fetchAllPgLineItems(
             )
           )
 
+  const asOfDate = getMelbourneTodayISO()
   const items: XanoLineItem[] = []
   for (const row of rows) {
-    const mapped = mapPgLineItemToSnapshot(row)
+    const mapped = mapPgLineItemToSnapshot({
+      ...row,
+      feePct: resolveFeePctFromFeeLoading(row.channel, feeLoadingFrom(row.fees)),
+      asOfDate,
+    })
     if (mapped) items.push(mapped)
   }
 

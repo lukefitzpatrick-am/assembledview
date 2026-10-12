@@ -105,14 +105,16 @@ export function buildSnapshotPruneStageCreateSql(stageTable: string): string {
       BURSTS_JSON VARIANT,
       SOURCE_TABLE VARCHAR,
       XANO_ROW_ID NUMBER,
-      XANO_CREATED_AT NUMBER
+      XANO_CREATED_AT NUMBER,
+      NO_ADSERVING BOOLEAN,
+      ASSUME_SPEND BOOLEAN
     )
   `
 }
 
 export function buildSnapshotPruneStageInsertSql(stageTable: string, rowCount: number): string {
   const valuesPlaceholders = Array(rowCount)
-    .fill("(?, ?, ?, ?, ?, ?, PARSE_JSON(?), ?, ?, ?)")
+    .fill("(?, ?, ?, ?, ?, ?, PARSE_JSON(?), ?, ?, ?, ?, ?)")
     .join(",\n    ")
 
   return `
@@ -126,7 +128,9 @@ export function buildSnapshotPruneStageInsertSql(stageTable: string, rowCount: n
       BURSTS_JSON,
       SOURCE_TABLE,
       XANO_ROW_ID,
-      XANO_CREATED_AT
+      XANO_CREATED_AT,
+      NO_ADSERVING,
+      ASSUME_SPEND
     )
     VALUES
       ${valuesPlaceholders}
@@ -160,15 +164,19 @@ export function buildSnapshotPruneMergeSql(stageTable: string): string {
       SOURCE_TABLE     = s.SOURCE_TABLE,
       XANO_ROW_ID      = s.XANO_ROW_ID,
       XANO_CREATED_AT  = s.XANO_CREATED_AT,
+      NO_ADSERVING     = COALESCE(s.NO_ADSERVING, t.NO_ADSERVING),
+      ASSUME_SPEND     = COALESCE(s.ASSUME_SPEND, t.ASSUME_SPEND),
       SYNCED_AT        = CURRENT_TIMESTAMP()
     WHEN NOT MATCHED THEN INSERT (
       LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME, PLATFORM, BUY_TYPE,
-      FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT, SYNCED_AT
+      FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT,
+      NO_ADSERVING, ASSUME_SPEND, SYNCED_AT
     ) VALUES (
       LOWER(TRIM(s.LINE_ITEM_ID)), LOWER(TRIM(s.MBA_NUMBER)),
       LOWER(TRIM(COALESCE(s.LINE_ITEM_NAME, ''))),
       s.PLATFORM, s.BUY_TYPE,
-      s.FIXED_COST_MEDIA, s.BURSTS_JSON, s.SOURCE_TABLE, s.XANO_ROW_ID, s.XANO_CREATED_AT, CURRENT_TIMESTAMP()
+      s.FIXED_COST_MEDIA, s.BURSTS_JSON, s.SOURCE_TABLE, s.XANO_ROW_ID, s.XANO_CREATED_AT,
+      s.NO_ADSERVING, s.ASSUME_SPEND, CURRENT_TIMESTAMP()
     )
   `
 }

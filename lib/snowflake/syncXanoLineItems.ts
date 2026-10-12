@@ -70,7 +70,7 @@ function dedupeByLineItemId(items: XanoLineItem[]): {
 
 function buildBatchMergeSql(rowCount: number): string {
   const valuesPlaceholders = Array(rowCount)
-    .fill("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .fill("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
     .join(",\n    ")
 
   return `
@@ -86,7 +86,9 @@ function buildBatchMergeSql(rowCount: number): string {
         PARSE_JSON(column7) AS BURSTS_JSON,
         column8::VARCHAR AS SOURCE_TABLE,
         column9::NUMBER AS XANO_ROW_ID,
-        column10::NUMBER AS XANO_CREATED_AT
+        column10::NUMBER AS XANO_CREATED_AT,
+        column11::BOOLEAN AS NO_ADSERVING,
+        column12::BOOLEAN AS ASSUME_SPEND
       FROM VALUES
         ${valuesPlaceholders}
     ) s
@@ -102,15 +104,19 @@ function buildBatchMergeSql(rowCount: number): string {
       SOURCE_TABLE     = s.SOURCE_TABLE,
       XANO_ROW_ID      = s.XANO_ROW_ID,
       XANO_CREATED_AT  = s.XANO_CREATED_AT,
+      NO_ADSERVING     = COALESCE(s.NO_ADSERVING, t.NO_ADSERVING),
+      ASSUME_SPEND     = COALESCE(s.ASSUME_SPEND, t.ASSUME_SPEND),
       SYNCED_AT        = CURRENT_TIMESTAMP()
     WHEN NOT MATCHED THEN INSERT (
       LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME, PLATFORM, BUY_TYPE,
-      FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT, SYNCED_AT
+      FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT,
+      NO_ADSERVING, ASSUME_SPEND, SYNCED_AT
     ) VALUES (
       LOWER(TRIM(s.LINE_ITEM_ID)), LOWER(TRIM(s.MBA_NUMBER)),
       LOWER(TRIM(COALESCE(s.LINE_ITEM_NAME, ''))),
       s.PLATFORM, s.BUY_TYPE,
-      s.FIXED_COST_MEDIA, s.BURSTS_JSON, s.SOURCE_TABLE, s.XANO_ROW_ID, s.XANO_CREATED_AT, CURRENT_TIMESTAMP()
+      s.FIXED_COST_MEDIA, s.BURSTS_JSON, s.SOURCE_TABLE, s.XANO_ROW_ID, s.XANO_CREATED_AT,
+      s.NO_ADSERVING, s.ASSUME_SPEND, CURRENT_TIMESTAMP()
     )
   `
 }
@@ -143,7 +149,9 @@ function buildRowBinds(items: XanoLineItem[]): unknown[] {
       burstsPayload,
       item.source_table,
       item.xano_row_id,
-      item.xano_created_at
+      item.xano_created_at,
+      item.no_adserving ?? null,
+      item.assume_spend ?? null
     )
   }
 

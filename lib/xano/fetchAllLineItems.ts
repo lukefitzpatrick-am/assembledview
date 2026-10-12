@@ -28,6 +28,10 @@ export interface XanoLineItem {
   xano_row_id: number
   /** Unix milliseconds (normalized from Xano `created_at`). */
   xano_created_at: number
+  /** Postgres `line_items.no_adserving`. Absent on a Xano crawl row. */
+  no_adserving?: boolean
+  /** Computed in the Postgres mapper. Absent on a Xano crawl row. */
+  assume_spend?: boolean
   /**
    * Version FK from Xano channel row (`media_plan_version` / `_id`).
    * Used for tip-scope parity only — not written to Snowflake.
