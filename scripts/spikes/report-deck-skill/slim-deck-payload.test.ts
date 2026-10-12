@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url"
 import {
   formatDeckCount,
   formatDeckMoney,
+  formatDeckPacePercent,
   formatDeckPercent,
   formatFrequencyTarget,
   slimDeckPayload,
@@ -42,6 +43,16 @@ test("hema007 and curatif004 slim payloads stay under 25 KB and keep the deck fi
   const summary = hema.summary as { spend: string; impressions: string }
   assert.equal(summary.spend, "$3,484.79")
   assert.equal(summary.impressions, "394,863")
+  const summaryRecord = hema.summary as {
+    timeElapsedPct: string
+    metrics: { spendPacePct: string; ctr: string }
+  }
+  assert.equal(summaryRecord.timeElapsedPct, "74.80%")
+  assert.equal(summaryRecord.metrics.ctr, "2.31%")
+  assert.equal(summaryRecord.metrics.spendPacePct, "35%")
+  const social = (hema.channels as { metrics: { spendPacePct: string; ctr: string } }[])[0]
+  assert.equal(social.metrics.spendPacePct, "116%")
+  assert.equal(social.metrics.ctr, "2.31%")
   const encoded = JSON.stringify(hema)
   assert.equal(encoded.includes("3484.7899999999995"), false)
   assert.equal(encoded.includes("394863"), false)
@@ -55,6 +66,8 @@ test("deck figures format money, counts, percents and frequency targets", () => 
   assert.equal(formatDeckMoney(3484.7899999999995), "$3,484.79")
   assert.equal(formatDeckCount(394863), "394,863")
   assert.equal(formatDeckPercent(0.02305103288988839), "2.31%")
+  assert.equal(formatDeckPacePercent(0.3484789999999999), "35%")
+  assert.equal(formatDeckPacePercent(1.1615966666666666), "116%")
   assert.equal(formatFrequencyTarget("1"), "1.0 frequency")
   assert.equal(formatFrequencyTarget("1.0 frequency"), "1.0 frequency")
 })

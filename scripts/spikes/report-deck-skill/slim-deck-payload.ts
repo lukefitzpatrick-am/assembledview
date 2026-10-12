@@ -126,8 +126,9 @@ const COUNT_KEYS = new Set([
   "previousImpressions",
   "versionNumber",
 ])
-const PERCENT_KEYS = new Set(["timeElapsedPct", "spendPacePct", "ctr"])
-const METRIC_KEYS = new Set([...MONEY_KEYS, ...COUNT_KEYS, ...PERCENT_KEYS])
+const PERCENT_KEYS = new Set(["timeElapsedPct", "ctr"])
+const PACE_PERCENT_KEYS = new Set(["spendPacePct"])
+const METRIC_KEYS = new Set([...MONEY_KEYS, ...COUNT_KEYS, ...PERCENT_KEYS, ...PACE_PERCENT_KEYS])
 
 function grouped(n: number, digits: number): string {
   const negative = n < 0
@@ -147,9 +148,14 @@ export function formatDeckCount(value: number): string {
   return grouped(value, Number.isInteger(value) ? 0 : 2)
 }
 
-/** A 0–1 fraction as a percent with 2 dp. */
+/** A 0–1 fraction as a percent with 2 dp. CTR, conversion rate and VTR stay here. */
 export function formatDeckPercent(value: number): string {
   return `${grouped(value * 100, 2)}%`
+}
+
+/** A 0–1 pace fraction as a whole-number percent. 0.3485 is 35%. 1.1616 is 116%. */
+export function formatDeckPacePercent(value: number): string {
+  return `${grouped(value * 100, 0)}%`
 }
 
 /** A ratio kept as a grouped number, without a new unit. */
@@ -161,6 +167,7 @@ export function formatDeckRatio(value: number): string {
 export function formatDeckNumber(key: string, value: number): string {
   if (MONEY_KEYS.has(key)) return formatDeckMoney(value)
   if (COUNT_KEYS.has(key)) return formatDeckCount(value)
+  if (PACE_PERCENT_KEYS.has(key)) return formatDeckPacePercent(value)
   if (PERCENT_KEYS.has(key)) return formatDeckPercent(value)
   return formatDeckRatio(value)
 }

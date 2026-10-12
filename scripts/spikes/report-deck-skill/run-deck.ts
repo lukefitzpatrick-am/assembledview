@@ -51,7 +51,7 @@ const USER_MESSAGE = [
   "The input files are report-data.json, Assembled-Media-Template-v5.potx, and three library photos.",
   "They are already in the container input directory. Do not fetch anything.",
   "Build the Assembled Media campaign performance report by following av-campaign-report-v5 exactly.",
-  "Run summarise.py, write content.json, then build_report.py and check_deck.py.",
+  "Run summarise.py, pipe the content JSON into write_content.py, then build_report.py and check_deck.py.",
   "Do not view or open images. Do not read the skill scripts. Do not write your own build script.",
   "Use only the formatted strings in report-data.json, via the keys in content.json.",
   "Save the deck to $OUTPUT_DIR/<mbaNumber>.pptx.",
