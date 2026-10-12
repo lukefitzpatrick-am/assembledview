@@ -1,0 +1,147 @@
+{
+  "mbaNumber": "hema007",
+  "clientName": "Hema",
+  "campaignName": "Always On",
+  "versionNumber": 8,
+  "asOf": "2026-10-12",
+  "period": {
+    "kind": "last_month",
+    "slug": "last-month",
+    "label": "Last month (September 2026)",
+    "current": {
+      "startISO": "2026-09-01",
+      "endISO": "2026-09-30"
+    },
+    "previous": {
+      "startISO": "2026-08-01",
+      "endISO": "2026-08-31"
+    }
+  },
+  "totals": {
+    "plannedBudget": 40000,
+    "spend": 3484.7899999999995,
+    "impressions": 394863,
+    "clicks": 9102,
+    "results": 352,
+    "previousSpend": 3014.8800000000015,
+    "previousImpressions": 365649,
+    "expectedSpendToDate": 10000,
+    "timeElapsedPct": 0.7479674796747967,
+    "metrics": {
+      "cpm": 8.825314096281494,
+      "cpc": 0.3828598110305427,
+      "ctr": 0.02305103288988839,
+      "cpv": 0.11462370896651534,
+      "videoViews3s": 30402,
+      "spendPacePct": 0.3484789999999999
+    },
+    "rateExcludedSpend": 0,
+    "previousMetrics": {
+      "cpm": 8.245284412100132,
+      "cpc": 0.30444107846107255,
+      "ctr": 0.027083350426228434,
+      "cpv": 0.12391105996465421,
+      "videoViews3s": 24331,
+      "spendPacePct": 0.30148800000000014
+    }
+  },
+  "channels": [
+    {
+      "group": "social_meta",
+      "label": "Social (Meta)",
+      "plannedBudget": 12000,
+      "spend": 3484.7899999999995,
+      "impressions": 394863,
+      "clicks": 9102,
+      "results": 352,
+      "previousSpend": 3014.8800000000015,
+      "previousImpressions": 365649,
+      "plannedImpressions": 325203.2520325203,
+      "plannedClicks": null,
+      "plannedViews": null,
+      "spendEstimated": false,
+      "metrics": {
+        "cpm": 8.825314096281494,
+        "cpc": 0.3828598110305427,
+        "ctr": 0.02305103288988839,
+        "cpv": 0.11462370896651534,
+        "videoViews3s": 30402,
+        "spendPacePct": 0.3882510597826086
+      },
+      "previousMetrics": {
+        "cpm": 8.245284412100132,
+        "cpc": 0.30444107846107255,
+        "ctr": 0.027083350426228434,
+        "cpv": 0.12391105996465421,
+        "videoViews3s": 24331,
+        "spendPacePct": 0.49842774193548417
+      }
+    },
+    {
+      "group": "search",
+      "label": "Search",
+      "plannedBudget": 28000,
+      "spend": 0,
+      "impressions": 0,
+      "clicks": 0,
+      "results": 0,
+      "previousSpend": 0,
+      "previousImpressions": 0,
+      "plannedImpressions": null,
+      "plannedClicks": 6829.268292682927,
+      "plannedViews": null,
+      "spendEstimated": false,
+      "metrics": {
+        "cpm": null,
+        "cpc": null,
+        "ctr": null,
+        "cpv": null,
+        "videoViews3s": null,
+        "spendPacePct": 0
+      },
+      "previousMetrics": {
+        "cpm": null,
+        "cpc": null,
+        "ctr": null,
+        "cpv": null,
+        "videoViews3s": null,
+        "spendPacePct": 0
+      }
+    }
+  ],
+  "deliveryStates": [
+    "reported",
+    "no_rows_yet"
+  ],
+  "kpis": [
+    {
+      "metric": "ctr",
+      "label": "CTR",
+      "targetDisplay": "4.00%",
+      "actualDisplay": "2.31%",
+      "omitted": false
+    },
+    {
+      "metric": "conversion_rate",
+      "label": "Conv. Rate",
+      "targetDisplay": "5.00%",
+      "actualDisplay": "3.87%",
+      "omitted": false
+    },
+    {
+      "metric": "vtr",
+      "label": "VTR",
+      "targetDisplay": "87.00%",
+      "actualDisplay": null,
+      "omitted": false
+    },
+    {
+      "metric": "frequency",
+      "label": "Frequency",
+      "targetDisplay": "1",
+      "actualDisplay": null,
+      "omitted": false
+    }
+  ],
+  "commentary": null
+}

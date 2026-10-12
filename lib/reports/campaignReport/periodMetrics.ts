@@ -1,9 +1,15 @@
 import { cpc, cpm, ctr } from "@/lib/money/rates"
+import {
+  reportPace,
+  type ClientPaceBand,
+  type ReportGapReason,
+} from "@/lib/reports/campaignReport/reportPace"
 
 /**
  * CPM, CPC and CTR for one window. CTR is a decimal. videoViews3s is null
  * unless the snapshot carried a positive 3-second view count. spendPacePct is
  * delivered media / expected media (a ratio). Null when expected is 0.
+ * paceBand is the client label; 115% and above is Ahead.
  */
 export type CampaignReportPeriodMetrics = {
   cpm: number | null
@@ -13,6 +19,9 @@ export type CampaignReportPeriodMetrics = {
   cpv: number | null
   videoViews3s: number | null
   spendPacePct: number | null
+  paceBand: ClientPaceBand | null
+  /** Set when spendPacePct is null. The deck chooses the words. */
+  paceReason: ReportGapReason | null
 }
 
 export function campaignReportPeriodMetrics(input: {
@@ -24,6 +33,11 @@ export function campaignReportPeriodMetrics(input: {
 }): CampaignReportPeriodMetrics {
   const video = input.video3sViews
   const expected = input.expectedSpend
+  const pace = reportPace(
+    input.spend,
+    typeof expected === "number" && Number.isFinite(expected) ? expected : null,
+    true,
+  )
   return {
     cpm: cpm(input.spend, input.impressions),
     cpc: cpc(input.spend, input.clicks),
@@ -31,14 +45,13 @@ export function campaignReportPeriodMetrics(input: {
     cpv: null,
     videoViews3s:
       typeof video === "number" && Number.isFinite(video) && video > 0 ? video : null,
-    spendPacePct:
-      typeof expected === "number" && Number.isFinite(expected) && expected !== 0 && Number.isFinite(input.spend)
-        ? input.spend / expected
-        : null,
+    spendPacePct: pace.spendPacePct,
+    paceBand: pace.paceBand,
+    paceReason: pace.paceReason,
   }
 }
 
-/** Channel expected uses the campaign elapsed share already on the summary. */
+/** Flight-elapsed share of a planned budget. The campaign report does not use this for pace. */
 export function expectedMediaAtElapsed(
   plannedBudget: number,
   timeElapsedPct: number | null,
