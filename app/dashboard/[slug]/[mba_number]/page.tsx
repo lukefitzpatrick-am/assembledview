@@ -15,7 +15,7 @@ import { ErrorState } from "@/components/ui/states"
 import { hasReportedDeliveredSpend } from "@/lib/delivery/deliveredTotals"
 import { getDeliveredTotalsForCampaign } from "@/lib/delivery/getDeliveredTotalsForCampaign"
 import { positiveVersionId, versionIdFromLine } from "@/lib/delivery/directDigitalFeeLookup"
-import { loadDirectDigitalFeePcts } from "@/lib/delivery/readMbaFeeSnapshots"
+import { loadDirectDigitalFeePctsOrGross } from "@/lib/delivery/readMbaFeeSnapshots"
 export const maxDuration = 60
 
 interface CampaignDetailPageProps {
@@ -641,8 +641,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     seenFeeVersions.add(id)
     feeVersionIds.push(id)
   }
-  const feePctsByVersionId =
-    feeVersionIds.length > 0 ? await loadDirectDigitalFeePcts({ versionIds: feeVersionIds }) : {}
+  const feePctsByVersionId = await loadDirectDigitalFeePctsOrGross(feeVersionIds)
 
   const deliverySpendToDate = deriveSpendToDate(deliverySchedule)
   let actualSpend: number | undefined

@@ -1,7 +1,8 @@
 import "server-only"
 
 import { discardHungPostgresClient } from "@/db"
-import { loadDirectDigitalFeePcts } from "@/lib/delivery/readMbaFeeSnapshots"
+import type { DirectDigitalFeePctsLoader } from "@/lib/delivery/directDigitalFeeLookup"
+import { loadDirectDigitalFeePctsOrGross } from "@/lib/delivery/readMbaFeeSnapshots"
 import { readPublishedOrLivePlanVersions } from "@/lib/data/readMediaPlans"
 import { fetchAdServingPacingCampaignRows } from "@/lib/pacing/ad-serving/fetchAdServingPacingCampaignRows"
 import { fetchSearchPacingCampaignRows } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows"
@@ -42,6 +43,11 @@ export type BuildCampaignPacingRowsArgs = {
   logPgTimeout?: boolean
   /** Unset uses the 4h composer cache. The cron passes false. */
   cache?: boolean
+  /**
+   * Fee-snapshot read. Unset calls `loadDirectDigitalFeePcts`.
+   * A throw is logged once and the build continues with an empty map.
+   */
+  loadFeePcts?: DirectDigitalFeePctsLoader
 }
 
 function logPortfolioSourceTiming(startedAt: number, sources: PortfolioSourceTiming[]): void {
@@ -223,10 +229,10 @@ export async function buildCampaignPacingRows(
   }
 
   const feeVersionIds = sources.adServing.map((row) => row.mediaPlanVersionId)
-  const feePctsByVersionId =
-    feeVersionIds.length > 0
-      ? await loadDirectDigitalFeePcts({ versionIds: feeVersionIds })
-      : {}
+  const feePctsByVersionId = await loadDirectDigitalFeePctsOrGross(
+    feeVersionIds,
+    args.loadFeePcts,
+  )
 
   const rows = assembleCampaignPacingRows({
     asOfDate: args.asOfDate,

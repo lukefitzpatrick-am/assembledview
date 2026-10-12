@@ -7,7 +7,10 @@ import {
   feeLoadingFromSnapshot,
   feePctsByVersionFromSnapshots,
 } from "@/lib/delivery/directDigitalFeeChannels"
-import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
+import type {
+  DirectDigitalFeePctsLoader,
+  FeePctsByVersionId,
+} from "@/lib/delivery/directDigitalFeeLookup"
 
 /**
  * One autocommit select of `mba_fee_snapshots` for the version ids in hand.
@@ -38,4 +41,24 @@ export async function loadDirectDigitalFeePcts(args: {
     snapshots,
     clientFeeLoading: args.clientFeeLoading,
   })
+}
+
+/**
+ * One read per build. A throw logs once and returns an empty map so the
+ * estimate keeps the gross budget. `load` defaults to the real select.
+ */
+export async function loadDirectDigitalFeePctsOrGross(
+  versionIds: readonly number[],
+  load: DirectDigitalFeePctsLoader = loadDirectDigitalFeePcts,
+): Promise<FeePctsByVersionId> {
+  if (versionIds.length === 0) return {}
+  try {
+    return await load({ versionIds })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.warn(
+      `[direct-digital-estimate] fee snapshot read failed: ${message}; using gross`,
+    )
+    return {}
+  }
 }

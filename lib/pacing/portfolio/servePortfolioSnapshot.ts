@@ -1,3 +1,4 @@
+import type { DirectDigitalFeePctsLoader } from "@/lib/delivery/directDigitalFeeLookup"
 import type { CampaignPacingRow, PortfolioPacingCounts } from "./types"
 
 export type PortfolioSnapshotRecord = {
@@ -23,6 +24,8 @@ export type BuildPortfolioSnapshotArgs = {
   logPgTimeout?: boolean
   /** Unset uses the 4h composer cache. The cron passes false. */
   cache?: boolean
+  /** Unset calls `loadDirectDigitalFeePcts`. Tests pass a stub. */
+  loadFeePcts?: DirectDigitalFeePctsLoader
 }
 
 export type ServePortfolioSnapshotArgs = {
