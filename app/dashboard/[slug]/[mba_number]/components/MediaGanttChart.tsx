@@ -10,7 +10,6 @@ import {
 } from "@/components/dashboard/campaign/mediaGanttReshape"
 import { EmptyState } from "@/components/ui/states"
 import type { NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
-import { cn } from "@/lib/utils"
 
 export interface MediaGanttChartProps {
   lineItems: Record<string, NormalisedLineItem[]>
@@ -56,10 +55,7 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
     <div
       ref={ref}
       data-export="media-plan-gantt-root"
-      className={cn(
-        "w-full overflow-x-auto rounded-card border border-border bg-background",
-        granularity === "monthly" ? "overflow-hidden" : undefined,
-      )}
+      className="w-full overflow-visible rounded-card border border-border bg-background"
       role="region"
       aria-label={`Campaign media timeline, ${grouped ? "grouped by channel, " : ""}${gantt.rows.length} ${grouped ? "lines" : "rows"}, ${granularity === "monthly" ? "month view" : "week view"}`}
     >
@@ -71,6 +67,7 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
           months={gantt.months}
           weeksPerMonth={gantt.weeksPerMonth}
           monthBands={gantt.monthBands}
+          weekLabels={gantt.weekLabels}
           todayWeek={gantt.todayWeek}
         />
       ) : (
@@ -80,6 +77,7 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
           months={gantt.months}
           weeksPerMonth={gantt.weeksPerMonth}
           monthBands={gantt.monthBands}
+          weekLabels={gantt.weekLabels}
           todayWeek={gantt.todayWeek}
           className="min-w-full"
         />

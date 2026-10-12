@@ -40,6 +40,8 @@ export type ReshapedMediaGantt = {
   weeksPerMonth: number
   /** Calendar-aligned month header spans (weekly view). */
   monthBands?: GanttMonthBand[]
+  /** Monday week-start label for each weekly column (`d MMM`). Omitted in monthly view. */
+  weekLabels?: string[]
   todayWeek: number | null
 }
 
@@ -56,12 +58,16 @@ function formatDeliverablesDisplay(value: number): string {
   return Math.round(value).toLocaleString("en-AU", { maximumFractionDigits: 0 })
 }
 
-/** Group consecutive calendar days into Sun-start weeks (matches legacy Gantt). */
+/**
+ * Group consecutive calendar days into Monday-start weeks.
+ * Dates are Sydney/Melbourne civil days (`coerceBurstDateLocal`), so `getDay()`
+ * is that calendar weekday.
+ */
 function chunkDaysIntoWeeks(days: Date[]): Date[][] {
   const weeks: Date[][] = []
   let currentWeek: Date[] = []
   days.forEach((day, index) => {
-    if (day.getDay() === 0 && currentWeek.length > 0) {
+    if (day.getDay() === 1 && currentWeek.length > 0) {
       weeks.push(currentWeek)
       currentWeek = [day]
     } else {
@@ -125,12 +131,12 @@ export function reshapeLineItemsToMediaGantt(
   if (allDays.length === 0) return null
 
   const isMonthly = granularity === "monthly"
-  const sunWeeks = chunkDaysIntoWeeks(allDays)
+  const mondayWeeks = chunkDaysIntoWeeks(allDays)
   const monthStarts = eachMonthOfInterval({ start: startOfMonth(start), end: endOfMonth(end) })
-  const totalWeeks = isMonthly ? Math.max(1, monthStarts.length) : Math.max(1, sunWeeks.length)
+  const totalWeeks = isMonthly ? Math.max(1, monthStarts.length) : Math.max(1, mondayWeeks.length)
 
   const monthLabels = monthStarts.map((m) => format(m, "MMM"))
-  // Weekly: band width = real Sunday-weeks whose start falls in that calendar month.
+  // Weekly: band width = Monday-weeks whose first day falls in that calendar month.
   // Monthly: one column per calendar month.
   let monthBands: GanttMonthBand[] | undefined
   let weeksPerMonth = 1
@@ -141,7 +147,7 @@ export function reshapeLineItemsToMediaGantt(
     monthBands = monthLabels.map((label, i) => ({ label, startWeek: i, weeks: 1 }))
   } else {
     const bands: GanttMonthBand[] = []
-    sunWeeks.forEach((week, wi) => {
+    mondayWeeks.forEach((week, wi) => {
       const label = format(week[0], "MMM")
       const last = bands[bands.length - 1]
       if (last && last.label === label) {
@@ -202,8 +208,8 @@ export function reshapeLineItemsToMediaGantt(
           startWeek = indexOfMonth(clampedStart, monthStarts)
           endWeek = indexOfMonth(clampedEnd, monthStarts) + 1
         } else {
-          startWeek = indexOfWeek(clampedStart, sunWeeks)
-          endWeek = indexOfWeek(clampedEnd, sunWeeks) + 1
+          startWeek = indexOfWeek(clampedStart, mondayWeeks)
+          endWeek = indexOfWeek(clampedEnd, mondayWeeks) + 1
         }
 
         if (endWeek <= startWeek) endWeek = startWeek + 1
@@ -279,8 +285,8 @@ export function reshapeLineItemsToMediaGantt(
       const fraction = daysInMonth > 0 ? dayInMonth / daysInMonth : 0.5
       todayWeek = monthIdx + Math.min(0.95, Math.max(0.05, fraction))
     } else {
-      const weekIdx = indexOfWeek(today, sunWeeks)
-      const week = sunWeeks[weekIdx] ?? []
+      const weekIdx = indexOfWeek(today, mondayWeeks)
+      const week = mondayWeeks[weekIdx] ?? []
       const weekStart = week[0] ?? today
       const weekEnd = week[week.length - 1] ?? weekStart
       const weekLen = Math.max(1, differenceInCalendarDays(weekEnd, weekStart) + 1)
@@ -296,6 +302,7 @@ export function reshapeLineItemsToMediaGantt(
     months: paddedMonthLabels,
     weeksPerMonth,
     monthBands,
+    weekLabels: isMonthly ? undefined : mondayWeeks.map((week) => format(week[0] ?? start, "d MMM")),
     todayWeek,
   }
 }

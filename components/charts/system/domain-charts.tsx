@@ -11,10 +11,12 @@
  * MediaContainerTimeline, and the campaign calendar. Feed it rows of bursts.
  */
 import * as React from 'react';
+import { ChevronRight } from 'lucide-react';
 import { round } from '@/lib/chart-utils';
 import { wrapGanttLabel } from '@/lib/charts/wrapGanttLabel';
 import { BRAND } from '@/lib/brand';
 import { CHART_PALETTE, CHANNEL_COLORS, SEQUENTIAL, NEUTRAL, STATUS, fmt } from '@/lib/chart-theme';
+import { cn } from '@/lib/utils';
 
 const INK = NEUTRAL.ink, MUTED = NEUTRAL.axis, MID = NEUTRAL.label, GRID = NEUTRAL.grid;
 const TAB: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };
@@ -39,6 +41,12 @@ export interface GanttRow {
   plannedMedia?: number;
   color?: string;           // defaults to a CHANNEL_COLORS hue or palette
   bursts: GanttBurst[];
+  /** Channel summary. The label cell toggles the lines under it. */
+  summary?: boolean;
+  /** Open state for a summary row. */
+  expanded?: boolean;
+  /** Line drawn under an open channel summary. */
+  indent?: boolean;
 }
 export interface GanttMonthBand {
   label: string;
@@ -53,75 +61,132 @@ export interface MediaGanttProps {
   weeksPerMonth?: number;   // default 4 — used when monthBands omitted
   /** Calendar-aligned month spans; when set, overrides equal weeksPerMonth bands. */
   monthBands?: GanttMonthBand[];
+  /** Monday week-start labels, one per column. Weekly view only. */
+  weekLabels?: string[];
   todayWeek?: number | null;
   rowHeight?: number;
   className?: string;
+  /** Summary-row label cell. Index is the row in `rows`. */
+  onToggleSummary?: (rowIndex: number) => void;
 }
 
 export function MediaGanttChart({
   rows, weeks = 24, months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-  weeksPerMonth = 4, monthBands, todayWeek = null, rowHeight = 56, className,
+  weeksPerMonth = 4, monthBands, weekLabels, todayWeek = null, rowHeight = 56, className,
+  onToggleSummary,
 }: MediaGanttProps) {
   const [tip, setTip] = React.useState<{ x: number; y: number; label: string; sub?: string } | null>(null);
   const hostRef = React.useRef<HTMLDivElement>(null);
   const gutterClipId = `gantt-gutter-clip-${React.useId().replace(/:/g, "")}`;
-  const W = 1180, headH = 44, padL = 360, x1 = W - 16;
-  const H = headH + rows.length * rowHeight + 8;
+  const weekly = weekLabels != null && weekLabels.length > 0;
+  const W = 1180, headH = weekly ? 48 : 44, padL = 360, x1 = W - 16;
+  const bodyH = rows.length * rowHeight + 8;
   const weekW = (x1 - padL) / weeks;
   const wx = (w: number) => padL + weekW * w;
-  const els: React.ReactNode[] = [];
+  const labelWidthPct = (padL / W) * 100;
+  const bodyEls: React.ReactNode[] = [];
+  const headerEls: React.ReactNode[] = [];
   const labelEls: React.ReactNode[] = [];
   const hitEls: React.ReactNode[] = [];
+  const summaryButtons: React.ReactNode[] = [];
   const headerBands: GanttMonthBand[] =
     monthBands && monthBands.length > 0
       ? monthBands
       : months.map((m, i) => ({ label: m, startWeek: i * weeksPerMonth, weeks: weeksPerMonth }));
 
+  if (weekly) {
+    headerBands.forEach((band, i) => {
+      const mx = wx(band.startWeek) + weekW / 2;
+      headerEls.push(
+        <text key={`mt${i}`} data-gantt-month="" x={round(mx)} y={14} textAnchor="middle" fontSize={10} fontWeight={700} fill={MID} letterSpacing=".06em">{band.label.toUpperCase()}</text>,
+      );
+    });
+    weekLabels.forEach((label, w) => {
+      headerEls.push(
+        <text key={`wd${w}`} data-gantt-week="" x={round(wx(w) + weekW / 2)} y={34} textAnchor="middle" fontSize={9} fontWeight={600} fill={MUTED} style={TAB}>{label}</text>,
+      );
+    });
+  } else {
+    headerBands.forEach((band, i) => {
+      const mx = wx(band.startWeek);
+      const bandW = weekW * Math.max(1, band.weeks) - 3;
+      headerEls.push(<rect key={`mb${i}`} x={round(mx)} y={8} width={round(bandW)} height={20} rx={5} fill={i % 2 ? 'var(--av-grid)' : 'var(--av-subsurface)'} />);
+      headerEls.push(<text key={`mt${i}`} data-gantt-month="" x={round(mx + bandW / 2)} y={22} textAnchor="middle" fontSize={10} fontWeight={700} fill={MID} letterSpacing=".06em">{band.label.toUpperCase()}</text>);
+    });
+  }
   rows.forEach((_, ri) => {
-    if (ri % 2 === 0) els.push(<rect key={`rb${ri}`} x={0} y={round(headH + ri * rowHeight)} width={W} height={rowHeight} fill="var(--av-subsurface)" />);
-  });
-  headerBands.forEach((band, i) => {
-    const mx = wx(band.startWeek);
-    const bandW = weekW * Math.max(1, band.weeks) - 3;
-    els.push(<rect key={`mb${i}`} x={round(mx)} y={8} width={round(bandW)} height={20} rx={5} fill={i % 2 ? 'var(--av-grid)' : 'var(--av-subsurface)'} />);
-    els.push(<text key={`mt${i}`} x={round(mx + bandW / 2)} y={22} textAnchor="middle" fontSize={10} fontWeight={700} fill={MID} letterSpacing=".06em">{band.label.toUpperCase()}</text>);
+    if (ri % 2 === 0) bodyEls.push(<rect key={`rb${ri}`} x={0} y={round(ri * rowHeight)} width={W} height={rowHeight} fill="var(--av-subsurface)" />);
   });
   for (let w = 0; w <= weeks; w++) {
-    els.push(<line key={`wk${w}`} x1={round(wx(w))} x2={round(wx(w))} y1={headH - 4} y2={H - 6} stroke="var(--av-grid)" strokeWidth={1} />);
+    bodyEls.push(<line key={`wk${w}`} x1={round(wx(w))} x2={round(wx(w))} y1={0} y2={bodyH - 6} stroke="var(--av-grid)" strokeWidth={1} />);
   }
   rows.forEach((row, ri) => {
-    const y = headH + ri * rowHeight;
+    const y = ri * rowHeight;
     const color = row.color ?? CHANNEL_COLORS[(row.sub ?? '').toLowerCase()] ?? CHART_PALETTE[ri % CHART_PALETTE.length];
-    const primaryLines = wrapGanttLabel(row.label);
-    labelEls.push(<rect key={`sw${ri}`} x={14} y={round(y + rowHeight / 2 - 7)} width={4} height={14} rx={2} fill={color} />);
-    if (primaryLines.length === 1) {
-      labelEls.push(<text key={`rl${ri}-0`} x={26} y={round(y + rowHeight / 2 - 4)} fontSize={12} fontWeight={700} fill={INK}>{primaryLines[0]}</text>);
-      if (row.sub) labelEls.push(<text key={`rs${ri}`} x={26} y={round(y + rowHeight / 2 + 10)} fontSize={9.5} fill={MUTED}>{row.sub}</text>);
-    } else {
-      primaryLines.forEach((line, li) => {
-        const lineY = li === 0 ? y + rowHeight / 2 - 12 : y + rowHeight / 2 + 1;
-        labelEls.push(<text key={`rl${ri}-${li}`} x={26} y={round(lineY)} fontSize={12} fontWeight={700} fill={INK}>{line}</text>);
-      });
-      if (row.sub) labelEls.push(<text key={`rs${ri}`} x={26} y={round(y + rowHeight / 2 + 14)} fontSize={9.5} fill={MUTED}>{row.sub}</text>);
+    const tickX = row.indent ? 30 : 14;
+    const textX = row.indent ? 42 : 26;
+    labelEls.push(<rect key={`sw${ri}`} x={tickX} y={round(y + rowHeight / 2 - 7)} width={4} height={14} rx={2} fill={color} />);
+    if (!row.summary) {
+      const primaryLines = wrapGanttLabel(row.label);
+      if (primaryLines.length === 1) {
+        labelEls.push(<text key={`rl${ri}-0`} x={textX} y={round(y + rowHeight / 2 - 4)} fontSize={12} fontWeight={700} fill={INK}>{primaryLines[0]}</text>);
+        if (row.sub) labelEls.push(<text key={`rs${ri}`} x={textX} y={round(y + rowHeight / 2 + 10)} fontSize={9.5} fill={MUTED}>{row.sub}</text>);
+      } else {
+        primaryLines.forEach((line, li) => {
+          const lineY = li === 0 ? y + rowHeight / 2 - 12 : y + rowHeight / 2 + 1;
+          labelEls.push(<text key={`rl${ri}-${li}`} x={textX} y={round(lineY)} fontSize={12} fontWeight={700} fill={INK}>{line}</text>);
+        });
+        if (row.sub) labelEls.push(<text key={`rs${ri}`} x={textX} y={round(y + rowHeight / 2 + 14)} fontSize={9.5} fill={MUTED}>{row.sub}</text>);
+      }
     }
     row.bursts.forEach((b, bi) => {
       const bx = wx(b.startWeek), bw = weekW * (b.endWeek - b.startWeek) - 3, by = y + rowHeight / 2 - 9, bh = 18;
       if (b.tone === "active" || b.tone === "context") {
         const fill = b.tone === "active" ? BRAND.colour.forest : BRAND.colour.context;
         const labelFill = b.tone === "active" ? BRAND.colour.white : BRAND.colour.ink;
-        els.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={fill} />);
-        if (bw > 48 && b.label) els.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill={labelFill} style={TAB}>{b.label}</text>);
+        bodyEls.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={fill} />);
+        if (bw > 48 && b.label) bodyEls.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill={labelFill} style={TAB}>{b.label}</text>);
         return;
       }
       const fillRatio = b.fillRatio;
       const hasDeliveryFill = typeof fillRatio === "number" && Number.isFinite(fillRatio);
       const fillW = hasDeliveryFill ? round(bw * Math.min(1, Math.max(0, fillRatio))) : round(bw);
-      els.push(<rect key={`bg${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={color} fillOpacity={0.16} />);
+      bodyEls.push(<rect key={`bg${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={color} fillOpacity={0.16} />);
       if (fillW > 0) {
-        els.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={fillW} height={bh} rx={5} fill={color} fillOpacity={(b.intensity ?? 0.85) * 0.92} />);
+        bodyEls.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={fillW} height={bh} rx={5} fill={color} fillOpacity={(b.intensity ?? 0.85) * 0.92} />);
       }
-      if (bw > 48 && b.label) els.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill={BRAND.colour.white} style={TAB}>{b.label}</text>);
+      if (bw > 48 && b.label) bodyEls.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill={BRAND.colour.white} style={TAB}>{b.label}</text>);
     });
+    if (row.summary) {
+      const top = bodyH > 0 ? (y / bodyH) * 100 : 0;
+      const height = bodyH > 0 ? (rowHeight / bodyH) * 100 : 100;
+      const toggle = () => onToggleSummary?.(ri);
+      summaryButtons.push(
+        <button
+          key={`sum${ri}`}
+          type="button"
+          aria-expanded={row.expanded === true}
+          onClick={toggle}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            toggle();
+          }}
+          className="absolute z-10 flex cursor-pointer items-center gap-1.5 overflow-hidden bg-transparent text-left hover:bg-table-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          style={{ left: 0, width: `${labelWidthPct}%`, top: `${top}%`, height: `${height}%`, paddingLeft: "8%" }}
+        >
+          <ChevronRight
+            className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", row.expanded ? "rotate-90" : undefined)}
+            aria-hidden
+          />
+          <span className="min-w-0">
+            <span className="block truncate text-xs font-semibold text-foreground">{row.label}</span>
+            {row.sub ? <span className="num block truncate text-[10px] text-muted-foreground">{row.sub}</span> : null}
+          </span>
+        </button>,
+      );
+      return;
+    }
     hitEls.push(
       <rect
         key={`hit${ri}`}
@@ -143,24 +208,33 @@ export function MediaGanttChart({
     );
   });
   if (todayWeek != null) {
-    els.push(<line key="tl" x1={round(wx(todayWeek))} x2={round(wx(todayWeek))} y1={headH - 12} y2={H - 6} stroke={INK} strokeWidth={1.5} strokeDasharray="3 3" />);
-    els.push(<rect key="tb" x={round(wx(todayWeek) - 19)} y={headH - 24} width={38} height={14} rx={7} fill={INK} />);
-    // Match PacingBandChart: ink pill + surface text (readable in light and dark).
-    els.push(<text key="tt" x={round(wx(todayWeek))} y={headH - 14} textAnchor="middle" fontSize={8.5} fontWeight={700} fill="var(--av-surface)">TODAY</text>);
+    headerEls.push(<line key="tlh" x1={round(wx(todayWeek))} x2={round(wx(todayWeek))} y1={headH - 18} y2={headH} stroke={INK} strokeWidth={1.5} strokeDasharray="3 3" />);
+    headerEls.push(<rect key="tb" x={round(wx(todayWeek) - 19)} y={2} width={38} height={14} rx={7} fill={INK} />);
+    headerEls.push(<text key="tt" x={round(wx(todayWeek))} y={12} textAnchor="middle" fontSize={8.5} fontWeight={700} fill="var(--av-surface)">TODAY</text>);
+    bodyEls.push(<line key="tl" x1={round(wx(todayWeek))} x2={round(wx(todayWeek))} y1={0} y2={bodyH - 6} stroke={INK} strokeWidth={1.5} strokeDasharray="3 3" />);
   }
   return (
     <div className={className}>
+      <div
+        data-gantt-axis=""
+        className="sticky top-0 z-20 border-b border-border bg-background"
+      >
+        <svg viewBox={`0 0 ${W} ${headH}`} width="100%" style={{ display: 'block' }}>
+          {headerEls}
+        </svg>
+      </div>
       <div ref={hostRef} className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+        <svg viewBox={`0 0 ${W} ${bodyH}`} width="100%" style={{ display: 'block' }}>
           <defs>
             <clipPath id={gutterClipId}>
-              <rect x={0} y={0} width={padL - 10} height={H} />
+              <rect x={0} y={0} width={padL - 10} height={bodyH} />
             </clipPath>
           </defs>
-          {els}
+          {bodyEls}
           <g clipPath={`url(#${gutterClipId})`}>{labelEls}</g>
           {hitEls}
         </svg>
+        {summaryButtons}
         {/* Class string mirrors CHART_TOOLTIP_CONTENT_CLASS in components/ui/chart.tsx — sync manually if that changes. */}
         {tip && (
           <div
