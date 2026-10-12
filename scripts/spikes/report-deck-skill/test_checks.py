@@ -1,5 +1,6 @@
 """Local checks for the v5 deck builder. No API calls."""
 import importlib.util
+import json
 import os
 import sys
 import zipfile
@@ -63,11 +64,110 @@ def test_palette():
         fail(f"00FFFF was not flagged: {issues}")
 
 
+def test_validate():
+    build = load("build_report.py")
+    short_list = {
+        "slides": [{
+            "type": "not-live",
+            "variant": "list",
+            "title": "Search is {i:\"yet to launch\"}.",
+            "rows": [{"label": "Search", "budget": "notLive.0.plannedBudget", "note": "Launch date to be confirmed."}],
+        }],
+    }
+    errors = build.validate_content(short_list)
+    if not any("use cards" in error for error in errors):
+        fail(f"short list was allowed: {errors}")
+    missing_insight = {
+        "slides": [{
+            "type": "kpi",
+            "variant": "table",
+            "title": "Rates {i:\"sit below\"} target.",
+            "rows": [{"label": "kpis.0.label", "actual": "kpis.0.actualDisplay", "target": "kpis.0.targetDisplay"}],
+        }],
+    }
+    errors = build.validate_content(missing_insight)
+    if not any("insight" in error for error in errors):
+        fail(f"missing insight was allowed: {errors}")
+    bad_variant = {
+        "slides": [{
+            "type": "summary",
+            "variant": "grid",
+            "title": "Spend sits {i:\"behind pace\"}.",
+        }],
+    }
+    errors = build.validate_content(bad_variant)
+    if not any("variant" in error for error in errors):
+        fail(f"bad variant was allowed: {errors}")
+    typed = {
+        "slides": [{
+            "type": "summary",
+            "variant": "stat-row",
+            "title": "Spend sits {i:\"behind pace\"}.",
+            "stats": [{"label": "Spend pace", "key": "35%"}],
+            "outcome": "Search is still on the plan.",
+        }],
+    }
+    errors = build.validate_content(typed)
+    if not any("value key" in error for error in errors):
+        fail(f"typed percent was allowed: {errors}")
+
+
+def slide_text(path):
+    text = []
+    with zipfile.ZipFile(path) as archive:
+        for name in archive.namelist():
+            if name.startswith("ppt/slides/slide") and name.endswith(".xml"):
+                text.append(archive.read(name).decode("utf-8"))
+    return "\n".join(text)
+
+
+def test_pace_and_fallback():
+    build = load("build_report.py")
+    photos = [
+        os.path.join(HERE, "kit", "assembled-brand-kit", "library", name)
+        for name in ("pexels-6299928.jpg", "pexels-6786367.jpg", "pexels-13935909.jpg")
+    ]
+    content = {
+        "slides": [
+            {
+                "type": "summary",
+                "variant": "stat-row",
+                "title": "Spend sits {i:\"behind pace\"}.",
+                "stats": [{"label": "Spend pace", "key": "summary.metrics.spendPacePct"}],
+                "outcome": "Search is still on the plan.",
+            },
+            {
+                "type": "not-live",
+                "variant": "list",
+                "title": "Search is {i:\"yet to launch\"}.",
+                "rows": [{
+                    "label": "Search",
+                    "budget": "notLive.0.plannedBudget",
+                    "note": "Launch date to be confirmed.",
+                }],
+            },
+        ],
+    }
+    with open(DATA, encoding="utf-8") as handle:
+        data = json.load(handle)
+    out = os.path.join(OUT, "pace-fallback.pptx")
+    build.build(content, data, TEMPLATE, out, photos)
+    text = slide_text(out)
+    if "of expected to date" not in text:
+        fail("spend pace label was not extended")
+    if "Launch date to be confirmed." not in text:
+        fail("short list note was dropped")
+    if "Planned" not in text:
+        fail("short list did not fall back to cards")
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     test_missing_key()
     test_overflow_title()
     test_palette()
+    test_validate()
+    test_pace_and_fallback()
     print("tests OK")
 
 

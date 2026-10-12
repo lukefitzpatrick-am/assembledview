@@ -184,6 +184,25 @@ def variant(spec, path, allowed):
     return name
 
 
+def with_pace(label):
+    stripped = label.strip()
+    if stripped.lower().rstrip(".") == "spend pace":
+        return stripped.rstrip(".") + " of expected to date"
+    return label
+
+
+def insight_card(slide, path, spec, table_top, row_h, row_count):
+    insight = text_of(require(spec, "insight", f"{path}.insight"), f"{path}.insight", 160)
+    top = table_top + row_h * row_count + 0.18
+    height = 6.7 - top
+    if height < 1.2:
+        height = 1.2
+        top = 6.7 - height
+    card(slide, 0.6, top, 12.13, height, K["sand"])
+    tag(slide, 0.82, top + (height / 2) - 0.16, "Insight", K["sky"], K["ink"])
+    say(slide, 2.35, top + 0.12, 10.1, height - 0.24, insight, f"{path}.insight", size=15, color=K["ink"], anchor="m")
+
+
 def fg(slide):
     return K["white"] if slide._am_dark else K["ink"]
 
@@ -250,16 +269,17 @@ def build_summary(deck, spec, index):
         at = f"{path}.stats.{stat_index}"
         if not isinstance(stat, dict):
             fail(at, "expected an object")
-        label = text_of(require(stat, "label", f"{at}.label"), f"{at}.label", 24)
+        label = with_pace(text_of(require(stat, "label", f"{at}.label"), f"{at}.label", 24))
         value = key_of(require(stat, "key", f"{at}.key"), f"{at}.key")
         x = 0.6 + stat_index * (width + gap)
-        card(slide, x, 2.0, width, 2.15, K["sand"])
+        card(slide, x, 2.0, width, 2.22, K["sand"])
         numdot(slide, x + 0.14, 2.14, stat_index + 1, K["forest"], K["white"], 0.36)
         say(slide, x + 0.14, 2.58, width - 0.28, 0.7, value, f"{at}.key", size=22 if len(value) > 12 else 26, color=K["forest"], font=HEAD)
-        say(slide, x + 0.14, 3.28, width - 0.28, 0.32, label, f"{at}.label", size=12, color=K["ink"])
+        tall = len(label) > 18
+        say(slide, x + 0.14, 3.28, width - 0.28, 0.48 if tall else 0.32, label, f"{at}.label", size=11 if tall else 12, color=K["ink"])
         if stat.get("note") is not None:
             note = text_of(stat["note"], f"{at}.note", 48)
-            say(slide, x + 0.14, 3.6, width - 0.28, 0.4, note, f"{at}.note", size=11, color=K["muted"])
+            say(slide, x + 0.14, 3.78 if tall else 3.6, width - 0.28, 0.38, note, f"{at}.note", size=11, color=K["muted"])
     outcome = text_of(require(spec, "outcome", f"{path}.outcome"), f"{path}.outcome", 160)
     card(slide, 0.6, 4.35, 12.13, 2.15, K["sand"])
     tag(slide, 0.82, 4.55, "Outcome", K["lime"], K["ink"])
@@ -297,7 +317,7 @@ def build_channel(deck, spec, index, photos):
             at = f"{path}.delivery.{item_index}"
             if not isinstance(item, dict):
                 fail(at, "expected an object")
-            label = text_of(require(item, "label", f"{at}.label"), f"{at}.label", 24)
+            label = with_pace(text_of(require(item, "label", f"{at}.label"), f"{at}.label", 24))
             value = key_of(require(item, "key", f"{at}.key"), f"{at}.key")
             x = 0.6 + item_index * (card_w + gap)
             card(slide, x, 3.5, card_w, 1.28, K["white"])
@@ -319,10 +339,10 @@ def build_channel(deck, spec, index, photos):
             at = f"{path}.cards.{item_index}"
             if not isinstance(item, dict):
                 fail(at, "expected an object")
-            heading = text_of(require(item, "title", f"{at}.title"), f"{at}.title", 32)
+            heading = with_pace(text_of(require(item, "title", f"{at}.title"), f"{at}.title", 32))
             value = key_of(require(item, "key", f"{at}.key"), f"{at}.key")
             copy = text_of(require(item, "body", f"{at}.body"), f"{at}.body", 120)
-            fill_named(deck, slide, head, heading, f"{at}.title", 16, K["ink"], HEAD)
+            fill_named(deck, slide, head, heading, f"{at}.title", 13 if len(heading) > 18 else 16, K["ink"], HEAD)
             fill_named(
                 deck, slide, body,
                 [[Run(value, font=HEAD, color=K["forest"], size=26)], [copy]],
@@ -348,8 +368,19 @@ def build_not_live(deck, spec, index):
     kind = variant(spec, path, ("cards", "list"))
     slide = deck.add("Title Only - White")
     put_title(deck, slide, 100, spec, f"{path}.title")
+    cards = None
+    from_list = False
+    if kind == "list":
+        rows = require(spec, "rows", f"{path}.rows")
+        if not isinstance(rows, list) or not rows or len(rows) > 5:
+            fail(f"{path}.rows", "1 to 5 rows")
+        if len(rows) <= 2:
+            cards = rows
+            from_list = True
+            kind = "cards"
     if kind == "cards":
-        cards = require(spec, "cards", f"{path}.cards")
+        if cards is None:
+            cards = require(spec, "cards", f"{path}.cards")
         if not isinstance(cards, list) or not cards or len(cards) > 4:
             fail(f"{path}.cards", "1 to 4 cards")
         gap = 0.18
@@ -364,13 +395,23 @@ def build_not_live(deck, spec, index):
                 fail(at, "expected an object")
             label = text_of(require(item, "label", f"{at}.label"), f"{at}.label", 32)
             budget = key_of(require(item, "budget", f"{at}.budget"), f"{at}.budget")
-            status = text_of(require(item, "status", f"{at}.status"), f"{at}.status", 48)
+            status = text_of(item["status"], f"{at}.status", 48) if item.get("status") is not None else None
+            note = text_of(item["note"], f"{at}.note", 80) if item.get("note") is not None else None
+            if from_list and note is None:
+                fail(at, "missing note")
+            if not from_list and status is None:
+                fail(at, "missing status")
             x = 0.6 + item_index * (width + gap)
-            card(slide, x, 2.15, width, 3.3, K["sand"])
-            tag(slide, x + 0.2, 2.35, "Planned", K["lime"], K["ink"])
-            say(slide, x + 0.2, 2.9, width - 0.4, 0.4, label, f"{at}.label", size=16, color=K["ink"], font=HEAD)
-            say(slide, x + 0.2, 3.45, width - 0.4, 0.7, budget, f"{at}.budget", size=22 if len(budget) > 12 else 28, color=K["forest"], font=HEAD)
-            say(slide, x + 0.2, 4.3, width - 0.4, 0.8, status, f"{at}.status", size=14, color=K["body"])
+            card(slide, x, 2.15, width, 3.55, K["sand"])
+            tag(slide, x + 0.2, 2.32, "Planned", K["lime"], K["ink"])
+            say(slide, x + 0.2, 2.82, width - 0.4, 0.36, label, f"{at}.label", size=16, color=K["ink"], font=HEAD)
+            say(slide, x + 0.2, 3.24, width - 0.4, 0.55, budget, f"{at}.budget", size=22 if len(budget) > 12 else 28, color=K["forest"], font=HEAD)
+            y = 3.9
+            if status is not None:
+                say(slide, x + 0.2, y, width - 0.4, 0.55, status, f"{at}.status", size=14, color=K["body"])
+                y += 0.6
+            if note is not None:
+                say(slide, x + 0.2, y, width - 0.4, 0.7, note, f"{at}.note", size=14, color=K["body"])
         return slide
     rows = require(spec, "rows", f"{path}.rows")
     if not isinstance(rows, list) or not rows or len(rows) > 5:
@@ -410,9 +451,10 @@ def build_kpi(deck, spec, index):
                 key_of(require(item, "target", f"{at}.target"), f"{at}.target"),
                 key_of(require(item, "actual", f"{at}.actual"), f"{at}.actual"),
             ])
-        grid = table(slide, 0.6, 2.15, 12.13, table_rows, widths=[3, 4, 4], size=13, head=True, first_bold=True, row_h=0.48)
+        grid = table(slide, 0.6, 2.15, 12.13, table_rows, widths=[3, 4, 4], size=13, head=True, first_bold=True, row_h=0.42)
         grid.name = f"{path}.table"
         line(slide, 0.6, 2.05, 2.2, K["forest"], 2.5)
+        insight_card(slide, path, spec, 2.15, 0.42, len(table_rows))
         return slide
     slide = deck.add("Four Cards")
     put_title(deck, slide, 100, spec, f"{path}.title")
@@ -505,9 +547,10 @@ def build_appendix(deck, spec, index):
         if not isinstance(row, list) or len(row) != width:
             fail(f"{path}.rows.{row_index}", f"{width} keys")
         table_rows.append([key_of(cell, f"{path}.rows.{row_index}.{cell_index}") for cell_index, cell in enumerate(row)])
-    grid = table(slide, 0.6, 2.15, 12.13, table_rows, size=12, head=True, first_bold=True, row_h=0.46)
+    grid = table(slide, 0.6, 2.15, 12.13, table_rows, size=12, head=True, first_bold=True, row_h=0.42)
     grid.name = f"{path}.table"
     line(slide, 0.6, 2.05, 2.2, K["forest"], 2.5)
+    insight_card(slide, path, spec, 2.15, 0.42, len(table_rows))
     return slide
 
 
@@ -544,6 +587,230 @@ BUILDERS = {
     "appendix": build_appendix,
     "close": build_close,
 }
+
+
+def validate_content(content):
+    """Schema checks that do not need report-data.json. Resolved string length is checked at build."""
+    errors = []
+
+    def bad(path, message):
+        errors.append(f"{path}: {message}")
+
+    def prose(node, path, limit=None, words=None):
+        if node is None:
+            bad(path, "missing")
+            return
+        if isinstance(node, str) and KEY_RE.fullmatch(node):
+            return
+        if isinstance(node, str):
+            if digits(node):
+                bad(path, "digits in copy; use a value key")
+            elif limit is not None and len(node) > limit:
+                bad(path, f"{len(node)} characters, limit {limit}")
+            if words is not None and len(re.findall(r"\S+", node)) > words:
+                bad(path, f"over {words} words")
+            return
+        if isinstance(node, list):
+            length = 0
+            count = 0
+            for index, part in enumerate(node):
+                at = f"{path}.{index}"
+                if isinstance(part, str):
+                    if digits(part):
+                        bad(at, "digits in copy; use a value key")
+                    length += len(part)
+                    count += len(re.findall(r"\S+", part))
+                elif isinstance(part, dict) and isinstance(part.get("k"), str) and len(part) == 1:
+                    if not KEY_RE.fullmatch(part["k"]):
+                        bad(f"{at}.k", "expected a value key")
+                    count += 1
+                else:
+                    bad(at, 'expected copy or {"k": path}')
+            if limit is not None and length > limit:
+                bad(path, f"{length} characters, limit {limit}")
+            if words is not None and count > words:
+                bad(path, f"over {words} words")
+            return
+        bad(path, "expected copy or a value key")
+
+    def key(node, path):
+        if not isinstance(node, str) or not KEY_RE.fullmatch(node):
+            bad(path, "expected a value key")
+
+    def title(spec, path):
+        if "title" not in spec:
+            bad(f"{path}.title", "missing title")
+            return
+        try:
+            parse_title(spec["title"], f"{path}.title")
+        except BuildError as error:
+            errors.append(str(error))
+
+    def variant_name(spec, path, allowed):
+        name = spec.get("variant")
+        if name not in allowed:
+            bad(path, f"variant must be {' or '.join(allowed)}")
+            return None
+        return name
+
+    def items(node, path, low, high, noun):
+        if not isinstance(node, list) or len(node) < low or (high is not None and len(node) > high):
+            span = str(low) if low == high else (f"{low} to {high}" if high is not None else f"at least {low}")
+            bad(path, f"{span} {noun}")
+            return []
+        return node
+
+    if not isinstance(content, dict) or not isinstance(content.get("slides"), list) or not content["slides"]:
+        return ["slides: expected a slide list"]
+
+    for index, spec in enumerate(content["slides"]):
+        path = f"slides.{index}"
+        if not isinstance(spec, dict):
+            bad(path, "expected an object")
+            continue
+        kind = spec.get("type")
+        if kind not in BUILDERS:
+            bad(path, "unknown slide type")
+            continue
+        title(spec, path)
+        if kind == "cover":
+            name = variant_name(spec, path, ("sand", "black"))
+            if name is not None:
+                key(spec.get("subtitle"), f"{path}.subtitle")
+        elif kind == "summary":
+            name = variant_name(spec, path, ("stat-row", "statement"))
+            if name == "statement":
+                prose(spec.get("support"), f"{path}.support", 140)
+            elif name == "stat-row":
+                for item_index, item in enumerate(items(spec.get("stats"), f"{path}.stats", 1, 4, "stats")):
+                    at = f"{path}.stats.{item_index}"
+                    if not isinstance(item, dict):
+                        bad(at, "expected an object")
+                        continue
+                    prose(item.get("label"), f"{at}.label", 24)
+                    key(item.get("key"), f"{at}.key")
+                    if item.get("note") is not None:
+                        prose(item.get("note"), f"{at}.note", 48)
+                prose(spec.get("outcome"), f"{path}.outcome", 160)
+        elif kind == "channel":
+            name = variant_name(spec, path, ("bars", "cards", "photo"))
+            if name == "bars":
+                key(spec.get("spend"), f"{path}.spend")
+                key(spec.get("expected"), f"{path}.expected")
+                if spec.get("spendLabel") is not None:
+                    prose(spec.get("spendLabel"), f"{path}.spendLabel", 24)
+                if spec.get("expectedLabel") is not None:
+                    prose(spec.get("expectedLabel"), f"{path}.expectedLabel", 24)
+                for item_index, item in enumerate(items(spec.get("delivery"), f"{path}.delivery", 1, 4, "delivery figures")):
+                    at = f"{path}.delivery.{item_index}"
+                    if not isinstance(item, dict):
+                        bad(at, "expected an object")
+                        continue
+                    prose(item.get("label"), f"{at}.label", 24)
+                    key(item.get("key"), f"{at}.key")
+                prose(spec.get("insight"), f"{path}.insight", 160)
+            elif name == "cards":
+                cards = items(spec.get("cards"), f"{path}.cards", 3, 3, "cards")
+                for item_index, item in enumerate(cards):
+                    at = f"{path}.cards.{item_index}"
+                    if not isinstance(item, dict):
+                        bad(at, "expected an object")
+                        continue
+                    prose(item.get("title"), f"{at}.title", 32)
+                    key(item.get("key"), f"{at}.key")
+                    prose(item.get("body"), f"{at}.body", 120)
+            elif name == "photo":
+                key(spec.get("value"), f"{path}.value")
+                prose(spec.get("body"), f"{path}.body", 200)
+                photo = spec.get("photo", 0)
+                if not isinstance(photo, int) or isinstance(photo, bool) or photo not in (0, 1, 2):
+                    bad(f"{path}.photo", "photo index out of range")
+        elif kind == "not-live":
+            name = variant_name(spec, path, ("cards", "list"))
+            if name == "cards":
+                for item_index, item in enumerate(items(spec.get("cards"), f"{path}.cards", 1, 4, "cards")):
+                    at = f"{path}.cards.{item_index}"
+                    if not isinstance(item, dict):
+                        bad(at, "expected an object")
+                        continue
+                    prose(item.get("label"), f"{at}.label", 32)
+                    key(item.get("budget"), f"{at}.budget")
+                    prose(item.get("status"), f"{at}.status", 48)
+                    if item.get("note") is not None:
+                        prose(item.get("note"), f"{at}.note", 80)
+            elif name == "list":
+                rows = items(spec.get("rows"), f"{path}.rows", 1, 5, "rows")
+                if rows and len(rows) <= 2:
+                    bad(f"{path}.rows", "list is not allowed for 1 or 2 channels; use cards")
+                for item_index, item in enumerate(rows):
+                    at = f"{path}.rows.{item_index}"
+                    if not isinstance(item, dict):
+                        bad(at, "expected an object")
+                        continue
+                    prose(item.get("label"), f"{at}.label", 32)
+                    key(item.get("budget"), f"{at}.budget")
+                    prose(item.get("note"), f"{at}.note", 80)
+        elif kind == "kpi":
+            name = variant_name(spec, path, ("four-cards", "table"))
+            group = "cards" if name == "four-cards" else "rows"
+            if name is not None:
+                entries = items(spec.get(group), f"{path}.{group}", 1, 4 if name == "four-cards" else None, group)
+                for item_index, item in enumerate(entries):
+                    at = f"{path}.{group}.{item_index}"
+                    if not isinstance(item, dict):
+                        bad(at, "expected an object")
+                        continue
+                    key(item.get("label"), f"{at}.label")
+                    key(item.get("actual"), f"{at}.actual")
+                    key(item.get("target"), f"{at}.target")
+                if name == "table":
+                    prose(spec.get("insight"), f"{path}.insight", 160)
+        elif kind == "iao":
+            name = variant_name(spec, path, ("rows", "journey"))
+            if name == "journey":
+                for item_index, item in enumerate(items(spec.get("steps"), f"{path}.steps", 3, 3, "steps")):
+                    at = f"{path}.steps.{item_index}"
+                    if not isinstance(item, dict):
+                        bad(at, "expected an object")
+                        continue
+                    prose(item.get("label"), f"{at}.label", 24)
+                    prose(item.get("text"), f"{at}.text", words=35)
+            elif name == "rows":
+                for item_index, item in enumerate(items(spec.get("rows"), f"{path}.rows", 1, 4, "rows")):
+                    at = f"{path}.rows.{item_index}"
+                    if not isinstance(item, dict):
+                        bad(at, "expected an object")
+                        continue
+                    if item.get("tag") not in ("insight", "action", "outcome"):
+                        bad(f"{at}.tag", "insight, action or outcome")
+                    prose(item.get("text"), f"{at}.text", words=35)
+        elif kind == "appendix":
+            if spec.get("variant") not in (None, "table"):
+                bad(path, "variant must be table")
+            columns = spec.get("columns")
+            rows = spec.get("rows")
+            if not isinstance(columns, list) or not columns:
+                bad(f"{path}.columns", "at least one column")
+                columns = []
+            else:
+                for col_index, column in enumerate(columns):
+                    prose(column, f"{path}.columns.{col_index}", 18)
+            if not isinstance(rows, list) or not rows:
+                bad(f"{path}.rows", "at least one row")
+            else:
+                for row_index, row in enumerate(rows):
+                    if not isinstance(row, list) or len(row) != len(columns):
+                        bad(f"{path}.rows.{row_index}", f"{len(columns)} keys")
+                        continue
+                    for cell_index, cell in enumerate(row):
+                        key(cell, f"{path}.rows.{row_index}.{cell_index}")
+            prose(spec.get("insight"), f"{path}.insight", 160)
+        elif kind == "close":
+            name = variant_name(spec, path, ("thank-you", "cta"))
+            if name == "cta":
+                prose(spec.get("support"), f"{path}.support", 140)
+                prose(spec.get("button"), f"{path}.button", 24)
+    return errors
 
 
 def build(content, data, template, out, photos):
