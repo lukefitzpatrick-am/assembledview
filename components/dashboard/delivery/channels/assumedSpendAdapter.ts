@@ -13,7 +13,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { fromCents, toCents } from "@/lib/money/cents"
 import { parseMoney } from "@/lib/money/parse"
 import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
-import { assumeSpendForSnapshotLine } from "@/lib/snowflake/pgLineItemSnapshotMap"
+import { assumeSpendForSnapshotLine } from "@/lib/spend/assumeSpendRule"
 import { ASSUMED_SPEND_LABEL, assumedSpendForBurst } from "@/lib/spend/assumedSpend"
 
 const ATL_FAMILIES = [
