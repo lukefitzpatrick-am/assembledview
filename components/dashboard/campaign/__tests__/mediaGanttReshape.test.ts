@@ -62,12 +62,12 @@ test("weekly month bands follow calendar months (variable week spans)", () => {
   assert.deepEqual(labels, ["Jan", "Feb", "Mar"])
   const weekSum = gantt!.monthBands!.reduce((s, b) => s + b.weeks, 0)
   assert.equal(weekSum, gantt!.weeks)
-  // Equal-width fallacy: Jan/Feb/Mar of 2026 do not all have the same Sunday-week count.
+  // Equal-width fallacy: Jan/Feb/Mar of 2026 do not all have the same Monday-week count.
   const uniqueSpans = new Set(gantt!.monthBands!.map((b) => b.weeks))
   assert.ok(uniqueSpans.size >= 2, "months must not all share one weeksPerMonth")
 })
 
-test("weekly todayWeek lands on a sun-week index", () => {
+test("weekly todayWeek lands inside the Monday week columns", () => {
   const gantt = reshapeLineItemsToMediaGantt(
     { search: [item()] },
     "2026-01-01",
@@ -188,6 +188,29 @@ test("future-start with no delivery still reads Starts {d MMM}", () => {
   assert.ok(gantt)
   assert.equal(gantt!.rows[0]?.bursts[0]?.label, "Starts 15 Mar")
   assert.equal(gantt!.rows[0]?.bursts[0]?.fillRatio, undefined)
+})
+
+test("weekly Oct 2026 labels are the Monday week starts", () => {
+  const gantt = reshapeLineItemsToMediaGantt(
+    { search: [item({ bursts: [{ startDate: "2026-10-05", endDate: "2026-10-31", deliverables: 10, deliverablesAmount: 10, budget: 10 }] })] },
+    "2026-10-05",
+    "2026-10-31",
+    "weekly",
+  )
+  assert.ok(gantt)
+  assert.deepEqual(gantt!.weekLabels, ["5 Oct", "12 Oct", "19 Oct", "26 Oct"])
+  assert.equal(gantt!.monthBands?.[0]?.label, "Oct")
+})
+
+test("monthly view does not add week-start labels", () => {
+  const gantt = reshapeLineItemsToMediaGantt(
+    { search: [item()] },
+    "2026-01-01",
+    "2026-03-31",
+    "monthly",
+  )
+  assert.ok(gantt)
+  assert.equal(gantt!.weekLabels, undefined)
 })
 
 test("every row carries its media channel key and sums in-window burst budgets", () => {

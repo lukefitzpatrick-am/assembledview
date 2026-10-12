@@ -30,7 +30,12 @@ afterEach(() => {
   mounted.length = 0
 })
 
-function line(id: string, publisher: string): NormalisedLineItem {
+function line(
+  id: string,
+  publisher: string,
+  startDate = "2026-01-05",
+  endDate = "2026-02-20",
+): NormalisedLineItem {
   return {
     lineItemId: id,
     publisher,
@@ -38,8 +43,8 @@ function line(id: string, publisher: string): NormalisedLineItem {
     network: publisher,
     bursts: [
       {
-        startDate: "2026-01-05",
-        endDate: "2026-02-20",
+        startDate,
+        endDate,
         deliverables: 1000,
         deliverablesAmount: 1000,
         budget: 100,
@@ -68,6 +73,29 @@ function namedButton(host: HTMLElement, name: string): HTMLButtonElement {
   const match = [...host.querySelectorAll("button")].find((button) => button.textContent?.trim() === name)
   if (!(match instanceof HTMLButtonElement)) throw new Error(`missing button ${name}`)
   return match
+}
+
+function press(button: HTMLElement, key: string) {
+  act(() => {
+    button.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }))
+  })
+}
+
+function manyLines(count: number) {
+  const channels = ["search", "television", "bvod"] as const
+  const buckets: Record<string, NormalisedLineItem[]> = { search: [], television: [], bvod: [] }
+  for (let index = 0; index < count; index++) {
+    const channel = channels[index % channels.length]!
+    buckets[channel]!.push(line(`${channel}-${index}`, `${channel} line ${index}`))
+  }
+  return buckets
+}
+
+function bodyLabelText(host: HTMLElement): string {
+  return [...host.querySelectorAll("svg text")]
+    .filter((node) => !node.closest("[data-gantt-axis]"))
+    .map((node) => node.textContent ?? "")
+    .join("\n")
 }
 
 describe("client flighting groups by channel", () => {
@@ -156,5 +184,129 @@ describe("client flighting groups by channel", () => {
     expect(editor.textContent).toContain("Editor other")
     expect(editor.textContent).not.toContain("Expand all")
     expect(editor.textContent).not.toContain("Collapse all")
+  })
+
+  it("renders one axis for a 150-line plan, including when every channel is open", () => {
+    const host = render(
+      <MediaGanttChart
+        lineItems={manyLines(150)}
+        startDate="2026-01-01"
+        endDate="2026-03-31"
+        flighting
+        grouped
+      />,
+    )
+
+    expect(host.querySelectorAll("[data-gantt-axis]")).toHaveLength(1)
+    expect(channelButton(host, "Search").getAttribute("aria-expanded")).toBe("false")
+
+    act(() => {
+      namedButton(host, "Expand all").click()
+    })
+
+    expect(host.querySelectorAll("[data-gantt-axis]")).toHaveLength(1)
+    expect(host.textContent).toContain("search line 0")
+    expect(host.textContent).toContain("television line 1")
+  })
+
+  it("toggles one channel from the summary row with click, Enter, and Space", () => {
+    const host = render(
+      <MediaGanttChart
+        lineItems={flightingLines()}
+        startDate="2026-01-01"
+        endDate="2026-03-31"
+        flighting
+        grouped
+      />,
+    )
+    const search = channelButton(host, "Search")
+    expect(search.getAttribute("aria-expanded")).toBe("false")
+    expect(search.textContent).toContain("8 lines")
+    expect(search.querySelector("svg")).not.toBeNull()
+
+    act(() => {
+      search.click()
+    })
+    expect(channelButton(host, "Search").getAttribute("aria-expanded")).toBe("true")
+    expect(channelButton(host, "Search").querySelector("svg")?.getAttribute("class")).toContain("rotate-90")
+    expect(host.textContent).toContain("Search line 0")
+    expect(host.textContent).not.toContain("Television line 0")
+
+    press(channelButton(host, "Search"), "Enter")
+    expect(channelButton(host, "Search").getAttribute("aria-expanded")).toBe("false")
+    expect(host.textContent).not.toContain("Search line 0")
+
+    press(channelButton(host, "Search"), " ")
+    expect(channelButton(host, "Search").getAttribute("aria-expanded")).toBe("true")
+    expect(host.textContent).toContain("Search line 0")
+    expect(channelButton(host, "Television").getAttribute("aria-expanded")).toBe("false")
+  })
+
+  it("lists expanded lines in plan position order", () => {
+    const host = render(
+      <MediaGanttChart
+        lineItems={{
+          television: [
+            line("z", "Order Zebra"),
+            line("a", "Order Alpha"),
+            line("m", "Order Middle"),
+          ],
+        }}
+        startDate="2026-01-01"
+        endDate="2026-03-31"
+        flighting
+        grouped
+      />,
+    )
+    expect(channelButton(host, "Television").getAttribute("aria-expanded")).toBe("true")
+    const text = bodyLabelText(host)
+    const zebra = text.indexOf("Order Zebra")
+    const alpha = text.indexOf("Order Alpha")
+    const middle = text.indexOf("Order Middle")
+    expect(zebra).toBeGreaterThanOrEqual(0)
+    expect(zebra).toBeLessThan(alpha)
+    expect(alpha).toBeLessThan(middle)
+  })
+
+  it("starts a 12-line plan expanded", () => {
+    const host = render(
+      <MediaGanttChart
+        lineItems={manyLines(12)}
+        startDate="2026-01-01"
+        endDate="2026-03-31"
+        flighting
+        grouped
+      />,
+    )
+    expect(channelButton(host, "Search").getAttribute("aria-expanded")).toBe("true")
+    expect(host.textContent).toContain("search line 0")
+    expect(host.querySelectorAll("[data-gantt-axis]")).toHaveLength(1)
+
+    act(() => {
+      channelButton(host, "Search").click()
+    })
+    expect(channelButton(host, "Search").getAttribute("aria-expanded")).toBe("false")
+    expect(host.textContent).not.toContain("search line 0")
+  })
+
+  it("labels October 2026 weeks by Monday start", () => {
+    const host = render(
+      <MediaGanttChart
+        lineItems={{
+          search: [line("oct", "October line", "2026-10-05", "2026-10-31")],
+        }}
+        startDate="2026-10-05"
+        endDate="2026-10-31"
+        granularity="weekly"
+        flighting
+        grouped
+      />,
+    )
+    const weeks = [...host.querySelectorAll("[data-gantt-week]")].map((node) => node.textContent)
+    expect(weeks).toEqual(["5 Oct", "12 Oct", "19 Oct", "26 Oct"])
+    const months = [...host.querySelectorAll("[data-gantt-month]")].map((node) => node.textContent)
+    expect(months).toEqual(["OCT"])
+    expect(host.querySelector("[data-gantt-axis]")?.className).toContain("sticky")
+    expect(host.querySelectorAll("[data-gantt-axis]")).toHaveLength(1)
   })
 })

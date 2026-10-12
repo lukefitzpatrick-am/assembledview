@@ -66,6 +66,8 @@ function prepareMediaPlanExportClone(_document: Document, clonedElement: HTMLEle
     clonedElement.style.overflowY = "visible"
   }
 
+  // Flighting axis is `sticky` on the page. html2canvas does not paint a stuck
+  // header, so the clone keeps the axis in normal flow at the top of the PNG.
   clonedElement.querySelectorAll<HTMLElement>(".sticky").forEach((el) => {
     el.style.position = "relative"
     el.style.top = "auto"

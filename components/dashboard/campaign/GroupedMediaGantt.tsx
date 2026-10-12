@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronRight } from "lucide-react"
 
 import { MediaGanttChart as LibraryMediaGanttChart } from "@/components/charts/system"
 import type { GanttMonthBand, GanttRow } from "@/components/charts/system"
@@ -17,6 +16,7 @@ export type GroupedMediaGanttProps = {
   months: string[]
   weeksPerMonth: number
   monthBands?: GanttMonthBand[]
+  weekLabels?: string[]
   todayWeek?: number | null
   className?: string
 }
@@ -52,6 +52,7 @@ export default function GroupedMediaGantt({
   months,
   weeksPerMonth,
   monthBands,
+  weekLabels,
   todayWeek,
   className,
 }: GroupedMediaGanttProps) {
@@ -64,6 +65,27 @@ export default function GroupedMediaGantt({
     setOpen(Object.fromEntries(groups.map((group) => [group.channelKey, expanded])))
   }
 
+  const chartRows: GanttRow[] = []
+  for (const group of groups) {
+    const expanded = open[group.channelKey] === true
+    chartRows.push({
+      ...summaryRow(group),
+      summary: true,
+      expanded,
+    })
+    if (!expanded) continue
+    for (const row of group.rows) {
+      chartRows.push({ ...row, indent: true })
+    }
+  }
+
+  const toggleAt = (index: number) => {
+    const row = chartRows[index]
+    if (!row?.summary) return
+    const key = row.channelKey ?? ""
+    setOpen((current) => ({ ...current, [key]: current[key] !== true }))
+  }
+
   return (
     <div className={cn("space-y-3", className)}>
       <div className="flex gap-2">
@@ -74,45 +96,17 @@ export default function GroupedMediaGantt({
           Collapse all
         </Button>
       </div>
-      {groups.map((group) => {
-        const expanded = open[group.channelKey] === true
-        const header = summaryRow(group)
-        const chartRows = expanded ? [header, ...group.rows] : [header]
-        return (
-          <section key={group.channelKey || group.label} className="space-y-1">
-            <button
-              type="button"
-              aria-expanded={expanded}
-              onClick={() =>
-                setOpen((current) => ({ ...current, [group.channelKey]: !expanded }))
-              }
-              className="interactive-tint flex w-full items-center gap-2 rounded-input px-2 py-1.5 text-left"
-            >
-              <ChevronRight
-                className={cn(
-                  "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
-                  expanded ? "rotate-90" : undefined,
-                )}
-                aria-hidden
-              />
-              <span className="text-sm font-semibold text-foreground">{group.label}</span>
-              <span className="text-xs text-muted-foreground">{group.lineCount} lines</span>
-              {group.plannedMedia != null ? (
-                <span className="num ml-auto text-xs text-foreground">{formatMoney(group.plannedMedia)}</span>
-              ) : null}
-            </button>
-            <LibraryMediaGanttChart
-              rows={chartRows}
-              weeks={weeks}
-              months={months}
-              weeksPerMonth={weeksPerMonth}
-              monthBands={monthBands}
-              todayWeek={todayWeek}
-              className="min-w-full"
-            />
-          </section>
-        )
-      })}
+      <LibraryMediaGanttChart
+        rows={chartRows}
+        weeks={weeks}
+        months={months}
+        weeksPerMonth={weeksPerMonth}
+        monthBands={monthBands}
+        weekLabels={weekLabels}
+        todayWeek={todayWeek}
+        onToggleSummary={toggleAt}
+        className="min-w-full"
+      />
     </div>
   )
 }
