@@ -1,6 +1,7 @@
 /**
- * Turns a version's `mba_fee_snapshots.fees` object into the four
- * direct-digital channel percents. The JSON is the client fee loading
+ * Turns a version's `mba_fee_snapshots.fees` object into a fee percent
+ * for every editor channel, plus the four direct-digital estimate keys.
+ * The JSON is the client fee loading
  * (`feedigidisplay`, `feedigivideo`, `feedigiaudio`, `feebvod`, and the
  * other client fee fields). A missing field on a present row is 0%.
  */
@@ -8,9 +9,32 @@
 import { resolveFeePctFromFeeLoading } from "@/lib/finance/computeCampaignFinancials"
 import type { ClientFeeField, FeeLoading } from "@/lib/finance/campaignFinancials.types"
 import {
-  type DirectDigitalFeeChannels,
+  type ChannelFeePcts,
   type FeePctsByVersionId,
 } from "@/lib/delivery/directDigitalFeeLookup"
+
+const SCHEDULE_MEDIA_TYPES = [
+  "television",
+  "radio",
+  "newspaper",
+  "magazines",
+  "ooh",
+  "cinema",
+  "digiDisplay",
+  "digiAudio",
+  "digiVideo",
+  "bvod",
+  "integration",
+  "search",
+  "socialMedia",
+  "progDisplay",
+  "progVideo",
+  "progBvod",
+  "progAudio",
+  "progOoh",
+  "influencers",
+  "production",
+] as const
 
 const CLIENT_FEE_FIELDS = new Set<string>([
   "feetelevision",
@@ -52,13 +76,17 @@ export function feeLoadingFromSnapshot(fees: unknown): FeeLoading | null {
   return out
 }
 
-export function feeChannelsFromLoading(fees: FeeLoading): DirectDigitalFeeChannels {
-  return {
+export function feeChannelsFromLoading(fees: FeeLoading): ChannelFeePcts {
+  const channels: Record<string, number> = {
     "digital-display": resolveFeePctFromFeeLoading("digitaldisplay", fees),
     "digital-video": resolveFeePctFromFeeLoading("digitalvideo", fees),
     "digital-audio": resolveFeePctFromFeeLoading("digitalaudio", fees),
-    "bvod": resolveFeePctFromFeeLoading("bvod", fees),
+    bvod: resolveFeePctFromFeeLoading("bvod", fees),
   }
+  for (const mediaType of SCHEDULE_MEDIA_TYPES) {
+    channels[mediaType] = resolveFeePctFromFeeLoading(mediaType, fees)
+  }
+  return channels as ChannelFeePcts
 }
 
 /**

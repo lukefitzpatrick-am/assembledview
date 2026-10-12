@@ -4,6 +4,8 @@
  * A missing version key means there was no snapshot and no client fallback.
  */
 
+import { normaliseScheduleMediaType } from "@/lib/finance/computeCampaignFinancials"
+
 export type DirectDigitalFeeChannelKey =
   | "digital-display"
   | "digital-video"
@@ -12,7 +14,10 @@ export type DirectDigitalFeeChannelKey =
 
 export type DirectDigitalFeeChannels = Record<DirectDigitalFeeChannelKey, number>
 
-export type FeePctsByVersionId = Record<string, DirectDigitalFeeChannels>
+/** Direct-digital estimate keys, plus every schedule media type from `resolveFeePctFromFeeLoading`. */
+export type ChannelFeePcts = DirectDigitalFeeChannels & Record<string, number>
+
+export type FeePctsByVersionId = Record<string, ChannelFeePcts>
 
 /** Reads `mba_fee_snapshots` for the version ids already in hand. */
 export type DirectDigitalFeePctsLoader = (args: {
@@ -68,4 +73,19 @@ export function feePctFromVersionMap(
   if (!row) return null
   const pct = row[channel]
   return typeof pct === "number" && Number.isFinite(pct) ? pct : null
+}
+
+/** Fee percent for any editor channel. Missing snapshot or unknown type is 0 (gross stays gross). */
+export function feePctForScheduleMedia(
+  map: FeePctsByVersionId | undefined,
+  versionId: number | null,
+  mediaType: string,
+): number {
+  if (versionId == null || !map) return 0
+  const row = map[String(versionId)]
+  if (!row) return 0
+  const key = normaliseScheduleMediaType(mediaType)
+  if (!key) return 0
+  const pct = row[key]
+  return typeof pct === "number" && Number.isFinite(pct) ? pct : 0
 }

@@ -21,6 +21,7 @@ test("fees JSON keys the four direct-digital channels", () => {
   assert.equal(channels["digital-video"], 10)
   assert.equal(channels["digital-audio"], 8)
   assert.equal(channels.bvod, 12)
+  assert.equal(channels.search, 5)
 })
 
 test("a missing snapshot row is omitted unless client fee loading is already in hand", () => {
