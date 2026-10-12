@@ -197,6 +197,7 @@ pct === 100 → fee = 0 (division guard)
 - Snapshot warehouse readers do not tip-select from `XANO_LINE_ITEMS_SNAPSHOT` — ingest/parity must pre-scope to `published_version_id` tip rows.
 - Unmapped CM360 admin list (`GET /api/admin/unmapped-placements`) is read-only. It applies `LINE_ITEM_LABEL_MAP` first, then treats a resolved `LINE_ITEM_ID` as unmapped when it is null, empty, or absent from `XANO_LINE_ITEMS_SNAPSHOT`. Do not invent an assign write here. UI is the Unmapped tab on `/pacing/admin/relabels`.
 - Ingest panel flights (`line_item_panel_flights`): no money columns (spend on bursts); paid → `is_live`; bonus/STA → `is_live`+`is_bonus`; N/A / C/C / blank / unmapped → no row (same as bursts).
+- Assumed spend (`lib/spend/assumedSpend.ts`) is even integer cents on the burst's exact days through the as-of date, not the month-window share inside campaign expected. Panel flights replace those dates when the line has them. The amount is `computeBurstAmounts` `deliveryMediaAmount` in cents. Bonus and `package_inclusions` return nothing. Client-pays uses delivery media, not invoiced media. The remainder sits on the last day only after that day is on or before the as-of date. Later days are 0. Half-up is `toCents`. The label is Assumed spend, `spendMode` is `assumed`, and `CAP_APPLIED` is `assumed_spend`. Channels are television, radio, newspaper, magazines, static OOH, cinema, and digital lines with no source.
 
 ## Partner file ingest
 
