@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { reshapeLineItemsToMediaGantt } from "../mediaGanttReshape.js"
+import { getMediaLabel } from "@/lib/charts/registry"
 import type { NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 
@@ -187,4 +188,40 @@ test("future-start with no delivery still reads Starts {d MMM}", () => {
   assert.ok(gantt)
   assert.equal(gantt!.rows[0]?.bursts[0]?.label, "Starts 15 Mar")
   assert.equal(gantt!.rows[0]?.bursts[0]?.fillRatio, undefined)
+})
+
+test("every row carries its media channel key and sums in-window burst budgets", () => {
+  const gantt = reshapeLineItemsToMediaGantt(
+    {
+      search: [
+        item({ lineItemId: "s1", publisher: "Search one" }),
+        item({ lineItemId: "s2", publisher: "Search two" }),
+      ],
+      television: [
+        item({
+          lineItemId: "t1",
+          publisher: "TV",
+          mediaType: "television",
+          bursts: [
+            { startDate: "2026-01-05", endDate: "2026-01-20", deliverables: 10, deliverablesAmount: 10, budget: 10.1 },
+            { startDate: "2026-02-02", endDate: "2026-02-20", deliverables: 10, deliverablesAmount: 10, budget: 20.2 },
+            { startDate: "2025-01-01", endDate: "2025-01-10", deliverables: 10, deliverablesAmount: 10, budget: 999 },
+          ],
+        }),
+      ],
+    },
+    "2026-01-01",
+    "2026-03-31",
+    "weekly",
+  )
+  assert.ok(gantt)
+  assert.equal(gantt!.rows.length, 3)
+  for (const row of gantt!.rows.slice(0, 2)) {
+    assert.equal(row.channelKey, "search")
+    assert.equal(row.sub, getMediaLabel("search"))
+    assert.equal(row.plannedMedia, 10_000)
+  }
+  assert.equal(gantt!.rows[2]?.channelKey, "television")
+  assert.equal(gantt!.rows[2]?.sub, getMediaLabel("television"))
+  assert.equal(gantt!.rows[2]?.plannedMedia, 30.3)
 })

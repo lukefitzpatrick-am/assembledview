@@ -32,7 +32,11 @@ export interface GanttBurst {
 }
 export interface GanttRow {
   label: string;            // line item (publisher / placement)
-  sub?: string;             // channel
+  sub?: string;             // channel label
+  /** Media-type key used to group lines before the reshape. */
+  channelKey?: string;
+  /** In-window burst budgets, dollars. Omitted when none parse. */
+  plannedMedia?: number;
   color?: string;           // defaults to a CHANNEL_COLORS hue or palette
   bursts: GanttBurst[];
 }
