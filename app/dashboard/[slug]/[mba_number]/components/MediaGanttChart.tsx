@@ -3,6 +3,7 @@
 import { forwardRef } from "react"
 
 import { MediaGanttChart as LibraryMediaGanttChart } from "@/components/charts/system"
+import GroupedMediaGantt from "@/components/dashboard/campaign/GroupedMediaGantt"
 import {
   reshapeLineItemsToMediaGantt,
   type MediaGanttGranularity,
@@ -20,10 +21,15 @@ export interface MediaGanttChartProps {
   deliveredByLineId?: ReadonlyMap<string, number>
   /** Active bursts in forest, past or future in context. */
   flighting?: boolean
+  /**
+   * Client flighting groups one summary row per channel.
+   * The plan editor leaves this off and keeps one row per line.
+   */
+  grouped?: boolean
 }
 
 const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(function MediaGanttChart(
-  { lineItems, startDate, endDate, granularity = "weekly", deliveredByLineId, flighting = false },
+  { lineItems, startDate, endDate, granularity = "weekly", deliveredByLineId, flighting = false, grouped = false },
   ref,
 ) {
   const gantt = reshapeLineItemsToMediaGantt(
@@ -55,17 +61,29 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
         granularity === "monthly" ? "overflow-hidden" : undefined,
       )}
       role="region"
-      aria-label={`Campaign media timeline, ${gantt.rows.length} rows, ${granularity === "monthly" ? "month view" : "week view"}`}
+      aria-label={`Campaign media timeline, ${grouped ? "grouped by channel, " : ""}${gantt.rows.length} ${grouped ? "lines" : "rows"}, ${granularity === "monthly" ? "month view" : "week view"}`}
     >
-      <LibraryMediaGanttChart
-        rows={gantt.rows}
-        weeks={gantt.weeks}
-        months={gantt.months}
-        weeksPerMonth={gantt.weeksPerMonth}
-        monthBands={gantt.monthBands}
-        todayWeek={gantt.todayWeek}
-        className="min-w-full"
-      />
+      {grouped ? (
+        <GroupedMediaGantt
+          key={`${granularity}:${gantt.rows.length}:${gantt.rows.map((row) => row.channelKey ?? "").join(",")}`}
+          rows={gantt.rows}
+          weeks={gantt.weeks}
+          months={gantt.months}
+          weeksPerMonth={gantt.weeksPerMonth}
+          monthBands={gantt.monthBands}
+          todayWeek={gantt.todayWeek}
+        />
+      ) : (
+        <LibraryMediaGanttChart
+          rows={gantt.rows}
+          weeks={gantt.weeks}
+          months={gantt.months}
+          weeksPerMonth={gantt.weeksPerMonth}
+          monthBands={gantt.monthBands}
+          todayWeek={gantt.todayWeek}
+          className="min-w-full"
+        />
+      )}
     </div>
   )
 })
