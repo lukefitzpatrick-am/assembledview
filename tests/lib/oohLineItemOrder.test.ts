@@ -1,5 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { explodeExcelLineItems } from "../../lib/docs/explodeExcelLineItems.js"
+import { MEDIA_TYPE_ID_CODES, nextLineFields } from "../../lib/mediaplan/lineItemIds.js"
+import {
+  keepOohLineIdsOnReorder,
+  orderOohLinesForExport,
+  prepareOohEditorLines,
+} from "../../lib/mediaplan/lineItemOrder.js"
 import { reassignOohLineItemNumbers } from "../../lib/mediaplan/oohLineItemOrder.js"
 import {
   mapOohExpertRowsToStandardLineItems,
@@ -141,4 +148,94 @@ test("reassignOohLineItemNumbers fixes duplicate ids after a simulated duplicate
   assert.equal(items[0].line_item_id, "MBA1OH1")
   assert.equal(items[1].line_item_id, "MBA1OH2")
   assert.equal(items[2].line_item_id, "MBA1OH3")
+})
+
+test("OOH reorder keeps minted ids and stamps position from the new order", () => {
+  const reordered = keepOohLineIdsOnReorder(
+    [
+      { network: "George", line_item: 21, lineItem: 21, line_item_id: "PENOH21", lineItemId: "PENOH21" },
+      { network: "Epping", line_item: 22, lineItem: 22, line_item_id: "PENOH22", lineItemId: "PENOH22" },
+      { network: "Pacific", line_item: 20, lineItem: 20, line_item_id: "PENOH20", lineItemId: "PENOH20" },
+    ],
+    "PEN",
+  )
+  assert.deepEqual(
+    reordered.map((line) => line.line_item_id),
+    ["PENOH21", "PENOH22", "PENOH20"],
+  )
+  assert.deepEqual(
+    reordered.map((line) => line.position),
+    [0, 1, 2],
+  )
+  assert.deepEqual(
+    reordered.map((line) => line.line_item),
+    [21, 22, 20],
+  )
+})
+
+test("hydrate from persisted position does not rebuild ids from the display index", () => {
+  const loaded = prepareOohEditorLines(
+    [
+      { network: "George", line_item: 2, line_item_id: "PENOH21", lineItemId: "PENOH21" },
+      { network: "Epping", line_item: 0, line_item_id: "PENOH22", lineItemId: "PENOH22" },
+      { network: "Pacific", line_item: 1, line_item_id: "PENOH20", lineItemId: "PENOH20" },
+    ],
+    "PEN",
+  )
+  assert.deepEqual(
+    loaded.map((line) => line.network),
+    ["Epping", "Pacific", "George"],
+  )
+  assert.deepEqual(
+    loaded.map((line) => line.line_item_id),
+    ["PENOH22", "PENOH20", "PENOH21"],
+  )
+  assert.deepEqual(
+    loaded.map((line) => line.position),
+    [0, 1, 2],
+  )
+})
+
+test("OOH export order and Line N follow position, not the id suffix", () => {
+  const burst = {
+    budget: "100",
+    buyAmount: "10",
+    startDate: "2025-01-05",
+    endDate: "2025-01-11",
+    calculatedValue: 1,
+  }
+  const ordered = orderOohLinesForExport([
+    { placement: "Epping", line_item_id: "PENOH22", lineItemId: "PENOH22", line_item: 22, position: 2, buyType: "fixed_cost", bursts: [burst] },
+    { placement: "Pacific", line_item_id: "PENOH20", lineItemId: "PENOH20", line_item: 20, position: 0, buyType: "fixed_cost", bursts: [burst] },
+    { placement: "George", line_item_id: "PENOH21", lineItemId: "PENOH21", line_item: 21, position: 1, buyType: "fixed_cost", bursts: [burst] },
+  ])
+  assert.deepEqual(
+    ordered.map((line) => line.placement),
+    ["Pacific", "George", "Epping"],
+  )
+  const rows = ordered.flatMap((line, index) =>
+    explodeExcelLineItems("ooh", line, 10, index),
+  )
+  assert.deepEqual(
+    rows.map((row) => row.line_item_id),
+    ["PENOH20", "PENOH21", "PENOH22"],
+  )
+  assert.deepEqual(
+    rows.map((row) => row.line_item),
+    [1, 2, 3],
+  )
+})
+
+test("a new OOH line after a reorder is one past the highest suffix", () => {
+  const reordered = keepOohLineIdsOnReorder(
+    [
+      { network: "c", line_item: 22, line_item_id: "PENOH22", lineItemId: "PENOH22" },
+      { network: "a", line_item: 20, line_item_id: "PENOH20", lineItemId: "PENOH20" },
+      { network: "b", line_item: 21, line_item_id: "PENOH21", lineItemId: "PENOH21" },
+    ],
+    "PEN",
+  )
+  const added = nextLineFields(reordered, "PEN", MEDIA_TYPE_ID_CODES.ooh)
+  assert.equal(added.line_item, 23)
+  assert.equal(added.line_item_id, "PENOH23")
 })

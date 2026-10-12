@@ -61,11 +61,12 @@ import {
   buildLineItemId,
   nextLineFields,
   pickLineItemNumber,
-  sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
 import {
   assignStableLineItemNumbers,
-  reassignOohLineItemNumbers,
+  keepOohLineIdsOnReorder,
+  oohLineDisplayNumber,
+  prepareOohEditorLines,
 } from "@/lib/mediaplan/lineItemOrder"
 import { formatCardTitleFromLine } from "@/lib/mediaplan/cardTitleFromLine"
 import { channelSummaryTotals } from "@/lib/money/burst"
@@ -245,7 +246,6 @@ export default function OohContainer({
   /** Brief visual cue on Expert segment so users notice the toggle on first paint. */
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true);
   const oohExpertModalOpenRef = useRef(false);
-  const reorderedRef = useRef(false);
   const oohStandardBaselineRef = useRef<string>("");
   const oohExpertRowsBaselineRef = useRef<string>("");
   oohExpertModalOpenRef.current = oohExpertModalOpen;
@@ -399,10 +399,7 @@ export default function OohContainer({
       standard,
       prevLineItems as StandardOohFormLineItem[]
     );
-    const reassigned = reorderedRef.current
-      ? reassignOohLineItemNumbers(merged, mbaNumber)
-      : assignStableLineItemNumbers<any>(merged, mbaNumber, MEDIA_TYPE_ID_CODES.ooh);
-    reorderedRef.current = false;
+    const reassigned = keepOohLineIdsOnReorder(merged, mbaNumber)
     const keyedMerged = stampBurstReactKeys(reassigned);
     form.setValue("lineItems", keyedMerged as any, { shouldDirty: true, shouldValidate: false });
     oohStandardBaselineRef.current = serializeOohStandardLineItemsBaseline(
@@ -453,7 +450,7 @@ export default function OohContainer({
     const nextItems = form.getValues("lineItems") || [];
     form.setValue(
       "lineItems",
-      assignStableLineItemNumbers<any>(nextItems, mbaNumber, MEDIA_TYPE_ID_CODES.ooh) as any,
+      keepOohLineIdsOnReorder(nextItems, mbaNumber) as any,
       { shouldDirty: true, shouldValidate: false },
     );
   }, [appendLineItem, form, mbaNumber, toast]);
@@ -515,9 +512,7 @@ export default function OohContainer({
   useStableHydration(
     initialLineItems,
     (items) => {
-      const sortedItems = sortLineItemsByLineItemNumber(
-        assignStableLineItemNumbers<any>(items, mbaNumber, MEDIA_TYPE_ID_CODES.ooh)
-      );
+      const sortedItems = prepareOohEditorLines(items, mbaNumber)
       const transformedLineItems = sortedItems.map((item: any, index: number) => {
         const lineNumber = pickLineItemNumber(item, index + 1);
         const lineItemId =
@@ -631,7 +626,7 @@ export default function OohContainer({
       const row = money.lines[index];
 
       return {
-        index: index + 1,
+        index: oohLineDisplayNumber(lineItem, index),
         deliverables: lineDeliverables,
         media: row.media,
         fee: row.fee,
@@ -1269,9 +1264,6 @@ useEffect(() => {
                 feeooh={feeooh}
                 rows={expertOohRows}
                 onRowsChange={handleExpertOohRowsChange}
-                onReorder={() => {
-                  reorderedRef.current = true;
-                }}
                 publishers={publishers}
                 weekStartsOn={weekStartsOn}
                 onWeekStartsOnChange={setWeekStartsOn}

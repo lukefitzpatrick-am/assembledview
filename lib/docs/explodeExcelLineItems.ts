@@ -22,6 +22,7 @@ export type ExplodeExcelCampaignDates = {
   campaignEnd?: unknown
 }
 import { excelBuyTypeFromLine } from "@/lib/mediaplan/buyTypeLabels"
+import { oohLineDisplayNumber } from "@/lib/mediaplan/lineItemOrder"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 
 export type MediaItemsKey = keyof MediaItems
@@ -74,7 +75,10 @@ export function explodeExcelLineItems(
   const bursts = resolveLineItemBursts(formLine)
   if (bursts.length === 0) return []
   const lineId = String(formLine.line_item_id ?? formLine.lineItemId ?? "")
-  const lineNumber = Number(formLine.line_item ?? formLine.lineItem ?? lineIndex + 1) || lineIndex + 1
+  const lineNumber =
+    mediaItemsKey === "ooh"
+      ? oohLineDisplayNumber(formLine, lineIndex)
+      : Number(formLine.line_item ?? formLine.lineItem ?? lineIndex + 1) || lineIndex + 1
   const buyType = excelBuyTypeFromLine({
     buyType: formLine.buyType as string | undefined,
   })

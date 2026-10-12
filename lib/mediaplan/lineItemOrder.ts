@@ -131,3 +131,74 @@ export function reassignDigiDisplayLineItemNumbers<T extends LineItemWithIdentit
 ): T[] {
   return reassignLineItemNumbers(items, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay)
 }
+
+type PositionedLine = LineItemWithIdentity & { position?: number | null }
+
+/**
+ * Display-order key. `position` is the 0-based `line_items.position` column.
+ * A persisted read copies that column onto `line_item`, so a `line_item` that
+ * is not the id suffix is the same key. Otherwise the array index is the order.
+ */
+export function oohPersistedPosition(item: PositionedLine, index: number): number {
+  const raw = item.position
+  if (typeof raw === "number" && Number.isFinite(raw)) return Math.trunc(raw)
+  const id = String(item.line_item_id ?? item.lineItemId ?? "").trim()
+  const suffix = id ? parseLineNumberFromLineItemId(id) : null
+  const fromField = Number(item.line_item ?? item.lineItem)
+  if (
+    suffix != null &&
+    Number.isFinite(fromField) &&
+    Math.trunc(fromField) !== suffix
+  ) {
+    return Math.trunc(fromField)
+  }
+  return index
+}
+
+/** 1-based "Line N" label. Never the `line_item_id` suffix. */
+export function oohLineDisplayNumber(item: object, index: number): number {
+  return oohPersistedPosition(item as PositionedLine, index) + 1
+}
+
+/** Export / summary order follows position, not the id suffix. */
+export function orderOohLinesForExport<T>(items: readonly T[]): T[] {
+  return items
+    .map((item, index) => ({
+      item,
+      index,
+      key: oohPersistedPosition(item as PositionedLine, index),
+    }))
+    .sort((a, b) => (a.key !== b.key ? a.key - b.key : a.index - b.index))
+    .map(({ item }) => item)
+}
+
+/**
+ * OOH expert reorder: keep the id each line was minted with.
+ * `position` is the new array order (0-based, same as `line_items.position` on save).
+ */
+export function keepOohLineIdsOnReorder<T extends LineItemWithIdentity>(
+  items: T[],
+  mbaNumber: string,
+): Array<T & { position: number }> {
+  const stable = assignStableLineItemNumbers(items, mbaNumber, MEDIA_TYPE_ID_CODES.ooh)
+  return stable.map((item, index) => ({ ...item, position: index }))
+}
+
+/**
+ * Editor hydrate. Postgres copies `position` onto `line_item`, so sort by that
+ * key first, then put the id suffix back on `line_item` before the stable
+ * assign. Otherwise assign would rebuild the id from the display index.
+ */
+export function prepareOohEditorLines<T extends LineItemWithIdentity>(
+  items: T[],
+  mbaNumber: string,
+): Array<T & { position: number }> {
+  const ordered = orderOohLinesForExport(items)
+  const restored = ordered.map((item) => {
+    const id = String(item.line_item_id ?? item.lineItemId ?? "").trim()
+    const suffix = id ? parseLineNumberFromLineItemId(id) : null
+    if (suffix == null) return item
+    return { ...item, line_item: suffix, lineItem: suffix }
+  })
+  return keepOohLineIdsOnReorder(restored, mbaNumber)
+}

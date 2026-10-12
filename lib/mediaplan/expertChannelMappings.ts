@@ -1133,7 +1133,7 @@ export function mapOohExpertRowsToStandardLineItems(
     // apply-time merge in mergeOohStandardFromExpertWithPrevious can match
     // generated items back to their previous form-state by stable id.
     // Fall back to row.id (now a UUID) only when no source id exists, e.g. for
-    // newly added rows. reassignOohLineItemNumbers overwrites this anyway.
+    // newly added rows. Apply keeps that id; reorder only changes position.
     const id = deriveExpertSourceLineItemId(row, lineNo)
     const budgetIncludesFees = Boolean(
       row.budgetIncludesFees ?? options?.budgetIncludesFees ?? false
