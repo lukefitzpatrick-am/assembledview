@@ -1,5 +1,6 @@
 -- ASSEMBLEDVIEW.MART.TSK_REFRESH_FIXED_COST_REPORTED
--- Body is SP_REFRESH_FIXED_COST_NIGHTLY (3-day window, then partner-file / direct-digital backfill).
+-- Body is SP_REFRESH_FIXED_COST_NIGHTLY (3-day window, partner-file / direct-digital backfill, then SP_REFRESH_ASSUMED_SPEND_DAILY('changed')).
+-- Do not re-apply this task. The CALL is unchanged. Replacing a child task needs the root suspended.
 -- Root must be suspended to replace a child. AUTHOR ONLY — Luke applies in Snowsight (S1, 2026-09-16).
 USE SCHEMA ASSEMBLEDVIEW.MART;
 

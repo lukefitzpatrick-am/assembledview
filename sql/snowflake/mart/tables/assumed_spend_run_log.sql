@@ -1,0 +1,11 @@
+-- ASSEMBLEDVIEW.MART.ASSUMED_SPEND_RUN_LOG
+-- Last successful SP_REFRESH_ASSUMED_SPEND_DAILY run. SCOPE 'changed' reads MAX(run_at).
+-- AUTHOR ONLY — Luke applies in Snowsight. Do not run this from the app.
+USE SCHEMA ASSEMBLEDVIEW.MART;
+
+CREATE TABLE IF NOT EXISTS ASSEMBLEDVIEW.MART.ASSUMED_SPEND_RUN_LOG (
+  run_at TIMESTAMP_NTZ,
+  scope VARCHAR,
+  lines NUMBER,
+  rows_written NUMBER
+);
