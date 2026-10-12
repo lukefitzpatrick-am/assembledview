@@ -1,0 +1,180 @@
+{
+  "mbaNumber": "curatif004",
+  "clientName": "Curatif",
+  "campaignName": "FY27",
+  "versionNumber": 9,
+  "asOf": "2026-10-12",
+  "period": {
+    "kind": "last_month",
+    "slug": "last-month",
+    "label": "Last month (September 2026)",
+    "current": {
+      "startISO": "2026-09-01",
+      "endISO": "2026-09-30"
+    },
+    "previous": {
+      "startISO": "2026-08-01",
+      "endISO": "2026-08-31"
+    }
+  },
+  "totals": {
+    "plannedBudget": 124088,
+    "spend": 15927.561289000001,
+    "impressions": 865926,
+    "clicks": 18669,
+    "results": 801.623869,
+    "previousSpend": 12775.626176999998,
+    "previousImpressions": 753918,
+    "expectedSpendToDate": 19041,
+    "timeElapsedPct": 0.5,
+    "metrics": {
+      "cpm": 18.39367485096879,
+      "cpc": 0.8531555674647813,
+      "ctr": 0.02155957899404799,
+      "cpv": 0.12317366656883798,
+      "videoViews3s": 64739,
+      "spendPacePct": 0.8364876471298777
+    },
+    "rateExcludedSpend": 0,
+    "previousMetrics": {
+      "cpm": 16.945644190747533,
+      "cpc": 0.7749849060964512,
+      "ctr": 0.021865773200799025,
+      "cpv": 0.11619138540178905,
+      "videoViews3s": 66515,
+      "spendPacePct": 0.8370324429666512
+    }
+  },
+  "channels": [
+    {
+      "group": "social_meta",
+      "label": "Social (Meta)",
+      "plannedBudget": 51236.6,
+      "spend": 7974.140000000002,
+      "impressions": 639655,
+      "clicks": 14699,
+      "results": 618,
+      "previousSpend": 7728.469999999999,
+      "previousImpressions": 613175,
+      "plannedImpressions": 464099.6376811594,
+      "plannedClicks": null,
+      "plannedViews": null,
+      "spendEstimated": false,
+      "metrics": {
+        "cpm": 12.466313872321802,
+        "cpc": 0.5424954078508744,
+        "ctr": 0.022979574927109146,
+        "cpv": 0.12317366656883798,
+        "videoViews3s": 64739,
+        "spendPacePct": 0.3112673362401097
+      },
+      "previousMetrics": {
+        "cpm": 12.604020059526235,
+        "cpc": 0.5654840125850589,
+        "ctr": 0.0222889061034778,
+        "cpv": 0.11619138540178905,
+        "videoViews3s": 66515,
+        "spendPacePct": 0.4476507909605444
+      }
+    },
+    {
+      "group": "social_tiktok",
+      "label": "Social (TikTok)",
+      "plannedBudget": 23318.6,
+      "spend": 0,
+      "impressions": 0,
+      "clicks": 0,
+      "results": 0,
+      "previousSpend": 0,
+      "previousImpressions": 0,
+      "plannedImpressions": 237621.60326086957,
+      "plannedClicks": null,
+      "plannedViews": null,
+      "spendEstimated": false,
+      "metrics": {
+        "cpm": null,
+        "cpc": null,
+        "ctr": null,
+        "cpv": null,
+        "videoViews3s": null,
+        "spendPacePct": 0
+      },
+      "previousMetrics": {
+        "cpm": null,
+        "cpc": null,
+        "ctr": null,
+        "cpv": null,
+        "videoViews3s": null,
+        "spendPacePct": 0
+      }
+    },
+    {
+      "group": "search",
+      "label": "Search",
+      "plannedBudget": 49532.8,
+      "spend": 7953.421288999999,
+      "impressions": 226271,
+      "clicks": 3970,
+      "results": 183.62386899999998,
+      "previousSpend": 5047.156176999999,
+      "previousImpressions": 140743,
+      "plannedImpressions": null,
+      "plannedClicks": 4038.0000000000005,
+      "plannedViews": null,
+      "spendEstimated": false,
+      "metrics": {
+        "cpm": 35.14998072665078,
+        "cpc": 2.0033806773299747,
+        "ctr": 0.017545332808888457,
+        "cpv": null,
+        "videoViews3s": null,
+        "spendPacePct": 0.32113756092932355
+      },
+      "previousMetrics": {
+        "cpm": 35.86079717641374,
+        "cpc": 1.7910419364797725,
+        "ctr": 0.02002231016817888,
+        "cpv": null,
+        "videoViews3s": null,
+        "spendPacePct": 0.3023987547931744
+      }
+    }
+  ],
+  "deliveryStates": [
+    "reported",
+    "no_rows_yet",
+    "no_rows_yet",
+    "reported"
+  ],
+  "kpis": [
+    {
+      "metric": "ctr",
+      "label": "CTR",
+      "targetDisplay": "4.00%",
+      "actualDisplay": "2.16%",
+      "omitted": false
+    },
+    {
+      "metric": "conversion_rate",
+      "label": "Conv. Rate",
+      "targetDisplay": "5.00%",
+      "actualDisplay": "4.29%",
+      "omitted": false
+    },
+    {
+      "metric": "vtr",
+      "label": "VTR",
+      "targetDisplay": "87.00%",
+      "actualDisplay": null,
+      "omitted": false
+    },
+    {
+      "metric": "frequency",
+      "label": "Frequency",
+      "targetDisplay": "1",
+      "actualDisplay": null,
+      "omitted": false
+    }
+  ],
+  "commentary": null
+}

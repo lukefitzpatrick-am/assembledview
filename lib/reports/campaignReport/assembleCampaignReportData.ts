@@ -29,10 +29,13 @@ import {
   expectedMediaForReportWindow,
   reportPeriodIsSlice,
 } from "@/lib/reports/campaignReport/expectedMedia"
+import type { CampaignReportPeriodMetrics } from "@/lib/reports/campaignReport/periodMetrics"
 import {
-  expectedMediaAtElapsed,
-  type CampaignReportPeriodMetrics,
-} from "@/lib/reports/campaignReport/periodMetrics"
+  channelReportPace,
+  reportGapReason,
+  reportPace,
+  type ReportGapReason,
+} from "@/lib/reports/campaignReport/reportPace"
 import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
 import {
   campaignReportChannelLabel,
@@ -64,6 +67,19 @@ export type CampaignReportChannelRow = {
   plannedImpressions?: number | null
   plannedClicks?: number | null
   plannedViews?: number | null
+  /** Why a planned count is null. The deck chooses the words. */
+  plannedImpressionsReason?: ReportGapReason | null
+  plannedClicksReason?: ReportGapReason | null
+  plannedViewsReason?: ReportGapReason | null
+  /** Why previous spend or impressions are null. */
+  previousSpendReason?: ReportGapReason | null
+  previousImpressionsReason?: ReportGapReason | null
+  /** True when this channel spent nothing in the selected window. */
+  notLive?: boolean
+  /** Earliest line start on the channel. Present with notLive and a plan. */
+  plannedStart?: string | null
+  /** True when this channel's delivered dollars include assumed spend. */
+  spendAssumed?: boolean
   /** True when this channel's delivered dollars are a CM360 direct-digital estimate. */
   spendEstimated?: boolean
 }
@@ -109,6 +125,15 @@ export type CampaignReportPayload = {
     previousImpressions: number | null
     expectedSpendToDate: number | null
     timeElapsedPct: number | null
+    /** Why time elapsed is null. The deck chooses the words. */
+    timeElapsedReason?: ReportGapReason | null
+    /** Why previous spend or impressions are null. */
+    previousSpendReason?: ReportGapReason | null
+    previousImpressionsReason?: ReportGapReason | null
+    /** True when campaign spend includes assumed dollars. */
+    includesAssumedSpend?: boolean
+    /** True when campaign spend includes a CM360 direct-digital estimate. */
+    includesEstimatedSpend?: boolean
     metrics: CampaignReportPeriodMetrics
     /** Null when this report has no previous window. */
     previousMetrics: CampaignReportPeriodMetrics | null
@@ -354,58 +379,86 @@ export async function assembleCampaignReportData(
   const channels: CampaignReportChannelRow[] = currentSnap.channels.map((ch) => {
     const prev = prevByGroup.get(ch.group)
     const planned = plannedBudgetOf(ch)
-    const rates = rateMetricsFromLines(
-      linesForRates(ch.lines),
-      expectedMediaAtElapsed(planned, timeElapsedPct),
-    )
-    const previousRates = previousSnap
+    const spend = ch.totals.spendToDate
+    const pace = channelReportPace({ spend, plannedBudget: planned, lines: ch.lines })
+    const rates = rateMetricsFromLines(linesForRates(ch.lines), pace.expectedSpendToDate)
+    const previousSpend = prev ? prev.totals.spendToDate : previousSnap ? 0 : null
+    const previousImpressions = prev ? prev.totals.impressions : previousSnap ? 0 : null
+    const previousPace = previousSnap
+      ? channelReportPace({
+          spend: prev ? prev.totals.spendToDate : 0,
+          plannedBudget: planned,
+          lines: prev?.lines ?? [],
+        })
+      : null
+    const previousRates = previousPace
       ? rateMetricsFromLines(
           prev ? linesForRates(prev.lines) : [],
-          expectedMediaAtElapsed(
-            planned,
-            previousWindow && start && end
-              ? computeExpectedPct(
-                  computeDaysPassed(start, end, previousWindow.endISO),
-                  computeCampaignDays(start, end),
-                )
-              : null,
-          ),
+          previousPace.expectedSpendToDate,
         )
       : null
+    const plannedImpressions = plannedCount(ch.lines, "plannedImpressions", flight, currentWindow)
+    const plannedClicks = plannedCount(ch.lines, "plannedClicks", flight, currentWindow)
+    const plannedViews = plannedCount(ch.lines, "plannedViews", flight, currentWindow)
     return {
       group: ch.group,
       label: channelLabel(ch.group),
       plannedBudget: planned,
-      spend: ch.totals.spendToDate,
+      plannedStart: pace.plannedStart,
+      notLive: pace.notLive,
+      spend,
       impressions: ch.totals.impressions,
       clicks: ch.totals.clicks,
       results: ch.totals.results,
-      previousSpend: prev ? prev.totals.spendToDate : previousSnap ? 0 : null,
-      previousImpressions: prev ? prev.totals.impressions : previousSnap ? 0 : null,
-      plannedImpressions: plannedCount(ch.lines, "plannedImpressions", flight, currentWindow),
-      plannedClicks: plannedCount(ch.lines, "plannedClicks", flight, currentWindow),
-      plannedViews: plannedCount(ch.lines, "plannedViews", flight, currentWindow),
-      spendEstimated:
-        ch.lines.some((line) => line.spendMode === "estimated" && line.spendToDate > 0) &&
-        !ch.lines.some((line) => line.spendMode === "reported" && line.spendToDate > 0),
-      metrics: rates.metrics,
-      previousMetrics: previousRates?.metrics ?? null,
+      previousSpend,
+      previousImpressions,
+      previousSpendReason: reportGapReason(previousSpend, "not_available"),
+      previousImpressionsReason: reportGapReason(previousImpressions, "not_available"),
+      plannedImpressions,
+      plannedClicks,
+      plannedViews,
+      plannedImpressionsReason: reportGapReason(plannedImpressions, "no_plan"),
+      plannedClicksReason: reportGapReason(plannedClicks, "no_plan"),
+      plannedViewsReason: reportGapReason(plannedViews, "no_plan"),
+      spendAssumed: pace.spendAssumed,
+      spendEstimated: pace.spendEstimated,
+      metrics: { ...rates.metrics, ...reportPace(spend, pace.expectedSpendToDate, planned > 0) },
+      previousMetrics: previousRates
+        ? {
+            ...previousRates.metrics,
+            ...reportPace(
+              prev ? prev.totals.spendToDate : 0,
+              previousPace?.expectedSpendToDate ?? null,
+              planned > 0,
+            ),
+          }
+        : null,
     }
   })
 
+  const campaignSpend = campaignSpendIncludingAssumed(
+    currentSnap.planTotals.spendToDate,
+    currentSnap.channels,
+  )
+  const previousCampaignSpend = previousSnap
+    ? campaignSpendIncludingAssumed(previousSnap.planTotals.spendToDate, previousSnap.channels)
+    : null
   const currentRates = rateMetricsFromLines(
     linesForRates(currentSnap.channels.flatMap((ch) => ch.lines)),
     expectedSpendToDate,
   )
+  const previousRates = previousSnap
+    ? rateMetricsFromLines(
+        linesForRates(previousSnap.channels.flatMap((ch) => ch.lines)),
+        previousExpectedSpend,
+      )
+    : null
 
   const kpis = buildKpiRows(kpiRows, {
     impressions: currentSnap.planTotals.impressions,
     clicks: currentSnap.planTotals.clicks,
     results: currentSnap.planTotals.results,
-    spend: campaignSpendIncludingAssumed(
-      currentSnap.planTotals.spendToDate,
-      currentSnap.channels,
-    ),
+    spend: campaignSpend,
   })
 
   const reportData: CampaignReportPayload = {
@@ -421,26 +474,32 @@ export async function assembleCampaignReportData(
     },
     totals: {
       plannedBudget,
-      spend: campaignSpendIncludingAssumed(
-        currentSnap.planTotals.spendToDate,
-        currentSnap.channels,
-      ),
+      spend: campaignSpend,
       impressions: currentSnap.planTotals.impressions,
       clicks: currentSnap.planTotals.clicks,
       results: currentSnap.planTotals.results,
-      previousSpend: previousSnap
-        ? campaignSpendIncludingAssumed(previousSnap.planTotals.spendToDate, previousSnap.channels)
-        : null,
+      previousSpend: previousCampaignSpend,
       previousImpressions: previousSnap ? previousSnap.planTotals.impressions : null,
+      previousSpendReason: reportGapReason(previousCampaignSpend, "not_available"),
+      previousImpressionsReason: reportGapReason(
+        previousSnap ? previousSnap.planTotals.impressions : null,
+        "not_available",
+      ),
       expectedSpendToDate,
       timeElapsedPct,
-      metrics: currentRates.metrics,
+      timeElapsedReason: reportGapReason(timeElapsedPct, "not_available"),
+      includesAssumedSpend: channels.some((channel) => channel.spendAssumed === true),
+      includesEstimatedSpend: channels.some((channel) => channel.spendEstimated === true),
+      metrics: {
+        ...currentRates.metrics,
+        ...reportPace(campaignSpend, expectedSpendToDate, plannedBudget > 0),
+      },
       rateExcludedSpend: currentRates.excludedSpend,
-      previousMetrics: previousSnap
-        ? rateMetricsFromLines(
-            linesForRates(previousSnap.channels.flatMap((ch) => ch.lines)),
-            previousExpectedSpend,
-          ).metrics
+      previousMetrics: previousRates
+        ? {
+            ...previousRates.metrics,
+            ...reportPace(previousCampaignSpend ?? 0, previousExpectedSpend, plannedBudget > 0),
+          }
         : null,
     },
     channels,

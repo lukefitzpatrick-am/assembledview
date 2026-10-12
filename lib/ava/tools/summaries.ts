@@ -294,6 +294,12 @@ export type DeliveryLineSnapshot = {
   ctr: number | null
   cpc: number | null
   expectedSpendToDate?: number | null
+  /**
+   * Net burst expected inside the snapshot window (`lineExpectedNetToDate` at the
+   * window end, minus the day before the window start). Cumulative to `asOf`
+   * when the snapshot has no window.
+   */
+  expectedNetToDate?: number | null
   noDeliveryRows: boolean
   deliveryState: "reported" | "no_rows_yet" | "no_source" | "spend_only" | "assumed"
   /**

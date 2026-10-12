@@ -35,6 +35,8 @@ import {
   type FeePctsByVersionId,
 } from "@/lib/delivery/directDigitalFeeLookup"
 import { expectedSpendToDateFromBursts } from "@/lib/spend/expectedSpendToDateFromBursts"
+import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
+import { netBurstExpectedInWindow } from "@/lib/reports/campaignReport/reportPace"
 import { planDeliverablesFromItem } from "@/lib/reports/campaignReport/reportFigures"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { fromCents, toCents } from "@/lib/money/cents"
@@ -284,6 +286,36 @@ function applyDirectDigitalEstimates(
   return estimatedIds
 }
 
+function pacingBursts(raw: unknown) {
+  return parseBurstsToNormalised(raw).map((burst) => ({
+    startDate: burst.startDate,
+    endDate: burst.endDate,
+    budget: burst.budget,
+    mediaAmount: burst.mediaAmount ?? null,
+  }))
+}
+
+function expectedNetForPlan(
+  plan: PlanLineMeta,
+  feePcts: FeePctsByVersionId,
+  windowStart: string | undefined,
+  windowEnd: string | undefined,
+  asOf: string,
+): number {
+  return netBurstExpectedInWindow({
+    bursts: pacingBursts(plan.bursts),
+    budgetIncludesFees: plan.budgetIncludesFees,
+    feePct: lineFeePct(plan, feePcts),
+    lineBudget: plan.plannedBudget ?? 0,
+    lineStart: plan.startDate,
+    lineEnd: plan.endDate,
+    lineItemId: plan.id,
+    windowStart,
+    windowEnd,
+    asOf,
+  })
+}
+
 function buildLines(
   planById: Map<string, PlanLineMeta>,
   deliveredById: Map<string, ReturnType<typeof emptyMetrics>>,
@@ -291,6 +323,9 @@ function buildLines(
   overlaySpendIds: ReadonlySet<string>,
   estimatedIds: ReadonlySet<string>,
   asOf: string,
+  feePcts: FeePctsByVersionId,
+  windowStart: string | undefined,
+  windowEnd: string | undefined,
 ): DeliveryLineSnapshot[] {
   const lines: DeliveryLineSnapshot[] = []
   for (const id of [...planById.keys()].sort()) {
@@ -328,6 +363,9 @@ function buildLines(
         plan?.plannedBudget ?? 0,
         asOf,
       ),
+      expectedNetToDate: plan
+        ? expectedNetForPlan(plan, feePcts, windowStart, windowEnd, asOf)
+        : null,
       noDeliveryRows,
       deliveryState,
       ...(overlaySpendIds.has(id)
@@ -530,6 +568,9 @@ function assumedSnapshotLine(
   plan: PlanLineMeta,
   spend: number,
   asOf: string,
+  feePcts: FeePctsByVersionId,
+  windowStart: string | undefined,
+  windowEnd: string | undefined,
 ): DeliveryLineSnapshot {
   return {
     lineItemId: plan.id,
@@ -550,6 +591,7 @@ function assumedSnapshotLine(
     ctr: null,
     cpc: null,
     expectedSpendToDate: expectedSpendToDateFromBursts(plan.bursts, plan.plannedBudget ?? 0, asOf),
+    expectedNetToDate: expectedNetForPlan(plan, feePcts, windowStart, windowEnd, asOf),
     noDeliveryRows: true,
     deliveryState: "assumed",
     spendMode: "assumed",
@@ -702,12 +744,7 @@ export async function loadDeliverySnapshot(
     fallbackVersionId,
   )
   const feeVersionIds: number[] = []
-  for (const group of DIRECT_DIGITAL_ESTIMATE_GROUPS) {
-    for (const plan of groups.get(group)?.values() ?? []) {
-      if (plan.versionId != null) feeVersionIds.push(plan.versionId)
-    }
-  }
-  for (const plan of assumedOffline) {
+  for (const plan of allMetas) {
     if (plan.versionId != null) feeVersionIds.push(plan.versionId)
   }
   const feePctsByVersionId = await feePctsForDirectDigital(
@@ -837,7 +874,17 @@ export async function loadDeliverySnapshot(
     const planMap = groups.get(group)
     if (!planMap || planMap.size === 0) continue
     if (group === "search" && !includeSearch) continue
-    let lines = buildLines(planMap, deliveredById, factIds, overlaySpendIds, estimatedIds, asOf)
+    let lines = buildLines(
+      planMap,
+      deliveredById,
+      factIds,
+      overlaySpendIds,
+      estimatedIds,
+      asOf,
+      feePctsByVersionId,
+      startDate,
+      endDate,
+    )
     if (DIRECT_DIGITAL_ESTIMATE_GROUPS.has(group)) {
       const kept: DeliveryLineSnapshot[] = []
       for (const line of lines) {
@@ -850,7 +897,9 @@ export async function loadDeliverySnapshot(
         if (plan && !hasDelivery && planCanAssumeSpend(plan, feePct)) {
           const spend = assumedSpendDollars(plan, feePct, startDate, endDate, asOf)
           if (spend > 0) {
-            assumedLines.push(assumedSnapshotLine(plan, spend, asOf))
+            assumedLines.push(
+              assumedSnapshotLine(plan, spend, asOf, feePctsByVersionId, startDate, endDate),
+            )
             continue
           }
         }
@@ -871,7 +920,9 @@ export async function loadDeliverySnapshot(
     if (!planCanAssumeSpend(plan, feePct)) continue
     const spend = assumedSpendDollars(plan, feePct, startDate, endDate, asOf)
     if (!(spend > 0)) continue
-    assumedLines.push(assumedSnapshotLine(plan, spend, asOf))
+    assumedLines.push(
+      assumedSnapshotLine(plan, spend, asOf, feePctsByVersionId, startDate, endDate),
+    )
   }
   if (assumedLines.length > 0) {
     channels.push({
