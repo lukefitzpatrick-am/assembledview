@@ -22,6 +22,7 @@ import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types"
 import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types"
 import type { ProgrammaticPacingCampaignRow } from "@/lib/pacing/programmatic/types"
 import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types"
+import { lineIsAssumedSpend } from "@/lib/pacing/direct/assumedSpendLine"
 import type { DirectCampaignGroup, DirectLineItemRow } from "@/lib/pacing/direct/types"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs"
@@ -451,6 +452,12 @@ function expectedForCampaign(
 export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInput): CampaignPacingRow[] {
   const liveOnly = input.liveOnly !== false
   const bag = new Map<string, DraftCampaign>()
+  const platformLineIds = new Set<string>()
+
+  function notePlatformLine(lineItemId: string): void {
+    const key = lineItemId.trim().toLowerCase()
+    if (key) platformLineIds.add(key)
+  }
 
   for (const row of input.search) {
     const campaign = ensureCampaign(bag, {
@@ -463,6 +470,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       endDate: row.campaignEndDate,
     })
     const hasFacts = finite(row.spendToDateLineTotal) > 0 || finite(row.impressions) > 0
+    notePlatformLine(row.lineItemId)
     upsertChannel(campaign, {
       channelKey: "search",
       label: "Search",
@@ -494,6 +502,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       endDate: row.campaignEndDate,
     })
     const hasFacts = finite(row.spendToDateLineTotal) > 0 || finite(row.impressions) > 0
+    notePlatformLine(row.lineItemId)
     const metric = row.deliverableMetric === "VIDEO_3S_VIEWS" ? "views" : "impressions"
     upsertChannel(campaign, {
       channelKey: `social-${row.socialPlatform}`,
@@ -533,6 +542,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
     const hasFacts =
       finite(row.spendToDateLineTotal) > 0 || finite(row.impressions) > 0 || finite(row.deliverableActual) > 0
     const publisher = (row.platformLabel || row.platform || "").trim()
+    notePlatformLine(row.lineItemId)
     upsertChannel(campaign, {
       channelKey: `${row.snowflakeChannel}:${lookupKey || publisher.toLowerCase()}`,
       label: publisher
@@ -599,6 +609,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
     const estimatedAmount = estimate?.amount != null && estimate.amount > 0 ? estimate.amount : 0
     const estimatedBudget = estimatedAmount > 0 ? estimate?.plannedMedia ?? 0 : 0
     const lineKey = row.lineItemId.trim().toLowerCase()
+    notePlatformLine(row.lineItemId)
     upsertChannel(campaign, {
       channelKey: adServingKey(row.channelFamily),
       label: adServingLabel(row.channelFamily),
@@ -645,8 +656,17 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
     })
     const yesterdayISO = getMelbourneYesterdayISO(input.asOfDate)
     const leftovers = new Map<string, { label: string; lines: DirectLineItemRow[] }>()
+    const assumed = new Map<string, { label: string; lines: DirectLineItemRow[] }>()
 
     for (const li of group.lineItems) {
+      if (lineIsAssumedSpend(li)) {
+        if (platformLineIds.has(li.lineItemId.trim().toLowerCase())) continue
+        const media = mediaTypeFromLineItemId(li.lineItemId)
+        const bucket = assumed.get(media.key)
+        if (bucket) bucket.lines.push(li)
+        else assumed.set(media.key, { label: media.label, lines: [li] })
+        continue
+      }
       const owner = owningChannelForLine(campaign, li.lineItemId)
       if (owner) {
         attributeReportedToChannel(owner, li, yesterdayISO)
@@ -656,6 +676,32 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       const bucket = leftovers.get(media.key)
       if (bucket) bucket.lines.push(li)
       else leftovers.set(media.key, { label: media.label, lines: [li] })
+    }
+
+    for (const [code, bucket] of assumed) {
+      const spend = bucket.lines.reduce((sum, li) => sum + finite(li.totalReported), 0)
+      const budget = bucket.lines.reduce((sum, li) => sum + finite(li.totalBudget), 0)
+      const yesterday = bucket.lines.reduce(
+        (sum, li) => sum + lineYesterdayReported(li, yesterdayISO),
+        0,
+      )
+      const hasDaily = bucket.lines.some((li) => li.daily.length > 0)
+      upsertChannel(campaign, {
+        channelKey: `assumed-${code}`,
+        label: bucket.label,
+        spendToDate: spend,
+        budget,
+        spendYesterday: yesterday,
+        spendMode: "assumed",
+        deliverable: null,
+        lineItemIds: bucket.lines.map((li) => li.lineItemId),
+        lineStart: group.campaignStartDate,
+        hasSource: hasDaily,
+        hasFactRows: hasDaily,
+        contributesSpend: true,
+        kpiTotal: 0,
+        kpiTracked: 0,
+      })
     }
 
     for (const [code, bucket] of leftovers) {

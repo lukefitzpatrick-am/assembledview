@@ -5,6 +5,7 @@ import { ScenarioPlannerTrigger } from "@/components/pacing/scenario/ScenarioPla
 import { Card } from "@/components/ui/card"
 import { StatusPill } from "@/components/ui/status-pill"
 import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format/money"
+import { channelSpendCaption } from "@/lib/pacing/portfolio/channelSpendCaption"
 import type { CampaignPacingRow, ChannelPacingRow } from "@/lib/pacing/portfolio/types"
 import {
   CHANNEL_SOURCE_STATE_LABEL,
@@ -23,23 +24,6 @@ function clampPct(value: number): number {
 
 function formatWhole(value: number): string {
   return formatMoney(value, { decimals: 0 })
-}
-
-function formatDeliverableCount(value: number): string {
-  return new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 }).format(value)
-}
-
-function channelAmount(channel: ChannelPacingRow): string {
-  if (channel.spendMode === "estimated" && channel.spendToDate > 0) {
-    return `Estimated ${formatWhole(channel.spendToDate)} / ${formatWhole(channel.budget)}`
-  }
-  if (channel.spendMode === "reported" && channel.spendToDate > 0) {
-    return `${formatWhole(channel.spendToDate)} / ${formatWhole(channel.budget)}`
-  }
-  if (channel.spendMode !== "actual" && channel.deliverable) {
-    return `${formatDeliverableCount(channel.deliverable.delivered)} / ${formatDeliverableCount(channel.deliverable.planned)} ${channel.deliverable.unit}`
-  }
-  return `${formatWhole(channel.spendToDate)} / ${formatWhole(channel.budget)}`
 }
 
 function channelPctOrState(channel: ChannelPacingRow): { text: string; className: string } {
@@ -200,7 +184,7 @@ export function CampaignPacingCard({
                   aria-hidden
                 />
                 <span className="truncate text-foreground">{channel.label}</span>
-                <span className="num text-muted-foreground">{channelAmount(channel)}</span>
+                <span className="num text-muted-foreground">{channelSpendCaption(channel)}</span>
                 <span className={cn("num font-semibold", pct.className)}>{pct.text}</span>
               </li>
             )

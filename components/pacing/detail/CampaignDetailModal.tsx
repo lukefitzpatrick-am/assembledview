@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { openAvaChat, setAssistantContext } from "@/lib/assistantBridge"
 import { formatMoney, formatPercent } from "@/lib/format/money"
+import { channelSpendCaption } from "@/lib/pacing/portfolio/channelSpendCaption"
 import { formatCount, formatRateMoney } from "@/lib/pacing/channel/lineCardFormat"
 import type { LineCardModel, LineCardPace } from "@/lib/pacing/channel/lineCardTypes"
 import { suggestedNextStep } from "@/lib/pacing/detail/suggestedNextStep"
@@ -382,7 +383,11 @@ export function CampaignDetailModal({
                       <td className="py-2">
                         <span className={displayBandTextClass(band)}>{formatPercent(channel.spendPct, { decimals: 0 })}</span>
                       </td>
-                      <td className="num py-2 text-right">{money(channel.spendToDate)}</td>
+                      <td className="num py-2 text-right">
+                        {channel.spendMode === "assumed" || channel.spendMode === "estimated"
+                          ? channelSpendCaption(channel)
+                          : money(channel.spendToDate)}
+                      </td>
                       <td className="num py-2 text-right">{money(channel.budget)}</td>
                     </tr>
                   ))}
