@@ -12,6 +12,7 @@ import {
 import type { GanttBurst, GanttRow } from "@/components/charts/system"
 import { channelColorFor } from "@/lib/chart-theme"
 import { getMediaLabel } from "@/lib/charts/registry"
+import { fromCents, parseMoney, sumCents, toCentsOrNull } from "@/lib/money"
 import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import {
   buildGanttSidelineLabel,
@@ -176,12 +177,17 @@ export function reshapeLineItemsToMediaGantt(
         startYmd: string
         endYmd: string
       }> = []
+      const budgetCents: number[] = []
 
       item.bursts.forEach((burst) => {
         const barStart = safeParseDate(burst.startDate)
         const barEnd = safeParseDate(burst.endDate) || barStart
         if (!barStart || !barEnd) return
         if (barEnd < start || barStart > end) return
+
+        const parsedBudget = parseMoney(burst.budget)
+        const cents = parsedBudget == null ? null : toCentsOrNull(parsedBudget)
+        if (cents != null) budgetCents.push(cents)
 
         const clampedStart = clampDate(barStart, start, end)
         const clampedEnd = clampDate(barEnd, start, end)
@@ -251,6 +257,8 @@ export function reshapeLineItemsToMediaGantt(
       rows.push({
         label: buildGanttSidelineLabel(item),
         sub: getMediaLabel(mediaType),
+        channelKey: mediaType,
+        ...(budgetCents.length > 0 ? { plannedMedia: fromCents(sumCents(budgetCents)) } : {}),
         color: channelColorFor(mediaType, rowIndex),
         bursts,
       })
