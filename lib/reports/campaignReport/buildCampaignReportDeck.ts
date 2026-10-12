@@ -44,7 +44,10 @@ import {
   REPORT_FIGURE_DASH,
 } from "@/lib/reports/campaignReport/formatters"
 import type { CampaignReportPeriodMetrics } from "@/lib/reports/campaignReport/periodMetrics"
-import { campaignSpendShareSentence } from "@/lib/reports/campaignReport/reportFigures"
+import {
+  campaignSpendShareSentence,
+  rateExclusionFootnote,
+} from "@/lib/reports/campaignReport/reportFigures"
 
 const TEMPLATE_FILE = "am-template-deck-16x9.pptx"
 const COVER_MEDIA_FILE = "am-cover.jpg"
@@ -341,10 +344,10 @@ function drawKeyMetrics(page: DrawSlide, payload: CampaignReportPayload): void {
     })
   })
 
-  const excluded = payload.totals.rateExcludedSpend ?? 0
-  if (excluded > 0) {
+  const footnote = rateExclusionFootnote(payload.totals.rateExcludedSpend ?? 0)
+  if (footnote) {
     page.addText(
-      `Rates exclude ${formatReportMoney(excluded)} of spend with no reported impressions or clicks.`,
+      footnote,
       {
         x: 0.55,
         y: 4.9,

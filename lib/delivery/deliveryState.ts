@@ -4,7 +4,7 @@ import {
   type DeliverySourceMapRow,
 } from "@/lib/delivery/deliverySourceMap"
 
-export type DeliveryState = "reported" | "no_rows_yet" | "no_source" | "spend_only"
+export type DeliveryState = "reported" | "no_rows_yet" | "no_source" | "spend_only" | "assumed"
 
 /** Real delivery activity — not modelled spend and not a zero-metric pacing stub. */
 export function hasDeliveryFactActivity(metrics: {

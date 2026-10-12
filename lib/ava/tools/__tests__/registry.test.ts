@@ -428,3 +428,142 @@ test("get_delivery_snapshot keeps spend_only spend and nulls delivery metrics", 
   assert.equal(snap.reportedTotals.spendToDate, 9656)
   assert.equal(snap.planTotals.spendToDate, 9656)
 })
+
+test("get_delivery_snapshot keeps CPM when assumed spend is added", () => {
+  const reported = {
+    lineItemId: "golf025sm1",
+    name: "Meta",
+    plannedBudget: 10_000,
+    plannedUnits: null,
+    startDate: "2026-08-01",
+    endDate: "2026-10-25",
+    spendToDate: 1_000,
+    impressions: 100_000,
+    clicks: 50,
+    results: 0,
+    video3sViews: 0,
+    cpm: 10,
+    ctr: 0.0005,
+    cpc: 20,
+    noDeliveryRows: false,
+    deliveryState: "reported" as const,
+    spendMode: "estimated" as const,
+  }
+  const without = summariseDeliverySnapshot({
+    asOf: "2026-10-12",
+    window: { startDate: "2026-08-01", endDate: "2026-10-12" },
+    mbaNumber: "GOLF025",
+    versionNumber: 37,
+    channels: [
+      {
+        group: "social_meta",
+        lines: [reported],
+        totals: {
+          spendToDate: 1_000,
+          impressions: 100_000,
+          clicks: 50,
+          results: 0,
+          video3sViews: 0,
+          plannedBudget: 10_000,
+          cpm: 10,
+          ctr: 0.0005,
+          cpc: 20,
+        },
+      },
+    ],
+    planTotals: {
+      spendToDate: 1_000,
+      impressions: 100_000,
+      clicks: 50,
+      results: 0,
+      video3sViews: 0,
+      plannedBudget: 10_000,
+      cpm: 10,
+      ctr: 0.0005,
+      cpc: 20,
+    },
+  })
+  const withAssumed = summariseDeliverySnapshot({
+    asOf: "2026-10-12",
+    window: { startDate: "2026-08-01", endDate: "2026-10-12" },
+    mbaNumber: "GOLF025",
+    versionNumber: 37,
+    channels: [
+      {
+        group: "social_meta",
+        lines: [reported],
+        totals: {
+          spendToDate: 1_000,
+          impressions: 100_000,
+          clicks: 50,
+          results: 0,
+          video3sViews: 0,
+          plannedBudget: 10_000,
+          cpm: 10,
+          ctr: 0.0005,
+          cpc: 20,
+        },
+      },
+      {
+        group: "assumed_spend",
+        lines: [
+          {
+            lineItemId: "golf025ra1",
+            name: "Radio",
+            plannedBudget: 1_000,
+            plannedUnits: null,
+            startDate: "2026-10-01",
+            endDate: "2026-10-01",
+            spendToDate: 200,
+            impressions: 0,
+            clicks: 0,
+            results: 0,
+            video3sViews: 0,
+            cpm: null,
+            ctr: null,
+            cpc: null,
+            noDeliveryRows: true,
+            deliveryState: "assumed",
+            spendMode: "assumed",
+          },
+        ],
+        totals: {
+          spendToDate: 200,
+          impressions: 0,
+          clicks: 0,
+          results: 0,
+          video3sViews: 0,
+          plannedBudget: 1_000,
+          cpm: null,
+          ctr: null,
+          cpc: null,
+        },
+      },
+    ],
+    planTotals: {
+      spendToDate: 1_000,
+      impressions: 100_000,
+      clicks: 50,
+      results: 0,
+      video3sViews: 0,
+      plannedBudget: 11_000,
+      cpm: 10,
+      ctr: 0.0005,
+      cpc: 20,
+    },
+  })
+  assert.equal(withAssumed.reportedTotals.cpm, without.reportedTotals.cpm)
+  assert.equal(withAssumed.reportedTotals.cpc, without.reportedTotals.cpc)
+  assert.equal(withAssumed.reportedTotals.ctr, without.reportedTotals.ctr)
+  assert.equal(withAssumed.reportedTotals.assumedSpend, 200)
+  assert.equal(withAssumed.reportedTotals.spendToDate, 1_200)
+  assert.equal(withAssumed.planTotals.assumedSpend, 200)
+  const radio = withAssumed.channels.find((channel) => channel.group === "assumed_spend")?.lines[0]
+  assert.equal(radio?.spendToDate, 200)
+  assert.equal(radio?.impressions, null)
+  assert.match(
+    String(radio?.deliveryNote),
+    /booked media assumed delivered to plan, not reported/,
+  )
+  assert.match(withAssumed.reportedTotalsNote, /booked media assumed delivered to plan, not reported/)
+})

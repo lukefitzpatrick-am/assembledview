@@ -295,12 +295,12 @@ export type DeliveryLineSnapshot = {
   cpc: number | null
   expectedSpendToDate?: number | null
   noDeliveryRows: boolean
-  deliveryState: "reported" | "no_rows_yet" | "no_source" | "spend_only"
+  deliveryState: "reported" | "no_rows_yet" | "no_source" | "spend_only" | "assumed"
   /**
    * How `spendToDate` was derived. UI labels come from this flag.
    * Omitted when the line has no dollar.
    */
-  spendMode?: "estimated" | "actual" | "reported"
+  spendMode?: "estimated" | "actual" | "reported" | "assumed"
 }
 
 export type DeliveryChannelGroup = {
@@ -319,6 +319,9 @@ export type DeliveryChannelGroup = {
   }
 }
 
+export const DELIVERY_SNAPSHOT_TOTALS_NOTE =
+  "Copy expectedSpendToDate, behindBy, daysElapsed and daysInCampaign — they are the Where we are strip figures. Do not recompute as budget × elapsed. Delivered spend includes reported spend, spend_only spend, and assumed spend. Assumed spend is booked media assumed delivered to plan, not reported. CPM, CPC and CTR use reported or estimated delivery spend only."
+
 function deliveryStateNote(
   state: DeliveryLineSnapshot["deliveryState"],
 ): string | undefined {
@@ -326,6 +329,9 @@ function deliveryStateNote(
   if (state === "no_rows_yet") return "has not reported yet"
   if (state === "spend_only") {
     return "spend is fixed-cost accrual; no delivery reporting connected"
+  }
+  if (state === "assumed") {
+    return "assumed spend is booked media assumed delivered to plan, not reported"
   }
   return undefined
 }
@@ -345,7 +351,7 @@ function blankUnreportedLine(line: DeliveryLineSnapshot) {
   if (line.deliveryState === "reported") {
     return { ...publicLine, name }
   }
-  if (line.deliveryState === "spend_only") {
+  if (line.deliveryState === "spend_only" || line.deliveryState === "assumed") {
     return {
       ...publicLine,
       name,
@@ -374,9 +380,14 @@ function blankUnreportedLine(line: DeliveryLineSnapshot) {
   }
 }
 
+function positiveSpend(value: number): number {
+  return Number.isFinite(value) && value > 0 ? value : 0
+}
+
 function sumReportedTotals(lines: DeliveryLineSnapshot[]) {
   const totals = {
     spendToDate: 0,
+    assumedSpend: 0,
     impressions: 0,
     clicks: 0,
     results: 0,
@@ -388,9 +399,22 @@ function sumReportedTotals(lines: DeliveryLineSnapshot[]) {
   }
   let planned = 0
   let hasBudget = false
+  let rateSpend = 0
   for (const line of lines) {
+    if (line.deliveryState === "assumed") {
+      const spend = positiveSpend(line.spendToDate)
+      totals.assumedSpend += spend
+      totals.spendToDate += spend
+      if (typeof line.plannedBudget === "number") {
+        planned += line.plannedBudget
+        hasBudget = true
+      }
+      continue
+    }
     if (!countsTowardDeliveredSpend(line.deliveryState)) continue
-    totals.spendToDate += line.spendToDate
+    const spend = positiveSpend(line.spendToDate)
+    totals.spendToDate += spend
+    rateSpend += spend
     if (line.deliveryState === "reported") {
       totals.impressions += line.impressions
       totals.clicks += line.clicks
@@ -404,11 +428,11 @@ function sumReportedTotals(lines: DeliveryLineSnapshot[]) {
   }
   totals.plannedBudget = hasBudget ? planned : null
   if (totals.impressions > 0) {
-    totals.cpm = cpm(totals.spendToDate, totals.impressions)
+    totals.cpm = cpm(rateSpend, totals.impressions)
     totals.ctr = ctr(totals.clicks, totals.impressions)
   }
   if (totals.clicks > 0) {
-    totals.cpc = cpc(totals.spendToDate, totals.clicks)
+    totals.cpc = cpc(rateSpend, totals.clicks)
   }
   return totals
 }
@@ -454,6 +478,7 @@ export function summariseDeliverySnapshot(args: {
       cpm: reportedTotals.cpm,
       ctr: reportedTotals.ctr,
       cpc: reportedTotals.cpc,
+      assumedSpend: reportedTotals.assumedSpend,
     },
     reportedTotals,
     liveLineBudgetTotal: args.planTotals.plannedBudget,
@@ -463,7 +488,6 @@ export function summariseDeliverySnapshot(args: {
     daysElapsed: args.daysElapsed ?? null,
     daysInCampaign: args.daysInCampaign ?? null,
     daysRemaining: args.daysRemaining ?? null,
-    reportedTotalsNote:
-      "Copy expectedSpendToDate, behindBy, daysElapsed and daysInCampaign — they are the Where we are strip figures. Do not recompute as budget × elapsed. Delivered is reported + spend_only spend.",
+    reportedTotalsNote: DELIVERY_SNAPSHOT_TOTALS_NOTE,
   }
 }

@@ -35,6 +35,9 @@ import {
 } from "@/lib/reports/campaignReport/periodMetrics"
 import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
 import {
+  campaignReportChannelLabel,
+  campaignSpendIncludingAssumed,
+  deliveryLinesForRates,
   isBlankKpiTarget,
   rateMetricsFromLines,
   sumProratedDeliverable,
@@ -42,21 +45,6 @@ import {
 } from "@/lib/reports/campaignReport/reportFigures"
 
 export { formatReportInt, formatReportMoney }
-
-const CHANNEL_LABELS: Record<string, string> = {
-  social_meta: "Social (Meta)",
-  social_tiktok: "Social (TikTok)",
-  social_reddit: "Social (Reddit)",
-  programmatic_display: "Programmatic display",
-  programmatic_video: "Programmatic video",
-  programmatic_ooh: "Programmatic OOH",
-  digital_display: "Digital Display",
-  digital_video: "Digital Video",
-  digital_audio: "Digital Audio",
-  bvod: "BVOD",
-  search: "Search",
-  plan_only: "Awaiting delivery",
-}
 
 export type CampaignReportChannelRow = {
   group: string
@@ -144,7 +132,7 @@ export type CampaignReportPayload = {
 }
 
 function channelLabel(group: string): string {
-  return CHANNEL_LABELS[group] ?? group.replace(/_/g, " ")
+  return campaignReportChannelLabel(group)
 }
 
 function indexChannels(channels: DeliveryChannelGroup[]): Map<string, DeliveryChannelGroup> {
@@ -157,14 +145,7 @@ function plannedBudgetOf(ch: DeliveryChannelGroup | undefined): number {
 }
 
 function linesForRates(lines: DeliveryLineSnapshot[]): RateSourceLine[] {
-  return lines
-    .filter((line) => line.deliveryState === "reported" || line.deliveryState === "spend_only")
-    .map((line) => ({
-      spend: line.spendToDate,
-      impressions: line.deliveryState === "reported" ? line.impressions : 0,
-      clicks: line.deliveryState === "reported" ? line.clicks : 0,
-      views: line.deliveryState === "reported" ? line.video3sViews : 0,
-    }))
+  return deliveryLinesForRates(lines)
 }
 
 function plannedCount(
@@ -421,7 +402,10 @@ export async function assembleCampaignReportData(
     impressions: currentSnap.planTotals.impressions,
     clicks: currentSnap.planTotals.clicks,
     results: currentSnap.planTotals.results,
-    spend: currentSnap.planTotals.spendToDate,
+    spend: campaignSpendIncludingAssumed(
+      currentSnap.planTotals.spendToDate,
+      currentSnap.channels,
+    ),
   })
 
   const reportData: CampaignReportPayload = {
@@ -437,11 +421,16 @@ export async function assembleCampaignReportData(
     },
     totals: {
       plannedBudget,
-      spend: currentSnap.planTotals.spendToDate,
+      spend: campaignSpendIncludingAssumed(
+        currentSnap.planTotals.spendToDate,
+        currentSnap.channels,
+      ),
       impressions: currentSnap.planTotals.impressions,
       clicks: currentSnap.planTotals.clicks,
       results: currentSnap.planTotals.results,
-      previousSpend: previousSnap ? previousSnap.planTotals.spendToDate : null,
+      previousSpend: previousSnap
+        ? campaignSpendIncludingAssumed(previousSnap.planTotals.spendToDate, previousSnap.channels)
+        : null,
       previousImpressions: previousSnap ? previousSnap.planTotals.impressions : null,
       expectedSpendToDate,
       timeElapsedPct,
