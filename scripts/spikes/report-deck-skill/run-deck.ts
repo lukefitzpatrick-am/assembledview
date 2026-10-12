@@ -3,7 +3,8 @@
  *
  * node --env-file=.env.local --import tsx scripts/spikes/report-deck-skill/run-deck.ts hema007
  *
- * Requires ANTHROPIC_REPORT_MODEL. Does not fall back to ANTHROPIC_MODEL.
+ * Requires ANTHROPIC_REPORT_MODEL and ANTHROPIC_REPORT_EFFORT (low, medium, or high).
+ * Does not fall back to ANTHROPIC_MODEL and does not pick an effort default.
  * Aborts when one call's input_tokens exceeds ANTHROPIC_SPIKE_MAX_INPUT
  * (default 150000) or the run's cumulative input exceeds
  * ANTHROPIC_SPIKE_MAX_RUN_INPUT (default 600000).
@@ -24,7 +25,7 @@ import {
 } from "./deck-guardrails"
 import { checkDeckNumbers } from "./number-check"
 import { slimDeckPayload } from "./slim-deck-payload"
-import { estimateUsd, reportModel, SPIKE_BETAS, spikeClient } from "./spike-client"
+import { estimateUsd, reportEffort, reportModel, SPIKE_BETAS, spikeClient } from "./spike-client"
 
 const execFileAsync = promisify(execFile)
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -195,6 +196,8 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
   let stopReason = ""
   let commandBeforeCall: string | null = null
   const model = reportModel()
+  const effort = reportEffort()
+  const outputConfig: Anthropic.Beta.BetaOutputConfig = { effort }
 
   for (let call = 1; ; call += 1) {
     const callStarted = Date.now()
@@ -213,6 +216,7 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
               { type: "anthropic", skill_id: "pptx", version: "latest" },
             ],
           },
+          output_config: outputConfig,
           messages,
         },
         { timeout: HTTP_TIMEOUT_MS },
@@ -257,6 +261,8 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
     const usageLine = {
       event: "usage",
       mba,
+      model,
+      effort,
       call,
       continuation: call > 1,
       input_tokens: inputTokens,
@@ -357,12 +363,14 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
 
 async function main() {
   const model = reportModel()
+  const effort = reportEffort()
   const targets = process.argv.slice(2)
   if (targets.length === 0) {
     throw new Error("Pass an mba number. Example: hema007")
   }
   console.log(JSON.stringify({
     model,
+    effort,
     http_timeout_ms: HTTP_TIMEOUT_MS,
     max_continuations: MAX_CONTINUATIONS,
     ...spikeInputCaps(),
