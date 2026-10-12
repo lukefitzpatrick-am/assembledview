@@ -1902,3 +1902,16 @@ export async function execWithRetry<T = any>(
     }
   }
 }
+
+/**
+ * Drain the long-lived pool and destroy its connections so a script can exit.
+ * Safe when the pool was never opened. Serverless mode has no pool.
+ */
+export async function closeSnowflakePool(): Promise<void> {
+  const pool = poolSingleton ?? getCachedPool()
+  poolSingleton = undefined
+  global.__snowflakePool = undefined
+  if (!pool) return
+  await pool.drain()
+  await pool.clear()
+}
