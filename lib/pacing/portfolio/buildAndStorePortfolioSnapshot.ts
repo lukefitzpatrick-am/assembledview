@@ -23,6 +23,7 @@ export async function buildAndStorePortfolioSnapshot(
     perSourceTimeoutMs: args.perSourceTimeoutMs,
     logPgTimeout: args.logPgTimeout,
     cache: args.cache,
+    loadFeePcts: args.loadFeePcts,
   })
   const rows = built.rows
   console.log(

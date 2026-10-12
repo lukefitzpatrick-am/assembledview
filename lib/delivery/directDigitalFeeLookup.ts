@@ -14,6 +14,11 @@ export type DirectDigitalFeeChannels = Record<DirectDigitalFeeChannelKey, number
 
 export type FeePctsByVersionId = Record<string, DirectDigitalFeeChannels>
 
+/** Reads `mba_fee_snapshots` for the version ids already in hand. */
+export type DirectDigitalFeePctsLoader = (args: {
+  versionIds: readonly number[]
+}) => Promise<FeePctsByVersionId>
+
 const ESTIMATE_GROUP_TO_CHANNEL: Record<string, DirectDigitalFeeChannelKey> = {
   digital_display: "digital-display",
   digital_video: "digital-video",

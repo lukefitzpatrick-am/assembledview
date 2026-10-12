@@ -171,6 +171,10 @@ function buildArgs(perSourceTimeoutMs?: number, logPgTimeout?: boolean) {
   }
 }
 
+async function emptyFeePcts() {
+  return {}
+}
+
 function lockTimeoutError(): Error {
   const err = new Error("canceling statement due to lock timeout")
   ;(err as Error & { code: string }).code = "55P03"
@@ -190,7 +194,10 @@ test(
       schedulesByMba: new Map(),
     })
 
-    const stored = await buildAndStorePortfolioSnapshot(buildArgs())
+    const stored = await buildAndStorePortfolioSnapshot({
+      ...buildArgs(),
+      loadFeePcts: emptyFeePcts,
+    })
 
     assert.equal(stored.rows.length, expected.length)
     assert.ok(stored.rows.length > 0)
@@ -259,7 +266,10 @@ test(
       lines.push(args.map((part) => String(part)).join(" "))
     }
     try {
-      const stored = await buildAndStorePortfolioSnapshot(buildArgs(40))
+      const stored = await buildAndStorePortfolioSnapshot({
+        ...buildArgs(40),
+        loadFeePcts: emptyFeePcts,
+      })
       assert.ok(stored.rows.length > 0)
     } finally {
       console.log = prev
@@ -353,7 +363,10 @@ test(
       schedulesByMba: new Map(),
     })
 
-    const stored = await buildAndStorePortfolioSnapshot(buildArgs())
+    const stored = await buildAndStorePortfolioSnapshot({
+      ...buildArgs(),
+      loadFeePcts: emptyFeePcts,
+    })
 
     assert.equal(stored.rows.length, expected.length)
     assert.equal(upsert.mock.callCount(), 1)
@@ -552,14 +565,95 @@ test(
       "../buildAndStorePortfolioSnapshot.js"
     )
 
-    await buildAndStorePortfolioSnapshot(buildArgs())
+    await buildAndStorePortfolioSnapshot({
+      ...buildArgs(),
+      loadFeePcts: emptyFeePcts,
+    })
     assert.deepEqual(hits.cached, cachedOnce)
     assert.deepEqual(hits.fresh, freshNone)
 
     resetSources()
-    await buildAndStorePortfolioSnapshot({ ...buildArgs(), cache: false })
+    await buildAndStorePortfolioSnapshot({
+      ...buildArgs(),
+      cache: false,
+      loadFeePcts: emptyFeePcts,
+    })
     assert.deepEqual(hits.cached, freshNone)
     assert.deepEqual(hits.fresh, cachedOnce)
+  },
+)
+
+test(
+  "a fee snapshot read that throws still stores the row and the estimate uses gross",
+  { skip },
+  async () => {
+    resetSources()
+    const base = input.adServing[0]
+    assert.ok(base)
+    state.search = async () => []
+    state.social = async () => []
+    state.programmatic = async () => []
+    state.direct = async () => []
+    state.adServing = async () => [
+      {
+        ...base,
+        mbaNumber: "letsgo001",
+        clientName: "Lets Go",
+        campaignName: "Lets Go Over",
+        lineItemId: "letsgo001DD1",
+        channelFamily: "digitalDisplay",
+        mediaPlanVersionId: 42,
+        budgetIncludesFees: true,
+        buyType: "cpm",
+        impressions: 100_000,
+        deliverableActual: 100_000,
+        deliverableTarget: 500_000,
+        plannedImpressions: 500_000,
+        totalBursts: 1,
+        bursts: [
+          {
+            index: 0,
+            startDate: "2026-07-01",
+            endDate: "2026-12-31",
+            budget: 10_000,
+            buyAmount: 20,
+            calculatedValue: 500_000,
+          },
+        ],
+      },
+    ]
+    const { buildAndStorePortfolioSnapshot } = await import(
+      "../buildAndStorePortfolioSnapshot.js"
+    )
+    const warnings: string[] = []
+    const prev = console.warn
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map((part) => String(part)).join(" "))
+    }
+    try {
+      const stored = await buildAndStorePortfolioSnapshot({
+        ...buildArgs(),
+        loadFeePcts: async () => {
+          throw new Error("DATABASE_URL is not set")
+        },
+      })
+      const campaign = stored.rows.find((row) => row.mbaNumber === "letsgo001")
+      const display = campaign?.channels.find((row) => row.channelKey === "digital-display")
+      assert.ok(display)
+      assert.equal(display.spendToDate, 2_000)
+      assert.equal(display.budget, 10_000)
+      assert.equal(display.spendMode, "estimated")
+    } finally {
+      console.warn = prev
+    }
+
+    assert.equal(upsert.mock.callCount(), 1)
+    const failed = warnings.filter((line) =>
+      line.includes("[direct-digital-estimate] fee snapshot read failed:"),
+    )
+    assert.deepEqual(failed, [
+      "[direct-digital-estimate] fee snapshot read failed: DATABASE_URL is not set; using gross",
+    ])
   },
 )
 
