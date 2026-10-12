@@ -50,12 +50,15 @@ const KIT = path.join(here, "kit", "assembled-brand-kit")
 const USER_MESSAGE = [
   "The input files are report-data.json, Assembled-Media-Template-v5.potx, and three library photos.",
   "They are already in the container input directory. Do not fetch anything.",
-  "Build the Assembled Media campaign performance report on the v5 brand from report-data.json.",
-  "Follow the av-campaign-report-v5 skill, including its slide plan and run rules.",
-  "Find the files with one ls. Don't print any file.",
-  "Use only the formatted strings in report-data.json.",
+  "Build the Assembled Media campaign performance report by following av-campaign-report-v5 exactly.",
+  "Run summarise.py, write content.json, then build_report.py and check_deck.py.",
+  "Do not view or open images. Do not read the skill scripts. Do not write your own build script.",
+  "Use only the formatted strings in report-data.json, via the keys in content.json.",
   "Save the deck to $OUTPUT_DIR/<mbaNumber>.pptx.",
 ].join(" ")
+
+const RESULT_BREACH_CHARS = 20_000
+const COST_CAP_USD = 0.6
 
 type LibraryPhoto = {
   id: string
@@ -244,10 +247,22 @@ function printSteps(mba: string, call: number, steps: ContainerStep[]): void {
         String(step.step).padStart(3),
         step.tool.padEnd(32),
         String(step.resultChars).padStart(8),
-        step.errored ? "error" : "ok   ",
+        step.resultChars > RESULT_BREACH_CHARS ? "BREACH" : step.errored ? "error" : "ok   ",
         command,
       ].join("  "),
     )
+  }
+  const breaches = steps.filter((step) => step.resultChars > RESULT_BREACH_CHARS)
+  if (breaches.length > 0) {
+    const line = {
+      event: "result_breach",
+      mba,
+      call,
+      limit: RESULT_BREACH_CHARS,
+      steps: breaches.map((step) => ({ step: step.step, tool: step.tool, resultChars: step.resultChars })),
+    }
+    console.log(JSON.stringify(line))
+    appendCallLog(mba, line)
   }
   const largest = [...steps].sort((a, b) => b.resultChars - a.resultChars).slice(0, 5)
   const line = {
@@ -496,6 +511,19 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
     }
 
     if (stopReason !== "pause_turn") break
+    if (estimateUsd(usage) > COST_CAP_USD) {
+      const line = {
+        event: "cost_cap",
+        mba,
+        call,
+        run_cost_usd: Number(estimateUsd(usage).toFixed(4)),
+        cap_usd: COST_CAP_USD,
+        rerun: false,
+      }
+      console.log(JSON.stringify(line))
+      appendCallLog(stem, line)
+      break
+    }
     if (continuations >= MAX_CONTINUATIONS) {
       const line = {
         event: "max_continuations",
@@ -551,8 +579,8 @@ async function runOne(client: Anthropic, id: string, mba: string): Promise<numbe
     slides: renders.slides,
     contact_sheet: renders.sheet,
   }))
-  if (runCost > 1) {
-    console.log(JSON.stringify({ event: "cost_cap", mba, run_cost_usd: runCost, rerun: false }))
+  if (runCost > COST_CAP_USD) {
+    console.log(JSON.stringify({ event: "cost_cap", mba, run_cost_usd: runCost, cap_usd: COST_CAP_USD, rerun: false }))
   }
   return numberCheck.stray.length
 }
@@ -578,7 +606,13 @@ async function main() {
   }))
   const client = spikeClient()
   const id = await skillId(client)
-  console.log(JSON.stringify({ skill_id: id, version: "latest", input_block: "container_upload" }))
+  console.log(JSON.stringify({
+    skill_id: id,
+    version: "latest",
+    input_block: "container_upload",
+    fonts: "bundled in the skill",
+    fonts_reason: "five font files stay on the skill filesystem and are not prompt tokens unless read; container_upload would add five user-message blocks",
+  }))
   let stray = 0
   for (const mba of targets) {
     stray += await runOne(client, id, mba)

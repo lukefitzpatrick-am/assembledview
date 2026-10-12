@@ -5,7 +5,7 @@ description: builds an Assembled Media campaign performance report deck on the v
 
 # Campaign report, v5
 
-Build the deck with `scripts/am_rebrand.py` and `Assembled-Media-Template-v5.potx`. Do not start from a blank Presentation(). Do not fetch anything. The files are already in the input directory.
+Build the deck with the scripts in this skill and `Assembled-Media-Template-v5.potx`. Do not start from a blank Presentation(). Do not fetch anything. The files are already in the input directory.
 
 ## Colour
 
@@ -41,29 +41,29 @@ Voice: Australian English, short sentences, no em dashes, no emojis. Titles stat
 
 Use only numbers present in report-data.json, exactly as formatted there. Copy each formatted string. Do not round, abbreviate, recompute, or invent a count, percent, date, or dollar figure. Missing values stay "Not yet reported".
 
-## Slide plan
+## content.json
 
-`d = Deck(template)`; `d.save` to `$OUTPUT_DIR/<mbaNumber>.pptx`.
+You choose every variant and write every word. The builder copies each formatted string from a key. A value field is a dotted path from `summarise.py`, never a typed number. Prose is a string, or a list of strings and `{"k":"path"}`. No digits in prose. The builder turns `{i:"phrase"}` in a title into the one serif phrase. Do not call `I()` yourself.
 
-1. Cover, sand: `s = d.clone(3)`. Title = client and campaign with one serif phrase. Subtitle = period. 105-107 = the three uploaded photos as arches (`d.photo(..., kind='arch')`). 102 = `d.photo_slot` for the client logo.
-2. Summary: `d.add('Title Only - White')`. One-sentence verdict as the title. Stat row of up to 4 hero numbers (forest on white). Outcome tag.
-3. One slide per live channel: `d.add('Title Only - Sand')`. Spend vs expected to date as pill bars. Delivery numbers in filled white cards. Insight tag card.
-4. Not yet live: `d.add('Title Only - White')`. One filled card per channel with planned budget and status.
-5. KPI vs target: Four cards, or `table()` if more than 4 KPIs. "Not yet reported" stays as text.
-6. Insight, action, outcome: `d.add('Title Only - Black')`. Up to 4 rows, each with sky/forest/lime tags, each row under 35 words. If commentary is null, one row from the summary figures only.
-7. Appendix: `d.add('Title Only - White')`. `table()` of the delivery rows.
-8. Thank you: `d.clone(21)`.
+Title: max 60 characters, one `{i:"phrase"}`, ends with a full stop. Limits: label 24, note 48, outcome 160, support 140, insight 160, body 200, status 48, button 24, card title 32, column 18. Insight, action and outcome text: max 35 words.
+
+- cover `sand` (clone 3) or `black` (clone 2). Fields: `title`, `subtitle` (key). Arch photos 105–107. Client logo slot 102.
+- summary `stat-row` (Title Only - White): `title`, `stats` (up to 4 of `label`, `key`, `note`), `outcome`. Or `statement` (Statement - Black): `title`, `support`.
+- channel, one per live channel. `bars` (Title Only - Sand): `title`, `spend`, `expected`, `spendLabel`, `expectedLabel`, `delivery` (up to 4 of `label`, `key`), `insight`. `cards` (Three Cards): `title`, `cards` (exactly 3 of `title`, `key`, `body`). `photo` (Photo and Text): `title`, `value`, `body`, `photo` (0, 1 or 2).
+- not-live `cards`: `title`, `cards` (one per channel: `label`, `budget`, `status`). `list`: `title`, `rows` (`label`, `budget`, `note`) with number dots.
+- kpi `four-cards`: `title`, `cards` (up to 4 of `label`, `actual`, `target`). `table`: `title`, `rows` (same fields).
+- iao `rows` (Title Only - Black): `title`, `rows` (up to 4 of `tag` insight, action or outcome, and `text`) with sky, forest and lime tags. `journey`: `title`, `steps` (exactly 3 of `label`, `text`) on a journey line.
+- appendix `table`: `title`, `columns`, `rows` (each cell a key).
+- close `thank-you` (clone 21): `title`. `cta` (Title Only - Black): `title`, `support`, `button`, an arch trio and a lime button.
 
 ## Run
 
-The input files are in the container's input directory. Find them with one ls. Don't print any file.
+Scripts live in `/skills/av-campaign-report-v5/scripts/`. Run `ls "$INPUT_DIR"` once to learn the photo filenames.
 
-Write ONE build script using am_rebrand.py and run it.
+1. `python /skills/av-campaign-report-v5/scripts/summarise.py "$INPUT_DIR/report-data.json"`
+2. Write `content.json`.
+3. `python /skills/av-campaign-report-v5/scripts/build_report.py content.json "$INPUT_DIR/report-data.json" "$INPUT_DIR/Assembled-Media-Template-v5.potx" "$OUTPUT_DIR/<mbaNumber>.pptx" "$INPUT_DIR/<photo1>" "$INPUT_DIR/<photo2>" "$INPUT_DIR/<photo3>" && python /skills/av-campaign-report-v5/scripts/check_deck.py "$OUTPUT_DIR/<mbaNumber>.pptx" "$INPUT_DIR/report-data.json" content.json`
+4. If check reports issues, edit `content.json` once and rerun step 3.
+5. Save to `$OUTPUT_DIR/<mbaNumber>.pptx`.
 
-Render once: soffice to PDF, pdftoppm -r 40, a single contact sheet PNG. View that one image.
-
-At most ONE fix pass, then re-render only if you changed something.
-
-Never print XML, base64, whole files or directory trees. Pipe any inspection through head -c 2000.
-
-Save the deck to `$OUTPUT_DIR/<mbaNumber>.pptx`.
+Never view or open images. Never read am_rebrand.py, build_report.py or check_deck.py. Never print files. Never write your own build script.
