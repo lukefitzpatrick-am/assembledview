@@ -1,7 +1,10 @@
 -- ASSEMBLEDVIEW.MART.SP_REFRESH_FIXED_COST_REPORTED_DAILY
 -- Rev 2026-09-16. Signature (VARCHAR DEFAULT NULL, BOOLEAN DEFAULT FALSE).
 -- Reads MART.XANO_LINE_ITEMS_SNAPSHOT (frozen name). prog_* and digi_* route to PACING_FACT; cpv reads VIDEO_3S_VIEWS.
+-- ASSUME_SPEND lines copy BURSTS_JSON assumedDailyCents into daily rows (cents / 100). They skip delivery and the CPM cap.
+-- A line that is no longer ASSUME_SPEND, or that has a pacing fact row, loses its assumed_spend daily rows.
 -- Safety (author only; Luke applies in Snowsight): LOWER filter on LINE_ITEM_ID; QUALIFY latest SYNCED_AT per id.
+-- Do not CALL with a null id and BACKFILL_MODE true.
 USE SCHEMA ASSEMBLEDVIEW.MART;
 
 CREATE OR REPLACE PROCEDURE "SP_REFRESH_FIXED_COST_REPORTED_DAILY"("LINE_ITEM_ID_FILTER" VARCHAR DEFAULT null, "BACKFILL_MODE" BOOLEAN DEFAULT FALSE)
@@ -93,9 +96,12 @@ function fetchLineItems() {
     let sql = `
         SELECT 
             LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME,
-            BUY_TYPE, FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE
+            BUY_TYPE, FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, ASSUME_SPEND
         FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT
-        WHERE FIXED_COST_MEDIA = TRUE
+        WHERE (
+            FIXED_COST_MEDIA = TRUE
+            OR ASSUME_SPEND = TRUE
+        )
     `;
     if (lineItemIdFilter) sql += ` AND LOWER(LINE_ITEM_ID) = LOWER(?)`;
     sql += ` QUALIFY ROW_NUMBER() OVER (PARTITION BY LINE_ITEM_ID ORDER BY SYNCED_AT DESC) = 1`;
@@ -115,7 +121,8 @@ function fetchLineItems() {
             buyType: rs.getColumnValue(4),
             fixedCostMedia: rs.getColumnValue(5),
             burstsJson: rs.getColumnValue(6),
-            sourceTable: rs.getColumnValue(7)
+            sourceTable: rs.getColumnValue(7),
+            assumeSpend: rs.getColumnValue(8) === true
         });
     }
     return items;
@@ -139,9 +146,95 @@ function parseBursts(burstsJson) {
             budget: budget,
             buyAmount: buyAmount,
             calculatedValue: calculatedValue,
-            durationDays: daysBetween(toDateString(b.startDate), toDateString(b.endDate))
+            durationDays: daysBetween(toDateString(b.startDate), toDateString(b.endDate)),
+            assumedDailyCents: Array.isArray(b.assumedDailyCents) ? b.assumedDailyCents : []
         };
     });
+}
+
+function assumedSpendDailyData(burst) {
+    const series = burst.assumedDailyCents || [];
+    const reported = {};
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const n = series.length;
+    for (let i = 0; i < n; i++) {
+        const point = series[i] || {};
+        const day = toDateString(point.date);
+        const cents = Number(point.cents);
+        const reportedSpend = Number.isFinite(cents) ? cents / 100 : 0;
+        const dayHasPassed = day <= todayStr;
+        reported[day] = {
+            reportedSpend: reportedSpend,
+            actualSpend: 0,
+            actualDeliverables: 0,
+            shareToday: dayHasPassed ? safeDiv(i + 1, n) : 0,
+            capApplied: ''assumed_spend'',
+            isSquareup: false
+        };
+    }
+    return reported;
+}
+
+function lineHasDeliveryFact(lineItemId) {
+    const sql = `
+        SELECT 1
+        WHERE EXISTS (
+            SELECT 1 FROM ASSEMBLEDVIEW.MART.PACING_FACT
+            WHERE LOWER(LINE_ITEM_ID) = LOWER(?)
+        )
+        OR EXISTS (
+            SELECT 1 FROM ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT
+            WHERE LOWER(LINE_ITEM_ID) = LOWER(?)
+        )
+        OR EXISTS (
+            SELECT 1 FROM ASSEMBLEDVIEW.MART.SOCIAL_PACING_FACT
+            WHERE LOWER(LINE_ITEM_ID) = LOWER(?)
+        )
+    `;
+    const stmt = snowflake.createStatement({
+        sqlText: sql,
+        binds: [lineItemId, lineItemId, lineItemId]
+    });
+    const rs = stmt.execute();
+    return rs.next();
+}
+
+function deleteStaleAssumedSpendRows() {
+    let sql = `
+        DELETE FROM ASSEMBLEDVIEW.MART.FIXED_COST_REPORTED_DAILY_FACT f
+        WHERE f.CAP_APPLIED = ''assumed_spend''
+          AND (
+            NOT EXISTS (
+              SELECT 1
+              FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT s
+              WHERE LOWER(s.LINE_ITEM_ID) = LOWER(f.LINE_ITEM_ID)
+                AND s.ASSUME_SPEND = TRUE
+                AND s.SYNCED_AT = (
+                  SELECT MAX(s2.SYNCED_AT)
+                  FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT s2
+                  WHERE LOWER(s2.LINE_ITEM_ID) = LOWER(s.LINE_ITEM_ID)
+                )
+            )
+            OR EXISTS (
+              SELECT 1 FROM ASSEMBLEDVIEW.MART.PACING_FACT p
+              WHERE LOWER(p.LINE_ITEM_ID) = LOWER(f.LINE_ITEM_ID)
+            )
+            OR EXISTS (
+              SELECT 1 FROM ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT p
+              WHERE LOWER(p.LINE_ITEM_ID) = LOWER(f.LINE_ITEM_ID)
+            )
+            OR EXISTS (
+              SELECT 1 FROM ASSEMBLEDVIEW.MART.SOCIAL_PACING_FACT p
+              WHERE LOWER(p.LINE_ITEM_ID) = LOWER(f.LINE_ITEM_ID)
+            )
+          )
+    `;
+    const binds = [];
+    if (lineItemIdFilter) {
+        sql += ` AND LOWER(f.LINE_ITEM_ID) = LOWER(?)`;
+        binds.push(lineItemIdFilter);
+    }
+    snowflake.createStatement({ sqlText: sql, binds: binds }).execute();
 }
 
 function fetchDeliveryForBurst(lineItemId, sourceTable, buyType, burstStart, burstEnd) {
@@ -613,6 +706,7 @@ function upsertLineItemFact(lineItem, allBurstData, today) {
 // =====================================================
 
 const today = new Date().toISOString().slice(0, 10);
+deleteStaleAssumedSpendRows();
 const lineItems = fetchLineItems();
 const result = {
     line_items_processed: 0,
@@ -628,21 +722,30 @@ const result = {
 
 for (const li of lineItems) {
     try {
+        const assumeSpend = li.assumeSpend === true;
+        if (assumeSpend && lineHasDeliveryFact(li.lineItemId)) {
+            continue;
+        }
         const fixedCost = isFixedCostBuyType(li.buyType);
         const bursts = parseBursts(li.burstsJson);
         const allBurstData = {};
         const dailyRowsForLineItem = [];
 
         for (const burst of bursts) {
-            const delivery = fetchDeliveryForBurst(
-                li.lineItemId, li.sourceTable, li.buyType,
-                burst.startDate, burst.endDate
-            );
-            const dailyData = computeBurstReportedSpends(burst, delivery, li.buyType);
+            let dailyData;
+            if (assumeSpend) {
+                dailyData = assumedSpendDailyData(burst);
+            } else {
+                const delivery = fetchDeliveryForBurst(
+                    li.lineItemId, li.sourceTable, li.buyType,
+                    burst.startDate, burst.endDate
+                );
+                dailyData = computeBurstReportedSpends(burst, delivery, li.buyType);
+            }
             allBurstData[burst.index] = { burst: burst, dailyData: dailyData };
 
-            // For fixed_cost, expectedDailyDeliverables is meaningless → 0
-            const expectedDaily = fixedCost ? 0 : safeDiv(burst.calculatedValue, burst.durationDays);
+            // For fixed_cost and assumed spend, expectedDailyDeliverables is meaningless → 0
+            const expectedDaily = (assumeSpend || fixedCost) ? 0 : safeDiv(burst.calculatedValue, burst.durationDays);
 
             for (const [day, data] of Object.entries(dailyData)) {
                 const locked = isLockedDay(day, today, backfillMode);
