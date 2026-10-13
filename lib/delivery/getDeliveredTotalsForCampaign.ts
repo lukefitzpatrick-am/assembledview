@@ -5,7 +5,10 @@ import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
 import { getAsOfDate } from "@/lib/pacing/maths"
+import { lineIsAssumedSpend } from "@/lib/pacing/direct/assumedSpendLine"
 import { combineDeliveredTotals, deliveredQueryWindow, hasFixedCostMediaLineItems, directSpendWithAssumed, snapshotAssumedSupplement, snapshotSpendByLineId, asOfForDeliveredRange, programmaticLineItemIdsFromSnapshot, type DeliveredTotals } from "@/lib/delivery/deliveredTotals"
+import { hasPositiveDelivery } from "@/lib/spend/assumeSpendRule"
+import { addLoadedDeliveryLineIds } from "@/lib/spend/deliveryLineIds"
 
 export type GetDeliveredTotalsForCampaignInput = {
   mbaNumber: string
@@ -29,6 +32,8 @@ export type DeliveredTotalsForCampaign = DeliveredTotals & {
   results: number
   /** Digital 3s video views — not a VTR/CPV numerator; exposed for mapping honesty only. */
   video3sViews: number
+  /** Line ids with impressions, clicks, or spend already on this load. Assumed-spend facts are omitted. */
+  deliveryLineIds: string[]
 }
 
 /**
@@ -120,11 +125,37 @@ export async function getDeliveredTotalsForCampaign(
     direct.spend + snapshotAssumedSupplement(snapshot, fixedCostGroup),
   )
 
+  const deliveryLineIds = new Set<string>()
+  for (const channel of snapshot?.channels ?? []) {
+    if (channel.group === "assumed_spend") continue
+    addLoadedDeliveryLineIds(
+      deliveryLineIds,
+      (channel.lines ?? []).map((line) => ({
+        lineItemId: line.lineItemId,
+        impressions: line.impressions,
+        clicks: line.clicks,
+        spend: line.spendToDate,
+      })),
+    )
+  }
+  for (const line of fixedCostGroup?.lineItems ?? []) {
+    if (lineIsAssumedSpend(line)) continue
+    if (
+      hasPositiveDelivery({
+        spend: line.totalReported > 0 ? line.totalReported : line.totalActual,
+      })
+    ) {
+      const id = line.lineItemId.trim().toLowerCase()
+      if (id) deliveryLineIds.add(id)
+    }
+  }
+
   return {
     ...totals,
     asOf: asOfForDeliveredRange(snapshot?.asOf ?? getAsOfDate(), window?.endDate),
     clicks: snapshot?.planTotals.clicks ?? 0,
     results: snapshot?.planTotals.results ?? 0,
     video3sViews: snapshot?.planTotals.video3sViews ?? 0,
+    deliveryLineIds: [...deliveryLineIds],
   }
 }

@@ -150,7 +150,7 @@ async function contactSheet(slides: string[], dest: string): Promise<void> {
   const rows = Math.ceil(slides.length / cols)
   const width = cols * thumbW + (cols + 1) * gap
   const height = rows * thumbH + (rows + 1) * gap
-  const composites = []
+  const composites: { input: Buffer; left: number; top: number }[] = []
   for (let i = 0; i < slides.length; i += 1) {
     const input = await sharp(slides[i]).resize(thumbW, thumbH).png().toBuffer()
     const col = i % cols

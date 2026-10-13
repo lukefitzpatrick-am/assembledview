@@ -1,3 +1,4 @@
+import { hasPositiveDelivery } from "@/lib/spend/assumeSpendRule"
 import { buildAssumedSpendSection, digitalAssumedSource } from "./assumedSpendAdapter"
 import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
@@ -376,8 +377,15 @@ export function buildDirectDigitalChannelSection(input: {
   const adRows = combinedRows.filter(
     (r) => r.channel === "ad-serving" && r.lineItemId && idSet.has(String(r.lineItemId).toLowerCase()),
   )
-  // No CM360 rows: an assume-spend plan renders Assumed spend. Anything else stays hidden.
-  if (!adRows.length) {
+  const adRowsWithDelivery = adRows.filter((row) =>
+    hasPositiveDelivery({
+      impressions: row.impressions,
+      clicks: row.clicks,
+      spend: row.amountSpent,
+    }),
+  )
+  // No CM360 delivery: an assume-spend plan renders Assumed spend. A zero row is not delivery.
+  if (!adRowsWithDelivery.length) {
     const source = digitalAssumedSource(key)
     if (!source) return null
     return buildAssumedSpendSection({

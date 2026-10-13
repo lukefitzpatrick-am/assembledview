@@ -10,6 +10,7 @@ import {
 } from "@/lib/pacing/channel/__tests__/fixtures"
 import type { DirectDailyPoint, DirectLineItemRow } from "@/lib/pacing/direct/types"
 import { assembleCampaignPacingRows } from "@/lib/pacing/portfolio/assembleCampaignPacingRows"
+import { fromCents, toCents } from "@/lib/money/cents"
 import { assumedLineToDateCents, type AssumedExpectedLine } from "@/lib/spend/assumedSpend"
 import { channelSpendCaption } from "@/lib/pacing/portfolio/channelSpendCaption"
 import type { ChannelPacingRow } from "@/lib/pacing/portfolio/types"
@@ -323,5 +324,249 @@ describe("assumed spend pacing rows", () => {
 
     const channelCents = later.channels.reduce((sum, channel) => sum + Math.round(channel.expectedToDate * 100), 0)
     assert.equal(channelCents, Math.round(later.expectedToDate * 100))
+  })
+
+  it("keeps a no-adserving digital line with CM360 rows on the estimate", () => {
+    const burstDollars = 14_822.4
+    const line: AssumedExpectedLine = {
+      id: "golf025dv1",
+      scheduleKey: "digital-video",
+      plannedMedia: burstDollars,
+      buyType: "cpm",
+      bursts: [
+        {
+          rawBudget: burstDollars,
+          budgetIncludesFees: false,
+          clientPaysForMedia: true,
+          feePct: 0,
+          buyType: "cpm",
+          startDate: "2026-10-01",
+          endDate: "2026-10-31",
+        },
+      ],
+    }
+    const [row] = assembleCampaignPacingRows({
+      asOfDate: "2026-10-13",
+      allowedClientSlugs: null,
+      liveOnly: true,
+      search: [],
+      social: [],
+      programmatic: [],
+      adServing: [
+        adServingFixture({
+          mbaNumber: "golf025",
+          clientName: "Golf",
+          campaignName: "Australian Open",
+          campaignStatus: "booked",
+          campaignStartDate: "2026-10-01",
+          campaignEndDate: "2026-10-31",
+          lineItemId: "golf025dv1",
+          channelFamily: "digitalVideo",
+          impressions: 114_656,
+          clicks: 12,
+          platform: "CM360",
+        }),
+      ],
+      direct: [],
+      schedulesByMba: new Map([
+        [
+          "golf025",
+          {
+            deliverySchedule: [
+              {
+                month: "October 2026",
+                mediaCosts: { digiVideo: "$14,423.91" },
+                mediaTotal: "$14,423.91",
+                feeTotal: "$0.00",
+                totalAmount: "$14,423.91",
+              },
+            ],
+            campaignStartISO: "2026-10-01",
+            campaignEndISO: "2026-10-31",
+            assumedLines: [line],
+          },
+        ],
+      ]),
+    })
+    assert.ok(row)
+    const video = row.channels.find((channel) => channel.channelKey === "digital-video")
+    assert.ok(video)
+    assert.equal(video.spendMode, "estimated")
+    assert.notEqual(toCents(video.spendToDate), toCents(burstDollars))
+    assert.ok(video.spendToDate > 0)
+    assert.equal(row.channels.some((channel) => channel.spendMode === "assumed"), false)
+    assert.equal(toCents(video.expectedToDate), toCents(row.expectedToDate))
+  })
+
+  it("assumes a no-adserving digital line when no delivery rows are loaded", () => {
+    const line: AssumedExpectedLine = {
+      id: "golf025dv1",
+      scheduleKey: "digital-video",
+      plannedMedia: 3_100,
+      buyType: "cpm",
+      bursts: [
+        {
+          rawBudget: 3_100,
+          budgetIncludesFees: false,
+          clientPaysForMedia: true,
+          feePct: 0,
+          buyType: "cpm",
+          startDate: "2026-10-01",
+          endDate: "2026-10-31",
+        },
+      ],
+    }
+    const [row] = assembleCampaignPacingRows({
+      asOfDate: "2026-10-13",
+      allowedClientSlugs: null,
+      liveOnly: true,
+      search: [],
+      social: [
+        socialFixture({
+          mbaNumber: "golf025",
+          clientName: "Golf",
+          campaignName: "Australian Open",
+          lineItemId: "golf025SM1",
+          spendToDateLineTotal: 100,
+          totalLineItemBudget: 1_000,
+          impressions: 10,
+        }),
+      ],
+      programmatic: [],
+      adServing: [],
+      direct: [],
+      schedulesByMba: new Map([
+        [
+          "golf025",
+          {
+            deliverySchedule: [
+              {
+                month: "October 2026",
+                mediaCosts: { digiVideo: "$3,100.00" },
+                mediaTotal: "$3,100.00",
+                feeTotal: "$0.00",
+                totalAmount: "$3,100.00",
+              },
+            ],
+            campaignStartISO: "2026-07-01",
+            campaignEndISO: "2026-12-31",
+            assumedLines: [line],
+          },
+        ],
+      ]),
+    })
+    assert.ok(row)
+    const video = row.channels.find((channel) => channel.channelKey === "assumed-dv")
+    assert.ok(video)
+    assert.equal(video.spendMode, "assumed")
+    assert.equal(video.spendPct, 100)
+    assert.equal(video.pace, "on_track")
+    assert.equal(toCents(video.spendToDate), toCents(video.expectedToDate))
+  })
+
+  it("sums golf025-shaped channels to the headline to the cent", () => {
+    const newspaper: AssumedExpectedLine = {
+      id: "golf025NP7",
+      scheduleKey: "newspaper",
+      plannedMedia: 3_100,
+      buyType: "insertions",
+      bursts: [
+        {
+          rawBudget: 3_100,
+          budgetIncludesFees: false,
+          clientPaysForMedia: true,
+          feePct: 0,
+          buyType: "insertions",
+          startDate: "2026-10-25",
+          endDate: "2026-10-31",
+        },
+      ],
+    }
+    const video: AssumedExpectedLine = {
+      id: "golf025dv1",
+      scheduleKey: "digital-video",
+      plannedMedia: 14_822.4,
+      buyType: "cpm",
+      bursts: [
+        {
+          rawBudget: 14_822.4,
+          budgetIncludesFees: false,
+          clientPaysForMedia: true,
+          feePct: 0,
+          buyType: "cpm",
+          startDate: "2026-10-01",
+          endDate: "2026-10-31",
+        },
+      ],
+    }
+    const [row] = assembleCampaignPacingRows({
+      asOfDate: "2026-10-13",
+      allowedClientSlugs: null,
+      liveOnly: true,
+      search: [],
+      social: [
+        socialFixture({
+          mbaNumber: "golf025",
+          clientName: "Golf",
+          campaignName: "Australian Open",
+          campaignStatus: "booked",
+          campaignStartDate: "2026-10-01",
+          campaignEndDate: "2026-10-31",
+          lineItemId: "golf025SM1",
+          spendToDateLineTotal: 800,
+          totalLineItemBudget: 1_000,
+          impressions: 10_000,
+        }),
+      ],
+      programmatic: [],
+      adServing: [
+        adServingFixture({
+          mbaNumber: "golf025",
+          clientName: "Golf",
+          campaignName: "Australian Open",
+          campaignStatus: "booked",
+          campaignStartDate: "2026-10-01",
+          campaignEndDate: "2026-10-31",
+          lineItemId: "golf025dv1",
+          channelFamily: "digitalVideo",
+          impressions: 114_656,
+          clicks: 12,
+          platform: "CM360",
+        }),
+      ],
+      direct: [],
+      schedulesByMba: new Map([
+        [
+          "golf025",
+          {
+            deliverySchedule: [
+              {
+                month: "October 2026",
+                mediaCosts: {
+                  socialMedia: "$11,466.00",
+                  digiVideo: "$14,423.91",
+                  newspaper: "$2,000.00",
+                },
+                mediaTotal: "$27,889.91",
+                feeTotal: "$0.00",
+                totalAmount: "$27,889.91",
+              },
+            ],
+            campaignStartISO: "2026-10-01",
+            campaignEndISO: "2026-10-31",
+            assumedLines: [newspaper, video],
+          },
+        ],
+      ]),
+    })
+    assert.ok(row)
+    const videoChannel = row.channels.find((channel) => channel.channelKey === "digital-video")
+    const paper = row.channels.find((channel) => channel.channelKey === "assumed-np")
+    assert.equal(videoChannel?.spendMode, "estimated")
+    assert.equal(paper?.spendMode, "assumed")
+    assert.equal(paper?.pace, "on_track")
+    const channelCents = row.channels.reduce((sum, channel) => sum + toCents(channel.expectedToDate), 0)
+    assert.equal(channelCents, toCents(row.expectedToDate))
+    assert.equal(fromCents(channelCents), row.expectedToDate)
   })
 })
