@@ -88,3 +88,22 @@ export function isAdvertiserNamePlatform(
 ): platform is "cm360" | "dv360" {
   return platform === "cm360" || platform === "dv360"
 }
+
+/** Snowflake's missing-object error names the view and says it does not exist or is not authorized. */
+export function isMissingAdvertiserView(err: unknown): boolean {
+  const parts: string[] = []
+  let current: unknown = err
+  for (let depth = 0; depth < 4 && current; depth++) {
+    if (typeof current === "object" && current && "message" in current) {
+      parts.push(String((current as { message: unknown }).message))
+    } else {
+      parts.push(String(current))
+    }
+    current =
+      typeof current === "object" && current && "cause" in current
+        ? (current as { cause: unknown }).cause
+        : null
+  }
+  const message = parts.join(" ")
+  return /v_platform_advertisers/i.test(message) && /does not exist|not authorized/i.test(message)
+}

@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { useAuthContext } from "@/contexts/AuthContext"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
+import { PlatformAccountsSection } from "@/components/clients/PlatformAccountsSection"
 import { DEFAULT_CLIENT_BRAND_COLOUR } from "@/lib/clients/brandColour"
 
 const optionalString = z.string().optional().or(z.literal(""))
@@ -788,8 +789,13 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
             </div>
           </div>
 
+          <PlatformAccountsSection clientId={client.id} />
+
           <div className="min-w-0 rounded-md border p-4">
-            <h3 className="text-lg font-semibold mb-4">Platform IDs</h3>
+            <h3 className="text-lg font-semibold mb-1">Legacy</h3>
+            <p className="mb-4 text-sm text-muted-foreground">
+              These id fields are kept for existing reads. Meta here is the page id. New accounts go in Platform accounts.
+            </p>
             <div className={grid2}>
               {platformIdFields.map((platform) => (
                 <FormField
@@ -802,8 +808,9 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
                       <FormControl>
                         <Input
                           {...field}
+                          readOnly
                           value={(field.value ?? '') as string}
-                          placeholder={`Enter ${platform.label} ID`}
+                          placeholder="Legacy"
                         />
                       </FormControl>
                       <FormMessage />

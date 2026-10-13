@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   PLATFORM_ACCOUNT_PLATFORMS,
   formatAccountRef,
+  isMissingAdvertiserView,
   normaliseAccountRef,
 } from "../platformAccounts"
 
@@ -82,6 +83,14 @@ test("every platform normalises a non-empty value", () => {
   for (const platform of TEXT_PLATFORMS) {
     assert.equal(normaliseAccountRef(platform, " Hartmans "), "Hartmans")
   }
+})
+
+test("a missing advertiser view is recognised and a generic error is not", () => {
+  const missing = new Error(
+    "SQL compilation error: Object 'ASSEMBLEDVIEW.MART.V_PLATFORM_ADVERTISERS' does not exist or not authorized.",
+  )
+  assert.equal(isMissingAdvertiserView(missing), true)
+  assert.equal(isMissingAdvertiserView(new Error("connection reset")), false)
 })
 
 test("formatAccountRef displays Google dashes, a Meta act_ prefix, and stored text otherwise", () => {

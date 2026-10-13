@@ -30,7 +30,7 @@ Rule of direction: **L5 never talks to L2.** A page calls an API route or a serv
 | 5 | [KPI](#5-kpi) | (inside plan + pacing) | `components/kpis/` | `lib/kpi/` | `/api/kpis` | `campaign_kpi`, `client_kpi`, `publisher_kpi` |
 | 6 | [Trafficking & creative](#6-trafficking--creative) | `/creative`, `/mediaplans/mba/[mba]/trafficking` | `components/creative/`, `components/trafficking/` | `lib/naming/`, `lib/creative/` | `/api/creative-assets`, `/api/naming` | `creative_asset` |
 | 7 | [Publishers & specs](#7-publishers-specs--ingest) | `/publishers` | `components/specs/`, `components/ingest/` | `lib/publisher/`, `lib/specs/` | `/api/publishers`, `/api/admin/ingest` | `publishers`, `publisher_profiles`, `publisher_value_synonyms`, `publisher_specs`, `ingest_*`, `line_item_panels` |
-| 8 | [Clients](#8-clients) | `/client` | `components/client-hub/`, `components/client-dashboard/` | `lib/clients/` | `/api/clients`, `/api/admin/client-hub` | `clients`, `client_domains` |
+| 8 | [Clients](#8-clients) | `/client` | `components/client-hub/`, `components/client-dashboard/` | `lib/clients/` | `/api/clients`, `/api/clients/[id]/platform-accounts`, `/api/platform-accounts/advertisers`, `/api/admin/client-hub` | `clients`, `client_domains`, `client_platform_accounts` |
 | 9 | [Codex](#9-codex-tasks-time-meetings) | `/tasks` | `components/tasks/` | `lib/codex/`, `lib/fireflies/`, `lib/myhours/` | `/api/codex` | `tasks`, `client_notes`, `team_members`, `ava_*_proposals`, `time_entries` |
 | 10 | [Scopes of work](#10-scopes-of-work) | `/scopes-of-work` | (page-local) | `lib/scopes/` | `/api/scopes-of-work` | `scope_of_work` |
 | 11 | [Planning tools](#11-planning--insights) | `/tools/behavioural-planner`, `/insights` | `components/planning/`, `components/insights/` | `lib/planning/`, `lib/insights/` | `/api/planning`, `/api/insights` | `planning_audiences`, `planning_audience_uploads`, `planning_uploaded_audiences`, `campaign_insights` |
@@ -147,7 +147,7 @@ Three related-but-distinct stores, all joined on `publishers.id` and never on di
 
 ## 8. Clients
 
-`clients` is 90+ columns: identity, contacts, per-channel fee percentages, per-channel ad-serving rates, legacy platform id columns, brand colour and logo, `client_brain`, `slug`, M365 identity, `client_name_aliases`. More than one account per platform lives in `client_platform_accounts` (`0096` AUTHOR ONLY). `clients.idmeta` stays the Meta page id. The Meta ad account is `platform = meta_ads`.
+`clients` is 90+ columns: identity, contacts, per-channel fee percentages, per-channel ad-serving rates, legacy platform id columns, brand colour and logo, `client_brain`, `slug`, M365 identity, `client_name_aliases`. More than one account per platform lives in `client_platform_accounts` (`0096` AUTHOR ONLY). `clients.idmeta` stays the Meta page id. The Meta ad account is `platform = meta_ads`. The edit form (`components/EditClientForm.tsx`) lists accounts and leaves the old id fields read-only under Legacy. CM360 and DV360 pick from `MART.V_PLATFORM_ADVERTISERS`.
 
 `slug` **is** tenant identity (`lib/clients/slug.ts`); the `legalsuper → legal_super` override is load-bearing. Pacing uses a different slugifier — do not merge them casually.
 

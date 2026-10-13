@@ -56,6 +56,8 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `planning/audiences/[id]` | GET/PATCH | `planning/audiences` | `requireRole(admin)` | `requireRole(admin)` | OK |
 | `clients/[id]` | PUT/PATCH | `clients` POST | `requireRole(admin)` | `requireRole(admin)` | OK |
 | `clients/[id]` | GET | `clients` GET | `requireRole(admin)` | session + client own-id (admin any-id) | **INTENTIONAL** |
+| `clients/[id]/platform-accounts` | GET/POST/PATCH | `clients/[id]` PUT/PATCH | `requireRole(admin)` | `requireRole(["admin"])` including GET. Client-role 403 | OK |
+| `platform-accounts/advertisers` | GET | — | — | `requireRole(["admin"])` | OK |
 
 **Counts:** dynamic route inventory trimmed by X2 (dedicated channel POSTs + `television/[id]` retired). O6 gated 5 methods; SEC-G publishers/best-practice + creative soft-spot remain; `clients/[id]` GET stays intentional split.
 
