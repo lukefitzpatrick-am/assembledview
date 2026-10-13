@@ -147,7 +147,7 @@ Three related-but-distinct stores, all joined on `publishers.id` and never on di
 
 ## 8. Clients
 
-`clients` is 90+ columns: identity, contacts, per-channel fee percentages, per-channel ad-serving rates, platform account ids, brand colour and logo, `client_brain`, `slug`, M365 identity, `client_name_aliases`.
+`clients` is 90+ columns: identity, contacts, per-channel fee percentages, per-channel ad-serving rates, legacy platform id columns, brand colour and logo, `client_brain`, `slug`, M365 identity, `client_name_aliases`. More than one account per platform lives in `client_platform_accounts` (`0096` AUTHOR ONLY). `clients.idmeta` stays the Meta page id. The Meta ad account is `platform = meta_ads`.
 
 `slug` **is** tenant identity (`lib/clients/slug.ts`); the `legalsuper → legal_super` override is load-bearing. Pacing uses a different slugifier — do not merge them casually.
 
