@@ -243,6 +243,7 @@ def build_cover(deck, spec, index, photos):
     for slot, photo in zip((105, 106, 107), photos):
         deck.photo(slide, slot, photo, kind="arch")
     client = DATA.get("clientName") if isinstance(DATA.get("clientName"), str) else "client"
+    deck.drop(slide, 101)
     deck.photo_slot(slide, 102, client + " logo", kind="round")
     return slide
 
