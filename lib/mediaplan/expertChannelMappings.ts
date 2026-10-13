@@ -13,7 +13,6 @@ import {
 import { resolveLineItemBursts } from "./deriveBursts"
 import {
   clampDateToCampaignRange,
-  getSundayOnOrBefore,
   type WeeklyGanttWeekColumn,
 } from "../utils/weeklyGanttColumns"
 import {
@@ -433,8 +432,46 @@ function newspaperCalculatedDeliverables(
   }
 }
 
-function weekKeyFromDate(d: Date): ExpertWeekColumnKey {
-  return format(getSundayOnOrBefore(startOfDay(d)), "yyyy-MM-dd")
+/**
+ * Column whose week contains `date`. Bounds come from the columns, so the
+ * match follows whatever weekStartsOn built them. A day before the first
+ * column clamps to the first; a day after the last clamps to the last.
+ */
+function weekColumnForDate(
+  date: Date,
+  weekColumns: readonly WeeklyGanttWeekColumn[]
+): WeeklyGanttWeekColumn | null {
+  if (weekColumns.length === 0) return null
+  const day = startOfDay(date).getTime()
+  const first = weekColumns[0]!
+  const last = weekColumns[weekColumns.length - 1]!
+  if (day < startOfDay(first.weekStart).getTime()) return first
+  if (day > startOfDay(last.weekEnd).getTime()) return last
+  for (const col of weekColumns) {
+    if (
+      day >= startOfDay(col.weekStart).getTime() &&
+      day <= startOfDay(col.weekEnd).getTime()
+    ) {
+      return col
+    }
+  }
+  return null
+}
+
+/** Dated bursts that already carry a quantity must not be rewritten into week 1. */
+function hasImportableDatedBursts(
+  bursts: ReadonlyArray<{
+    startDate?: Date | null
+    calculatedValue?: number
+  }>
+): boolean {
+  return bursts.some((b) => {
+    if (!(b.startDate instanceof Date) || Number.isNaN(b.startDate.getTime())) {
+      return false
+    }
+    const qty = b.calculatedValue
+    return typeof qty === "number" && Number.isFinite(qty) && qty > 0
+  })
 }
 
 type DistributableBurstImportCtx = {
@@ -1698,6 +1735,7 @@ export function mapStandardOohLineItemsToExpertRows(
       budgetIncludesFees: Boolean(item.budget_includes_fees ?? item.budgetIncludesFees),
       unitRate: deriveOohStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -1834,6 +1872,7 @@ export function mapStandardRadioLineItemsToExpertRows(
       // Standard `buyAmount` is unit rate (same value as expert `unitRate`).
       unitRate: deriveRadioStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -2249,6 +2288,7 @@ export function mapStandardProductionLineItemsToExpertRows(
       buyType,
       unitRate,
       grossCost: sumProductionGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
     }
@@ -2550,6 +2590,7 @@ export function mapStandardCinemaLineItemsToExpertRows(
       budgetIncludesFees: Boolean(item.budget_includes_fees ?? item.budgetIncludesFees),
       unitRate: deriveCinemaStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -3004,6 +3045,7 @@ export function mapStandardTvLineItemsToExpertRows(
       ),
       unitRate: deriveTvStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans,
@@ -3454,6 +3496,7 @@ export function mapStandardBvodLineItemsToExpertRows(
       ),
       unitRate: deriveRadioStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans,
@@ -3787,9 +3830,11 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
-      const startKey = weekKeyFromDate(sd)
-      const endKey = weekKeyFromDate(ed)
-      if (!(startKey in weeklyValues)) continue
+      const startCol = weekColumnForDate(sd, weekColumns)
+      const endCol = weekColumnForDate(ed, weekColumns)
+      if (!startCol || !endCol) continue
+      const startKey = startCol.weekKey
+      const endKey = endCol.weekKey
 
       // Standard bursts store unit rate in `buyAmount`; weekly cells hold
       // deliverables, so qty comes from the persisted `calculatedValue`.
@@ -3891,6 +3936,7 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
       noadserving: Boolean(item.no_adserving ?? item.noadserving),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -4228,9 +4274,11 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
-      const startKey = weekKeyFromDate(sd)
-      const endKey = weekKeyFromDate(ed)
-      if (!(startKey in weeklyValues)) continue
+      const startCol = weekColumnForDate(sd, weekColumns)
+      const endCol = weekColumnForDate(ed, weekColumns)
+      if (!startCol || !endCol) continue
+      const startKey = startCol.weekKey
+      const endKey = endCol.weekKey
 
       // Standard bursts store unit rate in `buyAmount`; weekly cells hold
       // deliverables, so qty comes from the persisted `calculatedValue`.
@@ -4330,6 +4378,7 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
       ),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -4760,6 +4809,7 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
       ),
       unitRate: deriveRadioStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans,
@@ -5085,9 +5135,11 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
-      const startKey = weekKeyFromDate(sd)
-      const endKey = weekKeyFromDate(ed)
-      if (!(startKey in weeklyValues)) continue
+      const startCol = weekColumnForDate(sd, weekColumns)
+      const endCol = weekColumnForDate(ed, weekColumns)
+      if (!startCol || !endCol) continue
+      const startKey = startCol.weekKey
+      const endKey = endCol.weekKey
 
       // Standard bursts store unit rate in `buyAmount`; weekly cells hold
       // deliverables, so qty comes from the persisted `calculatedValue`.
@@ -5190,6 +5242,7 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
       ),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -5511,9 +5564,11 @@ export function mapStandardSearchLineItemsToExpertRows(
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
-      const startKey = weekKeyFromDate(sd)
-      const endKey = weekKeyFromDate(ed)
-      if (!(startKey in weeklyValues)) continue
+      const startCol = weekColumnForDate(sd, weekColumns)
+      const endCol = weekColumnForDate(ed, weekColumns)
+      if (!startCol || !endCol) continue
+      const startKey = startCol.weekKey
+      const endKey = endCol.weekKey
 
       // Standard bursts store unit rate in `buyAmount`; weekly cells hold
       // deliverables, so qty comes from the persisted `calculatedValue`.
@@ -5612,6 +5667,7 @@ export function mapStandardSearchLineItemsToExpertRows(
       ),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -5943,9 +5999,11 @@ export function mapStandardInfluencersLineItemsToExpertRows(
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
-      const startKey = weekKeyFromDate(sd)
-      const endKey = weekKeyFromDate(ed)
-      if (!(startKey in weeklyValues)) continue
+      const startCol = weekColumnForDate(sd, weekColumns)
+      const endCol = weekColumnForDate(ed, weekColumns)
+      if (!startCol || !endCol) continue
+      const startKey = startCol.weekKey
+      const endKey = endCol.weekKey
 
       // Standard bursts store unit rate in `buyAmount`; weekly cells hold
       // deliverables, so qty comes from the persisted `calculatedValue`.
@@ -6053,6 +6111,7 @@ export function mapStandardInfluencersLineItemsToExpertRows(
       ),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -6384,9 +6443,11 @@ export function mapStandardIntegrationLineItemsToExpertRows(
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
-      const startKey = weekKeyFromDate(sd)
-      const endKey = weekKeyFromDate(ed)
-      if (!(startKey in weeklyValues)) continue
+      const startCol = weekColumnForDate(sd, weekColumns)
+      const endCol = weekColumnForDate(ed, weekColumns)
+      if (!startCol || !endCol) continue
+      const startKey = startCol.weekKey
+      const endKey = endCol.weekKey
 
       // Standard bursts store unit rate in `buyAmount`; weekly cells hold
       // deliverables, so qty comes from the persisted `calculatedValue`.
@@ -6494,6 +6555,7 @@ export function mapStandardIntegrationLineItemsToExpertRows(
       ),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -6754,9 +6816,11 @@ export function mapStandardNewspaperLineItemsToExpertRows(
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
-      const startKey = weekKeyFromDate(sd)
-      const endKey = weekKeyFromDate(ed)
-      if (!(startKey in weeklyValues)) continue
+      const startCol = weekColumnForDate(sd, weekColumns)
+      const endCol = weekColumnForDate(ed, weekColumns)
+      if (!startCol || !endCol) continue
+      const startKey = startCol.weekKey
+      const endKey = endCol.weekKey
 
       // Standard bursts store unit rate in `buyAmount`; weekly cells hold
       // deliverables, so qty comes from the persisted `calculatedValue`.
@@ -6856,6 +6920,7 @@ export function mapStandardNewspaperLineItemsToExpertRows(
       ),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -7127,9 +7192,11 @@ export function mapStandardMagazineLineItemsToExpertRows(
       const sd = b.startDate
       const ed = b.endDate ?? b.startDate
       if (!sd || Number.isNaN(sd.getTime())) continue
-      const startKey = weekKeyFromDate(sd)
-      const endKey = weekKeyFromDate(ed)
-      if (!(startKey in weeklyValues)) continue
+      const startCol = weekColumnForDate(sd, weekColumns)
+      const endCol = weekColumnForDate(ed, weekColumns)
+      if (!startCol || !endCol) continue
+      const startKey = startCol.weekKey
+      const endKey = endCol.weekKey
 
       // Standard bursts store unit rate in `buyAmount`; weekly cells hold
       // deliverables, so qty comes from the persisted `calculatedValue`.
@@ -7228,6 +7295,7 @@ export function mapStandardMagazineLineItemsToExpertRows(
       ),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -7453,9 +7521,11 @@ function progAccumulateWeeklyFromBursts(
     const sd = b.startDate
     const ed = b.endDate ?? b.startDate
     if (!sd || Number.isNaN(sd.getTime())) continue
-    const startKey = weekKeyFromDate(sd)
-    const endKey = weekKeyFromDate(ed)
-    if (!(startKey in weeklyValues)) continue
+    const startCol = weekColumnForDate(sd, weekColumns)
+    const endCol = weekColumnForDate(ed, weekColumns)
+    if (!startCol || !endCol) continue
+    const startKey = startCol.weekKey
+    const endKey = endCol.weekKey
 
     // Standard bursts store unit rate in `buyAmount`; weekly cells hold
     // deliverables, so qty comes from the persisted `calculatedValue`.
@@ -7705,6 +7775,7 @@ export function mapStandardProgAudioLineItemsToExpertRows(
       noadserving: Boolean(item.noadserving),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -7896,6 +7967,7 @@ export function mapStandardProgBvodLineItemsToExpertRows(
       noadserving: Boolean(item.noadserving),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -8099,6 +8171,7 @@ export function mapStandardProgDisplayLineItemsToExpertRows(
       noadserving: Boolean(item.noadserving),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -8296,6 +8369,7 @@ export function mapStandardProgVideoLineItemsToExpertRows(
       noadserving: Boolean(item.noadserving),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
@@ -8490,6 +8564,7 @@ export function mapStandardProgOohLineItemsToExpertRows(
       noadserving: Boolean(item.noadserving),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
+      hasDatedBursts: hasImportableDatedBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:

@@ -40,6 +40,14 @@ export type LumpSumProjectableExpertRow = ExpertRowCostFields & {
   }>
   /** Import-time sum of card burst budgets (may exceed rate×qty before projection). */
   grossCost?: string | number | null
+  /**
+   * True when the card line has dated bursts that already carry a quantity.
+   * A flight with no calculated quantity stays a lump-sum and may still fill
+   * the first week.
+   */
+  hasDatedBursts?: boolean
+  sourceLineItemId?: string
+  id?: string
 }
 
 function parseRate(v: unknown): number {
@@ -97,6 +105,30 @@ function ensureFirstWeekQty(
   row.weeklyValues[first] = prev + qty
 }
 
+const warnedUnplacedLineIds = new Set<string>()
+
+function warnUnplacedDatedBursts(row: LumpSumProjectableExpertRow): void {
+  const lineId = String(row.sourceLineItemId || row.id || "unknown")
+  if (warnedUnplacedLineIds.has(lineId)) return
+  warnedUnplacedLineIds.add(lineId)
+  console.warn(
+    `Dated bursts were not placed on the schedule grid for line ${lineId}`
+  )
+}
+
+/** First-week filler is only for a row that has no dated quantity to place. */
+function placeFirstWeekQtyIfUndated(
+  row: LumpSumProjectableExpertRow,
+  weekKeys: readonly string[],
+  qty: number
+): void {
+  if (row.hasDatedBursts) {
+    warnUnplacedDatedBursts(row)
+    return
+  }
+  ensureFirstWeekQty(row, weekKeys, qty)
+}
+
 /**
  * When card gross &gt; 0 but rate×qty would show $0, set unitRate and (if needed)
  * a flight qty so schedule gross == card gross.
@@ -133,7 +165,11 @@ export function projectLumpSumCardBudgetsOntoExpertRows<
       const needQty =
         bt === "cpm" ? (cardGross * 1000) / rate : cardGross / rate
       if (Number.isFinite(needQty) && needQty > 0) {
-        ensureFirstWeekQty(row, weekKeys, Math.round(needQty) || needQty)
+        placeFirstWeekQtyIfUndated(
+          row,
+          weekKeys,
+          Math.round(needQty) || needQty
+        )
       }
       continue
     }
@@ -148,7 +184,7 @@ export function projectLumpSumCardBudgetsOntoExpertRows<
         if (Number.isFinite(sp.totalQty)) spanQty += sp.totalQty
       }
       if (!(spanQty > 0)) {
-        ensureFirstWeekQty(row, weekKeys, projected.qty)
+        placeFirstWeekQtyIfUndated(row, weekKeys, projected.qty)
       }
     }
   }
