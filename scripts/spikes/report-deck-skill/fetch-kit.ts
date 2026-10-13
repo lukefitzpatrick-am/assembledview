@@ -3,6 +3,7 @@
  *
  * node --import tsx scripts/spikes/report-deck-skill/fetch-kit.ts
  *
+ * BRAND_KIT_BASE_URL is the public host. File names are appended to it.
  * No client data. Read only.
  */
 import fs from "node:fs"
@@ -13,16 +14,15 @@ import JSZip from "jszip"
 const here = path.dirname(fileURLToPath(import.meta.url))
 const kitDir = path.join(here, "kit")
 
-const ZIPS = [
-  {
-    name: "assembled-brand-kit-v1.zip",
-    url: "https://rzpuygzq2ull7c9x.public.blob.vercel-storage.com/assembled-brand-kit-v1.zip",
-  },
-  {
-    name: "assembled-brand-library-v1.zip",
-    url: "https://rzpuygzq2ull7c9x.public.blob.vercel-storage.com/assembled-brand-library-v1.zip",
-  },
-] as const
+const KIT_FILES = ["assembled-brand-kit-v1.zip", "assembled-brand-library-v1.zip"] as const
+
+function kitBaseUrl(): string {
+  const raw = process.env.BRAND_KIT_BASE_URL?.trim()
+  if (!raw) {
+    throw new Error("BRAND_KIT_BASE_URL is unset. Set it to the public brand kit host.")
+  }
+  return raw.replace(/\/$/, "")
+}
 
 async function download(url: string, dest: string): Promise<void> {
   const response = await fetch(url)
@@ -67,10 +67,11 @@ function findFile(dir: string, base: string): string | null {
 }
 
 async function main(): Promise<void> {
+  const base = kitBaseUrl()
   fs.mkdirSync(kitDir, { recursive: true })
-  for (const zip of ZIPS) {
-    const dest = path.join(kitDir, zip.name)
-    await download(zip.url, dest)
+  for (const name of KIT_FILES) {
+    const dest = path.join(kitDir, name)
+    await download(`${base}/${name}`, dest)
     await unzip(dest, kitDir)
   }
   for (const name of ["Assembled-Media-Template-v5.potx", "am_rebrand.py"]) {
