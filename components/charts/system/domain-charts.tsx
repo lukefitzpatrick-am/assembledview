@@ -21,6 +21,16 @@ import { cn } from '@/lib/utils';
 const INK = NEUTRAL.ink, MUTED = NEUTRAL.axis, MID = NEUTRAL.label, GRID = NEUTRAL.grid;
 const TAB: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };
 
+/** 0.6em advance. Used to drop a bar label that would run past the bar. */
+export function ganttLabelWidthPx(text: string, fontSize = 11): number {
+  return text.length * fontSize * 0.6;
+}
+
+/** True when `label` fits inside the bar after `padding` px (default 12). */
+export function ganttLabelFits(label: string, barWidthPx: number, padding = 12): boolean {
+  return ganttLabelWidthPx(label) <= barWidthPx - padding;
+}
+
 // ── Media flighting Gantt ───────────────────────────────────
 export interface GanttBurst {
   startWeek: number;        // 0-indexed week the burst starts
@@ -31,6 +41,8 @@ export interface GanttBurst {
   fillRatio?: number;
   /** Flighting palette. Active is forest; past or future is context. */
   tone?: "active" | "context";
+  /** Burst dates, planned deliverables, and the line delivery note when this bar carries it. */
+  tooltip?: string;
 }
 export interface GanttRow {
   label: string;            // line item (publisher / placement)
@@ -141,11 +153,29 @@ export function MediaGanttChart({
     }
     row.bursts.forEach((b, bi) => {
       const bx = wx(b.startWeek), bw = weekW * (b.endWeek - b.startWeek) - 3, by = y + rowHeight / 2 - 9, bh = 18;
+      const visibleLabel = b.label && ganttLabelFits(b.label, bw) ? b.label : undefined;
+      const showBurstTip = (event: React.MouseEvent) => {
+        if (!b.tooltip) return;
+        const host = hostRef.current?.getBoundingClientRect();
+        if (!host) return;
+        const [head, ...rest] = b.tooltip.split("\n");
+        setTip({ x: event.clientX - host.left, y: event.clientY - host.top, label: head ?? b.tooltip, sub: rest.join("\n") });
+      };
       if (b.tone === "active" || b.tone === "context") {
         const fill = b.tone === "active" ? BRAND.colour.forest : BRAND.colour.context;
-        const labelFill = b.tone === "active" ? BRAND.colour.white : BRAND.colour.ink;
-        bodyEls.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={fill} />);
-        if (bw > 48 && b.label) bodyEls.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill={labelFill} style={TAB}>{b.label}</text>);
+        const fillRatio = b.fillRatio;
+        const hasDeliveryFill = typeof fillRatio === "number" && Number.isFinite(fillRatio);
+        const labelFill = b.tone === "active" && (!hasDeliveryFill || fillRatio >= 1) ? BRAND.colour.white : BRAND.colour.ink;
+        bodyEls.push(
+          <rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={fill} fillOpacity={hasDeliveryFill ? 0.22 : 1} onMouseMove={showBurstTip} onMouseLeave={() => setTip(null)}>
+            {b.tooltip ? <title>{b.tooltip}</title> : null}
+          </rect>,
+        );
+        if (hasDeliveryFill) {
+          const fillW = round(bw * Math.min(1, Math.max(0, fillRatio)));
+          if (fillW > 0) bodyEls.push(<rect key={`bp${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={fillW} height={bh} rx={5} fill={fill} />);
+        }
+        if (visibleLabel) bodyEls.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill={labelFill} style={TAB}>{visibleLabel}</text>);
         return;
       }
       const fillRatio = b.fillRatio;
@@ -155,7 +185,7 @@ export function MediaGanttChart({
       if (fillW > 0) {
         bodyEls.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={fillW} height={bh} rx={5} fill={color} fillOpacity={(b.intensity ?? 0.85) * 0.92} />);
       }
-      if (bw > 48 && b.label) bodyEls.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill={BRAND.colour.white} style={TAB}>{b.label}</text>);
+      if (visibleLabel) bodyEls.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill={BRAND.colour.white} style={TAB}>{visibleLabel}</text>);
     });
     if (row.summary) {
       const top = bodyH > 0 ? (y / bodyH) * 100 : 0;
@@ -242,7 +272,7 @@ export function MediaGanttChart({
             style={{ left: tip.x + 12, top: tip.y + 12 }}
           >
             <div className="font-medium">{tip.label}</div>
-            {tip.sub ? <span className="text-muted-foreground">{tip.sub}</span> : null}
+            {tip.sub ? <span className="whitespace-pre-line text-muted-foreground">{tip.sub}</span> : null}
           </div>
         )}
       </div>

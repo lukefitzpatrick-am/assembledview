@@ -58,6 +58,45 @@ function formatDeliverablesDisplay(value: number): string {
   return Math.round(value).toLocaleString("en-AU", { maximumFractionDigits: 0 })
 }
 
+/** Compact deliverables: 10.7K, 445K, 1.77M (millions keep two fraction digits). */
+function compactDeliverables(value: number): string {
+  const digits = Math.abs(value) >= 1_000_000 ? 2 : 1
+  return new Intl.NumberFormat("en-AU", {
+    notation: "compact",
+    maximumFractionDigits: digits,
+  }).format(value)
+}
+
+function burstDateSpan(startYmd: string, endYmd: string): string {
+  const start = safeParseDate(startYmd)
+  const end = safeParseDate(endYmd)
+  if (!start || !end) return `${startYmd} – ${endYmd}`
+  return `${format(start, "d MMM yyyy")} – ${format(end, "d MMM yyyy")}`
+}
+
+/**
+ * Burst that contains today, else the started burst with the latest start.
+ * -1 when every burst is still in the future.
+ */
+function deliveryCarrierIndex(
+  pending: ReadonlyArray<{ startYmd: string; endYmd: string }>,
+  todayISO: string,
+): number {
+  const containing = pending.findIndex(
+    (burst) => todayISO >= burst.startYmd && todayISO <= burst.endYmd,
+  )
+  if (containing >= 0) return containing
+  let best = -1
+  let bestStart = ""
+  pending.forEach((burst, index) => {
+    if (burst.startYmd <= todayISO && burst.startYmd >= bestStart) {
+      bestStart = burst.startYmd
+      best = index
+    }
+  })
+  return best
+}
+
 /**
  * Group consecutive calendar days into Monday-start weeks.
  * Dates are Sydney/Melbourne civil days (`coerceBurstDateLocal`), so `getDay()`
@@ -236,29 +275,61 @@ export function reshapeLineItemsToMediaGantt(
       const linePlanned = pendingBursts.reduce((sum, pending) => sum + pending.deliverables, 0)
 
       const intensityBase = rowMaxDeliverables > 0 ? rowMaxDeliverables : 1
-      pendingBursts.forEach(({ burst, deliverables, startYmd, endYmd }) => {
-        const planned = linePlanned > 0 ? linePlanned : deliverables
-        const deliveryLabel =
+      if (flighting) {
+        const carrier = deliveryCarrierIndex(pendingBursts, todayISO)
+        const deliveryText =
           hasDelivery && delivered != null
-            ? `${formatDeliverablesDisplay(delivered)} / ${formatDeliverablesDisplay(planned)}`
+            ? `${compactDeliverables(delivered)} of ${compactDeliverables(linePlanned)}`
             : undefined
-        const tone = flighting
-          ? todayISO >= startYmd && todayISO <= endYmd
-            ? "active"
-            : "context"
-          : undefined
-        bursts.push({
-          ...burst,
-          label: deliveryLabel ?? startLabel ?? burst.label,
-          fillRatio:
-            hasDelivery && delivered != null
-              ? planned > 0 ? delivered / planned : 0
-              : undefined,
-          intensity:
-            deliverables > 0 ? Math.max(0.35, deliverables / intensityBase) : 0.75,
-          tone,
+        pendingBursts.forEach(({ burst, deliverables, startYmd, endYmd }, index) => {
+          const containsToday = todayISO >= startYmd && todayISO <= endYmd
+          const isCarrier = index === carrier && deliveryText != null
+          let label: string | undefined
+          let fillRatio: number | undefined
+          if (isCarrier) {
+            label = deliveryText
+            fillRatio = linePlanned > 0 ? delivered! / linePlanned : 0
+          } else if (endYmd < todayISO) {
+            label = `${compactDeliverables(deliverables)} planned`
+          } else if (startYmd > todayISO) {
+            const start = safeParseDate(startYmd)
+            label = start ? `Starts ${format(start, "d MMM")}` : undefined
+          }
+          bursts.push({
+            ...burst,
+            label,
+            fillRatio,
+            intensity:
+              deliverables > 0 ? Math.max(0.35, deliverables / intensityBase) : 0.75,
+            tone: containsToday ? "active" : "context",
+            tooltip: [
+              burstDateSpan(startYmd, endYmd),
+              `${compactDeliverables(deliverables)} planned`,
+              isCarrier ? `Line delivered to date ${deliveryText}` : null,
+            ]
+              .filter((line): line is string => line != null)
+              .join("\n"),
+          })
         })
-      })
+      } else {
+        pendingBursts.forEach(({ burst, deliverables }) => {
+          const planned = linePlanned > 0 ? linePlanned : deliverables
+          const deliveryLabel =
+            hasDelivery && delivered != null
+              ? `${formatDeliverablesDisplay(delivered)} / ${formatDeliverablesDisplay(planned)}`
+              : undefined
+          bursts.push({
+            ...burst,
+            label: deliveryLabel ?? startLabel ?? burst.label,
+            fillRatio:
+              hasDelivery && delivered != null
+                ? planned > 0 ? delivered / planned : 0
+                : undefined,
+            intensity:
+              deliverables > 0 ? Math.max(0.35, deliverables / intensityBase) : 0.75,
+          })
+        })
+      }
 
       rows.push({
         label: buildGanttSidelineLabel(item),

@@ -112,7 +112,7 @@ describe("client flighting groups by channel", () => {
     )
 
     expect(host.textContent).not.toContain("Search line 0")
-    expect(host.textContent).not.toContain("400 / 1,000")
+    expect(host.textContent).not.toContain("400 of 1K")
     expect(channelButton(host, "Search").getAttribute("aria-expanded")).toBe("false")
     expect(channelButton(host, "Search").textContent).toContain("8 lines")
 
@@ -122,7 +122,7 @@ describe("client flighting groups by channel", () => {
 
     expect(channelButton(host, "Search").getAttribute("aria-expanded")).toBe("true")
     expect(host.textContent).toContain("Search line 0")
-    expect(host.textContent).toContain("400 / 1,000")
+    expect(host.textContent).toContain("400 of 1K")
     expect(host.textContent).not.toContain("Television line 0")
 
     act(() => {
@@ -131,7 +131,7 @@ describe("client flighting groups by channel", () => {
 
     expect(channelButton(host, "Search").getAttribute("aria-expanded")).toBe("false")
     expect(host.textContent).not.toContain("Search line 0")
-    expect(host.textContent).not.toContain("400 / 1,000")
+    expect(host.textContent).not.toContain("400 of 1K")
   })
 
   it("leaves the plan editor timeline one row per line", () => {
