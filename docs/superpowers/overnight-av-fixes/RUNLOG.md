@@ -5354,3 +5354,16 @@ On a layout whose name contains Black, or whose background is dark, titles and b
 - Under 90%: none on the part-number map or the colours. The wrap threshold is an average ExtraBold advance of 0.56 em, checked by the 32pt and 36pt assertions.
 - Browser smoke: localhost:3000 redirected to the Auth0 login. The September download was not taken from the app. The same builder was run on `AV-TP10-curatif004-2026-09.json` and PowerPoint exported the slides. Slide 1 is sand, logo clear, title `Curatif FY27 campaign report.` in the title position, details underneath. Slide 4 is white, `Social (Meta) data.` in ink, forest table header, no lime pills. There is no slide 11: TikTok is $0 with no impressions, so the deck is 9 slides and the thank-you is slide 9, white on the black thank-you layout. Slide 2 shows `Not yet live. Social (TikTok).` and spend pace `83.6%` in forest.
 - Snowflake was not called. The Messages API was not called.
+
+## Brand kit URLs from env
+
+One commit on `localhost`: `scripts/spikes/report-deck-skill/fetch-kit.ts`. The run log stays uncommitted.
+
+`scripts/check-hardcoded-urls.mjs` scans `app`, `lib`, `components`, and `scripts` (line 22). A URL literal is allowed only in `lib/config/endpoints.ts` (line 33, skipped at line 169), plus tests, comments, and the exemptions in `isExemptMatch` (line 127). `scripts/spikes` is not in `SKIP_DIRS` (lines 24–31). No exemption was added. App code passes by reading `process.env` through `withDefault` in that endpoints module. The spike has no code default: `BRAND_KIT_BASE_URL` is the host, and `assembled-brand-kit-v1.zip` and `assembled-brand-library-v1.zip` are appended. If the variable is unset, the script throws a message that names it and exits 1.
+
+`.env.example` has the public host, matching the filled-URL convention in that file. `.gitignore` line 21 (`.env*`) ignores `.env.example`, so it is not in the commit. `env.local.example` is the tracked template and was left alone.
+
+- SHA: 7f46ddd1
+- Checks: `npm run check:hardcoded-urls` exit 0. `npx tsc --noEmit` exit 0. `next lint` on `fetch-kit.ts`, no warnings. With the variable unset, the script printed `BRAND_KIT_BASE_URL is unset. Set it to the public brand kit host.` and exited 1.
+- Under 90%: none on the check rule or the env read.
+- Snowflake was not called. The Messages API was not called.
