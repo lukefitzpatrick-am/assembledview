@@ -328,7 +328,7 @@ async function downloadOutputs(
 }
 
 async function runOne(client: Anthropic, id: string, mba: string): Promise<number> {
-  const stem = `${mba}-v5`
+  const stem = `${mba}-v6`
   const jsonPath = path.join(
     repoRoot,
     "docs/superpowers/overnight-av-fixes/discovery",
@@ -591,9 +591,6 @@ async function main() {
   const targets = process.argv.slice(2)
   if (targets.length === 0) {
     throw new Error("Pass an mba number. Example: hema007")
-  }
-  if (targets.some((mba) => mba.toLowerCase() === "curatif004")) {
-    throw new Error("curatif004 is not part of this run")
   }
   const caps = spikeInputCaps()
   console.log(JSON.stringify({
