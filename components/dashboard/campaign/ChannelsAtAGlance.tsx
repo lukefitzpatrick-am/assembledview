@@ -66,8 +66,12 @@ function MetricPair({
 
 function GlanceCard({ entry, todayISO }: { entry: ChannelCoverageEntry; todayISO: string }) {
   const expected = entry.expectedToDate ?? 0
+  const deliveredSpend = entry.deliveredSpend
   const notStarted =
-    expected === 0 && entry.startsOn != null && entry.startsOn > todayISO
+    expected === 0 &&
+    (deliveredSpend === 0 || deliveredSpend == null) &&
+    entry.startsOn != null &&
+    entry.startsOn > todayISO
   const noSource = entry.status === "no_source" && entry.spendAssumed !== true
   const reporting = entry.status === "reporting" || (expected > 0 && entry.deliveredSpend != null)
   const paceStatus: DeliveryStatus | null =
@@ -88,10 +92,10 @@ function GlanceCard({ entry, todayISO }: { entry: ChannelCoverageEntry; todayISO
           : reportingPill(paceStatus)
 
   const spendDelivered =
-    entry.deliveredSpend === null ? "—" : formatMoneyCompact(entry.deliveredSpend)
+    deliveredSpend === null ? "—" : formatMoneyCompact(deliveredSpend)
   const barValue =
-    entry.deliveredSpend != null && entry.plannedSpend > 0
-      ? Math.max(0, Math.min(1, entry.deliveredSpend / entry.plannedSpend)) * 100
+    deliveredSpend != null && entry.plannedSpend > 0
+      ? Math.max(0, Math.min(1, deliveredSpend / entry.plannedSpend)) * 100
       : 0
   const marker =
     expected > 0 && entry.plannedSpend > 0
@@ -100,10 +104,10 @@ function GlanceCard({ entry, todayISO }: { entry: ChannelCoverageEntry; todayISO
   const caption =
     noSource
       ? null
-      : entry.status === "connecting"
-        ? "Awaiting first report"
-        : notStarted || entry.status === "not_started"
-          ? `Starts ${formatDateShort(entry.startsOn)}`
+      : notStarted || entry.status === "not_started"
+        ? `Starts ${formatDateShort(entry.startsOn)}`
+        : entry.status === "connecting"
+          ? "Awaiting first report"
           : null
   const showBar = reporting && entry.plannedSpend > 0 && !noSource && !notStarted
 
@@ -148,13 +152,15 @@ function GlanceCard({ entry, todayISO }: { entry: ChannelCoverageEntry; todayISO
         ) : null}
       </div>
 
-      <div className="mt-3">
-        <MetricPair
-          label={entry.deliverableLabel}
-          delivered={formatImpressions(entry.deliveredImpressions)}
-          planned={formatImpressions(entry.plannedImpressions)}
-        />
-      </div>
+      {entry.plannedImpressions > 0 || entry.deliveredImpressions > 0 ? (
+        <div className="mt-3">
+          <MetricPair
+            label={entry.deliverableLabel}
+            delivered={formatImpressions(entry.deliveredImpressions)}
+            planned={formatImpressions(entry.plannedImpressions)}
+          />
+        </div>
+      ) : null}
 
       {showBar ? (
         <div className="mt-4" data-progress="true">

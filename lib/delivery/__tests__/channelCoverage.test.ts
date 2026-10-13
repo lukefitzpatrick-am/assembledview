@@ -716,3 +716,136 @@ test("programmatic OOH glance impressions come from IMPRESSIONS not plays", () =
   assert.equal(ooh.deliverableLabel, "Impressions")
   assert.notEqual(ooh.deliveredImpressions, 57_602)
 })
+
+/** 2026-10-04T13:00:00.000Z is 5 Oct in Melbourne (AEDT). */
+const GOLF_TODAY = "2026-10-14"
+const RADIO_INCLUSION_START = "2026-10-04T13:00:00.000Z"
+const RADIO_PAID_START = "2026-11-15T13:00:00.000Z"
+const OOH_INCLUSION_START = "2026-10-31T13:00:00.000Z"
+const OOH_PAID_START = "2026-11-21T13:00:00.000Z"
+
+function zeroBurstLine(id: string, start: string) {
+  return {
+    line_item_id: id,
+    budget: 0,
+    buy_type: "package_inclusions",
+    bursts: [{ startDate: start, endDate: "2026-12-31T13:00:00.000Z", budget: 0 }],
+  }
+}
+
+function paidBurstLine(id: string, start: string, budget: number, buyType: string) {
+  return {
+    line_item_id: id,
+    budget,
+    buy_type: buyType,
+    bursts: [{ startDate: start, endDate: "2026-12-31T13:00:00.000Z", budget }],
+  }
+}
+
+test("golf025 radio startsOn is the first paid burst, not a $0 inclusion", () => {
+  const buckets = emptyBuckets()
+  buckets.offlineLineItems = [
+    ...Array.from({ length: 36 }, (_, index) =>
+      zeroBurstLine(`golf025RA${index + 1}`, RADIO_INCLUSION_START),
+    ),
+    paidBurstLine("golf025RA37", RADIO_PAID_START, 8_000, "spots"),
+  ]
+  const radio = channelCoverage({
+    buckets,
+    sections: [],
+    todayISO: GOLF_TODAY,
+    channelExpected: [{ key: "radio", expected: 0, planned: 8_000 }],
+  }).find((entry) => entry.key === "radio")
+  assert.ok(radio)
+  assert.equal(radio.startsOn, "2026-11-16")
+  assert.equal(radio.spendAssumed, true)
+  assert.equal(radio.expectedToDate, 0)
+  assert.equal(radio.deliveredSpend, 0)
+  assert.equal(radio.status, "reporting")
+})
+
+test("golf025 OOH startsOn is the paid package, not the $0 inclusion", () => {
+  const buckets = emptyBuckets()
+  buckets.offlineLineItems = [
+    zeroBurstLine("golf025OH1", OOH_INCLUSION_START),
+    paidBurstLine("golf025OH2", OOH_PAID_START, 22_000, "package"),
+  ]
+  const ooh = channelCoverage({
+    buckets,
+    sections: [],
+    todayISO: GOLF_TODAY,
+    channelExpected: [{ key: "ooh", expected: 0, planned: 22_000 }],
+  }).find((entry) => entry.key === "ooh")
+  assert.ok(ooh)
+  assert.equal(ooh.startsOn, "2026-11-22")
+  assert.equal(ooh.expectedToDate, 0)
+  assert.equal(ooh.deliveredSpend, 0)
+})
+
+test("a channel with only $0 lines falls back to the earliest burst", () => {
+  const buckets = emptyBuckets()
+  buckets.offlineLineItems = [
+    zeroBurstLine("golf025RA2", "2026-11-01T13:00:00.000Z"),
+    zeroBurstLine("golf025RA1", RADIO_INCLUSION_START),
+  ]
+  const radio = channelCoverage({
+    buckets,
+    sections: [],
+    todayISO: GOLF_TODAY,
+  }).find((entry) => entry.key === "radio")
+  assert.ok(radio)
+  assert.equal(radio.startsOn, "2026-10-05")
+})
+
+test("a digital group startsOn ignores $0 bursts that begin before the paid flight", () => {
+  const buckets = emptyBuckets()
+  buckets.socialLineItems = [
+    { ...zeroBurstLine("golf025SM1", RADIO_INCLUSION_START), platform: "Meta" },
+    { ...paidBurstLine("golf025SM2", RADIO_PAID_START, 4_000, "cpm"), platform: "Meta" },
+  ]
+  const meta = channelCoverage({
+    buckets,
+    sections: [],
+    todayISO: GOLF_TODAY,
+  }).find((entry) => entry.key === "social-meta")
+  assert.ok(meta)
+  assert.equal(meta.startsOn, "2026-11-16")
+})
+
+test("assumed radio that has started stays on track when expected is above 0", () => {
+  const buckets = emptyBuckets()
+  buckets.offlineLineItems = [
+    paidBurstLine("golf025RA1", "2026-10-01", 1_000, "spots"),
+  ]
+  const radio = channelCoverage({
+    buckets,
+    sections: [],
+    todayISO: GOLF_TODAY,
+    channelExpected: [{ key: "radio", expected: 400, planned: 1_000 }],
+    assumedLines: [
+      {
+        id: "golf025RA1",
+        scheduleKey: "radio",
+        plannedMedia: 400,
+        buyType: "spots",
+        bursts: [
+          {
+            rawBudget: 400,
+            budgetIncludesFees: false,
+            clientPaysForMedia: true,
+            feePct: 0,
+            buyType: "spots",
+            startDate: "2026-10-01",
+            endDate: "2026-10-01",
+          },
+        ],
+      },
+    ],
+  }).find((entry) => entry.key === "radio")
+  assert.ok(radio)
+  assert.equal(radio.startsOn, "2026-10-01")
+  assert.equal(radio.status, "reporting")
+  assert.equal(radio.expectedToDate, 400)
+  assert.equal(radio.deliveredSpend, 400)
+  assert.equal(radio.deliveryStatus, "on-track")
+})

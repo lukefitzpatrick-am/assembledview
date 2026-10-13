@@ -2,7 +2,11 @@
 import { describe, expect, it } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
 
-import type { ChannelCoverageEntry } from "@/lib/delivery/channelCoverage"
+import {
+  channelCoverage,
+  type ChannelCoverageBuckets,
+  type ChannelCoverageEntry,
+} from "@/lib/delivery/channelCoverage"
 import { ChannelsAtAGlance } from "../ChannelsAtAGlance"
 
 function entry(partial: Partial<ChannelCoverageEntry> & Pick<ChannelCoverageEntry, "key" | "label" | "status">): ChannelCoverageEntry {
@@ -225,5 +229,204 @@ describe("ChannelsAtAGlance", () => {
       />,
     )
     expect(html).toContain("Not started")
+  })
+
+  const golfToday = "2026-10-14"
+
+  function emptyBuckets(): ChannelCoverageBuckets {
+    return {
+      socialLineItems: [],
+      searchLineItems: [],
+      progDisplayLineItems: [],
+      progVideoLineItems: [],
+      progOohLineItems: [],
+      digitalDisplayLineItems: [],
+      digitalVideoLineItems: [],
+      digitalAudioLineItems: [],
+      bvodLineItems: [],
+    }
+  }
+
+  function zeroBurstLine(id: string, start: string) {
+    return {
+      line_item_id: id,
+      budget: 0,
+      buy_type: "package_inclusions",
+      bursts: [{ startDate: start, endDate: "2026-12-31T13:00:00.000Z", budget: 0 }],
+    }
+  }
+
+  function paidBurstLine(id: string, start: string, budget: number, buyType: string) {
+    return {
+      line_item_id: id,
+      budget,
+      buy_type: buyType,
+      bursts: [{ startDate: start, endDate: "2026-12-31T13:00:00.000Z", budget }],
+    }
+  }
+
+  it("shows Not started for golf025 radio instead of On track at $0 of $0", () => {
+    const buckets = emptyBuckets()
+    buckets.offlineLineItems = [
+      ...Array.from({ length: 36 }, (_, index) =>
+        zeroBurstLine(`golf025RA${index + 1}`, "2026-10-04T13:00:00.000Z"),
+      ),
+      paidBurstLine("golf025RA37", "2026-11-15T13:00:00.000Z", 8_000, "spots"),
+    ]
+    const radio = channelCoverage({
+      buckets,
+      sections: [],
+      todayISO: golfToday,
+      channelExpected: [{ key: "radio", expected: 0, planned: 8_000 }],
+    }).find((row) => row.key === "radio")
+    expect(radio).toBeTruthy()
+    const html = renderToStaticMarkup(
+      <ChannelsAtAGlance todayISO={golfToday} entries={[radio!]} />,
+    )
+    expect(html).toContain("Not started")
+    expect(html).toContain("Starts 16 Nov 2026")
+    expect(html).toContain("Assumed spend")
+    expect(html).not.toContain("On track")
+    expect(html).not.toContain("Impressions")
+    expect(html).not.toContain("of planned")
+  })
+
+  it("shows the paid OOH package start, not the $0 inclusion", () => {
+    const buckets = emptyBuckets()
+    buckets.offlineLineItems = [
+      zeroBurstLine("golf025OH1", "2026-10-31T13:00:00.000Z"),
+      paidBurstLine("golf025OH2", "2026-11-21T13:00:00.000Z", 22_000, "package"),
+    ]
+    const ooh = channelCoverage({
+      buckets,
+      sections: [],
+      todayISO: golfToday,
+      channelExpected: [{ key: "ooh", expected: 0, planned: 22_000 }],
+    }).find((row) => row.key === "ooh")
+    expect(ooh).toBeTruthy()
+    const html = renderToStaticMarkup(
+      <ChannelsAtAGlance todayISO={golfToday} entries={[ooh!]} />,
+    )
+    expect(html).toContain("Not started")
+    expect(html).toContain("Starts 22 Nov 2026")
+    expect(html).not.toContain("Starts 1 Nov 2026")
+    expect(html).not.toContain("On track")
+  })
+
+  it("shows Not started for a digital group whose paid flight is still ahead", () => {
+    const buckets = emptyBuckets()
+    buckets.socialLineItems = [
+      { ...zeroBurstLine("golf025SM1", "2026-10-04T13:00:00.000Z"), platform: "Meta" },
+      { ...paidBurstLine("golf025SM2", "2026-11-15T13:00:00.000Z", 4_000, "cpm"), platform: "Meta" },
+    ]
+    const meta = channelCoverage({
+      buckets,
+      sections: [],
+      todayISO: golfToday,
+    }).find((row) => row.key === "social-meta")
+    expect(meta?.status).toBe("connecting")
+    const html = renderToStaticMarkup(
+      <ChannelsAtAGlance todayISO={golfToday} entries={[meta!]} />,
+    )
+    expect(html).toContain("Not started")
+    expect(html).toContain("Starts 16 Nov 2026")
+    expect(html).not.toContain("Awaiting first report")
+    expect(html).not.toContain("On track")
+  })
+
+  it("keeps On track for an assumed channel that has started and expected above 0", () => {
+    const buckets = emptyBuckets()
+    buckets.offlineLineItems = [paidBurstLine("golf025RA1", "2026-10-01", 1_000, "spots")]
+    const radio = channelCoverage({
+      buckets,
+      sections: [],
+      todayISO: golfToday,
+      channelExpected: [{ key: "radio", expected: 400, planned: 1_000 }],
+      assumedLines: [
+        {
+          id: "golf025RA1",
+          scheduleKey: "radio",
+          plannedMedia: 400,
+          buyType: "spots",
+          bursts: [
+            {
+              rawBudget: 400,
+              budgetIncludesFees: false,
+              clientPaysForMedia: true,
+              feePct: 0,
+              buyType: "spots",
+              startDate: "2026-10-01",
+              endDate: "2026-10-01",
+            },
+          ],
+        },
+      ],
+    }).find((row) => row.key === "radio")
+    expect(radio).toBeTruthy()
+    const html = renderToStaticMarkup(
+      <ChannelsAtAGlance todayISO={golfToday} entries={[radio!]} />,
+    )
+    expect(html).toContain("On track")
+    expect(html).not.toContain("Not started")
+  })
+
+  it("hides a zero impressions block and keeps it when either count is above 0", () => {
+    const hidden = renderToStaticMarkup(
+      <ChannelsAtAGlance
+        todayISO={golfToday}
+        entries={[
+          entry({
+            key: "television",
+            label: "Television",
+            status: "reporting",
+            spendAssumed: true,
+            plannedImpressions: 0,
+            deliveredImpressions: 0,
+            deliveredSpend: 100,
+            expectedToDate: 100,
+          }),
+        ]}
+      />,
+    )
+    expect(hidden).not.toContain("Impressions")
+    expect(hidden).not.toContain("of planned")
+
+    const deliveredOnly = renderToStaticMarkup(
+      <ChannelsAtAGlance
+        todayISO={golfToday}
+        entries={[
+          entry({
+            key: "television",
+            label: "Television",
+            status: "reporting",
+            plannedImpressions: 0,
+            deliveredImpressions: 12,
+            deliveredSpend: 100,
+            expectedToDate: 100,
+          }),
+        ]}
+      />,
+    )
+    expect(deliveredOnly).toContain("Impressions")
+    expect(deliveredOnly).toContain("of planned")
+
+    const plannedOnly = renderToStaticMarkup(
+      <ChannelsAtAGlance
+        todayISO={golfToday}
+        entries={[
+          entry({
+            key: "television",
+            label: "Television",
+            status: "reporting",
+            plannedImpressions: 8,
+            deliveredImpressions: 0,
+            deliveredSpend: 100,
+            expectedToDate: 100,
+          }),
+        ]}
+      />,
+    )
+    expect(plannedOnly).toContain("Impressions")
+    expect(plannedOnly).toContain("of planned")
   })
 })

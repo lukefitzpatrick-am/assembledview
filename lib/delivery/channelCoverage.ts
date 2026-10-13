@@ -128,6 +128,8 @@ type Acc = {
   plannedSpend: number
   plannedImpressions: number
   earliestStart: string | null
+  /** Earliest burst with budget > 0. Null when every burst in the group is $0. */
+  earliestPaidStart: string | null
   lineIds: string[]
   plannedSpendByLineId: Record<string, number>
   planByLineId: Record<string, KpiReviewPlanLine>
@@ -160,15 +162,28 @@ function plannedImpressionsFromItem(item: unknown): number {
   return n > 0 ? n : 0
 }
 
-function earliestBurstStart(item: unknown): string | null {
+function earlierDate(current: string | null, next: string | null): string | null {
+  if (!next) return current
+  if (!current || next < current) return next
+  return current
+}
+
+/**
+ * Burst dates are already Sydney civil days (`formatBurstDateLocal` inside
+ * `parseBurstsToNormalised`). Date-only strings pass through. An instant such
+ * as `2026-10-04T13:00:00.000Z` is 5 Oct. Callers compare those days with
+ * Melbourne today (`getMelbourneTodayISO`) as `YYYY-MM-DD`.
+ */
+function burstStartBounds(item: unknown): { earliest: string | null; earliestPaid: string | null } {
   const rec = asRecord(item)
   const bursts = parseBurstsToNormalised(rec.bursts ?? rec.bursts_json)
-  if (bursts.length === 0) return null
   let earliest: string | null = null
+  let earliestPaid: string | null = null
   for (const burst of bursts) {
-    if (!earliest || burst.startDate < earliest) earliest = burst.startDate
+    earliest = earlierDate(earliest, burst.startDate)
+    if (burst.budget > 0) earliestPaid = earlierDate(earliestPaid, burst.startDate)
   }
-  return earliest
+  return { earliest, earliestPaid }
 }
 
 function titleCasePublisher(key: string): string {
@@ -269,7 +284,8 @@ function addLine(
         ? `${args.family}:${publisherKey}`
         : args.family
   const existing = groups.get(key)
-  const start = earliestBurstStart(args.item)
+  const bounds = burstStartBounds(args.item)
+  const start = bounds.earliest
   const lineId = extractPacingLineItemIdFromItem(args.item)
   const planned = plannedSpendFromItem(args.item)
   const planLine = extractKpiReviewPlanLine(args.item, planned)
@@ -284,6 +300,7 @@ function addLine(
       plannedSpend: planned,
       plannedImpressions: plannedImpressionsFromItem(args.item),
       earliestStart: start,
+      earliestPaidStart: bounds.earliestPaid,
       lineIds: lineId ? [lineId] : [],
       plannedSpendByLineId: lineId ? { [lineId]: planned } : {},
       planByLineId: lineId ? { [lineId]: planLine } : {},
@@ -292,9 +309,8 @@ function addLine(
   }
   existing.plannedSpend += planned
   existing.plannedImpressions += plannedImpressionsFromItem(args.item)
-  if (start && (!existing.earliestStart || start < existing.earliestStart)) {
-    existing.earliestStart = start
-  }
+  existing.earliestStart = earlierDate(existing.earliestStart, start)
+  existing.earliestPaidStart = earlierDate(existing.earliestPaidStart, bounds.earliestPaid)
   if (lineId) {
     if (!existing.lineIds.includes(lineId)) existing.lineIds.push(lineId)
     existing.plannedSpendByLineId[lineId] = (existing.plannedSpendByLineId[lineId] ?? 0) + planned
@@ -623,7 +639,7 @@ function entriesFromGroups(groups: Map<string, Acc>, input: ChannelCoverageInput
       status,
       spendModelled: modelled,
       ...(spendEstimated ? { spendEstimated: true } : {}),
-      startsOn: acc.earliestStart,
+      startsOn: acc.earliestPaidStart ?? acc.earliestStart,
       deliveryStatus: status === "reporting" ? delivered.deliveryStatus : null,
       impressionsStatus: status === "reporting" ? delivered.impressionsStatus : null,
     })
@@ -667,24 +683,25 @@ function appendOfflineEntries(
       return key ? [key] : []
     }),
   )
-  const groups = new Map<string, { planned: number; start: string | null }>()
+  const groups = new Map<string, { planned: number; start: string | null; paidStart: string | null }>()
   for (const item of items) {
     const lineId = extractPacingLineItemIdFromItem(item)
     const key = lineId ? scheduleKeyForLineItemId(lineId) : null
     if (!key || claimed.has(key)) continue
     const planned = plannedSpendFromItem(item)
-    const start = earliestBurstStart(item)
+    const bounds = burstStartBounds(item)
     const existing = groups.get(key)
     if (!existing) {
-      groups.set(key, { planned, start })
+      groups.set(key, { planned, start: bounds.earliest, paidStart: bounds.earliestPaid })
       continue
     }
     existing.planned += planned
-    if (start && (!existing.start || start < existing.start)) existing.start = start
+    existing.start = earlierDate(existing.start, bounds.earliest)
+    existing.paidStart = earlierDate(existing.paidStart, bounds.earliestPaid)
   }
   for (const [key, bucket] of groups) {
     const delivered = assumedToDateForKey(assumedLines, key, asOf)
-    const card = offlineCard(key, bucket.planned, bucket.start, true)
+    const card = offlineCard(key, bucket.planned, bucket.paidStart ?? bucket.start, true)
     card.deliveredSpend = delivered
     card.status = "reporting"
     card.deliveryStatus = deliveryStatusFromPct(assumedDeliveryPacePct(delivered, delivered))
