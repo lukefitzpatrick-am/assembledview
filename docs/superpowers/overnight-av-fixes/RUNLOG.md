@@ -5367,3 +5367,16 @@ One commit on `localhost`: `scripts/spikes/report-deck-skill/fetch-kit.ts`. The 
 - Checks: `npm run check:hardcoded-urls` exit 0. `npx tsc --noEmit` exit 0. `next lint` on `fetch-kit.ts`, no warnings. With the variable unset, the script printed `BRAND_KIT_BASE_URL is unset. Set it to the public brand kit host.` and exited 1.
 - Under 90%: none on the check rule or the env read.
 - Snowflake was not called. The Messages API was not called.
+
+## AV-TX wrap-up
+
+`npm run gate:main` with `NODE_OPTIONS=--max-old-space-size=6144` for that run only, exit 0, 135.8s. `NODE_OPTIONS` was cleared after the run. `npm run test:all` once, exit 0, 125/125 suites, 705.1s. `test:codex-stage1-templates` passed. No suite was rerun. Only this run log was staged.
+
+### Prompts
+
+| ID | Status | SHA |
+| --- | --- | --- |
+| Shared number check, check inside the build | DONE | `6a909d6f` |
+| Deck text colours, cover, thank-you and headings | DONE | `4756f478` |
+| Brand kit URLs from env | DONE | `7f46ddd1` |
+| AV-TX wrap-up | DONE | this commit |
