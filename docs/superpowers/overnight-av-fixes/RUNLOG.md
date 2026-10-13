@@ -4973,3 +4973,337 @@ krusty002 `snapshot_checksum` is the same on v2, v3, v4 and v5 (`33258dc74159c38
 | Reordering lines keeps their line ids in every channel | DONE | `c900cde9` |
 | krusty002 snapshot checksum covers schedule, slice, and fees | REPORTED | none |
 | AV-TT wrap-up | DONE | this commit |
+
+## Report deck reads model and effort from env
+
+One commit on `localhost`. The run log stays uncommitted. No Messages API call.
+
+Before this commit, `run-deck.ts` sent no effort setting. The only `messages.create` is the continuation loop, and that body was model, max tokens, betas, the code execution tool, container skills, and messages.
+
+`package.json` depends on `@anthropic-ai/sdk` `^0.97.1`. The installed package is `0.97.1`.
+
+`ANTHROPIC_REPORT_EFFORT` is read the same way as the model. Unset throws and names the variable. The allowed values are `low`, `medium`, and `high`. There is no default.
+
+Every `messages.create` in that loop, including each `pause_turn` continuation, sends `output_config`. The field is `effort` on `Anthropic.Beta.BetaOutputConfig` (`output_config` on `MessageCreateParamsBase` in `@anthropic-ai/sdk` 0.97.1). That params type also carries `container` and the code execution tool, and `tsc` accepted them together.
+
+The opening log and each usage line include the model and the effort. The caps stay 150000 per call, 600000 per run, and 8 continuations.
+
+- SHA: 0cde81df
+- Checks: `deck-guardrails.test.ts` 4/4. `tsc --noEmit` 0. eslint on the three spike files, 0.
+- Under 90%: none on the field shape.
+- Morning smoke was not run. Snowflake was not called. No API call.
+
+## Save every deck call and download before the caps
+
+The instrumentation commit was already on `localhost`. This pass did not add another messages path. No `messages.create`. Files API list and one download only. TT0 was already `0cde81df`, so the effort field was not added again. Effort is still logged at the start and on every usage line. The `out/` ignore was still unstaged, so it landed in a follow-up commit. The run log stays uncommitted.
+
+Files created on 12 Oct after 09:00 UTC:
+
+| id | filename | size | created_at | downloadable |
+| --- | --- | --- | --- | --- |
+| `file_01MBYe1roqMexnMBU64dqmYX` | report-data.json | 3355 | 2026-10-12T09:04:16.387765Z | false |
+| `file_011yKikUGoh3rgptudaV4uhd` | assembled-template.pptx | 16008075 | 2026-10-12T09:04:20.665052Z | false |
+| `file_01JpifExCJmA43hbpfV4tbQE` | hema007.pptx | 15044155 | 2026-10-12T09:06:47.501975Z | true |
+
+`hema007.pptx` is not one of the uploads. It is at `scripts/spikes/report-deck-skill/out/hema007-run2.pptx`. The number check against `out/hema007-report-data.json` found 9 slides. The missing-number list is empty. LibreOffice wrote `out/hema007-run2.png` (35,664 bytes). That filter exports the first slide only: the Assembled Media cover.
+
+`run-deck.ts` now writes `out/{mba}-call{n}.json` as soon as a response returns, downloads any new output file before the caps, then applies the caps. `ANTHROPIC_SPIKE_MAX_INPUT` (150000) applies to a `pause_turn` continuation only. `ANTHROPIC_SPIKE_MAX_RUN_INPUT` (600000) still covers the whole run. Both are printed at the start as `continuation_input_cap` and `run_input_cap`. `scripts/spikes/report-deck-skill/out/` is gitignored, so `out/*.json` is covered.
+
+Server tool calls are `BetaServerToolUseBlock` (`type: "server_tool_use"`). The SDK has no `bash_code_execution_tool_use` or `text_editor_code_execution_tool_use` block. Those names are the `name` on `server_tool_use`: `bash_code_execution`, `text_editor_code_execution`, `code_execution`, plus `web_search`, `web_fetch`, `advisor`, `tool_search_tool_regex`, and `tool_search_tool_bm25`. Results paired by `tool_use_id` are `BetaBashCodeExecutionToolResultBlock`, `BetaTextEditorCodeExecutionToolResultBlock`, `BetaCodeExecutionToolResultBlock`, `BetaWebSearchToolResultBlock`, `BetaWebFetchToolResultBlock`, `BetaAdvisorToolResultBlock`, `BetaToolSearchToolResultBlock`, and `BetaMCPToolResultBlock`. `BetaMCPToolUseBlock` is included as a call. Each call prints a step table (step, tool, command trimmed to 200 characters, result characters, error) and the five largest results, each clipped at 4000 characters.
+
+`assembled-template.pptx` is 16,008,075 bytes. No embedded font parts. 68 slides. 123 layouts, of which 67 are referenced by those slides. The ten largest zip entries, uncompressed (compressed size in parentheses):
+
+| entry | uncompressed | compressed |
+| --- | --- | --- |
+| ppt/media/media1.mp4 | 6455794 | 5547357 |
+| ppt/media/image8.png | 1647243 | 1647508 |
+| ppt/media/image6.png | 1291988 | 1292364 |
+| ppt/media/image12.png | 955332 | 955603 |
+| ppt/media/image10.png | 819034 | 819255 |
+| ppt/media/image11.png | 703132 | 703330 |
+| ppt/media/image2.jpeg | 670380 | 670332 |
+| ppt/media/image60.jpg | 607761 | 606699 |
+| ppt/media/image5.jpeg | 315265 | 314039 |
+| ppt/media/image4.jpeg | 292924 | 292763 |
+
+Media is 16,469,243 bytes uncompressed across 71 files (15,204,963 compressed). The slide is 13.333 by 7.5 inches (`cx="12192000" cy="6858000"`), so 150 dpi full-bleed is 2000 by 1125 pixels. `image60.jpg` is 2560 by 1707. `image2.jpeg` is 987 by 1493, taller than the slide. The 6.5 MB video sits on the Title 1, Title with client, and End Slide layouts (slides 1, 2, and 20), so a catalogue-preserving copy keeps it. 56 layouts are unreferenced (2,627,326 bytes of layout XML, about 246 KB once zipped with their rels). Media used only by those layouts is 956,368 bytes uncompressed across 18 files (730,457 compressed).
+
+Dropping unreferenced layouts and their exclusive media, and downsampling kept rasters to fit 2000 by 1125, keeps every layout a slide uses. The file spells two catalogue rows differently, and both are referenced: slide 24 is `Demeand Flow Planning`, slide 67 is `Caste Study - Black`. Six catalogue names use a hyphen where the layout name uses an en dash (`1_Title 1 – Light`, `2_Title 1 – Light`, `Total Addressable Market – Dark`, `Next step – Dark`, `4_Quote – Dark`, `Business model – Dark`). Those layouts are referenced too. `Narrative / flexible content` is the catalogue label for slides 27-32. Their layouts are `14_Custom Layout`, `22_Custom Layout`, `17_Custom Layout`, `18_Custom Layout`, `19_Custom Layout`, and `20_Custom Layout`, and those six parts stay. Other unreferenced parts share some of those names and would be removed. Expected size is about 14.4 MB (14,398,712 bytes): the current file, minus 730 KB of exclusive media, 246 KB of zipped unused layout XML, and about 633 KB from scaling the two kept oversized rasters by pixel area. The video remains 5.5 MB compressed. That copy was not built.
+
+- SHA: c246335f (save each call, log steps, download before caps). 28c93265 (ignore `scripts/spikes/report-deck-skill/out/`).
+- Checks: `deck-guardrails.test.ts` 5/5. `tsc --noEmit` 0. eslint on the three spike files, 0.
+- Under 90%: the 14.4 MB figure is an area-ratio estimate from compressed entry sizes, not a rebuilt pptx.
+- Morning smoke was not run. Snowflake was not called. No Messages API call.
+
+## Full render and outline of the run 2 deck
+
+One commit on `localhost`. The run log stays uncommitted. No Messages API call. No package install. No app code.
+
+LibreOffice wrote `scripts/spikes/report-deck-skill/out/hema007-run2.pdf` (13,111,777 bytes) from `hema007-run2.pptx`. `pdftoppm` is not on this machine (not on PATH, not under Program Files, WinGet, scoop, or chocolatey). It was not installed. `out/hema007-run2/slide-NN.png` was not written.
+
+`out/hema007-run2-outline.md` lists the 9 slides: number, layout name, and each non-empty text frame. `out/hema007-call1.json` does not exist. `out/hema007-calls.jsonl` has the usage line and the guardrail line only. `last_tool_command` is `(none recorded)`. The 14 container steps were not saved, so they are not listed.
+
+Prompt caching: a `cache_control` marker on the request is what turns on automatic breakpoints between server-tool iterations of that same request. The code-execution doc does not say this. The tool-use caching doc does.
+
+The in-app builder is `buildCampaignReportDeck` (`lib/reports/campaignReport/buildCampaignReportDeck.ts:490`), called at `generateCampaignReportForMba.ts:262`. It uses `pptx-automizer` 0.9.3 (MIT), already installed. It opens `am-template-deck-16x9.pptx`, copies a slide by layout name, clears sample text, and draws new text. It does not build a blank deck. The three generate routes set `maxDuration` 300. `vercel.json` does not set function memory. Peak RSS and wall time on the 16 MB template were not measured.
+
+- SHA: edc57386
+- Checks: `outline-run2.ts` wrote 9 slides. No typecheck. No test suite. The outline script is the only new code.
+- Under 90%: none on the missing step list (the response was never saved) or on the caching quote. Function memory for the 16 MB template was not measured.
+- Morning smoke was not run. Snowflake was not called. No Messages API call.
+
+## Channel and line expected follow the delivery schedule
+
+One commit on `localhost`. The run log stays uncommitted. Postgres was read for golf025 v37 and the 12 Oct portfolio snapshot. Snowflake was not called.
+
+Discovery did not stop the build. The campaign page does not pass yesterday. `resolveCampaignExpectedSpendToDate` uses the same Melbourne as-of as delivered spend. On 12 Oct, golf025 v37 media basis is $75,838.65. On 11 Oct it is $74,289.15. Neither formats as $71.8K. The closest figure in 1–12 Oct is 9 Oct at $71,190.15 ($71.2K). The 11→12 move is one more day of every October month bucket, not a Newspaper insertion on the 12th. Newspaper's −$774.19 is the October $2,000 bucket counted from 1 Oct while NP7's burst starts 25 Oct, so the line figure is September only. Display's −$13.14 is burst windows against even Aug/Sep/Oct buckets, plus a cent on three lines. Not fees. Not a resolver or schedule bug.
+
+Delivered and expected now share an as-of on the campaign page, portfolio `expectedForCampaign`, and `attachStripExpected`.
+
+golf025 on 12 Oct, after the change. Delivered is the 12 Oct portfolio snapshot (`scope all`, live only), summed onto the schedule key. Expected is `channelExpectedToDate`. Status is `deliveryStatusFromPct(delivered ÷ expected)`.
+
+| Channel | Delivered | Expected | Status |
+| --- | ---: | ---: | --- |
+| Social | $37,349.49 | $38,472.46 | On track (97%) |
+| Digital Video | $0.00 | $14,025.61 | Behind |
+| Newspaper | $0.00 | $12,952.09 | Behind, Assumed spend |
+| Digital Display | $0.00 | $8,721.83 | Behind |
+| Programmatic Video | $0.00 | $1,666.66 | Behind |
+
+Those five sum to $75,838.65. The headline is $75,838.65. Gap is 0 cents. OOH and Radio expected $0, so they do not get a card.
+
+- SHA: 45b96bac
+- Checks: `channelExpectedToDate.test.ts`, portfolio pacing rows, line cards, campaign detail row choice, and `ChannelsAtAGlance` all passed. `tsc --noEmit` 0. eslint on the touched files, 0.
+- Under 90%: the $71.8K figure on the campaign page is not this function on 11 Oct or 12 Oct. Display and video delivered $0 are the stored snapshot, which matches a non-positive CM360 estimate (spend stays 0; budget is now planned media).
+- Morning smoke was not run. Snowflake was not called.
+
+## v5 brand report deck skill and a lean run
+
+One commit on `localhost`, files under `scripts/spikes/report-deck-skill/` only. The run log stays uncommitted. No app code. curatif004 was not run.
+
+The brand kit and library zips downloaded into `kit/` (gitignored). `Assembled-Media-Template-v5.potx` is 7,171,587 bytes. `am_rebrand.py` is 18,850 bytes, copied unchanged into `av-campaign-report-v5/scripts/`. New skill id `skill_0161kNqwJPn1Cm4jRd5yWKtZ`. The old `av-campaign-report` skill was left in place. Cover photos, portrait, from `family-and-outdoors` and `road-trips-and-travel`: 6299928, 6786367, 13935909.
+
+hema007 ran once. Model `claude-opus-5-5`, effort `high`. One call, `stop_reason` `end_turn`. 20 container steps. Input 126, output 16,383, cache write 405,703, cache read 699,961. Run cost $2.4967. That is over $1.00, so the model was not called again. Wall time of the call was 188,987 ms. Deck saved to `out/hema007-v5.pptx` (5,198,904 bytes).
+
+Local LibreOffice was already locked by another conversion, so this machine's PDF came from PowerPoint and the PNGs from `pdftoppm -r 40`. Eight slides, 534 by 300. Contact sheet: `scripts/spikes/report-deck-skill/out/hema007-v5-sheet.png`.
+
+Number check. Dollar figures and delivery numbers on the slides are the formatted payload strings (`$3,484.79`, `394,863`, `2.31%`, and the rest). Two stray groups:
+
+| Slide | Part | Figures | What they are |
+| --- | --- | --- | --- |
+| 2 | slide30.xml | 2, 4 | Stat-row number dots. 1 and 3 on the same row match other payload tokens. |
+| 8 | slide36.xml | 71, 3205, 2, 97, 2008 | Thank-you address cloned from the template: 71 Palmerston Crescent, South Melbourne 3205, and Level 2, 97 Rose St, Chippendale NSW 2008. |
+
+Brand check. No `gradFill`. Fonts are Plus Jakarta Sans, Instrument Serif, or the template theme fonts. Every title ends with a full stop. No text below 8pt. Two palette misses:
+
+| Slide | Part | Colour | Source |
+| --- | --- | --- | --- |
+| 6 | slide34.xml | AEB9B0 | `mutedB` in `am_rebrand.py`, and the v5 template master |
+| 8 | slide36.xml | C9D3C8 | `soft` in `am_rebrand.py`, and the cloned thank-you slide |
+
+- SHA: 511a6e05
+- Checks: `slim-deck-payload.test.ts` and `deck-guardrails.test.ts`, 8/8. Payload is 3,427 bytes.
+- Under 90%: none on the token line or the cost. The skill id is the id printed when `av-campaign-report-v5` was created.
+- Morning smoke was not run. Snowflake was not called. The Messages API was called once.
+
+## Deck skill with a tested builder
+
+One commit on `localhost`, files under `scripts/spikes/report-deck-skill/` only. The run log stays uncommitted. No app code. curatif004 was not run.
+
+`build_report.py` resolves every figure from a key in `report-data.json` and fails on a missing key. `check_deck.py` and `summarise.py` print at most 1,500 characters. The five font TTFs are bundled in the skill (about 431 KB on the skill filesystem). They were not container-uploaded, because five upload blocks would be prompt tokens and the fonts are not, unless a script reads them.
+
+Local, no API. Both hand-written contents use every variant at least once. `check_deck.py` printed `OK` for both. `test_checks.py` printed `tests OK`: a missing key fails, a 300-character title is overflow, and `00FFFF` is a palette miss. Contact sheets: `scripts/spikes/report-deck-skill/out/test-hema007-sheet.png` and `scripts/spikes/report-deck-skill/out/test-hema007-b-sheet.png`.
+
+New skill id `skill_01Asrj2k6jP3xQeytLTwDKvk` (replaced `av-campaign-report-v5`). hema007 ran once. Model `claude-opus-5-5`, effort `high`. One call, `stop_reason` `end_turn`. No server-tool result exceeded 20,000 characters.
+
+| Step | Tool | Chars | Status | Command |
+| --- | --- | ---: | --- | --- |
+| 1 | text_editor_code_execution | 4,583 | ok | view SKILL.md |
+| 2 | bash_code_execution | 1,429 | ok | ls and summarise.py |
+| 3 | bash_code_execution | 561 | error | jq (bad quoting) |
+| 4 | bash_code_execution | 543 | error | jq (bad quoting) |
+| 5 | bash_code_execution | 1,853 | ok | python print of formatted values |
+| 6 | bash_code_execution | 46 | error | content.json heredoc |
+| 7 | bash_code_execution | 59 | error | KPI labels were typed text |
+| 8 | bash_code_execution | 21 | ok | shortened the Search note, rebuild, check OK |
+
+Input 110, output 7,089, cache write 14,299, cache read 67,880. Run cost $0.2273. Under $0.60, so the model was not called again. Wall time of the call was 90,508 ms. Deck saved to `out/hema007-v5.pptx` (5,202,729 bytes).
+
+The container check ended `OK` on the third build. The first failed on a missing key (`CTR` used as a label). The second flagged overflow on the Search note. The skill allows one fix pass; this run used two. It did not view an image and did not read the builder scripts. Step 5 did print formatted payload values.
+
+Local LibreOffice failed to convert, so the PDF came from PowerPoint and the PNGs from `pdftoppm -r 50`. Eight slides. Local `check_deck.py` printed `OK`. Contact sheet: `scripts/spikes/report-deck-skill/out/hema007-v5-sheet.png`.
+
+- SHA: a1235698
+- Checks: local `check_deck.py` OK on both test decks and on the API deck. `test_checks.py` OK.
+- Under 90%: none on the token line or the cost. The skill id is the id printed when `av-campaign-report-v5` was replaced.
+- Morning smoke was not run. Snowflake was not called. The Messages API was called once.
+
+## Assumed spend expected follows the bursts
+
+One commit on `localhost`. The run log stays uncommitted. Home and portfolio attention counts stay in the app (`countPortfolioRows` / `isAttentionRow`, `homeAttentionLede`). They do not read Snowflake `V_LINE_ITEM_PACING` STATUS.
+
+Assumed-spend lines (no source, offline family or digital with no source, not bonus or package inclusions) take expected to date from `assumedDailyCents` through the as-of. Delivered is that same sum when Snowflake has no positive `assumed_spend` row, so `deliveryStatusFromPct` is On track. The label stays Assumed spend. Reported lines keep the delivery-schedule split. Channel expected is the sum. Headline expected is that same sum through `resolveCampaignExpectedSpendToDate`.
+
+golf025, published version 17009, as of 13 Oct 2026. NP7 is booked 24–30 Oct, so October newspaper contributes $0. The schedule slice that drops is 13/31 of the $2,000 October bucket, $838.71. Digital video is also assumed (four `no_adserving` lines). Its fee snapshot percent is 0, and its burst sum is $398.49 above the even slice, so the headline does not drop by the full newspaper gap.
+
+| Channel | Expected before | Expected after | Assumed delivered | Status |
+| --- | ---: | ---: | ---: | --- |
+| Social | $38,842.32 | $38,842.32 | reported, unchanged | unchanged |
+| Digital video | $14,423.91 | $14,822.40 | $14,822.40 | On track |
+| Newspaper | $13,016.61 | $12,177.90 | $12,177.90 | On track |
+| Digital display | $9,355.31 | $9,355.31 | reported, unchanged | unchanged |
+| Programmatic video | $1,750.00 | $1,750.00 | reported, unchanged | unchanged |
+| Radio | $0.00 | $0.00 | $0.00 | On track |
+| OOH | $0.00 | $0.00 | $0.00 | On track |
+| Headline | $77,388.15 | $76,947.93 | | drop $440.22 |
+
+Channel cents after the change equal the headline. Snowflake `FIXED_COST_REPORTED_DAILY_FACT` returned no rows for these assumed line ids through 13 Oct, so both figures are the app sum. A positive Snowflake row is left as delivered.
+
+golf025 Newspaper is not a mixed reported channel. The other two newspaper lines are package inclusions. Radio and OOH on this plan mix assumed lines with bonus or package inclusions, and those value-add lines stay off the assumed path. Five other live plans have a digital channel with both `no_adserving` and ad-served lines (BICAU006 programmatic video, sinch001 digital audio, BOSS010 programmatic display, PENFOLD018 programmatic video, BOSS011 programmatic display). A no-adserving line is assumed only when it also has no delivery source.
+
+What each surface reads. Portfolio delivered is Snowflake `FIXED_COST_LINE_ITEM_FACT` when that spend is already above zero, and the app burst sum otherwise. Expected is `channelExpectedToDate` with the assumed lines. The campaign page, the strip, AVA, and reports all use `resolveCampaignExpectedSpendToDate` with those same lines. Campaign delivered adds snapshot assumed spend for line ids Snowflake has not already counted. Glance cards use the adjusted slice and, for an assumed card, the burst sum as delivered.
+
+- SHA: 11828f61
+- Checks: `channelExpectedToDate.test.ts`, `assumedSpendPacing.test.ts`, `assumedSpendSection.test.ts`, `channelCoverage.test.ts`, 34/34. Eslint on the touched files passed. `tsc --noEmit` still fails on `scripts/spikes/report-deck-skill/run-deck.ts`, which this commit does not touch.
+- Under 90%: none on the burst rule or the golf025 figures.
+- Morning smoke was not run. Snowflake was queried and returned no assumed-spend rows for golf025.
+
+## Assumed spend refresh is set-based
+
+One commit on `localhost`. The run log stays uncommitted. Nothing was applied in Snowflake.
+
+`SP_REFRESH_ASSUMED_SPEND_DAILY` flattens `BURSTS_JSON.assumedDailyCents` once for every qualifying line. The nightly wrapper calls it with scope `changed` and no longer loops `SP_REFRESH_FIXED_COST_REPORTED_DAILY` per assume-spend id. The 3-day window and the partner-file / direct-digital loop stay. A filtered call of the inner procedure delegates that one line (`CALL ...('all', id)`) and then continues, so the JavaScript branch does not write a second copy. The unfiltered window skips assume-spend lines.
+
+Scope `changed` with an empty `ASSUMED_SPEND_RUN_LOG` selects every qualifying line. Daily rows for a line in scope are deleted and inserted, so a day that left the JSON is removed. The old per-line MERGE kept those days. Burst and line-item facts are merged from the same rows.
+
+Cancel the `SP_REFRESH_FIXED_COST_NIGHTLY` call that is still running before the rebuild, so two sessions do not write the same rows.
+
+- SHA: efa49513
+- Checks: no SQL linter in the repo. The inner procedure's JavaScript body passes `node --check` after the SQL quotes are unescaped. Snowflake was not called.
+- Under 90%: none. The daily row is a flatten of `assumedDailyCents` (UTC today, cents / 100, last duplicate date wins, `IS_LOCKED` true).
+- Morning smoke was not run.
+
+## Deck builder insight cards, whole-number pace, content writer
+
+One commit on `localhost`, files under `scripts/spikes/report-deck-skill/` only. The run log stays uncommitted. No API call.
+
+KPI table and appendix slides take an `insight` field (max 160 characters) and paint a sand card with an Insight tag in the space under the table. A not-live list of one or two channels is rejected by `write_content.py` (`use cards`). The builder still falls back to cards, and those cards show planned budget, status when the row has one, and the note. `spendPacePct` is a whole-number percent in `slim-deck-payload.ts` (`35%`, `116%`). CTR, conversion rate, VTR and time elapsed stay at two decimal places, so the number check still matches the JSON the model sees. A label whose text is "Spend pace" is rendered as "Spend pace of expected to date". Step 2 of the skill is a pipe into `write_content.py`. No jq and no heredoc.
+
+The local rebuild used the saved run 4 content (`out/hema007-v5-call1.json`, extracted to `out/hema007-v5-content.json`) plus the two insight lines the new slides require. That saved report-data was slimmed before this commit, so the rebuilt PDF still prints `34.85%` and `116.16%`. A new slim prints `35%` and `116%`.
+
+`test_checks.py` printed `tests OK`. `tsx --test slim-deck-payload.test.ts` passed 3. `check_deck.py` printed `OK` on the rebuilt hema deck and on both hand-written decks. LibreOffice did not rewrite the PDF, so the PDF came from PowerPoint and the PNGs from `pdftoppm -r 50`. Contact sheet: `scripts/spikes/report-deck-skill/out/hema007-v5-sheet.png`.
+
+- SHA: 3c07c2a5
+- Checks: `test_checks.py` OK. `slim-deck-payload.test.ts` 3/3. `check_deck.py` OK on hema007-v5, test-hema007 and test-hema007-b. `write_content.py` printed OK on the cards fixture and the short-list error on the run 4 content.
+- Under 90%: none on the formatter or the fallback. The rebuilt PDF still shows the old two-decimal pace strings because it was rendered from the saved report-data, not a new slim.
+- Morning smoke was not run. Snowflake was not called. The Messages API was not called.
+
+## Deck skill, Claude writes content.json
+
+One commit on `localhost`, files under `scripts/spikes/report-deck-skill/` only. The run log stays uncommitted. No app code. curatif004 was not run.
+
+Step 2 is write `content.json`. `write_content.py` is gone. The five font TTFs stay bundled in the skill (about 431 KB on the skill filesystem). They were not container-uploaded. A font upload would add five user-message blocks. The files are not prompt tokens unless a script reads them. `cache_control` is on the text block, which is the last block in the user message.
+
+Local, no API. Both hand-written contents use every variant at least once. `check_deck.py` printed `OK` for both. `test_checks.py` printed `tests OK`: a missing key fails, a 300-character title is overflow, and `00FFFF` is a palette miss. Contact sheets: `scripts/spikes/report-deck-skill/out/test-hema007-sheet.png` and `scripts/spikes/report-deck-skill/out/test-hema007-b-sheet.png`.
+
+New skill id `skill_01XxEgip7pYGXpUpHujs5d2s` (replaced `av-campaign-report-v5`). hema007 ran once. Model `claude-opus-5-5`, effort `high`. One call, `stop_reason` `end_turn`. No server-tool result exceeded 20,000 characters.
+
+| Step | Tool | Chars | Status | Command |
+| --- | --- | ---: | --- | --- |
+| 1 | text_editor_code_execution | 4,876 | ok | view SKILL.md |
+| 2 | bash_code_execution | 1,429 | ok | ls and summarise.py |
+| 3 | bash_code_execution | 1,189 | ok | jq of formatted values |
+| 4 | bash_code_execution | 46 | error | content.json heredoc; missing key CTR |
+| 5 | bash_code_execution | 47 | ok | KPI labels changed to keys, rebuild, check OK |
+
+Input 14, output 4,421, cache write 11,059, cache read 35,211. Run cost $0.1508. Under $0.60, so the model was not called again. Wall time of the call was 53,851 ms. Deck saved to `out/hema007-v5.pptx` (5,200,854 bytes).
+
+The container check ended `OK` on the second build. The first failed because the KPI labels were typed text (`CTR`). The skill allows one fix pass. It did not view an image and did not read the builder scripts. Step 3 did print formatted payload values. That result was 1,189 characters, under the 20,000 breach line.
+
+LibreOffice failed to convert, so the PDF came from PowerPoint and the PNGs from `pdftoppm -r 50`. Seven slides. Local `check_deck.py` printed `OK`. Contact sheet: `scripts/spikes/report-deck-skill/out/hema007-v5-sheet.png`.
+
+- SHA: 306de315
+- Checks: local `check_deck.py` OK on both test decks and on the API deck. `test_checks.py` OK.
+- Under 90%: none on the token line or the cost. The skill id is the id printed when `av-campaign-report-v5` was replaced.
+- Morning smoke was not run. Snowflake was not called. The Messages API was called once.
+
+## Deck builder insight cards, content writer restored
+
+One commit on `localhost`, files under `scripts/spikes/report-deck-skill/` only. The run log stays uncommitted. No API call.
+
+`write_content.py` is back. Step 2 of the skill pipes content into it. No jq and no heredoc. A one or two channel not-live list is rejected (`use cards`). The builder still falls back to cards, and those cards show planned budget, status when the row has one, and the note. KPI table and appendix slides take an `insight` field (max 160 characters) and paint a sand card with an Insight tag in the space under the table. `spendPacePct` stays a whole-number percent in `slim-deck-payload.ts`. A label whose text is "Spend pace" is rendered as "Spend pace of expected to date".
+
+Run 4 content was taken from `out/hema007-v5-call1.json`, with the KPI labels rewritten to `kpis.N.label` the way that run's fix pass did. `write_content.py` printed `OK`. The same script printed the short-list error and did not write the file. `test_checks.py` printed `tests OK`. `tsx --test slim-deck-payload.test.ts` passed 3. `check_deck.py` printed `OK` on hema007-v5, test-hema007 and test-hema007-b.
+
+The PDF came from PowerPoint and the PNGs from `pdftoppm -r 50`. hema007-v5 is 7 slides. Social pace reads 116% and "Spend pace of expected to date". CTR stays 2.31%. The KPI slide has the sand Insight card. Search is one card with the planned budget, status and note. Contact sheets: `scripts/spikes/report-deck-skill/out/hema007-v5-sheet.png`, `test-hema007-sheet.png` and `test-hema007-b-sheet.png`.
+
+- SHA: a34693db
+- Checks: `test_checks.py` OK. `slim-deck-payload.test.ts` 3/3. `check_deck.py` OK on hema007-v5, test-hema007 and test-hema007-b. `write_content.py` OK on the run 4 content and the short-list error.
+- Under 90%: none on the cards, the pace label, or the writer.
+- Morning smoke was not run. Snowflake was not called. The Messages API was not called.
+
+## Delivery data beats the assume-spend flag
+
+One commit on `localhost`. The run log stays uncommitted. Snowflake was read, not written.
+
+`isAssumedSpendLine` is true only when the snapshot rule says assume and the line has no loaded row with impressions, clicks, or spend through the as-of. Portfolio, campaign detail, the dashboard page, the delivery client, and the delivery snapshot all pass presence from data they already load. The snapshot map still writes `ASSUME_SPEND` without reading facts. The spike folder stays in the app tsconfig. `run-deck.ts` annotated the empty composites array so it is not inferred as `never[]`.
+
+golf025, published version 17009, as of 13 Oct 2026. Digital video is the CM360 estimate again. Expected is the schedule slice, $14,423.91. Delivered is `estimateDirectDigitalSpend` on the four CPM lines (114,656 / 146,639 / 63,593 / 43,552 impressions): $5,503.52 + $8,211.79 + $1,060.09 + $726.02 = $15,501.42. Fee snapshot percent on those lines is 0. Newspaper, radio, and OOH stay assumed. Radio and OOH bursts contribute $0 through the 13th, so both cents are 0 and the pace is On track.
+
+| Channel | Delivered | Expected | Status |
+| --- | ---: | ---: | --- |
+| Social | $38,602.00 | $38,842.32 | On track |
+| Digital video | $15,501.42 | $14,423.91 | On track |
+| Newspaper | $12,177.90 | $12,177.90 | On track |
+| Digital display | $4,142.18 | $9,355.31 | Behind |
+| Programmatic video | $0.00 | $1,750.00 | Behind |
+| Radio | $0.00 | $0.00 | On track |
+| OOH | $0.00 | $0.00 | On track |
+| Headline | $70,423.50 | $76,549.44 | On track |
+
+Channel expected cents equal the headline (7,654,944). Social delivered is `SOCIAL_PACING_FACT` spend. Display delivered is the CPM estimate on DD3 and DD4. Programmatic video (PV1, PV2) has no impressions, clicks, or spend through the 13th. The portfolio loader already bulk-loads ad-serving `PACING_FACT`, so no new per-line query was added.
+
+Live plans on 13 Oct where the latest snapshot row has `NO_ADSERVING` and a fact row has impressions, clicks, or spend. Platform is the snapshot value. golf025's four rows have a blank platform.
+
+| MBA | Line | Platform | Impressions |
+| --- | --- | --- | ---: |
+| bicau002 | bicau002pv1 | Channel Factory | 421,376 |
+| bicau002 | bicau002pv2 | Channel Factory | 429,488 |
+| bicau002 | bicau002pv3 | Channel Factory | 106,191 |
+| bicau002 | bicau002pv4 | Channel Factory | 122,373 |
+| bicau006 | bicau006pv1 | Channel Factory | 738,843 |
+| bicau006 | bicau006pv5 | Channel Factory | 172,646 |
+| golf025 | golf025dv1 | | 114,656 |
+| golf025 | golf025dv2 | | 146,639 |
+| golf025 | golf025dv3 | | 63,593 |
+| golf025 | golf025dv4 | | 43,552 |
+| penfold015 | penfold015pv1 | Channel Factory | 1,602,774 |
+| penfold018 | penfold018pv1 | Channel Factory | 690,409 |
+
+- SHA: 5f468a9e
+- Checks: `tsc --noEmit` exit 0. `assumeSpendRule.test.ts`, `assumedSpendPacing.test.ts`, `channelExpectedToDate.test.ts`, `assumedSpend.test.ts`, `assumedSpendSection.test.ts`, 33/33. Eslint on the touched files passed.
+- Under 90%: none on the predicate or the golf025 figures.
+- Morning smoke was not run. Snowflake was queried read-only.
+
+## Deck runs on the updated skill
+
+One commit on `localhost` for the harness only. The run log stays uncommitted. The skill was not edited. The uploaded files are the `av-campaign-report-v5` tree at `3c07c2a5`. Skill id `skill_01RuYsGshDAyYM7GUKPiZ67j`, version `1791886105849032`. Model `claude-opus-5-5`, effort `high`. Payloads for September 2026 were rewritten with whole-number pace (`hema007-v6-report-data.json`, `curatif004-v6-report-data.json`).
+
+hema007. One call, `stop_reason` `end_turn`. Wall time of the call 49,763 ms. Input 14, output 4,893, cache read 37,528, cache write 11,269. Cost $0.1618. Under $0.60.
+
+| Step | Tool | Chars | Status | Command |
+| --- | --- | ---: | --- | --- |
+| 1 | text_editor_code_execution | 5,287 | ok | view SKILL.md |
+| 2 | bash_code_execution | 1,429 | ok | summarise.py |
+| 3 | bash_code_execution | 526 | error | content.json; titles were arrays |
+| 4 | bash_code_execution | 3 | ok | write_content.py |
+| 5 | bash_code_execution | 21 | ok | build_report.py |
+
+The container did not run `check_deck.py`. Step 5 printed the pptx path and `OK` from the builder. Local `check_deck.py` printed `OK`. The number check failed. Shown slides are slide29–slide35. Stray figures: slide30 `2`, `4`; slide35 `71`, `3205`, `2,`, `97`, `2008`. LibreOffice failed to convert the pptx. PowerPoint wrote the PDF and `pdftoppm -r 50` wrote the PNGs. Contact sheet: `scripts/spikes/report-deck-skill/out/hema007-v6-sheet.png`.
+
+curatif004 was not called. The number check failed, so the second run stopped.
+
+- SHA: 1f6db688
+- Checks: local `check_deck.py` OK. Number check failed, 7 stray figures. Container `check_deck.py` was not run.
+- Under 90%: none on the cost or the stray list. The `2,` token is a text run, not a recomputed figure.
+- Morning smoke was not run. Snowflake was not called. The Messages API was called once.
