@@ -42,7 +42,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { fromCents, toCents } from "@/lib/money/cents"
 import { parseMoney } from "@/lib/money/parse"
 import { assumedSpendForBurst } from "@/lib/spend/assumedSpend"
-import { assumeSpendForSnapshotLine } from "@/lib/spend/assumeSpendRule"
+import { hasPositiveDelivery, isAssumedSpendLine } from "@/lib/spend/assumeSpendRule"
 import {
   assumedExpectedLineFromFields,
   channelMetaForKey,
@@ -565,15 +565,33 @@ function expectedLineFromPlan(plan: PlanLineMeta, feePct: number): AssumedExpect
   )
 }
 
-function planCanAssumeSpend(plan: PlanLineMeta, feePct: number): boolean {
-  return assumeSpendForSnapshotLine({
-    buyType: plan.buyType,
-    sourceTable: plan.sourceTable,
-    noAdserving: plan.noAdserving,
-    publisher: plan.publisher,
-    platform: plan.platform,
-    deliveryMediaCents: deliveryMediaCentsForPlan(plan, feePct),
+function planHasDeliveryPresence(
+  id: string,
+  metrics: ReturnType<typeof emptyMetrics> | undefined,
+  estimatedIds: ReadonlySet<string>,
+  overlaySpendIds: ReadonlySet<string>,
+): boolean {
+  if (estimatedIds.has(id) || overlaySpendIds.has(id)) return true
+  if (!metrics) return false
+  return hasPositiveDelivery({
+    impressions: metrics.impressions,
+    clicks: metrics.clicks,
+    spend: metrics.spendToDate,
   })
+}
+
+function planCanAssumeSpend(plan: PlanLineMeta, feePct: number, deliveryPresence: boolean): boolean {
+  return isAssumedSpendLine(
+    {
+      buyType: plan.buyType,
+      sourceTable: plan.sourceTable,
+      noAdserving: plan.noAdserving,
+      publisher: plan.publisher,
+      platform: plan.platform,
+      deliveryMediaCents: deliveryMediaCentsForPlan(plan, feePct),
+    },
+    deliveryPresence,
+  )
 }
 
 function assumedSpendDollars(
@@ -932,12 +950,15 @@ export async function loadDeliverySnapshot(
       const kept: DeliveryLineSnapshot[] = []
       for (const line of lines) {
         const plan = planMap.get(line.lineItemId)
-        const hasDelivery =
-          factIds.has(line.lineItemId) ||
-          estimatedIds.has(line.lineItemId) ||
-          overlaySpendIds.has(line.lineItemId)
+        const metrics = deliveredById.get(line.lineItemId)
+        const hasDelivery = planHasDeliveryPresence(
+          line.lineItemId,
+          metrics,
+          estimatedIds,
+          overlaySpendIds,
+        )
         const feePct = plan ? lineFeePct(plan, feePctsByVersionId) : 0
-        if (plan && !hasDelivery && planCanAssumeSpend(plan, feePct)) {
+        if (plan && planCanAssumeSpend(plan, feePct, hasDelivery)) {
           const spend = assumedSpendDollars(plan, feePct, startDate, endDate, asOf)
           pushAssumed(plan, feePct, spend)
           continue
@@ -956,7 +977,10 @@ export async function loadDeliverySnapshot(
 
   for (const plan of assumedOffline) {
     const feePct = lineFeePct(plan, feePctsByVersionId)
-    if (!planCanAssumeSpend(plan, feePct)) continue
+    const metrics = deliveredById.get(plan.id)
+    if (!planCanAssumeSpend(plan, feePct, planHasDeliveryPresence(plan.id, metrics, estimatedIds, overlaySpendIds))) {
+      continue
+    }
     const spend = assumedSpendDollars(plan, feePct, startDate, endDate, asOf)
     pushAssumed(plan, feePct, spend)
   }

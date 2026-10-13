@@ -17,6 +17,7 @@ import {
 } from "@/lib/delivery/channelCoverage"
 import { channelExpectedToDate } from "@/lib/spend/channelExpectedToDate"
 import { assumedExpectedLinesForDelivery } from "@/lib/spend/assumedExpectedLines"
+import { addLoadedDeliveryLineIds } from "@/lib/spend/deliveryLineIds"
 import { deliveredByLineIdFromChannelSections } from "@/lib/delivery/ganttDeliveredByLineId"
 import {
   buildKpiReviewGroups,
@@ -119,6 +120,7 @@ type DeliveryBodyProps = {
   asOfISO?: string | null
   remainderItems: unknown[]
   reportedSpendByLineDate?: Map<string, Map<string, number>>
+  deliveryLineIds?: ReadonlySet<string>
   socialLineItems: SocialLineItem[]
   onCoverage?: (entries: ChannelCoverageEntry[]) => void
   onKpiReviewGroups?: (groups: KpiReviewGroup[]) => void
@@ -162,6 +164,7 @@ function CampaignDeliveryBody({
   asOfISO,
   remainderItems,
   reportedSpendByLineDate,
+  deliveryLineIds: loadedDeliveryLineIds,
   socialLineItems,
   onCoverage,
   onKpiReviewGroups,
@@ -172,6 +175,29 @@ function CampaignDeliveryBody({
   estimateVersionId,
 }: DeliveryBodyProps) {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
+  const deliveryLineIds = useMemo(() => {
+    const ids = new Set(loadedDeliveryLineIds ?? [])
+    addLoadedDeliveryLineIds(
+      ids,
+      rows.map((row) => ({
+        lineItemId: row.lineItemId,
+        impressions: row.impressions,
+        clicks: row.clicks,
+        spend: row.amountSpent,
+      })),
+    )
+    for (const line of search?.lineItems ?? []) {
+      addLoadedDeliveryLineIds(ids, [
+        {
+          lineItemId: line.lineItemId,
+          impressions: line.totals.impressions,
+          clicks: line.totals.clicks,
+          spend: line.totals.cost,
+        },
+      ])
+    }
+    return ids
+  }, [loadedDeliveryLineIds, rows, search])
 
   useEffect(() => {
     if (!loading) setLastSyncedAt(new Date())
@@ -416,6 +442,7 @@ function CampaignDeliveryBody({
       asOfDate: getMelbourneTodayISO(),
       feePctsByVersionId,
       estimateVersionId,
+      deliveryLineIds,
     })
     if (assumed) out.push(assumed)
 
@@ -456,6 +483,7 @@ function CampaignDeliveryBody({
     searchLineItems,
     lastSyncedAt,
     reportedSpendByLineDate,
+    deliveryLineIds,
     isAdmin,
     feePctsByVersionId,
     estimateVersionId,
@@ -475,6 +503,7 @@ function CampaignDeliveryBody({
         progOohLineItems,
         feePctsByVersionId,
         estimateVersionId,
+        deliveryLineIds,
       })
       return channelCoverageBundle({
         buckets: {
@@ -521,6 +550,7 @@ function CampaignDeliveryBody({
       asOfISO,
       feePctsByVersionId,
       estimateVersionId,
+      deliveryLineIds,
     ],
   )
 
@@ -743,7 +773,7 @@ export function CampaignDeliverySection({
       searchEnabled={includeSearch}
       searchLineItemIds={normalizedSearchLineItemIds}
     >
-      {({ rows, search, loading, error, reportedSpendByLineDate }) => (
+      {({ rows, search, loading, error, reportedSpendByLineDate, deliveryLineIds }) => (
         <CampaignDeliveryBody
           rows={rows}
           search={search}
@@ -777,6 +807,7 @@ export function CampaignDeliverySection({
           asOfISO={asOfISO}
           remainderItems={remainderItems}
           reportedSpendByLineDate={reportedSpendByLineDate}
+          deliveryLineIds={deliveryLineIds}
           socialLineItems={socialLineItems}
           onCoverage={onCoverage}
           onKpiReviewGroups={onKpiReviewGroups}

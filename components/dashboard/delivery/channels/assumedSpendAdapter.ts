@@ -14,7 +14,7 @@ import { fromCents, toCents } from "@/lib/money/cents"
 import { parseMoney } from "@/lib/money/parse"
 import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import { assumedDeliveryPacePct } from "@/lib/spend/assumedSpend"
-import { assumeSpendForSnapshotLine } from "@/lib/spend/assumeSpendRule"
+import { isAssumedSpendLine } from "@/lib/spend/assumeSpendRule"
 import { ASSUMED_SPEND_LABEL, assumedSpendForBurst } from "@/lib/spend/assumedSpend"
 
 const ATL_FAMILIES = [
@@ -89,7 +89,12 @@ type AssumedLine = {
   media: number
 }
 
-function lineFigures(item: Record<string, unknown>, asOfDate: string, feePct: number): {
+function lineFigures(
+  item: Record<string, unknown>,
+  asOfDate: string,
+  feePct: number,
+  deliveryPresence: boolean,
+): {
   assumedCents: number
   media: number
 } | null {
@@ -126,14 +131,17 @@ function lineFigures(item: Record<string, unknown>, asOfDate: string, feePct: nu
     for (const day of days) assumedCents += day.cents
   }
   const deliveryMediaCents = toCents(media)
-  const qualifies = assumeSpendForSnapshotLine({
-    buyType,
-    sourceTable,
-    noAdserving: flag(item.no_adserving ?? item.noAdserving),
-    publisher: item.publisher == null ? null : String(item.publisher),
-    platform: item.platform == null ? null : String(item.platform),
-    deliveryMediaCents,
-  })
+  const qualifies = isAssumedSpendLine(
+    {
+      buyType,
+      sourceTable,
+      noAdserving: flag(item.no_adserving ?? item.noAdserving),
+      publisher: item.publisher == null ? null : String(item.publisher),
+      platform: item.platform == null ? null : String(item.platform),
+      deliveryMediaCents,
+    },
+    deliveryPresence,
+  )
   if (!qualifies) return null
   return { assumedCents, media }
 }
@@ -152,6 +160,7 @@ export function buildAssumedSpendSection(input: {
   feePctsByVersionId?: FeePctsByVersionId
   estimateVersionId?: number | null
   mediaType?: string
+  deliveryLineIds?: ReadonlySet<string>
 }): ChannelSectionData | null {
   const lines: AssumedLine[] = []
   for (const [index, raw] of input.lineItems.entries()) {
@@ -161,12 +170,12 @@ export function buildAssumedSpendSection(input: {
     const feePct = mediaType
       ? feePctForScheduleMedia(input.feePctsByVersionId, versionId, mediaType)
       : 0
-    const figures = lineFigures(record, input.asOfDate, feePct)
-    if (!figures) continue
     const id =
       String(record.line_item_id ?? record.lineItemId ?? `assumed-${index}`)
         .trim()
         .toLowerCase() || `assumed-${index}`
+    const figures = lineFigures(record, input.asOfDate, feePct, input.deliveryLineIds?.has(id) === true)
+    if (!figures) continue
     lines.push({
       id,
       record,

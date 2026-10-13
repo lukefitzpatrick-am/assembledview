@@ -8,7 +8,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { toCents } from "@/lib/money/cents"
 import { parseMoney } from "@/lib/money/parse"
 import { extractPacingLineItemIdFromItem } from "@/lib/pacing/delivery/lineItemIds"
-import { assumeSpendForSnapshotLine } from "@/lib/spend/assumeSpendRule"
+import { isAssumedSpendLine } from "@/lib/spend/assumeSpendRule"
 import { scheduleKeyForLineItemId } from "@/lib/spend/channelExpectedToDate"
 import {
   isAssumedValueAddBuyType,
@@ -107,7 +107,11 @@ function parseBursts(raw: unknown, feePct: number, budgetIncludesFees: boolean, 
   return bursts
 }
 
-export function assumedExpectedLineFromFields(fields: AssumedLineFields, scheduleKey: string): AssumedExpectedLine | null {
+export function assumedExpectedLineFromFields(
+  fields: AssumedLineFields,
+  scheduleKey: string,
+  deliveryPresence = false,
+): AssumedExpectedLine | null {
   if (isAssumedValueAddBuyType(fields.buyType)) return null
   let planned = 0
   for (const burst of fields.bursts) {
@@ -122,14 +126,17 @@ export function assumedExpectedLineFromFields(fields: AssumedLineFields, schedul
   }
   const deliveryMediaCents = toCents(planned)
   if (
-    !assumeSpendForSnapshotLine({
-      buyType: fields.buyType,
-      sourceTable: fields.sourceTable,
-      noAdserving: fields.noAdserving,
-      publisher: fields.publisher,
-      platform: fields.platform,
-      deliveryMediaCents,
-    })
+    !isAssumedSpendLine(
+      {
+        buyType: fields.buyType,
+        sourceTable: fields.sourceTable,
+        noAdserving: fields.noAdserving,
+        publisher: fields.publisher,
+        platform: fields.platform,
+        deliveryMediaCents,
+      },
+      deliveryPresence,
+    )
   ) {
     return null
   }
@@ -149,6 +156,7 @@ export function assumedExpectedLineFromItem(args: {
   mediaLabel: string
   feePcts?: FeePctsByVersionId
   fallbackVersionId?: number | null
+  deliveryPresence?: boolean
 }): AssumedExpectedLine | null {
   const rec = asRecord(args.item)
   const id = extractPacingLineItemIdFromItem(rec)
@@ -172,7 +180,13 @@ export function assumedExpectedLineFromItem(args: {
       bursts: parseBursts(rec.bursts_json ?? rec.bursts, feePct, budgetIncludesFees, clientPaysForMedia, buyType),
     },
     args.scheduleKey,
+    args.deliveryPresence === true,
   )
+}
+
+function lineHasDelivery(id: string, deliveryLineIds?: ReadonlySet<string>): boolean {
+  if (!deliveryLineIds || deliveryLineIds.size === 0) return false
+  return deliveryLineIds.has(id.trim().toLowerCase())
 }
 
 const DIGITAL_BUCKETS: Array<{ field: string; scheduleKey: string }> = [
@@ -189,6 +203,7 @@ export function assumedExpectedLinesFromLineItemMap(
   map: Record<string, unknown[] | undefined> | null | undefined,
   feePcts?: FeePctsByVersionId,
   fallbackVersionId?: number | null,
+  deliveryLineIds?: ReadonlySet<string>,
 ): AssumedExpectedLine[] {
   const lines: AssumedExpectedLine[] = []
   const seen = new Set<string>()
@@ -203,6 +218,10 @@ export function assumedExpectedLinesFromLineItemMap(
         mediaLabel: meta.mediaLabel,
         feePcts,
         fallbackVersionId,
+        deliveryPresence: lineHasDelivery(
+          extractPacingLineItemIdFromItem(item) ?? "",
+          deliveryLineIds,
+        ),
       })
       if (!line) continue
       const id = line.id.trim().toLowerCase()
@@ -225,6 +244,7 @@ export function assumedExpectedLinesForDelivery(args: {
   progOohLineItems?: unknown[]
   feePctsByVersionId?: FeePctsByVersionId
   estimateVersionId?: number | null
+  deliveryLineIds?: ReadonlySet<string>
 }): AssumedExpectedLine[] {
   const lines: AssumedExpectedLine[] = []
   const seen = new Set<string>()
@@ -247,6 +267,7 @@ export function assumedExpectedLinesForDelivery(args: {
         mediaLabel: fromId.mediaLabel,
         feePcts: args.feePctsByVersionId,
         fallbackVersionId: args.estimateVersionId,
+        deliveryPresence: lineHasDelivery(id ?? "", args.deliveryLineIds),
       }),
     )
   }
@@ -265,6 +286,10 @@ export function assumedExpectedLinesForDelivery(args: {
           mediaLabel: meta.mediaLabel,
           feePcts: args.feePctsByVersionId,
           fallbackVersionId: args.estimateVersionId,
+          deliveryPresence: lineHasDelivery(
+            extractPacingLineItemIdFromItem(item) ?? "",
+            args.deliveryLineIds,
+          ),
         }),
       )
     }

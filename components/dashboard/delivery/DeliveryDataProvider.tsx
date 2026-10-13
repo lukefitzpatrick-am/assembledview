@@ -31,6 +31,7 @@ type DeliveryDataProviderProps = {
     loading: boolean
     error: string | null
     reportedSpendByLineDate: Map<string, Map<string, number>>
+    deliveryLineIds: ReadonlySet<string>
   }) => ReactNode
 }
 
@@ -102,6 +103,7 @@ export default function DeliveryDataProvider({
   const [reportedSpendByLineDate, setReportedSpendByLineDate] = useState<
     Map<string, Map<string, number>>
   >(() => new Map())
+  const [deliveryLineIds, setDeliveryLineIds] = useState<ReadonlySet<string>>(() => new Set())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -170,6 +172,7 @@ export default function DeliveryDataProvider({
       setRows([])
       setSearch(null)
       setReportedSpendByLineDate(new Map())
+      setDeliveryLineIds(new Set())
       setLoading(false)
       setError(null)
       return
@@ -188,6 +191,7 @@ export default function DeliveryDataProvider({
           rows?: CombinedPacingRow[]
           search?: SearchPacingResponse | null
           reportedSpendDaily?: ReportedSpendDay[]
+          deliveryLineIds?: string[]
           error?: string
         }>(
           "/api/pacing/bulk",
@@ -211,6 +215,13 @@ export default function DeliveryDataProvider({
             Array.isArray(data?.reportedSpendDaily) ? data.reportedSpendDaily : [],
           ),
         )
+        setDeliveryLineIds(
+          new Set(
+            (Array.isArray(data?.deliveryLineIds) ? data.deliveryLineIds : [])
+              .map((id) => String(id).trim().toLowerCase())
+              .filter(Boolean),
+          ),
+        )
         setError(data && (data as any).error ? String((data as any).error) : null)
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err)
@@ -218,6 +229,7 @@ export default function DeliveryDataProvider({
         setRows([])
         setSearch(null)
         setReportedSpendByLineDate(new Map())
+        setDeliveryLineIds(new Set())
       } finally {
         setLoading(false)
       }
@@ -229,6 +241,7 @@ export default function DeliveryDataProvider({
       setRows([])
       setSearch(null)
       setReportedSpendByLineDate(new Map())
+      setDeliveryLineIds(new Set())
       setLoading(false)
     })
   }, [
@@ -246,5 +259,5 @@ export default function DeliveryDataProvider({
     normalizedBulkEnd,
   ])
 
-  return <>{children({ rows, search, loading, error, reportedSpendByLineDate })}</>
+  return <>{children({ rows, search, loading, error, reportedSpendByLineDate, deliveryLineIds })}</>
 }

@@ -653,6 +653,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   let deliveredVideo3sViews = 0
   let hasDelivery = false
   let deliveredAsOf: string | undefined
+  const deliveryLineIds = new Set<string>()
   try {
     const delivered = await getDeliveredTotalsForCampaign({
       mbaNumber: mba_number,
@@ -671,6 +672,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     deliveredVideo3sViews = delivered.video3sViews
     hasDelivery = delivered.hasDelivery
     deliveredAsOf = delivered.asOf
+    for (const id of delivered.deliveryLineIds) deliveryLineIds.add(id)
   } catch (error) {
     console.error("[campaign-page] delivered totals failed", {
       mba: mba_number,
@@ -699,6 +701,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       lineItemsMap,
       feePctsByVersionId,
       versionRecordId,
+      deliveryLineIds,
     ),
   })
 

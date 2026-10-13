@@ -31,6 +31,7 @@ import {
   expectedSpendToDateFromDeliveryScheduleMonthly,
   resolveMonthlySpendForPlan,
 } from "@/lib/spend/monthlyPlanCalendar"
+import { hasPositiveDelivery } from "@/lib/spend/assumeSpendRule"
 import { assumedDeliveryPacePct, assumedLineToDateCents } from "@/lib/spend/assumedSpend"
 import type { AssumedExpectedLine } from "@/lib/spend/assumedSpend"
 import { fromCents, toCents } from "@/lib/money/cents"
@@ -445,6 +446,86 @@ function metricsExpectedForCampaign(
   return computed > 0 ? computed : undefined
 }
 
+function positiveMetric(value: number | null | undefined): boolean {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+}
+
+/**
+ * Line ids that already have impressions, clicks, or spend on rows this
+ * assemble call loaded. Assumed-spend daily facts are not delivery.
+ */
+function deliveryPresenceIds(input: AssembleCampaignPacingRowsInput): Set<string> {
+  const ids = new Set<string>()
+  const add = (lineItemId: string | null | undefined) => {
+    const key = String(lineItemId ?? "").trim().toLowerCase()
+    if (key) ids.add(key)
+  }
+  for (const row of input.search) {
+    if (
+      hasPositiveDelivery({
+        impressions: row.impressions,
+        clicks: row.clicks,
+        spend: row.spendToDateLineTotal,
+      })
+    ) {
+      add(row.lineItemId)
+    }
+  }
+  for (const row of input.social) {
+    if (
+      hasPositiveDelivery({
+        impressions: row.impressions,
+        clicks: row.clicks,
+        spend: row.spendToDateLineTotal,
+      })
+    ) {
+      add(row.lineItemId)
+    }
+  }
+  for (const row of input.programmatic) {
+    if (
+      hasPositiveDelivery({
+        impressions: row.impressions,
+        clicks: row.clicks,
+        spend: row.spendToDateLineTotal,
+      })
+    ) {
+      add(row.lineItemId)
+    }
+  }
+  for (const row of input.adServing) {
+    if (hasPositiveDelivery({ impressions: row.impressions, clicks: row.clicks })) {
+      add(row.lineItemId)
+    }
+  }
+  for (const group of input.direct) {
+    for (const line of group.lineItems) {
+      if (lineIsAssumedSpend(line)) continue
+      const dailySpend = line.daily.some(
+        (day) => positiveMetric(day.reportedSpend) || positiveMetric(day.actualPlatformSpend),
+      )
+      const dailyUnits = line.daily.some((day) => positiveMetric(day.actualDeliverables))
+      if (
+        hasPositiveDelivery({
+          spend: positiveMetric(line.totalReported) ? line.totalReported : line.totalActual,
+        }) ||
+        dailySpend ||
+        dailyUnits
+      ) {
+        add(line.lineItemId)
+      }
+    }
+  }
+  return ids
+}
+
+function assumedLinesWithoutDelivery(
+  lines: readonly AssumedExpectedLine[] | undefined,
+  presence: ReadonlySet<string>,
+): AssumedExpectedLine[] {
+  return (lines ?? []).filter((line) => !presence.has(line.id.trim().toLowerCase()))
+}
+
 function expectedForCampaign(
   schedule: CampaignScheduleInput | undefined,
   startDate: string,
@@ -604,6 +685,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
   const liveOnly = input.liveOnly !== false
   const bag = new Map<string, DraftCampaign>()
   const platformLineIds = new Set<string>()
+  const deliveryIds = deliveryPresenceIds(input)
 
   function notePlatformLine(lineItemId: string): void {
     const key = lineItemId.trim().toLowerCase()
@@ -899,12 +981,14 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
     const schedule =
       input.schedulesByMba.get(`${mbaKey}:${draft.versionNumber}`) ??
       input.schedulesByMba.get(mbaKey)
-    applyAssumedPlanChannels(draft, schedule?.assumedLines, input.asOfDate)
+    const assumedLines = assumedLinesWithoutDelivery(schedule?.assumedLines, deliveryIds)
+    const pacedSchedule = schedule ? { ...schedule, assumedLines } : undefined
+    applyAssumedPlanChannels(draft, assumedLines, input.asOfDate)
     const daysTotal = computeCampaignDays(draft.startDate, draft.endDate)
     const daysElapsed = computeDaysPassed(draft.startDate, draft.endDate, input.asOfDate)
     const daysLeft = computeDaysRemaining(draft.startDate, draft.endDate, input.asOfDate)
     const timePct = daysTotal > 0 ? (daysElapsed / daysTotal) * 100 : 0
-    const expectedToDate = expectedForCampaign(schedule, draft.startDate, draft.endDate, input.asOfDate)
+    const expectedToDate = expectedForCampaign(pacedSchedule, draft.startDate, draft.endDate, input.asOfDate)
 
     const channelList = [...draft.channels.values()]
     const spendBudget = channelList
@@ -933,14 +1017,14 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
 
     const expectedByChannel = channelExpectedDollars(
       channelList,
-      schedule,
+      pacedSchedule,
       draft.startDate,
       draft.endDate,
       input.asOfDate,
       expectedToDate,
       spendBudget,
     )
-    const assumedByChannel = assumedDollarsByChannel(schedule?.assumedLines, input.asOfDate)
+    const assumedByChannel = assumedDollarsByChannel(assumedLines, input.asOfDate)
     const channels: ChannelPacingRow[] = channelList.map((ch) => {
       const channelExpected = expectedByChannel.get(ch.channelKey) ?? 0
       const assumedDelivery = ch.spendMode === "assumed" && assumedByChannel.has(ch.channelKey)

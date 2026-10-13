@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { reportedSpendDaysFromDailyFacts } from "@/lib/delivery/programmatic/applyReportedSpend"
+import { addDailyFactDeliveryLineIds, addLoadedDeliveryLineIds } from "@/lib/spend/deliveryLineIds"
 import { queryDailyFacts } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import { getCampaignPacingData } from "@/lib/snowflake/pacing-service"
 import { getSearchPacingData, type SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
     let rows: Awaited<ReturnType<typeof getCampaignPacingData>>
     let search: SearchPacingResponse | null = null
     let reportedSpendDaily: ReturnType<typeof reportedSpendDaysFromDailyFacts> = []
+    let deliveryLineIds: string[] = []
     try {
       const rowsPromise =
         normalizedLineItemIds.length > 0
@@ -150,20 +152,25 @@ export async function POST(request: NextRequest) {
       const reportedPromise =
         normalizedLineItemIds.length > 0
           ? queryDailyFacts(normalizedLineItemIds)
-              .then((facts) => reportedSpendDaysFromDailyFacts(facts))
+              .then((facts) => {
+                const ids = new Set<string>()
+                addDailyFactDeliveryLineIds(ids, facts)
+                return { days: reportedSpendDaysFromDailyFacts(facts), deliveryLineIds: [...ids] }
+              })
               .catch((err) => {
                 console.warn("[api/pacing/bulk] reported daily facts failed", {
                   requestId,
                   error: err instanceof Error ? err.message : String(err),
                 })
-                return []
+                return { days: [], deliveryLineIds: [] as string[] }
               })
-          : Promise.resolve([])
+          : Promise.resolve({ days: [], deliveryLineIds: [] as string[] })
 
       const results = await Promise.all([rowsPromise, searchPromise, reportedPromise])
       rows = results[0]
       search = results[1]
-      reportedSpendDaily = results[2]
+      reportedSpendDaily = results[2].days
+      deliveryLineIds = results[2].deliveryLineIds
     } catch (err) {
       const isAbortError = Boolean(err && typeof err === "object" && (err as any).name === "AbortError")
       if (isAbortError || ac.signal.aborted) {
@@ -197,12 +204,35 @@ export async function POST(request: NextRequest) {
     }
 
 
+    const presence = new Set(deliveryLineIds)
+    addLoadedDeliveryLineIds(
+      presence,
+      rows.map((row) => ({
+        lineItemId: row.lineItemId,
+        impressions: row.impressions,
+        clicks: row.clicks,
+        spend: row.amountSpent,
+      })),
+    )
+    for (const line of search?.lineItems ?? []) {
+      addLoadedDeliveryLineIds(presence, [
+        {
+          lineItemId: line.lineItemId,
+          impressions: line.totals.impressions,
+          clicks: line.totals.clicks,
+          spend: line.totals.cost,
+        },
+      ])
+    }
+    deliveryLineIds = [...presence]
+
     // Return success response
     return NextResponse.json({
       ok: true,
       rows,
       count: rows.length,
       reportedSpendDaily,
+      deliveryLineIds,
       ...(includeSearch ? { search } : {}),
       ...(DEBUG
         ? {
