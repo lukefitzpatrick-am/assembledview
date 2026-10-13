@@ -3,11 +3,11 @@
 
 Prints OK, or numbered issues, in at most 1500 characters.
 """
+import json
 import os
 import re
 import sys
 import zipfile
-from xml.etree import ElementTree as ET
 
 from PIL import ImageFont
 from pptx import Presentation
@@ -26,6 +26,8 @@ PALETTE = {
 TOKEN = re.compile(r"\$?\d[\d,]*(?:\.\d+)?%?")
 EMU = 914400
 CHECK = re.compile(r"CHECK (slides\.\d+)")
+NUMBER_DOT_NAME = "Number dot"
+CONTACT_PLACEHOLDER_IDX = "102"
 
 
 def font_path(name, italic, bold):
@@ -125,11 +127,6 @@ def shape_name(element):
     return ""
 
 
-def slide_number_shape(element):
-    xml = ET.tostring(element, encoding="unicode")
-    return 'type="sldNum"' in xml or "SLIDE_NUMBER" in xml
-
-
 def texts_of(element):
     return " ".join(node.text or "" for node in element.iter() if local(node.tag) == "t")
 
@@ -186,10 +183,79 @@ def title_of(xml):
     return best
 
 
-def content_path(shape_name, slide_path):
-    if shape_name and shape_name.startswith("slides."):
-        return shape_name
+def content_path(name, slide_path):
+    if name and name.startswith("slides."):
+        return name
     return slide_path
+
+
+def placeholder_idx(element):
+    for node in element.iter():
+        if local(node.tag) == "ph":
+            return node.get("idx")
+    return None
+
+
+def slide_part(slide, index):
+    part = getattr(getattr(slide, "part", None), "partname", None)
+    if part:
+        return str(part).lstrip("/")
+    return f"ppt/slides/slide{index + 1}.xml"
+
+
+def stray_figures(deck, allowed):
+    """Numbers on the deck that are not in the payload.
+
+    Skips text inside shapes named Number dot, and every text frame on the
+    cloned thank-you slide's contact placeholder (body idx 102).
+    """
+    stray = []
+    for index, slide in enumerate(deck.slides):
+        number = index + 1
+        notes = ""
+        if slide.has_notes_slide and slide.notes_slide.notes_text_frame is not None:
+            notes = slide.notes_slide.notes_text_frame.text or ""
+        match = CHECK.search(notes)
+        slide_path = match.group(1) if match else f"slides.{index}"
+        thank_you = "thank-you" in notes
+        tree = slide._element.find(qn_tag("cSld"))
+        tree = tree.find(qn_tag("spTree")) if tree is not None else None
+        nodes = list(tree) if tree is not None else []
+        for element in nodes:
+            if local(element.tag) not in ("sp", "graphicFrame"):
+                continue
+            name = shape_name(element)
+            if name == NUMBER_DOT_NAME:
+                continue
+            if thank_you and placeholder_idx(element) == CONTACT_PLACEHOLDER_IDX:
+                continue
+            where = content_path(name, slide_path)
+            part = slide_part(slide, index)
+            for raw in TOKEN.findall(texts_of(element)):
+                normalised = canon(raw)
+                if normalised not in allowed:
+                    stray.append({
+                        "slide": part,
+                        "number": number,
+                        "where": where,
+                        "raw": raw,
+                        "normalised": normalised,
+                    })
+    return stray
+
+
+def number_issues(pptx_path, json_path):
+    with open(json_path, encoding="utf-8") as handle:
+        allowed = payload_tokens(handle.read())
+    deck = Presentation(pptx_path)
+    figures = stray_figures(deck, allowed)
+    return {
+        "stray": [
+            {"slide": item["slide"], "raw": item["raw"], "normalised": item["normalised"]}
+            for item in figures
+        ],
+        "slideCount": len(deck.slides),
+    }
 
 
 def check(pptx_path, json_path):
@@ -204,6 +270,9 @@ def check(pptx_path, json_path):
             key=lambda name: int(re.search(r"(\d+)", name).group(1)),
         )
         xmls = [zip_file.read(name).decode("utf-8", "replace") for name in slide_parts]
+    stray_by_slide = {}
+    for item in stray_figures(deck, allowed):
+        stray_by_slide.setdefault(item["number"], []).append(item)
 
     for index, slide in enumerate(deck.slides):
         number = index + 1
@@ -212,7 +281,6 @@ def check(pptx_path, json_path):
             notes = slide.notes_slide.notes_text_frame.text or ""
         match = CHECK.search(notes)
         slide_path = match.group(1) if match else f"slides.{index}"
-        thank_you = "thank-you" in notes
         xml = xmls[index] if index < len(xmls) else ""
 
         if "<a:gradFill" in xml or "<a:gradFill>" in xml:
@@ -264,21 +332,8 @@ def check(pptx_path, json_path):
                 if not has_text:
                     issues.append(f"slide {number} {slide_path}.ph.{placeholder.placeholder_format.idx} empty")
 
-        if not thank_you:
-            tree = slide._element.find(qn_tag("cSld"))
-            tree = tree.find(qn_tag("spTree")) if tree is not None else None
-            nodes = list(tree) if tree is not None else []
-            for element in nodes:
-                if local(element.tag) not in ("sp", "graphicFrame"):
-                    continue
-                if slide_number_shape(element):
-                    continue
-                name = shape_name(element)
-                if "Number dot" in name:
-                    continue
-                for raw in TOKEN.findall(texts_of(element)):
-                    if canon(raw) not in allowed:
-                        issues.append(f"slide {number} {content_path(name, slide_path)} number {raw}")
+        for item in stray_by_slide.get(number, []):
+            issues.append(f"slide {number} {item['where']} number {item['raw']}")
 
     seen = set()
     unique = []
@@ -304,6 +359,12 @@ def render(issues):
 
 
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "--numbers":
+        if len(sys.argv) != 4:
+            sys.stderr.write("usage: check_deck.py --numbers deck.pptx report-data.json\n")
+            return 2
+        sys.stdout.write(json.dumps(number_issues(sys.argv[2], sys.argv[3])) + "\n")
+        return 0
     if len(sys.argv) != 4:
         sys.stderr.write("usage: check_deck.py deck.pptx report-data.json content.json\n")
         return 2

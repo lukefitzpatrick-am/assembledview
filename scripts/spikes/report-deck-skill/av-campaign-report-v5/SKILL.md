@@ -64,8 +64,8 @@ Scripts live in `/skills/av-campaign-report-v5/scripts/`. Run `ls "$INPUT_DIR"` 
 
 1. `python /skills/av-campaign-report-v5/scripts/summarise.py "$INPUT_DIR/report-data.json"`
 2. Pipe the content JSON into `python /skills/av-campaign-report-v5/scripts/write_content.py`. It checks variant names, character limits and value keys, writes `content.json`, and prints OK or the errors. Do not use jq. Do not use a heredoc.
-3. `python /skills/av-campaign-report-v5/scripts/build_report.py content.json "$INPUT_DIR/report-data.json" "$INPUT_DIR/Assembled-Media-Template-v5.potx" "$OUTPUT_DIR/<mbaNumber>.pptx" "$INPUT_DIR/<photo1>" "$INPUT_DIR/<photo2>" "$INPUT_DIR/<photo3>" && python /skills/av-campaign-report-v5/scripts/check_deck.py "$OUTPUT_DIR/<mbaNumber>.pptx" "$INPUT_DIR/report-data.json" content.json`
-4. If check reports issues, change the content and pipe it through `write_content.py` once, then rerun step 3.
+3. `python /skills/av-campaign-report-v5/scripts/build_report.py content.json "$INPUT_DIR/report-data.json" "$INPUT_DIR/Assembled-Media-Template-v5.potx" "$OUTPUT_DIR/<mbaNumber>.pptx" "$INPUT_DIR/<photo1>" "$INPUT_DIR/<photo2>" "$INPUT_DIR/<photo3>"`
+4. If the build reports issues, change the content and pipe it through `write_content.py` once, then rerun step 3.
 5. Save to `$OUTPUT_DIR/<mbaNumber>.pptx`.
 
 Never view or open images. Never read am_rebrand.py, build_report.py or check_deck.py. Never print files. Never write your own build script.

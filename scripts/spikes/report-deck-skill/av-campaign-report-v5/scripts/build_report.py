@@ -855,8 +855,10 @@ def main():
     except BuildError as error:
         sys.stderr.write(f"error: {error}\n")
         return 1
-    sys.stdout.write(built + "\n")
-    return 0
+    import check_deck
+    issues = check_deck.check(built, data_path)
+    sys.stdout.write(check_deck.render(issues) + "\n")
+    return 0 if not issues else 1
 
 
 if __name__ == "__main__":

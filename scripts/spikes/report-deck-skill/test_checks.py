@@ -161,6 +161,48 @@ def test_pace_and_fallback():
         fail("short list did not fall back to cards")
 
 
+def number_raws(issues):
+    return [issue.rsplit(" number ", 1)[-1] for issue in issues if " number " in issue]
+
+
+def test_number_exemptions():
+    """Number dots and the thank-you contact placeholder are the only skips."""
+    am = load("am_rebrand.py")
+    check = load("check_deck.py")
+    deck = am.Deck(TEMPLATE)
+    slide = deck.add("Title Only - White")
+    deck.fill(slide, 100, "A short title.")
+    deck.notes(slide, "CHECK slides.0 summary stat-row")
+    box = am.card(slide, 0.8, 2.2, 3.2, 1.1, "FFFFFF")
+    am.label_text(box, "$9,999", 18, am.K["ink"])
+    am.numdot(slide, 0.8, 3.6, 4, am.K["forest"], am.K["white"], 0.36)
+    thank = deck.clone(21)
+    deck.notes(thank, "CHECK slides.1 close thank-you")
+    deck.fill(thank, 101, "Call extension 42.", base=dict(size=32, color=am.K["white"], font=am.HEAD))
+    path = os.path.join(OUT, "number-exemptions.pptx")
+    deck.save(path)
+    data = os.path.join(OUT, "number-exemptions.json")
+    with open(data, "w", encoding="utf-8") as handle:
+        json.dump({"summary": {"spend": "$1.00"}}, handle)
+    raws = number_raws(check.check(path, data))
+    if "$9,999" not in raws:
+        fail(f"card $9,999 was not flagged: {raws}")
+    if "42" not in raws:
+        fail(f"thank-you title 42 was not flagged: {raws}")
+    for exempt in ("4", "1", "2", "71", "3205", "97", "2008"):
+        if exempt in raws:
+            fail(f"{exempt} should be exempt: {raws}")
+    report = check.number_issues(path, data)
+    report_raws = [item["raw"] for item in report["stray"]]
+    if "$9,999" not in report_raws:
+        fail(f"shared number check missed $9,999: {report_raws}")
+    if "42" not in report_raws:
+        fail(f"shared number check missed 42: {report_raws}")
+    for exempt in ("4", "1", "2", "71", "3205", "97", "2008"):
+        if exempt in report_raws:
+            fail(f"shared number check kept {exempt}: {report_raws}")
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     test_missing_key()
@@ -168,6 +210,7 @@ def main():
     test_palette()
     test_validate()
     test_pace_and_fallback()
+    test_number_exemptions()
     print("tests OK")
 
 
