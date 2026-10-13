@@ -69,6 +69,9 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
           monthBands={gantt.monthBands}
           weekLabels={gantt.weekLabels}
           todayWeek={gantt.todayWeek}
+          totalDays={gantt.totalDays}
+          todayDay={gantt.todayDay}
+          weekDayIndexes={gantt.weekDayIndexes}
         />
       ) : (
         <LibraryMediaGanttChart
@@ -79,6 +82,9 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
           monthBands={gantt.monthBands}
           weekLabels={gantt.weekLabels}
           todayWeek={gantt.todayWeek}
+          totalDays={gantt.totalDays}
+          todayDay={gantt.todayDay}
+          weekDayIndexes={gantt.weekDayIndexes}
           className="min-w-full"
         />
       )}

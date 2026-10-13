@@ -4,8 +4,10 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, describe, expect, it } from "vitest"
 
 import MediaGanttChart from "@/app/dashboard/[slug]/[mba_number]/components/MediaGanttChart"
+import { prepareMediaPlanExportClone } from "@/components/dashboard/campaign/MediaPlanVizSection"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import type { NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
+import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -63,7 +65,7 @@ function flightingLines() {
 
 function channelButton(host: HTMLElement, name: string): HTMLButtonElement {
   const match = [...host.querySelectorAll("button[aria-expanded]")].find((button) =>
-    button.textContent?.includes(name),
+    (button.getAttribute("aria-label") ?? button.textContent ?? "").includes(name),
   )
   if (!(match instanceof HTMLButtonElement)) throw new Error(`missing channel button ${name}`)
   return match
@@ -114,7 +116,7 @@ describe("client flighting groups by channel", () => {
     expect(host.textContent).not.toContain("Search line 0")
     expect(host.textContent).not.toContain("400 of 1K")
     expect(channelButton(host, "Search").getAttribute("aria-expanded")).toBe("false")
-    expect(channelButton(host, "Search").textContent).toContain("8 lines")
+    expect(channelButton(host, "Search").getAttribute("aria-label")).toContain("8 lines")
 
     act(() => {
       channelButton(host, "Search").click()
@@ -221,7 +223,7 @@ describe("client flighting groups by channel", () => {
     )
     const search = channelButton(host, "Search")
     expect(search.getAttribute("aria-expanded")).toBe("false")
-    expect(search.textContent).toContain("8 lines")
+    expect(search.getAttribute("aria-label")).toContain("8 lines")
     expect(search.querySelector("svg")).not.toBeNull()
 
     act(() => {
@@ -303,10 +305,61 @@ describe("client flighting groups by channel", () => {
       />,
     )
     const weeks = [...host.querySelectorAll("[data-gantt-week]")].map((node) => node.textContent)
-    expect(weeks).toEqual(["5 Oct", "12 Oct", "19 Oct", "26 Oct"])
+    const mondays = ["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"]
+    const days = ["5", "12", "19", "26"]
+    const today = getMelbourneTodayISO()
+    const visible = days.filter((_, index) => {
+      const start = mondays[index]!
+      const end = mondays[index + 1] ?? "2026-11-02"
+      return !(today >= start && today < end)
+    })
+    expect(weeks).toEqual(visible)
+    expect(weeks.join("")).not.toMatch(/[A-Za-z]/)
     const months = [...host.querySelectorAll("[data-gantt-month]")].map((node) => node.textContent)
     expect(months).toEqual(["OCT"])
+    const month = host.querySelector("[data-gantt-month]")
+    const todayBadge = host.querySelector("[data-gantt-today]")
+    expect(month?.getAttribute("font-size")).toBe("11")
+    expect(todayBadge?.getAttribute("y")).toBe("24")
+    expect(Number(todayBadge?.getAttribute("y"))).toBeGreaterThan(Number(month?.getAttribute("y")))
+    const groupLabel = host.querySelector("[data-gantt-group-label]")
+    const lineLabel = host.querySelector("[data-gantt-line-label]")
+    expect(groupLabel?.getAttribute("font-size")).toBe("13")
+    expect(lineLabel?.getAttribute("font-size")).toBe("13")
+    expect(host.querySelector("[data-gantt-summary-bar]")?.getAttribute("height")).toBe("6")
+    expect(host.querySelector("[data-gantt-burst]")?.getAttribute("height")).toBe("20")
+    for (const svg of host.querySelectorAll("svg")) {
+      const width = svg.getAttribute("width")
+      expect(width).not.toBe("100%")
+      expect(svg.getAttribute("viewBox")?.startsWith(`0 0 ${width} `)).toBe(true)
+    }
     expect(host.querySelector("[data-gantt-axis]")?.className).toContain("sticky")
     expect(host.querySelectorAll("[data-gantt-axis]")).toHaveLength(1)
+  })
+
+  it("keeps the PNG clone at the same pixel width as the screen svg", () => {
+    const host = render(
+      <MediaGanttChart
+        lineItems={{
+          search: [line("oct", "October line", "2026-10-05", "2026-10-31")],
+        }}
+        startDate="2026-10-05"
+        endDate="2026-10-31"
+        granularity="weekly"
+        flighting
+        grouped
+      />,
+    )
+    const live = host.querySelector("svg")
+    const width = live?.getAttribute("width")
+    expect(Number(width)).toBeGreaterThanOrEqual(960)
+    expect(live?.getAttribute("viewBox")?.startsWith(`0 0 ${width} `)).toBe(true)
+    const clone = host.cloneNode(true) as HTMLElement
+    prepareMediaPlanExportClone(document, clone)
+    const copied = clone.querySelector("svg")
+    expect(copied?.getAttribute("width")).toBe(width)
+    expect(copied?.getAttribute("viewBox")).toBe(live?.getAttribute("viewBox"))
+    expect((clone.querySelector("[data-gantt-scroll]") as HTMLElement).style.overflow).toBe("visible")
+    expect((clone.querySelector(".sticky") as HTMLElement).style.position).toBe("relative")
   })
 })

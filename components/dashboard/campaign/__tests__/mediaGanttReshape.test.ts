@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { ganttLabelFits, ganttLabelWidthPx } from "@/components/charts/system/domain-charts"
+import { ganttLabelFits, ganttLabelWidthPx, burstDayX, thinnedWeekLabels } from "@/components/charts/system/domain-charts"
 import { reshapeLineItemsToMediaGantt } from "../mediaGanttReshape.js"
 import { getMediaLabel } from "@/lib/charts/registry"
 import type { NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
@@ -242,6 +242,18 @@ test("bar label drops when it is wider than the bar minus 12px", () => {
   assert.equal(ganttLabelFits("10.7K of 24.8K", wide + 11), false)
 })
 
+test("week labels keep every second day number when a column is under 28px", () => {
+  assert.deepEqual(thinnedWeekLabels(["5", "12", "19", "26"], 40), ["5", "12", "19", "26"])
+  assert.deepEqual(thinnedWeekLabels(["5", "12", "19", "26"], 27.9), ["5", null, "19", null])
+  assert.deepEqual(thinnedWeekLabels(["6", "13", "20", "27"], 28), ["6", "13", "20", "27"])
+})
+
+test("burst x is the day fraction of the plot, not a week column", () => {
+  assert.equal(burstDayX(0, 27, 300, 644), 300)
+  assert.equal(burstDayX(27, 27, 300, 644), 944)
+  assert.equal(burstDayX(9, 27, 300, 644), 300 + (9 / 27) * 644)
+})
+
 test("future-start with no delivery still reads Starts {d MMM}", () => {
   const gantt = reshapeLineItemsToMediaGantt(
     {
@@ -277,7 +289,7 @@ test("weekly Oct 2026 labels are the Monday week starts", () => {
     "weekly",
   )
   assert.ok(gantt)
-  assert.deepEqual(gantt!.weekLabels, ["5 Oct", "12 Oct", "19 Oct", "26 Oct"])
+  assert.deepEqual(gantt!.weekLabels, ["5", "12", "19", "26"])
   assert.equal(gantt!.monthBands?.[0]?.label, "Oct")
 })
 

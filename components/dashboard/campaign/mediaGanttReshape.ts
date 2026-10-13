@@ -40,9 +40,15 @@ export type ReshapedMediaGantt = {
   weeksPerMonth: number
   /** Calendar-aligned month header spans (weekly view). */
   monthBands?: GanttMonthBand[]
-  /** Monday week-start label for each weekly column (`d MMM`). Omitted in monthly view. */
+  /** Monday week-start day number for each weekly column. Omitted in monthly view. */
   weekLabels?: string[]
   todayWeek: number | null
+  /** Inclusive campaign length in civil days. */
+  totalDays: number
+  /** Melbourne today as an index into `totalDays`. Null outside the campaign. */
+  todayDay: number | null
+  /** Day index of each Monday (or campaign-start) week boundary. */
+  weekDayIndexes: number[]
 }
 
 function safeParseDate(value?: string) {
@@ -260,6 +266,8 @@ export function reshapeLineItemsToMediaGantt(
           burst: {
             startWeek,
             endWeek,
+            startDay: differenceInCalendarDays(clampedStart, start),
+            endDay: differenceInCalendarDays(clampedEnd, start),
             label: burstLabel(deliverables, clampedStart, clampedEnd),
           },
         })
@@ -345,6 +353,13 @@ export function reshapeLineItemsToMediaGantt(
 
   if (rows.length === 0) return null
 
+  const melbourneToday = safeParseDate(todayISO)
+  let todayDay: number | null = null
+  if (melbourneToday) {
+    const day = startOfDay(melbourneToday)
+    if (day >= start && day <= end) todayDay = differenceInCalendarDays(day, start)
+  }
+
   const today = startOfDay(new Date())
   let todayWeek: number | null = null
   if (today >= start && today <= end) {
@@ -373,7 +388,10 @@ export function reshapeLineItemsToMediaGantt(
     months: paddedMonthLabels,
     weeksPerMonth,
     monthBands,
-    weekLabels: isMonthly ? undefined : mondayWeeks.map((week) => format(week[0] ?? start, "d MMM")),
+    weekLabels: isMonthly ? undefined : mondayWeeks.map((week) => format(week[0] ?? start, "d")),
     todayWeek,
+    totalDays: allDays.length,
+    todayDay,
+    weekDayIndexes: mondayWeeks.map((week) => differenceInCalendarDays(week[0] ?? start, start)),
   }
 }

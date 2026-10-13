@@ -48,7 +48,7 @@ function sanitizeFilenameBase(parts: (string | undefined)[]): string {
 }
 
 /** Normalize cloned DOM so html2canvas captures full scroll area and readable text. */
-function prepareMediaPlanExportClone(_document: Document, clonedElement: HTMLElement) {
+export function prepareMediaPlanExportClone(_document: Document, clonedElement: HTMLElement) {
   clonedElement.querySelectorAll<HTMLElement>('[data-export="media-plan-table-scroll"]').forEach((el) => {
     el.style.maxHeight = "none"
     el.style.overflow = "visible"
@@ -65,6 +65,12 @@ function prepareMediaPlanExportClone(_document: Document, clonedElement: HTMLEle
     clonedElement.style.overflowX = "visible"
     clonedElement.style.overflowY = "visible"
   }
+
+  clonedElement.querySelectorAll<HTMLElement>("[data-gantt-scroll]").forEach((el) => {
+    el.style.overflow = "visible"
+    el.style.overflowX = "visible"
+    el.style.overflowY = "visible"
+  })
 
   // Flighting axis is `sticky` on the page. html2canvas does not paint a stuck
   // header, so the clone keeps the axis in normal flow at the top of the PNG.

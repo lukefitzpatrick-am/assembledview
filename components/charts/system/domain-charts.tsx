@@ -13,7 +13,6 @@
 import * as React from 'react';
 import { ChevronRight } from 'lucide-react';
 import { round } from '@/lib/chart-utils';
-import { wrapGanttLabel } from '@/lib/charts/wrapGanttLabel';
 import { BRAND } from '@/lib/brand';
 import { CHART_PALETTE, CHANNEL_COLORS, SEQUENTIAL, NEUTRAL, STATUS, fmt } from '@/lib/chart-theme';
 import { cn } from '@/lib/utils';
@@ -31,10 +30,49 @@ export function ganttLabelFits(label: string, barWidthPx: number, padding = 12):
   return ganttLabelWidthPx(label) <= barWidthPx - padding;
 }
 
+/** One line, ellipsis, so a gutter label cannot spill into the plot. */
+export function ellipsizeToWidth(text: string, maxPx: number, fontSize: number): string {
+  if (maxPx <= 0) return '';
+  if (ganttLabelWidthPx(text, fontSize) <= maxPx) return text;
+  const mark = '…';
+  let cut = text;
+  while (cut.length > 0 && ganttLabelWidthPx(`${cut}${mark}`, fontSize) > maxPx) {
+    cut = cut.slice(0, -1);
+  }
+  return cut.length > 0 ? `${cut}${mark}` : mark;
+}
+
+/** Day numbers. A column under 28px wide keeps every second label. */
+export function thinnedWeekLabels(labels: readonly string[], columnWidthPx: number): Array<string | null> {
+  const step = columnWidthPx < 28 ? 2 : 1;
+  return labels.map((label, index) => (index % step === 0 ? label : null));
+}
+
+/** Left edge of `dayIndex` across the plot. `totalDays` is the campaign span. */
+export function burstDayX(dayIndex: number, totalDays: number, gutter: number, plotWidth: number): number {
+  if (totalDays <= 0) return gutter;
+  return gutter + (dayIndex / totalDays) * plotWidth;
+}
+
+/** Week column whose Monday boundary contains `day`. */
+export function weekColumnContainingDay(day: number, weekDayIndexes: readonly number[], totalDays: number): number {
+  let found = 0;
+  for (let index = 0; index < weekDayIndexes.length; index++) {
+    const start = weekDayIndexes[index] ?? 0;
+    const end = index + 1 < weekDayIndexes.length ? (weekDayIndexes[index + 1] ?? totalDays) : totalDays;
+    if (day >= start && day < end) found = index;
+  }
+  return found;
+}
+
 // ── Media flighting Gantt ───────────────────────────────────
 export interface GanttBurst {
   startWeek: number;        // 0-indexed week the burst starts
   endWeek: number;          // exclusive end week
+  /** Inclusive day index from the campaign start. Bars use this, not the week column. */
+  startDay?: number;
+  /** Inclusive day index from the campaign start. */
+  endDay?: number;
   label?: string;           // e.g. "$46k" / "320 TARP" / "400 / 1,000"
   intensity?: number;       // 0..1 — weight/share, drives fill opacity
   /** Delivered ÷ planned. Visual width is capped at 1; omit for planned-only bars. */
@@ -73,29 +111,69 @@ export interface MediaGanttProps {
   weeksPerMonth?: number;   // default 4 — used when monthBands omitted
   /** Calendar-aligned month spans; when set, overrides equal weeksPerMonth bands. */
   monthBands?: GanttMonthBand[];
-  /** Monday week-start labels, one per column. Weekly view only. */
+  /** Monday week-start day numbers, one per column. Weekly view only. */
   weekLabels?: string[];
   todayWeek?: number | null;
+  /** Campaign length in days. With `startDay` on each burst, 1 SVG unit is a day fraction of the plot. */
+  totalDays?: number;
+  /** Melbourne today as a day index into `totalDays`. Null when today is outside the campaign. */
+  todayDay?: number | null;
+  /** Day index of each Monday week boundary, weekly view. */
+  weekDayIndexes?: number[];
   rowHeight?: number;
   className?: string;
   /** Summary-row label cell. Index is the row in `rows`. */
   onToggleSummary?: (rowIndex: number) => void;
 }
 
+const GANTT_MIN_W = 960;
+const GANTT_GUTTER = 300;
+const GANTT_GROUP_H = 36;
+const GANTT_LINE_H = 40;
+const GANTT_BAR_H = 20;
+const GANTT_BAR_RX = 4;
+
 export function MediaGanttChart({
   rows, weeks = 24, months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-  weeksPerMonth = 4, monthBands, weekLabels, todayWeek = null, rowHeight = 56, className,
+  weeksPerMonth = 4, monthBands, weekLabels, todayWeek = null, todayDay = null, totalDays, weekDayIndexes, className,
   onToggleSummary,
 }: MediaGanttProps) {
   const [tip, setTip] = React.useState<{ x: number; y: number; label: string; sub?: string } | null>(null);
+  const [measured, setMeasured] = React.useState(GANTT_MIN_W);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const headScrollRef = React.useRef<HTMLDivElement>(null);
   const hostRef = React.useRef<HTMLDivElement>(null);
   const gutterClipId = `gantt-gutter-clip-${React.useId().replace(/:/g, "")}`;
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const apply = (width: number) => {
+      if (width > 0) setMeasured(Math.round(width));
+    };
+    apply(el.clientWidth);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      apply(entries[0]?.contentRect.width ?? 0);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const weekly = weekLabels != null && weekLabels.length > 0;
-  const W = 1180, headH = weekly ? 48 : 44, padL = 360, x1 = W - 16;
-  const bodyH = rows.length * rowHeight + 8;
-  const weekW = (x1 - padL) / weeks;
-  const wx = (w: number) => padL + weekW * w;
-  const labelWidthPct = (padL / W) * 100;
+  const dayPlot = typeof totalDays === "number" && totalDays > 0;
+  const W = Math.max(GANTT_MIN_W, measured);
+  const headH = weekly ? 48 : 44;
+  const plotW = W - GANTT_GUTTER - 16;
+  const weekW = weeks > 0 ? plotW / weeks : plotW;
+  const wx = (w: number) => GANTT_GUTTER + weekW * w;
+  const xForDay = (day: number) => burstDayX(day, totalDays ?? 1, GANTT_GUTTER, plotW);
+  const rowHeights = rows.map((row) => (row.summary ? GANTT_GROUP_H : GANTT_LINE_H));
+  const rowTops: number[] = [];
+  let rowCursor = 0;
+  for (const height of rowHeights) {
+    rowTops.push(rowCursor);
+    rowCursor += height;
+  }
+  const bodyH = rowCursor + 8;
   const bodyEls: React.ReactNode[] = [];
   const headerEls: React.ReactNode[] = [];
   const labelEls: React.ReactNode[] = [];
@@ -105,55 +183,110 @@ export function MediaGanttChart({
     monthBands && monthBands.length > 0
       ? monthBands
       : months.map((m, i) => ({ label: m, startWeek: i * weeksPerMonth, weeks: weeksPerMonth }));
+  const columnCount = weekly && weekLabels ? weekLabels.length : Math.max(1, weeks);
+  const columnW = plotW / columnCount;
+  const bandSpan = (band: GanttMonthBand): [number, number] => {
+    if (weekly && dayPlot && weekDayIndexes && weekDayIndexes.length > 0) {
+      const start = weekDayIndexes[band.startWeek] ?? 0;
+      const end = weekDayIndexes[band.startWeek + band.weeks] ?? (totalDays as number);
+      return [xForDay(start), xForDay(end)];
+    }
+    return [wx(band.startWeek), wx(band.startWeek + band.weeks)];
+  };
 
-  if (weekly) {
+  if (weekly && weekLabels) {
     headerBands.forEach((band, i) => {
-      const mx = wx(band.startWeek) + weekW / 2;
+      const [x0, x1] = bandSpan(band);
       headerEls.push(
-        <text key={`mt${i}`} data-gantt-month="" x={round(mx)} y={14} textAnchor="middle" fontSize={10} fontWeight={700} fill={MID} letterSpacing=".06em">{band.label.toUpperCase()}</text>,
+        <text key={`mt${i}`} data-gantt-month="" x={round((x0 + x1) / 2)} y={16} textAnchor="middle" fontSize={11} fontWeight={700} fill={MID} letterSpacing=".06em">{band.label.toUpperCase()}</text>,
       );
     });
-    weekLabels.forEach((label, w) => {
+    const hiddenToday = todayDay != null && weekDayIndexes && weekDayIndexes.length > 0 && dayPlot
+      ? weekColumnContainingDay(todayDay, weekDayIndexes, totalDays as number)
+      : todayWeek != null
+        ? Math.min(weekLabels.length - 1, Math.max(0, Math.floor(todayWeek)))
+        : null;
+    thinnedWeekLabels(weekLabels, columnW).forEach((label, w) => {
+      if (label == null || w === hiddenToday) return;
+      const x = weekDayIndexes && dayPlot
+        ? (xForDay(weekDayIndexes[w] ?? 0) + xForDay(weekDayIndexes[w + 1] ?? (totalDays as number))) / 2
+        : wx(w) + weekW / 2;
       headerEls.push(
-        <text key={`wd${w}`} data-gantt-week="" x={round(wx(w) + weekW / 2)} y={34} textAnchor="middle" fontSize={9} fontWeight={600} fill={MUTED} style={TAB}>{label}</text>,
+        <text key={`wd${w}`} data-gantt-week="" x={round(x)} y={36} textAnchor="middle" fontSize={10} fontWeight={500} fill={MUTED} style={TAB}>{label}</text>,
       );
     });
   } else {
     headerBands.forEach((band, i) => {
-      const mx = wx(band.startWeek);
-      const bandW = weekW * Math.max(1, band.weeks) - 3;
-      headerEls.push(<rect key={`mb${i}`} x={round(mx)} y={8} width={round(bandW)} height={20} rx={5} fill={i % 2 ? 'var(--av-grid)' : 'var(--av-subsurface)'} />);
-      headerEls.push(<text key={`mt${i}`} data-gantt-month="" x={round(mx + bandW / 2)} y={22} textAnchor="middle" fontSize={10} fontWeight={700} fill={MID} letterSpacing=".06em">{band.label.toUpperCase()}</text>);
+      const [x0, x1] = bandSpan(band);
+      const bandW = Math.max(1, x1 - x0 - 3);
+      headerEls.push(<rect key={`mb${i}`} x={round(x0)} y={8} width={round(bandW)} height={20} rx={5} fill={i % 2 ? 'var(--av-grid)' : 'var(--av-subsurface)'} />);
+      headerEls.push(<text key={`mt${i}`} data-gantt-month="" x={round(x0 + bandW / 2)} y={22} textAnchor="middle" fontSize={11} fontWeight={700} fill={MID} letterSpacing=".06em">{band.label.toUpperCase()}</text>);
     });
   }
-  rows.forEach((_, ri) => {
-    if (ri % 2 === 0) bodyEls.push(<rect key={`rb${ri}`} x={0} y={round(ri * rowHeight)} width={W} height={rowHeight} fill="var(--av-subsurface)" />);
+  rows.forEach((row, ri) => {
+    const y = rowTops[ri] ?? 0;
+    const rowH = rowHeights[ri] ?? GANTT_LINE_H;
+    bodyEls.push(<rect key={`rb${ri}`} x={0} y={round(y)} width={W} height={rowH} fill={row.summary ? "var(--av-subsurface)" : "var(--av-surface)"} />);
   });
-  for (let w = 0; w <= weeks; w++) {
-    bodyEls.push(<line key={`wk${w}`} x1={round(wx(w))} x2={round(wx(w))} y1={0} y2={bodyH - 6} stroke="var(--av-grid)" strokeWidth={1} />);
+  if (weekly && dayPlot && weekDayIndexes && weekDayIndexes.length > 0) {
+    [...weekDayIndexes, totalDays as number].forEach((day, index) => {
+      const x = xForDay(day);
+      bodyEls.push(<line key={`wk${index}`} x1={round(x)} x2={round(x)} y1={0} y2={bodyH - 6} stroke="var(--av-grid)" strokeWidth={1} />);
+    });
+  } else {
+    for (let w = 0; w <= weeks; w++) {
+      bodyEls.push(<line key={`wk${w}`} x1={round(wx(w))} x2={round(wx(w))} y1={0} y2={bodyH - 6} stroke="var(--av-grid)" strokeWidth={1} />);
+    }
   }
   rows.forEach((row, ri) => {
-    const y = ri * rowHeight;
+    const y = rowTops[ri] ?? 0;
+    const rowH = rowHeights[ri] ?? GANTT_LINE_H;
     const color = row.color ?? CHANNEL_COLORS[(row.sub ?? '').toLowerCase()] ?? CHART_PALETTE[ri % CHART_PALETTE.length];
-    const tickX = row.indent ? 30 : 14;
-    const textX = row.indent ? 42 : 26;
-    labelEls.push(<rect key={`sw${ri}`} x={tickX} y={round(y + rowHeight / 2 - 7)} width={4} height={14} rx={2} fill={color} />);
-    if (!row.summary) {
-      const primaryLines = wrapGanttLabel(row.label);
-      if (primaryLines.length === 1) {
-        labelEls.push(<text key={`rl${ri}-0`} x={textX} y={round(y + rowHeight / 2 - 4)} fontSize={12} fontWeight={700} fill={INK}>{primaryLines[0]}</text>);
-        if (row.sub) labelEls.push(<text key={`rs${ri}`} x={textX} y={round(y + rowHeight / 2 + 10)} fontSize={9.5} fill={MUTED}>{row.sub}</text>);
-      } else {
-        primaryLines.forEach((line, li) => {
-          const lineY = li === 0 ? y + rowHeight / 2 - 12 : y + rowHeight / 2 + 1;
-          labelEls.push(<text key={`rl${ri}-${li}`} x={textX} y={round(lineY)} fontSize={12} fontWeight={700} fill={INK}>{line}</text>);
-        });
-        if (row.sub) labelEls.push(<text key={`rs${ri}`} x={textX} y={round(y + rowHeight / 2 + 14)} fontSize={9.5} fill={MUTED}>{row.sub}</text>);
-      }
+    const tickX = row.summary ? 28 : 40;
+    const textX = row.summary ? 40 : 52;
+    const labelSize = 13;
+    const subSize = 11;
+    const maxLabel = GANTT_GUTTER - textX - 8;
+    const name = ellipsizeToWidth(row.label, maxLabel, labelSize);
+    const subText = row.sub ? ellipsizeToWidth(row.sub, maxLabel, subSize) : undefined;
+    labelEls.push(<rect key={`sw${ri}`} x={tickX} y={round(y + rowH / 2 - 7)} width={4} height={14} rx={2} fill={color} />);
+    const nameY = subText ? y + (row.summary ? 15 : 16) : y + rowH / 2 + 4;
+    labelEls.push(
+      <text
+        key={`rl${ri}`}
+        data-gantt-group-label={row.summary ? "" : undefined}
+        data-gantt-line-label={row.summary ? undefined : ""}
+        x={textX}
+        y={round(nameY)}
+        fontSize={labelSize}
+        fontWeight={row.summary ? 600 : 500}
+        fill={INK}
+      >
+        {name}
+        <title>{row.label}</title>
+      </text>,
+    );
+    if (subText && row.sub) {
+      labelEls.push(
+        <text key={`rs${ri}`} x={textX} y={round(row.summary ? y + 29 : y + 32)} fontSize={subSize} fill={MUTED}>
+          {subText}
+          <title>{row.sub}</title>
+        </text>,
+      );
     }
+    const burstBox = (burst: GanttBurst) => {
+      if (dayPlot && typeof burst.startDay === "number" && typeof burst.endDay === "number") {
+        const bx = xForDay(burst.startDay);
+        const endX = xForDay(Math.min(totalDays as number, burst.endDay + 1));
+        const span = endX - bx;
+        return { bx, bw: span > 2 ? span - 2 : Math.max(1, span) };
+      }
+      const bx = wx(burst.startWeek);
+      const span = weekW * (burst.endWeek - burst.startWeek);
+      return { bx, bw: span > 2 ? span - 2 : Math.max(1, span) };
+    };
     row.bursts.forEach((b, bi) => {
-      const bx = wx(b.startWeek), bw = weekW * (b.endWeek - b.startWeek) - 3, by = y + rowHeight / 2 - 9, bh = 18;
-      const visibleLabel = b.label && ganttLabelFits(b.label, bw) ? b.label : undefined;
+      const { bx, bw } = burstBox(b);
       const showBurstTip = (event: React.MouseEvent) => {
         if (!b.tooltip) return;
         const host = hostRef.current?.getBoundingClientRect();
@@ -161,58 +294,65 @@ export function MediaGanttChart({
         const [head, ...rest] = b.tooltip.split("\n");
         setTip({ x: event.clientX - host.left, y: event.clientY - host.top, label: head ?? b.tooltip, sub: rest.join("\n") });
       };
+      if (row.summary) {
+        const bh = 6;
+        const by = y + rowH / 2 - bh / 2;
+        bodyEls.push(
+          <rect key={`bf${ri}-${bi}`} data-gantt-summary-bar="" x={round(bx)} y={round(by)} width={round(bw)} height={bh} rx={2} fill={color} fillOpacity={0.6} />,
+        );
+        return;
+      }
+      const by = y + rowH / 2 - GANTT_BAR_H / 2;
+      const visibleLabel = b.label && ganttLabelFits(b.label, bw) ? b.label : undefined;
+      const labelY = by + 14;
       if (b.tone === "active" || b.tone === "context") {
         const fill = b.tone === "active" ? BRAND.colour.forest : BRAND.colour.context;
         const fillRatio = b.fillRatio;
         const hasDeliveryFill = typeof fillRatio === "number" && Number.isFinite(fillRatio);
         const labelFill = b.tone === "active" && (!hasDeliveryFill || fillRatio >= 1) ? BRAND.colour.white : BRAND.colour.ink;
         bodyEls.push(
-          <rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={fill} fillOpacity={hasDeliveryFill ? 0.22 : 1} onMouseMove={showBurstTip} onMouseLeave={() => setTip(null)}>
+          <rect key={`bf${ri}-${bi}`} data-gantt-burst="" x={round(bx)} y={round(by)} width={round(bw)} height={GANTT_BAR_H} rx={GANTT_BAR_RX} fill={fill} fillOpacity={hasDeliveryFill ? 0.22 : 1} onMouseMove={showBurstTip} onMouseLeave={() => setTip(null)}>
             {b.tooltip ? <title>{b.tooltip}</title> : null}
           </rect>,
         );
         if (hasDeliveryFill) {
           const fillW = round(bw * Math.min(1, Math.max(0, fillRatio)));
-          if (fillW > 0) bodyEls.push(<rect key={`bp${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={fillW} height={bh} rx={5} fill={fill} />);
+          if (fillW > 0) bodyEls.push(<rect key={`bp${ri}-${bi}`} x={round(bx)} y={round(by)} width={fillW} height={GANTT_BAR_H} rx={GANTT_BAR_RX} fill={fill} />);
         }
-        if (visibleLabel) bodyEls.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill={labelFill} style={TAB}>{visibleLabel}</text>);
+        if (visibleLabel) bodyEls.push(<text key={`bl${ri}-${bi}`} x={round(bx + 6)} y={round(labelY)} fontSize={11} fontWeight={600} fill={labelFill} style={TAB}>{visibleLabel}</text>);
         return;
       }
       const fillRatio = b.fillRatio;
       const hasDeliveryFill = typeof fillRatio === "number" && Number.isFinite(fillRatio);
       const fillW = hasDeliveryFill ? round(bw * Math.min(1, Math.max(0, fillRatio))) : round(bw);
-      bodyEls.push(<rect key={`bg${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={color} fillOpacity={0.16} />);
+      bodyEls.push(<rect key={`bg${ri}-${bi}`} data-gantt-burst="" x={round(bx)} y={round(by)} width={round(bw)} height={GANTT_BAR_H} rx={GANTT_BAR_RX} fill={color} fillOpacity={0.16} onMouseMove={showBurstTip} onMouseLeave={() => setTip(null)}>{b.tooltip ? <title>{b.tooltip}</title> : null}</rect>);
       if (fillW > 0) {
-        bodyEls.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={fillW} height={bh} rx={5} fill={color} fillOpacity={(b.intensity ?? 0.85) * 0.92} />);
+        bodyEls.push(<rect key={`bf${ri}-${bi}`} x={round(bx)} y={round(by)} width={fillW} height={GANTT_BAR_H} rx={GANTT_BAR_RX} fill={color} fillOpacity={(b.intensity ?? 0.85) * 0.92} />);
       }
-      if (visibleLabel) bodyEls.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill={BRAND.colour.white} style={TAB}>{visibleLabel}</text>);
+      if (visibleLabel) bodyEls.push(<text key={`bl${ri}-${bi}`} x={round(bx + 6)} y={round(labelY)} fontSize={11} fontWeight={600} fill={BRAND.colour.white} style={TAB}>{visibleLabel}</text>);
     });
     if (row.summary) {
-      const top = bodyH > 0 ? (y / bodyH) * 100 : 0;
-      const height = bodyH > 0 ? (rowHeight / bodyH) * 100 : 100;
       const toggle = () => onToggleSummary?.(ri);
+      const accessible = row.sub ? `${row.label}, ${row.sub}` : row.label;
       summaryButtons.push(
         <button
           key={`sum${ri}`}
           type="button"
           aria-expanded={row.expanded === true}
+          aria-label={accessible}
           onClick={toggle}
           onKeyDown={(event) => {
             if (event.key !== "Enter" && event.key !== " ") return;
             event.preventDefault();
             toggle();
           }}
-          className="absolute z-10 flex cursor-pointer items-center gap-1.5 overflow-hidden bg-transparent text-left hover:bg-table-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          style={{ left: 0, width: `${labelWidthPct}%`, top: `${top}%`, height: `${height}%`, paddingLeft: "8%" }}
+          className="absolute z-10 flex cursor-pointer items-center overflow-hidden bg-transparent text-left hover:bg-table-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          style={{ left: 0, width: GANTT_GUTTER, top: y, height: rowH, paddingLeft: 12 }}
         >
           <ChevronRight
             className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", row.expanded ? "rotate-90" : undefined)}
             aria-hidden
           />
-          <span className="min-w-0">
-            <span className="block truncate text-xs font-semibold text-foreground">{row.label}</span>
-            {row.sub ? <span className="num block truncate text-[10px] text-muted-foreground">{row.sub}</span> : null}
-          </span>
         </button>,
       );
       return;
@@ -222,8 +362,8 @@ export function MediaGanttChart({
         key={`hit${ri}`}
         x={0}
         y={y}
-        width={padL}
-        height={rowHeight}
+        width={GANTT_GUTTER}
+        height={rowH}
         fill="transparent"
         style={{ cursor: 'default' }}
         onMouseMove={(e) => {
@@ -237,11 +377,17 @@ export function MediaGanttChart({
       </rect>,
     );
   });
-  if (todayWeek != null) {
-    headerEls.push(<line key="tlh" x1={round(wx(todayWeek))} x2={round(wx(todayWeek))} y1={headH - 18} y2={headH} stroke={INK} strokeWidth={1.5} strokeDasharray="3 3" />);
-    headerEls.push(<rect key="tb" x={round(wx(todayWeek) - 19)} y={2} width={38} height={14} rx={7} fill={INK} />);
-    headerEls.push(<text key="tt" x={round(wx(todayWeek))} y={12} textAnchor="middle" fontSize={8.5} fontWeight={700} fill="var(--av-surface)">TODAY</text>);
-    bodyEls.push(<line key="tl" x1={round(wx(todayWeek))} x2={round(wx(todayWeek))} y1={0} y2={bodyH - 6} stroke={INK} strokeWidth={1.5} strokeDasharray="3 3" />);
+  const todayX = todayDay != null && dayPlot
+    ? xForDay(todayDay)
+    : todayWeek != null
+      ? wx(todayWeek)
+      : null;
+  if (todayX != null) {
+    if (weekly) {
+      headerEls.push(<rect key="tb" data-gantt-today="" x={round(todayX - 21)} y={24} width={42} height={14} rx={7} fill={INK} />);
+      headerEls.push(<text key="tt" x={round(todayX)} y={34} textAnchor="middle" fontSize={9} fontWeight={700} fill="var(--av-surface)">TODAY</text>);
+    }
+    bodyEls.push(<line key="tl" x1={round(todayX)} x2={round(todayX)} y1={0} y2={bodyH - 6} stroke={INK} strokeWidth={1.5} strokeDasharray="3 3" />);
   }
   return (
     <div className={className}>
@@ -249,32 +395,43 @@ export function MediaGanttChart({
         data-gantt-axis=""
         className="sticky top-0 z-20 border-b border-border bg-background"
       >
-        <svg viewBox={`0 0 ${W} ${headH}`} width="100%" style={{ display: 'block' }}>
-          {headerEls}
-        </svg>
+        <div ref={headScrollRef} className="overflow-x-hidden">
+          <svg viewBox={`0 0 ${W} ${headH}`} width={W} height={headH} style={{ display: 'block' }}>
+            {headerEls}
+          </svg>
+        </div>
       </div>
-      <div ref={hostRef} className="relative">
-        <svg viewBox={`0 0 ${W} ${bodyH}`} width="100%" style={{ display: 'block' }}>
-          <defs>
-            <clipPath id={gutterClipId}>
-              <rect x={0} y={0} width={padL - 10} height={bodyH} />
-            </clipPath>
-          </defs>
-          {bodyEls}
-          <g clipPath={`url(#${gutterClipId})`}>{labelEls}</g>
-          {hitEls}
-        </svg>
-        {summaryButtons}
-        {/* Class string mirrors CHART_TOOLTIP_CONTENT_CLASS in components/ui/chart.tsx — sync manually if that changes. */}
-        {tip && (
-          <div
-            className="pointer-events-none absolute z-50 grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-tooltip"
-            style={{ left: tip.x + 12, top: tip.y + 12 }}
-          >
-            <div className="font-medium">{tip.label}</div>
-            {tip.sub ? <span className="whitespace-pre-line text-muted-foreground">{tip.sub}</span> : null}
-          </div>
-        )}
+      <div
+        ref={scrollRef}
+        data-gantt-scroll=""
+        className="overflow-x-auto"
+        onScroll={(event) => {
+          if (headScrollRef.current) headScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
+        }}
+      >
+        <div ref={hostRef} className="relative" style={{ width: W, minWidth: GANTT_MIN_W }}>
+          <svg viewBox={`0 0 ${W} ${bodyH}`} width={W} height={bodyH} style={{ display: 'block' }}>
+            <defs>
+              <clipPath id={gutterClipId}>
+                <rect x={0} y={0} width={GANTT_GUTTER - 8} height={bodyH} />
+              </clipPath>
+            </defs>
+            {bodyEls}
+            <g clipPath={`url(#${gutterClipId})`}>{labelEls}</g>
+            {hitEls}
+          </svg>
+          {summaryButtons}
+          {/* Class string mirrors CHART_TOOLTIP_CONTENT_CLASS in components/ui/chart.tsx — sync manually if that changes. */}
+          {tip && (
+            <div
+              className="pointer-events-none absolute z-50 grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-tooltip"
+              style={{ left: tip.x + 12, top: tip.y + 12 }}
+            >
+              <div className="font-medium">{tip.label}</div>
+              {tip.sub ? <span className="whitespace-pre-line text-muted-foreground">{tip.sub}</span> : null}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

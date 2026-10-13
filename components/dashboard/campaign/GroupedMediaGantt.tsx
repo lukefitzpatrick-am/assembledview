@@ -18,7 +18,23 @@ export type GroupedMediaGanttProps = {
   monthBands?: GanttMonthBand[]
   weekLabels?: string[]
   todayWeek?: number | null
+  totalDays?: number
+  todayDay?: number | null
+  weekDayIndexes?: number[]
   className?: string
+}
+
+function spanDays(rows: GanttRow[]): { startDay?: number; endDay?: number } {
+  let startDay = Number.POSITIVE_INFINITY
+  let endDay = Number.NEGATIVE_INFINITY
+  for (const row of rows) {
+    for (const burst of row.bursts) {
+      if (typeof burst.startDay === "number" && burst.startDay < startDay) startDay = burst.startDay
+      if (typeof burst.endDay === "number" && burst.endDay > endDay) endDay = burst.endDay
+    }
+  }
+  if (!Number.isFinite(startDay) || !Number.isFinite(endDay)) return {}
+  return { startDay, endDay }
 }
 
 function summaryRow(group: {
@@ -41,6 +57,7 @@ function summaryRow(group: {
       {
         startWeek: group.start,
         endWeek: Math.max(group.end, group.start + 1),
+        ...spanDays(group.rows),
       },
     ],
   }
@@ -54,6 +71,9 @@ export default function GroupedMediaGantt({
   monthBands,
   weekLabels,
   todayWeek,
+  totalDays,
+  todayDay,
+  weekDayIndexes,
   className,
 }: GroupedMediaGanttProps) {
   const { groups, collapsed } = groupGanttRowsByChannel(rows, { collapseAt: 20 })
@@ -104,6 +124,9 @@ export default function GroupedMediaGantt({
         monthBands={monthBands}
         weekLabels={weekLabels}
         todayWeek={todayWeek}
+        totalDays={totalDays}
+        todayDay={todayDay}
+        weekDayIndexes={weekDayIndexes}
         onToggleSummary={toggleAt}
         className="min-w-full"
       />
