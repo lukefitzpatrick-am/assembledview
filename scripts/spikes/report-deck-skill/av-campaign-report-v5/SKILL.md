@@ -39,9 +39,7 @@ Voice: Australian English, short sentences, no em dashes, no emojis. Titles stat
 
 ## Figures
 
-Use only numbers present in report-data.json, exactly as formatted there. Copy each formatted string. Do not round, abbreviate, recompute, or invent a count, percent, date, or dollar figure. Pace percents are already whole numbers. CTR, conversion rate, VTR and time elapsed stay at two decimal places. Missing values stay "Not yet reported".
-
-A label whose text is "Spend pace" is shown as "Spend pace of expected to date". Write the short label. The builder appends the rest.
+Use only numbers present in report-data.json, exactly as formatted there. Copy each formatted string. Do not round, abbreviate, recompute, or invent a count, percent, date, or dollar figure. Missing values stay "Not yet reported".
 
 ## content.json
 
@@ -49,10 +47,12 @@ You choose every variant and write every word. The builder copies each formatted
 
 Title: max 60 characters, one `{i:"phrase"}`, ends with a full stop. Limits: label 24, note 48, list note 80, outcome 160, support 140, insight 160, body 200, card body 120, status 48, button 24, card title 32, column 18. Insight, action and outcome text: max 35 words.
 
+A label whose text is "Spend pace" is shown as "Spend pace of expected to date". Write the short label.
+
 - cover `sand` (clone 3) or `black` (clone 2). Fields: `title`, `subtitle` (key). Arch photos 105–107. Client logo slot 102.
 - summary `stat-row` (Title Only - White): `title`, `stats` (up to 4 of `label`, `key`, `note`), `outcome`. Or `statement` (Statement - Black): `title`, `support`.
 - channel, one per live channel. `bars` (Title Only - Sand): `title`, `spend`, `expected`, `spendLabel`, `expectedLabel`, `delivery` (up to 4 of `label`, `key`), `insight`. `cards` (Three Cards): `title`, `cards` (exactly 3 of `title`, `key`, `body`). `photo` (Photo and Text): `title`, `value`, `body`, `photo` (0, 1 or 2).
-- not-live `cards` for one or two channels: `title`, `cards` (`label`, `budget`, `status`, optional `note`). `list` only for three or more: `title`, `rows` (`label`, `budget`, `note`) with number dots.
+- not-live `cards`: `title`, `cards` (one per channel: `label`, `budget`, `status`, optional `note`). `list` for three or more: `title`, `rows` (`label`, `budget`, `note`) with number dots.
 - kpi `four-cards`: `title`, `cards` (up to 4 of `label`, `actual`, `target`). `table`: `title`, `rows` (same fields), `insight` (max 160). The table sits with a sand insight card.
 - iao `rows` (Title Only - Black): `title`, `rows` (up to 4 of `tag` insight, action or outcome, and `text`) with sky, forest and lime tags. `journey`: `title`, `steps` (exactly 3 of `label`, `text`) on a journey line.
 - appendix `table`: `title`, `columns`, `rows` (each cell a key), `insight` (max 160). The table sits with a sand insight card.
@@ -63,9 +63,9 @@ Title: max 60 characters, one `{i:"phrase"}`, ends with a full stop. Limits: lab
 Scripts live in `/skills/av-campaign-report-v5/scripts/`. Run `ls "$INPUT_DIR"` once to learn the photo filenames.
 
 1. `python /skills/av-campaign-report-v5/scripts/summarise.py "$INPUT_DIR/report-data.json"`
-2. Pipe the content JSON into `python /skills/av-campaign-report-v5/scripts/write_content.py`. It checks variant names, character limits and value keys, writes `content.json`, and prints OK or the errors. Do not use jq. Do not use a heredoc.
+2. Write `content.json`.
 3. `python /skills/av-campaign-report-v5/scripts/build_report.py content.json "$INPUT_DIR/report-data.json" "$INPUT_DIR/Assembled-Media-Template-v5.potx" "$OUTPUT_DIR/<mbaNumber>.pptx" "$INPUT_DIR/<photo1>" "$INPUT_DIR/<photo2>" "$INPUT_DIR/<photo3>" && python /skills/av-campaign-report-v5/scripts/check_deck.py "$OUTPUT_DIR/<mbaNumber>.pptx" "$INPUT_DIR/report-data.json" content.json`
-4. If check reports issues, change the content and pipe it through `write_content.py` once, then rerun step 3.
+4. If check reports issues, edit `content.json` once and rerun step 3.
 5. Save to `$OUTPUT_DIR/<mbaNumber>.pptx`.
 
 Never view or open images. Never read am_rebrand.py, build_report.py or check_deck.py. Never print files. Never write your own build script.
