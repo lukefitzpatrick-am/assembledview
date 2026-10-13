@@ -88,19 +88,22 @@ test("period summary shows key metrics, video views, and a dash for a zero-impre
   assert.doesNotMatch(search, /3-second views/)
 })
 
-test("a zero-impression channel shows a dash, not $0.00, and pace uses the status tone", async () => {
+test("a zero-impression channel shows a dash, not $0.00, and spend pace is forest", async () => {
+  const forest = BRAND.colour.forest.replace("#", "")
   const behind = await buildCampaignReportDeck(payloadWithPace(200, 400))
   const behindText = periodSummarySlide(await slideXml(behind))
   assert.match(behindText, new RegExp(escapeRegExp(REPORT_FIGURE_DASH)))
   assert.doesNotMatch(behindText, /\$0\.00/)
   assert.match(behindText, /50\.0%/)
-  assert.match(behindText, new RegExp(BRAND.functional.amber.replace("#", ""), "i"))
+  assert.match(behindText, new RegExp(forest, "i"))
+  assert.doesNotMatch(behindText, new RegExp(BRAND.functional.amber.replace("#", ""), "i"))
   assert.doesNotMatch(behindText, new RegExp(BRAND.functional.coral.replace("#", ""), "i"))
 
   const over = await buildCampaignReportDeck(payloadWithPace(500, 400))
   const overText = periodSummarySlide(await slideXml(over))
   assert.match(overText, /125\.0%/)
-  assert.match(overText, new RegExp(BRAND.functional.coral.replace("#", ""), "i"))
+  assert.match(overText, new RegExp(forest, "i"))
   assert.doesNotMatch(overText, new RegExp(BRAND.functional.amber.replace("#", ""), "i"))
+  assert.doesNotMatch(overText, new RegExp(BRAND.functional.coral.replace("#", ""), "i"))
   assert.doesNotMatch(overText, /\$0\.00/)
 })

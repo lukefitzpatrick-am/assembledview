@@ -1,7 +1,8 @@
 /**
  * Campaign performance report on the 05b v5 deck.
- * pptx-automizer copies a slide for each role. The slide number is resolved
- * from the layout name. It is not a fixed index.
+ * pptx-automizer copies a slide for each role. The slide number is the part
+ * number in `ppt/slides/slideN.xml`, which is what automizer opens. It is not
+ * the presentation-order index.
  *
  * Layout map (name in lib/reports/assets/v5/LAYOUTS.md):
  * cover         Cover - Sand        title
@@ -28,7 +29,6 @@ import { Automizer, modify } from "pptx-automizer"
 import { fetchBrandCoverPhoto } from "@/lib/ava/brand/catalog"
 import { BRAND } from "@/lib/brand"
 import { channelColorFor, getChartTheme } from "@/lib/chart-theme"
-import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import type {
   CampaignReportChannelRow,
   CampaignReportPayload,
@@ -64,8 +64,10 @@ const LAYOUT = {
 
 const theme = getChartTheme("light")
 const FONT = BRAND.font.sans
+const HEADING_FONT = "Plus Jakarta Sans ExtraBold"
 const INK = pptColour(BRAND.colour.ink)
 const WHITE = pptColour(BRAND.colour.white)
+const CAPTION_ON_DARK = pptColour(BRAND.colour.mutedOnBlack)
 const SAND = pptColour(BRAND.colour.sand)
 const SKY = pptColour(BRAND.colour.sky)
 const FOREST = pptColour(BRAND.colour.forest)
@@ -110,12 +112,93 @@ function pctLabel(fraction: number | null): string {
   return `${(fraction * 100).toFixed(1)}%`
 }
 
-function paceColour(pace: number | null): string {
-  if (pace == null || !Number.isFinite(pace)) return INK
-  const status = deliveryStatusFromPct(pace * 100)
-  if (status === "behind") return pptColour(BRAND.functional.amber)
-  if (status === "ahead") return pptColour(BRAND.functional.coral)
-  return INK
+function withFullStop(text: string): string {
+  const trimmed = text.trim()
+  return trimmed.endsWith(".") ? trimmed : `${trimmed}.`
+}
+
+/** 36pt on one line. 32pt when that face would wrap the heading box. */
+function headingPointSize(text: string, widthIn: number): number {
+  const widthAt36 = text.length * (36 / 72) * 0.56
+  return widthAt36 > widthIn ? 32 : 36
+}
+
+function coverTitle(client: string, campaign: string): string {
+  const left = client.trim()
+  const right = campaign.trim()
+  const combined = right.toLowerCase().startsWith(left.toLowerCase())
+    ? right
+    : [left, right].filter(Boolean).join(" ")
+  const base = combined.replace(/\.+$/, "")
+  if (/campaign report$/i.test(base)) return `${base}.`
+  return `${base} campaign report.`
+}
+
+function channelNotYetLive(channel: CampaignReportChannelRow): boolean {
+  return !(channel.spend > 0) && !(channel.impressions > 0)
+}
+
+function notYetLiveLine(channels: CampaignReportChannelRow[]): string {
+  const quiet = channels.filter(channelNotYetLive)
+  if (quiet.length === 0) return ""
+  return `Not yet live. ${quiet.map((channel) => channel.label).join(", ")}.`
+}
+
+type Anchor = { x: number; y: number; w: number; h: number }
+
+type LayoutRole = {
+  number: number
+  dark: boolean
+  title: Anchor | null
+  subtitle: Anchor | null
+}
+
+function emuToInches(value: number): number {
+  return Math.round((value / 914400) * 1000) / 1000
+}
+
+function anchorFromXml(chunk: string): Anchor | null {
+  const off = chunk.match(/<a:off[^>]*x="(-?\d+)"[^>]*y="(-?\d+)"/)
+  const ext = chunk.match(/<a:ext[^>]*cx="(\d+)"[^>]*cy="(\d+)"/)
+  if (!off || !ext) return null
+  return {
+    x: emuToInches(Number(off[1])),
+    y: emuToInches(Number(off[2])),
+    w: emuToInches(Number(ext[1])),
+    h: emuToInches(Number(ext[2])),
+  }
+}
+
+function isDarkHex(hex: string): boolean {
+  const r = Number.parseInt(hex.slice(0, 2), 16)
+  const g = Number.parseInt(hex.slice(2, 4), 16)
+  const b = Number.parseInt(hex.slice(4, 6), 16)
+  if (![r, g, b].every((part) => Number.isFinite(part))) return false
+  return (r + g + b) / 3 < 90
+}
+
+function layoutIsDark(name: string, background: string | null): boolean {
+  if (name.toLowerCase().includes("black")) return true
+  return background != null && isDarkHex(background)
+}
+
+function placeholderAnchors(xml: string): { title: Anchor | null; subtitle: Anchor | null } {
+  let title: Anchor | null = null
+  const bodies: Anchor[] = []
+  for (const chunk of xml.split(/<p:sp[\s>]/).slice(1)) {
+    const ph = chunk.match(/<p:ph\b([^>]*)\/?>/)
+    if (!ph) continue
+    const type = ph[1]?.match(/\btype="([^"]*)"/)?.[1] ?? "body"
+    const box = anchorFromXml(chunk)
+    if (!box) continue
+    if (type === "title" && !title) title = box
+    if (type === "body" || type === "subTitle") bodies.push(box)
+  }
+  const subtitle = bodies.reduce<Anchor | null>((lowest, box) => {
+    if (!lowest || box.y > lowest.y) return box
+    return lowest
+  }, null)
+  return { title, subtitle }
 }
 
 function previousFigure(
@@ -176,15 +259,21 @@ function clearSampleText(doc: { getElementsByTagName: (name: string) => ArrayLik
   }
 }
 
-async function slidesByLayoutName(filePath: string): Promise<Map<string, number>> {
+async function slidesByLayoutName(filePath: string): Promise<Map<string, LayoutRole>> {
   const zip = await JSZip.loadAsync(fs.readFileSync(filePath))
-  const layoutNameByFile = new Map<string, string>()
+  const layoutByFile = new Map<string, { name: string; dark: boolean }>()
   const names = Object.keys(zip.files)
   for (const name of names) {
     if (!/^ppt\/slideLayouts\/slideLayout\d+\.xml$/.test(name)) continue
     const xml = await zip.file(name)!.async("string")
     const layoutName = xml.match(/<p:cSld[^>]*name="([^"]*)"/)?.[1]
-    if (layoutName) layoutNameByFile.set(path.posix.basename(name), layoutName)
+    if (!layoutName) continue
+    const background =
+      xml.match(/<p:bg>[\s\S]*?<\/p:bg>/)?.[0]?.match(/srgbClr val="([A-Fa-f0-9]{6})"/i)?.[1] ?? null
+    layoutByFile.set(path.posix.basename(name), {
+      name: layoutName,
+      dark: layoutIsDark(layoutName, background?.toUpperCase() ?? null),
+    })
   }
 
   const pres = await zip.file("ppt/presentation.xml")!.async("string")
@@ -194,29 +283,29 @@ async function slidesByLayoutName(filePath: string): Promise<Map<string, number>
     targetById.set(match[1]!, match[2]!)
   }
 
-  const found = new Map<string, number>()
-  let index = 0
+  const found = new Map<string, LayoutRole>()
   for (const match of pres.matchAll(/<p:sldId[^>]*r:id="([^"]+)"/g)) {
-    index += 1
     const target = targetById.get(match[1]!) ?? ""
     const slidePath = path.posix.normalize(path.posix.join("ppt", target))
-    const relPath = path.posix.join(
-      path.posix.dirname(slidePath),
-      "_rels",
-      `${path.posix.basename(slidePath)}.rels`,
-    )
+    const base = path.posix.basename(slidePath)
+    const number = Number(base.replace(/^slide/, "").replace(/\.xml$/, ""))
+    if (!Number.isInteger(number)) continue
+    const relPath = path.posix.join(path.posix.dirname(slidePath), "_rels", `${base}.rels`)
     const slideRels = await zip.file(relPath)?.async("string")
     const layoutFile = slideRels?.match(/slideLayouts\/(slideLayout\d+\.xml)/)?.[1]
-    const layoutName = layoutFile ? layoutNameByFile.get(layoutFile) : undefined
-    if (layoutName && !found.has(layoutName)) found.set(layoutName, index)
+    const layout = layoutFile ? layoutByFile.get(layoutFile) : undefined
+    if (!layout || found.has(layout.name)) continue
+    const slideXml = await zip.file(slidePath)?.async("string")
+    const anchors = slideXml ? placeholderAnchors(slideXml) : { title: null, subtitle: null }
+    found.set(layout.name, { number, dark: layout.dark, ...anchors })
   }
   return found
 }
 
-function requireLayout(map: Map<string, number>, name: string): number {
-  const slide = map.get(name)
-  if (!slide) throw new Error(`v5 layout not found: ${name}`)
-  return slide
+function requireRole(map: Map<string, LayoutRole>, name: string): LayoutRole {
+  const role = map.get(name)
+  if (!role) throw new Error(`v5 layout not found: ${name}`)
+  return role
 }
 
 type PaintableSlide = {
@@ -226,15 +315,67 @@ type PaintableSlide = {
   generate: (callback: (page: DrawSlide) => void) => void
 }
 
-function paint(slide: PaintableSlide, draw: (page: DrawSlide) => void): void {
+type XmlEl = XmlNode & {
+  getAttribute: (name: string) => string | null
+  setAttribute: (name: string, value: string) => void
+  getElementsByTagName: (name: string) => ArrayLike<XmlEl>
+  removeChild: (child: XmlEl) => void
+}
+
+function recolourTemplateInk(doc: { getElementsByTagName: (name: string) => ArrayLike<XmlEl> }): void {
+  const colours = doc.getElementsByTagName("a:srgbClr")
+  for (let i = 0; i < colours.length; i += 1) {
+    const node = colours[i]
+    const value = node?.getAttribute("val")?.toUpperCase()
+    if (value === INK) node?.setAttribute("val", WHITE)
+    if (value === MUTED) node?.setAttribute("val", CAPTION_ON_DARK)
+  }
+}
+
+function removeEmptyLimePills(doc: { getElementsByTagName: (name: string) => ArrayLike<XmlEl> }): void {
+  const shapes = Array.from(doc.getElementsByTagName("p:sp"))
+  for (const shape of shapes) {
+    const colours = shape.getElementsByTagName("a:srgbClr")
+    let lime = false
+    for (let i = 0; i < colours.length; i += 1) {
+      if (colours[i]?.getAttribute("val")?.toUpperCase() === LIME) lime = true
+    }
+    if (!lime) continue
+    const texts = shape.getElementsByTagName("a:t")
+    let hasText = false
+    for (let i = 0; i < texts.length; i += 1) {
+      if ((texts[i]?.textContent ?? "").trim()) hasText = true
+    }
+    if (!hasText) (shape.parentNode as XmlEl | null)?.removeChild(shape)
+  }
+}
+
+function paint(
+  slide: PaintableSlide,
+  draw: (page: DrawSlide) => void,
+  tidy?: (doc: { getElementsByTagName: (name: string) => ArrayLike<XmlEl> }) => void,
+): void {
   // prepare runs before generated shapes are imported. modify runs after and
   // would wipe the text those shapes just wrote.
   slide.prepare((doc: { getElementsByTagName: (name: string) => ArrayLike<XmlNode> }) => {
     clearSampleText(doc)
+    tidy?.(doc as { getElementsByTagName: (name: string) => ArrayLike<XmlEl> })
   })
   slide.generate((page: DrawSlide) => {
     draw(page)
   })
+}
+
+function onDarkGround(page: DrawSlide): DrawSlide {
+  return {
+    addShape: (kind, opts) => page.addShape(kind, opts),
+    addTable: (rows, opts) => page.addTable(rows, opts),
+    addText: (text, opts) => {
+      const color = String(opts.color ?? INK).toUpperCase()
+      const next = color === INK ? WHITE : color === MUTED ? CAPTION_ON_DARK : color
+      page.addText(text, { ...opts, color: next })
+    },
+  }
 }
 
 function pill(
@@ -293,7 +434,7 @@ function drawKeyMetrics(page: DrawSlide, payload: CampaignReportPayload): void {
     {
       label: "Spend pace",
       value: formatReportPace(metrics.spendPacePct),
-      colour: paceColour(metrics.spendPacePct),
+      colour: FOREST,
     },
   ]
   if (metrics.cpv != null) {
@@ -362,16 +503,16 @@ function drawKeyMetrics(page: DrawSlide, payload: CampaignReportPayload): void {
   }
 }
 
-function heading(page: DrawSlide, text: string, colour = INK): void {
-  page.addText(text, {
-    x: 0.55,
-    y: 0.36,
-    w: 12.2,
-    h: 0.62,
-    fontFace: FONT,
-    fontSize: 28,
+function heading(page: DrawSlide, text: string, colour = INK, box?: Anchor): void {
+  const place = box ?? { x: 0.55, y: 0.36, w: 12.2, h: 1.05 }
+  const sentence = withFullStop(text)
+  page.addText(sentence, {
+    ...place,
+    fontFace: HEADING_FONT,
+    fontSize: headingPointSize(sentence, place.w),
     color: colour,
     margin: 0,
+    valign: "top",
   })
 }
 
@@ -525,7 +666,13 @@ async function assembleCampaignReportDeck(
   const layouts = await slidesByLayoutName(filePath)
   const client = safe(payload.clientName, "Client")
   const campaign = safe(payload.campaignName, payload.mbaNumber)
-  const onDark = LAYOUT.closing
+  const cover = requireRole(layouts, LAYOUT.cover)
+  const closing = requireRole(layouts, LAYOUT.closing)
+  const coverTitleBox = cover.title
+  const coverDetailBox = cover.subtitle
+  const closingTitleBox = closing.title
+  if (!coverTitleBox || !coverDetailBox) throw new Error("v5 cover title placeholders missing")
+  if (!closingTitleBox) throw new Error("v5 thank-you title placeholder missing")
 
   const automizer = new Automizer({
     templateDir: templateDir(),
@@ -542,29 +689,40 @@ async function assembleCampaignReportDeck(
   if (coverBytes) pres.loadMediaBuffer(COVER_MEDIA_FILE, coverBytes)
 
   const add = (layoutName: string, draw: (page: DrawSlide) => void) => {
-    pres.addSlide("v5", requireLayout(layouts, layoutName), (slide) => {
-      paint(slide, draw)
+    const role = requireRole(layouts, layoutName)
+    pres.addSlide("v5", role.number, (slide) => {
+      paint(
+        slide,
+        (page) => draw(role.dark ? onDarkGround(page) : page),
+        (doc) => {
+          if (role.dark) recolourTemplateInk(doc)
+          if (layoutName === LAYOUT.table) removeEmptyLimePills(doc)
+        },
+      )
     })
   }
 
-  pres.addSlide("v5", requireLayout(layouts, LAYOUT.cover), (slide) => {
+  pres.addSlide("v5", cover.number, (slide) => {
     paint(slide, (page) => {
-      heading(page, "Campaign report.")
-      page.addText(
-        [client, campaign, `MBA ${payload.mbaNumber}`, payload.period.label, `As of ${formatReportDate(payload.asOf)}.` ].join(
-          "\n",
-        ),
+      const ground = cover.dark ? onDarkGround(page) : page
+      heading(ground, coverTitle(client, campaign), cover.dark ? WHITE : INK, coverTitleBox)
+      ground.addText(
+        [
+          `MBA ${payload.mbaNumber}.`,
+          `${payload.period.label}.`,
+          `As of ${formatReportDate(payload.asOf)}.`,
+        ].join("\n"),
         {
-          x: 0.55,
-          y: 1.2,
-          w: 10,
-          h: 2.4,
+          ...coverDetailBox,
           fontFace: FONT,
-          fontSize: 18,
-          color: INK,
+          fontSize: 14,
+          color: cover.dark ? WHITE : INK,
           margin: 0,
+          valign: "top",
         },
       )
+    }, (doc) => {
+      if (cover.dark) recolourTemplateInk(doc)
     })
     if (coverBytes) {
       slide.modifyElement("Image 0", modify.setRelationTarget(COVER_MEDIA_FILE))
@@ -584,7 +742,10 @@ async function assembleCampaignReportDeck(
         ]
           .filter(Boolean)
           .join(" "),
-      ].join("\n\n"),
+        notYetLiveLine(payload.channels),
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
       {
         x: 0.55,
         y: 1.15,
@@ -607,6 +768,7 @@ async function assembleCampaignReportDeck(
   )
 
   for (const channel of payload.channels) {
+    if (channelNotYetLive(channel)) continue
     const showPrevious = payload.period.previous != null
     const hasPrev = showPrevious && channel.previousSpend != null
     const bars: Bar[] = [
@@ -833,8 +995,8 @@ async function assembleCampaignReportDeck(
     })
   })
 
-  add(onDark, (page) => {
-    heading(page, "Thank you.", WHITE)
+  add(LAYOUT.closing, (page) => {
+    heading(page, "Thank you.", WHITE, closingTitleBox)
   })
 
   const zip = await pres.getJSZip()
