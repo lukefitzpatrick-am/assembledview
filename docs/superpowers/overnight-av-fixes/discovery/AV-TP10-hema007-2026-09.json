@@ -25,15 +25,22 @@
     "results": 352,
     "previousSpend": 3014.8800000000015,
     "previousImpressions": 365649,
+    "previousSpendReason": null,
+    "previousImpressionsReason": null,
     "expectedSpendToDate": 10000,
     "timeElapsedPct": 0.7479674796747967,
+    "timeElapsedReason": null,
+    "includesAssumedSpend": false,
+    "includesEstimatedSpend": false,
     "metrics": {
       "cpm": 8.825314096281494,
       "cpc": 0.3828598110305427,
       "ctr": 0.02305103288988839,
       "cpv": 0.11462370896651534,
       "videoViews3s": 30402,
-      "spendPacePct": 0.3484789999999999
+      "spendPacePct": 0.3484789999999999,
+      "paceBand": "Behind",
+      "paceReason": null
     },
     "rateExcludedSpend": 0,
     "previousMetrics": {
@@ -42,7 +49,9 @@
       "ctr": 0.027083350426228434,
       "cpv": 0.12391105996465421,
       "videoViews3s": 24331,
-      "spendPacePct": 0.30148800000000014
+      "spendPacePct": 0.30148800000000014,
+      "paceBand": "Behind",
+      "paceReason": null
     }
   },
   "channels": [
@@ -50,15 +59,23 @@
       "group": "social_meta",
       "label": "Social (Meta)",
       "plannedBudget": 12000,
+      "plannedStart": null,
+      "notLive": false,
       "spend": 3484.7899999999995,
       "impressions": 394863,
       "clicks": 9102,
       "results": 352,
       "previousSpend": 3014.8800000000015,
       "previousImpressions": 365649,
+      "previousSpendReason": null,
+      "previousImpressionsReason": null,
       "plannedImpressions": 325203.2520325203,
       "plannedClicks": null,
       "plannedViews": null,
+      "plannedImpressionsReason": null,
+      "plannedClicksReason": "no_plan",
+      "plannedViewsReason": "no_plan",
+      "spendAssumed": false,
       "spendEstimated": false,
       "metrics": {
         "cpm": 8.825314096281494,
@@ -66,7 +83,9 @@
         "ctr": 0.02305103288988839,
         "cpv": 0.11462370896651534,
         "videoViews3s": 30402,
-        "spendPacePct": 0.3882510597826086
+        "spendPacePct": 1.1615966666666666,
+        "paceBand": "Ahead",
+        "paceReason": null
       },
       "previousMetrics": {
         "cpm": 8.245284412100132,
@@ -74,22 +93,32 @@
         "ctr": 0.027083350426228434,
         "cpv": 0.12391105996465421,
         "videoViews3s": 24331,
-        "spendPacePct": 0.49842774193548417
+        "spendPacePct": 1.0049600000000005,
+        "paceBand": "On track",
+        "paceReason": null
       }
     },
     {
       "group": "search",
       "label": "Search",
       "plannedBudget": 28000,
+      "plannedStart": null,
+      "notLive": true,
       "spend": 0,
       "impressions": 0,
       "clicks": 0,
       "results": 0,
       "previousSpend": 0,
       "previousImpressions": 0,
+      "previousSpendReason": null,
+      "previousImpressionsReason": null,
       "plannedImpressions": null,
       "plannedClicks": 6829.268292682927,
       "plannedViews": null,
+      "plannedImpressionsReason": "no_plan",
+      "plannedClicksReason": null,
+      "plannedViewsReason": "no_plan",
+      "spendAssumed": false,
       "spendEstimated": false,
       "metrics": {
         "cpm": null,
@@ -97,7 +126,9 @@
         "ctr": null,
         "cpv": null,
         "videoViews3s": null,
-        "spendPacePct": 0
+        "spendPacePct": 0,
+        "paceBand": "Behind",
+        "paceReason": null
       },
       "previousMetrics": {
         "cpm": null,
@@ -105,7 +136,9 @@
         "ctr": null,
         "cpv": null,
         "videoViews3s": null,
-        "spendPacePct": 0
+        "spendPacePct": 0,
+        "paceBand": "Behind",
+        "paceReason": null
       }
     }
   ],

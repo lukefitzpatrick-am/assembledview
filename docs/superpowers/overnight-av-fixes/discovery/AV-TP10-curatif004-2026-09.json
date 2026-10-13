@@ -25,15 +25,22 @@
     "results": 801.623869,
     "previousSpend": 12775.626176999998,
     "previousImpressions": 753918,
+    "previousSpendReason": null,
+    "previousImpressionsReason": null,
     "expectedSpendToDate": 19041,
     "timeElapsedPct": 0.5,
+    "timeElapsedReason": null,
+    "includesAssumedSpend": false,
+    "includesEstimatedSpend": false,
     "metrics": {
       "cpm": 18.39367485096879,
       "cpc": 0.8531555674647813,
       "ctr": 0.02155957899404799,
       "cpv": 0.12317366656883798,
       "videoViews3s": 64739,
-      "spendPacePct": 0.8364876471298777
+      "spendPacePct": 0.8364876471298777,
+      "paceBand": "Behind",
+      "paceReason": null
     },
     "rateExcludedSpend": 0,
     "previousMetrics": {
@@ -42,7 +49,9 @@
       "ctr": 0.021865773200799025,
       "cpv": 0.11619138540178905,
       "videoViews3s": 66515,
-      "spendPacePct": 0.8370324429666512
+      "spendPacePct": 0.8370324429666512,
+      "paceBand": "Behind",
+      "paceReason": null
     }
   },
   "channels": [
@@ -50,15 +59,23 @@
       "group": "social_meta",
       "label": "Social (Meta)",
       "plannedBudget": 51236.6,
+      "plannedStart": null,
+      "notLive": false,
       "spend": 7974.140000000002,
       "impressions": 639655,
       "clicks": 14699,
       "results": 618,
       "previousSpend": 7728.469999999999,
       "previousImpressions": 613175,
+      "previousSpendReason": null,
+      "previousImpressionsReason": null,
       "plannedImpressions": 464099.6376811594,
       "plannedClicks": null,
       "plannedViews": null,
+      "plannedImpressionsReason": null,
+      "plannedClicksReason": "no_plan",
+      "plannedViewsReason": "no_plan",
+      "spendAssumed": false,
       "spendEstimated": false,
       "metrics": {
         "cpm": 12.466313872321802,
@@ -66,7 +83,9 @@
         "ctr": 0.022979574927109146,
         "cpv": 0.12317366656883798,
         "videoViews3s": 64739,
-        "spendPacePct": 0.3112673362401097
+        "spendPacePct": 0.9630603864734302,
+        "paceBand": "On track",
+        "paceReason": null
       },
       "previousMetrics": {
         "cpm": 12.604020059526235,
@@ -74,22 +93,32 @@
         "ctr": 0.0222889061034778,
         "cpv": 0.11619138540178905,
         "videoViews3s": 66515,
-        "spendPacePct": 0.4476507909605444
+        "spendPacePct": 0.6663048538667126,
+        "paceBand": "Behind",
+        "paceReason": null
       }
     },
     {
       "group": "social_tiktok",
       "label": "Social (TikTok)",
       "plannedBudget": 23318.6,
+      "plannedStart": null,
+      "notLive": true,
       "spend": 0,
       "impressions": 0,
       "clicks": 0,
       "results": 0,
       "previousSpend": 0,
       "previousImpressions": 0,
+      "previousSpendReason": null,
+      "previousImpressionsReason": null,
       "plannedImpressions": 237621.60326086957,
       "plannedClicks": null,
       "plannedViews": null,
+      "plannedImpressionsReason": null,
+      "plannedClicksReason": "no_plan",
+      "plannedViewsReason": "no_plan",
+      "spendAssumed": false,
       "spendEstimated": false,
       "metrics": {
         "cpm": null,
@@ -97,7 +126,9 @@
         "ctr": null,
         "cpv": null,
         "videoViews3s": null,
-        "spendPacePct": 0
+        "spendPacePct": 0,
+        "paceBand": "Behind",
+        "paceReason": null
       },
       "previousMetrics": {
         "cpm": null,
@@ -105,22 +136,32 @@
         "ctr": null,
         "cpv": null,
         "videoViews3s": null,
-        "spendPacePct": 0
+        "spendPacePct": null,
+        "paceBand": null,
+        "paceReason": "not_available"
       }
     },
     {
       "group": "search",
       "label": "Search",
       "plannedBudget": 49532.8,
+      "plannedStart": null,
+      "notLive": false,
       "spend": 7953.421288999999,
       "impressions": 226271,
       "clicks": 3970,
       "results": 183.62386899999998,
       "previousSpend": 5047.156176999999,
       "previousImpressions": 140743,
+      "previousSpendReason": null,
+      "previousImpressionsReason": null,
       "plannedImpressions": null,
       "plannedClicks": 4038.0000000000005,
       "plannedViews": null,
+      "plannedImpressionsReason": "no_plan",
+      "plannedClicksReason": null,
+      "plannedViewsReason": "no_plan",
+      "spendAssumed": false,
       "spendEstimated": false,
       "metrics": {
         "cpm": 35.14998072665078,
@@ -128,7 +169,9 @@
         "ctr": 0.017545332808888457,
         "cpv": null,
         "videoViews3s": null,
-        "spendPacePct": 0.32113756092932355
+        "spendPacePct": 1.0170615459079282,
+        "paceBand": "On track",
+        "paceReason": null
       },
       "previousMetrics": {
         "cpm": 35.86079717641374,
@@ -136,7 +179,9 @@
         "ctr": 0.02002231016817888,
         "cpv": null,
         "videoViews3s": null,
-        "spendPacePct": 0.3023987547931744
+        "spendPacePct": 0.7314719097101448,
+        "paceBand": "Behind",
+        "paceReason": null
       }
     }
   ],

@@ -5307,3 +5307,50 @@ curatif004 was not called. The number check failed, so the second run stopped.
 - Checks: local `check_deck.py` OK. Number check failed, 7 stray figures. Container `check_deck.py` was not run.
 - Under 90%: none on the cost or the stray list. The `2,` token is a text run, not a recomputed figure.
 - Morning smoke was not run. Snowflake was not called. The Messages API was called once.
+
+## Shared number check, check inside the build
+
+One commit on `localhost`, files under `scripts/spikes/report-deck-skill/` only. The run log stays uncommitted. Skill id `skill_01R7k33HzDG28QY4xkUBEvAy`, version `1791888913381921` (replaced `av-campaign-report-v5` after the commit, before the run). Model `claude-opus-5-5`, effort `high`.
+
+`stray_figures` in `check_deck.py` is the number check. `check()` and the run-deck local check both call it. It skips text in shapes named `Number dot`, and every text frame on the cloned thank-you slide's contact placeholder (body idx 102). A card with `$9,999` still fails, and a `42` in the thank-you title still fails. `build_report.py` runs that check at the end and exits non-zero when it finds an issue. Skill step 3 is the build command only.
+
+hema007-v6, local, no API. `check_deck.py` printed `OK`. `--numbers` returned no stray figures, 7 slides. Rebuilding that saved content through `build_report.py` printed `OK` and exited 0.
+
+curatif004, September 2026. One call, `stop_reason` `end_turn`. Wall time of the call 82,827 ms. Input 26, output 6,042, cache read 96,155, cache write 13,035. Cost $0.2053. Under $0.60, so the model was not called again. No server-tool result exceeded 20,000 characters.
+
+| Step | Tool | Chars | Status | Command |
+| --- | --- | ---: | --- | --- |
+| 1 | text_editor_code_execution | 5,155 | ok | view SKILL.md |
+| 2 | bash_code_execution | 1,601 | ok | ls and summarise.py |
+| 3 | bash_code_execution | 403 | ok | summarise.py --help; stdout is a FileNotFoundError |
+| 4 | bash_code_execution | 283 | ok | od of the summarise tail |
+| 5 | bash_code_execution | 432 | ok | python print of keys and KPI labels |
+| 6 | bash_code_execution | 256 | error | commentary is null; `len()` raised TypeError |
+| 7 | bash_code_execution | 122 | ok | pace and channel figures |
+| 8 | text_editor_code_execution | 74 | ok | create draft.json |
+| 9 | bash_code_execution | 204 | error | write_content.py; KPI labels were typed text |
+| 10 | bash_code_execution | 3 | ok | sed rewrote the labels; write_content.py printed OK |
+| 11 | bash_code_execution | 3 | ok | build_report.py; stdout OK |
+
+The container did not run `check_deck.py`. Step 11 is the build alone, and its stdout is `OK`, which is the check inside the build. The first write failed because the KPI labels were typed text (`CTR`). The skill allows one fix pass. It did not view an image and did not read the builder scripts. Steps 5 to 7 did print formatted payload values.
+
+Local `check_deck.py` printed `OK`. `--numbers` returned no stray figures, 8 slides. Deck saved to `out/curatif004-v6.pptx` (5,203,244 bytes). LibreOffice failed to convert the pptx. PowerPoint wrote the PDF and `pdftoppm -r 40` wrote the PNGs. Contact sheet: `scripts/spikes/report-deck-skill/out/curatif004-v6-sheet.png`.
+
+- SHA: 6a909d6f
+- Checks: `test_checks.py` OK, including a card `$9,999` flagged and number dots plus the thank-you contact lines skipped. hema007-v6 local check OK. curatif004 local check OK. Container build stdout `OK`.
+- Under 90%: none on the cost or the empty stray list. The harness process then exited on the LibreOffice convert, after the deck was saved.
+- Morning smoke was not run. Snowflake was not called. The Messages API was called once.
+
+## Deck text colours, cover, thank-you and headings
+
+One commit on `localhost`: `lib/reports/campaignReport/buildCampaignReportDeck.ts` and its tests. The run log stays uncommitted. No other source file.
+
+pptx-automizer opens `ppt/slides/slideN.xml` by that part number. The builder was passing the presentation-order index, so the data slides landed on Title Only - Black and the close landed on Blank - White. It now passes the part number for the layout it already named (Two Column 26, Statement - Sky 7, Thank You - Black 17, Cover - Sand 3, Title and Text 1).
+
+On a layout whose name contains Black, or whose background is dark, titles and body are white and captions are `mutedOnBlack` (`#AEB9B0`). White and sand grounds stay ink. Headings are Plus Jakarta Sans ExtraBold, 36pt, or 32pt when the line is wider than the box, sentence case with a full stop. Body stays Plus Jakarta Sans. The cover title is the client and campaign (`Curatif FY27 campaign report.`) in the template title box, with MBA, period and as-of in the subtitle box. Spend pace is forest. A channel with $0 delivered and no impressions gets no channel slides and one `Not yet live` line on the summary. Empty lime pills are removed from the data slide.
+
+- SHA: 4756f478
+- Checks: `npx tsc --noEmit` exit 0. `next lint` on the four files, no warnings. Deck tests 10/10 (`deckGround`, `keyMetricsDeck`, `coverPhotoDeck`).
+- Under 90%: none on the part-number map or the colours. The wrap threshold is an average ExtraBold advance of 0.56 em, checked by the 32pt and 36pt assertions.
+- Browser smoke: localhost:3000 redirected to the Auth0 login. The September download was not taken from the app. The same builder was run on `AV-TP10-curatif004-2026-09.json` and PowerPoint exported the slides. Slide 1 is sand, logo clear, title `Curatif FY27 campaign report.` in the title position, details underneath. Slide 4 is white, `Social (Meta) data.` in ink, forest table header, no lime pills. There is no slide 11: TikTok is $0 with no impressions, so the deck is 9 slides and the thank-you is slide 9, white on the black thank-you layout. Slide 2 shows `Not yet live. Social (TikTok).` and spend pace `83.6%` in forest.
+- Snowflake was not called. The Messages API was not called.
