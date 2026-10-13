@@ -135,6 +135,51 @@ export function getCpcFamilyBurstCalculatedColumnLabel(
   return titleForVariant(variant, buyType)
 }
 
+const UNIT_PRICE_NOUN: Record<string, string> = {
+  insertions: "insertion",
+  spots: "spot",
+  panels: "panel",
+}
+
+/** Burst header for the unit-price field. Unknown buy types stay "Buy Amount". */
+export function getBuyAmountColumnLabel(buyType: string | null | undefined): string {
+  switch (String(buyType ?? "").trim().toLowerCase()) {
+    case "insertions":
+      return "Cost per insertion"
+    case "spots":
+      return "Cost per spot"
+    case "panels":
+      return "Cost per panel"
+    case "cpm":
+      return "CPM"
+    case "cpc":
+      return "CPC"
+    case "cpv":
+      return "CPV"
+    case "fixed_cost":
+    case "package":
+    case "bonus":
+    case "package_inclusions":
+      return "Cost"
+    default:
+      return "Buy Amount"
+  }
+}
+
+/** Soft check when a unit price looks like a quantity. Null means no warning. */
+export function buyAmountUnitPriceWarning(
+  buyType: string | null | undefined,
+  buyAmount: number,
+  calculatedQty: number
+): string | null {
+  const unit = UNIT_PRICE_NOUN[String(buyType ?? "").trim().toLowerCase()]
+  if (!unit) return null
+  if (!Number.isFinite(buyAmount) || !Number.isFinite(calculatedQty)) return null
+  if (!(buyAmount <= 1) || !(calculatedQty > 100)) return null
+  const plural = unit === "insertion" ? "insertions" : `${unit}s`
+  return `Check this: Cost per ${unit} is the price of one ${unit}, not the number of ${plural}.`
+}
+
 /** Column header text aligned with `TelevisionBurstTarpsField` labels. */
 export function getTelevisionBurstCalculatedColumnLabel(buyType: string): string {
   if (buyType === "bonus" || buyType === "package_inclusions") return "Bonus Deliverables"

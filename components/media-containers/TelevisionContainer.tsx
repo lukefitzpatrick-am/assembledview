@@ -81,7 +81,11 @@ import { channelSummaryTotals } from "@/lib/money/burst"
 import { computeLoadedDeliverables } from "@/lib/mediaplan/deliverableBudget"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
-import { TelevisionBurstTarpsField } from "@/components/media-containers/burst-calculated-fields"
+import {
+  TelevisionBurstTarpsField,
+  buyAmountUnitPriceWarning,
+  getBuyAmountColumnLabel,
+} from "@/components/media-containers/burst-calculated-fields"
 import {
   BurstDateRangeColumn,
   BurstFieldGrid,
@@ -1315,6 +1319,17 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                       <BurstSection>
                         {form.watch(`televisionlineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           const buyType = form.watch(`televisionlineItems.${lineItemIndex}.buyType`);
+                          const buyAmountLabel = getBuyAmountColumnLabel(buyType);
+                          const tvCalculated = (burstField as { calculatedValue?: unknown }).calculatedValue;
+                          const tvQty =
+                            typeof tvCalculated === "number" && Number.isFinite(tvCalculated)
+                              ? tvCalculated
+                              : parseFloat(String(tvCalculated ?? "").replace(/[^0-9.]/g, ""));
+                          const unitPriceWarning = buyAmountUnitPriceWarning(
+                            buyType,
+                            parseMoneyInput((burstField as { buyAmount?: string | number | null }).buyAmount) ?? Number.NaN,
+                            tvQty,
+                          );
                           return (
                             <BurstRowCard key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`}>
                               <BurstRowInner>
@@ -1366,11 +1381,12 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                       name={`televisionlineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
                                       render={({ field }) => (
                                         <FormItem>
-                                          <BurstFieldLabel>Buy Amount</BurstFieldLabel>
+                                          <BurstFieldLabel>{buyAmountLabel}</BurstFieldLabel>
                                           <FormControl>
                                             <Input
                                               {...field}
                                               type="text"
+                                              aria-label={buyAmountLabel}
                                               className={MP_BURST_INPUT}
                                               value={buyType === "bonus" ? "0" : field.value}
                                               disabled={buyType === "bonus"}
@@ -1525,6 +1541,11 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                     onRemove={() => handleRemoveBurst(lineItemIndex, burstIndex)}
                                   />
                               </BurstRowInner>
+                              {unitPriceWarning ? (
+                                <p className="px-1 text-[11px] leading-snug text-status-behind-fg" role="status">
+                                  {unitPriceWarning}
+                                </p>
+                              ) : null}
                             </BurstRowCard>
                           );
                         })}

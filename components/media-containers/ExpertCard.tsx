@@ -25,6 +25,8 @@ import { useDraftLineMeta } from "@/hooks/useDraftFieldDiff"
 import { Badge } from "@/components/ui/badge"
 import {
   CpcFamilyBurstCalculatedField,
+  buyAmountUnitPriceWarning,
+  getBuyAmountColumnLabel,
   getCpcFamilyBurstCalculatedColumnLabel,
   type CpcFamilyVariant,
 } from "@/components/media-containers/burst-calculated-fields"
@@ -544,6 +546,7 @@ function ExpertCardBursts<T extends FieldValues>({
     calculatedVariant,
     buyType || ""
   )
+  const buyAmountLabel = getBuyAmountColumnLabel(buyType)
 
   return (
     <div className={MP_BURST_SECTION_OUTER}>
@@ -555,7 +558,7 @@ function ExpertCardBursts<T extends FieldValues>({
               className={`${MP_BURST_GRID_7} text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}
             >
               <span>Budget</span>
-              <span>Buy Amount</span>
+              <span>{buyAmountLabel}</span>
               <span>Start</span>
               <span>End</span>
               <span>{mountCalculated ? calculatedLabel : ""}</span>
@@ -577,6 +580,21 @@ function ExpertCardBursts<T extends FieldValues>({
           `${lineItemIndex}-${burstIndex}`
         const budgetRaw = parseBudgetRaw(
           form.getValues(burstFieldName<T>(itemsKey, lineItemIndex, burstIndex, "budget"))
+        )
+        const burstRecord = burstField as {
+          buyAmount?: unknown
+          calculatedValue?: unknown
+        } | null
+        const calculatedQty =
+          typeof burstRecord?.calculatedValue === "number" &&
+          Number.isFinite(burstRecord.calculatedValue)
+            ? burstRecord.calculatedValue
+            : parseFloat(String(burstRecord?.calculatedValue ?? "").replace(/[^0-9.]/g, ""))
+        const unitPriceWarning = buyAmountUnitPriceWarning(
+          buyType,
+          parseMoneyInput(burstRecord?.buyAmount as string | number | null | undefined) ??
+            Number.NaN,
+          calculatedQty
         )
 
         return (
@@ -657,6 +675,7 @@ function ExpertCardBursts<T extends FieldValues>({
                             <Input
                               {...field}
                               type="text"
+                              aria-label={buyAmountLabel}
                               className="h-10 w-full min-w-[9rem] text-sm"
                               value={bonusLocked ? "0" : field.value}
                               disabled={bonusLocked}
@@ -828,6 +847,14 @@ function ExpertCardBursts<T extends FieldValues>({
                   </Button>
                 </div>
               </div>
+              {unitPriceWarning ? (
+                <p
+                  className="mt-2 text-[11px] leading-snug text-status-behind-fg"
+                  role="status"
+                >
+                  {unitPriceWarning}
+                </p>
+              ) : null}
             </CardContent>
           </Card>
         )
