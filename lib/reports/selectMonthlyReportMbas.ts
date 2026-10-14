@@ -166,7 +166,8 @@ export function queuedReportRuns(
 
 /**
  * Queue one row per selected MBA. `insertQueued` must insert with
- * on conflict do nothing and return how many rows were new.
+ * on conflict do nothing where kind is not on_demand_deck, and return how
+ * many rows were new.
  */
 export async function enqueueMonthlyReportRuns(args: {
   candidates: readonly MonthlyReportMbaCandidate[]

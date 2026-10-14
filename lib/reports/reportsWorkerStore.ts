@@ -26,8 +26,9 @@ function isoDate(value: unknown): string {
 }
 
 /**
- * Rows stuck in generating for more than 30 minutes.
+ * Monthly rows stuck in generating for more than 30 minutes.
  * Under three attempts they return to queued. At three they fail.
+ * on_demand_deck is left for its own stuck rule.
  */
 export async function resetStuckReportRuns(): Promise<void> {
   const db = getDb()
@@ -39,6 +40,7 @@ export async function resetStuckReportRuns(): Promise<void> {
       finished_at = CASE WHEN attempts < 3 THEN NULL ELSE now() END
     WHERE status = 'generating'
       AND started_at < now() - interval '30 minutes'
+      AND kind <> 'on_demand_deck'
   `)
 }
 

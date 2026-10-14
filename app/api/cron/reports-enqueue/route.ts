@@ -4,6 +4,7 @@ import { and, eq, isNotNull } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
+import { queueMonthlyReportRuns } from "@/lib/reports/queueMonthlyReportRuns"
 import {
   enqueueMonthlyReportRuns,
   isMonthlyReportEnqueueDay,
@@ -97,17 +98,6 @@ async function loadMonthlyReportCandidates(): Promise<MonthlyReportMbaCandidate[
 
 async function insertQueued(rows: QueuedReportRun[]): Promise<number> {
   if (rows.length === 0) return 0
-  const db = getDb()
-  const inserted = await db
-    .insert(schema.reportRuns)
-    .values(rows)
-    .onConflictDoNothing({
-      target: [
-        schema.reportRuns.kind,
-        schema.reportRuns.mbaNumber,
-        schema.reportRuns.periodStart,
-      ],
-    })
-    .returning({ id: schema.reportRuns.id })
+  const inserted = await queueMonthlyReportRuns(getDb(), rows)
   return inserted.length
 }

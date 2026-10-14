@@ -20,3 +20,15 @@ test("monthly claim never returns on_demand_deck", () => {
   assert.match(claim, /kind <> 'on_demand_deck'/)
   assert.doesNotMatch(claim, /kind = 'on_demand_deck'/)
 })
+
+function resetStuckSql(): string {
+  const start = source.indexOf("export async function resetStuckReportRuns")
+  const end = source.indexOf("export async function claimNextReportRun")
+  assert.ok(start >= 0 && end > start)
+  return source.slice(start, end)
+}
+
+test("resetStuckReportRuns excludes on_demand_deck", () => {
+  const stuck = resetStuckSql()
+  assert.match(stuck, /kind <> 'on_demand_deck'/)
+})

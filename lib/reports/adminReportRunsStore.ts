@@ -8,6 +8,7 @@ import "server-only"
 import { and, asc, eq, isNotNull, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
+import { queueMonthlyReportRuns } from "@/lib/reports/queueMonthlyReportRuns"
 import {
   MONTHLY_CAMPAIGN_REPORT_KIND,
   queuedReportRuns,
@@ -92,18 +93,7 @@ async function loadPublishedReportCandidates(): Promise<MonthlyReportMbaCandidat
 
 async function insertQueued(rows: QueuedReportRun[]): Promise<number> {
   if (rows.length === 0) return 0
-  const db = getDb()
-  const inserted = await db
-    .insert(schema.reportRuns)
-    .values(rows)
-    .onConflictDoNothing({
-      target: [
-        schema.reportRuns.kind,
-        schema.reportRuns.mbaNumber,
-        schema.reportRuns.periodStart,
-      ],
-    })
-    .returning({ id: schema.reportRuns.id })
+  const inserted = await queueMonthlyReportRuns(getDb(), rows)
   return inserted.length
 }
 
