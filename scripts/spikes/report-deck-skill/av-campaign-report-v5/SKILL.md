@@ -39,7 +39,7 @@ Voice: Australian English, short sentences, no em dashes, no emojis. Titles stat
 
 ## Figures
 
-Use only numbers present in report-data.json, exactly as formatted there. Copy each formatted string. Do not round, abbreviate, recompute, or invent a count, percent, date, or dollar figure. Pace percents are already whole numbers. CTR, conversion rate, VTR and time elapsed stay at two decimal places. Missing values stay "Not yet reported".
+Use only numbers present in report-data.json, exactly as formatted there. Copy each formatted string. Do not round, abbreviate, recompute, or invent a count, percent, date, or dollar figure. Pace percents are already whole numbers. Results, conversions, clicks and impressions are whole numbers with thousands separators. Spend, CPM, CPC, CPA, CTR, conversion rate, VTR and time elapsed stay at two decimal places. Missing values stay "Not yet reported".
 
 ## content.json
 
@@ -49,11 +49,10 @@ Title: max 60 characters, one `{i:"phrase"}`, ends with a full stop. Limits: lab
 
 A label whose text is "Spend pace" is shown as "Spend pace of expected to date". Write the short label. The builder appends the rest.
 
-- cover `sand` (clone 3) or `black` (clone 2). Fields: `title`, `subtitle` (key). Arch photos 105–107. Client logo slot 102.
+- cover `sand` (clone 3) or `black` (clone 2). Fields: `title`, `subtitle` (key). Arch photos 105–107. The Assembled Media logo stays. An empty client logo slot is not drawn.
 - breaker `black` (clone 5), one slide, directly after the cover, only when the deck has 5 or more slides. Field: `title` (max 60, one serif phrase). Black ground, one arch photo, bar motif bottom right.
 - summary `stat-row` (Title Only - White): `title`, `stats` (up to 4 of `label`, `key`, `note`), `outcome`. Or `statement` (Statement - Black): `title`, `support`.
-- channel, one per live channel. `bars` (Title Only - Sand): `title`, `spend`, `expected`, `spendLabel`, `expectedLabel`, `delivery` (up to 4 of `label`, `key`), `insight`. `cards` (Three Cards): `title`, `cards` (exactly 3 of `title`, `key`, `body`). `photo` (Photo and Text): `title`, `value`, `body`, `photo` (0, 1 or 2).
-- not-live `cards` for one or two channels: `title`, `cards` (`label`, `budget`, `status`, optional `note`). `list` only for three or more: `title`, `rows` (`label`, `budget`, `note`) with number dots.
+- channel, one per live channel. `bars` (Title Only - Sand): `title`, `spend`, `expected`, `spendLabel`, `expectedLabel`, `delivery` (up to 4 of `label`, `key`), `insight`. `cards` (Three Cards): `title`, `cards` (exactly 3 of `title`, `key`, `body`). `photo` (Photo and Text): `title`, `value`, `body`, `photo` (0, 1 or 2). A channel in the payload's `notLive` list appears only as one line in the summary slide's Outcome text. Do not give it a slide.
 - kpi `four-cards`: `title`, `cards` (up to 4 of `label`, `actual`, `target`). `table`: `title`, `rows` (same fields), `insight` (max 160). The table sits with a sand insight card.
 - iao `rows` (Title Only - Black): `title`, `rows` (up to 4 of `tag` insight, action or outcome, and `text`) with sky, forest and lime tags. `journey`: `title`, `steps` (exactly 3 of `label`, `text`) on a journey line.
 - appendix `table`: `title`, `columns`, `rows` (each cell a key), `insight` (max 160). The table sits with a sand insight card.
@@ -65,7 +64,7 @@ A label whose text is "Spend pace" is shown as "Spend pace of expected to date".
 Scripts live in `/skills/av-campaign-report-v5/scripts/`. Run `ls "$INPUT_DIR"` once to learn the photo filenames.
 
 1. `python /skills/av-campaign-report-v5/scripts/summarise.py "$INPUT_DIR/report-data.json"`
-2. Pipe the content JSON into `python /skills/av-campaign-report-v5/scripts/write_content.py`. It checks variant names, character limits and value keys, writes `content.json`, and prints OK or the errors. Do not use jq. Do not use a heredoc.
+2. Pipe the content JSON into `python /skills/av-campaign-report-v5/scripts/write_content.py "$INPUT_DIR/report-data.json"`. It checks variant names, character limits, value keys, and that a `notLive` channel has no slide of its own. It writes `content.json` and prints OK or the errors. Do not use jq. Do not use a heredoc.
 3. `python /skills/av-campaign-report-v5/scripts/build_report.py content.json "$INPUT_DIR/report-data.json" "$INPUT_DIR/Assembled-Media-Template-v5.potx" "$OUTPUT_DIR/<mbaNumber>.pptx" "$INPUT_DIR/<photo1>" "$INPUT_DIR/<photo2>" "$INPUT_DIR/<photo3>"`
 4. If the build reports issues, change the content and pipe it through `write_content.py` once, then rerun step 3.
 5. Save to `$OUTPUT_DIR/<mbaNumber>.pptx`.

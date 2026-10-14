@@ -65,11 +65,48 @@ test("hema007 and curatif004 slim payloads stay under 25 KB and keep the deck fi
 test("deck figures format money, counts, percents and frequency targets", () => {
   assert.equal(formatDeckMoney(3484.7899999999995), "$3,484.79")
   assert.equal(formatDeckCount(394863), "394,863")
+  assert.equal(formatDeckCount(801.623869), "802")
+  assert.equal(formatDeckCount(183.62386899999998), "184")
   assert.equal(formatDeckPercent(0.02305103288988839), "2.31%")
   assert.equal(formatDeckPacePercent(0.3484789999999999), "35%")
   assert.equal(formatDeckPacePercent(1.1615966666666666), "116%")
   assert.equal(formatFrequencyTarget("1"), "1.0 frequency")
   assert.equal(formatFrequencyTarget("1.0 frequency"), "1.0 frequency")
+})
+
+test("results, conversions, clicks and impressions are whole numbers", () => {
+  const slim = slimDeckPayload({
+    mbaNumber: "curatif004",
+    clientName: "Curatif",
+    campaignName: "FY27",
+    totals: {
+      spend: 15927.56,
+      impressions: 865926.4,
+      clicks: 18669.2,
+      results: 801.623869,
+      conversions: 801.623869,
+      metrics: { cpm: 18.391, cpc: 0.853, cpa: 19.876, ctr: 0.02305103288988839 },
+    },
+    channels: [],
+    kpis: [],
+  })
+  const summary = slim.summary as {
+    spend: string
+    impressions: string
+    clicks: string
+    results: string
+    conversions: string
+    metrics: { cpm: string; cpc: string; cpa: string; ctr: string }
+  }
+  assert.equal(summary.results, "802")
+  assert.equal(summary.conversions, "802")
+  assert.equal(summary.impressions, "865,926")
+  assert.equal(summary.clicks, "18,669")
+  assert.equal(summary.spend, "$15,927.56")
+  assert.equal(summary.metrics.cpm, "$18.39")
+  assert.equal(summary.metrics.cpc, "$0.85")
+  assert.equal(summary.metrics.cpa, "$19.88")
+  assert.equal(summary.metrics.ctr, "2.31%")
 })
 
 function audienceReport(channels: Record<string, unknown>[]): Record<string, unknown> {

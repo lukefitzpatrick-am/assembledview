@@ -21,7 +21,21 @@ def main():
     except json.JSONDecodeError as error:
         sys.stdout.write(f"error: invalid JSON ({error})\n")
         return 1
-    errors = validate_content(content)
+    data = None
+    if len(sys.argv) == 2:
+        try:
+            with open(sys.argv[1], encoding="utf-8") as handle:
+                data = json.load(handle)
+        except OSError as error:
+            sys.stdout.write(f"error: {error}\n")
+            return 1
+        if not isinstance(data, dict):
+            sys.stdout.write("error: report-data.json must be an object\n")
+            return 1
+    elif len(sys.argv) > 2:
+        sys.stdout.write("usage: write_content.py [report-data.json]\n")
+        return 2
+    errors = validate_content(content, data)
     if errors:
         for error in errors:
             sys.stdout.write(f"error: {error}\n")

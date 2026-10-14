@@ -112,6 +112,7 @@ const MONEY_KEYS = new Set([
   "rateExcludedSpend",
   "cpm",
   "cpc",
+  "cpa",
   "cpv",
   "cpr",
 ])
@@ -119,6 +120,7 @@ const COUNT_KEYS = new Set([
   "impressions",
   "clicks",
   "results",
+  "conversions",
   "views",
   "videoViews3s",
   "plannedImpressions",
@@ -144,9 +146,9 @@ export function formatDeckMoney(value: number): string {
   return `$${grouped(value, 2)}`
 }
 
-/** Thousands separators. Integers stay whole. Other counts use 2 dp. */
+/** Thousands separators. Results, conversions, clicks and impressions are whole numbers. */
 export function formatDeckCount(value: number): string {
-  return grouped(value, Number.isInteger(value) ? 0 : 2)
+  return grouped(Math.round(value), 0)
 }
 
 /** A 0–1 fraction as a percent with 2 dp. CTR, conversion rate and VTR stay here. */

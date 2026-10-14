@@ -306,6 +306,154 @@ def test_breaker_and_recommendations_build():
             fail(f"{name} check failed: {issues}")
 
 
+def run_text(part):
+    return part.t if hasattr(part, "t") else part
+
+
+def test_title_full_stop_sits_on_the_last_word():
+    """The full stop is not its own run after the serif phrase."""
+    build = load("build_report.py")
+    cases = [
+        ('Spend sits {i:"behind pace"}.', "behind pace."),
+        ('Social (Meta) is {i:"on track"}.', "on track."),
+        ('Where the month {i:"stands"}.', "stands."),
+        ('Thanks for {i:"reading"}.', "reading."),
+        ('Rates sit {i:"below target"}.', "below target."),
+    ]
+    for title, serif in cases:
+        _visible, parts = build.parse_title(title, "title")
+        texts = [run_text(part) for part in parts]
+        if any(text.strip() == "." for text in texts):
+            fail(f"full stop is its own run for {title!r}: {texts}")
+        if serif not in texts:
+            fail(f"serif run should be {serif!r}, got {texts}")
+        if " ." in "".join(texts):
+            fail(f"space before the full stop in {texts}")
+    _visible, parts = build.parse_title('What to {i:"do"} next.', "title")
+    texts = [run_text(part) for part in parts]
+    if texts[-1] != " next.":
+        fail(f"words after the serif phrase lost the stop: {texts}")
+    _visible, parts = build.parse_title('The Curatif {i:"campaign"} report.', "title")
+    texts = [run_text(part) for part in parts]
+    joined = "".join(texts)
+    if not joined.endswith("report."):
+        fail(f"cover title stop moved: {texts}")
+    if " ." in joined or any(text.strip() == "." for text in texts):
+        fail(f"cover title has a loose stop: {texts}")
+
+
+def test_not_live_channel_has_no_slide():
+    build = load("build_report.py")
+    data = {
+        "channels": [
+            {"group": "social_meta", "label": "Social (Meta)", "notLive": False},
+            {"group": "social_tiktok", "label": "Social (TikTok)", "notLive": True},
+        ],
+        "notLive": [{"group": "social_tiktok", "label": "Social (TikTok)"}],
+    }
+    own_slide = {
+        "slides": [{
+            "type": "not-live",
+            "variant": "cards",
+            "title": "TikTok is {i:\"yet to launch\"}.",
+            "cards": [{
+                "label": "Social (TikTok)",
+                "budget": "notLive.0.plannedBudget",
+                "status": "Not yet live.",
+            }],
+        }],
+    }
+    errors = build.validate_content(own_slide, data)
+    if not any("notLive" in error and "summary outcome" in error for error in errors):
+        fail(f"not-live slide was allowed: {errors}")
+    by_index = {
+        "slides": [{
+            "type": "channel",
+            "variant": "photo",
+            "title": "TikTok is {i:\"yet to launch\"}.",
+            "value": "channels.1.spend",
+            "body": "Waiting to start.",
+            "photo": 0,
+        }],
+    }
+    errors = build.validate_content(by_index, data)
+    if not any("notLive" in error and "summary outcome" in error for error in errors):
+        fail(f"not-live channel index was allowed: {errors}")
+    by_group = {
+        "slides": [{
+            "type": "channel",
+            "variant": "photo",
+            "title": "TikTok is {i:\"yet to launch\"}.",
+            "value": "channels.social_tiktok.spend",
+            "body": "Waiting to start.",
+            "photo": 0,
+        }],
+    }
+    errors = build.validate_content(by_group, data)
+    if not any("Social (TikTok)" in error for error in errors):
+        fail(f"not-live group key was allowed: {errors}")
+    live = {
+        "slides": [{
+            "type": "channel",
+            "variant": "photo",
+            "title": "Meta is {i:\"on track\"}.",
+            "value": "channels.0.spend",
+            "body": "Delivery is in.",
+            "photo": 0,
+        }],
+    }
+    errors = build.validate_content(live, data)
+    if any("notLive" in error for error in errors):
+        fail(f"live channel was rejected: {errors}")
+    summary = {
+        "slides": [{
+            "type": "summary",
+            "variant": "stat-row",
+            "title": "Spend sits {i:\"behind pace\"}.",
+            "stats": [{"label": "Spend", "key": "summary.spend"}],
+            "outcome": "TikTok has not started.",
+        }],
+    }
+    errors = build.validate_content(summary, data)
+    if any("notLive" in error for error in errors):
+        fail(f"summary outcome line was rejected: {errors}")
+
+
+def test_kpi_value_drops_repeated_unit():
+    build = load("build_report.py")
+    photos = [
+        os.path.join(HERE, "kit", "assembled-brand-kit", "library", name)
+        for name in ("pexels-6299928.jpg", "pexels-6786367.jpg", "pexels-13935909.jpg")
+    ]
+    data = {
+        "kpis": [
+            {"label": "Frequency", "targetDisplay": "1.0 frequency", "actualDisplay": "Not yet reported"},
+            {"label": "CTR", "targetDisplay": "4.00%", "actualDisplay": "2.16%"},
+        ],
+    }
+    content = {
+        "slides": [{
+            "type": "kpi",
+            "variant": "table",
+            "title": "Rates sit {i:\"below target\"}.",
+            "rows": [
+                {"label": "kpis.0.label", "actual": "kpis.0.actualDisplay", "target": "kpis.0.targetDisplay"},
+                {"label": "kpis.1.label", "actual": "kpis.1.actualDisplay", "target": "kpis.1.targetDisplay"},
+            ],
+            "insight": "Click through rate is behind its target.",
+        }],
+    }
+    out = os.path.join(OUT, "kpi-units.pptx")
+    build.build(content, data, TEMPLATE, out, photos)
+    text = slide_text(out)
+    if "1.0 frequency" in text:
+        fail("frequency unit was repeated in the value column")
+    if ">1.0<" not in text and "1.0" not in text:
+        fail("frequency value was dropped")
+    if "4.00%" not in text or "2.16%" not in text:
+        fail(f"percent KPI values were changed: {text[:500]}")
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     test_missing_key()
@@ -315,6 +463,9 @@ def main():
     test_pace_and_fallback()
     test_number_exemptions()
     test_breaker_and_recommendations_build()
+    test_title_full_stop_sits_on_the_last_word()
+    test_not_live_channel_has_no_slide()
+    test_kpi_value_drops_repeated_unit()
     print("tests OK")
 
 

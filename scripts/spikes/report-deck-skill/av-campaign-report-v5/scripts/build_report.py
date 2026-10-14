@@ -18,7 +18,7 @@ from am_rebrand import (  # noqa: E402
     arch, btn, card, journey, line, numdot, pill, table, tag, tb, trio,
 )
 
-KEY_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(\.[A-Za-z0-9]+)+")
+KEY_RE = re.compile(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+")
 SERIF_RE = re.compile(r"\{i:\"([^\"]*)\"\}")
 
 
@@ -122,8 +122,14 @@ def parse_title(title, path):
     for match in SERIF_RE.finditer(title):
         if match.start() > cursor:
             parts.append(title[cursor:match.start()])
-        parts.append(I(match.group(1)))
+        phrase = match.group(1)
         cursor = match.end()
+        # The stop belongs on the serif run. A following "." run draws a gap.
+        stop = re.match(r"[ \t]*\.", title[cursor:])
+        if stop:
+            phrase = phrase.rstrip() + "."
+            cursor += stop.end()
+        parts.append(I(phrase))
     if cursor < len(title):
         parts.append(title[cursor:])
     parts = [part for part in parts if part != ""]
@@ -191,6 +197,26 @@ def with_pace(label):
     return label
 
 
+def kpi_figure(label, value):
+    """Drop a trailing unit that repeats the KPI label. Frequency + '1.0 frequency' is '1.0'."""
+    text = value.strip()
+    units = []
+    cleaned = label.strip()
+    if cleaned:
+        units.append(cleaned)
+    units.extend(re.findall(r"[A-Za-z]{2,}", cleaned))
+    seen = set()
+    for unit in units:
+        key = unit.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        trimmed = re.sub(rf"\s+{re.escape(unit)}\s*$", "", text, count=1, flags=re.IGNORECASE)
+        if trimmed != text and trimmed.strip():
+            text = trimmed.strip()
+    return text
+
+
 def insight_card(slide, path, spec, table_top, row_h, row_count):
     insight = text_of(require(spec, "insight", f"{path}.insight"), f"{path}.insight", 160)
     top = table_top + row_h * row_count + 0.18
@@ -242,9 +268,8 @@ def build_cover(deck, spec, index, photos):
     sub.name = f"{path}.subtitle"
     for slot, photo in zip((105, 106, 107), photos):
         deck.photo(slide, slot, photo, kind="arch")
-    client = DATA.get("clientName") if isinstance(DATA.get("clientName"), str) else "client"
-    deck.drop(slide, 101)
-    deck.photo_slot(slide, 102, client + " logo", kind="round")
+    # Placeholder 102 is the client logo slot. With no logo file, leave it off the cover.
+    deck.drop(slide, 101, 102)
     return slide
 
 
@@ -447,10 +472,11 @@ def build_kpi(deck, spec, index):
             at = f"{path}.rows.{item_index}"
             if not isinstance(item, dict):
                 fail(at, "expected an object")
+            label = key_of(require(item, "label", f"{at}.label"), f"{at}.label")
             table_rows.append([
-                key_of(require(item, "label", f"{at}.label"), f"{at}.label"),
-                key_of(require(item, "target", f"{at}.target"), f"{at}.target"),
-                key_of(require(item, "actual", f"{at}.actual"), f"{at}.actual"),
+                label,
+                kpi_figure(label, key_of(require(item, "target", f"{at}.target"), f"{at}.target")),
+                kpi_figure(label, key_of(require(item, "actual", f"{at}.actual"), f"{at}.actual")),
             ])
         grid = table(slide, 0.6, 2.15, 12.13, table_rows, widths=[3, 4, 4], size=13, head=True, first_bold=True, row_h=0.42)
         grid.name = f"{path}.table"
@@ -472,8 +498,8 @@ def build_kpi(deck, spec, index):
         if not isinstance(item, dict):
             fail(at, "expected an object")
         label = key_of(require(item, "label", f"{at}.label"), f"{at}.label")
-        actual = key_of(require(item, "actual", f"{at}.actual"), f"{at}.actual")
-        target = key_of(require(item, "target", f"{at}.target"), f"{at}.target")
+        actual = kpi_figure(label, key_of(require(item, "actual", f"{at}.actual"), f"{at}.actual"))
+        target = kpi_figure(label, key_of(require(item, "target", f"{at}.target"), f"{at}.target"))
         fill_named(deck, slide, head, label, f"{at}.label", 14, K["ink"], HEAD)
         fill_named(
             deck, slide, body,
@@ -677,8 +703,89 @@ BUILDERS = {
 }
 
 
-def validate_content(content):
-    """Schema checks that do not need report-data.json. Resolved string length is checked at build."""
+def collect_keys(node, found):
+    if isinstance(node, str):
+        if KEY_RE.fullmatch(node):
+            found.append(node)
+        return
+    if isinstance(node, list):
+        for part in node:
+            if isinstance(part, dict) and isinstance(part.get("k"), str) and set(part) == {"k"}:
+                found.append(part["k"])
+            else:
+                collect_keys(part, found)
+        return
+    if isinstance(node, dict):
+        for value in node.values():
+            collect_keys(value, found)
+
+
+def slide_keys(spec):
+    found = []
+    if spec.get("type") == "summary":
+        for field, value in spec.items():
+            if field == "outcome":
+                continue
+            collect_keys(value, found)
+        return found
+    collect_keys(spec, found)
+    return found
+
+
+def not_live_lookup(data):
+    """Index and group names for channels the payload marks not live."""
+    indexes = {}
+    groups = {}
+    listed = {}
+    if not isinstance(data, dict):
+        return indexes, groups, listed
+    channels = data.get("channels")
+    if isinstance(channels, list):
+        for index, channel in enumerate(channels):
+            if not isinstance(channel, dict) or channel.get("notLive") is not True:
+                continue
+            label = channel.get("label") if isinstance(channel.get("label"), str) else channel.get("group")
+            name = label if isinstance(label, str) else f"channels.{index}"
+            indexes[str(index)] = name
+            group = channel.get("group")
+            if isinstance(group, str):
+                groups[group] = name
+    rows = data.get("notLive")
+    if isinstance(rows, list):
+        for index, channel in enumerate(rows):
+            if not isinstance(channel, dict):
+                continue
+            label = channel.get("label") if isinstance(channel.get("label"), str) else channel.get("group")
+            name = label if isinstance(label, str) else f"notLive.{index}"
+            listed[index] = name
+            group = channel.get("group")
+            if isinstance(group, str) and group not in groups:
+                groups[group] = name
+    return indexes, groups, listed
+
+
+def not_live_name(key, indexes, groups, listed):
+    if key.startswith("notLive."):
+        parts = key.split(".")
+        if len(parts) >= 2 and parts[1].isdigit():
+            return listed.get(int(parts[1]), "notLive channel")
+        return "notLive channel"
+    match = re.fullmatch(r"channels\.([A-Za-z0-9_]+)\..+", key)
+    if not match:
+        return None
+    part = match.group(1)
+    if part in indexes:
+        return indexes[part]
+    if part in groups:
+        return groups[part]
+    return None
+
+
+def validate_content(content, data=None):
+    """Schema checks. Resolved string length is checked at build.
+
+    A channel in notLive may be named in the summary outcome and nowhere else.
+    """
     errors = []
 
     def bad(path, message):
@@ -750,6 +857,8 @@ def validate_content(content):
 
     if not isinstance(content, dict) or not isinstance(content.get("slides"), list) or not content["slides"]:
         return ["slides: expected a slide list"]
+
+    indexes, groups, listed = not_live_lookup(data)
 
     for index, spec in enumerate(content["slides"]):
         path = f"slides.{index}"
@@ -911,6 +1020,12 @@ def validate_content(content):
             if name == "cta":
                 prose(spec.get("support"), f"{path}.support", 140)
                 prose(spec.get("button"), f"{path}.button", 24)
+        for key in slide_keys(spec):
+            name = not_live_name(key, indexes, groups, listed)
+            if name is None:
+                continue
+            bad(path, f"{name} is in notLive; mention it in the summary outcome, not on its own slide")
+            break
     return errors
 
 
