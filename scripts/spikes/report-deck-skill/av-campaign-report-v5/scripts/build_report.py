@@ -711,35 +711,6 @@ BUILDERS = {
 }
 
 
-def collect_keys(node, found):
-    if isinstance(node, str):
-        if KEY_RE.fullmatch(node):
-            found.append(node)
-        return
-    if isinstance(node, list):
-        for part in node:
-            if isinstance(part, dict) and isinstance(part.get("k"), str) and set(part) == {"k"}:
-                found.append(part["k"])
-            else:
-                collect_keys(part, found)
-        return
-    if isinstance(node, dict):
-        for value in node.values():
-            collect_keys(value, found)
-
-
-def slide_keys(spec):
-    found = []
-    if spec.get("type") == "summary":
-        for field, value in spec.items():
-            if field == "outcome":
-                continue
-            collect_keys(value, found)
-        return found
-    collect_keys(spec, found)
-    return found
-
-
 def not_live_lookup(data):
     """Index and group names for channels the payload marks not live."""
     indexes = {}
@@ -789,10 +760,71 @@ def not_live_name(key, indexes, groups, listed):
     return None
 
 
+def channel_token(value):
+    return re.sub(r"[^a-z0-9]+", "", value.lower())
+
+
+def channel_field_name(value, indexes, groups, listed):
+    """The not-live channel named by a slide's own channel field."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    if value in groups:
+        return groups[value]
+    if value in indexes:
+        return indexes[value]
+    wanted = channel_token(value)
+    if not wanted:
+        return None
+    for name in list(groups.values()) + list(indexes.values()) + list(listed.values()):
+        folded = channel_token(name)
+        if folded == wanted or folded.endswith(wanted):
+            return name
+    for group, name in groups.items():
+        if channel_token(group) == wanted:
+            return name
+    return None
+
+
+def primary_channel_keys(spec):
+    """Value keys that say which channel this slide is about."""
+    found = []
+    kind = spec.get("type")
+    if kind == "channel":
+        for field in ("spend", "expected", "value"):
+            node = spec.get(field)
+            if isinstance(node, str):
+                found.append(node)
+        for group in ("delivery", "cards"):
+            rows = spec.get(group)
+            if not isinstance(rows, list):
+                continue
+            for item in rows:
+                if isinstance(item, dict) and isinstance(item.get("key"), str):
+                    found.append(item["key"])
+    elif kind == "not-live":
+        for group in ("cards", "rows"):
+            rows = spec.get(group)
+            if not isinstance(rows, list):
+                continue
+            for item in rows:
+                if isinstance(item, dict) and isinstance(item.get("budget"), str):
+                    found.append(item["budget"])
+    return found
+
+
+def not_live_slide_error(number, name):
+    return (
+        f"slide {number} (channel): {name} is not live. "
+        f"Remove this slide and mention {name} in the summary Outcome instead."
+    )
+
+
 def validate_content(content, data=None):
     """Schema checks. Resolved string length is checked at build.
 
-    A channel in notLive may be named in the summary outcome and nowhere else.
+    A not-live channel has no slide of its own. Summary, KPI and rates
+    slides may still name it. The slide's own channel is its channel field
+    or, on a channel or not-live slide, its primary value keys.
     """
     errors = []
 
@@ -1028,12 +1060,17 @@ def validate_content(content, data=None):
             if name == "cta":
                 prose(spec.get("support"), f"{path}.support", 140)
                 prose(spec.get("button"), f"{path}.button", 24)
-        for key in slide_keys(spec):
-            name = not_live_name(key, indexes, groups, listed)
-            if name is None:
-                continue
-            bad(path, f"{name} is in notLive; mention it in the summary outcome, not on its own slide")
-            break
+        own = []
+        named = channel_field_name(spec.get("channel"), indexes, groups, listed)
+        if named:
+            own.append(named)
+        if kind in ("channel", "not-live"):
+            for channel_key in primary_channel_keys(spec):
+                named = not_live_name(channel_key, indexes, groups, listed)
+                if named and named not in own:
+                    own.append(named)
+        for name in own:
+            errors.append(not_live_slide_error(index + 1, name))
     return errors
 
 

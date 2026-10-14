@@ -52,7 +52,7 @@ A label whose text is "Spend pace" is shown as "Spend pace of expected to date".
 - cover `sand` (clone 3) or `black` (clone 2). Fields: `title`, `subtitle` (key). Arch photos 105–107. The Assembled Media logo stays. An empty client logo slot is not drawn.
 - breaker `black` (clone 5), one slide, directly after the cover, only when the deck has 5 or more slides. Field: `title` (max 60, one serif phrase). Black ground, one arch photo, bar motif bottom right.
 - summary `stat-row` (Title Only - White): `title`, `stats` (up to 4 of `label`, `key`, `note`), `outcome`. Or `statement` (Statement - Black): `title`, `support`.
-- channel, one per live channel. `bars` (Title Only - Sand): `title`, `spend`, `expected`, `spendLabel`, `expectedLabel`, `delivery` (up to 4 of `label`, `key`), `insight`. `cards` (Three Cards): `title`, `cards` (exactly 3 of `title`, `key`, `body`). `photo` (Photo and Text): `title`, `value`, `body`, `photo` (0, 1 or 2). A channel in the payload's `notLive` list appears only as one line in the summary slide's Outcome text. Do not give it a slide.
+- channel, one per live channel. `bars` (Title Only - Sand): `title`, `spend`, `expected`, `spendLabel`, `expectedLabel`, `delivery` (up to 4 of `label`, `key`), `insight`. `cards` (Three Cards): `title`, `cards` (exactly 3 of `title`, `key`, `body`). `photo` (Photo and Text): `title`, `value`, `body`, `photo` (0, 1 or 2). A channel in the payload's `notLive` list does not get its own slide. Name it in the summary Outcome. A summary, KPI or rates slide may mention it.
 - kpi `four-cards`: `title`, `cards` (up to 4 of `label`, `actual`, `target`). `table`: `title`, `rows` (same fields), `insight` (max 160). The table sits with a sand insight card.
 - iao `rows` (Title Only - Black): `title`, `rows` (up to 4 of `tag` insight, action or outcome, and `text`) with sky, forest and lime tags. `journey`: `title`, `steps` (exactly 3 of `label`, `text`) on a journey line.
 - appendix `table`: `title`, `columns`, `rows` (each cell a key), `insight` (max 160). The table sits with a sand insight card.
@@ -64,9 +64,9 @@ A label whose text is "Spend pace" is shown as "Spend pace of expected to date".
 Scripts live in `/skills/av-campaign-report-v5/scripts/`. Run `ls "$INPUT_DIR"` once to learn the photo filenames.
 
 1. `python /skills/av-campaign-report-v5/scripts/summarise.py "$INPUT_DIR/report-data.json"`
-2. Pipe the content JSON into `python /skills/av-campaign-report-v5/scripts/write_content.py "$INPUT_DIR/report-data.json"`. It checks variant names, character limits, value keys, and that a `notLive` channel has no slide of its own. It writes `content.json` and prints OK or the errors. Do not use jq. Do not use a heredoc.
+2. Pipe the content JSON into `python /skills/av-campaign-report-v5/scripts/write_content.py "$INPUT_DIR/report-data.json"`. It checks variant names, character limits, value keys, and that a slide whose own channel is in `notLive` is rejected. Summary, KPI and rates slides may name that channel. Each error is one line and names the slide number, the field, the rule and the fix. It writes `content.json` and prints OK or the errors. Do not use jq. Do not use a heredoc.
 3. `python /skills/av-campaign-report-v5/scripts/build_report.py content.json "$INPUT_DIR/report-data.json" "$INPUT_DIR/Assembled-Media-Template-v5.potx" "$OUTPUT_DIR/<mbaNumber>.pptx" "$INPUT_DIR/<photo1>" "$INPUT_DIR/<photo2>" "$INPUT_DIR/<photo3>"`
-4. If the build reports issues, change the content and pipe it through `write_content.py` once, then rerun step 3.
+4. If `write_content.py` prints errors, change only the named fields and pipe it again. At most 3 attempts. Do not split, bisect, or rebuild the deck in pieces. Do not write files anywhere except `content.json` and `$OUTPUT_DIR`. If the third attempt still fails, drop the failing slides, build with the last valid content, and save the deck anyway.
 5. Save to `$OUTPUT_DIR/<mbaNumber>.pptx`.
 
 Never view or open images. Never read am_rebrand.py, build_report.py or check_deck.py. Never print files. Never write your own build script.

@@ -1,20 +1,27 @@
 import assert from "node:assert/strict"
+import fs from "node:fs"
 import test from "node:test"
 
 import Anthropic from "@anthropic-ai/sdk"
 import JSZip from "jszip"
 
 import { buildDeckForRun } from "@/lib/reports/deckJobs/runOnDemandDeck"
+import { DECK_STEP_IO_CHARS } from "@/lib/reports/deckSkill/containerSteps"
 import {
   createDeckSkillClient,
+  DECK_STEP_NOTE_STDERR_CHARS,
+  deckSkillFailureNote,
+  deckStepsFromError,
   runDeckSkill,
   type DeckSkillClient,
   type DeckSkillMessage,
 } from "@/lib/reports/deckSkill/runDeckSkill"
 import {
   assertDeckSkillPaidConfirm,
+  closeDeckSkillOnce,
   deckSkillOnceReportInput,
   runDeckSkillOnce,
+  writeDeckSkillSteps,
 } from "../../../../scripts/reports/run-deck-skill-once"
 
 const savedKey = process.env.ANTHROPIC_API_KEY
@@ -230,6 +237,11 @@ test("flag skill success returns the pptx and deletes uploaded and output files"
     assert.match(text, /Do not read the skill scripts/)
     assert.match(text, /Do not write your own build script/)
     assert.match(text, /check_deck\.py/)
+    assert.match(text, /change only the named fields/)
+    assert.match(text, /At most 3 attempts/)
+    assert.match(text, /Do not split, bisect, or rebuild the deck in pieces/)
+    assert.match(text, /Do not write files anywhere except content\.json and \$OUTPUT_DIR/)
+    assert.match(text, /drop the failing slides/)
     const reportUpload = state.uploads.find((file) => file.filename === "report-data.json")
     assert.ok(reportUpload)
     const slim = JSON.parse(reportUpload.bytes.toString()) as { audiences?: { name: string }[] }
@@ -551,6 +563,93 @@ test("a skill error log includes the error name and message", async () => {
     assert.equal(row.error_message?.length, 300)
   } finally {
     console.log = original
+    restore("DECK_SKILL_ID", skillId)
+  }
+})
+
+test("a failed container step keeps the command, exit status and clipped output", async () => {
+  const renderer = process.env.DECK_RENDERER
+  const skillId = process.env.DECK_SKILL_ID
+  process.env.DECK_RENDERER = "skill"
+  process.env.DECK_SKILL_ID = "skill_test_id"
+  const stdout = `O${"o".repeat(DECK_STEP_IO_CHARS)}`
+  const stderr = `E${"e".repeat(DECK_STEP_IO_CHARS + 50)}`
+  const command = "python /skills/av-campaign-report-v5/scripts/write_content.py \"$INPUT_DIR/report-data.json\""
+  const { client } = mockClient({
+    respond: () => ({
+      stop_reason: "end_turn",
+      container: { id: "cont_1" },
+      usage: { input_tokens: 10, output_tokens: 10 },
+      content: [
+        {
+          type: "server_tool_use",
+          id: "tool_1",
+          name: "bash_code_execution",
+          input: { command },
+        },
+        {
+          type: "bash_code_execution_tool_result",
+          tool_use_id: "tool_1",
+          content: {
+            type: "bash_code_execution_result",
+            stdout,
+            stderr,
+            return_code: 1,
+          },
+        },
+      ],
+    }),
+  })
+  try {
+    const err = await runDeckSkill(
+      { mbaNumber: "curatif004", report, fileName: FILE_NAME },
+      { client, kit },
+    ).then(
+      () => { throw new Error("expected the skill to fail") },
+      (caught: unknown) => caught,
+    )
+    const steps = deckStepsFromError(err)
+    assert.ok(steps)
+    assert.equal(steps[0]?.command, command)
+    assert.equal(steps[0]?.exitStatus, 1)
+    assert.equal(steps[0]?.errored, true)
+    assert.equal(steps[0]?.stdout, stdout.slice(0, DECK_STEP_IO_CHARS))
+    assert.equal(steps[0]?.stderr, stderr.slice(0, DECK_STEP_IO_CHARS))
+    assert.equal(steps[0]?.stdout.length, DECK_STEP_IO_CHARS)
+    const note = deckSkillFailureNote(err)
+    assert.ok(note)
+    assert.match(note, /write_content\.py/)
+    assert.equal(note.includes(stderr.slice(0, DECK_STEP_NOTE_STDERR_CHARS)), true)
+    assert.equal(note.includes(stderr.slice(0, DECK_STEP_NOTE_STDERR_CHARS + 1)), false)
+    const built = await buildDeckForRun(RUN, {
+      generate: nodeGenerate,
+      loadReport,
+      runSkill: async () => { throw err },
+    })
+    assert.equal(built.note?.includes(command), true)
+    assert.equal(built.note?.includes(stderr.slice(0, DECK_STEP_NOTE_STDERR_CHARS)), true)
+    const dest = writeDeckSkillSteps("curatif004-step-log-test", steps)
+    const written = JSON.parse(fs.readFileSync(dest, "utf8")) as { command: string; exitStatus: number; stderr: string }[]
+    assert.equal(written[0]?.command, command)
+    assert.equal(written[0]?.exitStatus, 1)
+    assert.equal(written[0]?.stderr.length, DECK_STEP_IO_CHARS)
+    fs.unlinkSync(dest)
+    let closed = false
+    let code = -1
+    await closeDeckSkillOnce(1, {
+      closePool: async () => { closed = true },
+      exit: (status) => { code = status },
+    })
+    assert.equal(closed, true)
+    assert.equal(code, 1)
+    closed = false
+    await closeDeckSkillOnce(0, {
+      closePool: async () => { throw new Error("pool already closed") },
+      exit: (status) => { code = status },
+    })
+    assert.equal(code, 0)
+  } finally {
+    restore("DECK_RENDERER", renderer)
     restore("DECK_SKILL_ID", skillId)
   }
 })

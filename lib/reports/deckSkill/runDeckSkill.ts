@@ -149,6 +149,29 @@ export function createDeckSkillClient(source?: DeckSkillClientSource): DeckSkill
   }) as unknown as DeckSkillClient
 }
 
+export const DECK_STEP_NOTE_STDERR_CHARS = 1_000
+
+export function deckStepsFromError(err: unknown): ContainerStep[] | null {
+  if (!err || typeof err !== "object" || !("deckSteps" in err)) return null
+  const steps = (err as { deckSteps?: unknown }).deckSteps
+  return Array.isArray(steps) ? (steps as ContainerStep[]) : null
+}
+
+/** The first failing container step, for the run note. */
+export function deckSkillFailureNote(err: unknown): string | null {
+  const failed = deckStepsFromError(err)?.find((step) => step.errored)
+  if (!failed) return null
+  const command = failed.command.trim()
+  const stderr = failed.stderr.slice(0, DECK_STEP_NOTE_STDERR_CHARS)
+  if (!command && !stderr) return null
+  return [command, stderr].filter((part) => part.length > 0).join("\n")
+}
+
+function attachDeckSteps(err: unknown, steps: ContainerStep[]): void {
+  if (!err || typeof err !== "object") return
+  Object.assign(err, { deckSteps: steps })
+}
+
 function deckSkillErrorFields(err: unknown): { error_name: string; error_message: string } {
   const name = err instanceof Error && err.name ? err.name : "Error"
   const message = err instanceof Error ? err.message : String(err)
@@ -182,6 +205,11 @@ function userMessage(mbaNumber: string): string {
     `Then run python /skills/av-campaign-report-v5/scripts/check_deck.py "$OUTPUT_DIR/${mbaNumber}.pptx" "$INPUT_DIR/report-data.json" content.json.`,
     "Do not view or open images. Do not read the skill scripts. Do not print files. Do not write your own build script.",
     "Use only the formatted strings in report-data.json, via the keys in content.json.",
+    "If write_content.py prints errors, change only the named fields and pipe it again.",
+    "At most 3 attempts.",
+    "Do not split, bisect, or rebuild the deck in pieces.",
+    "Do not write files anywhere except content.json and $OUTPUT_DIR.",
+    "If the third attempt still fails, drop the failing slides, build with the last valid content, and save the deck anyway.",
     `Save the deck to $OUTPUT_DIR/${mbaNumber}.pptx.`,
   ].join(" ")
 }
@@ -348,6 +376,7 @@ export async function runDeckSkill(
   } catch (err) {
     if (outcome === "ok") outcome = "error"
     failure = err
+    attachDeckSteps(err, steps)
     throw err
   } finally {
     logJob("[deck-skill]", {

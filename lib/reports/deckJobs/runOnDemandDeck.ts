@@ -20,7 +20,12 @@ import {
   loadCampaignReportForMba,
   type GenerateCampaignReportInput,
 } from "@/lib/reports/campaignReport/generateCampaignReportForMba"
-import { runDeckSkill, type DeckSkillDeps, type DeckSkillInput } from "@/lib/reports/deckSkill/runDeckSkill"
+import {
+  deckSkillFailureNote,
+  runDeckSkill,
+  type DeckSkillDeps,
+  type DeckSkillInput,
+} from "@/lib/reports/deckSkill/runDeckSkill"
 import { storePerformanceReport } from "@/lib/reports/storePerformanceReport"
 
 type LoadedForSkill = {
@@ -39,7 +44,9 @@ export type BuildDeckForRunDeps = {
 function fallbackReason(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err)
   const line = message.split("\n")[0]?.trim() || "Skill deck failed"
-  return line.slice(0, 180)
+  const step = deckSkillFailureNote(err)
+  if (!step) return line.slice(0, 180)
+  return `${line.slice(0, 180)}\n${step}`
 }
 
 function commentaryFrom(report: unknown): GenerateCampaignReportInput["commentary"] {

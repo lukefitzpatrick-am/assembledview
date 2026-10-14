@@ -342,6 +342,24 @@ def test_title_full_stop_sits_on_the_last_word():
         fail(f"cover title has a loose stop: {texts}")
 
 
+NOT_LIVE_LINE = (
+    "slide {number} (channel): {name} is not live. "
+    "Remove this slide and mention {name} in the summary Outcome instead."
+)
+
+
+def not_live_line(number, name="Social (TikTok)"):
+    return NOT_LIVE_LINE.format(number=number, name=name)
+
+
+def assert_not_live(errors, number, name="Social (TikTok)"):
+    expected = not_live_line(number, name)
+    if expected not in errors:
+        fail(f"expected {expected!r}, got {errors}")
+    if any("\n" in error for error in errors):
+        fail(f"not-live error is more than one line: {errors}")
+
+
 def test_not_live_channel_has_no_slide():
     build = load("build_report.py")
     data = {
@@ -364,8 +382,7 @@ def test_not_live_channel_has_no_slide():
         }],
     }
     errors = build.validate_content(own_slide, data)
-    if not any("notLive" in error and "summary outcome" in error for error in errors):
-        fail(f"not-live slide was allowed: {errors}")
+    assert_not_live(errors, 1)
     by_index = {
         "slides": [{
             "type": "channel",
@@ -377,8 +394,7 @@ def test_not_live_channel_has_no_slide():
         }],
     }
     errors = build.validate_content(by_index, data)
-    if not any("notLive" in error and "summary outcome" in error for error in errors):
-        fail(f"not-live channel index was allowed: {errors}")
+    assert_not_live(errors, 1)
     by_group = {
         "slides": [{
             "type": "channel",
@@ -390,8 +406,7 @@ def test_not_live_channel_has_no_slide():
         }],
     }
     errors = build.validate_content(by_group, data)
-    if not any("Social (TikTok)" in error for error in errors):
-        fail(f"not-live group key was allowed: {errors}")
+    assert_not_live(errors, 1)
     live = {
         "slides": [{
             "type": "channel",
@@ -415,8 +430,112 @@ def test_not_live_channel_has_no_slide():
         }],
     }
     errors = build.validate_content(summary, data)
-    if any("notLive" in error for error in errors):
+    if any("not live" in error for error in errors):
         fail(f"summary outcome line was rejected: {errors}")
+
+
+def test_not_live_allows_summary_kpi_and_rates():
+    """a to d: only a slide whose own channel is not live fails."""
+    import shutil
+    import subprocess
+    import tempfile
+
+    build = load("build_report.py")
+    data = {
+        "channels": [
+            {"group": "social_meta", "label": "Social (Meta)", "notLive": False},
+            {"group": "social_tiktok", "label": "Social (TikTok)", "notLive": True},
+        ],
+        "notLive": [{"group": "social_tiktok", "label": "Social (TikTok)"}],
+    }
+    base_path = os.path.join(OUT, "ua5-content.json")
+    if not os.path.isfile(base_path):
+        fail(f"missing hand-written content {base_path}")
+    with open(base_path, encoding="utf-8") as handle:
+        base = json.load(handle)
+
+    def without_not_live(errors):
+        return [error for error in errors if "is not live" in error]
+
+    hand_written = build.validate_content(base, data)
+    if without_not_live(hand_written):
+        fail(f"hand-written Curatif content was rejected: {hand_written}")
+
+    outcome_only = json.loads(json.dumps(base))
+    for slide in outcome_only["slides"]:
+        if slide.get("type") == "summary":
+            slide["outcome"] = "Meta and Search are live. TikTok has not started."
+    outcome_errors = build.validate_content(outcome_only, data)
+    if without_not_live(outcome_errors):
+        fail(f"summary Outcome mention was rejected: {outcome_errors}")
+
+    kpi = json.loads(json.dumps(base))
+    for slide in kpi["slides"]:
+        if slide.get("type") == "kpi":
+            slide["rows"].append({
+                "label": "channels.1.label",
+                "actual": "channels.1.spend",
+                "target": "channels.1.plannedBudget",
+            })
+    kpi_errors = build.validate_content(kpi, data)
+    if without_not_live(kpi_errors):
+        fail(f"KPI TikTok row was rejected: {kpi_errors}")
+
+    rates = json.loads(json.dumps(base))
+    rates["slides"].insert(-2, {
+        "type": "appendix",
+        "variant": "table",
+        "title": "Rates by {i:\"channel\"}.",
+        "columns": ["Channel", "CPM"],
+        "rows": [["channels.1.label", "channels.1.metrics.cpm"]],
+        "insight": "TikTok stays in the rates table.",
+    })
+    rates_errors = build.validate_content(rates, data)
+    if without_not_live(rates_errors):
+        fail(f"rates TikTok row was rejected: {rates_errors}")
+
+    channel = json.loads(json.dumps(base))
+    channel["slides"].insert(3, {
+        "type": "channel",
+        "variant": "photo",
+        "title": "TikTok is {i:\"yet to launch\"}.",
+        "channel": "TikTok",
+        "value": "channels.1.spend",
+        "body": "Waiting to start.",
+        "photo": 0,
+    })
+    channel_errors = build.validate_content(channel, data)
+    assert_not_live(channel_errors, 4)
+
+    script = os.path.join(SCRIPTS, "write_content.py")
+    work = tempfile.mkdtemp(prefix="not-live-")
+    data_path = os.path.join(work, "report-data.json")
+    try:
+        with open(data_path, "w", encoding="utf-8") as handle:
+            json.dump(data, handle)
+        cases = {
+            "a": base,
+            "b": outcome_only,
+            "c": kpi,
+            "d": channel,
+        }
+        for label, content in cases.items():
+            proc = subprocess.run(
+                [sys.executable, script, data_path],
+                input=json.dumps(content),
+                text=True,
+                capture_output=True,
+                cwd=work,
+            )
+            if label == "d":
+                if proc.returncode == 0:
+                    fail(f"write_content.py accepted a TikTok channel slide: {proc.stdout}")
+                if not_live_line(4) not in proc.stdout:
+                    fail(f"write_content.py error format was {proc.stdout!r}")
+            elif proc.returncode != 0 or proc.stdout.strip() != "OK":
+                fail(f"write_content.py case {label} failed: {proc.stdout}{proc.stderr}")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
 
 
 def test_kpi_value_drops_repeated_unit():
@@ -542,6 +661,7 @@ def main():
     test_breaker_and_recommendations_build()
     test_title_full_stop_sits_on_the_last_word()
     test_not_live_channel_has_no_slide()
+    test_not_live_allows_summary_kpi_and_rates()
     test_kpi_value_drops_repeated_unit()
     test_stop_attaches_on_sans_and_serif_runs()
     print("tests OK")
