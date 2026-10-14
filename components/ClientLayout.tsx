@@ -24,9 +24,11 @@ import type { PageContext } from "@/lib/ava/types"
 export function ClientLayout({
   children,
   clientSlugs,
+  webSearchSlugs = [],
 }: {
   children: React.ReactNode
   clientSlugs: string[]
+  webSearchSlugs?: string[]
 }) {
   const pathname = usePathname()
   const isHomePage = pathname === "/" || pathname === "/privacy" || pathname === "/data-deletion"
@@ -57,7 +59,7 @@ export function ClientLayout({
                 alignShellWithPlanContent ? "h-dvh overflow-hidden" : "min-h-dvh overflow-visible",
               )}
             >
-              {isShellVisible && <AppSidebar />}
+              {isShellVisible && <AppSidebar webSearchSlugs={webSearchSlugs} />}
               <SidebarInset
                 className={cn(
                   "flex-1 min-w-0 flex flex-col bg-surface-muted",

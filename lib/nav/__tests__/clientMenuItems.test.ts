@@ -129,4 +129,25 @@ describe("clientBottomNavItems", () => {
       "a-client,b-client,c-client",
     )
   })
+
+  it("puts Web & search after Creative and keeps the bar at 5 slots", () => {
+    const items = buildClientMenuItems({
+      clientSlugs: ["a-client", "b-client", "c-client"],
+      labels: {},
+      pathname: "/dashboard/a-client/web",
+      creativeLabel: "Creative",
+      knowledgeLabel: "Knowledge Hub",
+      webSearchSlugs: ["a-client"],
+    })
+    const web = items.find((item) => item.kind === "web")
+    assert.equal(web?.title, "Web & search")
+    assert.equal(web?.href, "/dashboard/a-client/web")
+    assert.equal(web?.isActive, true)
+    const bottom = clientBottomNavItems(items)
+    assert.equal(bottom.length, 5)
+    assert.deepEqual(
+      bottom.map((item) => item.kind),
+      ["client", "client", "creative", "web", "knowledge"],
+    )
+  })
 })

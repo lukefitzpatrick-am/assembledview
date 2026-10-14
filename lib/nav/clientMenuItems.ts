@@ -1,4 +1,4 @@
-export type ClientMenuKind = "client" | "creative" | "knowledge"
+export type ClientMenuKind = "client" | "creative" | "web" | "knowledge"
 
 export type ClientMenuItem = {
   title: string
@@ -43,8 +43,10 @@ export function buildClientMenuItems(opts: {
   pathname: string
   creativeLabel: string
   knowledgeLabel: string
+  /** Slugs whose Web & search tab is on. Omitted means the tab stays hidden. */
+  webSearchSlugs?: string[]
 }): ClientMenuItem[] {
-  const { clientSlugs, labels, pathname, creativeLabel, knowledgeLabel } = opts
+  const { clientSlugs, labels, pathname, creativeLabel, knowledgeLabel, webSearchSlugs = [] } = opts
   const items: ClientMenuItem[] = []
   const activeSlug = resolveActiveClientSlug(pathname, clientSlugs)
 
@@ -68,6 +70,17 @@ export function buildClientMenuItems(opts: {
       kind: "creative",
       isActive: pathMatchesHref(pathname, href),
     })
+    const webOn = webSearchSlugs.some((slug) => slug.toLowerCase() === activeSlug.toLowerCase())
+    if (webOn) {
+      const webHref = `/dashboard/${activeSlug}/web`
+      items.push({
+        title: "Web & search",
+        href: webHref,
+        kind: "web",
+        slug: activeSlug,
+        isActive: pathMatchesHref(pathname, webHref),
+      })
+    }
   }
 
   items.push({
@@ -87,5 +100,6 @@ export function buildClientMenuItems(opts: {
 export function clientBottomNavItems(items: ClientMenuItem[]): ClientMenuItem[] {
   const clients = items.filter((i) => i.kind === "client")
   const rest = items.filter((i) => i.kind !== "client")
-  return [...clients.slice(0, BOTTOM_NAV_CLIENT_CAP), ...rest]
+  const cap = rest.some((item) => item.kind === "web") ? BOTTOM_NAV_CLIENT_CAP - 1 : BOTTOM_NAV_CLIENT_CAP
+  return [...clients.slice(0, cap), ...rest]
 }

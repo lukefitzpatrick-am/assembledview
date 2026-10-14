@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react"
-import { ChevronDown, ChevronRight, BarChart3, BookOpen, Images, LayoutDashboard } from "lucide-react"
+import { ChevronDown, ChevronRight, BarChart3, BookOpen, Globe, Images, LayoutDashboard } from "lucide-react"
 import { UserMenu } from "@/components/UserMenu"
 import {
   Sidebar,
@@ -34,6 +34,7 @@ import {
 const CLIENT_MENU_ICONS: Record<ClientMenuKind, typeof BookOpen> = {
   client: LayoutDashboard,
   creative: Images,
+  web: Globe,
   knowledge: BookOpen,
 }
 import {
@@ -109,7 +110,7 @@ function NavRow({
   )
 }
 
-export function AppSidebar() {
+export function AppSidebar({ webSearchSlugs = [] }: { webSearchSlugs?: string[] }) {
   const pathname = usePathname() ?? ""
   const applied = useFinanceScopeApplied()
   const { clientSlugs, userRoles, isAdmin, isLoading } = useAuthContext()
@@ -202,8 +203,9 @@ export function AppSidebar() {
         pathname,
         creativeLabel,
         knowledgeLabel,
+        webSearchSlugs,
       }),
-    [clientSlugs, clientLabels, pathname, creativeLabel, knowledgeLabel],
+    [clientSlugs, clientLabels, pathname, creativeLabel, knowledgeLabel, webSearchSlugs],
   )
   const clientBottomItems = useMemo(
     () => clientBottomNavItems(clientMenuItems),

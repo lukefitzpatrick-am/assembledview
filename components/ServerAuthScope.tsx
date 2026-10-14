@@ -1,5 +1,6 @@
 import { auth0 } from "@/lib/auth0"
 import { getUserClientSlugs } from "@/lib/rbac"
+import { isWebSearchEnabled } from "@/lib/webReport/featureFlag"
 import ClientRoot from "@/components/ClientRoot"
 
 /**
@@ -14,5 +15,6 @@ export default async function ServerAuthScope({ children }: { children: React.Re
   } catch {
     clientSlugs = []
   }
-  return <ClientRoot clientSlugs={clientSlugs}>{children}</ClientRoot>
+  const webSearchSlugs = clientSlugs.filter((slug) => isWebSearchEnabled(slug))
+  return <ClientRoot clientSlugs={clientSlugs} webSearchSlugs={webSearchSlugs}>{children}</ClientRoot>
 }

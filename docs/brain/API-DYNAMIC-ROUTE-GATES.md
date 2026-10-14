@@ -40,6 +40,7 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `dashboard/[slug]/delivered` | GET | same | — | session + slug / admin | OK |
 | `dashboard/[slug]/invoices` | GET | same | — | session + slug gate + `assertClientAccess`; client-role 404 while `CLIENT_INVOICES_ENABLED` is off | OK |
 | `dashboard/[slug]/[mba_number]/creative` | GET | campaign page | page `notFound` for a client slug/MBA miss | flag off is 404 for every role; session; `getUserClientSlugs` 404 (same as the campaign page); 503 when `V_CREATIVE_PERFORMANCE_DAILY` is missing | OK |
+| `dashboard/[slug]/web-report` | GET | client dashboard page | page `notFound` for a client slug miss | `FEATURE_WEB_SEARCH` off is 404 for every role; session; `getUserClientSlugs` 404 for another client; 0098 unpublished uses the default layout | OK |
 | `mediaplans/mba/[mba_number]` | GET/PUT/PATCH | `mediaplans` list | scope / `requireRole` | `checkClientMbaAccess` | OK |
 | `mediaplans/mba/[mba_number]/expected-spend-to-date` | GET | MBA peer | `checkClientMbaAccess` | cookie-forwards to gated MBA | OK |
 | `mediaplans/mba/[mba_number]/material-instructions` | GET/POST | MBA peer | `checkClientMbaAccess` | session + admin (inline) | OK |
