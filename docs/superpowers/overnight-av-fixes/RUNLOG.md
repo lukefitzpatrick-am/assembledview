@@ -5380,3 +5380,589 @@ One commit on `localhost`: `scripts/spikes/report-deck-skill/fetch-kit.ts`. The 
 | Deck text colours, cover, thank-you and headings | DONE | `4756f478` |
 | Brand kit URLs from env | DONE | `7f46ddd1` |
 | AV-TX wrap-up | DONE | this commit |
+
+## Schedule grid week placement
+
+One commit on `localhost`. Dated bursts land in the column whose week contains that day, for whatever week start built the columns. A dated burst that still imports no quantity is left unplaced and warned once. A lump-sum flight with no calculated quantity still fills week 1. The run log stays uncommitted.
+
+- SHA: b23b548b
+- Checks: `printImportWeekStartsOn` for newspaper and magazine at week start Sunday, Monday, and Tuesday, plus digital display Monday parity. Existing lump-sum and day-detail tests still passed. `npx tsc --noEmit` exit 0. eslint on the touched files, no warnings.
+- Under 90%: none on the column match. A day outside the campaign range clamps to the first or last column.
+- Browser smoke on krusty002 was not run. The Cursor browser is on the Auth0 login.
+- Snowflake was not called. The Messages API was not called.
+
+## Buy Amount label per buy type
+
+One commit on `localhost`. The shared card burst header and television's burst row name the unit price from the line buy type. Insertions, spots, and panels show a non-blocking note when that price is at most $1 and the calculated quantity is over 100. The schedule grid column stays Unit Rate. The run log stays uncommitted.
+
+- SHA: 91cc20cc
+- Checks: `npm run test:buy-amount-label` 4/4. `npx tsc --noEmit` exit 0. eslint on the touched files, no warnings.
+- Under 90%: none on the label map or the $1 / quantity threshold.
+- Browser smoke on krusty002 was not run. The Cursor browser is on the Auth0 login, so the newspaper "Cost per insertion" label and the $1 / $3,870 warning were not clicked through.
+- Snowflake was not called. The Messages API was not called.
+
+## AV-TX wrap-up (week placement and Buy Amount label)
+
+`npm run gate:main` with `NODE_OPTIONS=--max-old-space-size=6144` for that run only, exit 0, 111.6s. `NODE_OPTIONS` was cleared after the run. `npm run test:all` once, exit 0, 126/126 suites, 589.7s. `test:buy-amount-label` passed. No suite was rerun. This run log stays uncommitted.
+
+## Client platform accounts (data)
+
+One commit on `localhost`. `client_platform_accounts` is authored in `db/migrations/0096_client_platform_accounts.sql` and mirrored in Drizzle. It is not applied. `clients.idmeta` stays the Meta page id. The Meta ad account is `meta_ads` in the new table. Numeric refs store digits only. CM360 and DV360 store the advertiser name. LinkedIn, Pinterest and Snapchat store trimmed text. `sql/snowflake/mart/views/v_platform_advertisers.sql` is authored only. The run log stays uncommitted.
+
+- SHA: b13d0766
+- Checks: normaliser tests in `npm run test:platform-accounts` (the suite also covers the API commit). `npx tsc --noEmit` exit 0.
+- Under 90%: CM360 `date` on `CM_360_PACING` is assumed from the DV360 staging view. If DESCRIBE shows another name, change that one reference before running the view. About 70%.
+- Snowflake was not called. Supabase was not written. The migration was not applied.
+
+## Client platform accounts (API and UI)
+
+One commit on `localhost`. GET, POST and PATCH on `/api/clients/[id]/platform-accounts` use `requireRole(["admin"])`, the same guard as editing a client (`PUT`/`PATCH` on `app/api/clients/[id]`). A client role is 403, including GET. No session is 401. GET `/api/platform-accounts/advertisers` reads `MART.V_PLATFORM_ADVERTISERS` through `querySnowflake`, cached one hour, and returns 503 `Advertiser list not set up yet` when the view is missing. The client details form (`components/EditClientForm.tsx`, section `components/clients/PlatformAccountsSection.tsx`) lists active accounts, adds them, and deactivates with an on-page confirm. The old id* fields stay visible, read-only, labelled Legacy. `scripts/clients/suggestPlatformAccounts.ts` prints a CSV and writes nothing. The run log stays uncommitted.
+
+- SHA: 0b497e56
+- Checks: `npm run test:platform-accounts` 15/15 pure and 7/7 route tests. Tenant route harness 2/2. `npx tsc --noEmit` exit 0. eslint on the touched files, no warnings.
+- Under 90%: the suggestions script will not pair Paul Hartmann with Molicare. Hartmans scores by edit distance. Boss Engineering and Boss Automotive score by containment. Humans enter the odd pairs. The create form (`AddClientForm`) still edits the legacy id* fields.
+- Browser smoke: `http://localhost:3000/dashboard/golf-australia` redirected to the Auth0 login. The Platform accounts section was not opened. Nothing was added.
+- Snowflake was not called. Supabase was not written. The migration was not applied. The view was not created.
+
+## Channel cards, first paid burst
+
+One commit on `localhost`. `startsOn` is the earliest burst with `budget > 0`, and falls back to the earliest burst of any line when every burst is $0. A card with expected $0, delivered $0 or unset, and `startsOn` after today reads "Not started" and "Starts <date>". That wins over assumed-spend "reporting" and over the pace pill, so $0 of $0 is not "On track". Offline cards with 0 planned and 0 delivered impressions omit the impressions block. The run log stays uncommitted.
+
+`startsOn` readers:
+
+- `visibleCoverageCards` reads `entry.startsOn`. It now follows the paid start. A `no_source` card whose paid start is still ahead stays visible. No separate edit.
+- `GlanceCard` reads `entry.startsOn` for the Not started gate and the Starts caption. The caption is checked before "Awaiting first report", so a connecting digital group uses the same caption.
+- `resolveStatus` does not read `startsOn`. It still uses `earliestStart`, the earliest burst of any line, including $0. A digital group in the golf025 shape stays status `connecting` while the pill says Not started. Offline assumed cards are still status `reporting` on the data attribute. The pill overrides both.
+- The gantt start label does not read `startsOn`. `mediaGanttReshape.ts` takes the earliest bar of every burst in the campaign window, including $0, and labels `Starts {d MMM}` when that day is after Melbourne today and the line has no delivery. Left unchanged.
+- `coverageEntriesIdentity` hashes `startsOn`. The value changes when the paid start differs. No logic change.
+
+Dates: burst instants go through `formatBurstDateLocal` (`Australia/Sydney`) inside `parseBurstsToNormalised`, which is the conversion `earliestBurstStart` already used. A date-only string passes through. `2026-10-04T13:00:00.000Z` is `2026-10-05`. Today is `getMelbourneTodayISO` (`Australia/Melbourne`), passed in as `todayISO`, compared as `YYYY-MM-DD`. In October 2026 both zones are AEDT (UTC+11), so the civil day matches. No second converter.
+
+Portfolio was not changed. `portfolioPresentation.ts` labels pace `not_started` as "Not started" and maps that pace to the display band `no-data`. It does not choose the start. The start check is in `assembleCampaignPacingRows` (`lineStart ?? campaignStart` against `asOfDate`, before assumed delivery). `lineStart` is the earliest line start merged into the channel, not the earliest paid burst. `status.ts` maps the maths status `not_started` to the UI band `no-data` (label "No data"). `computeStatus` returns `not_started` when `asOfDate < startDate`, first in the ladder, with no burst-budget filter.
+
+- SHA: 4874453e
+- Checks: `npx tsx --test lib/delivery/__tests__/channelCoverage.test.ts` 19/19. `npx vitest run components/dashboard/campaign/__tests__/ChannelsAtAGlance.test.tsx` 13/13. `npx tsc --noEmit` exit 0. eslint on the four touched files, no warnings.
+- Under 90%: none on the paid-burst start or the $0 of $0 pill. An in-flight assumed channel whose expected is still $0 can still pill On track. The kept rule is expected above 0.
+- Browser smoke on golf025 was not run. No dev server was up, and the campaign page needs Auth0.
+- Snowflake was not called. Supabase was not written.
+
+## Flighting bar labels
+
+One commit on `localhost`. Flighting bars no longer stamp the line's delivered and planned totals on every burst. The compact `delivered of planned` label and its fill sit on the burst that contains Melbourne today, or on the most recent burst that has started when today falls in a gap. Ended bursts read `{compact} planned` with no fill. Bursts that have not started read `Starts {d MMM}` and the chart drops that text when it is wider than the bar minus 12px. Every flighting burst tooltip has the burst dates and that burst's planned deliverables; the delivery burst also says `Line delivered to date X of Y`. Callers that do not pass `flighting` still use `delivered / planned`. The run log stays uncommitted.
+
+- SHA: 968ea0d7
+- Checks: `npx tsx --test components/dashboard/campaign/__tests__/mediaGanttReshape.test.ts` 15/15. `npx vitest run components/dashboard/campaign/__tests__/GroupedMediaGantt.test.tsx` 7/7. `npx tsc --noEmit` exit 0. eslint on the touched files, no warnings.
+- Under 90%: compact formatting is `Intl` en-AU (`10.7K`, `1.77M`). A burst that contains today but has no delivery count has no bar label. The plan editor does not pass `flighting`, so it keeps the slash labels.
+- Browser smoke was not run. The campaign page needs Auth0.
+- Snowflake was not called. Supabase was not written.
+
+## Flighting gantt sizing
+
+One commit on `localhost`. The flighting chart measures its host and sets the SVG viewBox to that pixel width (minimum 960, horizontal scroll below that), so a stated font size is the size on screen. Group and line labels are both SVG text at 13px in a 300px gutter. Group rows are 36px on subsurface with a 6px summary bar; line rows are 40px on surface with 20px bars placed by day, 2px apart. Week labels are the day number, every second week under 28px, and the week under the TODAY badge is hidden. The badge sits in the week row. The PNG clone keeps that pixel width, unsticks the axis, and stops the horizontal scroller clipping the capture. The run log stays uncommitted.
+
+The app wrapper passes `totalDays`, `todayDay` and `weekDayIndexes` through. `MediaPlanVizSection` sets `[data-gantt-scroll]` to visible in the html2canvas clone. Callers that omit day indexes, including the design-system sample, still snap bars to week columns and use the same gutter and type scale.
+
+- SHA: db321e25
+- Checks: `npx tsx --test components/dashboard/campaign/__tests__/mediaGanttReshape.test.ts` 17/17. `npx vitest run components/dashboard/campaign/__tests__/GroupedMediaGantt.test.tsx` 8/8. `npx tsc --noEmit` exit 0. eslint on the touched files, no warnings. Other charts in `domain-charts.tsx` are not in the diff.
+- Under 90%: html2canvas throws in jsdom (`Error parsing CSS component value, unexpected EOF`), so the export test checks the clone, not a bitmap. A browser PNG was not opened.
+- Browser smoke was not run. The campaign page needs Auth0.
+- Snowflake was not called. Supabase was not written.
+
+## AV-TZ3 deck discovery
+
+Discovery only. Wrote `docs/superpowers/overnight-av-fixes/discovery/AV-TZ3.md`. No application code, no deploy, no model call, no Python project created.
+
+`write_content.py` validates with `validate_content`. `build_report.py` needs string leaves in `report-data.json`. Meta and TikTok top entities are not on `CampaignReportPayload`. `aggregateSocialForLineItem` already sorts ad sets by spend and keeps results; the delivery accordion’s `groupPacingRowsByAdSet` does not keep results. Cover, stat row, table, insight card, outcome tag, and thank-you exist in the v5 scripts. Breaker and numbered recommendation cards do not. `BRAND_KIT_BASE_URL` is the Node zip downloader only. Python opens a local potx and three photo paths. Wheel sizes this pass: python-pptx 472,788, lxml 5,105,247, Pillow 6,940,830. The four deck paths stay on `generateCampaignReportForMba`, and `buildCampaignReportDeck` stays the fallback when the Python service is down. Token figures are the ones already in AV-TX2 §6.
+
+- SHA: none. This file stays uncommitted.
+- Checks: `git status` tracked files were only this run log before the note was written.
+- Under 90%: the PGA pptx is not in the repo, so the composition list is the named set, not a reading of that file. Cold start was not measured.
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written. PyPI and the Vercel Python runtime page were read. No package was installed.
+
+## AV-TZ4 CPM plan rate
+
+Discovery only. Wrote `docs/superpowers/overnight-av-fixes/discovery/AV-TZ4.md`. No application code.
+
+`resolveCpmPlanRate` spend-weights `spend / impressions × 1000`. golf025 Digital Display v37 uses Golf Digest fixed-cost `calculatedValue` of 1 or 2 as impressions, so a $4,000 pop-up becomes a $4,000,000 CPM and the channel rate is $244,885.53. CPM lines alone are $18.98 on that weighting. Bonus lines have $0 media and are already skipped. Eleven live channel groups are above $200. Every driver is a fixed-cost line. Postgres was read with `default_transaction_read_only`. 38 live plans.
+
+- SHA: none. This file stays uncommitted.
+- Checks: the formula on the published golf025 rows is 244,885.53366.
+- Under 90%: no-source group labels were grouped from `collectCoverageGroups`, not read off the rendered card.
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written.
+
+## AV-TZ5 week-start burst spread
+
+Discovery only. Wrote `docs/superpowers/overnight-av-fixes/discovery/AV-TZ5.md`. No application code.
+
+krusty002 Digital Display, one burst 15 Nov–20 Dec 2026, 500,000 impressions. A fresh import is one merged span on Sunday and on Monday (`mapStandardDigiDisplayLineItemsToExpertRows`). The decimal cells are `rebucketRowsForWeekStartsOn` after a week-start toggle: the span is split across six full Sunday weeks (42 days, not the burst's 36), then the six days past 20 Dec are added to the last Monday cell. Toggling back does not restore the span. Weekly Totals puts a span's whole quantity on the start week. Apply on the span writes one burst of 500,000. Apply after the toggle writes six bursts. `cardExpertBudgetSync.ts` after `b23b548b` does not place this dated row on week 1.
+
+- SHA: none. This file stays uncommitted.
+- Checks: pure functions on a 15 Nov–20 Dec window reproduce `11904.761904762`, `83333.333333333` ×4, `154761.904761906`.
+- Under 90%: the campaign window was taken as the burst dates. The cell match is what supports that.
+- Browser smoke was not run. Nothing was saved.
+- Snowflake was not called. Supabase was not written.
+- Decision: one burst stays a single span. The week-start toggle must remap the span onto the new columns and must not dissolve it into cells. Apply stays one burst.
+
+## AV-TZ4 CPM plan rate fix
+
+One commit on `localhost`. `resolveCpmPlanRate` now counts only `cpm` lines and returns planned media ÷ planned impressions × 1000 (ratio of sums). A group with no qualifying line returns null. `resolveCpcPlanRate` and `resolveCpvPlanRate` are unchanged. The run log stays uncommitted.
+
+Live published plans on 14 Oct 2026 (published pointer, `published_at` set, status `approved` or `booked`, that day inside the campaign dates): 38 plans. Distinct `buy_type` values: `package_inclusions` 335, `bonus` 235, `panels` 186, `cpm` 133, `spots` 100, `fixed_cost` 34, `cpc` 31, `package` 28, `cpv` 23, null 19, `insertions` 14, blank 1. CPM family is `cpm` only. `dcpm` and `vcpm` are not on these plans. Left out: `fixed_cost`, `bonus`, `package`, `package_inclusions`, `spots`, `insertions`, `panels`, `cpc`, `cpv`, and blanks.
+
+When no line qualifies, the CPM row still renders if delivered spend is estimated and both delivered spend and impressions are above zero. Target is "—", there is no "plan rate" caption, and the pill is "No data". Delivered still shows the estimated CPM. If that row is the card's only counted target, the card drops its rows and shows "No KPI targets saved for {label}." for an admin, or "KPI targets pending." for a client.
+
+Delivered CPM for that row is `cpm(group.spend, group.impressions)` at `lib/kpi/kpiReview.ts:627`. `group.spend` is the coverage total. A direct-digital fixed-cost line is on that total only when it has CM360 daily rows, and those same rows are in `group.impressions`. A fixed-cost line with reported spend and no CM360 rows is omitted from the section, so it adds neither. The mismatch (spend includes fixed-cost, impressions do not) does not occur. Splitting the dollar would need per-line delivered spend, which is built in `directDigitalAdapterShared.ts` and summed in `channelCoverage.ts`, outside `lib/kpi/`. Left unchanged. golf025's "$17.15 Estimated" is still that delivered figure.
+
+`resolveCpcPlanRate` (`lib/kpi/kpiReview.ts:452-475`) spend-weights line rates at 470-473. The click-buy branch at 460 is CPC only. The second branch at 464-466 still admits any line with `plannedClicks` and spend, and `extractKpiReviewPlanLine` (`kpiReview.ts:186-188`) sets those clicks from an explicit clicks field even when the buy type is not `cpc`. A `fixed_cost` `calculatedValue` is not used as clicks.
+
+`resolveCpvPlanRate` (`lib/kpi/kpiReview.ts:370-420`) spend-weights line rates at 406-409. The buy-amount branch at 379 is CPV only. The views branch at 387-393 admits any line with `plannedViews`. The VTR branch at 395-402 admits any line with planned impressions and a VTR target, including a `fixed_cost` line whose `calculatedValue` is a placement count.
+
+Same live set, same coverage groups, old formula then the new rule. Postgres was read with `default_transaction_read_only`. 232 lines landed in the review groups (the discovery counted 238). Before matches the discovery dollars. After is the new rule. "—" means null.
+
+| Plan | Channel | Before | After |
+| --- | --- | ---: | ---: |
+| buxton001 | Digital Display | $46,721,000.00 | — |
+| buxton004 | Digital Display | $21,811,519.31 | $75.00 |
+| sinch001 | Digital Audio | $6,292,273.33 | $25.38 |
+| sinch001 | Digital Display | $5,082,000.00 | — |
+| buxton004 | Awaiting delivery | $3,571,428.57 | — |
+| buxton001 | Awaiting delivery | $1,521,083.33 | — |
+| BOSS010 | Digital Display | $459,196.16 | $18.00 |
+| PENFOLD020 | Social · Meta | $273,141.19 | — |
+| PGAAUS015 | Digital Display | $256,741.22 | $13.70 |
+| golf025 | Digital Display | $244,885.53 | $18.09 |
+| PENFOLD015 | Awaiting delivery | $1,793.05 | $27.44 |
+| PENFOLD018 | Awaiting delivery | $602.28 | $60.00 |
+
+buxton001 was in the same 38 plans and was not on the discovery table. DD8 is `fixed_cost` $46,721 with `calculatedValue` 1. The `cpm` line DD6 has `calculatedValue` 0, so the new rule returns null. The page label for a no-source group is "Awaiting delivery" (`collectCoverageGroups` uses one `no-source` key). The discovery called buxton004's row "Social, no source" and PENFOLD018's row "Programmatic, no source"; those befores match. PENFOLD015's discovery split (Social, no source $178,656.15 and Programmatic, no source $756.80) is one page group. Taken alone, the social pair is fixed-cost only and would be null; the programmatic lines are the $27.44.
+
+- SHA: ce5077af
+- Checks: `npx tsx --test lib/kpi/__tests__/kpiReview.test.ts lib/kpi/__tests__/kpiBandTargets.test.ts` 30/30. `npx tsc --noEmit` exit 0. eslint on `lib/kpi/kpiReview.ts` and `lib/kpi/__tests__/kpiReview.test.ts`, no warnings.
+- Under 90%: the six-line gap against the discovery's 238 was not chased. `docs/brain/modules/kpi.md` still describes the old CPM sentence; the hard stop kept this diff in `lib/kpi/`.
+- Browser smoke was not run. The campaign page needs Auth0.
+- Snowflake was not called. Supabase was not written.
+
+## AV-TZ5 week-start span
+
+One commit on `localhost`. A merged span stays one span when week-start changes. `rebucketRowsForWeekStartsOn` no longer copies the span into week cells. `totalQty` and `startYmd` / `endYmd` stay. Only `startWeekKey` and `endWeekKey` move, via `weekColumnForDate` on the burst dates against the new columns. A span with no dates uses the old start column's first day and the old end column's last day. `weekColumnForDate` now lives in `expertDayModel.ts` and `expertChannelMappings.ts` imports it.
+
+Plain weekly cells still rebucket by day. Days outside the campaign window are not in the divisor, and the quantity is whole units with the remainder on the earliest days. Nothing is added back onto the last column.
+
+Weekly Totals is display only. A span adds its quantity to every column it covers, split by the burst's days inside that column, same whole-unit rule. Σ Qty still adds `totalQty` once. Apply still reads the span, so a fresh open and a Sunday → Monday → Sunday toggle both write one burst.
+
+krusty002 Digital Display, one burst 15 Nov–20 Dec 2026, 500,000 impressions, CPM $20. Fresh open on Sunday and on Monday is one span of 500,000. After Sunday → Monday → Sunday the row matches a fresh Sunday open, and Apply writes one burst 15 Nov–20 Dec, budget 10000, calculatedValue 500000. Weekly Totals on Sunday: 97223, 97223, 97223, 97223, 97220, 13888. On Monday: 13889, 97223, 97223, 97223, 97223, 97219. Both sum to 500,000.
+
+- SHA: 800d911f
+- Checks: `npx tsx --test lib/mediaplan/__tests__/expertDayModel.test.ts lib/mediaplan/__tests__/weekStartsOnApplyParity.test.ts tests/lib/expertChannelMappings.test.ts` 33/33. `npx tsc --noEmit` exit 0. eslint on the six touched files, no warnings.
+- Under 90%: nothing. `docs/brain/KNOWN-ISSUES.md` C-37 and the week-start line in `INVARIANTS.md` still describe the old dissolve. The hard stop kept this diff in `ExpertGrid.tsx`, `expertDayModel.ts`, `expertChannelMappings.ts`, and their tests.
+- Browser smoke was not run. The plan editor needs Auth0.
+- Snowflake was not called. Supabase was not written.
+
+## AV-TZ3 top audiences on the slim deck payload
+
+One commit on `localhost`. `slimDeckPayload` now adds `audiences` for `social_meta` and `social_tiktok` when the channel carries `adSets`. The rows are ordered by spend descending, the same order `aggregateSocialForLineItem` already writes. Each entry is `name`, `spend`, `impressions`, `results`, `resultLabel`, `cpr`, `ctr`, all strings in the deck's existing money, count, and percent formats. A row under 5% of that channel's `spend` is left out. At most 4 remain. Fewer than 2 and that channel adds nothing. Reddit is not included. Creative URLs and nested ads are not copied. `assembleCampaignReportData` still does not put `adSets` on a channel, so a live assembled report has no list until a later step attaches the aggregate rows. The Node deck builder and the delivery accordion were not changed.
+
+- SHA: 01dbe353
+- Checks: `npx tsx --test scripts/spikes/report-deck-skill/slim-deck-payload.test.ts` 6/6. `npx tsc --noEmit` exit 0. eslint on the two touched files, no warnings.
+- Under 90%: the live report still has no `adSets`, so this commit does not change a generated deck. The brain does not describe the slim payload.
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written.
+
+## AV-TZ3 deck content call
+
+One commit on `localhost`. `generateDeckContent` makes one Messages call and returns content.json. It runs only when `DECK_RENDERER` is exactly `python`. No route calls it. The model is `DECK_CONTENT_MODEL`, default `claude-opus-5-5`. Effort is `DECK_CONTENT_EFFORT`, default `high`. Structured output uses a JSON schema of the `validate_content` slide types. The TypeScript check is the same schema, plus a requirement that every value key resolves to a string in the slim payload and that a digit in copy is already in that payload. Cost is logged per call at Opus 5.5 rates: input $4, output $20, cache write $5, cache read $0.20 per million. The log is tokens and cost only. No paid call was made. The SDK was mocked.
+
+- SHA: 3af99554
+- Checks: `node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/reports/deckContent/__tests__/generateDeckContent.test.ts` 4/4. `npx tsc --noEmit` exit 0. eslint on the three new files, no warnings.
+- Under 90%: `validate_content` has no breaker slide type, so the prompt asks for the breaker as a summary statement and for 2 or 3 recommendations as `iao` rows with the action tag, numbered in words. The 5 to 7 slide count is in the prompt and the JSON schema, not in the procedural slide-list check. A JSON schema cannot reject a digit or a missing payload key; the TypeScript port does. `build_report.py` was not called.
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written.
+
+## On-demand deck jobs STOP
+
+Hard stop. A migration is required before the job, the status route, or the safety-net cron. Those were not written. Review & Report is unchanged.
+
+`report_runs.kind` is free text, so the value `on_demand_deck` needs no check change. The monthly claim now excludes it at `lib/reports/reportsWorkerStore.ts:61-63`:
+
+```
+WHERE (status = 'queued' OR status = 'failed')
+  AND attempts < 3
+  AND kind <> 'on_demand_deck'
+```
+
+`resetStuckReportRuns` (`lib/reports/reportsWorkerStore.ts:40-41`) still has no kind filter. On a Sydney 4th or 5th it can still move a stuck on-demand `generating` row. The prompt allowed only the claim filter to change.
+
+The report window already has columns: `period_start` and `period_end` (both `date`, not null). There is no period-kind column. The monthly worker already rebuilds the window as `custom` from those two dates.
+
+Who asked has no column. There is no email, actor, or requested-by field on `report_runs`. `0097` adds nullable `requested_by_email`. Monthly rows stay null.
+
+The unique key is why the build stops. `uq_report_runs_kind_mba_period` is `UNIQUE (kind, mba_number, period_start)` (`db/migrations/0095_report_runs.sql:43`, mirrored at `db/schema/reportRuns.ts:57`). A second `on_demand_deck` row for the same MBA and period start cannot be inserted while that constraint is live. `db/migrations/0097_report_runs_on_demand_deck.sql` is authored and not applied. It drops that constraint and creates:
+
+- `uq_report_runs_kind_mba_period` as a partial unique index `WHERE kind <> 'on_demand_deck'`
+- `uq_report_runs_on_demand_inflight` on the same columns `WHERE kind = 'on_demand_deck' AND status IN ('queued', 'generating')`
+
+A generated, failed, or skipped on-demand row can then be followed by a new row. A queued or generating row stays the only in-flight row for that MBA and period.
+
+Do not apply `0097` until both monthly inserts name that partial predicate. Today they use `onConflictDoNothing` on `(kind, mba_number, period_start)` with no `WHERE`:
+
+- `app/api/cron/reports-enqueue/route.ts:104-110`
+- `lib/reports/adminReportRunsStore.ts:99-105`
+
+Postgres will not match a partial unique index unless `ON CONFLICT` repeats `kind <> 'on_demand_deck'`. Applying `0097` alone makes the next enqueue throw. The Drizzle mirror stays the 0095 constraint until then (C-76). Do not SELECT `requested_by_email` until the migration is applied.
+
+Not written, because each one inserts or reads that new shape: `POST` that returns `{ runId, status }`, `lib/reports/deckJobs/runOnDemandDeck.ts`, the 5-minute cron, and `GET` status by runId. The tests for create, idempotency, job success and failure, and the safety-net cron were not written. The one test that did land is the claim filter.
+
+- SHA: f436624d
+- Commit subject is not `feat(reports): on-demand deck jobs with status and a safety-net cron`. That subject would describe routes that are not in the commit.
+- Checks: `npx tsx --test lib/reports/__tests__/monthlyReportClaim.test.ts lib/reports/__tests__/runReportsWorker.test.ts` 5/5. `npx tsc --noEmit` exit 0. eslint on `lib/reports/reportsWorkerStore.ts` and `lib/reports/__tests__/monthlyReportClaim.test.ts`, no warnings.
+- Under 90%: nothing on the claim filter. The job body is unbuilt, so there is no confidence figure for it.
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written. `0097` was not applied.
+
+## On-demand skill deck STOP
+
+Prerequisites missing. No code, no commit.
+
+- UB1 is not committed. `lib/reports/deckJobs/runOnDemandDeck.ts` is not in the tree. `git log` has no commit for that path. The previous stop left the job unwritten (`f436624d`).
+- UA5 is not committed. No commit message, run-log heading, or file uses that id.
+- `.env.local` exists. `DECK_SKILL_ID` and `BRAND_KIT_BASE_URL` are not set in it.
+
+The spike `scripts/spikes/report-deck-skill/run-deck.ts` was not ported. No paid call. Review & Report is unchanged.
+
+- SHA: none
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written.
+
+## Review & Report status panel STOP
+
+Prerequisite missing. No code, no commit.
+
+UB1 is not committed. `lib/reports/deckJobs/runOnDemandDeck.ts` is not in the tree, and there is no POST that returns `{ runId, status }`. Review & Report still holds the download request. `app/admin/reports` was not changed.
+
+- SHA: none
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written.
+
+## Monthly inserts ignore on-demand decks
+
+One commit on `localhost`. Both monthly inserts name the conflict predicate, and the 30-minute stuck reset skips `on_demand_deck`. The Drizzle mirror is unchanged. `requested_by_email` is not selected.
+
+drizzle-orm 0.45.2 (`package-lock.json`). `onConflictDoNothing` takes `where` for the conflict-target predicate. `targetWhere` is only on `onConflictDoUpdate`. Generated SQL, keywords lower case:
+
+`on conflict ("kind","mba_number","period_start") where kind <> 'on_demand_deck' do nothing`
+
+Both `app/api/cron/reports-enqueue/route.ts` and `lib/reports/adminReportRunsStore.ts` call `queueMonthlyReportRuns`. `resetStuckReportRuns` adds `AND kind <> 'on_demand_deck'` at `lib/reports/reportsWorkerStore.ts`.
+
+- SHA: 09abb0a8
+- Checks: `npx tsx --test` on the report unit tests that do not import `server-only`, 13/13, including the insert `toSQL` check and the stuck-reset exclusion. `persistPerformanceReportInsights.test.ts` 10/10 with the server-only shim. `npx tsc --noEmit` exit 0. eslint on the touched TypeScript files, no warnings.
+- Under 90%: nothing. The predicate was not executed against Postgres. 0097 is still not applied.
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written.
+
+## On-demand deck jobs STOP
+
+Prerequisite missing. No code, no commit.
+
+UC1 is committed: `09abb0a8` names the conflict predicate on both monthly inserts and skips `on_demand_deck` in the stuck reset.
+
+Migration 0097 is not applied. A read-only check (`default_transaction_read_only`) found no `migration_markers` row for `0097_report_runs_on_demand_deck`. `report_runs.requested_by_email` is not a column. The only matching index name is `uq_report_runs_kind_mba_period`, still the 0095 unique constraint. The Drizzle mirror was not updated.
+
+- SHA: none
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written.
+
+## Breaker and recommendation slides
+
+One commit on `localhost`. The v5 builder clones template slide 5 for a black breaker (arch photo, title with one serif phrase, bar motif already on the slide). The cached example page number on that clone is cleared so the figure check does not treat it as a stray `4`. Recommendations are 2 or 3 sand cards: numbered circles in sky, forest, then lime, a bold heading, body, and an Action tag. Two cards add the bar motif on the right. On a dark slide the middle arch is forest light.
+
+`validate_content` lives in `build_report.py`. `write_content.py` already calls it. Breaker title stays on the 60-character title rule. Recommendation heading is 40 characters, body 220. Four recommendations are rejected. `SKILL.md` places one breaker after the cover when the deck has 5 or more slides, and one recommendations slide before the thank-you on every deck.
+
+No model call. The sample is hand-written `out/ua5-content.json` on `curatif004-v6-report-data.json`. Eight slides. `build_report.py` printed `OK`. PowerPoint wrote the PDF and `pdftoppm` wrote the PNGs. Contact sheet: `docs/superpowers/overnight-av-fixes/UA5-contact-sheet.png`. The sample recommendations slide has two cards, so the bar motif is on that sheet. A separate three-card build also passed `check_deck` and shows the lime circle.
+
+- SHA: b307c03f
+- Checks: `python test_checks.py` printed `tests OK`, including accept, a 61-character breaker title, a 41-character heading, a 221-character body, and 4 recommendations. Two-card and three-card builds passed `check_deck`. A 40-character heading with spaces and a 220-character body on three cards also passed.
+- Under 90%: nothing on the layouts. The sample was not opened in the app.
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written.
+
+## Deck title stops, cover logo slot, no not-live slides
+
+One commit on `localhost`. The full stop after a serif phrase is drawn in that same run, so it sits on the last word of the breaker, the thank-you, and every other title. A following "." run was what left the gap.
+
+The grey rounded box at the cover's top left is the empty client logo slot. `build_cover` was calling `photo_slot` on placeholder 102, which paints "ADD: {client} logo" when there is no logo file. The payload has no client logo, so the slot is not drawn. The Assembled Media wordmark stays. It is not an MBA label.
+
+A channel in `notLive` is one line in the summary Outcome and does not get a slide. `validate_content` rejects a slide whose value key is `notLive.*` or `channels.{index|group}` for a not-live channel, and says to mention it in the summary outcome. `write_content.py` takes `report-data.json` so that retry can see the list. `SKILL.md` states the same rule.
+
+The decimals are from `formatDeckCount` in `scripts/spikes/report-deck-skill/slim-deck-payload.ts`. A non-integer count was kept at 2 dp, so Curatif results `801.623869` became `801.62`. Counts now round to a whole number with thousands separators. `conversions` is in that set. Spend, CPM, CPC, CPA and CTR stay at 2 dp. `lib/reports` does not format this payload, so it was not changed.
+
+No model call. The sample content drops the TikTok slide. TikTok stays in the summary Outcome: "TikTok has not started." The rebuilt payload rounds results to `802`. Seven slides. `build_report.py` printed `OK`. `check_deck.py` printed `OK`. PowerPoint wrote the PDF and the contact sheet replaced `docs/superpowers/overnight-av-fixes/UA5-contact-sheet.png`. Frequency's target cell is `1.0`. The cover has no grey logo box.
+
+- SHA: 3e5f3e63
+- Checks: `python test_checks.py` printed `tests OK`, including the serif full stop, a rejected not-live slide, and a KPI value that drops a repeated unit. `npx tsx --test scripts/spikes/report-deck-skill/slim-deck-payload.test.ts` 7/7, including `801.623869` formatting as `802` while spend, CPM, CPC, CPA and CTR stay at 2 dp. `lib/reports` was not touched, so `tsc` and eslint were not run.
+- Under 90%: nothing on the five fixes. The sample was not opened in the app.
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written.
+
+## Full stops on sans headings
+
+One commit on `localhost`. `3e5f3e63` put the full stop inside a serif run. Titles and headings that end in Plus Jakarta Sans ExtraBold still showed a gap: "What to do next .", "Hold the Meta mix .", "Push Search harder .". The deck XML had no space character. The period was already in the last run. Plus Jakarta's full stop has a wide left sidebearing, so it reads as a gap after a sans letter. Instrument Serif italic does not, which is why the serif titles already looked attached.
+
+The closing stop now sits on the last run, with the space before it removed, for titles, the breaker, recommendation headings, the thank-you, and any other card heading. A run that is only "." is merged onto the run before it. On a sans headline the last letter and the stop are pulled together by about 0.12em. A serif stop stays on the italic run.
+
+`check_deck` joins every paragraph on every slide and fails when the text matches a space before `.!?` at the end, or contains " ." anywhere.
+
+No model call. The Curatif sample was rebuilt from `out/ua5-content.json`. Seven slides. `build_report.py` printed `OK`. `check_deck.py` printed `OK` on that deck and on the three-card build. The contact sheet replaced `docs/superpowers/overnight-av-fixes/UA5-contact-sheet.png`.
+
+- SHA: 6a0b3d28
+- Checks: `python test_checks.py` printed `tests OK`, including a title whose last run is sans and one whose last run is serif, plus a deck that still has "next ." and is flagged. `check_deck.py` printed `OK` on `out/ua5-curatif.pptx` and `out/recs-three.pptx`.
+- Under 90%: nothing on the stop. The sample was not opened in the app.
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written.
+
+## On-demand deck jobs
+
+One commit on `localhost`. Review & Report still holds the request. This commit adds the job the button will call later. `POST /api/reports/on-demand` uses the same admin role, rate limit, and MBA check as export. It stores `kind` `on_demand_deck`, the resolved window on `period_start` and `period_end`, status `queued`, and `requested_by_email`. A second create while that row is queued or generating returns the same `runId`. After generated or failed, the in-flight index allows a new row. The response is `{ runId, status }` and the deck runs in `after()`.
+
+`buildDeckForRun` calls `generateCampaignReportForMba` with `store: false` and `withCommentary: true`, on the stored dates as a custom period, the same window shape the monthly worker uses. `storePerformanceReport` writes the file. Success sets `generated` with `blob_pathname` and `file_name`. A throw sets `failed` with the message. `report_runs` has no note column. A note from `buildDeckForRun` is stored in `error` prefixed `note:`, and the status GET returns that as `note` with `error` null. A real failure stays in `error`.
+
+`GET /api/reports/on-demand/[runId]` returns status, file name, download URL (`/api/reports/download?path=`), error, note, and `createdAt`. The caller must be an admin who can see that MBA. `GET /api/cron/on-demand-decks` runs every 5 minutes. It claims one `on_demand_deck` row queued for more than 2 minutes and fails rows generating for more than 10 minutes with `Timed out`. The monthly claim is unchanged and still excludes `on_demand_deck`.
+
+Do not apply `db/drizzle/0013_high_forgotten_one.sql`. 0097 is already applied. That file is snapshot bookkeeping. It also records `client_platform_accounts`, which was already in the Drizzle schema and missing from the previous snapshot. 0096 is still not applied.
+
+- SHA: 2f62d436
+- Checks: `npx tsx --test` on `lib/reports/deckJobs/__tests__/onDemandDeck.test.ts` and `lib/reports/__tests__/monthlyReportClaim.test.ts`, 15/15. `npx tsc --noEmit` exit 0. eslint on the touched TypeScript files, no warnings. `npm run db:generate` then reported no schema changes.
+- Under 90%: nothing on the queue, the claim, or the note prefix. The conflict SQL was not executed against Postgres. The live marker check was read-only.
+- Browser smoke was not run. The Review & Report button was not changed.
+- Snowflake was not called. Supabase was not written. A read-only check found `migration_markers` key `0097_report_runs_on_demand_deck`.
+
+## On-demand decks use the v5 skill
+
+One commit on `localhost`. When `DECK_RENDERER` is exactly `skill`, `buildDeckForRun` calls `runDeckSkill`. The spike `scripts/spikes/report-deck-skill/run-deck.ts` is unchanged. The app never uploads the skill. The id is `DECK_SKILL_ID`. The model is `DECK_SKILL_MODEL`, default `claude-opus-5-5`. Effort is `DECK_SKILL_EFFORT`, default `high`. One code-execution call sends `slimDeckPayload` (including audiences) as `report-data.json`, plus `Assembled-Media-Template-v5.potx` and three cover photos. Those kit files come from `BRAND_KIT_BASE_URL` and stay in `/tmp` for the life of the function. The user message forbids viewing images, reading the skill scripts, and writing a build script, and it tells the container to run `check_deck.py`. `pause_turn` continues on the same container. The run stops at $0.60 (Opus 5.5 rates: input $4, output $20, cache write $5, cache read $0.20 per million) or at 240 seconds. The pptx has to open and have at least 4 slides. Uploaded files and the output file are deleted from the Files API on success and on failure. Each job logs input, output, and cache tokens, cost, wall time, and container steps through `logJob`.
+
+A throw or either limit stores the Node deck from `generateCampaignReportForMba` and returns note `Basic layout: <reason>`. That note still lands in `error` as `note:`. Any other `DECK_RENDERER` value, including unset, keeps the Node deck and does not call the SDK. The monthly worker is unchanged. `scripts/reports/run-deck-skill-once.ts <mba> --confirm-paid` runs one campaign-to-date skill deck and writes the pptx under `scripts/spikes/report-deck-skill/out/`. It was not run.
+
+- SHA: 37ca361d
+- Checks: mocked SDK tests in `lib/reports/deckSkill/__tests__/runDeckSkill.test.ts`, 7/7. Flag off and `python` stay on the Node deck. Skill success returns the pptx and deletes the five uploads plus the output file. A skill error and the $0.60 cap and the 240 second wall each fall back with `Basic layout:` and still delete the files. `pause_turn` continues once on the same container. The once-script throws without `--confirm-paid`. `npx tsc --noEmit` exit 0. eslint on the touched TypeScript files, no warnings.
+- Under 90%: the live brand-kit zip was not downloaded, and no paid Messages call was made. The photo picker matches the spike, but the zip's `library/index.json` layout was not opened here.
+- Browser smoke was not run. The Review & Report button was not changed.
+- Snowflake was not called. Supabase was not written. The once-script was not run.
+
+## Review & Report shows deck build status
+
+One commit on `localhost`. Download report in the campaign report dialog posts `POST /api/reports/on-demand` and switches to a status panel. Queued or generating shows the 1 to 3 minute sentence, a spinner, and the time elapsed. Generated shows Download deck, the file name, and Basic layout with the reason when a note is set. Failed shows the error and Try again. The panel polls `GET /api/reports/on-demand/[runId]` every 5 seconds and stops when the row is generated or failed, or after 6 minutes, which then says the deck is still building and links to Reports.
+
+Opening the dialog looks up `GET /api/reports/on-demand?mbaNumber=&kind=`. That returns the latest `on_demand_deck` for the same resolved window when `created_at` is under 24 hours old, and the panel offers Build a new deck. A run that is 24 hours old is not shown again. `/admin/reports` lists on-demand rows requested in the selected Sydney month, with who asked, status, note and download. Generate now stays on the monthly rows. The month filter is the Melbourne calendar date of `created_at`, because an on-demand window often is not that month's `period_start`.
+
+- SHA: a049ed15
+- Checks: `npx vitest run` on `DeckBuildStatus.test.tsx` and `OnDemandDecks.test.tsx`, 12/12. Building, ready, Basic layout, failed, poll stop at generated, failed, and 6 minutes, and the 24 hour reopen rule. `npx tsc --noEmit` exit 0. eslint on the touched TypeScript files, no warnings. The on-demand route source test still passes.
+- Under 90%: the lookup query was not executed against Postgres. The Melbourne month filter was not run against a row.
+- Browser smoke was not run. No dev server was up, and Review & Report is behind the admin login, so the dialog was not clicked through.
+- Snowflake was not called. Supabase was not written. The paid skill script was not run.
+
+## Deck skill client timeout, error detail, no commentary on the skill path
+
+One commit on `localhost`. The v5 skill does not read commentary. `SKILL.md`, `summarise.py`, `write_content.py` and `build_report.py` never name it. `slimDeckPayload` would still copy `commentary.summary`, each item's `insight`, `action`, `actionOwner`, `outcome` and `outcomeKind`, and `coverPhotoId` if those fields were present. The Node deck is the reader: `summary`, `items.insight`, `items.action`, `items.outcome`, and `coverPhotoId`. The skill load in `buildDeckForRun` and `scripts/reports/run-deck-skill-once.ts` now sets `withCommentary: false`, so the slim JSON sends `commentary: null`. A skill throw, the $0.60 cap, or the 240 second wall rebuilds the Node deck with `withCommentary: true` and no pre-written commentary.
+
+Saving per successful skill deck: one `generateReportCommentary` completion is not made. That call is the report profile (default `claude-opus-5-5`, effort high, up to 32,000 tokens) and it also skips the priors list and the published campaign read that commentary loads. No dollar figure. No paid call was made, and the token count is not fixed. A failed skill deck still pays for that commentary call on the Node rebuild.
+
+`runDeckSkill` uses `getAnthropicClient().withOptions({ timeout: 300_000, maxRetries: 1 })`. The installed SDK has `withOptions`. A client-level timeout skips the non-streaming guard that throws on 32,000 tokens. Each Messages call still passes the time left under the 240 second wall. A thrown run logs `error_name` and `error_message` (first 300 characters) on the `[deck-skill]` line. `npm run deck:once` is the once-script. It still refuses to run without `--confirm-paid`. It was not run.
+
+- SHA: 2cecfdaf
+- Checks: mocked SDK tests in `lib/reports/deckSkill/__tests__/runDeckSkill.test.ts`, 10/10. The client used has `_options.timeout` 300000 and `maxRetries` 1, and a 32,000-token create does not throw the streaming guard. A client without `withOptions` is built with the same timeout and the same API key. The skill load is `withCommentary: false`. The fallback generate is `withCommentary: true` with no commentary object. The error log keeps `BoomError` and the first 300 characters of the message. `npx tsc --noEmit` exit 0. eslint on the touched TypeScript files, no warnings.
+- Under 90%: the dollar saving per deck. The skipped call is real. Its cost depends on the report that would have been sent, and that call was not made.
+- Browser smoke was not run. No screen changed.
+- Snowflake was not called. Supabase was not written. The once-script was not run. No paid Messages call was made.
+
+## AV UE overnight wrap-up
+
+Nothing pushed. Browser smoke was not run. Snowflake was not written. Migration 0098 was not applied.
+
+| Prompt | Commit | Reason | Luke next |
+|---|---|---|---|
+| AV-OV1 delivery chart style | none | Discovery only. No product code. | None. The chart landed in the two commits below. |
+| AV-OV2 creative and web data | none | Discovery only. App role could not see GA4, Search Console, Meta basic ad, or CM360 pacing. | None. Treat the view column names as unverified until the SQL is applied and checked. |
+| AV-OV1 delivery chart spec | 5c9221cd | One chart spec: token colours, shared size, empty copy. | Sign in and look at a campaign chart. |
+| AV-OV1 delivery chart containers | fa1df787 | Every delivery container uses `DeliveryDailyChart`. Channel colour is not a series colour. | Sign in and look at a channel chart and a line chart. |
+| Migration 0098 | 02e2a827 | Authored, not applied. | Apply `db/migrations/0098_ga4_gsc_accounts_and_creative_previews.sql` in the Supabase SQL editor. Do not drizzle-kit migrate. Leave `NEXT_PUBLIC_PLATFORM_ACCOUNTS_WEB` unset until the marker exists. `db:generate` was not run, so the Drizzle snapshot still has the 0096 platform check. |
+| Creative, GA4 and Search Console MART views | 1b573e73 | Authored, not run. | Run `sql/snowflake/mart/views/creative_web_search_views.sql` in Snowsight. Do not run it from the app. |
+| Creative performance API | cd8b5bc2 | Flag off is 404 for every role. A missing view is 503. | After the view exists, set `FEATURE_CREATIVE_PERFORMANCE` to `on`, `1`, or `true` and list the slugs in `FEATURE_CREATIVE_PERFORMANCE_CLIENTS`. |
+| Top 3 creative | 6eca6c76 | Strip after Where we are, and ads inside each delivery line, on the same flag. | Same flag as the creative API. Until the view exists, a flagged page shows the setup state, not ads. |
+| Web and search data layer | 9e7e02c2 | Readers and the element registry. Does not read `client_web_reports`. | None until the MART views exist. |
+| Client Web and search tab | cefd5530 | Client tab behind `FEATURE_WEB_SEARCH`. 0098 unpublished uses the built-in layout. | Set `FEATURE_WEB_SEARCH` to `on`, `1`, or `true` and list the slugs in `FEATURE_WEB_SEARCH_CLIENTS` when that tab should show. |
+| Web and search report builder | 0e370883 | Admin only. Save stays disabled until the 0098 marker exists. | Apply 0098, then open `/dashboard/[slug]/web/builder` and save. |
+| Brain and this table | this commit | Docs only. | Apply 0098 and the MART view file, then turn the two flags on for the clients who should see them. |
+
+## AV-OV1 delivery chart style
+
+Discovery only. No product code. No commit. `docs/superpowers/overnight-av-fixes/discovery/AV-OV1-delivery-style.md`.
+
+The campaign delivery charts are one `DeliveryDailyChart` (`ComboChart`: one bar series, one solid line). They are not forest bars plus a dashed sky plan plus a lime cumulative line. Channel charts take the family hex as the bar. Line charts omit that prop and fall back to forest. Height is 280px with no phone size. Future days are zero on social, search, and programmatic, and omitted on direct digital. Empty copy is "No daily delivery data available". `DeliveryPacingChart` and `LineItemDailyDeliveryChart` are not mounted.
+
+The report deck does not import these charts. PNG and CSV on `BaseChartCard` do. Every plotted chart exports as `pacing-daily-delivery-{date}`.
+
+- SHA: none
+- Browser smoke was not run.
+- Snowflake was not called. Supabase was not written.
+
+## AV-OV2 creative and web data
+
+Discovery only. No product code. No commit. `docs/superpowers/overnight-av-fixes/discovery/AV-OV2-creative-web-data.md`.
+
+Meta, TikTok, and CM360 line ids are the last hyphen token of the ad set, ad group, or placement, lowercased. The three named MBAs have that token on every live Meta ad set (3, 3, and 3) and on every live golf025 CM360 placement (11). `BASIC_AD` and `CM_360_PACING` are not granted to the app role, so ad counts and the CM360 creative column were not read. TikTok `AD_REPORT_DAILY` has no name. The five ads with delivery in the last 30 days all inherit `golf003sm2` from `AD_HISTORY.ADGROUP_NAME`, and none put a line code on the ad name. `AD_HISTORY` is current relative to `AD_HISTORY_BACKUP_V_2` (same max `UPDATED_AT` 2026-07-03, later sync 23 Sep). Ad to video is `AD_HISTORY.VIDEO_ID`. golf025 has two library files, `6.png` and `6 (2).png`, and neither matches a placement label. GA4 and Search Console schemas are not granted. `clients.idga4` is `TBC` for Treasury Wine Collective and blank for the other 46 clients. `client_platform_accounts` is applied and empty. A new section mounts beside Delivery in `CampaignPageAssembly`, which is a scroll, not tabs.
+
+- SHA: none
+- Browser smoke was not run.
+- Snowflake was queried with `SELECT` and `GET_DDL` only. Postgres was queried with `SELECT` only. Nothing was written to either.
+
+## AV-OV1 delivery chart — spec
+
+`5c9221cd` feat(dashboard): one delivery chart spec with shared size, colour and axis rules.
+
+`DeliveryChartSpec` and `DeliveryDailyChart` now paint forest bars (`--av-chart-1`), a dashed sky planned line (`--av-chart-2`) and a lime cumulative pace line (`--av-chart-3`) when those series are present, an ink metric line, a dashed ink today line, and blank future days on the plot. Channel height is 180px below 640px and 240px from there up. Legend sits under the title. The left axis starts at zero. Money uses `fmt.currencyCompact`. Counts use `fmt.compact`. Completion rate stays percent. Empty copy is "Starts <date>" or "Awaiting first report". CSV export still uses the unblanked rows.
+
+Live containers were not given a planned or pace series in this commit. Their daily rows do not contain those values.
+
+- SHA: 5c9221cd
+- `npx tsc --noEmit` passed. ESLint on the touched files passed. Vitest: delivery chart render tests and `ChannelSection.render.test.tsx` passed. Metric-line colour test passed.
+- `lib/reports` does not import the chart. `MediaPlanVizSection` does not import it. Those suites were not re-run.
+- Browser smoke was not run.
+
+## AV-OV1 delivery chart — containers
+
+`fa1df787` refactor(dashboard): every delivery container uses the shared delivery chart.
+
+`ChannelSection` and `LineItemBlock` render `DeliveryDailyChart`. The channel chart is the 240/180 size. The line chart is the same component at 180px. `mediaTypeColour` is no longer passed into the chart. The section icon chip still uses the channel family colour.
+
+`DeliveryPacingChart` was kept. AV-OV1 shows no adapter sets `chart.kind === "cumulative-vs-target"`, so it is not on the page. Its job is a cumulative target band, which the three-series spec does not draw. Folding it would drop that band. `PacingBandChart` stays because the design-system samples use it. `LineItemDailyDeliveryChart` already had no importers and was left in place. No third commit.
+
+Hard stop — these containers cannot grow bars plus a planned-per-day line without a data change, so they keep their existing series and only take the shared chrome:
+
+- Meta, TikTok, Reddit: spend bars and impressions line
+- Search: cost bars and clicks line
+- Programmatic display: spend bars and impressions line
+- Programmatic video and OOH: spend bars and views line when the section is CPV, otherwise impressions
+- Display, audio, BVOD: impression bars and clicks line
+- Video: impression bars and completion-rate line when the section has completes, otherwise clicks
+- Assumed spend and plan-only: empty daily, so the shared empty copy
+
+- SHA: fa1df787
+- `npx tsc --noEmit` passed. ESLint on the touched files passed. Vitest: 24 passed, 2 skipped (the parked ChannelSection line-item describes).
+- Browser smoke was not run. The campaign charts sit behind Auth0.
+
+## 0098 NOT APPLIED
+
+`02e2a827` feat(clients): GA4 and Search Console accounts and creative preview cache (migration 0098 authored).
+
+0098 NOT APPLIED. The SQL is `db/migrations/0098_ga4_gsc_accounts_and_creative_previews.sql`. It was not run. drizzle-kit migrate was not run. Nothing was selected from `creative_preview_cache`, `client_web_reports`, or `client_web_report_versions`.
+
+The migration replaces `client_platform_accounts_platform_chk` so `platform` also allows `ga4` and `gsc`, and creates the creative preview cache and the two web-report tables. RLS is on, with no policies and no `ava_readonly` grant. It needs 0096 already applied. The Drizzle mirrors say "requires 0098 applied". `db:generate` was not run, so the drizzle snapshot still has the 0096 platform check.
+
+GA4 stores digits from `properties/123`, `properties/123/`, a bare id, or an Analytics URL (`/p{id}`, `/a{account}p{id}`, or `?property=`). Display form is `properties/{digits}`. Search Console stores the trimmed Fivetran SITE string: `sc-domain:…` or an `http(s)` URL, trailing slash kept. Labels are "Google Analytics 4" and "Search Console". The client page lists those two only when `NEXT_PUBLIC_PLATFORM_ACCOUNTS_WEB` is `1`. Leave that flag unset until 0098 is applied.
+
+- SHA: 02e2a827
+- `npx tsc --noEmit` passed. ESLint on the touched files passed. `platformAccounts.test.ts` 13 passed. The section render test passed with the flag unset.
+- Browser smoke was not run.
+
+## Creative, GA4 and Search Console MART views — authored, not run
+
+`sql/snowflake/mart/views/creative_web_search_views.sql` was written and not executed. No CREATE, ALTER, or GRANT was sent to Snowflake. SELECT and GET_DDL only.
+
+Column checks, role `AV_APP_WRITE_ROLE`:
+
+- `ASSEMBLEDVIEW.INFORMATION_SCHEMA.SCHEMATA` for FACEBOOK_ADS, TIKTOK_ADS, DOUBLE_CLICK_CAMPAIGN_MANAGER, GOOGLE_ANALYTICS_4, GOOGLE_SEARCH_CONSOLE, MART. Returned MART and TIKTOK_ADS only.
+- `INFORMATION_SCHEMA.TABLES` on those five schemas. Returned 31 TIKTOK_ADS tables, including AD_REPORT_DAILY and AD_HISTORY. No rows for the other four schemas.
+- `INFORMATION_SCHEMA.COLUMNS` on TIKTOK_ADS.AD_REPORT_DAILY and AD_HISTORY. Confirmed AD_ID, STAT_TIME_DAY, SPEND, IMPRESSIONS, CLICKS, CONVERSION, VIDEO_PLAY_ACTIONS, VIDEO_VIEWS_P_100. No viewable-impressions column. AD_NAME, ADGROUP_NAME, ADGROUP_ID, and ADVERTISER_ID are on AD_HISTORY (UPDATED_AT, then _FIVETRAN_SYNCED).
+- `INFORMATION_SCHEMA.VIEWS` for CM360, GA4, GSC, and creative names. Returned MART.VW_PACING_CM360 and STG_PACING.V_CM360_PLACEMENT_DAILY. MART.V_PLATFORM_ADVERTISERS also exists.
+- `GET_DDL` of MART.VW_PACING_CM360. Columns selected: DATE, PLACEMENT, CAMPAIGN, IMPRESSIONS, CLICKS, TOTAL_CONVERSIONS, VIDEO_COMPLETIONS. Line id is the last hyphen token of PLACEMENT. No CREATIVE column.
+- `GET_DDL` of STG_PACING.V_CM360_PLACEMENT_DAILY. Also selects PROFILE_ID. Spend is hardcoded 0. No creative column.
+- `GET_DDL` of MART.V_PLATFORM_ADVERTISERS. Selects ADVERTISER and excludes `BidManager_Advertiser_DO_NOT_EDIT%`.
+- `GET_DDL('TABLE', ...)` failed with a SQL compilation error for FACEBOOK_ADS.BASIC_AD, FACEBOOK_ADS.BASIC_AD_SET, DOUBLE_CLICK_CAMPAIGN_MANAGER.CM_360_PACING, GOOGLE_ANALYTICS_4.TRAFFIC_ACQUISITION_SESSION_CAMPAIGN_REPORT, and GOOGLE_SEARCH_CONSOLE.SITE_REPORT_BY_SITE.
+- `SNOWFLAKE.ACCOUNT_USAGE.COLUMNS` failed with a SQL compilation error.
+
+Names that were not in INFORMATION_SCHEMA:
+
+- Meta BASIC_AD uses the Fivetran basic_ad columns (AD_ID, AD_NAME, ADSET_NAME, ACCOUNT_ID, DATE, SPEND, IMPRESSIONS, INLINE_LINK_CLICKS). Viewable impressions, video views, video completions, and conversions are null. Those are not columns on BASIC_AD.
+- CM360 creative name is the placement with the last hyphen token removed. creative_key is that name, lowercased and trimmed. Spend is null. account_ref is the advertiser name.
+- GA4 campaign view reads TRAFFIC_ACQUISITION_SESSION_CAMPAIGN_REPORT. That prebuilt report has SESSION_CAMPAIGN_NAME and does not have session source or session medium. Those two dimensions are on TRAFFIC_ACQUISITION_SESSION_SOURCE_MEDIUM_REPORT, which has no session campaign. The view stays on the campaign report and leaves source and medium null. property_id is the digits in PROPERTY.
+- GA4 landing view reads PAGES_PATH_REPORT. That report has TOTAL_USERS and SCREEN_PAGE_VIEWS and has no SESSIONS column, so the audience column is total_users.
+- Search Console names are the Fivetran ERD: SITE, DATE, CLICKS, IMPRESSIONS, CTR, POSITION, SEARCH_TYPE, QUERY, plus COUNTRY and DEVICE. Both views keep search_type = 'web', sum country and device, and weight position by impressions. The query column is QUERY. A connection created before 12 Aug 2022 would call it KEYWORD.
+
+- SHA: 1b573e73
+- The SQL file was not run.
+- Browser smoke was not run.
+
+## Creative performance API — behind a flag
+
+`GET /api/dashboard/[slug]/[mba_number]/creative` reads `ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY` for one MBA and a date window, groups by platform and creative key, and ranks by `impressions`, `ctr`, or `vcr`. Creatives under 1,000 impressions stay in the list and are unranked on CTR and VCR. Line labels come from the published plan cut. Preview is `{ status: "none" }`. CPM is null when spend is null.
+
+The route is off unless `FEATURE_CREATIVE_PERFORMANCE` is `on`, `1`, or `true` and the slug is in `FEATURE_CREATIVE_PERFORMANCE_CLIENTS`. Off is 404 for every role, including admin. A client whose slug or MBA list does not match gets 404, the same gate as the campaign page. Five reads a minute per session, in its own bucket. A missing view returns 503 `{ error: "Creative data not set up yet" }` and `console.warn`, not `console.error`.
+
+The Snowflake view file was not run. Until it is created in Snowsight, a flagged request returns 503.
+
+- SHA: cd8b5bc2
+- `npx tsc --noEmit` passed. ESLint on the creative performance files passed. Grouping and ranking tests passed (golf025 Meta image 202,247 impressions / 3,302 clicks = 1.63% CTR ranks first). Route tests passed: flag off 404, other-client 404, missing view 503 with a warning. Tenant route guard harness passed.
+- Browser smoke was not run. The view does not exist yet, so a live campaign page cannot show creative rows.
+
+## Top 3 creative and creative inside each delivery line
+
+The strip is not a section. `TopCreativeStrip` mounts after Where we are, before Channels at a glance, only when `FEATURE_CREATIVE_PERFORMANCE` is on for the slug and the page has a date window. One fetch of the creative API (`sort=ctr`) feeds the strip and every delivery line.
+
+Top 3 rules: Best CTR (at least 10,000 impressions), Most reach (impressions), Best completion (video with a completion rate, at least 10,000 impressions). No ad is used twice. A slot with no candidate takes the next impressions ad and is labelled Most reach. `preview.status` `none` draws the format frame. The image branch is the hook for later previews.
+
+Each `LineItemBlock` shows "Creative in this line" beside the daily chart when that line has rows, stacked under the chart below 900px. Paid social rows show spend and impressions. CM360 rows show impressions and viewable rate. The right-hand figure is CTR, or completion for video. The list is ranked by CTR, six ads then "Show all N". A line with no rows, and any load error, adds nothing. Loading, "Creative data isn't set up yet", and the error retry stay on the strip.
+
+- SHA: 6eca6c76
+- `npx tsc --noEmit` passed. ESLint on the touched files passed. Selection, line grouping, show-all, and render-state tests passed. The campaign section-order test still passes because the strip is not a SectionBoundary.
+- Browser smoke was not run. The campaign page needs a signed-in session, and the Snowflake view is not created yet, so a flagged page would show the strip setup state rather than ads.
+
+## Web & search report data layer and element registry
+
+Readers in `lib/webReport/data` query the OV5 MART views for one GA4 property, one Search Console site, and a date window. Every read returns the current period and the previous comparable period: the month before last month, the 28 days before the current 28, or the same month last year. `0098` is not applied. This commit does not read `client_web_reports`.
+
+What the views actually hold:
+
+- Page views are `screen_page_views` on `V_GA4_LANDING_DAILY` (PAGES_PATH_REPORT). The campaign view has no page-view column.
+- Sessions, engaged sessions, and total key events come from `V_GA4_CAMPAIGN_DAILY`. Engagement rate is engaged sessions divided by sessions.
+- Users, new users, and key events by event name are not on those views. Tiles for them say they are not available yet.
+- Session source and medium are null on the campaign view, so Source / medium is `needs_report`.
+- Page path is on the landing view. Page title is not.
+- City and events by source are `needs_report`. There is no query for them.
+- Search Console clicks, impressions, CTR, and position come from `V_GSC_SITE_DAILY`. Position rolled up across days is impression-weighted (`sum(position * impressions) / sum(impressions)`). The view already weighted each day. Queries and the brand flag come from `V_GSC_QUERY_DAILY`. Brand is a case-insensitive contains match on `brand_terms`. There is no Search Console page column, so search pages are `needs_report`.
+- A source whose latest date is more than 7 days behind today is `stale`. A missing view is a warning and an error status on that source, not a thrown page.
+
+AV paid spend reuses `getDeliveredTotalsForClient` at `lib/delivery/getDeliveredTotalsForClient.ts:87`. That function returns one client total for the window. It does not split by channel, so the channel list is a single Paid media row.
+
+The registry is `lib/webReport/elements.ts`. Render is `WebReportElement` in `components/dashboard/web/reportElements.tsx`. The built-in layout, used until a client has a saved report, is kpis, snapshot, traffic, srcmed, queries. Charts use `ComboChart` from `components/charts/system` at the delivery chart height (`h-[180px] sm:h-[240px]`) and `--av-chart-1`, `--av-chart-2`, and `--av-ink`.
+
+- SHA: 9e7e02c2
+- `npx tsc --noEmit` passed. ESLint on the web report files passed. Period, change, brand, position, registry, and element-state tests passed.
+- The Snowflake view file was not run. Browser smoke was not run.
+
+## Client Web & search tab
+
+`/dashboard/[slug]/web` and `GET /api/dashboard/[slug]/web-report` are the client tab. They are off unless `FEATURE_WEB_SEARCH` is `on`, `1`, or `true` and the slug is in `FEATURE_WEB_SEARCH_CLIENTS`. Off is 404 for every role, including admin. A client whose slug does not match gets 404, the same gate as the client dashboard page. The nav item sits after Creative for a flagged client slug. Staff who are not on that client menu reach the page by URL when the flag is on.
+
+`0098` is not applied. The loader checks `to_regclass('public.client_web_reports')` and does not select that table while it is missing. The page uses the built-in layout and the client's `ga4` and `gsc` platform accounts. If neither account exists, the page says "Not connected yet" and does not render elements.
+
+The header is the client name, then the serif phrase "Web & search, <period>." A period select offers last month, last 28 days, and this month last year. Under that: "Compared with <previous period>." and a Built from line naming the GA4 property (`properties/{digits}`), the Search Console site, and AV paid media.
+
+Each element renders inside its own error boundary. States are ok, not connected ("Not connected yet"), stale ("Search Console data stopped on <date>"), needs report ("Not available yet"), empty, and error. Change values are green when up and orange when down, with the sign. Tables use tabular numbers.
+
+- SHA: cefd5530
+- `npx tsc --noEmit` passed. ESLint on the tab files passed. Client-access tests passed (another client is 404 and the loader is not called; flag off is 404). The tenant route guard harness passed. Nav test passed.
+- Browser smoke was not run. The page needs a signed-in session, the flag is off unless the env is set, and the Snowflake views are not created yet.
+
+## Web & search report builder
+
+`/dashboard/[slug]/web/builder` and `POST /api/dashboard/[slug]/web-builder` are the staff editor for one client's saved report. The gate is the same as editing a client: admin only. In this app that is the staff role. A client role is 404 on the page and on the save route, including their own slug. The builder is not in the client menu. An admin sees "Edit report" on the client Web & search tab when that tab is on. The builder itself is not behind `FEATURE_WEB_SEARCH`, so a report can be prepared before the client tab is switched on.
+
+The page has the connections (GA4 property, Search Console site, brand terms, default period), the element library grouped as in the registry, a numbered layout, and settings read from each element's zod schema. Location, events, source / medium, and search pages show a dashed border and "Needs data", because those MART views still cannot fill them. Key event names are not on `V_GA4_*`, so that select stays empty. Preview posts the draft and renders it with the same report view the client sees. It does not write.
+
+Save inserts a `client_web_report_versions` row, sets status `published`, and bumps `current_version`. The message is "Saved for <client> · version N". Versions older than the newest 10 are deleted. Restore version N points `current_version` back at that row. None of this runs unless `migration_markers` contains `0098_ga4_gsc_accounts_and_creative_previews`. Without that marker the Save button is disabled with "Builder needs migration 0098", and the route returns 409. `0098` is still not applied. The Snowflake view file was not run.
+
+- SHA: 0e370883
+- `npx tsc --noEmit` passed. ESLint on the builder files passed. Layout add, move, and remove passed. Settings validation passed for every element. Save creates a version, restore returns that version, a client is 404 and the save is not called, and save is refused before migration 0098. The tenant route guard harness passed.
+- Browser smoke was not run. The builder needs an admin session, and save stays disabled until 0098 is applied.
+
