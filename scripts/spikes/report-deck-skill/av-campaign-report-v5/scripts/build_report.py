@@ -246,17 +246,28 @@ def kpi_figure(label, value):
     return text
 
 
-def insight_card(slide, path, spec, table_top, row_h, row_count, gap=0.18, top=None, height=None):
+def fitted_copy_height(text, width, size):
+    """0.3in pad, one line-height per wrapped line, 0.3in pad. At least 0.9in."""
+    line_h = size * 1.15 / 72
+    lines = wrap_lines(text, width, size / 72 * 0.55)
+    return max(0.9, 0.3 + lines * line_h + 0.3)
+
+
+def insight_card(slide, path, spec, above_bottom):
+    """Sand insight card, 0.3in below the element above it. Height fits the text."""
     insight = text_of(require(spec, "insight", f"{path}.insight"), f"{path}.insight", 160)
-    if top is None:
-        top = table_top + row_h * row_count + gap
-        height = 6.7 - top
-        if height < 1.2:
-            height = 1.2
-            top = 6.7 - height
+    top = above_bottom + 0.3
+    text_w = 10.1
+    height = fitted_copy_height(insight, text_w, 15)
     card(slide, 0.6, top, 12.13, height, K["sand"])
     tag(slide, 0.82, top + (height / 2) - 0.16, "Insight", K["sky"], K["ink"])
-    say(slide, 2.35, top + 0.12, 10.1, height - 0.24, insight, f"{path}.insight", size=15, color=K["ink"], anchor="m")
+    shape = say(
+        slide, 2.35, top + 0.3, text_w, height - 0.6, insight, f"{path}.insight",
+        size=15, color=K["ink"], anchor="t",
+    )
+    shape.text_frame.margin_top = 0
+    shape.text_frame.margin_bottom = 0
+    return top + height
 
 
 def cq(tag):
@@ -347,25 +358,25 @@ def channel_chart_problem(spec, data):
     return None
 
 
-def chart_txpr():
+def chart_txpr(size="1000"):
     tx_pr = etree.Element(cq("txPr"))
     etree.SubElement(tx_pr, aq("bodyPr"))
     etree.SubElement(tx_pr, aq("lstStyle"))
     paragraph = etree.SubElement(tx_pr, aq("p"))
     props = etree.SubElement(paragraph, aq("pPr"))
     run = etree.SubElement(props, aq("defRPr"))
-    run.set("sz", "1000")
+    run.set("sz", size)
     solid = etree.SubElement(run, aq("solidFill"))
     etree.SubElement(solid, aq("srgbClr")).set("val", "3B4A3F")
     for face in ("latin", "ea", "cs"):
         etree.SubElement(run, aq(face)).set("typeface", "Plus Jakarta Sans")
-    etree.SubElement(paragraph, aq("endParaRPr")).set("sz", "1000")
+    etree.SubElement(paragraph, aq("endParaRPr")).set("sz", size)
     return tx_pr
 
 
-def put_txpr(parent):
+def put_txpr(parent, size="1000"):
     current = parent.find(cq("txPr"))
-    fresh = chart_txpr()
+    fresh = chart_txpr(size)
     if current is not None:
         parent.replace(current, fresh)
         return
@@ -443,6 +454,12 @@ def series_line(ser):
     marker = etree.Element(cq("marker"))
     etree.SubElement(marker, cq("symbol")).set("val", "none")
     props.addnext(marker)
+    smooth = ser.find(cq("smooth"))
+    if smooth is not None:
+        ser.remove(smooth)
+    smooth = etree.Element(cq("smooth"))
+    smooth.set("val", "0")
+    ser.append(smooth)
 
 
 def no_chart_border(space):
@@ -534,6 +551,48 @@ def point_value(point, index):
     return point[index]
 
 
+def manual_layout(x, y, w, h):
+    layout = etree.Element(cq("layout"))
+    manual = etree.SubElement(layout, cq("manualLayout"))
+    for tag, val in (
+        ("xMode", "edge"),
+        ("yMode", "edge"),
+        ("x", x),
+        ("y", y),
+        ("w", w),
+        ("h", h),
+    ):
+        etree.SubElement(manual, cq(tag)).set("val", val)
+    return layout
+
+
+def place_legend(space):
+    """Legend sits top right, above a plot area that keeps the axes clear."""
+    node = space.find(cq("chart"))
+    legend = node.find(cq("legend"))
+    if legend is None:
+        return
+    pos = legend.find(cq("legendPos"))
+    if pos is None:
+        pos = etree.Element(cq("legendPos"))
+        legend.insert(0, pos)
+    pos.set("val", "tr")
+    overlay = legend.find(cq("overlay"))
+    if overlay is None:
+        overlay = etree.SubElement(legend, cq("overlay"))
+    overlay.set("val", "0")
+    current = legend.find(cq("layout"))
+    if current is not None:
+        legend.remove(current)
+    overlay.addprevious(manual_layout("0.50", "0.00", "0.48", "0.14"))
+    put_txpr(legend, "900")
+    plot = node.find(cq("plotArea"))
+    current = plot.find(cq("layout"))
+    if current is not None:
+        plot.remove(current)
+    plot.insert(0, manual_layout("0.08", "0.18", "0.82", "0.66"))
+
+
 def style_delivery_chart(chart, left_fmt, right_fmt, skip):
     space = chart._element
     node = space.find(cq("chart"))
@@ -583,11 +642,9 @@ def style_delivery_chart(chart, left_fmt, right_fmt, skip):
             if grid is not None:
                 axis.remove(grid)
         put_txpr(axis)
-    legend = node.find(cq("legend"))
-    if legend is not None:
-        put_txpr(legend)
     put_txpr(space)
     no_chart_border(space)
+    place_legend(space)
     area = plot.find(cq("spPr"))
     if area is not None:
         plot.remove(area)
@@ -624,17 +681,19 @@ def delivery_chart(slide, x, y, w, h, chart, path):
     frame.name = f"{path}.chart"
     graphic = frame.chart
     graphic.has_legend = True
-    graphic.legend.position = XL_LEGEND_POSITION.BOTTOM
+    graphic.legend.position = XL_LEGEND_POSITION.CORNER
     graphic.legend.include_in_layout = True
     graphic.plots[0].gap_width = 60
     add_secondary_line(graphic)
     count = len(points)
     skip = 1 if count <= 8 else (count + 7) // 8
     style_delivery_chart(graphic, axis_format(left_axis), axis_format(right), skip)
+    bottom = y + h
     note = chart.get("note")
     if isinstance(note, str) and note.strip():
-        say(slide, x, y + h, w, 0.18, note, f"{path}.note", size=9, color=K["muted"])
-    return frame
+        say(slide, x, bottom, w, 0.22, note, f"{path}.note", size=9, color=K["muted"])
+        bottom += 0.22
+    return bottom
 
 
 def stat_pills(slide, path, entries):
@@ -736,8 +795,8 @@ def build_delivery_layout(deck, spec, index, fixed):
             value = key_of(require(stat, "key", f"{at}.key"), f"{at}.key")
             entries.append((label, value, f"{at}.key"))
         stat_pills(slide, path, entries)
-    delivery_chart(slide, 0.6, 2.85, 12.13, 2.70, chart, path)
-    insight_card(slide, path, spec, 0, 0, 0, top=5.75, height=0.95)
+    chart_bottom = delivery_chart(slide, 0.6, 2.85, 12.13, 2.70, chart, path)
+    insight_card(slide, path, spec, chart_bottom)
     return slide
 
 
@@ -819,9 +878,14 @@ def build_summary(deck, spec, index):
             note = text_of(stat["note"], f"{at}.note", 48)
             say(slide, x + 0.14, 3.78 if tall else 3.6, width - 0.28, 0.38, note, f"{at}.note", size=11, color=K["muted"])
     outcome = text_of(require(spec, "outcome", f"{path}.outcome"), f"{path}.outcome", 160)
-    card(slide, 0.6, 4.35, 12.13, 2.15, K["sand"])
-    tag(slide, 0.82, 4.55, "Outcome", K["lime"], K["ink"])
-    say(slide, 0.82, 5.1, 11.7, 1.15, outcome, f"{path}.outcome", size=16, color=K["ink"])
+    text_w = 11.7
+    top = 4.22 + 0.3
+    height = fitted_copy_height(outcome, text_w, 16)
+    card(slide, 0.6, top, 12.13, height, K["sand"])
+    tag(slide, 0.82, top + (height / 2) - 0.16, "Outcome", K["lime"], K["ink"])
+    shape = say(slide, 0.82, top + 0.3, text_w, height - 0.6, outcome, f"{path}.outcome", size=16, color=K["ink"], anchor="t")
+    shape.text_frame.margin_top = 0
+    shape.text_frame.margin_bottom = 0
     return slide
 
 
@@ -897,7 +961,7 @@ def build_channel(deck, spec, index, photos):
                 "title_color": K["forest"],
             })
         height = draw_fit_cards(slide, drawn, 1.95, 0.6, 12.73)
-        insight_card(slide, path, spec, 1.95, height, 1)
+        insight_card(slide, path, spec, 1.95 + height)
         return slide
     slide = deck.add("Photo and Text")
     put_title(deck, slide, 100, spec, f"{path}.title", size=32)
@@ -1005,14 +1069,14 @@ def build_kpi(deck, spec, index):
         grid = table(slide, 0.6, 2.15, 12.13, table_rows, widths=[3, 4, 4], size=13, head=True, first_bold=True, row_h=0.42)
         grid.name = f"{path}.table"
         line(slide, 0.6, 2.05, 2.2, K["forest"], 2.5)
-        gap = 0.18
+        above = 2.15 + 0.42 * len(table_rows)
         if any(kpi_metric_is_conversion(item) for item in rows if isinstance(item, dict)):
             say(
-                slide, 0.6, 2.15 + 0.42 * len(table_rows) + 0.06, 12.13, 0.28,
+                slide, 0.6, above + 0.06, 12.13, 0.22,
                 CONVERSION_NOTE, f"{path}.conversion", size=9, color=K["muted"],
             )
-            gap = 0.46
-        insight_card(slide, path, spec, 2.15, 0.42, len(table_rows), gap=gap)
+            above += 0.28
+        insight_card(slide, path, spec, above)
         return slide
     slide = deck.add("Four Cards")
     put_title(deck, slide, 100, spec, f"{path}.title")
@@ -1108,7 +1172,7 @@ def build_appendix(deck, spec, index):
     grid = table(slide, 0.6, 2.15, 12.13, table_rows, size=12, head=True, first_bold=True, row_h=0.42)
     grid.name = f"{path}.table"
     line(slide, 0.6, 2.05, 2.2, K["forest"], 2.5)
-    insight_card(slide, path, spec, 2.15, 0.42, len(table_rows))
+    insight_card(slide, path, spec, 2.15 + 0.42 * len(table_rows))
     return slide
 
 
@@ -1213,11 +1277,13 @@ def build_recommendations(deck, spec, index):
             "body_path": f"{at}.body",
         })
     right = 9.85 if len(cards) == 2 else 12.73
+    height = draw_fit_cards(slide, drawn, 1.95, 0.6, right)
+    cards_bottom = 1.95 + height
     if len(cards) == 2:
-        bar_motif(slide, bottom=5.50)
-    draw_fit_cards(slide, drawn, 1.95, 0.6, right)
-    tag(slide, 0.6, 5.93, "Outcome", K["lime"], K["ink"])
-    say(slide, 2.2, 5.7, 10.5, 0.8, outcome, f"{path}.outcome", size=15, color=K["ink"], anchor="m")
+        bar_motif(slide, bottom=cards_bottom)
+    outcome_top = cards_bottom + 0.35
+    tag(slide, 0.6, outcome_top, "Outcome", K["lime"], K["ink"])
+    say(slide, 2.2, outcome_top, 10.5, 0.4, outcome, f"{path}.outcome", size=15, color=K["ink"], anchor="t")
     return slide
 
 

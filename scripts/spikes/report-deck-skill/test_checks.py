@@ -735,6 +735,15 @@ def test_chart_slide_builds_and_opens():
         xml = archive.read(charts[0]).decode("utf-8")
         if "<c:lineChart" not in xml or xml.count("<c:valAx") < 2:
             fail("combo chart XML is missing the line series or the second axis")
+        if 'legendPos val="tr"' not in xml:
+            fail("chart legend is not top right")
+        if "<c:manualLayout>" not in xml:
+            fail("chart plot area has no manual layout")
+        if 'name="smooth" val="0"' not in xml and 'smooth val="0"' not in xml:
+            fail("chart line is not set smooth off")
+    text = slide_text(out)
+    if "Reported daily spend. Excludes assumed and estimated spend." not in text:
+        fail(f"chart note was not drawn: {text}")
     from pptx import Presentation
     Presentation(out)
 

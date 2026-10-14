@@ -271,7 +271,7 @@ test("a pacing row whose line is not in the snapshot is dropped", () => {
   assert.deepEqual(social.points, [["2026-07-01", 10, 5]])
 })
 
-test("campaign chart sums reported spend and clicks, and the note stays null", () => {
+test("campaign chart sums reported spend and clicks through complete days", () => {
   const charts = buildDeckCharts(
     {
       channels: [
@@ -302,35 +302,90 @@ test("campaign chart sums reported spend and clicks, and the note stays null", (
   assert.equal(charts[0]?.label, "All channels")
   assert.equal(charts[0]?.left.key, "spend")
   assert.equal(charts[0]?.right?.key, "clicks")
-  assert.equal(charts[0]?.note, null)
+  assert.equal(charts[0]?.note, "Chart shows complete days to 3 Jul.")
   assert.deepEqual(charts[0]?.points, [
     ["2026-07-01", 18, 7],
     ["2026-07-02", 0, 0],
   ])
 })
 
-test("social and search left points reconcile to the channel spend", () => {
-  const socialSpend = 10.1 + 5.25
-  const searchSpend = 3.2 + 1.05
+test("social and search left points reconcile to daily rows through the chart end", () => {
+  const socialThroughEnd = 10.1 + 5.25
+  const searchThroughEnd = 3.2 + 1.05
+  const socialAfter = 9.5
+  const searchAfter = 4.4
   const charts = buildDeckCharts(
     {
       channels: [
-        channel("social_meta", [line("meta1", socialSpend)]),
-        channel("search", [line("se1", searchSpend)]),
+        channel("social_meta", [line("meta1", socialThroughEnd + socialAfter)]),
+        channel("search", [line("se1", searchThroughEnd + searchAfter)]),
       ],
       dailyPacingRows: [
         pacing({ lineItemId: "meta1", dateDay: "2026-07-01", amountSpent: 10.1, impressions: 10, clicks: 1 }),
         pacing({ lineItemId: "meta1", dateDay: "2026-07-02", amountSpent: 5.25, impressions: 4, clicks: 1 }),
+        pacing({ lineItemId: "meta1", dateDay: "2026-07-04", amountSpent: socialAfter, impressions: 8, clicks: 2 }),
       ],
       dailySearch: searchResponse("se1", [
         { date: "2026-07-01", cost: 3.2, clicks: 2, conversions: 0, revenue: 0, impressions: 1, topImpressionPct: null },
         { date: "2026-07-02", cost: 1.05, clicks: 1, conversions: 0, revenue: 0, impressions: 1, topImpressionPct: null },
+        { date: "2026-07-05", cost: searchAfter, clicks: 3, conversions: 0, revenue: 0, impressions: 2, topImpressionPct: null },
       ]),
     },
     WINDOW,
   )
   const social = chartFor(charts, "social_meta")
   const search = chartFor(charts, "search")
-  assert.equal(Math.round(sumLeft(social) * 100), Math.round(socialSpend * 100))
-  assert.equal(Math.round(sumLeft(search) * 100), Math.round(searchSpend * 100))
+  assert.equal(social.points[social.points.length - 1]?.[0], "2026-07-02")
+  assert.equal(Math.round(sumLeft(social) * 100), Math.round(socialThroughEnd * 100))
+  assert.notEqual(Math.round(sumLeft(social) * 100), Math.round((socialThroughEnd + socialAfter) * 100))
+  assert.equal(Math.round(sumLeft(search) * 100), Math.round(searchThroughEnd * 100))
+  assert.notEqual(Math.round(sumLeft(search) * 100), Math.round((searchThroughEnd + searchAfter) * 100))
+})
+
+test("charts end two days before asOf and name that date", () => {
+  const charts = buildDeckCharts(
+    {
+      channels: [
+        channel("social_meta", [line("meta1", 33)]),
+        channel("digital_display", [line("dd1", 5)]),
+      ],
+      dailyPacingRows: [
+        pacing({ lineItemId: "meta1", dateDay: "2026-10-13", amountSpent: 10, impressions: 1, clicks: 1 }),
+        pacing({ lineItemId: "meta1", dateDay: "2026-10-14", amountSpent: 11, impressions: 1, clicks: 1 }),
+        pacing({ lineItemId: "meta1", dateDay: "2026-10-15", amountSpent: 12, impressions: 1, clicks: 1 }),
+        pacing({
+          channel: "ad-serving",
+          lineItemId: "dd1",
+          dateDay: "2026-10-13",
+          impressions: 4,
+          clicks: 1,
+        }),
+      ],
+    },
+    { startISO: "2026-10-01", endISO: "2026-10-15" },
+  )
+  assert.equal(charts[0]?.scope, "campaign")
+  assert.equal(charts[0]?.points.at(-1)?.[0], "2026-10-13")
+  assert.equal(
+    charts[0]?.note,
+    "Reported daily spend. Excludes assumed and estimated spend. Chart shows complete days to 13 Oct.",
+  )
+  const social = chartFor(charts, "social_meta")
+  assert.equal(social.points.at(-1)?.[0], "2026-10-13")
+  assert.equal(social.points.some((point) => point[0] > "2026-10-13"), false)
+  assert.equal(social.note, "Chart shows complete days to 13 Oct.")
+})
+
+test("a window of two days has no chart", () => {
+  const charts = buildDeckCharts(
+    {
+      channels: [channel("social_meta", [line("meta1", 10)])],
+      dailyPacingRows: [
+        pacing({ lineItemId: "meta1", dateDay: "2026-10-14", amountSpent: 4, impressions: 1, clicks: 1 }),
+        pacing({ lineItemId: "meta1", dateDay: "2026-10-15", amountSpent: 6, impressions: 1, clicks: 1 }),
+      ],
+    },
+    { startISO: "2026-10-14", endISO: "2026-10-15" },
+  )
+  assert.deepEqual(charts, [])
 })

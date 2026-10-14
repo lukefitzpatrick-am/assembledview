@@ -4,7 +4,7 @@
  * Pure: no Snowflake, no React.
  */
 import type { DeliveryChannelGroup, DeliveryLineSnapshot } from "@/lib/ava/tools/summaries"
-import { buildDateListISO } from "@/lib/delivery/search/searchCore"
+import { addDaysISO, buildDateListISO } from "@/lib/delivery/search/searchCore"
 import { cleanPacingLineItemId } from "@/lib/pacing/delivery/lineItemIds"
 import { campaignReportChannelLabel } from "@/lib/reports/campaignReport/reportFigures"
 import type { PacingRow } from "@/lib/snowflake/pacing-service"
@@ -37,6 +37,8 @@ export type DeckChart = {
 }
 
 const CAMPAIGN_NOTE = "Reported daily spend. Excludes assumed and estimated spend."
+const COMPLETE_DAY_LAG = 2
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 const SOCIAL_GROUPS = new Set(["social_meta", "social_tiktok", "social_reddit"])
 const PROGRAMMATIC_GROUPS = new Set(["programmatic_display", "programmatic_video", "programmatic_ooh"])
@@ -108,6 +110,25 @@ function inWindow(date: string, window: DeckChartWindow): boolean {
   return date >= window.startISO && date <= window.endISO
 }
 
+/** Last complete day is two Melbourne calendar days before the window end. */
+function chartWindow(window: DeckChartWindow): DeckChartWindow | null {
+  const endISO = addDaysISO(window.endISO, -COMPLETE_DAY_LAG)
+  if (!endISO || endISO < window.startISO) return null
+  return { startISO: window.startISO, endISO }
+}
+
+function completeDaysNote(endISO: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(endISO)
+  const month = match ? MONTHS[Number(match[2]) - 1] : undefined
+  const label = match && month ? `${Number(match[3])} ${month}` : endISO
+  return `Chart shows complete days to ${label}.`
+}
+
+function chartNote(endISO: string, exclusion: string | null): string {
+  const complete = completeDaysNote(endISO)
+  return exclusion ? `${exclusion} ${complete}` : complete
+}
+
 function addDay(map: Map<string, DayTotals>, date: string, left: number, right: number) {
   const current = map.get(date) ?? { left: 0, right: 0 }
   current.left += left
@@ -169,6 +190,8 @@ function channelHasEstimatedSpend(channel: DeliveryChannelGroup): boolean {
 
 export function buildDeckCharts(snapshot: DeckChartSnapshot, window: DeckChartWindow): DeckChart[] {
   if (!window.startISO || !window.endISO || window.endISO < window.startISO) return []
+  const plotted = chartWindow(window)
+  if (!plotted) return []
 
   const lineGroup = new Map<string, string>()
   for (const channel of snapshot.channels) {
@@ -202,7 +225,7 @@ export function buildDeckCharts(snapshot: DeckChartSnapshot, window: DeckChartWi
     const group = lineGroup.get(id)
     if (!group || group === "search" || !chartable.has(group)) continue
     const date = normalizeDailyFactDate(row.dateDay)
-    if (!date || !inWindow(date, window)) continue
+    if (!date || !inWindow(date, plotted)) continue
     const series = chartable.get(group)!
     const left = series.find((item) => item.yAxis === "left")
     const right = series.find((item) => item.yAxis === "right")
@@ -231,7 +254,7 @@ export function buildDeckCharts(snapshot: DeckChartSnapshot, window: DeckChartWi
       if (!id || !searchLines.has(id)) continue
       for (const day of series.daily ?? []) {
         const date = normalizeDailyFactDate(day.date)
-        if (!date || !inWindow(date, window)) continue
+        if (!date || !inWindow(date, plotted)) continue
         addDay(channelDays.get("search")!, date, day.cost || 0, day.clicks || 0)
         addNumber(campaignSpend, date, day.cost || 0)
         addNumber(campaignClicks, date, day.clicks || 0)
@@ -248,7 +271,7 @@ export function buildDeckCharts(snapshot: DeckChartSnapshot, window: DeckChartWi
     if (!leftSeries) continue
     const left = toAxis(leftSeries)
     const right = rightSeries ? toAxis(rightSeries) : null
-    const points = pointsFrom(channelDays.get(channel.group) ?? new Map(), window, left, right)
+    const points = pointsFrom(channelDays.get(channel.group) ?? new Map(), plotted, left, right)
     if (!points) continue
     channelCharts.push({
       scope: "channel",
@@ -257,18 +280,19 @@ export function buildDeckCharts(snapshot: DeckChartSnapshot, window: DeckChartWi
       left,
       right,
       points,
-      note: null,
+      note: chartNote(plotted.endISO, null),
     })
   }
 
   const campaignLeft: DeckChartAxis = { key: "spend", label: "Spend", format: "money" }
   const campaignRight: DeckChartAxis = { key: "clicks", label: "Clicks", format: "count" }
-  const campaignPoints = pointsFromNumbers(campaignSpend, campaignClicks, window, campaignLeft, campaignRight)
+  const campaignPoints = pointsFromNumbers(campaignSpend, campaignClicks, plotted, campaignLeft, campaignRight)
   const hasCm360Chart = channelCharts.some((chart) => chart.group != null && CM360_GROUPS.has(chart.group))
   const hasAssumed = snapshot.channels.some(channelHasAssumedSpend)
   const hasEstimated =
     snapshot.includesEstimatedSpend === true || snapshot.channels.some(channelHasEstimatedSpend)
-  const note = hasAssumed || hasEstimated || hasCm360Chart ? CAMPAIGN_NOTE : null
+  const exclusion = hasAssumed || hasEstimated || hasCm360Chart ? CAMPAIGN_NOTE : null
+  const note = chartNote(plotted.endISO, exclusion)
 
   const charts: DeckChart[] = []
   if (campaignPoints) {
