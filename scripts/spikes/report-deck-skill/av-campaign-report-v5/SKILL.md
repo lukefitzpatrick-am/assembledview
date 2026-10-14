@@ -39,7 +39,7 @@ Voice: Australian English, short sentences, no em dashes, no emojis. Titles stat
 
 ## Figures
 
-Use only numbers present in report-data.json, exactly as formatted there. Copy each formatted string. Do not round, abbreviate, recompute, or invent a count, percent, date, or dollar figure. Pace percents are already whole numbers. Results, conversions, clicks and impressions are whole numbers with thousands separators. Spend, CPM, CPC, CPA, CTR, conversion rate, VTR and time elapsed stay at two decimal places. Missing values stay "Not yet reported".
+Use only numbers present in report-data.json, exactly as formatted there. Copy each formatted string. Do not round, abbreviate, recompute, or invent a count, percent, date, or dollar figure. Pace percents are already whole numbers. Results, conversions, clicks and impressions are whole numbers with thousands separators. Spend, CPM, CPC, CPA, CTR, conversion rate, VTR and time elapsed stay at two decimal places. Missing values stay "Not yet reported". Chart points are data. Never copy a chart point into prose.
 
 ## content.json
 
@@ -52,11 +52,12 @@ A label whose text is "Spend pace" is shown as "Spend pace of expected to date".
 - cover `sand` (clone 3) or `black` (clone 2). Fields: `title`, `subtitle` (key). Arch photos 105–107. The Assembled Media logo stays. An empty client logo slot is not drawn.
 - breaker `black` (clone 5), one slide, directly after the cover, only when the deck has 5 or more slides. Field: `title` (max 60, one serif phrase). Black ground, one arch photo, bar motif bottom right.
 - summary `stat-row` (Title Only - White): `title`, `stats` (up to 4 of `label`, `key`, `note`), `outcome`. Or `statement` (Statement - Black): `title`, `support`.
-- channel, one per live channel. `bars` (Title Only - Sand): `title`, `spend`, `expected`, `spendLabel`, `expectedLabel`, `delivery` (up to 4 of `label`, `key`), `insight`. `cards` (Three Cards): `title`, `cards` (exactly 3 of `title`, `key`, `body`). `photo` (Photo and Text): `title`, `value`, `body`, `photo` (0, 1 or 2). A channel in the payload's `notLive` list does not get its own slide. Name it in the summary Outcome. A summary, KPI or rates slide may mention it.
+- chart `delivery` (Title Only - White): one slide, directly after the summary, on every deck that has charts. Fields: `title`, `chart` (`charts.0`; the campaign chart is always index 0), `stats` (up to 4 of `label`, `key`), `insight`.
+- channel, one per live channel. `chart` is the default when that channel has a chart, on the same layout as delivery. Fields: `title`, `chart`, `insight`. Stats are fixed: Spend, Impressions, Clicks, CTR. `cards`: four cards (`body` only), `channel` (`channels.<i>.label`), `insight`, only when the channel has no chart. `bars` (Title Only - Sand): `title`, `spend`, `expected`, `spendLabel`, `expectedLabel`, `delivery` (up to 4 of `label`, `key`), `insight`. `photo` (Photo and Text): `title`, `value`, `body`, `photo` (0, 1 or 2). A channel in the payload's `notLive` list does not get its own slide. Name it in the summary Outcome. A summary, KPI or rates slide may mention it.
 - kpi `four-cards`: `title`, `cards` (up to 4 of `label`, `actual`, `target`). `table`: `title`, `rows` (same fields), `insight` (max 160). The table sits with a sand insight card.
 - iao `rows` (Title Only - Black): `title`, `rows` (up to 4 of `tag` insight, action or outcome, and `text`) with sky, forest and lime tags. `journey`: `title`, `steps` (exactly 3 of `label`, `text`) on a journey line.
 - appendix `table`: `title`, `columns`, `rows` (each cell a key), `insight` (max 160). The table sits with a sand insight card.
-- recommendations `cards`, one slide, directly before the thank-you, on every deck. `title`, `cards` (2 or 3 of `heading` max 40, `body` max 220 and two or three lines). Sand cards. Numbered circles run sky, forest, then lime. Each card has an Action tag at the bottom. Two cards leave the bar motif on the right.
+- recommendations `cards`, one slide, directly before the thank-you, on every deck. `title`, `cards` (2 or 3 of `heading` max 40, `body` max 220 and two or three lines), `outcome` (max 160). Sand cards sized to the copy. Numbered circles run sky, forest, then lime. Each card has an Action tag at the bottom. Below the cards, a lime Outcome pill and one line. Two cards leave the bar motif on the right.
 - close `thank-you` (clone 21): `title`. `cta` (Title Only - Black): `title`, `support`, `button`, an arch trio and a lime button.
 
 ## Run

@@ -21,5 +21,9 @@ export async function checkDeckNumbers(
   const { stdout } = await execFileAsync("python", [CHECK_DECK, "--numbers", pptxPath, jsonPath], {
     maxBuffer: 8 * 1024 * 1024,
   })
-  return JSON.parse(stdout) as { stray: StrayFigure[]; slideCount: number }
+  const report = JSON.parse(stdout) as { stray: StrayFigure[]; slideCount: number }
+  return {
+    slideCount: report.slideCount,
+    stray: report.stray.filter((item) => !/^\/?ppt\/(?:charts|embeddings)\//.test(item.slide)),
+  }
 }

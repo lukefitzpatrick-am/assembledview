@@ -126,6 +126,7 @@ def test_validate():
                     {"heading": "Bring Search forward.", "body": "Shift weight toward the terms that convert."},
                     {"heading": "Launch TikTok.", "body": "The planned flight is still waiting to start."},
                 ],
+                "outcome": "Keep the mix and bring Search forward.",
             },
         ],
     }
@@ -295,6 +296,7 @@ def test_breaker_and_recommendations_build():
             "variant": "cards",
             "title": "What to {i:\"do\"} next.",
             "cards": rows,
+            "outcome": "Keep the mix and bring Search forward.",
         }
 
     for count, name in ((2, "recs-two.pptx"), (3, "recs-three.pptx")):
@@ -453,6 +455,9 @@ def test_not_live_allows_summary_kpi_and_rates():
         fail(f"missing hand-written content {base_path}")
     with open(base_path, encoding="utf-8") as handle:
         base = json.load(handle)
+    for slide in base["slides"]:
+        if slide.get("type") == "recommendations" and "outcome" not in slide:
+            slide["outcome"] = "Keep Meta and push Search."
 
     def without_not_live(errors):
         return [error for error in errors if "is not live" in error]
@@ -650,6 +655,178 @@ def test_stop_attaches_on_sans_and_serif_runs():
         fail("a space before the full stop was allowed")
 
 
+def photos():
+    return [
+        os.path.join(HERE, "kit", "assembled-brand-kit", "library", name)
+        for name in ("pexels-6299928.jpg", "pexels-6786367.jpg", "pexels-13935909.jpg")
+    ]
+
+
+def chart_payload():
+    return {
+        "summary": {"spend": "$10.00", "clicks": "4"},
+        "channels": [{
+            "group": "social_meta",
+            "label": "Social (Meta)",
+            "notLive": False,
+            "spend": "$10.00",
+            "impressions": "80",
+            "clicks": "4",
+            "metrics": {"ctr": "5.00%"},
+        }],
+        "kpis": [{
+            "metric": "conversion_rate",
+            "label": "Conv. Rate",
+            "targetDisplay": "5.00%",
+            "actualDisplay": "3.00%",
+        }],
+        "charts": [
+            {
+                "scope": "campaign",
+                "group": None,
+                "label": "All channels",
+                "left": {"key": "spend", "label": "Spend", "format": "money"},
+                "right": {"key": "clicks", "label": "Clicks", "format": "count"},
+                "points": [["2026-07-01", 10, 4], ["2026-07-02", 0, 0]],
+                "note": "Reported daily spend. Excludes assumed and estimated spend.",
+            },
+            {
+                "scope": "channel",
+                "group": "social_meta",
+                "label": "Social (Meta)",
+                "left": {"key": "amount_spent", "label": "Spend", "format": "money"},
+                "right": {"key": "impressions", "label": "Impressions", "format": "count"},
+                "points": [["2026-07-01", 10, 80], ["2026-07-02", 0, 0]],
+                "note": None,
+            },
+        ],
+    }
+
+
+def test_chart_slide_builds_and_opens():
+    os.makedirs(OUT, exist_ok=True)
+    build = load("build_report.py")
+    check = load("check_deck.py")
+    data = chart_payload()
+    content = {"slides": [{
+        "type": "chart",
+        "variant": "delivery",
+        "title": "Spend is {i:\"in\"}.",
+        "chart": "charts.0",
+        "stats": [{"label": "Spend", "key": "summary.spend"}],
+        "insight": "Daily spend is in the chart.",
+    }]}
+    data_path = os.path.join(OUT, "chart-payload.json")
+    out = os.path.join(OUT, "chart-slide.pptx")
+    with open(data_path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle)
+    build.build(content, data, TEMPLATE, out, photos())
+    issues = check.check(out, data_path)
+    if issues:
+        fail(f"chart slide did not open clean: {issues}")
+    report = check.number_issues(out, data_path)
+    if report["stray"]:
+        fail(f"chart figures were treated as prose: {report['stray']}")
+    with zipfile.ZipFile(out) as archive:
+        names = archive.namelist()
+        charts = [name for name in names if name.startswith("ppt/charts/")]
+        if not charts:
+            fail("chart slide wrote no chart part")
+        xml = archive.read(charts[0]).decode("utf-8")
+        if "<c:lineChart" not in xml or xml.count("<c:valAx") < 2:
+            fail("combo chart XML is missing the line series or the second axis")
+    from pptx import Presentation
+    Presentation(out)
+
+
+def test_channel_chart_renders_four_fixed_stats():
+    os.makedirs(OUT, exist_ok=True)
+    build = load("build_report.py")
+    check = load("check_deck.py")
+    data = chart_payload()
+    content = {"slides": [{
+        "type": "channel",
+        "variant": "chart",
+        "title": "Meta is {i:\"on track\"}.",
+        "chart": "charts.1",
+        "insight": "Meta spend and impressions are in the chart.",
+    }]}
+    data_path = os.path.join(OUT, "channel-chart-payload.json")
+    out = os.path.join(OUT, "channel-chart.pptx")
+    with open(data_path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle)
+    build.build(content, data, TEMPLATE, out, photos())
+    issues = check.check(out, data_path)
+    if issues:
+        fail(f"channel chart slide did not open clean: {issues}")
+    text = slide_text(out)
+    for label in ("Spend", "Impressions", "Clicks", "CTR", "$10.00", "80", "4", "5.00%"):
+        if label not in text:
+            fail(f"channel chart is missing fixed stat {label}: {text}")
+    missing = {
+        "slides": [{
+            "type": "channel",
+            "variant": "chart",
+            "title": "Search is {i:\"on track\"}.",
+            "chart": "charts.9",
+            "insight": "There is no chart for this channel.",
+        }],
+    }
+    errors = build.validate_content(missing, data)
+    if not any(error.endswith("use variant cards") and "\n" not in error for error in errors):
+        fail(f"missing channel chart was not sent to cards: {errors}")
+
+
+def test_recommendations_without_outcome_fail():
+    build = load("build_report.py")
+    content = {
+        "slides": [{
+            "type": "recommendations",
+            "variant": "cards",
+            "title": "What to {i:\"do\"} next.",
+            "cards": [
+                {"heading": "Hold the mix.", "body": "Keep the current mix."},
+                {"heading": "Push Search.", "body": "Move weight toward Search."},
+            ],
+        }],
+    }
+    errors = build.validate_content(content)
+    outcome = [error for error in errors if "outcome" in error]
+    if len(outcome) != 1 or "\n" in outcome[0]:
+        fail(f"missing outcome should be one line: {errors}")
+    if not outcome[0].startswith("slides.0.outcome:"):
+        fail(f"outcome error should name the slide and field: {outcome[0]}")
+
+
+def test_conversion_rate_note():
+    os.makedirs(OUT, exist_ok=True)
+    build = load("build_report.py")
+    check = load("check_deck.py")
+    data = chart_payload()
+    content = {"slides": [{
+        "type": "kpi",
+        "variant": "table",
+        "title": "Rates sit {i:\"below target\"}.",
+        "rows": [{
+            "label": "kpis.0.label",
+            "actual": "kpis.0.actualDisplay",
+            "target": "kpis.0.targetDisplay",
+        }],
+        "insight": "Conversion rate is behind its target.",
+    }]}
+    data_path = os.path.join(OUT, "conversion-payload.json")
+    out = os.path.join(OUT, "conversion-note.pptx")
+    with open(data_path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle)
+    build.build(content, data, TEMPLATE, out, photos())
+    text = slide_text(out)
+    if build.CONVERSION_NOTE not in text:
+        fail(f"conversion rate note was not added: {text}")
+    issues = check.check(out, data_path)
+    if issues:
+        fail(f"conversion note slide did not open clean: {issues}")
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     test_missing_key()
@@ -664,6 +841,10 @@ def main():
     test_not_live_allows_summary_kpi_and_rates()
     test_kpi_value_drops_repeated_unit()
     test_stop_attaches_on_sans_and_serif_runs()
+    test_chart_slide_builds_and_opens()
+    test_channel_chart_renders_four_fixed_stats()
+    test_recommendations_without_outcome_fail()
+    test_conversion_rate_note()
     print("tests OK")
 
 

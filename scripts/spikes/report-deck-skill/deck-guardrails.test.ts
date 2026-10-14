@@ -1,5 +1,8 @@
 import assert from "node:assert/strict"
+import { execFileSync } from "node:child_process"
+import path from "node:path"
 import test from "node:test"
+import { fileURLToPath } from "node:url"
 import {
   clipCommand,
   containerSteps,
@@ -62,6 +65,20 @@ test("report effort is ANTHROPIC_REPORT_EFFORT only", () => {
   assert.equal(reportEffort(), "high")
   if (previous === undefined) delete process.env.ANTHROPIC_REPORT_EFFORT
   else process.env.ANTHROPIC_REPORT_EFFORT = previous
+})
+
+test("chart slide, fixed channel stats, outcome, and conversion note", () => {
+  const script = path.join(path.dirname(fileURLToPath(import.meta.url)), "test_checks.py")
+  execFileSync(
+    "python",
+    [
+      "-c",
+      "import importlib.util,sys; p=sys.argv[1]; s=importlib.util.spec_from_file_location('deck_checks', p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); m.test_chart_slide_builds_and_opens(); m.test_channel_chart_renders_four_fixed_stats(); m.test_recommendations_without_outcome_fail(); m.test_conversion_rate_note()",
+      script,
+    ],
+    { stdio: "pipe" },
+  )
+  assert.ok(true)
 })
 
 test("container steps pair server_tool_use with its result", () => {

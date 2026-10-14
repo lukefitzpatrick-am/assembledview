@@ -29,6 +29,7 @@ CHECK = re.compile(r"CHECK (slides\.\d+)")
 LOOSE_STOP = re.compile(r"\s[.!?]$")
 NUMBER_DOT_NAME = "Number dot"
 CONTACT_PLACEHOLDER_IDX = "102"
+CHART_PART = re.compile(r"^ppt/(?:charts|embeddings)/")
 
 
 def font_path(name, italic, bold):
@@ -132,6 +133,15 @@ def texts_of(element):
     return " ".join(node.text or "" for node in element.iter() if local(node.tag) == "t")
 
 
+def figure_part_skipped(name):
+    """Chart workbooks and chart XML are data, not prose figures."""
+    return CHART_PART.match(str(name or "").lstrip("/")) is not None
+
+
+def is_chart_frame(element):
+    return any(local(node.tag) == "chart" for node in element.iter())
+
+
 def canon(raw):
     stripped = raw.replace("$", "").replace(",", "").replace("%", "").replace(" ", "")
     whole, dot, frac = stripped.partition(".")
@@ -230,6 +240,8 @@ def stray_figures(deck, allowed):
                 continue
             if thank_you and placeholder_idx(element) == CONTACT_PLACEHOLDER_IDX:
                 continue
+            if local(element.tag) == "graphicFrame" and is_chart_frame(element):
+                continue
             where = content_path(name, slide_path)
             part = slide_part(slide, index)
             for raw in TOKEN.findall(texts_of(element)):
@@ -249,7 +261,10 @@ def number_issues(pptx_path, json_path):
     with open(json_path, encoding="utf-8") as handle:
         allowed = payload_tokens(handle.read())
     deck = Presentation(pptx_path)
-    figures = stray_figures(deck, allowed)
+    figures = [
+        item for item in stray_figures(deck, allowed)
+        if not figure_part_skipped(item["slide"])
+    ]
     return {
         "stray": [
             {"slide": item["slide"], "raw": item["raw"], "normalised": item["normalised"]}

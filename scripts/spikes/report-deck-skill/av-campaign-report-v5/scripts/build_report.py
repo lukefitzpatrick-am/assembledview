@@ -8,8 +8,11 @@ import os
 import re
 import sys
 
+from pptx.chart.data import CategoryChartData
+from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
 from pptx.enum.text import MSO_ANCHOR
 from pptx.oxml.ns import qn
+from pptx.util import Inches
 from lxml import etree
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -20,6 +23,24 @@ from am_rebrand import (  # noqa: E402
 
 KEY_RE = re.compile(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+")
 SERIF_RE = re.compile(r"\{i:\"([^\"]*)\"\}")
+CHANNEL_KEY_RE = re.compile(r"channels\.(\d+)\..+")
+C_NS = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+AXIS_FORMAT = {"money": "$#,##0", "count": "#,##0", "percent": "0.00%"}
+CONVERSION_NOTE = "Conversion rate is results divided by clicks across live channels."
+FIXED_STATS = (
+    ("Spend", "spend"),
+    ("Impressions", "impressions"),
+    ("Clicks", "clicks"),
+    ("CTR", "metrics.ctr"),
+)
+DOTS = (
+    (K["sky"], K["ink"]),
+    (K["forest"], K["white"]),
+    (K["lime"], K["ink"]),
+    (K["forest"], K["white"]),
+)
 
 
 class BuildError(Exception):
@@ -225,16 +246,499 @@ def kpi_figure(label, value):
     return text
 
 
-def insight_card(slide, path, spec, table_top, row_h, row_count):
+def insight_card(slide, path, spec, table_top, row_h, row_count, gap=0.18, top=None, height=None):
     insight = text_of(require(spec, "insight", f"{path}.insight"), f"{path}.insight", 160)
-    top = table_top + row_h * row_count + 0.18
-    height = 6.7 - top
-    if height < 1.2:
-        height = 1.2
-        top = 6.7 - height
+    if top is None:
+        top = table_top + row_h * row_count + gap
+        height = 6.7 - top
+        if height < 1.2:
+            height = 1.2
+            top = 6.7 - height
     card(slide, 0.6, top, 12.13, height, K["sand"])
     tag(slide, 0.82, top + (height / 2) - 0.16, "Insight", K["sky"], K["ink"])
     say(slide, 2.35, top + 0.12, 10.1, height - 0.24, insight, f"{path}.insight", size=15, color=K["ink"], anchor="m")
+
+
+def cq(tag):
+    return f"{{{C_NS}}}{tag}"
+
+
+def aq(tag):
+    return f"{{{A_NS}}}{tag}"
+
+
+def lookup(data, key):
+    """Walk a dotted path and return the value, or None when it is missing."""
+    if not isinstance(data, dict) or not isinstance(key, str) or not key.strip():
+        return None
+    current = data
+    for part in key.split("."):
+        if isinstance(current, list):
+            if part.isdigit():
+                index = int(part)
+                if index < 0 or index >= len(current):
+                    return None
+                current = current[index]
+                continue
+            found = next((item for item in current if isinstance(item, dict) and matches(item, part)), None)
+            if found is None:
+                return None
+            current = found
+            continue
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+            continue
+        return None
+    return current
+
+
+def as_chart(data, key):
+    found = lookup(data, key)
+    if not isinstance(found, dict):
+        return None
+    points = found.get("points")
+    if not isinstance(points, list) or not points:
+        return None
+    return found
+
+
+def channel_index_for_group(data, group):
+    channels = data.get("channels") if isinstance(data, dict) else None
+    if not isinstance(channels, list) or not isinstance(group, str) or not group:
+        return None
+    for index, channel in enumerate(channels):
+        if isinstance(channel, dict) and channel.get("group") == group:
+            return index
+    return None
+
+
+def named_channel_group(spec, data):
+    """The payload group named by a slide channel field, when it names one."""
+    raw = spec.get("channel")
+    channels = data.get("channels") if isinstance(data, dict) else None
+    if not isinstance(raw, str) or not isinstance(channels, list):
+        return None
+    match = CHANNEL_KEY_RE.fullmatch(raw)
+    if match:
+        index = int(match.group(1))
+        if 0 <= index < len(channels) and isinstance(channels[index], dict):
+            group = channels[index].get("group")
+            return group if isinstance(group, str) else None
+    for channel in channels:
+        if isinstance(channel, dict) and raw in (channel.get("group"), channel.get("label")):
+            group = channel.get("group")
+            return group if isinstance(group, str) else None
+    return None
+
+
+def channel_chart_problem(spec, data):
+    """None when the chart key is this slide's channel chart. Otherwise the fix."""
+    if not isinstance(data, dict):
+        return "use variant cards"
+    chart = as_chart(data, spec.get("chart"))
+    if chart is None or chart.get("scope") != "channel":
+        return "use variant cards"
+    group = chart.get("group")
+    if channel_index_for_group(data, group) is None:
+        return "use variant cards"
+    expected = named_channel_group(spec, data)
+    if expected is not None and expected != group:
+        return "chart group must match this channel. Point chart at that channel's chart, or use variant cards."
+    return None
+
+
+def chart_txpr():
+    tx_pr = etree.Element(cq("txPr"))
+    etree.SubElement(tx_pr, aq("bodyPr"))
+    etree.SubElement(tx_pr, aq("lstStyle"))
+    paragraph = etree.SubElement(tx_pr, aq("p"))
+    props = etree.SubElement(paragraph, aq("pPr"))
+    run = etree.SubElement(props, aq("defRPr"))
+    run.set("sz", "1000")
+    solid = etree.SubElement(run, aq("solidFill"))
+    etree.SubElement(solid, aq("srgbClr")).set("val", "3B4A3F")
+    for face in ("latin", "ea", "cs"):
+        etree.SubElement(run, aq(face)).set("typeface", "Plus Jakarta Sans")
+    etree.SubElement(paragraph, aq("endParaRPr")).set("sz", "1000")
+    return tx_pr
+
+
+def put_txpr(parent):
+    current = parent.find(cq("txPr"))
+    fresh = chart_txpr()
+    if current is not None:
+        parent.replace(current, fresh)
+        return
+    cross = parent.find(cq("crossAx"))
+    if cross is not None:
+        cross.addprevious(fresh)
+    else:
+        parent.append(fresh)
+
+
+def set_num_fmt(axis, code):
+    node = axis.find(cq("numFmt"))
+    if node is None:
+        node = etree.Element(cq("numFmt"))
+        tick = axis.find(cq("majorTickMark"))
+        if tick is not None:
+            tick.addprevious(node)
+        else:
+            axis.append(node)
+    node.set("formatCode", code)
+    node.set("sourceLinked", "0")
+
+
+def style_major_gridlines(axis):
+    grid = axis.find(cq("majorGridlines"))
+    if grid is None:
+        grid = etree.Element(cq("majorGridlines"))
+        pos = axis.find(cq("axPos"))
+        if pos is not None:
+            pos.addnext(grid)
+        else:
+            axis.append(grid)
+    for child in list(grid):
+        grid.remove(child)
+    props = etree.SubElement(grid, cq("spPr"))
+    stroke = etree.SubElement(props, aq("ln"))
+    stroke.set("w", "9525")
+    solid = etree.SubElement(stroke, aq("solidFill"))
+    etree.SubElement(solid, aq("srgbClr")).set("val", "E4DED2")
+
+
+def series_solid(ser, colour):
+    props = ser.find(cq("spPr"))
+    if props is not None:
+        ser.remove(props)
+    props = etree.Element(cq("spPr"))
+    solid = etree.SubElement(props, aq("solidFill"))
+    etree.SubElement(solid, aq("srgbClr")).set("val", colour)
+    stroke = etree.SubElement(props, aq("ln"))
+    etree.SubElement(stroke, aq("noFill"))
+    title = ser.find(cq("tx"))
+    if title is not None:
+        title.addnext(props)
+    else:
+        ser.append(props)
+
+
+def series_line(ser):
+    props = ser.find(cq("spPr"))
+    if props is not None:
+        ser.remove(props)
+    props = etree.Element(cq("spPr"))
+    stroke = etree.SubElement(props, aq("ln"))
+    stroke.set("w", "25400")
+    solid = etree.SubElement(stroke, aq("solidFill"))
+    etree.SubElement(solid, aq("srgbClr")).set("val", "0F1D13")
+    title = ser.find(cq("tx"))
+    if title is not None:
+        title.addnext(props)
+    else:
+        ser.append(props)
+    marker = ser.find(cq("marker"))
+    if marker is not None:
+        ser.remove(marker)
+    marker = etree.Element(cq("marker"))
+    etree.SubElement(marker, cq("symbol")).set("val", "none")
+    props.addnext(marker)
+
+
+def no_chart_border(space):
+    props = space.find(cq("spPr"))
+    if props is not None:
+        space.remove(props)
+    props = etree.Element(cq("spPr"))
+    stroke = etree.SubElement(props, aq("ln"))
+    etree.SubElement(stroke, aq("noFill"))
+    chart = space.find(cq("chart"))
+    if chart is not None:
+        chart.addnext(props)
+    else:
+        space.append(props)
+
+
+def add_secondary_line(chart):
+    """Move the second column series onto a line chart with its own value axis.
+
+    python-pptx has no combo chart. The line series stays in the embedded
+    workbook, so the client can still edit both series.
+    """
+    space = chart._element
+    plot = space.find(cq("chart")).find(cq("plotArea"))
+    bars = plot.find(cq("barChart"))
+    if bars is None:
+        return
+    series = bars.findall(cq("ser"))
+    if len(series) < 2:
+        return
+    line_ser = series[-1]
+    bars.remove(line_ser)
+    series_line(line_ser)
+    cat_ax = plot.find(cq("catAx"))
+    val_ax = plot.find(cq("valAx"))
+    cat_id = cat_ax.find(cq("axId")).get("val")
+    primary_id = val_ax.find(cq("axId")).get("val")
+    try:
+        secondary_id = str(int(primary_id) + 1)
+    except (TypeError, ValueError):
+        secondary_id = "100"
+    if secondary_id in (cat_id, primary_id):
+        secondary_id = "100"
+    line = etree.Element(cq("lineChart"))
+    etree.SubElement(line, cq("grouping")).set("val", "standard")
+    etree.SubElement(line, cq("varyColors")).set("val", "0")
+    line.append(line_ser)
+    etree.SubElement(line, cq("marker")).set("val", "0")
+    etree.SubElement(line, cq("smooth")).set("val", "0")
+    etree.SubElement(line, cq("axId")).set("val", cat_id)
+    etree.SubElement(line, cq("axId")).set("val", secondary_id)
+    bars.addnext(line)
+    secondary = etree.fromstring(etree.tostring(val_ax))
+    secondary.find(cq("axId")).set("val", secondary_id)
+    secondary.find(cq("axPos")).set("val", "r")
+    grid = secondary.find(cq("majorGridlines"))
+    if grid is not None:
+        secondary.remove(grid)
+    crosses = secondary.find(cq("crosses"))
+    if crosses is None:
+        crosses = etree.SubElement(secondary, cq("crosses"))
+    crosses.set("val", "max")
+    cross = secondary.find(cq("crossAx"))
+    if cross is not None:
+        cross.set("val", cat_id)
+    val_ax.addnext(secondary)
+
+
+def date_label(value):
+    text = str(value)
+    match = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", text)
+    if not match:
+        return text
+    month = int(match.group(2))
+    if month < 1 or month > 12:
+        return text
+    return f"{int(match.group(3))} {MONTHS[month - 1]}"
+
+
+def axis_format(axis):
+    if not isinstance(axis, dict):
+        return AXIS_FORMAT["count"]
+    return AXIS_FORMAT.get(axis.get("format"), AXIS_FORMAT["count"])
+
+
+def point_value(point, index):
+    if not isinstance(point, (list, tuple)) or len(point) <= index or point[index] is None:
+        return None
+    return point[index]
+
+
+def style_delivery_chart(chart, left_fmt, right_fmt, skip):
+    space = chart._element
+    node = space.find(cq("chart"))
+    title = node.find(cq("title"))
+    if title is not None:
+        node.remove(title)
+    auto = node.find(cq("autoTitleDeleted"))
+    if auto is None:
+        auto = etree.Element(cq("autoTitleDeleted"))
+        node.insert(0, auto)
+    auto.set("val", "1")
+    plot = node.find(cq("plotArea"))
+    bars = plot.find(cq("barChart"))
+    if bars is not None:
+        vary = bars.find(cq("varyColors"))
+        if vary is None:
+            vary = etree.Element(cq("varyColors"))
+            grouping = bars.find(cq("grouping"))
+            if grouping is not None:
+                grouping.addnext(vary)
+            else:
+                bars.insert(0, vary)
+        vary.set("val", "0")
+        series = bars.findall(cq("ser"))
+        if series:
+            series_solid(series[0], "246646")
+    cat_ax = plot.find(cq("catAx"))
+    skip_node = cat_ax.find(cq("tickLblSkip"))
+    if skip_node is None:
+        skip_node = etree.Element(cq("tickLblSkip"))
+        anchor = cat_ax.find(cq("noMultiLvlLbl"))
+        if anchor is not None:
+            anchor.addprevious(skip_node)
+        else:
+            cat_ax.append(skip_node)
+    skip_node.set("val", str(skip))
+    put_txpr(cat_ax)
+    for axis in plot.findall(cq("valAx")):
+        pos = axis.find(cq("axPos"))
+        side = pos.get("val") if pos is not None else "l"
+        if side == "l":
+            set_num_fmt(axis, left_fmt)
+            style_major_gridlines(axis)
+        else:
+            set_num_fmt(axis, right_fmt)
+            grid = axis.find(cq("majorGridlines"))
+            if grid is not None:
+                axis.remove(grid)
+        put_txpr(axis)
+    legend = node.find(cq("legend"))
+    if legend is not None:
+        put_txpr(legend)
+    put_txpr(space)
+    no_chart_border(space)
+    area = plot.find(cq("spPr"))
+    if area is not None:
+        plot.remove(area)
+    area = etree.Element(cq("spPr"))
+    stroke = etree.SubElement(area, aq("ln"))
+    etree.SubElement(stroke, aq("noFill"))
+    plot.append(area)
+
+
+def delivery_chart(slide, x, y, w, h, chart, path):
+    """Native column chart, with the right series as a line on a second axis."""
+    points = chart.get("points") if isinstance(chart, dict) else None
+    if not isinstance(points, list) or not points:
+        fail(path, "chart must resolve to an object with points. Point chart at charts.0.")
+    categories = []
+    left_values = []
+    right_values = []
+    right = chart.get("right") if isinstance(chart.get("right"), dict) else None
+    for point in points:
+        categories.append(date_label(point[0] if isinstance(point, (list, tuple)) and point else ""))
+        left = point_value(point, 1)
+        left_values.append(0 if left is None else left)
+        if right is not None:
+            right_values.append(point_value(point, 2))
+    data = CategoryChartData()
+    data.categories = categories
+    left_axis = chart.get("left") if isinstance(chart.get("left"), dict) else {}
+    data.add_series(str(left_axis.get("label") or "Value"), left_values)
+    if right is not None:
+        data.add_series(str(right.get("label") or "Value"), right_values)
+    frame = slide.shapes.add_chart(
+        XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(x), Inches(y), Inches(w), Inches(h), data,
+    )
+    frame.name = f"{path}.chart"
+    graphic = frame.chart
+    graphic.has_legend = True
+    graphic.legend.position = XL_LEGEND_POSITION.BOTTOM
+    graphic.legend.include_in_layout = True
+    graphic.plots[0].gap_width = 60
+    add_secondary_line(graphic)
+    count = len(points)
+    skip = 1 if count <= 8 else (count + 7) // 8
+    style_delivery_chart(graphic, axis_format(left_axis), axis_format(right), skip)
+    note = chart.get("note")
+    if isinstance(note, str) and note.strip():
+        say(slide, x, y + h, w, 0.18, note, f"{path}.note", size=9, color=K["muted"])
+    return frame
+
+
+def stat_pills(slide, path, entries):
+    """entries are (label, value, shape name). One row, y 1.95, height 0.75."""
+    if not entries:
+        return
+    gap = 0.14
+    width = (12.13 - gap * (len(entries) - 1)) / len(entries)
+    for index, (label, value, at) in enumerate(entries):
+        x = 0.6 + index * (width + gap)
+        pill(slide, x, 1.95, width, 0.75, K["sand"])
+        say(slide, x + 0.14, 2.02, width - 0.28, 0.34, value, at, size=14, color=K["forest"], font=HEAD)
+        say(slide, x + 0.14, 2.34, width - 0.28, 0.26, label, f"{at}.label", size=11, color=K["ink"])
+
+
+def wrap_lines(text, width, per_inch):
+    chars = max(8, int(max(width, 0.8) / per_inch))
+    return max(1, (len(text) + chars - 1) // chars)
+
+
+def fitted_card_height(title, body, width):
+    """Top pad, dot, title, body, tag, bottom pad. Clamped to 2.2–3.4in."""
+    inner = max(1.0, width - 0.5)
+    title_lines = wrap_lines(title, inner, 0.095)
+    body_lines = wrap_lines(body, inner, 0.078)
+    height = 0.25 + 0.42 + 0.08 + (0.32 * title_lines) + 0.06 + (0.24 * body_lines) + 0.08 + 0.36 + 0.25
+    return max(2.2, min(3.4, height))
+
+
+def draw_fit_cards(slide, cards, top, left, right):
+    """cards: title, body, tag, fill, ink, tag_fill, tag_ink, title_path, body_path."""
+    gap = 0.16
+    count = len(cards)
+    width = (right - left - gap * (count - 1)) / count
+    height = max(fitted_card_height(item["title"], item["body"], width) for item in cards)
+    for index, item in enumerate(cards):
+        x = left + index * (width + gap)
+        card(slide, x, top, width, height, K["sand"])
+        y = top + 0.25
+        numdot(slide, x + 0.18, y, index + 1, item["fill"], item["ink"], 0.36)
+        y += 0.44
+        title_h = 0.32 * wrap_lines(item["title"], width - 0.5, 0.095)
+        say(
+            slide, x + 0.18, y, width - 0.36, title_h, item["title"], item["title_path"],
+            size=14, color=item.get("title_color", K["ink"]), font=HEAD,
+        )
+        y += title_h + 0.06
+        tag_y = top + height - 0.25 - 0.34
+        say(
+            slide, x + 0.18, y, width - 0.36, max(0.36, tag_y - 0.08 - y), item["body"], item["body_path"],
+            size=13, color=K["body"],
+        )
+        tag(slide, x + 0.18, tag_y, item["tag"], item["tag_fill"], item["tag_ink"])
+    return height
+
+
+def fixed_stat_values(path, index):
+    entries = []
+    for label, field in FIXED_STATS:
+        key = f"channels.{index}.{field}"
+        entries.append((label, key_of(key, f"{path}.{field}"), f"{path}.{field}"))
+    return entries
+
+
+def channel_index_from_pointer(pointer, path):
+    if not isinstance(pointer, str):
+        fail(path, "expected a channels.<i> key, such as channels.0.label")
+    match = CHANNEL_KEY_RE.fullmatch(pointer)
+    if not match:
+        fail(path, "expected a channels.<i> key, such as channels.0.label")
+    return int(match.group(1))
+
+
+def build_delivery_layout(deck, spec, index, fixed):
+    path = f"slides.{index}"
+    slide = deck.add("Title Only - White")
+    put_title(deck, slide, 100, spec, f"{path}.title")
+    if fixed:
+        problem = channel_chart_problem(spec, DATA)
+        if problem:
+            fail(path if problem == "use variant cards" else f"{path}.chart", problem)
+        chart = as_chart(DATA, spec.get("chart"))
+        channel_index = channel_index_for_group(DATA, chart.get("group"))
+        stat_pills(slide, path, fixed_stat_values(path, channel_index))
+    else:
+        chart_key = require(spec, "chart", f"{path}.chart")
+        chart = as_chart(DATA, chart_key)
+        if chart is None:
+            fail(f"{path}.chart", "chart must resolve to an object with points. Point chart at charts.0.")
+        stats = require(spec, "stats", f"{path}.stats")
+        if not isinstance(stats, list) or len(stats) > 4:
+            fail(f"{path}.stats", "up to 4 stats")
+        entries = []
+        for stat_index, stat in enumerate(stats):
+            at = f"{path}.stats.{stat_index}"
+            if not isinstance(stat, dict):
+                fail(at, "expected an object")
+            label = with_pace(text_of(require(stat, "label", f"{at}.label"), f"{at}.label", 24))
+            value = key_of(require(stat, "key", f"{at}.key"), f"{at}.key")
+            entries.append((label, value, f"{at}.key"))
+        stat_pills(slide, path, entries)
+    delivery_chart(slide, 0.6, 2.85, 12.13, 2.70, chart, path)
+    insight_card(slide, path, spec, 0, 0, 0, top=5.75, height=0.95)
+    return slide
 
 
 def fg(slide):
@@ -331,7 +835,9 @@ def bars(slide, x, y, width, label, value, path, max_value):
 
 def build_channel(deck, spec, index, photos):
     path = f"slides.{index}"
-    kind = variant(spec, path, ("bars", "cards", "photo"))
+    kind = variant(spec, path, ("bars", "cards", "photo", "chart"))
+    if kind == "chart":
+        return build_delivery_layout(deck, spec, index, fixed=True)
     if kind == "bars":
         slide = deck.add("Title Only - Sand")
         put_title(deck, slide, 100, spec, f"{path}.title")
@@ -363,25 +869,35 @@ def build_channel(deck, spec, index, photos):
         say(slide, 2.35, 5.12, 10.1, 1.2, insight, f"{path}.insight", size=14, color=K["ink"], anchor="m")
         return slide
     if kind == "cards":
-        slide = deck.add("Three Cards")
+        slide = deck.add("Title Only - White")
         put_title(deck, slide, 100, spec, f"{path}.title")
+        pointer = require(spec, "channel", f"{path}.channel")
+        channel_index = channel_index_from_pointer(pointer, f"{path}.channel")
+        key_of(pointer, f"{path}.channel")
         cards = require(spec, "cards", f"{path}.cards")
-        if not isinstance(cards, list) or len(cards) != 3:
-            fail(f"{path}.cards", "exactly 3 cards")
-        slots = ((103, 104), (107, 108), (111, 112))
-        for item_index, (item, (head, body)) in enumerate(zip(cards, slots)):
+        if not isinstance(cards, list) or len(cards) != 4:
+            fail(f"{path}.cards", "exactly 4 cards")
+        drawn = []
+        for item_index, item in enumerate(cards):
             at = f"{path}.cards.{item_index}"
             if not isinstance(item, dict):
                 fail(at, "expected an object")
-            heading = with_pace(text_of(require(item, "title", f"{at}.title"), f"{at}.title", 32))
-            value = key_of(require(item, "key", f"{at}.key"), f"{at}.key")
-            copy = text_of(require(item, "body", f"{at}.body"), f"{at}.body", 120)
-            fill_named(deck, slide, head, heading, f"{at}.title", 13 if len(heading) > 18 else 16, K["ink"], HEAD)
-            fill_named(
-                deck, slide, body,
-                [[Run(value, font=HEAD, color=K["forest"], size=26)], [copy]],
-                f"{at}.body", 14, K["body"],
-            )
+            label, field = FIXED_STATS[item_index]
+            fill, ink = DOTS[item_index]
+            drawn.append({
+                "title": key_of(f"channels.{channel_index}.{field}", f"{path}.{field}"),
+                "body": text_of(require(item, "body", f"{at}.body"), f"{at}.body", 120),
+                "tag": label,
+                "fill": fill,
+                "ink": ink,
+                "tag_fill": K["forest"],
+                "tag_ink": K["white"],
+                "title_path": f"{path}.{field}",
+                "body_path": f"{at}.body",
+                "title_color": K["forest"],
+            })
+        height = draw_fit_cards(slide, drawn, 1.95, 0.6, 12.73)
+        insight_card(slide, path, spec, 1.95, height, 1)
         return slide
     slide = deck.add("Photo and Text")
     put_title(deck, slide, 100, spec, f"{path}.title", size=32)
@@ -489,7 +1005,14 @@ def build_kpi(deck, spec, index):
         grid = table(slide, 0.6, 2.15, 12.13, table_rows, widths=[3, 4, 4], size=13, head=True, first_bold=True, row_h=0.42)
         grid.name = f"{path}.table"
         line(slide, 0.6, 2.05, 2.2, K["forest"], 2.5)
-        insight_card(slide, path, spec, 2.15, 0.42, len(table_rows))
+        gap = 0.18
+        if any(kpi_metric_is_conversion(item) for item in rows if isinstance(item, dict)):
+            say(
+                slide, 0.6, 2.15 + 0.42 * len(table_rows) + 0.06, 12.13, 0.28,
+                CONVERSION_NOTE, f"{path}.conversion", size=9, color=K["muted"],
+            )
+            gap = 0.46
+        insight_card(slide, path, spec, 2.15, 0.42, len(table_rows), gap=gap)
         return slide
     slide = deck.add("Four Cards")
     put_title(deck, slide, 100, spec, f"{path}.title")
@@ -635,6 +1158,34 @@ def bar_motif(slide, x=10.10, bottom=6.70):
     arch(slide, x + 1.68, bottom - lime_h, 0.72, lime_h, K["lime"])
 
 
+def kpi_metric_is_conversion(row):
+    if not isinstance(row, dict):
+        return False
+    if row.get("metric") == "conversion_rate":
+        return True
+    if not isinstance(DATA, dict):
+        return False
+    kpis = DATA.get("kpis")
+    if not isinstance(kpis, list):
+        return False
+    for field in ("label", "actual", "target"):
+        key = row.get(field)
+        if not isinstance(key, str):
+            continue
+        match = re.fullmatch(r"kpis\.(\d+)\..+", key)
+        if not match:
+            continue
+        index = int(match.group(1))
+        if index < len(kpis) and isinstance(kpis[index], dict) and kpis[index].get("metric") == "conversion_rate":
+            return True
+    return False
+
+
+def build_chart(deck, spec, index):
+    variant(spec, f"slides.{index}", ("delivery",))
+    return build_delivery_layout(deck, spec, index, fixed=False)
+
+
 def build_recommendations(deck, spec, index):
     path = f"slides.{index}"
     variant(spec, path, ("cards",))
@@ -643,34 +1194,30 @@ def build_recommendations(deck, spec, index):
     cards = require(spec, "cards", f"{path}.cards")
     if not isinstance(cards, list) or len(cards) not in (2, 3):
         fail(f"{path}.cards", "2 or 3 recommendations")
-    dots = ((K["sky"], K["ink"]), (K["forest"], K["white"]), (K["lime"], K["ink"]))
-    gap = 0.16
-    left = 0.6
-    right = 9.85 if len(cards) == 2 else 12.73
-    width = (right - left - gap * (len(cards) - 1)) / len(cards)
-    top = 2.05
-    height = 4.50
-    if len(cards) == 2:
-        bar_motif(slide)
+    outcome = text_of(require(spec, "outcome", f"{path}.outcome"), f"{path}.outcome", 160)
+    drawn = []
     for item_index, item in enumerate(cards):
         at = f"{path}.cards.{item_index}"
         if not isinstance(item, dict):
             fail(at, "expected an object")
-        heading = text_of(require(item, "heading", f"{at}.heading"), f"{at}.heading", 40)
-        body = text_of(require(item, "body", f"{at}.body"), f"{at}.body", 220)
-        x = left + item_index * (width + gap)
-        card(slide, x, top, width, height, K["sand"])
-        fill, ink = dots[item_index]
-        numdot(slide, x + 0.18, top + 0.18, item_index + 1, fill, ink, 0.42)
-        say(
-            slide, x + 0.72, top + 0.18, width - 0.90, 0.72,
-            heading, f"{at}.heading", size=14, color=K["ink"], font=HEAD, anchor="m",
-        )
-        say(
-            slide, x + 0.18, top + 1.05, width - 0.36, 2.70,
-            body, f"{at}.body", size=13, color=K["body"],
-        )
-        tag(slide, x + 0.18, top + height - 0.52, "Action", K["forest"], K["white"])
+        fill, ink = DOTS[item_index]
+        drawn.append({
+            "title": text_of(require(item, "heading", f"{at}.heading"), f"{at}.heading", 40),
+            "body": text_of(require(item, "body", f"{at}.body"), f"{at}.body", 220),
+            "tag": "Action",
+            "fill": fill,
+            "ink": ink,
+            "tag_fill": K["forest"],
+            "tag_ink": K["white"],
+            "title_path": f"{at}.heading",
+            "body_path": f"{at}.body",
+        })
+    right = 9.85 if len(cards) == 2 else 12.73
+    if len(cards) == 2:
+        bar_motif(slide, bottom=5.50)
+    draw_fit_cards(slide, drawn, 1.95, 0.6, right)
+    tag(slide, 0.6, 5.93, "Outcome", K["lime"], K["ink"])
+    say(slide, 2.2, 5.7, 10.5, 0.8, outcome, f"{path}.outcome", size=15, color=K["ink"], anchor="m")
     return slide
 
 
@@ -701,6 +1248,7 @@ BUILDERS = {
     "cover": build_cover,
     "breaker": build_breaker,
     "summary": build_summary,
+    "chart": build_chart,
     "channel": build_channel,
     "not-live": build_not_live,
     "kpi": build_kpi,
@@ -790,9 +1338,9 @@ def primary_channel_keys(spec):
     found = []
     kind = spec.get("type")
     if kind == "channel":
-        for field in ("spend", "expected", "value"):
+        for field in ("spend", "expected", "value", "channel"):
             node = spec.get(field)
-            if isinstance(node, str):
+            if isinstance(node, str) and node.startswith("channels."):
                 found.append(node)
         for group in ("delivery", "cards"):
             rows = spec.get(group)
@@ -929,8 +1477,27 @@ def validate_content(content, data=None):
                     if item.get("note") is not None:
                         prose(item.get("note"), f"{at}.note", 48)
                 prose(spec.get("outcome"), f"{path}.outcome", 160)
+        elif kind == "chart":
+            name = variant_name(spec, path, ("delivery",))
+            if name == "delivery":
+                chart_key = spec.get("chart")
+                key(chart_key, f"{path}.chart")
+                if not isinstance(data, dict) or as_chart(data, chart_key) is None:
+                    bad(f"{path}.chart", "chart must resolve to an object with points. Point chart at charts.0.")
+                stats = spec.get("stats")
+                if not isinstance(stats, list) or len(stats) > 4:
+                    bad(f"{path}.stats", "up to 4 stats")
+                else:
+                    for item_index, item in enumerate(stats):
+                        at = f"{path}.stats.{item_index}"
+                        if not isinstance(item, dict):
+                            bad(at, "expected an object")
+                            continue
+                        prose(item.get("label"), f"{at}.label", 24)
+                        key(item.get("key"), f"{at}.key")
+                prose(spec.get("insight"), f"{path}.insight", 160)
         elif kind == "channel":
-            name = variant_name(spec, path, ("bars", "cards", "photo"))
+            name = variant_name(spec, path, ("bars", "cards", "photo", "chart"))
             if name == "bars":
                 key(spec.get("spend"), f"{path}.spend")
                 key(spec.get("expected"), f"{path}.expected")
@@ -947,15 +1514,26 @@ def validate_content(content, data=None):
                     key(item.get("key"), f"{at}.key")
                 prose(spec.get("insight"), f"{path}.insight", 160)
             elif name == "cards":
-                cards = items(spec.get("cards"), f"{path}.cards", 3, 3, "cards")
+                pointer = spec.get("channel")
+                if not isinstance(pointer, str) or CHANNEL_KEY_RE.fullmatch(pointer) is None:
+                    bad(f"{path}.channel", "expected a channels.<i> key, such as channels.0.label")
+                else:
+                    key(pointer, f"{path}.channel")
+                cards = items(spec.get("cards"), f"{path}.cards", 4, 4, "cards")
                 for item_index, item in enumerate(cards):
                     at = f"{path}.cards.{item_index}"
                     if not isinstance(item, dict):
                         bad(at, "expected an object")
                         continue
-                    prose(item.get("title"), f"{at}.title", 32)
-                    key(item.get("key"), f"{at}.key")
                     prose(item.get("body"), f"{at}.body", 120)
+                prose(spec.get("insight"), f"{path}.insight", 160)
+            elif name == "chart":
+                key(spec.get("chart"), f"{path}.chart")
+                problem = channel_chart_problem(spec, data)
+                if problem:
+                    where = path if problem == "use variant cards" else f"{path}.chart"
+                    bad(where, problem)
+                prose(spec.get("insight"), f"{path}.insight", 160)
             elif name == "photo":
                 key(spec.get("value"), f"{path}.value")
                 prose(spec.get("body"), f"{path}.body", 200)
@@ -1055,6 +1633,7 @@ def validate_content(content, data=None):
                         continue
                     prose(item.get("heading"), f"{at}.heading", 40)
                     prose(item.get("body"), f"{at}.body", 220)
+                prose(spec.get("outcome"), f"{path}.outcome", 160)
         elif kind == "close":
             name = variant_name(spec, path, ("thank-you", "cta"))
             if name == "cta":
