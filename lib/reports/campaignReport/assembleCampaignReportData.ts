@@ -597,7 +597,7 @@ export async function assembleCampaignReportData(
         : null,
     },
     channels,
-    charts: buildDeckCharts(currentSnap, currentWindow),
+    charts: buildDeckCharts(currentSnap, currentWindow, asOf),
     deliveryStates: currentSnap.channels.flatMap((ch) =>
       ch.lines.map((line) => line.deliveryState),
     ),

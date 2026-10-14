@@ -110,10 +110,12 @@ function inWindow(date: string, window: DeckChartWindow): boolean {
   return date >= window.startISO && date <= window.endISO
 }
 
-/** Last complete day is two Melbourne calendar days before the window end. */
-function chartWindow(window: DeckChartWindow): DeckChartWindow | null {
-  const endISO = addDaysISO(window.endISO, -COMPLETE_DAY_LAG)
-  if (!endISO || endISO < window.startISO) return null
+/** Earlier of the window end and two Melbourne days before the report as-of date. */
+function chartWindow(window: DeckChartWindow, asOfISO: string): DeckChartWindow | null {
+  const completeThrough = addDaysISO(asOfISO, -COMPLETE_DAY_LAG)
+  if (!completeThrough) return null
+  const endISO = completeThrough < window.endISO ? completeThrough : window.endISO
+  if (endISO < window.startISO) return null
   return { startISO: window.startISO, endISO }
 }
 
@@ -124,9 +126,10 @@ function completeDaysNote(endISO: string): string {
   return `Chart shows complete days to ${label}.`
 }
 
-function chartNote(endISO: string, exclusion: string | null): string {
-  const complete = completeDaysNote(endISO)
-  return exclusion ? `${exclusion} ${complete}` : complete
+function chartNote(chartEnd: string, windowEnd: string, exclusion: string | null): string | null {
+  const complete = chartEnd < windowEnd ? completeDaysNote(chartEnd) : null
+  if (exclusion && complete) return `${exclusion} ${complete}`
+  return exclusion ?? complete
 }
 
 function addDay(map: Map<string, DayTotals>, date: string, left: number, right: number) {
@@ -188,9 +191,13 @@ function channelHasEstimatedSpend(channel: DeliveryChannelGroup): boolean {
   return channel.lines.some((line) => line.spendMode === "estimated" && line.spendToDate > 0)
 }
 
-export function buildDeckCharts(snapshot: DeckChartSnapshot, window: DeckChartWindow): DeckChart[] {
-  if (!window.startISO || !window.endISO || window.endISO < window.startISO) return []
-  const plotted = chartWindow(window)
+export function buildDeckCharts(
+  snapshot: DeckChartSnapshot,
+  window: DeckChartWindow,
+  asOfISO: string,
+): DeckChart[] {
+  if (!window.startISO || !window.endISO || window.endISO < window.startISO || !asOfISO) return []
+  const plotted = chartWindow(window, asOfISO)
   if (!plotted) return []
 
   const lineGroup = new Map<string, string>()
@@ -280,7 +287,7 @@ export function buildDeckCharts(snapshot: DeckChartSnapshot, window: DeckChartWi
       left,
       right,
       points,
-      note: chartNote(plotted.endISO, null),
+      note: chartNote(plotted.endISO, window.endISO, null),
     })
   }
 
@@ -292,7 +299,7 @@ export function buildDeckCharts(snapshot: DeckChartSnapshot, window: DeckChartWi
   const hasEstimated =
     snapshot.includesEstimatedSpend === true || snapshot.channels.some(channelHasEstimatedSpend)
   const exclusion = hasAssumed || hasEstimated || hasCm360Chart ? CAMPAIGN_NOTE : null
-  const note = chartNote(plotted.endISO, exclusion)
+  const note = chartNote(plotted.endISO, window.endISO, exclusion)
 
   const charts: DeckChart[] = []
   if (campaignPoints) {

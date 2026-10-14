@@ -37,6 +37,24 @@ def test_missing_key():
     fail("missing key did not fail")
 
 
+def test_content_shape_below_6_7_fails():
+    am = load("am_rebrand.py")
+    check = load("check_deck.py")
+    deck = am.Deck(TEMPLATE)
+    cover = deck.clone(3)
+    deck.notes(cover, "CHECK slides.0 cover sand")
+    slide = deck.add("Title Only - White")
+    deck.fill(slide, 100, "A short title.")
+    deck.notes(slide, "CHECK slides.1 summary stat-row")
+    am.card(slide, 0.6, 6.2, 4.0, 0.8, "EFE9DF")
+    path = os.path.join(OUT, "below-footer.pptx")
+    deck.save(path)
+    issues = check.check(path, DATA)
+    flagged = [issue for issue in issues if "below 6.7" in issue]
+    if flagged != ["slide 2 Card below 6.7"]:
+        fail(f"low card was not the only shape below 6.7: {flagged}")
+
+
 def test_overflow_title():
     am = load("am_rebrand.py")
     check = load("check_deck.py")
@@ -737,8 +755,8 @@ def test_chart_slide_builds_and_opens():
             fail("combo chart XML is missing the line series or the second axis")
         if 'legendPos val="tr"' not in xml:
             fail("chart legend is not top right")
-        if "<c:manualLayout>" not in xml:
-            fail("chart plot area has no manual layout")
+        if "<c:manualLayout>" not in xml or 'h val="0.08"' not in xml:
+            fail("chart legend is not the top 8% of the frame")
         if 'name="smooth" val="0"' not in xml and 'smooth val="0"' not in xml:
             fail("chart line is not set smooth off")
     text = slide_text(out)
@@ -840,6 +858,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     test_missing_key()
     test_overflow_title()
+    test_content_shape_below_6_7_fails()
     test_palette()
     test_validate()
     test_pace_and_fallback()

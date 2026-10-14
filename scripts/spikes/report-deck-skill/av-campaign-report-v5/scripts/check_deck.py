@@ -30,6 +30,10 @@ LOOSE_STOP = re.compile(r"\s[.!?]$")
 NUMBER_DOT_NAME = "Number dot"
 CONTACT_PLACEHOLDER_IDX = "102"
 CHART_PART = re.compile(r"^ppt/(?:charts|embeddings)/")
+CONTENT_BOTTOM = 6.7
+FOOTER_TOP = 6.9
+EDGE_KINDS = {"cover", "breaker", "close"}
+SLIDE_KIND = re.compile(r"CHECK slides\.\d+ (\S+)")
 
 
 def font_path(name, italic, bold):
@@ -274,6 +278,11 @@ def number_issues(pptx_path, json_path):
     }
 
 
+def slide_kind(notes):
+    match = SLIDE_KIND.search(notes or "")
+    return match.group(1) if match else ""
+
+
 def loose_stop(text):
     return " ." in text or LOOSE_STOP.search(text) is not None
 
@@ -309,6 +318,12 @@ def check(pptx_path, json_path):
         match = CHECK.search(notes)
         slide_path = match.group(1) if match else f"slides.{index}"
         xml = xmls[index] if index < len(xmls) else ""
+        if slide_kind(notes) not in EDGE_KINDS:
+            for shape in slide.shapes:
+                top = shape.top / EMU
+                bottom = top + shape.height / EMU
+                if bottom > CONTENT_BOTTOM + 0.01 and top < FOOTER_TOP:
+                    issues.append(f"slide {number} {shape.name or 'shape'} below 6.7")
 
         if "<a:gradFill" in xml or "<a:gradFill>" in xml:
             issues.append(f"slide {number} {slide_path} gradFill")

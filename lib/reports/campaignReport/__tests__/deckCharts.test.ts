@@ -104,8 +104,16 @@ function sumLeft(chart: DeckChart): number {
   return chart.points.reduce((sum, point) => sum + point[1], 0)
 }
 
+function buildCharts(
+  snapshot: Parameters<typeof buildDeckCharts>[0],
+  window: { startISO: string; endISO: string } = WINDOW,
+  asOf = window.endISO,
+): DeckChart[] {
+  return buildDeckCharts(snapshot, window, asOf)
+}
+
 test("social channel fills the gap day and keeps spend and impressions", () => {
-  const charts = buildDeckCharts(
+  const charts = buildCharts(
     {
       channels: [channel("social_meta", [line("meta1", 15.5)])],
       dailyPacingRows: [
@@ -129,7 +137,7 @@ test("social channel fills the gap day and keeps spend and impressions", () => {
 })
 
 test("search channel uses dailySearch cost and clicks", () => {
-  const charts = buildDeckCharts(
+  const charts = buildCharts(
     {
       channels: [channel("search", [line("se1", 8.5)])],
       dailySearch: searchResponse("se1", [
@@ -152,7 +160,7 @@ test("search channel uses dailySearch cost and clicks", () => {
 })
 
 test("CM360 channel uses impressions and clicks", () => {
-  const charts = buildDeckCharts(
+  const charts = buildCharts(
     {
       channels: [channel("digital_display", [line("dd1", 20)])],
       dailyPacingRows: [
@@ -178,7 +186,7 @@ test("CM360 channel uses impressions and clicks", () => {
 })
 
 test("programmatic CPV uses views, and a mixed buy type uses impressions", () => {
-  const cpv = buildDeckCharts(
+  const cpv = buildCharts(
     {
       channels: [
         channel("programmatic_video", [line("pv1", 4, { buyType: "cpv" }), line("pv2", 6, { buyType: "CPV" })]),
@@ -210,7 +218,7 @@ test("programmatic CPV uses views, and a mixed buy type uses impressions", () =>
   assert.equal(views.right?.key, "video_3s_views")
   assert.deepEqual(views.points, [["2026-07-01", 0, 0], ["2026-07-02", 10, 14]])
 
-  const mixed = buildDeckCharts(
+  const mixed = buildCharts(
     {
       channels: [
         channel("programmatic_display", [line("pd1", 4, { buyType: "cpv" }), line("pd2", 6, { buyType: "cpm" })]),
@@ -242,7 +250,7 @@ test("programmatic CPV uses views, and a mixed buy type uses impressions", () =>
 })
 
 test("notLive and assumed-spend channels get no chart", () => {
-  const charts = buildDeckCharts(
+  const charts = buildCharts(
     {
       channels: [
         channel("social_tiktok", [line("tt1", 0)], 0),
@@ -257,7 +265,7 @@ test("notLive and assumed-spend channels get no chart", () => {
 })
 
 test("a pacing row whose line is not in the snapshot is dropped", () => {
-  const charts = buildDeckCharts(
+  const charts = buildCharts(
     {
       channels: [channel("social_meta", [line("meta1", 10)])],
       dailyPacingRows: [
@@ -272,7 +280,7 @@ test("a pacing row whose line is not in the snapshot is dropped", () => {
 })
 
 test("campaign chart sums reported spend and clicks through complete days", () => {
-  const charts = buildDeckCharts(
+  const charts = buildCharts(
     {
       channels: [
         channel("social_meta", [line("meta1", 10)]),
@@ -314,7 +322,7 @@ test("social and search left points reconcile to daily rows through the chart en
   const searchThroughEnd = 3.2 + 1.05
   const socialAfter = 9.5
   const searchAfter = 4.4
-  const charts = buildDeckCharts(
+  const charts = buildCharts(
     {
       channels: [
         channel("social_meta", [line("meta1", socialThroughEnd + socialAfter)]),
@@ -343,7 +351,7 @@ test("social and search left points reconcile to daily rows through the chart en
 })
 
 test("charts end two days before asOf and name that date", () => {
-  const charts = buildDeckCharts(
+  const charts = buildCharts(
     {
       channels: [
         channel("social_meta", [line("meta1", 33)]),
@@ -377,7 +385,7 @@ test("charts end two days before asOf and name that date", () => {
 })
 
 test("a window of two days has no chart", () => {
-  const charts = buildDeckCharts(
+  const charts = buildCharts(
     {
       channels: [channel("social_meta", [line("meta1", 10)])],
       dailyPacingRows: [
@@ -386,6 +394,84 @@ test("a window of two days has no chart", () => {
       ],
     },
     { startISO: "2026-10-14", endISO: "2026-10-15" },
+  )
+  assert.deepEqual(charts, [])
+})
+
+test("campaign_to_date as of 2026-10-15 ends two days before asOf", () => {
+  const window = { startISO: "2026-07-01", endISO: "2026-10-15" }
+  const charts = buildCharts(
+    {
+      channels: [channel("social_meta", [line("meta1", 22)])],
+      dailyPacingRows: [
+        pacing({ lineItemId: "meta1", dateDay: "2026-10-13", amountSpent: 10, impressions: 2, clicks: 1 }),
+        pacing({ lineItemId: "meta1", dateDay: "2026-10-15", amountSpent: 12, impressions: 2, clicks: 1 }),
+      ],
+    },
+    window,
+    "2026-10-15",
+  )
+  assert.equal(charts[0]?.points.at(-1)?.[0], "2026-10-13")
+  assert.equal(charts[0]?.note, "Chart shows complete days to 13 Oct.")
+  const social = chartFor(charts, "social_meta")
+  assert.equal(social.points.at(-1)?.[0], "2026-10-13")
+  assert.equal(social.note, "Chart shows complete days to 13 Oct.")
+})
+
+test("last_month as of 2026-10-15 keeps the whole month and has no complete-days note", () => {
+  const window = { startISO: "2026-09-01", endISO: "2026-09-30" }
+  const charts = buildCharts(
+    {
+      channels: [channel("social_meta", [line("meta1", 9)])],
+      dailyPacingRows: [
+        pacing({ lineItemId: "meta1", dateDay: "2026-09-30", amountSpent: 9, impressions: 3, clicks: 1 }),
+      ],
+    },
+    window,
+    "2026-10-15",
+  )
+  assert.equal(charts[0]?.points.length, 30)
+  assert.equal(charts[0]?.points[0]?.[0], "2026-09-01")
+  assert.equal(charts[0]?.points.at(-1)?.[0], "2026-09-30")
+  assert.equal(charts[0]?.note, null)
+  const social = chartFor(charts, "social_meta")
+  assert.equal(social.points.length, 30)
+  assert.equal(social.note, null)
+})
+
+test("this_month as of 2026-10-15 ends on 13 Oct with 13 points", () => {
+  const window = { startISO: "2026-10-01", endISO: "2026-10-15" }
+  const charts = buildCharts(
+    {
+      channels: [channel("social_meta", [line("meta1", 8)])],
+      dailyPacingRows: [
+        pacing({ lineItemId: "meta1", dateDay: "2026-10-13", amountSpent: 8, impressions: 2, clicks: 1 }),
+        pacing({ lineItemId: "meta1", dateDay: "2026-10-15", amountSpent: 4, impressions: 1, clicks: 1 }),
+      ],
+    },
+    window,
+    "2026-10-15",
+  )
+  assert.equal(charts[0]?.points.length, 13)
+  assert.equal(charts[0]?.points[0]?.[0], "2026-10-01")
+  assert.equal(charts[0]?.points.at(-1)?.[0], "2026-10-13")
+  assert.equal(charts[0]?.note, "Chart shows complete days to 13 Oct.")
+  const social = chartFor(charts, "social_meta")
+  assert.equal(social.points.length, 13)
+  assert.equal(social.note, "Chart shows complete days to 13 Oct.")
+})
+
+test("this_month as of 2026-10-02 has no chart", () => {
+  const charts = buildCharts(
+    {
+      channels: [channel("social_meta", [line("meta1", 6)])],
+      dailyPacingRows: [
+        pacing({ lineItemId: "meta1", dateDay: "2026-10-01", amountSpent: 2, impressions: 1, clicks: 1 }),
+        pacing({ lineItemId: "meta1", dateDay: "2026-10-02", amountSpent: 4, impressions: 1, clicks: 1 }),
+      ],
+    },
+    { startISO: "2026-10-01", endISO: "2026-10-02" },
+    "2026-10-02",
   )
   assert.deepEqual(charts, [])
 })

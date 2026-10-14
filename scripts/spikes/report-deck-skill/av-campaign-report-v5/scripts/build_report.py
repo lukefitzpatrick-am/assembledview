@@ -253,12 +253,13 @@ def fitted_copy_height(text, width, size):
     return max(0.9, 0.3 + lines * line_h + 0.3)
 
 
-def insight_card(slide, path, spec, above_bottom):
+def insight_card(slide, path, spec, above_bottom, height=None):
     """Sand insight card, 0.3in below the element above it. Height fits the text."""
     insight = text_of(require(spec, "insight", f"{path}.insight"), f"{path}.insight", 160)
     top = above_bottom + 0.3
     text_w = 10.1
-    height = fitted_copy_height(insight, text_w, 15)
+    if height is None:
+        height = fitted_copy_height(insight, text_w, 15)
     card(slide, 0.6, top, 12.13, height, K["sand"])
     tag(slide, 0.82, top + (height / 2) - 0.16, "Insight", K["sky"], K["ink"])
     shape = say(
@@ -566,8 +567,27 @@ def manual_layout(x, y, w, h):
     return layout
 
 
+CHART_TOP = 2.85
+CONTENT_FLOOR = 6.7
+CHART_NOTE_H = 0.22
+INSIGHT_GAP = 0.3
+MIN_CHART_H = 1.2
+
+
+def chart_slide_heights(chart, insight):
+    """Chart, note and insight stay inside y 2.85 to 6.7. Shrink the chart first."""
+    note = chart.get("note") if isinstance(chart, dict) else None
+    note_h = CHART_NOTE_H if isinstance(note, str) and note.strip() else 0.0
+    insight_h = fitted_copy_height(insight, 10.1, 15)
+    chart_h = CONTENT_FLOOR - CHART_TOP - note_h - INSIGHT_GAP - insight_h
+    if chart_h < MIN_CHART_H:
+        chart_h = MIN_CHART_H
+        insight_h = CONTENT_FLOOR - CHART_TOP - chart_h - note_h - INSIGHT_GAP
+    return chart_h, insight_h
+
+
 def place_legend(space):
-    """Legend sits top right, above a plot area that keeps the axes clear."""
+    """Legend is the top 8%, top right. The plot fills the rest, inset for the axes and dates."""
     node = space.find(cq("chart"))
     legend = node.find(cq("legend"))
     if legend is None:
@@ -584,13 +604,13 @@ def place_legend(space):
     current = legend.find(cq("layout"))
     if current is not None:
         legend.remove(current)
-    overlay.addprevious(manual_layout("0.50", "0.00", "0.48", "0.14"))
+    overlay.addprevious(manual_layout("0.50", "0.00", "0.50", "0.08"))
     put_txpr(legend, "900")
     plot = node.find(cq("plotArea"))
     current = plot.find(cq("layout"))
     if current is not None:
         plot.remove(current)
-    plot.insert(0, manual_layout("0.08", "0.18", "0.82", "0.66"))
+    plot.insert(0, manual_layout("0.08", "0.10", "0.84", "0.74"))
 
 
 def style_delivery_chart(chart, left_fmt, right_fmt, skip):
@@ -795,8 +815,10 @@ def build_delivery_layout(deck, spec, index, fixed):
             value = key_of(require(stat, "key", f"{at}.key"), f"{at}.key")
             entries.append((label, value, f"{at}.key"))
         stat_pills(slide, path, entries)
-    chart_bottom = delivery_chart(slide, 0.6, 2.85, 12.13, 2.70, chart, path)
-    insight_card(slide, path, spec, chart_bottom)
+    insight = text_of(require(spec, "insight", f"{path}.insight"), f"{path}.insight", 160)
+    chart_h, insight_h = chart_slide_heights(chart, insight)
+    chart_bottom = delivery_chart(slide, 0.6, CHART_TOP, 12.13, chart_h, chart, path)
+    insight_card(slide, path, spec, chart_bottom, insight_h)
     return slide
 
 
@@ -878,12 +900,12 @@ def build_summary(deck, spec, index):
             note = text_of(stat["note"], f"{at}.note", 48)
             say(slide, x + 0.14, 3.78 if tall else 3.6, width - 0.28, 0.38, note, f"{at}.note", size=11, color=K["muted"])
     outcome = text_of(require(spec, "outcome", f"{path}.outcome"), f"{path}.outcome", 160)
-    text_w = 11.7
+    text_w = 10.1
     top = 4.22 + 0.3
     height = fitted_copy_height(outcome, text_w, 16)
     card(slide, 0.6, top, 12.13, height, K["sand"])
     tag(slide, 0.82, top + (height / 2) - 0.16, "Outcome", K["lime"], K["ink"])
-    shape = say(slide, 0.82, top + 0.3, text_w, height - 0.6, outcome, f"{path}.outcome", size=16, color=K["ink"], anchor="t")
+    shape = say(slide, 2.35, top + 0.3, text_w, height - 0.6, outcome, f"{path}.outcome", size=16, color=K["ink"], anchor="t")
     shape.text_frame.margin_top = 0
     shape.text_frame.margin_bottom = 0
     return slide
