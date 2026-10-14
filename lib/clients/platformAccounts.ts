@@ -1,8 +1,9 @@
 /**
  * Client-safe account-ref normalisers. No database or Snowflake imports.
- * Numeric platforms store digits only. CM360, DV360, LinkedIn, Pinterest
- * and Snapchat store the trimmed text the operator typed (advertiser name
- * for the two Google platforms).
+ * Numeric platforms store digits only. GA4 stores the property id digits.
+ * Search Console stores the Fivetran SITE string. CM360, DV360, LinkedIn,
+ * Pinterest and Snapchat store the trimmed text the operator typed
+ * (advertiser name for the two Google platforms).
  */
 
 export const PLATFORM_ACCOUNT_PLATFORMS = [
@@ -18,6 +19,8 @@ export const PLATFORM_ACCOUNT_PLATFORMS = [
   "linkedin",
   "pinterest",
   "snapchat",
+  "ga4",
+  "gsc",
 ] as const
 
 export type PlatformAccountPlatform = (typeof PLATFORM_ACCOUNT_PLATFORMS)[number]
@@ -36,10 +39,56 @@ export function isPlatformAccountPlatform(value: string): value is PlatformAccou
   return (PLATFORM_ACCOUNT_PLATFORMS as readonly string[]).includes(value)
 }
 
+/**
+ * GA4 and Search Console stay off the client page until
+ * NEXT_PUBLIC_PLATFORM_ACCOUNTS_WEB is exactly "1". 0098 is not applied.
+ */
+export function platformAccountChoices(flag?: string): readonly PlatformAccountPlatform[] {
+  if (flag === "1") return PLATFORM_ACCOUNT_PLATFORMS
+  return PLATFORM_ACCOUNT_PLATFORMS.filter((value) => value !== "ga4" && value !== "gsc")
+}
+
+function normaliseGa4(raw: string): string {
+  const text = String(raw ?? "").trim()
+  if (/^properties\/\d+\/?$/i.test(text)) {
+    const digits = text.match(/(\d+)/)
+    if (digits) return digits[1]
+  }
+  if (/^\d+$/.test(text)) return text
+  let url: URL | null = null
+  try {
+    url = new URL(text)
+  } catch {
+    url = null
+  }
+  if (!url) throw new Error("Account ref must be digits")
+  const blob = `${url.pathname}${url.search}${url.hash}`
+  const fromProperties = blob.match(/properties\/(\d+)/i)
+  if (fromProperties) return fromProperties[1]
+  const fromQuery = url.searchParams.get("property")
+  if (fromQuery && /^\d+$/.test(fromQuery)) return fromQuery
+  const fromPath = blob.match(/\/(?:a\d+)?p(\d+)/)
+  if (fromPath) return fromPath[1]
+  throw new Error("Account ref must be digits")
+}
+
+function normaliseGsc(raw: string): string {
+  const text = String(raw ?? "").trim()
+  if (!text) throw new Error("Account ref is empty")
+  if (text.startsWith("sc-domain:")) {
+    if (/^sc-domain:\S+$/.test(text)) return text
+    throw new Error("Search Console site must be an sc-domain or a URL")
+  }
+  if (/^https?:\/\/\S+$/i.test(text)) return text
+  throw new Error("Search Console site must be an sc-domain or a URL")
+}
+
 export function normaliseAccountRef(platform: string, raw: string): string {
   if (!isPlatformAccountPlatform(platform)) {
     throw new Error("Unknown platform")
   }
+  if (platform === "ga4") return normaliseGa4(raw)
+  if (platform === "gsc") return normaliseGsc(raw)
   if (DIGIT_PLATFORMS.has(platform)) {
     const stripped = String(raw ?? "")
       .trim()
@@ -65,6 +114,9 @@ export function formatAccountRef(platform: string, ref: string): string {
   if (platform === "meta_ads" && /^\d+$/.test(ref)) {
     return `act_${ref}`
   }
+  if (platform === "ga4" && /^\d+$/.test(ref)) {
+    return `properties/${ref}`
+  }
   return ref
 }
 
@@ -81,6 +133,8 @@ export const PLATFORM_ACCOUNT_LABELS: Record<PlatformAccountPlatform, string> = 
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
   snapchat: "Snapchat",
+  ga4: "Google Analytics 4",
+  gsc: "Search Console",
 }
 
 export function isAdvertiserNamePlatform(

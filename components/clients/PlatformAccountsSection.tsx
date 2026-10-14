@@ -15,10 +15,10 @@ import {
 } from "@/components/ui/select"
 import {
   PLATFORM_ACCOUNT_LABELS,
-  PLATFORM_ACCOUNT_PLATFORMS,
   formatAccountRef,
   isAdvertiserNamePlatform,
   normaliseAccountRef,
+  platformAccountChoices,
   type PlatformAccountPlatform,
 } from "@/lib/clients/platformAccounts"
 
@@ -182,10 +182,11 @@ export function PlatformAccountsSection({ clientId }: { clientId: number }) {
     }
   }
 
+  const choices = platformAccountChoices(process.env.NEXT_PUBLIC_PLATFORM_ACCOUNTS_WEB)
   const pickerReady = advertisers.status === "ready"
 
   return (
-    <div className="min-w-0 rounded-md border p-4">
+    <div className="min-w-0 rounded-md border p-4" data-platform-choices={choices.join(" ")}>
       <h3 className="mb-1 text-lg font-semibold">Platform accounts</h3>
       <p className="mb-4 text-sm text-muted-foreground">
         A client can have more than one account on a platform. CM360 and DV360 use the advertiser name.
@@ -267,7 +268,7 @@ export function PlatformAccountsSection({ clientId }: { clientId: number }) {
               <SelectValue placeholder="Platform" />
             </SelectTrigger>
             <SelectContent>
-              {PLATFORM_ACCOUNT_PLATFORMS.map((value) => (
+              {choices.map((value) => (
                 <SelectItem key={value} value={value}>
                   {PLATFORM_ACCOUNT_LABELS[value]}
                 </SelectItem>
@@ -334,5 +335,5 @@ export function PlatformAccountsSection({ clientId }: { clientId: number }) {
 }
 
 function isPlatformLabel(value: string): value is PlatformAccountPlatform {
-  return (PLATFORM_ACCOUNT_PLATFORMS as readonly string[]).includes(value)
+  return platformAccountChoices("1").includes(value as PlatformAccountPlatform)
 }

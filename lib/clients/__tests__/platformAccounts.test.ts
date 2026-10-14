@@ -2,10 +2,12 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
+  PLATFORM_ACCOUNT_LABELS,
   PLATFORM_ACCOUNT_PLATFORMS,
   formatAccountRef,
   isMissingAdvertiserView,
   normaliseAccountRef,
+  platformAccountChoices,
 } from "../platformAccounts"
 
 const DIGIT_PLATFORMS = [
@@ -36,6 +38,8 @@ test("platform list matches the check constraint", () => {
       "linkedin",
       "pinterest",
       "snapchat",
+      "ga4",
+      "gsc",
     ],
   )
 })
@@ -100,4 +104,52 @@ test("formatAccountRef displays Google dashes, a Meta act_ prefix, and stored te
   assert.equal(formatAccountRef("cm360", "BOSS Engineering"), "BOSS Engineering")
   assert.equal(formatAccountRef("dv360", "Molicare"), "Molicare")
   assert.equal(formatAccountRef("tiktok", "123456"), "123456")
+  assert.equal(formatAccountRef("ga4", "123456"), "properties/123456")
+  assert.equal(formatAccountRef("gsc", "sc-domain:example.com"), "sc-domain:example.com")
+  assert.equal(formatAccountRef("gsc", "https://www.example.com/"), "https://www.example.com/")
+})
+
+test("ga4 stores digits from a property path, a bare id, or an Analytics URL", () => {
+  assert.equal(normaliseAccountRef("ga4", "properties/123"), "123")
+  assert.equal(normaliseAccountRef("ga4", "properties/123/"), "123")
+  assert.equal(normaliseAccountRef("ga4", "123"), "123")
+  assert.equal(
+    normaliseAccountRef("ga4", "https://analytics.google.com/analytics/web/#/p213025502/reports/home"),
+    "213025502",
+  )
+  assert.equal(
+    normaliseAccountRef(
+      "ga4",
+      "https://analytics.google.com/analytics/web/#/a54516992p213025502/reports/home",
+    ),
+    "213025502",
+  )
+  assert.equal(
+    normaliseAccountRef("ga4", "https://analytics.google.com/analytics/web/?property=998877"),
+    "998877",
+  )
+  assert.throws(() => normaliseAccountRef("ga4", "properties/abc"), /digits/)
+  assert.throws(() => normaliseAccountRef("ga4", "12a"), /digits/)
+  assert.throws(() => normaliseAccountRef("ga4", ""), /digits/)
+})
+
+test("gsc stores the Fivetran site string, including the prefix or trailing slash", () => {
+  assert.equal(normaliseAccountRef("gsc", "sc-domain:example.com"), "sc-domain:example.com")
+  assert.equal(normaliseAccountRef("gsc", "  sc-domain:Example.com "), "sc-domain:Example.com")
+  assert.equal(normaliseAccountRef("gsc", "https://www.example.com/"), "https://www.example.com/")
+  assert.equal(normaliseAccountRef("gsc", "https://www.example.com"), "https://www.example.com")
+  assert.throws(() => normaliseAccountRef("gsc", "example.com"), /sc-domain or a URL/)
+  assert.throws(() => normaliseAccountRef("gsc", "   "), /empty/)
+  assert.throws(() => normaliseAccountRef("gsc", "sc-domain:"), /sc-domain or a URL/)
+})
+
+test("ga4 and gsc stay off the choice list unless the web flag is 1", () => {
+  assert.equal(PLATFORM_ACCOUNT_LABELS.ga4, "Google Analytics 4")
+  assert.equal(PLATFORM_ACCOUNT_LABELS.gsc, "Search Console")
+  assert.ok(!platformAccountChoices(undefined).includes("ga4"))
+  assert.ok(!platformAccountChoices(undefined).includes("gsc"))
+  assert.ok(!platformAccountChoices("").includes("ga4"))
+  assert.ok(platformAccountChoices("1").includes("ga4"))
+  assert.ok(platformAccountChoices("1").includes("gsc"))
+  assert.equal(platformAccountChoices("1").length, PLATFORM_ACCOUNT_PLATFORMS.length)
 })
