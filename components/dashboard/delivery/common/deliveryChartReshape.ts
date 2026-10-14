@@ -44,8 +44,8 @@ export function reshapeCumulativeToPacingBand(
 
 /** Add a display label for the x-axis without mutating adapter daily rows. */
 export function withDateLabels(
-  daily: Array<Record<string, string | number>>,
-): Array<Record<string, string | number>> {
+  daily: Array<Record<string, string | number | null>>,
+): Array<Record<string, string | number | null>> {
   return daily.map((row) => ({
     ...row,
     dateLabel: formatChartDateLabel(String(row.date ?? "")),

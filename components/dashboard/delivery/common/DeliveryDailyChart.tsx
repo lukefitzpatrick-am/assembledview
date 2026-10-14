@@ -1,125 +1,337 @@
 "use client"
 
 import { useMemo } from "react"
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  ReferenceLine,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 
-import { BaseChartCard, ComboChart, MultiLineChart } from "@/components/charts/system"
+import { BaseChartCard } from "@/components/charts/system"
+import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 import { EmptyState } from "@/components/ui/states"
-import { BRAND } from "@/lib/brand"
-import { BRAND_SERIES } from "@/lib/design/mediaFamilies"
+import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 
-import { DELIVERY_DAILY_METRIC_LINE_COLOR } from "./deliveryDailyChartColors"
 import { withDateLabels } from "./deliveryChartReshape"
+import {
+  DELIVERY_CHART_COLOUR,
+  DELIVERY_CHART_HEIGHT_CLASS,
+  blankFutureDays,
+  countFutureBlanked,
+  deliveryAxisShowsMonth,
+  deliveryAxisTick,
+  deliveryChartEmptyCopy,
+  deliveryFormatterName,
+  formatDeliveryValue,
+  paintSeries,
+  rowsFromSpec,
+  seriesFromSpec,
+  todayLineDate,
+  type DeliveryChartSize,
+  type DeliveryChartSpec,
+  type DeliveryDailyChartSeries,
+  type DeliveryPaintSeries,
+} from "./deliveryChartSpec"
 
+export type { DeliveryChartSpec, DeliveryDailyChartSeries } from "./deliveryChartSpec"
 export { DELIVERY_DAILY_METRIC_LINE_COLOR, DELIVERY_DAILY_METRIC_LINE_THEME_HEXES } from "./deliveryDailyChartColors"
 
-export type DeliveryDailyChartSeries = {
-  key: string
-  label: string
-  yAxis?: "left" | "right"
-  /** ComboChart value format. Bars default to "dollars", lines to
-   *  "number", preserving pre-BV1 behaviour for callers that omit it. */
-  format?: "dollars" | "number" | "compact" | "percent"
-}
-
 export interface DeliveryDailyChartProps {
-  daily: Array<Record<string, string | number>>
-  series: DeliveryDailyChartSeries[]
-  asAtDate: string | null
-  /** Channel media-type colour — wins for the spend/bar series when set. */
+  /** When set, draws delivered / planned / cumulative pace from these points. */
+  spec?: DeliveryChartSpec
+  daily?: Array<Record<string, string | number>>
+  series?: DeliveryDailyChartSeries[]
+  asAtDate?: string | null
+  /**
+   * Ignored for paint. Channel colour stays on the section dot.
+   * @deprecated Pass nothing. Removed once callers stop sending it.
+   */
   mediaTypeColour?: string
-  /** @deprecated Unused for paint. Media colour, else forest. */
+  /** @deprecated Ignored for paint. */
   brandColour?: string
-  height?: number
+  size?: DeliveryChartSize
+  /** Campaign start (ISO). Empty charts before this date say "Starts <date>". */
+  startsOn?: string | null
   title?: string
   subtitle?: string
 }
 
+type TooltipItem = {
+  dataKey?: string | number
+  value?: number | string | null
+}
+
+function DeliveryTooltip({
+  active,
+  payload,
+  label,
+  paint,
+}: {
+  active?: boolean
+  payload?: TooltipItem[]
+  label?: string
+  paint: DeliveryPaintSeries[]
+}) {
+  if (!active || !payload?.length) return null
+  const byKey = new Map(paint.map((item) => [item.key, item]))
+  return (
+    <div className="grid min-w-[8rem] gap-1 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-tooltip">
+      <div>{label}</div>
+      {payload.map((item) => {
+        const key = String(item.dataKey ?? "")
+        const series = byKey.get(key)
+        if (!series || item.value == null || item.value === "") return null
+        const numeric = Number(item.value)
+        if (!Number.isFinite(numeric)) return null
+        return (
+          <div key={key} className="flex justify-between gap-3">
+            <span>{series.label}</span>
+            <span className="num">{formatDeliveryValue(series.format, numeric)}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function LegendSwatch({ item }: { item: DeliveryPaintSeries }) {
+  if (item.mark === "bar") {
+    return (
+      <span
+        data-series-colour={item.colour}
+        className="inline-block h-2.5 w-2.5 rounded-sm bg-[var(--av-chart-1)]"
+      />
+    )
+  }
+  if (item.mark === "dashed") {
+    return (
+      <span
+        data-series-colour={item.colour}
+        className="inline-block w-4 border-b-2 border-dashed border-[var(--av-chart-2)]"
+      />
+    )
+  }
+  if (item.colour === DELIVERY_CHART_COLOUR.cumulativePace) {
+    return (
+      <span
+        data-series-colour={item.colour}
+        className="inline-block h-0.5 w-4 bg-[var(--av-chart-3)]"
+      />
+    )
+  }
+  return (
+    <span
+      data-series-colour={item.colour}
+      className="inline-block h-0.5 w-4 bg-[var(--av-ink)]"
+    />
+  )
+}
+
+function DeliveryDateTick({
+  x = 0,
+  y = 0,
+  payload,
+  dates,
+}: {
+  x?: number
+  y?: number
+  payload?: { value?: string }
+  dates: string[]
+}) {
+  const iso = String(payload?.value ?? "")
+  const index = Math.max(0, dates.indexOf(iso))
+  const { month, day } = deliveryAxisTick(iso, deliveryAxisShowsMonth(dates, index))
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text textAnchor="middle" className="num fill-muted-foreground text-[10px]">
+        {month ? (
+          <tspan x="0" dy="10">
+            {month}
+          </tspan>
+        ) : null}
+        <tspan x="0" dy={month ? 12 : 10}>
+          {day}
+        </tspan>
+      </text>
+    </g>
+  )
+}
+
 export function DeliveryDailyChart({
-  daily,
-  series,
-  asAtDate: _asAtDate,
-  mediaTypeColour,
+  spec,
+  daily = [],
+  series = [],
+  asAtDate = null,
+  mediaTypeColour: _mediaTypeColour,
   brandColour: _brandColour,
-  height = 280,
+  size,
+  startsOn,
   title,
   subtitle,
 }: DeliveryDailyChartProps) {
-  const chartData = useMemo(() => withDateLabels(daily), [daily])
+  const resolvedSeries = spec ? seriesFromSpec(spec) : series
+  const resolvedAsAt = spec?.asAtDate ?? asAtDate ?? null
+  const resolvedSize = size ?? spec?.height ?? "channel"
+  const resolvedTitle = title ?? spec?.title ?? "Daily delivery"
+  const resolvedSubtitle = subtitle ?? spec?.summary ?? undefined
+  const sourceRows = spec ? rowsFromSpec(spec) : daily
 
-  const isDualAxis =
-    series.length === 2 && series.some((s) => s.yAxis === "right") && series.some((s) => s.yAxis !== "right")
+  const paint = useMemo(() => paintSeries(resolvedSeries), [resolvedSeries])
+  const labelled = useMemo(
+    () => withDateLabels(sourceRows.map((row) => ({ ...row }))),
+    [sourceRows],
+  )
+  const plot = useMemo(
+    () => blankFutureDays(labelled, resolvedAsAt, paint.map((item) => item.key)),
+    [labelled, resolvedAsAt, paint],
+  )
+  const dates = plot.map((row) => String(row.date ?? ""))
+  const today = todayLineDate(dates, resolvedAsAt)
+  const hasRightAxis = paint.some((item) => item.axis === "right")
 
-  const leftSeries = series.find((s) => s.yAxis !== "right") ?? series[0]
-  const rightSeries = series.find((s) => s.yAxis === "right") ?? series[1]
+  const config = useMemo<ChartConfig>(() => {
+    const next: ChartConfig = {}
+    for (const item of paint) next[item.key] = { label: item.label, color: item.colour }
+    return next
+  }, [paint])
 
-  const spendColor = mediaTypeColour?.trim() || BRAND.colour.forest
-  const metricColor = DELIVERY_DAILY_METRIC_LINE_COLOR
-
-  const chartWrapStyle = { height } as const
-
-  if (chartData.length === 0 || series.length === 0) {
+  if (sourceRows.length === 0 || paint.length === 0) {
+    const message = deliveryChartEmptyCopy({
+      startsOn,
+      asAtDate: resolvedAsAt,
+      todayISO: getMelbourneTodayISO(),
+      empty: spec?.empty,
+    })
     return (
-      <BaseChartCard
-        title={title ?? "Daily delivery"}
-        subtitle={subtitle}
-        exportPage="pacing"
-        hideExport
-      >
+      <BaseChartCard title={resolvedTitle} subtitle={resolvedSubtitle} exportPage="pacing" hideExport>
         <EmptyState
-          className="min-h-[200px] border-0 bg-transparent"
-          title="No daily delivery data available"
+          className="min-h-[180px] border-0 bg-transparent"
+          title={message}
           message={null}
         />
       </BaseChartCard>
     )
   }
 
+  const legend = (
+    <div
+      data-legend-position="under-title"
+      className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
+    >
+      {paint.map((item) => (
+        <span
+          key={item.key}
+          data-series-key={item.key}
+          data-series-mark={item.mark}
+          data-series-format={deliveryFormatterName(item.format)}
+          className="inline-flex items-center gap-1.5"
+        >
+          <LegendSwatch item={item} />
+          {item.label}
+        </span>
+      ))}
+    </div>
+  )
+
   return (
     <BaseChartCard
-      title={title ?? "Daily delivery"}
-      subtitle={subtitle}
+      title={resolvedTitle}
+      subtitle={resolvedSubtitle}
       exportPage="pacing"
+      legend={legend}
       exportSeries={{
-        data: chartData,
+        data: labelled,
         xKey: "dateLabel",
-        seriesKeys: series.map((s) => s.key),
+        seriesKeys: paint.map((item) => item.key),
       }}
     >
-      <div className="w-full" style={chartWrapStyle}>
-        {isDualAxis && leftSeries && rightSeries ? (
-          <ComboChart
-            data={chartData}
-            xKey="dateLabel"
-            bar={{
-              key: leftSeries.key,
-              label: leftSeries.label,
-              color: spendColor,
-              format: leftSeries.format ?? "dollars",
-            }}
-            line={{
-              key: rightSeries.key,
-              label: rightSeries.label,
-              color: metricColor,
-              format: rightSeries.format ?? "number",
-            }}
-            className="h-full w-full"
-          />
-        ) : (
-          <MultiLineChart
-            data={chartData}
-            xKey="dateLabel"
-            series={series.map((s, i) => ({
-              key: s.key,
-              label: s.label,
-              color: i === 0 ? spendColor : BRAND_SERIES[i % BRAND_SERIES.length],
-            }))}
-            valueFormat="compact"
-            smooth={false}
-            dots={false}
-            showLegend
-            className="h-full w-full"
-          />
-        )}
+      <div
+        className={`w-full ${DELIVERY_CHART_HEIGHT_CLASS[resolvedSize]}`}
+        data-delivery-chart-size={resolvedSize}
+        data-axis-domain="0"
+        data-today-line={today ?? ""}
+        data-future-blank-count={countFutureBlanked(labelled, resolvedAsAt)}
+      >
+        <ChartContainer config={config} className="aspect-auto h-full w-full">
+          <ComposedChart data={plot} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke="var(--border)" />
+            <XAxis
+              dataKey="date"
+              tick={<DeliveryDateTick dates={dates} />}
+              interval={dates.length > 16 ? "preserveStartEnd" : 0}
+              height={36}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              yAxisId="left"
+              domain={[0, "auto"]}
+              tickFormatter={(value: number) =>
+                formatDeliveryValue(paint.find((item) => item.axis === "left")?.format ?? "dollars", Number(value))
+              }
+              width={48}
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 11 }}
+            />
+            {hasRightAxis ? (
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                domain={[0, "auto"]}
+                tickFormatter={(value: number) =>
+                  formatDeliveryValue(paint.find((item) => item.axis === "right")?.format ?? "compact", Number(value))
+                }
+                width={44}
+                tickLine={false}
+                axisLine={false}
+                tick={{ fontSize: 11 }}
+              />
+            ) : null}
+            <Tooltip content={<DeliveryTooltip paint={paint} />} />
+            {paint.map((item) =>
+              item.mark === "bar" ? (
+                <Bar
+                  key={item.key}
+                  yAxisId="left"
+                  dataKey={item.key}
+                  name={item.label}
+                  fill={item.colour}
+                  maxBarSize={28}
+                  radius={[2, 2, 0, 0]}
+                  isAnimationActive={false}
+                />
+              ) : (
+                <Line
+                  key={item.key}
+                  yAxisId={item.axis === "right" ? "right" : "left"}
+                  type="monotone"
+                  dataKey={item.key}
+                  name={item.label}
+                  stroke={item.colour}
+                  strokeWidth={2}
+                  strokeDasharray={item.mark === "dashed" ? "4 4" : undefined}
+                  dot={false}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                />
+              ),
+            )}
+            {today ? (
+              <ReferenceLine
+                x={today}
+                yAxisId="left"
+                stroke={DELIVERY_CHART_COLOUR.today}
+                strokeDasharray="4 4"
+              />
+            ) : null}
+          </ComposedChart>
+        </ChartContainer>
       </div>
     </BaseChartCard>
   )
