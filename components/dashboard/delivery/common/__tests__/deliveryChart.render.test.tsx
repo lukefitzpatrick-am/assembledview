@@ -13,12 +13,20 @@ import {
   DELIVERY_CHART_COLOUR,
   DELIVERY_CHART_LINE_HEIGHT_CLASS,
   blankFutureDays,
+  deliveryAxisPlan,
   deliveryAxisShowsMonth,
   deliveryAxisTick,
   deliveryChartEmptyCopy,
   formatDeliveryValue,
   paintSeries,
 } from "../deliveryChartSpec"
+
+function isoDays(start: string, count: number): string[] {
+  const origin = Date.parse(`${start}T00:00:00Z`)
+  return Array.from({ length: count }, (_, index) =>
+    new Date(origin + index * 86_400_000).toISOString().slice(0, 10),
+  )
+}
 
 describe("delivery chart spec", () => {
   it("formats money with currency compact and counts with compact", () => {
@@ -51,6 +59,52 @@ describe("delivery chart spec", () => {
     expect(deliveryAxisTick("2026-04-01", true)).toEqual({ month: "Apr", day: "1" })
     expect(deliveryAxisTick("2026-04-02", false).month).toBe("")
     expect(deliveryAxisTick("2026-04-02", false).day).toBe("2")
+  })
+
+  it("ticks Mondays on a 242-day window and labels the month under the first tick of each month", () => {
+    const dates = isoDays("2026-04-08", 242)
+    const plan = deliveryAxisPlan(dates)
+    expect(plan.length).toBeGreaterThan(0)
+    for (const tick of plan) {
+      expect(new Date(`${tick.iso}T00:00:00Z`).getUTCDay()).toBe(1)
+    }
+    expect(plan[0]).toEqual({ iso: "2026-04-13", day: "13", month: "Apr" })
+    const seen = new Set<string>()
+    for (const tick of plan) {
+      const monthKey = tick.iso.slice(0, 7)
+      if (!seen.has(monthKey)) {
+        expect(tick.month.length).toBeGreaterThan(0)
+        seen.add(monthKey)
+      } else {
+        expect(tick.month).toBe("")
+      }
+    }
+    const may = plan.find((tick) => tick.iso.startsWith("2026-05"))
+    expect(may?.iso).toBe("2026-05-04")
+    expect(may?.month).toBe("May")
+    expect(may?.day).toBe("4")
+  })
+
+  it("ticks every third day on a 30-day window and labels the month under the first tick of each month", () => {
+    const dates = isoDays("2026-04-08", 30)
+    const plan = deliveryAxisPlan(dates)
+    expect(plan.map((tick) => tick.iso)).toEqual([
+      "2026-04-08",
+      "2026-04-11",
+      "2026-04-14",
+      "2026-04-17",
+      "2026-04-20",
+      "2026-04-23",
+      "2026-04-26",
+      "2026-04-29",
+      "2026-05-02",
+      "2026-05-05",
+    ])
+    expect(plan[0]).toMatchObject({ day: "8", month: "Apr" })
+    expect(plan[1]?.month).toBe("")
+    expect(plan.find((tick) => tick.iso === "2026-05-02")).toMatchObject({ day: "2", month: "May" })
+    expect(plan.find((tick) => tick.iso === "2026-05-05")?.month).toBe("")
+    expect(plan.some((tick) => tick.iso === "2026-04-13")).toBe(false)
   })
 
   it("says Starts when the campaign has not begun, otherwise Awaiting first report", () => {

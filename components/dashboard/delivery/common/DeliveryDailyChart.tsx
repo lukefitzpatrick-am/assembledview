@@ -23,8 +23,8 @@ import {
   DELIVERY_CHART_HEIGHT_CLASS,
   blankFutureDays,
   countFutureBlanked,
-  deliveryAxisShowsMonth,
-  deliveryAxisTick,
+  deliveryAxisPlan,
+  type DeliveryAxisTick,
   deliveryChartEmptyCopy,
   deliveryFormatterName,
   formatDeliveryValue,
@@ -131,27 +131,26 @@ function DeliveryDateTick({
   x = 0,
   y = 0,
   payload,
-  dates,
+  ticks,
 }: {
   x?: number
   y?: number
   payload?: { value?: string }
-  dates: string[]
+  ticks: Map<string, DeliveryAxisTick>
 }) {
-  const iso = String(payload?.value ?? "")
-  const index = Math.max(0, dates.indexOf(iso))
-  const { month, day } = deliveryAxisTick(iso, deliveryAxisShowsMonth(dates, index))
+  const tick = ticks.get(String(payload?.value ?? ""))
+  if (!tick) return <g />
   return (
     <g transform={`translate(${x},${y})`}>
       <text textAnchor="middle" className="num fill-muted-foreground text-[10px]">
-        {month ? (
-          <tspan x="0" dy="10">
-            {month}
+        <tspan x="0" dy="12">
+          {tick.day}
+        </tspan>
+        {tick.month ? (
+          <tspan x="0" dy="12">
+            {tick.month}
           </tspan>
         ) : null}
-        <tspan x="0" dy={month ? 12 : 10}>
-          {day}
-        </tspan>
       </text>
     </g>
   )
@@ -185,6 +184,8 @@ export function DeliveryDailyChart({
     [labelled, resolvedAsAt, paint],
   )
   const dates = plot.map((row) => String(row.date ?? ""))
+  const axisPlan = useMemo(() => deliveryAxisPlan(dates), [dates])
+  const axisTicks = useMemo(() => new Map(axisPlan.map((tick) => [tick.iso, tick])), [axisPlan])
   const today = todayLineDate(dates, resolvedAsAt)
   const hasRightAxis = paint.some((item) => item.axis === "right")
 
@@ -256,9 +257,10 @@ export function DeliveryDailyChart({
             <CartesianGrid vertical={false} stroke="var(--border)" />
             <XAxis
               dataKey="date"
-              tick={<DeliveryDateTick dates={dates} />}
-              interval={dates.length > 16 ? "preserveStartEnd" : 0}
-              height={36}
+              ticks={axisPlan.map((tick) => tick.iso)}
+              tick={<DeliveryDateTick ticks={axisTicks} />}
+              interval={0}
+              height={40}
               tickLine={false}
               axisLine={false}
             />

@@ -212,6 +212,61 @@ export function todayLineDate(
   return dates.includes(asAtDate) ? asAtDate : null
 }
 
+/** Inclusive span. Longer than this, the axis ticks Mondays. */
+export const DELIVERY_AXIS_WEEKLY_AFTER_DAYS = 60
+
+/** Shorter windows tick every third plotted day, starting at the first day. */
+export const DELIVERY_AXIS_FEW_DAY_STEP = 3
+
+export type DeliveryAxisTick = {
+  iso: string
+  day: string
+  /** Short month, only on the first tick of that month. Empty on the rest. */
+  month: string
+}
+
+function utcMidnight(iso: string): number {
+  return Date.parse(`${iso.slice(0, 10)}T00:00:00Z`)
+}
+
+function windowDayCount(dates: string[]): number {
+  let min = dates[0] ?? ""
+  let max = dates[0] ?? ""
+  for (const iso of dates) {
+    if (iso < min) min = iso
+    if (iso > max) max = iso
+  }
+  if (!min || !max) return 0
+  return Math.round((utcMidnight(max) - utcMidnight(min)) / 86_400_000) + 1
+}
+
+function isMondayUtc(iso: string): boolean {
+  return new Date(`${iso.slice(0, 10)}T00:00:00Z`).getUTCDay() === 1
+}
+
+/**
+ * Ticks for the delivery chart. Windows longer than 60 days tick Mondays.
+ * Shorter windows tick every third day. The month name is only on the first
+ * tick of that month, drawn under the day number.
+ */
+export function deliveryAxisPlan(dates: string[]): DeliveryAxisTick[] {
+  const isos = dates.filter((iso) => iso.length >= 10)
+  if (isos.length === 0) return []
+  const weekly = windowDayCount(isos) > DELIVERY_AXIS_WEEKLY_AFTER_DAYS
+  const mondays = isos.filter(isMondayUtc)
+  const selected = weekly && mondays.length > 0
+    ? mondays
+    : isos.filter((_, index) => index % DELIVERY_AXIS_FEW_DAY_STEP === 0)
+  let previousMonth = ""
+  return selected.map((iso) => {
+    const monthKey = iso.slice(0, 7)
+    const showMonth = monthKey !== previousMonth
+    previousMonth = monthKey
+    const { day, month } = deliveryAxisTick(iso, showMonth)
+    return { iso, day, month }
+  })
+}
+
 export function deliveryAxisShowsMonth(dates: string[], index: number): boolean {
   if (index <= 0) return true
   const current = dates[index] ?? ""
