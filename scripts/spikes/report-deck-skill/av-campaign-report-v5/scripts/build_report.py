@@ -555,6 +555,91 @@ def build_appendix(deck, spec, index):
     return slide
 
 
+def clear_slide_number(slide):
+    """Drop the example slide's cached page number. The field stays."""
+    for node in slide._element.iter(qn("a:fld")):
+        if node.get("type") != "slidenum":
+            continue
+        for text in node.iter(qn("a:t")):
+            text.text = ""
+
+
+def build_breaker(deck, spec, index, photos):
+    """Black breaker cloned from template slide 5.
+
+    The clone keeps the dark ground and the bottom-right bar motif
+    (sky, forest light, lime). The title is filled, not drawn.
+    """
+    path = f"slides.{index}"
+    variant(spec, path, ("black",))
+    slide = deck.clone(5)
+    clear_slide_number(slide)
+    visible, runs = parse_title(require(spec, "title", f"{path}.title"), f"{path}.title")
+    size = 32 if len(visible) > 36 else 36
+    shape = deck.fill(
+        slide, 102, runs,
+        base=dict(size=size, color=fg(slide), font=HEAD),
+        align="l",
+    )
+    no_autofit(shape.text_frame)
+    shape.text_frame.vertical_anchor = MSO_ANCHOR.TOP
+    shape.name = f"{path}.title"
+    deck.drop(slide, 101)
+    deck.photo(slide, 100, photos[0], kind="arch")
+    return slide
+
+
+def bar_motif(slide, x=10.10, bottom=6.70):
+    """Three arches, sky then forest then lime, feet on one baseline.
+
+    On a dark slide the middle arch is forest light.
+    """
+    sky_h, forest_h, lime_h = 1.76, 2.48, 3.36
+    middle = K["fl"] if slide._am_dark else K["forest"]
+    arch(slide, x, bottom - sky_h, 0.72, sky_h, K["sky"])
+    arch(slide, x + 0.84, bottom - forest_h, 0.72, forest_h, middle)
+    arch(slide, x + 1.68, bottom - lime_h, 0.72, lime_h, K["lime"])
+
+
+def build_recommendations(deck, spec, index):
+    path = f"slides.{index}"
+    variant(spec, path, ("cards",))
+    slide = deck.add("Title Only - White")
+    put_title(deck, slide, 100, spec, f"{path}.title")
+    cards = require(spec, "cards", f"{path}.cards")
+    if not isinstance(cards, list) or len(cards) not in (2, 3):
+        fail(f"{path}.cards", "2 or 3 recommendations")
+    dots = ((K["sky"], K["ink"]), (K["forest"], K["white"]), (K["lime"], K["ink"]))
+    gap = 0.16
+    left = 0.6
+    right = 9.85 if len(cards) == 2 else 12.73
+    width = (right - left - gap * (len(cards) - 1)) / len(cards)
+    top = 2.05
+    height = 4.50
+    if len(cards) == 2:
+        bar_motif(slide)
+    for item_index, item in enumerate(cards):
+        at = f"{path}.cards.{item_index}"
+        if not isinstance(item, dict):
+            fail(at, "expected an object")
+        heading = text_of(require(item, "heading", f"{at}.heading"), f"{at}.heading", 40)
+        body = text_of(require(item, "body", f"{at}.body"), f"{at}.body", 220)
+        x = left + item_index * (width + gap)
+        card(slide, x, top, width, height, K["sand"])
+        fill, ink = dots[item_index]
+        numdot(slide, x + 0.18, top + 0.18, item_index + 1, fill, ink, 0.42)
+        say(
+            slide, x + 0.72, top + 0.18, width - 0.90, 0.72,
+            heading, f"{at}.heading", size=14, color=K["ink"], font=HEAD, anchor="m",
+        )
+        say(
+            slide, x + 0.18, top + 1.05, width - 0.36, 2.70,
+            body, f"{at}.body", size=13, color=K["body"],
+        )
+        tag(slide, x + 0.18, top + height - 0.52, "Action", K["forest"], K["white"])
+    return slide
+
+
 def build_close(deck, spec, index, photos):
     path = f"slides.{index}"
     kind = variant(spec, path, ("thank-you", "cta"))
@@ -580,11 +665,13 @@ def build_close(deck, spec, index, photos):
 
 BUILDERS = {
     "cover": build_cover,
+    "breaker": build_breaker,
     "summary": build_summary,
     "channel": build_channel,
     "not-live": build_not_live,
     "kpi": build_kpi,
     "iao": build_iao,
+    "recommendations": build_recommendations,
     "appendix": build_appendix,
     "close": build_close,
 }
@@ -806,6 +893,19 @@ def validate_content(content):
                     for cell_index, cell in enumerate(row):
                         key(cell, f"{path}.rows.{row_index}.{cell_index}")
             prose(spec.get("insight"), f"{path}.insight", 160)
+        elif kind == "breaker":
+            variant_name(spec, path, ("black",))
+        elif kind == "recommendations":
+            name = variant_name(spec, path, ("cards",))
+            if name == "cards":
+                entries = items(spec.get("cards"), f"{path}.cards", 2, 3, "recommendations")
+                for item_index, item in enumerate(entries):
+                    at = f"{path}.cards.{item_index}"
+                    if not isinstance(item, dict):
+                        bad(at, "expected an object")
+                        continue
+                    prose(item.get("heading"), f"{at}.heading", 40)
+                    prose(item.get("body"), f"{at}.body", 220)
         elif kind == "close":
             name = variant_name(spec, path, ("thank-you", "cta"))
             if name == "cta":
@@ -832,7 +932,7 @@ def build(content, data, template, out, photos):
         kind = spec.get("type")
         if kind not in BUILDERS:
             fail(path, "unknown slide type")
-        if kind in ("cover", "channel", "close"):
+        if kind in ("cover", "breaker", "channel", "close"):
             slide = BUILDERS[kind](deck, spec, index, photos)
         else:
             slide = BUILDERS[kind](deck, spec, index)

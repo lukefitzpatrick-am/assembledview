@@ -110,6 +110,70 @@ def test_validate():
     errors = build.validate_content(typed)
     if not any("value key" in error for error in errors):
         fail(f"typed percent was allowed: {errors}")
+    accepted = {
+        "slides": [
+            {
+                "type": "breaker",
+                "variant": "black",
+                "title": "Where the month {i:\"stands\"}.",
+            },
+            {
+                "type": "recommendations",
+                "variant": "cards",
+                "title": "What to {i:\"do\"} next.",
+                "cards": [
+                    {"heading": "Hold the Meta mix.", "body": "Keep the current mix and watch the rate."},
+                    {"heading": "Bring Search forward.", "body": "Shift weight toward the terms that convert."},
+                    {"heading": "Launch TikTok.", "body": "The planned flight is still waiting to start."},
+                ],
+            },
+        ],
+    }
+    errors = build.validate_content(accepted)
+    if errors:
+        fail(f"new slide types were rejected: {errors}")
+    long_title = {
+        "slides": [{
+            "type": "breaker",
+            "variant": "black",
+            "title": ("A" * 60) + ".",
+        }],
+    }
+    errors = build.validate_content(long_title)
+    if not any("limit 60" in error for error in errors):
+        fail(f"long breaker title was allowed: {errors}")
+    long_heading = {
+        "slides": [{
+            "type": "recommendations",
+            "variant": "cards",
+            "title": "What to {i:\"do\"} next.",
+            "cards": [
+                {"heading": "A" * 41, "body": "Keep the current mix."},
+                {"heading": "Bring Search forward.", "body": "B" * 221},
+            ],
+        }],
+    }
+    errors = build.validate_content(long_heading)
+    if not any("limit 40" in error for error in errors):
+        fail(f"long heading was allowed: {errors}")
+    if not any("limit 220" in error for error in errors):
+        fail(f"long body was allowed: {errors}")
+    four = {
+        "slides": [{
+            "type": "recommendations",
+            "variant": "cards",
+            "title": "What to {i:\"do\"} next.",
+            "cards": [
+                {"heading": "One.", "body": "First step."},
+                {"heading": "Two.", "body": "Second step."},
+                {"heading": "Three.", "body": "Third step."},
+                {"heading": "Four.", "body": "Fourth step."},
+            ],
+        }],
+    }
+    errors = build.validate_content(four)
+    if not any("2 to 3" in error for error in errors):
+        fail(f"four recommendations were allowed: {errors}")
 
 
 def slide_text(path):
@@ -203,6 +267,45 @@ def test_number_exemptions():
             fail(f"shared number check kept {exempt}: {report_raws}")
 
 
+def test_breaker_and_recommendations_build():
+    build = load("build_report.py")
+    check = load("check_deck.py")
+    photos = [
+        os.path.join(HERE, "kit", "assembled-brand-kit", "library", name)
+        for name in ("pexels-6299928.jpg", "pexels-6786367.jpg", "pexels-13935909.jpg")
+    ]
+    with open(DATA, encoding="utf-8") as handle:
+        data = json.load(handle)
+    shared = {
+        "type": "breaker",
+        "variant": "black",
+        "title": "Where the month {i:\"stands\"}.",
+    }
+    close = {"type": "close", "variant": "thank-you", "title": "Thanks for {i:\"reading\"}."}
+
+    def cards(count):
+        rows = []
+        for index in range(count):
+            rows.append({
+                "heading": f"Step {['one', 'two', 'three'][index]}.",
+                "body": ("Keep the current mix. " * 16)[:220],
+            })
+        return {
+            "type": "recommendations",
+            "variant": "cards",
+            "title": "What to {i:\"do\"} next.",
+            "cards": rows,
+        }
+
+    for count, name in ((2, "recs-two.pptx"), (3, "recs-three.pptx")):
+        content = {"slides": [shared, cards(count), close]}
+        out = os.path.join(OUT, name)
+        build.build(content, data, TEMPLATE, out, photos)
+        issues = check.check(out, DATA)
+        if issues:
+            fail(f"{name} check failed: {issues}")
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     test_missing_key()
@@ -211,6 +314,7 @@ def main():
     test_validate()
     test_pace_and_fallback()
     test_number_exemptions()
+    test_breaker_and_recommendations_build()
     print("tests OK")
 
 

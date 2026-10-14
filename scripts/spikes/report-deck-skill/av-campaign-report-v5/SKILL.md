@@ -45,17 +45,19 @@ Use only numbers present in report-data.json, exactly as formatted there. Copy e
 
 You choose every variant and write every word. The builder copies each formatted string from a key. A value field is a dotted path from `summarise.py`, never a typed number. Prose is a string, or a list of strings and `{"k":"path"}`. No digits in prose. The builder turns `{i:"phrase"}` in a title into the one serif phrase. Do not call `I()` yourself.
 
-Title: max 60 characters, one `{i:"phrase"}`, ends with a full stop. Limits: label 24, note 48, list note 80, outcome 160, support 140, insight 160, body 200, card body 120, status 48, button 24, card title 32, column 18. Insight, action and outcome text: max 35 words.
+Title: max 60 characters, one `{i:"phrase"}`, ends with a full stop. Limits: label 24, note 48, list note 80, outcome 160, support 140, insight 160, body 200, card body 120, status 48, button 24, card title 32, column 18, recommendation heading 40, recommendation body 220. Insight, action and outcome text: max 35 words. A recommendation body is two or three lines.
 
 A label whose text is "Spend pace" is shown as "Spend pace of expected to date". Write the short label. The builder appends the rest.
 
 - cover `sand` (clone 3) or `black` (clone 2). Fields: `title`, `subtitle` (key). Arch photos 105–107. Client logo slot 102.
+- breaker `black` (clone 5), one slide, directly after the cover, only when the deck has 5 or more slides. Field: `title` (max 60, one serif phrase). Black ground, one arch photo, bar motif bottom right.
 - summary `stat-row` (Title Only - White): `title`, `stats` (up to 4 of `label`, `key`, `note`), `outcome`. Or `statement` (Statement - Black): `title`, `support`.
 - channel, one per live channel. `bars` (Title Only - Sand): `title`, `spend`, `expected`, `spendLabel`, `expectedLabel`, `delivery` (up to 4 of `label`, `key`), `insight`. `cards` (Three Cards): `title`, `cards` (exactly 3 of `title`, `key`, `body`). `photo` (Photo and Text): `title`, `value`, `body`, `photo` (0, 1 or 2).
 - not-live `cards` for one or two channels: `title`, `cards` (`label`, `budget`, `status`, optional `note`). `list` only for three or more: `title`, `rows` (`label`, `budget`, `note`) with number dots.
 - kpi `four-cards`: `title`, `cards` (up to 4 of `label`, `actual`, `target`). `table`: `title`, `rows` (same fields), `insight` (max 160). The table sits with a sand insight card.
 - iao `rows` (Title Only - Black): `title`, `rows` (up to 4 of `tag` insight, action or outcome, and `text`) with sky, forest and lime tags. `journey`: `title`, `steps` (exactly 3 of `label`, `text`) on a journey line.
 - appendix `table`: `title`, `columns`, `rows` (each cell a key), `insight` (max 160). The table sits with a sand insight card.
+- recommendations `cards`, one slide, directly before the thank-you, on every deck. `title`, `cards` (2 or 3 of `heading` max 40, `body` max 220 and two or three lines). Sand cards. Numbered circles run sky, forest, then lime. Each card has an Action tag at the bottom. Two cards leave the bar motif on the right.
 - close `thank-you` (clone 21): `title`. `cta` (Title Only - Black): `title`, `support`, `button`, an arch trio and a lime button.
 
 ## Run
