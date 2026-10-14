@@ -200,6 +200,8 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | `mediaplans/versions/[id]/documents` | POST | admin-only | `requireRole(admin)` | — |
 | `campaigns/[mba_number]` (+ billing-schedule) | GET | tenant-scoped | `checkClientMbaAccess` then 410 | **OK** (stub) |
 | `campaigns/export-report` | POST | admin-only | `requireRole` + `checkClientMbaAccess` | — |
+| `reports/on-demand` | POST | admin-only | `requireRole` + `checkClientMbaAccess` | MBA checked |
+| `reports/on-demand/[runId]` | GET | admin-only | `requireRole` + `checkClientMbaAccess` | MBA of the run |
 | `plans/drafts` | GET, PUT, DELETE | admin-only | `requireRole(admin)` | — |
 | `plans/save` | POST | admin-only + MBA | `requireRole` + `checkClientMbaAccess` | MBA checked |
 | `mba/generate` | POST | admin-only | `requireRole(admin)` | — |
@@ -300,6 +302,7 @@ All finance handlers below are **admin-only** (`requireFinanceAdmin`, `requireRo
 | `cron/relabel-drift` | GET, POST | public | `assertCronSecret` |
 | `cron/reports-enqueue` | GET | public | `assertCronSecret` |
 | `cron/reports-worker` | GET | public | `assertCronSecret` |
+| `cron/on-demand-decks` | GET | public | `assertCronSecret` |
 | `cron/snapshot-checksum` | GET | public | `assertCronSecret` |
 | `cron/xano-line-item-sync` | GET | public | `assertCronSecret` |
 | `cron/xero-sync` | GET, POST | public | `assertCronSecret` (410) |

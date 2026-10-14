@@ -213,6 +213,7 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | GET | `/api/cron/pacing-portfolio` | internal-cron | CRON_SECRET | `app/api/cron/pacing-portfolio/route.ts` |
 | POST | `/api/cron/pacing-portfolio` | internal-cron | CRON_SECRET | `app/api/cron/pacing-portfolio/route.ts` |
 | GET | `/api/cron/relabel-drift` | internal-cron | CRON_SECRET | `app/api/cron/relabel-drift/route.ts` |
+| GET | `/api/cron/on-demand-decks` | internal-cron | CRON_SECRET | `app/api/cron/on-demand-decks/route.ts` |
 | GET | `/api/cron/reports-enqueue` | internal-cron | CRON_SECRET | `app/api/cron/reports-enqueue/route.ts` |
 | GET | `/api/cron/reports-worker` | internal-cron | CRON_SECRET | `app/api/cron/reports-worker/route.ts` |
 | POST | `/api/cron/relabel-drift` | internal-cron | CRON_SECRET | `app/api/cron/relabel-drift/route.ts` |
@@ -422,6 +423,8 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | GET | `/api/publishers/[publisherId]/meetings` | admin-only | requireRole | `app/api/publishers/[publisherId]/meetings/route.ts` |
 | GET | `/api/publishers/check-id` | tenant-scoped | none | `app/api/publishers/check-id/route.ts` |
 | GET | `/api/reports/download` | tenant-scoped | checkClientMbaAccess | `app/api/reports/download/route.ts` |
+| POST | `/api/reports/on-demand` | tenant-scoped | checkClientMbaAccess | `app/api/reports/on-demand/route.ts` |
+| GET | `/api/reports/on-demand/[runId]` | tenant-scoped | checkClientMbaAccess | `app/api/reports/on-demand/[runId]/route.ts` |
 | GET | `/api/scopes-of-work` | admin-only | requireRole | `app/api/scopes-of-work/route.ts` |
 | POST | `/api/scopes-of-work` | admin-only | requireRole | `app/api/scopes-of-work/route.ts` |
 | GET | `/api/scopes-of-work/[id]` | admin-only | requireRole | `app/api/scopes-of-work/[id]/route.ts` |

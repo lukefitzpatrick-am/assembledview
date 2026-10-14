@@ -92,6 +92,13 @@
       "when": 1791454577446,
       "tag": "0012_wild_firelord",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791969535057,
+      "tag": "0013_high_forgotten_one",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 /**
  * report_runs and report_digest_sends (migration 0095). SQL is source of truth.
- * RLS is on, with no policies. Do not db.select() these tables against live
- * Postgres before applying (C-76).
+ * 0097 is applied: requested_by_email, and the two partial unique indexes.
+ * RLS is on, with no policies.
  */
 import { sql } from "drizzle-orm"
 import {
@@ -16,7 +16,7 @@ import {
   primaryKey,
   text,
   timestamp,
-  unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core"
 
@@ -43,6 +43,7 @@ export const reportRuns = pgTable(
       .defaultNow(),
     startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }),
     finishedAt: timestamp("finished_at", { withTimezone: true, mode: "string" }),
+    requestedByEmail: text("requested_by_email"),
   },
   (table) => [
     check(
@@ -54,7 +55,14 @@ export const reportRuns = pgTable(
       foreignColumns: [clients.id],
       name: "report_runs_client_id_fkey",
     }),
-    unique("uq_report_runs_kind_mba_period").on(table.kind, table.mbaNumber, table.periodStart),
+    uniqueIndex("uq_report_runs_kind_mba_period")
+      .on(table.kind, table.mbaNumber, table.periodStart)
+      .where(sql`${table.kind} <> 'on_demand_deck'`),
+    uniqueIndex("uq_report_runs_on_demand_inflight")
+      .on(table.kind, table.mbaNumber, table.periodStart)
+      .where(
+        sql`${table.kind} = 'on_demand_deck' AND ${table.status} IN ('queued', 'generating')`,
+      ),
     index("idx_report_runs_kind_period_status").on(
       table.kind,
       table.periodStart,

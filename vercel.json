@@ -100,6 +100,10 @@
     {
       "path": "/api/cron/reports-worker",
       "schedule": "20 * 3-5 * *"
+    },
+    {
+      "path": "/api/cron/on-demand-decks",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
