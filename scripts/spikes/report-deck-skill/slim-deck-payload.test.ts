@@ -72,6 +72,140 @@ test("deck figures format money, counts, percents and frequency targets", () => 
   assert.equal(formatFrequencyTarget("1.0 frequency"), "1.0 frequency")
 })
 
+function audienceReport(channels: Record<string, unknown>[]): Record<string, unknown> {
+  return {
+    mbaNumber: "krusty002",
+    clientName: "Krusty",
+    campaignName: "Deck",
+    versionNumber: 1,
+    asOf: "2026-12-20",
+    period: { kind: "custom", label: "15 Nov – 20 Dec" },
+    totals: { spend: 1000, impressions: 10000 },
+    channels,
+    kpis: [],
+    commentary: null,
+  }
+}
+
+function adSet(
+  name: string,
+  spend: number,
+  impressions: number,
+  results: number,
+  clicks: number,
+): Record<string, unknown> {
+  return {
+    entityName: name,
+    spend,
+    impressions,
+    results,
+    clicks,
+    resultLabel: "Purchases",
+    creativeUrl: "https://example.test/creative.jpg",
+    ads: [{ id: "ad-1", name: "Ad one" }],
+  }
+}
+
+test("five ad sets above 5% of channel spend become the top 4 formatted audiences", () => {
+  const slim = slimDeckPayload(
+    audienceReport([
+      {
+        group: "social_meta",
+        label: "Social (Meta)",
+        spend: 1000,
+        adSets: [
+          adSet("Alpha", 300, 10000, 40, 200),
+          adSet("Bravo", 200, 8000, 20, 160),
+          adSet("Charlie", 180, 6000, 18, 90),
+          adSet("Delta", 170, 5000, 10, 50),
+          adSet("Echo", 150, 4000, 15, 40),
+        ],
+      },
+      {
+        group: "social_tiktok",
+        label: "Social (TikTok)",
+        spend: 500,
+        adSets: [adSet("Only group", 500, 1000, 10, 20)],
+      },
+      {
+        group: "social_reddit",
+        label: "Social (Reddit)",
+        spend: 900,
+        adSets: [
+          adSet("Reddit one", 400, 1000, 10, 20),
+          adSet("Reddit two", 300, 1000, 10, 20),
+          adSet("Reddit three", 200, 1000, 10, 20),
+        ],
+      },
+    ]),
+  )
+  const audiences = slim.audiences as {
+    name: string
+    spend: string
+    impressions: string
+    results: string
+    resultLabel: string
+    cpr: string
+    ctr: string
+  }[]
+  assert.equal(audiences.length, 4)
+  assert.deepEqual(
+    audiences.map((row) => row.name),
+    ["Alpha", "Bravo", "Charlie", "Delta"],
+  )
+  assert.equal(audiences.some((row) => row.name === "Echo"), false)
+  assert.equal(audiences.some((row) => row.name === "Only group"), false)
+  assert.equal(audiences.some((row) => row.name.startsWith("Reddit")), false)
+  const alpha = audiences[0]!
+  assert.equal(alpha.spend, "$300.00")
+  assert.equal(alpha.impressions, "10,000")
+  assert.equal(alpha.results, "40")
+  assert.equal(alpha.resultLabel, "Purchases")
+  assert.equal(alpha.cpr, "$7.50")
+  assert.equal(alpha.ctr, "2.00%")
+  assert.equal("creativeUrl" in alpha, false)
+  assert.equal("ads" in alpha, false)
+  const encoded = JSON.stringify(audiences)
+  assert.equal(encoded.includes("example.test"), false)
+  assert.equal(encoded.includes("ad-1"), false)
+})
+
+test("an ad set under 5% of channel spend is left out", () => {
+  const slim = slimDeckPayload(
+    audienceReport([
+      {
+        group: "social_meta",
+        label: "Social (Meta)",
+        spend: 1000,
+        adSets: [
+          adSet("Alpha", 600, 1000, 10, 20),
+          adSet("Bravo", 360, 1000, 10, 20),
+          adSet("Tiny", 40, 1000, 10, 20),
+        ],
+      },
+    ]),
+  )
+  const audiences = slim.audiences as { name: string }[]
+  assert.deepEqual(
+    audiences.map((row) => row.name),
+    ["Alpha", "Bravo"],
+  )
+})
+
+test("a channel with one ad set has no audiences list", () => {
+  const slim = slimDeckPayload(
+    audienceReport([
+      {
+        group: "social_tiktok",
+        label: "Social (TikTok)",
+        spend: 500,
+        adSets: [adSet("Only group", 500, 1000, 10, 20)],
+      },
+    ]),
+  )
+  assert.equal("audiences" in slim, false)
+})
+
 test("daily rows become one weekly point per week and channel", () => {
   const source = fixture("hema007")
   const channels = source.channels as Record<string, unknown>[]

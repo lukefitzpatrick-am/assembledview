@@ -113,6 +113,7 @@ const MONEY_KEYS = new Set([
   "cpm",
   "cpc",
   "cpv",
+  "cpr",
 ])
 const COUNT_KEYS = new Set([
   "impressions",
@@ -213,6 +214,82 @@ function formatNode(key: string | null, value: unknown): unknown {
   return out
 }
 
+const AUDIENCE_GROUPS = new Set(["social_meta", "social_tiktok"])
+const AUDIENCE_MIN_SHARE = 0.05
+const AUDIENCE_MIN_COUNT = 2
+const AUDIENCE_MAX_COUNT = 4
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+/**
+ * Meta ad sets and TikTok ad groups for the deck. Input rows are the
+ * ad-set breakdown `aggregateSocialForLineItem` already sorts by spend
+ * descending. This applies that same order, then keeps the top 2–4 that
+ * are at least 5% of the channel's spend.
+ */
+function audiencesForChannel(channel: JsonRecord): JsonRecord[] | null {
+  const group = typeof channel.group === "string" ? channel.group : ""
+  if (!AUDIENCE_GROUPS.has(group)) return null
+  if (!Array.isArray(channel.adSets)) return null
+
+  const rows = channel.adSets.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const name =
+      typeof item.entityName === "string"
+        ? item.entityName
+        : typeof item.name === "string"
+          ? item.name
+          : ""
+    const spend = finiteNumber(item.spend) ?? 0
+    const impressions = finiteNumber(item.impressions) ?? 0
+    const results = finiteNumber(item.results) ?? 0
+    const clicks = finiteNumber(item.clicks)
+    const storedCtr = finiteNumber(item.ctr)
+    const resultLabel = typeof item.resultLabel === "string" ? item.resultLabel : "Results"
+    return [{ name, spend, impressions, results, clicks, storedCtr, resultLabel }]
+  })
+
+  const statedSpend = finiteNumber(channel.spend)
+  const channelSpend =
+    statedSpend != null && statedSpend > 0
+      ? statedSpend
+      : rows.reduce((sum, row) => sum + row.spend, 0)
+  if (!(channelSpend > 0)) return null
+
+  // Same order as aggregateSocialForLineItem: spend descending.
+  const ranked = [...rows].sort((a, b) => b.spend - a.spend)
+  const qualified = ranked
+    .filter((row) => row.spend >= channelSpend * AUDIENCE_MIN_SHARE)
+    .slice(0, AUDIENCE_MAX_COUNT)
+  if (qualified.length < AUDIENCE_MIN_COUNT) return null
+
+  return qualified.map((row) => ({
+    name: row.name,
+    spend: row.spend,
+    impressions: row.impressions,
+    results: row.results,
+    resultLabel: row.resultLabel,
+    cpr: row.results > 0 ? row.spend / row.results : null,
+    ctr:
+      row.impressions > 0 && row.clicks != null
+        ? row.clicks / row.impressions
+        : row.storedCtr,
+  }))
+}
+
+function deckAudiences(channels: unknown): JsonRecord[] {
+  if (!Array.isArray(channels)) return []
+  const out: JsonRecord[] = []
+  for (const channel of channels) {
+    if (!isRecord(channel)) continue
+    const list = audiencesForChannel(channel)
+    if (list) out.push(...list)
+  }
+  return out
+}
+
 function slimCommentary(value: unknown): JsonRecord | null {
   if (!isRecord(value)) return null
   const items = Array.isArray(value.items) ? value.items.map(slimScalars) : []
@@ -254,6 +331,8 @@ export function slimDeckPayload(report: unknown): JsonRecord {
     kpis: Array.isArray(report.kpis) ? report.kpis.map(slimScalars) : [],
     commentary: report.commentary == null ? null : slimCommentary(report.commentary),
   }
+  const audiences = deckAudiences(report.channels)
+  if (audiences.length > 0) payload.audiences = audiences
   if (weekly.length > 0) payload.weekly = weekly
   const formatted = formatNode(null, payload) as JsonRecord
   const bytes = Buffer.byteLength(JSON.stringify(formatted))
