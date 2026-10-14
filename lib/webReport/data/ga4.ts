@@ -11,7 +11,7 @@ import type { DateWindow } from "@/lib/webReport/periods"
 import type { Ga4Slice, WarehouseQuery } from "@/lib/webReport/types"
 
 const CAMPAIGN_SQL = `
-SELECT date, session_source, session_medium, sessions, engaged_sessions, key_events
+SELECT date, sessions, engaged_sessions, key_events
 FROM ASSEMBLEDVIEW.MART.V_GA4_CAMPAIGN_DAILY
 WHERE property_id = ?
   AND date BETWEEN ? AND ?

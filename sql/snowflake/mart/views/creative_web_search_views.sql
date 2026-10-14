@@ -6,23 +6,51 @@
 -- FACEBOOK_ADS, DOUBLE_CLICK_CAMPAIGN_MANAGER, GOOGLE_ANALYTICS_4, or
 -- GOOGLE_SEARCH_CONSOLE.
 --
--- Column check (SELECT only, AV_APP_WRITE_ROLE):
--- INFORMATION_SCHEMA.SCHEMATA listed MART and TIKTOK_ADS only.
--- INFORMATION_SCHEMA.COLUMNS listed TIKTOK_ADS.AD_REPORT_DAILY and AD_HISTORY.
--- GET_DDL of the four raw tables failed (compilation error: schema not visible).
--- SNOWFLAKE.ACCOUNT_USAGE.COLUMNS failed the same way.
--- CM360 columns used here are the ones the live views already select:
---   MART.VW_PACING_CM360: date, placement, campaign, impressions, clicks,
---     total_conversions, video_completions
---   STG_PACING.V_CM360_PLACEMENT_DAILY: profile_id
---   MART.V_PLATFORM_ADVERTISERS: advertiser, and the BidManager exclusion
--- No readable view selects a CM360 creative column. The creative name is the
--- placement with the last hyphen token removed (AV-OV2 §3).
--- Meta names are the Fivetran basic_ad report, which adds ad_id, ad_name, and
--- account_id to the columns VW_PACING_META already reads on BASIC_AD_SET.
+-- Columns confirmed by Claude on 15 Oct 2026 as CLAUDE_RW
+-- (the app role cannot see these schemas):
+--
+-- DOUBLE_CLICK_CAMPAIGN_MANAGER.CM_360_PACING:
+--   DATE, PROFILE_ID, _FIVETRAN_ID, _FIVETRAN_SYNCED, IMPRESSIONS,
+--   TOTAL_REVENUE, CREATIVE_PIXEL_SIZE, PACKAGE_ROADBLOCK,
+--   ACTIVE_VIEW_VIEWABLE_IMPRESSIONS, CAMPAIGN, CREATIVE, PLACEMENT,
+--   VIDEO_COMPLETIONS, ADVERTISER, TOTAL_CONVERSIONS, CLICKS.
+--   Example placement 'golf_australia-...-ausopen_hype_6sec-golf025DD3'
+--   has CREATIVE 'Vertical Video.mp4'. Some rows have CREATIVE '(not set)'.
+-- FACEBOOK_ADS.BASIC_AD:
+--   AD_ID, DATE, _FIVETRAN_ID, ACCOUNT_ID, IMPRESSIONS, INLINE_LINK_CLICKS,
+--   REACH, COST_PER_INLINE_LINK_CLICK, CPC, CPM, CTR, FREQUENCY, SPEND,
+--   AD_NAME, ADSET_NAME, INLINE_LINK_CLICK_CTR, _FIVETRAN_SYNCED, CAMPAIGN_ID.
+-- GOOGLE_ANALYTICS_4.TRAFFIC_ACQUISITION_SESSION_CAMPAIGN_REPORT:
+--   DATE, PROPERTY, SESSION_CAMPAIGN_NAME, EVENT_COUNT, EVENTS_PER_SESSION,
+--   USER_ENGAGEMENT_DURATION, ENGAGEMENT_RATE, SESSIONS, KEY_EVENTS,
+--   TOTAL_USERS, ENGAGED_SESSIONS, TOTAL_REVENUE.
+-- GOOGLE_ANALYTICS_4.TRAFFIC_ACQUISITION_SESSION_SOURCE_MEDIUM_REPORT:
+--   DATE, PROPERTY, SESSION_MEDIUM, SESSION_SOURCE, EVENT_COUNT,
+--   EVENTS_PER_SESSION, USER_ENGAGEMENT_DURATION, ENGAGEMENT_RATE, SESSIONS,
+--   KEY_EVENTS, TOTAL_USERS, ENGAGED_SESSIONS, TOTAL_REVENUE.
+-- GOOGLE_ANALYTICS_4.EVENTS_REPORT:
+--   DATE, PROPERTY, EVENT_NAME, EVENT_COUNT_PER_USER, EVENT_COUNT,
+--   TOTAL_USERS, TOTAL_REVENUE.
+-- GOOGLE_ANALYTICS_4.PAGES_TITLE_AND_SCREEN_CLASS_REPORT:
+--   DATE, PROPERTY, UNIFIED_SCREEN_CLASS (the page title), KEY_EVENTS,
+--   USER_ENGAGEMENT_DURATION, NEW_USERS, SCREEN_PAGE_VIEWS, EVENT_COUNT,
+--   TOTAL_USERS, TOTAL_REVENUE.
+-- GOOGLE_ANALYTICS_4.PAGES_PATH_REPORT:
+--   DATE, PROPERTY, PAGE_PATH, KEY_EVENTS, USER_ENGAGEMENT_DURATION,
+--   NEW_USERS, SCREEN_PAGE_VIEWS, EVENT_COUNT, TOTAL_USERS, TOTAL_REVENUE.
+-- GOOGLE_SEARCH_CONSOLE.SITE_REPORT_BY_SITE:
+--   DATE, SEARCH_TYPE, SITE, COUNTRY, DEVICE, CLICKS, IMPRESSIONS, CTR,
+--   POSITION. KEYWORD_SITE_REPORT_BY_SITE has QUERY.
+--
+-- CM360 creative_name is TRIM(CREATIVE). creative_key is LOWER(TRIM(CREATIVE)).
+-- A blank or '(not set)' creative keeps the name '(not set)' and creative_key
+-- 'not-set:' || line_item_id. creative_size is CREATIVE_PIXEL_SIZE on CM360
+-- and null on Meta and TikTok. Viewable impressions are
+-- ACTIVE_VIEW_VIEWABLE_IMPRESSIONS. ad_group_name is PLACEMENT. line_item_id
+-- stays the placement's last hyphen token. Spend stays null.
 -- BASIC_AD has no viewable, video, or conversion columns. Those outputs are null.
--- GA4 and Search Console names are the Fivetran prebuilt reports. They were
--- not in INFORMATION_SCHEMA. Confirm them if CREATE fails.
+-- TikTok still uses AD_REPORT_DAILY and AD_HISTORY. Those were confirmed
+-- earlier and were not in the 15 Oct column check.
 --
 -- Every view keeps the last 400 days.
 
@@ -48,6 +76,7 @@ raw AS (
     b.account_id::varchar AS account_ref,
     b.ad_id::varchar AS creative_key,
     b.ad_name AS creative_name,
+    NULL::varchar AS creative_size,
     b.adset_name AS ad_group_name,
     LOWER(TRIM(COALESCE(
       NULLIF(REGEXP_SUBSTR(b.adset_name, '[^-]+$'), ''),
@@ -71,6 +100,7 @@ raw AS (
     h.advertiser_id::varchar AS account_ref,
     r.ad_id::varchar AS creative_key,
     h.ad_name AS creative_name,
+    NULL::varchar AS creative_size,
     h.adgroup_name AS ad_group_name,
     LOWER(TRIM(COALESCE(
       NULLIF(REGEXP_SUBSTR(h.adgroup_name, '[^-]+$'), ''),
@@ -103,8 +133,20 @@ raw AS (
   SELECT
     'cm360' AS platform,
     TRIM(p.advertiser) AS account_ref,
-    LOWER(TRIM(REGEXP_REPLACE(p.placement, '-[^-]+$', ''))) AS creative_key,
-    REGEXP_REPLACE(p.placement, '-[^-]+$', '') AS creative_name,
+    CASE
+      WHEN LOWER(COALESCE(NULLIF(TRIM(p.creative), ''), '(not set)')) = '(not set)'
+      THEN 'not-set:' || LOWER(TRIM(COALESCE(
+        NULLIF(REGEXP_SUBSTR(p.placement, '[^-]+$'), ''),
+        p.placement
+      )))
+      ELSE LOWER(TRIM(p.creative))
+    END AS creative_key,
+    CASE
+      WHEN LOWER(COALESCE(NULLIF(TRIM(p.creative), ''), '(not set)')) = '(not set)'
+      THEN '(not set)'
+      ELSE TRIM(p.creative)
+    END AS creative_name,
+    NULLIF(TRIM(p.creative_pixel_size), '') AS creative_size,
     p.placement AS ad_group_name,
     LOWER(TRIM(COALESCE(
       NULLIF(REGEXP_SUBSTR(p.placement, '[^-]+$'), ''),
@@ -114,7 +156,7 @@ raw AS (
     NULL::float AS spend,
     SUM(p.impressions)::number AS impressions,
     SUM(p.clicks)::number AS clicks,
-    NULL::float AS viewable_impressions,
+    SUM(p.active_view_viewable_impressions)::float AS viewable_impressions,
     NULL::number AS video_views,
     SUM(p.video_completions)::number AS video_completions,
     SUM(p.total_conversions)::number AS conversions
@@ -125,7 +167,8 @@ raw AS (
     AND p.advertiser NOT LIKE 'BidManager_Advertiser_DO_NOT_EDIT%'
   GROUP BY
     TRIM(p.advertiser),
-    REGEXP_REPLACE(p.placement, '-[^-]+$', ''),
+    TRIM(p.creative),
+    p.creative_pixel_size,
     p.placement,
     p.date::date
 )
@@ -134,6 +177,7 @@ SELECT
   account_ref,
   creative_key,
   creative_name,
+  creative_size,
   ad_group_name,
   line_item_id,
   REGEXP_SUBSTR(
@@ -161,19 +205,13 @@ GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY TO ROLE CLA
 -- GROUP BY platform
 -- ORDER BY platform;
 
--- Campaign report has session_campaign_name and does not have session_source
--- or session_medium. Those two dimensions are on
--- TRAFFIC_ACQUISITION_SESSION_SOURCE_MEDIUM_REPORT (session_source,
--- session_medium), which has no session campaign. This view stays on the
--- campaign report so the two grains are not added together. source and
--- medium are null.
+-- Campaign report has session_campaign_name. Source and medium live on
+-- V_GA4_SOURCE_MEDIUM_DAILY so the two grains are not added together.
 CREATE OR REPLACE VIEW ASSEMBLEDVIEW.MART.V_GA4_CAMPAIGN_DAILY COPY GRANTS AS
 SELECT
   NULLIF(REGEXP_SUBSTR(property, '[0-9]+'), '') AS property_id,
   date::date AS date,
   session_campaign_name AS session_campaign,
-  NULL::varchar AS session_source,
-  NULL::varchar AS session_medium,
   sessions,
   engaged_sessions,
   key_events,
@@ -191,8 +229,78 @@ GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GA4_CAMPAIGN_DAILY TO ROLE CLAUDE_RW;
 -- GROUP BY property_id
 -- ORDER BY property_id;
 
+-- Source and medium are this report's grain. It has no session campaign.
+CREATE OR REPLACE VIEW ASSEMBLEDVIEW.MART.V_GA4_SOURCE_MEDIUM_DAILY COPY GRANTS AS
+SELECT
+  NULLIF(REGEXP_SUBSTR(property, '[0-9]+'), '') AS property_id,
+  date::date AS date,
+  session_source,
+  session_medium,
+  sessions,
+  engaged_sessions,
+  engagement_rate,
+  key_events,
+  total_users,
+  total_revenue
+FROM ASSEMBLEDVIEW.GOOGLE_ANALYTICS_4.TRAFFIC_ACQUISITION_SESSION_SOURCE_MEDIUM_REPORT
+WHERE date::date >= DATEADD(day, -400, CURRENT_DATE());
+
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GA4_SOURCE_MEDIUM_DAILY TO ROLE AV_APP_READ_ROLE;
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GA4_SOURCE_MEDIUM_DAILY TO ROLE CLAUDE_RW;
+
+-- check: row counts by property for the last 30 days
+-- SELECT property_id, COUNT(*) AS rows
+-- FROM ASSEMBLEDVIEW.MART.V_GA4_SOURCE_MEDIUM_DAILY
+-- WHERE date >= DATEADD(day, -30, CURRENT_DATE())
+-- GROUP BY property_id
+-- ORDER BY property_id;
+
+CREATE OR REPLACE VIEW ASSEMBLEDVIEW.MART.V_GA4_EVENTS_DAILY COPY GRANTS AS
+SELECT
+  NULLIF(REGEXP_SUBSTR(property, '[0-9]+'), '') AS property_id,
+  date::date AS date,
+  event_name,
+  event_count,
+  total_users
+FROM ASSEMBLEDVIEW.GOOGLE_ANALYTICS_4.EVENTS_REPORT
+WHERE date::date >= DATEADD(day, -400, CURRENT_DATE());
+
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GA4_EVENTS_DAILY TO ROLE AV_APP_READ_ROLE;
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GA4_EVENTS_DAILY TO ROLE CLAUDE_RW;
+
+-- check: row counts by property for the last 30 days
+-- SELECT property_id, COUNT(*) AS rows
+-- FROM ASSEMBLEDVIEW.MART.V_GA4_EVENTS_DAILY
+-- WHERE date >= DATEADD(day, -30, CURRENT_DATE())
+-- GROUP BY property_id
+-- ORDER BY property_id;
+
+-- UNIFIED_SCREEN_CLASS is the page title.
+CREATE OR REPLACE VIEW ASSEMBLEDVIEW.MART.V_GA4_PAGE_TITLE_DAILY COPY GRANTS AS
+SELECT
+  NULLIF(REGEXP_SUBSTR(property, '[0-9]+'), '') AS property_id,
+  date::date AS date,
+  unified_screen_class AS page_title,
+  screen_page_views,
+  total_users,
+  new_users,
+  key_events
+FROM ASSEMBLEDVIEW.GOOGLE_ANALYTICS_4.PAGES_TITLE_AND_SCREEN_CLASS_REPORT
+WHERE date::date >= DATEADD(day, -400, CURRENT_DATE());
+
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GA4_PAGE_TITLE_DAILY TO ROLE AV_APP_READ_ROLE;
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GA4_PAGE_TITLE_DAILY TO ROLE CLAUDE_RW;
+
+-- check: row counts by property for the last 30 days
+-- SELECT property_id, COUNT(*) AS rows
+-- FROM ASSEMBLEDVIEW.MART.V_GA4_PAGE_TITLE_DAILY
+-- WHERE date >= DATEADD(day, -30, CURRENT_DATE())
+-- GROUP BY property_id
+-- ORDER BY property_id;
+
 -- PAGES_PATH_REPORT has total_users and screen_page_views. It has no sessions
--- column, so the audience column is total_users.
+-- column, so the audience column is total_users. Page title is
+-- V_GA4_PAGE_TITLE_DAILY.
 CREATE OR REPLACE VIEW ASSEMBLEDVIEW.MART.V_GA4_LANDING_DAILY COPY GRANTS AS
 SELECT
   NULLIF(REGEXP_SUBSTR(property, '[0-9]+'), '') AS property_id,
