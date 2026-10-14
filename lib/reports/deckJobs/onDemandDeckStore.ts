@@ -167,6 +167,26 @@ export async function markOnDemandDeckFailed(id: string, message: string): Promi
     .where(eq(schema.reportRuns.id, id))
 }
 
+export async function findLatestOnDemandDeck(
+  mbaNumber: string,
+  periodStart: string,
+  periodEnd: string,
+): Promise<OnDemandDeckRow | null> {
+  const db = getDb()
+  const result = await db.execute(sql`
+    SELECT *
+    FROM report_runs
+    WHERE kind = 'on_demand_deck'
+      AND lower(mba_number) = lower(${mbaNumber})
+      AND period_start = ${periodStart}
+      AND period_end = ${periodEnd}
+    ORDER BY created_at DESC
+    LIMIT 1
+  `)
+  const row = rowsOf<Record<string, unknown>>(result)[0]
+  return row ? mapRow(row) : null
+}
+
 export async function findOnDemandDeck(id: string): Promise<OnDemandDeckRow | null> {
   const db = getDb()
   const result = await db.execute(sql`

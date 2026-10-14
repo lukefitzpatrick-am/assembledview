@@ -15,6 +15,7 @@ import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import type { Tone } from "@/lib/design/status"
 import { formatDateShort } from "@/lib/format/date"
 import { previousSydneyMonth } from "@/lib/reports/selectMonthlyReportMbas"
+import { OnDemandDecks, type OnDemandDeckListRow } from "./OnDemandDecks"
 
 type ReportRunRow = {
   id: string
@@ -32,6 +33,7 @@ type ListResponse = {
   periodStart: string
   periodEnd: string
   rows: ReportRunRow[]
+  onDemand?: OnDemandDeckListRow[]
 }
 
 type EnqueueResponse = {
@@ -172,6 +174,7 @@ function ReportsPageInner() {
   const { toast } = useToast()
   const [month, setMonth] = useState(defaultReportMonth)
   const [rows, setRows] = useState<ReportRunRow[]>([])
+  const [onDemand, setOnDemand] = useState<OnDemandDeckListRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [queueing, setQueueing] = useState(false)
@@ -187,12 +190,15 @@ function ReportsPageInner() {
         | null
       if (!response.ok) {
         setRows([])
+        setOnDemand([])
         setError(body?.error || "Could not load reports.")
         return
       }
       setRows(body?.rows ?? [])
+      setOnDemand(body?.onDemand ?? [])
     } catch {
       setRows([])
+      setOnDemand([])
       setError("Could not load reports.")
     } finally {
       setLoading(false)
@@ -323,6 +329,7 @@ function ReportsPageInner() {
           csvFilename={`report-runs-${month}`}
         />
       ) : null}
+      {!loading && !error ? <OnDemandDecks rows={onDemand} /> : null}
     </PageShell>
   )
 }

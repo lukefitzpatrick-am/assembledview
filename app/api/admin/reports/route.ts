@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { requireAdmin } from "@/lib/requireRole"
-import { listAdminReportRuns } from "@/lib/reports/adminReportRunsStore"
+import { listAdminReportRuns, listOnDemandAdminRuns } from "@/lib/reports/adminReportRunsStore"
 import { periodFromYearMonth } from "@/lib/reports/selectMonthlyReportMbas"
 
 export const dynamic = "force-dynamic"
@@ -19,8 +19,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const rows = await listAdminReportRuns(period.periodStart)
-    return NextResponse.json({ ...period, rows })
+    const [rows, onDemand] = await Promise.all([
+      listAdminReportRuns(period.periodStart),
+      listOnDemandAdminRuns(period),
+    ])
+    return NextResponse.json({ ...period, rows, onDemand })
   } catch (error) {
     console.error("[admin/reports]", error)
     return NextResponse.json(

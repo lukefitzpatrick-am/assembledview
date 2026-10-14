@@ -5,9 +5,10 @@
  */
 import "server-only"
 
-import { and, asc, eq, isNotNull, sql } from "drizzle-orm"
+import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
+import { ON_DEMAND_DECK_KIND, ON_DEMAND_NOTE_PREFIX } from "@/lib/reports/deckJobs/onDemandDeck"
 import { queueMonthlyReportRuns } from "@/lib/reports/queueMonthlyReportRuns"
 import {
   MONTHLY_CAMPAIGN_REPORT_KIND,
@@ -135,6 +136,73 @@ export async function listAdminReportRuns(periodStart: string): Promise<AdminRep
     finishedAt: textOrNull(row.finishedAt),
     blobPathname: textOrNull(row.blobPathname),
   }))
+}
+
+export type OnDemandAdminRow = {
+  id: string
+  clientName: string | null
+  mbaNumber: string
+  status: string
+  requestedByEmail: string | null
+  note: string | null
+  error: string | null
+  fileName: string | null
+  blobPathname: string | null
+  createdAt: string | null
+}
+
+function deckNote(status: string, error: string | null): { note: string | null; error: string | null } {
+  if (status === "generated" && error?.startsWith(ON_DEMAND_NOTE_PREFIX)) {
+    const note = error.slice(ON_DEMAND_NOTE_PREFIX.length).trim()
+    return { note: note || null, error: null }
+  }
+  return { note: null, error }
+}
+
+/** On-demand decks requested during this calendar month in Melbourne. */
+export async function listOnDemandAdminRuns(period: MonthlyReportPeriod): Promise<OnDemandAdminRow[]> {
+  const db = getDb()
+  const rows = await db
+    .select({
+      id: schema.reportRuns.id,
+      clientName: schema.mediaPlanMasters.mpClientName,
+      mbaNumber: schema.reportRuns.mbaNumber,
+      status: schema.reportRuns.status,
+      requestedByEmail: schema.reportRuns.requestedByEmail,
+      error: schema.reportRuns.error,
+      fileName: schema.reportRuns.fileName,
+      blobPathname: schema.reportRuns.blobPathname,
+      createdAt: schema.reportRuns.createdAt,
+    })
+    .from(schema.reportRuns)
+    .leftJoin(
+      schema.mediaPlanMasters,
+      eq(schema.mediaPlanMasters.mbaNumber, schema.reportRuns.mbaNumber),
+    )
+    .where(
+      and(
+        eq(schema.reportRuns.kind, ON_DEMAND_DECK_KIND),
+        sql`(${schema.reportRuns.createdAt} AT TIME ZONE 'Australia/Melbourne')::date >= ${period.periodStart}::date`,
+        sql`(${schema.reportRuns.createdAt} AT TIME ZONE 'Australia/Melbourne')::date <= ${period.periodEnd}::date`,
+      ),
+    )
+    .orderBy(desc(schema.reportRuns.createdAt))
+
+  return rows.map((row) => {
+    const split = deckNote(String(row.status ?? ""), textOrNull(row.error))
+    return {
+      id: String(row.id),
+      clientName: textOrNull(row.clientName),
+      mbaNumber: String(row.mbaNumber ?? ""),
+      status: String(row.status ?? ""),
+      requestedByEmail: textOrNull(row.requestedByEmail),
+      note: split.note,
+      error: split.error,
+      fileName: textOrNull(row.fileName),
+      blobPathname: textOrNull(row.blobPathname),
+      createdAt: textOrNull(row.createdAt),
+    }
+  })
 }
 
 export async function loadReportRunForGenerate(

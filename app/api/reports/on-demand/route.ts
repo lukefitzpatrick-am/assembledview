@@ -6,7 +6,12 @@ import { resolveCampaignReportPeriod } from "@/lib/reports/campaignReport/period
 import type { CampaignReportPeriodKind } from "@/lib/reports/campaignReport/periods"
 import { checkCampaignReportRateLimit } from "@/lib/reports/campaignReport/rateLimit"
 import { resolvePublishedCampaignReport } from "@/lib/reports/campaignReport/generateCampaignReportForMba"
-import { enqueueOnDemandDeckRow } from "@/lib/reports/deckJobs/onDemandDeckStore"
+import { isDeckRunReopenable } from "@/lib/reports/deckJobs/deckBuildPanel"
+import { onDemandDeckStatusBody } from "@/lib/reports/deckJobs/onDemandDeck"
+import {
+  enqueueOnDemandDeckRow,
+  findLatestOnDemandDeck,
+} from "@/lib/reports/deckJobs/onDemandDeckStore"
 import { runOnDemandDeck } from "@/lib/reports/deckJobs/runOnDemandDeck"
 import { requireRole } from "@/lib/requireRole"
 
@@ -94,6 +99,46 @@ async function resolveWindow(
     customEndISO: period.end,
   })
   return resolved.current
+}
+
+/** Latest on-demand deck for this MBA and window, when it is under 24 hours old. */
+export async function GET(request: NextRequest) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
+  const mbaNumber = asString(request.nextUrl.searchParams.get("mbaNumber"), 64)
+  if (!mbaNumber) return badRequest("mbaNumber is required")
+
+  const period = readPeriod({
+    period: {
+      kind: request.nextUrl.searchParams.get("kind"),
+      start: request.nextUrl.searchParams.get("start") ?? undefined,
+      end: request.nextUrl.searchParams.get("end") ?? undefined,
+    },
+  })
+  if ("error" in period) return badRequest(period.error)
+
+  const access = await checkClientMbaAccess(request, mbaNumber)
+  if (!access.ok) return access.response
+
+  let window: { startISO: string; endISO: string }
+  try {
+    window = await resolveWindow(mbaNumber, period)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Invalid period"
+    return badRequest(message)
+  }
+
+  try {
+    const latest = await findLatestOnDemandDeck(mbaNumber, window.startISO, window.endISO)
+    if (!latest || !isDeckRunReopenable(latest.createdAt, Date.now())) {
+      return NextResponse.json({ run: null })
+    }
+    return NextResponse.json({ run: { runId: latest.id, ...onDemandDeckStatusBody(latest) } })
+  } catch (err) {
+    console.error("[on-demand-deck] lookup failed", err)
+    return NextResponse.json({ error: "lookup_failed" }, { status: 500 })
+  }
 }
 
 export async function POST(request: NextRequest) {

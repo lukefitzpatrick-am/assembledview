@@ -58,6 +58,7 @@ export default defineConfig({
       "components/dashboard/campaign/__tests__/CampaignHeroBanner.test.tsx",
       "components/dashboard/campaign/__tests__/CampaignStatusStrip.test.tsx",
       "components/dashboard/campaign/__tests__/CampaignReadSection.test.tsx",
+      "components/dashboard/campaign/__tests__/DeckBuildStatus.test.tsx",
       "components/dashboard/campaign/__tests__/ChannelsAtAGlance.test.tsx",
       "components/dashboard/campaign/__tests__/SpendChartsRow.test.tsx",
       "components/dashboard/campaign/__tests__/KpiReview.test.tsx",
@@ -109,6 +110,7 @@ export default defineConfig({
       "components/dashboard/delivery/__tests__/entityBreakdown.test.tsx",
       "components/dashboard/delivery/channels/__tests__/directDigitalChart.test.ts",
       "components/ui/__tests__/data-table.test.tsx",
+      "app/admin/reports/__tests__/OnDemandDecks.test.tsx",
     ],
     exclude: [
       "**/node_modules/**",

@@ -53,6 +53,7 @@ const loadMock = mock.fn(async () => ({
 
 const markMock = mock.fn(async () => {})
 const listMock = mock.fn(async () => [])
+const listOnDemandMock = mock.fn(async () => [])
 const enqueueMock = mock.fn(
   async (_period: { periodStart: string; periodEnd: string }) => ({
     periodStart: "2025-12-01",
@@ -81,6 +82,7 @@ if (typeof mock.module === "function") {
   await mock.module("@/lib/reports/adminReportRunsStore", {
     namedExports: {
       listAdminReportRuns: listMock,
+      listOnDemandAdminRuns: listOnDemandMock,
       loadReportRunForGenerate: loadMock,
       markReportRunGenerating: markMock,
       enqueueAdminReportRuns: enqueueMock,
