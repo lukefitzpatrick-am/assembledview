@@ -4,7 +4,7 @@
  */
 import "server-only"
 
-import { toFile } from "@anthropic-ai/sdk"
+import Anthropic, { toFile } from "@anthropic-ai/sdk"
 
 import { getAnthropicClient } from "@/lib/ava/anthropic"
 import { logJob } from "@/lib/log"
@@ -21,6 +21,8 @@ const CACHE_WRITE_USD_PER_MILLION = 5
 const CACHE_READ_USD_PER_MILLION = 0.2
 export const DECK_SKILL_COST_CAP_USD = 0.6
 export const DECK_SKILL_WALL_MS = 240_000
+const DECK_SKILL_CLIENT_TIMEOUT_MS = 300_000
+const DECK_SKILL_CLIENT_MAX_RETRIES = 1
 const MAX_TOKENS = 32_000
 
 const BETAS = [
@@ -119,6 +121,40 @@ export function deckSkillCostUsd(usage: Usage): number {
   )
 }
 
+type DeckSkillClientSource = {
+  withOptions?: (options: { timeout: number; maxRetries: number }) => unknown
+  apiKey?: string | null
+}
+
+/**
+ * A client-level timeout skips the SDK non-streaming guard. The per-request
+ * timeout on each Messages call is still the time left under the 240s wall.
+ */
+export function createDeckSkillClient(source?: DeckSkillClientSource): DeckSkillClient {
+  const base = source ?? getAnthropicClient()
+  if (typeof base.withOptions === "function") {
+    return base.withOptions({
+      timeout: DECK_SKILL_CLIENT_TIMEOUT_MS,
+      maxRetries: DECK_SKILL_CLIENT_MAX_RETRIES,
+    }) as DeckSkillClient
+  }
+  const apiKey = base.apiKey ?? process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is not set. AVA (Claude engine) cannot start.")
+  }
+  return new Anthropic({
+    apiKey,
+    timeout: DECK_SKILL_CLIENT_TIMEOUT_MS,
+    maxRetries: DECK_SKILL_CLIENT_MAX_RETRIES,
+  }) as unknown as DeckSkillClient
+}
+
+function deckSkillErrorFields(err: unknown): { error_name: string; error_message: string } {
+  const name = err instanceof Error && err.name ? err.name : "Error"
+  const message = err instanceof Error ? err.message : String(err)
+  return { error_name: name, error_message: message.slice(0, 300) }
+}
+
 function modelFromEnv(): string {
   const model = process.env.DECK_SKILL_MODEL?.trim()
   return model || "claude-opus-5-5"
@@ -201,7 +237,7 @@ export async function runDeckSkill(
   const effort = effortFromEnv()
   const now = deps?.now ?? Date.now
   const started = now()
-  const client = deps?.client ?? (getAnthropicClient() as unknown as DeckSkillClient)
+  const client = deps?.client ?? createDeckSkillClient()
   const deckJson = JSON.stringify(slimDeckPayload(input.report))
   const kit = deps?.kit ?? (await loadBrandKit())
   if (kit.photos.length !== 3) throw new Error("need 3 cover photos")
@@ -211,6 +247,7 @@ export async function runDeckSkill(
   const uploadedIds: string[] = []
   const outputIds = new Set<string>()
   let outcome: Outcome = "ok"
+  let failure: unknown
   let continuations = 0
   let pptx: Buffer | null = null
 
@@ -310,6 +347,7 @@ export async function runDeckSkill(
     return { buffer: pptx, fileName: input.fileName }
   } catch (err) {
     if (outcome === "ok") outcome = "error"
+    failure = err
     throw err
   } finally {
     logJob("[deck-skill]", {
@@ -317,6 +355,7 @@ export async function runDeckSkill(
       model,
       effort,
       outcome,
+      ...(failure == null ? {} : deckSkillErrorFields(failure)),
       input_tokens: usage.input,
       output_tokens: usage.output,
       cache_read_tokens: usage.cacheRead,

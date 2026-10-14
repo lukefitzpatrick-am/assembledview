@@ -1,15 +1,21 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import Anthropic from "@anthropic-ai/sdk"
 import JSZip from "jszip"
 
 import { buildDeckForRun } from "@/lib/reports/deckJobs/runOnDemandDeck"
 import {
+  createDeckSkillClient,
   runDeckSkill,
   type DeckSkillClient,
   type DeckSkillMessage,
 } from "@/lib/reports/deckSkill/runDeckSkill"
-import { assertDeckSkillPaidConfirm, runDeckSkillOnce } from "../../../../scripts/reports/run-deck-skill-once"
+import {
+  assertDeckSkillPaidConfirm,
+  deckSkillOnceReportInput,
+  runDeckSkillOnce,
+} from "../../../../scripts/reports/run-deck-skill-once"
 
 const savedKey = process.env.ANTHROPIC_API_KEY
 delete process.env.ANTHROPIC_API_KEY
@@ -384,4 +390,167 @@ test("wall time stops the skill and falls back", async () => {
 test("the once-script refuses without --confirm-paid", async () => {
   assert.throws(() => assertDeckSkillPaidConfirm(["curatif004"]), /--confirm-paid/)
   await assert.rejects(() => runDeckSkillOnce(["curatif004"]), /Refusing to run without --confirm-paid/)
+})
+
+test("the client used has a client-level timeout", async () => {
+  const base = new Anthropic({ apiKey: "sk-test-not-used" })
+  const client = createDeckSkillClient(base) as unknown as Anthropic
+  assert.equal(client.timeout, 300_000)
+  assert.equal(client.maxRetries, 1)
+  const options = (client as unknown as { _options: { timeout?: number; maxRetries?: number } })._options
+  assert.equal(options.timeout, 300_000)
+  assert.equal(options.maxRetries, 1)
+
+  const bare = new Anthropic({
+    apiKey: "sk-test-not-used",
+    fetch: async () => {
+      throw new Error("fetch should not run")
+    },
+  })
+  assert.throws(
+    () => bare.beta.messages.create({
+      model: "claude-opus-5-5",
+      max_tokens: 32_000,
+      messages: [{ role: "user", content: "ping" }],
+    }),
+    /Streaming is required/,
+  )
+
+  let fetched = false
+  const guarded = createDeckSkillClient(new Anthropic({
+    apiKey: "sk-test-not-used",
+    fetch: async () => {
+      fetched = true
+      return new Response(JSON.stringify({
+        id: "msg_test",
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: "ok" }],
+        model: "claude-opus-5-5",
+        stop_reason: "end_turn",
+        stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    },
+  })) as unknown as Anthropic
+  try {
+    await guarded.beta.messages.create({
+      model: "claude-opus-5-5",
+      max_tokens: 32_000,
+      messages: [{ role: "user", content: "ping" }],
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    assert.equal(/Streaming is required/.test(message), false, message)
+  }
+  assert.equal(fetched, true)
+
+  const fallback = createDeckSkillClient({ apiKey: "sk-fallback" }) as unknown as Anthropic
+  assert.equal(fallback.timeout, 300_000)
+  assert.equal(fallback.maxRetries, 1)
+  assert.equal(fallback.apiKey, "sk-fallback")
+  assert.equal(
+    (fallback as unknown as { _options: { timeout?: number } })._options.timeout,
+    300_000,
+  )
+})
+
+test("skill path loads without commentary and the fallback rebuilds with it", async () => {
+  const renderer = process.env.DECK_RENDERER
+  const skillId = process.env.DECK_SKILL_ID
+  process.env.DECK_RENDERER = "skill"
+  process.env.DECK_SKILL_ID = "skill_test_id"
+  const deck = await pptx(4)
+  const loads: { withCommentary: boolean }[] = []
+  const generates: { withCommentary: boolean; commentary?: unknown }[] = []
+  const { client } = mockClient({
+    pptx: deck,
+    respond: () => ({
+      stop_reason: "end_turn",
+      container: { id: "cont_1" },
+      usage: { input_tokens: 1, output_tokens: 1 },
+      content: skillContent("file_out"),
+    }),
+  })
+  try {
+    const built = await buildDeckForRun(RUN, {
+      generate: (input) => {
+        generates.push(input)
+        return nodeGenerate()
+      },
+      loadReport: (input) => {
+        loads.push(input)
+        return loadReport()
+      },
+      skill: { client, kit },
+    })
+    assert.equal(built.buffer.equals(deck), true)
+    assert.equal(loads.length, 1)
+    assert.equal(loads[0]?.withCommentary, false)
+    assert.equal(generates.length, 0)
+
+    generates.length = 0
+    const failed = mockClient({
+      respond: () => { throw new Error("skill exploded") },
+    })
+    const fallback = await buildDeckForRun(RUN, {
+      generate: (input) => {
+        generates.push(input)
+        return nodeGenerate()
+      },
+      loadReport: (input) => {
+        assert.equal(input.withCommentary, false)
+        return loadReport()
+      },
+      skill: { client: failed.client, kit },
+    })
+    assert.equal(fallback.buffer.toString(), "node-deck")
+    assert.equal(generates.length, 1)
+    assert.equal(generates[0]?.withCommentary, true)
+    assert.equal(generates[0]?.commentary, undefined)
+    assert.equal(deckSkillOnceReportInput("curatif004").withCommentary, false)
+  } finally {
+    restore("DECK_RENDERER", renderer)
+    restore("DECK_SKILL_ID", skillId)
+  }
+})
+
+test("a skill error log includes the error name and message", async () => {
+  const skillId = process.env.DECK_SKILL_ID
+  process.env.DECK_SKILL_ID = "skill_test_id"
+  const message = `boom ${"x".repeat(400)}`
+  const logs: unknown[][] = []
+  const original = console.log
+  console.log = (...args: unknown[]) => { logs.push(args) }
+  const { client } = mockClient({
+    respond: () => {
+      const err = new Error(message)
+      err.name = "BoomError"
+      throw err
+    },
+  })
+  try {
+    await assert.rejects(
+      () => runDeckSkill(
+        { mbaNumber: "curatif004", report, fileName: FILE_NAME },
+        { client, kit },
+      ),
+      /boom /,
+    )
+    const row = logs.find((line) => line[0] === "[deck-skill]")?.[1] as {
+      outcome?: string
+      error_name?: string
+      error_message?: string
+    }
+    assert.equal(row.outcome, "error")
+    assert.equal(row.error_name, "BoomError")
+    assert.equal(row.error_message, message.slice(0, 300))
+    assert.equal(row.error_message?.length, 300)
+  } finally {
+    console.log = original
+    restore("DECK_SKILL_ID", skillId)
+  }
 })

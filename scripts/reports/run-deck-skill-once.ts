@@ -1,7 +1,7 @@
 /**
  * One paid v5 skill deck for an MBA, campaign to date.
  *
- * node --env-file=.env.local --import ./scripts/test-shims/register-server-only.mjs --import tsx scripts/reports/run-deck-skill-once.ts <mba> --confirm-paid
+ * npm run deck:once -- <mba> --confirm-paid
  *
  * Refuses to run without --confirm-paid. Writes the pptx under
  * scripts/spikes/report-deck-skill/out/.
@@ -16,6 +16,15 @@ export function assertDeckSkillPaidConfirm(argv: readonly string[]): void {
   }
 }
 
+export function deckSkillOnceReportInput(mbaNumber: string) {
+  return {
+    mbaNumber,
+    period: { kind: "campaign_to_date" as const },
+    store: false as const,
+    withCommentary: false as const,
+  }
+}
+
 export async function runDeckSkillOnce(argv: readonly string[]): Promise<string> {
   assertDeckSkillPaidConfirm(argv)
   const mba = argv.find((arg) => !arg.startsWith("-"))?.trim()
@@ -25,12 +34,7 @@ export async function runDeckSkillOnce(argv: readonly string[]): Promise<string>
     "@/lib/reports/campaignReport/generateCampaignReportForMba"
   )
   const { runDeckSkill } = await import("@/lib/reports/deckSkill/runDeckSkill")
-  const loaded = await loadCampaignReportForMba({
-    mbaNumber: mba,
-    period: { kind: "campaign_to_date" },
-    store: false,
-    withCommentary: true,
-  })
+  const loaded = await loadCampaignReportForMba(deckSkillOnceReportInput(mba))
   if (loaded.skipped) throw new Error(loaded.skipped)
   const built = await runDeckSkill({
     mbaNumber: mba,

@@ -78,7 +78,7 @@ export async function buildDeckForRun(
       const report = await loadCampaignReportForMba(input)
       return { report: report.payload, fileName: report.fileName, skipped: report.skipped }
     })
-    loaded = await load(onDemandGenerateInput(run))
+    loaded = await load({ ...onDemandGenerateInput(run), withCommentary: false })
     if (loaded.skipped) throw new Error(loaded.skipped)
     const runSkill = deps?.runSkill ?? runDeckSkill
     const built = await runSkill(
