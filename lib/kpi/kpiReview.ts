@@ -422,24 +422,30 @@ export function resolveCpvPlanRate(
 
 export type KpiReviewCostCaption = "plan rate" | "No click basis"
 
+/** Impression buys. Live plans only store `cpm` here; dcpm and vcpm are absent. */
+const CPM_FAMILY_BUY_TYPES = new Set(["cpm"])
+
+function isCpmFamilyBuyType(buyType: string | null | undefined): boolean {
+  return CPM_FAMILY_BUY_TYPES.has(String(buyType ?? "").trim().toLowerCase())
+}
+
 export function resolveCpmPlanRate(
   group: KpiReviewGroup,
 ): { value: number; caption: "plan rate" } | null {
-  const parts: Array<{ spend: number; rate: number }> = []
+  let media = 0
+  let impressions = 0
   for (const lineId of group.lineItemIds) {
     const plan = group.planByLineId?.[lineId]
+    if (!isCpmFamilyBuyType(plan?.buyType)) continue
     const spend = Number(group.plannedSpendByLineId[lineId] ?? plan?.plannedSpend ?? 0) || 0
-    const impressions = plan?.plannedImpressions ?? 0
-    if (impressions > 0 && spend > 0) {
-      parts.push({ spend, rate: cpm(spend, impressions) ?? 0 })
-    }
+    const lineImpressions = plan?.plannedImpressions ?? 0
+    if (!(lineImpressions > 0) || !(spend > 0)) continue
+    media += spend
+    impressions += lineImpressions
   }
-  if (parts.length === 0) return null
-  const spendTotal = parts.reduce((sum, part) => sum + part.spend, 0)
-  const value =
-    spendTotal > 0
-      ? parts.reduce((sum, part) => sum + part.rate * part.spend, 0) / spendTotal
-      : parts[0]!.rate
+  if (!(impressions > 0)) return null
+  const value = cpm(media, impressions)
+  if (value == null) return null
   return { value, caption: "plan rate" }
 }
 

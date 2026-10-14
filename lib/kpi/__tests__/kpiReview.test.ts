@@ -7,8 +7,10 @@ import {
   buildKpiReviewGroups,
   extractKpiReviewPlanLine,
   indexLineDeliveryActuals,
+  resolveCpmPlanRate,
   shouldShowKpiReview,
   type KpiReviewGroup,
+  type KpiReviewPlanLine,
 } from "@/lib/kpi/kpiReview"
 import type { CampaignKPI } from "@/lib/kpi/types"
 
@@ -631,5 +633,129 @@ describe("CPV is a plan rate, not an entered target", () => {
     assert.equal(plan.buyType, "cpv")
     assert.equal(plan.buyAmount, 0.09)
     assert.equal(plan.plannedViews, 337_777)
+  })
+})
+
+function planLine(
+  buyType: string,
+  plannedSpend: number,
+  plannedImpressions: number | null,
+): KpiReviewPlanLine {
+  return {
+    buyType,
+    plannedSpend,
+    buyAmount: null,
+    plannedViews: null,
+    plannedImpressions,
+  }
+}
+
+describe("resolveCpmPlanRate", () => {
+  it("uses CPM lines only, as total media over total impressions, on a golf025-shaped group", () => {
+    const lineItemIds = [
+      "dd1",
+      "dd2",
+      "dd3",
+      "dd4",
+      "dd5",
+      "dd6",
+      "dd7",
+      "dd8",
+      "dd13",
+      "dd11",
+      "dd14",
+      "dd15",
+      "dd9",
+      "dd10",
+    ]
+    const plannedSpendByLineId: Record<string, number> = {}
+    const planByLineId: Record<string, KpiReviewPlanLine> = {}
+    for (let i = 0; i < 8; i++) {
+      const id = lineItemIds[i]!
+      plannedSpendByLineId[id] = 8_000
+      planByLineId[id] = planLine("cpm", 8_000, 400_000)
+    }
+    plannedSpendByLineId.dd13 = 6_592.74
+    planByLineId.dd13 = planLine("cpm", 6_592.74, 701_362)
+    plannedSpendByLineId.dd11 = 4_000
+    planByLineId.dd11 = planLine("fixed_cost", 4_000, 1)
+    plannedSpendByLineId.dd14 = 1_000
+    planByLineId.dd14 = planLine("fixed_cost", 1_000, 1)
+    plannedSpendByLineId.dd15 = 2_000
+    planByLineId.dd15 = planLine("fixed_cost", 2_000, 2)
+    plannedSpendByLineId.dd9 = 0
+    planByLineId.dd9 = planLine("bonus", 0, 1)
+    plannedSpendByLineId.dd10 = 0
+    planByLineId.dd10 = planLine("bonus", 0, 1)
+
+    const group = socialGroup({
+      key: "digital-display",
+      label: "Digital Display",
+      lineItemIds,
+      plannedSpendByLineId,
+      planByLineId,
+      spend: 50_000,
+      spendEstimated: true,
+      impressions: 2_000_000,
+    })
+
+    const rate = resolveCpmPlanRate(group)
+    assert.equal(rate?.caption, "plan rate")
+    assert.equal(rate?.value.toFixed(2), "18.09")
+
+    const cards = buildKpiReview({
+      groups: [group],
+      lineItemTargets: targets([
+        kpi({ mba_number: "BICAU002", line_item_id: "dd1", ctr: 0.01 }),
+      ]),
+      isAdmin: true,
+    })
+    const row = cards[0]?.rows.find((item) => item.metric === "cpm")
+    assert.equal(row?.targetDisplay, "$18.09")
+    assert.equal(row?.targetCaption, "plan rate")
+  })
+
+  it("returns null when every line is fixed cost", () => {
+    const group = socialGroup({
+      lineItemIds: ["dd11", "dd14"],
+      plannedSpendByLineId: { dd11: 4_000, dd14: 1_000 },
+      planByLineId: {
+        dd11: planLine("fixed_cost", 4_000, 1),
+        dd14: planLine("fixed_cost", 1_000, 1),
+      },
+      spend: 5_000,
+      spendEstimated: true,
+      impressions: 100_000,
+    })
+    assert.equal(resolveCpmPlanRate(group), null)
+
+    const cards = buildKpiReview({
+      groups: [group],
+      lineItemTargets: targets([
+        kpi({ mba_number: "BICAU002", line_item_id: "dd11", ctr: 0.01 }),
+      ]),
+      isAdmin: true,
+    })
+    const row = cards[0]?.rows.find((item) => item.metric === "cpm")
+    assert.equal(row?.targetDisplay, "—")
+    assert.equal(row?.targetCaption ?? null, null)
+    assert.equal(row?.targetSource, null)
+    assert.equal(row?.status, "no-data")
+    assert.equal(row?.deliveredDisplay, "$50.00")
+    assert.equal(row?.spendEstimated, true)
+  })
+
+  it("is the ratio of sums, not a spend-weighted average of line rates", () => {
+    const group = socialGroup({
+      lineItemIds: ["a", "b"],
+      plannedSpendByLineId: { a: 1_000, b: 9_000 },
+      planByLineId: {
+        a: planLine("cpm", 1_000, 100_000),
+        b: planLine("cpm", 9_000, 300_000),
+      },
+    })
+    const rate = resolveCpmPlanRate(group)
+    assert.equal(rate?.value.toFixed(2), "25.00")
+    assert.notEqual(rate?.value.toFixed(2), "28.00")
   })
 })
