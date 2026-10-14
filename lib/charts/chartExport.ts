@@ -49,6 +49,16 @@ export function chartExportFilename(
   return `${slugifyChartExportPart(page)}-${slugifyChartExportPart(title)}-${yyyymmdd(date)}.${ext}`
 }
 
+/** `{mba}-{channel}-daily-delivery-{yyyymmdd}.{png|csv}` */
+export function deliveryChartExportFilename(
+  mba: string,
+  channel: string,
+  ext: "png" | "csv",
+  date: Date = new Date(),
+): string {
+  return chartExportFilename(mba, `${channel} daily delivery`, ext, date)
+}
+
 /**
  * Serialise chart series for CSV: columns = x + one per series.
  * Values are left raw (numbers stay numbers → stringified without display formatting).

@@ -5,10 +5,11 @@ import type { ChannelSectionData } from "./channels/types"
 
 export interface DeliveryContainerProps {
   channels: ChannelSectionData[]
+  mbaNumber?: string
   onRefresh?: () => void
 }
 
-export function DeliveryContainer({ channels, onRefresh }: DeliveryContainerProps) {
+export function DeliveryContainer({ channels, mbaNumber, onRefresh }: DeliveryContainerProps) {
   if (channels.length === 0) return null
   return (
     <div className="space-y-4">
@@ -16,6 +17,7 @@ export function DeliveryContainer({ channels, onRefresh }: DeliveryContainerProp
         <ChannelSection
           key={c.key}
           data={c}
+          mbaNumber={mbaNumber}
           defaultOpen={idx === 0}
           onRefresh={onRefresh}
         />

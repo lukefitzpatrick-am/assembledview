@@ -54,6 +54,8 @@ export interface DeliveryDailyChartProps {
   startsOn?: string | null
   title?: string
   subtitle?: string
+  /** MBA and channel key for the PNG and CSV file stem. */
+  exportName?: { mba: string; channel: string }
 }
 
 type TooltipItem = {
@@ -166,6 +168,7 @@ export function DeliveryDailyChart({
   startsOn,
   title,
   subtitle,
+  exportName,
 }: DeliveryDailyChartProps) {
   const resolvedSeries = spec ? seriesFromSpec(spec) : series
   const resolvedAsAt = spec?.asAtDate ?? asAtDate ?? null
@@ -203,7 +206,13 @@ export function DeliveryDailyChart({
       empty: spec?.empty,
     })
     return (
-      <BaseChartCard title={resolvedTitle} subtitle={resolvedSubtitle} exportPage="pacing" hideExport>
+      <BaseChartCard
+        title={resolvedTitle}
+        subtitle={resolvedSubtitle}
+        exportPage={exportName?.mba ?? "pacing"}
+        exportTitle={exportName ? `${exportName.channel} daily delivery` : undefined}
+        hideExport
+      >
         <EmptyState
           className="min-h-[180px] border-0 bg-transparent"
           title={message}
@@ -237,7 +246,8 @@ export function DeliveryDailyChart({
     <BaseChartCard
       title={resolvedTitle}
       subtitle={resolvedSubtitle}
-      exportPage="pacing"
+      exportPage={exportName?.mba ?? "pacing"}
+      exportTitle={exportName ? `${exportName.channel} daily delivery` : undefined}
       legend={legend}
       exportSeries={{
         data: labelled,
@@ -248,6 +258,8 @@ export function DeliveryDailyChart({
       <div
         className={`w-full ${DELIVERY_CHART_HEIGHT_CLASS[resolvedSize]}`}
         data-delivery-chart-size={resolvedSize}
+        data-export-mba={exportName?.mba ?? ""}
+        data-export-channel={exportName?.channel ?? ""}
         data-axis-domain="0"
         data-today-line={today ?? ""}
         data-future-blank-count={countFutureBlanked(labelled, resolvedAsAt)}

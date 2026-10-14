@@ -173,6 +173,7 @@ describe("DeliveryDailyChart", () => {
     const html = renderToStaticMarkup(
       <DeliveryDailyChart
         size="line"
+        exportName={{ mba: "golf025", channel: "programmatic-video" }}
         asAtDate="2026-04-01"
         daily={[{ date: "2026-04-01", amount_spent: 10, impressions: 100 }]}
         series={[
@@ -182,6 +183,8 @@ describe("DeliveryDailyChart", () => {
       />,
     )
     expect(html).toContain(DELIVERY_CHART_LINE_HEIGHT_CLASS)
+    expect(html).toContain('data-export-mba="golf025"')
+    expect(html).toContain('data-export-channel="programmatic-video"')
     expect(html).not.toContain("sm:h-[240px]")
     expect(html).toContain('data-series-format="currency-compact"')
     expect(html).toContain('data-series-format="compact"')

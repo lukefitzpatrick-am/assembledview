@@ -44,6 +44,8 @@ function formatDateRange(startISO: string, endISO: string): string {
 
 export interface ChannelSectionProps {
   data: ChannelSectionData
+  /** MBA number for the delivery chart PNG and CSV file name. */
+  mbaNumber?: string
   /** When true, the accordion item is open by default. */
   defaultOpen?: boolean
   onRefresh?: () => void
@@ -54,7 +56,7 @@ export {
   shouldShowChannelSectionSummary,
 } from "./shouldShowChannelAggregate"
 
-export function ChannelSection({ data, defaultOpen = false, onRefresh }: ChannelSectionProps) {
+export function ChannelSection({ data, mbaNumber, defaultOpen = false, onRefresh }: ChannelSectionProps) {
   const Icon = getChannelIcon(data.key)
   const accordionDefault = defaultOpen ? [data.key] : []
   const badge = getMediaBadgeStyle(channelMediaRegistryKey(data.key))
@@ -63,6 +65,7 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
   const showSummary = shouldShowChannelSectionSummary(data.key, data.lineItems.length)
   const flatSingleLine =
     !showSummary && data.lineItems.length === 1 ? data.lineItems[0] : null
+  const exportName = mbaNumber ? { mba: mbaNumber, channel: data.key } : undefined
 
   const actionButtons = (
     <div className="flex items-center gap-1">
@@ -194,6 +197,7 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
               asAtDate={data.aggregate.chart.asAtDate}
               brandColour={data.aggregate.chart.brandColour}
               startsOn={data.dateRange.startISO}
+              exportName={exportName}
               title="Daily delivery"
               subtitle={data.aggregate.chart.series.map((s) => s.label).join(" + ")}
             />
@@ -205,6 +209,7 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
                 {...flatSingleLine.block}
                 lineItemId={flatSingleLine.id}
                 startsOn={data.dateRange.startISO}
+                exportName={exportName}
               />
             </div>
           ) : data.lineItems.length > 0 ? (
@@ -227,6 +232,7 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
                         {...li.block}
                         lineItemId={li.id}
                         startsOn={data.dateRange.startISO}
+                        exportName={exportName}
                       />
                     </AccordionContent>
                   </AccordionItem>

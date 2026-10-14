@@ -46,6 +46,8 @@ export interface LineItemBlockProps {
   chart: LineItemChart
   /** Plan line id. Creative rows for this id render beside the daily chart. */
   lineItemId?: string
+  /** MBA and channel key for the line chart PNG and CSV file stem. */
+  exportName?: { mba: string; channel: string }
   /** Delivered entity actuals (search ad groups / CM360 placements). No planned. */
   entityBreakdown?: {
     rows: EntityBreakdownRow[]
@@ -64,6 +66,7 @@ export function LineItemBlock({
   kpiBand,
   chart,
   lineItemId,
+  exportName,
   entityBreakdown,
 }: LineItemBlockProps) {
   return (
@@ -100,6 +103,7 @@ export function LineItemBlock({
             brandColour={chart.brandColour}
             size="line"
             startsOn={startsOn}
+            exportName={exportName}
             title="Daily delivery"
             subtitle={chart.series.map((s) => s.label).join(" + ")}
           />

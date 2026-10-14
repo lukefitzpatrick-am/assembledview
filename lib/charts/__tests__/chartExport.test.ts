@@ -3,6 +3,7 @@ import test from "node:test"
 
 import {
   chartExportFilename,
+  deliveryChartExportFilename,
   normalizeChartExportSeries,
   slugifyChartExportPart,
 } from "../chartExport"
@@ -10,6 +11,22 @@ import {
 test("slugifyChartExportPart strips punctuation and collapses spaces", () => {
   assert.equal(slugifyChartExportPart("Billing vs delivery by month"), "billing-vs-delivery-by-month")
   assert.equal(slugifyChartExportPart("  Reach × Index  "), "reach-index")
+})
+
+test("delivery chart files are named by MBA and channel", () => {
+  const date = new Date(2026, 9, 15)
+  assert.equal(
+    deliveryChartExportFilename("GOLF025", "programmatic-video", "png", date),
+    "golf025-programmatic-video-daily-delivery-20261015.png",
+  )
+  assert.equal(
+    deliveryChartExportFilename("GOLF025", "programmatic-video", "csv", date),
+    "golf025-programmatic-video-daily-delivery-20261015.csv",
+  )
+  assert.notEqual(
+    deliveryChartExportFilename("GOLF025", "programmatic-video", "png", date),
+    chartExportFilename("pacing", "Daily delivery", "png", date),
+  )
 })
 
 test("chartExportFilename uses page-title-yyyymmdd", () => {

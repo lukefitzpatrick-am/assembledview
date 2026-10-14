@@ -31,6 +31,7 @@ import {
   type ChartExportSeriesInput,
 } from '@/lib/charts/chartExport';
 import { getChartTheme } from '@/lib/chart-theme';
+import { resolveSvgCssColours } from '@/lib/charts/svgExportColour';
 import { cn } from '@/lib/utils';
 
 export type { ChartExportSeriesInput };
@@ -298,6 +299,7 @@ export async function captureNodePng(
   const svg = el.querySelector("svg")
   if (svg) {
     const clone = svg.cloneNode(true) as SVGSVGElement
+    resolveSvgCssColours(clone)
     const rect = svg.getBoundingClientRect()
     const w = rect.width || 600
     const h = rect.height || 400

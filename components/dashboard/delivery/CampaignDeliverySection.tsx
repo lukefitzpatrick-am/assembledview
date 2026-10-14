@@ -599,7 +599,11 @@ function CampaignDeliveryBody({
       {error ? (
         <ErrorState title="Could not load delivery data" message={error} />
       ) : null}
-      <DeliveryContainer channels={channels} onRefresh={() => window.location.reload()} />
+      <DeliveryContainer
+        channels={channels}
+        mbaNumber={mbaNumber}
+        onRefresh={() => window.location.reload()}
+      />
     </div>
   )
 }
