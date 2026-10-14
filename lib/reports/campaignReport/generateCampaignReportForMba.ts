@@ -191,10 +191,19 @@ export async function resolvePublishedCampaignReport(
   }
 }
 
-export async function generateCampaignReportForMba(
+export type LoadedCampaignReport = {
+  payload: CampaignReportPayload
+  fileName: string
+  periodMonth: string
+  skipped: string | null
+  commentaryGenerated: boolean
+}
+
+/** Published report payload for a window. Does not build a deck. */
+export async function loadCampaignReportForMba(
   input: GenerateCampaignReportInput,
   deps?: GenerateCampaignReportDeps,
-): Promise<GenerateCampaignReportResult> {
+): Promise<LoadedCampaignReport> {
   const mbaNumber = input.mbaNumber.trim()
   if (!mbaNumber) throw new Error("mbaNumber is required")
 
@@ -229,14 +238,7 @@ export async function generateCampaignReportForMba(
     periodKind: payload.period.kind,
   })
   if (skipped) {
-    return {
-      buffer: Buffer.alloc(0),
-      fileName,
-      commentaryGenerated: false,
-      commentary: null,
-      periodMonth,
-      skipped,
-    }
+    return { payload, fileName, periodMonth, skipped, commentaryGenerated: false }
   }
 
   if (input.commentary) {
@@ -259,22 +261,47 @@ export async function generateCampaignReportForMba(
   }
 
   payload.coverPhotoId = payload.commentary?.coverPhotoId ?? null
+  const commentary = payload.commentary
+  return {
+    payload,
+    fileName,
+    periodMonth,
+    skipped: null,
+    commentaryGenerated: Boolean(commentary && commentary.items.length > 0),
+  }
+}
+
+export async function generateCampaignReportForMba(
+  input: GenerateCampaignReportInput,
+  deps?: GenerateCampaignReportDeps,
+): Promise<GenerateCampaignReportResult> {
+  const loaded = await loadCampaignReportForMba(input, deps)
+  if (loaded.skipped) {
+    return {
+      buffer: Buffer.alloc(0),
+      fileName: loaded.fileName,
+      commentaryGenerated: false,
+      commentary: null,
+      periodMonth: loaded.periodMonth,
+      skipped: loaded.skipped,
+    }
+  }
+
   const build = deps?.buildDeck ?? buildCampaignReportDeck
-  const buffer = await build(payload)
+  const buffer = await build(loaded.payload)
   let blobPathname: string | undefined
   if (input.store) {
     const store = deps?.storeReport ?? storePerformanceReport
-    const stored = await store(mbaNumber, fileName, buffer)
+    const stored = await store(input.mbaNumber.trim(), loaded.fileName, buffer)
     blobPathname = stored.pathname
   }
 
-  const commentary = payload.commentary
   return {
     buffer,
-    fileName,
+    fileName: loaded.fileName,
     blobPathname,
-    commentaryGenerated: Boolean(commentary && commentary.items.length > 0),
-    commentary,
-    periodMonth,
+    commentaryGenerated: loaded.commentaryGenerated,
+    commentary: loaded.payload.commentary,
+    periodMonth: loaded.periodMonth,
   }
 }
