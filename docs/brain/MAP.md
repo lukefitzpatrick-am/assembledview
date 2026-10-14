@@ -111,7 +111,7 @@ Channel tabs cached 4h via `unstable_cache` tag `pacing-campaigns`. Portfolio GE
 
 ## 4. Client dashboards
 
-**Routes** `/dashboard` (agency overview) · `/dashboard/[slug]` (client portfolio) · `/dashboard/[slug]/[mba_number]` (campaign delivery) · `/dashboard/[slug]/creative` · `GET /api/dashboard/[slug]/[mba_number]/creative` (creative performance for one MBA; `FEATURE_CREATIVE_PERFORMANCE` on/1/true and the slug in `FEATURE_CREATIVE_PERFORMANCE_CLIENTS`, else 404 for every role; client slug or MBA mismatch is 404, same as the campaign page; a missing `V_CREATIVE_PERFORMANCE_DAILY` is 503)
+**Routes** `/dashboard` (agency overview) · `/dashboard/[slug]` (client portfolio) · `/dashboard/[slug]/[mba_number]` (campaign delivery) · `/dashboard/[slug]/creative` · `GET /api/dashboard/[slug]/[mba_number]/creative` (creative performance for one MBA; `FEATURE_CREATIVE_PERFORMANCE` on/1/true and the slug in `FEATURE_CREATIVE_PERFORMANCE_CLIENTS`, else 404 for every role; client slug or MBA mismatch is 404, same as the campaign page; a missing `V_CREATIVE_PERFORMANCE_DAILY` is 503). When that flag is on, the campaign page shows a Top 3 strip after Where we are and those ads inside each delivery line.
 
 This is the client-facing surface. Client-role users are confined here by `middleware.ts` and must be scoped by `checkClientMbaAccess` in every handler that serves it. `components/dashboard/DashboardOverview.tsx` is 2,491 lines and is a choke point.
 

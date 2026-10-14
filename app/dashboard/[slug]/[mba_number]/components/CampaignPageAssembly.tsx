@@ -45,6 +45,8 @@ import { ErrorState, LoadingState } from "@/components/ui/states"
 import { RecentInsightsPanel } from "@/components/insights/RecentInsightsPanel"
 import { QuickAddInsightForm } from "@/components/insights/QuickAddInsightForm"
 import { CampaignHoursWidget } from "@/components/dashboard/campaign/CampaignHoursWidget"
+import { CreativePerformanceProvider } from "@/components/dashboard/campaign/CreativePerformanceProvider"
+import { TopCreativeStrip } from "@/components/dashboard/campaign/TopCreativeStrip"
 import {
   aggregateSpendByChannelFromMonthly,
   burstOverlapsRange,
@@ -247,6 +249,8 @@ type CampaignPageAssemblyProps = {
   currentVersion: number
   /** Admin-only surfaces (Team hours, Recent insights). Clients never see them. */
   isAdmin?: boolean
+  /** Top 3 creative and the per-line creative panel. Off leaves both unmounted. */
+  creativePerformanceEnabled?: boolean
   feePctsByVersionId?: FeePctsByVersionId
   estimateVersionId?: number | null
 }
@@ -336,6 +340,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     availableVersions,
     currentVersion,
     isAdmin = false,
+    creativePerformanceEnabled = false,
     feePctsByVersionId,
     estimateVersionId,
   } = props
@@ -411,6 +416,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   const displayWindowEnd = filterRange.end ?? campaignBounds.end
   const progressStartYmd = displayWindowStart ? formatLocalYmd(displayWindowStart) : (startDate ?? "")
   const progressEndYmd = displayWindowEnd ? formatLocalYmd(displayWindowEnd) : (endDate ?? "")
+  const showCreative = Boolean(creativePerformanceEnabled && progressStartYmd && progressEndYmd)
 
   const filteredSocialItems = useMemo(() => {
     if (isUnfiltered) return socialItemsActive
@@ -720,6 +726,13 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   }
 
   return (
+    <CreativePerformanceProvider
+      enabled={showCreative}
+      slug={slug}
+      mbaNumber={mbaNumber}
+      from={progressStartYmd}
+      to={progressEndYmd}
+    >
     <div className="mx-auto w-full max-w-[1600px] space-y-6 rounded-none bg-surface-muted px-4 pb-24 max-[375px]:pb-32 md:space-y-8 md:rounded-3xl md:px-6 lg:px-8">
       <a
         href="#campaign-main-content"
@@ -801,6 +814,12 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         </SectionBoundary>
       </section>
       </div>
+
+      {showCreative ? (
+        <div className="campaign-section-enter" style={{ animationDelay: "110ms" }}>
+          <TopCreativeStrip />
+        </div>
+      ) : null}
 
       {coverageCards.length > 0 ? (
         <section className="mt-6">
@@ -943,5 +962,6 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
       </Suspense>
       </div>
     </div>
+    </CreativePerformanceProvider>
   )
 }

@@ -17,6 +17,7 @@ import { getDeliveredTotalsForCampaign } from "@/lib/delivery/getDeliveredTotals
 import { getAsOfDate } from "@/lib/pacing/maths"
 import { positiveVersionId, versionIdFromLine } from "@/lib/delivery/directDigitalFeeLookup"
 import { loadDirectDigitalFeePctsOrGross } from "@/lib/delivery/readMbaFeeSnapshots"
+import { isCreativePerformanceEnabled } from "@/lib/creative/performance/featureFlag"
 import { assumedExpectedLinesFromLineItemMap } from "@/lib/spend/assumedExpectedLines"
 export const maxDuration = 60
 
@@ -798,6 +799,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       availableVersions={availableVersions}
       currentVersion={resolvedVersionNumber ?? versionNumberFromQuery ?? 1}
       isAdmin={isAdminRole(role)}
+      creativePerformanceEnabled={isCreativePerformanceEnabled(slug)}
       feePctsByVersionId={feePctsByVersionId}
       estimateVersionId={versionRecordId}
     />

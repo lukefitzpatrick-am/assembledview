@@ -201,7 +201,11 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
 
           {flatSingleLine ? (
             <div className="overflow-hidden rounded-xl border border-border/40 bg-card p-3">
-              <LineItemBlock {...flatSingleLine.block} startsOn={data.dateRange.startISO} />
+              <LineItemBlock
+                {...flatSingleLine.block}
+                lineItemId={flatSingleLine.id}
+                startsOn={data.dateRange.startISO}
+              />
             </div>
           ) : data.lineItems.length > 0 ? (
             <div className="space-y-2 pt-2">
@@ -219,7 +223,11 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
                       <span className="text-sm font-medium">{li.block.name}</span>
                     </AccordionTrigger>
                     <AccordionContent className="border-t border-border/40 p-3">
-                      <LineItemBlock {...li.block} startsOn={data.dateRange.startISO} />
+                      <LineItemBlock
+                        {...li.block}
+                        lineItemId={li.id}
+                        startsOn={data.dateRange.startISO}
+                      />
                     </AccordionContent>
                   </AccordionItem>
                 ))}

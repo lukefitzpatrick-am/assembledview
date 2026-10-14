@@ -3,6 +3,7 @@ import type { TargetCurvePoint } from "@/lib/kpi/deliveryTargetCurve"
 import { ProgressCard, type ProgressCardProps } from "./ProgressCard"
 import { KpiBand, type KpiBandProps } from "./KpiBand"
 import { DeliveryDailyChart, type DeliveryDailyChartSeries } from "@/components/dashboard/delivery/common/DeliveryDailyChart"
+import { LineCreativeBesideChart } from "@/components/dashboard/campaign/LineCreativePanel"
 import {
   EntityBreakdownTable,
   type EntityBreakdownNoun,
@@ -43,6 +44,8 @@ export interface LineItemBlockProps {
   progressCards: [ProgressCardProps, ProgressCardProps]
   kpiBand: KpiBandProps
   chart: LineItemChart
+  /** Plan line id. Creative rows for this id render beside the daily chart. */
+  lineItemId?: string
   /** Delivered entity actuals (search ad groups / CM360 placements). No planned. */
   entityBreakdown?: {
     rows: EntityBreakdownRow[]
@@ -60,6 +63,7 @@ export function LineItemBlock({
   progressCards,
   kpiBand,
   chart,
+  lineItemId,
   entityBreakdown,
 }: LineItemBlockProps) {
   return (
@@ -79,26 +83,28 @@ export function LineItemBlock({
         <ProgressCard {...progressCards[1]} dense />
       </div>
       <KpiBand {...kpiBand} />
-      {chart.kind === "cumulative-vs-target" ? (
-        <DeliveryPacingChart
-          targetCurve={chart.targetCurve}
-          cumulativeActual={chart.cumulativeActual}
-          asAtDate={chart.asAtDate}
-          deliverableLabel={chart.deliverableLabel}
-          brandColour={chart.brandColour}
-        />
-      ) : (
-        <DeliveryDailyChart
-          daily={chart.daily}
-          series={chart.series}
-          asAtDate={chart.asAtDate}
-          brandColour={chart.brandColour}
-          size="line"
-          startsOn={startsOn}
-          title="Daily delivery"
-          subtitle={chart.series.map((s) => s.label).join(" + ")}
-        />
-      )}
+      <LineCreativeBesideChart lineItemId={lineItemId}>
+        {chart.kind === "cumulative-vs-target" ? (
+          <DeliveryPacingChart
+            targetCurve={chart.targetCurve}
+            cumulativeActual={chart.cumulativeActual}
+            asAtDate={chart.asAtDate}
+            deliverableLabel={chart.deliverableLabel}
+            brandColour={chart.brandColour}
+          />
+        ) : (
+          <DeliveryDailyChart
+            daily={chart.daily}
+            series={chart.series}
+            asAtDate={chart.asAtDate}
+            brandColour={chart.brandColour}
+            size="line"
+            startsOn={startsOn}
+            title="Daily delivery"
+            subtitle={chart.series.map((s) => s.label).join(" + ")}
+          />
+        )}
+      </LineCreativeBesideChart>
       {entityBreakdown && entityBreakdown.rows.length > 0 ? (
         <EntityBreakdownTable
           rows={entityBreakdown.rows}
