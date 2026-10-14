@@ -27,6 +27,7 @@
 - `/creative` admin landing is process-first (`CreativeAdminLanding`: search-ads → Ask Ava, upload → existing `CreativeCampaignPicker`, screenshots → Codex `TaskFormDialog` when `CODEX_V2=on`). Non-admin staff keep the filter-first picker; client dashboard creative is untouched.
 - Creative API MBA surfaces call `checkClientMbaAccess` for **all** roles (SEC-G); helper scopes only `admin` as unscoped — empty-MBA non-admin sessions → 403.
 - Client-facing creative view is separate: `app/dashboard/[slug]/creative` (tenant-checked with `notFound()`).
+- Campaign creative performance is `GET /api/dashboard/[slug]/[mba_number]/creative` (`lib/creative/performance/`). It reads `MART.V_CREATIVE_PERFORMANCE_DAILY` and stays 404 until `FEATURE_CREATIVE_PERFORMANCE` is on and the slug is allowlisted. A missing view is 503. This route uses the campaign-page client gate (404), not `checkClientMbaAccess` (403).
 
 ## Gotchas
 
