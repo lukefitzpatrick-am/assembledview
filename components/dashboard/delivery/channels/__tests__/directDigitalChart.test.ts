@@ -139,6 +139,52 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     assert.equal(section.aggregate.chart.daily[0]?.amountSpent, undefined)
   })
 
+  it("one line with completes keeps clicks on the other line and on the channel chart", () => {
+    const section = buildSection(
+      [
+        factRow({
+          lineItemId: LINE_A,
+          impressions: 1000,
+          clicks: 20,
+          video3sViews: 400,
+        }),
+        factRow({
+          lineItemId: LINE_B,
+          impressions: 800,
+          clicks: 40,
+          video3sViews: 0,
+        }),
+      ],
+      [LINE_A, LINE_B],
+    )
+
+    assert.ok(section)
+    assert.deepEqual(section.aggregate.chart.series[1], {
+      key: "clicks",
+      label: "Clicks",
+      yAxis: "right",
+      format: "number",
+    })
+    const seriesFor = (id: string) => {
+      const chart = section.lineItems.find((item) => item.id === id)?.block.chart
+      assert.equal(chart?.kind, "daily-delivery")
+      if (!chart || chart.kind !== "daily-delivery") throw new Error("expected a daily chart")
+      return chart.series[1]
+    }
+    assert.deepEqual(seriesFor(LINE_A), {
+      key: "completionRate",
+      label: "Completion rate",
+      yAxis: "right",
+      format: "percent",
+    })
+    assert.deepEqual(seriesFor(LINE_B), {
+      key: "clicks",
+      label: "Clicks",
+      yAxis: "right",
+      format: "number",
+    })
+  })
+
   it("aggregate completionRate is volume-weighted (910/1100*100), not the mean of per-line rates", () => {
     // Line A 90% on 1,000 imps; line B 10% on 100 imps. Mean of rates = 50%.
     // Volume-weighted: (900+10) / (1000+100) * 100 = 82.727...

@@ -516,11 +516,28 @@ export function buildDirectDigitalChannelSection(input: {
   )
 
   const hasVideoCompletes = rollup.videoCompletes > 0
+  const everyLineHasCompletes = withDelivery.every((m) => m.totals.videoCompletes > 0)
+  const impressionsSeries = {
+    key: "impressions",
+    label: "Impressions",
+    yAxis: "left" as const,
+    format: "number" as const,
+  }
+  const clicksSeries = {
+    key: "clicks",
+    label: "Clicks",
+    yAxis: "right" as const,
+    format: "number" as const,
+  }
+  const completionSeries = {
+    key: "completionRate",
+    label: "Completion rate",
+    yAxis: "right" as const,
+    format: "percent" as const,
+  }
   const dailyChartSeries = [
-    { key: "impressions", label: "Impressions", yAxis: "left" as const, format: "number" as const },
-    hasVideoCompletes
-      ? { key: "completionRate", label: "Completion rate", yAxis: "right" as const, format: "percent" as const }
-      : { key: "clicks", label: "Clicks", yAxis: "right" as const, format: "number" as const },
+    impressionsSeries,
+    everyLineHasCompletes ? completionSeries : clicksSeries,
   ]
 
   const ctrDecimal = clickThroughRate(rollup.clicks, rollup.impressions)
@@ -721,10 +738,11 @@ export function buildDirectDigitalChannelSection(input: {
     const liCtrTarget =
       kpiRow?.ctr != null && kpiRow.ctr > 0 ? normaliseRatioTarget(kpiRow.ctr) : undefined
 
+    const lineHasCompletes = m.totals.videoCompletes > 0
     const dailyRows = m.daily.map((d) => ({
       date: d.date,
       impressions: Number(d.impressions ?? 0),
-      ...(hasVideoCompletes
+      ...(lineHasCompletes
         ? { completionRate: completionRatePct(Number(d.videoCompletes ?? 0), Number(d.impressions ?? 0)) }
         : { clicks: Number(d.clicks ?? 0) }),
     }))
@@ -876,7 +894,7 @@ export function buildDirectDigitalChannelSection(input: {
       chart: {
         kind: "daily-delivery",
         daily: dailyRows,
-        series: dailyChartSeries,
+        series: [impressionsSeries, lineHasCompletes ? completionSeries : clicksSeries],
         asAtDate: asAtISO,
         brandColour: input.brandColour,
       },

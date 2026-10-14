@@ -875,6 +875,79 @@ test("mixed reported + modelled spend keeps Total spend with an includes-modelle
   assert.equal(chip(section, "Reported spend (fixed cost)"), undefined)
 })
 
+function dailySeriesLabels(section: ChannelSectionData) {
+  return {
+    channel: section.aggregate.chart.series.map((series) => series.label),
+    lines: section.lineItems.map((item) => {
+      const chart = item.block.chart
+      if (chart.kind !== "daily-delivery") return []
+      return chart.series.map((series) => series.label)
+    }),
+  }
+}
+
+test("a programmatic video section that is not CPV charts impressions on the section and on each line", () => {
+  const section = buildVideo({
+    lines: [
+      burstLine("bicau002pv1", "Channel Factory"),
+      { ...burstLine("bicau002pv2", "Channel Factory"), buy_type: "cpv" },
+    ],
+    rows: [
+      pacingRow({
+        channel: "programmatic-video",
+        lineItemId: "bicau002pv1",
+        impressions: 12_000,
+        video3sViews: 4_000,
+      }),
+      pacingRow({
+        channel: "programmatic-video",
+        lineItemId: "bicau002pv2",
+        impressions: 8_000,
+        video3sViews: 2_000,
+      }),
+    ],
+  })
+  assert.ok(section)
+  assert.deepEqual(dailySeriesLabels(section), {
+    channel: ["Spend", "Impressions"],
+    lines: [
+      ["Spend", "Impressions"],
+      ["Spend", "Impressions"],
+    ],
+  })
+})
+
+test("an all-CPV programmatic video section charts views on the section and on each line", () => {
+  const section = buildVideo({
+    lines: [
+      { ...burstLine("bicau002pv1", "Channel Factory"), buy_type: "cpv" },
+      { ...burstLine("bicau002pv2", "Channel Factory"), buy_type: "cpv" },
+    ],
+    rows: [
+      pacingRow({
+        channel: "programmatic-video",
+        lineItemId: "bicau002pv1",
+        impressions: 12_000,
+        video3sViews: 4_000,
+      }),
+      pacingRow({
+        channel: "programmatic-video",
+        lineItemId: "bicau002pv2",
+        impressions: 8_000,
+        video3sViews: 2_000,
+      }),
+    ],
+  })
+  assert.ok(section)
+  assert.deepEqual(dailySeriesLabels(section), {
+    channel: ["Spend", "Views"],
+    lines: [
+      ["Spend", "Views"],
+      ["Spend", "Views"],
+    ],
+  })
+})
+
 test("Channel Factory CPV section summary uses Avg CPV and a Spend + Views chart", () => {
   const section = buildVideo({
     lines: [{ ...burstLine("bicau006pv1", "Channel Factory"), buy_type: "cpv", fixedCostMedia: true }],

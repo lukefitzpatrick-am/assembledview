@@ -737,7 +737,7 @@ export function buildProgrammaticChannelSection(input: {
       chart: {
         kind: "daily-delivery",
         daily: dailyRows,
-        series: isVideoLine
+        series: isCpvSection && isVideoLine
           ? [
               { key: "amount_spent", label: "Spend", yAxis: "left" },
               { key: "video_3s_views", label: "Views", yAxis: "right" },
