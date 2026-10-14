@@ -39,6 +39,7 @@ import {
   weekHasDailyValues,
   buildDayColumnsForWeek,
   emitDayBurstsForWeek,
+  weekColumnForDate,
   type ExpertDailyValues,
 } from "@/lib/mediaplan/expertDayModel"
 import type {
@@ -432,31 +433,6 @@ function newspaperCalculatedDeliverables(
   }
 }
 
-/**
- * Column whose week contains `date`. Bounds come from the columns, so the
- * match follows whatever weekStartsOn built them. A day before the first
- * column clamps to the first; a day after the last clamps to the last.
- */
-function weekColumnForDate(
-  date: Date,
-  weekColumns: readonly WeeklyGanttWeekColumn[]
-): WeeklyGanttWeekColumn | null {
-  if (weekColumns.length === 0) return null
-  const day = startOfDay(date).getTime()
-  const first = weekColumns[0]!
-  const last = weekColumns[weekColumns.length - 1]!
-  if (day < startOfDay(first.weekStart).getTime()) return first
-  if (day > startOfDay(last.weekEnd).getTime()) return last
-  for (const col of weekColumns) {
-    if (
-      day >= startOfDay(col.weekStart).getTime() &&
-      day <= startOfDay(col.weekEnd).getTime()
-    ) {
-      return col
-    }
-  }
-  return null
-}
 
 /** Dated bursts that already carry a quantity must not be rewritten into week 1. */
 function hasImportableDatedBursts(

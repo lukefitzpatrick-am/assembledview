@@ -204,6 +204,7 @@ import {
   resizeSpanWeeks,
   weekDayKeys,
   rebucketRowsForWeekStartsOn,
+  spreadMergedSpanAcrossWeekColumns,
   weekHasDailyValues,
   weekIsUniform,
   type DayColumn,
@@ -1039,7 +1040,9 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       pendingWeekRebucketRef.current = rebucketRowsForWeekStartsOn(
         normalizedRowsRef.current,
         oldColumns,
-        newColumns
+        newColumns,
+        campaignStartDate,
+        campaignEndDate
       )
       setExpandedWeekKeys(new Set())
       if (weekStartsOnProp === undefined) {
@@ -3351,10 +3354,21 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       for (const span of row.mergedWeekSpans ?? []) {
         const q = span.totalQty
         if (!Number.isFinite(q) || q === 0) continue
-        if (span.startWeekKey in perWeek) {
-          perWeek[span.startWeekKey] += q
-        }
         sumQty += q
+        const spread = spreadMergedSpanAcrossWeekColumns(
+          span,
+          weekColumns,
+          campaignStartDate,
+          campaignEndDate
+        )
+        const parts = Object.entries(spread)
+        if (parts.length === 0) {
+          if (span.startWeekKey in perWeek) perWeek[span.startWeekKey] += q
+          continue
+        }
+        for (const [key, part] of parts) {
+          if (key in perWeek) perWeek[key] += part
+        }
       }
     }
 
@@ -3367,7 +3381,15 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       fee: fromCents(money.feeCents),
       totalWithFee: fromCents(money.totalCents),
     }
-  }, [dayKeysByWeekKey, feePercent, normalizedRows, weekKeys])
+  }, [
+    campaignEndDate,
+    campaignStartDate,
+    dayKeysByWeekKey,
+    feePercent,
+    normalizedRows,
+    weekColumns,
+    weekKeys,
+  ])
 
   const descriptorHeadLabels = useMemo(
     () => expertGridDescriptorHeadLabels(config, showBillingCols),

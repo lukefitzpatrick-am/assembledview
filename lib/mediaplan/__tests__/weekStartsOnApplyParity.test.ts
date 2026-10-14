@@ -56,7 +56,9 @@ test("Apply parity: Monday-rebucketed OOH qty conserved when Apply uses Monday c
   const [rebucketed] = rebucketRowsForWeekStartsOn(
     [baseOohRow(sundayWeekly)],
     sundayCols,
-    mondayCols
+    mondayCols,
+    CS,
+    CE
   )
   assert.ok(rebucketed)
 
@@ -97,7 +99,9 @@ test("control: same Monday-rebucketed rows Apply correctly against Monday column
   const [rebucketed] = rebucketRowsForWeekStartsOn(
     [baseOohRow(sundayWeekly)],
     sundayCols,
-    mondayCols
+    mondayCols,
+    CS,
+    CE
   )
   assert.ok(rebucketed)
 

@@ -17,7 +17,10 @@ import {
   mapBvodExpertRowsToStandardLineItems,
   mapStandardDigiAudioLineItemsToExpertRows,
   mapDigitalAudioExpertRowsToStandardLineItems,
+  mapStandardDigiDisplayLineItemsToExpertRows,
+  mapDigitalDisplayExpertRowsToStandardLineItems,
 } from "../../lib/mediaplan/expertChannelMappings.js"
+import { rebucketRowsForWeekStartsOn } from "../../lib/mediaplan/expertDayModel.js"
 import { format } from "date-fns"
 
 test("OOH expert row produces one line item and one burst per filled week; budget = qty * unitRate", () => {
@@ -821,4 +824,96 @@ test("Digital Audio spots round-trip stores full-week qty on the span, not the c
   )
   assert.equal(back[0]!.line_item_id, "DA-1")
   assert.equal(back[0]!.bursts[0]!.calculatedValue, 4)
+})
+
+test("krusty002 DD1 stays one span of 500,000 across week-start toggles and Apply", () => {
+  const campaignStart = new Date(2026, 10, 15)
+  const campaignEnd = new Date(2026, 11, 20)
+  const burstStart = new Date(2026, 10, 15)
+  const burstEnd = new Date(2026, 11, 20)
+  const lineIn = {
+    line_item_id: "DD1",
+    buy_type: "cpm",
+    bursts: [
+      {
+        budget: "10000",
+        buyAmount: "20",
+        startDate: burstStart,
+        endDate: burstEnd,
+        calculatedValue: 500_000,
+      },
+    ],
+  }
+
+  function open(weekStartsOn: 0 | 1) {
+    const cols = buildWeeklyGanttColumnsFromCampaign(
+      campaignStart,
+      campaignEnd,
+      weekStartsOn
+    )
+    const [row] = mapStandardDigiDisplayLineItemsToExpertRows(
+      [lineIn],
+      cols,
+      campaignStart,
+      campaignEnd
+    )
+    return { cols, row }
+  }
+
+  function spanShape(row: {
+    weeklyValues: Record<string, number | "">
+    mergedWeekSpans?: ReadonlyArray<{
+      startWeekKey: string
+      endWeekKey: string
+      totalQty: number
+      startYmd?: string
+      endYmd?: string
+    }>
+  }) {
+    const span = row.mergedWeekSpans?.[0]
+    return {
+      count: row.mergedWeekSpans?.length ?? 0,
+      totalQty: span?.totalQty,
+      startYmd: span?.startYmd,
+      endYmd: span?.endYmd,
+      startWeekKey: span?.startWeekKey,
+      endWeekKey: span?.endWeekKey,
+      weekly: row.weeklyValues,
+    }
+  }
+
+  const freshSunday = open(0)
+  const freshMonday = open(1)
+  assert.equal(freshSunday.row.mergedWeekSpans?.length, 1)
+  assert.equal(freshSunday.row.mergedWeekSpans?.[0]?.totalQty, 500_000)
+  assert.equal(freshMonday.row.mergedWeekSpans?.length, 1)
+  assert.equal(freshMonday.row.mergedWeekSpans?.[0]?.totalQty, 500_000)
+
+  const toMonday = rebucketRowsForWeekStartsOn(
+    [freshSunday.row],
+    freshSunday.cols,
+    freshMonday.cols,
+    campaignStart,
+    campaignEnd
+  )
+  const backToSunday = rebucketRowsForWeekStartsOn(
+    toMonday,
+    freshMonday.cols,
+    freshSunday.cols,
+    campaignStart,
+    campaignEnd
+  )
+  assert.deepEqual(spanShape(backToSunday[0]!), spanShape(freshSunday.row))
+
+  const [applied] = mapDigitalDisplayExpertRowsToStandardLineItems(
+    backToSunday,
+    freshSunday.cols,
+    campaignStart,
+    campaignEnd
+  )
+  assert.equal(applied.bursts.length, 1)
+  assert.equal(format(applied.bursts[0]!.startDate, "yyyy-MM-dd"), "2026-11-15")
+  assert.equal(format(applied.bursts[0]!.endDate, "yyyy-MM-dd"), "2026-12-20")
+  assert.equal(applied.bursts[0]!.budget, "10000")
+  assert.equal(applied.bursts[0]!.calculatedValue, 500_000)
 })

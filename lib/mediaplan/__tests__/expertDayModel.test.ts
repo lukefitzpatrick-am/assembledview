@@ -9,6 +9,7 @@ import {
   resizeSpanWeeks,
   rebucketWeeklyValues,
   rebucketRowsForWeekStartsOn,
+  spreadMergedSpanAcrossWeekColumns,
 } from "@/lib/mediaplan/expertDayModel"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 
@@ -73,7 +74,7 @@ test("rebucketWeeklyValues is a no-op on empty grid", () => {
   const monCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 1)
   const empty: Record<string, number | ""> = {}
   for (const c of sunCols) empty[c.weekKey] = ""
-  assert.deepEqual(rebucketWeeklyValues(empty, sunCols, monCols), {})
+  assert.deepEqual(rebucketWeeklyValues(empty, sunCols, monCols, CS, CE), {})
 })
 
 test("rebucketWeeklyValues preserves per-row totals across weekStartsOn change including boundary-spanning value", () => {
@@ -84,7 +85,7 @@ test("rebucketWeeklyValues preserves per-row totals across weekStartsOn change i
   for (const c of sunCols) old[c.weekKey] = ""
   old[sunCols[0]!.weekKey] = 70
 
-  const next = rebucketWeeklyValues(old, sunCols, monCols)
+  const next = rebucketWeeklyValues(old, sunCols, monCols, CS, CE)
   const oldTotal = Object.values(old).reduce<number>(
     (s, v) => s + (typeof v === "number" ? v : 0),
     0
@@ -99,7 +100,7 @@ test("rebucketWeeklyValues preserves per-row totals across weekStartsOn change i
   assert.equal(next["2026-01-05"], 60) // 70 * 6/7
 })
 
-test("rebucketRowsForWeekStartsOn materialises merged spans and conserves totals", () => {
+test("rebucketRowsForWeekStartsOn keeps an undated span and remaps its column edges", () => {
   const sunCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 0)
   const monCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 1)
   const weeklyValues: Record<string, number | ""> = {}
@@ -116,11 +117,133 @@ test("rebucketRowsForWeekStartsOn materialises merged spans and conserves totals
       ],
     },
   ]
-  const next = rebucketRowsForWeekStartsOn(rows, sunCols, monCols)
-  assert.equal(next[0]!.mergedWeekSpans?.length ?? 0, 0)
-  const total = Object.values(next[0]!.weeklyValues).reduce<number>(
+  const next = rebucketRowsForWeekStartsOn(rows, sunCols, monCols, CS, CE)
+  const span = next[0]!.mergedWeekSpans?.[0]
+  assert.ok(span)
+  assert.equal(next[0]!.mergedWeekSpans?.length, 1)
+  assert.equal(span.totalQty, 140)
+  const dated = span as { startYmd?: string; endYmd?: string }
+  assert.equal(dated.startYmd, undefined)
+  assert.equal(dated.endYmd, undefined)
+  // Sunday week 4–10 Jan starts 4 Jan; week 11–17 Jan ends 17 Jan.
+  // Monday columns containing those days are 29 Dec and 12 Jan.
+  assert.equal(span.startWeekKey, "2025-12-29")
+  assert.equal(span.endWeekKey, "2026-01-12")
+  const cellTotal = Object.values(next[0]!.weeklyValues).reduce<number>(
     (s, v) => s + (typeof v === "number" ? v : 0),
     0
   )
-  assert.equal(total, 140)
+  assert.equal(cellTotal, 0)
+})
+
+function sumWeekly(values: Record<string, number | "">): number {
+  return Object.values(values).reduce<number>(
+    (s, v) => s + (typeof v === "number" ? v : 0),
+    0
+  )
+}
+
+function assertWholeUnits(values: Record<string, number | "">): void {
+  for (const v of Object.values(values)) {
+    if (v === "") continue
+    assert.equal(typeof v, "number")
+    assert.equal(v, Math.round(Number(v)))
+  }
+}
+
+test("plain weekly cells ignore days outside the campaign and stay whole units", () => {
+  const start = new Date(2026, 10, 15)
+  const end = new Date(2026, 11, 20)
+  const sunCols = buildWeeklyGanttColumnsFromCampaign(start, end, 0)
+  const monCols = buildWeeklyGanttColumnsFromCampaign(start, end, 1)
+  const weeklyValues: Record<string, number | ""> = {}
+  for (const c of sunCols) weeklyValues[c.weekKey] = ""
+  // Last Sunday column is 20–26 Dec; only 20 Dec is inside the campaign.
+  weeklyValues[sunCols[sunCols.length - 1]!.weekKey] = 100
+
+  const [toMonday] = rebucketRowsForWeekStartsOn(
+    [{ weeklyValues, mergedWeekSpans: [] }],
+    sunCols,
+    monCols,
+    start,
+    end
+  )
+  assert.ok(toMonday)
+  assert.equal(sumWeekly(toMonday.weeklyValues), 100)
+  assert.equal(toMonday.weeklyValues["2026-12-14"], 100)
+  assertWholeUnits(toMonday.weeklyValues)
+
+  const [back] = rebucketRowsForWeekStartsOn(
+    [toMonday],
+    monCols,
+    sunCols,
+    start,
+    end
+  )
+  assert.ok(back)
+  assert.equal(sumWeekly(back.weeklyValues), 100)
+  assertWholeUnits(back.weeklyValues)
+})
+
+test("plain weekly cells toggled Sunday to Monday to Sunday keep the total with no decimals", () => {
+  const sunCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 0)
+  const monCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 1)
+  const weeklyValues: Record<string, number | ""> = {}
+  for (const c of sunCols) weeklyValues[c.weekKey] = ""
+  weeklyValues[sunCols[0]!.weekKey] = 10
+
+  const [toMonday] = rebucketRowsForWeekStartsOn(
+    [{ weeklyValues, mergedWeekSpans: [] }],
+    sunCols,
+    monCols,
+    CS,
+    CE
+  )
+  assert.ok(toMonday)
+  assert.equal(sumWeekly(toMonday.weeklyValues), 10)
+  assertWholeUnits(toMonday.weeklyValues)
+  // 10 across Sun 4–10 Jan: first 3 days get 2, so Mon week 29 Dec gets 4 Jan only.
+  assert.equal(toMonday.weeklyValues["2025-12-29"], 2)
+  assert.equal(toMonday.weeklyValues["2026-01-05"], 8)
+
+  const [back] = rebucketRowsForWeekStartsOn(
+    [toMonday],
+    monCols,
+    sunCols,
+    CS,
+    CE
+  )
+  assert.ok(back)
+  assert.equal(sumWeekly(back.weeklyValues), 10)
+  assertWholeUnits(back.weeklyValues)
+})
+
+test("krusty002 span weekly totals spread 500,000 by burst days", () => {
+  const start = new Date(2026, 10, 15)
+  const end = new Date(2026, 11, 20)
+  const span = {
+    totalQty: 500_000,
+    startWeekKey: "2026-11-15",
+    endWeekKey: "2026-12-20",
+    startYmd: "2026-11-15",
+    endYmd: "2026-12-20",
+  }
+  const sunday = buildWeeklyGanttColumnsFromCampaign(start, end, 0)
+  const monday = buildWeeklyGanttColumnsFromCampaign(start, end, 1)
+  const sundayTotals = sunday.map(
+    (col) => spreadMergedSpanAcrossWeekColumns(span, sunday, start, end)[col.weekKey] ?? 0
+  )
+  const mondayTotals = monday.map(
+    (col) => spreadMergedSpanAcrossWeekColumns(span, monday, start, end)[col.weekKey] ?? 0
+  )
+  assert.deepEqual(sundayTotals, [97223, 97223, 97223, 97223, 97220, 13888])
+  assert.deepEqual(mondayTotals, [13889, 97223, 97223, 97223, 97223, 97219])
+  assert.equal(
+    sundayTotals.reduce((s, n) => s + n, 0),
+    500_000
+  )
+  assert.equal(
+    mondayTotals.reduce((s, n) => s + n, 0),
+    500_000
+  )
 })
