@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation"
 
 import { WebReportView } from "@/components/dashboard/web/WebReportView"
 import { auth0 } from "@/lib/auth0"
-import { getPrimaryRole, getUserClientSlugs } from "@/lib/rbac"
+import { getPrimaryRole, getUserClientSlugs, hasRole } from "@/lib/rbac"
 import { isWebSearchEnabled } from "@/lib/webReport/featureFlag"
 import { loadWebReportResponse, WebReportRangeError } from "@/lib/webReport/loadPage"
 import { isReportPeriod, type ReportPeriod } from "@/lib/webReport/periods"
@@ -66,6 +66,7 @@ export default async function WebSearchPage({ params, searchParams }: WebSearchP
       layout={report.layout}
       data={report.data}
       connected={report.connected}
+      builderHref={hasRole(user, ["admin"]) ? `/dashboard/${slug}/web/builder` : null}
     />
   )
 }

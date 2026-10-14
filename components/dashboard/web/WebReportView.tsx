@@ -1,6 +1,7 @@
 "use client"
 
 import { Component, type ReactNode } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { PageHeader } from "@/components/layout/PageHeader"
@@ -74,6 +75,8 @@ export function WebReportView({
   layout,
   data,
   connected,
+  builderHref,
+  interactivePeriod = true,
 }: {
   slug: string
   clientName: string
@@ -81,13 +84,28 @@ export function WebReportView({
   layout: WebReportLayoutItem[]
   data: WebReportData
   connected: boolean
+  builderHref?: string | null
+  interactivePeriod?: boolean
 }) {
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-6 sm:px-6">
       <PageHeader
         title={clientName}
         accent={`Web & search, ${data.windows.phrase}`}
-        actions={<PeriodSelect slug={slug} period={period} />}
+        actions={
+          <div className="flex items-center gap-3">
+            {builderHref ? (
+              <Link href={builderHref} className="text-sm font-semibold text-primary hover:underline">
+                Edit report
+              </Link>
+            ) : null}
+            {interactivePeriod ? (
+              <PeriodSelect slug={slug} period={period} />
+            ) : (
+              <p className="text-sm text-muted-foreground">{PERIOD_LABEL[period]}</p>
+            )}
+          </div>
+        }
         lede={<p>Compared with {data.windows.comparedWith}.</p>}
         meta={
           connected ? (
