@@ -43,8 +43,9 @@ export async function resetStuckReportRuns(): Promise<void> {
 }
 
 /**
- * Claim one queued or failed row with attempts still under 3.
- * The update and the skip-locked read commit together.
+ * Claim one queued or failed monthly row with attempts still under 3.
+ * on_demand_deck is never claimed. The update and the skip-locked read
+ * commit together.
  */
 export async function claimNextReportRun(): Promise<ClaimedReportRun | null> {
   const db = getDb()
@@ -59,6 +60,7 @@ export async function claimNextReportRun(): Promise<ClaimedReportRun | null> {
         FROM report_runs
         WHERE (status = 'queued' OR status = 'failed')
           AND attempts < 3
+          AND kind <> 'on_demand_deck'
         ORDER BY created_at
         LIMIT 1
         FOR UPDATE SKIP LOCKED
