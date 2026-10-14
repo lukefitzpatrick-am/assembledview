@@ -124,14 +124,22 @@ def parse_title(title, path):
             parts.append(title[cursor:match.start()])
         phrase = match.group(1)
         cursor = match.end()
-        # The stop belongs on the serif run. A following "." run draws a gap.
+        # A stop that ends the title here belongs on this serif run, not in a run of its own.
         stop = re.match(r"[ \t]*\.", title[cursor:])
-        if stop:
+        if stop and cursor + stop.end() == len(title):
             phrase = phrase.rstrip() + "."
             cursor += stop.end()
         parts.append(I(phrase))
     if cursor < len(title):
-        parts.append(title[cursor:])
+        parts.append(re.sub(r"[ \t]+([.!?])$", r"\1", title[cursor:]))
+    if len(parts) >= 2 and isinstance(parts[-1], str) and re.fullmatch(r"[ \t]*[.!?]", parts[-1]):
+        punct = parts[-1].strip()
+        prev = parts[-2]
+        if isinstance(prev, Run):
+            parts[-2] = Run(prev.t.rstrip() + punct, **prev.k)
+        else:
+            parts[-2] = prev.rstrip() + punct
+        parts.pop()
     parts = [part for part in parts if part != ""]
     return visible, parts or [visible]
 

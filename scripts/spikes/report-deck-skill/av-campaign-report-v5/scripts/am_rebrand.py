@@ -1,7 +1,7 @@
 """Assembled Media rebrand helpers (python-pptx) for building decks on the v5 template.
 Usage: from am_rebrand import *; d = Deck(template_path); s = d.add('Title Only - White'); ...; d.save(out)
 """
-import copy, os, zipfile, io
+import copy, os, re, zipfile, io
 from lxml import etree
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
@@ -33,6 +33,55 @@ def _style_run(r, run, base):
     if k.get('bold') is not None and not k.get('serif'): f.bold = k['bold']
     if k.get('size'): f.size = Pt(k['size'])
     if k.get('color'): f.color.rgb = rgb(k['color'])
+    if k.get('spc') is not None:
+        rPr = r._r.find(qn('a:rPr'))
+        if rPr is not None: rPr.set('spc', str(int(k['spc'])))
+
+def _run_text(run):
+    return run.t if isinstance(run, Run) else run
+
+def _copy_run(run, text, **extra):
+    if isinstance(run, Run):
+        k = dict(run.k); k.update(extra); return Run(text, **k)
+    if extra: return Run(text, **extra)
+    return text
+
+def seal_stops(specs, base):
+    """The closing stop belongs on the last run, with no space before it.
+
+    Plus Jakarta's full stop sits wide of the letter. On a sans headline, pull that pair in.
+    A serif stop is already tight, so it stays on its run untouched.
+    """
+    specs = [spec for spec in specs if _run_text(spec) != ""]
+    if len(specs) >= 2 and isinstance(_run_text(specs[-1]), str) and re.fullmatch(r"[ \t]*[.!?]", _run_text(specs[-1])):
+        punct = _run_text(specs[-1]).strip()
+        specs[-2] = _copy_run(specs[-2], _run_text(specs[-2]).rstrip() + punct)
+        specs.pop()
+    sealed = []
+    for spec in specs:
+        text = _run_text(spec)
+        if isinstance(text, str):
+            closed = re.sub(r"[ \t]+([.!?])$", r"\1", text)
+            if closed != text: spec = _copy_run(spec, closed)
+        sealed.extend(_pull_sans_stop(spec, base))
+    return [spec for spec in sealed if _run_text(spec) != ""]
+
+def _pull_sans_stop(run, base):
+    text = _run_text(run)
+    k = run.k if isinstance(run, Run) else {}
+    if k.get('serif') or not isinstance(text, str): return [run]
+    font = k.get('font') or (base or {}).get('font')
+    if font != HEAD: return [run]
+    match = re.match(r"^(.*?)([.!?])$", text)
+    if not match or not match.group(1) or not match.group(1)[-1].isalpha(): return [run]
+    stem, punct = match.group(1), match.group(2)
+    size = k.get('size') or (base or {}).get('size') or 16
+    # About 0.12em: the ExtraBold stop's left sidebearing, in hundredths of a point.
+    pull = -int(round(float(size) * 12))
+    head, tail = stem[:-1], stem[-1] + punct
+    tail_run = _copy_run(run, tail, spc=pull)
+    if head: return [_copy_run(run, head), tail_run]
+    return [tail_run]
 
 def _runs(x): return [x] if isinstance(x, (str, Run)) else list(x)
 
@@ -61,7 +110,7 @@ def set_paras(tf, paras, base=None, bullet=False, space_after=None, align=None, 
             for tag in ('a:buNone', 'a:buChar', 'a:buAutoNum'):
                 for e in pPr.findall(qn(tag)): pPr.remove(e)
             bu = etree.SubElement(pPr, qn('a:buChar')); bu.set('char', '●')
-        for run in _runs(spec):
+        for run in seal_stops(_runs(spec), base):
             r = p.add_run(); r.text = run.t if isinstance(run, Run) else run
             if tmpl is not None:
                 old_rpr = r._r.find(qn('a:rPr'))

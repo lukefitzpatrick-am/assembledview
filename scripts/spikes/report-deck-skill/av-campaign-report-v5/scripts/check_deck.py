@@ -26,6 +26,7 @@ PALETTE = {
 TOKEN = re.compile(r"\$?\d[\d,]*(?:\.\d+)?%?")
 EMU = 914400
 CHECK = re.compile(r"CHECK (slides\.\d+)")
+LOOSE_STOP = re.compile(r"\s[.!?]$")
 NUMBER_DOT_NAME = "Number dot"
 CONTACT_PLACEHOLDER_IDX = "102"
 
@@ -258,6 +259,17 @@ def number_issues(pptx_path, json_path):
     }
 
 
+def loose_stop(text):
+    return " ." in text or LOOSE_STOP.search(text) is not None
+
+
+def note_loose_stops(issues, number, path, text_frame):
+    for paragraph in text_frame.paragraphs:
+        text = "".join(run.text or "" for run in paragraph.runs)
+        if loose_stop(text):
+            issues.append(f"slide {number} {path} loose stop")
+
+
 def check(pptx_path, json_path):
     issues = []
     with open(json_path, encoding="utf-8") as handle:
@@ -308,12 +320,14 @@ def check(pptx_path, json_path):
                         col_w = (shape.table.columns[col_index].width or 0) / EMU
                         if overflows(cell.text_frame, col_w - 0.16, row_h - 0.08):
                             issues.append(f"slide {number} {path} overflow")
+                        note_loose_stops(issues, number, path, cell.text_frame)
                 continue
             if not getattr(shape, "has_text_frame", False):
                 continue
             if shape_name(shape._element) == "" and not shape.text_frame.text.strip():
                 continue
             name = shape.name or ""
+            note_loose_stops(issues, number, content_path(name, slide_path), shape.text_frame)
             if "Number dot" in name:
                 continue
             box_w, box_h = frame_box(shape)

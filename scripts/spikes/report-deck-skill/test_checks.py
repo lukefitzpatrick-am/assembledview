@@ -454,6 +454,83 @@ def test_kpi_value_drops_repeated_unit():
         fail(f"percent KPI values were changed: {text[:500]}")
 
 
+A_RPR = "{http://schemas.openxmlformats.org/drawingml/2006/main}rPr"
+
+
+def paint_runs(shape):
+    rows = []
+    if not getattr(shape, "has_text_frame", False):
+        return rows
+    for paragraph in shape.text_frame.paragraphs:
+        for run in paragraph.runs:
+            props = run._r.find(A_RPR)
+            spc = props.get("spc") if props is not None else None
+            rows.append((run.text or "", run.font.name, bool(run.font.italic), spc))
+    return rows
+
+
+def test_stop_attaches_on_sans_and_serif_runs():
+    """A closing stop sits on the last run with no space, for a sans ending and a serif ending."""
+    build = load("build_report.py")
+    check = load("check_deck.py")
+    deck = build.Deck(TEMPLATE)
+    sans = deck.add("Title Only - White")
+    _visible, runs = build.parse_title('What to {i:"do"} next .', "title")
+    deck.fill(sans, 100, runs, base=dict(size=36, color=build.K["ink"], font=build.HEAD), align="l")
+    build.tb(sans, 0.6, 2.2, 6, 0.6, "Hold the Meta mix.", size=14, color=build.K["ink"], font=build.HEAD)
+    build.tb(sans, 0.6, 2.9, 6, 0.6, "Push Search harder.", size=14, color=build.K["ink"], font=build.HEAD)
+    serif = deck.add("Title Only - White")
+    _visible, runs = build.parse_title('Spend sits {i:"behind pace"}.', "title")
+    deck.fill(serif, 100, runs, base=dict(size=36, color=build.K["ink"], font=build.HEAD), align="l")
+    path = os.path.join(OUT, "stops.pptx")
+    deck.save(path)
+    loose = [issue for issue in check.check(path, DATA) if "loose stop" in issue]
+    if loose:
+        fail(f"attached stops were flagged: {loose}")
+
+    sans_title = paint_runs(deck.ph(sans, 100))
+    text, face, italic, spc = sans_title[-1]
+    joined = "".join(part[0] for part in sans_title)
+    if " ." in joined or text.strip() == "." or not text.endswith("."):
+        fail(f"sans title stop is loose: {sans_title}")
+    if face != build.HEAD or italic:
+        fail(f"sans title stop left the sans run: {sans_title}")
+    if spc is None or int(spc) >= 0:
+        fail(f"sans title stop was not pulled in: {sans_title}")
+
+    for shape in sans.shapes:
+        if not getattr(shape, "has_text_frame", False):
+            continue
+        painted = paint_runs(shape)
+        heading = "".join(part[0] for part in painted)
+        if heading not in ("Hold the Meta mix.", "Push Search harder."):
+            continue
+        tail = painted[-1]
+        if " ." in heading or tail[0].strip() == "." or not tail[0].endswith("."):
+            fail(f"heading stop is loose: {painted}")
+        if tail[1] != build.HEAD or tail[3] is None or int(tail[3]) >= 0:
+            fail(f"heading stop was not pulled onto the sans run: {painted}")
+
+    serif_title = paint_runs(deck.ph(serif, 100))
+    text, face, italic, spc = serif_title[-1]
+    joined = "".join(part[0] for part in serif_title)
+    if " ." in joined or text != "behind pace." or not italic or face != "Instrument Serif":
+        fail(f"serif title stop left the serif run: {serif_title}")
+    if spc not in (None, "0"):
+        fail(f"serif stop was retargeted: {serif_title}")
+
+    bad = build.Deck(TEMPLATE)
+    slide = bad.add("Title Only - White")
+    frame = bad.ph(slide, 100).text_frame
+    frame.clear()
+    frame.paragraphs[0].text = "What to do next ."
+    bad_path = os.path.join(OUT, "stops-loose.pptx")
+    bad.save(bad_path)
+    flagged = [issue for issue in check.check(bad_path, DATA) if "loose stop" in issue]
+    if not flagged:
+        fail("a space before the full stop was allowed")
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     test_missing_key()
@@ -466,6 +543,7 @@ def main():
     test_title_full_stop_sits_on_the_last_word()
     test_not_live_channel_has_no_slide()
     test_kpi_value_drops_repeated_unit()
+    test_stop_attaches_on_sans_and_serif_runs()
     print("tests OK")
 
 
