@@ -192,8 +192,8 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
               daily={data.aggregate.chart.daily}
               series={data.aggregate.chart.series}
               asAtDate={data.aggregate.chart.asAtDate}
-              mediaTypeColour={data.mediaTypeColour}
               brandColour={data.aggregate.chart.brandColour}
+              startsOn={data.dateRange.startISO}
               title="Daily delivery"
               subtitle={data.aggregate.chart.series.map((s) => s.label).join(" + ")}
             />
@@ -201,7 +201,7 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
 
           {flatSingleLine ? (
             <div className="overflow-hidden rounded-xl border border-border/40 bg-card p-3">
-              <LineItemBlock {...flatSingleLine.block} />
+              <LineItemBlock {...flatSingleLine.block} startsOn={data.dateRange.startISO} />
             </div>
           ) : data.lineItems.length > 0 ? (
             <div className="space-y-2 pt-2">
@@ -219,7 +219,7 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
                       <span className="text-sm font-medium">{li.block.name}</span>
                     </AccordionTrigger>
                     <AccordionContent className="border-t border-border/40 p-3">
-                      <LineItemBlock {...li.block} />
+                      <LineItemBlock {...li.block} startsOn={data.dateRange.startISO} />
                     </AccordionContent>
                   </AccordionItem>
                 ))}

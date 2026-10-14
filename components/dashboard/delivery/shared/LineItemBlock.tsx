@@ -37,6 +37,8 @@ export interface LineItemBlockProps {
   fullName?: string
   /** Optional platform pill text, e.g. "cpm" or "Meta". */
   platform?: string
+  /** Campaign start (ISO). Forwarded to the daily chart empty state. */
+  startsOn?: string | null
   /** Two ProgressCards (spend, deliverable) for this line item. */
   progressCards: [ProgressCardProps, ProgressCardProps]
   kpiBand: KpiBandProps
@@ -54,6 +56,7 @@ export function LineItemBlock({
   name,
   fullName,
   platform,
+  startsOn,
   progressCards,
   kpiBand,
   chart,
@@ -90,6 +93,8 @@ export function LineItemBlock({
           series={chart.series}
           asAtDate={chart.asAtDate}
           brandColour={chart.brandColour}
+          size="line"
+          startsOn={startsOn}
           title="Daily delivery"
           subtitle={chart.series.map((s) => s.label).join(" + ")}
         />

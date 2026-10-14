@@ -2,8 +2,12 @@
 import { describe, expect, it } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
 
-import { DeliveryDailyChart } from "../DeliveryDailyChart"
+import { DeliveryDailyChart, type DeliveryDailyChartSeries } from "../DeliveryDailyChart"
 import { formatDateShort } from "@/lib/format/date"
+import { ChannelSection } from "../../ChannelSection"
+import type { ChannelKey, ChannelSectionData } from "../../channels/types"
+import { LineItemBlock } from "../../shared/LineItemBlock"
+import type { ProgressCardProps } from "../../shared/ProgressCard"
 import {
   DELIVERY_CHART_CHANNEL_HEIGHT_CLASS,
   DELIVERY_CHART_COLOUR,
@@ -92,7 +96,6 @@ describe("DeliveryDailyChart", () => {
             { date: "2026-04-03", delivered: 9, planned: 12, cumulativePace: 27 },
           ],
         }}
-        mediaTypeColour="var(--channel-tv)"
       />,
     )
 
@@ -110,7 +113,6 @@ describe("DeliveryDailyChart", () => {
     expect(html).toContain(`data-series-colour="${DELIVERY_CHART_COLOUR.cumulativePace}"`)
     expect(html).toContain('data-today-line="2026-04-02"')
     expect(html).toContain('data-future-blank-count="1"')
-    expect(html).not.toContain("var(--channel-tv)")
   })
 
   it("uses the line height class when size is line", () => {
@@ -148,3 +150,162 @@ describe("DeliveryDailyChart", () => {
     expect(html).toContain(`Starts ${formatDateShort("2026-04-15")}`)
   })
 })
+
+const PROGRESS: ProgressCardProps = {
+  title: "Spend",
+  value: "$1",
+  detail: "Delivered",
+  progress: 0.5,
+  variance: 0,
+  status: "on-track",
+}
+
+const SPEND_IMPRESSIONS: DeliveryDailyChartSeries[] = [
+  { key: "amount_spent", label: "Spend", yAxis: "left" },
+  { key: "impressions", label: "Impressions", yAxis: "right" },
+]
+
+const COST_CLICKS: DeliveryDailyChartSeries[] = [
+  { key: "cost", label: "Cost", yAxis: "left" },
+  { key: "clicks", label: "Clicks", yAxis: "right" },
+]
+
+const SPEND_VIEWS: DeliveryDailyChartSeries[] = [
+  { key: "amount_spent", label: "Spend", yAxis: "left" },
+  { key: "video_3s_views", label: "Views", yAxis: "right" },
+]
+
+const IMPRESSIONS_CLICKS: DeliveryDailyChartSeries[] = [
+  { key: "impressions", label: "Impressions", yAxis: "left", format: "number" },
+  { key: "clicks", label: "Clicks", yAxis: "right", format: "number" },
+]
+
+const IMPRESSIONS_COMPLETION: DeliveryDailyChartSeries[] = [
+  { key: "impressions", label: "Impressions", yAxis: "left", format: "number" },
+  { key: "completionRate", label: "Completion rate", yAxis: "right", format: "percent" },
+]
+
+const CONTAINERS: Array<{
+  key: ChannelKey
+  title: string
+  series: DeliveryDailyChartSeries[]
+  leftFormat: string
+  rightFormat: string
+}> = [
+  { key: "social-meta", title: "Meta", series: SPEND_IMPRESSIONS, leftFormat: "currency-compact", rightFormat: "compact" },
+  { key: "social-tiktok", title: "TikTok", series: SPEND_IMPRESSIONS, leftFormat: "currency-compact", rightFormat: "compact" },
+  { key: "social-reddit", title: "Reddit", series: SPEND_IMPRESSIONS, leftFormat: "currency-compact", rightFormat: "compact" },
+  { key: "search", title: "Search", series: COST_CLICKS, leftFormat: "currency-compact", rightFormat: "compact" },
+  { key: "programmatic-display", title: "Programmatic Display", series: SPEND_IMPRESSIONS, leftFormat: "currency-compact", rightFormat: "compact" },
+  { key: "programmatic-video", title: "Programmatic Video", series: SPEND_VIEWS, leftFormat: "currency-compact", rightFormat: "compact" },
+  { key: "programmatic-ooh", title: "Programmatic OOH", series: SPEND_VIEWS, leftFormat: "currency-compact", rightFormat: "compact" },
+  { key: "digital-display", title: "Display", series: IMPRESSIONS_CLICKS, leftFormat: "compact", rightFormat: "compact" },
+  { key: "digital-audio", title: "Audio", series: IMPRESSIONS_CLICKS, leftFormat: "compact", rightFormat: "compact" },
+  { key: "bvod", title: "BVOD", series: IMPRESSIONS_CLICKS, leftFormat: "compact", rightFormat: "compact" },
+  { key: "digital-video", title: "Video", series: IMPRESSIONS_COMPLETION, leftFormat: "compact", rightFormat: "percent" },
+]
+
+function channelSection(input: {
+  key: ChannelKey
+  title: string
+  series: DeliveryDailyChartSeries[]
+  startISO: string
+  daily: Array<Record<string, string | number>>
+}): ChannelSectionData {
+  return {
+    key: input.key,
+    title: input.title,
+    dateRange: { startISO: input.startISO, endISO: "2026-04-30" },
+    lastSyncedAt: null,
+    connections: [],
+    mediaTypeColour: "var(--channel-sentinel)",
+    aggregate: {
+      summaryChips: [],
+      progressCards: [PROGRESS, PROGRESS],
+      kpiBand: { tiles: [] },
+      chart: {
+        daily: input.daily,
+        series: input.series,
+        asAtDate: "2026-04-02",
+      },
+    },
+    lineItems: [],
+  }
+}
+
+describe("delivery containers", () => {
+  it.each(CONTAINERS)("$title uses the shared chart chrome", (container) => {
+    const daily = [
+      {
+        date: "2026-04-01",
+        ...Object.fromEntries(container.series.map((series) => [series.key, 10])),
+      },
+    ]
+    const html = renderToStaticMarkup(
+      <ChannelSection
+        defaultOpen
+        data={channelSection({
+          key: container.key,
+          title: container.title,
+          series: container.series,
+          startISO: "2026-04-01",
+          daily,
+        })}
+      />,
+    )
+
+    expect(html).toContain(DELIVERY_CHART_CHANNEL_HEIGHT_CLASS)
+    expect(html).toContain('data-legend-position="under-title"')
+    expect(html).toContain('data-axis-domain="0"')
+    expect(html).toContain(`data-series-colour="${DELIVERY_CHART_COLOUR.delivered}"`)
+    expect(html).toContain(`data-series-format="${container.leftFormat}"`)
+    expect(html).toContain(`data-series-format="${container.rightFormat}"`)
+    expect(html).not.toContain('data-series-key="planned"')
+    expect(html).not.toContain('data-series-key="cumulativePace"')
+    expect(html).not.toContain("var(--channel-sentinel)")
+  })
+
+  it("renders a line chart with the same component at the small size", () => {
+    const html = renderToStaticMarkup(
+      <LineItemBlock
+        name="Line A"
+        startsOn="2026-04-01"
+        progressCards={[PROGRESS, { ...PROGRESS, title: "Impressions" }]}
+        kpiBand={{ tiles: [] }}
+        chart={{
+          kind: "daily-delivery",
+          daily: [{ date: "2026-04-01", amount_spent: 10, impressions: 100 }],
+          series: SPEND_IMPRESSIONS,
+          asAtDate: "2026-04-02",
+        }}
+      />,
+    )
+    expect(html).toContain(DELIVERY_CHART_LINE_HEIGHT_CLASS)
+    expect(html).not.toContain("sm:h-[240px]")
+    expect(html).toContain('data-legend-position="under-title"')
+    expect(html).toContain(`data-series-colour="${DELIVERY_CHART_COLOUR.delivered}"`)
+    expect(html).toContain('data-series-format="currency-compact"')
+    expect(html).not.toContain('data-series-key="planned"')
+  })
+
+  it.each([
+    ["assumed-spend", "Assumed spend"],
+    ["plan-only", "Awaiting delivery"],
+  ] as const)("%s empty chart uses the shared empty copy", (key, title) => {
+    const html = renderToStaticMarkup(
+      <ChannelSection
+        defaultOpen
+        data={channelSection({
+          key,
+          title,
+          series: [],
+          startISO: "2026-04-15",
+          daily: [],
+        })}
+      />,
+    )
+    expect(html).toContain(`Starts ${formatDateShort("2026-04-15")}`)
+    expect(html).not.toContain("No daily delivery data available")
+  })
+})
+

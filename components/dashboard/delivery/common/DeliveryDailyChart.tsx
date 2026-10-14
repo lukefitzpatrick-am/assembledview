@@ -47,12 +47,7 @@ export interface DeliveryDailyChartProps {
   daily?: Array<Record<string, string | number>>
   series?: DeliveryDailyChartSeries[]
   asAtDate?: string | null
-  /**
-   * Ignored for paint. Channel colour stays on the section dot.
-   * @deprecated Pass nothing. Removed once callers stop sending it.
-   */
-  mediaTypeColour?: string
-  /** @deprecated Ignored for paint. */
+  /** @deprecated Ignored for paint. Channel colour stays on the section dot. */
   brandColour?: string
   size?: DeliveryChartSize
   /** Campaign start (ISO). Empty charts before this date say "Starts <date>". */
@@ -167,7 +162,6 @@ export function DeliveryDailyChart({
   daily = [],
   series = [],
   asAtDate = null,
-  mediaTypeColour: _mediaTypeColour,
   brandColour: _brandColour,
   size,
   startsOn,
