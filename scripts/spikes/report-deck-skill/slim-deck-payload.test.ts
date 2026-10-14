@@ -243,22 +243,65 @@ test("a channel with one ad set has no audiences list", () => {
   assert.equal("audiences" in slim, false)
 })
 
-test("daily rows become one weekly point per week and channel", () => {
-  const source = fixture("hema007")
-  const channels = source.channels as Record<string, unknown>[]
-  channels[0] = {
-    ...channels[0],
-    daily: [
-      { date: "2026-09-01", spend: 10, impressions: 100 },
-      { date: "2026-09-02", spend: 5, impressions: 50 },
-      { date: "2026-09-08", spend: 7, impressions: 70 },
+test("charts keep numeric points, weekly is gone, and the cap is 80,000", () => {
+  const slim = slimDeckPayload({
+    mbaNumber: "curatif004",
+    clientName: "Curatif",
+    campaignName: "FY27",
+    totals: { spend: 18 },
+    channels: [
+      {
+        group: "social_meta",
+        label: "Social (Meta)",
+        spend: 10,
+        daily: [{ date: "2026-09-01", spend: 10, impressions: 100 }],
+      },
     ],
-  }
-  const slim = slimDeckPayload(source)
-  const encoded = JSON.stringify(slim)
-  assert.equal(encoded.includes('"daily"'), false)
-  assert.deepEqual(slim.weekly, [
-    { weekStart: "2026-08-31", channel: "Social (Meta)", spend: "$15.00", impressions: "150" },
-    { weekStart: "2026-09-07", channel: "Social (Meta)", spend: "$7.00", impressions: "70" },
-  ])
+    kpis: [],
+    charts: [
+      {
+        scope: "campaign",
+        group: null,
+        label: "All channels",
+        left: { key: "spend", label: "Spend", format: "money" },
+        right: { key: "clicks", label: "Clicks", format: "count" },
+        points: [
+          ["2026-07-01", 12.5, 3],
+          ["2026-07-02", 0, 1],
+        ],
+        note: null,
+      },
+    ],
+  })
+  assert.equal("weekly" in slim, false)
+  assert.equal(JSON.stringify(slim).includes('"daily"'), false)
+  const charts = slim.charts as { points: Array<[string, number, number | null]> }[]
+  assert.equal(charts[0]?.points[0]?.[1], 12.5)
+  assert.equal(typeof charts[0]?.points[0]?.[1], "number")
+  assert.equal(typeof charts[0]?.points[0]?.[2], "number")
+
+  const point = ["2026-07-01", 12345.67, 890] as [string, number, number]
+  const sized = (count: number) =>
+    slimDeckPayload({
+      mbaNumber: "cap",
+      clientName: "Cap",
+      campaignName: "Cap",
+      totals: { spend: 1 },
+      channels: [],
+      kpis: [],
+      charts: [
+        {
+          scope: "campaign",
+          group: null,
+          label: "All channels",
+          left: { key: "spend", label: "Spend", format: "money" },
+          right: null,
+          points: Array.from({ length: count }, () => point),
+          note: null,
+        },
+      ],
+    })
+  const under = sized(1500)
+  assert.ok(Buffer.byteLength(JSON.stringify(under)) <= 80_000)
+  assert.throws(() => sized(5000), /80,?000/)
 })

@@ -13,7 +13,7 @@ import {
 import { getAsOfDate } from "@/lib/pacing/maths"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/resolveLiveSocialLineItems"
 import { getCampaignPacingData, type PacingRow } from "@/lib/snowflake/pacing-service"
-import { getSearchPacingData } from "@/lib/snowflake/search-pacing-service"
+import { getSearchPacingData, type SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 import { queryDailyFacts } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import {
   indexReportedSpendByLineDate,
@@ -89,6 +89,10 @@ export type LoadedDeliverySnapshot = {
   includesEstimatedSpend?: boolean
   /** Assumed-spend lines, including bursts that have not started. */
   assumedExpectedLines?: AssumedExpectedLine[]
+  /** Pacing rows already fetched for this window. */
+  dailyPacingRows?: PacingRow[]
+  /** Search response already fetched for this window. Null when search is off. */
+  dailySearch?: SearchPacingResponse | null
 }
 
 type PlanLineMeta = {
@@ -323,6 +327,12 @@ function expectedNetForPlan(
   })
 }
 
+function snapshotBuyType(plan: PlanLineMeta | undefined): string | null {
+  if (!plan?.buyType) return null
+  const normalised = plan.buyType.trim().toLowerCase()
+  return normalised.length > 0 ? normalised : null
+}
+
 function buildLines(
   planById: Map<string, PlanLineMeta>,
   deliveredById: Map<string, ReturnType<typeof emptyMetrics>>,
@@ -375,6 +385,7 @@ function buildLines(
         : null,
       noDeliveryRows,
       deliveryState,
+      buyType: snapshotBuyType(plan),
       ...(overlaySpendIds.has(id)
         ? { spendMode: "reported" as const }
         : estimatedIds.has(id)
@@ -1009,5 +1020,7 @@ export async function loadDeliverySnapshot(
     ...(fixedCostOverlayFailed ? { fixedCostOverlayFailed: true } : {}),
     ...(includesEstimatedSpend ? { includesEstimatedSpend: true } : {}),
     assumedExpectedLines,
+    dailyPacingRows: pacingRows,
+    dailySearch: search,
   }
 }

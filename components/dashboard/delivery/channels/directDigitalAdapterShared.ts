@@ -32,6 +32,11 @@ import type { EntityBreakdownRow } from "../shared/EntityBreakdownTable"
 import type { DeliveryStatus } from "../shared/statusColours"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import { aggregateDailyRows } from "./aggregateDaily"
+import {
+  DIRECT_DIGITAL_CLICKS_SERIES,
+  DIRECT_DIGITAL_COMPLETION_SERIES,
+  DIRECT_DIGITAL_IMPRESSIONS_SERIES,
+} from "./channelChartSeries"
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 
@@ -517,24 +522,9 @@ export function buildDirectDigitalChannelSection(input: {
 
   const hasVideoCompletes = rollup.videoCompletes > 0
   const everyLineHasCompletes = withDelivery.every((m) => m.totals.videoCompletes > 0)
-  const impressionsSeries = {
-    key: "impressions",
-    label: "Impressions",
-    yAxis: "left" as const,
-    format: "number" as const,
-  }
-  const clicksSeries = {
-    key: "clicks",
-    label: "Clicks",
-    yAxis: "right" as const,
-    format: "number" as const,
-  }
-  const completionSeries = {
-    key: "completionRate",
-    label: "Completion rate",
-    yAxis: "right" as const,
-    format: "percent" as const,
-  }
+  const impressionsSeries = DIRECT_DIGITAL_IMPRESSIONS_SERIES
+  const clicksSeries = DIRECT_DIGITAL_CLICKS_SERIES
+  const completionSeries = DIRECT_DIGITAL_COMPLETION_SERIES
   const dailyChartSeries = [
     impressionsSeries,
     everyLineHasCompletes ? completionSeries : clicksSeries,

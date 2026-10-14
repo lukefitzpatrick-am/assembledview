@@ -38,6 +38,7 @@ import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { ChannelKey, ChannelSectionData, ConnectionPill } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
+import { PROGRAMMATIC_CHART_SERIES, PROGRAMMATIC_CPV_CHART_SERIES } from "./channelChartSeries"
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 import { aggregateDeliverableLabel } from "@/lib/delivery/deliverableLabel"
 import { groupPacingRowsByPlacement } from "./directDigitalAdapterShared"
@@ -737,15 +738,7 @@ export function buildProgrammaticChannelSection(input: {
       chart: {
         kind: "daily-delivery",
         daily: dailyRows,
-        series: isCpvSection && isVideoLine
-          ? [
-              { key: "amount_spent", label: "Spend", yAxis: "left" },
-              { key: "video_3s_views", label: "Views", yAxis: "right" },
-            ]
-          : [
-              { key: "amount_spent", label: "Spend", yAxis: "left" },
-              { key: "impressions", label: "Impressions", yAxis: "right" },
-            ],
+        series: isCpvSection && isVideoLine ? PROGRAMMATIC_CPV_CHART_SERIES : PROGRAMMATIC_CHART_SERIES,
         asAtDate: m.pacing.asAtDate,
         brandColour,
       },
@@ -784,15 +777,7 @@ export function buildProgrammaticChannelSection(input: {
             ? ["amount_spent", "video_3s_views"]
             : ["amount_spent", "impressions"],
         ),
-        series: isCpvSection
-          ? [
-              { key: "amount_spent", label: "Spend", yAxis: "left" },
-              { key: "video_3s_views", label: "Views", yAxis: "right" },
-            ]
-          : [
-              { key: "amount_spent", label: "Spend", yAxis: "left" },
-              { key: "impressions", label: "Impressions", yAxis: "right" },
-            ],
+        series: isCpvSection ? PROGRAMMATIC_CPV_CHART_SERIES : PROGRAMMATIC_CHART_SERIES,
         asAtDate: aggregatePacing.asAtDate,
         brandColour,
       },

@@ -51,6 +51,7 @@ function payload(): CampaignReportPayload {
     },
     channels: [],
     kpis: [],
+    charts: [],
     commentary: null,
   }
 }

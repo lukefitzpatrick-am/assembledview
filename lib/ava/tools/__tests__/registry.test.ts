@@ -267,6 +267,71 @@ test("get_delivery_snapshot shape", () => {
   assert.equal(snap.reportedTotals.spendToDate, 36500)
 })
 
+test("AVA delivery summary strips buyType", () => {
+  const snap = summariseDeliverySnapshot({
+    asOf: "2026-07-13",
+    window: { startDate: "2026-01-01", endDate: "2026-06-30" },
+    mbaNumber: "MBA1",
+    versionNumber: 14,
+    channels: [
+      {
+        group: "social_meta",
+        lines: [
+          {
+            lineItemId: "xSO1",
+            name: "Meta prospecting",
+            plannedBudget: 10000,
+            plannedUnits: null,
+            plannedImpressions: 1000,
+            plannedClicks: 50,
+            plannedViews: 10,
+            buyType: "cpv",
+            startDate: "2026-01-01",
+            endDate: "2026-06-30",
+            spendToDate: 36500,
+            impressions: 7260000,
+            clicks: 12000,
+            results: 100,
+            video3sViews: 5000,
+            cpm: 5.03,
+            ctr: 0.00165,
+            cpc: 3.04,
+            noDeliveryRows: false,
+            deliveryState: "reported",
+          },
+        ],
+        totals: {
+          spendToDate: 36500,
+          impressions: 7260000,
+          clicks: 12000,
+          results: 100,
+          video3sViews: 5000,
+          plannedBudget: 10000,
+          cpm: 5.03,
+          ctr: 0.00165,
+          cpc: 3.04,
+        },
+      },
+    ],
+    planTotals: {
+      spendToDate: 36500,
+      impressions: 7260000,
+      clicks: 12000,
+      results: 100,
+      video3sViews: 5000,
+      plannedBudget: 10000,
+      cpm: 5.03,
+      ctr: 0.00165,
+      cpc: 3.04,
+    },
+  })
+  const summaryLine = snap.channels[0]?.lines[0] as Record<string, unknown>
+  assert.equal("buyType" in summaryLine, false)
+  assert.equal("plannedImpressions" in summaryLine, false)
+  assert.equal("plannedClicks" in summaryLine, false)
+  assert.equal("plannedViews" in summaryLine, false)
+})
+
 test("get_delivery_snapshot blanks spend on unreported lines", () => {
   const snap = summariseDeliverySnapshot({
     asOf: "2026-09-18",

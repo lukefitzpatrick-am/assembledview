@@ -53,6 +53,7 @@ import {
   sumProratedDeliverable,
   type RateSourceLine,
 } from "@/lib/reports/campaignReport/reportFigures"
+import { buildDeckCharts, type DeckChart } from "@/lib/reports/campaignReport/deckCharts"
 
 export { formatReportInt, formatReportMoney }
 
@@ -151,6 +152,8 @@ export type CampaignReportPayload = {
     rateExcludedSpend?: number
   }
   channels: CampaignReportChannelRow[]
+  /** Daily delivery charts for the current window. The previous window has none. */
+  charts: DeckChart[]
   /**
    * Delivery state of every plan line in the current window.
    * The headless generator skips a deck when every state is no_source or no_rows_yet.
@@ -594,6 +597,7 @@ export async function assembleCampaignReportData(
         : null,
     },
     channels,
+    charts: buildDeckCharts(currentSnap, currentWindow),
     deliveryStates: currentSnap.channels.flatMap((ch) =>
       ch.lines.map((line) => line.deliveryState),
     ),

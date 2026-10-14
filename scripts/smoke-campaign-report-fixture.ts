@@ -115,6 +115,7 @@ export const campaignReportFixture: CampaignReportPayload = {
       omitReason: "Pending KPI data review",
     },
   ],
+  charts: [],
   commentary: null,
 }
 

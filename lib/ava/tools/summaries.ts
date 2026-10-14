@@ -283,6 +283,8 @@ export type DeliveryLineSnapshot = {
   plannedImpressions?: number | null
   plannedClicks?: number | null
   plannedViews?: number | null
+  /** Plan buy type, trimmed and lowercased. The AVA summary strips this. */
+  buyType?: string | null
   startDate: string | null
   endDate: string | null
   spendToDate: number
@@ -347,7 +349,13 @@ function countsTowardDeliveredSpend(state: DeliveryLineSnapshot["deliveryState"]
 }
 
 function lineForSummary(line: DeliveryLineSnapshot): DeliveryLineSnapshot {
-  const { plannedImpressions: _impressions, plannedClicks: _clicks, plannedViews: _views, ...rest } = line
+  const {
+    plannedImpressions: _impressions,
+    plannedClicks: _clicks,
+    plannedViews: _views,
+    buyType: _buyType,
+    ...rest
+  } = line
   return rest
 }
 

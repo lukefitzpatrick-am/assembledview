@@ -37,6 +37,7 @@ import type { EntityBreakdownRow } from "../shared/EntityBreakdownTable"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
+import { SOCIAL_CHART_SERIES } from "./channelChartSeries"
 import { aggregateDeliverableLabel } from "@/lib/delivery/deliverableLabel"
 
 function pctVarianceFromPacingPct(pct: number | undefined): number {
@@ -561,10 +562,7 @@ export function buildSocialChannelSectionForPlatform(input: {
           amount_spent: Number(d.spend ?? 0),
           impressions: Number(d.impressions ?? 0),
         })),
-        series: [
-          { key: "amount_spent", label: "Spend", yAxis: "left" },
-          { key: "impressions", label: "Impressions", yAxis: "right" },
-        ],
+        series: SOCIAL_CHART_SERIES,
         asAtDate: m.pacing.asAtDate,
         brandColour,
       },
@@ -602,10 +600,7 @@ export function buildSocialChannelSectionForPlatform(input: {
           accordionItems.flatMap((item) => (item.block.chart.kind === "daily-delivery" ? item.block.chart.daily : [])),
           ["amount_spent", "impressions"],
         ),
-        series: [
-          { key: "amount_spent", label: "Spend", yAxis: "left" },
-          { key: "impressions", label: "Impressions", yAxis: "right" },
-        ],
+        series: SOCIAL_CHART_SERIES,
         asAtDate: aggregatePacing.asAtDate,
         brandColour,
       },

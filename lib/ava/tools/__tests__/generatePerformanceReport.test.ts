@@ -86,6 +86,7 @@ function payload(): CampaignReportPayload {
     channels: [],
     deliveryStates: ["reported"],
     kpis: [],
+    charts: [],
     commentary: null,
   }
 }

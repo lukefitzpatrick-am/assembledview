@@ -33,6 +33,7 @@ import type { LineItemBlockProps } from "../shared/LineItemBlock"
 import type { ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
+import { SEARCH_CHART_SERIES } from "./channelChartSeries"
 import {
   aggregateDeliverableLabel,
   deliverableLabelForBuyType,
@@ -370,10 +371,7 @@ export function buildSearchSection(input: {
           accordionItems.flatMap((item) => (item.block.chart.kind === "daily-delivery" ? item.block.chart.daily : [])),
           ["cost", "clicks"],
         ),
-        series: [
-          { key: "cost", label: "Cost", yAxis: "left" },
-          { key: "clicks", label: "Clicks", yAxis: "right" },
-        ],
+        series: SEARCH_CHART_SERIES,
         asAtDate: pacingWindow.asAtISO ?? null,
         brandColour,
       },
@@ -638,10 +636,7 @@ function buildSearchLineItemBlocks(input: {
         chart: {
           kind: "daily-delivery",
           daily: dailyRows,
-          series: [
-            { key: "cost", label: "Cost", yAxis: "left" },
-            { key: "clicks", label: "Clicks", yAxis: "right" },
-          ],
+          series: SEARCH_CHART_SERIES,
           asAtDate: pacingWindow.asAtISO ?? null,
           brandColour,
         },

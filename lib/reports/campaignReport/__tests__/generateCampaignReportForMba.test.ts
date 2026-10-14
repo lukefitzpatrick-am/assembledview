@@ -46,6 +46,7 @@ function payload(overrides: Partial<CampaignReportPayload> = {}): CampaignReport
     channels: [],
     deliveryStates: ["reported"],
     kpis: [],
+    charts: [],
     commentary: null,
     ...overrides,
   }
