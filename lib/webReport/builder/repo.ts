@@ -138,12 +138,35 @@ function mergeOptions(linked: string[], discovered: string[], normalise: (value:
   return [...options.entries()].map(([value, label]) => ({ value, label }))
 }
 
-/**
- * Key event names are not on V_GA4_CAMPAIGN_DAILY or V_GA4_LANDING_DAILY.
- * The select stays empty until a view carries the event name.
- */
-export async function listKeyEventNames(_propertyId: string | null): Promise<string[]> {
-  return []
+/** Distinct event names from V_GA4_EVENTS_DAILY for one property. */
+export async function listKeyEventNames(propertyId: string | null): Promise<string[]> {
+  if (!propertyId) return []
+  try {
+    const rows = await querySnowflake<Record<string, unknown>>(
+      `SELECT DISTINCT event_name
+       FROM ASSEMBLEDVIEW.MART.V_GA4_EVENTS_DAILY
+       WHERE property_id = ?
+         AND event_name IS NOT NULL
+       ORDER BY event_name
+       LIMIT 200`,
+      [propertyId],
+      { label: "V_GA4_EVENTS_DAILY" },
+    )
+    const names: string[] = []
+    const seen = new Set<string>()
+    for (const row of rows ?? []) {
+      const name = text(field(row, "event_name"))
+      if (!name || seen.has(name)) continue
+      seen.add(name)
+      names.push(name)
+    }
+    return names
+  } catch (err) {
+    if (!isMissingMartView(err, "V_GA4_EVENTS_DAILY")) {
+      console.warn("[web-builder] V_GA4_EVENTS_DAILY list failed", err)
+    }
+    return []
+  }
 }
 
 export async function loadBuilderDraft(

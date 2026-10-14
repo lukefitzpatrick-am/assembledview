@@ -12,6 +12,7 @@ function day(partial: Partial<CreativeDailyRow> & Pick<CreativeDailyRow, "creati
   return {
     platform: "meta",
     creativeName: null,
+    creativeSize: null,
     lineItemId: null,
     spend: null,
     viewableImpressions: null,
@@ -159,4 +160,42 @@ test("warehouse rows accept uppercase keys and null spend", () => {
 
 test("format hint reads a pixel size when no ratio is written", () => {
   assert.deepEqual(formatHint("Story", "1080x1920"), { kind: null, aspect: "9:16" })
+})
+
+test("Vertical Video.mp4 across five CM360 sizes groups to one creative", () => {
+  const sizes = ["1920x1080", "1080x1920", "1080x1080", "640x360", "300x250"]
+  const daily = sizes.map((creativeSize) =>
+    day({
+      platform: "cm360",
+      creativeKey: "vertical video.mp4",
+      creativeName: "Vertical Video.mp4",
+      creativeSize,
+      lineItemId: "golf025dd3",
+      date: "2026-09-01",
+      impressions: 1000,
+      clicks: 10,
+      viewableImpressions: 640,
+    }),
+  )
+  daily.push(
+    day({
+      platform: "cm360",
+      creativeKey: "not-set:golf025dd3",
+      creativeName: "(not set)",
+      lineItemId: "golf025dd3",
+      date: "2026-09-01",
+      impressions: 50,
+      clicks: 1,
+    }),
+  )
+
+  const ranked = groupAndRank(daily, new Map(), "impressions")
+  const video = ranked.find((row) => row.creativeKey === "vertical video.mp4")
+  assert.equal(ranked.filter((row) => row.creativeKey === "vertical video.mp4").length, 1)
+  assert.equal(video?.name, "Vertical Video.mp4")
+  assert.equal(video?.impressions, 5000)
+  assert.equal(video?.viewableRate, 0.64)
+  assert.deepEqual(video?.sizes, ["1080x1080", "1080x1920", "1920x1080", "300x250", "640x360"])
+  assert.equal(video?.format.kind, "video")
+  assert.equal(ranked.find((row) => row.creativeKey === "not-set:golf025dd3")?.name, "(not set)")
 })

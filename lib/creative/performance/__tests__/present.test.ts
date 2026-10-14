@@ -30,6 +30,7 @@ function row(partial: Partial<CreativePerformanceRow> & Pick<CreativePerformance
     conversions: null,
     firstDate: "2026-09-01",
     lastDate: "2026-09-14",
+    sizes: [],
     preview: { status: "none" },
     rank: null,
     ...partial,

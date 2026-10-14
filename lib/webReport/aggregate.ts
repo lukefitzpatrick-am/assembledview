@@ -15,11 +15,34 @@ import { add, dateOnly, field, freshnessStatus, num, rate, text } from "@/lib/we
 
 export type Ga4CampaignRow = {
   date: string
+  sessions: number | null
+  engagedSessions: number | null
+  keyEvents: number | null
+}
+
+export type Ga4SourceMediumRow = {
+  date: string
   source: string | null
   medium: string | null
   sessions: number | null
   engagedSessions: number | null
   keyEvents: number | null
+  totalUsers: number | null
+}
+
+export type Ga4EventRow = {
+  date: string
+  eventName: string
+  eventCount: number | null
+}
+
+export type Ga4PageTitleRow = {
+  date: string
+  pageTitle: string
+  users: number | null
+  newUsers: number | null
+  keyEvents: number | null
+  pageViews: number | null
 }
 
 export type Ga4LandingRow = {
@@ -49,11 +72,48 @@ function campaignFromWarehouse(row: Record<string, unknown>): Ga4CampaignRow | n
   if (!date) return null
   return {
     date,
+    sessions: num(field(row, "sessions")),
+    engagedSessions: num(field(row, "engaged_sessions")),
+    keyEvents: num(field(row, "key_events")),
+  }
+}
+
+function sourceMediumFromWarehouse(row: Record<string, unknown>): Ga4SourceMediumRow | null {
+  const date = dateOnly(field(row, "date"))
+  if (!date) return null
+  return {
+    date,
     source: text(field(row, "session_source")),
     medium: text(field(row, "session_medium")),
     sessions: num(field(row, "sessions")),
     engagedSessions: num(field(row, "engaged_sessions")),
     keyEvents: num(field(row, "key_events")),
+    totalUsers: num(field(row, "total_users")),
+  }
+}
+
+function eventFromWarehouse(row: Record<string, unknown>): Ga4EventRow | null {
+  const date = dateOnly(field(row, "date"))
+  const eventName = text(field(row, "event_name"))
+  if (!date || !eventName) return null
+  return {
+    date,
+    eventName,
+    eventCount: num(field(row, "event_count")),
+  }
+}
+
+function pageTitleFromWarehouse(row: Record<string, unknown>): Ga4PageTitleRow | null {
+  const date = dateOnly(field(row, "date"))
+  const pageTitle = text(field(row, "page_title"))
+  if (!date || !pageTitle) return null
+  return {
+    date,
+    pageTitle,
+    users: num(field(row, "total_users")),
+    newUsers: num(field(row, "new_users")),
+    keyEvents: num(field(row, "key_events")),
+    pageViews: num(field(row, "screen_page_views")),
   }
 }
 
@@ -102,13 +162,16 @@ function pageTotals(rows: Ga4LandingRow[]): { pageViews: number | null; pages: P
   return { pageViews, pages }
 }
 
-function sourceMediumRows(rows: Ga4CampaignRow[]): { status: "ok" | "needs_report" | "empty"; rows: SourceMediumRow[] } {
-  const usable = rows.filter((row) => row.source || row.medium)
-  if (usable.length === 0) {
-    return { status: rows.length === 0 ? "empty" : "needs_report", rows: [] }
-  }
+function sumUsers(rows: Ga4SourceMediumRow[]): number | null {
+  let users: number | null = null
+  for (const row of rows) users = add(users, row.totalUsers)
+  return users
+}
+
+function sourceMediumRows(rows: Ga4SourceMediumRow[]): { status: "ok" | "empty"; rows: SourceMediumRow[] } {
+  if (rows.length === 0) return { status: "empty", rows: [] }
   const grouped = new Map<string, { source: string; medium: string; sessions: number; engaged: number; keyEvents: number }>()
-  for (const row of usable) {
+  for (const row of rows) {
     const source = row.source ?? "(not set)"
     const medium = row.medium ?? "(not set)"
     const key = `${source}\u0000${medium}`
@@ -130,6 +193,28 @@ function sourceMediumRows(rows: Ga4CampaignRow[]): { status: "ok" | "needs_repor
   return { status: out.length > 0 ? "ok" : "empty", rows: out }
 }
 
+function keyEventTotals(
+  current: Ga4EventRow[],
+  previous: Ga4EventRow[],
+): { name: string; count: number; previous: number }[] {
+  const currentMap = new Map<string, number>()
+  const previousMap = new Map<string, number>()
+  for (const row of current) {
+    currentMap.set(row.eventName, (currentMap.get(row.eventName) ?? 0) + (row.eventCount ?? 0))
+  }
+  for (const row of previous) {
+    previousMap.set(row.eventName, (previousMap.get(row.eventName) ?? 0) + (row.eventCount ?? 0))
+  }
+  const names = new Set([...currentMap.keys(), ...previousMap.keys()])
+  return [...names]
+    .map((name) => ({
+      name,
+      count: currentMap.get(name) ?? 0,
+      previous: previousMap.get(name) ?? 0,
+    }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+}
+
 export function buildGa4Slice(input: {
   connected: boolean
   today: string
@@ -138,6 +223,9 @@ export function buildGa4Slice(input: {
   maxDate: string | null
   campaign: Ga4CampaignRow[]
   landing: Ga4LandingRow[]
+  sourceMedium: Ga4SourceMediumRow[]
+  events: Ga4EventRow[]
+  pageTitles: Ga4PageTitleRow[]
   error?: string | null
 }): Ga4Slice {
   if (!input.connected) {
@@ -150,13 +238,32 @@ export function buildGa4Slice(input: {
   const previousCampaign = input.campaign.filter((row) => dateInWindow(row.date, input.previous))
   const currentLanding = input.landing.filter((row) => dateInWindow(row.date, input.current))
   const previousLanding = input.landing.filter((row) => dateInWindow(row.date, input.previous))
-  const currentPages = pageTotals(currentLanding)
-  const previousPages = pageTotals(previousLanding)
+  const currentSource = input.sourceMedium.filter((row) => dateInWindow(row.date, input.current))
+  const previousSource = input.sourceMedium.filter((row) => dateInWindow(row.date, input.previous))
+  const currentEvents = input.events.filter((row) => dateInWindow(row.date, input.current))
+  const previousEvents = input.events.filter((row) => dateInWindow(row.date, input.previous))
+  const currentTitles = input.pageTitles.filter((row) => dateInWindow(row.date, input.current))
+  const currentLandingPages = pageTotals(currentLanding)
+  const previousLandingPages = pageTotals(previousLanding)
+  const currentTitlePages = pageTotals(
+    currentTitles.map((row) => ({
+      date: row.date,
+      pagePath: row.pageTitle,
+      users: row.users,
+      keyEvents: row.keyEvents,
+      pageViews: row.pageViews,
+    })),
+  )
   const currentSum = sumCampaign(currentCampaign)
   const previousSum = sumCampaign(previousCampaign)
-  const hasRows = input.campaign.length > 0 || input.landing.length > 0
+  const hasRows =
+    input.campaign.length > 0 ||
+    input.landing.length > 0 ||
+    input.sourceMedium.length > 0 ||
+    input.events.length > 0 ||
+    input.pageTitles.length > 0
   const status = freshnessStatus(input.maxDate, input.today, hasRows)
-  const medium = sourceMediumRows(currentCampaign)
+  const medium = sourceMediumRows(currentSource)
   const daily = dailyGa4(input.current, currentCampaign, currentLanding)
   return {
     status,
@@ -166,19 +273,21 @@ export function buildGa4Slice(input: {
     current: {
       ...emptyTotals(),
       ...currentSum,
-      pageViews: currentPages.pageViews,
+      users: sumUsers(currentSource),
+      pageViews: currentLandingPages.pageViews,
     },
     previous: {
       ...emptyTotals(),
       ...previousSum,
-      pageViews: previousPages.pageViews,
+      users: sumUsers(previousSource),
+      pageViews: previousLandingPages.pageViews,
     },
     daily,
     sourceMedium: medium.rows,
-    sourceMediumStatus: medium.status === "ok" ? "ok" : medium.status,
-    pages: currentPages.pages,
-    landing: currentPages.pages,
-    keyEventsByName: [],
+    sourceMediumStatus: medium.status,
+    pages: currentTitlePages.pages,
+    landing: currentLandingPages.pages,
+    keyEventsByName: keyEventTotals(currentEvents, previousEvents),
   }
 }
 
@@ -315,6 +424,27 @@ export function campaignRowsFromWarehouse(rows: Record<string, unknown>[]): Ga4C
 export function landingRowsFromWarehouse(rows: Record<string, unknown>[]): Ga4LandingRow[] {
   return rows.flatMap((row) => {
     const parsed = landingFromWarehouse(row)
+    return parsed ? [parsed] : []
+  })
+}
+
+export function sourceMediumRowsFromWarehouse(rows: Record<string, unknown>[]): Ga4SourceMediumRow[] {
+  return rows.flatMap((row) => {
+    const parsed = sourceMediumFromWarehouse(row)
+    return parsed ? [parsed] : []
+  })
+}
+
+export function eventRowsFromWarehouse(rows: Record<string, unknown>[]): Ga4EventRow[] {
+  return rows.flatMap((row) => {
+    const parsed = eventFromWarehouse(row)
+    return parsed ? [parsed] : []
+  })
+}
+
+export function pageTitleRowsFromWarehouse(rows: Record<string, unknown>[]): Ga4PageTitleRow[] {
+  return rows.flatMap((row) => {
+    const parsed = pageTitleFromWarehouse(row)
     return parsed ? [parsed] : []
   })
 }

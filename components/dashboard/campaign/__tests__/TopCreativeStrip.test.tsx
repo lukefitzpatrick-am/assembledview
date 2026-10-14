@@ -24,6 +24,7 @@ function row(partial: Partial<CreativePerformanceRow> & Pick<CreativePerformance
     conversions: null,
     firstDate: "2026-09-01",
     lastDate: "2026-09-14",
+    sizes: [],
     preview: { status: "none" },
     rank: null,
     ...partial,
@@ -157,6 +158,7 @@ describe("LineCreativePanelView", () => {
             ctr: 80 / 12000,
             spend: null,
             viewableRate: 0.64,
+            sizes: ["1080x1080", "1080x1920", "1920x1080", "300x250", "640x360"],
             lineLabel: "CM360 • Display",
           }),
           row({
@@ -172,6 +174,7 @@ describe("LineCreativePanelView", () => {
       />,
     )
     expect(html).toContain("64% viewable")
+    expect(html).toContain("1080x1080, 1080x1920, 1920x1080, 300x250, 640x360")
     expect(html).toContain("40% completion")
     expect(html).toContain("0.67% CTR")
   })

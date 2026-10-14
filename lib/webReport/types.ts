@@ -61,10 +61,12 @@ export type Ga4Slice = {
   daily: DailyPoint[]
   sourceMedium: SourceMediumRow[]
   sourceMediumStatus: SourceStatus
+  /** Page titles from V_GA4_PAGE_TITLE_DAILY. */
   pages: PageRow[]
+  /** Page paths from V_GA4_LANDING_DAILY. */
   landing: PageRow[]
-  /** Event name is not on the MART views. */
-  keyEventsByName: { name: string; count: number }[]
+  /** Event counts from V_GA4_EVENTS_DAILY. `previous` is the compared window. */
+  keyEventsByName: { name: string; count: number; previous: number }[]
 }
 
 export type GscSlice = {

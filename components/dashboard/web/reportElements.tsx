@@ -8,12 +8,14 @@ import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import { relativeChange, formatChange } from "@/lib/webReport/change"
 import { elementViewState } from "@/lib/webReport/elementState"
 import {
+  USERS_SUM_OF_DAILY_TOOLTIP,
   WEB_REPORT_ELEMENTS,
   parseElementSettings,
   type WebElementId,
   type WebMetric,
   type WebReportLayoutItem,
 } from "@/lib/webReport/elements"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { PageRow, PeriodTotals, SourceMediumRow, WebReportData } from "@/lib/webReport/types"
 
 const NUMBER = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 })
@@ -21,7 +23,7 @@ const POSITION = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 1, maxi
 
 function formatMetric(metric: WebMetric, totals: PeriodTotals, paid: number | null): string {
   if (metric === "avSpend") return formatMoneyCompact(paid)
-  if (metric === "users" || metric === "newUsers") return "—"
+  if (metric === "newUsers") return "—"
   const value = totals[metric]
   if (value == null) return "—"
   if (metric === "engagementRate" || metric === "ctr") return formatPercent(value * 100)
@@ -31,7 +33,7 @@ function formatMetric(metric: WebMetric, totals: PeriodTotals, paid: number | nu
 
 function metricValue(metric: WebMetric, totals: PeriodTotals, paid: number | null): number | null {
   if (metric === "avSpend") return paid
-  if (metric === "users" || metric === "newUsers") return null
+  if (metric === "newUsers") return null
   return totals[metric]
 }
 
@@ -74,33 +76,57 @@ function Tiles({
   tiles,
   data,
 }: {
-  tiles: { label: string; metric: WebMetric; target?: number; unavailable?: boolean }[]
+  tiles: {
+    label: string
+    metric: WebMetric
+    target?: number
+    unavailable?: boolean
+    named?: { current: number; previous: number }
+  }[]
   data: WebReportData
 }) {
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {tiles.map((tile) => {
         const current = metricValue(tile.metric, data.ga4.current, data.paid.spend)
         const gscCurrent = metricValue(tile.metric, data.gsc.current, data.paid.spend)
-        const value = tile.metric === "clicks" || tile.metric === "impressions" || tile.metric === "ctr" || tile.metric === "position"
+        const value = tile.named
+          ? tile.named.current
+          : tile.metric === "clicks" || tile.metric === "impressions" || tile.metric === "ctr" || tile.metric === "position"
           ? gscCurrent
           : tile.metric === "avSpend"
             ? data.paid.spend
             : current
-        const previousBase =
-          tile.metric === "clicks" || tile.metric === "impressions" || tile.metric === "ctr" || tile.metric === "position"
+        const previousBase = tile.named
+          ? tile.named.previous
+          : tile.metric === "clicks" || tile.metric === "impressions" || tile.metric === "ctr" || tile.metric === "position"
             ? metricValue(tile.metric, data.gsc.previous, data.paid.previousSpend)
             : tile.metric === "avSpend"
               ? data.paid.previousSpend
               : metricValue(tile.metric, data.ga4.previous, data.paid.previousSpend)
-        const display =
-          tile.metric === "clicks" || tile.metric === "impressions" || tile.metric === "ctr" || tile.metric === "position"
+        const display = tile.named
+          ? NUMBER.format(tile.named.current)
+          : tile.metric === "clicks" || tile.metric === "impressions" || tile.metric === "ctr" || tile.metric === "position"
             ? formatMetric(tile.metric, data.gsc.current, data.paid.spend)
             : formatMetric(tile.metric, data.ga4.current, data.paid.spend)
-        const unavailable = tile.unavailable === true || tile.metric === "users" || tile.metric === "newUsers"
+        const unavailable = tile.unavailable === true || tile.metric === "newUsers"
         return (
           <div key={tile.label} className="rounded-input border border-border bg-surface-panel p-3">
-            <p className="text-xs text-muted-foreground">{tile.label}</p>
+            <p className="text-xs text-muted-foreground">
+              {tile.metric === "users" && !tile.named ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help underline decoration-dotted underline-offset-2">
+                      {tile.label}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{USERS_SUM_OF_DAILY_TOOLTIP}</TooltipContent>
+                </Tooltip>
+              ) : (
+                tile.label
+              )}
+            </p>
             <p className="num mt-1 text-xl font-semibold text-foreground">{unavailable ? "Not available yet" : display}</p>
             {tile.target != null ? (
               <p className="num mt-1 text-xs text-muted-foreground">Target {NUMBER.format(tile.target)}</p>
@@ -112,10 +138,11 @@ function Tiles({
         )
       })}
     </div>
+    </TooltipProvider>
   )
 }
 
-function PageTable({ rows, topN }: { rows: PageRow[]; topN: number }) {
+function PageTable({ rows, topN, heading }: { rows: PageRow[]; topN: number; heading: string }) {
   const shown = rows.slice(0, topN)
   if (shown.length === 0) return <p className="mt-3 text-sm text-muted-foreground">No rows in this period.</p>
   return (
@@ -123,7 +150,7 @@ function PageTable({ rows, topN }: { rows: PageRow[]; topN: number }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-muted-foreground">
-            <th className="py-2 pr-3 font-medium">Page path</th>
+            <th className="py-2 pr-3 font-medium">{heading}</th>
             <th className="py-2 pr-3 font-medium">Page views</th>
             <th className="py-2 pr-3 font-medium">Users</th>
             <th className="py-2 font-medium">Key events</th>
@@ -140,7 +167,6 @@ function PageTable({ rows, topN }: { rows: PageRow[]; topN: number }) {
           ))}
         </tbody>
       </table>
-      <p className="mt-2 text-xs text-muted-foreground">Page path from the landing report. Page title is not on that view.</p>
     </div>
   )
 }
@@ -188,12 +214,22 @@ function ElementBody({
       <Shell title={title} message="">
         <Tiles
           data={data}
-          tiles={tiles.map((tile) => ({
-            label: tile.kind === "keyEvent" ? (tile.eventName ?? "Key event") : METRIC_LABEL[tile.metric ?? "sessions"],
-            metric: tile.metric ?? "keyEvents",
-            target: tile.target,
-            unavailable: tile.kind === "keyEvent",
-          }))}
+          tiles={tiles.map((tile) => {
+            if (tile.kind === "keyEvent") {
+              const named = data.ga4.keyEventsByName.find((row) => row.name === tile.eventName)
+              return {
+                label: tile.eventName ?? "Key event",
+                metric: "keyEvents" as const,
+                target: tile.target,
+                named: { current: named?.count ?? 0, previous: named?.previous ?? 0 },
+              }
+            }
+            return {
+              label: METRIC_LABEL[tile.metric ?? "sessions"],
+              metric: tile.metric ?? "sessions",
+              target: tile.target,
+            }
+          })}
         />
       </Shell>
     )
@@ -240,9 +276,14 @@ function ElementBody({
   }
   if (id === "pages" || id === "landing") {
     const topN = (settings as { topN: number }).topN
+    const titles = id === "pages"
     return (
       <Shell title={title} message="">
-        <PageTable rows={id === "landing" ? data.ga4.landing : data.ga4.pages} topN={topN} />
+        <PageTable
+          rows={titles ? data.ga4.pages : data.ga4.landing}
+          topN={topN}
+          heading={titles ? "Page title" : "Page path"}
+        />
       </Shell>
     )
   }

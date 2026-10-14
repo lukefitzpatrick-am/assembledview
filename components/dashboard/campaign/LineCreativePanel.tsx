@@ -33,6 +33,11 @@ export function LineCreativePanelView({ rows }: { rows: CreativePerformanceRow[]
                 <p className="truncate text-sm font-medium text-foreground" title={name}>
                   {name}
                 </p>
+                {row.sizes.length > 0 ? (
+                  <p className="truncate text-xs text-muted-foreground" title={row.sizes.join(", ")}>
+                    {row.sizes.join(", ")}
+                  </p>
+                ) : null}
                 <p className="num truncate text-xs text-muted-foreground">{lineCreativeSubline(row)}</p>
               </div>
               <p className="num shrink-0 text-sm font-semibold text-foreground">{lineRankingMetric(row)}</p>

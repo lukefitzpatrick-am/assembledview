@@ -97,6 +97,8 @@ test("settings fields are read from the element schema", () => {
   assert.equal(snapshot[0]?.kind, "enumList")
   assert.deepEqual(describeElementSettings("location"), [])
   assert.equal(elementNeedsData("location"), true)
+  assert.equal(elementNeedsData("events"), true)
+  assert.equal(elementNeedsData("srcmed"), false)
   assert.equal(elementNeedsData("kpis"), false)
   assert.ok(NEEDS_DATA_ELEMENTS.includes("gscPages"))
 })

@@ -30,6 +30,9 @@ export const WEB_METRICS = [
 
 export type WebMetric = (typeof WEB_METRICS)[number]
 
+/** GA4 total_users summed across days. That sum is not a deduped user count. */
+export const USERS_SUM_OF_DAILY_TOOLTIP = "Users (sum of daily)"
+
 const metricSchema = z.enum(WEB_METRICS)
 
 const kpiTileSchema = z

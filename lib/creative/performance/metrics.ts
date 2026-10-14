@@ -14,6 +14,7 @@ export type CreativeDailyRow = {
   platform: string
   creativeKey: string
   creativeName: string | null
+  creativeSize: string | null
   lineItemId: string | null
   date: string
   spend: number | null
@@ -34,6 +35,7 @@ export type CreativePerformanceRow = {
   platform: string
   creativeKey: string
   name: string | null
+  sizes: string[]
   lineItemId: string | null
   lineLabel: string | null
   format: CreativeFormatHint
@@ -122,6 +124,7 @@ export function creativeRowsFromWarehouse(
       platform,
       creativeKey,
       creativeName: text(field(row, "creative_name")),
+      creativeSize: text(field(row, "creative_size")),
       lineItemId: text(field(row, "line_item_id")),
       date,
       spend: num(field(row, "spend")),
@@ -141,6 +144,7 @@ type Acc = {
   creativeKey: string
   name: string | null
   nameDate: string
+  sizes: string[]
   lineItemId: string | null
   lineDate: string
   spend: number | null
@@ -152,6 +156,11 @@ type Acc = {
   conversions: number | null
   firstDate: string
   lastDate: string
+}
+
+function addSize(sizes: string[], size: string | null) {
+  if (!size || sizes.includes(size)) return
+  sizes.push(size)
 }
 
 function addNullable(current: number | null, next: number | null): number | null {
@@ -197,6 +206,7 @@ export function groupAndRank(
         creativeKey: row.creativeKey,
         name: row.creativeName,
         nameDate: row.creativeName ? row.date : "",
+        sizes: [],
         lineItemId: row.lineItemId,
         lineDate: row.lineItemId ? row.date : "",
         spend: row.spend,
@@ -209,9 +219,11 @@ export function groupAndRank(
         firstDate: row.date,
         lastDate: row.date,
       }
+      addSize(acc.sizes, row.creativeSize)
       groups.set(key, acc)
       continue
     }
+    addSize(acc.sizes, row.creativeSize)
     acc.impressions += row.impressions
     acc.clicks += row.clicks
     acc.spend = addNullable(acc.spend, row.spend)
@@ -236,6 +248,8 @@ export function groupAndRank(
     const hint = acc.lineItemId
       ? labels.get(acc.lineItemId.trim().toLowerCase()) ?? null
       : null
+    const sizes = acc.sizes.toSorted((a, b) => a.localeCompare(b))
+    const sizeHint = [hint?.size, ...sizes].filter((value): value is string => Boolean(value)).join(" ")
     const impressions = acc.impressions
     const ctr = impressions > 0 ? acc.clicks / impressions : null
     const cpm =
@@ -250,9 +264,10 @@ export function groupAndRank(
       platform: acc.platform,
       creativeKey: acc.creativeKey,
       name: acc.name,
+      sizes,
       lineItemId: acc.lineItemId,
       lineLabel: hint?.label ?? null,
-      format: formatHint(acc.name, hint?.size ?? null),
+      format: formatHint(acc.name, sizeHint || null),
       spend: acc.spend,
       impressions,
       clicks: acc.clicks,

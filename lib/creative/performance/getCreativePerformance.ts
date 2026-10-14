@@ -15,6 +15,7 @@ SELECT
   platform,
   creative_key,
   creative_name,
+  creative_size,
   line_item_id,
   date,
   spend,

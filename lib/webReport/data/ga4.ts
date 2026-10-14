@@ -4,7 +4,10 @@ import { querySnowflake } from "@/lib/snowflake/query"
 import {
   buildGa4Slice,
   campaignRowsFromWarehouse,
+  eventRowsFromWarehouse,
   landingRowsFromWarehouse,
+  pageTitleRowsFromWarehouse,
+  sourceMediumRowsFromWarehouse,
 } from "@/lib/webReport/aggregate"
 import { dateOnly, field, isMissingMartView } from "@/lib/webReport/rows"
 import type { DateWindow } from "@/lib/webReport/periods"
@@ -20,6 +23,27 @@ WHERE property_id = ?
 const LANDING_SQL = `
 SELECT date, page_path, total_users, key_events, screen_page_views
 FROM ASSEMBLEDVIEW.MART.V_GA4_LANDING_DAILY
+WHERE property_id = ?
+  AND date BETWEEN ? AND ?
+`
+
+const SOURCE_MEDIUM_SQL = `
+SELECT date, session_source, session_medium, sessions, engaged_sessions, key_events, total_users
+FROM ASSEMBLEDVIEW.MART.V_GA4_SOURCE_MEDIUM_DAILY
+WHERE property_id = ?
+  AND date BETWEEN ? AND ?
+`
+
+const EVENTS_SQL = `
+SELECT date, event_name, event_count
+FROM ASSEMBLEDVIEW.MART.V_GA4_EVENTS_DAILY
+WHERE property_id = ?
+  AND date BETWEEN ? AND ?
+`
+
+const PAGE_TITLE_SQL = `
+SELECT date, page_title, screen_page_views, total_users, new_users, key_events
+FROM ASSEMBLEDVIEW.MART.V_GA4_PAGE_TITLE_DAILY
 WHERE property_id = ?
   AND date BETWEEN ? AND ?
 `
@@ -46,15 +70,22 @@ export async function readGa4(input: {
       maxDate: null,
       campaign: [],
       landing: [],
+      sourceMedium: [],
+      events: [],
+      pageTitles: [],
     })
   }
   const query = input.query ?? snowflakeQuery
   const from = input.current.from < input.previous.from ? input.current.from : input.previous.from
   const to = input.current.to > input.previous.to ? input.current.to : input.previous.to
+  const binds = [input.propertyId, from, to]
   try {
-    const [campaign, landing, maxRows] = await Promise.all([
-      query(CAMPAIGN_SQL, [input.propertyId, from, to]),
-      query(LANDING_SQL, [input.propertyId, from, to]),
+    const [campaign, landing, sourceMedium, events, pageTitles, maxRows] = await Promise.all([
+      query(CAMPAIGN_SQL, binds),
+      query(LANDING_SQL, binds),
+      query(SOURCE_MEDIUM_SQL, binds),
+      query(EVENTS_SQL, binds),
+      query(PAGE_TITLE_SQL, binds),
       query(MAX_SQL, [input.propertyId]),
     ])
     const maxDate = dateOnly(field(maxRows[0] ?? {}, "max_date"))
@@ -66,6 +97,9 @@ export async function readGa4(input: {
       maxDate,
       campaign: campaignRowsFromWarehouse(campaign),
       landing: landingRowsFromWarehouse(landing),
+      sourceMedium: sourceMediumRowsFromWarehouse(sourceMedium),
+      events: eventRowsFromWarehouse(events),
+      pageTitles: pageTitleRowsFromWarehouse(pageTitles),
     })
   } catch (err) {
     if (isMissingMartView(err, "v_ga4_")) {
@@ -81,6 +115,9 @@ export async function readGa4(input: {
       maxDate: null,
       campaign: [],
       landing: [],
+      sourceMedium: [],
+      events: [],
+      pageTitles: [],
       error: "Google Analytics 4 could not be read",
     })
   }
