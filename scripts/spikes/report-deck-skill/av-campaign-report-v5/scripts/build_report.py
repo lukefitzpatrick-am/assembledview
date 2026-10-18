@@ -359,9 +359,10 @@ def channel_chart_problem(spec, data):
     return None
 
 
-def chart_txpr(size="1000"):
+def chart_txpr(size="1000", wrap="square"):
     tx_pr = etree.Element(cq("txPr"))
-    etree.SubElement(tx_pr, aq("bodyPr"))
+    body = etree.SubElement(tx_pr, aq("bodyPr"))
+    body.set("wrap", wrap)
     etree.SubElement(tx_pr, aq("lstStyle"))
     paragraph = etree.SubElement(tx_pr, aq("p"))
     props = etree.SubElement(paragraph, aq("pPr"))
@@ -375,9 +376,9 @@ def chart_txpr(size="1000"):
     return tx_pr
 
 
-def put_txpr(parent, size="1000"):
+def put_txpr(parent, size="1000", wrap="square"):
     current = parent.find(cq("txPr"))
-    fresh = chart_txpr(size)
+    fresh = chart_txpr(size, wrap)
     if current is not None:
         parent.replace(current, fresh)
         return
@@ -649,7 +650,12 @@ def style_delivery_chart(chart, left_fmt, right_fmt, skip):
         else:
             cat_ax.append(skip_node)
     skip_node.set("val", str(skip))
-    put_txpr(cat_ax)
+    auto = cat_ax.find(cq("auto"))
+    if auto is None:
+        auto = etree.Element(cq("auto"))
+        skip_node.addprevious(auto)
+    auto.set("val", "0")
+    put_txpr(cat_ax, wrap="none")
     for axis in plot.findall(cq("valAx")):
         pos = axis.find(cq("axPos"))
         side = pos.get("val") if pos is not None else "l"
@@ -706,7 +712,7 @@ def delivery_chart(slide, x, y, w, h, chart, path):
     graphic.plots[0].gap_width = 60
     add_secondary_line(graphic)
     count = len(points)
-    skip = 1 if count <= 8 else (count + 7) // 8
+    skip = max(1, (count + 7) // 8)
     style_delivery_chart(graphic, axis_format(left_axis), axis_format(right), skip)
     bottom = y + h
     note = chart.get("note")

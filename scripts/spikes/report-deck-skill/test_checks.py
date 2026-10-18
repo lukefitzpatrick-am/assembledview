@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import os
+import re
 import sys
 import zipfile
 
@@ -721,6 +722,41 @@ def chart_payload():
     }
 
 
+def tick_label_skip(point_count):
+    build = load("build_report.py")
+    data = chart_payload()
+    data["charts"][0]["points"] = [
+        [f"2026-01-{(index % 28) + 1:02d}", 0, 0] for index in range(point_count)
+    ]
+    data["charts"][0]["note"] = None
+    content = {"slides": [{
+        "type": "chart",
+        "variant": "delivery",
+        "title": "Spend is {i:\"in\"}.",
+        "chart": "charts.0",
+        "stats": [{"label": "Spend", "key": "summary.spend"}],
+        "insight": "Daily spend is in the chart.",
+    }]}
+    out = os.path.join(OUT, f"skip-{point_count}.pptx")
+    build.build(content, data, TEMPLATE, out, photos())
+    with zipfile.ZipFile(out) as archive:
+        chart = next(name for name in archive.namelist() if name.startswith("ppt/charts/chart"))
+        xml = archive.read(chart).decode("utf-8")
+    axis = re.search(r"<c:catAx>.*?</c:catAx>", xml, re.DOTALL)
+    if axis is None:
+        fail(f"{point_count}-point chart has no category axis")
+    return axis.group(0)
+
+
+def test_date_labels_skip_to_eight():
+    month = tick_label_skip(30)
+    if 'tickLblSkip val="4"' not in month or 'wrap="none"' not in month:
+        fail(f"30-point chart did not skip to 4 one-line labels: {month}")
+    campaign = tick_label_skip(105)
+    if 'tickLblSkip val="14"' not in campaign or 'wrap="none"' not in campaign:
+        fail(f"105-point chart did not skip to 14 one-line labels: {campaign}")
+
+
 def test_chart_slide_builds_and_opens():
     os.makedirs(OUT, exist_ok=True)
     build = load("build_report.py")
@@ -870,6 +906,7 @@ def main():
     test_kpi_value_drops_repeated_unit()
     test_stop_attaches_on_sans_and_serif_runs()
     test_chart_slide_builds_and_opens()
+    test_date_labels_skip_to_eight()
     test_channel_chart_renders_four_fixed_stats()
     test_recommendations_without_outcome_fail()
     test_conversion_rate_note()
