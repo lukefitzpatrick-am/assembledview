@@ -12,10 +12,9 @@ import {
 } from "@/lib/clients/platformAccountsRepo"
 import { isPlannedBasisCampaignStatus } from "@/lib/dashboard/plannedSpendConsistency"
 import { loadWebReportData } from "@/lib/webReport/data/load"
+import { cleanLayout } from "@/lib/webReport/builder/layout"
 import {
   DEFAULT_WEB_REPORT_LAYOUT,
-  isWebElementId,
-  parseElementSettings,
   type WebReportLayoutItem,
 } from "@/lib/webReport/elements"
 import { isReportPeriod, resolveReportWindows, addIsoDays, parseIsoDate, formatIsoDate, daysInMonth, type ReportPeriod, type ReportWindows } from "@/lib/webReport/periods"
@@ -63,20 +62,6 @@ async function reportsTableReady(): Promise<boolean> {
     console.warn("[web-report] could not check client_web_reports", err)
     return false
   }
-}
-
-function cleanLayout(value: unknown): WebReportLayoutItem[] | null {
-  if (!Array.isArray(value)) return null
-  const items: WebReportLayoutItem[] = []
-  for (const entry of value) {
-    if (!entry || typeof entry !== "object") return null
-    const elementId = (entry as { elementId?: unknown }).elementId
-    if (typeof elementId !== "string" || !isWebElementId(elementId)) return null
-    const parsed = parseElementSettings(elementId, (entry as { settings?: unknown }).settings)
-    if (!parsed.ok) return null
-    items.push({ elementId, settings: parsed.settings })
-  }
-  return items.length > 0 ? items : null
 }
 
 async function publishedLayout(clientId: number): Promise<{

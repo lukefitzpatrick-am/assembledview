@@ -7,6 +7,7 @@ import {
   NEEDS_DATA_ELEMENTS,
   WEB_REPORT_VERSION_KEEP,
   addElement,
+  cleanLayout,
   defaultElementSettings,
   elementNeedsData,
   moveElement,
@@ -20,6 +21,8 @@ import { describeElementSettings } from "@/lib/webReport/builder/settingsForm"
 import {
   WEB_REPORT_ELEMENTS,
   parseElementSettings,
+  resolveDisplay,
+  resolveWidth,
   type WebElementId,
   type WebReportLayoutItem,
 } from "@/lib/webReport/elements"
@@ -115,12 +118,80 @@ test("settings fields are read from the element schema", () => {
   assert.equal(elementNeedsData("kpis"), false)
   assert.equal(elementNeedsData("gscPages"), false)
   assert.equal(NEEDS_DATA_ELEMENTS.includes("gscPages"), false)
+  assert.equal(elementNeedsData("gscTrend"), true)
+  assert.equal(elementNeedsData("queryBubble"), true)
+  assert.equal(elementNeedsData("queryPositions"), true)
+  assert.equal(WEB_REPORT_ELEMENTS.gscTrend.title, "Search trend")
+  assert.equal(WEB_REPORT_ELEMENTS.queryBubble.displays[0], "bubble")
+  assert.equal(WEB_REPORT_ELEMENTS.queryPositions.displays[0], "histogram")
 })
 
 test("a saved landing element still parses", () => {
   const saved = parseLayout([{ elementId: "landing", settings: { topN: 10 } }])
   assert.equal(saved.ok, true)
   if (saved.ok) assert.equal(saved.layout[0]?.elementId, "landing")
+})
+
+test("layout display and width fall back to the element defaults", () => {
+  const bare = parseLayout([{ elementId: "traffic", settings: { bars: ["sessions"] } }])
+  assert.equal(bare.ok, true)
+  if (!bare.ok) return
+  assert.equal(bare.layout[0]?.display, undefined)
+  assert.equal(resolveDisplay(bare.layout[0]), "combo")
+  assert.equal(resolveWidth(bare.layout[0]), 12)
+
+  const kept = parseLayout([
+    { elementId: "srcmed", settings: { topN: 10, columns: ["sessions"], showChange: true, shade: false }, display: "donut", width: 4 },
+  ])
+  assert.equal(kept.ok, true)
+  if (!kept.ok) return
+  assert.equal(kept.layout[0]?.display, "donut")
+  assert.equal(kept.layout[0]?.width, 4)
+  assert.equal(resolveDisplay(kept.layout[0]), "donut")
+  assert.equal(resolveWidth(kept.layout[0]), 4)
+
+  const warnings: string[] = []
+  const original = console.warn
+  console.warn = (message?: unknown) => {
+    warnings.push(String(message))
+  }
+  try {
+    const fallback = parseLayout([
+      { elementId: "notes", settings: { text: "Hi" }, display: "donut", width: 5 },
+      { elementId: "notes", settings: { text: "Again" }, display: "donut", width: 7 },
+    ])
+    assert.equal(fallback.ok, true)
+    if (!fallback.ok) return
+    assert.equal(fallback.layout[0]?.display, undefined)
+    assert.equal(fallback.layout[0]?.width, undefined)
+    assert.equal(resolveDisplay(fallback.layout[0]), "text")
+    assert.equal(resolveWidth(fallback.layout[0]), 12)
+    assert.equal(resolveWidth({ elementId: "pages", settings: { topN: 10 }, width: 6 }), 6)
+    assert.equal(warnings.length, 3)
+  } finally {
+    console.warn = original
+  }
+
+  const preview = parseBuilderRequest({
+    action: "preview",
+    layout: [{ elementId: "notes", settings: { text: "Hi" }, display: "text", width: 12 }],
+    ga4PropertyRef: null,
+    gscSiteRef: null,
+    brandTerms: [],
+    defaultPeriod: "last_month",
+  })
+  assert.equal(preview.ok, true)
+  if (preview.ok && preview.action === "preview") {
+    assert.equal(preview.body.layout[0]?.display, "text")
+    assert.equal(preview.body.layout[0]?.width, 12)
+  }
+
+  const cleaned = cleanLayout([
+    { elementId: "kpis", settings: { tiles: [{ kind: "metric", metric: "sessions" }] }, display: "spark", width: 6, extra: true },
+  ])
+  assert.equal(cleaned?.[0]?.display, "spark")
+  assert.equal(cleaned?.[0]?.width, 6)
+  assert.equal("extra" in (cleaned?.[0] ?? {}), false)
 })
 
 test("a saved location element with empty settings still parses", () => {

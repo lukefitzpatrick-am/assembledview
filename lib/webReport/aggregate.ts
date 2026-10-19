@@ -177,13 +177,25 @@ function sumUsers(rows: Ga4SourceMediumRow[]): number | null {
   return users
 }
 
-function sourceMediumRows(rows: Ga4SourceMediumRow[]): { status: "ok" | "empty"; rows: SourceMediumRow[] } {
+function sourceMediumKey(source: string | null, medium: string | null): string {
+  return `${source ?? "(not set)"}\u0000${medium ?? "(not set)"}`
+}
+
+function sourceMediumRows(
+  rows: Ga4SourceMediumRow[],
+  previous: Ga4SourceMediumRow[] = [],
+): { status: "ok" | "empty"; rows: SourceMediumRow[] } {
   if (rows.length === 0) return { status: "empty", rows: [] }
+  const previousSessions = new Map<string, number>()
+  for (const row of previous) {
+    const key = sourceMediumKey(row.source, row.medium)
+    previousSessions.set(key, (previousSessions.get(key) ?? 0) + (row.sessions ?? 0))
+  }
   const grouped = new Map<string, { source: string; medium: string; sessions: number; engaged: number; keyEvents: number }>()
   for (const row of rows) {
     const source = row.source ?? "(not set)"
     const medium = row.medium ?? "(not set)"
-    const key = `${source}\u0000${medium}`
+    const key = sourceMediumKey(row.source, row.medium)
     const existing = grouped.get(key) ?? { source, medium, sessions: 0, engaged: 0, keyEvents: 0 }
     existing.sessions += row.sessions ?? 0
     existing.engaged += row.engagedSessions ?? 0
@@ -197,6 +209,7 @@ function sourceMediumRows(rows: Ga4SourceMediumRow[]): { status: "ok" | "empty";
       sessions: row.sessions,
       keyEvents: row.keyEvents,
       engagementRate: rate(row.engaged, row.sessions),
+      previousSessions: previousSessions.get(sourceMediumKey(row.source, row.medium)) ?? 0,
     }))
     .sort((a, b) => b.sessions - a.sessions || a.source.localeCompare(b.source))
   return { status: out.length > 0 ? "ok" : "empty", rows: out }
@@ -310,7 +323,7 @@ export function buildGa4Slice(input: {
     input.pageTitles.length > 0 ||
     cities.length > 0
   const status = freshnessStatus(input.maxDate, input.today, hasRows)
-  const medium = sourceMediumRows(currentSource)
+  const medium = sourceMediumRows(currentSource, previousSource)
   const daily = dailyGa4(input.current, currentCampaign, currentLanding)
   return {
     status,

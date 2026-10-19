@@ -23,7 +23,9 @@ function fromSource(status: SourceStatus, label: string, maxDate: string | null,
 
 export function elementViewState(id: WebElementId, data: WebReportData): ElementViewState {
   if (id === "notes") return { status: "ok", message: "" }
-  if (id === "events") return { status: "needs_report", message: "Not available yet" }
+  if (id === "events" || id === "gscTrend" || id === "queryBubble" || id === "queryPositions") {
+    return { status: "needs_report", message: "Not available yet" }
+  }
   if (id === "gscPages") return fromSource(data.gsc.pagesStatus, "Search Console", data.gsc.maxDate, data.gsc.message)
   if (id === "srcmed") {
     if (data.ga4.status === "not_connected" || data.ga4.status === "error" || data.ga4.status === "stale") {

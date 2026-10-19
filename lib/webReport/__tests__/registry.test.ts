@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { DEFAULT_WEB_REPORT_LAYOUT, parseElementSettings, WEB_REPORT_ELEMENTS } from "../elements"
+import { DEFAULT_WEB_REPORT_LAYOUT, parseElementSettings, resolveDisplay, resolveWidth, WEB_REPORT_ELEMENTS } from "../elements"
 
 describe("web report element settings", () => {
   it("accepts the built-in layout", () => {
@@ -13,6 +13,9 @@ describe("web report element settings", () => {
       const parsed = parseElementSettings(item.elementId, item.settings)
       assert.equal(parsed.ok, true, item.elementId)
       assert.ok(WEB_REPORT_ELEMENTS[item.elementId].dataNeeds.length > 0)
+      assert.ok(WEB_REPORT_ELEMENTS[item.elementId].displays.length > 0)
+      assert.equal(resolveDisplay(item), WEB_REPORT_ELEMENTS[item.elementId].displays[0])
+      assert.equal(resolveWidth(item), WEB_REPORT_ELEMENTS[item.elementId].defaultWidth)
     }
   })
 

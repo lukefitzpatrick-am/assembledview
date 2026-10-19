@@ -11,7 +11,17 @@ const connectionSchema = z.object({
   defaultPeriod: z.enum(REPORT_PERIODS),
 })
 
-const layoutSchema = z.array(z.object({ elementId: z.string(), settings: z.unknown() })).min(1).max(40)
+const layoutSchema = z
+  .array(
+    z.object({
+      elementId: z.string(),
+      settings: z.unknown(),
+      display: z.unknown().optional(),
+      width: z.unknown().optional(),
+    }),
+  )
+  .min(1)
+  .max(40)
 
 export const saveRequestSchema = connectionSchema.extend({
   action: z.literal("save"),

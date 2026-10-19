@@ -17,6 +17,8 @@ export type SourceMediumRow = {
   sessions: number
   keyEvents: number
   engagementRate: number | null
+  /** Sessions for the same source and medium in the compared window. Omitted when that window was not rolled up. */
+  previousSessions?: number
 }
 
 export type PageRow = {

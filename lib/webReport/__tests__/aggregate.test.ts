@@ -81,6 +81,7 @@ describe("GA4 and Search Console rollup", () => {
     assert.equal(slice.sourceMedium[0]?.source, "google")
     assert.equal(slice.sourceMedium[0]?.medium, "organic")
     assert.equal(slice.sourceMedium[0]?.sessions, 10)
+    assert.equal(slice.sourceMedium[0]?.previousSessions, 1)
     assert.deepEqual(slice.keyEventsByName, [{ name: "purchase", count: 5, previous: 1 }])
     assert.equal(slice.pages[0]?.page, "Join")
     assert.equal(slice.landing[0]?.page, "/join")
@@ -343,6 +344,9 @@ describe("element states", () => {
     const state = elementViewState("events", report({}))
     assert.equal(state.status, "needs_report")
     assert.equal(state.message, "Not available yet")
+    assert.equal(elementViewState("gscTrend", report({})).status, "needs_report")
+    assert.equal(elementViewState("queryBubble", report({})).message, "Not available yet")
+    assert.equal(elementViewState("queryPositions", report({})).status, "needs_report")
   })
 
   it("location follows the GA4 status", () => {

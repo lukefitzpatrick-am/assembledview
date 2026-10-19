@@ -2,12 +2,18 @@ import {
   WEB_REPORT_ELEMENTS,
   isWebElementId,
   parseElementSettings,
+  readLayoutChrome,
   type WebElementId,
   type WebReportLayoutItem,
 } from "@/lib/webReport/elements"
 
 /** Elements the MART views cannot fill yet. The library shows these as "Needs data". */
-export const NEEDS_DATA_ELEMENTS: readonly WebElementId[] = ["events"]
+export const NEEDS_DATA_ELEMENTS: readonly WebElementId[] = [
+  "events",
+  "gscTrend",
+  "queryBubble",
+  "queryPositions",
+]
 
 const NEEDS_DATA = new Set<WebElementId>(NEEDS_DATA_ELEMENTS)
 
@@ -45,6 +51,9 @@ export function defaultElementSettings(id: WebElementId): unknown {
       return { tiles: ["clicks", "impressions", "ctr", "position"] }
     case "queries":
       return { mode: "all", topN: 15 }
+    case "gscTrend":
+    case "queryBubble":
+    case "queryPositions":
     case "costPer":
       return {}
     default:
@@ -78,6 +87,28 @@ export function elementTitle(id: WebElementId): string {
   return WEB_REPORT_ELEMENTS[id].title
 }
 
+function acceptLayoutItem(
+  entry: unknown,
+): { ok: true; item: WebReportLayoutItem } | { ok: false; error: string } {
+  if (!entry || typeof entry !== "object") {
+    return { ok: false, error: "Each layout row needs an element" }
+  }
+  const row = entry as { elementId?: unknown; settings?: unknown; display?: unknown; width?: unknown }
+  if (typeof row.elementId !== "string" || !isWebElementId(row.elementId)) {
+    return { ok: false, error: "Unknown report element" }
+  }
+  const parsed = parseElementSettings(row.elementId, row.settings)
+  if (!parsed.ok) return { ok: false, error: parsed.error }
+  return {
+    ok: true,
+    item: {
+      elementId: row.elementId,
+      settings: parsed.settings,
+      ...readLayoutChrome(row.elementId, row),
+    },
+  }
+}
+
 export function parseLayout(
   value: unknown,
 ): { ok: true; layout: WebReportLayoutItem[] } | { ok: false; error: string } {
@@ -86,18 +117,27 @@ export function parseLayout(
   }
   const layout: WebReportLayoutItem[] = []
   for (const entry of value) {
-    if (!entry || typeof entry !== "object") {
-      return { ok: false, error: "Each layout row needs an element" }
-    }
-    const elementId = (entry as { elementId?: unknown }).elementId
-    if (typeof elementId !== "string" || !isWebElementId(elementId)) {
-      return { ok: false, error: "Unknown report element" }
-    }
-    const parsed = parseElementSettings(elementId, (entry as { settings?: unknown }).settings)
-    if (!parsed.ok) return { ok: false, error: parsed.error }
-    layout.push({ elementId, settings: parsed.settings })
+    const parsed = acceptLayoutItem(entry)
+    if (!parsed.ok) return parsed
+    layout.push(parsed.item)
   }
   return { ok: true, layout }
+}
+
+/**
+ * Published layouts drop a bad row by rejecting the whole array.
+ * Valid `display` and `width` are copied onto the item. Anything else is omitted
+ * and the viewer resolves the element default.
+ */
+export function cleanLayout(value: unknown): WebReportLayoutItem[] | null {
+  if (!Array.isArray(value)) return null
+  const items: WebReportLayoutItem[] = []
+  for (const entry of value) {
+    const parsed = acceptLayoutItem(entry)
+    if (!parsed.ok) return null
+    items.push(parsed.item)
+  }
+  return items.length > 0 ? items : null
 }
 
 export function planSave(currentVersion: number): { nextVersion: number; dropAtOrBelow: number | null } {

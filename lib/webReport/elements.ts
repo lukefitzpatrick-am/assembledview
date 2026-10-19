@@ -33,6 +33,29 @@ export type WebMetric = (typeof WEB_METRICS)[number]
 /** GA4 total_users summed across days. That sum is not a deduped user count. */
 export const USERS_SUM_OF_DAILY_TOOLTIP = "Users (sum of daily)"
 
+export const WEB_DISPLAYS = [
+  "tiles",
+  "spark",
+  "bullet",
+  "combo",
+  "line",
+  "area",
+  "column",
+  "calendar",
+  "table",
+  "bar",
+  "donut",
+  "treemap",
+  "waterfall",
+  "bubble",
+  "histogram",
+  "text",
+] as const
+
+export type WebDisplay = (typeof WEB_DISPLAYS)[number]
+
+export type WebWidth = 12 | 6 | 4
+
 const metricSchema = z.enum(WEB_METRICS)
 
 const kpiTileSchema = z
@@ -80,6 +103,9 @@ export const elementSettings = {
   gscPages: z.object({ topN: z.number().int().min(1).max(50) }),
   paidSpend: z.object({}).strict(),
   costPer: z.object({ eventName: z.string().trim().min(1).max(80).optional() }),
+  gscTrend: z.object({}).strict(),
+  queryBubble: z.object({}).strict(),
+  queryPositions: z.object({}).strict(),
 } as const
 
 export type WebElementId = keyof typeof elementSettings
@@ -94,6 +120,9 @@ export type WebElementDefinition<K extends WebElementId = WebElementId> = {
   group: WebElementGroup
   settings: (typeof elementSettings)[K]
   dataNeeds: readonly WebDataNeed[]
+  /** First entry is the default display. */
+  displays: readonly WebDisplay[]
+  defaultWidth: WebWidth
 }
 
 export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K> } = {
@@ -103,6 +132,8 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Headline",
     settings: elementSettings.kpis,
     dataNeeds: ["ga4", "gsc", "paid"],
+    displays: ["tiles", "spark", "bullet"],
+    defaultWidth: 12,
   },
   snapshot: {
     id: "snapshot",
@@ -110,6 +141,8 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Headline",
     settings: elementSettings.snapshot,
     dataNeeds: ["ga4", "gsc", "paid"],
+    displays: ["tiles", "spark"],
+    defaultWidth: 12,
   },
   notes: {
     id: "notes",
@@ -117,6 +150,8 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Headline",
     settings: elementSettings.notes,
     dataNeeds: ["notes"],
+    displays: ["text"],
+    defaultWidth: 12,
   },
   traffic: {
     id: "traffic",
@@ -124,6 +159,8 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Google Analytics 4",
     settings: elementSettings.traffic,
     dataNeeds: ["ga4"],
+    displays: ["combo", "line", "area", "column", "calendar"],
+    defaultWidth: 12,
   },
   srcmed: {
     id: "srcmed",
@@ -131,6 +168,8 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Google Analytics 4",
     settings: elementSettings.srcmed,
     dataNeeds: ["ga4"],
+    displays: ["table", "bar", "donut", "treemap", "waterfall"],
+    defaultWidth: 6,
   },
   pages: {
     id: "pages",
@@ -138,6 +177,8 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Google Analytics 4",
     settings: elementSettings.pages,
     dataNeeds: ["ga4"],
+    displays: ["table", "bar", "treemap"],
+    defaultWidth: 6,
   },
   landing: {
     id: "landing",
@@ -145,6 +186,8 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Google Analytics 4",
     settings: elementSettings.landing,
     dataNeeds: ["ga4"],
+    displays: ["table", "bar", "treemap"],
+    defaultWidth: 6,
   },
   location: {
     id: "location",
@@ -152,6 +195,8 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Google Analytics 4",
     settings: elementSettings.location,
     dataNeeds: ["ga4"],
+    displays: ["table", "bar"],
+    defaultWidth: 6,
   },
   events: {
     id: "events",
@@ -159,6 +204,8 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Google Analytics 4",
     settings: elementSettings.events,
     dataNeeds: ["ga4"],
+    displays: ["table", "bar"],
+    defaultWidth: 6,
   },
   gscKpi: {
     id: "gscKpi",
@@ -166,6 +213,17 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Search Console",
     settings: elementSettings.gscKpi,
     dataNeeds: ["gsc"],
+    displays: ["tiles", "spark"],
+    defaultWidth: 12,
+  },
+  gscTrend: {
+    id: "gscTrend",
+    title: "Search trend",
+    group: "Search Console",
+    settings: elementSettings.gscTrend,
+    dataNeeds: ["gsc"],
+    displays: ["line", "combo", "area", "calendar"],
+    defaultWidth: 12,
   },
   queries: {
     id: "queries",
@@ -173,6 +231,26 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Search Console",
     settings: elementSettings.queries,
     dataNeeds: ["gsc"],
+    displays: ["table", "bar"],
+    defaultWidth: 6,
+  },
+  queryBubble: {
+    id: "queryBubble",
+    title: "Query opportunities",
+    group: "Search Console",
+    settings: elementSettings.queryBubble,
+    dataNeeds: ["gsc"],
+    displays: ["bubble"],
+    defaultWidth: 6,
+  },
+  queryPositions: {
+    id: "queryPositions",
+    title: "Query positions",
+    group: "Search Console",
+    settings: elementSettings.queryPositions,
+    dataNeeds: ["gsc"],
+    displays: ["histogram"],
+    defaultWidth: 6,
   },
   gscPages: {
     id: "gscPages",
@@ -180,6 +258,8 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Search Console",
     settings: elementSettings.gscPages,
     dataNeeds: ["gsc"],
+    displays: ["table", "bar", "treemap"],
+    defaultWidth: 6,
   },
   paidSpend: {
     id: "paidSpend",
@@ -187,6 +267,8 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Paid media",
     settings: elementSettings.paidSpend,
     dataNeeds: ["paid"],
+    displays: ["tiles", "bar"],
+    defaultWidth: 6,
   },
   costPer: {
     id: "costPer",
@@ -194,12 +276,65 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     group: "Paid media",
     settings: elementSettings.costPer,
     dataNeeds: ["paid", "ga4"],
+    displays: ["tiles"],
+    defaultWidth: 6,
   },
 }
 
 export type WebReportLayoutItem = {
   elementId: WebElementId
   settings: unknown
+  display?: WebDisplay
+  width?: WebWidth
+}
+
+const warnedLayoutChrome = new Set<string>()
+
+function warnLayoutChrome(key: string, message: string) {
+  if (warnedLayoutChrome.has(key)) return
+  warnedLayoutChrome.add(key)
+  console.warn(message)
+}
+
+/** Keeps a display or width only when the element allows it. Invalid values are dropped and warned once. */
+export function readLayoutChrome(
+  elementId: WebElementId,
+  entry: { display?: unknown; width?: unknown },
+): Pick<WebReportLayoutItem, "display" | "width"> {
+  const definition = WEB_REPORT_ELEMENTS[elementId]
+  const chrome: Pick<WebReportLayoutItem, "display" | "width"> = {}
+  if (entry.display !== undefined) {
+    if (typeof entry.display === "string" && definition.displays.includes(entry.display as WebDisplay)) {
+      chrome.display = entry.display as WebDisplay
+    } else {
+      warnLayoutChrome(
+        `${elementId}:display:${String(entry.display)}`,
+        `[web-report] display ${String(entry.display)} is not allowed for ${elementId}; using ${definition.displays[0]}`,
+      )
+    }
+  }
+  if (entry.width !== undefined) {
+    if (entry.width === 12 || entry.width === 6 || entry.width === 4) {
+      chrome.width = entry.width
+    } else {
+      warnLayoutChrome(
+        `${elementId}:width:${String(entry.width)}`,
+        `[web-report] width ${String(entry.width)} is not 12, 6 or 4 for ${elementId}; using ${definition.defaultWidth}`,
+      )
+    }
+  }
+  return chrome
+}
+
+export function resolveDisplay(item: WebReportLayoutItem): WebDisplay {
+  const allowed = WEB_REPORT_ELEMENTS[item.elementId].displays
+  if (item.display && allowed.includes(item.display)) return item.display
+  return allowed[0]
+}
+
+export function resolveWidth(item: WebReportLayoutItem): WebWidth {
+  if (item.width === 12 || item.width === 6 || item.width === 4) return item.width
+  return WEB_REPORT_ELEMENTS[item.elementId].defaultWidth
 }
 
 /** Used until a client has a saved published report. */
