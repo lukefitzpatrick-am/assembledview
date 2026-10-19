@@ -10,8 +10,10 @@ import {
   CalendarHeatmap,
   ComboChart,
   DonutChart,
+  Histogram,
   HorizontalBarChart,
   LineChart,
+  ScatterChart,
   Sparkline,
   ToggleableLegend,
   TreemapChart,
@@ -120,13 +122,13 @@ function SeriesBody({ model }: { model: Extract<PreparedDisplay, { kind: "series
     >
       <div className={DELIVERY_CHART_CHANNEL_HEIGHT_CLASS}>
         {model.display === "line" ? (
-          <LineChart data={model.data} xKey="date" series={lines} showLegend={false} />
+          <LineChart data={model.data} xKey="date" series={lines} showLegend={false} className={CHART_FILL} />
         ) : null}
         {model.display === "area" ? (
-          <AreaChart data={model.data} xKey="date" series={lines.length > 0 ? lines : bars} showLegend={false} />
+          <AreaChart data={model.data} xKey="date" series={lines.length > 0 ? lines : bars} showLegend={false} className={CHART_FILL} />
         ) : null}
         {model.display === "column" ? (
-          <BarChart data={model.data} xKey="date" series={bars} showLegend={false} />
+          <BarChart data={model.data} xKey="date" series={bars} showLegend={false} className={CHART_FILL} />
         ) : null}
         {model.display === "combo" ? (
           <ComboChart
@@ -135,9 +137,96 @@ function SeriesBody({ model }: { model: Extract<PreparedDisplay, { kind: "series
             bars={bars}
             lines={lines}
             showLegend={false}
+            className={CHART_FILL}
           />
         ) : null}
       </div>
+    </Frame>
+  )
+}
+
+const CHART_FILL = "aspect-auto h-full w-full"
+
+const NUMBER = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 })
+const ONE_DP = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+
+const BRAND_SPLIT: SeriesSpec[] = [
+  { key: "nonBrand", label: "Non-brand", color: CHART_SERIES.one },
+  { key: "brand", label: "Brand", color: CHART_SERIES.two },
+]
+
+function BubbleBody({ model }: { model: Extract<PreparedDisplay, { kind: "bubble" }> }) {
+  const { legend, visible } = useSeriesHidden(BRAND_SPLIT)
+  const shown = new Set(visible(BRAND_SPLIT).map((item) => item.key))
+  const points = model.points
+    .filter((point) => shown.has(point.brand ? "brand" : "nonBrand"))
+    .map((point) => ({
+      id: point.query,
+      label: point.query,
+      x: point.x,
+      y: point.y,
+      z: point.z,
+      color: point.brand ? CHART_SERIES.two : CHART_SERIES.one,
+      detail: [
+        `Clicks ${NUMBER.format(point.clicks)}`,
+        `Impressions ${NUMBER.format(point.impressions)}`,
+        `CTR ${ONE_DP.format(point.y)}%`,
+        `Position ${ONE_DP.format(point.x)}`,
+      ],
+    }))
+  const rows = model.points.map((point) => ({
+    query: point.query,
+    brand: point.brand ? "Brand" : "Non-brand",
+    clicks: point.clicks,
+    impressions: point.impressions,
+    ctr: Number(point.y.toFixed(2)),
+    position: Number(point.x.toFixed(1)),
+  }))
+  return (
+    <Frame
+      title={model.title}
+      note={model.note}
+      legend={legend}
+      rows={rows}
+      columns={["query", "brand", "clicks", "impressions", "ctr", "position"]}
+    >
+      <div className={DELIVERY_CHART_CHANNEL_HEIGHT_CLASS}>
+        <ScatterChart
+          data={points}
+          xLabel="Position"
+          yLabel="CTR"
+          yFormat="percent"
+          xFormat="number"
+          xReversed
+          className={CHART_FILL}
+        />
+      </div>
+    </Frame>
+  )
+}
+
+function HistogramBody({ model }: { model: Extract<PreparedDisplay, { kind: "histogram" }> }) {
+  return (
+    <Frame title={model.title} note={model.note} rows={model.buckets} columns={["bucket", "queries", "clicks"]}>
+      <div className={DELIVERY_CHART_CHANNEL_HEIGHT_CLASS}>
+        <Histogram
+          data={model.buckets}
+          xKey="bucket"
+          valueKey="queries"
+          valueLabel="Queries"
+          color={CHART_SERIES.one}
+          xLabel="Average position"
+          className={CHART_FILL}
+        />
+      </div>
+      <dl className="mt-3 grid grid-cols-5 gap-2 text-xs">
+        {model.buckets.map((bucket) => (
+          <div key={bucket.bucket} className="min-w-0">
+            <dt className="text-muted-foreground">{bucket.bucket}</dt>
+            <dd className="num text-foreground">{NUMBER.format(bucket.clicks)} clicks</dd>
+          </div>
+        ))}
+      </dl>
     </Frame>
   )
 }
@@ -170,6 +259,8 @@ export function ElementDisplay({ model }: { model: PreparedDisplay }) {
     )
   }
   if (model.kind === "series") return <SeriesBody model={model} />
+  if (model.kind === "bubble") return <BubbleBody model={model} />
+  if (model.kind === "histogram") return <HistogramBody model={model} />
   if (model.kind === "calendar") {
     const rows = model.cells.map((cell) => ({ week: cell.week, day: cell.day, value: cell.value }))
     return (
@@ -221,13 +312,14 @@ export function ElementDisplay({ model }: { model: PreparedDisplay }) {
               xKey="label"
               series={[{ key: "value", label: model.valueLabel, color: CHART_SERIES.one }]}
               showLegend={false}
+              className={CHART_FILL}
             />
           ) : null}
           {model.display === "donut" ? (
-            <DonutChart data={model.rows} valueFormat="number" />
+            <DonutChart data={model.rows} valueFormat="number" className={CHART_FILL} />
           ) : null}
           {model.display === "treemap" ? (
-            <TreemapChart data={model.rows} valueFormat="number" />
+            <TreemapChart data={model.rows} valueFormat="number" className={CHART_FILL} />
           ) : null}
         </div>
       </Frame>
@@ -240,7 +332,7 @@ export function ElementDisplay({ model }: { model: PreparedDisplay }) {
       columns={["label", "value"]}
     >
       <div className={DELIVERY_CHART_CHANNEL_HEIGHT_CLASS}>
-        <WaterfallChart steps={model.steps.map((step) => ({ label: step.label, value: step.value, kind: "delta" }))} valueFormat="number" />
+        <WaterfallChart steps={model.steps.map((step) => ({ label: step.label, value: step.value, kind: "delta" }))} valueFormat="number" className={CHART_FILL} />
       </div>
     </Frame>
   )

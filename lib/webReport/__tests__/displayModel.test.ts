@@ -5,12 +5,14 @@ import {
   calendarFromDaily,
   columnSpanClass,
   donutSlices,
+  positionBuckets,
   prepareWebElement,
+  queryBubblePoints,
   renderableDisplay,
   waterfallSteps,
 } from "@/lib/webReport/displayModel"
 import type { WebReportLayoutItem } from "@/lib/webReport/elements"
-import { emptyTotals, type DailyPoint, type SourceMediumRow, type WebReportData } from "@/lib/webReport/types"
+import { emptyTotals, type DailyPoint, type QueryRow, type SourceMediumRow, type WebReportData } from "@/lib/webReport/types"
 
 function point(date: string, sessions: number | null): DailyPoint {
   return { date, sessions, pageViews: sessions, keyEvents: sessions, clicks: null, impressions: null }
@@ -173,5 +175,94 @@ describe("web report display model", () => {
     const calendar = calendarFromDaily([{ date: "2026-09-07", value: 5 }])
     assert.equal(new Date("2026-09-07T00:00:00Z").getUTCDay(), 1)
     assert.deepEqual(calendar.cells[0], { week: 0, day: 0, value: 1 })
+  })
+})
+
+const query = (name: string, impressions: number, clicks: number, position: number | null, brand = false): QueryRow => ({
+  query: name,
+  brand,
+  clicks,
+  impressions,
+  ctr: impressions > 0 ? clicks / impressions : null,
+  position,
+})
+
+function gscPoint(date: string, clicks: number | null, impressions: number | null): DailyPoint {
+  return { date, sessions: null, pageViews: null, keyEvents: null, clicks, impressions }
+}
+
+describe("search trend, query opportunities and query positions", () => {
+  const daily = [gscPoint("2026-09-01", 3, 40), gscPoint("2026-09-02", null, 55)]
+
+  it("maps Search Console daily rows onto the trend displays", () => {
+    const data = report({ gsc: { ...report().gsc, daily } })
+    const line = prepareWebElement({ elementId: "gscTrend", settings: {} }, data)
+    assert.equal(line.kind, "series")
+    if (line.kind === "series") {
+      assert.equal(line.display, "line")
+      assert.deepEqual(line.data, [
+        { date: "2026-09-01", clicks: 3, impressions: 40 },
+        { date: "2026-09-02", clicks: 0, impressions: 55 },
+      ])
+      assert.deepEqual(line.lines.map((item) => item.key), ["clicks", "impressions"])
+    }
+    const combo = prepareWebElement({ elementId: "gscTrend", settings: {}, display: "combo" }, data)
+    assert.equal(combo.kind, "series")
+    if (combo.kind === "series") {
+      assert.deepEqual(combo.bars.map((item) => item.key), ["impressions"])
+      assert.deepEqual(combo.lines.map((item) => item.key), ["clicks"])
+    }
+    const calendar = prepareWebElement({ elementId: "gscTrend", settings: {}, display: "calendar" }, data)
+    assert.equal(calendar.kind, "calendar")
+    if (calendar.kind === "calendar") assert.equal(calendar.cells.length, 1)
+  })
+
+  it("plots the top 30 queries by impressions with CTR in percent and the weighted position", () => {
+    const rows = [
+      ...Array.from({ length: 32 }, (_, index) => query(`q${String(index).padStart(2, "0")}`, 100 + index, 10, 5.5)),
+      query("no position", 9999, 1, null),
+    ]
+    const points = queryBubblePoints(rows)
+    assert.equal(points.length, 30)
+    assert.equal(points[0]?.query, "q31")
+    assert.equal(points.some((point) => point.query === "no position"), false)
+    assert.equal(points[0]?.x, 5.5)
+    assert.equal(points[0]?.z, 131)
+    assert.ok(Math.abs((points[0]?.y ?? 0) - (10 / 131) * 100) < 1e-9)
+  })
+
+  it("keeps brand queries flagged for the second series colour", () => {
+    const data = report({ gsc: { ...report().gsc, queries: [query("brand name", 50, 20, 1.2, true), query("generic", 80, 4, 8)] } })
+    const bubble = prepareWebElement({ elementId: "queryBubble", settings: {} }, data)
+    assert.equal(bubble.kind, "bubble")
+    if (bubble.kind === "bubble") {
+      assert.deepEqual(bubble.points.map((point) => [point.query, point.brand]), [["generic", false], ["brand name", true]])
+    }
+  })
+
+  it("buckets positions at the edges 3, 4, 50 and 51", () => {
+    const buckets = positionBuckets([
+      query("a", 10, 1, 3),
+      query("b", 10, 2, 4),
+      query("c", 10, 3, 50),
+      query("d", 10, 4, 51),
+      query("e", 10, 5, 10.4),
+      query("f", 10, 6, null),
+    ])
+    assert.deepEqual(buckets, [
+      { bucket: "1-3", queries: 1, clicks: 1 },
+      { bucket: "4-10", queries: 2, clicks: 7 },
+      { bucket: "11-20", queries: 0, clicks: 0 },
+      { bucket: "21-50", queries: 1, clicks: 3 },
+      { bucket: "51+", queries: 1, clicks: 4 },
+    ])
+  })
+
+  it("shows the empty message when Search Console returned no rows", () => {
+    for (const elementId of ["gscTrend", "queryBubble", "queryPositions"] as const) {
+      const prepared = prepareWebElement({ elementId, settings: {} }, report())
+      assert.equal(prepared.kind, "message")
+      if (prepared.kind === "message") assert.equal(prepared.message, "No rows in this period.")
+    }
   })
 })

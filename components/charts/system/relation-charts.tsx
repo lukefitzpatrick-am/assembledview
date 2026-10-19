@@ -17,7 +17,24 @@ import { fmt, NEUTRAL } from '@/lib/chart-theme';
 const axisProps = { tickLine: false, axisLine: false, tick: { fontSize: 11, fill: NEUTRAL.axis } } as const;
 const colorAt = (i: number, c?: string) => c ?? `var(--av-chart-${(i % 8) + 1})`;
 
-export interface ScatterPoint { x: number; y: number; z?: number; label?: string; color?: string; id?: string }
+export interface ScatterPoint {
+  x: number; y: number; z?: number; label?: string; color?: string; id?: string;
+  /** Tooltip lines under the label. When any point has them, the tooltip shows label + lines. */
+  detail?: string[];
+}
+
+function PointDetailTooltip({ active, payload }: { active?: boolean; payload?: { payload?: ScatterPoint }[] }) {
+  const point = payload?.[0]?.payload;
+  if (!active || !point) return null;
+  return (
+    <div className="rounded-input border border-border bg-card px-2.5 py-1.5 text-xs shadow-e2">
+      {point.label ? <div className="font-medium text-foreground">{point.label}</div> : null}
+      {(point.detail ?? []).map((line) => (
+        <div key={line} className="num text-muted-foreground">{line}</div>
+      ))}
+    </div>
+  );
+}
 
 export type ScatterQuadrantLabels = {
   /** High x, high y */
@@ -33,9 +50,11 @@ export type ScatterQuadrantLabels = {
 /** Scatter / bubble — two metrics + optional size (CPA vs ROAS, bubble = spend). */
 export function ScatterChart({
   data, xLabel, yLabel, xFormat = 'compact', yFormat = 'compact', className,
-  xReference, yReference, quadrantLabels, onPointClick,
+  xReference, yReference, quadrantLabels, onPointClick, xReversed = false,
 }: {
   data: ScatterPoint[];
+  /** Low x on the right, e.g. search position where 1 is best. */
+  xReversed?: boolean;
   xLabel?: string;
   yLabel?: string;
   xFormat?: 'compact' | 'dollars' | 'percent' | 'number';
@@ -60,7 +79,7 @@ export function ScatterChart({
     <ChartContainer config={{ point: { label: 'Series' } }} className={className}>
       <RScatterChart margin={{ top: showQuadrants ? 28 : 8, right: 14, left: 4, bottom: xLabel ? 18 : 4 }}>
         <CartesianGrid vertical={false} />
-        <XAxis type="number" dataKey="x" tickFormatter={vf[xFormat]} {...axisProps}
+        <XAxis type="number" dataKey="x" reversed={xReversed} tickFormatter={vf[xFormat]} {...axisProps}
           label={xLabel ? { value: xLabel, position: 'insideBottom', offset: -8, fontSize: 10, fill: NEUTRAL.axis } : undefined} />
         <YAxis type="number" dataKey="y" width={40} tickFormatter={vf[yFormat]} {...axisProps}
           label={yLabel ? { value: yLabel, angle: -90, position: 'insideLeft', fontSize: 10, fill: NEUTRAL.axis } : undefined} />
@@ -103,7 +122,10 @@ export function ScatterChart({
             />
           </>
         ) : null}
-        <ChartTooltip cursor={{ strokeDasharray: '3 3' }} content={<ChartTooltipContent hideLabel />} />
+        <ChartTooltip
+          cursor={{ strokeDasharray: '3 3' }}
+          content={data.some((p) => p.detail && p.detail.length > 0) ? <PointDetailTooltip /> : <ChartTooltipContent hideLabel />}
+        />
         <Scatter
           data={data}
           isAnimationActive={false}

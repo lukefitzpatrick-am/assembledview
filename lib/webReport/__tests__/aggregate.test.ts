@@ -344,9 +344,14 @@ describe("element states", () => {
     const state = elementViewState("events", report({}))
     assert.equal(state.status, "needs_report")
     assert.equal(state.message, "Not available yet")
-    assert.equal(elementViewState("gscTrend", report({})).status, "needs_report")
-    assert.equal(elementViewState("queryBubble", report({})).message, "Not available yet")
-    assert.equal(elementViewState("queryPositions", report({})).status, "needs_report")
+  })
+
+  it("search trend, query opportunities and query positions follow the Search Console status", () => {
+    assert.equal(elementViewState("gscTrend", report({})).status, "ok")
+    assert.equal(elementViewState("queryBubble", report({ gsc: { status: "not_connected" } })).message, "Not connected yet")
+    const stale = elementViewState("queryPositions", report({ gsc: { status: "stale", maxDate: "2026-10-01" } }))
+    assert.equal(stale.status, "stale")
+    assert.match(stale.message, /Search Console data stopped on/)
   })
 
   it("location follows the GA4 status", () => {

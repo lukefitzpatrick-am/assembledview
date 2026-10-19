@@ -338,10 +338,10 @@ export function ComboChart({
 
 /** Distribution of a continuous value — bars with no gap. */
 export function Histogram({
-  data, xKey, valueKey = 'count', color = 'var(--av-chart-2)', xLabel, className,
-}: { data: Datum[]; xKey: string; valueKey?: string; color?: string; xLabel?: string; className?: string }) {
+  data, xKey, valueKey = 'count', valueLabel = 'Count', color = 'var(--av-chart-2)', xLabel, className,
+}: { data: Datum[]; xKey: string; valueKey?: string; valueLabel?: string; color?: string; xLabel?: string; className?: string }) {
   return (
-    <ChartContainer config={{ [valueKey]: { label: 'Count', color } }} className={className}>
+    <ChartContainer config={{ [valueKey]: { label: valueLabel, color } }} className={className}>
       <RBarChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: xLabel ? 20 : 4 }} barCategoryGap={1}>
         <CartesianGrid vertical={false} />
         <XAxis dataKey={xKey} {...axisProps}

@@ -55,6 +55,21 @@ export type PreparedDisplay =
   | { kind: "table"; title: string; headers: string[]; rows: { key: string; cells: PreparedTableCell[] }[]; note?: string }
   | { kind: "ranked"; title: string; display: "bar" | "donut" | "treemap"; rows: { label: string; value: number }[]; valueLabel: string; note?: string }
   | { kind: "waterfall"; title: string; steps: { label: string; value: number }[] }
+  | { kind: "bubble"; title: string; points: QueryBubblePoint[]; note: string }
+  | { kind: "histogram"; title: string; buckets: PositionBucket[]; note: string }
+
+/** x is position (plotted on a reversed axis so 1 is on the right), y is CTR in percent, z is impressions. */
+export type QueryBubblePoint = {
+  query: string
+  brand: boolean
+  x: number
+  y: number
+  z: number
+  clicks: number
+  impressions: number
+}
+
+export type PositionBucket = { bucket: string; queries: number; clicks: number }
 
 const METRIC_LABEL: Record<WebMetric, string> = {
   users: "Users",
@@ -312,6 +327,57 @@ function searchPageRows(rows: SearchPageRow[], topN: number) {
   }))
 }
 
+export const QUERY_BUBBLE_LIMIT = 30
+
+/** Top queries by impressions. Position is the impression-weighted average the reader already returns. */
+export function queryBubblePoints(rows: QueryRow[], limit = QUERY_BUBBLE_LIMIT): QueryBubblePoint[] {
+  return rows
+    .filter((row) => row.position != null && row.impressions > 0)
+    .toSorted((a, b) => b.impressions - a.impressions || a.query.localeCompare(b.query))
+    .slice(0, limit)
+    .map((row) => ({
+      query: row.query,
+      brand: row.brand,
+      x: row.position as number,
+      y: (row.ctr ?? row.clicks / row.impressions) * 100,
+      z: row.impressions,
+      clicks: row.clicks,
+      impressions: row.impressions,
+    }))
+}
+
+const POSITION_BUCKETS: { bucket: string; max: number }[] = [
+  { bucket: "1-3", max: 3 },
+  { bucket: "4-10", max: 10 },
+  { bucket: "11-20", max: 20 },
+  { bucket: "21-50", max: 50 },
+  { bucket: "51+", max: Number.POSITIVE_INFINITY },
+]
+
+/** Average positions are rounded to the nearest whole position before bucketing. */
+export function positionBuckets(rows: QueryRow[]): PositionBucket[] {
+  const buckets = POSITION_BUCKETS.map((item) => ({ bucket: item.bucket, queries: 0, clicks: 0 }))
+  for (const row of rows) {
+    if (row.position == null || !Number.isFinite(row.position)) continue
+    const rounded = Math.max(1, Math.round(row.position))
+    const index = POSITION_BUCKETS.findIndex((item) => rounded <= item.max)
+    buckets[index].queries += 1
+    buckets[index].clicks += row.clicks
+  }
+  return buckets
+}
+
+function gscSeries(data: WebReportData): Record<string, string | number>[] {
+  return data.gsc.daily.map((point) => ({
+    date: point.date,
+    clicks: point.clicks ?? 0,
+    impressions: point.impressions ?? 0,
+  }))
+}
+
+const GSC_CLICKS: SeriesSpec = { key: "clicks", label: "Clicks", color: CHART_SERIES.one }
+const GSC_IMPRESSIONS: SeriesSpec = { key: "impressions", label: "Impressions", color: CHART_SERIES.two }
+
 function cityTable(rows: CityRow[], topN: number) {
   const unset = rows.find((row) => row.city === "(not set)")
   const ranked = rows.filter((row) => row.city !== "(not set)").slice(0, topN)
@@ -419,6 +485,43 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
     if (points.length === 0) return emptyMessage(title)
     const calendar = calendarFromDaily(points)
     return { kind: "calendar", title, ...calendar }
+  }
+
+  if (id === "gscTrend") {
+    const hasDaily = data.gsc.daily.some((point) => point.clicks != null || point.impressions != null)
+    if (!hasDaily) return emptyMessage(title)
+    if (display === "calendar") {
+      const points = data.gsc.daily.flatMap((point) => (point.clicks == null ? [] : [{ date: point.date, value: point.clicks }]))
+      if (points.length === 0) return emptyMessage(title)
+      return { kind: "calendar", title, ...calendarFromDaily(points) }
+    }
+    if (display === "combo") {
+      return { kind: "series", title, display, data: gscSeries(data), bars: [GSC_IMPRESSIONS], lines: [GSC_CLICKS] }
+    }
+    const chart = display === "area" ? "area" : "line"
+    return { kind: "series", title, display: chart, data: gscSeries(data), bars: [], lines: [GSC_CLICKS, GSC_IMPRESSIONS] }
+  }
+
+  if (id === "queryBubble") {
+    const points = queryBubblePoints(data.gsc.queries)
+    if (points.length === 0) return emptyMessage(title)
+    return {
+      kind: "bubble",
+      title,
+      points,
+      note: `Top ${QUERY_BUBBLE_LIMIT} queries by impressions. Bubble size is impressions. Position is the impression-weighted average.`,
+    }
+  }
+
+  if (id === "queryPositions") {
+    const buckets = positionBuckets(data.gsc.queries)
+    if (buckets.every((bucket) => bucket.queries === 0)) return emptyMessage(title)
+    return {
+      kind: "histogram",
+      title,
+      buckets,
+      note: "Queries by average position, rounded to the nearest whole position.",
+    }
   }
 
   if (id === "srcmed") {

@@ -23,9 +23,7 @@ function fromSource(status: SourceStatus, label: string, maxDate: string | null,
 
 export function elementViewState(id: WebElementId, data: WebReportData): ElementViewState {
   if (id === "notes") return { status: "ok", message: "" }
-  if (id === "events" || id === "gscTrend" || id === "queryBubble" || id === "queryPositions") {
-    return { status: "needs_report", message: "Not available yet" }
-  }
+  if (id === "events") return { status: "needs_report", message: "Not available yet" }
   if (id === "gscPages") return fromSource(data.gsc.pagesStatus, "Search Console", data.gsc.maxDate, data.gsc.message)
   if (id === "srcmed") {
     if (data.ga4.status === "not_connected" || data.ga4.status === "error" || data.ga4.status === "stale") {
@@ -36,7 +34,7 @@ export function elementViewState(id: WebElementId, data: WebReportData): Element
     }
     return fromSource(data.ga4.sourceMediumStatus, "Google Analytics 4", data.ga4.maxDate, data.ga4.message)
   }
-  if (id === "queries" || id === "gscKpi") {
+  if (id === "queries" || id === "gscKpi" || id === "gscTrend" || id === "queryBubble" || id === "queryPositions") {
     return fromSource(data.gsc.status, "Search Console", data.gsc.maxDate, data.gsc.message)
   }
   if (id === "paidSpend") return fromSource(data.paid.status, "Paid media", null, data.paid.message)
