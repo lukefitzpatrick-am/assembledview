@@ -35,6 +35,26 @@ describe("previewSourceHash", () => {
     assert.equal(canonicalPreviewUrl(a), "/tos-alisg-p-0037/abc123~tplv-noop.image?biz_tag=tt_video")
   })
 
+  it("gives two syncs of the same TikTok video cover the same hash", () => {
+    const a =
+      "http://p16-sign-sg.tiktokcdn.com/tos-alisg-p-0051c001-sg/oMltZGVkATAiP8a5rzlG42kHBaIME4YA5B8iU~tplv-noop.image?dr=18692&refresh_token=b0939911&x-expires=1792454723&x-signature=7NFpEWaJMYmiaNwh0myPO%2FFcTLQ%3D&t=9276707c&ps=14f1eb3e&shp=9e36835a&shcp=623c3a84&idc=my2&VideoID=v10033g50000d4r6n57og65s61v0ddi0"
+    const b =
+      "http://p19-sign-sg.tiktokcdn.com/tos-alisg-p-0051c001-sg/oMltZGVkATAiP8a5rzlG42kHBaIME4YA5B8iU~tplv-noop.image?dr=18693&refresh_token=c1a4e702&x-expires=1792541123&x-signature=Qw9ZzR2bN1kLm0pXyVtUuS3aBcD%3D&t=8a1c33d0&ps=27b0aa91&shp=1f00c2d4&shcp=55aa0b19&idc=sg1&VideoID=v10033g50000d4r6n57og65s61v0ddi0"
+    assert.equal(previewSourceHash(a), previewSourceHash(b))
+    assert.equal(
+      canonicalPreviewUrl(a),
+      "/tos-alisg-p-0051c001-sg/oMltZGVkATAiP8a5rzlG42kHBaIME4YA5B8iU~tplv-noop.image?VideoID=v10033g50000d4r6n57og65s61v0ddi0",
+    )
+  })
+
+  it("keeps two different TikTok covers apart", () => {
+    const a =
+      "http://p16-sign-sg.tiktokcdn.com/tos-alisg-p-0051c001-sg/oMltZGVkATAiP8a5rzlG42kHBaIME4YA5B8iU~tplv-noop.image?refresh_token=b0939911&VideoID=v10033g50000d4r6n57og65s61v0ddi0"
+    const b =
+      "http://p16-sign-sg.tiktokcdn.com/tos-alisg-p-0051c001-sg/oomN4IEE8hmXqhQPDfj0GrgEDfAvFBCL4B8qRI~tplv-noop.image?refresh_token=b0939911&VideoID=v10033g50000d8ghht7og65s9nvjgbj0"
+    assert.notEqual(previewSourceHash(a), previewSourceHash(b))
+  })
+
   it("returns null for a value that is not an http(s) URL", () => {
     assert.equal(previewSourceHash("not a url"), null)
     assert.equal(previewSourceHash("ftp://scontent.xx.fbcdn.net/a.jpg"), null)

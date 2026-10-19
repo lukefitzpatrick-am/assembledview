@@ -3,7 +3,9 @@ import { createHash } from "node:crypto"
 /**
  * Query parameters that change when Meta or TikTok re-sign the same image.
  * Meta: oe (expiry), oh (signature), ccb, stp and every _nc_* edge/cache hint.
- * TikTok: x-expires, x-signature and the per-request nonce/policy/log params.
+ * TikTok: x-expires, x-signature and the per-request nonce/policy/log params,
+ * plus the per-sync refresh_token, t, ps, shp, shcp, idc and dr parameters on
+ * video cover URLs. VideoID and the path stay, so a cover keeps one identity.
  */
 const VOLATILE_PARAMS = new Set([
   "oe",
@@ -17,6 +19,13 @@ const VOLATILE_PARAMS = new Set([
   "policy",
   "nonce",
   "l",
+  "refresh_token",
+  "t",
+  "ps",
+  "shp",
+  "shcp",
+  "idc",
+  "dr",
 ])
 
 function isVolatileParam(name: string): boolean {
