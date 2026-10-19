@@ -20,7 +20,7 @@ Web application for **media planning**, **client dashboards**, **campaign pacing
 - **Framework**: Next.js **15**, React **18**, TypeScript
 - **UI**: Tailwind CSS, Radix UI primitives, shadcn-style components (`components/ui`)
 - **Auth**: `@auth0/nextjs-auth0` v4 ([lib/auth0.ts](lib/auth0.ts), [middleware.ts](middleware.ts))
-- **Data**: [snowflake-sdk](https://www.npmjs.com/package/snowflake-sdk) ([lib/snowflake/pool.ts](lib/snowflake/pool.ts)); outbound HTTP to **Xano** API groups ([lib/api.ts](lib/api.ts), [app/api](app/api))
+- **Data**: Supabase Postgres ([db/](db/)); [snowflake-sdk](https://www.npmjs.com/package/snowflake-sdk) ([lib/snowflake/pool.ts](lib/snowflake/pool.ts))
 
 ---
 

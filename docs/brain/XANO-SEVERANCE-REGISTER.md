@@ -1,5 +1,9 @@
 # Xano Severance Register
 
+## Closed October 2026
+
+Vault copy done (1,899 files, 0 failures, marker `xs3_vault_to_blob`). `lib/api.ts` env reads removed (`387844dc`). Snapshot cron Postgres-only (`506c014e`). Migration scripts archived (`42321935`). Dead helpers removed (`254295e8`). Xano env vars to be removed from Vercel. Xano subscription to be cancelled.
+
 Living inventory of every Next.js surface that still depends on Xano. Built by X-AUDIT-1 (report-only). Source audit `av-review/xano-severance-audit-2026-08-02.md` was **not present in the repo** — structure and X1–X8 owner prompts below are synthesized from grepped call graphs + brain T6 checklist; replace if the audit file is restored.
 
 **Scope (HEAD re-audit):** every file under `app/`, `lib/`, `components/`, and `scripts/` that imports `lib/api/xano`, `lib/api/xanoClients`, `lib/api/xanoPagination`, `lib/xano/*`, or reads `process.env.XANO*`, or contains `xano.io`. `components/` matched **0** files. `scripts/_archive/xano/` is historical and excluded from the live inclusion set. §1, §5, and §7 below are the August record and were not re-audited. XS-1 removed `lib/data/mirrorToXano`.
