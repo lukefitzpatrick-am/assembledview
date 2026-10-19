@@ -10,13 +10,19 @@ export type FinanceSectionNavItem = {
   description: string
 }
 
-/** Four top-level sidebar items under FINANCE (FIN-1). */
+/** Sidebar items under FINANCE (FIN-1). Billing partner sits beside Clients billing. */
 export const FINANCE_SECTION_SIDEBAR_ITEMS: readonly FinanceSectionNavItem[] = [
   {
     path: "/finance/invoicing",
     label: "Clients billing",
     legacyTab: "billing",
     description: "To bill, In Xero, owed, exceptions, and periods",
+  },
+  {
+    path: "/finance/billing-partner",
+    label: "Billing partner",
+    legacyTab: "billing-partner",
+    description: "Advertising Associates packs for the billing month",
   },
   {
     path: "/finance/costs",
@@ -91,6 +97,7 @@ export const FINANCE_SECTION_PILL_ITEMS: readonly FinanceSectionNavItem[] = [
 export const FINANCE_SECTION_PAGE_PATHS = [
   "/finance/home",
   "/finance/invoicing",
+  "/finance/billing-partner",
   "/finance/owed",
   "/finance/in-xero",
   "/finance/periods",

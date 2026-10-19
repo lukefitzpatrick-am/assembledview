@@ -127,6 +127,7 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
     label: "Finance",
     paths: [
       "/finance/invoicing",
+      "/finance/billing-partner",
       "/finance/costs",
       "/finance/forecasting",
       "/finance/investment",
@@ -690,6 +691,17 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     roles: ["admin"],
     group: "finance",
     searchTerms: "billing receivables invoicing clients billing finance to bill",
+  },
+  {
+    path: "/finance/billing-partner",
+    label: "Billing partner",
+    title: "Finance · Billing partner",
+    icon: "FileText",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "billing partner advertising associates aa pack",
   },
   {
     path: "/finance/owed",
