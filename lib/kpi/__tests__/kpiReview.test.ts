@@ -183,7 +183,21 @@ describe("buildKpiReview targets", () => {
     assert.equal(shouldShowKpiReview(client, false), false)
   })
 
-  it("keeps a mixed card's rows and still gates clients on any saved or benchmark target", () => {
+  it("shows the review only for an admin when any card has a target", () => {
+    const cards = buildKpiReview({
+      groups: [socialGroup()],
+      lineItemTargets: targets([
+        kpi({ mba_number: "BICAU002", line_item_id: "bicau002sm1", ctr: 0.02 }),
+      ]),
+      isAdmin: false,
+    })
+    assert.equal(cards[0]?.noTargets, false)
+    assert.equal(shouldShowKpiReview(cards, false), false)
+    assert.equal(shouldShowKpiReview(cards, true), true)
+    assert.equal(shouldShowKpiReview([], true), false)
+  })
+
+  it("keeps a mixed card's rows and still hides the section from non-admins", () => {
     const mixed = buildKpiReview({
       groups: [
         socialGroup({
@@ -205,7 +219,8 @@ describe("buildKpiReview targets", () => {
     })
     assert.equal(mixed.find((c) => c.key === "social-meta")?.noTargets, false)
     assert.equal(mixed.find((c) => c.key === "bvod")?.noTargets, true)
-    assert.equal(shouldShowKpiReview(mixed, false), true)
+    assert.equal(shouldShowKpiReview(mixed, false), false)
+    assert.equal(shouldShowKpiReview(mixed, true), true)
   })
 })
 
@@ -540,7 +555,8 @@ describe("CPV is a plan rate, not an entered target", () => {
     assert.equal(row?.status, "ahead")
     assert.equal(row?.omitted, false)
     assert.equal(cards[0]?.noTargets, false)
-    assert.equal(shouldShowKpiReview(cards, false), true)
+    assert.equal(shouldShowKpiReview(cards, false), false)
+    assert.equal(shouldShowKpiReview(cards, true), true)
   })
 
   it("derives CPV from planned spend ÷ planned views for a cpm-bought video channel", () => {

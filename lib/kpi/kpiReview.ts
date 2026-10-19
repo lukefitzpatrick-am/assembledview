@@ -679,9 +679,8 @@ export function shouldShowKpiReview(
   cards: readonly KpiReviewCard[],
   isAdmin: boolean,
 ): boolean {
-  if (cards.length === 0) return false
-  if (isAdmin) return true
-  return cards.some((card) => !card.noTargets)
+  if (!isAdmin) return false
+  return cards.length > 0
 }
 
 export function kpiReviewGroupsIdentity(groups: readonly KpiReviewGroup[]): string {

@@ -41,8 +41,11 @@ describe("CampaignPageAssembly section order", () => {
     }
   })
 
-  it("gates the KPI review for clients via shouldShowKpiReview", () => {
-    expect(source).toContain("shouldShowKpiReview")
+  it("renders KPI review only for admins", () => {
+    expect(source).toContain("isAdmin && shouldShowKpiReview(kpiReviewCards, true)")
+    expect(source).toContain("if (!isAdmin) return []")
+    expect(source).toContain("if (!props.isAdmin) return")
+    expect(source).toContain("onKpiReviewGroups: isAdmin ? handleKpiReviewGroups : undefined")
     expect(source).toContain("planEditHref")
     expect(source).toContain("#builder-section-kpis")
   })

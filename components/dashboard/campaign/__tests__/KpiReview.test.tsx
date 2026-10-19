@@ -68,7 +68,7 @@ describe("KpiReview", () => {
     expect(html).not.toContain("Admin preview")
   })
 
-  it("hides omitted no-target rows from clients and greys them for admins", () => {
+  it("hides omitted no-target rows on a non-admin mount and greys them for admins", () => {
     const client = renderToStaticMarkup(<KpiReview cards={[CARD]} isAdmin={false} />)
     expect(client).toContain("CTR")
     expect(client).not.toContain("Conv. Rate")
@@ -134,7 +134,7 @@ describe("KpiReview", () => {
     expect(html).not.toContain("KPI targets pending.")
   })
 
-  it("replaces an all-empty card with a pending line for clients", () => {
+  it("keeps a pending line on a non-admin mount the campaign page no longer uses", () => {
     const html = renderToStaticMarkup(<KpiReview cards={[EMPTY_CARD]} isAdmin={false} />)
     expect(html).toContain("KPI targets pending.")
     expect(html).not.toContain("Set targets on the media plan")

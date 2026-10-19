@@ -289,11 +289,12 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     setCoverage(entries)
   }, [])
   const handleKpiReviewGroups = useCallback((groups: KpiReviewGroup[]) => {
+    if (!props.isAdmin) return
     const nextKey = kpiReviewGroupsIdentity(groups)
     if (prevKpiReviewIdentityRef.current === nextKey) return
     prevKpiReviewIdentityRef.current = nextKey
     setKpiReviewGroups(groups)
-  }, [])
+  }, [props.isAdmin])
   const handleDeliveredByLineId = useCallback((next: Map<string, number>) => {
     const nextKey = deliveredByLineIdIdentity(next)
     if (prevDeliveredIdentityRef.current === nextKey) return
@@ -518,15 +519,14 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     [savedCampaignKPIs],
   )
 
-  const kpiReviewCards = useMemo(
-    () =>
-      buildKpiReview({
-        groups: kpiReviewGroups,
-        lineItemTargets,
-        isAdmin: Boolean(isAdmin),
-      }),
-    [isAdmin, kpiReviewGroups, lineItemTargets],
-  )
+  const kpiReviewCards = useMemo(() => {
+    if (!isAdmin) return []
+    return buildKpiReview({
+      groups: kpiReviewGroups,
+      lineItemTargets,
+      isAdmin: true,
+    })
+  }, [isAdmin, kpiReviewGroups, lineItemTargets])
 
   const heroCampaign = useMemo(
     () => ({
@@ -718,7 +718,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     campaignEndISO,
     asOfISO: deliveredAsOf,
     onCoverage: handleCoverage,
-    onKpiReviewGroups: handleKpiReviewGroups,
+    onKpiReviewGroups: isAdmin ? handleKpiReviewGroups : undefined,
     onDeliveredByLineId: handleDeliveredByLineId,
     isAdmin: Boolean(isAdmin),
     feePctsByVersionId,
@@ -841,7 +841,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         </section>
       ) : null}
 
-      {shouldShowKpiReview(kpiReviewCards, Boolean(isAdmin)) ? (
+      {isAdmin && shouldShowKpiReview(kpiReviewCards, true) ? (
         <section className="mt-6">
           <SectionBoundary title="KPI review">
             <div className="campaign-section-enter" style={{ animationDelay: "150ms" }}>
