@@ -10,6 +10,7 @@ import {
   selectDueAaPlans,
   type PackMembership,
   type PublishedAaCandidate,
+  type PublishedVersionRef,
   type ScheduleMonthCell,
 } from "@/lib/finance/billingPartner/duePlans"
 
@@ -37,6 +38,20 @@ function candidate(
     publishedBy: "planner@assembledmedia.com.au",
     firstPublishedAt: publishedAt,
     isAaPlan: true,
+    ...overrides,
+  }
+}
+
+function published(
+  versionId: number,
+  versionNumber: number,
+  overrides: Partial<PublishedVersionRef> = {},
+): PublishedVersionRef {
+  return {
+    versionId,
+    versionNumber,
+    mbaNumber: "MBA1",
+    masterId: 10,
     ...overrides,
   }
 }
@@ -289,6 +304,132 @@ test("a publish on the 18th of the billing month is due the following month", ()
   assert.deepEqual(november, [])
   assert.equal(december.length, 1)
   assert.equal(december[0]?.versionId, 1)
+})
+
+test("an amended plan with no sent pack compares with the previous published version", () => {
+  const due = selectDueAaPlans({
+    billingMonth: BILLING_MONTH,
+    versions: [
+      candidate({
+        versionId: 60,
+        versionNumber: 6,
+        firstPublishedAt: "2026-08-01T02:00:00.000Z",
+      }),
+    ],
+    packs: [],
+    publishedVersions: [published(30, 3), published(50, 5), published(60, 6)],
+    scheduleMonths: [
+      cell({ versionId: 60, month: "2026-10-01", amountCents: 10000 }),
+      cell({ versionId: 60, month: "2026-11-01", amountCents: 20000 }),
+      cell({ versionId: 50, month: "2026-10-01", amountCents: 5000 }),
+      cell({ versionId: 50, month: "2026-11-01", amountCents: 20000 }),
+      cell({ versionId: 30, month: "2026-10-01", amountCents: 1 }),
+      cell({ versionId: 30, month: "2026-11-01", amountCents: 1 }),
+    ],
+  })
+
+  assert.equal(due.length, 1)
+  assert.equal(due[0]?.changeKind, "amended")
+  assert.deepEqual(due[0]?.comparedTo, { versionNumber: 5, basis: "previous_published" })
+  assert.deepEqual(due[0]?.monthsChanged, ["2026-10"])
+  assert.equal(due[0]?.backDated, true)
+})
+
+test("a sent pack wins over the previous published version", () => {
+  const due = selectDueAaPlans({
+    billingMonth: BILLING_MONTH,
+    versions: [
+      candidate({
+        versionId: 60,
+        versionNumber: 6,
+        firstPublishedAt: "2026-08-01T02:00:00.000Z",
+      }),
+    ],
+    packs: [
+      {
+        versionId: 40,
+        mbaNumber: "MBA1",
+        status: "sent",
+        billingMonth: "2026-10-01",
+        sentAt: "2026-10-17T01:00:00.000Z",
+      },
+    ],
+    publishedVersions: [published(40, 4), published(50, 5), published(60, 6)],
+    scheduleMonths: [
+      cell({ versionId: 60, month: "2026-10-01", amountCents: 10000 }),
+      cell({ versionId: 60, month: "2026-11-01", amountCents: 20000 }),
+      cell({ versionId: 50, month: "2026-10-01", amountCents: 5000 }),
+      cell({ versionId: 50, month: "2026-11-01", amountCents: 20000 }),
+      cell({ versionId: 40, month: "2026-10-01", amountCents: 10000 }),
+      cell({ versionId: 40, month: "2026-11-01", amountCents: 5000 }),
+    ],
+  })
+
+  assert.deepEqual(due[0]?.comparedTo, { versionNumber: 4, basis: "sent_pack" })
+  assert.deepEqual(due[0]?.monthsChanged, ["2026-11"])
+  assert.equal(due[0]?.backDated, false)
+})
+
+test("a first publish has comparedTo null", () => {
+  const due = selectDueAaPlans({
+    billingMonth: BILLING_MONTH,
+    versions: [
+      candidate({
+        versionId: 2,
+        versionNumber: 2,
+        firstPublishedAt: IN_WINDOW,
+      }),
+    ],
+    packs: [],
+    publishedVersions: [published(1, 1), published(2, 2)],
+    scheduleMonths: [
+      cell({ versionId: 2, month: "2026-11-01", amountCents: 10000 }),
+      cell({ versionId: 1, month: "2026-10-01", amountCents: 100 }),
+    ],
+  })
+
+  assert.equal(due[0]?.changeKind, "new")
+  assert.equal(due[0]?.comparedTo, null)
+  assert.equal(due[0]?.monthsChanged, null)
+})
+
+test("missing schedule rows give monthsChanged null", () => {
+  const versions = [
+    candidate({
+      versionId: 60,
+      versionNumber: 6,
+      firstPublishedAt: "2026-08-01T02:00:00.000Z",
+    }),
+  ]
+  const publishedVersions = [published(50, 5), published(60, 6)]
+
+  const missingPrevious = selectDueAaPlans({
+    billingMonth: BILLING_MONTH,
+    versions,
+    packs: [],
+    publishedVersions,
+    scheduleMonths: [cell({ versionId: 60, month: "2026-11-01", amountCents: 5000 })],
+  })
+  assert.equal(missingPrevious[0]?.monthsChanged, null)
+  assert.equal(missingPrevious[0]?.backDated, false)
+  assert.deepEqual(missingPrevious[0]?.comparedTo, {
+    versionNumber: 5,
+    basis: "previous_published",
+  })
+
+  const missingCurrent = selectDueAaPlans({
+    billingMonth: BILLING_MONTH,
+    versions,
+    packs: [],
+    publishedVersions,
+    scheduleMonths: [cell({ versionId: 50, month: "2026-10-01", amountCents: 5000 })],
+  })
+  assert.equal(missingCurrent[0]?.monthsChanged, null)
+  assert.equal(missingCurrent[0]?.backDated, false)
+  assert.deepEqual(missingCurrent[0]?.comparedTo, {
+    versionNumber: 5,
+    basis: "previous_published",
+  })
 })
 
 test("a plan that does not store an AA workbook is not due", () => {

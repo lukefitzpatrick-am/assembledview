@@ -28,6 +28,7 @@ function plan(overrides: Partial<DueAaPlan> & Pick<DueAaPlan, "versionId" | "mba
     publishedBy: "planner@assembledmedia.com.au",
     changeKind: "new",
     monthsChanged: null,
+    comparedTo: null,
     backDated: false,
     aaMonthTotals: { "2026-11": 1200 },
     ...overrides,
@@ -35,7 +36,15 @@ function plan(overrides: Partial<DueAaPlan> & Pick<DueAaPlan, "versionId" | "mba
 }
 
 const DUE: DueAaPlan[] = [
-  plan({ versionId: 11, mbaNumber: "KRUSTY002", versionNumber: 6, changeKind: "amended", monthsChanged: ["2026-10", "2026-11"], backDated: true }),
+  plan({
+    versionId: 11,
+    mbaNumber: "KRUSTY002",
+    versionNumber: 6,
+    changeKind: "amended",
+    monthsChanged: ["2026-10", "2026-11"],
+    comparedTo: { versionNumber: 5, basis: "previous_published" },
+    backDated: true,
+  }),
   plan({
     versionId: 22,
     mbaNumber: "HEMA007",
@@ -126,7 +135,7 @@ test("build creates a draft pack with the selected items and a summary workbook"
   assert.equal(sheet!.getRow(1).getCell(9).value, "AA total 2026-12")
   assert.equal(sheet!.getRow(2).getCell(3).value, "KRUSTY002")
   assert.equal(sheet!.getRow(2).getCell(5).value, "Amended")
-  assert.equal(sheet!.getRow(2).getCell(6).value, "2026-10, 2026-11")
+  assert.equal(sheet!.getRow(2).getCell(6).value, "2026-10, 2026-11 vs v5 (pre-pack)")
   assert.equal(sheet!.getRow(2).getCell(7).value, "Yes")
   assert.equal(sheet!.getRow(2).getCell(8).value, 1200)
   assert.equal(sheet!.getRow(3).getCell(6).value, "Not available")

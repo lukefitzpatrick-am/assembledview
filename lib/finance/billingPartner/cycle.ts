@@ -21,6 +21,10 @@ export type BillingPartnerDueRow = {
   publishedBy: string | null
   changeKind: "new" | "amended"
   monthsChanged: string[] | null
+  comparedTo: {
+    versionNumber: number
+    basis: "sent_pack" | "previous_published"
+  } | null
   backDated: boolean
 }
 
@@ -109,6 +113,16 @@ export function formatCycleDate(ymd: string): string {
     month: "long",
     timeZone: "UTC",
   }).format(new Date(Date.UTC(year!, month! - 1, day!)))
+}
+
+export function monthsChangedLabel(
+  months: string[] | null,
+  comparedTo: BillingPartnerDueRow["comparedTo"],
+): string {
+  const base = months == null ? "Not available" : months.length === 0 ? "None" : months.join(", ")
+  if (!comparedTo) return base
+  const basis = comparedTo.basis === "sent_pack" ? "sent" : "pre-pack"
+  return `${base} vs v${comparedTo.versionNumber} (${basis})`
 }
 
 export function packSummaryFileName(billingMonth: string): string {

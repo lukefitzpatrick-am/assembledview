@@ -8,6 +8,10 @@
  *
  * Pack rows are read only after marker 0100_billing_partner_packs is present
  * (C-76). Until then the loader treats packs as empty.
+ *
+ * Months changed compare the current tip with the last sent version. An
+ * amended tip that has never been sent compares with the previous published
+ * version of the same MBA. A first publish has no comparison.
  */
 import "server-only"
 
@@ -33,6 +37,11 @@ export const AA_PACKS_GO_LIVE = "2026-10-18"
 
 export type ChangeKind = "new" | "amended"
 
+export type ComparedTo = {
+  versionNumber: number
+  basis: "sent_pack" | "previous_published"
+}
+
 export type DueAaPlan = {
   mbaNumber: string
   clientName: string
@@ -43,6 +52,8 @@ export type DueAaPlan = {
   publishedBy: string | null
   changeKind: ChangeKind
   monthsChanged: string[] | null
+  /** Last sent version, or the previous published version when none has been sent. Null on a first publish. */
+  comparedTo: ComparedTo | null
   backDated: boolean
   /** Billing-basis media dollars for AA lines, keyed YYYY-MM. */
   aaMonthTotals: Record<string, number>
@@ -68,6 +79,14 @@ export type PackMembership = {
   status: "draft" | "sent"
   billingMonth: string
   sentAt: string | null
+}
+
+/** A published version used only as the months-changed comparison, not as a due tip. */
+export type PublishedVersionRef = {
+  versionId: number
+  versionNumber: number
+  mbaNumber: string
+  masterId: number
 }
 
 export type ScheduleMonthCell = {
@@ -144,6 +163,8 @@ export function selectDueAaPlans(input: {
   versions: PublishedAaCandidate[]
   packs: PackMembership[]
   scheduleMonths: ScheduleMonthCell[]
+  /** Published versions of these masters, including ones that are not the current tip. */
+  publishedVersions?: PublishedVersionRef[]
 }): DueAaPlan[] {
   const billingMonth = normalizeBillingMonth(input.billingMonth)
   const bounds = duePublishedRange(billingMonth)
@@ -159,10 +180,13 @@ export function selectDueAaPlans(input: {
     const publishedAt = new Date(version.publishedAt).getTime()
     if (publishedAt < bounds.start.getTime() || publishedAt >= bounds.end.getTime()) continue
 
-    const lastSentId = lastSentVersionId(version.mbaNumber, input.packs)
+    const changeKind: ChangeKind = sameInstant(version.publishedAt, version.firstPublishedAt)
+      ? "new"
+      : "amended"
+    const comparison = comparisonTarget(version, changeKind, input.packs, input.publishedVersions ?? [])
     const currentRows = byVersion.get(version.versionId) ?? []
-    const previousRows = lastSentId == null ? [] : (byVersion.get(lastSentId) ?? [])
-    const monthsChanged = monthsThatDiffer(currentRows, previousRows)
+    const previousRows = comparison == null ? [] : (byVersion.get(comparison.versionId) ?? [])
+    const monthsChanged = comparison == null ? null : monthsThatDiffer(currentRows, previousRows)
 
     due.push({
       mbaNumber: version.mbaNumber,
@@ -172,8 +196,9 @@ export function selectDueAaPlans(input: {
       versionNumber: version.versionNumber,
       publishedAt: new Date(version.publishedAt).toISOString(),
       publishedBy: version.publishedBy,
-      changeKind: sameInstant(version.publishedAt, version.firstPublishedAt) ? "new" : "amended",
+      changeKind,
       monthsChanged,
+      comparedTo: comparison?.comparedTo ?? null,
       backDated: monthsChanged != null && monthsChanged.some((month) => month < billingMonth.slice(0, 7)),
       aaMonthTotals: aaMonthTotals(currentRows),
     })
@@ -249,23 +274,24 @@ export async function listDueAaPlans(billingMonth: string): Promise<DueAaPlan[]>
   })
   const kept = aa.filter((row): row is NonNullable<typeof row> => row != null)
   const lineIdsByVersion = new Map(kept.map((row) => [row.candidate.versionId, row.lineIds]))
-  const extraSentIds = new Set<number>()
+  const publishedVersions = await loadPublishedVersionRefs([
+    ...new Set(kept.map((row) => row.candidate.masterId)),
+  ])
+  const scheduleIds = new Set(kept.map((row) => row.candidate.versionId))
   for (const row of kept) {
-    const lastSent = lastSentVersionId(row.candidate.mbaNumber, packs)
-    if (lastSent != null) extraSentIds.add(lastSent)
+    const changeKind: ChangeKind = sameInstant(row.candidate.publishedAt, row.candidate.firstPublishedAt)
+      ? "new"
+      : "amended"
+    const comparison = comparisonTarget(row.candidate, changeKind, packs, publishedVersions)
+    if (comparison) scheduleIds.add(comparison.versionId)
   }
-  const scheduleIds = [
-    ...new Set([
-      ...kept.map((row) => row.candidate.versionId),
-      ...extraSentIds,
-    ]),
-  ]
-  const schedule = await loadScheduleCells(scheduleIds, lineIdsByVersion)
+  const schedule = await loadScheduleCells([...scheduleIds], lineIdsByVersion)
   return selectDueAaPlans({
     billingMonth,
     versions: kept.map((row) => row.candidate),
     packs,
     scheduleMonths: schedule,
+    publishedVersions,
   })
 }
 
@@ -385,6 +411,65 @@ async function loadScheduleCells(
     }
   }
   return cells
+}
+
+function comparisonTarget(
+  version: PublishedAaCandidate,
+  changeKind: ChangeKind,
+  packs: PackMembership[],
+  publishedVersions: PublishedVersionRef[],
+): { versionId: number; comparedTo: ComparedTo | null } | null {
+  if (changeKind !== "amended") return null
+  const lastSentId = lastSentVersionId(version.mbaNumber, packs)
+  if (lastSentId != null) {
+    const versionNumber = versionNumberOf(lastSentId, publishedVersions)
+    return {
+      versionId: lastSentId,
+      comparedTo:
+        versionNumber == null ? null : { versionNumber, basis: "sent_pack" },
+    }
+  }
+  const previous = previousPublishedVersion(version, publishedVersions)
+  if (!previous) return null
+  return {
+    versionId: previous.versionId,
+    comparedTo: { versionNumber: previous.versionNumber, basis: "previous_published" },
+  }
+}
+
+function previousPublishedVersion(
+  version: Pick<PublishedAaCandidate, "mbaNumber" | "masterId" | "versionNumber">,
+  publishedVersions: PublishedVersionRef[],
+): PublishedVersionRef | null {
+  let best: PublishedVersionRef | null = null
+  for (const ref of publishedVersions) {
+    if (ref.masterId !== version.masterId || ref.mbaNumber !== version.mbaNumber) continue
+    if (ref.versionNumber >= version.versionNumber) continue
+    if (best == null || ref.versionNumber > best.versionNumber) best = ref
+  }
+  return best
+}
+
+function versionNumberOf(versionId: number, publishedVersions: PublishedVersionRef[]): number | null {
+  const ref = publishedVersions.find((row) => row.versionId === versionId)
+  return ref?.versionNumber ?? null
+}
+
+async function loadPublishedVersionRefs(masterIds: number[]): Promise<PublishedVersionRef[]> {
+  if (masterIds.length === 0) return []
+  const db = getDb()
+  const rows = await db
+    .select({
+      versionId: mediaPlanVersions.id,
+      versionNumber: mediaPlanVersions.versionNumber,
+      mbaNumber: mediaPlanVersions.mbaNumber,
+      masterId: mediaPlanVersions.masterId,
+    })
+    .from(mediaPlanVersions)
+    .where(
+      and(inArray(mediaPlanVersions.masterId, masterIds), isNotNull(mediaPlanVersions.publishedAt)),
+    )
+  return rows
 }
 
 function lastSentVersionId(mbaNumber: string, packs: PackMembership[]): number | null {

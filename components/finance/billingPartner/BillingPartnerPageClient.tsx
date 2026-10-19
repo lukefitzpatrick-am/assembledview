@@ -34,6 +34,7 @@ import {
   billingMonthLabel,
   defaultBillingMonth,
   formatCycleDate,
+  monthsChangedLabel,
   type BillingPartnerDueRow,
   type BillingPartnerPackRow,
   type BillingPartnerPagePayload,
@@ -378,7 +379,7 @@ function DueRow({
       <TableCell>{formatSydney(row.publishedAt)}</TableCell>
       <TableCell>{row.publishedBy ?? "—"}</TableCell>
       <TableCell>{row.changeKind === "new" ? "New" : "Amended"}</TableCell>
-      <TableCell>{row.monthsChanged == null ? "Not available" : row.monthsChanged.join(", ") || "None"}</TableCell>
+      <TableCell>{monthsChangedLabel(row.monthsChanged, row.comparedTo)}</TableCell>
       <TableCell>
         {row.backDated ? <Badge variant="attention">Back-dated</Badge> : "—"}
       </TableCell>

@@ -1,16 +1,10 @@
 import type { DueAaPlan } from "@/lib/finance/billingPartner/duePlans"
-import { packSummaryFileName } from "@/lib/finance/billingPartner/cycle"
+import { monthsChangedLabel, packSummaryFileName } from "@/lib/finance/billingPartner/cycle"
 
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 export function changeKindLabel(kind: DueAaPlan["changeKind"]): "New" | "Amended" {
   return kind === "new" ? "New" : "Amended"
-}
-
-export function monthsChangedLabel(months: string[] | null): string {
-  if (months == null) return "Not available"
-  if (months.length === 0) return "None"
-  return months.join(", ")
 }
 
 export async function buildAaPackSummaryWorkbook(input: {
@@ -42,7 +36,7 @@ export async function buildAaPackSummaryWorkbook(input: {
       plan.mbaNumber,
       plan.versionNumber,
       changeKindLabel(plan.changeKind),
-      monthsChangedLabel(plan.monthsChanged),
+      monthsChangedLabel(plan.monthsChanged, plan.comparedTo),
       plan.backDated ? "Yes" : "No",
       ...months.map((month) =>
         Object.prototype.hasOwnProperty.call(plan.aaMonthTotals, month)

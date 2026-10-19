@@ -9,6 +9,7 @@ import {
   aaCycleDates,
   billingMonthLabel,
   defaultBillingMonth,
+  monthsChangedLabel,
   packSummaryFileName,
   packZipFileName,
 } from "@/lib/finance/billingPartner/cycle"
@@ -35,6 +36,19 @@ test("a month shows the four Advertising Associates dates", () => {
     { day: 28, ymd: "2026-11-28" },
   ])
   assert.equal(billingMonthLabel("2026-11-01"), "November 2026")
+})
+
+test("months changed names the comparison version", () => {
+  assert.equal(monthsChangedLabel(null, null), "Not available")
+  assert.equal(monthsChangedLabel([], null), "None")
+  assert.equal(
+    monthsChangedLabel(["2026-10"], { versionNumber: 5, basis: "previous_published" }),
+    "2026-10 vs v5 (pre-pack)",
+  )
+  assert.equal(
+    monthsChangedLabel(null, { versionNumber: 4, basis: "sent_pack" }),
+    "Not available vs v4 (sent)",
+  )
 })
 
 test("pack file names use the month label and the Sydney build date", () => {
