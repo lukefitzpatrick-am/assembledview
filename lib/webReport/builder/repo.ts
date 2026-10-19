@@ -294,6 +294,7 @@ export async function loadBuilderPreview(input: {
     windows,
     today,
     ga4PropertyId: accounts.ga4PropertyId,
+    ga4PropertyName: accounts.ga4PropertyName,
     gscSite: accounts.gscSite,
     brandTerms: input.brandTerms,
     campaigns,

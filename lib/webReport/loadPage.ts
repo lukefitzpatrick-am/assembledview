@@ -99,21 +99,23 @@ async function publishedLayout(clientId: number): Promise<{
   }
 }
 
+type LinkedAccounts = { ga4PropertyId: string | null; ga4PropertyName: string | null; gscSite: string | null }
+
+const NO_ACCOUNTS: LinkedAccounts = { ga4PropertyId: null, ga4PropertyName: null, gscSite: null }
+
 /** The only source of a report's GA4 property and Search Console site. */
-export async function loadReportAccounts(
-  clientId: number,
-): Promise<{ ga4PropertyId: string | null; gscSite: string | null }> {
+export async function loadReportAccounts(clientId: number): Promise<LinkedAccounts> {
   try {
     const picked = pickReportAccounts(await listActivePlatformAccounts(clientId))
     for (const platform of picked.duplicates) {
       console.warn(`[web-report] client ${clientId} has more than one active ${platform} account; using the oldest`)
     }
-    return { ga4PropertyId: picked.ga4PropertyId, gscSite: picked.gscSite }
+    return { ga4PropertyId: picked.ga4PropertyId, ga4PropertyName: picked.ga4PropertyName, gscSite: picked.gscSite }
   } catch (err) {
     if (!(err instanceof PlatformAccountsNotReadyError)) {
       console.warn("[web-report] platform accounts unavailable", err)
     }
-    return { ga4PropertyId: null, gscSite: null }
+    return NO_ACCOUNTS
   }
 }
 
@@ -170,8 +172,8 @@ export async function loadWebReportResponse(input: {
   if (!dashboard) return null
   const clientId = clientIdFromRow(clientRow)
   const saved = clientId != null ? await publishedLayout(clientId) : null
-  const { ga4PropertyId, gscSite } =
-    clientId != null ? await loadReportAccounts(clientId) : { ga4PropertyId: null, gscSite: null }
+  const { ga4PropertyId, ga4PropertyName, gscSite } =
+    clientId != null ? await loadReportAccounts(clientId) : NO_ACCOUNTS
   const defaultPeriod = saved?.defaultPeriod ?? "last_month"
   const period = isReportPeriod(input.period) ? input.period : defaultPeriod
   const today = sydneyYmdFromUtcInstant(new Date())
@@ -192,6 +194,7 @@ export async function loadWebReportResponse(input: {
     windows,
     today,
     ga4PropertyId,
+    ga4PropertyName,
     gscSite,
     brandTerms: saved?.brandTerms ?? [],
     campaigns,

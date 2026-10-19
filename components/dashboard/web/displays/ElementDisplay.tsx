@@ -86,8 +86,8 @@ function TileGrid({ title, tiles, withSpark }: { title: string; tiles: PreparedT
   )
 }
 
-function useSeriesHidden(series: SeriesSpec[]) {
-  const [hidden, setHidden] = useState<Set<string>>(new Set())
+function useSeriesHidden(series: SeriesSpec[], hiddenByDefault?: readonly string[]) {
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set(hiddenByDefault))
   const items = series.map((item) => ({ key: item.key, label: item.label, color: item.color }))
   const visible = (list: SeriesSpec[]) => list.filter((item) => !hidden.has(item.key))
   const legend = items.length > 0 ? (
@@ -109,7 +109,7 @@ function useSeriesHidden(series: SeriesSpec[]) {
 
 function SeriesBody({ model }: { model: Extract<PreparedDisplay, { kind: "series" }> }) {
   const series = [...model.bars, ...model.lines]
-  const { legend, visible } = useSeriesHidden(series)
+  const { legend, visible } = useSeriesHidden(series, model.hiddenByDefault)
   const bars = visible(model.bars)
   const lines = visible(model.lines)
   const rows = model.data
@@ -258,7 +258,7 @@ export function ElementDisplay({ model }: { model: PreparedDisplay }) {
       </Frame>
     )
   }
-  if (model.kind === "series") return <SeriesBody model={model} />
+  if (model.kind === "series") return <SeriesBody key={model.display} model={model} />
   if (model.kind === "bubble") return <BubbleBody model={model} />
   if (model.kind === "histogram") return <HistogramBody model={model} />
   if (model.kind === "calendar") {

@@ -205,12 +205,14 @@ describe("search trend, query opportunities and query positions", () => {
         { date: "2026-09-02", clicks: 0, impressions: 55 },
       ])
       assert.deepEqual(line.lines.map((item) => item.key), ["clicks", "impressions"])
+      assert.deepEqual(line.hiddenByDefault, ["impressions"])
     }
     const combo = prepareWebElement({ elementId: "gscTrend", settings: {}, display: "combo" }, data)
     assert.equal(combo.kind, "series")
     if (combo.kind === "series") {
       assert.deepEqual(combo.bars.map((item) => item.key), ["impressions"])
       assert.deepEqual(combo.lines.map((item) => item.key), ["clicks"])
+      assert.equal(combo.hiddenByDefault, undefined)
     }
     const calendar = prepareWebElement({ elementId: "gscTrend", settings: {}, display: "calendar" }, data)
     assert.equal(calendar.kind, "calendar")
@@ -240,21 +242,22 @@ describe("search trend, query opportunities and query positions", () => {
     }
   })
 
-  it("buckets positions at the edges 3, 4, 50 and 51", () => {
+  it("buckets unrounded positions with strict cut-offs", () => {
     const buckets = positionBuckets([
-      query("a", 10, 1, 3),
-      query("b", 10, 2, 4),
-      query("c", 10, 3, 50),
-      query("d", 10, 4, 51),
-      query("e", 10, 5, 10.4),
-      query("f", 10, 6, null),
+      query("a", 10, 1, 3.0),
+      query("b", 10, 2, 3.4),
+      query("c", 10, 3, 10.0),
+      query("d", 10, 4, 10.4),
+      query("e", 10, 5, 50),
+      query("f", 10, 6, 50.01),
+      query("g", 10, 7, null),
     ])
     assert.deepEqual(buckets, [
       { bucket: "1-3", queries: 1, clicks: 1 },
-      { bucket: "4-10", queries: 2, clicks: 7 },
-      { bucket: "11-20", queries: 0, clicks: 0 },
-      { bucket: "21-50", queries: 1, clicks: 3 },
-      { bucket: "51+", queries: 1, clicks: 4 },
+      { bucket: "4-10", queries: 2, clicks: 5 },
+      { bucket: "11-20", queries: 1, clicks: 4 },
+      { bucket: "21-50", queries: 1, clicks: 5 },
+      { bucket: "51+", queries: 1, clicks: 6 },
     ])
   })
 

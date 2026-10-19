@@ -50,7 +50,7 @@ export type PreparedDisplay =
   | { kind: "text"; title: string; text: string }
   | { kind: "tiles"; title: string; tiles: PreparedTile[]; withSpark: boolean }
   | { kind: "bullet"; title: string; rows: { label: string; measure: number; target: number }[]; plain: PreparedTile[] }
-  | { kind: "series"; title: string; display: "combo" | "line" | "area" | "column"; data: Record<string, string | number>[]; bars: SeriesSpec[]; lines: SeriesSpec[] }
+  | { kind: "series"; title: string; display: "combo" | "line" | "area" | "column"; data: Record<string, string | number>[]; bars: SeriesSpec[]; lines: SeriesSpec[]; hiddenByDefault?: string[] }
   | { kind: "calendar"; title: string; weeks: number; cells: { week: number; day: number; value: number }[] }
   | { kind: "table"; title: string; headers: string[]; rows: { key: string; cells: PreparedTableCell[] }[]; note?: string }
   | { kind: "ranked"; title: string; display: "bar" | "donut" | "treemap"; rows: { label: string; value: number }[]; valueLabel: string; note?: string }
@@ -354,13 +354,13 @@ const POSITION_BUCKETS: { bucket: string; max: number }[] = [
   { bucket: "51+", max: Number.POSITIVE_INFINITY },
 ]
 
-/** Average positions are rounded to the nearest whole position before bucketing. */
+/** Buckets use strict cut-offs on the unrounded average position: 3.4 is in 4-10, 10.0 is in 4-10. */
 export function positionBuckets(rows: QueryRow[]): PositionBucket[] {
   const buckets = POSITION_BUCKETS.map((item) => ({ bucket: item.bucket, queries: 0, clicks: 0 }))
   for (const row of rows) {
     if (row.position == null || !Number.isFinite(row.position)) continue
-    const rounded = Math.max(1, Math.round(row.position))
-    const index = POSITION_BUCKETS.findIndex((item) => rounded <= item.max)
+    const position = row.position
+    const index = POSITION_BUCKETS.findIndex((item) => position <= item.max)
     buckets[index].queries += 1
     buckets[index].clicks += row.clicks
   }
@@ -499,7 +499,15 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
       return { kind: "series", title, display, data: gscSeries(data), bars: [GSC_IMPRESSIONS], lines: [GSC_CLICKS] }
     }
     const chart = display === "area" ? "area" : "line"
-    return { kind: "series", title, display: chart, data: gscSeries(data), bars: [], lines: [GSC_CLICKS, GSC_IMPRESSIONS] }
+    return {
+      kind: "series",
+      title,
+      display: chart,
+      data: gscSeries(data),
+      bars: [],
+      lines: [GSC_CLICKS, GSC_IMPRESSIONS],
+      hiddenByDefault: [GSC_IMPRESSIONS.key],
+    }
   }
 
   if (id === "queryBubble") {
@@ -520,7 +528,7 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
       kind: "histogram",
       title,
       buckets,
-      note: "Queries by average position, rounded to the nearest whole position.",
+      note: "Queries by impression-weighted average position.",
     }
   }
 

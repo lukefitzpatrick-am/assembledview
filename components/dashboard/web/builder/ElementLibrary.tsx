@@ -15,11 +15,9 @@ const ELEMENTS = Object.values(WEB_REPORT_ELEMENTS) as Array<(typeof WEB_REPORT_
 export function ElementLibrary({
   counts,
   onAdd,
-  onRemove,
 }: {
   counts: Partial<Record<WebElementId, number>>
   onAdd: (id: WebElementId) => void
-  onRemove: (id: WebElementId) => void
 }) {
   return (
     <section aria-label="Element library" className="rounded-card border border-border bg-card p-3 shadow-e1">
@@ -50,26 +48,19 @@ export function ElementLibrary({
                       </p>
                     </div>
                     {count > 0 ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="min-h-11 px-2"
-                        aria-label={`Remove ${element.title}`}
-                        onClick={() => onRemove(element.id)}
-                      >
-                        Remove
-                      </Button>
+                      <span className="num shrink-0 text-xs font-semibold text-primary">
+                        {count > 1 ? `On report x${count}` : "On report"}
+                      </span>
                     ) : null}
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="min-h-11 px-3"
-                      aria-label={`Add ${element.title}`}
+                      className="min-h-11 shrink-0 px-3"
+                      aria-label={count > 0 ? `Add ${element.title} again` : `Add ${element.title}`}
                       onClick={() => onAdd(element.id)}
                     >
-                      Add
+                      {count > 0 ? "Add again" : "Add"}
                     </Button>
                   </li>
                 )

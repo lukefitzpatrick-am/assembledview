@@ -2,12 +2,15 @@ export type ReportAccountRow = {
   id: number
   platform: string
   accountRef: string
+  label?: string | null
   active: boolean
   createdAt: string
 }
 
 export type ReportAccounts = {
   ga4PropertyId: string | null
+  /** The GA4 platform account label, used as the property display name. */
+  ga4PropertyName: string | null
   gscSite: string | null
   /** Platforms with more than one usable active row. The oldest row wins. */
   duplicates: Array<"ga4" | "gsc">
@@ -33,12 +36,16 @@ function pick(
   rows: ReportAccountRow[],
   platform: "ga4" | "gsc",
   read: (ref: string) => string | null,
-): { value: string | null; duplicate: boolean } {
+): { value: string | null; label: string | null; duplicate: boolean } {
   const usable = rows
     .filter((row) => row.active && row.platform === platform && read(row.accountRef) != null)
     .sort(oldestFirst)
   const first = usable[0]
-  return { value: first ? read(first.accountRef) : null, duplicate: usable.length > 1 }
+  return {
+    value: first ? read(first.accountRef) : null,
+    label: first?.label?.trim() || null,
+    duplicate: usable.length > 1,
+  }
 }
 
 /** GA4 and Search Console for a Web & search report come from client_platform_accounts only. */
@@ -48,5 +55,5 @@ export function pickReportAccounts(rows: ReportAccountRow[]): ReportAccounts {
   const duplicates: Array<"ga4" | "gsc"> = []
   if (ga4.duplicate) duplicates.push("ga4")
   if (gsc.duplicate) duplicates.push("gsc")
-  return { ga4PropertyId: ga4.value, gscSite: gsc.value, duplicates }
+  return { ga4PropertyId: ga4.value, ga4PropertyName: ga4.label, gscSite: gsc.value, duplicates }
 }

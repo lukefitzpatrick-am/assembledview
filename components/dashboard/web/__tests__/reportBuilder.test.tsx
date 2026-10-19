@@ -109,6 +109,19 @@ describe("ReportBuilder", () => {
     expect(container.querySelector('[aria-label="Element library"]')).not.toBeNull()
   })
 
+  it("the library marks elements on the report with one Add again action", () => {
+    const library = () => container.querySelector('[aria-label="Element library"]') as HTMLElement
+    const row = (label: string) =>
+      [...library().querySelectorAll("li")].find((node) => node.querySelector(`[aria-label="${label}"]`)) as HTMLElement
+    expect(button(library(), "Add again")).toBeTruthy()
+    expect([...library().querySelectorAll("button")].some((node) => node.textContent?.trim() === "Remove")).toBe(false)
+    const notes = row("Add Notes again")
+    expect(notes.textContent).toContain("On report")
+    expect(notes.textContent).not.toContain("On report x")
+    act(() => (notes.querySelector('[aria-label="Add Notes again"]') as HTMLButtonElement).click())
+    expect(row("Add Notes again").textContent).toContain("On report x2")
+  })
+
   it("Move down and Remove change the order and keep a selection", () => {
     const settings = () => container.querySelector('[aria-label="Element settings"]') as HTMLElement
     act(() => button(settings(), "Move down").click())

@@ -60,13 +60,23 @@ export function PeriodSelect({ slug, period }: { slug: string; period: ReportPer
   )
 }
 
+export function siteLabel(site: string): string {
+  return site
+    .trim()
+    .replace(/^sc-domain:/i, "")
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/\/+$/, "")
+}
+
 export function builtFromLine(ga4Property: string | null, gscSite: string | null): string {
   const parts = [
-    ga4Property ? `Google Analytics 4 ${ga4Property}` : null,
-    gscSite ? `Search Console ${gscSite}` : null,
+    ga4Property ? `Google Analytics 4 (${ga4Property})` : null,
+    gscSite ? `Search Console (${siteLabel(gscSite)})` : null,
     "AV paid media",
-  ].filter(Boolean)
-  return `Built from ${parts.join(", ")}.`
+  ].filter((part): part is string => part != null)
+  const last = parts.pop()
+  return `Built from ${parts.length > 0 ? `${parts.join(", ")} and ${last}` : last}.`
 }
 
 export function WebReportView({

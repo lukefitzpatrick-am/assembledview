@@ -117,6 +117,7 @@ export type PaidSlice = {
 
 export type WebReportData = {
   windows: ReportWindows
+  /** GA4 property display name, or the property id when it has no name. */
   ga4Property: string | null
   gscSite: string | null
   ga4: Ga4Slice

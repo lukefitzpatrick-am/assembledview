@@ -17,7 +17,6 @@ import {
   moveEntryTo,
   nextSelection,
   removeEntry,
-  removeLastOf,
   setEntryDisplay,
   setEntrySettings,
   setEntryWidth,
@@ -246,11 +245,7 @@ export function ReportBuilder({
         )
       ) : (
         <div className="grid items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
-          <ElementLibrary
-            counts={counts}
-            onAdd={onAdd}
-            onRemove={(id) => change((current) => removeLastOf(current, id))}
-          />
+          <ElementLibrary counts={counts} onAdd={onAdd} />
           <BuilderCanvas
             entries={entries}
             selectedKey={selectedKey}

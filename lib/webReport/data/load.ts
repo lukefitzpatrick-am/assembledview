@@ -11,6 +11,7 @@ export async function loadWebReportData(input: {
   windows: ReportWindows
   today: string
   ga4PropertyId: string | null
+  ga4PropertyName?: string | null
   gscSite: string | null
   brandTerms: readonly string[]
   campaigns: ClientDeliveredTotalsCampaignInput[]
@@ -40,7 +41,7 @@ export async function loadWebReportData(input: {
   ])
   return {
     windows: input.windows,
-    ga4Property: input.ga4PropertyId ? `properties/${input.ga4PropertyId}` : null,
+    ga4Property: input.ga4PropertyId ? (input.ga4PropertyName ?? input.ga4PropertyId) : null,
     gscSite: input.gscSite,
     ga4,
     gsc,
