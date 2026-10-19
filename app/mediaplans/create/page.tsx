@@ -267,6 +267,8 @@ import {
   buildFeeLoadingFromEditorFees,
   editorBillingStableLineItemId,
 } from "@/lib/finance/buildEditorLineItemInputs"
+import { AaPublishWarningDialog } from "@/components/mediaplans/AaPublishWarningDialog"
+import { buildAaPublishWarnings } from "@/lib/finance/billingPartner/publishWarnings"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
@@ -707,6 +709,15 @@ function CreateMediaPlan() {
   const [clientPostcode, setClientPostcode] = useState("")
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([]);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [aaPublishPrompt, setAaPublishPrompt] = useState<{
+    warnings: string[]
+    opts?: {
+      intent?: "save" | "publish"
+      exitAfter?: boolean
+      download?: boolean
+      zipAfter?: boolean
+    }
+  } | null>(null)
   /** Server-injected via create layout — `WRITE_BACKEND` (not derived from DATA_BACKEND). */
   const writeBackend = useWriteBackend()
   /** Children saved but master.version_number bump failed — retry publish PATCH only. */
@@ -2342,6 +2353,17 @@ function CreateMediaPlan() {
     [kpiRows]
   )
 
+  const aaPublishWarnings = useMemo(
+    () =>
+      buildAaPublishWarnings({
+        channels: billingFeeSeedEnabledConfigs,
+        billingSchedule: campaignFinancials.billingSchedule,
+        publishers: kpiPublishers,
+        sentPacks: [],
+      }),
+    [billingFeeSeedEnabledConfigs, campaignFinancials.billingSchedule, kpiPublishers],
+  )
+
   const builderIssues = useMemo(() => {
     const issues: BuilderIssue[] = []
     const client = String(watchedClientName ?? "").trim()
@@ -2420,6 +2442,16 @@ function CreateMediaPlan() {
     }
     issues.push(...missingBuyTypeBuilderIssues(missingBuyTypeLineIds))
     issues.push(...missingBurstDatesBuilderIssues(missingBurstDateLineIds))
+    aaPublishWarnings.forEach((message, index) => {
+      issues.push({
+        id: `aa-publish-${index}`,
+        severity: "warning",
+        title: message,
+        detail: "Does not block publish.",
+        stepLabel: "Publish",
+        fieldLabel: "Advertising Associates",
+      })
+    })
     return issues
   }, [
     watchedClientName,
@@ -2433,6 +2465,7 @@ function CreateMediaPlan() {
     missingPublisherKpiCount,
     missingBuyTypeLineIds,
     missingBurstDateLineIds,
+    aaPublishWarnings,
   ])
 
 
@@ -6980,6 +7013,7 @@ const handleSaveAll = async (opts?: {
     exitAfter?: boolean
     download?: boolean
     zipAfter?: boolean
+    ackAaWarnings?: boolean
   }) => {
     if (saveBlockedByClientsError) {
       toast({
@@ -6998,6 +7032,19 @@ const handleSaveAll = async (opts?: {
       return
     }
   if (saveAllInFlightRef.current) return
+  if (!opts?.ackAaWarnings) {
+    const publishMode = resolvePostgresSaveMode({
+      campaignStatus: form.getValues("mp_campaignstatus"),
+      forceIncrement: false,
+      publishedVersionNumber: 0,
+      versionRowCount: 0,
+      tipPublishedAt: null,
+    })
+    if (publishMode.mode === "publish" && aaPublishWarnings.length > 0) {
+      setAaPublishPrompt({ warnings: aaPublishWarnings, opts })
+      return
+    }
+  }
   if (budgetRemaining < 0) {
     const proceed = window.confirm(
       `Budget remaining is ${formatMoney(budgetRemaining)} (overspend). Save this plan anyway?`
@@ -8943,6 +8990,17 @@ const handleSaveAll = async (opts?: {
         }}
       />
 
+      <AaPublishWarningDialog
+        open={aaPublishPrompt != null}
+        warnings={aaPublishPrompt?.warnings ?? []}
+        onCancel={() => setAaPublishPrompt(null)}
+        onPublish={() => {
+          const pending = aaPublishPrompt
+          setAaPublishPrompt(null)
+          if (!pending) return
+          void handleSaveAll({ ...pending.opts, ackAaWarnings: true })
+        }}
+      />
       <AlertDialog open={fullBillingResetConfirmOpen} onOpenChange={setFullBillingResetConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

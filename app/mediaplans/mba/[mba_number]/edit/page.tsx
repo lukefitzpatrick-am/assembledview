@@ -192,6 +192,11 @@ import {
   shouldRunDeferredMasterPublish,
 } from "@/lib/mediaplan/publishVersionIntegrityClient"
 import { useWriteBackend } from "@/lib/data/WriteBackendContext"
+import { AaPublishWarningDialog } from "@/components/mediaplans/AaPublishWarningDialog"
+import {
+  buildAaPublishWarnings,
+  type SentAaPack,
+} from "@/lib/finance/billingPartner/publishWarnings"
 import {
   buildSaveModeInput,
   resolvePostgresSaveMode,
@@ -2296,6 +2301,16 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const [missingBurstDateLineIds, setMissingBurstDateLineIds] = useState<string[]>([])
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([])
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
+  const [sentAaPacks, setSentAaPacks] = useState<SentAaPack[] | null>(null)
+  const [aaPublishPrompt, setAaPublishPrompt] = useState<{
+    warnings: string[]
+    opts?: {
+      intent?: "save" | "publish"
+      exitAfter?: boolean
+      download?: boolean
+      zipAfter?: boolean
+    }
+  } | null>(null)
   /** Children saved, master.version_number bump failed — retry publishes only. */
   const [pendingPublishRetry, setPendingPublishRetry] = useState<{
     versionNumber: number
@@ -6981,6 +6996,50 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     : null
 
 
+  useEffect(() => {
+    const mba = mbaNumber?.trim()
+    if (!mba) {
+      setSentAaPacks([])
+      return
+    }
+    let cancelled = false
+    setSentAaPacks(null)
+    void fetch(`/api/plans/aa-sent-baseline?mba=${encodeURIComponent(mba)}`, {
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        if (!res.ok) return null
+        return (await res.json()) as { sentPacks?: SentAaPack[] }
+      })
+      .then((data) => {
+        if (cancelled) return
+        setSentAaPacks(Array.isArray(data?.sentPacks) ? data.sentPacks : null)
+      })
+      .catch(() => {
+        if (!cancelled) setSentAaPacks(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mbaNumber])
+
+  const aaPublishWarnings = useMemo(
+    () =>
+      buildAaPublishWarnings({
+        channels: billingFeeSeedEnabledConfigs,
+        billingSchedule: campaignFinancials.billingSchedule,
+        publishers: billingPublishers,
+        sentPacks: allChannelsHydrated ? sentAaPacks : null,
+      }),
+    [
+      billingFeeSeedEnabledConfigs,
+      campaignFinancials.billingSchedule,
+      billingPublishers,
+      allChannelsHydrated,
+      sentAaPacks,
+    ],
+  )
+
   const builderIssues = useMemo(() => {
     const issues: BuilderIssue[] = []
     const client = String(watchedClientName ?? "").trim()
@@ -7063,6 +7122,16 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     }
     issues.push(...missingBuyTypeBuilderIssues(missingBuyTypeLineIds))
     issues.push(...missingBurstDatesBuilderIssues(missingBurstDateLineIds))
+    aaPublishWarnings.forEach((message, index) => {
+      issues.push({
+        id: `aa-publish-${index}`,
+        severity: "warning",
+        title: message,
+        detail: "Does not block publish.",
+        stepLabel: "Publish",
+        fieldLabel: "Advertising Associates",
+      })
+    })
     return issues
   }, [
     watchedClientName,
@@ -7079,6 +7148,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     missingPublisherKpiCount,
     missingBuyTypeLineIds,
     missingBurstDateLineIds,
+    aaPublishWarnings,
   ])
 
   const mediaLabelByBillingKey = useMemo(() => {
@@ -7374,6 +7444,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     exitAfter?: boolean
     download?: boolean
     zipAfter?: boolean
+    ackAaWarnings?: boolean
   }) => {
     const saveIntent = opts?.intent === "publish" ? "publish" : "save"
     const afterSuccessfulSave = async (args: {
@@ -7500,6 +7571,25 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         `Budget remaining is ${formatMoney(budgetRemaining)} — this campaign is over budget. Save anyway?`
       )
       if (!proceed) return
+    }
+
+    if (!opts?.ackAaWarnings) {
+      const publishMode = resolvePostgresSaveMode(
+        buildSaveModeInput({
+          latestVersionNumber,
+          mediaPlan,
+          availableVersions,
+          selectedVersionNumber,
+          forceIncrement: false,
+          intent: saveIntent,
+          campaignStatus:
+            watchedCampaignStatus ?? mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus,
+        }),
+      )
+      if (publishMode.mode === "publish" && aaPublishWarnings.length > 0) {
+        setAaPublishPrompt({ warnings: aaPublishWarnings, opts })
+        return
+      }
     }
 
     setIsSaveModalOpen(true)
@@ -13278,6 +13368,18 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AaPublishWarningDialog
+        open={aaPublishPrompt != null}
+        warnings={aaPublishPrompt?.warnings ?? []}
+        onCancel={() => setAaPublishPrompt(null)}
+        onPublish={() => {
+          const pending = aaPublishPrompt
+          setAaPublishPrompt(null)
+          if (!pending) return
+          void handleSaveAll({ ...pending.opts, ackAaWarnings: true })
+        }}
+      />
 
       <AlertDialog
         open={feeDriftConfirmOpen}
