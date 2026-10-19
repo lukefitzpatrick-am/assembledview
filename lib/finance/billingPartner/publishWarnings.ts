@@ -2,6 +2,7 @@
  * Non-blocking Advertising Associates warnings shown before publish.
  * Neither rule stops the publish.
  */
+import { roundMoney2 } from "@/lib/money"
 import type { Publisher } from "@/lib/types/publisher"
 import { billingMonthLabel } from "@/lib/finance/billingPartner/cycle"
 import { editorBillingStableLineItemId } from "@/lib/finance/buildEditorLineItemInputs"
@@ -156,7 +157,7 @@ export function aaBillingMediaByMonth(
   }
   const out: Record<string, number> = {}
   for (const [month, value] of totals) {
-    out[month] = Math.round(value * 100) / 100
+    out[month] = roundMoney2(value)
   }
   return out
 }
