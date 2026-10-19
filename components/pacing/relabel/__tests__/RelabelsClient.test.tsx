@@ -102,13 +102,106 @@ describe("RelabelsClient", () => {
     })
   }
 
-  it("renders three tabs", async () => {
+  it("renders four tabs with Match open by default", async () => {
     act(() => {
       root.render(<RelabelsClient initial={{}} />)
     })
     await settle()
     const labels = [...container.querySelectorAll('[role="tab"]')].map((el) => el.textContent)
-    expect(labels).toEqual(["New relabel", "Unmapped", "Log"])
+    expect(labels).toEqual(["Match", "New relabel", "Unmapped", "Log"])
+    expect(container.querySelector('[role="tab"][data-state="active"]')?.textContent).toBe("Match")
+    expect(container.textContent).toContain("Pick a client")
+  })
+
+  it("opens New relabel for older links that carry line and channel but no tab", async () => {
+    act(() => {
+      root.render(<RelabelsClient initial={{ mba: "BICAU002", line: "bicau002sm2", channel: "Social - Meta" }} />)
+    })
+    await settle()
+    expect(container.querySelector('[role="tab"][data-state="active"]')?.textContent).toBe("New relabel")
+  })
+
+  it("Match lists a client's suggestions and Accept previews against the suggested line", async () => {
+    const entity = {
+      key: "Programmatic - Video|k1",
+      channel: "Programmatic - Video",
+      platformEntityId: "k1",
+      name: "broad_men 55+ targeting-hartm001ML1",
+      lineItemId: "hartm001ml1",
+      campaignName: "Molicare",
+      firstDate: "2026-01-25",
+      lastDate: "2026-10-19",
+      spend: 67264.62,
+      impressions: 1000,
+      mbaNumber: "hartm001",
+      status: "not_on_plan",
+      duplicateOf: null,
+    }
+    const payload = {
+      client: { id: 12, name: "Paul Hartmann Pty Ltd" },
+      since: "2025-04-20",
+      campaigns: [{ mbaNumber: "hartm001", campaignName: "Molicare annual" }],
+      entities: [entity],
+      lines: [
+        {
+          lineItemId: "hartm001pv1",
+          mbaNumber: "hartm001",
+          lineChannel: "prog_video",
+          platform: "DV360",
+          buyType: "cpv",
+          startDate: "2026-01-01",
+          endDate: "2026-12-31",
+          delivered: 0,
+          entityCount: 0,
+        },
+      ],
+      suggestions: [
+        {
+          id: "s1",
+          kind: "high",
+          entityKeys: [entity.key],
+          targetLineIds: ["hartm001pv1"],
+          reason: "Legacy ML code; the only programmatic video line is PV1.",
+          spend: 67264.62,
+        },
+      ],
+      summary: { unmatchedSpend: 67264.62, unmatchedCount: 1, linesWithoutDelivery: 1, suggestionCount: 1, checkDatesCount: 0 },
+    }
+    const calls: { url: string; body: unknown }[] = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null })
+        if (url.includes("/api/pacing/relabels/match")) {
+          return { ok: true, json: async () => ({ clients: [{ id: 12, name: "Paul Hartmann Pty Ltd", campaignCount: 1 }], payload }) }
+        }
+        if (url.includes("/api/pacing/relabels/preview")) {
+          return { ok: true, json: async () => BLOCKED_PREVIEW }
+        }
+        return { ok: true, json: async () => ({ relabels: [], drift: [] }) }
+      }),
+    )
+    act(() => {
+      root.render(<RelabelsClient initial={{ tab: "match", client: "12" }} />)
+    })
+    await settle()
+    await settle()
+    expect(calls.some((c) => c.url.includes("/api/pacing/relabels/match?client=12"))).toBe(true)
+    expect(container.textContent).toContain("Legacy ML code")
+    const accept = [...container.querySelectorAll("button")].find((el) => el.textContent === "Accept")
+    expect(accept).toBeTruthy()
+    await act(async () => {
+      accept!.click()
+      await Promise.resolve()
+    })
+    await settle()
+    const preview = calls.find((c) => c.url.includes("/api/pacing/relabels/preview"))
+    expect(preview?.body).toMatchObject({ channel: "Programmatic - Video", platformEntityId: "k1", lineItemId: "hartm001pv1" })
+    // The stubbed preview is blocked, so Apply stays disabled and the request button shows.
+    const apply = [...container.querySelectorAll("button")].find((el) => el.textContent === "Apply")
+    expect(apply?.hasAttribute("disabled")).toBe(true)
+    expect(container.textContent).toContain("Save blocked as requests for Luke")
   })
 
   it("disables Apply when the preview has blocks", async () => {

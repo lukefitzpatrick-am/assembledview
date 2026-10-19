@@ -18,6 +18,7 @@ import { normalizeLineItemId } from "@/lib/pacing/relabel/shared/channels"
 import { describeRelabelWrites } from "@/lib/pacing/relabel/shared/describeWrites"
 import {
   canRevertRelabel,
+  initialRelabelsTab,
   mbaStem,
   parseRelabelsTab,
   type RelabelsTab,
@@ -25,11 +26,13 @@ import {
 import type { DeliveryRelabelRow, RelabelPreview } from "@/lib/pacing/relabel/shared/types"
 import type { RelabelDriftFinding } from "@/lib/pacing/relabel/drift"
 import { CM360_PACING_CHANNEL, RELABEL_WAREHOUSE_CHANNELS } from "@/lib/pacing/relabel/shared/types"
+import { RelabelMatchTab } from "./RelabelMatchTab"
 
 const numberFmt = new Intl.NumberFormat("en-AU")
 
 export type RelabelsQuery = {
   tab?: string
+  client?: string
   mba?: string
   line?: string
   channel?: string
@@ -86,9 +89,7 @@ function mapRowKept(preview: RelabelPreview): boolean {
 
 export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
   const { toast } = useToast()
-  const [tab, setTab] = useState<RelabelsTab>(() =>
-    initial.id ? "log" : parseRelabelsTab(initial.tab),
-  )
+  const [tab, setTab] = useState<RelabelsTab>(() => initialRelabelsTab(initial))
   const [channel, setChannel] = useState(initial.channel ?? "")
   const [entity, setEntity] = useState(initial.entity ?? "")
   const [entitySearch, setEntitySearch] = useState(initial.entity ?? "")
@@ -371,15 +372,26 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
       <Section
         as="h2"
         title="Delivery relabels"
-        description="Move a fact-table entity onto a published plan line. Apply writes Snowflake in one transaction; blocked previews can be saved as a request for Luke."
+        description="Pick a client in Match to line up its warehouse delivery with its published plan, or use New relabel for one entity. Apply writes Snowflake in one transaction; blocked previews can be saved as a request for Luke."
       />
 
       <Tabs value={tab} onValueChange={(value) => setTab(parseRelabelsTab(value))}>
         <TabsList>
+          <TabsTrigger value="match">Match</TabsTrigger>
           <TabsTrigger value="new">New relabel</TabsTrigger>
           <TabsTrigger value="unmapped">Unmapped</TabsTrigger>
           <TabsTrigger value="log">Log</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="match" className="pt-4">
+          {tab === "match" ? (
+            <RelabelMatchTab
+              initialClient={initial.client}
+              initialMba={initial.tab === "match" || !initial.tab ? initial.mba : undefined}
+              onApplied={() => void loadLog()}
+            />
+          ) : null}
+        </TabsContent>
 
         <TabsContent value="new" className="space-y-4 pt-4">
           <section className="grid gap-4 lg:grid-cols-2">

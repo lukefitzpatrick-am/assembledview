@@ -2,13 +2,33 @@
 import type { ChannelTabKey } from "@/lib/pacing/channel/lineCardTypes"
 import { CM360_PACING_CHANNEL, RELABEL_REVERT_WINDOW_DAYS } from "./types"
 
-export type RelabelsTab = "new" | "unmapped" | "log"
+export type RelabelsTab = "match" | "new" | "unmapped" | "log"
 
+/** Unknown or empty values fall back to "match", the default tab (RL2). */
 export function parseRelabelsTab(raw: string | null | undefined): RelabelsTab {
   const v = String(raw ?? "").trim().toLowerCase()
+  if (v === "new") return "new"
   if (v === "unmapped") return "unmapped"
   if (v === "log") return "log"
-  return "new"
+  return "match"
+}
+
+/**
+ * Tab to open from the page query. Older links (CampaignDetailModal) omit
+ * tab=new but carry line/channel/entity, so those open the manual form.
+ */
+export function initialRelabelsTab(q: {
+  tab?: string | null
+  id?: string | null
+  mba?: string | null
+  line?: string | null
+  channel?: string | null
+  entity?: string | null
+}): RelabelsTab {
+  if (q.id) return "log"
+  if (q.tab && String(q.tab).trim()) return parseRelabelsTab(q.tab)
+  if (q.line || q.channel || q.entity) return "new"
+  return "match"
 }
 
 /** Client prefix of an MBA (`BICAU002` → `BICAU`). */
@@ -50,7 +70,9 @@ export function relabelsHref(opts: {
   id?: number | string | null
 } = {}): string {
   const p = new URLSearchParams()
-  if (opts.tab && opts.tab !== "new") p.set("tab", opts.tab)
+  const prefill = Boolean(opts.line || opts.channel || opts.entity)
+  // "new" with prefill params stays implicit (see initialRelabelsTab); "match" is the default.
+  if (opts.tab && opts.tab !== "match" && !(opts.tab === "new" && prefill)) p.set("tab", opts.tab)
   if (opts.mba) p.set("mba", opts.mba)
   if (opts.line) p.set("line", opts.line)
   if (opts.channel) p.set("channel", opts.channel)

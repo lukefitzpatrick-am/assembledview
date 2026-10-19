@@ -25,6 +25,7 @@ export default async function PacingAdminRelabelsPage({
   const sp = await searchParams
   const initial: RelabelsQuery = {
     tab: first(sp.tab),
+    client: first(sp.client),
     mba: first(sp.mba),
     line: first(sp.line),
     channel: first(sp.channel),

@@ -373,6 +373,16 @@ test("no-op preview returns no_change when every in-scope row is already the tar
   assert.equal(empty.state, "apply")
 })
 
+test("initialRelabelsTab opens Match by default and New for prefill links", async () => {
+  const { initialRelabelsTab, parseRelabelsTab } = await import("../shared/relabelPageUrl.js")
+  assert.equal(initialRelabelsTab({}), "match")
+  assert.equal(initialRelabelsTab({ mba: "hartm001" }), "match")
+  assert.equal(initialRelabelsTab({ line: "bicau002sm2", channel: "Social - Meta" }), "new")
+  assert.equal(initialRelabelsTab({ tab: "unmapped", line: "x" }), "unmapped")
+  assert.equal(initialRelabelsTab({ id: "9", tab: "new" }), "log")
+  assert.equal(parseRelabelsTab("bogus"), "match")
+})
+
 test("relabelsHref and mbaStem encode the admin page entry points", async () => {
   const { mbaStem, relabelsHref, canRevertRelabel } = await import("../shared/relabelPageUrl.js")
   assert.equal(mbaStem("BICAU002"), "BICAU")
@@ -384,6 +394,8 @@ test("relabelsHref and mbaStem encode the admin page entry points", async () => 
     relabelsHref({ tab: "new", mba: "BICAU002", line: "bicau002sm2", channel: "Social - Meta" }),
     "/pacing/admin/relabels?mba=BICAU002&line=bicau002sm2&channel=Social+-+Meta",
   )
+  assert.equal(relabelsHref({ tab: "new" }), "/pacing/admin/relabels?tab=new")
+  assert.equal(relabelsHref({ tab: "match", mba: "hartm001" }), "/pacing/admin/relabels?mba=hartm001")
   assert.equal(canRevertRelabel("2026-09-01T00:00:00.000Z", new Date("2026-09-21T00:00:00.000Z")), true)
   assert.equal(canRevertRelabel("2026-08-01T00:00:00.000Z", new Date("2026-09-21T00:00:00.000Z")), false)
 })
