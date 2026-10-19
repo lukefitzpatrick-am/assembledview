@@ -1,238 +1,45 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
+import { BuilderCanvas } from "@/components/dashboard/web/builder/BuilderCanvas"
+import { BuilderTopBar } from "@/components/dashboard/web/builder/BuilderTopBar"
+import { ElementLibrary } from "@/components/dashboard/web/builder/ElementLibrary"
+import { ElementSettingsPanel } from "@/components/dashboard/web/builder/ElementSettingsPanel"
 import { WebReportView } from "@/components/dashboard/web/WebReportView"
-import { PageHeader } from "@/components/layout/PageHeader"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
-  BUILDER_NEEDS_MIGRATION,
-  WEB_REPORT_VERSION_KEEP,
-  addElement,
-  elementNeedsData,
-  elementTitle,
-  moveElement,
-  parseBrandTerms,
-  removeElement,
-} from "@/lib/webReport/builder/layout"
-import { describeElementSettings, type SettingsField } from "@/lib/webReport/builder/settingsForm"
-import {
-  WEB_ELEMENT_GROUPS,
-  WEB_REPORT_ELEMENTS,
-  type WebElementId,
-  type WebReportLayoutItem,
-} from "@/lib/webReport/elements"
-import { REPORT_PERIODS, type ReportPeriod } from "@/lib/webReport/periods"
+  addEntry,
+  builderRequestBody,
+  entriesFromLayout,
+  layoutFromEntries,
+  moveEntryBy,
+  moveEntryTo,
+  nextSelection,
+  removeEntry,
+  removeLastOf,
+  setEntryDisplay,
+  setEntrySettings,
+  setEntryWidth,
+  type BuilderEntry,
+} from "@/lib/webReport/builder/editor"
+import { BUILDER_NEEDS_MIGRATION, WEB_REPORT_VERSION_KEEP, parseBrandTerms } from "@/lib/webReport/builder/layout"
+import type { WebElementId, WebReportLayoutItem } from "@/lib/webReport/elements"
+import type { ReportPeriod } from "@/lib/webReport/periods"
 import type { WebReportData } from "@/lib/webReport/types"
 
-const PERIOD_LABEL: Record<ReportPeriod, string> = {
-  last_month: "Last month",
-  last_28_days: "Last 28 days",
-  month_to_date_yoy: "This month last year",
-}
-
-const OPTION_LABEL: Record<string, string> = {
-  users: "Users",
-  newUsers: "New users",
-  sessions: "Sessions",
-  engagementRate: "Engagement rate",
-  keyEvents: "Key events",
-  pageViews: "Page views",
-  clicks: "Clicks",
-  impressions: "Impressions",
-  ctr: "CTR",
-  position: "Position",
-  avSpend: "AV spend",
-  metric: "Metric",
-  keyEvent: "Key event",
-  all: "All queries",
-  brand: "Brand",
-  non_brand: "Non-brand",
-}
-
-type BuilderOption = { value: string; label: string }
 type BuilderVersion = { version: number; savedAt: string | null }
 
-function optionLabel(value: string): string {
-  return OPTION_LABEL[value] ?? value
+type BuilderResponse = {
+  error?: string
+  message?: string
+  version?: number
+  layout?: WebReportLayoutItem[]
+  data?: WebReportData
+  connected?: boolean
 }
 
-function asRecord(settings: unknown): Record<string, unknown> {
-  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {}
-  return { ...(settings as Record<string, unknown>) }
-}
-
-function fieldClass() {
-  return "h-9 w-full rounded-input border border-border bg-background px-2 text-sm text-foreground"
-}
-
-function SettingsControl({
-  field,
-  value,
-  keyEventNames,
-  onChange,
-}: {
-  field: SettingsField
-  value: unknown
-  keyEventNames: string[]
-  onChange: (value: unknown) => void
-}) {
-  if (field.kind === "boolean") {
-    return (
-      <label className="flex items-center gap-2 text-sm text-foreground">
-        <input
-          type="checkbox"
-          checked={value === true}
-          onChange={(event) => onChange(event.target.checked)}
-        />
-        {field.label}
-      </label>
-    )
-  }
-  if (field.kind === "string") {
-    if (field.key === "text") {
-      return (
-        <textarea
-          className="min-h-28 w-full rounded-input border border-border bg-background px-3 py-2 text-sm text-foreground"
-          maxLength={2000}
-          value={typeof value === "string" ? value : ""}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      )
-    }
-    const names = field.key === "eventName" ? keyEventNames : []
-    if (field.key === "eventName") {
-      return (
-        <select className={fieldClass()} value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value || undefined)}>
-          <option value="">{names.length === 0 ? "No key event names from this property yet" : "Choose a key event"}</option>
-          {names.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-      )
-    }
-    return (
-      <Input
-        value={typeof value === "string" ? value : ""}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    )
-  }
-  if (field.kind === "number") {
-    return (
-      <Input
-        className="num"
-        type="number"
-        min={field.min}
-        max={field.max}
-        step={field.integer ? 1 : "any"}
-        value={typeof value === "number" ? value : ""}
-        onChange={(event) => {
-          const raw = event.target.value
-          if (raw === "") {
-            onChange(undefined)
-            return
-          }
-          const next = Number(raw)
-          onChange(Number.isFinite(next) ? next : undefined)
-        }}
-      />
-    )
-  }
-  if (field.kind === "enum") {
-    return (
-      <select
-        className={fieldClass()}
-        value={typeof value === "string" ? value : ""}
-        onChange={(event) => onChange(event.target.value || undefined)}
-      >
-        {field.optional ? <option value="">None</option> : null}
-        {field.options.map((option) => (
-          <option key={option} value={option}>
-            {optionLabel(option)}
-          </option>
-        ))}
-      </select>
-    )
-  }
-  if (field.kind === "enumList") {
-    const selected = Array.isArray(value) ? value.map(String) : []
-    return (
-      <div className="flex flex-col gap-2">
-        {field.options.map((option) => {
-          const checked = selected.includes(option)
-          return (
-            <label key={option} className="flex items-center gap-2 text-sm text-foreground">
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => {
-                  const next = checked ? selected.filter((item) => item !== option) : [...selected, option]
-                  onChange(next)
-                }}
-              />
-              {optionLabel(option)}
-            </label>
-          )
-        })}
-      </div>
-    )
-  }
-  const items = Array.isArray(value) ? value : []
-  const max = field.max ?? 8
-  return (
-    <div className="flex flex-col gap-3">
-      {items.map((item, index) => (
-        <div key={index} className="flex flex-col gap-2 rounded-input border border-border p-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground">
-              Tile <span className="num">{index + 1}</span>
-            </p>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={field.min != null && items.length <= field.min}
-              onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
-            >
-              Remove
-            </Button>
-          </div>
-          {field.fields.map((child) => (
-            <label key={child.key} className="flex flex-col gap-1 text-sm text-foreground">
-              {child.kind === "boolean" ? null : <span>{child.label}</span>}
-              <SettingsControl
-                field={child}
-                value={asRecord(item)[child.key]}
-                keyEventNames={keyEventNames}
-                onChange={(next) => {
-                  const copy = items.slice()
-                  const record = asRecord(item)
-                  if (next === undefined) delete record[child.key]
-                  else record[child.key] = next
-                  copy[index] = record
-                  onChange(copy)
-                }}
-              />
-            </label>
-          ))}
-        </div>
-      ))}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={items.length >= max}
-        onClick={() => onChange([...items, { kind: "metric", metric: "sessions" }])}
-      >
-        Add tile
-      </Button>
-    </div>
-  )
-}
+export const PREVIEW_DEBOUNCE_MS = 400
 
 export function ReportBuilder({
   slug,
@@ -245,8 +52,6 @@ export function ReportBuilder({
   gscSiteRef,
   brandTerms,
   defaultPeriod,
-  ga4Options,
-  gscOptions,
   keyEventNames,
 }: {
   slug: string
@@ -259,35 +64,34 @@ export function ReportBuilder({
   gscSiteRef: string | null
   brandTerms: string[]
   defaultPeriod: ReportPeriod
-  ga4Options: BuilderOption[]
-  gscOptions: BuilderOption[]
   keyEventNames: string[]
 }) {
-  const [layout, setLayout] = useState(initialLayout)
-  const [selected, setSelected] = useState(0)
-  const [ga4, setGa4] = useState(ga4PropertyRef ?? "")
-  const [gsc, setGsc] = useState(gscSiteRef ?? "")
+  const [entries, setEntries] = useState<BuilderEntry[]>(() => entriesFromLayout(initialLayout))
+  const [selectedKey, setSelectedKey] = useState<string | null>(() => (initialLayout.length > 0 ? "el-0" : null))
   const [terms, setTerms] = useState(brandTerms.join(", "))
   const [period, setPeriod] = useState<ReportPeriod>(defaultPeriod)
   const [version, setVersion] = useState(currentVersion)
   const [history, setHistory] = useState(versions)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState<"save" | "preview" | "restore" | null>(null)
+  const [busy, setBusy] = useState<"save" | "restore" | null>(null)
   const [preview, setPreview] = useState<{ data: WebReportData; connected: boolean } | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [clientView, setClientView] = useState(false)
+  const keySeq = useRef(0)
+  const previewSeq = useRef(0)
 
-  const selectedItem = layout[selected] ?? null
-  const fields = selectedItem ? describeElementSettings(selectedItem.elementId) : []
+  const accounts = useMemo(() => ({ ga4PropertyRef, gscSiteRef }), [ga4PropertyRef, gscSiteRef])
+  const parsedTerms = useMemo(() => parseBrandTerms(terms), [terms])
+  const termsKey = parsedTerms.join("\u0000")
 
-  function connectionBody() {
-    return {
-      ga4PropertyRef: ga4.trim() || null,
-      gscSiteRef: gsc.trim() || null,
-      brandTerms: parseBrandTerms(terms),
-      defaultPeriod: period,
-      layout,
-    }
-  }
+  const selectedIndex = entries.findIndex((entry) => entry.key === selectedKey)
+  const selectedEntry = selectedIndex >= 0 ? entries[selectedIndex] : null
+  const counts = useMemo(() => {
+    const out: Partial<Record<WebElementId, number>> = {}
+    for (const entry of entries) out[entry.item.elementId] = (out[entry.item.elementId] ?? 0) + 1
+    return out
+  }, [entries])
 
   async function post(body: unknown) {
     const response = await fetch(`/api/dashboard/${slug}/web-builder`, {
@@ -295,25 +99,74 @@ export function ReportBuilder({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     })
-    const payload = (await response.json().catch(() => null)) as { error?: string; message?: string; version?: number; layout?: WebReportLayoutItem[]; data?: WebReportData; connected?: boolean } | null
+    const payload = (await response.json().catch(() => null)) as BuilderResponse | null
     return { response, payload }
+  }
+
+  useEffect(() => {
+    const seq = ++previewSeq.current
+    const timer = setTimeout(() => {
+      setPreviewError(null)
+      void (async () => {
+        try {
+          const { response, payload } = await post(
+            builderRequestBody({
+              action: "preview",
+              entries: entries.length > 0 ? entries : entriesFromLayout([{ elementId: "notes", settings: { text: "" } }]),
+              brandTerms: parsedTerms,
+              period,
+              accounts,
+            }),
+          )
+          if (seq !== previewSeq.current) return
+          if (!response.ok || !payload?.data) {
+            setPreviewError(payload?.error ?? "The report data could not be loaded")
+            return
+          }
+          setPreview({ data: payload.data, connected: Boolean(payload.connected) })
+        } catch {
+          if (seq === previewSeq.current) setPreviewError("The report data could not be loaded")
+        }
+      })()
+    }, PREVIEW_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+    // Data depends on the period, brand terms and accounts only. Layout edits re-render from the loaded data.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, termsKey, accounts, slug])
+
+  function change(next: (current: BuilderEntry[]) => BuilderEntry[]) {
+    const after = next(entries)
+    setEntries(after)
+    setSelectedKey(nextSelection(entries, after, selectedKey))
+  }
+
+  function onAdd(id: WebElementId) {
+    keySeq.current += 1
+    const key = `new-${keySeq.current}`
+    setEntries((current) => addEntry(current, id, key))
+    setSelectedKey(key)
   }
 
   async function onSave() {
     setBusy("save")
     setError(null)
     try {
-      const { response, payload } = await post({ action: "save", ...connectionBody() })
+      const { response, payload } = await post(
+        builderRequestBody({ action: "save", entries, brandTerms: parsedTerms, period, accounts }),
+      )
       if (!response.ok || payload?.version == null) {
         setError(payload?.error ?? "The report could not be saved")
         return
       }
-      setVersion(payload.version)
+      const saved = payload.version
+      setVersion(saved)
       setMessage(payload.message ?? null)
-      setHistory((current) => {
-        const next = [{ version: payload.version as number, savedAt: new Date().toISOString() }, ...current.filter((row) => row.version !== payload.version)]
-        return next.slice(0, WEB_REPORT_VERSION_KEEP)
-      })
+      setHistory((current) =>
+        [{ version: saved, savedAt: new Date().toISOString() }, ...current.filter((row) => row.version !== saved)].slice(
+          0,
+          WEB_REPORT_VERSION_KEEP,
+        ),
+      )
     } catch {
       setError("The report could not be saved")
     } finally {
@@ -331,8 +184,10 @@ export function ReportBuilder({
         return
       }
       if (Array.isArray(payload.layout)) {
-        setLayout(payload.layout)
-        setSelected(0)
+        keySeq.current += 1
+        const restored = entriesFromLayout(payload.layout, `v${payload.version}-${keySeq.current}`)
+        setEntries(restored)
+        setSelectedKey(restored[0]?.key ?? null)
       }
       setVersion(payload.version)
       setMessage(payload.message ?? null)
@@ -343,239 +198,84 @@ export function ReportBuilder({
     }
   }
 
-  async function onPreview() {
-    setBusy("preview")
-    setError(null)
-    try {
-      const { response, payload } = await post({ action: "preview", ...connectionBody() })
-      if (!response.ok || !payload?.data) {
-        setError(payload?.error ?? "Preview could not be loaded")
-        return
-      }
-      setPreview({ data: payload.data, connected: Boolean(payload.connected) })
-    } catch {
-      setError("Preview could not be loaded")
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  function updateSettings(next: unknown) {
-    setLayout((current) => current.map((item, index) => (index === selected ? { ...item, settings: next } : item)))
-  }
-
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-6 sm:px-6">
-      <PageHeader
-        title="Report builder"
-        accent={clientName}
-        punctuate={false}
-        lede={<p>Choose the elements this client sees on Web & search.</p>}
-        meta={message ? <p>{message}</p> : null}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" disabled={busy != null} onClick={() => void onPreview()}>
-              {busy === "preview" ? "Loading preview" : "Preview"}
-            </Button>
-            <Button type="button" variant="action" disabled={!migrationApplied || busy != null || layout.length === 0} onClick={() => void onSave()}>
-              {busy === "save" ? "Saving" : "Save"}
-            </Button>
-          </div>
-        }
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 sm:px-6">
+      <BuilderTopBar
+        slug={slug}
+        clientName={clientName}
+        period={period}
+        onPeriod={setPeriod}
+        terms={terms}
+        onTerms={setTerms}
+        ga4PropertyRef={ga4PropertyRef}
+        gscSiteRef={gscSiteRef}
+        clientView={clientView}
+        onClientView={setClientView}
+        canSave={migrationApplied && busy == null && entries.length > 0}
+        saving={busy === "save"}
+        onSave={() => void onSave()}
+        version={version}
+        history={migrationApplied ? history : []}
+        restoring={busy != null}
+        onRestore={(target) => void onRestore(target)}
+        message={message}
       />
 
       {migrationApplied ? null : (
         <p className="rounded-card border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{BUILDER_NEEDS_MIGRATION}</p>
       )}
-      {error ? (
-        <p className="rounded-card border border-border bg-card px-4 py-3 text-sm text-status-critical-fg">{error}</p>
+      {error || previewError ? (
+        <p role="alert" className="rounded-card border border-border bg-pacing-critical-bg px-4 py-3 text-sm text-status-critical-fg">
+          {error ?? previewError}
+        </p>
       ) : null}
 
-      <section className="grid gap-3 rounded-card border border-border bg-card p-4 shadow-e1 md:grid-cols-2 xl:grid-cols-4">
-        <label className="flex flex-col gap-1 text-sm text-foreground">
-          Google Analytics 4 property
-          <select className={fieldClass()} value={ga4} onChange={(event) => setGa4(event.target.value)}>
-            <option value="">Not connected</option>
-            {ga4Options.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-foreground">
-          Search Console site
-          <select className={fieldClass()} value={gsc} onChange={(event) => setGsc(event.target.value)}>
-            <option value="">Not connected</option>
-            {gscOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-foreground">
-          Brand terms
-          <Input value={terms} placeholder="brand, product" onChange={(event) => setTerms(event.target.value)} />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-foreground">
-          Default period
-          <select className={fieldClass()} value={period} onChange={(event) => setPeriod(event.target.value as ReportPeriod)}>
-            {REPORT_PERIODS.map((value) => (
-              <option key={value} value={value}>
-                {PERIOD_LABEL[value]}
-              </option>
-            ))}
-          </select>
-        </label>
-      </section>
-
-      <div className="grid items-start gap-4 lg:grid-cols-[240px_minmax(0,1fr)_280px]">
-        <section className="rounded-card border border-border bg-card p-3 shadow-e1">
-          <h2 className="px-1 text-sm font-semibold text-foreground">Elements</h2>
-          <div className="mt-3 flex flex-col gap-4">
-            {WEB_ELEMENT_GROUPS.map((group) => (
-              <div key={group}>
-                <p className="px-1 text-xs font-semibold text-muted-foreground">{group}</p>
-                <div className="mt-1 flex flex-col gap-1">
-                  {(Object.values(WEB_REPORT_ELEMENTS) as Array<(typeof WEB_REPORT_ELEMENTS)[WebElementId]>)
-                    .filter((element) => element.group === group)
-                    .map((element) => {
-                      const needsData = elementNeedsData(element.id)
-                      return (
-                        <button
-                          key={element.id}
-                          type="button"
-                          className={`interactive rounded-input border px-2 py-2 text-left text-sm text-foreground ${
-                            needsData ? "border-dashed border-border" : "border-border"
-                          }`}
-                          onClick={() => {
-                            setLayout((current) => addElement(current, element.id))
-                            setSelected(layout.length)
-                          }}
-                        >
-                          <span className="block">{element.title}</span>
-                          {needsData ? <span className="text-xs text-muted-foreground">Needs data</span> : null}
-                        </button>
-                      )
-                    })}
-                </div>
-              </div>
-            ))}
+      {clientView ? (
+        preview ? (
+          <div className="rounded-frame border border-border bg-background">
+            <WebReportView
+              slug={slug}
+              clientName={clientName}
+              period={period}
+              layout={layoutFromEntries(entries)}
+              data={preview.data}
+              connected={preview.connected}
+              interactivePeriod={false}
+            />
           </div>
-        </section>
-
-        <section className="rounded-card border border-border bg-card p-3 shadow-e1">
-          <h2 className="px-1 text-sm font-semibold text-foreground">Layout</h2>
-          {layout.length === 0 ? (
-            <p className="mt-3 px-1 text-sm text-muted-foreground">Add an element from the library.</p>
-          ) : (
-            <ol className="mt-3 flex flex-col gap-2">
-              {layout.map((item, index) => (
-                <li key={`${item.elementId}-${index}`}>
-                  <div
-                    className={`flex items-center gap-2 rounded-input border px-2 py-2 ${
-                      index === selected ? "border-primary bg-muted" : "border-border"
-                    }`}
-                  >
-                    <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setSelected(index)}>
-                      <span className="num w-5 text-sm text-muted-foreground">{index + 1}</span>
-                      <span className="truncate text-sm text-foreground">{elementTitle(item.elementId)}</span>
-                    </button>
-                    <Button type="button" variant="ghost" size="sm" disabled={index === 0} onClick={() => { setLayout((current) => moveElement(current, index, -1)); setSelected(index === selected ? index - 1 : selected) }}>
-                      Move up
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" disabled={index === layout.length - 1} onClick={() => { setLayout((current) => moveElement(current, index, 1)); setSelected(index === selected ? index + 1 : selected) }}>
-                      Move down
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setLayout((current) => removeElement(current, index))
-                        setSelected((current) => Math.max(0, Math.min(current, layout.length - 2)))
-                      }}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
-          {migrationApplied && history.length > 0 ? (
-            <div className="mt-4 border-t border-border pt-3">
-              <p className="px-1 text-xs font-semibold text-muted-foreground">
-                Published version <span className="num">{version}</span>
-              </p>
-              <div className="mt-2 flex flex-col gap-1">
-                {history.map((row) => (
-                  <Button
-                    key={row.version}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!migrationApplied || busy != null || row.version === version}
-                    onClick={() => void onRestore(row.version)}
-                  >
-                    Restore version <span className="num">{row.version}</span>
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </section>
-
-        <section className="rounded-card border border-border bg-card p-3 shadow-e1">
-          <h2 className="px-1 text-sm font-semibold text-foreground">Settings</h2>
-          {selectedItem == null ? (
-            <p className="mt-3 px-1 text-sm text-muted-foreground">Select an element to edit it.</p>
-          ) : (
-            <div className="mt-3 flex flex-col gap-3">
-              <p className="px-1 text-sm text-foreground">{elementTitle(selectedItem.elementId)}</p>
-              {fields.length === 0 ? (
-                <p className="px-1 text-sm text-muted-foreground">This element has no settings.</p>
-              ) : (
-                fields.map((field) => (
-                  <label key={field.key} className="flex flex-col gap-1 px-1 text-sm text-foreground">
-                    {field.kind === "boolean" ? null : (
-                      <span className={field.kind === "enumList" || field.kind === "objectList" ? "font-medium" : undefined}>
-                        {field.label}
-                      </span>
-                    )}
-                    <SettingsControl
-                      field={field}
-                      value={asRecord(selectedItem.settings)[field.key]}
-                      keyEventNames={keyEventNames}
-                      onChange={(next) => {
-                        const record = asRecord(selectedItem.settings)
-                        if (next === undefined) delete record[field.key]
-                        else record[field.key] = next
-                        updateSettings(record)
-                      }}
-                    />
-                  </label>
-                ))
-              )}
-            </div>
-          )}
-        </section>
-      </div>
-
-      {preview ? (
-        <div className="rounded-frame border border-border bg-background">
-          <WebReportView
-            slug={slug}
-            clientName={clientName}
-            period={period}
-            layout={layout}
-            data={preview.data}
-            connected={preview.connected}
-            interactivePeriod={false}
+        ) : (
+          <Skeleton className="h-96 w-full rounded-card" />
+        )
+      ) : (
+        <div className="grid items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
+          <ElementLibrary
+            counts={counts}
+            onAdd={onAdd}
+            onRemove={(id) => change((current) => removeLastOf(current, id))}
           />
+          <BuilderCanvas
+            entries={entries}
+            selectedKey={selectedKey}
+            data={preview?.data ?? null}
+            onSelect={setSelectedKey}
+            onMove={(key, delta) => setEntries((current) => moveEntryBy(current, key, delta))}
+            onReorder={(from, to) => setEntries((current) => moveEntryTo(current, from, to))}
+          />
+          <div className="lg:sticky lg:top-4">
+            <ElementSettingsPanel
+              entry={selectedEntry}
+              index={selectedIndex}
+              total={entries.length}
+              keyEventNames={keyEventNames}
+              onDisplay={(display) => selectedKey && setEntries((current) => setEntryDisplay(current, selectedKey, display))}
+              onWidth={(width) => selectedKey && setEntries((current) => setEntryWidth(current, selectedKey, width))}
+              onSettings={(settings) => selectedKey && setEntries((current) => setEntrySettings(current, selectedKey, settings))}
+              onMove={(delta) => selectedKey && setEntries((current) => moveEntryBy(current, selectedKey, delta))}
+              onRemove={() => selectedKey && change((current) => removeEntry(current, selectedKey))}
+            />
+          </div>
         </div>
-      ) : null}
+      )}
     </div>
   )
 }

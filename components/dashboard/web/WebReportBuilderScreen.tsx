@@ -20,8 +20,6 @@ export function WebReportBuilderScreen({
       gscSiteRef={draft.gscSiteRef}
       brandTerms={draft.brandTerms}
       defaultPeriod={draft.defaultPeriod}
-      ga4Options={draft.ga4Options}
-      gscOptions={draft.gscOptions}
       keyEventNames={draft.keyEventNames}
     />
   )

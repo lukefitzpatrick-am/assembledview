@@ -55,6 +55,7 @@ export default defineConfig({
       "components/dashboard/__tests__/ClientOverdueNotice.test.tsx",
       "components/planning/__tests__/UploadCoveragePanel.render.test.tsx",
       "components/dashboard/web/__tests__/elementDisplay.test.tsx",
+      "components/dashboard/web/__tests__/reportBuilder.test.tsx",
       "components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx",
       "components/dashboard/delivery/common/__tests__/deliveryChart.render.test.tsx",
       "components/clients/__tests__/PlatformAccountsSection.render.test.tsx",
