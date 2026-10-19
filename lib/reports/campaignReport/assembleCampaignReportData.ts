@@ -54,6 +54,7 @@ import {
   type RateSourceLine,
 } from "@/lib/reports/campaignReport/reportFigures"
 import { buildDeckCharts, type DeckChart } from "@/lib/reports/campaignReport/deckCharts"
+import { buildDeckDetail, type DeckDetail, type DeckDetailLevel } from "@/lib/reports/campaignReport/deckDetail"
 
 export { formatReportInt, formatReportMoney }
 
@@ -164,6 +165,10 @@ export type CampaignReportPayload = {
   commentary: ReportCommentary | null
   /** Optional brand-library photo for the cover picture placeholder. */
   coverPhotoId?: string | null
+  /** Channel when the caller omits a level. Monthly reports stay here. */
+  detailLevel: DeckDetailLevel
+  /** Empty at channel level. Line item or ad group rows otherwise. */
+  detail: DeckDetail[]
 }
 
 function channelLabel(group: string): string {
@@ -339,6 +344,8 @@ export type AssembleCampaignReportInput = {
   todayISO?: string
   /** Tests inject a stub. The export route uses the AVA writer. */
   generateCommentary?: typeof generateReportCommentary
+  /** Omitted means channel. The monthly cron does not set this. */
+  detailLevel?: DeckDetailLevel
 }
 
 export async function assembleCampaignReportData(
@@ -603,6 +610,11 @@ export async function assembleCampaignReportData(
     ),
     kpis,
     commentary: null,
+    detailLevel: input.detailLevel === "line_item" || input.detailLevel === "ad_group" ? input.detailLevel : "channel",
+    detail: [],
+  }
+  if (reportData.detailLevel !== "channel") {
+    reportData.detail = buildDeckDetail(currentSnap, reportData.detailLevel, currentWindow)
   }
 
   const writeCommentary = input.generateCommentary ?? generateReportCommentary

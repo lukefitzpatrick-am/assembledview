@@ -1,7 +1,8 @@
 /**
  * report_runs and report_digest_sends (migration 0095). SQL is source of truth.
  * 0097 is applied: requested_by_email, and the two partial unique indexes.
- * RLS is on, with no policies.
+ * 0099 adds detail_level and includes it on the on-demand in-flight index.
+ * The monthly partial index is unchanged. RLS is on, with no policies.
  */
 import { sql } from "drizzle-orm"
 import {
@@ -44,11 +45,16 @@ export const reportRuns = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }),
     finishedAt: timestamp("finished_at", { withTimezone: true, mode: "string" }),
     requestedByEmail: text("requested_by_email"),
+    detailLevel: text("detail_level").notNull().default("channel"),
   },
   (table) => [
     check(
       "report_runs_status_check",
       sql`${table.status} = ANY (ARRAY['queued'::text, 'generating'::text, 'generated'::text, 'failed'::text, 'skipped'::text])`,
+    ),
+    check(
+      "report_runs_detail_level_check",
+      sql`${table.detailLevel} IN ('channel', 'line_item', 'ad_group')`,
     ),
     foreignKey({
       columns: [table.clientId],
@@ -59,7 +65,7 @@ export const reportRuns = pgTable(
       .on(table.kind, table.mbaNumber, table.periodStart)
       .where(sql`${table.kind} <> 'on_demand_deck'`),
     uniqueIndex("uq_report_runs_on_demand_inflight")
-      .on(table.kind, table.mbaNumber, table.periodStart)
+      .on(table.kind, table.mbaNumber, table.periodStart, table.detailLevel)
       .where(
         sql`${table.kind} = 'on_demand_deck' AND ${table.status} IN ('queued', 'generating')`,
       ),

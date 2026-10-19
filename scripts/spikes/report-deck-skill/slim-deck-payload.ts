@@ -230,6 +230,42 @@ function slimCommentary(value: unknown): JsonRecord | null {
   return out
 }
 
+function formatDeckDetail(value: unknown): JsonRecord[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || !Array.isArray(entry.rows)) return []
+    return [{
+      group: entry.group,
+      label: entry.label,
+      level: entry.level,
+      rankBy: entry.rankBy,
+      total: entry.total,
+      note: entry.note ?? null,
+      rows: entry.rows.flatMap((row) => formatDetailRow(row)),
+    }]
+  })
+}
+
+function formatDetailRow(value: unknown): JsonRecord[] {
+  if (!isRecord(value)) return []
+  const impressions = finiteNumber(value.impressions)
+  const clicks = finiteNumber(value.clicks)
+  const results = finiteNumber(value.results)
+  const ctr = finiteNumber(value.ctr)
+  const spend = finiteNumber(value.spend)
+  const row: JsonRecord = {
+    name: typeof value.name === "string" ? value.name : "",
+  }
+  if (value.spend != null) {
+    row.spend = spend == null ? "Not yet reported" : formatDeckMoney(spend)
+  }
+  row.impressions = impressions == null ? "Not yet reported" : formatDeckCount(impressions)
+  row.clicks = clicks == null ? "Not yet reported" : formatDeckCount(clicks)
+  row.results = results == null ? "Not yet reported" : formatDeckCount(results)
+  row.ctr = ctr == null ? "Not yet reported" : formatDeckPercent(ctr)
+  return [row]
+}
+
 export function slimDeckPayload(report: unknown): JsonRecord {
   if (!isRecord(report)) throw new Error("assembled report data is not an object")
   const channels = Array.isArray(report.channels) ? report.channels.map(slimChannel) : []
@@ -257,6 +293,8 @@ export function slimDeckPayload(report: unknown): JsonRecord {
   if (audiences.length > 0) payload.audiences = audiences
   const formatted = formatNode(null, payload) as JsonRecord
   if (Array.isArray(report.charts)) formatted.charts = report.charts
+  formatted.detailLevel = typeof report.detailLevel === "string" && report.detailLevel ? report.detailLevel : "channel"
+  formatted.detail = formatDeckDetail(report.detail)
   const bytes = Buffer.byteLength(JSON.stringify(formatted))
   if (bytes > MAX_BYTES) {
     throw new Error(`slim deck payload is ${bytes} bytes, over the ${MAX_BYTES} byte cap`)

@@ -12,7 +12,16 @@ import {
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { CampaignReportPeriodKind } from "@/lib/reports/campaignReport/periods"
+
+type ReportDetailLevel = "channel" | "line_item" | "ad_group"
 import {
   DECK_POLL_DEADLINE_MS,
   DECK_POLL_MS,
@@ -34,6 +43,12 @@ export type CampaignReportPeriodDialogProps = {
   campaignStartISO?: string | null
   campaignEndISO?: string | null
 }
+
+const DETAIL_OPTIONS: Array<{ level: ReportDetailLevel; label: string }> = [
+  { level: "channel", label: "Channel" },
+  { level: "line_item", label: "Line item" },
+  { level: "ad_group", label: "Ad group" },
+]
 
 const PERIOD_OPTIONS: Array<{ kind: CampaignReportPeriodKind; label: string; hint: string }> = [
   {
@@ -93,6 +108,7 @@ export function CampaignReportPeriodDialog({
   mbaNumber,
 }: CampaignReportPeriodDialogProps) {
   const [periodKind, setPeriodKind] = useState<CampaignReportPeriodKind>("this_month")
+  const [detailLevel, setDetailLevel] = useState<ReportDetailLevel>("channel")
   const [customStart, setCustomStart] = useState("")
   const [customEnd, setCustomEnd] = useState("")
   const [busy, setBusy] = useState(false)
@@ -120,7 +136,7 @@ export function CampaignReportPeriodDialog({
     setShowBuildNew(false)
     setWatchedAt(null)
 
-    const params = new URLSearchParams({ mbaNumber, kind: periodKind })
+    const params = new URLSearchParams({ mbaNumber, kind: periodKind, detailLevel })
     if (periodKind === "custom") {
       params.set("start", customStart)
       params.set("end", customEnd)
@@ -153,7 +169,7 @@ export function CampaignReportPeriodDialog({
     return () => {
       cancelled = true
     }
-  }, [open, canSubmit, mbaNumber, periodKind, customStart, customEnd])
+  }, [open, canSubmit, mbaNumber, periodKind, customStart, customEnd, detailLevel])
 
   useEffect(() => {
     if (!open || phase !== "building") return
@@ -216,6 +232,7 @@ export function CampaignReportPeriodDialog({
             start: periodKind === "custom" ? customStart : undefined,
             end: periodKind === "custom" ? customEnd : undefined,
           },
+          detailLevel,
         }),
       })
       if (request !== runRequest.current) return
@@ -326,6 +343,22 @@ export function CampaignReportPeriodDialog({
               </div>
             </div>
           ) : null}
+
+          <div className="space-y-1.5 pt-1">
+            <Label htmlFor="report-detail">Detail</Label>
+            <Select value={detailLevel} onValueChange={(value) => setDetailLevel(value as ReportDetailLevel)}>
+              <SelectTrigger id="report-detail">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DETAIL_OPTIONS.map((option) => (
+                  <SelectItem key={option.level} value={option.level}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {lookingUp && !run ? (

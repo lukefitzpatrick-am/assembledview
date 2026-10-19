@@ -2,6 +2,7 @@ import { after, NextRequest, NextResponse } from "next/server"
 
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { logJob } from "@/lib/log"
+import { readDeckDetailLevel } from "@/lib/reports/campaignReport/deckDetail"
 import { resolveCampaignReportPeriod } from "@/lib/reports/campaignReport/periods"
 import type { CampaignReportPeriodKind } from "@/lib/reports/campaignReport/periods"
 import { checkCampaignReportRateLimit } from "@/lib/reports/campaignReport/rateLimit"
@@ -118,6 +119,9 @@ export async function GET(request: NextRequest) {
   })
   if ("error" in period) return badRequest(period.error)
 
+  const detail = readDeckDetailLevel(request.nextUrl.searchParams.get("detailLevel"))
+  if ("error" in detail) return badRequest(detail.error)
+
   const access = await checkClientMbaAccess(request, mbaNumber)
   if (!access.ok) return access.response
 
@@ -130,7 +134,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const latest = await findLatestOnDemandDeck(mbaNumber, window.startISO, window.endISO)
+    const latest = await findLatestOnDemandDeck(
+      mbaNumber,
+      window.startISO,
+      window.endISO,
+      detail.detailLevel,
+    )
     if (!latest || !isDeckRunReopenable(latest.createdAt, Date.now())) {
       return NextResponse.json({ run: null })
     }
@@ -172,6 +181,9 @@ export async function POST(request: NextRequest) {
   const period = readPeriod(body)
   if ("error" in period) return badRequest(period.error)
 
+  const detail = readDeckDetailLevel(body.detailLevel)
+  if ("error" in detail) return badRequest(detail.error)
+
   const access = await checkClientMbaAccess(request, mbaNumber)
   if (!access.ok) return access.response
 
@@ -189,6 +201,7 @@ export async function POST(request: NextRequest) {
       periodStart: window.startISO,
       periodEnd: window.endISO,
       requestedByEmail: sessionEmail(gate.session),
+      detailLevel: detail.detailLevel,
     })
     after(async () => {
       logJob("[on-demand-deck] job start", { runId: queued.runId, mbaNumber })

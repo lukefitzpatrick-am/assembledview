@@ -117,6 +117,8 @@ export const campaignReportFixture: CampaignReportPayload = {
   ],
   charts: [],
   commentary: null,
+  detailLevel: "channel",
+  detail: [],
 }
 
 async function main() {

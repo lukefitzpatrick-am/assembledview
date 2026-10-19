@@ -48,6 +48,8 @@ function payload(overrides: Partial<CampaignReportPayload> = {}): CampaignReport
     kpis: [],
     charts: [],
     commentary: null,
+    detailLevel: "channel",
+    detail: [],
     ...overrides,
   }
 }

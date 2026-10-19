@@ -57,7 +57,9 @@ function commentaryFrom(report: unknown): GenerateCampaignReportInput["commentar
 }
 
 async function nodeDeck(
-  run: Pick<OnDemandDeckRow, "mbaNumber" | "periodStart" | "periodEnd">,
+  run: Pick<OnDemandDeckRow, "mbaNumber" | "periodStart" | "periodEnd"> & {
+    detailLevel?: OnDemandDeckRow["detailLevel"] | null
+  },
   generate: typeof generateCampaignReportForMba,
   report: unknown,
 ): Promise<BuiltOnDemandDeck> {
@@ -71,7 +73,9 @@ async function nodeDeck(
 }
 
 export async function buildDeckForRun(
-  run: Pick<OnDemandDeckRow, "mbaNumber" | "periodStart" | "periodEnd">,
+  run: Pick<OnDemandDeckRow, "mbaNumber" | "periodStart" | "periodEnd"> & {
+    detailLevel?: OnDemandDeckRow["detailLevel"] | null
+  },
   deps?: BuildDeckForRunDeps,
 ): Promise<BuiltOnDemandDeck> {
   const generate = deps?.generate ?? generateCampaignReportForMba

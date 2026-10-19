@@ -285,6 +285,8 @@ export type DeliveryLineSnapshot = {
   plannedViews?: number | null
   /** Plan buy type, trimmed and lowercased. The AVA summary strips this. */
   buyType?: string | null
+  /** Client label from the plan line. The AVA summary strips this. `name` stays the line id. */
+  label?: string | null
   startDate: string | null
   endDate: string | null
   spendToDate: number
@@ -354,6 +356,7 @@ function lineForSummary(line: DeliveryLineSnapshot): DeliveryLineSnapshot {
     plannedClicks: _clicks,
     plannedViews: _views,
     buyType: _buyType,
+    label: _label,
     ...rest
   } = line
   return rest

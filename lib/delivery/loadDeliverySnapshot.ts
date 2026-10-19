@@ -39,6 +39,7 @@ import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import { netBurstExpectedInWindow } from "@/lib/reports/campaignReport/reportPace"
 import { planDeliverablesFromItem } from "@/lib/reports/campaignReport/reportFigures"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
+import { buildGanttSidelineLabel } from "@/lib/mediaplan/normalizeLineItem"
 import { fromCents, toCents } from "@/lib/money/cents"
 import { parseMoney } from "@/lib/money/parse"
 import { assumedSpendForBurst } from "@/lib/spend/assumedSpend"
@@ -117,6 +118,8 @@ type PlanLineMeta = {
   publisher: string | null
   platform: string | null
   clientPaysForMedia: boolean
+  /** Client-facing gantt label. `name` stays the line id. */
+  label: string | null
 }
 
 function asNumber(value: unknown): number | null {
@@ -202,7 +205,30 @@ function toPlanLineMeta(
     publisher: asString(rec.publisher),
     platform: asString(rec.platform),
     clientPaysForMedia: rec.client_pays_for_media === true || rec.clientPaysForMedia === true,
+    label: planLineLabel(item, id),
   }
+}
+
+function planLineLabel(item: MediaContainerLineItem, id: string): string | null {
+  const rec = item as Record<string, unknown>
+  const text = buildGanttSidelineLabel({
+    lineItemId: id,
+    mediaType: "",
+    publisher: asString(rec.publisher) ?? undefined,
+    platform: asString(rec.platform) ?? undefined,
+    network: asString(rec.network) ?? undefined,
+    station: asString(rec.station) ?? undefined,
+    site: asString(rec.site) ?? undefined,
+    creativeTargeting:
+      asString(rec.creative_targeting) ??
+      asString(rec.creativeTargeting) ??
+      asString(rec.targeting) ??
+      undefined,
+    placement: asString(rec.placement) ?? undefined,
+    daypart: asString(rec.daypart) ?? undefined,
+    bursts: [],
+  }).trim()
+  return text || null
 }
 
 function emptyMetrics() {
@@ -360,6 +386,7 @@ function buildLines(
     lines.push({
       lineItemId: id,
       name: plan?.name || id,
+      label: plan?.label ?? null,
       plannedBudget: plan?.plannedBudget ?? null,
       plannedUnits: plan?.plannedUnits ?? null,
       plannedImpressions: plan?.plannedImpressions ?? null,
@@ -641,6 +668,7 @@ function assumedSnapshotLine(plan: PlanLineMeta, spend: number): DeliveryLineSna
   return {
     lineItemId: plan.id,
     name: plan.name,
+    label: plan.label,
     plannedBudget: plan.plannedBudget,
     plannedUnits: plan.plannedUnits,
     plannedImpressions: plan.plannedImpressions,

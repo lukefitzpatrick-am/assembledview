@@ -7,6 +7,7 @@ import { sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 
 import * as schema from "@/db/schema"
+import type { DeckDetailLevel } from "@/lib/reports/campaignReport/deckDetail"
 
 export const ON_DEMAND_DECK_KIND = "on_demand_deck"
 export const ON_DEMAND_NOTE_PREFIX = "note:"
@@ -26,6 +27,7 @@ export type OnDemandDeckRow = {
   fileName: string | null
   error: string | null
   requestedByEmail: string | null
+  detailLevel: DeckDetailLevel
   createdAt: string
   startedAt: string | null
 }
@@ -35,6 +37,7 @@ export type OnDemandEnqueueInput = {
   periodStart: string
   periodEnd: string
   requestedByEmail: string | null
+  detailLevel: DeckDetailLevel
 }
 
 export type OnDemandEnqueueRepo = {
@@ -42,6 +45,7 @@ export type OnDemandEnqueueRepo = {
   findInflight(
     mbaNumber: string,
     periodStart: string,
+    detailLevel: DeckDetailLevel,
   ): Promise<{ id: string; status: string } | null>
 }
 
@@ -60,22 +64,39 @@ export type OnDemandDeckStatusBody = {
   createdAt: string
 }
 
+/** A channel lookup does not match a line_item or ad_group row. */
+export function onDemandDeckMatchesLookup(
+  row: { mbaNumber: string; periodStart: string; periodEnd: string; detailLevel?: string | null },
+  query: { mbaNumber: string; periodStart: string; periodEnd: string; detailLevel: DeckDetailLevel },
+): boolean {
+  const rowLevel = row.detailLevel === "line_item" || row.detailLevel === "ad_group" ? row.detailLevel : "channel"
+  return (
+    row.mbaNumber.toLowerCase() === query.mbaNumber.toLowerCase() &&
+    row.periodStart === query.periodStart &&
+    row.periodEnd === query.periodEnd &&
+    rowLevel === query.detailLevel
+  )
+}
+
 /** Same build call as Review & Report, on the window already stored on the row. */
 export function onDemandGenerateInput(run: {
   mbaNumber: string
   periodStart: string
   periodEnd: string
+  detailLevel?: DeckDetailLevel | null
 }): {
   mbaNumber: string
   period: { kind: "custom"; start: string; end: string }
   store: false
   withCommentary: true
+  detailLevel: DeckDetailLevel
 } {
   return {
     mbaNumber: run.mbaNumber,
     period: { kind: "custom", start: run.periodStart, end: run.periodEnd },
     store: false,
     withCommentary: true,
+    detailLevel: run.detailLevel ?? "channel",
   }
 }
 
@@ -92,12 +113,14 @@ export function onDemandInsert<TSchema extends Record<string, unknown>>(
       periodEnd: input.periodEnd,
       status: "queued",
       requestedByEmail: input.requestedByEmail,
+      detailLevel: input.detailLevel,
     })
     .onConflictDoNothing({
       target: [
         schema.reportRuns.kind,
         schema.reportRuns.mbaNumber,
         schema.reportRuns.periodStart,
+        schema.reportRuns.detailLevel,
       ],
       where: sql`kind = 'on_demand_deck' AND status IN ('queued', 'generating')`,
     })
@@ -110,7 +133,7 @@ export async function enqueueOnDemandDeck(
 ): Promise<{ runId: string; status: string }> {
   const inserted = await repo.insertQueued(input)
   if (inserted) return { runId: inserted.id, status: "queued" }
-  const existing = await repo.findInflight(input.mbaNumber, input.periodStart)
+  const existing = await repo.findInflight(input.mbaNumber, input.periodStart, input.detailLevel)
   if (!existing) {
     throw new Error("An in-flight on-demand deck was not found")
   }

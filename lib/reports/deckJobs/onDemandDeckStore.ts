@@ -6,6 +6,7 @@ import "server-only"
 import { eq, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
+import { readDeckDetailLevel, type DeckDetailLevel } from "@/lib/reports/campaignReport/deckDetail"
 import {
   ON_DEMAND_TIMEOUT_ERROR,
   enqueueOnDemandDeck,
@@ -33,6 +34,11 @@ function isoTimestamp(value: unknown): string | null {
   return text || null
 }
 
+function detailLevelOf(value: unknown): DeckDetailLevel {
+  const read = readDeckDetailLevel(value)
+  return "detailLevel" in read ? read.detailLevel : "channel"
+}
+
 function mapRow(row: Record<string, unknown>): OnDemandDeckRow {
   return {
     id: String(row.id),
@@ -46,6 +52,7 @@ function mapRow(row: Record<string, unknown>): OnDemandDeckRow {
     fileName: row.file_name == null ? null : String(row.file_name),
     error: row.error == null ? null : String(row.error),
     requestedByEmail: row.requested_by_email == null ? null : String(row.requested_by_email),
+    detailLevel: detailLevelOf(row.detail_level),
     createdAt: isoTimestamp(row.created_at) ?? new Date(0).toISOString(),
     startedAt: isoTimestamp(row.started_at),
   }
@@ -61,13 +68,14 @@ export async function enqueueOnDemandDeckRow(
         const inserted = await onDemandInsert(db, row)
         return inserted[0] ?? null
       },
-      async findInflight(mbaNumber, periodStart) {
+      async findInflight(mbaNumber, periodStart, detailLevel) {
         const result = await db.execute(sql`
           SELECT id, status
           FROM report_runs
           WHERE kind = 'on_demand_deck'
             AND mba_number = ${mbaNumber}
             AND period_start = ${periodStart}
+            AND detail_level = ${detailLevel}
             AND status IN ('queued', 'generating')
           LIMIT 1
         `)
@@ -171,6 +179,7 @@ export async function findLatestOnDemandDeck(
   mbaNumber: string,
   periodStart: string,
   periodEnd: string,
+  detailLevel: DeckDetailLevel = "channel",
 ): Promise<OnDemandDeckRow | null> {
   const db = getDb()
   const result = await db.execute(sql`
@@ -180,6 +189,7 @@ export async function findLatestOnDemandDeck(
       AND lower(mba_number) = lower(${mbaNumber})
       AND period_start = ${periodStart}
       AND period_end = ${periodEnd}
+      AND detail_level = ${detailLevel}
     ORDER BY created_at DESC
     LIMIT 1
   `)

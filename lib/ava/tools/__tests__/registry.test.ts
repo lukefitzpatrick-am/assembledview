@@ -286,6 +286,7 @@ test("AVA delivery summary strips buyType", () => {
             plannedClicks: 50,
             plannedViews: 10,
             buyType: "cpv",
+            label: "Meta • Engaged & Prospecting Audiences",
             startDate: "2026-01-01",
             endDate: "2026-06-30",
             spendToDate: 36500,
@@ -327,6 +328,7 @@ test("AVA delivery summary strips buyType", () => {
   })
   const summaryLine = snap.channels[0]?.lines[0] as Record<string, unknown>
   assert.equal("buyType" in summaryLine, false)
+  assert.equal("label" in summaryLine, false)
   assert.equal("plannedImpressions" in summaryLine, false)
   assert.equal("plannedClicks" in summaryLine, false)
   assert.equal("plannedViews" in summaryLine, false)

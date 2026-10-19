@@ -20,6 +20,7 @@ import {
   generateReportCommentary,
   type GenerateReportCommentaryInput,
 } from "@/lib/reports/campaignReport/generateReportCommentary"
+import type { DeckDetailLevel } from "@/lib/reports/campaignReport/deckDetail"
 import type { CampaignReportPeriodKind } from "@/lib/reports/campaignReport/periods"
 import { campaignReportPeriodFilePart } from "@/lib/reports/campaignReport/reportFigures"
 import { storePerformanceReport } from "@/lib/reports/storePerformanceReport"
@@ -40,6 +41,8 @@ export type GenerateCampaignReportInput = {
    * Review & Report still generates its own when this is absent and withCommentary is true.
    */
   commentary?: ReportCommentary
+  /** Omitted by the monthly cron, which stays at channel. */
+  detailLevel?: DeckDetailLevel
 }
 
 export type PublishedCampaignReport = {
@@ -225,6 +228,7 @@ export async function loadCampaignReportForMba(
     customStartISO: input.period.kind === "custom" ? input.period.start : undefined,
     customEndISO: input.period.kind === "custom" ? input.period.end : undefined,
     mpSearchEnabled: identity.mpSearchEnabled,
+    detailLevel: input.detailLevel ?? "channel",
     generateCommentary: async () => null,
   })
 

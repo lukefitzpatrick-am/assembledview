@@ -243,6 +243,76 @@ test("a channel with one ad set has no audiences list", () => {
   assert.equal("audiences" in slim, false)
 })
 
+test("detail rows are formatted strings, and channel level has an empty detail", () => {
+  const channel = slimDeckPayload({
+    mbaNumber: "curatif004",
+    clientName: "Curatif",
+    campaignName: "FY27",
+    totals: { spend: 10 },
+    channels: [],
+    kpis: [],
+    detailLevel: "channel",
+    detail: [],
+  })
+  assert.equal(channel.detailLevel, "channel")
+  assert.deepEqual(channel.detail, [])
+
+  const slim = slimDeckPayload({
+    mbaNumber: "curatif004",
+    clientName: "Curatif",
+    campaignName: "FY27",
+    totals: { spend: 10 },
+    channels: [],
+    kpis: [],
+    detailLevel: "ad_group",
+    detail: [
+      {
+        group: "social_meta",
+        label: "Social (Meta)",
+        level: "ad_group",
+        rankBy: "spend",
+        total: 1,
+        note: null,
+        rows: [{
+          name: "Prospecting-AU-ADV+",
+          spend: 24689.97,
+          impressions: 1000,
+          clicks: 50,
+          results: null,
+          ctr: 0.05,
+        }],
+      },
+      {
+        group: "digital_display",
+        label: "Digital Display",
+        level: "ad_group",
+        rankBy: "impressions",
+        total: 1,
+        note: "Placements ranked by impressions. Spend is reported at line level.",
+        rows: [{
+          name: "NewsCorp-Video",
+          spend: null,
+          impressions: 249317,
+          clicks: 40,
+          results: null,
+          ctr: 40 / 249317,
+        }],
+      },
+    ],
+  })
+  const detail = slim.detail as Array<{ rows: Array<Record<string, string>> }>
+  const meta = detail[0]?.rows[0]
+  assert.equal(meta?.spend, "$24,689.97")
+  assert.equal(meta?.impressions, "1,000")
+  assert.equal(meta?.clicks, "50")
+  assert.equal(meta?.results, "Not yet reported")
+  assert.equal(meta?.ctr, "5.00%")
+  const placement = detail[1]?.rows[0]
+  assert.equal("spend" in (placement ?? {}), false)
+  assert.equal(placement?.impressions, "249,317")
+  assert.equal(placement?.results, "Not yet reported")
+})
+
 test("charts keep numeric points, weekly is gone, and the cap is 80,000", () => {
   const slim = slimDeckPayload({
     mbaNumber: "curatif004",

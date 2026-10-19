@@ -13,6 +13,7 @@ import {
   ON_DEMAND_TIMEOUT_ERROR,
   enqueueOnDemandDeck,
   executeOnDemandDeck,
+  onDemandDeckMatchesLookup,
   isStaleQueued,
   isStuckGenerating,
   loadOnDemandDeckStatus,
@@ -36,6 +37,7 @@ function row(partial: Partial<OnDemandDeckRow> & Pick<OnDemandDeckRow, "id" | "s
     fileName: null,
     error: null,
     requestedByEmail: "planner@assembledmedia.com.au",
+    detailLevel: "channel",
     createdAt: "2026-10-14T00:00:00.000Z",
     startedAt: null,
     ...partial,
@@ -52,6 +54,7 @@ function memoryRepo(seed: OnDemandDeckRow[] = []): OnDemandEnqueueRepo & { rows:
           item.kind === ON_DEMAND_DECK_KIND &&
           item.mbaNumber === input.mbaNumber &&
           item.periodStart === input.periodStart &&
+          item.detailLevel === input.detailLevel &&
           (item.status === "queued" || item.status === "generating"),
       )
       if (inflight) return null
@@ -62,17 +65,19 @@ function memoryRepo(seed: OnDemandDeckRow[] = []): OnDemandEnqueueRepo & { rows:
         periodStart: input.periodStart,
         periodEnd: input.periodEnd,
         requestedByEmail: input.requestedByEmail,
+        detailLevel: input.detailLevel,
         createdAt: "2026-10-14T01:00:00.000Z",
       })
       rows.push(created)
       return { id: created.id }
     },
-    async findInflight(mbaNumber, periodStart) {
+    async findInflight(mbaNumber, periodStart, detailLevel) {
       const found = rows.find(
         (item) =>
           item.kind === ON_DEMAND_DECK_KIND &&
           item.mbaNumber === mbaNumber &&
           item.periodStart === periodStart &&
+          item.detailLevel === detailLevel &&
           (item.status === "queued" || item.status === "generating"),
       )
       return found ? { id: found.id, status: found.status } : null
@@ -85,6 +90,7 @@ const enqueueInput = {
   periodStart: WINDOW.periodStart,
   periodEnd: WINDOW.periodEnd,
   requestedByEmail: "planner@assembledmedia.com.au",
+  detailLevel: "channel" as const,
 }
 
 test("create returns queued without building a deck", async () => {
@@ -135,13 +141,14 @@ test("on-demand insert names the in-flight partial index", () => {
     periodStart: "2026-09-01",
     periodEnd: "2026-09-30",
     requestedByEmail: "planner@assembledmedia.com.au",
+    detailLevel: "channel",
   })
     .toSQL()
     .sql.replace(/\s+/g, " ")
     .toLowerCase()
   assert.ok(
     text.includes(
-      "on conflict (\"kind\",\"mba_number\",\"period_start\") where kind = 'on_demand_deck' and status in ('queued', 'generating') do nothing",
+      "on conflict (\"kind\",\"mba_number\",\"period_start\",\"detail_level\") where kind = 'on_demand_deck' and status in ('queued', 'generating') do nothing",
     ),
     text,
   )
@@ -161,8 +168,43 @@ test("build input matches today's export call on the stored window", () => {
       period: { kind: "custom", start: "2026-09-01", end: "2026-09-30" },
       store: false,
       withCommentary: true,
+      detailLevel: "channel",
     },
   )
+})
+
+test("a queued line_item row does not block a channel create", async () => {
+  const repo = memoryRepo([row({ id: "lines", status: "queued", detailLevel: "line_item" })])
+  const created = await enqueueOnDemandDeck(repo, enqueueInput)
+  assert.notEqual(created.runId, "lines")
+  assert.equal(created.status, "queued")
+  assert.equal(repo.rows.length, 2)
+})
+
+test("findLatestOnDemandDeck does not return a line_item row for a channel request", () => {
+  assert.equal(
+    onDemandDeckMatchesLookup(
+      {
+        mbaNumber: "curatif004",
+        periodStart: WINDOW.periodStart,
+        periodEnd: WINDOW.periodEnd,
+        detailLevel: "line_item",
+      },
+      {
+        mbaNumber: "curatif004",
+        periodStart: WINDOW.periodStart,
+        periodEnd: WINDOW.periodEnd,
+        detailLevel: "channel",
+      },
+    ),
+    false,
+  )
+  const source = readFileSync(
+    path.join(process.cwd(), "lib/reports/deckJobs/onDemandDeckStore.ts"),
+    "utf8",
+  )
+  const lookup = source.slice(source.indexOf("export async function findLatestOnDemandDeck"))
+  assert.match(lookup, /AND detail_level = \$\{detailLevel\}/)
 })
 
 test("job success sets generated with a pathname", async () => {

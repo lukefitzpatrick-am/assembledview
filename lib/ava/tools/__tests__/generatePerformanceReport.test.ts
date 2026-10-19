@@ -88,6 +88,8 @@ function payload(): CampaignReportPayload {
     kpis: [],
     charts: [],
     commentary: null,
+    detailLevel: "channel",
+    detail: [],
   }
 }
 
