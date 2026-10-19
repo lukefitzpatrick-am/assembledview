@@ -35,6 +35,14 @@ export type QueryRow = {
   position: number | null
 }
 
+export type SearchPageRow = {
+  page: string
+  clicks: number
+  impressions: number
+  ctr: number | null
+  position: number | null
+}
+
 export type PeriodTotals = {
   users: number | null
   newUsers: number | null
@@ -77,7 +85,8 @@ export type GscSlice = {
   previous: PeriodTotals
   daily: DailyPoint[]
   queries: QueryRow[]
-  /** Page dimension is not on the GSC MART views. */
+  /** Landing pages from V_GSC_PAGE_DAILY. CTR is clicks / impressions. */
+  pages: SearchPageRow[]
   pagesStatus: SourceStatus
 }
 

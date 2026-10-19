@@ -454,3 +454,29 @@ GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GSC_QUERY_DAILY TO ROLE CLAUDE_RW;
 -- WHERE date >= DATEADD(day, -30, CURRENT_DATE())
 -- GROUP BY site
 -- ORDER BY site;
+
+-- PAGE_REPORT is keyed by country, device, and search_type.
+-- This view keeps search_type = 'web' and sums country and device.
+-- position is weighted by impressions.
+CREATE OR REPLACE VIEW ASSEMBLEDVIEW.MART.V_GSC_PAGE_DAILY COPY GRANTS AS
+SELECT
+  site,
+  date::date AS date,
+  page,
+  SUM(clicks) AS clicks,
+  SUM(impressions) AS impressions,
+  SUM(position * impressions) / NULLIF(SUM(impressions), 0) AS position
+FROM ASSEMBLEDVIEW.GOOGLE_SEARCH_CONSOLE.PAGE_REPORT
+WHERE search_type = 'web'
+  AND date::date >= DATEADD(day, -400, CURRENT_DATE())
+GROUP BY site, date::date, page;
+
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GSC_PAGE_DAILY TO ROLE AV_APP_READ_ROLE;
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GSC_PAGE_DAILY TO ROLE CLAUDE_RW;
+
+-- check: row counts by site for the last 30 days
+-- SELECT site, COUNT(*) AS rows
+-- FROM ASSEMBLEDVIEW.MART.V_GSC_PAGE_DAILY
+-- WHERE date >= DATEADD(day, -30, CURRENT_DATE())
+-- GROUP BY site
+-- ORDER BY site;

@@ -1,7 +1,12 @@
 import "server-only"
 
 import { querySnowflake } from "@/lib/snowflake/query"
-import { buildGscSlice, gscDailyFromWarehouse, gscQueriesFromWarehouse } from "@/lib/webReport/aggregate"
+import {
+  buildGscSlice,
+  gscDailyFromWarehouse,
+  gscPagesFromWarehouse,
+  gscQueriesFromWarehouse,
+} from "@/lib/webReport/aggregate"
 import { dateOnly, field, isMissingMartView } from "@/lib/webReport/rows"
 import type { DateWindow } from "@/lib/webReport/periods"
 import type { GscSlice, WarehouseQuery } from "@/lib/webReport/types"
@@ -22,6 +27,17 @@ FROM ASSEMBLEDVIEW.MART.V_GSC_QUERY_DAILY
 WHERE site = ?
   AND date BETWEEN ? AND ?
 GROUP BY query
+`
+
+const PAGE_SQL = `
+SELECT page,
+  SUM(clicks) AS clicks,
+  SUM(impressions) AS impressions,
+  SUM(position * impressions) / NULLIF(SUM(impressions), 0) AS position
+FROM ASSEMBLEDVIEW.MART.V_GSC_PAGE_DAILY
+WHERE site = ?
+  AND date BETWEEN ? AND ?
+GROUP BY page
 `
 
 const MAX_SQL = `
@@ -47,16 +63,19 @@ export async function readGsc(input: {
       maxDate: null,
       dailyRows: [],
       currentQueries: [],
+      currentPages: [],
       brandTerms: input.brandTerms,
     })
   }
   const query = input.query ?? snowflakeQuery
   const from = input.current.from < input.previous.from ? input.current.from : input.previous.from
   const to = input.current.to > input.previous.to ? input.current.to : input.previous.to
+  const windowBinds = [input.site, input.current.from, input.current.to]
   try {
-    const [daily, queries, maxRows] = await Promise.all([
+    const [daily, queries, pages, maxRows] = await Promise.all([
       query(DAILY_SQL, [input.site, from, to]),
-      query(QUERY_SQL, [input.site, input.current.from, input.current.to]),
+      query(QUERY_SQL, windowBinds),
+      query(PAGE_SQL, windowBinds),
       query(MAX_SQL, [input.site]),
     ])
     return buildGscSlice({
@@ -67,6 +86,7 @@ export async function readGsc(input: {
       maxDate: dateOnly(field(maxRows[0] ?? {}, "max_date")),
       dailyRows: gscDailyFromWarehouse(daily),
       currentQueries: gscQueriesFromWarehouse(queries),
+      currentPages: gscPagesFromWarehouse(pages),
       brandTerms: input.brandTerms,
     })
   } catch (err) {
@@ -83,6 +103,7 @@ export async function readGsc(input: {
       maxDate: null,
       dailyRows: [],
       currentQueries: [],
+      currentPages: [],
       brandTerms: input.brandTerms,
       error: "Search Console could not be read",
     })

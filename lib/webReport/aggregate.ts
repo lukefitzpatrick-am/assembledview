@@ -9,6 +9,7 @@ import {
   type PageRow,
   type PeriodTotals,
   type QueryRow,
+  type SearchPageRow,
   type SourceMediumRow,
 } from "@/lib/webReport/types"
 import { add, dateOnly, field, freshnessStatus, num, rate, text } from "@/lib/webReport/rows"
@@ -62,6 +63,13 @@ export type GscDailyRow = {
 
 export type GscQueryRow = {
   query: string
+  clicks: number | null
+  impressions: number | null
+  position: number | null
+}
+
+export type GscPageRow = {
+  page: string
   clicks: number | null
   impressions: number | null
   position: number | null
@@ -346,6 +354,7 @@ export function buildGscSlice(input: {
   maxDate: string | null
   dailyRows: GscDailyRow[]
   currentQueries: GscQueryRow[]
+  currentPages: GscPageRow[]
   brandTerms: readonly string[]
   error?: string | null
 }): GscSlice {
@@ -353,7 +362,8 @@ export function buildGscSlice(input: {
   if (input.error) return blankGsc("error", input.error)
   const currentRows = input.dailyRows.filter((row) => dateInWindow(row.date, input.current))
   const previousRows = input.dailyRows.filter((row) => dateInWindow(row.date, input.previous))
-  const hasRows = input.dailyRows.length > 0 || input.currentQueries.length > 0
+  const hasRows =
+    input.dailyRows.length > 0 || input.currentQueries.length > 0 || input.currentPages.length > 0
   const status = freshnessStatus(input.maxDate, input.today, hasRows)
   return {
     status,
@@ -381,7 +391,16 @@ export function buildGscSlice(input: {
         position: row.position,
       }))
       .sort((a, b) => b.clicks - a.clicks || a.query.localeCompare(b.query)),
-    pagesStatus: "needs_report",
+    pages: input.currentPages
+      .map((row): SearchPageRow => ({
+        page: row.page,
+        clicks: row.clicks ?? 0,
+        impressions: row.impressions ?? 0,
+        ctr: rate(row.clicks, row.impressions),
+        position: row.position,
+      }))
+      .sort((a, b) => b.clicks - a.clicks || a.page.localeCompare(b.page)),
+    pagesStatus: status,
   }
 }
 
@@ -410,7 +429,8 @@ function blankGsc(status: GscSlice["status"], message: string | null): GscSlice 
     previous: emptyTotals(),
     daily: [],
     queries: [],
-    pagesStatus: status === "not_connected" ? "not_connected" : "needs_report",
+    pages: [],
+    pagesStatus: status,
   }
 }
 
@@ -471,6 +491,21 @@ export function gscQueriesFromWarehouse(rows: Record<string, unknown>[]): GscQue
     return [
       {
         query,
+        clicks: num(field(row, "clicks")),
+        impressions: num(field(row, "impressions")),
+        position: num(field(row, "position")),
+      },
+    ]
+  })
+}
+
+export function gscPagesFromWarehouse(rows: Record<string, unknown>[]): GscPageRow[] {
+  return rows.flatMap((row) => {
+    const page = text(field(row, "page"))
+    if (!page) return []
+    return [
+      {
+        page,
         clicks: num(field(row, "clicks")),
         impressions: num(field(row, "impressions")),
         position: num(field(row, "position")),

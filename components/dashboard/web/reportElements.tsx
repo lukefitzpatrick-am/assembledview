@@ -171,6 +171,48 @@ function PageTable({ rows, topN, heading }: { rows: PageRow[]; topN: number; hea
   )
 }
 
+function SearchMetricTable({
+  heading,
+  rows,
+}: {
+  heading: string
+  rows: {
+    key: string
+    label: string
+    clicks: number
+    impressions: number
+    ctr: number | null
+    position: number | null
+  }[]
+}) {
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-muted-foreground">
+            <th className="py-2 pr-3 font-medium">{heading}</th>
+            <th className="py-2 pr-3 font-medium">Clicks</th>
+            <th className="py-2 pr-3 font-medium">Impressions</th>
+            <th className="py-2 pr-3 font-medium">CTR</th>
+            <th className="py-2 font-medium">Position</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key} className="border-t border-border">
+              <td className="py-2 pr-3">{row.label}</td>
+              <td className="num py-2 pr-3">{NUMBER.format(row.clicks)}</td>
+              <td className="num py-2 pr-3">{NUMBER.format(row.impressions)}</td>
+              <td className="num py-2 pr-3">{row.ctr == null ? "—" : formatPercent(row.ctr * 100)}</td>
+              <td className="num py-2">{row.position == null ? "—" : POSITION.format(row.position)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function shadeStyle(share: number): CSSProperties | undefined {
   if (!Number.isFinite(share) || share <= 0) return undefined
   return { backgroundColor: `color-mix(in srgb, var(--pacing-ahead) ${Math.round(share * 28)}%, transparent)` }
@@ -300,32 +342,33 @@ function ElementBody({
     const rows = data.gsc.queries
       .filter((row) => spec.mode === "all" || (spec.mode === "brand" ? row.brand : !row.brand))
       .slice(0, spec.topN)
+      .map((row) => ({
+        key: row.query,
+        label: row.query,
+        clicks: row.clicks,
+        impressions: row.impressions,
+        ctr: row.ctr,
+        position: row.position,
+      }))
     return (
       <Shell title={title} message="">
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-muted-foreground">
-                <th className="py-2 pr-3 font-medium">Query</th>
-                <th className="py-2 pr-3 font-medium">Clicks</th>
-                <th className="py-2 pr-3 font-medium">Impressions</th>
-                <th className="py-2 pr-3 font-medium">CTR</th>
-                <th className="py-2 font-medium">Position</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.query} className="border-t border-border">
-                  <td className="py-2 pr-3">{row.query}</td>
-                  <td className="num py-2 pr-3">{NUMBER.format(row.clicks)}</td>
-                  <td className="num py-2 pr-3">{NUMBER.format(row.impressions)}</td>
-                  <td className="num py-2 pr-3">{row.ctr == null ? "—" : formatPercent(row.ctr * 100)}</td>
-                  <td className="num py-2">{row.position == null ? "—" : POSITION.format(row.position)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SearchMetricTable heading="Query" rows={rows} />
+      </Shell>
+    )
+  }
+  if (id === "gscPages") {
+    const topN = (settings as { topN: number }).topN
+    const rows = data.gsc.pages.slice(0, topN).map((row) => ({
+      key: row.page,
+      label: row.page,
+      clicks: row.clicks,
+      impressions: row.impressions,
+      ctr: row.ctr,
+      position: row.position,
+    }))
+    return (
+      <Shell title={title} message="">
+        <SearchMetricTable heading="Page" rows={rows} />
       </Shell>
     )
   }

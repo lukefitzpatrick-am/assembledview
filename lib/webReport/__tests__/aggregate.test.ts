@@ -5,6 +5,7 @@ import { describe, it } from "node:test"
 import { fileURLToPath } from "node:url"
 
 import { buildGa4Slice, buildGscSlice } from "../aggregate"
+import { readGsc } from "../data/gsc"
 import { elementViewState } from "../elementState"
 import { emptyTotals, type WebReportData } from "../types"
 
@@ -96,13 +97,140 @@ describe("GA4 and Search Console rollup", () => {
         { date: "2026-09-02", clicks: 30, impressions: 300, position: 2 },
       ],
       currentQueries: [{ query: "Golf Australia membership", clicks: 12, impressions: 40, position: 3 }],
+      currentPages: [],
       brandTerms: ["golf australia"],
     })
     assert.equal(slice.status, "stale")
     assert.equal(slice.current.position, (4 * 100 + 2 * 300) / 400)
     assert.equal(slice.current.ctr, 40 / 400)
     assert.equal(slice.queries[0]?.brand, true)
-    assert.equal(slice.pagesStatus, "needs_report")
+    assert.equal(slice.pagesStatus, "stale")
+    assert.deepEqual(slice.pages, [])
+  })
+
+  it("aggregates search pages to clicks, impressions, CTR and position", () => {
+    const slice = buildGscSlice({
+      connected: true,
+      today: "2026-10-19",
+      current: windows.current,
+      previous: windows.previous,
+      maxDate: "2026-10-18",
+      dailyRows: [{ date: "2026-10-18", clicks: 10, impressions: 50, position: 2 }],
+      currentQueries: [],
+      currentPages: [
+        { page: "https://www.molicare.au/products", clicks: 2, impressions: 20, position: 4 },
+        { page: "https://www.molicare.au/", clicks: 8, impressions: 40, position: 2 },
+      ],
+      brandTerms: [],
+    })
+    assert.equal(slice.pagesStatus, "ok")
+    assert.equal(slice.pages.length, 2)
+    assert.equal(slice.pages[0]?.page, "https://www.molicare.au/")
+    assert.equal(slice.pages[0]?.clicks, 8)
+    assert.equal(slice.pages[0]?.impressions, 40)
+    assert.equal(slice.pages[0]?.ctr, 8 / 40)
+    assert.equal(slice.pages[0]?.position, 2)
+    assert.equal(slice.pages[1]?.clicks, 2)
+    assert.equal(slice.pages[1]?.impressions, 20)
+    assert.equal(slice.pages[1]?.ctr, 2 / 20)
+  })
+
+  it("leaves search page CTR empty when impressions are zero", () => {
+    const slice = buildGscSlice({
+      connected: true,
+      today: "2026-10-19",
+      current: windows.current,
+      previous: windows.previous,
+      maxDate: "2026-10-18",
+      dailyRows: [{ date: "2026-10-18", clicks: 1, impressions: 1, position: 1 }],
+      currentQueries: [],
+      currentPages: [{ page: "https://www.legalsuper.com.au/", clicks: 0, impressions: 0, position: null }],
+      brandTerms: [],
+    })
+    assert.equal(slice.pages[0]?.ctr, null)
+    assert.equal(slice.pages[0]?.clicks, 0)
+    assert.equal(slice.pages[0]?.impressions, 0)
+    assert.equal(slice.pages[0]?.position, null)
+  })
+
+  it("sorts search pages by clicks, then page", () => {
+    const slice = buildGscSlice({
+      connected: true,
+      today: "2026-10-19",
+      current: windows.current,
+      previous: windows.previous,
+      maxDate: "2026-10-18",
+      dailyRows: [{ date: "2026-10-18", clicks: 1, impressions: 1, position: 1 }],
+      currentQueries: [],
+      currentPages: [
+        { page: "https://www.molicare.au/b", clicks: 3, impressions: 10, position: 1 },
+        { page: "https://www.molicare.au/c", clicks: 9, impressions: 12, position: 2 },
+        { page: "https://www.molicare.au/a", clicks: 3, impressions: 30, position: 5 },
+      ],
+      brandTerms: [],
+    })
+    assert.deepEqual(
+      slice.pages.map((row) => row.page),
+      ["https://www.molicare.au/c", "https://www.molicare.au/a", "https://www.molicare.au/b"],
+    )
+  })
+})
+
+describe("Search Console page read", () => {
+  it("reads pages for the current window with the same binds as queries", async () => {
+    const calls: { sql: string; binds: unknown[] }[] = []
+    const slice = await readGsc({
+      site: "https://www.molicare.au/",
+      today: "2026-10-19",
+      current: windows.current,
+      previous: windows.previous,
+      brandTerms: [],
+      query: async (sql, binds) => {
+        calls.push({ sql, binds })
+        if (sql.includes("V_GSC_PAGE_DAILY")) {
+          return [
+            { PAGE: "https://www.molicare.au/b", CLICKS: 1, IMPRESSIONS: 0, POSITION: null },
+            { PAGE: "https://www.molicare.au/a", CLICKS: 4, IMPRESSIONS: 10, POSITION: 2 },
+          ]
+        }
+        if (sql.includes("MAX")) return [{ MAX_DATE: "2026-10-18" }]
+        if (sql.includes("V_GSC_SITE_DAILY") && sql.includes("MAX") === false) {
+          return [{ DATE: "2026-09-02", CLICKS: 5, IMPRESSIONS: 10, POSITION: 2 }]
+        }
+        return []
+      },
+    })
+    const pageCall = calls.find((call) => call.sql.includes("V_GSC_PAGE_DAILY"))
+    const queryCall = calls.find((call) => call.sql.includes("V_GSC_QUERY_DAILY"))
+    assert.deepEqual(pageCall?.binds, ["https://www.molicare.au/", windows.current.from, windows.current.to])
+    assert.deepEqual(queryCall?.binds, pageCall?.binds)
+    assert.deepEqual(
+      slice.pages.map((row) => row.page),
+      ["https://www.molicare.au/a", "https://www.molicare.au/b"],
+    )
+    assert.equal(slice.pages[0]?.ctr, 4 / 10)
+    assert.equal(slice.pages[1]?.ctr, null)
+    assert.equal(slice.pagesStatus, "ok")
+  })
+
+  it("a missing page view is an error on Search pages", async () => {
+    const slice = await readGsc({
+      site: "https://www.molicare.au/",
+      today: "2026-10-19",
+      current: windows.current,
+      previous: windows.previous,
+      brandTerms: [],
+      query: async () => {
+        throw new Error("SQL compilation error: Object 'ASSEMBLEDVIEW.MART.V_GSC_PAGE_DAILY' does not exist or not authorized.")
+      },
+    })
+    assert.equal(slice.status, "error")
+    assert.equal(slice.pagesStatus, "error")
+    assert.deepEqual(slice.pages, [])
+    assert.equal(slice.message, "Search Console could not be read")
+    const state = elementViewState("gscPages", report({ gsc: slice }))
+    assert.equal(state.status, "error")
+    assert.equal(state.message, "Search Console could not be read")
   })
 })
 
@@ -134,6 +262,7 @@ function report(patch: Partial<WebReportData["ga4"]> & { gsc?: Partial<WebReport
       previous: emptyTotals(),
       daily: [],
       queries: [],
+      pages: [],
       pagesStatus: "needs_report",
       ...patch.gsc,
     },
@@ -149,13 +278,28 @@ function report(patch: Partial<WebReportData["ga4"]> & { gsc?: Partial<WebReport
 }
 
 describe("element states", () => {
-  it("location, events and search pages stay unavailable", () => {
+  it("location and events stay unavailable", () => {
     const data = report({})
-    for (const id of ["location", "events", "gscPages"] as const) {
+    for (const id of ["location", "events"] as const) {
       const state = elementViewState(id, data)
       assert.equal(state.status, "needs_report")
       assert.equal(state.message, "Not available yet")
     }
+  })
+
+  it("search pages follow the page report status", () => {
+    const ready = elementViewState(
+      "gscPages",
+      report({
+        gsc: {
+          status: "ok",
+          pagesStatus: "ok",
+          pages: [{ page: "https://www.molicare.au/", clicks: 4, impressions: 10, ctr: 0.4, position: 2 }],
+        },
+      }),
+    )
+    assert.equal(ready.status, "ok")
+    assert.equal(ready.message, "")
   })
 
   it("source / medium is ready when that view returned rows", () => {

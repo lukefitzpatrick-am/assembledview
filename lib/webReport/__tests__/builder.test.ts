@@ -100,7 +100,8 @@ test("settings fields are read from the element schema", () => {
   assert.equal(elementNeedsData("events"), true)
   assert.equal(elementNeedsData("srcmed"), false)
   assert.equal(elementNeedsData("kpis"), false)
-  assert.ok(NEEDS_DATA_ELEMENTS.includes("gscPages"))
+  assert.equal(elementNeedsData("gscPages"), false)
+  assert.equal(NEEDS_DATA_ELEMENTS.includes("gscPages"), false)
 })
 
 test("save plans a new version and keeps the last 10", () => {
