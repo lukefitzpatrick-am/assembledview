@@ -410,6 +410,10 @@ import {
   sanitizeFilenamePart,
 } from "@/lib/billing/exportBillingScheduleExcel"
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
+import {
+  billingLinesById,
+  relabelPlaceholderHeaders,
+} from "@/lib/billing/relabelPlaceholderHeaders"
 import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
 import {
   applyCostBucketFromAutoReferenceAggregates,
@@ -5065,6 +5069,31 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       const fv = form.getValues()
       const start = fv.mp_campaigndates_start
       const end = fv.mp_campaigndates_end
+      monthsForExport = relabelPlaceholderHeaders(
+        monthsForExport,
+        billingLinesById([
+          televisionMediaLineItems,
+          radioMediaLineItems,
+          newspaperMediaLineItems,
+          magazinesMediaLineItems,
+          oohMediaLineItems,
+          cinemaMediaLineItems,
+          digitalDisplayMediaLineItems,
+          digitalAudioMediaLineItems,
+          digitalVideoMediaLineItems,
+          bvodMediaLineItems,
+          searchMediaLineItems,
+          socialMediaMediaLineItems,
+          progDisplayMediaLineItems,
+          progVideoMediaLineItems,
+          progBvodMediaLineItems,
+          progAudioMediaLineItems,
+          progOohMediaLineItems,
+          influencersMediaLineItems,
+          integrationMediaLineItems,
+          productionMediaLineItems,
+        ])
+      )
       const blob = await buildBillingScheduleExcelBlob(monthsForExport, {
         client: fv.mp_clientname || "",
         brand: fv.mp_brand || "",
@@ -10937,8 +10966,12 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
 
 
       const followAuto = billingLineItemsFollowAutoRef.current
-      const merged = appendAutoReferenceIntoWorkingBilling(
+      const relabelled = relabelPlaceholderHeaders(
         source,
+        billingLinesById(mediaRows.map((row) => row.items))
+      )
+      const merged = appendAutoReferenceIntoWorkingBilling(
+        relabelled,
         autoRef,
         formatter,
         attachLineItemsToMonths,

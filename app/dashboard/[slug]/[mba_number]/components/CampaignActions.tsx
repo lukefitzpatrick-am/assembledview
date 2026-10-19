@@ -26,6 +26,10 @@ import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSe
 import { CampaignReportPeriodDialog } from "@/components/dashboard/campaign/CampaignReportPeriodDialog"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
 import { buildBillingScheduleExcelBlob } from "@/lib/billing/exportBillingScheduleExcel"
+import {
+  billingLinesById,
+  relabelPlaceholderHeaders,
+} from "@/lib/billing/relabelPlaceholderHeaders"
 import type { BillingMonth } from "@/lib/billing/types"
 
 interface CampaignActionsProps {
@@ -175,7 +179,11 @@ export default function CampaignActions({
     if (!Array.isArray(billingSchedule)) {
       throw new Error("Billing schedule not found for this campaign.")
     }
-    const blob = await buildBillingScheduleExcelBlob(billingSchedule as BillingMonth[], {
+    const months = relabelPlaceholderHeaders(
+      billingSchedule as BillingMonth[],
+      billingLinesById(Object.values(lineItems ?? {})),
+    )
+    const blob = await buildBillingScheduleExcelBlob(months, {
       client: clientName ?? "",
       brand,
       campaignName: campaignName ?? "",

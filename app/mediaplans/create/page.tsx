@@ -133,6 +133,10 @@ import {
   buildBillingScheduleExcelBlob,
   sanitizeFilenamePart,
 } from "@/lib/billing/exportBillingScheduleExcel"
+import {
+  billingLinesById,
+  relabelPlaceholderHeaders,
+} from "@/lib/billing/relabelPlaceholderHeaders"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
 import {
   applyBillingLineMode,
@@ -5085,6 +5089,30 @@ function CreateMediaPlan() {
       const fv = form.getValues()
       const start = fv.mp_campaigndates_start
       const end = fv.mp_campaigndates_end
+      monthsForExport = relabelPlaceholderHeaders(
+        monthsForExport,
+        billingLinesById([
+          televisionMediaLineItems,
+          radioMediaLineItems,
+          newspaperMediaLineItems,
+          magazineMediaLineItems,
+          oohMediaLineItems,
+          cinemaMediaLineItems,
+          digiDisplayMediaLineItems,
+          digiAudioMediaLineItems,
+          digiVideoMediaLineItems,
+          bvodMediaLineItems,
+          searchMediaLineItems,
+          socialMediaMediaLineItems,
+          progDisplayMediaLineItems,
+          progVideoMediaLineItems,
+          progBvodMediaLineItems,
+          progAudioMediaLineItems,
+          progOohMediaLineItems,
+          influencersMediaLineItems,
+          integrationMediaLineItems,
+        ])
+      )
       const blob = await buildBillingScheduleExcelBlob(monthsForExport, {
         client: fv.mp_client_name || "",
         brand: fv.mp_brand || "",
