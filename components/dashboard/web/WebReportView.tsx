@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation"
 
 import { PageHeader } from "@/components/layout/PageHeader"
 import { WebReportElement } from "@/components/dashboard/web/reportElements"
-import type { WebReportLayoutItem } from "@/lib/webReport/elements"
+import { columnSpanClass } from "@/lib/webReport/displayModel"
+import { resolveWidth, type WebReportLayoutItem } from "@/lib/webReport/elements"
 import { REPORT_PERIODS, type ReportPeriod } from "@/lib/webReport/periods"
 import type { WebReportData } from "@/lib/webReport/types"
 
@@ -116,11 +117,13 @@ export function WebReportView({
         }
       />
       {connected ? (
-        <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
           {layout.map((item, index) => (
-            <ElementBoundary key={`${item.elementId}-${index}`} title={item.elementId}>
-              <WebReportElement item={item} data={data} />
-            </ElementBoundary>
+            <div key={`${item.elementId}-${index}`} className={columnSpanClass(resolveWidth(item))}>
+              <ElementBoundary title={item.elementId}>
+                <WebReportElement item={item} data={data} />
+              </ElementBoundary>
+            </div>
           ))}
         </div>
       ) : null}
