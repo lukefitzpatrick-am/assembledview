@@ -9,6 +9,7 @@ import {
 import { BRAND, hexToArgb, readableTextOn } from '@/lib/brand';
 import { familyColour, MEDIA_TYPE_FAMILY, type MediaTypeThemeKey } from '@/lib/design/mediaFamilies';
 import { formatBuyTypeForExport } from '@/lib/mediaplan/buyTypeLabels';
+import { aaSupplierName, addAaWorkbookSheets } from '@/lib/docs/aaWorkbookSheets';
 import { OOH_FORMAT_LABEL_BY_VALUE } from '@/lib/mediaplan/expertOohFuzzyMatch';
 
 const ARGB_INK = hexToArgb(BRAND.colour.ink)
@@ -784,12 +785,14 @@ export async function generateMediaPlan(
   ];
 
   const monthlyByChannel: Record<string, Record<string, number>> = {};
+  const monthlyBySupplier: Record<string, Record<string, Record<string, number>>> = {};
   const monthKeys = monthRanges.map((range) => range.monthYear);
   function distributeBurstToMonths(
     startDate: string,
     endDate: string,
     mediaAmount: number,
-    mediaKey: MediaKey
+    mediaKey: MediaKey,
+    supplier: string
   ) {
     const s = parseDateStringYYYYMMDD(startDate, "start date");
     const e = parseDateStringYYYYMMDD(endDate, "end date");
@@ -806,6 +809,11 @@ export async function generateMediaPlan(
       if (share === 0) continue;
       if (!monthlyByChannel[mediaKey]) monthlyByChannel[mediaKey] = {};
       monthlyByChannel[mediaKey][monthYear] = (monthlyByChannel[mediaKey][monthYear] || 0) + share;
+      if (mbaTotalsLayout === "aa") {
+        const bySupplier = monthlyBySupplier[mediaKey] ?? (monthlyBySupplier[mediaKey] = {});
+        const months = bySupplier[supplier] ?? (bySupplier[supplier] = {});
+        months[monthYear] = (months[monthYear] || 0) + share;
+      }
     }
   }
 
@@ -816,7 +824,13 @@ export async function generateMediaPlan(
       const clientPaysMedia = clientPaysDisplayMedia(item, mbaTotalsLayout === "aa");
       if (clientPaysMedia != null && amt === 0) amt = clientPaysMedia;
       if (amt > 0 && item.startDate && item.endDate) {
-        distributeBurstToMonths(item.startDate, item.endDate, amt, mediaKey);
+        distributeBurstToMonths(
+          item.startDate,
+          item.endDate,
+          amt,
+          mediaKey,
+          aaSupplierName(mediaKey, item),
+        );
       }
     }
   }
@@ -2345,6 +2359,21 @@ export async function generateMediaPlan(
   }
 
   applyWorkbookPrintSetup(sheet, "1:8")
+
+  if (mbaTotalsLayout === "aa") {
+    addAaWorkbookSheets(workbook, {
+      monthKeys,
+      monthlyByChannel,
+      monthlyBySupplier,
+      mediaItems,
+    })
+    if (options?.draft) {
+      for (const name of ["Monthly by supplier", "Insertions"]) {
+        const extra = workbook.getWorksheet(name)
+        if (extra) applyDraftStampToWorksheet(extra)
+      }
+    }
+  }
 
   return workbook;
 }
