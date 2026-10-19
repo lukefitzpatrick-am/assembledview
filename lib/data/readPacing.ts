@@ -11,7 +11,7 @@ import { readPacingOrphanFixRows } from "@/lib/pacing/admin/pacingOrphanFixes"
  * - `media_plan_masters` / `media_plan_versions` (live campaign crawl)
  * - `pacing_orphan_fixes` (audit rows)
  *
- * Snapshot sync: `LINE_ITEM_SNAPSHOT_SOURCE`.
+ * Snapshot sync always reads Postgres. `LINE_ITEM_SNAPSHOT_SOURCE` is ignored.
  */
 
 /**

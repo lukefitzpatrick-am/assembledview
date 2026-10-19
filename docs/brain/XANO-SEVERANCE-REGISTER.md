@@ -49,7 +49,7 @@ Not set in either environment: XANO_BASE_URL, XANO_FINANCE_FORECAST_SNAPSHOTS_BA
 
 No other DATA_BACKEND_* exists. Unset domains fall back to DATA_BACKEND, so plans, clients, publishers, finance, kpi, pacing, and reference reads take the Postgres branch. DATA_BACKEND_FINANCE_SCHEDULE=shadow is the schedule-months serve mode (blob vs rows); it does not call Xano. XS-1 removed the Postgres-then-Xano mirror writes in `lib/data/writeClients.ts`, `writePublishers.ts`, `writeKpi.ts`, `writeMediaContainerBestPractice.ts`, `writeReferenceMediaDetail.ts`, and `writeMediaPlanMasters.ts`. The Postgres write is the whole function.
 
-LINE_ITEM_SNAPSHOT_SOURCE is set on production (secret). Its value was not read. The code default is xano, which calls fetchAllXanoLineItems. Reach for that cron is **unknown**.
+`/api/cron/xano-line-item-sync` always reads Postgres. `LINE_ITEM_SNAPSHOT_SOURCE` does not select a source; a value other than `postgres` is logged and ignored. The cron does not call `fetchAllXanoLineItems`.
 
 XS-2b reads KPI, publishers, clients, pacing, approvals, best practice, and publisher market share from Postgres, and writes `publisher_kpi` and `pacing_orphan_fixes` to Postgres. `lib/xano/pacingOrphanFixes.ts` is deleted. `lib/api/publishers.ts` still has `fetchPublishersFromXano` for the archived backfill script. `getClientBySlug` and the admin hub client list in `lib/api/dashboard/client.ts` read `readClientsList`. XS-2a removed finance HTTP. Tallies below are not recounted.
 
@@ -230,12 +230,12 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/snowflake/fetchAllPgLineItems.ts` | type import only; rows from Postgres | LINE_ITEM_SNAPSHOT_SOURCE | no | same file fetchAllPgLineItems | **NAME-ONLY** |
 | `lib/snowflake/lineItemSnapshotParity.ts` | type import; parity math, no HTTP | LINE_ITEM_SNAPSHOT_SOURCE | no | none | **NAME-ONLY** |
 | `lib/snowflake/pgLineItemSnapshotMap.ts` | type import; row map, no HTTP | unconditional | no | none | **NAME-ONLY** |
-| `lib/snowflake/syncPgLineItems.ts` | calls fetchAllXanoLineItems unless source normalises to postgres | LINE_ITEM_SNAPSHOT_SOURCE | unknown | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **TOOLING** |
+| `lib/snowflake/syncPgLineItems.ts` | always `fetchAllPgLineItems` then MERGE; no Xano fetch | ignored unless `postgres` | no | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **NAME-ONLY** |
 | `lib/snowflake/syncXanoLineItems.ts` | MERGE into MART.XANO_LINE_ITEMS_SNAPSHOT; no HTTP | unconditional | no | none | **NAME-ONLY** |
 | `lib/snowflake/tipScopeLineItems.ts` | filters snapshot rows; no HTTP | unconditional | no | none | **NAME-ONLY** |
 | `lib/snowflake/__tests__/syncPgLineItems.parity.test.ts` | media_plan_search, media_plan_social | unconditional | no | none | **TOOLING** |
 | `lib/snowflake/__tests__/syncXanoLineItemsPrune.test.ts` | media_plan_search | unconditional | no | none | **TOOLING** |
-| `lib/xano/fetchAllLineItems.ts` | GET all channel media_plan_* tables | LINE_ITEM_SNAPSHOT_SOURCE (caller) | unknown | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **TOOLING** |
+| `lib/xano/fetchAllLineItems.ts` | GET all channel media_plan_* tables | archive parity script only; cron does not call it | no | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **TOOLING** |
 | `lib/xano/pacingOrphanFixes.ts` | deleted | — | no | lib/pacing/admin/pacingOrphanFixes.ts | **DONE** (XS-2b) |
 
 ### Scripts (archived by XS-1; not in the live inclusion set)
@@ -274,7 +274,7 @@ Kept under `scripts/_archive/xano/` for history. They do not run. npm scripts th
 | Name | File | Xano HTTP | Verdict |
 |---|---|---|---|
 | MART.XANO_LINE_ITEMS_SNAPSHOT | lib/snowflake/syncXanoLineItems.ts | No. The file is a Snowflake MERGE. | NAME-ONLY |
-| /api/cron/xano-line-item-sync | app/api/cron/xano-line-item-sync/route.ts | The route file does not HTTP. It calls runLineItemSnapshotSync, which calls fetchAllXanoLineItems unless LINE_ITEM_SNAPSHOT_SOURCE normalises to postgres. That value was not read. | NAME-ONLY for the route file; the sync is TOOLING with unknown reach |
+| /api/cron/xano-line-item-sync | app/api/cron/xano-line-item-sync/route.ts | The route file does not HTTP. It calls runLineItemSnapshotSync, which reads Postgres only. | NAME-ONLY |
 
 
 ## §5 Missed by (missing) audit doc / surprises
