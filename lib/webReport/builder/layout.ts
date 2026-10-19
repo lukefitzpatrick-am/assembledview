@@ -7,7 +7,7 @@ import {
 } from "@/lib/webReport/elements"
 
 /** Elements the MART views cannot fill yet. The library shows these as "Needs data". */
-export const NEEDS_DATA_ELEMENTS: readonly WebElementId[] = ["location", "events"]
+export const NEEDS_DATA_ELEMENTS: readonly WebElementId[] = ["events"]
 
 const NEEDS_DATA = new Set<WebElementId>(NEEDS_DATA_ELEMENTS)
 
@@ -36,8 +36,8 @@ export function defaultElementSettings(id: WebElementId): unknown {
     case "pages":
     case "landing":
     case "gscPages":
-      return { topN: 10 }
     case "location":
+      return { topN: 10 }
     case "events":
     case "paidSpend":
       return {}

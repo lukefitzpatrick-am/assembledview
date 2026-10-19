@@ -6,6 +6,7 @@ import {
   type DailyPoint,
   type Ga4Slice,
   type GscSlice,
+  type CityRow,
   type PageRow,
   type PeriodTotals,
   type QueryRow,
@@ -223,6 +224,41 @@ function keyEventTotals(
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 }
 
+export type Ga4CityRow = {
+  city: string
+  engagedSessions: number | null
+  newUsers: number | null
+  keyEvents: number | null
+}
+
+const UNSET_CITY = "(not set)"
+
+/**
+ * Rank cities by engaged sessions. total_users does not add across days, so it
+ * is not summed and is not shown. New users, engaged sessions, and key events
+ * do add. "(not set)" stays off the ranking and is appended last when present.
+ * Key event rate is key events / engaged sessions, and is null when engaged
+ * sessions are zero.
+ */
+export function rankCities(rows: Ga4CityRow[]): CityRow[] {
+  const ranked: CityRow[] = []
+  let unset: CityRow | null = null
+  for (const row of rows) {
+    const item: CityRow = {
+      city: row.city,
+      engagedSessions: row.engagedSessions ?? 0,
+      newUsers: row.newUsers ?? 0,
+      keyEvents: row.keyEvents ?? 0,
+      keyEventRate: rate(row.keyEvents, row.engagedSessions),
+    }
+    if (row.city === UNSET_CITY) unset = item
+    else ranked.push(item)
+  }
+  ranked.sort((a, b) => b.engagedSessions - a.engagedSessions || a.city.localeCompare(b.city))
+  if (unset) ranked.push(unset)
+  return ranked
+}
+
 export function buildGa4Slice(input: {
   connected: boolean
   today: string
@@ -234,6 +270,7 @@ export function buildGa4Slice(input: {
   sourceMedium: Ga4SourceMediumRow[]
   events: Ga4EventRow[]
   pageTitles: Ga4PageTitleRow[]
+  cities?: Ga4CityRow[]
   error?: string | null
 }): Ga4Slice {
   if (!input.connected) {
@@ -264,12 +301,14 @@ export function buildGa4Slice(input: {
   )
   const currentSum = sumCampaign(currentCampaign)
   const previousSum = sumCampaign(previousCampaign)
+  const cities = rankCities(input.cities ?? [])
   const hasRows =
     input.campaign.length > 0 ||
     input.landing.length > 0 ||
     input.sourceMedium.length > 0 ||
     input.events.length > 0 ||
-    input.pageTitles.length > 0
+    input.pageTitles.length > 0 ||
+    cities.length > 0
   const status = freshnessStatus(input.maxDate, input.today, hasRows)
   const medium = sourceMediumRows(currentSource)
   const daily = dailyGa4(input.current, currentCampaign, currentLanding)
@@ -296,6 +335,7 @@ export function buildGa4Slice(input: {
     pages: currentTitlePages.pages,
     landing: currentLandingPages.pages,
     keyEventsByName: keyEventTotals(currentEvents, previousEvents),
+    cities,
   }
 }
 
@@ -343,6 +383,7 @@ function blankGa4(status: Ga4Slice["status"], message: string | null): Ga4Slice 
     pages: [],
     landing: [],
     keyEventsByName: [],
+    cities: [],
   }
 }
 
@@ -459,6 +500,21 @@ export function eventRowsFromWarehouse(rows: Record<string, unknown>[]): Ga4Even
   return rows.flatMap((row) => {
     const parsed = eventFromWarehouse(row)
     return parsed ? [parsed] : []
+  })
+}
+
+export function cityRowsFromWarehouse(rows: Record<string, unknown>[]): Ga4CityRow[] {
+  return rows.flatMap((row) => {
+    const city = text(field(row, "city"))
+    if (!city) return []
+    return [
+      {
+        city,
+        engagedSessions: num(field(row, "engaged_sessions")),
+        newUsers: num(field(row, "new_users")),
+        keyEvents: num(field(row, "key_events")),
+      },
+    ]
   })
 }
 

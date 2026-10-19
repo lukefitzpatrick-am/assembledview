@@ -4,7 +4,8 @@ import { dirname, join } from "node:path"
 import { describe, it } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import { buildGa4Slice, buildGscSlice } from "../aggregate"
+import { buildGa4Slice, buildGscSlice, rankCities } from "../aggregate"
+import { readGa4 } from "../data/ga4"
 import { readGsc } from "../data/gsc"
 import { elementViewState } from "../elementState"
 import { emptyTotals, type WebReportData } from "../types"
@@ -252,6 +253,7 @@ function report(patch: Partial<WebReportData["ga4"]> & { gsc?: Partial<WebReport
       pages: [],
       landing: [],
       keyEventsByName: [],
+      cities: [],
       ...patch,
     },
     gsc: {
@@ -277,14 +279,80 @@ function report(patch: Partial<WebReportData["ga4"]> & { gsc?: Partial<WebReport
   }
 }
 
+describe("GA4 cities", () => {
+  it("ranks by engaged sessions and keeps (not set) last", () => {
+    const cities = rankCities([
+      { city: "(not set)", engagedSessions: 100, newUsers: 2, keyEvents: 1 },
+      { city: "Sydney", engagedSessions: 40, newUsers: 8, keyEvents: 0 },
+      { city: "Melbourne", engagedSessions: 40, newUsers: 3, keyEvents: 4 },
+      { city: "Adelaide", engagedSessions: 0, newUsers: 1, keyEvents: 5 },
+    ])
+    assert.deepEqual(cities.map((row) => row.city), ["Melbourne", "Sydney", "Adelaide", "(not set)"])
+    assert.equal(cities[0]?.keyEventRate, 4 / 40)
+    assert.equal(cities[1]?.keyEventRate, 0)
+    assert.equal(cities[2]?.keyEventRate, null)
+    assert.equal(cities[3]?.engagedSessions, 100)
+    assert.equal(cities[3]?.newUsers, 2)
+  })
+
+  it("reads the current window and reports a missing city view", async () => {
+    const calls: { sql: string; binds: unknown[] }[] = []
+    const slice = await readGa4({
+      propertyId: "123",
+      today: "2026-10-19",
+      current: windows.current,
+      previous: windows.previous,
+      query: async (sql, binds) => {
+        calls.push({ sql, binds })
+        if (sql.includes("V_GA4_CITY_DAILY")) {
+          return [
+            { CITY: "Sydney", ENGAGED_SESSIONS: 9, NEW_USERS: 4, KEY_EVENTS: 3 },
+            { CITY: "(not set)", ENGAGED_SESSIONS: 20, NEW_USERS: 1, KEY_EVENTS: 0 },
+          ]
+        }
+        if (sql.includes("MAX")) return [{ MAX_DATE: "2026-10-18" }]
+        if (sql.includes("V_GA4_CAMPAIGN_DAILY")) {
+          return [{ DATE: "2026-09-02", SESSIONS: 1, ENGAGED_SESSIONS: 1, KEY_EVENTS: 1 }]
+        }
+        return []
+      },
+    })
+    const cityCall = calls.find((call) => call.sql.includes("V_GA4_CITY_DAILY"))
+    assert.deepEqual(cityCall?.binds, ["123", windows.current.from, windows.current.to])
+    assert.doesNotMatch(cityCall?.sql ?? "", /total_users/)
+    assert.deepEqual(slice.cities.map((row) => row.city), ["Sydney", "(not set)"])
+    assert.equal(slice.cities[0]?.keyEventRate, 3 / 9)
+
+    const missing = await readGa4({
+      propertyId: "123",
+      today: "2026-10-19",
+      current: windows.current,
+      previous: windows.previous,
+      query: async () => {
+        throw new Error("SQL compilation error: Object 'ASSEMBLEDVIEW.MART.V_GA4_CITY_DAILY' does not exist or not authorized.")
+      },
+    })
+    assert.equal(missing.status, "error")
+    assert.equal(missing.message, "Google Analytics 4 could not be read")
+    assert.deepEqual(missing.cities, [])
+  })
+})
+
 describe("element states", () => {
-  it("location and events stay unavailable", () => {
-    const data = report({})
-    for (const id of ["location", "events"] as const) {
-      const state = elementViewState(id, data)
-      assert.equal(state.status, "needs_report")
-      assert.equal(state.message, "Not available yet")
-    }
+  it("events stay unavailable", () => {
+    const state = elementViewState("events", report({}))
+    assert.equal(state.status, "needs_report")
+    assert.equal(state.message, "Not available yet")
+  })
+
+  it("location follows the GA4 status", () => {
+    assert.equal(elementViewState("location", report({})).status, "ok")
+    const error = elementViewState("location", report({
+      status: "error",
+      message: "Google Analytics 4 could not be read",
+    }))
+    assert.equal(error.status, "error")
+    assert.equal(error.message, "Google Analytics 4 could not be read")
   })
 
   it("search pages follow the page report status", () => {
@@ -339,6 +407,12 @@ describe("element states", () => {
     assert.match(ga4, /V_GA4_PAGE_TITLE_DAILY/)
     assert.match(ga4, /page_title/)
     assert.match(ga4, /new_users/)
+    const city = ga4.slice(ga4.indexOf("const CITY_SQL"), ga4.indexOf("const MAX_SQL"))
+    assert.match(city, /V_GA4_CITY_DAILY/)
+    assert.match(city, /SUM\(engaged_sessions\)/)
+    assert.match(city, /SUM\(new_users\)/)
+    assert.match(city, /SUM\(key_events\)/)
+    assert.doesNotMatch(city, /total_users/)
 
     const creative = readFileSync(join(root, "lib/creative/performance/getCreativePerformance.ts"), "utf8")
     assert.match(creative, /creative_size/)

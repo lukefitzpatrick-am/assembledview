@@ -16,7 +16,7 @@ import {
   type WebReportLayoutItem,
 } from "@/lib/webReport/elements"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import type { PageRow, PeriodTotals, SourceMediumRow, WebReportData } from "@/lib/webReport/types"
+import type { CityRow, PageRow, PeriodTotals, SourceMediumRow, WebReportData } from "@/lib/webReport/types"
 
 const NUMBER = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 })
 const POSITION = new Intl.NumberFormat("en-AU", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
@@ -163,6 +163,39 @@ function PageTable({ rows, topN, heading }: { rows: PageRow[]; topN: number; hea
               <td className="num py-2 pr-3">{NUMBER.format(row.pageViews)}</td>
               <td className="num py-2 pr-3">{NUMBER.format(row.users)}</td>
               <td className="num py-2">{NUMBER.format(row.keyEvents)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function CityTable({ rows, topN }: { rows: CityRow[]; topN: number }) {
+  const unset = rows.find((row) => row.city === "(not set)")
+  const ranked = rows.filter((row) => row.city !== "(not set)").slice(0, topN)
+  const shown = unset ? [...ranked, unset] : ranked
+  if (shown.length === 0) return <p className="mt-3 text-sm text-muted-foreground">No rows in this period.</p>
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-muted-foreground">
+            <th className="py-2 pr-3 font-medium">City</th>
+            <th className="py-2 pr-3 font-medium">Engaged sessions</th>
+            <th className="py-2 pr-3 font-medium">New users</th>
+            <th className="py-2 pr-3 font-medium">Key events</th>
+            <th className="py-2 font-medium">Key event rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((row) => (
+            <tr key={row.city} className="border-t border-border">
+              <td className="py-2 pr-3">{row.city}</td>
+              <td className="num py-2 pr-3">{NUMBER.format(row.engagedSessions)}</td>
+              <td className="num py-2 pr-3">{NUMBER.format(row.newUsers)}</td>
+              <td className="num py-2 pr-3">{NUMBER.format(row.keyEvents)}</td>
+              <td className="num py-2">{row.keyEventRate == null ? "—" : formatPercent(row.keyEventRate * 100)}</td>
             </tr>
           ))}
         </tbody>
@@ -369,6 +402,14 @@ function ElementBody({
     return (
       <Shell title={title} message="">
         <SearchMetricTable heading="Page" rows={rows} />
+      </Shell>
+    )
+  }
+  if (id === "location") {
+    const topN = (settings as { topN: number }).topN
+    return (
+      <Shell title={title} message="">
+        <CityTable rows={data.ga4.cities} topN={topN} />
       </Shell>
     )
   }

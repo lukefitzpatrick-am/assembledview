@@ -79,10 +79,16 @@ function enumOptions(schema: ZodNode): string[] {
 }
 
 function unwrap(schema: ZodNode): { schema: ZodNode; optional: boolean } {
-  if (schema.def.type === "optional" && schema.def.innerType) {
-    return { schema: schema.def.innerType, optional: true }
+  let current = schema
+  let optional = false
+  while (
+    (current.def.type === "optional" || current.def.type === "default") &&
+    current.def.innerType
+  ) {
+    if (current.def.type === "optional") optional = true
+    current = current.def.innerType
   }
-  return { schema, optional: false }
+  return { schema: current, optional }
 }
 
 function describeNode(key: string, raw: ZodNode): SettingsField | null {

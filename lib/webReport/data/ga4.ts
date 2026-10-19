@@ -4,6 +4,7 @@ import { querySnowflake } from "@/lib/snowflake/query"
 import {
   buildGa4Slice,
   campaignRowsFromWarehouse,
+  cityRowsFromWarehouse,
   eventRowsFromWarehouse,
   landingRowsFromWarehouse,
   pageTitleRowsFromWarehouse,
@@ -48,6 +49,19 @@ WHERE property_id = ?
   AND date BETWEEN ? AND ?
 `
 
+// total_users does not add across days. Do not sum it for the window.
+// Rank cities by engaged sessions. New users and key events do add.
+const CITY_SQL = `
+SELECT city,
+  SUM(engaged_sessions) AS engaged_sessions,
+  SUM(key_events) AS key_events,
+  SUM(new_users) AS new_users
+FROM ASSEMBLEDVIEW.MART.V_GA4_CITY_DAILY
+WHERE property_id = ?
+  AND date BETWEEN ? AND ?
+GROUP BY city
+`
+
 const MAX_SQL = `
 SELECT MAX(date) AS max_date
 FROM ASSEMBLEDVIEW.MART.V_GA4_CAMPAIGN_DAILY
@@ -73,19 +87,22 @@ export async function readGa4(input: {
       sourceMedium: [],
       events: [],
       pageTitles: [],
+      cities: [],
     })
   }
   const query = input.query ?? snowflakeQuery
   const from = input.current.from < input.previous.from ? input.current.from : input.previous.from
   const to = input.current.to > input.previous.to ? input.current.to : input.previous.to
   const binds = [input.propertyId, from, to]
+  const currentBinds = [input.propertyId, input.current.from, input.current.to]
   try {
-    const [campaign, landing, sourceMedium, events, pageTitles, maxRows] = await Promise.all([
+    const [campaign, landing, sourceMedium, events, pageTitles, cities, maxRows] = await Promise.all([
       query(CAMPAIGN_SQL, binds),
       query(LANDING_SQL, binds),
       query(SOURCE_MEDIUM_SQL, binds),
       query(EVENTS_SQL, binds),
       query(PAGE_TITLE_SQL, binds),
+      query(CITY_SQL, currentBinds),
       query(MAX_SQL, [input.propertyId]),
     ])
     const maxDate = dateOnly(field(maxRows[0] ?? {}, "max_date"))
@@ -100,6 +117,7 @@ export async function readGa4(input: {
       sourceMedium: sourceMediumRowsFromWarehouse(sourceMedium),
       events: eventRowsFromWarehouse(events),
       pageTitles: pageTitleRowsFromWarehouse(pageTitles),
+      cities: cityRowsFromWarehouse(cities),
     })
   } catch (err) {
     if (isMissingMartView(err, "v_ga4_")) {
@@ -118,6 +136,7 @@ export async function readGa4(input: {
       sourceMedium: [],
       events: [],
       pageTitles: [],
+      cities: [],
       error: "Google Analytics 4 could not be read",
     })
   }

@@ -403,6 +403,32 @@ GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GA4_LANDING_DAILY TO ROLE CLAUDE_RW;
 -- GROUP BY property_id
 -- ORDER BY property_id;
 
+-- DEMOGRAPHIC_CITY_REPORT has no sessions column and no country column.
+-- total_users is a daily count and does not add across days.
+-- New users, engaged sessions, and key events do add.
+CREATE OR REPLACE VIEW ASSEMBLEDVIEW.MART.V_GA4_CITY_DAILY COPY GRANTS AS
+SELECT
+  NULLIF(REGEXP_SUBSTR(property, '[0-9]+'), '') AS property_id,
+  date::date AS date,
+  city,
+  total_users,
+  new_users,
+  engaged_sessions,
+  key_events,
+  event_count
+FROM ASSEMBLEDVIEW.GOOGLE_ANALYTICS_4.DEMOGRAPHIC_CITY_REPORT
+WHERE date::date >= DATEADD(day, -400, CURRENT_DATE());
+
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GA4_CITY_DAILY TO ROLE AV_APP_READ_ROLE;
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_GA4_CITY_DAILY TO ROLE CLAUDE_RW;
+
+-- check: row counts by property for the last 30 days
+-- SELECT property_id, COUNT(*) AS rows
+-- FROM ASSEMBLEDVIEW.MART.V_GA4_CITY_DAILY
+-- WHERE date >= DATEADD(day, -30, CURRENT_DATE())
+-- GROUP BY property_id
+-- ORDER BY property_id;
+
 -- SITE_REPORT_BY_SITE is keyed by country, device, and search_type.
 -- This view keeps search_type = 'web' and sums country and device.
 -- ctr is clicks / impressions. position is weighted by impressions.

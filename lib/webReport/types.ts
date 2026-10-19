@@ -75,6 +75,19 @@ export type Ga4Slice = {
   landing: PageRow[]
   /** Event counts from V_GA4_EVENTS_DAILY. `previous` is the compared window. */
   keyEventsByName: { name: string; count: number; previous: number }[]
+  /**
+   * Cities from V_GA4_CITY_DAILY, ranked by engaged sessions.
+   * "(not set)" is last when present. Key event rate is key events / engaged sessions.
+   */
+  cities: CityRow[]
+}
+
+export type CityRow = {
+  city: string
+  engagedSessions: number
+  newUsers: number
+  keyEvents: number
+  keyEventRate: number | null
 }
 
 export type GscSlice = {

@@ -75,6 +75,11 @@ test("settings validation accepts defaults and rejects a broken element", () => 
   assert.equal(parseElementSettings("queries", { mode: "all", topN: 0 }).ok, false)
   assert.equal(parseElementSettings("notes", { text: "x".repeat(2001) }).ok, false)
   assert.equal(parseElementSettings("location", { extra: true }).ok, false)
+  const savedLocation = parseElementSettings("location", {})
+  assert.equal(savedLocation.ok, true)
+  if (savedLocation.ok) assert.equal(savedLocation.settings.topN, 10)
+  assert.equal(parseElementSettings("location", { topN: 0 }).ok, false)
+  assert.equal(parseElementSettings("location", { topN: 51 }).ok, false)
   assert.equal(parseElementSettings("traffic", { bars: ["sessions"] }).ok, true)
 })
 
@@ -95,13 +100,27 @@ test("settings fields are read from the element schema", () => {
   }
   const snapshot = describeElementSettings("snapshot")
   assert.equal(snapshot[0]?.kind, "enumList")
-  assert.deepEqual(describeElementSettings("location"), [])
-  assert.equal(elementNeedsData("location"), true)
+  const location = describeElementSettings("location")
+  const locationRows = location.find((field) => field.key === "topN")
+  assert.equal(locationRows?.kind, "number")
+  if (locationRows?.kind === "number") {
+    assert.equal(locationRows.integer, true)
+    assert.equal(locationRows.min, 1)
+    assert.equal(locationRows.max, 50)
+  }
+  assert.equal(elementNeedsData("location"), false)
+  assert.equal(NEEDS_DATA_ELEMENTS.includes("location"), false)
   assert.equal(elementNeedsData("events"), true)
   assert.equal(elementNeedsData("srcmed"), false)
   assert.equal(elementNeedsData("kpis"), false)
   assert.equal(elementNeedsData("gscPages"), false)
   assert.equal(NEEDS_DATA_ELEMENTS.includes("gscPages"), false)
+})
+
+test("a saved location element with empty settings still parses", () => {
+  const saved = parseLayout([{ elementId: "location", settings: {} }])
+  assert.equal(saved.ok, true)
+  if (saved.ok) assert.deepEqual(saved.layout[0]?.settings, { topN: 10 })
 })
 
 test("save plans a new version and keeps the last 10", () => {

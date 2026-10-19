@@ -66,7 +66,9 @@ export const elementSettings = {
   }),
   pages: z.object({ topN: z.number().int().min(1).max(50) }),
   landing: z.object({ topN: z.number().int().min(1).max(50) }),
-  location: z.object({}).strict(),
+  location: z.object({
+    topN: z.number().int().min(1).max(50).default(10),
+  }).strict(),
   events: z.object({}).strict(),
   gscKpi: z.object({
     tiles: z.array(z.enum(["clicks", "impressions", "ctr", "position"])).min(1).max(4),
