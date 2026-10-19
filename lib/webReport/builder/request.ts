@@ -4,9 +4,10 @@ import { parseLayout } from "@/lib/webReport/builder/layout"
 import type { WebReportLayoutItem } from "@/lib/webReport/elements"
 import { REPORT_PERIODS, type ReportPeriod } from "@/lib/webReport/periods"
 
+/** GA4 and Search Console come from client_platform_accounts; refs in a request are ignored. */
 const connectionSchema = z.object({
-  ga4PropertyRef: z.string().trim().max(120).nullable(),
-  gscSiteRef: z.string().trim().max(300).nullable(),
+  ga4PropertyRef: z.unknown().optional(),
+  gscSiteRef: z.unknown().optional(),
   brandTerms: z.array(z.string().trim().min(1).max(80)).max(40),
   defaultPeriod: z.enum(REPORT_PERIODS),
 })
@@ -39,8 +40,6 @@ export const previewRequestSchema = connectionSchema.extend({
 })
 
 type Connection = {
-  ga4PropertyRef: string | null
-  gscSiteRef: string | null
   brandTerms: string[]
   defaultPeriod: ReportPeriod
   layout: WebReportLayoutItem[]
@@ -71,8 +70,6 @@ export function parseBuilderRequest(value: unknown):
   const layout = parseLayout(parsed.data.layout)
   if (!layout.ok) return { ok: false, error: layout.error }
   const body: Connection = {
-    ga4PropertyRef: parsed.data.ga4PropertyRef,
-    gscSiteRef: parsed.data.gscSiteRef,
     brandTerms: parsed.data.brandTerms,
     defaultPeriod: parsed.data.defaultPeriod,
     layout: layout.layout,

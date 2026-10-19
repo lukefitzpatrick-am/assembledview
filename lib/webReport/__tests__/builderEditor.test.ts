@@ -29,8 +29,6 @@ const LAYOUT: WebReportLayoutItem[] = [
   { elementId: "notes", settings: { text: "Hi" } },
 ]
 
-const ACCOUNTS = { ga4PropertyRef: "372647707", gscSiteRef: "https://www.molicare.au/" }
-
 test("entries keep their key through reorder, so selection follows the element", () => {
   const entries = entriesFromLayout(LAYOUT)
   const moved = moveEntryTo(entries, 0, 2)
@@ -84,7 +82,9 @@ test("the save payload carries display and width and parses on the server", () =
   let entries = entriesFromLayout(LAYOUT)
   entries = setEntryDisplay(entries, "el-1", "treemap")
   entries = setEntryWidth(entries, "el-1", 4)
-  const body = builderRequestBody({ action: "save", entries, brandTerms: ["molicare"], period: "last_28_days", accounts: ACCOUNTS })
+  const body = builderRequestBody({ action: "save", entries, brandTerms: ["molicare"], period: "last_28_days" })
+  assert.equal("ga4PropertyRef" in body, false, "accounts come from platform accounts, not the request")
+  assert.equal("gscSiteRef" in body, false)
   assert.deepEqual(body.layout[1], {
     elementId: "srcmed",
     settings: { topN: 10, columns: ["sessions"], showChange: true, shade: true },

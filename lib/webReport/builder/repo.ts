@@ -6,15 +6,11 @@ import { getDb } from "@/db"
 import { clientWebReportVersions, clientWebReports, migrationMarkers } from "@/db/schema"
 import { getClientDashboardData } from "@/lib/api/dashboard"
 import { fetchXanoClientRowByUrlSlug } from "@/lib/clients/fetchClientRowByUrlSlug"
-import {
-  listActivePlatformAccounts,
-  PlatformAccountsNotReadyError,
-} from "@/lib/clients/platformAccountsRepo"
 import { isPlannedBasisCampaignStatus } from "@/lib/dashboard/plannedSpendConsistency"
-import { MIGRATION_0098_KEY, normaliseGa4PropertyRef, parseLayout, planSave } from "@/lib/webReport/builder/layout"
+import { MIGRATION_0098_KEY, parseLayout, planSave } from "@/lib/webReport/builder/layout"
 import { loadWebReportData } from "@/lib/webReport/data/load"
 import type { WebReportLayoutItem } from "@/lib/webReport/elements"
-import { windowsForRequest } from "@/lib/webReport/loadPage"
+import { loadReportAccounts, windowsForRequest } from "@/lib/webReport/loadPage"
 import { isReportPeriod, type ReportPeriod } from "@/lib/webReport/periods"
 import { field, isMissingMartView, text } from "@/lib/webReport/rows"
 import { querySnowflake } from "@/lib/snowflake/query"
@@ -28,8 +24,6 @@ export class BuilderMigrationError extends Error {
   }
 }
 
-export type BuilderOption = { value: string; label: string }
-
 export type BuilderVersionRow = { version: number; savedAt: string | null }
 
 export type BuilderDraft = {
@@ -39,12 +33,11 @@ export type BuilderDraft = {
   layout: WebReportLayoutItem[]
   currentVersion: number
   versions: BuilderVersionRow[]
+  /** Read only. From client_platform_accounts, never from the saved report. */
   ga4PropertyRef: string | null
   gscSiteRef: string | null
   brandTerms: string[]
   defaultPeriod: ReportPeriod
-  ga4Options: BuilderOption[]
-  gscOptions: BuilderOption[]
   keyEventNames: string[]
 }
 
@@ -80,62 +73,6 @@ export async function resolveBuilderClient(
   const clientId = clientIdFromRow(clientRow)
   if (clientId == null) return null
   return { clientId, clientName: dashboard.clientName }
-}
-
-async function distinctColumn(sqlText: string, viewName: string, column: string): Promise<string[]> {
-  try {
-    const rows = await querySnowflake<Record<string, unknown>>(sqlText, [], { label: viewName })
-    const values: string[] = []
-    const seen = new Set<string>()
-    for (const row of rows ?? []) {
-      const value = text(field(row, column))
-      if (!value || seen.has(value)) continue
-      seen.add(value)
-      values.push(value)
-    }
-    return values
-  } catch (err) {
-    if (!isMissingMartView(err, viewName)) {
-      console.warn(`[web-builder] ${viewName} list failed`, err)
-    }
-    return []
-  }
-}
-
-async function platformRefs(clientId: number): Promise<{ ga4: string[]; gsc: string[] }> {
-  try {
-    const accounts = await listActivePlatformAccounts(clientId)
-    return {
-      ga4: accounts.flatMap((account) => {
-        if (account.platform !== "ga4") return []
-        const ref = normaliseGa4PropertyRef(account.accountRef)
-        return ref ? [ref] : []
-      }),
-      gsc: accounts.flatMap((account) => {
-        if (account.platform !== "gsc") return []
-        const site = account.accountRef?.trim()
-        return site ? [site] : []
-      }),
-    }
-  } catch (err) {
-    if (!(err instanceof PlatformAccountsNotReadyError)) {
-      console.warn("[web-builder] platform accounts unavailable", err)
-    }
-    return { ga4: [], gsc: [] }
-  }
-}
-
-function mergeOptions(linked: string[], discovered: string[], normalise: (value: string) => string | null): BuilderOption[] {
-  const options = new Map<string, string>()
-  for (const raw of linked) {
-    const value = normalise(raw)
-    if (value) options.set(value, `${value} (linked)`)
-  }
-  for (const raw of discovered) {
-    const value = normalise(raw)
-    if (value && !options.has(value)) options.set(value, value)
-  }
-  return [...options.entries()].map(([value, label]) => ({ value, label }))
 }
 
 /** Distinct event names from V_GA4_EVENTS_DAILY for one property. */
@@ -176,33 +113,11 @@ export async function loadBuilderDraft(
   const client = await resolveBuilderClient(slug)
   if (!client) return null
   const applied = await migration0098Applied()
-  const accounts = await platformRefs(client.clientId)
-  const [ga4Properties, gscSites] = await Promise.all([
-    distinctColumn(
-      `SELECT DISTINCT property_id
-       FROM ASSEMBLEDVIEW.MART.V_GA4_CAMPAIGN_DAILY
-       WHERE property_id IS NOT NULL
-       ORDER BY property_id
-       LIMIT 200`,
-      "V_GA4_CAMPAIGN_DAILY",
-      "property_id",
-    ),
-    distinctColumn(
-      `SELECT DISTINCT site
-       FROM ASSEMBLEDVIEW.MART.V_GSC_SITE_DAILY
-       WHERE site IS NOT NULL
-       ORDER BY site
-       LIMIT 200`,
-      "V_GSC_SITE_DAILY",
-      "site",
-    ),
-  ])
+  const accounts = await loadReportAccounts(client.clientId)
 
   let layout = fallbackLayout
   let currentVersion = 0
   let versions: BuilderVersionRow[] = []
-  let ga4PropertyRef = accounts.ga4[0] ?? null
-  let gscSiteRef = accounts.gsc[0] ?? null
   let brandTerms: string[] = []
   let defaultPeriod: ReportPeriod = "last_month"
 
@@ -216,8 +131,6 @@ export async function loadBuilderDraft(
         .limit(1)
       if (report) {
         currentVersion = report.currentVersion
-        ga4PropertyRef = normaliseGa4PropertyRef(report.ga4PropertyRef) ?? ga4PropertyRef
-        gscSiteRef = report.gscSiteRef?.trim() || gscSiteRef
         brandTerms = report.brandTerms ?? []
         defaultPeriod = isReportPeriod(report.defaultPeriod) ? report.defaultPeriod : "last_month"
         const rows = await db
@@ -247,24 +160,17 @@ export async function loadBuilderDraft(
     layout,
     currentVersion,
     versions,
-    ga4PropertyRef,
-    gscSiteRef,
+    ga4PropertyRef: accounts.ga4PropertyId,
+    gscSiteRef: accounts.gscSite,
     brandTerms,
     defaultPeriod,
-    ga4Options: mergeOptions(accounts.ga4, ga4Properties, (value) => normaliseGa4PropertyRef(value)),
-    gscOptions: mergeOptions(accounts.gsc, gscSites, (value) => {
-      const site = value.trim()
-      return site.length > 0 ? site : null
-    }),
-    keyEventNames: await listKeyEventNames(ga4PropertyRef),
+    keyEventNames: await listKeyEventNames(accounts.ga4PropertyId),
   }
 }
 
 type SaveInput = {
   clientId: number
   layout: WebReportLayoutItem[]
-  ga4PropertyRef: string | null
-  gscSiteRef: string | null
   brandTerms: string[]
   defaultPeriod: ReportPeriod
   savedBy: string | null
@@ -284,8 +190,6 @@ export async function savePublishedReport(input: SaveInput): Promise<{ version: 
     const values = {
       status: "published" as const,
       currentVersion: nextVersion,
-      ga4PropertyRef: input.ga4PropertyRef,
-      gscSiteRef: input.gscSiteRef,
       brandTerms: input.brandTerms,
       defaultPeriod: input.defaultPeriod,
       updatedAt: stamp,
@@ -363,12 +267,14 @@ export async function restorePublishedVersion(input: {
 
 export async function loadBuilderPreview(input: {
   slug: string
+  clientId: number
   period: ReportPeriod
-  ga4PropertyId: string | null
-  gscSite: string | null
   brandTerms: string[]
 }): Promise<{ clientName: string; connected: boolean; data: WebReportData } | null> {
-  const dashboard = await getClientDashboardData(input.slug)
+  const [dashboard, accounts] = await Promise.all([
+    getClientDashboardData(input.slug),
+    loadReportAccounts(input.clientId),
+  ])
   if (!dashboard) return null
   const today = sydneyYmdFromUtcInstant(new Date())
   const windows = windowsForRequest({ period: input.period, today })
@@ -387,14 +293,14 @@ export async function loadBuilderPreview(input: {
   const data = await loadWebReportData({
     windows,
     today,
-    ga4PropertyId: input.ga4PropertyId,
-    gscSite: input.gscSite,
+    ga4PropertyId: accounts.ga4PropertyId,
+    gscSite: accounts.gscSite,
     brandTerms: input.brandTerms,
     campaigns,
   })
   return {
     clientName: dashboard.clientName,
-    connected: Boolean(input.ga4PropertyId || input.gscSite),
+    connected: Boolean(accounts.ga4PropertyId || accounts.gscSite),
     data,
   }
 }

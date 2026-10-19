@@ -23,8 +23,6 @@ const draft = {
   gscSiteRef: null,
   brandTerms: [],
   defaultPeriod: "last_month" as const,
-  ga4Options: [],
-  gscOptions: [],
   keyEventNames: [],
 }
 

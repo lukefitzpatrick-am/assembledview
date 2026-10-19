@@ -11,6 +11,7 @@ import {
   PlatformAccountsNotReadyError,
 } from "@/lib/clients/platformAccountsRepo"
 import { isPlannedBasisCampaignStatus } from "@/lib/dashboard/plannedSpendConsistency"
+import { pickReportAccounts } from "@/lib/webReport/accountRefs"
 import { loadWebReportData } from "@/lib/webReport/data/load"
 import { cleanLayout } from "@/lib/webReport/builder/layout"
 import {
@@ -42,12 +43,6 @@ function clientIdFromRow(row: Record<string, unknown> | null): number | null {
   return Number.isFinite(id) && id > 0 ? id : null
 }
 
-function ga4Digits(ref: string | null | undefined): string | null {
-  if (!ref) return null
-  const digits = ref.replace(/^properties\//i, "").trim()
-  return /^\d+$/.test(digits) ? digits : null
-}
-
 async function reportsTableReady(): Promise<boolean> {
   try {
     const db = getDb()
@@ -68,8 +63,6 @@ async function publishedLayout(clientId: number): Promise<{
   layout: WebReportLayoutItem[]
   brandTerms: string[]
   defaultPeriod: ReportPeriod
-  ga4PropertyId: string | null
-  gscSite: string | null
   source: "published" | "default"
 } | null> {
   if (!(await reportsTableReady())) return null
@@ -98,8 +91,6 @@ async function publishedLayout(clientId: number): Promise<{
       layout,
       brandTerms: report.brandTerms ?? [],
       defaultPeriod: period,
-      ga4PropertyId: ga4Digits(report.ga4PropertyRef),
-      gscSite: report.gscSiteRef?.trim() || null,
       source: "published",
     }
   } catch (err) {
@@ -108,15 +99,16 @@ async function publishedLayout(clientId: number): Promise<{
   }
 }
 
-async function platformRefs(clientId: number): Promise<{ ga4PropertyId: string | null; gscSite: string | null }> {
+/** The only source of a report's GA4 property and Search Console site. */
+export async function loadReportAccounts(
+  clientId: number,
+): Promise<{ ga4PropertyId: string | null; gscSite: string | null }> {
   try {
-    const accounts = await listActivePlatformAccounts(clientId)
-    const ga4 = accounts.find((account) => account.platform === "ga4")
-    const gsc = accounts.find((account) => account.platform === "gsc")
-    return {
-      ga4PropertyId: ga4Digits(ga4?.accountRef),
-      gscSite: gsc?.accountRef?.trim() || null,
+    const picked = pickReportAccounts(await listActivePlatformAccounts(clientId))
+    for (const platform of picked.duplicates) {
+      console.warn(`[web-report] client ${clientId} has more than one active ${platform} account; using the oldest`)
     }
+    return { ga4PropertyId: picked.ga4PropertyId, gscSite: picked.gscSite }
   } catch (err) {
     if (!(err instanceof PlatformAccountsNotReadyError)) {
       console.warn("[web-report] platform accounts unavailable", err)
@@ -178,9 +170,8 @@ export async function loadWebReportResponse(input: {
   if (!dashboard) return null
   const clientId = clientIdFromRow(clientRow)
   const saved = clientId != null ? await publishedLayout(clientId) : null
-  const accounts = clientId != null ? await platformRefs(clientId) : { ga4PropertyId: null, gscSite: null }
-  const ga4PropertyId = saved?.ga4PropertyId ?? accounts.ga4PropertyId
-  const gscSite = saved?.gscSite ?? accounts.gscSite
+  const { ga4PropertyId, gscSite } =
+    clientId != null ? await loadReportAccounts(clientId) : { ga4PropertyId: null, gscSite: null }
   const defaultPeriod = saved?.defaultPeriod ?? "last_month"
   const period = isReportPeriod(input.period) ? input.period : defaultPeriod
   const today = sydneyYmdFromUtcInstant(new Date())

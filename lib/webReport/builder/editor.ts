@@ -138,12 +138,9 @@ export function builderRequestBody(input: {
   entries: BuilderEntry[]
   brandTerms: string[]
   period: ReportPeriod
-  accounts: { ga4PropertyRef: string | null; gscSiteRef: string | null }
 }) {
   return {
     action: input.action,
-    ga4PropertyRef: input.accounts.ga4PropertyRef,
-    gscSiteRef: input.accounts.gscSiteRef,
     brandTerms: input.brandTerms,
     defaultPeriod: input.period,
     layout: layoutFromEntries(input.entries),

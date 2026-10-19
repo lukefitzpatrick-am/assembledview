@@ -120,6 +120,38 @@ describe("ReportBuilder", () => {
   })
 })
 
+describe("ReportBuilder without platform accounts", () => {
+  it("shows both accounts as Not linked", () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})))
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    act(() => {
+      root.render(
+        <ReportBuilder
+          slug="golf-australia"
+          clientName="Golf Australia"
+          migrationApplied
+          initialLayout={LAYOUT}
+          currentVersion={0}
+          versions={[]}
+          ga4PropertyRef={null}
+          gscSiteRef={null}
+          brandTerms={[]}
+          defaultPeriod="last_month"
+          keyEventNames={[]}
+        />,
+      )
+    })
+    expect(host.textContent).toContain("Google Analytics 4 Not linked")
+    expect(host.textContent).toContain("Search Console Not linked")
+    act(() => root.unmount())
+    host.remove()
+    vi.unstubAllGlobals()
+  })
+})
+
 describe("keyboardMove", () => {
   it("maps Alt+Up and Alt+Down only", () => {
     expect(keyboardMove({ altKey: true, key: "ArrowUp" })).toBe(-1)

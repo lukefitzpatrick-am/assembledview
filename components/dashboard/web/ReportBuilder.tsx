@@ -81,7 +81,6 @@ export function ReportBuilder({
   const keySeq = useRef(0)
   const previewSeq = useRef(0)
 
-  const accounts = useMemo(() => ({ ga4PropertyRef, gscSiteRef }), [ga4PropertyRef, gscSiteRef])
   const parsedTerms = useMemo(() => parseBrandTerms(terms), [terms])
   const termsKey = parsedTerms.join("\u0000")
 
@@ -115,7 +114,6 @@ export function ReportBuilder({
               entries: entries.length > 0 ? entries : entriesFromLayout([{ elementId: "notes", settings: { text: "" } }]),
               brandTerms: parsedTerms,
               period,
-              accounts,
             }),
           )
           if (seq !== previewSeq.current) return
@@ -130,9 +128,9 @@ export function ReportBuilder({
       })()
     }, PREVIEW_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-    // Data depends on the period, brand terms and accounts only. Layout edits re-render from the loaded data.
+    // Data depends on the period and brand terms only. Layout edits re-render from the loaded data.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, termsKey, accounts, slug])
+  }, [period, termsKey, slug])
 
   function change(next: (current: BuilderEntry[]) => BuilderEntry[]) {
     const after = next(entries)
@@ -152,7 +150,7 @@ export function ReportBuilder({
     setError(null)
     try {
       const { response, payload } = await post(
-        builderRequestBody({ action: "save", entries, brandTerms: parsedTerms, period, accounts }),
+        builderRequestBody({ action: "save", entries, brandTerms: parsedTerms, period }),
       )
       if (!response.ok || payload?.version == null) {
         setError(payload?.error ?? "The report could not be saved")

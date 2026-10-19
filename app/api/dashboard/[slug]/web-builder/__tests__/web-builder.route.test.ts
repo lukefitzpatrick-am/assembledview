@@ -102,6 +102,20 @@ test("POST web-builder — save creates a version", { skip }, async () => {
   const saved = saveMock.mock.calls[0]?.arguments[0] as { layout: { elementId: string }[]; defaultPeriod: string }
   assert.equal(saved.layout[0]?.elementId, "notes")
   assert.equal(saved.defaultPeriod, "last_month")
+  assert.equal("ga4PropertyRef" in saved, false, "refs sent in the request are ignored")
+  assert.equal("gscSiteRef" in saved, false)
+})
+
+test("POST web-builder — preview reads accounts by client, not from the request", { skip }, async () => {
+  getSessionMock.mock.mockImplementation(async () => ({ user: user("admin") }))
+  resolveMock.mock.mockImplementation(async () => ({ clientId: 7, clientName: "Golf Australia" }))
+  previewMock.mock.resetCalls()
+  await post({ ...validSave, action: "preview" })
+  assert.equal(previewMock.mock.calls.length, 1)
+  const input = previewMock.mock.calls[0]?.arguments[0] as Record<string, unknown>
+  assert.equal(input.clientId, 7)
+  assert.equal("ga4PropertyId" in input, false)
+  assert.equal("gscSite" in input, false)
 })
 
 test("POST web-builder — restore returns that version", { skip }, async () => {

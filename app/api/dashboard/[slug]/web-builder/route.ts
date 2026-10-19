@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { builderGate } from "@/lib/webReport/builder/access"
-import { BUILDER_NEEDS_MIGRATION, normaliseGa4PropertyRef, savedForMessage } from "@/lib/webReport/builder/layout"
+import { BUILDER_NEEDS_MIGRATION, savedForMessage } from "@/lib/webReport/builder/layout"
 import { parseBuilderRequest } from "@/lib/webReport/builder/request"
 import {
   BuilderMigrationError,
@@ -60,9 +60,8 @@ export async function POST(req: NextRequest, context: RouteContext) {
     if (parsed.action === "preview") {
       const preview = await loadBuilderPreview({
         slug,
+        clientId: client.clientId,
         period: parsed.body.defaultPeriod,
-        ga4PropertyId: normaliseGa4PropertyRef(parsed.body.ga4PropertyRef),
-        gscSite: parsed.body.gscSiteRef?.trim() || null,
         brandTerms: parsed.body.brandTerms,
       })
       if (!preview) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -93,8 +92,6 @@ export async function POST(req: NextRequest, context: RouteContext) {
     const saved = await savePublishedReport({
       clientId: client.clientId,
       layout: parsed.body.layout,
-      ga4PropertyRef: normaliseGa4PropertyRef(parsed.body.ga4PropertyRef),
-      gscSiteRef: parsed.body.gscSiteRef?.trim() || null,
       brandTerms: parsed.body.brandTerms,
       defaultPeriod: parsed.body.defaultPeriod,
       savedBy,

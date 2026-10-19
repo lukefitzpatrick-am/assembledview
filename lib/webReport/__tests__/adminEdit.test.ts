@@ -26,8 +26,6 @@ const draft = {
   gscSiteRef: null,
   brandTerms: [],
   defaultPeriod: "last_month",
-  ga4Options: [],
-  gscOptions: [],
   keyEventNames: [],
 } satisfies BuilderDraft
 
