@@ -165,6 +165,7 @@ pct === 100 → fee = 0 (division guard)
 
 ## Naming / trafficking law
 
+- **DV360 keys (FX1, 2026-10-20).** `VW_PACING_DV360` parses both plan id styles: old (`[A-Z]{3}AU[0-9]{3,}…`) and new (`[a-z]{3,6}[0-9]{3}` + line code + number, the same line codes as the creative view's MBA regex). A DV360 line item's entity key is the md5 of advertiser, insertion order and line item name. Never key a relabel or a fact row on `FIVETRAN_ID`: it changes on every raw row and on Fivetran re-syncs. `PACING_FACT` `Social - Meta` / `Social - TikTok` rows are legacy duplicates of `SOCIAL_PACING_FACT`: exclude `channel ILIKE 'Social%'` whenever reading `PACING_FACT`.
 - `lib/naming/templates.ts` is THE law for element orders — not any doc. DV360 templates cover all programmatic channels; CM360 covers other digital.
 - `line_item_id` is ALWAYS the last element at each platform's pacing-grain level. `_` inside values, `-` as separator, charset `[a-z0-9_+x]`.
 - Search suffix rule: the AV line-item code is the segment after the LAST hyphen in the ad/asset group name; codes are alphanumeric (no internal hyphens). Renaming in Google Ads breaks spend rollup.
