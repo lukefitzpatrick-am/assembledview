@@ -23,6 +23,12 @@ function fromSource(status: SourceStatus, label: string, maxDate: string | null,
 
 export function elementViewState(id: WebElementId, data: WebReportData): ElementViewState {
   if (id === "notes") return { status: "ok", message: "" }
+  if (id === "kpiTracker") {
+    const kpis = data.kpis
+    if (!kpis || kpis.status === "not_ready") return { status: "needs_report", message: "Not available yet" }
+    if (kpis.status === "unavailable") return { status: "error", message: "Saved KPIs could not be loaded." }
+    return { status: "ok", message: "" }
+  }
   if (id === "events") return { status: "needs_report", message: "Not available yet" }
   if (id === "gscPages") return fromSource(data.gsc.pagesStatus, "Search Console", data.gsc.maxDate, data.gsc.message)
   if (id === "srcmed") {

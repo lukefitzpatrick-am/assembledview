@@ -75,7 +75,14 @@ function TileGrid({ title, tiles, withSpark }: { title: string; tiles: PreparedT
       <div className="mt-3 grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {tiles.map((tile) => (
           <div key={tile.label} className="min-w-0">
-            <KpiTile label={tile.label} value={tile.value} caption={tile.caption} />
+            <KpiTile
+              label={tile.label}
+              value={tile.value}
+              caption={tile.caption}
+              expected={tile.expected}
+              status={tile.status}
+              progress={tile.progress}
+            />
             {withSpark && tile.spark.length > 0 ? (
               <Sparkline data={tile.spark} color={CHART_SERIES.one} width={140} height={36} />
             ) : null}
@@ -116,6 +123,7 @@ function SeriesBody({ model }: { model: Extract<PreparedDisplay, { kind: "series
   return (
     <Frame
       title={model.title}
+      note={model.note}
       legend={legend}
       rows={rows}
       columns={["date", ...series.map((item) => item.key)]}
@@ -136,6 +144,7 @@ function SeriesBody({ model }: { model: Extract<PreparedDisplay, { kind: "series
             xKey="date"
             bars={bars}
             lines={lines}
+            sharedAxis={model.sharedAxis}
             showLegend={false}
             className={CHART_FILL}
           />

@@ -1,13 +1,14 @@
 import "server-only"
 
 import { querySnowflake } from "@/lib/snowflake/query"
-import { loadReportAccounts } from "@/lib/webReport/loadPage"
 import type { DateWindow } from "@/lib/webReport/periods"
 import { dateOnly, field, isMissingMartView, num, text } from "@/lib/webReport/rows"
 import type { WarehouseQuery } from "@/lib/webReport/types"
 
 import { computeKpiActuals, type KpiEventRow, type KpiMetricRow } from "./actuals"
-import { listKpis } from "./repo"
+import { currentMonthWindow, kpiEditorRows, type KpiEditorRow } from "./editor"
+import { buildKpiReportItems, trackerMonthList, trackerWindow, type WebKpiReport } from "./report"
+import { listKpis, migration0101Applied } from "./repo"
 import type { WebKpi, WebKpiActual } from "./types"
 
 const GA4_SESSIONS_SQL = `
@@ -80,6 +81,12 @@ function eventRows(rows: Record<string, unknown>[]): KpiEventRow[] {
   return out
 }
 
+/** loadPage imports the report loader, which imports this file, so the accounts read is loaded lazily. */
+async function reportAccounts(clientId: number) {
+  const { loadReportAccounts } = await import("@/lib/webReport/loadPage")
+  return loadReportAccounts(clientId)
+}
+
 async function snowflakeQuery(sql: string, binds: unknown[]) {
   return (await querySnowflake<Record<string, unknown>>(sql, binds, { label: "web-kpis" })) ?? []
 }
@@ -138,13 +145,69 @@ export async function readKpiActuals(input: {
 export async function kpiActuals(clientId: number, window: DateWindow): Promise<WebKpiActual[]> {
   const kpis = await listKpis(clientId)
   if (kpis.length === 0) return []
-  const accounts = await loadReportAccounts(clientId)
+  const accounts = await reportAccounts(clientId)
   return readKpiActuals({ kpis, window, ga4PropertyId: accounts.ga4PropertyId, gscSite: accounts.gscSite })
+}
+
+/**
+ * Active KPIs with actuals for the report window and for the tracker's 12
+ * months. Fails soft: not_ready before 0101, unavailable when the read fails.
+ */
+export async function loadKpiReport(input: {
+  clientId: number
+  window: DateWindow
+  today: string
+  ga4PropertyId: string | null
+  gscSite: string | null
+  query?: WarehouseQuery
+}): Promise<WebKpiReport> {
+  const trackerMonths = trackerMonthList(input.window)
+  const base = { today: input.today, trackerMonths }
+  if (!(await migration0101Applied())) return { ...base, status: "not_ready", items: [] }
+  try {
+    const kpis = await listKpis(input.clientId)
+    if (kpis.length === 0) return { ...base, status: "ok", items: [] }
+    const accounts = { ga4PropertyId: input.ga4PropertyId, gscSite: input.gscSite, query: input.query }
+    const [windowActuals, trackerActuals] = await Promise.all([
+      readKpiActuals({ kpis, window: input.window, ...accounts }),
+      readKpiActuals({ kpis, window: trackerWindow(input.window), ...accounts }),
+    ])
+    return { ...base, status: "ok", items: buildKpiReportItems(kpis, windowActuals, trackerActuals) }
+  } catch (err) {
+    console.error("[web-kpis] report KPIs unavailable", err)
+    return { ...base, status: "unavailable", items: [] }
+  }
+}
+
+/** The KPI editor's list (active and deactivated) with this month's numbers, and the event picker's names. */
+export async function loadKpiEditor(clientId: number, today: string): Promise<{
+  migrationApplied: boolean
+  rows: KpiEditorRow[]
+  eventNames: { name: string; count: number }[]
+}> {
+  if (!(await migration0101Applied())) return { migrationApplied: false, rows: [], eventNames: [] }
+  const [kpis, accounts] = await Promise.all([listKpis(clientId, { includeInactive: true }), reportAccounts(clientId)])
+  const [actuals, names] = await Promise.all([
+    kpis.some((kpi) => kpi.active)
+      ? readKpiActuals({
+          kpis,
+          window: currentMonthWindow(today),
+          ga4PropertyId: accounts.ga4PropertyId,
+          gscSite: accounts.gscSite,
+        })
+      : Promise.resolve([]),
+    eventNamesForProperty(accounts.ga4PropertyId),
+  ])
+  return { migrationApplied: true, rows: kpiEditorRows(kpis, actuals, today), eventNames: names }
 }
 
 /** Distinct GA4 event names with their counts over the last 90 days, for the KPI editor. */
 export async function eventNames(clientId: number): Promise<{ name: string; count: number }[]> {
-  const { ga4PropertyId } = await loadReportAccounts(clientId)
+  const { ga4PropertyId } = await reportAccounts(clientId)
+  return eventNamesForProperty(ga4PropertyId)
+}
+
+async function eventNamesForProperty(ga4PropertyId: string | null): Promise<{ name: string; count: number }[]> {
   if (!ga4PropertyId) return []
   try {
     const rows = await snowflakeQuery(EVENT_NAMES_SQL, [ga4PropertyId])

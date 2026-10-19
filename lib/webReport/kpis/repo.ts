@@ -25,6 +25,13 @@ export class KpiMigrationError extends Error {
   }
 }
 
+export class KpiNotFoundError extends Error {
+  constructor() {
+    super("KPI not found for this client")
+    this.name = "KpiNotFoundError"
+  }
+}
+
 export async function migration0101Applied(): Promise<boolean> {
   try {
     const [row] = await getDb()
@@ -114,7 +121,7 @@ export async function upsertKpi(input: WebKpiInput, actor: string): Promise<WebK
       .set(fields)
       .where(and(eq(webKpis.id, clean.id), eq(webKpis.clientId, clean.clientId)))
       .returning()
-    if (!row) throw new Error("KPI not found for this client")
+    if (!row) throw new KpiNotFoundError()
     const targets = await targetsFor([row.id])
     return toKpi(row, targets.get(row.id) ?? [])
   }
@@ -125,13 +132,28 @@ export async function upsertKpi(input: WebKpiInput, actor: string): Promise<WebK
   return toKpi(row, [])
 }
 
+async function kpiBelongsTo(kpiId: string, clientId: number): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ id: webKpis.id })
+    .from(webKpis)
+    .where(and(eq(webKpis.id, kpiId), eq(webKpis.clientId, clientId)))
+    .limit(1)
+  return Boolean(row)
+}
+
 /**
- * Upserts the listed months for one KPI. Months not listed are left as they
- * are. Targets are stored to 2 decimals (numeric(14,2)).
+ * Upserts the listed months for one of the client's KPIs. Months not listed
+ * are left as they are. Targets are stored to 2 decimals (numeric(14,2)).
  */
-export async function setTargets(kpiId: string, targets: WebKpiTarget[], actor: string): Promise<WebKpiTarget[]> {
+export async function setTargets(
+  kpiId: string,
+  clientId: number,
+  targets: WebKpiTarget[],
+  actor: string,
+): Promise<WebKpiTarget[]> {
   await requireMigration()
   const clean = validateTargets(targets)
+  if (!(await kpiBelongsTo(kpiId, clientId))) throw new KpiNotFoundError()
   if (clean.length === 0) return []
   const now = new Date().toISOString()
   const values = clean.map((item) => ({
@@ -156,12 +178,12 @@ export async function setTargets(kpiId: string, targets: WebKpiTarget[], actor: 
 }
 
 /** Deactivated KPIs keep their targets and drop out of actuals and the report. */
-export async function deactivateKpi(kpiId: string, actor: string): Promise<boolean> {
+export async function deactivateKpi(kpiId: string, clientId: number, actor: string): Promise<boolean> {
   await requireMigration()
   const rows = await getDb()
     .update(webKpis)
     .set({ active: false, updatedAt: new Date().toISOString(), updatedBy: actor })
-    .where(eq(webKpis.id, kpiId))
+    .where(and(eq(webKpis.id, kpiId), eq(webKpis.clientId, clientId)))
     .returning({ id: webKpis.id })
   return rows.length > 0
 }

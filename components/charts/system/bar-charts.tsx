@@ -233,6 +233,8 @@ export interface ComboProps {
   /** Dim non-matching categories; accent the match (click-highlight). */
   highlightedCategory?: string | null;
   onCategoryClick?: (category: string) => void;
+  /** Lines share the bars' left axis (e.g. actual columns against a target line). */
+  sharedAxis?: boolean;
   showLegend?: boolean;
   className?: string;
 }
@@ -243,8 +245,9 @@ type ComboBarClick = { payload?: Datum };
 export function ComboChart({
   data, xKey, bar, line, bars: barsProp, lines: linesProp,
   barFormat = 'compact', lineFormat = 'compact',
-  referenceLines, highlightedCategory, onCategoryClick, showLegend = true, className,
+  referenceLines, highlightedCategory, onCategoryClick, sharedAxis = false, showLegend = true, className,
 }: ComboProps) {
+  const lineAxis = sharedAxis ? 'l' : 'r';
   const bars = barsProp?.length ? barsProp : bar ? [bar] : [];
   const lines = linesProp?.length ? linesProp : line ? [line] : [];
   const cfg = withConfig([...bars, ...lines]);
@@ -266,7 +269,9 @@ export function ComboChart({
           {...categoryAxis}
         />
         <YAxis yAxisId="l" width={44} tickFormatter={bvf} {...axisProps} />
-        <YAxis yAxisId="r" orientation="right" width={40} tickFormatter={lvf} {...axisProps} />
+        {sharedAxis ? null : (
+          <YAxis yAxisId="r" orientation="right" width={40} tickFormatter={lvf} {...axisProps} />
+        )}
         <ChartTooltip content={<ChartTooltipContent />} />
         {showLegend && (bars.length + lines.length > 1) ? (
           <ChartLegend content={<ChartLegendContent />} />
@@ -321,7 +326,7 @@ export function ComboChart({
         {lines.map((s, i) => (
           <Line
             key={s.key}
-            yAxisId="r"
+            yAxisId={lineAxis}
             type="monotone"
             dataKey={s.key}
             name={s.label}

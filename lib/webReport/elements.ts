@@ -60,12 +60,17 @@ const metricSchema = z.enum(WEB_METRICS)
 
 const kpiTileSchema = z
   .object({
-    kind: z.enum(["metric", "keyEvent"]),
+    kind: z.enum(["metric", "keyEvent", "savedKpi"]),
     metric: metricSchema.optional(),
     eventName: z.string().trim().min(1).max(80).optional(),
+    /** A saved monthly KPI (web_kpis.id). Its targets come from the KPI, not from `target`. */
+    kpiId: z.string().uuid().optional(),
     target: z.number().positive().optional(),
   })
   .superRefine((tile, ctx) => {
+    if (tile.kind === "savedKpi" && !tile.kpiId) {
+      ctx.addIssue({ code: "custom", message: "A saved KPI tile needs a KPI", path: ["kpiId"] })
+    }
     if (tile.kind === "metric" && !tile.metric) {
       ctx.addIssue({ code: "custom", message: "A metric tile needs a metric", path: ["metric"] })
     }
@@ -106,13 +111,17 @@ export const elementSettings = {
   gscTrend: z.object({}).strict(),
   queryBubble: z.object({}).strict(),
   queryPositions: z.object({}).strict(),
+  kpiTracker: z.object({
+    kpiIds: z.array(z.string().uuid()).max(6),
+    months: z.enum(["6", "12"]),
+  }),
 } as const
 
 export type WebElementId = keyof typeof elementSettings
 
 export type WebElementSettings<K extends WebElementId = WebElementId> = z.infer<(typeof elementSettings)[K]>
 
-export type WebDataNeed = "ga4" | "gsc" | "paid" | "notes"
+export type WebDataNeed = "ga4" | "gsc" | "paid" | "notes" | "kpis"
 
 export type WebElementDefinition<K extends WebElementId = WebElementId> = {
   id: K
@@ -131,8 +140,17 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     title: "Key KPIs",
     group: "Headline",
     settings: elementSettings.kpis,
-    dataNeeds: ["ga4", "gsc", "paid"],
+    dataNeeds: ["ga4", "gsc", "paid", "kpis"],
     displays: ["tiles", "spark", "bullet"],
+    defaultWidth: 12,
+  },
+  kpiTracker: {
+    id: "kpiTracker",
+    title: "KPI tracker",
+    group: "Headline",
+    settings: elementSettings.kpiTracker,
+    dataNeeds: ["kpis"],
+    displays: ["combo", "column", "table"],
     defaultWidth: 12,
   },
   snapshot: {

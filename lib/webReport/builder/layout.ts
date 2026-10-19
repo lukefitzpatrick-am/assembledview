@@ -51,6 +51,8 @@ export function defaultElementSettings(id: WebElementId): unknown {
     case "queryPositions":
     case "costPer":
       return {}
+    case "kpiTracker":
+      return { kpiIds: [], months: "12" }
     default:
       return {}
   }

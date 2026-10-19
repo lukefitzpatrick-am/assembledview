@@ -10,6 +10,7 @@ export type SettingsField = {
   | { kind: "number"; integer: boolean; min?: number; max?: number }
   | { kind: "boolean" }
   | { kind: "enumList"; options: string[]; min?: number; max?: number }
+  | { kind: "stringList"; min?: number; max?: number }
   | { kind: "objectList"; fields: SettingsField[]; min?: number; max?: number }
 )
 
@@ -46,6 +47,9 @@ const FIELD_LABEL: Record<string, string> = {
   kind: "Kind",
   metric: "Metric",
   eventName: "Key event",
+  kpiId: "Saved KPI",
+  kpiIds: "Saved KPIs",
+  months: "Months",
   target: "Target",
 }
 
@@ -109,6 +113,9 @@ function describeNode(key: string, raw: ZodNode): SettingsField | null {
     const element = unwrap(schema.def.element).schema
     if (element.def.type === "enum") {
       return { kind: "enumList", key, optional, label, options: enumOptions(element), min, max }
+    }
+    if (element.def.type === "string") {
+      return { kind: "stringList", key, optional, label, min, max }
     }
     if (element.def.type === "object" && element.shape) {
       const fields = Object.entries(element.shape).flatMap(([childKey, child]) => {

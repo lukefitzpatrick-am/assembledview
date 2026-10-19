@@ -1,8 +1,16 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
+import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
+import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import { computeKpiActuals } from "@/lib/webReport/kpis/actuals"
-import { kpiProgress, kpiStatus, monthsInWindow, proratedTarget } from "@/lib/webReport/kpis/progress"
+import {
+  KPI_STATUS_THRESHOLDS,
+  kpiProgress,
+  kpiStatus,
+  monthsInWindow,
+  proratedTarget,
+} from "@/lib/webReport/kpis/progress"
 import { validateKpiInput, validateTargets, type WebKpi } from "@/lib/webReport/kpis/types"
 
 function kpi(overrides: Partial<WebKpi> = {}): WebKpi {
@@ -91,12 +99,18 @@ describe("web KPI pro-rating", () => {
 })
 
 describe("web KPI status", () => {
-  it("uses 105% and 95% cut-offs", () => {
-    assert.equal(kpiStatus(1.05), "ahead")
-    assert.equal(kpiStatus(1.0499), "on-track")
-    assert.equal(kpiStatus(1), "on-track")
-    assert.equal(kpiStatus(0.95), "on-track")
-    assert.equal(kpiStatus(0.9499), "behind")
+  it("uses campaign pacing's cut-offs", () => {
+    assert.equal(KPI_STATUS_THRESHOLDS.behindBelowPct, PACING_STATUS_THRESHOLDS.behindBelowPct)
+    assert.equal(KPI_STATUS_THRESHOLDS.aheadAbovePct, PACING_STATUS_THRESHOLDS.aheadAbovePct)
+    for (const pct of [0, 50, 89.99, 90, 95, 100, 105, 110, 110.01, 114.9, 115, 200]) {
+      assert.equal(kpiStatus(pct / 100), deliveryStatusFromPct(pct), `${pct}%`)
+    }
+    assert.equal(kpiStatus(0.8999), "behind")
+    assert.equal(kpiStatus(0.9), "on-track")
+    assert.equal(kpiStatus(1.05), "on-track")
+    assert.equal(kpiStatus(1.1), "on-track")
+    assert.equal(kpiStatus(1.1001), "ahead")
+    assert.equal(kpiStatus(1.5), "ahead")
     assert.equal(kpiStatus(null), "no-data")
   })
 })

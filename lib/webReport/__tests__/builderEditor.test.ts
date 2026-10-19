@@ -117,5 +117,5 @@ test("notes show where the element has one", () => {
   assert.equal(elementNote({ elementId: "srcmed", settings: {} }), null)
   assert.match(elementNote({ elementId: "location", settings: {} }) ?? "", /\(not set\)/)
   assert.match(elementNote({ elementId: "queries", settings: {} }) ?? "", /impression-weighted/)
-  assert.deepEqual([...NEW_ELEMENTS], ["gscTrend", "queryBubble", "queryPositions"])
+  assert.deepEqual([...NEW_ELEMENTS], ["gscTrend", "queryBubble", "queryPositions", "kpiTracker"])
 })

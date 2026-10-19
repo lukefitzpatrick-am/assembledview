@@ -198,6 +198,7 @@ export async function loadWebReportResponse(input: {
     gscSite,
     brandTerms: saved?.brandTerms ?? [],
     campaigns,
+    clientId,
   })
   return {
     clientName: dashboard.clientName,

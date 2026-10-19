@@ -1,5 +1,14 @@
 import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
+import type { DeliveryStatus } from "@/lib/pacing/deliveryStatusFromPct"
 import { elementViewState } from "@/lib/webReport/elementState"
+import {
+  coverageNote,
+  kpiTrackerRows,
+  kpiWindowProgress,
+  monthLabel,
+  type KpiTrackerRow,
+  type WebKpiReportItem,
+} from "@/lib/webReport/kpis/report"
 import {
   WEB_REPORT_ELEMENTS,
   parseElementSettings,
@@ -40,6 +49,13 @@ export type PreparedTile = {
   /** Raw numbers for a bullet. Target is absent when the tile has none. */
   current: number | null
   target?: number
+  /** Bullet values when they differ from current/target (a saved KPI counts only targeted months). */
+  bullet?: { measure: number; target: number }
+  /** Formatted target. With it the tile shows status and progress. */
+  expected?: string
+  status?: DeliveryStatus
+  /** Pace, 0..1 fills the bar. */
+  progress?: number
   spark: { value: number }[]
 }
 
@@ -50,7 +66,7 @@ export type PreparedDisplay =
   | { kind: "text"; title: string; text: string }
   | { kind: "tiles"; title: string; tiles: PreparedTile[]; withSpark: boolean }
   | { kind: "bullet"; title: string; rows: { label: string; measure: number; target: number }[]; plain: PreparedTile[] }
-  | { kind: "series"; title: string; display: "combo" | "line" | "area" | "column"; data: Record<string, string | number>[]; bars: SeriesSpec[]; lines: SeriesSpec[]; hiddenByDefault?: string[] }
+  | { kind: "series"; title: string; display: "combo" | "line" | "area" | "column"; data: Record<string, string | number>[]; bars: SeriesSpec[]; lines: SeriesSpec[]; hiddenByDefault?: string[]; note?: string; sharedAxis?: boolean }
   | { kind: "calendar"; title: string; weeks: number; cells: { week: number; day: number; value: number }[] }
   | { kind: "table"; title: string; headers: string[]; rows: { key: string; cells: PreparedTableCell[] }[]; note?: string }
   | { kind: "ranked"; title: string; display: "bar" | "donut" | "treemap"; rows: { label: string; value: number }[]; valueLabel: string; note?: string }
@@ -144,22 +160,145 @@ function tileForMetric(metric: WebMetric, data: WebReportData, target?: number):
   }
 }
 
-type KpiSetting = { kind: string; metric?: WebMetric; eventName?: string; target?: number }
+type KpiSetting = { kind: string; metric?: WebMetric; eventName?: string; kpiId?: string; target?: number }
+
+/** Only active KPIs are loaded, so a deactivated or missing KPI is null and its tile is hidden. */
+function savedKpi(data: WebReportData, kpiId: string | undefined): WebKpiReportItem | null {
+  if (!kpiId) return null
+  return data.kpis?.items.find((item) => item.id === kpiId) ?? null
+}
+
+/** Last day counted as elapsed: today, or the source's latest data day when it lags. */
+function kpiAsOf(item: WebKpiReportItem, data: WebReportData): string {
+  const today = data.kpis?.today ?? data.windows.current.to
+  const latest = item.source === "gsc_metric" ? data.gsc.maxDate : data.ga4.maxDate
+  return latest && latest < today ? latest : today
+}
+
+function savedKpiTile(item: WebKpiReportItem, data: WebReportData): PreparedTile {
+  const window = data.windows.current
+  const total = item.window.total
+  const spark = item.tracker.total == null ? [] : item.tracker.months.slice(-6).map((row) => ({ value: row.actual }))
+  const tile: PreparedTile = {
+    label: item.label,
+    value: total == null ? null : NUMBER.format(total),
+    current: total,
+    spark,
+  }
+  if (total == null) return { ...tile, caption: "Source not connected" }
+  const progress = kpiWindowProgress(item, window, kpiAsOf(item, data))
+  if (progress.target == null) return { ...tile, caption: "No target" }
+  return {
+    ...tile,
+    target: progress.target,
+    bullet: progress.actualToDate == null ? undefined : { measure: progress.actualToDate, target: progress.target },
+    expected: `Target ${NUMBER.format(progress.target)}`,
+    status: progress.status,
+    progress: progress.pace ?? undefined,
+    caption: coverageNote(progress, window) ?? undefined,
+  }
+}
 
 function kpiTiles(tiles: KpiSetting[], data: WebReportData): PreparedTile[] {
-  return tiles.map((tile) => {
+  return tiles.flatMap((tile) => {
+    if (tile.kind === "savedKpi") {
+      const item = savedKpi(data, tile.kpiId)
+      return item ? [savedKpiTile(item, data)] : []
+    }
     if (tile.kind === "keyEvent") {
       const named = data.ga4.keyEventsByName.find((row) => row.name === tile.eventName)
-      return {
+      return [{
         label: tile.eventName ?? "Key event",
         value: NUMBER.format(named?.count ?? 0),
         current: named?.count ?? 0,
         target: tile.target,
         spark: [],
-      }
+      }]
     }
-    return tileForMetric(tile.metric ?? "sessions", data, tile.target)
+    return [tileForMetric(tile.metric ?? "sessions", data, tile.target)]
   })
+}
+
+const STATUS_LABEL: Record<DeliveryStatus, string> = {
+  ahead: "Ahead",
+  "on-track": "On track",
+  behind: "Behind",
+  "no-data": "No data",
+}
+
+const SERIES_PALETTE = [CHART_SERIES.one, CHART_SERIES.two, CHART_SERIES.three] as const
+
+function signed(value: number): string {
+  return value > 0 ? `+${NUMBER.format(value)}` : NUMBER.format(value)
+}
+
+function trackerRowCells(row: KpiTrackerRow): PreparedTableCell[] {
+  return [
+    { text: row.label },
+    { text: row.target == null ? "No target" : NUMBER.format(row.target) },
+    { text: row.actual == null ? "—" : NUMBER.format(row.actual) },
+    { text: row.variance == null ? "—" : signed(row.variance) },
+    { text: row.target == null ? "No target" : STATUS_LABEL[row.status] },
+  ]
+}
+
+/** Months as rows, one block per KPI. Months without a target keep the actual and read "No target". */
+export function kpiTrackerModel(
+  items: readonly WebKpiReportItem[],
+  data: WebReportData,
+  months: number,
+  display: WebDisplay,
+  title: string,
+): PreparedDisplay {
+  const trackerMonths = data.kpis?.trackerMonths ?? []
+  const spanTo = data.windows.current.to
+  const blocks = items.map((item) => ({
+    item,
+    rows: kpiTrackerRows(item, trackerMonths, months, spanTo, kpiAsOf(item, data)),
+  }))
+  if (display === "table") {
+    const multi = blocks.length > 1
+    return {
+      kind: "table",
+      title,
+      headers: [...(multi ? ["KPI"] : []), "Month", "Target", "Actual", "Variance", "Status"],
+      rows: blocks.flatMap(({ item, rows }) =>
+        rows.map((row) => ({
+          key: `${item.id}-${row.month}`,
+          cells: [...(multi ? [{ text: item.label }] : []), ...trackerRowCells(row)],
+        })),
+      ),
+      note: "Variance is actual minus the month's target. The current month is paced to date.",
+    }
+  }
+  const chartMonths = trackerMonths.slice(-months)
+  const rows = chartMonths.map((month, index) => {
+    const row: Record<string, string | number> = { date: monthLabel(month) }
+    blocks.forEach(({ rows: kpiRows }, kpiIndex) => {
+      const point = kpiRows[index]
+      if (point?.actual != null) row[`actual${kpiIndex}`] = point.actual
+      if (point?.target != null) row[`target${kpiIndex}`] = point.target
+    })
+    return row
+  })
+  const named = (label: string, kind: "actual" | "target") =>
+    blocks.length > 1 ? `${label} ${kind}` : kind === "actual" ? "Actual" : "Target"
+  const actualSpecs = blocks.map(({ item }, kpiIndex) => ({
+    key: `actual${kpiIndex}`,
+    label: named(item.label, "actual"),
+    color: SERIES_PALETTE[kpiIndex % SERIES_PALETTE.length],
+  }))
+  const targetSpecs = blocks.map(({ item }, kpiIndex) => ({
+    key: `target${kpiIndex}`,
+    label: named(item.label, "target"),
+    color: blocks.length > 1 ? SERIES_PALETTE[kpiIndex % SERIES_PALETTE.length] : CHART_SERIES.ink,
+  }))
+  const untargeted = [...new Set(blocks.flatMap(({ rows: kpiRows }) => kpiRows.filter((row) => row.target == null).map((row) => row.label)))]
+  const note = untargeted.length > 0 ? `No target: ${untargeted.join(", ")}. Those months show the actual only.` : undefined
+  if (display === "column") {
+    return { kind: "series", title, display: "column", data: rows, bars: [...actualSpecs, ...targetSpecs], lines: [], note }
+  }
+  return { kind: "series", title, display: "combo", data: rows, bars: actualSpecs, lines: targetSpecs, note, sharedAxis: true }
 }
 
 function hasSpark(tiles: PreparedTile[]): boolean {
@@ -168,9 +307,11 @@ function hasSpark(tiles: PreparedTile[]): boolean {
 
 function bulletRows(tiles: PreparedTile[]): { label: string; measure: number; target: number }[] {
   return tiles.flatMap((tile) => {
-    if (tile.target == null || tile.current == null) return []
-    const top = Math.max(tile.current, tile.target, 1)
-    return [{ label: tile.label, measure: (tile.current / top) * 100, target: (tile.target / top) * 100 }]
+    const measure = tile.bullet?.measure ?? tile.current
+    const target = tile.bullet?.target ?? tile.target
+    if (target == null || measure == null) return []
+    const top = Math.max(measure, target, 1)
+    return [{ label: tile.label, measure: (measure / top) * 100, target: (target / top) * 100 }]
   })
 }
 
@@ -425,6 +566,7 @@ function displayReady(display: WebDisplay, item: WebReportLayoutItem, data: WebR
   if (display === "waterfall") {
     return waterfallSteps(data.ga4.sourceMedium) != null && (waterfallSteps(data.ga4.sourceMedium)?.length ?? 0) > 0
   }
+  if (item.elementId === "kpiTracker") return true
   if (display === "calendar" || display === "combo" || display === "line" || display === "area" || display === "column") {
     if (item.elementId === "gscTrend" || item.elementId === "gscKpi") {
       return data.gsc.daily.some((point) => point.clicks != null || point.impressions != null)
@@ -455,8 +597,17 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
     return { kind: "text", title, text: (settings as { text?: string }).text ?? "" }
   }
 
+  if (id === "kpiTracker") {
+    const spec = settings as { kpiIds: string[]; months: "6" | "12" }
+    if (spec.kpiIds.length === 0) return { kind: "message", title, message: "Pick a saved KPI for the tracker." }
+    const items = spec.kpiIds.flatMap((kpiId) => savedKpi(data, kpiId) ?? [])
+    if (items.length === 0) return { kind: "message", title, message: "No active saved KPIs." }
+    return kpiTrackerModel(items, data, Number(spec.months), display, title)
+  }
+
   if (display === "tiles" || display === "spark") {
     const tiles = tilesFor(id, settings, data)
+    if (tiles.length === 0) return { kind: "message", title, message: "No active KPIs in this element." }
     return { kind: "tiles", title, tiles, withSpark: display === "spark" && hasSpark(tiles) }
   }
 
@@ -467,7 +618,7 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
       kind: "bullet",
       title,
       rows,
-      plain: tiles.filter((tile) => tile.target == null),
+      plain: tiles.filter((tile) => (tile.bullet?.target ?? tile.target) == null),
     }
   }
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { SettingsControl, asRecord } from "@/components/dashboard/web/builder/SettingsControl"
+import { SettingsControl, asRecord, type SavedKpiOption } from "@/components/dashboard/web/builder/SettingsControl"
 import {
   DISPLAY_LABEL,
   WIDTH_OPTIONS,
@@ -26,6 +26,7 @@ export function ElementSettingsPanel({
   index,
   total,
   keyEventNames,
+  savedKpis = [],
   onDisplay,
   onWidth,
   onSettings,
@@ -36,6 +37,7 @@ export function ElementSettingsPanel({
   index: number
   total: number
   keyEventNames: string[]
+  savedKpis?: SavedKpiOption[]
   onDisplay: (display: WebDisplay) => void
   onWidth: (width: WebWidth) => void
   onSettings: (settings: unknown) => void
@@ -103,7 +105,13 @@ export function ElementSettingsPanel({
           fields.map((field) => (
             <label key={field.key} className="flex flex-col gap-1 text-sm text-foreground">
               {field.kind === "boolean" ? null : (
-                <span className={field.kind === "enumList" || field.kind === "objectList" ? "font-medium" : undefined}>
+                <span
+                  className={
+                    field.kind === "enumList" || field.kind === "objectList" || field.kind === "stringList"
+                      ? "font-medium"
+                      : undefined
+                  }
+                >
                   {field.label}
                 </span>
               )}
@@ -111,6 +119,7 @@ export function ElementSettingsPanel({
                 field={field}
                 value={asRecord(entry.item.settings)[field.key]}
                 keyEventNames={keyEventNames}
+                savedKpis={savedKpis}
                 onChange={(next) => {
                   const record = asRecord(entry.item.settings)
                   if (next === undefined) delete record[field.key]

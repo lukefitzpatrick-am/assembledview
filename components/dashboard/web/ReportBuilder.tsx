@@ -52,6 +52,7 @@ export function ReportBuilder({
   brandTerms,
   defaultPeriod,
   keyEventNames,
+  kpiRevision = 0,
 }: {
   slug: string
   clientName: string
@@ -64,6 +65,8 @@ export function ReportBuilder({
   brandTerms: string[]
   defaultPeriod: ReportPeriod
   keyEventNames: string[]
+  /** Bumped when saved KPIs change, so the preview reloads them. */
+  kpiRevision?: number
 }) {
   const [entries, setEntries] = useState<BuilderEntry[]>(() => entriesFromLayout(initialLayout))
   const [selectedKey, setSelectedKey] = useState<string | null>(() => (initialLayout.length > 0 ? "el-0" : null))
@@ -127,9 +130,14 @@ export function ReportBuilder({
       })()
     }, PREVIEW_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-    // Data depends on the period and brand terms only. Layout edits re-render from the loaded data.
+    // Data depends on the period, brand terms and saved KPIs only. Layout edits re-render from the loaded data.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, termsKey, slug])
+  }, [period, termsKey, slug, kpiRevision])
+
+  const savedKpis = useMemo(
+    () => (preview?.data.kpis?.items ?? []).map((item) => ({ id: item.id, label: item.label })),
+    [preview],
+  )
 
   function change(next: (current: BuilderEntry[]) => BuilderEntry[]) {
     const after = next(entries)
@@ -260,6 +268,7 @@ export function ReportBuilder({
               index={selectedIndex}
               total={entries.length}
               keyEventNames={keyEventNames}
+              savedKpis={savedKpis}
               onDisplay={(display) => selectedKey && setEntries((current) => setEntryDisplay(current, selectedKey, display))}
               onWidth={(width) => selectedKey && setEntries((current) => setEntryWidth(current, selectedKey, width))}
               onSettings={(settings) => selectedKey && setEntries((current) => setEntrySettings(current, selectedKey, settings))}

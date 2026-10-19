@@ -4,6 +4,7 @@ import type { ClientDeliveredTotalsCampaignInput } from "@/lib/delivery/getDeliv
 import { readGa4 } from "@/lib/webReport/data/ga4"
 import { readGsc } from "@/lib/webReport/data/gsc"
 import { readAvPaid } from "@/lib/webReport/data/paid"
+import { loadKpiReport } from "@/lib/webReport/kpis/warehouse"
 import type { ReportWindows } from "@/lib/webReport/periods"
 import type { WarehouseQuery, WebReportData } from "@/lib/webReport/types"
 
@@ -15,9 +16,11 @@ export async function loadWebReportData(input: {
   gscSite: string | null
   brandTerms: readonly string[]
   campaigns: ClientDeliveredTotalsCampaignInput[]
+  /** Loads the client's saved KPIs when set. */
+  clientId?: number | null
   query?: WarehouseQuery
 }): Promise<WebReportData> {
-  const [ga4, gsc, paid] = await Promise.all([
+  const [ga4, gsc, paid, kpis] = await Promise.all([
     readGa4({
       propertyId: input.ga4PropertyId,
       today: input.today,
@@ -38,8 +41,18 @@ export async function loadWebReportData(input: {
       current: input.windows.current,
       previous: input.windows.previous,
     }),
+    input.clientId != null
+      ? loadKpiReport({
+          clientId: input.clientId,
+          window: input.windows.current,
+          today: input.today,
+          ga4PropertyId: input.ga4PropertyId,
+          gscSite: input.gscSite,
+          query: input.query,
+        })
+      : Promise.resolve(undefined),
   ])
-  return {
+  const data: WebReportData = {
     windows: input.windows,
     ga4Property: input.ga4PropertyId ? (input.ga4PropertyName ?? input.ga4PropertyId) : null,
     gscSite: input.gscSite,
@@ -47,4 +60,6 @@ export async function loadWebReportData(input: {
     gsc,
     paid,
   }
+  if (kpis) data.kpis = kpis
+  return data
 }

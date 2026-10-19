@@ -14,7 +14,7 @@ import type { ReportPeriod } from "@/lib/webReport/periods"
 /** A layout item plus a key that survives reordering, for selection and drag. */
 export type BuilderEntry = { key: string; item: WebReportLayoutItem }
 
-export const NEW_ELEMENTS: readonly WebElementId[] = ["gscTrend", "queryBubble", "queryPositions"]
+export const NEW_ELEMENTS: readonly WebElementId[] = ["gscTrend", "queryBubble", "queryPositions", "kpiTracker"]
 
 export const DISPLAY_LABEL: Record<WebDisplay, string> = {
   tiles: "Tiles",

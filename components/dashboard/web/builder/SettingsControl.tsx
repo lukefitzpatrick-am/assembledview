@@ -18,6 +18,9 @@ const OPTION_LABEL: Record<string, string> = {
   avSpend: "AV spend",
   metric: "Metric",
   keyEvent: "Key event",
+  savedKpi: "Saved KPI",
+  "6": "Last 6 months",
+  "12": "Last 12 months",
   all: "All queries",
   brand: "Brand",
   non_brand: "Non-brand",
@@ -37,17 +40,48 @@ export const BUILDER_FIELD_CLASS =
 
 const CHECK_ROW = "flex min-h-11 items-center gap-2 text-sm text-foreground"
 
+/** An active saved KPI, picked by label and stored by id. */
+export type SavedKpiOption = { id: string; label: string }
+
 export function SettingsControl({
   field,
   value,
   keyEventNames,
+  savedKpis = [],
   onChange,
 }: {
   field: SettingsField
   value: unknown
   keyEventNames: string[]
+  savedKpis?: SavedKpiOption[]
   onChange: (value: unknown) => void
 }) {
+  if (field.kind === "stringList") {
+    const selected = Array.isArray(value) ? value.map(String) : []
+    const max = field.max ?? 6
+    if (savedKpis.length === 0) {
+      return <p className="text-sm text-muted-foreground">No saved KPIs yet. Add them on the KPIs tab.</p>
+    }
+    return (
+      <div className="flex flex-col">
+        {savedKpis.map((kpi) => {
+          const checked = selected.includes(kpi.id)
+          return (
+            <label key={kpi.id} className={CHECK_ROW}>
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={checked}
+                disabled={!checked && selected.length >= max}
+                onChange={() => onChange(checked ? selected.filter((id) => id !== kpi.id) : [...selected, kpi.id])}
+              />
+              {kpi.label}
+            </label>
+          )
+        })}
+      </div>
+    )
+  }
   if (field.kind === "boolean") {
     return (
       <label className={CHECK_ROW}>
@@ -80,6 +114,23 @@ export function SettingsControl({
           {keyEventNames.map((name) => (
             <option key={name} value={name}>
               {name}
+            </option>
+          ))}
+        </select>
+      )
+    }
+    if (field.key === "kpiId") {
+      return (
+        <select
+          aria-label={field.label}
+          className={BUILDER_FIELD_CLASS}
+          value={typeof value === "string" ? value : ""}
+          onChange={(event) => onChange(event.target.value || undefined)}
+        >
+          <option value="">{savedKpis.length === 0 ? "No saved KPIs yet" : "Choose a saved KPI"}</option>
+          {savedKpis.map((kpi) => (
+            <option key={kpi.id} value={kpi.id}>
+              {kpi.label}
             </option>
           ))}
         </select>
@@ -185,6 +236,7 @@ export function SettingsControl({
                 field={child}
                 value={asRecord(item)[child.key]}
                 keyEventNames={keyEventNames}
+                savedKpis={savedKpis}
                 onChange={(next) => {
                   const copy = items.slice()
                   const record = asRecord(item)

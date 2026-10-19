@@ -298,6 +298,7 @@ export async function loadBuilderPreview(input: {
     gscSite: accounts.gscSite,
     brandTerms: input.brandTerms,
     campaigns,
+    clientId: input.clientId,
   })
   return {
     clientName: dashboard.clientName,

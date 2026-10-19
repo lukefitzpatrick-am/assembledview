@@ -1,3 +1,4 @@
+import type { WebKpiReport } from "@/lib/webReport/kpis/report"
 import type { DateWindow, ReportWindows } from "@/lib/webReport/periods"
 
 export type SourceStatus = "ok" | "not_connected" | "stale" | "needs_report" | "empty" | "error"
@@ -123,6 +124,8 @@ export type WebReportData = {
   ga4: Ga4Slice
   gsc: GscSlice
   paid: PaidSlice
+  /** Saved monthly KPIs. Absent when the report was loaded without a client. */
+  kpis?: WebKpiReport
 }
 
 export type WarehouseQuery = (sql: string, binds: unknown[]) => Promise<Record<string, unknown>[]>

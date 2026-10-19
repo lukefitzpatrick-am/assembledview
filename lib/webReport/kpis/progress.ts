@@ -1,15 +1,20 @@
 import { roundMoney2 } from "@/lib/money/cents"
-import type { DeliveryStatus } from "@/lib/pacing/deliveryStatusFromPct"
+import {
+  AHEAD_ABOVE_PCT,
+  BEHIND_BELOW_PCT,
+  deliveryStatusFromPct,
+  type DeliveryStatus,
+} from "@/lib/pacing/deliveryStatusFromPct"
 import { daysInMonth, formatIsoDate, parseIsoDate, type DateWindow } from "@/lib/webReport/periods"
 
 import type { WebKpi, WebKpiActual, WebKpiTarget } from "./types"
 
 /**
- * KPI pace bands. Status names (and so colours, via statusColours.ts) are the
- * dashboard's DeliveryStatus; the cut-offs are tighter than campaign pacing.
- * "no-data" means there is no target for the window, or no actual to compare.
+ * KPI pace bands are campaign pacing's (`deliveryStatusFromPct`): behind under
+ * 90%, ahead above 110%. "no-data" means there is no target for the window, or
+ * no actual to compare.
  */
-export const KPI_STATUS_THRESHOLDS = { behindBelowPct: 95, aheadFromPct: 105 } as const
+export const KPI_STATUS_THRESHOLDS = { behindBelowPct: BEHIND_BELOW_PCT, aheadAbovePct: AHEAD_ABOVE_PCT } as const
 
 export type KpiStatus = DeliveryStatus
 
@@ -74,10 +79,8 @@ export function proratedTarget(targets: readonly WebKpiTarget[], window: DateWin
 
 export function kpiStatus(pace: number | null): KpiStatus {
   if (pace == null || !Number.isFinite(pace)) return "no-data"
-  const pct = pace * 100
-  if (pct >= KPI_STATUS_THRESHOLDS.aheadFromPct) return "ahead"
-  if (pct < KPI_STATUS_THRESHOLDS.behindBelowPct) return "behind"
-  return "on-track"
+  // Four decimals of a percent, so float noise (1.1 * 100 = 110.00000000000001) cannot cross a band.
+  return deliveryStatusFromPct(Math.round(pace * 1_000_000) / 10_000)
 }
 
 /**
