@@ -882,6 +882,8 @@ function toScheduleLineDetailSource(line: ResolvedLine): ScheduleLineDetailSourc
     clientPaysForMedia: line.clientPaysForMedia,
     excluded: line.excluded,
     label: line.input.label,
+    scheduleHeader1: line.input.scheduleHeader1,
+    scheduleHeader2: line.input.scheduleHeader2,
     billingMonths: line.billingMonths,
     deliveryMonths: line.deliveryMonths,
     feeBillingMonths: line.feeBillingMonths,

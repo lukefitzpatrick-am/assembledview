@@ -2,6 +2,7 @@
  * Map POST /api/plans/save line items to LineItemInput[].
  * Duplicates savePlan.toLineItemInputs — that helper stays unexported.
  */
+import { scheduleHeadersForSaveLine } from "@/lib/billing/scheduleHeaders"
 import type {
   BillingOverride,
   FeeOverride,
@@ -24,25 +25,35 @@ export type SaveBodyLine = {
   billingOverride?: BillingOverride
   feeOverride?: FeeOverride
   label?: string
+  publisher?: string | null
+  platform?: string | null
+  bidStrategy?: string | null
+  bid_strategy?: string | null
+  attrs?: Record<string, unknown> | null
 }
 
 export function saveBodyToLineItemInputs(lines: SaveBodyLine[]): LineItemInput[] {
-  return lines.map((l) => ({
-    lineItemId: String(l.lineItemId).trim(),
-    mediaType: l.mediaType,
-    buyType: l.buyType ?? "cpc",
-    rate: l.rate,
-    enteredAmount: l.enteredAmount,
-    budgetIncludesFees: Boolean(l.budgetIncludesFees),
-    clientPaysForMedia: Boolean(l.clientPaysForMedia),
-    noAdserving: l.noAdserving ?? undefined,
-    feePct: l.feePct,
-    bursts: (Array.isArray(l.bursts) ? l.bursts : []) as LineItemInput["bursts"],
-    approval: l.approval ?? "approved",
-    billingOverride: l.billingOverride,
-    feeOverride: l.feeOverride,
-    label: l.label,
-  }))
+  return lines.map((l) => {
+    const headers = scheduleHeadersForSaveLine(l.mediaType, l)
+    return {
+      lineItemId: String(l.lineItemId).trim(),
+      mediaType: l.mediaType,
+      buyType: l.buyType ?? "cpc",
+      rate: l.rate,
+      enteredAmount: l.enteredAmount,
+      budgetIncludesFees: Boolean(l.budgetIncludesFees),
+      clientPaysForMedia: Boolean(l.clientPaysForMedia),
+      noAdserving: l.noAdserving ?? undefined,
+      feePct: l.feePct,
+      bursts: (Array.isArray(l.bursts) ? l.bursts : []) as LineItemInput["bursts"],
+      approval: l.approval ?? "approved",
+      billingOverride: l.billingOverride,
+      feeOverride: l.feeOverride,
+      label: l.label,
+      scheduleHeader1: headers.header1,
+      scheduleHeader2: headers.header2,
+    }
+  })
 }
 
 /** Rows for attachOverridesToLineInputs from the save body's per-line overrides. */

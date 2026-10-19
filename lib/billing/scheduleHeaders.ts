@@ -11,6 +11,32 @@ const pick = (...values: any[]): string => {
 };
 
 /**
+ * Save-path line: columns hold publisher / platform / bid strategy, and
+ * network, station, format, site, and targeting live in attrs. Spread attrs
+ * then the columns so getScheduleHeaders sees the same fields the template
+ * path passes as the container line.
+ */
+export function scheduleHeadersForSaveLine(
+  mediaType: string,
+  line: {
+    publisher?: string | null
+    platform?: string | null
+    bidStrategy?: string | null
+    bid_strategy?: string | null
+    attrs?: Record<string, unknown> | null
+  },
+): ScheduleHeaders {
+  const bid = line.bidStrategy ?? line.bid_strategy ?? null
+  return getScheduleHeaders(mediaType, {
+    ...(line.attrs ?? {}),
+    publisher: line.publisher,
+    platform: line.platform,
+    bidStrategy: bid,
+    bid_strategy: bid,
+  })
+}
+
+/**
  * Normalize header1/header2 across media containers.
  *
  * Goal: both billingSchedule and deliverySchedule persist the same *detail*

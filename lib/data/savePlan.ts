@@ -84,6 +84,7 @@ import {
   selectedMonthYearsForFinancials,
   type PersistedMbaScope,
 } from "@/lib/mediaplan/mbaScopeForSave"
+import { scheduleHeadersForSaveLine } from "@/lib/billing/scheduleHeaders"
 import type { BillingMonth } from "@/lib/billing/types"
 import {
   evaluatePostgresAutoDivergence,
@@ -290,22 +291,27 @@ function validateLineItemIds(lines: SavePlanLineItem[]): void {
 }
 
 function toLineItemInputs(lines: SavePlanLineItem[]): LineItemInput[] {
-  return lines.map((l) => ({
-    lineItemId: String(l.lineItemId).trim(),
-    mediaType: l.mediaType,
-    buyType: l.buyType ?? "cpc",
-    rate: l.rate,
-    enteredAmount: l.enteredAmount,
-    budgetIncludesFees: Boolean(l.budgetIncludesFees),
-    clientPaysForMedia: Boolean(l.clientPaysForMedia),
-    noAdserving: l.noAdserving ?? undefined,
-    feePct: l.feePct,
-    bursts: (Array.isArray(l.bursts) ? l.bursts : []) as LineItemInput["bursts"],
-    approval: l.approval ?? "approved",
-    billingOverride: l.billingOverride,
-    feeOverride: l.feeOverride,
-    label: l.label,
-  }))
+  return lines.map((l) => {
+    const headers = scheduleHeadersForSaveLine(l.mediaType, l)
+    return {
+      lineItemId: String(l.lineItemId).trim(),
+      mediaType: l.mediaType,
+      buyType: l.buyType ?? "cpc",
+      rate: l.rate,
+      enteredAmount: l.enteredAmount,
+      budgetIncludesFees: Boolean(l.budgetIncludesFees),
+      clientPaysForMedia: Boolean(l.clientPaysForMedia),
+      noAdserving: l.noAdserving ?? undefined,
+      feePct: l.feePct,
+      bursts: (Array.isArray(l.bursts) ? l.bursts : []) as LineItemInput["bursts"],
+      approval: l.approval ?? "approved",
+      billingOverride: l.billingOverride,
+      feeOverride: l.feeOverride,
+      label: l.label,
+      scheduleHeader1: headers.header1,
+      scheduleHeader2: headers.header2,
+    }
+  })
 }
 
 type ScheduleRow = ScheduleMonthInsert

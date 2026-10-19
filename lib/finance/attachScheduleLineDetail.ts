@@ -40,6 +40,9 @@ export type ScheduleLineDetailSource = {
   clientPaysForMedia: boolean
   excluded: boolean
   label?: string
+  /** Present (including "") when the save path stamped getScheduleHeaders. */
+  scheduleHeader1?: string
+  scheduleHeader2?: string
   billingMonths: MonthAmount[]
   deliveryMonths: MonthAmount[]
   /** Populated when feeOverride is manual; schedule monthYear keys. */
@@ -191,8 +194,18 @@ function buildBillingLineItem(
     basis === "billing" && line.billingOverride?.reason === "prepayment"
 
   const label = String(line.label ?? "").trim()
-  const header1 = label || line.scheduleMediaType || "Item"
-  const header2 = label ? "" : line.lineItemId
+  const stampedHeader1 = line.scheduleHeader1
+  const headersSet = stampedHeader1 !== undefined
+  const header1 = label
+    ? label
+    : headersSet
+      ? stampedHeader1
+      : line.scheduleMediaType || "Item"
+  const header2 = label
+    ? ""
+    : headersSet
+      ? (line.scheduleHeader2 ?? "")
+      : line.lineItemId
 
   const item: BillingLineItem = {
     id: line.lineItemId,

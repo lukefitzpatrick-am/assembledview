@@ -115,6 +115,16 @@ export type LineItemInput = {
    * excluded from {@link computeBillingInputsHash}.
    */
   label?: string
+  /**
+   * Publisher (or network) for the billing schedule row. Display copy only —
+   * excluded from {@link computeBillingInputsHash}. Empty string is set.
+   */
+  scheduleHeader1?: string
+  /**
+   * Station, format, or site for the billing schedule row. Display copy only —
+   * excluded from {@link computeBillingInputsHash}. Empty string is set.
+   */
+  scheduleHeader2?: string
 }
 
 export type PerLineResultFlags = {
