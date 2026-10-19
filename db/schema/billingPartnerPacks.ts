@@ -1,7 +1,7 @@
 /**
  * billing_partner_packs and billing_partner_pack_items (migration 0100).
- * SQL is source of truth. 0100 is AUTHOR ONLY. Do not SELECT these tables
- * until migration_markers contains 0100_billing_partner_packs (C-76).
+ * SQL is source of truth. 0100 is applied. Pack reads still wait until
+ * migration_markers contains 0100_billing_partner_packs (C-76).
  * RLS is on, with no policies.
  */
 import { sql } from "drizzle-orm"

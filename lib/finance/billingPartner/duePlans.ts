@@ -1,14 +1,13 @@
 /**
  * Due Advertising Associates plans for one billing-partner pack.
  *
- * A version is due when its Sydney published_at falls in the billing cycle
- * (18th of the previous month through the 17th, exclusive of the 18th),
- * the AA workbook would be stored, and the version is not already on a sent
- * pack. Draft pack membership does not clear it.
+ * A version is due when it is the current published tip of an AA plan, its
+ * Sydney published_at is on or after AA_PACKS_GO_LIVE and before the 18th of
+ * the billing month, and it is not on a sent pack. A miss in an earlier month
+ * stays due until that sent stamp. Draft pack membership does not clear it.
  *
- * 0100 is AUTHOR ONLY. Pack rows are read only after the marker
- * 0100_billing_partner_packs is present (C-76). Until then every in-cycle
- * AA publish is due.
+ * Pack rows are read only after marker 0100_billing_partner_packs is present
+ * (C-76). Until then the loader treats packs as empty.
  */
 import "server-only"
 
@@ -28,6 +27,9 @@ import {
 const PACK_MARKER = "0100_billing_partner_packs"
 const SYDNEY = "Australia/Sydney"
 const MONTH_KEY = /^(\d{4})-(0[1-9]|1[0-2])$/
+
+/** Plans published before this Sydney date are treated as already with AA. */
+export const AA_PACKS_GO_LIVE = "2026-10-18"
 
 export type ChangeKind = "new" | "amended"
 
@@ -123,16 +125,18 @@ export function sydneyMidnightUtc(ymd: string): Date {
   return new Date(utcGuess.getTime() - offsetAt(utcGuess))
 }
 
-/** Inclusive Sydney 18th of the previous month, exclusive Sydney 18th of billingMonth. */
-export function billingCycleBounds(billingMonth: string): { start: Date; end: Date } {
+/**
+ * Inclusive Sydney midnight on AA_PACKS_GO_LIVE, exclusive Sydney midnight
+ * on the 18th of the billing month.
+ */
+export function duePublishedRange(billingMonth: string): { start: Date; end: Date } {
   const first = normalizeBillingMonth(billingMonth)
   const year = Number(first.slice(0, 4))
   const month = Number(first.slice(5, 7))
-  const prevYear = month === 1 ? year - 1 : year
-  const prevMonth = month === 1 ? 12 : month - 1
-  const startYmd = `${prevYear}-${pad2(prevMonth)}-18`
-  const endYmd = `${year}-${pad2(month)}-18`
-  return { start: sydneyMidnightUtc(startYmd), end: sydneyMidnightUtc(endYmd) }
+  return {
+    start: sydneyMidnightUtc(AA_PACKS_GO_LIVE),
+    end: sydneyMidnightUtc(`${year}-${pad2(month)}-18`),
+  }
 }
 
 export function selectDueAaPlans(input: {
@@ -142,7 +146,7 @@ export function selectDueAaPlans(input: {
   scheduleMonths: ScheduleMonthCell[]
 }): DueAaPlan[] {
   const billingMonth = normalizeBillingMonth(input.billingMonth)
-  const bounds = billingCycleBounds(billingMonth)
+  const bounds = duePublishedRange(billingMonth)
   const sentVersionIds = new Set(
     input.packs.filter((pack) => pack.status === "sent").map((pack) => pack.versionId),
   )
@@ -186,7 +190,7 @@ export function selectDueAaPlans(input: {
 }
 
 export async function listDueAaPlans(billingMonth: string): Promise<DueAaPlan[]> {
-  const bounds = billingCycleBounds(billingMonth)
+  const bounds = duePublishedRange(billingMonth)
   const db = getDb()
   const versionRows = await db
     .select({
@@ -210,6 +214,7 @@ export async function listDueAaPlans(billingMonth: string): Promise<DueAaPlan[]>
     .leftJoin(clients, eq(mediaPlanMasters.clientId, clients.id))
     .where(
       and(
+        eq(mediaPlanVersions.id, mediaPlanMasters.publishedVersionId),
         isNotNull(mediaPlanVersions.publishedAt),
         gte(mediaPlanVersions.publishedAt, bounds.start.toISOString()),
         lt(mediaPlanVersions.publishedAt, bounds.end.toISOString()),

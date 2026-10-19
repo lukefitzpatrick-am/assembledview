@@ -1,6 +1,7 @@
 /**
- * Pure due-AA classification. The loader applies the same rules to Postgres.
- * November cycle is Sydney 18 Oct 00:00 through 18 Nov 00:00, exclusive of the end.
+ * Pure due-AA classification. The loader applies the same rules to the current
+ * published tip. Due from Sydney 18 Oct 2026 until the 18th of the billing
+ * month, exclusive of that close, and until a sent pack.
  */
 import assert from "node:assert/strict"
 import test from "node:test"
@@ -13,10 +14,14 @@ import {
 } from "@/lib/finance/billingPartner/duePlans"
 
 const BILLING_MONTH = "2026-11-01"
-/** 19 Oct 2026 13:00 Sydney (AEDT). Inside the November cycle. */
+/** 19 Oct 2026 13:00 Sydney (AEDT). On or after go-live and before 18 Nov. */
 const IN_WINDOW = "2026-10-19T02:00:00.000Z"
-/** 17 Oct 2026 23:00 Sydney. Before the 18th, so the October cycle. */
-const BEFORE_WINDOW = "2026-10-17T12:00:00.000Z"
+/** 20 Oct 2026 13:00 Sydney. */
+const OCT_20 = "2026-10-20T02:00:00.000Z"
+/** 17 Oct 2026 23:00 Sydney. Before AA_PACKS_GO_LIVE. */
+const BEFORE_GO_LIVE = "2026-10-17T12:00:00.000Z"
+/** 18 Nov 2026 00:00 Sydney. The November cycle close. */
+const NOV_18 = "2026-11-17T13:00:00.000Z"
 
 function candidate(
   overrides: Partial<PublishedAaCandidate> & Pick<PublishedAaCandidate, "versionId">,
@@ -235,14 +240,55 @@ test("monthsChanged is null when either version has no schedule_months rows", ()
   assert.deepEqual(missingCurrent[0]?.aaMonthTotals, {})
 })
 
-test("a publish before the 18th is not due for that billing month", () => {
+test("a publish before go-live is not due", () => {
   const due = selectDueAaPlans({
     billingMonth: BILLING_MONTH,
-    versions: [candidate({ versionId: 1, publishedAt: BEFORE_WINDOW, firstPublishedAt: BEFORE_WINDOW })],
+    versions: [
+      candidate({ versionId: 1, publishedAt: BEFORE_GO_LIVE, firstPublishedAt: BEFORE_GO_LIVE }),
+    ],
     packs: [],
     scheduleMonths: [],
   })
   assert.deepEqual(due, [])
+})
+
+test("a 20 Oct publish stays due for November and December until it is sent", () => {
+  const versions = [candidate({ versionId: 1, publishedAt: OCT_20, firstPublishedAt: OCT_20 })]
+  const november = selectDueAaPlans({
+    billingMonth: "2026-11",
+    versions,
+    packs: [],
+    scheduleMonths: [],
+  })
+  const december = selectDueAaPlans({
+    billingMonth: "2026-12",
+    versions,
+    packs: [],
+    scheduleMonths: [],
+  })
+  assert.equal(november.length, 1)
+  assert.equal(november[0]?.versionId, 1)
+  assert.equal(december.length, 1)
+  assert.equal(december[0]?.versionId, 1)
+})
+
+test("a publish on the 18th of the billing month is due the following month", () => {
+  const versions = [candidate({ versionId: 1, publishedAt: NOV_18, firstPublishedAt: NOV_18 })]
+  const november = selectDueAaPlans({
+    billingMonth: "2026-11",
+    versions,
+    packs: [],
+    scheduleMonths: [],
+  })
+  const december = selectDueAaPlans({
+    billingMonth: "2026-12",
+    versions,
+    packs: [],
+    scheduleMonths: [],
+  })
+  assert.deepEqual(november, [])
+  assert.equal(december.length, 1)
+  assert.equal(december[0]?.versionId, 1)
 })
 
 test("a plan that does not store an AA workbook is not due", () => {
