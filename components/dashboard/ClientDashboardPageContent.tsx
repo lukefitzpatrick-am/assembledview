@@ -179,6 +179,19 @@ export function ClientDashboardPageContent({
   const [financeModalOpen, setFinanceModalOpen] = useState(false)
   const [kpisModalOpen, setKpisModalOpen] = useState(false)
   const [brainModalOpen, setBrainModalOpen] = useState(false)
+  useEffect(() => {
+    if (!isAdmin || typeof window === "undefined") return
+    if (window.location.hash !== "#platform-accounts") return
+    setDetailsModalOpen(true)
+  }, [isAdmin])
+  useEffect(() => {
+    if (!detailsModalOpen || typeof window === "undefined") return
+    if (window.location.hash !== "#platform-accounts") return
+    const timer = window.setTimeout(() => {
+      document.getElementById("platform-accounts")?.scrollIntoView({ block: "start" })
+    }, 50)
+    return () => window.clearTimeout(timer)
+  }, [detailsModalOpen])
   const monthsByCampaign = useMemo(
     () =>
       campaignMonthsFromStacked(clientData.monthlySpendByCampaign ?? [], {

@@ -150,6 +150,7 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
       "/admin/fireflies-unattributed",
       "/admin/schedule-ingest",
       "/admin/reports",
+      "/admin/web-reports",
     ],
   },
 ] as const
@@ -417,6 +418,26 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     searchTerms: "reports campaign monthly download generate mba commentary",
     group: "admin",
   },
+  {
+    path: "/admin/web-reports",
+    label: "Web & search reports",
+    title: "Web & search reports",
+    icon: "Globe",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    searchTerms: "web search reports ga4 search console builder",
+    group: "admin",
+  },
+  {
+    path: "/admin/web-reports/[slug]",
+    label: "Edit web report",
+    title: "Edit web report",
+    inPalette: false,
+    inSidebar: false,
+    roles: ["admin"],
+    group: "admin",
+  },
 
   // ── Intermediate crumbs (no page — must not link) ──────────────────
   {
@@ -552,6 +573,15 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     title: "Campaign dashboard",
     inPalette: false,
     roles: ["any"],
+    group: "dashboard",
+  },
+  {
+    path: "/dashboard/[slug]/web/builder",
+    label: "Web report builder",
+    title: "Web report builder",
+    inPalette: false,
+    inSidebar: false,
+    roles: ["admin"],
     group: "dashboard",
   },
   {

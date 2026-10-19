@@ -186,7 +186,11 @@ export function PlatformAccountsSection({ clientId }: { clientId: number }) {
   const pickerReady = advertisers.status === "ready"
 
   return (
-    <div className="min-w-0 rounded-md border p-4" data-platform-choices={choices.join(" ")}>
+    <div
+      id="platform-accounts"
+      className="min-w-0 scroll-mt-6 rounded-md border p-4"
+      data-platform-choices={choices.join(" ")}
+    >
       <h3 className="mb-1 text-lg font-semibold">Platform accounts</h3>
       <p className="mb-4 text-sm text-muted-foreground">
         A client can have more than one account on a platform. CM360 and DV360 use the advertiser name.

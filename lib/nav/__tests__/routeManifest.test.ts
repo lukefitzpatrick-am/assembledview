@@ -98,6 +98,20 @@ test("Home / Clients / Users labels and Create Campaign is palette-only", () => 
   assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/reports"))
   assert.equal(getRouteByExactPath("/admin/reports")!.label, "Reports")
   assert.equal(getRouteByExactPath("/admin/reports")!.roles?.[0], "admin")
+  const reportsAt = (ADMIN_SIDEBAR_PATHS as readonly string[]).indexOf("/admin/reports")
+  assert.equal(
+    (ADMIN_SIDEBAR_PATHS as readonly string[])[reportsAt + 1],
+    "/admin/web-reports",
+  )
+  const webReports = getRouteByExactPath("/admin/web-reports")!
+  assert.equal(webReports.label, "Web & search reports")
+  assert.equal(webReports.title, "Web & search reports")
+  assert.equal(webReports.roles?.[0], "admin")
+  assert.equal(webReports.inSidebar, true)
+  assert.equal(getPaletteNav(false).some((item) => item.path === "/admin/web-reports"), false)
+  const webEdit = getRouteByExactPath("/admin/web-reports/[slug]")!
+  assert.equal(webEdit.roles?.[0], "admin")
+  assert.equal(webEdit.inSidebar, false)
   assert.ok(!(ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/users/new"))
   assert.equal(
     getRouteByExactPath("/admin/m365-reconciliation")!.label,
@@ -148,6 +162,7 @@ test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async (
           "/admin/fireflies-unattributed",
           "/admin/schedule-ingest",
           "/admin/reports",
+          "/admin/web-reports",
         ],
       },
     ]

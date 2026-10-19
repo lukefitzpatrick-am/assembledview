@@ -6,12 +6,18 @@
 
 const ON = new Set(["on", "1", "true"])
 
+/** Slugs named in FEATURE_WEB_SEARCH_CLIENTS. Does not read FEATURE_WEB_SEARCH. */
+export function webSearchClientAllowlist(env: NodeJS.ProcessEnv = process.env): Set<string> {
+  return new Set(
+    (env.FEATURE_WEB_SEARCH_CLIENTS ?? "")
+      .split(",")
+      .map((part) => part.trim().toLowerCase())
+      .filter(Boolean),
+  )
+}
+
 export function isWebSearchEnabled(slug: string, env: NodeJS.ProcessEnv = process.env): boolean {
   const flag = (env.FEATURE_WEB_SEARCH ?? "").trim().toLowerCase()
   if (!ON.has(flag)) return false
-  const allow = (env.FEATURE_WEB_SEARCH_CLIENTS ?? "")
-    .split(",")
-    .map((part) => part.trim().toLowerCase())
-    .filter(Boolean)
-  return allow.includes(slug.trim().toLowerCase())
+  return webSearchClientAllowlist(env).has(slug.trim().toLowerCase())
 }

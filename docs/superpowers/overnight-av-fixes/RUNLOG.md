@@ -5966,3 +5966,133 @@ Save inserts a `client_web_report_versions` row, sets status `published`, and bu
 - `npx tsc --noEmit` passed. ESLint on the builder files passed. Layout add, move, and remove passed. Settings validation passed for every element. Save creates a version, restore returns that version, a client is 404 and the save is not called, and save is refused before migration 0098. The tenant route guard harness passed.
 - Browser smoke was not run. The builder needs an admin session, and save stays disabled until 0098 is applied.
 
+## CM360 creative column and GA4 source, events, and page title views
+
+`sql/snowflake/mart/views/creative_web_search_views.sql` is still authored, not run. The header lists the columns Claude confirmed live as CLAUDE_RW on 15 Oct.
+
+The CM360 block of `V_CREATIVE_PERFORMANCE_DAILY` reads `CREATIVE`. `creative_name` is `TRIM(p.creative)`. `creative_key` is `LOWER(TRIM(p.creative))`. A row whose creative is `(not set)` or blank keeps the name `(not set)` and the key `not-set:` plus the line item id, so unset creatives do not collapse across line items. `creative_size` is `CREATIVE_PIXEL_SIZE` for CM360 and null for Meta and TikTok. `viewable_impressions` is `SUM(ACTIVE_VIEW_VIEWABLE_IMPRESSIONS)`. `ad_group_name` is the placement. `line_item_id` stays the placement's last hyphen token. The group is advertiser, creative, creative pixel size, placement, and date.
+
+Three new views, each with `GRANT SELECT` to `AV_APP_READ_ROLE` and `CLAUDE_RW` and a commented 30-day check: `V_GA4_SOURCE_MEDIUM_DAILY`, `V_GA4_EVENTS_DAILY`, and `V_GA4_PAGE_TITLE_DAILY`. `V_GA4_CAMPAIGN_DAILY` no longer selects the always-null `session_source` and `session_medium` columns. The campaign reader dropped those two columns in the same commit.
+
+- SHA: c7e8cb2f
+- The SQL file was not run.
+- `npx tsc --noEmit` passed on the branch after the wiring commit below, which still contains this reader change.
+- Browser smoke was not run.
+
+## Source / medium, users, key events, and page titles
+
+`srcmed` reads `V_GA4_SOURCE_MEDIUM_DAILY` and is no longer "Needs data". Users on the KPI and snapshot tiles are the sum of daily `total_users` from that view. The label tooltip is "Users (sum of daily)", because GA4 users do not add up across days. Key event tiles look up counts by event name from `V_GA4_EVENTS_DAILY`, including the previous window. The builder event-name list reads that view. `pages` reads `V_GA4_PAGE_TITLE_DAILY`. Location, events by source, and search pages stay "Needs data".
+
+The creative API returns `sizes` and viewable rate. One CM360 creative name across sizes is one row. The line panel shows those sizes under the name.
+
+- SHA: 561861c0
+- `npx tsc --noEmit` passed. ESLint on the touched files passed. Rollup, element-status, reader-SQL, and CM360 size-grouping tests passed (`Vertical Video.mp4` across five sizes is one creative, viewable rate 0.64, sizes listed). The line panel render test passed (9 tests). `TopCreativeStrip.test.tsx` is in the vitest include list so that file runs.
+- The Snowflake views were not run. Browser smoke was not run. Until the views exist, a live GA4 read fails closed as a missing view.
+
+## Delivery chart month labels
+
+The delivery chart was labelling the first calendar day with a month and then letting Recharts thin the rest, so a long flight read as bare day numbers (`Apr 8, 27, 16, 4…`). The channel chart and the line chart now share one tick plan. A window longer than 60 days ticks Mondays. A shorter window ticks every third plotted day, starting on the first day. The day number is the tick. The short month sits on a second row under that number, once per month, on the first tick of that month.
+
+- SHA: 7bb0e3a1
+- `npx tsc --noEmit` passed on the branch after the export commit below, which still contains this tick plan. ESLint on the chart files passed. A 242-day window from 8 Apr 2026 ticks Mondays, with April on 13 Apr and May on 4 May. A 30-day window ticks every third day and puts May under 2 May. The delivery chart render tests passed (25).
+- Browser smoke was not run.
+
+## One metric for a section and its lines
+
+Programmatic video was charting impressions on the section and views on each line whenever the section was not entirely CPV. Both now follow the section: views when every line is CPV, otherwise impressions.
+
+Direct digital was switching every line onto completion rate when any line in the section had video completes. A line with completes now charts completion rate. A line without charts clicks. The channel chart charts completion rate only when every line has completes, otherwise clicks.
+
+- SHA: 0db69ca9
+- `npx tsc --noEmit` passed on the branch after the export commit below. ESLint on the adapter files passed. Programmatic delivery tests passed (30), including a mixed video section on impressions and an all-CPV section on views, section and lines together. Direct digital chart tests passed (9), including one line with completes leaving the other line and the channel chart on clicks.
+- Browser smoke was not run.
+
+## Delivery chart PNG name and colours
+
+The chart card PNG serialised `var(--av-ink)` into a standalone SVG, which cannot resolve it. Before serialising, paint attributes and inline styles replace `var(--token)` with the token colour when that colour is hex or rgb. A token that is not a colour, such as the HSL components on `--border`, stays as written.
+
+The file stem is `{mba}-{channel}-daily-delivery-{yyyymmdd}` for the PNG and the CSV. `GOLF025` and programmatic video on 15 Oct 2026 is `golf025-programmatic-video-daily-delivery-20261015.png`. The campaign page passes the MBA into the channel chart and each line chart.
+
+- SHA: 1262c0a1
+- `npx tsc --noEmit` passed. ESLint on the export files passed. Filename and colour tests passed. The delivery chart render test still passed (25) and records the MBA and channel on the line chart.
+- Browser smoke was not run. A PNG was not opened.
+
+## notLive slides, content errors, and step logs
+
+One commit on `localhost`. `validate_content` rejects a slide whose own channel is not live: the slide's `channel` field, or the primary value keys on a channel or not-live slide. A summary Outcome, a KPI table, and a rates table may name TikTok. Each not-live error is one line and names the slide, the field, the rule and the fix.
+
+`runDeckSkill` keeps each container step's command, exit status, and the first 4,000 characters of stdout and stderr. On failure, `npm run deck:once` writes them to `out/<mba>-steps.json`. The job note keeps the failing step's command and the first 1,000 characters of stderr. The once-script closes the Snowflake pool and exits on success and on failure.
+
+The skill instructions and the prompt tell the model to change only the named fields, stop at 3 attempts, not split or bisect the deck, write only `content.json` and `$OUTPUT_DIR`, and if the third attempt still fails, drop the failing slides and save the deck anyway.
+
+No model call. The skill was not uploaded. curatif004's campaign-to-date report was loaded and slimmed to `out/curatif004-report-data.json` (3,852 bytes). TikTok is `notLive` at `channels.1`. The UA5 content was piped through `write_content.py` with that file. Only the TikTok channel slide failed. The same content rebuilt `out/ua5-curatif.pptx`. `build_report.py` printed `OK`. `check_deck.py` printed `OK`.
+
+```
+=== a exit 0 ===
+stdout:
+OK
+
+stderr:
+
+=== b exit 0 ===
+stdout:
+OK
+
+stderr:
+
+=== c exit 0 ===
+stdout:
+OK
+
+stderr:
+
+=== d exit 1 ===
+stdout:
+error: slide 4 (channel): Social (TikTok) is not live. Remove this slide and mention Social (TikTok) in the summary Outcome instead.
+
+stderr:
+```
+
+- SHA: 03688f9f
+- Checks: `python test_checks.py` printed `tests OK`, including the hand-written content, an Outcome mention, a KPI TikTok row, a rates TikTok row, and the one-line error on a TikTok channel slide. `npx tsx --test` on `runDeckSkill.test.ts` with the server-only shim, 11/11. `npx tsc --noEmit` exit 0. eslint on the touched TypeScript files, no warnings. `check_deck.py` printed `OK` on `out/ua5-curatif.pptx`.
+- Under 90%: nothing on the rule. The rebuilt deck was not opened.
+- Browser smoke was not run.
+- Snowflake was read to build the slim payload. The script closed the pool and exited. Supabase was not written. No Anthropic call.
+
+UG1: deck delivery charts are built in the channel adapters from `PacingRow[]` or `SearchPacingResponse`; `loadDeliverySnapshot` keeps totals only. curatif004 campaign-to-date `slimDeckPayload` today is 3,852 bytes. `docs/superpowers/DISCOVERY-deck-delivery-charts.md`.
+
+UG2: deck payload charts. curatif004 slim is 12,821 bytes. Campaign spend sum $44,490.02 matches summary spend. Meta $23,811.96 and Search $20,678.06 match their channel spends. Completion rate is not on the CM360 chart.
+
+UG3: delivery chart slides and fuller card layouts in the deck skill (9694326f). Native combo chart opens in LibreOffice. curatif004 PDF and contact sheet are in out/.
+
+UG3b: deck charts end two Melbourne days before asOf (curatif last point 2026-10-13, note `Chart shows complete days to 13 Oct.`). Legend top right. Insight and outcome cards fit the text. Cover logo placeholder already absent from the slide XML. 46f8d1bc.
+UG3c: deck charts end at the earlier of the window end and asOf minus 2 days (curatif campaign-to-date last point 2026-10-13 with the complete-days note; last month keeps 30 points through 2026-09-30 with no note). Outcome text sits at x 2.35. Chart, note and insight stay at or above 6.7. ec0a1af3.
+UG3d: deck chart date labels skip to at most eight (30 days skip 4, 105 days skip 14) and stay on one line. Last-month PDF rebuilt. ca394545.
+UH1: deck detail level has no report_runs column and is not on the assembled payload. Line names are plan ids. curatif004 Meta and Search ad-group spend match channel spend. docs/superpowers/DISCOVERY-deck-detail-level.md.
+UI1: spend-line billing headers are the media key and line id because LineItemInput.label is empty. getScheduleHeaders already has network, station, and format. 54 of 203 current published pointers. docs/superpowers/DISCOVERY-billing-schedule-headers.md.
+UI2: the AA workbook is the media plan for Advertising Associates publishers, by month and media type, not by supplier. Spot rate and count are on the burst. No insertion-week column and no sent-to-AA stamp. docs/superpowers/DISCOVERY-aa-billing-cycle.md.
+UH2: on-demand decks take detail_level channel, line_item or ad_group. 0099 authored, not applied, not committed. curatif004 Meta ad sets sum to the line ($24,689.97); Search is top 6 of 15. golf025 adds CM360 placements ranked by impressions.
+UH2b: detail rows drop all-zero placements, shared labels get the line token (SM2), and a trailing plan code is stripped. golf025 Meta ad sets merge to VIC-ADV+ $27,943.45. Committed adba827c. 0099 still not applied.
+UI1a: save path stamps scheduleHeader1/2 from getScheduleHeaders. krusty002 published v6 (19487): radio Nova, cinema MIFF, search Google Ads - AM, digiDisplay Broadsheet; header2 blank. Nov media $18,311.11 fee $1,244.44 ad serving $26.67 total $19,582.22; Dec $22,888.89 / $1,555.56 / $33.33 / $24,477.78, unchanged. Search ad-serving divergence -$537.60 still quoted. Committed c4232fb8. Not pushed.
+UI1b: relabelPlaceholderHeaders rewrites media-key / line-id headers at read time on the edit working schedule and the create, edit, and client-dashboard billing Excel exports. STRMEA001 not saved. Excel spend rows: Southern Cross Austereo / 2Day $24,768.00, FOX $47,600.00, QMS / large_format $87,500.00, JCDecaux / large_format $2,059.64, Cartology / small_format $22,500.00. Excel grand total $982,614.37. On-screen MBA grand total $982,614.39 (media $977,040.19, fee $0.00, ad serving $4,374.20, production $1,200.00). Committed 684db33f. Not pushed.
+UI1c: payables and receivables on the lineItems blob show publisher radio/ooh for STRMEA001 v21 RA1, OH1, OH162. Forecast lumps those months as Unknown. 54 published pointers, all with a frozen approved_slice. docs/superpowers/DISCOVERY-billing-header-finance-impact.md. Not committed.
+UI3: AA workbook variant adds Monthly by supplier and Insertions. PENFOLD020 v29 Nov OOH Media Plan and supplier subtotal both $60,932.36 (JCDecaux $31,866.03, oOh! media $13,554.90); Dec both $136,340.66 (JCDecaux $21,977.12, oOh! media $12,620.06). Finance GET still serves the stored file (Media Plan only) until the next regenerate. Committed a18eaa3c. Not pushed.
+UH3: detail table slides in av-campaign-report-v5, one per detail entry after the channel slide. curatif004 ad group and golf025 line item rendered locally. Committed 8e8e9515. Not pushed.
+UJ1: KPI review is admin only. shouldShowKpiReview is true only for an admin with cards; non-admins do not build or store it. Admin smoke on curatif004 showed the panel. Client hide is from the tests. Committed 8657077b. Not pushed.
+UK1: drizzle snapshot 0014 matches schema after 0099 (detail_level, check, on-demand index). db:generate is empty. Five CI steps pass. Committed cc4d6e93. Not pushed.
+UI4a: billing partner packs data layer authored (0100 not applied). November 2026 due list is krusty002 v6 only; 47 current AA tips all have schedule_months. Not pushed.
+UL1: deck charts drop an all-zero right axis, and assumed-spend deck labels name the media types. golf025 September is Radio, Newspaper and OOH; Digital Video has no right axis. Not pushed.
+UI4a2: due AA plans stay due from 2026-10-18 until a sent pack. November 2026 due list is krusty002 v6 only. Marker 0100 present, packs 0. Committed 78c99ea9. Not pushed.
+UM2: deck money rounding uses roundMoney2. 1.005 stays 1.01; 2.135 now rounds to 2.14. Gate passed. origin/main 572a5510.
+UI4b: /finance/billing-partner builds a draft AA pack from fresh aa workbooks plus a summary, stored as a private zip. November 2026 smoke had only krusty002 v6 due, so the pack has one plan: 9baabf36-da83-4abb-9cb3-56d02a90e175, draft, not marked sent. Workbook sheets are Media Plan, Monthly by supplier and Insertions. Summary AA totals are 2026-11 $5,333.33 and 2026-12 $6,666.67. Committed 207d8f43. Not pushed.
+CR1: V_CREATIVE_PERFORMANCE_DAILY applies an active LINE_ITEM_LABEL_MAP row the same way the pacing fact refresh does (channel + platform id, no date window on the map). CM360 matches the full placement name. TikTok matches the adgroup id. Meta is skipped: BASIC_AD has no ad set id, and BASIC_AD_SET has no confirmed account column. Authored, not run. Committed c254f4f2. Not pushed.
+UI4b2: an amended AA tip with no sent pack compares months changed with the previous published version. krusty002 v6 is amended vs v5 (pre-pack); schedules match so months changed is none and it is not back-dated. Committed eb378618. Not pushed.
+UI4c: AA pack reminders cron at 21:30 UTC emails Auth0 admins on the Melbourne 10th, 15th and 17th. Quiet on the 10th and 15th when nothing is due. The 17th still sends. One report_digest_sends row per Melbourne date (report_runs is a deck job). No real send. Committed cd3bd866. Not pushed.
+UI4d: publish warns and still publishes for a newspaper or magazine burst ending more than six days after it starts with quantity 2 or more, and for an AA billing-media change in a month a sent pack already covers. krusty002 newspaper krusty002NP1, 15/11/26–28/11/26, insertions 2. Publish showed only the press warning (the November pack is still draft). Cancel left v6 unpublished. Committed 6e0f2017. Not pushed.
+UI4d2: sent AA baseline uses the same admin requireRole gate as POST /api/plans/save after MBA access; a client is 403. The krusty002 comparison script printed then hung on an unclosed postgres pool (closeDb never called); the temp script is gone, so nothing was patched. Committed 009ebdbd. Not pushed.
+UI4d3: publish warning month totals use roundMoney2. check:money-inline is 0 hits for publishWarnings.ts. gate:main died in next build (heap limit, exit 134). Committed 1232a3d4. Not pushed.
+UI4d3 push: gate:main with NODE_OPTIONS=--max-old-space-size=6144 exit 0. Fast-forward 572a5510..1232a3d4 localhost to origin/main.
+WA3: Search pages read V_GSC_PAGE_DAILY (PAGE_REPORT, web, 400 days). View authored, not run. Committed 41bd4cb3. Not pushed.
+WA2a: Location reads V_GA4_CITY_DAILY (DEMOGRAPHIC_CITY_REPORT, 400 days). Ranked by engaged sessions; total_users not summed. View authored, not run. Committed 8eb1ce00. Not pushed.
+WA2c: The landing element is titled Pages by path. Element id stays landing. Committed a140cd69. Not pushed.
+WS1: /admin/web-reports lists clients with a GA4 or Search Console account or a report. Edit reuses the builder and ignores FEATURE_WEB_SEARCH_CLIENTS. Smoke listed Golf Australia, legalsuper and Paul Hartmann Pty Ltd; Paul Hartmann builder loaded and was not saved. Not pushed.
