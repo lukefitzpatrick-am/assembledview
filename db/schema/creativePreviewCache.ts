@@ -1,7 +1,8 @@
 /**
- * creative_preview_cache (migration 0098). Requires 0098 applied.
- * RLS on, no policies, no ava_readonly grant.
- * Do not db.select() this table until 0098 is applied (C-76).
+ * creative_preview_cache (migration 0098, applied; 0102 adds preview_kind,
+ * view_url and source_hash, AUTHOR ONLY). RLS on, no policies, no ava_readonly grant.
+ * Do not select the 0102 columns until the marker
+ * 0102_creative_preview_cache_source exists (C-76).
  */
 import { sql } from "drizzle-orm"
 import {
@@ -37,6 +38,9 @@ export const creativePreviewCache = pgTable(
       .notNull()
       .defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
+    previewKind: text("preview_kind"),
+    viewUrl: text("view_url"),
+    sourceHash: text("source_hash"),
   },
   (table) => [
     check(
