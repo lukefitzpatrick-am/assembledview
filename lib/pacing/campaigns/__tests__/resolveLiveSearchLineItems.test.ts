@@ -18,11 +18,6 @@ const readPlanVersionsForMbas = mock.fn(
 const readPacingMasters = mock.fn(async () => [] as Record<string, unknown>[])
 const readPacingVersions = mock.fn(async () => [] as Record<string, unknown>[])
 
-const fetchAllXanoPages = mock.fn(async () => [] as Record<string, unknown>[])
-const xanoUrl = mock.fn(() => "https://xano.test/table")
-const parseXanoListPayload = mock.fn((body: unknown) => body)
-const xanoAuthHeader = mock.fn(() => ({}))
-
 const LIVE_MASTER: MediaPlanMaster = {
   id: 12,
   mba_number: "BICAU002",
@@ -51,12 +46,6 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/data/readPacing", {
     namedExports: { readPacingMasters, readPacingVersions },
   })
-  await mock.module!("@/lib/api/xanoPagination", {
-    namedExports: { fetchAllXanoPages },
-  })
-  await mock.module!("@/lib/api/xano", {
-    namedExports: { xanoUrl, parseXanoListPayload, xanoAuthHeader },
-  })
   await mock.module!("@/lib/xano/campaignKpi", {
     namedExports: { fetchCampaignKpisForMbas: async () => [] },
   })
@@ -72,13 +61,11 @@ function resetMocks() {
   readPlanVersionsForMbas.mock.resetCalls()
   readPacingMasters.mock.resetCalls()
   readPacingVersions.mock.resetCalls()
-  fetchAllXanoPages.mock.resetCalls()
   fetchLineItemsFromPostgresByEndpoint.mock.mockImplementation(async () => [])
   readPlanMasters.mock.mockImplementation(async () => [])
   readPlanVersionsForMbas.mock.mockImplementation(async () => [])
   readPacingMasters.mock.mockImplementation(async () => [])
   readPacingVersions.mock.mockImplementation(async () => [])
-  fetchAllXanoPages.mock.mockImplementation(async () => [])
 }
 
 test(
@@ -105,7 +92,6 @@ test(
 
     assert.equal(rows.length, 1)
     assert.equal(rows[0]!.searchRow.line_item_id, "bicau002se1")
-    assert.equal(fetchAllXanoPages.mock.calls.length, 0)
     assert.deepEqual(readPlanVersionsForMbas.mock.calls[0]?.arguments[0], ["BICAU002"])
     const [endpoint, mba, version] = fetchLineItemsFromPostgresByEndpoint.mock.calls[0]!
       .arguments as [string, string, number]

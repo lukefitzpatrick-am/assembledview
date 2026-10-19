@@ -1,20 +1,9 @@
 import "server-only"
 
-import { fetchAllXanoPagesWithCompleteness } from "@/lib/api/xanoPagination"
-import { xanoUrl } from "@/lib/api/xano"
-import { MEDIA_PLAN_TABLES, type XanoMediaPlanTable } from "@/lib/xano/mediaPlanTables"
-
 /**
- * Xano crawl for Snowflake `MART.XANO_LINE_ITEMS_SNAPSHOT` (cron
- * `xano-line-item-sync` → `runLineItemSnapshotSync`).
- *
- * Default cron source remains Xano. PG twin: `fetchAllPgLineItems` +
- * `LINE_ITEM_SNAPSHOT_SOURCE=parity|postgres` (X7 — STOP before postgres flip).
+ * Row shape for Snowflake `MART.XANO_LINE_ITEMS_SNAPSHOT`.
+ * Postgres fills these fields in `fetchAllPgLineItems`. The table name stays.
  */
-
-const MEDIA_PLANS_BASE_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]
-const PAGE_SIZE = 200
-const MAX_PAGES = 500
 
 export interface XanoLineItem {
   line_item_id: string
@@ -33,127 +22,15 @@ export interface XanoLineItem {
   /** Computed in the Postgres mapper. Absent on a Xano crawl row. */
   assume_spend?: boolean
   /**
-   * Version FK from Xano channel row (`media_plan_version` / `_id`).
+   * Version FK from a channel row (`media_plan_version` / `_id`).
    * Used for tip-scope parity only — not written to Snowflake.
    */
   media_plan_version_id?: number | null
-  /** Version number from Xano channel row — tip-scope fallback. */
+  /** Version number from a channel row — tip-scope fallback. */
   version_number?: number | null
 }
 
 export interface FetchAllXanoLineItemsResult {
   items: XanoLineItem[]
   complete: boolean
-}
-
-function parseBurstsJson(raw: unknown): unknown[] {
-  if (raw == null) return []
-  if (Array.isArray(raw)) return raw
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw) as unknown
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-  return []
-}
-
-function coerceCreatedAtMs(raw: unknown): number {
-  if (raw == null) return 0
-  if (typeof raw === "number" && Number.isFinite(raw)) {
-    if (raw > 1e12) return Math.floor(raw)
-    if (raw > 1e9) return Math.floor(raw * 1000)
-    return Math.floor(raw)
-  }
-  if (typeof raw === "string" && /^\d+$/.test(raw.trim())) {
-    return coerceCreatedAtMs(Number(raw))
-  }
-  const d = new Date(String(raw))
-  return Number.isNaN(d.getTime()) ? 0 : d.getTime()
-}
-
-function deriveLineItemName(row: Record<string, unknown>): string {
-  const lineItemId = String(row.line_item_id ?? "").trim()
-  const parts = [row.platform, row.bid_strategy, row.buy_type].filter(
-    (x) => x !== null && x !== undefined && String(x).trim() !== ""
-  )
-  return parts.length > 0 ? parts.map(String).join(" - ") : lineItemId
-}
-
-function normaliseLineItemId(raw: unknown): string | null {
-  const s = String(raw ?? "").trim()
-  return s.length > 0 ? s : null
-}
-
-function coerceOptionalInt(raw: unknown): number | null {
-  if (raw == null || raw === "") return null
-  const n = typeof raw === "number" ? raw : Number(raw)
-  return Number.isFinite(n) ? Math.trunc(n) : null
-}
-
-function mapRowToLineItem(row: Record<string, unknown>, table: XanoMediaPlanTable): XanoLineItem | null {
-  const line_item_id = normaliseLineItemId(row.line_item_id ?? row.lineItemId)
-  if (!line_item_id) return null
-
-  const idRaw = row.id ?? row.ID
-  const xano_row_id = typeof idRaw === "number" ? idRaw : Number(idRaw)
-  if (!Number.isFinite(xano_row_id)) return null
-
-  const media_plan_version_id = coerceOptionalInt(
-    row.media_plan_version_id ?? row.media_plan_versionID ?? row.media_plan_version
-  )
-  const version_number = coerceOptionalInt(row.version_number ?? row.versionNumber)
-
-  return {
-    line_item_id,
-    mba_number: String(row.mba_number ?? row.mbaNumber ?? "").trim(),
-    line_item_name: deriveLineItemName(row),
-    platform:
-      row.platform === null || row.platform === undefined ? null : String(row.platform),
-    buy_type: row.buy_type === null || row.buy_type === undefined ? null : String(row.buy_type),
-    fixed_cost_media: Boolean(row.fixed_cost_media),
-    bursts_json: parseBurstsJson(row.bursts_json ?? row.bursts),
-    source_table: table.table_name,
-    xano_row_id,
-    xano_created_at: coerceCreatedAtMs(row.created_at ?? row.createdAt),
-    media_plan_version_id,
-    version_number,
-  }
-}
-
-async function fetchAllFromTable(table: XanoMediaPlanTable): Promise<FetchAllXanoLineItemsResult> {
-  const baseUrl = xanoUrl(table.table_name, MEDIA_PLANS_BASE_KEYS)
-  const label = `LINE_ITEMS:${table.table_name}`
-  const { items: raw, complete } = await fetchAllXanoPagesWithCompleteness(
-    baseUrl,
-    {},
-    label,
-    PAGE_SIZE,
-    MAX_PAGES
-  )
-  const out: XanoLineItem[] = []
-  for (const row of raw) {
-    if (!row || typeof row !== "object") continue
-    const mapped = mapRowToLineItem(row as Record<string, unknown>, table)
-    if (mapped) out.push(mapped)
-  }
-  return { items: out, complete }
-}
-
-/**
- * Fetch every line item from all configured `media_plan_*` tables (paginated).
- * Caller syncs to Snowflake; consumers filter (e.g. `FIXED_COST_MEDIA`).
- */
-export async function fetchAllXanoLineItems(): Promise<FetchAllXanoLineItemsResult> {
-  const all: XanoLineItem[] = []
-  let complete = true
-  for (const table of MEDIA_PLAN_TABLES) {
-    const { items, complete: tableComplete } = await fetchAllFromTable(table)
-    all.push(...items)
-    if (!tableComplete) complete = false
-    console.log(`[fetchAllXanoLineItems] ${table.table_name}: ${items.length} rows`)
-  }
-  return { items: all, complete }
 }

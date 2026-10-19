@@ -69,15 +69,6 @@ export const XERO_API_BASE = withDefault(
 /** Xero classic UI host (go.xero.com). */
 export const XERO_APP_BASE = withDefault("XERO_APP_BASE", "https://go.xero.com")
 
-/**
- * Xano instance root for Metadata API export scripts.
- * Prefer `XANO_EXPORT_INSTANCE_URL`; `XANO_INSTANCE_BASE` is the legacy alias.
- */
-export const XANO_EXPORT_INSTANCE_URL =
-  readEnv("XANO_EXPORT_INSTANCE_URL") ??
-  readEnv("XANO_INSTANCE_BASE") ??
-  "https://xg4h-uyzs-dtex.a2.xano.io"
-
 /** Facebook Graph CDN (page avatars). */
 export const FACEBOOK_GRAPH_URL = withDefault(
   "FACEBOOK_GRAPH_URL",

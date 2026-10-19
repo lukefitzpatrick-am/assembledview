@@ -1,40 +1,8 @@
-type EnvKey = string | string[]
-
-const DEFAULT_ENV_KEYS: string[] = ["XANO_BASE_URL"]
-
-function asArray(keys: EnvKey | undefined): string[] {
-  if (!keys) return DEFAULT_ENV_KEYS
-  return Array.isArray(keys) ? keys : [keys]
-}
-
-function getRequiredEnv(keys: EnvKey): string {
-  const candidates = asArray(keys)
-  const isServer = typeof window === "undefined"
-  for (const key of candidates) {
-    const value = process.env[key]
-    if (value) return value
-  }
-  if (!isServer) {
-    return ""
-  }
-  throw new Error(`Missing required environment variable: ${candidates.join(" or ")}`)
-}
-
-export function getXanoBaseUrl(keys: EnvKey = DEFAULT_ENV_KEYS): string {
-  return getRequiredEnv(keys).replace(/\/$/, "")
-}
-
-export function xanoUrl(path: string, keys: EnvKey = DEFAULT_ENV_KEYS): string {
-  const base = getXanoBaseUrl(keys)
-  const trimmedPath = path.replace(/^\//, "")
-  return `${base}/${trimmedPath}`
-}
-
 /**
- * Normalizes Xano list responses: bare array `[{...}]` or wrapped
+ * Normalizes list responses: bare array `[{...}]` or wrapped
  * `{ data: [...] }`, `{ items: [...] }`, `{ result: [...] }`.
  */
-/** Returns a list; items are untyped (Xano row shapes vary by endpoint). */
+/** Returns a list; items are untyped (row shapes vary by endpoint). */
 export function parseXanoListPayload(payload: unknown): any[] {
   if (Array.isArray(payload)) return payload
   if (payload && typeof payload === "object") {
@@ -52,91 +20,4 @@ export function parseXanoListPayload(payload: unknown): any[] {
     }
   }
   return []
-}
-
-/**
- * Server-side Xano API key (`process.env.XANO_API_KEY` only — never NEXT_PUBLIC_*).
- * Single read path for all outbound Xano auth. Empty/missing → no Authorization header.
- */
-function readXanoApiKey(): string | undefined {
-  const key = process.env.XANO_API_KEY?.trim()
-  return key || undefined
-}
-
-/**
- * Authorization header fragment when the key is set.
- * Choke point for every outbound Xano request — prefer this (or the helpers below)
- * over inlining `Bearer ${process.env.XANO_API_KEY}`.
- */
-export function xanoAuthHeader(): Record<string, string> {
-  const key = readXanoApiKey()
-  return key ? { Authorization: `Bearer ${key}` } : {}
-}
-
-export function xanoAuthHeaders(): HeadersInit {
-  return {
-    Accept: "application/json",
-    ...xanoAuthHeader(),
-  }
-}
-
-/** Plain-object form for axios `headers` (avoids HeadersInit union vs AxiosHeaders). */
-export function xanoAuthHeaderRecord(): Record<string, string> {
-  return {
-    Accept: "application/json",
-    ...xanoAuthHeader(),
-  }
-}
-
-export function xanoPostHeaders(): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    ...xanoAuthHeader(),
-  }
-}
-
-/** Plain-object form of `xanoPostHeaders` for axios / Record merges. */
-export function xanoPostHeaderRecord(): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    ...xanoAuthHeader(),
-  }
-}
-
-/** Like `xanoAuthHeaderRecord`, but throws when `XANO_API_KEY` is unset (strict modules). */
-export function requireXanoAuthHeaderRecord(): Record<string, string> {
-  const headers = xanoAuthHeaderRecord()
-  if (!headers.Authorization) {
-    throw new Error("Missing required environment variable: XANO_API_KEY")
-  }
-  return headers
-}
-
-/** Optional peek — does not throw when unset (mirror / dual-path plumbing). */
-export function peekXanoEnv(key: string): string | undefined {
-  const value = process.env[key]?.trim()
-  return value || undefined
-}
-
-/** Outbound Xano HTTP timeout (ms). Default 8000. */
-export function getXanoTimeoutMs(fallback = 8000): number {
-  const raw = process.env.XANO_TIMEOUT_MS
-  if (raw == null || raw.trim() === "") return fallback
-  const n = Number(raw)
-  return Number.isFinite(n) && n > 0 ? n : fallback
-}
-
-/**
- * Test helper: set/clear Xano env keys without callers writing `process.env.XANO*`.
- * Keys must be full env names (e.g. `XANO_CLIENTS_BASE_URL`).
- */
-export function setXanoEnvForTests(
-  vars: Record<string, string | undefined>
-): void {
-  for (const [key, value] of Object.entries(vars)) {
-    if (value === undefined) delete process.env[key]
-    else process.env[key] = value
-  }
 }

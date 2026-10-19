@@ -1,11 +1,4 @@
-import axios from "axios"
-import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type { Publisher, PublisherMediaTypeShare } from "@/lib/types/publisher"
-
-const apiClient = axios.create({
-  timeout: 10000,
-  headers: xanoPostHeaderRecord(),
-})
 
 /**
  * FY market share by media type for a publisher (`publishers.id`).
@@ -16,12 +9,6 @@ export async function getPublisherMarketShare(publishersId: number): Promise<Pub
   if (!Number.isFinite(publishersId) || publishersId <= 0) return []
   const { fetchPublisherMarketShareFromPostgres } = await import("@/lib/publishers/marketShare")
   return fetchPublisherMarketShareFromPostgres(publishersId)
-}
-
-export async function fetchPublishersFromXano(): Promise<Publisher[]> {
-  const response = await apiClient.get(xanoUrl("get_publishers", "XANO_PUBLISHERS_BASE_URL"))
-  const data = response.data
-  return Array.isArray(data) ? data : []
 }
 
 function publisherIdFromUrlSegment(segment: string): string {

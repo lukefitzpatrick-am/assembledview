@@ -11,8 +11,6 @@ const ENV_KEYS = [
   "XERO_IDENTITY_URL",
   "XERO_API_BASE",
   "XERO_APP_BASE",
-  "XANO_EXPORT_INSTANCE_URL",
-  "XANO_INSTANCE_BASE",
   "FACEBOOK_GRAPH_URL",
   "APP_ASSET_BASE_URL",
   "BRAND_ASSET_BASE_URL",
@@ -68,7 +66,6 @@ describe("lib/config/endpoints", () => {
     assert.equal(ep.XERO_IDENTITY_URL, "https://identity.xero.com/connect/token")
     assert.equal(ep.XERO_API_BASE, "https://api.xero.com/api.xro/2.0")
     assert.equal(ep.XERO_APP_BASE, "https://go.xero.com")
-    assert.equal(ep.XANO_EXPORT_INSTANCE_URL, "https://xg4h-uyzs-dtex.a2.xano.io")
     assert.equal(ep.FACEBOOK_GRAPH_URL, "https://graph.facebook.com")
     assert.equal(
       ep.APP_ASSET_BASE_URL,
@@ -93,7 +90,6 @@ describe("lib/config/endpoints", () => {
     process.env.XERO_IDENTITY_URL = "https://id.xero.example/token"
     process.env.XERO_API_BASE = "https://api.xero.example/2.0"
     process.env.XERO_APP_BASE = "https://app.xero.example"
-    process.env.XANO_EXPORT_INSTANCE_URL = "https://xano.example"
     process.env.FACEBOOK_GRAPH_URL = "https://fb.example"
     process.env.APP_ASSET_BASE_URL = "https://assets.example"
     process.env.BRAND_ASSET_BASE_URL = "https://brand.example"
@@ -109,7 +105,6 @@ describe("lib/config/endpoints", () => {
     assert.equal(ep.XERO_IDENTITY_URL, "https://id.xero.example/token")
     assert.equal(ep.XERO_API_BASE, "https://api.xero.example/2.0")
     assert.equal(ep.XERO_APP_BASE, "https://app.xero.example")
-    assert.equal(ep.XANO_EXPORT_INSTANCE_URL, "https://xano.example")
     assert.equal(ep.FACEBOOK_GRAPH_URL, "https://fb.example")
     assert.equal(ep.APP_ASSET_BASE_URL, "https://assets.example")
     assert.equal(ep.BRAND_ASSET_BASE_URL, "https://brand.example")

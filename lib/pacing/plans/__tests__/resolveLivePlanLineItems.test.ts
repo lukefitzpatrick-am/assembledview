@@ -21,9 +21,6 @@ const fetchCurrentVersionRowsForMasters = mock.fn(
   async (_masters: MediaPlanMaster[]) => new Map<string, { id: number; version_number: number; brand: string | null }>()
 )
 
-const fetchAllXanoPages = mock.fn(async () => [] as Record<string, unknown>[])
-const xanoUrl = mock.fn(() => "https://xano.test/table")
-
 const LIVE_MASTER: MediaPlanMaster = {
   id: 12,
   mba_number: "BICAU002",
@@ -55,12 +52,6 @@ if (supportsMockModule()) {
       fetchCurrentVersionRowsForMasters,
     },
   })
-  await mock.module!("@/lib/api/xanoPagination", {
-    namedExports: { fetchAllXanoPages },
-  })
-  await mock.module!("@/lib/api/xano", {
-    namedExports: { xanoUrl },
-  })
 }
 
 function resetMocks() {
@@ -70,13 +61,11 @@ function resetMocks() {
   readPlanVersionsForMbas.mock.resetCalls()
   fetchAllMasters.mock.resetCalls()
   fetchCurrentVersionRowsForMasters.mock.resetCalls()
-  fetchAllXanoPages.mock.resetCalls()
   fetchLineItemsFromPostgresByEndpoint.mock.mockImplementation(async () => [])
   readPlanMasters.mock.mockImplementation(async () => [])
   readPlanVersionsForMbas.mock.mockImplementation(async () => [])
   fetchAllMasters.mock.mockImplementation(async () => [])
   fetchCurrentVersionRowsForMasters.mock.mockImplementation(async () => new Map())
-  fetchAllXanoPages.mock.mockImplementation(async () => [])
 }
 
 async function withPostgresLines(
@@ -114,7 +103,6 @@ test(
     assert.equal(rows.length, 1)
     assert.equal(rows[0]!.progRow.line_item_id, "bicau002pv1")
     assert.equal(rows[0]!.channelFamily, "progVideo")
-    assert.equal(fetchAllXanoPages.mock.calls.length, 0)
     assert.deepEqual(readPlanVersionsForMbas.mock.calls[0]?.arguments[0], ["BICAU002"])
     const versions = fetchLineItemsFromPostgresByEndpoint.mock.calls.map(
       (call) => (call.arguments as [string, string, number])[2]
@@ -154,7 +142,6 @@ test(
     assert.equal(endpoint, "media_plan_social")
     assert.equal(mba, "BICAU002")
     assert.equal(version, 4)
-    assert.equal(fetchAllXanoPages.mock.calls.length, 0)
   }
 )
 
@@ -182,7 +169,6 @@ test(
       (call) => (call.arguments as [string, string, number])[2]
     )
     assert.ok(versions.every((v) => v === 4))
-    assert.equal(fetchAllXanoPages.mock.calls.length, 0)
   }
 )
 

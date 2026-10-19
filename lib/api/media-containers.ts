@@ -1,37 +1,9 @@
-import axios from 'axios'
-import { xanoPostHeaderRecord, xanoUrl } from '@/lib/api/xano'
 import { publishedVersionFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
 import { sortLineItemsByLineItemNumber } from '@/lib/mediaplan/lineItemIds'
 import { boundedMap } from '@/lib/utils/boundedMap'
 
 // Track which "no data" messages have already been logged to avoid spam
 const missingLineItemsLogCache = new Set<string>()
-
-function buildMediaContainerUrl(
-  mediaType: keyof typeof MEDIA_CONTAINER_ENDPOINTS,
-  mbaNumber: string,
-  versionNumber?: number
-) {
-  // Query by BOTH mba_number AND version_number when available
-  // This ensures we get exact matches instead of filtering in JavaScript
-  const params = new URLSearchParams()
-  params.append('mba_number', mbaNumber.trim())
-  
-  // Include version_number, mp_plannumber, and media_plan_version parameters when versionNumber is provided
-  if (versionNumber !== undefined && versionNumber !== null) {
-    params.append('version_number', String(versionNumber))
-    params.append('mp_plannumber', String(versionNumber))
-    params.append('media_plan_version', String(versionNumber))
-  }
-
-  return `${xanoUrl(MEDIA_CONTAINER_ENDPOINTS[mediaType], ["XANO_MEDIA_CONTAINERS_BASE_URL", "XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?${params.toString()}`
-}
-
-// REVIEW: Used from dashboard/server paths; header is empty client-side (no key in browser).
-const apiClient = axios.create({
-  timeout: 10000,
-  headers: xanoPostHeaderRecord(),
-})
 
 export interface MediaContainerLineItem {
   id: number
