@@ -6096,3 +6096,4 @@ WA3: Search pages read V_GSC_PAGE_DAILY (PAGE_REPORT, web, 400 days). View autho
 WA2a: Location reads V_GA4_CITY_DAILY (DEMOGRAPHIC_CITY_REPORT, 400 days). Ranked by engaged sessions; total_users not summed. View authored, not run. Committed 8eb1ce00. Not pushed.
 WA2c: The landing element is titled Pages by path. Element id stays landing. Committed a140cd69. Not pushed.
 WS1: /admin/web-reports lists clients with a GA4 or Search Console account or a report. Edit reuses the builder and ignores FEATURE_WEB_SEARCH_CLIENTS. Smoke listed Golf Australia, legalsuper and Paul Hartmann Pty Ltd; Paul Hartmann builder loaded and was not saved. Not pushed.
+WB0: discovery only for the Web & search builder v2. Screenshots of the Paul Hartmann builder (all 14 elements, before and after preview), the viewer default layout, and MoliCare hartm001 Social delivery. No save, no publish, no commit.
