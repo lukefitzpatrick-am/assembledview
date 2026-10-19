@@ -46,9 +46,16 @@
 -- A blank or '(not set)' creative keeps the name '(not set)' and creative_key
 -- 'not-set:' || line_item_id. creative_size is CREATIVE_PIXEL_SIZE on CM360
 -- and null on Meta and TikTok. Viewable impressions are
--- ACTIVE_VIEW_VIEWABLE_IMPRESSIONS. ad_group_name is PLACEMENT. line_item_id
--- stays the placement's last hyphen token. Spend stays null.
+-- ACTIVE_VIEW_VIEWABLE_IMPRESSIONS. ad_group_name is PLACEMENT. The parsed
+-- line_item_id is still the last hyphen token. An active
+-- LINE_ITEM_LABEL_MAP row overrides line_item_id and mba_number
+-- (see the relabel join under the view). Spend stays null.
 -- BASIC_AD has no viewable, video, or conversion columns. Those outputs are null.
+-- Meta is not relabelled here. BASIC_AD has ADSET_NAME and no ad set id.
+-- VW_PACING_META reads ADSET_ID from BASIC_AD_SET (vw_pacing_meta.sql:60-73)
+-- and does not select an account column. That account column is not
+-- confirmed, and this file is not allowed to DESC TABLE. Joining ad set
+-- name and date without account can attach another account's ad set.
 -- TikTok still uses AD_REPORT_DAILY and AD_HISTORY. Those were confirmed
 -- earlier and were not in the 15 Oct column check.
 --
@@ -78,10 +85,12 @@ raw AS (
     b.ad_name AS creative_name,
     NULL::varchar AS creative_size,
     b.adset_name AS ad_group_name,
+    NULL::varchar AS map_channel,
+    NULL::varchar AS map_platform_id,
     LOWER(TRIM(COALESCE(
       NULLIF(REGEXP_SUBSTR(b.adset_name, '[^-]+$'), ''),
       b.ad_id::varchar
-    ))) AS line_item_id,
+    ))) AS parsed_line_item_id,
     b.date::date AS date,
     b.spend::float AS spend,
     b.impressions::number AS impressions,
@@ -102,11 +111,13 @@ raw AS (
     h.ad_name AS creative_name,
     NULL::varchar AS creative_size,
     h.adgroup_name AS ad_group_name,
+    'Social - TikTok' AS map_channel,
+    LOWER(TRIM(h.adgroup_id::varchar)) AS map_platform_id,
     LOWER(TRIM(COALESCE(
       NULLIF(REGEXP_SUBSTR(h.adgroup_name, '[^-]+$'), ''),
       h.adgroup_id::varchar,
       r.ad_id::varchar
-    ))) AS line_item_id,
+    ))) AS parsed_line_item_id,
     r.stat_time_day::date AS date,
     SUM(r.spend)::float AS spend,
     SUM(r.impressions)::number AS impressions,
@@ -148,10 +159,12 @@ raw AS (
     END AS creative_name,
     NULLIF(TRIM(p.creative_pixel_size), '') AS creative_size,
     p.placement AS ad_group_name,
+    'Ad Serving - CM360' AS map_channel,
+    LOWER(TRIM(p.placement)) AS map_platform_id,
     LOWER(TRIM(COALESCE(
       NULLIF(REGEXP_SUBSTR(p.placement, '[^-]+$'), ''),
       p.placement
-    ))) AS line_item_id,
+    ))) AS parsed_line_item_id,
     p.date::date AS date,
     NULL::float AS spend,
     SUM(p.impressions)::number AS impressions,
@@ -171,6 +184,58 @@ raw AS (
     p.creative_pixel_size,
     p.placement,
     p.date::date
+),
+-- Same join as TSK_REFRESH_PACING_FACT (tsk_refresh_pacing_fact.sql:85-94)
+-- and TSK_REFRESH_SOCIAL_PACING_FACT (tsk_refresh_social_pacing_fact.sql:41-49):
+-- active row, channel + platform id, both lower(trim). The map has no
+-- date columns. The 14-day window on those tasks is only how far the MERGE
+-- rewrites; it is not a predicate on the map. This view applies the active
+-- row across its 400-day window. MAX matches the fact's max(line_item_id).
+label_map AS (
+  SELECT
+    LOWER(TRIM(channel)) AS channel,
+    LOWER(TRIM(platform_line_item_id::varchar)) AS platform_line_item_id,
+    MAX(line_item_id) AS line_item_id,
+    MAX(mba_number) AS mba_number
+  FROM ASSEMBLEDVIEW.MART.LINE_ITEM_LABEL_MAP
+  WHERE is_active = TRUE
+  GROUP BY 1, 2
+),
+relabelled AS (
+  SELECT
+    r.platform,
+    r.account_ref,
+    CASE
+      WHEN r.platform = 'cm360' AND r.creative_key LIKE 'not-set:%'
+      THEN 'not-set:' || LOWER(TRIM(COALESCE(m.line_item_id, r.parsed_line_item_id)))
+      ELSE r.creative_key
+    END AS creative_key,
+    r.creative_name,
+    r.creative_size,
+    r.ad_group_name,
+    LOWER(TRIM(COALESCE(m.line_item_id, r.parsed_line_item_id))) AS line_item_id,
+    COALESCE(
+      NULLIF(TRIM(m.mba_number), ''),
+      REGEXP_SUBSTR(
+        LOWER(TRIM(COALESCE(m.line_item_id, r.parsed_line_item_id))),
+        '^(.*)(prod|pb|pa|pd|po|pv|ml|tv|np|sm|ra|mg|cn|dd|da|dv|bv|it|se|oh|in)[0-9]+$',
+        1, 1, 'i', 1
+      )
+    ) AS mba_number,
+    r.date,
+    r.spend,
+    r.impressions,
+    r.clicks,
+    r.viewable_impressions,
+    r.video_views,
+    r.video_completions,
+    r.conversions
+  FROM raw r
+  LEFT JOIN label_map m
+    ON r.map_channel IS NOT NULL
+   AND NULLIF(r.map_platform_id, '') IS NOT NULL
+   AND m.channel = LOWER(TRIM(r.map_channel))
+   AND m.platform_line_item_id = r.map_platform_id
 )
 SELECT
   platform,
@@ -180,11 +245,7 @@ SELECT
   creative_size,
   ad_group_name,
   line_item_id,
-  REGEXP_SUBSTR(
-    line_item_id,
-    '^(.*)(prod|pb|pa|pd|po|pv|ml|tv|np|sm|ra|mg|cn|dd|da|dv|bv|it|se|oh|in)[0-9]+$',
-    1, 1, 'i', 1
-  ) AS mba_number,
+  mba_number,
   date,
   spend,
   impressions,
@@ -193,7 +254,7 @@ SELECT
   video_views,
   video_completions,
   conversions
-FROM raw;
+FROM relabelled;
 
 GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY TO ROLE AV_APP_READ_ROLE;
 GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY TO ROLE CLAUDE_RW;
@@ -204,6 +265,26 @@ GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY TO ROLE CLA
 -- WHERE date >= DATEADD(day, -30, CURRENT_DATE())
 -- GROUP BY platform
 -- ORDER BY platform;
+
+-- check: golf025 CM360 rows with mba_number null in the last 60 days should be 0.
+-- Placement names on the map do not contain the token golf025, so this matches
+-- the active CM360 map rows whose mba is golf025 (the 15sec placement and the
+-- 30sec placement) and any row whose line id already starts with golf025.
+-- SELECT COUNT(*) AS golf025_cm360_null_mba
+-- FROM ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY v
+-- WHERE v.platform = 'cm360'
+--   AND v.date >= DATEADD(day, -60, CURRENT_DATE())
+--   AND v.mba_number IS NULL
+--   AND (
+--     LOWER(v.line_item_id) LIKE 'golf025%'
+--     OR LOWER(TRIM(v.ad_group_name)) IN (
+--       SELECT LOWER(TRIM(m.platform_line_item_id::varchar))
+--       FROM ASSEMBLEDVIEW.MART.LINE_ITEM_LABEL_MAP m
+--       WHERE m.is_active = TRUE
+--         AND LOWER(TRIM(m.channel)) = 'ad serving - cm360'
+--         AND LOWER(TRIM(m.mba_number)) = 'golf025'
+--     )
+--   );
 
 -- Campaign report has session_campaign_name. Source and medium live on
 -- V_GA4_SOURCE_MEDIUM_DAILY so the two grains are not added together.
