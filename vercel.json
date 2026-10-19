@@ -104,6 +104,10 @@
     {
       "path": "/api/cron/on-demand-decks",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/billing-partner-reminders",
+      "schedule": "30 21 * * *"
     }
   ]
 }

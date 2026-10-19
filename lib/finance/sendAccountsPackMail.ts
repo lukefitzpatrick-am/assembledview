@@ -20,7 +20,7 @@ export type AccountsPackAttachment = {
 
 export async function sendAccountsPackEmail(
   input: {
-    to: string
+    to: string | string[]
     cc?: string
     subject: string
     text: string
@@ -43,6 +43,9 @@ export async function sendAccountsPackEmail(
     })
   const mailbox = (deps?.mailbox ?? env.PARTNER_INGEST_MAILBOX ?? DEFAULT_PARTNER_INGEST_MAILBOX).trim()
   const token = await getToken()
+  const to = (Array.isArray(input.to) ? input.to : [input.to])
+    .map((address) => address.trim())
+    .filter(Boolean)
   const url = `${MS_GRAPH_BASE_URL}/users/${encodeURIComponent(mailbox)}/sendMail`
   const res = await transport({
     method: "POST",
@@ -56,7 +59,7 @@ export async function sendAccountsPackEmail(
       message: {
         subject: input.subject,
         body: { contentType: "Text", content: input.text },
-        toRecipients: [{ emailAddress: { address: input.to } }],
+        toRecipients: to.map((address) => ({ emailAddress: { address } })),
         ...(input.cc
           ? { ccRecipients: [{ emailAddress: { address: input.cc } }] }
           : {}),

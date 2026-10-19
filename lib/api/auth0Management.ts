@@ -447,6 +447,39 @@ export async function createPasswordChangeTicket(params: { userId: string }): Pr
   return data.ticket;
 }
 
+/**
+ * Emails of users assigned an Auth0 role. Admin checks read this same role
+ * from the session claim (`getUserRoles` in lib/rbac.ts); `AUTH0_ROLE_ADMIN_ID`
+ * is the role those claims come from.
+ */
+export async function listAuth0RoleUserEmails(role: Role): Promise<string[]> {
+  const token = await getManagementToken()
+  const roleId = getRoleId(role)
+  const users: { email?: string }[] = []
+  for (let page = 0; page < 20; page += 1) {
+    const url = new URL(
+      `https://${getManagementDomain()}/api/v2/roles/${encodeURIComponent(roleId)}/users`,
+    )
+    url.searchParams.set("per_page", "100")
+    url.searchParams.set("page", String(page))
+    url.searchParams.set("include_totals", "false")
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) {
+      const errorBody = await parseResponseBody(response)
+      throw new Auth0HttpError(`Failed to list Auth0 ${role} users`, response.status, errorBody)
+    }
+    const pageUsers = (await response.json()) as { email?: string }[]
+    if (!Array.isArray(pageUsers) || pageUsers.length === 0) break
+    users.push(...pageUsers)
+    if (pageUsers.length < 100) break
+  }
+  return users
+    .map((user) => user.email?.trim().toLowerCase() ?? "")
+    .filter((email, index, all) => email.length > 0 && all.indexOf(email) === index)
+}
+
 export async function assignRoleToUser(userId: string, role: Role): Promise<void> {
   const token = await getManagementToken();
   const roleId = getRoleId(role);
