@@ -46,18 +46,37 @@
 -- A blank or '(not set)' creative keeps the name '(not set)' and creative_key
 -- 'not-set:' || line_item_id. creative_size is CREATIVE_PIXEL_SIZE on CM360
 -- and null on Meta and TikTok. Viewable impressions are
--- ACTIVE_VIEW_VIEWABLE_IMPRESSIONS. ad_group_name is PLACEMENT. The parsed
--- line_item_id is still the last hyphen token. An active
--- LINE_ITEM_LABEL_MAP row overrides line_item_id and mba_number
--- (see the relabel join under the view). Spend stays null.
+-- ACTIVE_VIEW_VIEWABLE_IMPRESSIONS. ad_group_name is PLACEMENT. CM360 spend
+-- stays null.
 -- BASIC_AD has no viewable, video, or conversion columns. Those outputs are null.
--- Meta is not relabelled here. BASIC_AD has ADSET_NAME and no ad set id.
--- VW_PACING_META reads ADSET_ID from BASIC_AD_SET (vw_pacing_meta.sql:60-73)
--- and does not select an account column. That account column is not
--- confirmed, and this file is not allowed to DESC TABLE. Joining ad set
--- name and date without account can attach another account's ad set.
 -- TikTok still uses AD_REPORT_DAILY and AD_HISTORY. Those were confirmed
 -- earlier and were not in the 15 Oct column check.
+--
+-- Columns confirmed by Claude on 20 Oct 2026:
+--
+-- FACEBOOK_ADS.AD_HISTORY: ID, UPDATED_TIME, ACCOUNT_ID, CAMPAIGN_ID,
+--   CREATIVE_ID, AD_SET_ID, NAME, PREVIEW_SHAREABLE_LINK (https://fb.me/...),
+--   EFFECTIVE_STATUS, ... One row per ad per change; the latest per ID by
+--   UPDATED_TIME is the current ad.
+-- FACEBOOK_ADS.CREATIVE_HISTORY: ID, THUMBNAIL_URL, IMAGE_URL, VIDEO_ID,
+--   OBJECT_TYPE, NAME, ... The latest per ID by _FIVETRAN_SYNCED.
+--   THUMBNAIL_URL is a signed fbcdn link that expires (oe= is the expiry as
+--   hex unix seconds, about 5 days out).
+-- TIKTOK_ADS.AD_HISTORY: AD_ID, UPDATED_AT, ADGROUP_ID, ADGROUP_NAME,
+--   VIDEO_ID, AD_NAME, ...
+-- TIKTOK_ADS.VIDEO_HISTORY: VIDEO_ID, VIDEO_COVER_URL, PREVIEW_URL,
+--   PREVIEW_URL_EXPIRE_TIME, UPDATED_AT.
+--
+-- Line id rule in V_CREATIVE_PERFORMANCE_DAILY: an active LINE_ITEM_LABEL_MAP
+-- row wins (channel + platform id, the same join as the pacing fact refresh).
+-- CM360 matches the full placement name on 'Ad Serving - CM360'. TikTok
+-- matches ADGROUP_ID on 'Social - TikTok'. Meta matches AD_SET_ID (from the
+-- latest AD_HISTORY row for the ad) on 'Social - Meta'; that is the same id
+-- VW_PACING_META writes as entity_id. With no map row, line_item_id is the
+-- last hyphen token of the placement / ad group / ad set name, else the
+-- platform id. Meta ad ids are global, so the AD_HISTORY join needs no
+-- account column. ad_set_id is the last column: Meta AD_SET_ID, TikTok
+-- ADGROUP_ID, CM360 null.
 --
 -- Every view keeps the last 400 days.
 
@@ -77,6 +96,16 @@ WITH latest_tiktok_ad AS (
     ) AS rn
   FROM ASSEMBLEDVIEW.TIKTOK_ADS.AD_HISTORY
 ),
+latest_meta_ad AS (
+  SELECT
+    id,
+    ad_set_id,
+    ROW_NUMBER() OVER (
+      PARTITION BY id
+      ORDER BY updated_time DESC, _fivetran_synced DESC
+    ) AS rn
+  FROM ASSEMBLEDVIEW.FACEBOOK_ADS.AD_HISTORY
+),
 raw AS (
   SELECT
     'meta' AS platform,
@@ -85,12 +114,14 @@ raw AS (
     b.ad_name AS creative_name,
     NULL::varchar AS creative_size,
     b.adset_name AS ad_group_name,
-    NULL::varchar AS map_channel,
-    NULL::varchar AS map_platform_id,
+    'Social - Meta' AS map_channel,
+    LOWER(TRIM(a.ad_set_id::varchar)) AS map_platform_id,
     LOWER(TRIM(COALESCE(
       NULLIF(REGEXP_SUBSTR(b.adset_name, '[^-]+$'), ''),
+      a.ad_set_id::varchar,
       b.ad_id::varchar
     ))) AS parsed_line_item_id,
+    TRIM(a.ad_set_id::varchar) AS ad_set_id,
     b.date::date AS date,
     b.spend::float AS spend,
     b.impressions::number AS impressions,
@@ -100,6 +131,9 @@ raw AS (
     NULL::number AS video_completions,
     NULL::number AS conversions
   FROM ASSEMBLEDVIEW.FACEBOOK_ADS.BASIC_AD b
+  LEFT JOIN latest_meta_ad a
+    ON a.id::varchar = b.ad_id::varchar
+   AND a.rn = 1
   WHERE b.date::date >= DATEADD(day, -400, CURRENT_DATE())
 
   UNION ALL
@@ -118,6 +152,7 @@ raw AS (
       h.adgroup_id::varchar,
       r.ad_id::varchar
     ))) AS parsed_line_item_id,
+    TRIM(h.adgroup_id::varchar) AS ad_set_id,
     r.stat_time_day::date AS date,
     SUM(r.spend)::float AS spend,
     SUM(r.impressions)::number AS impressions,
@@ -165,6 +200,7 @@ raw AS (
       NULLIF(REGEXP_SUBSTR(p.placement, '[^-]+$'), ''),
       p.placement
     ))) AS parsed_line_item_id,
+    NULL::varchar AS ad_set_id,
     p.date::date AS date,
     NULL::float AS spend,
     SUM(p.impressions)::number AS impressions,
@@ -229,7 +265,8 @@ relabelled AS (
     r.viewable_impressions,
     r.video_views,
     r.video_completions,
-    r.conversions
+    r.conversions,
+    r.ad_set_id
   FROM raw r
   LEFT JOIN label_map m
     ON r.map_channel IS NOT NULL
@@ -253,7 +290,8 @@ SELECT
   viewable_impressions,
   video_views,
   video_completions,
-  conversions
+  conversions,
+  ad_set_id
 FROM relabelled;
 
 GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY TO ROLE AV_APP_READ_ROLE;
@@ -285,6 +323,205 @@ GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY TO ROLE CLA
 --         AND LOWER(TRIM(m.mba_number)) = 'golf025'
 --     )
 --   );
+
+-- check: golf025 Meta rows with mba_number null in the last 60 days should be 0.
+-- Matches ads whose ad set is on an active 'Social - Meta' map row for golf025,
+-- ad set names carrying the golf025 token, and line ids starting with golf025.
+-- SELECT COUNT(*) AS golf025_meta_null_mba
+-- FROM ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY v
+-- WHERE v.platform = 'meta'
+--   AND v.date >= DATEADD(day, -60, CURRENT_DATE())
+--   AND v.mba_number IS NULL
+--   AND (
+--     LOWER(v.line_item_id) LIKE 'golf025%'
+--     OR LOWER(v.ad_group_name) LIKE '%golf025%'
+--     OR LOWER(TRIM(v.ad_set_id)) IN (
+--       SELECT LOWER(TRIM(m.platform_line_item_id::varchar))
+--       FROM ASSEMBLEDVIEW.MART.LINE_ITEM_LABEL_MAP m
+--       WHERE m.is_active = TRUE
+--         AND LOWER(TRIM(m.channel)) = 'social - meta'
+--         AND LOWER(TRIM(m.mba_number)) = 'golf025'
+--     )
+--   );
+
+-- Before running the next view: DESC TABLE ASSEMBLEDVIEW.FACEBOOK_ADS.AD_SET_HISTORY.
+-- Its columns were not in the 20 Oct check. This view assumes the standard
+-- Fivetran shape: ID, NAME, UPDATED_TIME, _FIVETRAN_SYNCED. If it has no NAME
+-- column, replace s.name with NULL::varchar in the Meta block and drop the
+-- latest_meta_ad_set join. If the id column is AD_SET_ID, rename it in
+-- latest_meta_ad_set.
+--
+-- One row per Meta or TikTok ad that has a row in V_CREATIVE_PERFORMANCE_DAILY
+-- in the last 400 days, keyed by the same platform and creative_key.
+-- CM360 has no image source synced and is left out.
+-- Meta: latest AD_HISTORY per ID joined to the latest CREATIVE_HISTORY per ID
+-- on CREATIVE_ID. preview_image_url is THUMBNAIL_URL, else IMAGE_URL.
+-- preview_kind is 'video' when the creative has a VIDEO_ID. view_url is
+-- PREVIEW_SHAREABLE_LINK. image_expires_at is the oe= hex in the image URL read
+-- as unix seconds (UTC); null when the URL has no oe=.
+-- TikTok: latest AD_HISTORY per AD_ID joined to the latest VIDEO_HISTORY per
+-- VIDEO_ID. preview_image_url is VIDEO_COVER_URL, preview_kind 'video',
+-- view_url and image_expires_at null. PREVIEW_URL is not used: it expires and
+-- is a video file, not a page.
+-- creative_id is the Meta creative id or the TikTok video id. updated_at is
+-- the ad row's last change time.
+CREATE OR REPLACE VIEW ASSEMBLEDVIEW.MART.V_CREATIVE_ASSETS COPY GRANTS AS
+WITH latest_meta_ad AS (
+  SELECT
+    id,
+    ad_set_id,
+    creative_id,
+    preview_shareable_link,
+    updated_time,
+    ROW_NUMBER() OVER (
+      PARTITION BY id
+      ORDER BY updated_time DESC, _fivetran_synced DESC
+    ) AS rn
+  FROM ASSEMBLEDVIEW.FACEBOOK_ADS.AD_HISTORY
+),
+latest_meta_creative AS (
+  SELECT
+    id,
+    thumbnail_url,
+    image_url,
+    video_id,
+    ROW_NUMBER() OVER (
+      PARTITION BY id
+      ORDER BY _fivetran_synced DESC
+    ) AS rn
+  FROM ASSEMBLEDVIEW.FACEBOOK_ADS.CREATIVE_HISTORY
+),
+latest_meta_ad_set AS (
+  SELECT
+    id,
+    name,
+    ROW_NUMBER() OVER (
+      PARTITION BY id
+      ORDER BY updated_time DESC, _fivetran_synced DESC
+    ) AS rn
+  FROM ASSEMBLEDVIEW.FACEBOOK_ADS.AD_SET_HISTORY
+),
+latest_tiktok_ad AS (
+  SELECT
+    ad_id,
+    adgroup_id,
+    adgroup_name,
+    video_id,
+    updated_at,
+    ROW_NUMBER() OVER (
+      PARTITION BY ad_id
+      ORDER BY updated_at DESC, _fivetran_synced DESC
+    ) AS rn
+  FROM ASSEMBLEDVIEW.TIKTOK_ADS.AD_HISTORY
+),
+latest_tiktok_video AS (
+  SELECT
+    video_id,
+    video_cover_url,
+    ROW_NUMBER() OVER (
+      PARTITION BY video_id
+      ORDER BY updated_at DESC, _fivetran_synced DESC
+    ) AS rn
+  FROM ASSEMBLEDVIEW.TIKTOK_ADS.VIDEO_HISTORY
+),
+active_creatives AS (
+  SELECT DISTINCT platform, creative_key
+  FROM ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY
+  WHERE platform IN ('meta', 'tiktok')
+    AND date >= DATEADD(day, -400, CURRENT_DATE())
+),
+meta AS (
+  SELECT
+    'meta' AS platform,
+    a.id::varchar AS creative_key,
+    TRIM(a.ad_set_id::varchar) AS ad_set_id,
+    s.name AS ad_set_name,
+    a.creative_id::varchar AS creative_id,
+    COALESCE(NULLIF(TRIM(c.thumbnail_url), ''), NULLIF(TRIM(c.image_url), '')) AS preview_image_url,
+    CASE WHEN c.video_id IS NOT NULL THEN 'video' ELSE 'image' END AS preview_kind,
+    NULLIF(TRIM(a.preview_shareable_link), '') AS view_url,
+    a.updated_time::timestamp_ntz AS updated_at
+  FROM latest_meta_ad a
+  LEFT JOIN latest_meta_creative c
+    ON c.id::varchar = a.creative_id::varchar
+   AND c.rn = 1
+  LEFT JOIN latest_meta_ad_set s
+    ON s.id::varchar = a.ad_set_id::varchar
+   AND s.rn = 1
+  WHERE a.rn = 1
+),
+tiktok AS (
+  SELECT
+    'tiktok' AS platform,
+    h.ad_id::varchar AS creative_key,
+    TRIM(h.adgroup_id::varchar) AS ad_set_id,
+    h.adgroup_name AS ad_set_name,
+    h.video_id::varchar AS creative_id,
+    NULLIF(TRIM(v.video_cover_url), '') AS preview_image_url,
+    'video' AS preview_kind,
+    NULL::varchar AS view_url,
+    h.updated_at::timestamp_ntz AS updated_at
+  FROM latest_tiktok_ad h
+  LEFT JOIN latest_tiktok_video v
+    ON v.video_id::varchar = h.video_id::varchar
+   AND v.rn = 1
+  WHERE h.rn = 1
+),
+assets AS (
+  SELECT * FROM meta
+  UNION ALL
+  SELECT * FROM tiktok
+)
+SELECT
+  x.platform,
+  x.creative_key,
+  x.ad_set_id,
+  x.ad_set_name,
+  x.creative_id,
+  x.preview_image_url,
+  x.preview_kind,
+  x.view_url,
+  CASE
+    WHEN x.platform = 'meta' THEN TO_TIMESTAMP_NTZ(TRY_TO_NUMBER(
+      UPPER(REGEXP_SUBSTR(x.preview_image_url, '[?&]oe=([0-9A-Fa-f]+)', 1, 1, 'e', 1)),
+      'XXXXXXXXXXXXXXXX'
+    ))
+    ELSE NULL::timestamp_ntz
+  END AS image_expires_at,
+  x.updated_at
+FROM assets x
+JOIN active_creatives ac
+  ON ac.platform = x.platform
+ AND ac.creative_key = x.creative_key;
+
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_CREATIVE_ASSETS TO ROLE AV_APP_READ_ROLE;
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_CREATIVE_ASSETS TO ROLE CLAUDE_RW;
+
+-- check: share of Meta and TikTok creatives with rows in the last 30 days that
+-- have a preview_image_url. Expect over 95% for Meta.
+-- WITH recent AS (
+--   SELECT DISTINCT platform, creative_key
+--   FROM ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY
+--   WHERE platform IN ('meta', 'tiktok')
+--     AND date >= DATEADD(day, -30, CURRENT_DATE())
+-- )
+-- SELECT
+--   r.platform,
+--   COUNT(*) AS creatives,
+--   COUNT(a.preview_image_url) AS with_image,
+--   ROUND(100 * COUNT(a.preview_image_url) / NULLIF(COUNT(*), 0), 1) AS pct_with_image
+-- FROM recent r
+-- LEFT JOIN ASSEMBLEDVIEW.MART.V_CREATIVE_ASSETS a
+--   ON a.platform = r.platform
+--  AND a.creative_key = r.creative_key
+-- GROUP BY r.platform
+-- ORDER BY r.platform;
+
+-- check: Meta image links expiring in the next 24 hours (signed fbcdn links)
+-- SELECT COUNT(*) AS expiring_soon
+-- FROM ASSEMBLEDVIEW.MART.V_CREATIVE_ASSETS
+-- WHERE platform = 'meta'
+--   AND image_expires_at < DATEADD(hour, 24, CURRENT_TIMESTAMP()::timestamp_ntz);
 
 -- Campaign report has session_campaign_name. Source and medium live on
 -- V_GA4_SOURCE_MEDIUM_DAILY so the two grains are not added together.
