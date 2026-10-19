@@ -27,6 +27,12 @@ describe("web report element settings", () => {
     )
   })
 
+  it("names pages by path and keeps the landing id", () => {
+    assert.equal(WEB_REPORT_ELEMENTS.landing.id, "landing")
+    assert.equal(WEB_REPORT_ELEMENTS.landing.title, "Pages by path")
+    assert.equal(parseElementSettings("landing", { topN: 10 }).ok, true)
+  })
+
   it("rejects notes over the length limit and an unknown query mode", () => {
     assert.equal(parseElementSettings("notes", { text: "x".repeat(2001) }).ok, false)
     assert.equal(parseElementSettings("queries", { mode: "branded", topN: 10 }).ok, false)

@@ -141,7 +141,7 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
   },
   landing: {
     id: "landing",
-    title: "Landing pages",
+    title: "Pages by path",
     group: "Google Analytics 4",
     settings: elementSettings.landing,
     dataNeeds: ["ga4"],

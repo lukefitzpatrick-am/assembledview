@@ -117,6 +117,12 @@ test("settings fields are read from the element schema", () => {
   assert.equal(NEEDS_DATA_ELEMENTS.includes("gscPages"), false)
 })
 
+test("a saved landing element still parses", () => {
+  const saved = parseLayout([{ elementId: "landing", settings: { topN: 10 } }])
+  assert.equal(saved.ok, true)
+  if (saved.ok) assert.equal(saved.layout[0]?.elementId, "landing")
+})
+
 test("a saved location element with empty settings still parses", () => {
   const saved = parseLayout([{ elementId: "location", settings: {} }])
   assert.equal(saved.ok, true)
