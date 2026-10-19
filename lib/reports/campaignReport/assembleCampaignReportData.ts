@@ -45,6 +45,7 @@ import {
   slicesByKey,
 } from "@/lib/spend/channelExpectedToDate"
 import {
+  assumedSpendDeckLabel,
   campaignReportChannelLabel,
   campaignSpendIncludingAssumed,
   deliveryLinesForRates,
@@ -503,7 +504,10 @@ export async function assembleCampaignReportData(
     const plannedViews = plannedCount(ch.lines, "plannedViews", flight, currentWindow)
     return {
       group: ch.group,
-      label: channelLabel(ch.group),
+      label:
+        ch.group === "assumed_spend"
+          ? assumedSpendDeckLabel(ch.lines.map((line) => line.lineItemId))
+          : channelLabel(ch.group),
       plannedBudget: planned,
       plannedStart: pace.plannedStart,
       notLive: pace.notLive,

@@ -26,13 +26,15 @@ export type DeckChartAxis = {
   format: "money" | "count" | "percent"
 }
 
+export type DeckChartPoint = [string, number] | [string, number, number]
+
 export type DeckChart = {
   scope: "campaign" | "channel"
   group: string | null
   label: string
   left: DeckChartAxis
   right: DeckChartAxis | null
-  points: Array<[string, number, number | null]>
+  points: DeckChartPoint[]
   note: string | null
 }
 
@@ -179,6 +181,26 @@ function pointsFromNumbers(
   ])
 }
 
+/** A right axis of only zeros and nulls is omitted, and those values leave the points. */
+function finishChart(
+  right: DeckChartAxis | null,
+  points: Array<[string, number, number | null]>,
+): { right: DeckChartAxis | null; points: DeckChartPoint[] } {
+  const alive =
+    right != null &&
+    points.some((point) => {
+      const value = point[2]
+      return value != null && value !== 0
+    })
+  if (!alive) {
+    return { right: null, points: points.map((point): DeckChartPoint => [point[0], point[1]]) }
+  }
+  return {
+    right,
+    points: points.map((point): DeckChartPoint => [point[0], point[1], point[2] ?? 0]),
+  }
+}
+
 function channelHasAssumedSpend(channel: DeliveryChannelGroup): boolean {
   if (channel.group === "assumed_spend" && channel.totals.spendToDate > 0) return true
   return channel.lines.some(
@@ -280,13 +302,14 @@ export function buildDeckCharts(
     const right = rightSeries ? toAxis(rightSeries) : null
     const points = pointsFrom(channelDays.get(channel.group) ?? new Map(), plotted, left, right)
     if (!points) continue
+    const finished = finishChart(right, points)
     channelCharts.push({
       scope: "channel",
       group: channel.group,
       label: campaignReportChannelLabel(channel.group),
       left,
-      right,
-      points,
+      right: finished.right,
+      points: finished.points,
       note: chartNote(plotted.endISO, window.endISO, null),
     })
   }
@@ -303,13 +326,14 @@ export function buildDeckCharts(
 
   const charts: DeckChart[] = []
   if (campaignPoints) {
+    const finished = finishChart(campaignRight, campaignPoints)
     charts.push({
       scope: "campaign",
       group: null,
       label: "All channels",
       left: campaignLeft,
-      right: campaignRight,
-      points: campaignPoints,
+      right: finished.right,
+      points: finished.points,
       note,
     })
   }

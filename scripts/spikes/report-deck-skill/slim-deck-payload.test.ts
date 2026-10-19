@@ -3,6 +3,7 @@ import fs from "node:fs"
 import path from "node:path"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
+import { assumedSpendDeckLabel } from "@/lib/reports/campaignReport/reportFigures"
 import {
   formatDeckCount,
   formatDeckMoney,
@@ -311,6 +312,27 @@ test("detail rows are formatted strings, and channel level has an empty detail",
   assert.equal("spend" in (placement ?? {}), false)
   assert.equal(placement?.impressions, "249,317")
   assert.equal(placement?.results, "Not yet reported")
+})
+
+test("television and radio assumed-spend lines are named Television and Radio", () => {
+  assert.equal(assumedSpendDeckLabel(["planTV1", "planRA1"]), "Television and Radio")
+  const slim = slimDeckPayload({
+    mbaNumber: "sample",
+    clientName: "Sample",
+    campaignName: "Sample",
+    totals: { spend: 10 },
+    channels: [
+      {
+        group: "assumed_spend",
+        label: assumedSpendDeckLabel(["planTV1", "planRA1"]),
+        spend: 10,
+      },
+    ],
+    kpis: [],
+  })
+  const channels = slim.channels as Array<{ group: string; label: string }>
+  assert.equal(channels[0]?.group, "assumed_spend")
+  assert.equal(channels[0]?.label, "Television and Radio")
 })
 
 test("charts keep numeric points, weekly is gone, and the cap is 80,000", () => {

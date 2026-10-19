@@ -249,6 +249,35 @@ test("programmatic CPV uses views, and a mixed buy type uses impressions", () =>
   assert.deepEqual(impressions.points, [["2026-07-01", 0, 0], ["2026-07-02", 10, 100]])
 })
 
+test("a CM360 chart with all-zero clicks drops the right axis", () => {
+  const charts = buildCharts({
+    channels: [channel("digital_video", [line("dv1", 20)])],
+    dailyPacingRows: [
+      pacing({
+        channel: "ad-serving",
+        lineItemId: "dv1",
+        dateDay: "2026-07-01",
+        impressions: 100,
+        clicks: 0,
+      }),
+      pacing({
+        channel: "ad-serving",
+        lineItemId: "dv1",
+        dateDay: "2026-07-02",
+        impressions: 40,
+        clicks: 0,
+      }),
+    ],
+  })
+  const video = chartFor(charts, "digital_video")
+  assert.equal(video.right, null)
+  assert.equal(video.left.key, "impressions")
+  assert.deepEqual(video.points, [
+    ["2026-07-01", 100],
+    ["2026-07-02", 40],
+  ])
+})
+
 test("notLive and assumed-spend channels get no chart", () => {
   const charts = buildCharts(
     {

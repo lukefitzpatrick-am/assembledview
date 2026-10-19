@@ -3,9 +3,11 @@
  * read these so campaign to date, rates and file names stay one shape.
  */
 
+import { MEDIA_TYPE_LABELS } from "@/lib/media/mediaTypes"
 import { cpc, cpm, cpv, ctr } from "@/lib/money/rates"
 import { formatReportMoney } from "@/lib/reports/campaignReport/formatters"
 import { ASSUMED_SPEND_LABEL } from "@/lib/spend/assumedSpend"
+import { scheduleKeyForLineItemId } from "@/lib/spend/channelExpectedToDate"
 import { computeCampaignDays } from "@/lib/pacing/maths"
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import type { CampaignReportPeriodKind } from "@/lib/reports/campaignReport/periods"
@@ -43,9 +45,50 @@ const CAMPAIGN_REPORT_CHANNEL_LABELS: Record<string, string> = {
   assumed_spend: ASSUMED_SPEND_LABEL,
 }
 
-/** Deck channel name. Assumed spend is one channel, not the family name. */
+/** Deck channel name. The dashboard keeps Assumed spend; the deck row uses assumedSpendDeckLabel. */
 export function campaignReportChannelLabel(group: string): string {
   return CAMPAIGN_REPORT_CHANNEL_LABELS[group] ?? group.replace(/_/g, " ")
+}
+
+/** Dashboard media-type order. Schedule keys match line-item id codes. */
+const ASSUMED_DECK_TYPES: Array<{ scheduleKey: string; label: string }> = [
+  { scheduleKey: "television", label: MEDIA_TYPE_LABELS.television },
+  { scheduleKey: "radio", label: MEDIA_TYPE_LABELS.radio },
+  { scheduleKey: "newspaper", label: MEDIA_TYPE_LABELS.newspaper },
+  { scheduleKey: "magazines", label: MEDIA_TYPE_LABELS.magazines },
+  { scheduleKey: "ooh", label: MEDIA_TYPE_LABELS.ooh },
+  { scheduleKey: "cinema", label: MEDIA_TYPE_LABELS.cinema },
+  { scheduleKey: "digital-display", label: MEDIA_TYPE_LABELS.digiDisplay },
+  { scheduleKey: "digital-audio", label: MEDIA_TYPE_LABELS.digiAudio },
+  { scheduleKey: "digital-video", label: MEDIA_TYPE_LABELS.digiVideo },
+  { scheduleKey: "bvod", label: MEDIA_TYPE_LABELS.bvod },
+  { scheduleKey: "integration", label: MEDIA_TYPE_LABELS.integration },
+  { scheduleKey: "search", label: MEDIA_TYPE_LABELS.search },
+  { scheduleKey: "social", label: MEDIA_TYPE_LABELS.socialMedia },
+  { scheduleKey: "programmatic-display", label: MEDIA_TYPE_LABELS.progDisplay },
+  { scheduleKey: "programmatic-video", label: MEDIA_TYPE_LABELS.progVideo },
+  { scheduleKey: "programmatic-bvod", label: MEDIA_TYPE_LABELS.progBvod },
+  { scheduleKey: "programmatic-audio", label: MEDIA_TYPE_LABELS.progAudio },
+  { scheduleKey: "programmatic-ooh", label: MEDIA_TYPE_LABELS.progOoh },
+  { scheduleKey: "influencers", label: MEDIA_TYPE_LABELS.influencers },
+]
+
+function joinMediaTypeLabels(labels: readonly string[]): string {
+  if (labels.length === 0) return ASSUMED_SPEND_LABEL
+  if (labels.length === 1) return labels[0]
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`
+  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`
+}
+
+/** Deck label for the assumed-spend channel. Group stays assumed_spend. */
+export function assumedSpendDeckLabel(lineItemIds: readonly string[]): string {
+  const present = new Set<string>()
+  for (const id of lineItemIds) {
+    const key = scheduleKeyForLineItemId(id)
+    if (key) present.add(key)
+  }
+  const labels = ASSUMED_DECK_TYPES.filter((row) => present.has(row.scheduleKey)).map((row) => row.label)
+  return joinMediaTypeLabels(labels)
 }
 
 /**

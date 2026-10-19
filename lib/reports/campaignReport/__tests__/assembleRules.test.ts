@@ -7,6 +7,7 @@ import { campaignReportDownloadName } from "@/lib/reports/campaignReport/generat
 import { resolveCampaignReportPeriod } from "@/lib/reports/campaignReport/periods"
 import { formatReportMoney } from "@/lib/reports/campaignReport/formatters"
 import {
+  assumedSpendDeckLabel,
   campaignReportChannelLabel,
   campaignReportPeriodFilePart,
   campaignSpendIncludingAssumed,
@@ -95,6 +96,11 @@ test("the deck footnote includes assumed spend and leaves estimated rates alone"
   )
   assert.equal(campaignReportChannelLabel("assumed_spend"), "Assumed spend")
   assert.equal(campaignReportChannelLabel("bvod"), "BVOD")
+  assert.equal(assumedSpendDeckLabel(["planRA1", "planTV2"]), "Television and Radio")
+  assert.equal(
+    assumedSpendDeckLabel(["planNP1", "planTV1", "planRA1"]),
+    "Television, Radio and Newspaper",
+  )
   assert.equal(
     campaignSpendIncludingAssumed(1_000, [
       { group: "bvod", totals: { spendToDate: 1_000 } },
