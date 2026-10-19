@@ -5,6 +5,7 @@
  */
 import type { DeliveryChannelGroup, DeliveryLineSnapshot } from "@/lib/ava/tools/summaries"
 import { addDaysISO, buildDateListISO } from "@/lib/delivery/search/searchCore"
+import { roundMoney2 } from "@/lib/money"
 import { cleanPacingLineItemId } from "@/lib/pacing/delivery/lineItemIds"
 import { campaignReportChannelLabel } from "@/lib/reports/campaignReport/reportFigures"
 import type { PacingRow } from "@/lib/snowflake/pacing-service"
@@ -95,7 +96,7 @@ function toAxis(series: ChannelChartSeries): DeckChartAxis {
 }
 
 function roundAxis(format: DeckChartAxis["format"], value: number): number {
-  if (format === "money") return Math.round(value * 100) / 100
+  if (format === "money") return roundMoney2(value)
   if (format === "count") return Math.round(value)
   return value
 }

@@ -390,6 +390,24 @@ test("VIC-ADV+-golf012SM1 becomes VIC-ADV+", () => {
   assert.equal(detail?.rows[0]?.name.includes("golf012"), false)
 })
 
+test("a half-cent line spend rounds half-up to the cent", () => {
+  const snapshot: DeckDetailSnapshot = {
+    channels: [
+      channel("social_meta", [
+        line({
+          lineItemId: "planSM1",
+          name: "planSM1",
+          label: "Prospecting",
+          spendToDate: 2.135,
+          impressions: 1,
+        }),
+      ]),
+    ],
+  }
+  const [detail] = buildDeckDetail(snapshot, "line_item", WINDOW)
+  assert.equal(detail?.rows[0]?.spend, 2.14)
+})
+
 test("not-live and assumed-spend channels are left out", () => {
   const snapshot: DeckDetailSnapshot = {
     channels: [

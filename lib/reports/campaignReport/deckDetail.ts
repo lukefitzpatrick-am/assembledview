@@ -3,6 +3,7 @@
  * Pure. The monthly cron never calls this: a missing level stays channel.
  */
 import type { DeliveryChannelGroup, DeliveryLineSnapshot } from "@/lib/ava/tools/summaries"
+import { roundMoney2 } from "@/lib/money"
 import { cleanPacingLineItemId } from "@/lib/pacing/delivery/lineItemIds"
 import { campaignReportChannelLabel } from "@/lib/reports/campaignReport/reportFigures"
 
@@ -369,7 +370,7 @@ function rankValue(row: { spend: number; impressions: number }, rankBy: "spend" 
 }
 
 function roundSpend(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100
+  return roundMoney2(value)
 }
 
 function numberOrZero(value: unknown): number {
