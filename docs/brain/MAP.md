@@ -24,7 +24,7 @@ Rule of direction: **L5 never talks to L2.** A page calls an API route or a serv
 | # | Section | Entry route | UI | Domain lib | API prefix | Primary tables |
 |---|---|---|---|---|---|---|
 | 1 | [Media plans](#1-media-plans) | `/mediaplans` | `components/media-containers/`, `components/mediaplans/` | `lib/mediaplan/`, `lib/mediaplans/`, `lib/data/` | `/api/mediaplans`, `/api/media_plans`, `/api/plans` | `media_plan_masters`, `media_plan_versions`, `line_items`, `schedule_months` |
-| 2 | [Finance & billing](#2-finance--billing) | `/finance` | `components/finance/`, `components/billing/` | `lib/finance/`, `lib/billing/`, `lib/xero/` | `/api/finance`, `/api/billing-overrides` | `finance_periods`, `finance_run_items`, `finance_billing_*`, `xero_*` |
+| 2 | [Finance & billing](#2-finance--billing) | `/finance` | `components/finance/`, `components/billing/` | `lib/finance/`, `lib/billing/`, `lib/xero/` | `/api/finance`, `/api/billing-overrides` | `finance_periods`, `finance_run_items`, `finance_billing_*`, `billing_partner_packs`, `billing_partner_pack_items`, `xero_*` |
 | 3 | [Pacing & delivery](#3-pacing--delivery) | `/pacing` | `components/pacing*/` | `lib/pacing/`, `lib/snowflake/`, `lib/delivery/` | `/api/pacing` | Snowflake `MART.*` + `line_items` |
 | 4 | [Client dashboards](#4-client-dashboards) | `/dashboard/[slug]` | `components/dashboard/`, `components/charts/` | `lib/dashboard/`, `lib/charts/`, `lib/spend/`, `lib/campaign-read/` | `/api/dashboard`, `/api/campaigns`, `/api/campaign-reads` | `media_plan_*`, `schedule_months`, `campaign_insights`, `campaign_reads` |
 | 5 | [KPI](#5-kpi) | (inside plan + pacing) | `components/kpis/` | `lib/kpi/` | `/api/kpis` | `campaign_kpi`, `client_kpi`, `publisher_kpi` |
