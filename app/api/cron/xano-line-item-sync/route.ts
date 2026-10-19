@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
-import {
-  normaliseLineItemSnapshotSource,
-  runLineItemSnapshotSync,
-} from "@/lib/snowflake/syncPgLineItems"
+import { runLineItemSnapshotSync } from "@/lib/snowflake/syncPgLineItems"
 import { logJob } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
@@ -13,11 +10,9 @@ export const maxDuration = 300
 /**
  * Daily line-item snapshot → Snowflake `MART.XANO_LINE_ITEMS_SNAPSHOT`.
  *
- * Source: `LINE_ITEM_SNAPSHOT_SOURCE` = `xano` | `parity` | `postgres`
- * (default `xano`). Parity reports MBA row/spend diffs and still MERGEs Xano.
- * STOP: Luke sets `postgres` only after a clean parity report — see
- * `docs/superpowers/x7-line-item-snapshot-pg-stop-2026-08-02.md`.
- * Route path retires at T7 after the flip.
+ * Always reads Postgres and MERGEs those rows. `LINE_ITEM_SNAPSHOT_SOURCE`
+ * does not select a source. A value other than `postgres` is logged and
+ * ignored. The route path and the table name stay as the historic contracts.
  */
 
 export async function GET(request: Request) {
@@ -29,15 +24,14 @@ export async function GET(request: Request) {
   }
 
   const startedAt = new Date()
-  const source = normaliseLineItemSnapshotSource(
-    process.env.LINE_ITEM_SNAPSHOT_SOURCE
-  )
   logJob(
-    `[line-item-snapshot] Started at ${startedAt.toISOString()} source=${source}`
+    `[line-item-snapshot] Started at ${startedAt.toISOString()} source=postgres`
   )
 
   try {
-    const result = await runLineItemSnapshotSync(source)
+    const result = await runLineItemSnapshotSync(
+      process.env.LINE_ITEM_SNAPSHOT_SOURCE
+    )
 
     const completedAt = new Date()
     const durationMs = completedAt.getTime() - startedAt.getTime()

@@ -1,25 +1,18 @@
 import "server-only"
 
 import { fetchAllPgLineItems } from "@/lib/snowflake/fetchAllPgLineItems"
-import {
-  buildLineItemSnapshotParityReport,
-  normaliseLineItemSnapshotSource,
-  type LineItemSnapshotParityReport,
-  type LineItemSnapshotSource,
+import type {
+  LineItemSnapshotParityReport,
+  LineItemSnapshotSource,
 } from "@/lib/snowflake/lineItemSnapshotParity"
-import { auditPublishedVersionPointers } from "@/lib/snowflake/publishedVersionPointerAudit"
-import { filterXanoItemsToPublishedTips } from "@/lib/snowflake/tipScopeLineItems"
 import { syncLineItemsToSnowflake } from "@/lib/snowflake/syncXanoLineItems"
-import { fetchAllXanoLineItems } from "@/lib/xano/fetchAllLineItems"
 
 /**
- * X7 — Postgres → Snowflake line-item snapshot path.
+ * Postgres → Snowflake line-item snapshot.
  *
- * MERGE target / column schema unchanged (`MART.XANO_LINE_ITEMS_SNAPSHOT`).
- * Cron source gated by `LINE_ITEM_SNAPSHOT_SOURCE`:
- *   - `xano` (default) — legacy crawl + MERGE
- *   - `parity` — fetch both, report MBA row/spend diffs, MERGE **Xano only**
- *   - `postgres` — MERGE PG (Luke flips after clean parity; STOP until then)
+ * MERGE target stays `MART.XANO_LINE_ITEMS_SNAPSHOT`. The read is always
+ * `fetchAllPgLineItems`. `LINE_ITEM_SNAPSHOT_SOURCE` does not select a source.
+ * A value other than `postgres` is logged and ignored.
  */
 
 export {
@@ -49,68 +42,26 @@ export type RunLineItemSnapshotSyncResult = {
 }
 
 /**
- * Orchestrate snapshot ingest. Parity never writes PG into Snowflake.
+ * Fetch published tip line items from Postgres and MERGE them into Snowflake.
+ * `sourceRaw` is accepted so the cron can pass `LINE_ITEM_SNAPSHOT_SOURCE`.
+ * It does not choose the read.
  */
 export async function runLineItemSnapshotSync(
   sourceRaw?: string | null
 ): Promise<RunLineItemSnapshotSyncResult> {
-  const source = normaliseLineItemSnapshotSource(
-    sourceRaw ?? process.env.LINE_ITEM_SNAPSHOT_SOURCE
-  )
-
-  if (source === "postgres") {
-    const { items, complete } = await fetchAllPgLineItems()
-    const sync = await syncLineItemsToSnowflake(items, complete)
-    return {
-      source,
-      write_source: "postgres",
-      fetch_complete: complete,
-      sync,
-      parity: null,
-    }
+  const raw = sourceRaw ?? process.env.LINE_ITEM_SNAPSHOT_SOURCE
+  const configured = typeof raw === "string" ? raw.trim() : ""
+  if (configured && configured !== "postgres") {
+    console.warn(
+      `[line-item-snapshot] LINE_ITEM_SNAPSHOT_SOURCE=${configured} is ignored; snapshot always reads Postgres`
+    )
   }
 
-  if (source === "parity") {
-    const [xanoResult, pgResult, pointerAudit] = await Promise.all([
-      fetchAllXanoLineItems(),
-      fetchAllPgLineItems(),
-      auditPublishedVersionPointers(),
-    ])
-    // Compare tip-to-tip (PG published_version_id). MERGE still writes full Xano crawl.
-    const tipScoped = filterXanoItemsToPublishedTips(
-      xanoResult.items,
-      pointerAudit.tip_pointers
-    )
-    const parity = buildLineItemSnapshotParityReport(
-      tipScoped.items,
-      pgResult.items,
-      {
-        xanoComplete: xanoResult.complete,
-        pgComplete: pgResult.complete,
-      }
-    )
-    console.log(
-      `[line-item-snapshot] parity (tip×tip): xano_tip=${parity.xano_deduped} pg=${parity.pg_deduped} mba_mismatches=${parity.mba_mismatches} spend_delta_abs=${parity.spend_delta_abs_sum} null_ptr=${pointerAudit.null_published.length} stale_ptr=${pointerAudit.stale_vs_latest_booked.length}`
-    )
-    // Do not switch — keep warehouse on Xano until Luke flips source=postgres.
-    const sync = await syncLineItemsToSnowflake(
-      xanoResult.items,
-      xanoResult.complete
-    )
-    return {
-      source,
-      write_source: "xano",
-      fetch_complete: xanoResult.complete && pgResult.complete,
-      sync,
-      parity,
-    }
-  }
-
-  const { items, complete } = await fetchAllXanoLineItems()
+  const { items, complete } = await fetchAllPgLineItems()
   const sync = await syncLineItemsToSnowflake(items, complete)
   return {
-    source,
-    write_source: "xano",
+    source: "postgres",
+    write_source: "postgres",
     fetch_complete: complete,
     sync,
     parity: null,
