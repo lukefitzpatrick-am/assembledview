@@ -48,7 +48,7 @@ export function isChannelLineItemEndpoint(path: string): path is ChannelLineItem
  * Catch-all URL segment → table endpoint. Kebab is never itself an endpoint;
  * dedicated routes must pass the `media_plan_*` name into the GET handler.
  * Without this map, a LINE_ITEM_BROWSER_API_PATH kebab with no dedicated route
- * hits the catch-all and proxies Xano (`isChannelLineItemEndpoint(kebab)` is false).
+ * hits the catch-all. The catch-all resolves that kebab and reads Postgres.
  */
 export const CHANNEL_LINE_ITEM_URL_SEGMENT_TO_ENDPOINT: Record<string, ChannelLineItemEndpoint> =
   {

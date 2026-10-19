@@ -10,7 +10,7 @@ import type { XanoLineItem } from "@/lib/xano/fetchAllLineItems"
 
 /**
  * Map Postgres line_items (+ mba) into the Snowflake snapshot row shape
- * shared with `fetchAllXanoLineItems`.
+ * (`XanoLineItem`). The name is the warehouse row, not an HTTP client.
  */
 
 export const CHANNEL_TO_SOURCE_TABLE = Object.fromEntries(

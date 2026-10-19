@@ -20,10 +20,9 @@ export type UploadDigestPayload = {
 const WINDOW_MINUTES = Number(process.env.UPLOAD_DIGEST_WINDOW_MIN ?? 65)
 
 /**
- * ⚠️ listByMba() with no argument returns the FULL creative_asset list from Xano
- * (unpaginated). Fine at current volume; if the table grows, add server-side
- * filters to the Xano `creative_asset` GET: created_at_after + uploaded_by_role,
- * and swap this to a filtered fetch.
+ * listByMba() with no argument returns the full creative_asset list from Postgres.
+ * Fine at current volume; if the table grows, filter in the query
+ * (created_at and uploaded_by_role) instead of loading every row.
  */
 export async function buildUploadDigest(
   now: Date = new Date(),

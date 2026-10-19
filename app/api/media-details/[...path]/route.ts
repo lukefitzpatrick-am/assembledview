@@ -41,7 +41,7 @@ async function proxyRequest(request: Request, { params }: Params, method: string
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
   }
 
-  // Reference-table GETs honor DATA_BACKEND=xano|shadow|postgres (default xano).
+  // Reference-table GETs read Postgres.
   if (method === "GET" && pathSegments.length === 1 && isReferenceTablePath(pathSegments[0])) {
     try {
       const result = await readReferenceMediaDetail(pathSegments[0])

@@ -17,7 +17,7 @@ export type LiveSearchLineItemRecord = {
 };
 
 /**
- * Fetches live search line items (one per Xano media_plan_search row
+ * Fetches live search line items (one per Postgres media_plan_search row
  * under a live master) without Snowflake hydration.
  */
 export async function getLiveSearchLineItemRecords(

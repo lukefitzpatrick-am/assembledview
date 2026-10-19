@@ -44,7 +44,7 @@ function clampPageSize(pageSize: number | undefined): number {
 }
 
 /**
- * Resolve live-in-window client slugs from Xano masters (no Snowflake).
+ * Resolve live-in-window client slugs from Postgres masters (no Snowflake).
  * Fan-out uses the full access-filtered set so KPI tiles cover the portfolio;
  * pageSlugs paginate attention lists only.
  */

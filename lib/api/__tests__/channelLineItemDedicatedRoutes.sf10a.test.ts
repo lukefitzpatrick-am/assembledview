@@ -2,8 +2,7 @@
  * SF-10a — every channel line-item GET goes through a dedicated tenant-scoped
  * route (`checkClientMbaAccess`), never the admin-only catch-all.
  *
- * Do not import `lib/api.ts` here — it throws at module scope without Xano
- * publisher env (BLAST-RADIUS). Parse LINE_ITEM_BROWSER_API_PATH from source.
+ * Do not import `lib/api.ts` here. Parse LINE_ITEM_BROWSER_API_PATH from source.
  *
  * Run: npx tsx --test lib/api/__tests__/channelLineItemDedicatedRoutes.sf10a.test.ts
  */

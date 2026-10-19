@@ -7,9 +7,9 @@ const M = (...methods: string[]): MethodSet => new Set(methods)
 /**
  * media_plans catch-all (`/api/media_plans/[...path]`).
  *
- * Every entry is staff-only (admin) at the route gate — no client surface
- * calls this proxy (edit/create + replaceChannelLineItems only). Dies with Xano
- * channel reads at T6.
+ * Every entry is staff-only (admin) at the route gate. Channel GETs read
+ * Postgres. Writes on this catch-all return 410. The allowlist does not front
+ * a Xano HTTP call.
  *
  * DELETE is only valid as `{segment}/{numericId}` (replaceChannelLineItems /
  * clearVersionChildren row deletes — clearVersionChildren itself is unused in
@@ -17,7 +17,7 @@ const M = (...methods: string[]): MethodSet => new Set(methods)
  */
 export const MEDIA_PLANS_ALLOWLIST: Record<string, { base: MethodSet; withId: MethodSet }> = {
   // consumer: replaceChannelLineItems + LINE_ITEM_BROWSER_API_PATH / dedicated-route
-  //   siblings; why: browser Xano channel CRUD; death: T6
+  //   siblings; why: historical channel allowlist; the catch-all does not call Xano
   media_plan_television: { base: M("GET", "POST"), withId: M("DELETE") },
   // consumer: replaceChannelLineItems + fetchLineItemsFromApi(newspaper→dedicated);
   //   death: T6

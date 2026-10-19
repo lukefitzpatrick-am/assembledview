@@ -1,6 +1,6 @@
 /**
- * containerChannelConfig → lib/api.ts reads Xano base URLs at module load.
- * Tests that hydrate via mapHydrationToForm need these present; they are never fetched.
+ * Leftover Xano base-URL stubs. Nothing fetches them. lib/api.ts does not read
+ * them at module load.
  */
 process.env.XANO_PUBLISHERS_BASE_URL ??= "https://xano.invalid"
 process.env.XANO_CLIENTS_BASE_URL ??= "https://xano.invalid"

@@ -4,9 +4,8 @@
  */
 
 /**
- * List-query params for the pre-delete GET. Xano currently honours mba_number
- * and ignores media_plan_version on channel GETs; keep both so the GET stays
- * campaign-scoped today and version-scoped if Xano adds the input later.
+ * Historical channel-list query params (mba_number plus media_plan_version).
+ * Nothing in the app issues that Xano GET anymore.
  * Deletion still uses {@link collectRowsForVersionReplace} (id filter only).
  */
 export function buildReplaceListQueryParams(

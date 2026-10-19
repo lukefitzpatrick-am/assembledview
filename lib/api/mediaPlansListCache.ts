@@ -161,7 +161,7 @@ async function mergeLatestVersionsWithMasters(
 }
 
 async function fetchUpstream(): Promise<{ data: any[]; stale: boolean; fetchedAt?: number }> {
-  // Sequential on purpose: two concurrent multi-page walks contend on the shared Xano instance and can push one past the 15s timeout.
+  // Sequential on purpose: versions first, then the master overlay.
   const versions = await fetchVersionsForList()
   const data = await mergeLatestVersionsWithMasters(versions.data, versions.masters)
   return { data, stale: versions.stale, fetchedAt: versions.fetchedAt }

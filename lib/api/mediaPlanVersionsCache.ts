@@ -3,10 +3,8 @@ import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 /**
  * Shared coalesced cache for the dashboard's latest media_plan_versions list.
  *
- * Default upstream: `media_plan_versions_latest` (one row per mba_number, highest
- * version_number), paged, with `include_schedules=false`. Schedule JSON is also
- * stripped client-side after fetch so dashboard/list payloads stay small even if
- * Xano ignores the flag.
+ * Upstream is Postgres: one latest row per mba_number. Schedule JSON is
+ * stripped after the read so dashboard/list payloads stay small.
  *
  * Past-TTL hits await a refresh (upstream is ~400ms post-upgrade). Fire-and-forget
  * background refresh was suspended by the serverless runtime and produced phantom
@@ -64,11 +62,9 @@ function stripScheduleFields(row: any): any {
 }
 
 /**
- * Fetch the versions list. Prefer paged walk via fetchAllXanoPages; also accept a
- * bare array if an env override points at a non-paged endpoint.
- * Honors DATA_BACKEND_PLANS: postgres rebuilds latest-per-MBA from consolidated versions
- * and overlays master-owned scalars (`mp_client_name`) — Xano `_latest` had these
- * inline; Postgres versions do not (DI-9b; twin of mediaPlansListCache / DI-9).
+ * Latest-per-MBA versions from Postgres, with master-owned scalars overlaid
+ * (`mp_client_name`). Version rows do not carry those inline
+ * (DI-9b; twin of mediaPlansListCache / DI-9).
  */
 async function fetchUpstream(): Promise<{ data: any[]; masters: any[] }> {
   const { readPlanVersionsWithoutSchedules, readPlanMasters } = await import(

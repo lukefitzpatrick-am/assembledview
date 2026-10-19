@@ -1,6 +1,7 @@
 /**
  * XS-3 pure rules for copying Xano vault plan files onto Vercel Blob.
- * HTTP, Blob, and Postgres stay in `scripts/migration/xs3-vault-to-blob.ts`.
+ * The copy ran 19 Oct 2026 (1,899 files, 0 failures).
+ * The script is archived at `scripts/_archive/xano/migration/xs3-vault-to-blob.ts`.
  */
 import { planDocumentBlobPathname } from "@/lib/docs/planDocumentBlob"
 import type { PlanDocumentKind } from "@/lib/docs/planVersionFiles"

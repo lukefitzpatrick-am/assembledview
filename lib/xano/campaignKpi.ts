@@ -3,10 +3,9 @@ import "server-only";
 import { readCampaignKpisForMbas } from "@/lib/data/readKpi";
 
 /**
- * Raw shape of a campaign_kpi row from Xano. Mirrors the table schema.
+ * Raw shape of a campaign_kpi row. Mirrors the table schema.
  *
- * Fields are nullable on the wire even when defined as numbers in the type —
- * defensive against Xano returning nulls for unset targets.
+ * Fields are nullable even when defined as numbers in the type.
  */
 export type CampaignKpiRow = {
   id: number;

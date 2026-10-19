@@ -1,9 +1,8 @@
 import { readClientById } from "@/lib/data/readClients"
 
 /**
- * Full client row by id (includes `client_brain` when served from Xano).
+ * Full client row by id from Postgres (includes `client_brain`).
  * Use for hub detail and AVA brain tools — never for list/grid.
- * Honors DATA_BACKEND_CLIENTS / DATA_BACKEND via readClientById.
  */
 export async function fetchClientById(
   id: string | number,

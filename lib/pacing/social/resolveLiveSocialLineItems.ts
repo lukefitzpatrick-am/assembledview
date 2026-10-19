@@ -40,7 +40,7 @@ export async function fetchSocialLineItemsForMba(args: {
 }
 
 /**
- * Resolves live social line items (masters, versions, Xano social rows)
+ * Resolves live social line items (masters, versions, Postgres social rows)
  * without Snowflake hydration.
  */
 export async function resolveLiveSocialLineItemInputs(

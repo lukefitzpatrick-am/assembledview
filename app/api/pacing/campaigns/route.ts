@@ -10,7 +10,7 @@ export const maxDuration = 60;
 /**
  * GET /api/pacing/campaigns
  *
- * Returns the list of live Search line items composed from Xano.
+ * Returns the list of live Search line items composed from Postgres.
  * Snowflake-sourced spend/KPI fields and three-level hierarchy populated in Part 2.
  *
  * Query params:

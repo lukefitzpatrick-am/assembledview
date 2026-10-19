@@ -33,10 +33,9 @@ import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
  *   - where is it in time        → resolveCampaignPhase
  *
  * Tip resolution lives in `resolveDashboardLiveVersionRow` on the server aggregation path.
- * Duplicated rather than imported: `shared.ts` pulls in the server-only Xano axios client
- * (reads the Xano API key from env), so importing it from a "use client" component risks
- * bundling server credentials into the client bundle. Keep this predicate in sync with
- * `lib/api/dashboard/shared.ts#isBookedApprovedCompleted`. */
+ * Duplicated rather than imported from `lib/api/dashboard/shared.ts` so this
+ * client-safe module stays free of the dashboard helper graph. Keep this predicate
+ * in sync with `lib/api/dashboard/shared.ts#isBookedApprovedCompleted`. */
 export function isPlannedBasisCampaignStatus(status: string | null | undefined): boolean {
   const normalized = typeof status === "string" ? status.trim().toLowerCase() : ""
   return normalized === "booked" || normalized === "approved" || normalized === "completed"

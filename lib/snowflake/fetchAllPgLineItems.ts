@@ -17,7 +17,7 @@ import type {
 
 /**
  * Postgres feed for Snowflake `MART.XANO_LINE_ITEMS_SNAPSHOT` (same row shape
- * as `fetchAllXanoLineItems`). Joins `line_items` × tip `media_plan_versions`.
+ * as `XanoLineItem`). Joins `line_items` × tip `media_plan_versions`.
  *
  * Tip scope = master's `published_version_id` only — matches what Xano channel
  * tables represent (live/published lines), not every historical version row.

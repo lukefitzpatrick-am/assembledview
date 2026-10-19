@@ -1,6 +1,6 @@
 /**
  * Admin KPI write handlers (auth already cleared by route).
- * Validation → named 400; upstream Xano miss → named 502; never opaque 500 for bad input.
+ * Validation → named 400; upstream failure → named 502; never opaque 500 for bad input.
  */
 
 import type { ZodError, ZodTypeAny } from "zod"
