@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { loadSentAaBaseline } from "@/lib/finance/billingPartner/sentAaBaseline"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
+import { requireRole } from "@/lib/requireRole"
 
 export const dynamic = "force-dynamic"
 
@@ -13,6 +14,10 @@ export async function GET(request: NextRequest) {
 
   const access = await checkClientMbaAccess(request, mba)
   if (!access.ok) return access.response
+
+  // Same publisher gate as POST /api/plans/save. A client with MBA access is 403.
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
 
   try {
     const sentPacks = await loadSentAaBaseline(mba)
