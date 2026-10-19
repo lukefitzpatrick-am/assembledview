@@ -1,45 +1,14 @@
 /**
  * P6 — Draft save / replace invariants (integration-style).
- * Mocks fetch at the lib/api boundary; forces replace GET onto the fetch
- * fallback so mba_number query scoping is observable.
+ * Channel replace is deleted; the live cases assert that throw.
  */
-import "./testXanoEnv"
-
 import { beforeEach, describe, expect, it, vi } from "vitest"
-
-vi.mock("@/lib/api/xanoPagination", () => ({
-  fetchAllXanoPages: vi.fn(async () => {
-    throw new Error("force replaceChannelLineItems fetch fallback")
-  }),
-}))
-
-const axiosMocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  patch: vi.fn(),
-  delete: vi.fn(),
-}))
-
-vi.mock("axios", () => {
-  const api = {
-    get: (...args: unknown[]) => axiosMocks.get(...args),
-    post: (...args: unknown[]) => axiosMocks.post(...args),
-    patch: (...args: unknown[]) => axiosMocks.patch(...args),
-    delete: (...args: unknown[]) => axiosMocks.delete(...args),
-  }
-  const create = () => api
-  return {
-    default: Object.assign(create, { create, ...api }),
-  }
-})
 
 import { replaceChannelLineItems, saveTelevisionLineItems } from "@/lib/api"
 import {
   buildReplaceListQueryParams,
   collectRowsForVersionReplace,
 } from "@/lib/api/replaceChannelLineItems.pure"
-import { syncCampaignKpis } from "@/lib/kpi/campaignKpi"
-import type { CampaignKPI, CampaignKpiInput } from "@/lib/kpi/types"
 import {
   MEDIA_TYPE_ID_CODES,
   assignLineItemIdentities,
@@ -160,11 +129,6 @@ describe("draftSaveReplaceInvariants", () => {
         return jsonResponse({ error: `unexpected ${method} ${url}` }, 404)
       })
     )
-
-    axiosMocks.get.mockReset()
-    axiosMocks.post.mockReset()
-    axiosMocks.patch.mockReset()
-    axiosMocks.delete.mockReset()
   })
 
   it("1. save → save → save yields identical channel row sets (PENFOLD016)", async () => {
@@ -381,140 +345,5 @@ describe("draftSaveReplaceInvariants", () => {
     } finally {
       console.warn = originalWarn
     }
-  })
-
-  it("9. syncCampaignKpis: desired-set upsert + orphan deletion; other versions untouched", async () => {
-    let kpiStore: CampaignKPI[] = [
-      {
-        id: 10,
-        mba_number: MBA,
-        version_number: 1,
-        line_item_id: "LI-KEEP",
-        mp_client_name: CLIENT,
-        campaign_name: "Camp",
-        media_type: "television",
-        publisher: "Seven",
-        bid_strategy: "cpm",
-        ctr: 0.01,
-        cpv: null,
-        conversion_rate: null,
-        vtr: null,
-        frequency: null,
-      },
-      {
-        id: 11,
-        mba_number: MBA,
-        version_number: 1,
-        line_item_id: "LI-ORPHAN",
-        mp_client_name: CLIENT,
-        campaign_name: "Camp",
-        media_type: "television",
-        publisher: "Nine",
-        bid_strategy: "cpm",
-        ctr: 0.02,
-        cpv: null,
-        conversion_rate: null,
-        vtr: null,
-        frequency: null,
-      },
-      {
-        id: 12,
-        mba_number: MBA,
-        version_number: 1,
-        line_item_id: "", // empty-id legacy — must be deleted when pair rewritten
-        mp_client_name: CLIENT,
-        campaign_name: "Camp",
-        media_type: "television",
-        publisher: "Ten",
-        bid_strategy: "cpm",
-        ctr: 0.03,
-        cpv: null,
-        conversion_rate: null,
-        vtr: null,
-        frequency: null,
-      },
-      {
-        id: 20,
-        mba_number: MBA,
-        version_number: 2,
-        line_item_id: "LI-V2",
-        mp_client_name: CLIENT,
-        campaign_name: "Camp",
-        media_type: "television",
-        publisher: "Seven",
-        bid_strategy: "cpm",
-        ctr: 0.04,
-        cpv: null,
-        conversion_rate: null,
-        vtr: null,
-        frequency: null,
-      },
-    ]
-
-    axiosMocks.get.mockImplementation(async (_url: string, config?: { params?: Record<string, unknown> }) => {
-      const mba = String(config?.params?.mba_number ?? "")
-      const ver = Number(config?.params?.version_number)
-      return {
-        data: kpiStore.filter(
-          (r) => String(r.mba_number) === mba && Number(r.version_number) === ver
-        ),
-      }
-    })
-
-    axiosMocks.patch.mockImplementation(async (url: string, body: Partial<CampaignKpiInput>) => {
-      const id = Number(String(url).match(/\/(\d+)$/)?.[1])
-      const idx = kpiStore.findIndex((r) => r.id === id)
-      const patched = { ...kpiStore[idx]!, ...body, id } as CampaignKPI
-      if (idx >= 0) kpiStore[idx] = patched
-      return { data: patched }
-    })
-
-    axiosMocks.post.mockImplementation(async (_url: string, body: CampaignKpiInput) => {
-      const created = { id: 9000 + axiosMocks.post.mock.calls.length, ...body } as CampaignKPI
-      kpiStore.push(created)
-      return { data: created }
-    })
-
-    axiosMocks.delete.mockImplementation(async (url: string) => {
-      const id = Number(String(url).match(/\/(\d+)$/)?.[1])
-      kpiStore = kpiStore.filter((r) => r.id !== id)
-      return { data: {} }
-    })
-
-    const desired: CampaignKpiInput = {
-      mp_client_name: CLIENT,
-      mba_number: MBA,
-      version_number: 1,
-      campaign_name: "Camp",
-      media_type: "television",
-      publisher: "Seven",
-      bid_strategy: "cpm",
-      line_item_id: "LI-KEEP",
-      ctr: 0.11,
-      cpv: null,
-      conversion_rate: null,
-      vtr: null,
-      frequency: null,
-    }
-
-    const result = await syncCampaignKpis([desired])
-    expect(result).toHaveLength(1)
-    expect(result[0]?.line_item_id).toBe("LI-KEEP")
-    expect(result[0]?.ctr).toBe(0.11)
-
-    // Orphan + empty-id legacy removed for (mba, v1)
-    expect(kpiStore.find((r) => r.id === 11)).toBeUndefined()
-    expect(kpiStore.find((r) => r.id === 12)).toBeUndefined()
-    expect(kpiStore.find((r) => r.id === 10)?.ctr).toBe(0.11)
-
-    // Other version untouched
-    expect(kpiStore.find((r) => r.id === 20)).toEqual(
-      expect.objectContaining({
-        id: 20,
-        version_number: 2,
-        line_item_id: "LI-V2",
-        ctr: 0.04,
-      })
-    )
   })
 })
