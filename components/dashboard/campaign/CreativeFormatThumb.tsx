@@ -1,18 +1,30 @@
-import { GalleryHorizontal, Image as ImageIcon, Video } from "lucide-react"
+"use client"
+
+import { useState } from "react"
+import { GalleryHorizontal, Image as ImageIcon, Play, Video } from "lucide-react"
 
 import type { CreativeFormatHint } from "@/lib/creative/performance/metrics"
 import { cn } from "@/lib/utils"
-
-/** `none` is the format frame. `image` is the P5 preview hook. */
-export type CreativePreview =
-  | { status: "none" }
-  | { status: "image"; src: string }
 
 const KIND_LABEL = {
   video: "Video",
   image: "Image",
   carousel: "Carousel",
 } as const
+
+type ThumbSize = "card" | "row" | "panel"
+
+const IMAGE_BOX: Record<ThumbSize, string> = {
+  card: "w-24 aspect-[4/5]",
+  row: "size-10",
+  panel: "w-full",
+}
+
+const TILE_BOX: Record<ThumbSize, string> = {
+  card: "size-24",
+  row: "size-10",
+  panel: "h-48 w-full",
+}
 
 function aspectStyle(aspect: string | null): { aspectRatio: string; width?: string; height?: string } {
   const match = aspect?.match(/^(\d+):(\d+)$/)
@@ -32,51 +44,82 @@ function KindIcon({ kind }: { kind: CreativeFormatHint["kind"] }) {
   return <ImageIcon className={className} aria-hidden />
 }
 
-export function CreativeFormatThumb({
-  format,
-  preview,
-  size,
-  name,
-}: {
-  format: CreativeFormatHint
-  preview: CreativePreview
-  size: "card" | "row"
-  name?: string | null
-}) {
-  const box = size === "card" ? "size-24" : "size-11"
-  if (preview.status === "image") {
-    return (
-      <div
-        className={cn("shrink-0 overflow-hidden rounded-input bg-surface-panel", box)}
-        data-creative-preview="image"
-      >
-        {/* P5 fills this branch. Preview URLs are not app image assets. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={preview.src} alt={name?.trim() || ""} className="h-full w-full object-cover" />
-      </div>
-    )
-  }
-
+function FormatTile({ format, size }: { format: CreativeFormatHint; size: ThumbSize }) {
   const frame = aspectStyle(format.aspect)
   const label = format.kind ? KIND_LABEL[format.kind] : "Ad"
   return (
     <div
-      className={cn("flex shrink-0 items-center justify-center rounded-input bg-surface-panel", box)}
+      className={cn("flex shrink-0 items-center justify-center rounded-input bg-surface-panel", TILE_BOX[size])}
       data-creative-preview="none"
     >
       <div
         className="flex max-h-full max-w-full items-center justify-center rounded-input border border-border bg-muted"
         style={frame}
       >
-        {size === "card" ? (
+        {size === "row" ? (
+          <KindIcon kind={format.kind} />
+        ) : (
           <span className="flex flex-col items-center gap-1 text-[10px] font-medium text-muted-foreground">
             <KindIcon kind={format.kind} />
             {label}
           </span>
-        ) : (
-          <KindIcon kind={format.kind} />
         )}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Cached preview through the tenant-checked image route, or the format tile
+ * when there is no preview or the image fails to load.
+ */
+export function CreativeFormatThumb({
+  format,
+  previewUrl,
+  previewKind,
+  size,
+  name,
+}: {
+  format: CreativeFormatHint
+  previewUrl: string | null
+  previewKind?: "image" | "video" | null
+  size: ThumbSize
+  name?: string | null
+}) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  if (!previewUrl || failedSrc === previewUrl) return <FormatTile format={format} size={size} />
+
+  const isVideo = previewKind === "video" || (previewKind == null && format.kind === "video")
+  return (
+    <div
+      className={cn("relative shrink-0 overflow-hidden rounded-input bg-surface-panel", IMAGE_BOX[size])}
+      data-creative-preview="image"
+    >
+      {/* Same-origin image route; next/image adds nothing with images.unoptimized. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={previewUrl}
+        alt={name?.trim() || "Ad preview"}
+        loading={size === "panel" ? "eager" : "lazy"}
+        decoding="async"
+        onError={() => setFailedSrc(previewUrl)}
+        className={cn(
+          "rounded-input",
+          size === "panel" ? "max-h-[60vh] w-full object-contain" : "h-full w-full object-cover",
+        )}
+      />
+      {isVideo ? (
+        <span
+          className={cn(
+            "absolute flex items-center justify-center rounded-pill bg-background/90 text-foreground shadow-e1",
+            size === "row" ? "bottom-0.5 right-0.5 size-4" : "bottom-1.5 right-1.5 size-7",
+          )}
+          data-creative-play="true"
+        >
+          <Play className={size === "row" ? "h-2.5 w-2.5" : "h-3.5 w-3.5"} aria-hidden />
+          <span className="sr-only">Video</span>
+        </span>
+      ) : null}
     </div>
   )
 }

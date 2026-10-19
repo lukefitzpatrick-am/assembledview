@@ -5,7 +5,7 @@ import { KpiBand, type KpiBandProps } from "./KpiBand"
 import { DeliveryDailyChart, type DeliveryDailyChartSeries } from "@/components/dashboard/delivery/common/DeliveryDailyChart"
 import { LineCreativeBesideChart } from "@/components/dashboard/campaign/LineCreativePanel"
 import {
-  EntityBreakdownTable,
+  LineEntityBreakdownTable,
   type EntityBreakdownNoun,
   type EntityBreakdownRow,
 } from "./EntityBreakdownTable"
@@ -110,7 +110,8 @@ export function LineItemBlock({
         )}
       </LineCreativeBesideChart>
       {entityBreakdown && entityBreakdown.rows.length > 0 ? (
-        <EntityBreakdownTable
+        <LineEntityBreakdownTable
+          lineItemId={lineItemId}
           rows={entityBreakdown.rows}
           knownPlanLineIds={entityBreakdown.knownPlanLineIds}
           entityNoun={entityBreakdown.entityNoun}

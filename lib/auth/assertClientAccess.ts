@@ -131,3 +131,21 @@ export async function assertClientAccess(
   }
   return { ok: true, isClient: decided.isClient }
 }
+
+/**
+ * Internal staff see every client, as on the dashboards: a recognised role
+ * (`getUserRoles`, the `canAccessPage("dashboard")` rule) that is not client.
+ * Unrecognised roles fail closed, as middleware does for pages. Client users
+ * fall through to `assertClientAccess`.
+ */
+export async function assertStaffOrClientAccess(
+  request: NextRequest,
+  clientId: number,
+  deps: AssertClientAccessDeps = defaultDeps,
+): Promise<ClientAccess> {
+  const session = await deps.getSession(request)
+  if (!session?.user) return { ok: false, response: unauthorisedResponse() }
+  const roles = deps.getUserRoles(session.user)
+  if (roles.length > 0 && !roles.includes("client")) return { ok: true, isClient: false }
+  return assertClientAccess(request, clientId, deps)
+}

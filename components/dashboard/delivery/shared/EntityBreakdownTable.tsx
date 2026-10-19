@@ -4,10 +4,15 @@
  * Delivered-only entity table inside a plan-line block (search ad groups,
  * Direct Booked Digital placements). Planned / variance stay on the parent.
  */
-import { useMemo, useState } from "react"
-import { ChevronDown } from "lucide-react"
+import { Fragment, useId, useMemo, useState } from "react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { formatMoney } from "@/lib/format/money"
 import { stripPlanCodeSuffix } from "@/lib/delivery/lineItemDisplayName"
+import type { CreativePerformanceRow } from "@/lib/creative/performance/metrics"
+import { adSetGroupKey, creativesByAdSet } from "@/lib/creative/performance/present"
+import { CreativeFormatThumb } from "@/components/dashboard/campaign/CreativeFormatThumb"
+import { CreativePreviewSheet } from "@/components/dashboard/campaign/CreativePreviewSheet"
+import { useLineCreatives } from "@/components/dashboard/campaign/CreativePerformanceProvider"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Table,
@@ -43,6 +48,8 @@ export type EntityBreakdownTableProps = {
   className?: string
   /** Tests expand the table; production stays collapsed. */
   defaultOpen?: boolean
+  /** The line's creatives. Spend tables then expand each ad set row to its creatives. */
+  creatives?: CreativePerformanceRow[]
 }
 
 /** Same presentation as searchAdapter.formatCurrency. */
@@ -91,8 +98,12 @@ export function EntityBreakdownTable({
   columns,
   className,
   defaultOpen = false,
+  creatives,
 }: EntityBreakdownTableProps) {
   const [open, setOpen] = useState(defaultOpen)
+  const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(() => new Set())
+  const [selected, setSelected] = useState<CreativePerformanceRow | null>(null)
+  const baseId = useId()
   const showSpend = columns === "spend"
   const nameHeader = titleCaseFirst(entityNoun.singular)
 
@@ -108,6 +119,20 @@ export function EntityBreakdownTable({
         }),
     [rows, showSpend],
   )
+
+  const groups = useMemo(
+    () => (showSpend && creatives && creatives.length > 0 ? creativesByAdSet(sorted, creatives) : null),
+    [creatives, showSpend, sorted],
+  )
+
+  function toggle(key: string) {
+    setExpandedKeys((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   if (sorted.length === 0) return null
 
@@ -159,16 +184,49 @@ export function EntityBreakdownTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sorted.map((row) => {
+              {sorted.map((row, rowIndex) => {
                 const raw = String(row.name)
                 const display = stripPlanCodeSuffix(raw, knownPlanLineIds)
                 const clicks = Number(row.clicks ?? 0)
                 const impressions = Number(row.impressions ?? 0)
                 const spend = Number(row.spend ?? 0)
+                const groupKey = adSetGroupKey(row)
+                const group = groups?.get(groupKey)
+                const expandable = Boolean(group && group.creatives.length > 0)
+                const expanded = expandable && expandedKeys.has(groupKey)
+                const childIds = group
+                  ? [
+                      ...group.creatives.map((_, i) => `${baseId}-${rowIndex}-${i}`),
+                      ...(group.unattributed ? [`${baseId}-${rowIndex}-other`] : []),
+                    ]
+                  : []
                 return (
-                  <TableRow key={row.id ?? raw}>
+                  <Fragment key={row.id ?? raw}>
+                  <TableRow data-ad-set-row={groupKey}>
                     <TableCell className="max-w-[14rem] truncate font-medium" title={raw}>
-                      {display}
+                      {expandable ? (
+                        <button
+                          type="button"
+                          onClick={() => toggle(groupKey)}
+                          aria-expanded={expanded}
+                          aria-controls={expanded ? childIds.join(" ") : undefined}
+                          className="interactive-tint -ml-1 inline-flex max-w-full items-center gap-1 rounded-input px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <ChevronRight
+                            className={cn(
+                              "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+                              expanded ? "rotate-90" : "",
+                            )}
+                            aria-hidden
+                          />
+                          <span className="truncate">{display}</span>
+                          <span className="sr-only">
+                            {expanded ? ", hide creatives" : `, show ${group!.creatives.length} creatives`}
+                          </span>
+                        </button>
+                      ) : (
+                        display
+                      )}
                     </TableCell>
                     {showSpend ? (
                       <TableCell className="text-right tabular-nums num">
@@ -210,12 +268,93 @@ export function EntityBreakdownTable({
                       </>
                     )}
                   </TableRow>
+                  {expanded && group
+                    ? group.creatives.map((creative, i) => {
+                        const name = creative.name?.trim() || "Untitled ad"
+                        const cSpend = Number(creative.spend ?? 0)
+                        return (
+                          <TableRow
+                            key={`${creative.platform}-${creative.creativeKey}`}
+                            id={`${baseId}-${rowIndex}-${i}`}
+                            data-ad-set-creative={creative.creativeKey}
+                            className="bg-surface-panel/60"
+                          >
+                            <TableCell className="max-w-[14rem] pl-6">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <CreativeFormatThumb
+                                  format={creative.format}
+                                  previewUrl={creative.previewUrl}
+                                  previewKind={creative.previewKind}
+                                  size="row"
+                                  name={name}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setSelected(creative)}
+                                  aria-haspopup="dialog"
+                                  title={name}
+                                  className="interactive-tint min-w-0 truncate rounded-input px-1 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                >
+                                  {name}
+                                </button>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums num">
+                              {creative.spend == null ? "—" : formatCurrency(cSpend)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums num">
+                              {formatWholeNumber(creative.clicks)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums num">
+                              {formatWholeNumber(creative.impressions)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums num">
+                              {formatCpc(cSpend, creative.clicks)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums num">
+                              {formatCtr(creative.clicks, creative.impressions)}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                    : null}
+                  {expanded && group?.unattributed ? (
+                    <TableRow
+                      id={`${baseId}-${rowIndex}-other`}
+                      data-ad-set-unattributed="true"
+                      className="bg-surface-panel/60 text-muted-foreground"
+                    >
+                      <TableCell className="pl-6 text-sm italic">Other or unattributed</TableCell>
+                      <TableCell className="text-right tabular-nums num">
+                        {formatCurrency(group.unattributed.spend)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums num">
+                        {formatWholeNumber(group.unattributed.clicks)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums num">
+                        {formatWholeNumber(group.unattributed.impressions)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums num">—</TableCell>
+                      <TableCell className="text-right tabular-nums num">—</TableCell>
+                    </TableRow>
+                  ) : null}
+                  </Fragment>
                 )
               })}
             </TableBody>
           </Table>
         </div>
+        <CreativePreviewSheet creative={selected} onClose={() => setSelected(null)} />
       </CollapsibleContent>
     </Collapsible>
   )
+}
+
+/** The table with the plan line's creatives from the campaign creative provider. */
+export function LineEntityBreakdownTable({
+  lineItemId,
+  ...props
+}: Omit<EntityBreakdownTableProps, "creatives"> & { lineItemId?: string }) {
+  const creatives = useLineCreatives(lineItemId)
+  return <EntityBreakdownTable {...props} creatives={creatives} />
 }

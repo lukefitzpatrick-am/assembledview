@@ -25,7 +25,13 @@ function row(partial: Partial<CreativePerformanceRow> & Pick<CreativePerformance
     firstDate: "2026-09-01",
     lastDate: "2026-09-14",
     sizes: [],
-    preview: { status: "none" },
+    adSetId: null,
+    adSetName: null,
+    videoViews: null,
+    videoCompletions: null,
+    previewUrl: null,
+    previewKind: null,
+    viewUrl: null,
     rank: null,
     ...partial,
   }
@@ -69,6 +75,36 @@ describe("TopCreativeStripView", () => {
     expect(html).toContain("1.63% CTR")
     expect(html).toContain('data-creative-preview="none"')
     expect(html).not.toContain("<img")
+    expect(html).toContain("Meta · Players")
+    expect(html).not.toContain("Meta · Meta")
+    expect(html).not.toContain("Meta • Players")
+  })
+
+  it("shows the cached image as a lazy 4:5 thumbnail with the creative name as alt", () => {
+    const html = renderToStaticMarkup(
+      <TopCreativeStripView
+        status="ready"
+        creatives={[
+          { ...players, previewUrl: "/api/creative-previews/meta/players", previewKind: "image" },
+          row({
+            creativeKey: "reel",
+            name: "Video 9:16",
+            impressions: 50000,
+            clicks: 200,
+            format: { kind: "video", aspect: "9:16" },
+            vcr: 0.8,
+            previewUrl: "/api/creative-previews/meta/reel",
+            previewKind: "video",
+          }),
+        ]}
+      />,
+    )
+    expect(html).toContain('src="/api/creative-previews/meta/players"')
+    expect(html).toContain('alt="Image · Players to date"')
+    expect(html).toContain('loading="lazy"')
+    expect(html).toContain("aspect-[4/5]")
+    expect(html).toContain("object-cover")
+    expect(html.match(/data-creative-play="true"/g)?.length).toBe(1)
   })
 
   it("shows a skeleton while loading", () => {
@@ -133,7 +169,9 @@ describe("LineCreativePanelView", () => {
     })
     expect(host.textContent).toContain("Show all 7")
     expect(host.textContent).not.toContain("Ad 7")
-    const button = host.querySelector("button")
+    const button = Array.from(host.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Show all"),
+    )
     await act(async () => {
       button?.click()
     })

@@ -16,6 +16,8 @@ export type CreativeDailyRow = {
   creativeName: string | null
   creativeSize: string | null
   lineItemId: string | null
+  adSetId: string | null
+  adGroupName: string | null
   date: string
   spend: number | null
   impressions: number
@@ -38,6 +40,10 @@ export type CreativePerformanceRow = {
   sizes: string[]
   lineItemId: string | null
   lineLabel: string | null
+  /** V_CREATIVE_PERFORMANCE_DAILY.ad_set_id (Meta ad set, TikTok ad group). Null for CM360. */
+  adSetId: string | null
+  /** V_CREATIVE_PERFORMANCE_DAILY.ad_group_name (CM360: placement). */
+  adSetName: string | null
   format: CreativeFormatHint
   spend: number | null
   impressions: number
@@ -46,10 +52,16 @@ export type CreativePerformanceRow = {
   cpm: number | null
   viewableRate: number | null
   vcr: number | null
+  videoViews: number | null
+  videoCompletions: number | null
   conversions: number | null
   firstDate: string
   lastDate: string
-  preview: { status: "none" }
+  /** `/api/creative-previews/...` when a cached image exists. Never a Blob or platform CDN URL. */
+  previewUrl: string | null
+  previewKind: "image" | "video" | null
+  /** Platform "view the ad" link (Meta shareable link). Never a CDN URL. */
+  viewUrl: string | null
   rank: number | null
 }
 
@@ -126,6 +138,8 @@ export function creativeRowsFromWarehouse(
       creativeName: text(field(row, "creative_name")),
       creativeSize: text(field(row, "creative_size")),
       lineItemId: text(field(row, "line_item_id")),
+      adSetId: text(field(row, "ad_set_id")),
+      adGroupName: text(field(row, "ad_group_name")),
       date,
       spend: num(field(row, "spend")),
       impressions: num(field(row, "impressions")) ?? 0,
@@ -147,6 +161,9 @@ type Acc = {
   sizes: string[]
   lineItemId: string | null
   lineDate: string
+  adSetId: string | null
+  adSetName: string | null
+  adSetDate: string
   spend: number | null
   impressions: number
   clicks: number
@@ -209,6 +226,9 @@ export function groupAndRank(
         sizes: [],
         lineItemId: row.lineItemId,
         lineDate: row.lineItemId ? row.date : "",
+        adSetId: row.adSetId,
+        adSetName: row.adGroupName,
+        adSetDate: row.adSetId || row.adGroupName ? row.date : "",
         spend: row.spend,
         impressions: row.impressions,
         clicks: row.clicks,
@@ -241,6 +261,11 @@ export function groupAndRank(
       acc.lineItemId = row.lineItemId
       acc.lineDate = row.date
     }
+    if ((row.adSetId || row.adGroupName) && row.date >= acc.adSetDate) {
+      acc.adSetId = row.adSetId ?? acc.adSetId
+      acc.adSetName = row.adGroupName ?? acc.adSetName
+      acc.adSetDate = row.date
+    }
   }
 
   const built: CreativePerformanceRow[] = []
@@ -267,6 +292,8 @@ export function groupAndRank(
       sizes,
       lineItemId: acc.lineItemId,
       lineLabel: hint?.label ?? null,
+      adSetId: acc.adSetId,
+      adSetName: acc.adSetName,
       format: formatHint(acc.name, sizeHint || null),
       spend: acc.spend,
       impressions,
@@ -275,10 +302,14 @@ export function groupAndRank(
       cpm,
       viewableRate,
       vcr,
+      videoViews: acc.videoViews,
+      videoCompletions: acc.videoCompletions,
       conversions: acc.conversions,
       firstDate: acc.firstDate,
       lastDate: acc.lastDate,
-      preview: { status: "none" },
+      previewUrl: null,
+      previewKind: null,
+      viewUrl: null,
       rank: null,
     })
   }

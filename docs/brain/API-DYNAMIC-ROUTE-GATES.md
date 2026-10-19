@@ -53,7 +53,7 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `creative-assets/[id]/download` | GET | collection | session + `checkClientMbaAccess` | same | OK |
 | `creative-assets/[id]/preview/[[...path]]` | GET | collection | session + `checkClientMbaAccess` | same | OK |
 | `creative-assets/[id]/frame` | GET | — | — | signed token | N/A |
-| `creative-previews/[platform]/[creativeKey]` | GET | — | — | session + `assertClientAccess` on `creative_preview_cache.client_id` (admin unscoped; client group must hold the id; null client is admin only; non-admin staff 403); 404 with no row or without the `0098`/`0102` markers | OK |
+| `creative-previews/[platform]/[creativeKey]` | GET | — | — | session + `assertStaffOrClientAccess` on `creative_preview_cache.client_id` (any recognised non-client role unscoped, today `admin`; client group must hold the id; null client is staff only; no recognised role 403); 404 with no row or without the `0098`/`0102` markers | OK |
 | `finance/billing/[id]` | PATCH | `finance/billing` | `requireFinanceAdmin` | `requireFinanceAdmin` | OK |
 | `finance/billing/line-items/[id]` | PATCH/DELETE | line-items collection | `requireFinanceAdmin` | `requireFinanceAdmin` | OK |
 | `finance/forecast/snapshots/[id]/lines` | GET | snapshots list | session + admin (inline) | session + admin (inline) | OK |

@@ -14,7 +14,7 @@ export type ServedPreviewRow = {
 export type ServePreviewDeps = {
   gate: () => Promise<PreviewCacheGate>
   readRow: (platform: PreviewPlatform, creativeKey: string) => Promise<ServedPreviewRow | null>
-  /** Admin, or a client user whose client group contains `clientId`. 0 (no client) is admin only. */
+  /** Internal staff, or a client user whose client group contains `clientId`. 0 (no client) is staff only. */
   checkAccess: (clientId: number) => Promise<{ ok: true } | { ok: false; response: Response }>
   getBlob: (pathname: string) => Promise<{ stream: ReadableStream<Uint8Array>; contentType: string | null } | null>
 }

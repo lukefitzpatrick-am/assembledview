@@ -3,7 +3,7 @@ import { describe, it } from "node:test"
 
 import { NextRequest } from "next/server"
 
-import { assertClientAccess, type AssertClientAccessDeps } from "@/lib/auth/assertClientAccess"
+import { assertStaffOrClientAccess, type AssertClientAccessDeps } from "@/lib/auth/assertClientAccess"
 import type { ClientGroup } from "@/lib/clients/clientGroup"
 import { previewCacheGate, PREVIEW_MARKER_0098, PREVIEW_MARKER_0102 } from "@/lib/creative/previews/gate"
 import { PREVIEW_CACHE_CONTROL, servePreviewImage, type ServePreviewDeps, type ServedPreviewRow } from "@/lib/creative/previews/serve"
@@ -39,7 +39,7 @@ function deps(
     blobReads,
     gate: async () => READY,
     readRow: async () => row,
-    checkAccess: (clientId) => assertClientAccess(request, clientId, access),
+    checkAccess: (clientId) => assertStaffOrClientAccess(request, clientId, access),
     getBlob: async (pathname) => {
       blobReads.push(pathname)
       return {
@@ -71,8 +71,29 @@ describe("servePreviewImage", () => {
     assert.deepEqual(d.blobReads, [])
   })
 
-  it("serves an admin any row, including one with no client", async () => {
-    const d = deps({ ...ROW, clientId: null }, accessDeps(["admin"], []))
+  it("serves internal staff any client's row, including one with no client", async () => {
+    for (const clientId of [42, 7, null]) {
+      const d = deps({ ...ROW, clientId }, accessDeps(["admin"], []))
+      const res = await servePreviewImage({ platform: "meta", creativeKey: "1" }, d)
+      assert.equal(res.status, 200, `client ${clientId}`)
+    }
+  })
+
+  it("refuses a signed-in user with no recognised role", async () => {
+    const d = deps(ROW, accessDeps([], [42]))
+    const res = await servePreviewImage({ platform: "meta", creativeKey: "1" }, d)
+    assert.equal(res.status, 403)
+    assert.deepEqual(d.blobReads, [])
+  })
+
+  it("401s with no session", async () => {
+    const d = deps(ROW, { ...accessDeps(["admin"], []), getSession: async () => null })
+    const res = await servePreviewImage({ platform: "meta", creativeKey: "1" }, d)
+    assert.equal(res.status, 401)
+  })
+
+  it("treats a user with both roles as staff", async () => {
+    const d = deps(ROW, accessDeps(["admin", "client"], [7]))
     const res = await servePreviewImage({ platform: "meta", creativeKey: "1" }, d)
     assert.equal(res.status, 200)
   })

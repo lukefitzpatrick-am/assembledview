@@ -14,6 +14,8 @@ function day(partial: Partial<CreativeDailyRow> & Pick<CreativeDailyRow, "creati
     creativeName: null,
     creativeSize: null,
     lineItemId: null,
+    adSetId: null,
+    adGroupName: null,
     spend: null,
     viewableImpressions: null,
     videoViews: null,
@@ -77,7 +79,8 @@ test("golf025 Meta image groups to 202,247 / 3,302 and ranks first on CTR", () =
   assert.equal(ranked[0]?.format.kind, "image")
   assert.equal(ranked[0]?.format.aspect, "1:1")
   assert.equal(ranked[0]?.cpm, (810 / 202247) * 1000)
-  assert.deepEqual(ranked[0]?.preview, { status: "none" })
+  assert.equal(ranked[0]?.previewUrl, null)
+  assert.equal(ranked[0]?.viewUrl, null)
   assert.equal(ranked[0]?.firstDate, "2026-09-01")
   assert.equal(ranked[0]?.lastDate, "2026-09-02")
 
@@ -156,6 +159,30 @@ test("warehouse rows accept uppercase keys and null spend", () => {
   assert.equal(ranked[0]?.format.kind, "carousel")
   assert.equal(ranked[0]?.format.aspect, "4:5")
   assert.equal(ranked[0]?.rank, 1)
+})
+
+test("ad set comes from the latest day that has one", () => {
+  const ranked = groupAndRank(
+    [
+      day({ creativeKey: "ad", date: "2026-09-01", impressions: 10, clicks: 1, adSetId: "old", adGroupName: "Old set" }),
+      day({ creativeKey: "ad", date: "2026-09-03", impressions: 10, clicks: 1, adSetId: "new", adGroupName: "New set" }),
+      day({ creativeKey: "ad", date: "2026-09-04", impressions: 10, clicks: 1, videoViews: 5, videoCompletions: 2 }),
+    ],
+    new Map(),
+    "impressions",
+  )
+  assert.equal(ranked[0]?.adSetId, "new")
+  assert.equal(ranked[0]?.adSetName, "New set")
+  assert.equal(ranked[0]?.videoViews, 5)
+  assert.equal(ranked[0]?.videoCompletions, 2)
+})
+
+test("warehouse ad_set_id and ad_group_name map to the daily row", () => {
+  const [row] = creativeRowsFromWarehouse([
+    { PLATFORM: "meta", CREATIVE_KEY: "a", DATE: "2026-09-01", IMPRESSIONS: 1, CLICKS: 0, AD_SET_ID: "238", AD_GROUP_NAME: "Avid Golfers" },
+  ])
+  assert.equal(row?.adSetId, "238")
+  assert.equal(row?.adGroupName, "Avid Golfers")
 })
 
 test("format hint reads a pixel size when no ratio is written", () => {

@@ -13,9 +13,11 @@ import {
 
 import { CreativeFormatThumb } from "./CreativeFormatThumb"
 import { useLineCreatives } from "./CreativePerformanceProvider"
+import { CreativePreviewSheet } from "./CreativePreviewSheet"
 
 export function LineCreativePanelView({ rows }: { rows: CreativePerformanceRow[] }) {
   const [expanded, setExpanded] = useState(false)
+  const [selected, setSelected] = useState<CreativePerformanceRow | null>(null)
   if (rows.length === 0) return null
   const visible = lineCreativeSlice(rows, expanded)
   const showAll = showAllCreativeLabel(rows.length, expanded)
@@ -23,15 +25,31 @@ export function LineCreativePanelView({ rows }: { rows: CreativePerformanceRow[]
   return (
     <div className="rounded-card border border-border bg-card p-3" data-creative-line="open">
       <h4 className="text-sm font-semibold text-foreground">Creative in this line</h4>
-      <ul className="mt-3 space-y-3">
+      <ul className="mt-3 space-y-1">
         {visible.map((row) => {
           const name = row.name?.trim() || "Untitled ad"
           return (
-            <li key={`${row.platform}-${row.creativeKey}`} className="flex items-center gap-3">
-              <CreativeFormatThumb format={row.format} preview={row.preview} size="row" name={name} />
+            <li
+              key={`${row.platform}-${row.creativeKey}`}
+              className="interactive-row relative -mx-1 flex cursor-pointer items-center gap-3 rounded-input px-1 py-1 focus-within:ring-2 focus-within:ring-ring"
+            >
+              <CreativeFormatThumb
+                format={row.format}
+                previewUrl={row.previewUrl}
+                previewKind={row.previewKind}
+                size="row"
+                name={name}
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-foreground" title={name}>
-                  {name}
+                  <button
+                    type="button"
+                    onClick={() => setSelected(row)}
+                    aria-haspopup="dialog"
+                    className="block w-full truncate text-left after:absolute after:inset-0 after:rounded-input after:content-[''] focus-visible:outline-none"
+                  >
+                    {name}
+                  </button>
                 </p>
                 {row.sizes.length > 0 ? (
                   <p className="truncate text-xs text-muted-foreground" title={row.sizes.join(", ")}>
@@ -56,6 +74,7 @@ export function LineCreativePanelView({ rows }: { rows: CreativePerformanceRow[]
           {showAll}
         </Button>
       ) : null}
+      <CreativePreviewSheet creative={selected} onClose={() => setSelected(null)} />
     </div>
   )
 }

@@ -1,11 +1,13 @@
 "use client"
 
+import { useState } from "react"
+
 import { Section } from "@/components/layout/Section"
 import { ErrorState } from "@/components/ui/states"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { CreativePerformanceRow } from "@/lib/creative/performance/metrics"
 import {
-  platformLabel,
+  creativeSubtitle,
   platformWindowNote,
   selectTopCreatives,
   topCreativeMetricLine,
@@ -14,23 +16,43 @@ import {
 
 import { CreativeFormatThumb } from "./CreativeFormatThumb"
 import { useCreativePerformance, type CreativeLoadStatus } from "./CreativePerformanceProvider"
+import { CreativePreviewSheet } from "./CreativePreviewSheet"
 
-function CreativeCard({ pick }: { pick: TopCreativePick }) {
+function CreativeCard({
+  pick,
+  onOpen,
+}: {
+  pick: TopCreativePick
+  onOpen: (row: CreativePerformanceRow) => void
+}) {
   const { headline, supports } = topCreativeMetricLine(pick)
   const row = pick.creative
   const name = row.name?.trim() || "Untitled ad"
-  const where = [platformLabel(row.platform), row.lineLabel].filter(Boolean).join(" · ")
+  const where = creativeSubtitle(row)
   return (
     <article
-      className="flex flex-col gap-3 rounded-card border border-border bg-card p-4 shadow-e1"
+      className="interactive relative flex cursor-pointer flex-col gap-3 rounded-card border border-border bg-card p-4 shadow-e1 focus-within:ring-2 focus-within:ring-ring"
       data-creative-key={row.creativeKey}
       data-creative-reason={pick.reason}
     >
-      <CreativeFormatThumb format={row.format} preview={row.preview} size="card" name={name} />
+      <CreativeFormatThumb
+        format={row.format}
+        previewUrl={row.previewUrl}
+        previewKind={row.previewKind}
+        size="card"
+        name={name}
+      />
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground">{pick.reason}</p>
         <h3 className="mt-1 truncate text-sm font-semibold text-foreground" title={name}>
-          {name}
+          <button
+            type="button"
+            onClick={() => onOpen(row)}
+            aria-haspopup="dialog"
+            className="block w-full truncate text-left after:absolute after:inset-0 after:rounded-card after:content-[''] focus-visible:outline-none"
+          >
+            {name}
+          </button>
         </h3>
         <p className="truncate text-sm text-muted-foreground">{where}</p>
         <p className="mt-2 text-sm text-foreground">
@@ -56,6 +78,7 @@ export function TopCreativeStripView({
   creatives: CreativePerformanceRow[]
   onRetry?: () => void
 }) {
+  const [selected, setSelected] = useState<CreativePerformanceRow | null>(null)
   if (status === "off") return null
   const picks = status === "ready" ? selectTopCreatives(creatives) : []
   const windows = status === "ready" ? platformWindowNote(creatives) : ""
@@ -96,10 +119,15 @@ export function TopCreativeStripView({
         {status === "ready" && picks.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-3">
             {picks.map((pick) => (
-              <CreativeCard key={`${pick.reason}-${pick.creative.platform}-${pick.creative.creativeKey}`} pick={pick} />
+              <CreativeCard
+                key={`${pick.reason}-${pick.creative.platform}-${pick.creative.creativeKey}`}
+                pick={pick}
+                onOpen={setSelected}
+              />
             ))}
           </div>
         ) : null}
+        <CreativePreviewSheet creative={selected} onClose={() => setSelected(null)} />
       </div>
     </Section>
   )

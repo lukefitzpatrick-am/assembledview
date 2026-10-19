@@ -1,5 +1,5 @@
 import { formatDateShort } from "@/lib/format/date"
-import { formatPercent, formatMoneyCompact } from "@/lib/format/money"
+import { formatMoney, formatPercent, formatMoneyCompact, roundMoney2 } from "@/lib/format/money"
 
 import type { CreativePerformanceRow } from "./metrics"
 
@@ -31,6 +31,140 @@ export function platformLabel(platform: string): string {
 
 export function isCm360(platform: string): boolean {
   return platform.trim().toLowerCase() === "cm360"
+}
+
+const LABEL_SEPARATOR = /\s+[•·]\s+/
+
+/** "Meta · Avid Golfers — …". The plan line label already leads with the platform, so it is not repeated. */
+export function creativeSubtitle(row: Pick<CreativePerformanceRow, "platform" | "lineLabel">): string {
+  const platform = platformLabel(row.platform)
+  const label = row.lineLabel?.trim() ?? ""
+  if (!label) return platform
+  const parts = label.split(LABEL_SEPARATOR)
+  const rest =
+    parts.length > 1 && parts[0]!.trim().toLowerCase() === platform.toLowerCase()
+      ? parts.slice(1).join(" · ")
+      : parts.join(" · ")
+  return rest ? `${platform} · ${rest}` : platform
+}
+
+export function adSetNoun(platform: string): string {
+  const key = platform.trim().toLowerCase()
+  if (key === "meta") return "Ad set"
+  if (key === "cm360") return "Placement"
+  return "Ad group"
+}
+
+export type CreativeFact = { label: string; value: string }
+
+function wholeNumber(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "—"
+  return Math.round(value).toLocaleString("en-AU")
+}
+
+export function creativeCpc(row: Pick<CreativePerformanceRow, "spend" | "clicks">): number | null {
+  if (row.spend == null || !(row.clicks > 0)) return null
+  return row.spend / row.clicks
+}
+
+/** Figures for the preview panel. Video views and completions only when the platform reports them. */
+export function creativeFacts(row: CreativePerformanceRow): CreativeFact[] {
+  const cpc = creativeCpc(row)
+  const facts: CreativeFact[] = [
+    { label: "Spend", value: row.spend == null ? "—" : formatMoney(row.spend) },
+    { label: "Impressions", value: wholeNumber(row.impressions) },
+    { label: "Clicks", value: wholeNumber(row.clicks) },
+    {
+      label: "CTR",
+      value: row.ctr == null ? "—" : formatPercent(row.ctr * 100, { decimals: 2 }),
+    },
+    { label: "CPC", value: cpc == null ? "—" : formatMoney(cpc) },
+  ]
+  if (row.videoViews != null) facts.push({ label: "Video views", value: wholeNumber(row.videoViews) })
+  if (row.videoCompletions != null) {
+    facts.push({ label: "Video completions", value: wholeNumber(row.videoCompletions) })
+  }
+  return facts
+}
+
+export type AdSetTotals = { id?: string; name: string; spend?: number; impressions?: number; clicks?: number }
+
+export type AdSetCreativeGroup = {
+  creatives: CreativePerformanceRow[]
+  /** Ad set row minus its creatives, when they do not add up. */
+  unattributed: { spend: number; impressions: number; clicks: number } | null
+}
+
+function matchKey(value: string | null | undefined): string {
+  return String(value ?? "").trim().toLowerCase()
+}
+
+/**
+ * Creatives under each ad set row, by spend. Matched on ad set id, else on
+ * ad_group_name. A creative belongs to one ad set at most. The difference
+ * between the ad set row and its creatives (money via roundMoney2) becomes the
+ * unattributed line; within a cent and with equal counts there is none.
+ */
+export function creativesByAdSet(
+  adSets: AdSetTotals[],
+  creatives: CreativePerformanceRow[],
+): Map<string, AdSetCreativeGroup> {
+  const keyOf = (row: AdSetTotals) => matchKey(row.id) || matchKey(row.name)
+  const byId = new Map<string, string>()
+  const byName = new Map<string, string>()
+  for (const row of adSets) {
+    const key = keyOf(row)
+    if (!key) continue
+    const id = matchKey(row.id)
+    if (id && !byId.has(id)) byId.set(id, key)
+    const name = matchKey(row.name)
+    if (name && !byName.has(name)) byName.set(name, key)
+  }
+
+  const grouped = new Map<string, CreativePerformanceRow[]>()
+  for (const creative of creatives) {
+    const key = byId.get(matchKey(creative.adSetId)) ?? byName.get(matchKey(creative.adSetName))
+    if (!key) continue
+    const list = grouped.get(key) ?? []
+    list.push(creative)
+    grouped.set(key, list)
+  }
+
+  const out = new Map<string, AdSetCreativeGroup>()
+  for (const row of adSets) {
+    const key = keyOf(row)
+    if (!key || out.has(key)) continue
+    const list = (grouped.get(key) ?? []).toSorted(
+      (a, b) => (b.spend ?? 0) - (a.spend ?? 0) || byImpressions(a, b),
+    )
+    if (list.length === 0) {
+      out.set(key, { creatives: [], unattributed: null })
+      continue
+    }
+    let spend = 0
+    let impressions = 0
+    let clicks = 0
+    for (const creative of list) {
+      spend += creative.spend ?? 0
+      impressions += creative.impressions
+      clicks += creative.clicks
+    }
+    const spendGap = roundMoney2((row.spend ?? 0) - spend)
+    const impressionGap = Math.round((row.impressions ?? 0) - impressions)
+    const clickGap = Math.round((row.clicks ?? 0) - clicks)
+    out.set(key, {
+      creatives: list,
+      unattributed:
+        spendGap !== 0 || impressionGap !== 0 || clickGap !== 0
+          ? { spend: spendGap, impressions: impressionGap, clicks: clickGap }
+          : null,
+    })
+  }
+  return out
+}
+
+export function adSetGroupKey(row: AdSetTotals): string {
+  return matchKey(row.id) || matchKey(row.name)
 }
 
 function byImpressions(a: CreativePerformanceRow, b: CreativePerformanceRow): number {
