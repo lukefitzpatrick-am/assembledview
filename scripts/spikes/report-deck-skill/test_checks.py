@@ -861,6 +861,129 @@ def test_recommendations_without_outcome_fail():
         fail(f"outcome error should name the slide and field: {outcome[0]}")
 
 
+def detail_payload():
+    return {
+        "channels": [
+            {"group": "social_meta", "label": "Social (Meta)", "notLive": False},
+            {"group": "digital_display", "label": "Digital Display", "notLive": False},
+            {"group": "social_tiktok", "label": "Social (TikTok)", "notLive": True},
+        ],
+        "detail": [
+            {
+                "group": "social_meta",
+                "label": "Social (Meta)",
+                "level": "ad_group",
+                "note": "Prospecting leads this table.",
+                "rows": [{
+                    "name": "Prospecting",
+                    "spend": "$12.00",
+                    "impressions": "100",
+                    "clicks": "5",
+                    "results": "2",
+                    "ctr": "5.00%",
+                }],
+            },
+            {
+                "group": "digital_display",
+                "label": "Digital Display",
+                "level": "ad_group",
+                "note": "Placements ranked by impressions. Spend is reported at line level.",
+                "rows": [{
+                    "name": "NewsCorp-Video",
+                    "impressions": "249,317",
+                    "clicks": "40",
+                    "results": "Not yet reported",
+                    "ctr": "0.02%",
+                }],
+            },
+        ],
+    }
+
+
+def shape_bottom(shape):
+    return (shape.top + shape.height) / 914400
+
+
+def test_detail_table_slide():
+    os.makedirs(OUT, exist_ok=True)
+    build = load("build_report.py")
+    check = load("check_deck.py")
+    data = detail_payload()
+    content = {"slides": [
+        {
+            "type": "detail",
+            "variant": "table",
+            "title": "Meta ad sets {i:\"lead\"} the spend.",
+            "detail": "detail.0",
+            "insight": "Prospecting leads the spend.",
+        },
+        {
+            "type": "detail",
+            "variant": "table",
+            "title": "Display placements are {i:\"ranked\"}.",
+            "detail": "detail.1",
+            "insight": "NewsCorp leads the placements.",
+        },
+    ]}
+    data_path = os.path.join(OUT, "detail-payload.json")
+    out = os.path.join(OUT, "detail-slide.pptx")
+    with open(data_path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle)
+    build.build(content, data, TEMPLATE, out, photos())
+    issues = check.check(out, data_path)
+    if issues:
+        fail(f"detail slides did not open clean: {issues}")
+    from pptx import Presentation
+    deck = Presentation(out)
+    expected = (
+        ["Ad set", "Spend", "Impressions", "Clicks", "CTR", "Results"],
+        ["Placement", "Impressions", "Clicks", "CTR"],
+    )
+    for number, slide in enumerate(deck.slides, 1):
+        named = {shape.name: shape for shape in slide.shapes}
+        table = next((shape for shape in slide.shapes if getattr(shape, "has_table", False)), None)
+        note = named.get(f"slides.{number - 1}.note")
+        insight = named.get(f"slides.{number - 1}.insight")
+        if table is None or note is None or insight is None:
+            fail(f"slide {number} is missing the table, note or insight")
+        header = [cell.text for cell in table.table.rows[0].cells]
+        if header != expected[number - 1]:
+            fail(f"slide {number} columns were {header}")
+        for shape in (table, note, insight):
+            bottom = shape_bottom(shape)
+            if bottom > 6.7:
+                fail(f"slide {number} {shape.name} ends at {bottom:.2f}, past 6.7")
+        if abs(table.table.rows[0].height / 914400 - 0.42) > 0.01:
+            fail("detail table row height is not 0.42")
+    first = next(shape for shape in deck.slides[0].shapes if getattr(shape, "has_table", False))
+    if first.table.rows[1].cells[1].text != "$12.00":
+        fail(f"spend cell was {first.table.rows[1].cells[1].text}")
+    missing = {"slides": [{
+        "type": "detail",
+        "variant": "table",
+        "title": "This key is {i:\"missing\"}.",
+        "detail": "detail.9",
+        "insight": "The table is not in the payload.",
+    }]}
+    errors = build.validate_content(missing, data)
+    if len(errors) != 1 or "\n" in errors[0] or not errors[0].startswith("slides.0.detail:"):
+        fail(f"missing detail key should be one line naming the field: {errors}")
+    if "rows" not in errors[0] or "detail." not in errors[0]:
+        fail(f"missing detail key should name the fix: {errors[0]}")
+    parked = {"slides": [{
+        "type": "detail",
+        "variant": "table",
+        "title": "TikTok is {i:\"not live\"}.",
+        "detail": "detail.0",
+        "insight": "This group is not live.",
+    }]}
+    parked_data = detail_payload()
+    parked_data["detail"][0]["group"] = "social_tiktok"
+    parked_errors = build.validate_content(parked, parked_data)
+    if len(parked_errors) != 1 or not parked_errors[0].startswith("slides.0.detail:"):
+        fail(f"a detail group that is not live should be one field error: {parked_errors}")
+
+
 def test_conversion_rate_note():
     os.makedirs(OUT, exist_ok=True)
     build = load("build_report.py")
@@ -910,6 +1033,7 @@ def main():
     test_channel_chart_renders_four_fixed_stats()
     test_recommendations_without_outcome_fail()
     test_conversion_rate_note()
+    test_detail_table_slide()
     print("tests OK")
 
 

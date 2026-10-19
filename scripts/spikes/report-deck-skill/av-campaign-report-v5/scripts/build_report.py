@@ -1176,6 +1176,101 @@ def build_iao(deck, spec, index):
     return slide
 
 
+CM360_GROUPS = {"digital_display", "digital_video", "digital_audio", "bvod"}
+AD_SET_GROUPS = {"social_meta", "social_tiktok"}
+DETAIL_TOP = 2.15
+DETAIL_ROW_H = 0.42
+DETAIL_NOTE_BLOCK = 0.28
+
+
+def reported_value(value):
+    if value is None:
+        return False
+    return str(value).strip() not in ("", "Not yet reported")
+
+
+def detail_cell(value):
+    if not reported_value(value):
+        return "Not yet reported"
+    return str(value)
+
+
+def detail_name_header(entry, has_spend):
+    group = entry.get("group") if isinstance(entry.get("group"), str) else ""
+    level = entry.get("level")
+    if group in CM360_GROUPS and not has_spend:
+        return "Placement"
+    if group in AD_SET_GROUPS and level == "ad_group":
+        return "Ad set"
+    if level == "ad_group":
+        return "Ad group"
+    return "Line item"
+
+
+def detail_columns(entry, rows):
+    has_spend = any(isinstance(row, dict) and "spend" in row for row in rows)
+    fields = ["name"]
+    headers = [detail_name_header(entry, has_spend)]
+    if has_spend:
+        fields.append("spend")
+        headers.append("Spend")
+    fields.extend(["impressions", "clicks", "ctr"])
+    headers.extend(["Impressions", "Clicks", "CTR"])
+    if has_spend and any(isinstance(row, dict) and reported_value(row.get("results")) for row in rows):
+        fields.append("results")
+        headers.append("Results")
+    return headers, fields
+
+
+def detail_row_height(row_count, has_note):
+    note = DETAIL_NOTE_BLOCK if has_note else 0
+    room = CONTENT_FLOOR - DETAIL_TOP - note - INSIGHT_GAP - 0.9
+    natural = DETAIL_ROW_H * row_count
+    if row_count <= 0 or natural <= room:
+        return DETAIL_ROW_H
+    return room / row_count
+
+
+def build_detail(deck, spec, index):
+    path = f"slides.{index}"
+    variant(spec, path, ("table",))
+    pointer = require(spec, "detail", f"{path}.detail")
+    entry = lookup(DATA, pointer) if isinstance(pointer, str) else None
+    rows = entry.get("rows") if isinstance(entry, dict) else None
+    if not isinstance(entry, dict) or not isinstance(rows, list) or not rows:
+        fail(f"{path}.detail", "detail must resolve to an entry with rows. Point detail at a detail.<i> key.")
+    slide = deck.add("Title Only - White")
+    put_title(deck, slide, 100, spec, f"{path}.title")
+    headers, fields = detail_columns(entry, rows)
+    table_rows = [headers]
+    for row_index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            fail(f"{path}.detail", "each row is an object")
+        table_rows.append([detail_cell(row.get(field)) for field in fields])
+    note = entry.get("note")
+    has_note = isinstance(note, str) and note.strip() != ""
+    row_h = detail_row_height(len(table_rows), has_note)
+    name_share = 6.05
+    other_count = max(len(headers) - 1, 1)
+    other_share = (12.13 - name_share) / other_count
+    widths = [name_share] + [other_share] * (len(headers) - 1)
+    grid = table(
+        slide, 0.6, DETAIL_TOP, 12.13, table_rows,
+        widths=widths, size=12, head=True, first_bold=True, row_h=row_h,
+    )
+    grid.name = f"{path}.table"
+    line(slide, 0.6, 2.05, 2.2, K["forest"], 2.5)
+    above = DETAIL_TOP + row_h * len(table_rows)
+    if has_note:
+        say(slide, 0.6, above + 0.06, 12.13, 0.22, note, f"{path}.note", size=9, color=K["muted"])
+        above += DETAIL_NOTE_BLOCK
+    insight = text_of(require(spec, "insight", f"{path}.insight"), f"{path}.insight", 160)
+    room = CONTENT_FLOOR - above - INSIGHT_GAP
+    height = min(fitted_copy_height(insight, 10.1, 15), room)
+    insight_card(slide, path, spec, above, height)
+    return slide
+
+
 def build_appendix(deck, spec, index):
     path = f"slides.{index}"
     if spec.get("variant") not in (None, "table"):
@@ -1348,6 +1443,7 @@ BUILDERS = {
     "kpi": build_kpi,
     "iao": build_iao,
     "recommendations": build_recommendations,
+    "detail": build_detail,
     "appendix": build_appendix,
     "close": build_close,
 }
@@ -1713,6 +1809,33 @@ def validate_content(content, data=None):
                         continue
                     for cell_index, cell in enumerate(row):
                         key(cell, f"{path}.rows.{row_index}.{cell_index}")
+            prose(spec.get("insight"), f"{path}.insight", 160)
+        elif kind == "detail":
+            variant_name(spec, path, ("table",))
+            pointer = spec.get("detail")
+            pointer_ok = isinstance(pointer, str) and KEY_RE.fullmatch(pointer) is not None
+            key(pointer, f"{path}.detail")
+            entry = lookup(data, pointer) if pointer_ok else None
+            rows = entry.get("rows") if isinstance(entry, dict) else None
+            if pointer_ok and (not isinstance(entry, dict) or not isinstance(rows, list) or not rows):
+                bad(f"{path}.detail", "detail must resolve to an entry with rows. Point detail at a detail.<i> key.")
+            elif pointer_ok:
+                group = entry.get("group")
+                live = set()
+                channels = data.get("channels") if isinstance(data, dict) else None
+                if isinstance(channels, list):
+                    for channel in channels:
+                        if not isinstance(channel, dict) or channel.get("notLive") is True:
+                            continue
+                        name = channel.get("group")
+                        if isinstance(name, str) and name not in ("assumed_spend", "plan_only"):
+                            live.add(name)
+                if not isinstance(group, str) or group not in live:
+                    shown = group if isinstance(group, str) else "missing"
+                    bad(
+                        f"{path}.detail",
+                        f"group {shown} is not a live channel. Point detail at an entry whose group matches a live channel.",
+                    )
             prose(spec.get("insight"), f"{path}.insight", 160)
         elif kind == "breaker":
             variant_name(spec, path, ("black",))
