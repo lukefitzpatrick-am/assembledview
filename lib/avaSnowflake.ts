@@ -24,7 +24,10 @@ type AvaSnowflakeFacts = {
 }
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000
-const MAX_RANGE_DAYS = 180
+// 400 days, the same as pacing-service, search-pacing-service and pacing-fact.
+// This module has no importers today; Ava reads delivery through
+// get_delivery_snapshot (loadDeliverySnapshot), which is already on 400.
+const MAX_RANGE_DAYS = 400
 
 const cache = new Map<string, { expiresAt: number; value: string }>()
 
