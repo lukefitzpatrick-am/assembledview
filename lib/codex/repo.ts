@@ -701,20 +701,22 @@ export async function countTasksByStatus(
   database: Db = db
 ): Promise<TaskStatusCounts> {
   const where = taskListWhere(filters)
-  const bucket = sql<string>`case when ${tasks.status} in (${knownStatusSqlList()}) then ${tasks.status} else 'todo' end`
+  // Group by the raw column and fold unknown statuses into `todo` here.
+  // A parameterised CASE in both SELECT and GROUP BY fails in Postgres (42803):
+  // the two copies get different $n placeholders, so they are not the same expression.
   const rows = await database
     .select({
-      status: bucket,
+      status: tasks.status,
       c: count(),
     })
     .from(tasks)
     .where(where)
-    .groupBy(bucket)
+    .groupBy(tasks.status)
 
   const counts = emptyStatusCounts()
   for (const row of rows) {
-    const key = String(row.status ?? "")
-    if (!isTaskStatus(key)) continue
+    const raw = String(row.status ?? "")
+    const key = isTaskStatus(raw) ? raw : "todo"
     counts[key] += Number(row.c ?? 0)
   }
   return counts
