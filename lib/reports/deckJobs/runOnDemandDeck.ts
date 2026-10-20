@@ -26,6 +26,7 @@ import {
   type DeckSkillDeps,
   type DeckSkillInput,
 } from "@/lib/reports/deckSkill/runDeckSkill"
+import { loadDeckCreatives } from "@/lib/reports/deckCreative/loadDeckCreatives"
 import { storePerformanceReport } from "@/lib/reports/storePerformanceReport"
 
 type LoadedForSkill = {
@@ -39,6 +40,7 @@ export type BuildDeckForRunDeps = {
   loadReport?: (input: GenerateCampaignReportInput) => Promise<LoadedForSkill>
   runSkill?: (input: DeckSkillInput, skillDeps?: DeckSkillDeps) => Promise<{ buffer: Buffer; fileName: string }>
   skill?: DeckSkillDeps
+  loadCreatives?: typeof loadDeckCreatives
 }
 
 function fallbackReason(err: unknown): string {
@@ -92,8 +94,15 @@ export async function buildDeckForRun(
     loaded = await load({ ...onDemandGenerateInput(run), withCommentary: false })
     if (loaded.skipped) throw new Error(loaded.skipped)
     const runSkill = deps?.runSkill ?? runDeckSkill
+    // Creative slides: top creatives with thumbnails. A failure here only drops those slides.
+    const loadCreatives = deps?.loadCreatives ?? loadDeckCreatives
+    const creative = await loadCreatives({ mbaNumber: run.mbaNumber, from: run.periodStart, to: run.periodEnd })
+    const report =
+      creative && loaded.report && typeof loaded.report === "object"
+        ? { ...(loaded.report as Record<string, unknown>), creatives: creative.creatives }
+        : loaded.report
     const built = await runSkill(
-      { mbaNumber: run.mbaNumber, report: loaded.report, fileName: loaded.fileName },
+      { mbaNumber: run.mbaNumber, report, fileName: loaded.fileName, creativeFiles: creative?.files ?? [] },
       deps?.skill,
     )
     return { buffer: built.buffer, fileName: built.fileName }

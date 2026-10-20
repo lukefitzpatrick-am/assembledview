@@ -266,6 +266,48 @@ function formatDetailRow(value: unknown): JsonRecord[] {
   return [row]
 }
 
+function formatCreativeRow(value: unknown): JsonRecord[] {
+  if (!isRecord(value)) return []
+  const text = (field: unknown) => (typeof field === "string" && field.trim() ? field.trim() : null)
+  const impressions = finiteNumber(value.impressions)
+  const clicks = finiteNumber(value.clicks)
+  const ctr = finiteNumber(value.ctr)
+  const spend = finiteNumber(value.spend)
+  const row: JsonRecord = {
+    name: text(value.name) ?? "Untitled ad",
+    platform: text(value.platform) ?? "",
+    adSet: text(value.adSet),
+    kind: value.kind === "video" || value.kind === "image" ? value.kind : null,
+    imageFile: text(value.imageFile),
+    viewUrl: text(value.viewUrl),
+  }
+  if (spend != null) row.spend = formatDeckMoney(spend)
+  row.impressions = impressions == null ? "Not yet reported" : formatDeckCount(impressions)
+  row.clicks = clicks == null ? "Not yet reported" : formatDeckCount(clicks)
+  row.ctr = ctr == null ? "Not yet reported" : formatDeckPercent(ctr)
+  return [row]
+}
+
+/** report.creatives (lib/reports/deckCreative) as formatted strings; null when there are none. */
+export function formatDeckCreatives(value: unknown): JsonRecord | null {
+  if (!isRecord(value)) return null
+  const campaign = Array.isArray(value.campaign) ? value.campaign.flatMap(formatCreativeRow) : []
+  if (campaign.length === 0) return null
+  const lines = Array.isArray(value.lines)
+    ? value.lines.flatMap((line) => {
+        if (!isRecord(line) || !Array.isArray(line.rows)) return []
+        const rows = line.rows.flatMap(formatCreativeRow)
+        if (rows.length === 0) return []
+        return [{
+          lineItemId: typeof line.lineItemId === "string" ? line.lineItemId : "",
+          label: typeof line.label === "string" ? line.label : "",
+          rows,
+        }]
+      })
+    : []
+  return { campaign: { label: "Top creative", rows: campaign }, lines }
+}
+
 export function slimDeckPayload(report: unknown): JsonRecord {
   if (!isRecord(report)) throw new Error("assembled report data is not an object")
   const channels = Array.isArray(report.channels) ? report.channels.map(slimChannel) : []
@@ -295,6 +337,8 @@ export function slimDeckPayload(report: unknown): JsonRecord {
   if (Array.isArray(report.charts)) formatted.charts = report.charts
   formatted.detailLevel = typeof report.detailLevel === "string" && report.detailLevel ? report.detailLevel : "channel"
   formatted.detail = formatDeckDetail(report.detail)
+  const creatives = formatDeckCreatives(report.creatives)
+  if (creatives) formatted.creatives = creatives
   const bytes = Buffer.byteLength(JSON.stringify(formatted))
   if (bytes > MAX_BYTES) {
     throw new Error(`slim deck payload is ${bytes} bytes, over the ${MAX_BYTES} byte cap`)

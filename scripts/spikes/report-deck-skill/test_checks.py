@@ -1013,6 +1013,74 @@ def test_conversion_rate_note():
         fail(f"conversion note slide did not open clean: {issues}")
 
 
+def test_creative_slide():
+    import shutil
+    import tempfile
+    build = load("build_report.py")
+    check = load("check_deck.py")
+    photos = [
+        os.path.join(HERE, "kit", "assembled-brand-kit", "library", name)
+        for name in ("pexels-6299928.jpg", "pexels-6786367.jpg", "pexels-13935909.jpg")
+    ]
+    with open(DATA, encoding="utf-8") as handle:
+        data = json.load(handle)
+    work = tempfile.mkdtemp()
+    shutil.copy(photos[0], os.path.join(work, "creative-1.jpg"))
+    shutil.copy(photos[1], os.path.join(work, "creative-2.jpg"))
+    row = {"platform": "Meta", "adSet": "Avid Golfers - Handicap custom audiences + previous purchaser lookalike 2026",
+           "spend": "$1,512.33", "impressions": "202,247", "clicks": "3,297", "ctr": "1.63%"}
+    data["creatives"] = {
+        "campaign": {"label": "Top creative", "rows": [
+            dict(row, name="Image-PlayersToDate-290726", kind="image", imageFile="creative-1.jpg",
+                 viewUrl="https://fb.me/abc123"),
+            dict(row, name="Image-Rory_V2-13042026 with a very long name that keeps going past the card", kind="image",
+                 imageFile="creative-2.jpg", viewUrl=None),
+            {"name": "PGA 30s video", "platform": "CM360", "adSet": None, "kind": "video", "imageFile": None,
+             "viewUrl": "https://gcdn.2mdn.net/videoplayback/id/1/file.mp4",
+             "impressions": "55,883", "clicks": "Not yet reported", "ctr": "Not yet reported"},
+        ]},
+        "lines": [],
+    }
+    data_path = os.path.join(work, "report-data.json")
+    with open(data_path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle)
+    build.DATA_DIR = work
+    slide = {
+        "type": "creative",
+        "variant": "grid",
+        "title": "The ads doing the {i:\"work\"}.",
+        "creatives": "creatives.campaign",
+        "insight": ["The top ad ran at ", {"k": "creatives.campaign.rows.0.ctr"}, " CTR."],
+    }
+    content = {"slides": [slide]}
+    errors = build.validate_content(content, data)
+    if errors:
+        fail(f"creative validate failed: {errors}")
+    bad = build.validate_content({"slides": [dict(slide, creatives="detail.0")]}, data)
+    if not any("creatives" in error for error in bad):
+        fail(f"creative pointer outside creatives should fail: {bad}")
+    out = os.path.join(OUT, "creative-slide.pptx")
+    build.build(content, data, TEMPLATE, out, photos)
+    issues = check.check(out, data_path)
+    if issues:
+        fail(f"creative slide check failed: {issues}")
+    from pptx import Presentation
+    deck = Presentation(out)
+    shapes = list(deck.slides[0].shapes)
+    pictures = [shape for shape in shapes if shape.shape_type == 13]
+    if len(pictures) != 2:
+        fail(f"expected 2 creative pictures, got {len(pictures)}")
+    links = [
+        run.hyperlink.address
+        for shape in shapes if shape.has_text_frame
+        for paragraph in shape.text_frame.paragraphs for run in paragraph.runs
+        if run.hyperlink.address
+    ]
+    if "https://fb.me/abc123" not in links or not any("gcdn.2mdn.net" in link for link in links):
+        fail(f"expected View ad links, got {links}")
+    shutil.rmtree(work, ignore_errors=True)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     test_missing_key()
@@ -1034,6 +1102,7 @@ def main():
     test_recommendations_without_outcome_fail()
     test_conversion_rate_note()
     test_detail_table_slide()
+    test_creative_slide()
     print("tests OK")
 
 

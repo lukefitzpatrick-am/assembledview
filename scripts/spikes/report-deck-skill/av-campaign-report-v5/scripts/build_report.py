@@ -14,12 +14,16 @@ from pptx.enum.text import MSO_ANCHOR
 from pptx.oxml.ns import qn
 from pptx.util import Inches
 from lxml import etree
+from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from am_rebrand import (  # noqa: E402
     BODY, HEAD, K, Deck, I, Run,
-    arch, btn, card, journey, line, numdot, pill, table, tag, tb, trio,
+    arch, btn, card, journey, label_text, line, numdot, pill, table, tag, tb, trio,
 )
+
+# Folder holding report-data.json; creative thumbnails (creative-<n>.jpg) sit beside it.
+DATA_DIR = "."
 
 KEY_RE = re.compile(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+")
 SERIF_RE = re.compile(r"\{i:\"([^\"]*)\"\}")
@@ -1271,6 +1275,99 @@ def build_detail(deck, spec, index):
     return slide
 
 
+CREATIVE_TOP = 2.15
+CREATIVE_CARD_H = 3.35
+CREATIVE_GAP = 0.3
+CREATIVE_MAX = 3
+CREATIVE_FILE_RE = re.compile(r"creative-\d+\.jpg")
+
+
+def clip_at_break(text, limit):
+    """Shorten at a space, dash or underscore so no number is cut in half."""
+    text = str(text or "").strip()
+    if len(text) <= limit:
+        return text
+    cut = max(text.rfind(sep, 0, limit - 1) for sep in (" ", "-", "_", "|"))
+    if cut < limit // 2:
+        cut = limit - 1
+        while cut > 0 and text[cut - 1].isdigit():
+            cut -= 1
+    return text[:cut].rstrip(" -_|") + "…"
+
+
+def creative_entry(data, pointer, path):
+    entry = lookup(data, pointer) if isinstance(pointer, str) else None
+    rows = entry.get("rows") if isinstance(entry, dict) else None
+    if not isinstance(entry, dict) or not isinstance(rows, list) or not rows:
+        fail(path, "creatives must resolve to an entry with rows. Use creatives.campaign or creatives.lines.<i>.")
+    return entry, rows
+
+
+def creative_image_path(row):
+    name = row.get("imageFile") if isinstance(row, dict) else None
+    if not isinstance(name, str) or not CREATIVE_FILE_RE.fullmatch(name):
+        return None
+    path = os.path.join(DATA_DIR, name)
+    return path if os.path.isfile(path) else None
+
+
+def creative_card(slide, x, y, w, row, path):
+    card(slide, x, y, w, CREATIVE_CARD_H, K["sand"])
+    ix, iy, iw, ih = x + 0.2, y + 0.2, w - 0.4, 1.65
+    picture = creative_image_path(row)
+    if picture:
+        # Show the whole ad (no crop): fit inside the box on a white panel.
+        frame = card(slide, ix, iy, iw, ih, K["white"])
+        frame.name = f"{path}.frame"
+        with Image.open(picture) as im:
+            pw, ph = im.size
+        scale = min(iw / pw, ih / ph)
+        w, h = pw * scale, ph * scale
+        pic = slide.shapes.add_picture(picture, Inches(ix + (iw - w) / 2), Inches(iy + (ih - h) / 2), Inches(w), Inches(h))
+        pic.name = f"{path}.image"
+    else:
+        empty = card(slide, ix, iy, iw, ih, K["ctx"])
+        empty.name = f"{path}.image"
+        label_text(empty, "Video" if row.get("kind") == "video" else "No preview", 11, K["muted"], bold=False)
+    name = say(slide, ix, y + 1.95, iw, 0.42, clip_at_break(row.get("name"), 56), f"{path}.name",
+               size=11, color=K["ink"], font=HEAD)
+    name.text_frame.word_wrap = True
+    sub_bits = [b for b in (row.get("platform"), row.get("adSet")) if isinstance(b, str) and b.strip()]
+    say(slide, ix, y + 2.39, iw, 0.22, clip_at_break(" · ".join(sub_bits), 52), f"{path}.subtitle",
+        size=9, color=K["muted"])
+    first = [f"Impressions {detail_cell(row.get('impressions'))}"]
+    if "spend" in row:
+        first.insert(0, f"Spend {detail_cell(row.get('spend'))}")
+    second = f"Clicks {detail_cell(row.get('clicks'))} · CTR {detail_cell(row.get('ctr'))}"
+    say(slide, ix, y + 2.65, iw, 0.4, [" · ".join(first), second], f"{path}.metrics", size=9, color=K["body"])
+    url = row.get("viewUrl")
+    if isinstance(url, str) and url.startswith("https://"):
+        link = say(slide, ix, y + 3.08, iw, 0.2, "View ad", f"{path}.link", size=10, color=K["forest"], font=HEAD)
+        runs = link.text_frame.paragraphs[0].runs
+        if runs:
+            runs[0].hyperlink.address = url
+
+
+def build_creative(deck, spec, index):
+    path = f"slides.{index}"
+    variant(spec, path, ("grid",))
+    pointer = require(spec, "creatives", f"{path}.creatives")
+    _, rows = creative_entry(DATA, pointer, f"{path}.creatives")
+    rows = [row for row in rows if isinstance(row, dict)][:CREATIVE_MAX]
+    slide = deck.add("Title Only - White")
+    put_title(deck, slide, 100, spec, f"{path}.title")
+    line(slide, 0.6, 2.05, 2.2, K["forest"], 2.5)
+    width = (12.13 - CREATIVE_GAP * (CREATIVE_MAX - 1)) / CREATIVE_MAX
+    for position, row in enumerate(rows):
+        x = 0.6 + position * (width + CREATIVE_GAP)
+        creative_card(slide, x, CREATIVE_TOP, width, row, f"{path}.creatives.{position}")
+    above = CREATIVE_TOP + CREATIVE_CARD_H
+    insight = text_of(require(spec, "insight", f"{path}.insight"), f"{path}.insight", 160)
+    room = CONTENT_FLOOR - above - INSIGHT_GAP
+    insight_card(slide, path, spec, above, min(fitted_copy_height(insight, 10.1, 15), room))
+    return slide
+
+
 def build_appendix(deck, spec, index):
     path = f"slides.{index}"
     if spec.get("variant") not in (None, "table"):
@@ -1444,6 +1541,7 @@ BUILDERS = {
     "iao": build_iao,
     "recommendations": build_recommendations,
     "detail": build_detail,
+    "creative": build_creative,
     "appendix": build_appendix,
     "close": build_close,
 }
@@ -1810,6 +1908,19 @@ def validate_content(content, data=None):
                     for cell_index, cell in enumerate(row):
                         key(cell, f"{path}.rows.{row_index}.{cell_index}")
             prose(spec.get("insight"), f"{path}.insight", 160)
+        elif kind == "creative":
+            variant_name(spec, path, ("grid",))
+            pointer = spec.get("creatives")
+            pointer_ok = isinstance(pointer, str) and KEY_RE.fullmatch(pointer) is not None
+            key(pointer, f"{path}.creatives")
+            if pointer_ok and not re.fullmatch(r"creatives\.(campaign|lines\.\d+)", pointer):
+                bad(f"{path}.creatives", "use creatives.campaign or creatives.lines.<i>")
+            elif pointer_ok:
+                entry = lookup(data, pointer)
+                rows = entry.get("rows") if isinstance(entry, dict) else None
+                if not isinstance(rows, list) or not rows:
+                    bad(f"{path}.creatives", "creatives must resolve to an entry with rows. Use creatives.campaign or creatives.lines.<i>.")
+            prose(spec.get("insight"), f"{path}.insight", 160)
         elif kind == "detail":
             variant_name(spec, path, ("table",))
             pointer = spec.get("detail")
@@ -1902,6 +2013,8 @@ def main():
         sys.stderr.write("usage: build_report.py content.json report-data.json template.potx out.pptx photo1 photo2 photo3\n")
         return 2
     content_path, data_path, template, out, *photos = sys.argv[1:]
+    global DATA_DIR
+    DATA_DIR = os.path.dirname(os.path.abspath(data_path))
     with open(content_path, encoding="utf-8") as handle:
         content = json.load(handle)
     with open(data_path, encoding="utf-8") as handle:

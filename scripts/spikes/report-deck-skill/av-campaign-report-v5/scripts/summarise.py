@@ -69,10 +69,22 @@ def summarise(data):
             named.append(f"{key}={value}")
     if named:
         lines.append(" ".join(named))
+    creatives = data.get("creatives")
+    if isinstance(creatives, dict):
+        campaign = creatives.get("campaign") if isinstance(creatives.get("campaign"), dict) else {}
+        rows = campaign.get("rows") if isinstance(campaign.get("rows"), list) else []
+        bits = [f"creatives.campaign rows={len(rows)} row keys name,platform,adSet,spend,impressions,clicks,ctr"]
+        lines_list = creatives.get("lines") if isinstance(creatives.get("lines"), list) else []
+        for index, entry in enumerate(lines_list):
+            if isinstance(entry, dict):
+                bits.append(f"creatives.lines.{index} {json.dumps(entry.get('label', ''))} rows={len(entry.get('rows') or [])}")
+        lines.append("; ".join(bits))
     top = [key for key, value in data.items() if leaf(value) and key not in ("mbaNumber", "clientName", "campaignName")]
     if top:
         lines.append(" ".join(top))
     for key, value in data.items():
+        if key == "creatives":
+            continue
         if isinstance(value, dict):
             keys, nests = parts(value)
             bits = [f"{key}.{name}" for name in keys] + [f"{key}.{nest}" for nest in nests]

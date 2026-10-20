@@ -86,6 +86,8 @@ export type DeckSkillInput = {
   mbaNumber: string
   report: unknown
   fileName: string
+  /** Creative thumbnails named in report.creatives (creative-<n>.jpg). */
+  creativeFiles?: { filename: string; bytes: Buffer }[]
 }
 
 export type DeckSkillDeps = {
@@ -196,9 +198,15 @@ function skillIdFromEnv(): string {
   return id
 }
 
-function userMessage(mbaNumber: string): string {
+function userMessage(mbaNumber: string, creativeImages: number): string {
   return [
     "The input files are report-data.json, Assembled-Media-Template-v5.potx, and three library photos.",
+    ...(creativeImages > 0
+      ? [
+          `There are also ${creativeImages} creative thumbnails named creative-<n>.jpg.`,
+          "They are not cover photos. The creative slides place them from report-data.json. Never pass them to build_report.py.",
+        ]
+      : []),
     "They are already in the container input directory. Do not fetch anything.",
     "Build the Assembled Media campaign performance report by following av-campaign-report-v5 exactly.",
     "Run summarise.py, pipe the content JSON into write_content.py, then build_report.py.",
@@ -287,10 +295,12 @@ export async function runDeckSkill(
       throw new DeckSkillLimitError("wall", "Wall time of 240 seconds")
     }
 
+    const creativeFiles = input.creativeFiles ?? []
     const [reportFile, templateFile, ...photoFiles] = await Promise.all([
       toFile(Buffer.from(deckJson), "report-data.json", { type: "application/json" }),
       toFile(kit.template, TEMPLATE_NAME, { type: TEMPLATE_TYPE }),
       ...kit.photos.map((photo) => toFile(photo.bytes, photo.filename, { type: imageType(photo.filename) })),
+      ...creativeFiles.map((file) => toFile(file.bytes, file.filename, { type: "image/jpeg" })),
     ])
     const uploads = await Promise.all(
       [reportFile, templateFile, ...photoFiles].map(async (file) => {
@@ -305,7 +315,7 @@ export async function runDeckSkill(
         role: "user",
         content: [
           ...uploads.map((file) => ({ type: "container_upload", file_id: file.id })),
-          { type: "text", text: userMessage(mbaNumber), cache_control: { type: "ephemeral" } },
+          { type: "text", text: userMessage(mbaNumber, input.creativeFiles?.length ?? 0), cache_control: { type: "ephemeral" } },
         ],
       },
     ]
