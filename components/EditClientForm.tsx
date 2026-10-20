@@ -18,6 +18,7 @@ import { useAuthContext } from "@/contexts/AuthContext"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { PlatformAccountsSection } from "@/components/clients/PlatformAccountsSection"
+import { ConversionSettingsSection } from "@/components/clients/ConversionSettingsSection"
 import { DEFAULT_CLIENT_BRAND_COLOUR } from "@/lib/clients/brandColour"
 
 const optionalString = z.string().optional().or(z.literal(""))
@@ -790,6 +791,8 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
           </div>
 
           <PlatformAccountsSection clientId={client.id} />
+
+          <ConversionSettingsSection clientId={client.id} />
 
           <div className="min-w-0 rounded-md border p-4">
             <h3 className="text-lg font-semibold mb-1">Legacy</h3>
