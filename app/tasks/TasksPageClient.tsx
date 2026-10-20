@@ -79,6 +79,7 @@ import {
 } from "@/lib/clients/fetchClientsList"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import type { MbaPlanRow } from "@/lib/codex/clientMbas"
+import { statusCountsFromColumns } from "@/lib/codex/boardCounts"
 import { MY_WEEK_STATUSES, myWeekDueBefore } from "@/lib/codex/quickAddParse"
 import { resolveListViewState } from "@/lib/ui/viewState"
 import {
@@ -1259,17 +1260,23 @@ export function TasksPageClient({
           setStatusCounts(emptyStatusCounts())
           return
         }
-        if (!countsRes.ok) {
-          throw new Error("Failed to fetch task counts")
-        }
-        const countsBody: unknown = await countsRes.json()
-        if (controller.signal.aborted || gen !== boardGen.current) return
         const nextColumns = emptyBoardColumns()
         for (const [status, items] of columns) {
           nextColumns[status] = items
         }
+        // A counts failure must not blank the board: show the loaded columns
+        // with their own sizes and keep going.
+        let nextCounts: Record<TaskStatus, number>
+        if (countsRes.ok) {
+          const countsBody: unknown = await countsRes.json()
+          nextCounts = readStatusCounts(countsBody)
+        } else {
+          console.warn("Task counts unavailable; using loaded column sizes", countsRes.status)
+          nextCounts = statusCountsFromColumns(nextColumns)
+        }
+        if (controller.signal.aborted || gen !== boardGen.current) return
         setBoardColumns(nextColumns)
-        setStatusCounts(readStatusCounts(countsBody))
+        setStatusCounts(nextCounts)
         setBoardPages({
           backlog: 1,
           todo: 1,
