@@ -65,12 +65,13 @@ describe("ReportBuilder", () => {
     vi.unstubAllGlobals()
   })
 
-  it("shows linked accounts read only, with no account selects", () => {
-    expect(container.textContent).toContain("372647707")
-    expect(container.textContent).toContain("https://www.molicare.au/")
-    const link = [...container.querySelectorAll("a")].find((node) => node.textContent === "Edit accounts")
-    expect(link?.getAttribute("href")).toBe("/client/paul-hartmann-pty-ltd#platform-accounts")
-    expect(container.textContent).not.toContain("Google Analytics 4 property")
+  it("shows the linked accounts as pickers, disabled until the account list loads", () => {
+    const ga4 = container.querySelector("#builder-ga4") as HTMLSelectElement
+    const gsc = container.querySelector("#builder-gsc") as HTMLSelectElement
+    expect(ga4.value).toBe("372647707")
+    expect(gsc.value).toBe("https://www.molicare.au/")
+    expect(ga4.disabled).toBe(true)
+    expect(gsc.disabled).toBe(true)
   })
 
   it("selecting an element shows only its allowed displays and widths", () => {
@@ -157,8 +158,88 @@ describe("ReportBuilder without platform accounts", () => {
         />,
       )
     })
-    expect(host.textContent).toContain("Google Analytics 4 Not linked")
-    expect(host.textContent).toContain("Search Console Not linked")
+    expect((host.querySelector("#builder-ga4") as HTMLSelectElement).value).toBe("")
+    expect((host.querySelector("#builder-gsc") as HTMLSelectElement).value).toBe("")
+    expect(host.textContent).toContain("Not linked")
+    act(() => root.unmount())
+    host.remove()
+    vi.unstubAllGlobals()
+  })
+})
+
+describe("ReportBuilder account pickers", () => {
+  it("lists accounts, greys out ones linked elsewhere, and links on change", async () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const bodies: Record<string, unknown>[] = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
+        bodies.push(body)
+        if (body.action === "accounts") {
+          return {
+            ok: true,
+            json: async () => ({
+              accounts: {
+                ready: true,
+                ga4: [
+                  { ref: "273526165", label: "GA_archive.golf.org.au", lastDataDate: null, linkedTo: null },
+                  { ref: "372647707", label: "HartmannDirect AU GA4", lastDataDate: null, linkedTo: "Paul Hartmann Pty Ltd" },
+                ],
+                gsc: [],
+              },
+            }),
+          }
+        }
+        if (body.action === "link") {
+          return { ok: true, json: async () => ({ platform: "ga4", ref: "273526165", keyEventNames: ["sign_up"] }) }
+        }
+        return new Promise(() => {})
+      }),
+    )
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(
+        <ReportBuilder
+          slug="golf-australia"
+          clientName="Golf Australia"
+          migrationApplied
+          initialLayout={LAYOUT}
+          currentVersion={0}
+          versions={[]}
+          ga4PropertyRef={null}
+          gscSiteRef={null}
+          brandTerms={[]}
+          defaultPeriod="last_month"
+          keyEventNames={[]}
+        />,
+      )
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    const ga4 = host.querySelector("#builder-ga4") as HTMLSelectElement
+    expect(ga4.disabled).toBe(false)
+    const elsewhere = [...ga4.options].find((option) => option.value === "372647707")
+    expect(elsewhere?.disabled).toBe(true)
+    expect(elsewhere?.textContent).toContain("linked to Paul Hartmann Pty Ltd")
+
+    await act(async () => {
+      ga4.value = "273526165"
+      ga4.dispatchEvent(new Event("change", { bubbles: true }))
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(bodies.find((body) => body.action === "link")).toMatchObject({
+      action: "link",
+      platform: "ga4",
+      ref: "273526165",
+      label: "GA_archive.golf.org.au",
+    })
+    expect((host.querySelector("#builder-ga4") as HTMLSelectElement).value).toBe("273526165")
     act(() => root.unmount())
     host.remove()
     vi.unstubAllGlobals()

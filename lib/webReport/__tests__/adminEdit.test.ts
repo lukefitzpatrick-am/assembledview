@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { isWebSearchEnabled } from "@/lib/webReport/featureFlag"
+import { isWebSearchFlagOn } from "@/lib/webReport/featureFlag"
 import { resolveAdminWebReportEdit } from "@/lib/webReport/admin/access"
 import type { BuilderDraft } from "@/lib/webReport/builder/repo"
 
@@ -29,13 +29,9 @@ const draft = {
   keyEventNames: [],
 } satisfies BuilderDraft
 
-test("admin edit route opens the builder for a client outside FEATURE_WEB_SEARCH_CLIENTS", async () => {
-  const env = {
-    ...process.env,
-    FEATURE_WEB_SEARCH: "on",
-    FEATURE_WEB_SEARCH_CLIENTS: "golf-australia",
-  }
-  assert.equal(isWebSearchEnabled("paul-hartmann", env), false)
+test("admin edit route opens the builder even when the client tab is switched off", async () => {
+  const env = { ...process.env, FEATURE_WEB_SEARCH: "off" }
+  assert.equal(isWebSearchFlagOn(env), false)
 
   const opened = await resolveAdminWebReportEdit({
     slug: "paul-hartmann",

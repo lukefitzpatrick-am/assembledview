@@ -6,7 +6,7 @@ import assert from "node:assert/strict"
 import { mock, test } from "node:test"
 
 import { mockModuleSkip } from "@/lib/test/mockModuleHarness"
-import { isWebSearchEnabled } from "@/lib/webReport/featureFlag"
+import { isWebSearchFlagOn } from "@/lib/webReport/featureFlag"
 
 const skip = mockModuleSkip()
 
@@ -63,12 +63,11 @@ if (typeof mock.module === "function") {
 }
 
 test(
-  "admin edit route renders the builder for a client outside FEATURE_WEB_SEARCH_CLIENTS",
+  "admin edit route renders the builder even when the client tab is switched off",
   { skip },
   async () => {
-    process.env.FEATURE_WEB_SEARCH = "on"
-    process.env.FEATURE_WEB_SEARCH_CLIENTS = "golf-australia"
-    assert.equal(isWebSearchEnabled("paul-hartmann"), false)
+    process.env.FEATURE_WEB_SEARCH = "off"
+    assert.equal(isWebSearchFlagOn(), false)
 
     const { WebReportBuilderScreen } = await import(
       "@/components/dashboard/web/WebReportBuilderScreen.js"
