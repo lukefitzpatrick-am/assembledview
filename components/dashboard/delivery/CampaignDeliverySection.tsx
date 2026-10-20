@@ -42,6 +42,11 @@ import { buildPlanOnlyRemainderSection } from "./channels/planOnlyAdapter"
 import type { ChannelSectionData } from "./channels/types"
 import { fitSectionCharts } from "./channels/fitChartWindows"
 import {
+  applyConversionsToSection,
+  spendByLineFromDelivery,
+  type DeliveryConversions,
+} from "./channels/conversionTiles"
+import {
   cleanPacingLineItemId,
   extractPacingLineItemIdFromItem,
 } from "@/lib/pacing/delivery/lineItemIds"
@@ -131,6 +136,8 @@ type DeliveryBodyProps = {
   isAdmin?: boolean
   feePctsByVersionId?: FeePctsByVersionId
   estimateVersionId?: number | null
+  /** Chosen conversions when the client's switch is on. */
+  conversions?: DeliveryConversions | null
 }
 
 function CampaignDeliveryBody({
@@ -175,6 +182,7 @@ function CampaignDeliveryBody({
   isAdmin = false,
   feePctsByVersionId,
   estimateVersionId,
+  conversions = null,
 }: DeliveryBodyProps) {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
   const deliveryLineIds = useMemo(() => {
@@ -476,8 +484,20 @@ function CampaignDeliveryBody({
     if (remainder) out.push(remainder)
 
     const todayISO = getMelbourneTodayISO()
-    return out.map((section) => fitSectionCharts(section, { todayISO, filter: filterRange }))
+    const fitted = out.map((section) => fitSectionCharts(section, { todayISO, filter: filterRange }))
+    if (!conversions) return fitted
+    // Conversion tiles count the pacing window (to Melbourne yesterday, filter aware).
+    const conversionWindow = resolvePacingWindow({
+      filterRange,
+      campaignStartISO: campaignStart,
+      campaignEndISO: campaignEnd,
+    })
+    const spendByLine = spendByLineFromDelivery({ rows, searchLines: search?.lineItems ?? [] })
+    return fitted.map((section) =>
+      applyConversionsToSection(section, conversions, { window: conversionWindow, spendByLine }),
+    )
   }, [
+    conversions,
     rows,
     search,
     metaItems,
@@ -814,7 +834,7 @@ export function CampaignDeliverySection({
       searchEnabled={includeSearch}
       searchLineItemIds={normalizedSearchLineItemIds}
     >
-      {({ rows, search, loading, error, reportedSpendByLineDate, deliveryLineIds }) => (
+      {({ rows, search, loading, error, reportedSpendByLineDate, deliveryLineIds, conversions }) => (
         <CampaignDeliveryBody
           rows={rows}
           search={search}
@@ -857,6 +877,7 @@ export function CampaignDeliverySection({
           isAdmin={isAdmin}
           feePctsByVersionId={feePctsByVersionId}
           estimateVersionId={estimateVersionId}
+          conversions={conversions}
         />
       )}
     </DeliveryDataProvider>

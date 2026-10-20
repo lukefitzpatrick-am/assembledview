@@ -9,6 +9,7 @@ import {
   indexReportedSpendByLineDate,
   type ReportedSpendDay,
 } from "@/lib/delivery/programmatic/applyReportedSpend"
+import type { DeliveryConversions } from "./channels/conversionTiles"
 
 type DeliveryDataProviderProps = {
   mbaNumber: string
@@ -32,6 +33,8 @@ type DeliveryDataProviderProps = {
     error: string | null
     reportedSpendByLineDate: Map<string, Map<string, number>>
     deliveryLineIds: ReadonlySet<string>
+    /** Chosen conversions when the client's switch is on; null when off or not loaded. */
+    conversions: DeliveryConversions | null
   }) => ReactNode
 }
 
@@ -105,6 +108,7 @@ export default function DeliveryDataProvider({
   >(() => new Map())
   const [deliveryLineIds, setDeliveryLineIds] = useState<ReadonlySet<string>>(() => new Set())
   const [loading, setLoading] = useState(false)
+  const [conversions, setConversions] = useState<DeliveryConversions | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const allLineItemIds = useMemo(() => {
@@ -259,5 +263,56 @@ export default function DeliveryDataProvider({
     normalizedBulkEnd,
   ])
 
-  return <>{children({ rows, search, loading, error, reportedSpendByLineDate, deliveryLineIds })}</>
+  // Conversions are a separate, optional read. The route answers enabled:false
+  // without touching Snowflake when the client's switch is off.
+  const conversionIdsKey = useMemo(
+    () => uniq([...allLineItemIds, ...normalizedSearchLineItemIds]).join(","),
+    [allLineItemIds, normalizedSearchLineItemIds],
+  )
+  useEffect(() => {
+    const ids = conversionIdsKey ? conversionIdsKey.split(",") : []
+    if (!mbaNumber || ids.length === 0) {
+      setConversions(null)
+      return
+    }
+    let cancelled = false
+    postJson<{
+      ok: boolean
+      enabled?: boolean
+      headline?: DeliveryConversions["headline"]
+      showRevenue?: boolean
+      trackedPlatforms?: string[]
+      valuePlatforms?: string[]
+      lines?: DeliveryConversions["lines"]
+    }>("/api/pacing/conversions", {
+      mbaNumber,
+      lineItemIds: ids,
+      startDate: normalizedBulkStart || undefined,
+      endDate: normalizedBulkEnd || undefined,
+    })
+      .then((data) => {
+        if (cancelled) return
+        if (!data?.ok || !data.enabled || !data.headline) {
+          setConversions(null)
+          return
+        }
+        setConversions({
+          headline: data.headline,
+          showRevenue: data.showRevenue === true,
+          trackedPlatforms: Array.isArray(data.trackedPlatforms) ? data.trackedPlatforms : [],
+          valuePlatforms: Array.isArray(data.valuePlatforms) ? data.valuePlatforms : [],
+          lines: Array.isArray(data.lines) ? data.lines : [],
+        })
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        console.warn("[DeliveryDataProvider] conversions failed", err instanceof Error ? err.message : err)
+        setConversions(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mbaNumber, conversionIdsKey, normalizedBulkStart, normalizedBulkEnd])
+
+  return <>{children({ rows, search, loading, error, reportedSpendByLineDate, deliveryLineIds, conversions })}</>
 }
