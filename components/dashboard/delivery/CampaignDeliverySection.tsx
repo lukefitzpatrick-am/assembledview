@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
@@ -43,7 +43,10 @@ import type { ChannelSectionData } from "./channels/types"
 import { fitSectionCharts } from "./channels/fitChartWindows"
 import {
   applyConversionsToSection,
+  campaignConversionSummary,
+  campaignConversionSummaryKey,
   spendByLineFromDelivery,
+  type CampaignConversionSummary,
   type DeliveryConversions,
 } from "./channels/conversionTiles"
 import {
@@ -88,6 +91,8 @@ export type CampaignDeliverySectionProps = {
   onCoverage?: (entries: ChannelCoverageEntry[]) => void
   onKpiReviewGroups?: (groups: KpiReviewGroup[]) => void
   onDeliveredByLineId?: (map: Map<string, number>) => void
+  /** Campaign conversions for the status strip; null when the client's switch is off. */
+  onConversionSummary?: (summary: CampaignConversionSummary | null) => void
   showAccordion?: boolean
   isAdmin?: boolean
   feePctsByVersionId?: FeePctsByVersionId
@@ -132,6 +137,8 @@ type DeliveryBodyProps = {
   onCoverage?: (entries: ChannelCoverageEntry[]) => void
   onKpiReviewGroups?: (groups: KpiReviewGroup[]) => void
   onDeliveredByLineId?: (map: Map<string, number>) => void
+  /** Campaign conversions for the status strip; null when the client's switch is off. */
+  onConversionSummary?: (summary: CampaignConversionSummary | null) => void
   showAccordion?: boolean
   isAdmin?: boolean
   feePctsByVersionId?: FeePctsByVersionId
@@ -178,6 +185,7 @@ function CampaignDeliveryBody({
   onCoverage,
   onKpiReviewGroups,
   onDeliveredByLineId,
+  onConversionSummary,
   showAccordion = true,
   isAdmin = false,
   feePctsByVersionId,
@@ -212,6 +220,24 @@ function CampaignDeliveryBody({
   useEffect(() => {
     if (!loading) setLastSyncedAt(new Date())
   }, [loading])
+
+  // Conversion tiles and the strip count the pacing window (to Melbourne yesterday, filter aware).
+  const conversionWindow = useMemo(
+    () =>
+      resolvePacingWindow({
+        filterRange,
+        campaignStartISO: campaignStart,
+        campaignEndISO: campaignEnd,
+      }),
+    [filterRange, campaignStart, campaignEnd],
+  )
+  const conversionSpendByLine = useMemo(
+    () =>
+      conversions
+        ? spendByLineFromDelivery({ rows, searchLines: search?.lineItems ?? [] })
+        : new Map<string, never[]>(),
+    [conversions, rows, search],
+  )
 
   const channels = useMemo((): ChannelSectionData[] => {
     const out: ChannelSectionData[] = []
@@ -486,18 +512,16 @@ function CampaignDeliveryBody({
     const todayISO = getMelbourneTodayISO()
     const fitted = out.map((section) => fitSectionCharts(section, { todayISO, filter: filterRange }))
     if (!conversions) return fitted
-    // Conversion tiles count the pacing window (to Melbourne yesterday, filter aware).
-    const conversionWindow = resolvePacingWindow({
-      filterRange,
-      campaignStartISO: campaignStart,
-      campaignEndISO: campaignEnd,
-    })
-    const spendByLine = spendByLineFromDelivery({ rows, searchLines: search?.lineItems ?? [] })
     return fitted.map((section) =>
-      applyConversionsToSection(section, conversions, { window: conversionWindow, spendByLine }),
+      applyConversionsToSection(section, conversions, {
+        window: conversionWindow,
+        spendByLine: conversionSpendByLine,
+      }),
     )
   }, [
     conversions,
+    conversionWindow,
+    conversionSpendByLine,
     rows,
     search,
     metaItems,
@@ -644,6 +668,22 @@ function CampaignDeliveryBody({
     onDeliveredByLineId?.(deliveredByLineId)
   }, [deliveredByLineId, loading, onDeliveredByLineId])
 
+  const conversionSummary = useMemo(
+    () =>
+      campaignConversionSummary(channels, conversions, {
+        window: conversionWindow,
+        spendByLine: conversionSpendByLine,
+      }),
+    [channels, conversions, conversionWindow, conversionSpendByLine],
+  )
+  const conversionSummaryKey = campaignConversionSummaryKey(conversionSummary)
+  const conversionSummaryRef = useRef(conversionSummary)
+  conversionSummaryRef.current = conversionSummary
+  useEffect(() => {
+    if (loading) return
+    onConversionSummary?.(conversionSummaryRef.current)
+  }, [conversionSummaryKey, loading, onConversionSummary])
+
   if (!showAccordion) return null
 
   if (loading) {
@@ -694,6 +734,7 @@ export function CampaignDeliverySection({
   onCoverage,
   onKpiReviewGroups,
   onDeliveredByLineId,
+  onConversionSummary,
   showAccordion = true,
   isAdmin = false,
   feePctsByVersionId,
@@ -873,6 +914,7 @@ export function CampaignDeliverySection({
           onCoverage={onCoverage}
           onKpiReviewGroups={onKpiReviewGroups}
           onDeliveredByLineId={onDeliveredByLineId}
+          onConversionSummary={onConversionSummary}
           showAccordion={showAccordion}
           isAdmin={isAdmin}
           feePctsByVersionId={feePctsByVersionId}

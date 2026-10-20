@@ -32,6 +32,10 @@ import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetail
 import { PlannedAudienceSection } from "@/components/dashboard/campaign/PlannedAudienceSection"
 import { atlAssumedLineItems } from "@/components/dashboard/delivery/channels/assumedSpendAdapter"
 import { CampaignDeliverySection } from "@/components/dashboard/delivery/CampaignDeliverySection"
+import {
+  campaignConversionStripCells,
+  type CampaignConversionSummary,
+} from "@/components/dashboard/delivery/channels/conversionTiles"
 import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
 import {
   buildKpiReview,
@@ -286,6 +290,8 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   const [coverage, setCoverage] = useState<ChannelCoverageEntry[]>([])
   const [kpiReviewGroups, setKpiReviewGroups] = useState<KpiReviewGroup[]>([])
   const [deliveredByLineId, setDeliveredByLineId] = useState<Map<string, number>>(() => new Map())
+  // Campaign conversions (CF5): set by the delivery section only when the client's switch is on.
+  const [conversionSummary, setConversionSummary] = useState<CampaignConversionSummary | null>(null)
   const prevCoverageEntriesRef = useRef<ChannelCoverageEntry[]>([])
   const prevKpiReviewIdentityRef = useRef("")
   const prevDeliveredIdentityRef = useRef("")
@@ -739,6 +745,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     onCoverage: handleCoverage,
     onKpiReviewGroups: isAdmin ? handleKpiReviewGroups : undefined,
     onDeliveredByLineId: handleDeliveredByLineId,
+    onConversionSummary: setConversionSummary,
     isAdmin: Boolean(isAdmin),
     feePctsByVersionId,
     estimateVersionId,
@@ -828,6 +835,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               }
               channelsTotal={coverageCards.length > 0 ? coverageCounts.channelsTotal : undefined}
               aheadChannelName={aheadChannelName}
+              conversionCells={campaignConversionStripCells(conversionSummary) ?? undefined}
             />
             <CampaignInsightCards mbaNumber={mbaNumber} />
             </div>

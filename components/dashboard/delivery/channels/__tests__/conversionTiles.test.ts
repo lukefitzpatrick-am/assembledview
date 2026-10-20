@@ -1,9 +1,13 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { formatMoneyCompact } from "@/lib/format/money"
 import { resolvePacingWindowISO } from "@/lib/pacing/expectedForWindow"
 import {
   applyConversionsToSection,
+  campaignConversionStripCells,
+  campaignConversionSummary,
+  campaignConversionSummaryKey,
   mergeConversionTiles,
   spendByLineFromDelivery,
   type DeliveryConversions,
@@ -100,4 +104,79 @@ test("revenue tiles say not tracked when no event counts toward revenue", () => 
   const revenue = out.aggregate.kpiBand.tiles.find((t) => t.label === "Revenue")
   assert.equal(revenue?.value, null)
   assert.equal(revenue?.emptyHint, "not-tracked")
+})
+
+test("campaign summary: counts tracked sections to yesterday, ROAS on revenue-section spend only", () => {
+  const conv: DeliveryConversions = {
+    ...CONV,
+    trackedPlatforms: ["meta_ads", "dv360"],
+    lines: [
+      ...CONV.lines,
+      { lineItemId: "curatif004pd1", daily: [{ date: "2026-10-06", conversions: 3, purchases: 3, leads: 0, revenue: 0 }] },
+    ],
+  }
+  const spendByLine = spendByLineFromDelivery({
+    rows: [
+      { lineItemId: "curatif004sm1", dateDay: "2026-10-05", amountSpent: 100, clicks: 200 },
+      { lineItemId: "curatif004sm1", dateDay: "2026-10-21", amountSpent: 50, clicks: 10 },
+      { lineItemId: "curatif004pd1", dateDay: "2026-10-06", amountSpent: 900, clicks: 5 },
+      { lineItemId: "curatif004oh1", dateDay: "2026-10-06", amountSpent: 5000, clicks: 0 },
+    ],
+  })
+  const sections = [
+    section("social-meta", ["curatif004sm1"]),
+    section("programmatic-display", ["curatif004pd1"]),
+    section("programmatic-ooh", ["curatif004oh1"]),
+  ]
+  const s = campaignConversionSummary(sections, conv, { window: WINDOW, spendByLine })
+  assert.ok(s)
+  assert.equal(s.label, "Purchases")
+  assert.equal(s.count, 7)
+  assert.equal(s.revenue, 400)
+  // Only Meta can carry revenue here: DV360 and OOH spend never dilute ROAS.
+  assert.equal(s.roasSpend, 100)
+  assert.equal(s.roas, 4)
+  const cells = campaignConversionStripCells(s)!
+  assert.deepEqual(cells.map((c) => c.label), ["Purchases", "Revenue", "ROAS"])
+  assert.equal(cells[0]!.value, "7")
+  assert.equal(cells[1]!.value, formatMoneyCompact(400))
+  assert.equal(cells[2]!.value, "4.00x")
+})
+
+test("campaign summary: a line in two sections is counted once", () => {
+  const s = campaignConversionSummary(
+    [section("social-meta", ["curatif004sm1"]), section("social-meta", ["CURATIF004SM1"])],
+    CONV,
+    { window: WINDOW, spendByLine: new Map() },
+  )
+  assert.equal(s?.count, 4)
+  assert.equal(s?.roas, null)
+})
+
+test("campaign summary: switch off gives null and no strip cells", () => {
+  const s = campaignConversionSummary([section("social-meta", ["curatif004sm1"])], null, {
+    window: WINDOW,
+    spendByLine: new Map(),
+  })
+  assert.equal(s, null)
+  assert.equal(campaignConversionStripCells(s), null)
+  assert.equal(campaignConversionSummaryKey(s), "off")
+})
+
+test("campaign summary: no revenue cells when show revenue is off; dashes when nothing is tracked", () => {
+  const noRevenue = campaignConversionSummary([section("social-meta", ["curatif004sm1"])], { ...CONV, showRevenue: false }, {
+    window: WINDOW,
+    spendByLine: new Map(),
+  })
+  assert.deepEqual(campaignConversionStripCells(noRevenue), [{ key: "conversions", label: "Purchases", value: "4" }])
+
+  const untracked = campaignConversionSummary([section("search", ["curatif004se1"])], CONV, {
+    window: WINDOW,
+    spendByLine: new Map(),
+  })
+  assert.equal(untracked?.tracked, false)
+  assert.deepEqual(
+    campaignConversionStripCells(untracked)?.map((c) => c.value),
+    ["—", "—", "—"],
+  )
 })

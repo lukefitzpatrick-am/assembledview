@@ -36,6 +36,12 @@ export type CampaignStatusStripProps = {
   aheadChannelName?: string | null
   cpmActual?: number
   cpmPlanned?: number
+  /**
+   * Conversions for the pacing window when the client's switch is on: the
+   * headline (Purchases, Leads or Conversions), then Revenue and ROAS when
+   * the client shows revenue. Omitted when the switch is off.
+   */
+  conversionCells?: ReadonlyArray<{ key: string; label: string; value: string }>
   className?: string
 }
 
@@ -157,6 +163,7 @@ export function CampaignStatusStrip({
   aheadChannelName,
   cpmActual,
   cpmPlanned,
+  conversionCells,
   className,
 }: CampaignStatusStripProps) {
   const dayCurrent = Math.max(0, Math.round(daysElapsed))
@@ -278,6 +285,29 @@ export function CampaignStatusStrip({
             barClassName="bg-am-forest"
             caption={`${daysRem} ${daysRem === 1 ? "day" : "days"} remaining`}
           />
+          {conversionCells && conversionCells.length > 0 ? (
+            <div
+              className={cn(
+                "col-span-2 grid gap-4",
+                showImpressions ? "lg:col-span-4" : "lg:col-span-3",
+                conversionCells.length > 1 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1",
+              )}
+              data-stat="conversions-row"
+            >
+              {conversionCells.map((cell) => (
+                <div
+                  key={cell.key}
+                  className="min-w-0 space-y-1.5 rounded-card border border-border bg-background p-3"
+                  data-stat={`conversion-${cell.key}`}
+                >
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {cell.key === "roas" ? cell.label : `${cell.label} ${periodLabel}`}
+                  </p>
+                  <p className="num text-2xl font-bold tabular-nums text-foreground">{cell.value}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

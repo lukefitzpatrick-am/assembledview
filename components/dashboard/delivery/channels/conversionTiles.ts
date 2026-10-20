@@ -1,4 +1,4 @@
-import { formatMoney } from "@/lib/format/money"
+import { formatMoney, formatMoneyCompact } from "@/lib/format/money"
 import {
   conversionPlatformsForSection,
   cpa,
@@ -197,4 +197,106 @@ export function spendByLineFromDelivery(input: {
     }
   }
   return out
+}
+
+/** Campaign-level conversions for the status strip (CF5). Same window and spend basis as the section tiles. */
+export type CampaignConversionSummary = {
+  headline: ConversionHeadline
+  /** Purchases, Leads or Conversions. */
+  label: string
+  /** Headline count across every tracked section's lines. */
+  count: number
+  /** At least one section on the campaign has a chosen event. */
+  tracked: boolean
+  showRevenue: boolean
+  /** At least one section has an event that counts toward revenue. */
+  valueTracked: boolean
+  revenue: number
+  /** Platform spend on lines in sections whose events count toward revenue. */
+  roasSpend: number
+  roas: number | null
+}
+
+/**
+ * Roll the section line items to one campaign figure. Lines are counted once
+ * even if they appear in two sections. ROAS divides revenue by the spend of
+ * the sections that can carry revenue (social, search), the same basis each
+ * section's ROAS tile uses, so OOH and TV spend never dilute it.
+ */
+export function campaignConversionSummary(
+  sections: readonly Pick<ChannelSectionData, "key" | "lineItems">[],
+  conversions: DeliveryConversions | null | undefined,
+  opts: { window: PacingWindow; spendByLine: ReadonlyMap<string, readonly LineSpendDay[]> },
+): CampaignConversionSummary | null {
+  if (!conversions) return null
+  const byLine = new Map(conversions.lines.map((l) => [l.lineItemId.toLowerCase(), l]))
+  const inWindow = (date: string) => inPacingWindow(date, opts.window)
+  const seen = new Set<string>()
+  const totals: ConversionTotals = { conversions: 0, purchases: 0, leads: 0, revenue: 0 }
+  let tracked = false
+  let valueTracked = false
+  let roasSpend = 0
+
+  for (const section of sections) {
+    const platforms = conversionPlatformsForSection(section.key)
+    if (platforms.length === 0) continue
+    const sectionTracked = platforms.some((p) => conversions.trackedPlatforms.includes(p))
+    const sectionValue = platforms.some((p) => conversions.valuePlatforms.includes(p))
+    if (!sectionTracked) continue
+    tracked = true
+    if (sectionValue) valueTracked = true
+    for (const item of section.lineItems) {
+      const id = item.id.trim().toLowerCase()
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      const t = sumConversionDays(byLine.get(id)?.daily ?? [], inWindow)
+      totals.conversions += t.conversions
+      totals.purchases += t.purchases
+      totals.leads += t.leads
+      totals.revenue += t.revenue
+      if (sectionValue) roasSpend += spendClicksInWindow(opts.spendByLine.get(id), opts.window).spend
+    }
+  }
+
+  return {
+    headline: conversions.headline,
+    label: headlineLabel(conversions.headline),
+    count: headlineCount(totals, conversions.headline),
+    tracked,
+    showRevenue: conversions.showRevenue,
+    valueTracked,
+    revenue: totals.revenue,
+    roasSpend,
+    roas: valueTracked ? roas(totals.revenue, roasSpend) : null,
+  }
+}
+
+/** Stable key so callers only re-render when the summary really changes. */
+export function campaignConversionSummaryKey(summary: CampaignConversionSummary | null): string {
+  if (!summary) return "off"
+  return [
+    summary.headline,
+    summary.count,
+    summary.tracked ? 1 : 0,
+    summary.showRevenue ? 1 : 0,
+    summary.valueTracked ? 1 : 0,
+    summary.revenue.toFixed(2),
+    summary.roasSpend.toFixed(2),
+  ].join("|")
+}
+
+/** Strip cells: headline, then Revenue and ROAS when the client shows revenue. Null when off. */
+export function campaignConversionStripCells(
+  summary: CampaignConversionSummary | null,
+): Array<{ key: string; label: string; value: string }> | null {
+  if (!summary) return null
+  const cells = [
+    { key: "conversions", label: summary.label, value: summary.tracked ? whole(summary.count) : "—" },
+  ]
+  if (summary.showRevenue) {
+    const valueOn = summary.tracked && summary.valueTracked
+    cells.push({ key: "revenue", label: "Revenue", value: valueOn ? formatMoneyCompact(summary.revenue) : "—" })
+    cells.push({ key: "roas", label: "ROAS", value: valueOn ? formatRoas(summary.roas) : "—" })
+  }
+  return cells
 }

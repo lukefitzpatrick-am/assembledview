@@ -181,4 +181,23 @@ describe("CampaignStatusStrip", () => {
     expect(html).toContain("On track")
     expect(html).not.toContain("Behind plan on spend")
   })
+
+  it("shows conversion cells only when passed (client switch on)", () => {
+    const off = renderToStaticMarkup(<CampaignStatusStrip {...FULL} />)
+    expect(off).not.toContain('data-stat="conversions-row"')
+    const on = renderToStaticMarkup(
+      <CampaignStatusStrip
+        {...FULL}
+        conversionCells={[
+          { key: "conversions", label: "Purchases", value: "1,234" },
+          { key: "revenue", label: "Revenue", value: "$45k" },
+          { key: "roas", label: "ROAS", value: "4.20x" },
+        ]}
+      />,
+    )
+    expect(on).toContain('data-stat="conversion-conversions"')
+    expect(on).toContain("Purchases to date")
+    expect(on).toContain("Revenue to date")
+    expect(on).toContain("4.20x")
+  })
 })
