@@ -2,23 +2,25 @@ import { formatMoney } from "@/lib/format/money"
 import { getDeterministicColor, getMediaColor } from "@/lib/charts/registry"
 import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
-import { clipDateRangeToCampaign, type DateRange } from "@/lib/dashboard/dateFilter"
+import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import { applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
 import { aggregateRatioTargetFromLineItems, getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
 import type { CampaignKPI } from "@/lib/kpi/types"
-import type { SearchPacingAdGroupRow, SearchPacingLineItemSeries, SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
+import type {
+  SearchPacingAdGroupRow,
+  SearchPacingDailyRow,
+  SearchPacingLineItemSeries,
+  SearchPacingResponse,
+} from "@/lib/snowflake/search-pacing-service"
 import {
   aggregateDailyTotals,
   buildSearchScheduleByLineItem,
   computeSearchTotalDerived,
-  computeSearchTotalSchedule,
   computeSearchTotalsKpis,
-  computeToDateFromBursts,
   fillDailySeries,
   resolveSearchFillRange,
   safeDiv,
-  searchExpectedInWindow,
 } from "@/lib/delivery/search/searchCore"
 import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiTileProps } from "../shared/KpiTile"
@@ -36,6 +38,7 @@ import { parseMoney } from "@/lib/money"
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import {
   expectedForWindow,
+  inPacingWindow,
   netSpendBasisForLine,
   pacingAsAtISO,
   paceVsExpected,
@@ -186,6 +189,34 @@ function planFigures(plan: SearchLinePlan | undefined, window: PacingWindow, toD
   }
 }
 
+/**
+ * Search KPI tile actuals over the pacing window (Sydney civil days, to
+ * Melbourne yesterday, narrowed by the date filter), the same days the
+ * spend and clicks cards count.
+ */
+export function searchTotalsInWindow(
+  rows: readonly SearchPacingDailyRow[],
+  window: PacingWindow,
+): ReturnType<typeof aggregateDailyTotals> {
+  return aggregateDailyTotals(rows.filter((row) => inPacingWindow(row.date, window)))
+}
+
+/**
+ * Search KPI tile expected for the pacing window, from the same Sydney-day
+ * burst figures as the cards (spend goal net of fee on fee-inclusive lines).
+ */
+export function searchKpiScheduleForWindow(plan: {
+  spend: { expected: number; planned: number }
+  clicks: { expected: number; planned: number }
+}): { budgetBooked: number; budgetExpected: number; clicksBooked: number; clicksExpected: number } {
+  return {
+    budgetBooked: plan.spend.planned,
+    budgetExpected: plan.spend.expected,
+    clicksBooked: plan.clicks.planned,
+    clicksExpected: plan.clicks.expected,
+  }
+}
+
 export function buildSearchSection(input: {
   title?: string
   searchLineItems: unknown[] | undefined
@@ -231,21 +262,7 @@ export function buildSearchSection(input: {
 
   const daily = fillDailySeries(rawDaily, fillStartISO, fillEndISO)
 
-  const totals =
-    filterRange.start && filterRange.end ? aggregateDailyTotals(daily) : apiTotals
-
   const scheduleByLineItemId = buildSearchScheduleByLineItem(searchLineItems)
-
-  const totalSchedule = computeSearchTotalSchedule({
-    scheduleByLineItemId,
-    asAtISO: pacingWindow.asAtISO,
-    filterRange,
-    campaignStart,
-    campaignEnd,
-  })
-
-  const totalsKpis = computeSearchTotalsKpis(totals)
-  const totalDerived = computeSearchTotalDerived({ totalSchedule, totals, totalsKpis })
 
   const chartClicksSpend = daily.map((d) => ({
     date: d.date,
@@ -284,6 +301,14 @@ export function buildSearchSection(input: {
   )
   const deliveredSpend = sumInWindow(daily, window, (d) => Number(d.cost ?? 0))
   const deliveredClicks = sumInWindow(daily, window, (d) => Number(d.clicks ?? 0))
+
+  // KPI tiles and chips read the same window as the cards: actuals on Sydney
+  // days to Melbourne yesterday (filter aware), expected from the same bursts.
+  // With no daily rows the API totals stand in (nothing to window).
+  const totals = rawDaily.length > 0 ? searchTotalsInWindow(daily, window) : apiTotals
+  const totalSchedule = searchKpiScheduleForWindow(channelPlan)
+  const totalsKpis = computeSearchTotalsKpis(totals)
+  const totalDerived = computeSearchTotalDerived({ totalSchedule, totals, totalsKpis })
 
   // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).
   // searchSeriesPalette.cost === getMediaColor("search") — confirmed equal; keep palette for series accents.
@@ -519,7 +544,6 @@ function buildSearchLineItemBlocks(input: {
     knownPlanLineIds,
     searchLineItems,
     scheduleByLineItemId,
-    filterRange,
     campaignStart,
     campaignEnd,
     pacingWindow,
@@ -542,24 +566,13 @@ function buildSearchLineItemBlocks(input: {
       if (!id) return null
 
       const filled = fillDailySeries(Array.isArray(li.daily) ? li.daily : [], dailyFill.fillStartISO, dailyFill.fillEndISO)
-      const liTotals =
-        filterRange.start && filterRange.end ? aggregateDailyTotals(filled) : aggregateDailyTotals(Array.isArray(li.daily) ? li.daily : [])
+      // Tiles count the cards' window: Sydney days to Melbourne yesterday, filter aware.
+      const liTotals = searchTotalsInWindow(filled, window)
 
       const schedule = scheduleByLineItemId.get(id)
-      const bursts = schedule?.bursts ?? []
-
-      const spendFull = computeToDateFromBursts(bursts, pacingWindow.asAtISO, "budget")
-      const clicksFull = computeToDateFromBursts(bursts, pacingWindow.asAtISO, "clicksGoal")
-
-      let spendExpected = spendFull.expectedToDate
-      let clicksExpected = clicksFull.expectedToDate
-      if (filterRange.start && filterRange.end) {
-        const win = clipDateRangeToCampaign(filterRange, campaignStart, campaignEnd)
-        if (win?.start && win?.end) {
-          spendExpected = searchExpectedInWindow(bursts, win, "budget")
-          clicksExpected = searchExpectedInWindow(bursts, win, "clicksGoal")
-        }
-      }
+      const plan = planFigures(linePlans.get(id), window, toDate)
+      const spendExpected = plan.spend.expected
+      const clicksExpected = plan.clicks.expected
 
       const liCtr = safeDiv(liTotals.clicks, liTotals.impressions)
       const liCvr = safeDiv(liTotals.conversions, liTotals.clicks)
@@ -590,7 +603,6 @@ function buildSearchLineItemBlocks(input: {
       const TOP_SHARE_TARGET = 0.5
       const liTopFrac = topShareFraction(liTotals.topImpressionPct)
 
-      const plan = planFigures(linePlans.get(id), window, toDate)
       const liDeliveredSpend = sumInWindow(filled, window, (d) => Number(d.cost ?? 0))
       const liDeliveredClicks = sumInWindow(filled, window, (d) => Number(d.clicks ?? 0))
 
@@ -722,7 +734,7 @@ function buildSearchLineItemBlocks(input: {
           asAtDate: pacingWindow.asAtISO ?? null,
           brandColour,
           lineDates: lineDatesFromBursts(
-            bursts.map((b) => ({ start_date: b.startISO, end_date: b.endISO })),
+            (linePlans.get(id)?.bursts ?? []).map((b) => ({ start_date: b.startDate, end_date: b.endDate })),
             { startISO: campaignStart, endISO: campaignEnd },
           ),
         },
