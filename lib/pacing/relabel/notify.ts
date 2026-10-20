@@ -2,6 +2,7 @@ import "server-only"
 
 import { BRAND, EMAIL_FONT_STACK } from "@/lib/brand"
 
+import { formatMoney } from "@/lib/format/money"
 import { getAsOfDate } from "@/lib/pacing/maths"
 import type { RelabelPreview } from "./shared/types"
 import type { DeliveryRelabelRow } from "./repo"
@@ -73,7 +74,7 @@ export function relabelNotifyBody(input: RelabelNotifyInput): string {
     `Actor: ${input.actorEmail}`,
     `Reason: ${input.reason || "—"}`,
     `Rows moved: ${input.rowsMoved}`,
-    `Spend moved: ${input.spendMoved}`,
+    `Spend moved: ${formatMoney(Number(input.spendMoved) || 0)}`,
     `Duplicates removed: ${input.duplicatesRemoved}`,
     `Before: ${input.beforeLineItemId ?? "—"}`,
     `After: ${input.afterLineItemId}`,

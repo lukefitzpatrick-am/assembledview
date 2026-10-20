@@ -400,3 +400,49 @@ test("relabelsHref and mbaStem encode the admin page entry points", async () => 
   assert.equal(canRevertRelabel("2026-08-01T00:00:00.000Z", new Date("2026-09-21T00:00:00.000Z")), false)
 })
 
+
+test("spend warning shows AUD currency, not a raw float", async () => {
+  const target = "bicau002sm2"
+  const preview = await previewRelabel(
+    { channel: SOCIAL_CHANNEL, platformEntityId: "120256", lineItemId: target },
+    {
+      resolveEntity: async () => ({
+        channel: SOCIAL_CHANNEL,
+        platformEntityId: "120256",
+        entityName: "Meta ad set",
+        cardChannel: "social" as const,
+        route: factRouteForChannel(SOCIAL_CHANNEL),
+        attributions: [],
+      }),
+      lookupPublishedLine: async () =>
+        publishedLine({ lineItemId: target, lineChannel: "social", cardChannel: "social" }),
+      lookupActiveLabelMap: async () => null,
+      loadMoveRows: async () => [
+        { date: "2026-08-04", lineItemId: "bicau002sm1", lineItemName: "SM1", spend: 46591.3669123, impressions: 10 },
+      ],
+    },
+  )
+  const warning = preview.warnings.find((w) => w.code === "spend_over_25000")
+  assert.ok(warning)
+  assert.equal(warning.message, "Spend moved ($46,591.37) exceeds $25,000.")
+  assert.doesNotMatch(warning.message, /46591\.3669/)
+})
+
+test("relabel notify body formats spend moved as AUD", async () => {
+  const { relabelNotifyBody } = await import("../notify.js")
+  const body = relabelNotifyBody({
+    kind: "applied",
+    relabelId: 1,
+    actorEmail: "a@b.c",
+    reason: "",
+    rowsMoved: 1,
+    spendMoved: 46591.3669,
+    duplicatesRemoved: 0,
+    beforeLineItemId: null,
+    afterLineItemId: "x",
+    mbaNumber: "m",
+    entityName: "e",
+    lineItemId: "x",
+  })
+  assert.match(body, /Spend moved: \$46,591\.37/)
+})

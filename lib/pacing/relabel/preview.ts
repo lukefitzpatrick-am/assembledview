@@ -19,6 +19,7 @@ import type {
   RelabelQueryFn,
 } from "./shared/types"
 import { RELABEL_DAYS_WARNING, RELABEL_SPEND_WARNING } from "./shared/types"
+import { formatMoney } from "@/lib/format/money"
 
 export type PreviewRelabelArgs = {
   channel: string
@@ -177,7 +178,7 @@ export async function previewRelabel(
   if (!noChange && spendMoving > RELABEL_SPEND_WARNING) {
     warnings.push({
       code: "spend_over_25000",
-      message: `Spend moved (${spendMoving}) exceeds ${RELABEL_SPEND_WARNING}.`,
+      message: `Spend moved (${formatMoney(spendMoving)}) exceeds ${formatMoney(RELABEL_SPEND_WARNING, { decimals: 0 })}.`,
     })
   }
   if (!noChange && daysMoving > RELABEL_DAYS_WARNING) {
