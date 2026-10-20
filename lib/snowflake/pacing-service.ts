@@ -46,7 +46,9 @@ type RawRow = {
   UPDATED_AT: string | null
 }
 
-const MAX_RANGE_DAYS = 180
+// 400 days: annual plans (Jan to Dec) plus a buffer. 180 cut off anything older
+// than about six months, so year-long campaigns lost their first months.
+const MAX_RANGE_DAYS = 400
 const MAX_IDS = 500
 const QUERY_ROW_LIMIT = 50000
 const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"

@@ -37,8 +37,9 @@ function normalizeDateString(value?: string | null) {
 function buildDateRange(startDate?: string, endDate?: string) {
   // Use Melbourne yesterday as default end date since Snowflake data is typically up to yesterday
   const end = normalizeDateString(endDate) ?? getMelbourneYesterdayISO()
-  // Clamp to 180 days to avoid unbounded scans that can time out serverless funcs.
-  const maxRangeDays = 180
+  // Clamp to 400 days to avoid unbounded scans that can time out serverless funcs.
+  // 400 days so annual plans keep their first months (was 180).
+  const maxRangeDays = 400
   const startProvided = normalizeDateString(startDate)
   const endDateObj = new Date(end)
   const earliestAllowed = new Date(endDateObj.getTime() - maxRangeDays * 24 * 60 * 60 * 1000)

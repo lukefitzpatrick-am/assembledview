@@ -3,7 +3,9 @@ import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
 import { querySnowflake } from "@/lib/snowflake/query"
 
 const QUERY_ROW_LIMIT = 50000
-const MAX_RANGE_DAYS = 180
+// 400 days: annual plans (Jan to Dec) plus a buffer. 180 cut off anything older
+// than about six months, so year-long campaigns lost their first months.
+const MAX_RANGE_DAYS = 400
 
 export type SearchPacingTotals = {
   cost: number
