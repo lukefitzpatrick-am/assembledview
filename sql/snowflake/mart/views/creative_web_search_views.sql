@@ -250,11 +250,20 @@ relabelled AS (
     r.creative_size,
     r.ad_group_name,
     LOWER(TRIM(COALESCE(m.line_item_id, r.parsed_line_item_id))) AS line_item_id,
+    -- MBA: the map row, else the prefix before the line code (hartm014sm1),
+    -- else a bare MBA or an MBA plus a line number with no code (hartm014,
+    -- candel0011 -> candel001, pgaaus0061 -> pgaaus006). MBA numbers are
+    -- letters then exactly 3 digits (every media_plan_masters row, 21 Oct).
     COALESCE(
       NULLIF(TRIM(m.mba_number), ''),
       REGEXP_SUBSTR(
         LOWER(TRIM(COALESCE(m.line_item_id, r.parsed_line_item_id))),
         '^(.*)(prod|pb|pa|pd|po|pv|ml|tv|np|sm|ra|mg|cn|dd|da|dv|bv|it|se|oh|in)[0-9]+$',
+        1, 1, 'i', 1
+      ),
+      REGEXP_SUBSTR(
+        LOWER(TRIM(COALESCE(m.line_item_id, r.parsed_line_item_id))),
+        '^([a-z]{2,10}[0-9]{3})([0-9]{1,3})?$',
         1, 1, 'i', 1
       )
     ) AS mba_number,
@@ -303,6 +312,16 @@ GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY TO ROLE CLA
 -- WHERE date >= DATEADD(day, -30, CURRENT_DATE())
 -- GROUP BY platform
 -- ORDER BY platform;
+
+-- check: line ids with no line code now carry an MBA. Each row below should
+-- be the shown mba (before the widen these were null: candel0011 2,116 rows
+-- $45,160.82, hartm014 14 rows $5,328.54).
+-- SELECT line_item_id, mba_number, COUNT(*) AS n, SUM(spend) AS spend
+-- FROM ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY
+-- WHERE LOWER(line_item_id) IN ('candel0011', 'hartm014', 'pgaaus0061', 'hartm0013')
+-- GROUP BY 1, 2;
+--   candel0011 -> candel001, hartm014 -> hartm014, pgaaus0061 -> pgaaus006,
+--   hartm0013 -> hartm001
 
 -- check: golf025 CM360 rows with mba_number null in the last 60 days should be 0.
 -- Placement names on the map do not contain the token golf025, so this matches
