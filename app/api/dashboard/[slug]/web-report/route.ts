@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { parseIsoDateOnlyStrict } from "@/lib/dashboard/campaignDateRange"
 import { getUserClientSlugs, getUserRoles } from "@/lib/rbac"
-import { isWebSearchEnabled } from "@/lib/webReport/featureFlag"
+import { isWebSearchFlagOn } from "@/lib/webReport/featureFlag"
+import { isWebReportPublished } from "@/lib/webReport/visibility"
 import { loadWebReportResponse, WebReportRangeError } from "@/lib/webReport/loadPage"
 import { isReportPeriod } from "@/lib/webReport/periods"
 
@@ -11,7 +12,8 @@ export const dynamic = "force-dynamic"
 
 /**
  * Client Web & search report. Same client gate as the client dashboard page:
- * a client sees only their own slug. Flag off is 404 for every role.
+ * a client sees only their own slug, and only once the report is published.
+ * Flag off is 404 for every role.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
@@ -20,12 +22,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!session?.user) {
       return NextResponse.json({ error: "unauthorised" }, { status: 401 })
     }
-    if (!isWebSearchEnabled(slug)) {
+    if (!isWebSearchFlagOn()) {
       return NextResponse.json({ error: "not found" }, { status: 404 })
     }
     const roles = getUserRoles(session.user)
     const tenantSlugs = getUserClientSlugs(session.user)
     if (roles[0] === "client" && !tenantSlugs.includes(slug.toLowerCase())) {
+      return NextResponse.json({ error: "not found" }, { status: 404 })
+    }
+    if (roles[0] === "client" && !(await isWebReportPublished(slug))) {
       return NextResponse.json({ error: "not found" }, { status: 404 })
     }
 

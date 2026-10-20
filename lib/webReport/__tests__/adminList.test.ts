@@ -4,13 +4,14 @@ import { test } from "node:test"
 import { formatAccountRef } from "@/lib/clients/platformAccounts"
 import { queryAdminWebReportList } from "@/lib/webReport/admin/list"
 
-test("list query returns linked clients with report status from client_web_reports.status", () => {
+test("list query returns every client with a slug, and the tab is on only when published", () => {
   const rows = queryAdminWebReportList({
     clients: [
       { id: 1, name: "Meta Only", slug: "meta-only" },
       { id: 2, name: "Golf Australia", slug: "golf-australia" },
       { id: 3, name: "Paul Hartmann Pty Ltd", slug: "paul-hartmann" },
       { id: 4, name: "Report Only", slug: "report-only" },
+      { id: 5, name: "No Slug", slug: null },
     ],
     accounts: [
       { clientId: 1, platform: "meta_ads", accountRef: "1033480917" },
@@ -32,12 +33,12 @@ test("list query returns linked clients with report status from client_web_repor
         updatedBy: "ava@assembled.media",
       },
     ],
-    allowlist: new Set(["golf-australia"]),
+    flagOn: true,
   })
 
   assert.deepEqual(
     rows.map((row) => row.slug),
-    ["golf-australia", "paul-hartmann", "report-only"],
+    ["golf-australia", "meta-only", "paul-hartmann", "report-only"],
   )
 
   const golf = rows.find((row) => row.slug === "golf-australia")!
@@ -45,7 +46,7 @@ test("list query returns linked clients with report status from client_web_repor
   assert.equal(golf.statusField, "client_web_reports.status")
   assert.equal(golf.ga4Label, formatAccountRef("ga4", "123456789"))
   assert.equal(golf.gscLabel, "sc-domain:golf.com.au")
-  assert.equal(golf.inClientAllowlist, true)
+  assert.equal(golf.clientTabOn, false, "no report saved yet")
   assert.equal(golf.updatedAt, null)
   assert.equal(golf.updatedBy, null)
 
@@ -53,7 +54,7 @@ test("list query returns linked clients with report status from client_web_repor
   assert.equal(hartmann.status, "draft")
   assert.equal(hartmann.ga4Label, formatAccountRef("ga4", "999"))
   assert.equal(hartmann.gscLabel, "Not linked")
-  assert.equal(hartmann.inClientAllowlist, false)
+  assert.equal(hartmann.clientTabOn, false, "draft is not visible")
   assert.equal(hartmann.updatedBy, "luke@assembled.media")
 
   const reportOnly = rows.find((row) => row.slug === "report-only")!
@@ -61,4 +62,19 @@ test("list query returns linked clients with report status from client_web_repor
   assert.equal(reportOnly.ga4Label, "Not linked")
   assert.equal(reportOnly.gscLabel, "Not linked")
   assert.equal(reportOnly.updatedBy, "ava@assembled.media")
+  assert.equal(reportOnly.clientTabOn, true)
+
+  const meta = rows.find((row) => row.slug === "meta-only")!
+  assert.equal(meta.ga4Label, "Not linked")
+  assert.equal(meta.status, "none")
+})
+
+test("the client tab is off for everyone when FEATURE_WEB_SEARCH is off", () => {
+  const rows = queryAdminWebReportList({
+    clients: [{ id: 4, name: "Report Only", slug: "report-only" }],
+    accounts: [],
+    reports: [{ clientId: 4, status: "published", updatedAt: null, updatedBy: null }],
+    flagOn: false,
+  })
+  assert.equal(rows[0]?.clientTabOn, false)
 })

@@ -23,6 +23,7 @@ import {
   type BuilderEntry,
 } from "@/lib/webReport/builder/editor"
 import { BUILDER_NEEDS_MIGRATION, WEB_REPORT_VERSION_KEEP, parseBrandTerms } from "@/lib/webReport/builder/layout"
+import type { WebAccountOptions, WebAccountPlatform } from "@/lib/webReport/builder/accounts"
 import type { WebElementId, WebReportLayoutItem } from "@/lib/webReport/elements"
 import type { ReportPeriod } from "@/lib/webReport/periods"
 import type { WebReportData } from "@/lib/webReport/types"
@@ -36,6 +37,9 @@ type BuilderResponse = {
   layout?: WebReportLayoutItem[]
   data?: WebReportData
   connected?: boolean
+  accounts?: WebAccountOptions
+  ref?: string | null
+  keyEventNames?: string[]
 }
 
 export const PREVIEW_DEBOUNCE_MS = 400
@@ -80,6 +84,12 @@ export function ReportBuilder({
   const [preview, setPreview] = useState<{ data: WebReportData; connected: boolean } | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [clientView, setClientView] = useState(false)
+  const [ga4Ref, setGa4Ref] = useState<string | null>(ga4PropertyRef)
+  const [gscRef, setGscRef] = useState<string | null>(gscSiteRef)
+  const [eventNames, setEventNames] = useState<string[]>(keyEventNames)
+  const [accountOptions, setAccountOptions] = useState<WebAccountOptions | null>(null)
+  const [linking, setLinking] = useState(false)
+  const [linkRevision, setLinkRevision] = useState(0)
   const keySeq = useRef(0)
   const previewSeq = useRef(0)
 
@@ -132,7 +142,48 @@ export function ReportBuilder({
     return () => clearTimeout(timer)
     // Data depends on the period, brand terms and saved KPIs only. Layout edits re-render from the loaded data.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, termsKey, slug, kpiRevision])
+  }, [period, termsKey, slug, kpiRevision, linkRevision])
+
+  useEffect(() => {
+    let live = true
+    void (async () => {
+      try {
+        const { response, payload } = await post({ action: "accounts" })
+        if (live && response.ok && payload?.accounts) setAccountOptions(payload.accounts)
+      } catch {
+        // The picker stays disabled; Edit accounts still works.
+      }
+    })()
+    return () => {
+      live = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, linkRevision])
+
+  async function onLink(platform: WebAccountPlatform, ref: string | null, label: string | null) {
+    setLinking(true)
+    setError(null)
+    try {
+      const { response, payload } = await post({ action: "link", platform, ref, label })
+      if (!response.ok) {
+        setError(payload?.error ?? "The account could not be linked")
+        return
+      }
+      const linked = payload?.ref ?? null
+      if (platform === "ga4") {
+        setGa4Ref(linked)
+        if (payload?.keyEventNames) setEventNames(payload.keyEventNames)
+      } else {
+        setGscRef(linked)
+      }
+      setMessage(linked ? `Linked ${linked}. The report reads from it now.` : "Account unlinked.")
+      setLinkRevision((value) => value + 1)
+    } catch {
+      setError("The account could not be linked")
+    } finally {
+      setLinking(false)
+    }
+  }
 
   const savedKpis = useMemo(
     () => (preview?.data.kpis?.items ?? []).map((item) => ({ id: item.id, label: item.label })),
@@ -212,8 +263,11 @@ export function ReportBuilder({
         onPeriod={setPeriod}
         terms={terms}
         onTerms={setTerms}
-        ga4PropertyRef={ga4PropertyRef}
-        gscSiteRef={gscSiteRef}
+        ga4PropertyRef={ga4Ref}
+        gscSiteRef={gscRef}
+        accountOptions={accountOptions}
+        linking={linking}
+        onLink={(platform, ref, label) => void onLink(platform, ref, label)}
         clientView={clientView}
         onClientView={setClientView}
         canSave={migrationApplied && busy == null && entries.length > 0}
@@ -267,7 +321,7 @@ export function ReportBuilder({
               entry={selectedEntry}
               index={selectedIndex}
               total={entries.length}
-              keyEventNames={keyEventNames}
+              keyEventNames={eventNames}
               savedKpis={savedKpis}
               onDisplay={(display) => selectedKey && setEntries((current) => setEntryDisplay(current, selectedKey, display))}
               onWidth={(width) => selectedKey && setEntries((current) => setEntryWidth(current, selectedKey, width))}

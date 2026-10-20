@@ -3,7 +3,8 @@ import { notFound, redirect } from "next/navigation"
 import { WebReportView } from "@/components/dashboard/web/WebReportView"
 import { auth0 } from "@/lib/auth0"
 import { getPrimaryRole, getUserClientSlugs, hasRole } from "@/lib/rbac"
-import { isWebSearchEnabled } from "@/lib/webReport/featureFlag"
+import { isWebSearchFlagOn } from "@/lib/webReport/featureFlag"
+import { isWebReportPublished } from "@/lib/webReport/visibility"
 import { loadWebReportResponse, WebReportRangeError } from "@/lib/webReport/loadPage"
 import { isReportPeriod, type ReportPeriod } from "@/lib/webReport/periods"
 
@@ -19,7 +20,7 @@ function first(value: string | string[] | undefined): string | null {
 
 export default async function WebSearchPage({ params, searchParams }: WebSearchPageProps) {
   const { slug } = await params
-  if (!isWebSearchEnabled(slug)) notFound()
+  if (!isWebSearchFlagOn()) notFound()
 
   const session = await auth0.getSession()
   const user = session?.user
@@ -33,6 +34,8 @@ export default async function WebSearchPage({ params, searchParams }: WebSearchP
     if (userClientSlugs.length === 0 || !userClientSlugs.includes(slug.toLowerCase())) {
       notFound()
     }
+    // Clients see the tab only after the report has been saved and published.
+    if (!(await isWebReportPublished(slug))) notFound()
   }
 
   const sp = searchParams ? await searchParams : undefined

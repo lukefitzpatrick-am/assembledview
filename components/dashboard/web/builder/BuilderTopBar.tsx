@@ -6,6 +6,7 @@ import { BUILDER_FIELD_CLASS } from "@/components/dashboard/web/builder/Settings
 import { PageHeader } from "@/components/layout/PageHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import type { WebAccountOption, WebAccountOptions, WebAccountPlatform } from "@/lib/webReport/builder/accounts"
 import { REPORT_PERIODS, type ReportPeriod } from "@/lib/webReport/periods"
 
 const PERIOD_LABEL: Record<ReportPeriod, string> = {
@@ -27,6 +28,9 @@ export function BuilderTopBar({
   onTerms,
   ga4PropertyRef,
   gscSiteRef,
+  accountOptions,
+  linking,
+  onLink,
   clientView,
   onClientView,
   canSave,
@@ -46,6 +50,9 @@ export function BuilderTopBar({
   onTerms: (terms: string) => void
   ga4PropertyRef: string | null
   gscSiteRef: string | null
+  accountOptions: WebAccountOptions | null
+  linking: boolean
+  onLink: (platform: WebAccountPlatform, ref: string | null, label: string | null) => void
   clientView: boolean
   onClientView: (on: boolean) => void
   canSave: boolean
@@ -105,17 +112,33 @@ export function BuilderTopBar({
           Brand terms
           <Input className="h-11" value={terms} placeholder="brand, product" onChange={(event) => onTerms(event.target.value)} />
         </label>
-        <div className="flex flex-col gap-1 text-sm text-foreground">
-          <span>Linked accounts</span>
-          <p className="text-sm text-muted-foreground">
-            Google Analytics 4 <span className="num text-foreground">{ga4PropertyRef ?? "Not linked"}</span>
-          </p>
-          <p className="truncate text-sm text-muted-foreground">
-            Search Console <span className="text-foreground">{gscSiteRef ?? "Not linked"}</span>
-          </p>
-          <Link href={editAccountsHref(slug)} className="text-sm font-semibold text-primary hover:underline">
-            Edit accounts
-          </Link>
+        <div className="flex flex-col gap-2 text-sm text-foreground">
+          <AccountSelect
+            id="builder-ga4"
+            label="Google Analytics 4"
+            platform="ga4"
+            current={ga4PropertyRef}
+            options={accountOptions}
+            disabled={linking}
+            onLink={onLink}
+          />
+          <AccountSelect
+            id="builder-gsc"
+            label="Search Console"
+            platform="gsc"
+            current={gscSiteRef}
+            options={accountOptions}
+            disabled={linking}
+            onLink={onLink}
+          />
+          {accountOptions && !accountOptions.ready ? (
+            <p className="text-xs text-muted-foreground">
+              The account list is not set up yet (V_WEB_ACCOUNTS).{" "}
+              <Link href={editAccountsHref(slug)} className="font-semibold text-primary hover:underline">
+                Edit accounts
+              </Link>
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-col gap-1 text-sm text-foreground">
           <span>
@@ -146,5 +169,68 @@ export function BuilderTopBar({
         </div>
       </section>
     </div>
+  )
+}
+
+const STALE_DAYS = 14
+
+function optionText(platform: WebAccountPlatform, option: WebAccountOption, today: string): string {
+  const parts = [platform === "ga4" ? `${option.label} (${option.ref})` : option.label]
+  if (option.lastDataDate) {
+    const age = (Date.parse(today) - Date.parse(option.lastDataDate)) / 86_400_000
+    if (age > STALE_DAYS) parts.push(`no data since ${option.lastDataDate}`)
+  }
+  if (option.linkedTo) parts.push(`linked to ${option.linkedTo}`)
+  return parts.join(" · ")
+}
+
+/** Pick the client's GA4 property or Search Console site. Saving the choice links it straight away. */
+function AccountSelect({
+  id,
+  label,
+  platform,
+  current,
+  options,
+  disabled,
+  onLink,
+}: {
+  id: string
+  label: string
+  platform: WebAccountPlatform
+  current: string | null
+  options: WebAccountOptions | null
+  disabled: boolean
+  onLink: (platform: WebAccountPlatform, ref: string | null, label: string | null) => void
+}) {
+  const list = options?.[platform] ?? []
+  const today = new Date().toISOString().slice(0, 10)
+  const known = current ? list.some((option) => option.ref.toLowerCase() === current.toLowerCase()) : true
+  return (
+    <label className="flex flex-col gap-1" htmlFor={id}>
+      {label}
+      <select
+        id={id}
+        className={BUILDER_FIELD_CLASS}
+        value={current ?? ""}
+        disabled={disabled || !options || !options.ready}
+        onChange={(event) => {
+          const ref = event.target.value || null
+          const picked = list.find((option) => option.ref === ref)
+          onLink(platform, ref, picked?.label ?? null)
+        }}
+      >
+        <option value="">Not linked</option>
+        {!known && current ? <option value={current}>{current}</option> : null}
+        {list.map((option) => (
+          <option
+            key={option.ref}
+            value={option.ref}
+            disabled={Boolean(option.linkedTo) && option.ref.toLowerCase() !== (current ?? "").toLowerCase()}
+          >
+            {optionText(platform, option, today)}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }

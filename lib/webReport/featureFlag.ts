@@ -1,23 +1,14 @@
 /**
- * Web & search is off unless FEATURE_WEB_SEARCH is on/1/true and the
- * dashboard slug is in FEATURE_WEB_SEARCH_CLIENTS (comma-separated).
+ * FEATURE_WEB_SEARCH (on/1/true) is the global switch for the Web & search tab.
  * Off is 404 for every role, including admin.
+ *
+ * There is no per-client allowlist (FEATURE_WEB_SEARCH_CLIENTS is not read
+ * since 2026-10-20). With the switch on, a client sees the tab only once their
+ * report has been saved and published (lib/webReport/visibility.ts).
  */
 
 const ON = new Set(["on", "1", "true"])
 
-/** Slugs named in FEATURE_WEB_SEARCH_CLIENTS. Does not read FEATURE_WEB_SEARCH. */
-export function webSearchClientAllowlist(env: NodeJS.ProcessEnv = process.env): Set<string> {
-  return new Set(
-    (env.FEATURE_WEB_SEARCH_CLIENTS ?? "")
-      .split(",")
-      .map((part) => part.trim().toLowerCase())
-      .filter(Boolean),
-  )
-}
-
-export function isWebSearchEnabled(slug: string, env: NodeJS.ProcessEnv = process.env): boolean {
-  const flag = (env.FEATURE_WEB_SEARCH ?? "").trim().toLowerCase()
-  if (!ON.has(flag)) return false
-  return webSearchClientAllowlist(env).has(slug.trim().toLowerCase())
+export function isWebSearchFlagOn(env: NodeJS.ProcessEnv = process.env): boolean {
+  return ON.has((env.FEATURE_WEB_SEARCH ?? "").trim().toLowerCase())
 }

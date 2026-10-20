@@ -32,7 +32,8 @@ export type AdminWebReportListRow = {
   statusField: "client_web_reports.status"
   updatedAt: string | null
   updatedBy: string | null
-  inClientAllowlist: boolean
+  /** The client can see the tab: FEATURE_WEB_SEARCH is on and the report is published. */
+  clientTabOn: boolean
 }
 
 const NOT_LINKED = "Not linked"
@@ -51,27 +52,23 @@ function reportStatus(status: string | undefined): AdminWebReportStatus {
 }
 
 /**
- * Clients with a ga4 or gsc platform-account row, or a client_web_reports row.
+ * Every client with a dashboard slug, so a report can be started for anyone.
  * Status is `client_web_reports.status` (`draft` or `published`); no row is `none`.
  */
 export function queryAdminWebReportList(input: {
   clients: AdminWebReportClientSource[]
   accounts: AdminWebReportAccountSource[]
   reports: AdminWebReportRecordSource[]
-  allowlist: ReadonlySet<string>
+  flagOn: boolean
 }): AdminWebReportListRow[] {
   const webAccounts = input.accounts.filter(
     (account) => account.platform === "ga4" || account.platform === "gsc",
   )
   const reportByClient = new Map(input.reports.map((report) => [report.clientId, report]))
-  const included = new Set<number>()
-  for (const account of webAccounts) included.add(account.clientId)
-  for (const report of input.reports) included.add(report.clientId)
-
   const rows = input.clients.flatMap((client) => {
-    if (!included.has(client.id)) return []
-    const report = reportByClient.get(client.id)
     const slug = client.slug?.trim() || null
+    if (!slug) return []
+    const report = reportByClient.get(client.id)
     const ga4 = webAccounts
       .filter((account) => account.clientId === client.id && account.platform === "ga4")
       .map((account) => account.accountRef)
@@ -89,7 +86,7 @@ export function queryAdminWebReportList(input: {
         statusField: "client_web_reports.status" as const,
         updatedAt: report?.updatedAt ?? null,
         updatedBy: report?.updatedBy ?? null,
-        inClientAllowlist: slug != null && input.allowlist.has(slug.toLowerCase()),
+        clientTabOn: input.flagOn && reportStatus(report?.status) === "published",
       },
     ]
   })

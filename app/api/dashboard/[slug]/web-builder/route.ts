@@ -3,8 +3,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { builderGate } from "@/lib/webReport/builder/access"
 import { BUILDER_NEEDS_MIGRATION, savedForMessage } from "@/lib/webReport/builder/layout"
 import { parseBuilderRequest } from "@/lib/webReport/builder/request"
+import { WebAccountLinkError, linkWebAccount, listWebAccountOptions } from "@/lib/webReport/builder/accounts"
 import {
   BuilderMigrationError,
+  listKeyEventNames,
   loadBuilderPreview,
   migration0098Applied,
   resolveBuilderClient,
@@ -75,6 +77,23 @@ export async function POST(req: NextRequest, context: RouteContext) {
     }
 
     const savedBy = actorEmail(auth.session)
+    if (parsed.action === "accounts") {
+      return NextResponse.json({ accounts: await listWebAccountOptions(client.clientId) })
+    }
+    if (parsed.action === "link") {
+      const linked = await linkWebAccount({
+        clientId: client.clientId,
+        platform: parsed.body.platform,
+        ref: parsed.body.ref,
+        label: parsed.body.label,
+        actor: savedBy,
+      })
+      return NextResponse.json({
+        platform: parsed.body.platform,
+        ref: linked.ref,
+        keyEventNames: parsed.body.platform === "ga4" ? await listKeyEventNames(linked.ref) : undefined,
+      })
+    }
     if (parsed.action === "restore") {
       const restored = await restorePublishedVersion({
         clientId: client.clientId,
@@ -101,6 +120,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
       message: savedForMessage(client.clientName, saved.version),
     })
   } catch (err) {
+    if (err instanceof WebAccountLinkError) {
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
     if (err instanceof BuilderMigrationError) {
       return NextResponse.json({ error: BUILDER_NEEDS_MIGRATION }, { status: 409 })
     }

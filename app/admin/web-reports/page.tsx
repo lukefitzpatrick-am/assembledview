@@ -89,9 +89,9 @@ const columns: DataTableColumn<AdminWebReportListRow>[] = [
     cell: (row) => <UpdatedCell row={row} />,
   },
   {
-    id: "allowlist",
-    header: "Client tab",
-    accessor: (row) => (row.inClientAllowlist ? "Yes" : "No"),
+    id: "clientTab",
+    header: "Client can see it",
+    accessor: (row) => (row.clientTabOn ? "Yes" : "No"),
   },
   {
     id: "actions",
@@ -138,7 +138,7 @@ function WebReportsPageInner() {
     <PageShell>
       <PageHeader
         title="Web & search reports"
-        lede="Status is client_web_reports.status. None means that client has no report row. Client tab is Yes when the slug is in FEATURE_WEB_SEARCH_CLIENTS."
+        lede="Every client is listed. Open Edit report to pick their GA4 property and Search Console site and build the report. A client sees their Web & search tab only once the report is saved and published."
       />
       {loading ? <LoadingState /> : null}
       {!loading && error ? (
@@ -153,7 +153,7 @@ function WebReportsPageInner() {
       {!loading && !error && ready && rows.length === 0 ? (
         <EmptyState
           title="No linked clients"
-          message="Clients appear here when they have a GA4 or Search Console account, or a saved report."
+          message="No clients have a dashboard slug yet."
         />
       ) : null}
       {!loading && !error && ready && rows.length > 0 ? (

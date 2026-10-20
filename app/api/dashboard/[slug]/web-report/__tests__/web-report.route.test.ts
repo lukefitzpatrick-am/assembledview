@@ -12,12 +12,16 @@ const skip = mockModuleSkip()
 
 const getSessionMock = mock.fn(async (_req?: unknown) => null as null | { user: Record<string, unknown> })
 const loadMock = mock.fn(async (_input?: unknown) => null as unknown)
+const publishedMock = mock.fn(async (_slug?: string) => true)
 
 if (supportsMockModule()) {
   await mock.module!("@/lib/auth0", {
     namedExports: {
       auth0: { getSession: getSessionMock },
     },
+  })
+  await mock.module!("@/lib/webReport/visibility", {
+    namedExports: { isWebReportPublished: publishedMock },
   })
   await mock.module!("@/lib/webReport/loadPage", {
     namedExports: {
@@ -44,12 +48,10 @@ function clientUser(slugs: string[]) {
 
 function enableFlag() {
   process.env.FEATURE_WEB_SEARCH = "1"
-  process.env.FEATURE_WEB_SEARCH_CLIENTS = "golf-australia"
 }
 
 function disableFlag() {
   delete process.env.FEATURE_WEB_SEARCH
-  delete process.env.FEATURE_WEB_SEARCH_CLIENTS
 }
 
 async function getReport(slug: string, query = "") {
@@ -94,5 +96,19 @@ test("GET web-report — the client's own slug loads the report", { skip }, asyn
   const body = await res.json()
   assert.equal(body.clientName, "Golf Australia")
   assert.equal(loadMock.mock.calls.length, 1)
+  disableFlag()
+})
+
+test("GET web-report — a client's own unpublished report is 404", { skip }, async () => {
+  enableFlag()
+  getSessionMock.mock.resetCalls()
+  getSessionMock.mock.mockImplementation(async () => ({ user: clientUser(["golf-australia"]) }))
+  publishedMock.mock.mockImplementation(async () => false)
+  loadMock.mock.resetCalls()
+
+  const res = await getReport("golf-australia")
+  assert.equal(res.status, 404)
+  assert.equal(loadMock.mock.calls.length, 0)
+  publishedMock.mock.mockImplementation(async () => true)
   disableFlag()
 })

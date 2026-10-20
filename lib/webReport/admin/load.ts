@@ -1,10 +1,10 @@
 import "server-only"
 
-import { eq, inArray, or } from "drizzle-orm"
+import { eq, or } from "drizzle-orm"
 
 import { getDb } from "@/db"
 import { clientPlatformAccounts, clientWebReports, clients } from "@/db/schema"
-import { webSearchClientAllowlist } from "@/lib/webReport/featureFlag"
+import { isWebSearchFlagOn } from "@/lib/webReport/featureFlag"
 import { migration0098Applied } from "@/lib/webReport/builder/repo"
 import { queryAdminWebReportList, type AdminWebReportListRow } from "@/lib/webReport/admin/list"
 
@@ -37,11 +37,7 @@ export async function loadAdminWebReportList(): Promise<AdminWebReportListResult
         .from(clientWebReports),
     ])
 
-    const ids = [
-      ...new Set([...accounts.map((row) => row.clientId), ...reports.map((row) => row.clientId)]),
-    ]
-    if (ids.length === 0) return { ready: true, rows: [] }
-
+    // Every client, so the builder can start a report for anyone.
     const clientRows = await db
       .select({
         id: clients.id,
@@ -49,7 +45,6 @@ export async function loadAdminWebReportList(): Promise<AdminWebReportListResult
         slug: clients.slug,
       })
       .from(clients)
-      .where(inArray(clients.id, ids))
 
     return {
       ready: true,
@@ -61,7 +56,7 @@ export async function loadAdminWebReportList(): Promise<AdminWebReportListResult
         })),
         accounts,
         reports,
-        allowlist: webSearchClientAllowlist(),
+        flagOn: isWebSearchFlagOn(),
       }),
     }
   } catch (err) {

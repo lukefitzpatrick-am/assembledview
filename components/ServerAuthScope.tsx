@@ -1,6 +1,6 @@
 import { auth0 } from "@/lib/auth0"
 import { getUserClientSlugs } from "@/lib/rbac"
-import { isWebSearchEnabled } from "@/lib/webReport/featureFlag"
+import { publishedWebSearchSlugs } from "@/lib/webReport/visibility"
 import ClientRoot from "@/components/ClientRoot"
 
 /**
@@ -15,6 +15,12 @@ export default async function ServerAuthScope({ children }: { children: React.Re
   } catch {
     clientSlugs = []
   }
-  const webSearchSlugs = clientSlugs.filter((slug) => isWebSearchEnabled(slug))
+  // A client's Web & search link shows only once their report is saved and published.
+  let webSearchSlugs: string[] = []
+  try {
+    webSearchSlugs = await publishedWebSearchSlugs(clientSlugs)
+  } catch {
+    webSearchSlugs = []
+  }
   return <ClientRoot clientSlugs={clientSlugs} webSearchSlugs={webSearchSlugs}>{children}</ClientRoot>
 }
