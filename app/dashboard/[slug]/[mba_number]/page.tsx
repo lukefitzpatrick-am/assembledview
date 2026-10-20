@@ -8,9 +8,10 @@ import { createPerfTimer, logPerf } from "@/lib/utils/perf"
 import { normalizeDateToMelbourneISO } from "@/lib/dates/normalizeCampaignDateISO"
 import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
 import {
-  resolveCampaignExpectedSpendToDate,
+  resolveCampaignExpectedSpendForWindow,
   resolveCampaignTotalPlannedSpend,
 } from "@/lib/spend/resolveCampaignExpectedSpend"
+import { resolvePacingWindowISO } from "@/lib/pacing/expectedForWindow"
 import { ErrorState } from "@/components/ui/states"
 import { hasReportedDeliveredSpend } from "@/lib/delivery/deliveredTotals"
 import { getDeliveredTotalsForCampaign } from "@/lib/delivery/getDeliveredTotalsForCampaign"
@@ -312,7 +313,11 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const pageTimer = createPerfTimer(`CampaignPage[${(await params).mba_number}]`)
 
   const { slug, mba_number } = await params
-  const { version } = searchParams ? await searchParams : {}
+  const {
+    version,
+    startDate: filterStartParam,
+    endDate: filterEndParam,
+  } = searchParams ? await searchParams : {}
   const parsedVersion = version ? Number(version) : undefined
   const versionNumberFromQuery = Number.isFinite(parsedVersion) ? parsedVersion : undefined
 
@@ -647,6 +652,15 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const feePctsByVersionId = await loadDirectDigitalFeePctsOrGross(feeVersionIds)
 
   const deliverySpendToDate = deriveSpendToDate(deliverySchedule)
+  // Strip money follows the pacing window: campaign start (or filter start) to
+  // Melbourne yesterday (or filter end), capped at the campaign end. Delivered
+  // and expected use the same window, so assumed spend never counts today.
+  const stripWindow = resolvePacingWindowISO({
+    filterStartISO: typeof filterStartParam === "string" ? filterStartParam : null,
+    filterEndISO: typeof filterEndParam === "string" ? filterEndParam : null,
+    campaignStartISO: effectiveStartISO ?? campaignStartISO,
+    campaignEndISO: effectiveEndISO ?? campaignEndISO,
+  })
   let actualSpend: number | undefined
   let deliveredImpressions: number | undefined
   let deliveredClicks = 0
@@ -654,33 +668,41 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   let deliveredVideo3sViews = 0
   let hasDelivery = false
   let deliveredAsOf: string | undefined
+  let deliveredThroughISO: string | undefined
   const deliveryLineIds = new Set<string>()
-  try {
-    const delivered = await getDeliveredTotalsForCampaign({
-      mbaNumber: mba_number,
-      versionNumber: Number.isFinite(vn) ? vn : undefined,
-      mpSearchEnabled,
-      lineItemsMap,
-      feePctsByVersionId,
-      estimateVersionId: versionRecordId,
-    })
-    // Gated on the spend figure itself, not `hasDelivery` (also true for impressions-only
-    // delivery) — an impressions-only campaign must never show a fabricated "$0 delivered".
-    actualSpend = hasReportedDeliveredSpend(delivered.spendToDate) ? delivered.spendToDate : undefined
-    deliveredImpressions = delivered.impressions
-    deliveredClicks = delivered.clicks
-    deliveredResults = delivered.results
-    deliveredVideo3sViews = delivered.video3sViews
-    hasDelivery = delivered.hasDelivery
-    deliveredAsOf = delivered.asOf
-    for (const id of delivered.deliveryLineIds) deliveryLineIds.add(id)
-  } catch (error) {
-    console.error("[campaign-page] delivered totals failed", {
-      mba: mba_number,
-      versionNumber: vn,
-      error,
-    })
-    actualSpend = undefined
+  // Nothing is expected or counted before the window opens.
+  if (!stripWindow.empty) {
+    try {
+      const delivered = await getDeliveredTotalsForCampaign({
+        mbaNumber: mba_number,
+        versionNumber: Number.isFinite(vn) ? vn : undefined,
+        mpSearchEnabled,
+        lineItemsMap,
+        feePctsByVersionId,
+        estimateVersionId: versionRecordId,
+        startDate: stripWindow.startISO,
+        endDate: stripWindow.endISO,
+      })
+      // Gated on the spend figure itself, not `hasDelivery` (also true for impressions-only
+      // delivery) — an impressions-only campaign must never show a fabricated "$0 delivered".
+      actualSpend = hasReportedDeliveredSpend(delivered.spendToDate) ? delivered.spendToDate : undefined
+      deliveredImpressions = delivered.impressions
+      deliveredClicks = delivered.clicks
+      deliveredResults = delivered.results
+      deliveredVideo3sViews = delivered.video3sViews
+      hasDelivery = delivered.hasDelivery
+      // Coverage and the delivery cards keep today's date for "not started yet".
+      deliveredAsOf = getAsOfDate()
+      deliveredThroughISO = delivered.asOf
+      for (const id of delivered.deliveryLineIds) deliveryLineIds.add(id)
+    } catch (error) {
+      console.error("[campaign-page] delivered totals failed", {
+        mba: mba_number,
+        versionNumber: vn,
+        error,
+      })
+      actualSpend = undefined
+    }
   }
 
   const monthlyPlanDateOpts = {
@@ -689,7 +711,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     asOfISO: deliveredAsOf ?? getAsOfDate(),
   }
 
-  const expectedSpend = resolveCampaignExpectedSpendToDate({
+  const expectedSpend = resolveCampaignExpectedSpendForWindow({
+    window: stripWindow,
     billingSchedule,
     campaignStartISO: effectiveStartISO,
     campaignEndISO: effectiveEndISO,
@@ -771,6 +794,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       deliveredVideo3sViews={deliveredVideo3sViews}
       hasDelivery={hasDelivery}
       deliveredAsOf={deliveredAsOf}
+      deliveredThroughISO={deliveredThroughISO}
       expectedSpend={expectedSpend}
       totalPlannedMonthlySpend={totalPlannedMonthlySpend}
       startDate={effectiveStartISO ?? startDate}

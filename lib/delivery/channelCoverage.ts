@@ -591,6 +591,25 @@ export function sumReportingExpectedImpressionsToDate(entries: ChannelCoverageEn
   return seen ? total : null
 }
 
+/**
+ * Deliverables expected for the selected pacing window on reporting channels
+ * (to Melbourne yesterday, narrowed by the date filter). The strip's
+ * delivered impressions use the same window. Null when no reporting card
+ * carries the figure.
+ */
+export function sumReportingExpectedImpressions(entries: ChannelCoverageEntry[]): number | null {
+  let total = 0
+  let seen = false
+  for (const entry of visibleCoverageCards(entries)) {
+    if (entry.status !== "reporting") continue
+    const value = entry.expectedImpressions
+    if (typeof value !== "number" || !Number.isFinite(value)) continue
+    seen = true
+    total += value
+  }
+  return seen ? total : null
+}
+
 export function sumReportingPlannedImpressions(entries: ChannelCoverageEntry[]): number {
   let total = 0
   for (const entry of visibleCoverageCards(entries)) {

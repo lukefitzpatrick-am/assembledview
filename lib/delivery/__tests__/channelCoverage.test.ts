@@ -7,6 +7,7 @@ import type { ProgressCardProps } from "@/components/dashboard/delivery/shared/P
 import {
   channelCoverage,
   firstAheadChannelName,
+  sumReportingExpectedImpressions,
   sumReportingExpectedImpressionsToDate,
   visibleCoverageCards,
   type ChannelCoverageBuckets,
@@ -877,6 +878,8 @@ test("expected impressions come from the cards' numeric fields, not the detail t
   assert.equal(meta.expectedImpressions, 150_000)
   assert.equal(meta.expectedImpressionsToDate, 200_000)
   assert.equal(sumReportingExpectedImpressionsToDate(entries), 200_000)
+  // The strip's delivered impressions follow the window, so it reads the window figure.
+  assert.equal(sumReportingExpectedImpressions(entries), 150_000)
 })
 
 test("expected impressions are null when a card has no numeric expected", () => {
@@ -891,6 +894,7 @@ test("expected impressions are null when a card has no numeric expected", () => 
   })
   assert.equal(entries.find((e) => e.key === "social-meta")?.expectedImpressions, null)
   assert.equal(sumReportingExpectedImpressionsToDate(entries), null)
+  assert.equal(sumReportingExpectedImpressions(entries), null)
 })
 
 test("assumed spend on the glance counts only the pacing window", () => {

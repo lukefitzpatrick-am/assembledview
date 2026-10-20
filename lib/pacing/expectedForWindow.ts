@@ -92,12 +92,37 @@ export function resolvePacingWindow(input: {
   campaignEndISO: string | null | undefined
   asAtISO?: string | null
 }): PacingWindow {
+  return resolvePacingWindowISO({
+    filterStartISO: input.filterRange?.start ? localDateISO(input.filterRange.start) : null,
+    filterEndISO: input.filterRange?.end ? localDateISO(input.filterRange.end) : null,
+    campaignStartISO: input.campaignStartISO,
+    campaignEndISO: input.campaignEndISO,
+    asAtISO: input.asAtISO,
+  })
+}
+
+/**
+ * `resolvePacingWindow` for callers holding the filter as `YYYY-MM-DD`
+ * strings (the `startDate` / `endDate` URL params on the server).
+ * The filter applies only when both ends are valid days.
+ */
+export function resolvePacingWindowISO(input: {
+  filterStartISO?: string | null
+  filterEndISO?: string | null
+  campaignStartISO: string | null | undefined
+  campaignEndISO: string | null | undefined
+  asAtISO?: string | null
+  reference?: Date
+}): PacingWindow {
   const campaignStart = isoDay(input.campaignStartISO)
   const campaignEnd = isoDay(input.campaignEndISO)
-  const asAt = isoDay(input.asAtISO) ?? pacingAsAtISO(campaignEnd)
-  const filterStart = input.filterRange?.start ? localDateISO(input.filterRange.start) : null
-  const filterEnd = input.filterRange?.end ? localDateISO(input.filterRange.end) : null
-  const hasFilter = Boolean(filterStart && filterEnd)
+  const asAt = isoDay(input.asAtISO) ?? pacingAsAtISO(campaignEnd, input.reference)
+  const rawStart = isoDay(input.filterStartISO)
+  const rawEnd = isoDay(input.filterEndISO)
+  const hasFilter = Boolean(rawStart && rawEnd)
+  // A reversed filter reads as the same days in order.
+  const filterStart = hasFilter ? (rawStart! <= rawEnd! ? rawStart : rawEnd) : null
+  const filterEnd = hasFilter ? (rawStart! <= rawEnd! ? rawEnd : rawStart) : null
 
   const startISO = maxISO(campaignStart, hasFilter ? filterStart : null) ?? "1970-01-01"
   const endISO = minISO(campaignEnd, hasFilter ? filterEnd : null, asAt) ?? asAt

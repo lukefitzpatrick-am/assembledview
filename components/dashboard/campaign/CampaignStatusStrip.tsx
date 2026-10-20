@@ -20,13 +20,17 @@ export type CampaignStatusStripProps = {
   deliveredImpressions?: number
   plannedImpressions?: number
   /**
-   * Impressions expected campaign start to Melbourne yesterday on reporting
-   * channels (no date filter). When set, the impressions bar and caption read
-   * delivered against it instead of the planned total.
+   * Impressions expected for the pacing window on reporting channels (to
+   * Melbourne yesterday, narrowed by the date filter). When set, the
+   * impressions bar and caption read delivered against it instead of the
+   * planned total.
    */
   expectedImpressions?: number
   hasDelivery: boolean
+  /** Last day inside the delivered and expected figures (Melbourne yesterday or the filter end). */
   deliveredAsOf?: string
+  /** "to date" (no filter) or "in period" (date filter). Defaults to "to date". */
+  periodLabel?: "to date" | "in period"
   channelsReporting?: number
   channelsTotal?: number
   aheadChannelName?: string | null
@@ -147,6 +151,7 @@ export function CampaignStatusStrip({
   expectedImpressions,
   hasDelivery,
   deliveredAsOf,
+  periodLabel = "to date",
   channelsReporting,
   channelsTotal,
   aheadChannelName,
@@ -194,7 +199,7 @@ export function CampaignStatusStrip({
   const showImpressions = hasDelivery
   const expectedCaptionMoney = formatMoneyCompact(expectedKnown ? expectedSpend : budget)
   const budgetCaptionMoney = formatMoneyCompact(budget)
-  const impressionsBasis = impressionsAgainstExpected ? "expected to date" : "planned"
+  const impressionsBasis = impressionsAgainstExpected ? `expected ${periodLabel}` : "planned"
   // Against expected the figure is not capped at 100%: ahead shows as ahead.
   const impressionsPctText =
     impressionsAgainstExpected &&
@@ -228,7 +233,7 @@ export function CampaignStatusStrip({
           <p className="text-sm text-foreground">{sentence}</p>
           {deliveredAsOf ? (
             <p className="text-xs text-muted-foreground">
-              Last updated {formatDateShort(deliveredAsOf)}
+              Delivery to {formatDateShort(deliveredAsOf)}
             </p>
           ) : null}
         </div>
@@ -241,7 +246,7 @@ export function CampaignStatusStrip({
         >
           <StatCell
             testId="delivered-to-date"
-            label="Delivered to date"
+            label={`Delivered ${periodLabel}`}
             value={spendKnown ? formatMoneyCompact(actualSpend) : "—"}
             bar={spendVsExpected}
             barClassName={band ? DELIVERED_BAR[band] : "bg-am-context"}
@@ -249,7 +254,7 @@ export function CampaignStatusStrip({
           />
           <StatCell
             testId="expected-by-now"
-            label="Expected media to date"
+            label={`Expected media ${periodLabel}`}
             value={expectedKnown ? formatMoneyCompact(expectedSpend) : "—"}
             bar={expectedVsBudget}
             barClassName="bg-am-forest"

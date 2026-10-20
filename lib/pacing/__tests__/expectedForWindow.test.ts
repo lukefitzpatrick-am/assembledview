@@ -11,6 +11,7 @@ import {
   paceVsExpected,
   plannedTotal,
   resolvePacingWindow,
+  resolvePacingWindowISO,
   sumInWindow,
   windowPhrase,
 } from "../expectedForWindow.js"
@@ -184,5 +185,58 @@ test("netSpendBasisForLine reads the line flag, fee snapshot and stored net tota
   assert.equal(
     netSpendBasisForLine({ budget_includes_fees: true }, { mediaType: "socialMedia", feePctsByVersionId: fees, fallbackVersionId: 17014 }).feePct,
     15,
+  )
+})
+
+test("resolvePacingWindowISO matches resolvePacingWindow for URL date strings", () => {
+  const ref = new Date("2026-10-19T22:00:00Z") // 09:00 20 Oct Melbourne
+  const plain = resolvePacingWindowISO({
+    campaignStartISO: "2026-10-01",
+    campaignEndISO: "2026-12-31",
+    reference: ref,
+  })
+  assert.deepEqual(plain, { startISO: "2026-10-01", endISO: "2026-10-19", filtered: false, empty: false })
+
+  const filtered = resolvePacingWindowISO({
+    filterStartISO: "2026-10-05",
+    filterEndISO: "2026-11-30",
+    campaignStartISO: "2026-10-01",
+    campaignEndISO: "2026-12-31",
+    reference: ref,
+  })
+  assert.deepEqual(filtered, { startISO: "2026-10-05", endISO: "2026-10-19", filtered: true, empty: false })
+  const viaDates = resolvePacingWindow({
+    filterRange: { start: new Date(2026, 9, 5), end: new Date(2026, 10, 30) },
+    campaignStartISO: "2026-10-01",
+    campaignEndISO: "2026-12-31",
+    asAtISO: "2026-10-19",
+  })
+  assert.deepEqual(viaDates, filtered)
+
+  // One end missing: no filter. A reversed filter reads in order.
+  assert.equal(
+    resolvePacingWindowISO({ filterStartISO: "2026-10-05", campaignStartISO: "2026-10-01", campaignEndISO: "2026-12-31", reference: ref }).filtered,
+    false,
+  )
+  assert.deepEqual(
+    resolvePacingWindowISO({
+      filterStartISO: "2026-10-10",
+      filterEndISO: "2026-10-05",
+      campaignStartISO: "2026-10-01",
+      campaignEndISO: "2026-12-31",
+      reference: ref,
+    }),
+    { startISO: "2026-10-05", endISO: "2026-10-10", filtered: true, empty: false },
+  )
+  // A future-only filter has nothing expected.
+  assert.equal(
+    resolvePacingWindowISO({
+      filterStartISO: "2026-11-01",
+      filterEndISO: "2026-11-30",
+      campaignStartISO: "2026-10-01",
+      campaignEndISO: "2026-12-31",
+      reference: ref,
+    }).empty,
+    true,
   )
 })

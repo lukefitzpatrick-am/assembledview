@@ -73,6 +73,28 @@ describe("CampaignStatusStrip", () => {
     expect(html).not.toContain("40% of planned")
   })
 
+  it("labels the money and impressions 'in period' under a date filter", () => {
+    const html = renderToStaticMarkup(
+      <CampaignStatusStrip
+        {...FULL}
+        expectedImpressions={700_000}
+        channelsReporting={2}
+        channelsTotal={2}
+        periodLabel="in period"
+      />,
+    )
+    expect(html).toContain("Delivered in period")
+    expect(html).toContain("Expected media in period")
+    expect(html).toContain("114% of expected in period (channels reporting)")
+    expect(html).not.toContain("Delivered to date")
+  })
+
+  it("shows the last day the delivered figures run to", () => {
+    const html = renderToStaticMarkup(<CampaignStatusStrip {...FULL} />)
+    expect(html).toContain("Delivery to")
+    expect(html).not.toContain("Last updated")
+  })
+
   it("keeps the planned caption when no expected impressions are known", () => {
     const html = renderToStaticMarkup(<CampaignStatusStrip {...FULL} />)
     expect(html).toContain("40% of planned (all line items)")

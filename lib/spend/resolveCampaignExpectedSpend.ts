@@ -41,6 +41,16 @@ export type ResolveCampaignSpendInput = {
  * 5. Billing schedule
  */
 export function resolveCampaignExpectedSpendToDate(input: ResolveCampaignSpendInput): number {
+  return resolveExpectedWithSource(input).value
+}
+
+/** Which branch produced the figure. Only the first two honour `monthlyOpts.asOfISO`. */
+type ExpectedSource = "delivery_monthly" | "monthly" | "metric" | "legacy_delivery" | "billing" | "none"
+
+function resolveExpectedWithSource(input: ResolveCampaignSpendInput): {
+  value: number
+  source: ExpectedSource
+} {
   const {
     billingSchedule,
     campaignStartISO,
@@ -59,21 +69,24 @@ export function resolveCampaignExpectedSpendToDate(input: ResolveCampaignSpendIn
 
   const fromDeliveryMonthly = expectedSpendToDateFromDeliveryScheduleMonthly(deliverySchedule, opts)
   if (fromDeliveryMonthly > 0) {
-    return headlineAfterAssumedLines({
-      headline: fromDeliveryMonthly,
-      deliverySchedule,
-      campaignStartISO,
-      campaignEndISO,
-      asOfISO: monthlyOpts?.asOfISO,
-      assumedLines,
-    })
+    return {
+      value: headlineAfterAssumedLines({
+        headline: fromDeliveryMonthly,
+        deliverySchedule,
+        campaignStartISO,
+        campaignEndISO,
+        asOfISO: monthlyOpts?.asOfISO,
+        assumedLines,
+      }),
+      source: "delivery_monthly",
+    }
   }
 
   const fromMonthly = expectedSpendToDateFromMonthlyCalendar(monthlySpend, opts)
-  if (fromMonthly > 0) return fromMonthly
+  if (fromMonthly > 0) return { value: fromMonthly, source: "monthly" }
 
   const metric = Number(metricsExpectedSpendToDate)
-  if (Number.isFinite(metric) && metric > 0) return metric
+  if (Number.isFinite(metric) && metric > 0) return { value: metric, source: "metric" }
 
   const fromDelivery = calculateExpectedSpendToDateFromDeliverySchedule(
     deliverySchedule,
@@ -82,12 +95,55 @@ export function resolveCampaignExpectedSpendToDate(input: ResolveCampaignSpendIn
     new Date(),
     basis,
   )
-  if (fromDelivery > 0) return fromDelivery
+  if (fromDelivery > 0) return { value: fromDelivery, source: "legacy_delivery" }
 
   const fromBilling = calculateExpectedSpendToDateFromBillingSchedule(billingSchedule, start ?? null, end ?? null)
-  if (fromBilling > 0) return fromBilling
+  if (fromBilling > 0) return { value: fromBilling, source: "billing" }
 
-  return 0
+  return { value: 0, source: "none" }
+}
+
+function dayBeforeISO(iso: string): string {
+  const [year, month, day] = iso.split("-").map((part) => Number(part))
+  const date = new Date(Date.UTC(year, (month ?? 1) - 1, day ?? 1))
+  date.setUTCDate(date.getUTCDate() - 1)
+  return date.toISOString().slice(0, 10)
+}
+
+export type ExpectedSpendWindow = {
+  /** First day of the window (inclusive, `YYYY-MM-DD`). */
+  startISO: string
+  /** Last day of the window (inclusive). Melbourne yesterday at the latest. */
+  endISO: string
+  /** Nothing expected yet (window ends before it starts). */
+  empty: boolean
+}
+
+/**
+ * Expected media for a pacing window (`resolvePacingWindow`), not "to today".
+ * To date: the figure as at `window.endISO`. A window that starts after the
+ * campaign start is the figure at its end less the figure the day before it
+ * starts. Fallback sources that cannot be dated (API metric, legacy parser,
+ * billing) return their to-date figure unchanged.
+ */
+export function resolveCampaignExpectedSpendForWindow(
+  input: ResolveCampaignSpendInput & { window: ExpectedSpendWindow },
+): number {
+  const { window, ...rest } = input
+  if (window.empty) return 0
+  const atEnd = resolveExpectedWithSource({
+    ...rest,
+    monthlyOpts: { ...rest.monthlyOpts, asOfISO: window.endISO },
+  })
+  const dated = atEnd.source === "delivery_monthly" || atEnd.source === "monthly"
+  const campaignStart = rest.campaignStartISO ?? rest.monthlyOpts?.campaignStartISO ?? null
+  if (!dated || !campaignStart || window.startISO <= campaignStart) return atEnd.value
+  const before = resolveExpectedWithSource({
+    ...rest,
+    monthlyOpts: { ...rest.monthlyOpts, asOfISO: dayBeforeISO(window.startISO) },
+  })
+  const beforeValue = before.source === atEnd.source ? before.value : 0
+  return fromCents(Math.max(0, toCents(atEnd.value) - toCents(beforeValue)))
 }
 
 function sliceExpectedCents(

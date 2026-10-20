@@ -62,7 +62,7 @@ import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { sumPlannedImpressionsFromLineItems } from "@/lib/dashboard/plannedImpressions"
 import {
   firstAheadChannelName,
-  sumReportingExpectedImpressionsToDate,
+  sumReportingExpectedImpressions,
   sumReportingPlannedImpressions,
   visibleCoverageCards,
   coverageReportingCounts,
@@ -220,6 +220,11 @@ type CampaignPageAssemblyProps = {
   hasDelivery?: boolean
   /** Melbourne "as of" date for the delivered figures (facts refresh ~06:30 Melbourne). */
   deliveredAsOf?: string
+  /**
+   * Last day inside the strip's delivered and expected money: Melbourne
+   * yesterday, or the date filter end, capped at the campaign end.
+   */
+  deliveredThroughISO?: string
   expectedSpend: number
   totalPlannedMonthlySpend: number
   startDate?: string | null
@@ -315,6 +320,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     deliveredImpressions,
     hasDelivery,
     deliveredAsOf,
+    deliveredThroughISO,
     expectedSpend,
     startDate,
     endDate,
@@ -401,9 +407,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   const coverageCounts = useMemo(() => coverageReportingCounts(coverage), [coverage])
   const plannedImpressions =
     coverageCards.length > 0 ? sumReportingPlannedImpressions(coverage) : plannedImpressionsAll
-  // Strip impressions read against expected to date (Melbourne yesterday, no date filter).
-  const expectedImpressionsToDate =
-    coverageCards.length > 0 ? sumReportingExpectedImpressionsToDate(coverage) : null
+  // Strip impressions read against expected for the pacing window (Melbourne
+  // yesterday, narrowed by the date filter), the same window as delivered.
+  const expectedImpressionsInWindow =
+    coverageCards.length > 0 ? sumReportingExpectedImpressions(coverage) : null
   const pacingPeriodLabel = resolvePacingWindow({
     filterRange,
     campaignStartISO: campaignStartISO ?? startDate ?? null,
@@ -812,9 +819,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               expectedSpend={expectedSpend}
               deliveredImpressions={deliveredImpressions}
               plannedImpressions={plannedImpressions}
-              expectedImpressions={expectedImpressionsToDate ?? undefined}
+              expectedImpressions={expectedImpressionsInWindow ?? undefined}
               hasDelivery={Boolean(hasDelivery)}
-              deliveredAsOf={deliveredAsOf}
+              deliveredAsOf={deliveredThroughISO}
+              periodLabel={pacingPeriodLabel}
               channelsReporting={
                 coverageCards.length > 0 ? coverageCounts.channelsReporting : undefined
               }
