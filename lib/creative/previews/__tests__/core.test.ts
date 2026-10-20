@@ -35,7 +35,7 @@ function cachedFor(a: PreviewAsset, blobPathname: string | null = `creative-prev
   return {
     platform: a.platform,
     creativeKey: a.creativeKey,
-    sourceHash: previewSourceHash(a.previewImageUrl),
+    sourceHash: previewSourceHash(a.previewImageUrl ?? a.viewUrl ?? ""),
     blobPathname,
   }
 }
@@ -177,7 +177,7 @@ describe("runPreviewJob", () => {
     assert.equal(result.totals.fetched, 1)
     assert.equal(result.totals.skipped, 1)
     const row = h.upserts[0]
-    assert.equal(row.sourceHash, previewSourceHash(changed.previewImageUrl))
+    assert.equal(row.sourceHash, previewSourceHash(changed.previewImageUrl!))
     assert.equal(row.clientId, 42)
     assert.equal(row.previewKind, "image")
     assert.equal(row.viewUrl, "https://fb.me/2")
@@ -229,5 +229,56 @@ describe("runPreviewJob", () => {
     await runPreviewJob(h.deps, { days: 30, confirm: true })
     assert.deepEqual(h.puts, ["creative-previews/meta/9.jpg"])
     assert.deepEqual(h.deletes, ["creative-previews/meta/9.png"])
+  })
+})
+
+describe("CM360 assets", () => {
+  const video = (key: string) =>
+    asset(key, {
+      platform: "cm360",
+      previewImageUrl: null,
+      previewKind: "video",
+      viewUrl: `https://gcdn.2mdn.net/videoplayback/id/${key}/itag/22/source/web_video_ads/file.mp4`,
+    })
+
+  it("writes a link-only row, with no fetch or blob, for a video with no still image", async () => {
+    const h = harness([video("pga 30s")], [])
+    const result = await runPreviewJob(h.deps, { days: 30, confirm: true })
+    assert.deepEqual(h.fetched, [])
+    assert.deepEqual(h.puts, [])
+    assert.equal(h.upserts.length, 1)
+    assert.equal(h.upserts[0].blobPathname, null)
+    assert.equal(h.upserts[0].mimeType, null)
+    assert.equal(h.upserts[0].previewKind, "video")
+    assert.equal(h.upserts[0].clientId, 42)
+    assert.equal(result.byPlatform.cm360.linked, 1)
+  })
+
+  it("skips a link-only row that is already up to date", async () => {
+    const v = video("pga 30s")
+    const h = harness([v], [{ platform: "cm360", creativeKey: v.creativeKey, sourceHash: previewSourceHash(v.viewUrl!), blobPathname: null }])
+    const result = await runPreviewJob(h.deps, { days: 30, confirm: true })
+    assert.equal(h.upserts.length, 0)
+    assert.equal(result.byPlatform.cm360.skipped, 1)
+  })
+
+  it("counts link-only rows in a dry run without writing", async () => {
+    const h = harness([video("pga 30s")], [])
+    const result = await runPreviewJob(h.deps, { days: 30, confirm: false })
+    assert.equal(result.byPlatform.cm360.linked, 1)
+    assert.equal(h.upserts.length, 0)
+  })
+
+  it("fetches a CM360 display image from s0.2mdn.net like any other image", async () => {
+    const img = asset("pga 728x90", {
+      platform: "cm360",
+      previewImageUrl: "https://s0.2mdn.net/15454331/PGA_Standard-Display_728x90.jpg",
+      viewUrl: null,
+    })
+    const h = harness([img], [])
+    const result = await runPreviewJob(h.deps, { days: 30, confirm: true })
+    assert.deepEqual(h.fetched, ["https://s0.2mdn.net/15454331/PGA_Standard-Display_728x90.jpg"])
+    assert.equal(h.puts[0], "creative-previews/cm360/pga_728x90.jpg")
+    assert.equal(result.byPlatform.cm360.hostNotAllowed, 0)
   })
 })

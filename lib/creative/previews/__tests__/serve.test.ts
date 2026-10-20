@@ -118,7 +118,7 @@ describe("servePreviewImage", () => {
 
   it("404s for an unknown platform", async () => {
     const d = deps(ROW, accessDeps(["admin"], []))
-    const res = await servePreviewImage({ platform: "cm360", creativeKey: "1" }, d)
+    const res = await servePreviewImage({ platform: "dv360", creativeKey: "1" }, d)
     assert.equal(res.status, 404)
   })
 

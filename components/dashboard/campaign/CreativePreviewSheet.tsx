@@ -32,6 +32,7 @@ export function CreativePreviewBody({ creative }: { creative: CreativePerformanc
         format={creative.format}
         previewUrl={creative.previewUrl}
         previewKind={creative.previewKind}
+        videoUrl={creative.videoUrl}
         size="panel"
         name={name}
       />

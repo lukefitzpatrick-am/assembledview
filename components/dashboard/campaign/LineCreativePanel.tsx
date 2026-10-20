@@ -37,6 +37,7 @@ export function LineCreativePanelView({ rows }: { rows: CreativePerformanceRow[]
                 format={row.format}
                 previewUrl={row.previewUrl}
                 previewKind={row.previewKind}
+                videoUrl={row.videoUrl}
                 size="row"
                 name={name}
               />

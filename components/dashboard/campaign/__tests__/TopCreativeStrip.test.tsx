@@ -32,6 +32,7 @@ function row(partial: Partial<CreativePerformanceRow> & Pick<CreativePerformance
     previewUrl: null,
     previewKind: null,
     viewUrl: null,
+    videoUrl: null,
     rank: null,
     ...partial,
   }

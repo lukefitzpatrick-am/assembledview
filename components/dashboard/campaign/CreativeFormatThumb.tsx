@@ -70,23 +70,89 @@ function FormatTile({ format, size }: { format: CreativeFormatHint; size: ThumbS
 }
 
 /**
- * Cached preview through the tenant-checked image route, or the format tile
- * when there is no preview or the image fails to load.
+ * CM360 video with no still image: the first frame as the thumbnail, and a
+ * player in the panel. Falls back to the format tile if the file fails.
+ */
+function VideoThumb({
+  format,
+  videoUrl,
+  size,
+  name,
+}: {
+  format: CreativeFormatHint
+  videoUrl: string
+  size: ThumbSize
+  name?: string | null
+}) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return <FormatTile format={format} size={size} />
+  const label = name?.trim() || "Ad video"
+  return (
+    <div
+      className={cn("relative shrink-0 overflow-hidden rounded-input bg-surface-panel", IMAGE_BOX[size])}
+      data-creative-preview="video"
+    >
+      {size === "panel" ? (
+        <video
+          src={videoUrl}
+          controls
+          playsInline
+          preload="metadata"
+          aria-label={label}
+          onError={() => setFailed(true)}
+          className="max-h-[60vh] w-full rounded-input bg-black object-contain"
+        />
+      ) : (
+        <>
+          {/* #t=0.1 asks the browser for an early frame as the poster. */}
+          <video
+            src={`${videoUrl}#t=0.1`}
+            muted
+            playsInline
+            preload="metadata"
+            aria-label={label}
+            onError={() => setFailed(true)}
+            className="h-full w-full rounded-input object-cover"
+          />
+          <span
+            className={cn(
+              "absolute flex items-center justify-center rounded-pill bg-background/90 text-foreground shadow-e1",
+              size === "row" ? "bottom-0.5 right-0.5 size-4" : "bottom-1.5 right-1.5 size-7",
+            )}
+            data-creative-play="true"
+          >
+            <Play className={size === "row" ? "h-2.5 w-2.5" : "h-3.5 w-3.5"} aria-hidden />
+            <span className="sr-only">Video</span>
+          </span>
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Cached preview through the tenant-checked image route, a CM360 video, or
+ * the format tile when there is no preview or it fails to load.
  */
 export function CreativeFormatThumb({
   format,
   previewUrl,
   previewKind,
+  videoUrl,
   size,
   name,
 }: {
   format: CreativeFormatHint
   previewUrl: string | null
   previewKind?: "image" | "video" | null
+  videoUrl?: string | null
   size: ThumbSize
   name?: string | null
 }) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  if ((!previewUrl || failedSrc === previewUrl) && videoUrl) {
+    return <VideoThumb format={format} videoUrl={videoUrl} size={size} name={name} />
+  }
   if (!previewUrl || failedSrc === previewUrl) return <FormatTile format={format} size={size} />
 
   const isVideo = previewKind === "video" || (previewKind == null && format.kind === "video")

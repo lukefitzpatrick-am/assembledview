@@ -424,10 +424,80 @@ latest_tiktok_video AS (
     ) AS rn
   FROM ASSEMBLEDVIEW.TIKTOK_ADS.VIDEO_HISTORY
 ),
+-- CM360 (2026-10-20). V_CREATIVE_PERFORMANCE_DAILY keys CM360 by
+-- lower(trim(creative name)); one name can be several creatives (sizes), so
+-- pick one image and one video per name.
+-- Display image: https://s0.2mdn.net/<advertiser id>/<asset file name>
+--   (checked live in a browser on 20 Oct for PGA, advertiser 15454331).
+--   PRIMARY asset of a DISPLAY creative, or the BACKUP_IMAGE of an HTML5 one.
+--   Prefer the largest size up to 300x600, then the smallest, then the newest.
+-- Video: a progressive mp4 on gcdn.2mdn.net (public), stored as view_url and
+--   played in the browser. Prefer 500 to 2,500 kbps, then the highest, then newest.
+-- HTML5 creatives with no backup image, tracking creatives and 1x1s get no preview.
+cm360_creative AS (
+  SELECT
+    c.id,
+    c.advertiser_id,
+    LOWER(TRIM(c.name)) AS creative_key,
+    c.type,
+    COALESCE(c.size_width, 0) * COALESCE(c.size_height, 0) AS area,
+    c.last_modified_info_time AS modified_at
+  FROM ASSEMBLEDVIEW.DOUBLE_CLICK_CAMPAIGN_MANAGER.CREATIVE c
+  WHERE c.name IS NOT NULL AND TRIM(c.name) <> ''
+),
+cm360_image AS (
+  SELECT
+    c.creative_key,
+    c.id::varchar AS creative_id,
+    'https://s0.2mdn.net/' || c.advertiser_id || '/' || REPLACE(TRIM(a.asset_identifier_name), ' ', '%20') AS url,
+    c.modified_at
+  FROM cm360_creative c
+  JOIN ASSEMBLEDVIEW.DOUBLE_CLICK_CAMPAIGN_MANAGER.CREATIVE_ASSET a
+    ON a.creative_id = c.id
+  WHERE ((c.type = 'DISPLAY' AND a.role = 'PRIMARY') OR a.role = 'BACKUP_IMAGE')
+    AND REGEXP_LIKE(LOWER(a.asset_identifier_name), '.*\\.(png|jpe?g|gif|webp)$')
+    AND c.area > 1
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY c.creative_key
+    ORDER BY IFF(c.area <= 300 * 600, c.area, 0) DESC, c.area ASC, c.modified_at DESC
+  ) = 1
+),
+cm360_video AS (
+  SELECT
+    c.creative_key,
+    c.id::varchar AS creative_id,
+    a.progressive_serving_url AS url,
+    c.modified_at
+  FROM cm360_creative c
+  JOIN ASSEMBLEDVIEW.DOUBLE_CLICK_CAMPAIGN_MANAGER.CREATIVE_ASSET a
+    ON a.creative_id = c.id
+  WHERE c.type LIKE 'INSTREAM_VIDEO%'
+    AND a.mime_type = 'video/mp4'
+    AND a.progressive_serving_url LIKE 'https://gcdn.2mdn.net/%'
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY c.creative_key
+    ORDER BY IFF(a.bit_rate BETWEEN 500 AND 2500, 0, 1), a.bit_rate DESC, c.modified_at DESC
+  ) = 1
+),
+cm360 AS (
+  SELECT
+    'cm360' AS platform,
+    k.creative_key,
+    NULL::varchar AS ad_set_id,
+    NULL::varchar AS ad_set_name,
+    COALESCE(i.creative_id, v.creative_id) AS creative_id,
+    i.url AS preview_image_url,
+    IFF(i.url IS NULL, 'video', 'image') AS preview_kind,
+    IFF(i.url IS NULL, v.url, NULL) AS view_url,
+    COALESCE(i.modified_at, v.modified_at)::timestamp_ntz AS updated_at
+  FROM (SELECT creative_key FROM cm360_image UNION SELECT creative_key FROM cm360_video) k
+  LEFT JOIN cm360_image i ON i.creative_key = k.creative_key
+  LEFT JOIN cm360_video v ON v.creative_key = k.creative_key
+),
 active_creatives AS (
   SELECT DISTINCT platform, creative_key
   FROM ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY
-  WHERE platform IN ('meta', 'tiktok')
+  WHERE platform IN ('meta', 'tiktok', 'cm360')
     AND date >= DATEADD(day, -400, CURRENT_DATE())
 ),
 meta AS (
@@ -471,6 +541,8 @@ assets AS (
   SELECT * FROM meta
   UNION ALL
   SELECT * FROM tiktok
+  UNION ALL
+  SELECT * FROM cm360
 )
 SELECT
   x.platform,

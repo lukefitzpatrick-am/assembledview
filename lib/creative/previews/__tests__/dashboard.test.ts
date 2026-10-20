@@ -5,6 +5,7 @@ import { groupAndRank, type CreativeDailyRow } from "@/lib/creative/performance/
 import {
   attachPreviewFields,
   previewImagePath,
+  safeVideoUrl,
   safeViewUrl,
   type DashboardPreviewCacheRow,
 } from "@/lib/creative/previews/dashboard"
@@ -63,6 +64,14 @@ const HOSTILE: DashboardPreviewCacheRow[] = [
     viewUrl: "https://www.facebook.com.evil.example/ads/1",
     sourceHash: HASH,
   },
+  {
+    platform: "cm360",
+    creativeKey: "pga 30s",
+    blobPathname: null,
+    previewKind: "video",
+    viewUrl: "https://gcdn.2mdn.net/videoplayback/id/03b6/itag/22/source/web_video_ads/file.mp4",
+    sourceHash: HASH,
+  },
 ]
 
 describe("attachPreviewFields", () => {
@@ -73,6 +82,7 @@ describe("attachPreviewFields", () => {
       day({ platform: "tiktok", creativeKey: "7001" }),
       day({ platform: "tiktok", creativeKey: "7002" }),
       day({ platform: "cm360", creativeKey: "banner-300x250" }),
+      day({ platform: "cm360", creativeKey: "pga 30s" }),
     ],
     new Map(),
     "impressions",
@@ -88,7 +98,7 @@ describe("attachPreviewFields", () => {
     assert.equal(json.includes(".jpg\""), false)
     assert.equal(json.includes(".webp"), false)
     for (const row of out) {
-      if (row.previewUrl) assert.match(row.previewUrl, /^\/api\/creative-previews\/(meta|tiktok)\/[^/]+(\?v=[0-9a-f]{12})?$/)
+      if (row.previewUrl) assert.match(row.previewUrl, /^\/api\/creative-previews\/(meta|tiktok|cm360)\/[^/]+(\?v=[0-9a-f]{12})?$/)
     }
   })
 
@@ -128,5 +138,28 @@ describe("previewImagePath and safeViewUrl", () => {
     assert.equal(safeViewUrl("https://user:pw@fb.me/abc"), null)
     assert.equal(safeViewUrl("javascript:alert(1)"), null)
     assert.equal(safeViewUrl(""), null)
+  })
+})
+
+describe("CM360 video", () => {
+  it("returns a gcdn.2mdn.net video link only for a video row, never as the Facebook view link", () => {
+    const ranked = groupAndRank(
+      [day({ platform: "cm360", creativeKey: "pga 30s" }), day({ platform: "meta", creativeKey: "120002" })],
+      new Map(),
+      "impressions",
+    )
+    const out = Object.fromEntries(attachPreviewFields(ranked, HOSTILE).map((row) => [row.creativeKey, row]))
+    assert.equal(out["pga 30s"]?.videoUrl, "https://gcdn.2mdn.net/videoplayback/id/03b6/itag/22/source/web_video_ads/file.mp4")
+    assert.equal(out["pga 30s"]?.viewUrl, null)
+    assert.equal(out["pga 30s"]?.previewUrl, null)
+    assert.equal(out["120002"]?.videoUrl, null)
+  })
+
+  it("accepts only https gcdn.2mdn.net videoplayback links", () => {
+    assert.equal(safeVideoUrl("https://gcdn.2mdn.net/videoplayback/id/1/file.mp4"), "https://gcdn.2mdn.net/videoplayback/id/1/file.mp4")
+    assert.equal(safeVideoUrl("http://gcdn.2mdn.net/videoplayback/id/1/file.mp4"), null)
+    assert.equal(safeVideoUrl("https://gcdn.2mdn.net.evil.example/videoplayback/1"), null)
+    assert.equal(safeVideoUrl("https://s0.2mdn.net/15454331/banner.jpg"), null)
+    assert.equal(safeVideoUrl("https://www.youtube.com/watch?v=8lSoVEazxYI"), null)
   })
 })

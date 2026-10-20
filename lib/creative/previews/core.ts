@@ -5,7 +5,7 @@
 import { isAllowedPreviewHost, previewFetchUrl, type PreviewFetchResult } from "./fetchPreviewImage"
 import { canonicalPreviewUrl, previewSourceHash } from "./sourceHash"
 
-export const PREVIEW_PLATFORMS = ["meta", "tiktok"] as const
+export const PREVIEW_PLATFORMS = ["meta", "tiktok", "cm360"] as const
 export type PreviewPlatform = (typeof PREVIEW_PLATFORMS)[number]
 
 export const PREVIEW_RUN_LIMIT = 300
@@ -21,7 +21,8 @@ export function isPreviewPlatform(value: string): value is PreviewPlatform {
 export type PreviewAsset = {
   platform: PreviewPlatform
   creativeKey: string
-  previewImageUrl: string
+  /** Null for a video with no still image (CM360 video): the row stores only the video link. */
+  previewImageUrl: string | null
   previewKind: string | null
   viewUrl: string | null
   /** Latest delivery date in the window (YYYY-MM-DD). */
@@ -41,8 +42,9 @@ export type PreviewCacheUpsert = {
   platform: PreviewPlatform
   creativeKey: string
   clientId: number | null
-  blobPathname: string
-  mimeType: string
+  /** Null for a link-only row (a video with no still image). */
+  blobPathname: string | null
+  mimeType: string | null
   source: "platform"
   sourceRef: string | null
   previewKind: string | null
@@ -66,6 +68,8 @@ export type PreviewPlan = {
   upToDate: PreviewAsset[]
   /** preview_image_url does not parse as an http(s) URL. */
   invalid: PreviewAsset[]
+  /** No still image but a video link: written as a cache row without a blob. */
+  linkOnly: PreviewWorkItem[]
 }
 
 export function cacheKey(platform: string, creativeKey: string): string {
@@ -81,14 +85,26 @@ export function planPreviewWork(
   const needed: PreviewWorkItem[] = []
   const upToDate: PreviewAsset[] = []
   const invalid: PreviewAsset[] = []
+  const linkOnly: PreviewWorkItem[] = []
 
   for (const asset of assets) {
+    const previous = byKey.get(cacheKey(asset.platform, asset.creativeKey)) ?? null
+    if (!asset.previewImageUrl) {
+      const linkHash = asset.viewUrl ? previewSourceHash(asset.viewUrl) : null
+      if (!linkHash) {
+        invalid.push(asset)
+      } else if (previous && previous.sourceHash === linkHash && !previous.blobPathname) {
+        upToDate.push(asset)
+      } else {
+        linkOnly.push({ asset, sourceHash: linkHash, previous })
+      }
+      continue
+    }
     const hash = previewSourceHash(asset.previewImageUrl)
     if (!hash) {
       invalid.push(asset)
       continue
     }
-    const previous = byKey.get(cacheKey(asset.platform, asset.creativeKey)) ?? null
     if (previous && previous.sourceHash === hash && previous.blobPathname) {
       upToDate.push(asset)
       continue
@@ -109,7 +125,7 @@ export function planPreviewWork(
   })
 
   const cap = Math.max(0, Math.floor(limit))
-  return { todo: needed.slice(0, cap), deferred: needed.slice(cap), upToDate, invalid }
+  return { todo: needed.slice(0, cap), deferred: needed.slice(cap), upToDate, invalid, linkOnly }
 }
 
 /**
@@ -159,6 +175,8 @@ export type PlatformCounts = {
   deferred: number
   invalid: number
   hostNotAllowed: number
+  /** Link-only rows written (video with no still image). */
+  linked: number
 }
 
 export type PreviewJobResult = {
@@ -199,6 +217,7 @@ function emptyCounts(): PlatformCounts {
     deferred: 0,
     invalid: 0,
     hostNotAllowed: 0,
+    linked: 0,
   }
 }
 
@@ -210,8 +229,12 @@ function sumCounts(byPlatform: Record<PreviewPlatform, PlatformCounts>): Platfor
   return totals
 }
 
+function emptyByPlatform(): Record<PreviewPlatform, PlatformCounts> {
+  return { meta: emptyCounts(), tiktok: emptyCounts(), cm360: emptyCounts() }
+}
+
 export function notReadyResult(days: number, dryRun: boolean): PreviewJobResult {
-  const byPlatform = { meta: emptyCounts(), tiktok: emptyCounts() }
+  const byPlatform = emptyByPlatform()
   return { status: "not_ready", dryRun, days, totals: sumCounts(byPlatform), byPlatform, failures: [] }
 }
 
@@ -232,24 +255,25 @@ export async function runPreviewJob(
   const cached = assets.length > 0 ? await deps.loadCached(assets) : []
   const plan = planPreviewWork(assets, cached, limit)
 
-  const byPlatform: Record<PreviewPlatform, PlatformCounts> = { meta: emptyCounts(), tiktok: emptyCounts() }
+  const byPlatform = emptyByPlatform()
   for (const asset of assets) byPlatform[asset.platform].candidates++
   for (const asset of plan.upToDate) byPlatform[asset.platform].skipped++
   for (const asset of plan.invalid) byPlatform[asset.platform].invalid++
   for (const item of plan.deferred) byPlatform[item.asset.platform].deferred++
   for (const item of plan.todo) {
     byPlatform[item.asset.platform].wouldFetch++
-    if (!isAllowedPreviewHost(previewFetchUrl(item.asset.previewImageUrl))) {
+    if (!isAllowedPreviewHost(previewFetchUrl(item.asset.previewImageUrl ?? ""))) {
       byPlatform[item.asset.platform].hostNotAllowed++
     }
   }
 
   const failures: PreviewJobResult["failures"] = []
   if (!options.confirm) {
+    for (const item of plan.linkOnly) byPlatform[item.asset.platform].linked++
     return { status: "ok", dryRun: true, days: options.days, totals: sumCounts(byPlatform), byPlatform, failures }
   }
 
-  const mbas = [...new Set(plan.todo.flatMap((item) => item.asset.mbaNumbers))]
+  const mbas = [...new Set([...plan.todo, ...plan.linkOnly].flatMap((item) => item.asset.mbaNumbers))]
   const clientByMba = mbas.length > 0 ? await deps.loadClientByMba(mbas) : new Map<string, number>()
 
   await runPool(plan.todo, concurrency, async (item) => {
@@ -259,6 +283,10 @@ export async function runPreviewJob(
       failures.push({ platform: asset.platform, creativeKey: asset.creativeKey, reason })
     }
     try {
+      if (!asset.previewImageUrl) {
+        fail("no image url")
+        return
+      }
       const fetched = await deps.fetchImage(asset.previewImageUrl)
       if (!fetched.ok) {
         fail(fetched.detail ? `${fetched.reason}: ${fetched.detail}` : fetched.reason)
@@ -289,6 +317,31 @@ export async function runPreviewJob(
       fail(err instanceof Error ? err.message : String(err))
     }
   })
+
+  for (const item of plan.linkOnly) {
+    const { asset } = item
+    try {
+      await deps.upsertRow({
+        platform: asset.platform,
+        creativeKey: asset.creativeKey,
+        clientId: resolvePreviewClientId(asset.mbaNumbers, clientByMba),
+        blobPathname: null,
+        mimeType: null,
+        source: "platform",
+        sourceRef: asset.viewUrl ? canonicalPreviewUrl(asset.viewUrl) : null,
+        previewKind: asset.previewKind,
+        viewUrl: asset.viewUrl,
+        sourceHash: item.sourceHash,
+        fetchedAt: now().toISOString(),
+      })
+      byPlatform[asset.platform].linked++
+      const old = item.previous?.blobPathname?.replace(/^\//, "")
+      if (old) await deps.deleteBlob(old).catch((err) => log("old blob delete failed", { old, err: String(err) }))
+    } catch (err) {
+      byPlatform[asset.platform].failed++
+      failures.push({ platform: asset.platform, creativeKey: asset.creativeKey, reason: err instanceof Error ? err.message : String(err) })
+    }
+  }
 
   const totals = sumCounts(byPlatform)
   log("run complete", {

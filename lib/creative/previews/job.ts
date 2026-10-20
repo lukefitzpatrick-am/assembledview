@@ -10,6 +10,7 @@ import { dateOnly, field, text } from "@/lib/webReport/rows"
 
 import {
   isPreviewPlatform,
+  PREVIEW_PLATFORMS,
   notReadyResult,
   runPreviewJob,
   type CachedPreviewRow,
@@ -28,7 +29,7 @@ WITH recent AS (
     MAX(date) AS last_delivery_date,
     LISTAGG(DISTINCT LOWER(TRIM(mba_number)), ',') AS mba_numbers
   FROM ASSEMBLEDVIEW.MART.V_CREATIVE_PERFORMANCE_DAILY
-  WHERE platform IN ('meta', 'tiktok')
+  WHERE platform IN ('meta', 'tiktok', 'cm360')
     AND date >= ?
   GROUP BY platform, creative_key
 )
@@ -45,6 +46,7 @@ JOIN recent r
   ON r.platform = a.platform
  AND r.creative_key = a.creative_key
 WHERE a.preview_image_url IS NOT NULL
+   OR (a.preview_kind = 'video' AND a.view_url IS NOT NULL)
 `
 
 function windowStart(days: number, today: Date): string {
@@ -59,13 +61,14 @@ export function assetsFromWarehouse(rows: Record<string, unknown>[]): PreviewAss
     const platform = text(field(row, "platform"))?.toLowerCase() ?? ""
     const creativeKey = text(field(row, "creative_key"))
     const previewImageUrl = text(field(row, "preview_image_url"))
-    if (!isPreviewPlatform(platform) || !creativeKey || !previewImageUrl) continue
+    const viewUrl = text(field(row, "view_url"))
+    if (!isPreviewPlatform(platform) || !creativeKey || (!previewImageUrl && !viewUrl)) continue
     out.push({
       platform,
       creativeKey,
       previewImageUrl,
       previewKind: text(field(row, "preview_kind")),
-      viewUrl: text(field(row, "view_url")),
+      viewUrl,
       lastDeliveryDate: dateOnly(field(row, "last_delivery_date")) ?? "",
       mbaNumbers: (text(field(row, "mba_numbers")) ?? "")
         .split(",")
@@ -86,7 +89,7 @@ async function loadAssets(days: number): Promise<PreviewAsset[]> {
 async function loadCached(assets: PreviewAsset[]): Promise<CachedPreviewRow[]> {
   const db = getDb()
   const out: CachedPreviewRow[] = []
-  for (const platform of ["meta", "tiktok"] as const) {
+  for (const platform of PREVIEW_PLATFORMS) {
     const keys = [...new Set(assets.filter((a) => a.platform === platform).map((a) => a.creativeKey))]
     if (keys.length === 0) continue
     const rows = await db

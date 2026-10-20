@@ -62,6 +62,8 @@ export type CreativePerformanceRow = {
   previewKind: "image" | "video" | null
   /** Platform "view the ad" link (Meta shareable link). Never a CDN URL. */
   viewUrl: string | null
+  /** CM360 video file to play in the browser (gcdn.2mdn.net only). */
+  videoUrl: string | null
   rank: number | null
 }
 
@@ -310,6 +312,7 @@ export function groupAndRank(
       previewUrl: null,
       previewKind: null,
       viewUrl: null,
+      videoUrl: null,
       rank: null,
     })
   }

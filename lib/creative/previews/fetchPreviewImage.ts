@@ -2,7 +2,8 @@
  * Server-side fetch of a platform preview image. The only outbound path for
  * creative preview bytes: the host allowlist, the size cap and the timeout
  * live here, and the app never links to these hosts directly (Meta URLs are
- * signed and expire in about five days).
+ * signed and expire in about five days). The one exception is a CM360 video
+ * file on gcdn.2mdn.net, played in the browser (see dashboard.ts videoUrl).
  */
 
 /** Hostname suffixes. A host must be a subdomain of one of these. */
@@ -11,6 +12,8 @@ export const PREVIEW_HOST_SUFFIXES = [
   ".tiktokcdn.com",
   ".tiktokcdn-us.com",
   ".byteimg.com",
+  // CM360 display assets: https://s0.2mdn.net/<advertiser id>/<file name>
+  ".2mdn.net",
 ] as const
 
 export const PREVIEW_MAX_BYTES = 5 * 1024 * 1024

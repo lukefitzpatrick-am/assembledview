@@ -39,6 +39,7 @@ function CreativeCard({
         format={row.format}
         previewUrl={row.previewUrl}
         previewKind={row.previewKind}
+                videoUrl={row.videoUrl}
         size="card"
         name={name}
       />

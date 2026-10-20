@@ -285,6 +285,7 @@ export function EntityBreakdownTable({
                                   format={creative.format}
                                   previewUrl={creative.previewUrl}
                                   previewKind={creative.previewKind}
+                videoUrl={creative.videoUrl}
                                   size="row"
                                   name={name}
                                 />
