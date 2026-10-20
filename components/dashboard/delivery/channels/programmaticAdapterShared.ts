@@ -38,6 +38,7 @@ import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { ChannelKey, ChannelSectionData, ConnectionPill } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
+import { lineDatesFromBursts } from "@/lib/delivery/lineChartWindow"
 import { PROGRAMMATIC_CHART_SERIES, PROGRAMMATIC_CPV_CHART_SERIES } from "./channelChartSeries"
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 import { aggregateDeliverableLabel } from "@/lib/delivery/deliverableLabel"
@@ -741,6 +742,10 @@ export function buildProgrammaticChannelSection(input: {
         series: isCpvSection && isVideoLine ? PROGRAMMATIC_CPV_CHART_SERIES : PROGRAMMATIC_CHART_SERIES,
         asAtDate: m.pacing.asAtDate,
         brandColour,
+        lineDates: lineDatesFromBursts(li.bursts_json ?? li.bursts, {
+          startISO: campaignStart,
+          endISO: campaignEnd,
+        }),
       },
       ...(entityBreakdown ? { entityBreakdown } : {}),
     }

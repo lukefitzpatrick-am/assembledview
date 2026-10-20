@@ -33,6 +33,7 @@ import type { LineItemBlockProps } from "../shared/LineItemBlock"
 import type { ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
+import { lineDatesFromBursts } from "@/lib/delivery/lineChartWindow"
 import { SEARCH_CHART_SERIES } from "./channelChartSeries"
 import {
   aggregateDeliverableLabel,
@@ -639,6 +640,10 @@ function buildSearchLineItemBlocks(input: {
           series: SEARCH_CHART_SERIES,
           asAtDate: pacingWindow.asAtISO ?? null,
           brandColour,
+          lineDates: lineDatesFromBursts(
+            bursts.map((b) => ({ start_date: b.startISO, end_date: b.endISO })),
+            { startISO: campaignStart, endISO: campaignEnd },
+          ),
         },
         ...(lineAdGroups.length > 0
           ? {

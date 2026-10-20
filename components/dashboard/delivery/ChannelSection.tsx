@@ -196,7 +196,7 @@ export function ChannelSection({ data, mbaNumber, defaultOpen = false, onRefresh
               series={data.aggregate.chart.series}
               asAtDate={data.aggregate.chart.asAtDate}
               brandColour={data.aggregate.chart.brandColour}
-              startsOn={data.dateRange.startISO}
+              startsOn={data.aggregate.chart.startsOn ?? data.dateRange.startISO}
               exportName={exportName}
               title="Daily delivery"
               subtitle={data.aggregate.chart.series.map((s) => s.label).join(" + ")}

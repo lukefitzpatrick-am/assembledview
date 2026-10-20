@@ -40,6 +40,7 @@ import { buildSocialRedditSection } from "./channels/socialRedditAdapter"
 import { buildAssumedSpendSection } from "./channels/assumedSpendAdapter"
 import { buildPlanOnlyRemainderSection } from "./channels/planOnlyAdapter"
 import type { ChannelSectionData } from "./channels/types"
+import { fitSectionCharts } from "./channels/fitChartWindows"
 import {
   cleanPacingLineItemId,
   extractPacingLineItemIdFromItem,
@@ -454,7 +455,8 @@ function CampaignDeliveryBody({
     })
     if (remainder) out.push(remainder)
 
-    return out
+    const todayISO = getMelbourneTodayISO()
+    return out.map((section) => fitSectionCharts(section, { todayISO, filter: filterRange }))
   }, [
     rows,
     search,

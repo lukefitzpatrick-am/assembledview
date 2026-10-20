@@ -27,6 +27,10 @@ type DailyChart = {
   series: DeliveryDailyChartSeries[]
   asAtDate: string | null
   brandColour?: string
+  /** Line start and end (earliest burst start, latest burst end). Sets the chart window. */
+  lineDates?: { startISO: string | null; endISO: string | null }
+  /** Line start (ISO). Set by fitSectionCharts; wins over the block's campaign `startsOn`. */
+  startsOn?: string | null
 }
 
 export type LineItemChart = CumulativeChart | DailyChart
@@ -102,7 +106,7 @@ export function LineItemBlock({
             asAtDate={chart.asAtDate}
             brandColour={chart.brandColour}
             size="line"
-            startsOn={startsOn}
+            startsOn={chart.startsOn ?? startsOn}
             exportName={exportName}
             title="Daily delivery"
             subtitle={chart.series.map((s) => s.label).join(" + ")}

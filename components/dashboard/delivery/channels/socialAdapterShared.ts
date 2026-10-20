@@ -37,6 +37,7 @@ import type { EntityBreakdownRow } from "../shared/EntityBreakdownTable"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
+import { lineDatesFromBursts } from "@/lib/delivery/lineChartWindow"
 import { SOCIAL_CHART_SERIES } from "./channelChartSeries"
 import { aggregateDeliverableLabel } from "@/lib/delivery/deliverableLabel"
 
@@ -565,6 +566,10 @@ export function buildSocialChannelSectionForPlatform(input: {
         series: SOCIAL_CHART_SERIES,
         asAtDate: m.pacing.asAtDate,
         brandColour,
+        lineDates: lineDatesFromBursts(burstsForLineItem(m.lineItem), {
+          startISO: campaignStart,
+          endISO: campaignEnd,
+        }),
       },
       ...(entityBreakdown ? { entityBreakdown } : {}),
     }

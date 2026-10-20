@@ -32,6 +32,7 @@ import type { EntityBreakdownRow } from "../shared/EntityBreakdownTable"
 import type { DeliveryStatus } from "../shared/statusColours"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import { aggregateDailyRows } from "./aggregateDaily"
+import { lineDatesFromBursts } from "@/lib/delivery/lineChartWindow"
 import {
   DIRECT_DIGITAL_CLICKS_SERIES,
   DIRECT_DIGITAL_COMPLETION_SERIES,
@@ -887,6 +888,10 @@ export function buildDirectDigitalChannelSection(input: {
         series: [impressionsSeries, lineHasCompletes ? completionSeries : clicksSeries],
         asAtDate: asAtISO,
         brandColour: input.brandColour,
+        lineDates: lineDatesFromBursts(m.item.bursts_json ?? m.item.bursts, {
+          startISO: input.campaignStart,
+          endISO: input.campaignEnd,
+        }),
       },
       ...(placementRows.length > 0
         ? {

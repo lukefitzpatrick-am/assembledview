@@ -51,6 +51,8 @@ export interface ChannelAggregate {
     series: DeliveryDailyChartSeries[]
     asAtDate: string | null
     brandColour?: string
+    /** Earliest line start (ISO). Set by fitSectionCharts for the empty state. */
+    startsOn?: string | null
   }
 }
 
