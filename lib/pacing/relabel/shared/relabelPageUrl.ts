@@ -51,6 +51,7 @@ export function defaultWarehouseChannel(
   if (card === "search") {
     if (/pmax|p-?max/i.test(p)) return "PMax - Google Ads"
     if (/shop/i.test(p)) return "Shopping - Google Ads"
+    if (/bing|microsoft/i.test(p)) return "Search - Microsoft Ads"
     return "Search - Google Ads"
   }
   if (card === "programmatic") {

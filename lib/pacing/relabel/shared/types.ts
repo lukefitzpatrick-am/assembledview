@@ -21,6 +21,7 @@ export const SEARCH_PACING_CHANNELS = [
   "Search - Google Ads",
   "Shopping - Google Ads",
   "PMax - Google Ads",
+  "Search - Microsoft Ads",
 ] as const
 
 export const RELABEL_SPEND_WARNING = 25_000
@@ -34,6 +35,7 @@ export const RELABEL_WAREHOUSE_CHANNELS = [
   "Search - Google Ads",
   "Shopping - Google Ads",
   "PMax - Google Ads",
+  "Search - Microsoft Ads",
   CM360_PACING_CHANNEL,
   "Programmatic - Display",
   "Programmatic - Video",

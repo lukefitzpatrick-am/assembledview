@@ -66,7 +66,7 @@ export const clientConversionEvents = pgTable(
   (table) => [
     check(
       "client_conversion_events_platform_check",
-      sql`${table.platform} in ('meta_ads','google_ads','tiktok','dv360','cm360','taboola','reddit')`,
+      sql`${table.platform} in ('meta_ads','google_ads','microsoft_ads','tiktok','dv360','cm360','taboola','reddit')`,
     ),
     check(
       "client_conversion_events_category_check",

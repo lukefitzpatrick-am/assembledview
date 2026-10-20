@@ -21,6 +21,7 @@ export const SEARCH_PACING_CHANNELS = [
   "Search - Google Ads",
   "Shopping - Google Ads",
   "PMax - Google Ads",
+  "Search - Microsoft Ads",
 ] as const;
 
 export type SearchPacingChannel = (typeof SEARCH_PACING_CHANNELS)[number];

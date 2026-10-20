@@ -144,6 +144,29 @@ test("window sum and headline choice", () => {
 
 test("section platforms leave OOH out", () => {
   assert.deepEqual(conversionPlatformsForSection("programmatic-ooh"), [])
-  assert.deepEqual(conversionPlatformsForSection("search"), ["google_ads"])
+  assert.deepEqual(conversionPlatformsForSection("search"), ["google_ads", "microsoft_ads"])
   assert.deepEqual(conversionPlatformsForSection("programmatic-video"), ["dv360", "cm360"])
+})
+
+test("Microsoft Ads all_primary counts on search and its value is allowed on a purchase event", () => {
+  const bing: ConversionEventChoice = {
+    platform: "microsoft_ads",
+    eventKey: "all_primary",
+    label: null,
+    category: "purchase",
+    includeValue: true,
+  }
+  assert.equal(valueAllowed(bing), true)
+  assert.deepEqual(conversionEventProblems([bing]), [])
+  const lines = rollupConversions(
+    [
+      row({ lineItemId: "curatif002se2", platform: "microsoft_ads", eventKey: "all_primary", conversions: 2, conversionValue: 260.92 }),
+      row({ lineItemId: "curatif002se2", platform: "google_ads", eventKey: "all_primary", conversions: 5, conversionValue: 100 }),
+    ],
+    [bing],
+  )
+  assert.equal(lines.length, 1)
+  assert.equal(lines[0].daily[0].conversions, 2)
+  assert.equal(lines[0].daily[0].purchases, 2)
+  assert.equal(lines[0].daily[0].revenue, 260.92)
 })

@@ -55,6 +55,7 @@ export type ConversionPickerRow = {
 const PLATFORM_LABELS: Record<ConversionPlatform, string> = {
   meta_ads: "Meta",
   google_ads: "Google Ads",
+  microsoft_ads: "Microsoft Ads",
   tiktok: "TikTok",
   dv360: "DV360",
   cm360: "CM360",

@@ -29,7 +29,7 @@ const CHANNELS = [
 
 test("snapshot groups map to the same platforms as the delivery sections", () => {
   assert.deepEqual(conversionPlatformsForGroup("social_meta"), ["meta_ads"])
-  assert.deepEqual(conversionPlatformsForGroup("search"), ["google_ads"])
+  assert.deepEqual(conversionPlatformsForGroup("search"), ["google_ads", "microsoft_ads"])
   assert.deepEqual(conversionPlatformsForGroup("programmatic_ooh"), [])
   assert.deepEqual(conversionPlatformsForGroup("assumed_spend"), [])
 })

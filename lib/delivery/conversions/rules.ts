@@ -13,6 +13,7 @@
 export const CONVERSION_PLATFORMS = [
   "meta_ads",
   "google_ads",
+  "microsoft_ads",
   "tiktok",
   "dv360",
   "cm360",
@@ -69,6 +70,7 @@ const VALUE_KEYS: Partial<Record<ConversionPlatform, string[] | null>> = {
   meta_ads: ["purchase"],
   tiktok: ["complete_payment", "total_purchase"],
   google_ads: null,
+  microsoft_ads: null,
   cm360: ["total_conversions"],
   dv360: [],
   taboola: ["cpa_actions"],
@@ -150,7 +152,7 @@ export function conversionPlatformsForSection(sectionKey: string): ConversionPla
     case "social-reddit":
       return ["reddit"]
     case "search":
-      return ["google_ads"]
+      return ["google_ads", "microsoft_ads"]
     case "programmatic-display":
       return ["dv360", "cm360", "taboola"]
     case "programmatic-video":

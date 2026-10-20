@@ -16,6 +16,9 @@ TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
 │                                 <- VW_PACING_TIKTOK, VW_PACING_META, VW_PACING_REDDIT
 ├─ TSK_REFRESH_GOOGLESEARCHPACING CALL SP_REFRESH_GOOGLESEARCHPACING_ROLLING(14)
 │                                 -> SEARCH_PACING_FACT      <- VW_PACING_GOOGLE_SEARCH_DAILY
+├─ TSK_REFRESH_BINGSEARCHPACING   CALL SP_REFRESH_BINGSEARCHPACING_ROLLING(14)   (DG6, 2026-10-21)
+│                                 -> SEARCH_PACING_FACT 'Search - Microsoft Ads' <- VW_PACING_BING_SEARCH_DAILY
+│                                 -> CONVERSION_FACT 'microsoft_ads'             <- VW_CONVERSIONS_BING_TOTAL
 └─ TSK_REFRESH_FIXED_COST_REPORTED  (after the three above)
                                   CALL SP_REFRESH_FIXED_COST_REPORTED_DAILY(NULL, FALSE)
                                   -> FIXED_COST_REPORTED_DAILY_FACT
