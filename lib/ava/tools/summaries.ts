@@ -330,7 +330,7 @@ export type DeliveryChannelGroup = {
 }
 
 export const DELIVERY_SNAPSHOT_TOTALS_NOTE =
-  "Copy expectedSpendToDate, behindBy, daysElapsed and daysInCampaign — they are the Where we are strip figures. Do not recompute as budget × elapsed. Delivered spend includes reported spend, spend_only spend, and assumed spend. Assumed spend is booked media assumed delivered to plan, not reported. CPM, CPC and CTR use reported or estimated delivery spend only."
+  "Copy expectedSpendToDate, behindBy, daysElapsed and daysInCampaign — they are the Where we are strip figures. Delivered and expected both run to deliveredThrough (Melbourne yesterday, capped at the campaign end); say delivery is to that day. Do not recompute as budget × elapsed. Delivered spend includes reported spend, spend_only spend, and assumed spend. Assumed spend is booked media assumed delivered to plan, not reported. CPM, CPC and CTR use reported or estimated delivery spend only."
 
 function deliveryStateNote(
   state: DeliveryLineSnapshot["deliveryState"],

@@ -6,6 +6,7 @@ import { DELIVERY_SNAPSHOT_TOTALS_NOTE } from "../summaries.js"
 
 const skip = mockModuleSkip()
 
+const loadCalls: Array<Record<string, unknown>> = []
 const attachStripExpectedMock = mock.fn(
   async (input: { stripInputs: { monthlyOpts?: { asOfISO?: string } } }) => ({
     expectedSpendToDate: 1,
@@ -20,7 +21,7 @@ const attachStripExpectedMock = mock.fn(
 if (supportsMockModule()) {
   await mock.module!("@/lib/delivery/loadDeliverySnapshot", {
     namedExports: {
-      loadDeliverySnapshot: async () => ({
+      loadDeliverySnapshot: async (input: Record<string, unknown>) => (loadCalls.push(input), {
         asOf: "2026-10-10",
         versionNumber: 28,
         mbaNumber: "bicau002",
@@ -55,7 +56,7 @@ if (supportsMockModule()) {
           version_number: 28,
           published_at: "2026-08-01T00:00:00Z",
           campaign_start_date: "2026-08-01",
-          campaign_end_date: "2026-10-25",
+          campaign_end_date: "2026-09-30",
           billingSchedule: [],
           deliverySchedule: [{ month: "August 2026", mediaCosts: { social: "$1.00" } }],
         },
@@ -69,36 +70,107 @@ if (supportsMockModule()) {
   })
 }
 
-test("get_delivery_snapshot passes the Melbourne as-of into monthlyOpts.asOfISO", { skip }, async () => {
+const context = {
+  pageContext: undefined,
+  clientSlug: undefined,
+  mbaNumber: "bicau002",
+  versionNumber: 28,
+  enabledMediaTypes: undefined,
+  userSub: undefined,
+  userEmail: "admin@example.com",
+  roles: ["admin"],
+  clientSlugs: [],
+  mbaNumbers: [],
+  capturedPatch: null,
+  capturedAttachments: null,
+  capturedQuestions: null,
+  pendingParsedPlan: null,
+  capturedLineItemsLoad: null,
+  currentLineItems: null,
+}
+
+type StripArg = {
+  asOf: string
+  window?: { startISO: string; endISO: string; filtered: boolean; empty: boolean }
+  stripInputs: { monthlyOpts?: { asOfISO?: string; basis?: string } }
+}
+
+test("get_delivery_snapshot reads delivered and expected on the strip window", { skip }, async () => {
   attachStripExpectedMock.mock.resetCalls()
+  loadCalls.length = 0
   const { getDeliverySnapshotTool } = await import("../getDeliverySnapshot.js")
-  const result = await getDeliverySnapshotTool.execute(
-    {},
-    {
-      pageContext: undefined,
-      clientSlug: undefined,
-      mbaNumber: "bicau002",
-      versionNumber: 28,
-      enabledMediaTypes: undefined,
-      userSub: undefined,
-      userEmail: "admin@example.com",
-      roles: ["admin"],
-      clientSlugs: [],
-      mbaNumbers: [],
-      capturedPatch: null,
-      capturedAttachments: null,
-      capturedQuestions: null,
-      pendingParsedPlan: null,
-      capturedLineItemsLoad: null,
-      currentLineItems: null,
-    },
-  )
+  const result = await getDeliverySnapshotTool.execute({}, context as never)
   assert.equal(result.isError, undefined)
+  // Campaign ended 30 Sep, so the window is the whole flight to the end date.
+  assert.deepEqual(
+    { startDate: loadCalls[0]!.startDate, endDate: loadCalls[0]!.endDate },
+    { startDate: "2026-08-01", endDate: "2026-09-30" },
+  )
   assert.equal(attachStripExpectedMock.mock.calls.length, 1)
-  const arg = attachStripExpectedMock.mock.calls[0]!.arguments[0] as {
-    asOf: string
-    stripInputs: { monthlyOpts?: { asOfISO?: string; basis?: string } }
-  }
-  assert.equal(arg.asOf, "2026-10-10")
-  assert.equal(arg.stripInputs.monthlyOpts?.asOfISO, "2026-10-10")
+  const arg = attachStripExpectedMock.mock.calls[0]!.arguments[0] as StripArg
+  assert.equal(arg.asOf, "2026-09-30")
+  assert.equal(arg.stripInputs.monthlyOpts?.asOfISO, "2026-09-30")
+  assert.equal(arg.window?.startISO, "2026-08-01")
+  assert.equal(arg.window?.endISO, "2026-09-30")
+  assert.equal(arg.window?.filtered, false)
+  const body = JSON.parse(String(result.content).replace(/^```json\n|\n```$/g, ""))
+  assert.equal(body.deliveredThrough, "2026-09-30")
+})
+
+test("get_delivery_snapshot applies a requested range to both reads", { skip }, async () => {
+  attachStripExpectedMock.mock.resetCalls()
+  loadCalls.length = 0
+  const { getDeliverySnapshotTool } = await import("../getDeliverySnapshot.js")
+  await getDeliverySnapshotTool.execute({ startDate: "2026-09-01", endDate: "2026-09-15" }, context as never)
+  assert.deepEqual(
+    { startDate: loadCalls[0]!.startDate, endDate: loadCalls[0]!.endDate },
+    { startDate: "2026-09-01", endDate: "2026-09-15" },
+  )
+  const arg = attachStripExpectedMock.mock.calls[0]!.arguments[0] as StripArg
+  assert.equal(arg.window?.filtered, true)
+  assert.equal(arg.window?.endISO, "2026-09-15")
+})
+
+test("toolPacingWindow stops at Melbourne yesterday and pairs one-sided ranges", { skip }, async () => {
+  const { toolPacingWindow, snapshotRange } = await import("../getDeliverySnapshot.js")
+  const reference = new Date("2026-10-20T22:00:00Z") // 21 Oct in Melbourne
+  const live = toolPacingWindow({
+    startArg: undefined,
+    endArg: undefined,
+    campaignStartISO: "2026-10-01",
+    campaignEndISO: "2026-12-31",
+    reference,
+  })
+  assert.equal(live.startISO, "2026-10-01")
+  assert.equal(live.endISO, "2026-10-20")
+  const endOnly = toolPacingWindow({
+    startArg: undefined,
+    endArg: "2026-10-10",
+    campaignStartISO: "2026-10-01",
+    campaignEndISO: "2026-12-31",
+    reference,
+  })
+  assert.equal(endOnly.startISO, "2026-10-01")
+  assert.equal(endOnly.endISO, "2026-10-10")
+  const pastToday = toolPacingWindow({
+    startArg: "2026-10-15",
+    endArg: "2026-11-30",
+    campaignStartISO: "2026-10-01",
+    campaignEndISO: "2026-12-31",
+    reference,
+  })
+  assert.equal(pastToday.endISO, "2026-10-20")
+  const notStarted = toolPacingWindow({
+    startArg: undefined,
+    endArg: undefined,
+    campaignStartISO: "2026-10-21",
+    campaignEndISO: "2026-12-31",
+    reference,
+  })
+  assert.equal(notStarted.empty, true)
+  assert.deepEqual(snapshotRange(notStarted, "2026-10-21", false), {
+    startDate: "2026-10-20",
+    endDate: "2026-10-20",
+  })
+  assert.deepEqual(snapshotRange(live, null, false), { endDate: "2026-10-20" })
 })

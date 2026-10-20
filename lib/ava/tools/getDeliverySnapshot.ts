@@ -10,6 +10,7 @@ import { MEDIA_CONTAINER_ENDPOINTS } from "@/lib/api/media-containers"
 import { readPlanVersionsByMba } from "@/lib/data/readMediaPlans"
 import { normalizeDateToMelbourneISO } from "@/lib/dates/normalizeCampaignDateISO"
 import { resolveMonthlySpendForPlan } from "@/lib/spend/monthlyPlanCalendar"
+import { resolvePacingWindowISO, type PacingWindow } from "@/lib/pacing/expectedForWindow"
 import {
   channelExpectedToDate,
   reconcileLineExpected,
@@ -122,11 +123,48 @@ function applyScheduleLineExpected(
   }
 }
 
+/**
+ * The strip's pacing window for a tool call. A single requested end (or
+ * start) pairs with the campaign start (or end), so one-sided ranges still apply.
+ */
+export function toolPacingWindow(input: {
+  startArg: string | undefined
+  endArg: string | undefined
+  campaignStartISO: string | null
+  campaignEndISO: string | null
+  reference?: Date
+}): PacingWindow {
+  const filterStartISO = input.startArg ?? (input.endArg ? (input.campaignStartISO ?? "1970-01-01") : null)
+  const filterEndISO = input.endArg ?? (input.startArg ? (input.campaignEndISO ?? "9999-12-31") : null)
+  return resolvePacingWindowISO({
+    filterStartISO,
+    filterEndISO,
+    campaignStartISO: input.campaignStartISO,
+    campaignEndISO: input.campaignEndISO,
+    reference: input.reference,
+  })
+}
+
+/**
+ * Snapshot read range for the window. Without campaign dates the start is
+ * left to the plan flight. A window that has not opened reads its end day
+ * only (before the campaign starts), so nothing from today is counted.
+ */
+export function snapshotRange(
+  window: PacingWindow,
+  campaignStartISO: string | null,
+  hasStartArg: boolean,
+): { startDate?: string; endDate: string } {
+  if (window.empty) return { startDate: window.endISO, endDate: window.endISO }
+  const knownStart = Boolean(campaignStartISO) || hasStartArg
+  return knownStart ? { startDate: window.startISO, endDate: window.endISO } : { endDate: window.endISO }
+}
+
 export const getDeliverySnapshotTool: AvaTool = {
   definition: {
     name: "get_delivery_snapshot",
     description:
-      "Delivered spend, impressions, clicks and views for the campaign's channel containers (social Meta/TikTok, programmatic display/video, ad-serving/BVOD, search) from the same source as the on-page delivery containers, with the plan's budgets per line. ALWAYS prefer this over get_pacing_snapshot for delivery review, commentary and reports on a campaign.",
+      "Delivered spend, impressions, clicks and views for the campaign's channel containers (social Meta/TikTok, programmatic display/video, ad-serving/BVOD, search) from the same source as the on-page delivery containers, with the plan's budgets per line. Delivered and expected both run to deliveredThrough (Melbourne yesterday, capped at the campaign end), the same window as the Where we are strip. ALWAYS prefer this over get_pacing_snapshot for delivery review, commentary and reports on a campaign.",
     input_schema: {
       type: "object",
       properties: {
@@ -136,11 +174,11 @@ export const getDeliverySnapshotTool: AvaTool = {
         },
         startDate: {
           type: "string",
-          description: "Optional window start YYYY-MM-DD. Defaults to full flight.",
+          description: "Optional window start YYYY-MM-DD. Defaults to the campaign start.",
         },
         endDate: {
           type: "string",
-          description: "Optional window end YYYY-MM-DD. Defaults to full flight.",
+          description: "Optional window end YYYY-MM-DD. Defaults to Melbourne yesterday, capped at the campaign end. Delivery is never counted for today.",
         },
       },
       required: [],
@@ -165,34 +203,67 @@ export const getDeliverySnapshotTool: AvaTool = {
       const mpSearchEnabled =
         !enabled?.length || enabled.some((k) => k === "search" || k.toLowerCase() === "search")
 
+      // The plan version gives the campaign dates for the pacing window.
+      let version: Record<string, unknown> | undefined
+      try {
+        const versions = await readPlanVersionsByMba(mba)
+        version =
+          (typeof versionNumber === "number"
+            ? versions.find((row) => Number(row.version_number) === versionNumber)
+            : undefined) ?? versions.find((row) => row.published_at)
+      } catch (err) {
+        console.error("[get_delivery_snapshot] plan version read failed", {
+          mba,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+      const campaignStartISO = version
+        ? normalizeDateToMelbourneISO(version.campaign_start_date)
+        : null
+      const campaignEndISO = version ? normalizeDateToMelbourneISO(version.campaign_end_date) : null
+
+      // Same window as the Where we are strip: campaign start (or the requested
+      // start) to Melbourne yesterday (or the requested end), capped at the
+      // campaign end. Delivered and expected both stop on window.endISO.
+      const window = toolPacingWindow({
+        startArg: asString(args.startDate),
+        endArg: asString(args.endDate),
+        campaignStartISO,
+        campaignEndISO,
+      })
+
       const snapshot = await loadDeliverySnapshot({
         mbaNumber: mba,
         versionNumber,
         mediaTypeFilter,
         mpSearchEnabled,
-        startDate: asString(args.startDate),
-        endDate: asString(args.endDate),
+        ...snapshotRange(window, campaignStartISO, Boolean(asString(args.startDate))),
       })
+      const windowFields = {
+        pacingWindow: {
+          startDate: window.startISO,
+          endDate: window.endISO,
+          filtered: window.filtered,
+          notStarted: window.empty,
+        },
+        deliveredThrough: window.endISO,
+      }
 
       let summarised = summariseDeliverySnapshot(snapshot)
       try {
-        const versions = await readPlanVersionsByMba(mba)
-        const vn = snapshot.versionNumber
-        const version =
-          (typeof vn === "number"
-            ? versions.find((row) => Number(row.version_number) === vn)
-            : undefined) ?? versions.find((row) => row.published_at)
         if (version) {
-          const campaignStartISO = normalizeDateToMelbourneISO(version.campaign_start_date)
-          const campaignEndISO = normalizeDateToMelbourneISO(version.campaign_end_date)
-          applyScheduleLineExpected(snapshot.channels, {
-            deliverySchedule: version.deliverySchedule,
-            campaignStartISO,
-            campaignEndISO,
-            asOfISO: snapshot.asOf,
-            assumedLines: snapshot.assumedExpectedLines,
-          })
-          summarised = summariseDeliverySnapshot(snapshot)
+          // Schedule slices are to-date figures, so they only reconcile an
+          // unfiltered window. A filtered window keeps each line's in-window figure.
+          if (!window.filtered && !window.empty) {
+            applyScheduleLineExpected(snapshot.channels, {
+              deliverySchedule: version.deliverySchedule,
+              campaignStartISO,
+              campaignEndISO,
+              asOfISO: window.endISO,
+              assumedLines: snapshot.assumedExpectedLines,
+            })
+            summarised = summariseDeliverySnapshot(snapshot)
+          }
           const strip = attachStripExpected({
             stripInputs: {
               billingSchedule: version.billingSchedule,
@@ -204,16 +275,18 @@ export const getDeliverySnapshotTool: AvaTool = {
               monthlyOpts: {
                 campaignStartISO,
                 campaignEndISO,
-                asOfISO: snapshot.asOf,
+                asOfISO: window.endISO,
               },
             },
             deliveredSpendToDate: summarised.reportedTotals.spendToDate,
-            asOf: snapshot.asOf,
+            asOf: window.endISO,
+            window,
           })
           return {
             content: jsonContent({
               ...summarised,
               ...strip,
+              ...windowFields,
               reportedTotalsNote: DELIVERY_SNAPSHOT_TOTALS_NOTE,
             }),
           }
@@ -226,7 +299,7 @@ export const getDeliverySnapshotTool: AvaTool = {
       }
 
       return {
-        content: jsonContent(summarised),
+        content: jsonContent({ ...summarised, ...windowFields }),
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
