@@ -52,6 +52,7 @@ import {
   lookupActiveDeliverySource,
 } from "@/lib/delivery/deliverySourceMap"
 import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
+import { resolvePacingWindow } from "@/lib/pacing/expectedForWindow"
 
 export type CampaignDeliverySectionProps = {
   mbaNumber: string
@@ -455,6 +456,11 @@ function CampaignDeliveryBody({
       campaignEnd,
       lastSyncedAt,
       asOfDate: getMelbourneTodayISO(),
+      window: resolvePacingWindow({
+        filterRange,
+        campaignStartISO: campaignStart,
+        campaignEndISO: campaignEnd,
+      }),
       feePctsByVersionId,
       estimateVersionId,
       deliveryLineIds,

@@ -16,6 +16,7 @@ import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import { assumedDeliveryPacePct } from "@/lib/spend/assumedSpend"
 import { isAssumedSpendLine } from "@/lib/spend/assumeSpendRule"
 import { ASSUMED_SPEND_LABEL, assumedSpendForBurst } from "@/lib/spend/assumedSpend"
+import { resolvePacingWindow, windowPhrase, type PacingWindow } from "@/lib/pacing/expectedForWindow"
 
 const ATL_FAMILIES = [
   { key: "television", sourceTable: "media_plan_television", mediaType: "Television" },
@@ -55,18 +56,30 @@ function flag(value: unknown): boolean {
   return value === true || value === "true" || value === 1
 }
 
-function spendCard(assumed: number, media: number): ProgressCardProps {
-  const progress = media > 0 ? Math.max(0, Math.min(1, assumed / media)) : 0
-  const pct = media > 0 ? (assumed / media) * 100 : undefined
+/**
+ * Assumed spend is the plan's own daily media for the window, so it is its
+ * own expected: on track, progress and variance against that expected.
+ * Delivery media (the whole plan) is shown for information only.
+ */
+function spendCard(assumed: number, media: number, window: PacingWindow): ProgressCardProps {
+  const expected = assumed
+  const pct = assumedDeliveryPacePct(assumed, expected)
+  const progress = expected > 0 ? Math.max(0, Math.min(1, assumed / expected)) : 0
   const assumedText = formatMoney(assumed, { decimals: 0 })
+  const expectedText = formatMoney(expected, { decimals: 0 })
   const mediaText = formatMoney(media, { decimals: 0 })
+  const phrase = windowPhrase(window)
   return {
     title: ASSUMED_SPEND_LABEL,
     value: assumedText,
-    detail: `${ASSUMED_SPEND_LABEL} ${assumedText} · Delivery media ${mediaText}`,
+    detail: `${ASSUMED_SPEND_LABEL} ${assumedText} · Expected ${expectedText} ${phrase} · ${mediaText} delivery media in total`,
     progress,
-    variance: pct == null ? 0 : (pct - 100) / 100,
-    status: deliveryStatusFromPct(assumedDeliveryPacePct(assumed, assumed)),
+    ...(expected > 0 ? { pct } : {}),
+    expected,
+    plannedTotal: media,
+    variance: (pct - 100) / 100,
+    varianceLabel: `vs expected ${phrase}`,
+    status: deliveryStatusFromPct(pct),
   }
 }
 
@@ -91,7 +104,7 @@ type AssumedLine = {
 
 function lineFigures(
   item: Record<string, unknown>,
-  asOfDate: string,
+  window: PacingWindow,
   feePct: number,
   deliveryPresence: boolean,
 ): {
@@ -126,9 +139,12 @@ function lineFigures(
       buyType: String(burst.buy_type ?? burst.buyType ?? buyType),
       startDate,
       endDate,
-      asOfDate,
+      asOfDate: window.endISO,
     })
-    for (const day of days) assumedCents += day.cents
+    for (const day of days) {
+      if (window.empty || day.date < window.startISO) continue
+      assumedCents += day.cents
+    }
   }
   const deliveryMediaCents = toCents(media)
   const qualifies = isAssumedSpendLine(
@@ -156,12 +172,22 @@ export function buildAssumedSpendSection(input: {
   campaignStart: string
   campaignEnd: string
   lastSyncedAt: Date | null
+  /** Chart "today" line; the pacing as-at when `window` is not set. */
   asOfDate: string
+  /** Pacing window (filter-aware, to Melbourne yesterday). Defaults to campaign start to `asOfDate`. */
+  window?: PacingWindow
   feePctsByVersionId?: FeePctsByVersionId
   estimateVersionId?: number | null
   mediaType?: string
   deliveryLineIds?: ReadonlySet<string>
 }): ChannelSectionData | null {
+  const window =
+    input.window ??
+    resolvePacingWindow({
+      campaignStartISO: input.campaignStart,
+      campaignEndISO: input.campaignEnd,
+      asAtISO: input.asOfDate,
+    })
   const lines: AssumedLine[] = []
   for (const [index, raw] of input.lineItems.entries()) {
     const record = asRecord(raw)
@@ -174,7 +200,7 @@ export function buildAssumedSpendSection(input: {
       String(record.line_item_id ?? record.lineItemId ?? `assumed-${index}`)
         .trim()
         .toLowerCase() || `assumed-${index}`
-    const figures = lineFigures(record, input.asOfDate, feePct, input.deliveryLineIds?.has(id) === true)
+    const figures = lineFigures(record, window, feePct, input.deliveryLineIds?.has(id) === true)
     if (!figures) continue
     lines.push({
       id,
@@ -187,7 +213,7 @@ export function buildAssumedSpendSection(input: {
 
   const assumedTotal = lines.reduce((sum, line) => sum + line.assumed, 0)
   const mediaTotal = lines.reduce((sum, line) => sum + line.media, 0)
-  const spend = spendCard(assumedTotal, mediaTotal)
+  const spend = spendCard(assumedTotal, mediaTotal, window)
   const emptyChart = {
     daily: [] as Array<Record<string, string | number>>,
     series: [],
@@ -209,7 +235,7 @@ export function buildAssumedSpendSection(input: {
     },
     lineItems: lines.map((line) => {
       const { label, full } = deliveryLineItemDisplayName(line.record)
-      const card = spendCard(line.assumed, line.media)
+      const card = spendCard(line.assumed, line.media, window)
       return {
         id: line.id,
         block: {

@@ -241,6 +241,8 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
             ]),
           ],
         ]),
+        // As at the campaign end: with no bursts the whole $6,500 is expected.
+        asOfDate: "2026-12-31",
       },
     )
 
@@ -251,9 +253,14 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     assert.ok(spendCard)
     assert.equal(spendCard.title, "Reported spend (fixed cost)")
     assert.equal(spendCard.value, "$3,221.16")
-    assert.equal(spendCard.varianceLabel, "vs plan spend")
-    assert.equal(spendCard.detail, "Delivered $3,221.16 · Planned $6,500.00")
+    assert.equal(spendCard.varianceLabel, "vs expected to date")
+    assert.equal(
+      spendCard.detail,
+      "Reported $3,221.16 · Expected $6,500.00 to date · $6,500.00 planned in total",
+    )
     assert.equal(spendCard.status, "behind")
+    assert.equal(spendCard.expected, 6_500)
+    assert.equal(spendCard.plannedTotal, 6_500)
     const keys = section.aggregate.chart.series.map((s) => s.key)
     assert.ok(!keys.includes("amountSpent"))
     assert.ok(!keys.includes("spend"))
@@ -383,11 +390,12 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     assert.equal(spendCard.varianceLabel, "vs expected to date")
     assert.equal(
       spendCard.detail,
-      "Reported $4,700.00 · Planned $8,600.00 · Expected to date $4,700.00",
+      "Reported $4,700.00 · Expected $4,700.00 to date · $8,600.00 planned in total",
     )
     assert.equal(spendCard.status, "on-track")
     assert.ok(Math.abs(spendCard.variance) < 0.02)
-    assert.ok(Math.abs(spendCard.progress - 4_700 / 8_600) < 0.001)
+    // Progress is delivered ÷ expected for the window, not ÷ the whole plan.
+    assert.ok(Math.abs(spendCard.progress - 1) < 0.001)
     assert.equal(section.aggregate.progressCards[0]?.status, "on-track")
     assert.equal(section.aggregate.progressCards[0]?.varianceLabel, "vs expected to date")
   })

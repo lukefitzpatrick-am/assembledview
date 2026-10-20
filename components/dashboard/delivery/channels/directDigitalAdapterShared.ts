@@ -20,7 +20,6 @@ import {
 import { isCpcBuyType } from "@/lib/kpi/kpiReview"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import type { CampaignKPI } from "@/lib/kpi/types"
-import { expectedSpendToDateFromBursts } from "@/lib/spend/expectedSpendToDateFromBursts"
 import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
@@ -40,6 +39,26 @@ import {
 } from "./channelChartSeries"
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 import { normalizeDailyFactDate } from "@/lib/snowflake/normalizeDate"
+import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
+import {
+  expectedForWindow,
+  impressionsNotTracked,
+  netSpendBasisForLine,
+  pacingAsAtISO,
+  plannedTotal,
+  resolvePacingWindow,
+  sumInWindow,
+  type PacingWindow,
+} from "@/lib/pacing/expectedForWindow"
+import { paceProgressCard } from "../shared/paceProgressCard"
+
+/** Schedule media type for the fee snapshot, per Direct Booked Digital container. */
+const FEE_MEDIA_TYPE: Record<string, string> = {
+  "digital-display": "digiDisplay",
+  "digital-video": "digiVideo",
+  "digital-audio": "digiAudio",
+  bvod: "bvod",
+}
 
 const FIXED_COST_SPEND_LABEL = "Reported spend (fixed cost)"
 const CM360_ESTIMATED_CONNECTION =
@@ -230,81 +249,120 @@ function completionRatePct(videoCompletes: number, impressions: number): number 
   return safeDiv(videoCompletes, impressions) * 100
 }
 
-function pctVarianceFromPacingPct(pct: number | undefined): number {
-  if (pct === undefined || Number.isNaN(pct)) return 0
-  return (pct - 100) / 100
-}
-
+/**
+ * CM360 deliverable card. Compared with what was expected for the window.
+ * No plan goal: verification counts only. Click tracker (clicks, no
+ * impressions): impressions not tracked, left out of expected.
+ */
 function deliveryProgressCard(input: {
   title: string
   actual: number
   planned: number
+  expected: number
+  expectedToDate: number
+  window: PacingWindow
   sparkline: number[]
   dense?: boolean
   /** Shown instead of "No plan goal" when the estimate cannot be priced. */
   emptyReason?: string | null
+  /** Lines in this card whose impressions are not tracked (click trackers). */
+  untrackedLines?: number
+  /** True when every line in this card is a click tracker. */
+  allUntracked?: boolean
 }): ProgressCardProps {
-  const { title, actual, planned, sparkline, dense, emptyReason } = input
-  const hasGoal = planned > 0
-  const progress = hasGoal ? Math.max(0, Math.min(1, safeDiv(actual, planned))) : 0
-  const pacingPct = hasGoal ? safeDiv(actual, planned) * 100 : undefined
-  return {
+  const { title, actual, planned, sparkline, dense, emptyReason, window } = input
+  if (!(planned > 0)) {
+    return {
+      title,
+      value: formatWholeNumber(actual),
+      detail: `Delivered ${formatWholeNumber(actual)} · ${emptyReason || "No plan goal"}`,
+      progress: 0,
+      variance: 0,
+      varianceLabel: "verification counts only",
+      status: "no-data",
+      sparkline,
+      dense,
+    }
+  }
+  if (input.allUntracked) {
+    return {
+      title,
+      value: formatWholeNumber(actual),
+      detail: `Delivered ${formatWholeNumber(actual)} · Impressions not tracked (click tracker) · ${formatWholeNumber(planned)} planned in total`,
+      progress: 0,
+      expected: 0,
+      expectedToDate: 0,
+      plannedTotal: planned,
+      variance: 0,
+      varianceLabel: "impressions not tracked",
+      status: "no-data",
+      sparkline,
+      dense,
+    }
+  }
+  const untracked = input.untrackedLines ?? 0
+  return paceProgressCard({
     title,
-    value: formatWholeNumber(actual),
-    detail: hasGoal
-      ? `Delivered ${formatWholeNumber(actual)} · Planned ${formatWholeNumber(planned)}`
-      : `Delivered ${formatWholeNumber(actual)} · ${emptyReason || "No plan goal"}`,
-    progress,
-    variance: hasGoal ? pctVarianceFromPacingPct(pacingPct) : 0,
-    varianceLabel: hasGoal ? "vs plan deliverable" : "verification counts only",
-    status: hasGoal ? deliveryStatusFromPct(pacingPct) : "no-data",
+    delivered: actual,
+    expected: input.expected,
+    expectedToDate: input.expectedToDate,
+    plannedTotal: planned,
+    window,
+    format: formatWholeNumber,
     sparkline,
     dense,
-  }
+    note:
+      untracked > 0
+        ? `Impressions not tracked on ${untracked} click-tracker ${untracked === 1 ? "line" : "lines"}`
+        : null,
+  })
 }
 
+/** CM360 spend card (estimated or fixed-cost reported), compared with expected media for the window. */
 function spendDeliveryProgressCard(input: {
   title: string
   actual: number
   planned: number
-  expectedToDate?: number | null
+  expected: number
+  expectedToDate: number
+  window: PacingWindow
   sparkline: number[]
   dense?: boolean
   spendMode?: "reported" | "estimated"
-  detailOverride?: string
 }): ProgressCardProps {
-  const { title, actual, planned, expectedToDate, sparkline, dense, spendMode = "reported", detailOverride } = input
-  const hasGoal = planned > 0
-  const hasExpected = expectedToDate != null && expectedToDate > 0
-  const progress = hasGoal ? Math.max(0, Math.min(1, safeDiv(actual, planned))) : 0
-  const pacingPct = hasExpected
-    ? safeDiv(actual, expectedToDate) * 100
-    : hasGoal
-      ? safeDiv(actual, planned) * 100
+  const { title, actual, planned, expected, sparkline, dense, spendMode = "reported", window } = input
+  const titleTooltip =
+    spendMode === "estimated"
+      ? "Estimated from the plan rate (planned media ÷ planned deliverables), capped at planned media."
       : undefined
-  const lead =
-    spendMode === "estimated" ? "Estimated" : hasExpected ? "Reported" : "Delivered"
-  return {
+  const lead = spendMode === "estimated" ? "Estimated" : "Reported"
+  if (!(planned > 0) && !(expected > 0)) {
+    return {
+      title,
+      titleTooltip,
+      value: formatMoney(actual),
+      detail: `${lead} ${formatMoney(actual)} · No plan goal`,
+      progress: 0,
+      variance: 0,
+      varianceLabel: "reported spend",
+      status: "no-data",
+      sparkline,
+      dense,
+    }
+  }
+  return paceProgressCard({
     title,
-    titleTooltip:
-      spendMode === "estimated"
-        ? "Estimated from the plan rate (planned media ÷ planned deliverables), capped at planned media."
-        : undefined,
-    value: formatMoney(actual),
-    detail:
-      detailOverride ??
-      (hasExpected
-        ? `${lead} ${formatMoney(actual)} · Planned ${formatMoney(planned)} · Expected to date ${formatMoney(expectedToDate)}`
-        : hasGoal
-          ? `${lead} ${formatMoney(actual)} · Planned ${formatMoney(planned)}`
-          : `${lead} ${formatMoney(actual)} · No plan goal`),
-    progress,
-    variance: pacingPct != null ? pctVarianceFromPacingPct(pacingPct) : 0,
-    varianceLabel: hasExpected ? "vs expected to date" : hasGoal ? "vs plan spend" : "reported spend",
-    status: pacingPct != null ? deliveryStatusFromPct(pacingPct) : "no-data",
+    ...(titleTooltip ? { titleTooltip } : {}),
+    delivered: actual,
+    expected,
+    expectedToDate: input.expectedToDate,
+    plannedTotal: planned,
+    window,
+    format: (v) => formatMoney(v),
     sparkline,
     dense,
-  }
+    lead,
+  })
 }
 
 function markEstimatedCostTiles(tiles: KpiTileProps[], estimated: boolean): KpiTileProps[] {
@@ -346,11 +404,13 @@ export function buildDirectDigitalChannelSection(input: {
   brandColour?: string
   lastSyncedAt: Date | null
   reportedSpendByLineDate?: Map<string, Map<string, number>>
-  /** Melbourne civil date for expected-to-date; defaults to today. */
+  /** Chart "today" line, and the pacing as-at when `pacingAsAtISO` is not set. Defaults to today for charts and Melbourne yesterday for pacing. */
   asOfDate?: string
   isAdmin?: boolean
   feePctsByVersionId?: FeePctsByVersionId
   estimateVersionId?: number | null
+  /** Pacing "to date" override. Defaults to Melbourne yesterday, capped at campaign end. */
+  pacingAsAtISO?: string
 }): ChannelSectionData | null {
   const {
     key,
@@ -370,8 +430,20 @@ export function buildDirectDigitalChannelSection(input: {
     feePctsByVersionId,
     estimateVersionId,
   } = input
-  // filterRange reserved for future date-window clipping (parity with other adapters)
-  void input.filterRange
+  // Pacing compares delivered with what was expected for the selected window
+  // (to date = Melbourne yesterday; a date filter narrows it). Charts keep running to today.
+  const pacingAsAt = input.pacingAsAtISO ?? asOfDate ?? pacingAsAtISO(campaignEnd)
+  const window = resolvePacingWindow({
+    filterRange: input.filterRange,
+    campaignStartISO: campaignStart,
+    campaignEndISO: campaignEnd,
+    asAtISO: pacingAsAt,
+  })
+  const toDate = resolvePacingWindow({
+    campaignStartISO: campaignStart,
+    campaignEndISO: campaignEnd,
+    asAtISO: pacingAsAt,
+  })
 
   const normalized = normalizeAdServingLineItems(lineItems)
   if (!normalized.length) return null
@@ -401,6 +473,7 @@ export function buildDirectDigitalChannelSection(input: {
       campaignEnd,
       lastSyncedAt,
       asOfDate: asOfDate || getMelbourneTodayISO(),
+      window,
       feePctsByVersionId,
       estimateVersionId,
       mediaType: source.mediaType,
@@ -476,6 +549,59 @@ export function buildDirectDigitalChannelSection(input: {
         })
     const estimatedAmount = estimate?.amount != null && estimate.amount > 0 ? estimate.amount : 0
     const estimateByDate = new Map((estimate?.days ?? []).map((day) => [day.date, day.derivedSpend]))
+
+    // Window figures. Delivered and expected cover the same days.
+    const rawBursts = item.bursts_json ?? item.bursts
+    const hasBursts = parseBurstsToNormalised(rawBursts).length > 0
+    const basis = netSpendBasisForLine(item, {
+      mediaType: FEE_MEDIA_TYPE[key] ?? "digiDisplay",
+      feePctsByVersionId,
+      fallbackVersionId: estimateVersionId,
+    })
+    const inWindow = {
+      impressions: sumInWindow(daily, window, (d) => d.impressions),
+      clicks: sumInWindow(daily, window, (d) => d.clicks),
+    }
+    const impressionsTracked = !impressionsNotTracked(inWindow)
+    const deliverableExpected = (w: PacingWindow) =>
+      hasBursts ? expectedForWindow(rawBursts, "deliverables", w) : 0
+    // No dated bursts: the line's planned media runs straight across the campaign.
+    const spendBursts = hasBursts
+      ? rawBursts
+      : spendPlanned > 0
+        ? [{ startDate: campaignStart, endDate: campaignEnd, budget: spendPlanned }]
+        : []
+    const spendExpected = (w: PacingWindow) =>
+      expectedForWindow(spendBursts, "spend", w, hasBursts ? basis : null)
+    const reportedInWindow = reportedByDate
+      ? [...reportedByDate.entries()].reduce(
+          (sum, [date, value]) => (date >= window.startISO && date <= window.endISO && !window.empty ? sum + value : sum),
+          0,
+        )
+      : 0
+    const estimatedInWindow = [...estimateByDate.entries()].reduce(
+      (sum, [date, value]) => (date >= window.startISO && date <= window.endISO && !window.empty ? sum + value : sum),
+      0,
+    )
+    const pace = {
+      impressions: {
+        delivered: inWindow.impressions,
+        expected: booked.impressions > 0 && impressionsTracked ? deliverableExpected(window) : 0,
+        expectedToDate: booked.impressions > 0 && impressionsTracked ? deliverableExpected(toDate) : 0,
+        tracked: impressionsTracked,
+      },
+      clicks: {
+        delivered: inWindow.clicks,
+        expected: booked.clicks > 0 ? deliverableExpected(window) : 0,
+        expectedToDate: booked.clicks > 0 ? deliverableExpected(toDate) : 0,
+      },
+      spend: {
+        delivered: hasReportedEntries ? reportedInWindow : estimatedInWindow,
+        expected: spendExpected(window),
+        expectedToDate: spendExpected(toDate),
+        planned: hasBursts ? plannedTotal(rawBursts, "spend", basis) : spendPlanned,
+      },
+    }
     return {
       item,
       id,
@@ -483,11 +609,7 @@ export function buildDirectDigitalChannelSection(input: {
       totals,
       booked,
       bookedSpend: spendPlanned,
-      expectedSpendToDate: expectedSpendToDateFromBursts(
-        item.bursts_json ?? item.bursts,
-        spendPlanned,
-        asAtISO,
-      ),
+      pace,
       matched,
       hasReportedEntries,
       reportedTotal: hasReportedEntries ? sumReportedSpend(reportedByDate) : 0,
@@ -601,24 +723,34 @@ export function buildDirectDigitalChannelSection(input: {
   const impressionsSpark = aggDaily.map((d) => Number(d.impressions ?? 0))
   const clicksSpark = aggDaily.map((d) => Number(d.clicks ?? 0))
 
+  const sumPace = (pick: (m: (typeof withDelivery)[number]) => number) =>
+    withDelivery.reduce((sum, m) => sum + pick(m), 0)
+  const impressionLines = withDelivery.filter((m) => m.booked.impressions > 0)
+  const untrackedImpressionLines = impressionLines.filter((m) => !m.pace.impressions.tracked).length
   const impressionsCard = deliveryProgressCard({
     title: "Impressions delivery",
-    actual: rollup.impressions,
+    actual: sumPace((m) => m.pace.impressions.delivered),
     planned: rollup.plannedImpressions,
+    expected: sumPace((m) => m.pace.impressions.expected),
+    expectedToDate: sumPace((m) => m.pace.impressions.expectedToDate),
+    window,
     sparkline: impressionsSpark,
+    untrackedLines: untrackedImpressionLines,
+    allUntracked: impressionLines.length > 0 && untrackedImpressionLines === impressionLines.length,
   })
   const clicksCard = deliveryProgressCard({
     title: "Clicks delivery",
-    actual: rollup.clicks,
+    actual: sumPace((m) => m.pace.clicks.delivered),
     planned: rollup.plannedClicks,
+    expected: sumPace((m) => m.pace.clicks.expected),
+    expectedToDate: sumPace((m) => m.pace.clicks.expectedToDate),
+    window,
     sparkline: clicksSpark,
   })
   const reportedLines = withDelivery.filter((m) => m.hasReportedEntries)
   const estimatedLines = withDelivery.filter((m) => m.estimatedAmount > 0)
   const reportedSpendTotal = reportedLines.reduce((sum, m) => sum + m.reportedTotal, 0)
   const estimatedSpendTotal = estimatedLines.reduce((sum, m) => sum + m.estimatedAmount, 0)
-  const reportedSpendPlanned = reportedLines.reduce((sum, m) => sum + m.bookedSpend, 0)
-  const estimatedSpendPlanned = estimatedLines.reduce((sum, m) => sum + m.bookedSpend, 0)
   const reportedSpendSpark = aggDaily.map((d) => {
     const date = String(d.date ?? "")
     return reportedLines.reduce((sum, m) => sum + (m.reportedByDate?.get(date) ?? 0), 0)
@@ -627,40 +759,46 @@ export function buildDirectDigitalChannelSection(input: {
     const date = String(d.date ?? "")
     return estimatedLines.reduce((sum, m) => sum + (m.estimateByDate.get(date) ?? 0), 0)
   })
-  const reportedExpectedToDate = reportedLines.every((m) => m.expectedSpendToDate != null)
-    ? reportedLines.reduce((sum, m) => sum + (m.expectedSpendToDate ?? 0), 0)
-    : null
-  const estimatedExpectedToDate = estimatedLines.every((m) => m.expectedSpendToDate != null)
-    ? estimatedLines.reduce((sum, m) => sum + (m.expectedSpendToDate ?? 0), 0)
-    : null
+  const spendPace = (lines: typeof withDelivery) => ({
+    actual: lines.reduce((sum, m) => sum + m.pace.spend.delivered, 0),
+    planned: lines.reduce((sum, m) => sum + m.pace.spend.planned, 0),
+    expected: lines.reduce((sum, m) => sum + m.pace.spend.expected, 0),
+    expectedToDate: lines.reduce((sum, m) => sum + m.pace.spend.expectedToDate, 0),
+  })
+  // Mixed reported + estimated: one card against the expected media of both.
+  const mixedSpendLines = [...reportedLines, ...estimatedLines.filter((m) => !m.hasReportedEntries)]
   const spendCard =
     reportedLines.length > 0 && estimatedLines.length > 0
       ? spendDeliveryProgressCard({
           title: "Spend",
-          actual: reportedSpendTotal + estimatedSpendTotal,
-          planned: reportedSpendPlanned + estimatedSpendPlanned,
+          ...spendPace(mixedSpendLines),
+          window,
           sparkline: reportedSpendSpark.map((value, index) => value + (estimatedSpendSpark[index] ?? 0)),
           spendMode: "estimated",
         })
       : reportedLines.length > 0
         ? spendDeliveryProgressCard({
             title: FIXED_COST_SPEND_LABEL,
-            actual: reportedSpendTotal,
-            planned: reportedSpendPlanned,
-            expectedToDate: reportedExpectedToDate,
+            ...spendPace(reportedLines),
+            window,
             sparkline: reportedSpendSpark,
             spendMode: "reported",
           })
         : estimatedLines.length > 0
           ? spendDeliveryProgressCard({
               title: ESTIMATED_SPEND_LABEL,
-              actual: estimatedSpendTotal,
-              planned: estimatedSpendPlanned,
-              expectedToDate: estimatedExpectedToDate,
+              ...spendPace(estimatedLines),
+              window,
               sparkline: estimatedSpendSpark,
               spendMode: "estimated",
             })
           : null
+  const spendCardDelivered =
+    reportedLines.length > 0 && estimatedLines.length > 0
+      ? spendPace(mixedSpendLines).actual
+      : reportedLines.length > 0
+        ? spendPace(reportedLines).actual
+        : spendPace(estimatedLines).actual
   const aggregateProgressCards: [ProgressCardProps, ProgressCardProps] = spendCard
     ? [spendCard, impressionsCard]
     : [impressionsCard, clicksCard]
@@ -742,16 +880,23 @@ export function buildDirectDigitalChannelSection(input: {
     const placementRows = groupPacingRowsByPlacement(m.matched)
     const impressionCard = deliveryProgressCard({
       title: "Impressions delivery",
-      actual: m.totals.impressions,
+      actual: m.pace.impressions.delivered,
       planned: m.booked.impressions,
+      expected: m.pace.impressions.expected,
+      expectedToDate: m.pace.impressions.expectedToDate,
+      window,
       sparkline: m.daily.map((d) => d.impressions),
       dense: true,
       emptyReason: m.estimateReason === NO_PLANNED_IMPRESSIONS ? m.estimateReason : null,
+      allUntracked: m.booked.impressions > 0 && !m.pace.impressions.tracked,
     })
     const clicksCard = deliveryProgressCard({
       title: "Clicks delivery",
-      actual: m.totals.clicks,
+      actual: m.pace.clicks.delivered,
       planned: m.booked.clicks,
+      expected: m.pace.clicks.expected,
+      expectedToDate: m.pace.clicks.expectedToDate,
+      window,
       sparkline: m.daily.map((d) => d.clicks),
       dense: true,
     })
@@ -768,9 +913,11 @@ export function buildDirectDigitalChannelSection(input: {
     const lineSpendCard = m.hasReportedEntries
       ? spendDeliveryProgressCard({
           title: FIXED_COST_SPEND_LABEL,
-          actual: m.reportedTotal,
-          planned: m.bookedSpend,
-          expectedToDate: m.expectedSpendToDate,
+          actual: m.pace.spend.delivered,
+          planned: m.pace.spend.planned,
+          expected: m.pace.spend.expected,
+          expectedToDate: m.pace.spend.expectedToDate,
+          window,
           sparkline: m.daily.map((d) => m.reportedByDate?.get(d.date) ?? 0),
           dense: true,
           spendMode: "reported",
@@ -778,9 +925,11 @@ export function buildDirectDigitalChannelSection(input: {
       : m.estimatedAmount > 0
         ? spendDeliveryProgressCard({
             title: ESTIMATED_SPEND_LABEL,
-            actual: m.estimatedAmount,
-            planned: m.bookedSpend,
-            expectedToDate: m.expectedSpendToDate,
+            actual: m.pace.spend.delivered,
+            planned: m.pace.spend.planned,
+            expected: m.pace.spend.expected,
+            expectedToDate: m.pace.spend.expectedToDate,
+            window,
             sparkline: m.daily.map((d) => m.estimateByDate.get(d.date) ?? 0),
             dense: true,
             spendMode: "estimated",
@@ -926,7 +1075,7 @@ export function buildDirectDigitalChannelSection(input: {
           ? [
               {
                 label: spendCard.title,
-                value: formatMoney(reportedSpendTotal + estimatedSpendTotal),
+                value: formatMoney(spendCardDelivered),
               },
             ]
           : []),
