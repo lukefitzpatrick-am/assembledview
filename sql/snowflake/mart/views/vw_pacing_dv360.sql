@@ -76,3 +76,6 @@ select
   max(fivetran_synced_at) over (partition by date_day) as max_fivetran_synced_at,
   current_timestamp() as updated_at
 from ASSEMBLEDVIEW.MART.VW_STG_DV360_PACING;
+
+-- Read access for checks (CREATE OR REPLACE without COPY GRANTS drops grants).
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.VW_PACING_DV360 TO ROLE CLAUDE_RW;

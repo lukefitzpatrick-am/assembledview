@@ -1,5 +1,6 @@
 -- ASSEMBLEDVIEW.MART.VW_PACING_META
 -- Captured from Snowflake GET_DDL on 2026-06-08. Source of truth.
+-- MR1 2026-10-20: RESULTS = purchase + lead + complete_registration (no double count).
 USE SCHEMA ASSEMBLEDVIEW.MART;
 
 create or replace view VW_PACING_META(
@@ -30,11 +31,13 @@ with actions as (
       when lower(action_type) in ('link_click','inline_link_click','outbound_click')
       then coalesce(value,0) else 0 end
     ) as action_clicks,
+    /* MR1 (2026-10-20): Meta's own de-duplicated totals only.
+       'purchase' already includes pixel and on-site purchases; 'omni_purchase'
+       is the same number again, so adding both double counted. 'lead' already
+       includes pixel leads and instant-form leads (onsite_conversion.lead_grouped).
+       'offsite_conversion' and 'onsite_conversion' never match a real action type. */
     sum(case
-      when lower(action_type) in (
-        'purchase','lead','complete_registration','offsite_conversion',
-        'onsite_conversion','omni_purchase','omni_lead'
-      )
+      when lower(action_type) in ('purchase','lead','complete_registration')
       then coalesce(value,0) else 0 end
     ) as results
   from ASSEMBLEDVIEW.FACEBOOK_ADS.BASIC_AD_SET_ACTIONS
@@ -74,3 +77,6 @@ from ASSEMBLEDVIEW.FACEBOOK_ADS.BASIC_AD_SET b
 left join actions a
   on b.adset_id = a.adset_id
  and b.date::date = a.date_day;
+
+-- Read access for checks (CREATE OR REPLACE without COPY GRANTS drops grants).
+GRANT SELECT ON VIEW ASSEMBLEDVIEW.MART.VW_PACING_META TO ROLE CLAUDE_RW;
