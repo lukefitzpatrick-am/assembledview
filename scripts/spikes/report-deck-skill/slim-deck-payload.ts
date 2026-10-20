@@ -42,6 +42,8 @@ const MONEY_KEYS = new Set([
   "cpa",
   "cpv",
   "cpr",
+  // CF5 conversions: revenue and the spend it is measured against.
+  "revenue",
 ])
 const COUNT_KEYS = new Set([
   "impressions",
@@ -55,6 +57,10 @@ const COUNT_KEYS = new Set([
   "plannedViews",
   "previousImpressions",
   "versionNumber",
+  // CF5 conversions: the headline count and its parts.
+  "count",
+  "purchases",
+  "leads",
 ])
 const PERCENT_KEYS = new Set(["timeElapsedPct", "ctr"])
 const PACE_PERCENT_KEYS = new Set(["spendPacePct"])
@@ -337,6 +343,9 @@ export function slimDeckPayload(report: unknown): JsonRecord {
   if (Array.isArray(report.charts)) formatted.charts = report.charts
   formatted.detailLevel = typeof report.detailLevel === "string" && report.detailLevel ? report.detailLevel : "channel"
   formatted.detail = formatDeckDetail(report.detail)
+  // CF5: the client's conversion settings. Null when the switch is off. Set
+  // after formatting so a null is not read as a missing count.
+  formatted.conversions = isRecord(report.conversions) ? slimScalars(report.conversions) : null
   const creatives = formatDeckCreatives(report.creatives)
   if (creatives) formatted.creatives = creatives
   const bytes = Buffer.byteLength(JSON.stringify(formatted))

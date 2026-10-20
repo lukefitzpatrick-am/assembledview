@@ -397,3 +397,29 @@ test("charts keep numeric points, weekly is gone, and the cap is 80,000", () => 
   assert.ok(Buffer.byteLength(JSON.stringify(under)) <= 80_000)
   assert.throws(() => sized(5000), /80,?000/)
 })
+
+test("CF5 conversions: settings pass through; revenue is money, count whole", () => {
+  const slim = slimDeckPayload({
+    mbaNumber: "curatif004",
+    clientName: "Curatif",
+    campaignName: "Spring",
+    asOf: "2026-10-21",
+    period: {},
+    totals: { spend: 100, conversions: { label: "Purchases", count: 1234, revenue: 45678.5, roas: 4.2, tracked: true } },
+    channels: [],
+    kpis: [],
+    conversions: { headline: "purchases", label: "Purchases", showRevenue: true, throughDate: "2026-10-20" },
+  }) as { summary: { conversions: Record<string, unknown> }; conversions: Record<string, unknown> }
+  assert.equal(slim.conversions.label, "Purchases")
+  assert.equal(slim.conversions.showRevenue, true)
+  assert.equal(slim.summary.conversions.count, "1,234")
+  assert.equal(slim.summary.conversions.revenue, "$45,678.50")
+  assert.equal(slim.summary.conversions.roas, "4.20")
+})
+
+test("CF5 conversions: null when the switch is off", () => {
+  const slim = slimDeckPayload({ mbaNumber: "x", period: {}, totals: {}, channels: [], kpis: [] }) as {
+    conversions: unknown
+  }
+  assert.equal(slim.conversions, null)
+})

@@ -56,6 +56,12 @@ import {
 } from "@/lib/reports/campaignReport/reportFigures"
 import { buildDeckCharts, type DeckChart } from "@/lib/reports/campaignReport/deckCharts"
 import { buildDeckDetail, type DeckDetail, type DeckDetailLevel } from "@/lib/reports/campaignReport/deckDetail"
+import {
+  conversionsByChannel,
+  type ConversionFigures,
+} from "@/lib/delivery/conversions/channelConversions"
+import { loadConversionsForLines } from "@/lib/delivery/conversions/loadConversions"
+import type { ConversionHeadline } from "@/lib/delivery/conversions/rules"
 
 export { formatReportInt, formatReportMoney }
 
@@ -92,6 +98,21 @@ export type CampaignReportChannelRow = {
   spendAssumed?: boolean
   /** True when this channel's delivered dollars are a CM360 direct-digital estimate. */
   spendEstimated?: boolean
+  /**
+   * Chosen conversions for the selected window when the client's switch is on
+   * (CF5). Omitted when off or when the channel has no conversion platform.
+   */
+  conversions?: ConversionFigures | null
+}
+
+/** The client's conversion settings as the deck reads them. Null when the switch is off. */
+export type CampaignReportConversions = {
+  headline: ConversionHeadline
+  /** Purchases, Leads or Conversions. */
+  label: string
+  showRevenue: boolean
+  /** Last day counted (window end, capped at Melbourne yesterday). */
+  throughDate: string
 }
 
 export type ReportCommentary = {
@@ -152,6 +173,8 @@ export type CampaignReportPayload = {
      * The key-metrics footnote shows this only when it is above zero.
      */
     rateExcludedSpend?: number
+    /** Campaign conversions, revenue and ROAS when the client's switch is on (CF5). */
+    conversions?: ConversionFigures | null
   }
   channels: CampaignReportChannelRow[]
   /** Daily delivery charts for the current window. The previous window has none. */
@@ -170,6 +193,8 @@ export type CampaignReportPayload = {
   detailLevel: DeckDetailLevel
   /** Empty at channel level. Line item or ad group rows otherwise. */
   detail: DeckDetail[]
+  /** Null or omitted when the client's conversion switch is off (CF5). */
+  conversions?: CampaignReportConversions | null
 }
 
 function channelLabel(group: string): string {
@@ -347,6 +372,8 @@ export type AssembleCampaignReportInput = {
   generateCommentary?: typeof generateReportCommentary
   /** Omitted means channel. The monthly cron does not set this. */
   detailLevel?: DeckDetailLevel
+  /** Tests inject a stub. Defaults to the CF5 server read (null when the switch is off). */
+  loadConversions?: typeof loadConversionsForLines
 }
 
 export async function assembleCampaignReportData(
@@ -401,6 +428,22 @@ export async function assembleCampaignReportData(
       return [] as Record<string, unknown>[]
     }),
   ])
+
+  // Chosen conversions for the current window (CF5). Off, or a failed read, leaves the deck as before.
+  const loadConversions = input.loadConversions ?? loadConversionsForLines
+  const conversionLoad = await loadConversions({
+    mbaNumber,
+    lineItemIds: currentSnap.channels.flatMap((ch) => ch.lines.map((line) => line.lineItemId)),
+    startDate: currentWindow.startISO,
+    endDate: currentWindow.endISO,
+  }).catch((err: unknown) => {
+    console.error("[campaign-report] conversions failed", {
+      mbaNumber,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return null
+  })
+  const conversionRollup = conversionsByChannel(currentSnap.channels, conversionLoad)
 
   const prevByGroup = previousSnap ? indexChannels(previousSnap.channels) : new Map()
   const plannedBudget = typeof currentSnap.planTotals.plannedBudget === "number"
@@ -527,6 +570,9 @@ export async function assembleCampaignReportData(
       plannedViewsReason: reportGapReason(plannedViews, "no_plan"),
       spendAssumed: pace.spendAssumed,
       spendEstimated: pace.spendEstimated,
+      ...(conversionRollup?.byChannel.has(ch.group)
+        ? { conversions: conversionRollup.byChannel.get(ch.group) ?? null }
+        : {}),
       metrics: { ...rates.metrics, ...reportPace(spend, pace.expectedSpendToDate, planned > 0) },
       previousMetrics: previousRates
         ? {
@@ -600,6 +646,7 @@ export async function assembleCampaignReportData(
         ...reportPace(campaignSpend, expectedSpendToDate, plannedBudget > 0),
       },
       rateExcludedSpend: currentRates.excludedSpend,
+      ...(conversionRollup ? { conversions: conversionRollup.total } : {}),
       previousMetrics: previousRates
         ? {
             ...previousRates.metrics,
@@ -616,6 +663,14 @@ export async function assembleCampaignReportData(
     commentary: null,
     detailLevel: input.detailLevel === "line_item" || input.detailLevel === "ad_group" ? input.detailLevel : "channel",
     detail: [],
+    conversions: conversionRollup
+      ? {
+          headline: conversionRollup.headline,
+          label: conversionRollup.label,
+          showRevenue: conversionRollup.showRevenue,
+          throughDate: conversionRollup.throughDate,
+        }
+      : null,
   }
   if (reportData.detailLevel !== "channel") {
     reportData.detail = buildDeckDetail(currentSnap, reportData.detailLevel, currentWindow)

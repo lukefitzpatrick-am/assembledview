@@ -44,6 +44,8 @@ import {
   REPORT_FIGURE_DASH,
 } from "@/lib/reports/campaignReport/formatters"
 import type { CampaignReportPeriodMetrics } from "@/lib/reports/campaignReport/periodMetrics"
+import type { ConversionFigures } from "@/lib/delivery/conversions/channelConversions"
+import { formatRoas } from "@/lib/delivery/conversions/rules"
 import {
   campaignSpendShareSentence,
   rateExclusionFootnote,
@@ -425,6 +427,32 @@ function insightCard(page: DrawSlide, x: number, y: number, w: number, sentence:
   })
 }
 
+const NOT_TRACKED = "Not tracked"
+
+/**
+ * Conversion figures for the deck (CF5): the client's headline, then Revenue
+ * and ROAS when the client shows revenue. Empty when the switch is off.
+ */
+export function deckConversionFigures(
+  payload: Pick<CampaignReportPayload, "conversions">,
+  figures: ConversionFigures | null | undefined,
+): { label: string; value: string }[] {
+  const settings = payload.conversions
+  if (!settings || !figures) return []
+  const out = [
+    { label: settings.label, value: figures.count == null ? NOT_TRACKED : formatReportInt(figures.count) },
+  ]
+  if (settings.showRevenue) {
+    const valueOn = figures.tracked && figures.valueTracked
+    out.push({
+      label: "Revenue",
+      value: valueOn && figures.revenue != null ? formatReportMoney(figures.revenue) : NOT_TRACKED,
+    })
+    out.push({ label: "ROAS", value: valueOn ? formatRoas(figures.roas) : NOT_TRACKED })
+  }
+  return out
+}
+
 function drawKeyMetrics(page: DrawSlide, payload: CampaignReportPayload): void {
   const metrics = payload.totals.metrics
   const tiles: { label: string; value: string; colour: string }[] = [
@@ -484,6 +512,35 @@ function drawKeyMetrics(page: DrawSlide, payload: CampaignReportPayload): void {
       margin: 0,
     })
   })
+
+  // Conversions sit on their own row so the rate tiles keep their width.
+  const conversionTiles = deckConversionFigures(payload, payload.totals.conversions)
+  if (conversionTiles.length > 0) {
+    const cWidth = (12.2 - gap * 3) / 4
+    conversionTiles.forEach((tile, index) => {
+      const x = 0.55 + index * (cWidth + gap)
+      page.addText(tile.label, {
+        x,
+        y: 5.35,
+        w: cWidth,
+        h: 0.28,
+        fontFace: FONT,
+        fontSize: 12,
+        color: MUTED,
+        margin: 0,
+      })
+      page.addText(tile.value, {
+        x,
+        y: 5.65,
+        w: cWidth,
+        h: 0.46,
+        fontFace: FONT,
+        fontSize: 20,
+        color: FOREST,
+        margin: 0,
+      })
+    })
+  }
 
   const footnote = rateExclusionFootnote(payload.totals.rateExcludedSpend ?? 0)
   if (footnote) {
@@ -847,7 +904,12 @@ async function assembleCampaignReportDeck(
           plannedCountLabel(channel.plannedImpressions),
         ),
         row("Clicks", formatReportInt(channel.clicks), "Not available", plannedCountLabel(channel.plannedClicks)),
-        row("Results", formatReportInt(channel.results), "Not available", "Not available"),
+        // With the client's switch on, chosen conversions replace platform results (CF5).
+        ...(channel.conversions && payload.conversions
+          ? deckConversionFigures(payload, channel.conversions).map((figure) =>
+              row(figure.label, figure.value, "Not available", REPORT_FIGURE_DASH),
+            )
+          : [row("Results", formatReportInt(channel.results), "Not available", "Not available")]),
         row(
           "CPM",
           formatReportRate(channel.metrics.cpm),
