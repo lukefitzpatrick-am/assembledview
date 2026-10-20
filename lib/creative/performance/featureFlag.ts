@@ -1,20 +1,16 @@
 /**
- * Creative performance is off unless the global switch is on/1/true and the
- * dashboard slug is in FEATURE_CREATIVE_PERFORMANCE_CLIENTS (comma-separated).
- * Off is 404 for every role, including admin.
+ * Creative performance is on for every client dashboard when the global
+ * switch FEATURE_CREATIVE_PERFORMANCE is on/1/true. Off (or unset) is 404 for
+ * every role, including admin. FEATURE_CREATIVE_PERFORMANCE_CLIENTS is no
+ * longer read (it was a per-client allowlist until 2026-10-20).
  */
 
 const ON = new Set(["on", "1", "true"])
 
 export function isCreativePerformanceEnabled(
-  slug: string,
+  _slug: string,
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
   const flag = (env.FEATURE_CREATIVE_PERFORMANCE ?? "").trim().toLowerCase()
-  if (!ON.has(flag)) return false
-  const allow = (env.FEATURE_CREATIVE_PERFORMANCE_CLIENTS ?? "")
-    .split(",")
-    .map((part) => part.trim().toLowerCase())
-    .filter(Boolean)
-  return allow.includes(slug.trim().toLowerCase())
+  return ON.has(flag)
 }

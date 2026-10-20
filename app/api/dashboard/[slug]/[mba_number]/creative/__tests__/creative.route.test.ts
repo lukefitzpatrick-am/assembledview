@@ -52,12 +52,10 @@ function adminUser() {
 
 function enableFlag() {
   process.env.FEATURE_CREATIVE_PERFORMANCE = "1"
-  process.env.FEATURE_CREATIVE_PERFORMANCE_CLIENTS = "golf-australia"
 }
 
 function disableFlag() {
   delete process.env.FEATURE_CREATIVE_PERFORMANCE
-  delete process.env.FEATURE_CREATIVE_PERFORMANCE_CLIENTS
 }
 
 async function getCreative(slug: string, mba: string) {
