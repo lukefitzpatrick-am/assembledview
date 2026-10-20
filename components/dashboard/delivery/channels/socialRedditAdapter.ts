@@ -4,6 +4,7 @@ import type { DateRange } from "@/lib/dashboard/dateFilter"
 import type { SocialLineItem } from "@/lib/delivery/social/socialChannelCompute"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import type { ChannelSectionData } from "./types"
+import type { ChannelPacingInputs } from "./linePace"
 import { buildSocialChannelSectionForPlatform } from "./socialAdapterShared"
 
 export function buildSocialRedditSection(input: {
@@ -19,7 +20,7 @@ export function buildSocialRedditSection(input: {
   brandColour?: string
   lastSyncedAt: Date | null
   isAdmin?: boolean
-}): ChannelSectionData {
+} & ChannelPacingInputs): ChannelSectionData {
   return buildSocialChannelSectionForPlatform({
     key: "social-reddit",
     platform: "reddit",

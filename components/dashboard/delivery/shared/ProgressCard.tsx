@@ -12,10 +12,18 @@ export interface ProgressCardProps {
   titleTooltip?: string
   /** Big number, already formatted (e.g. "$35,763.47"). */
   value: string
-  /** Subtext, e.g. "Delivered $35,763.47 · Planned $70,093.00". */
+  /** Subtext, e.g. "Delivered $35,763.47 · Expected $40,000.00 to date · $70,093.00 planned in total". */
   detail: string
-  /** Progress 0..1. Clamped internally. */
+  /** Progress 0..1 (delivered ÷ expected for the selected window). Clamped internally. */
   progress: number
+  /** Delivered ÷ expected × 100. When set, the % figure shows it unclamped. */
+  pct?: number
+  /** Expected for the selected window, in the card's unit. Read by channel coverage. */
+  expected?: number
+  /** Expected from campaign start to Melbourne yesterday, ignoring any date filter. */
+  expectedToDate?: number
+  /** Whole-line planned total, in the card's unit. Information only. */
+  plannedTotal?: number
   /** Variance vs expected as a decimal, e.g. -0.3923. */
   variance: number
   varianceLabel?: string
@@ -38,8 +46,9 @@ export function ProgressCard({
   value,
   detail,
   progress,
+  pct,
   variance,
-  varianceLabel = "vs 100% expected delivery",
+  varianceLabel = "vs expected to date",
   status,
   sparkline,
   dense = false,
@@ -92,7 +101,7 @@ export function ProgressCard({
             dense && "text-xs",
           )}
         >
-          {(p * 100).toFixed(1)}%
+          {(typeof pct === "number" && Number.isFinite(pct) ? pct : p * 100).toFixed(1)}%
         </span>
       </div>
       <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">

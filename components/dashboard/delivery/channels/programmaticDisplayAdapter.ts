@@ -3,6 +3,7 @@ import type { DateRange } from "@/lib/dashboard/dateFilter"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import type { ChannelSectionData } from "./types"
+import type { ChannelPacingInputs } from "./linePace"
 import { buildProgrammaticChannelSection } from "./programmaticAdapterShared"
 
 export function buildProgrammaticDisplaySection(input: {
@@ -24,7 +25,7 @@ export function buildProgrammaticDisplaySection(input: {
   lastSyncedAt: Date | null
   reportedSpendByLineDate?: Map<string, Map<string, number>>
   isAdmin?: boolean
-}): ChannelSectionData | null {
+} & ChannelPacingInputs): ChannelSectionData | null {
   return buildProgrammaticChannelSection({
     key: "programmatic-display",
     title: "Programmatic – Display",
@@ -45,5 +46,8 @@ export function buildProgrammaticDisplaySection(input: {
     lastSyncedAt: input.lastSyncedAt,
     reportedSpendByLineDate: input.reportedSpendByLineDate,
     isAdmin: input.isAdmin,
+    feePctsByVersionId: input.feePctsByVersionId,
+    estimateVersionId: input.estimateVersionId,
+    pacingAsAtISO: input.pacingAsAtISO,
   })
 }

@@ -10,23 +10,16 @@ import type { CampaignKPI } from "@/lib/kpi/types"
 import type { SearchPacingAdGroupRow, SearchPacingLineItemSeries, SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 import {
   aggregateDailyTotals,
-  buildDailyClicksMapFromSpendSeries,
-  buildSearchAggregateTargetCurve,
-  buildSearchCumulativeActualForCurve,
   buildSearchScheduleByLineItem,
-  buildSearchTargetCurveLineItems,
   computeSearchTotalDerived,
   computeSearchTotalSchedule,
   computeSearchTotalsKpis,
   computeToDateFromBursts,
-  defaultRefLineISO,
   fillDailySeries,
   resolveSearchFillRange,
   safeDiv,
   searchExpectedInWindow,
-  searchOnTrackStatus,
 } from "@/lib/delivery/search/searchCore"
-import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiTileProps } from "../shared/KpiTile"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
@@ -39,21 +32,27 @@ import {
   aggregateDeliverableLabel,
   deliverableLabelForBuyType,
 } from "@/lib/delivery/deliverableLabel"
+import { parseMoney } from "@/lib/money"
+import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
+import {
+  expectedForWindow,
+  netSpendBasisForLine,
+  pacingAsAtISO,
+  paceVsExpected,
+  plannedTotal,
+  resolvePacingWindow,
+  sumInWindow,
+  type PacingWindow,
+} from "@/lib/pacing/expectedForWindow"
+import { paceProgressCard } from "../shared/paceProgressCard"
+import type { ChannelPacingInputs } from "./linePace"
+import { parseBursts as parseSearchBursts } from "@/lib/delivery/search/searchCore"
 
 const searchSeriesPalette = {
   cost: getMediaColor("search"),
   clicks: getDeterministicColor("pacing_search_clicks"),
   conversions: getDeterministicColor("pacing_search_conversions"),
 } as const
-
-function pctVarianceFromPacingPct(pct: number | undefined): number {
-  if (pct === undefined || Number.isNaN(pct)) return 0
-  return (pct - 100) / 100
-}
-
-function onTrackToDelivery(s: string): DeliveryStatus {
-  return s as DeliveryStatus
-}
 
 function formatCurrency(value: number | null | undefined) {
   return formatMoney(Number(value ?? 0))
@@ -110,6 +109,83 @@ function searchLineItemIdSources(searchLineItems: unknown[] | undefined): Array<
   })
 }
 
+/** Same clicks-goal rule as `buildSearchScheduleByLineItem`. */
+function searchIncludesClicksGoal(buyType: string): boolean {
+  return buyType === "cpc" || buyType === "bonus" || buyType.includes("cpc")
+}
+
+/**
+ * Search plan bursts on Sydney civil days, with the clicks goal as the
+ * deliverable (zero for non-CPC lines; budget ÷ buy amount when no clicks are stored).
+ */
+function searchPacingBursts(raw: unknown, buyType: string) {
+  const includeClicksGoal = searchIncludesClicksGoal(buyType)
+  return parseSearchBursts(raw).flatMap((b) => {
+    const parsed = parseBurstsToNormalised([b])[0]
+    if (!parsed) return []
+    const rec = (b && typeof b === "object" ? b : {}) as Record<string, unknown>
+    const buyAmount =
+      parseMoney(rec.buy_amount ?? rec.buyAmount ?? rec.buy_amount_number ?? rec.buyAmountNumber) ?? 0
+    let clicks = includeClicksGoal ? parsed.calculatedValue : 0
+    if (includeClicksGoal && clicks === 0 && parsed.budget > 0 && buyAmount > 0) clicks = parsed.budget / buyAmount
+    return [{ ...parsed, calculatedValue: clicks }]
+  })
+}
+
+type SearchLinePlan = {
+  id: string
+  bursts: ReturnType<typeof searchPacingBursts>
+  basis: ReturnType<typeof netSpendBasisForLine>
+}
+
+function searchLinePlans(
+  searchLineItems: unknown[] | undefined,
+  pacing: ChannelPacingInputs,
+): Map<string, SearchLinePlan> {
+  const out = new Map<string, SearchLinePlan>()
+  for (const item of Array.isArray(searchLineItems) ? searchLineItems : []) {
+    const row = item as Record<string, unknown>
+    const id = String(row?.line_item_id ?? row?.lineItemId ?? row?.LINE_ITEM_ID ?? "")
+      .trim()
+      .toLowerCase()
+    if (!id || out.has(id)) continue
+    const buyType = String(row?.buy_type ?? row?.buyType ?? "")
+      .trim()
+      .toLowerCase()
+    out.set(id, {
+      id,
+      bursts: searchPacingBursts(row?.bursts ?? row?.bursts_json ?? row?.burstsJson, buyType),
+      basis: netSpendBasisForLine(row, {
+        mediaType: "search",
+        feePctsByVersionId: pacing.feePctsByVersionId,
+        fallbackVersionId: pacing.estimateVersionId,
+      }),
+    })
+  }
+  return out
+}
+
+function planFigures(plan: SearchLinePlan | undefined, window: PacingWindow, toDate: PacingWindow) {
+  if (!plan) {
+    return {
+      spend: { expected: 0, expectedToDate: 0, planned: 0 },
+      clicks: { expected: 0, expectedToDate: 0, planned: 0 },
+    }
+  }
+  return {
+    spend: {
+      expected: expectedForWindow(plan.bursts, "spend", window, plan.basis),
+      expectedToDate: expectedForWindow(plan.bursts, "spend", toDate, plan.basis),
+      planned: plannedTotal(plan.bursts, "spend", plan.basis),
+    },
+    clicks: {
+      expected: expectedForWindow(plan.bursts, "deliverables", window),
+      expectedToDate: expectedForWindow(plan.bursts, "deliverables", toDate),
+      planned: plannedTotal(plan.bursts, "deliverables"),
+    },
+  }
+}
+
 export function buildSearchSection(input: {
   title?: string
   searchLineItems: unknown[] | undefined
@@ -129,7 +205,7 @@ export function buildSearchSection(input: {
   brandColour?: string
   lastSyncedAt: Date | null
   isAdmin?: boolean
-}): ChannelSectionData | null {
+} & ChannelPacingInputs): ChannelSectionData | null {
   const {
     title = "Search",
     searchLineItems,
@@ -177,55 +253,85 @@ export function buildSearchSection(input: {
     cost: Number(d.cost ?? 0),
   }))
 
-  const aggregateTrack = deliveryStatusFromPct(totalDerived.clicksPacingPct)
+  // Pacing compares delivered with what was expected for the selected window
+  // (to date = Melbourne yesterday). Charts keep running to today.
+  const asAtISO = input.pacingAsAtISO ?? pacingAsAtISO(campaignEnd)
+  const window = resolvePacingWindow({
+    filterRange,
+    campaignStartISO: campaignStart,
+    campaignEndISO: campaignEnd,
+    asAtISO,
+  })
+  const toDate = resolvePacingWindow({ campaignStartISO: campaignStart, campaignEndISO: campaignEnd, asAtISO })
+  const linePlans = searchLinePlans(searchLineItems, input)
+  const channelPlan = [...linePlans.values()].reduce(
+    (acc, plan) => {
+      const f = planFigures(plan, window, toDate)
+      return {
+        spend: {
+          expected: acc.spend.expected + f.spend.expected,
+          expectedToDate: acc.spend.expectedToDate + f.spend.expectedToDate,
+          planned: acc.spend.planned + f.spend.planned,
+        },
+        clicks: {
+          expected: acc.clicks.expected + f.clicks.expected,
+          expectedToDate: acc.clicks.expectedToDate + f.clicks.expectedToDate,
+          planned: acc.clicks.planned + f.clicks.planned,
+        },
+      }
+    },
+    planFigures(undefined, window, toDate),
+  )
+  const deliveredSpend = sumInWindow(daily, window, (d) => Number(d.cost ?? 0))
+  const deliveredClicks = sumInWindow(daily, window, (d) => Number(d.clicks ?? 0))
 
   // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).
   // searchSeriesPalette.cost === getMediaColor("search") — confirmed equal; keep palette for series accents.
   const mediaTypeColour = channelMediaTypeColour("search")
   const accentColour = mediaTypeColour
 
-  const avgDeliveryPct =
-    ((typeof totalDerived.budgetPacingPct === "number" ? totalDerived.budgetPacingPct : 0) +
-      (typeof totalDerived.clicksPacingPct === "number" ? totalDerived.clicksPacingPct : 0)) /
-    2
+  const avgDeliveryPct = (() => {
+    const pcts = [
+      paceVsExpected(deliveredSpend, channelPlan.spend.expected).pct,
+      paceVsExpected(deliveredClicks, channelPlan.clicks.expected).pct,
+    ].filter((pct): pct is number => typeof pct === "number")
+    return pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : undefined
+  })()
 
   const summaryChips = [
-    { label: "Total spend", value: formatCurrency(totals.cost) },
+    { label: "Total spend", value: formatCurrency(deliveredSpend) },
     { label: "Total impressions", value: formatWholeNumber(totals.impressions) },
     {
       label: "Avg CPM",
       value:
         totals.impressions > 0 ? formatCurrency2dp((totals.cost / totals.impressions) * 1000) : "—",
     },
-    { label: "Avg delivery", value: `${avgDeliveryPct.toFixed(1)}%` },
+    { label: "Avg delivery", value: avgDeliveryPct == null ? "—" : `${avgDeliveryPct.toFixed(1)}%` },
   ]
 
-  const spendRatio =
-    totalSchedule.budgetBooked > 0 ? Math.max(0, Math.min(1, totals.cost / totalSchedule.budgetBooked)) : 0
-  const clicksRatio =
-    totalSchedule.clicksBooked > 0 ? Math.max(0, Math.min(1, totals.clicks / totalSchedule.clicksBooked)) : 0
-
-  const spendCard: ProgressCardProps = {
+  const spendCard: ProgressCardProps = paceProgressCard({
     title: "Spend delivery",
-    value: formatCurrency(totals.cost),
-    detail: `Delivered ${formatCurrency(totals.cost)} · Planned ${formatCurrency(totalSchedule.budgetBooked)}`,
-    progress: spendRatio,
-    variance: pctVarianceFromPacingPct(totalDerived.budgetPacingPct),
-    status: deliveryStatusFromPct(totalDerived.budgetPacingPct),
+    delivered: deliveredSpend,
+    expected: channelPlan.spend.expected,
+    expectedToDate: channelPlan.spend.expectedToDate,
+    plannedTotal: channelPlan.spend.planned,
+    window,
+    format: (v) => formatCurrency(v),
     sparkline: daily.map((d) => Number(d.cost ?? 0)),
-  }
+  })
 
-  const deliverableCard: ProgressCardProps = {
+  const deliverableCard: ProgressCardProps = paceProgressCard({
     title: `${aggregateDeliverableLabel(
       Array.from(scheduleByLineItemId.values()).map((s) => s.buyType),
     )} delivery`,
-    value: formatWholeNumber(totals.clicks),
-    detail: `Delivered ${formatWholeNumber(totals.clicks)} · Planned ${formatWholeNumber(totalSchedule.clicksBooked)}`,
-    progress: clicksRatio,
-    variance: pctVarianceFromPacingPct(totalDerived.clicksPacingPct),
-    status: onTrackToDelivery(aggregateTrack),
+    delivered: deliveredClicks,
+    expected: channelPlan.clicks.expected,
+    expectedToDate: channelPlan.clicks.expectedToDate,
+    plannedTotal: channelPlan.clicks.planned,
+    window,
+    format: (v) => formatWholeNumber(v),
     sparkline: daily.map((d) => Number(d.clicks ?? 0)),
-  }
+  })
 
   const topFrac = topShareFraction(totals.topImpressionPct)
 
@@ -350,6 +456,9 @@ export function buildSearchSection(input: {
     brandColour,
     plannedSpendByLineId,
     isAdmin,
+    linePlans,
+    window,
+    toDate,
   })
 
   return {
@@ -381,17 +490,6 @@ export function buildSearchSection(input: {
   }
 }
 
-function findSearchLineItemSource(searchLineItems: unknown[] | undefined, id: string): unknown | undefined {
-  const items = Array.isArray(searchLineItems) ? searchLineItems : []
-  return items.find((item) => {
-    const row = item as Record<string, unknown>
-    const lid = String(row?.line_item_id ?? row?.lineItemId ?? row?.LINE_ITEM_ID ?? "")
-      .trim()
-      .toLowerCase()
-    return lid === id
-  })
-}
-
 function buildSearchLineItemBlocks(input: {
   lineItems: SearchPacingLineItemSeries[]
   adGroups: SearchPacingAdGroupRow[]
@@ -411,6 +509,9 @@ function buildSearchLineItemBlocks(input: {
   brandColour?: string
   plannedSpendByLineId: Record<string, number>
   isAdmin: boolean
+  linePlans: Map<string, SearchLinePlan>
+  window: PacingWindow
+  toDate: PacingWindow
 }): Array<{ id: string; block: LineItemBlockProps }> {
   const {
     lineItems,
@@ -422,7 +523,6 @@ function buildSearchLineItemBlocks(input: {
     campaignStart,
     campaignEnd,
     pacingWindow,
-    kpiTargets,
     mbaNumber,
     kpiVersionNumber,
     lineItemTargets,
@@ -431,6 +531,9 @@ function buildSearchLineItemBlocks(input: {
     brandColour,
     plannedSpendByLineId,
     isAdmin,
+    linePlans,
+    window,
+    toDate,
   } = input
 
   return lineItems
@@ -457,9 +560,6 @@ function buildSearchLineItemBlocks(input: {
           clicksExpected = searchExpectedInWindow(bursts, win, "clicksGoal")
         }
       }
-
-      const budgetPacingPct = spendExpected > 0 ? (liTotals.cost / spendExpected) * 100 : undefined
-      const clicksPacingPct = clicksExpected > 0 ? (liTotals.clicks / clicksExpected) * 100 : undefined
 
       const liCtr = safeDiv(liTotals.clicks, liTotals.impressions)
       const liCvr = safeDiv(liTotals.conversions, liTotals.clicks)
@@ -490,36 +590,15 @@ function buildSearchLineItemBlocks(input: {
       const TOP_SHARE_TARGET = 0.5
       const liTopFrac = topShareFraction(liTotals.topImpressionPct)
 
-      const spendR = spendFull.bookedTotal > 0 ? Math.max(0, Math.min(1, liTotals.cost / spendFull.bookedTotal)) : 0
-      const delR = clicksFull.bookedTotal > 0 ? Math.max(0, Math.min(1, liTotals.clicks / clicksFull.bookedTotal)) : 0
+      const plan = planFigures(linePlans.get(id), window, toDate)
+      const liDeliveredSpend = sumInWindow(filled, window, (d) => Number(d.cost ?? 0))
+      const liDeliveredClicks = sumInWindow(filled, window, (d) => Number(d.clicks ?? 0))
 
-      const sourceItem = findSearchLineItemSource(searchLineItems, id)
-      const singleCurveItems = buildSearchTargetCurveLineItems(
-        sourceItem ? [sourceItem] : [],
-        scheduleByLineItemId,
-      )
-      const targetCurve = buildSearchAggregateTargetCurve({
-        kpiTargets,
-        campaignStartISO: pacingWindow.campaignStartISO,
-        campaignEndISO: pacingWindow.campaignEndISO,
-        lineItems: singleCurveItems,
-        filterRange,
-        campaignStart,
-        campaignEnd,
-      })
-
-      const chartClicksSpend = filled.map((d) => ({
-        date: d.date,
-        clicks: Number(d.clicks ?? 0),
-      }))
       const dailyRows = filled.map((d) => ({
         date: d.date,
         cost: Number(d.cost ?? 0),
         clicks: Number(d.clicks ?? 0),
       }))
-      const dailyClicksByDate = buildDailyClicksMapFromSpendSeries(chartClicksSpend)
-      const cumulativeActual = buildSearchCumulativeActualForCurve(targetCurve, dailyClicksByDate)
-      const lineTrack = searchOnTrackStatus(targetCurve, cumulativeActual, defaultRefLineISO(pacingWindow.asAtISO))
 
       const liCtrTile: KpiTileProps = {
         label: "CTR",
@@ -547,26 +626,28 @@ function buildSearchLineItemBlocks(input: {
         name: String(li.lineItemName ?? li.lineItemId),
         platform: schedule?.buyType ? String(schedule.buyType) : undefined,
         progressCards: [
-          {
+          paceProgressCard({
             title: "Spend delivery",
-            value: formatCurrency(liTotals.cost),
-            detail: `Delivered ${formatCurrency(liTotals.cost)} · Planned ${formatCurrency(spendFull.bookedTotal)}`,
-            progress: spendR,
-            variance: pctVarianceFromPacingPct(budgetPacingPct),
-            status: deliveryStatusFromPct(budgetPacingPct),
+            delivered: liDeliveredSpend,
+            expected: plan.spend.expected,
+            expectedToDate: plan.spend.expectedToDate,
+            plannedTotal: plan.spend.planned,
+            window,
+            format: (v) => formatCurrency(v),
             sparkline: filled.map((d) => Number(d.cost ?? 0)),
             dense: true,
-          },
-          {
+          }),
+          paceProgressCard({
             title: `${deliverableLabelForBuyType(schedule?.buyType)} delivery`,
-            value: formatWholeNumber(liTotals.clicks),
-            detail: `Delivered ${formatWholeNumber(liTotals.clicks)} · Planned ${formatWholeNumber(clicksFull.bookedTotal)}`,
-            progress: delR,
-            variance: pctVarianceFromPacingPct(clicksPacingPct),
-            status: onTrackToDelivery(lineTrack),
+            delivered: liDeliveredClicks,
+            expected: plan.clicks.expected,
+            expectedToDate: plan.clicks.expectedToDate,
+            plannedTotal: plan.clicks.planned,
+            window,
+            format: (v) => formatWholeNumber(v),
             sparkline: filled.map((d) => Number(d.clicks ?? 0)),
             dense: true,
-          },
+          }),
         ],
         kpiBand: {
           title: "Delivery KPIs",

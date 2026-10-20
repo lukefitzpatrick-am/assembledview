@@ -222,6 +222,8 @@ function CampaignDeliveryBody({
           brandColour,
           lastSyncedAt,
           isAdmin,
+          feePctsByVersionId,
+          estimateVersionId,
         }),
       )
     }
@@ -241,6 +243,8 @@ function CampaignDeliveryBody({
           brandColour,
           lastSyncedAt,
           isAdmin,
+          feePctsByVersionId,
+          estimateVersionId,
         }),
       )
     }
@@ -264,6 +268,8 @@ function CampaignDeliveryBody({
           brandColour,
           lastSyncedAt,
           isAdmin,
+          feePctsByVersionId,
+          estimateVersionId,
         }),
       )
     }
@@ -283,6 +289,8 @@ function CampaignDeliveryBody({
         brandColour,
         lastSyncedAt,
         isAdmin,
+        feePctsByVersionId,
+        estimateVersionId,
       })
       if (s) out.push(s)
     }
@@ -303,6 +311,8 @@ function CampaignDeliveryBody({
         lastSyncedAt,
         reportedSpendByLineDate,
         isAdmin,
+        feePctsByVersionId,
+        estimateVersionId,
       })
       if (s) out.push(s)
     }
@@ -323,6 +333,8 @@ function CampaignDeliveryBody({
         lastSyncedAt,
         reportedSpendByLineDate,
         isAdmin,
+        feePctsByVersionId,
+        estimateVersionId,
       })
       if (s) out.push(s)
     }
@@ -350,6 +362,8 @@ function CampaignDeliveryBody({
         lastSyncedAt,
         reportedSpendByLineDate,
         isAdmin,
+        feePctsByVersionId,
+        estimateVersionId,
       })
       if (s) out.push(s)
     }

@@ -28,7 +28,6 @@ import {
   type SocialLineItem,
   type SocialLineMetrics,
 } from "@/lib/delivery/social/socialChannelCompute"
-import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import { getPacingWindow } from "@/lib/pacing/pacingWindow"
 import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiTileProps } from "../shared/KpiTile"
@@ -40,11 +39,15 @@ import { aggregateDailyRows } from "./aggregateDaily"
 import { lineDatesFromBursts } from "@/lib/delivery/lineChartWindow"
 import { SOCIAL_CHART_SERIES } from "./channelChartSeries"
 import { aggregateDeliverableLabel } from "@/lib/delivery/deliverableLabel"
-
-function pctVarianceFromPacingPct(pct: number | undefined): number {
-  if (pct === undefined || Number.isNaN(pct)) return 0
-  return (pct - 100) / 100
-}
+import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
+import {
+  netSpendBasisForLine,
+  pacingAsAtISO,
+  paceVsExpected,
+  resolvePacingWindow,
+} from "@/lib/pacing/expectedForWindow"
+import { paceProgressCard } from "../shared/paceProgressCard"
+import { computeLinePace, sumLinePaces, untrackedNote, type ChannelPacingInputs } from "./linePace"
 
 function onTrackToDelivery(s: SocialLineMetrics["onTrackStatus"]): DeliveryStatus {
   return s as DeliveryStatus
@@ -373,7 +376,7 @@ export function buildSocialChannelSectionForPlatform(input: {
   brandColour?: string
   lastSyncedAt: Date | null
   isAdmin?: boolean
-}): ChannelSectionData {
+} & ChannelPacingInputs): ChannelSectionData {
   const {
     key,
     platform,
@@ -390,6 +393,8 @@ export function buildSocialChannelSectionForPlatform(input: {
     brandColour,
     lastSyncedAt,
     isAdmin = false,
+    feePctsByVersionId,
+    estimateVersionId,
   } = input
 
   const wantChannel = platform
@@ -423,12 +428,38 @@ export function buildSocialChannelSectionForPlatform(input: {
     filterRange,
   )
 
-  const bookedTotals = {
-    spend: metrics.reduce((s, m) => s + (m.booked?.spend ?? 0), 0),
-    deliverables: metrics.reduce((s, m) => s + (m.booked?.deliverables ?? 0), 0),
-  }
-
-  const aggregateTrack = deliveryStatusFromPct(aggregatePacing.deliverable?.pacingPct)
+  // Pacing compares delivered with what was expected for the selected window
+  // (to date = Melbourne yesterday). Charts keep running to today.
+  const asAtISO = input.pacingAsAtISO ?? pacingAsAtISO(campaignEnd)
+  const window = resolvePacingWindow({
+    filterRange,
+    campaignStartISO: campaignStart,
+    campaignEndISO: campaignEnd,
+    asAtISO,
+  })
+  const toDate = resolvePacingWindow({ campaignStartISO: campaignStart, campaignEndISO: campaignEnd, asAtISO })
+  const linePaces = metrics.map((m) => {
+    const raw = m.lineItem.bursts_json ?? m.lineItem.bursts
+    return computeLinePace({
+      rawBursts: parseBurstsToNormalised(raw).length > 0 ? raw : m.bursts,
+      daily: m.actualsDaily.map((d) => ({
+        date: d.date,
+        spend: Number(d.spend ?? 0),
+        deliverable: Number(d.deliverable_value ?? 0),
+        impressions: Number(d.impressions ?? 0),
+        clicks: Number(d.clicks ?? 0),
+      })),
+      window,
+      toDate,
+      basis: netSpendBasisForLine(m.lineItem, {
+        mediaType: "socialMedia",
+        feePctsByVersionId,
+        fallbackVersionId: estimateVersionId,
+      }),
+      deliverableIsImpressions: m.deliverableKey === "impressions",
+    })
+  })
+  const channelPace = sumLinePaces(linePaces)
 
   const kpisRaw = summarizeActuals(metrics.flatMap((m) => m.actualsDaily))
 
@@ -438,43 +469,40 @@ export function buildSocialChannelSectionForPlatform(input: {
   const includeVideo = platform === "reddit" || isVideoBuySocial(activeItems)
 
   const summaryChips = [
-    { label: "Total spend", value: formatCurrency(aggregatePacing.spend.actualToDate) },
+    { label: "Total spend", value: formatCurrency(channelPace.spend.delivered) },
     { label: "Total impressions", value: formatNumber(kpisRaw.impressions) },
     { label: "Avg CPM", value: kpisRaw.cpm == null ? "—" : formatCurrency2dp(kpisRaw.cpm) },
     {
       label: "Avg delivery",
-      value: `${(
-        metrics.reduce((s, m) => s + Number(m.pacing.spend.pacingPct ?? 0), 0) / Math.max(1, metrics.length)
-      ).toFixed(1)}%`,
+      value: (() => {
+        const pct = paceVsExpected(channelPace.spend.delivered, channelPace.spend.expected).pct
+        return pct == null ? "—" : `${pct.toFixed(1)}%`
+      })(),
     },
   ]
 
-  const spendRatio =
-    bookedTotals.spend > 0 ? Math.max(0, Math.min(1, aggregatePacing.spend.actualToDate / bookedTotals.spend)) : 0
-  const delRatio =
-    bookedTotals.deliverables > 0 && aggregatePacing.deliverable
-      ? Math.max(0, Math.min(1, aggregatePacing.deliverable.actualToDate / bookedTotals.deliverables))
-      : 0
-
-  const spendCard: ProgressCardProps = {
+  const spendCard: ProgressCardProps = paceProgressCard({
     title: "Spend delivery",
-    value: formatCurrency(aggregatePacing.spend.actualToDate),
-    detail: `Delivered ${formatCurrency(aggregatePacing.spend.actualToDate)} · Planned ${formatCurrency(bookedTotals.spend)}`,
-    progress: spendRatio,
-    variance: pctVarianceFromPacingPct(aggregatePacing.spend.pacingPct),
-    status: deliveryStatusFromPct(aggregatePacing.spend.pacingPct),
+    delivered: channelPace.spend.delivered,
+    expected: channelPace.spend.expected,
+    expectedToDate: channelPace.spend.expectedToDate,
+    plannedTotal: channelPace.spend.planned,
+    window,
+    format: formatCurrency,
     sparkline: aggregatePacing.series.map((p) => Number(p.actualSpend ?? 0)),
-  }
+  })
 
-  const deliverableCard: ProgressCardProps = {
+  const deliverableCard: ProgressCardProps = paceProgressCard({
     title: `${aggregateDeliverableLabel(activeItems.map((li) => li.buy_type))} delivery`,
-    value: formatWholeNumber(aggregatePacing.deliverable?.actualToDate ?? 0),
-    detail: `Delivered ${formatWholeNumber(aggregatePacing.deliverable?.actualToDate ?? 0)} · Planned ${formatWholeNumber(bookedTotals.deliverables)}`,
-    progress: delRatio,
-    variance: pctVarianceFromPacingPct(aggregatePacing.deliverable?.pacingPct),
-    status: aggregateTrack,
+    delivered: channelPace.deliverables.delivered,
+    expected: channelPace.deliverables.expected,
+    expectedToDate: channelPace.deliverables.expectedToDate,
+    plannedTotal: channelPace.deliverables.planned,
+    window,
+    format: formatWholeNumber,
     sparkline: aggregatePacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
-  }
+    note: untrackedNote(linePaces),
+  })
 
   const plannedSpendByLineId: Record<string, number> = {}
   for (const m of metrics) {
@@ -499,15 +527,10 @@ export function buildSocialChannelSectionForPlatform(input: {
     .map((item) => String(item.line_item_id ?? "").trim())
     .filter(Boolean)
 
-  const accordionItems = metrics.map((m) => {
+  const accordionItems = metrics.map((m, lineIndex) => {
     const liKpis = summarizeActuals(m.actualsDaily)
     const videoLi = platform === "reddit" || /\bvideo\b/i.test(String(m.lineItem.buy_type ?? ""))
-    const spendR =
-      m.booked.spend > 0 ? Math.max(0, Math.min(1, m.pacing.spend.actualToDate / m.booked.spend)) : 0
-    const delR =
-      m.booked.deliverables > 0 && m.pacing.deliverable
-        ? Math.max(0, Math.min(1, m.pacing.deliverable.actualToDate / m.booked.deliverables))
-        : 0
+    const pace = linePaces[lineIndex]!
 
     const lineId = cleanLineId(m.lineItem.line_item_id)
     const matchedFacts = lineId
@@ -519,26 +542,29 @@ export function buildSocialChannelSectionForPlatform(input: {
       name: formatLineItemHeader(m.lineItem),
       platform: String(m.lineItem.buy_type ?? ""),
       progressCards: [
-        {
+        paceProgressCard({
           title: "Spend delivery",
-          value: formatCurrency(m.pacing.spend.actualToDate),
-          detail: `Delivered ${formatCurrency(m.pacing.spend.actualToDate)} · Planned ${formatCurrency(m.booked.spend)}`,
-          progress: spendR,
-          variance: pctVarianceFromPacingPct(m.pacing.spend.pacingPct),
-          status: deliveryStatusFromPct(m.pacing.spend.pacingPct),
+          delivered: pace.spend.delivered,
+          expected: pace.spend.expected,
+          expectedToDate: pace.spend.expectedToDate,
+          plannedTotal: pace.spend.planned,
+          window,
+          format: formatCurrency,
           sparkline: m.pacing.series.map((p) => Number(p.actualSpend ?? 0)),
           dense: true,
-        },
-        {
+        }),
+        paceProgressCard({
           title: `${getDeliverableLabel(m.deliverableKey)} delivery`,
-          value: formatWholeNumber(m.pacing.deliverable?.actualToDate ?? 0),
-          detail: `Delivered ${formatWholeNumber(m.pacing.deliverable?.actualToDate ?? 0)} · Planned ${formatWholeNumber(m.booked.deliverables)}`,
-          progress: delR,
-          variance: pctVarianceFromPacingPct(m.pacing.deliverable?.pacingPct),
-          status: deliveryStatusFromPct(m.pacing.deliverable?.pacingPct),
+          delivered: pace.deliverables.delivered,
+          expected: pace.deliverables.expected,
+          expectedToDate: pace.deliverables.expectedToDate,
+          plannedTotal: pace.deliverables.planned,
+          window,
+          format: formatWholeNumber,
           sparkline: m.pacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
           dense: true,
-        },
+          note: pace.deliverables.tracked ? null : "Impressions not tracked",
+        }),
       ],
       kpiBand: {
         title: "Delivery KPIs",

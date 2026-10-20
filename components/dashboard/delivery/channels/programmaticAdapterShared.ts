@@ -25,10 +25,6 @@ import {
   type ProgrammaticLineItemMetrics,
 } from "@/lib/delivery/programmatic/programmaticCompute"
 import { snowflakeChannelsForDeliverySource } from "@/lib/delivery/deliverySourceMap"
-import {
-  type OnTrackStatus,
-} from "@/lib/kpi/deliveryTargetCurve"
-import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
 import { getMelbourneTodayISO } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { ProgressCardProps } from "../shared/ProgressCard"
@@ -43,20 +39,26 @@ import { PROGRAMMATIC_CHART_SERIES, PROGRAMMATIC_CPV_CHART_SERIES } from "./chan
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 import { aggregateDeliverableLabel } from "@/lib/delivery/deliverableLabel"
 import { groupPacingRowsByPlacement } from "./directDigitalAdapterShared"
+import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
+import {
+  netSpendBasisForLine,
+  pacingAsAtISO,
+  paceVsExpected,
+  resolvePacingWindow,
+} from "@/lib/pacing/expectedForWindow"
+import { paceProgressCard } from "../shared/paceProgressCard"
+import { computeLinePace, sumLinePaces, untrackedNote, type ChannelPacingInputs } from "./linePace"
+
+const FEE_MEDIA_TYPE: Record<"programmatic-display" | "programmatic-video" | "programmatic-ooh", string> = {
+  "programmatic-display": "progDisplay",
+  "programmatic-video": "progVideo",
+  "programmatic-ooh": "progOoh",
+}
 
 const MODELLED_SPEND_LABEL = "Delivered spend (modelled from plan rate)"
 const MODELLED_SPEND_TOOLTIP =
   "Rate = planned media ÷ planned deliverables. Capped at the planned total."
 const FIXED_COST_SPEND_LABEL = "Reported spend (fixed cost)"
-
-function pctVarianceFromPacingPct(pct: number | undefined): number {
-  if (pct === undefined || Number.isNaN(pct)) return 0
-  return (pct - 100) / 100
-}
-
-function onTrackToDelivery(s: OnTrackStatus): DeliveryStatus {
-  return s as DeliveryStatus
-}
 
 function compareRateStatus(
   actual: number | null,
@@ -449,7 +451,7 @@ export function buildProgrammaticChannelSection(input: {
   lastSyncedAt: Date | null
   reportedSpendByLineDate?: Map<string, Map<string, number>>
   isAdmin?: boolean
-}): ChannelSectionData | null {
+} & ChannelPacingInputs): ChannelSectionData | null {
   const {
     key,
     title,
@@ -471,6 +473,8 @@ export function buildProgrammaticChannelSection(input: {
     lastSyncedAt,
     reportedSpendByLineDate,
     isAdmin = false,
+    feePctsByVersionId,
+    estimateVersionId,
   } = input
 
   const normalized = normalizeProgrammaticLineItems(rawLineItems)
@@ -514,10 +518,38 @@ export function buildProgrammaticChannelSection(input: {
     filterRange,
   )
 
-  const bookedTotals = {
-    spend: metrics.reduce((s, m) => s + (m.booked?.spend ?? 0), 0),
-    deliverables: metrics.reduce((s, m) => s + (m.booked?.deliverables ?? 0), 0),
-  }
+  // Pacing compares delivered with what was expected for the selected window
+  // (to date = Melbourne yesterday). Charts keep running to today.
+  const asAtISO = input.pacingAsAtISO ?? pacingAsAtISO(campaignEnd)
+  const window = resolvePacingWindow({
+    filterRange,
+    campaignStartISO: campaignStart,
+    campaignEndISO: campaignEnd,
+    asAtISO,
+  })
+  const toDate = resolvePacingWindow({ campaignStartISO: campaignStart, campaignEndISO: campaignEnd, asAtISO })
+  const linePaces = metrics.map((m) => {
+    const raw = m.lineItem.bursts_json ?? m.lineItem.bursts
+    return computeLinePace({
+      rawBursts: parseBurstsToNormalised(raw).length > 0 ? raw : m.bursts,
+      daily: m.actualsDaily.map((d) => ({
+        date: d.date,
+        spend: Number(d.spend ?? 0),
+        deliverable: Number(d.deliverable_value ?? 0),
+        impressions: Number(d.impressions ?? 0),
+        clicks: Number(d.clicks ?? 0),
+      })),
+      window,
+      toDate,
+      basis: netSpendBasisForLine(m.lineItem, {
+        mediaType: FEE_MEDIA_TYPE[snowflakeChannel],
+        feePctsByVersionId,
+        fallbackVersionId: estimateVersionId,
+      }),
+      deliverableIsImpressions: m.deliverableKey === "impressions",
+    })
+  })
+  const channelPace = sumLinePaces(linePaces)
 
   const kpisRollup = summarizeDv360Actuals(
     metrics.flatMap((m) =>
@@ -555,16 +587,14 @@ export function buildProgrammaticChannelSection(input: {
       : "Total spend"
   const isCpvSection = normalized.length > 0 && normalized.every(isCpvBuyType)
 
-  const aggregateTrack = deliveryStatusFromPct(aggregatePacing.deliverable?.pacingPct)
-
-  const avgDeliveryPct =
-    bookedTotals.deliverables > 0 && aggregatePacing.deliverable
-      ? (aggregatePacing.deliverable.actualToDate / bookedTotals.deliverables) * 100
-      : 0
+  const avgDeliveryPct = paceVsExpected(
+    channelPace.deliverables.delivered,
+    channelPace.deliverables.expected,
+  ).pct
 
   const spendChip = {
     label: spendChipLabel,
-    value: formatCurrency2dp(kpisRollup.spend),
+    value: formatCurrency2dp(channelPace.spend.delivered),
     ...(someSpendModelled && !allSpendModelled
       ? { caption: "includes modelled spend" }
       : {}),
@@ -583,39 +613,35 @@ export function buildProgrammaticChannelSection(input: {
     spendChip,
     { label: "Total impressions", value: formatWholeNumber(kpisRollup.impressions) },
     rateChip,
-    { label: "Avg delivery", value: `${avgDeliveryPct.toFixed(1)}%` },
+    { label: "Avg delivery", value: avgDeliveryPct == null ? "—" : `${avgDeliveryPct.toFixed(1)}%` },
     ...(isOohChannel
       ? [{ label: "Plays", value: formatWholeNumber(kpisRollup.conversions) }]
       : []),
   ]
 
-  const spendRatio =
-    bookedTotals.spend > 0 ? Math.max(0, Math.min(1, aggregatePacing.spend.actualToDate / bookedTotals.spend)) : 0
-  const delRatio =
-    bookedTotals.deliverables > 0 && aggregatePacing.deliverable
-      ? Math.max(0, Math.min(1, aggregatePacing.deliverable.actualToDate / bookedTotals.deliverables))
-      : 0
-
-  const spendCard: ProgressCardProps = {
+  const spendCard: ProgressCardProps = paceProgressCard({
     title: spendTitle,
-    value: formatCurrency2dp(aggregatePacing.spend.actualToDate),
-    detail: `Delivered ${formatCurrency2dp(aggregatePacing.spend.actualToDate)} · Planned ${formatCurrency2dp(bookedTotals.spend)}`,
-    progress: spendRatio,
-    variance: pctVarianceFromPacingPct(aggregatePacing.spend.pacingPct),
-    status: deliveryStatusFromPct(aggregatePacing.spend.pacingPct),
+    delivered: channelPace.spend.delivered,
+    expected: channelPace.spend.expected,
+    expectedToDate: channelPace.spend.expectedToDate,
+    plannedTotal: channelPace.spend.planned,
+    window,
+    format: formatCurrency2dp,
     sparkline: aggregatePacing.series.map((p) => Number(p.actualSpend ?? 0)),
     ...(allSpendModelled ? { titleTooltip: MODELLED_SPEND_TOOLTIP } : {}),
-  }
+  })
 
-  const deliverableCard: ProgressCardProps = {
+  const deliverableCard: ProgressCardProps = paceProgressCard({
     title: `${aggregateDeliverableLabel(normalized.map((li) => li.buy_type))} delivery`,
-    value: formatWholeNumber(aggregatePacing.deliverable?.actualToDate ?? 0),
-    detail: `Delivered ${formatWholeNumber(aggregatePacing.deliverable?.actualToDate ?? 0)} · Planned ${formatWholeNumber(bookedTotals.deliverables)}`,
-    progress: delRatio,
-    variance: pctVarianceFromPacingPct(aggregatePacing.deliverable?.pacingPct),
-    status: onTrackToDelivery(aggregateTrack),
+    delivered: channelPace.deliverables.delivered,
+    expected: channelPace.deliverables.expected,
+    expectedToDate: channelPace.deliverables.expectedToDate,
+    plannedTotal: channelPace.deliverables.planned,
+    window,
+    format: formatWholeNumber,
     sparkline: aggregatePacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
-  }
+    note: untrackedNote(linePaces),
+  })
 
   const plannedSpendByLineId: Record<string, number> = {}
   for (const m of metrics) {
@@ -642,7 +668,8 @@ export function buildProgrammaticChannelSection(input: {
     spendModelled: allSpendModelled,
   })
 
-  const accordionItems = metrics.map((m) => {
+  const accordionItems = metrics.map((m, lineIndex) => {
+    const pace = linePaces[lineIndex]!
     const liKpis = summarizeDv360Actuals(
       m.actualsDaily.map((d) => ({
         spend: d.spend,
@@ -652,13 +679,6 @@ export function buildProgrammaticChannelSection(input: {
         videoViews: d.videoViews,
       })),
     )
-
-    const spendR =
-      m.booked.spend > 0 ? Math.max(0, Math.min(1, m.pacing.spend.actualToDate / m.booked.spend)) : 0
-    const delR =
-      m.booked.deliverables > 0 && m.pacing.deliverable
-        ? Math.max(0, Math.min(1, m.pacing.deliverable.actualToDate / m.booked.deliverables))
-        : 0
 
     const kpiBandTiles = buildProgrammaticKpiTiles({
       kpis: liKpis,
@@ -710,27 +730,30 @@ export function buildProgrammaticChannelSection(input: {
       fullName: displayName.full,
       platform: String(m.lineItem.buy_type ?? ""),
       progressCards: [
-        {
+        paceProgressCard({
           title: lineSpendTitle,
-          value: formatCurrency2dp(m.pacing.spend.actualToDate),
-          detail: `Delivered ${formatCurrency2dp(m.pacing.spend.actualToDate)} · Planned ${formatCurrency2dp(m.booked.spend)}`,
-          progress: spendR,
-          variance: pctVarianceFromPacingPct(m.pacing.spend.pacingPct),
-          status: deliveryStatusFromPct(m.pacing.spend.pacingPct),
+          delivered: pace.spend.delivered,
+          expected: pace.spend.expected,
+          expectedToDate: pace.spend.expectedToDate,
+          plannedTotal: pace.spend.planned,
+          window,
+          format: formatCurrency2dp,
           sparkline: m.pacing.series.map((p) => Number(p.actualSpend ?? 0)),
           dense: true,
           ...(modelled ? { titleTooltip: MODELLED_SPEND_TOOLTIP } : {}),
-        },
-        {
+        }),
+        paceProgressCard({
           title: `${lineDeliverableTitle} delivery`,
-          value: formatWholeNumber(m.pacing.deliverable?.actualToDate ?? 0),
-          detail: `Delivered ${formatWholeNumber(m.pacing.deliverable?.actualToDate ?? 0)} · Planned ${formatWholeNumber(m.booked.deliverables)}`,
-          progress: delR,
-          variance: pctVarianceFromPacingPct(m.pacing.deliverable?.pacingPct),
-          status: deliveryStatusFromPct(m.pacing.deliverable?.pacingPct),
+          delivered: pace.deliverables.delivered,
+          expected: pace.deliverables.expected,
+          expectedToDate: pace.deliverables.expectedToDate,
+          plannedTotal: pace.deliverables.planned,
+          window,
+          format: formatWholeNumber,
           sparkline: m.pacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
           dense: true,
-        },
+          note: pace.deliverables.tracked ? null : "Impressions not tracked",
+        }),
       ],
       kpiBand: {
         title: "Delivery KPIs",

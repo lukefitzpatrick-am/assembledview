@@ -333,7 +333,18 @@ function parseCardValue(value: string | undefined): number {
   return parseMoneyish(value)
 }
 
-/** "Delivered X · Planned Y" — Y is the line's planned deliverable. */
+/** A progress card as coverage reads it. Numeric fields win over the detail text. */
+type CoverageCard = {
+  title?: string
+  detail?: string
+  value?: string
+  status?: DeliveryStatus
+  expected?: number
+  expectedToDate?: number
+  plannedTotal?: number
+}
+
+/** Legacy "Delivered X · Planned Y" detail — Y is the line's planned deliverable. */
 function parsePlannedFromDetail(detail: string | undefined): number {
   if (!detail) return 0
   const match = detail.match(/Planned\s+(.+?)\s*$/i)
@@ -361,14 +372,14 @@ function deliverableCardIndex(acc: Acc): number {
 }
 
 function pickSpendCard(
-  cards: Array<{ title?: string; detail?: string; value?: string; status?: DeliveryStatus }>,
+  cards: Array<CoverageCard>,
 ) {
   return cards.find((card) => isSpendCardTitle(card.title))
 }
 
 function pickDeliverableCard(
   acc: Acc,
-  cards: Array<{ title?: string; detail?: string; value?: string; status?: DeliveryStatus }>,
+  cards: Array<CoverageCard>,
 ) {
   if (pickSpendCard(cards)) {
     return cards.find((card) => isDeliverableCardTitle(card.title)) ?? cards[1]
@@ -379,7 +390,7 @@ function pickDeliverableCard(
 function deliverableCardsForGroup(
   acc: Acc,
   section: ChannelSectionData | undefined,
-): Array<{ title?: string; detail?: string; value?: string; status?: DeliveryStatus }> {
+): Array<CoverageCard> {
   if (!section) return []
   const subset = matchingLineItems(section, acc.lineIds)
   if (subset.length > 0) {
@@ -391,7 +402,10 @@ function deliverableCardsForGroup(
 function plannedDeliverablesFromCards(acc: Acc, section: ChannelSectionData | undefined): number {
   let total = 0
   for (const card of deliverableCardsForGroup(acc, section)) {
-    const planned = parsePlannedFromDetail(card.detail)
+    const planned =
+      typeof card.plannedTotal === "number" && Number.isFinite(card.plannedTotal)
+        ? card.plannedTotal
+        : parsePlannedFromDetail(card.detail)
     if (planned > 0) total += planned
   }
   return total

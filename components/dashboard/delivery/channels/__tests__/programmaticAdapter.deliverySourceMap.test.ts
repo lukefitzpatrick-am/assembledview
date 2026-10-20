@@ -618,7 +618,8 @@ test("a Vistar prog_ooh line with PACING_FACT rows delivers IMPRESSIONS not RESU
   const impressionsCard = section.lineItems[0]?.block.progressCards[1]
   assert.equal(impressionsCard?.title, "Impressions delivery")
   assert.match(String(impressionsCard?.value), /257,094/)
-  assert.match(String(impressionsCard?.detail), /Planned 1,071,429/)
+  assert.match(String(impressionsCard?.detail), /1,071,429 planned in total/)
+  assert.equal(impressionsCard?.plannedTotal, 1_071_429)
   const playsDelivery = section.lineItems[0]?.block.progressCards.find((card) =>
     /plays delivery/i.test(card.title),
   )
