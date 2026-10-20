@@ -14,6 +14,8 @@ export type ChannelsAtAGlanceProps = {
   entries: ChannelCoverageEntry[]
   className?: string
   todayISO?: string
+  /** "to date" (Melbourne yesterday) or "in period" when a date filter narrows the window. */
+  periodLabel?: "to date" | "in period"
 }
 
 type PillMeta = { label: string; variant: NonNullable<BadgeProps["variant"]> }
@@ -49,22 +51,41 @@ function progressTone(status: DeliveryStatus | null): "success" | "info" | "warn
 function MetricPair({
   label,
   delivered,
+  expected,
   planned,
+  periodLabel,
 }: {
   label: string
   delivered: string
+  /** Null when no expected figure exists: falls back to the planned total. */
+  expected: string | null
   planned: string
+  periodLabel: string
 }) {
   return (
     <div className="min-w-0 space-y-0.5">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="num text-lg font-semibold tabular-nums text-foreground">{delivered}</p>
-      <p className="text-xs text-muted-foreground">of planned {planned}</p>
+      {expected != null ? (
+        <p className="text-xs text-muted-foreground">
+          of {expected} expected {periodLabel} · {planned} planned in total
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">of planned {planned}</p>
+      )}
     </div>
   )
 }
 
-function GlanceCard({ entry, todayISO }: { entry: ChannelCoverageEntry; todayISO: string }) {
+function GlanceCard({
+  entry,
+  todayISO,
+  periodLabel,
+}: {
+  entry: ChannelCoverageEntry
+  todayISO: string
+  periodLabel: string
+}) {
   const expected = entry.expectedToDate ?? 0
   const deliveredSpend = entry.deliveredSpend
   const notStarted =
@@ -93,14 +114,13 @@ function GlanceCard({ entry, todayISO }: { entry: ChannelCoverageEntry; todayISO
 
   const spendDelivered =
     deliveredSpend === null ? "—" : formatMoneyCompact(deliveredSpend)
+  // Delivered against what was expected for the window, never the whole plan.
   const barValue =
-    deliveredSpend != null && entry.plannedSpend > 0
-      ? Math.max(0, Math.min(1, deliveredSpend / entry.plannedSpend)) * 100
-      : 0
-  const marker =
-    expected > 0 && entry.plannedSpend > 0
-      ? Math.max(0, Math.min(100, (expected / entry.plannedSpend) * 100))
-      : undefined
+    deliveredSpend != null && expected > 0
+      ? Math.max(0, Math.min(1, deliveredSpend / expected)) * 100
+      : deliveredSpend != null && deliveredSpend > 0
+        ? 100
+        : 0
   const caption =
     noSource
       ? null
@@ -136,7 +156,7 @@ function GlanceCard({ entry, todayISO }: { entry: ChannelCoverageEntry; todayISO
 
       <div className="mt-4 space-y-1">
         <p className="num text-lg font-semibold tabular-nums text-foreground">
-          {spendDelivered} of {formatMoneyCompact(expected)} expected to date
+          {spendDelivered} of {formatMoneyCompact(expected)} expected {periodLabel}
         </p>
         <p className="text-xs text-muted-foreground">
           {formatMoneyCompact(entry.plannedSpend)} planned in total
@@ -157,7 +177,13 @@ function GlanceCard({ entry, todayISO }: { entry: ChannelCoverageEntry; todayISO
           <MetricPair
             label={entry.deliverableLabel}
             delivered={formatImpressions(entry.deliveredImpressions)}
+            expected={
+              typeof entry.expectedImpressions === "number"
+                ? formatImpressions(entry.expectedImpressions)
+                : null
+            }
             planned={formatImpressions(entry.plannedImpressions)}
+            periodLabel={periodLabel}
           />
         </div>
       ) : null}
@@ -169,7 +195,6 @@ function GlanceCard({ entry, todayISO }: { entry: ChannelCoverageEntry; todayISO
             max={100}
             size="pacing"
             color={progressTone(paceStatus)}
-            marker={marker}
             animated={false}
           />
         </div>
@@ -180,7 +205,12 @@ function GlanceCard({ entry, todayISO }: { entry: ChannelCoverageEntry; todayISO
   )
 }
 
-export function ChannelsAtAGlance({ entries, className, todayISO }: ChannelsAtAGlanceProps) {
+export function ChannelsAtAGlance({
+  entries,
+  className,
+  todayISO,
+  periodLabel = "to date",
+}: ChannelsAtAGlanceProps) {
   if (entries.length === 0) return null
   const today = todayISO ?? getMelbourneTodayISO()
   const ordered = [...entries].sort(
@@ -191,11 +221,11 @@ export function ChannelsAtAGlance({ entries, className, todayISO }: ChannelsAtAG
     <section aria-label="Channels at a glance" className={cn("space-y-3", className)}>
       <div>
         <h2 className="text-base font-semibold text-foreground">Channels at a glance</h2>
-        <p className="text-sm text-muted-foreground">Delivered vs expected to date</p>
+        <p className="text-sm text-muted-foreground">Delivered vs expected {periodLabel}</p>
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         {ordered.map((entry) => (
-          <GlanceCard key={entry.key} entry={entry} todayISO={today} />
+          <GlanceCard key={entry.key} entry={entry} todayISO={today} periodLabel={periodLabel} />
         ))}
       </div>
     </section>

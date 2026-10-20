@@ -15,7 +15,7 @@ import {
   channelCoverageBundle,
   type ChannelCoverageEntry,
 } from "@/lib/delivery/channelCoverage"
-import { channelExpectedToDate } from "@/lib/spend/channelExpectedToDate"
+import { channelExpectedForWindow } from "@/lib/spend/channelExpectedToDate"
 import { assumedExpectedLinesForDelivery } from "@/lib/spend/assumedExpectedLines"
 import { addLoadedDeliveryLineIds } from "@/lib/spend/deliveryLineIds"
 import { deliveredByLineIdFromChannelSections } from "@/lib/delivery/ganttDeliveredByLineId"
@@ -514,6 +514,13 @@ function CampaignDeliveryBody({
   const { entries: coverage, kpiDrafts } = useMemo(
     () => {
       const asOf = asOfISO || getMelbourneTodayISO()
+      const startISO = campaignStartISO || campaignStart
+      const endISO = campaignEndISO || campaignEnd
+      const pacing = resolvePacingWindow({
+        filterRange,
+        campaignStartISO: startISO,
+        campaignEndISO: endISO,
+      })
       const assumedLines = assumedExpectedLinesForDelivery({
         atlLineItems,
         digitalDisplayLineItems,
@@ -543,13 +550,20 @@ function CampaignDeliveryBody({
         sections: channels,
         todayISO: asOf,
         assumedLines,
-        channelExpected: channelExpectedToDate({
-          deliverySchedule,
-          campaignStartISO: campaignStartISO || campaignStart,
-          campaignEndISO: campaignEndISO || campaignEnd,
-          asOfISO: asOf,
-          assumedLines,
-        }),
+        window: pacing,
+        // Glance spend expected follows the same window as the cards:
+        // to Melbourne yesterday, narrowed by the date filter.
+        channelExpected: pacing.empty
+          ? []
+          : channelExpectedForWindow({
+              deliverySchedule,
+              campaignStartISO: startISO,
+              campaignEndISO: endISO,
+              assumedLines,
+              windowStartISO: pacing.startISO,
+              windowEndISO: pacing.endISO,
+              periodSlice: pacing.startISO > startISO,
+            }),
       })
     },
     [
@@ -573,6 +587,7 @@ function CampaignDeliveryBody({
       feePctsByVersionId,
       estimateVersionId,
       deliveryLineIds,
+      filterRange,
     ],
   )
 

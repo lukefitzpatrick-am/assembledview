@@ -19,6 +19,12 @@ export type CampaignStatusStripProps = {
   expectedSpend?: number
   deliveredImpressions?: number
   plannedImpressions?: number
+  /**
+   * Impressions expected campaign start to Melbourne yesterday on reporting
+   * channels (no date filter). When set, the impressions bar and caption read
+   * delivered against it instead of the planned total.
+   */
+  expectedImpressions?: number
   hasDelivery: boolean
   deliveredAsOf?: string
   channelsReporting?: number
@@ -138,6 +144,7 @@ export function CampaignStatusStrip({
   expectedSpend,
   deliveredImpressions,
   plannedImpressions,
+  expectedImpressions,
   hasDelivery,
   deliveredAsOf,
   channelsReporting,
@@ -161,7 +168,12 @@ export function CampaignStatusStrip({
   const spendVsBudget = ratio(spendKnown ? actualSpend : undefined, budget)
   const spendPct = expectedKnown && expectedSpend > 0 ? spendVsExpected : spendVsBudget
   const expectedVsBudget = ratio(expectedSpend, budget)
-  const impressionsPct = ratio(deliveredImpressions, plannedImpressions)
+  const impressionsAgainstExpected =
+    typeof expectedImpressions === "number" && Number.isFinite(expectedImpressions) && expectedImpressions > 0
+  const impressionsPct = ratio(
+    deliveredImpressions,
+    impressionsAgainstExpected ? expectedImpressions : plannedImpressions,
+  )
 
   const band = deliveryBand(spendKnown ? actualSpend : undefined, expectedSpend)
   const pill = band ? PILL_BY_BAND[band] : null
@@ -182,10 +194,18 @@ export function CampaignStatusStrip({
   const showImpressions = hasDelivery
   const expectedCaptionMoney = formatMoneyCompact(expectedKnown ? expectedSpend : budget)
   const budgetCaptionMoney = formatMoneyCompact(budget)
+  const impressionsBasis = impressionsAgainstExpected ? "expected to date" : "planned"
+  // Against expected the figure is not capped at 100%: ahead shows as ahead.
+  const impressionsPctText =
+    impressionsAgainstExpected &&
+    typeof deliveredImpressions === "number" &&
+    Number.isFinite(deliveredImpressions)
+      ? `${Math.round((Math.max(0, deliveredImpressions) / expectedImpressions!) * 100)}%`
+      : pctLabel(impressionsPct)
   const impressionsCaption =
     typeof channelsTotal === "number" && channelsTotal > 0
-      ? `${pctLabel(impressionsPct)} of planned (channels reporting)`
-      : `${pctLabel(impressionsPct)} of planned (all line items)`
+      ? `${impressionsPctText} of ${impressionsBasis} (channels reporting)`
+      : `${impressionsPctText} of ${impressionsBasis} (all line items)`
 
   return (
     <section

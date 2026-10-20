@@ -62,12 +62,14 @@ import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { sumPlannedImpressionsFromLineItems } from "@/lib/dashboard/plannedImpressions"
 import {
   firstAheadChannelName,
+  sumReportingExpectedImpressionsToDate,
   sumReportingPlannedImpressions,
   visibleCoverageCards,
   coverageReportingCounts,
   type ChannelCoverageEntry,
 } from "@/lib/delivery/channelCoverage"
 import { applyCoverageIfChanged } from "@/lib/delivery/coverageEntriesIdentity"
+import { resolvePacingWindow } from "@/lib/pacing/expectedForWindow"
 import { deliveredByLineIdIdentity } from "@/lib/delivery/ganttDeliveredByLineId"
 
 const CHANNEL_SNAPSHOT_CAP = 15
@@ -399,6 +401,16 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   const coverageCounts = useMemo(() => coverageReportingCounts(coverage), [coverage])
   const plannedImpressions =
     coverageCards.length > 0 ? sumReportingPlannedImpressions(coverage) : plannedImpressionsAll
+  // Strip impressions read against expected to date (Melbourne yesterday, no date filter).
+  const expectedImpressionsToDate =
+    coverageCards.length > 0 ? sumReportingExpectedImpressionsToDate(coverage) : null
+  const pacingPeriodLabel = resolvePacingWindow({
+    filterRange,
+    campaignStartISO: campaignStartISO ?? startDate ?? null,
+    campaignEndISO: campaignEndISO ?? endDate ?? null,
+  }).filtered
+    ? "in period"
+    : "to date"
   const aheadChannelName = firstAheadChannelName(coverage)
 
   const filteredTimeMetrics = useMemo(() => {
@@ -800,6 +812,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               expectedSpend={expectedSpend}
               deliveredImpressions={deliveredImpressions}
               plannedImpressions={plannedImpressions}
+              expectedImpressions={expectedImpressionsToDate ?? undefined}
               hasDelivery={Boolean(hasDelivery)}
               deliveredAsOf={deliveredAsOf}
               channelsReporting={
@@ -825,7 +838,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         <section className="mt-6">
           <SectionBoundary title="Channels at a glance">
             <div className="campaign-section-enter" style={{ animationDelay: "120ms" }}>
-              <ChannelsAtAGlance entries={coverageCards} />
+              <ChannelsAtAGlance entries={coverageCards} periodLabel={pacingPeriodLabel} />
             </div>
           </SectionBoundary>
         </section>

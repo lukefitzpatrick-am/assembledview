@@ -7,6 +7,7 @@ import type { ProgressCardProps } from "@/components/dashboard/delivery/shared/P
 import {
   channelCoverage,
   firstAheadChannelName,
+  sumReportingExpectedImpressionsToDate,
   visibleCoverageCards,
   type ChannelCoverageBuckets,
 } from "../channelCoverage"
@@ -847,5 +848,82 @@ test("assumed radio that has started stays on track when expected is above 0", (
   assert.equal(radio.status, "reporting")
   assert.equal(radio.expectedToDate, 400)
   assert.equal(radio.deliveredSpend, 400)
+  assert.equal(radio.deliveryStatus, "on-track")
+})
+
+test("expected impressions come from the cards' numeric fields, not the detail text", () => {
+  const buckets = emptyBuckets()
+  buckets.socialLineItems = [
+    {
+      line_item_id: "mba001sm1",
+      platform: "Meta",
+      budget: 20_000,
+      bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 20_000 }],
+    },
+  ]
+  const s = section({ key: "social-meta", lineIds: ["mba001sm1"], impressionsValue: "180,000" })
+  const card = {
+    ...s.lineItems[0]!.block.progressCards[1],
+    detail: "Delivered 180,000 · Expected 150,000 in period · 400,000 planned in total",
+    expected: 150_000,
+    expectedToDate: 200_000,
+    plannedTotal: 400_000,
+  }
+  s.lineItems[0]!.block.progressCards = [s.lineItems[0]!.block.progressCards[0], card]
+  const entries = channelCoverage({ buckets, sections: [s], todayISO: TODAY })
+  const meta = entries.find((e) => e.key === "social-meta")
+  assert.ok(meta)
+  assert.equal(meta.plannedImpressions, 400_000)
+  assert.equal(meta.expectedImpressions, 150_000)
+  assert.equal(meta.expectedImpressionsToDate, 200_000)
+  assert.equal(sumReportingExpectedImpressionsToDate(entries), 200_000)
+})
+
+test("expected impressions are null when a card has no numeric expected", () => {
+  const buckets = emptyBuckets()
+  buckets.socialLineItems = [
+    { line_item_id: "mba001sm1", platform: "Meta", budget: 1, bursts: [{ startDate: "2026-01-01", endDate: "2026-04-01", budget: 1 }] },
+  ]
+  const entries = channelCoverage({
+    buckets,
+    sections: [section({ key: "social-meta", lineIds: ["mba001sm1"] })],
+    todayISO: TODAY,
+  })
+  assert.equal(entries.find((e) => e.key === "social-meta")?.expectedImpressions, null)
+  assert.equal(sumReportingExpectedImpressionsToDate(entries), null)
+})
+
+test("assumed spend on the glance counts only the pacing window", () => {
+  const buckets = emptyBuckets()
+  buckets.offlineLineItems = [paidBurstLine("golf025RA1", "2026-10-01", 1_000, "spots")]
+  const line = {
+    id: "golf025RA1",
+    scheduleKey: "radio",
+    plannedMedia: 1_000,
+    buyType: "spots",
+    bursts: [
+      {
+        rawBudget: 1_000,
+        budgetIncludesFees: false,
+        clientPaysForMedia: true,
+        feePct: 0,
+        buyType: "spots",
+        startDate: "2026-10-01",
+        endDate: "2026-10-10",
+      },
+    ],
+  }
+  const radio = channelCoverage({
+    buckets,
+    sections: [],
+    todayISO: "2026-10-20",
+    window: { startISO: "2026-10-06", endISO: "2026-10-08" },
+    channelExpected: [{ key: "radio", expected: 300, planned: 1_000 }],
+    assumedLines: [line],
+  }).find((entry) => entry.key === "radio")
+  assert.ok(radio)
+  // $100 a day, 6 to 8 Oct.
+  assert.equal(radio.deliveredSpend, 300)
+  assert.equal(radio.expectedToDate, 300)
   assert.equal(radio.deliveryStatus, "on-track")
 })

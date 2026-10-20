@@ -113,7 +113,22 @@ describe("handleCoverage equality guard", () => {
         entry!.deliveryStatus,
         entry!.impressionsStatus,
         entry!.deliverableLabel,
+        entry!.expectedToDate,
+        entry!.expectedImpressions,
+        entry!.expectedImpressionsToDate,
       ].join("\u001f"),
     )
+  })
+
+  it("commits again when only an expected figure moves (date filter)", () => {
+    const sim = simulateHandleCoverage()
+    sim.handleCoverage(BICAU006_COVERAGE)
+    sim.handleCoverage(
+      BICAU006_COVERAGE.map((e, i) => (i === 0 ? { ...e, expectedImpressions: 5_000 } : e)),
+    )
+    sim.handleCoverage(
+      BICAU006_COVERAGE.map((e, i) => (i === 0 ? { ...e, expectedImpressions: 5_000, expectedToDate: 900 } : e)),
+    )
+    expect(sim.setCoverageCalls).toBe(3)
   })
 })

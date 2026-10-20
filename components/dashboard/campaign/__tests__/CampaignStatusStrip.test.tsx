@@ -59,6 +59,25 @@ describe("CampaignStatusStrip", () => {
     expect(html).not.toContain("all line items")
   })
 
+  it("reads impressions against expected to date when that figure is set", () => {
+    const html = renderToStaticMarkup(
+      <CampaignStatusStrip
+        {...FULL}
+        expectedImpressions={700_000}
+        channelsReporting={2}
+        channelsTotal={2}
+      />,
+    )
+    // 800,000 of 700,000 expected: shown uncapped, not as a share of the 2,000,000 plan.
+    expect(html).toContain("114% of expected to date (channels reporting)")
+    expect(html).not.toContain("40% of planned")
+  })
+
+  it("keeps the planned caption when no expected impressions are known", () => {
+    const html = renderToStaticMarkup(<CampaignStatusStrip {...FULL} />)
+    expect(html).toContain("40% of planned (all line items)")
+  })
+
   it('shows "—" for unset actualSpend', () => {
     const html = renderToStaticMarkup(
       <CampaignStatusStrip {...FULL} actualSpend={undefined} />,

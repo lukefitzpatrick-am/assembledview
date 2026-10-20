@@ -31,7 +31,15 @@ export type ChannelCoverageEntry = {
   label: string
   colour: string
   plannedSpend: number
+  /** Whole-plan deliverables (information only). */
   plannedImpressions: number
+  /**
+   * Deliverables expected for the selected window, from the cards' numeric
+   * `expected`. Null when a card has no expected figure.
+   */
+  expectedImpressions?: number | null
+  /** Deliverables expected campaign start to Melbourne yesterday, ignoring the date filter. */
+  expectedImpressionsToDate?: number | null
   /** Null when no spend card exists (no estimate and no reported overlay). */
   deliveredSpend: number | null
   deliveredImpressions: number
@@ -73,6 +81,11 @@ export type ChannelCoverageInput = {
   channelExpected?: ReadonlyArray<{ key: string; expected: number; planned: number }>
   /** Assumed-spend lines. Their burst sum is delivered and expected on that channel. */
   assumedLines?: readonly import("@/lib/spend/assumedSpend").AssumedExpectedLine[]
+  /**
+   * Pacing window (filter-aware, to Melbourne yesterday). When set, assumed
+   * spend counts only the window's days. Without it, assumed runs to `todayISO`.
+   */
+  window?: { startISO: string; endISO: string; empty?: boolean }
 }
 
 const STATUS_RANK: Record<Exclude<ChannelCoverageStatus, "no_source">, number> = {
@@ -399,6 +412,23 @@ function deliverableCardsForGroup(
   return [pickDeliverableCard(acc, section.aggregate.progressCards) ?? {}]
 }
 
+/** Sum of the deliverable cards' numeric expected. Null when any card lacks one. */
+function expectedDeliverablesFromCards(
+  acc: Acc,
+  section: ChannelSectionData | undefined,
+  field: "expected" | "expectedToDate",
+): number | null {
+  const cards = deliverableCardsForGroup(acc, section)
+  if (cards.length === 0) return null
+  let total = 0
+  for (const card of cards) {
+    const value = card[field]
+    if (typeof value !== "number" || !Number.isFinite(value)) return null
+    total += value
+  }
+  return total
+}
+
 function plannedDeliverablesFromCards(acc: Acc, section: ChannelSectionData | undefined): number {
   let total = 0
   for (const card of deliverableCardsForGroup(acc, section)) {
@@ -544,6 +574,23 @@ export function coverageReportingCounts(entries: ChannelCoverageEntry[]): {
   }
 }
 
+/**
+ * Deliverables expected campaign start to Melbourne yesterday on reporting
+ * channels (no date filter). Null when no reporting card carries the figure.
+ */
+export function sumReportingExpectedImpressionsToDate(entries: ChannelCoverageEntry[]): number | null {
+  let total = 0
+  let seen = false
+  for (const entry of visibleCoverageCards(entries)) {
+    if (entry.status !== "reporting") continue
+    const value = entry.expectedImpressionsToDate
+    if (typeof value !== "number" || !Number.isFinite(value)) continue
+    seen = true
+    total += value
+  }
+  return seen ? total : null
+}
+
 export function sumReportingPlannedImpressions(entries: ChannelCoverageEntry[]): number {
   let total = 0
   for (const entry of visibleCoverageCards(entries)) {
@@ -641,12 +688,16 @@ function entriesFromGroups(groups: Map<string, Acc>, input: ChannelCoverageInput
     const modelled = acc.mapRow?.derive_spend_from_plan === true
     const spendEstimated = groupHasEstimatedSpend(acc, section)
     const plannedFromSection = plannedDeliverablesFromCards(acc, section)
+    const expectedImpressions = expectedDeliverablesFromCards(acc, section, "expected")
+    const expectedImpressionsToDate = expectedDeliverablesFromCards(acc, section, "expectedToDate")
     entries.push({
       key: acc.key,
       label: groupLabel(acc.family, acc.publisherKey),
       colour: coverageColour(acc.channelKey),
       plannedSpend: acc.plannedSpend,
       plannedImpressions: plannedFromSection > 0 ? plannedFromSection : acc.plannedImpressions,
+      expectedImpressions,
+      expectedImpressionsToDate,
       deliverableLabel: deliverableLabelFromCards(acc, section),
       deliveredSpend: hideSpend ? null : delivered.spend,
       deliveredImpressions: delivered.impressions,
@@ -666,30 +717,43 @@ function entriesFromGroups(groups: Map<string, Acc>, input: ChannelCoverageInput
     return b.plannedSpend - a.plannedSpend
   })
 
-  appendOfflineEntries(entries, input.buckets.offlineLineItems ?? [], input.assumedLines, input.todayISO)
-  stampChannelExpected(entries, input.channelExpected, input.assumedLines, input.todayISO)
+  const assumedRange = input.window ?? { startISO: null, endISO: input.todayISO }
+  appendOfflineEntries(entries, input.buckets.offlineLineItems ?? [], input.assumedLines, assumedRange)
+  stampChannelExpected(entries, input.channelExpected, input.assumedLines, assumedRange)
 
   return entries
 }
 
+type AssumedRange = { startISO: string | null; endISO: string; empty?: boolean }
+
+function dayBeforeISO(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number)
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
+  dt.setUTCDate(dt.getUTCDate() - 1)
+  return dt.toISOString().slice(0, 10)
+}
+
+/** Assumed spend for a schedule key over the range (start to end, or everything to end). */
 function assumedToDateForKey(
   lines: ChannelCoverageInput["assumedLines"],
   key: string,
-  asOf: string,
+  range: AssumedRange,
 ): number {
+  if (range.empty) return 0
   let cents = 0
   for (const line of lines ?? []) {
     if (line.scheduleKey !== key) continue
-    cents += assumedLineToDateCents(line, asOf)
+    cents += assumedLineToDateCents(line, range.endISO)
+    if (range.startISO) cents -= assumedLineToDateCents(line, dayBeforeISO(range.startISO))
   }
-  return fromCents(cents)
+  return fromCents(Math.max(0, cents))
 }
 
 function appendOfflineEntries(
   entries: ChannelCoverageEntry[],
   items: unknown[],
   assumedLines: ChannelCoverageInput["assumedLines"],
-  asOf: string,
+  asOf: AssumedRange,
 ): void {
   const claimed = new Set(
     entries.flatMap((entry) => {
@@ -751,7 +815,7 @@ function stampChannelExpected(
   entries: ChannelCoverageEntry[],
   slices: ChannelCoverageInput["channelExpected"],
   assumedLines: ChannelCoverageInput["assumedLines"],
-  asOf: string,
+  asOf: AssumedRange,
 ): void {
   if (!slices || slices.length === 0) return
   const groups = new Map<string, ChannelCoverageEntry[]>()

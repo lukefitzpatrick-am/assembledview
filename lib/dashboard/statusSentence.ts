@@ -5,7 +5,10 @@ export type StatusSentenceInput = {
   pacingStatus: SpendPacingBand | "critical" | string
   /** 0–1 fraction (actual vs expected, or actual vs budget). */
   spendPct: number
-  /** 0–1 fraction (delivered vs planned impressions). */
+  /**
+   * 0–1 fraction: delivered vs expected-to-date impressions when the strip has
+   * that figure (like for like with spendPct), else delivered vs planned.
+   */
   impressionsPct: number
   channelsReporting?: number
   channelsTotal?: number

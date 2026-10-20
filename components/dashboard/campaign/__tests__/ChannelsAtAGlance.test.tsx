@@ -183,7 +183,54 @@ describe("ChannelsAtAGlance", () => {
     )
     expect(display).toContain("Behind")
     expect(display).toContain("Estimated")
-    expect(display).toContain('data-expected-marker="true"')
+    // The bar is delivered ÷ expected (44 of 100), not ÷ planned, and has no marker.
+    expect(display).not.toContain('data-expected-marker="true"')
+    expect(display).toContain("width:44%")
+  })
+
+  it("shows impressions against expected with the planned total as information", () => {
+    const html = renderToStaticMarkup(
+      <ChannelsAtAGlance
+        todayISO="2026-10-20"
+        entries={[
+          entry({
+            key: "digital-display",
+            label: "Digital Display",
+            status: "reporting",
+            deliveredImpressions: 372_723,
+            expectedImpressions: 335_613,
+            plannedImpressions: 2_862_402,
+            deliveredSpend: 6_392.2,
+            expectedToDate: 5_755.77,
+            plannedSpend: 20_145.18,
+          }),
+        ]}
+      />,
+    )
+    expect(html).toContain("of 335,613 expected to date")
+    expect(html).toContain("2,862,402 planned in total")
+    expect(html).not.toContain("of planned")
+  })
+
+  it("says in period when a date filter narrows the window", () => {
+    const html = renderToStaticMarkup(
+      <ChannelsAtAGlance
+        periodLabel="in period"
+        entries={[
+          entry({
+            key: "social-meta",
+            label: "Social · Meta",
+            status: "reporting",
+            deliveredSpend: 50,
+            expectedToDate: 100,
+            expectedImpressions: 1_000,
+          }),
+        ]}
+      />,
+    )
+    expect(html).toContain("Delivered vs expected in period")
+    expect(html).toContain("expected in period")
+    expect(html).not.toContain("expected to date")
   })
 
   it("shows Newspaper with no source and no pace pill", () => {
