@@ -55,3 +55,9 @@ TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
   captured at `sql/snowflake/pacing/16_capture_v_line_item_pacing_pre_retirement.sql`.
 - These files are faithful captures. `create or replace` is intentional so they
   can be re-run as the source of truth.
+- Conversion fact (CF1, 2026-10-21): `tables/conversion_fact.sql`,
+  `views/vw_conversions_sources.sql` (five `VW_CONVERSIONS_*` views),
+  `tasks/tsk_refresh_conversion_fact.sql` (14-day MERGE, child of the root task),
+  `views/vw_conversion_daily.sql` (read view with `LINE_ITEM_ID`), grants and checks under
+  `migrations/2026-10-21_cf1_*`. Long format, one row per line, day and event. Do not reuse
+  `RESULTS` in the pacing facts for conversions.
