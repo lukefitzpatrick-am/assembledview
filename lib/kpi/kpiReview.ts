@@ -437,9 +437,19 @@ export function resolveCpmPlanRate(
   for (const lineId of group.lineItemIds) {
     const plan = group.planByLineId?.[lineId]
     if (!isCpmFamilyBuyType(plan?.buyType)) continue
-    const spend = Number(group.plannedSpendByLineId[lineId] ?? plan?.plannedSpend ?? 0) || 0
     const lineImpressions = plan?.plannedImpressions ?? 0
-    if (!(lineImpressions > 0) || !(spend > 0)) continue
+    if (!(lineImpressions > 0)) continue
+    // The plan's CPM (buyAmount) is the media rate. Planned spend can include the
+    // agency fee (budget_includes_fees), which grossed the rate up by the fee
+    // (BICAU006 Reddit showed $11.11 for a $10 CPM). Prefer buyAmount, weighted
+    // by impressions; fall back to spend / impressions when it is missing.
+    if (plan?.buyAmount && plan.buyAmount > 0) {
+      media += (plan.buyAmount * lineImpressions) / 1000
+      impressions += lineImpressions
+      continue
+    }
+    const spend = Number(group.plannedSpendByLineId[lineId] ?? plan?.plannedSpend ?? 0) || 0
+    if (!(spend > 0)) continue
     media += spend
     impressions += lineImpressions
   }

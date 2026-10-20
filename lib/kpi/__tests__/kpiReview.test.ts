@@ -667,6 +667,29 @@ function planLine(
 }
 
 describe("resolveCpmPlanRate", () => {
+  it("uses the plan CPM, not budget incl. fees, for fee-inclusive lines (BICAU006 shape)", () => {
+    // Reddit SM2: $20,000 gross incl. 10% fee, $10 CPM, 1.8M impressions from $18,000 net.
+    // Meta SM1: $48,000 gross, $12 CPM, 3.6M impressions.
+    const reddit: KpiReviewGroup = {
+      lineItemIds: ["bicau006sm2"],
+      plannedSpendByLineId: { bicau006sm2: 20_000 },
+      planByLineId: {
+        bicau006sm2: { buyType: "cpm", plannedSpend: 20_000, buyAmount: 10, plannedViews: null, plannedImpressions: 1_800_000 },
+      },
+    } as unknown as KpiReviewGroup
+    assert.equal(resolveCpmPlanRate(reddit)?.value, 10)
+    const both: KpiReviewGroup = {
+      lineItemIds: ["bicau006sm1", "bicau006sm2"],
+      plannedSpendByLineId: { bicau006sm1: 48_000, bicau006sm2: 20_000 },
+      planByLineId: {
+        bicau006sm1: { buyType: "cpm", plannedSpend: 48_000, buyAmount: 12, plannedViews: null, plannedImpressions: 3_600_000 },
+        bicau006sm2: { buyType: "cpm", plannedSpend: 20_000, buyAmount: 10, plannedViews: null, plannedImpressions: 1_800_000 },
+      },
+    } as unknown as KpiReviewGroup
+    // (12 x 3.6M + 10 x 1.8M) / 5.4M = 11.333...
+    assert.ok(Math.abs((resolveCpmPlanRate(both)?.value ?? 0) - 34 / 3) < 1e-9)
+  })
+
   it("uses CPM lines only, as total media over total impressions, on a golf025-shaped group", () => {
     const lineItemIds = [
       "dd1",
