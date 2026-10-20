@@ -22,7 +22,14 @@ export type LoadConversionsDeps = {
  * Throws when Snowflake fails so callers can say "unavailable" rather than 0.
  */
 export async function loadConversionsForLines(
-  input: { mbaNumber: string; lineItemIds: readonly string[]; startDate: string; endDate: string },
+  input: {
+    mbaNumber: string
+    lineItemIds: readonly string[]
+    startDate: string
+    endDate: string
+    /** Settings only; no Snowflake read (a window that has not opened). */
+    skipRead?: boolean
+  },
   deps: LoadConversionsDeps = {},
 ): Promise<LoadedConversions | null> {
   const mbaNumber = input.mbaNumber.trim()
@@ -53,7 +60,7 @@ export async function loadConversionsForLines(
   const ids = Array.from(
     new Set(input.lineItemIds.map((id) => String(id ?? "").trim().toLowerCase()).filter(Boolean)),
   )
-  if (ids.length === 0 || events.length === 0 || endDate < startDate) return base
+  if (input.skipRead || ids.length === 0 || events.length === 0 || endDate < startDate) return base
 
   const query = deps.query ?? (await import("@/lib/snowflake/conversions")).queryConversionRows
   const rows = await query({ lineItemIds: ids, startDate, endDate, events })

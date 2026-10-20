@@ -19,6 +19,8 @@ import {
   slicesByKey,
 } from "@/lib/spend/channelExpectedToDate"
 import type { DeliveryLineSnapshot } from "@/lib/ava/tools/summaries"
+import { loadConversionsForLines } from "@/lib/delivery/conversions/loadConversions"
+import { readDeliveryConversions } from "@/lib/ava/tools/deliveryConversions"
 
 type MediaTypeKey = keyof typeof MEDIA_CONTAINER_ENDPOINTS
 
@@ -164,7 +166,7 @@ export const getDeliverySnapshotTool: AvaTool = {
   definition: {
     name: "get_delivery_snapshot",
     description:
-      "Delivered spend, impressions, clicks and views for the campaign's channel containers (social Meta/TikTok, programmatic display/video, ad-serving/BVOD, search) from the same source as the on-page delivery containers, with the plan's budgets per line. Delivered and expected both run to deliveredThrough (Melbourne yesterday, capped at the campaign end), the same window as the Where we are strip. ALWAYS prefer this over get_pacing_snapshot for delivery review, commentary and reports on a campaign.",
+      "Delivered spend, impressions, clicks and views for the campaign's channel containers (social Meta/TikTok, programmatic display/video, ad-serving/BVOD, search) from the same source as the on-page delivery containers, with the plan's budgets per line. Delivered and expected both run to deliveredThrough (Melbourne yesterday, capped at the campaign end), the same window as the Where we are strip. ALWAYS prefer this over get_pacing_snapshot for delivery review, commentary and reports on a campaign. When the client's conversion switch is on, `conversions` gives the chosen conversions (headline Purchases, Leads or Conversions), revenue, CPA and ROAS per channel and line for the same window; when it is off, do not report conversions, revenue or ROAS.",
     input_schema: {
       type: "object",
       properties: {
@@ -239,7 +241,13 @@ export const getDeliverySnapshotTool: AvaTool = {
         mpSearchEnabled,
         ...snapshotRange(window, campaignStartISO, Boolean(asString(args.startDate))),
       })
+      // Chosen conversions on the same window and lines (CF5). Read-only.
+      const conversions = await readDeliveryConversions(
+        { mbaNumber: mba, channels: snapshot.channels, window },
+        loadConversionsForLines,
+      )
       const windowFields = {
+        conversions,
         pacingWindow: {
           startDate: window.startISO,
           endDate: window.endISO,

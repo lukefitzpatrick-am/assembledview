@@ -18,7 +18,16 @@ const attachStripExpectedMock = mock.fn(
   }),
 )
 
+// CF5: conversions loader. Null = the client's switch is off.
+let conversionsLoaded: unknown = null
+const conversionCalls: Array<Record<string, unknown>> = []
+
 if (supportsMockModule()) {
+  await mock.module!("@/lib/delivery/conversions/loadConversions", {
+    namedExports: {
+      loadConversionsForLines: async (input: Record<string, unknown>) => (conversionCalls.push(input), conversionsLoaded),
+    },
+  })
   await mock.module!("@/lib/delivery/loadDeliverySnapshot", {
     namedExports: {
       loadDeliverySnapshot: async (input: Record<string, unknown>) => (loadCalls.push(input), {
@@ -173,4 +182,37 @@ test("toolPacingWindow stops at Melbourne yesterday and pairs one-sided ranges",
     endDate: "2026-10-20",
   })
   assert.deepEqual(snapshotRange(live, null, false), { endDate: "2026-10-20" })
+})
+
+test("get_delivery_snapshot says conversions are off when the client switch is off", { skip }, async () => {
+  conversionsLoaded = null
+  conversionCalls.length = 0
+  const { getDeliverySnapshotTool } = await import("../getDeliverySnapshot.js")
+  const result = await getDeliverySnapshotTool.execute({}, context as never)
+  const body = JSON.parse(String(result.content).replace(/^```json\n|\n```$/g, ""))
+  assert.equal(body.conversions.enabled, false)
+  assert.match(body.conversions.note, /off/)
+})
+
+test("get_delivery_snapshot reads conversions on the strip window when the switch is on", { skip }, async () => {
+  conversionsLoaded = {
+    headline: "purchases",
+    showRevenue: true,
+    trackedPlatforms: ["meta_ads"],
+    valuePlatforms: ["meta_ads"],
+    throughDate: "2026-09-15",
+    lines: [],
+  }
+  conversionCalls.length = 0
+  const { getDeliverySnapshotTool } = await import("../getDeliverySnapshot.js")
+  const result = await getDeliverySnapshotTool.execute({ startDate: "2026-09-01", endDate: "2026-09-15" }, context as never)
+  assert.equal(conversionCalls.length, 1)
+  assert.equal(conversionCalls[0]!.startDate, "2026-09-01")
+  assert.equal(conversionCalls[0]!.endDate, "2026-09-15")
+  assert.equal(conversionCalls[0]!.mbaNumber, "bicau002")
+  const body = JSON.parse(String(result.content).replace(/^```json\n|\n```$/g, ""))
+  assert.equal(body.conversions.enabled, true)
+  assert.equal(body.conversions.label, "Purchases")
+  assert.equal(body.conversions.through, "2026-09-15")
+  conversionsLoaded = null
 })
