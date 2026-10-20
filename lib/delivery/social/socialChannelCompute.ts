@@ -1,5 +1,6 @@
 import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import { cpc, cpm, cpv, ctr, vtr } from "@/lib/money/rates"
+import { localDateISO } from "@/lib/delivery/lineChartWindow"
 import { formatMoney } from "@/lib/format/money"
 import { formatDateShort } from "@/lib/format/date"
 /**
@@ -108,14 +109,12 @@ function startOfDay(date: Date) {
   return d
 }
 
-function endOfDay(date: Date) {
-  const d = new Date(date)
-  d.setHours(23, 59, 59, 999)
-  return d
-}
-
+/**
+ * Local calendar day as YYYY-MM-DD. Not `toISOString`: that is UTC, and in an
+ * Australian browser it moves local midnight back to the previous day.
+ */
 function toISO(date: Date) {
-  return startOfDay(date).toISOString().slice(0, 10)
+  return localDateISO(startOfDay(date))
 }
 
 function eachDay(start: Date, end: Date): string[] {
@@ -130,10 +129,12 @@ function eachDay(start: Date, end: Date): string[] {
 }
 
 function inclusiveDays(start: Date, end: Date): number {
+  // Calendar days, not elapsed hours: a burst across the April daylight saving
+  // change has a 25-hour day, which used to add a day.
   const msPerDay = 1000 * 60 * 60 * 24
-  const diff = endOfDay(end).getTime() - startOfDay(start).getTime()
+  const diff = Math.round((startOfDay(end).getTime() - startOfDay(start).getTime()) / msPerDay)
   if (diff < 0) return 0
-  return Math.floor(diff / msPerDay) + 1
+  return diff + 1
 }
 
 function parseCurrency(value: unknown): number {

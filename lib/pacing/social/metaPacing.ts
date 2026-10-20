@@ -1,3 +1,5 @@
+import { localDateISO } from "@/lib/delivery/lineChartWindow"
+
 export type MetaPacingRow = {
   channel?: string
   dateDay: string
@@ -70,7 +72,8 @@ export function summariseDelivery(
     const date = parseDate(row.dateDay)
     if (!date) return
     if (date < start || date > end) return
-    const dateKey = date.toISOString().slice(0, 10)
+    // Local calendar day. toISOString is UTC and moves the day back in Australia.
+    const dateKey = localDateISO(date)
     const existing = dailyMap.get(dateKey) ?? {
       dateDay: dateKey,
       amountSpent: 0,

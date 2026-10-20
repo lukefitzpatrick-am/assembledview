@@ -1,5 +1,6 @@
 import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import { cpa, cpc, cpm, cpv, ctr, vtr } from "@/lib/money/rates"
+import { localDateISO } from "@/lib/delivery/lineChartWindow"
 import { formatMoney } from "@/lib/format/money"
 import { formatDateShort } from "@/lib/format/date"
 /**
@@ -144,8 +145,12 @@ function startOfDay(date: Date) {
   return d
 }
 
+/**
+ * Local calendar day as YYYY-MM-DD. Not `toISOString`: that is UTC, and in an
+ * Australian browser it moves local midnight back to the previous day.
+ */
 function toISO(date: Date) {
-  return startOfDay(date).toISOString().slice(0, 10)
+  return localDateISO(startOfDay(date))
 }
 
 function eachDay(start: Date, end: Date): string[] {
