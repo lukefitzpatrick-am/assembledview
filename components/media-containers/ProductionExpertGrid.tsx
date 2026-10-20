@@ -18,6 +18,8 @@ export interface ProductionExpertGridProps {
   onRowsChange: (rows: ProductionExpertScheduleRow[]) => void
   /** Production type options (same as ProductionContainer mediaType combobox). */
   productionTypeOptions?: ComboboxOption[]
+  /** Publisher picker options (all publishers; production has no channel flag). */
+  publishers?: { publisher_name: string }[]
   onReorder?: () => void
   /** Controlled week-start; parent owns state so Apply columns match grid keys. */
   weekStartsOn?: import("@/lib/utils/weeklyGanttColumns").WeekStartsOn

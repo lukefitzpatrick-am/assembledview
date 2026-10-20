@@ -32,6 +32,7 @@ import { formatCurrencyFull } from "@/lib/format/currency"
 import { formatAUD } from "@/lib/format/money"
 import { EndDateOrderMessage } from "@/components/mediaplan/EndDateOrderMessage"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
+import { getPublishersForProduction } from "@/lib/api"
 import { PRODUCTION_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
 import { resolveBuyTypeForChannel } from "@/lib/mediaplan/deliverableBudget"
 import {
@@ -254,6 +255,17 @@ export default function ProductionContainer({
   const { mbaNumber } = useMediaPlanContext()
   const { toast } = useToast()
   const mediaTypeOptions = useMemo(() => buildMediaTypeOptions(mediaTypes), [mediaTypes])
+  const [publishers, setPublishers] = useState<{ id: number; publisher_name: string }[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    void getPublishersForProduction().then((rows) => {
+      if (!cancelled) setPublishers(rows)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const [expertProductionRows, setExpertProductionRows] = useState<
     ProductionExpertScheduleRow[]
@@ -777,7 +789,7 @@ export default function ProductionContainer({
                       collapsed={collapsedLineItems.has(lineItemIndex)}
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
                       totalDisplay={formatAUD(lineItemMediaTotal)}
-                      publishers={[]}
+                      publishers={publishers}
                       dynamicOptionsByKey={{ mediaType: productionTypeComboboxOptions }}
                       feePct={0}
                       campaignStartDate={campaignStartDate}
@@ -1002,6 +1014,7 @@ export default function ProductionContainer({
                 rows={expertProductionRows}
                 onRowsChange={handleExpertProductionRowsChange}
                 productionTypeOptions={productionTypeComboboxOptions}
+                publishers={publishers}
                 onReorder={() => {
                   reorderedRef.current = true
                 }}

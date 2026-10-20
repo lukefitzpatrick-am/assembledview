@@ -80,6 +80,34 @@ test("lineItemBillsViaAdvertisingAssociates is false for assembled media publish
   assert.equal(lineItemBillsViaAdvertisingAssociates(item, publishers), false)
 })
 
+test("lineItemBillsViaAdvertisingAssociates: production line keeps canonical publisher name, drops abbreviation", () => {
+  const productionPublishers: Publisher[] = [
+    {
+      id: 10,
+      publisher_name: "Southern Cross Austereo",
+      billingagency: "advertising associates",
+    } as Publisher,
+  ]
+  const canonical = baseLine({
+    network: "Southern Cross Austereo",
+    platform: "production",
+    buyType: "production",
+    startDate: "2025-01-01",
+    endDate: "2025-01-31",
+    grossMedia: "1200",
+  })
+  const abbreviated = baseLine({
+    network: "SCA",
+    platform: "production",
+    buyType: "production",
+    startDate: "2025-01-01",
+    endDate: "2025-01-31",
+    grossMedia: "1200",
+  })
+  assert.equal(lineItemBillsViaAdvertisingAssociates(canonical, productionPublishers), true)
+  assert.equal(lineItemBillsViaAdvertisingAssociates(abbreviated, productionPublishers), false)
+})
+
 test("filterMediaItemsForAdvertisingAssociates keeps only AA-billed rows", () => {
   const mediaItems: MediaItems = {
     ...emptyMediaItems(),

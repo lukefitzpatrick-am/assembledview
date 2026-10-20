@@ -1471,6 +1471,25 @@ export async function getPublishersForInfluencers(): Promise<Publisher[]> {
   }
 }
 
+/**
+ * Production has no pub_* channel flag, so the production publisher picker
+ * offers every publisher (canonical publisher_name values).
+ */
+export async function getPublishersForProduction(): Promise<Publisher[]> {
+  try {
+    const rows = await fetchAllPublishers();
+    return rows
+      .filter((publisher) => Boolean(String(publisher?.publisher_name ?? "").trim()))
+      .map((publisher) => ({
+        id: publisher.id,
+        publisher_name: publisher.publisher_name,
+      }));
+  } catch (error) {
+    console.error("Error fetching publishers for production:", error);
+    return [];
+  }
+}
+
 // Television data saving functions
 
 

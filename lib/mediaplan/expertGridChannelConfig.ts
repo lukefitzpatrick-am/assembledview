@@ -3207,7 +3207,9 @@ export const PRODUCTION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Productio
         kind: "combobox-dynamic",
         searchPlaceholder: "Search production types…",
       },
-      { key: "publisher", label: "Publisher", widthPx: 120, kind: "text" },
+      // Pick from the publishers list so saved names match publishers.publisher_name
+      // (Advertising Associates filter). Saved free-text values still display.
+      { key: "publisher", label: "Publisher", widthPx: 120, kind: "combobox-publishers" },
       { key: "description", label: "Description", widthPx: 110, kind: "text" },
       { key: "market", label: "Market", widthPx: 96, kind: "text" },
       // Fixed buy type for production rows; retained for hydrate, not shown.
