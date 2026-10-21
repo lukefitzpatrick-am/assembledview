@@ -2,6 +2,7 @@ import { auth0 } from "@/lib/auth0"
 import { getUserClientSlugs } from "@/lib/rbac"
 import { publishedWebSearchSlugs } from "@/lib/webReport/visibility"
 import ClientRoot from "@/components/ClientRoot"
+import { isCodexV2Enabled } from "@/lib/codex/flag"
 
 /**
  * Resolves tenant slugs on the server (`getUserClientSlugs`) so the client
@@ -22,5 +23,9 @@ export default async function ServerAuthScope({ children }: { children: React.Re
   } catch {
     webSearchSlugs = []
   }
-  return <ClientRoot clientSlugs={clientSlugs} webSearchSlugs={webSearchSlugs}>{children}</ClientRoot>
+  return (
+    <ClientRoot clientSlugs={clientSlugs} webSearchSlugs={webSearchSlugs} codexEnabled={isCodexV2Enabled()}>
+      {children}
+    </ClientRoot>
+  )
 }

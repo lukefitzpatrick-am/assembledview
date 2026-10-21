@@ -25,10 +25,12 @@ export function ClientLayout({
   children,
   clientSlugs,
   webSearchSlugs = [],
+  codexEnabled = false,
 }: {
   children: React.ReactNode
   clientSlugs: string[]
   webSearchSlugs?: string[]
+  codexEnabled?: boolean
 }) {
   const pathname = usePathname()
   const isHomePage = pathname === "/" || pathname === "/privacy" || pathname === "/data-deletion"
@@ -59,7 +61,7 @@ export function ClientLayout({
                 alignShellWithPlanContent ? "h-dvh overflow-hidden" : "min-h-dvh overflow-visible",
               )}
             >
-              {isShellVisible && <AppSidebar webSearchSlugs={webSearchSlugs} />}
+              {isShellVisible && <AppSidebar webSearchSlugs={webSearchSlugs} codexEnabled={codexEnabled} />}
               <SidebarInset
                 className={cn(
                   "flex-1 min-w-0 flex flex-col bg-surface-muted",

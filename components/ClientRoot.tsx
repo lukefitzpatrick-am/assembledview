@@ -7,14 +7,16 @@ export default function ClientRoot({
   children,
   clientSlugs,
   webSearchSlugs = [],
+  codexEnabled = false,
 }: {
   children: React.ReactNode
   clientSlugs: string[]
   webSearchSlugs?: string[]
+  codexEnabled?: boolean
 }) {
   return (
     <AuthProvider>
-      <ClientLayout clientSlugs={clientSlugs} webSearchSlugs={webSearchSlugs}>{children}</ClientLayout>
+      <ClientLayout clientSlugs={clientSlugs} webSearchSlugs={webSearchSlugs} codexEnabled={codexEnabled}>{children}</ClientLayout>
     </AuthProvider>
   );
 }

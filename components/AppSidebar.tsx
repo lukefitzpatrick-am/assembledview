@@ -44,7 +44,7 @@ import {
   getRouteByExactPath,
   type NavLink,
 } from "@/lib/nav/routeManifest"
-import { userHasCodexShadowAccess } from "@/lib/codex/shadowRoles"
+import { withCodexNav } from "@/lib/nav/codexNav"
 import { isClientsBillingPath } from "@/lib/finance/sections/nav"
 import { financeHref } from "@/lib/finance/sections/financeHref"
 import { useFinanceScopeApplied } from "@/lib/finance/sections/useFinanceScope"
@@ -110,7 +110,14 @@ function NavRow({
   )
 }
 
-export function AppSidebar({ webSearchSlugs = [] }: { webSearchSlugs?: string[] }) {
+export function AppSidebar({
+  webSearchSlugs = [],
+  codexEnabled = false,
+}: {
+  webSearchSlugs?: string[]
+  /** Server-read CODEX_V2 flag. Off hides the Codex link. */
+  codexEnabled?: boolean
+}) {
   const pathname = usePathname() ?? ""
   const applied = useFinanceScopeApplied()
   const { clientSlugs, userRoles, isAdmin, isLoading } = useAuthContext()
@@ -181,16 +188,9 @@ export function AppSidebar({ webSearchSlugs = [] }: { webSearchSlugs?: string[] 
         (item) => item.path !== "/pacing/admin/relabels" || canSeeRelabelNav(userRoles),
       ),
     }))
-    // Codex shadow: hide sidebar entry for roles outside CODEX_SHADOW_ROLES
-    // so a visible "Codex" link never 403s the wider admin team.
-    if (userHasCodexShadowAccess(userRoles)) return groups
-    return groups
-      .map((group) => ({
-        ...group,
-        items: group.items.filter((item) => item.path !== "/tasks"),
-      }))
-      .filter((group) => group.items.length > 0)
-  }, [userRoles])
+    // Codex: only with CODEX_V2 on and a role in CODEX_SHADOW_ROLES.
+    return withCodexNav(groups, { codexEnabled, roles: userRoles })
+  }, [userRoles, codexEnabled])
 
   const knowledgeLabel = getRouteByExactPath("/knowledge")?.label ?? "Knowledge Hub"
   const creativeLabel = getRouteByExactPath("/creative")?.label ?? "Creative"
