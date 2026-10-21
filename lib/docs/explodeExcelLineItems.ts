@@ -159,6 +159,8 @@ export function explodeExcelLineItems(
       lineItemId: lineId,
       line_item: lineNumber,
       buyingDemo: String(formLine.buyingDemo ?? ""),
+      // Spot or insertion rate on every channel (AA Insertions col H).
+      buyAmount,
     }
 
     if (mediaItemsKey === "radio") {
@@ -228,7 +230,6 @@ export function explodeExcelLineItems(
       bidStrategy: String(formLine.bidStrategy ?? ""),
       targeting: String(formLine.creativeTargeting ?? formLine.targeting ?? ""),
       creative: String(formLine.creative ?? ""),
-      buyAmount,
       objective: String(formLine.objective ?? ""),
       campaign: String(formLine.campaign ?? ""),
     }
