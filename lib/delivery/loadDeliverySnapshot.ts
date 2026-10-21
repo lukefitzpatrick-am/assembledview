@@ -42,6 +42,7 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { buildGanttSidelineLabel } from "@/lib/mediaplan/normalizeLineItem"
 import { fromCents, toCents } from "@/lib/money/cents"
 import { parseMoney } from "@/lib/money/parse"
+import { formatBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { assumedSpendForBurst } from "@/lib/spend/assumedSpend"
 import { hasPositiveDelivery, isAssumedSpendLine } from "@/lib/spend/assumeSpendRule"
 import {
@@ -570,8 +571,8 @@ function expectedLineFromPlan(plan: PlanLineMeta, feePct: number): AssumedExpect
   const meta = channelMetaForKey(plan.sourceTable)
   if (!meta) return null
   const bursts = burstRecords(plan.bursts).flatMap((burst) => {
-    const startDate = String(burst.startDate ?? burst.start_date ?? "").slice(0, 10)
-    const endDate = String(burst.endDate ?? burst.end_date ?? "").slice(0, 10)
+    const startDate = formatBurstDateLocal(String(burst.startDate ?? burst.start_date ?? ""))
+    const endDate = formatBurstDateLocal(String(burst.endDate ?? burst.end_date ?? ""))
     if (!startDate || !endDate) return []
     const rawBudget = parseMoney(burst.budget ?? burst.mediaAmount ?? burst.media_amount) ?? 0
     return [
@@ -643,8 +644,8 @@ function assumedSpendDollars(
   let cents = 0
   for (const burst of burstRecords(plan.bursts)) {
     const rawBudget = parseMoney(burst.budget ?? burst.mediaAmount ?? burst.media_amount) ?? 0
-    const startDate = String(burst.startDate ?? burst.start_date ?? "")
-    const endDate = String(burst.endDate ?? burst.end_date ?? "")
+    const startDate = formatBurstDateLocal(String(burst.startDate ?? burst.start_date ?? ""))
+    const endDate = formatBurstDateLocal(String(burst.endDate ?? burst.end_date ?? ""))
     if (!startDate || !endDate) continue
     const days = assumedSpendForBurst({
       rawBudget,

@@ -5,6 +5,7 @@ import { schema } from "@/db"
 import { withPgReadLimits } from "@/lib/data/pgReadLimits"
 import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
 import { feePctForScheduleMedia } from "@/lib/delivery/directDigitalFeeLookup"
+import { formatBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { parseMoney } from "@/lib/money/parse"
 import {
   assumedExpectedLineFromFields,
@@ -32,8 +33,8 @@ function burstsOf(raw: unknown, fields: Omit<AssumedLineFields, "id" | "bursts" 
   for (const row of raw) {
     if (!row || typeof row !== "object") continue
     const burst = row as Record<string, unknown>
-    const startDate = String(burst.startDate ?? burst.start_date ?? "").slice(0, 10)
-    const endDate = String(burst.endDate ?? burst.end_date ?? "").slice(0, 10)
+    const startDate = formatBurstDateLocal(String(burst.startDate ?? burst.start_date ?? ""))
+    const endDate = formatBurstDateLocal(String(burst.endDate ?? burst.end_date ?? ""))
     if (!startDate || !endDate) continue
     const rawBudget = parseMoney(burst.budget ?? burst.mediaAmount ?? burst.media_amount) ?? 0
     bursts.push({

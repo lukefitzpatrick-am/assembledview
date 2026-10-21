@@ -5,6 +5,7 @@ import {
   type FeePctsByVersionId,
 } from "@/lib/delivery/directDigitalFeeLookup"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
+import { formatBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { toCents } from "@/lib/money/cents"
 import { parseMoney } from "@/lib/money/parse"
 import { extractPacingLineItemIdFromItem } from "@/lib/pacing/delivery/lineItemIds"
@@ -90,8 +91,8 @@ function parseBursts(raw: unknown, feePct: number, budgetIncludesFees: boolean, 
   const bursts: AssumedExpectedBurst[] = []
   for (const row of list) {
     const burst = asRecord(row)
-    const startDate = String(burst.startDate ?? burst.start_date ?? "").slice(0, 10)
-    const endDate = String(burst.endDate ?? burst.end_date ?? "").slice(0, 10)
+    const startDate = formatBurstDateLocal(String(burst.startDate ?? burst.start_date ?? ""))
+    const endDate = formatBurstDateLocal(String(burst.endDate ?? burst.end_date ?? ""))
     if (!startDate || !endDate) continue
     const rawBudget = parseMoney(burst.budget ?? burst.mediaAmount ?? burst.media_amount) ?? 0
     bursts.push({

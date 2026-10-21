@@ -1,4 +1,5 @@
 import { buildDateListISO } from "@/lib/delivery/search/searchCore"
+import { formatBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { fromCents, toCents } from "@/lib/money/cents"
 
@@ -110,14 +111,19 @@ export function assumedSpendForBurst(args: AssumedBurstInput): AssumedSpendDay[]
   if (!(deliveryMediaAmount > 0)) return []
 
   const cents = toCents(deliveryMediaAmount)
-  const flights = (args.panelFlights ?? []).filter(
-    (flight) => flight.startDate && flight.endDate,
-  )
+  // Burst days are Sydney civil days. A stored instant such as
+  // 2026-09-30T14:00:00.000Z is 1 Oct, not 30 Sep (UTC slice).
+  const flights = (args.panelFlights ?? [])
+    .map((flight) => ({
+      startDate: formatBurstDateLocal(flight.startDate ?? ""),
+      endDate: formatBurstDateLocal(flight.endDate ?? ""),
+    }))
+    .filter((flight) => flight.startDate && flight.endDate)
   if (flights.length === 0) {
     return assumedDailyCents({
       deliveryMediaCents: cents,
-      startDate: args.startDate,
-      endDate: args.endDate,
+      startDate: formatBurstDateLocal(args.startDate ?? ""),
+      endDate: formatBurstDateLocal(args.endDate ?? ""),
       asOfDate: args.asOfDate,
     })
   }

@@ -114,3 +114,46 @@ test("the assumed-spend label is not a flat allocation", () => {
   assert.equal(ASSUMED_SPEND_MODE, "assumed")
   assert.equal(ASSUMED_SPEND_CAP_APPLIED, "assumed_spend")
 })
+
+test("stored burst instants are Sydney civil days, not UTC slices", () => {
+  // 2026-09-30T14:00:00.000Z is midnight 1 Oct AEST; 2026-10-30T13:00:00.000Z is midnight 31 Oct AEDT.
+  const base = {
+    rawBudget: 3100,
+    budgetIncludesFees: false,
+    clientPaysForMedia: false,
+    feePct: 0,
+    buyType: "fixed_cost",
+    asOfDate: "2026-10-20",
+  }
+  const fromInstants = assumedSpendForBurst({
+    ...base,
+    startDate: "2026-09-30T14:00:00.000Z",
+    endDate: "2026-10-30T13:00:00.000Z",
+  })
+  const fromCivil = assumedSpendForBurst({ ...base, startDate: "2026-10-01", endDate: "2026-10-31" })
+  assert.deepEqual(fromInstants, fromCivil)
+  assert.equal(fromInstants.length, 31)
+  assert.equal(fromInstants[0]?.date, "2026-10-01")
+  assert.equal(fromInstants[30]?.date, "2026-10-31")
+  // Through 20 Oct: 20 days at 10000 cents, nothing for 21 Oct onwards.
+  assert.equal(
+    fromInstants.reduce((sum, day) => sum + day.cents, 0),
+    200000,
+  )
+})
+
+test("panel flight instants are Sydney civil days too", () => {
+  const days = assumedSpendForBurst({
+    rawBudget: 700,
+    budgetIncludesFees: false,
+    clientPaysForMedia: false,
+    feePct: 0,
+    buyType: "panels",
+    startDate: "2026-07-01",
+    endDate: "2026-07-31",
+    asOfDate: "2026-12-31",
+    panelFlights: [{ startDate: "2026-07-05T14:00:00.000Z", endDate: "2026-07-11T14:00:00.000Z" }],
+  })
+  assert.equal(days[0]?.date, "2026-07-06")
+  assert.equal(days[days.length - 1]?.date, "2026-07-12")
+})

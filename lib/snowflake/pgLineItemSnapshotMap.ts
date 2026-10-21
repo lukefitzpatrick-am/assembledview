@@ -1,6 +1,7 @@
 import type { LineChannel } from "@/db/schema"
 import { CHANNEL_ENDPOINT_TO_CHANNEL } from "@/lib/data/planShapes"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
+import { formatBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { parseMoney } from "@/lib/money/parse"
 import { toCents } from "@/lib/money/cents"
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
@@ -91,9 +92,10 @@ function burstBuyType(burst: Record<string, unknown>, lineBuyType: string | null
   return lineBuyType ?? undefined
 }
 
+/** Sydney civil day of a burst date. A stored instant is not sliced in UTC. */
 function dateField(raw: unknown): string {
   if (typeof raw !== "string") return ""
-  return raw.slice(0, 10)
+  return formatBurstDateLocal(raw)
 }
 
 function lineDeliveryMediaCents(args: {
