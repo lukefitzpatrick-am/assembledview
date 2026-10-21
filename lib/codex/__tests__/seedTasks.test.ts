@@ -7,7 +7,7 @@ import { after, describe, it } from "node:test"
 import { and, eq, inArray } from "drizzle-orm"
 
 import { getDb, schema, closeDb } from "@/db"
-import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
+import { loadEnvLocalForTests } from "../../testing/loadEnvLocalForTests"
 import { listTaskActivity } from "../repo.js"
 import {
   CAMPAIGN_PROFILE,
@@ -16,7 +16,7 @@ import {
   SEED_PAST_DUE_FLAG,
 } from "../seedTasks.js"
 
-loadEnvLocal()
+loadEnvLocalForTests()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 

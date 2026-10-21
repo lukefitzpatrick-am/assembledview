@@ -3,6 +3,7 @@ import "server-only"
 import postgres from "postgres"
 import { drizzle } from "drizzle-orm/postgres-js"
 import * as schema from "./schema"
+import { assertDatabaseUrlAllowedInTests } from "../lib/testing/testDatabaseGuard"
 
 /**
  * Runtime DB client — uses the Supabase **transaction pooler** URL
@@ -13,11 +14,13 @@ import * as schema from "./schema"
  */
 function requireDatabaseUrl(): string {
   const url = process.env.DATABASE_URL
-  if (!url) {
+  if (!url?.trim()) {
     throw new Error(
       "DATABASE_URL is not set (Supabase transaction pooler, port 6543)",
     )
   }
+  // Test runs may never open a client on production (no-op outside tests).
+  assertDatabaseUrlAllowedInTests(url)
   return url
 }
 

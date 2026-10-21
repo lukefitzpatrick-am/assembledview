@@ -7,7 +7,7 @@ import test from "node:test"
 import { count, eq, sql } from "drizzle-orm"
 
 import { getDb, schema, closeDb } from "@/db"
-import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
+import { loadEnvLocalForTests } from "../../testing/loadEnvLocalForTests"
 import {
   SavePlanError,
   savePlanVersion,
@@ -22,7 +22,7 @@ import { readMbaPlanDetailFromPostgres } from "../readMbaPlanDetail.js"
 import { readPublishedDocumentsByMba } from "@/lib/docs/readPublishedVersionDocuments"
 import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 
-loadEnvLocal()
+loadEnvLocalForTests()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 

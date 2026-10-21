@@ -11,7 +11,7 @@ import { after, describe, it } from "node:test"
 import { and, eq, inArray } from "drizzle-orm"
 
 import { getDb, schema, closeDb, type Db } from "@/db"
-import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
+import { loadEnvLocalForTests } from "../../testing/loadEnvLocalForTests"
 import {
   CodexBulkError,
   bulkUpdateTasks,
@@ -25,7 +25,7 @@ import {
   updateTeamMember,
 } from "../repo.js"
 
-loadEnvLocal()
+loadEnvLocalForTests()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 

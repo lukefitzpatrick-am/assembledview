@@ -7,7 +7,7 @@ import test from "node:test"
 import { eq } from "drizzle-orm"
 
 import { getDb, schema, closeDb } from "@/db"
-import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
+import { loadEnvLocalForTests } from "../../testing/loadEnvLocalForTests"
 import {
   BillingOverrideWriteError,
   replaceBillingOverrideLine,
@@ -20,7 +20,7 @@ import {
   type SavePlanVersionInput,
 } from "../savePlan.js"
 
-loadEnvLocal()
+loadEnvLocalForTests()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 

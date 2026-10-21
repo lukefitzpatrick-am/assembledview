@@ -13,9 +13,9 @@ import {
 } from "@/lib/finance/forecast/targets/pgTargetLines"
 import { targetLineNaturalKey } from "@/lib/finance/forecast/targets/targetLineHelpers"
 import { FINANCE_FORECAST_LINE_KEYS } from "@/lib/types/financeForecast"
-import { loadEnvLocal } from "../../../../../scripts/migration/_shared.js"
+import { loadEnvLocalForTests } from "../../../../testing/loadEnvLocalForTests"
 
-loadEnvLocal()
+loadEnvLocalForTests()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 

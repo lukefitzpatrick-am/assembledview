@@ -8,7 +8,7 @@ import test from "node:test"
 import { eq, sql } from "drizzle-orm"
 
 import { getDb, schema, closeDb } from "@/db"
-import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
+import { loadEnvLocalForTests } from "../../testing/loadEnvLocalForTests"
 import {
   savePlanVersion,
   type SavePlanLineItem,
@@ -23,7 +23,7 @@ import { summarizeDraftOffer } from "@/lib/mediaplan/drafts/pill.js"
 import { resolvePostgresSaveMode, SAVE_PUBLISHES_IMMEDIATELY } from "@/lib/mediaplan/resolvePostgresSaveMode.js"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types.js"
 
-loadEnvLocal()
+loadEnvLocalForTests()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 

@@ -8,10 +8,10 @@ import { after, describe, it } from "node:test"
 import { inArray, sql } from "drizzle-orm"
 
 import { closeDb, getDb, schema, type Db } from "@/db"
-import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
+import { loadEnvLocalForTests } from "../../testing/loadEnvLocalForTests"
 import { expireStaleProposals } from "../proposalRepo.js"
 
-loadEnvLocal()
+loadEnvLocalForTests()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 const RUN = `expire21-${Date.now().toString(36)}`

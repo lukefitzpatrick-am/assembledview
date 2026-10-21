@@ -14,9 +14,9 @@ import {
   materialiseAndApproveFinanceBillingRecord,
 } from "@/lib/data/writeFinance"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
-import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
+import { loadEnvLocalForTests } from "../../testing/loadEnvLocalForTests"
 
-loadEnvLocal()
+loadEnvLocalForTests()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 if (!hasDb) {

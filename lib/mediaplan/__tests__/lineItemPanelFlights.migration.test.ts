@@ -8,24 +8,18 @@ import path from "node:path"
 import test from "node:test"
 import postgres from "postgres"
 
+import { loadEnvLocalForTests } from "../../testing/loadEnvLocalForTests"
+import { safeTestDirectUrl } from "../../testing/testDatabaseGuard"
+
 const SCHEMA = "line_item_panel_flights_mig_test"
 const MIG_DIR = path.join(process.cwd(), "db", "migrations")
 const PANELS = `${SCHEMA}.line_item_panels`
 const FLIGHTS = `${SCHEMA}.line_item_panel_flights`
 
 function loadUrl(): string | null {
-  try {
-    const env = readFileSync(path.join(process.cwd(), ".env.local"), "utf8")
-    const pick = (key: string) => {
-      const m =
-        env.match(new RegExp(`${key}="([^"]+)"`)) ||
-        env.match(new RegExp(`${key}=([^\\r\\n]+)`))
-      return (m?.[1] || "").trim()
-    }
-    return pick("DIRECT_URL") || pick("DATABASE_URL") || null
-  } catch {
-    return null
-  }
+  // Guarded: refuses the production URLs in .env.local (see testDatabaseGuard).
+  loadEnvLocalForTests()
+  return safeTestDirectUrl()
 }
 
 function migrationFilenames(): string[] {

@@ -39,9 +39,9 @@ import {
 import { persistAutoStamps } from "@/lib/finance/sections/draftMatchQuery"
 import { billedSnapshotAmountEchoOk } from "@/lib/finance/billedSnapshotEcho"
 import { hashBilledLineSet } from "@/lib/finance/billedDrift"
-import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
+import { loadEnvLocalForTests } from "../../testing/loadEnvLocalForTests"
 
-loadEnvLocal()
+loadEnvLocalForTests()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 

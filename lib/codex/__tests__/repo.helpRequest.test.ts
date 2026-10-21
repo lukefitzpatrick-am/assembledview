@@ -8,7 +8,7 @@ import { and, eq, inArray } from "drizzle-orm"
 
 import { getDb, schema, closeDb } from "@/db"
 import { CodexHelpError } from "@/lib/codex/helpRoster"
-import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
+import { loadEnvLocalForTests } from "../../testing/loadEnvLocalForTests"
 import {
   HELP_ON_DONE_MESSAGE,
   createComment,
@@ -22,7 +22,7 @@ import {
   updateTask,
 } from "../repo.js"
 
-loadEnvLocal()
+loadEnvLocalForTests()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 

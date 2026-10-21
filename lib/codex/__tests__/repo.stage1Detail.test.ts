@@ -7,7 +7,7 @@ import { after, describe, it } from "node:test"
 import { and, eq, inArray } from "drizzle-orm"
 
 import { getDb, schema, closeDb } from "@/db"
-import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
+import { loadEnvLocalForTests } from "../../testing/loadEnvLocalForTests"
 import {
   createChecklistItem,
   createComment,
@@ -21,7 +21,7 @@ import {
   updateChecklistItem,
 } from "../repo.js"
 
-loadEnvLocal()
+loadEnvLocalForTests()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 

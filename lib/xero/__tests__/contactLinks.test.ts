@@ -3,7 +3,7 @@ import { describe, it } from "node:test"
 import { sql } from "drizzle-orm"
 
 import { closeDb, getDb } from "@/db"
-import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
+import { loadEnvLocalForTests } from "../../testing/loadEnvLocalForTests"
 import { rowsOf } from "../dbRows"
 import {
   applyContactLinkUpsert,
@@ -11,7 +11,7 @@ import {
   type ContactLinkStoreRow,
 } from "../contactLinks"
 
-loadEnvLocal()
+loadEnvLocalForTests()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 
