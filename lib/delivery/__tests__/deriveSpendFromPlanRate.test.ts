@@ -174,3 +174,14 @@ test("cpm mismatch is reported and still uses the derived rate, never buyAmount"
   assert.equal(result.cpmAssertion?.ok, false)
   assert.ok(result.warnings.some((w) => /mismatchPD1/.test(w) && /buyAmount/.test(w)))
 })
+
+test("money rounds half-up at cents through lib/money (1.005 is 1.01, not 1.00)", () => {
+  const result = deriveSpendFromPlanRate({
+    lineItemId: "sinch001PD1",
+    buyType: "cpm",
+    bursts: [{ mediaAmount: 1.005, calculatedValue: 1000, buyAmount: "1.005" }],
+    days: [{ date: "2026-03-01", impressions: 1000, clicks: 0, results: 0 }],
+  })
+  assert.equal(result.plannedTotal, 1.01)
+  assert.equal(result.days[0]?.derivedSpend, 1.01)
+})

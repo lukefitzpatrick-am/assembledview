@@ -7,6 +7,8 @@
  * Never use burst.buyAmount as the rate (it is only an assertion check).
  */
 
+import { roundMoney2 } from "@/lib/money/cents"
+
 export type DerivedSpendUnitsField = "impressions" | "clicks" | "results"
 
 export type DeriveSpendBurstInput = Record<string, unknown>
@@ -66,8 +68,9 @@ function isPresent(value: unknown): boolean {
   return value !== null && value !== undefined && value !== ""
 }
 
+/** Half-up away from zero at cents (lib/money). Non-finite passes through, as before. */
 function round2(n: number): number {
-  return Math.round(n * 100) / 100
+  return Number.isFinite(n) ? roundMoney2(n) : n
 }
 
 function unitsFieldForBuyType(buyType: string): {

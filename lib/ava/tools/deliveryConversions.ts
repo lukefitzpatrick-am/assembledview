@@ -12,6 +12,7 @@ import {
   type LoadedConversions,
 } from "@/lib/delivery/conversions/channelConversions"
 import type { PacingWindow } from "@/lib/pacing/expectedForWindow"
+import { roundMoney2 } from "@/lib/money/cents"
 
 export const DELIVERY_CONVERSIONS_NOTE =
   "Chosen conversion events only (client settings). headline says which count to quote (Purchases, Leads or Conversions). " +
@@ -48,7 +49,7 @@ export type DeliveryConversionsBlock =
     }
 
 function round2(n: number | null): number | null {
-  return n == null || !Number.isFinite(n) ? null : Math.round(n * 100) / 100
+  return n == null || !Number.isFinite(n) ? null : roundMoney2(n)
 }
 
 function slim(f: ConversionFigures): Figures {
