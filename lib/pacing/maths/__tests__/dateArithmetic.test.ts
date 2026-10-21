@@ -64,3 +64,9 @@ test("getAsOfDate returns YYYY-MM-DD", () => {
   const s = getAsOfDate(new Date("2026-05-14T12:00:00.000Z"))
   assert.match(s, /^\d{4}-\d{2}-\d{2}$/)
 })
+
+test("getAsOfDate is the Melbourne day, not the UTC day (orphan admin as-of)", () => {
+  const morningMelbourne = new Date("2026-10-20T20:00:00.000Z")
+  assert.equal(morningMelbourne.toISOString().slice(0, 10), "2026-10-20")
+  assert.equal(getAsOfDate(morningMelbourne), "2026-10-21")
+})

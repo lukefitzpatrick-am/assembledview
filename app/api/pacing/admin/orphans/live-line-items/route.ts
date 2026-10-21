@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/requireRole";
 import { getLiveSearchLineItemRecords } from "@/lib/pacing/campaigns/liveSearchLineItems";
+import { getAsOfDate } from "@/lib/pacing/maths";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -9,7 +10,8 @@ export async function GET(request: NextRequest) {
   const admin = await requireAdmin(request);
   if ("response" in admin) return admin.response;
 
-  const asOfDate = new Date().toISOString().slice(0, 10);
+  // Melbourne civil date, the same as-of as every pacing read (never the UTC day).
+  const asOfDate = getAsOfDate();
 
   try {
     const lineItems = await getLiveSearchLineItemRecords({

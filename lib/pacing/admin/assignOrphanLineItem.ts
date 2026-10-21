@@ -3,6 +3,7 @@ import "server-only";
 import { revalidateTag } from "next/cache";
 import { PACING_CAMPAIGNS_TAG } from "@/lib/pacing/campaigns/pacingRowsCache";
 import { getLiveSearchLineItemIds } from "@/lib/pacing/campaigns/liveSearchLineItems";
+import { getAsOfDate } from "@/lib/pacing/maths";
 import {
   sessionExecuteRows,
   sessionExecuteVoid,
@@ -60,7 +61,7 @@ export async function assignOrphanLineItem(
   }
 
   const liveIds = await getLiveSearchLineItemIds({
-    asOfDate: new Date().toISOString().slice(0, 10),
+    asOfDate: getAsOfDate(),
     allowedClientSlugs: null,
   });
   if (!liveIds.has(normalizedNew)) {
