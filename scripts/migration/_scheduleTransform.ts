@@ -168,9 +168,12 @@ export function explodeScheduleToMonthRows(
     const lineItems = month.lineItems
     let hadLineItems = false
     let hadLineFee = false
+    // Media on a line listed under lineItems.production. Bare ids such as
+    // PENFOLD020PROD1 do not match the decorated-id test below.
+    let hadProductionLineMedia = false
 
     if (lineItems && typeof lineItems === "object") {
-      for (const [, items] of Object.entries(lineItems)) {
+      for (const [mediaKey, items] of Object.entries(lineItems)) {
         if (!Array.isArray(items)) continue
         for (const li of items as BillingLineItem[]) {
           hadLineItems = true
@@ -190,6 +193,7 @@ export function explodeScheduleToMonthRows(
             }
           }
           if (mediaAmt != null && mediaAmt !== 0) {
+            if (mediaKey === "production") hadProductionLineMedia = true
             addRow(acc, {
               versionId,
               lineItemId,
@@ -247,7 +251,7 @@ export function explodeScheduleToMonthRows(
         r.component === "adserving" &&
         r.month === monthDate
     )
-    const monthHadProductionLine = [...acc.values()].some((r) => {
+    const monthHadProductionLine = hadProductionLineMedia || [...acc.values()].some((r) => {
       if (r.basis !== basis || r.month !== monthDate || r.component !== "media") {
         return false
       }
