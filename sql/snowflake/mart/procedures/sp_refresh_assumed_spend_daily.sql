@@ -93,6 +93,19 @@ BEGIN
       PARTITION BY LOWER(LINE_ITEM_ID)
       ORDER BY SYNCED_AT DESC
     ) = 1
+  ),
+  -- Lines with an assumedDailyCents date in the last 3 UTC days. Built once here and
+  -- joined below: a correlated EXISTS over LATERAL FLATTEN inside the OR fails with
+  -- "Unsupported subquery type cannot be evaluated" whenever scope is 'changed' and the
+  -- run log is not empty, which failed TSK_REFRESH_FIXED_COST_REPORTED every night
+  -- from 14 Oct 2026 (2026-10-21 audit).
+  recent AS (
+    SELECT DISTINCT l.line_id
+    FROM latest l,
+         TABLE(FLATTEN(input => IFF(IS_ARRAY(l.BURSTS_JSON), l.BURSTS_JSON, PARSE_JSON('[]')))) b,
+         LATERAL FLATTEN(input => IFF(IS_ARRAY(b.value:assumedDailyCents), b.value:assumedDailyCents, PARSE_JSON('[]'))) d
+    WHERE TRY_TO_DATE(LEFT(TO_VARCHAR(d.value:date), 10))
+          BETWEEN DATEADD(day, -2, :utc_today) AND :utc_today
   )
   SELECT
     l.line_id,
@@ -104,6 +117,7 @@ BEGIN
     l.BURSTS_JSON,
     l.SYNCED_AT
   FROM latest l
+  LEFT JOIN recent r ON r.line_id = l.line_id
   WHERE NOT EXISTS (
       SELECT 1 FROM ASSEMBLEDVIEW.MART.PACING_FACT p
       WHERE LOWER(p.LINE_ITEM_ID) = l.line_id
@@ -122,13 +136,7 @@ BEGIN
       OR :filter_id IS NULL AND :scope_norm = 'changed' AND (
         :last_run IS NULL
         OR l.SYNCED_AT > :last_run
-        OR EXISTS (
-          SELECT 1
-          FROM TABLE(FLATTEN(input => IFF(IS_ARRAY(l.BURSTS_JSON), l.BURSTS_JSON, PARSE_JSON('[]')))) b,
-               LATERAL FLATTEN(input => IFF(IS_ARRAY(b.value:assumedDailyCents), b.value:assumedDailyCents, PARSE_JSON('[]'))) d
-          WHERE TRY_TO_DATE(LEFT(TO_VARCHAR(d.value:date), 10))
-                BETWEEN DATEADD(day, -2, :utc_today) AND :utc_today
-        )
+        OR r.line_id IS NOT NULL
       )
     );
 
