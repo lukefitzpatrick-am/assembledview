@@ -7,6 +7,7 @@ import {
   isSocialMediaType,
   SOCIAL_PACING_TABLE,
 } from "@/lib/pacing/social-channels"
+import { avaFactsSql, NON_SOCIAL_PACING_FACT } from "@/lib/avaSnowflakeSql"
 
 type AvaSnowflakeParams = {
   mbaNumber?: string
@@ -133,7 +134,7 @@ async function queryFacts({
   const useNonSocial = !mt || isProgrammaticMediaType(mt) || (!isSocialMediaType(mt) && !isProgrammaticMediaType(mt))
 
   const runQuery = async (table: string, label: string) => {
-    const sql = `${selectClause} FROM ${table} ${whereClause}`
+    const sql = avaFactsSql(selectClause, table, whereClause)
     const rows = await querySnowflake<any>(sql, binds, { label })
     return rows?.[0] ?? null
   }
@@ -142,7 +143,7 @@ async function queryFacts({
   if (useSocial && useNonSocial) {
     const [socialRow, nonSocialRow] = await Promise.all([
       runQuery(SOCIAL_PACING_TABLE, "ava_snowflake_summary_social"),
-      runQuery("ASSEMBLEDVIEW.MART.PACING_FACT", "ava_snowflake_summary_non_social"),
+      runQuery(NON_SOCIAL_PACING_FACT, "ava_snowflake_summary_non_social"),
     ])
     // Aggregate: take MAX of dates, SUM of metrics
     const latestDate = [socialRow?.LATEST_DELIVERY_DATE, nonSocialRow?.LATEST_DELIVERY_DATE]
@@ -159,7 +160,7 @@ async function queryFacts({
   } else if (useSocial) {
     row = await runQuery(SOCIAL_PACING_TABLE, "ava_snowflake_summary_social")
   } else {
-    row = await runQuery("ASSEMBLEDVIEW.MART.PACING_FACT", "ava_snowflake_summary_non_social")
+    row = await runQuery(NON_SOCIAL_PACING_FACT, "ava_snowflake_summary_non_social")
   }
 
   const facts: AvaSnowflakeFacts = {
