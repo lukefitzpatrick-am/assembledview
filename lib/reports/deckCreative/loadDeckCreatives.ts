@@ -12,7 +12,13 @@ import { selectDeckCreatives, uniqueDeckCreatives, withImageFiles, type DeckCrea
 
 /** Longest side of a deck thumbnail, in pixels. Cards are about 1.3 x 1.6 inches. */
 const THUMB_PX = 600
-const MAX_IMAGES = 20
+/**
+ * The skill container takes at most 16 files per request (Anthropic: "Cannot add
+ * more than 16 files to a session at once"). The deck already sends report-data.json,
+ * the template and 3 cover photos, which leaves 11 for creative thumbnails.
+ */
+export const MAX_DECK_CREATIVE_IMAGES = 11
+const MAX_IMAGES = MAX_DECK_CREATIVE_IMAGES
 
 export type DeckCreativeFile = { filename: string; bytes: Buffer }
 

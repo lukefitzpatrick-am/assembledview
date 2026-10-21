@@ -13,6 +13,9 @@ import { containerSteps, type ContainerStep } from "@/lib/reports/deckSkill/cont
 import { assertDeckOpens } from "@/lib/reports/deckSkill/openDeck"
 import { slimDeckPayload } from "@/scripts/spikes/report-deck-skill/slim-deck-payload"
 
+/** Anthropic rejects more than 16 container_upload files in one request. */
+export const MAX_CONTAINER_UPLOADS = 16
+
 export type { DeckSkillKit }
 
 const INPUT_USD_PER_MILLION = 4
@@ -296,6 +299,12 @@ export async function runDeckSkill(
     }
 
     const creativeFiles = input.creativeFiles ?? []
+    const containerFiles = 2 + kit.photos.length + creativeFiles.length
+    if (containerFiles > MAX_CONTAINER_UPLOADS) {
+      throw new Error(
+        `Deck needs ${containerFiles} container files; the limit is ${MAX_CONTAINER_UPLOADS} (report, template, ${kit.photos.length} photos, ${creativeFiles.length} creatives)`,
+      )
+    }
     const [reportFile, templateFile, ...photoFiles] = await Promise.all([
       toFile(Buffer.from(deckJson), "report-data.json", { type: "application/json" }),
       toFile(kit.template, TEMPLATE_NAME, { type: TEMPLATE_TYPE }),
