@@ -91,6 +91,13 @@ export type PartnerIngestDeps = {
   snowflake: PartnerSnowflakePort
   /** `YYYY-MM-DD`. Defaults to today in Melbourne, the agency's business day. */
   today?: string
+  /**
+   * Epoch ms. No new message starts at or after this time; the rest stay in
+   * the inbox for the next run. Unset means no budget.
+   */
+  deadlineAt?: number
+  /** Clock for the budget. Defaults to Date.now. */
+  now?: () => number
 }
 
 const EMPTY_SHA = sha256Hex(Buffer.alloc(0))
@@ -140,6 +147,7 @@ function emptySummary(): PartnerIngestRunSummary {
     files: [],
     tests: [],
     staleSources: [],
+    deferred: 0,
   }
 }
 
@@ -234,7 +242,12 @@ export async function runPartnerIngest(
     await deps.mailbox.moveMessage(message.id, "Unrecognised")
   }
 
-  for (const message of oldestFirst) {
+  const now = deps.now ?? Date.now
+  for (const [index, message] of oldestFirst.entries()) {
+    if (deps.deadlineAt != null && now() >= deps.deadlineAt) {
+      summary.deferred = oldestFirst.length - index
+      break
+    }
     const source = matchPartnerSource(message, maps)
     if (!source) {
       await writeUnrecognised(

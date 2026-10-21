@@ -115,8 +115,12 @@ export const INSERT_DELIVERY_SQL = (n: number): string => {
   return `INSERT INTO ${RAW.deliveryDaily} (${DELIVERY_COLUMNS.join(", ")}) VALUES ${Array.from({ length: n }, () => placeholders).join(", ")}`
 }
 
-export const LINE_INSERT_BATCH = 80
-export const DELIVERY_INSERT_BATCH = 40
+// Rows per multi-row INSERT. One round trip each. A Vistar exchange file is
+// about 13,500 lines, so 80 and 40 meant about 500 round trips (about 4.5 min)
+// and the cron hit its 300 s limit. 500 lines (1,500 binds) and 200 delivery
+// rows (5,000 binds) keep the SQL text far under Snowflake's 1 MB limit.
+export const LINE_INSERT_BATCH = 500
+export const DELIVERY_INSERT_BATCH = 200
 
 export function lineInsertBinds(
   sourceFile: string,

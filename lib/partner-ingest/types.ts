@@ -110,4 +110,9 @@ export type PartnerIngestRunSummary = {
   }>
   /** Active map rows whose latest REPORT_DATE is older than MAX_STALE_DAYS. */
   staleSources: Array<{ sourceSlug: string; staleDays: number }>
+  /**
+   * Messages left in the inbox because the run's time budget ran out. The next
+   * run picks them up, oldest first.
+   */
+  deferred: number
 }
