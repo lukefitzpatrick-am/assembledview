@@ -17,6 +17,7 @@ import {
 } from "@/lib/kpi/percentUnits"
 import { CLIENT_KPI_METRIC_LABELS, type CampaignKPI } from "@/lib/kpi/types"
 import {
+  capWindowAtMelbourneYesterday,
   clipWindowToCampaign,
   resolveCampaignReportPeriod,
   type CampaignReportPeriodKind,
@@ -391,10 +392,10 @@ export async function assembleCampaignReportData(
     todayISO: input.todayISO,
   })
 
-  const currentWindow = clipWindowToCampaign(
-    period.current,
-    input.campaignStartISO,
-    input.campaignEndISO,
+  // Spend, expected and conversions all stop at Melbourne yesterday.
+  const currentWindow = capWindowAtMelbourneYesterday(
+    clipWindowToCampaign(period.current, input.campaignStartISO, input.campaignEndISO),
+    input.todayISO,
   )
   const previousWindow = period.previous
     ? clipWindowToCampaign(period.previous, input.campaignStartISO, input.campaignEndISO)

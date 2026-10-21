@@ -184,6 +184,19 @@ export function resolveCampaignReportPeriod(
   }
 }
 
+/**
+ * Delivery and expected stop at Melbourne yesterday, the same day as the
+ * campaign page strip and AVA (`resolvePacingWindowISO`). Today's rows are
+ * partial. A window that would be empty (it starts today) is left as it is.
+ */
+export function capWindowAtMelbourneYesterday(window: DateWindow, todayISO?: string): DateWindow {
+  const today = todayISO ?? getMelbourneTodayISO()
+  if (window.endISO < today) return window
+  const yesterday = addDaysISO(today, -1)
+  if (yesterday < window.startISO) return window
+  return { startISO: window.startISO, endISO: yesterday }
+}
+
 /** Clip a window to campaign flight when both bounds exist. */
 export function clipWindowToCampaign(
   window: DateWindow,

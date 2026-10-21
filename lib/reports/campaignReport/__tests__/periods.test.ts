@@ -1,6 +1,7 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 import {
+  capWindowAtMelbourneYesterday,
   clipWindowToCampaign,
   resolveCampaignReportPeriod,
 } from "@/lib/reports/campaignReport/periods"
@@ -70,5 +71,29 @@ describe("clipWindowToCampaign", () => {
       "2026-06-30",
     )
     assert.deepEqual(clipped, { startISO: "2026-03-01", endISO: "2026-06-30" })
+  })
+})
+
+describe("capWindowAtMelbourneYesterday", () => {
+  it("stops a window that runs to today at yesterday", () => {
+    assert.deepEqual(
+      capWindowAtMelbourneYesterday({ startISO: "2026-07-01", endISO: "2026-10-21" }, "2026-10-21"),
+      { startISO: "2026-07-01", endISO: "2026-10-20" },
+    )
+  })
+  it("leaves a window that already ended before today", () => {
+    const w = { startISO: "2026-09-01", endISO: "2026-09-30" }
+    assert.deepEqual(capWindowAtMelbourneYesterday(w, "2026-10-21"), w)
+  })
+  it("leaves a window that starts today, so day one still has a window", () => {
+    const w = { startISO: "2026-10-21", endISO: "2026-10-21" }
+    assert.deepEqual(capWindowAtMelbourneYesterday(w, "2026-10-21"), w)
+  })
+  it("caps this month on the 2nd to the 1st", () => {
+    const period = resolveCampaignReportPeriod({ kind: "this_month", todayISO: "2026-08-02" })
+    assert.deepEqual(capWindowAtMelbourneYesterday(period.current, "2026-08-02"), {
+      startISO: "2026-08-01",
+      endISO: "2026-08-01",
+    })
   })
 })
