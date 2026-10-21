@@ -28,7 +28,8 @@
 --   hema002se1 Jul - Dec 2025    40,781.42 vs 36,510
 --   hema005se1 Oct - Nov 2025     8,990.42 vs 10,000
 --
--- PART A (run): 95%+ confidence. 2,837 rows, 34,162.84
+-- PART A (run): 95%+ confidence. 2,837 rows, 34,162.84 on 20 Oct; 2,851 rows,
+--   34,340.83 on 21 Oct 15:40 (hema007 now runs to 31 Oct; guard counts live).
 --   Maps  1 Jul - 20 Oct 2026, all groups          -> hema007se1  1,842 rows  24,643.63
 --   Maps  Jun 2026, QLD Maps / Scratch&Sticker     -> hema003se1     42 rows     107.29
 --   Saber unlabelled groups inside hema004 flights -> hema004se1    953 rows   9,411.91
@@ -72,7 +73,27 @@ USE SCHEMA ASSEMBLEDVIEW.MART;
 EXECUTE IMMEDIATE $$
 DECLARE
   a_updated INTEGER;
+  a_expected INTEGER;
 BEGIN
+  -- Count the rows to move first. The nightly refresh adds rows, so the guard
+  -- compares against this live count plus a sanity range (measured 21 Oct 15:40:
+  -- 1,856 + 42 + 953 = 2,851 rows, $34,340.83).
+  SELECT COUNT(*) INTO :a_expected FROM (
+    SELECT CASE
+      WHEN customer_id = '3535571939' AND date_day BETWEEN '2026-07-01' AND '2026-10-31' THEN 'hema007se1'
+      WHEN customer_id = '3535571939' AND date_day BETWEEN '2026-06-01' AND '2026-06-30'
+           AND LOWER(line_item_id) IN ('qld maps', 'scratch&sticker maps') THEN 'hema003se1'
+      WHEN customer_id = '4063267031' AND (date_day BETWEEN '2025-06-17' AND '2025-09-30'
+                                        OR date_day BETWEEN '2025-12-01' AND '2026-04-30') THEN 'hema004se1'
+    END AS tgt, line_item_id
+    FROM ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT
+    WHERE customer_id IN ('3535571939', '4063267031')
+      AND channel IN ('Search - Google Ads', 'Shopping - Google Ads', 'PMax - Google Ads')
+  ) WHERE tgt IS NOT NULL AND COALESCE(LOWER(line_item_id), '') <> tgt;
+  IF (a_expected < 2800 OR a_expected > 3000) THEN
+    RETURN 'STOPPED: expected rows out of range (2800 to 3000). a_expected=' || a_expected;
+  END IF;
+
   BEGIN TRANSACTION;
 
   UPDATE ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT f
@@ -80,7 +101,7 @@ BEGIN
   FROM (
     SELECT channel, date_day, platform_line_item_id, tgt FROM (
       SELECT channel, date_day, platform_line_item_id, line_item_id, CASE
-        WHEN customer_id = '3535571939' AND date_day BETWEEN '2026-07-01' AND '2026-10-20' THEN 'hema007se1'
+        WHEN customer_id = '3535571939' AND date_day BETWEEN '2026-07-01' AND '2026-10-31' THEN 'hema007se1'
         WHEN customer_id = '3535571939' AND date_day BETWEEN '2026-06-01' AND '2026-06-30'
              AND LOWER(line_item_id) IN ('qld maps', 'scratch&sticker maps') THEN 'hema003se1'
         WHEN customer_id = '4063267031' AND (date_day BETWEEN '2025-06-17' AND '2025-09-30'
@@ -96,10 +117,10 @@ BEGIN
     AND f.customer_id IN ('3535571939', '4063267031');
   a_updated := SQLROWCOUNT;
 
-  -- Expected 1842 + 42 + 953 = 2837. Anything else rolls back.
-  IF (a_updated <> 2837) THEN
+  -- Must equal the live count above. Anything else rolls back.
+  IF (a_updated <> a_expected) THEN
     ROLLBACK;
-    RETURN 'ROLLED BACK: count differs. part_a=' || a_updated;
+    RETURN 'ROLLED BACK: count differs. part_a=' || a_updated || ' expected=' || a_expected;
   END IF;
 
   COMMIT;
