@@ -26,7 +26,7 @@ export type SocialPacingMetrics = {
   results: number;
   videoViews: number;
   ctr: number | null; // SUM(clicks) / SUM(impressions) — decimal ratio; null if impressions = 0
-  conversionRate: number | null; // SUM(results) / SUM(impressions) — decimal ratio; null if impressions = 0
+  conversionRate: number | null; // SUM(results) / SUM(clicks) — decimal ratio; null if clicks = 0
   cpv: number | null; // SUM(spend) / SUM(videoViews) — dollars; null if videoViews = 0
   vtr: number | null; // SUM(videoViews) / SUM(impressions) — decimal ratio; null if impressions = 0
 };

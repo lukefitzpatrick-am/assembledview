@@ -10,6 +10,8 @@
  * - CM360 floodlights win over DV360 on a line that has both.
  */
 
+import { cvr } from "@/lib/money/rates"
+
 export const CONVERSION_PLATFORMS = [
   "meta_ads",
   "google_ads",
@@ -271,7 +273,9 @@ export function cpa(spend: number, conversions: number): number | null {
 
 /** Conversions ÷ clicks as a percentage. Null when there are no clicks. */
 export function cvrPct(conversions: number, clicks: number): number | null {
-  return Number.isFinite(clicks) && clicks > 0 && Number.isFinite(conversions) ? (conversions / clicks) * 100 : null
+  if (!(clicks > 0)) return null
+  const rate = cvr(conversions, clicks)
+  return rate == null ? null : rate * 100
 }
 
 export function formatRoas(value: number | null): string {

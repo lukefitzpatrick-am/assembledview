@@ -37,6 +37,15 @@ export function ctr(clicks: number, impressions: number): number | null {
   return safeRatio(clicks, impressions)
 }
 
+/**
+ * Conversion rate: results (or conversions) / clicks as a decimal, never ×100.
+ * Same definition as the MBA KPI review, the KPI band pill and the CF4
+ * conversion tiles. Never divide by impressions.
+ */
+export function cvr(results: number, clicks: number): number | null {
+  return safeRatio(results, clicks)
+}
+
 /** Views / impressions as a decimal, never ×100. */
 export function vtr(views: number, impressions: number): number | null {
   return safeRatio(views, impressions)

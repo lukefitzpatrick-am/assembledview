@@ -1,3 +1,4 @@
+import { cvr } from "@/lib/money/rates";
 import type { DeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
 import type { DateWindows } from "@/lib/pacing/campaigns/aggregate";
 import type {
@@ -28,7 +29,7 @@ function computeSocialRatios(
 ): Pick<SocialPacingMetrics, "ctr" | "conversionRate" | "cpv" | "vtr"> {
   return {
     ctr: impressions > 0 ? clicks / impressions : null,
-    conversionRate: impressions > 0 ? results / impressions : null,
+    conversionRate: cvr(results, clicks),
     cpv: videoViews > 0 ? spend / videoViews : null,
     vtr: impressions > 0 ? videoViews / impressions : null,
   };

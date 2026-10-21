@@ -1,5 +1,5 @@
 import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
-import { cpc, cpm, cpv, ctr, vtr } from "@/lib/money/rates"
+import { cpc, cpm, cpv, ctr, cvr as cvrRate, vtr } from "@/lib/money/rates"
 import { localDateISO } from "@/lib/delivery/lineChartWindow"
 import { formatMoney } from "@/lib/format/money"
 import { formatDateShort } from "@/lib/format/date"
@@ -735,7 +735,9 @@ export function summarizeActuals(rows: (ActualsDaily | (ActualsDaily & { video3s
 
   const cpmValue = cpm(totals.spend, totals.impressions)
   const ctrValue = ctr(totals.clicks, totals.impressions)
-  const cvr = totals.impressions ? (totals.results / totals.impressions) * 100 : null
+  // Percentage points for the tile. Results / clicks, the same rate the KPI band pill compares.
+  const cvrDecimal = cvrRate(totals.results, totals.clicks)
+  const cvr = cvrDecimal == null ? null : cvrDecimal * 100
   const cpcValue = cpc(totals.spend, totals.clicks)
   const cost_per_result = totals.results ? totals.spend / totals.results : null
   const cpvValue = cpv(totals.spend, totals.video_3s_views)

@@ -228,6 +228,7 @@ pct === 100 → fee = 0 (division guard)
 ## KPI law
 
 - Three tiers: publisher benchmark → client override → campaign-saved. Fan-out to line grain via `lib/kpi/fanOut.ts`.
+- Conversion rate is results (or conversions) ÷ clicks, never ÷ impressions: `cvr` in `lib/money/rates.ts`. The MBA review, the KPI band pill, the CF4 tiles, the social and programmatic delivery tiles and the social and programmatic pacing aggregates all use it. No clicks is null.
 - Percent scale (AV-25 v2): UI enters/displays percentage points for ctr/vtr/conversion_rate/viewability; **storage is decimal everywhere** (`0.45` → `0.0045`, `100` → `1`). Conversion lives only in `lib/kpi/percentUnits.ts` — NEVER infer unit from magnitude (`value >= 1 ? /100` is banned; it is not invertible and breaks 100% targets). CPV is dollars — never pass through percent helpers. Dual-store data migration of legacy percentage-point / ambiguous `1.0` rows is **pending Luke** (`KPI_PERCENT_UNIT_CONTRACT.dataMigration`); `db:etl` truncate-reload will reintroduce ambiguity until Xano is fixed too.
 - Register: **percent-unit contract** — code landed (O5 / AV-25 v2); migration pending Luke (C-20; `npm run scan:kpi-percent-units`).
 - Unset metric returns **null, never 0** — `?? 0` converts "no target" into "target 0%". Publisher KPI rows default metrics to null; publisher tier ignores null and honours explicit 0.

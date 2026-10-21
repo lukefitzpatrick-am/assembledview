@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { cpa, cpc, cpm, cpv, ctr, safeRatio, vtr } from "@/lib/money/rates"
+import { cpa, cpc, cpm, cpv, ctr, cvr, safeRatio, vtr } from "@/lib/money/rates"
 
 test("cpm is spend per thousand impressions", () => {
   assert.equal(cpm(10, 1000), 10)
@@ -29,4 +29,11 @@ test("safeRatio rejects a bad denominator", () => {
   assert.equal(safeRatio(1, 0), null)
   assert.equal(safeRatio(1, Number.NaN), null)
   assert.equal(safeRatio(Number.POSITIVE_INFINITY, 2), null)
+})
+
+test("cvr is results over clicks as a decimal, never over impressions", () => {
+  // hartm001sm3, 1-20 Oct 2026: 254,343 impressions, 1,449 clicks, 124 results.
+  assert.equal(cvr(124, 1449), 124 / 1449)
+  assert.equal(cvr(0, 1449), 0)
+  assert.equal(cvr(5, 0), null)
 })

@@ -12,3 +12,14 @@ test("summarizeDv360Actuals returns null CPA when the window has no results", ()
   assert.notEqual(kpis.cpm, null)
   assert.notEqual(kpis.ctr, null)
 })
+
+test("summarizeDv360Actuals CVR is conversions over clicks in percentage points", () => {
+  const kpis = summarizeDv360Actuals([
+    { spend: 40, impressions: 8_000, clicks: 20, conversions: 5, videoViews: 0 },
+  ])
+  assert.equal(kpis.cvr, 25)
+  const noClicks = summarizeDv360Actuals([
+    { spend: 40, impressions: 8_000, clicks: 0, conversions: 5, videoViews: 0 },
+  ])
+  assert.equal(noClicks.cvr, null)
+})

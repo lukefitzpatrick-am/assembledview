@@ -69,7 +69,7 @@ function variancePercent(target: number | null, actual: number | null): number |
 /**
  * Builds per-KPI comparisons for a social pacing row.
  *
- * Metrics: ctr, conversionRate (results/impressions), cpv (lower-is-better), vtr.
+ * Metrics: ctr, conversionRate (results/clicks), cpv (lower-is-better), vtr.
  * Frequency is excluded — social facts have no reach column, so there is no actual.
  */
 export function buildSocialKpiComparisons(row: SocialPacingCampaignRow): SocialKpiComparison[] {

@@ -1,5 +1,5 @@
 import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
-import { cpa, cpc, cpm, cpv, ctr, vtr } from "@/lib/money/rates"
+import { cpa, cpc, cpm, cpv, ctr, cvr as cvrRate, vtr } from "@/lib/money/rates"
 import { localDateISO } from "@/lib/delivery/lineChartWindow"
 import { formatMoney } from "@/lib/format/money"
 import { formatDateShort } from "@/lib/format/date"
@@ -355,7 +355,9 @@ export function summarizeDv360Actuals(
 
   const cpmValue = cpm(totals.spend, totals.impressions)
   const ctrValue = ctr(totals.clicks, totals.impressions)
-  const cvr = totals.impressions ? (totals.conversions / totals.impressions) * 100 : null
+  // Percentage points. Conversions / clicks, the same rate as the KPI review.
+  const cvrDecimal = cvrRate(totals.conversions, totals.clicks)
+  const cvr = cvrDecimal == null ? null : cvrDecimal * 100
   const cpcValue = cpc(totals.spend, totals.clicks)
   const cpaValue = cpa(totals.spend, totals.conversions)
   const cpvValue = cpv(totals.spend, totals.videoViews)

@@ -29,7 +29,12 @@ test("summarizeActuals returns null CPC / cost_per_result when clicks or results
   ])
   assert.equal(kpis.cpm, 8)
   assert.equal(kpis.ctr, 0)
-  assert.equal(kpis.cvr, 0)
+  assert.equal(kpis.cvr, null)
   assert.equal(kpis.cpc, null)
   assert.equal(kpis.cost_per_result, null)
+})
+
+test("summarizeActuals CVR is results over clicks in percentage points", () => {
+  const kpis = summarizeActuals([day({ spend: 80, impressions: 10_000, clicks: 200, results: 10 })])
+  assert.equal(kpis.cvr, 5)
 })
