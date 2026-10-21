@@ -59,6 +59,7 @@ export default defineConfig({
       "components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx",
       "components/dashboard/delivery/common/__tests__/deliveryChart.render.test.tsx",
       "components/clients/__tests__/PlatformAccountsSection.render.test.tsx",
+      "components/clients/__tests__/ConversionSettingsSection.render.test.tsx",
       "components/dashboard/campaign/__tests__/CampaignHeroBanner.test.tsx",
       "components/dashboard/campaign/__tests__/CampaignStatusStrip.test.tsx",
       "components/dashboard/campaign/__tests__/CampaignReadSection.test.tsx",
