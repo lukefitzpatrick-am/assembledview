@@ -14,7 +14,7 @@ type FixtureChannel = {
   group: string
   spend: number
   plannedBudget: number
-  metrics: { spendPacePct: number | null }
+  metrics: { spendPacePct: number | null; paceBand?: string | null }
 }
 
 type Fixture = {
@@ -70,9 +70,19 @@ test("channel pace uses net burst expected in the window, not flight elapsed", (
       if (!(channel.spend > 0) || !(channel.plannedBudget > 0)) continue
       const elapsedExpected = channel.plannedBudget * fixture.totals.timeElapsedPct
       const elapsedPace = channel.spend / elapsedExpected
+      // The TP10 fixtures were regenerated from the fixed assembler (9bd72f0a),
+      // so a live channel's saved pace must NOT be the flight-elapsed basis,
+      // and its saved band must match the saved pace.
+      const savedPace = channel.metrics.spendPacePct
+      assert.ok(savedPace != null && savedPace > 0, `${channel.group} fixture has a pace`)
       assert.ok(
-        Math.abs(elapsedPace - (channel.metrics.spendPacePct ?? NaN)) < 1e-6,
-        `${channel.group} fixture pace is the elapsed basis`,
+        Math.abs(elapsedPace - savedPace) > 0.01,
+        `${channel.group} fixture pace ${savedPace} is not the elapsed basis ${elapsedPace}`,
+      )
+      assert.equal(
+        reportPace(channel.spend, channel.spend / savedPace, true).paceBand,
+        channel.metrics.paceBand,
+        `${channel.group} fixture band matches its pace`,
       )
 
       const scheduleExpected = netBurstExpectedInWindow({
