@@ -1081,6 +1081,88 @@ def test_creative_slide():
     shutil.rmtree(work, ignore_errors=True)
 
 
+def conversion_payload(show_revenue=True, value_tracked=True):
+    data = chart_payload()
+    figures = {
+        "label": "Purchases",
+        "count": "1,234",
+        "conversions": "1,300",
+        "purchases": "1,234",
+        "leads": "0",
+        "revenue": "$45,678.50",
+        "spend": "$10.00",
+        "cpa": "$0.01",
+        "roas": "4.20",
+        "tracked": True,
+        "valueTracked": value_tracked,
+    }
+    data["summary"]["conversions"] = dict(figures)
+    data["channels"][0]["conversions"] = dict(figures)
+    data["conversions"] = {"headline": "purchases", "label": "Purchases", "showRevenue": show_revenue, "throughDate": "2026-10-20"}
+    return data
+
+
+def conversion_slides():
+    return {"slides": [
+        {
+            "type": "summary",
+            "variant": "stat-row",
+            "title": "Spend is {i:\"in\"}.",
+            "stats": [{"label": "Spend", "key": "summary.spend"}],
+            "outcome": "Spend is on plan.",
+        },
+        {
+            "type": "channel",
+            "variant": "chart",
+            "title": "Meta is {i:\"on track\"}.",
+            "chart": "charts.1",
+            "insight": "Meta spend and impressions are in the chart.",
+        },
+    ]}
+
+
+def build_conversion_deck(data, name):
+    build = load("build_report.py")
+    check = load("check_deck.py")
+    data_path = os.path.join(OUT, f"{name}.json")
+    out = os.path.join(OUT, f"{name}.pptx")
+    with open(data_path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle)
+    build.build(conversion_slides(), data, TEMPLATE, out, photos())
+    issues = check.check(out, data_path)
+    if issues:
+        fail(f"{name} did not open clean: {issues}")
+    report = check.number_issues(out, data_path)
+    if report["stray"]:
+        fail(f"{name} printed figures not in the payload: {report['stray']}")
+    return slide_text(out)
+
+
+def test_conversions_print_when_present():
+    os.makedirs(OUT, exist_ok=True)
+    text = build_conversion_deck(conversion_payload(), "conversions-on")
+    for label in ("Purchases", "1,234", "Revenue", "$45,678.50", "ROAS", "4.20x"):
+        if text.count(label) < 2:
+            fail(f"conversions {label} is not on both the summary and the channel slide: {text}")
+    hidden = build_conversion_deck(conversion_payload(show_revenue=False), "conversions-no-revenue")
+    if "Purchases" not in hidden or "Revenue" in hidden or "ROAS" in hidden:
+        fail(f"show revenue off still drew Revenue or ROAS: {hidden}")
+    untracked = build_conversion_deck(conversion_payload(value_tracked=False), "conversions-untracked")
+    if "Not tracked" not in untracked or "$45,678.50" in untracked:
+        fail(f"untracked revenue was printed: {untracked}")
+
+
+def test_conversions_absent_leave_deck_unchanged():
+    os.makedirs(OUT, exist_ok=True)
+    data = chart_payload()
+    data["conversions"] = None
+    data["channels"][0]["conversions"] = "Not yet reported"
+    text = build_conversion_deck(data, "conversions-off")
+    for label in ("Purchases", "Revenue", "ROAS", "Not tracked"):
+        if label in text:
+            fail(f"switch off still drew {label}: {text}")
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     test_missing_key()
@@ -1103,6 +1185,8 @@ def main():
     test_conversion_rate_note()
     test_detail_table_slide()
     test_creative_slide()
+    test_conversions_print_when_present()
+    test_conversions_absent_leave_deck_unchanged()
     print("tests OK")
 
 

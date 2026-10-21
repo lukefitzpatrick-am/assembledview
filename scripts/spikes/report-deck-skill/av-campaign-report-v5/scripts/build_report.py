@@ -726,17 +726,42 @@ def delivery_chart(slide, x, y, w, h, chart, path):
     return bottom
 
 
-def stat_pills(slide, path, entries):
-    """entries are (label, value, shape name). One row, y 1.95, height 0.75."""
+def stat_pills(slide, path, entries, top=1.95):
+    """entries are (label, value, shape name). One row, y 1.95 by default, height 0.75."""
     if not entries:
         return
     gap = 0.14
     width = (12.13 - gap * (len(entries) - 1)) / len(entries)
     for index, (label, value, at) in enumerate(entries):
         x = 0.6 + index * (width + gap)
-        pill(slide, x, 1.95, width, 0.75, K["sand"])
-        say(slide, x + 0.14, 2.02, width - 0.28, 0.34, value, at, size=14, color=K["forest"], font=HEAD)
-        say(slide, x + 0.14, 2.34, width - 0.28, 0.26, label, f"{at}.label", size=11, color=K["ink"])
+        pill(slide, x, top, width, 0.75, K["sand"])
+        say(slide, x + 0.14, top + 0.07, width - 0.28, 0.34, value, at, size=14, color=K["forest"], font=HEAD)
+        say(slide, x + 0.14, top + 0.39, width - 0.28, 0.26, label, f"{at}.label", size=11, color=K["ink"])
+
+
+NOT_TRACKED = "Not tracked"
+
+
+def conversion_entries(data, figures, at):
+    """CF5 conversions, as the Node deck prints them: the client's headline
+    (Purchases, Leads or Conversions), then Revenue and ROAS when the client
+    shows revenue. Empty when report-data.json has no conversions (switch off)
+    or this scope has no figures."""
+    settings = data.get("conversions") if isinstance(data, dict) else None
+    if not isinstance(settings, dict) or not isinstance(figures, dict):
+        return []
+    label = settings.get("label")
+    if not isinstance(label, str) or not label.strip():
+        label = "Conversions"
+    count = figures.get("count")
+    entries = [(label.strip(), str(count) if reported_value(count) else NOT_TRACKED, f"{at}.count")]
+    if settings.get("showRevenue") is True:
+        value_on = figures.get("tracked") is True and figures.get("valueTracked") is True
+        revenue = figures.get("revenue")
+        roas = figures.get("roas")
+        entries.append(("Revenue", str(revenue) if value_on and reported_value(revenue) else NOT_TRACKED, f"{at}.revenue"))
+        entries.append(("ROAS", f"{roas}x" if value_on and reported_value(roas) else NOT_TRACKED, f"{at}.roas"))
+    return entries
 
 
 def wrap_lines(text, width, per_inch):
@@ -807,7 +832,10 @@ def build_delivery_layout(deck, spec, index, fixed):
             fail(path if problem == "use variant cards" else f"{path}.chart", problem)
         chart = as_chart(DATA, spec.get("chart"))
         channel_index = channel_index_for_group(DATA, chart.get("group"))
-        stat_pills(slide, path, fixed_stat_values(path, channel_index))
+        channels = DATA.get("channels") if isinstance(DATA.get("channels"), list) else []
+        channel = channels[channel_index] if isinstance(channel_index, int) and channel_index < len(channels) else {}
+        conversions = conversion_entries(DATA, channel.get("conversions") if isinstance(channel, dict) else None, f"{path}.conversions")
+        stat_pills(slide, path, fixed_stat_values(path, channel_index) + conversions)
     else:
         chart_key = require(spec, "chart", f"{path}.chart")
         chart = as_chart(DATA, chart_key)
@@ -912,6 +940,12 @@ def build_summary(deck, spec, index):
     outcome = text_of(require(spec, "outcome", f"{path}.outcome"), f"{path}.outcome", 160)
     text_w = 10.1
     top = 4.22 + 0.3
+    # CF5: the client's conversions sit on their own row under the stats.
+    summary = DATA.get("summary") if isinstance(DATA, dict) else None
+    conversions = conversion_entries(DATA, summary.get("conversions") if isinstance(summary, dict) else None, f"{path}.conversions")
+    if conversions:
+        stat_pills(slide, path, conversions, top=4.36)
+        top = 4.36 + 0.75 + 0.3
     height = fitted_copy_height(outcome, text_w, 16)
     card(slide, 0.6, top, 12.13, height, K["sand"])
     tag(slide, 0.82, top + (height / 2) - 0.16, "Outcome", K["lime"], K["ink"])
