@@ -3,7 +3,7 @@ import test from "node:test"
 
 import { cpc, cpm, cpv } from "@/lib/money/rates"
 import { formatReportDate } from "@/lib/reports/campaignReport/formatters"
-import { campaignReportDownloadName } from "@/lib/reports/campaignReport/generateCampaignReportForMba"
+import { campaignReportDownloadName } from "@/lib/reports/campaignReport/downloadName"
 import { resolveCampaignReportPeriod } from "@/lib/reports/campaignReport/periods"
 import { formatReportMoney } from "@/lib/reports/campaignReport/formatters"
 import {

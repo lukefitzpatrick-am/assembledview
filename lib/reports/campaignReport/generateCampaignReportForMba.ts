@@ -22,7 +22,7 @@ import {
 } from "@/lib/reports/campaignReport/generateReportCommentary"
 import type { DeckDetailLevel } from "@/lib/reports/campaignReport/deckDetail"
 import type { CampaignReportPeriodKind } from "@/lib/reports/campaignReport/periods"
-import { campaignReportPeriodFilePart } from "@/lib/reports/campaignReport/reportFigures"
+import { campaignReportDownloadName } from "@/lib/reports/campaignReport/downloadName"
 import { storePerformanceReport } from "@/lib/reports/storePerformanceReport"
 
 export type CampaignReportPeriodInput = {
@@ -102,32 +102,9 @@ export function mpSearchEnabledFromFlags(flags: unknown): boolean {
   return false
 }
 
-function namePart(value: string, fallback: string): string {
-  const cleaned = value
-    .trim()
-    .replace(/[^\p{L}\p{N}]+/gu, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48)
-  return cleaned || fallback
-}
-
-/** Clean download name. Blob storage adds its own random suffix. */
-export function campaignReportDownloadName(input: {
-  clientName: string
-  campaignName: string
-  periodStartISO: string
-  periodEndISO?: string
-  periodKind?: CampaignReportPeriodKind
-}): string {
-  const client = namePart(input.clientName, "client")
-  const campaign = namePart(input.campaignName, "campaign")
-  const period = campaignReportPeriodFilePart({
-    kind: input.periodKind ?? "this_month",
-    startISO: input.periodStartISO,
-    endISO: input.periodEndISO ?? input.periodStartISO,
-  })
-  return `${client}-${campaign}-report-${period}.pptx`
-}
+// Pure helper lives in ./downloadName so light tests do not load this module's
+// Snowflake, Anthropic, deck and blob graph.
+export { campaignReportDownloadName }
 
 /**
  * Skip a blank deck when every line is unconnected or has not reported.

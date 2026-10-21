@@ -115,6 +115,7 @@ export default defineConfig({
       "components/dashboard/delivery/__tests__/shouldShowChannelAggregate.test.ts",
       "components/dashboard/delivery/__tests__/entityBreakdown.test.tsx",
       "components/dashboard/delivery/channels/__tests__/directDigitalChart.test.ts",
+      "lib/delivery/__tests__/deliveredTotals.test.ts",
       "components/ui/__tests__/data-table.test.tsx",
       "app/admin/reports/__tests__/OnDemandDecks.test.tsx",
     ],

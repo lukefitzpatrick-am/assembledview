@@ -194,7 +194,9 @@ test("revert flips status and logs", async () => {
   )
   store.tasks.length = 0
   store.emails.length = 0
-  const res = await runRelabelRevert(7, STAFF, deps)
+  // Fixed clock: the applied row is created 2026-09-20 and the revert window is
+  // 30 days, so the real clock made this test fail from 20 Oct 2026.
+  const res = await runRelabelRevert(7, STAFF, deps, new Date("2026-09-21T00:00:00.000Z"))
   assert.equal(res.status, 200)
   assert.equal(store.relabels[0]?.status, "reverted")
   assert.ok(store.logs.some((row) => row.action === "revert"))
