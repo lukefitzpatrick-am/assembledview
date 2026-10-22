@@ -95,4 +95,6 @@ export type CampaignDetailPayload = {
   notes: CampaignDetailNote[]
   scenarioLines: ScenarioLine[]
   clientId: number | null
+  /** Last day counted (P1). Cards, bursts and the row stop here. */
+  countTo?: string
 }

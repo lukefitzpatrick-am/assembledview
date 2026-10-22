@@ -17,7 +17,13 @@ const DAILY_METRICS: CampaignDetailMetric[] = ["spend", "impressions", "clicks",
 export function assembleCampaignDetailPayload(input: {
   row: CampaignPacingRow
   lines: LineCardModel[]
+  /** View day. The daily chart runs to it. */
   asOf: string
+  /**
+   * Last day counted (P1). Bursts and the scenario lines stop here and only
+   * read facts on or before it. Unset counts to `asOf`.
+   */
+  countTo?: string
   read?: CampaignRead | null
   notes?: CampaignDetailNote[]
   dailyFacts?: DailyFactPoint[]
@@ -26,6 +32,8 @@ export function assembleCampaignDetailPayload(input: {
   window?: CampaignDetailDailyWindow
 }): CampaignDetailPayload {
   const facts = input.dailyFacts ?? []
+  const countTo = input.countTo ?? input.asOf
+  const countedFacts = input.countTo ? facts.filter((fact) => fact.date <= countTo) : facts
   const built = DAILY_METRICS.map((metric) =>
     dailyFromFacts({
       facts,
@@ -43,7 +51,7 @@ export function assembleCampaignDetailPayload(input: {
     row: input.row,
     lines: input.lines,
     kpis: kpisFromLines(input.lines),
-    bursts: burstsFromLines(input.lines, input.asOf, facts),
+    bursts: burstsFromLines(input.lines, countTo, countedFacts),
     daily: {
       series: spend?.series ?? [],
       metric: "spend",
@@ -55,9 +63,10 @@ export function assembleCampaignDetailPayload(input: {
     notes: input.notes ?? [],
     scenarioLines: scenarioLinesFromDetail({
       lines: input.lines,
-      asOf: input.asOf,
+      asOf: countTo,
       expectedToDate: input.row.expectedToDate,
     }),
     clientId: input.clientId ?? null,
+    ...(input.countTo ? { countTo: input.countTo } : {}),
   }
 }

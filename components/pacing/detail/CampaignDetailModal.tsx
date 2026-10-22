@@ -275,6 +275,11 @@ export function CampaignDetailModal({
               <span className="num">{formatPercent(row?.timePct ?? 0, { decimals: 0 })} elapsed</span>
               <span className="num">{row?.daysLeft ?? "—"} days left</span>
               <time dateTime={asOf}>Updated {asOf}</time>
+              {payload?.countTo && payload.countTo !== asOf ? (
+                <span>
+                  Counted to <time dateTime={payload.countTo}>{payload.countTo}</time>
+                </span>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -505,7 +510,7 @@ export function CampaignDetailModal({
             <CampaignBurstsTab
               lines={payload.lines}
               bursts={payload.bursts}
-              asOf={asOf}
+              asOf={payload.countTo ?? asOf}
               campaignStart={payload.row.startDate}
               campaignEnd={payload.row.endDate}
               onPlanScenario={({ lineItemId, date_from, date_to }) => {

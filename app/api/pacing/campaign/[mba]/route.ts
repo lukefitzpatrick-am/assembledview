@@ -6,7 +6,6 @@ import {
   buildCampaignDetail,
   CampaignDetailError,
 } from "@/lib/pacing/detail/buildCampaignDetail"
-import { getAsOfDate } from "@/lib/pacing/maths"
 import { resolveClientSlugs } from "@/lib/pacing/scope/resolveClientSlugs"
 
 export const dynamic = "force-dynamic"
@@ -25,7 +24,8 @@ export async function GET(
   if (!gate.ok) return gate.response
 
   const { mba } = await context.params
-  const asOf = request.nextUrl.searchParams.get("asOfDate")?.trim() || getAsOfDate()
+  // View day; buildCampaignDetail counts to the day before (P1).
+  const asOf = request.nextUrl.searchParams.get("asOfDate")?.trim() || undefined
   const dateFrom = request.nextUrl.searchParams.get("date_from")?.trim() || undefined
   const dateTo = request.nextUrl.searchParams.get("date_to")?.trim() || undefined
   const allowedClientSlugs =

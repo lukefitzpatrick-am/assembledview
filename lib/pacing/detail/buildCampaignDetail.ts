@@ -18,7 +18,7 @@ import { reconcileLineExpected } from "@/lib/spend/channelExpectedToDate"
 import { loadAssumedExpectedLinesByVersion } from "@/lib/spend/loadAssumedExpectedLines"
 import type { LineCardModel } from "@/lib/pacing/channel/lineCardTypes"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
-import { getAsOfDate } from "@/lib/pacing/maths"
+import { resolveAdminPacingDays } from "@/lib/pacing/countTo"
 import {
   feePctForScheduleMedia,
   type FeePctsByVersionId,
@@ -28,6 +28,7 @@ import { assembleCampaignPacingRows } from "@/lib/pacing/portfolio/assembleCampa
 import { schedulesByMbaFromVersions } from "@/lib/pacing/portfolio/buildCampaignPacingRows"
 import { chooseCampaignDetailRow, scheduleLoadedForMba } from "./chooseCampaignDetailRow"
 import { readPortfolioSnapshot } from "@/lib/pacing/portfolio/portfolioSnapshotStore"
+import { snapshotMatchesCountTo } from "@/lib/pacing/portfolio/servePortfolioSnapshot"
 import type { CampaignPacingRow } from "@/lib/pacing/portfolio/types"
 import { fetchProgrammaticPacingCampaignRows } from "@/lib/pacing/programmatic/fetchProgrammaticPacingCampaignRows"
 import { fetchSocialPacingCampaignRows } from "@/lib/pacing/social/fetchSocialPacingCampaignRows"
@@ -44,6 +45,7 @@ import type { CampaignDetailDailyWindow, CampaignDetailPayload } from "./types"
 
 export type BuildCampaignDetailArgs = {
   mbaNumber: string
+  /** View day. Liveness and the daily chart window. Defaults to Melbourne today. */
   asOfDate?: string
   allowedClientSlugs: Set<string> | null
   window?: CampaignDetailDailyWindow
@@ -71,10 +73,12 @@ function sixtyDayStart(asOf: string): string {
 async function fetchMbaChannelRows(args: {
   mbaNumber: string
   asOfDate: string
+  countToDate: string
   allowedClientSlugs: Set<string> | null
 }) {
   const common = {
     asOfDate: args.asOfDate,
+    countToDate: args.countToDate,
     allowedClientSlugs: args.allowedClientSlugs,
     mbaNumber: args.mbaNumber,
   }
@@ -269,7 +273,8 @@ export async function buildCampaignDetail(
 ): Promise<CampaignDetailPayload> {
   const mba = args.mbaNumber.trim()
   if (!mba) throw new CampaignDetailError(400, "mba is required")
-  const asOf = args.asOfDate?.trim() || getAsOfDate()
+  // P1: counts to the day before the view day, like the client strip.
+  const { asOfDate: asOf, countToDate: countTo } = resolveAdminPacingDays(args.asOfDate)
   const mbaKey = normMba(mba)
 
   const snapshot = await readPortfolioSnapshot({
@@ -277,12 +282,16 @@ export async function buildCampaignDetail(
     scopeKey: pacingScopeKey(args.allowedClientSlugs),
     liveOnly: true,
   }).catch(() => null)
+  // A snapshot built before P1 counted to the view day: not comparable.
   const snapshotRow =
-    snapshot?.rows.find((row) => normMba(row.mbaNumber) === mbaKey) ?? null
+    snapshot && snapshotMatchesCountTo(snapshot, countTo)
+      ? (snapshot.rows.find((row) => normMba(row.mbaNumber) === mbaKey) ?? null)
+      : null
 
   const sources = await fetchMbaChannelRows({
     mbaNumber: mba,
     asOfDate: asOf,
+    countToDate: countTo,
     allowedClientSlugs: args.allowedClientSlugs,
   })
 
@@ -291,12 +300,13 @@ export async function buildCampaignDetail(
     versionIds.length > 0 ? readPlanVersionSchedulesByIds(versionIds) : Promise.resolve([]),
     loadDirectDigitalFeePctsOrGross(versionIds),
   ])
-  const builtLines = linesFromSources(sources, asOf, feePctsByVersionId)
+  const builtLines = linesFromSources(sources, countTo, feePctsByVersionId)
   const assumedByVersion = await loadAssumedExpectedLinesByVersion(versionIds, feePctsByVersionId)
   const schedulesByMba = schedulesByMbaFromVersions(scheduleVersions, assumedByVersion)
   const scheduleLoaded = scheduleLoadedForMba(schedulesByMba, mbaKey)
   const assembled = assembleCampaignPacingRows({
     asOfDate: asOf,
+    countToDate: countTo,
     allowedClientSlugs: args.allowedClientSlugs,
     search: sources.search,
     social: sources.social,
@@ -307,7 +317,7 @@ export async function buildCampaignDetail(
     feePctsByVersionId,
   })
   const freshRow = assembled.find((item) => normMba(item.mbaNumber) === mbaKey) ?? null
-  const lines = reconcileDetailLines(builtLines, freshRow?.channels, asOf)
+  const lines = reconcileDetailLines(builtLines, freshRow?.channels, countTo)
   const row =
     chooseCampaignDetailRow({
       mbaNumber: mba,
@@ -343,6 +353,7 @@ export async function buildCampaignDetail(
     row,
     lines,
     asOf,
+    countTo,
     read,
     notes,
     dailyFacts,
