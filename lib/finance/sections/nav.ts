@@ -92,6 +92,12 @@ export const CLIENTS_BILLING_TAB_ITEMS: readonly FinanceSectionNavItem[] = [
     legacyTab: "overview",
     description: "Finance period rail and runs",
   },
+  {
+    path: "/finance/owners",
+    label: "Owners",
+    legacyTab: "owners",
+    description: "Finance owner per client (FP-6)",
+  },
 ] as const
 
 /** @deprecated Use CLIENTS_BILLING_TAB_ITEMS or financeSectionPillsForPath — FIN-1 retired the global pill row. */
@@ -117,6 +123,7 @@ export const FINANCE_SECTION_PAGE_PATHS = [
   "/finance/forecasting",
   "/finance/reports/invoiced-vs-expected",
   "/finance/reports/plan-reconciliation",
+  "/finance/owners",
 ] as const
 
 /**
@@ -177,7 +184,9 @@ export function isClientsBillingPath(pathname: string): boolean {
     p === "/finance/periods" ||
     p.startsWith("/finance/periods/") ||
     p === "/finance/xero" ||
-    p.startsWith("/finance/xero/")
+    p.startsWith("/finance/xero/") ||
+    p === "/finance/owners" ||
+    p.startsWith("/finance/owners/")
   )
 }
 
@@ -189,7 +198,7 @@ export function isPublishersFinancePath(pathname: string): boolean {
 
 /**
  * In-shell tab pills for the current path.
- * Clients billing → To bill | In Xero | Owed | Exceptions | Periods.
+ * Clients billing → To bill | In Xero | Owed | Exceptions | Periods | Owners.
  * Periods is omitted when `periodsEnabled` is false (`FINANCE_PERIODS` off — FIN-8).
  * Publishers keeps CostsSubNav only (no shell pills).
  * Forecasting / Investment → none (dedicated sidebar items).

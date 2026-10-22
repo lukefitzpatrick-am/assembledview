@@ -31,6 +31,7 @@ import {
   type InvoicingClientBlockerMeta,
 } from "@/lib/finance/sections/invoicingRowPresentation"
 import { loadInvoicingClientBlockerMeta } from "@/lib/finance/sections/invoicingClientBlockerMeta"
+import { loadFinanceOwnerNames } from "@/lib/finance/financeOwners"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import type { MonthGroup } from "@/lib/finance/useReceivablesData"
 import {
@@ -91,6 +92,7 @@ function InvoicingMonthSections({
   onNotesSaved,
   onLineAmountCommitted,
   clientMetaById,
+  ownerNameByClientId,
   approveBusy,
   fy,
   onApproveReady,
@@ -111,6 +113,8 @@ function InvoicingMonthSections({
     ctx: import("@/lib/finance/commitInlineScheduleAmountEdit").InlineScheduleEditContext
   ) => void
   clientMetaById: Map<number, InvoicingClientBlockerMeta>
+  /** FP-6: finance owner per client. Empty until migration 0105 is applied. */
+  ownerNameByClientId: Map<number, string>
   approveBusy?: boolean
   fy: number
   onApproveReady?: (monthIso: string) => void
@@ -178,6 +182,7 @@ function InvoicingMonthSections({
                   onNotesSaved={onNotesSaved}
                   onLineAmountCommitted={onLineAmountCommitted}
                   clientMeta={clientMetaById.get(client.clientsId) ?? null}
+                  financeOwnerName={ownerNameByClientId.get(client.clientsId) ?? null}
                 />
               ))}
             </div>
@@ -215,6 +220,19 @@ export function InvoicingPageClient() {
     let cancelled = false
     void loadInvoicingClientBlockerMeta().then((map) => {
       if (!cancelled) setClientMetaById(map)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const [ownerNameByClientId, setOwnerNameByClientId] = useState<Map<number, string>>(
+    () => new Map()
+  )
+  useEffect(() => {
+    let cancelled = false
+    void loadFinanceOwnerNames().then((map) => {
+      if (!cancelled) setOwnerNameByClientId(map)
     })
     return () => {
       cancelled = true
@@ -394,6 +412,7 @@ export function InvoicingPageClient() {
                 onNotesSaved={handleNotesSaved}
                 onLineAmountCommitted={handleLineAmountCommitted}
                 clientMetaById={clientMetaById}
+                ownerNameByClientId={ownerNameByClientId}
                 approveBusy={approveBusy || isUpdating}
                 fy={applied.fy}
                 onSent={() => {

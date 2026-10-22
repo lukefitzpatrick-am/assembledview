@@ -86,7 +86,7 @@ test("sidebar snapshot is the Finance group", () => {
 test("Clients billing tabs; Forecasting/Investment/Publishers have no shell pills", () => {
   assert.deepEqual(
     CLIENTS_BILLING_TAB_ITEMS.map((i) => i.label),
-    ["To bill", "In Xero", "Owed", "Exceptions", "Periods"]
+    ["To bill", "In Xero", "Owed", "Exceptions", "Periods", "Owners"]
   )
   assert.deepEqual(
     CLIENTS_BILLING_TAB_ITEMS.map((i) => i.path),
@@ -96,13 +96,15 @@ test("Clients billing tabs; Forecasting/Investment/Publishers have no shell pill
       "/finance/owed",
       "/finance/xero",
       "/finance/periods",
+      "/finance/owners",
     ]
   )
-  assert.equal(financeSectionPillsForPath("/finance/invoicing").length, 5)
-  assert.equal(financeSectionPillsForPath("/finance/owed").length, 5)
-  assert.equal(financeSectionPillsForPath("/finance/in-xero").length, 5)
-  assert.equal(financeSectionPillsForPath("/finance/periods").length, 5)
-  assert.equal(financeSectionPillsForPath("/finance/xero/matches").length, 5)
+  assert.equal(financeSectionPillsForPath("/finance/invoicing").length, 6)
+  assert.equal(financeSectionPillsForPath("/finance/owed").length, 6)
+  assert.equal(financeSectionPillsForPath("/finance/in-xero").length, 6)
+  assert.equal(financeSectionPillsForPath("/finance/periods").length, 6)
+  assert.equal(financeSectionPillsForPath("/finance/xero/matches").length, 6)
+  assert.equal(financeSectionPillsForPath("/finance/owners").length, 6)
   assert.equal(financeSectionPillsForPath("/finance/costs").length, 0)
   assert.equal(financeSectionPillsForPath("/finance/forecasting").length, 0)
   assert.equal(financeSectionPillsForPath("/finance/investment").length, 0)
@@ -112,19 +114,19 @@ test("Clients billing hides Periods tab when FINANCE_PERIODS is off (FIN-8)", ()
   const pills = financeSectionPillsForPath("/finance/invoicing", { periodsEnabled: false })
   assert.deepEqual(
     pills.map((i) => i.label),
-    ["To bill", "In Xero", "Owed", "Exceptions"]
+    ["To bill", "In Xero", "Owed", "Exceptions", "Owners"]
   )
   assert.deepEqual(
     pills.map((i) => i.path),
-    ["/finance/invoicing", "/finance/in-xero", "/finance/owed", "/finance/xero"]
+    ["/finance/invoicing", "/finance/in-xero", "/finance/owed", "/finance/xero", "/finance/owners"]
   )
   assert.equal(
     financeSectionPillsForPath("/finance/xero", { periodsEnabled: false }).length,
-    4
+    5
   )
   assert.equal(
     financeSectionPillsForPath("/finance/invoicing", { periodsEnabled: true }).length,
-    5
+    6
   )
 })
 

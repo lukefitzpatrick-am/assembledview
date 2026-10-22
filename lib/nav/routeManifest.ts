@@ -762,6 +762,15 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     searchTerms: "periods clients billing",
   },
   {
+    path: "/finance/owners",
+    label: "Finance owners",
+    title: "Finance · Owners",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "finance owner responsibilities clients billing who does this client",
+  },
+  {
     path: "/finance/xero",
     label: "Exceptions",
     title: "Finance · Exceptions",

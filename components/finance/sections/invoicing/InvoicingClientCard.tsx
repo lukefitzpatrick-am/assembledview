@@ -27,6 +27,8 @@ type InvoicingClientCardProps = {
     ctx: InlineScheduleEditContext
   ) => void
   clientMeta?: InvoicingClientBlockerMeta | null
+  /** FP-6 finance owner name. Null shows nothing (no owner, or 0105 not applied). */
+  financeOwnerName?: string | null
 }
 
 export function InvoicingClientCard({
@@ -36,6 +38,7 @@ export function InvoicingClientCard({
   onNotesSaved,
   onLineAmountCommitted,
   clientMeta,
+  financeOwnerName = null,
 }: InvoicingClientCardProps) {
   const invCount =
     client.mediaPlans.reduce((n, mp) => n + mp.records.length, 0) +
@@ -56,6 +59,11 @@ export function InvoicingClientCard({
             {invCount} {invNoun}
             <span className="sr-only"> {monthLabel}</span>
           </p>
+          {financeOwnerName ? (
+            <p data-finance-owner="" className="truncate text-xs text-muted-foreground">
+              Finance owner: {financeOwnerName}
+            </p>
+          ) : null}
         </div>
         <p className="num shrink-0 text-sm font-semibold tabular-nums">{formatAUD(client.total)}</p>
       </header>

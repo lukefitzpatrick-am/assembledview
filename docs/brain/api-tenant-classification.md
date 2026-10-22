@@ -255,6 +255,8 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | POST | `/api/finance/send-to-accounts` | admin-only | requireFinanceAdmin | billing pack email + export stamp |
 | POST | `/api/finance/clear-for-issue` | admin-only | requireFinanceAdmin | clearance email now; writes one `finance_edits` row |
 | GET | `/api/finance/reports/invoiced-vs-expected` | admin-only | requireFinanceAdmin | invoiced vs expected view; `format=xlsx` downloads the workbook |
+| GET | `/api/finance/owners` | admin-only | requireFinanceAdmin | FP-6 finance owner per client and active team members; `{ ready: false }` until 0105 is applied |
+| PUT | `/api/finance/owners` | admin-only | requireFinanceAdmin | set or clear one client's finance owner; 409 `not_ready` until 0105 is applied |
 | GET | `/api/finance/reports/plan-reconciliation` | admin-only | requireFinanceAdmin | FP-2a read-only check: finance figure vs billing `schedule_months` per MBA-month; `view=gaps|all`, `format=xlsx` |
 | GET | `/api/finance/exports/download` | admin-only | requireFinanceAdmin | private Blob proxy for the pack files |
 | POST | `/api/finance/billing/notes` | admin-only | requireRole | `app/api/finance/billing/notes/route.ts` |
