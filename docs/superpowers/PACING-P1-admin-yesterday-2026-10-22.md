@@ -7,7 +7,7 @@ Luke's decision (22 Oct): admin pacing counts to Melbourne yesterday, like the c
 - View day (`asOfDate`): Melbourne today, or the toolbar day. Decides which campaigns are live and keys the caches and snapshots. The campaign lists do not change.
 - Count-to day (`countToDate`): the day before the view day. Expected, delivered, assumed spend, days elapsed, status and spend yesterday stop there.
 - A campaign starting on the view day is listed, reads not started, nothing expected.
-- A campaign that ended on the count-to day is fully expected and not yet completed. It is not live on the view day, so live-only lists still drop it (unchanged).
+- A campaign that ended on the count-to day is fully expected and not yet completed. Since 23 Oct it stays listed (see below) and reads Ended.
 - Helper: `lib/pacing/countTo.ts`.
 
 ## Commits (stage in this order)
@@ -66,3 +66,10 @@ Client strip (counts to 21 Oct):
 - Live-only lists keep using the view day, so a campaign that ended yesterday drops off on the morning after its last day. List it for one more day?
 - C2: a line with no saved KPI row still reads "KPI pending" even when it has a plan CPV. Count the plan CPV as a target?
 - sinch001 and golf025 strip parity (above).
+
+## Follow-ups decided 23 Oct 2026
+
+- Overview counts to the count-to day too (`56a12b44`).
+- Ended campaigns stay listed for `ENDED_CAMPAIGN_LISTED_DAYS` (7) days after their end date on portfolio, channel tabs, Overview, digest and Ava (`1ccffdbf`, `lib/pacing/endedCampaigns.ts`). They read Ended against the full flight.
+- C2: the plan CPV is always the CPV target; a line with a plan CPV is never KPI pending (`e1cc3826`).
+- Reddit VTR is 3-second views over impressions (`4f6d8e00`).
