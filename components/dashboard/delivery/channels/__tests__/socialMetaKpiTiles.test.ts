@@ -101,3 +101,44 @@ test("Meta CTR 8% under target is on track (review band), View rate uses 3-secon
   assert.equal(viewRate?.expected, "50.00%")
   assert.equal(viewRate?.status, "behind")
 })
+
+test("C7: Meta CPM tile target is the review plan rate (buyAmount), not media ÷ deliverables", () => {
+  const line: SocialLineItem = {
+    ...metaLine(),
+    buy_type: "CPM",
+    bursts: [
+      {
+        start_date: CAMPAIGN_START,
+        end_date: CAMPAIGN_END,
+        media_investment: 5000,
+        deliverables: 400_000,
+        budget_number: 5000,
+        startDate: CAMPAIGN_START,
+        endDate: CAMPAIGN_END,
+        budget: 5000,
+        buyAmount: 12,
+        mediaAmount: 5000,
+        calculatedValue: 400_000,
+      },
+    ] as unknown as SocialLineItem["bursts"],
+  }
+  const section = buildSocialMetaSection({
+    lineItems: [line],
+    snowflakeRows: [metaRow()],
+    campaignStart: CAMPAIGN_START,
+    campaignEnd: CAMPAIGN_END,
+    mbaNumber: "BICAU006",
+    kpiVersionNumber: 1,
+    kpiTargets: undefined,
+    lineItemTargets: new Map(),
+    filterRange: { start: null, end: null },
+    lastSyncedAt: null,
+    isAdmin: true,
+  })
+  const cpm = section.aggregate.kpiBand.tiles.find((t) => t.label === "CPM")
+  // Old burst path: $5,000 ÷ 400,000 × 1000 = $12.50. Review plan rate: buyAmount $12.00.
+  assert.equal(cpm?.expected, "$12.00")
+  assert.equal(cpm?.caption, "plan rate")
+  assert.equal(cpm?.value, "$20.00")
+  assert.equal(cpm?.status, "behind")
+})

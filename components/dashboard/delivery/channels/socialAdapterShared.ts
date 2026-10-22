@@ -3,9 +3,7 @@ import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-serv
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import {
-  aggregateRateTargetFromLineItems,
   aggregateRatioTargetFromLineItems,
-  deriveRateTargetFromBursts,
   getLineItemKpiRow,
 } from "@/lib/kpi/lineItemKpiTargets"
 import { applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
@@ -63,20 +61,6 @@ function tileMoney(value: number | null): string | null {
 
 function tilePct(value: number | null): string | null {
   return value == null ? null : fmtPct(value)
-}
-
-function sharedPlanCpm(items: SocialLineItem[]): number | undefined {
-  if (!items.length) return undefined
-  const rates: number[] = []
-  for (const item of items) {
-    const derived = deriveRateTargetFromBursts(burstsForLineItem(item), String(item.buy_type ?? ""))
-    if (derived?.kind !== "cpm") return undefined
-    rates.push(derived.value)
-  }
-  const first = rates[0]
-  if (first == null) return undefined
-  if (!rates.every((rate) => rate === first)) return undefined
-  return first
 }
 
 function isVideoBuySocial(lineItems: SocialLineItem[]): boolean {
@@ -221,35 +205,11 @@ function buildKpiTiles(input: {
   const cvrTarget = ratioTargetPercentPoints(cvrRaw)
   const vtrTarget = vtrRaw != null && vtrRaw > 0 ? normaliseRatioTarget(vtrRaw) : undefined
 
-  const cpmExpected = isPerLine
-    ? (() => {
-        const derived = deriveRateTargetFromBursts(burstsForLineItem(lineItem!), String(lineItem!.buy_type ?? ""))
-        return derived?.kind === "cpm" ? derived.value : undefined
-      })()
-    : (aggregateRateTargetFromLineItems(activeItems, "cpm") ?? undefined)
-
-  const cpvExpected = isPerLine
-    ? (() => {
-        const derived = deriveRateTargetFromBursts(burstsForLineItem(lineItem!), String(lineItem!.buy_type ?? ""))
-        return derived?.kind === "cpv" ? derived.value : undefined
-      })()
-    : (aggregateRateTargetFromLineItems(activeItems, "cpv") ?? undefined)
-
-  const cpmPlanned = sharedPlanCpm(isPerLine && lineItem ? [lineItem] : activeItems)
-  const cpmCaption = cpmPlanned != null ? `planned ${formatCurrency2dp(cpmPlanned)}` : undefined
-
   const tiles: KpiTileProps[] = []
 
   tiles.push({
     label: "CPM",
     value: tileMoney(kpis.cpm),
-    expected:
-      kpis.cpm != null && cpmExpected !== undefined ? formatCurrency2dp(cpmExpected) : undefined,
-    progress:
-      kpis.cpm != null && kpis.cpm > 0 && cpmExpected !== undefined && cpmExpected > 0
-        ? Math.max(0, Math.min(1, cpmExpected / kpis.cpm))
-        : undefined,
-    caption: cpmCaption,
     emptyHint: "none-recorded",
     accentColour,
   })
@@ -306,11 +266,6 @@ function buildKpiTiles(input: {
     tiles.push({
       label: "CPV",
       value: kpis.cpv == null ? "—" : formatCurrency2dp(kpis.cpv),
-      expected: cpvExpected !== undefined ? formatCurrency2dp(cpvExpected) : undefined,
-      progress:
-        kpis.cpv != null && kpis.cpv > 0 && cpvExpected !== undefined && cpvExpected > 0
-          ? Math.max(0, Math.min(1, cpvExpected / kpis.cpv))
-          : undefined,
       accentColour,
     })
   }
