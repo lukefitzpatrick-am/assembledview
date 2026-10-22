@@ -290,6 +290,11 @@ export type DeliveryLineSnapshot = {
   plannedViews?: number | null
   /** Plan buy type, trimmed and lowercased. The AVA summary strips this. */
   buyType?: string | null
+  /**
+   * Plan buy rate: burst `buyAmount`, weighted by burst media. On a CPV buy
+   * this is the plan CPV (the CPV target). The AVA summary strips this.
+   */
+  planBuyRate?: number | null
   /** Client label from the plan line. The AVA summary strips this. `name` stays the line id. */
   label?: string | null
   startDate: string | null
@@ -361,6 +366,7 @@ function lineForSummary(line: DeliveryLineSnapshot): DeliveryLineSnapshot {
     plannedClicks: _clicks,
     plannedViews: _views,
     buyType: _buyType,
+    planBuyRate: _planBuyRate,
     label: _label,
     ...rest
   } = line

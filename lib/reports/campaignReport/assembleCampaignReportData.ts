@@ -10,12 +10,7 @@ import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import type { DeliveryChannelGroup, DeliveryLineSnapshot } from "@/lib/ava/tools/summaries"
 import { readPlanVersionsByMba } from "@/lib/data/readMediaPlans"
 import { fetchCampaignKpis } from "@/lib/kpi/campaignKpi"
-import {
-  classifyStoredKpiPercentForScan,
-  formatStoredDecimalAsPercent,
-  KPI_RATIO_PERCENT_METRICS,
-} from "@/lib/kpi/percentUnits"
-import { CLIENT_KPI_METRIC_LABELS, type CampaignKPI } from "@/lib/kpi/types"
+import type { CampaignKPI } from "@/lib/kpi/types"
 import {
   capWindowAtMelbourneYesterday,
   clipWindowToCampaign,
@@ -50,12 +45,12 @@ import {
   campaignReportChannelLabel,
   campaignSpendIncludingAssumed,
   deliveryLinesForRates,
-  isBlankKpiTarget,
   rateMetricsFromLines,
   sumProratedDeliverable,
   type RateSourceLine,
 } from "@/lib/reports/campaignReport/reportFigures"
 import { buildDeckCharts, type DeckChart } from "@/lib/reports/campaignReport/deckCharts"
+import { buildKpiRows } from "@/lib/reports/campaignReport/kpiRows"
 import { buildDeckDetail, type DeckDetail, type DeckDetailLevel } from "@/lib/reports/campaignReport/deckDetail"
 import {
   conversionsByChannel,
@@ -282,79 +277,6 @@ function plannedCount(
     flight,
     period,
   )
-}
-
-function firstTarget(
-  rows: CampaignKPI[],
-  metric: "ctr" | "cpv" | "conversion_rate" | "vtr" | "frequency",
-): number | null {
-  for (const row of rows) {
-    const raw = row[metric]
-    if (isBlankKpiTarget(raw)) continue
-    const n = typeof raw === "number" ? raw : Number(raw)
-    if (Number.isFinite(n)) return n
-  }
-  return null
-}
-
-function buildKpiRows(
-  kpiRows: CampaignKPI[],
-  feed: { impressions: number; clicks: number; results: number; spend: number },
-): CampaignReportKpiRow[] {
-  const ratioSet = new Set<string>(KPI_RATIO_PERCENT_METRICS)
-  const metrics = ["ctr", "cpv", "conversion_rate", "vtr", "frequency"] as const
-  const out: CampaignReportKpiRow[] = []
-
-  for (const metric of metrics) {
-    const target = firstTarget(kpiRows, metric)
-    if (target === null) continue
-    const label = CLIENT_KPI_METRIC_LABELS[metric] ?? metric
-
-    if (ratioSet.has(metric)) {
-      const scan = classifyStoredKpiPercentForScan(target)
-      if (scan.ambiguous || scan.inferredUnit === "percent_points" || scan.inferredUnit === "anomalous") {
-        out.push({
-          metric,
-          label,
-          targetDisplay: "—",
-          actualDisplay: null,
-          omitted: true,
-          omitReason: "Pending KPI data review",
-        })
-        continue
-      }
-    }
-
-    let actual: number | null = null
-    if (metric === "ctr" && feed.impressions > 0) {
-      actual = feed.clicks / feed.impressions
-    } else if (metric === "conversion_rate" && feed.clicks > 0) {
-      actual = feed.results / feed.clicks
-    }
-
-    const targetDisplay = ratioSet.has(metric)
-      ? formatStoredDecimalAsPercent(target)
-      : metric === "cpv"
-        ? formatReportMoney(target)
-        : String(target)
-
-    const actualDisplay =
-      actual == null
-        ? null
-        : ratioSet.has(metric)
-          ? formatStoredDecimalAsPercent(actual)
-          : String(actual)
-
-    out.push({
-      metric,
-      label,
-      targetDisplay,
-      actualDisplay,
-      omitted: false,
-    })
-  }
-
-  return out
 }
 
 export type AssembleCampaignReportInput = {

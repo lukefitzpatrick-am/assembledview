@@ -11,6 +11,7 @@ import {
   extractPacingLineItemIdFromItem,
 } from "@/lib/pacing/delivery/lineItemIds"
 import { getAsOfDate } from "@/lib/pacing/maths"
+import { extractKpiReviewPlanLine } from "@/lib/kpi/kpiReview"
 import { classifySocialPacingPlatform } from "@/lib/pacing/social/resolveLiveSocialLineItems"
 import { getCampaignPacingData, type PacingRow } from "@/lib/snowflake/pacing-service"
 import { getSearchPacingData, type SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
@@ -121,6 +122,16 @@ type PlanLineMeta = {
   clientPaysForMedia: boolean
   /** Client-facing gantt label. `name` stays the line id. */
   label: string | null
+}
+
+/** Plan buy rate from the line's bursts (the KPI review's `buyAmount`). */
+function planBuyRateFromPlan(plan: PlanLineMeta | null | undefined): number | null {
+  if (!plan) return null
+  const rate = extractKpiReviewPlanLine(
+    { bursts: plan.bursts, buy_type: plan.buyType },
+    plan.plannedBudget ?? 0,
+  ).buyAmount
+  return rate != null && Number.isFinite(rate) && rate > 0 ? rate : null
 }
 
 function asNumber(value: unknown): number | null {
@@ -393,6 +404,7 @@ function buildLines(
       plannedImpressions: plan?.plannedImpressions ?? null,
       plannedClicks: plan?.plannedClicks ?? null,
       plannedViews: plan?.plannedViews ?? null,
+      planBuyRate: planBuyRateFromPlan(plan),
       startDate: plan?.startDate ?? null,
       endDate: plan?.endDate ?? null,
       spendToDate: delivered.spendToDate,
@@ -675,6 +687,7 @@ function assumedSnapshotLine(plan: PlanLineMeta, spend: number): DeliveryLineSna
     plannedImpressions: plan.plannedImpressions,
     plannedClicks: plan.plannedClicks,
     plannedViews: plan.plannedViews,
+    planBuyRate: planBuyRateFromPlan(plan),
     startDate: plan.startDate,
     endDate: plan.endDate,
     spendToDate: spend,

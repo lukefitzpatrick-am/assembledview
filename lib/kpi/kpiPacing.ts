@@ -184,6 +184,8 @@ export function collectCampaignKpiTargets(
 ): Partial<Record<KpiPacingMetric, number>> {
   const out: Partial<Record<KpiPacingMetric, number>> = {}
   for (const metric of KPI_PACING_METRICS) {
+    // CPV is the plan rate, never a saved target (23 Oct): saved cpv is not read.
+    if (metric === "cpv") continue
     for (const row of rows) {
       const raw = row[metric]
       if (raw === null || raw === undefined) continue

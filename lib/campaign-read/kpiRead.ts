@@ -4,6 +4,7 @@ import {
   kpiRowEligibleForReadBeat,
   type KpiReviewCard,
   type KpiReviewGroup,
+  type KpiReviewPlanLine,
 } from "@/lib/kpi/kpiReview"
 import { buildLineItemKpiTargetMap } from "@/lib/kpi/lineItemKpiTargets"
 import type { CampaignKPI } from "@/lib/kpi/types"
@@ -12,6 +13,22 @@ export { kpiRowEligibleForReadBeat }
 
 function countsTowardSpend(state: DeliveryLineSnapshot["deliveryState"]): boolean {
   return state === "reported" || state === "spend_only"
+}
+
+function positiveOrNull(value: number | null | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null
+}
+
+/** Plan fields the KPI review reads, from a delivery snapshot line. */
+export function planLineFromSnapshot(line: DeliveryLineSnapshot): KpiReviewPlanLine {
+  return {
+    buyType: line.buyType ?? "",
+    plannedSpend: typeof line.plannedBudget === "number" ? line.plannedBudget : 0,
+    buyAmount: positiveOrNull(line.planBuyRate),
+    plannedViews: positiveOrNull(line.plannedViews),
+    plannedImpressions: positiveOrNull(line.plannedImpressions),
+    plannedClicks: positiveOrNull(line.plannedClicks),
+  }
 }
 
 export function groupsFromDeliverySnapshot(channels: readonly DeliveryChannelGroup[]): KpiReviewGroup[] {
@@ -26,10 +43,13 @@ export function groupsFromDeliverySnapshot(channels: readonly DeliveryChannelGro
     let video3sViews = 0
     let spend = 0
     const plannedSpendByLineId: Record<string, number> = {}
+    const planByLineId: Record<string, KpiReviewPlanLine> = {}
     for (const line of ch.lines) {
       if (typeof line.plannedBudget === "number") {
         plannedSpendByLineId[line.lineItemId] = line.plannedBudget
       }
+      // CPV target is the plan CPV (23 Oct): the review reads it from the plan line.
+      planByLineId[line.lineItemId] = planLineFromSnapshot(line)
       if (line.deliveryState === "reported") {
         impressions += line.impressions
         clicks += line.clicks
@@ -44,7 +64,7 @@ export function groupsFromDeliverySnapshot(channels: readonly DeliveryChannelGro
       colour: "",
       lineItemIds: ch.lines.map((line) => line.lineItemId),
       plannedSpendByLineId,
-      planByLineId: {},
+      planByLineId,
       impressions,
       clicks,
       results,

@@ -34,7 +34,8 @@ export function buildResolvedKpiRowFromPacing(
     source: targets ? "saved" : "default",
     isManuallyEdited: false,
     ctr: targets?.ctr ?? null,
-    cpv: targets?.cpv ?? null,
+    // CPV target is the plan CPV (23 Oct); saved cpv is never read.
+    cpv: null,
     conversion_rate: targets?.conversionRate ?? null,
     vtr: targets?.vtr ?? null,
     frequency: targets?.frequency ?? null,

@@ -12,7 +12,8 @@ export function applySyncedTargetsToRow(synced: CampaignKPI): KpiTargets {
     publisher: synced.publisher ?? null,
     bidStrategy: synced.bid_strategy ?? null,
     ctr: synced.ctr,
-    cpv: synced.cpv,
+    // CPV target is the plan CPV (23 Oct); saved cpv is never read.
+    cpv: null,
     conversionRate: synced.conversion_rate,
     vtr: synced.vtr,
     frequency: synced.frequency,

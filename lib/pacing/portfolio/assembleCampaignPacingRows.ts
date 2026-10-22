@@ -318,11 +318,17 @@ function upsertChannel(campaign: DraftCampaign, next: DraftChannel): DraftChanne
   return existing
 }
 
-function kpiBits(targets: SearchPacingCampaignRow["kpiTargets"], hasActuals: boolean): {
+function kpiBits(
+  targets: SearchPacingCampaignRow["kpiTargets"],
+  hasActuals: boolean,
+  planCpvRate?: number | null,
+): {
   kpiTotal: number
   kpiTracked: number
 } {
-  if (!targets) return { kpiTotal: 0, kpiTracked: 0 }
+  // A plan CPV is always a target (23 Oct), with or without a saved KPI row.
+  const hasPlanCpv = planCpvRate != null && planCpvRate > 0
+  if (!targets && !hasPlanCpv) return { kpiTotal: 0, kpiTracked: 0 }
   return { kpiTotal: 1, kpiTracked: hasActuals ? 1 : 0 }
 }
 
@@ -767,7 +773,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       hasSource: true,
       hasFactRows: hasFacts,
       contributesSpend: true,
-      ...kpiBits(row.kpiTargets, hasFacts),
+      ...kpiBits(row.kpiTargets, hasFacts, row.planCpvRate),
     })
   }
 
@@ -808,7 +814,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       hasSource: Boolean(mapRow),
       hasFactRows: hasFacts,
       contributesSpend: !deferred,
-      ...kpiBits(row.kpiTargets, hasFacts),
+      ...kpiBits(row.kpiTargets, hasFacts, row.planCpvRate),
     })
   }
 

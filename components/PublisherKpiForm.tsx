@@ -74,11 +74,6 @@ function parsePlainMetric(raw: string): number | null {
   return Number.isFinite(v) ? v : null
 }
 
-function formatCpvForInput(value: number | null): string {
-  if (value === null) return ""
-  return `$${value.toFixed(4)}`
-}
-
 function formatFrequencyForInput(value: number | null): string {
   if (value === null) return ""
   return String(value)
@@ -719,7 +714,7 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
                   </div>
 
                   <div className="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                    {CLIENT_KPI_METRIC_FIELDS.map((field) => {
+                    {CLIENT_KPI_METRIC_FIELDS.filter((field) => field !== "cpv").map((field) => {
                       const error = savedErrors[row.id]?.[field]
                       const applyValue = (value: number | null) => {
                         updateSaved(row.id, { [field]: value } as Partial<PublisherKpi>)
@@ -750,17 +745,6 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
                                 defaultValue={formatPercentForInput(row[field])}
                                 disabled={anySaving}
                                 onBlur={(e) => applyValue(parsePercentHeuristic(e.target.value))}
-                              />
-                            ) : field === "cpv" ? (
-                              <input
-                                {...controlProps}
-                                type="text"
-                                inputMode="decimal"
-                                key={`pub-saved-cpv-${row.id}-${row.cpv}`}
-                                className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                                defaultValue={formatCpvForInput(row.cpv)}
-                                disabled={anySaving}
-                                onBlur={(e) => applyValue(parsePlainMetric(e.target.value))}
                               />
                             ) : (
                               <input
@@ -860,7 +844,7 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
                 </div>
 
                 <div className="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                  {CLIENT_KPI_METRIC_FIELDS.map((field) => {
+                  {CLIENT_KPI_METRIC_FIELDS.filter((field) => field !== "cpv").map((field) => {
                     const error = pendingErrors[row.tempId]?.[field]
                     const applyValue = (value: number | null) => {
                       updatePending(row.tempId, { [field]: value } as Partial<PublisherKpiInput>)
@@ -891,17 +875,6 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
                               defaultValue={formatPercentForInput(row[field])}
                               disabled={anySaving}
                               onBlur={(e) => applyValue(parsePercentHeuristic(e.target.value))}
-                            />
-                          ) : field === "cpv" ? (
-                            <input
-                              {...controlProps}
-                              type="text"
-                              inputMode="decimal"
-                              key={`pub-pend-cpv-${row.tempId}-${row.cpv}`}
-                              className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                              defaultValue={formatCpvForInput(row.cpv)}
-                              disabled={anySaving}
-                              onBlur={(e) => applyValue(parsePlainMetric(e.target.value))}
                             />
                           ) : (
                             <input

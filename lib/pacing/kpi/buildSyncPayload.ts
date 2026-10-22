@@ -20,7 +20,8 @@ export function buildSyncPayloadFromEditedRow(row: ResolvedKPIRow): CampaignKPI 
     bid_strategy: row.bid_strategy,
     line_item_id: row.lineItemId,
     ctr: row.ctr,
-    cpv: row.cpv,
+    // CPV is a plan rate, never a saved target (23 Oct).
+    cpv: null,
     conversion_rate: row.conversion_rate,
     vtr: row.vtr,
     frequency: row.frequency,

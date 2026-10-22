@@ -124,7 +124,9 @@ export function buildSocialKpiComparisons(row: SocialPacingCampaignRow): SocialK
  * reduction as Search's computeRowKpiStatus).
  */
 export function computeSocialRowKpiStatus(row: SocialPacingCampaignRow): RowKpiStatus {
-  if (row.kpiTargets === null) return "kpi-pending";
+  // A plan CPV is always a target (23 Oct): never "KPI pending" for CPV.
+  const hasPlanCpv = row.planCpvRate != null && row.planCpvRate > 0;
+  if (row.kpiTargets === null && !hasPlanCpv) return "kpi-pending";
 
   const comparisons = buildSocialKpiComparisons(row);
 

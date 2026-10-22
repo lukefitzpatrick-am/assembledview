@@ -268,7 +268,8 @@ export async function fetchProgrammaticPacingCampaignRows(
       publisher: ck.publisher ?? null,
       bidStrategy: ck.bid_strategy ?? null,
       ctr: ck.ctr,
-      cpv: ck.cpv,
+      // CPV target is the plan CPV (23 Oct); saved campaign_kpi.cpv is never read.
+      cpv: null,
       conversionRate: ck.conversion_rate,
       vtr: ck.vtr,
       frequency: ck.frequency,

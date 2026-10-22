@@ -149,7 +149,7 @@ describe("resolveDeliveredActual + build rows", () => {
     assert.deepEqual(rows, [])
   })
 
-  it("shows No delivery feed (not paced) for VTR / CPV / frequency", () => {
+  it("shows No delivery feed (not paced) for VTR / frequency; saved CPV is not read", () => {
     const rows = buildKpiPacingRows({
       campaignKpis: [
         kpi({ mba_number: "X", vtr: 0.5, cpv: 0.12, frequency: 3 }),
@@ -159,7 +159,10 @@ describe("resolveDeliveredActual + build rows", () => {
       endDate: "2026-12-31",
       asOfDate: "2026-06-01",
     })
-    assert.equal(rows.length, 3)
+    assert.deepEqual(
+      rows.map((row) => row.metric),
+      ["vtr", "frequency"],
+    )
     for (const row of rows) {
       assert.equal(row.kind, "no_delivery_feed")
       assert.equal(row.fallbackLabel, "No delivery feed")

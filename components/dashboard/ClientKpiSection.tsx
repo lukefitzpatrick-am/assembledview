@@ -789,7 +789,7 @@ export function ClientKpiSection({ clientName, urlSlug }: ClientKpiSectionProps)
         </div>
 
         <div className="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {CLIENT_KPI_METRIC_FIELDS.map((field) => (
+          {CLIENT_KPI_METRIC_FIELDS.filter((field) => field !== "cpv").map((field) => (
             <div key={field} className="min-w-0 space-y-1">
               <label className="text-xs font-medium text-muted-foreground">
                 {CLIENT_KPI_METRIC_LABELS[field] ?? field}
@@ -806,20 +806,6 @@ export function ClientKpiSection({ clientName, urlSlug }: ClientKpiSectionProps)
                     updateSaved(row.id, {
                       [field]: parsePercentHeuristic(e.target.value),
                     } as Partial<ClientKpi>)
-                  }
-                />
-              ) : field === "cpv" ? (
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  key={`saved-cpv-${row.id}-${row.cpv}`}
-                  className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                  defaultValue={`$${(row.cpv ?? 0).toFixed(4)}`}
-                  disabled={anySaving}
-                  onBlur={(e) =>
-                    updateSaved(row.id, {
-                      cpv: parseFloat(e.target.value.replace(/[^0-9.-]/g, "")) || 0,
-                    })
                   }
                 />
               ) : (
@@ -941,7 +927,7 @@ export function ClientKpiSection({ clientName, urlSlug }: ClientKpiSectionProps)
         </div>
 
         <div className="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {CLIENT_KPI_METRIC_FIELDS.map((field) => (
+          {CLIENT_KPI_METRIC_FIELDS.filter((field) => field !== "cpv").map((field) => (
             <div key={field} className="min-w-0 space-y-1">
               <label className="text-xs font-medium text-muted-foreground">
                 {CLIENT_KPI_METRIC_LABELS[field] ?? field}
@@ -958,20 +944,6 @@ export function ClientKpiSection({ clientName, urlSlug }: ClientKpiSectionProps)
                     updatePending(row.tempId, {
                       [field]: parsePercentHeuristic(e.target.value),
                     } as Partial<ClientKpiInput>)
-                  }
-                />
-              ) : field === "cpv" ? (
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  key={`pend-cpv-${row.tempId}-${row.cpv}`}
-                  className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                  defaultValue={`$${(row.cpv ?? 0).toFixed(4)}`}
-                  disabled={anySaving}
-                  onBlur={(e) =>
-                    updatePending(row.tempId, {
-                      cpv: parseFloat(e.target.value.replace(/[^0-9.-]/g, "")) || 0,
-                    })
                   }
                 />
               ) : (
