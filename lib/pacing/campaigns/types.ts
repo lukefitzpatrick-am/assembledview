@@ -72,6 +72,12 @@ export type SearchPacingCampaignRow = {
   campaignStatus: string; // master.campaign_status (lowercased)
   campaignStartDate: string; // master.campaign_start_date
   campaignEndDate: string; // master.campaign_end_date
+  /**
+   * Campaign ended before the view day; listed for ENDED_CAMPAIGN_LISTED_DAYS
+   * after its end date (`lib/pacing/endedCampaigns.ts`). Status is line spend
+   * ÷ line budget over the full flight.
+   */
+  campaignEnded?: boolean;
   brand: string | null; // versions.brand (if hydrated; may be null)
   platform: string;
   bidStrategy: string;

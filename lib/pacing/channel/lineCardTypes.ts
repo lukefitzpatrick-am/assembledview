@@ -70,6 +70,8 @@ export type LineCardModel = {
   sourceState: ChannelSourceState
   burstMonth: string | null
   verificationOnly: boolean
+  /** Campaign ended before the view day (listed for a week after its end). */
+  ended?: boolean
   channel: ChannelTabKey
   buyType: string | null
   fixedCost: boolean

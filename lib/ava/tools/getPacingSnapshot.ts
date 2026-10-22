@@ -46,6 +46,7 @@ function pickRowFields(channel: string, row: Record<string, unknown>): CompactPa
         : typeof row.budget === "number"
           ? row.budget
           : null,
+    ...(row.campaignEnded === true ? { ended: true } : {}),
   }
 }
 
@@ -53,7 +54,7 @@ export const getPacingSnapshotTool: AvaTool = {
   definition: {
     name: "get_pacing_snapshot",
     description:
-      "Pacing story for a client or MBA: plan summary from Xano plus compact cached pacing rows across search/social/programmatic/direct-booked-digital/direct. Spend and status count to Melbourne yesterday (`countedTo`), the same day as the client campaign page. Prefer when the user asks how delivery or pacing looks.",
+      "Pacing story for a client or MBA: plan summary from Xano plus compact cached pacing rows across search/social/programmatic/direct-booked-digital/direct. Spend and status count to Melbourne yesterday (`countedTo`), the same day as the client campaign page. Campaigns that ended in the last 7 days stay listed with `ended: true`; their status is full-flight spend against budget. Prefer when the user asks how delivery or pacing looks.",
     input_schema: {
       type: "object",
       properties: {

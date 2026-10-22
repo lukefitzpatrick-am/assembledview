@@ -2,7 +2,8 @@ import "server-only";
 
 import { fetchAllMasters } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows";
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs";
-import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
+import { type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
+import { isListedOnAdminPacing } from "@/lib/pacing/endedCampaigns";
 
 /** Default clients per page for attention lists (KPI counts use the full portfolio). */
 export const OVERVIEW_DEFAULT_PAGE_SIZE = 20;
@@ -60,11 +61,10 @@ export async function resolveOverviewClientScope(
   const slugSet = new Set<string>();
 
   for (const m of masters) {
-    if (!isLiveCampaignStatus(m.campaign_status, m.campaign_start_date, m.campaign_end_date, args.asOfDate)) continue;
+    // Live on the view day, or ended within ENDED_CAMPAIGN_LISTED_DAYS (23 Oct).
+    if (!isListedOnAdminPacing(m.campaign_status, m.campaign_start_date, m.campaign_end_date, args.asOfDate)) continue;
     if (!m.campaign_start_date || !m.campaign_end_date) continue;
-    if (args.asOfDate < m.campaign_start_date || args.asOfDate > m.campaign_end_date) {
-      continue;
-    }
+    if (args.asOfDate < m.campaign_start_date) continue;
     const slug = slugifyPlanClientName(m.mp_client_name);
     if (!slug) continue;
     if (

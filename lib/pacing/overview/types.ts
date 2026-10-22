@@ -44,6 +44,8 @@ export type OverviewAttentionItem = {
   spendToDate: number | null;
   /** Absolute path to the channel tab (filterable later). */
   href: string;
+  /** Campaign ended before the view day (listed for a week after its end). */
+  ended?: boolean;
 };
 
 export type OverviewStatusCounts = {

@@ -290,6 +290,9 @@ function CampaignGroup({
           <Badge variant={displayBandBadgeVariant(band)} size="sm" dot>
             {campaignPaceLabel(row)}
           </Badge>
+          {row.ended ? (
+            <span className="ml-1 text-[10px] text-muted-foreground">Ended {row.endDate}</span>
+          ) : null}
         </td>
         <td className="num px-3 py-2.5 text-right align-middle">
           {formatPercent(row.timePct, { decimals: 0 })}

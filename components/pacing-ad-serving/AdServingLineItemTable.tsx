@@ -436,6 +436,9 @@ export function AdServingLineItemTable({
                     ) : (
                       <AdServingNoDataBadge />
                     )}
+                    {row.campaignEnded ? (
+                      <span className="ml-1 text-[10px] text-muted-foreground">Ended</span>
+                    ) : null}
                   </td>
                   <td className="p-2 text-right num">{fmtNum(row.impressions)}</td>
                   {isColumnVisible("clicks", moreColumns) && (

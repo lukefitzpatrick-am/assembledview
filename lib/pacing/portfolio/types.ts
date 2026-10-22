@@ -57,6 +57,11 @@ export type CampaignPacingRow = {
    * Melbourne yesterday. A stored row without it was counted to its as-of day.
    */
   countToDate?: string
+  /**
+   * Campaign ended before the view day. Listed for ENDED_CAMPAIGN_LISTED_DAYS
+   * after its end (`lib/pacing/endedCampaigns.ts`); expected is the full flight.
+   */
+  ended?: boolean
 }
 
 export type PortfolioPacingCounts = {

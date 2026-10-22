@@ -260,6 +260,9 @@ export async function buildOverviewPayload(
               clicks: row.clicks,
               conversions: row.conversions,
               revenue: row.revenue,
+              campaignEnded: row.campaignEnded === true,
+              spendToDateLineTotal: row.spendToDateLineTotal,
+              totalLineItemBudget: row.totalLineItemBudget,
             },
             countToDate
           )
@@ -285,6 +288,9 @@ export async function buildOverviewPayload(
               clicks: row.clicks,
               conversions: 0,
               revenue: 0,
+              campaignEnded: row.campaignEnded === true,
+              spendToDateLineTotal: row.spendToDateLineTotal,
+              totalLineItemBudget: row.totalLineItemBudget,
             },
             countToDate
           )
@@ -312,6 +318,9 @@ export async function buildOverviewPayload(
               clicks: row.clicks,
               conversions: 0,
               revenue: 0,
+              campaignEnded: row.campaignEnded === true,
+              spendToDateLineTotal: row.spendToDateLineTotal,
+              totalLineItemBudget: row.totalLineItemBudget,
             },
             countToDate
           )

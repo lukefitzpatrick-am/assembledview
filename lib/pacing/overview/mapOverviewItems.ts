@@ -1,3 +1,4 @@
+import { endedLineStatus } from "@/lib/pacing/endedCampaigns";
 import { computePacing, type PacingStatus } from "@/lib/pacing/maths";
 import type {
   OverviewAttentionItem,
@@ -35,6 +36,10 @@ export type SpendWindowInput = {
   clicks: number;
   conversions?: number;
   revenue?: number;
+  /** Ended campaign listed for a week after its end (23 Oct): full-flight status. */
+  campaignEnded?: boolean;
+  spendToDateLineTotal?: number;
+  totalLineItemBudget?: number;
 };
 
 /**
@@ -49,6 +54,24 @@ export function mapSpendRowToOverviewItem(
 ): OverviewAttentionItem {
   const label = row.lineItemLabel?.trim() || row.lineItemId;
   const id = `${channel}:${row.mbaNumber}:${row.lineItemId}`;
+
+  if (row.campaignEnded) {
+    const budget = row.totalLineItemBudget ?? 0;
+    const spend = row.spendToDateLineTotal ?? 0;
+    return {
+      id,
+      channel,
+      clientName: row.clientName,
+      campaignName: row.campaignName,
+      mbaNumber: row.mbaNumber,
+      lineItemLabel: label,
+      status: endedLineStatus(spend, budget),
+      budget: budget > 0 ? budget : null,
+      spendToDate: spend,
+      href: CHANNEL_HREF[channel],
+      ended: true,
+    };
+  }
 
   if (row.currentBurst === null) {
     return {

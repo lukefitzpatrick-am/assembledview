@@ -40,7 +40,7 @@ function renderTable(rows: DigestCampaignRow[]): string {
       return `<tr>
         <td style="padding:8px 10px;border-bottom:1px solid ${BRAND.colour.line};font-family:${EMAIL_FONT_STACK};font-size:13px;color:${BRAND.colour.ink};">${escapeHtml(r.clientName)}</td>
         <td style="padding:8px 10px;border-bottom:1px solid ${BRAND.colour.line};font-family:${EMAIL_FONT_STACK};font-size:13px;color:${BRAND.colour.ink};">${escapeHtml(r.mbaNumber)}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid ${BRAND.colour.line};font-family:${EMAIL_FONT_STACK};font-size:13px;color:${BRAND.colour.ink};">${escapeHtml(r.campaignName)} <span style="color:${BRAND.colour.muted};">(${escapeHtml(r.channel)})</span></td>
+        <td style="padding:8px 10px;border-bottom:1px solid ${BRAND.colour.line};font-family:${EMAIL_FONT_STACK};font-size:13px;color:${BRAND.colour.ink};">${escapeHtml(r.campaignName)} <span style="color:${BRAND.colour.muted};">(${escapeHtml(r.channel)})${r.ended ? " · Ended" : ""}</span></td>
         <td style="padding:8px 10px;border-bottom:1px solid ${BRAND.colour.line};font-family:${EMAIL_FONT_STACK};font-size:13px;color:${BRAND.colour.ink};" align="right">${pctLabel(r.deliveredPct)}</td>
         <td style="padding:8px 10px;border-bottom:1px solid ${BRAND.colour.line};font-family:${EMAIL_FONT_STACK};font-size:13px;color:${BRAND.colour.ink};" align="right">${pctLabel(r.timeElapsedPct)}</td>
         <td style="padding:8px 10px;border-bottom:1px solid ${BRAND.colour.line};font-family:${EMAIL_FONT_STACK};font-size:13px;color:${BRAND.colour.ink};" align="right">${r.daysLeft == null ? "—" : String(r.daysLeft)}</td>

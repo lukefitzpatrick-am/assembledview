@@ -88,7 +88,12 @@ export function CampaignPacingCard({
             </span>
           </p>
         </div>
-        <StatusPill tone={displayBandBadgeVariant(band)} label={campaignPaceLabel(row)} size="sm" />
+        <div className="flex shrink-0 flex-col items-end gap-0.5">
+          <StatusPill tone={displayBandBadgeVariant(band)} label={campaignPaceLabel(row)} size="sm" />
+          {row.ended ? (
+            <span className="text-[10px] text-muted-foreground">Ended {row.endDate}</span>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2">

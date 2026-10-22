@@ -293,6 +293,9 @@ function AttentionSection({
                       ? "Behind"
                       : "Ahead"}
                 </Badge>
+                {item.ended ? (
+                  <span className="ml-1 text-[10px] text-muted-foreground">Ended</span>
+                ) : null}
               </td>
               <td className="num px-3 py-2 text-right">
                 {formatMoney(item.budget)}

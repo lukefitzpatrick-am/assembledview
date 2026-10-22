@@ -3,7 +3,8 @@ import "server-only"
 import { type VersionRow } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows"
 import { publishedVersionFromMaster } from "@/lib/mediaplan/publishedVersionGuard"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs"
-import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster"
+import { type MediaPlanMaster } from "@/lib/types/mediaPlanMaster"
+import { isListedOnAdminPacing } from "@/lib/pacing/endedCampaigns"
 import { boundedMap } from "@/lib/utils/boundedMap"
 
 /** Parallel per-master fetches; well under Launch-plan 100 req/s ceiling. */
@@ -65,11 +66,12 @@ export function filterLiveMasters(
   const wantMba = mbaNumber?.trim().toLowerCase() || ""
   return masters.filter((m) => {
     if (wantMba && norm(m.mba_number) !== wantMba) return false
-    if (!isLiveCampaignStatus(m.campaign_status, m.campaign_start_date, m.campaign_end_date, asOfDate)) {
+    // Live on the view day, or ended within ENDED_CAMPAIGN_LISTED_DAYS (23 Oct).
+    if (!isListedOnAdminPacing(m.campaign_status, m.campaign_start_date, m.campaign_end_date, asOfDate)) {
       return false
     }
     if (!m.campaign_start_date || !m.campaign_end_date) return false
-    if (asOfDate < m.campaign_start_date || asOfDate > m.campaign_end_date) return false
+    if (asOfDate < m.campaign_start_date) return false
     if (allowedClientSlugs !== null) {
       const slug = slugifyPlanClientName(m.mp_client_name)
       if (!slug || !allowedClientSlugs.has(slug)) return false

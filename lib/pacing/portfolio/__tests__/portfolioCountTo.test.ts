@@ -100,13 +100,10 @@ describe("portfolio counts to the count-to day (P1)", () => {
   })
 
   it("a campaign that ended on the count-to day is fully expected", () => {
-    // Not live on the view day, so only an all-campaigns build lists it.
-    assert.equal(
-      assemble(COUNT_TO).some((r) => r.mbaNumber === "p1oct003"),
-      false,
-    )
-    const row = assemble(COUNT_TO, false).find((r) => r.mbaNumber === "p1oct003")
+    // Not live on the view day; listed for a week after its end, read as ended (23 Oct).
+    const row = assemble(COUNT_TO).find((r) => r.mbaNumber === "p1oct003")
     assert.ok(row)
+    assert.equal(row.ended, true)
     assert.equal(Number(row.expectedToDate.toFixed(2)), 2_100)
     assert.equal(row.daysLeft, 0)
     assert.equal(row.pace, "on_track")

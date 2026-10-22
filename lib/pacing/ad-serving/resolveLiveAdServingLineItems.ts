@@ -1,5 +1,6 @@
 import "server-only";
 
+import { campaignEndedBefore } from "@/lib/pacing/endedCampaigns";
 import { findCurrentBurstIndex } from "@/lib/pacing/burst/currentBurst";
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts";
 import { type VersionRow } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows";
@@ -128,6 +129,7 @@ function mapDigitalRowToCampaignRow(
     campaignStatus: master.campaign_status.trim().toLowerCase(),
     campaignStartDate: master.campaign_start_date,
     campaignEndDate: master.campaign_end_date,
+    campaignEnded: campaignEndedBefore(master.campaign_end_date, asOfDate),
     brand: versionRow.brand ?? null,
     platform: String(dr.platform ?? "").trim(),
     bidStrategy: String(dr.bid_strategy ?? dr.bidStrategy ?? "").trim(),

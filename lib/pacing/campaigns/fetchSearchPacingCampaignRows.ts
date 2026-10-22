@@ -15,7 +15,8 @@ import {
 import { pacingStatus } from "@/lib/pacing/status";
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs";
 import { getSearchCampaignsPacingData } from "@/lib/snowflake/search-campaigns-pacing";
-import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
+import { type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
+import { campaignEndedBefore, endedLineStatus, isListedOnAdminPacing } from "@/lib/pacing/endedCampaigns";
 import { boundedMap } from "@/lib/utils/boundedMap";
 import { composerCountToISO } from "@/lib/pacing/countTo";
 
@@ -64,9 +65,10 @@ async function resolveSearchLineItemsFromPostgres(
   const wantMba = args.mbaNumber?.trim().toLowerCase() || "";
   const liveMasters = masters.filter((m) => {
     if (wantMba && norm(m.mba_number) !== wantMba) return false;
-    if (!isLiveCampaignStatus(m.campaign_status, m.campaign_start_date, m.campaign_end_date, args.asOfDate)) return false;
+    // Live on the view day, or ended within ENDED_CAMPAIGN_LISTED_DAYS (23 Oct).
+    if (!isListedOnAdminPacing(m.campaign_status, m.campaign_start_date, m.campaign_end_date, args.asOfDate)) return false;
     if (!m.campaign_start_date || !m.campaign_end_date) return false;
-    if (args.asOfDate < m.campaign_start_date || args.asOfDate > m.campaign_end_date) return false;
+    if (args.asOfDate < m.campaign_start_date) return false;
     if (args.allowedClientSlugs !== null) {
       const slug = slugifyPlanClientName(m.mp_client_name);
       if (!slug || !args.allowedClientSlugs.has(slug)) return false;
@@ -268,6 +270,7 @@ function mapSearchRowToCampaignRow(
     campaignStatus: master.campaign_status.trim().toLowerCase(),
     campaignStartDate: master.campaign_start_date,
     campaignEndDate: master.campaign_end_date,
+    campaignEnded: campaignEndedBefore(master.campaign_end_date, asOfDate),
     brand: versionRow.brand ?? null,
     platform: String(sr.platform ?? "").trim(),
     bidStrategy: String(sr.bid_strategy ?? sr.bidStrategy ?? "").trim(),
@@ -409,7 +412,10 @@ export async function fetchSearchPacingCampaignRows(
         ? row.spendRemainingCurrentBurst / row.burstDaysRemaining
         : null;
 
-    if (row.currentBurst === null) {
+    if (row.campaignEnded) {
+      // Ended campaign: full-flight spend ÷ line budget.
+      row.lineItemStatus = endedLineStatus(row.spendToDateLineTotal, row.totalLineItemBudget);
+    } else if (row.currentBurst === null) {
       row.lineItemStatus = "no-data";
     } else {
       const mathsOutput = computePacing({

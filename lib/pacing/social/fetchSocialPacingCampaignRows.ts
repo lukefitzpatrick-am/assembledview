@@ -20,6 +20,7 @@ import {
 import { pacingStatus } from "@/lib/pacing/status";
 import { queryPacingFact } from "@/lib/snowflake/pacing-fact";
 import { composerCountToISO } from "@/lib/pacing/countTo";
+import { endedLineStatus } from "@/lib/pacing/endedCampaigns";
 import { planCpvRateForLine } from "@/lib/pacing/kpi/planCpvRate";
 import type { CampaignKpiRow } from "@/lib/xano/campaignKpi";
 
@@ -195,7 +196,10 @@ export async function fetchSocialPacingCampaignRows(
           ? row.spendRemainingCurrentBurst / row.burstDaysRemaining
           : null;
 
-      if (row.currentBurst === null) {
+      if (row.campaignEnded) {
+        // Ended campaign: full-flight spend ÷ line budget.
+        row.lineItemStatus = endedLineStatus(row.spendToDateLineTotal, row.totalLineItemBudget);
+      } else if (row.currentBurst === null) {
         row.lineItemStatus = "no-data";
       } else {
         const mathsOutput = computePacing({

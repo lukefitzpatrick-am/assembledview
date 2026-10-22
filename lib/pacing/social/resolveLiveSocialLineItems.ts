@@ -1,5 +1,6 @@
 import "server-only";
 
+import { campaignEndedBefore } from "@/lib/pacing/endedCampaigns";
 import { findCurrentBurstIndex, inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst";
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts";
 import { type VersionRow } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows";
@@ -114,6 +115,7 @@ function mapSocialRowToCampaignRow(
     campaignStatus: master.campaign_status.trim().toLowerCase(),
     campaignStartDate: master.campaign_start_date,
     campaignEndDate: master.campaign_end_date,
+    campaignEnded: campaignEndedBefore(master.campaign_end_date, asOfDate),
     brand: versionRow.brand ?? null,
     platform,
     bidStrategy: String(sr.bid_strategy ?? sr.bidStrategy ?? "").trim(),

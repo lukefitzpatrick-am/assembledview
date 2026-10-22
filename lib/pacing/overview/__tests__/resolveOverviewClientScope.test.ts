@@ -153,6 +153,34 @@ describe("resolveOverviewClientScope", () => {
     expect(result.pageSlugs).toEqual(["live-client"])
   })
 
+  it("keeps a campaign for 7 days after its end date (23 Oct 2026)", async () => {
+    const masters = [
+      master({
+        id: 1,
+        mp_client_name: "Ended Seven Days Ago",
+        campaign_start_date: "2026-06-01",
+        campaign_end_date: "2026-06-24",
+      }),
+      master({
+        id: 2,
+        mp_client_name: "Ended Eight Days Ago",
+        campaign_start_date: "2026-06-01",
+        campaign_end_date: "2026-06-23",
+      }),
+    ]
+    const result = await resolveOverviewClientScope(
+      {
+        asOfDate: "2026-07-01",
+        accessAllowedClientSlugs: null,
+        page: 1,
+        pageSize: 40,
+      },
+      { fetchMasters: async () => masters as never[] }
+    )
+
+    expect(result.pageSlugs).toEqual(["ended-seven-days-ago"])
+  })
+
   it("clamps pageSize to OVERVIEW_MAX_PAGE_SIZE", async () => {
     const masters = Array.from({ length: 50 }, (_, i) =>
       master({ id: i + 1, mp_client_name: `Client ${i + 1}` })

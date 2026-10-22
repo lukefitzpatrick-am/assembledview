@@ -989,6 +989,11 @@ function StatusCell({ row }: { row: ProgrammaticPacingCampaignRow }) {
       <Badge variant={resolved.badgeVariant} size="sm" className="whitespace-nowrap text-[10px]">
         {resolved.label}
       </Badge>
+      {row.campaignEnded ? (
+        <span className="text-[10px] text-muted-foreground" title="Campaign ended. Status is full-flight spend against the line budget.">
+          Ended
+        </span>
+      ) : null}
       {row.spendPacingDeferredToDirect ? (
         <Link
           href="/pacing/direct"

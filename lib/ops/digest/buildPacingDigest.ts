@@ -44,6 +44,7 @@ function asSource(
     lineItemStartDate: string | null
     lineItemEndDate: string | null
     currentBurst: { startDate: string; endDate: string; budget: number } | null
+    campaignEnded?: boolean
   },
 ): DigestSourceRow {
   return {
@@ -67,6 +68,7 @@ function asSource(
           budget: row.currentBurst.budget,
         }
       : null,
+    ...(row.campaignEnded ? { campaignEnded: true } : {}),
   }
 }
 

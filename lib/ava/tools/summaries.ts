@@ -233,6 +233,8 @@ export type CompactPacingRow = {
   status: string
   spendToDate: number | null
   budget: number | null
+  /** Campaign ended before the view day (listed for a week after its end). Spend vs full budget. */
+  ended?: boolean
 }
 
 function matchesClientFilter(row: CompactPacingRow, clientSlug?: string): boolean {

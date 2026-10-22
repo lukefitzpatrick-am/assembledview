@@ -41,6 +41,8 @@ export type DigestSourceRow = {
   lineItemStartDate: string | null
   lineItemEndDate: string | null
   currentBurst: { startDate: string; endDate: string; budget: number } | null
+  /** Campaign ended before the view day (listed for a week after its end). */
+  campaignEnded?: boolean
 }
 
 export type DigestCampaignRow = {
@@ -53,6 +55,8 @@ export type DigestCampaignRow = {
   timeElapsedPct: number | null
   daysLeft: number | null
   lineItemCount: number
+  /** Campaign ended before the view day (listed for a week after its end). */
+  ended?: boolean
 }
 
 /** Map fetcher pill → digest band. `behind` surfaces as at-risk in the top section. */
@@ -133,6 +137,7 @@ export function digestRowsFromPortfolioCampaigns(
       timeElapsedPct: Number.isFinite(timePct) ? timePct / 100 : null,
       daysLeft: Number.isFinite(Number(row.daysLeft)) ? Number(row.daysLeft) : null,
       lineItemCount: lineItemCount > 0 ? lineItemCount : channels.length,
+      ...(row.ended ? { ended: true } : {}),
     }
   })
   return mapped.sort((a, b) => {
@@ -406,6 +411,7 @@ export function buildDigestCampaignRows(
     timeElapsedN: number
     daysLeftMin: number | null
     lineItemCount: number
+    ended: boolean
   }
 
   const map = new Map<string, Acc>()
@@ -414,8 +420,9 @@ export function buildDigestCampaignRows(
     const status = String(row.campaignStatus ?? "").toLowerCase()
     // Fetchers already scope to live plans; keep a soft filter for digests.
     if (status && status !== "live" && status !== "active" && status !== "in progress") {
-      // Still include when a current burst is active (live delivery window).
-      if (!row.currentBurst) continue
+      // Still include when a current burst is active (live delivery window),
+      // or the campaign ended within the listed week (full flight).
+      if (!row.currentBurst && !row.campaignEnded) continue
     }
 
     const band = pillToDigestBand(row.lineItemStatus)
@@ -438,6 +445,7 @@ export function buildDigestCampaignRows(
         timeElapsedN: metrics.timeElapsedPct != null ? 1 : 0,
         daysLeftMin: metrics.daysLeft,
         lineItemCount: 1,
+        ended: row.campaignEnded === true,
       })
       continue
     }
@@ -466,6 +474,7 @@ export function buildDigestCampaignRows(
       campaignName: acc.campaignName,
       channel: acc.channel,
       band: acc.band,
+      ...(acc.ended ? { ended: true } : {}),
       deliveredPct: acc.budget > 0 ? acc.spend / acc.budget : null,
       timeElapsedPct:
         acc.timeElapsedN > 0 ? acc.timeElapsedSum / acc.timeElapsedN : null,

@@ -726,7 +726,7 @@ function FragmentForLineItem({
           <td className="p-2 font-mono text-[10px]">{row.lineItemId}</td>
         )}
         <td className="p-2">
-          <StatusCell status={row.lineItemStatus} />
+          <StatusCell status={row.lineItemStatus} ended={row.campaignEnded === true} />
         </td>
         {isColumnVisible("creativeTargeting", moreColumns) && (
           <td className="p-2 max-w-[8rem] truncate" title={row.creativeTargeting}>
@@ -930,12 +930,25 @@ function AdSetRow({
   );
 }
 
-function StatusCell({ status }: { status: SocialPacingCampaignRow["lineItemStatus"] }) {
+function StatusCell({
+  status,
+  ended = false,
+}: {
+  status: SocialPacingCampaignRow["lineItemStatus"];
+  ended?: boolean;
+}) {
   const resolved = pacingStatusFromBand(status);
   return (
-    <Badge variant={resolved.badgeVariant} size="sm" className="whitespace-nowrap text-[10px]">
-      {resolved.label}
-    </Badge>
+    <div className="flex flex-col gap-0.5">
+      <Badge variant={resolved.badgeVariant} size="sm" className="whitespace-nowrap text-[10px]">
+        {resolved.label}
+      </Badge>
+      {ended ? (
+        <span className="text-[10px] text-muted-foreground" title="Campaign ended. Status is full-flight spend against the line budget.">
+          Ended
+        </span>
+      ) : null}
+    </div>
   );
 }
 

@@ -36,6 +36,7 @@ export default defineConfig({
       "lib/charts/__tests__/wrapGanttLabel.test.ts",
       "lib/api/dashboard/__tests__/client.test.ts",
       "lib/pacing/__tests__/statusUi.test.ts",
+      "lib/pacing/overview/__tests__/resolveOverviewClientScope.test.ts",
       "components/pacing/__tests__/PacingStatusSummary.test.tsx",
       "components/pacing/portfolio/__tests__/CampaignPacingCard.test.tsx",
       "components/pacing/portfolio/__tests__/PortfolioCardsBoard.test.tsx",

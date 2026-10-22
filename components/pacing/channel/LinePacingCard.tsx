@@ -111,9 +111,14 @@ export function LinePacingCard({
             </span>
           </p>
         </div>
-        <Badge variant={displayBandBadgeVariant(band)} size="sm" dot>
-          {paceLabel(model.pace)}
-        </Badge>
+        <div className="flex shrink-0 flex-col items-end gap-0.5">
+          <Badge variant={displayBandBadgeVariant(band)} size="sm" dot>
+            {paceLabel(model.pace)}
+          </Badge>
+          {model.ended ? (
+            <span className="text-[10px] text-muted-foreground">Ended</span>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2">

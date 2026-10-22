@@ -26,7 +26,7 @@ import { lineIsAssumedSpend } from "@/lib/pacing/direct/assumedSpendLine"
 import type { DirectCampaignGroup, DirectLineItemRow } from "@/lib/pacing/direct/types"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs"
-import { isLiveCampaignStatus } from "@/lib/types/mediaPlanMaster"
+import { campaignEndedBefore, isListedOnAdminPacing } from "@/lib/pacing/endedCampaigns"
 import { composerCountToISO, isIsoDay } from "@/lib/pacing/countTo"
 import {
   expectedSpendToDateFromDeliveryScheduleMonthly,
@@ -396,6 +396,9 @@ function sortCampaignRows(rows: CampaignPacingRow[]): CampaignPacingRow[] {
 }
 
 function whySentence(row: CampaignPacingRow): string {
+  if (row.ended) {
+    return `Ended ${row.endDate}. Delivered ${moneyLabel(row.spendToDate)} of ${moneyLabel(row.expectedToDate)} expected for the full flight (${Math.round(row.spendPct)}%).`
+  }
   if (isOverPacing(row)) {
     const channel =
       row.channels
@@ -982,7 +985,8 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
     }
     if (
       liveOnly &&
-      !isLiveCampaignStatus(draft.status, draft.startDate, draft.endDate, input.asOfDate)
+      // Live on the view day, or ended within ENDED_CAMPAIGN_LISTED_DAYS (23 Oct).
+      !isListedOnAdminPacing(draft.status, draft.startDate, draft.endDate, input.asOfDate)
     ) {
       continue
     }
@@ -1117,6 +1121,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       why: "",
       channels,
       ...(stampCountTo ? { countToDate: countTo } : {}),
+      ...(campaignEndedBefore(draft.endDate, input.asOfDate) ? { ended: true } : {}),
     }
     row.why = whySentence(row)
     assembled.push(row)

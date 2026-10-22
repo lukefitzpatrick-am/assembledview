@@ -146,6 +146,7 @@ function spendDraft(input: {
   kpis: LineCardKpi[]
   kpiStatus: LineCardModel["kpiStatus"]
   verificationOnly?: boolean
+  ended?: boolean
   channel: LineCardModel["channel"]
   buyType?: string | null
   fixedCost?: boolean
@@ -239,6 +240,7 @@ function spendDraft(input: {
     sourceState,
     burstMonth: burstMonthLabel(input.burstStart),
     verificationOnly: input.verificationOnly === true,
+    ...(input.ended ? { ended: true } : {}),
     channel: input.channel,
     buyType: input.buyType ?? null,
     fixedCost: input.fixedCost === true,
@@ -286,6 +288,7 @@ export function lineCardFromSearch(
   }
   const draft = spendDraft({
     client: row.clientName,
+    ended: row.campaignEnded === true,
     campaignName: row.campaignName,
     mba: row.mbaNumber,
     lineItemId: row.lineItemId,
@@ -363,6 +366,7 @@ export function lineCardFromSocial(
   })
   const draft = spendDraft({
     client: row.clientName,
+    ended: row.campaignEnded === true,
     campaignName: row.campaignName,
     mba: row.mbaNumber,
     lineItemId: row.lineItemId,
@@ -445,6 +449,7 @@ export function lineCardFromProgrammatic(
   })
   const draft = spendDraft({
     client: row.clientName,
+    ended: row.campaignEnded === true,
     campaignName: row.campaignName,
     mba: row.mbaNumber,
     lineItemId: row.lineItemId,
@@ -522,6 +527,7 @@ export function lineCardFromAdServing(
   const remainingLine = Math.max(0, planned - delivered)
   const draft: Draft = {
     client: row.clientName,
+    ...(row.campaignEnded ? { ended: true } : {}),
     campaignName: row.campaignName,
     mba: row.mbaNumber,
     clientSlug: slugifyPlanClientName(row.clientName),

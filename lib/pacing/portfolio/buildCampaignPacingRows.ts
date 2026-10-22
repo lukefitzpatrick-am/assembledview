@@ -31,7 +31,7 @@ import {
 import type { CampaignPacingRow, CampaignScheduleInput } from "@/lib/pacing/portfolio/types"
 import { loadAssumedExpectedLinesByVersion } from "@/lib/spend/loadAssumedExpectedLines"
 import type { AssumedExpectedLine } from "@/lib/spend/assumedSpend"
-import { isLiveCampaignStatus } from "@/lib/types/mediaPlanMaster"
+import { isListedOnAdminPacing } from "@/lib/pacing/endedCampaigns"
 
 export type BuildCampaignPacingRowsArgs = {
   /** View day. Liveness, versions read and cache keys. */
@@ -115,7 +115,8 @@ function scheduleFromVersion(row: Record<string, unknown>): CampaignScheduleInpu
 }
 
 /**
- * Distinct campaign ids whose current published tip passes `isLiveCampaignStatus`.
+ * Distinct campaign ids whose current published tip is listed on admin pacing:
+ * live on the view day, or ended within ENDED_CAMPAIGN_LISTED_DAYS.
  * An older approved or booked version does not count.
  */
 export function liveCampaignIdsFromVersions(
@@ -131,7 +132,7 @@ export function liveCampaignIdsFromVersions(
     const status = row.campaign_status == null ? null : String(row.campaign_status)
     const start = row.campaign_start_date == null ? null : String(row.campaign_start_date)
     const end = row.campaign_end_date == null ? null : String(row.campaign_end_date)
-    if (!isLiveCampaignStatus(status, start, end, asOfDate)) continue
+    if (!isListedOnAdminPacing(status, start, end, asOfDate)) continue
     if (!seen.has(key)) seen.set(key, mba)
   }
   return [...seen.values()]
