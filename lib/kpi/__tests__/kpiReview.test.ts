@@ -814,7 +814,7 @@ describe("C1b: Meta and TikTok VTR is 3-second views ÷ impressions", () => {
     }
   }
 
-  for (const family of ["social-meta", "social-tiktok"]) {
+  for (const family of ["social-meta", "social-tiktok", "social-reddit"]) {
     it(`${family} review VTR uses 3-second views and says so`, () => {
       const actuals = indexLineDeliveryActuals({
         pacingRows: [
@@ -844,8 +844,8 @@ describe("C1b: Meta and TikTok VTR is 3-second views ÷ impressions", () => {
     })
   }
 
-  it("Reddit and CM360 stay not tracked with the plain VTR label", () => {
-    for (const family of ["social-reddit", "digital-video"]) {
+  it("CM360 stays not tracked with the plain VTR label", () => {
+    for (const family of ["digital-video"]) {
       const actuals = indexLineDeliveryActuals({
         pacingRows: [{ lineItemId: "x1", impressions: 100_000, clicks: 0, results: 0, video3sViews: 40_000 }],
         searchLineItems: [],

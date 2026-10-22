@@ -209,10 +209,30 @@ describe("C1b: Meta View rate tile reads 3-second views", () => {
     assert.equal(tile?.progress, 0.8)
   })
 
-  it("without the flag the band VTR has no delivered value", () => {
+  it("Reddit band VTR reads 3-second views like Meta (23 Oct)", () => {
     const lineItemTargets = targets([kpi({ mba_number: "BICAU002", line_item_id: "bicau002sm1", vtr: 0.5 })])
     const [tile] = applyKpiBandTargetsFromPlan(tiles("View rate"), {
       key: "social-reddit",
+      items: [{ line_item_id: "bicau002sm1", buy_type: "cpm" }],
+      plannedSpendByLineId: { bicau002sm1: 10_000 },
+      impressions: 100_000,
+      clicks: 2_000,
+      results: 80,
+      views: 40_000,
+      spend: 4_000,
+      vtrThreeSecondViews: true,
+      lineItemTargets,
+      isAdmin: true,
+    })
+    assert.equal(tile?.expected, "50.00%")
+    assert.equal(tile?.status, "behind")
+    assert.equal(tile?.progress, 0.8)
+  })
+
+  it("without the flag the band VTR has no delivered value", () => {
+    const lineItemTargets = targets([kpi({ mba_number: "BICAU002", line_item_id: "bicau002sm1", vtr: 0.5 })])
+    const [tile] = applyKpiBandTargetsFromPlan(tiles("View rate"), {
+      key: "digital-video",
       items: [{ line_item_id: "bicau002sm1", buy_type: "cpm" }],
       plannedSpendByLineId: { bicau002sm1: 10_000 },
       impressions: 100_000,

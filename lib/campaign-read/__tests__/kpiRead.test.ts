@@ -70,7 +70,7 @@ test("a not-tracked KPI is not eligible for best/worst", () => {
   assert.equal(compact[0]?.rows.find((row) => row.metric === "ctr")?.eligibleForBestWorst, true)
 })
 
-test("C1b: campaign read treats Meta and TikTok 3-second views as VTR", () => {
+test("C1b: campaign read treats Meta, TikTok and Reddit 3-second views as VTR", () => {
   const line = {
     lineItemId: "bicau002sm1",
     plannedBudget: 10_000,
@@ -91,7 +91,7 @@ test("C1b: campaign read treats Meta and TikTok 3-second views as VTR", () => {
     [
       ["social_meta", true, true, 40_000],
       ["social_tiktok", true, true, 40_000],
-      ["social_reddit", false, false, null],
+      ["social_reddit", true, true, 40_000],
     ],
   )
 })

@@ -78,7 +78,7 @@ export type KpiReviewGroup = {
   views: number | null
   /**
    * Views VTR divides by: completes for the Channel Factory partner file,
-   * VIDEO_3S_VIEWS for Meta and TikTok (C1b). Null when the source has no VTR.
+   * VIDEO_3S_VIEWS for Meta, TikTok and Reddit (C1b). Null when the source has no VTR.
    */
   completes: number | null
   /** Spend the glance card shows (actual, reported, modelled, or estimated). */
@@ -87,15 +87,15 @@ export type KpiReviewGroup = {
   /** CM360 direct-digital estimate. The UI labels the dollar from this flag. */
   spendEstimated?: boolean
   vtrTracked: boolean
-  /** VTR is 3-second views ÷ impressions (Meta, TikTok). The review labels the row. */
+  /** VTR is 3-second views ÷ impressions (Meta, TikTok, Reddit). The review labels the row. */
   vtrThreeSecondViews?: boolean
 }
 
 /** Row label when VTR counts 3-second views. */
 export const VTR_THREE_SECOND_LABEL = "VTR (3-second views)"
 
-/** Families whose VTR is 3-second views ÷ impressions (C1b, 22 Oct 2026). */
-const THREE_SECOND_VTR_FAMILIES = new Set(["social-meta", "social-tiktok"])
+/** Families whose VTR is 3-second views ÷ impressions (C1b 22 Oct, Reddit 23 Oct 2026). */
+const THREE_SECOND_VTR_FAMILIES = new Set(["social-meta", "social-tiktok", "social-reddit"])
 
 export function vtrIsThreeSecondViews(family: string): boolean {
   return THREE_SECOND_VTR_FAMILIES.has(family)

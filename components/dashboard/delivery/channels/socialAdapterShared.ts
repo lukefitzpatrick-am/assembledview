@@ -166,7 +166,7 @@ function buildKpiTiles(input: {
   sectionKey: string
   plannedSpendByLineId: Record<string, number>
   isAdmin: boolean
-  /** Meta and TikTok: VTR is 3-second views ÷ impressions (C1b). */
+  /** Meta, TikTok and Reddit: VTR is 3-second views ÷ impressions (C1b). */
   vtrThreeSecondViews: boolean
 }): KpiTileProps[] {
   const {
@@ -447,7 +447,7 @@ export function buildSocialChannelSectionForPlatform(input: {
     sectionKey: key,
     plannedSpendByLineId,
     isAdmin,
-    vtrThreeSecondViews: platform !== "reddit",
+    vtrThreeSecondViews: true,
   })
 
   const knownPlanLineIds = activeItems
@@ -507,7 +507,7 @@ export function buildSocialChannelSectionForPlatform(input: {
           sectionKey: key,
           plannedSpendByLineId,
           isAdmin,
-          vtrThreeSecondViews: platform !== "reddit",
+          vtrThreeSecondViews: true,
         }),
       },
       chart: {

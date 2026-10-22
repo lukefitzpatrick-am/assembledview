@@ -8,6 +8,8 @@ import { buildSocialTiktokSection } from "../socialTiktokAdapter"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { SocialLineItem } from "@/lib/delivery/social/socialChannelCompute"
 import { partitionRedditDeliveryLines } from "@/lib/delivery/social/partitionRedditDeliveryLines"
+import { lineItemKpiKey } from "@/lib/kpi/lineItemKpiTargets"
+import type { CampaignKPI } from "@/lib/kpi/types"
 
 const CAMPAIGN_START = "2026-08-01"
 const CAMPAIGN_END = "2026-09-30"
@@ -98,6 +100,41 @@ test("Reddit line with SOCIAL_PACING_FACT rows renders spend, impressions and 3s
   const cpv = section.aggregate.kpiBand.tiles.find((tile) => tile.label === "CPV")
   assert.notEqual(viewRate?.value, "0.00%")
   assert.notEqual(cpv?.value, "$0.00")
+})
+
+test("Reddit View rate tile compares 3-second views ÷ impressions to the VTR target (23 Oct)", () => {
+  const lineItemTargets = new Map([
+    [
+      lineItemKpiKey("BICAU006", 1, "bicau006sm2"),
+      {
+        mp_client_name: "Test",
+        mba_number: "BICAU006",
+        version_number: 1,
+        campaign_name: "Camp",
+        media_type: "socialmedia",
+        publisher: "reddit",
+        bid_strategy: "cpm",
+        line_item_id: "bicau006sm2",
+        ctr: null,
+        cpv: null,
+        conversion_rate: null,
+        vtr: 0.05,
+        frequency: null,
+      } as CampaignKPI,
+    ],
+  ])
+  const section = buildSocialRedditSection({
+    lineItems: [redditLine()],
+    snowflakeRows: [redditRow()],
+    ...sharedInput,
+    lineItemTargets,
+    isAdmin: true,
+  } as Parameters<typeof buildSocialRedditSection>[0])
+  const viewRate = section.lineItems[0]?.block.kpiBand?.tiles.find((tile) => tile.label === "View rate")
+  // 12,450 ÷ 184,200 = 6.76% against a 5.00% target.
+  assert.equal(viewRate?.expected, "5.00%")
+  assert.notEqual(viewRate?.status, "no-data")
+  assert.equal(viewRate?.status, "ahead")
 })
 
 test("Reddit line without rows goes to Awaiting delivery, not the Reddit adapter twice", () => {

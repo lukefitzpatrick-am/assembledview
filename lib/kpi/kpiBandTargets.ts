@@ -78,7 +78,7 @@ export function kpiReviewGroupForBand(input: {
   spend: number | null
   spendModelled?: boolean
   vtrTracked?: boolean
-  /** Meta and TikTok: VTR is 3-second views ÷ impressions (C1b). */
+  /** Meta, TikTok and Reddit: VTR is 3-second views ÷ impressions (C1b). */
   vtrThreeSecondViews?: boolean
 }): KpiReviewGroup {
   const lineItemIds: string[] = []

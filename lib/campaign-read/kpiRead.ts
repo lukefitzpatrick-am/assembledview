@@ -16,8 +16,9 @@ function countsTowardSpend(state: DeliveryLineSnapshot["deliveryState"]): boolea
 
 export function groupsFromDeliverySnapshot(channels: readonly DeliveryChannelGroup[]): KpiReviewGroup[] {
   return channels.map((ch) => {
-    // C1b: Meta and TikTok VTR is 3-second views ÷ impressions.
-    const vtrThreeSecondViews = ch.group === "social_meta" || ch.group === "social_tiktok"
+    // C1b: Meta, TikTok and Reddit VTR is 3-second views ÷ impressions.
+    const vtrThreeSecondViews =
+      ch.group === "social_meta" || ch.group === "social_tiktok" || ch.group === "social_reddit"
     const vtrTracked = ch.group === "programmatic_video" || vtrThreeSecondViews
     let impressions = 0
     let clicks = 0
