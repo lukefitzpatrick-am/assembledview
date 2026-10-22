@@ -105,6 +105,47 @@ export function aaSupplierName(
   return String(item.network || item.platform || "").trim()
 }
 
+/** Media types split by bid strategy on the supplier sheet (not targeting). */
+const BID_STRATEGY_FORMAT = new Set([
+  "search",
+  "socialMedia",
+  "progDisplay",
+  "progVideo",
+  "progBvod",
+  "progAudio",
+  "progOoh",
+])
+
+/** snake_case codes and single lowercase words read as sentence case. */
+export function aaReadableLabel(value: unknown): string {
+  const text = String(value ?? "").trim()
+  if (/^[a-z0-9]+(_[a-z0-9]+)+$/.test(text) || /^[a-z]+$/.test(text)) {
+    const spaced = text.replace(/_/g, " ")
+    return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+  }
+  return text
+}
+
+/**
+ * Second key on the AA supplier sheet and the Insertions format column.
+ * Search, social and programmatic use bid strategy; production has none;
+ * everything else uses the schedule header2 (format, title, station, site).
+ */
+export function aaFormatLabel(mediaKey: string, item: LineItem): string {
+  if (mediaKey === "production") return ""
+  if (BID_STRATEGY_FORMAT.has(mediaKey)) {
+    const o = item as LineItem & { bid_strategy?: string }
+    return aaReadableLabel(o.bidStrategy ?? o.bid_strategy ?? "")
+  }
+  return aaReadableLabel(getScheduleHeaders(mediaKey, item).header2)
+}
+
+/** mediaKey -> supplier -> format or title -> month -> dollars. */
+export type AaMonthlyBySupplier = Record<
+  string,
+  Record<string, Record<string, Record<string, number>>>
+>
+
 function lineIsClientPays(item: LineItem): boolean {
   const o = item as LineItem & { client_pays_for_media?: boolean }
   return o.clientPaysForMedia === true || o.client_pays_for_media === true
@@ -197,7 +238,7 @@ export function addAaWorkbookSheets(
   args: {
     monthKeys: readonly string[]
     monthlyByChannel: Record<string, Record<string, number>>
-    monthlyBySupplier: Record<string, Record<string, Record<string, number>>>
+    monthlyBySupplier: AaMonthlyBySupplier
     mediaItems: MediaItems
   },
 ): void {
@@ -210,17 +251,19 @@ function addSupplierSheet(
   args: {
     monthKeys: readonly string[]
     monthlyByChannel: Record<string, Record<string, number>>
-    monthlyBySupplier: Record<string, Record<string, Record<string, number>>>
+    monthlyBySupplier: AaMonthlyBySupplier
   },
 ): void {
   const ws = workbook.addWorksheet(AA_SUPPLIER_SHEET)
   const monthKeys = args.monthKeys
-  const headers = ["Media type", "Supplier", ...monthKeys, "Total"]
+  const headers = ["Media type", "Supplier", "Format or title", ...monthKeys, "Total"]
+  const firstMonthCol = 4
   headers.forEach((label, index) => paintHeader(ws.getCell(1, index + 1), label))
   ws.getRow(1).height = 22
   ws.getColumn(1).width = 24
   ws.getColumn(2).width = 28
-  for (let c = 3; c <= headers.length; c++) ws.getColumn(c).width = 16
+  ws.getColumn(3).width = 30
+  for (let c = firstMonthCol; c <= headers.length; c++) ws.getColumn(c).width = 16
 
   let row = 2
   const grandByMonth: Record<string, number> = {}
@@ -241,32 +284,44 @@ function addSupplierSheet(
     const names = Object.keys(suppliers).sort((a, b) => a.localeCompare(b))
     const label = MEDIA_LABEL[mediaKey] ?? mediaKey
     for (const name of names) {
-      const months = suppliers[name] ?? {}
-      paintText(ws.getCell(row, 1), label)
-      paintText(ws.getCell(row, 2), name)
-      monthKeys.forEach((month, index) => {
-        paintMoney(ws.getCell(row, 3 + index), monthTotal(months, month))
-      })
-      paintMoney(ws.getCell(row, 3 + monthKeys.length), rowTotal(months, monthKeys))
-      row++
+      const formats = suppliers[name] ?? {}
+      const formatNames = Object.keys(formats).sort((a, b) => a.localeCompare(b))
+      for (const format of formatNames) {
+        const months = formats[format] ?? {}
+        paintText(ws.getCell(row, 1), label)
+        paintText(ws.getCell(row, 2), name)
+        paintText(ws.getCell(row, 3), format)
+        monthKeys.forEach((month, index) => {
+          paintMoney(ws.getCell(row, firstMonthCol + index), monthTotal(months, month))
+        })
+        paintMoney(ws.getCell(row, firstMonthCol + monthKeys.length), rowTotal(months, monthKeys))
+        row++
+      }
     }
     const channel = args.monthlyByChannel[mediaKey]
     paintText(ws.getCell(row, 1), label, true)
     paintText(ws.getCell(row, 2), "Subtotal", true)
+    paintText(ws.getCell(row, 3), "", true)
     monthKeys.forEach((month, index) => {
-      paintMoney(ws.getCell(row, 3 + index), monthTotal(channel, month), true, ARGB_SAND)
+      paintMoney(ws.getCell(row, firstMonthCol + index), monthTotal(channel, month), true, ARGB_SAND)
     })
-    paintMoney(ws.getCell(row, 3 + monthKeys.length), rowTotal(channel, monthKeys), true, ARGB_SAND)
+    paintMoney(
+      ws.getCell(row, firstMonthCol + monthKeys.length),
+      rowTotal(channel, monthKeys),
+      true,
+      ARGB_SAND,
+    )
     row++
   }
 
   paintText(ws.getCell(row, 1), "Total", true)
   paintText(ws.getCell(row, 2), "", true)
+  paintText(ws.getCell(row, 3), "", true)
   monthKeys.forEach((month, index) => {
-    paintMoney(ws.getCell(row, 3 + index), grandByMonth[month] ?? 0, true, ARGB_LIME)
+    paintMoney(ws.getCell(row, firstMonthCol + index), grandByMonth[month] ?? 0, true, ARGB_LIME)
   })
   paintMoney(
-    ws.getCell(row, 3 + monthKeys.length),
+    ws.getCell(row, firstMonthCol + monthKeys.length),
     dollarsFromPartCents(monthKeys.map((month) => grandByMonth[month] ?? 0)),
     true,
     ARGB_LIME,
@@ -302,11 +357,10 @@ function addInsertionsSheet(workbook: ExcelJS.Workbook, mediaItems: MediaItems):
     for (const item of items) {
       if (lineIsClientPays(item)) continue
       const bonus = isBonusBuyType(item.buyType)
-      const headersForLine = getScheduleHeaders(media.scheduleKey, item)
       paintText(ws.getCell(row, 1), lineId(item))
       paintText(ws.getCell(row, 2), media.label)
       paintText(ws.getCell(row, 3), aaSupplierName(media.scheduleKey, item))
-      paintText(ws.getCell(row, 4), headersForLine.header2)
+      paintText(ws.getCell(row, 4), aaFormatLabel(media.scheduleKey, item))
       paintDate(ws.getCell(row, 5), utcCivilDate(item.startDate))
       paintDate(ws.getCell(row, 6), utcCivilDate(item.endDate))
       paintDate(ws.getCell(row, 7), weekCommencingMonday(item.startDate))

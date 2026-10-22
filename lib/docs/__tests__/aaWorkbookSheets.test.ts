@@ -5,7 +5,12 @@ import test from "node:test"
 import ExcelJS from "exceljs"
 import JSZip from "jszip"
 
-import { AA_INSERTIONS_SHEET, AA_SUPPLIER_SHEET } from "../aaWorkbookSheets.js"
+import {
+  AA_INSERTIONS_SHEET,
+  AA_SUPPLIER_SHEET,
+  aaFormatLabel,
+  aaReadableLabel,
+} from "../aaWorkbookSheets.js"
 import { addKPISheet, generateMediaPlan } from "@/lib/generateMediaPlan"
 import type { KPISheetRow, LineItem, MediaItems, MediaPlanHeader } from "@/lib/generateMediaPlan"
 import { toCents } from "@/lib/money"
@@ -433,3 +438,155 @@ function dateYmd(value: ExcelJS.CellValue): string {
   const day = String(value.getUTCDate()).padStart(2, "0")
   return `${year}-${month}-${day}`
 }
+
+function sheetRows(sheet: ExcelJS.Worksheet, width: number): string[][] {
+  const rows: string[][] = []
+  for (let row = 1; row <= sheet.rowCount; row++) {
+    const cells: string[] = []
+    for (let col = 1; col <= width; col++) cells.push(cellText(sheet.getCell(row, col)))
+    rows.push(cells)
+  }
+  return rows
+}
+
+test("aaReadableLabel turns codes into sentence case and leaves names alone", () => {
+  assert.equal(aaReadableLabel("small_format"), "Small format")
+  assert.equal(aaReadableLabel("street_furniture"), "Street furniture")
+  assert.equal(aaReadableLabel("large_format"), "Large format")
+  assert.equal(aaReadableLabel("transit"), "Transit")
+  assert.equal(aaReadableLabel("Australian Financial Review"), "Australian Financial Review")
+  assert.equal(aaReadableLabel("Nova 96.9"), "Nova 96.9")
+  assert.equal(aaReadableLabel("Large Format"), "Large Format")
+  assert.equal(aaReadableLabel(""), "")
+  assert.equal(aaReadableLabel(undefined), "")
+})
+
+test("aaFormatLabel picks bid strategy, header2 or nothing by media type", () => {
+  const base = line({ network: "JCDecaux", gross: "1", id: "X", rate: "1" })
+  assert.equal(aaFormatLabel("ooh", { ...base, oohFormat: "street_furniture" }), "Street furniture")
+  assert.equal(
+    aaFormatLabel("newspaper", { ...base, title: "Australian Financial Review" }),
+    "Australian Financial Review",
+  )
+  assert.equal(aaFormatLabel("radio", { ...base, station: "Nova 96.9" }), "Nova 96.9")
+  assert.equal(aaFormatLabel("digiDisplay", { ...base, site: "news.com.au" }), "news.com.au")
+  assert.equal(
+    aaFormatLabel("search", { ...base, bidStrategy: "target_cpa", targeting: "Brand terms" }),
+    "Target cpa",
+  )
+  const snake = { ...base, targeting: "Prospecting" } as LineItem & { bid_strategy?: string }
+  snake.bid_strategy = "Maximise conversions"
+  assert.equal(aaFormatLabel("progDisplay", snake), "Maximise conversions")
+  assert.equal(aaFormatLabel("socialMedia", { ...base, targeting: "Lookalike" }), "")
+  assert.equal(aaFormatLabel("production", { ...base, creative: "TVC edit" }), "")
+})
+
+test("AA monthly-by-supplier splits each supplier by format, title or bid strategy", async () => {
+  const items = baselineItems()
+  items.ooh = [
+    ...(items.ooh ?? []),
+    line({
+      network: "JCDecaux",
+      oohFormat: "small_format",
+      gross: "300",
+      id: "OH3",
+      rate: "300",
+      buyType: "panels",
+    }),
+  ]
+  items.search = [
+    {
+      ...line({
+        network: "",
+        platform: "Google Ads - AM",
+        buyType: "cpc",
+        gross: "100",
+        id: "SE1",
+        rate: "1",
+        deliverables: 100,
+      }),
+      bidStrategy: "Maximise conversions",
+      targeting: "Brand terms",
+    },
+    {
+      ...line({
+        network: "",
+        platform: "Google Ads - AM",
+        buyType: "cpc",
+        gross: "40",
+        id: "SE2",
+        rate: "1",
+        deliverables: 40,
+      }),
+      bidStrategy: "target_cpa",
+      targeting: "Generic terms",
+    },
+  ]
+  items.production = [
+    {
+      ...line({
+        network: "Acme Studio",
+        buyType: "production",
+        gross: "250",
+        id: "PR1",
+        rate: "250",
+      }),
+      creative: "TVC edit",
+    },
+  ]
+
+  const workbook = await generateMediaPlan(header, items, mba, { asOf, mbaTotalsLayout: "aa" })
+  const supplier = workbook.getWorksheet(AA_SUPPLIER_SHEET)!
+  const monthCount = supplier.columnCount - 4
+  assert.deepEqual(sheetRows(supplier, 3)[0], ["Media type", "Supplier", "Format or title"])
+  assert.equal(cellText(supplier.getCell(1, 4 + monthCount)), "Total")
+
+  const rows = sheetRows(supplier, 3)
+  const ooh = rows.filter((row) => row[0] === "OOH")
+  assert.deepEqual(ooh, [
+    ["OOH", "JCDecaux", "Large format"],
+    ["OOH", "JCDecaux", "Small format"],
+    ["OOH", "oOh! media", "Large format"],
+    ["OOH", "Subtotal", ""],
+  ])
+
+  const totalCol = 4 + monthCount
+  const oohStart = rows.findIndex((row) => row[0] === "OOH") + 1
+  const sum = (from: number, count: number, col: number) => {
+    let cents = 0
+    for (let r = from; r < from + count; r++) cents += toCents(Number(supplier.getCell(r, col).value))
+    return cents
+  }
+  for (let col = 4; col <= totalCol; col++) {
+    assert.equal(
+      sum(oohStart, 3, col),
+      toCents(Number(supplier.getCell(oohStart + 3, col).value)),
+      `OOH col ${col}`,
+    )
+  }
+  assert.equal(toCents(Number(supplier.getCell(oohStart, totalCol).value)), toCents(1000))
+  assert.equal(toCents(Number(supplier.getCell(oohStart + 1, totalCol).value)), toCents(300))
+  assert.equal(toCents(Number(supplier.getCell(oohStart + 3, totalCol).value)), toCents(1800))
+
+  const search = rows.filter((row) => row[0] === "Search")
+  assert.deepEqual(search, [
+    ["Search", "Google Ads - AM", "Maximise conversions"],
+    ["Search", "Google Ads - AM", "Target cpa"],
+    ["Search", "Subtotal", ""],
+  ])
+  assert.equal(rows.some((row) => row[2] === "Brand terms" || row[2] === "Generic terms"), false)
+
+  const production = rows.filter((row) => row[0] === "Production")
+  assert.deepEqual(production, [
+    ["Production", "Acme Studio", ""],
+    ["Production", "Subtotal", ""],
+  ])
+
+  const insertions = workbook.getWorksheet(AA_INSERTIONS_SHEET)!
+  const formatById = new Map<string, string>()
+  for (let row = 2; row <= insertions.rowCount; row++) {
+    formatById.set(cellText(insertions.getCell(row, 1)), cellText(insertions.getCell(row, 4)))
+  }
+  assert.equal(formatById.get("OH1"), "Large format")
+  assert.equal(formatById.get("OH3"), "Small format")
+})
