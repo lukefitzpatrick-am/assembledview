@@ -1,5 +1,6 @@
 import { PACING_STATUS_THRESHOLDS, projectionVarianceBounds } from "@/lib/pacing/status"
 import { div0 } from "./div0"
+import { roas as purchaseRoas } from "@/lib/delivery/conversions/rules"
 
 // Status strings from V_LINE_ITEM_PACING; order in computeStatus matches SQL CASE order.
 // Band edges come from PACING_STATUS_THRESHOLDS (percent of expected).
@@ -23,7 +24,14 @@ export type PacingMathsInput = {
   impressionsToDate: number
   clicksToDate: number
   conversionsToDate: number
+  /** Search fact revenue (all conversion value). Not used for ROAS (C5). */
   revenueToDate: number
+  /**
+   * Purchase-category conversion value from the conversions read, as the
+   * CF4 tiles use. ROAS is only computed from this. Unset or null: ROAS is
+   * not tracked on this surface.
+   */
+  purchaseRevenueToDate?: number | null
   asOfDate?: string
 }
 
@@ -44,8 +52,17 @@ export type PacingMathsOutput = {
   cpc: number
   cpa: number
   cr: number
-  roas: number
+  /** Purchase revenue ÷ spend. Null when purchase revenue is not available: show "Not tracked". */
+  roas: number | null
   status: PacingStatus
+}
+
+/** Label for a pacing ROAS that has no purchase revenue on the surface (C5). */
+export const PACING_ROAS_NOT_TRACKED = "Not tracked"
+
+/** ROAS display: "4.25x", or "Not tracked". Never all conversion value. */
+export function pacingRoasLabel(roas: number | null | undefined): string {
+  return typeof roas === "number" && Number.isFinite(roas) ? `${roas.toFixed(2)}x` : PACING_ROAS_NOT_TRACKED
 }
 
 function parseYmdUtc(ymd: string): number {
@@ -170,14 +187,16 @@ function computeKpis(input: {
   impressionsToDate: number
   clicksToDate: number
   conversionsToDate: number
-  revenueToDate: number
-}): { ctr: number; cpc: number; cpa: number; cr: number; roas: number } {
+  purchaseRevenueToDate?: number | null
+}): { ctr: number; cpc: number; cpa: number; cr: number; roas: number | null } {
+  const purchase = input.purchaseRevenueToDate
   return {
     ctr: div0(input.clicksToDate, input.impressionsToDate),
     cpc: div0(input.spendToDate, input.clicksToDate),
     cpa: div0(input.spendToDate, input.conversionsToDate),
     cr: div0(input.conversionsToDate, input.clicksToDate),
-    roas: div0(input.revenueToDate, input.spendToDate),
+    // C5: purchase revenue only (rules.roas), never all search conversion value.
+    roas: typeof purchase === "number" ? purchaseRoas(purchase, input.spendToDate) : null,
   }
 }
 
@@ -202,7 +221,7 @@ export function computePacing(input: PacingMathsInput): PacingMathsOutput {
     impressionsToDate: input.impressionsToDate,
     clicksToDate: input.clicksToDate,
     conversionsToDate: input.conversionsToDate,
-    revenueToDate: input.revenueToDate,
+    purchaseRevenueToDate: input.purchaseRevenueToDate,
   })
 
   const status = computeStatus({

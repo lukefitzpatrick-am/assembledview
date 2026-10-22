@@ -34,7 +34,8 @@ test("computePacing: curatif002se1 Stage 1b metrics (budget stub; KPIs from Snow
   nearEqual(output.cpc, 66917.67 / 35157, 1e-4)
   nearEqual(output.cpa, 66917.67 / 1366.31, 1e-4)
   nearEqual(output.cr, 1366.31 / 35157, 1e-6)
-  nearEqual(output.roas, 273650.35 / 66917.67, 1e-4)
+  // C5: search revenue is all conversion value, so ROAS is not tracked here.
+  assert.equal(output.roas, null)
 
   assert.notEqual(output.status, "unknown")
   assert.equal(output.status, "under_pacing")
@@ -52,7 +53,6 @@ test("computePacing: curatif002se1 Stage 1b metrics (budget stub; KPIs from Snow
     "cpc",
     "cpa",
     "cr",
-    "roas",
   ] as const) {
     assert.ok(Number.isFinite(output[k]), `${k} should be finite`)
   }
