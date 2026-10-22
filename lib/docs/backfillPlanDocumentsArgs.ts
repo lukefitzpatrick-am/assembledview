@@ -5,6 +5,9 @@
  * plus `--version` select that version row even when it is not the master's
  * current `published_version_id`. `isVersionPublished` still gates generate.
  * `--kinds media_plan,aa_media_plan,mba_pdf` defaults to all three.
+ * `--refresh-before <ISO>` selects current published pointers whose stored
+ * file jsonb `uploadedAt` is earlier than the given time (stale files) and
+ * regenerates them with force. It cannot be combined with `--out`.
  */
 
 import {
@@ -40,6 +43,8 @@ export type BackfillPlanDocumentsArgs = {
   version: number | null
   outDir: string | null
   kinds: PlanDocumentKind[]
+  /** Normalised ISO timestamp; null when `--refresh-before` is absent. */
+  refreshBefore: string | null
 }
 
 export type PlanDocumentFileBag = Record<PlanDocumentKind, unknown>
@@ -48,6 +53,19 @@ function parseVersion(raw: string | undefined): number | null {
   if (raw == null || !raw.trim()) return null
   const n = Number.parseInt(raw.trim(), 10)
   return Number.isFinite(n) && n > 0 ? n : null
+}
+
+const ISO_DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/
+
+function parseRefreshBefore(raw: string | undefined): string {
+  const value = raw?.trim() ?? ""
+  const ms = ISO_DATE_PREFIX.test(value) ? Date.parse(value) : Number.NaN
+  if (!Number.isFinite(ms)) {
+    throw new Error(
+      `--refresh-before needs an ISO date/time (e.g. 2026-10-19T04:30:00Z), got "${raw ?? ""}"`,
+    )
+  }
+  return new Date(ms).toISOString()
 }
 
 function parseKindsFlag(raw: string | undefined): PlanDocumentKind[] {
@@ -68,6 +86,35 @@ export function missingRequestedKinds(
   kinds: PlanDocumentKind[],
 ): PlanDocumentKind[] {
   return kinds.filter((kind) => !hasPlanDocumentFile(files[kind]))
+}
+
+/** `uploadedAt` string on a stored file jsonb, or null (legacy Xano rows have none). */
+export function planDocumentUploadedAt(value: unknown): string | null {
+  if (!hasPlanDocumentFile(value)) return null
+  const uploadedAt = (value as Record<string, unknown>).uploadedAt
+  return typeof uploadedAt === "string" && uploadedAt.trim()
+    ? uploadedAt.trim()
+    : null
+}
+
+/**
+ * Requested kinds whose stored file has an `uploadedAt` earlier than
+ * `refreshBefore`. Missing files, and files without a parseable
+ * `uploadedAt`, are never stale (legacy files are left alone).
+ */
+export function staleRequestedKinds(
+  files: PlanDocumentFileBag,
+  kinds: PlanDocumentKind[],
+  refreshBefore: string,
+): PlanDocumentKind[] {
+  const cutoff = Date.parse(refreshBefore)
+  if (!Number.isFinite(cutoff)) return []
+  return kinds.filter((kind) => {
+    const uploadedAt = planDocumentUploadedAt(files[kind])
+    if (!uploadedAt) return false
+    const ms = Date.parse(uploadedAt)
+    return Number.isFinite(ms) && ms < cutoff
+  })
 }
 
 export function countMissingByKind(
@@ -94,6 +141,7 @@ export function parseBackfillPlanDocumentsArgs(
   let version: number | null = null
   let outDir: string | null = null
   let kindsRaw: string | undefined
+  let refreshBefore: string | null = null
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!
@@ -120,10 +168,18 @@ export function parseBackfillPlanDocumentsArgs(
       i++
     } else if (arg.startsWith("--kinds=")) {
       kindsRaw = arg.slice("--kinds=".length)
+    } else if (arg === "--refresh-before") {
+      refreshBefore = parseRefreshBefore(argv[i + 1])
+      i++
+    } else if (arg.startsWith("--refresh-before=")) {
+      refreshBefore = parseRefreshBefore(arg.slice("--refresh-before=".length))
     }
   }
 
   const trimmedOut = outDir?.trim() ? outDir.trim() : null
+  if (refreshBefore && trimmedOut) {
+    throw new Error("--refresh-before cannot be combined with --out")
+  }
   if (trimmedOut) {
     apply = false
     force = true
@@ -136,6 +192,7 @@ export function parseBackfillPlanDocumentsArgs(
     version,
     outDir: trimmedOut,
     kinds: parseKindsFlag(kindsRaw),
+    refreshBefore,
   }
 }
 

@@ -7,6 +7,7 @@ import {
   countMissingByKind,
   parseBackfillPlanDocumentsArgs,
   planDocumentOutFilenames,
+  staleRequestedKinds,
 } from "@/lib/docs/backfillPlanDocumentsArgs"
 
 describe("parseBackfillPlanDocumentsArgs", () => {
@@ -70,6 +71,99 @@ describe("parseBackfillPlanDocumentsArgs", () => {
       parseBackfillPlanDocumentsArgs(["--kinds=mba_pdf,mba_pdf"]).kinds,
       ["mba_pdf"],
     )
+  })
+
+  it("defaults refreshBefore to null", () => {
+    assert.equal(parseBackfillPlanDocumentsArgs([]).refreshBefore, null)
+  })
+
+  it("parses --refresh-before and --refresh-before= to a normalised ISO string", () => {
+    const parsed = parseBackfillPlanDocumentsArgs([
+      "--refresh-before",
+      "2026-10-19T04:30:00Z",
+      "--kinds",
+      "aa_media_plan",
+    ])
+    assert.equal(parsed.refreshBefore, "2026-10-19T04:30:00.000Z")
+    assert.deepEqual(parsed.kinds, ["aa_media_plan"])
+    assert.equal(parsed.apply, false)
+    assert.equal(parsed.outDir, null)
+    assert.equal(
+      parseBackfillPlanDocumentsArgs(["--refresh-before=2026-10-19T14:30:00+10:00"])
+        .refreshBefore,
+      "2026-10-19T04:30:00.000Z",
+    )
+  })
+
+  it("rejects an invalid or missing --refresh-before value", () => {
+    assert.throws(
+      () => parseBackfillPlanDocumentsArgs(["--refresh-before", "yesterday"]),
+      /--refresh-before needs an ISO date\/time/,
+    )
+    assert.throws(
+      () => parseBackfillPlanDocumentsArgs(["--refresh-before", "2026-13-45T99:00:00Z"]),
+      /--refresh-before needs an ISO date\/time/,
+    )
+    assert.throws(
+      () => parseBackfillPlanDocumentsArgs(["--refresh-before"]),
+      /--refresh-before needs an ISO date\/time/,
+    )
+  })
+
+  it("rejects --refresh-before combined with --out", () => {
+    assert.throws(
+      () =>
+        parseBackfillPlanDocumentsArgs([
+          "--refresh-before",
+          "2026-10-19T04:30:00Z",
+          "--out",
+          "tmp/x",
+          "--mba",
+          "PENFOLD020",
+          "--version",
+          "29",
+        ]),
+      /--refresh-before cannot be combined with --out/,
+    )
+  })
+})
+
+describe("staleRequestedKinds", () => {
+  const cutoff = "2026-10-19T04:30:00.000Z"
+
+  it("selects only requested kinds whose uploadedAt is before the cutoff", () => {
+    const files = {
+      mba_pdf: { url: "https://x", uploadedAt: "2026-10-01T00:00:00.000Z" },
+      media_plan: { url: "https://x", uploadedAt: "2026-10-20T00:00:00.000Z" },
+      aa_media_plan: { url: "https://x", uploadedAt: "2026-10-19T04:29:59.000Z" },
+    }
+    assert.deepEqual(
+      staleRequestedKinds(files, ["mba_pdf", "media_plan", "aa_media_plan"], cutoff),
+      ["mba_pdf", "aa_media_plan"],
+    )
+    assert.deepEqual(staleRequestedKinds(files, ["aa_media_plan"], cutoff), ["aa_media_plan"])
+    assert.deepEqual(staleRequestedKinds(files, ["media_plan"], cutoff), [])
+  })
+
+  it("never selects missing files, legacy files without uploadedAt, or unparseable values", () => {
+    const files = {
+      mba_pdf: null,
+      media_plan: { path: "https://xano/vault/x.xlsx", name: "x.xlsx" },
+      aa_media_plan: { url: "https://x", uploadedAt: "not a date" },
+    }
+    assert.deepEqual(
+      staleRequestedKinds(files, ["mba_pdf", "media_plan", "aa_media_plan"], cutoff),
+      [],
+    )
+  })
+
+  it("treats uploadedAt equal to the cutoff as fresh", () => {
+    const files = {
+      mba_pdf: null,
+      media_plan: null,
+      aa_media_plan: { url: "https://x", uploadedAt: cutoff },
+    }
+    assert.deepEqual(staleRequestedKinds(files, ["aa_media_plan"], cutoff), [])
   })
 })
 

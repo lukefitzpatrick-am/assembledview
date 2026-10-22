@@ -17,6 +17,12 @@
  * `--apply` writes one `migration_markers` row per kind
  * (`doc2_plan_documents_backfill:<kind>`), so an Excel apply does not block
  * a later `--kinds mba_pdf` run.
+ * `--refresh-before <ISO>` is a repeatable maintenance mode: it lists each
+ * master's current published version (published_at set) whose stored file
+ * jsonb for a requested kind has `uploadedAt` earlier than the given time,
+ * and `--apply` regenerates only those stale kinds with force. Files with no
+ * `uploadedAt` (legacy Xano) are skipped. It neither reads nor writes
+ * migration_markers.
  *
  * Usage:
  *   npm run docs:backfill              # dry-run (default)
@@ -25,12 +31,13 @@
  *   npm run docs:backfill -- --kinds mba_pdf
  *   npm run docs:backfill -- --out tmp/parity --mba PENFOLD001 --version 16
  *   npm run docs:backfill -- --apply --force
+ *   npm run docs:backfill -- --refresh-before 2026-10-19T04:30:00Z --kinds aa_media_plan
  */
 
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { and, eq, gte, inArray, isNull, or, sql } from "drizzle-orm"
+import { and, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm"
 
 import {
   BACKFILL_PLAN_DOCUMENTS_MARKER_PREFIX,
@@ -40,7 +47,10 @@ import {
   missingRequestedKinds,
   parseBackfillPlanDocumentsArgs,
   planDocumentOutFilenames,
+  planDocumentUploadedAt,
+  staleRequestedKinds,
   storedPlanDocumentOutFilenames,
+  type BackfillPlanDocumentsArgs,
 } from "@/lib/docs/backfillPlanDocumentsArgs"
 import { parsePlanFileJson, PLAN_DOCUMENT_KINDS, type PlanDocumentKind } from "@/lib/docs/planVersionFiles"
 import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
@@ -271,8 +281,157 @@ async function writeOutDocuments(args: {
   }
 }
 
+function candidateFiles(row: Candidate): Record<PlanDocumentKind, unknown> {
+  return {
+    mba_pdf: row.mbaPdfFile,
+    media_plan: row.mediaPlanFile,
+    aa_media_plan: row.aaMediaPlanFile,
+  }
+}
+
+/**
+ * `--refresh-before`: regenerate stored files on current published pointers
+ * whose `uploadedAt` predates the cutoff. No migration_markers read or write.
+ */
+async function refreshStaleDocuments(
+  parsed: BackfillPlanDocumentsArgs & { refreshBefore: string },
+) {
+  const { closeDb, getDb, schema } = await import("@/db")
+  const { apply, mba, kinds, refreshBefore } = parsed
+  const db = getDb()
+
+  try {
+    const columnForKind = {
+      mba_pdf: schema.mediaPlanVersions.mbaPdfFile,
+      media_plan: schema.mediaPlanVersions.mediaPlanFile,
+      aa_media_plan: schema.mediaPlanVersions.aaMediaPlanFile,
+    } as const
+    const presentClauses = kinds.map((kind) => isNotNull(columnForKind[kind]))
+    const filePresent =
+      presentClauses.length === 1 ? presentClauses[0]! : or(...presentClauses)
+    const filter = mba
+      ? sql`lower(trim(${schema.mediaPlanMasters.mbaNumber})) = ${mba.toLowerCase()}`
+      : undefined
+    const base = and(isNotNull(schema.mediaPlanVersions.publishedAt), filePresent)
+    const where = filter ? and(base, filter) : base
+
+    const rows: Candidate[] = await db
+      .select({
+        versionId: schema.mediaPlanVersions.id,
+        versionNumber: schema.mediaPlanVersions.versionNumber,
+        mbaNumber: schema.mediaPlanMasters.mbaNumber,
+        publishedAt: schema.mediaPlanVersions.publishedAt,
+        mbaPdfFile: schema.mediaPlanVersions.mbaPdfFile,
+        mediaPlanFile: schema.mediaPlanVersions.mediaPlanFile,
+        aaMediaPlanFile: schema.mediaPlanVersions.aaMediaPlanFile,
+      })
+      .from(schema.mediaPlanMasters)
+      .innerJoin(
+        schema.mediaPlanVersions,
+        eq(schema.mediaPlanMasters.publishedVersionId, schema.mediaPlanVersions.id),
+      )
+      .where(where)
+      .orderBy(schema.mediaPlanMasters.mbaNumber, schema.mediaPlanVersions.versionNumber)
+
+    // uploadedAt is compared in TypeScript (staleRequestedKinds), not via a
+    // jsonb ->> cast in SQL, so malformed or missing values are skipped safely.
+    const stale = rows
+      .map((row) => ({
+        row,
+        kinds: staleRequestedKinds(candidateFiles(row), kinds, refreshBefore),
+      }))
+      .filter((entry) => entry.kinds.length > 0)
+
+    console.log(
+      apply
+        ? `APPLY --refresh-before ${refreshBefore}${mba ? ` --mba ${mba}` : ""} --kinds ${kinds.join(",")}`
+        : `DRY-RUN --refresh-before ${refreshBefore}${mba ? ` --mba ${mba}` : ""} --kinds ${kinds.join(",")} (pass --apply to regenerate with force)`,
+    )
+    console.log("")
+    console.log(
+      `Current published versions with a stored file uploaded before ${refreshBefore} (${stale.length} versions):`,
+    )
+    if (stale.length === 0) {
+      console.log("  (none)")
+    } else {
+      console.log("mba               v     version_id  kind            uploadedAt")
+      console.log("----------------  ----  ----------  --------------  ------------------------")
+      for (const entry of stale) {
+        const files = candidateFiles(entry.row)
+        for (const kind of entry.kinds) {
+          console.log(
+            `${pad(entry.row.mbaNumber, 16)}  ${pad(entry.row.versionNumber, 4)}  ${pad(entry.row.versionId, 10)}  ${pad(kind, 14)}  ${planDocumentUploadedAt(files[kind]) ?? ""}`,
+          )
+        }
+      }
+    }
+
+    if (!apply) return
+
+    const { regeneratePlanVersionDocuments } = await import(
+      "@/lib/docs/regeneratePlanVersionDocuments"
+    )
+
+    console.log("")
+    console.log("mba               v     mba_pdf         media_plan      aa              error")
+    console.log("----------------  ----  --------------  --------------  --------------  -----")
+
+    let errors = 0
+    for (let i = 0; i < stale.length; i++) {
+      const { row, kinds: staleKinds } = stale[i]!
+      let mbaPdf = "—"
+      let mediaPlan = "—"
+      let aa = "—"
+      let error = ""
+      try {
+        const result = await regeneratePlanVersionDocuments({
+          versionId: row.versionId,
+          kinds: staleKinds,
+          force: true,
+        })
+        if (result.status === "not_found") {
+          error = "not_found"
+          errors++
+        } else if (result.status === "not_published") {
+          error = "NOT_PUBLISHED"
+          errors++
+        } else {
+          mbaPdf = statusForKind(result.results, "mba_pdf")
+          mediaPlan = statusForKind(result.results, "media_plan")
+          aa = statusForKind(result.results, "aa_media_plan")
+          if (result.results.some((r) => r.status === "error")) {
+            errors++
+            error = result.results
+              .filter((r) => r.status === "error")
+              .map((r) => `${r.kind}:${r.error ?? "error"}`)
+              .join("; ")
+          }
+        }
+      } catch (err) {
+        error = err instanceof Error ? err.message : String(err)
+        errors++
+      }
+      console.log(
+        `${pad(row.mbaNumber, 16)}  ${pad(row.versionNumber, 4)}  ${pad(mbaPdf, 14)}  ${pad(mediaPlan, 14)}  ${pad(aa, 14)}  ${error || ""}`,
+      )
+      if (i < stale.length - 1) await sleep(GAP_MS)
+    }
+
+    console.log("")
+    console.log(`Refreshed ${stale.length} versions. Errors: ${errors}. No migration_markers written.`)
+    if (errors > 0) process.exitCode = 1
+  } finally {
+    await closeDb()
+  }
+}
+
 async function main() {
   const parsed = parseBackfillPlanDocumentsArgs(process.argv.slice(2))
+
+  if (parsed.refreshBefore) {
+    await refreshStaleDocuments({ ...parsed, refreshBefore: parsed.refreshBefore })
+    return
+  }
 
   if (parsed.outDir) {
     if (!parsed.mba || parsed.version == null) {
