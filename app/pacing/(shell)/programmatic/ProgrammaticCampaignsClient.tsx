@@ -11,6 +11,7 @@ import {
   mapProgrammaticChannelFamilyToMediaType,
 } from "@/lib/pacing/filters/applyPacingRowFilters";
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore";
+import { adminCountToLabel } from "@/lib/pacing/countTo";
 import {
   pacingFiltersActive,
   usePacingClientIdToNameMap,
@@ -24,7 +25,7 @@ import { lineCardFromProgrammatic } from "@/lib/pacing/channel/lineCardModel";
 import { useChannelLayout } from "@/lib/pacing/channel/channelLayout";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 
-type ApiShape = { asOfDate: string; rows: ProgrammaticPacingCampaignRow[] };
+type ApiShape = { asOfDate: string; countToDate?: string; rows: ProgrammaticPacingCampaignRow[] };
 
 export type ProgrammaticCampaignsClientProps = {
   isAdmin: boolean;
@@ -90,7 +91,8 @@ export function ProgrammaticCampaignsClient({
     );
   }, [data, filters.client_ids, filters.media_types, filters.statuses, filters.search, clientIdToName]);
 
-  const asOf = data?.asOfDate ?? filters.as_of_date;
+  // P1: line cards count to the day before the view day.
+  const asOf = data?.countToDate ?? data?.asOfDate ?? filters.as_of_date;
   const boardItems = useMemo(
     () => displayed.map((row) => ({ model: lineCardFromProgrammatic(row, asOf), row })),
     [displayed, asOf],
@@ -127,7 +129,9 @@ export function ProgrammaticCampaignsClient({
     <div className="space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
+          <div className="text-xs text-muted-foreground">
+            {adminCountToLabel(data.asOfDate, data.countToDate)}
+          </div>
           {filtersOn && !clientFilterPending && !clientFilterUnresolved ? (
             <PacingFilterCount shown={displayed.length} total={total} />
           ) : null}
@@ -155,10 +159,10 @@ export function ProgrammaticCampaignsClient({
       ) : (
         <ChannelPacingBoard
           items={boardItems}
-          asOf={data.asOfDate}
+          asOf={asOf}
           channel="programmatic"
           layout={layout}
-          renderTable={(rows) => <LineItemPacingTable rows={rows} asOfDate={data.asOfDate} />}
+          renderTable={(rows) => <LineItemPacingTable rows={rows} asOfDate={asOf} />}
         />
       )}
     </div>

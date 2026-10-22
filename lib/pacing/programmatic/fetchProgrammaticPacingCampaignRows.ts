@@ -24,8 +24,15 @@ import {
 import { pacingStatus } from "@/lib/pacing/status";
 import { applyFixedCostProgrammaticDeliveryPresentation } from "@/lib/pacing/programmatic/fixedCostProgrammaticPresentation";
 import { queryPacingFact } from "@/lib/snowflake/pacing-fact";
+import { composerCountToISO } from "@/lib/pacing/countTo";
 
-export type FetchProgrammaticPacingCampaignRowsArgs = GetLiveProgrammaticLineItemsArgs;
+export type FetchProgrammaticPacingCampaignRowsArgs = GetLiveProgrammaticLineItemsArgs & {
+  /**
+   * Last day counted (P1, `lib/pacing/countTo.ts`). Facts, line total and
+   * status stop here. Liveness stays on `asOfDate`. Unset counts to `asOfDate`.
+   */
+  countToDate?: string;
+};
 
 function aggregateProgrammaticSpendWindows(
   rows: ProgrammaticFactRow[],
@@ -124,18 +131,19 @@ export async function fetchProgrammaticPacingCampaignRows(
     )
   );
 
+  const countTo = composerCountToISO(args);
   const lineTotalStart =
     rows
       .map((r) => r.lineItemStartDate)
       .filter((d): d is string => !!d)
-      .sort()[0] ?? args.asOfDate;
+      .sort()[0] ?? countTo;
   const yesterday = getMelbourneYesterdayISO(args.asOfDate);
 
   if (displayIds.length > 0 || videoIds.length > 0 || oohIds.length > 0) {
     const [displayFacts, videoFacts, oohFacts] = await Promise.all([
-      fetchFactsForChannel("programmatic-display", displayIds, lineTotalStart, args.asOfDate),
-      fetchFactsForChannel("programmatic-video", videoIds, lineTotalStart, args.asOfDate),
-      fetchFactsForChannel("programmatic-ooh", oohIds, lineTotalStart, args.asOfDate),
+      fetchFactsForChannel("programmatic-display", displayIds, lineTotalStart, countTo),
+      fetchFactsForChannel("programmatic-video", videoIds, lineTotalStart, countTo),
+      fetchFactsForChannel("programmatic-ooh", oohIds, lineTotalStart, countTo),
     ]);
     const allFacts = [...displayFacts, ...videoFacts, ...oohFacts];
 
@@ -157,7 +165,7 @@ export async function fetchProgrammaticPacingCampaignRows(
       const matched = byLineItem.get(row.lineItemId.toLowerCase()) ?? [];
       const windows: DateWindows = {
         lineTotalStart: row.lineItemStartDate ?? lineTotalStart,
-        lineTotalEnd: args.asOfDate,
+        lineTotalEnd: countTo,
         currentBurstStart: row.currentBurst?.startDate ?? null,
         currentBurstEnd: row.currentBurst?.endDate ?? null,
         yesterday,
@@ -223,7 +231,7 @@ export async function fetchProgrammaticPacingCampaignRows(
           clicksToDate: metrics.clicks,
           conversionsToDate: 0,
           revenueToDate: 0,
-          asOfDate: args.asOfDate,
+          asOfDate: countTo,
         });
         row.lineItemStatus = lineItemStatusFromPacing(mathsOutput.status);
       }

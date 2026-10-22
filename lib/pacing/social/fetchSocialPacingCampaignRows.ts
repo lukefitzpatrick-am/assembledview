@@ -19,8 +19,15 @@ import {
 } from "@/lib/pacing/maths";
 import { pacingStatus } from "@/lib/pacing/status";
 import { queryPacingFact } from "@/lib/snowflake/pacing-fact";
+import { composerCountToISO } from "@/lib/pacing/countTo";
 
-export type FetchSocialPacingCampaignRowsArgs = GetLiveSocialLineItemsArgs;
+export type FetchSocialPacingCampaignRowsArgs = GetLiveSocialLineItemsArgs & {
+  /**
+   * Last day counted (P1, `lib/pacing/countTo.ts`). Facts, line total and
+   * status stop here. Liveness stays on `asOfDate`. Unset counts to `asOfDate`.
+   */
+  countToDate?: string;
+};
 
 function aggregateSocialSpendWindows(
   rows: SocialFactRow[],
@@ -111,18 +118,19 @@ export async function fetchSocialPacingCampaignRows(
     )
   );
 
+  const countTo = composerCountToISO(args);
   const lineTotalStart =
     rows
       .map((r) => r.lineItemStartDate)
       .filter((d): d is string => !!d)
-      .sort()[0] ?? args.asOfDate;
+      .sort()[0] ?? countTo;
   const yesterday = getMelbourneYesterdayISO(args.asOfDate);
 
   if (metaIds.length > 0 || tiktokIds.length > 0 || redditIds.length > 0) {
     const [metaFacts, tiktokFacts, redditFacts] = await Promise.all([
-      fetchFactsForPlatform("meta", metaIds, lineTotalStart, args.asOfDate),
-      fetchFactsForPlatform("tiktok", tiktokIds, lineTotalStart, args.asOfDate),
-      fetchFactsForPlatform("reddit", redditIds, lineTotalStart, args.asOfDate),
+      fetchFactsForPlatform("meta", metaIds, lineTotalStart, countTo),
+      fetchFactsForPlatform("tiktok", tiktokIds, lineTotalStart, countTo),
+      fetchFactsForPlatform("reddit", redditIds, lineTotalStart, countTo),
     ]);
     const allFacts = [...metaFacts, ...tiktokFacts, ...redditFacts];
 
@@ -144,7 +152,7 @@ export async function fetchSocialPacingCampaignRows(
       const matched = byLineItem.get(row.lineItemId.toLowerCase()) ?? [];
       const windows: DateWindows = {
         lineTotalStart: row.lineItemStartDate ?? lineTotalStart,
-        lineTotalEnd: args.asOfDate,
+        lineTotalEnd: countTo,
         currentBurstStart: row.currentBurst?.startDate ?? null,
         currentBurstEnd: row.currentBurst?.endDate ?? null,
         yesterday,
@@ -198,7 +206,7 @@ export async function fetchSocialPacingCampaignRows(
           clicksToDate: metrics.clicks,
           conversionsToDate: 0,
           revenueToDate: 0,
-          asOfDate: args.asOfDate,
+          asOfDate: countTo,
         });
         row.lineItemStatus = lineItemStatusFromPacing(mathsOutput.status);
       }

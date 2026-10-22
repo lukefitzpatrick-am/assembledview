@@ -12,6 +12,7 @@ import {
   mapAdServingStatusToBand,
 } from "@/lib/pacing/filters/applyPacingRowFilters";
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore";
+import { adminCountToLabel } from "@/lib/pacing/countTo";
 import {
   pacingFiltersActive,
   usePacingClientIdToNameMap,
@@ -25,7 +26,7 @@ import { lineCardFromAdServing } from "@/lib/pacing/channel/lineCardModel";
 import { useChannelLayout } from "@/lib/pacing/channel/channelLayout";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 
-type ApiShape = { asOfDate: string; rows: AdServingPacingCampaignRow[] };
+type ApiShape = { asOfDate: string; countToDate?: string; rows: AdServingPacingCampaignRow[] };
 
 export type AdServingCampaignsClientProps = {
   isAdmin: boolean;
@@ -91,7 +92,8 @@ export function AdServingCampaignsClient({
     );
   }, [data, filters.client_ids, filters.media_types, filters.statuses, filters.search, clientIdToName]);
 
-  const asOf = data?.asOfDate ?? filters.as_of_date;
+  // P1: line cards count to the day before the view day.
+  const asOf = data?.countToDate ?? data?.asOfDate ?? filters.as_of_date;
   const boardItems = useMemo(
     () => displayed.map((row) => ({ model: lineCardFromAdServing(row, asOf), row })),
     [displayed, asOf],
@@ -131,7 +133,9 @@ export function AdServingCampaignsClient({
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
+          <div className="text-xs text-muted-foreground">
+            {adminCountToLabel(data.asOfDate, data.countToDate)}
+          </div>
           {filtersOn && !clientFilterPending && !clientFilterUnresolved ? (
             <PacingFilterCount shown={displayed.length} total={total} />
           ) : null}
@@ -159,10 +163,10 @@ export function AdServingCampaignsClient({
       ) : (
         <ChannelPacingBoard
           items={boardItems}
-          asOf={data.asOfDate}
+          asOf={asOf}
           channel="ad-serving"
           layout={layout}
-          renderTable={(rows) => <AdServingLineItemTable rows={rows} asOfDate={data.asOfDate} />}
+          renderTable={(rows) => <AdServingLineItemTable rows={rows} asOfDate={asOf} />}
         />
       )}
     </div>

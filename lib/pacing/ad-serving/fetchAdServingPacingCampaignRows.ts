@@ -7,8 +7,15 @@ import {
 import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types";
 import type { PacingFactRow } from "@/lib/snowflake/pacing-fact";
 import { queryPacingFact } from "@/lib/snowflake/pacing-fact";
+import { composerCountToISO } from "@/lib/pacing/countTo";
 
-export type FetchAdServingPacingCampaignRowsArgs = GetLiveAdServingLineItemsArgs;
+export type FetchAdServingPacingCampaignRowsArgs = GetLiveAdServingLineItemsArgs & {
+  /**
+   * Last day counted (P1, `lib/pacing/countTo.ts`). Facts stop here.
+   * Liveness stays on `asOfDate`. Unset counts to `asOfDate`.
+   */
+  countToDate?: string;
+};
 
 function num(value: number | null | undefined): number {
   return value ?? 0;
@@ -46,11 +53,12 @@ export async function fetchAdServingPacingCampaignRows(
     new Set(planRows.map((r) => r.lineItemId.toLowerCase()).filter(Boolean))
   );
 
+  const countTo = composerCountToISO(args);
   const lineTotalStart =
     planRows
       .map((r) => r.lineItemStartDate)
       .filter((d): d is string => !!d)
-      .sort()[0] ?? args.asOfDate;
+      .sort()[0] ?? countTo;
 
   let facts: PacingFactRow[] = [];
   try {
@@ -58,13 +66,13 @@ export async function fetchAdServingPacingCampaignRows(
       channel: "ad-serving",
       lineItemIds,
       startDate: lineTotalStart,
-      endDate: args.asOfDate,
+      endDate: countTo,
     });
   } catch (err) {
     console.error("[fetchAdServingPacingCampaignRows] Snowflake query failed", {
       lineItemCount: lineItemIds.length,
       startDate: lineTotalStart,
-      endDate: args.asOfDate,
+      endDate: countTo,
       err,
     });
     // Dead warehouse ≠ “no campaigns” — propagate for ViewState / route 5xx.
@@ -93,7 +101,7 @@ export async function fetchAdServingPacingCampaignRows(
     if (matched.length === 0) continue;
 
     const windowStart = row.lineItemStartDate ?? lineTotalStart;
-    const windowEnd = args.asOfDate;
+    const windowEnd = countTo;
 
     let impressions = 0;
     let clicks = 0;

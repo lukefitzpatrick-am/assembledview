@@ -17,6 +17,7 @@ import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs";
 import { getSearchCampaignsPacingData } from "@/lib/snowflake/search-campaigns-pacing";
 import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
 import { boundedMap } from "@/lib/utils/boundedMap";
+import { composerCountToISO } from "@/lib/pacing/countTo";
 
 /** Parallel per-master fetches; well under Launch-plan 100 req/s ceiling. */
 const XANO_MASTER_FETCH_CONCURRENCY = 8;
@@ -26,6 +27,11 @@ export type FetchSearchPacingCampaignRowsArgs = {
   allowedClientSlugs: Set<string> | null;
   /** When set, only this MBA is resolved — per-MBA work, not the book. */
   mbaNumber?: string;
+  /**
+   * Last day counted (P1, `lib/pacing/countTo.ts`). Facts, line total and
+   * status stop here. Liveness stays on `asOfDate`. Unset counts to `asOfDate`.
+   */
+  countToDate?: string;
 };
 
 export type GetLiveSearchLineItemsArgs = FetchSearchPacingCampaignRowsArgs;
@@ -351,18 +357,19 @@ export async function fetchSearchPacingCampaignRows(
   }
 
   // --- Snowflake hydration (Part 2) ---
+  const countTo = composerCountToISO(args);
   const lineItemIds = Array.from(new Set(rows.map((r) => r.lineItemId.toLowerCase())));
   const lineTotalStart =
     rows
       .map((r) => r.lineItemStartDate)
       .filter((d): d is string => !!d)
-      .sort()[0] ?? args.asOfDate;
+      .sort()[0] ?? countTo;
   const yesterday = getMelbourneYesterdayISO(args.asOfDate);
 
   const snowflakeRows = await getSearchCampaignsPacingData({
     lineItemIds,
     startDate: lineTotalStart,
-    endDate: args.asOfDate,
+    endDate: countTo,
   });
 
   const byLineItem = new Map<string, typeof snowflakeRows>();
@@ -381,7 +388,7 @@ export async function fetchSearchPacingCampaignRows(
     const matched = byLineItem.get(k) ?? [];
     const { lineItemKpis, platformCampaigns } = aggregateForLineItem(matched, {
       lineTotalStart: row.lineItemStartDate ?? lineTotalStart,
-      lineTotalEnd: args.asOfDate,
+      lineTotalEnd: countTo,
       currentBurstStart: row.currentBurst?.startDate ?? null,
       currentBurstEnd: row.currentBurst?.endDate ?? null,
       yesterday,
@@ -415,7 +422,7 @@ export async function fetchSearchPacingCampaignRows(
         clicksToDate: lineItemKpis.clicks,
         conversionsToDate: lineItemKpis.conversions,
         revenueToDate: lineItemKpis.revenue,
-        asOfDate: args.asOfDate,
+        asOfDate: countTo,
       });
       row.lineItemStatus = lineItemStatusFromPacing(mathsOutput.status);
     }

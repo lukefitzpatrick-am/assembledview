@@ -5,6 +5,7 @@ import { fetchSearchPacingCampaignRows } from "@/lib/pacing/campaigns/fetchSearc
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import { fetchProgrammaticPacingCampaignRows } from "@/lib/pacing/programmatic/fetchProgrammaticPacingCampaignRows"
 import { fetchSocialPacingCampaignRows } from "@/lib/pacing/social/fetchSocialPacingCampaignRows"
+import { countToCacheKeyPart } from "@/lib/pacing/countTo"
 
 export const PACING_CAMPAIGNS_TAG = "pacing-campaigns"
 const REVALIDATE_SECONDS = 14_400 // 4h
@@ -17,12 +18,13 @@ export function pacingScopeKey(allowedClientSlugs: Set<string> | null): string {
 
 export async function getCachedSearchPacingRows(
   asOfDate: string,
-  allowedClientSlugs: Set<string> | null
+  allowedClientSlugs: Set<string> | null,
+  countToDate?: string
 ) {
   const scopeKey = pacingScopeKey(allowedClientSlugs)
   const cached = unstable_cache(
-    async () => fetchSearchPacingCampaignRows({ asOfDate, allowedClientSlugs }),
-    ["pacing-rows", "search", asOfDate, scopeKey],
+    async () => fetchSearchPacingCampaignRows({ asOfDate, allowedClientSlugs, countToDate }),
+    ["pacing-rows", "search", asOfDate, scopeKey, countToCacheKeyPart(countToDate)],
     { revalidate: REVALIDATE_SECONDS, tags: [PACING_CAMPAIGNS_TAG] }
   )
   return cached()
@@ -30,12 +32,13 @@ export async function getCachedSearchPacingRows(
 
 export async function getCachedSocialPacingRows(
   asOfDate: string,
-  allowedClientSlugs: Set<string> | null
+  allowedClientSlugs: Set<string> | null,
+  countToDate?: string
 ) {
   const scopeKey = pacingScopeKey(allowedClientSlugs)
   const cached = unstable_cache(
-    async () => fetchSocialPacingCampaignRows({ asOfDate, allowedClientSlugs }),
-    ["pacing-rows", "social", asOfDate, scopeKey],
+    async () => fetchSocialPacingCampaignRows({ asOfDate, allowedClientSlugs, countToDate }),
+    ["pacing-rows", "social", asOfDate, scopeKey, countToCacheKeyPart(countToDate)],
     { revalidate: REVALIDATE_SECONDS, tags: [PACING_CAMPAIGNS_TAG] }
   )
   return cached()
@@ -43,12 +46,13 @@ export async function getCachedSocialPacingRows(
 
 export async function getCachedProgrammaticPacingRows(
   asOfDate: string,
-  allowedClientSlugs: Set<string> | null
+  allowedClientSlugs: Set<string> | null,
+  countToDate?: string
 ) {
   const scopeKey = pacingScopeKey(allowedClientSlugs)
   const cached = unstable_cache(
-    async () => fetchProgrammaticPacingCampaignRows({ asOfDate, allowedClientSlugs }),
-    ["pacing-rows", "programmatic", asOfDate, scopeKey],
+    async () => fetchProgrammaticPacingCampaignRows({ asOfDate, allowedClientSlugs, countToDate }),
+    ["pacing-rows", "programmatic", asOfDate, scopeKey, countToCacheKeyPart(countToDate)],
     { revalidate: REVALIDATE_SECONDS, tags: [PACING_CAMPAIGNS_TAG] }
   )
   return cached()
@@ -56,12 +60,13 @@ export async function getCachedProgrammaticPacingRows(
 
 export async function getCachedAdServingPacingRows(
   asOfDate: string,
-  allowedClientSlugs: Set<string> | null
+  allowedClientSlugs: Set<string> | null,
+  countToDate?: string
 ) {
   const scopeKey = pacingScopeKey(allowedClientSlugs)
   const cached = unstable_cache(
-    async () => fetchAdServingPacingCampaignRows({ asOfDate, allowedClientSlugs }),
-    ["pacing-rows", "ad-serving", asOfDate, scopeKey],
+    async () => fetchAdServingPacingCampaignRows({ asOfDate, allowedClientSlugs, countToDate }),
+    ["pacing-rows", "ad-serving", asOfDate, scopeKey, countToCacheKeyPart(countToDate)],
     { revalidate: REVALIDATE_SECONDS, tags: [PACING_CAMPAIGNS_TAG] }
   )
   return cached()
@@ -70,14 +75,15 @@ export async function getCachedAdServingPacingRows(
 export async function getCachedDirectPacingRows(
   asOfDate: string,
   allowedClientSlugs: Set<string> | null,
-  includeHistorical: boolean
+  includeHistorical: boolean,
+  countToDate?: string
 ) {
   const scopeKey = pacingScopeKey(allowedClientSlugs)
   const histKey = includeHistorical ? "hist" : "current"
   const cached = unstable_cache(
     async () =>
-      fetchDirectPacingRows({ asOfDate, allowedClientSlugs, includeHistorical }),
-    ["pacing-rows", "direct", asOfDate, scopeKey, histKey],
+      fetchDirectPacingRows({ asOfDate, allowedClientSlugs, includeHistorical, countToDate }),
+    ["pacing-rows", "direct", asOfDate, scopeKey, histKey, countToCacheKeyPart(countToDate)],
     { revalidate: REVALIDATE_SECONDS, tags: [PACING_CAMPAIGNS_TAG] }
   )
   return cached()

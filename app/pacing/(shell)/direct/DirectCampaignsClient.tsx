@@ -10,6 +10,7 @@ import {
   isPacingClientFilterUnresolved,
 } from "@/lib/pacing/filters/applyPacingRowFilters";
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore";
+import { adminCountToLabel } from "@/lib/pacing/countTo";
 import {
   pacingFiltersActive,
   usePacingClientIdToNameMap,
@@ -27,6 +28,7 @@ import { Switch } from "@/components/ui/switch";
 
 type ApiShape = {
   asOfDate: string;
+  countToDate?: string;
   includeHistorical: boolean;
   campaigns: DirectCampaignGroup[];
 };
@@ -117,7 +119,8 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
     );
   }, [data, filters.client_ids, filters.media_types, filters.statuses, filters.search, clientIdToName]);
 
-  const asOf = data?.asOfDate ?? asOfDate;
+  // P1: line cards count to the day before the view day.
+  const asOf = data?.countToDate ?? data?.asOfDate ?? asOfDate;
   const boardItems = useMemo(
     () =>
       displayed.flatMap((group) =>
@@ -174,7 +177,9 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
       {data ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
+            <div className="text-xs text-muted-foreground">
+              {adminCountToLabel(data.asOfDate, data.countToDate)}
+            </div>
             {filtersOn &&
             !clientFilterPending &&
             !clientFilterUnresolved &&
@@ -227,7 +232,7 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
             data ? (
               <ChannelPacingBoard
                 items={boardItems}
-                asOf={data.asOfDate}
+                asOf={asOf}
                 channel="direct"
                 layout={layout}
                 renderTable={(rows) => (

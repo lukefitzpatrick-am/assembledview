@@ -14,6 +14,8 @@ import type {
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs";
 import { querySnowflake } from "@/lib/snowflake/query";
 import type { MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
+import { isIsoDay } from "@/lib/pacing/countTo";
+import { trimDirectLineToCountTo } from "@/lib/pacing/direct/trimDirectLineToCountTo";
 
 const ROLLING_WINDOW_DAYS = 3;
 
@@ -23,6 +25,12 @@ export type FetchDirectPacingRowsArgs = {
   /** When false (default), only IS_CURRENTLY_FIXED_COST. When true, include WAS_EVER_FIXED_COST. */
   includeHistorical: boolean;
   mbaNumber?: string;
+  /**
+   * Last day counted (P1, `lib/pacing/countTo.ts`). Line and burst totals
+   * drop the daily rows after it. The daily series is unchanged. Unset keeps
+   * the mart totals as they are.
+   */
+  countToDate?: string;
 };
 
 type LineItemFactRow = {
@@ -359,7 +367,7 @@ export async function fetchDirectPacingRows(
     const variance = num(li.LINE_ITEM_VARIANCE);
     const variancePct = totalReported > 0 ? variance / totalReported : null;
 
-    const lineItem: DirectLineItemRow = {
+    const builtLine: DirectLineItemRow = {
       lineItemId,
       mbaNumber: mba,
       lineItemName: String(li.LINE_ITEM_NAME ?? "").trim() || lineItemId,
@@ -378,6 +386,9 @@ export async function fetchDirectPacingRows(
       bursts,
       daily: buildDailySeries(dailyRaw, args.asOfDate),
     };
+    const lineItem = isIsoDay(args.countToDate)
+      ? trimDirectLineToCountTo(builtLine, args.countToDate)
+      : builtLine;
 
     let group = groups.get(mbaKey);
     if (!group) {
