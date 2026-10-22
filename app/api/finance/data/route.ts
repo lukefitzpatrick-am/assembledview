@@ -12,6 +12,17 @@ import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMont
 import { requireFinanceAdmin } from "@/lib/requireRole"
 import { readClientsList } from "@/lib/data/readClients"
 import { readPublishersList } from "@/lib/data/readPublishers"
+import {
+  buildProductionServiceRows,
+  productionLineMonthAmounts,
+  type ProductionPlanLine,
+} from "@/lib/finance/financeExportProductionRows"
+import { loadProductionPlanLinesForVersions } from "@/lib/finance/loadProductionPlanLines"
+import {
+  isAdvertisingAssociatesPublisher,
+  publisherResolver,
+} from "@/lib/mediaplan/advertisingAssociatesExcel"
+import type { Publisher } from "@/lib/types/publisher"
 
 export const maxDuration = 60
 
@@ -76,6 +87,21 @@ export async function GET(request: NextRequest) {
       if (name) publisherMap.set(name, publisher)
     })
 
+    // Production publisher per line, for splitting production across G./D. codes.
+    const resolvePublisher = publisherResolver(publishers as unknown as Publisher[])
+    const billsViaAdvertisingAssociates = (name: string) => {
+      const pub = resolvePublisher(name)
+      return pub ? isAdvertisingAssociatesPublisher(pub) : false
+    }
+    let productionLinesByVersion = new Map<number, ProductionPlanLine[]>()
+    try {
+      productionLinesByVersion = await loadProductionPlanLinesForVersions(
+        relevantVersions.map((v) => Number(v.id ?? v.version_id ?? 0))
+      )
+    } catch (err) {
+      console.error("[finance-data] failed to load production lines; production goes to one code", err)
+    }
+
     const bookedApprovedCampaigns: Record<string, unknown>[] = []
     const otherCampaigns: Record<string, unknown>[] = []
 
@@ -127,20 +153,28 @@ export async function GET(request: NextRequest) {
       const hasAdvertisingAssociates = mergedLineItems.some((li) => li.itemCode.startsWith("G."))
       const hasAssembledMedia = mergedLineItems.some((li) => li.itemCode.startsWith("D."))
 
-      if (hasAdvertisingAssociates) {
-        serviceRows.push({
-          itemCode: "G.Production",
-          service: "Production",
-          amount: serviceAmounts.production,
-        })
-      }
-      if (hasAssembledMedia) {
-        serviceRows.push({
-          itemCode: "D.Production",
-          service: "Production",
-          amount: serviceAmounts.production,
-        })
-      }
+      // Both codes: split production by production publisher (never the full
+      // amount under both). One code: the full amount under it.
+      serviceRows.push(
+        ...buildProductionServiceRows({
+          production: serviceAmounts.production,
+          hasAdvertisingAssociates,
+          hasAssembledMedia,
+          lineAmounts:
+            hasAdvertisingAssociates && hasAssembledMedia
+              ? productionLineMonthAmounts({
+                  billingSchedule,
+                  year,
+                  month,
+                  lines:
+                    productionLinesByVersion.get(
+                      Number(version.id ?? version.version_id ?? 0)
+                    ) ?? [],
+                })
+              : [],
+          billsViaAdvertisingAssociates,
+        }).map((row) => ({ ...row }))
+      )
 
       serviceRows.push({
         itemCode: "Service",
