@@ -147,8 +147,8 @@ test("social composer counts facts and status to the count-to day", { skip }, as
   assert.equal(row?.lineItemStatus, "on-track")
   // Spend yesterday is the count-to day.
   assert.equal(row?.spendYesterday, 100)
-  // C2: the plan CPV rate, not the saved 0.10.
-  assert.equal(row?.kpiTargets?.cpv, 0.1)
+  // C2 + 23 Oct: the plan CPV rate is the target; the saved 0.10 is never read.
+  assert.equal(row?.kpiTargets?.cpv ?? null, null)
   assert.equal(row?.planCpvRate, 0.05)
 
   factCalls.length = 0

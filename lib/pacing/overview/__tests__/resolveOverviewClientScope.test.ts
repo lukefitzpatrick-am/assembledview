@@ -2,12 +2,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
+// Mirrors the real rule: approved or booked, and the view day inside the flight.
+// The old status-only mock let any booked campaign through; the scope relied on
+// a separate end-date check that the 7-day rule (1ccffdbf) moved into
+// isListedOnAdminPacing, so the mock must check dates too.
 vi.mock("@/lib/types/mediaPlanMaster", () => ({
-  isLiveCampaignStatus: (status: string | null | undefined) => {
+  isLiveCampaignStatus: (
+    status: string | null | undefined,
+    startDate?: string | null,
+    endDate?: string | null,
+    asOfYmd?: string | null,
+  ) => {
     const n = String(status ?? "")
       .trim()
       .toLowerCase()
-    return n === "booked" || n === "approved"
+    if (n !== "booked" && n !== "approved") return false
+    if (!startDate || !endDate || !asOfYmd) return false
+    return startDate.slice(0, 10) <= asOfYmd && asOfYmd <= endDate.slice(0, 10)
   },
 }))
 
