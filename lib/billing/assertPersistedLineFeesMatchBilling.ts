@@ -11,11 +11,12 @@ import {
   extractAndFormatBursts,
   parseBurstMoney,
 } from "@/lib/mediaplan/formatBurstsForPersist"
+import { roundMoney2 } from "@/lib/money/cents"
 
 const FEE_MATCH_EPS = 0.02
 
 function round2(n: number): number {
-  return Math.round(n * 100) / 100
+  return Number.isFinite(n) ? roundMoney2(n) : n
 }
 
 function parseAudMoney(val: unknown): number {

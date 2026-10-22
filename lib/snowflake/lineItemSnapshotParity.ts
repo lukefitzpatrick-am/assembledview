@@ -1,4 +1,5 @@
 import type { XanoLineItem } from "@/lib/xano/fetchAllLineItems"
+import { roundMoney2 } from "@/lib/money/cents"
 
 export type LineItemSnapshotSource = "xano" | "parity" | "postgres"
 
@@ -168,5 +169,5 @@ export function buildLineItemSnapshotParityReport(
 }
 
 function round2(n: number): number {
-  return Math.round(n * 100) / 100
+  return Number.isFinite(n) ? roundMoney2(n) : n
 }

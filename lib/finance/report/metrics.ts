@@ -1,5 +1,6 @@
 import { addGst, gstAmount } from "@/lib/finance/gst"
 import type { ReportRow } from "./types"
+import { roundMoney2 } from "@/lib/money/cents"
 
 export type ReportMetricKey =
   | "totalBillable"
@@ -37,7 +38,7 @@ export const DEFAULT_REPORT_METRICS: ReportMetricKey[] = [
 const REPORT_METRIC_KEYS = new Set<ReportMetricKey>(REPORT_METRICS.map((m) => m.key))
 
 function round2(value: number): number {
-  return Math.round(value * 100) / 100
+  return Number.isFinite(value) ? roundMoney2(value) : value
 }
 
 /**

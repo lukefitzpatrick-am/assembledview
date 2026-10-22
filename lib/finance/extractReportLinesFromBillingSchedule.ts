@@ -1,4 +1,5 @@
 import { matchMonthYear, parseBillingScheduleAmount } from "@/lib/finance/utils"
+import { roundMoney2 } from "@/lib/money/cents"
 
 export interface ReportLine {
   lineItemId: string
@@ -49,7 +50,7 @@ type ScheduleMonth = {
 }
 
 function round2(value: number): number {
-  return Math.round(value * 100) / 100
+  return Number.isFinite(value) ? roundMoney2(value) : value
 }
 
 function present(value: unknown): string {

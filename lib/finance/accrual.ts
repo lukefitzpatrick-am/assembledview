@@ -1,4 +1,4 @@
-import { parseMoney } from "@/lib/money"
+import { parseMoney, roundMoney2 } from "@/lib/money"
 
 export type MonthKey = `${number}-${string}` | string
 
@@ -65,7 +65,7 @@ export function parseMoneyToNumber(value: unknown): number {
 }
 
 function round2(value: number): number {
-  return Number.isFinite(value) ? Math.round(value * 100) / 100 : 0
+  return Number.isFinite(value) ? roundMoney2(value) : 0
 }
 
 function pad2(n: number): string {

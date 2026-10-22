@@ -2,6 +2,7 @@ import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import type { ReportLine } from "@/lib/finance/extractReportLinesFromBillingSchedule"
 import { classifyBillingAgency } from "@/lib/finance/billingAgency"
 import type { ReportRow } from "./types"
+import { roundMoney2 } from "@/lib/money/cents"
 
 const UNSPECIFIED = "Unspecified"
 
@@ -13,7 +14,7 @@ export type BuildReportRowsOptions = {
 }
 
 function round2(value: number): number {
-  return Math.round(value * 100) / 100
+  return Number.isFinite(value) ? roundMoney2(value) : value
 }
 
 function present(value: unknown): string {

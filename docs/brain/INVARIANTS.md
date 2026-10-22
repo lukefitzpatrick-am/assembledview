@@ -13,7 +13,7 @@ pct === 100 → fee = 0 (division guard)
 ```
 
 - Fee is a **slice of gross**, never `net × fee%` stacked on net (the legacy anti-pattern).
-- Money rounds once, half-up away from zero, at cents, through `lib/money` `toCents`. `roundMoney2` is that helper in dollars. Deliverable counts use `roundDeliverables`. A derived rate uses `roundMoney4`. `check:money-inline` ratchets other inline money maths. Migration scripts keep their own half-even `toCents`.
+- Money rounds once, half-up away from zero, at cents, through `lib/money` `toCents`. `roundMoney2` is that helper in dollars. Deliverable counts use `roundDeliverables`. A derived rate uses `roundMoney4`. The finance and billing helpers (accrual, report lines, forecast, report rows and measures, the persisted-fee parity guard, the line-item snapshot parity) and the social and programmatic pacing payloads use `roundMoney2`, never `Math.round(x * 100) / 100` or `toFixed(2)` (C3a, 22 Oct 2026). `check:money-inline` ratchets other inline money maths. Migration scripts keep their own half-even `toCents`.
 - Expected spend compared with delivered spend is media only (AV-D4). Plan and billing totals use all_in and say so.
 - Container `get*Bursts` helpers and `useMediaChannelContainer` pass `buyType` into `computeBurstAmounts` so UI rollups match finance for bonus / package_inclusions.
 - Expert-grid Apply must not restore a bonus / package_inclusions card's previous cost: `attachBurstPreserve` passes the generated line's `buyType` into `preservePreviousBurstsIfApplyWouldZeroBudget`.

@@ -1,3 +1,4 @@
+import { roundMoney2 } from "@/lib/money/cents"
 import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
 import { cpc, cpm, cpv, ctr, cvr as cvrRate, vtr } from "@/lib/money/rates"
 import { localDateISO } from "@/lib/delivery/lineChartWindow"
@@ -74,7 +75,11 @@ const getRowLineItemId = (row: any): string | null => {
   return cleanId(row?.lineItemId ?? row?.LINE_ITEM_ID ?? row?.line_item_id)
 }
 
-const round2 = (n: number) => Number((n || 0).toFixed(2))
+/** Payload 2dp, half-up through lib/money (C3a). NaN reads as 0, like the old toFixed path. */
+const round2 = (n: number): number => {
+  const v = n || 0
+  return Number.isFinite(v) ? roundMoney2(v) : v
+}
 
 export function mapCombinedRowToMeta(row: CombinedPacingRow): MetaPacingRow {
   return {
@@ -573,9 +578,9 @@ function buildCumulativeSeries(
     return {
       date,
       expectedSpend: 0,
-      actualSpend: Number(spend.toFixed(2)),
+      actualSpend: round2(spend),
       expectedDeliverable: 0,
-      actualDeliverable: Number(deliverableValue.toFixed(2)),
+      actualDeliverable: round2(deliverableValue),
     }
   })
 }
@@ -634,12 +639,12 @@ function buildAggregatedMetrics(
     const values = actualMap.get(date) ?? { spend: 0, deliverable: 0 }
     return {
       date,
-      spend: Number(values.spend.toFixed(2)),
+      spend: round2(values.spend),
       impressions: 0,
       clicks: 0,
-      results: Number(values.deliverable.toFixed(2)),
+      results: round2(values.deliverable),
       video_3s_views: 0,
-      deliverable_value: Number(values.deliverable.toFixed(2)),
+      deliverable_value: round2(values.deliverable),
     }
   })
 

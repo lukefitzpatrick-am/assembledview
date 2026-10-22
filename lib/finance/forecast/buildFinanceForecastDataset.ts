@@ -43,6 +43,7 @@ import {
   splitBillableAmountByBillingEntity,
   VERSION_EXTRA_BURSTS_KEY,
 } from "@/lib/finance/forecast/mapping"
+import { roundMoney2 } from "@/lib/money/cents"
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -308,7 +309,7 @@ function emptyMonthly(): FinanceForecastMonthlyAmounts {
 }
 
 function round2(n: number): number {
-  return Math.round(n * 100) / 100
+  return Number.isFinite(n) ? roundMoney2(n) : n
 }
 
 // ---------------------------------------------------------------------------

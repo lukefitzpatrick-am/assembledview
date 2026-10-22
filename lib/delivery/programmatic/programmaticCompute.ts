@@ -1,4 +1,5 @@
 import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status"
+import { roundMoney2 } from "@/lib/money/cents"
 import { cpa, cpc, cpm, cpv, ctr, cvr as cvrRate, vtr } from "@/lib/money/rates"
 import { localDateISO } from "@/lib/delivery/lineChartWindow"
 import { formatMoney } from "@/lib/format/money"
@@ -35,6 +36,13 @@ import {
   PROGRAMMATIC_DELIVERY_SOURCE_SEED,
   type DeliverySourceMapRow,
 } from "@/lib/delivery/deliverySourceMap"
+
+/** Payload 2dp, half-up through lib/money (C3a). NaN reads as 0, like the old toFixed path. */
+const round2 = (n: number): number => {
+  const v = n || 0
+  return Number.isFinite(v) ? roundMoney2(v) : v
+}
+
 export type ProgrammaticLineItem = {
   line_item_id: string
   line_item_name?: string
@@ -407,8 +415,8 @@ function buildCumulativeSeries(dates: string[], actualsDaily: ProgrammaticLineIt
     const day = map.get(date)
     return {
       date,
-      actualSpend: Number((day?.spend ?? 0).toFixed(2)),
-      actualDeliverable: Number((day?.deliverable_value ?? 0).toFixed(2)),
+      actualSpend: round2(day?.spend ?? 0),
+      actualDeliverable: round2(day?.deliverable_value ?? 0),
     }
   })
 }
@@ -682,11 +690,11 @@ export function buildProgrammaticLineItemMetrics(
     const pacing: ProgrammaticPacingResult = {
       asAtDate,
       spend: {
-        actualToDate: Number(deliveredTotals.spend.toFixed(2)),
-        expectedToDate: Number(shouldSpend.toFixed(2)),
-        delta: Number((deliveredTotals.spend - shouldSpend).toFixed(2)),
-        pacingPct: Number((shouldSpend > 0 ? (deliveredTotals.spend / shouldSpend) * 100 : 0).toFixed(2)),
-        goalTotal: Number(booked.spend.toFixed(2)),
+        actualToDate: round2(deliveredTotals.spend),
+        expectedToDate: round2(shouldSpend),
+        delta: round2(deliveredTotals.spend - shouldSpend),
+        pacingPct: round2(shouldSpend > 0 ? (deliveredTotals.spend / shouldSpend) * 100 : 0),
+        goalTotal: round2(booked.spend),
       },
       series: buildCumulativeSeries(
         urlWindowActive ? seriesDates : dateRange,
@@ -695,13 +703,13 @@ export function buildProgrammaticLineItemMetrics(
     }
 
     pacing.deliverable = {
-      actualToDate: Number(deliveredTotals.deliverables.toFixed(2)),
-      expectedToDate: Number(shouldDeliverables.toFixed(2)),
-      delta: Number((deliveredTotals.deliverables - shouldDeliverables).toFixed(2)),
-      pacingPct: Number(
-        (shouldDeliverables > 0 ? (deliveredTotals.deliverables / shouldDeliverables) * 100 : 0).toFixed(2),
+      actualToDate: round2(deliveredTotals.deliverables),
+      expectedToDate: round2(shouldDeliverables),
+      delta: round2(deliveredTotals.deliverables - shouldDeliverables),
+      pacingPct: round2(
+        shouldDeliverables > 0 ? (deliveredTotals.deliverables / shouldDeliverables) * 100 : 0,
       ),
-      goalTotal: Number(booked.deliverables.toFixed(2)),
+      goalTotal: round2(booked.deliverables),
     }
 
     const targetMetric = targetMetricForProgrammaticDeliverable(deliverableKey)
@@ -772,12 +780,12 @@ export function buildProgrammaticLineItemMetrics(
       matchedRows: matched,
       booked,
       delivered: {
-        spend: Number(deliveredTotals.spend.toFixed(2)),
-        deliverables: Number(deliveredTotals.deliverables.toFixed(2)),
+        spend: round2(deliveredTotals.spend),
+        deliverables: round2(deliveredTotals.deliverables),
       },
       shouldToDate: {
-        spend: Number(shouldSpend.toFixed(2)),
-        deliverables: Number(shouldDeliverables.toFixed(2)),
+        spend: round2(shouldSpend),
+        deliverables: round2(shouldDeliverables),
       },
       deliverableKey,
       targetMetric,
@@ -849,12 +857,12 @@ export function buildProgrammaticAggregatedMetrics(
     const values = actualMap.get(date) ?? { spend: 0, deliverable: 0 }
     return {
       date,
-      spend: Number(values.spend.toFixed(2)),
+      spend: round2(values.spend),
       impressions: 0,
       clicks: 0,
-      conversions: Number(values.deliverable.toFixed(2)),
+      conversions: round2(values.deliverable),
       videoViews: 0,
-      deliverable_value: Number(values.deliverable.toFixed(2)),
+      deliverable_value: round2(values.deliverable),
     }
   })
 
@@ -871,11 +879,11 @@ export function buildProgrammaticAggregatedMetrics(
   )
 
   const bookedTotals = {
-    spend: Number(
-      lineItemMetrics.reduce((s, m) => s + (m.booked?.spend ?? 0), 0).toFixed(2)
+    spend: round2(
+      lineItemMetrics.reduce((s, m) => s + (m.booked?.spend ?? 0), 0)
     ),
-    deliverables: Number(
-      lineItemMetrics.reduce((s, m) => s + (m.booked?.deliverables ?? 0), 0).toFixed(2)
+    deliverables: round2(
+      lineItemMetrics.reduce((s, m) => s + (m.booked?.deliverables ?? 0), 0)
     ),
   }
 
@@ -883,8 +891,8 @@ export function buildProgrammaticAggregatedMetrics(
   const windowRange: DateRange =
     filterRange?.start && filterRange?.end ? { start: rangeStart, end: rangeEnd } : { start: null, end: null }
 
-  const shouldSpend = Number(
-    (windowRange.start && windowRange.end
+  const shouldSpend = round2(
+    windowRange.start && windowRange.end
       ? lineItemMetrics.reduce(
           (sum, m) => sum + expectedInWindowFromBurstsProg(m.bursts, windowRange, "spend"),
           0,
@@ -892,11 +900,10 @@ export function buildProgrammaticAggregatedMetrics(
       : lineItemMetrics.reduce(
           (sum, m) => sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "spend"),
           0,
-        )
-    ).toFixed(2),
+        ),
   )
-  const shouldDeliverables = Number(
-    (windowRange.start && windowRange.end
+  const shouldDeliverables = round2(
+    windowRange.start && windowRange.end
       ? lineItemMetrics.reduce(
           (sum, m) => sum + expectedInWindowFromBurstsProg(m.bursts, windowRange, "deliverables"),
           0,
@@ -905,8 +912,7 @@ export function buildProgrammaticAggregatedMetrics(
           (sum, m) =>
             sum + computeShouldToDateFromBursts(m.bursts, shouldAt, "deliverables"),
           0,
-        )
-    ).toFixed(2),
+        ),
   )
 
   const spendPacing = shouldSpend > 0 ? (deliveredTotals.spend / shouldSpend) * 100 : 0
@@ -916,17 +922,17 @@ export function buildProgrammaticAggregatedMetrics(
   return {
     asAtDate: asAt ?? null,
     spend: {
-      actualToDate: Number(deliveredTotals.spend.toFixed(2)),
+      actualToDate: round2(deliveredTotals.spend),
       expectedToDate: shouldSpend,
-      delta: Number((deliveredTotals.spend - shouldSpend).toFixed(2)),
-      pacingPct: Number(spendPacing.toFixed(2)),
+      delta: round2(deliveredTotals.spend - shouldSpend),
+      pacingPct: round2(spendPacing),
       goalTotal: bookedTotals.spend,
     },
     deliverable: {
-      actualToDate: Number(deliveredTotals.deliverables.toFixed(2)),
+      actualToDate: round2(deliveredTotals.deliverables),
       expectedToDate: shouldDeliverables,
-      delta: Number((deliveredTotals.deliverables - shouldDeliverables).toFixed(2)),
-      pacingPct: Number(deliverablePacing.toFixed(2)),
+      delta: round2(deliveredTotals.deliverables - shouldDeliverables),
+      pacingPct: round2(deliverablePacing),
       goalTotal: bookedTotals.deliverables,
     },
     series: buildCumulativeSeries(dateRange, aggregateActuals),
