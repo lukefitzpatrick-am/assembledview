@@ -3,6 +3,7 @@ import { z } from "zod"
 import { getAvaDb, schema } from "@/db/avaClient"
 import type AvaTool from "./types"
 import { fyToRange } from "./fyToRange"
+import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import {
   asRecord,
   asString,
@@ -16,6 +17,15 @@ import {
 } from "./postgresShared"
 
 const { xeroArInvoices, mediaPlanMasters, clients } = schema
+
+/**
+ * Overdue cut-off: the Melbourne calendar day (C8, 22 Oct 2026). The UTC day
+ * lagged until 10 or 11am Melbourne, so an invoice due yesterday was not yet
+ * overdue. Due dates are Xero calendar dates.
+ */
+export function xeroOverdueToday(reference: Date = new Date()): string {
+  return getMelbourneTodayISO(reference)
+}
 
 export const queryXeroStatusInput = z
   .object({
@@ -78,7 +88,7 @@ export const queryXeroStatusTool: AvaTool = {
 
     try {
       const db = getAvaDb()
-      const today = new Date().toISOString().slice(0, 10)
+      const today = xeroOverdueToday()
 
       const conditions: SQL[] = [
         // exclude voided/deleted-ish
