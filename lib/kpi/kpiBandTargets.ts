@@ -78,6 +78,8 @@ export function kpiReviewGroupForBand(input: {
   spend: number | null
   spendModelled?: boolean
   vtrTracked?: boolean
+  /** Meta and TikTok: VTR is 3-second views ÷ impressions (C1b). */
+  vtrThreeSecondViews?: boolean
 }): KpiReviewGroup {
   const lineItemIds: string[] = []
   const planByLineId: Record<string, KpiReviewPlanLine> = {}
@@ -102,10 +104,11 @@ export function kpiReviewGroupForBand(input: {
     clicks: input.clicks,
     results: input.results,
     views: input.views,
-    completes: input.vtrTracked ? input.views : null,
+    completes: input.vtrTracked || input.vtrThreeSecondViews ? input.views : null,
     spend: input.spend,
     spendModelled: input.spendModelled === true,
-    vtrTracked: input.vtrTracked === true,
+    vtrTracked: input.vtrTracked === true || input.vtrThreeSecondViews === true,
+    vtrThreeSecondViews: input.vtrThreeSecondViews === true,
   }
 }
 

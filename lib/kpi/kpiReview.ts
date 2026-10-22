@@ -76,7 +76,10 @@ export type KpiReviewGroup = {
   results: number
   /** Views the source reports (VIDEO_3S_VIEWS / completes / ThruPlays). 0 = not tracked. */
   views: number | null
-  /** COMPLETED_VIEWS when the source tracks them. */
+  /**
+   * Views VTR divides by: completes for the Channel Factory partner file,
+   * VIDEO_3S_VIEWS for Meta and TikTok (C1b). Null when the source has no VTR.
+   */
   completes: number | null
   /** Spend the glance card shows (actual, reported, modelled, or estimated). */
   spend: number | null
@@ -84,6 +87,18 @@ export type KpiReviewGroup = {
   /** CM360 direct-digital estimate. The UI labels the dollar from this flag. */
   spendEstimated?: boolean
   vtrTracked: boolean
+  /** VTR is 3-second views ÷ impressions (Meta, TikTok). The review labels the row. */
+  vtrThreeSecondViews?: boolean
+}
+
+/** Row label when VTR counts 3-second views. */
+export const VTR_THREE_SECOND_LABEL = "VTR (3-second views)"
+
+/** Families whose VTR is 3-second views ÷ impressions (C1b, 22 Oct 2026). */
+const THREE_SECOND_VTR_FAMILIES = new Set(["social-meta", "social-tiktok"])
+
+export function vtrIsThreeSecondViews(family: string): boolean {
+  return THREE_SECOND_VTR_FAMILIES.has(family)
 }
 
 export type KpiReviewTargetSource = "target" | "benchmark"
@@ -240,6 +255,7 @@ export function indexLineDeliveryActuals(input: {
 }
 
 function vtrTrackedForDraft(draft: KpiReviewCoverageDraft): boolean {
+  if (vtrIsThreeSecondViews(draft.family)) return true
   return draft.family === "programmatic-video" && draft.deliverySource === "partner_file"
 }
 
@@ -283,6 +299,7 @@ export function buildKpiReviewGroups(input: {
       spendModelled: coverage?.spendModelled === true,
       spendEstimated: coverage?.spendEstimated === true,
       vtrTracked: tracked,
+      vtrThreeSecondViews: vtrIsThreeSecondViews(draft.family),
     })
   }
   return groups
@@ -607,11 +624,15 @@ export function buildKpiReview(input: {
         continue
       }
       const target = resolveGroupTarget(group, metric, input.lineItemTargets)
+      const label =
+        metric === "vtr" && group.vtrThreeSecondViews
+          ? VTR_THREE_SECOND_LABEL
+          : (CLIENT_KPI_METRIC_LABELS[metric] ?? metric)
       if (target == null) {
         if (!input.isAdmin) continue
         rows.push({
           metric,
-          label: CLIENT_KPI_METRIC_LABELS[metric] ?? metric,
+          label,
           targetDisplay: "No target set",
           deliveredDisplay: delivered.display,
           status: "no-data",
@@ -623,7 +644,7 @@ export function buildKpiReview(input: {
       }
       rows.push({
         metric,
-        label: CLIENT_KPI_METRIC_LABELS[metric] ?? metric,
+        label,
         targetDisplay: formatTarget(metric, target.value),
         deliveredDisplay: delivered.display,
         status: statusForMetric(metric, target.value, delivered.value),
@@ -706,6 +727,7 @@ export function kpiReviewGroupsIdentity(groups: readonly KpiReviewGroup[]): stri
         g.spend,
         g.spendModelled,
         g.vtrTracked,
+        g.vtrThreeSecondViews === true,
         g.lineItemIds.join(","),
         JSON.stringify(g.planByLineId ?? {}),
       ].join("\u001f"),

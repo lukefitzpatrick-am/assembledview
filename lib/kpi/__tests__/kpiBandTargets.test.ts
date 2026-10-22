@@ -1,7 +1,7 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
-import { applyKpiBandTargets } from "@/lib/kpi/kpiBandTargets"
+import { applyKpiBandTargets, applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
 import { lineItemKpiKey } from "@/lib/kpi/lineItemKpiTargets"
 import { buildKpiReview, type KpiReviewGroup } from "@/lib/kpi/kpiReview"
 import type { CampaignKPI } from "@/lib/kpi/types"
@@ -178,5 +178,51 @@ describe("KPI band targets share the review resolver", () => {
     assert.equal(tile?.value, "$12.00")
     assert.equal(tile?.caption, "keep")
     assert.equal(tile?.expected, undefined)
+  })
+})
+
+describe("C1b: Meta View rate tile reads 3-second views", () => {
+  it("band VTR on a Meta tile matches the review row", () => {
+    const lineItemTargets = targets([kpi({ mba_number: "BICAU002", line_item_id: "bicau002sm1", vtr: 0.5 })])
+    const [tile] = applyKpiBandTargetsFromPlan(tiles("View rate"), {
+      key: "social-meta",
+      items: [{ line_item_id: "bicau002sm1", buy_type: "cpm" }],
+      plannedSpendByLineId: { bicau002sm1: 10_000 },
+      impressions: 100_000,
+      clicks: 2_000,
+      results: 80,
+      views: 40_000,
+      spend: 4_000,
+      vtrThreeSecondViews: true,
+      lineItemTargets,
+      isAdmin: true,
+    })
+    const review = buildKpiReview({
+      groups: [metaGroup({ vtrTracked: true, vtrThreeSecondViews: true, completes: 40_000 })],
+      lineItemTargets,
+      isAdmin: true,
+    })
+    const row = review[0]?.rows.find((r) => r.metric === "vtr")
+    assert.equal(tile?.expected, "50.00%")
+    assert.equal(tile?.status, "behind")
+    assert.equal(tile?.status, row?.status)
+    assert.equal(tile?.progress, 0.8)
+  })
+
+  it("without the flag the band VTR has no delivered value", () => {
+    const lineItemTargets = targets([kpi({ mba_number: "BICAU002", line_item_id: "bicau002sm1", vtr: 0.5 })])
+    const [tile] = applyKpiBandTargetsFromPlan(tiles("View rate"), {
+      key: "social-reddit",
+      items: [{ line_item_id: "bicau002sm1", buy_type: "cpm" }],
+      plannedSpendByLineId: { bicau002sm1: 10_000 },
+      impressions: 100_000,
+      clicks: 2_000,
+      results: 80,
+      views: 40_000,
+      spend: 4_000,
+      lineItemTargets,
+      isAdmin: true,
+    })
+    assert.equal(tile?.status, "no-data")
   })
 })

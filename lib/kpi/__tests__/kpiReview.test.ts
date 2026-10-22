@@ -9,6 +9,7 @@ import {
   indexLineDeliveryActuals,
   resolveCpmPlanRate,
   shouldShowKpiReview,
+  VTR_THREE_SECOND_LABEL,
   type KpiReviewGroup,
   type KpiReviewPlanLine,
 } from "@/lib/kpi/kpiReview"
@@ -796,5 +797,69 @@ describe("resolveCpmPlanRate", () => {
     const rate = resolveCpmPlanRate(group)
     assert.equal(rate?.value.toFixed(2), "25.00")
     assert.notEqual(rate?.value.toFixed(2), "28.00")
+  })
+})
+
+describe("C1b: Meta and TikTok VTR is 3-second views ÷ impressions", () => {
+  function draft(family: string, lineId: string) {
+    return {
+      key: family,
+      label: family,
+      colour: "var(--channel-social)",
+      family,
+      deliverySource: undefined,
+      lineItemIds: [lineId],
+      plannedSpendByLineId: { [lineId]: 10_000 },
+      planByLineId: {},
+    }
+  }
+
+  for (const family of ["social-meta", "social-tiktok"]) {
+    it(`${family} review VTR uses 3-second views and says so`, () => {
+      const actuals = indexLineDeliveryActuals({
+        pacingRows: [
+          { lineItemId: "bicau002sm1", impressions: 100_000, clicks: 2_000, results: 80, video3sViews: 40_000 },
+        ],
+        searchLineItems: [],
+      })
+      const groups = buildKpiReviewGroups({
+        drafts: [draft(family, "bicau002sm1")],
+        coverage: [],
+        actualsByLineId: actuals,
+      })
+      assert.equal(groups[0]?.vtrTracked, true)
+      assert.equal(groups[0]?.vtrThreeSecondViews, true)
+      assert.equal(groups[0]?.completes, 40_000)
+
+      const cards = buildKpiReview({
+        groups,
+        lineItemTargets: targets([kpi({ mba_number: "BICAU002", line_item_id: "bicau002sm1", vtr: 0.4 })]),
+        isAdmin: false,
+      })
+      const row = cards[0]?.rows.find((r) => r.metric === "vtr")
+      assert.equal(row?.label, VTR_THREE_SECOND_LABEL)
+      assert.equal(row?.deliveredDisplay, "40.00%")
+      assert.equal(row?.targetDisplay, "40.00%")
+      assert.equal(row?.status, "on-track")
+    })
+  }
+
+  it("Reddit and CM360 stay not tracked with the plain VTR label", () => {
+    for (const family of ["social-reddit", "digital-video"]) {
+      const actuals = indexLineDeliveryActuals({
+        pacingRows: [{ lineItemId: "x1", impressions: 100_000, clicks: 0, results: 0, video3sViews: 40_000 }],
+        searchLineItems: [],
+      })
+      const groups = buildKpiReviewGroups({ drafts: [draft(family, "x1")], coverage: [], actualsByLineId: actuals })
+      assert.equal(groups[0]?.vtrTracked, false)
+      const cards = buildKpiReview({
+        groups,
+        lineItemTargets: targets([kpi({ mba_number: "BICAU002", line_item_id: "x1", vtr: 0.4 })]),
+        isAdmin: false,
+      })
+      const row = cards[0]?.rows.find((r) => r.metric === "vtr")
+      assert.equal(row?.label, "VTR")
+      assert.equal(row?.deliveredDisplay, "Not tracked for this source")
+    }
   })
 })
