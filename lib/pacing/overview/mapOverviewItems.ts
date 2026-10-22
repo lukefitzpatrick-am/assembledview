@@ -40,11 +40,12 @@ export type SpendWindowInput = {
 /**
  * Re-run computePacing on cached row fields so Overview can split
  * slightly_over (ahead) from over_pacing without changing channel DTOs.
+ * `countToDate` is the last day counted (P1: the day before the view day).
  */
 export function mapSpendRowToOverviewItem(
   channel: "search" | "social" | "programmatic",
   row: SpendWindowInput,
-  asOfDate: string
+  countToDate: string
 ): OverviewAttentionItem {
   const label = row.lineItemLabel?.trim() || row.lineItemId;
   const id = `${channel}:${row.mbaNumber}:${row.lineItemId}`;
@@ -74,7 +75,7 @@ export function mapSpendRowToOverviewItem(
     clicksToDate: row.clicks,
     conversionsToDate: row.conversions ?? 0,
     revenueToDate: row.revenue ?? 0,
-    asOfDate,
+    asOfDate: countToDate,
   });
 
   return {

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getAsOfDate } from "@/lib/pacing/maths";
+import { adminPacingCountToISO, isIsoDay } from "@/lib/pacing/countTo";
 import {
   getCachedAdServingPacingRows,
   getCachedDirectPacingRows,
@@ -82,6 +83,11 @@ export function withSourceTimeout<T>(
 export type BuildOverviewPayloadArgs = {
   asOfDate?: string;
   /**
+   * Last day counted (P1). Defaults to the day before `asOfDate`, like the
+   * channel tabs. `asOfDate` still decides which clients and lines are live.
+   */
+  countToDate?: string;
+  /**
    * Auth access set; null = admin. Passed through to the same cached channel
    * fetchers the per-channel tabs use (same scope key / cache entry).
    */
@@ -151,6 +157,10 @@ export async function buildOverviewPayload(
   }
 ): Promise<OverviewPayload> {
   const asOfDate = args.asOfDate?.trim() || getAsOfDate();
+  // P1: count to the day before the view day, same as the channel tabs.
+  const countToDate = isIsoDay(args.countToDate)
+    ? args.countToDate
+    : adminPacingCountToISO(asOfDate);
   const sourceTimeoutMs = args.sourceTimeoutMs ?? OVERVIEW_SOURCE_TIMEOUT_MS;
   const fetchers: ChannelFetchers = { ...defaultFetchers, ...deps?.fetchers };
 
@@ -174,6 +184,7 @@ export async function buildOverviewPayload(
 
   console.info("[pacing/overview] fan-out begin", {
     asOfDate,
+    countToDate,
     fetcherScopeKey,
     portfolioClientCount: portfolioSlugSet.size,
     pageClientCount: pageSlugSet.size,
@@ -191,11 +202,12 @@ export async function buildOverviewPayload(
     );
 
   const settled = await Promise.allSettled([
-    timed("search", fetchers.search(asOfDate, fetcherSlugs)),
-    timed("social", fetchers.social(asOfDate, fetcherSlugs)),
-    timed("programmatic", fetchers.programmatic(asOfDate, fetcherSlugs)),
-    timed("direct", fetchers.direct(asOfDate, fetcherSlugs, false)),
-    timed("ad-serving", fetchers.adServing(asOfDate, fetcherSlugs)),
+    // Same cache entries as the channel tabs (view day + count-to day).
+    timed("search", fetchers.search(asOfDate, fetcherSlugs, countToDate)),
+    timed("social", fetchers.social(asOfDate, fetcherSlugs, countToDate)),
+    timed("programmatic", fetchers.programmatic(asOfDate, fetcherSlugs, countToDate)),
+    timed("direct", fetchers.direct(asOfDate, fetcherSlugs, false, countToDate)),
+    timed("ad-serving", fetchers.adServing(asOfDate, fetcherSlugs, countToDate)),
   ]);
 
   const channelOrder: OverviewChannel[] = [
@@ -249,7 +261,7 @@ export async function buildOverviewPayload(
               conversions: row.conversions,
               revenue: row.revenue,
             },
-            asOfDate
+            countToDate
           )
         );
         if (computeRowKpiStatus(row) === "kpi-pending") kpiPending += 1;
@@ -274,7 +286,7 @@ export async function buildOverviewPayload(
               conversions: 0,
               revenue: 0,
             },
-            asOfDate
+            countToDate
           )
         );
       }
@@ -301,7 +313,7 @@ export async function buildOverviewPayload(
               conversions: 0,
               revenue: 0,
             },
-            asOfDate
+            countToDate
           )
         );
       }
@@ -365,6 +377,7 @@ export async function buildOverviewPayload(
     overPacing: summarized.overPacing.filter(onPage),
     aheadOnDelivery: summarized.aheadOnDelivery.filter(onPage),
     asOfDate,
+    countToDate,
     availableSources,
     unavailableSources,
     scope: {

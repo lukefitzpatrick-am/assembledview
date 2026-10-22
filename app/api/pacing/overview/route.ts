@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePacingAccess } from "@/lib/pacing/pacingAuth";
 import { resolveClientSlugs } from "@/lib/pacing/scope/resolveClientSlugs";
-import { getAsOfDate } from "@/lib/pacing/maths";
+import { resolveAdminPacingDays } from "@/lib/pacing/countTo";
 import { buildOverviewPayload } from "@/lib/pacing/overview/buildOverviewPayload";
 import {
   OVERVIEW_DEFAULT_PAGE_SIZE,
@@ -20,7 +20,8 @@ export const maxDuration = 90;
  * paginated live-client set. Individual source failures return partial 200
  * with unavailableSources — not a whole-route 504.
  *
- * Query: asOfDate, clientSlug, page, pageSize
+ * Query: asOfDate (view day), clientSlug, page, pageSize.
+ * Spend and status count to the day before (`countToDate`, P1).
  */
 export async function GET(request: NextRequest) {
   const gate = await requirePacingAccess(request);
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url);
   const asOfDateParam = url.searchParams.get("asOfDate");
-  const asOfDate = asOfDateParam?.trim() || getAsOfDate();
+  const { asOfDate, countToDate } = resolveAdminPacingDays(asOfDateParam);
   const clientSlug = url.searchParams.get("clientSlug");
   const pageRaw = url.searchParams.get("page");
   const pageSizeRaw = url.searchParams.get("pageSize");
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
   try {
     const payload = await buildOverviewPayload({
       asOfDate,
+      countToDate,
       allowedClientSlugs,
       clientSlug,
       page: Number.isFinite(page) ? page : 1,

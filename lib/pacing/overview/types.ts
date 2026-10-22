@@ -70,6 +70,8 @@ export type OverviewScopeMeta = {
 
 export type OverviewPayload = {
   asOfDate: string;
+  /** Last day counted (P1): the day before the view day. */
+  countToDate?: string;
   counts: OverviewStatusCounts;
   /** Under-pacing / delivery-risk items (sorted worst-first by spend gap when known). */
   underperforming: OverviewAttentionItem[];

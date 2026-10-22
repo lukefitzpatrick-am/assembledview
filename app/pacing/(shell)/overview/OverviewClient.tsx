@@ -16,6 +16,7 @@ import type {
   OverviewChannel,
   OverviewPayload,
 } from "@/lib/pacing/overview/types";
+import { adminCountToLabel } from "@/lib/pacing/countTo";
 import { PACING_STATUS_THRESHOLDS } from "@/lib/pacing/status";
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore";
 
@@ -119,7 +120,7 @@ export function OverviewClient({ isAdmin: _isAdmin }: OverviewClientProps) {
       <Section
         as="h2"
         title="Pacing overview"
-        description={`Line items across Search, Social, Programmatic, Ad Serving, and Direct in your scope. As of ${data.asOfDate}. Channel tabs have full drill-down.`}
+        description={`Line items across Search, Social, Programmatic, Ad Serving, and Direct in your scope. ${adminCountToLabel(data.asOfDate, data.countToDate)}. Channel tabs have full drill-down.`}
       />
 
       {unavailable.length > 0 ? (
