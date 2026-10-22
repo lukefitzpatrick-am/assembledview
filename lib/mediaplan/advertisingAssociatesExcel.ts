@@ -85,22 +85,58 @@ function publisherNameKeysFromLineItem(item: LineItem): string[] {
   return out
 }
 
-function buildPublisherNameMap(publishers: Publisher[]): Map<string, Publisher> {
-  const map = new Map<string, Publisher>()
-  for (const p of publishers) {
-    const name = String(p.publisher_name ?? "").trim()
-    if (name) map.set(name, p)
-  }
-  return map
+type PublisherIndex = {
+  byName: Map<string, Publisher>
+  /** Lower-case publisherid to publisher. Ids shared by two publishers are left out. */
+  byId: Map<string, Publisher>
 }
 
-function resolvePublisherByName(name: string, byName: Map<string, Publisher>): Publisher | undefined {
+function buildPublisherNameMap(publishers: Publisher[]): PublisherIndex {
+  const byName = new Map<string, Publisher>()
+  const byId = new Map<string, Publisher>()
+  const ambiguousIds = new Set<string>()
+  for (const p of publishers) {
+    const name = String(p.publisher_name ?? "").trim()
+    if (name) byName.set(name, p)
+    const id = String(p.publisherid ?? "").trim().toLowerCase()
+    if (!id) continue
+    if (byId.has(id) || ambiguousIds.has(id)) {
+      byId.delete(id)
+      ambiguousIds.add(id)
+      continue
+    }
+    byId.set(id, p)
+  }
+  return { byName, byId }
+}
+
+/**
+ * Name first (exact, then case-insensitive), then the publisher id, so free
+ * text "SCA" resolves to the publisher whose publisherid is "sca"
+ * (Southern Cross Austereo). An id shared by two publishers never matches.
+ */
+function resolvePublisherByName(
+  name: string,
+  index: PublisherIndex,
+): Publisher | undefined {
+  const { byName, byId } = index
   if (byName.has(name)) return byName.get(name)
   const lower = name.toLowerCase()
   for (const [k, v] of byName) {
     if (k.toLowerCase() === lower) return v
   }
-  return undefined
+  return byId.get(lower.trim())
+}
+
+/** Publisher lookup by name or publisherid, for callers outside this module. */
+export function publisherResolver(
+  publishers: Publisher[],
+): (name: string) => Publisher | undefined {
+  const index = buildPublisherNameMap(publishers)
+  return (name: string) => {
+    const trimmed = String(name ?? "").trim()
+    return trimmed ? resolvePublisherByName(trimmed, index) : undefined
+  }
 }
 
 /**
