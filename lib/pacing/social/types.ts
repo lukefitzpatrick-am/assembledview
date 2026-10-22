@@ -7,6 +7,7 @@
  * of burst calculatedValue for the line item.
  */
 
+import type { KpiReviewPlanLine } from "@/lib/kpi/kpiReview";
 import type { KpiTargets, NormalisedBurst } from "@/lib/pacing/campaigns/types";
 import type { DeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
 
@@ -116,6 +117,14 @@ export type SocialPacingCampaignRow = {
    * Frequency target has no matching actual — social facts have no reach column.
    */
   kpiTargets: KpiTargets | null;
+
+  /** Plan fields for the plan CPV rate (C2). Set from the media plan line. */
+  kpiPlanLine?: KpiReviewPlanLine | null;
+  /**
+   * CPV target for the KPI cells (C2): the plan rate the KPI review shows.
+   * Saved `campaign_kpi.cpv` is ignored. Null when the line has no plan rate.
+   */
+  planCpvRate?: number | null;
 
   // --- Three-level breakdown for UI drill-down ---
   platformCampaigns: SocialPlatformCampaignBreakdown[];

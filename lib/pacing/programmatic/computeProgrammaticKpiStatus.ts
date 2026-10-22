@@ -84,7 +84,8 @@ export function buildProgrammaticKpiComparisons(
     status: statusForHigherIsBetter(targetConvRate, actualConvRate),
   };
 
-  const targetCpv = resolveDollarTarget(targets?.cpv);
+  // C2: the plan CPV rate, never the leftover campaign_kpi.cpv.
+  const targetCpv = resolveDollarTarget(row.planCpvRate ?? null);
   const actualCpv = row.cpv;
   const cpvComparison: ProgrammaticKpiComparison = {
     metric: "cpv",

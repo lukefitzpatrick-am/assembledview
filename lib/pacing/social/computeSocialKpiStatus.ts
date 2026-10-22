@@ -95,7 +95,8 @@ export function buildSocialKpiComparisons(row: SocialPacingCampaignRow): SocialK
     status: statusForHigherIsBetter(targetConvRate, actualConvRate),
   };
 
-  const targetCpv = resolveDollarTarget(targets?.cpv);
+  // C2: the plan CPV rate, never the leftover campaign_kpi.cpv.
+  const targetCpv = resolveDollarTarget(row.planCpvRate ?? null);
   const actualCpv = row.cpv;
   const cpvComparison: SocialKpiComparison = {
     metric: "cpv",

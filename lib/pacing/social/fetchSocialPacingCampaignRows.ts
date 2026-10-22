@@ -20,6 +20,8 @@ import {
 import { pacingStatus } from "@/lib/pacing/status";
 import { queryPacingFact } from "@/lib/snowflake/pacing-fact";
 import { composerCountToISO } from "@/lib/pacing/countTo";
+import { planCpvRateForLine } from "@/lib/pacing/kpi/planCpvRate";
+import type { CampaignKpiRow } from "@/lib/xano/campaignKpi";
 
 export type FetchSocialPacingCampaignRowsArgs = GetLiveSocialLineItemsArgs & {
   /**
@@ -221,6 +223,7 @@ export async function fetchSocialPacingCampaignRows(
   const campaignKpiRows = await fetchCampaignKpisForMbas({ mbaVersionPairs });
 
   const kpiTargetsByKey = new Map<string, KpiTargets>();
+  const kpiRowsByKey = new Map<string, CampaignKpiRow>();
 
   function makeKpiKey(mba: string, version: number, lineItemId: string): string {
     return `${mba}|${version}|${lineItemId.toLowerCase().trim()}`;
@@ -231,6 +234,7 @@ export async function fetchSocialPacingCampaignRows(
     if (kpiTargetsByKey.has(key)) {
       console.warn(`[fetchSocialPacingCampaignRows] duplicate campaign_kpi for ${key}`);
     }
+    kpiRowsByKey.set(key, ck);
     kpiTargetsByKey.set(key, {
       mediaType: ck.media_type ?? null,
       publisher: ck.publisher ?? null,
@@ -246,6 +250,12 @@ export async function fetchSocialPacingCampaignRows(
   for (const row of rows) {
     const key = makeKpiKey(row.mbaNumber, row.mediaPlanVersionNumber, row.lineItemId);
     row.kpiTargets = kpiTargetsByKey.get(key) ?? null;
+    // C2: CPV is the plan rate; saved campaign_kpi.cpv is ignored.
+    row.planCpvRate = planCpvRateForLine({
+      lineItemId: row.lineItemId,
+      planLine: row.kpiPlanLine,
+      kpiRow: kpiRowsByKey.get(key) ?? null,
+    });
   }
 
   return rows;

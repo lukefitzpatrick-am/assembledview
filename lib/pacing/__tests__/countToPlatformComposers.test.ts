@@ -50,7 +50,16 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/pacing/social/resolveLiveSocialLineItems", {
     namedExports: {
       resolveLiveSocialPacingCampaignRows: async () => [
-        planRow("p1test001sm1", { socialPlatform: "meta" }),
+        planRow("p1test001sm1", {
+          socialPlatform: "meta",
+          kpiPlanLine: {
+            buyType: "cpv",
+            plannedSpend: 1000,
+            buyAmount: 0.05,
+            plannedViews: null,
+            plannedImpressions: null,
+          },
+        }),
       ],
     },
   })
@@ -79,7 +88,28 @@ if (supportsMockModule()) {
     },
   })
   await mock.module!("@/lib/xano/campaignKpi", {
-    namedExports: { fetchCampaignKpisForMbas: async () => [] },
+    namedExports: {
+      // A leftover saved CPV that the KPI cells must ignore (C2).
+      fetchCampaignKpisForMbas: async () => [
+        {
+          id: 1,
+          created_at: 0,
+          mp_client_name: "Acme",
+          mba_number: "P1TEST001",
+          version_number: 2,
+          campaign_name: "Ten day flight",
+          media_type: "socialMedia",
+          publisher: "meta",
+          bid_strategy: "",
+          ctr: null,
+          cpv: 0.1,
+          conversion_rate: null,
+          vtr: null,
+          frequency: null,
+          line_item_id: "p1test001sm1",
+        },
+      ],
+    },
   })
   await mock.module!("@/lib/snowflake/pacing-fact", {
     namedExports: {
@@ -117,6 +147,9 @@ test("social composer counts facts and status to the count-to day", { skip }, as
   assert.equal(row?.lineItemStatus, "on-track")
   // Spend yesterday is the count-to day.
   assert.equal(row?.spendYesterday, 100)
+  // C2: the plan CPV rate, not the saved 0.10.
+  assert.equal(row?.kpiTargets?.cpv, 0.1)
+  assert.equal(row?.planCpvRate, 0.05)
 
   factCalls.length = 0
   const [old] = await fetchSocialPacingCampaignRows({ asOfDate: "2026-10-22", allowedClientSlugs: null })

@@ -3,6 +3,7 @@
  * (DV360 + Taboola via programmatic channel filters).
  */
 
+import type { KpiReviewPlanLine } from "@/lib/kpi/kpiReview";
 import type { KpiTargets, NormalisedBurst } from "@/lib/pacing/campaigns/types";
 import type { DeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
 
@@ -125,6 +126,14 @@ export type ProgrammaticPacingCampaignRow = {
   spendPacingDeferredToDirect?: boolean;
 
   kpiTargets: KpiTargets | null;
+
+  /** Plan fields for the plan CPV rate (C2). Set from the media plan line. */
+  kpiPlanLine?: KpiReviewPlanLine | null;
+  /**
+   * CPV target for the KPI cells (C2): the plan rate the KPI review shows.
+   * Saved `campaign_kpi.cpv` is ignored. Null when the line has no plan rate.
+   */
+  planCpvRate?: number | null;
 
   platformCampaigns: ProgrammaticPlatformCampaignBreakdown[];
 };

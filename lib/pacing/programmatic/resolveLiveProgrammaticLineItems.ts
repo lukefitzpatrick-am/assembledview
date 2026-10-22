@@ -3,6 +3,7 @@ import "server-only";
 import { findCurrentBurstIndex, inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst";
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts";
 import { type VersionRow } from "@/lib/pacing/campaigns/fetchSearchPacingCampaignRows";
+import { kpiPlanLineFromPlanItem } from "@/lib/pacing/kpi/planCpvRate";
 import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
 import {
   fetchXanoLineItemsForMba,
@@ -244,6 +245,7 @@ function mapProgRowToCampaignRow(
     vtr: null,
 
     kpiTargets: null,
+    kpiPlanLine: kpiPlanLineFromPlanItem(pr, totalLineItemBudget),
 
     spendPacingDeferredToDirect: false,
 
