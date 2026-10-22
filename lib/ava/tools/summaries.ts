@@ -249,6 +249,8 @@ function matchesMbaFilter(row: CompactPacingRow, mba?: string): boolean {
 
 export function summarisePacingSnapshot(args: {
   asOfDate: string
+  /** Last day counted (P1). Spend and status stop here. */
+  countToDate?: string
   planSummary: string
   rows: CompactPacingRow[]
   clientSlug?: string
@@ -264,6 +266,7 @@ export function summarisePacingSnapshot(args: {
   }
   return {
     asOfDate: args.asOfDate,
+    ...(args.countToDate ? { countedTo: args.countToDate } : {}),
     clientSlug: args.clientSlug ?? null,
     mbaNumber: args.mbaNumber ?? null,
     planSummary: truncateText(args.planSummary, 1200),

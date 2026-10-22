@@ -1,6 +1,6 @@
 import type AvaTool from "./types"
 import { getAvaXanoSummary } from "@/lib/xano/ava"
-import { getAsOfDate } from "@/lib/pacing/maths"
+import { resolveAdminPacingDays } from "@/lib/pacing/countTo"
 import {
   getCachedAdServingPacingRows,
   getCachedDirectPacingRows,
@@ -53,7 +53,7 @@ export const getPacingSnapshotTool: AvaTool = {
   definition: {
     name: "get_pacing_snapshot",
     description:
-      "Pacing story for a client or MBA: plan summary from Xano plus compact cached pacing rows across search/social/programmatic/direct-booked-digital/direct. Prefer when the user asks how delivery or pacing looks.",
+      "Pacing story for a client or MBA: plan summary from Xano plus compact cached pacing rows across search/social/programmatic/direct-booked-digital/direct. Spend and status count to Melbourne yesterday (`countedTo`), the same day as the client campaign page. Prefer when the user asks how delivery or pacing looks.",
     input_schema: {
       type: "object",
       properties: {
@@ -87,7 +87,8 @@ export const getPacingSnapshotTool: AvaTool = {
     }
 
     try {
-      const asOfDate = getAsOfDate()
+      // P1: counts to the day before the view day, like the client strip.
+      const { asOfDate, countToDate } = resolveAdminPacingDays()
       let allowedClientSlugs: Set<string> | null = null
       if (!isUnscopedAvaAccess(context)) {
         allowedClientSlugs = new Set(
@@ -105,11 +106,11 @@ export const getPacingSnapshotTool: AvaTool = {
         mbaNumber
           ? getAvaXanoSummary({ clientSlug, mbaNumber, versionNumber: context.versionNumber })
           : Promise.resolve(""),
-        getCachedSearchPacingRows(asOfDate, allowedClientSlugs),
-        getCachedSocialPacingRows(asOfDate, allowedClientSlugs),
-        getCachedProgrammaticPacingRows(asOfDate, allowedClientSlugs),
-        getCachedAdServingPacingRows(asOfDate, allowedClientSlugs),
-        getCachedDirectPacingRows(asOfDate, allowedClientSlugs, false),
+        getCachedSearchPacingRows(asOfDate, allowedClientSlugs, countToDate),
+        getCachedSocialPacingRows(asOfDate, allowedClientSlugs, countToDate),
+        getCachedProgrammaticPacingRows(asOfDate, allowedClientSlugs, countToDate),
+        getCachedAdServingPacingRows(asOfDate, allowedClientSlugs, countToDate),
+        getCachedDirectPacingRows(asOfDate, allowedClientSlugs, false, countToDate),
       ])
 
       const rows: CompactPacingRow[] = [
@@ -143,6 +144,7 @@ export const getPacingSnapshotTool: AvaTool = {
         content: jsonContent(
           summarisePacingSnapshot({
             asOfDate,
+            countToDate,
             planSummary,
             rows,
             clientSlug,
