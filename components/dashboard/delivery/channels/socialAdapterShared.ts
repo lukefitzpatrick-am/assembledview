@@ -83,18 +83,6 @@ function isVideoBuySocial(lineItems: SocialLineItem[]): boolean {
   return lineItems.some((li) => /\bvideo\b/i.test(String(li.buy_type ?? "")))
 }
 
-function compareRateStatus(
-  actual: number | null,
-  target: number | undefined,
-  higherIsBetter: boolean,
-): DeliveryStatus {
-  if (actual == null || target === undefined || target <= 0 || !Number.isFinite(actual)) return "no-data"
-  const tol = 0.08
-  const ratio = higherIsBetter ? actual / target : target / actual
-  if (ratio >= 1 + tol) return higherIsBetter ? "ahead" : "behind"
-  if (ratio <= 1 - tol) return higherIsBetter ? "behind" : "ahead"
-  return "on-track"
-}
 
 /** campaign_kpi ratio → 0–100 percentage points (same scale as summarizeActuals). */
 function ratioTargetPercentPoints(raw: number | null | undefined): number | undefined {
@@ -257,10 +245,6 @@ function buildKpiTiles(input: {
     value: tileMoney(kpis.cpm),
     expected:
       kpis.cpm != null && cpmExpected !== undefined ? formatCurrency2dp(cpmExpected) : undefined,
-    status:
-      kpis.cpm != null && cpmExpected !== undefined
-        ? compareRateStatus(kpis.cpm, cpmExpected, false)
-        : undefined,
     progress:
       kpis.cpm != null && kpis.cpm > 0 && cpmExpected !== undefined && cpmExpected > 0
         ? Math.max(0, Math.min(1, cpmExpected / kpis.cpm))
@@ -274,10 +258,6 @@ function buildKpiTiles(input: {
     label: "CTR",
     value: kpis.ctr == null ? null : fmtPct(kpis.ctr * 100),
     expected: kpis.ctr != null && ctrTarget !== undefined ? fmtPct(ctrTarget * 100) : undefined,
-    status:
-      kpis.ctr != null && ctrTarget !== undefined
-        ? compareRateStatus(kpis.ctr, ctrTarget, true)
-        : undefined,
     progress:
       kpis.ctr != null && ctrTarget !== undefined
         ? Math.max(0, Math.min(1, kpis.ctr / ctrTarget))
@@ -297,10 +277,6 @@ function buildKpiTiles(input: {
     label: "CVR",
     value: tilePct(kpis.cvr),
     expected: kpis.cvr != null && cvrTarget !== undefined ? fmtPct(cvrTarget) : undefined,
-    status:
-      kpis.cvr != null && cvrTarget !== undefined
-        ? compareRateStatus(kpis.cvr, cvrTarget, true)
-        : undefined,
     progress:
       kpis.cvr != null && cvrTarget !== undefined
         ? Math.max(0, Math.min(1, kpis.cvr / cvrTarget))
@@ -321,10 +297,6 @@ function buildKpiTiles(input: {
       label: "View rate",
       value: kpis.view_rate == null ? "—" : fmtPct(kpis.view_rate * 100),
       expected: vtrTarget !== undefined ? fmtPct(vtrTarget * 100) : undefined,
-      status:
-        kpis.view_rate != null && vtrTarget !== undefined
-          ? compareRateStatus(kpis.view_rate, vtrTarget, true)
-          : undefined,
       caption:
         kpis.view_rate != null && kpis.impressions > 0
           ? `${Math.round(kpis.view_rate * 100)}% of impressions`
@@ -335,10 +307,6 @@ function buildKpiTiles(input: {
       label: "CPV",
       value: kpis.cpv == null ? "—" : formatCurrency2dp(kpis.cpv),
       expected: cpvExpected !== undefined ? formatCurrency2dp(cpvExpected) : undefined,
-      status:
-        kpis.cpv != null && cpvExpected !== undefined
-          ? compareRateStatus(kpis.cpv, cpvExpected, false)
-          : undefined,
       progress:
         kpis.cpv != null && kpis.cpv > 0 && cpvExpected !== undefined && cpvExpected > 0
           ? Math.max(0, Math.min(1, cpvExpected / kpis.cpv))

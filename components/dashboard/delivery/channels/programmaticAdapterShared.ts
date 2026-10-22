@@ -32,7 +32,6 @@ import type { KpiTileProps } from "../shared/KpiTile"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
 import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { ChannelKey, ChannelSectionData, ConnectionPill } from "./types"
-import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
 import { lineDatesFromBursts } from "@/lib/delivery/lineChartWindow"
 import { PROGRAMMATIC_CHART_SERIES, PROGRAMMATIC_CPV_CHART_SERIES } from "./channelChartSeries"
@@ -60,18 +59,6 @@ const MODELLED_SPEND_TOOLTIP =
   "Rate = planned media ÷ planned deliverables. Capped at the planned total."
 const FIXED_COST_SPEND_LABEL = "Reported spend (fixed cost)"
 
-function compareRateStatus(
-  actual: number | null,
-  target: number | undefined,
-  higherIsBetter: boolean,
-): DeliveryStatus | undefined {
-  if (actual == null || target === undefined || target <= 0 || !Number.isFinite(actual)) return undefined
-  const tol = 0.08
-  const ratio = higherIsBetter ? actual / target : target / actual
-  if (ratio >= 1 + tol) return higherIsBetter ? "ahead" : "behind"
-  if (ratio <= 1 - tol) return higherIsBetter ? "behind" : "ahead"
-  return "on-track"
-}
 
 function formatCurrency2dp(value: number | undefined) {
   return formatMoney(value ?? 0)
@@ -321,10 +308,6 @@ function buildProgrammaticKpiTiles(input: {
     value: tileMoney(kpis.cpm),
     expected:
       kpis.cpm != null && cpmExpected !== undefined ? formatCurrency2dp(cpmExpected) : undefined,
-    status:
-      kpis.cpm != null && cpmExpected !== undefined
-        ? compareRateStatus(kpis.cpm, cpmExpected, false)
-        : undefined,
     progress:
       kpis.cpm != null && kpis.cpm > 0 && cpmExpected !== undefined && cpmExpected > 0
         ? Math.max(0, Math.min(1, cpmExpected / kpis.cpm))
@@ -338,10 +321,6 @@ function buildProgrammaticKpiTiles(input: {
     label: "CTR",
     value: kpis.ctr == null ? null : fmtPct(kpis.ctr * 100),
     expected: kpis.ctr != null && ctrTarget !== undefined ? fmtPct(ctrTarget * 100) : undefined,
-    status:
-      kpis.ctr != null && ctrTarget !== undefined
-        ? compareRateStatus(kpis.ctr, ctrTarget, true)
-        : undefined,
     progress:
       kpis.ctr != null && ctrTarget !== undefined
         ? Math.max(0, Math.min(1, kpis.ctr / ctrTarget))
@@ -376,10 +355,6 @@ function buildProgrammaticKpiTiles(input: {
         label: "View rate",
         value: kpis.viewRate == null ? "—" : fmtPct(kpis.viewRate * 100),
         expected: vtrTarget !== undefined ? fmtPct(vtrTarget * 100) : undefined,
-        status:
-          kpis.viewRate != null && vtrTarget !== undefined
-            ? compareRateStatus(kpis.viewRate, vtrTarget, true)
-            : undefined,
         progress:
           kpis.viewRate != null && vtrTarget !== undefined && vtrTarget > 0
             ? Math.max(0, Math.min(1, kpis.viewRate / vtrTarget))
@@ -394,10 +369,6 @@ function buildProgrammaticKpiTiles(input: {
         label: "CPV",
         value: kpis.cpv == null ? "—" : formatCurrency2dp(kpis.cpv),
         expected: cpvExpected !== undefined ? formatCurrency2dp(cpvExpected) : undefined,
-        status:
-          kpis.cpv != null && cpvExpected !== undefined
-            ? compareRateStatus(kpis.cpv, cpvExpected, false)
-            : undefined,
         progress:
           kpis.cpv != null && kpis.cpv > 0 && cpvExpected !== undefined && cpvExpected > 0
             ? Math.max(0, Math.min(1, cpvExpected / kpis.cpv))
