@@ -48,6 +48,12 @@ export const FINANCE_SECTION_SIDEBAR_ITEMS: readonly FinanceSectionNavItem[] = [
     legacyTab: "invoiced-vs-expected",
     description: "AV expected against the Xero subtotal",
   },
+  {
+    path: "/finance/reports/plan-reconciliation",
+    label: "Plan reconciliation",
+    legacyTab: "plan-reconciliation",
+    description: "Finance figure against billing schedule_months, to the cent",
+  },
 ] as const
 
 /**
@@ -110,6 +116,7 @@ export const FINANCE_SECTION_PAGE_PATHS = [
   "/finance/investment",
   "/finance/forecasting",
   "/finance/reports/invoiced-vs-expected",
+  "/finance/reports/plan-reconciliation",
 ] as const
 
 /**

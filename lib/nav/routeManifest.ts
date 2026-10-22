@@ -132,6 +132,7 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
       "/finance/forecasting",
       "/finance/investment",
       "/finance/reports/invoiced-vs-expected",
+      "/finance/reports/plan-reconciliation",
     ],
   },
   {
@@ -846,6 +847,17 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     roles: ["admin"],
     group: "finance",
     searchTerms: "invoiced vs expected xero subtotal delta finance report",
+  },
+  {
+    path: "/finance/reports/plan-reconciliation",
+    label: "Plan reconciliation",
+    title: "Finance · Plan reconciliation",
+    icon: "FileText",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "plan reconciliation schedule months billing gap export finance check",
   },
 
   // ── Scopes ─────────────────────────────────────────────────────────

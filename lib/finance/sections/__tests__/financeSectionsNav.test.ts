@@ -76,9 +76,10 @@ test("sidebar snapshot is the Finance group", () => {
       { path: "/finance/forecasting", label: "Forecasting" },
       { path: "/finance/investment", label: "Investment" },
       { path: "/finance/reports/invoiced-vs-expected", label: "Invoiced vs expected" },
+      { path: "/finance/reports/plan-reconciliation", label: "Plan reconciliation" },
     ],
   })
-  assert.equal(FINANCE_SECTION_SIDEBAR_ITEMS.length, 6)
+  assert.equal(FINANCE_SECTION_SIDEBAR_ITEMS.length, 7)
   assert.equal(getFinanceSidebarSnapshot(false).mode, "expandable")
 })
 
