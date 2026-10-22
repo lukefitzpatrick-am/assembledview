@@ -27,6 +27,7 @@ import type { DirectCampaignGroup, DirectLineItemRow } from "@/lib/pacing/direct
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs"
 import { isLiveCampaignStatus } from "@/lib/types/mediaPlanMaster"
+import { composerCountToISO, isIsoDay } from "@/lib/pacing/countTo"
 import {
   expectedSpendToDateFromDeliveryScheduleMonthly,
   resolveMonthlySpendForPlan,
@@ -55,7 +56,14 @@ import type {
 export { countPortfolioRows, isAttentionRow, isOverPacing } from "./portfolioRowFlags"
 
 export type AssembleCampaignPacingRowsInput = {
+  /** View day. Decides which campaigns are live. */
   asOfDate: string
+  /**
+   * Last day counted (P1, `lib/pacing/countTo.ts`). Expected, assumed spend,
+   * days elapsed and not-started checks use it. The channel rows passed in
+   * must be counted to the same day. Unset counts to `asOfDate`.
+   */
+  countToDate?: string
   allowedClientSlugs: Set<string> | null
   liveOnly?: boolean
   search: SearchPacingCampaignRow[]
@@ -683,6 +691,8 @@ function channelExpectedDollars(
 
 export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInput): CampaignPacingRow[] {
   const liveOnly = input.liveOnly !== false
+  const countTo = composerCountToISO(input)
+  const stampCountTo = isIsoDay(input.countToDate)
   const bag = new Map<string, DraftCampaign>()
   const platformLineIds = new Set<string>()
   const deliveryIds = deliveryPresenceIds(input)
@@ -831,7 +841,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
             bursts: row.bursts,
             days: [
               {
-                date: row.lineItemEndDate || row.campaignEndDate || input.asOfDate,
+                date: row.lineItemEndDate || row.campaignEndDate || countTo,
                 impressions: row.impressions,
                 clicks: row.clicks,
                 results: row.results,
@@ -983,12 +993,12 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       input.schedulesByMba.get(mbaKey)
     const assumedLines = assumedLinesWithoutDelivery(schedule?.assumedLines, deliveryIds)
     const pacedSchedule = schedule ? { ...schedule, assumedLines } : undefined
-    applyAssumedPlanChannels(draft, assumedLines, input.asOfDate)
+    applyAssumedPlanChannels(draft, assumedLines, countTo)
     const daysTotal = computeCampaignDays(draft.startDate, draft.endDate)
-    const daysElapsed = computeDaysPassed(draft.startDate, draft.endDate, input.asOfDate)
-    const daysLeft = computeDaysRemaining(draft.startDate, draft.endDate, input.asOfDate)
+    const daysElapsed = computeDaysPassed(draft.startDate, draft.endDate, countTo)
+    const daysLeft = computeDaysRemaining(draft.startDate, draft.endDate, countTo)
     const timePct = daysTotal > 0 ? (daysElapsed / daysTotal) * 100 : 0
-    const expectedToDate = expectedForCampaign(pacedSchedule, draft.startDate, draft.endDate, input.asOfDate)
+    const expectedToDate = expectedForCampaign(pacedSchedule, draft.startDate, draft.endDate, countTo)
 
     const channelList = [...draft.channels.values()]
     const spendBudget = channelList
@@ -1020,16 +1030,16 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       pacedSchedule,
       draft.startDate,
       draft.endDate,
-      input.asOfDate,
+      countTo,
       expectedToDate,
       spendBudget,
     )
-    const assumedByChannel = assumedDollarsByChannel(assumedLines, input.asOfDate)
+    const assumedByChannel = assumedDollarsByChannel(assumedLines, countTo)
     const channels: ChannelPacingRow[] = channelList.map((ch) => {
       const channelExpected = expectedByChannel.get(ch.channelKey) ?? 0
       const assumedDelivery = ch.spendMode === "assumed" && assumedByChannel.has(ch.channelKey)
       const sourceState = sourceStateFor({
-        asOfDate: input.asOfDate,
+        asOfDate: countTo,
         lineStart: ch.lineStart,
         campaignStart: draft.startDate,
         hasSource: assumedDelivery || ch.hasSource,
@@ -1045,7 +1055,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
             contributesSpend: ch.contributesSpend,
           })
       const pace = channelPace({
-        asOfDate: input.asOfDate,
+        asOfDate: countTo,
         campaignStart: draft.startDate,
         lineStart: ch.lineStart,
         daysElapsed,
@@ -1070,7 +1080,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
     })
 
     let pace: PortfolioPace
-    if (draft.startDate > input.asOfDate) {
+    if (draft.startDate > countTo) {
       pace = "not_started"
     } else if (channels.some((ch) => ch.sourceState === "no_source" || ch.pace === "no_source")) {
       pace = "no_source"
@@ -1106,6 +1116,7 @@ export function assembleCampaignPacingRows(input: AssembleCampaignPacingRowsInpu
       moneyAtRisk: Math.abs(expectedToDate - spendToDate),
       why: "",
       channels,
+      ...(stampCountTo ? { countToDate: countTo } : {}),
     }
     row.why = whySentence(row)
     assembled.push(row)

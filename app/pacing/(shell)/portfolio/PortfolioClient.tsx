@@ -13,6 +13,7 @@ import { filterPortfolioRows } from "@/lib/pacing/portfolio/filterPortfolioRows"
 import { usePortfolioLayout } from "@/lib/pacing/portfolio/portfolioLayout"
 import type { CampaignPacingRow, PortfolioPacingCounts } from "@/lib/pacing/portfolio/types"
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore"
+import { adminCountToLabel } from "@/lib/pacing/countTo"
 import {
   pacingFiltersActive,
   usePacingClientIdToNameMap,
@@ -24,6 +25,8 @@ type ApiShape = {
   rows: CampaignPacingRow[]
   counts: PortfolioPacingCounts
   generated_at?: string
+  /** Last day counted (P1). Absent on rows built before P1. */
+  countTo?: string
   stale?: { asOf: string; reason: string }
 }
 
@@ -144,7 +147,7 @@ export function PortfolioClient() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="text-xs text-muted-foreground">
-            As of {data.asOf}
+            {adminCountToLabel(data.asOf, data.countTo)}
             {data.generated_at ? (
               <span className="ml-3">Updated {formatUpdatedAt(data.generated_at)}</span>
             ) : null}

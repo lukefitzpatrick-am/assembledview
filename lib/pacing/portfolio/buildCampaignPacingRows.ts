@@ -34,7 +34,13 @@ import type { AssumedExpectedLine } from "@/lib/spend/assumedSpend"
 import { isLiveCampaignStatus } from "@/lib/types/mediaPlanMaster"
 
 export type BuildCampaignPacingRowsArgs = {
+  /** View day. Liveness, versions read and cache keys. */
   asOfDate: string
+  /**
+   * Last day counted (P1, `lib/pacing/countTo.ts`). Every channel composer
+   * and the campaign expected stop here. Unset counts to `asOfDate`.
+   */
+  countToDate?: string
   allowedClientSlugs: Set<string> | null
   liveOnly?: boolean
   /** Request start. The overall budget is measured from here. */
@@ -165,6 +171,7 @@ export async function buildCampaignPacingRows(
 ): Promise<{ rows: CampaignPacingRow[]; expectedLiveIds: string[] }> {
   const liveOnly = args.liveOnly !== false
   const useCache = args.cache !== false
+  const countToDate = args.countToDate
   const startedAt = args.startedAt ?? Date.now()
   const timings: PortfolioSourceTiming[] = []
   const budget = {
@@ -182,36 +189,41 @@ export async function buildCampaignPacingRows(
         { asOfDate: args.asOfDate, allowedClientSlugs: args.allowedClientSlugs },
         {
           search: channelLoader(
-            getCachedSearchPacingRows,
+            (asOfDate, slugs) => getCachedSearchPacingRows(asOfDate, slugs, countToDate),
             (asOfDate, slugs) =>
-              fetchSearchPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+              fetchSearchPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs, countToDate }),
             useCache,
           ),
           social: channelLoader(
-            getCachedSocialPacingRows,
+            (asOfDate, slugs) => getCachedSocialPacingRows(asOfDate, slugs, countToDate),
             (asOfDate, slugs) =>
-              fetchSocialPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+              fetchSocialPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs, countToDate }),
             useCache,
           ),
           programmatic: channelLoader(
-            getCachedProgrammaticPacingRows,
+            (asOfDate, slugs) => getCachedProgrammaticPacingRows(asOfDate, slugs, countToDate),
             (asOfDate, slugs) =>
-              fetchProgrammaticPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+              fetchProgrammaticPacingCampaignRows({
+                asOfDate,
+                allowedClientSlugs: slugs,
+                countToDate,
+              }),
             useCache,
           ),
           adServing: channelLoader(
-            getCachedAdServingPacingRows,
+            (asOfDate, slugs) => getCachedAdServingPacingRows(asOfDate, slugs, countToDate),
             (asOfDate, slugs) =>
-              fetchAdServingPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs }),
+              fetchAdServingPacingCampaignRows({ asOfDate, allowedClientSlugs: slugs, countToDate }),
             useCache,
           ),
           direct: channelLoader(
-            (asOfDate, slugs) => getCachedDirectPacingRows(asOfDate, slugs, false),
+            (asOfDate, slugs) => getCachedDirectPacingRows(asOfDate, slugs, false, countToDate),
             (asOfDate, slugs) =>
               fetchDirectPacingRows({
                 asOfDate,
                 allowedClientSlugs: slugs,
                 includeHistorical: false,
+                countToDate,
               }),
             useCache,
           ),
@@ -251,6 +263,7 @@ export async function buildCampaignPacingRows(
 
   const rows = assembleCampaignPacingRows({
     asOfDate: args.asOfDate,
+    countToDate,
     allowedClientSlugs: args.allowedClientSlugs,
     liveOnly,
     ...sources,

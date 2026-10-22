@@ -2,9 +2,10 @@ import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { pacingScopeKey } from "@/lib/pacing/campaigns/pacingRowsCache"
-import { getAsOfDate } from "@/lib/pacing/maths"
+import { resolveAdminPacingDays } from "@/lib/pacing/countTo"
 import { buildAndStorePortfolioSnapshot } from "@/lib/pacing/portfolio/buildAndStorePortfolioSnapshot"
 import { readPortfolioSnapshot } from "@/lib/pacing/portfolio/portfolioSnapshotStore"
+import { snapshotMatchesCountTo } from "@/lib/pacing/portfolio/servePortfolioSnapshot"
 import { runPortfolioCronBuild } from "@/lib/pacing/portfolio/runPortfolioCron"
 import { logJob } from "@/lib/log"
 
@@ -15,6 +16,7 @@ export const preferredRegion = ["syd1"]
 
 /**
  * Build the admin-scope daily portfolio snapshot for today's Melbourne as-of.
+ * Rows count to Melbourne yesterday (P1, `lib/pacing/countTo.ts`).
  * Auth: CRON_SECRET. Cron: 0 21 * * * — 21:00 UTC (08:00 Melbourne AEDT, 07:00 AEST), after the 06:30 warehouse refresh.
  * Retry: 30 21 * * * with ?retry=1 builds only when today's (as_of, all, live_only) row is missing.
  */
@@ -26,7 +28,7 @@ export async function GET(request: Request) {
     )
   }
 
-  const asOfDate = getAsOfDate()
+  const { asOfDate, countToDate } = resolveAdminPacingDays()
   const liveOnly = true
   const scopeKey = pacingScopeKey(null)
   const handlerStarted = Date.now()
@@ -35,10 +37,15 @@ export async function GET(request: Request) {
   try {
     const action = await runPortfolioCronBuild({
       retry,
-      readToday: () => readPortfolioSnapshot({ asOfDate, scopeKey, liveOnly }),
+      readToday: async () => {
+        const today = await readPortfolioSnapshot({ asOfDate, scopeKey, liveOnly })
+        // A row built before P1 counted to today; the retry rebuilds it.
+        return today && snapshotMatchesCountTo(today, countToDate) ? today : null
+      },
       build: () =>
         buildAndStorePortfolioSnapshot({
           asOfDate,
+          countToDate,
           scopeKey,
           liveOnly,
           allowedClientSlugs: null,

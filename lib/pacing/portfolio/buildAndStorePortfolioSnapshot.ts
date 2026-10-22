@@ -17,6 +17,7 @@ export async function buildAndStorePortfolioSnapshot(
   const rowsStarted = Date.now()
   const built = await buildCampaignPacingRows({
     asOfDate: args.asOfDate,
+    countToDate: args.countToDate,
     allowedClientSlugs,
     liveOnly: args.liveOnly,
     startedAt: args.startedAt,

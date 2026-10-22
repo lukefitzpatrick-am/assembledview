@@ -52,6 +52,11 @@ export type CampaignPacingRow = {
   moneyAtRisk: number
   why: string
   channels: ChannelPacingRow[]
+  /**
+   * Last day counted (P1). Set on rows built since admin pacing counts to
+   * Melbourne yesterday. A stored row without it was counted to its as-of day.
+   */
+  countToDate?: string
 }
 
 export type PortfolioPacingCounts = {

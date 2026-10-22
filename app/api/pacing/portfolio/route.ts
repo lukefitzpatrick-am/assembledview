@@ -10,7 +10,7 @@ import {
 } from "@/lib/pacing/portfolio/portfolioSnapshotStore"
 import { servePortfolioSnapshot } from "@/lib/pacing/portfolio/servePortfolioSnapshot"
 import { resolveClientSlugs } from "@/lib/pacing/scope/resolveClientSlugs"
-import { getAsOfDate } from "@/lib/pacing/maths"
+import { resolveAdminPacingDays } from "@/lib/pacing/countTo"
 
 export const dynamic = "force-dynamic"
 export const fetchCache = "force-no-store"
@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url)
   const asOfDateParam = url.searchParams.get("asOfDate")
-  const asOf = asOfDateParam?.trim() || getAsOfDate()
+  // P1: rows count to the day before the view day, like the client strip.
+  const { asOfDate: asOf, countToDate } = resolveAdminPacingDays(asOfDateParam)
   const liveOnlyParam = url.searchParams.get("liveOnly")
   const liveOnly = liveOnlyParam == null ? true : liveOnlyParam !== "false"
   const refresh = url.searchParams.get("refresh") === "1"
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
   try {
     const result = await servePortfolioSnapshot({
       asOf,
+      countToDate,
       liveOnly,
       scopeKey,
       allowedClientSlugs,
