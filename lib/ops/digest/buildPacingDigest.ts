@@ -1,6 +1,7 @@
 import "server-only"
 
-import { getAsOfDate } from "@/lib/pacing/maths"
+import { resolveAdminPacingDays } from "@/lib/pacing/countTo"
+import { snapshotMatchesCountTo } from "@/lib/pacing/portfolio/servePortfolioSnapshot"
 import { addMelbourneDays } from "@/lib/pacing/relabel/notify"
 import { listRelabelDrift, type RelabelDriftFinding } from "@/lib/pacing/relabel/listRelabelDrift"
 import {
@@ -71,6 +72,8 @@ function asSource(
 
 export type PacingDigestPayload = {
   asOfDate: string
+  /** Last day counted (P1): Melbourne yesterday. */
+  countToDate?: string
   builtAt: string
   /** May be served from the 4h pacingRowsCache — acceptable while staleness ≤ TTL. */
   cacheNote: string
@@ -102,10 +105,11 @@ function logDigestStage(
 
 /**
  * Prefer the same-day admin portfolio snapshot (`scope_key` all, live only).
- * Recompute from the channel caches only when that row is missing.
+ * Recompute from the channel caches only when that row is missing or was
+ * built before P1. Both paths count to Melbourne yesterday.
  */
 export async function buildPacingDigest(now: Date = new Date()): Promise<PacingDigestPayload> {
-  const asOfDate = getAsOfDate(now)
+  const { asOfDate, countToDate } = resolveAdminPacingDays(null, now)
   const allowedClientSlugs = null
   const snapshotStarted = Date.now()
   const snapshot = await readPortfolioSnapshot({
@@ -119,11 +123,11 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
     campaigns: snapshot?.rows.length ?? 0,
   })
 
-  if (snapshot && snapshot.asOfDate === asOfDate) {
+  if (snapshot && snapshot.asOfDate === asOfDate && snapshotMatchesCountTo(snapshot, countToDate)) {
     const mapStarted = Date.now()
     const rows = digestRowsFromPortfolioCampaigns(snapshot.rows)
     logDigestStage("snapshot_rows", mapStarted, { campaigns: rows.length })
-    return finishDigest(now, asOfDate, rows, {
+    return finishDigest(now, asOfDate, countToDate, rows, {
       cacheNote: `Same-day admin portfolio snapshot generated ${snapshot.generatedAt}.`,
     })
   }
@@ -133,11 +137,11 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
   // both — same 4h pacingRowsCache as search/social/programmatic.
   const cacheStarted = Date.now()
   const [search, social, programmatic, direct, adServing] = await Promise.all([
-    getCachedSearchPacingRows(asOfDate, allowedClientSlugs),
-    getCachedSocialPacingRows(asOfDate, allowedClientSlugs),
-    getCachedProgrammaticPacingRows(asOfDate, allowedClientSlugs),
-    getCachedDirectPacingRows(asOfDate, allowedClientSlugs, false),
-    getCachedAdServingPacingRows(asOfDate, allowedClientSlugs),
+    getCachedSearchPacingRows(asOfDate, allowedClientSlugs, countToDate),
+    getCachedSocialPacingRows(asOfDate, allowedClientSlugs, countToDate),
+    getCachedProgrammaticPacingRows(asOfDate, allowedClientSlugs, countToDate),
+    getCachedDirectPacingRows(asOfDate, allowedClientSlugs, false, countToDate),
+    getCachedAdServingPacingRows(asOfDate, allowedClientSlugs, countToDate),
   ])
   logDigestStage("channel_caches", cacheStarted)
 
@@ -149,9 +153,9 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
 
   const recomputeStarted = Date.now()
   const rows = [
-    ...buildDigestCampaignRows(sources, asOfDate),
-    ...buildDirectDigestCampaignRows(direct ?? [], asOfDate),
-    ...buildAdServingDigestCampaignRows(adServing ?? [], asOfDate),
+    ...buildDigestCampaignRows(sources, countToDate),
+    ...buildDirectDigestCampaignRows(direct ?? [], countToDate),
+    ...buildAdServingDigestCampaignRows(adServing ?? [], countToDate),
   ].sort((a, b) => {
     const bandDiff = bandSortKey(a.band) - bandSortKey(b.band)
     if (bandDiff !== 0) return bandDiff
@@ -161,7 +165,7 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
     )
   })
   logDigestStage("recompute_rows", recomputeStarted, { campaigns: rows.length })
-  return finishDigest(now, asOfDate, rows, {
+  return finishDigest(now, asOfDate, countToDate, rows, {
     cacheNote: "Reads may hit pacingRowsCache (4h revalidate); fine for digest if ≤ TTL.",
   })
 }
@@ -169,6 +173,7 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
 async function finishDigest(
   now: Date,
   asOfDate: string,
+  countToDate: string,
   rows: DigestCampaignRow[],
   meta: { cacheNote: string },
 ): Promise<PacingDigestPayload> {
@@ -195,6 +200,7 @@ async function finishDigest(
 
   return {
     asOfDate,
+    countToDate,
     builtAt: now.toISOString(),
     cacheNote: meta.cacheNote,
     rows,

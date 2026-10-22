@@ -121,6 +121,7 @@ export function buildPacingDigestSubject(payload: PacingDigestPayload): string {
  */
 export function buildPacingDigestEmailHtml(payload: PacingDigestPayload): string {
   const { groups, counts, asOfDate, builtAt } = payload
+  const countedTo = payload.countToDate ? ` · counted to ${escapeHtml(payload.countToDate)}` : ""
 
   return `<!DOCTYPE html>
 <html>
@@ -134,7 +135,7 @@ export function buildPacingDigestEmailHtml(payload: PacingDigestPayload): string
         </td></tr>
         <tr><td style="padding:20px 24px 8px;font-family:${EMAIL_FONT_STACK};">
           <div style="font-size:20px;font-weight:700;color:${BRAND.colour.ink};">AssembledView pacing digest</div>
-          <div style="font-size:13px;color:${BRAND.colour.muted};margin-top:4px;">As of ${escapeHtml(asOfDate)} (Melbourne) · built ${escapeHtml(builtAt)}</div>
+          <div style="font-size:13px;color:${BRAND.colour.muted};margin-top:4px;">As of ${escapeHtml(asOfDate)} (Melbourne)${countedTo} · built ${escapeHtml(builtAt)}</div>
           <div style="font-size:13px;color:${BRAND.colour.muted};margin-top:8px;">
             <span style="display:inline-block;padding:4px 8px;margin-right:6px;background:${BRAND.derived.sandTint};color:${BRAND.functional.coralText};border-radius:999px;font-size:12px;font-weight:700;">${counts.atRisk} at risk</span>
             <span style="display:inline-block;padding:4px 8px;margin-right:6px;background:${BRAND.derived.sandTint};color:${BRAND.colour.forest};border-radius:999px;font-size:12px;font-weight:700;">${counts.on} on track</span>
