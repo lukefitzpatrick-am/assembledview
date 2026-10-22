@@ -29,6 +29,8 @@ export type MediaPlanWorkbookInput = {
   clientName: string
   campaignName: string
   versionNumber: number
+  /** Delivery-month weights for the Service Fee and Ad Serving rows (standard variant). */
+  serviceMonthWeights?: GenerateMediaPlanOptions["serviceMonthWeights"]
 }
 
 export function mediaPlanFileName(input: {
@@ -53,6 +55,7 @@ export async function buildMediaPlanWorkbook(
   const options: GenerateMediaPlanOptions = {
     draft: input.draft,
     ...(input.variant === "aa" ? { mbaTotalsLayout: "aa" as const } : {}),
+    ...(input.serviceMonthWeights ? { serviceMonthWeights: input.serviceMonthWeights } : {}),
   }
   const workbook = await generateMediaPlan(
     input.header,

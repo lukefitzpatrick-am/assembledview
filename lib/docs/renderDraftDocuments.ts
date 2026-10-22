@@ -28,6 +28,10 @@ import {
   type MediaPlanHeader,
 } from "@/lib/generateMediaPlan"
 import { buildMediaPlanWorkbook } from "@/lib/docs/mediaPlanWorkbook"
+import {
+  adServingMonthWeightsFromDeliverySchedule,
+  feeMonthWeightsFromDeliverySchedule,
+} from "@/lib/docs/workbookServiceMonthWeights"
 import { planDocumentFileName } from "@/lib/docs/planDocumentFileName"
 import { explodeExcelLineItems } from "@/lib/docs/explodeExcelLineItems"
 import { filterMediaItemsForMbaScope } from "@/lib/docs/filterMediaItemsForMbaScope"
@@ -355,6 +359,28 @@ export async function renderDraftDocuments(
       ? buildAdvertisingAssociatesMbaDataFromMediaItems(itemsForWorkbook)
       : workbookMba
   const kpiRows = asKpiRows(body.kpiRows)
+  // Service Fee and Ad Serving month cells follow each line's delivery months.
+  const excludedLineIds = new Set(
+    financials.perLine
+      .filter((line) => line.flags.excluded)
+      .map((line) => String(line.lineItemId))
+  )
+  const includeLine = (lineItemId: string) => !excludedLineIds.has(lineItemId)
+  const serviceMonthWeights =
+    body.kind === "aa_media_plan"
+      ? undefined
+      : {
+          fee: feeMonthWeightsFromDeliverySchedule({
+            deliverySchedule: financials.deliverySchedule,
+            includeLine,
+            selectedMonthYears,
+          }),
+          adServing: adServingMonthWeightsFromDeliverySchedule({
+            deliverySchedule: financials.deliverySchedule,
+            includeLine,
+            selectedMonthYears,
+          }),
+        }
   const built = await buildMediaPlanWorkbook({
     header,
     mediaItems: itemsForWorkbook,
@@ -366,6 +392,7 @@ export async function renderDraftDocuments(
     clientName,
     campaignName,
     versionNumber: body.versionNumber,
+    serviceMonthWeights,
   })
   return {
     filename: built.fileName,

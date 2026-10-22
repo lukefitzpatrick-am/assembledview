@@ -64,6 +64,14 @@ import { excludedFromMbaScopeNoteFromLines } from "@/lib/mediaplan/excludedMbaSc
 import type { MediaItems, MediaPlanHeader } from "@/lib/generateMediaPlan"
 import { explodeExcelLineItems } from "@/lib/docs/explodeExcelLineItems"
 import { filterMediaItemsForMbaScope } from "@/lib/docs/filterMediaItemsForMbaScope"
+import {
+  adServingDollarsByLineFromApprovedSlice,
+  adServingMonthWeightsFromDeliverySchedule,
+  feeMonthWeightsFromDeliverySchedule,
+  firstUsableWeights,
+  monthTotalsFromStoredSchedule,
+  type ServiceMonthWeights,
+} from "@/lib/docs/workbookServiceMonthWeights"
 import { orderLinesForExport } from "@/lib/mediaplan/lineItemOrder"
 import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 import { applyMbaScopeLineApprovals } from "@/lib/mediaplan/mbaScopeForSave"
@@ -229,6 +237,8 @@ export type BuildMediaItemsFromPlanDetailResult = {
   mediaItems: MediaItems
   mbaData: MediaPlanWorkbookMbaData
   publishers: Publisher[]
+  /** Delivery-month weights for the standard workbook Service Fee and Ad Serving rows. */
+  serviceMonthWeights: ServiceMonthWeights
 }
 
 export function buildMediaItemsFromPlanDetail(
@@ -360,6 +370,61 @@ export function buildMediaItemsFromPlanDetail(
     console.info(`[media-plan] published ad serving source=${adServingSource}`)
   }
 
+  // Service Fee and Ad Serving month cells follow each line's delivery months.
+  const excludedLineIds = new Set(
+    financials.perLine
+      .filter((line) => line.flags.excluded)
+      .map((line) => String(line.lineItemId)),
+  )
+  const includeLine = (lineItemId: string) => !excludedLineIds.has(lineItemId)
+  const scopeMonths = persistedScope?.monthYears ?? null
+  const storedDelivery =
+    args.versionData.deliverySchedule ?? args.versionData.delivery_schedule ?? null
+  const computedFeeWeights = feeMonthWeightsFromDeliverySchedule({
+    deliverySchedule: financials.deliverySchedule,
+    includeLine,
+    selectedMonthYears: scopeMonths,
+  })
+  const storedFeeWeights = monthTotalsFromStoredSchedule(storedDelivery, "feeTotal")
+  const feeWeights =
+    mbaData.totals.service_fee > 0
+      ? feeSnapshotHasRates(args.feeSnapshot)
+        ? firstUsableWeights(computedFeeWeights, storedFeeWeights)
+        : firstUsableWeights(storedFeeWeights, computedFeeWeights)
+      : undefined
+  let adServingWeights: Record<string, number> | undefined
+  if (mbaData.totals.adserving > 0) {
+    const sliceAdServing = adServingDollarsByLineFromApprovedSlice(args.approvedSlice)
+    if (sliceAdServing && sliceAdServing.size > 0) {
+      // Rate-free delivery shape: a flat rate per line keeps each line's
+      // impressions by month; the frozen slice amount sets the size.
+      const shape = computeCampaignFinancials(lineInputs, { feeLoading }, {
+        campaignStart:
+          campaignStart && !Number.isNaN(campaignStart.getTime()) ? campaignStart : undefined,
+        campaignEnd: campaignEnd && !Number.isNaN(campaignEnd.getTime()) ? campaignEnd : undefined,
+        getRateForMediaType: () => 1000,
+        adservaudio: 1000,
+      })
+      adServingWeights = firstUsableWeights(
+        adServingMonthWeightsFromDeliverySchedule({
+          deliverySchedule: shape.deliverySchedule,
+          includeLine,
+          targetDollarsByLine: sliceAdServing,
+          selectedMonthYears: scopeMonths,
+        }),
+      )
+    }
+    if (!adServingWeights) {
+      adServingWeights = firstUsableWeights(
+        monthTotalsFromStoredSchedule(storedDelivery, "adservingTechFees"),
+      )
+    }
+  }
+  const serviceMonthWeights: ServiceMonthWeights = {
+    ...(feeWeights ? { fee: feeWeights } : {}),
+    ...(adServingWeights ? { adServing: adServingWeights } : {}),
+  }
+
   const budgetRaw = args.versionData.mp_campaignbudget
   const header: MediaPlanHeader = {
     logoBase64: args.logoBase64,
@@ -383,6 +448,7 @@ export function buildMediaItemsFromPlanDetail(
     mediaItems,
     mbaData,
     publishers: args.publishers,
+    serviceMonthWeights,
   }
 }
 

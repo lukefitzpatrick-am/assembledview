@@ -414,3 +414,94 @@ test("a blank burst date throws instead of using today", async () => {
     /Invalid start date: blank/,
   )
 })
+
+function rowMonthValues(sheet: import("exceljs").Worksheet, label: string): Record<string, number> {
+  let headerRow = 0
+  let target = 0
+  sheet.eachRow((row, rowNumber) => {
+    if (String(row.getCell(2).value ?? "") === label) target = rowNumber
+    row.eachCell({ includeEmpty: false }, (cell) => {
+      if (!headerRow && /^(January|February) 2026/.test(String(cell.value))) headerRow = rowNumber
+    })
+  })
+  assert.ok(target > 0, label)
+  assert.ok(headerRow > 0, "month header row")
+  const out: Record<string, number> = {}
+  sheet.getRow(headerRow).eachCell({ includeEmpty: false }, (cell, col) => {
+    const month = String(cell.value ?? "").split("\n")[0]!
+    if (!/ 2026$/.test(month) || month in out) return
+    const value = sheet.getRow(target).getCell(col).value
+    out[month] = typeof value === "number" ? value : 0
+  })
+  return out
+}
+
+test("Service Fee and Ad Serving months follow supplied delivery weights", async () => {
+  const header = { ...HEADER, campaignStart: "01/01/2026", campaignEnd: "28/02/2026" }
+  const workbook = await generateMediaPlan(
+    header,
+    emptyMedia({
+      search: [
+        searchLine({ startDate: "2026-01-01", endDate: "2026-01-31", grossMedia: "9000", deliverablesAmount: "9000" }),
+        searchLine({ startDate: "2026-02-01", endDate: "2026-02-28", grossMedia: "1000", deliverablesAmount: "1000", platform: "Bing" }),
+      ],
+    }),
+    {
+      gross_media: [{ media_type: "Search", gross_amount: 10000 }],
+      totals: {
+        gross_media: 10000,
+        service_fee: 1000,
+        production: 0,
+        adserving: 10,
+        totals_ex_gst: 11010,
+        total_inc_gst: addGst(11010),
+      },
+    },
+    {
+      // The February line carries the fee; media share would put 90% in January.
+      serviceMonthWeights: {
+        fee: { "January 2026": 0, "February 2026": 1000 },
+        adServing: { "January 2026": 1, "February 2026": 2 },
+      },
+    },
+  )
+  const sheet = workbook.getWorksheet("Media Plan")
+  assert.ok(sheet)
+  const fee = rowMonthValues(sheet, "Service Fee")
+  assert.equal(fee["January 2026"], 0)
+  assert.equal(fee["February 2026"], 1000)
+  const adServing = rowMonthValues(sheet, "Ad Serving & Tech")
+  assert.equal(toCents(adServing["January 2026"]!), toCents(3.33))
+  assert.equal(toCents(adServing["February 2026"]!), toCents(6.67))
+  assert.equal(sumTotalRowMonths(sheet), 11010)
+})
+
+test("without delivery weights the fee keeps the media share", async () => {
+  const header = { ...HEADER, campaignStart: "01/01/2026", campaignEnd: "28/02/2026" }
+  const workbook = await generateMediaPlan(
+    header,
+    emptyMedia({
+      search: [
+        searchLine({ startDate: "2026-01-01", endDate: "2026-01-31", grossMedia: "9000", deliverablesAmount: "9000" }),
+        searchLine({ startDate: "2026-02-01", endDate: "2026-02-28", grossMedia: "1000", deliverablesAmount: "1000", platform: "Bing" }),
+      ],
+    }),
+    {
+      gross_media: [{ media_type: "Search", gross_amount: 10000 }],
+      totals: {
+        gross_media: 10000,
+        service_fee: 1000,
+        production: 0,
+        adserving: 0,
+        totals_ex_gst: 11000,
+        total_inc_gst: addGst(11000),
+      },
+    },
+    { serviceMonthWeights: { fee: {} } },
+  )
+  const sheet = workbook.getWorksheet("Media Plan")
+  assert.ok(sheet)
+  const fee = rowMonthValues(sheet, "Service Fee")
+  assert.equal(fee["January 2026"], 900)
+  assert.equal(fee["February 2026"], 100)
+})

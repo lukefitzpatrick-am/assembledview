@@ -78,3 +78,25 @@ test("allocated months sum to the line total", () => {
     toCents(60),
   )
 })
+
+test("leftover cents never land in a month with no weight", () => {
+  // BICAU006 v24 ad serving put $0.01 in an empty December.
+  const allocated = allocateLineAcrossMonths({
+    lineTotal: 1830.43,
+    monthKeys: ["Sep", "Oct", "Nov", "Dec"],
+    weights: { Sep: 73632.71, Oct: 106087.15, Nov: 73632.74, Dec: 0 },
+  })
+  assert.equal(allocated.Dec, 0)
+  assert.equal(
+    sumCents(["Sep", "Oct", "Nov", "Dec"].map((m) => toCents(allocated[m]!))),
+    toCents(1830.43),
+  )
+
+  const leading = allocateLineAcrossMonths({
+    lineTotal: 10,
+    monthKeys: ["Aug", "Sep", "Oct"],
+    weights: { Aug: 0, Sep: 1, Oct: 2 },
+  })
+  assert.equal(leading.Aug, 0)
+  assert.equal(toCents(leading.Sep!) + toCents(leading.Oct!), toCents(10))
+})

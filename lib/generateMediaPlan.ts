@@ -337,6 +337,15 @@ export type GenerateMediaPlanOptions = {
   draft?: boolean
   /** Clock for the Plan Date cell. Defaults to now. Sydney civil date. */
   asOf?: Date
+  /**
+   * Delivery-month weights for the Service Fee and Ad Serving rows (per line
+   * delivery, summed by month). The row totals still come from mbaData. Missing
+   * or all-zero weights fall back to the plan-wide media share.
+   */
+  serviceMonthWeights?: {
+    fee?: Record<string, number>
+    adServing?: Record<string, number>
+  }
 }
 
 const DRAFT_STAMP_TEXT = 'DRAFT - NOT FOR CLIENT'
@@ -2008,15 +2017,19 @@ export async function generateMediaPlan(
     const serviceFeeTotal = mbaData?.totals?.service_fee ?? 0;
     const adServingTotal = mbaData?.totals?.adserving ?? 0;
     const monthKeys = monthRanges.map((range) => range.monthYear);
+    // Fee and ad serving follow each line's delivery months when the caller
+    // supplies them; otherwise the plan-wide media share.
+    const usableWeights = (weights: Record<string, number> | undefined) =>
+      weights && monthKeys.some((key) => (weights[key] ?? 0) > 0) ? weights : monthlyGrandTotals;
     const monthlyServiceFee = allocateLineAcrossMonths({
       lineTotal: serviceFeeTotal,
       monthKeys,
-      weights: monthlyGrandTotals,
+      weights: usableWeights(options?.serviceMonthWeights?.fee),
     });
     const monthlyAdServing = allocateLineAcrossMonths({
       lineTotal: adServingTotal,
       monthKeys,
-      weights: monthlyGrandTotals,
+      weights: usableWeights(options?.serviceMonthWeights?.adServing),
     });
 
     const summaryRowFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_SAND } };
