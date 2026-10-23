@@ -3,15 +3,17 @@
  *
  * Before this, the live-only lists (portfolio, admin channel tabs, Overview,
  * digest, Ava `get_pacing_snapshot`) dropped a campaign the morning after its
- * last day. Now an approved or booked campaign stays listed until
- * `ENDED_CAMPAIGN_LISTED_DAYS` days after its end date, then drops off.
+ * last day. Now an approved or booked campaign that derives to completed, or a
+ * campaign stored as "completed", stays listed until
+ * `ENDED_CAMPAIGN_LISTED_DAYS` days after its end date, then drops off
+ * (stored "completed" added by Luke, 23 Oct 2026).
  *
  * - A listed campaign whose end date is before the view day reads "Ended".
  * - Expected is the full flight (expected maths caps elapsed days at the end),
  *   so ended rows compare delivered to the full planned budget.
  * - Channel tab lines have no current burst once the campaign has ended. Their
  *   status is line spend ÷ line budget on the same bands as in-flight lines.
- * - Stored "completed", cancelled, planned and draft campaigns are unchanged.
+ * - Cancelled, planned and draft campaigns are never listed.
  */
 import { resolveCampaignPhase, sydneyCivilDayFromYmd } from "@/lib/mediaplan/campaignPhase"
 import { statusFromExpectedPct, type ExpectedPaceBand } from "@/lib/pacing/status"
@@ -41,8 +43,9 @@ export function campaignEndedBefore(
 }
 
 /**
- * An approved or booked campaign that ended before the view day and no more
- * than `ENDED_CAMPAIGN_LISTED_DAYS` days before it.
+ * A completed campaign (approved or booked past its end date, or stored
+ * "completed") that ended before the view day and no more than
+ * `ENDED_CAMPAIGN_LISTED_DAYS` days before it.
  */
 export function isRecentlyEndedCampaign(
   status: string | null | undefined,
@@ -58,7 +61,7 @@ export function isRecentlyEndedCampaign(
     endDate,
     today: sydneyCivilDayFromYmd(asOfDate),
   })
-  if (phase.phase !== "completed" || !phase.derived) return false
+  if (phase.phase !== "completed") return false
   return asOfDate <= addDaysISO(end, ENDED_CAMPAIGN_LISTED_DAYS)
 }
 

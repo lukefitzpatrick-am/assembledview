@@ -48,10 +48,22 @@ describe("listing rule", () => {
     // Live today.
     assert.equal(isListedOnAdminPacing("booked", "2026-10-01", "2026-10-31", VIEW), true)
     assert.equal(isRecentlyEndedCampaign("booked", "2026-10-01", "2026-10-31", VIEW), false)
-    // Stored completed, cancelled, planned stay off.
-    assert.equal(isListedOnAdminPacing("completed", "2026-09-01", "2026-10-20", VIEW), false)
+    // Cancelled, planned and draft stay off.
     assert.equal(isListedOnAdminPacing("cancelled", "2026-09-01", "2026-10-20", VIEW), false)
     assert.equal(isListedOnAdminPacing("planned", "2026-09-01", "2026-10-20", VIEW), false)
+    assert.equal(isListedOnAdminPacing("draft", "2026-09-01", "2026-10-20", VIEW), false)
+  })
+
+  it("lists stored completed campaigns on the same 7-day rule", () => {
+    assert.equal(isRecentlyEndedCampaign("completed", "2026-09-01", "2026-10-20", VIEW), true)
+    assert.equal(isListedOnAdminPacing("Completed", "2026-09-01", "2026-10-16", VIEW), true)
+    // 8 days after the end date: dropped.
+    assert.equal(isListedOnAdminPacing("completed", "2026-09-01", "2026-10-15", VIEW), false)
+    // Stored completed but the end date is not before the view day: not listed.
+    assert.equal(isListedOnAdminPacing("completed", "2026-10-01", "2026-10-31", VIEW), false)
+    assert.equal(isListedOnAdminPacing("completed", "2026-10-01", "2026-10-23", VIEW), false)
+    // No end date: not listed.
+    assert.equal(isListedOnAdminPacing("completed", null, null, VIEW), false)
   })
 
   it("ended means the end date is before the view day", () => {
@@ -77,11 +89,14 @@ describe("channel composer master gate", () => {
         master("sthaus002", "booked", "2026-09-28", "2026-10-14"),
         master("live001", "booked", "2026-10-01", "2026-10-31"),
         master("future001", "booked", "2026-10-24", "2026-10-31"),
+        master("done001", "completed", "2026-09-01", "2026-10-20"),
+        master("done002", "completed", "2026-09-01", "2026-10-10"),
+        master("gone001", "cancelled", "2026-09-01", "2026-10-20"),
       ],
       VIEW,
       null,
     ).map((m) => m.mba_number)
-    assert.deepEqual(kept, ["penfold015", "qatar003", "live001"])
+    assert.deepEqual(kept, ["penfold015", "qatar003", "live001", "done001"])
   })
 })
 
