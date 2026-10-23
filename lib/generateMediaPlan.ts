@@ -9,8 +9,8 @@ import {
 import { BRAND, hexToArgb, readableTextOn } from '@/lib/brand';
 import { familyColour, MEDIA_TYPE_FAMILY, type MediaTypeThemeKey } from '@/lib/design/mediaFamilies';
 import { formatBuyTypeForExport } from '@/lib/mediaplan/buyTypeLabels';
-import { aaFormatLabel, aaSupplierName, addAaWorkbookSheets } from '@/lib/docs/aaWorkbookSheets';
-import type { AaMonthlyBySupplier } from '@/lib/docs/aaWorkbookSheets';
+import { aaFormatEntry, aaFormatMonths, aaSupplierName, addAaWorkbookSheets } from '@/lib/docs/aaWorkbookSheets';
+import type { AaFormatEntry, AaMonthlyBySupplier } from '@/lib/docs/aaWorkbookSheets';
 import { OOH_FORMAT_LABEL_BY_VALUE } from '@/lib/mediaplan/expertOohFuzzyMatch';
 
 const ARGB_INK = hexToArgb(BRAND.colour.ink)
@@ -803,7 +803,7 @@ export async function generateMediaPlan(
     mediaAmount: number,
     mediaKey: MediaKey,
     supplier: string,
-    format: string
+    format: AaFormatEntry
   ) {
     const s = parseDateStringYYYYMMDD(startDate, "start date");
     const e = parseDateStringYYYYMMDD(endDate, "end date");
@@ -823,7 +823,7 @@ export async function generateMediaPlan(
       if (mbaTotalsLayout === "aa") {
         const bySupplier = monthlyBySupplier[mediaKey] ?? (monthlyBySupplier[mediaKey] = {});
         const byFormat = bySupplier[supplier] ?? (bySupplier[supplier] = {});
-        const months = byFormat[format] ?? (byFormat[format] = {});
+        const months = aaFormatMonths(byFormat, format);
         months[monthYear] = (months[monthYear] || 0) + share;
       }
     }
@@ -842,7 +842,7 @@ export async function generateMediaPlan(
           amt,
           mediaKey,
           aaSupplierName(mediaKey, item),
-          aaFormatLabel(mediaKey, item),
+          aaFormatEntry(mediaKey, item),
         );
       }
     }

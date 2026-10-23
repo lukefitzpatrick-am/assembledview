@@ -481,6 +481,113 @@ test("aaFormatLabel picks bid strategy, header2 or nothing by media type", () =>
   assert.equal(aaFormatLabel("production", { ...base, creative: "TVC edit" }), "")
 })
 
+test("aaFormatLabel is blank for integration, influencers and literal header2 fallbacks", () => {
+  const base = line({ network: "", platform: "Acme Partners", gross: "1", id: "X", rate: "1" })
+  const integration = { ...base, bidStrategy: "cpm", creative: "Hero" } as LineItem
+  assert.equal(aaFormatLabel("integration", integration), "")
+  assert.equal(aaFormatLabel("influencers", { ...base, bidStrategy: "cpv" } as LineItem), "")
+  // Any media type on the getScheduleHeaders default branch reads blank, never "Details".
+  assert.equal(aaFormatLabel("someOtherType", base), "")
+  // A real header2 on the default branch still shows.
+  assert.equal(aaFormatLabel("integration", { ...base, title: "Sponsored segment" } as LineItem), "Sponsored segment")
+})
+
+function mergeItems(oohFormats: string[], bids: string[]): MediaItems {
+  const items = baselineItems()
+  items.ooh = oohFormats.map((format, i) =>
+    line({ network: "JCDecaux", oohFormat: format, gross: String(100 * (i + 1)), id: `OM${i}`, rate: "1" }),
+  )
+  items.search = bids.map((bid, i) => ({
+    ...line({
+      network: "",
+      platform: "Google Ads - AM",
+      buyType: "cpc",
+      gross: String(10 * (i + 1)),
+      id: `SM${i}`,
+      rate: "1",
+      deliverables: 10,
+    }),
+    bidStrategy: bid,
+  }))
+  items.integration = [
+    line({ network: "", platform: "Acme Partners", buyType: "fixed_cost", gross: "75", id: "IN1", rate: "75" }),
+  ]
+  items.influencers = [
+    line({ network: "", platform: "Creator Co", buyType: "fixed_cost", gross: "60", id: "IF1", rate: "60" }),
+  ]
+  return items
+}
+
+test("AA monthly-by-supplier merges formats that differ only in case or spacing", async () => {
+  const mixed = await generateMediaPlan(
+    header,
+    mergeItems(["Large Format", "large_format", "  LARGE FORMAT "], ["Target CPA", "TARGET CPA ", "target cpa"]),
+    mba,
+    { asOf, mbaTotalsLayout: "aa" },
+  )
+  const uniform = await generateMediaPlan(
+    header,
+    mergeItems(["Large format", "Large format", "Large format"], ["Target CPA", "Target CPA", "Target CPA"]),
+    mba,
+    { asOf, mbaTotalsLayout: "aa" },
+  )
+  const sheet = mixed.getWorksheet(AA_SUPPLIER_SHEET)!
+  const rows = sheetRows(sheet, 3)
+  const totalCol = sheet.columnCount
+  assert.deepEqual(
+    rows.filter((row) => row[0] === "OOH"),
+    [
+      ["OOH", "JCDecaux", "Large format"],
+      ["OOH", "Subtotal", ""],
+    ],
+  )
+  // No code variant: the first-seen label wins.
+  assert.deepEqual(
+    rows.filter((row) => row[0] === "Search"),
+    [
+      ["Search", "Google Ads - AM", "Target CPA"],
+      ["Search", "Subtotal", ""],
+    ],
+  )
+  const oohRow = rows.findIndex((row) => row[0] === "OOH") + 1
+  assert.equal(toCents(Number(sheet.getCell(oohRow, totalCol).value)), toCents(600))
+  const searchRow = rows.findIndex((row) => row[0] === "Search") + 1
+  assert.equal(toCents(Number(sheet.getCell(searchRow, totalCol).value)), toCents(60))
+
+  assert.deepEqual(
+    rows.filter((row) => row[0] === "Integration" || row[0] === "Influencers"),
+    [
+      ["Integration", "Acme Partners", ""],
+      ["Integration", "Subtotal", ""],
+      ["Influencers", "Creator Co", ""],
+      ["Influencers", "Subtotal", ""],
+    ],
+  )
+  assert.equal(rows.some((row) => row[2] === "Details"), false)
+
+  // Every money cell matches the same plan with uniform labels: totals unchanged.
+  const other = uniform.getWorksheet(AA_SUPPLIER_SHEET)!
+  assert.equal(other.rowCount, sheet.rowCount)
+  for (let r = 2; r <= sheet.rowCount; r++) {
+    for (let c = 4; c <= totalCol; c++) {
+      assert.equal(
+        toCents(Number(sheet.getCell(r, c).value ?? 0)),
+        toCents(Number(other.getCell(r, c).value ?? 0)),
+        `row ${r} col ${c}`,
+      )
+    }
+  }
+  const insertions = mixed.getWorksheet(AA_INSERTIONS_SHEET)!
+  const formatById = new Map<string, string>()
+  for (let row = 2; row <= insertions.rowCount; row++) {
+    formatById.set(cellText(insertions.getCell(row, 1)), cellText(insertions.getCell(row, 4)))
+  }
+  // Insertions stay one row per line with that line's own label.
+  assert.equal(formatById.get("OM0"), "Large Format")
+  assert.equal(formatById.get("OM1"), "Large format")
+  assert.equal(formatById.get("OM2"), "LARGE FORMAT")
+})
+
 test("AA monthly-by-supplier splits each supplier by format, title or bid strategy", async () => {
   const items = baselineItems()
   items.ooh = [

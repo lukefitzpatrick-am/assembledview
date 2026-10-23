@@ -127,17 +127,59 @@ export function aaReadableLabel(value: unknown): string {
 }
 
 /**
- * Second key on the AA supplier sheet and the Insertions format column.
- * Search, social and programmatic use bid strategy; production has none;
- * everything else uses the schedule header2 (format, title, station, site).
+ * Raw format value before `aaReadableLabel`. Search, social and programmatic
+ * use bid strategy; production has none; everything else uses the schedule
+ * header2 (format, title, station, site). A header2 that is only the
+ * `getScheduleHeaders` literal fallback ("Details", "Total") is blank, so
+ * integration and influencers lines carry no format (Luke, 23 Oct 2026).
  */
-export function aaFormatLabel(mediaKey: string, item: LineItem): string {
+function aaFormatRaw(mediaKey: string, item: LineItem): string {
   if (mediaKey === "production") return ""
   if (BID_STRATEGY_FORMAT.has(mediaKey)) {
     const o = item as LineItem & { bid_strategy?: string }
-    return aaReadableLabel(o.bidStrategy ?? o.bid_strategy ?? "")
+    return String(o.bidStrategy ?? o.bid_strategy ?? "").trim()
   }
-  return aaReadableLabel(getScheduleHeaders(mediaKey, item).header2)
+  const header2 = getScheduleHeaders(mediaKey, item).header2
+  if (header2 && header2 === getScheduleHeaders(mediaKey, {}).header2) return ""
+  return String(header2 ?? "").trim()
+}
+
+/** Second key on the AA supplier sheet and the Insertions format column. */
+export function aaFormatLabel(mediaKey: string, item: LineItem): string {
+  return aaReadableLabel(aaFormatRaw(mediaKey, item))
+}
+
+/** Supplier-sheet format key: formats that differ only in case or spacing merge. */
+export type AaFormatEntry = { label: string; fromCode: boolean }
+
+/**
+ * Format label for the supplier sheet plus whether it was read from a code
+ * (snake_case or a single lowercase word that `aaReadableLabel` rewrote).
+ */
+export function aaFormatEntry(mediaKey: string, item: LineItem): AaFormatEntry {
+  const raw = aaFormatRaw(mediaKey, item)
+  const label = aaReadableLabel(raw)
+  return { label, fromCode: label !== raw }
+}
+
+/**
+ * Month bucket for one format under one supplier. Formats that differ only in
+ * letter case or surrounding whitespace share one row. The row shows the
+ * first-seen label, or the sentence-case label once any variant was a code.
+ */
+export function aaFormatMonths(
+  byFormat: Record<string, Record<string, number>>,
+  entry: AaFormatEntry,
+): Record<string, number> {
+  const want = entry.label.trim().toLowerCase()
+  const existing = Object.keys(byFormat).find((key) => key.trim().toLowerCase() === want)
+  if (existing === undefined) return (byFormat[entry.label] = {})
+  if (entry.fromCode && existing !== entry.label) {
+    byFormat[entry.label] = byFormat[existing]!
+    delete byFormat[existing]
+    return byFormat[entry.label]!
+  }
+  return byFormat[existing]!
 }
 
 /** mediaKey -> supplier -> format or title -> month -> dollars. */
