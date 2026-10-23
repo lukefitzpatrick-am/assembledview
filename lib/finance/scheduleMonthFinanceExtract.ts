@@ -52,7 +52,8 @@ function lineAmountForMonth(item: BillingLineItem, monthYear: string): number {
 
 /**
  * Receivable media lines for one core billing month.
- * Amounts &gt; 0 only. Client-pays media is flagged (`clientPaysMedia`) from the
+ * Amounts &gt; 0 only. `lineItems.production` is skipped: production bills
+ * once, from the month header. Client-pays media is flagged (`clientPaysMedia`) from the
  * schedule line so derive can refuse it. Derive also ORs the plan line's
  * `client_pays_for_media` on (version_id, line_item_id) — rows-mode rebuild may
  * omit the blob flag.
@@ -67,6 +68,9 @@ export function financeMediaLinesFromBillingMonth(
   const out: FinanceLineItem[] = []
   for (const [mediaKey, items] of Object.entries(lineItems)) {
     if (!Array.isArray(items) || items.length === 0) continue
+    // Production bills once, as the month header Production service row.
+    // lineItems.production is the same money per line; never a media line.
+    if (mediaKey === "production") continue
     const mediaTypeDisplayName = mediaKeyLabel(mediaKey)
     const mediaTypeKeyForDesc =
       getMediaTypeKeyFromDisplayName(mediaTypeDisplayName) || mediaKey
