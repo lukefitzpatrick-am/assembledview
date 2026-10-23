@@ -10,6 +10,12 @@ import {
   mpSearchEnabledFromFlags,
   type PublishedCampaignReport,
 } from "@/lib/reports/campaignReport/generateCampaignReportForMba"
+import JSZip from "jszip"
+import {
+  buildCampaignReportDeck,
+  planCpvTargetLabel,
+} from "@/lib/reports/campaignReport/buildCampaignReportDeck"
+import { campaignReportFixture } from "../../../../scripts/smoke-campaign-report-fixture"
 
 function payload(overrides: Partial<CampaignReportPayload> = {}): CampaignReportPayload {
   return {
@@ -216,4 +222,27 @@ test("generateCampaignReportForMba uses supplied commentary and does not call th
   assert.equal(result.commentaryGenerated, true)
   assert.equal(result.commentary?.items[1]?.actionOwner, "Client")
   assert.match(result.blobPathname ?? "", /^exports\/reports\/PENFOLD013\//)
+})
+
+test("node fallback deck shows the channel's plan CPV as the CPV target", async () => {
+  assert.equal(planCpvTargetLabel(0.09), "$0.09 (plan rate target)")
+  const [first, ...rest] = campaignReportFixture.channels
+  const report: CampaignReportPayload = {
+    ...campaignReportFixture,
+    channels: [{ ...first!, planCpvTarget: 0.09 }, ...rest],
+  }
+  const zip = await JSZip.loadAsync(await buildCampaignReportDeck(report))
+  const slides = await Promise.all(
+    Object.keys(zip.files)
+      .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+      .map((name) => zip.file(name)!.async("string")),
+  )
+  const firstSlide = slides.find((xml) => xml.includes(`${first!.label} data.`))
+  assert.ok(firstSlide, "first channel table")
+  assert.match(firstSlide, /CPV/)
+  assert.match(firstSlide, /\$0\.09 \(plan rate target\)/)
+  for (const other of rest) {
+    const slide = slides.find((xml) => xml.includes(`${other.label} data.`))
+    if (slide) assert.doesNotMatch(slide, /plan rate target/)
+  }
 })

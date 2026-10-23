@@ -233,6 +233,11 @@ function previousCompareLine(payload: CampaignReportPayload): string {
   return `Previous period delivered ${formatReportMoney(prev)} spend and ${formatReportInt(payload.totals.previousImpressions ?? 0)} impressions.`
 }
 
+/** Planned cell on the CPV row: the channel's plan CPV, labelled as the target. */
+export function planCpvTargetLabel(value: number): string {
+  return `${formatReportRate(value)} (plan rate target)`
+}
+
 function plannedCountLabel(value: number | null | undefined): string {
   if (value == null || !(value > 0)) return "No plan"
   return formatReportInt(value)
@@ -883,7 +888,10 @@ async function assembleCampaignReportDeck(
         channel.metrics.videoViews3s != null ||
         channel.previousMetrics?.videoViews3s != null ||
         (channel.plannedViews != null && channel.plannedViews > 0)
-      const showCpv = channel.metrics.cpv != null || channel.previousMetrics?.cpv != null
+      const showCpv =
+        channel.metrics.cpv != null ||
+        channel.previousMetrics?.cpv != null ||
+        channel.planCpvTarget != null
       const rows = [
         (showPrevious
           ? ["Metric", "Selected", "Previous", "Planned"]
@@ -946,7 +954,10 @@ async function assembleCampaignReportDeck(
                   channel.previousMetrics,
                   formatReportRate(channel.previousMetrics?.cpv ?? null),
                 ),
-                REPORT_FIGURE_DASH,
+                // The channel's own plan CPV is the CPV target (KPI law).
+                channel.planCpvTarget != null
+                  ? planCpvTargetLabel(channel.planCpvTarget)
+                  : REPORT_FIGURE_DASH,
               ),
             ]
           : []),

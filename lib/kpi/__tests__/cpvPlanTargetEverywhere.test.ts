@@ -12,7 +12,7 @@ import { buildSyncPayloadFromEditedRow } from "@/lib/pacing/kpi/buildSyncPayload
 import { applySyncedTargetsToRow } from "@/lib/pacing/kpi/applySyncedTargets"
 import { computeProgrammaticRowKpiStatus } from "@/lib/pacing/programmatic/computeProgrammaticKpiStatus"
 import { computeSocialRowKpiStatus } from "@/lib/pacing/social/computeSocialKpiStatus"
-import { buildKpiRows } from "@/lib/reports/campaignReport/kpiRows"
+import { buildKpiRows, channelPlanCpvTarget } from "@/lib/reports/campaignReport/kpiRows"
 
 function savedKpi(overrides: Partial<CampaignKPI> = {}): CampaignKPI {
   return {
@@ -126,5 +126,71 @@ describe("campaign read CPV uses the plan rate", () => {
     assert.equal(cpvRow?.targetCaption, "plan rate")
     // Delivered $9,000 / 120,000 views = $0.075.
     assert.equal(cpvRow?.deliveredDisplay, "$0.08")
+  })
+})
+
+describe("deck channel slides show each channel's own plan CPV target", () => {
+  function snapLine(id: string, buyType: string, plannedBudget: number, planBuyRate: number | null) {
+    return {
+      lineItemId: id,
+      name: id,
+      plannedBudget,
+      plannedUnits: null,
+      plannedViews: null,
+      buyType,
+      planBuyRate,
+      startDate: "2026-08-05",
+      endDate: "2026-10-25",
+      spendToDate: 0,
+      impressions: 0,
+      clicks: 0,
+      results: 0,
+      video3sViews: 0,
+      cpm: null,
+      ctr: null,
+      cpc: null,
+      noDeliveryRows: false,
+      deliveryState: "reported",
+    }
+  }
+  function channel(group: string, lines: ReturnType<typeof snapLine>[]): DeliveryChannelGroup {
+    return { group, lines } as unknown as DeliveryChannelGroup
+  }
+
+  it("one CPV-bought line: the plan rate, ignoring a saved CPV", () => {
+    const ch = channel("programmatic_video", [snapLine("bicau002pv1", "cpv", 16_000, 0.09)])
+    assert.equal(channelPlanCpvTarget(ch, [savedKpi({ cpv: 0.5 })]), 0.09)
+  })
+
+  it("mixed plan CPVs in one channel weight by planned spend, as the KPI review does", () => {
+    const ch = channel("programmatic_video", [
+      snapLine("pv1", "cpv", 16_000, 0.09),
+      snapLine("pv2", "cpcv", 4_000, 0.05),
+      // A CPM line in the same channel is not a CPV buy and is left out.
+      snapLine("pv3", "cpm", 10_000, 12),
+    ])
+    const target = channelPlanCpvTarget(ch, [])
+    assert.ok(target != null)
+    assert.equal(Number(target.toFixed(4)), 0.082)
+    const review = buildKpiReview({
+      groups: groupsFromDeliverySnapshot([
+        channel("programmatic_video", [snapLine("pv1", "cpv", 16_000, 0.09), snapLine("pv2", "cpcv", 4_000, 0.05)]),
+      ]),
+      lineItemTargets: new Map(),
+      isAdmin: true,
+    })
+    assert.equal(review[0]?.rows.find((r) => r.metric === "cpv")?.targetDisplay, "$0.08")
+  })
+
+  it("no CPV-bought line: no target", () => {
+    const ch = channel("search", [snapLine("se1", "cpc", 5_000, 1.2)])
+    assert.equal(channelPlanCpvTarget(ch, []), null)
+  })
+
+  it("each channel keeps its own rate; channels are never averaged", () => {
+    const video = channel("programmatic_video", [snapLine("pv1", "cpv", 16_000, 0.09)])
+    const social = channel("social_meta", [snapLine("sm1", "cpv", 1_000, 0.02)])
+    assert.equal(channelPlanCpvTarget(video, []), 0.09)
+    assert.equal(channelPlanCpvTarget(social, []), 0.02)
   })
 })

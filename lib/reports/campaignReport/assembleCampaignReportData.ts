@@ -50,7 +50,7 @@ import {
   type RateSourceLine,
 } from "@/lib/reports/campaignReport/reportFigures"
 import { buildDeckCharts, type DeckChart } from "@/lib/reports/campaignReport/deckCharts"
-import { buildKpiRows } from "@/lib/reports/campaignReport/kpiRows"
+import { buildKpiRows, channelPlanCpvTarget } from "@/lib/reports/campaignReport/kpiRows"
 import { buildDeckDetail, type DeckDetail, type DeckDetailLevel } from "@/lib/reports/campaignReport/deckDetail"
 import {
   conversionsByChannel,
@@ -99,6 +99,12 @@ export type CampaignReportChannelRow = {
    * (CF5). Omitted when off or when the channel has no conversion platform.
    */
   conversions?: ConversionFigures | null
+  /**
+   * This channel's plan CPV, the CPV target (KPI law, Luke 23 Oct 2026).
+   * Present only when the channel has CPV-bought lines. Never averaged
+   * across channels.
+   */
+  planCpvTarget?: number
 }
 
 /** The client's conversion settings as the deck reads them. Null when the switch is off. */
@@ -468,6 +474,7 @@ export async function assembleCampaignReportData(
     const plannedImpressions = plannedCount(ch.lines, "plannedImpressions", flight, currentWindow)
     const plannedClicks = plannedCount(ch.lines, "plannedClicks", flight, currentWindow)
     const plannedViews = plannedCount(ch.lines, "plannedViews", flight, currentWindow)
+    const planCpvTarget = channelPlanCpvTarget(ch, kpiRows)
     return {
       group: ch.group,
       label:
@@ -496,6 +503,7 @@ export async function assembleCampaignReportData(
       ...(conversionRollup?.byChannel.has(ch.group)
         ? { conversions: conversionRollup.byChannel.get(ch.group) ?? null }
         : {}),
+      ...(planCpvTarget != null ? { planCpvTarget } : {}),
       metrics: { ...rates.metrics, ...reportPace(spend, pace.expectedSpendToDate, planned > 0) },
       previousMetrics: previousRates
         ? {

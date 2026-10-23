@@ -42,6 +42,8 @@ const MONEY_KEYS = new Set([
   "cpa",
   "cpv",
   "cpr",
+  // A channel's plan CPV (the CPV target). Only on channels with CPV-bought lines.
+  "planCpvTarget",
   // CF5 conversions: revenue and the spend it is measured against.
   "revenue",
 ])

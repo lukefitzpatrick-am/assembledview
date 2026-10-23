@@ -423,3 +423,23 @@ test("CF5 conversions: null when the switch is off", () => {
   }
   assert.equal(slim.conversions, null)
 })
+
+test("a channel's plan CPV target is carried as money; channels without one have no key", () => {
+  const slim = slimDeckPayload({
+    mbaNumber: "BICAU002",
+    clientName: "Bic",
+    campaignName: "Bic",
+    asOf: "2026-10-22",
+    period: {},
+    totals: {},
+    channels: [
+      { group: "programmatic_video", label: "Programmatic video", planCpvTarget: 0.09 },
+      { group: "search", label: "Search" },
+    ],
+    kpis: [],
+    commentary: null,
+  })
+  const channels = slim.channels as Record<string, unknown>[]
+  assert.equal(channels[0]!.planCpvTarget, "$0.09")
+  assert.equal("planCpvTarget" in channels[1]!, false)
+})
