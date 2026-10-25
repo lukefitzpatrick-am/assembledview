@@ -23,6 +23,7 @@ import {
   isoMonthToScheduleMonthYear,
   scheduleMonthYearToIso,
 } from "@/lib/finance/computeCampaignFinancials"
+import { attachFinancePlanLines, type FinancePlanLine } from "@/lib/finance/financeScheduleHeaders"
 import { getBillingSchedule, getDeliverySchedule } from "@/lib/finance/normalizeFields"
 import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import {
@@ -685,6 +686,48 @@ export async function loadClientPaysPlanLinesForVersions(
   return out
 }
 
+/**
+ * Every plan line (all channels) for a set of versions, with the fields
+ * `getScheduleHeaders` reads (publisher / platform / bid strategy + attrs).
+ * Finance relabels placeholder schedule headers from these (23 Oct 2026).
+ */
+export async function loadFinancePlanLinesForVersions(
+  versionIds: number[]
+): Promise<Map<number, FinancePlanLine[]>> {
+  const out = new Map<number, FinancePlanLine[]>()
+  const ids = [...new Set(versionIds.filter((id) => Number.isFinite(id) && id > 0))]
+  for (const id of ids) out.set(id, [])
+  if (ids.length === 0) return out
+
+  const rows = await getDb()
+    .select({
+      versionId: schema.lineItems.versionId,
+      lineItemId: schema.lineItems.lineItemId,
+      publisher: schema.lineItems.publisher,
+      platform: schema.lineItems.platform,
+      bidStrategy: schema.lineItems.bidStrategy,
+      attrs: schema.lineItems.attrs,
+    })
+    .from(schema.lineItems)
+    .where(inArray(schema.lineItems.versionId, ids))
+
+  for (const r of rows) {
+    const list = out.get(r.versionId) ?? []
+    list.push({
+      lineItemId: r.lineItemId,
+      publisher: r.publisher,
+      platform: r.platform,
+      bidStrategy: r.bidStrategy,
+      attrs:
+        r.attrs && typeof r.attrs === "object" && !Array.isArray(r.attrs)
+          ? (r.attrs as Record<string, unknown>)
+          : null,
+    })
+    out.set(r.versionId, list)
+  }
+  return out
+}
+
 function attachClientPaysPlanLinesIfAbsent(
   version: Record<string, unknown>,
   rows: PlanLineClientPaysRow[]
@@ -704,7 +747,8 @@ export type HydrateFinanceScheduleResult = {
 
 /**
  * Attach resolved schedules onto versions for compose/derive/accrual/forecast.
- * Always attaches client-pays plan lines (`line_items` probe shape) so receivable
+ * Always attaches every plan line by id (`FINANCE_PLAN_LINES_KEY`) for the
+ * placeholder-header relabel, and client-pays plan lines (`line_items` probe shape) so receivable
  * refusal can join on (version_id, line_item_id) even when the blob omitted the flag.
  * - blob: no schedule rebuild
  * - shadow: serve blob; async-compare rows; attach blob resolved (fallbackUsed false unless empty both)
@@ -728,6 +772,20 @@ export async function hydrateVersionsFinanceScheduleSource(
   } catch (err) {
     console.error(
       "[finance-schedule] failed to load line_items client_pays; refusal stays blob-flag-only",
+      err
+    )
+  }
+
+  // Plan lines for placeholder-header relabel (export + receivables derive).
+  try {
+    const linesByVersion = await loadFinancePlanLinesForVersions(versionIds)
+    for (const version of versions) {
+      const versionId = Number(version.id ?? version.version_id ?? 0)
+      attachFinancePlanLines(version, linesByVersion.get(versionId) ?? [])
+    }
+  } catch (err) {
+    console.error(
+      "[finance-schedule] failed to load plan lines; placeholder schedule headers stay unrelabelled (agency codes fall back to D.)",
       err
     )
   }

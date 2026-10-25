@@ -12,6 +12,10 @@ import {
   lookupMediaDetailSlice,
   type PlanLineItemMediaDetailLookup,
 } from "@/lib/finance/planLineItemEnrichment"
+import {
+  getFinancePlanLinesById,
+  relabelFinanceBillingMonth,
+} from "@/lib/finance/financeScheduleHeaders"
 import { overlayClientPaysFromPlanLines } from "@/lib/finance/planLineClientPays"
 import {
   financeMediaLinesFromBillingMonth,
@@ -152,7 +156,9 @@ export function derivePlanReceivableBillingRecordsForMonth(
 
     const mergedMediaLines = mergeFinanceLineItems(
       financeMediaLinesFromBillingMonth(
-        coreBillingMonth,
+        // Placeholder headers only (media key / line id) take the plan line's
+        // publisher or platform before the agency lookup. Real names stay.
+        relabelFinanceBillingMonth(coreBillingMonth, getFinancePlanLinesById(version)),
         publisherMap as Map<string, { billingagency?: string | null }>
       )
     )

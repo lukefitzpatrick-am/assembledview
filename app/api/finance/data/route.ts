@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import {
   formatInvoiceDate,
-  extractLineItemsFromBillingSchedule,
   extractServiceAmountsFromBillingSchedule,
   mergeFinanceLineItems,
   financeClientNamesMatch,
@@ -9,6 +8,10 @@ import {
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
 import { resolveFinanceCampaignStatus } from "@/lib/finance/sections/financeCampaignStatus"
 import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
+import {
+  extractFinanceExportMediaLines,
+  getFinancePlanLinesById,
+} from "@/lib/finance/financeScheduleHeaders"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 import { readClientsList } from "@/lib/data/readClients"
 import { readPublishersList } from "@/lib/data/readPublishers"
@@ -122,11 +125,14 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      const financeLineItems = extractLineItemsFromBillingSchedule(
+      // Old mediaTypes months: unchanged extractor. lineItems months: core
+      // converter with placeholder headers relabelled from the plan line.
+      const financeLineItems = extractFinanceExportMediaLines(
         billingSchedule,
         year,
         month,
-        publisherMap
+        publisherMap,
+        getFinancePlanLinesById(version as Record<string, unknown>)
       )
       const mergedLineItems = mergeFinanceLineItems(financeLineItems)
       const serviceAmounts = extractServiceAmountsFromBillingSchedule(
