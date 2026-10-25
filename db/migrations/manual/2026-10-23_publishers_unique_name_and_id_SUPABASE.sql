@@ -26,13 +26,15 @@
 --     "nine"        #11 "Nine" (nine)                | #61 "Nine " (Nine)             both advertising associates
 --   Shared publisherid (lower/trim)
 --     "broadsheet"  #33 | #62
---     "link"        #22 Linkby (link)                | #37 LinkedIn (link)            both assembled media
+--     "link"        #22 Linkby (link)                | #37 LinkedIn (link)            AA | AM (26 Oct)
 --     "miff"        #51 | #60
 --     "mixin"       #58 | #59
 --     "nine"        #11 (nine)                       | #61 (Nine)
 --
 --   = 5 name groups, 5 id groups, 11 distinct rows involved.
---   Billing agency agrees within every group today.
+--   Billing agency agrees within every group except id "link" (26 Oct:
+--   #22 Linkby advertising associates, #37 LinkedIn assembled media). A
+--   shared id never matches in AA matching, so no billing pick depends on it.
 --
 -- Cleanup is a business decision (which row to keep, re-pointing any plan
 -- lines / payables that reference the row being retired). Not done here.
