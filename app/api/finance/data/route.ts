@@ -26,6 +26,10 @@ import {
   publisherResolver,
 } from "@/lib/mediaplan/advertisingAssociatesExcel"
 import type { Publisher } from "@/lib/types/publisher"
+import {
+  buildPublisherByNameMap,
+  type PublisherIdentityRow,
+} from "@/lib/publisher/publisherUniqueness"
 
 export const maxDuration = 60
 
@@ -84,11 +88,11 @@ export async function GET(request: NextRequest) {
       if (name) clientMap.set(name, client)
     })
 
-    const publisherMap = new Map<string, Record<string, unknown>>()
-    publishers.forEach((publisher) => {
-      const name = String(publisher.publisher_name || "").trim()
-      if (name) publisherMap.set(name, publisher)
-    })
+    // Duplicate names resolve to the lowest id (warning on an agency
+    // conflict), never last-wins.
+    const publisherMap = buildPublisherByNameMap(
+      publishers as unknown as Array<PublisherIdentityRow & Record<string, unknown>>
+    )
 
     // Production publisher per line, for splitting production across G./D. codes.
     const resolvePublisher = publisherResolver(publishers as unknown as Publisher[])
