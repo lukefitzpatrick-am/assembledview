@@ -1,3 +1,6 @@
+-- VI1 2026-10-26: vistar rows are now one per Insertion Order (PARTNER_INSERTION_ORDER_ID /
+-- _NAME added, PARTNER_CAMPAIGN_ID nullable, primary key dropped). The campaign seed below is
+-- historical; see sql/snowflake/mart/migrations/2026-10-26_VI1_vistar_insertion_order_entity_ACCOUNTADMIN.sql.
 -- ASSEMBLEDVIEW.RAW.PARTNER_LINE_MAP
 -- Applied 2026-09-15 (ACCOUNTADMIN). Capture only; this file is not applied by the commit.
 -- 48-row seed from the 15 Sep Vistar exchange file. Legal Super -> legal004po1.

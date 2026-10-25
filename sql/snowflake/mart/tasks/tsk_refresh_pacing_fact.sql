@@ -52,6 +52,7 @@ using (
 
     -- Vistar exchange report (prog OOH) via the partner-file pipeline. NO date filter:
     -- the report restates year to date every day. Line attribution via RAW.PARTNER_LINE_MAP.
+    -- VI1 2026-10-26: entity_id (so platform_line_item_id) is the Vistar Insertion Order id.
     select
       channel, date_day, line_item_name, line_item_id,
       entity_name, entity_id, campaign_name,
