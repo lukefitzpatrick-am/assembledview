@@ -36,7 +36,8 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
   const refreshPublisher = useCallback(
     async (updatedFromPut?: Publisher) => {
       const pathSource = updatedFromPut ?? publisher
-      const r = await fetch(publisherApiRecordPath(pathSource))
+      // `?pk=` so a publisherid shared by two rows reloads this record, not the other one.
+      const r = await fetch(`${publisherApiRecordPath(pathSource)}?pk=${encodeURIComponent(String(pathSource.id))}`)
       if (r.ok) {
         const p = await r.json()
         setPublisher(normalizePublisherRecord(p))

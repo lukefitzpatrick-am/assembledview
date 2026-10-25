@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCachedPublishersList } from "@/lib/api/publishersCache"
-import { createPublisherPostgresFirst } from "@/lib/data/writePublishers"
+import {
+  createPublisherPostgresFirst,
+  PublisherIdentityConflictError,
+} from "@/lib/data/writePublishers"
 import { requireRole } from "@/lib/requireRole"
 
 /** Session-auth only (middleware) — reference data for create/edit surfaces. */
@@ -29,6 +32,12 @@ export async function POST(req: NextRequest) {
     const { row } = await createPublisherPostgresFirst(body)
     return NextResponse.json(row, { status: 201 })
   } catch (error) {
+    if (error instanceof PublisherIdentityConflictError) {
+      return NextResponse.json(
+        { error: error.message, code: "PUBLISHER_IDENTITY_CONFLICT", fieldErrors: error.fieldErrors },
+        { status: 409 }
+      )
+    }
     console.error("Failed to create publisher:", error)
     const message = error instanceof Error ? error.message : String(error)
     if (message.startsWith("Missing required fields")) {

@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import type { Publisher } from "@/lib/types/publisher"
 import { PublisherMark } from "@/components/brand/EntityMark"
 import { publisherHubPath } from "@/lib/publisher/publisherHubPath"
+import { PublisherDuplicatesBanner } from "@/components/publishers/PublisherDuplicatesBanner"
 import { MEDIA_TYPE_SLUG_TO_DASHBOARD_LABEL } from "@/lib/publisher/scheduleLabels"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
 import { matchTextAny, normalizeSearchText } from "@/lib/search/matchText"
@@ -307,6 +308,8 @@ export function PublishersPageClient() {
           </div>
         }
       />
+
+      {!isLoading && !loadError ? <PublisherDuplicatesBanner publishers={publishers} /> : null}
 
       <Panel className="border-border/40 shadow-sm">
         <PanelContent standalone className="py-3">

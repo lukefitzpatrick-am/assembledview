@@ -4,12 +4,19 @@
  */
 import "server-only"
 
-import { eq, sql } from "drizzle-orm"
+import { asc, eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { invalidatePublishersCache } from "@/lib/api/publishersCache"
 import { invalidateCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import { bodyForPublisherPut } from "@/lib/publisher/normalizePublisher"
 import { mapPublisherRowFromPostgres } from "@/lib/data/readPublishers"
+import {
+  findPublisherIdentityConflicts,
+  publisherIdentityConflictMessages,
+  publisherIdentityKey,
+  type PublisherIdentityField,
+  type PublisherIdentityRow,
+} from "@/lib/publisher/publisherUniqueness"
 
 /** Columns publishers writes may set (API snake_case → drizzle). */
 const WRITABLE_SNAKE_TO_CAMEL: Record<string, keyof typeof schema.publishers.$inferInsert> = {
@@ -179,20 +186,83 @@ export type PublisherWriteResult = {
   row: Record<string, unknown>
 }
 
+/**
+ * Thrown when a create or edit would give a publisher a name or publisherid
+ * that another publisher already has (INVARIANTS: publisher names and ids are
+ * unique). The route answers 409 with `fieldErrors` so the form can show them.
+ */
+export class PublisherIdentityConflictError extends Error {
+  readonly fieldErrors: Partial<Record<PublisherIdentityField, string>>
+  constructor(fieldErrors: Partial<Record<PublisherIdentityField, string>>) {
+    super(Object.values(fieldErrors).join(" "))
+    this.name = "PublisherIdentityConflictError"
+    this.fieldErrors = fieldErrors
+  }
+}
+
+/** Thrown when a save names a publisher only by a publisherid that several rows share. */
+export class PublisherAmbiguousBusinessIdError extends Error {
+  readonly rowIds: number[]
+  constructor(publisherid: string, rowIds: number[]) {
+    super(
+      `Publisher ID "${publisherid}" is shared by records ${rowIds.map((id) => `#${id}`).join(", ")}. ` +
+        `Reload the publisher and save again so the record is saved by its own id.`,
+    )
+    this.name = "PublisherAmbiguousBusinessIdError"
+    this.rowIds = rowIds
+  }
+}
+
+async function loadPublisherIdentityRows(): Promise<PublisherIdentityRow[]> {
+  const db = getDb()
+  const rows = await db
+    .select({
+      id: schema.publishers.id,
+      publisher_name: schema.publishers.publisherName,
+      publisherid: schema.publishers.publisherid,
+    })
+    .from(schema.publishers)
+    .orderBy(asc(schema.publishers.id))
+  return rows as PublisherIdentityRow[]
+}
+
+/** Rejects a name or publisherid already used by another row (case and spaces ignored). */
+async function assertPublisherIdentityUnique(
+  candidate: Pick<PublisherIdentityRow, "publisher_name" | "publisherid">,
+  selfId: number | null,
+): Promise<void> {
+  const existing = await loadPublisherIdentityRows()
+  const conflicts = findPublisherIdentityConflicts(candidate, existing, selfId)
+  const fieldErrors = publisherIdentityConflictMessages(candidate, conflicts)
+  if (Object.keys(fieldErrors).length > 0) {
+    throw new PublisherIdentityConflictError(fieldErrors)
+  }
+}
+
+/** Every row whose publisherid matches (case and spaces ignored), lowest id first. */
+async function findPublisherRowsByBusinessId(
+  publisherid: string,
+): Promise<Record<string, unknown>[]> {
+  const key = String(publisherid ?? "").trim()
+  if (!key) return []
+  const db = getDb()
+  const rows = await db
+    .select()
+    .from(schema.publishers)
+    .where(sql`lower(trim(${schema.publishers.publisherid})) = lower(${key})`)
+    .orderBy(asc(schema.publishers.id))
+  return rows.map((row) => mapPublisherRowFromPostgres(row as Record<string, unknown>))
+}
+
+/** Lowest-id row with this publisherid (case and spaces ignored), or null. */
 export async function findPublisherByBusinessId(
   publisherid: string
 ): Promise<Record<string, unknown> | null> {
-  const key = String(publisherid ?? "").trim()
-  if (!key) return null
-  const db = getDb()
-  const [row] = await db
-    .select()
-    .from(schema.publishers)
-    .where(eq(schema.publishers.publisherid, key))
-    .limit(1)
-  return row ? mapPublisherRowFromPostgres(row as Record<string, unknown>) : null
+  const rows = await findPublisherRowsByBusinessId(publisherid)
+  return rows[0] ?? null
 }
 
+/** True when no publisher uses this publisherid (case and spaces ignored). */
 export async function isPublisherIdUnique(publisherid: string): Promise<boolean> {
   const found = await findPublisherByBusinessId(publisherid)
   return found == null
@@ -202,6 +272,10 @@ export async function createPublisherPostgresFirst(
   body: Record<string, unknown>
 ): Promise<PublisherWriteResult> {
   const snake = normalizePublisherWritePayload(body, { requireIdentity: true })
+  await assertPublisherIdentityUnique(
+    { publisher_name: String(snake.publisher_name), publisherid: String(snake.publisherid) },
+    null,
+  )
   await syncPublishersIdSequence()
   const db = getDb()
   const [inserted] = await db
@@ -216,29 +290,97 @@ export async function createPublisherPostgresFirst(
   return { row }
 }
 
-export async function updatePublisherPostgresFirst(
-  publisherBusinessId: string,
-  body: Record<string, unknown>
+function decodePublisherSegment(segment: string): string {
+  const trimmed = String(segment ?? "").trim()
+  try {
+    return decodeURIComponent(trimmed).trim()
+  } catch {
+    return trimmed
+  }
+}
+
+/** Positive integer primary key from a request body `id`, or null. */
+export function publisherRowIdFromBody(body: Record<string, unknown>): number | null {
+  const n = Number(body.id)
+  return Number.isInteger(n) && n > 0 ? n : null
+}
+
+/**
+ * Update one publisher by its primary key `publishers.id`. Never by
+ * publisherid: two rows sharing a publisherid used to make edits land on the
+ * wrong row (23 Oct 2026, Broadsheet #33 / #62).
+ */
+export async function updatePublisherByRowId(
+  rowId: number,
+  body: Record<string, unknown>,
+  options: { expectedPublisherid?: string } = {}
 ): Promise<PublisherWriteResult | { notFound: true }> {
-  const existing = await findPublisherByBusinessId(publisherBusinessId)
-  if (!existing?.id) return { notFound: true }
-  const numericId = Number(existing.id)
-  if (!Number.isFinite(numericId) || numericId <= 0) return { notFound: true }
+  if (!Number.isInteger(rowId) || rowId <= 0) return { notFound: true }
+  const db = getDb()
+  const [current] = await db
+    .select()
+    .from(schema.publishers)
+    .where(eq(schema.publishers.id, rowId))
+    .limit(1)
+  if (!current) return { notFound: true }
+  const existing = mapPublisherRowFromPostgres(current as Record<string, unknown>)
+  // The URL names the record by its current publisherid. A body id for a
+  // different record is a stale or mismatched form, never a silent save.
+  if (
+    options.expectedPublisherid != null &&
+    publisherIdentityKey(existing.publisherid) !== publisherIdentityKey(options.expectedPublisherid)
+  ) {
+    return { notFound: true }
+  }
 
   const snake = normalizePublisherWritePayload(body, { requireIdentity: false })
   if (Object.keys(snake).length === 0) {
     return { row: existing }
   }
 
-  const db = getDb()
+  await assertPublisherIdentityUnique(
+    {
+      publisher_name: String(snake.publisher_name ?? existing.publisher_name ?? ""),
+      publisherid: String(snake.publisherid ?? existing.publisherid ?? ""),
+    },
+    rowId,
+  )
+
   const [updated] = await db
     .update(schema.publishers)
     .set(snakeToInsertValues(snake))
-    .where(eq(schema.publishers.id, numericId))
+    .where(eq(schema.publishers.id, rowId))
     .returning()
   if (!updated) return { notFound: true }
 
   invalidateAllPublishersCaches()
   const row = mapPublisherRowFromPostgres(updated as Record<string, unknown>)
   return { row }
+}
+
+/**
+ * PUT /api/publishers/[publisherId]. Saves by the body's primary key `id`
+ * when given (the edit form always sends it). Without one, the URL
+ * publisherid must name exactly one row; a shared publisherid is refused
+ * rather than guessed.
+ */
+export async function updatePublisherPostgresFirst(
+  publisherBusinessId: string,
+  body: Record<string, unknown>
+): Promise<PublisherWriteResult | { notFound: true }> {
+  const businessId = decodePublisherSegment(publisherBusinessId)
+  const rowId = publisherRowIdFromBody(body)
+  if (rowId != null) {
+    return updatePublisherByRowId(rowId, body, { expectedPublisherid: businessId })
+  }
+
+  const matches = await findPublisherRowsByBusinessId(businessId)
+  if (matches.length === 0) return { notFound: true }
+  if (matches.length > 1) {
+    throw new PublisherAmbiguousBusinessIdError(
+      businessId,
+      matches.map((m) => Number(m.id)),
+    )
+  }
+  return updatePublisherByRowId(Number(matches[0].id), body)
 }

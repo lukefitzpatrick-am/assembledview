@@ -18,6 +18,7 @@ import {
 } from "@/lib/validations/publisher"
 import type { Publisher } from "@/lib/types/publisher"
 import { normalizePublisherRecord } from "@/lib/publisher/normalizePublisher"
+import { readPublisherSaveError } from "@/lib/publisher/publisherSaveError"
 import {
   cssHexFromStored,
   NATIVE_COLOR_INPUT_FALLBACK,
@@ -99,7 +100,8 @@ export function EditPublisherForm({ publisher, onSuccess }: EditPublisherFormPro
   async function onSubmit(data: PublisherDetailsFormValues) {
     setIsSaving(true)
     try {
-      const merged = { ...publisher, ...data }
+      // `id` is the row's primary key: the API saves by it, never by publisherid.
+      const merged = { ...publisher, ...data, id: publisher.id }
       const response = await fetch(`/api/publishers/${encodeURIComponent(String(publisher.publisherid).trim())}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -107,7 +109,11 @@ export function EditPublisherForm({ publisher, onSuccess }: EditPublisherFormPro
       })
 
       if (!response.ok) {
-        throw new Error("Failed to update publisher")
+        const failure = await readPublisherSaveError(response, "Failed to update publisher")
+        for (const [field, message] of Object.entries(failure.fieldErrors)) {
+          form.setError(field as "publisher_name" | "publisherid", { type: "server", message })
+        }
+        throw new Error(failure.message)
       }
 
       const updated = normalizePublisherRecord((await response.json()) as Publisher)

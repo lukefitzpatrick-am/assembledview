@@ -44,6 +44,7 @@ import {
   VERSION_EXTRA_BURSTS_KEY,
 } from "@/lib/finance/forecast/mapping"
 import { roundMoney2 } from "@/lib/money/cents"
+import { buildPublisherByNameMap } from "@/lib/publisher/publisherUniqueness"
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -463,12 +464,9 @@ function buildPublisherLookup(publishers: ReadonlyArray<FinanceForecastPublisher
   string,
   FinanceForecastPublisherInput
 > {
-  const m = new Map<string, FinanceForecastPublisherInput>()
-  for (const p of publishers) {
-    const n = String(p.publisher_name ?? "").trim()
-    if (n) m.set(normalizeName(n), p)
-  }
-  return m
+  // A shared normalised name resolves to the lowest publishers.id (warns on a
+  // billing agency conflict), never last-wins. Names are unique (INVARIANTS).
+  return buildPublisherByNameMap(publishers, normalizeName)
 }
 
 function buildClientLookup(clients: ReadonlyArray<FinanceForecastClientInput>): Map<

@@ -16,6 +16,7 @@ import { SuccessModal } from "@/components/ui/success-modal"
 import { useToast } from "@/components/ui/use-toast"
 import { BestPracticeEditor } from "@/components/best-practice/BestPracticeEditor"
 import { EMPTY_BEST_PRACTICE, type BestPractice } from "@/lib/types/bestPractice"
+import { readPublisherSaveError } from "@/lib/publisher/publisherSaveError"
 import {
   publisherCreateSchema,
   type PublisherCreateInput,
@@ -101,7 +102,11 @@ export function AddPublisherForm({ onSuccess }: AddPublisherFormProps) {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to create publisher")
+        const failure = await readPublisherSaveError(response, "Failed to create publisher")
+        for (const [field, message] of Object.entries(failure.fieldErrors)) {
+          form.setError(field as "publisher_name" | "publisherid", { type: "server", message })
+        }
+        throw new Error(failure.message)
       }
 
       setShowSuccess(true)

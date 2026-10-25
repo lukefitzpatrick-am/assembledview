@@ -2,6 +2,11 @@ import { addGst } from "@/lib/finance/gst"
 import { fromCents, parseMoney, toCents } from "@/lib/money"
 import type { LineItem, MediaItems } from "@/lib/generateMediaPlan"
 import type { Publisher } from "@/lib/types/publisher"
+import {
+  publisherIdentityKey,
+  resolvePublisherNameGroup,
+  sortPublishersByRowId,
+} from "@/lib/publisher/publisherUniqueness"
 
 /** Excel MBA block labels per `MediaItems` key — keep aligned with `KPI_MEDIA_LABELS` in `lib/generateMediaPlan.ts`. */
 const MEDIA_ITEMS_EXCEL_LABELS: Record<keyof MediaItems, string> = {
@@ -86,19 +91,28 @@ function publisherNameKeysFromLineItem(item: LineItem): string[] {
 }
 
 type PublisherIndex = {
-  byName: Map<string, Publisher>
+  /**
+   * Lower-case trimmed name to every publisher with that name, lowest
+   * `publishers.id` first. Same key as the uniqueness rule in
+   * `lib/publisher/publisherUniqueness.ts`.
+   */
+  byName: Map<string, Publisher[]>
   /** Lower-case publisherid to publisher. Ids shared by two publishers are left out. */
   byId: Map<string, Publisher>
 }
 
 function buildPublisherNameMap(publishers: Publisher[]): PublisherIndex {
-  const byName = new Map<string, Publisher>()
+  const byName = new Map<string, Publisher[]>()
   const byId = new Map<string, Publisher>()
   const ambiguousIds = new Set<string>()
-  for (const p of publishers) {
-    const name = String(p.publisher_name ?? "").trim()
-    if (name) byName.set(name, p)
-    const id = String(p.publisherid ?? "").trim().toLowerCase()
+  for (const p of sortPublishersByRowId(publishers)) {
+    const name = publisherIdentityKey(p.publisher_name)
+    if (name) {
+      const list = byName.get(name)
+      if (list) list.push(p)
+      else byName.set(name, [p])
+    }
+    const id = publisherIdentityKey(p.publisherid)
     if (!id) continue
     if (byId.has(id) || ambiguousIds.has(id)) {
       byId.delete(id)
@@ -111,21 +125,23 @@ function buildPublisherNameMap(publishers: Publisher[]): PublisherIndex {
 }
 
 /**
- * Name first (exact, then case-insensitive), then the publisher id, so free
+ * Name first (case-insensitive, trimmed), then the publisher id, so free
  * text "SCA" resolves to the publisher whose publisherid is "sca"
  * (Southern Cross Austereo). An id shared by two publishers never matches.
+ * A name shared by several publishers never resolves last-wins: it takes the
+ * lowest `publishers.id`, with a server warning when they disagree on billing
+ * agency (`resolvePublisherNameGroup`). Publisher names and ids are unique
+ * (docs/brain/INVARIANTS.md); this only covers rows not yet cleaned up.
  */
 function resolvePublisherByName(
   name: string,
   index: PublisherIndex,
 ): Publisher | undefined {
-  const { byName, byId } = index
-  if (byName.has(name)) return byName.get(name)
-  const lower = name.toLowerCase()
-  for (const [k, v] of byName) {
-    if (k.toLowerCase() === lower) return v
-  }
-  return byId.get(lower.trim())
+  const key = publisherIdentityKey(name)
+  if (!key) return undefined
+  const byName = resolvePublisherNameGroup(name, index.byName.get(key))
+  if (byName) return byName
+  return index.byId.get(key)
 }
 
 /** Publisher lookup by name or publisherid, for callers outside this module. */

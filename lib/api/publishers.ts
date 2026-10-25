@@ -21,16 +21,28 @@ function publisherIdFromUrlSegment(segment: string): string {
   }
 }
 
-/** Resolve by business key `publisherid` (URL segment may be encoded). Postgres via `readPublishersList`. */
-export async function getPublisherByPublisherId(segment: string): Promise<Publisher | null> {
+/**
+ * Resolve by business key `publisherid` (URL segment may be encoded). Postgres
+ * via `readPublishersList`, which is ordered by `publishers.id`, so a
+ * publisherid shared by two rows resolves to the lowest id. `rowId` picks one
+ * of those rows by primary key instead (the `?pk=` link on the duplicates
+ * banner); a `rowId` whose row does not carry this publisherid is not found.
+ */
+export async function getPublisherByPublisherId(
+  segment: string,
+  options: { rowId?: number | null } = {},
+): Promise<Publisher | null> {
   const key = publisherIdFromUrlSegment(segment)
   if (!key) return null
   const { readPublishersList } = await import("@/lib/data/readPublishers")
   const result = await readPublishersList()
   if (result.status >= 400 || !Array.isArray(result.body)) return null
-  const found = (result.body as Publisher[]).find(
+  const matches = (result.body as Publisher[]).filter(
     (p) => String(p.publisherid ?? "").trim() === key
   )
-  return found ?? null
+  if (options.rowId != null) {
+    return matches.find((p) => Number(p.id) === options.rowId) ?? null
+  }
+  return matches[0] ?? null
 }
 
