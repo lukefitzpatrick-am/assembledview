@@ -1,6 +1,7 @@
 import { campaignOverlapsMonth } from "@/lib/finance/utils"
 import { readPlanMasters, readPlanVersions } from "@/lib/data/readMediaPlans"
 import { stampMasterCampaignStatus } from "@/lib/finance/sections/financeCampaignStatus"
+import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 
 export type RelevantVersionsResult = {
   year: number
@@ -35,11 +36,14 @@ export function clearRelevantPlanVersionsCache(): void {
 export function buildMbaToLatestVersionMap(masters: any[]): Map<string, MbaVersionInfo> {
   const mbaToVersionMap = new Map<string, MbaVersionInfo>()
   masters.forEach((master: any) => {
-    if (master.mba_number && master.version_number) {
+    // Keyed by mbaJoinKey (trim + lower-case) so a mixed-case master still
+    // finds its versions (6caded78 intent; the finance map was never moved).
+    const key = mbaJoinKey(master.mba_number)
+    if (key && master.version_number) {
       const versionNumber = Number(master.version_number) || 0
-      const existing = mbaToVersionMap.get(master.mba_number)
+      const existing = mbaToVersionMap.get(key)
       if (!existing || versionNumber > existing.versionNumber) {
-        mbaToVersionMap.set(master.mba_number, {
+        mbaToVersionMap.set(key, {
           masterId: master.id,
           versionNumber,
         })
@@ -61,8 +65,9 @@ export function selectRelevantVersionsForMonth(
   month: number
 ): any[] {
   return allVersions.filter((version: any) => {
-    if (!version.mba_number) return false
-    const versionInfo = mbaToVersionMap.get(version.mba_number)
+    const key = mbaJoinKey(version.mba_number)
+    if (!key) return false
+    const versionInfo = mbaToVersionMap.get(key)
     if (!versionInfo) return false
 
     const isLatestVersionNumber = Number(version.version_number) === Number(versionInfo.versionNumber)
