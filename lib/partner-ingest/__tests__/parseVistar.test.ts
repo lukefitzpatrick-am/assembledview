@@ -64,6 +64,8 @@ test("Vistar fixture: first row maps to the exchange columns exactly", async () 
   )
   assert.equal(row.partnerCampaignId, "7a3PpWQARm0LDir1oGsOOw")
   assert.equal(row.partnerCreativeId, "xArrGiXMR9WBbCw8nAzBAA")
+  assert.equal(row.partnerInsertionOrderId, "po0H63X8SYuchWn3Desj0Q")
+  assert.equal(row.partnerInsertionOrderName, "legalsuper - Jan-Mar26")
   assert.equal(row.venueType, "Outdoor|Urban Panels")
   assert.equal(row.metroArea, "Greater Sydney")
   assert.equal(row.state, "New South Wales")
@@ -135,5 +137,27 @@ test("Vistar dates accept d-MMM-yy, ISO, Date and Excel serial", async () => {
   assert.deepEqual(
     parsed.rows.map((r) => r.reportDate).sort(),
     ["2026-02-02", "2026-03-04", "2026-09-12", "2026-09-13"]
+  )
+})
+
+test("every fixture row carries an Insertion Order id and name", async () => {
+  const parsed = await parseFixture()
+  assert.equal(parsed.rows.every((r) => !!r.partnerInsertionOrderId && !!r.partnerInsertionOrderName), true)
+})
+
+test("a missing Insertion Order column fails the parse and names the column", async () => {
+  const lines = fixtureText().split(/\r?\n/)
+  const header = lines[6]!.replace(",Insertion Order,", ",")
+  const data = lines[7]!.split(",")
+  data.splice(4, 1)
+  const matrix = await readPartnerFileMatrix(
+    Buffer.from(csvFrom(header, [data.join(",")]), "utf8"),
+    "no-io.csv"
+  )
+  assert.throws(
+    () => parseVistarMatrix(matrix),
+    (err: unknown) =>
+      err instanceof PartnerIngestError &&
+      /missing required column: Insertion Order$/.test(err.message)
   )
 })

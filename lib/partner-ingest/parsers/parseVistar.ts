@@ -22,6 +22,8 @@ const REQUIRED_COLUMNS = [
   VISTAR_COL.day,
   VISTAR_COL.venueType,
   VISTAR_COL.advertiser,
+  VISTAR_COL.insertionOrderName,
+  VISTAR_COL.insertionOrder,
   VISTAR_COL.contractNumber,
   VISTAR_COL.campaignName,
   VISTAR_COL.campaignId,
@@ -92,6 +94,8 @@ export function parseVistarMatrix(matrix: unknown[][]): ParsedPartnerFile {
       state: text(cols, VISTAR_COL.state, cells),
       partnerCampaignId: text(cols, VISTAR_COL.campaignId, cells),
       partnerCreativeId: text(cols, VISTAR_COL.creativeId, cells),
+      partnerInsertionOrderId: text(cols, VISTAR_COL.insertionOrder, cells),
+      partnerInsertionOrderName: text(cols, VISTAR_COL.insertionOrderName, cells),
     })
   }
 

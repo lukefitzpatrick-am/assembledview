@@ -41,10 +41,12 @@ test("delivery INSERT keeps the exchange columns after SOURCE_FILE", () => {
     "STATE",
     "PARTNER_CAMPAIGN_ID",
     "PARTNER_CREATIVE_ID",
+    "PARTNER_INSERTION_ORDER_ID",
+    "PARTNER_INSERTION_ORDER_NAME",
   ])
   assert.equal(DELIVERY_COLUMNS[17], "SOURCE_FILE")
-  assert.equal(DELIVERY_COLUMNS.length, 25)
-  assert.equal(INSERT_DELIVERY_SQL(2).match(/\?/g)?.length, 50)
+  assert.equal(DELIVERY_COLUMNS.length, 27)
+  assert.equal(INSERT_DELIVERY_SQL(2).match(/\?/g)?.length, 54)
 })
 
 test("delivery binds round fractional impressions and null the exchange columns for CF", () => {
@@ -73,9 +75,11 @@ test("delivery binds round fractional impressions and null the exchange columns 
       state: "New South Wales",
       partnerCampaignId: "7a3PpWQARm0LDir1oGsOOw",
       partnerCreativeId: "xArrGiXMR9WBbCw8nAzBAA",
+      partnerInsertionOrderId: "po0H63X8SYuchWn3Desj0Q",
+      partnerInsertionOrderName: "legalsuper - Jan-Mar26",
     },
   ])
-  assert.equal(binds.length, 25)
+  assert.equal(binds.length, 27)
   assert.equal(binds[6], 289)
   assert.deepEqual(binds.slice(18), [
     12.5528646796,
@@ -85,6 +89,8 @@ test("delivery binds round fractional impressions and null the exchange columns 
     "New South Wales",
     "7a3PpWQARm0LDir1oGsOOw",
     "xArrGiXMR9WBbCw8nAzBAA",
+    "po0H63X8SYuchWn3Desj0Q",
+    "legalsuper - Jan-Mar26",
   ])
 
   const cf = deliveryInsertBinds("Channel Factory", "cf/f.xlsx", [
@@ -107,7 +113,7 @@ test("delivery binds round fractional impressions and null the exchange columns 
       rateFullyPlayed: 0.6,
     },
   ])
-  assert.deepEqual(cf.slice(18), [null, null, null, null, null, null, null])
+  assert.deepEqual(cf.slice(18), [null, null, null, null, null, null, null, null, null])
 })
 
 test("partner ingest SQL never issues UPDATE against RAW", () => {

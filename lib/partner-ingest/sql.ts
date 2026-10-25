@@ -108,6 +108,9 @@ export const DELIVERY_COLUMNS = [
   "STATE",
   "PARTNER_CAMPAIGN_ID",
   "PARTNER_CREATIVE_ID",
+  // Added 2026-10-26 (VI1). RAW columns must exist before this ships.
+  "PARTNER_INSERTION_ORDER_ID",
+  "PARTNER_INSERTION_ORDER_NAME",
 ] as const
 
 export const INSERT_DELIVERY_SQL = (n: number): string => {
@@ -161,6 +164,8 @@ export function deliveryInsertBinds(
     row.state ?? null,
     row.partnerCampaignId ?? null,
     row.partnerCreativeId ?? null,
+    row.partnerInsertionOrderId ?? null,
+    row.partnerInsertionOrderName ?? null,
   ])
 }
 

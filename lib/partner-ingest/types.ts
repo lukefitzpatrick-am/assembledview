@@ -35,6 +35,9 @@ export type PartnerDeliveryRow = {
   state?: string | null
   partnerCampaignId?: string | null
   partnerCreativeId?: string | null
+  /** Vistar Insertion Order id and name. The pacing entity for Programmatic - OOH. */
+  partnerInsertionOrderId?: string | null
+  partnerInsertionOrderName?: string | null
 }
 
 export type PartnerRawLine = {
