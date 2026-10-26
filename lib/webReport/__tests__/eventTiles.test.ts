@@ -117,6 +117,33 @@ describe("event tiles and % change", () => {
     assert.equal(parseElementSettings("kpis", { tiles: [{ kind: "eventSum" }] }).ok, false)
   })
 
+  it("shows New users for the period in Key snapshot and Key KPIs, and keeps Users as the sum of daily", () => {
+    const base = report()
+    const data: WebReportData = {
+      ...base,
+      ga4: {
+        ...base.ga4,
+        current: { ...base.ga4.current, newUsers: 30 },
+        previous: { ...base.ga4.previous, newUsers: 25 },
+      },
+    }
+    const snapshot = prepareWebElement({ elementId: "snapshot", settings: { compare: true, tiles: ["users", "newUsers"] } }, data)
+    assert.equal(snapshot.kind, "tiles")
+    const shown = snapshot.kind === "tiles" ? snapshot.tiles : []
+    assert.deepEqual(
+      shown.map((tile) => [tile.label, tile.value, tile.caption, tile.change?.text]),
+      [
+        ["Users", "120", "Users (sum of daily)", "+20.0%"],
+        ["New users", "30", undefined, "+20.0%"],
+      ],
+    )
+    const kpis = prepareWebElement(
+      { elementId: "kpis", settings: { tiles: [{ kind: "metric", metric: "newUsers" }] } },
+      data,
+    )
+    assert.equal(kpis.kind === "tiles" ? kpis.tiles[0]?.value : null, "30")
+  })
+
   it("describes the new settings for the builder form", () => {
     const snapshot = describeElementSettings("snapshot")
     assert.deepEqual(snapshot.map((field) => [field.key, field.kind]), [

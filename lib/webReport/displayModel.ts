@@ -125,7 +125,6 @@ export function columnSpanClass(width: WebWidth): string {
 
 function formatMetric(metric: WebMetric, totals: PeriodTotals, paid: number | null): string {
   if (metric === "avSpend") return formatMoneyCompact(paid)
-  if (metric === "newUsers") return "Not available yet"
   const value = totals[metric]
   if (value == null) return "—"
   if (metric === "engagementRate" || metric === "ctr") return formatPercent(value * 100)
@@ -135,7 +134,6 @@ function formatMetric(metric: WebMetric, totals: PeriodTotals, paid: number | nu
 
 function metricNumber(metric: WebMetric, totals: PeriodTotals, paid: number | null): number | null {
   if (metric === "avSpend") return paid
-  if (metric === "newUsers") return null
   return totals[metric]
 }
 
@@ -166,11 +164,11 @@ function tileForMetric(metric: WebMetric, data: WebReportData, target?: number, 
   const previousTotals = gscMetric(metric) ? data.gsc.previous : data.ga4.previous
   const paid = metric === "avSpend" ? data.paid.spend : null
   const previousPaid = metric === "avSpend" ? data.paid.previousSpend : null
-  const caption = metric === "users" ? "Users (sum of daily)" : metric === "newUsers" ? "Not available yet" : undefined
+  const caption = metric === "users" ? "Users (sum of daily)" : undefined
   const current = metricNumber(metric, totals, paid)
   const tile: PreparedTile = {
     label: METRIC_LABEL[metric],
-    value: metric === "newUsers" ? null : formatMetric(metric, totals, paid),
+    value: formatMetric(metric, totals, paid),
     caption,
     current,
     target,

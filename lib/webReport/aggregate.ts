@@ -177,6 +177,17 @@ function sumUsers(rows: Ga4SourceMediumRow[]): number | null {
   return users
 }
 
+/**
+ * GA4 new_users summed across days and page titles. A user is new only on the
+ * day of their first visit, so the daily sum is the period's new users (unlike
+ * total_users). It matches V_GA4_CITY_DAILY's sum, which the Location table uses.
+ */
+function sumNewUsers(rows: Ga4PageTitleRow[]): number | null {
+  let newUsers: number | null = null
+  for (const row of rows) newUsers = add(newUsers, row.newUsers)
+  return newUsers
+}
+
 function sourceMediumKey(source: string | null, medium: string | null): string {
   return `${source ?? "(not set)"}\u0000${medium ?? "(not set)"}`
 }
@@ -348,12 +359,14 @@ export function buildGa4Slice(input: {
       ...emptyTotals(),
       ...currentSum,
       users: sumUsers(currentSource),
+      newUsers: sumNewUsers(currentTitles),
       pageViews: currentLandingPages.pageViews,
     },
     previous: {
       ...emptyTotals(),
       ...previousSum,
       users: sumUsers(previousSource),
+      newUsers: sumNewUsers(previousTitles),
       pageViews: previousLandingPages.pageViews,
     },
     daily,

@@ -47,7 +47,7 @@ function store(): PartnerSnowflakePort {
   }
 }
 
-test("budget: messages after the deadline stay in the inbox, oldest first", async () => {
+test("budget: unrecognised messages after the deadline stay in the inbox, oldest first", async () => {
   let clock = 0
   const box = inbox(4)
   const summary = await runPartnerIngest({

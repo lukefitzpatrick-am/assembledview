@@ -68,6 +68,8 @@ describe("GA4 and Search Console rollup", () => {
       ],
       pageTitles: [
         { date: "2026-09-02", pageTitle: "Join", users: 7, newUsers: 2, keyEvents: 1, pageViews: 11 },
+        { date: "2026-09-03", pageTitle: "Home", users: 4, newUsers: 3, keyEvents: 0, pageViews: 5 },
+        { date: "2026-08-15", pageTitle: "Join", users: 6, newUsers: 4, keyEvents: 0, pageViews: 6 },
       ],
     })
     assert.equal(slice.status, "ok")
@@ -77,6 +79,8 @@ describe("GA4 and Search Console rollup", () => {
     assert.equal(slice.current.pageViews, 20)
     assert.equal(slice.current.users, 9)
     assert.equal(slice.previous.users, 9)
+    assert.equal(slice.current.newUsers, 5)
+    assert.equal(slice.previous.newUsers, 4)
     assert.equal(slice.sourceMediumStatus, "ok")
     assert.equal(slice.sourceMedium[0]?.source, "google")
     assert.equal(slice.sourceMedium[0]?.medium, "organic")

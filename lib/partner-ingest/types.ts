@@ -90,6 +90,8 @@ export type PartnerIngestFileSummary = {
     | "parse_failed"
     | "unrecognised"
     | "skipped_duplicate"
+    /** An older pending message for a source whose newer file loaded. Not parsed. */
+    | "superseded"
   rowsParsed: number
   nullCodeRows: number
   t5Drift?: number | null
@@ -103,6 +105,8 @@ export type PartnerIngestRunSummary = {
   skipped: number
   failed: number
   unrecognised: number
+  /** Older pending messages logged `superseded` and moved without a parse. */
+  superseded: number
   rowsParsed: number
   rowsWithNullCode: number
   t5Drift: number | null
@@ -115,7 +119,7 @@ export type PartnerIngestRunSummary = {
   staleSources: Array<{ sourceSlug: string; staleDays: number }>
   /**
    * Messages left in the inbox because the run's time budget ran out. The next
-   * run picks them up, oldest first.
+   * run picks them up, newest first per source.
    */
   deferred: number
 }

@@ -7,7 +7,9 @@ import type { PartnerMailAttachment, PartnerMailMessage, PartnerMailboxPort } fr
 export const DEFAULT_PARTNER_INGEST_MAILBOX = "snowflake@assembledview.com.au"
 
 const GRAPH = MS_GRAPH_BASE_URL
-const MOVE_FOLDERS = ["Processed", "Failed", "Unrecognised"] as const
+const MOVE_FOLDERS = ["Processed", "Failed", "Unrecognised", "Superseded"] as const
+/** Inbox pages followed per run. 20 x 50 = 1,000 messages. */
+const MAX_INBOX_PAGES = 20
 
 type GraphJson = Record<string, unknown>
 
@@ -54,7 +56,9 @@ function senderAddressFrom(from: unknown): string {
 
 /**
  * No `$orderby`: Graph rejects it alongside `$filter` on messages with
- * `InefficientFilter`, and runPartnerIngest sorts the page oldest-first anyway.
+ * `InefficientFilter`. The order Graph returns is not relied on:
+ * listInboxMessages follows `@odata.nextLink` so every pending message is seen,
+ * and runPartnerIngest picks the newest per source itself.
  */
 function inboxMessagesUrl(user: string): string {
   const filter = encodeURIComponent("hasAttachments eq true")
@@ -101,14 +105,15 @@ export function createPartnerMailbox(input: {
 
   return {
     async listInboxMessages() {
-      const token = await input.getToken()
-      const { json } = await graphJson(
-        input.transport,
-        token,
-        "GET",
-        inboxMessagesUrl(user)
-      )
-      const values = Array.isArray(json.value) ? json.value : []
+      const values: unknown[] = []
+      let url: string | null = inboxMessagesUrl(user)
+      for (let page = 0; url && page < MAX_INBOX_PAGES; page += 1) {
+        const token = await input.getToken()
+        const { json } = await graphJson(input.transport, token, "GET", url)
+        if (Array.isArray(json.value)) values.push(...json.value)
+        const next = json["@odata.nextLink"]
+        url = typeof next === "string" && next ? next : null
+      }
       return values.map((row) => {
         const rec = asRecord(row)
         const id = String(rec.id ?? "")

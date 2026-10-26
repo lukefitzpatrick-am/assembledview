@@ -31,13 +31,13 @@ export type PartnerMailAttachment = {
   bytes: Buffer
 }
 
+export type PartnerMailFolder = "Processed" | "Failed" | "Unrecognised" | "Superseded"
+
+/** Read and move only. The port has no delete; the cron never deletes mail. */
 export type PartnerMailboxPort = {
   listInboxMessages(): Promise<PartnerMailMessage[]>
   getAttachments(messageId: string): Promise<PartnerMailAttachment[]>
-  moveMessage(
-    messageId: string,
-    folder: "Processed" | "Failed" | "Unrecognised"
-  ): Promise<void>
+  moveMessage(messageId: string, folder: PartnerMailFolder): Promise<void>
 }
 
 export type PartnerIngestLogRow = {
@@ -141,6 +141,7 @@ function emptySummary(): PartnerIngestRunSummary {
     skipped: 0,
     failed: 0,
     unrecognised: 0,
+    superseded: 0,
     rowsParsed: 0,
     rowsWithNullCode: 0,
     t5Drift: null,
@@ -192,15 +193,78 @@ async function collectStaleSources(
   return stale
 }
 
+function byReceived(a: PartnerMailMessage, b: PartnerMailMessage): number {
+  return String(a.receivedDateTime).localeCompare(String(b.receivedDateTime))
+}
+
+type ParseMatrix = ReturnType<typeof parserForSource>
+
+type SourceGroup = {
+  source: PartnerSourceMapRow
+  parseMatrix: ParseMatrix
+  /** Newest first. */
+  messages: PartnerMailMessage[]
+}
+
+type PendingUnrecognised = {
+  message: PartnerMailMessage
+  sourceSlug: string
+  errorText: string
+}
+
+/**
+ * Pending mail per source, newest first. Supplier files are cumulative (each
+ * day's file holds the whole period), so only the newest file per source is
+ * parsed and loaded. Once it loads, every older pending message for that
+ * source is logged `superseded` and moved to the Superseded folder without
+ * being parsed. If the newest fails, the next newest is tried. Mail is moved,
+ * never deleted.
+ */
+export function planPartnerIngest(
+  messages: PartnerMailMessage[],
+  maps: PartnerSourceMapRow[]
+): { groups: SourceGroup[]; unrecognised: PendingUnrecognised[] } {
+  const groups = new Map<string, SourceGroup>()
+  const unrecognised: PendingUnrecognised[] = []
+  for (const message of [...messages].sort(byReceived)) {
+    const source = matchPartnerSource(message, maps)
+    if (!source) {
+      unrecognised.push({
+        message,
+        sourceSlug: "unrecognised",
+        errorText: "sender domain or subject did not match PARTNER_SOURCE_MAP",
+      })
+      continue
+    }
+    let parseMatrix: ParseMatrix
+    try {
+      parseMatrix = parserForSource(source.sourceSlug)
+    } catch (err) {
+      unrecognised.push({
+        message,
+        sourceSlug: source.sourceSlug,
+        errorText: err instanceof Error ? err.message : String(err),
+      })
+      continue
+    }
+    const group = groups.get(source.sourceSlug)
+    if (group) group.messages.push(message)
+    else groups.set(source.sourceSlug, { source, parseMatrix, messages: [message] })
+  }
+  const ordered = [...groups.values()].sort((a, b) =>
+    a.source.sourceSlug.localeCompare(b.source.sourceSlug)
+  )
+  for (const group of ordered) group.messages.reverse()
+  return { groups: ordered, unrecognised }
+}
+
 export async function runPartnerIngest(
   deps: PartnerIngestDeps
 ): Promise<PartnerIngestRunSummary> {
   const summary = emptySummary()
   const maps = await deps.snowflake.loadSourceMap()
   const messages = await deps.mailbox.listInboxMessages()
-  const oldestFirst = [...messages].sort((a, b) =>
-    String(a.receivedDateTime).localeCompare(String(b.receivedDateTime))
-  )
+  const plan = planPartnerIngest(messages, maps)
 
   async function writeUnrecognised(
     message: PartnerMailMessage,
@@ -242,34 +306,58 @@ export async function runPartnerIngest(
     await deps.mailbox.moveMessage(message.id, "Unrecognised")
   }
 
-  const now = deps.now ?? Date.now
-  for (const [index, message] of oldestFirst.entries()) {
-    if (deps.deadlineAt != null && now() >= deps.deadlineAt) {
-      summary.deferred = oldestFirst.length - index
-      break
-    }
-    const source = matchPartnerSource(message, maps)
-    if (!source) {
-      await writeUnrecognised(
-        message,
-        "unrecognised",
-        "sender domain or subject did not match PARTNER_SOURCE_MAP"
-      )
-      continue
-    }
+  /** Logs an older pending message as superseded and moves it. No parse, no load. */
+  async function writeSuperseded(
+    message: PartnerMailMessage,
+    sourceSlug: string,
+    newer: PartnerMailMessage
+  ): Promise<void> {
+    summary.superseded += 1
+    const sourceFile = partnerSourceFile({
+      sourceSlug,
+      receivedAt: message.receivedDateTime,
+      internetMessageId: message.internetMessageId,
+      attachmentName: "(none)",
+    })
+    const errorText = `superseded by ${newer.internetMessageId} received ${newer.receivedDateTime}`
+    await deps.snowflake.writeLoadAndLog({
+      load: null,
+      log: {
+        sourceSlug,
+        internetMessageId: message.internetMessageId,
+        attachmentName: "(none)",
+        attachmentSha256: EMPTY_SHA,
+        sourceFile,
+        senderAddress: message.senderAddress,
+        receivedAt: message.receivedDateTime,
+        bytes: null,
+        lineCount: 0,
+        parsedRowCount: 0,
+        status: "superseded",
+        errorText,
+      },
+    })
+    summary.files.push({
+      attachmentName: "(none)",
+      sourceFile,
+      status: "superseded",
+      rowsParsed: 0,
+      nullCodeRows: 0,
+      errorText,
+    })
+    await deps.mailbox.moveMessage(message.id, "Superseded")
+  }
 
-    let parseMatrix
-    try {
-      parseMatrix = parserForSource(source.sourceSlug)
-    } catch (err) {
-      await writeUnrecognised(
-        message,
-        source.sourceSlug,
-        err instanceof Error ? err.message : String(err)
-      )
-      continue
-    }
-
+  /**
+   * Parses and loads one message's attachments, then moves it. Returns true
+   * when at least one attachment loaded or was already loaded, so the
+   * message's data is now in PARTNER_DELIVERY_DAILY.
+   */
+  async function ingestMessage(
+    message: PartnerMailMessage,
+    source: PartnerSourceMapRow,
+    parseMatrix: ParseMatrix
+  ): Promise<boolean> {
     const loadMode = resolveLoadMode(source.loadMode)
     const loadModeError = loadMode
       ? null
@@ -279,6 +367,7 @@ export async function runPartnerIngest(
       keepPartnerAttachment
     )
     let anyFailed = false
+    let anyLanded = false
 
     for (const att of attachments) {
       summary.filesSeen += 1
@@ -296,6 +385,7 @@ export async function runPartnerIngest(
       })
       if (duplicate) {
         summary.skipped += 1
+        anyLanded = true
         await deps.snowflake.writeLoadAndLog({
           load: null,
           log: {
@@ -368,6 +458,8 @@ export async function runPartnerIngest(
         rowCount: parsed.rows.length,
       })
 
+      // range_replace deletes only [minDate, maxDate] of THIS file, so a newer
+      // file with a shorter range never removes dates outside its own range.
       await deps.snowflake.writeLoadAndLog({
         load:
           failed || !range
@@ -417,10 +509,41 @@ export async function runPartnerIngest(
         anyFailed = true
       } else {
         summary.loaded += 1
+        anyLanded = true
       }
     }
 
     await deps.mailbox.moveMessage(message.id, anyFailed ? "Failed" : "Processed")
+    return anyLanded
+  }
+
+  const now = deps.now ?? Date.now
+  const outOfTime = () => deps.deadlineAt != null && now() >= deps.deadlineAt
+
+  for (const group of plan.groups) {
+    const pending = group.messages
+    for (const [index, message] of pending.entries()) {
+      if (outOfTime()) {
+        summary.deferred += pending.length - index
+        break
+      }
+      const landed = await ingestMessage(message, group.source, group.parseMatrix)
+      if (!landed) continue
+      // Cheap (one log row and one move each) and not gated by the budget:
+      // an older file left pending could later replace this newer data.
+      for (const older of pending.slice(index + 1)) {
+        await writeSuperseded(older, group.source.sourceSlug, message)
+      }
+      break
+    }
+  }
+
+  for (const [index, item] of plan.unrecognised.entries()) {
+    if (outOfTime()) {
+      summary.deferred += plan.unrecognised.length - index
+      break
+    }
+    await writeUnrecognised(item.message, item.sourceSlug, item.errorText)
   }
 
   summary.staleSources = await collectStaleSources(deps, maps)

@@ -15,8 +15,11 @@ export const preferredRegion = ["syd1"]
  * Auth: CRON_SECRET. Never deletes mailbox messages. Never UPDATE on RAW.
  * The response is the run summary, including staleSources[].
  * Cron: 30 22 * * * (08:30 AEST, after the Datorama send).
- * No new message starts after PARTNER_INGEST_BUDGET_MS (150 s); the rest stay
- * in the inbox and `deferred` counts them. The next run resumes oldest first.
+ * Files are cumulative, so only the newest pending message per source is
+ * parsed and loaded; older pending ones are logged `superseded` and moved to
+ * the Superseded folder unparsed. No new load starts after
+ * PARTNER_INGEST_BUDGET_MS (150 s); the rest stay in the inbox and `deferred`
+ * counts them.
  */
 function partnerIngestConfigured(
   env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env
