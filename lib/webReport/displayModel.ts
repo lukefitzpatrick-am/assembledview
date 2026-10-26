@@ -230,6 +230,9 @@ function kpiAsOf(item: WebKpiReportItem, data: WebReportData): string {
   return latest && latest < today ? latest : today
 }
 
+/** Footnote on a saved KPI tile over a custom range. */
+export const CUSTOM_TARGET_NOTE = "Target is the sum of monthly targets, prorated by days for part months"
+
 function savedKpiTile(item: WebKpiReportItem, data: WebReportData): PreparedTile {
   const window = data.windows.current
   const total = item.window.total
@@ -243,6 +246,9 @@ function savedKpiTile(item: WebKpiReportItem, data: WebReportData): PreparedTile
   if (total == null) return { ...tile, caption: "Source not connected" }
   const progress = kpiWindowProgress(item, window, kpiAsOf(item, data))
   if (progress.target == null) return { ...tile, caption: "No target" }
+  const notes = [coverageNote(progress, window), data.windows.period === "custom" ? CUSTOM_TARGET_NOTE : null].filter(
+    (note): note is string => note != null,
+  )
   return {
     ...tile,
     target: progress.target,
@@ -250,7 +256,7 @@ function savedKpiTile(item: WebKpiReportItem, data: WebReportData): PreparedTile
     expected: `Target ${NUMBER.format(progress.target)}`,
     status: progress.status,
     progress: progress.pace ?? undefined,
-    caption: coverageNote(progress, window) ?? undefined,
+    caption: notes.length > 0 ? notes.join(". ") : undefined,
   }
 }
 

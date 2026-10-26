@@ -43,15 +43,22 @@ export const linkRequestSchema = z.object({
   label: z.string().trim().max(200).nullable().optional(),
 })
 
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
+/** A custom range previews the report only. The saved default stays a preset. */
 export const previewRequestSchema = connectionSchema.extend({
   action: z.literal("preview"),
   layout: layoutSchema,
+  from: isoDate.optional(),
+  to: isoDate.optional(),
 })
 
 type Connection = {
   brandTerms: string[]
   defaultPeriod: ReportPeriod
   layout: WebReportLayoutItem[]
+  /** Preview only. Both or neither. */
+  range?: { from: string; to: string }
 }
 
 export function parseBuilderRequest(value: unknown):
@@ -98,5 +105,8 @@ export function parseBuilderRequest(value: unknown):
     layout: layout.layout,
   }
   if (parsed.data.action === "save") return { ok: true, action: "save", body }
+  const { from, to } = parsed.data as { from?: string; to?: string }
+  if (Boolean(from) !== Boolean(to)) return { ok: false, error: "A custom range needs a start and an end date" }
+  if (from && to) body.range = { from, to }
   return { ok: true, action: "preview", body }
 }

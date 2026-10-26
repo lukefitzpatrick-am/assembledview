@@ -270,6 +270,8 @@ export async function loadBuilderPreview(input: {
   clientId: number
   period: ReportPeriod
   brandTerms: string[]
+  /** A custom range. Throws WebReportRangeError when it is not valid. */
+  range?: { from: string; to: string }
 }): Promise<{ clientName: string; connected: boolean; data: WebReportData } | null> {
   const [dashboard, accounts] = await Promise.all([
     getClientDashboardData(input.slug),
@@ -277,7 +279,7 @@ export async function loadBuilderPreview(input: {
   ])
   if (!dashboard) return null
   const today = sydneyYmdFromUtcInstant(new Date())
-  const windows = windowsForRequest({ period: input.period, today })
+  const windows = windowsForRequest({ period: input.period, today, from: input.range?.from, to: input.range?.to })
   const campaigns = [
     ...dashboard.liveCampaignsList,
     ...dashboard.planningCampaignsList,

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { builderGate } from "@/lib/webReport/builder/access"
 import { BUILDER_NEEDS_MIGRATION, savedForMessage } from "@/lib/webReport/builder/layout"
 import { parseBuilderRequest } from "@/lib/webReport/builder/request"
+import { WebReportRangeError } from "@/lib/webReport/periods"
 import { WebAccountLinkError, linkWebAccount, listWebAccountOptions } from "@/lib/webReport/builder/accounts"
 import {
   BuilderMigrationError,
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
         clientId: client.clientId,
         period: parsed.body.defaultPeriod,
         brandTerms: parsed.body.brandTerms,
+        range: parsed.body.range,
       })
       if (!preview) return NextResponse.json({ error: "Not found" }, { status: 404 })
       return NextResponse.json({
@@ -122,6 +124,9 @@ export async function POST(req: NextRequest, context: RouteContext) {
   } catch (err) {
     if (err instanceof WebAccountLinkError) {
       return NextResponse.json({ error: err.message }, { status: err.status })
+    }
+    if (err instanceof WebReportRangeError) {
+      return NextResponse.json({ error: "Choose an end date on or after the start, no later than yesterday, within two years" }, { status: 400 })
     }
     if (err instanceof BuilderMigrationError) {
       return NextResponse.json({ error: BUILDER_NEEDS_MIGRATION }, { status: 409 })

@@ -2,12 +2,14 @@
 
 import Link from "next/link"
 
+import { CustomRangeFields } from "@/components/dashboard/web/CustomRangeFields"
+
 import { BUILDER_FIELD_CLASS } from "@/components/dashboard/web/builder/SettingsControl"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { WebAccountOption, WebAccountOptions, WebAccountPlatform } from "@/lib/webReport/builder/accounts"
-import { REPORT_PERIODS, type ReportPeriod } from "@/lib/webReport/periods"
+import { REPORT_PERIODS, type DateWindow, type ReportPeriod } from "@/lib/webReport/periods"
 
 const PERIOD_LABEL: Record<ReportPeriod, string> = {
   last_month: "Last month",
@@ -24,6 +26,10 @@ export function BuilderTopBar({
   clientName,
   period,
   onPeriod,
+  range = null,
+  customOpen = false,
+  onCustomOpen,
+  onRange,
   terms,
   onTerms,
   ga4PropertyRef,
@@ -46,6 +52,11 @@ export function BuilderTopBar({
   clientName: string
   period: ReportPeriod
   onPeriod: (period: ReportPeriod) => void
+  /** Preview-only custom range. Save keeps the preset in `period`. */
+  range?: DateWindow | null
+  customOpen?: boolean
+  onCustomOpen?: () => void
+  onRange?: (range: DateWindow) => void
   terms: string
   onTerms: (terms: string) => void
   ga4PropertyRef: string | null
@@ -94,20 +105,30 @@ export function BuilderTopBar({
         aria-label="Report settings"
         className="grid gap-3 rounded-card border border-border bg-card p-4 shadow-e1 md:grid-cols-2 xl:grid-cols-4"
       >
+        <div className="flex flex-col gap-2">
         <label className="flex flex-col gap-1 text-sm text-foreground">
           Period
           <select
             className={BUILDER_FIELD_CLASS}
-            value={period}
-            onChange={(event) => onPeriod(event.target.value as ReportPeriod)}
+            value={customOpen || range ? "custom" : period}
+            onChange={(event) => {
+              const next = event.target.value
+              if (next === "custom") onCustomOpen?.()
+              else onPeriod(next as ReportPeriod)
+            }}
           >
             {REPORT_PERIODS.map((value) => (
               <option key={value} value={value}>
                 {PERIOD_LABEL[value]}
               </option>
             ))}
+            {onRange ? <option value="custom">Custom range (preview only)</option> : null}
           </select>
         </label>
+        {(customOpen || range) && onRange ? (
+          <CustomRangeFields initial={range} fieldClassName={BUILDER_FIELD_CLASS} onApply={onRange} />
+        ) : null}
+        </div>
         <label className="flex flex-col gap-1 text-sm text-foreground">
           Brand terms
           <Input className="h-11" value={terms} placeholder="brand, product" onChange={(event) => onTerms(event.target.value)} />

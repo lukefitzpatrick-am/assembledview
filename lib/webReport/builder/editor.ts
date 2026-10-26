@@ -138,12 +138,15 @@ export function builderRequestBody(input: {
   entries: BuilderEntry[]
   brandTerms: string[]
   period: ReportPeriod
+  /** Preview only. Never sent on save. */
+  range?: { from: string; to: string } | null
 }) {
   return {
     action: input.action,
     brandTerms: input.brandTerms,
     defaultPeriod: input.period,
     layout: layoutFromEntries(input.entries),
+    ...(input.action === "preview" && input.range ? { from: input.range.from, to: input.range.to } : {}),
   }
 }
 

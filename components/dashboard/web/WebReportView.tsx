@@ -1,14 +1,15 @@
 "use client"
 
-import { Component, type ReactNode } from "react"
+import { Component, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { PageHeader } from "@/components/layout/PageHeader"
+import { CustomRangeFields } from "@/components/dashboard/web/CustomRangeFields"
 import { WebReportElement } from "@/components/dashboard/web/reportElements"
 import { columnSpanClass } from "@/lib/webReport/displayModel"
 import { resolveWidth, type WebReportLayoutItem } from "@/lib/webReport/elements"
-import { REPORT_PERIODS, type ReportPeriod } from "@/lib/webReport/periods"
+import { REPORT_PERIODS, type DateWindow, type ReportPeriod } from "@/lib/webReport/periods"
 import type { WebReportData } from "@/lib/webReport/types"
 
 const PERIOD_LABEL: Record<ReportPeriod, string> = {
@@ -37,26 +38,51 @@ export class ElementBoundary extends Component<{ title: string; children: ReactN
   }
 }
 
-export function PeriodSelect({ slug, period }: { slug: string; period: ReportPeriod }) {
+export const CUSTOM_RANGE_LABEL = "Custom range"
+
+const VIEW_FIELD_CLASS = "h-9 rounded-input border border-border bg-card px-2 text-sm text-foreground"
+
+/** Shareable link for a custom range. */
+export function customRangeHref(slug: string, range: DateWindow): string {
+  return `/dashboard/${slug}/web?from=${range.from}&to=${range.to}`
+}
+
+export function PeriodSelect({ slug, period, range = null }: { slug: string; period: ReportPeriod; range?: DateWindow | null }) {
   const router = useRouter()
+  const [custom, setCustom] = useState(range != null)
   return (
-    <label className="flex items-center gap-2 text-sm text-muted-foreground">
-      Period
-      <select
-        className="h-9 rounded-input border border-border bg-card px-2 text-sm text-foreground"
-        value={period}
-        onChange={(event) => {
-          const next = event.target.value
-          router.push(`/dashboard/${slug}/web?period=${next}`)
-        }}
-      >
-        {REPORT_PERIODS.map((value) => (
-          <option key={value} value={value}>
-            {PERIOD_LABEL[value]}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="flex flex-col items-end gap-2">
+      <label className="flex items-center gap-2 text-sm text-muted-foreground">
+        Period
+        <select
+          className={VIEW_FIELD_CLASS}
+          value={custom ? "custom" : period}
+          onChange={(event) => {
+            const next = event.target.value
+            if (next === "custom") {
+              setCustom(true)
+              return
+            }
+            setCustom(false)
+            router.push(`/dashboard/${slug}/web?period=${next}`)
+          }}
+        >
+          {REPORT_PERIODS.map((value) => (
+            <option key={value} value={value}>
+              {PERIOD_LABEL[value]}
+            </option>
+          ))}
+          <option value="custom">{CUSTOM_RANGE_LABEL}</option>
+        </select>
+      </label>
+      {custom ? (
+        <CustomRangeFields
+          initial={range}
+          fieldClassName={VIEW_FIELD_CLASS}
+          onApply={(next) => router.push(customRangeHref(slug, next))}
+        />
+      ) : null}
+    </div>
   )
 }
 
@@ -88,6 +114,7 @@ export function WebReportView({
   connected,
   builderHref,
   interactivePeriod = true,
+  range = null,
 }: {
   slug: string
   clientName: string
@@ -97,6 +124,8 @@ export function WebReportView({
   connected: boolean
   builderHref?: string | null
   interactivePeriod?: boolean
+  /** A custom from/to range from the URL. Null for a preset. */
+  range?: DateWindow | null
 }) {
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-6 sm:px-6">
@@ -111,9 +140,9 @@ export function WebReportView({
               </Link>
             ) : null}
             {interactivePeriod ? (
-              <PeriodSelect slug={slug} period={period} />
+              <PeriodSelect slug={slug} period={period} range={range} />
             ) : (
-              <p className="text-sm text-muted-foreground">{PERIOD_LABEL[period]}</p>
+              <p className="text-sm text-muted-foreground">{range ? CUSTOM_RANGE_LABEL : PERIOD_LABEL[period]}</p>
             )}
           </div>
         }

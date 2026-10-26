@@ -8,10 +8,13 @@ export const REPORT_PERIODS = ["last_month", "last_28_days", "month_to_date_yoy"
 
 export type ReportPeriod = (typeof REPORT_PERIODS)[number]
 
+/** A preset, or a custom from/to range from the URL. A custom range is never a saved default. */
+export type WindowPeriod = ReportPeriod | "custom"
+
 export type DateWindow = { from: string; to: string }
 
 export type ReportWindows = {
-  period: ReportPeriod
+  period: WindowPeriod
   current: DateWindow
   previous: DateWindow
   /** Serif phrase after "Web & search", without the full stop. */
@@ -134,6 +137,67 @@ export function resolveReportWindows(period: ReportPeriod, today: string): Repor
     current,
     previous,
     phrase: monthName(current.from),
+    comparedWith: rangePhrase(previous),
+  }
+}
+
+/** Today's civil date in Australia/Sydney, YYYY-MM-DD. Safe in the browser. */
+export function sydneyToday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now)
+}
+
+/** A from/to range that is malformed or fails validateCustomRange. */
+export class WebReportRangeError extends Error {
+  constructor() {
+    super("bad range")
+    this.name = "WebReportRangeError"
+  }
+}
+
+/** Longest custom range: two years of days, including a leap day. */
+export const CUSTOM_RANGE_MAX_DAYS = 731
+
+export function daysInclusive(from: string, to: string): number {
+  const start = parseIsoDate(from)
+  const end = parseIsoDate(to)
+  if (!start || !end) return 0
+  const a = Date.UTC(start.y, start.m - 1, start.d)
+  const b = Date.UTC(end.y, end.m - 1, end.d)
+  return Math.round((b - a) / 86_400_000) + 1
+}
+
+/**
+ * A custom range is valid when both dates are real YYYY-MM-DD dates, end is on
+ * or after start, end is no later than yesterday (today is the Sydney date),
+ * and the range is at most two years.
+ */
+export function validateCustomRange(
+  from: string,
+  to: string,
+  today: string,
+): { ok: true } | { ok: false; error: string } {
+  if (!parseIsoDate(from) || !parseIsoDate(to)) return { ok: false, error: "Use real dates" }
+  if (to < from) return { ok: false, error: "The end date must be on or after the start date" }
+  if (to > addIsoDays(today, -1)) return { ok: false, error: "The end date can be yesterday at the latest" }
+  if (daysInclusive(from, to) > CUSTOM_RANGE_MAX_DAYS) return { ok: false, error: "The range can be two years at most" }
+  return { ok: true }
+}
+
+/** The range, compared with the same number of days immediately before it. */
+export function customRangeWindows(from: string, to: string): ReportWindows {
+  const length = daysInclusive(from, to)
+  const previousTo = addIsoDays(from, -1)
+  const previous = { from: addIsoDays(previousTo, -(length - 1)), to: previousTo }
+  return {
+    period: "custom",
+    current: { from, to },
+    previous,
+    phrase: rangePhrase({ from, to }),
     comparedWith: rangePhrase(previous),
   }
 }

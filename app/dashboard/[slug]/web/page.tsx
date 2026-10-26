@@ -59,7 +59,13 @@ export default async function WebSearchPage({ params, searchParams }: WebSearchP
   }
   if (!report) notFound()
 
-  const period: ReportPeriod = isReportPeriod(periodParam) ? periodParam : report.data.windows.period
+  const windowPeriod = report.data.windows.period
+  const period: ReportPeriod = isReportPeriod(periodParam)
+    ? periodParam
+    : windowPeriod === "custom"
+      ? report.defaultPeriod
+      : windowPeriod
+  const range = windowPeriod === "custom" ? report.data.windows.current : null
 
   return (
     <WebReportView
@@ -69,6 +75,7 @@ export default async function WebSearchPage({ params, searchParams }: WebSearchP
       layout={report.layout}
       data={report.data}
       connected={report.connected}
+      range={range}
       builderHref={hasRole(user, ["admin"]) ? `/dashboard/${slug}/web/builder` : null}
     />
   )

@@ -76,6 +76,9 @@ export function ReportBuilder({
   const [selectedKey, setSelectedKey] = useState<string | null>(() => (initialLayout.length > 0 ? "el-0" : null))
   const [terms, setTerms] = useState(brandTerms.join(", "))
   const [period, setPeriod] = useState<ReportPeriod>(defaultPeriod)
+  // Custom range is for the preview only. Save keeps the preset in `period`.
+  const [range, setRange] = useState<{ from: string; to: string } | null>(null)
+  const [customOpen, setCustomOpen] = useState(false)
   const [version, setVersion] = useState(currentVersion)
   const [history, setHistory] = useState(versions)
   const [message, setMessage] = useState<string | null>(null)
@@ -126,6 +129,7 @@ export function ReportBuilder({
               entries: entries.length > 0 ? entries : entriesFromLayout([{ elementId: "notes", settings: { text: "" } }]),
               brandTerms: parsedTerms,
               period,
+              range,
             }),
           )
           if (seq !== previewSeq.current) return
@@ -142,7 +146,7 @@ export function ReportBuilder({
     return () => clearTimeout(timer)
     // Data depends on the period, brand terms and saved KPIs only. Layout edits re-render from the loaded data.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, termsKey, slug, kpiRevision, linkRevision])
+  }, [period, range, termsKey, slug, kpiRevision, linkRevision])
 
   useEffect(() => {
     let live = true
@@ -260,7 +264,15 @@ export function ReportBuilder({
         slug={slug}
         clientName={clientName}
         period={period}
-        onPeriod={setPeriod}
+        onPeriod={(next) => {
+          setRange(null)
+          setCustomOpen(false)
+          setPeriod(next)
+        }}
+        range={range}
+        customOpen={customOpen}
+        onCustomOpen={() => setCustomOpen(true)}
+        onRange={setRange}
         terms={terms}
         onTerms={setTerms}
         ga4PropertyRef={ga4Ref}
@@ -300,6 +312,7 @@ export function ReportBuilder({
               data={preview.data}
               connected={preview.connected}
               interactivePeriod={false}
+              range={range}
             />
           </div>
         ) : (

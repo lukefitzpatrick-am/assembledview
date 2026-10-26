@@ -18,21 +18,26 @@ import {
   DEFAULT_WEB_REPORT_LAYOUT,
   type WebReportLayoutItem,
 } from "@/lib/webReport/elements"
-import { isReportPeriod, resolveReportWindows, addIsoDays, parseIsoDate, formatIsoDate, daysInMonth, type ReportPeriod, type ReportWindows } from "@/lib/webReport/periods"
+import {
+  customRangeWindows,
+  isReportPeriod,
+  resolveReportWindows,
+  validateCustomRange,
+  WebReportRangeError,
+  type ReportPeriod,
+  type ReportWindows,
+} from "@/lib/webReport/periods"
 import type { WebReportData } from "@/lib/webReport/types"
 import { sydneyYmdFromUtcInstant } from "@/lib/myhours/sydneyWeek"
 
-export class WebReportRangeError extends Error {
-  constructor() {
-    super("bad range")
-    this.name = "WebReportRangeError"
-  }
-}
+export { WebReportRangeError }
 
 export type WebReportResponse = {
   clientName: string
   connected: boolean
   source: "published" | "default"
+  /** The saved default preset. A custom range does not change it. */
+  defaultPeriod: ReportPeriod
   layout: WebReportLayoutItem[]
   data: WebReportData
 }
@@ -125,38 +130,11 @@ export function windowsForRequest(input: {
   from?: string | null
   to?: string | null
 }): ReportWindows {
-  const labelled = resolveReportWindows(input.period, input.today)
-  if (!input.from || !input.to) return labelled
-  const start = parseIsoDate(input.from)
-  const end = parseIsoDate(input.to)
-  if (!start || !end || input.from > input.to) throw new WebReportRangeError()
-  if (input.period === "month_to_date_yoy") {
-    return {
-      ...labelled,
-      current: { from: input.from, to: input.to },
-      previous: {
-        from: formatIsoDate(start.y - 1, start.m, Math.min(start.d, daysInMonth(start.y - 1, start.m))),
-        to: formatIsoDate(end.y - 1, end.m, Math.min(end.d, daysInMonth(end.y - 1, end.m))),
-      },
-    }
-  }
-  const length = daysInclusive(input.from, input.to)
-  const previousTo = addIsoDays(input.from, -1)
-  const previousFrom = addIsoDays(previousTo, -(length - 1))
-  return {
-    ...labelled,
-    current: { from: input.from, to: input.to },
-    previous: { from: previousFrom, to: previousTo },
-  }
-}
-
-function daysInclusive(from: string, to: string): number {
-  const start = parseIsoDate(from)
-  const end = parseIsoDate(to)
-  if (!start || !end) return 1
-  const a = Date.UTC(start.y, start.m - 1, start.d)
-  const b = Date.UTC(end.y, end.m - 1, end.d)
-  return Math.round((b - a) / 86_400_000) + 1
+  if (!input.from && !input.to) return resolveReportWindows(input.period, input.today)
+  if (!input.from || !input.to) throw new WebReportRangeError()
+  // A custom range is compared with the same number of days just before it, whatever the preset.
+  if (!validateCustomRange(input.from, input.to, input.today).ok) throw new WebReportRangeError()
+  return customRangeWindows(input.from, input.to)
 }
 
 export async function loadWebReportResponse(input: {
@@ -204,6 +182,7 @@ export async function loadWebReportResponse(input: {
     clientName: dashboard.clientName,
     connected: Boolean(ga4PropertyId || gscSite),
     source: saved?.source ?? "default",
+    defaultPeriod,
     layout: saved?.layout ?? DEFAULT_WEB_REPORT_LAYOUT,
     data,
   }
