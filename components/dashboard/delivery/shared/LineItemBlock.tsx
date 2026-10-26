@@ -9,6 +9,7 @@ import {
   type EntityBreakdownNoun,
   type EntityBreakdownRow,
 } from "./EntityBreakdownTable"
+import { clientLinePillText } from "./clientLineLabels"
 
 type CumulativeChart = {
   kind: "cumulative-vs-target"
@@ -73,15 +74,16 @@ export function LineItemBlock({
   exportName,
   entityBreakdown,
 }: LineItemBlockProps) {
+  const pill = clientLinePillText(platform)
   return (
     <div className="rounded-xl border border-border/40 bg-muted/10 p-4 space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <h4 className="text-sm font-semibold" title={fullName ?? name}>
           {name}
         </h4>
-        {platform ? (
+        {pill ? (
           <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            {platform}
+            {pill}
           </span>
         ) : null}
       </div>

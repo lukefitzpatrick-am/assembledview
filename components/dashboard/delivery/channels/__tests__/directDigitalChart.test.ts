@@ -214,7 +214,7 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
     assert.equal(day.impressions, 1100)
   })
 
-  it("fixed-cost BVOD line with REPORTED_SPEND is labelled Reported spend (fixed cost)", () => {
+  it("fixed-cost BVOD line with REPORTED_SPEND is labelled Reported spend", () => {
     const section = buildSection(
       [
         factRow({
@@ -251,7 +251,7 @@ describe("buildDirectDigitalChannelSection daily chart", () => {
       /spend/i.test(c.title),
     )
     assert.ok(spendCard)
-    assert.equal(spendCard.title, "Reported spend (fixed cost)")
+    assert.equal(spendCard.title, "Reported spend")
     assert.equal(spendCard.value, "$3,221.16")
     assert.equal(spendCard.varianceLabel, "vs expected to date")
     assert.equal(

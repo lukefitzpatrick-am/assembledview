@@ -16,6 +16,7 @@ import { MediaChannelTag } from '@/components/dashboard/MediaChannelTag'
 import { EmptyState } from '@/components/ui/states'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { matchText } from '@/lib/search/matchText'
+import { isFixedCostBuyTypeText } from '@/components/dashboard/delivery/shared/clientLineLabels'
 
 interface MediaTableProps {
   lineItems: Record<string, NormalisedLineItem[]>
@@ -307,7 +308,7 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
                     if (publisher) details.push(publisher)
                     if (title) details.push(title)
                     if (group.targeting) details.push(`Targeting: ${group.targeting}`)
-                    if (group.buyType) details.push(`Buy: ${group.buyType}`)
+                    if (group.buyType && !isFixedCostBuyTypeText(group.buyType)) details.push(`Buy: ${group.buyType}`)
                     if (group.buyingDemo) details.push(`Demo: ${group.buyingDemo}`)
 
                     const groupKey = `${mediaType}-${group.key || groupIndex}`

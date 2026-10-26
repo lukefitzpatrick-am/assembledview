@@ -18,6 +18,7 @@ import {
   type FeePctsByVersionId,
 } from "@/lib/delivery/directDigitalFeeLookup"
 import { isCpcBuyType } from "@/lib/kpi/kpiReview"
+import { CLIENT_REPORTED_SPEND_LABEL } from "@/components/dashboard/delivery/shared/clientLineLabels"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import { deliveryStatusFromPct } from "@/lib/pacing/deliveryStatusFromPct"
@@ -60,7 +61,7 @@ const FEE_MEDIA_TYPE: Record<string, string> = {
   bvod: "bvod",
 }
 
-const FIXED_COST_SPEND_LABEL = "Reported spend (fixed cost)"
+const FIXED_COST_SPEND_LABEL = CLIENT_REPORTED_SPEND_LABEL
 const CM360_ESTIMATED_CONNECTION =
   "Ad server verification (CM360) — spend estimated from the plan rate"
 const CM360_COUNTS_CONNECTION = "Ad server verification (CM360) — delivery counts"
@@ -1098,7 +1099,7 @@ export function buildDirectDigitalChannelSection(input: {
         subtitle: aggregateSpendEstimated
           ? "Spend estimated from the plan rate"
           : reportedLines.length > 0
-            ? "Reported spend on fixed-cost lines"
+            ? CLIENT_REPORTED_SPEND_LABEL
             : "CM360 delivery counts",
         tiles: bandTiles,
       },

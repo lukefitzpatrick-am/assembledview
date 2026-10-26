@@ -734,11 +734,11 @@ test("fixedCostMedia OOH spend is REPORTED_SPEND, labelled reported; CPM keeps A
   })
   assert.equal(
     modelledSection?.lineItems[0]?.block.progressCards[0]?.title,
-    "Reported spend (fixed cost)",
+    "Reported spend",
   )
 })
 
-test("fixed-cost partner-file spend is Reported spend (fixed cost); Twitch stays modelled from plan rate", () => {
+test("fixed-cost partner-file spend is Reported spend; Twitch stays modelled from plan rate", () => {
   const cf = buildVideo({
     lines: [{ ...burstLine("bicau006pv1", "Channel Factory"), fixedCostMedia: true }],
     rows: [
@@ -753,7 +753,7 @@ test("fixed-cost partner-file spend is Reported spend (fixed cost); Twitch stays
   })
   assert.equal(
     cf?.lineItems[0]?.block.progressCards[0]?.title,
-    "Reported spend (fixed cost)",
+    "Reported spend",
   )
 
   const twitch = buildVideo({
@@ -873,7 +873,7 @@ test("mixed reported + modelled spend keeps Total spend with an includes-modelle
   assert.ok(spend)
   assert.equal(spend.caption, "includes modelled spend")
   assert.equal(chip(section, "Delivered spend (modelled from plan rate)"), undefined)
-  assert.equal(chip(section, "Reported spend (fixed cost)"), undefined)
+  assert.equal(chip(section, "Reported spend"), undefined)
 })
 
 function dailySeriesLabels(section: ChannelSectionData) {
@@ -964,7 +964,7 @@ test("Channel Factory CPV section summary uses Avg CPV and a Spend + Views chart
     reportedSpendByLineDate: new Map([["bicau006pv1", new Map([["2026-03-01", 40]])]]),
   })
   assert.ok(section)
-  assert.equal(chip(section, "Reported spend (fixed cost)")?.value, "$40.00")
+  assert.equal(chip(section, "Reported spend")?.value, "$40.00")
   assert.equal(chip(section, "Avg CPV")?.value, "$0.01")
   assert.equal(chip(section, "Avg CPM"), undefined)
   assert.deepEqual(

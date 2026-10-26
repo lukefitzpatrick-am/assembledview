@@ -35,6 +35,7 @@ import { lineDatesFromBursts } from "@/lib/delivery/lineChartWindow"
 import { PROGRAMMATIC_CHART_SERIES, PROGRAMMATIC_CPV_CHART_SERIES } from "./channelChartSeries"
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 import { aggregateDeliverableLabel } from "@/lib/delivery/deliverableLabel"
+import { CLIENT_REPORTED_SPEND_LABEL } from "@/components/dashboard/delivery/shared/clientLineLabels"
 import { groupPacingRowsByPlacement } from "./directDigitalAdapterShared"
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import {
@@ -55,7 +56,7 @@ const FEE_MEDIA_TYPE: Record<"programmatic-display" | "programmatic-video" | "pr
 const MODELLED_SPEND_LABEL = "Delivered spend (modelled from plan rate)"
 const MODELLED_SPEND_TOOLTIP =
   "Rate = planned media ÷ planned deliverables. Capped at the planned total."
-const FIXED_COST_SPEND_LABEL = "Reported spend (fixed cost)"
+const FIXED_COST_SPEND_LABEL = CLIENT_REPORTED_SPEND_LABEL
 
 
 function formatCurrency2dp(value: number | undefined) {
