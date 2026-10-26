@@ -18,12 +18,19 @@ const OPTION_LABEL: Record<string, string> = {
   avSpend: "AV spend",
   metric: "Metric",
   keyEvent: "Key event",
+  eventSum: "Event count (one or more events)",
   savedKpi: "Saved KPI",
   "6": "Last 6 months",
   "12": "Last 12 months",
   all: "All queries",
   brand: "Brand",
   non_brand: "Non-brand",
+}
+
+/** A new row for an object list. Event tiles start empty until a label and events are picked. */
+export function newListItem(key: string): Record<string, unknown> {
+  if (key === "eventTiles") return { label: "", eventNames: [] }
+  return { kind: "metric", metric: "sessions" }
 }
 
 function optionLabel(value: string): string {
@@ -56,6 +63,36 @@ export function SettingsControl({
   savedKpis?: SavedKpiOption[]
   onChange: (value: unknown) => void
 }) {
+  if (field.kind === "stringList" && field.key === "eventNames") {
+    const selected = Array.isArray(value) ? value.map(String) : []
+    const max = field.max ?? 12
+    const names = [...new Set([...keyEventNames, ...selected])]
+    if (names.length === 0) {
+      return <p className="text-sm text-muted-foreground">No event names from this property yet.</p>
+    }
+    return (
+      <div className="flex max-h-64 flex-col overflow-y-auto">
+        {names.map((name) => {
+          const checked = selected.includes(name)
+          return (
+            <label key={name} className={CHECK_ROW}>
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={checked}
+                disabled={!checked && selected.length >= max}
+                onChange={() => {
+                  const next = checked ? selected.filter((item) => item !== name) : [...selected, name]
+                  onChange(next.length > 0 ? next : undefined)
+                }}
+              />
+              {name}
+            </label>
+          )
+        })}
+      </div>
+    )
+  }
   if (field.kind === "stringList") {
     const selected = Array.isArray(value) ? value.map(String) : []
     const max = field.max ?? 6
@@ -256,7 +293,7 @@ export function SettingsControl({
         size="sm"
         className="min-h-11"
         disabled={items.length >= max}
-        onClick={() => onChange([...items, { kind: "metric", metric: "sessions" }])}
+        onClick={() => onChange([...items, newListItem(field.key)])}
       >
         Add tile
       </Button>

@@ -1,4 +1,5 @@
 import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
+import { formatChange, relativeChange } from "@/lib/webReport/change"
 import type { DeliveryStatus } from "@/lib/pacing/deliveryStatusFromPct"
 import { elementViewState } from "@/lib/webReport/elementState"
 import {
@@ -42,6 +43,17 @@ export const CHART_SERIES = {
 
 export type SeriesSpec = { key: string; label: string; color: string }
 
+/** Relative change versus the compared window. "—" when either side is missing or the previous value is zero. */
+export type PreparedChange = { text: string; direction: "up" | "down" | "flat" }
+
+export function prepareChange(current: number | null, previous: number | null): PreparedChange {
+  const value = relativeChange(current, previous)
+  return {
+    text: formatChange(value),
+    direction: value == null || value === 0 ? "flat" : value > 0 ? "up" : "down",
+  }
+}
+
 export type PreparedTile = {
   label: string
   value: string | null
@@ -57,6 +69,8 @@ export type PreparedTile = {
   /** Pace, 0..1 fills the bar. */
   progress?: number
   spark: { value: number }[]
+  /** Only set when the element's compare setting is on. */
+  change?: PreparedChange
 }
 
 export type PreparedTableCell = { text: string; shade?: number }
@@ -146,21 +160,61 @@ function sparkFor(metric: WebMetric, data: WebReportData): { value: number }[] {
   return points
 }
 
-function tileForMetric(metric: WebMetric, data: WebReportData, target?: number): PreparedTile {
+function tileForMetric(metric: WebMetric, data: WebReportData, target?: number, compare = false): PreparedTile {
   const totals = gscMetric(metric) ? data.gsc.current : data.ga4.current
+  const previousTotals = gscMetric(metric) ? data.gsc.previous : data.ga4.previous
   const paid = metric === "avSpend" ? data.paid.spend : null
+  const previousPaid = metric === "avSpend" ? data.paid.previousSpend : null
   const caption = metric === "users" ? "Users (sum of daily)" : metric === "newUsers" ? "Not available yet" : undefined
-  return {
+  const current = metricNumber(metric, totals, paid)
+  const tile: PreparedTile = {
     label: METRIC_LABEL[metric],
     value: metric === "newUsers" ? null : formatMetric(metric, totals, paid),
     caption,
-    current: metricNumber(metric, totals, paid),
+    current,
     target,
     spark: sparkFor(metric, data),
   }
+  if (compare) tile.change = prepareChange(current, metricNumber(metric, previousTotals, previousPaid))
+  return tile
 }
 
-type KpiSetting = { kind: string; metric?: WebMetric; eventName?: string; kpiId?: string; target?: number }
+/** Sum of the named GA4 events in each window. Names not on the property count as zero. */
+export function eventSum(data: WebReportData, names: readonly string[]): { count: number; previous: number } {
+  const wanted = new Set(names)
+  let count = 0
+  let previous = 0
+  for (const row of data.ga4.keyEventsByName) {
+    if (!wanted.has(row.name)) continue
+    count += row.count
+    previous += row.previous
+  }
+  return { count, previous }
+}
+
+function eventTile(label: string, names: readonly string[], data: WebReportData, compare: boolean, target?: number): PreparedTile {
+  const sum = eventSum(data, names)
+  const tile: PreparedTile = {
+    label,
+    value: NUMBER.format(sum.count),
+    caption: names.length > 1 ? `Sum of ${names.length} events` : undefined,
+    current: sum.count,
+    target,
+    spark: [],
+  }
+  if (compare) tile.change = prepareChange(sum.count, sum.previous)
+  return tile
+}
+
+type KpiSetting = {
+  kind: string
+  metric?: WebMetric
+  eventName?: string
+  eventNames?: string[]
+  label?: string
+  kpiId?: string
+  target?: number
+}
 
 /** Only active KPIs are loaded, so a deactivated or missing KPI is null and its tile is hidden. */
 function savedKpi(data: WebReportData, kpiId: string | undefined): WebKpiReportItem | null {
@@ -199,7 +253,7 @@ function savedKpiTile(item: WebKpiReportItem, data: WebReportData): PreparedTile
   }
 }
 
-function kpiTiles(tiles: KpiSetting[], data: WebReportData): PreparedTile[] {
+function kpiTiles(tiles: KpiSetting[], data: WebReportData, compare = false): PreparedTile[] {
   return tiles.flatMap((tile) => {
     if (tile.kind === "savedKpi") {
       const item = savedKpi(data, tile.kpiId)
@@ -207,15 +261,22 @@ function kpiTiles(tiles: KpiSetting[], data: WebReportData): PreparedTile[] {
     }
     if (tile.kind === "keyEvent") {
       const named = data.ga4.keyEventsByName.find((row) => row.name === tile.eventName)
-      return [{
-        label: tile.eventName ?? "Key event",
+      const prepared: PreparedTile = {
+        label: tile.label ?? tile.eventName ?? "Key event",
         value: NUMBER.format(named?.count ?? 0),
         current: named?.count ?? 0,
         target: tile.target,
         spark: [],
-      }]
+      }
+      if (compare) prepared.change = prepareChange(named?.count ?? 0, named?.previous ?? 0)
+      return [prepared]
     }
-    return [tileForMetric(tile.metric ?? "sessions", data, tile.target)]
+    if (tile.kind === "eventSum") {
+      const names = tile.eventNames ?? []
+      return [eventTile(tile.label ?? names.join(" + "), names, data, compare, tile.target)]
+    }
+    const prepared = tileForMetric(tile.metric ?? "sessions", data, tile.target, compare)
+    return [tile.label ? { ...prepared, label: tile.label } : prepared]
   })
 }
 
@@ -803,9 +864,17 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
 }
 
 function tilesFor(id: WebElementId, settings: unknown, data: WebReportData): PreparedTile[] {
-  if (id === "kpis") return kpiTiles((settings as { tiles: KpiSetting[] }).tiles, data)
+  if (id === "kpis") {
+    const spec = settings as { tiles: KpiSetting[]; compare?: boolean }
+    return kpiTiles(spec.tiles, data, spec.compare === true)
+  }
   if (id === "snapshot" || id === "gscKpi") {
-    return ((settings as { tiles: WebMetric[] }).tiles).map((metric) => tileForMetric(metric, data))
+    const spec = settings as { tiles: WebMetric[]; eventTiles?: { label: string; eventNames: string[] }[]; compare?: boolean }
+    const compare = spec.compare === true
+    return [
+      ...spec.tiles.map((metric) => tileForMetric(metric, data, undefined, compare)),
+      ...(spec.eventTiles ?? []).map((tile) => eventTile(tile.label, tile.eventNames, data, compare)),
+    ]
   }
   if (id === "paidSpend") {
     return [

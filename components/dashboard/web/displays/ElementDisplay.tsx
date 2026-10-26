@@ -83,6 +83,11 @@ function TileGrid({ title, tiles, withSpark }: { title: string; tiles: PreparedT
               status={tile.status}
               progress={tile.progress}
             />
+            {tile.change ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                <span className="num">{tile.change.text}</span> vs previous period
+              </p>
+            ) : null}
             {withSpark && tile.spark.length > 0 ? (
               <Sparkline data={tile.spark} color={CHART_SERIES.one} width={140} height={36} />
             ) : null}

@@ -58,11 +58,19 @@ export type WebWidth = 12 | 6 | 4
 
 const metricSchema = z.enum(WEB_METRICS)
 
+const eventNameSchema = z.string().trim().min(1).max(80)
+
+/** Tile title. Falls back to the metric or event name. */
+const tileLabelSchema = z.string().trim().min(1).max(60)
+
 const kpiTileSchema = z
   .object({
-    kind: z.enum(["metric", "keyEvent", "savedKpi"]),
+    kind: z.enum(["metric", "keyEvent", "eventSum", "savedKpi"]),
     metric: metricSchema.optional(),
-    eventName: z.string().trim().min(1).max(80).optional(),
+    eventName: eventNameSchema.optional(),
+    /** GA4 event names added together for an event sum tile. */
+    eventNames: z.array(eventNameSchema).min(1).max(12).optional(),
+    label: tileLabelSchema.optional(),
     /** A saved monthly KPI (web_kpis.id). Its targets come from the KPI, not from `target`. */
     kpiId: z.string().uuid().optional(),
     target: z.number().positive().optional(),
@@ -77,11 +85,33 @@ const kpiTileSchema = z
     if (tile.kind === "keyEvent" && !tile.eventName) {
       ctx.addIssue({ code: "custom", message: "A key event tile needs an event name", path: ["eventName"] })
     }
+    if (tile.kind === "eventSum" && (!tile.eventNames || tile.eventNames.length === 0)) {
+      ctx.addIssue({ code: "custom", message: "An event sum tile needs at least one event", path: ["eventNames"] })
+    }
   })
 
+/** A snapshot tile that counts one GA4 event, or adds several together. */
+const eventTileSchema = z.object({
+  label: tileLabelSchema,
+  eventNames: z.array(eventNameSchema).min(1).max(12),
+})
+
+/** Off when absent, so saved layouts render as they did. */
+const compareSchema = z.boolean().optional()
+
 export const elementSettings = {
-  kpis: z.object({ tiles: z.array(kpiTileSchema).min(1).max(6) }),
-  snapshot: z.object({ tiles: z.array(metricSchema).min(1).max(8) }),
+  kpis: z.object({ tiles: z.array(kpiTileSchema).min(1).max(6), compare: compareSchema }),
+  snapshot: z
+    .object({
+      tiles: z.array(metricSchema).max(8),
+      eventTiles: z.array(eventTileSchema).max(12).optional(),
+      compare: compareSchema,
+    })
+    .superRefine((value, ctx) => {
+      if (value.tiles.length + (value.eventTiles?.length ?? 0) === 0) {
+        ctx.addIssue({ code: "custom", message: "A snapshot needs at least one tile", path: ["tiles"] })
+      }
+    }),
   notes: z.object({ text: z.string().max(2000) }),
   traffic: z.object({
     bars: z.array(z.enum(["pageViews", "sessions"])).min(1).max(2),
@@ -100,6 +130,7 @@ export const elementSettings = {
   events: z.object({}).strict(),
   gscKpi: z.object({
     tiles: z.array(z.enum(["clicks", "impressions", "ctr", "position"])).min(1).max(4),
+    compare: compareSchema,
   }),
   queries: z.object({
     mode: z.enum(["all", "brand", "non_brand"]),
