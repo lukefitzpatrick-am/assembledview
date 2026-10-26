@@ -4,10 +4,16 @@
  * Search Console stores the Fivetran SITE string. CM360, DV360, LinkedIn,
  * Pinterest and Snapchat store the trimmed text the operator typed
  * (advertiser name for the two Google platforms).
+ *
+ * meta_page is the client's Facebook / Instagram page id (digits), used for
+ * creative avatars and mockups. It is not an ad account: meta_ads is the ad
+ * account. It replaces the legacy clients.idmeta column, which stays as a
+ * read fallback until the data is moved (see pickMetaPageId).
  */
 
 export const PLATFORM_ACCOUNT_PLATFORMS = [
   "meta_ads",
+  "meta_page",
   "google_ads",
   "cm360",
   "dv360",
@@ -89,6 +95,14 @@ export function normaliseAccountRef(platform: string, raw: string): string {
   }
   if (platform === "ga4") return normaliseGa4(raw)
   if (platform === "gsc") return normaliseGsc(raw)
+  if (platform === "meta_page") {
+    // No act_ strip: an act_ value is an ad account, not a page.
+    const stripped = String(raw ?? "").trim().replace(/[- ]/g, "")
+    if (!/^\d+$/.test(stripped)) {
+      throw new Error("Meta page id must be digits")
+    }
+    return stripped
+  }
   if (DIGIT_PLATFORMS.has(platform)) {
     const stripped = String(raw ?? "")
       .trim()
@@ -122,6 +136,7 @@ export function formatAccountRef(platform: string, ref: string): string {
 
 export const PLATFORM_ACCOUNT_LABELS: Record<PlatformAccountPlatform, string> = {
   meta_ads: "Meta ads",
+  meta_page: "Meta page",
   google_ads: "Google Ads",
   cm360: "CM360",
   dv360: "DV360",
@@ -160,4 +175,30 @@ export function isMissingAdvertiserView(err: unknown): boolean {
   }
   const message = parts.join(" ")
   return /v_platform_advertisers/i.test(message) && /does not exist|not authorized/i.test(message)
+}
+
+/** Platforms that are not ad accounts: they never carry delivery. */
+export const NON_DELIVERY_PLATFORM_ACCOUNTS: ReadonlySet<string> = new Set(["ga4", "gsc", "meta_page"])
+
+type MetaPageAccountRow = {
+  platform: string
+  accountRef?: string | null
+  active?: boolean | null
+}
+
+/**
+ * The client's Meta page id for creative avatars and mockups.
+ * The first active meta_page platform account wins. With none, falls back to
+ * the legacy clients.idmeta value (trimmed, as before) until that data is moved.
+ */
+export function pickMetaPageId(
+  accounts: readonly MetaPageAccountRow[] | null | undefined,
+  legacyIdmeta: unknown,
+): string {
+  for (const row of accounts ?? []) {
+    if (row.platform !== "meta_page" || row.active === false) continue
+    const ref = String(row.accountRef ?? "").trim()
+    if (ref) return ref
+  }
+  return legacyIdmeta == null ? "" : String(legacyIdmeta).trim()
 }

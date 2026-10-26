@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -13,96 +12,20 @@ import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { ErrorModal } from "@/components/ui/error-modal"
 import { ClientMark } from "@/components/brand/EntityMark"
-import { DEFAULT_CLIENT_BRAND_COLOUR } from "@/lib/clients/brandColour"
+import {
+  ADD_CLIENT_DEFAULTS,
+  buildAddClientPayload,
+  clientAddSchema,
+  type ClientAddFormInput,
+  type ClientAddFormValues,
+} from "@/lib/clients/addClientFormSchema"
 const formatHexColour = (value: string) => {
   const cleaned = value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6)
   return `#${cleaned}`.toUpperCase().padEnd(7, "0")
 }
 
-const optionalString = z.string().optional().or(z.literal(""))
-const normalizeAbn = (value: string) => value.replace(/[^A-Za-z0-9]/g, "")
-
-const clientSchema = z.object({
-  clientname_input: z.string().min(1, "Client name is required"),
-  mbaidentifier: z.string().min(1, "MBA Identifier is required"),
-  clientcategory: optionalString,
-  abn: z
-    .string()
-    .transform((s) => normalizeAbn(s))
-    .pipe(
-      z.string().refine((s) => s === "" || /^[A-Za-z0-9]{11}$/.test(s), {
-        message: "ABN must contain 11 letters or numbers after removing spaces or symbols",
-      })
-    ),
-  legalbusinessname: optionalString,
-  streetaddress: optionalString,
-  suburb: optionalString,
-  state_dropdown: z.enum(["NSW", "VIC", "QLD", "SA", "WA", "TAS", "ACT"]).optional(),
-  postcode: z
-    .preprocess((val) => (val === "" || val === null ? undefined : val), z.number().int().min(1000).max(9999))
-    .optional(),
-  payment_days: z
-    .preprocess((val) => (val === "" || val === null ? undefined : val), z.number().int().positive({
-      message: "Payment days must be a positive whole number",
-    }))
-    .optional(),
-  payment_terms: optionalString,
-  keyfirstname: optionalString,
-  keylastname: optionalString,
-  keyphone: optionalString,
-  keyemail: z.string().email("Invalid email address").optional().or(z.literal("")),
-  billingfirstname: optionalString,
-  billinglastname: optionalString,
-  billingphone: optionalString,
-  billingemail: z.string().email("Invalid email address").optional().or(z.literal("")),
-  monthlyretainer: z.number().nonnegative().optional(),
-  organicsocial: z.number().nonnegative().optional(),
-  television_checkbox: z.boolean().optional(),
-  radio_checkbox: z.boolean().optional(),
-  newspapers_checkbox: z.boolean().optional(),
-  magazines_checkbox: z.boolean().optional(),
-  ooh_checkbox: z.boolean().optional(),
-  cinema_checkbox: z.boolean().optional(),
-  digitaldisplay_checkbox: z.boolean().optional(),
-  digitalaudio_checkbox: z.boolean().optional(),
-  digitalvideo_checkbox: z.boolean().optional(),
-  bvod_checkbox: z.boolean().optional(),
-  feesocial: z.number().min(0).max(100).optional(),
-  feesearch: z.number().min(0).max(100).optional(),
-  feeprogdisplay: z.number().min(0).max(100).optional(),
-  feeprogvideo: z.number().min(0).max(100).optional(),
-  feeprogbvod: z.number().min(0).max(100).optional(),
-  feeprogaudio: z.number().min(0).max(100).optional(),
-  feeprogooh: z.number().min(0).max(100).optional(),
-  feecontentcreator: z.number().min(0).max(100).optional(),
-  adservvideo: z.number().nonnegative().optional(),
-  adservimp: z.number().nonnegative().optional(),
-  adservdisplay: z.number().nonnegative().optional(),
-  adservaudio: z.number().nonnegative().optional(),
-  idgoogleads: optionalString,
-  idmeta: optionalString,
-  idcm360: optionalString,
-  iddv360: optionalString,
-  idtiktok: optionalString,
-  idlinkedin: optionalString,
-  idpinterest: optionalString,
-  idquantcast: optionalString,
-  idtaboola: optionalString,
-  idsnapchat: optionalString,
-  idbing: optionalString,
-  idvistar: optionalString,
-  idga4: optionalString,
-  idmerchantcentre: optionalString,
-  idshopify: optionalString,
-  brand_colour: z
-    .string()
-    .regex(/^#?[0-9A-Fa-f]{6}$/, "Brand colour must be a valid 6-digit hex code.")
-    .optional()
-    .or(z.literal("")),
-})
-
-type ClientFormInput = z.input<typeof clientSchema>
-type ClientFormValues = z.output<typeof clientSchema>
+type ClientFormInput = ClientAddFormInput
+type ClientFormValues = ClientAddFormValues
 
 interface AddClientFormProps {
   onSuccess: () => void
@@ -114,79 +37,14 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
   const [error, setError] = useState<{ title: string; message: string } | null>(null)
 
   const form = useForm<ClientFormInput, unknown, ClientFormValues>({
-    resolver: zodResolver(clientSchema),
-    defaultValues: {
-      clientname_input: "",
-      mbaidentifier: "",
-      clientcategory: "",
-      abn: "",
-      legalbusinessname: "",
-      streetaddress: "",
-      suburb: "",
-      state_dropdown: "NSW",
-      postcode: undefined,
-      payment_days: undefined,
-      payment_terms: "",
-      keyfirstname: "",
-      keylastname: "",
-      keyphone: "",
-      keyemail: "",
-      billingfirstname: "",
-      billinglastname: "",
-      billingphone: "",
-      billingemail: "",
-      monthlyretainer: 0,
-      organicsocial: 0,
-      television_checkbox: true,
-      radio_checkbox: true,
-      newspapers_checkbox: true,
-      magazines_checkbox: true,
-      ooh_checkbox: true,
-      cinema_checkbox: true,
-      digitaldisplay_checkbox: true,
-      digitalaudio_checkbox: true,
-      digitalvideo_checkbox: true,
-      bvod_checkbox: true,
-      feesocial: 20,
-      feesearch: 20,
-      feeprogdisplay: 20,
-      feeprogvideo: 20,
-      feeprogbvod: 20,
-      feeprogaudio: 20,
-      feeprogooh: 20,
-      feecontentcreator: 20,
-      adservvideo: 0.89,
-      adservimp: 0.12,
-      adservdisplay: 0.12,
-      adservaudio: 0.4,
-      idgoogleads: "",
-      idmeta: "",
-      idcm360: "",
-      iddv360: "",
-      idtiktok: "",
-      idlinkedin: "",
-      idpinterest: "",
-      idquantcast: "",
-      idtaboola: "",
-      idsnapchat: "",
-      idbing: "",
-      idvistar: "",
-      idga4: "",
-      idmerchantcentre: "",
-      idshopify: "",
-      brand_colour: DEFAULT_CLIENT_BRAND_COLOUR,
-    },
+    resolver: zodResolver(clientAddSchema),
+    defaultValues: ADD_CLIENT_DEFAULTS,
   })
 
   async function onSubmit(data: ClientFormValues) {
     setIsSaving(true)
     try {
-      const { clientname_input, ...restData } = data
-      const payload = {
-        ...restData,
-        mp_client_name: clientname_input,
-        client_name: clientname_input, // Xano input expects client_name mapped to mp_client_name
-      }
+      const payload = buildAddClientPayload(data)
 
       const response = await fetch("/api/clients", {
         method: "POST",
@@ -757,41 +615,9 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
             ))}
           </div>
 
-          {/* Platform IDs */}
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              "googleads",
-              "meta",
-              "cm360",
-              "dv360",
-              "tiktok",
-              "linkedin",
-              "pinterest",
-              "quantcast",
-              "taboola",
-              "snapchat",
-              "bing",
-              "vistar",
-              "ga4",
-              "merchantcentre",
-              "shopify",
-            ].map((platform) => (
-              <FormField
-                key={platform}
-                control={form.control}
-                name={`id${platform}` as keyof ClientFormValues}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{`${platform.toUpperCase()} ID`}</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value as string} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            ))}
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Add platform accounts, including the Meta page id, in Platform accounts on the client page once the client is created.
+          </p>
 
           <FormField
             control={form.control}

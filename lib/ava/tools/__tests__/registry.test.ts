@@ -66,8 +66,31 @@ test("get_client_details shape", () => {
   })
   assert.equal(summary.name, "Acme Co")
   assert.equal(summary.fees.feesearch, 10)
-  assert.equal(summary.platformIdsPopulated.idmeta, true)
-  assert.equal(summary.platformIdsPopulated.idgoogleads, false)
+  // No platform accounts passed: meta_page falls back to legacy idmeta; nothing else is linked.
+  assert.equal(summary.platformIdsPopulated.meta_page, true)
+  assert.equal(summary.platformIdsPopulated.google_ads, false)
+  assert.equal(summary.platformAccountsLoaded, false)
+  assert.equal("idmeta" in summary.platformIdsPopulated, false)
+})
+
+test("get_client_details reads platform accounts, not the legacy id columns", () => {
+  const summary = summariseClientDetails(
+    { id: 56, mp_client_name: "Treasury Wine Collective", idgoogleads: "TBC", idmeta: "" },
+    [
+      { platform: "google_ads", accountRef: "4128893012", active: true },
+      { platform: "meta_page", accountRef: "  ", active: true },
+      { platform: "tiktok", accountRef: "123", active: false },
+    ],
+  )
+  assert.equal(summary.platformAccountsLoaded, true)
+  assert.equal(summary.platformIdsPopulated.google_ads, true)
+  assert.equal(summary.platformIdsPopulated.meta_ads, false)
+  assert.equal(summary.platformIdsPopulated.meta_page, false)
+  assert.equal(summary.platformIdsPopulated.tiktok, false)
+  const withPage = summariseClientDetails({ id: 1, mp_client_name: "Acme" }, [
+    { platform: "meta_page", accountRef: "1122334455", active: true },
+  ])
+  assert.equal(withPage.platformIdsPopulated.meta_page, true)
 })
 
 test("get_campaign_context line item shape", () => {

@@ -7,6 +7,7 @@ import type { PlanningMethodologyRow } from "@/lib/planning/types"
 import { getTemplate } from "@/lib/naming/templates"
 import { composeName } from "@/lib/naming/compose"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
+import { PLATFORM_ACCOUNT_PLATFORMS, pickMetaPageId, type PlatformAccountPlatform } from "@/lib/clients/platformAccounts"
 import { asNumber, asString, capList, LIST_CAP, truncateText } from "./helpers"
 
 const FEE_KEYS = [
@@ -32,23 +33,12 @@ const FEE_KEYS = [
   "feeinfluencers",
 ] as const
 
-const PLATFORM_ID_KEYS = [
-  "idgoogleads",
-  "idmeta",
-  "idcm360",
-  "iddv360",
-  "idtiktok",
-  "idlinkedin",
-  "idpinterest",
-  "idquantcast",
-  "idtaboola",
-  "idsnapchat",
-  "idbing",
-  "idvistar",
-  "idga4",
-  "idmerchantcentre",
-  "idshopify",
-] as const
+/** Active client_platform_accounts rows, as listActivePlatformAccounts returns them. */
+export type ClientSummaryPlatformAccount = {
+  platform: string
+  accountRef?: string | null
+  active?: boolean | null
+}
 
 /** Canonical Ava tool names — keep in sync with registry registration order. */
 export const AVA_TOOL_NAMES = [
@@ -88,17 +78,32 @@ export const AVA_TOOL_NAMES = [
   "run_scenario",
 ] as const
 
-export function summariseClientDetails(raw: Record<string, unknown>) {
+/**
+ * platformIdsPopulated is keyed by platform account type (meta_ads, google_ads, ...)
+ * and says whether the client has an active platform account there. The legacy
+ * clients.id* columns are not read, except idmeta as the meta_page fallback
+ * (same as creative). platformAccountsLoaded is false when the accounts could not be read.
+ */
+export function summariseClientDetails(
+  raw: Record<string, unknown>,
+  platformAccounts?: readonly ClientSummaryPlatformAccount[] | null,
+) {
   const name = getClientDisplayName(raw)
   const fees: Record<string, unknown> = {}
   for (const key of FEE_KEYS) {
     if (raw[key] != null && raw[key] !== "") fees[key] = raw[key]
   }
-  const platformIds: Record<string, boolean> = {}
-  for (const key of PLATFORM_ID_KEYS) {
-    const v = raw[key]
-    platformIds[key] = v != null && String(v).trim() !== ""
+  const linked = new Set<string>()
+  for (const row of platformAccounts ?? []) {
+    if (row.active === false) continue
+    if (String(row.accountRef ?? "").trim() === "") continue
+    linked.add(row.platform)
   }
+  const platformIds = {} as Record<PlatformAccountPlatform, boolean>
+  for (const platform of PLATFORM_ACCOUNT_PLATFORMS) {
+    platformIds[platform] = linked.has(platform)
+  }
+  platformIds.meta_page = pickMetaPageId(platformAccounts ?? null, raw.idmeta) !== ""
   return {
     id: raw.id ?? null,
     name,
@@ -107,6 +112,7 @@ export function summariseClientDetails(raw: Record<string, unknown>) {
     mbaidentifier: asString(raw.mbaidentifier) ?? null,
     fees,
     platformIdsPopulated: platformIds,
+    platformAccountsLoaded: Array.isArray(platformAccounts),
   }
 }
 

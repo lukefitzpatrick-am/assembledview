@@ -8,6 +8,7 @@ import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero
 import { getClientDashboardData } from "@/lib/api/dashboard/client"
 import { auth0 } from "@/lib/auth0"
 import { fetchXanoClientRowByUrlSlug } from "@/lib/clients/fetchClientRowByUrlSlug"
+import { resolveMetaPageIdForClient } from "@/lib/clients/metaPageIdServer"
 import { getPrimaryRole, getUserClientSlugs } from "@/lib/rbac"
 
 interface ClientCreativePageProps {
@@ -62,7 +63,12 @@ export default async function ClientCreativePage({ params }: ClientCreativePageP
     return options
   })()
 
-  const metaPageId = String(clientRow?.idmeta ?? "").trim()
+  // Meta page id: the client's meta_page platform account, else legacy clients.idmeta.
+  const clientId = Number(clientRow?.id)
+  const metaPageId = await resolveMetaPageIdForClient(
+    Number.isInteger(clientId) && clientId > 0 ? clientId : null,
+    clientRow?.idmeta,
+  )
 
   return (
     <div className="w-full min-h-screen" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>

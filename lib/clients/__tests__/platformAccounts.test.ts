@@ -6,7 +6,9 @@ import {
   PLATFORM_ACCOUNT_PLATFORMS,
   formatAccountRef,
   isMissingAdvertiserView,
+  NON_DELIVERY_PLATFORM_ACCOUNTS,
   normaliseAccountRef,
+  pickMetaPageId,
   platformAccountChoices,
 } from "../platformAccounts"
 
@@ -27,6 +29,7 @@ test("platform list matches the check constraint", () => {
     [...PLATFORM_ACCOUNT_PLATFORMS],
     [
       "meta_ads",
+      "meta_page",
       "google_ads",
       "cm360",
       "dv360",
@@ -152,4 +155,32 @@ test("ga4 and gsc stay off the choice list unless the web flag is 1", () => {
   assert.ok(platformAccountChoices("1").includes("ga4"))
   assert.ok(platformAccountChoices("1").includes("gsc"))
   assert.equal(platformAccountChoices("1").length, PLATFORM_ACCOUNT_PLATFORMS.length)
+})
+
+test("meta_page keeps digits and rejects names, placeholders and ad accounts", () => {
+  assert.equal(PLATFORM_ACCOUNT_LABELS.meta_page, "Meta page")
+  assert.equal(normaliseAccountRef("meta_page", " 1122334455 "), "1122334455")
+  assert.equal(normaliseAccountRef("meta_page", "112-233 4455"), "1122334455")
+  assert.throws(() => normaliseAccountRef("meta_page", "TBC"), /Meta page id must be digits/)
+  assert.throws(() => normaliseAccountRef("meta_page", "Curatif"), /Meta page id must be digits/)
+  assert.throws(() => normaliseAccountRef("meta_page", "act_123"), /Meta page id must be digits/)
+  assert.throws(() => normaliseAccountRef("meta_page", ""), /Meta page id must be digits/)
+  assert.ok(platformAccountChoices(undefined).includes("meta_page"))
+  assert.ok(NON_DELIVERY_PLATFORM_ACCOUNTS.has("meta_page"))
+  assert.ok(!NON_DELIVERY_PLATFORM_ACCOUNTS.has("meta_ads"))
+})
+
+test("pickMetaPageId prefers the active meta_page account, then legacy idmeta", () => {
+  const accounts = [
+    { platform: "meta_ads", accountRef: "999" },
+    { platform: "meta_page", accountRef: "111", active: false },
+    { platform: "meta_page", accountRef: " 222 ", active: true },
+  ]
+  assert.equal(pickMetaPageId(accounts, "333"), "222")
+  assert.equal(pickMetaPageId([{ platform: "meta_ads", accountRef: "999" }], " 333 "), "333")
+  assert.equal(pickMetaPageId(null, 444), "444")
+  assert.equal(pickMetaPageId([], null), "")
+  assert.equal(pickMetaPageId(undefined, undefined), "")
+  // Legacy values pass through unchanged (trimmed), as the creative pages read them today.
+  assert.equal(pickMetaPageId([], "Curatif"), "Curatif")
 })

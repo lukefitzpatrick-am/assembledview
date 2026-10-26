@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
 import type { PageContext } from "@/lib/ava/types"
+import { fetchMetaPageIdForClient } from "@/lib/clients/metaPageId"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import { campaignPickerPriorityRank } from "@/lib/mediaplan/campaignPhase"
 import { cn } from "@/lib/utils"
@@ -198,12 +199,28 @@ export function CreativeCampaignPicker({ lockedClientName }: CreativeCampaignPic
     [clientCampaigns, mbaNumber],
   )
 
-  const selectedClientMetaPageId = useMemo(() => {
-    if (!clientName) return ""
+  const selectedClientRow = useMemo(() => {
+    if (!clientName) return null
     const selected = normalizeClientName(clientName)
-    const row = clients.find((client) => normalizeClientName(getClientDisplayName(client)) === selected)
-    return String(row?.idmeta ?? "").trim()
+    return clients.find((client) => normalizeClientName(getClientDisplayName(client)) === selected) ?? null
   }, [clientName, clients])
+
+  // Meta page id: the client's meta_page platform account, else legacy clients.idmeta.
+  const [selectedClientMetaPageId, setSelectedClientMetaPageId] = useState("")
+  useEffect(() => {
+    if (!selectedClientRow) {
+      setSelectedClientMetaPageId("")
+      return
+    }
+    let cancelled = false
+    setSelectedClientMetaPageId(String(selectedClientRow.idmeta ?? "").trim())
+    void fetchMetaPageIdForClient(selectedClientRow.id, selectedClientRow.idmeta).then((id) => {
+      if (!cancelled) setSelectedClientMetaPageId(id)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedClientRow])
 
   const handleClientChange = (next: string) => {
     setClientName(next)

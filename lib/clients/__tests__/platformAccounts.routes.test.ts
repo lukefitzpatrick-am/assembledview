@@ -64,6 +64,7 @@ if (supportsMockModule()) {
       patchPlatformAccount: patchMock,
       PlatformAccountsNotReadyError: class PlatformAccountsNotReadyError extends Error {},
       PlatformAccountConflictError: class PlatformAccountConflictError extends Error {},
+      PlatformAccountPlatformNotReadyError: class PlatformAccountPlatformNotReadyError extends Error {},
     },
   })
   await mock.module!("@/lib/clients/platformAdvertisers", {
@@ -234,6 +235,27 @@ test("POST duplicate active ref is 409 with the client name", { skip }, async ()
   )
   assert.equal(res.status, 409)
   assert.deepEqual(await res.json(), { error: "Already linked to Boss Engineering" })
+})
+
+test("POST meta_page before its SQL is applied is 503 with a clear message", { skip }, async () => {
+  resetMocks()
+  getSessionMock.mock.mockImplementation(async () => sessionFor("admin"))
+  insertMock.mock.mockImplementation(async () => {
+    const err = new Error("check")
+    Object.assign(err, { code: "PLATFORM_ACCOUNT_PLATFORM_NOT_READY" })
+    throw err
+  })
+  const { POST } = await loadAccountsRoute()
+  const res = await POST(
+    new NextRequest("http://localhost/api/clients/77/platform-accounts", {
+      method: "POST",
+      body: JSON.stringify({ platform: "meta_page", accountRef: "1122334455" }),
+    }),
+    params(),
+  )
+  assert.equal(res.status, 503)
+  assert.deepEqual(await res.json(), { error: "This platform needs a database update first" })
+  assert.equal((insertMock.mock.calls[0]?.arguments[0] as { accountRef?: string })?.accountRef, "1122334455")
 })
 
 test("PATCH deactivate forwards active false", { skip }, async () => {

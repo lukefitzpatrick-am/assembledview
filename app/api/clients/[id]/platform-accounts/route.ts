@@ -10,6 +10,7 @@ import {
   listActivePlatformAccounts,
   patchPlatformAccount,
   PlatformAccountConflictError,
+  PlatformAccountPlatformNotReadyError,
   PlatformAccountsNotReadyError,
 } from "@/lib/clients/platformAccountsRepo"
 import { requireRole } from "@/lib/requireRole"
@@ -29,6 +30,9 @@ function failure(err: unknown) {
       ? err.clientName
       : String((err as { clientName?: string }).clientName ?? "another client")
     return NextResponse.json({ error: `Already linked to ${name}` }, { status: 409 })
+  }
+  if (err instanceof PlatformAccountPlatformNotReadyError || (err as { code?: string })?.code === "PLATFORM_ACCOUNT_PLATFORM_NOT_READY") {
+    return NextResponse.json({ error: "This platform needs a database update first" }, { status: 503 })
   }
   console.error("[platform-accounts]", err)
   return NextResponse.json({ error: "Failed to update platform accounts" }, { status: 500 })

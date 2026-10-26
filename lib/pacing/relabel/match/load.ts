@@ -16,7 +16,7 @@ export const MATCH_LOOKBACK_DAYS = 548
 const CACHE_TTL_MS = 5 * 60 * 1000
 
 /** Platform accounts that never appear in pacing facts. */
-const NON_DELIVERY_PLATFORMS = new Set(["ga4", "gsc"])
+const NON_DELIVERY_PLATFORMS = new Set(["ga4", "gsc", "meta_page"])
 
 type CacheEntry = { at: number; payload: MatchPayload }
 const cache = new Map<number, CacheEntry>()

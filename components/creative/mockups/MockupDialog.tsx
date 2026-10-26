@@ -37,7 +37,7 @@ type MockupDialogProps = {
   mbaNumber?: string
   versionNumber?: number
   socialLineItems?: LineItemOption[]
-  /** Client Meta page id (`idmeta`) for FB/IG avatars. */
+  /** Client Meta page id (meta_page platform account, else legacy `idmeta`) for FB/IG avatars. */
   metaPageId?: string
 }
 

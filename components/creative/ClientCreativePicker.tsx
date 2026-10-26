@@ -23,7 +23,7 @@ export type ClientCampaignOption = {
 
 type ClientCreativePickerProps = {
   campaigns: ClientCampaignOption[]
-  /** Client's idmeta, resolved server-side; may be "". */
+  /** Client Meta page id (meta_page platform account, else legacy idmeta), resolved server-side; may be "". */
   metaPageId?: string
 }
 

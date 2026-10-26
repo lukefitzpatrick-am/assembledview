@@ -25,6 +25,15 @@ export class PlatformAccountsNotReadyError extends Error {
   }
 }
 
+/** The platform check constraint does not allow this platform yet (its SQL is not applied). */
+export class PlatformAccountPlatformNotReadyError extends Error {
+  readonly code = "PLATFORM_ACCOUNT_PLATFORM_NOT_READY"
+  constructor(readonly platform: string) {
+    super(`Platform ${platform} needs a database update first`)
+    this.name = "PlatformAccountPlatformNotReadyError"
+  }
+}
+
 export class PlatformAccountConflictError extends Error {
   readonly code = "PLATFORM_ACCOUNT_CONFLICT"
   constructor(readonly clientName: string) {
@@ -55,6 +64,11 @@ function isMissingTable(err: unknown): boolean {
   return blob.includes("42P01") || /client_platform_accounts/i.test(blob) && /does not exist/i.test(blob)
 }
 
+function isPlatformCheckViolation(err: unknown): boolean {
+  const blob = errorBlob(err)
+  return blob.includes("client_platform_accounts_platform_chk") || (blob.includes("23514") && /platform/i.test(blob))
+}
+
 function isUniqueViolation(err: unknown): boolean {
   const blob = errorBlob(err)
   return blob.includes("23505") || /duplicate key|unique constraint/i.test(blob)
@@ -64,7 +78,11 @@ async function guard<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn()
   } catch (err) {
-    if (err instanceof PlatformAccountsNotReadyError || err instanceof PlatformAccountConflictError) {
+    if (
+      err instanceof PlatformAccountsNotReadyError ||
+      err instanceof PlatformAccountConflictError ||
+      err instanceof PlatformAccountPlatformNotReadyError
+    ) {
       throw err
     }
     if (isMissingTable(err)) throw new PlatformAccountsNotReadyError()
@@ -139,6 +157,7 @@ export async function insertPlatformAccount(input: {
       return toRecord(row)
     } catch (err) {
       if (isMissingTable(err)) throw new PlatformAccountsNotReadyError()
+      if (isPlatformCheckViolation(err)) throw new PlatformAccountPlatformNotReadyError(input.platform)
       if (isUniqueViolation(err)) {
         throw new PlatformAccountConflictError(await conflictClientName(input.platform, input.accountRef))
       }

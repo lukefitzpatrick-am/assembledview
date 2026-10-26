@@ -23,6 +23,7 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
 import type { PageContext } from "@/lib/ava/types"
+import { fetchMetaPageIdForClient } from "@/lib/clients/metaPageId"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import { flattenLineItemOptions, type LineItemOption } from "@/lib/creative/lineItemOptions"
 import { SEARCH_LIMITS_RSA } from "@/lib/creative/searchCopy/limits"
@@ -59,6 +60,7 @@ type MediaPlanPayload = {
 }
 
 type ClientRow = {
+  id?: number
   idmeta?: string | number | null
   mp_client_name?: string
   client_name?: string
@@ -217,7 +219,12 @@ export function CreativeAssetManager({
         const match = (rows as ClientRow[]).find(
           (row) => normalizeClientName(getClientDisplayName(row)) === selected,
         )
-        const id = String(match?.idmeta ?? "").trim()
+        if (!match) {
+          if (!cancelled) setResolvedMetaPageId("")
+          return
+        }
+        // meta_page platform account first, else legacy clients.idmeta.
+        const id = await fetchMetaPageIdForClient(match.id, match.idmeta)
         if (!cancelled) setResolvedMetaPageId(id)
       } catch {
         if (!cancelled) setResolvedMetaPageId("")

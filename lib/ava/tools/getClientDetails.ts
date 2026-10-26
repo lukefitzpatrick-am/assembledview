@@ -1,7 +1,8 @@
 import type AvaTool from "./types"
 import { getCachedClients } from "@/lib/finance/xanoReferenceCache"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
-import { summariseClientDetails } from "./summaries"
+import { listActivePlatformAccounts } from "@/lib/clients/platformAccountsRepo"
+import { summariseClientDetails, type ClientSummaryPlatformAccount } from "./summaries"
 import {
   asRecord,
   asString,
@@ -16,7 +17,7 @@ export const getClientDetailsTool: AvaTool = {
   definition: {
     name: "get_client_details",
     description:
-      "Look up a client by slug or name. Returns display name, brand colour, fee fields, and whether platform IDs are populated. Use when the user asks about a client's fees, platform setup, or profile.",
+      "Look up a client by slug or name. Returns display name, brand colour, fee fields, and which platform account types (meta_ads, meta_page, google_ads, ...) are linked. Use when the user asks about a client's fees, platform setup, or profile.",
     input_schema: {
       type: "object",
       properties: {
@@ -50,10 +51,21 @@ export const getClientDetailsTool: AvaTool = {
       if (!match) {
         return { content: `No client found for "${scoped.slug}".`, isError: false }
       }
+      const clientId = Number((match as Record<string, unknown>).id)
+      let accounts: ClientSummaryPlatformAccount[] | null = null
+      if (Number.isInteger(clientId) && clientId > 0) {
+        try {
+          accounts = await listActivePlatformAccounts(clientId)
+        } catch {
+          accounts = null
+        }
+      }
       return {
         content: jsonContent({
-          client: summariseClientDetails(match as Record<string, unknown>),
-          note: truncateText("Fee values are percentages where set; platformIdsPopulated is y/n only."),
+          client: summariseClientDetails(match as Record<string, unknown>, accounts),
+          note: truncateText(
+            "Fee values are percentages where set; platformIdsPopulated is y/n per platform account type, from the client's platform accounts.",
+          ),
         }),
         isError: false,
       }
