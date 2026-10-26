@@ -148,6 +148,12 @@ test("layout display and width fall back to the element defaults", () => {
   if (!kept.ok) return
   assert.equal(kept.layout[0]?.display, "donut")
   assert.equal(kept.layout[0]?.width, 4)
+  // Saved layouts still carry the retired showChange flag. It loads and is dropped.
+  assert.deepEqual(kept.layout[0]?.settings, { topN: 10, columns: ["sessions"], shade: false })
+  assert.equal(
+    describeElementSettings("srcmed").some((field) => field.key === "showChange"),
+    false,
+  )
   assert.equal(resolveDisplay(kept.layout[0]), "donut")
   assert.equal(resolveWidth(kept.layout[0]), 4)
 

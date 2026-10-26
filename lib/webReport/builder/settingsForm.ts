@@ -40,7 +40,6 @@ const FIELD_LABEL: Record<string, string> = {
   bars: "Bars",
   columns: "Columns",
   topN: "Rows",
-  showChange: "Show change",
   shade: "Shade",
   mode: "Queries",
   text: "Note",

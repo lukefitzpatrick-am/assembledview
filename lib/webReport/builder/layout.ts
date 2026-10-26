@@ -33,7 +33,7 @@ export function defaultElementSettings(id: WebElementId): unknown {
     case "traffic":
       return { bars: ["sessions", "pageViews"] }
     case "srcmed":
-      return { topN: 10, columns: ["sessions", "keyEvents"], showChange: true, shade: true }
+      return { topN: 10, columns: ["sessions", "keyEvents"], shade: true }
     case "pages":
     case "landing":
     case "gscPages":

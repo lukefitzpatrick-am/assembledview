@@ -121,8 +121,8 @@ export const elementSettings = {
   srcmed: z.object({
     topN: z.number().int().min(1).max(50),
     columns: z.array(z.enum(["users", "sessions", "keyEvents", "engagementRate"])).min(1),
-    /** Saved but not drawn yet. The table's % change columns follow `compare`. */
-    showChange: z.boolean(),
+    // The old showChange flag is gone; `compare` draws the % change columns. Saved
+    // layouts that still carry showChange load as before: the object strips it.
     shade: z.boolean(),
     compare: compareSchema,
   }),
@@ -431,7 +431,6 @@ export const DEFAULT_WEB_REPORT_LAYOUT: WebReportLayoutItem[] = [
     settings: {
       topN: 10,
       columns: ["sessions", "keyEvents"],
-      showChange: true,
       shade: true,
     },
   },
