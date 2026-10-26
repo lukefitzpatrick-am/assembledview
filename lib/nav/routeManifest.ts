@@ -825,6 +825,15 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     searchTerms: "client pays publisher direct excluded payables",
   },
   {
+    path: "/finance/costs/fixed-cost-margin",
+    label: "Fixed cost margin",
+    title: "Finance · Fixed cost margin",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "fixed cost margin platform spend dv360 youtube taboola meta tiktok billed actual",
+  },
+  {
     path: "/finance/investment",
     label: "Investment",
     title: "Finance · Investment",

@@ -119,6 +119,7 @@ export const FINANCE_SECTION_PAGE_PATHS = [
   "/finance/costs/invoices",
   "/finance/costs/accruals",
   "/finance/costs/client-pays",
+  "/finance/costs/fixed-cost-margin",
   "/finance/investment",
   "/finance/forecasting",
   "/finance/reports/invoiced-vs-expected",

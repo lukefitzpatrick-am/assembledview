@@ -27,6 +27,11 @@ const ITEMS = [
     label: "Client-pays",
     match: (p: string) => p.startsWith("/finance/costs/client-pays"),
   },
+  {
+    href: "/finance/costs/fixed-cost-margin",
+    label: "Fixed cost margin",
+    match: (p: string) => p.startsWith("/finance/costs/fixed-cost-margin"),
+  },
 ] as const
 
 export function CostsSubNav() {
