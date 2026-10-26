@@ -186,31 +186,43 @@ function sourceMediumRows(
   previous: Ga4SourceMediumRow[] = [],
 ): { status: "ok" | "empty"; rows: SourceMediumRow[] } {
   if (rows.length === 0) return { status: "empty", rows: [] }
-  const previousSessions = new Map<string, number>()
-  for (const row of previous) {
-    const key = sourceMediumKey(row.source, row.medium)
-    previousSessions.set(key, (previousSessions.get(key) ?? 0) + (row.sessions ?? 0))
+  type Group = { source: string; medium: string; sessions: number; engaged: number; keyEvents: number; users: number }
+  const group = (list: Ga4SourceMediumRow[]) => {
+    const grouped = new Map<string, Group>()
+    for (const row of list) {
+      const source = row.source ?? "(not set)"
+      const medium = row.medium ?? "(not set)"
+      const key = sourceMediumKey(row.source, row.medium)
+      const existing = grouped.get(key) ?? { source, medium, sessions: 0, engaged: 0, keyEvents: 0, users: 0 }
+      existing.sessions += row.sessions ?? 0
+      existing.engaged += row.engagedSessions ?? 0
+      existing.keyEvents += row.keyEvents ?? 0
+      existing.users += row.totalUsers ?? 0
+      grouped.set(key, existing)
+    }
+    return grouped
   }
-  const grouped = new Map<string, { source: string; medium: string; sessions: number; engaged: number; keyEvents: number }>()
-  for (const row of rows) {
-    const source = row.source ?? "(not set)"
-    const medium = row.medium ?? "(not set)"
-    const key = sourceMediumKey(row.source, row.medium)
-    const existing = grouped.get(key) ?? { source, medium, sessions: 0, engaged: 0, keyEvents: 0 }
-    existing.sessions += row.sessions ?? 0
-    existing.engaged += row.engagedSessions ?? 0
-    existing.keyEvents += row.keyEvents ?? 0
-    grouped.set(key, existing)
-  }
+  const grouped = group(rows)
+  const before = group(previous)
   const out: SourceMediumRow[] = [...grouped.values()]
-    .map((row) => ({
-      source: row.source,
-      medium: row.medium,
-      sessions: row.sessions,
-      keyEvents: row.keyEvents,
-      engagementRate: rate(row.engaged, row.sessions),
-      previousSessions: previousSessions.get(sourceMediumKey(row.source, row.medium)) ?? 0,
-    }))
+    .map((row) => {
+      const prior = before.get(sourceMediumKey(row.source, row.medium))
+      return {
+        source: row.source,
+        medium: row.medium,
+        sessions: row.sessions,
+        keyEvents: row.keyEvents,
+        engagementRate: rate(row.engaged, row.sessions),
+        previousSessions: prior?.sessions ?? 0,
+        users: row.users,
+        previous: {
+          sessions: prior?.sessions ?? 0,
+          keyEvents: prior?.keyEvents ?? 0,
+          users: prior?.users ?? 0,
+          engagementRate: prior ? rate(prior.engaged, prior.sessions) : null,
+        },
+      }
+    })
     .sort((a, b) => b.sessions - a.sessions || a.source.localeCompare(b.source))
   return { status: out.length > 0 ? "ok" : "empty", rows: out }
 }
@@ -301,17 +313,19 @@ export function buildGa4Slice(input: {
   const currentEvents = input.events.filter((row) => dateInWindow(row.date, input.current))
   const previousEvents = input.events.filter((row) => dateInWindow(row.date, input.previous))
   const currentTitles = input.pageTitles.filter((row) => dateInWindow(row.date, input.current))
+  const previousTitles = input.pageTitles.filter((row) => dateInWindow(row.date, input.previous))
   const currentLandingPages = pageTotals(currentLanding)
   const previousLandingPages = pageTotals(previousLanding)
-  const currentTitlePages = pageTotals(
-    currentTitles.map((row) => ({
+  const asLanding = (list: Ga4PageTitleRow[]): Ga4LandingRow[] =>
+    list.map((row) => ({
       date: row.date,
       pagePath: row.pageTitle,
       users: row.users,
       keyEvents: row.keyEvents,
       pageViews: row.pageViews,
-    })),
-  )
+    }))
+  const currentTitlePages = pageTotals(asLanding(currentTitles))
+  const previousTitlePages = pageTotals(asLanding(previousTitles))
   const currentSum = sumCampaign(currentCampaign)
   const previousSum = sumCampaign(previousCampaign)
   const cities = rankCities(input.cities ?? [])
@@ -345,11 +359,22 @@ export function buildGa4Slice(input: {
     daily,
     sourceMedium: medium.rows,
     sourceMediumStatus: medium.status,
-    pages: currentTitlePages.pages,
-    landing: currentLandingPages.pages,
+    pages: withPreviousPages(currentTitlePages.pages, previousTitlePages.pages),
+    landing: withPreviousPages(currentLandingPages.pages, previousLandingPages.pages),
     keyEventsByName: keyEventTotals(currentEvents, previousEvents),
     cities,
   }
+}
+
+function withPreviousPages(current: PageRow[], previous: PageRow[]): PageRow[] {
+  const before = new Map(previous.map((row) => [row.page, row]))
+  return current.map((row) => {
+    const prior = before.get(row.page)
+    return {
+      ...row,
+      previous: { pageViews: prior?.pageViews ?? 0, users: prior?.users ?? 0, keyEvents: prior?.keyEvents ?? 0 },
+    }
+  })
 }
 
 function dailyGa4(window: DateWindow, campaign: Ga4CampaignRow[], landing: Ga4LandingRow[]): DailyPoint[] {

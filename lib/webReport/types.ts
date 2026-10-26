@@ -20,6 +20,10 @@ export type SourceMediumRow = {
   engagementRate: number | null
   /** Sessions for the same source and medium in the compared window. Omitted when that window was not rolled up. */
   previousSessions?: number
+  /** Sum of daily total_users. Users do not add across days. */
+  users?: number
+  /** The same source and medium in the compared window. Omitted when that window was not rolled up. */
+  previous?: { sessions: number; keyEvents: number; users: number; engagementRate: number | null }
 }
 
 export type PageRow = {
@@ -27,6 +31,8 @@ export type PageRow = {
   pageViews: number
   users: number
   keyEvents: number
+  /** The same page in the compared window. Zeros when the page had no rows then. */
+  previous?: { pageViews: number; users: number; keyEvents: number }
 }
 
 export type QueryRow = {

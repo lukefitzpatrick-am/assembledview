@@ -457,14 +457,36 @@ function shade(share: number, on: boolean): number | undefined {
   return share
 }
 
-function sourceTable(rows: SourceMediumRow[], columns: ("sessions" | "keyEvents" | "engagementRate")[], shadeOn: boolean) {
+type SourceColumn = "users" | "sessions" | "keyEvents" | "engagementRate"
+
+const SOURCE_COLUMN_LABEL: Record<SourceColumn, string> = {
+  users: "Users (sum of daily)",
+  sessions: "Sessions",
+  keyEvents: "Key events",
+  engagementRate: "Engagement rate",
+}
+
+const CHANGE_HEADER = "% Δ"
+
+function sourceValue(row: SourceMediumRow, column: SourceColumn): number | null {
+  if (column === "users") return row.users ?? null
+  if (column === "engagementRate") return row.engagementRate
+  return column === "sessions" ? row.sessions : row.keyEvents
+}
+
+function sourcePrevious(row: SourceMediumRow, column: SourceColumn): number | null {
+  if (!row.previous) return null
+  return row.previous[column]
+}
+
+function sourceTable(rows: SourceMediumRow[], columns: SourceColumn[], shadeOn: boolean, compare = false) {
   const totals = {
     sessions: rows.reduce((sum, row) => sum + row.sessions, 0),
     keyEvents: rows.reduce((sum, row) => sum + row.keyEvents, 0),
   }
   const headers = [
     "Source / medium",
-    ...columns.map((column) => (column === "keyEvents" ? "Key events" : column === "engagementRate" ? "Engagement rate" : "Sessions")),
+    ...columns.flatMap((column) => (compare ? [SOURCE_COLUMN_LABEL[column], CHANGE_HEADER] : [SOURCE_COLUMN_LABEL[column]])),
   ]
   return {
     headers,
@@ -472,19 +494,23 @@ function sourceTable(rows: SourceMediumRow[], columns: ("sessions" | "keyEvents"
       key: sourceLabel(row),
       cells: [
         { text: sourceLabel(row) },
-        ...columns.map((column) => {
+        ...columns.flatMap((column) => {
           const share = column === "sessions"
             ? row.sessions / (totals.sessions || 1)
             : column === "keyEvents"
               ? row.keyEvents / (totals.keyEvents || 1)
               : 0
+          const value = sourceValue(row, column)
           const text = column === "engagementRate"
-            ? row.engagementRate == null ? "—" : formatPercent(row.engagementRate * 100)
-            : NUMBER.format(column === "sessions" ? row.sessions : row.keyEvents)
-          return { text, shade: shade(share, shadeOn) }
+            ? value == null ? "—" : formatPercent(value * 100)
+            : value == null ? "—" : NUMBER.format(value)
+          const cell: PreparedTableCell = { text, shade: shade(share, shadeOn) }
+          if (!compare) return [cell]
+          return [cell, { text: prepareChange(value, sourcePrevious(row, column)).text }]
         }),
       ],
     })),
+    ...(compare ? { note: "% Δ is the change vs the previous period." } : {}),
   }
 }
 
@@ -601,7 +627,28 @@ function cityTable(rows: CityRow[], topN: number) {
   }
 }
 
-function pageTable(rows: PageRow[], topN: number, heading: string) {
+function pageTable(rows: PageRow[], topN: number, heading: string, compare = false) {
+  if (compare) {
+    const change = (current: number, previous: number | undefined) => ({
+      text: prepareChange(current, previous ?? null).text,
+    })
+    return {
+      headers: [heading, "Page views", CHANGE_HEADER, "Users", CHANGE_HEADER, "Key events", CHANGE_HEADER],
+      rows: rows.slice(0, topN).map((row) => ({
+        key: row.page,
+        cells: [
+          { text: row.page },
+          { text: NUMBER.format(row.pageViews) },
+          change(row.pageViews, row.previous?.pageViews),
+          { text: NUMBER.format(row.users) },
+          change(row.users, row.previous?.users),
+          { text: NUMBER.format(row.keyEvents) },
+          change(row.keyEvents, row.previous?.keyEvents),
+        ],
+      })),
+      note: "Users are summed across days. % Δ is the change vs the previous period.",
+    }
+  }
   return {
     headers: [heading, "Page views", "Users", "Key events"],
     rows: rows.slice(0, topN).map((row) => ({
@@ -746,11 +793,11 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
   }
 
   if (id === "srcmed") {
-    const spec = settings as { topN: number; columns: ("sessions" | "keyEvents" | "engagementRate")[]; shade: boolean }
+    const spec = settings as { topN: number; columns: SourceColumn[]; shade: boolean; compare?: boolean }
     const rows = data.ga4.sourceMedium.slice(0, spec.topN)
     if (rows.length === 0) return emptyMessage(title)
     if (display === "table") {
-      return { kind: "table", title, ...sourceTable(rows, spec.columns, spec.shade) }
+      return { kind: "table", title, ...sourceTable(rows, spec.columns, spec.shade, spec.compare === true) }
     }
     if (display === "donut") {
       return {
@@ -777,11 +824,11 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
   }
 
   if (id === "pages" || id === "landing") {
-    const topN = (settings as { topN: number }).topN
+    const { topN, compare } = settings as { topN: number; compare?: boolean }
     const source = id === "pages" ? data.ga4.pages : data.ga4.landing
     const heading = id === "pages" ? "Page title" : "Page path"
     if (source.length === 0) return emptyMessage(title)
-    if (display === "table") return { kind: "table", title, ...pageTable(source, topN, heading) }
+    if (display === "table") return { kind: "table", title, ...pageTable(source, topN, heading, compare === true) }
     return {
       kind: "ranked",
       title,

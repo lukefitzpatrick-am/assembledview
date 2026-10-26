@@ -120,12 +120,14 @@ export const elementSettings = {
   }),
   srcmed: z.object({
     topN: z.number().int().min(1).max(50),
-    columns: z.array(z.enum(["sessions", "keyEvents", "engagementRate"])).min(1),
+    columns: z.array(z.enum(["users", "sessions", "keyEvents", "engagementRate"])).min(1),
+    /** Saved but not drawn yet. The table's % change columns follow `compare`. */
     showChange: z.boolean(),
     shade: z.boolean(),
+    compare: compareSchema,
   }),
-  pages: z.object({ topN: z.number().int().min(1).max(50) }),
-  landing: z.object({ topN: z.number().int().min(1).max(50) }),
+  pages: z.object({ topN: z.number().int().min(1).max(50), compare: compareSchema }),
+  landing: z.object({ topN: z.number().int().min(1).max(50), compare: compareSchema }),
   location: z.object({
     topN: z.number().int().min(1).max(50).default(10),
   }).strict(),
