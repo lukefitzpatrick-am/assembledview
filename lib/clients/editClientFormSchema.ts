@@ -12,6 +12,7 @@
  * still read them, so the payload never carries them.
  */
 import * as z from "zod"
+import { ABN_FORMAT_MESSAGE, isAbnBlankOrElevenDigits, normalizeAbn } from "./abn"
 import { DEFAULT_CLIENT_BRAND_COLOUR } from "./brandColour"
 
 export const LEGACY_PLATFORM_ID_FIELDS = [
@@ -122,13 +123,15 @@ export const clientEditSchema = z.object({
   linkedin_url: optionalUrlOrEmpty,
   tiktok_url: optionalUrlOrEmpty,
   client_brain: optionalString,
+  // Spaces and punctuation stripped, then exactly 11 digits (or blank).
+  // Saves the digits only. The check digit is a form warning, not an error.
   abn: withPreprocess(
-    nullToUndefined,
+    (value) => (value === null ? undefined : typeof value === "number" ? String(value) : value),
     z
       .string()
-      .regex(/^[A-Za-z0-9]{11}$/, "ABN must contain 11 letters or numbers after removing spaces or symbols")
+      .transform((s) => normalizeAbn(s))
+      .pipe(z.string().refine(isAbnBlankOrElevenDigits, { message: ABN_FORMAT_MESSAGE }))
       .optional()
-      .or(z.literal(""))
   ),
   legalbusinessname: optionalString,
   streetaddress: optionalString,

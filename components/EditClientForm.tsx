@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { useAuthContext } from "@/contexts/AuthContext"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
+import { AbnChecksumHint } from "@/components/clients/AbnChecksumHint"
 import { PlatformAccountsSection } from "@/components/clients/PlatformAccountsSection"
 import { ConversionSettingsSection } from "@/components/clients/ConversionSettingsSection"
 import { useToast } from "@/components/ui/use-toast"
@@ -182,14 +183,14 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
                   <FormControl>
                     <Input
                       {...field}
-                      maxLength={11}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 11)
-                        field.onChange(value)
-                      }}
+                      value={field.value ?? ""}
+                      inputMode="numeric"
+                      placeholder="e.g. 51 824 753 556"
+                      onChange={(e) => field.onChange(e.target.value)}
                     />
                   </FormControl>
                   <FormMessage />
+                  <AbnChecksumHint value={field.value} />
                 </FormItem>
               )}
             />

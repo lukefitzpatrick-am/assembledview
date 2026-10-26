@@ -12,6 +12,7 @@ import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { ErrorModal } from "@/components/ui/error-modal"
 import { ClientMark } from "@/components/brand/EntityMark"
+import { AbnChecksumHint } from "@/components/clients/AbnChecksumHint"
 import {
   ADD_CLIENT_DEFAULTS,
   buildAddClientPayload,
@@ -155,11 +156,13 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                 <FormControl>
                   <Input
                     {...field}
-                    placeholder="e.g. 12 345 678 901"
+                    inputMode="numeric"
+                    placeholder="e.g. 51 824 753 556"
                     onChange={(e) => field.onChange(e.target.value)}
                   />
                 </FormControl>
                 <FormMessage />
+                <AbnChecksumHint value={field.value} />
               </FormItem>
             )}
           />

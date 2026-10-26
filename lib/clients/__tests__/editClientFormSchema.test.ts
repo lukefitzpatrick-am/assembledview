@@ -157,6 +157,21 @@ test("brain change stamps client_brain_updated_at", () => {
   assert.equal(payload.client_brain_updated_at, 42)
 })
 
+test("ABN: spaces and punctuation stripped, exactly 11 digits, digits saved", () => {
+  const base = buildEditClientDefaults(hemaRow())
+  const spaced = clientEditSchema.parse({ ...base, abn: " 51 824 753-556 " })
+  assert.equal(spaced.abn, "51824753556")
+  const payload = buildEditClientPayload(spaced, { isAdmin: false, initialClientBrain: "" })
+  assert.equal(payload.abn, "51824753556")
+  assert.equal(clientEditSchema.parse({ ...base, abn: null }).abn, undefined)
+  assert.equal(clientEditSchema.parse({ ...base, abn: "" }).abn, "")
+  assert.equal(clientEditSchema.parse({ ...base, abn: 51824753556 }).abn, "51824753556")
+  assert.equal(clientEditSchema.safeParse({ ...base, abn: "ABC12345678" }).success, false)
+  assert.equal(clientEditSchema.safeParse({ ...base, abn: "5182475355" }).success, false)
+  // Fails the ATO check digit: a warning on the form, never a save error.
+  assert.equal(clientEditSchema.parse({ ...base, abn: "51 824 753 557" }).abn, "51824753557")
+})
+
 test("required fields stay required and invalid fields are named", () => {
   const parsed = clientEditSchema.safeParse({ ...buildEditClientDefaults(hemaRow()), mbaidentifier: "", abn: "0" })
   assert.equal(parsed.success, false)

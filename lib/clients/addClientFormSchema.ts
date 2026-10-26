@@ -12,20 +12,21 @@
  */
 import * as z from "zod"
 
+import { ABN_FORMAT_MESSAGE, isAbnBlankOrElevenDigits, normalizeAbn } from "./abn"
 import { DEFAULT_CLIENT_BRAND_COLOUR } from "./brandColour"
 import { LEGACY_PLATFORM_ID_FIELDS, clientEditSchema } from "./editClientFormSchema"
 
-/** Same rule as before: strip spaces and symbols, then 11 letters or numbers (or empty). */
-export const normalizeAbn = (value: string) => value.replace(/[^A-Za-z0-9]/g, "")
+export { normalizeAbn }
 
+/**
+ * Strip spaces and punctuation, then exactly 11 digits (or empty). Saves the
+ * digits only. The check digit is a form warning (`abnChecksumWarning`), not
+ * a schema error.
+ */
 const abnInner = z
   .string()
   .transform((s) => normalizeAbn(s))
-  .pipe(
-    z.string().refine((s) => s === "" || /^[A-Za-z0-9]{11}$/.test(s), {
-      message: "ABN must contain 11 letters or numbers after removing spaces or symbols",
-    })
-  )
+  .pipe(z.string().refine(isAbnBlankOrElevenDigits, { message: ABN_FORMAT_MESSAGE }))
 
 /** null / undefined become "" first. The cast keeps the string input type for the form. */
 const addAbn = z.preprocess(

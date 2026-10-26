@@ -59,12 +59,23 @@ test("optional fields accept null, like the Edit form", () => {
   }
 })
 
-test("ABN keeps the existing rule: spaces stripped, 11 characters", () => {
+test("ABN: spaces and punctuation stripped, exactly 11 digits, digits saved", () => {
   const ok = clientAddSchema.safeParse({ ...filled(), abn: "34 010 601 911" })
   assert.equal(ok.success, true)
   if (ok.success) assert.equal(ok.data.abn, "34010601911")
+  const dashed = clientAddSchema.safeParse({ ...filled(), abn: "51-824-753.556" })
+  assert.equal(dashed.success, true)
+  if (dashed.success) assert.equal(dashed.data.abn, "51824753556")
   const short = clientAddSchema.safeParse({ ...filled(), abn: "9515863300" })
   assert.equal(short.success, false)
+  const letters = clientAddSchema.safeParse({ ...filled(), abn: "ABC12345678" })
+  assert.equal(letters.success, false)
+})
+
+test("ABN failing the check digit still saves (warning only)", () => {
+  const parsed = clientAddSchema.safeParse({ ...filled(), abn: "51 824 753 557" })
+  assert.equal(parsed.success, true)
+  if (parsed.success) assert.equal(parsed.data.abn, "51824753557")
 })
 
 test("payload maps the name and never carries legacy id columns", () => {
