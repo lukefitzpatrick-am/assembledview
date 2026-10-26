@@ -38,6 +38,7 @@ function deps(overrides: Partial<SendToAccountsDeps> = {}): SendToAccountsDeps &
     now: () => new Date("2026-07-15T01:02:03.000Z"),
     calls,
     buildWorkbook: async () => Buffer.from("xlsx"),
+    buildCsv: () => "row_type\nline",
     store: async () => {
       calls.store += 1
       return {

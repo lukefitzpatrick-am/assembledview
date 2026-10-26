@@ -69,6 +69,12 @@ export type SendToAccountsDeps = {
   financeEmail?: string | null
   now?: () => Date
   buildWorkbook: (rows: AccountsPackRow[]) => Promise<Buffer>
+  /**
+   * FB-2b: pack CSV (blob, sent-row download, email attachment). The route
+   * passes `buildInvoiceLinesCsv` over the pack records, the same builder as
+   * the Clients billing review CSV.
+   */
+  buildCsv: (rows: AccountsPackRow[]) => string
   store: (input: {
     fy: number
     month: string
@@ -138,7 +144,10 @@ function csvCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`
 }
 
-/** Same columns and quoting as `exportBillingRecordsCsv`. */
+/**
+ * Invoice-level summary CSV (one row per record). Not the pack attachment
+ * since FB-2b: the pack uses `buildInvoiceLinesCsv`.
+ */
 export function buildBillingPackCsv(rows: AccountsPackRow[]): string {
   const header = [
     "client_name",
@@ -269,7 +278,7 @@ export async function runSendToAccounts(input: {
     return { sent: 0, totalExGst: 0, paths: null }
   }
   const preview = previewAccountsPack(input.month, input.rows)
-  const csv = buildBillingPackCsv(input.rows)
+  const csv = input.deps.buildCsv(input.rows)
   const xlsx = await input.deps.buildWorkbook(input.rows)
   const now = input.deps.now?.() ?? new Date()
   const timestamp = accountsPackTimestamp(now)

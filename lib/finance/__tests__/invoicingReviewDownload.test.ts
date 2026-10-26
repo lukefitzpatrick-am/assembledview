@@ -188,3 +188,66 @@ test("Download CSV: grouped rows, every row shown, no network", { skip }, async 
     assert.equal(lines[2], 'total,"Krusty Krab","KK001","Spring",media,booked / approved,2026-10,"","","Total",200.00')
   })
 })
+
+test("FB-2b: review CSV and Send to accounts pack CSV are byte-identical", { skip }, async () => {
+  const { downloadInvoicingReviewCsv } = await load()
+  const { runSendToAccounts } = await import("@/lib/finance/sendToAccounts")
+  const { buildInvoiceLinesCsv } = await import("@/lib/finance/invoiceLinesCsv")
+  const { filterApprovedReceivablesForExport } = await import("@/lib/finance/approvedReceivablesExport")
+  const records = [
+    reviewRecord({ approved_at: "2026-10-20T00:00:00Z", status: "approved" }),
+    reviewRecord({
+      id: 2,
+      clients_id: 8,
+      client_name: "Chum Bucket",
+      mba_number: "CB001",
+      invoice_key: "k2",
+      approved_at: "2026-10-20T00:00:00Z",
+      status: "approved",
+    }),
+  ]
+  const saved: Blob[] = []
+  downloadInvoicingReviewCsv(records, { from: "2026-10", to: "2026-10" }, { save: (blob) => saved.push(blob) })
+  const reviewCsv = await saved[0]!.text()
+
+  let storedCsv = ""
+  let attached = ""
+  await runSendToAccounts({
+    fy: 2027,
+    month: "2026-10",
+    rows: [
+      {
+        invoiceKey: "k1",
+        persistedId: 1,
+        clientsId: 7,
+        clientName: "Krusty Krab",
+        mbaNumber: "KK001",
+        campaignName: "Spring",
+        billingType: "media",
+        status: "approved",
+        billingMonth: "2026-10",
+        total: 100,
+        blockers: [],
+      },
+    ],
+    exportedBy: 1,
+    deps: {
+      accountsEmail: "accounts@example.com",
+      buildWorkbook: async () => Buffer.from("xlsx"),
+      // Same as app/api/finance/send-to-accounts/route.ts.
+      buildCsv: () => buildInvoiceLinesCsv(filterApprovedReceivablesForExport(records)),
+      store: async (input) => {
+        storedCsv = input.csv
+        return { csv: "a-csv", xlsx: "a-xlsx" }
+      },
+      sendEmail: async (input) => {
+        attached = input.attachments[0]!.bytes.toString("utf8")
+      },
+      commit: async () => undefined,
+    },
+  })
+  assert.ok(reviewCsv.startsWith("row_type,"))
+  assert.ok(reviewCsv.includes("Chum Bucket"))
+  assert.equal(storedCsv, reviewCsv)
+  assert.equal(attached, reviewCsv)
+})

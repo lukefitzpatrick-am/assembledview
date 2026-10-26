@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { hasResolvableAuditUserId } from "@/lib/auth/teamMemberAuditId"
 import { getDb } from "@/db"
+import { filterApprovedReceivablesForExport } from "@/lib/finance/approvedReceivablesExport"
 import { buildReceivablesWorkbookBuffer } from "@/lib/finance/exportFinanceHub"
+import { buildInvoiceLinesCsv } from "@/lib/finance/invoiceLinesCsv"
 import { loadAccountsPack } from "@/lib/finance/loadAccountsPack"
 import { sendAccountsPackEmail } from "@/lib/finance/sendAccountsPackMail"
 import { storeAccountsPackBlobs } from "@/lib/finance/storeAccountsPack"
@@ -116,6 +118,7 @@ export async function POST(request: NextRequest) {
         financeEmail: process.env.FINANCE_NOTIFY_EMAIL,
         buildWorkbook: async () =>
           buildReceivablesWorkbookBuffer(loaded.records, loaded.metaByClientId),
+        buildCsv: () => buildInvoiceLinesCsv(filterApprovedReceivablesForExport(loaded.records)),
         store: storeAccountsPackBlobs,
         sendEmail: sendAccountsPackEmail,
         commit: async (commit) => {

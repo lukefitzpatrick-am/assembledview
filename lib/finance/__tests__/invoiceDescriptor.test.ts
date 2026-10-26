@@ -155,15 +155,16 @@ test("grouping: identical supplier + detail summed, supplier order, subtotals, t
   assert.deepEqual(
     rows.map((r) => [r.rowType, r.description, r.amountCents]),
     [
-      ["line", "Google Ads - Maximize conversions", 30],
+      ["line", "Quantcast - Whitelist", 9999],
       ["line", "JCDecaux - Large format", 45007],
       ["line", "QMS - Large format", 300030],
       ["line", "QMS - Street furniture", 33333],
       ["subtotal", "QMS subtotal", 333363],
-      ["line", "Quantcast - Whitelist", 9999],
+      ["line", "Google Ads - Maximize conversions", 30],
     ]
   )
   assert.equal(rows[4]!.itemCode, "")
+  assert.equal(rows[4]!.mediaType, "OOH")
   assert.deepEqual(rows.find((r) => r.description === "QMS - Large format")!.planLineItemIds, ["TheY001OH25", "TheY001OH26"])
   const oldCents = lines.reduce((s, l) => s + Math.round(l.amount * 100), 0)
   assert.equal(sumInvoiceLineRowsCents(rows), oldCents)
@@ -181,4 +182,34 @@ test("block total unchanged for every fixture media type", () => {
   assert.equal(rows.filter((r) => r.rowType === "line").length, FIXTURES.length)
   assert.equal(sumInvoiceLineRowsCents(rows), lines.reduce((s, l) => s + Math.round(l.amount * 100), 0))
   assert.equal(rows.filter((r) => r.rowType === "subtotal").length, 0)
+})
+
+test("FB-2b: a supplier subtotal never combines media types or item codes", () => {
+  const line = (mediaType: string, itemCode: string, detail: string, amount: number): FinanceLineItem => ({
+    itemCode,
+    mediaType,
+    description: `Meta - ${detail}`,
+    supplier: "Meta",
+    detail,
+    amount,
+  })
+  const rows = groupInvoiceMediaRows([
+    line("Social Media", "D.SocialMedia", "Reach", 100),
+    line("Programmatic Display", "D.ProgrammaticDisplay", "Clicks", 50),
+    line("Social Media", "D.SocialMedia", "Leads", 200.01),
+    line("Programmatic Display", "D.ProgrammaticDisplay", "Reach", 25),
+    line("Social Media", "D.SocialMedia", "Reach", 0.99),
+  ])
+  assert.deepEqual(
+    rows.map((r) => [r.rowType, r.mediaType, r.description, r.amountCents]),
+    [
+      ["line", "Programmatic Display", "Meta - Clicks", 5000],
+      ["line", "Programmatic Display", "Meta - Reach", 2500],
+      ["subtotal", "Programmatic Display", "Meta subtotal", 7500],
+      ["line", "Social Media", "Meta - Leads", 20001],
+      ["line", "Social Media", "Meta - Reach", 10099],
+      ["subtotal", "Social Media", "Meta subtotal", 30100],
+    ]
+  )
+  assert.equal(sumInvoiceLineRowsCents(rows), 37600)
 })

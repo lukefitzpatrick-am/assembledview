@@ -5,8 +5,10 @@
  *
  * - Lines with the same item code (G./D.), media type and descriptor label
  *   become one row. Amounts sum in integer cents.
- * - Rows are ordered by supplier (publisher), then detail.
- * - A supplier with more than one row gets a subtotal row after its rows.
+ * - Rows are ordered by media type and item code, then supplier, then detail.
+ * - Within one item code and media type, a supplier with more than one row
+ *   gets a subtotal row after its rows. Subtotals never combine media types
+ *   (Meta social and Meta programmatic each get their own).
  *   Subtotal rows are display only: never add them into a total or import.
  *
  * Service rows (fee, ad serving, production) are not media lines and are not
@@ -22,7 +24,7 @@ export type InvoiceMediaRow = {
   rowType: InvoiceMediaRowType
   /** Blank on subtotal rows. */
   itemCode: string
-  /** Blank on subtotal rows. */
+  /** Subtotal rows carry the media type they total. */
   mediaType: string
   supplier: string
   detail: string
@@ -51,6 +53,11 @@ function toCents(amount: number): number {
 
 function compareText(a: string, b: string): number {
   return a.localeCompare(b, "en-AU", { sensitivity: "base" })
+}
+
+/** Subtotals never cross item code or media type (FB-2b, Luke 27 Oct). */
+function subtotalKey(r: InvoiceMediaRow): string {
+  return [r.itemCode, r.mediaType, r.supplier].map(key).join("\u001f")
 }
 
 function supplierOf(li: FinanceLineItem): string {
@@ -93,19 +100,19 @@ export function groupInvoiceMediaRows(lines: readonly FinanceLineItem[]): Invoic
   for (const r of rows) r.amount = r.amountCents / 100
   rows.sort(
     (a, b) =>
+      compareText(a.mediaType, b.mediaType) ||
+      compareText(a.itemCode, b.itemCode) ||
       compareText(a.supplier, b.supplier) ||
       compareText(a.detail, b.detail) ||
-      compareText(a.description, b.description) ||
-      compareText(a.mediaType, b.mediaType) ||
-      compareText(a.itemCode, b.itemCode)
+      compareText(a.description, b.description)
   )
 
   const out: InvoiceMediaRow[] = []
   let i = 0
   while (i < rows.length) {
-    const supplierKey = key(rows[i]!.supplier)
+    const runKey = subtotalKey(rows[i]!)
     let j = i
-    while (j < rows.length && key(rows[j]!.supplier) === supplierKey) j++
+    while (j < rows.length && subtotalKey(rows[j]!) === runKey) j++
     const run = rows.slice(i, j)
     out.push(...run)
     if (run.length > 1) {
@@ -114,7 +121,7 @@ export function groupInvoiceMediaRows(lines: readonly FinanceLineItem[]): Invoic
       out.push({
         rowType: "subtotal",
         itemCode: "",
-        mediaType: "",
+        mediaType: run[0]!.mediaType,
         supplier,
         detail: "",
         description: supplier ? `${supplier} subtotal` : "Subtotal",
