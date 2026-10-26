@@ -1,5 +1,6 @@
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import { formatInvoiceDate } from "@/lib/finance/utils"
+import { retainerInvoiceDescription } from "@/lib/finance/invoiceLineDescription"
 
 function num(v: unknown, fallback = 0): number {
   const n = Number(v)
@@ -46,7 +47,7 @@ export function deriveRetainerBillingRecordsForMonth(
         item_code: "Retainer",
         line_type: "retainer",
         media_type: null,
-        description: "Monthly retainer",
+        description: retainerInvoiceDescription(year, month),
         publisher_name: null,
         amount,
         client_pays_media: false,

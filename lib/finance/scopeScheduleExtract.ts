@@ -1,4 +1,5 @@
 import { matchMonthYear, parseBillingScheduleAmount, type FinanceLineItem } from "@/lib/finance/utils"
+import { scopeInvoiceDescription } from "@/lib/finance/invoiceLineDescription"
 
 export function parseScopeJSON(val: unknown): unknown {
   if (val == null) return null
@@ -19,11 +20,16 @@ export function findMonthEntryInSchedule(schedule: unknown[], year: number, mont
 
 /**
  * Scope-of-work billing_schedule month slice → line items (same rules as legacy `/api/finance/sow`).
+ *
+ * Flat rows describe themselves as "<project name>, <Month YYYY>" (FB-8),
+ * for example "SEO Retainer, October 2026". Without a project name the
+ * description is "Scope of Work, <Month YYYY>".
  */
 export function extractLineItemsFromScopeSchedule(
   billingSchedule: unknown,
   year: number,
-  month: number
+  month: number,
+  options: { projectName?: string | null } = {}
 ): FinanceLineItem[] {
   if (!billingSchedule) return []
 
@@ -92,7 +98,7 @@ export function extractLineItemsFromScopeSchedule(
       lineItems.push({
         itemCode: "SOW",
         mediaType: "Scope of Work",
-        description: String(monthEntry.month ?? monthEntry.monthYear ?? "Scope of Work"),
+        description: scopeInvoiceDescription(options.projectName, year, month),
         amount: flatAmount,
         publisherName: null,
       })

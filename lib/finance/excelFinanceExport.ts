@@ -3,6 +3,7 @@ import { format } from "date-fns"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import type { FinanceCampaignData } from "@/lib/finance/utils"
+import { retainerInvoiceDescriptionForMonthKey } from "@/lib/finance/invoiceLineDescription"
 import {
   ARGB_SAND_TEXT,
   excelFont,
@@ -369,6 +370,15 @@ export async function writeSowFinanceWorksheet(
   stampAptos(worksheet)
 }
 
+/** The retainer row's own line description, else the month rule. */
+export function retainerRecordDescription(r: {
+  billing_month?: string | null
+  line_items?: Array<{ description?: string | null }> | null
+}): string {
+  const fromLine = r.line_items?.find((li) => (li.description ?? "").trim())?.description?.trim()
+  return fromLine || retainerInvoiceDescriptionForMonthKey(r.billing_month)
+}
+
 export type RetainerFinanceSheetInput = {
   clientName: string
   mbaIdentifier: string
@@ -376,6 +386,11 @@ export type RetainerFinanceSheetInput = {
   paymentTerms: string
   invoiceDateIso: string
   monthlyRetainer: number
+  /**
+   * Line description. Callers pass the derived row's line description
+   * ("Monthly retainer, October 2026") so the workbook matches the hub.
+   */
+  description?: string
   /** From client record (Xano) when exporting from client hub */
   legalBusinessName?: string
   abn?: string
@@ -452,7 +467,7 @@ export async function writeRetainerFinanceWorksheet(
   worksheet.getCell(rowIndex, 1).alignment = TEXT_ALIGNMENT
   worksheet.getCell(rowIndex, 2).value = "Retainer"
   worksheet.getCell(rowIndex, 2).alignment = TEXT_ALIGNMENT
-  worksheet.getCell(rowIndex, 3).value = "Monthly retainer"
+  worksheet.getCell(rowIndex, 3).value = input.description?.trim() || "Monthly retainer"
   worksheet.getCell(rowIndex, 3).alignment = TEXT_ALIGNMENT
   worksheet.getCell(rowIndex, 4).value = total
   worksheet.getCell(rowIndex, 4).alignment = AMOUNT_ALIGNMENT
@@ -580,6 +595,7 @@ export async function buildFinanceHubWorkbook(
         paymentTerms: r.payment_terms,
         invoiceDateIso: invoiceIsoForFinanceCampaign(r),
         monthlyRetainer: r.total,
+        description: retainerRecordDescription(r),
         ...(meta ? { legalBusinessName: meta.legalBusinessName, abn: meta.abn } : {}),
       })
     }

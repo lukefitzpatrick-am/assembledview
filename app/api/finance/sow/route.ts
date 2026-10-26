@@ -75,7 +75,9 @@ export async function GET(request: NextRequest) {
       }
 
       const billingSchedule = parseScopeJSON(scope.billingSchedule ?? scope.billing_schedule)
-      const lineItemsFromSchedule = extractLineItemsFromScopeSchedule(billingSchedule, year, month)
+      const lineItemsFromSchedule = extractLineItemsFromScopeSchedule(billingSchedule, year, month, {
+        projectName: scope.project_name,
+      })
       const fallbackLineItems = extractLineItemsFromScopeCost(scope.cost)
       const lineItems = lineItemsFromSchedule.length > 0 ? lineItemsFromSchedule : fallbackLineItems
 

@@ -72,7 +72,7 @@ function normToken(value: string | null | undefined): string {
  * Service lines are identified the way `deriveReceivableRecords` and
  * `deriveRetainerReceivables` write them:
  * - Retainer: `line_type` "retainer", item code "Retainer", or description
- *   "Monthly retainer".
+ *   "Monthly retainer" (or "Monthly retainer, <Month YYYY>").
  * - Ad serving: item code "T.Adserving" or description "Adserving and Tech Fees".
  * - Production: `line_type` "service" with item code or description "Production".
  * - Fees: `line_type` "fee", item code "Service" or "FEE", or description
@@ -94,7 +94,8 @@ export function toBillCaptionLabel(li: BillingLineItem): string {
   if (
     lineType === "retainer" ||
     itemCode === "retainer" ||
-    description === "monthly retainer"
+    description === "monthly retainer" ||
+    description.startsWith("monthly retainer,")
   ) {
     return "Retainer"
   }

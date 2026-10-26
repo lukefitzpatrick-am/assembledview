@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import type { FinanceCampaignData } from "@/lib/finance/utils"
 import { formatInvoiceDate } from "@/lib/finance/utils"
+import { retainerInvoiceDescription } from "@/lib/finance/invoiceLineDescription"
 import {
   type FinanceExcelClientMeta,
   writeMediaFinanceWorksheet,
@@ -181,6 +182,7 @@ export function ClientFinanceExcelExportDialog({
           paymentTerms,
           invoiceDateIso: formatInvoiceDate(y, m),
           monthlyRetainer,
+          description: retainerInvoiceDescription(y, m),
           legalBusinessName: clientExcelMeta.legalBusinessName,
           abn: clientExcelMeta.abn,
         })

@@ -2,6 +2,7 @@ import type { BillingRecord } from "@/lib/types/financeBilling"
 import { filterApprovedReceivablesForExport } from "@/lib/finance/approvedReceivablesExport"
 import { billingRecordsToFinanceCampaigns } from "@/lib/finance/billingRecordToCampaignData"
 import {
+  retainerRecordDescription,
   writeMediaFinanceWorksheet,
   writeRetainerFinanceWorksheet,
   writeSowFinanceWorksheet,
@@ -92,6 +93,7 @@ export async function buildReceivablesWorkbookBytes(
         paymentTerms: r.payment_terms,
         invoiceDateIso: invoiceIso,
         monthlyRetainer: Number(r.total || 0),
+        description: retainerRecordDescription(r),
         legalBusinessName: meta?.legalBusinessName ?? "",
         abn: meta?.abn ?? "",
         ...(review ? { status: receivableReviewStatusLabel(r) } : {}),

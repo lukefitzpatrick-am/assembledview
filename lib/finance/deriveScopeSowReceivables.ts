@@ -59,7 +59,9 @@ export function deriveSowBillingRecordsFromScopes(
     // Schedule is authoritative: a missing or $0 month contributes nothing.
     // Never fall back to the full scope cost — that silently over-bills gaps.
     if (!scopeHasBillingSchedule(billingSchedule)) continue
-    const lineFinance = extractLineItemsFromScopeSchedule(billingSchedule, year, month)
+    const lineFinance = extractLineItemsFromScopeSchedule(billingSchedule, year, month, {
+      projectName: scope.project_name,
+    })
     const total = Math.round(lineFinance.reduce((s, li) => s + li.amount, 0) * 100) / 100
     if (total <= 0) continue
 
