@@ -30,12 +30,17 @@ import {
  * VERSION_PUBLISHED_IMMUTABLE; their `approved_slice` and snapshot checksum
  * are frozen), so the stored line text is never rewritten. Keys are
  * lower-case trimmed. A real publisher with the typed name always wins over
- * the alias. Luke approved these two on 26 Oct 2026 (FB-9); add others only
- * on his say-so.
+ * the alias. Luke approved SCA and NOVA on 26 Oct 2026 (FB-9), then Go
+ * Transit and Vicinity Group the same evening (20:33): both are the same
+ * business as an existing publisher, so no second publisher is created.
+ * "GoTranist" (#77) is the stored name, misspelt; TheY001 media lines use it.
+ * Add others only on his say-so.
  */
 export const PUBLISHER_NAME_ALIASES: Readonly<Record<string, string>> = Object.freeze({
   sca: "Southern Cross Austereo",
   nova: "Nova",
+  "go transit": "GoTranist",
+  "vicinity group": "Vicinity",
 })
 
 export type PublisherMatchedBy = "name" | "alias" | "publisherid"

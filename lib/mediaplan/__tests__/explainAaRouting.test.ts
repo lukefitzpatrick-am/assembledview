@@ -41,11 +41,25 @@ test("SCA is read through the alias to Southern Cross Austereo", () => {
 })
 
 test("publisher not found misses AA", () => {
-  const r = explainAaRouting({ names: ["Go Transit"] }, index)
+  const r = explainAaRouting({ names: ["Vogue"] }, index)
   assert.equal(r.onAaPlan, false)
   assert.equal(r.reason, "publisher_not_found")
   assert.equal(r.publisher, null)
-  assert.match(r.message, /"Go Transit" is not in Publishers/)
+  assert.match(r.message, /"Vogue" is not in Publishers/)
+})
+
+test("Go Transit is read through the alias to GoTranist", () => {
+  const r = explainAaRouting({ names: ["Go Transit"] }, index)
+  assert.equal(r.onAaPlan, true)
+  assert.equal(r.publisher?.id, 77)
+  assert.equal(r.matchedBy, "alias")
+})
+
+test("Vicinity Group is read through the alias to Vicinity and follows its agency", () => {
+  const r = explainAaRouting({ names: ["Vicinity Group"] }, index)
+  assert.equal(r.publisher?.id, 65)
+  assert.equal(r.matchedBy, "alias")
+  assert.equal(r.onAaPlan, false)
 })
 
 test("blank publisher misses AA", () => {
