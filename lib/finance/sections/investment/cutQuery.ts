@@ -30,6 +30,7 @@ import {
 } from "@/lib/finance/sections/financeCampaignStatus"
 import {
   PUBLISHER_IDENTITY_SQL,
+  publisherAgencyLateralSql,
 } from "@/lib/finance/sections/publisherIdentitySql"
 import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinSql"
 import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
@@ -554,12 +555,7 @@ export function buildInvestmentCutSql(q: InvestmentCutNormalized): BuiltCutSql {
 
   // LATERAL LIMIT 1 keeps sm rows 1:1 (FN3a billing has no li join — must not multiply).
   const publisherLateral = `
-LEFT JOIN LATERAL (
-  SELECT p.billingagency
-  FROM publishers p
-  WHERE LOWER(BTRIM(p.publisher_name)) = LOWER(BTRIM(COALESCE(${PUBLISHER_IDENTITY_SQL.trim()}, '')))
-  LIMIT 1
-) p ON TRUE`.trim()
+${publisherAgencyLateralSql(PUBLISHER_IDENTITY_SQL.trim())}`.trim()
 
   const fromJoinsText = `
 FROM media_plan_masters m
@@ -609,12 +605,7 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) li ON TRUE
 LEFT JOIN clients c ON c.id = m.client_id
-LEFT JOIN LATERAL (
-  SELECT p.billingagency
-  FROM publishers p
-  WHERE LOWER(BTRIM(p.publisher_name)) = LOWER(BTRIM(COALESCE(${sql.raw(PUBLISHER_IDENTITY_SQL.trim())}, '')))
-  LIMIT 1
-) p ON TRUE
+${sql.raw(publisherAgencyLateralSql(PUBLISHER_IDENTITY_SQL.trim()))}
 WHERE m.published_version_id IS NOT NULL
   AND ${sql.raw(FINANCE_STATUS_INCLUDED_SQL)}
   ${sql.raw(deliveryGate)}
@@ -669,12 +660,7 @@ FROM (
     LIMIT 1
   ) li ON TRUE
   LEFT JOIN clients c ON c.id = m.client_id
-  LEFT JOIN LATERAL (
-    SELECT p.billingagency
-    FROM publishers p
-    WHERE LOWER(BTRIM(p.publisher_name)) = LOWER(BTRIM(COALESCE(${sql.raw(PUBLISHER_IDENTITY_SQL.trim())}, '')))
-    LIMIT 1
-  ) p ON TRUE
+  ${sql.raw(publisherAgencyLateralSql(PUBLISHER_IDENTITY_SQL.trim()))}
   WHERE m.published_version_id IS NOT NULL
     AND ${sql.raw(FINANCE_STATUS_INCLUDED_SQL)}
     ${sql.raw(deliveryGate)}
@@ -715,12 +701,7 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) li ON TRUE
 LEFT JOIN clients c ON c.id = m.client_id
-LEFT JOIN LATERAL (
-  SELECT p.billingagency
-  FROM publishers p
-  WHERE LOWER(BTRIM(p.publisher_name)) = LOWER(BTRIM(COALESCE(${sql.raw(pubIdentity)}, '')))
-  LIMIT 1
-) p ON TRUE
+${sql.raw(publisherAgencyLateralSql(pubIdentity))}
 WHERE m.published_version_id IS NOT NULL
   AND ${sql.raw(FINANCE_STATUS_INCLUDED_SQL)}
   ${sql.raw(deliveryGate)}
@@ -754,12 +735,7 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) li ON TRUE
 LEFT JOIN clients c ON c.id = m.client_id
-LEFT JOIN LATERAL (
-  SELECT p.billingagency
-  FROM publishers p
-  WHERE LOWER(BTRIM(p.publisher_name)) = LOWER(BTRIM(COALESCE(${sql.raw(pubIdentity)}, '')))
-  LIMIT 1
-) p ON TRUE
+${sql.raw(publisherAgencyLateralSql(pubIdentity))}
 WHERE m.published_version_id IS NOT NULL
   AND ${sql.raw(FINANCE_STATUS_INCLUDED_SQL)}
   ${sql.raw(deliveryGate)}
@@ -1023,12 +999,7 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) li ON TRUE
 LEFT JOIN clients c ON c.id = m.client_id
-LEFT JOIN LATERAL (
-  SELECT p.billingagency
-  FROM publishers p
-  WHERE LOWER(BTRIM(p.publisher_name)) = LOWER(BTRIM(COALESCE(${sql.raw(PUBLISHER_IDENTITY_SQL.trim())}, '')))
-  LIMIT 1
-) p ON TRUE
+${sql.raw(publisherAgencyLateralSql(PUBLISHER_IDENTITY_SQL.trim()))}
 WHERE m.published_version_id IS NOT NULL
   AND ${sql.raw(FINANCE_STATUS_INCLUDED_SQL)}
   ${sql.raw(deliveryGate)}

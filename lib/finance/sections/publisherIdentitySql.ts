@@ -1,3 +1,5 @@
+import { PUBLISHER_NAME_ALIASES } from "@/lib/publisher/resolvePublisherName"
+
 /**
  * SQL expression for line-item publisher identity — mirrors
  * `resolveLineDimensions` / schedule header1 accessor order per channel.
@@ -91,3 +93,44 @@ NULLIF(BTRIM(
 
 /** Label used when identity SQL is null. */
 export const UNSPECIFIED_PUBLISHER = "Unspecified"
+
+function sqlText(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+/**
+ * SQL twin of `resolvePublisherNameMatch` (lib/publisher/resolvePublisherName.ts)
+ * for the billing agency join: trimmed and case-insensitive name, lowest
+ * `publishers.id`; then a `PUBLISHER_NAME_ALIASES` alias; then a
+ * `publishers.publisherid` no other publisher shares. Blank text matches
+ * nothing. Returns `LEFT JOIN LATERAL (...) p ON TRUE` exposing `p.billingagency`.
+ */
+export function publisherAgencyLateralSql(identityExpr: string): string {
+  const aliasCases = Object.entries(PUBLISHER_NAME_ALIASES)
+    .map(([key, name]) => `WHEN ${sqlText(key)} THEN ${sqlText(name.trim().toLowerCase())}`)
+    .join(" ")
+  const aliasExpr = aliasCases ? `(CASE pk.k ${aliasCases} END)` : "NULL"
+  return `LEFT JOIN LATERAL (
+  SELECT p.billingagency
+  FROM (SELECT LOWER(BTRIM(COALESCE(${identityExpr}, ''))) AS k) pk
+  JOIN publishers p ON pk.k <> '' AND (
+    LOWER(BTRIM(p.publisher_name)) = pk.k
+    OR LOWER(BTRIM(p.publisher_name)) = ${aliasExpr}
+    OR (
+      LOWER(BTRIM(p.publisherid)) = pk.k
+      AND NOT EXISTS (
+        SELECT 1 FROM publishers p2
+        WHERE p2.id <> p.id AND LOWER(BTRIM(p2.publisherid)) = pk.k
+      )
+    )
+  )
+  ORDER BY
+    CASE
+      WHEN LOWER(BTRIM(p.publisher_name)) = pk.k THEN 0
+      WHEN LOWER(BTRIM(p.publisher_name)) = ${aliasExpr} THEN 1
+      ELSE 2
+    END,
+    p.id
+  LIMIT 1
+) p ON TRUE`
+}

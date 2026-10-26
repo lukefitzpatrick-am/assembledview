@@ -18,8 +18,11 @@ import {
 } from "@/lib/finance/overlayFinanceStatus"
 import { financeClientNamesMatch } from "@/lib/finance/utils"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
-import { buildPublisherByNameMap, type PublisherIdentityRow } from "@/lib/publisher/publisherUniqueness"
-import { createBillsViaAdvertisingAssociates } from "@/lib/publisher/resolvePublisherName"
+import { type PublisherIdentityRow } from "@/lib/publisher/publisherUniqueness"
+import {
+  createBillsViaAdvertisingAssociates,
+  createPublisherLookup,
+} from "@/lib/publisher/resolvePublisherName"
 
 /**
  * Per-month record composition shared by the single-month and multi-month
@@ -114,9 +117,10 @@ export function composeBillingRecordsForMonth(inputs: ComposeBillingMonthInputs)
 
   const clientMap = buildClientNameMap(clients)
   const mbaIdentifiers = buildClientMbaIdentifierMap(clients)
-  // Billing agency lookup by trimmed name. A shared name resolves to the
-  // lowest publishers.id (warns on a billing agency conflict), never last-wins.
-  const publisherNameMap: Map<string, unknown> = buildPublisherByNameMap(
+  // Media line G./D. lookup: the shared resolver, same as the production
+  // split (trimmed, case-insensitive, lowest publishers.id, alias, then
+  // publisherid). Never last-wins.
+  const publisherNameMap = createPublisherLookup(
     publishers as unknown as PublisherIdentityRow[],
   )
   const publisherIdMap = buildPublisherIdMap(publishers)

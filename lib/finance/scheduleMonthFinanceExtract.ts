@@ -13,6 +13,7 @@ import {
   type FinanceLineItem,
 } from "@/lib/finance/utils"
 import { parseMoneyInput, roundMoney2 } from "@/lib/format/money"
+import type { PublisherLookup } from "@/lib/publisher/resolvePublisherName"
 
 const MEDIA_KEY_LABELS: Record<string, string> = {
   search: "Search",
@@ -57,10 +58,14 @@ function lineAmountForMonth(item: BillingLineItem, monthYear: string): number {
  * schedule line so derive can refuse it. Derive also ORs the plan line's
  * `client_pays_for_media` on (version_id, line_item_id) — rows-mode rebuild may
  * omit the blob flag.
+ *
+ * `publisherMap` decides the G./D. code. Finance passes `createPublisherLookup`
+ * (trimmed, case-insensitive, lowest id, alias, publisherid), the same resolver
+ * as the production split. A plain `Map` still works (exact keys).
  */
 export function financeMediaLinesFromBillingMonth(
   month: BillingMonth,
-  publisherMap: Map<string, { billingagency?: string | null }>
+  publisherMap: PublisherLookup<{ billingagency?: string | null }>
 ): FinanceLineItem[] {
   const lineItems = month.lineItems
   if (!lineItems) return []

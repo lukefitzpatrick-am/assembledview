@@ -2,9 +2,11 @@
  * One publisher-name resolver for Advertising Associates routing (FB-9).
  *
  * Used by the AA media plan workbook and filter, the AA billing cycle, the
- * finance G./D. production split (hub Excel, Send to accounts, Clients
- * billing review download) and the editor "Why isn't this on the AA plan?"
- * control, so they all agree on which publisher a typed name means.
+ * finance G./D. production split and media line item codes (hub Excel, Send
+ * to accounts, Clients billing review download), the finance forecast AA/AM
+ * split, the investment cut (SQL twin `publisherAgencyLateralSql`) and the
+ * editor "Why isn't this on the AA plan?" control, so they all agree on which
+ * publisher a typed name means.
  *
  * Order, all keys trimmed and case-insensitive:
  * 1. `publishers.publisher_name` (lowest `publishers.id` when a name is
@@ -114,6 +116,21 @@ export function createPublisherNameResolver<T extends PublisherIdentityRow>(
 ): (name: unknown) => T | undefined {
   const index = buildPublisherNameIndex(publishers)
   return (name: unknown) => resolvePublisherName(name, index)
+}
+
+/**
+ * Name to publisher lookup for the finance media lines (G./D. item codes).
+ * Same shape as `Map.get`, so the extractors take either; finance passes
+ * `createPublisherLookup` so media lines match the way production does.
+ */
+export type PublisherLookup<T> = { get(name: string): T | undefined }
+
+/** `PublisherLookup` over the shared resolver (name, alias, publisherid). */
+export function createPublisherLookup<T extends PublisherIdentityRow>(
+  publishers: readonly T[],
+): PublisherLookup<T> {
+  const resolve = createPublisherNameResolver(publishers)
+  return { get: (name: string) => resolve(name) }
 }
 
 /** True when the publisher's billing agency is Advertising Associates. */

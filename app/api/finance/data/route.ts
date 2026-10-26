@@ -20,11 +20,11 @@ import {
   productionPlanLinesFromBillingMonth,
   productionServiceRowsForMonth,
 } from "@/lib/finance/financeExportProductionRows"
+import { type PublisherIdentityRow } from "@/lib/publisher/publisherUniqueness"
 import {
-  buildPublisherByNameMap,
-  type PublisherIdentityRow,
-} from "@/lib/publisher/publisherUniqueness"
-import { createBillsViaAdvertisingAssociates } from "@/lib/publisher/resolvePublisherName"
+  createBillsViaAdvertisingAssociates,
+  createPublisherLookup,
+} from "@/lib/publisher/resolvePublisherName"
 
 export const maxDuration = 60
 
@@ -83,9 +83,9 @@ export async function GET(request: NextRequest) {
       if (name) clientMap.set(name, client)
     })
 
-    // Duplicate names resolve to the lowest id (warning on an agency
-    // conflict), never last-wins.
-    const publisherMap = buildPublisherByNameMap(
+    // Media line G./D. lookup: the shared resolver, same as the production
+    // split (trimmed, case-insensitive, lowest id, alias, then publisherid).
+    const publisherMap = createPublisherLookup(
       publishers as unknown as Array<PublisherIdentityRow & Record<string, unknown>>
     )
 

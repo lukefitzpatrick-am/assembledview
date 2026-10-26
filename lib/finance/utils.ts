@@ -3,6 +3,8 @@ import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import { fromCents, parseMoney, sumCents, toCents } from "@/lib/money"
+import { classifyBillingAgency } from "@/lib/finance/billingAgency"
+import type { PublisherLookup } from "@/lib/publisher/resolvePublisherName"
 
 export interface FinanceLineItem {
   itemCode: string
@@ -134,13 +136,15 @@ export function formatInvoiceDate(year: number, month: number): string {
 }
 
 /**
- * Build item code based on billing agency and media type
+ * Build item code based on billing agency and media type.
+ * G. when the raw `publishers.billingagency` classifies as Advertising
+ * Associates (trimmed, case-insensitive, `classifyBillingAgency`), else D.
  */
 export function buildItemCode(
   billingAgency: string | null | undefined,
   mediaType: string
 ): string {
-  const prefix = billingAgency === "advertising associates" ? "G" : "D"
+  const prefix = classifyBillingAgency(billingAgency) === "AA" ? "G" : "D"
   // Remove spaces from media type for item code
   const cleanMediaType = mediaType.replace(/\s+/g, "")
   return `${prefix}.${cleanMediaType}`
@@ -570,7 +574,7 @@ export function extractLineItemsFromBillingSchedule(
   billingSchedule: any,
   selectedYear: number,
   selectedMonth: number,
-  publisherMap: Map<string, any>
+  publisherMap: PublisherLookup<any>
 ): FinanceLineItem[] {
   if (!billingSchedule) return []
 

@@ -19,6 +19,7 @@ import {
   matchMonthYear,
   type FinanceLineItem,
 } from "@/lib/finance/utils"
+import type { PublisherLookup } from "@/lib/publisher/resolvePublisherName"
 
 /** One plan line as finance needs it for schedule headers. */
 export type FinancePlanLine = {
@@ -116,7 +117,7 @@ export function extractFinanceExportMediaLines(
   billingSchedule: unknown,
   year: number,
   month: number,
-  publisherMap: Map<string, unknown>,
+  publisherMap: PublisherLookup<unknown>,
   linesById: Record<string, unknown> = {},
 ): FinanceLineItem[] {
   const entry = findMonthEntry(billingSchedule, year, month)
@@ -126,6 +127,6 @@ export function extractFinanceExportMediaLines(
   const labelled = relabelFinanceBillingMonth(entry as unknown as BillingMonth, linesById)
   return financeMediaLinesFromBillingMonth(
     labelled,
-    publisherMap as Map<string, { billingagency?: string | null }>,
+    publisherMap as PublisherLookup<{ billingagency?: string | null }>,
   )
 }

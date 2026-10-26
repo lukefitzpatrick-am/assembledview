@@ -45,6 +45,10 @@ import {
 } from "@/lib/finance/forecast/mapping"
 import { roundMoney2 } from "@/lib/money/cents"
 import { buildPublisherByNameMap } from "@/lib/publisher/publisherUniqueness"
+import {
+  createPublisherLookup,
+  type PublisherLookup,
+} from "@/lib/publisher/resolvePublisherName"
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -460,13 +464,19 @@ function normalizeName(name: string): string {
     .trim()
 }
 
-function buildPublisherLookup(publishers: ReadonlyArray<FinanceForecastPublisherInput>): Map<
-  string,
-  FinanceForecastPublisherInput
-> {
-  // A shared normalised name resolves to the lowest publishers.id (warns on a
-  // billing agency conflict), never last-wins. Names are unique (INVARIANTS).
-  return buildPublisherByNameMap(publishers, normalizeName)
+function buildPublisherLookup(
+  publishers: ReadonlyArray<FinanceForecastPublisherInput>
+): PublisherLookup<FinanceForecastPublisherInput> {
+  // Same resolver as the finance media and production lines (trimmed,
+  // case-insensitive, lowest publishers.id, alias, then publisherid), so the
+  // forecast AA/AM split agrees with the invoice G./D. codes. The older
+  // punctuation-blind match stays as a fallback for text the resolver misses
+  // (measured 26 Oct 2026: no live published line needs it). Never last-wins.
+  const resolve = createPublisherLookup(publishers)
+  const byNormalisedName = buildPublisherByNameMap(publishers, normalizeName)
+  return {
+    get: (name: string) => resolve.get(name) ?? byNormalisedName.get(normalizeName(name)),
+  }
 }
 
 function buildClientLookup(clients: ReadonlyArray<FinanceForecastClientInput>): Map<
@@ -503,10 +513,10 @@ function resolveClientId(
 
 function resolvePublisher(
   publisherName: string,
-  publisherByName: Map<string, FinanceForecastPublisherInput>
+  publisherByName: PublisherLookup<FinanceForecastPublisherInput>
 ): FinanceForecastPublisherInput | null {
-  const key = normalizeName(publisherName)
-  return publisherByName.get(key) ?? null
+  if (!publisherName.trim()) return null
+  return publisherByName.get(publisherName) ?? null
 }
 
 // Billing / commission routing: `lib/finance/forecast/mapping` (definitions + classification).
@@ -575,7 +585,7 @@ function buildLinesForCampaign(args: {
   fyStartYear: number
   client_id: string
   client_name: string
-  publisherByName: Map<string, FinanceForecastPublisherInput>
+  publisherByName: PublisherLookup<FinanceForecastPublisherInput>
   clientRecord: FinanceForecastClientInput | undefined
 }): CampaignLinesResult {
   const version = args.version
@@ -917,7 +927,7 @@ function extractBillableLinesForMonth(
   schedule: unknown,
   calendarYear: number,
   calendarMonth: number,
-  publisherByName: Map<string, FinanceForecastPublisherInput>
+  publisherByName: PublisherLookup<FinanceForecastPublisherInput>
 ): BillableRow[] {
   const arr = toScheduleArray(schedule)
   const monthEntry = arr.find((entry) => {

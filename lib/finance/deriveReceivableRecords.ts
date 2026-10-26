@@ -35,6 +35,7 @@ import {
 } from "@/lib/finance/utils"
 import { roundMoney2 } from "@/lib/format/money"
 import { resolveFinanceCampaignStatus, isFinanceIncludedCampaignStatus } from "@/lib/finance/sections/financeCampaignStatus"
+import type { PublisherLookup } from "@/lib/publisher/resolvePublisherName"
 
 function financeMediaLineToBillingLine(
   li: FinanceLineItem,
@@ -122,7 +123,7 @@ export function derivePlanReceivableBillingRecordsForMonth(
   relevantVersions: Record<string, unknown>[],
   year: number,
   month: number,
-  publisherMap: Map<string, unknown>,
+  publisherMap: PublisherLookup<unknown>,
   clientMap: Map<string, unknown>,
   mbaIdentifiers: ClientMbaIdentifierEntry[],
   options: {
@@ -130,7 +131,7 @@ export function derivePlanReceivableBillingRecordsForMonth(
     /**
      * Production publisher to "bills via AA" for the G./D. production split.
      * Compose passes the shared AA resolver (`createBillsViaAdvertisingAssociates`,
-     * name, alias, publisherid). Default: exact trimmed name in `publisherMap`.
+     * name, alias, publisherid). Default: the trimmed name in `publisherMap`.
      */
     billsViaAdvertisingAssociates?: (publisher: string) => boolean
   }
@@ -180,7 +181,7 @@ export function derivePlanReceivableBillingRecordsForMonth(
         // Placeholder headers only (media key / line id) take the plan line's
         // publisher or platform before the agency lookup. Real names stay.
         relabelFinanceBillingMonth(coreBillingMonth, getFinancePlanLinesById(version)),
-        publisherMap as Map<string, { billingagency?: string | null }>
+        publisherMap as PublisherLookup<{ billingagency?: string | null }>
       )
     )
     overlayClientPaysFromPlanLines(mergedMediaLines, version)
