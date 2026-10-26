@@ -59,6 +59,8 @@ function financeMediaLineToBillingLine(
     schedule_line_item_id: li.planLineItemId ?? null,
     billing_mode: li.billingMode ?? null,
     ...extras,
+    ...(li.supplier != null ? { invoice_supplier: li.supplier } : {}),
+    ...(li.detail != null ? { invoice_detail: li.detail } : {}),
   }
 }
 
@@ -176,12 +178,15 @@ export function derivePlanReceivableBillingRecordsForMonth(
 
     const planLookup = buildPlanLineItemMediaDetailLookup(version as Record<string, unknown>)
 
+    const planLinesById = getFinancePlanLinesById(version)
     const mergedMediaLines = mergeFinanceLineItems(
       financeMediaLinesFromBillingMonth(
         // Placeholder headers only (media key / line id) take the plan line's
         // publisher or platform before the agency lookup. Real names stay.
-        relabelFinanceBillingMonth(coreBillingMonth, getFinancePlanLinesById(version)),
-        publisherMap as PublisherLookup<{ billingagency?: string | null }>
+        relabelFinanceBillingMonth(coreBillingMonth, planLinesById),
+        publisherMap as PublisherLookup<{ billingagency?: string | null }>,
+        // FB-2: descriptions from the plan line (same as the hub export).
+        planLinesById
       )
     )
     overlayClientPaysFromPlanLines(mergedMediaLines, version)

@@ -3,6 +3,7 @@ import { format } from "date-fns"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import type { FinanceCampaignData } from "@/lib/finance/utils"
+import { groupInvoiceMediaRows } from "@/lib/finance/groupInvoiceMediaRows"
 import { retainerInvoiceDescriptionForMonthKey } from "@/lib/finance/invoiceLineDescription"
 import {
   ARGB_SAND_TEXT,
@@ -228,16 +229,26 @@ export async function writeMediaFinanceWorksheet(
     worksheet.getCell(rowIndex, 4).style = amountColumnHeaderStyle as ExcelJS.Style
     rowIndex++
 
-    campaign.lineItems.forEach((item) => {
-      worksheet.getCell(rowIndex, 1).value = item.itemCode
+    // FB-2: identical supplier + detail rows summed, ordered by supplier,
+    // with a subtotal row per supplier that has more than one row.
+    groupInvoiceMediaRows(campaign.lineItems).forEach((item) => {
+      const subtotal = item.rowType === "subtotal"
+      worksheet.getCell(rowIndex, 1).value = subtotal ? "" : item.itemCode
       worksheet.getCell(rowIndex, 1).alignment = TEXT_ALIGNMENT
-      worksheet.getCell(rowIndex, 2).value = item.mediaType
+      worksheet.getCell(rowIndex, 2).value = subtotal ? "" : item.mediaType
       worksheet.getCell(rowIndex, 2).alignment = TEXT_ALIGNMENT
       worksheet.getCell(rowIndex, 3).value = item.description
       worksheet.getCell(rowIndex, 3).alignment = TEXT_ALIGNMENT
       worksheet.getCell(rowIndex, 4).value = item.amount
       worksheet.getCell(rowIndex, 4).alignment = AMOUNT_ALIGNMENT
       worksheet.getCell(rowIndex, 4).numFmt = "$#,##0.00"
+      if (subtotal) {
+        for (let col = 1; col <= 4; col++) {
+          const cell = worksheet.getCell(rowIndex, col)
+          cell.font = excelFont({ bold: true, italic: true })
+          cell.border = { top: LINE_BORDER.top }
+        }
+      }
       rowIndex++
     })
 

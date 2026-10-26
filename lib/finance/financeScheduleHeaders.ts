@@ -128,5 +128,6 @@ export function extractFinanceExportMediaLines(
   return financeMediaLinesFromBillingMonth(
     labelled,
     publisherMap as PublisherLookup<{ billingagency?: string | null }>,
+    linesById,
   )
 }

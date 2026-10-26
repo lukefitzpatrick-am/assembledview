@@ -25,6 +25,10 @@ export interface FinanceLineItem {
    * these lines; agency fee stays billable.
    */
   clientPaysMedia?: boolean
+  /** FB-2 invoice supplier (publisher, network or platform by media type). Groups and orders rows. */
+  supplier?: string | null
+  /** FB-2 invoice detail (bid strategy, panel type, masthead, station, site). */
+  detail?: string | null
 }
 
 export interface FinanceServiceRow {
@@ -52,6 +56,10 @@ export interface FinanceCampaignData {
    * Status row shows under Client Name. The accounts pack never sets it.
    */
   status?: string
+  /** "YYYY-MM" of the invoice block, when built from billing records (FB-2 CSV). */
+  billingMonth?: string
+  /** Billing type of the invoice block, when built from billing records (FB-2 CSV). */
+  billingType?: string
 }
 
 export interface BillingScheduleEntry {
@@ -102,6 +110,8 @@ export function mergeFinanceLineItems(items: FinanceLineItem[]): FinanceLineItem
         planLineItemId: item.planLineItemId ?? null,
         billingMode: item.billingMode ?? null,
         clientPaysMedia: item.clientPaysMedia === true,
+        ...(item.supplier !== undefined ? { supplier: item.supplier } : {}),
+        ...(item.detail !== undefined ? { detail: item.detail } : {}),
       }
       byKey.set(key, copy)
       merged.push(copy)

@@ -12,6 +12,7 @@ import {
   getMediaTypeKeyFromDisplayName,
   type FinanceLineItem,
 } from "@/lib/finance/utils"
+import { invoiceDescriptor, type InvoiceDescriptor } from "@/lib/finance/invoiceDescriptor"
 import { parseMoneyInput, roundMoney2 } from "@/lib/format/money"
 import type { PublisherLookup } from "@/lib/publisher/resolvePublisherName"
 
@@ -46,6 +47,36 @@ function parseScheduleMoney(value: string | undefined): number {
   return parseMoneyInput(value ?? 0) ?? 0
 }
 
+/** FB-2 descriptor from the plan line this schedule row bills. Null when the line is not attached. */
+function descriptorForScheduleRow(
+  mediaKey: string,
+  rowId: string | undefined,
+  linesById: Record<string, unknown> | undefined
+): InvoiceDescriptor | null {
+  const id = String(rowId ?? "").trim()
+  if (!id || !linesById) return null
+  const raw = linesById[id]
+  if (!raw || typeof raw !== "object") return null
+  const line = raw as Record<string, unknown>
+  const attrs =
+    line.attrs && typeof line.attrs === "object" && !Array.isArray(line.attrs)
+      ? (line.attrs as Record<string, unknown>)
+      : null
+  const d = invoiceDescriptor({
+    mediaKey,
+    publisher: typeof line.publisher === "string" ? line.publisher : null,
+    platform: typeof line.platform === "string" ? line.platform : null,
+    bidStrategy:
+      typeof line.bidStrategy === "string"
+        ? line.bidStrategy
+        : typeof line.bid_strategy === "string"
+          ? line.bid_strategy
+          : null,
+    attrs,
+  })
+  return d && d.label ? d : null
+}
+
 function lineAmountForMonth(item: BillingLineItem, monthYear: string): number {
   const raw = item.monthlyAmounts?.[monthYear]
   return typeof raw === "number" && Number.isFinite(raw) ? raw : 0
@@ -62,10 +93,17 @@ function lineAmountForMonth(item: BillingLineItem, monthYear: string): number {
  * `publisherMap` decides the G./D. code. Finance passes `createPublisherLookup`
  * (trimmed, case-insensitive, lowest id, alias, publisherid), the same resolver
  * as the production split. A plain `Map` still works (exact keys).
+ *
+ * `linesById` (plan lines attached by hydrate, `getFinancePlanLinesById`):
+ * when the row's plan line is there, the description is the FB-2 invoice
+ * descriptor ("<supplier> - <detail>", `invoiceDescriptor`) and the line
+ * carries `supplier` and `detail` for grouping. Without it the old
+ * header1 + header2 description stays.
  */
 export function financeMediaLinesFromBillingMonth(
   month: BillingMonth,
-  publisherMap: PublisherLookup<{ billingagency?: string | null }>
+  publisherMap: PublisherLookup<{ billingagency?: string | null }>,
+  linesById?: Record<string, unknown>
 ): FinanceLineItem[] {
   const lineItems = month.lineItems
   if (!lineItems) return []
@@ -120,12 +158,16 @@ export function financeMediaLinesFromBillingMonth(
         descriptionParts.push(formatDescriptionToNaturalLanguage(String(secondPart)))
       }
 
+      const descriptor = descriptorForScheduleRow(mediaKey, item.id, linesById)
+
       out.push({
         itemCode: buildItemCode(billingAgency, mediaTypeDisplayName),
         mediaType: mediaTypeDisplayName,
-        description: descriptionParts.join(" ") || mediaTypeDisplayName,
+        description: descriptor?.label || descriptionParts.join(" ") || mediaTypeDisplayName,
         amount,
         publisherName: header1 || null,
+        supplier: descriptor ? descriptor.supplier : header1 || null,
+        detail: descriptor ? descriptor.detail : null,
         planLineItemId: item.id?.trim() ? item.id.trim() : null,
         billingMode: item.billingMode === "auto" || item.billingMode === "manual"
           ? item.billingMode

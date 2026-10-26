@@ -155,7 +155,7 @@ test("Download Excel: only GET /api/clients, records untouched, every row with s
   }
 })
 
-test("Download CSV: pack columns, every row shown, no network", { skip }, async () => {
+test("Download CSV: grouped rows, every row shown, no network", { skip }, async () => {
   const { downloadInvoicingReviewCsv, invoicingReviewFileStem } = await load()
   const realFetch = globalThis.fetch
   let fetched = false
@@ -178,8 +178,13 @@ test("Download CSV: pack columns, every row shown, no network", { skip }, async 
   assert.equal(invoicingReviewFileStem({ from: "a", to: "b" }), "Clients_billing_a_b")
   return saved[0]!.blob.text().then((csv) => {
     const lines = csv.split("\n")
-    assert.equal(lines[0], "client_name,mba_number,campaign_name,billing_type,status,billing_month,total")
+    // FB-2: one row per grouped line, service row and block total.
+    assert.equal(
+      lines[0],
+      "row_type,client_name,mba_number,campaign_name,billing_type,status,billing_month,item_code,media_type,description,amount"
+    )
     assert.equal(lines.length, 3)
-    assert.equal(lines[1], '"Krusty Krab","KK001","Spring",media,booked,2026-10,100.00')
+    assert.equal(lines[1], 'line,"Krusty Krab","KK001","Spring",media,booked / approved,2026-10,"G.DIG","Digital","Display",200.00')
+    assert.equal(lines[2], 'total,"Krusty Krab","KK001","Spring",media,booked / approved,2026-10,"","","Total",200.00')
   })
 })

@@ -6,9 +6,14 @@ function roundMoney(n: number): number {
   return Math.round(n * 100) / 100
 }
 
+/**
+ * One invoice block per client, MBA, billing month and billing type (FB-2).
+ * Months never share a block, so a multi-month review download cannot sum
+ * October and November lines into one row.
+ */
 function groupKey(r: BillingRecord): string {
   const mba = (r.mba_number ?? "").trim()
-  return `${r.clients_id}\u001f${mba}`
+  return `${r.clients_id}\u001f${mba}\u001f${r.billing_month ?? ""}\u001f${r.billing_type}`
 }
 
 function invoiceIsoForRecord(r: BillingRecord): string {
@@ -31,6 +36,10 @@ function lineItemsFromBillingLineItems(items: BillingLineItem[]): {
         mediaType: li.media_type || "media",
         description: li.description || "",
         amount: li.amount,
+        publisherName: li.publisher_name ?? null,
+        planLineItemId: li.schedule_line_item_id ?? null,
+        ...(li.invoice_supplier != null ? { supplier: li.invoice_supplier } : {}),
+        ...(li.invoice_detail != null ? { detail: li.invoice_detail } : {}),
       })
     } else if (li.line_type === "service" || li.line_type === "fee") {
       serviceRows.push({
@@ -96,6 +105,8 @@ function mergeGroupToFinanceCampaignData(
     serviceRows,
     total,
     ...legalBlock,
+    billingMonth: first.billing_month ?? "",
+    billingType: first.billing_type,
     ...(options?.statusLabel ? { status: groupStatusLabel(sorted, options.statusLabel) } : {}),
   }
 }
@@ -122,7 +133,9 @@ export function billingRecordsToFinanceCampaigns(
   out.sort((a, b) => {
     const c = a.clientName.localeCompare(b.clientName, undefined, { sensitivity: "base" })
     if (c !== 0) return c
-    return a.mbaNumber.localeCompare(b.mbaNumber, undefined, { sensitivity: "base" })
+    const m = a.mbaNumber.localeCompare(b.mbaNumber, undefined, { sensitivity: "base" })
+    if (m !== 0) return m
+    return a.invoiceDate.localeCompare(b.invoiceDate)
   })
   return out
 }

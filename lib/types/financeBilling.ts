@@ -52,6 +52,10 @@ export interface BillingLineItem {
    * is not edited inline.
    */
   production_split?: boolean
+  /** FB-2 invoice supplier for media lines (groups and orders the finance downloads). */
+  invoice_supplier?: string | null
+  /** FB-2 invoice detail for media lines. */
+  invoice_detail?: string | null
 }
 
 /** Accrual grid synthetic rows (month detail, per-client subtotal, grand total). */
