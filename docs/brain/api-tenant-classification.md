@@ -255,6 +255,11 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | POST | `/api/finance/send-to-accounts` | admin-only | requireFinanceAdmin | billing pack email + export stamp |
 | POST | `/api/finance/clear-for-issue` | admin-only | requireFinanceAdmin | clearance email now; writes one `finance_edits` row |
 | GET | `/api/finance/reports/invoiced-vs-expected` | admin-only | requireFinanceAdmin | invoiced vs expected view; `format=xlsx` downloads the workbook |
+| GET | `/api/finance/billing-revisions` | admin-only | requireFinanceAdmin | billing change log for `?mba=`; 404 while BILLING_REVISIONS is off, 409 `not_ready` until 0106 |
+| GET | `/api/finance/billing-revisions/context` | admin-only | requireFinanceAdmin | lines, months, locks and pacing hints for the Change billing timing panel; read only |
+| POST | `/api/finance/billing-revisions/preview` | admin-only | requireFinanceAdmin | plan a billing revision on the published tip; never writes; returns a signed preview token |
+| POST | `/api/finance/billing-revisions/apply` | admin-only | requireFinanceAdmin | publish the revision from a preview token (sub-bound, 15 min); 401 `no_user` without an audit user |
+| POST | `/api/finance/billing-revisions/[id]/undo` | admin-only | requireFinanceAdmin | restore preview for the newest applied revision; apply through `/apply` |
 | GET | `/api/finance/owners` | admin-only | requireFinanceAdmin | FP-6 finance owner per client and active team members; `{ ready: false }` until 0105 is applied |
 | PUT | `/api/finance/owners` | admin-only | requireFinanceAdmin | set or clear one client's finance owner; 409 `not_ready` until 0105 is applied |
 | GET | `/api/finance/reports/plan-reconciliation` | admin-only | requireFinanceAdmin | FP-2a read-only check: finance figure vs billing `schedule_months` per MBA-month; `view=gaps|all`, `format=xlsx` |
