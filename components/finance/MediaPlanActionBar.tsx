@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
 import { AlterBillingDialog } from "@/components/billing/AlterBillingDialog"
+import { BillingRevisionLog } from "@/components/finance/billing-revisions/BillingRevisionLog"
 import { BillingRevisionPanel } from "@/components/finance/billing-revisions/BillingRevisionPanel"
 import { isBillingRevisionsUiEnabled } from "@/lib/finance/revisions/flag"
 import type { PanelTab } from "@/lib/finance/revisions/panelModel"
@@ -35,6 +36,8 @@ export function useMediaPlanActions({
   const openRevision = useCallback((tab: PanelTab = "bill_amount", month: string | null = null) => {
     setRevisionOpen({ tab, month })
   }, [])
+  const [logOpen, setLogOpen] = useState(false)
+  const openRevisionLog = useCallback(() => setLogOpen(true), [])
 
   const downloadAa = useCallback(async () => {
     if (!mp.mbaNumber) return
@@ -184,6 +187,8 @@ export function useMediaPlanActions({
         initialUnderspendMonth={revisionOpen.month}
         onPublished={onSaved}
       />
+    ) : revisionsUi && logOpen && mp.mbaNumber ? (
+      <BillingRevisionLog open onOpenChange={setLogOpen} mbaNumber={mp.mbaNumber} onChanged={onSaved} />
     ) : null
 
   return {
@@ -196,6 +201,7 @@ export function useMediaPlanActions({
     alterDialog,
     revisionsUi,
     openRevision,
+    openRevisionLog,
     revisionPanel,
   }
 }

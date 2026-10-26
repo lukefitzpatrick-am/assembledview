@@ -278,6 +278,12 @@ export function InvoicingPlanRow({
           onSelect: () => mediaActions.openRevision("underspend", String(record.billing_month ?? "").slice(0, 7)),
         })
       }
+      menuItems.push({
+        label: "Billing changes",
+        disabled: !planMp.mbaNumber,
+        disabledReason: planMp.mbaNumber ? undefined : "No MBA number on this row",
+        onSelect: () => mediaActions.openRevisionLog(),
+      })
     } else {
       menuItems.push({
         label: mediaActions.isLoadingAlter ? "Alter billing…" : "Alter billing",
