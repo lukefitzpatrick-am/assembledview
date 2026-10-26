@@ -1148,8 +1148,8 @@ def test_conversions_print_when_present():
     if "Purchases" not in hidden or "Revenue" in hidden or "ROAS" in hidden:
         fail(f"show revenue off still drew Revenue or ROAS: {hidden}")
     untracked = build_conversion_deck(conversion_payload(value_tracked=False), "conversions-untracked")
-    if "Not tracked" not in untracked or "$45,678.50" in untracked:
-        fail(f"untracked revenue was printed: {untracked}")
+    if "Purchases" not in untracked or "Revenue" in untracked or "ROAS" in untracked or "$45,678.50" in untracked:
+        fail(f"no event counts toward revenue but Revenue or ROAS was drawn: {untracked}")
 
 
 def test_conversions_absent_leave_deck_unchanged():

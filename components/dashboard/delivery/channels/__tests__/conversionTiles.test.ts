@@ -8,6 +8,7 @@ import {
   campaignConversionStripCells,
   campaignConversionSummary,
   campaignConversionSummaryKey,
+  conversionKpiTiles,
   mergeConversionTiles,
   spendByLineFromDelivery,
   type DeliveryConversions,
@@ -95,15 +96,54 @@ test("switch off (null) leaves every section as it was", () => {
   assert.equal(applyConversionsToSection(s, null, { window: WINDOW, spendByLine: new Map() }), s)
 })
 
-test("revenue tiles say not tracked when no event counts toward revenue", () => {
+const KPI_INPUT = {
+  totals: { conversions: 5, purchases: 4, leads: 1, revenue: 400 },
+  spend: 100,
+  clicks: 200,
+  headline: "purchases" as const,
+  showRevenue: true,
+  tracked: true,
+  valueTracked: true,
+}
+
+test("kpi tiles: show revenue on and an event counts toward revenue gives Revenue and ROAS", () => {
+  const out = conversionKpiTiles(KPI_INPUT)
+  assert.deepEqual(out.core.map((t) => t.label), ["Purchases", "CVR", "CPA"])
+  assert.deepEqual(out.revenue.map((t) => t.label), ["Revenue", "ROAS"])
+  assert.equal(out.revenue[1]!.value, "4.00x")
+})
+
+test("kpi tiles: no event counts toward revenue gives no Revenue or ROAS tiles", () => {
+  const out = conversionKpiTiles({ ...KPI_INPUT, valueTracked: false })
+  assert.deepEqual(out.core.map((t) => t.label), ["Purchases", "CVR", "CPA"])
+  assert.equal(out.core[0]!.value, "4")
+  assert.deepEqual(out.revenue, [])
+})
+
+test("kpi tiles: show revenue off gives no Revenue or ROAS tiles", () => {
+  const out = conversionKpiTiles({ ...KPI_INPUT, showRevenue: false })
+  assert.deepEqual(out.core.map((t) => t.label), ["Purchases", "CVR", "CPA"])
+  assert.deepEqual(out.revenue, [])
+})
+
+test("kpi tiles: section with no chosen event gives no Revenue or ROAS tiles", () => {
+  const out = conversionKpiTiles({ ...KPI_INPUT, tracked: false })
+  assert.deepEqual(out.core.map((t) => t.value), [null, null, null])
+  assert.deepEqual(out.revenue, [])
+})
+
+test("section: no Revenue or ROAS tiles when no event counts toward revenue", () => {
   const out = applyConversionsToSection(
     section("social-meta", ["curatif004sm1"]),
     { ...CONV, valuePlatforms: [] },
     { window: WINDOW, spendByLine: new Map() },
   )
-  const revenue = out.aggregate.kpiBand.tiles.find((t) => t.label === "Revenue")
-  assert.equal(revenue?.value, null)
-  assert.equal(revenue?.emptyHint, "not-tracked")
+  for (const tiles of [out.aggregate.kpiBand.tiles, out.lineItems[0]!.block.kpiBand.tiles]) {
+    const labels = tiles.map((t) => t.label)
+    assert.ok(labels.includes("Purchases"))
+    assert.ok(!labels.includes("Revenue"))
+    assert.ok(!labels.includes("ROAS"))
+  }
 })
 
 test("campaign summary: counts tracked sections to yesterday, ROAS on revenue-section spend only", () => {
@@ -163,7 +203,7 @@ test("campaign summary: switch off gives null and no strip cells", () => {
   assert.equal(campaignConversionSummaryKey(s), "off")
 })
 
-test("campaign summary: no revenue cells when show revenue is off; dashes when nothing is tracked", () => {
+test("campaign summary: no revenue cells when show revenue is off; dash and no revenue cells when nothing is tracked", () => {
   const noRevenue = campaignConversionSummary([section("social-meta", ["curatif004sm1"])], { ...CONV, showRevenue: false }, {
     window: WINDOW,
     spendByLine: new Map(),
@@ -175,8 +215,28 @@ test("campaign summary: no revenue cells when show revenue is off; dashes when n
     spendByLine: new Map(),
   })
   assert.equal(untracked?.tracked, false)
-  assert.deepEqual(
-    campaignConversionStripCells(untracked)?.map((c) => c.value),
-    ["—", "—", "—"],
-  )
+  assert.deepEqual(campaignConversionStripCells(untracked), [{ key: "conversions", label: "Purchases", value: "—" }])
+})
+
+test("campaign summary: no Revenue or ROAS cells when no section's event counts toward revenue", () => {
+  // Hema case: show revenue on, events chosen on Meta and Google, none count toward revenue.
+  const conv: DeliveryConversions = { ...CONV, trackedPlatforms: ["meta_ads", "google_ads"], valuePlatforms: [] }
+  const s = campaignConversionSummary([section("social-meta", ["curatif004sm1"]), section("search", ["curatif004se1"])], conv, {
+    window: WINDOW,
+    spendByLine: new Map(),
+  })
+  assert.equal(s?.showRevenue, true)
+  assert.equal(s?.valueTracked, false)
+  assert.deepEqual(campaignConversionStripCells(s), [{ key: "conversions", label: "Purchases", value: "4" }])
+})
+
+test("campaign summary: a revenue platform with no section on the campaign adds no revenue cells", () => {
+  // Google counts toward revenue, but this campaign only has Meta.
+  const conv: DeliveryConversions = { ...CONV, trackedPlatforms: ["meta_ads", "google_ads"], valuePlatforms: ["google_ads"] }
+  const s = campaignConversionSummary([section("social-meta", ["curatif004sm1"])], conv, {
+    window: WINDOW,
+    spendByLine: new Map(),
+  })
+  assert.equal(s?.valueTracked, false)
+  assert.deepEqual(campaignConversionStripCells(s)?.map((c) => c.label), ["Purchases"])
 })

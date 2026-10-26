@@ -51,7 +51,11 @@ function spendClicksInWindow(days: readonly LineSpendDay[] | undefined, window: 
   return { spend, clicks }
 }
 
-/** Headline, CVR and CPA tiles, then Revenue and ROAS when the client shows revenue. */
+/**
+ * Headline, CVR and CPA tiles, then Revenue and ROAS only when the client
+ * shows revenue and this section has an event that counts toward revenue
+ * (the Revenue box in client settings). Otherwise no Revenue or ROAS tiles.
+ */
 export function conversionKpiTiles(input: {
   totals: ConversionTotals
   spend: number
@@ -77,13 +81,12 @@ export function conversionKpiTiles(input: {
     },
     { ...base, label: "CPA", value: tracked ? money2(cpa(spend, count)) : null },
   ]
-  if (!input.showRevenue) return { core, revenue: [] }
-  const valueOn = tracked && input.valueTracked
+  if (!input.showRevenue || !tracked || !input.valueTracked) return { core, revenue: [] }
   return {
     core,
     revenue: [
-      { ...base, label: "Revenue", value: valueOn ? formatMoney(totals.revenue) : null },
-      { ...base, label: "ROAS", value: valueOn ? formatRoas(roas(totals.revenue, spend)) : null },
+      { ...base, label: "Revenue", value: formatMoney(totals.revenue) },
+      { ...base, label: "ROAS", value: formatRoas(roas(totals.revenue, spend)) },
     ],
   }
 }
@@ -285,7 +288,11 @@ export function campaignConversionSummaryKey(summary: CampaignConversionSummary 
   ].join("|")
 }
 
-/** Strip cells: headline, then Revenue and ROAS when the client shows revenue. Null when off. */
+/**
+ * Strip cells: headline, then Revenue and ROAS only when the client shows
+ * revenue and a section on this campaign has an event that counts toward
+ * revenue. Null when off.
+ */
 export function campaignConversionStripCells(
   summary: CampaignConversionSummary | null,
 ): Array<{ key: string; label: string; value: string }> | null {
@@ -293,10 +300,9 @@ export function campaignConversionStripCells(
   const cells = [
     { key: "conversions", label: summary.label, value: summary.tracked ? whole(summary.count) : "—" },
   ]
-  if (summary.showRevenue) {
-    const valueOn = summary.tracked && summary.valueTracked
-    cells.push({ key: "revenue", label: "Revenue", value: valueOn ? formatMoneyCompact(summary.revenue) : "—" })
-    cells.push({ key: "roas", label: "ROAS", value: valueOn ? formatRoas(summary.roas) : "—" })
+  if (summary.showRevenue && summary.tracked && summary.valueTracked) {
+    cells.push({ key: "revenue", label: "Revenue", value: formatMoneyCompact(summary.revenue) })
+    cells.push({ key: "roas", label: "ROAS", value: formatRoas(summary.roas) })
   }
   return cells
 }

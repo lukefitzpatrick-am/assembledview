@@ -744,8 +744,9 @@ NOT_TRACKED = "Not tracked"
 
 def conversion_entries(data, figures, at):
     """CF5 conversions, as the Node deck prints them: the client's headline
-    (Purchases, Leads or Conversions), then Revenue and ROAS when the client
-    shows revenue. Empty when report-data.json has no conversions (switch off)
+    (Purchases, Leads or Conversions), then Revenue and ROAS only when the
+    client shows revenue and this scope has an event that counts toward
+    revenue. Empty when report-data.json has no conversions (switch off)
     or this scope has no figures."""
     settings = data.get("conversions") if isinstance(data, dict) else None
     if not isinstance(settings, dict) or not isinstance(figures, dict):
@@ -755,12 +756,12 @@ def conversion_entries(data, figures, at):
         label = "Conversions"
     count = figures.get("count")
     entries = [(label.strip(), str(count) if reported_value(count) else NOT_TRACKED, f"{at}.count")]
-    if settings.get("showRevenue") is True:
-        value_on = figures.get("tracked") is True and figures.get("valueTracked") is True
+    value_on = figures.get("tracked") is True and figures.get("valueTracked") is True
+    if settings.get("showRevenue") is True and value_on:
         revenue = figures.get("revenue")
         roas = figures.get("roas")
-        entries.append(("Revenue", str(revenue) if value_on and reported_value(revenue) else NOT_TRACKED, f"{at}.revenue"))
-        entries.append(("ROAS", f"{roas}x" if value_on and reported_value(roas) else NOT_TRACKED, f"{at}.roas"))
+        entries.append(("Revenue", str(revenue) if reported_value(revenue) else NOT_TRACKED, f"{at}.revenue"))
+        entries.append(("ROAS", f"{roas}x" if reported_value(roas) else NOT_TRACKED, f"{at}.roas"))
     return entries
 
 

@@ -82,7 +82,19 @@ test("switch on: summary shows Purchases, Revenue and ROAS; channel tables swap 
   const search = slides.find((xml) => xml.includes("Search data."))
   assert.ok(search)
   assert.match(search, />234</)
-  assert.match(search, /Not tracked/, "search revenue not tracked")
+  assert.doesNotMatch(search, />Revenue</, "no search event counts toward revenue")
+  assert.doesNotMatch(search, />ROAS</, "no search event counts toward revenue")
+})
+
+test("deck figures: no Revenue or ROAS when no event counts toward revenue", () => {
+  const settings = { headline: "purchases" as const, label: "Purchases", showRevenue: true, throughDate: "2026-10-20" }
+  assert.deepEqual(deckConversionFigures({ conversions: settings }, fig({ count: 5, revenue: null, roas: null, valueTracked: false })), [
+    { label: "Purchases", value: "5" },
+  ])
+  assert.deepEqual(
+    deckConversionFigures({ conversions: settings }, fig({})).map((f) => f.label),
+    ["Purchases", "Revenue", "ROAS"],
+  )
 })
 
 test("switch off: deck unchanged (Results row, no ROAS)", async () => {

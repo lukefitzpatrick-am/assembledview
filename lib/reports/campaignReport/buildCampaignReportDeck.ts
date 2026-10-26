@@ -436,7 +436,8 @@ const NOT_TRACKED = "Not tracked"
 
 /**
  * Conversion figures for the deck (CF5): the client's headline, then Revenue
- * and ROAS when the client shows revenue. Empty when the switch is off.
+ * and ROAS only when the client shows revenue and this scope has an event
+ * that counts toward revenue. Empty when the switch is off.
  */
 export function deckConversionFigures(
   payload: Pick<CampaignReportPayload, "conversions">,
@@ -447,13 +448,12 @@ export function deckConversionFigures(
   const out = [
     { label: settings.label, value: figures.count == null ? NOT_TRACKED : formatReportInt(figures.count) },
   ]
-  if (settings.showRevenue) {
-    const valueOn = figures.tracked && figures.valueTracked
+  if (settings.showRevenue && figures.tracked && figures.valueTracked) {
     out.push({
       label: "Revenue",
-      value: valueOn && figures.revenue != null ? formatReportMoney(figures.revenue) : NOT_TRACKED,
+      value: figures.revenue != null ? formatReportMoney(figures.revenue) : NOT_TRACKED,
     })
-    out.push({ label: "ROAS", value: valueOn ? formatRoas(figures.roas) : NOT_TRACKED })
+    out.push({ label: "ROAS", value: formatRoas(figures.roas) })
   }
   return out
 }
