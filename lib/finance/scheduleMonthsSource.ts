@@ -24,6 +24,8 @@ import {
   scheduleMonthYearToIso,
 } from "@/lib/finance/computeCampaignFinancials"
 import { attachFinancePlanLines, type FinancePlanLine } from "@/lib/finance/financeScheduleHeaders"
+import { attachFinanceProductionLines } from "@/lib/finance/financeExportProductionRows"
+import { loadProductionPlanLinesForVersions } from "@/lib/finance/loadProductionPlanLines"
 import { getBillingSchedule, getDeliverySchedule } from "@/lib/finance/normalizeFields"
 import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import {
@@ -772,6 +774,20 @@ export async function hydrateVersionsFinanceScheduleSource(
   } catch (err) {
     console.error(
       "[finance-schedule] failed to load line_items client_pays; refusal stays blob-flag-only",
+      err
+    )
+  }
+
+  // Production plan lines (publisher + bursts) for the G./D. production split.
+  try {
+    const productionByVersion = await loadProductionPlanLinesForVersions(versionIds)
+    for (const version of versions) {
+      const versionId = Number(version.id ?? version.version_id ?? 0)
+      attachFinanceProductionLines(version, productionByVersion.get(versionId) ?? [])
+    }
+  } catch (err) {
+    console.error(
+      "[finance-schedule] failed to load production lines; production split reads the billing month headers",
       err
     )
   }

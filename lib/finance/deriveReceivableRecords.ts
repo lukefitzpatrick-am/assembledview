@@ -18,6 +18,12 @@ import {
 } from "@/lib/finance/financeScheduleHeaders"
 import { overlayClientPaysFromPlanLines } from "@/lib/finance/planLineClientPays"
 import {
+  getFinanceProductionLines,
+  productionPlanLinesFromBillingMonth,
+  productionServiceRowsForMonth,
+} from "@/lib/finance/financeExportProductionRows"
+import { classifyBillingAgency } from "@/lib/finance/billingAgency"
+import {
   financeMediaLinesFromBillingMonth,
   serviceAmountsFromBillingMonth,
 } from "@/lib/finance/scheduleMonthFinanceExtract"
@@ -119,13 +125,28 @@ export function derivePlanReceivableBillingRecordsForMonth(
   publisherMap: Map<string, unknown>,
   clientMap: Map<string, unknown>,
   mbaIdentifiers: ClientMbaIdentifierEntry[],
-  options: { includeNonBookedCampaigns: boolean }
+  options: {
+    includeNonBookedCampaigns: boolean
+    /**
+     * Production publisher to "bills via AA" for the G./D. production split.
+     * Compose passes the shared AA resolver (`createBillsViaAdvertisingAssociates`,
+     * name, alias, publisherid). Default: exact trimmed name in `publisherMap`.
+     */
+    billsViaAdvertisingAssociates?: (publisher: string) => boolean
+  }
 ): BillingRecord[] {
   console.log("[finance-derive] mbaIdentifiers triage", {
     count: mbaIdentifiers.length,
     sample: mbaIdentifiers.slice(0, 5),
   })
   const billingMonthKey = `${year}-${String(month).padStart(2, "0")}`
+  const billsViaAdvertisingAssociates =
+    options.billsViaAdvertisingAssociates ??
+    ((publisher: string) =>
+      classifyBillingAgency(
+        (publisherMap.get(publisher.trim()) as { billingagency?: string | null } | undefined)
+          ?.billingagency
+      ) === "AA")
   const out: BillingRecord[] = []
   let syntheticId = 1
 
@@ -224,7 +245,27 @@ export function derivePlanReceivableBillingRecordsForMonth(
     }
 
     pushFee("T.Adserving", "Adserving and Tech Fees", serviceAmounts.adservingTechFees)
-    pushFee("Production", "Production", serviceAmounts.production)
+    // Production bills once (month header), as G./D.Production by the same
+    // rule as the hub Excel (`productionServiceRowsForMonth`).
+    if (serviceAmounts.production > 0) {
+      const productionRows = productionServiceRowsForMonth({
+        production: serviceAmounts.production,
+        mediaItemCodes: financeMediaLines.map((li) => li.itemCode),
+        billingSchedule: financials.billingSchedule,
+        year,
+        month,
+        lines:
+          getFinanceProductionLines(version) ??
+          productionPlanLinesFromBillingMonth(financials.billingSchedule, year, month),
+        billsViaAdvertisingAssociates,
+      }).filter((row) => row.amount > 0)
+      const split = productionRows.length > 1
+      for (const row of productionRows) {
+        const before = feeLines.length
+        pushFee(row.itemCode, row.service, row.amount)
+        if (split && feeLines.length > before) feeLines[feeLines.length - 1]!.production_split = true
+      }
+    }
     pushFee("Service", "Assembled Fee", serviceAmounts.assembledFee)
 
     const line_items = [...mediaLines, ...feeLines]

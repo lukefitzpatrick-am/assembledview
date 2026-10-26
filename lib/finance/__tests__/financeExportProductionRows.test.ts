@@ -35,6 +35,8 @@ test("one code only keeps the full production under that code", () => {
     }),
     [{ itemCode: "D.Production", service: "Production", amount: 2650 }],
   )
+  // No media at all (production-only month, 26 Oct 2026): split by production
+  // publisher like the both-codes case; no usable lines puts it all under D.
   assert.deepEqual(
     buildProductionServiceRows({
       production: 2650,
@@ -43,7 +45,17 @@ test("one code only keeps the full production under that code", () => {
       lineAmounts: [],
       billsViaAdvertisingAssociates: billsViaAA,
     }),
-    [],
+    [{ itemCode: "D.Production", service: "Production", amount: 2650 }],
+  )
+  assert.deepEqual(
+    buildProductionServiceRows({
+      production: 2650,
+      hasAdvertisingAssociates: false,
+      hasAssembledMedia: false,
+      lineAmounts: [{ lineItemId: "X1PROD1", publisher: "SCA", amount: 2650 }],
+      billsViaAdvertisingAssociates: billsViaAA,
+    }),
+    [{ itemCode: "G.Production", service: "Production", amount: 2650 }],
   )
 })
 

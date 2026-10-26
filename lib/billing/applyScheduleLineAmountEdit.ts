@@ -89,7 +89,8 @@ export function feeItemCodeToCostField(
 ): ScheduleMonthCostField | null {
   const code = itemCode.trim().toLowerCase()
   if (code === "t.adserving") return "adservingTechFees"
-  if (code === "production") return "production"
+  // G./D.Production are the month production split by publisher (26 Oct 2026).
+  if (code === "production" || code === "g.production" || code === "d.production") return "production"
   if (code === "service") return "feeTotal"
   return null
 }

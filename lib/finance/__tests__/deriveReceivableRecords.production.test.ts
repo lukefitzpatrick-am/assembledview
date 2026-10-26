@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { derivePlanReceivableBillingRecordsForMonth } from "../deriveReceivableRecords.js"
+import { isProductionItemCode } from "../productionItemCodes.js"
 
 /**
  * TheY001 v17 October 2026 shape (trimmed): production sits in the month
@@ -70,8 +71,12 @@ test("production bills once: no Production media line, one Production service ro
   assert.ok(record)
   const media = record.line_items.filter((l) => l.line_type === "media")
   assert.equal(media.some((l) => l.media_type === "Production"), false)
-  const production = record.line_items.filter((l) => l.item_code === "Production")
+  const production = record.line_items.filter((l) => isProductionItemCode(l.item_code))
   assert.equal(production.length, 1)
+  // Media under G. (QMS) and D. (Meta): split by production publisher.
+  // "Go Transit" is not in this publisher map, so it goes to D.
+  assert.equal(production[0]!.item_code, "D.Production")
+  assert.equal(production[0]!.line_type, "service")
   assert.equal(production[0]!.amount, 13198)
 })
 

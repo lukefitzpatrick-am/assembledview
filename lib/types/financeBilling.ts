@@ -46,6 +46,12 @@ export interface BillingLineItem {
   schedule_line_item_id?: string | null
   /** Persisted schedule `billingMode` when known (media lines). */
   billing_mode?: "auto" | "manual" | null
+  /**
+   * True on a G./D.Production row that is one share of a month's production
+   * split by publisher. Its amount is not the whole month production, so it
+   * is not edited inline.
+   */
+  production_split?: boolean
 }
 
 /** Accrual grid synthetic rows (month detail, per-client subtotal, grand total). */

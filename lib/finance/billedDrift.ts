@@ -1,3 +1,5 @@
+import { isProductionItemCode } from "@/lib/finance/productionItemCodes"
+
 /** Minimal line snapshot used for billed-set hashing (server + client + tests). */
 export type BilledLineSnapshot = {
   item_code: string
@@ -88,16 +90,37 @@ export function detectBilledDrift(input: DetectBilledDriftInput): DetectBilledDr
   }
 }
 
+/**
+ * Production service rows (G.Production, D.Production, older "Production")
+ * fold into one "Production" snapshot line with their summed amount, so the
+ * 26 Oct 2026 G./D. split does not flag drift on months approved or billed
+ * before it. A real production amount change still changes the hash.
+ */
 export function toBilledLineSnapshots(
   lines: Array<{
     item_code?: string | null
     amount?: number | null
     schedule_line_item_id?: string | null
+    line_type?: string | null
   }>
 ): BilledLineSnapshot[] {
-  return lines.map((l) => ({
-    item_code: typeof l.item_code === "string" ? l.item_code : "",
-    amount: typeof l.amount === "number" && Number.isFinite(l.amount) ? l.amount : 0,
-    schedule_line_item_id: l.schedule_line_item_id ?? null,
-  }))
+  const out: BilledLineSnapshot[] = []
+  let productionCents: number | null = null
+  for (const l of lines) {
+    const amount = typeof l.amount === "number" && Number.isFinite(l.amount) ? l.amount : 0
+    const id = l.schedule_line_item_id ?? null
+    if (!(id ?? "").trim() && l.line_type !== "media" && isProductionItemCode(l.item_code)) {
+      productionCents = (productionCents ?? 0) + Math.round(amount * 100)
+      continue
+    }
+    out.push({
+      item_code: typeof l.item_code === "string" ? l.item_code : "",
+      amount,
+      schedule_line_item_id: id,
+    })
+  }
+  if (productionCents !== null) {
+    out.push({ item_code: "Production", amount: productionCents / 100, schedule_line_item_id: null })
+  }
+  return out
 }

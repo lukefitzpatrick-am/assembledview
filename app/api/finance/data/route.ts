@@ -16,20 +16,15 @@ import { requireFinanceAdmin } from "@/lib/requireRole"
 import { readClientsList } from "@/lib/data/readClients"
 import { readPublishersList } from "@/lib/data/readPublishers"
 import {
-  buildProductionServiceRows,
-  productionLineMonthAmounts,
-  type ProductionPlanLine,
+  getFinanceProductionLines,
+  productionPlanLinesFromBillingMonth,
+  productionServiceRowsForMonth,
 } from "@/lib/finance/financeExportProductionRows"
-import { loadProductionPlanLinesForVersions } from "@/lib/finance/loadProductionPlanLines"
-import {
-  isAdvertisingAssociatesPublisher,
-  publisherResolver,
-} from "@/lib/mediaplan/advertisingAssociatesExcel"
-import type { Publisher } from "@/lib/types/publisher"
 import {
   buildPublisherByNameMap,
   type PublisherIdentityRow,
 } from "@/lib/publisher/publisherUniqueness"
+import { createBillsViaAdvertisingAssociates } from "@/lib/publisher/resolvePublisherName"
 
 export const maxDuration = 60
 
@@ -94,20 +89,12 @@ export async function GET(request: NextRequest) {
       publishers as unknown as Array<PublisherIdentityRow & Record<string, unknown>>
     )
 
-    // Production publisher per line, for splitting production across G./D. codes.
-    const resolvePublisher = publisherResolver(publishers as unknown as Publisher[])
-    const billsViaAdvertisingAssociates = (name: string) => {
-      const pub = resolvePublisher(name)
-      return pub ? isAdvertisingAssociatesPublisher(pub) : false
-    }
-    let productionLinesByVersion = new Map<number, ProductionPlanLine[]>()
-    try {
-      productionLinesByVersion = await loadProductionPlanLinesForVersions(
-        relevantVersions.map((v) => Number(v.id ?? v.version_id ?? 0))
-      )
-    } catch (err) {
-      console.error("[finance-data] failed to load production lines; production goes to one code", err)
-    }
+    // Production publisher per line, for splitting production across G./D.
+    // codes. Same resolver and rule as receivables derive (Send to accounts,
+    // Clients billing review download). Lines are attached by hydrate.
+    const billsViaAdvertisingAssociates = createBillsViaAdvertisingAssociates(
+      publishers as unknown as PublisherIdentityRow[]
+    )
 
     const bookedApprovedCampaigns: Record<string, unknown>[] = []
     const otherCampaigns: Record<string, unknown>[] = []
@@ -160,28 +147,19 @@ export async function GET(request: NextRequest) {
         amount: serviceAmounts.adservingTechFees,
       })
 
-      const hasAdvertisingAssociates = mergedLineItems.some((li) => li.itemCode.startsWith("G."))
-      const hasAssembledMedia = mergedLineItems.some((li) => li.itemCode.startsWith("D."))
-
-      // Both codes: split production by production publisher (never the full
-      // amount under both). One code: the full amount under it.
+      // One production rule for every finance output (productionServiceRowsForMonth):
+      // one media code = full production under it; both codes or no media =
+      // split by production publisher. Never the full amount under both.
       serviceRows.push(
-        ...buildProductionServiceRows({
+        ...productionServiceRowsForMonth({
           production: serviceAmounts.production,
-          hasAdvertisingAssociates,
-          hasAssembledMedia,
-          lineAmounts:
-            hasAdvertisingAssociates && hasAssembledMedia
-              ? productionLineMonthAmounts({
-                  billingSchedule,
-                  year,
-                  month,
-                  lines:
-                    productionLinesByVersion.get(
-                      Number(version.id ?? version.version_id ?? 0)
-                    ) ?? [],
-                })
-              : [],
+          mediaItemCodes: mergedLineItems.map((li) => li.itemCode),
+          billingSchedule,
+          year,
+          month,
+          lines:
+            getFinanceProductionLines(version as Record<string, unknown>) ??
+            productionPlanLinesFromBillingMonth(billingSchedule, year, month),
           billsViaAdvertisingAssociates,
         }).map((row) => ({ ...row }))
       )

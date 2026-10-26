@@ -12,6 +12,7 @@
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { toCents } from "@/lib/money"
 import type { BillingRecord } from "@/lib/types/financeBilling"
+import { isProductionItemCode } from "@/lib/finance/productionItemCodes"
 
 /** A gap this size or smaller is called rounding when nothing else explains it. */
 export const ROUNDING_TOLERANCE_CENTS = 2
@@ -326,7 +327,7 @@ export function exportFactsFromRecord(record: Pick<BillingRecord, "total" | "lin
     const cents = dollarsToWholeCents(line.amount)
     if (line.item_code === "Service") feeCents += cents
     else if (line.item_code === "T.Adserving") adservingCents += cents
-    else if (line.item_code === "Production") productionCents += cents
+    else if (isProductionItemCode(line.item_code)) productionCents += cents
   }
   const versionId = Number(record.media_plan_version_id)
   return {

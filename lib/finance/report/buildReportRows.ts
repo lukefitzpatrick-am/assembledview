@@ -1,6 +1,7 @@
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import type { ReportLine } from "@/lib/finance/extractReportLinesFromBillingSchedule"
 import { classifyBillingAgency } from "@/lib/finance/billingAgency"
+import { isProductionItemCode } from "@/lib/finance/productionItemCodes"
 import type { ReportRow } from "./types"
 import { roundMoney2 } from "@/lib/money/cents"
 
@@ -143,7 +144,7 @@ function serviceRowFromLineItem(
   if (line.item_code === "T.Adserving") {
     return serviceRow(record, "adServing", "Ad Serving", line.amount)
   }
-  if (line.item_code === "Production") {
+  if (isProductionItemCode(line.item_code)) {
     return serviceRow(record, "production", "Production", line.amount)
   }
   if (!hasReportLines && line.item_code === "Service") {

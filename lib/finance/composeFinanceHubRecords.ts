@@ -19,6 +19,7 @@ import {
 import { financeClientNamesMatch } from "@/lib/finance/utils"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { buildPublisherByNameMap, type PublisherIdentityRow } from "@/lib/publisher/publisherUniqueness"
+import { createBillsViaAdvertisingAssociates } from "@/lib/publisher/resolvePublisherName"
 
 /**
  * Per-month record composition shared by the single-month and multi-month
@@ -130,7 +131,13 @@ export function composeBillingRecordsForMonth(inputs: ComposeBillingMonthInputs)
       publisherNameMap,
       clientMap,
       mbaIdentifiers,
-      { includeNonBookedCampaigns: includeNonBooked }
+      {
+        includeNonBookedCampaigns: includeNonBooked,
+        // G./D. production split: same resolver as the hub Excel and AA plan.
+        billsViaAdvertisingAssociates: createBillsViaAdvertisingAssociates(
+          publishers as unknown as PublisherIdentityRow[],
+        ),
+      }
     )
     derived.push(...fromPlans)
   }

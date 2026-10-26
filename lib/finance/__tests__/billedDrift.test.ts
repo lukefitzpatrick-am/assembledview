@@ -137,3 +137,28 @@ test("detectBilledDrift: legacy billed row without stored amount does not invent
   assert.equal(result.drift, false)
   assert.equal(result.delta, null)
 })
+
+test("G./D. production split hashes the same as the older single Production row", async () => {
+  const { hashBilledLineSet, toBilledLineSnapshots } = await import("@/lib/finance/billedDrift")
+  const before = hashBilledLineSet(
+    toBilledLineSnapshots([
+      { item_code: "G.OOH", amount: 1000, schedule_line_item_id: "X1OH1" },
+      { item_code: "Production", amount: 500, schedule_line_item_id: null },
+    ])
+  )
+  const split = hashBilledLineSet(
+    toBilledLineSnapshots([
+      { item_code: "G.OOH", amount: 1000, schedule_line_item_id: "X1OH1" },
+      { item_code: "G.Production", amount: 300.1, schedule_line_item_id: null },
+      { item_code: "D.Production", amount: 199.9, schedule_line_item_id: null },
+    ])
+  )
+  assert.equal(split, before)
+  const changed = hashBilledLineSet(
+    toBilledLineSnapshots([
+      { item_code: "G.OOH", amount: 1000, schedule_line_item_id: "X1OH1" },
+      { item_code: "D.Production", amount: 450, schedule_line_item_id: null },
+    ])
+  )
+  assert.notEqual(changed, before)
+})

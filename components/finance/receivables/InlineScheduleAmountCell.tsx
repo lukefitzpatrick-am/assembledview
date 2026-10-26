@@ -21,6 +21,7 @@ import {
 } from "@/lib/finance/commitInlineScheduleAmountEdit"
 import { formatAUD } from "@/lib/format/money"
 import type { BillingLineItem } from "@/lib/types/financeBilling"
+import { isProductionItemCode } from "@/lib/finance/productionItemCodes"
 import { cn } from "@/lib/utils"
 
 type InlineScheduleAmountCellProps = {
@@ -71,7 +72,9 @@ export function InlineScheduleAmountCell({
     ctx != null &&
     ((line.line_type === "media" && Boolean(line.schedule_line_item_id?.trim())) ||
       (line.line_type === "service" &&
-        ["T.Adserving", "Production", "Service"].includes(line.item_code)))
+        (["T.Adserving", "Service"].includes(line.item_code) ||
+          // A split G./D.Production share is not the whole month production.
+          (isProductionItemCode(line.item_code) && line.production_split !== true))))
 
   useEffect(() => {
     if (!editing) setDraft(line.amount)
