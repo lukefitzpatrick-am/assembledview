@@ -30,6 +30,7 @@ import {
   resolveScopeIdForSave,
   scopeValidationToastDescription,
 } from "@/lib/scopes/scopeForm"
+import { scopeBreakdownCheck } from "@/lib/scopes/scopeBreakdownCheck"
 
 const scopeSchema = z.object({
   client_name: z.string().min(1, "Client name is required"),
@@ -338,7 +339,11 @@ export default function EditScopePage() {
   }, [clients, scopeData, form])
 
   // Calculate total cost
-  const totalCost = form.watch("cost").reduce((sum, item) => sum + (Number(item.cost) || 0), 0)
+  const watchedCost = form.watch("cost")
+  const watchedBilling = form.watch("billing_schedule")
+  const totalCost = watchedCost.reduce((sum, item) => sum + (Number(item.cost) || 0), 0)
+  // Warning only: `cost` has no fixed meaning, so a mismatch never blocks Save.
+  const breakdown = scopeBreakdownCheck({ cost: watchedCost, billing_schedule: watchedBilling })
 
   const handleCostChange = (index: number, field: "expense_category" | "description" | "cost", value: string | number) => {
     const currentCost = form.getValues("cost")
@@ -1054,6 +1059,18 @@ export default function EditScopePage() {
                 </Button>
               </CardContent>
             </Card>
+            {!breakdown.matches ? (
+              <div
+                role="status"
+                className="rounded-card border border-status-warning/40 bg-surface-panel px-3 py-2 text-sm text-status-warning-foreground"
+              >
+                <p className="font-medium">Cost lines and billing schedule differ</p>
+                <p>
+                  Cost lines total {formatAUD(breakdown.costTotal)}. Billing schedule totals{" "}
+                  {formatAUD(breakdown.scheduleTotal)}. You can still save.
+                </p>
+              </div>
+            ) : null}
           </form>
         </Form>
       </div>
