@@ -25,6 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatAUD } from "@/lib/format/money"
 import { formArrayErrorMessage } from "@/lib/scopes/formArrayError"
+import { normaliseScopeCostRows, scopeValidationToastDescription } from "@/lib/scopes/scopeForm"
 
 const scopeSchema = z.object({
   client_name: z.string().min(1, "Client name is required"),
@@ -247,7 +248,7 @@ export default function CreateScopePage() {
   }, [clientName, clients])
 
   // Calculate total cost
-  const totalCost = form.watch("cost").reduce((sum, item) => sum + (item.cost || 0), 0)
+  const totalCost = form.watch("cost").reduce((sum, item) => sum + (Number(item.cost) || 0), 0)
 
   const handleCostChange = (index: number, field: "expense_category" | "description" | "cost", value: string | number) => {
     const currentCost = form.getValues("cost")
@@ -311,6 +312,26 @@ export default function CreateScopePage() {
     }
   }
 
+  const onInvalid = (errors: unknown) => {
+    toast({
+      title: "Scope not saved",
+      description: scopeValidationToastDescription(errors),
+      variant: "destructive",
+    })
+  }
+
+  // Save always coerces typed costs to numbers, then validates, and names
+  // the failing fields in a toast. Used by the footer button and Enter.
+  const handleSave = () => {
+    const normalised = normaliseScopeCostRows({
+      cost: form.getValues("cost"),
+      billing_schedule: form.getValues("billing_schedule"),
+    })
+    form.setValue("cost", normalised.cost)
+    form.setValue("billing_schedule", normalised.billing_schedule)
+    void form.handleSubmit(onSubmit, onInvalid)()
+  }
+
   const handleDownload = async () => {
     setIsDownloading(true)
     try {
@@ -363,13 +384,10 @@ export default function CreateScopePage() {
 
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit, () => {
-              toast({
-                title: "Fix validation errors",
-                description: "Check cost and billing schedule fields highlighted below.",
-                variant: "destructive",
-              })
-            })}
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleSave()
+            }}
             className="space-y-6"
           >
             <Card>
@@ -969,7 +987,7 @@ export default function CreateScopePage() {
             {isDownloading ? "Downloading..." : "Download Scope"}
           </Button>
           <Button
-            onClick={form.handleSubmit(onSubmit)}
+            onClick={handleSave}
             disabled={isSaving || Boolean(clientsError) || (Boolean(selectedClient) && !scopeId)}
           >
             <Save className="mr-2 h-4 w-4" />

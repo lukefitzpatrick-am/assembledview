@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -25,6 +25,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatAUD } from "@/lib/format/money"
 import { formArrayErrorMessage } from "@/lib/scopes/formArrayError"
+import {
+  normaliseScopeCostRows,
+  resolveScopeIdForSave,
+  scopeValidationToastDescription,
+} from "@/lib/scopes/scopeForm"
 
 const scopeSchema = z.object({
   client_name: z.string().min(1, "Client name is required"),
@@ -137,6 +142,9 @@ export default function EditScopePage() {
   const [latestVersion, setLatestVersion] = useState<number>(1)
   const [scopeId, setScopeId] = useState<string>("")
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  // The form resets from the stored scope exactly once per scope id. The
+  // client list loading later must never reset what the user has typed.
+  const resetForIdRef = useRef<string | null>(null)
 
   const form = useForm<ScopeFormValues>({
     resolver: zodResolver(scopeSchema),
@@ -232,12 +240,6 @@ export default function EditScopePage() {
           setLatestVersion(maxVersion)
         }
 
-        // Find the client to get mbaidentifier
-        const client = clients.find(c => 
-          (c.clientname_input || c.mp_client_name) === data.client_name
-        )
-        setSelectedClient(client || null)
-
         // Parse cost if it's a string
         let costData = data.cost || []
         if (typeof costData === "string") {
@@ -271,16 +273,15 @@ export default function EditScopePage() {
           }]
         }
 
-        // Generate new scope_id based on new version
+        // scope_version still goes up for the document. scope_id is fixed at
+        // creation and never follows the version (finance keys use it).
         const newVersion = maxVersion + 1
-        let newScopeId = ""
-        if (client?.mbaidentifier) {
-          const scopeIdPrefix = `${client.mbaidentifier}_sow`
-          newScopeId = `${scopeIdPrefix}${newVersion.toString().padStart(3, "0")}`
-        }
-        setScopeId(newScopeId)
+        const storedScopeId = String(data.scope_id ?? "").trim()
+        setScopeId(storedScopeId)
 
-        // Populate form
+        // Populate form once. A re-run of this effect must not wipe edits.
+        if (resetForIdRef.current === id) return
+        resetForIdRef.current = id
         form.reset({
           client_name: data.client_name || "",
           contact_name: data.contact_name || "",
@@ -300,7 +301,7 @@ export default function EditScopePage() {
           cost: costData,
           payment_terms_and_conditions: data.payment_terms_and_conditions || "",
           billing_schedule: billingScheduleData,
-          scope_id: newScopeId,
+          scope_id: storedScopeId,
         })
       } catch (error) {
         console.error("Error fetching scope:", error)
@@ -315,21 +316,29 @@ export default function EditScopePage() {
       }
     }
     fetchScopeData()
-  }, [id, form, router, clients])
+  }, [id, form, router])
 
-  // Watch scope version to update scope_id
-  const scopeVersion = form.watch("scope_version")
+  // Resolve the client once both lists are in. This never resets the form.
+  // A legacy scope with no stored id gets one generated here, once.
   useEffect(() => {
-    if (selectedClient?.mbaidentifier && scopeVersion) {
-      const scopeIdPrefix = `${selectedClient.mbaidentifier}_sow`
-      const newScopeId = `${scopeIdPrefix}${scopeVersion.toString().padStart(3, "0")}`
-      setScopeId(newScopeId)
-      form.setValue("scope_id", newScopeId)
+    if (!scopeData) return
+    const client = clients.find(
+      (c) => (c.clientname_input || c.mp_client_name) === scopeData.client_name
+    )
+    setSelectedClient(client || null)
+    if (!String(scopeData.scope_id ?? "").trim() && client?.mbaidentifier && !form.getValues("scope_id")) {
+      const generated = resolveScopeIdForSave({
+        storedScopeId: "",
+        clientMbaIdentifier: client.mbaidentifier,
+        scopeVersion: form.getValues("scope_version"),
+      })
+      setScopeId(generated)
+      form.setValue("scope_id", generated)
     }
-  }, [scopeVersion, selectedClient, form])
+  }, [clients, scopeData, form])
 
   // Calculate total cost
-  const totalCost = form.watch("cost").reduce((sum, item) => sum + (item.cost || 0), 0)
+  const totalCost = form.watch("cost").reduce((sum, item) => sum + (Number(item.cost) || 0), 0)
 
   const handleCostChange = (index: number, field: "expense_category" | "description" | "cost", value: string | number) => {
     const currentCost = form.getValues("cost")
@@ -361,12 +370,12 @@ export default function EditScopePage() {
     }
     setIsSaving(true)
     try {
-      // Generate new scope_id based on the version being saved
-      let newScopeId = scopeId
-      if (selectedClient?.mbaidentifier) {
-        const scopeIdPrefix = `${selectedClient.mbaidentifier}_sow`
-        newScopeId = `${scopeIdPrefix}${data.scope_version.toString().padStart(3, "0")}`
-      }
+      // scope_id is stable: saving never renames the scope.
+      const newScopeId = resolveScopeIdForSave({
+        storedScopeId: scopeData?.scope_id || scopeId,
+        clientMbaIdentifier: selectedClient?.mbaidentifier,
+        scopeVersion: data.scope_version,
+      })
 
       const response = await fetch(`/api/scopes-of-work/${id}`, {
         method: "PUT",
@@ -398,6 +407,26 @@ export default function EditScopePage() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const onInvalid = (errors: unknown) => {
+    toast({
+      title: "Scope not saved",
+      description: scopeValidationToastDescription(errors),
+      variant: "destructive",
+    })
+  }
+
+  // Save always coerces typed costs to numbers, then validates, and names
+  // the failing fields in a toast. Used by the footer button and Enter.
+  const handleSave = () => {
+    const normalised = normaliseScopeCostRows({
+      cost: form.getValues("cost"),
+      billing_schedule: form.getValues("billing_schedule"),
+    })
+    form.setValue("cost", normalised.cost)
+    form.setValue("billing_schedule", normalised.billing_schedule)
+    void form.handleSubmit(onSubmit, onInvalid)()
   }
 
   const handleDownload = async () => {
@@ -463,13 +492,10 @@ export default function EditScopePage() {
 
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit, () => {
-              toast({
-                title: "Fix validation errors",
-                description: "Check cost and billing schedule fields highlighted below.",
-                variant: "destructive",
-              })
-            })}
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleSave()
+            }}
             className="space-y-6"
           >
             <Card>
@@ -1044,7 +1070,7 @@ export default function EditScopePage() {
             {isDownloading ? "Downloading..." : "Download Scope"}
           </Button>
           <Button
-            onClick={form.handleSubmit(onSubmit)}
+            onClick={handleSave}
             disabled={isSaving || Boolean(clientsError)}
           >
             <Save className="mr-2 h-4 w-4" />
