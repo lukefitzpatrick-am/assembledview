@@ -30,7 +30,7 @@ describe("custom report range", () => {
 
   it("keeps the presets as they were", () => {
     assert.deepEqual(resolveReportWindows("month_to_date_yoy", TODAY).previous, { from: "2025-10-01", to: "2025-10-26" })
-    assert.deepEqual(resolveReportWindows("last_28_days", TODAY).current, { from: "2026-09-29", to: TODAY })
+    assert.deepEqual(resolveReportWindows("last_28_days", TODAY).current, { from: "2026-09-28", to: "2026-10-25" })
   })
 
   it("validates order, yesterday in Sydney, and two years at most", () => {

@@ -1,7 +1,8 @@
 /**
  * Report windows. Dates are civil YYYY-MM-DD. The previous window is the
  * comparable period for the chosen default: the month before, the 28 days
- * before, or the same month last year.
+ * before, or the same month last year. "today" is the Sydney civil date; the
+ * last 28 days end yesterday, the 28 days before are the comparison.
  */
 
 export const REPORT_PERIODS = ["last_month", "last_28_days", "month_to_date_yoy"] as const
@@ -113,14 +114,16 @@ export function resolveReportWindows(period: ReportPeriod, today: string): Repor
   }
 
   if (period === "last_28_days") {
-    const current = { from: addIsoDays(today, -27), to: today }
+    // Ends yesterday (Sydney), like Looker Studio's "Last 28 days": today is never complete.
+    const yesterday = addIsoDays(today, -1)
+    const current = { from: addIsoDays(yesterday, -27), to: yesterday }
     const previousTo = addIsoDays(current.from, -1)
     const previous = { from: addIsoDays(previousTo, -27), to: previousTo }
     return {
       period,
       current,
       previous,
-      phrase: `28 days to ${shortDate(today)}`,
+      phrase: `28 days to ${shortDate(yesterday)}`,
       comparedWith: rangePhrase(previous),
     }
   }
