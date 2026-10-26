@@ -94,7 +94,8 @@ export async function loadSentAaBaseline(mbaNumber: string): Promise<SentAaPack[
   })
 }
 
-async function aaBillingLineIds(mbaNumber: string, versionNumber: number): Promise<Set<string>> {
+/** AA billing line ids on one version. Also used by billing revisions (AA pack locks). */
+export async function aaBillingLineIds(mbaNumber: string, versionNumber: number): Promise<Set<string>> {
   const { buildMediaItemsFromPersisted } = await import(
     "@/lib/docs/buildMediaItemsFromPersisted"
   )
