@@ -18,6 +18,7 @@ import { FINANCE_STATUS_INCLUDED_SQL } from "@/lib/finance/sections/financeCampa
 import {
   composeFixedCostMargin,
   FIXED_COST_MARGIN_CAPTION,
+  FIXED_COST_MARGIN_NOTES,
   invoicedMonthKey,
   summariseFixedCostMargin,
   type FinanceFixedCostMarginPayload,
@@ -48,13 +49,6 @@ const VIEW_NOTE =
 const FALLBACK_NOTE =
   "Platform spend from the pacing facts (VW_PLATFORM_SPEND_LINE_MONTH is not created yet). A DV360 line renamed in DV360 can count twice here."
 
-export const FIXED_COST_MARGIN_NOTES = [
-  "Billed is the published billing schedule for the month, media only. Fees and ad serving are not media cost and are left out.",
-  "Invoiced shows a month's billed amount once that MBA-month has an invoiced, paid, exported or Xero-matched media record. Invoices are not split by line.",
-  "DV360 spend is the DV360 cost in advertiser currency (what pacing shows). DV360 media cost is shown beside it.",
-  "Margin counts only lines with platform cost. Lines with no platform data, or a feed that reports no cost (Channel Factory, CM360), show billed only.",
-  "The current month is month to date.",
-] as const
 
 function clientFilterSql(clientIds: number[]): SQL {
   if (!clientIds.length) return sql`TRUE`
@@ -204,7 +198,6 @@ type SpendRow = {
   MONTH: string
   SOURCE: string
   AMOUNT_SPENT: number | string | null
-  MEDIA_COST: number | string | null
   IMPRESSIONS: number | string | null
   ROW_COUNT: number | string | null
 }
@@ -216,7 +209,7 @@ function placeholders(n: number): string {
 function viewSql(ids: string[]): string {
   return `
     SELECT LINE_ITEM_ID, MONTH, SOURCE,
-      SUM(AMOUNT_SPENT) AS AMOUNT_SPENT, SUM(MEDIA_COST) AS MEDIA_COST,
+      SUM(AMOUNT_SPENT) AS AMOUNT_SPENT,
       SUM(IMPRESSIONS) AS IMPRESSIONS, SUM(ROW_COUNT) AS ROW_COUNT
     FROM ${PLATFORM_SPEND_VIEW}
     WHERE LINE_ITEM_ID IN (${placeholders(ids.length)})
@@ -248,7 +241,7 @@ function fallbackSql(ids: string[]): string {
       WHERE LOWER(TRIM(LINE_ITEM_ID)) IN (${p})
     )
     SELECT LINE_ITEM_ID, TO_CHAR(DATE_TRUNC('month', DATE_DAY), 'YYYY-MM') AS MONTH, SOURCE,
-      SUM(COALESCE(AMOUNT_SPENT, 0)) AS AMOUNT_SPENT, NULL AS MEDIA_COST,
+      SUM(COALESCE(AMOUNT_SPENT, 0)) AS AMOUNT_SPENT,
       SUM(COALESCE(IMPRESSIONS, 0)) AS IMPRESSIONS, COUNT(*) AS ROW_COUNT
     FROM spend_rows
     WHERE TO_CHAR(DATE_TRUNC('month', DATE_DAY), 'YYYY-MM') >= ?
@@ -258,18 +251,14 @@ function fallbackSql(ids: string[]): string {
 }
 
 function mapSpendRows(rows: SpendRow[]): PlatformSpendCell[] {
-  return rows.map((r) => {
-    const media = r.MEDIA_COST == null || r.MEDIA_COST === "" ? null : toCents(asNumber(r.MEDIA_COST))
-    return {
-      lineItemId: asText(r.LINE_ITEM_ID).toLowerCase(),
-      month: asText(r.MONTH),
-      source: asText(r.SOURCE),
-      spendCents: toCents(asNumber(r.AMOUNT_SPENT)),
-      mediaCostCents: media,
-      impressions: asNumber(r.IMPRESSIONS),
-      rowCount: asNumber(r.ROW_COUNT),
-    }
-  })
+  return rows.map((r) => ({
+    lineItemId: asText(r.LINE_ITEM_ID).toLowerCase(),
+    month: asText(r.MONTH),
+    source: asText(r.SOURCE),
+    spendCents: toCents(asNumber(r.AMOUNT_SPENT)),
+    impressions: asNumber(r.IMPRESSIONS),
+    rowCount: asNumber(r.ROW_COUNT),
+  }))
 }
 
 function isMissingObjectError(error: unknown): boolean {

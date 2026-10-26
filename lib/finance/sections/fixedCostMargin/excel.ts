@@ -109,7 +109,6 @@ export async function buildFixedCostMarginWorkbookBytes(
     "Planned billed",
     "Invoiced",
     "Actual platform spend",
-    "DV360 media cost",
     "Margin $",
     "Margin %",
     "Flags",
@@ -132,16 +131,15 @@ export async function buildFixedCostMarginWorkbookBytes(
         money(m.billedCents),
         m.invoiced ? money(m.invoicedCents) : null,
         money(m.actualCents),
-        money(m.mediaCostCents),
         money(m.marginCents),
         m.marginPct,
         flags.join("; "),
       ])
-      paintNegative(row.getCell(14), money(m.marginCents))
+      paintNegative(row.getCell(13), money(m.marginCents))
     }
   }
-  formatColumns(ws, [10, 11, 12, 13, 14], [15])
-  const widths = [24, 12, 28, 16, 28, 20, 18, 18, 10, 14, 14, 16, 16, 14, 10, 40]
+  formatColumns(ws, [10, 11, 12, 13], [14])
+  const widths = [24, 12, 28, 16, 28, 20, 18, 18, 10, 14, 14, 16, 14, 10, 40]
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w))
   stampAptos(ws)
 

@@ -6,6 +6,14 @@
  * We buy the media on a platform and pay the platform's actual spend. The
  * difference is our margin, per client, line, publisher and month.
  *
+ * Our cost per source (Luke, 27 Oct 2026):
+ * - DV360 and YouTube via DV360: DV360 cost in advertiser currency
+ *   (AMOUNT_SPENT, equal to DV360 revenue), the figure pacing shows.
+ * - Vistar: Vistar's reported spend (Vistar revenue), what Vistar invoices us.
+ * - Taboola, Meta, TikTok, Reddit, Google Ads, Microsoft Ads: platform spend.
+ * - Channel Factory and direct publishers: Xero bills (not built yet), so
+ *   billed only for now.
+ *
  * Pure. No I/O. All money is integer cents. Read-only report: nothing here
  * feeds billing, pacing or dashboards.
  */
@@ -37,9 +45,8 @@ export type PlatformSpendCell = {
   /** YYYY-MM */
   month: string
   source: string
+  /** AMOUNT_SPENT: our cost for this source. */
   spendCents: number
-  /** DV360 media cost (ex DV360 fees and margin). Null for other sources. */
-  mediaCostCents: number | null
   impressions: number
   rowCount: number
 }
@@ -56,7 +63,6 @@ export type FixedCostMarginLineMonth = {
   invoicedCents: number
   invoiced: boolean
   actualCents: number
-  mediaCostCents: number | null
   /** Billed minus actual. Null when the line has no platform cost. */
   marginCents: number | null
   /** Margin over billed, as a fraction. Null when billed is 0 or margin is null. */
@@ -104,7 +110,6 @@ export type MarginTotals = {
   billedWithoutCostCents: number
   marginCents: number
   marginPct: number | null
-  mediaCostCents: number
 }
 
 export type MarginSummary = {
@@ -136,6 +141,17 @@ export type FinanceFixedCostMarginPayload = {
 export const FIXED_COST_MARGIN_CAPTION =
   "Fixed-cost lines billed at plan, against what the platform actually charged. Billed is the published billing schedule (media only, no fees or ad serving). Approved, booked and completed campaigns."
 
+/** Page and Excel Notes sheet wording. */
+export const FIXED_COST_MARGIN_NOTES = [
+  "Billed is the published billing schedule for the month, media only. Fees and ad serving are not media cost and are left out.",
+  "Invoiced shows a month's billed amount once that MBA-month has an invoiced, paid, exported or Xero-matched media record. Invoices are not split by line.",
+  "DV360 and YouTube (via DV360) cost is the DV360 cost in advertiser currency (equal to DV360 revenue), the figure pacing shows.",
+  "Vistar cost is Vistar's reported spend (Vistar revenue), which is what Vistar invoices us.",
+  "Margin counts only lines with platform cost. Lines with no platform data, or a feed that reports no cost (Channel Factory, CM360), show billed only.",
+  "Channel Factory and direct publishers (News Corp, Golf Digest, Nova and others) will take their cost from Xero bills. Not built yet, so they show billed only.",
+  "The current month is month to date.",
+] as const
+
 export const NO_PLATFORM_DATA_LABEL = "No platform data"
 export const NO_COST_IN_FEED_LABEL = "No cost in feed"
 export const OUT_OF_RANGE_LABEL = "Spend outside line months"
@@ -149,7 +165,6 @@ function emptyTotals(): MarginTotals {
     billedWithoutCostCents: 0,
     marginCents: 0,
     marginPct: null,
-    mediaCostCents: 0,
   }
 }
 
@@ -236,7 +251,7 @@ export function composeFixedCostMargin(input: {
   }
 
   type SpendAcc = {
-    byMonth: Map<string, { spend: number; media: number | null; impressions: number; rows: number }>
+    byMonth: Map<string, { spend: number; impressions: number; rows: number }>
     sources: Set<string>
     rows: number
   }
@@ -246,9 +261,8 @@ export function composeFixedCostMargin(input: {
     const lid = cell.lineItemId.trim().toLowerCase()
     if (!keysByLineId.has(lid)) continue
     const acc = spendByLineId.get(lid) ?? { byMonth: new Map(), sources: new Set<string>(), rows: 0 }
-    const m = acc.byMonth.get(cell.month) ?? { spend: 0, media: null, impressions: 0, rows: 0 }
+    const m = acc.byMonth.get(cell.month) ?? { spend: 0, impressions: 0, rows: 0 }
     m.spend += cell.spendCents
-    if (cell.mediaCostCents != null) m.media = (m.media ?? 0) + cell.mediaCostCents
     m.impressions += cell.impressions
     m.rows += cell.rowCount
     acc.byMonth.set(cell.month, m)
@@ -288,7 +302,6 @@ export function composeFixedCostMargin(input: {
         invoicedCents: invoiced ? billedCents : 0,
         invoiced,
         actualCents,
-        mediaCostCents: s?.media ?? null,
         marginCents,
         marginPct: marginCents == null ? null : marginPctOf(marginCents, billedCents),
         outsideLineMonths,
@@ -329,7 +342,6 @@ function addMonth(t: MarginTotals, line: FixedCostMarginLine, m: FixedCostMargin
   t.billedCents += m.billedCents
   t.invoicedCents += m.invoicedCents
   t.actualCents += m.actualCents
-  t.mediaCostCents += m.mediaCostCents ?? 0
   if (line.costStatus === "reported") {
     t.billedWithCostCents += m.billedCents
     t.marginCents += m.marginCents ?? 0

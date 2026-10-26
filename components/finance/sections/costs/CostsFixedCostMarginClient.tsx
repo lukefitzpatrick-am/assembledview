@@ -111,7 +111,6 @@ function TotalsCells({ t, strong = false }: { t: MarginTotals; strong?: boolean 
       <td className={cls}>{money(t.billedCents)}</td>
       <td className={cls}>{money(t.invoicedCents)}</td>
       <td className={cls}>{money(t.actualCents)}</td>
-      <td className={cls}>{t.mediaCostCents ? money(t.mediaCostCents) : "—"}</td>
       <td className={cn(cls, marginClass(t.marginCents))}>
         {t.billedWithCostCents || t.actualCents ? money(t.marginCents) : "—"}
       </td>
@@ -138,14 +137,13 @@ function TotalsTable({
       </PanelHeader>
       <PanelContent>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-muted-foreground">
                 <th className="px-2 py-2 font-medium">{keyHeader}</th>
                 <th className="px-2 py-2 text-right font-medium">Billed</th>
                 <th className="px-2 py-2 text-right font-medium">Invoiced</th>
                 <th className="px-2 py-2 text-right font-medium">Actual spend</th>
-                <th className="px-2 py-2 text-right font-medium">DV360 media cost</th>
                 <th className="px-2 py-2 text-right font-medium">Margin $</th>
                 <th className="px-2 py-2 text-right font-medium">Margin %</th>
               </tr>
@@ -360,7 +358,6 @@ export function CostsFixedCostMarginClient() {
                     <th className="px-2 py-2 text-right font-medium">Planned billed</th>
                     <th className="px-2 py-2 text-right font-medium">Invoiced</th>
                     <th className="px-2 py-2 text-right font-medium">Actual spend</th>
-                    <th className="px-2 py-2 text-right font-medium">DV360 media cost</th>
                     <th className="px-2 py-2 text-right font-medium">Margin $</th>
                     <th className="px-2 py-2 text-right font-medium">Margin %</th>
                     <th className="px-3 py-2 font-medium">Flags</th>
@@ -417,9 +414,6 @@ export function CostsFixedCostMarginClient() {
                                 </td>
                                 <td className="num px-2 py-1 text-right">
                                   {line.costStatus === "none" ? "—" : money(m.actualCents)}
-                                </td>
-                                <td className="num px-2 py-1 text-right text-muted-foreground">
-                                  {money(m.mediaCostCents)}
                                 </td>
                                 <td className={cn("num px-2 py-1 text-right", marginClass(m.marginCents))}>
                                   {money(m.marginCents)}

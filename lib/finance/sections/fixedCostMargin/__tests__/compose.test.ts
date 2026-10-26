@@ -4,7 +4,14 @@
  */
 
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
 import test from "node:test"
+import { fileURLToPath } from "node:url"
+
+import {
+  FINANCE_STATUS_INCLUDED_SQL,
+} from "../../financeCampaignStatus.js"
 
 import {
   composeFixedCostMargin,
@@ -44,7 +51,6 @@ function spend(over: Partial<PlatformSpendCell>): PlatformSpendCell {
     month: "2026-10",
     source: "DV360",
     spendCents: 0,
-    mediaCostCents: null,
     impressions: 1000,
     rowCount: 10,
     ...over,
@@ -53,10 +59,10 @@ function spend(over: Partial<PlatformSpendCell>): PlatformSpendCell {
 
 const RANGE = { from: "2026-07", to: "2027-06" }
 
-test("margin is billed minus actual, matched on lowercase line id", () => {
+test("DV360 margin is billed minus DV360 cost (AMOUNT_SPENT), matched on lowercase line id", () => {
   const lines = composeFixedCostMargin({
     plan: [cell({ amountCents: 3_750_36 })],
-    spend: [spend({ spendCents: 3_232_23, mediaCostCents: 2_486_33 })],
+    spend: [spend({ spendCents: 3_232_23 })],
     invoiced: new Set(),
     ...RANGE,
   })
@@ -68,7 +74,7 @@ test("margin is billed minus actual, matched on lowercase line id", () => {
   assert.equal(m.billedCents, 375036)
   assert.equal(m.actualCents, 323223)
   assert.equal(m.marginCents, 51813)
-  assert.equal(m.mediaCostCents, 248633)
+  assert.equal("mediaCostCents" in m, false)
   assert.ok(Math.abs((m.marginPct ?? 0) - 51813 / 375036) < 1e-12)
   assert.equal(line!.flags.negativeMargin, false)
 })
@@ -257,6 +263,38 @@ test("filters: publisher and platform match whole lines, case-insensitive", () =
   assert.equal(filterFixedCostMarginLines(lines, { platforms: ["DV360"] }).length, 1)
   assert.equal(filterFixedCostMarginLines(lines, { clientIds: [9] }).length, 0)
   assert.equal(filterFixedCostMarginLines(lines, {}).length, 2)
+})
+
+test("Vistar cost is its reported spend (Vistar revenue)", () => {
+  const [line] = composeFixedCostMargin({
+    plan: [
+      cell({
+        mbaNumber: "SINCH001",
+        lineItemId: "sinch001PO2",
+        publisher: "Broadsign",
+        platform: "Vistar",
+        channel: "prog_ooh",
+        amountCents: 19_076_92,
+      }),
+    ],
+    spend: [spend({ lineItemId: "sinch001po2", source: "Vistar", spendCents: 9_401_35 })],
+    invoiced: new Set(),
+    ...RANGE,
+  })
+  assert.equal(line!.costStatus, "reported")
+  assert.equal(line!.totals.actualCents, 9_401_35)
+  assert.equal(line!.totals.marginCents, 19_076_92 - 9_401_35)
+})
+
+test("scope: approved, booked and completed only; planned and draft are excluded", () => {
+  assert.equal(
+    FINANCE_STATUS_INCLUDED_SQL,
+    "(LOWER(COALESCE(m.campaign_status, '')) IN ('approved', 'booked', 'completed'))"
+  )
+  const here = dirname(fileURLToPath(import.meta.url))
+  const src = readFileSync(join(here, "..", "query.ts"), "utf8")
+  assert.match(src, /AND \$\{sql\.raw\(FINANCE_STATUS_INCLUDED_SQL\)\}/)
+  assert.doesNotMatch(src, /'planned'|'draft'/)
 })
 
 test("marginPctOf is null at zero billed and keeps its sign", () => {

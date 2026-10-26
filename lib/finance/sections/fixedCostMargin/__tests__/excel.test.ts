@@ -7,6 +7,7 @@ import test from "node:test"
 
 import {
   composeFixedCostMargin,
+  FIXED_COST_MARGIN_NOTES,
   summariseFixedCostMargin,
   type FixedCostPlanCell,
 } from "../compose.js"
@@ -42,7 +43,6 @@ test("workbook: line months, totals sheets, negative margin kept as a negative n
         month: "2026-10",
         source: "DV360",
         spendCents: 130_00,
-        mediaCostCents: 100_00,
         impressions: 10,
         rowCount: 3,
       },
@@ -52,7 +52,7 @@ test("workbook: line months, totals sheets, negative margin kept as a negative n
     to: "2027-06",
   })
   const summary = summariseFixedCostMargin(lines)
-  const bytes = await buildFixedCostMarginWorkbookBytes(lines, summary, ["Note one"])
+  const bytes = await buildFixedCostMarginWorkbookBytes(lines, summary, ["Note one", ...FIXED_COST_MARGIN_NOTES])
 
   const ExcelJS = (await import("exceljs")).default
   const wb = new ExcelJS.Workbook()
@@ -68,13 +68,21 @@ test("workbook: line months, totals sheets, negative margin kept as a negative n
   const pv1 = ws.getRow(3)
   assert.equal(pv1.getCell(4).value, "KK001PV1")
   assert.equal(pv1.getCell(10).value, 100)
+  assert.equal(ws.getRow(1).getCell(12).value, "Actual platform spend")
+  assert.equal(ws.getRow(1).getCell(13).value, "Margin $")
   assert.equal(pv1.getCell(12).value, 130)
-  assert.equal(pv1.getCell(13).value, 100)
-  assert.equal(pv1.getCell(14).value, -30)
-  assert.equal(pv1.getCell(15).value, -0.3)
-  assert.match(String(pv1.getCell(16).value), /Negative margin/)
-  assert.equal(ws.getRow(2).getCell(14).value, null)
-  assert.match(String(ws.getRow(2).getCell(16).value), /No platform data/)
+  assert.equal(pv1.getCell(13).value, -30)
+  assert.equal(pv1.getCell(14).value, -0.3)
+  assert.match(String(pv1.getCell(15).value), /Negative margin/)
+  assert.equal(ws.getRow(2).getCell(13).value, null)
+  assert.match(String(ws.getRow(2).getCell(15).value), /No platform data/)
+
+  const notes = wb.getWorksheet("Notes")!
+  const noteText = notes.getColumn(1).values.map((v) => String(v ?? "")).join("\n")
+  assert.match(noteText, /DV360 and YouTube \(via DV360\) cost is the DV360 cost in advertiser currency/)
+  assert.match(noteText, /Vistar cost is Vistar's reported spend \(Vistar revenue\), which is what Vistar invoices us/)
+  assert.match(noteText, /Xero bills/)
+  assert.doesNotMatch(noteText, /DV360 media cost|total media cost/i)
 
   const byMonth = wb.getWorksheet("By month")!
   const total = byMonth.getRow(byMonth.rowCount)

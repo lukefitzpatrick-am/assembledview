@@ -24,7 +24,8 @@
 --                      AMOUNT_SPENT = COST_ADV_CURRENCY (what pacing shows; equals
 --                      REVENUE_ADV_CURRENCY on every Oct row).
 --                      MEDIA_COST = TOTAL_MEDIA_COST_ADVERTISER_CURRENCY (about 77%
---                      of AMOUNT_SPENT in Oct). Luke to confirm which is our cost.
+--                      of AMOUNT_SPENT in Oct). Luke confirmed 27 Oct 2026:
+--                      AMOUNT_SPENT is our cost. MEDIA_COST is not read by the app.
 --     Taboola          VW_PACING_TABOOLA (SPENT)
 --     Channel Factory  VW_PACING_PARTNER_FILE (AMOUNT_SPENT is 0 by design)
 --     Vistar           VW_PACING_PARTNER_OOH ('Vistar Revenue = client cost')
