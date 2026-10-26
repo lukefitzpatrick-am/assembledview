@@ -51,6 +51,8 @@ test("ava tool catalog: names unique and complete", () => {
     "query_finance_summary",
     "query_xero_status",
     "run_scenario",
+    "preview_billing_revision",
+    "apply_billing_revision",
   ])
 })
 

@@ -1,4 +1,5 @@
 import type { PageContext } from "@/lib/ava/types"
+import { isBillingRevisionsEnabled } from "@/lib/finance/revisions/flag"
 import {
   CAMPAIGN_READ_GENERATE_SURFACE,
   CAMPAIGN_READ_GENERATE_TOOLS,
@@ -6,6 +7,15 @@ import {
 
 const MEDIA_PLAN_CREATE = /^\/mediaplans\/create\/?$/
 const MEDIA_PLAN_EDIT = /^\/mediaplans\/mba\/[^/]+\/edit\/?$/
+const MBA_DETAIL = /^\/mediaplans\/mba\/[^/]+\/?$/
+
+/** Billing revision tools: BILLING_REVISIONS on, and only on /finance/* or the MBA detail page. */
+export const BILLING_REVISION_TOOLS = new Set(["preview_billing_revision", "apply_billing_revision"])
+
+function billingRevisionToolsOk(pathname: string | undefined): boolean {
+  if (!isBillingRevisionsEnabled() || !pathname) return false
+  return pathname === "/finance" || pathname.startsWith("/finance/") || MBA_DETAIL.test(pathname)
+}
 
 /** Pathname from PageContext.route — string or `{ pathname }`. Empty/absent → undefined. */
 export function pageContextRoutePathname(
@@ -35,8 +45,19 @@ export function isMediaPlanCreateOrEditRoute(
  * Surface-aware tool offer. Create/edit mega-pages and unknown/absent routes
  * omit `accept_ingest_proposal` (fail closed). Hub and other known routes keep it.
  * `run_scenario` is offered only on `/pacing/*` and `/dashboard/*`.
+ * Billing revision tools are offered only with BILLING_REVISIONS on, on
+ * `/finance/*` and the MBA detail page (never create or edit).
  */
 export function avaToolDefinitionsForPage<T extends { name: string }>(
+  definitions: readonly T[],
+  pageContext?: PageContext,
+): T[] {
+  const revisionsOk = billingRevisionToolsOk(pageContextRoutePathname(pageContext))
+  const offered = revisionsOk ? definitions : definitions.filter((t) => !BILLING_REVISION_TOOLS.has(t.name))
+  return offerForSurface(offered, pageContext)
+}
+
+function offerForSurface<T extends { name: string }>(
   definitions: readonly T[],
   pageContext?: PageContext,
 ): T[] {
