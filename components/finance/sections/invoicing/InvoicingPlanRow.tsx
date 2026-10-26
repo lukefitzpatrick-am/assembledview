@@ -21,6 +21,7 @@ import { hasBillingEvidence, needsInlineAmountConfirm } from "@/lib/finance/bill
 import { groupIdenticalLineItems } from "@/lib/finance/groupIdenticalLineItems"
 import { unapproveFailureToast } from "@/lib/finance/sections/unapproveCopy"
 import type { InlineScheduleEditContext } from "@/lib/finance/commitInlineScheduleAmountEdit"
+import { underspendAction } from "@/lib/finance/revisions/panelModel"
 import {
   buildMediaTypeRollups,
   formatMediaTypeCaption,
@@ -149,6 +150,8 @@ export function InvoicingPlanRow({
   const editCtx = useMemo<InlineScheduleEditContext | null>(() => {
     if (amountFrozen) return null
     if (kind !== "media") return null
+    // BILLING_REVISIONS: published plans change billing through the panel only.
+    if (mediaActions.revisionsUi) return null
     if (!planMp.mbaNumber || planMp.versionId == null || planMp.versionNumber == null) return null
     if (!record.billing_month) return null
     return {
@@ -160,6 +163,7 @@ export function InvoicingPlanRow({
   }, [
     amountFrozen,
     kind,
+    mediaActions.revisionsUi,
     planMp.mbaNumber,
     planMp.versionId,
     planMp.versionNumber,
@@ -258,14 +262,32 @@ export function InvoicingPlanRow({
         void mediaActions.downloadAa()
       },
     })
-    menuItems.push({
-      label: mediaActions.isLoadingAlter ? "Alter billing…" : "Alter billing",
-      disabled: !mediaActions.canAlter || mediaActions.isLoadingAlter,
-      disabledReason: mediaActions.canAlter ? undefined : "No published version to alter",
-      onSelect: () => {
-        void mediaActions.openAlter()
-      },
-    })
+    if (mediaActions.revisionsUi) {
+      menuItems.push({
+        label: "Change billing timing",
+        disabled: !mediaActions.canAlter,
+        disabledReason: mediaActions.canAlter ? undefined : "No published version to change",
+        onSelect: () => mediaActions.openRevision(),
+      })
+      const underspend = underspendAction(record)
+      if (underspend.show) {
+        menuItems.push({
+          label: "Record underspend",
+          disabled: !mediaActions.canAlter || Boolean(underspend.disabledReason),
+          disabledReason: underspend.disabledReason ?? (mediaActions.canAlter ? undefined : "No published version to change"),
+          onSelect: () => mediaActions.openRevision("underspend", String(record.billing_month ?? "").slice(0, 7)),
+        })
+      }
+    } else {
+      menuItems.push({
+        label: mediaActions.isLoadingAlter ? "Alter billing…" : "Alter billing",
+        disabled: !mediaActions.canAlter || mediaActions.isLoadingAlter,
+        disabledReason: mediaActions.canAlter ? undefined : "No published version to alter",
+        onSelect: () => {
+          void mediaActions.openAlter()
+        },
+      })
+    }
   }
   menuItems.push({
     label: (record.notes ?? "").trim() ? "Notes" : "Add note",
@@ -331,7 +353,7 @@ export function InvoicingPlanRow({
       <div className="sr-only">
         <ReceivableNotesButton ref={notesTriggerRef} record={record} onSaved={onNotesSaved} />
       </div>
-      {kind === "media" ? mediaActions.alterDialog : null}
+      {kind === "media" ? (mediaActions.revisionsUi ? mediaActions.revisionPanel : mediaActions.alterDialog) : null}
     </>
   )
 

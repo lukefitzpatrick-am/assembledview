@@ -8,6 +8,9 @@ import { toast } from "@/components/ui/use-toast"
 import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
 import { AlterBillingDialog } from "@/components/billing/AlterBillingDialog"
+import { BillingRevisionPanel } from "@/components/finance/billing-revisions/BillingRevisionPanel"
+import { isBillingRevisionsUiEnabled } from "@/lib/finance/revisions/flag"
+import type { PanelTab } from "@/lib/finance/revisions/panelModel"
 import type { BillingMonth } from "@/lib/billing/types"
 import type { MediaPlanGroup } from "@/lib/finance/useReceivablesData"
 
@@ -26,6 +29,12 @@ export function useMediaPlanActions({
   const [isLoadingAlter, setIsLoadingAlter] = useState(false)
   const [alterMonths, setAlterMonths] = useState<BillingMonth[] | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  /** BILLING_REVISIONS: Change billing timing replaces Alter billing (flag off = unchanged). */
+  const revisionsUi = isBillingRevisionsUiEnabled()
+  const [revisionOpen, setRevisionOpen] = useState<{ tab: PanelTab; month: string | null } | null>(null)
+  const openRevision = useCallback((tab: PanelTab = "bill_amount", month: string | null = null) => {
+    setRevisionOpen({ tab, month })
+  }, [])
 
   const downloadAa = useCallback(async () => {
     if (!mp.mbaNumber) return
@@ -163,6 +172,20 @@ export function useMediaPlanActions({
       />
     ) : null
 
+  const revisionPanel =
+    revisionsUi && revisionOpen && mp.mbaNumber ? (
+      <BillingRevisionPanel
+        open
+        onOpenChange={(open) => {
+          if (!open) setRevisionOpen(null)
+        }}
+        mbaNumber={mp.mbaNumber}
+        initialTab={revisionOpen.tab}
+        initialUnderspendMonth={revisionOpen.month}
+        onPublished={onSaved}
+      />
+    ) : null
+
   return {
     editHref,
     downloadAa,
@@ -171,6 +194,9 @@ export function useMediaPlanActions({
     isDownloadingAa,
     isLoadingAlter,
     alterDialog,
+    revisionsUi,
+    openRevision,
+    revisionPanel,
   }
 }
 
@@ -183,6 +209,9 @@ export function MediaPlanActionBar({ mp, billingMonth, onSaved }: MediaPlanActio
     isDownloadingAa,
     isLoadingAlter,
     alterDialog,
+    revisionsUi,
+    openRevision,
+    revisionPanel,
   } = useMediaPlanActions({ mp, billingMonth, onSaved })
 
   if (!mp.mbaNumber) {
@@ -227,25 +256,38 @@ export function MediaPlanActionBar({ mp, billingMonth, onSaved }: MediaPlanActio
             </>
           )}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="shrink-0"
-          disabled={isLoadingAlter || !canAlter}
-          onClick={() => void openAlter()}
-        >
-          {isLoadingAlter ? (
-            <>
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
-              Billing…
-            </>
-          ) : (
-            "Alter Billing"
-          )}
-        </Button>
+        {revisionsUi ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            disabled={!canAlter}
+            onClick={() => openRevision()}
+          >
+            Change billing timing
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            disabled={isLoadingAlter || !canAlter}
+            onClick={() => void openAlter()}
+          >
+            {isLoadingAlter ? (
+              <>
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+                Billing…
+              </>
+            ) : (
+              "Alter Billing"
+            )}
+          </Button>
+        )}
       </div>
-      {alterDialog}
+      {revisionsUi ? revisionPanel : alterDialog}
     </>
   )
 }
