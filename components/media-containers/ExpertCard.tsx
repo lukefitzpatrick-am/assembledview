@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { AutoGrowField } from "@/components/media-containers/AutoGrowField"
 import { CanonicalBurstMoney } from "@/components/media-containers/CanonicalBurstMoney"
+import { AaRoutingInfo } from "@/components/media-containers/AaRoutingInfo"
 import { DraftHighlightedField } from "@/components/mediaplan/DraftHighlightedField"
 import { useDraftLineMeta } from "@/hooks/useDraftFieldDiff"
 import { Badge } from "@/components/ui/badge"
@@ -136,6 +137,26 @@ export type ExpertCardProps<T extends FieldValues> = {
   summaryRow?: React.ReactNode
   footer?: React.ReactNode
   className?: string
+  /**
+   * Publisher combobox keys whose saved value should be flagged
+   * "Not in Publishers, pick one" when it matches no publisher name
+   * (production: old free-text values such as "SCA"). The value still shows
+   * and saves unchanged.
+   */
+  flagUnknownPublisherKeys?: readonly string[]
+}
+
+/** Card fields the AA plan reads a publisher from (export network/platform/site; production publisher). */
+const AA_ROUTING_NAME_KEYS = ["publisher", "network", "platform", "site"] as const
+
+/** True when a saved publisher value matches no publisher name (trimmed, case-insensitive). */
+export function isUnknownPublisherValue(
+  value: unknown,
+  publishers: readonly { publisher_name: string }[]
+): boolean {
+  const key = String(value ?? "").trim().toLowerCase()
+  if (!key || publishers.length === 0) return false
+  return !publishers.some((p) => String(p.publisher_name ?? "").trim().toLowerCase() === key)
 }
 
 function fieldName<T extends FieldValues>(
@@ -229,6 +250,7 @@ function ExpertCardFieldControl<T extends FieldValues>({
   fieldAdornment,
   comboboxProps,
   fieldLayout = "default",
+  flagUnknownPublisher = false,
 }: {
   d: ExpertDescriptorColumn
   form: UseFormReturn<T>
@@ -259,6 +281,7 @@ function ExpertCardFieldControl<T extends FieldValues>({
     buttonClassName?: string
   }
   fieldLayout?: ExpertCardFieldLayout
+  flagUnknownPublisher?: boolean
 }) {
   const name = fieldName<T>(itemsKey, lineItemIndex, d.key)
   const publisherOptions = publishers.map((p) => ({
@@ -358,6 +381,13 @@ function ExpertCardFieldControl<T extends FieldValues>({
               ) : (
                 <FormControl>{highlight(field.value, combobox)}</FormControl>
               )}
+              {flagUnknownPublisher &&
+              d.kind === "combobox-publishers" &&
+              isUnknownPublisherValue(field.value, publishers) ? (
+                <p className="text-[11px] font-medium text-status-warning">
+                  Not in Publishers, pick one
+                </p>
+              ) : null}
               <FormMessage />
             </FormItem>
           )
@@ -897,8 +927,13 @@ export function ExpertCard<T extends FieldValues>({
   summaryRow,
   footer,
   className,
+  flagUnknownPublisherKeys,
 }: ExpertCardProps<T>) {
   const { isNew } = useDraftLineMeta(lineItemId)
+  const aaRoutingNames = useWatch({
+    control: form.control,
+    name: AA_ROUTING_NAME_KEYS.map((k) => fieldName<T>(itemsKey, lineItemIndex, k)),
+  }) as unknown as (string | null | undefined)[]
   const lineClientPays = useWatch({
     control: form.control,
     name: fieldName<T>(itemsKey, lineItemIndex, "clientPaysForMedia"),
@@ -937,6 +972,7 @@ export function ExpertCard<T extends FieldValues>({
       fieldAdornment={fieldAdornments?.[d.key]}
       comboboxProps={comboboxPropsByKey?.[d.key]}
       fieldLayout={fieldLayout}
+      flagUnknownPublisher={flagUnknownPublisherKeys?.includes(d.key) ?? false}
     />
   )
 
@@ -1016,6 +1052,11 @@ export function ExpertCard<T extends FieldValues>({
                 <span className="block text-[11px] text-muted-foreground">Client paid</span>
               ) : null}
             </div>
+            <AaRoutingInfo
+              names={Array.isArray(aaRoutingNames) ? aaRoutingNames : []}
+              clientPaysForMedia={lineClientPays === true}
+              lineLabel={`${config.channelLabel.toLowerCase()} line item ${lineItemIndex + 1}`}
+            />
             {onToggleCollapsed ? (
               <Button
                 type="button"

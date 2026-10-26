@@ -790,6 +790,7 @@ export default function ProductionContainer({
                       onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
                       totalDisplay={formatAUD(lineItemMediaTotal)}
                       publishers={publishers}
+                      flagUnknownPublisherKeys={["publisher"]}
                       dynamicOptionsByKey={{ mediaType: productionTypeComboboxOptions }}
                       feePct={0}
                       campaignStartDate={campaignStartDate}

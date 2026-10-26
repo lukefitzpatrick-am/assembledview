@@ -80,7 +80,7 @@ test("lineItemBillsViaAdvertisingAssociates is false for assembled media publish
   assert.equal(lineItemBillsViaAdvertisingAssociates(item, publishers), false)
 })
 
-test("lineItemBillsViaAdvertisingAssociates: production line keeps canonical publisher name, drops abbreviation", () => {
+test("lineItemBillsViaAdvertisingAssociates: production line matches canonical name and the approved SCA alias only", () => {
   const productionPublishers: Publisher[] = [
     {
       id: 10,
@@ -105,7 +105,11 @@ test("lineItemBillsViaAdvertisingAssociates: production line keeps canonical pub
     grossMedia: "1200",
   })
   assert.equal(lineItemBillsViaAdvertisingAssociates(canonical, productionPublishers), true)
-  assert.equal(lineItemBillsViaAdvertisingAssociates(abbreviated, productionPublishers), false)
+  // FB-9 (Luke, 26 Oct 2026): "SCA" is read as Southern Cross Austereo
+  // through the read-time alias table, even with no publisherid on the row.
+  assert.equal(lineItemBillsViaAdvertisingAssociates(abbreviated, productionPublishers), true)
+  const unknown = { ...abbreviated, network: "SCAX" }
+  assert.equal(lineItemBillsViaAdvertisingAssociates(unknown, productionPublishers), false)
 })
 
 test("filterMediaItemsForAdvertisingAssociates keeps only AA-billed rows", () => {

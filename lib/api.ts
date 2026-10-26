@@ -1475,6 +1475,30 @@ export async function getPublishersForInfluencers(): Promise<Publisher[]> {
  * Production has no pub_* channel flag, so the production publisher picker
  * offers every publisher (canonical publisher_name values).
  */
+/**
+ * Every publisher with name, publisherid and billing agency, for the editor's
+ * "Why isn't this on the AA plan?" control (FB-10). Same cached, coalesced
+ * fetch as the other publisher reads. Empty on failure.
+ */
+export async function getPublishersForAaRouting(): Promise<
+  { id: number; publisher_name: string; publisherid: string; billingagency: string }[]
+> {
+  try {
+    const rows = await fetchAllPublishers();
+    return rows
+      .filter((publisher) => Boolean(String(publisher?.publisher_name ?? "").trim()))
+      .map((publisher) => ({
+        id: publisher.id,
+        publisher_name: publisher.publisher_name,
+        publisherid: String(publisher.publisherid ?? ""),
+        billingagency: String(publisher.billingagency ?? ""),
+      }));
+  } catch (error) {
+    console.error("Error fetching publishers for AA routing:", error);
+    return [];
+  }
+}
+
 export async function getPublishersForProduction(): Promise<Publisher[]> {
   try {
     const rows = await fetchAllPublishers();

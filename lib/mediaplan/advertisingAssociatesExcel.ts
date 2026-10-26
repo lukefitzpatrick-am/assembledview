@@ -3,10 +3,10 @@ import { fromCents, parseMoney, toCents } from "@/lib/money"
 import type { LineItem, MediaItems } from "@/lib/generateMediaPlan"
 import type { Publisher } from "@/lib/types/publisher"
 import {
-  publisherIdentityKey,
-  resolvePublisherNameGroup,
-  sortPublishersByRowId,
-} from "@/lib/publisher/publisherUniqueness"
+  buildPublisherNameIndex,
+  resolvePublisherName,
+  type PublisherNameIndex,
+} from "@/lib/publisher/resolvePublisherName"
 
 /** Excel MBA block labels per `MediaItems` key — keep aligned with `KPI_MEDIA_LABELS` in `lib/generateMediaPlan.ts`. */
 const MEDIA_ITEMS_EXCEL_LABELS: Record<keyof MediaItems, string> = {
@@ -90,58 +90,24 @@ function publisherNameKeysFromLineItem(item: LineItem): string[] {
   return out
 }
 
-type PublisherIndex = {
-  /**
-   * Lower-case trimmed name to every publisher with that name, lowest
-   * `publishers.id` first. Same key as the uniqueness rule in
-   * `lib/publisher/publisherUniqueness.ts`.
-   */
-  byName: Map<string, Publisher[]>
-  /** Lower-case publisherid to publisher. Ids shared by two publishers are left out. */
-  byId: Map<string, Publisher>
-}
-
-function buildPublisherNameMap(publishers: Publisher[]): PublisherIndex {
-  const byName = new Map<string, Publisher[]>()
-  const byId = new Map<string, Publisher>()
-  const ambiguousIds = new Set<string>()
-  for (const p of sortPublishersByRowId(publishers)) {
-    const name = publisherIdentityKey(p.publisher_name)
-    if (name) {
-      const list = byName.get(name)
-      if (list) list.push(p)
-      else byName.set(name, [p])
-    }
-    const id = publisherIdentityKey(p.publisherid)
-    if (!id) continue
-    if (byId.has(id) || ambiguousIds.has(id)) {
-      byId.delete(id)
-      ambiguousIds.add(id)
-      continue
-    }
-    byId.set(id, p)
-  }
-  return { byName, byId }
-}
+type PublisherIndex = PublisherNameIndex<Publisher>
 
 /**
- * Name first (case-insensitive, trimmed), then the publisher id, so free
- * text "SCA" resolves to the publisher whose publisherid is "sca"
- * (Southern Cross Austereo). An id shared by two publishers never matches.
- * A name shared by several publishers never resolves last-wins: it takes the
- * lowest `publishers.id`, with a server warning when they disagree on billing
- * agency (`resolvePublisherNameGroup`). Publisher names and ids are unique
- * (docs/brain/INVARIANTS.md); this only covers rows not yet cleaned up.
+ * Shared resolver (`lib/publisher/resolvePublisherName.ts`): name first
+ * (case-insensitive, trimmed, lowest `publishers.id` when shared), then the
+ * read-time alias table ("SCA" -> Southern Cross Austereo, "NOVA" -> Nova),
+ * then the publisher id. An id shared by two publishers never matches.
+ * Publisher names and ids are unique (docs/brain/INVARIANTS.md).
  */
+function buildPublisherNameMap(publishers: Publisher[]): PublisherIndex {
+  return buildPublisherNameIndex(publishers)
+}
+
 function resolvePublisherByName(
   name: string,
   index: PublisherIndex,
 ): Publisher | undefined {
-  const key = publisherIdentityKey(name)
-  if (!key) return undefined
-  const byName = resolvePublisherNameGroup(name, index.byName.get(key))
-  if (byName) return byName
-  return index.byId.get(key)
+  return resolvePublisherName(name, index)
 }
 
 /** Publisher lookup by name or publisherid, for callers outside this module. */
