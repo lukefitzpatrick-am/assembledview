@@ -49,9 +49,24 @@ function lineItemsFromBillingLineItems(items: BillingLineItem[]): {
   return { lineItems, serviceRows }
 }
 
+export type FinanceCampaignOptions = {
+  /** Review download: label per record. Unique labels in a group join with " / ". */
+  statusLabel?: (record: BillingRecord) => string
+}
+
+function groupStatusLabel(sorted: BillingRecord[], statusLabel: (r: BillingRecord) => string): string {
+  const labels: string[] = []
+  for (const r of sorted) {
+    const label = statusLabel(r).trim()
+    if (label && !labels.includes(label)) labels.push(label)
+  }
+  return labels.join(" / ")
+}
+
 function mergeGroupToFinanceCampaignData(
   group: BillingRecord[],
-  clientMetaByClientId?: Map<number, FinanceExcelClientMeta>
+  clientMetaByClientId?: Map<number, FinanceExcelClientMeta>,
+  options?: FinanceCampaignOptions
 ): FinanceCampaignData {
   const sorted = [...group].sort((a, b) => a.id - b.id)
   const first = sorted[0]!
@@ -81,6 +96,7 @@ function mergeGroupToFinanceCampaignData(
     serviceRows,
     total,
     ...legalBlock,
+    ...(options?.statusLabel ? { status: groupStatusLabel(sorted, options.statusLabel) } : {}),
   }
 }
 
@@ -91,7 +107,8 @@ function mergeGroupToFinanceCampaignData(
  */
 export function billingRecordsToFinanceCampaigns(
   records: BillingRecord[],
-  clientMetaByClientId?: Map<number, FinanceExcelClientMeta>
+  clientMetaByClientId?: Map<number, FinanceExcelClientMeta>,
+  options?: FinanceCampaignOptions
 ): FinanceCampaignData[] {
   const groups = new Map<string, BillingRecord[]>()
   for (const r of records) {
@@ -99,7 +116,9 @@ export function billingRecordsToFinanceCampaigns(
     if (!groups.has(k)) groups.set(k, [])
     groups.get(k)!.push(r)
   }
-  const out = [...groups.values()].map((g) => mergeGroupToFinanceCampaignData(g, clientMetaByClientId))
+  const out = [...groups.values()].map((g) =>
+    mergeGroupToFinanceCampaignData(g, clientMetaByClientId, options)
+  )
   out.sort((a, b) => {
     const c = a.clientName.localeCompare(b.clientName, undefined, { sensitivity: "base" })
     if (c !== 0) return c

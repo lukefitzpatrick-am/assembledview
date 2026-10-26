@@ -6,6 +6,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { saveAs } from "file-saver"
+import { Download } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { BulkApproveReadyButton } from "@/components/finance/sections/invoicing/BulkApproveReadyButton"
 import { ClearForIssueButton } from "@/components/finance/sections/invoicing/ClearForIssueButton"
 import { SendToAccountsButton } from "@/components/finance/sections/invoicing/SendToAccountsButton"
@@ -26,6 +29,10 @@ import { formatAUD } from "@/lib/format/money"
 import { formatDateShort } from "@/lib/format/date"
 import { summariseBillingStatCards } from "@/lib/finance/sections/billingPresentation"
 import { summariseLastExport } from "@/lib/finance/approvedReceivablesExport"
+import {
+  downloadInvoicingReviewCsv,
+  downloadInvoicingReviewWorkbook,
+} from "@/lib/finance/invoicingReviewDownload"
 import {
   INVOICING_CLIENT_GRID_CLASS,
   type InvoicingClientBlockerMeta,
@@ -293,6 +300,59 @@ export function InvoicingPageClient() {
 
   const statCards = useMemo(() => summariseBillingStatCards(allRecords), [allRecords])
 
+  // Review downloads: the rows shown (scope + local filters), same builder as
+  // the accounts pack. Read-only: no exported_at, no status change, no writes.
+  const [downloadBusy, setDownloadBusy] = useState(false)
+  const downloadRange = applied.monthRange
+  const downloadExcel = useCallback(async () => {
+    if (downloadBusy || allRecords.length === 0) return
+    setDownloadBusy(true)
+    try {
+      const { missingLegalBusinessNames } = await downloadInvoicingReviewWorkbook(
+        allRecords,
+        downloadRange,
+        { save: saveAs }
+      )
+      if (missingLegalBusinessNames.length > 0) {
+        const names = missingLegalBusinessNames.map((c) => c.displayName).join(", ")
+        console.warn(
+          "[FIN-6] Clients missing legalbusinessname (Excel used display name):",
+          missingLegalBusinessNames
+        )
+        toast({
+          title: "Workbook downloaded",
+          description: `${missingLegalBusinessNames.length} client(s) missing legal business name (used display name): ${names}.`,
+        })
+      } else {
+        toast({ title: "Workbook downloaded" })
+      }
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Could not download the workbook",
+        description: e instanceof Error ? e.message : "Unknown error",
+      })
+    } finally {
+      setDownloadBusy(false)
+    }
+  }, [downloadBusy, allRecords, downloadRange, toast])
+
+  const downloadCsv = useCallback(() => {
+    if (allRecords.length === 0) return
+    try {
+      downloadInvoicingReviewCsv(allRecords, downloadRange, { save: saveAs })
+      toast({ title: "CSV downloaded" })
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Could not download the CSV",
+        description: e instanceof Error ? e.message : "Unknown error",
+      })
+    }
+  }, [allRecords, downloadRange, toast])
+
+  const downloadDisabled = downloadBusy || loading || isUpdating || allRecords.length === 0
+
   const approveReadyForMonth = useCallback(
     async (billing_month: string) => {
       const grains = readyGrains.filter((g) => g.billing_month === billing_month)
@@ -343,6 +403,31 @@ export function InvoicingPageClient() {
           <InvoicingToolbar
             showingLabel={`Receivables · ${applied.monthRange.from} → ${applied.monthRange.to}`}
             lastExportLine={lastExportLine}
+            downloadActions={
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={downloadDisabled}
+                  onClick={() => void downloadExcel()}
+                  data-testid="invoicing-download-excel"
+                >
+                  <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                  {downloadBusy ? "Building…" : "Download Excel"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={downloadDisabled}
+                  onClick={downloadCsv}
+                  data-testid="invoicing-download-csv"
+                >
+                  Download CSV
+                </Button>
+              </>
+            }
             localFilters={localFilters}
             onLocalFiltersChange={setLocalFilters}
           />

@@ -42,3 +42,38 @@ test("send-to-accounts confirm is an AlertDialog and never window.confirm", () =
   assert.ok(src.includes('layer="nested"'), "must declare layer=nested")
   assert.equal(src.includes("window.confirm"), false)
 })
+
+// ── Download Excel / CSV (review before sending) ──────────────────────────
+// Behaviour (no fetch writes, records untouched, status rows) is in
+// invoicingReviewDownload.test.ts, which needs --experimental-test-module-mocks.
+
+const here = path.dirname(fileURLToPath(import.meta.url))
+
+test("page wires Download Excel and CSV to the read-only review module", () => {
+  const page = fs.readFileSync(
+    path.join(here, "../../../components/finance/sections/invoicing/InvoicingPageClient.tsx"),
+    "utf8"
+  )
+  assert.ok(page.includes("downloadInvoicingReviewWorkbook"))
+  assert.ok(page.includes("downloadInvoicingReviewCsv"))
+  assert.ok(page.includes("Download Excel"))
+  assert.ok(page.includes("Download CSV"))
+  assert.ok(page.includes('"Workbook downloaded"'))
+  assert.ok(page.includes("[FIN-6]"))
+})
+
+test("review module never writes: no POST, no stamp, no send route", () => {
+  const src = fs.readFileSync(path.join(here, "../invoicingReviewDownload.ts"), "utf8")
+  for (const banned of [
+    "method:",
+    "POST",
+    "markBillingRecordsExported",
+    "approveBillingRecords",
+    "send-to-accounts",
+    "exported_at =",
+    "stampFinanceBillingRecord",
+    "fetch(",
+  ]) {
+    assert.equal(src.includes(banned), false, `must not contain ${banned}`)
+  }
+})

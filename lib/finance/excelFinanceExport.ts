@@ -128,6 +128,11 @@ function legalDetailRowsForCampaign(
   return []
 }
 
+/** Review download Status row. Absent (pack output unchanged) when status is undefined. */
+function statusDetailRows(status: string | undefined): [string, string][] {
+  return status === undefined ? [] : [["Status", displayMetaValue(status)]]
+}
+
 /** Avoid Excel default / merged-cell behaviour that spaces out ALL-CAPS text (distributed / justify). */
 const TEXT_ALIGNMENT: Partial<ExcelJS.Alignment> = {
   horizontal: "left",
@@ -190,6 +195,7 @@ export async function writeMediaFinanceWorksheet(
 
     const details: [string, string][] = [
       ["Client Name", campaign.clientName],
+      ...statusDetailRows(campaign.status),
       ...legalDetailRowsForCampaign(campaign, clientMeta),
       ["MBA Number", campaign.mbaNumber],
       ["PO Number", campaign.poNumber || "N/A"],
@@ -293,6 +299,7 @@ export async function writeSowFinanceWorksheet(
 
     const details: [string, string][] = [
       ["Client Name", campaign.clientName],
+      ...statusDetailRows(campaign.status),
       ...legalDetailRowsForCampaign(campaign, clientMeta),
       ["Scope ID", campaign.mbaNumber],
       ["Scope Name", campaign.campaignName],
@@ -372,6 +379,8 @@ export type RetainerFinanceSheetInput = {
   /** From client record (Xano) when exporting from client hub */
   legalBusinessName?: string
   abn?: string
+  /** Review download only. The accounts pack never sets it. */
+  status?: string
 }
 
 /**
@@ -404,6 +413,7 @@ export async function writeRetainerFinanceWorksheet(
   const hasLegalMeta = input.legalBusinessName !== undefined || input.abn !== undefined
   const details: [string, string][] = [
     ["Client Name", input.clientName],
+    ...statusDetailRows(input.status),
     ...(hasLegalMeta
       ? ([
           ["Legal business name", displayMetaValue(input.legalBusinessName ?? "")],

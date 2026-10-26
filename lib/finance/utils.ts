@@ -45,6 +45,11 @@ export interface FinanceCampaignData {
   /** When set (e.g. finance hub export), shown as header rows before MBA/campaign details. */
   legalBusinessName?: string
   abn?: string
+  /**
+   * Review download only (Clients billing "Download Excel"). When set, a
+   * Status row shows under Client Name. The accounts pack never sets it.
+   */
+  status?: string
 }
 
 export interface BillingScheduleEntry {
