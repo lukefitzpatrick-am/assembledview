@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
 import { ClientMark } from "@/components/brand/EntityMark"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,123 +18,22 @@ import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { PlatformAccountsSection } from "@/components/clients/PlatformAccountsSection"
 import { ConversionSettingsSection } from "@/components/clients/ConversionSettingsSection"
-import { DEFAULT_CLIENT_BRAND_COLOUR } from "@/lib/clients/brandColour"
-
-const optionalString = z.string().optional().or(z.literal(""))
-
-/** Empty string or a parseable URL (protocol optional — https:// is assumed). */
-const optionalUrlOrEmpty = z
-  .string()
-  .optional()
-  .or(z.literal(""))
-  .superRefine((val, ctx) => {
-    if (val == null || val.trim() === "") return
-    const trimmed = val.trim()
-    const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-    try {
-      new URL(candidate)
-    } catch {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Must be a valid URL or empty",
-      })
-    }
-  })
-
-const BRAIN_LINK_FIELDS = [
-  "website",
-  "facebook_url",
-  "instagram_url",
-  "linkedin_url",
-  "tiktok_url",
-  "client_brain",
-] as const
-
-const clientSchema = z.object({
-  id: z.number(),
-  clientname_input: z.string().min(1, "Client name is required"),
-  mbaidentifier: z.string().min(1, "MBA Identifier is required"),
-  clientcategory: optionalString,
-  website: optionalUrlOrEmpty,
-  facebook_url: optionalUrlOrEmpty,
-  instagram_url: optionalUrlOrEmpty,
-  linkedin_url: optionalUrlOrEmpty,
-  tiktok_url: optionalUrlOrEmpty,
-  client_brain: optionalString,
-  abn: z
-    .string()
-    .regex(/^[A-Za-z0-9]{11}$/, "ABN must contain 11 letters or numbers after removing spaces or symbols")
-    .optional()
-    .or(z.literal("")),
-  legalbusinessname: optionalString,
-  streetaddress: optionalString,
-  suburb: optionalString,
-  state_dropdown: z.enum(["NSW", "VIC", "QLD", "SA", "WA", "TAS", "ACT"]).optional(),
-  postcode: z.number().int().min(1000).max(9999).optional(),
-  payment_days: z.number().int().positive({
-    message: "Payment days must be a positive whole number",
-  }).optional(),
-  payment_terms: optionalString,
-  keyfirstname: optionalString,
-  keylastname: optionalString,
-  keyphone: z.string().optional(),
-  keyemail: z.string().email("Invalid email address").optional().or(z.literal("")),
-  billingfirstname: optionalString,
-  billinglastname: optionalString,
-  billingphone: z.string().optional(),
-  billingemail: z.string().email("Invalid email address").optional().or(z.literal("")),
-  monthlyretainer: z.number().nonnegative().optional(),
-  organicsocial: z.number().nonnegative().optional(),
-  television_checkbox: z.boolean().optional(),
-  radio_checkbox: z.boolean().optional(),
-  newspapers_checkbox: z.boolean().optional(),
-  magazines_checkbox: z.boolean().optional(),
-  ooh_checkbox: z.boolean().optional(),
-  cinema_checkbox: z.boolean().optional(),
-  digitaldisplay_checkbox: z.boolean().optional(),
-  digitalaudio_checkbox: z.boolean().optional(),
-  digitalvideo_checkbox: z.boolean().optional(),
-  bvod_checkbox: z.boolean().optional(),
-  feesocial: z.number().min(0).max(100).optional(),
-  feesearch: z.number().min(0).max(100).optional(),
-  feeprogdisplay: z.number().min(0).max(100).optional(),
-  feeprogvideo: z.number().min(0).max(100).optional(),
-  feeprogbvod: z.number().min(0).max(100).optional(),
-  feeprogaudio: z.number().min(0).max(100).optional(),
-  feeprogooh: z.number().min(0).max(100).optional(),
-  feecontentcreator: z.number().min(0).max(100).optional(),
-  adservvideo: z.number().nonnegative().optional(),
-  adservimp: z.number().nonnegative().optional(),
-  adservdisplay: z.number().nonnegative().optional(),
-  adservaudio: z.number().nonnegative().optional(),
-  idgoogleads: optionalString,
-  idmeta: optionalString,
-  idcm360: optionalString,
-  iddv360: optionalString,
-  idtiktok: optionalString,
-  idlinkedin: optionalString,
-  idpinterest: optionalString,
-  idquantcast: optionalString,
-  idtaboola: optionalString,
-  idsnapchat: optionalString,
-  idbing: optionalString,
-  idvistar: optionalString,
-  idga4: optionalString,
-  idmerchantcentre: optionalString,
-  idshopify: optionalString,
-  brand_colour: z
-    .string()
-    .regex(/^#?[0-9A-Fa-f]{6}$/, "Brand colour must be a valid 6-digit hex code.")
-    .optional()
-    .or(z.literal("")),
-})
+import { useToast } from "@/components/ui/use-toast"
+import {
+  asOptionalString,
+  buildEditClientDefaults,
+  buildEditClientPayload,
+  clientEditSchema,
+  describeInvalidFields,
+  type ClientEditFormValues,
+} from "@/lib/clients/editClientFormSchema"
 
 const formatHexColour = (value: string) => {
   const cleaned = value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6)
   return `#${cleaned}`.toUpperCase().padEnd(7, "0")
 }
 
-type ClientFormValues = z.infer<typeof clientSchema>
+type ClientFormValues = ClientEditFormValues
 
 interface EditClientFormProps {
   // Accept partial client data from the list API while requiring an id
@@ -148,65 +46,40 @@ interface EditClientFormProps {
   layout?: "page" | "panel"
 }
 
-function asOptionalString(value: unknown): string {
-  if (value == null) return ""
-  return String(value)
-}
-
 export function EditClientForm({ client, onSuccess, layout = "page" }: EditClientFormProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const { isAdmin } = useAuthContext()
 
-  // Handle both mp_client_name and clientname_input field names
-  const formData = {
-    ...client,
-    clientname_input: (client as any).mp_client_name || client.clientname_input || '',
-    mbaidentifier: client.mbaidentifier || '',
-    payment_days: (client as any).payment_days ?? 30,
-    payment_terms: (client as any).payment_terms ?? "",
-    brand_colour: (client as any).brand_colour ?? DEFAULT_CLIENT_BRAND_COLOUR,
-    // Convert ABN to string if it comes as a number
-    abn: client.abn ? String(client.abn) : '',
-    // Convert phone numbers to strings to preserve leading zeros
-    keyphone: client.keyphone ? String(client.keyphone) : '',
-    billingphone: client.billingphone ? String(client.billingphone) : '',
-    website: asOptionalString((client as any).website),
-    facebook_url: asOptionalString((client as any).facebook_url),
-    instagram_url: asOptionalString((client as any).instagram_url),
-    linkedin_url: asOptionalString((client as any).linkedin_url),
-    tiktok_url: asOptionalString((client as any).tiktok_url),
-    client_brain: asOptionalString((client as any).client_brain),
-  }
+  const { toast } = useToast()
+
+  const formData = buildEditClientDefaults(client as Record<string, unknown> & { id: number })
 
   const initialClientBrain = asOptionalString((client as any).client_brain)
 
   const form = useForm<ClientFormValues>({
-    resolver: zodResolver(clientSchema),
-    defaultValues: formData as ClientFormValues,
+    resolver: zodResolver(clientEditSchema),
+    defaultValues: formData,
   })
+
+  /** A field can fail with no visible message (or far down the form): always say which. */
+  function onInvalid(errors: Parameters<typeof describeInvalidFields>[0]) {
+    const problems = describeInvalidFields(errors)
+    console.warn("Edit client form invalid:", problems)
+    toast({
+      title: "Can't save client yet",
+      description:
+        problems.length > 0
+          ? `Fix ${problems.length === 1 ? "this field" : "these fields"}: ${problems.slice(0, 6).join("; ")}${problems.length > 6 ? "; …" : ""}`
+          : "Some fields are invalid.",
+      variant: "destructive",
+    })
+  }
 
   async function onSubmit(data: ClientFormValues) {
     setIsSaving(true)
     try {
-      // Transform clientname_input to mp_client_name for API
-      const { clientname_input, ...restData } = data
-      const apiPayload: Record<string, unknown> = {
-        ...restData,
-        mp_client_name: clientname_input,
-      }
-
-      // UI-gate only: non-admins must never write brain/link fields (even if defaults rode along).
-      if (!isAdmin) {
-        for (const field of BRAIN_LINK_FIELDS) {
-          delete apiPayload[field]
-        }
-      } else {
-        const nextBrain = data.client_brain ?? ""
-        if (nextBrain !== initialClientBrain) {
-          apiPayload.client_brain_updated_at = Date.now()
-        }
-      }
+      const apiPayload = buildEditClientPayload(data, { isAdmin, initialClientBrain })
 
       const response = await fetch(`/api/clients/${data.id}`, {
         method: "PUT",
@@ -258,29 +131,11 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
     isPanel ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" : "grid-cols-2 md:grid-cols-4"
   )
 
-  const platformIdFields: { name: keyof ClientFormValues; label: string }[] = [
-    { name: "idgoogleads", label: "Google Ads" },
-    { name: "idmeta", label: "Meta" },
-    { name: "idcm360", label: "CM360" },
-    { name: "iddv360", label: "DV360" },
-    { name: "idtiktok", label: "TikTok" },
-    { name: "idlinkedin", label: "LinkedIn" },
-    { name: "idpinterest", label: "Pinterest" },
-    { name: "idquantcast", label: "Quantcast" },
-    { name: "idtaboola", label: "Taboola" },
-    { name: "idsnapchat", label: "Snapchat" },
-    { name: "idbing", label: "Bing" },
-    { name: "idvistar", label: "Vistar" },
-    { name: "idga4", label: "GA4" },
-    { name: "idmerchantcentre", label: "Merchant Centre" },
-    { name: "idshopify", label: "Shopify" },
-  ]
-
   return (
     <>
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={form.handleSubmit(onSubmit, onInvalid)}
         className={cn("w-full min-w-0 space-y-8", isPanel && "pb-16")}
       >
           <div className={grid2}>
@@ -446,8 +301,10 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
                     <Input
                       {...field}
                       type="number"
-                      value={Number(field.value) || 0}
-                      onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                      value={field.value ?? ""}
+                      onChange={(e) =>
+                        field.onChange(Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : undefined)
+                      }
                     />
                   </FormControl>
                   <FormMessage />
@@ -793,36 +650,6 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
           <PlatformAccountsSection clientId={client.id} />
 
           <ConversionSettingsSection clientId={client.id} />
-
-          <div className="min-w-0 rounded-md border p-4">
-            <h3 className="text-lg font-semibold mb-1">Legacy</h3>
-            <p className="mb-4 text-sm text-muted-foreground">
-              These id fields are kept for existing reads. Meta here is the page id. New accounts go in Platform accounts.
-            </p>
-            <div className={grid2}>
-              {platformIdFields.map((platform) => (
-                <FormField
-                  key={platform.name}
-                  control={form.control}
-                  name={platform.name}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{platform.label}</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          readOnly
-                          value={(field.value ?? '') as string}
-                          placeholder="Legacy"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ))}
-            </div>
-          </div>
 
           {isAdmin ? (
             <div className="min-w-0 rounded-md border p-4">
