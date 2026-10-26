@@ -19,6 +19,8 @@ const OPTION_LABEL: Record<string, string> = {
   metric: "Metric",
   keyEvent: "Key event",
   eventSum: "Event count (one or more events)",
+  spend: "Spend",
+  google: "Google Ads",
   savedKpi: "Saved KPI",
   "6": "Last 6 months",
   "12": "Last 12 months",

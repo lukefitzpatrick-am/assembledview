@@ -4,6 +4,7 @@ import type { ClientDeliveredTotalsCampaignInput } from "@/lib/delivery/getDeliv
 import { readGa4 } from "@/lib/webReport/data/ga4"
 import { readGsc } from "@/lib/webReport/data/gsc"
 import { readAvPaid } from "@/lib/webReport/data/paid"
+import { readSearchAds } from "@/lib/webReport/data/searchAds"
 import { loadKpiReport } from "@/lib/webReport/kpis/warehouse"
 import type { ReportWindows } from "@/lib/webReport/periods"
 import type { WarehouseQuery, WebReportData } from "@/lib/webReport/types"
@@ -20,7 +21,22 @@ export async function loadWebReportData(input: {
   clientId?: number | null
   query?: WarehouseQuery
 }): Promise<WebReportData> {
-  const [ga4, gsc, paid, kpis] = await Promise.all([
+  const searchLineItemIds = new Set<string>()
+  const paidAndSearch = readAvPaid({
+    campaigns: input.campaigns,
+    current: input.windows.current,
+    previous: input.windows.previous,
+    searchLineItemIds,
+  }).then(async (paid) => ({
+    paid,
+    searchAds: await readSearchAds({
+      lineItemIds: searchLineItemIds,
+      current: input.windows.current,
+      previous: input.windows.previous,
+      query: input.query,
+    }),
+  }))
+  const [ga4, gsc, { paid, searchAds }, kpis] = await Promise.all([
     readGa4({
       propertyId: input.ga4PropertyId,
       today: input.today,
@@ -36,11 +52,7 @@ export async function loadWebReportData(input: {
       brandTerms: input.brandTerms,
       query: input.query,
     }),
-    readAvPaid({
-      campaigns: input.campaigns,
-      current: input.windows.current,
-      previous: input.windows.previous,
-    }),
+    paidAndSearch,
     input.clientId != null
       ? loadKpiReport({
           clientId: input.clientId,
@@ -59,6 +71,7 @@ export async function loadWebReportData(input: {
     ga4,
     gsc,
     paid,
+    searchAds,
   }
   if (kpis) data.kpis = kpis
   return data

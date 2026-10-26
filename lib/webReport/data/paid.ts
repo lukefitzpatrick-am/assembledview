@@ -16,17 +16,28 @@ export async function readAvPaid(input: {
   campaigns: ClientDeliveredTotalsCampaignInput[]
   current: DateWindow
   previous: DateWindow
+  /** Filled with the client's search line item ids from both windows. Never part of the slice. */
+  searchLineItemIds?: Set<string>
 }): Promise<PaidSlice> {
+  const collect = input.searchLineItemIds ? { searchLineItemIds: input.searchLineItemIds } : undefined
   try {
     const [current, previous] = await Promise.all([
-      getDeliveredTotalsForClient(input.campaigns, {
-        startDate: input.current.from,
-        endDate: input.current.to,
-      }),
-      getDeliveredTotalsForClient(input.campaigns, {
-        startDate: input.previous.from,
-        endDate: input.previous.to,
-      }),
+      getDeliveredTotalsForClient(
+        input.campaigns,
+        {
+          startDate: input.current.from,
+          endDate: input.current.to,
+        },
+        collect,
+      ),
+      getDeliveredTotalsForClient(
+        input.campaigns,
+        {
+          startDate: input.previous.from,
+          endDate: input.previous.to,
+        },
+        collect,
+      ),
     ])
     const spend = current.spendToDate
     const previousSpend = previous.spendToDate

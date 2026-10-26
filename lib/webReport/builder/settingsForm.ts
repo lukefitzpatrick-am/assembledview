@@ -51,6 +51,8 @@ const FIELD_LABEL: Record<string, string> = {
   eventTiles: "Event tiles",
   label: "Label",
   compare: "Show % change vs previous period",
+  platform: "Platform",
+  campaignContains: "Campaign name contains",
   kpiId: "Saved KPI",
   kpiIds: "Saved KPIs",
   months: "Months",

@@ -470,3 +470,19 @@ export function hasFixedCostMediaTypeLabel(mediaTypes: string[] | null | undefin
     return FIXED_COST_MEDIA_TYPE_KEYS.has(m.trim().toLowerCase())
   })
 }
+
+/** Search line ids from snapshot channel groups, lowercased and trimmed like the search pacing read. */
+export function collectSearchLineItemIds(
+  snapshots: ReadonlyArray<{ channels: ReadonlyArray<{ group: string; lines: ReadonlyArray<{ lineItemId: string }> }> } | null>,
+  into: Set<string>,
+): void {
+  for (const snapshot of snapshots) {
+    for (const channel of snapshot?.channels ?? []) {
+      if (channel.group !== "search") continue
+      for (const line of channel.lines) {
+        const id = String(line.lineItemId ?? "").trim().toLowerCase()
+        if (id) into.add(id)
+      }
+    }
+  }
+}

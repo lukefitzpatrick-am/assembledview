@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { SEARCH_ADS_METRICS, SEARCH_ADS_PLATFORMS } from "@/lib/webReport/searchAds"
+
 /**
  * Element registry. Render is `WebReportElement` in
  * `components/dashboard/web/reportElements.tsx`, one component per id.
@@ -138,6 +140,15 @@ export const elementSettings = {
   }),
   gscPages: z.object({ topN: z.number().int().min(1).max(50) }),
   paidSpend: z.object({}).strict(),
+  searchAds: z.object({
+    tiles: z.array(z.enum(SEARCH_ADS_METRICS)).min(1).max(3),
+    platform: z.enum(SEARCH_ADS_PLATFORMS),
+    /** Case-insensitive match on the campaign name, e.g. "Brand". Blank keeps every campaign. */
+    campaignContains: z.string().trim().max(80).optional(),
+    /** Tile title prefix, e.g. "Brand Search". Defaults to "Google Ads" or "Paid search". */
+    label: tileLabelSchema.optional(),
+    compare: compareSchema,
+  }),
   costPer: z.object({ eventName: z.string().trim().min(1).max(80).optional() }),
   gscTrend: z.object({}).strict(),
   queryBubble: z.object({}).strict(),
@@ -318,6 +329,15 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     dataNeeds: ["paid"],
     displays: ["tiles", "bar"],
     defaultWidth: 6,
+  },
+  searchAds: {
+    id: "searchAds",
+    title: "Paid search",
+    group: "Paid media",
+    settings: elementSettings.searchAds,
+    dataNeeds: ["paid"],
+    displays: ["tiles"],
+    defaultWidth: 12,
   },
   costPer: {
     id: "costPer",

@@ -116,6 +116,22 @@ export type PaidSlice = {
   byChannel: PaidChannelRow[]
 }
 
+export type SearchAdsTotals = { impressions: number; clicks: number; spend: number }
+
+/** One Google Ads or Microsoft Ads campaign on the client's search line items. Spend is platform cost. */
+export type SearchAdsCampaignRow = {
+  campaign: string
+  channel: string
+  current: SearchAdsTotals
+  previous: SearchAdsTotals
+}
+
+export type SearchAdsSlice = {
+  status: SourceStatus
+  message: string | null
+  campaigns: SearchAdsCampaignRow[]
+}
+
 export type WebReportData = {
   windows: ReportWindows
   /** GA4 property display name, or the property id when it has no name. */
@@ -124,6 +140,8 @@ export type WebReportData = {
   ga4: Ga4Slice
   gsc: GscSlice
   paid: PaidSlice
+  /** Paid search by campaign from SEARCH_PACING_FACT. Absent on data loaded before this field existed. */
+  searchAds?: SearchAdsSlice
   /** Saved monthly KPIs. Absent when the report was loaded without a client. */
   kpis?: WebKpiReport
 }

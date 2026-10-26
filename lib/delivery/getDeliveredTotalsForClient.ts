@@ -6,6 +6,7 @@ import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
 import { getAsOfDate } from "@/lib/pacing/maths"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/slugifyPlanClientName"
 import {
+  collectSearchLineItemIds,
   combineDeliveredTotals,
   deliveredQueryWindow,
   hasFixedCostMediaTypeLabel,
@@ -87,6 +88,13 @@ async function loadScopedDirectGroups(
 export async function getDeliveredTotalsForClient(
   campaigns: ClientDeliveredTotalsCampaignInput[],
   range?: { startDate?: string | null; endDate?: string | null },
+  options?: {
+    /**
+     * When set, filled with the lowercased search line item ids of the loaded snapshots.
+     * The return value does not change, so the delivered route never sends these ids.
+     */
+    searchLineItemIds?: Set<string>
+  },
 ): Promise<ClientDeliveredTotals> {
   const window = deliveredQueryWindow(range?.startDate, range?.endDate)
   if (campaigns.length === 0) {
@@ -138,6 +146,10 @@ export async function getDeliveredTotalsForClient(
       ? loadScopedDirectGroups(pacingSlugSet, failedSources)
       : Promise.resolve<DirectCampaignGroup[]>([]),
   ])
+
+  if (options?.searchLineItemIds) {
+    collectSearchLineItemIds(snapshots, options.searchLineItemIds)
+  }
 
   const snapshotByMba = new Map<string, (typeof snapshots)[number]>()
   campaigns.forEach((c, i) => {

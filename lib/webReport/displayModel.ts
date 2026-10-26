@@ -1,5 +1,6 @@
 import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import { formatChange, relativeChange } from "@/lib/webReport/change"
+import { filterSearchAdsRows, sumSearchAds, type SearchAdsMetric, type SearchAdsPlatform } from "@/lib/webReport/searchAds"
 import type { DeliveryStatus } from "@/lib/pacing/deliveryStatusFromPct"
 import { elementViewState } from "@/lib/webReport/elementState"
 import {
@@ -860,6 +861,10 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
     return { kind: "tiles", title, tiles: tilesFor(id, settings, data), withSpark: false }
   }
 
+  if (id === "searchAds") {
+    return { kind: "tiles", title, tiles: tilesFor(id, settings, data), withSpark: false }
+  }
+
   return { kind: "message", title, message: "Not available yet" }
 }
 
@@ -887,6 +892,9 @@ function tilesFor(id: WebElementId, settings: unknown, data: WebReportData): Pre
       })),
     ]
   }
+  if (id === "searchAds") {
+    return searchAdsTiles(settings as SearchAdsSetting, data)
+  }
   if (id === "costPer") {
     const events = data.ga4.current.keyEvents
     const cost = data.paid.spend != null && events != null && events > 0 ? data.paid.spend / events : null
@@ -899,6 +907,43 @@ function tilesFor(id: WebElementId, settings: unknown, data: WebReportData): Pre
     }]
   }
   return []
+}
+
+type SearchAdsSetting = {
+  tiles: SearchAdsMetric[]
+  platform: SearchAdsPlatform
+  campaignContains?: string
+  label?: string
+  compare?: boolean
+}
+
+const SEARCH_ADS_LABEL: Record<SearchAdsMetric, string> = {
+  impressions: "Impressions",
+  clicks: "Clicks",
+  spend: "Spend",
+}
+
+/** Impressions, clicks or platform spend for the matching campaigns, with change vs the compared window. */
+export function searchAdsTiles(spec: SearchAdsSetting, data: WebReportData): PreparedTile[] {
+  const rows = filterSearchAdsRows(data.searchAds?.campaigns ?? [], spec)
+  const sum = sumSearchAds(rows)
+  const prefix = spec.label ?? (spec.platform === "google" ? "Google Ads" : "Paid search")
+  const filter = spec.campaignContains?.trim()
+  const caption = filter
+    ? `${rows.length} campaign${rows.length === 1 ? "" : "s"} containing "${filter}"`
+    : undefined
+  return spec.tiles.map((metric) => {
+    const current = sum.current[metric]
+    const tile: PreparedTile = {
+      label: `${prefix} ${SEARCH_ADS_LABEL[metric].toLowerCase()}`,
+      value: metric === "spend" ? formatMoneyCompact(current) : NUMBER.format(current),
+      caption,
+      current,
+      spark: [],
+    }
+    if (spec.compare === true) tile.change = prepareChange(current, sum.previous[metric])
+    return tile
+  })
 }
 
 export function prepareWebElement(item: WebReportLayoutItem, data: WebReportData): PreparedDisplay {

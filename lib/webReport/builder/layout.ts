@@ -53,6 +53,8 @@ export function defaultElementSettings(id: WebElementId): unknown {
       return {}
     case "kpiTracker":
       return { kpiIds: [], months: "12" }
+    case "searchAds":
+      return { tiles: ["impressions", "clicks"], platform: "google", compare: true }
     default:
       return {}
   }
