@@ -13,6 +13,7 @@ import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSecti
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Segmented, SegmentedItem } from "@/components/ui/segmented"
 import {
   Select,
   SelectContent,
@@ -23,16 +24,23 @@ import {
 import { fetchFinanceSectionsJson } from "@/lib/finance/sections/api"
 import {
   filterFixedCostMarginLines,
+  NO_BILL_YET_LABEL,
   NO_COST_IN_FEED_LABEL,
   NO_PLATFORM_DATA_LABEL,
   OUT_OF_RANGE_LABEL,
+  PENDING_BILLS_LABEL,
   summariseFixedCostMargin,
   type FinanceFixedCostMarginPayload,
+  type FixedCostBillLineView,
   type FixedCostMarginLine,
   type MarginSummary,
   type MarginTotals,
 } from "@/lib/finance/sections/fixedCostMargin/compose"
-import { downloadFixedCostMarginWorkbook } from "@/lib/finance/sections/fixedCostMargin/excel"
+import {
+  billMethodLabel,
+  billStateLabel,
+  downloadFixedCostMarginWorkbook,
+} from "@/lib/finance/sections/fixedCostMargin/excel"
 import { fyDisplayLabel } from "@/lib/finance/months"
 import { formatMoney } from "@/lib/format/money"
 import {
@@ -44,6 +52,23 @@ import type { ViewState } from "@/lib/ui/viewState"
 import { cn } from "@/lib/utils"
 
 const ALL = "__all__"
+
+type ViewMode = "margin" | "timing" | "bills"
+type BillFilter = "needs" | "matched" | "fee" | "production" | "all"
+
+const BILL_FILTERS: Array<{ value: BillFilter; label: string }> = [
+  { value: "needs", label: "To match by hand" },
+  { value: "matched", label: "Matched" },
+  { value: "fee", label: "Fees" },
+  { value: "production", label: "Production" },
+  { value: "all", label: "All bill lines" },
+]
+
+function billFilterMatches(b: FixedCostBillLineView, f: BillFilter): boolean {
+  if (f === "all") return true
+  if (f === "needs") return b.state === "ambiguous" || b.state === "unmatched"
+  return b.state === f
+}
 
 function monthLabel(yyyyMm: string): string {
   const [y, m] = yyyyMm.split("-")
@@ -90,6 +115,16 @@ function LineFlags({ line }: { line: FixedCostMarginLine }) {
           {NO_COST_IN_FEED_LABEL}
         </Badge>
       ) : null}
+      {line.flags.noBillYet ? (
+        <Badge variant="neutral" size="sm">
+          {NO_BILL_YET_LABEL}
+        </Badge>
+      ) : null}
+      {line.flags.pendingBills ? (
+        <Badge variant="attention" size="sm">
+          {PENDING_BILLS_LABEL}
+        </Badge>
+      ) : null}
       {line.flags.negativeMargin ? (
         <Badge variant="critical" size="sm">
           Negative margin
@@ -104,7 +139,15 @@ function LineFlags({ line }: { line: FixedCostMarginLine }) {
   )
 }
 
-function TotalsCells({ t, strong = false }: { t: MarginTotals; strong?: boolean }) {
+function TotalsCells({
+  t,
+  strong = false,
+  withBills = false,
+}: {
+  t: MarginTotals
+  strong?: boolean
+  withBills?: boolean
+}) {
   const cls = cn("num px-2 py-1.5 text-right", strong && "font-semibold")
   return (
     <>
@@ -115,7 +158,200 @@ function TotalsCells({ t, strong = false }: { t: MarginTotals; strong?: boolean 
         {t.billedWithCostCents || t.actualCents ? money(t.marginCents) : "—"}
       </td>
       <td className={cn(cls, marginClass(t.marginCents))}>{pct(t.marginPct)}</td>
+      {withBills ? (
+        <>
+          <td className={cn(cls, "text-muted-foreground")}>{t.billGrossCents ? money(t.billGrossCents) : "—"}</td>
+          <td className={cn(cls, "text-muted-foreground")}>{t.billRebateCents ? money(t.billRebateCents) : "—"}</td>
+          <td className={cn(cls, "text-muted-foreground")}>{t.pendingBillCents ? money(t.pendingBillCents) : "—"}</td>
+        </>
+      ) : null}
     </>
+  )
+}
+
+function TimingTable({
+  clients,
+  currentMonth,
+}: {
+  clients: Array<{ clientId: number; clientName: string; lines: FixedCostMarginLine[] }>
+  currentMonth: string
+}) {
+  const cell = "num px-2 py-1 text-right"
+  return (
+    <div className="overflow-x-auto rounded-card border border-border bg-card shadow-e1">
+      <table className="w-full min-w-[1100px] text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-muted-foreground">
+            <th className="sticky left-0 z-10 bg-card px-3 py-2 font-medium">Client / line / month</th>
+            <th className="px-2 py-2 font-medium">Cost from</th>
+            <th className="px-2 py-2 text-right font-medium">Cost, billed month</th>
+            <th className="px-2 py-2 text-right font-medium">Cost, delivered month</th>
+            <th className="px-2 py-2 text-right font-medium">Difference</th>
+            <th className="px-2 py-2 text-right font-medium">Client billed</th>
+            <th className="px-2 py-2 text-right font-medium">Client delivery</th>
+            <th className="px-2 py-2 text-right font-medium">Difference</th>
+          </tr>
+        </thead>
+        <tbody>
+          {clients.map((client) => (
+            <Fragment key={`t-${client.clientId}`}>
+              <tr className="border-b border-border/80 bg-surface-panel">
+                <td className="sticky left-0 z-10 bg-surface-panel px-3 py-2 font-semibold text-foreground" colSpan={8}>
+                  {client.clientName}
+                </td>
+              </tr>
+              {client.lines.map((line) => (
+                <Fragment key={`t-${line.key}`}>
+                  <tr className="border-b border-border/60">
+                    <td className="sticky left-0 z-10 bg-card px-3 py-1.5 pl-6 text-foreground" colSpan={8}>
+                      <span className="font-medium">{line.mbaNumber}</span>
+                      <span className="ml-2 text-muted-foreground">{line.lineItemId}</span>
+                      <span className="ml-2 text-muted-foreground">{line.publisher}</span>
+                    </td>
+                  </tr>
+                  {line.timing.map((t) => (
+                    <tr key={`t-${line.key}-${t.month}`} className="interactive-row border-b border-border/40">
+                      <td className="sticky left-0 z-10 bg-card px-3 py-1 pl-10 text-muted-foreground">
+                        {monthLabel(t.month)}
+                        {t.month === currentMonth ? " (to date)" : ""}
+                      </td>
+                      <td className="px-2 py-1 text-muted-foreground">
+                        {line.costBasis === "xero_bill" ? "Xero bills" : "Platform spend"}
+                      </td>
+                      <td className={cell}>{money(t.costBilledMonthCents)}</td>
+                      <td className={cell}>{money(t.costDeliveredMonthCents)}</td>
+                      <td className={cn(cell, marginClass(t.costDiffCents))}>{money(t.costDiffCents)}</td>
+                      <td className={cell}>{money(t.clientBilledCents)}</td>
+                      <td className={cell}>{money(t.clientDeliveryCents)}</td>
+                      <td className={cn(cell, marginClass(t.clientDiffCents))}>{money(t.clientDiffCents)}</td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function BillLinesPanel({ data }: { data: FinanceFixedCostMarginPayload }) {
+  const [filter, setFilter] = useState<BillFilter>("needs")
+  const rows = useMemo(() => data.billLines.filter((b) => billFilterMatches(b, filter)), [data.billLines, filter])
+  const cell = "num px-2 py-1 text-right"
+  return (
+    <div className="space-y-4">
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Bill match totals (ex GST, gross, bills issued in range)</PanelTitle>
+        </PanelHeader>
+        <PanelContent>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="px-2 py-2 font-medium">Supplier</th>
+                  <th className="px-2 py-2 text-right font-medium">Lines</th>
+                  <th className="px-2 py-2 text-right font-medium">Gross</th>
+                  <th className="px-2 py-2 text-right font-medium">Matched</th>
+                  <th className="px-2 py-2 text-right font-medium">In this report</th>
+                  <th className="px-2 py-2 text-right font-medium">Ambiguous</th>
+                  <th className="px-2 py-2 text-right font-medium">Unmatched</th>
+                  <th className="px-2 py-2 text-right font-medium">Fees</th>
+                  <th className="px-2 py-2 text-right font-medium">Production</th>
+                  <th className="px-2 py-2 text-right font-medium">Pending</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.billTotals.map((t) => (
+                  <tr key={t.supplierKind} className="border-b border-border/40">
+                    <td className="px-2 py-1.5 text-foreground">{t.supplierKind.replace(/_/g, " ")}</td>
+                    <td className={cell}>{t.lines}</td>
+                    <td className={cell}>{money(t.totalCents)}</td>
+                    <td className={cell}>{money(t.matchedCents)}</td>
+                    <td className={cell}>{money(t.matchedInReportCents)}</td>
+                    <td className={cell}>{money(t.ambiguousCents)}</td>
+                    <td className={cell}>{money(t.unmatchedCents)}</td>
+                    <td className={cell}>{money(t.feeCents)}</td>
+                    <td className={cell}>{money(t.productionCents)}</td>
+                    <td className={cell}>{money(t.pendingCents)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </PanelContent>
+      </Panel>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Segmented value={filter} onValueChange={(v) => v && setFilter(v as BillFilter)}>
+          {BILL_FILTERS.map((f) => (
+            <SegmentedItem key={f.value} value={f.value}>
+              {f.label}
+            </SegmentedItem>
+          ))}
+        </Segmented>
+        <span className="text-xs text-muted-foreground">{rows.length} bill lines</span>
+      </div>
+
+      <div className="overflow-x-auto rounded-card border border-border bg-card shadow-e1">
+        <table className="w-full min-w-[1300px] text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-muted-foreground">
+              <th className="px-2 py-2 font-medium">Supplier / bill</th>
+              <th className="px-2 py-2 font-medium">Status</th>
+              <th className="px-2 py-2 font-medium">Billed / delivered</th>
+              <th className="px-2 py-2 font-medium">Description</th>
+              <th className="px-2 py-2 font-medium">Publisher</th>
+              <th className="px-2 py-2 font-medium">MBA</th>
+              <th className="px-2 py-2 font-medium">Line</th>
+              <th className="px-2 py-2 font-medium">Match</th>
+              <th className="px-2 py-2 text-right font-medium">Gross</th>
+              <th className="px-2 py-2 text-right font-medium">Rebate</th>
+              <th className="px-2 py-2 text-right font-medium">Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((b) => (
+              <tr key={b.key} className="interactive-row border-b border-border/40 align-top">
+                <td className="px-2 py-1">
+                  <span className="block text-foreground">{b.supplierKind}</span>
+                  <span className="block text-xs text-muted-foreground">{b.invoiceNumber}</span>
+                </td>
+                <td className="px-2 py-1">
+                  <Badge variant={b.statusClass === "counted" ? "neutral" : "attention"} size="sm">
+                    {b.status}
+                  </Badge>
+                </td>
+                <td className="px-2 py-1 text-muted-foreground">
+                  {monthLabel(b.billedMonth)}
+                  {b.deliveredMonth !== b.billedMonth ? ` / ${monthLabel(b.deliveredMonth)}` : ""}
+                </td>
+                <td className="max-w-[320px] px-2 py-1 text-muted-foreground">{b.description}</td>
+                <td className="px-2 py-1">{b.publisher ?? (b.mediaOwnerText || "—")}</td>
+                <td className="px-2 py-1">{b.mbaNumber ?? "—"}</td>
+                <td className="px-2 py-1">
+                  {b.lineItemId ?? (b.candidates.length ? b.candidates.join(", ") : "—")}
+                  {b.lineItemId && !b.inReport ? (
+                    <span className="block text-xs text-muted-foreground">not fixed cost</span>
+                  ) : null}
+                </td>
+                <td className="max-w-[280px] px-2 py-1">
+                  <span className="block text-foreground">{billStateLabel(b.state)}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {b.method ? billMethodLabel(b.method) : b.reason}
+                  </span>
+                </td>
+                <td className={cell}>{money(b.grossCents)}</td>
+                <td className={cell}>{b.rebateCents ? money(b.rebateCents) : "—"}</td>
+                <td className={cell}>{money(b.netCents)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
@@ -175,6 +411,7 @@ export function CostsFixedCostMarginClient() {
   const [platform, setPlatform] = useState("")
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [mode, setMode] = useState<ViewMode>("margin")
 
   const load = useCallback(() => {
     setView({ status: "loading" })
@@ -228,9 +465,10 @@ export function CostsFixedCostMarginClient() {
       await downloadFixedCostMarginWorkbook(
         lines,
         summary,
-        [view.data.caption, view.data.spendSource.note, ...view.data.notes],
+        [view.data.caption, view.data.spendSource.note, view.data.billSource.note, ...view.data.notes],
         { from: view.data.scope.from, to: view.data.scope.to },
-        { save: saveAs }
+        { save: saveAs },
+        { billLines: view.data.billLines, billTotals: view.data.billTotals }
       )
     } catch (error) {
       setDownloadError(error instanceof Error ? error.message : "Download failed")
@@ -258,7 +496,11 @@ export function CostsFixedCostMarginClient() {
           {ready?.caption ??
             "Fixed-cost lines billed at plan, against what the platform actually charged."}
         </p>
-        {ready ? <p className="text-xs text-muted-foreground">{ready.spendSource.note}</p> : null}
+        {ready ? (
+          <p className="text-xs text-muted-foreground">
+            {ready.spendSource.note} {ready.billSource.note}
+          </p>
+        ) : null}
 
         <div className="flex flex-wrap items-end gap-3">
           <label className="space-y-1 text-xs text-muted-foreground">
@@ -293,6 +535,11 @@ export function CostsFixedCostMarginClient() {
               </SelectContent>
             </Select>
           </label>
+          <Segmented value={mode} onValueChange={(v) => v && setMode(v as ViewMode)}>
+            <SegmentedItem value="margin">Margin</SegmentedItem>
+            <SegmentedItem value="timing">Billed vs delivered</SegmentedItem>
+            <SegmentedItem value="bills">Bill lines</SegmentedItem>
+          </Segmented>
           <Button
             variant="outline"
             size="sm"
@@ -319,8 +566,8 @@ export function CostsFixedCostMarginClient() {
             state={tileState(view, summary, (t) => t.invoicedCents)}
           />
           <StatTile
-            label="Actual platform spend"
-            basisCaption="What the platforms charged"
+            label="Actual cost"
+            basisCaption="Platform spend, or Xero bills net of the AA rebate"
             state={tileState(view, summary, (t) => t.actualCents)}
           />
           <StatTile
@@ -346,7 +593,12 @@ export function CostsFixedCostMarginClient() {
           />
         ) : null}
 
-        {ready && lines.length > 0 && summary ? (
+        {ready && mode === "timing" && lines.length > 0 ? (
+          <TimingTable clients={clients} currentMonth={ready.scope.currentMonth} />
+        ) : null}
+        {ready && mode === "bills" ? <BillLinesPanel data={ready} /> : null}
+
+        {ready && mode === "margin" && lines.length > 0 && summary ? (
           <>
             <div className="overflow-x-auto rounded-card border border-border bg-card shadow-e1">
               <table className="w-full min-w-[1100px] text-sm">
@@ -357,9 +609,12 @@ export function CostsFixedCostMarginClient() {
                     <th className="px-2 py-2 font-medium">Spend source</th>
                     <th className="px-2 py-2 text-right font-medium">Planned billed</th>
                     <th className="px-2 py-2 text-right font-medium">Invoiced</th>
-                    <th className="px-2 py-2 text-right font-medium">Actual spend</th>
+                    <th className="px-2 py-2 text-right font-medium">Actual cost</th>
                     <th className="px-2 py-2 text-right font-medium">Margin $</th>
                     <th className="px-2 py-2 text-right font-medium">Margin %</th>
+                    <th className="px-2 py-2 text-right font-medium">Bill gross</th>
+                    <th className="px-2 py-2 text-right font-medium">AA rebate</th>
+                    <th className="px-2 py-2 text-right font-medium">Pending bills</th>
                     <th className="px-3 py-2 font-medium">Flags</th>
                   </tr>
                 </thead>
@@ -375,7 +630,7 @@ export function CostsFixedCostMarginClient() {
                           >
                             {client.clientName}
                           </td>
-                          {ct ? <TotalsCells t={ct} strong /> : null}
+                          {ct ? <TotalsCells t={ct} strong withBills /> : null}
                           <td className="px-3 py-2" />
                         </tr>
                         {client.lines.map((line) => (
@@ -392,7 +647,7 @@ export function CostsFixedCostMarginClient() {
                               <td className="px-2 py-1.5 text-muted-foreground">
                                 {line.sources.length ? line.sources.join(", ") : "—"}
                               </td>
-                              <TotalsCells t={line.totals} />
+                              <TotalsCells t={line.totals} withBills />
                               <td className="px-3 py-1.5">
                                 <LineFlags line={line} />
                               </td>
@@ -413,13 +668,25 @@ export function CostsFixedCostMarginClient() {
                                   {m.invoiced ? money(m.invoicedCents) : "—"}
                                 </td>
                                 <td className="num px-2 py-1 text-right">
-                                  {line.costStatus === "none" ? "—" : money(m.actualCents)}
+                                  {line.costStatus === "none" ||
+                                  (line.costBasis === "xero_bill" && m.marginCents == null && !m.actualCents)
+                                    ? "—"
+                                    : money(m.actualCents)}
                                 </td>
                                 <td className={cn("num px-2 py-1 text-right", marginClass(m.marginCents))}>
                                   {money(m.marginCents)}
                                 </td>
                                 <td className={cn("num px-2 py-1 text-right", marginClass(m.marginCents))}>
                                   {pct(m.marginPct)}
+                                </td>
+                                <td className="num px-2 py-1 text-right text-muted-foreground">
+                                  {m.billGrossCents ? money(m.billGrossCents) : "—"}
+                                </td>
+                                <td className="num px-2 py-1 text-right text-muted-foreground">
+                                  {m.billRebateCents ? money(m.billRebateCents) : "—"}
+                                </td>
+                                <td className="num px-2 py-1 text-right text-muted-foreground">
+                                  {m.pendingBillCents ? money(m.pendingBillCents) : "—"}
                                 </td>
                                 <td className="px-3 py-1">
                                   {m.outsideLineMonths ? (
@@ -439,7 +706,7 @@ export function CostsFixedCostMarginClient() {
                     <td className="sticky left-0 z-10 bg-surface-panel px-3 py-2 font-semibold text-foreground" colSpan={3}>
                       Total
                     </td>
-                    <TotalsCells t={summary.grand} strong />
+                    <TotalsCells t={summary.grand} strong withBills />
                     <td className="px-3 py-2" />
                   </tr>
                 </tbody>
@@ -465,13 +732,15 @@ export function CostsFixedCostMarginClient() {
                 grand={summary.grand}
               />
             </div>
-
-            <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
-              {ready.notes.map((n) => (
-                <li key={n}>{n}</li>
-              ))}
-            </ul>
           </>
+        ) : null}
+
+        {ready ? (
+          <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+            {ready.notes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
         ) : null}
       </div>
     </FinanceSectionsShell>
