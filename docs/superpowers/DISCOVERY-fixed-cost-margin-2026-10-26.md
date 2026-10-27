@@ -258,3 +258,24 @@ Effort: CF is small and exact. AA needs the alias list and a match queue; a larg
 9. Golf Digest (golf025 DD11, DD14, DD15, NP6 and PGAAUS015 DD17, DD19): no FY27 bill names Golf Digest. Who bills Golf Digest, and has it been billed yet?
 10. Should bills in DRAFT or SUBMITTED status count as cost, or only AUTHORISED and PAID?
 11. Supplier credit notes (`ACCPAYCREDIT`) are not ingested today. Do suppliers send credit notes for under-delivery? If so, the ingest needs a small change before bill costs are trusted.
+
+## Xero bill cost: built (27 Oct 2026)
+
+Rules from Luke's 27 Oct answers. Code in `lib/finance/sections/fixedCostMargin/bills/` (pure) and `query.ts` (loaders). Computed in the app on each load from `xero_ap_bills.line_items_json`; no new table.
+
+- Status: AUTHORISED and PAID count; DRAFT and SUBMITTED go to Pending (`policy.ts`).
+- Month: cost lands in the bill's issue month (billed month). The bill line's week date is the delivered month (billed month when there is none, and for CF). `assignBillLineMonths`.
+- AA: gross, less `AA_REBATE_RATE` (0.08). Production, talent, installation and hot read lines are classified and kept out of media cost. CF "7.5%" lines are a fee.
+- CF: PL id to plan line through `RAW.PARTNER_FILE_LINES` (column 3 PL, column 4 plan code). Xero tracking not used.
+- AA and direct: MBA (invoice number, then descriptions, then line tracking), media owner alias to publisher (`MEDIA_OWNER_ALIASES`), AA bills to AA publishers only, direct bills to the direct publisher only (`DIRECT_SUPPLIERS`; "Broadsheet - AM" is #85, created by Luke with `sql/supabase/2026-10-27_fcm2_broadsheet_am_publisher_SUPABASE.sql`). Several candidate lines: month plus amount must single one out; month alone never picks (it was wrong in 2 of 6 live cases). An amount match takes a line-month once.
+- Bill-cost months with no counted bill have no margin ("No bill yet"), so future months are not shown as 100% margin.
+
+FY27 bills issued Jul to Sep 2026 (ex GST, gross), measured 27 Oct:
+
+| Supplier | Lines | Gross | Matched | Ambiguous | Unmatched | Fee / production |
+|---|---|---|---|---|---|---|
+| Channel Factory | 26 | 123,342.61 | 119,705.53 (100% of media) | 0 | 0 | fee 3,637.08 |
+| Advertising Associates | 133 | 1,082,598.09 | 463,231.83 (44.2% of media) | 263,476.90 | 322,469.36 | production 33,420.00 |
+| Direct (Broadsheet, Linkby, Are Media) | 7 | 35,280.00 | 0 | 0 | 35,280.00 | 0 |
+
+AA matched to fixed-cost lines in the report: 17,724.30 (STRMEA001OH161). The rest of the matched AA dollars are lines that are not fixed cost. Unmatched AA: no MBA on the bill 221,467.21 (Sinch 116,134.45, Molicare 70,564.00, Challenger 18,065.00, LDS 13,114.18 and others); media owner not recognised 19,998.87 (regional WA radio, Multicultural Media); no line of that publisher on the MBA 81,003.28.
