@@ -44,7 +44,9 @@ import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts"
 import {
   expectedForWindow,
   impressionsNotTracked,
+  NO_IMPRESSION_TRACKING,
   netSpendBasisForLine,
+  noImpressionTrackingNote,
   pacingAsAtISO,
   plannedTotal,
   resolvePacingWindow,
@@ -252,8 +254,9 @@ function completionRatePct(videoCompletes: number, impressions: number): number 
 
 /**
  * CM360 deliverable card. Compared with what was expected for the window.
- * No plan goal: verification counts only. Click tracker (clicks, no
- * impressions): impressions not tracked, left out of expected.
+ * No plan goal: verification counts only. Click tracker (clicks and no
+ * impressions across its delivery): "No impression tracking", left out of
+ * expected and planned impressions and out of CPM.
  */
 function deliveryProgressCard(input: {
   title: string
@@ -289,13 +292,13 @@ function deliveryProgressCard(input: {
     return {
       title,
       value: formatWholeNumber(actual),
-      detail: `Delivered ${formatWholeNumber(actual)} · Impressions not tracked (click tracker) · ${formatWholeNumber(planned)} planned in total`,
+      detail: `Delivered ${formatWholeNumber(actual)} · ${NO_IMPRESSION_TRACKING} (click tracker) · ${formatWholeNumber(planned)} planned in total`,
       progress: 0,
       expected: 0,
       expectedToDate: 0,
       plannedTotal: planned,
       variance: 0,
-      varianceLabel: "impressions not tracked",
+      varianceLabel: "no impression tracking",
       status: "no-data",
       sparkline,
       dense,
@@ -314,7 +317,7 @@ function deliveryProgressCard(input: {
     dense,
     note:
       untracked > 0
-        ? `Impressions not tracked on ${untracked} click-tracker ${untracked === 1 ? "line" : "lines"}`
+        ? noImpressionTrackingNote(untracked)
         : null,
   })
 }
@@ -563,7 +566,9 @@ export function buildDirectDigitalChannelSection(input: {
       impressions: sumInWindow(daily, window, (d) => d.impressions),
       clicks: sumInWindow(daily, window, (d) => d.clicks),
     }
-    const impressionsTracked = !impressionsNotTracked(inWindow)
+    // REP-5: a click tracker has clicks and no impressions across its whole
+    // delivery, not only in the selected window.
+    const impressionsTracked = !impressionsNotTracked(totals)
     const deliverableExpected = (w: PacingWindow) =>
       hasBursts ? expectedForWindow(rawBursts, "deliverables", w) : 0
     // No dated bursts: the line's planned media runs straight across the campaign.
@@ -728,16 +733,23 @@ export function buildDirectDigitalChannelSection(input: {
     withDelivery.reduce((sum, m) => sum + pick(m), 0)
   const impressionLines = withDelivery.filter((m) => m.booked.impressions > 0)
   const untrackedImpressionLines = impressionLines.filter((m) => !m.pace.impressions.tracked).length
+  const allImpressionsUntracked =
+    impressionLines.length > 0 && untrackedImpressionLines === impressionLines.length
+  // Click trackers drop out of planned impressions too, so the card's plan
+  // total matches the lines it paces.
+  const trackedPlannedImpressions = impressionLines
+    .filter((m) => m.pace.impressions.tracked)
+    .reduce((sum, m) => sum + m.booked.impressions, 0)
   const impressionsCard = deliveryProgressCard({
     title: "Impressions delivery",
     actual: sumPace((m) => m.pace.impressions.delivered),
-    planned: rollup.plannedImpressions,
+    planned: allImpressionsUntracked ? rollup.plannedImpressions : trackedPlannedImpressions,
     expected: sumPace((m) => m.pace.impressions.expected),
     expectedToDate: sumPace((m) => m.pace.impressions.expectedToDate),
     window,
     sparkline: impressionsSpark,
     untrackedLines: untrackedImpressionLines,
-    allUntracked: impressionLines.length > 0 && untrackedImpressionLines === impressionLines.length,
+    allUntracked: allImpressionsUntracked,
   })
   const clicksCard = deliveryProgressCard({
     title: "Clicks delivery",
@@ -811,6 +823,11 @@ export function buildDirectDigitalChannelSection(input: {
   const aggregateSpend =
     reportedSpendTotal + estimatedSpendTotal > 0 ? reportedSpendTotal + estimatedSpendTotal : null
   const aggregateSpendEstimated = estimatedLines.length > 0 && reportedLines.length === 0
+  // CPM leaves click trackers out: their spend buys no tracked impressions.
+  const cpmLines = withDelivery.filter((m) => m.pace.impressions.tracked)
+  const cpmLineSpend = (m: (typeof withDelivery)[number]) =>
+    m.hasReportedEntries ? m.reportedTotal : m.estimatedAmount
+  const cpmSpend = cpmLines.reduce((sum, m) => sum + cpmLineSpend(m), 0)
   const cpvTile: KpiTileProps[] =
     hasVideoCompletes || key === "bvod"
       ? [
@@ -831,7 +848,7 @@ export function buildDirectDigitalChannelSection(input: {
           ? [
               {
                 label: "CPM",
-                value: formatMoney(cpm(aggregateSpend ?? 0, rollup.impressions)),
+                value: formatMoney(cpm(cpmSpend, rollup.impressions)),
                 caption: "Estimated",
                 accentColour,
               } satisfies KpiTileProps,
@@ -849,7 +866,8 @@ export function buildDirectDigitalChannelSection(input: {
           : []),
       ]
     : []
-  const bandTiles = markEstimatedCostTiles(applyKpiBandTargetsFromPlan([...aggregateKpiTiles, ...cpvTile, ...aggregateCostTiles], {
+  const bandSourceTiles = [...aggregateKpiTiles, ...cpvTile, ...aggregateCostTiles]
+  let bandTiles = markEstimatedCostTiles(applyKpiBandTargetsFromPlan(bandSourceTiles, {
     key,
     items: withDelivery.map((m) => m.item),
     plannedSpendByLineId,
@@ -861,6 +879,25 @@ export function buildDirectDigitalChannelSection(input: {
     lineItemTargets,
     isAdmin,
   }), aggregateSpendEstimated)
+  const cpmSourceTile = bandSourceTiles.find((tile) => tile.label === "CPM")
+  if (cpmSourceTile && cpmLines.length < withDelivery.length) {
+    // The CPM target and delivered CPM read the tracked lines only.
+    const cpmPlannedSpend: Record<string, number> = {}
+    for (const m of cpmLines) cpmPlannedSpend[m.id] = m.bookedSpend
+    const [cpmTile] = markEstimatedCostTiles(applyKpiBandTargetsFromPlan([cpmSourceTile], {
+      key,
+      items: cpmLines.map((m) => m.item),
+      plannedSpendByLineId: cpmPlannedSpend,
+      impressions: rollup.impressions,
+      clicks: cpmLines.reduce((sum, m) => sum + m.totals.clicks, 0),
+      results: cpmLines.reduce((sum, m) => sum + m.totals.results, 0),
+      views: null,
+      spend: cpmSpend > 0 ? cpmSpend : null,
+      lineItemTargets,
+      isAdmin,
+    }), aggregateSpendEstimated)
+    if (cpmTile) bandTiles = bandTiles.map((tile) => (tile.label === "CPM" ? cpmTile : tile))
+  }
 
   const accordionItems = withDelivery.map((m) => {
     const liCtr = clickThroughRate(m.totals.clicks, m.totals.impressions)

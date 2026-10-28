@@ -911,6 +911,10 @@ async function assembleCampaignReportDeck(
             : formatReportInt(channel.previousImpressions),
           plannedCountLabel(channel.plannedImpressions),
         ),
+        // REP-5: click trackers are out of planned impressions and CPM.
+        ...(channel.clickTrackerLines && channel.impressionsNote
+          ? [row("Click trackers", channel.impressionsNote, REPORT_FIGURE_DASH, REPORT_FIGURE_DASH)]
+          : []),
         row("Clicks", formatReportInt(channel.clicks), "Not available", plannedCountLabel(channel.plannedClicks)),
         // With the client's switch on, chosen conversions replace platform results (CF5).
         ...(channel.conversions && payload.conversions

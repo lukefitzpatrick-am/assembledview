@@ -428,3 +428,19 @@ test("not-live and assumed-spend channels are left out", () => {
   const details = buildDeckDetail(snapshot, "line_item", WINDOW)
   assert.deepEqual(details.map((entry) => entry.group), ["social_meta"])
 })
+
+test("REP-5: line detail labels click trackers No impression tracking", () => {
+  const snapshot = {
+    asOf: "2026-10-19",
+    channels: [
+      channel("digital_display", [
+        line({ lineItemId: "golf025dd1", name: "golf025dd1", clicks: 136 }),
+        line({ lineItemId: "golf025dd3", name: "golf025dd3", impressions: 262_025, clicks: 868, spendToDate: 4493.67, spendMode: "estimated" }),
+      ]),
+    ],
+  } as unknown as DeckDetailSnapshot
+  const [detail] = buildDeckDetail(snapshot, "line_item", WINDOW)
+  assert.ok(detail)
+  assert.match(detail.note ?? "", /Estimated spend on CM360 lines\./)
+  assert.match(detail.note ?? "", /No impression tracking on 1 click-tracker line\./)
+})

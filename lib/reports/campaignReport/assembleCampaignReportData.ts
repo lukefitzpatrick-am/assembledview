@@ -18,6 +18,7 @@ import {
   type CampaignReportPeriodKind,
   type ResolvedCampaignReportPeriod,
 } from "@/lib/reports/campaignReport/periods"
+import { impressionsNotTracked, noImpressionTrackingNote } from "@/lib/pacing/expectedForWindow"
 import { computeCampaignDays, computeDaysPassed, computeExpectedPct, getAsOfDate } from "@/lib/pacing/maths"
 import { formatReportInt, formatReportMoney } from "@/lib/reports/campaignReport/formatters"
 import { generateReportCommentary } from "@/lib/reports/campaignReport/generateReportCommentary"
@@ -91,6 +92,14 @@ export type CampaignReportChannelRow = {
   /** Why previous spend or impressions are null. */
   previousSpendReason?: ReportGapReason | null
   previousImpressionsReason?: ReportGapReason | null
+  /**
+   * Click-tracker lines (clicks, no impressions) on this channel. REP-5: their
+   * planned impressions are left out of `plannedImpressions`, and they are out
+   * of CPM because CPM only reads lines with impressions.
+   */
+  clickTrackerLines?: number
+  /** "No impression tracking on N click-tracker lines". Present with clickTrackerLines. */
+  impressionsNote?: string
   /** True when this channel spent nothing in the selected window. */
   notLive?: boolean
   /** Earliest line start on the channel. Present with notLive and a plan. */
@@ -267,6 +276,11 @@ function withReconciledExpected(
     if (next == null) return line
     return { ...line, expectedNetToDate: next }
   })
+}
+
+/** REP-5: a reported CM360 line with clicks and no impressions is a click tracker. */
+function isClickTrackerLine(line: DeliveryLineSnapshot): boolean {
+  return line.deliveryState === "reported" && impressionsNotTracked(line)
 }
 
 function linesForRates(lines: DeliveryLineSnapshot[]): RateSourceLine[] {
@@ -491,7 +505,13 @@ export async function assembleCampaignReportData(
           previousPace.expectedSpendToDate,
         )
       : null
-    const plannedImpressions = plannedCount(ch.lines, "plannedImpressions", flight, currentWindow)
+    const trackers = ch.lines.filter(isClickTrackerLine)
+    const plannedImpressions = plannedCount(
+      trackers.length > 0 ? ch.lines.filter((line) => !isClickTrackerLine(line)) : ch.lines,
+      "plannedImpressions",
+      flight,
+      currentWindow,
+    )
     const plannedClicks = plannedCount(ch.lines, "plannedClicks", flight, currentWindow)
     const plannedViews = plannedCount(ch.lines, "plannedViews", flight, currentWindow)
     const planCpvTarget = channelPlanCpvTarget(ch, kpiRows)
@@ -516,6 +536,9 @@ export async function assembleCampaignReportData(
       plannedClicks,
       plannedViews,
       plannedImpressionsReason: reportGapReason(plannedImpressions, "no_plan"),
+      ...(trackers.length > 0
+        ? { clickTrackerLines: trackers.length, impressionsNote: noImpressionTrackingNote(trackers.length) }
+        : {}),
       plannedClicksReason: reportGapReason(plannedClicks, "no_plan"),
       plannedViewsReason: reportGapReason(plannedViews, "no_plan"),
       spendAssumed: pace.spendAssumed,

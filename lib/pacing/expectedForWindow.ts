@@ -286,6 +286,13 @@ export function impressionsNotTracked(delivered: { impressions: number; clicks: 
   return !(delivered.impressions > 0) && delivered.clicks > 0
 }
 
+/** Click-tracker label on the dashboard and the deck (REP-5, Luke 28 Oct 2026, option c). */
+export const NO_IMPRESSION_TRACKING = "No impression tracking"
+
+export function noImpressionTrackingNote(lines: number): string {
+  return `${NO_IMPRESSION_TRACKING} on ${lines} click-tracker ${lines === 1 ? "line" : "lines"}`
+}
+
 export type PaceVsExpected = {
   /** Delivered ÷ expected × 100. Undefined when nothing is expected. */
   pct: number | undefined

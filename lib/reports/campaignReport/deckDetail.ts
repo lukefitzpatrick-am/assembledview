@@ -5,6 +5,7 @@
 import type { DeliveryChannelGroup, DeliveryLineSnapshot } from "@/lib/ava/tools/summaries"
 import { roundMoney2 } from "@/lib/money"
 import { cleanPacingLineItemId } from "@/lib/pacing/delivery/lineItemIds"
+import { impressionsNotTracked, noImpressionTrackingNote } from "@/lib/pacing/expectedForWindow"
 import { campaignReportChannelLabel } from "@/lib/reports/campaignReport/reportFigures"
 
 export const DECK_DETAIL_LEVELS = ["channel", "line_item", "ad_group"] as const
@@ -137,7 +138,15 @@ function lineItemDetail(channel: DeliveryChannelGroup): DeckDetail | null {
     results: line.results,
   }))
   const estimated = lines.some((line) => line.spendMode === "estimated")
-  return finish(channel, "line_item", "spend", raw, estimated ? ESTIMATED_NOTE : null, false)
+  // REP-5: click trackers (clicks, no impressions) are labelled.
+  const trackers = lines.filter(
+    (line) => line.deliveryState === "reported" && impressionsNotTracked(line),
+  ).length
+  const note = joinNote(
+    estimated ? ESTIMATED_NOTE : null,
+    trackers > 0 ? `${noImpressionTrackingNote(trackers)}.` : null,
+  )
+  return finish(channel, "line_item", "spend", raw, note, false)
 }
 
 function adGroupDetail(
