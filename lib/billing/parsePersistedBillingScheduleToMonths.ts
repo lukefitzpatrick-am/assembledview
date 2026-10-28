@@ -36,11 +36,14 @@ function optionalFiniteNumber(value: unknown): number | undefined {
 
 /**
  * Parse persisted `billingSchedule` JSON (compact Xano / MBA shape) into `BillingMonth[]`
- * for finance hub Alter Billing. Mirrors the edit page hydrate path with fees defaulting to 0.
+ * for finance hub Alter Billing. Mirrors the edit page hydrate path.
+ *
+ * The month fee is always the saved `feeTotal` (0 when absent). There is no
+ * fee-on-top estimate here: fees come from the saved schedule or the gross-up
+ * engine (computeBurstAmounts), never from media x fee % at parse time.
  */
 export function parsePersistedBillingScheduleToMonths(
   billingSchedule: unknown,
-  fees: { searchFee: number; socialFee: number } = { searchFee: 0, socialFee: 0 }
 ): BillingMonth[] | null {
   const parsed = normalizeBillingScheduleToArray(billingSchedule)
   if (!parsed) return null
@@ -64,7 +67,6 @@ export function parsePersistedBillingScheduleToMonths(
     return JSON.parse(JSON.stringify(parsed)) as BillingMonth[]
   }
 
-  const { searchFee, socialFee } = fees
   const currencyFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
   const mediaTypeLabelMap: Record<string, string> = {
     Search: "search",
@@ -115,7 +117,6 @@ export function parsePersistedBillingScheduleToMonths(
     }
 
     let totalMedia = 0
-    let totalFee = 0
     const lineItems: Record<string, BillingLineItem[]> = {}
 
     const entryMediaTypes = entry.mediaTypes ?? entry.media_types
@@ -138,12 +139,6 @@ export function parsePersistedBillingScheduleToMonths(
 
           ;(mediaCosts as Record<string, string>)[mediaKey] = currencyFormatter.format(mediaTotal)
           totalMedia += mediaTotal
-
-          let feePercentage = 0
-          if (mediaKey === "search") feePercentage = searchFee
-          else if (mediaKey === "socialMedia") feePercentage = socialFee
-          const feeAmount = (mediaTotal * feePercentage) / 100
-          totalFee += feeAmount
 
           lineItems[mediaKey] = (mediaType.lineItems as Record<string, unknown>[]).map((item) => {
             const amount = parseMoney(item.amount ?? item.__amountValue ?? "0") ?? 0
@@ -198,7 +193,7 @@ export function parsePersistedBillingScheduleToMonths(
       })
     }
 
-    let finalFeeTotal = totalFee
+    let finalFeeTotal = 0
     if (entry.feeTotal) {
       const savedFeeTotal = parseMoney(entry.feeTotal) ?? 0
       if (savedFeeTotal > 0) {

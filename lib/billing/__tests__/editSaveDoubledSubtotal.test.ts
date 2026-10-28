@@ -16,7 +16,6 @@ import {
   sumTemplateLinesForMonth,
 } from "../appendNewMediaTypeBucket.js"
 
-const FEES = { searchFee: 0, socialFee: 0 }
 const EPS = 0.02
 
 function parseAudMoney(val: unknown): number {
@@ -118,7 +117,7 @@ function applyReplaceSeed(
 }
 
 test("STEP2 repro: C1 BillingMonth hydrate must keep mediaCosts (not zero them)", () => {
-  const months = parsePersistedBillingScheduleToMonths(krusty012ShapedSchedule(), FEES)
+  const months = parsePersistedBillingScheduleToMonths(krusty012ShapedSchedule())
   assert.ok(months)
   const m = months![0]
   const check = mediaSubtotalVsColumns(m)
@@ -152,7 +151,7 @@ test("STEP2 repro: legacy hydrate + additive append yields 20k vs 10k (guard fai
 })
 
 test("after fix: hydrate then replace-seed keeps subtotal == columns == 10000", () => {
-  const months = parsePersistedBillingScheduleToMonths(krusty012ShapedSchedule(), FEES)
+  const months = parsePersistedBillingScheduleToMonths(krusty012ShapedSchedule())
   assert.ok(months)
   const m = months![0]!
   applyReplaceSeed(m, "search", 10_000)
@@ -256,7 +255,7 @@ test("healthy pointer / single-version schedule still parses unchanged", () => {
       },
     },
   ]
-  const months = parsePersistedBillingScheduleToMonths(schedule, FEES)
+  const months = parsePersistedBillingScheduleToMonths(schedule)
   assert.ok(months)
   const check = mediaSubtotalVsColumns(months![0]!)
   assert.equal(check.mediaTotal, 10_000)
@@ -266,7 +265,7 @@ test("healthy pointer / single-version schedule still parses unchanged", () => {
 })
 
 test("edited value round-trip: 10k → 12k stays single-counted", () => {
-  const months = parsePersistedBillingScheduleToMonths(krusty012ShapedSchedule(12_000, 3_000), FEES)
+  const months = parsePersistedBillingScheduleToMonths(krusty012ShapedSchedule(12_000, 3_000))
   assert.ok(months)
   const check = mediaSubtotalVsColumns(months![0]!)
   assert.equal(check.mediaTotal, 12_000)

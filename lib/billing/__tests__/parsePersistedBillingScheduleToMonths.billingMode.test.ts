@@ -71,7 +71,7 @@ test("parsePersistedBillingScheduleToMonths preserves billingMode round-trip", (
   ]
 
   const serialized = buildBillingScheduleJSON(months)
-  const parsed = parsePersistedBillingScheduleToMonths(serialized, { searchFee: 0, socialFee: 0 })
+  const parsed = parsePersistedBillingScheduleToMonths(serialized)
   assert.ok(parsed)
 
   const items = parsed![0]!.lineItems!.search!

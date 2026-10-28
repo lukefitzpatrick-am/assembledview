@@ -3,8 +3,6 @@ import test from "node:test"
 
 import { parsePersistedBillingScheduleToMonths } from "../parsePersistedBillingScheduleToMonths.js"
 
-const FEES = { searchFee: 0, socialFee: 0 }
-
 test("top-level production only — mirrors to mediaCosts.production", () => {
   const schedule = [
     {
@@ -20,7 +18,7 @@ test("top-level production only — mirrors to mediaCosts.production", () => {
       ],
     },
   ]
-  const months = parsePersistedBillingScheduleToMonths(schedule, FEES)
+  const months = parsePersistedBillingScheduleToMonths(schedule)
   assert.ok(months)
   const m = months![0]
   assert.equal(m.production, "$500.00")
@@ -45,7 +43,7 @@ test("mediaTypes Production agrees with top-level — both $500.00", () => {
       ],
     },
   ]
-  const months = parsePersistedBillingScheduleToMonths(schedule, FEES)
+  const months = parsePersistedBillingScheduleToMonths(schedule)
   assert.ok(months)
   const m = months![0]
   assert.equal(m.production, "$500.00")
@@ -70,7 +68,7 @@ test("mediaTypes Production disagrees with top-level — sum wins ($500.00)", ()
       ],
     },
   ]
-  const months = parsePersistedBillingScheduleToMonths(schedule, FEES)
+  const months = parsePersistedBillingScheduleToMonths(schedule)
   assert.ok(months)
   const m = months![0]
   assert.equal(m.production, "$500.00")
@@ -91,7 +89,7 @@ test("no production at all — both fields $0.00", () => {
       ],
     },
   ]
-  const months = parsePersistedBillingScheduleToMonths(schedule, FEES)
+  const months = parsePersistedBillingScheduleToMonths(schedule)
   assert.ok(months)
   const m = months![0]
   assert.equal(m.production, "$0.00")
@@ -120,10 +118,36 @@ test("glenda005 April 2026 shape — top-level $500, no mediaTypes Production", 
       ],
     },
   ]
-  const months = parsePersistedBillingScheduleToMonths(schedule, FEES)
+  const months = parsePersistedBillingScheduleToMonths(schedule)
   assert.ok(months)
   const april = months!.find((m) => m.monthYear === "April 2026")
   assert.ok(april)
   assert.equal(april.production, "$500.00")
   assert.equal(april.mediaCosts.production, "$500.00")
+})
+
+test("search and social fee is the saved feeTotal only, never media x fee % (fee-on-top path removed)", () => {
+  const schedule = [
+    {
+      monthYear: "May 2026",
+      feeTotal: "$0.00",
+      adservingTechFees: "$0.00",
+      mediaTypes: [
+        { mediaType: "Search", lineItems: [{ header1: "Google", header2: "Brand", amount: 1000 }] },
+        { mediaType: "Social Media", lineItems: [{ header1: "Meta", header2: "Reach", amount: 2000 }] },
+      ],
+    },
+    {
+      monthYear: "June 2026",
+      feeTotal: "$150.00",
+      adservingTechFees: "$0.00",
+      mediaTypes: [{ mediaType: "Search", lineItems: [{ header1: "Google", header2: "Brand", amount: 1000 }] }],
+    },
+  ]
+  const months = parsePersistedBillingScheduleToMonths(schedule)
+  assert.ok(months)
+  assert.equal(months![0].feeTotal, "$0.00")
+  assert.equal(months![0].totalAmount, "$3,000.00")
+  assert.equal(months![1].feeTotal, "$150.00")
+  assert.equal(months![1].totalAmount, "$1,150.00")
 })
