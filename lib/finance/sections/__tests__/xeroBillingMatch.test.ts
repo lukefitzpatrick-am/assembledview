@@ -132,11 +132,9 @@ test("DELETED unlinks and does not stamp", () => {
   assert.deepEqual(decisions[0], { kind: "unlink", xeroInvoiceId: "inv-dead", status: "DELETED" })
 })
 
-test("XERO-2: invoiceCarriesPo reads explicit and bare POs from live Reference shapes", () => {
+test("XERO-2: invoiceCarriesPo counts only a PO token with digits in the Reference", () => {
   const yes = [
     "Penfolds - Grange Hero Burst 1 FY27 (PENFOLD018) | PO 1005369",
-    "Penfolds - Father's Day 2027 (PENFOLD016) | 1010438",
-    "Penfolds - Grange Hero FY2027 (PENFOLD018) |\u00a0 1005369",
     "Treasurey Wine Estates - Pepper Jack and Squealing Pig Planning Fee | PO# 1018151",
     "Penfolds PR Influencer | PO#983905",
     "Penfolds - PENFOLD015-  Bin 707 amplification | PO1017399",
@@ -144,8 +142,13 @@ test("XERO-2: invoiceCarriesPo reads explicit and bare POs from live Reference s
     "MNET/PO-08202500044",
     "BOSS AUTOMOTIVE FY26 | BOSS002 | PO C25-BOSS-0007",
   ]
-  for (const ref of yes) assert.equal(invoiceCarriesPo(ref, ["penfold018"]), true, ref)
+  for (const ref of yes) assert.equal(invoiceCarriesPo(ref), true, ref)
   const no = [
+    // A bare number segment is not a PO (narrowed 29 Oct 2026).
+    "Penfolds - Father's Day 2027 (PENFOLD016) | 1010438",
+    "Penfolds - Grange Hero FY2027 (PENFOLD018) |\u00a0 1005369",
+    "Penfolds - Collection Release FY2027 (PENFOLD015) | 1005380",
+    "Mitchelton Winery - Annual Performance | 001001",
     "MoliCare - Annual Performance | hartm001",
     "Curatif - FY27 Curatif004",
     "BIC - Social Boosting Upweight (BICAU003)",
@@ -155,27 +158,26 @@ test("XERO-2: invoiceCarriesPo reads explicit and bare POs from live Reference s
     null,
   ]
   for (const ref of no) assert.equal(invoiceCarriesPo(ref), false, String(ref))
-  // Mitchelton's MBA is all digits: the matched MBA is not a PO.
-  assert.equal(invoiceCarriesPo("Mitchelton Winery - Annual Performance | 001001", ["001001"]), false)
 })
 
-test("XERO-2: an invoice with a PO matches the exact billing month only", () => {
-  const pf16: MbaMaster[] = [{ id: 2, mba_number: "PENFOLD016" }]
-  // PENFOLD016: INV-1422 issued 26 Aug with PO 1010438 was matched to the September record.
+test("XERO-2: an invoice with a PO token matches the exact billing month only", () => {
+  const pf18: MbaMaster[] = [{ id: 2, mba_number: "PENFOLD018" }]
+  // PENFOLD018: INV-1501 issued 30 Sep with PO 1005369 was matched to the October record.
   const out = matchXeroInvoicesToAppRecords({
-    masters: pf16,
+    masters: pf18,
     invoices: [
       invoice({
-        xeroInvoiceId: "inv-1422",
-        issueDate: "2026-08-26",
-        referenceRaw: "Penfolds - Father's Day 2027 (PENFOLD016) | 1010438",
-        subTotalCents: 457_143,
+        xeroInvoiceId: "inv-1501",
+        issueDate: "2026-09-30",
+        referenceRaw: "Penfolds - Grange Hero Burst 1 FY27 (PENFOLD018) | PO 1005369",
+        subTotalCents: 726_985,
       }),
     ],
-    records: [record({ invoiceKey: "media:PENFOLD016:2026-09", mbaNumber: "PENFOLD016", billingMonth: "2026-09", approvedAmountCents: 1_424_572 })],
+    records: [record({ invoiceKey: "media:PENFOLD018:2026-10", mbaNumber: "PENFOLD018", billingMonth: "2026-10", approvedAmountCents: 679_263 })],
   })
-  assert.deepEqual(out[0], { kind: "suggestion", xeroInvoiceId: "inv-1422", reason: "token_no_record_in_window" })
+  assert.deepEqual(out[0], { kind: "suggestion", xeroInvoiceId: "inv-1501", reason: "token_no_record_in_window" })
 
+  const pf16: MbaMaster[] = [{ id: 3, mba_number: "PENFOLD016" }]
   const exact = matchXeroInvoicesToAppRecords({
     masters: pf16,
     invoices: [
@@ -188,6 +190,23 @@ test("XERO-2: an invoice with a PO matches the exact billing month only", () => 
   })
   assert.equal(exact[0]?.kind, "stamp")
   if (exact[0]?.kind === "stamp") assert.deepEqual(exact[0].invoiceKeys, ["media:PENFOLD016:2026-08"])
+})
+
+test("XERO-2: a bare number segment keeps the plus or minus one month window (PENFOLD016 Sep shape)", () => {
+  const pf16: MbaMaster[] = [{ id: 3, mba_number: "PENFOLD016" }]
+  const out = matchXeroInvoicesToAppRecords({
+    masters: pf16,
+    invoices: [
+      invoice({
+        xeroInvoiceId: "inv-1422",
+        issueDate: "2026-08-26",
+        referenceRaw: "Penfolds - Father's Day 2027 (PENFOLD016) | 1010438",
+        subTotalCents: 457_143,
+      }),
+    ],
+    records: [record({ invoiceKey: "media:PENFOLD016:2026-09", mbaNumber: "PENFOLD016", billingMonth: "2026-09", approvedAmountCents: 1_424_572 })],
+  })
+  assert.equal(out[0]?.kind, "stamp")
 })
 
 test("XERO-2: an invoice with no PO keeps the plus or minus one month window (hartm001 shape)", () => {

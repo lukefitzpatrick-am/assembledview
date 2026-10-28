@@ -98,31 +98,21 @@ export function billingMonthOffset(billingMonth: string | null, issueYmd: string
 }
 
 /**
- * Explicit PO: a "PO" token (PO, PO#, P.O., PO-, or PO glued to digits) after a
- * non-letter, whose value has a digit. "PO TBC" is not a PO.
+ * A "PO" token (PO, PO#, P.O., PO-, or PO glued to digits) after a non-letter,
+ * whose value has a digit. "PO TBC" is not a PO.
  */
 const EXPLICIT_PO_RE = /(?:^|[^A-Za-z])P\.?O\.?(?=[\s#:\-]|\d)[\s#:\-]*[A-Za-z0-9-]*\d/i
 
-/** Bare PO: a `|` segment of 5+ digits only (house format `... (PENFOLD016) | 1010438`). */
-const BARE_PO_SEGMENT_RE = /^\d{5,}$/
-
 /**
- * True when the invoice Reference carries a PO (XERO-2). `notPo` lists tokens
- * that are not a PO even when they look like one (the matched MBA or scope:
- * Mitchelton's MBA `001001` is all digits).
+ * True when the invoice Reference carries a PO (XERO-2, narrowed by Luke on
+ * 29 Oct 2026): only a PO token with digits counts (`PO 1005369`, `PO#983905`,
+ * `PO1017399`, `C120-PO-1002167`). A bare number segment (`| 1010438`) is not
+ * a PO, and the billing record's own `po_number` is not read.
  */
-export function invoiceCarriesPo(
-  referenceRaw: string | null,
-  notPo: ReadonlyArray<string | null | undefined> = [],
-): boolean {
+export function invoiceCarriesPo(referenceRaw: string | null): boolean {
   const ref = referenceRaw ?? ""
   if (!ref.trim()) return false
-  if (EXPLICIT_PO_RE.test(ref)) return true
-  const skip = new Set(notPo.map((t) => norm(t)).filter(Boolean))
-  return ref
-    .split("|")
-    .map((s) => s.trim())
-    .some((s) => BARE_PO_SEGMENT_RE.test(s) && !skip.has(norm(s)))
+  return EXPLICIT_PO_RE.test(ref)
 }
 
 export function firstLineItemDescription(lineItems: unknown): string | null {
@@ -170,7 +160,7 @@ function decideLive(
 ): XeroBillingMatchDecision {
   const open = records.filter((r) => (r.matchedBy ?? "").trim().toLowerCase() !== "manual")
   const token = referenceToken(invoice.referenceRaw, masters, scopes)
-  const exactOnly = invoiceCarriesPo(invoice.referenceRaw, [token?.mba, token?.scope])
+  const exactOnly = invoiceCarriesPo(invoice.referenceRaw)
   if (token) {
     const keyed = open.filter((r) => keyHit(r, token))
     const pool = preferExact(inWindow(keyed, invoice.issueDate, exactOnly), invoice.issueDate)
