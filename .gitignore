@@ -88,3 +88,7 @@ scripts/snowflake/_snapshot_fold_plan.json
 # Report-deck spike output (decks and renders stay local)
 scripts/spikes/report-deck-skill/out/
 
+
+# Python bytecode
+__pycache__/
+*.pyc
