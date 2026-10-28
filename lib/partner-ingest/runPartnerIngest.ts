@@ -4,6 +4,7 @@ import { runPartnerFileParseTests } from "./parseTests"
 import { parserForSource, rawLinesFromMatrix, readPartnerFileMatrix } from "./parsers"
 import { sha256Hex } from "./sha256"
 import { partnerSourceFile } from "./sourceFile"
+import type { PartnerIngestRunLock } from "./runLock"
 import { resolveLoadMode } from "./sql"
 import type {
   ParsedPartnerFile,
@@ -98,6 +99,12 @@ export type PartnerIngestDeps = {
   deadlineAt?: number
   /** Clock for the budget. Defaults to Date.now. */
   now?: () => number
+  /**
+   * One run at a time (DATA-7). When set and another run holds it, this run
+   * returns at once with `alreadyRunning: true` and touches nothing. Unset
+   * means no lock (tests).
+   */
+  runLock?: PartnerIngestRunLock
 }
 
 const EMPTY_SHA = sha256Hex(Buffer.alloc(0))
@@ -259,6 +266,15 @@ export function planPartnerIngest(
 }
 
 export async function runPartnerIngest(
+  deps: PartnerIngestDeps
+): Promise<PartnerIngestRunSummary> {
+  if (!deps.runLock) return runPartnerIngestUnlocked(deps)
+  const result = await deps.runLock.runExclusive(() => runPartnerIngestUnlocked(deps))
+  if (result.acquired) return result.value
+  return { ...emptySummary(), alreadyRunning: true }
+}
+
+async function runPartnerIngestUnlocked(
   deps: PartnerIngestDeps
 ): Promise<PartnerIngestRunSummary> {
   const summary = emptySummary()

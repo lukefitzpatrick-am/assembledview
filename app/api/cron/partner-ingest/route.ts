@@ -20,6 +20,10 @@ export const preferredRegion = ["syd1"]
  * the Superseded folder unparsed. No new load starts after
  * PARTNER_INGEST_BUDGET_MS (150 s); the rest stay in the inbox and `deferred`
  * counts them.
+ * One run at a time (DATA-7): a run that starts while another holds the
+ * Postgres advisory lock returns 409 `already_running` and touches nothing.
+ * If the lock cannot be checked (database down), the run errors (500) and does
+ * not load, so a second copy can never load the same file twice.
  */
 function partnerIngestConfigured(
   env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env
@@ -52,6 +56,17 @@ export async function GET(request: Request) {
 
   try {
     const summary = await runPartnerIngestJob()
+    if (summary.alreadyRunning) {
+      logJob(JSON.stringify({ event: "partner_ingest_already_running" }))
+      return NextResponse.json(
+        {
+          status: "already_running",
+          wrote: false,
+          reason: "another partner ingest run holds the lock",
+        },
+        { status: 409 }
+      )
+    }
     logJob(JSON.stringify({ event: "partner_ingest", ...summary }))
     return NextResponse.json(summary, {
       status: summary.failed > 0 ? 207 : 200,

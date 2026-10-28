@@ -1,5 +1,6 @@
 import "server-only"
 
+import { getClient } from "@/db"
 import { createFetchGraphTransport } from "@/lib/m365/graphTransport"
 
 import {
@@ -11,6 +12,7 @@ import {
   partnerIngestMailboxFromEnv,
 } from "./mailbox"
 import { runPartnerIngest } from "./runPartnerIngest"
+import { createPostgresAdvisoryRunLock, type AdvisoryLockSql } from "./runLock"
 import { createPartnerSnowflakePort } from "./snowflakeStore"
 
 /**
@@ -35,5 +37,8 @@ export async function runPartnerIngestJob() {
     getToken,
   })
   const snowflake = createPartnerSnowflakePort()
-  return runPartnerIngest({ mailbox, snowflake, deadlineAt })
+  // DATA-7: one run at a time. postgres.js `begin` matches AdvisoryLockSql at
+  // runtime; its generic return type does not line up, hence the cast.
+  const runLock = createPostgresAdvisoryRunLock(getClient() as unknown as AdvisoryLockSql)
+  return runPartnerIngest({ mailbox, snowflake, deadlineAt, runLock })
 }

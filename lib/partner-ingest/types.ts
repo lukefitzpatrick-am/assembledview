@@ -122,4 +122,9 @@ export type PartnerIngestRunSummary = {
    * run picks them up, newest first per source.
    */
   deferred: number
+  /**
+   * True when another run held the run lock (DATA-7). Nothing was read, loaded
+   * or moved; every count is 0.
+   */
+  alreadyRunning?: boolean
 }
