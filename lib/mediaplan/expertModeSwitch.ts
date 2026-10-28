@@ -319,7 +319,8 @@ export function mergeBvodStandardFromExpertWithPrevious(
     }
     return attachBurstPreserve({
       ...li,
-      noadserving: prev.noadserving,
+      // FB-6: the grid has a No Ad Serving column, so its value wins on Apply.
+      noadserving: Boolean(li.noadserving),
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
     }, prev)
@@ -343,7 +344,8 @@ export function mergeDigiVideoStandardFromExpertWithPrevious(
     }
     return attachBurstPreserve({
       ...li,
-      noadserving: prev.noadserving,
+      // FB-6: the grid has a No Ad Serving column, so its value wins on Apply.
+      noadserving: Boolean(li.noadserving),
       targetingAttribute: prev.targetingAttribute ?? "",
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
@@ -374,7 +376,8 @@ export function mergeDigiDisplayStandardFromExpertWithPrevious(
     }
     return attachBurstPreserve({
       ...li,
-      noadserving: prev.noadserving,
+      // FB-6: the grid has a No Ad Serving column, so its value wins on Apply.
+      noadserving: Boolean(li.noadserving),
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute ?? "",
       placement: prev.placement ?? li.placement ?? "",
       size: prev.size ?? li.size ?? "",
@@ -401,7 +404,8 @@ export function mergeDigiAudioStandardFromExpertWithPrevious(
     }
     return attachBurstPreserve({
       ...li,
-      noadserving: prev.noadserving,
+      // FB-6: the grid has a No Ad Serving column, so its value wins on Apply.
+      noadserving: Boolean(li.noadserving),
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
     }, prev)
@@ -840,6 +844,7 @@ export function serializeBvodExpertRowsBaseline(rows: BvodExpertScheduleRow[]): 
       fixedCostMedia: r.fixedCostMedia,
       clientPaysForMedia: r.clientPaysForMedia,
       budgetIncludesFees: r.budgetIncludesFees,
+      noadserving: Boolean(r.noadserving),
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
@@ -905,6 +910,7 @@ export function serializeDigiVideoExpertRowsBaseline(
       fixedCostMedia: r.fixedCostMedia,
       clientPaysForMedia: r.clientPaysForMedia,
       budgetIncludesFees: r.budgetIncludesFees,
+      noadserving: Boolean(r.noadserving),
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
@@ -970,6 +976,7 @@ export function serializeDigiDisplayExpertRowsBaseline(
       fixedCostMedia: r.fixedCostMedia,
       clientPaysForMedia: r.clientPaysForMedia,
       budgetIncludesFees: r.budgetIncludesFees,
+      noadserving: Boolean(r.noadserving),
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,
@@ -1034,6 +1041,7 @@ export function serializeDigiAudioExpertRowsBaseline(
       fixedCostMedia: r.fixedCostMedia,
       clientPaysForMedia: r.clientPaysForMedia,
       budgetIncludesFees: r.budgetIncludesFees,
+      noadserving: Boolean(r.noadserving),
       unitRate: r.unitRate,
       grossCost: r.grossCost,
       weeklyValues: r.weeklyValues,

@@ -195,6 +195,8 @@ export interface BvodExpertScheduleRow {
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
+  /** Grid "No Ad Serving" column; seeded from the standard line on import. */
+  noadserving?: boolean
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
@@ -265,6 +267,8 @@ export interface DigitalDisplayExpertScheduleRow {
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
+  /** Grid "No Ad Serving" column; seeded from the standard line on import. */
+  noadserving?: boolean
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
@@ -300,6 +304,8 @@ export interface DigitalAudioExpertScheduleRow {
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
+  /** Grid "No Ad Serving" column; seeded from the standard line on import. */
+  noadserving?: boolean
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues

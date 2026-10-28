@@ -74,7 +74,9 @@ test("mergeOohStandardFromExpertWithPrevious matches by line_item_id, not row or
     merged.map((li) => [String(li.line_item_id ?? li.lineItemId), li])
   )
 
-  // Expert-generated line items own billing flags; merge only restores noAdserving + line numbers.
+  // Expert-generated line items own billing flags. OOH has no No Ad Serving grid column,
+  // so merge keeps the previous noAdserving (FB-6: channels with the column take the grid value,
+  // see lib/mediaplan/__tests__/expertNoAdServingApply.fb6.test.ts) and restores line numbers.
   assert.equal(byId["id-a"]!.fixedCostMedia, false)
   assert.equal(byId["id-a"]!.noAdserving, true)
   assert.equal(byId["id-a"]!.line_item, 10)

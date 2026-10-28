@@ -3178,7 +3178,7 @@ function emptyBvodLineItem(
     fixedCostMedia: Boolean(row.fixedCostMedia),
     clientPaysForMedia: Boolean(row.clientPaysForMedia),
     budgetIncludesFees: Boolean(row.budgetIncludesFees ?? budgetIncludesFees),
-    noadserving: false,
+    noadserving: Boolean(row.noadserving),
     lineItemId: id,
     line_item_id: id,
     line_item: lineNo,
@@ -3345,7 +3345,7 @@ export function mapBvodExpertRowsToStandardLineItems(
       fixedCostMedia: Boolean(row.fixedCostMedia),
       clientPaysForMedia: Boolean(row.clientPaysForMedia),
       budgetIncludesFees,
-      noadserving: false,
+      noadserving: Boolean(row.noadserving),
       lineItemId: id,
       line_item_id: id,
       line_item: lineNo,
@@ -3470,6 +3470,7 @@ export function mapStandardBvodLineItemsToExpertRows(
       budgetIncludesFees: Boolean(
         item.budget_includes_fees ?? item.budgetIncludesFees
       ),
+      noadserving: Boolean(item.noadserving ?? item.no_adserving),
       unitRate: deriveRadioStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       hasDatedBursts: hasImportableDatedBursts(bursts),
@@ -4051,7 +4052,7 @@ function emptyDigiDisplayLineItem(
     fixedCostMedia: Boolean(row.fixedCostMedia),
     clientPaysForMedia: Boolean(row.clientPaysForMedia),
     budgetIncludesFees: Boolean(row.budgetIncludesFees ?? budgetIncludesFees),
-    noadserving: false,
+    noadserving: Boolean(row.noadserving),
     placement: "",
     size: "",
     targetingAttribute: "",
@@ -4209,7 +4210,7 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
       fixedCostMedia: Boolean(row.fixedCostMedia),
       clientPaysForMedia: Boolean(row.clientPaysForMedia),
       budgetIncludesFees,
-      noadserving: false,
+      noadserving: Boolean(row.noadserving),
       placement: "",
       size: "",
       targetingAttribute: "",
@@ -4352,6 +4353,7 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
       budgetIncludesFees: Boolean(
         item.budget_includes_fees ?? item.budgetIncludesFees
       ),
+      noadserving: Boolean(item.noadserving ?? item.no_adserving),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       hasDatedBursts: hasImportableDatedBursts(bursts),
@@ -4490,7 +4492,7 @@ function emptyDigiAudioLineItem(
     fixedCostMedia: Boolean(row.fixedCostMedia),
     clientPaysForMedia: Boolean(row.clientPaysForMedia),
     budgetIncludesFees: Boolean(row.budgetIncludesFees ?? budgetIncludesFees),
-    noadserving: false,
+    noadserving: Boolean(row.noadserving),
     lineItemId: id,
     line_item_id: id,
     line_item: lineNo,
@@ -4658,7 +4660,7 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
       fixedCostMedia: Boolean(row.fixedCostMedia),
       clientPaysForMedia: Boolean(row.clientPaysForMedia),
       budgetIncludesFees,
-      noadserving: false,
+      noadserving: Boolean(row.noadserving),
       lineItemId: id,
       line_item_id: id,
       line_item: lineNo,
@@ -4783,6 +4785,7 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
       budgetIncludesFees: Boolean(
         item.budget_includes_fees ?? item.budgetIncludesFees
       ),
+      noadserving: Boolean(item.noadserving ?? item.no_adserving),
       unitRate: deriveRadioStandardUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       hasDatedBursts: hasImportableDatedBursts(bursts),
