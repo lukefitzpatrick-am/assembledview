@@ -1,4 +1,16 @@
 /**
+ * RETIRED 2026-10-28 (DATA-6). This script refuses to run. Kept for history only.
+ *
+ * Why: it runs a full-history MERGE into PACING_FACT and SOCIAL_PACING_FACT with
+ * no DELETE. Any key that has changed since (DV360 renames, FX1 md5 keys, VI1
+ * Vistar Insertion Order keys, relabels) would come back as a second row beside
+ * the current one, re-creating the PACING_FACT duplicates PF1 removed on
+ * 27 Oct 2026. It also re-creates views and tasks from repo files, which would
+ * overwrite live objects, and its naive ";" split cannot run the PF1 task body
+ * (EXECUTE IMMEDIATE $$ ... $$). The case work it was for is done: views, tasks
+ * and the snapshot sync already LOWER (KNOWN-ISSUES DI-14).
+ *
+ * Original description:
  * Deploy MART view LOWER() normalisation + full-history fact backfill +
  * snapshot case fold.
  *
@@ -8,13 +20,25 @@
  * except SEARCH_PACING_FACT UPDATE). Set SNOWFLAKE_ROLE to a DDL/owner role
  * for the deploy session, then revert.
  *
- * Usage:
+ * Usage (historical; it now exits 1 straight away):
  *   npx tsx scripts/snowflake/deploy-mba-case-norm.mjs
  *   npx tsx scripts/snowflake/deploy-mba-case-norm.mjs --dry-run
  */
 import { readFileSync, existsSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import snowflake from "snowflake-sdk"
+
+console.error(
+  [
+    "[retired] scripts/snowflake/deploy-mba-case-norm.mjs is retired (DATA-6, 2026-10-28) and will not run.",
+    "Re-running it would re-create PACING_FACT duplicates: it is a full-history MERGE with no delete,",
+    "so every key changed since August (renames, FX1, VI1, relabels) would come back beside the current row.",
+    "It would also overwrite live MART views and tasks with repo files.",
+    "See docs/brain/KNOWN-ISSUES.md DI-14. Any MART change now goes through a guarded",
+    "sql/snowflake/mart/migrations/*_ACCOUNTADMIN.sql file that Luke runs in Snowsight.",
+  ].join("\n")
+)
+process.exit(1)
 
 snowflake.configure({ logLevel: "ERROR" })
 

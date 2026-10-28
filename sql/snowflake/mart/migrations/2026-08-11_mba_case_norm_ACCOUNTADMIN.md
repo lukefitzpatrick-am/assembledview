@@ -1,6 +1,13 @@
 -- =============================================================================
 -- MBA / line-item identifier case normalisation (ACCOUNTADMIN)
 -- =============================================================================
+-- RETIRED 2026-10-28 (DATA-6). DO NOT RUN this file or
+-- scripts/snowflake/deploy-mba-case-norm.mjs (the script now exits 1). The
+-- full-history MERGE below has no delete, so every key changed since August
+-- (DV360 renames, FX1 md5 keys, VI1 Vistar ids, relabels) would come back as a
+-- second row and re-create the PACING_FACT duplicates PF1 removed on 27 Oct.
+-- Views, tasks and the snapshot sync already LOWER. See KNOWN-ISSUES DI-14.
+-- =============================================================================
 -- AV_APP_WRITE_ROLE cannot CREATE OR REPLACE these views (OWNERSHIP =
 -- ACCOUNTADMIN) and has SELECT-only on PACING_FACT / SOCIAL_PACING_FACT.
 -- Run this entire file as ACCOUNTADMIN (or a role that owns MART views + tables).

@@ -41,8 +41,10 @@ TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
   immutable.   Live `TSK_REFRESH_PACING_FACT` (GET_DDL 2026-09-15) relabel is `coalesce` only —
   `lower(trim())` lives on `platform_line_item_id` and the MERGE ON, matching
   `TSK_REFRESH_SOCIAL_PACING_FACT`.
-  Deploy + full-history backfill: `npx tsx scripts/snowflake/deploy-mba-case-norm.mjs`
-  (requires a role that **owns** the MART views/tables — `AV_APP_WRITE_ROLE` is
+  Deploy + full-history backfill was `scripts/snowflake/deploy-mba-case-norm.mjs`,
+  **retired 2026-10-28 (DATA-6)**: it now exits without running, because its
+  full-history MERGE has no delete and would re-create PACING_FACT duplicates
+  (it required a role that **owns** the MART views/tables — `AV_APP_WRITE_ROLE` is
   SELECT-only on `PACING_FACT`/`SOCIAL_PACING_FACT` and cannot `CREATE OR REPLACE`
   views owned by `ACCOUNTADMIN`). Snapshot sync writes lowercase and collapses
   case-alias duplicate PKs.
