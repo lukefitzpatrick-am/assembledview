@@ -235,3 +235,23 @@ test("XERO-2: client-linked invoices with a PO and no MBA token also need the ex
   })
   assert.equal(noPo[0]?.kind, "stamp")
 })
+
+test("in-arrears hand fix: a cleared October row comes back unless matched_by is manual (hartm001 shape)", () => {
+  const h: MbaMaster[] = [{ id: 3, mba_number: "hartm001" }]
+  const invoices = [
+    invoice({ xeroInvoiceId: "inv-1447", issueDate: "2026-08-31", referenceRaw: "MoliCare - Annual Performance | hartm001", subTotalCents: 6_226_755 }),
+    invoice({ xeroInvoiceId: "inv-1484", issueDate: "2026-09-30", referenceRaw: "MoliCare - Annual Performance | hartm001", subTotalCents: 5_805_773 }),
+  ]
+  const sep = record({ invoiceKey: "media:hartm001:2026-09", mbaNumber: "hartm001", billingMonth: "2026-09", approvedAmountCents: 5_805_773, matchedBy: "auto" })
+  const octCleared = record({ invoiceKey: "media:hartm001:2026-10", mbaNumber: "hartm001", billingMonth: "2026-10", approvedAmountCents: 5_329_205, matchedBy: null })
+
+  // Cleared to NULL: the next run stamps INV-1484 on October again.
+  const again = matchXeroInvoicesToAppRecords({ masters: h, invoices, records: [sep, octCleared] })
+  const inv1484 = again.find((d) => d.xeroInvoiceId === "inv-1484")
+  assert.equal(inv1484?.kind, "stamp")
+  if (inv1484?.kind === "stamp") assert.deepEqual(inv1484.invoiceKeys, ["media:hartm001:2026-10"])
+
+  // Cleared with matched_by = manual: October is held off auto, INV-1484 is a suggestion.
+  const held = matchXeroInvoicesToAppRecords({ masters: h, invoices, records: [sep, { ...octCleared, matchedBy: "manual" }] })
+  assert.equal(held.find((d) => d.xeroInvoiceId === "inv-1484")?.kind, "suggestion")
+})
