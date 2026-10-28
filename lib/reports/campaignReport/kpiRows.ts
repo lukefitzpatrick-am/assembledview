@@ -6,6 +6,10 @@
  * no CPV row. Each channel slide shows delivered CPV and, when the channel has
  * CPV-bought lines, that channel's plan CPV as the target
  * (`channelPlanCpvTarget`). It is never averaged across channels.
+ *
+ * VTR (REP-4) is completed views ÷ impressions over video lines that report
+ * completions (`videoCompletionFeed`). Frequency has no reach data, so its
+ * delivered value stays empty and the deck says it is not tracked yet.
  */
 import type { DeliveryChannelGroup } from "@/lib/ava/tools/summaries"
 import { groupsFromDeliverySnapshot } from "@/lib/campaign-read/kpiRead"
@@ -38,6 +42,36 @@ export function channelPlanCpvTarget(
   return plan && Number.isFinite(plan.value) && plan.value > 0 ? plan.value : null
 }
 
+/**
+ * Groups whose `video3sViews` are completed views (CM360 `VIDEO_3S_VIEWS`
+ * holds completions; DSP video the same). Social 3-second views are not
+ * completions, so social stays out of the campaign VTR.
+ */
+const COMPLETION_VIEW_GROUPS = new Set(["programmatic_video", "digital_video", "bvod"])
+
+/**
+ * Completed views and the impressions they came from, for the campaign VTR.
+ * Only reported lines that carry completions count, so display impressions
+ * and video lines without completion tracking do not dilute the rate.
+ */
+export function videoCompletionFeed(channels: readonly DeliveryChannelGroup[]): {
+  completions: number
+  impressions: number
+} {
+  let completions = 0
+  let impressions = 0
+  for (const channel of channels) {
+    if (!COMPLETION_VIEW_GROUPS.has(channel.group)) continue
+    for (const line of channel.lines) {
+      if (line.deliveryState !== "reported") continue
+      if (!(line.video3sViews > 0) || !(line.impressions > 0)) continue
+      completions += line.video3sViews
+      impressions += line.impressions
+    }
+  }
+  return { completions, impressions }
+}
+
 function firstTarget(
   rows: CampaignKPI[],
   metric: "ctr" | "conversion_rate" | "vtr" | "frequency",
@@ -53,7 +87,16 @@ function firstTarget(
 
 export function buildKpiRows(
   kpiRows: CampaignKPI[],
-  feed: { impressions: number; clicks: number; results: number; spend: number },
+  feed: {
+    impressions: number
+    clicks: number
+    results: number
+    spend: number
+    /** Completed views on video lines (`videoCompletionFeed`). */
+    videoCompletions?: number
+    /** Impressions on the same video lines. */
+    videoImpressions?: number
+  },
 ): CampaignReportKpiRow[] {
   const ratioSet = new Set<string>(KPI_RATIO_PERCENT_METRICS)
   const metrics = ["ctr", "conversion_rate", "vtr", "frequency"] as const
@@ -84,6 +127,12 @@ export function buildKpiRows(
       actual = feed.clicks / feed.impressions
     } else if (metric === "conversion_rate" && feed.clicks > 0) {
       actual = feed.results / feed.clicks
+    } else if (
+      metric === "vtr" &&
+      (feed.videoImpressions ?? 0) > 0 &&
+      (feed.videoCompletions ?? 0) > 0
+    ) {
+      actual = (feed.videoCompletions ?? 0) / (feed.videoImpressions ?? 0)
     }
 
     const targetDisplay = ratioSet.has(metric)

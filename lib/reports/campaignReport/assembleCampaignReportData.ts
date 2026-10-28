@@ -51,7 +51,11 @@ import {
   type RateSourceLine,
 } from "@/lib/reports/campaignReport/reportFigures"
 import { buildDeckCharts, type DeckChart } from "@/lib/reports/campaignReport/deckCharts"
-import { buildKpiRows, channelPlanCpvTarget } from "@/lib/reports/campaignReport/kpiRows"
+import {
+  buildKpiRows,
+  channelPlanCpvTarget,
+  videoCompletionFeed,
+} from "@/lib/reports/campaignReport/kpiRows"
 import { buildDeckDetail, type DeckDetail, type DeckDetailLevel } from "@/lib/reports/campaignReport/deckDetail"
 import {
   conversionsByChannel,
@@ -552,11 +556,14 @@ export async function assembleCampaignReportData(
       )
     : null
 
+  const videoFeed = videoCompletionFeed(currentSnap.channels)
   const kpis = buildKpiRows(kpiRows, {
     impressions: currentSnap.planTotals.impressions,
     clicks: currentSnap.planTotals.clicks,
     results: currentSnap.planTotals.results,
     spend: campaignSpend,
+    videoCompletions: videoFeed.completions,
+    videoImpressions: videoFeed.impressions,
   })
 
   const reportData: CampaignReportPayload = {
