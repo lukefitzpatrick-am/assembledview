@@ -31,7 +31,7 @@ import {
   classifyBillStatus,
   splitRebate,
 } from "../policy.js"
-import { supplierKindOf } from "../suppliers.js"
+import { directSupplierPublisher, supplierKindOf } from "../suppliers.js"
 import {
   AA_HEADER_DRAFT_BILL,
   AA_NO_MBA_BILL,
@@ -293,6 +293,36 @@ test("AA bills match AA publishers only; direct bills match the direct publisher
   assert.equal(after[0]!.lineItemId, "krusty016dd9")
   assert.equal(after[0]!.rebateCents, 0)
   assert.equal(after[1]!.netCents, -60_000)
+})
+
+test("direct suppliers (MAR-8): each contact maps to its own - AM publisher, only once it exists", () => {
+  const contacts: Array<[string, string]> = [
+    ["Broadsheet Media Pty Ltd", "Broadsheet - AM"],
+    ["Are Media Pty Ltd (Advertising)", "Are Media - AM"],
+    ["Linkby Pty Ltd", "Linkby - AM"],
+    ["Leba", "Leba - AM"],
+    ["News Pty Limited", "News Corp - AM"],
+    ["Nova c/o Polar Mobile Group Inc", "Nova - AM"],
+  ]
+  const amRows = contacts.map(([, name], i) => ({
+    id: 85 + i,
+    publisher_name: name,
+    publisherid: name,
+    billingagency: "assembled media",
+  }))
+  const before = createDirectPublisherFor(createBillPublisherResolver(PUBLISHERS))
+  const after = createDirectPublisherFor(createBillPublisherResolver([...PUBLISHERS, ...amRows]))
+  for (const [contact, name] of contacts) {
+    assert.equal(supplierKindOf(contact), "direct_publisher", contact)
+    assert.equal(directSupplierPublisher(contact), name, contact)
+    assert.equal(before(contact), null, `${contact}: no publisher until the SQL runs`)
+    assert.deepEqual(after(contact), { name, billingAgency: "assembled media" }, contact)
+    assert.equal(costBasisForPublisher({ name, billingAgency: "assembled media" }), "xero_bill", name)
+  }
+  // AA bill lines naming Nova still resolve to the AA Nova, never "Nova - AM".
+  const resolve = createBillPublisherResolver([...PUBLISHERS, ...amRows])
+  assert.deepEqual(resolve("NOVA Podcasts"), { name: "Nova", billingAgency: "advertising associates" })
+  assert.equal(resolve("News Corp")?.billingAgency, "advertising associates")
 })
 
 test("assemble: publisher resolution, cost basis, CF map, month maths", () => {

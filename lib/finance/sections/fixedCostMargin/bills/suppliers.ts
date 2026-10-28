@@ -11,14 +11,20 @@ export type SupplierKind = "channel_factory" | "advertising_associates" | "direc
  * the direct publisher, never the AA one. `publisher` is the AV publisher the
  * direct bill matches; null means no direct publisher exists yet, so those
  * bill lines go to the manual list. Matched on the Xero contact name.
+ *
+ * "Broadsheet - AM" is #85 (FCM-2). The other five "- AM" publishers are
+ * Luke's MAR-8 decision (28 Oct 2026), created by
+ * `sql/supabase/2026-10-28_mar8_direct_am_publishers_SUPABASE.sql`. Until
+ * that file runs, `createDirectPublisherFor` finds no publisher with the name
+ * and their bill lines stay "no direct publisher set up".
  */
 export const DIRECT_SUPPLIERS: ReadonlyArray<{ contact: RegExp; publisher: string | null }> = [
   { contact: /^broadsheet media\b/i, publisher: "Broadsheet - AM" },
-  { contact: /^are media\b/i, publisher: null },
-  { contact: /^linkby\b/i, publisher: null },
-  { contact: /^leba$/i, publisher: null },
-  { contact: /^news pty\b/i, publisher: null },
-  { contact: /^nova c\/o\b/i, publisher: null },
+  { contact: /^are media\b/i, publisher: "Are Media - AM" },
+  { contact: /^linkby\b/i, publisher: "Linkby - AM" },
+  { contact: /^leba$/i, publisher: "Leba - AM" },
+  { contact: /^news pty\b/i, publisher: "News Corp - AM" },
+  { contact: /^nova c\/o\b/i, publisher: "Nova - AM" },
 ]
 
 const CF_CONTACT = /^channel factory\b/i
@@ -53,7 +59,11 @@ export function directSupplierPublisher(contactName: string): string | null {
  * BOSS010NP1 (News Corp) Sep; Queensland Country Life 2,134 and Farm Weekly
  * 1,319 = BOSS010 ACM lines Sep; Seven Network / 7Plus = PENFOLD018TV1 / DV1;
  * 2GB, 3AW, 4BC = hartm015 Nine radio; 2WS, Gold FM, 97.3 = hartm015 ARN.
- * Luke to confirm the list.
+ * Confirmed by Luke 28 Oct 2026 (MAR-1): KAYO to Foxtel Media; Weekly Times
+ * to News Corp; The Land, Queensland Country Life, Farm Weekly to ACM; 2GB,
+ * 3AW, 4BC, AFR to Nine; 2WS, Gold FM, 97.3 to ARN; Triple M, Fox FM, 2Day,
+ * B105 to SCA. Regional WA stations (6KG, 6AM, 6MD, 6NA, 6SE, 6WB, Flow FM)
+ * and "Multicultural Media" are not answered, so they stay unmatched.
  */
 export const MEDIA_OWNER_ALIASES: ReadonlyArray<{ pattern: RegExp; publisher: string }> = [
   { pattern: /kayo|foxtel/i, publisher: "Foxtel Media" },
