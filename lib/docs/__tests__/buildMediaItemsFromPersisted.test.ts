@@ -348,3 +348,30 @@ describe("published workbook ad serving from the approved slice", () => {
     )
   })
 })
+
+describe("DOC-1: published workbook fee and ad serving months come from the billing schedule", () => {
+  it("passes the billing-basis schedule_months fee months through as exact amounts", () => {
+    const base = {
+      versionData: versionMapped(),
+      clientName: dump.master.mpClientName,
+      lineItems: groupedLines(),
+      feeSnapshot: dump.feeSnapshot,
+      publishers: [],
+      logoBase64: LOGO,
+    }
+    const without = buildMediaItemsFromPlanDetail(base)
+    assert.deepEqual(without.serviceMonthAmounts, {})
+    assert.ok(without.mbaData.totals.service_fee > 0, "fixture has a fee")
+    const withRows = buildMediaItemsFromPlanDetail({
+      ...base,
+      billingScheduleServiceRows: [
+        { lineItemId: "__service__fees", component: "fee", month: "2026-07-01", amountCents: 12_345 },
+        { lineItemId: "x1", component: "fee", month: "2026-08-01", amountCents: 1 },
+        { lineItemId: "x1", component: "media", month: "2026-08-01", amountCents: 999 },
+      ],
+    })
+    assert.deepEqual(withRows.serviceMonthAmounts.fee, { "July 2026": 123.45, "August 2026": 0.01 })
+    // Totals do not move.
+    assert.equal(withRows.mbaData.totals.service_fee, without.mbaData.totals.service_fee)
+  })
+})

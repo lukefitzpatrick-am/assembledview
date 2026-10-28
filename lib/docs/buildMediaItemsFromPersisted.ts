@@ -70,6 +70,9 @@ import {
   feeMonthWeightsFromDeliverySchedule,
   firstUsableWeights,
   monthTotalsFromStoredSchedule,
+  serviceMonthAmountsFromBillingRows,
+  type BillingScheduleServiceRow,
+  type ServiceMonthAmounts,
   type ServiceMonthWeights,
 } from "@/lib/docs/workbookServiceMonthWeights"
 import { orderLinesForExport } from "@/lib/mediaplan/lineItemOrder"
@@ -210,6 +213,11 @@ export type BuildMediaItemsFromPlanDetailArgs = {
   approvedSlice?: unknown
   /** Persisted billing_overrides for this version (media and fee only). */
   billingOverrideRows?: BillingOverrideRow[]
+  /**
+   * DOC-1: this version's billing-basis `schedule_months` fee and adserving
+   * rows. The workbook Service Fee and Ad Serving month cells are these.
+   */
+  billingScheduleServiceRows?: BillingScheduleServiceRow[]
 }
 
 /**
@@ -237,8 +245,10 @@ export type BuildMediaItemsFromPlanDetailResult = {
   mediaItems: MediaItems
   mbaData: MediaPlanWorkbookMbaData
   publishers: Publisher[]
-  /** Delivery-month weights for the standard workbook Service Fee and Ad Serving rows. */
+  /** Fallback delivery-month weights for the standard workbook Service Fee and Ad Serving rows. */
   serviceMonthWeights: ServiceMonthWeights
+  /** DOC-1: exact billing-schedule month amounts for those rows (wins over the weights). */
+  serviceMonthAmounts: ServiceMonthAmounts
 }
 
 export function buildMediaItemsFromPlanDetail(
@@ -370,7 +380,9 @@ export function buildMediaItemsFromPlanDetail(
     console.info(`[media-plan] published ad serving source=${adServingSource}`)
   }
 
-  // Service Fee and Ad Serving month cells follow each line's delivery months.
+  // Service Fee and Ad Serving month cells: the billing schedule (DOC-1,
+  // serviceMonthAmounts below). The delivery-month weights are the fallback
+  // for a component the billing schedule has no rows for.
   const excludedLineIds = new Set(
     financials.perLine
       .filter((line) => line.flags.excluded)
@@ -424,6 +436,18 @@ export function buildMediaItemsFromPlanDetail(
     ...(feeWeights ? { fee: feeWeights } : {}),
     ...(adServingWeights ? { adServing: adServingWeights } : {}),
   }
+  const billingAmounts = serviceMonthAmountsFromBillingRows({
+    rows: args.billingScheduleServiceRows ?? [],
+    includeLine,
+    selectedMonthYears: scopeMonths,
+  })
+  // A row with no total is not drawn, so its billing months are not passed.
+  const serviceMonthAmounts: ServiceMonthAmounts = {
+    ...(mbaData.totals.service_fee > 0 && billingAmounts.fee ? { fee: billingAmounts.fee } : {}),
+    ...(mbaData.totals.adserving > 0 && billingAmounts.adServing
+      ? { adServing: billingAmounts.adServing }
+      : {}),
+  }
 
   const budgetRaw = args.versionData.mp_campaignbudget
   const header: MediaPlanHeader = {
@@ -449,6 +473,7 @@ export function buildMediaItemsFromPlanDetail(
     mbaData,
     publishers: args.publishers,
     serviceMonthWeights,
+    serviceMonthAmounts,
   }
 }
 
@@ -463,7 +488,7 @@ export async function buildMediaItemsFromPersisted(args: {
   const { readMbaPlanDetailFromPostgres } = await import("@/lib/data/readMbaPlanDetail")
   const { fetchPublishersFromPostgres } = await import("@/lib/data/readPublishers")
   const { getDb, schema } = await import("@/db")
-  const { eq } = await import("drizzle-orm")
+  const { and, eq, inArray } = await import("drizzle-orm")
 
   const result = await readMbaPlanDetailFromPostgres({
     mbaNumber: args.mbaNumber,
@@ -487,6 +512,7 @@ export async function buildMediaItemsFromPersisted(args: {
   let feeSnapshot: Record<string, unknown> = {}
   let approvedSlice: unknown = null
   let billingOverrideRows: BillingOverrideRow[] = []
+  let billingScheduleServiceRows: BillingScheduleServiceRow[] = []
   if (Number.isFinite(versionId) && versionId > 0) {
     const db = getDb()
     const [snap] = await db
@@ -522,6 +548,28 @@ export async function buildMediaItemsFromPersisted(args: {
       months: row.months as BillingOverrideRow["months"],
       date_basis: row.dateBasis,
     }))
+    // DOC-1: fee and ad serving months on the billing schedule of this version.
+    const scheduleRows = await db
+      .select({
+        lineItemId: schema.scheduleMonths.lineItemId,
+        component: schema.scheduleMonths.component,
+        month: schema.scheduleMonths.month,
+        amountCents: schema.scheduleMonths.amountCents,
+      })
+      .from(schema.scheduleMonths)
+      .where(
+        and(
+          eq(schema.scheduleMonths.versionId, versionId),
+          eq(schema.scheduleMonths.basis, "billing"),
+          inArray(schema.scheduleMonths.component, ["fee", "adserving"]),
+        ),
+      )
+    billingScheduleServiceRows = scheduleRows.map((row) => ({
+      lineItemId: String(row.lineItemId),
+      component: String(row.component),
+      month: String(row.month).slice(0, 10),
+      amountCents: Number(row.amountCents) || 0,
+    }))
   }
 
   const publishers = (await fetchPublishersFromPostgres()) as unknown as Publisher[]
@@ -539,5 +587,6 @@ export async function buildMediaItemsFromPersisted(args: {
     logoBase64: readAssembledLogoBase64(),
     approvedSlice,
     billingOverrideRows,
+    billingScheduleServiceRows,
   })
 }

@@ -1,19 +1,80 @@
 /**
- * Month weights for the media plan workbook Service Fee and Ad Serving rows.
+ * Month cells for the media plan workbook Service Fee and Ad Serving rows.
  *
- * The rows follow DELIVERY months per line (Luke, 22 Oct 2026): each line's fee
- * and ad serving sit in the months that line delivers, not in the plan-wide
- * media share. The weights only shape the split. The row totals still come from
- * the MBA totals, so the workbook totals do not change.
+ * Published versions (DOC-1, Luke, 28 Oct 2026): the cells are the version's
+ * BILLING schedule, read straight from `schedule_months` (basis billing,
+ * components fee and adserving), so the Excel matches Finance to the cent.
+ * See `serviceMonthAmountsFromBillingRows`.
+ *
+ * Fallback (drafts, which have no persisted rows, and versions with no
+ * billing fee / ad serving rows): DELIVERY-month weights per line (Luke,
+ * 22 Oct 2026). The weights only shape the split. The row totals always come
+ * from the MBA totals, so the workbook totals do not change.
  */
 
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
+import { isoMonthToScheduleMonthYear } from "@/lib/finance/computeCampaignFinancials"
 import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import { parseMoneyInput, roundMoney2 } from "@/lib/format/money"
+import { fromCents } from "@/lib/money"
 
 export type ServiceMonthWeights = {
   fee?: Record<string, number>
   adServing?: Record<string, number>
+}
+
+/** Exact dollars per schedule month label ("April 2026"), from integer cents. */
+export type ServiceMonthAmounts = {
+  fee?: Record<string, number>
+  adServing?: Record<string, number>
+}
+
+/** One billing-basis `schedule_months` row (fee or adserving). */
+export type BillingScheduleServiceRow = {
+  lineItemId: string
+  component: string
+  /** YYYY-MM-01 (or YYYY-MM). */
+  month: string
+  amountCents: number
+}
+
+/**
+ * DOC-1: Service Fee and Ad Serving month amounts from the version's billing
+ * schedule rows, summed in integer cents per month. Line ids are compared bare
+ * (MB-11). `__service__*` rows (plan-level fees) are always included. Lines the
+ * MBA scope excludes are left out, and a partial scope keeps only its months.
+ * A component with no non-zero month is omitted, so the caller falls back.
+ */
+export function serviceMonthAmountsFromBillingRows(args: {
+  rows: readonly BillingScheduleServiceRow[]
+  includeLine: (lineItemId: string) => boolean
+  selectedMonthYears?: readonly string[] | null
+}): ServiceMonthAmounts {
+  const allowed =
+    args.selectedMonthYears && args.selectedMonthYears.length > 0
+      ? new Set(args.selectedMonthYears)
+      : null
+  const cents: Record<"fee" | "adServing", Record<string, number>> = { fee: {}, adServing: {} }
+  for (const row of args.rows) {
+    const component = String(row.component ?? "").trim().toLowerCase()
+    const key = component === "fee" ? "fee" : component === "adserving" ? "adServing" : null
+    if (!key) continue
+    const id = toBillingOverrideLineItemId(String(row.lineItemId ?? "").trim())
+    if (!id) continue
+    if (!id.startsWith("__service__") && !args.includeLine(id)) continue
+    const label = isoMonthToScheduleMonthYear(String(row.month ?? "").slice(0, 7))
+    if (!label || (allowed && !allowed.has(label))) continue
+    const amount = Math.trunc(Number(row.amountCents) || 0)
+    if (amount === 0) continue
+    cents[key][label] = (cents[key][label] ?? 0) + amount
+  }
+  const out: ServiceMonthAmounts = {}
+  for (const key of ["fee", "adServing"] as const) {
+    const months = Object.entries(cents[key]).filter(([, c]) => c !== 0)
+    if (months.length === 0) continue
+    out[key] = Object.fromEntries(months.map(([label, c]) => [label, fromCents(c)]))
+  }
+  return out
 }
 
 type ScheduleLine = { mediaKey: string; item: BillingLineItem }

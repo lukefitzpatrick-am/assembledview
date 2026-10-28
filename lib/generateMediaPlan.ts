@@ -5,6 +5,7 @@ import { fromCents, parseMoney } from '@/lib/money';
 import {
   allocateLineAcrossMonths,
   dollarsFromPartCents,
+  placeMonthAmountsOnSheet,
 } from '@/lib/docs/allocateLineAcrossMonths';
 import { BRAND, hexToArgb, readableTextOn } from '@/lib/brand';
 import { familyColour, MEDIA_TYPE_FAMILY, type MediaTypeThemeKey } from '@/lib/design/mediaFamilies';
@@ -344,6 +345,17 @@ export type GenerateMediaPlanOptions = {
    * or all-zero weights fall back to the plan-wide media share.
    */
   serviceMonthWeights?: {
+    fee?: Record<string, number>
+    adServing?: Record<string, number>
+  }
+  /**
+   * DOC-1 (Luke, 28 Oct 2026): exact Service Fee and Ad Serving dollars per
+   * month label from the version's billing schedule (`schedule_months`, basis
+   * billing). When a component has amounts, its month cells are these amounts
+   * to the cent and its weights are ignored. The row totals still come from
+   * mbaData.
+   */
+  serviceMonthAmounts?: {
     fee?: Record<string, number>
     adServing?: Record<string, number>
   }
@@ -2021,20 +2033,32 @@ export async function generateMediaPlan(
     const serviceFeeTotal = mbaData?.totals?.service_fee ?? 0;
     const adServingTotal = mbaData?.totals?.adserving ?? 0;
     const monthKeys = monthRanges.map((range) => range.monthYear);
-    // Fee and ad serving follow each line's delivery months when the caller
-    // supplies them; otherwise the plan-wide media share.
+    // Fee and ad serving month cells: the billing schedule's exact amounts when
+    // the caller supplies them (DOC-1, published versions). Otherwise the
+    // fallback: each line's delivery-month weights, else the plan-wide media
+    // share, spread over the row total.
     const usableWeights = (weights: Record<string, number> | undefined) =>
       weights && monthKeys.some((key) => (weights[key] ?? 0) > 0) ? weights : monthlyGrandTotals;
-    const monthlyServiceFee = allocateLineAcrossMonths({
-      lineTotal: serviceFeeTotal,
-      monthKeys,
-      weights: usableWeights(options?.serviceMonthWeights?.fee),
-    });
-    const monthlyAdServing = allocateLineAcrossMonths({
-      lineTotal: adServingTotal,
-      monthKeys,
-      weights: usableWeights(options?.serviceMonthWeights?.adServing),
-    });
+    const hasAmounts = (amounts: Record<string, number> | undefined): amounts is Record<string, number> =>
+      Boolean(amounts) && Object.values(amounts!).some((v) => v !== 0);
+    const serviceRowMonths = (
+      lineTotal: number,
+      amounts: Record<string, number> | undefined,
+      weights: Record<string, number> | undefined,
+    ): Record<string, number> =>
+      hasAmounts(amounts)
+        ? placeMonthAmountsOnSheet({ amounts, monthKeys })
+        : allocateLineAcrossMonths({ lineTotal, monthKeys, weights: usableWeights(weights) });
+    const monthlyServiceFee = serviceRowMonths(
+      serviceFeeTotal,
+      options?.serviceMonthAmounts?.fee,
+      options?.serviceMonthWeights?.fee,
+    );
+    const monthlyAdServing = serviceRowMonths(
+      adServingTotal,
+      options?.serviceMonthAmounts?.adServing,
+      options?.serviceMonthWeights?.adServing,
+    );
 
     const summaryRowFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB_SAND } };
 

@@ -162,6 +162,7 @@ export async function renderPlanVersionDocuments(input: {
           campaignName: built.header.campaignName,
           versionNumber: input.versionNumber,
           serviceMonthWeights: built.serviceMonthWeights,
+          serviceMonthAmounts: built.serviceMonthAmounts,
         })
         files.media_plan = {
           kind,

@@ -359,7 +359,10 @@ export async function renderDraftDocuments(
       ? buildAdvertisingAssociatesMbaDataFromMediaItems(itemsForWorkbook)
       : workbookMba
   const kpiRows = asKpiRows(body.kpiRows)
-  // Service Fee and Ad Serving month cells follow each line's delivery months.
+  // Service Fee and Ad Serving month cells. Published versions read the billing
+  // schedule (DOC-1, serviceMonthAmounts in buildMediaItemsFromPersisted). A
+  // draft has no persisted schedule_months rows, so it keeps the FALLBACK:
+  // each line's delivery-month weights.
   const excludedLineIds = new Set(
     financials.perLine
       .filter((line) => line.flags.excluded)

@@ -51,3 +51,50 @@ export function allocateLineAcrossMonths(args: {
 export function dollarsFromPartCents(parts: readonly number[]): number {
   return fromCents(sumCents(parts.map((part) => toCents(part))))
 }
+
+const MONTH_NAMES = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
+]
+
+/** "April 2026" -> 2026 * 12 + 3; null when the label is not a month. */
+function monthLabelIndex(label: string): number | null {
+  const m = /^([A-Za-z]+)\s+(\d{4})$/.exec(String(label ?? "").trim())
+  if (!m) return null
+  const idx = MONTH_NAMES.indexOf(m[1]!.toLowerCase())
+  return idx < 0 ? null : Number(m[2]) * 12 + idx
+}
+
+/**
+ * DOC-1: place exact month amounts on the sheet's month columns, in cents.
+ * A month on the sheet takes its amount as it is. A month before the first
+ * column goes to the first column, one after the last column to the last
+ * column (the timeline covers the campaign months, so this only happens when
+ * billing sits outside them), so no billed money drops off the row. Months
+ * with no amount are 0.
+ */
+export function placeMonthAmountsOnSheet(args: {
+  amounts: Readonly<Record<string, number>>
+  monthKeys: readonly string[]
+}): Record<string, number> {
+  const keys = [...args.monthKeys]
+  const cents: number[] = keys.map(() => 0)
+  const out: Record<string, number> = {}
+  if (keys.length === 0) return out
+  const indexByKey = new Map(keys.map((key, i) => [key, i]))
+  const firstIdx = monthLabelIndex(keys[0]!)
+  for (const [label, dollars] of Object.entries(args.amounts)) {
+    const c = toCents(dollars)
+    if (c === 0) continue
+    let i = indexByKey.get(label)
+    if (i == null) {
+      const idx = monthLabelIndex(label)
+      i = idx != null && firstIdx != null && idx < firstIdx ? 0 : keys.length - 1
+    }
+    cents[i] = sumCents([cents[i]!, c])
+  }
+  keys.forEach((key, i) => {
+    out[key] = fromCents(cents[i]!)
+  })
+  return out
+}
