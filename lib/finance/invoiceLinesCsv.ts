@@ -14,6 +14,7 @@
 
 import { billingRecordsToFinanceCampaigns } from "@/lib/finance/billingRecordToCampaignData"
 import { groupInvoiceMediaRows } from "@/lib/finance/groupInvoiceMediaRows"
+import { toCents } from "@/lib/money"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 
 export const INVOICE_LINES_CSV_HEADER = [
@@ -64,11 +65,11 @@ export function buildInvoiceLinesCsv(records: BillingRecord[]): string {
             itemCode: li.itemCode,
             mediaType: li.mediaType,
             description: li.description,
-            amountCents: Math.round(li.amount * 100),
+            amountCents: toCents(li.amount),
           }))
     for (const r of lineRows) row(r.rowType, r.itemCode, r.mediaType, r.description, r.amountCents)
-    for (const s of c.serviceRows) row("service", s.itemCode, s.service, "", Math.round(s.amount * 100))
-    row("total", "", "", "Total", Math.round(c.total * 100))
+    for (const s of c.serviceRows) row("service", s.itemCode, s.service, "", toCents(s.amount))
+    row("total", "", "", "Total", toCents(c.total))
   }
   return out.join("\n")
 }

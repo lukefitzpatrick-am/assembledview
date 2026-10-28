@@ -9,6 +9,7 @@ import {
   canonicalBillingLineIdSetHas,
   toBillingOverrideLineItemId,
 } from "@/lib/finance/manualBillingOverridesUi"
+import { sumCents, toCents } from "@/lib/money"
 
 import { stableStringify } from "./planBillingRevision"
 import type { Cents, MonthKey, RevisionOk } from "./types"
@@ -125,7 +126,7 @@ export function overrideSumViolations(
 ): string[] {
   const out: string[] = []
   for (const c of checks) {
-    const actualCents = Math.round(c.months.reduce((s, m) => s + m.amount, 0) * 100)
+    const actualCents = sumCents(c.months.map((m) => toCents(m.amount)))
     if (Math.abs(actualCents - c.expectedCents) > 1) {
       out.push(`${c.lineItemId} ${c.component}: override months add to ${actualCents}c, line bills ${c.expectedCents}c`)
     }

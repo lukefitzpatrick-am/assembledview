@@ -63,7 +63,6 @@
   "lib/finance/aggregatePayablesPublisherGroups.ts": 9,
   "lib/finance/approvedReceivablesExport.ts": 2,
   "lib/finance/assertCoreScheduleParity.ts": 12,
-  "lib/finance/billedDrift.ts": 2,
   "lib/finance/billedSnapshotEcho.ts": 2,
   "lib/finance/billingRecordToCampaignData.ts": 2,
   "lib/finance/buildEditorLineItemInputs.ts": 1,

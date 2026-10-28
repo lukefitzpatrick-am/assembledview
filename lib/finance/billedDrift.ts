@@ -1,4 +1,5 @@
 import { isProductionItemCode } from "@/lib/finance/productionItemCodes"
+import { roundMoney2, toCents } from "@/lib/money"
 
 /** Minimal line snapshot used for billed-set hashing (server + client + tests). */
 export type BilledLineSnapshot = {
@@ -86,7 +87,7 @@ export function detectBilledDrift(input: DetectBilledDriftInput): DetectBilledDr
     drift: amountMismatch || linesMismatch,
     amountMismatch,
     linesMismatch,
-    delta: hasAmount ? Math.round((delta as number) * 100) / 100 : null,
+    delta: delta != null && Number.isFinite(delta) ? roundMoney2(delta) : null,
   }
 }
 
@@ -110,7 +111,7 @@ export function toBilledLineSnapshots(
     const amount = typeof l.amount === "number" && Number.isFinite(l.amount) ? l.amount : 0
     const id = l.schedule_line_item_id ?? null
     if (!(id ?? "").trim() && l.line_type !== "media" && isProductionItemCode(l.item_code)) {
-      productionCents = (productionCents ?? 0) + Math.round(amount * 100)
+      productionCents = (productionCents ?? 0) + toCents(amount)
       continue
     }
     out.push({

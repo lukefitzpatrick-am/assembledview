@@ -6,6 +6,8 @@
  */
 import "server-only"
 
+import { toCents } from "@/lib/money"
+
 import type { Cents, MonthKey } from "./types"
 import { addMonthKeys } from "./planBillingRevision"
 
@@ -33,7 +35,7 @@ export async function loadPacingSpendHints(
     for (const r of rows) {
       const id = byLower.get(String(r.ID))
       const spend = Number(r.SPEND)
-      if (id && Number.isFinite(spend)) out[id] = Math.round(spend * 100)
+      if (id && Number.isFinite(spend)) out[id] = toCents(spend)
     }
     return out
   } catch (err) {

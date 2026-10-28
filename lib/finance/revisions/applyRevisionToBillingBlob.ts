@@ -19,6 +19,7 @@
  */
 
 import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
+import { parseMoney, toCents } from "@/lib/money"
 
 import type { Cents, MonthKey } from "./types"
 
@@ -88,15 +89,15 @@ export function scheduleLabelToMonthKey(label: string): MonthKey | null {
   return `${m[2]}-${String(idx + 1).padStart(2, "0")}`
 }
 
-function toCentsHalfUp(dollars: number): number {
-  return Math.round((dollars + Number.EPSILON * Math.sign(dollars)) * 100)
+/** Cents of a blob cell (number or numeric string); non-finite reads as 0. */
+function cellCents(value: unknown): number {
+  const n = Number(value)
+  return Number.isFinite(n) ? toCents(n) : 0
 }
 
-function parseMoney(value: unknown): number {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0
-  if (typeof value !== "string") return 0
-  const n = Number.parseFloat(value.replace(/[^0-9.-]/g, ""))
-  return Number.isFinite(n) ? n : 0
+/** Cents of a month header string ("$1,234.56"); unreadable reads as 0. */
+function headerCents(value: unknown): number {
+  return toCents(parseMoney(value) ?? 0)
 }
 
 function dollars(cents: number): number {
@@ -106,7 +107,7 @@ function dollars(cents: number): number {
 function sumDollars(rec: Record<string, number> | undefined): number {
   if (!rec) return 0
   let cents = 0
-  for (const v of Object.values(rec)) cents += toCentsHalfUp(Number(v) || 0)
+  for (const v of Object.values(rec)) cents += cellCents(v)
   return dollars(cents)
 }
 
@@ -155,21 +156,21 @@ function lineMonthSums(month: BlobMonth): { productionCents: number; feeCents: n
   let productionCents = 0
   let feeCents = 0
   for (const { key, line } of linesOf(month)) {
-    if (key === "production") productionCents += toCentsHalfUp(Number(line.monthlyAmounts?.[month.monthYear]) || 0)
-    feeCents += toCentsHalfUp(Number(line.feeMonthlyAmounts?.[month.monthYear]) || 0)
+    if (key === "production") productionCents += cellCents(line.monthlyAmounts?.[month.monthYear])
+    feeCents += cellCents(line.feeMonthlyAmounts?.[month.monthYear])
   }
   return { productionCents, feeCents }
 }
 
 function recalcMonthHeaders(month: BlobMonth, before: { productionCents: number; feeCents: number }): void {
   const after = lineMonthSums(month)
-  const fee = toCentsHalfUp(parseMoney(month.feeTotal)) + (after.feeCents - before.feeCents)
-  const production = toCentsHalfUp(parseMoney(month.production)) + (after.productionCents - before.productionCents)
-  const adserv = toCentsHalfUp(parseMoney(month.adservingTechFees))
+  const fee = headerCents(month.feeTotal) + (after.feeCents - before.feeCents)
+  const production = headerCents(month.production) + (after.productionCents - before.productionCents)
+  const adserv = headerCents(month.adservingTechFees)
   let mediaCents = 0
   const byKey = new Map<string, number>()
   for (const { key, line } of linesOf(month)) {
-    const c = toCentsHalfUp(Number(line.monthlyAmounts?.[month.monthYear]) || 0)
+    const c = cellCents(line.monthlyAmounts?.[month.monthYear])
     byKey.set(key, (byKey.get(key) ?? 0) + c)
     if (key !== "production") mediaCents += c
   }

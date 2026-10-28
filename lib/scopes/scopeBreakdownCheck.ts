@@ -6,6 +6,7 @@
  * Pure, so a finance review screen can reuse it.
  */
 
+import { roundMoney2 } from "@/lib/money"
 import { coerceMoney } from "@/lib/scopes/scopeForm"
 
 export type ScopeBreakdownInput = {
@@ -49,7 +50,7 @@ function sumField(rows: unknown, field: "cost"): number {
     const r = row as Record<string, unknown>
     total += coerceMoney(r[field] ?? r.amount)
   }
-  return Math.round(total * 100) / 100
+  return roundMoney2(total)
 }
 
 function aud(n: number): string {
@@ -61,7 +62,7 @@ function aud(n: number): string {
 export function scopeBreakdownCheck(scope: ScopeBreakdownInput): ScopeBreakdownCheckResult {
   const costTotal = sumField(scope.cost, "cost")
   const scheduleTotal = sumField(scope.billing_schedule ?? scope.billingSchedule, "cost")
-  const difference = Math.round((costTotal - scheduleTotal) * 100) / 100
+  const difference = roundMoney2(costTotal - scheduleTotal)
   const matches = Math.abs(difference) < 0.005
   return {
     costTotal,

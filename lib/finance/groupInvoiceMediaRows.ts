@@ -17,6 +17,7 @@
  */
 
 import type { FinanceLineItem } from "@/lib/finance/utils"
+import { toCents } from "@/lib/money"
 
 export type InvoiceMediaRowType = "line" | "subtotal"
 
@@ -47,8 +48,10 @@ function key(value: string): string {
   return value.toLowerCase()
 }
 
-function toCents(amount: number): number {
-  return Math.round(Number(amount || 0) * 100)
+/** Cents of a line amount; a missing or non-finite amount is 0 (as before). */
+function lineCents(amount: number): number {
+  const n = Number(amount || 0)
+  return Number.isFinite(n) ? toCents(n) : 0
 }
 
 function compareText(a: string, b: string): number {
@@ -90,7 +93,7 @@ export function groupInvoiceMediaRows(lines: readonly FinanceLineItem[]): Invoic
       }
       groups.set(k, row)
     }
-    row.amountCents += toCents(li.amount)
+    row.amountCents += lineCents(li.amount)
     row.lineCount += 1
     const id = norm(li.planLineItemId ?? "")
     if (id && !row.planLineItemIds.includes(id)) row.planLineItemIds.push(id)
