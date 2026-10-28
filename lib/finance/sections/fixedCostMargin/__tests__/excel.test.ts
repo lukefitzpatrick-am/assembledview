@@ -107,7 +107,7 @@ test("workbook: line months, totals sheets, negative margin kept as a negative n
   await wb.xlsx.load(bytes)
   assert.deepEqual(
     wb.worksheets.map((w) => w.name),
-    ["Line months", "By client", "By publisher", "By month", "Billed vs delivered", "Bill lines", "Bill match totals", "Notes"]
+    ["Line months", "By client", "By publisher", "By month", "Billed vs delivered", "Bill lines", "Bill match totals", "DV360 vs Five Stones", "Notes"]
   )
   const ws = wb.getWorksheet("Line months")!
   assert.equal(ws.rowCount, 3)

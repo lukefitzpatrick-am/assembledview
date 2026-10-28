@@ -40,6 +40,17 @@ import {
 } from "@/lib/finance/sections/fixedCostMargin/bills/parse"
 import { BILL_CONTACT_SQL_REGEX, supplierKindOf } from "@/lib/finance/sections/fixedCostMargin/bills/suppliers"
 import {
+  DV360_SPEND_SOURCE,
+  dv360BillCells,
+  dv360CheckCells,
+  dv360SpendByMbaMonth,
+  FIVE_STONES_CONTACT_SQL_REGEX,
+  parseFiveStonesDv360Bill,
+  unmatchedDv360Lines,
+  type Dv360CheckCell,
+} from "@/lib/finance/sections/fixedCostMargin/bills/fiveStones"
+import {
+  buildDv360CheckRows,
   composeFixedCostMargin,
   FIXED_COST_MARGIN_CAPTION,
   FIXED_COST_MARGIN_NOTES,
@@ -47,6 +58,7 @@ import {
   summariseFixedCostMargin,
   type FinanceFixedCostMarginPayload,
   type FixedCostBillLineView,
+  type FixedCostDv360Check,
   type FixedCostBillTotals,
   type FixedCostPlanCell,
   type LineBillCostCell,
@@ -360,7 +372,10 @@ async function loadMbaClients(): Promise<Map<string, { clientId: number; clientN
  * range (three months before, six after) so the delivered-month view sees
  * bills issued late. DELETED and VOIDED bills are never loaded.
  */
-async function loadBills(q: FinanceFixedCostMarginQuery): Promise<RawBillRow[]> {
+async function loadBills(
+  q: FinanceFixedCostMarginQuery,
+  contactRegex: string = BILL_CONTACT_SQL_REGEX
+): Promise<RawBillRow[]> {
   const db = getDb()
   const fromDate = `${addMonths(q.from, -BILL_WINDOW_BEFORE_MONTHS)}-01`
   const toDate = `${addMonths(q.to, BILL_WINDOW_AFTER_MONTHS + 1)}-01`
@@ -376,7 +391,7 @@ async function loadBills(q: FinanceFixedCostMarginQuery): Promise<RawBillRow[]> 
     WHERE b.issue_date >= ${fromDate}::date
       AND b.issue_date < ${toDate}::date
       AND UPPER(COALESCE(b.status, '')) NOT IN ('DELETED', 'VOIDED')
-      AND c.name ~* ${BILL_CONTACT_SQL_REGEX}
+      AND c.name ~* ${contactRegex}
     ORDER BY b.issue_date, b.id
   `)
   return executeRows(result).map((r) => ({
@@ -552,6 +567,81 @@ async function loadBillCosts(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Five Stones DV360 bills vs DV360 AMOUNT_SPENT (MAR-10)
+// ---------------------------------------------------------------------------
+
+const DV360_CHECK_NOTE =
+  "Five Stones bill (DV360) is matched at MBA-month: a Five Stones bill line is one DV360 insertion order for the month and can carry several plan lines, so it cannot be matched to a line. The MBA-month bill is split over the MBA's DV360 lines by DV360 spend. DV360 cost in the margin stays AMOUNT_SPENT."
+
+type MbaSpendRow = { LINE_ITEM_ID: string | null; MONTH: string | null; AMOUNT_SPENT: number | string | null }
+
+/** DV360 AMOUNT_SPENT for every line of these MBAs (any buy type), by line and month. */
+async function loadDv360MbaSpend(mbas: string[], q: FinanceFixedCostMarginQuery): Promise<Map<string, number>> {
+  if (!mbas.length) return new Map()
+  const prefixes = mbas.map(() => "STARTSWITH(LOWER(LINE_ITEM_ID), ?)").join(" OR ")
+  const rows = await querySnowflake<MbaSpendRow>(
+    `
+    SELECT LOWER(LINE_ITEM_ID) AS LINE_ITEM_ID, MONTH, SUM(AMOUNT_SPENT) AS AMOUNT_SPENT
+    FROM ${PLATFORM_SPEND_VIEW}
+    WHERE SOURCE = ? AND MONTH >= ? AND MONTH <= ? AND (${prefixes})
+    GROUP BY 1, 2
+    `,
+    [DV360_SPEND_SOURCE, q.from, q.to, ...mbas],
+    { label: "fixed_cost_margin_dv360_mba_spend" }
+  )
+  return dv360SpendByMbaMonth(
+    rows.map((r) => ({
+      lineItemId: asText(r.LINE_ITEM_ID),
+      month: asText(r.MONTH),
+      spendCents: toCents(asNumber(r.AMOUNT_SPENT)),
+    })),
+    mbas
+  )
+}
+
+type Dv360BillsResult = { cells: Dv360CheckCell[]; ok: boolean; note: string; unmatchedLines: number; unmatchedCents: number }
+
+/**
+ * Five Stones DV360 bills issued in the range, by MBA-month, with DV360
+ * spend on all of each MBA's DV360 lines. Only MBAs that have a DV360 line in
+ * the report are kept. Needs the platform spend view; on the pacing-facts
+ * fallback, or when Snowflake fails, the check is empty and says why.
+ */
+async function loadDv360Bills(
+  q: FinanceFixedCostMarginQuery,
+  reportDv360Mbas: string[],
+  knownMbas: ReadonlySet<string>,
+  mode: SpendSourceMode
+): Promise<Dv360BillsResult> {
+  const empty = (note: string, ok = true): Dv360BillsResult => ({ cells: [], ok, note, unmatchedLines: 0, unmatchedCents: 0 })
+  if (mode !== "line_month_view") {
+    return empty("Five Stones bill (DV360) needs VW_PLATFORM_SPEND_LINE_MONTH; it is not shown on the pacing-facts fallback.", false)
+  }
+  if (!reportDv360Mbas.length) return empty(DV360_CHECK_NOTE)
+  const raw = await loadBills(q, FIVE_STONES_CONTACT_SQL_REGEX)
+  const lines = raw
+    .flatMap((b) => parseFiveStonesDv360Bill(b, knownMbas))
+    .filter((l) => inRangeMonth(l.month, q))
+  const wanted = new Set(reportDv360Mbas)
+  const bills = dv360BillCells(lines).filter((c) => wanted.has(c.mbaNumber))
+  const unmatched = unmatchedDv360Lines(lines)
+  const unmatchedCents = unmatched.reduce((sum, l) => sum + l.exGstCents, 0)
+  try {
+    const spend = await loadDv360MbaSpend([...new Set(bills.map((b) => b.mbaNumber))].sort(), q)
+    return {
+      cells: dv360CheckCells(bills, spend),
+      ok: true,
+      note: DV360_CHECK_NOTE,
+      unmatchedLines: unmatched.length,
+      unmatchedCents,
+    }
+  } catch (error) {
+    console.warn("[fixed-cost-margin] DV360 MBA spend unavailable", error)
+    return empty("Five Stones bill (DV360) is not shown: DV360 spend by MBA could not be read from Snowflake.", false)
+  }
+}
+
 function inRangeMonth(month: string, q: FinanceFixedCostMarginQuery): boolean {
   return month >= q.from && month <= q.to
 }
@@ -582,6 +672,16 @@ export async function fetchFinanceFixedCostMargin(
     loadPlatformSpend(platformLineIds, q),
     loadBillCosts(q, publisherRows, mbaClients),
   ])
+  const dv360LineIds = new Set(cells.filter((c) => c.source === DV360_SPEND_SOURCE).map((c) => c.lineItemId))
+  const reportDv360Mbas = [
+    ...new Set(
+      plan
+        .filter((c) => dv360LineIds.has(c.lineItemId.trim().toLowerCase()))
+        .map((c) => c.mbaNumber.trim().toLowerCase())
+        .filter(Boolean)
+    ),
+  ].sort()
+  const dv360 = await loadDv360Bills(q, reportDv360Mbas, new Set(mbaClients.keys()), mode)
   const lines = composeFixedCostMargin({
     plan,
     spend: cells,
@@ -589,7 +689,15 @@ export async function fetchFinanceFixedCostMargin(
     from: q.from,
     to: q.to,
     billCosts: bills.costs,
+    dv360Bills: dv360.cells,
   })
+  const dv360Check: FixedCostDv360Check = {
+    ok: dv360.ok,
+    note: dv360.note,
+    rows: buildDv360CheckRows(lines, dv360.cells),
+    unmatchedLines: dv360.unmatchedLines,
+    unmatchedCents: dv360.unmatchedCents,
+  }
   const publishers = [...new Set(lines.map((l) => l.publisher))].sort((a, b) => a.localeCompare(b))
   const platforms = [...new Set(lines.map((l) => l.platform).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b)
@@ -608,6 +716,7 @@ export async function fetchFinanceFixedCostMargin(
     lines,
     billLines: bills.views,
     billTotals: bills.totals,
+    dv360Check,
     summary: summariseFixedCostMargin(lines),
     options: { publishers, platforms },
     notes: [...FIXED_COST_MARGIN_NOTES],

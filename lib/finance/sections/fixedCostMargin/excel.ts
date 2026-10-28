@@ -9,6 +9,7 @@ import { BRAND, hexToArgb } from "@/lib/brand"
 import { excelFont, paintSandHeader, stampAptos } from "@/lib/excel/brandSheet"
 import {
   lineFlagLabels,
+  type Dv360CheckRow,
   type FixedCostBillLineView,
   type FixedCostBillTotals,
   type FixedCostMarginLine,
@@ -91,6 +92,47 @@ function writeTotalsSheet(
 export type FixedCostMarginWorkbookBills = {
   billLines: readonly FixedCostBillLineView[]
   billTotals: readonly FixedCostBillTotals[]
+  /** DV360 vs Five Stones check by MBA-month (MAR-10). */
+  dv360Rows?: readonly Dv360CheckRow[]
+}
+
+function writeDv360Sheet(wb: ExcelJS.Workbook, rows: readonly Dv360CheckRow[]): void {
+  const ws = wb.addWorksheet("DV360 vs Five Stones")
+  writeHeader(ws, [
+    "Client",
+    "MBA",
+    "Month",
+    "Report DV360 lines",
+    "DV360 AMOUNT_SPENT (all MBA DV360 lines)",
+    "DV360 AMOUNT_SPENT (report lines)",
+    "Five Stones bill (ex GST)",
+    "Five Stones pending",
+    "Gap $ (AMOUNT_SPENT less bill)",
+    "Gap %",
+    "Bill status",
+    "Five Stones bills",
+  ])
+  for (const r of rows) {
+    const row = ws.addRow([
+      r.clientName,
+      r.mbaNumber,
+      r.month,
+      r.lineItemIds.join(", "),
+      money(r.mbaDv360SpendCents),
+      money(r.reportDv360SpendCents),
+      money(r.fiveStonesBillCents),
+      money(r.pendingBillCents),
+      money(r.gapCents),
+      r.gapPct,
+      r.statuses.join(", "),
+      r.invoiceNumbers.join(", "),
+    ])
+    paintNegative(row.getCell(9), money(r.gapCents))
+  }
+  formatColumns(ws, [5, 6, 7, 8, 9], [10])
+  const widths = [24, 12, 10, 30, 22, 22, 18, 14, 18, 10, 18, 22]
+  widths.forEach((w, i) => (ws.getColumn(i + 1).width = w))
+  stampAptos(ws)
 }
 
 const BILL_STATE_LABEL: Record<string, string> = {
@@ -285,6 +327,10 @@ export async function buildFixedCostMarginWorkbookBytes(
     "Pending bills",
     "Bill status",
     "Match method",
+    "DV360 spend",
+    "Five Stones bill (DV360, MBA-month share)",
+    "DV360 gap $",
+    "DV360 gap %",
   ])
   for (const line of lines) {
     const lineFlags = lineFlagLabels(line).filter((f) => !f.startsWith("Spend outside"))
@@ -313,12 +359,16 @@ export async function buildFixedCostMarginWorkbookBytes(
         line.costBasis === "xero_bill" ? money(m.pendingBillCents) : null,
         line.billStatuses.join(", "),
         line.billMethods.map((x) => billMethodLabel(x)).join(", "),
+        m.dv360SpendCents ? money(m.dv360SpendCents) : null,
+        money(m.fiveStonesBillCents),
+        money(m.fiveStonesGapCents),
+        m.fiveStonesGapPct,
       ])
       paintNegative(row.getCell(13), money(m.marginCents))
     }
   }
-  formatColumns(ws, [10, 11, 12, 13, 17, 18, 19], [14])
-  const widths = [24, 12, 28, 16, 28, 20, 18, 18, 10, 14, 14, 16, 14, 10, 40, 14, 14, 12, 14, 18, 30]
+  formatColumns(ws, [10, 11, 12, 13, 17, 18, 19, 22, 23, 24], [14, 25])
+  const widths = [24, 12, 28, 16, 28, 20, 18, 18, 10, 14, 14, 16, 14, 10, 40, 14, 14, 12, 14, 18, 30, 14, 20, 14, 10]
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w))
   stampAptos(ws)
 
@@ -346,6 +396,7 @@ export async function buildFixedCostMarginWorkbookBytes(
 
   writeTimingSheet(wb, lines)
   writeBillLinesSheet(wb, bills)
+  writeDv360Sheet(wb, bills.dv360Rows ?? [])
 
   const nw = wb.addWorksheet("Notes")
   for (const n of notes) nw.addRow([n])

@@ -8,7 +8,10 @@
  *
  * Our cost per source (Luke, 27 Oct 2026):
  * - DV360 and YouTube via DV360: DV360 cost in advertiser currency
- *   (AMOUNT_SPENT, equal to DV360 revenue), the figure pacing shows.
+ *   (AMOUNT_SPENT, equal to DV360 revenue), the figure pacing shows. The
+ *   Five Stones (DV360 reseller) bill is shown beside it with the gap, matched
+ *   at MBA-month and split over the MBA's DV360 lines by DV360 spend
+ *   (Luke, 28 Oct, MAR-10 decision (c)). It is not the margin cost.
  * - Vistar: Vistar's reported spend (Vistar revenue), what Vistar invoices us.
  * - Taboola, Meta, TikTok, Reddit, Google Ads, Microsoft Ads: platform spend.
  * - Channel Factory: Xero bills, matched per placement (PL...) through the CF
@@ -82,6 +85,24 @@ export type LineBillCostCell = {
   supplierKinds: string[]
 }
 
+/**
+ * Five Stones DV360 bill for one MBA-month (bills/fiveStones.ts
+ * `dv360CheckCells`), with DV360 AMOUNT_SPENT on every DV360 line of the MBA.
+ */
+export type Dv360BillInput = {
+  /** Any case; matched lower-case. */
+  mbaNumber: string
+  month: string
+  countedCents: number
+  pendingCents: number
+  mbaDv360SpendCents: number
+  statuses: readonly string[]
+  invoiceNumbers: readonly string[]
+}
+
+/** Platform spend source label for DV360 (`VW_PLATFORM_SPEND_LINE_MONTH.SOURCE`). */
+export const DV360_SOURCE_LABEL = "DV360"
+
 /** Billed month vs delivered month, for one line and month (timing view). */
 export type FixedCostTimingMonth = {
   month: string
@@ -115,6 +136,18 @@ export type FixedCostMarginLineMonth = {
   billGrossCents: number
   billRebateCents: number
   pendingBillCents: number
+  /** DV360 AMOUNT_SPENT on this line this month (part of actual cost for DV360 lines). */
+  dv360SpendCents: number
+  /**
+   * Five Stones DV360 bill for the MBA-month, split by this line's share of the
+   * MBA's DV360 spend. Null when there is no counted Five Stones bill or no
+   * DV360 spend. Shown beside the cost, never used as the cost.
+   */
+  fiveStonesBillCents: number | null
+  /** DV360 AMOUNT_SPENT minus the Five Stones bill share. */
+  fiveStonesGapCents: number | null
+  /** Gap over DV360 AMOUNT_SPENT. */
+  fiveStonesGapPct: number | null
 }
 
 export type FixedCostMarginLine = {
@@ -167,6 +200,10 @@ export type MarginTotals = {
   billGrossCents: number
   billRebateCents: number
   pendingBillCents: number
+  /** Five Stones bill share on line-months that have one. */
+  fiveStonesBillCents: number
+  /** DV360 AMOUNT_SPENT on the same line-months (the gap base). */
+  fiveStonesSpendCents: number
 }
 
 export type MarginSummary = {
@@ -222,6 +259,35 @@ export type FixedCostBillTotals = {
   pendingCents: number
 }
 
+/** One MBA-month of the DV360 vs Five Stones check (page panel and Excel sheet). */
+export type Dv360CheckRow = {
+  clientName: string
+  mbaNumber: string
+  month: string
+  /** Fixed-cost DV360 lines of the MBA in this report. */
+  lineItemIds: string[]
+  /** DV360 AMOUNT_SPENT on every DV360 line of the MBA (the bill covers them all). */
+  mbaDv360SpendCents: number
+  /** DV360 AMOUNT_SPENT on the report's lines of the MBA. */
+  reportDv360SpendCents: number
+  fiveStonesBillCents: number
+  pendingBillCents: number
+  /** mbaDv360SpendCents minus fiveStonesBillCents. */
+  gapCents: number
+  gapPct: number | null
+  statuses: string[]
+  invoiceNumbers: string[]
+}
+
+export type FixedCostDv360Check = {
+  ok: boolean
+  note: string
+  rows: Dv360CheckRow[]
+  /** Five Stones DV360 bill lines (in range) that name no MBA or several. */
+  unmatchedLines: number
+  unmatchedCents: number
+}
+
 /** GET /api/finance/sections/costs/fixed-cost-margin response. */
 export type FinanceFixedCostMarginPayload = {
   scope: {
@@ -237,6 +303,7 @@ export type FinanceFixedCostMarginPayload = {
   lines: FixedCostMarginLine[]
   billLines: FixedCostBillLineView[]
   billTotals: FixedCostBillTotals[]
+  dv360Check: FixedCostDv360Check
   summary: MarginSummary
   options: { publishers: string[]; platforms: string[] }
   notes: string[]
@@ -250,6 +317,7 @@ export const FIXED_COST_MARGIN_NOTES = [
   "Billed is the published billing schedule for the month, media only. Fees and ad serving are not media cost and are left out.",
   "Invoiced shows a month's billed amount once that MBA-month has an invoiced, paid, exported or Xero-matched media record. Invoices are not split by line.",
   "DV360 and YouTube (via DV360) cost is the DV360 cost in advertiser currency (equal to DV360 revenue), the figure pacing shows.",
+  "Five Stones bill (DV360): what Five Stones, our DV360 reseller, billed for the MBA that month (AUTHORISED and PAID DV360 bills, ex GST). Five Stones bills per DV360 insertion order, not per line, so the bill is matched at MBA-month and split over the MBA's DV360 lines by their DV360 spend. The gap is DV360 AMOUNT_SPENT minus that bill. It is shown beside the cost and does not change the margin. CM360 (ad serving) bills are left out.",
   "Vistar cost is Vistar's reported spend (Vistar revenue), which is what Vistar invoices us.",
   "Channel Factory cost is CF's Xero bill, matched per placement (PL id) to the plan line through the CF daily delivery file. Xero tracking is not used. CF \"7.5%\" fee lines are a fee and are shown apart, not as line media cost.",
   "Advertising Associates publishers (News Corp, Nova, Nine, Seven, Golf Digest, Broadsheet and others) take their cost from AA's Xero bills. AA bills are gross; cost is net of an assumed 8% AA rebate (gross x 0.92). Gross, rebate and net are shown.",
@@ -280,7 +348,27 @@ function emptyTotals(): MarginTotals {
     billGrossCents: 0,
     billRebateCents: 0,
     pendingBillCents: 0,
+    fiveStonesBillCents: 0,
+    fiveStonesSpendCents: 0,
   }
+}
+
+/** Integer cents, half away from zero. */
+function roundCents(value: number): number {
+  return Math.sign(value) * Math.round(Math.abs(value))
+}
+
+/**
+ * This line's share of an MBA-month Five Stones bill: bill x line DV360 spend
+ * / MBA DV360 spend. Null when either spend is 0 or no bill is counted.
+ */
+export function fiveStonesShareCents(
+  billCents: number,
+  lineDv360SpendCents: number,
+  mbaDv360SpendCents: number
+): number | null {
+  if (!billCents || !lineDv360SpendCents || !mbaDv360SpendCents) return null
+  return roundCents((billCents * lineDv360SpendCents) / mbaDv360SpendCents)
 }
 
 /** Margin over billed as a fraction; null when billed is 0. */
@@ -352,8 +440,15 @@ export function composeFixedCostMargin(input: {
   from: string
   to: string
   billCosts?: readonly LineBillCostCell[]
+  /** Five Stones DV360 bills by MBA-month (MAR-10). Shown beside the cost only. */
+  dv360Bills?: readonly Dv360BillInput[]
 }): FixedCostMarginLine[] {
   const { from, to } = input
+  const dv360BillByMbaMonth = new Map<string, Dv360BillInput>()
+  for (const b of input.dv360Bills ?? []) {
+    if (!inRange(b.month, from, to)) continue
+    dv360BillByMbaMonth.set(`${b.mbaNumber.trim().toLowerCase()}|${b.month}`, b)
+  }
   const lines = new Map<string, LineAcc>()
   const keysByLineId = new Map<string, Set<string>>()
 
@@ -398,7 +493,7 @@ export function composeFixedCostMargin(input: {
   }
 
   type SpendAcc = {
-    byMonth: Map<string, { spend: number; impressions: number; rows: number }>
+    byMonth: Map<string, { spend: number; dv360: number; impressions: number; rows: number }>
     sources: Set<string>
     rows: number
   }
@@ -408,8 +503,9 @@ export function composeFixedCostMargin(input: {
     const lid = cell.lineItemId.trim().toLowerCase()
     if (!keysByLineId.has(lid)) continue
     const acc = spendByLineId.get(lid) ?? { byMonth: new Map(), sources: new Set<string>(), rows: 0 }
-    const m = acc.byMonth.get(cell.month) ?? { spend: 0, impressions: 0, rows: 0 }
+    const m = acc.byMonth.get(cell.month) ?? { spend: 0, dv360: 0, impressions: 0, rows: 0 }
     m.spend += cell.spendCents
+    if (cell.source === DV360_SOURCE_LABEL) m.dv360 += cell.spendCents
     m.impressions += cell.impressions
     m.rows += cell.rowCount
     acc.byMonth.set(cell.month, m)
@@ -481,6 +577,14 @@ export function composeFixedCostMargin(input: {
       // not in), so it is not counted as margin of the full billed amount.
       const monthHasCost = isBill ? !!b && b.statuses.some((st) => COUNTED_BILL_STATUSES.has(st)) : true
       const marginCents = costStatus === "reported" && monthHasCost ? billedCents - actualCents : null
+      const dv360SpendCents = isBill ? 0 : s?.dv360 ?? 0
+      const fsBill = dv360SpendCents
+        ? dv360BillByMbaMonth.get(`${acc.identity.mbaNumber.trim().toLowerCase()}|${month}`)
+        : undefined
+      const fiveStonesBillCents = fsBill
+        ? fiveStonesShareCents(fsBill.countedCents, dv360SpendCents, fsBill.mbaDv360SpendCents)
+        : null
+      const fiveStonesGapCents = fiveStonesBillCents == null ? null : dv360SpendCents - fiveStonesBillCents
       lineMonths.push({
         month,
         billedCents,
@@ -493,6 +597,11 @@ export function composeFixedCostMargin(input: {
         billGrossCents: b?.countedGrossCents ?? 0,
         billRebateCents: b?.countedRebateCents ?? 0,
         pendingBillCents: b?.pendingNetCents ?? 0,
+        dv360SpendCents,
+        fiveStonesBillCents,
+        fiveStonesGapCents,
+        fiveStonesGapPct:
+          fiveStonesGapCents == null || !dv360SpendCents ? null : fiveStonesGapCents / dv360SpendCents,
       })
     }
 
@@ -586,6 +695,10 @@ function addMonth(t: MarginTotals, line: FixedCostMarginLine, m: FixedCostMargin
   t.billGrossCents += m.billGrossCents
   t.billRebateCents += m.billRebateCents
   t.pendingBillCents += m.pendingBillCents
+  if (m.fiveStonesBillCents != null) {
+    t.fiveStonesBillCents += m.fiveStonesBillCents
+    t.fiveStonesSpendCents += m.dv360SpendCents
+  }
   if (line.costStatus === "reported" && m.marginCents != null) {
     t.billedWithCostCents += m.billedCents
     t.marginCents += m.marginCents ?? 0
@@ -640,6 +753,50 @@ export function summariseFixedCostMargin(lines: readonly FixedCostMarginLine[]):
       .sort()
       .map((month) => ({ month, totals: totalsForLines(lines, month) })),
   }
+}
+
+/**
+ * MBA-month rows for the DV360 vs Five Stones check: MBAs with a DV360 line
+ * in the report (after filters), with what Five Stones billed and the gap
+ * against DV360 AMOUNT_SPENT on all of the MBA's DV360 lines.
+ */
+export function buildDv360CheckRows(
+  lines: readonly FixedCostMarginLine[],
+  bills: readonly Dv360BillInput[]
+): Dv360CheckRow[] {
+  const byMba = new Map<string, { clientName: string; lineIds: Set<string>; spendByMonth: Map<string, number> }>()
+  for (const line of lines) {
+    if (!line.sources.includes(DV360_SOURCE_LABEL)) continue
+    const mba = line.mbaNumber.trim().toLowerCase()
+    const e = byMba.get(mba) ?? { clientName: line.clientName, lineIds: new Set<string>(), spendByMonth: new Map() }
+    e.lineIds.add(line.lineItemId)
+    for (const m of line.months) addTo(e.spendByMonth, m.month, m.dv360SpendCents)
+    byMba.set(mba, e)
+  }
+  const out: Dv360CheckRow[] = []
+  for (const b of bills) {
+    const mba = b.mbaNumber.trim().toLowerCase()
+    const e = byMba.get(mba)
+    if (!e) continue
+    const gapCents = b.mbaDv360SpendCents - b.countedCents
+    out.push({
+      clientName: e.clientName,
+      mbaNumber: b.mbaNumber,
+      month: b.month,
+      lineItemIds: [...e.lineIds].sort((x, y) => x.localeCompare(y, undefined, { numeric: true })),
+      mbaDv360SpendCents: b.mbaDv360SpendCents,
+      reportDv360SpendCents: e.spendByMonth.get(b.month) ?? 0,
+      fiveStonesBillCents: b.countedCents,
+      pendingBillCents: b.pendingCents,
+      gapCents,
+      gapPct: b.mbaDv360SpendCents ? gapCents / b.mbaDv360SpendCents : null,
+      statuses: [...b.statuses],
+      invoiceNumbers: [...b.invoiceNumbers],
+    })
+  }
+  return out.sort(
+    (a, b) => a.clientName.localeCompare(b.clientName) || a.mbaNumber.localeCompare(b.mbaNumber) || a.month.localeCompare(b.month)
+  )
 }
 
 export type FixedCostMarginFilter = {

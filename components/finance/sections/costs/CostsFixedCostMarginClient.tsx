@@ -30,6 +30,7 @@ import {
   OUT_OF_RANGE_LABEL,
   PENDING_BILLS_LABEL,
   summariseFixedCostMargin,
+  type Dv360CheckRow,
   type FinanceFixedCostMarginPayload,
   type FixedCostBillLineView,
   type FixedCostMarginLine,
@@ -355,6 +356,83 @@ function BillLinesPanel({ data }: { data: FinanceFixedCostMarginPayload }) {
   )
 }
 
+function Dv360CheckPanel({
+  rows,
+  note,
+  ok,
+  unmatchedLines,
+  unmatchedCents,
+}: {
+  rows: Dv360CheckRow[]
+  note: string
+  ok: boolean
+  unmatchedLines: number
+  unmatchedCents: number
+}) {
+  const cell = "num px-2 py-1.5 text-right"
+  return (
+    <Panel>
+      <PanelHeader>
+        <PanelTitle>DV360 cost vs Five Stones bills (by MBA-month)</PanelTitle>
+      </PanelHeader>
+      <PanelContent>
+        <p className="mb-3 text-xs text-muted-foreground">
+          {note}
+          {unmatchedLines
+            ? ` ${unmatchedLines} Five Stones DV360 bill lines (${money(unmatchedCents)}) name no MBA, or more than one, and are not matched.`
+            : ""}
+        </p>
+        {!ok || rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {ok ? "No Five Stones DV360 bill matches a DV360 line in this scope." : "Not available for this load."}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="px-2 py-2 font-medium">Client / MBA</th>
+                  <th className="px-2 py-2 font-medium">Month</th>
+                  <th className="px-2 py-2 font-medium">Report DV360 lines</th>
+                  <th className="px-2 py-2 text-right font-medium">DV360 AMOUNT_SPENT (all MBA lines)</th>
+                  <th className="px-2 py-2 text-right font-medium">Five Stones bill</th>
+                  <th className="px-2 py-2 text-right font-medium">Gap $</th>
+                  <th className="px-2 py-2 text-right font-medium">Gap %</th>
+                  <th className="px-2 py-2 font-medium">Bill status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={`${r.mbaNumber}-${r.month}`} className="border-b border-border/40">
+                    <td className="px-2 py-1.5 text-foreground">
+                      <span className="block">{r.clientName}</span>
+                      <span className="block text-xs text-muted-foreground">{r.mbaNumber}</span>
+                    </td>
+                    <td className="px-2 py-1.5 text-muted-foreground">{monthLabel(r.month)}</td>
+                    <td className="px-2 py-1.5 text-muted-foreground">{r.lineItemIds.join(", ")}</td>
+                    <td className={cell}>{money(r.mbaDv360SpendCents)}</td>
+                    <td className={cell}>
+                      {money(r.fiveStonesBillCents)}
+                      {r.pendingBillCents ? (
+                        <span className="block text-xs text-muted-foreground">
+                          pending {money(r.pendingBillCents)}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className={cn(cell, marginClass(r.gapCents))}>{money(r.gapCents)}</td>
+                    <td className={cn(cell, marginClass(r.gapCents))}>{pct(r.gapPct)}</td>
+                    <td className="px-2 py-1.5 text-muted-foreground">{r.statuses.join(", ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </PanelContent>
+    </Panel>
+  )
+}
+
 function TotalsTable({
   title,
   keyHeader,
@@ -451,6 +529,12 @@ export function CostsFixedCostMarginClient() {
     return [...map.entries()].map(([clientId, c]) => ({ clientId, ...c }))
   }, [lines])
 
+  const dv360Rows = useMemo(() => {
+    if (view.status !== "ready") return []
+    const mbas = new Set(lines.map((l) => l.mbaNumber.trim().toLowerCase()))
+    return (view.data.dv360Check?.rows ?? []).filter((r) => mbas.has(r.mbaNumber.trim().toLowerCase()))
+  }, [view, lines])
+
   const clientTotals = useMemo(() => {
     const m = new Map<number, MarginTotals>()
     for (const c of summary?.byClient ?? []) m.set(c.clientId, c.totals)
@@ -468,14 +552,14 @@ export function CostsFixedCostMarginClient() {
         [view.data.caption, view.data.spendSource.note, view.data.billSource.note, ...view.data.notes],
         { from: view.data.scope.from, to: view.data.scope.to },
         { save: saveAs },
-        { billLines: view.data.billLines, billTotals: view.data.billTotals }
+        { billLines: view.data.billLines, billTotals: view.data.billTotals, dv360Rows }
       )
     } catch (error) {
       setDownloadError(error instanceof Error ? error.message : "Download failed")
     } finally {
       setDownloading(false)
     }
-  }, [view, summary, lines])
+  }, [view, summary, lines, dv360Rows])
 
   const showingLabel =
     view.status === "ready"
@@ -672,6 +756,15 @@ export function CostsFixedCostMarginClient() {
                                   (line.costBasis === "xero_bill" && m.marginCents == null && !m.actualCents)
                                     ? "—"
                                     : money(m.actualCents)}
+                                  {m.fiveStonesBillCents != null ? (
+                                    <span
+                                      className="block text-xs text-muted-foreground"
+                                      title="Five Stones DV360 bill for the MBA-month, split by this line's DV360 spend. Not the cost."
+                                    >
+                                      Five Stones {money(m.fiveStonesBillCents)} · gap {money(m.fiveStonesGapCents)} (
+                                      {pct(m.fiveStonesGapPct)})
+                                    </span>
+                                  ) : null}
                                 </td>
                                 <td className={cn("num px-2 py-1 text-right", marginClass(m.marginCents))}>
                                   {money(m.marginCents)}
@@ -712,6 +805,14 @@ export function CostsFixedCostMarginClient() {
                 </tbody>
               </table>
             </div>
+
+            <Dv360CheckPanel
+              rows={dv360Rows}
+              note={ready.dv360Check?.note ?? ""}
+              ok={ready.dv360Check?.ok ?? false}
+              unmatchedLines={ready.dv360Check?.unmatchedLines ?? 0}
+              unmatchedCents={ready.dv360Check?.unmatchedCents ?? 0}
+            />
 
             <div className="grid gap-4 xl:grid-cols-2">
               <TotalsTable
