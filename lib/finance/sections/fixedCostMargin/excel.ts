@@ -144,6 +144,7 @@ const BILL_STATE_LABEL: Record<string, string> = {
 }
 
 const METHOD_LABEL: Record<string, string> = {
+  manual: "Saved manual match",
   cf_placement: "CF placement (PL id)",
   mba_publisher: "MBA + publisher (only line)",
   mba_publisher_month_amount: "MBA + publisher + month + amount",
@@ -155,6 +156,17 @@ export function billStateLabel(state: string): string {
 
 export function billMethodLabel(method: string | null): string {
   return method ? METHOD_LABEL[method] ?? method : ""
+}
+
+/** Saved match text for the Bill lines sheet: line, month, who, note, and why it is not applied. */
+export function savedMatchLabel(b: Pick<FixedCostBillLineView, "savedMatch">): string {
+  const m = b.savedMatch
+  if (!m) return ""
+  const parts = [`${m.lineItemId} ${m.month}`, `by ${m.matchedBy}`, m.matchedAt.slice(0, 10)]
+  if (m.note) parts.push(m.note)
+  if (m.stale) parts.push("NOT APPLIED: bill line amount changed")
+  if (m.lineMissing) parts.push("NOT APPLIED: line not on a live published plan")
+  return parts.join("; ")
 }
 
 function writeBillLinesSheet(wb: ExcelJS.Workbook, bills: FixedCostMarginWorkbookBills): void {
@@ -183,6 +195,7 @@ function writeBillLinesSheet(wb: ExcelJS.Workbook, bills: FixedCostMarginWorkboo
     "Gross (ex GST)",
     "AA rebate",
     "Net cost",
+    "Saved match",
   ])
   for (const b of bills.billLines) {
     ws.addRow([
@@ -209,10 +222,11 @@ function writeBillLinesSheet(wb: ExcelJS.Workbook, bills: FixedCostMarginWorkboo
       money(b.grossCents),
       money(b.rebateCents),
       money(b.netCents),
+      savedMatchLabel(b),
     ])
   }
   formatColumns(ws, [21, 22, 23], [])
-  const widths = [22, 34, 12, 10, 12, 10, 10, 11, 48, 24, 22, 12, 12, 22, 16, 8, 22, 26, 24, 48, 14, 12, 14]
+  const widths = [22, 34, 12, 10, 12, 10, 10, 11, 48, 24, 22, 12, 12, 22, 16, 8, 22, 26, 24, 48, 14, 12, 14, 40]
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w))
   stampAptos(ws)
 

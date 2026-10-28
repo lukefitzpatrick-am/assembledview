@@ -9,9 +9,14 @@
  *   publisher bills through AA; a direct supplier's bills match only its direct
  *   publisher. Anything else is unmatched or ambiguous and goes to the manual
  *   list. Fee and production lines are kept out of media cost.
+ * - Saved manual matches (`ap_bill_line_matches`, MAR-4) come first: a bill
+ *   line with a saved match takes that plan line and month before any rule
+ *   runs, as long as its amount is still the amount it had when matched.
  *
  * Pure. No I/O. Money is integer cents.
  */
+
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 
 import {
   AMOUNT_MATCH_TOLERANCE_CENTS,
@@ -43,9 +48,10 @@ export type BillPlanLine = {
 /** CF placement to plan line ids seen against it in the CF daily file (lower-case). */
 export type CfPlacementMap = ReadonlyMap<string, readonly string[]>
 
-export type MbaSource = "invoice_number" | "description" | "tracking" | "plan_line"
+export type MbaSource = "invoice_number" | "description" | "tracking" | "plan_line" | "manual"
 
 export type MatchMethod =
+  | "manual"
   | "cf_placement"
   | "mba_publisher"
   | "mba_publisher_month_amount"
@@ -75,6 +81,54 @@ export type MatchedBillLine = ParsedBillLine & {
   candidates: string[]
   /** Why it is not matched, or how it matched. */
   reason: string
+  /** The saved manual match on this bill line, if any (applied or stale). */
+  savedMatch: SavedMatchState | null
+}
+
+/** One row of `ap_bill_line_matches`, as the matcher needs it. */
+export type SavedBillLineMatch = {
+  id: number
+  xeroInvoiceId: string
+  xeroLineItemId: string
+  /** Lower-case. */
+  mbaNumber: string
+  /** Lower-case. */
+  lineItemId: string
+  /** YYYY-MM: the month the bill line is for. */
+  month: string
+  /** Bill line ex GST cents when matched. */
+  amountCents: number
+  matchedBy: string
+  matchedAt: string
+  note: string | null
+}
+
+export type SavedMatchState = {
+  id: number
+  lineItemId: string
+  month: string
+  matchedBy: string
+  matchedAt: string
+  note: string | null
+  /** The bill line's amount changed since the match, so the match is not applied. */
+  stale: boolean
+  /** Applied, but the plan line is not on an approved, booked or completed published plan. */
+  lineMissing: boolean
+}
+
+/** Key of a saved match: Xero bill id plus Xero LineItemID. */
+export function savedMatchKey(xeroInvoiceId: string, xeroLineItemId: string): string {
+  return `${xeroInvoiceId.trim()}|${xeroLineItemId.trim().toLowerCase()}`
+}
+
+/** Saved matches keyed for the matcher. A later row for the same bill line is ignored. */
+export function buildSavedMatchMap(rows: readonly SavedBillLineMatch[]): Map<string, SavedBillLineMatch> {
+  const out = new Map<string, SavedBillLineMatch>()
+  for (const r of rows) {
+    const key = savedMatchKey(r.xeroInvoiceId, r.xeroLineItemId)
+    if (!out.has(key)) out.set(key, r)
+  }
+  return out
 }
 
 export type ResolvedPublisher = { name: string; billingAgency: string }
@@ -90,6 +144,8 @@ export type BillMatchContext = {
   resolveMediaOwner: (text: string) => ResolvedPublisher | null
   /** Direct supplier contact name to its AV publisher (null when none is set up). */
   directPublisherFor: (contactName: string) => ResolvedPublisher | null
+  /** Saved manual matches by `savedMatchKey` (empty until migration 0107 runs). */
+  savedMatches?: ReadonlyMap<string, SavedBillLineMatch>
 }
 
 const AA = "advertising associates"
@@ -144,7 +200,13 @@ function base(line: ParsedBillLine): MatchedBillLine {
     clientName: "",
     candidates: [],
     reason: "",
+    savedMatch: null,
   }
+}
+
+/** Canonical plan line id for map keys and lookups (MB-11). */
+function lineKey(lineItemId: string): string {
+  return toBillingOverrideLineItemId(lineItemId).toLowerCase()
 }
 
 function withClient(out: MatchedBillLine, ctx: BillMatchContext): MatchedBillLine {
@@ -193,7 +255,7 @@ function matchChannelFactory(out: MatchedBillLine, ctx: BillMatchContext, byId: 
     out.reason = `${out.plId} maps to ${ids.length} plan lines in the CF delivery file`
     return
   }
-  const line = byId.get(ids[0]!)
+  const line = byId.get(lineKey(ids[0]!))
   if (!line) {
     out.lineItemId = ids[0]!
     out.reason = `${out.plId} maps to ${ids[0]}, which is not on an approved, booked or completed published plan`
@@ -298,19 +360,82 @@ function matchByMbaAndPublisher(out: MatchedBillLine, ctx: BillMatchContext, use
   out.reason = `${pick.left.length} ${target.name} lines on ${mba.mba} fit; match by hand`
 }
 
-/** Match every parsed bill line. Order is kept. */
+function savedFor(line: ParsedBillLine, ctx: BillMatchContext): SavedBillLineMatch | undefined {
+  if (!ctx.savedMatches?.size || !line.xeroLineItemId) return undefined
+  return ctx.savedMatches.get(savedMatchKey(line.xeroInvoiceId, line.xeroLineItemId))
+}
+
+function money(cents: number): string {
+  return (cents / 100).toFixed(2)
+}
+
+/**
+ * Apply a saved manual match. Returns true when the saved match decided the
+ * line (matched, or its plan line is missing); false when it is stale and
+ * the automatic rules should run instead.
+ */
+function applySavedMatch(
+  out: MatchedBillLine,
+  saved: SavedBillLineMatch,
+  byId: ReadonlyMap<string, BillPlanLine>
+): boolean {
+  const state: SavedMatchState = {
+    id: saved.id,
+    lineItemId: saved.lineItemId,
+    month: saved.month,
+    matchedBy: saved.matchedBy,
+    matchedAt: saved.matchedAt,
+    note: saved.note,
+    stale: false,
+    lineMissing: false,
+  }
+  out.savedMatch = state
+  if (saved.amountCents !== out.exGstCents) {
+    state.stale = true
+    return false
+  }
+  out.mbaNumber = saved.mbaNumber
+  out.mbaSource = "manual"
+  out.deliveredMonth = saved.month
+  const line = byId.get(lineKey(saved.lineItemId))
+  if (!line || line.mbaNumber !== saved.mbaNumber) {
+    state.lineMissing = true
+    out.state = "unmatched"
+    out.lineItemId = saved.lineItemId
+    out.reason = `Saved match to ${saved.lineItemId}: that line is not on an approved, booked or completed published plan of ${saved.mbaNumber}`
+    return true
+  }
+  out.publisher = line.publisher
+  setMatched(out, line, "manual", `Saved match by ${saved.matchedBy}`)
+  return true
+}
+
+/** Match every parsed bill line. Saved manual matches first. Order is kept. */
 export function matchBillLines(lines: readonly ParsedBillLine[], ctx: BillMatchContext): MatchedBillLine[] {
   const byId = new Map<string, BillPlanLine>()
-  for (const l of ctx.planLines) if (!byId.has(l.lineItemId)) byId.set(l.lineItemId, l)
+  for (const l of ctx.planLines) {
+    const id = lineKey(l.lineItemId)
+    if (!byId.has(id)) byId.set(id, l)
+  }
   const usedByAmount = new Set<string>()
+  // Saved matches take their line-month before any amount tie-break runs.
+  for (const line of lines) {
+    const saved = savedFor(line, ctx)
+    if (saved && saved.amountCents === line.exGstCents) usedByAmount.add(`${lineKey(saved.lineItemId)}|${saved.month}`)
+  }
   return lines.map((line) => {
     const out = base(line)
     if (out.currency !== "AUD") {
       out.reason = `Bill in ${out.currency}, not AUD`
       return out
     }
+    const saved = savedFor(line, ctx)
+    if (saved && applySavedMatch(out, saved, byId)) return withClient(out, ctx)
     if (line.supplierKind === "channel_factory") matchChannelFactory(out, ctx, byId)
     else matchByMbaAndPublisher(out, ctx, usedByAmount)
+    if (out.savedMatch?.stale && saved) {
+      out.reason = `Saved match not applied: the bill line was ${money(saved.amountCents)} when matched and is now ${money(out.exGstCents)}. Match it again. ${out.reason}`.trim()
+    }
     return withClient(out, ctx)
   })
 }

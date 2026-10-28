@@ -127,6 +127,13 @@
       "when": 1792443508522,
       "tag": "0017_unique_genesis",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793186453959,
+      "tag": "0018_wet_devos",
+      "breakpoints": true
     }
   ]
 }

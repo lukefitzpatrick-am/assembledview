@@ -26,6 +26,7 @@ import {
 } from "@/lib/finance/sections/fixedCostMargin/bills/assemble"
 import {
   billCostCells,
+  buildSavedMatchMap,
   matchBillLines,
   summariseBillMatches,
   type BillPlanLine,
@@ -59,6 +60,7 @@ import {
   type FinanceFixedCostMarginPayload,
   type FixedCostBillLineView,
   type FixedCostDv360Check,
+  type FixedCostManualMatchInfo,
   type FixedCostBillTotals,
   type FixedCostPlanCell,
   type LineBillCostCell,
@@ -77,6 +79,7 @@ import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinS
 import { IS_SERVICE_LINE_SQL } from "@/lib/finance/sections/serviceLineBucket"
 import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuard"
 import { toCents } from "@/lib/money/cents"
+import { isManualMatchReady, listSavedBillLineMatches } from "@/lib/finance/sections/fixedCostMargin/manualMatches"
 import { querySnowflake } from "@/lib/snowflake/query"
 
 export type FinanceFixedCostMarginQuery = Pick<FinanceCostsQuery, "fy" | "from" | "to" | "clientIds">
@@ -523,7 +526,8 @@ async function loadBillCosts(
   mbaClients: Map<string, { clientId: number; clientName: string }>
 ): Promise<BillsResult> {
   const resolvePublisher = createBillPublisherResolver(publishers)
-  const raw = await loadBills(q)
+  const [raw, saved] = await Promise.all([loadBills(q), listSavedBillLineMatches()])
+  const savedMatches = buildSavedMatchMap(saved)
   const parsed: ParsedBillLine[] = []
   for (const bill of raw) {
     const kind = supplierKindOf(bill.contactName)
@@ -539,6 +543,11 @@ async function loadBillCosts(
   }
   const cfLineIds = new Set<string>()
   if (cfPlacements) for (const p of placements) for (const id of cfPlacements.get(p) ?? []) cfLineIds.add(id)
+  // Saved manual matches name their own MBA and line; load those lines too.
+  for (const m of saved) {
+    mbas.add(m.mbaNumber)
+    cfLineIds.add(m.lineItemId)
+  }
   const planLines = await loadBillPlanLines([...mbas].sort(), [...cfLineIds].sort(), resolvePublisher)
 
   const matched = matchBillLines(parsed, {
@@ -548,6 +557,7 @@ async function loadBillCosts(
     cfPlacements,
     resolveMediaOwner: resolvePublisher,
     directPublisherFor: createDirectPublisherFor(resolvePublisher),
+    savedMatches,
   })
   const clientSet = new Set(q.clientIds)
   const inScope = matched.filter(
@@ -649,11 +659,12 @@ function inRangeMonth(month: string, q: FinanceFixedCostMarginQuery): boolean {
 export async function fetchFinanceFixedCostMargin(
   q: FinanceFixedCostMarginQuery
 ): Promise<FinanceFixedCostMarginPayload> {
-  const [rawPlan, invoiced, publisherRows, mbaClients] = await Promise.all([
+  const [rawPlan, invoiced, publisherRows, mbaClients, manualReady] = await Promise.all([
     loadPlanCells(q),
     loadInvoicedKeys(q),
     loadPublishers(),
     loadMbaClients(),
+    isManualMatchReady(),
   ])
   const resolvePublisher = createBillPublisherResolver(publisherRows)
   const basisByText = new Map<string, FixedCostPlanCell["costBasis"]>()
@@ -691,6 +702,12 @@ export async function fetchFinanceFixedCostMargin(
     billCosts: bills.costs,
     dv360Bills: dv360.cells,
   })
+  const manualMatches: FixedCostManualMatchInfo = {
+    ready: manualReady,
+    mbas: [...mbaClients.entries()]
+      .map(([mbaNumber, c]) => ({ mbaNumber, clientName: c.clientName }))
+      .sort((a, b) => a.clientName.localeCompare(b.clientName) || a.mbaNumber.localeCompare(b.mbaNumber)),
+  }
   const dv360Check: FixedCostDv360Check = {
     ok: dv360.ok,
     note: dv360.note,
@@ -717,6 +734,7 @@ export async function fetchFinanceFixedCostMargin(
     billLines: bills.views,
     billTotals: bills.totals,
     dv360Check,
+    manualMatches,
     summary: summariseFixedCostMargin(lines),
     options: { publishers, platforms },
     notes: [...FIXED_COST_MARGIN_NOTES],

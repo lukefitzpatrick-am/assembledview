@@ -93,6 +93,9 @@ const SUPPLIER_LABEL: Record<string, string> = {
 export function billLineView(l: MatchedBillLine): FixedCostBillLineView {
   return {
     key: l.key,
+    xeroInvoiceId: l.xeroInvoiceId,
+    xeroLineItemId: l.xeroLineItemId,
+    lineIndex: l.lineIndex,
     supplier: l.supplierName,
     supplierKind: SUPPLIER_LABEL[l.supplierKind] ?? l.supplierKind,
     invoiceNumber: l.invoiceNumber,
@@ -119,6 +122,7 @@ export function billLineView(l: MatchedBillLine): FixedCostBillLineView {
     grossCents: l.grossCents,
     rebateCents: l.rebateCents,
     netCents: l.netCents,
+    savedMatch: l.savedMatch ? { ...l.savedMatch } : null,
   }
 }
 

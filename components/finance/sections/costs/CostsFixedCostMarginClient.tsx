@@ -3,6 +3,11 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import { saveAs } from "file-saver"
 import { Download } from "lucide-react"
+import {
+  canMatchByHand,
+  deleteManualMatch,
+  ManualMatchForm,
+} from "@/components/finance/sections/costs/BillLineManualMatch"
 import { CostsSubNav } from "@/components/finance/sections/costs/CostsSubNav"
 import { EmptyState } from "@/components/finance/sections/EmptyState"
 import { ErrorState } from "@/components/finance/sections/ErrorState"
@@ -237,10 +242,26 @@ function TimingTable({
   )
 }
 
-function BillLinesPanel({ data }: { data: FinanceFixedCostMarginPayload }) {
+function BillLinesPanel({ data, onChanged }: { data: FinanceFixedCostMarginPayload; onChanged: () => void }) {
   const [filter, setFilter] = useState<BillFilter>("needs")
+  const [openKey, setOpenKey] = useState<string | null>(null)
+  const [removing, setRemoving] = useState<number | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const rows = useMemo(() => data.billLines.filter((b) => billFilterMatches(b, filter)), [data.billLines, filter])
   const cell = "num px-2 py-1 text-right"
+  const manual = data.manualMatches
+  const onRemove = async (id: number) => {
+    setRemoving(id)
+    setActionError(null)
+    try {
+      await deleteManualMatch(id)
+      onChanged()
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Remove failed")
+    } finally {
+      setRemoving(null)
+    }
+  }
   return (
     <div className="space-y-4">
       <Panel>
@@ -294,6 +315,12 @@ function BillLinesPanel({ data }: { data: FinanceFixedCostMarginPayload }) {
           ))}
         </Segmented>
         <span className="text-xs text-muted-foreground">{rows.length} bill lines</span>
+        {!manual?.ready ? (
+          <span className="text-xs text-muted-foreground">
+            Matching by hand needs migration 0107 (ap_bill_line_matches) to be run.
+          </span>
+        ) : null}
+        {actionError ? <span className="text-xs text-status-critical-fg">{actionError}</span> : null}
       </div>
 
       <div className="overflow-x-auto rounded-card border border-border bg-card shadow-e1">
@@ -315,7 +342,8 @@ function BillLinesPanel({ data }: { data: FinanceFixedCostMarginPayload }) {
           </thead>
           <tbody>
             {rows.map((b) => (
-              <tr key={b.key} className="interactive-row border-b border-border/40 align-top">
+              <Fragment key={b.key}>
+              <tr className="interactive-row border-b border-border/40 align-top">
                 <td className="px-2 py-1">
                   <span className="block text-foreground">{b.supplierKind}</span>
                   <span className="block text-xs text-muted-foreground">{b.invoiceNumber}</span>
@@ -343,11 +371,56 @@ function BillLinesPanel({ data }: { data: FinanceFixedCostMarginPayload }) {
                   <span className="block text-xs text-muted-foreground">
                     {b.method ? billMethodLabel(b.method) : b.reason}
                   </span>
+                  {b.savedMatch ? (
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      Saved: {b.savedMatch.lineItemId} {monthLabel(b.savedMatch.month)} by {b.savedMatch.matchedBy}
+                      {b.savedMatch.note ? ` (${b.savedMatch.note})` : ""}
+                      {b.savedMatch.stale ? " · not applied, amount changed" : ""}
+                      {b.savedMatch.lineMissing ? " · not applied, line not live" : ""}
+                    </span>
+                  ) : null}
+                  {manual?.ready && b.savedMatch ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mt-1 h-7 px-2 text-xs"
+                      disabled={removing === b.savedMatch.id}
+                      onClick={() => void onRemove(b.savedMatch!.id)}
+                    >
+                      {removing === b.savedMatch.id ? "Removing…" : "Remove saved match"}
+                    </Button>
+                  ) : null}
+                  {manual?.ready && canMatchByHand(b) ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-1 h-7 px-2 text-xs"
+                      onClick={() => setOpenKey(openKey === b.key ? null : b.key)}
+                    >
+                      {openKey === b.key ? "Close" : "Match"}
+                    </Button>
+                  ) : null}
                 </td>
                 <td className={cell}>{money(b.grossCents)}</td>
                 <td className={cell}>{b.rebateCents ? money(b.rebateCents) : "—"}</td>
                 <td className={cell}>{money(b.netCents)}</td>
               </tr>
+              {openKey === b.key && manual ? (
+                <tr className="border-b border-border/40">
+                  <td colSpan={11} className="px-2 py-2">
+                    <ManualMatchForm
+                      bill={b}
+                      info={manual}
+                      onCancel={() => setOpenKey(null)}
+                      onSaved={() => {
+                        setOpenKey(null)
+                        onChanged()
+                      }}
+                    />
+                  </td>
+                </tr>
+              ) : null}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -680,7 +753,7 @@ export function CostsFixedCostMarginClient() {
         {ready && mode === "timing" && lines.length > 0 ? (
           <TimingTable clients={clients} currentMonth={ready.scope.currentMonth} />
         ) : null}
-        {ready && mode === "bills" ? <BillLinesPanel data={ready} /> : null}
+        {ready && mode === "bills" ? <BillLinesPanel data={ready} onChanged={load} /> : null}
 
         {ready && mode === "margin" && lines.length > 0 && summary ? (
           <>

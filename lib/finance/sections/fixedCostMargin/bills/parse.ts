@@ -46,6 +46,8 @@ export type ParsedBillLine = {
   currency: string
   issueDate: string
   lineIndex: number
+  /** Xero `LineItemID` (the saved manual match key, with the bill id). Empty when Xero sent none. */
+  xeroLineItemId: string
   /** Description on one line (whitespace collapsed). */
   description: string
   /** Ex GST. Inclusive bills: LineAmount minus TaxAmount. */
@@ -66,6 +68,7 @@ export type ParsedBillLine = {
 }
 
 type XeroLine = {
+  LineItemID?: unknown
   Description?: unknown
   LineAmount?: unknown
   TaxAmount?: unknown
@@ -185,6 +188,7 @@ export function parseBill(bill: RawBillRow, supplierKind: SupplierKind): ParsedB
       currency: bill.currency.trim().toUpperCase() || "AUD",
       issueDate: bill.issueDate,
       lineIndex: index,
+      xeroLineItemId: text(li.LineItemID).trim(),
       description: flat,
       exGstCents: exGstCentsOf(amount, num(li.TaxAmount), bill.lineAmountTypes),
       kind: classifyBillLine(flat),

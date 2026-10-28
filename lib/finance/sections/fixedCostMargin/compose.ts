@@ -215,9 +215,27 @@ export type MarginSummary = {
 
 export type SpendSourceMode = "line_month_view" | "pacing_facts_fallback"
 
+/** A saved manual match on a bill line (ap_bill_line_matches). */
+export type FixedCostSavedMatchView = {
+  id: number
+  lineItemId: string
+  month: string
+  matchedBy: string
+  matchedAt: string
+  note: string | null
+  /** Bill line amount changed since the match: not applied. */
+  stale: boolean
+  /** Plan line not on an approved, booked or completed published plan. */
+  lineMissing: boolean
+}
+
 /** One bill line on the page and in Excel (matched or not). */
 export type FixedCostBillLineView = {
   key: string
+  xeroInvoiceId: string
+  /** Xero LineItemID; empty when Xero sent none (cannot be matched by hand). */
+  xeroLineItemId: string
+  lineIndex: number
   supplier: string
   supplierKind: string
   invoiceNumber: string
@@ -244,6 +262,7 @@ export type FixedCostBillLineView = {
   grossCents: number
   rebateCents: number
   netCents: number
+  savedMatch: FixedCostSavedMatchView | null
 }
 
 export type FixedCostBillTotals = {
@@ -279,6 +298,14 @@ export type Dv360CheckRow = {
   invoiceNumbers: string[]
 }
 
+/** Manual match support on the Bill lines view (MAR-4). */
+export type FixedCostManualMatchInfo = {
+  /** Migration 0107 has run (marker present). Until then the UI cannot save matches. */
+  ready: boolean
+  /** Every MBA with a master, for the picker. */
+  mbas: Array<{ mbaNumber: string; clientName: string }>
+}
+
 export type FixedCostDv360Check = {
   ok: boolean
   note: string
@@ -304,6 +331,7 @@ export type FinanceFixedCostMarginPayload = {
   billLines: FixedCostBillLineView[]
   billTotals: FixedCostBillTotals[]
   dv360Check: FixedCostDv360Check
+  manualMatches: FixedCostManualMatchInfo
   summary: MarginSummary
   options: { publishers: string[]; platforms: string[] }
   notes: string[]
@@ -325,6 +353,7 @@ export const FIXED_COST_MARGIN_NOTES = [
   "Production, talent, installation and hot read lines on AA bills are not media cost. They are listed apart.",
   "Only AUTHORISED and PAID bills count as cost. DRAFT and SUBMITTED bills show in the Pending column.",
   "Bill cost lands in the bill's issue month (billed month), so margin is by billed month. The Billed vs delivered view puts the same cost in the month the media ran (the week date on the bill line; the billed month when there is none) beside the client's billing and delivery schedules.",
+  "Saved manual matches (Bill lines, Match) are applied before any automatic rule. A saved match is not applied when the bill line's amount has changed since it was saved; match it again. The match month is the month the media ran; margin still uses the bill's issue month.",
   "Lines whose cost comes from Xero bills with no matched bill show \"No bill yet\".",
   "Margin counts only lines with a cost. Lines with no platform data, or a feed that reports no cost (CM360), show billed only.",
   "The current month is month to date.",
