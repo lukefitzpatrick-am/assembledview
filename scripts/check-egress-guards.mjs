@@ -9,9 +9,10 @@
  *    `fetchAllXanoPages` under app/ or lib/. Definitions are not calls.
  *    `fetchAllXanoPagesWithCompleteness` is a different function.
  *    A call is allowed only when its enclosing function is on
- *    `MAIN_ONLY_COLD_XANO_BRANCHES` or `MAIN_ONLY_KNOWN_LIVE_XANO`.
- *    The known-live list is printed as a WARNING on every run.
- *    Any other call fails.
+ *    `MAIN_ONLY_COLD_XANO_BRANCHES`. Any other call fails.
+ *    The known-live list (five FX-1 calls, printed as a WARNING on every run)
+ *    was removed on 2026-10-28 (PLAT-6): none of those functions calls a
+ *    Xano helper any more, and the check passes without it.
  *
  * Frozen names this check does not flag (do not rename them):
  *   MART.XANO_LINE_ITEMS_SNAPSHOT
@@ -126,38 +127,6 @@ const MAIN_ONLY_COLD_XANO_BRANCHES = [
     file: "lib/pacing/plans/resolveLivePlanLineItems.ts",
     fn: "fetchXanoLineItemsForMba",
     reason: coldXanoReason("DATA_BACKEND_PLANS"),
-  },
-]
-
-const KNOWN_LIVE_XANO_REASON =
-  "live in production before this push; tracked FX-1; port from localhost"
-
-/** Rule 2. Printed as a WARNING on every run. */
-const MAIN_ONLY_KNOWN_LIVE_XANO = [
-  {
-    file: "app/api/mediaplans/mba/[mba_number]/route.ts",
-    fn: "PUT",
-    reason: KNOWN_LIVE_XANO_REASON,
-  },
-  {
-    file: "lib/api/fetchChannelLineItemsByMba.ts",
-    fn: "fetchXanoTableForEndpoint",
-    reason: KNOWN_LIVE_XANO_REASON,
-  },
-  {
-    file: "lib/data/writeClients.ts",
-    fn: "mirrorClientToXano",
-    reason: KNOWN_LIVE_XANO_REASON,
-  },
-  {
-    file: "lib/finance/forecast/server/loadFinanceForecastDataset.ts",
-    fn: "fetchFinanceForecastRawFromXanoUncached",
-    reason: KNOWN_LIVE_XANO_REASON,
-  },
-  {
-    file: "lib/finance/xanoReferenceCache.ts",
-    fn: "getCachedClients",
-    reason: KNOWN_LIVE_XANO_REASON,
   },
 ]
 
@@ -400,8 +369,7 @@ function isAllowlisted(rel, fn) {
 
 function isListedXanoCall(rel, fn) {
   return (
-    MAIN_ONLY_COLD_XANO_BRANCHES.some((entry) => entry.file === rel && entry.fn === fn) ||
-    MAIN_ONLY_KNOWN_LIVE_XANO.some((entry) => entry.file === rel && entry.fn === fn)
+    MAIN_ONLY_COLD_XANO_BRANCHES.some((entry) => entry.file === rel && entry.fn === fn)
   )
 }
 
@@ -449,13 +417,6 @@ function xanoCallHits(rel, src) {
   return hits
 }
 
-function printKnownLiveXanoWarning() {
-  console.warn("WARNING: known-live Xano calls on main:")
-  for (const entry of MAIN_ONLY_KNOWN_LIVE_XANO) {
-    console.warn(`  ${entry.file}:${entry.fn} — ${entry.reason}`)
-  }
-}
-
 const files = []
 for (const dir of SCAN_DIRS) {
   const abs = path.join(rootDir, dir)
@@ -469,8 +430,6 @@ for (const file of files) {
   hits.push(...unscopedVersionHits(rel, masked))
   if (!isTestPath(rel)) hits.push(...xanoCallHits(rel, masked))
 }
-
-printKnownLiveXanoWarning()
 
 if (hits.length) {
   console.error("egress guards failed:\n")
