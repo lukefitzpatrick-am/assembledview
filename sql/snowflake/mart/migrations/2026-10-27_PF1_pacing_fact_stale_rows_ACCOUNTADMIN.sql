@@ -747,8 +747,10 @@ ALTER TASK ASSEMBLEDVIEW.MART.TSK_ROOT_DAILY_REFRESH RESUME;
 -- COMMIT;
 -- -- expect the step 1 counts:
 -- SELECT COUNT(*), ROUND(SUM(amount_spent), 2) FROM ASSEMBLEDVIEW.MART.PACING_FACT;
--- -- Old task body: run sql/snowflake/mart/tasks/tsk_refresh_pacing_fact.sql
--- -- (the repo capture, unchanged by PF1), then:
+-- -- Old task body: the pre-PF1 capture. Since DATA-4 (28 Oct) the repo file
+-- -- sql/snowflake/mart/tasks/tsk_refresh_pacing_fact.sql holds the PF1 body, so
+-- -- take the old one from git: git show 6b237c50:sql/snowflake/mart/tasks/tsk_refresh_pacing_fact.sql
+-- -- (the VI1 body), run it, then:
 -- ALTER TASK ASSEMBLEDVIEW.MART.TSK_REFRESH_PACING_FACT RESUME;
 -- ALTER TASK ASSEMBLEDVIEW.MART.TSK_ROOT_DAILY_REFRESH RESUME;
 
