@@ -33,6 +33,12 @@ import {
 } from "@/components/media-containers/burst-calculated-fields"
 import { EndDateOrderMessage } from "@/components/mediaplan/EndDateOrderMessage"
 import { formatBurstLabel } from "@/lib/bursts"
+import {
+  BURST_OVERLAP_HINT,
+  describeBurstOverlap,
+  findOverlappingBursts,
+  type BurstDates,
+} from "@/lib/mediaplan/burstOverlap"
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import { withInjectedComboboxValue } from "@/lib/mediaplan/comboboxCurrentValue"
 import { shouldMountCpcFamilyBurstCalculatedField } from "@/lib/mediaplan/deliverableBudget"
@@ -894,6 +900,41 @@ function ExpertCardBursts<T extends FieldValues>({
 }
 
 /**
+ * DQ-5: visible warning when two bursts on this line overlap in dates.
+ * Never blocks saving. Rendered under both the generic bursts and a custom
+ * `burstsSlot` (Television, Production), so every channel card shows it.
+ */
+function ExpertCardBurstOverlapWarning<T extends FieldValues>({
+  form,
+  itemsKey,
+  lineItemIndex,
+}: {
+  form: UseFormReturn<T>
+  itemsKey: string
+  lineItemIndex: number
+}) {
+  const bursts = useWatch({
+    control: form.control,
+    name: fieldName<T>(itemsKey, lineItemIndex, "bursts"),
+  }) as BurstDates[] | undefined
+  const overlaps = React.useMemo(() => findOverlappingBursts(bursts ?? []), [bursts])
+  if (overlaps.length === 0) return null
+  return (
+    <div
+      role="status"
+      className="mx-6 mb-4 rounded-input border border-status-attention-fg/20 bg-status-attention-bg px-3 py-2 text-xs leading-snug text-status-attention-fg"
+    >
+      {overlaps.map((o) => (
+        <p key={`${o.first}-${o.second}`} className="font-medium">
+          {describeBurstOverlap(o)}
+        </p>
+      ))}
+      <p>{BURST_OVERLAP_HINT}</p>
+    </div>
+  )
+}
+
+/**
  * Generic expert-mode line-item card driven by channel descriptor config:
  * header (option chips + total), 5-col body (small fields left / primary text right),
  * and shared bursts + media/fee cells.
@@ -1145,6 +1186,7 @@ export function ExpertCard<T extends FieldValues>({
               onRemoveBurst={onRemoveBurst}
             />
           )}
+          <ExpertCardBurstOverlapWarning form={form} itemsKey={itemsKey} lineItemIndex={lineItemIndex} />
         </>
       ) : null}
 
