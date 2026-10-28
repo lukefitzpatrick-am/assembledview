@@ -4,6 +4,10 @@
  *
  * Live statuses: DRAFT, SUBMITTED, AUTHORISED, PAID.
  * DELETED and VOIDED unlink. Tolerance is $1 (100 cents), ex-GST sub_total.
+ *
+ * Month window (XERO-2, Luke, 28 Oct 2026): an invoice whose Reference carries
+ * a PO matches the exact billing month only; any other invoice matches within
+ * plus or minus one month (exact month wins). See `invoiceCarriesPo`.
  */
 
 import {
@@ -93,6 +97,34 @@ export function billingMonthOffset(billingMonth: string | null, issueYmd: string
   return delta as -1 | 0 | 1
 }
 
+/**
+ * Explicit PO: a "PO" token (PO, PO#, P.O., PO-, or PO glued to digits) after a
+ * non-letter, whose value has a digit. "PO TBC" is not a PO.
+ */
+const EXPLICIT_PO_RE = /(?:^|[^A-Za-z])P\.?O\.?(?=[\s#:\-]|\d)[\s#:\-]*[A-Za-z0-9-]*\d/i
+
+/** Bare PO: a `|` segment of 5+ digits only (house format `... (PENFOLD016) | 1010438`). */
+const BARE_PO_SEGMENT_RE = /^\d{5,}$/
+
+/**
+ * True when the invoice Reference carries a PO (XERO-2). `notPo` lists tokens
+ * that are not a PO even when they look like one (the matched MBA or scope:
+ * Mitchelton's MBA `001001` is all digits).
+ */
+export function invoiceCarriesPo(
+  referenceRaw: string | null,
+  notPo: ReadonlyArray<string | null | undefined> = [],
+): boolean {
+  const ref = referenceRaw ?? ""
+  if (!ref.trim()) return false
+  if (EXPLICIT_PO_RE.test(ref)) return true
+  const skip = new Set(notPo.map((t) => norm(t)).filter(Boolean))
+  return ref
+    .split("|")
+    .map((s) => s.trim())
+    .some((s) => BARE_PO_SEGMENT_RE.test(s) && !skip.has(norm(s)))
+}
+
 export function firstLineItemDescription(lineItems: unknown): string | null {
   if (!Array.isArray(lineItems) || lineItems.length === 0) return null
   const first = lineItems[0]
@@ -138,9 +170,10 @@ function decideLive(
 ): XeroBillingMatchDecision {
   const open = records.filter((r) => (r.matchedBy ?? "").trim().toLowerCase() !== "manual")
   const token = referenceToken(invoice.referenceRaw, masters, scopes)
+  const exactOnly = invoiceCarriesPo(invoice.referenceRaw, [token?.mba, token?.scope])
   if (token) {
     const keyed = open.filter((r) => keyHit(r, token))
-    const pool = preferExact(inWindow(keyed, invoice.issueDate), invoice.issueDate)
+    const pool = preferExact(inWindow(keyed, invoice.issueDate, exactOnly), invoice.issueDate)
     if (pool.length === 0) {
       return suggestion(invoice, "token_no_record_in_window")
     }
@@ -153,6 +186,7 @@ function decideLive(
       inWindow(
         open.filter((r) => r.clientsId === clientId),
         invoice.issueDate,
+        exactOnly,
       ),
       invoice.issueDate,
     )
@@ -250,8 +284,16 @@ function withinTolerance(record: AppBillingMatchRecord, subTotalCents: number): 
   return Math.abs(subTotalCents - amount.cents) <= XERO_MATCH_TOLERANCE_CENTS
 }
 
-function inWindow(records: AppBillingMatchRecord[], issueDate: string | null): AppBillingMatchRecord[] {
-  return records.filter((r) => billingMonthOffset(r.billingMonth, issueDate) != null)
+/** ±1 month, or the exact month only when the invoice carries a PO (XERO-2). */
+function inWindow(
+  records: AppBillingMatchRecord[],
+  issueDate: string | null,
+  exactOnly: boolean,
+): AppBillingMatchRecord[] {
+  return records.filter((r) => {
+    const offset = billingMonthOffset(r.billingMonth, issueDate)
+    return exactOnly ? offset === 0 : offset != null
+  })
 }
 
 function preferExact(records: AppBillingMatchRecord[], issueDate: string | null): AppBillingMatchRecord[] {
