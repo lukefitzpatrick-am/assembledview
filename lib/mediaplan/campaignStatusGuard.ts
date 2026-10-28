@@ -58,6 +58,20 @@ export function mapCampaignStatusForPersist(
   return null
 }
 
+/**
+ * The stored form of a campaign status on every write (DQ-6): trimmed lower
+ * case, so "Draft" and "draft" are one value. Known values match
+ * {@link mapCampaignStatusForPersist}. An unknown value is lower-cased too,
+ * never written as typed. Empty or missing is null. Write paths: create
+ * master (POST /api/mediaplans, ensureMaster on POST /api/plans/save),
+ * PATCH /api/mediaplans/mba/[mba_number], PATCH .../status, and the version
+ * row's snapshot of the master status in savePlanVersion.
+ */
+export function campaignStatusForWrite(status: unknown): string | null {
+  const lower = normaliseStatus(status)
+  return lower || null
+}
+
 export function isSelectableCampaignStatus(
   status: unknown
 ): status is SelectableCampaignStatus {

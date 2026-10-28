@@ -9,7 +9,7 @@ import { getDb, schema } from "@/db"
 import { mapPlanMasterFromPostgres } from "@/lib/data/readMediaPlans"
 import { resolveClientIdForMaster } from "@/lib/data/writeClients"
 import { dollarsToCampaignBudgetCents } from "@/lib/mediaplan/buildPostgresSavePayload"
-import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
+import { campaignStatusForWrite } from "@/lib/mediaplan/campaignStatusGuard"
 import { toMelbourneDateString } from "@/lib/timezone"
 
 export type CreateMediaPlanMasterInput = {
@@ -93,12 +93,8 @@ export async function createMediaPlanMasterPostgresFirst(
     typeof input.campaignName === "string" && input.campaignName.trim()
       ? input.campaignName.trim()
       : null
-  const statusRaw =
-    typeof input.campaignStatus === "string" && input.campaignStatus.trim()
-      ? input.campaignStatus.trim()
-      : "Draft"
-  const campaignStatus =
-    mapCampaignStatusForPersist(statusRaw) ?? (statusRaw.toLowerCase() || "draft")
+  // DQ-6: always lower case; a new master with no status is a draft.
+  const campaignStatus = campaignStatusForWrite(input.campaignStatus) ?? "draft"
   const campaignStartDate = dateToIsoDay(input.campaignStartDate)
   const campaignEndDate = dateToIsoDay(input.campaignEndDate)
   const campaignBudgetCents = dollarsToCampaignBudgetCents(input.campaignBudget)

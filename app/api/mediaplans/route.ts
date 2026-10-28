@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       mbaNumber,
       mpClientName: data.mp_client_name ?? null,
       campaignName: data.mp_campaignname ?? null,
-      campaignStatus: data.mp_campaignstatus || "Draft",
+      campaignStatus: data.mp_campaignstatus || "draft",
       campaignStartDate: data.mp_campaigndates_start ?? null,
       campaignEndDate: data.mp_campaigndates_end ?? null,
       campaignBudget: data.mp_campaignbudget ?? null,

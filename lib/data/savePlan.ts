@@ -95,6 +95,7 @@ import {
   VersionImmutableError,
 } from "@/lib/mediaplan/assertVersionMutable"
 import { normalisePublishedByEmail } from "@/lib/mediaplan/versionPublication"
+import { campaignStatusForWrite } from "@/lib/mediaplan/campaignStatusGuard"
 import { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
 import {
   explodeScheduleToMonthRows,
@@ -768,7 +769,8 @@ async function upsertVersionRow(
     .values({
       ...baseValues,
       // Historical snapshot of the master at cut time — not from the save payload.
-      campaignStatus: masterStatus?.campaignStatus ?? null,
+      // Lower case (DQ-6), so a legacy "Draft" master never cuts a "Draft" version.
+      campaignStatus: campaignStatusForWrite(masterStatus?.campaignStatus),
     })
     .returning({ id: schema.mediaPlanVersions.id })
   if (!inserted) {

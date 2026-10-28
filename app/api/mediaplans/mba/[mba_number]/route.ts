@@ -9,7 +9,7 @@ import { diffBillingSchedules } from "@/lib/finance/scheduleDiff"
 import { writeScheduleDiffEdits } from "@/lib/finance/writeFinanceAuditEdits"
 import { extractBillingMonthStart } from "@/lib/spend/billingScheduleExpectedToDate"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
-import { getDraftReturnRejection } from "@/lib/mediaplan/campaignStatusGuard"
+import { campaignStatusForWrite, getDraftReturnRejection } from "@/lib/mediaplan/campaignStatusGuard"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 import { nextMbaVersionNumber } from "@/lib/mediaplan/nextMbaVersionNumber"
 import { readBillingOverridesForVersion } from "@/lib/data/readFinance"
@@ -643,7 +643,7 @@ export async function PATCH(
     const db = getDb()
     const patch: Record<string, unknown> = {}
     if (data.mp_campaignname !== undefined) patch.campaignName = data.mp_campaignname
-    if (data.campaign_status !== undefined) patch.campaignStatus = data.campaign_status
+    if (data.campaign_status !== undefined) patch.campaignStatus = campaignStatusForWrite(data.campaign_status)
     if (data.campaign_start_date !== undefined) {
       patch.campaignStartDate = data.campaign_start_date
         ? toMelbourneDateString(data.campaign_start_date)

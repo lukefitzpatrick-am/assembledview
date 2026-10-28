@@ -16,7 +16,7 @@ import { stripEmptyLinesOnPublish } from "@/lib/mediaplan/stripEmptyLineItems"
 import { SavePlanError, savePlanVersion } from "@/lib/data/savePlan"
 import { completeStagedIngestAfterSave } from "@/lib/mediaplans/ingest/completeStagedIngestAfterSave"
 import { ingestSourceRowRefsFromAttrs } from "@/lib/mediaplans/ingest/ingestSourceRowRefs"
-import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
+import { campaignStatusForWrite } from "@/lib/mediaplan/campaignStatusGuard"
 import { requireRole } from "@/lib/requireRole"
 import {
   countVersionLines,
@@ -160,10 +160,7 @@ export async function POST(request: NextRequest) {
           mbaNumber: body.ensureMaster.mbaNumber,
           mpClientName: body.ensureMaster.mpClientName ?? null,
           campaignName: body.ensureMaster.campaignName ?? null,
-          campaignStatus:
-            mapCampaignStatusForPersist(body.ensureMaster.campaignStatus) ??
-            body.ensureMaster.campaignStatus ??
-            null,
+          campaignStatus: campaignStatusForWrite(body.ensureMaster.campaignStatus),
           campaignStartDate: body.ensureMaster.campaignStartDate ?? null,
           campaignEndDate: body.ensureMaster.campaignEndDate ?? null,
           campaignBudgetCents: body.ensureMaster.campaignBudgetCents ?? null,

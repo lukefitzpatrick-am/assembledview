@@ -112,3 +112,93 @@ SELECT indexname FROM pg_indexes
    -- ap_bill_line_matches_pkey, idx_ap_bill_line_matches_line, uq_ap_bill_line_matches_bill_line
 SELECT relrowsecurity FROM pg_class WHERE relname = 'ap_bill_line_matches';     -- expect true
 SELECT key FROM public.migration_markers WHERE key = '0107_ap_bill_line_matches'; -- expect 1 row
+
+
+-- =====================================================================
+-- STEP B (separate, optional): DQ-6 lower-case guard on media_plan_masters.campaign_status
+-- =====================================================================
+-- Why
+--   Luke, 28 Oct: build structure that catches data entry errors rather than
+--   fixing rows one by one. The app now stores campaign_status lower case on
+--   every write path (campaignStatusForWrite, lib/mediaplan/campaignStatusGuard.ts).
+--   This step adds the database guard behind it: a CHECK that campaign_status is
+--   NULL or already trimmed lower case, so no future path (app, script or SQL)
+--   can write "Draft" again.
+--
+-- Rows that would fail the CHECK today (measured 28 Oct 2026, read-only):
+--   media_plan_masters: 13 of 225 store 'Draft'
+--     hema006 (#256, published v1, client Hema), mb15cmv2xy4x5 (#10014744, published v1,
+--     no client), and 11 X9 sequence test masters with no published version
+--     (#291 to #301: x9seq..., x91a..., x91b...).
+--   A CHECK cannot be added VALID while rows fail it, and NOT VALID would make every
+--   later UPDATE of those 13 rows fail (a publish on hema006 would error). So this
+--   step lower-cases exactly those rows ('Draft' to 'draft', the same value the app
+--   would now write) in the same transaction as the CHECK. It changes nothing else.
+--   media_plan_versions also has 13 'Draft' rows (11 unpublished v1 drafts and the two
+--   published v1 tips 935 and 18165). Version rows are history and published ones are
+--   immutable, so they are left as they are and get no CHECK.
+--
+-- Run order: BEFORE B, DO B, AFTER B. Steps 1 to 3 above (0107) can run without this.
+
+-- ===================== BEFORE B (read only) =====================
+SELECT count(*) AS would_fail
+  FROM public.media_plan_masters
+ WHERE campaign_status IS NOT NULL AND campaign_status <> lower(btrim(campaign_status));      -- expect 13
+SELECT id, mba_number, campaign_status, published_version_id
+  FROM public.media_plan_masters
+ WHERE campaign_status IS NOT NULL AND campaign_status <> lower(btrim(campaign_status))
+ ORDER BY id;                                                                                  -- expect 13 rows, all 'Draft'
+SELECT count(*) AS existing_guard FROM pg_constraint
+ WHERE conrelid = 'public.media_plan_masters'::regclass
+   AND conname = 'media_plan_masters_campaign_status_lower_check';                             -- expect 0
+
+-- ===================== DO B (one block) =====================
+DO $$
+DECLARE
+  n_fail    int;
+  n_draft   int;
+  n_guard   int;
+  n_updated int;
+BEGIN
+  SELECT count(*) INTO n_guard FROM pg_constraint
+   WHERE conrelid = 'public.media_plan_masters'::regclass
+     AND conname = 'media_plan_masters_campaign_status_lower_check';
+  IF n_guard <> 0 THEN
+    RAISE EXCEPTION 'media_plan_masters_campaign_status_lower_check already exists. Nothing done.';
+  END IF;
+
+  SELECT count(*) INTO n_fail FROM public.media_plan_masters
+   WHERE campaign_status IS NOT NULL AND campaign_status <> lower(btrim(campaign_status));
+  SELECT count(*) INTO n_draft FROM public.media_plan_masters WHERE campaign_status = 'Draft';
+  RAISE NOTICE '% media_plan_masters rows would fail the CHECK (% of them are exactly ''Draft'').', n_fail, n_draft;
+  IF n_fail <> 13 OR n_draft <> 13 THEN
+    RAISE EXCEPTION 'Abort: expected 13 failing rows, all ''Draft''; found % failing, % ''Draft''. Re-run BEFORE B and review.', n_fail, n_draft;
+  END IF;
+
+  UPDATE public.media_plan_masters SET campaign_status = 'draft' WHERE campaign_status = 'Draft';
+  GET DIAGNOSTICS n_updated = ROW_COUNT;
+  IF n_updated <> 13 THEN
+    RAISE EXCEPTION 'Abort: updated % rows, expected 13', n_updated;
+  END IF;
+
+  ALTER TABLE public.media_plan_masters
+    ADD CONSTRAINT media_plan_masters_campaign_status_lower_check
+    CHECK (campaign_status IS NULL OR campaign_status = lower(btrim(campaign_status)));
+
+  SELECT count(*) INTO n_fail FROM public.media_plan_masters
+   WHERE campaign_status IS NOT NULL AND campaign_status <> lower(btrim(campaign_status));
+  IF n_fail <> 0 THEN
+    RAISE EXCEPTION 'Abort: % rows still not lower case', n_fail;
+  END IF;
+
+  RAISE NOTICE 'DQ-6 guard added: 13 masters lower-cased to draft, CHECK media_plan_masters_campaign_status_lower_check in place.';
+END
+$$;
+
+-- ===================== AFTER B (read only) =====================
+SELECT campaign_status, count(*) FROM public.media_plan_masters GROUP BY 1 ORDER BY 1;
+-- expect: approved 67, booked 51, cancelled 16, completed 41, draft 25, planned 25 (225 in all,
+-- if no master changed status since 28 Oct). No 'Draft'.
+SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
+ WHERE conrelid = 'public.media_plan_masters'::regclass
+   AND conname = 'media_plan_masters_campaign_status_lower_check';                             -- expect 1 row
