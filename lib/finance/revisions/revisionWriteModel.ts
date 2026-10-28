@@ -4,6 +4,11 @@
  */
 
 import type { ApprovedSlice } from "@/lib/finance/approvedSlice"
+import {
+  buildCanonicalBillingLineIdSet,
+  canonicalBillingLineIdSetHas,
+  toBillingOverrideLineItemId,
+} from "@/lib/finance/manualBillingOverridesUi"
 
 import { stableStringify } from "./planBillingRevision"
 import type { Cents, MonthKey, RevisionOk } from "./types"
@@ -25,29 +30,40 @@ function monthDate(m: MonthKey): string {
  * replaced by the planned cells. Changed cells carry source 'override'
  * (the revision writes a manual override for them). Every other row is
  * copied as it is, including __service__* rows and ad serving.
+ *
+ * Line ids match bare or `billing-{media}::bare` (MB-11). A replaced line's
+ * new rows keep the id shape its base rows had, so the version stays as the
+ * blob explodes it.
  */
 export function buildRevisedBillingRows(
   baseRows: readonly BillingRowLike[],
   afterCells: RevisionOk["afterCells"],
 ): BillingRowLike[] {
-  const replaceMedia = new Set(afterCells.filter((c) => c.mediaChanged).map((c) => c.lineItemId))
-  const replaceFee = new Set(afterCells.filter((c) => c.feeChanged).map((c) => c.lineItemId))
+  const replaceMedia = buildCanonicalBillingLineIdSet(afterCells.filter((c) => c.mediaChanged).map((c) => c.lineItemId))
+  const replaceFee = buildCanonicalBillingLineIdSet(afterCells.filter((c) => c.feeChanged).map((c) => c.lineItemId))
+  /** bare id -> the id string the base rows use for that line (first seen). */
+  const baseIdShape = new Map<string, string>()
+  for (const r of baseRows) {
+    const key = toBillingOverrideLineItemId(r.lineItemId)
+    if (key && !baseIdShape.has(key)) baseIdShape.set(key, r.lineItemId)
+  }
   const out: BillingRowLike[] = baseRows
     .filter(
       (r) =>
-        !(r.component === "media" && replaceMedia.has(r.lineItemId)) &&
-        !(r.component === "fee" && replaceFee.has(r.lineItemId)),
+        !(r.component === "media" && canonicalBillingLineIdSetHas(replaceMedia, r.lineItemId)) &&
+        !(r.component === "fee" && canonicalBillingLineIdSetHas(replaceFee, r.lineItemId)),
     )
     .map((r) => ({ ...r }))
   for (const c of afterCells) {
+    const rowId = baseIdShape.get(toBillingOverrideLineItemId(c.lineItemId)) ?? c.lineItemId
     if (c.mediaChanged) {
       for (const [m, v] of Object.entries(c.media)) {
-        if (v !== 0) out.push({ lineItemId: c.lineItemId, component: "media", month: monthDate(m), amountCents: v, source: "override" })
+        if (v !== 0) out.push({ lineItemId: rowId, component: "media", month: monthDate(m), amountCents: v, source: "override" })
       }
     }
     if (c.feeChanged) {
       for (const [m, v] of Object.entries(c.fee)) {
-        if (v !== 0) out.push({ lineItemId: c.lineItemId, component: "fee", month: monthDate(m), amountCents: v, source: "override" })
+        if (v !== 0) out.push({ lineItemId: rowId, component: "fee", month: monthDate(m), amountCents: v, source: "override" })
       }
     }
   }
@@ -56,12 +72,12 @@ export function buildRevisedBillingRows(
   )
 }
 
-/** line|component|YYYY-MM -> cents, zero cells dropped. */
+/** line|component|YYYY-MM -> cents, zero cells dropped. The line part is the bare id (MB-11). */
 export function rowCentsMap(rows: ReadonlyArray<{ lineItemId: string; component: string; month: string; amountCents: number }>): Map<string, number> {
   const out = new Map<string, number>()
   for (const r of rows) {
     if (!r.amountCents) continue
-    const key = `${r.lineItemId}|${r.component}|${String(r.month).slice(0, 7)}`
+    const key = `${toBillingOverrideLineItemId(r.lineItemId)}|${r.component}|${String(r.month).slice(0, 7)}`
     out.set(key, (out.get(key) ?? 0) + r.amountCents)
   }
   return out
@@ -130,20 +146,22 @@ export function reviseApprovedSlice(
   if (slice == null || typeof slice !== "object") return null
   const s = slice as ApprovedSlice
   if (!Array.isArray(s.lines)) return s
+  const changed = buildCanonicalBillingLineIdSet(changedLineIds)
+  // Keyed on the bare id (MB-11): slice, rows and changed ids may differ in shape.
   const monthsByLine = new Map<string, Set<string>>()
   for (const r of revisedRows) {
-    if (!changedLineIds.has(r.lineItemId) || r.amountCents === 0) continue
-    const set = monthsByLine.get(r.lineItemId) ?? new Set<string>()
+    if (!canonicalBillingLineIdSetHas(changed, r.lineItemId) || r.amountCents === 0) continue
+    const key = toBillingOverrideLineItemId(r.lineItemId)
+    const set = monthsByLine.get(key) ?? new Set<string>()
     set.add(r.month.slice(0, 7))
-    monthsByLine.set(r.lineItemId, set)
+    monthsByLine.set(key, set)
   }
   return {
     ...s,
-    lines: s.lines.map((l) =>
-      changedLineIds.has(l.lineItemId) && monthsByLine.has(l.lineItemId)
-        ? { ...l, months: [...new Set([...l.months, ...monthsByLine.get(l.lineItemId)!])].sort() }
-        : l,
-    ),
+    lines: s.lines.map((l) => {
+      const added = monthsByLine.get(toBillingOverrideLineItemId(l.lineItemId))
+      return added ? { ...l, months: [...new Set([...l.months, ...added])].sort() } : l
+    }),
   }
 }
 

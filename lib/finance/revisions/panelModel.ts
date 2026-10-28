@@ -1,6 +1,8 @@
 /**
  * Pure view model for the Change billing timing panel. No React, no fetch.
  */
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
+
 import type { MonthKey, RevisionOk } from "./types"
 
 export type PanelTab = "bill_amount" | "pull_month" | "bill_remainder" | "underspend"
@@ -153,12 +155,13 @@ export function buildPreviewGrid(
       title: lockTitle(m.lock.reasons, m.effectiveLevel),
     }))
   const monthKeys = months.map((m) => m.month)
-  const byId = new Map(baseLines.map((l) => [l.lineItemId, l]))
+  // Keyed on the bare id (MB-11).
+  const byId = new Map(baseLines.map((l) => [toBillingOverrideLineItemId(l.lineItemId), l]))
   const rows: PreviewGrid["rows"] = []
   for (const line of plan.lines) {
     const changed = line.media.length > 0 || line.fee.length > 0
     if (!changed && !line.skipped) continue
-    const base = byId.get(line.lineItemId)?.media ?? {}
+    const base = byId.get(toBillingOverrideLineItemId(line.lineItemId))?.media ?? {}
     const cells: Record<MonthKey, GridCell> = {}
     for (const m of monthKeys) {
       const d = line.media.find((c) => c.month === m)

@@ -12,6 +12,7 @@ import { schema } from "@/db"
 import { isFinancePeriodsLockEnforced } from "@/lib/finance/periods/flag"
 import { rowsOf } from "@/lib/xero/dbRows"
 
+import { assembleRevisionLines } from "./assembleRevisionLines"
 import { monthKeyRange } from "./planBillingRevision"
 import { resolveMonthLocks, revisionMonthSpan, type LockFinanceRecord } from "./resolveMonthLocks"
 import type {
@@ -85,11 +86,6 @@ const defaultAaLineIds: AaLineIdsLoader = async (mba, vn) => {
 function monthOf(date: string | null | undefined): MonthKey | null {
   const s = String(date ?? "").slice(0, 7)
   return /^\d{4}-\d{2}$/.test(s) ? s : null
-}
-
-function labelFor(li: { lineItemId: string; publisher: string | null; platform: string | null; channel: string }): string {
-  const who = (li.publisher ?? li.platform ?? "").trim() || li.channel
-  return `${who} · ${li.lineItemId}`
 }
 
 export async function loadRevisionContext(
@@ -232,37 +228,8 @@ export async function loadRevisionContext(
   const campaignStartMonth = monthOf(tip.campaignStartDate) ?? monthOf(tip.masterStart)
   const campaignEndMonth = monthOf(tip.campaignEndDate) ?? monthOf(tip.masterEnd)
 
-  // Lines: line_items order, cells from billing-basis schedule_months.
-  const byId = new Map<string, RevisionLine>()
-  const sortedLines = [...lineRows].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-  for (const li of sortedLines) {
-    byId.set(li.lineItemId, {
-      lineItemId: li.lineItemId,
-      label: labelFor(li),
-      channel: li.channel,
-      isProduction: li.channel === "production",
-      clientPaysForMedia: li.clientPaysForMedia === true,
-      isAaLine: aaIds.has(li.lineItemId),
-      media: {},
-      fee: {},
-      adserving: {},
-    })
-  }
-  const unmatched = new Set<string>()
-  for (const r of billingRows) {
-    if (r.lineItemId.startsWith("__service__")) continue
-    const line = byId.get(r.lineItemId)
-    if (!line) {
-      unmatched.add(r.lineItemId)
-      continue
-    }
-    const m = r.month.slice(0, 7)
-    const rec = r.component === "media" ? line.media : r.component === "fee" ? line.fee : line.adserving
-    rec[m] = (rec[m] ?? 0) + r.amountCents
-  }
-  const lines = [...byId.values()].filter(
-    (l) => Object.keys(l.media).length + Object.keys(l.fee).length + Object.keys(l.adserving).length > 0,
-  )
+  // Lines: line_items order, cells from billing-basis schedule_months (ids joined bare, MB-11).
+  const { lines, unmatchedLineIds } = assembleRevisionLines({ lineRows, billingRows, aaLineIds: aaIds })
 
   const campaignMonths =
     campaignStartMonth && campaignEndMonth ? monthKeyRange(campaignStartMonth, campaignEndMonth) : []
@@ -322,7 +289,7 @@ export async function loadRevisionContext(
     hasFixedHeaderFee: billingRows.some((r) => r.lineItemId === "__service__fees" && r.amountCents !== 0),
     partial: scope?.partial === true,
     workingDraftCount: Number(drafts[0]?.n ?? 0),
-    unmatchedLineIds: [...unmatched].sort(),
+    unmatchedLineIds,
   }
 }
 

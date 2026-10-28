@@ -188,3 +188,18 @@ test("old bursts weigh cost x amount (CHALLEN003 shape)", () => {
   assert.ok(Math.abs(amounts[0]!.amount - 2 * amounts[1]!.amount) <= 0.01)
   assert.ok(amounts[0]!.amount > 0)
 })
+
+test("FIN-9: blob production keyed by a decorated id still feeds the bare plan line", () => {
+  const out = productionLineMonthAmounts({
+    billingSchedule: [
+      {
+        monthYear: "October 2026",
+        lineItems: { production: [{ id: "billing-production::p1", monthlyAmounts: { "October 2026": 1234.5 } }] },
+      },
+    ],
+    year: 2026,
+    month: 10,
+    lines: [{ lineItemId: "p1", publisher: "Assembled Media", bursts: [] }],
+  })
+  assert.equal(out[0]!.amount, 1234.5)
+})

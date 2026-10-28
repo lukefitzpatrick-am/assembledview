@@ -18,6 +18,8 @@
  * must equal the planned billing rows to the cent.
  */
 
+import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
+
 import type { Cents, MonthKey } from "./types"
 
 export type BlobRevisionCells = Array<{
@@ -219,7 +221,8 @@ export function applyRevisionToBillingBlob(raw: unknown, cells: BlobRevisionCell
     let found = false
     months.forEach((month) => {
       for (const { line } of linesOf(month)) {
-        if (String(line.id ?? "").trim() !== c.lineItemId) continue
+        // Blob ids may be bare or `billing-{media}::bare` (MB-4).
+        if (!billingOverrideLineIdsMatch(String(line.id ?? ""), c.lineItemId)) continue
         found = true
         if (c.mediaChanged) {
           const monthly: Record<string, number> = { ...(line.monthlyAmounts ?? {}) }

@@ -23,6 +23,11 @@
 
 import { createHash } from "node:crypto"
 
+import {
+  billingOverrideLineIdsMatch,
+  toBillingOverrideLineItemId,
+} from "@/lib/finance/manualBillingOverridesUi"
+
 import { allocateCents } from "./allocateCents"
 import {
   RevisionInvariantError,
@@ -94,6 +99,14 @@ type Work = {
   fee: Record<MonthKey, Cents>
 }
 
+/**
+ * Map key for a line id (MB-11): bare and `billing-{media}::bare` are the
+ * same line, so every Map in the planner keys on the bare id.
+ */
+function keyOf(lineItemId: string): string {
+  return toBillingOverrideLineItemId(lineItemId)
+}
+
 function sumValues(rec: Record<string, number>): number {
   let s = 0
   for (const v of Object.values(rec)) s += v
@@ -123,7 +136,7 @@ function skipReasonFor(line: RevisionLine, input: RevisionInput): SkipReason | n
   if (line.clientPaysForMedia) return "client_pays"
   if (line.isProduction && !input.options.includeProduction) return "production"
   const filter = input.options.lineFilter
-  if (filter && filter.length > 0 && !filter.includes(line.lineItemId)) return "filtered"
+  if (filter && filter.length > 0 && !filter.some((id) => billingOverrideLineIdsMatch(id, line.lineItemId))) return "filtered"
   return null
 }
 
@@ -185,12 +198,12 @@ export function planBillingRevision(input: RevisionInput): RevisionResult {
   input.lines.forEach((line, index) => {
     const reason = skipReasonFor(line, input)
     if (reason) {
-      skipped.set(line.lineItemId, reason)
+      skipped.set(keyOf(line.lineItemId), reason)
       return
     }
     work.push({ line, index, media: { ...line.media }, fee: { ...line.fee } })
   })
-  const byId = new Map(work.map((w) => [w.line.lineItemId, w]))
+  const byId = new Map(work.map((w) => [keyOf(w.line.lineItemId), w]))
 
   const universe = new Set<MonthKey>(campaignMonths)
   for (const l of input.locks) if (isMonthKey(l.month)) universe.add(l.month)
@@ -336,7 +349,7 @@ export function planBillingRevision(input: RevisionInput): RevisionResult {
           const take = Math.min(remaining, available)
           const shares = allocateCents(take, weights)
           for (const [id, share] of shares) {
-            const w = byId.get(id)!
+            const w = byId.get(keyOf(id))!
             w.media[m] = cell(w.media, m) - share
             w.media[into] = cell(w.media, into) + share
           }
@@ -354,7 +367,7 @@ export function planBillingRevision(input: RevisionInput): RevisionResult {
         const shares = allocateCents(amount, entries)
         for (const [key, share] of shares) {
           const [id, m] = key.split("\u0000") as [string, MonthKey]
-          const w = byId.get(id)!
+          const w = byId.get(keyOf(id))!
           w.media[m] = cell(w.media, m) - share
           w.media[into] = cell(w.media, into) + share
           movedCents += share
@@ -386,12 +399,12 @@ export function planBillingRevision(input: RevisionInput): RevisionResult {
       extraWritable.add(month)
       const choicesNeeded: UnderspendChoiceNeeded[] = []
       for (const [lineId, actual] of Object.entries(request.actualByLine)) {
-        const w = byId.get(lineId)
+        const w = byId.get(keyOf(lineId))
         if (!w) {
           warnings.push({
             code: "UNDERSPEND_LINE_SKIPPED",
             lineItemId: lineId,
-            message: `${lineId} is not billed through this tool (${skipped.get(lineId) ?? "unknown line"}).`,
+            message: `${lineId} is not billed through this tool (${skipped.get(keyOf(lineId)) ?? "unknown line"}).`,
           })
           continue
         }
@@ -481,7 +494,7 @@ export function planBillingRevision(input: RevisionInput): RevisionResult {
       const target = request.target
       const ids = [...new Set([...Object.keys(target.media ?? {}), ...Object.keys(target.fee ?? {})])]
       for (const id of ids) {
-        const w = byId.get(id)
+        const w = byId.get(keyOf(id))
         if (!w) continue
         const nextMedia = { ...w.media, ...(target.media?.[id] ?? {}) }
         const nextFee = { ...w.fee, ...(target.fee?.[id] ?? {}) }
@@ -613,10 +626,10 @@ export function planBillingRevision(input: RevisionInput): RevisionResult {
     return fail("NO_CHANGE", "This change moves nothing.")
   }
 
-  const workById = new Map(work.map((w) => [w.line.lineItemId, w]))
+  const workById = new Map(work.map((w) => [keyOf(w.line.lineItemId), w]))
   const lines: LineDiff[] = input.lines.map((line) => {
-    const reason = skipped.get(line.lineItemId)
-    const w = workById.get(line.lineItemId)
+    const reason = skipped.get(keyOf(line.lineItemId))
+    const w = workById.get(keyOf(line.lineItemId))
     return {
       lineItemId: line.lineItemId,
       label: line.label,
@@ -636,7 +649,7 @@ export function planBillingRevision(input: RevisionInput): RevisionResult {
     let pb = 0
     let pa = 0
     for (const line of input.lines) {
-      const w = workById.get(line.lineItemId)
+      const w = workById.get(keyOf(line.lineItemId))
       const before = cell(line.media, m)
       const after = w ? cell(w.media, m) : before
       if (line.isProduction) {

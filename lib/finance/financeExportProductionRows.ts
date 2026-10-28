@@ -16,6 +16,7 @@
 
 import type { FinanceServiceRow } from "@/lib/finance/utils"
 import { calculateMonthlyAmountFromBursts, matchMonthYear } from "@/lib/finance/utils"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import { fromCents, toCents } from "@/lib/money"
 
 export { PRODUCTION_ITEM_CODES, isProductionItemCode } from "@/lib/finance/productionItemCodes"
@@ -41,7 +42,10 @@ function scheduleMonths(billingSchedule: unknown): Record<string, unknown>[] {
   return []
 }
 
-/** Per-line production on the billing blob month (`lineItems.production[].monthlyAmounts`). */
+/**
+ * Per-line production on the billing blob month (`lineItems.production[].monthlyAmounts`),
+ * keyed on the bare line id (MB-11): blob ids may be `billing-production::bare`.
+ */
 function blobProductionByLine(
   billingSchedule: unknown,
   year: number,
@@ -63,7 +67,7 @@ function blobProductionByLine(
   for (const row of rows) {
     if (!row || typeof row !== "object") continue
     const r = row as { id?: unknown; monthlyAmounts?: Record<string, unknown> }
-    const id = String(r.id ?? "").trim()
+    const id = toBillingOverrideLineItemId(String(r.id ?? "").trim())
     if (!id) continue
     const amount = Number(r.monthlyAmounts?.[label] ?? 0)
     out.set(id, (out.get(id) ?? 0) + (Number.isFinite(amount) ? amount : 0))
@@ -110,7 +114,7 @@ export function productionLineMonthAmounts(args: {
 }): ProductionLineMonthAmount[] {
   const fromBlob = blobProductionByLine(args.billingSchedule, args.year, args.month)
   return args.lines.map((line) => {
-    const blobAmount = fromBlob?.get(line.lineItemId)
+    const blobAmount = fromBlob?.get(toBillingOverrideLineItemId(line.lineItemId))
     const amount =
       blobAmount != null
         ? blobAmount

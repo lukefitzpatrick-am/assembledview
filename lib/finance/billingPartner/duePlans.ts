@@ -27,6 +27,10 @@ import {
   migrationMarkers,
   scheduleMonths,
 } from "@/db/schema"
+import {
+  buildCanonicalBillingLineIdSet,
+  canonicalBillingLineIdSetHas,
+} from "@/lib/finance/manualBillingOverridesUi"
 
 const PACK_MARKER = "0100_billing_partner_packs"
 const SYDNEY = "Australia/Sydney"
@@ -363,15 +367,16 @@ async function aaWorkbookStored(
   if (!advertisingAssociatesFilteredPlanHasLineItems(filtered)) {
     return { stores: false, lineIds: new Set() }
   }
-  const lineIds = new Set<string>()
+  const rawIds: string[] = []
   for (const items of Object.values(filtered)) {
     if (!Array.isArray(items)) continue
     for (const item of items) {
       const id = item.line_item_id ?? item.lineItemId
-      if (id != null && String(id).trim()) lineIds.add(String(id).trim())
+      if (id != null && String(id).trim()) rawIds.push(String(id).trim())
     }
   }
-  return { stores: true, lineIds }
+  // Bare ids (MB-11): schedule_months rows may carry `billing-{media}::bare`.
+  return { stores: true, lineIds: buildCanonicalBillingLineIdSet(rawIds) }
 }
 
 async function loadScheduleCells(
@@ -406,7 +411,7 @@ async function loadScheduleCells(
         aaBillingMedia:
           row.basis === "billing" &&
           row.component === "media" &&
-          (lineIds?.has(row.lineItemId) ?? false),
+          (lineIds ? canonicalBillingLineIdSetHas(lineIds, row.lineItemId) : false),
       })
     }
   }
