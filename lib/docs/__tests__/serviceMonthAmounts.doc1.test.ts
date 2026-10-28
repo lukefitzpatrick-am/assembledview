@@ -6,7 +6,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { placeMonthAmountsOnSheet } from "@/lib/docs/allocateLineAcrossMonths"
+import { billedMonthsTimelineBounds, placeMonthAmountsOnSheet } from "@/lib/docs/allocateLineAcrossMonths"
 import {
   serviceMonthAmountsFromBillingRows,
   type BillingScheduleServiceRow,
@@ -231,4 +231,80 @@ test("workbook: a prebill puts the fee in the billing month, not the delivery mo
   assert.equal(fee["February 2026"], 0)
   assert.equal(fromCents(sumCents(Object.values(fee).map(toCents))), 1500)
   assert.equal(rowMonthValues(sheet, "Ad Serving & Tech")["February 2026"], 12.34)
+})
+
+test("billed month bounds: first and last day of the earliest and latest non-zero month", () => {
+  assert.equal(billedMonthsTimelineBounds([undefined, {}]), null)
+  assert.equal(billedMonthsTimelineBounds([{ "January 2026": 0 }]), null)
+  const b = billedMonthsTimelineBounds([
+    { "March 2026": 1, "January 2026": 0.01, "Total": 5 },
+    { "February 2026": 2, "April 2026": 0 },
+  ])
+  assert.ok(b)
+  assert.equal(b.start.toISOString().slice(0, 10), "2026-01-01")
+  assert.equal(b.end.toISOString().slice(0, 10), "2026-03-31")
+})
+
+test("workbook: a prebill month before the campaign start gets its own column with empty Gantt cells", async () => {
+  // Campaign Feb to Mar; finance prebills part of the fee in January. The sheet
+  // grows a January column instead of folding January into February.
+  // Ad serving billed in March, the campaign's last month, must not add April.
+  const header = { ...HEADER, campaignStart: "02/02/2026", campaignEnd: "29/03/2026" }
+  const amounts = serviceMonthAmountsFromBillingRows({
+    rows: [
+      { lineItemId: "s1", component: "fee", month: "2026-01-01", amountCents: 100_000 },
+      { lineItemId: "s1", component: "fee", month: "2026-02-01", amountCents: 50_000 },
+      { lineItemId: "s1", component: "adserving", month: "2026-03-01", amountCents: 1_234 },
+    ],
+    includeLine: () => true,
+  })
+  const workbook = await generateMediaPlan(
+    header,
+    emptyMedia({ search: [searchLine({ startDate: "2026-02-02", endDate: "2026-03-29", grossMedia: "10000", deliverablesAmount: "10000", deliverables: 777 })] }),
+    {
+      gross_media: [{ media_type: "Search", gross_amount: 10000 }],
+      totals: {
+        gross_media: 10000,
+        service_fee: 1500,
+        production: 0,
+        adserving: 12.34,
+        totals_ex_gst: 11512.34,
+        total_inc_gst: addGst(11512.34),
+      },
+    },
+    { serviceMonthAmounts: amounts },
+  )
+  const sheet = workbook.getWorksheet("Media Plan")
+  assert.ok(sheet)
+  const fee = rowMonthValues(sheet, "Service Fee")
+  // Week alignment starts the day columns on the Sunday before 1 January, so a
+  // few December days show as before (outside the campaign, no amount).
+  assert.deepEqual(Object.keys(fee), ["December 2025", "January 2026", "February 2026", "March 2026"])
+  assert.equal(fee["December 2025"], 0)
+  assert.equal(fee["January 2026"], 1000)
+  assert.equal(fee["February 2026"], 500)
+  assert.equal(fee["March 2026"], 0)
+  assert.equal(rowMonthValues(sheet, "Ad Serving & Tech")["March 2026"], 12.34)
+
+  // Day columns: January exists on the date row, and no Gantt cell sits in it.
+  const januaryCols: number[] = []
+  const februaryCols: number[] = []
+  sheet.getRow(7).eachCell({ includeEmpty: false }, (cell, col) => {
+    const v = cell.value
+    if (!(v instanceof Date)) return
+    const ym = v.toISOString().slice(0, 7)
+    if (ym === "2026-01") januaryCols.push(col)
+    if (ym === "2026-02") februaryCols.push(col)
+  })
+  assert.equal(januaryCols.length, 31)
+  let ganttRow = 0
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber <= 8 || ganttRow) return
+    if (februaryCols.some((c) => row.getCell(c).value === 777)) ganttRow = rowNumber
+  })
+  assert.ok(ganttRow > 0, "line Gantt row")
+  for (const c of januaryCols) {
+    const cell = sheet.getRow(ganttRow).getCell(c)
+    assert.ok(cell.value == null || cell.value === "", `January col ${c} is empty`)
+  }
 })

@@ -4,6 +4,7 @@ import { getMelbourneTodayISO } from '@/lib/dates/melbourne';
 import { fromCents, parseMoney } from '@/lib/money';
 import {
   allocateLineAcrossMonths,
+  billedMonthsTimelineBounds,
   dollarsFromPartCents,
   placeMonthAmountsOnSheet,
 } from '@/lib/docs/allocateLineAcrossMonths';
@@ -637,6 +638,20 @@ export async function generateMediaPlan(
         if (!isNaN(end.getTime()) && end > timelineEnd) timelineEnd = end;
       }
     }
+  }
+
+  // DOC-1 (Luke, 29 Oct 2026): every billed Service Fee and Ad Serving month
+  // gets its own month column, e.g. a prebill month before the campaign starts.
+  // Those days carry no Gantt cells.
+  const billedBounds = billedMonthsTimelineBounds([
+    options?.serviceMonthAmounts?.fee,
+    options?.serviceMonthAmounts?.adServing,
+  ]);
+  if (billedBounds) {
+    // Only grow by whole months the sheet does not have yet.
+    const monthIndex = (d: Date) => d.getUTCFullYear() * 12 + d.getUTCMonth();
+    if (monthIndex(billedBounds.start) < monthIndex(timelineStart)) timelineStart = billedBounds.start;
+    if (monthIndex(billedBounds.end) > monthIndex(timelineEnd)) timelineEnd = billedBounds.end;
   }
 
   const firstSunday = new Date(timelineStart); // Will be UTC

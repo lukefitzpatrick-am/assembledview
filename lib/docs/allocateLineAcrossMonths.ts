@@ -66,12 +66,39 @@ function monthLabelIndex(label: string): number | null {
 }
 
 /**
+ * DOC-1 (Luke, 29 Oct 2026): the first and last day (UTC) of the earliest and
+ * latest month that carries a non-zero billed amount, so the workbook timeline
+ * can grow to give every billed fee and ad serving month its own column.
+ * Labels that are not "Month YYYY" are ignored. Null when nothing is billed.
+ */
+export function billedMonthsTimelineBounds(
+  amounts: ReadonlyArray<Readonly<Record<string, number>> | undefined>,
+): { start: Date; end: Date } | null {
+  let min: number | null = null
+  let max: number | null = null
+  for (const rec of amounts) {
+    if (!rec) continue
+    for (const [label, dollars] of Object.entries(rec)) {
+      if (toCents(dollars) === 0) continue
+      const idx = monthLabelIndex(label)
+      if (idx == null) continue
+      if (min == null || idx < min) min = idx
+      if (max == null || idx > max) max = idx
+    }
+  }
+  if (min == null || max == null) return null
+  const start = new Date(Date.UTC(Math.floor(min / 12), min % 12, 1))
+  const end = new Date(Date.UTC(Math.floor(max / 12), (max % 12) + 1, 0))
+  return { start, end }
+}
+
+/**
  * DOC-1: place exact month amounts on the sheet's month columns, in cents.
- * A month on the sheet takes its amount as it is. A month before the first
- * column goes to the first column, one after the last column to the last
- * column (the timeline covers the campaign months, so this only happens when
- * billing sits outside them), so no billed money drops off the row. Months
- * with no amount are 0.
+ * A month on the sheet takes its amount as it is. generateMediaPlan extends
+ * the timeline so every billed month has a column (billedMonthsTimelineBounds).
+ * As a safety net, a month still off the sheet goes to the nearest edge column
+ * (before the first column to the first, after the last to the last), so no
+ * billed money drops off the row. Months with no amount are 0.
  */
 export function placeMonthAmountsOnSheet(args: {
   amounts: Readonly<Record<string, number>>
