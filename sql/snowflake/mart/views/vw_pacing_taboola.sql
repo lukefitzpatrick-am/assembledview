@@ -6,6 +6,10 @@
 -- Covers every Taboola account Fivetran syncs: the Assembled Media network
 -- (1726630) and its sub-accounts (Molicare SC 1858422, Boss Engineering SC
 -- 1858420), plus the old partner account (1714302).
+-- 2026-10-26 (live 00:42 PDT, checked with GET_DDL as CLAUDE_RW on 2026-10-28):
+-- impressions are now VISIBLE_IMPRESSIONS (viewable), not IMPRESSIONS, at Luke's
+-- request. The live body matches this file apart from the comments in the
+-- line id block, which the live text does not carry.
 USE SCHEMA ASSEMBLEDVIEW.MART;
 
 CREATE OR REPLACE VIEW VW_PACING_TABOOLA COPY GRANTS (
@@ -34,7 +38,7 @@ daily AS (
     P.CAMPAIGN_ID,
     P.DATE AS date_day,
     SUM(COALESCE(P.SPENT, 0)) AS amount_spent,
-    SUM(COALESCE(P.IMPRESSIONS, 0)) AS impressions,
+    SUM(COALESCE(P.VISIBLE_IMPRESSIONS, 0)) AS impressions,   -- was P.IMPRESSIONS (26 Oct, Luke: viewable)
     SUM(COALESCE(P.CLICKS, 0)) AS clicks,
     SUM(COALESCE(P.CPA_ACTIONS_NUM, 0)) AS results,
     MAX(P._FIVETRAN_SYNCED) AS max_fivetran_synced_at
