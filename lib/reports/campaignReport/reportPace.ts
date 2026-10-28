@@ -96,6 +96,7 @@ export function netBurstExpectedInWindow(args: {
 }
 
 export type ChannelPaceLine = {
+  lineItemId?: string
   expectedNetToDate?: number | null
   startDate?: string | null
   spendToDate: number
@@ -111,10 +112,37 @@ export type ChannelReportPace = ReportPace & {
   expectedSpendToDate: number | null
 }
 
+/**
+ * Assumed-spend lines (fixed cost, no feed) whose first burst starts on or
+ * before `dayISO`. REP-1: those count as live even when the window shows $0.
+ */
+export function assumedLinesStartedBy(
+  lines: ReadonlyArray<{ id: string; bursts: ReadonlyArray<{ startDate?: string | null }> }> | undefined,
+  dayISO: string | null | undefined,
+): Set<string> {
+  const out = new Set<string>()
+  if (!lines || !dayISO) return out
+  for (const line of lines) {
+    if (line.bursts.some((burst) => Boolean(burst.startDate) && String(burst.startDate) <= dayISO)) {
+      out.add(line.id)
+    }
+  }
+  return out
+}
+
+/**
+ * Live rule (REP-1, Luke 28 Oct 2026, option c): a channel is live when its
+ * window spend is above $0. CM360 programmatic lines carry the dashboard's
+ * modelled spend in the snapshot, so they count once they deliver. An
+ * assumed-spend line whose flight has started also counts, and stays flagged
+ * as assumed.
+ */
 export function channelReportPace(input: {
   spend: number
   plannedBudget: number
   lines: readonly ChannelPaceLine[]
+  /** Assumed lines whose flight has started (`assumedLinesStartedBy`). */
+  startedAssumedIds?: ReadonlySet<string>
 }): ChannelReportPace {
   const expected = sumExpectedNetToDate(input.lines)
   const pace = reportPace(input.spend, expected, input.plannedBudget > 0)
@@ -127,12 +155,18 @@ export function channelReportPace(input: {
   const spendEstimated =
     input.lines.some((line) => line.spendMode === "estimated" && line.spendToDate > 0) &&
     !input.lines.some((line) => line.spendMode === "reported" && line.spendToDate > 0)
+  const spendAssumed = input.lines.some(
+    (line) =>
+      line.spendMode === "assumed" &&
+      (line.spendToDate > 0 ||
+        (line.lineItemId != null && input.startedAssumedIds?.has(line.lineItemId) === true)),
+  )
   return {
     ...pace,
-    notLive: !(input.spend > 0),
+    notLive: !(input.spend > 0) && !spendAssumed,
     plannedBudget: input.plannedBudget,
     plannedStart,
-    spendAssumed: input.lines.some((line) => line.spendMode === "assumed" && line.spendToDate > 0),
+    spendAssumed,
     spendEstimated,
     expectedSpendToDate: expected,
   }

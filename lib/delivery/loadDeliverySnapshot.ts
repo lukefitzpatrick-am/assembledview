@@ -27,6 +27,15 @@ import {
 } from "@/lib/delivery/deliveryState"
 import { estimateDirectDigitalSpend } from "@/lib/delivery/estimateDirectDigitalSpend"
 import {
+  modelledProgrammaticSpendByDate,
+  parseProgrammaticBursts,
+} from "@/lib/delivery/programmatic/programmaticCompute"
+import {
+  deliverySourceLookupKey,
+  lookupActiveDeliverySource,
+  snowflakeChannelsForDeliverySource,
+} from "@/lib/delivery/deliverySourceMap"
+import {
   channelKeyForEstimateGroup,
   feePctForScheduleMedia,
   feePctFromVersionMap,
@@ -77,6 +86,14 @@ export type LoadDeliverySnapshotInput = {
   feePctsByVersionId?: FeePctsByVersionId
   /** Version on screen when a line omits `media_plan_version`. */
   estimateVersionId?: number | null
+  /**
+   * REP-1. When true, programmatic lines whose delivery_source_map row has
+   * `derive_spend_from_plan` (CM360 Quantcast and Twitch) carry the
+   * dashboard's modelled spend (`modelledProgrammaticSpendByDate`) as
+   * spendMode `estimated`. The report deck sets it. Default off, so AVA, the
+   * campaign strip and delivered totals are unchanged.
+   */
+  modelProgrammaticSpend?: boolean
 }
 
 export type LoadedDeliverySnapshot = {
@@ -88,7 +105,7 @@ export type LoadedDeliverySnapshot = {
   planTotals: DeliveryChannelGroup["totals"]
   /** True when the fixed-cost reported-spend overlay query failed. Other snapshot totals still return. */
   fixedCostOverlayFailed?: boolean
-  /** True when plan totals include CM360 direct-digital estimated spend. */
+  /** True when plan totals include CM360 estimated spend (direct digital, or modelled programmatic). */
   includesEstimatedSpend?: boolean
   /** Assumed-spend lines, including bursts that have not started. */
   assumedExpectedLines?: AssumedExpectedLine[]
@@ -333,6 +350,105 @@ function applyDirectDigitalEstimates(
     }
   }
   return estimatedIds
+}
+
+const MODELLED_PROGRAMMATIC_GROUPS: ReadonlyArray<{ group: string; dspChannel: string; family: string }> = [
+  { group: "programmatic_display", dspChannel: "programmatic-display", family: "prog_display" },
+  { group: "programmatic_video", dspChannel: "programmatic-video", family: "prog_video" },
+  { group: "programmatic_ooh", dspChannel: "programmatic-ooh", family: "prog_ooh" },
+]
+
+type ModelledProgrammaticPlan = {
+  plan: PlanLineMeta
+  /** Snowflake channels the dashboard reads for this line (`ad-serving` for cm360). */
+  channels: ReadonlySet<string>
+  bursts: any[]
+  /** First burst day (Sydney civil date). Null when no burst has a start. */
+  firstDay: string | null
+}
+
+/** Programmatic lines the dashboard models from plan rate. Fixed-cost lines keep reported spend. */
+function modelledProgrammaticPlans(
+  groups: Map<string, Map<string, PlanLineMeta>>,
+  fixedCostIds: ReadonlySet<string>,
+): ModelledProgrammaticPlan[] {
+  const out: ModelledProgrammaticPlan[] = []
+  for (const { group, dspChannel, family } of MODELLED_PROGRAMMATIC_GROUPS) {
+    const planMap = groups.get(group)
+    if (!planMap) continue
+    for (const [id, plan] of planMap) {
+      if (fixedCostIds.has(id)) continue
+      const mapRow = lookupActiveDeliverySource(deliverySourceLookupKey(plan.publisher, plan.platform))
+      if (mapRow?.derive_spend_from_plan !== true) continue
+      const bursts = parseProgrammaticBursts(plan.bursts)
+      let firstDay: string | null = null
+      for (const burst of bursts) {
+        const day = formatBurstDateLocal(String(burst?.startDate ?? burst?.start_date ?? ""))
+        if (day && (firstDay == null || day < firstDay)) firstDay = day
+      }
+      out.push({
+        plan,
+        channels: snowflakeChannelsForDeliverySource(mapRow.delivery_source, dspChannel, family),
+        bursts,
+        firstDay,
+      })
+    }
+  }
+  return out
+}
+
+/**
+ * Same dollars as the campaign dashboard's programmatic section: modelled
+ * per day from the line's start (so the cap matches), then summed for the
+ * snapshot window.
+ */
+function applyModelledProgrammaticSpend(
+  modelled: readonly ModelledProgrammaticPlan[],
+  deliveredById: Map<string, ReturnType<typeof emptyMetrics>>,
+  rows: readonly PacingRow[],
+  windowStart: string | undefined,
+  windowEnd: string | undefined,
+): Set<string> {
+  const ids = new Set<string>()
+  if (modelled.length === 0) return ids
+  const rowsById = new Map<string, PacingRow[]>()
+  for (const row of rows) {
+    const id = cleanPacingLineItemId(row.lineItemId)
+    if (!id) continue
+    const list = rowsById.get(id) ?? []
+    list.push(row)
+    rowsById.set(id, list)
+  }
+  for (const { plan, channels, bursts } of modelled) {
+    const byDate = new Map<string, { date: string; impressions: number; clicks: number; conversions: number }>()
+    for (const row of rowsById.get(plan.id) ?? []) {
+      if (!channels.has(String(row.channel ?? ""))) continue
+      const date = (row.dateDay || "").slice(0, 10)
+      if (!date) continue
+      const day = byDate.get(date) ?? { date, impressions: 0, clicks: 0, conversions: 0 }
+      day.impressions += row.impressions || 0
+      day.clicks += row.clicks || 0
+      day.conversions += row.results || 0
+      byDate.set(date, day)
+    }
+    const spendByDate = modelledProgrammaticSpendByDate({
+      lineItemId: plan.id,
+      buyType: plan.buyType,
+      bursts,
+      days: [...byDate.values()],
+    })
+    let cents = 0
+    for (const [date, dollars] of spendByDate) {
+      if (windowStart && date < windowStart) continue
+      if (windowEnd && date > windowEnd) continue
+      cents += toCents(dollars)
+    }
+    const cur = deliveredById.get(plan.id) ?? emptyMetrics()
+    cur.spendToDate = fromCents(cents)
+    deliveredById.set(plan.id, cur)
+    if (cents > 0) ids.add(plan.id)
+  }
+  return ids
 }
 
 function pacingBursts(raw: unknown) {
@@ -914,7 +1030,32 @@ export async function loadDeliverySnapshot(
         })
       : Promise.resolve([] as Awaited<ReturnType<typeof queryDailyFacts>>)
 
-  const [rows, search, facts] = await Promise.all([pacingPromise, searchPromise, overlayPromise])
+  // REP-1: modelled programmatic spend is capped from the line start, so a
+  // window that starts after a line does needs that line's earlier rows.
+  const modelled = input.modelProgrammaticSpend
+    ? modelledProgrammaticPlans(groups, new Set(fixedCostLineIds))
+    : []
+  let historyStart: string | undefined
+  for (const m of modelled) {
+    if (m.firstDay && startDate && m.firstDay < startDate) {
+      if (!historyStart || m.firstDay < historyStart) historyStart = m.firstDay
+    }
+  }
+  const historyPromise: Promise<PacingRow[] | null> = historyStart
+    ? getCampaignPacingData(
+        mba,
+        modelled.map((m) => m.plan.id),
+        { startDate: historyStart, endDate },
+        snowflakeLabel ? { label: snowflakeLabel } : undefined,
+      )
+    : Promise.resolve(null)
+
+  const [rows, search, facts, historyRows] = await Promise.all([
+    pacingPromise,
+    searchPromise,
+    overlayPromise,
+    historyPromise,
+  ])
   pacingRows = rows
   if (search) {
     for (const series of search.lineItems ?? []) {
@@ -942,6 +1083,15 @@ export async function loadDeliverySnapshot(
     new Set(fixedCostLineIds),
     feePctsByVersionId,
   )
+  for (const id of applyModelledProgrammaticSpend(
+    modelled,
+    deliveredById,
+    historyRows ?? pacingRows,
+    startDate,
+    endDate,
+  )) {
+    estimatedIds.add(id)
+  }
 
   let overlaySpendIds = new Set<string>()
   if (fixedCostLineIds.length > 0 && facts.length > 0) {

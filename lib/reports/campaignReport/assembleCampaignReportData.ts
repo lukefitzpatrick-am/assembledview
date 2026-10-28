@@ -27,6 +27,7 @@ import {
 } from "@/lib/reports/campaignReport/expectedMedia"
 import type { CampaignReportPeriodMetrics } from "@/lib/reports/campaignReport/periodMetrics"
 import {
+  assumedLinesStartedBy,
   channelReportPace,
   reportGapReason,
   reportPace,
@@ -336,6 +337,7 @@ export async function assembleCampaignReportData(
       startDate: currentWindow.startISO,
       endDate: currentWindow.endISO,
       mpSearchEnabled: input.mpSearchEnabled,
+      modelProgrammaticSpend: true,
     }),
     previousWindow
       ? loadDeliverySnapshot({
@@ -344,6 +346,7 @@ export async function assembleCampaignReportData(
           startDate: previousWindow.startISO,
           endDate: previousWindow.endISO,
           mpSearchEnabled: input.mpSearchEnabled,
+          modelProgrammaticSpend: true,
         }).catch(() => null)
       : Promise.resolve(null),
     input.versionNumber != null && Number.isFinite(input.versionNumber)
@@ -443,6 +446,13 @@ export async function assembleCampaignReportData(
         }),
       )
     : null
+  const startedAssumedNow = assumedLinesStartedBy(currentSnap.assumedExpectedLines, currentWindow.endISO)
+  const startedAssumedPrev = previousWindow
+    ? assumedLinesStartedBy(
+        previousSnap?.assumedExpectedLines ?? currentSnap.assumedExpectedLines,
+        previousWindow.endISO,
+      )
+    : undefined
   const reconciledNow = reconciledReportExpected(currentSnap.channels, windowSlices)
   const reconciledPrev = previousSlices
     ? reconciledReportExpected(previousSnap?.channels ?? [], previousSlices)
@@ -452,7 +462,12 @@ export async function assembleCampaignReportData(
     const planned = plannedBudgetOf(ch)
     const spend = ch.totals.spendToDate
     const lines = withReconciledExpected(ch.lines, reconciledNow)
-    const pace = channelReportPace({ spend, plannedBudget: planned, lines })
+    const pace = channelReportPace({
+      spend,
+      plannedBudget: planned,
+      lines,
+      startedAssumedIds: startedAssumedNow,
+    })
     const rates = rateMetricsFromLines(linesForRates(ch.lines), pace.expectedSpendToDate)
     const previousSpend = prev ? prev.totals.spendToDate : previousSnap ? 0 : null
     const previousImpressions = prev ? prev.totals.impressions : previousSnap ? 0 : null
@@ -463,6 +478,7 @@ export async function assembleCampaignReportData(
           lines: reconciledPrev
             ? withReconciledExpected(prev?.lines ?? [], reconciledPrev)
             : (prev?.lines ?? []),
+          startedAssumedIds: startedAssumedPrev,
         })
       : null
     const previousRates = previousPace

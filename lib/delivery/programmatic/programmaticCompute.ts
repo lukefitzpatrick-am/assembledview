@@ -214,6 +214,41 @@ function parseBursts(raw: ProgrammaticLineItem["bursts"] | ProgrammaticLineItem[
   return []
 }
 
+/** Programmatic bursts in the shape the dashboard derives modelled spend from. */
+export function parseProgrammaticBursts(raw: unknown): any[] {
+  return parseBursts(raw as ProgrammaticLineItem["bursts_json"])
+}
+
+/**
+ * Modelled delivered spend per day for a programmatic line whose
+ * delivery_source_map row has derive_spend_from_plan (Quantcast, Twitch on
+ * CM360). The campaign dashboard and the report deck snapshot both call this
+ * (REP-1), so the two show the same dollars. `days` must be one row per date.
+ * Spend is capped across every day passed, so pass days from the line start.
+ */
+export function modelledProgrammaticSpendByDate(input: {
+  lineItemId: string
+  buyType: string | null | undefined
+  bursts: ReadonlyArray<Record<string, unknown> | null | undefined>
+  days: ReadonlyArray<{ date: string; impressions: number; clicks: number; conversions: number }>
+}): Map<string, number> {
+  const derived = deriveSpendFromPlanRate({
+    lineItemId: input.lineItemId,
+    buyType: input.buyType,
+    bursts: input.bursts,
+    days: input.days.map((d) => ({
+      date: d.date,
+      impressions: d.impressions,
+      clicks: d.clicks,
+      results: d.conversions,
+    })),
+  })
+  for (const warning of derived.warnings) {
+    console.warn(warning)
+  }
+  return new Map(derived.days.map((d) => [d.date, d.derivedSpend]))
+}
+
 function optionalCurrency(value: unknown): number | undefined {
   if (value === null || value === undefined || value === "") return undefined
   return parseCurrency(value)
@@ -594,21 +629,12 @@ export function buildProgrammaticLineItemMetrics(
       spendFromFixedCostReport = true
       spendModelledFromPlanRate = false
     } else if (spendModelledFromPlanRate) {
-      const derived = deriveSpendFromPlanRate({
+      const spendByDate = modelledProgrammaticSpendByDate({
         lineItemId: targetId ?? String(item.line_item_id ?? ""),
         buyType: item.buy_type,
         bursts,
-        days: actualsDaily.map((d) => ({
-          date: d.date,
-          impressions: d.impressions,
-          clicks: d.clicks,
-          results: d.conversions,
-        })),
+        days: actualsDaily,
       })
-      for (const warning of derived.warnings) {
-        console.warn(warning)
-      }
-      const spendByDate = new Map(derived.days.map((d) => [d.date, d.derivedSpend]))
       for (const day of actualsDaily) {
         day.spend = spendByDate.get(day.date) ?? 0
       }
