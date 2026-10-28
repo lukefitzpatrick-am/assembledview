@@ -1163,6 +1163,25 @@ def test_conversions_absent_leave_deck_unchanged():
             fail(f"switch off still drew {label}: {text}")
 
 
+def test_plan_cpv_prints_on_cpv_channel_only():
+    """REP-2: the channel's plan CPV shows as the CPV target, as the Node deck."""
+    os.makedirs(OUT, exist_ok=True)
+    data = chart_payload()
+    data["channels"][0]["planCpvTarget"] = "$0.09"
+    data["channels"][0]["metrics"]["cpv"] = "$0.07"
+    text = build_conversion_deck(data, "plan-cpv-on")
+    for label in ("CPV, $0.09 plan rate target", "$0.07"):
+        if label not in text:
+            fail(f"plan CPV {label} is not on the channel slide: {text}")
+    data["channels"][0]["metrics"]["cpv"] = "Not yet reported"
+    text = build_conversion_deck(data, "plan-cpv-no-delivery")
+    if "CPV, $0.09 plan rate target" not in text or "Not yet reported" not in text:
+        fail(f"plan CPV with no delivered CPV did not say Not yet reported: {text}")
+    plain = build_conversion_deck(chart_payload(), "plan-cpv-off")
+    if "CPV" in plain:
+        fail(f"a channel with no plan CPV drew a CPV stat: {plain}")
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     test_missing_key()
@@ -1187,6 +1206,7 @@ def main():
     test_creative_slide()
     test_conversions_print_when_present()
     test_conversions_absent_leave_deck_unchanged()
+    test_plan_cpv_prints_on_cpv_channel_only()
     print("tests OK")
 
 

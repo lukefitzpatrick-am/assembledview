@@ -21,6 +21,8 @@ function skillPaths(dir: string): string[] {
   const found: string[] = []
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name)
+    // Local Python test runs leave __pycache__ beside the scripts; never upload it.
+    if (entry.name === "__pycache__" || entry.name.endsWith(".pyc")) continue
     if (entry.isDirectory()) found.push(...skillPaths(full))
     else found.push(full)
   }

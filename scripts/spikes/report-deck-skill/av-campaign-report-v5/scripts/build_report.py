@@ -765,6 +765,23 @@ def conversion_entries(data, figures, at):
     return entries
 
 
+def plan_cpv_entries(channel, at):
+    """REP-2, as the Node deck (47530b2a): a channel with CPV-bought lines
+    carries planCpvTarget, its own plan CPV. That is the CPV target (KPI law,
+    Luke 23 Oct 2026), per channel and never averaged across channels. The
+    CPV stat sits after the fixed stats with the target in its label. Empty
+    when the channel has no plan CPV."""
+    if not isinstance(channel, dict):
+        return []
+    target = channel.get("planCpvTarget")
+    if not reported_value(target):
+        return []
+    metrics = channel.get("metrics") if isinstance(channel.get("metrics"), dict) else {}
+    cpv = metrics.get("cpv")
+    value = str(cpv) if reported_value(cpv) else "Not yet reported"
+    return [(f"CPV, {target} plan rate target", value, f"{at}.cpv")]
+
+
 def wrap_lines(text, width, per_inch):
     chars = max(8, int(max(width, 0.8) / per_inch))
     return max(1, (len(text) + chars - 1) // chars)
@@ -836,7 +853,8 @@ def build_delivery_layout(deck, spec, index, fixed):
         channels = DATA.get("channels") if isinstance(DATA.get("channels"), list) else []
         channel = channels[channel_index] if isinstance(channel_index, int) and channel_index < len(channels) else {}
         conversions = conversion_entries(DATA, channel.get("conversions") if isinstance(channel, dict) else None, f"{path}.conversions")
-        stat_pills(slide, path, fixed_stat_values(path, channel_index) + conversions)
+        plan_cpv = plan_cpv_entries(channel, path)
+        stat_pills(slide, path, fixed_stat_values(path, channel_index) + plan_cpv + conversions)
     else:
         chart_key = require(spec, "chart", f"{path}.chart")
         chart = as_chart(DATA, chart_key)
