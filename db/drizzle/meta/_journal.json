@@ -148,6 +148,13 @@
       "when": 1793271555692,
       "tag": "0020_friendly_mac_gargan",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793279399565,
+      "tag": "0021_wealthy_blackheart",
+      "breakpoints": true
     }
   ]
 }
