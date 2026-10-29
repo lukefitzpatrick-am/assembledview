@@ -1,6 +1,7 @@
 /**
  * billing_revisions (migration 0106, billing revisions). SQL is source of truth.
- * 0106 is authored and not applied. Do not db.select() this table until
+ * 0106 is applied (26 Oct 2026). 0109 widens the mode check (true_up,
+ * true_up_restore). Do not db.select() this table until
  * migration_markers contains 0106_billing_revisions (C-76): every read and
  * write goes through lib/finance/revisions/marker.ts first.
  * RLS on; no ava_readonly grant.
@@ -58,7 +59,7 @@ export const billingRevisions = pgTable(
     }).onDelete("set null"),
     check(
       "billing_revisions_mode_check",
-      sql`${table.mode} IN ('pull_month', 'bill_remainder', 'bill_amount', 'underspend', 'restore')`,
+      sql`${table.mode} IN ('pull_month', 'bill_remainder', 'bill_amount', 'underspend', 'restore', 'true_up', 'true_up_restore')`,
     ),
     check("billing_revisions_reason_check", sql`length(btrim(${table.reason})) > 0`),
     check("billing_revisions_source_check", sql`${table.source} IN ('ui', 'ava')`),

@@ -5,7 +5,8 @@
  * Reads and writes go through lib/finance/financeOwnersStore.ts, which
  * reports not-ready while the table is missing. RLS on; no ava_readonly grant.
  */
-import { bigint, index, pgTable, text, timestamp } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
+import { bigint, check, index, pgTable, text, timestamp } from "drizzle-orm/pg-core"
 
 import { teamMembers } from "./codex"
 import { clients } from "./ported"
@@ -24,6 +25,14 @@ export const clientFinanceOwners = pgTable(
       .defaultNow(),
     updatedBy: bigint("updated_by", { mode: "number" }),
     updatedByName: text("updated_by_name"),
+    /** 0109: same_month | month_ahead | in_arrears. Null = same month. Do not read until 0109_true_up. */
+    billingTiming: text("billing_timing"),
   },
-  (table) => [index("client_finance_owners_team_member_idx").on(table.teamMemberId)],
+  (table) => [
+    index("client_finance_owners_team_member_idx").on(table.teamMemberId),
+    check(
+      "client_finance_owners_billing_timing_check",
+      sql`${table.billingTiming} IS NULL OR ${table.billingTiming} IN ('same_month', 'month_ahead', 'in_arrears')`,
+    ),
+  ],
 )
