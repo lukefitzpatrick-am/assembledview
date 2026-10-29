@@ -13,6 +13,7 @@ import "server-only"
 import { sql } from "drizzle-orm"
 
 import { getDb, type Db } from "@/db"
+import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
 import type { RevisionActor } from "@/lib/data/publishBillingRevision"
 import { isBillingRevisionsMigrationApplied } from "@/lib/finance/revisions/marker"
 import {
@@ -128,6 +129,14 @@ export async function previewTrueUpFix(args: {
     db: args.db,
   })
   if (!out.ok) return out
+  // Full-reset guard (design T8): the editor's "reset billing to auto" is
+  // closed on approved and booked plans (isApprovedOrBeyond). On any other
+  // status it is open and would rebuild billing from the bursts, so say so.
+  if (!isApprovedOrBeyond(found.row.campaignStatus)) {
+    out.impacts.push(
+      `This plan is ${found.row.campaignStatus || "not approved"}. A full billing reset in the editor would undo this true-up. Approve the plan first, or don't reset it.`,
+    )
+  }
   return {
     ...out,
     request: built.request,

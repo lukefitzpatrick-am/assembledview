@@ -40,11 +40,11 @@ const applyMock = mock.fn(async (args: ApplyArgs) => {
 
 if (typeof mock.module === "function") {
   await mock.module("@/lib/finance/revisions/revisionService", {
-    namedExports: { applyRevisionFromToken: applyMock, previewRevision: async () => ({ ok: true }) },
+    namedExports: { applyRevisionFromToken: applyMock, previewRevision: async () => ({ ok: true, impacts: [] as string[] }) },
   })
 }
 
-const { applyTrueUpFromToken } = await import("../service")
+const { applyTrueUpFromToken, previewTrueUpFix } = await import("../service")
 const { buildTrueUpReport } = await import("../compute")
 const { INVOICES, MATCHED_RECORDS, PLANS, SCHEDULE } = await import("./fixtures")
 const { buildTrueUpFixRequest } = await import("../fixRequest")
@@ -111,4 +111,23 @@ test("undo: the fix's ledger rows are marked undone in the same transaction", { 
   assert.equal(out.kind, "true_up_restore")
   const q = (applyMock as unknown as { lastQueries: string[] }).lastQueries
   assert.ok(q.some((x) => x.includes("UPDATE true_up_actions") && x.includes("status = 'undone'")))
+})
+
+test("reset guard: the preview warns when the plan is not approved, and stays quiet when it is", { skip }, async () => {
+  const choice = { components: ["fee" as const], strategy: "spread" as const }
+  const args = { mbaNumber: "golf025", asOfMonth: "2026-09", fromMonth: "2026-07", choice, sub: "auth0|x", now }
+  const approved = await previewTrueUpFix({ ...args, load })
+  assert.ok("impacts" in approved)
+  assert.ok(!(approved as { impacts: string[] }).impacts.some((x) => x.includes("full billing reset")))
+  const draftLoad = async (a: { asOfMonth: string; fromMonth: string }) =>
+    buildTrueUpReport({
+      ...a,
+      plans: PLANS.map((p) => (p.mba_number === "golf025" ? { ...p, campaign_status: "draft" } : p)),
+      schedule: SCHEDULE,
+      invoices: INVOICES,
+      matchedRecords: MATCHED_RECORDS,
+    })
+  const draft = await previewTrueUpFix({ ...args, load: draftLoad })
+  assert.ok("impacts" in draft)
+  assert.ok((draft as { impacts: string[] }).impacts.some((x) => x.includes("full billing reset") && x.includes("draft")))
 })
