@@ -1,6 +1,7 @@
 // src/lib/auth0.ts (or /lib/auth0.ts)
 import { Auth0Client } from '@auth0/nextjs-auth0/server';
 import { CLIENT_CLAIMS, CLIENT_SLUGS_CLAIMS, CLIENT_SLUG_CLAIMS, ROLE_CLAIMS } from './auth0-claims';
+import { withViewAsOverlay } from './auth/viewAsAuth0';
 
 // Fail fast if required environment variables are missing
 ['AUTH0_DOMAIN', 'AUTH0_CLIENT_ID', 'AUTH0_CLIENT_SECRET', 'AUTH0_SECRET', 'APP_BASE_URL'].forEach((key) => {
@@ -21,7 +22,12 @@ export const baseAuthParams = {
   audience: process.env.AUTH0_AUDIENCE,
 };
 
-export const auth0 = new Auth0Client({
+/**
+ * The real Auth0 client. Use it only where the real admin must be seen through
+ * a client view: the view-as start, exit and audit routes and `/view-as/*`
+ * pages. Everything else imports `auth0`.
+ */
+export const auth0Raw = new Auth0Client({
   authorizationParameters: baseAuthParams,
   // Persist custom claims from the ID token/Action onto the session.user object
   async beforeSessionSaved(session) {
@@ -76,3 +82,9 @@ export const auth0 = new Auth0Client({
     return session;
   },
 });
+
+/**
+ * The app's Auth0 client. Same as `auth0Raw`, except `getSession` returns the
+ * view-as client user while an admin's client view is active (lib/auth/viewAs.ts).
+ */
+export const auth0: Auth0Client = withViewAsOverlay(auth0Raw);

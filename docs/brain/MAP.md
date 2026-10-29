@@ -7,6 +7,7 @@ The routing table for the whole app. Find your section, open the files it lists,
 ```
 L0  PLATFORM      Vercel (project avmediaplan, regions iad1/syd1/sin1) · 17 crons
 L1  IDENTITY      Auth0 v4 → middleware.ts (authN only) → lib/rbac.ts (roles) → per-route gates
+                  (lib/auth0.ts `auth0.getSession` applies an admin's View as client overlay: lib/auth/viewAs.ts)
 L2  DATA          Supabase Postgres (Sydney) via Drizzle  db/  ← system of record
                   Snowflake ASSEMBLEDVIEW.MART.*         lib/snowflake/  ← delivery facts, read-only
                   Snowflake ASSEMBLEDVIEW.RAW.PARTNER_*  ← partner file ingest writes (no UPDATE)
@@ -225,7 +226,8 @@ Touch these and you are touching everything. Check `BLAST-RADIUS.md` first, ever
 | `components/brand/HeroBand.tsx`, `ArchTrio.tsx`, `JourneyLine.tsx`, `IAOCards.tsx` | Campaign hero chrome, shown on `/design-system` and not mounted on live pages. Journey steps follow `CAMPAIGN_PHASE`; Cancelled is a pill. IAO cards render only a filled insight, action or outcome. |
 | `components/brand/BrandLoading.tsx`, `public/brand/` | Dot-mark loading state. Logos, sign-in arches, and `icon-512.png` live in `public/brand/`. App icons are `app/icon.svg` and `app/apple-icon.png` |
 | `lib/pdf/brandPdf.ts` | Plus Jakarta Sans and `PDF_COLOURS` for MBA, billing schedule and scope PDFs. Excel and email read `lib/brand` (`BRAND.font.excel`, `EMAIL_FONT_STACK`) |
-| `middleware.ts` | Authentication only. Never assume it did a tenant check |
+| `middleware.ts` | Authentication only. Never assume it did a tenant check. Also the View as client read-only gate (`decideViewAsGate`) |
+| `lib/auth0.ts` / `lib/auth/viewAs.ts` / `lib/auth/viewAsAuth0.ts` | `auth0` wraps `auth0Raw` so `getSession` can return a View as client user. Every role decision passes through it |
 
 ## Shared layout
 

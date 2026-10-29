@@ -9,6 +9,7 @@ import {
   type MaterialDeadlineStripItem,
 } from "@/lib/specs/deriveMaterialDeadlines"
 import { cn } from "@/lib/utils"
+import { useViewAs } from "@/contexts/AuthContext"
 
 type Props = {
   mbaNumber: string
@@ -34,6 +35,9 @@ export function MaterialDeadlinesStrip({
   const [hidden, setHidden] = useState(false)
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<string | null>(null)
+  // Client view (view as client) is read-only: no override controls.
+  const viewAs = useViewAs()
+  const showOverride = canOverride && viewAs == null
 
   useEffect(() => {
     let cancelled = false
@@ -142,7 +146,7 @@ export function MaterialDeadlinesStrip({
                 ) : null}
               </p>
             </div>
-            {canOverride ? (
+            {showOverride ? (
               <div className="flex items-center gap-2">
                 <Input
                   type="date"

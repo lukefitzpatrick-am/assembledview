@@ -7,6 +7,7 @@ import { Loader2, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ProgressBar } from "@/components/ui/ProgressBar"
 import { cn } from "@/lib/utils"
+import { useViewAs } from "@/contexts/AuthContext"
 import {
   ACCEPTED_CREATIVE_MIME_PREFIXES,
   extractAssetDimensions,
@@ -46,10 +47,13 @@ export function CreativeUploadZone({
   mbaNumber,
   mediaPlanMasterId,
   lineItemLink,
-  disabled,
+  disabled: disabledProp,
   onAssetRegistered,
   onError,
 }: CreativeUploadZoneProps) {
+  // Client view (view as client) is read-only; the middleware also 403s the upload.
+  const viewAs = useViewAs()
+  const disabled = Boolean(disabledProp) || viewAs != null
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
   const [queue, setQueue] = useState<UploadQueueItem[]>([])
@@ -232,7 +236,7 @@ export function CreativeUploadZone({
         <Upload className="mb-3 h-8 w-8 text-muted-foreground" aria-hidden />
         <p className="text-sm font-medium text-foreground">Drop files here or click to browse</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Images, video, audio, PDF, or ZIP — up to 500 MB each
+          {viewAs ? "Disabled in client view" : "Images, video, audio, PDF, or ZIP — up to 500 MB each"}
         </p>
         <input
           ref={inputRef}

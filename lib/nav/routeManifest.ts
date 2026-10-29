@@ -1069,6 +1069,32 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inPalette: false,
     group: "system",
   },
+  {
+    path: "/view-as",
+    label: "View as client",
+    title: "View as client",
+    inPalette: false,
+    hasPage: false,
+    group: "system",
+  },
+  {
+    // Admin confirm page for a client view (GET renders the form; the form POSTs).
+    path: "/view-as/start",
+    label: "View as client",
+    title: "View as client",
+    inPalette: false,
+    roles: ["admin"],
+    group: "system",
+  },
+  {
+    // Where middleware sends an admin whose client view lapsed.
+    path: "/view-as/ended",
+    label: "Client view ended",
+    title: "Client view ended",
+    inPalette: false,
+    roles: ["admin"],
+    group: "system",
+  },
 
 ]
 

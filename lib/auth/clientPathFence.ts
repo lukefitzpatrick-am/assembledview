@@ -37,7 +37,10 @@ export function resolveClientPageFence(
     pathname === "/knowledge" ||
     pathname.startsWith("/knowledge/") ||
     pathname === "/forbidden" ||
-    pathname === "/unauthorized"
+    pathname === "/unauthorized" ||
+    // View as client: the start and ended pages check the raw admin themselves.
+    pathname === "/view-as/start" ||
+    pathname === "/view-as/ended"
   ) {
     return { redirectTarget: null, reason: null }
   }

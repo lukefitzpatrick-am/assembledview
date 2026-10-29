@@ -11,7 +11,9 @@ import { ChatWidget } from "@/components/ChatWidget"
 import { SessionExpiredBanner } from "@/components/auth/SessionExpiredBanner"
 import { usePathname } from "next/navigation"
 import { AuthWrapper } from "@/components/AuthWrapper"
-import { AuthContextProvider, useAuthContext } from "@/contexts/AuthContext"
+import { AuthContextProvider, useAuthContext, type ViewAsClientInfo } from "@/contexts/AuthContext"
+import { ViewAsBanner } from "@/components/view-as/ViewAsBanner"
+import type { UserRole } from "@/lib/rbac"
 import type React from "react"
 import { getAssistantContext } from "@/lib/assistantBridge"
 import { CommandPalette, CommandPaletteTrigger } from "@/components/CommandPalette"
@@ -26,11 +28,17 @@ export function ClientLayout({
   clientSlugs,
   webSearchSlugs = [],
   codexEnabled = false,
+  serverRoles = null,
+  viewAs = null,
+  viewAsEnabled = false,
 }: {
   children: React.ReactNode
   clientSlugs: string[]
   webSearchSlugs?: string[]
   codexEnabled?: boolean
+  serverRoles?: UserRole[] | null
+  viewAs?: ViewAsClientInfo | null
+  viewAsEnabled?: boolean
 }) {
   const pathname = usePathname()
   const isHomePage = pathname === "/" || pathname === "/privacy" || pathname === "/data-deletion"
@@ -45,7 +53,12 @@ export function ClientLayout({
 
   return (
     <AuthWrapper>
-      <AuthContextProvider clientSlugs={clientSlugs}>
+      <AuthContextProvider
+        clientSlugs={clientSlugs}
+        serverRoles={serverRoles}
+        viewAs={viewAs}
+        viewAsEnabled={viewAsEnabled}
+      >
         <SidebarProvider>
           <MediaPlanProvider>
             <DocumentTitleFromManifest />
@@ -55,6 +68,7 @@ export function ClientLayout({
             >
               Skip to content
             </a>
+            {viewAs ? <ViewAsBanner viewAs={viewAs} /> : null}
             <div
               className={cn(
                 "flex w-full bg-[hsl(var(--sidebar-bg))]",

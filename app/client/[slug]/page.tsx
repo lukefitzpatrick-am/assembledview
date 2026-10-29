@@ -7,6 +7,7 @@ import { fetchXanoClientRowByUrlSlug } from '@/lib/clients/fetchClientRowByUrlSl
 import { hasRole } from '@/lib/rbac'
 import { ClientDashboardPageContent } from '@/components/dashboard/ClientDashboardPageContent'
 import { loadWebReportStatusForClientId } from '@/lib/webReport/admin/statusLoad'
+import { ViewAsStartButton } from '@/components/view-as/ViewAsDialog'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +76,7 @@ export default async function ClientHubDetailPage({ params, searchParams }: Page
       defaultRangeEndISO={defaultRange.rangeEndISO}
       accountsContactEmail={process.env.ACCOUNTS_CONTACT_EMAIL?.trim() || null}
       webReportStatus={webStatus?.ok ? webStatus.status : null}
+      extraHubActions={<ViewAsStartButton slug={slug} clientName={clientData.clientName} />}
     />
   )
 }

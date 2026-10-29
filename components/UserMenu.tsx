@@ -9,10 +9,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useState } from 'react';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { getUserRoles } from '@/lib/rbac';
-import { User, Settings, LogOut, Shield } from 'lucide-react';
+import { User, Settings, LogOut, Shield, Eye } from 'lucide-react';
 import Link from 'next/link';
+import { ViewAsDialog } from '@/components/view-as/ViewAsDialog';
+import { exitViewAs } from '@/components/view-as/viewAsClient';
 
 type ShellUser = {
   name?: string | null
@@ -69,7 +71,8 @@ export function shellUserIdentity(user: ShellUser): { name: string; initials: st
 }
 
 export function UserMenu() {
-  const { user, isLoading, error, login, logout, isAdmin, isClient } = useAuthContext();
+  const { user, isLoading, error, login, logout, isAdmin, isClient, viewAs, viewAsEnabled } = useAuthContext();
+  const [viewAsOpen, setViewAsOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -98,9 +101,9 @@ export function UserMenu() {
 
   const { name, initials } = shellUserIdentity(user)
   const role = shellRoleLabel(isAdmin, isClient)
-  const userRoles = getUserRoles(user);
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="flex w-full items-center gap-2.5 rounded-card p-2 text-left transition-colors hover:bg-sidebar-accent">
@@ -128,26 +131,46 @@ export function UserMenu() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem asChild>
-          <Link href="/profile" className="flex items-center">
-            <User className="mr-2 h-4 w-4" />
-            <span>Profile</span>
-          </Link>
-        </DropdownMenuItem>
+        {viewAs ? (
+          <DropdownMenuItem
+            onSelect={async () => {
+              window.location.assign(await exitViewAs());
+            }}
+          >
+            <Eye className="mr-2 h-4 w-4" />
+            <span>Exit client view</span>
+          </DropdownMenuItem>
+        ) : (
+          <>
+            <DropdownMenuItem asChild>
+              <Link href="/profile" className="flex items-center">
+                <User className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </Link>
+            </DropdownMenuItem>
 
-        <DropdownMenuItem asChild>
-          <Link href="/account" className="flex items-center">
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Account Settings</span>
-          </Link>
-        </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/account" className="flex items-center">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Account Settings</span>
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
 
-        {userRoles.includes('admin') && (
+        {isAdmin && (
           <DropdownMenuItem asChild>
             <Link href="/admin/users/new" className="flex items-center">
               <Shield className="mr-2 h-4 w-4" />
               <span>User Management</span>
             </Link>
+          </DropdownMenuItem>
+        )}
+
+        {isAdmin && viewAsEnabled && (
+          <DropdownMenuItem onSelect={() => setViewAsOpen(true)}>
+            <Eye className="mr-2 h-4 w-4" />
+            <span>View as client…</span>
           </DropdownMenuItem>
         )}
 
@@ -161,5 +184,7 @@ export function UserMenu() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    {isAdmin && viewAsEnabled ? <ViewAsDialog open={viewAsOpen} onOpenChange={setViewAsOpen} /> : null}
+    </>
   );
 }

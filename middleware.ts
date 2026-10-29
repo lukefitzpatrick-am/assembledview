@@ -1,9 +1,16 @@
-import type { NextRequest } from 'next/server';
+import type { NextFetchEvent, NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth0 } from './lib/auth0';
 import { FINANCE_TAB_TO_SECTION_PATH } from './lib/finance/sections/nav';
 import { getUserClientSlugs, getUserRoles } from './lib/rbac';
 import { resolveClientPageFence } from './lib/auth/clientPathFence';
+import {
+  decideViewAsGate,
+  readViewAsMarker,
+  viewAsClearCookies,
+  VIEW_AS_COOKIE,
+  VIEW_AS_HINT_COOKIE,
+} from './lib/auth/viewAs';
 
 const STATIC_PATHS = ['/favicon.ico', '/robots.txt', '/sitemap.xml'];
 const PUBLIC_PATHS = ['/', '/forbidden', '/privacy', '/data-deletion'];
@@ -15,7 +22,65 @@ function isFinanceSectionsApiPath(pathname: string): boolean {
   return pathname === '/api/finance/sections' || pathname.startsWith('/api/finance/sections/');
 }
 
-export async function middleware(request: NextRequest) {
+function clearViewAsCookies(response: NextResponse): NextResponse {
+  for (const cookie of viewAsClearCookies()) {
+    response.cookies.set(cookie.name, cookie.value, cookie.options);
+  }
+  return response;
+}
+
+/**
+ * Client view (view-as) gate. Runs after the session is read: the session is
+ * the overlay client user while a view is active, else the raw session.
+ * Blocked writes are logged and, when the runtime gives us `waitUntil`, sent
+ * to `/api/view-as/audit` (fire and forget, never blocks the 403).
+ */
+function viewAsGateResponse(
+  request: NextRequest,
+  pathname: string,
+  isApiRoute: boolean,
+  session: Awaited<ReturnType<typeof auth0.getSession>>,
+  event?: NextFetchEvent
+): NextResponse | null {
+  const marker = readViewAsMarker(session?.user);
+  const decision = decideViewAsGate({
+    method: request.method,
+    pathname,
+    isApi: isApiRoute,
+    viewAsActive: marker != null,
+    viewAsCookiePresent: request.cookies.has(VIEW_AS_COOKIE),
+    hintPresent: request.cookies.has(VIEW_AS_HINT_COOKIE),
+    rawIsAdmin: marker == null && getUserRoles(session?.user).includes('admin'),
+  });
+  if (decision.kind === 'pass') return null;
+  if (decision.kind === 'block_write') {
+    console.warn('[view-as] blocked', { method: request.method, path: pathname, slug: marker?.slug });
+    if (event && typeof event.waitUntil === 'function') {
+      const auditUrl = new URL('/api/view-as/audit', request.url);
+      event.waitUntil(
+        fetch(auditUrl, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie: request.headers.get('cookie') ?? '' },
+          body: JSON.stringify({ path: pathname, method: request.method }),
+        }).then(
+          () => undefined,
+          () => undefined
+        )
+      );
+    }
+    return NextResponse.json(
+      { error: 'read_only_view_as', message: 'Client view is read-only. Exit client view to make changes.' },
+      { status: 403 }
+    );
+  }
+  // ended: the client view is over (expired, switched off or not valid).
+  if (isApiRoute) {
+    return NextResponse.json({ error: 'view_as_ended' }, { status: 409 });
+  }
+  return NextResponse.redirect(new URL('/view-as/ended', request.url));
+}
+
+export async function middleware(request: NextRequest, event?: NextFetchEvent) {
   // Run Auth0 middleware first so sessions/cookies continue to roll
   const authResponse = await auth0.middleware(request);
   const continueResponse = authResponse ?? NextResponse.next();
@@ -23,6 +88,11 @@ export async function middleware(request: NextRequest) {
   const pathname = normalizePath(request.nextUrl.pathname);
   const isApiRoute = pathname.startsWith('/api');
   const isAuthApi = pathname.startsWith('/api/auth');
+
+  // Signing out always ends a client view.
+  if (pathname === '/auth/logout') {
+    return clearViewAsCookies(continueResponse);
+  }
 
   if (
     pathname.startsWith('/_next') ||
@@ -39,6 +109,9 @@ export async function middleware(request: NextRequest) {
   }
 
   const session = await auth0.getSession(request);
+
+  const viewAsResponse = session ? viewAsGateResponse(request, pathname, isApiRoute, session, event) : null;
+  if (viewAsResponse) return viewAsResponse;
 
   // API routes (except /api/auth) return JSON on missing auth
   if (isApiRoute) {
