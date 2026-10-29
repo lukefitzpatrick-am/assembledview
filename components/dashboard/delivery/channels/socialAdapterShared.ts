@@ -45,7 +45,7 @@ import {
   resolvePacingWindow,
 } from "@/lib/pacing/expectedForWindow"
 import { paceProgressCard } from "../shared/paceProgressCard"
-import { computeLinePace, sumLinePaces, untrackedNote, type ChannelPacingInputs } from "./linePace"
+import { computeLinePace, sumLinePaces, untrackedLineNote, untrackedNote, type ChannelPacingInputs } from "./linePace"
 
 function onTrackToDelivery(s: SocialLineMetrics["onTrackStatus"]): DeliveryStatus {
   return s as DeliveryStatus
@@ -490,7 +490,7 @@ export function buildSocialChannelSectionForPlatform(input: {
           format: formatWholeNumber,
           sparkline: m.pacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
           dense: true,
-          note: pace.deliverables.tracked ? null : "Impressions not tracked",
+          note: untrackedLineNote(pace),
         }),
       ],
       kpiBand: {

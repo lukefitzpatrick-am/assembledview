@@ -45,7 +45,7 @@ import {
   resolvePacingWindow,
 } from "@/lib/pacing/expectedForWindow"
 import { paceProgressCard } from "../shared/paceProgressCard"
-import { computeLinePace, sumLinePaces, untrackedNote, type ChannelPacingInputs } from "./linePace"
+import { computeLinePace, sumLinePaces, untrackedLineNote, untrackedNote, type ChannelPacingInputs } from "./linePace"
 
 const FEE_MEDIA_TYPE: Record<"programmatic-display" | "programmatic-video" | "programmatic-ooh", string> = {
   "programmatic-display": "progDisplay",
@@ -675,7 +675,7 @@ export function buildProgrammaticChannelSection(input: {
           format: formatWholeNumber,
           sparkline: m.pacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
           dense: true,
-          note: pace.deliverables.tracked ? null : "Impressions not tracked",
+          note: untrackedLineNote(pace),
         }),
       ],
       kpiBand: {

@@ -2,6 +2,7 @@ import type { FeePctsByVersionId } from "@/lib/delivery/directDigitalFeeLookup"
 import {
   expectedForWindow,
   impressionsNotTracked,
+  NO_IMPRESSION_TRACKING,
   plannedTotal,
   sumInWindow,
   type NetSpendBasis,
@@ -30,7 +31,7 @@ export type PaceFigures = {
 export type LinePace = {
   spend: PaceFigures
   deliverables: PaceFigures & {
-    /** False for a click tracker: clicks but no impressions (impressions not tracked). */
+    /** False when the line has clicks but no impressions in the window ("No impression tracking"). */
     tracked: boolean
   }
 }
@@ -46,7 +47,11 @@ export type LinePaceDay = {
 /**
  * One line's delivered and expected figures for the window.
  * A line whose deliverable is impressions and that has clicks but no
- * impressions in the window is left out of expected impressions.
+ * impressions in the window has no impression tracking: it is left out of
+ * expected impressions, and the card and line read "No impression tracking",
+ * the same label as Direct Booked Digital (REP-5; Luke, 29 Oct 2026).
+ * Decided on the window: programmatic and social daily rows arrive already
+ * cut to the date filter, so the whole delivery is not available here.
  */
 export function computeLinePace(input: {
   rawBursts: unknown
@@ -107,9 +112,14 @@ export function sumLinePaces(paces: readonly LinePace[]): LinePace {
   )
 }
 
-/** Card note when some lines' impressions are not tracked. */
+/** Card note when some lines have no impression tracking. */
 export function untrackedNote(paces: readonly LinePace[]): string | null {
   const n = paces.filter((p) => !p.deliverables.tracked).length
   if (n === 0) return null
-  return n === 1 ? "Impressions not tracked on 1 line" : `Impressions not tracked on ${n} lines`
+  return `${NO_IMPRESSION_TRACKING} on ${n} ${n === 1 ? "line" : "lines"}`
+}
+
+/** Line note for a line with no impression tracking. */
+export function untrackedLineNote(pace: LinePace): string | null {
+  return pace.deliverables.tracked ? null : NO_IMPRESSION_TRACKING
 }
