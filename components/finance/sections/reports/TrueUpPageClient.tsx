@@ -39,7 +39,9 @@ const STATUS_TONE: Record<TrueUpStatus, string> = {
   ended: "text-status-critical-fg",
   no_invoice: "text-status-attention-fg",
   schedule_incomplete: "text-status-attention-fg",
+  to_raise: "text-status-attention-fg",
   billed_ahead: "text-muted-foreground",
+  explained: "text-muted-foreground",
   matches: "text-muted-foreground",
 }
 

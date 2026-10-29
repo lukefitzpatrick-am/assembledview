@@ -11,12 +11,17 @@
  *   notes count when authorised.
  * - 4: a gap under $1 per MBA and component is not flagged.
  * - 5: all four components (fee, ad serving, production, media).
- * - 2: billing timing per client is Stage 2 (needs 0109). Until then the
- *   month is the issue month, unless finance assigned the invoice to a
- *   record by hand (matched_by = 'manual'): then the record's month wins.
- *   Automatic matches only name the MBA. The nightly matcher allows plus or
- *   minus one month without a PO, and on 29 Oct 18 sent invoices sat on the
- *   wrong month that way (golf023 and golf024 prebills, hartm001 and others).
+ * - 2: the month is the issue month, shifted by the client's billing timing
+ *   (0109: month ahead = issue month + 1, in arrears = issue month - 1),
+ *   unless finance assigned the invoice to a record by hand
+ *   (matched_by = 'manual'): then the record's month wins. A hand link in
+ *   true_up_invoice_links wins over everything. Automatic matches only name
+ *   the MBA (Stage 2 decision 3). The nightly matcher allows plus or minus
+ *   one month without a PO, and on 29 Oct 18 sent invoices sat on the wrong
+ *   month that way (golf023 and golf024 prebills, hartm001 and others).
+ * - Stage 2 ledger (0109): a gap finance marked explained, or recorded as a
+ *   one-off or credit note to raise, shows as Explained or To raise while
+ *   the gap stays within $1 of the recorded amount.
  *
  * Sign: gap = invoiced minus scheduled. Plus = credit due to the client.
  * Minus = charge due. All money is integer cents ex GST.
@@ -45,6 +50,8 @@ export type TrueUpStatus =
   | "no_invoice"
   | "ended"
   | "schedule_incomplete"
+  | "explained"
+  | "to_raise"
 
 export const TRUE_UP_STATUS_LABELS: Record<TrueUpStatus, string> = {
   matches: "Matches",
@@ -53,6 +60,54 @@ export const TRUE_UP_STATUS_LABELS: Record<TrueUpStatus, string> = {
   no_invoice: "No invoice",
   ended: "Ended",
   schedule_incomplete: "Schedule incomplete",
+  explained: "Explained",
+  to_raise: "To raise",
+}
+
+export type TrueUpBillingTiming = "same_month" | "month_ahead" | "in_arrears"
+
+/** true_up_invoice_links rows (0109). */
+export type TrueUpInvoiceLinkSqlRow = {
+  xero_invoice_id: string
+  mba_number: string
+  /** YYYY-MM or YYYY-MM-DD; null = the attribution rule's month. */
+  billing_month: string | null
+}
+
+/** Applied true_up_actions rows (0109). Signed cents: + credit, - charge. */
+export type TrueUpActionSqlRow = {
+  id: number | string
+  mba_number: string
+  component: string
+  action: string
+  gap_cents: number | string
+  amount_cents: number | string
+  as_of_month: string
+  billing_revision_id: number | string | null
+  reason_code: string | null
+  note: string | null
+  xero_invoice_id: string | null
+  created_at: string
+  created_by_name: string | null
+  months?: string[] | null
+  strategy?: string | null
+}
+
+export type TrueUpActionRef = {
+  id: number
+  component: TrueUpComponent
+  action: "schedule" | "explained" | "one_off" | "credit_note"
+  gapCents: Cents
+  amountCents: Cents
+  asOfMonth: string
+  billingRevisionId: number | null
+  reasonCode: string | null
+  note: string | null
+  xeroInvoiceId: string | null
+  createdAt: string
+  createdByName: string | null
+  months: string[]
+  strategy: string | null
 }
 
 type Cents = number
@@ -134,6 +189,12 @@ export type TrueUpInput = {
   /** Last Xero invoice sync, for the header. */
   xeroSyncedAt?: string | null
   generatedAt?: string
+  /** 0109 (absent until the marker exists). */
+  invoiceLinks?: TrueUpInvoiceLinkSqlRow[]
+  /** clients.id -> billing timing (0109). */
+  billingTiming?: Record<string, TrueUpBillingTiming | null | undefined>
+  /** Applied true_up_actions (0109). */
+  actions?: TrueUpActionSqlRow[]
 }
 
 // ---------------------------------------------------------------------------
@@ -267,7 +328,7 @@ function parseLines(raw: TrueUpInvoiceSqlRow["line_items_json"]): TrueUpXeroLine
 // ---------------------------------------------------------------------------
 // Attribution
 
-export type AttributionSource = "matched_record" | "line_tracking" | "invoice_mba"
+export type AttributionSource = "hand_link" | "matched_record" | "line_tracking" | "invoice_mba"
 
 export type AttributedLine = {
   xeroInvoiceId: string
@@ -322,7 +383,23 @@ export function attributeInvoiceLines(input: {
   matchedRecords: TrueUpMatchedRecordSqlRow[]
   masters: MbaMaster[]
   publishedMbaKeys: Set<string>
+  /** 0109 hand links: invoice -> MBA (and month). Wins over everything. */
+  invoiceLinks?: TrueUpInvoiceLinkSqlRow[]
+  /** MBA key -> billing timing of its client (0109). */
+  timingByMba?: Map<string, TrueUpBillingTiming>
 }): { lines: AttributedLine[]; unattributed: UnattributedLine[] } {
+  const links = new Map<string, { mbaKey: string; month: string | null }>()
+  for (const l of input.invoiceLinks ?? []) {
+    const key = mbaKey(l.mba_number)
+    if (l.xero_invoice_id && key) links.set(l.xero_invoice_id, { mbaKey: key, month: monthOf(l.billing_month) })
+  }
+  const shift = (key: string, month: string | null): string | null => {
+    if (!month) return month
+    const timing = input.timingByMba?.get(key)
+    if (timing === "month_ahead") return addMonths(month, 1)
+    if (timing === "in_arrears") return addMonths(month, -1)
+    return month
+  }
   const recordsByInvoice = new Map<string, Array<{ mbaKey: string; month: string; manual: boolean }>>()
   for (const r of input.matchedRecords) {
     const month = monthOf(r.billing_month)
@@ -353,7 +430,11 @@ export function attributeInvoiceLines(input: {
 
       let key: string | null = null
       let source: AttributionSource | null = null
-      if (recordMbas.length === 1) {
+      const link = links.get(inv.xero_invoice_id)
+      if (link) {
+        key = link.mbaKey
+        source = "hand_link"
+      } else if (recordMbas.length === 1) {
         key = recordMbas[0]!
         source = "matched_record"
       } else {
@@ -367,8 +448,9 @@ export function attributeInvoiceLines(input: {
         }
       }
 
-      let month = issueMonth
-      if (key && source === "matched_record") {
+      let month = key ? shift(key, issueMonth) : issueMonth
+      if (key && source === "hand_link" && link?.month) month = link.month
+      if (key && (source === "matched_record" || source === "hand_link") && !link?.month) {
         const months = [
           ...new Set(records.filter((r) => r.mbaKey === key && r.manual).map((r) => r.month)),
         ].sort()
@@ -469,6 +551,10 @@ export type TrueUpComponentSummary = {
   /** The gap left after the covered months (equals gap when none are covered). */
   uncoveredGap: Cents
   suggestion: string
+  /** The status before an explained, one-off or credit-note record (equals status when none applies). */
+  underlyingStatus: TrueUpStatus
+  /** The ledger entry behind an Explained or To raise status. */
+  coveredBy: TrueUpActionRef | null
 }
 
 export type TrueUpMbaRow = {
@@ -486,6 +572,8 @@ export type TrueUpMbaRow = {
   months: TrueUpMonthRow[]
   hasProvisional: boolean
   notes: string[]
+  /** Applied ledger entries for this MBA, newest first (0109). */
+  actions: TrueUpActionRef[]
 }
 
 export type TrueUpReport = {
@@ -512,8 +600,10 @@ const STATUS_RANK: Record<TrueUpStatus, number> = {
   ended: 1,
   no_invoice: 2,
   schedule_incomplete: 3,
-  billed_ahead: 4,
-  matches: 5,
+  to_raise: 4,
+  billed_ahead: 5,
+  explained: 6,
+  matches: 7,
 }
 
 export function needsAction(status: TrueUpStatus): boolean {
@@ -525,13 +615,16 @@ function idOrNull(value: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null
 }
 
-function suggestionFor(summary: Omit<TrueUpComponentSummary, "suggestion">): string {
+function suggestionFor(summary: Omit<TrueUpComponentSummary, "suggestion" | "underlyingStatus" | "coveredBy">): string {
   const credit = summary.uncoveredGap > 0
   const ahead =
     summary.coveredMonths.length > 0 ? `Billed ahead for ${summary.coveredMonths.join(", ")}. ` : ""
   switch (summary.status) {
     case "matches":
+    case "explained":
       return ""
+    case "to_raise":
+      return credit ? "Credit recorded to raise. Clears when the credit note syncs" : "Charge recorded to raise. Clears when the invoice syncs"
     case "billed_ahead":
       return summary.coveredMonths.length > 0
         ? `Billed ahead. Don't invoice ${summary.coveredMonths.join(", ")} again`
@@ -553,6 +646,58 @@ function suggestionFor(summary: Omit<TrueUpComponentSummary, "suggestion">): str
       return `${ahead}${credit ? "No months left. Raise a one-off credit" : "No months left. Raise a one-off charge"}`
     }
   }
+}
+
+function parseActions(rows: TrueUpActionSqlRow[] | undefined): Map<string, TrueUpActionRef[]> {
+  const out = new Map<string, TrueUpActionRef[]>()
+  for (const r of rows ?? []) {
+    const component = String(r.component ?? "") as TrueUpComponent
+    if (!TRUE_UP_COMPONENTS.includes(component)) continue
+    const action = String(r.action ?? "") as TrueUpActionRef["action"]
+    if (!["schedule", "explained", "one_off", "credit_note"].includes(action)) continue
+    const key = mbaKey(r.mba_number)
+    if (!key) continue
+    const ref: TrueUpActionRef = {
+      id: Number(r.id),
+      component,
+      action,
+      gapCents: Math.round(num(r.gap_cents)),
+      amountCents: Math.round(num(r.amount_cents)),
+      asOfMonth: monthOf(r.as_of_month) ?? "",
+      billingRevisionId: r.billing_revision_id == null ? null : Number(r.billing_revision_id),
+      reasonCode: r.reason_code ?? null,
+      note: r.note ?? null,
+      xeroInvoiceId: r.xero_invoice_id ?? null,
+      createdAt: String(r.created_at ?? ""),
+      createdByName: r.created_by_name ?? null,
+      months: Array.isArray(r.months) ? r.months.map(String) : [],
+      strategy: r.strategy ?? null,
+    }
+    const list = out.get(key) ?? []
+    list.push(ref)
+    out.set(key, list)
+  }
+  for (const list of out.values()) list.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
+  return out
+}
+
+/**
+ * Stage 2 ledger: the newest explained, one-off or credit-note entry for the
+ * component covers the gap while the gap stays within $1 of what was
+ * recorded (explained: gap_cents; one-off and credit note: amount_cents).
+ */
+function ledgerCover(
+  actions: TrueUpActionRef[],
+  component: TrueUpComponent,
+  gap: Cents,
+): { status: TrueUpStatus; ref: TrueUpActionRef } | null {
+  for (const a of actions) {
+    if (a.component !== component || a.action === "schedule") continue
+    const recorded = a.action === "explained" ? a.gapCents : a.amountCents
+    if (Math.abs(gap - recorded) >= TRUE_UP_THRESHOLD_CENTS) continue
+    return { status: a.action === "explained" ? "explained" : "to_raise", ref: a }
+  }
+  return null
 }
 
 export function buildTrueUpReport(input: TrueUpInput): TrueUpReport {
@@ -598,11 +743,20 @@ export function buildTrueUpReport(input: TrueUpInput): TrueUpReport {
     schedule.set(key, byMonth)
   }
 
+  const timingByMba = new Map<string, TrueUpBillingTiming>()
+  for (const [key, p] of plans) {
+    const t = input.billingTiming?.[String(p.client_id ?? "")]
+    if (t === "month_ahead" || t === "in_arrears") timingByMba.set(key, t)
+  }
+  const actionsByMba = parseActions(input.actions)
+
   const { lines, unattributed } = attributeInvoiceLines({
     invoices: input.invoices,
     matchedRecords: input.matchedRecords,
     masters,
     publishedMbaKeys: new Set(plans.keys()),
+    invoiceLinks: input.invoiceLinks,
+    timingByMba,
   })
 
   const inScopeLines = lines.filter((l) => inWindow(l.month))
@@ -706,6 +860,10 @@ export function buildTrueUpReport(input: TrueUpInput): TrueUpReport {
         if (coveredMonths.length > 0 && Math.abs(uncoveredGap) < TRUE_UP_THRESHOLD_CENTS) status = "billed_ahead"
         else status = "gap"
       }
+      const underlyingStatus = status
+      const cover =
+        status === "matches" ? null : ledgerCover(actionsByMba.get(key) ?? [], c, uncoveredGap)
+      if (cover) status = cover.status
       const base = {
         component: c,
         scheduledToDate,
@@ -718,7 +876,7 @@ export function buildTrueUpReport(input: TrueUpInput): TrueUpReport {
         coveredMonths,
         uncoveredGap,
       }
-      summaries[c] = { ...base, suggestion: suggestionFor(base) }
+      summaries[c] = { ...base, suggestion: suggestionFor(base), underlyingStatus, coveredBy: cover?.ref ?? null }
     }
 
     // Skip MBAs with nothing scheduled and nothing invoiced in the window.
@@ -746,6 +904,7 @@ export function buildTrueUpReport(input: TrueUpInput): TrueUpReport {
       months,
       hasProvisional: mbaLines.some((l) => l.state === "provisional"),
       notes: [...new Set(notes)],
+      actions: actionsByMba.get(key) ?? [],
     })
   }
 
@@ -767,6 +926,8 @@ export function buildTrueUpReport(input: TrueUpInput): TrueUpReport {
     no_invoice: 0,
     ended: 0,
     schedule_incomplete: 0,
+    explained: 0,
+    to_raise: 0,
   }
   let mbasNeedingAction = 0
   for (const row of rows) {
@@ -774,7 +935,7 @@ export function buildTrueUpReport(input: TrueUpInput): TrueUpReport {
     if (needsAction(row.status)) mbasNeedingAction += 1
     for (const c of TRUE_UP_COMPONENTS) {
       const s = row.components[c]
-      if (s.status === "matches" || s.status === "billed_ahead") continue
+      if (s.status === "matches" || s.status === "billed_ahead" || s.status === "explained") continue
       gapByComponent[c] += s.uncoveredGap
       if (s.uncoveredGap < 0) chargeByComponent[c] += -s.uncoveredGap
       else creditByComponent[c] += s.uncoveredGap

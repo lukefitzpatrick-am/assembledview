@@ -20,12 +20,16 @@ import { rowsOf } from "@/lib/xero/dbRows"
 import {
   addMonths,
   buildTrueUpReport,
+  type TrueUpActionSqlRow,
+  type TrueUpBillingTiming,
+  type TrueUpInvoiceLinkSqlRow,
   type TrueUpInvoiceSqlRow,
   type TrueUpMatchedRecordSqlRow,
   type TrueUpPlanSqlRow,
   type TrueUpReport,
   type TrueUpScheduleSqlRow,
 } from "./compute"
+import { isTrueUpMigrationApplied } from "./marker"
 
 export type TrueUpQueryRunner = (query: SQL) => Promise<unknown>
 
@@ -122,13 +126,44 @@ export function trueUpMatchedRecordsSql(fromMonth: string, asOfMonth: string): S
   `
 }
 
+/** 0109 only (marker gate first). */
+export function trueUpInvoiceLinksSql(): SQL {
+  return sql`
+    SELECT xero_invoice_id, mba_number, to_char(billing_month, 'YYYY-MM') AS billing_month
+    FROM true_up_invoice_links
+  `
+}
+
+/** 0109 only (marker gate first). */
+export function trueUpBillingTimingSql(): SQL {
+  return sql`
+    SELECT client_id, billing_timing
+    FROM client_finance_owners
+    WHERE billing_timing IS NOT NULL
+  `
+}
+
+/** 0109 only (marker gate first). Applied ledger entries. */
+export function trueUpActionsSql(): SQL {
+  return sql`
+    SELECT
+      id, mba_number, component, action, gap_cents, amount_cents,
+      to_char(as_of_month, 'YYYY-MM') AS as_of_month,
+      billing_revision_id, reason_code, note, xero_invoice_id,
+      created_at, created_by_name, months, strategy
+    FROM true_up_actions
+    WHERE status = 'applied'
+    ORDER BY created_at DESC, id DESC
+  `
+}
+
 export function trueUpLastSyncSql(): SQL {
   return sql`SELECT max(last_synced_at) AS last_synced_at FROM xero_ar_invoices`
 }
 
 export async function loadTrueUpWith(
   run: TrueUpQueryRunner,
-  args: { asOfMonth: string; fromMonth: string; now?: Date },
+  args: { asOfMonth: string; fromMonth: string; now?: Date; with0109?: boolean },
 ): Promise<TrueUpReport> {
   const [plans, schedule, invoices, matched, sync] = await Promise.all([
     run(trueUpPlansSql()),
@@ -137,6 +172,26 @@ export async function loadTrueUpWith(
     run(trueUpMatchedRecordsSql(args.fromMonth, args.asOfMonth)),
     run(trueUpLastSyncSql()),
   ])
+  let invoiceLinks: TrueUpInvoiceLinkSqlRow[] | undefined
+  let billingTiming: Record<string, TrueUpBillingTiming> | undefined
+  let actions: TrueUpActionSqlRow[] | undefined
+  if (args.with0109) {
+    const [links, timing, acts] = await Promise.all([
+      run(trueUpInvoiceLinksSql()),
+      run(trueUpBillingTimingSql()),
+      run(trueUpActionsSql()),
+    ])
+    invoiceLinks = rowsOf<TrueUpInvoiceLinkSqlRow>(links)
+    billingTiming = {}
+    for (const r of rowsOf<{ client_id: number | string; billing_timing: string | null }>(timing)) {
+      const t = String(r.billing_timing ?? "")
+      if (t === "same_month" || t === "month_ahead" || t === "in_arrears") billingTiming[String(r.client_id)] = t
+    }
+    actions = rowsOf<TrueUpActionSqlRow>(acts).map((a) => ({
+      ...a,
+      created_at: a.created_at == null ? "" : new Date(a.created_at as unknown as string).toISOString(),
+    }))
+  }
   const syncRow = rowsOf<{ last_synced_at: string | Date | null }>(sync)[0]
   const syncedAt = syncRow?.last_synced_at
   return buildTrueUpReport({
@@ -148,12 +203,17 @@ export async function loadTrueUpWith(
     matchedRecords: rowsOf<TrueUpMatchedRecordSqlRow>(matched),
     xeroSyncedAt: syncedAt == null ? null : new Date(syncedAt).toISOString(),
     generatedAt: (args.now ?? new Date()).toISOString(),
+    invoiceLinks,
+    billingTiming,
+    actions,
   })
 }
 
+/** The report; with 0109 applied it also reads invoice links, billing timing and the ledger. */
 export async function loadTrueUp(args: { asOfMonth: string; fromMonth: string }): Promise<TrueUpReport> {
   const db = getDb()
-  return loadTrueUpWith((query) => db.execute(query), args)
+  const with0109 = await isTrueUpMigrationApplied()
+  return loadTrueUpWith((query) => db.execute(query), { ...args, with0109 })
 }
 
 export function todaySydneyIso(): string {
