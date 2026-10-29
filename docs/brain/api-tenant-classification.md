@@ -118,6 +118,8 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | GET | `/api/admin/myhours-mapping` | admin-only | requireRole | `app/api/admin/myhours-mapping/route.ts` |
 | POST | `/api/admin/myhours-mapping` | admin-only | requireRole | `app/api/admin/myhours-mapping/route.ts` |
 | GET | `/api/admin/publisher-profiles` | admin-only | requireRole | `app/api/admin/publisher-profiles/route.ts` |
+| GET | `/api/admin/features` | admin-only | requireAdmin | `app/api/admin/features/route.ts` |
+| POST | `/api/admin/features` | admin-only | requireAdmin, or requireFinanceAdmin for finance switches | `app/api/admin/features/route.ts` |
 | GET | `/api/admin/reports` | admin-only | requireAdmin | `app/api/admin/reports/route.ts` |
 | GET | `/api/admin/web-reports` | admin-only | requireAdmin | `app/api/admin/web-reports/route.ts` |
 | POST | `/api/admin/reports/enqueue` | admin-only | requireAdmin | `app/api/admin/reports/enqueue/route.ts` |
