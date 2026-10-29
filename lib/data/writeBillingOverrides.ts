@@ -31,6 +31,8 @@ import type {
 import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
 import { formatAUD, roundMoney2 } from "@/lib/format/money"
 import { toCents } from "@/lib/money"
+import { loadTrueUpLocks } from "@/lib/finance/trueUp/locks"
+import { overrideLockConflicts, trueUpLockMessage } from "@/lib/finance/trueUp/resetGuard"
 
 export type BillingOverrideComponent = "media" | "fee"
 
@@ -58,7 +60,8 @@ export class BillingOverrideWriteError extends Error {
       | "NOT_FOUND"
       | "BAD_REQUEST"
       | "SUM_VIOLATION"
-      | "VERSION_PUBLISHED_IMMUTABLE",
+      | "VERSION_PUBLISHED_IMMUTABLE"
+      | "TRUE_UP_LOCKED",
     message: string,
     public readonly delta?: number,
     public readonly expected?: number,
@@ -551,6 +554,47 @@ async function assertVersionBillingMutable(
 }
 
 /**
+ * True-up hard block (C-157): refuse an override write or reset that moves a
+ * month an applied true-up schedule fix set. `after` null = the rows are deleted.
+ */
+export async function assertTrueUpLocksKept(
+  args: {
+    versionId: number
+    mbaNumber: string
+    lineItemId: string
+    components: BillingOverrideComponent[]
+    after: { component: BillingOverrideComponent; months: unknown } | null
+  },
+  deps: {
+    loadLocks?: typeof loadTrueUpLocks
+    readRows?: (versionId: number, lineItemId: string) => Promise<Array<{ lineItemId: string | null; component: string | null; months: unknown }>>
+  } = {},
+): Promise<void> {
+  const locks = await (deps.loadLocks ?? loadTrueUpLocks)(args.mbaNumber)
+  if (locks.length === 0) return
+  const readRows = deps.readRows ?? readOverrideRowsForLine
+  const before = (await readRows(args.versionId, args.lineItemId))
+    .filter((r) => args.components.includes(r.component as BillingOverrideComponent))
+    .map((r) => ({ lineItemId: String(r.lineItemId), component: String(r.component), months: r.months }))
+  const afterRows = args.after ? [{ lineItemId: args.lineItemId, component: args.after.component, months: args.after.months }] : []
+  const conflicts = overrideLockConflicts(locks, before, afterRows)
+  if (conflicts.length > 0) {
+    throw new BillingOverrideWriteError("TRUE_UP_LOCKED", trueUpLockMessage(conflicts))
+  }
+}
+
+async function readOverrideRowsForLine(versionId: number, lineItemId: string) {
+  return getDb()
+    .select({
+      lineItemId: schema.billingOverrides.lineItemId,
+      component: schema.billingOverrides.component,
+      months: schema.billingOverrides.months,
+    })
+    .from(schema.billingOverrides)
+    .where(and(eq(schema.billingOverrides.versionId, versionId), eq(schema.billingOverrides.lineItemId, lineItemId)))
+}
+
+/**
  * Upsert one (version, line_item_id, component) override row.
  * Returns the API-shaped row (includes media_plan_version alias).
  */
@@ -593,6 +637,7 @@ export async function replaceBillingOverrideLine(
       component,
     })
   const fullMonths = expandOverrideMonthsToFullSpan(payloadMonths, autoSpan)
+  await assertTrueUpLocksKept({ versionId, mbaNumber, lineItemId, components: [component], after: { component, months: fullMonths } })
 
   const actual = roundMoney2(
     fullMonths.reduce((s, m) => s + (Number(m.amount) || 0), 0)
@@ -756,6 +801,7 @@ export async function resetBillingOverrideLine(
   const componentsToRestore: BillingOverrideComponent[] = component
     ? [component]
     : ["media", "fee"]
+  await assertTrueUpLocksKept({ versionId, mbaNumber, lineItemId, components: componentsToRestore, after: null })
 
   let deletedCount = 0
   await db.transaction(async (tx) => {

@@ -388,6 +388,7 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | GET | `/api/mediaplans/mba/[mba_number]/material-deadlines` | tenant-scoped | checkClientMbaAccess | `app/api/mediaplans/mba/[mba_number]/material-deadlines/route.ts` |
 | POST | `/api/mediaplans/mba/[mba_number]/material-deadlines` | tenant-scoped | checkClientMbaAccess | `app/api/mediaplans/mba/[mba_number]/material-deadlines/route.ts` |
 | GET | `/api/mediaplans/mba/[mba_number]/material-instructions` | admin-only | requireRole | `app/api/mediaplans/mba/[mba_number]/material-instructions/route.ts` |
+| GET | `/api/mediaplans/mba/[mba_number]/true-up-locks` | tenant-scoped | checkClientMbaAccess | `app/api/mediaplans/mba/[mba_number]/true-up-locks/route.ts` (C-157 reset guard: applied true-up schedule fixes, component and months) |
 | POST | `/api/mediaplans/mba/[mba_number]/material-instructions` | admin-only | requireRole | `app/api/mediaplans/mba/[mba_number]/material-instructions/route.ts` |
 | PATCH | `/api/mediaplans/mba/[mba_number]/status` | tenant-scoped | checkClientMbaAccess | `app/api/mediaplans/mba/[mba_number]/status/route.ts` |
 | GET | `/api/mediaplans/mbanumber` | admin-only | requireRole | `app/api/mediaplans/mbanumber/route.ts` |

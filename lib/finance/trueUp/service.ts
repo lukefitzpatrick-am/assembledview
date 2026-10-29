@@ -129,12 +129,12 @@ export async function previewTrueUpFix(args: {
     db: args.db,
   })
   if (!out.ok) return out
-  // Full-reset guard (design T8): the editor's "reset billing to auto" is
-  // closed on approved and booked plans (isApprovedOrBeyond). On any other
-  // status it is open and would rebuild billing from the bursts, so say so.
+  // C-157: once applied, the true-up locks these months. On a plan that is
+  // not approved or booked the editor's full billing reset is otherwise open,
+  // so say what the lock means.
   if (!isApprovedOrBeyond(found.row.campaignStatus)) {
     out.impacts.push(
-      `This plan is ${found.row.campaignStatus || "not approved"}. A full billing reset in the editor would undo this true-up. Approve the plan first, or don't reset it.`,
+      `This plan is ${found.row.campaignStatus || "not approved"}. Once applied, the editor's full billing reset and override changes to these months are blocked until the true-up is undone.`,
     )
   }
   return {

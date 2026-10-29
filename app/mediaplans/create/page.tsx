@@ -1,5 +1,7 @@
 "use client"
 
+import { trueUpLockMessage } from "@/lib/finance/trueUp/resetGuard"
+import { fetchTrueUpLocks } from "@/lib/finance/trueUp/resetGuardClient"
 import {
   useState,
   useEffect,
@@ -4721,8 +4723,23 @@ function CreateMediaPlan() {
     manualBillingOverrideMetaRef.current = new Map()
   }, [calculateBillingSchedule])
 
-  const runConfirmedFullBillingResetToAuto = useCallback(() => {
+  const runConfirmedFullBillingResetToAuto = useCallback(async () => {
     setFullBillingResetConfirmOpen(false)
+    // C-157 twin of the edit page: a plan with an applied true-up on any
+    // billing month may not be reset. A new MBA has none; the save route
+    // refuses the same change (TRUE_UP_LOCKED).
+    const trueUpLocks = (await fetchTrueUpLocks(mbaNumber)) ?? []
+    if (trueUpLocks.length > 0) {
+      const conflicts = trueUpLocks.flatMap((l) =>
+        l.months.map((month) => ({ component: l.component, month }))
+      )
+      toast({
+        variant: "destructive",
+        title: "Billing reset blocked by a true-up",
+        description: trueUpLockMessage(conflicts),
+      })
+      return
+    }
     setIsManualBillingModalOpen(false)
     setBillingError({ show: false, messages: [] })
     handleResetBillingScheduleToAuto()
@@ -4730,7 +4747,7 @@ function CreateMediaPlan() {
       title: "Billing reset",
       description: "Schedule replaced from auto (bursts + line items).",
     })
-  }, [handleResetBillingScheduleToAuto])
+  }, [handleResetBillingScheduleToAuto, mbaNumber])
 
   /** Apply locally only — campaign save commits via MB-22 REPLACE-SET. */
   function handleManualBillingApply() {
@@ -9025,7 +9042,7 @@ const handleSaveAll = async (opts?: {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={(e) => {
                 e.preventDefault()
-                runConfirmedFullBillingResetToAuto()
+                void runConfirmedFullBillingResetToAuto()
               }}
             >
               Reset all billing to auto

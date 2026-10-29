@@ -1,5 +1,7 @@
 "use client"
 
+import { scheduleLockConflicts, trueUpLockMessage, type TrueUpLock } from "@/lib/finance/trueUp/resetGuard"
+import { fetchTrueUpLocks } from "@/lib/finance/trueUp/resetGuardClient"
 import {
   useState,
   useEffect,
@@ -5808,7 +5810,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
    * **workingBillingMonths** from `autoReferenceBillingMonths` + attached line items. Does not update `savedBillingMonths`
    * until campaign save succeeds.
    */
-  const handleResetBillingScheduleToAuto = useCallback(() => {
+  const handleResetBillingScheduleToAuto = useCallback((trueUpLocks: TrueUpLock[] = []): boolean => {
     if (campaignStartDate && campaignEndDate) {
       calculateBillingSchedule(campaignStartDate, campaignEndDate)
     } else {
@@ -5822,13 +5824,27 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         title: "Cannot reset billing",
         description: "No auto billing schedule yet. Set campaign dates and media bursts first.",
       })
-      return
+      return false
     }
 
     const next = stampAllBillingLineModes(
       buildWorkingMonthsFromAutoReference(autoRows, attachLineItemsToMonthsRef.current),
       "auto"
     )
+    // C-157 hard block: never reset a month an applied true-up set to what Xero invoiced.
+    const trueUpConflicts = scheduleLockConflicts(
+      trueUpLocks,
+      workingBillingMonthsRef.current as unknown as Array<Record<string, unknown>>,
+      next as unknown as Array<Record<string, unknown>>
+    )
+    if (trueUpConflicts.length > 0) {
+      toast({
+        variant: "destructive",
+        title: "Billing reset blocked by a true-up",
+        description: trueUpLockMessage(trueUpConflicts),
+      })
+      return false
+    }
     setWorkingBillingMonths(next)
     workingBillingMonthsRef.current = next
     billingLineItemsFollowAutoRef.current = true
@@ -5842,6 +5858,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     pendingBillingOverrideMetaRef.current = new Map()
     setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
     manualBillingCostPreBillSnapshotRef.current = {}
+    return true
   }, [calculateBillingSchedule, campaignStartDate, campaignEndDate])
 
   const handleAcknowledgeDivergence = useCallback(() => {
@@ -5852,11 +5869,14 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     setShowDivergenceBanner(false)
   }, [mbaNumber, selectedVersionNumber])
 
-  const runConfirmedFullBillingResetToAuto = useCallback(() => {
+  const runConfirmedFullBillingResetToAuto = useCallback(async () => {
     setFullBillingResetConfirmOpen(false)
+    // C-157: applied true-up fixes for this MBA. A failed fetch falls through;
+    // the save route refuses the same change (TRUE_UP_LOCKED).
+    const trueUpLocks = (await fetchTrueUpLocks(mbaNumberRef.current)) ?? []
+    if (!handleResetBillingScheduleToAuto(trueUpLocks)) return
     setIsManualBillingModalOpen(false)
     setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
-    handleResetBillingScheduleToAuto()
     toast({
       title: "Billing reset",
       description: "Schedule replaced from auto reference (bursts + line items). Save the plan to update the stored baseline.",
@@ -13363,7 +13383,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={(e) => {
                 e.preventDefault()
-                runConfirmedFullBillingResetToAuto()
+                void runConfirmedFullBillingResetToAuto()
               }}
             >
               Reset all billing to auto

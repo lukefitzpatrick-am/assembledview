@@ -33,6 +33,8 @@ import { and, count, eq, inArray, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 
 import { getDb, schema, type Db } from "@/db"
+import { loadTrueUpLocks, type LockExecutor } from "@/lib/finance/trueUp/locks"
+import { replaceSetLockConflicts, TRUE_UP_LOCKED_CODE, trueUpLockMessage } from "@/lib/finance/trueUp/resetGuard"
 import { DOC_SKIP_REASON } from "@/lib/docs/saveDocSteps"
 import {
   runPublishDocumentsBestEffort,
@@ -69,6 +71,7 @@ import {
 import {
   buildCanonicalBillingLineIdSet,
   canonicalBillingLineIdSetHas,
+  toBillingOverrideLineItemId,
 } from "@/lib/finance/manualBillingOverridesUi"
 import {
   shouldReplaceBillingOverridesFromPayload,
@@ -260,6 +263,7 @@ export type SavePlanErrorCode =
   | "BILLING_OVERRIDE_SUM_VIOLATION"
   | "VERSION_PUBLISHED_IMMUTABLE"
   | "LINE_ITEM_ID_RETIRED"
+  | "TRUE_UP_LOCKED"
 
 export class SavePlanError extends Error {
   readonly code: SavePlanErrorCode
@@ -637,7 +641,8 @@ async function replaceBillingOverridesFromPayload(
   tx: Tx,
   versionId: number,
   lineItems: SavePlanLineItem[],
-  envelope: BillingOverridesSaveEnvelope | null | undefined
+  envelope: BillingOverridesSaveEnvelope | null | undefined,
+  mbaNumber: string
 ): Promise<"applied" | "skipped"> {
   if (!shouldReplaceBillingOverridesFromPayload(envelope)) {
     console.warn(
@@ -664,21 +669,15 @@ async function replaceBillingOverridesFromPayload(
     .select({
       id: schema.billingOverrides.id,
       lineItemId: schema.billingOverrides.lineItemId,
+      component: schema.billingOverrides.component,
+      months: schema.billingOverrides.months,
     })
     .from(schema.billingOverrides)
     .where(eq(schema.billingOverrides.versionId, versionId))
 
-  const idsToDelete = existing
-    .filter((r) =>
-      canonicalBillingLineIdSetHas(payloadCanon, String(r.lineItemId ?? ""))
-    )
-    .map((r) => r.id)
-
-  if (idsToDelete.length > 0) {
-    await tx
-      .delete(schema.billingOverrides)
-      .where(inArray(schema.billingOverrides.id, idsToDelete))
-  }
+  const replaced = (r: { lineItemId: string | null }) =>
+    canonicalBillingLineIdSetHas(payloadCanon, String(r.lineItemId ?? ""))
+  const idsToDelete = existing.filter(replaced).map((r) => r.id)
 
   const inserts: Array<{
     versionId: number
@@ -733,6 +732,35 @@ async function replaceBillingOverridesFromPayload(
         dateBasis: String(fee.dateBasis ?? ""),
       })
     }
+  }
+
+  // True-up hard block (C-157): a reset, or any override change, may not move a
+  // month an applied true-up schedule fix set to what Xero invoiced.
+  const locks = await loadTrueUpLocks(mbaNumber, { exec: tx as unknown as LockExecutor })
+  if (locks.length > 0) {
+    const toRow = (r: { lineItemId: string | null; component: string | null; months: unknown }) => ({
+      lineItemId: String(r.lineItemId ?? ""),
+      component: String(r.component ?? ""),
+      months: r.months,
+    })
+    const conflicts = replaceSetLockConflicts({
+      locks,
+      existing: existing.map(toRow),
+      isReplaced: (r) => replaced(r),
+      inserts: inserts.map(toRow),
+      canon: (id) => toBillingOverrideLineItemId(String(id ?? "").trim()),
+    })
+    if (conflicts.length > 0) {
+      throw new SavePlanError(TRUE_UP_LOCKED_CODE, trueUpLockMessage(conflicts), conflicts[0]!.lineItemId, {
+        trueUpConflicts: conflicts,
+      })
+    }
+  }
+
+  if (idsToDelete.length > 0) {
+    await tx
+      .delete(schema.billingOverrides)
+      .where(inArray(schema.billingOverrides.id, idsToDelete))
   }
 
   if (inserts.length > 0) {
@@ -961,7 +989,8 @@ export async function savePlanVersion(
         tx as Tx,
         versionId,
         input.lineItems,
-        input.billingOverrides
+        input.billingOverrides,
+        input.mbaNumber
       )
 
       const overrideRows = await tx

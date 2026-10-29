@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
         error.code === "NOT_FOUND"
           ? 404
           : error.code === "SUM_VIOLATION" ||
-              error.code === "VERSION_PUBLISHED_IMMUTABLE"
+              (error.code === "VERSION_PUBLISHED_IMMUTABLE" || error.code === "TRUE_UP_LOCKED")
             ? 409
             : 400
       return NextResponse.json(

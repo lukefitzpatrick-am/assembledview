@@ -354,7 +354,8 @@ export async function POST(request: NextRequest) {
         err.code === "C1_FULL_SCOPE" ||
         err.code === "BILLING_OVERRIDE_SUM_VIOLATION" ||
         err.code === "VERSION_PUBLISHED_IMMUTABLE" ||
-        err.code === "LINE_ITEM_ID_RETIRED"
+        err.code === "LINE_ITEM_ID_RETIRED" ||
+        err.code === "TRUE_UP_LOCKED"
           ? 409
           : err.code === "MASTER_NOT_FOUND"
             ? 404
