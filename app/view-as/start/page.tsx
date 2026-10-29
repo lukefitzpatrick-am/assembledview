@@ -45,7 +45,7 @@ export default async function ViewAsStartPage({
       <PageHeader title="View as client" lede="Simulate the client's view for a demo. Read-only, and it ends on its own." />
       {!isViewAsEnabled() ? (
         <p className="text-sm text-muted-foreground">
-          View as client is switched off. Set VIEW_AS_ENABLED to on and VIEW_AS_SECRET (32+ characters) to use it.
+          View as client is switched off. Set VIEW_AS_ENABLED to on in Vercel, plus APP_SIGNING_SECRET (32+ characters) if it is not set yet.
         </p>
       ) : active ? (
         <div className="flex flex-col gap-3">

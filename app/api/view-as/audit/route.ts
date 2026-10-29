@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   if (!roles.includes("admin") || !raw?.user) {
     return new NextResponse(null, { status: 204 })
   }
-  const secret = getViewAsSecret()
+  const secret = await getViewAsSecret()
   const token = request.cookies.get(VIEW_AS_COOKIE)?.value
   if (!secret || !token) return new NextResponse(null, { status: 204 })
   const verified = await verifyViewAsToken(token, secret, Date.now())

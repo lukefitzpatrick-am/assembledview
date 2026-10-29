@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     return clear({ redirect: "/" })
   }
 
-  const secret = getViewAsSecret()
+  const secret = await getViewAsSecret()
   const now = Date.now()
   const live = token && secret ? await verifyViewAsToken(token, secret, now) : null
   const lapsed = token && secret && !live?.ok ? await verifyViewAsToken(token, secret, now, { allowExpired: true }) : null

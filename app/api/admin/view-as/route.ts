@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   }
   if (!isViewAsEnabled()) {
     return NextResponse.json(
-      { error: "view_as_disabled", message: "View as client is switched off (VIEW_AS_ENABLED and VIEW_AS_SECRET)." },
+      { error: "view_as_disabled", message: "View as client is switched off (VIEW_AS_ENABLED, plus APP_SIGNING_SECRET or VIEW_AS_SECRET)." },
       { status: 404 },
     )
   }
@@ -100,7 +100,14 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = buildViewAsPayload({ adminSub: sub, slug, clientId, clientName, minutes, nowMs: Date.now() })
-  const token = await signViewAsPayload(payload, getViewAsSecret()!)
+  const secret = await getViewAsSecret()
+  if (!secret) {
+    return NextResponse.json(
+      { error: "view_as_disabled", message: "View as client has no signing secret (APP_SIGNING_SECRET or VIEW_AS_SECRET)." },
+      { status: 503 },
+    )
+  }
+  const token = await signViewAsPayload(payload, secret)
   const response = NextResponse.json({
     redirect: `/dashboard/${encodeURIComponent(slug)}`,
     slug,

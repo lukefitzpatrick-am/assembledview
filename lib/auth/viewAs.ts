@@ -21,6 +21,7 @@
  */
 
 import { userHasAdminAccess } from "../rbac"
+import { hasSigningKey, signingKeyFor } from "../security/signingSecret"
 
 export const VIEW_AS_COOKIE = "__Host-av_view_as"
 /** Non-secret marker that a client view was running (expiry + 12 h). */
@@ -73,14 +74,19 @@ export type ViewAsMarker = {
 
 type Env = Record<string, string | undefined>
 
+/**
+ * VIEW_AS_ENABLED stays an env var (the view_as switch is "set in Vercel" in
+ * lib/features/registry.ts): middleware reads it on every request and can't
+ * query the database. The key is VIEW_AS_SECRET when set, else derived from
+ * APP_SIGNING_SECRET (lib/security/signingSecret.ts).
+ */
 export function isViewAsEnabled(env: Env = process.env as Env): boolean {
   if (!ON.has((env.VIEW_AS_ENABLED ?? "").trim().toLowerCase())) return false
-  return getViewAsSecret(env) != null
+  return hasSigningKey("view-as", env)
 }
 
-export function getViewAsSecret(env: Env = process.env as Env): string | null {
-  const secret = env.VIEW_AS_SECRET ?? ""
-  return secret.length >= VIEW_AS_MIN_SECRET_LENGTH ? secret : null
+export async function getViewAsSecret(env: Env = process.env as Env): Promise<string | null> {
+  return signingKeyFor("view-as", env)
 }
 
 export function normaliseViewAsMinutes(value: unknown): ViewAsMinutes {
@@ -277,7 +283,9 @@ export async function resolveViewAs<S extends SessionLike | null>(
   const env = options.env ?? (process.env as Env)
   if (!isViewAsEnabled(env)) return { session, status: "ignored", reason: "disabled" }
   if (!session || !session.user) return { session, status: "ignored", reason: "no_session" }
-  const verified = await verifyViewAsToken(token, getViewAsSecret(env)!, options.nowMs)
+  const secret = await getViewAsSecret(env)
+  if (!secret) return { session, status: "ignored", reason: "disabled" }
+  const verified = await verifyViewAsToken(token, secret, options.nowMs)
   if (!verified.ok) return { session, status: "ignored", reason: verified.reason }
   if (!userHasAdminAccess(session.user as never)) return { session, status: "ignored", reason: "not_admin" }
   if (session.user.sub !== verified.payload.adminSub) return { session, status: "ignored", reason: "wrong_admin" }

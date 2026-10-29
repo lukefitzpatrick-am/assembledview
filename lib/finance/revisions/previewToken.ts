@@ -4,10 +4,14 @@
  * what the user saw and what is written.
  *
  * token = base64url(payload JSON) "." base64url(HMAC-SHA256(secret, payload))
- * Secret: BILLING_REVISION_TOKEN_SECRET (server only). Missing secret = no
- * tokens at all (fail closed).
+ * Key: BILLING_REVISION_TOKEN_SECRET when set (16+), else derived from
+ * APP_SIGNING_SECRET (lib/security/signingSecret.ts, purpose
+ * "billing-revision-preview"). Missing both = no tokens at all (fail closed).
+ * True-up previews use the same token.
  */
 import { createHmac, timingSafeEqual } from "node:crypto"
+
+import { signingKeyForSync } from "@/lib/security/signingSecretNode"
 
 import type { RevisionOptions, RevisionRequest } from "./types"
 
@@ -30,8 +34,7 @@ export type PreviewTokenPayload = {
 export type PreviewTokenError = "TOKEN_SECRET_MISSING" | "TOKEN_INVALID" | "TOKEN_EXPIRED" | "TOKEN_OTHER_USER"
 
 function secret(): string | null {
-  const s = String(process.env.BILLING_REVISION_TOKEN_SECRET ?? "").trim()
-  return s.length >= 16 ? s : null
+  return signingKeyForSync("billing-revision-preview")
 }
 
 function b64url(buf: Buffer | string): string {
@@ -80,7 +83,7 @@ export function verifyPreviewToken(
 }
 
 export const PREVIEW_TOKEN_MESSAGES: Record<PreviewTokenError, string> = {
-  TOKEN_SECRET_MISSING: "Billing revisions are not set up on this server (BILLING_REVISION_TOKEN_SECRET).",
+  TOKEN_SECRET_MISSING: "Billing revisions are not set up on this server (APP_SIGNING_SECRET).",
   TOKEN_INVALID: "This preview is not valid. Preview again.",
   TOKEN_EXPIRED: "This preview has expired (15 minutes). Preview again.",
   TOKEN_OTHER_USER: "This preview belongs to another user. Preview again.",
