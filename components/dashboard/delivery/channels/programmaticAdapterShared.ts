@@ -45,7 +45,14 @@ import {
   resolvePacingWindow,
 } from "@/lib/pacing/expectedForWindow"
 import { paceProgressCard } from "../shared/paceProgressCard"
-import { computeLinePace, sumLinePaces, untrackedLineNote, untrackedNote, type ChannelPacingInputs } from "./linePace"
+import {
+  computeLinePace,
+  countsTowardsCpm,
+  sumLinePaces,
+  untrackedLineNote,
+  untrackedNote,
+  type ChannelPacingInputs,
+} from "./linePace"
 
 const FEE_MEDIA_TYPE: Record<"programmatic-display" | "programmatic-video" | "programmatic-ooh", string> = {
   "programmatic-display": "progDisplay",
@@ -470,21 +477,28 @@ export function buildProgrammaticChannelSection(input: {
         fallbackVersionId: estimateVersionId,
       }),
       deliverableIsImpressions: m.deliverableKey === "impressions",
+      wholeDelivery: m.wholeDelivery,
     })
   })
   const channelPace = sumLinePaces(linePaces)
 
-  const kpisRollup = summarizeDv360Actuals(
-    metrics.flatMap((m) =>
-      m.actualsDaily.map((d) => ({
-        spend: d.spend,
-        impressions: d.impressions,
-        clicks: d.clicks,
-        conversions: d.conversions,
-        videoViews: d.videoViews,
-      })),
-    ),
-  )
+  const rollupOf = (lines: typeof metrics) =>
+    summarizeDv360Actuals(
+      lines.flatMap((m) =>
+        m.actualsDaily.map((d) => ({
+          spend: d.spend,
+          impressions: d.impressions,
+          clicks: d.clicks,
+          conversions: d.conversions,
+          videoViews: d.videoViews,
+        })),
+      ),
+    )
+  const kpisRollup = rollupOf(metrics)
+  // REP-5: CPM leaves out lines with no impression tracking, as Direct Booked Digital does.
+  const cpmMetrics = metrics.filter((_, i) => countsTowardsCpm(linePaces[i]!))
+  const cpmLeavesLinesOut = cpmMetrics.length < metrics.length
+  const cpmRollup = cpmLeavesLinesOut ? rollupOf(cpmMetrics) : kpisRollup
 
   // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).
   const mediaTypeColour = channelMediaTypeColour(key)
@@ -530,7 +544,7 @@ export function buildProgrammaticChannelSection(input: {
       }
     : {
         label: "Avg CPM",
-        value: kpisRollup.cpm == null ? "—" : formatCurrency2dp(kpisRollup.cpm),
+        value: cpmRollup.cpm == null ? "—" : formatCurrency2dp(cpmRollup.cpm),
       }
   const summaryChips = [
     spendChip,
@@ -575,21 +589,39 @@ export function buildProgrammaticChannelSection(input: {
     isVideoChannel &&
     normalized.some((li) => li.deliverySourceMap?.delivery_source === "partner_file")
 
-  const aggregateKpiTiles = buildProgrammaticKpiTiles({
-    kpis: kpisRollup,
+  const tileInputs = {
     accentColour,
     isVideo: isVideoChannel,
     isOoh: isOohChannel,
     mbaNumber,
     kpiVersionNumber,
     lineItemTargets,
-    activeItems: normalized,
     sectionKey: key,
-    plannedSpendByLineId,
     isAdmin,
     vtrTracked,
     spendModelled: allSpendModelled,
+  }
+  let aggregateKpiTiles = buildProgrammaticKpiTiles({
+    ...tileInputs,
+    kpis: kpisRollup,
+    activeItems: normalized,
+    plannedSpendByLineId,
   })
+  if (cpmLeavesLinesOut) {
+    // The CPM tile and its target read the tracked lines only (REP-5).
+    const cpmPlannedSpend: Record<string, number> = {}
+    for (const m of cpmMetrics) {
+      const id = String(m.lineItem.line_item_id ?? "").trim()
+      if (id) cpmPlannedSpend[id] = m.booked.spend
+    }
+    const cpmTile = buildProgrammaticKpiTiles({
+      ...tileInputs,
+      kpis: cpmRollup,
+      activeItems: cpmMetrics.map((m) => m.lineItem),
+      plannedSpendByLineId: cpmPlannedSpend,
+    }).find((tile) => tile.label === "CPM")
+    if (cpmTile) aggregateKpiTiles = aggregateKpiTiles.map((tile) => (tile.label === "CPM" ? cpmTile : tile))
+  }
 
   const accordionItems = metrics.map((m, lineIndex) => {
     const pace = linePaces[lineIndex]!

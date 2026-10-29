@@ -45,7 +45,14 @@ import {
   resolvePacingWindow,
 } from "@/lib/pacing/expectedForWindow"
 import { paceProgressCard } from "../shared/paceProgressCard"
-import { computeLinePace, sumLinePaces, untrackedLineNote, untrackedNote, type ChannelPacingInputs } from "./linePace"
+import {
+  computeLinePace,
+  countsTowardsCpm,
+  sumLinePaces,
+  untrackedLineNote,
+  untrackedNote,
+  type ChannelPacingInputs,
+} from "./linePace"
 
 function onTrackToDelivery(s: SocialLineMetrics["onTrackStatus"]): DeliveryStatus {
   return s as DeliveryStatus
@@ -383,11 +390,16 @@ export function buildSocialChannelSectionForPlatform(input: {
         fallbackVersionId: estimateVersionId,
       }),
       deliverableIsImpressions: m.deliverableKey === "impressions",
+      wholeDelivery: m.wholeDelivery,
     })
   })
   const channelPace = sumLinePaces(linePaces)
 
   const kpisRaw = summarizeActuals(metrics.flatMap((m) => m.actualsDaily))
+  // REP-5: CPM leaves out lines with no impression tracking, as Direct Booked Digital does.
+  const cpmMetrics = metrics.filter((_, i) => countsTowardsCpm(linePaces[i]!))
+  const cpmLeavesLinesOut = cpmMetrics.length < metrics.length
+  const cpmKpis = cpmLeavesLinesOut ? summarizeActuals(cpmMetrics.flatMap((m) => m.actualsDaily)) : kpisRaw
 
   // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).
   const mediaTypeColour = channelMediaTypeColour(key)
@@ -397,7 +409,7 @@ export function buildSocialChannelSectionForPlatform(input: {
   const summaryChips = [
     { label: "Total spend", value: formatCurrency(channelPace.spend.delivered) },
     { label: "Total impressions", value: formatNumber(kpisRaw.impressions) },
-    { label: "Avg CPM", value: kpisRaw.cpm == null ? "—" : formatCurrency2dp(kpisRaw.cpm) },
+    { label: "Avg CPM", value: cpmKpis.cpm == null ? "—" : formatCurrency2dp(cpmKpis.cpm) },
     {
       label: "Avg delivery",
       value: (() => {
@@ -436,19 +448,32 @@ export function buildSocialChannelSectionForPlatform(input: {
     if (id) plannedSpendByLineId[id] = m.booked.spend
   }
 
-  const kpiTiles = buildKpiTiles({
-    kpis: kpisRaw,
+  const tileInputs = {
     accentColour,
     includeVideoMetrics: includeVideo,
     mbaNumber,
     kpiVersionNumber,
     lineItemTargets,
-    activeItems,
     sectionKey: key,
-    plannedSpendByLineId,
     isAdmin,
     vtrThreeSecondViews: true,
-  })
+  }
+  let kpiTiles = buildKpiTiles({ ...tileInputs, kpis: kpisRaw, activeItems, plannedSpendByLineId })
+  if (cpmLeavesLinesOut) {
+    // The CPM tile and its target read the tracked lines only (REP-5).
+    const cpmPlannedSpend: Record<string, number> = {}
+    for (const m of cpmMetrics) {
+      const id = String(m.lineItem.line_item_id ?? "").trim()
+      if (id) cpmPlannedSpend[id] = m.booked.spend
+    }
+    const cpmTile = buildKpiTiles({
+      ...tileInputs,
+      kpis: cpmKpis,
+      activeItems: cpmMetrics.map((m) => m.lineItem),
+      plannedSpendByLineId: cpmPlannedSpend,
+    }).find((tile) => tile.label === "CPM")
+    if (cpmTile) kpiTiles = kpiTiles.map((tile) => (tile.label === "CPM" ? cpmTile : tile))
+  }
 
   const knownPlanLineIds = activeItems
     .map((item) => String(item.line_item_id ?? "").trim())

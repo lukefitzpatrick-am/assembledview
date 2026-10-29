@@ -54,6 +54,12 @@ export type SocialLineMetrics = {
   actualsDaily: (ActualsDaily & { deliverable_value?: number })[]
   matchedRows: MetaPacingRow[]
   matchBreakdown: { targetId: string | null; byId: number; platform: string | null }
+  /**
+   * Impressions and clicks across the line's whole delivery (every row
+   * fetched for the campaign), whatever the date filter. Decides "No
+   * impression tracking" the same way as Direct Booked Digital (REP-5).
+   */
+  wholeDelivery: { impressions: number; clicks: number }
   booked: { spend: number; deliverables: number }
   delivered: { spend: number; deliverables: number }
   shouldToDate: { spend: number; deliverables: number }
@@ -984,6 +990,10 @@ export function computeSocialLineMetricsForPlatform(input: {
         window,
         actualsDaily: urlWindowActive ? filteredActualsDaily : actualsDaily,
         matchedRows,
+        wholeDelivery: {
+          impressions: deliverySummary.daily.reduce((sum, day) => sum + (Number(day.impressions) || 0), 0),
+          clicks: deliverySummary.daily.reduce((sum, day) => sum + (Number(day.clicks) || 0), 0),
+        },
         matchBreakdown: {
           targetId,
           byId: matches.byId,

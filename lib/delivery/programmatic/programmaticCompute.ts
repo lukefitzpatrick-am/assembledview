@@ -99,6 +99,12 @@ export type ProgrammaticLineItemMetrics = {
     deliverable_value: number
   }>
   matchedRows: Dv360DailyRow[]
+  /**
+   * Impressions and clicks across the line's whole delivery (every row
+   * fetched for the campaign), whatever the date filter. Decides "No
+   * impression tracking" the same way as Direct Booked Digital (REP-5).
+   */
+  wholeDelivery: { impressions: number; clicks: number }
   booked: { spend: number; deliverables: number }
   delivered: { spend: number; deliverables: number }
   shouldToDate: { spend: number; deliverables: number }
@@ -804,6 +810,10 @@ export function buildProgrammaticLineItemMetrics(
       window,
       actualsDaily: urlWindowActive ? filteredActualsDaily : actualsDaily,
       matchedRows: matched,
+      wholeDelivery: {
+        impressions: matched.reduce((sum, row) => sum + (row.impressions ?? 0), 0),
+        clicks: matched.reduce((sum, row) => sum + (row.clicks ?? 0), 0),
+      },
       booked,
       delivered: {
         spend: round2(deliveredTotals.spend),

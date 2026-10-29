@@ -1006,3 +1006,59 @@ test("OOH section summary is spend, impressions, Avg CPM, Avg delivery, plus Pla
     ["Spend", "Impressions"],
   )
 })
+
+function buildDisplayFiltered(lines: unknown[], rows: PacingRow[], filter: { start: Date; end: Date }) {
+  const section = buildProgrammaticDisplaySection({
+    progDisplayLineItems: lines,
+    combinedRows: rows,
+    campaignStart: CAMPAIGN_START,
+    campaignEnd: CAMPAIGN_END,
+    mbaNumber: "TEST001",
+    filterRange: filter,
+    kpiVersionNumber: 1,
+    kpiTargets: undefined,
+    lineItemTargets: undefined,
+    pacingWindow: { asAtISO: "2026-03-15", campaignStartISO: CAMPAIGN_START, campaignEndISO: CAMPAIGN_END },
+    lastSyncedAt: null,
+    pacingAsAtISO: "2026-03-15",
+  })
+  assert.ok(section)
+  return section
+}
+
+test("REP-5: the whole delivery decides No impression tracking, not the selected dates", () => {
+  // PD1 served impressions on 1 March; 5 to 12 March holds only its clicks.
+  const section = buildDisplayFiltered(
+    [burstLine("TEST001PD1", "dv360")],
+    [
+      pacingRow({ lineItemId: "TEST001PD1", dateDay: "2026-03-01", amountSpent: 25, impressions: 5_000, clicks: 5 }),
+      pacingRow({ lineItemId: "TEST001PD1", dateDay: "2026-03-06", amountSpent: 5, impressions: 0, clicks: 3 }),
+    ],
+    { start: new Date(2026, 2, 5), end: new Date(2026, 2, 12) },
+  )
+  const card = section.aggregate.progressCards.find((c) => /delivery$/.test(c.title) && c.title !== "Spend delivery")
+  assert.ok(card)
+  assert.doesNotMatch(card.detail ?? "", /No impression tracking/)
+  assert.ok((card.expected ?? 0) > 0)
+})
+
+test("REP-5: a click tracker is out of planned impressions, the CPM chip and the CPM tile", () => {
+  const section = buildDisplay({
+    lines: [burstLine("TEST001PD1", "dv360"), burstLine("TEST001PD2", "dv360")],
+    rows: [
+      pacingRow({ lineItemId: "TEST001PD1", amountSpent: 40, impressions: 8_000, clicks: 4 }),
+      // PD2 is a click tracker: spend and clicks, no impressions, across its whole delivery.
+      pacingRow({ lineItemId: "TEST001PD2", amountSpent: 60, impressions: 0, clicks: 30 }),
+    ],
+  })
+  assert.ok(section)
+  const card = section.aggregate.progressCards.find((c) => /delivery$/.test(c.title) && c.title !== "Spend delivery")
+  assert.ok(card)
+  assert.equal(card.plannedTotal, 100_000)
+  assert.match(card.detail ?? "", /No impression tracking on 1 line/)
+  // $40 over 8,000 impressions, not $100.
+  assert.equal(chip(section, "Avg CPM")?.value, "$5.00")
+  assert.equal(section.aggregate.kpiBand.tiles.find((t) => t.label === "CPM")?.value, "$5.00")
+  // Spend still counts every line.
+  assert.equal(chip(section, "Total spend")?.value, "$100.00")
+})

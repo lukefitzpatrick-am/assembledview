@@ -142,3 +142,67 @@ test("C7: Meta CPM tile target is the review plan rate (buyAmount), not media ÷
   assert.equal(cpm?.value, "$20.00")
   assert.equal(cpm?.status, "behind")
 })
+
+test("REP-5: a Meta click tracker is out of planned impressions and CPM; the whole delivery decides", () => {
+  const cpmLine = (id: string): SocialLineItem => ({
+    ...metaLine(),
+    line_item_id: id,
+    buy_type: "CPM",
+    bursts: [
+      {
+        start_date: CAMPAIGN_START,
+        end_date: CAMPAIGN_END,
+        media_investment: 5000,
+        deliverables: 400_000,
+        budget_number: 5000,
+      },
+    ],
+  })
+  const rows: CombinedPacingRow[] = [
+    { ...metaRow(), lineItemId: "bicau006sm1", amountSpent: 2000, impressions: 100_000, clicks: 900 },
+    // sm2 has clicks and no impressions across its whole delivery: a click tracker.
+    { ...metaRow(), lineItemId: "bicau006sm2", adsetId: "as-2", entityId: "as-2", amountSpent: 3000, impressions: 0, clicks: 400 },
+  ]
+  const section = buildSocialMetaSection({
+    lineItems: [cpmLine("bicau006sm1"), cpmLine("bicau006sm2")],
+    snowflakeRows: rows,
+    campaignStart: CAMPAIGN_START,
+    campaignEnd: CAMPAIGN_END,
+    mbaNumber: "BICAU006",
+    kpiVersionNumber: 1,
+    kpiTargets: undefined,
+    lineItemTargets: new Map(),
+    filterRange: { start: null, end: null },
+    lastSyncedAt: null,
+    isAdmin: true,
+  })
+  const card = section.aggregate.progressCards.find((c) => /delivery$/.test(c.title) && c.title !== "Spend delivery")
+  assert.ok(card)
+  assert.equal(card.plannedTotal, 400_000)
+  assert.match(card.detail ?? "", /No impression tracking on 1 line/)
+  // $2,000 over 100,000 impressions = $20.00 CPM, not $5,000.
+  assert.equal(section.aggregate.summaryChips.find((c) => c.label === "Avg CPM")?.value, "$20.00")
+  assert.equal(section.aggregate.kpiBand.tiles.find((t) => t.label === "CPM")?.value, "$20.00")
+
+  // Filter to 1 to 10 September: sm1's 15 September impressions are outside, but its
+  // whole delivery has impressions, so it stays tracked.
+  const filtered = buildSocialMetaSection({
+    lineItems: [cpmLine("bicau006sm1")],
+    snowflakeRows: [
+      { ...metaRow(), dateDay: "2026-09-05", amountSpent: 10, impressions: 0, clicks: 4 },
+      metaRow(),
+    ],
+    campaignStart: CAMPAIGN_START,
+    campaignEnd: CAMPAIGN_END,
+    mbaNumber: "BICAU006",
+    kpiVersionNumber: 1,
+    kpiTargets: undefined,
+    lineItemTargets: new Map(),
+    filterRange: { start: new Date(2026, 8, 1), end: new Date(2026, 8, 10) },
+    lastSyncedAt: null,
+    isAdmin: true,
+  })
+  const filteredCard = filtered.aggregate.progressCards.find((c) => /delivery$/.test(c.title) && c.title !== "Spend delivery")
+  assert.ok(filteredCard)
+  assert.doesNotMatch(filteredCard.detail ?? "", /No impression tracking/)
+})

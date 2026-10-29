@@ -31,7 +31,11 @@ export type PaceFigures = {
 export type LinePace = {
   spend: PaceFigures
   deliverables: PaceFigures & {
-    /** False when the line has clicks but no impressions in the window ("No impression tracking"). */
+    /**
+     * False when the line has clicks but no impressions across its whole
+     * delivery ("No impression tracking", REP-5). Falls back to the window
+     * when the caller has no whole-delivery figures.
+     */
     tracked: boolean
   }
 }
@@ -47,11 +51,13 @@ export type LinePaceDay = {
 /**
  * One line's delivered and expected figures for the window.
  * A line whose deliverable is impressions and that has clicks but no
- * impressions in the window has no impression tracking: it is left out of
- * expected impressions, and the card and line read "No impression tracking",
- * the same label as Direct Booked Digital (REP-5; Luke, 29 Oct 2026).
- * Decided on the window: programmatic and social daily rows arrive already
- * cut to the date filter, so the whole delivery is not available here.
+ * impressions across its whole delivery has no impression tracking, decided
+ * by impressionsNotTracked exactly as Direct Booked Digital does (REP-5;
+ * Luke, 29 Oct 2026). It is left out of expected impressions, the channel's
+ * planned impressions (sumLinePaces) and CPM (the adapters), and the card and
+ * line read "No impression tracking". `wholeDelivery` carries the line's
+ * impressions and clicks over every row fetched for the campaign; without it
+ * the window decides.
  */
 export function computeLinePace(input: {
   rawBursts: unknown
@@ -60,15 +66,19 @@ export function computeLinePace(input: {
   toDate: PacingWindow
   basis?: NetSpendBasis | null
   deliverableIsImpressions: boolean
+  /** Impressions and clicks across the line's whole delivery (REP-5). */
+  wholeDelivery?: { impressions: number; clicks: number } | null
 }): LinePace {
-  const { rawBursts, daily, window, toDate, basis, deliverableIsImpressions } = input
+  const { rawBursts, daily, window, toDate, basis, deliverableIsImpressions, wholeDelivery } = input
   const deliveredSpend = sumInWindow(daily, window, (d) => d.spend)
   const deliveredDeliverables = sumInWindow(daily, window, (d) => d.deliverable)
   const tracked = deliverableIsImpressions
-    ? !impressionsNotTracked({
-        impressions: sumInWindow(daily, window, (d) => d.impressions ?? d.deliverable),
-        clicks: sumInWindow(daily, window, (d) => d.clicks ?? 0),
-      })
+    ? !impressionsNotTracked(
+        wholeDelivery ?? {
+          impressions: sumInWindow(daily, window, (d) => d.impressions ?? d.deliverable),
+          clicks: sumInWindow(daily, window, (d) => d.clicks ?? 0),
+        },
+      )
     : true
   return {
     spend: {
@@ -98,9 +108,13 @@ function addFigures(a: PaceFigures, b: PaceFigures): PaceFigures {
 
 const ZERO: PaceFigures = { delivered: 0, expected: 0, expectedToDate: 0, planned: 0 }
 
-/** Channel totals: the sum of its lines. */
+/**
+ * Channel totals: the sum of its lines. Lines with no impression tracking
+ * stay out of planned deliverables, as on Direct Booked Digital (REP-5),
+ * unless every line is untracked: then the card shows the full plan.
+ */
 export function sumLinePaces(paces: readonly LinePace[]): LinePace {
-  return paces.reduce<LinePace>(
+  const total = paces.reduce<LinePace>(
     (acc, p) => ({
       spend: addFigures(acc.spend, p.spend),
       deliverables: {
@@ -110,6 +124,16 @@ export function sumLinePaces(paces: readonly LinePace[]): LinePace {
     }),
     { spend: { ...ZERO }, deliverables: { ...ZERO, tracked: true } },
   )
+  const trackedLines = paces.filter((p) => p.deliverables.tracked)
+  if (trackedLines.length > 0 && trackedLines.length < paces.length) {
+    total.deliverables.planned = trackedLines.reduce((sum, p) => sum + p.deliverables.planned, 0)
+  }
+  return total
+}
+
+/** True when the line's spend should count towards CPM (it has impression tracking). */
+export function countsTowardsCpm(pace: LinePace): boolean {
+  return pace.deliverables.tracked
 }
 
 /** Card note when some lines have no impression tracking. */
