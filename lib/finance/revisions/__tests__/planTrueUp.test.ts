@@ -52,16 +52,20 @@ const FEE_ACTUALS: TrueUpRequest["actuals"] = {
   "2026-09": { fee: 181002 },
 }
 
-test("golf025 fee: past months become what was invoiced, Nov and Dec take the $1,638.93", () => {
+const NOV_BEFORE = 145455 + 81818 + 45455 + 36932 * 2
+const DEC_BEFORE = 14545 + 8182 + 4545 + 3693 * 2
+
+test("golf025 fee (default carry): past months become what was invoiced, November takes the $1,638.93", () => {
   const before = linesFromRows(GOLF025_V40_SUBSET)
-  const r = ok(planTrueUpRevision(input({ mode: "true_up", asOfMonth: "2026-09", strategy: "spread", components: ["fee"], actuals: FEE_ACTUALS })))
+  const r = ok(planTrueUpRevision(input({ mode: "true_up", asOfMonth: "2026-09", strategy: "carry", components: ["fee"], actuals: FEE_ACTUALS })))
   assert.equal(sumMonth(r, "fee", "2026-07"), 99561)
   assert.equal(sumMonth(r, "fee", "2026-08"), 123060)
   assert.equal(sumMonth(r, "fee", "2026-09"), 181002)
   // October is past and not listed: untouched.
   assert.equal(sumMonth(r, "fee", "2026-10"), 351234)
-  const novDecBefore = 145455 + 81818 + 45455 + 36932 * 2 + 14545 + 8182 + 4545 + 3693 * 2
-  assert.equal(sumMonth(r, "fee", "2026-11") + sumMonth(r, "fee", "2026-12"), novDecBefore + 163893)
+  // Luke, 29 Oct: rectified in the next month. November takes it all, December is unchanged.
+  assert.equal(sumMonth(r, "fee", "2026-11"), NOV_BEFORE + 163893)
+  assert.equal(sumMonth(r, "fee", "2026-12"), DEC_BEFORE)
   // Every line keeps its fee, media and ad serving totals.
   for (const c of r.afterCells) {
     const b = before.find((l) => l.lineItemId === c.lineItemId)!
@@ -75,11 +79,47 @@ test("golf025 fee: past months become what was invoiced, Nov and Dec take the $1
   assert.equal(fee.rebalanced, 163893)
 })
 
-test("carry puts each line's difference in its next open month only", () => {
-  const r = ok(planTrueUpRevision(input({ mode: "true_up", asOfMonth: "2026-09", strategy: "carry", components: ["fee"], actuals: FEE_ACTUALS })))
-  const decBefore = 14545 + 8182 + 4545 + 3693 * 2
-  assert.equal(sumMonth(r, "fee", "2026-12"), decBefore)
+test("spread (option) shares the $1,638.93 over November and December pro rata", () => {
+  const r = ok(planTrueUpRevision(input({ mode: "true_up", asOfMonth: "2026-09", strategy: "spread", components: ["fee"], actuals: FEE_ACTUALS })))
+  assert.equal(sumMonth(r, "fee", "2026-11") + sumMonth(r, "fee", "2026-12"), NOV_BEFORE + DEC_BEFORE + 163893)
+  assert.ok(sumMonth(r, "fee", "2026-12") > DEC_BEFORE)
   assert.equal(sumMonth(r, "fee", "2026-09"), 181002)
+  assert.equal(r.trueUp!.components[0]!.residual, 0)
+})
+
+function feeLine(id: string, fee: Record<string, number>): RevisionLine {
+  return { lineItemId: id, label: id, channel: "socialMedia", isProduction: false, clientPaysForMedia: false, isAaLine: false, media: {}, fee, adserving: {} }
+}
+
+test("room first: an over-invoiced month goes to the line that can give it back, so nothing is left over", () => {
+  // A has no open month left; B holds $10.00 in November. August invoiced $3.00 against $2.00 scheduled.
+  const lines = [feeLine("x001SM1", { "2026-08": 100 }), feeLine("x001SM2", { "2026-08": 100, "2026-11": 1000 })]
+  const r = ok(planTrueUpRevision(input({ mode: "true_up", asOfMonth: "2026-09", strategy: "carry", components: ["fee"], actuals: { "2026-08": { fee: 300 } } }, {}, lines)))
+  const a = r.afterCells.find((c) => c.lineItemId === "x001SM1")
+  const b = r.afterCells.find((c) => c.lineItemId === "x001SM2")!
+  assert.equal(a, undefined, "A unchanged")
+  assert.deepEqual(b.fee, { "2026-08": 200, "2026-11": 900 })
+  assert.equal(r.trueUp!.components[0]!.residual, 0)
+})
+
+test("room first: an under-invoiced month comes off the line that can take it back into an open month", () => {
+  // A is an AA line whose November and December sit in a sent AA pack: it has no open month to take a credit back into.
+  const lines = [{ ...feeLine("x001SM1", { "2026-08": 1000 }), isAaLine: true }, feeLine("x001SM2", { "2026-08": 1000, "2026-11": 1000 })]
+  const r = ok(
+    planTrueUpRevision(
+      input({ mode: "true_up", asOfMonth: "2026-09", strategy: "carry", components: ["fee"], actuals: { "2026-08": { fee: 1000 } } }, { aaLockedMonths: ["2026-11", "2026-12"] }, lines),
+    ),
+  )
+  assert.equal(r.afterCells.find((c) => c.lineItemId === "x001SM1"), undefined)
+  assert.deepEqual(r.afterCells.find((c) => c.lineItemId === "x001SM2")!.fee, { "2026-11": 2000 })
+  assert.equal(r.trueUp!.components[0]!.residual, 0)
+})
+
+test("carry rolls on: what the next open month can't give back comes from the following months", () => {
+  const lines = [feeLine("x001SM2", { "2026-08": 100, "2026-11": 30, "2026-12": 100 })]
+  const r = ok(planTrueUpRevision(input({ mode: "true_up", asOfMonth: "2026-09", strategy: "carry", components: ["fee"], actuals: { "2026-08": { fee: 200 } } }, {}, lines)))
+  assert.deepEqual(r.afterCells[0]!.fee, { "2026-08": 200, "2026-12": 30 })
+  assert.equal(r.trueUp!.components[0]!.residual, 0)
 })
 
 test("over-invoiced beyond the open months: the schedule stops at the contract, the rest is a credit to raise", () => {
@@ -163,11 +203,11 @@ test("ad serving moves like fee, and the after cells carry it for the writer", (
   assert.equal(dd13.adservingChanged, true)
   assert.equal(dd13.adserving!["2026-09"] ?? 0, 0)
   assert.equal(lineTotal(dd13.adserving), 42 + 623 + 789 + 623 + 104)
-  // DD1 and DD10 can't give back all of October's extra from Nov and Dec, so
-  // part of it stays a credit to raise and October holds the rest.
+  // Room first: the lines' November and December ad serving (21.94) is all
+  // the schedule can give back. Only the 1.08 above it is a credit to raise.
   const ad = r.trueUp!.components[0]!
   assert.equal(ad.gapBefore, 5000 - 2075 - 623)
-  assert.ok(ad.residual > 0)
+  assert.equal(ad.residual, 5000 - 2075 - 623 - (767 + 128 + 520 + 52 + 623 + 104))
   assert.equal(sumMonth(r, "adserving", "2026-10"), 5000 - ad.residual)
   assert.equal(sumMonth(r, "adserving", "2026-09"), 0)
 })

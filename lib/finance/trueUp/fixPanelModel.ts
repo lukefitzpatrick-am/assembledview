@@ -49,7 +49,7 @@ export function ledgerLabel(a: TrueUpActionRef): string {
   const comp = TRUE_UP_COMPONENT_LABELS[a.component]
   switch (a.action) {
     case "schedule":
-      return `${comp}: schedule trued up (${a.strategy ?? "spread"}${a.months.length > 0 ? `, ${a.months.join(", ")}` : ""})`
+      return `${comp}: schedule trued up (${a.strategy ?? "carry"}${a.months.length > 0 ? `, ${a.months.join(", ")}` : ""})`
     case "explained":
       return `${comp}: explained, ${REASON_LABELS[a.reasonCode ?? ""] ?? a.reasonCode ?? ""}${a.note ? `. ${a.note}` : ""}`
     case "one_off":

@@ -5,18 +5,24 @@
  * `true_up` (Luke, 29 Oct 2026: decisions 1 and 5 of the first round, and
  * 1 to 4 of the second):
  * - Each month listed in `actuals` is set to what was invoiced for the MBA,
- *   per component (fee, ad serving, production, media), split across the
- *   plan's lines pro rata to that month's schedule (largest remainder,
- *   allocateCents). With nothing scheduled that month, the weights fall back
- *   to each line's contract total for the component.
+ *   per component (fee, ad serving, production, media). The month's
+ *   difference is split across the plan's lines by room first (Luke, 29 Oct:
+ *   "underspends and overspends should be rectified in the next month"):
+ *   an increase goes to lines pro rata to what they can still give back from
+ *   their open months, a decrease to lines that have an open month to take
+ *   it into. Only what no line can hold is split pro rata to that month's
+ *   schedule (falling back to each line's contract total), and that part
+ *   becomes the residual.
  * - Every line keeps its contract total per component. What a line's past
  *   months gained or lost comes back out of, or goes into, its open months
- *   from the current month on: "spread" pro rata to the line's remaining
- *   schedule (default), "carry" all into the next open month.
+ *   from the current month on: "carry" (default) into the next open month,
+ *   rolling on to the following open months for what that month can't give
+ *   back; "spread" pro rata to the line's remaining schedule.
  * - What a line can't absorb (no open month left, or not enough left to take
  *   back) is undone on that line, latest month first. It is the residual:
  *   + a credit to raise, - a charge to raise (decision 1: the schedule stops
- *   at the contract total).
+ *   at the contract total). It only happens when no open month remains or
+ *   the contract total is reached.
  * - Hard locks that stay hard on past months: a closed finance period, and a
  *   month in a sent AA pack on an AA line (decision 4). Every other past lock
  *   (sent to accounts, Xero matched, legacy billed) is the reason the month
@@ -407,6 +413,24 @@ function planTrueUp(input: RevisionInput, request: TrueUpRequest): RevisionResul
       changes.set(w, byMonth)
     }
 
+    // Room per line: what its open months hold for this component (what it can
+    // give back), and its running net past change.
+    const futureOf = new Map<Work, MonthKey[]>()
+    const futureOpenOf = (w: Work) => {
+      let f = futureOf.get(w)
+      if (!f) {
+        f = futureMonthsFor(ctx, w.line)
+        futureOf.set(w, f)
+      }
+      return f
+    }
+    const roomOf = (w: Work) => futureOpenOf(w).reduce((s2, fm) => s2 + cell(origRecFor(w.line, w.productionLike, c)!, fm), 0)
+    const netOf = (w: Work) => {
+      let n = 0
+      for (const v of changes.get(w)?.values() ?? []) n += v
+      return n
+    }
+
     let gapBefore = 0
     for (const m of trueMonths) {
       const target = request.actuals[m]?.[c] ?? 0
@@ -424,37 +448,62 @@ function planTrueUp(input: RevisionInput, request: TrueUpRequest): RevisionResul
           message: `${m} ${c}: some lines are locked (closed period or a sent AA pack) and keep their amounts.`,
         })
       }
+      // Luke, 29 Oct ("rectified in the next month"): split by room first so
+      // as little as possible is left over. Room for an increase is what the
+      // line can give back from its open months; a decrease goes first to
+      // lines that can take it back into an open month. Only what no line
+      // can hold is split pro rata to the month and ends up as the residual.
+      const idOf = (w: Work) => toBillingOverrideLineItemId(w.line.lineItemId)
+      const apply = (shares: Map<string, number>, sign: 1 | -1) => {
+        for (const [id, share] of shares) {
+          if (share === 0) continue
+          const w = writable.find((x) => idOf(x) === id)!
+          const rec = recFor(w, c)!
+          rec[m] = cell(rec, m) + sign * share
+          note(w, m, sign * share)
+        }
+      }
       if (delta < 0) {
-        const weights = writable
-          .map((w) => [toBillingOverrideLineItemId(w.line.lineItemId), cell(recFor(w, c)!, m)] as const)
+        let left = -delta
+        const reabsorb = writable
+          .map((w) => {
+            const have = cell(recFor(w, c)!, m)
+            const cap = futureOpenOf(w).length > 0 ? have : Math.min(have, Math.max(0, netOf(w)))
+            return [idOf(w), cap] as const
+          })
           .filter(([, v]) => v > 0)
-        const room = weights.reduce((s, [, v]) => s + v, 0)
-        const take = Math.min(-delta, room)
-        if (take > 0) {
-          for (const [id, share] of allocateCents(take, weights)) {
-            if (share === 0) continue
-            const w = writable.find((x) => toBillingOverrideLineItemId(x.line.lineItemId) === id)!
-            const rec = recFor(w, c)!
-            rec[m] = cell(rec, m) - share
-            note(w, m, -share)
-          }
+        const first = Math.min(left, reabsorb.reduce((s2, [, v]) => s2 + v, 0))
+        if (first > 0) {
+          apply(allocateCents(first, reabsorb), -1)
+          left -= first
+        }
+        if (left > 0) {
+          const rest = writable
+            .map((w) => [idOf(w), cell(recFor(w, c)!, m)] as const)
+            .filter(([, v]) => v > 0)
+          const take = Math.min(left, rest.reduce((s2, [, v]) => s2 + v, 0))
+          if (take > 0) apply(allocateCents(take, rest), -1)
         }
       } else {
-        let weights = writable
-          .map((w) => [toBillingOverrideLineItemId(w.line.lineItemId), cell(recFor(w, c)!, m)] as const)
+        let left = delta
+        const room = writable
+          .map((w) => [idOf(w), Math.max(0, roomOf(w) - netOf(w))] as const)
           .filter(([, v]) => v > 0)
-        if (weights.length === 0) {
-          weights = writable
-            .map((w) => [toBillingOverrideLineItemId(w.line.lineItemId), sumValues(recFor(w, c)!)] as const)
-            .filter(([, v]) => v > 0)
+        const first = Math.min(left, room.reduce((s2, [, v]) => s2 + v, 0))
+        if (first > 0) {
+          apply(allocateCents(first, room), 1)
+          left -= first
         }
-        if (weights.length === 0) continue
-        for (const [id, share] of allocateCents(delta, weights)) {
-          if (share === 0) continue
-          const w = writable.find((x) => toBillingOverrideLineItemId(x.line.lineItemId) === id)!
-          const rec = recFor(w, c)!
-          rec[m] = cell(rec, m) + share
-          note(w, m, share)
+        if (left > 0) {
+          let weights = writable
+            .map((w) => [idOf(w), cell(recFor(w, c)!, m)] as const)
+            .filter(([, v]) => v > 0)
+          if (weights.length === 0) {
+            weights = writable
+              .map((w) => [idOf(w), sumValues(recFor(w, c)!)] as const)
+              .filter(([, v]) => v > 0)
+          }
+          if (weights.length > 0) apply(allocateCents(left, weights), 1)
         }
       }
     }

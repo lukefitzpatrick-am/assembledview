@@ -94,7 +94,7 @@ export function TrueUpFixSheet({
 }) {
   const [tab, setTab] = useState<Tab>("fix")
   const [components, setComponents] = useState<TrueUpComponent[]>(() => defaultFixComponents(row))
-  const [strategy, setStrategy] = useState<"spread" | "carry">("spread")
+  const [strategy, setStrategy] = useState<"spread" | "carry">("carry")
   const [carryMonths, setCarryMonths] = useState<string[]>([])
   const [preview, setPreview] = useState<Preview | null>(null)
   const [undoPreview, setUndoPreview] = useState<Preview | null>(null)
@@ -252,12 +252,12 @@ export function TrueUpFixSheet({
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Where the difference goes</legend>
               <label className="flex items-center gap-2 text-sm">
-                <input type="radio" name="strategy" checked={strategy === "spread"} onChange={() => setStrategy("spread")} />
-                Spread over the remaining months, in line with the schedule
+                <input type="radio" name="strategy" checked={strategy === "carry"} onChange={() => setStrategy("carry")} />
+                Next open month (default). Anything it can&apos;t hold rolls on to the months after
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="radio" name="strategy" checked={strategy === "carry"} onChange={() => setStrategy("carry")} />
-                Carry into the next open month
+                <input type="radio" name="strategy" checked={strategy === "spread"} onChange={() => setStrategy("spread")} />
+                Spread over the remaining months, in line with the schedule
               </label>
             </fieldset>
             {carryOptions.length > 0 ? (
