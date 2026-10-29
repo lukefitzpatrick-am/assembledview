@@ -56,6 +56,11 @@ const RECOGNISED_GUARD_PATTERNS: { name: string; re: RegExp; bucket: Mechanism }
     bucket: "requireRole",
   },
   { name: "requireProxyStaff", re: /\brequireProxyStaff\b/, bucket: "requireRole" },
+  /**
+   * /api/finance/billing-revisions/*: lib/finance/revisions/routeGate.ts calls
+   * requireFinanceAdmin before anything else runs (asserted in the harness test).
+   */
+  { name: "gateBillingRevisionRoute", re: /\bgateBillingRevisionRoute\b/, bucket: "requireRole" },
   { name: "assertCronSecret", re: /\bassertCronSecret\b/, bucket: "CRON_SECRET" },
   { name: "verifyFrameToken", re: /\bverifyFrameToken\b/, bucket: "none" },
   { name: "getUserClientSlugs", re: /\bgetUserClientSlugs\b/, bucket: "checkClientMbaAccess" },

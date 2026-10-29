@@ -148,3 +148,15 @@ test("allowlist entries are unique and have reasons", () => {
     seen.add(e.file)
   }
 })
+
+test("gateBillingRevisionRoute counts as a guard only because it calls requireFinanceAdmin", () => {
+  const gate = fs.readFileSync(path.join(repoRoot, "lib/finance/revisions/routeGate.ts"), "utf8")
+  const body = gate.slice(gate.indexOf("export async function gateBillingRevisionRoute"))
+  assert.ok(body.length > 0, "gateBillingRevisionRoute not found")
+  const finance = body.indexOf("requireFinanceAdmin(")
+  assert.ok(finance > 0, "gateBillingRevisionRoute must call requireFinanceAdmin")
+  // Nothing but the feature flag check may run before the finance admin check.
+  const before = body.slice(0, finance)
+  assert.equal(/getCurrentUser\(|isBillingRevisionsMigrationApplied\(/.test(before), false)
+  assert.equal(HARNESS_GUARD_NAMES.has("gateBillingRevisionRoute"), true)
+})
