@@ -29,7 +29,15 @@ import { loadPacingSpendHints } from "./pacingHint"
 import { planBillingRevision } from "./planBillingRevision"
 import { PREVIEW_TOKEN_MESSAGES, signPreviewToken, verifyPreviewToken } from "./previewToken"
 import { currentSydneyMonth } from "./resolveMonthLocks"
-import type { MonthKey, RevisionFail, RevisionOk, RevisionOptions, RevisionRequest, RestoreTarget } from "./types"
+import {
+  isTrueUpRevisionMode,
+  type MonthKey,
+  type RevisionFail,
+  type RevisionOk,
+  type RevisionOptions,
+  type RevisionRequest,
+  type RestoreTarget,
+} from "./types"
 
 export type ServiceError = {
   ok: false
@@ -175,6 +183,8 @@ export async function applyRevisionFromToken(args: {
   actor: RevisionActor
   now?: Date
   db?: Db
+  /** Only the true-up service applies true-up tokens (it writes the true-up ledger too). */
+  allowTrueUp?: boolean
 }): Promise<ApplyOutcome> {
   const verified = verifyPreviewToken(args.token, { sub: args.sub, now: args.now })
   if (!verified.ok) {
@@ -182,6 +192,13 @@ export async function applyRevisionFromToken(args: {
     return err(status, verified.error, PREVIEW_TOKEN_MESSAGES[verified.error])
   }
   const p = verified.payload
+  if (isTrueUpRevisionMode(p.request?.mode) !== (args.allowTrueUp === true)) {
+    return err(
+      400,
+      "TOKEN_WRONG_KIND",
+      args.allowTrueUp ? "This preview is not a true-up. Preview again." : "Apply a true-up from the True-up page.",
+    )
+  }
   try {
     const result = await publishBillingRevision(
       {
@@ -285,6 +302,9 @@ export async function previewUndo(args: {
   if (!row) return err(404, "NOT_FOUND", "No such billing revision.")
   if (row.status !== "applied" || row.newVersionId == null) {
     return err(409, "NOT_UNDOABLE", row.status === "noted" ? "A credit note has nothing to undo." : "This revision is already undone.")
+  }
+  if (isTrueUpRevisionMode(row.mode)) {
+    return err(409, "NOT_UNDOABLE", "Undo a true-up from the True-up page.")
   }
   const [master] = await db
     .select({ publishedVersionId: schema.mediaPlanMasters.publishedVersionId })

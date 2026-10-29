@@ -54,3 +54,22 @@ test("impacts for PENFOLD020 $100k: Oct needs Re-approve, publishes v30, drafts 
   assert.ok(impacts.includes("Publishes v30 and a new MBA PDF (kept on file, no client re-sign)."))
   assert.ok(impacts.includes("2 working drafts on this plan will be out of date. This does not block the change."))
 })
+
+test("the generic apply refuses a true-up token, and the true-up apply refuses a generic one", async () => {
+  process.env.BILLING_REVISION_TOKEN_SECRET = "test-secret-at-least-16"
+  const now = new Date("2026-11-02T06:00:00Z")
+  const sign = (request: Parameters<typeof signPreviewToken>[0]["request"]) => {
+    const s = signPreviewToken(
+      { mbaNumber: "golf025", baseVersionId: 19625, hash: "h", request, options: DEFAULT_OPTIONS, reason: "r", source: "ui", restoresRevisionId: null, sub: "auth0|luke" },
+      now,
+    )
+    assert.ok("token" in s)
+    return s.token
+  }
+  const trueUp = sign({ mode: "true_up", asOfMonth: "2026-10", strategy: "spread", components: ["fee"], actuals: { "2026-10": { fee: 1 } } })
+  const generic = sign({ mode: "bill_remainder", intoMonth: "2026-11" })
+  const a = await applyRevisionFromToken({ token: trueUp, sub: "auth0|luke", actor, now, db: noDb })
+  assert.equal(!a.ok && a.code, "TOKEN_WRONG_KIND")
+  const b = await applyRevisionFromToken({ token: generic, sub: "auth0|luke", actor, now, db: noDb, allowTrueUp: true })
+  assert.equal(!b.ok && b.code, "TOKEN_WRONG_KIND")
+})

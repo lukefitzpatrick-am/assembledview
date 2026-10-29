@@ -75,8 +75,9 @@ function rowLineItemId(row: BillingOverrideRow): string {
   return canonicalLineItemId(row.line_item_id ?? row.lineItemId)
 }
 
-function rowComponent(row: BillingOverrideRow): BillingOverrideComponent {
+function rowComponent(row: BillingOverrideRow): BillingOverrideComponent | "adserving" {
   const c = String(row.component ?? "media").trim().toLowerCase()
+  if (c === "adserving") return "adserving"
   return c === "fee" ? "fee" : "media"
 }
 
@@ -124,7 +125,10 @@ export function attachOverridesToLineInputs(
   for (const row of rows) {
     const id = rowLineItemId(row)
     if (!id) continue
-    if (rowComponent(row) === "fee") {
+    const component = rowComponent(row)
+    // Ad serving rows are not a media override (schedule_months and the blob carry ad serving).
+    if (component === "adserving") continue
+    if (component === "fee") {
       const fee = feeOverrideFromRow(row)
       if (fee) feeByLine.set(id, fee)
     } else {

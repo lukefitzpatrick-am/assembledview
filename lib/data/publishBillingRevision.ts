@@ -290,6 +290,11 @@ export async function publishBillingRevision(
     }
 
     // 5. Override months and the C2 sum law.
+    // A true-up stamps its overrides 'true_up' (the full reset guard reads it); its undo goes back to 'billing_revision'.
+    // Ad serving has no billing_overrides row: attachOverridesToLineInputs reads
+    // every non-fee row as media, so an ad serving row would land on the media.
+    // Ad serving lives in the blob (adServingMonthlyAmounts) and schedule_months.
+    const overrideReason = input.request.mode === "true_up" ? "true_up" : "billing_revision"
     const changedIds = new Set(plan.afterCells.map((c) => c.lineItemId))
     const overrideWrites: Array<{ lineItemId: string; component: "media" | "fee"; months: ReturnType<typeof overrideMonthsFor> }> = []
     const sumChecks: Parameters<typeof overrideSumViolations>[0] = []
@@ -313,6 +318,14 @@ export async function publishBillingRevision(
           component: "fee",
           months,
           expectedCents: Object.values(base.fee).reduce((s, v) => s + v, 0),
+        })
+      }
+      if (c.adservingChanged) {
+        sumChecks.push({
+          lineItemId: c.lineItemId,
+          component: "adserving",
+          months: overrideMonthsFor(base.adserving, c.adserving ?? {}),
+          expectedCents: Object.values(base.adserving).reduce((s, v) => s + v, 0),
         })
       }
     }
@@ -399,12 +412,12 @@ export async function publishBillingRevision(
           lineItemId: w.lineItemId,
           component: w.component,
           mode: "manual",
-          reason: "billing_revision",
+          reason: overrideReason,
           months: w.months,
         })
         .onConflictDoUpdate({
           target: [schema.billingOverrides.versionId, schema.billingOverrides.lineItemId, schema.billingOverrides.component],
-          set: { mode: "manual", reason: "billing_revision", months: w.months },
+          set: { mode: "manual", reason: overrideReason, months: w.months },
         })
     }
 

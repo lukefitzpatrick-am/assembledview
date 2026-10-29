@@ -9,9 +9,11 @@
  *   for every month row's copy of the line, totals recomputed, and the mode
  *   stamped manual.
  * - A month the blob lacks is added (prebill), with zero headers.
- * - Headers are recomputed only for months whose cells changed. feeTotal and
- *   production move by the change in the line sums, so a fixed header fee or
- *   header-only production stays as it was.
+ * - Headers are recomputed only for months whose cells changed. feeTotal,
+ *   production and adservingTechFees move by the change in the line sums, so
+ *   a fixed header fee or header-only production stays as it was.
+ * - Ad serving (adServingMonthlyAmounts) changes only for the true-up kinds;
+ *   the other kinds never send it.
  * - __service__* synthetic rows are never touched.
  *
  * The writer checks the round trip: explodeScheduleToMonthRows(result)
@@ -29,6 +31,8 @@ export type BlobRevisionCells = Array<{
   fee: Record<MonthKey, Cents>
   mediaChanged: boolean
   feeChanged: boolean
+  adserving?: Record<MonthKey, Cents>
+  adservingChanged?: boolean
 }>
 
 type BlobLine = {
@@ -42,6 +46,7 @@ type BlobLine = {
   billingMode?: string
   feeBillingMode?: string
   adServingMonthlyAmounts?: Record<string, number>
+  totalAdServingAmount?: number
   [k: string]: unknown
 }
 
@@ -152,21 +157,25 @@ function linesOf(month: BlobMonth): Array<{ key: string; line: BlobLine }> {
   return out
 }
 
-function lineMonthSums(month: BlobMonth): { productionCents: number; feeCents: number } {
+type MonthSums = { productionCents: number; feeCents: number; adservingCents: number }
+
+function lineMonthSums(month: BlobMonth): MonthSums {
   let productionCents = 0
   let feeCents = 0
+  let adservingCents = 0
   for (const { key, line } of linesOf(month)) {
     if (key === "production") productionCents += cellCents(line.monthlyAmounts?.[month.monthYear])
     feeCents += cellCents(line.feeMonthlyAmounts?.[month.monthYear])
+    adservingCents += cellCents(line.adServingMonthlyAmounts?.[month.monthYear])
   }
-  return { productionCents, feeCents }
+  return { productionCents, feeCents, adservingCents }
 }
 
-function recalcMonthHeaders(month: BlobMonth, before: { productionCents: number; feeCents: number }): void {
+function recalcMonthHeaders(month: BlobMonth, before: MonthSums): void {
   const after = lineMonthSums(month)
   const fee = headerCents(month.feeTotal) + (after.feeCents - before.feeCents)
   const production = headerCents(month.production) + (after.productionCents - before.productionCents)
-  const adserv = headerCents(month.adservingTechFees)
+  const adserv = headerCents(month.adservingTechFees) + (after.adservingCents - before.adservingCents)
   let mediaCents = 0
   const byKey = new Map<string, number>()
   for (const { key, line } of linesOf(month)) {
@@ -182,6 +191,8 @@ function recalcMonthHeaders(month: BlobMonth, before: { productionCents: number;
   }
   month.feeTotal = currency.format(dollars(fee))
   month.production = currency.format(dollars(production))
+  // Only the true-up kinds move line ad serving; the header string stays as it was otherwise.
+  if (after.adservingCents !== before.adservingCents) month.adservingTechFees = currency.format(dollars(adserv))
   month.mediaTotal = currency.format(dollars(mediaCents))
   month.totalAmount = currency.format(dollars(mediaCents + fee + adserv + production))
 }
@@ -199,7 +210,7 @@ export function applyRevisionToBillingBlob(raw: unknown, cells: BlobRevisionCell
   // Months the cells need, by key.
   const needed = new Set<MonthKey>()
   for (const c of cells) {
-    for (const [m, v] of [...Object.entries(c.media), ...Object.entries(c.fee)]) {
+    for (const [m, v] of [...Object.entries(c.media), ...Object.entries(c.fee), ...Object.entries(c.adserving ?? {})]) {
       if (!monthKeyToScheduleLabel(m)) return { ok: false, code: "BAD_MONTH", message: `Bad month ${m}` }
       if (v !== 0) needed.add(m)
     }
@@ -218,7 +229,7 @@ export function applyRevisionToBillingBlob(raw: unknown, cells: BlobRevisionCell
   const touched = new Set<number>()
 
   for (const c of cells) {
-    if (!c.mediaChanged && !c.feeChanged) continue
+    if (!c.mediaChanged && !c.feeChanged && !c.adservingChanged) continue
     let found = false
     months.forEach((month) => {
       for (const { line } of linesOf(month)) {
@@ -253,6 +264,15 @@ export function applyRevisionToBillingBlob(raw: unknown, cells: BlobRevisionCell
           line.totalFeeAmount = total
           if (typeof line.feeAmount === "number") line.feeAmount = total
           line.feeBillingMode = "manual"
+        }
+        if (c.adservingChanged) {
+          const ad: Record<string, number> = { ...(line.adServingMonthlyAmounts ?? {}) }
+          for (const label of labels) {
+            const key = scheduleLabelToMonthKey(label)!
+            ad[label] = dollars(c.adserving?.[key] ?? 0)
+          }
+          line.adServingMonthlyAmounts = ad
+          line.totalAdServingAmount = sumDollars(ad)
         }
       }
     })
@@ -289,15 +309,21 @@ export function applyRevisionToBillingBlob(raw: unknown, cells: BlobRevisionCell
   months.forEach((month, i) => {
     const orig = rawMonths.find((m) => m.monthYear === month.monthYear)
     if (!orig) return
-    const a = linesOf(orig).map(({ line }) => `${line.id}:${line.monthlyAmounts?.[orig.monthYear] ?? 0}:${line.feeMonthlyAmounts?.[orig.monthYear] ?? 0}`)
-    const b = linesOf(month).map(({ line }) => `${line.id}:${line.monthlyAmounts?.[month.monthYear] ?? 0}:${line.feeMonthlyAmounts?.[month.monthYear] ?? 0}`)
+    const a = linesOf(orig).map(
+      ({ line }) =>
+        `${line.id}:${line.monthlyAmounts?.[orig.monthYear] ?? 0}:${line.feeMonthlyAmounts?.[orig.monthYear] ?? 0}:${line.adServingMonthlyAmounts?.[orig.monthYear] ?? 0}`,
+    )
+    const b = linesOf(month).map(
+      ({ line }) =>
+        `${line.id}:${line.monthlyAmounts?.[month.monthYear] ?? 0}:${line.feeMonthlyAmounts?.[month.monthYear] ?? 0}:${line.adServingMonthlyAmounts?.[month.monthYear] ?? 0}`,
+    )
     if (a.join("|") !== b.join("|")) touched.add(i)
   })
 
   for (const i of touched) {
     const month = months[i]!
     const orig = rawMonths.find((m) => m.monthYear === month.monthYear)
-    recalcMonthHeaders(month, orig ? lineMonthSums(orig) : { productionCents: 0, feeCents: 0 })
+    recalcMonthHeaders(month, orig ? lineMonthSums(orig) : { productionCents: 0, feeCents: 0, adservingCents: 0 })
   }
 
   return { ok: true, blob: months, addedMonths }

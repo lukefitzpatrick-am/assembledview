@@ -42,6 +42,8 @@ export function buildRevisedBillingRows(
 ): BillingRowLike[] {
   const replaceMedia = buildCanonicalBillingLineIdSet(afterCells.filter((c) => c.mediaChanged).map((c) => c.lineItemId))
   const replaceFee = buildCanonicalBillingLineIdSet(afterCells.filter((c) => c.feeChanged).map((c) => c.lineItemId))
+  // Ad serving moves only on the true-up kinds.
+  const replaceAd = buildCanonicalBillingLineIdSet(afterCells.filter((c) => c.adservingChanged).map((c) => c.lineItemId))
   /** bare id -> the id string the base rows use for that line (first seen). */
   const baseIdShape = new Map<string, string>()
   for (const r of baseRows) {
@@ -52,7 +54,8 @@ export function buildRevisedBillingRows(
     .filter(
       (r) =>
         !(r.component === "media" && canonicalBillingLineIdSetHas(replaceMedia, r.lineItemId)) &&
-        !(r.component === "fee" && canonicalBillingLineIdSetHas(replaceFee, r.lineItemId)),
+        !(r.component === "fee" && canonicalBillingLineIdSetHas(replaceFee, r.lineItemId)) &&
+        !(r.component === "adserving" && canonicalBillingLineIdSetHas(replaceAd, r.lineItemId)),
     )
     .map((r) => ({ ...r }))
   for (const c of afterCells) {
@@ -65,6 +68,11 @@ export function buildRevisedBillingRows(
     if (c.feeChanged) {
       for (const [m, v] of Object.entries(c.fee)) {
         if (v !== 0) out.push({ lineItemId: rowId, component: "fee", month: monthDate(m), amountCents: v, source: "override" })
+      }
+    }
+    if (c.adservingChanged) {
+      for (const [m, v] of Object.entries(c.adserving ?? {})) {
+        if (v !== 0) out.push({ lineItemId: rowId, component: "adserving", month: monthDate(m), amountCents: v, source: "override" })
       }
     }
   }
@@ -122,7 +130,7 @@ export function overrideMonthsFor(
  * base publish already passed.
  */
 export function overrideSumViolations(
-  checks: Array<{ lineItemId: string; component: "media" | "fee"; months: OverrideMonth[]; expectedCents: Cents }>,
+  checks: Array<{ lineItemId: string; component: "media" | "fee" | "adserving"; months: OverrideMonth[]; expectedCents: Cents }>,
 ): string[] {
   const out: string[] = []
   for (const c of checks) {
@@ -168,7 +176,7 @@ export function reviseApprovedSlice(
 
 export type FinanceEditDraft = {
   month: MonthKey
-  component: "media" | "fee"
+  component: "media" | "fee" | "adserving"
   oldCents: Cents
   newCents: Cents
 }
@@ -188,6 +196,9 @@ export function financeEditDrafts(plan: RevisionOk): FinanceEditDraft[] {
     if (m.fee.before !== m.fee.after) {
       out.push({ month: m.month, component: "fee", oldCents: m.fee.before, newCents: m.fee.after })
     }
+    if (m.adserving.before !== m.adserving.after) {
+      out.push({ month: m.month, component: "adserving", oldCents: m.adserving.before, newCents: m.adserving.after })
+    }
   }
   return out
 }
@@ -196,8 +207,15 @@ export function financeEditDrafts(plan: RevisionOk): FinanceEditDraft[] {
 export function revisionDiffPayload(plan: RevisionOk) {
   return {
     lines: plan.lines
-      .filter((l) => l.media.length > 0 || l.fee.length > 0 || l.skipped)
-      .map((l) => ({ lineItemId: l.lineItemId, label: l.label, media: l.media, fee: l.fee, skipped: l.skipped ?? null })),
+      .filter((l) => l.media.length > 0 || l.fee.length > 0 || l.adserving.length > 0 || l.skipped)
+      .map((l) => ({
+        lineItemId: l.lineItemId,
+        label: l.label,
+        media: l.media,
+        fee: l.fee,
+        ...(l.adserving.length > 0 ? { adserving: l.adserving } : {}),
+        skipped: l.skipped ?? null,
+      })),
     months: plan.months
       .filter((m) => m.total.before !== m.total.after)
       .map((m) => ({
@@ -205,21 +223,33 @@ export function revisionDiffPayload(plan: RevisionOk) {
         lock: m.lock.reasons,
         media: m.media,
         fee: m.fee,
+        ...(m.adserving.before !== m.adserving.after ? { adserving: m.adserving } : {}),
         production: m.production,
         total: m.total,
       })),
     credits: plan.credits,
     warnings: plan.warnings,
+    ...(plan.trueUp ? { trueUp: plan.trueUp } : {}),
   }
 }
 
 /** The before cells of every changed line, for undo (restore target). */
 export function restoreTargetFrom(
-  baseLines: ReadonlyArray<{ lineItemId: string; media: Record<MonthKey, Cents>; fee: Record<MonthKey, Cents> }>,
+  baseLines: ReadonlyArray<{
+    lineItemId: string
+    media: Record<MonthKey, Cents>
+    fee: Record<MonthKey, Cents>
+    adserving?: Record<MonthKey, Cents>
+  }>,
   plan: RevisionOk,
-): { media: Record<string, Record<MonthKey, Cents>>; fee: Record<string, Record<MonthKey, Cents>> } {
+): {
+  media: Record<string, Record<MonthKey, Cents>>
+  fee: Record<string, Record<MonthKey, Cents>>
+  adserving?: Record<string, Record<MonthKey, Cents>>
+} {
   const media: Record<string, Record<MonthKey, Cents>> = {}
   const fee: Record<string, Record<MonthKey, Cents>> = {}
+  const adserving: Record<string, Record<MonthKey, Cents>> = {}
   for (const c of plan.afterCells) {
     const base = baseLines.find((l) => l.lineItemId === c.lineItemId)
     if (!base) continue
@@ -230,8 +260,10 @@ export function restoreTargetFrom(
     }
     if (c.mediaChanged) media[c.lineItemId] = fill(base.media, c.media)
     if (c.feeChanged) fee[c.lineItemId] = fill(base.fee, c.fee)
+    if (c.adservingChanged) adserving[c.lineItemId] = fill(base.adserving ?? {}, c.adserving ?? {})
   }
-  return { media, fee }
+  // Only the true-up kinds carry ad serving; the other kinds keep their undo shape.
+  return Object.keys(adserving).length > 0 ? { media, fee, adserving } : { media, fee }
 }
 
 export function canonicalJson(value: unknown): unknown {
