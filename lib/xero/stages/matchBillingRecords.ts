@@ -90,12 +90,14 @@ async function loadMatchInputs(): Promise<{
       FROM finance_billing_records
       WHERE invoice_key IS NOT NULL
         AND invoice_key NOT LIKE 'xero:%'
+      ORDER BY invoice_key
     `),
     db.execute(sql`
-      SELECT xero_invoice_id, status, issue_date::text AS issue_date,
+      SELECT xero_invoice_id, invoice_number, status, issue_date::text AS issue_date,
              reference_raw, sub_total, xero_contact_id, line_items_json
       FROM xero_ar_invoices
       WHERE upper(btrim(status)) IN ('DRAFT', 'SUBMITTED', 'AUTHORISED', 'PAID', 'DELETED', 'VOIDED')
+      ORDER BY issue_date ASC NULLS LAST, invoice_number ASC NULLS LAST, xero_invoice_id ASC
     `),
   ])
 
@@ -141,6 +143,7 @@ async function loadMatchInputs(): Promise<{
     const contactId = text(row.xero_contact_id)
     invoices.push({
       xeroInvoiceId,
+      invoiceNumber: text(row.invoice_number),
       status: text(row.status) ?? "",
       issueDate: text(row.issue_date),
       referenceRaw: text(row.reference_raw),

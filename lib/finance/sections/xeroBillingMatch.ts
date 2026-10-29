@@ -8,6 +8,13 @@
  * Month window (XERO-2, Luke, 28 Oct 2026): an invoice whose Reference carries
  * a PO matches the exact billing month only; any other invoice matches within
  * plus or minus one month (exact month wins). See `invoiceCarriesPo`.
+ *
+ * Order (29 Oct 2026): invoices are matched one at a time and a record an
+ * earlier invoice took is not offered again, so the order decides which of two
+ * competing invoices wins a month. It is fixed by `compareInvoicesForMatch`:
+ * issue date ascending (no date last), then invoice number, then
+ * `xero_invoice_id`. Records are offered in `invoiceKey` order. The result never
+ * depends on database row order.
  */
 
 import {
@@ -39,6 +46,8 @@ export type AppBillingMatchRecord = {
 
 export type XeroBillingMatchInvoice = {
   xeroInvoiceId: string
+  /** Xero `InvoiceNumber` (e.g. `INV-1426`). Second tie-break after issue date. */
+  invoiceNumber?: string | null
   status: string
   issueDate: string | null
   referenceRaw: string | null
@@ -126,6 +135,44 @@ export function firstLineItemDescription(lineItems: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
+function blankToNull(value: string | null | undefined): string | null {
+  const s = (value ?? "").trim()
+  return s.length > 0 ? s : null
+}
+
+function plainCompare(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+/**
+ * Deterministic match order: issue date ascending (missing last), then invoice
+ * number (numeric-aware, so INV-999 sorts before INV-1000; missing last), then
+ * `xeroInvoiceId`.
+ */
+export function compareInvoicesForMatch(
+  a: XeroBillingMatchInvoice,
+  b: XeroBillingMatchInvoice,
+): number {
+  const da = blankToNull(a.issueDate)?.slice(0, 10) ?? null
+  const db = blankToNull(b.issueDate)?.slice(0, 10) ?? null
+  if (da !== db) {
+    if (da == null) return 1
+    if (db == null) return -1
+    return plainCompare(da, db)
+  }
+  const na = blankToNull(a.invoiceNumber)
+  const nb = blankToNull(b.invoiceNumber)
+  if (na !== nb) {
+    if (na == null) return 1
+    if (nb == null) return -1
+    const byNumber = na.localeCompare(nb, "en", { numeric: true, sensitivity: "base" })
+    if (byNumber !== 0) return byNumber
+    const exact = plainCompare(na, nb)
+    if (exact !== 0) return exact
+  }
+  return plainCompare(a.xeroInvoiceId, b.xeroInvoiceId)
+}
+
 export function matchXeroInvoicesToAppRecords(input: {
   invoices: XeroBillingMatchInvoice[]
   records: AppBillingMatchRecord[]
@@ -135,14 +182,16 @@ export function matchXeroInvoicesToAppRecords(input: {
   const scopes = input.scopes ?? []
   const used = new Set<string>()
   const out: XeroBillingMatchDecision[] = []
-  for (const invoice of input.invoices) {
+  const invoices = [...input.invoices].sort(compareInvoicesForMatch)
+  const records = [...input.records].sort((a, b) => plainCompare(a.invoiceKey, b.invoiceKey))
+  for (const invoice of invoices) {
     const status = invoice.status.trim().toUpperCase()
     if (UNLINK_STATUSES.has(status)) {
       out.push({ kind: "unlink", xeroInvoiceId: invoice.xeroInvoiceId, status })
       continue
     }
     if (!LIVE_STATUSES.has(status)) continue
-    const open = input.records.filter((r) => !used.has(r.invoiceKey))
+    const open = records.filter((r) => !used.has(r.invoiceKey))
     const decision = decideLive(invoice, open, input.masters, scopes)
     if (decision.kind === "stamp") {
       for (const key of decision.invoiceKeys) used.add(key)
