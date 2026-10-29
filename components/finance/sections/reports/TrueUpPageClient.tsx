@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useMemo, useState } from "react"
-import { ChevronDown, ChevronRight, Download, Link2, Wrench } from "lucide-react"
+import { ChevronDown, ChevronRight, Download, Link2, Mail, Wrench } from "lucide-react"
 
 import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSectionsShell"
 import { StatTile } from "@/components/finance/sections/StatTile"
@@ -321,6 +321,7 @@ export function TrueUpPageClient() {
   const [loading, setLoading] = useState(true)
   const [reload, setReload] = useState(0)
   const [fixRow, setFixRow] = useState<TrueUpMbaRow | null>(null)
+  const [running, setRunning] = useState(false)
   const from = financialYearStart(asOf)
   const currentMonth = today.slice(0, 7)
 
@@ -348,6 +349,25 @@ export function TrueUpPageClient() {
 
   const actionsEnabled = report?.actionsEnabled === true
   const refresh = () => setReload((n) => n + 1)
+  const runNow = async () => {
+    setRunning(true)
+    try {
+      const res = await fetch("/api/finance/true-up/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ asOf }),
+      })
+      const body = (await res.json()) as { status?: string; skipped?: string; message?: string; emailError?: string }
+      if (!res.ok) throw new Error(body.message ?? "Could not run the true-up.")
+      if (body.status === "sent") toast({ title: "True-up saved and emailed" })
+      else if (body.status === "saved_not_emailed") toast({ title: "True-up saved, the email did not send", description: body.emailError, variant: "destructive" })
+      else toast({ title: "True-up not run", description: body.skipped === "not_ready" ? "Migration 0109 is not applied yet." : "True-up is turned off." })
+    } catch (err) {
+      toast({ title: "Could not run the true-up", description: err instanceof Error ? err.message : undefined, variant: "destructive" })
+    } finally {
+      setRunning(false)
+    }
+  }
   // Keep the open sheet on the fresh row after a change.
   const fixRowFresh = fixRow ? (report?.rows.find((r) => r.mbaNumber === fixRow.mbaNumber) ?? fixRow) : null
 
@@ -387,6 +407,12 @@ export function TrueUpPageClient() {
               {trueUpCsvFilename(asOf)}
             </a>
           </Button>
+          {actionsEnabled ? (
+            <Button variant="outline" size="sm" onClick={() => void runNow()} disabled={running} title="Save this true-up as a run and email the summary to the ops list">
+              <Mail className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              {running ? "Running" : "Run now and email"}
+            </Button>
+          ) : null}
         </div>
       }
     >

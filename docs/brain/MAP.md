@@ -5,7 +5,7 @@ The routing table for the whole app. Find your section, open the files it lists,
 ## Layer hierarchy (what sits on what)
 
 ```
-L0  PLATFORM      Vercel (project avmediaplan, regions iad1/syd1/sin1) · 17 crons
+L0  PLATFORM      Vercel (project avmediaplan, regions iad1/syd1/sin1) · 18 crons
 L1  IDENTITY      Auth0 v4 → middleware.ts (authN only) → lib/rbac.ts (roles) → per-route gates
                   (lib/auth0.ts `auth0.getSession` applies an admin's View as client overlay: lib/auth/viewAs.ts)
 L2  DATA          Supabase Postgres (Sydney) via Drizzle  db/  ← system of record
@@ -78,7 +78,7 @@ Adding or altering a channel touches, at minimum:
 
 ## 2. Finance & billing
 
-**Routes** `/finance` with section children: `home` `investment` `invoicing` `billing-partner` `owed` `in-xero` `periods` `costs` (`accruals`, `client-pays`, `invoices`) `forecasting` `reports/invoiced-vs-expected` `reports/plan-reconciliation` `reports/true-up` (TRUE_UP) `owners` `xero` (`matches`) · `/finance/forecast/snapshots/variance` · `/finance/receivables` · `GET /api/finance/billing-partner` · `POST /api/finance/billing-partner/packs` · `POST /api/finance/billing-partner/packs/[id]/sent` · `GET /api/finance/billing-partner/packs/[id]/download` · `GET /api/plans/aa-sent-baseline` · `/api/finance/billing-revisions` (`GET`, `context`, `preview`, `apply`, `[id]/undo`; BILLING_REVISIONS) · `GET /api/finance/reports/true-up` (TRUE_UP) · `/api/finance/true-up` (`preview`, `apply`, `undo`, `notes`, `notes/[id]`, `links`, `links/[id]`, `billing-timing`; TRUE_UP_ACTIONS)
+**Routes** `/finance` with section children: `home` `investment` `invoicing` `billing-partner` `owed` `in-xero` `periods` `costs` (`accruals`, `client-pays`, `invoices`) `forecasting` `reports/invoiced-vs-expected` `reports/plan-reconciliation` `reports/true-up` (TRUE_UP) `owners` `xero` (`matches`) · `/finance/forecast/snapshots/variance` · `/finance/receivables` · `GET /api/finance/billing-partner` · `POST /api/finance/billing-partner/packs` · `POST /api/finance/billing-partner/packs/[id]/sent` · `GET /api/finance/billing-partner/packs/[id]/download` · `GET /api/plans/aa-sent-baseline` · `/api/finance/billing-revisions` (`GET`, `context`, `preview`, `apply`, `[id]/undo`; BILLING_REVISIONS) · `GET /api/finance/reports/true-up` (TRUE_UP) · `/api/finance/true-up` (`preview`, `apply`, `undo`, `notes`, `notes/[id]`, `links`, `links/[id]`, `billing-timing`, `run`; TRUE_UP_ACTIONS) · `GET /api/cron/true-up` (TRUE_UP_CRON)
 
 **Two data access styles live here.** Most of the app uses the Drizzle query builder. Finance periods, run items, notifications and Xero matching are reached with `sql` tagged templates instead — `finance_periods`, `finance_run_items`, `app_notifications`, `xero_contact_links`, `xero_invoice_matches`, `xero_match_month_metrics` (and `plan_working_drafts` / `plan_presence` in media plans). See `lib/finance/periods/postgresStore.ts`. All of them **are** mirrored in `db/schema/`, so the types are there if you want them; migrating the callers to the query builder is a separate decision, not a gap. Pre-merge: `npm run db:drift` against the applied database before any `db/schema/*.ts` handover — the mirror is live code (Drizzle selects every named column).
 
@@ -235,4 +235,4 @@ Touch these and you are touching everything. Check `BLAST-RADIUS.md` first, ever
 
 ## Scale reference
 
-71 pages · 197 API route handlers · ~450 component files · ~1,440 lib files · 78 live Supabase tables · 50 applied migrations · 17 crons · 20 media channels.
+71 pages · 197 API route handlers · ~450 component files · ~1,440 lib files · 78 live Supabase tables · 50 applied migrations · 18 crons · 20 media channels.

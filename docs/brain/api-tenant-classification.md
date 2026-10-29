@@ -232,6 +232,7 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | POST | `/api/cron/xero-sync-invoices` | internal-cron | CRON_SECRET | `app/api/cron/xero-sync-invoices/route.ts` |
 | GET | `/api/cron/xero-sync-pdfs` | internal-cron | CRON_SECRET | `app/api/cron/xero-sync-pdfs/route.ts` |
 | POST | `/api/cron/xero-sync-pdfs` | internal-cron | CRON_SECRET | `app/api/cron/xero-sync-pdfs/route.ts` |
+| GET | `/api/cron/true-up` | internal-cron | CRON_SECRET | `app/api/cron/true-up/route.ts` (T10: 07:00 Sydney on the 2nd, `TRUE_UP` + `TRUE_UP_CRON` + 0109, once per as-of month) |
 | GET | `/api/dashboard/[slug]` | tenant-scoped | checkClientMbaAccess | `app/api/dashboard/[slug]/route.ts` |
 | GET | `/api/dashboard/[slug]/delivered` | tenant-scoped | checkClientMbaAccess | `app/api/dashboard/[slug]/delivered/route.ts` |
 | GET | `/api/dashboard/[slug]/invoices` | tenant-scoped | checkClientMbaAccess | `app/api/dashboard/[slug]/invoices/route.ts` |
@@ -274,6 +275,7 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | DELETE | `/api/finance/true-up/links/[id]` | admin-only | gateTrueUpRoute (requireFinanceAdmin first) | Remove a hand link. 404 while `TRUE_UP_ACTIONS` is off, 409 until 0109 and 0106 |
 | GET | `/api/finance/true-up/billing-timing` | admin-only | gateTrueUpRoute (requireFinanceAdmin first) | clients.id to billing timing. 404 while `TRUE_UP_ACTIONS` is off, 409 until 0109 and 0106 |
 | PUT | `/api/finance/true-up/billing-timing` | admin-only | gateTrueUpRoute (requireFinanceAdmin first) | Set a client's billing timing (same month, month ahead, in arrears) on `client_finance_owners`. 404 while `TRUE_UP_ACTIONS` is off, 409 until 0109 and 0106 |
+| POST | `/api/finance/true-up/run` | admin-only | gateTrueUpRoute (requireFinanceAdmin first) | Run the true-up now: saves a `true_up_runs` row and emails the summary to `OPS_EMAIL_TO`. No plan changes. 404 while `TRUE_UP_ACTIONS` is off, 409 before 0109. |
 | GET | `/api/finance/exports/download` | admin-only | requireFinanceAdmin | private Blob proxy for the pack files |
 | POST | `/api/finance/billing/notes` | admin-only | requireRole | `app/api/finance/billing/notes/route.ts` |
 | POST | `/api/finance/billing/unapprove` | admin-only | requireRole | `app/api/finance/billing/unapprove/route.ts` |

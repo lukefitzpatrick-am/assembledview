@@ -53,6 +53,8 @@ Finance changes billing timing on a published plan by publishing a revision, nev
 
 **True-up kinds (0109, `TRUE_UP_ACTIONS`).** `planTrueUp.ts` is the planner for `true_up` (past months = invoiced, open months rebalance, residual = one-off to raise) and `true_up_restore` (undo). `planBillingRevision` hands both to it. The writer is the same `publishBillingRevision`; for these kinds the blob, `schedule_months` and the undo target carry ad serving, and overrides are stamped `reason='true_up'`. Only the true-up service (`lib/finance/trueUp/*`) previews and applies them.
 
+**Monthly true-up run (T10).** `GET /api/cron/true-up` (Vercel `0 20,21 1 * *`, so 07:00 Sydney on the 2nd in daylight saving and standard time; the route checks the Sydney window) runs `runTrueUpMonthly` when `TRUE_UP` and `TRUE_UP_CRON` are on and 0109 is applied. It builds the report to the month just ended from the start of its financial year, inserts a `true_up_runs` row (compact rows, no month grid), emails `OPS_EMAIL_TO` through `sendHtmlEmail` (SendGrid) with a link to `APP_BASE_URL/finance/reports/true-up`, then stamps `emailed_at`. One cron run per as-of month (a cron row with `emailed_at` set). An email failure keeps the row with `emailed_at` null. "Run now and email" on the page (`POST /api/finance/true-up/run`, finance admin, `TRUE_UP_ACTIONS`) runs for the selected month at any time. Read only on plans.
+
 ## Consumed by
 
 61 files import `lib/finance/*`: both mega-pages (edit page has ~25 finance/billing imports), `components/billing/*` (9), client hub billing + Excel export, dashboard chart reshapes, AVA client-brain tools, creative upload digest (via `lib/billing/scheduleHeaders`). All 19 media containers import `lib/billing/*`.
