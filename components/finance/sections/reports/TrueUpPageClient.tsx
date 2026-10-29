@@ -1,10 +1,11 @@
 "use client"
 
 import { Fragment, useEffect, useMemo, useState } from "react"
-import { ChevronDown, ChevronRight, Download } from "lucide-react"
+import { ChevronDown, ChevronRight, Download, Link2, Wrench } from "lucide-react"
 
 import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSectionsShell"
 import { StatTile } from "@/components/finance/sections/StatTile"
+import { TrueUpFixSheet } from "@/components/finance/sections/reports/TrueUpFixSheet"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatMoney } from "@/lib/format/money"
@@ -14,11 +15,13 @@ import {
   TRUE_UP_COMPONENT_LABELS,
   TRUE_UP_STATUS_LABELS,
   financialYearStart,
+  type TrueUpBillingTiming,
   type TrueUpComponent,
   type TrueUpMbaRow,
   type TrueUpReport,
   type TrueUpStatus,
 } from "@/lib/finance/trueUp/compute"
+import { toast } from "@/components/ui/use-toast"
 import { trueUpCsvFilename } from "@/lib/finance/trueUp/csv"
 import {
   filterTrueUpRows,
@@ -107,7 +110,17 @@ function MonthDetail({ row }: { row: TrueUpMbaRow }) {
   )
 }
 
-function TrueUpTable({ rows }: { rows: TrueUpMbaRow[] }) {
+type ReportResponse = TrueUpReport & { actionsEnabled?: boolean }
+
+function TrueUpTable({
+  rows,
+  actionsEnabled,
+  onFix,
+}: {
+  rows: TrueUpMbaRow[]
+  actionsEnabled: boolean
+  onFix: (row: TrueUpMbaRow) => void
+}) {
   const [open, setOpen] = useState<Set<string>>(new Set())
   if (rows.length === 0) return <p className="text-sm text-muted-foreground">Nothing in this view.</p>
   const toggle = (mba: string) =>
@@ -131,6 +144,7 @@ function TrueUpTable({ rows }: { rows: TrueUpMbaRow[] }) {
           ))}
           <TableHead>Status</TableHead>
           <TableHead>Suggested fix</TableHead>
+          {actionsEnabled ? <TableHead className="w-24" /> : null}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -177,10 +191,18 @@ function TrueUpTable({ rows }: { rows: TrueUpMbaRow[] }) {
                     </span>
                   ))}
                 </TableCell>
+                {actionsEnabled ? (
+                  <TableCell>
+                    <Button variant="outline" size="sm" onClick={() => onFix(row)} aria-label={`Fix ${row.mbaNumber}`}>
+                      <Wrench className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                      Fix
+                    </Button>
+                  </TableCell>
+                ) : null}
               </TableRow>
               {isOpen ? (
                 <TableRow>
-                  <TableCell colSpan={4 + TRUE_UP_COMPONENTS.length + 1}>
+                  <TableCell colSpan={4 + TRUE_UP_COMPONENTS.length + 1 + (actionsEnabled ? 1 : 0)}>
                     <MonthDetail row={row} />
                   </TableCell>
                 </TableRow>
@@ -193,7 +215,61 @@ function TrueUpTable({ rows }: { rows: TrueUpMbaRow[] }) {
   )
 }
 
-function UnattributedTable({ report }: { report: TrueUpReport }) {
+function LinkInvoiceForm({ invoice, onLinked }: { invoice: string; onLinked: () => void }) {
+  const [mba, setMba] = useState("")
+  const [month, setMonth] = useState("")
+  const [busy, setBusy] = useState(false)
+  const submit = async () => {
+    setBusy(true)
+    try {
+      const res = await fetch("/api/finance/true-up/links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoice, mbaNumber: mba.trim(), billingMonth: month || null }),
+      })
+      const body = (await res.json().catch(() => ({}))) as { message?: string }
+      if (!res.ok) throw new Error(body.message ?? "Could not link the invoice.")
+      toast({ title: "Linked", description: `${invoice} now counts for ${mba.trim()}.` })
+      onLinked()
+    } catch (e) {
+      toast({ title: "Not linked", description: e instanceof Error ? e.message : "Could not link the invoice.", variant: "destructive" })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <input
+        className="h-8 w-28 rounded-input border border-border bg-background px-2 text-xs"
+        placeholder="MBA"
+        aria-label={`MBA for ${invoice}`}
+        value={mba}
+        onChange={(e) => setMba(e.target.value)}
+      />
+      <input
+        className="h-8 w-28 rounded-input border border-border bg-background px-2 text-xs"
+        type="month"
+        aria-label={`Billing month for ${invoice} (optional)`}
+        value={month}
+        onChange={(e) => setMonth(e.target.value)}
+      />
+      <Button variant="outline" size="sm" disabled={busy || !mba.trim()} onClick={() => void submit()}>
+        <Link2 className="mr-1 h-3.5 w-3.5" aria-hidden />
+        Link
+      </Button>
+    </div>
+  )
+}
+
+function UnattributedTable({
+  report,
+  actionsEnabled,
+  onLinked,
+}: {
+  report: TrueUpReport
+  actionsEnabled: boolean
+  onLinked: () => void
+}) {
   if (report.unattributed.length === 0) {
     return <p className="text-sm text-muted-foreground">Every invoice line in scope found its MBA.</p>
   }
@@ -207,6 +283,7 @@ function UnattributedTable({ report }: { report: TrueUpReport }) {
           <TableHead>Component</TableHead>
           <TableHead className="text-right">Amount</TableHead>
           <TableHead>Why</TableHead>
+          {actionsEnabled ? <TableHead>Link to an MBA</TableHead> : null}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -221,6 +298,11 @@ function UnattributedTable({ report }: { report: TrueUpReport }) {
             <TableCell>{TRUE_UP_COMPONENT_LABELS[u.component]}</TableCell>
             <TableCell className="num text-right">{money(u.cents)}</TableCell>
             <TableCell>{u.reason === "no_mba" ? "No MBA found" : "MBA has no published plan"}</TableCell>
+            {actionsEnabled ? (
+              <TableCell>
+                <LinkInvoiceForm invoice={u.invoiceNumber || u.xeroInvoiceId} onLinked={onLinked} />
+              </TableCell>
+            ) : null}
           </TableRow>
         ))}
       </TableBody>
@@ -234,10 +316,13 @@ export function TrueUpPageClient() {
   const [asOf, setAsOf] = useState<string>(() => monthOptions[0]!)
   const [view, setView] = useState<TrueUpView>("action")
   const [search, setSearch] = useState("")
-  const [report, setReport] = useState<TrueUpReport | null>(null)
+  const [report, setReport] = useState<ReportResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [reload, setReload] = useState(0)
+  const [fixRow, setFixRow] = useState<TrueUpMbaRow | null>(null)
   const from = financialYearStart(asOf)
+  const currentMonth = today.slice(0, 7)
 
   useEffect(() => {
     const params = new URLSearchParams({ asOf, from })
@@ -246,7 +331,7 @@ export function TrueUpPageClient() {
     setError(null)
     void fetch(`/api/finance/reports/true-up?${params}`, { signal: ac.signal })
       .then(async (res) => {
-        const body = (await res.json()) as TrueUpReport & { message?: string }
+        const body = (await res.json()) as ReportResponse & { message?: string }
         if (!res.ok) throw new Error(body.message ?? "Could not load the true-up.")
         setReport(body)
       })
@@ -259,7 +344,12 @@ export function TrueUpPageClient() {
         if (!ac.signal.aborted) setLoading(false)
       })
     return () => ac.abort()
-  }, [asOf, from])
+  }, [asOf, from, reload])
+
+  const actionsEnabled = report?.actionsEnabled === true
+  const refresh = () => setReload((n) => n + 1)
+  // Keep the open sheet on the fresh row after a change.
+  const fixRowFresh = fixRow ? (report?.rows.find((r) => r.mbaNumber === fixRow.mbaNumber) ?? fixRow) : null
 
   const rows = useMemo(() => filterTrueUpRows(report?.rows ?? [], view, search), [report, view, search])
   const basis = `${trueUpMonthLabel(from)} to ${trueUpMonthLabel(asOf)}`
@@ -271,7 +361,7 @@ export function TrueUpPageClient() {
   return (
     <FinanceSectionsShell
       title="True-up"
-      headerNote="Read only. Ex GST. Invoiced (sent and approved in Xero) against the billing schedule on each published plan, to the end of the month. Plus is a credit due to the client, minus is a charge. Gaps under $1 are ignored."
+      headerNote="Ex GST. Invoiced (sent and approved in Xero) against the billing schedule on each published plan, to the end of the month. Plus is a credit due to the client, minus is a charge. Gaps under $1 are ignored. Fixes change the billing schedule only, never delivery."
       scopeBarFramed
       scopeBar={
         <div className="flex flex-wrap items-end gap-3">
@@ -332,13 +422,33 @@ export function TrueUpPageClient() {
 
       <section className="mb-8 space-y-2">
         <h2 className="text-sm font-medium text-foreground">By MBA</h2>
-        {loading ? <p className="text-sm text-muted-foreground">Loading</p> : <TrueUpTable rows={rows} />}
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading</p>
+        ) : (
+          <TrueUpTable rows={rows} actionsEnabled={actionsEnabled} onFix={setFixRow} />
+        )}
       </section>
 
       <section className="space-y-2">
         <h2 className="text-sm font-medium text-foreground">Invoice lines with no MBA</h2>
-        {loading || !report ? null : <UnattributedTable report={report} />}
+        {loading || !report ? null : <UnattributedTable report={report} actionsEnabled={actionsEnabled} onLinked={refresh} />}
       </section>
+
+      {actionsEnabled && fixRowFresh ? (
+        <TrueUpFixSheet
+          key={`${fixRowFresh.mbaNumber}-${fixRowFresh.versionId}`}
+          row={fixRowFresh}
+          asOf={asOf}
+          from={from}
+          currentMonth={currentMonth}
+          timing={(report?.billingTiming?.[String(fixRowFresh.clientsId ?? "")] as TrueUpBillingTiming | undefined) ?? "same_month"}
+          open
+          onOpenChange={(o) => {
+            if (!o) setFixRow(null)
+          }}
+          onChanged={refresh}
+        />
+      ) : null}
     </FinanceSectionsShell>
   )
 }
