@@ -823,7 +823,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       availableVersions={availableVersions}
       currentVersion={resolvedVersionNumber ?? versionNumberFromQuery ?? 1}
       isAdmin={isAdminRole(role)}
-      creativePerformanceEnabled={isCreativePerformanceEnabled(slug)}
+      creativePerformanceEnabled={await isCreativePerformanceEnabled(slug)}
       feePctsByVersionId={feePctsByVersionId}
       estimateVersionId={versionRecordId}
     />

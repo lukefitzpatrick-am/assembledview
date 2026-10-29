@@ -18,7 +18,7 @@ function parseId(raw: string): number | null {
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)

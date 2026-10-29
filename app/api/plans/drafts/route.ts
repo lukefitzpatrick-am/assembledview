@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { requireRole } from "@/lib/requireRole"
 import { draftIdentity } from "@/lib/mediaplan/drafts/draftIdentity"
-import { isPlanDraftsEnabled } from "@/lib/mediaplan/drafts/flag"
+import { isPlanDraftsEnabledServer } from "@/lib/mediaplan/drafts/serverFlag"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import {
   deleteWorkingDraft,
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url)
   if (url.searchParams.get("nudge") === "1") {
-    if (!isPlanDraftsEnabled()) {
+    if (!(await isPlanDraftsEnabledServer())) {
       return NextResponse.json({ enabled: false, nudged: 0 })
     }
     const n = await nudgeStaleDrafts()
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     listOtherWorkingDrafts({ masterId, excludeUserId: u.id }),
   ])
   return NextResponse.json({
-    enabled: isPlanDraftsEnabled(),
+    enabled: await isPlanDraftsEnabledServer(),
     identity: { source: u.source, id: u.id },
     draft,
     others: others.map((o) => ({
@@ -95,7 +95,7 @@ export async function PUT(request: NextRequest) {
     baseVersionId: body.baseVersionId ?? body.state.baseVersionId ?? null,
     state: body.state,
   })
-  return NextResponse.json({ ok: true, draft: row, enabled: isPlanDraftsEnabled() })
+  return NextResponse.json({ ok: true, draft: row, enabled: await isPlanDraftsEnabledServer() })
 }
 
 /** DELETE — discard server draft (must delete the row, not just hide the offer). */

@@ -1,5 +1,6 @@
 /**
- * FEATURE_WEB_SEARCH (on/1/true) is the global switch for the Web & search tab.
+ * The web_search switch (lib/features/registry.ts; env FEATURE_WEB_SEARCH
+ * on/1/true until a switch row exists) is the global switch for the Web & search tab.
  * Off is 404 for clients (page and API). Admins never get a 404 because of the
  * switch: the page shows a notice (lib/webReport/admin/pageMode.ts) and the API
  * answers as it does with the switch on (Luke, 29 Oct 2026).
@@ -9,10 +10,12 @@
  * report has been saved and published (lib/webReport/visibility.ts).
  */
 
-const ON = new Set(["on", "1", "true"])
+import "server-only"
 
-export function isWebSearchFlagOn(env: NodeJS.ProcessEnv = process.env): boolean {
-  return ON.has((env.FEATURE_WEB_SEARCH ?? "").trim().toLowerCase())
+import { isFeatureOn } from "@/lib/features/server"
+
+export async function isWebSearchFlagOn(env: Record<string, string | undefined> = process.env): Promise<boolean> {
+  return isFeatureOn("web_search", env)
 }
 
 /**

@@ -18,7 +18,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 
 /** POST /api/codex/time/proposals/[id]/skip */
 export async function POST(request: Request, context: RouteContext) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)

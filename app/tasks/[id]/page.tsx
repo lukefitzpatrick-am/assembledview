@@ -15,7 +15,7 @@ type PageProps = {
 }
 
 export default async function TaskDetailPage({ params, searchParams }: PageProps) {
-  if (!isCodexV2Enabled()) {
+  if (!(await isCodexV2Enabled())) {
     return (
       <PageShell width="standard">
         <PageHeader
@@ -25,7 +25,7 @@ export default async function TaskDetailPage({ params, searchParams }: PageProps
         />
         <EmptyState
           title="Codex is not enabled"
-          message="Set CODEX_V2=on in the server environment to turn on the Postgres-native Codex module."
+          message="Turn on Tasks (Codex) on Admin > Features to use the Postgres-native Codex module."
         />
       </PageShell>
     )

@@ -7,6 +7,7 @@
 
 import { roundMoney2 } from "@/lib/format/money"
 import { toCents } from "@/lib/money"
+import { clientFeatureOn } from "@/lib/features/client"
 
 export type MonthAmountPair = {
   /** Schedule monthYear ("January 2026") or ISO ("2026-01"). */
@@ -208,7 +209,7 @@ export function reanchorOutOfSpanToBalancer(args: {
   }
 }
 
+/** The billing_balancer switch (lib/features/registry.ts), read from the root layout snapshot. */
 export function isBillingBalancerEnabled(): boolean {
-  const v = (process.env.NEXT_PUBLIC_BILLING_BALANCER ?? "off").trim().toLowerCase()
-  return v === "on" || v === "1" || v === "true"
+  return clientFeatureOn("billing_balancer")
 }

@@ -31,7 +31,7 @@ const draft = {
 
 test("admin edit route opens the builder even when the client tab is switched off", async () => {
   const env = { ...process.env, FEATURE_WEB_SEARCH: "off" }
-  assert.equal(isWebSearchFlagOn(env), false)
+  assert.equal(await isWebSearchFlagOn(env), false)
 
   const opened = await resolveAdminWebReportEdit({
     slug: "paul-hartmann",

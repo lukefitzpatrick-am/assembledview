@@ -67,7 +67,7 @@ test(
   { skip },
   async () => {
     process.env.FEATURE_WEB_SEARCH = "off"
-    assert.equal(isWebSearchFlagOn(), false)
+    assert.equal(await isWebSearchFlagOn(), false)
 
     const { WebReportBuilderScreen } = await import(
       "@/components/dashboard/web/WebReportBuilderScreen.js"

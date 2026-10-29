@@ -15,9 +15,10 @@ import { getXeroAccessToken, xeroApiRequest } from "../client"
 import {
   CREDIT_NOTE_PAGES_CAP,
   creditNoteToXeroInvoice,
-  isXeroCreditNoteSyncEnabled,
   type XeroCreditNote,
 } from "../creditNotes"
+import { isFeatureOn } from "@/lib/features/server"
+
 import { rowsOf } from "../dbRows"
 import { coerceDollars } from "../money"
 import { parseXeroDateString, parseXeroDotNetDate } from "../parseXeroDate"
@@ -335,7 +336,7 @@ export async function stageIngestInvoices(opts?: {
     // finished cleanly; an unfinished credit-note walk marks the run
     // incomplete so the next run keeps this watermark (the upsert is idempotent).
     let creditNotesUpserted: number | undefined
-    if (isXeroCreditNoteSyncEnabled() && !incomplete && errors.length === 0) {
+    if (!incomplete && errors.length === 0 && (await isFeatureOn("xero_credit_notes"))) {
       const cn = await ingestCreditNotePages({
         accessToken,
         watermarkStr,

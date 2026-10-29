@@ -23,7 +23,7 @@ function isMondayYmd(value: string): boolean {
 
 /** GET /api/codex/time/proposals?week_start=YYYY-MM-DD */
 export async function GET(request: Request) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)

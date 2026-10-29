@@ -36,7 +36,7 @@ export default async function WebSearchPage({ params, searchParams }: WebSearchP
   }
 
   const isAdmin = hasRole(user, ["admin"])
-  const flagOn = isWebSearchFlagOn()
+  const flagOn = await isWebSearchFlagOn()
   // Clients keep the 404 when the switch is off. Admins get a notice instead.
   if (webSearchFlagBlocks({ isAdmin, flagOn })) notFound()
 

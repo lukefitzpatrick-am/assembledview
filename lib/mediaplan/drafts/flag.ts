@@ -1,5 +1,6 @@
 /**
- * PC7 / Stage 2b — `NEXT_PUBLIC_PLAN_DRAFTS=on|off` (default off).
+ * PC7 / Stage 2b — the plan_drafts switch (lib/features/registry.ts; with no
+ * switch row it reads `NEXT_PUBLIC_PLAN_DRAFTS=on|off`, default off).
  *
  * ON: autosave chrome (3s IndexedDB / 15s server), soft "Save draft" button,
  *     and pill secondary "autosaved Ns ago".
@@ -13,9 +14,11 @@
  *      `tipVersionIdAtLoad` is sent and the published pointer has moved —
  *      the chosen `baseVersionId` does not participate.
  *
- * Do not set this on Vercel from Cursor — Luke flips prod at merge time.
+ * Set on /admin/features. Browser code reads the root layout snapshot here;
+ * server routes use isPlanDraftsEnabledServer (./serverFlag).
  */
+import { clientFeatureOn } from "@/lib/features/client"
+
 export function isPlanDraftsEnabled(): boolean {
-  const v = (process.env.NEXT_PUBLIC_PLAN_DRAFTS ?? "off").trim().toLowerCase()
-  return v === "on" || v === "true" || v === "1"
+  return clientFeatureOn("plan_drafts")
 }

@@ -13,7 +13,7 @@ export const runtime = "nodejs"
  * MBA numbers for the selected client, highest / most recent first.
  */
 export async function GET(request: Request) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)

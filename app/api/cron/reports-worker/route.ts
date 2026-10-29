@@ -16,6 +16,7 @@ import {
   reportsWorkerBatchSize,
   runReportsWorker,
 } from "@/lib/reports/runReportsWorker"
+import { isFeatureOn } from "@/lib/features/server";
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -25,7 +26,8 @@ export const preferredRegion = ["syd1"]
 /**
  * Hourly at :20 UTC on the 3rd, 4th and 5th. That window covers the Sydney
  * 4th and 5th. Hours that fall on the Sydney 3rd or 6th return
- * outside_window. `AUTO_REPORTS_ENABLED` must be the string `true`.
+ * outside_window. The auto_reports switch (Admin > Features;
+ * with no row, `AUTO_REPORTS_ENABLED` exactly `true`) must be on.
  * Do not run until migration 0095 is applied.
  */
 export async function GET(request: Request) {
@@ -36,7 +38,7 @@ export async function GET(request: Request) {
     )
   }
 
-  if (process.env.AUTO_REPORTS_ENABLED !== "true") {
+  if (!(await isFeatureOn("auto_reports"))) {
     return NextResponse.json({ skipped: "disabled" })
   }
 

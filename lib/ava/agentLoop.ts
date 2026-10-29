@@ -10,6 +10,8 @@ import {
   type AvaModelProfileName,
 } from "./modelConfig";
 import { avaToolDefinitionsForPage, getToolByName } from "./tools/registry";
+import { readAvaToolFlags } from "./tools/toolFlags";
+import type { AvaToolFlags } from "./tools/pageToolOffer";
 import type { AvaToolContext } from "./tools/types";
 import type { PageContext } from "@/lib/ava/types";
 import type { ChatFileAttachment, ChatInterviewQuestion, FormPatch } from "@/lib/ava/types";
@@ -70,9 +72,10 @@ const WEB_SEARCH_TOOL: Anthropic.WebSearchTool20250305 = {
 
 function buildTools(
   enableWebSearch: boolean,
-  pageContext?: PageContext,
+  pageContext: PageContext | undefined,
+  flags: AvaToolFlags,
 ): Anthropic.ToolUnion[] {
-  const definitions = avaToolDefinitionsForPage(pageContext);
+  const definitions = avaToolDefinitionsForPage(pageContext, flags);
   if (!enableWebSearch) return definitions;
   return [...definitions, WEB_SEARCH_TOOL];
 }
@@ -226,6 +229,7 @@ export async function runAvaAgent(
     const tools = buildTools(
       input.enableWebSearch === true,
       input.context.pageContext,
+      await readAvaToolFlags(),
     );
     const offeredNames = new Set(
       tools.flatMap((tool) =>

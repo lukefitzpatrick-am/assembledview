@@ -22,7 +22,7 @@ function parseTaskId(idRaw: string): number | null {
 }
 
 export async function GET(request: Request, context: RouteContext) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)
@@ -53,7 +53,7 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 export async function POST(request: Request, context: RouteContext) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)

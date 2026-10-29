@@ -113,7 +113,7 @@ export async function runTrueUpMonthly(args: {
 }): Promise<TrueUpRunResult> {
   const now = args.now ?? new Date()
   const io = args.io ?? {}
-  if (!isTrueUpEnabled() || (args.source === "cron" && !isTrueUpCronEnabled())) {
+  if (!(await isTrueUpEnabled()) || (args.source === "cron" && !(await isTrueUpCronEnabled()))) {
     return { ok: true, skipped: "disabled" }
   }
   if (!(await (io.migrationApplied ?? isTrueUpMigrationApplied)())) return { ok: true, skipped: "not_ready" }

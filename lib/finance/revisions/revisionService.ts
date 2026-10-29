@@ -69,7 +69,7 @@ function err(status: number, code: string, message: string, extra: Partial<Servi
 
 /** Flag and marker, in that order. 404 when off so the feature is invisible. */
 export async function billingRevisionsGate(): Promise<ServiceError | null> {
-  if (!isBillingRevisionsEnabled()) return err(404, "NOT_FOUND", "Not found")
+  if (!(await isBillingRevisionsEnabled())) return err(404, "NOT_FOUND", "Not found")
   if (!(await isBillingRevisionsMigrationApplied())) {
     return err(409, "NOT_READY", "Billing revisions need migration 0106")
   }

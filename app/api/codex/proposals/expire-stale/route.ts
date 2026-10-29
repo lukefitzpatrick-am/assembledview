@@ -12,7 +12,7 @@ export const runtime = "nodejs"
  * Expires proposed rows older than 21 days. Does not delete them.
  */
 export async function POST(request: Request) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)

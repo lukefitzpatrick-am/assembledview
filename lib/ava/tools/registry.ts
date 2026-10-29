@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { PageContext } from "@/lib/ava/types";
 import type AvaTool from "./types";
 import { AVA_TOOL_NAMES } from "./summaries";
-import { avaToolDefinitionsForPage as filterToolsForPage } from "./pageToolOffer";
+import { avaToolDefinitionsForPage as filterToolsForPage, type AvaToolFlags } from "./pageToolOffer";
 import { applyFormPatchTool } from "./applyFormPatch";
 import { applyParsedPlanTool } from "./applyParsedPlan";
 import { getPendingIngestReviewTool } from "./getPendingIngestReview";
@@ -99,8 +99,9 @@ export const AVA_TOOL_DEFINITIONS: Anthropic.Tool[] = AVA_TOOLS.map(
 
 export function avaToolDefinitionsForPage(
   pageContext?: PageContext,
+  flags?: AvaToolFlags,
 ): Anthropic.Tool[] {
-  return filterToolsForPage(AVA_TOOL_DEFINITIONS, pageContext);
+  return filterToolsForPage(AVA_TOOL_DEFINITIONS, pageContext, flags);
 }
 
 const toolsByName = new Map<string, AvaTool>(

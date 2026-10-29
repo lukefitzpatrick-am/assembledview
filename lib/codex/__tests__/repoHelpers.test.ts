@@ -10,16 +10,16 @@ import {
 } from "../queryHelpers.js"
 import { userHasCodexShadowAccess } from "../shadowRoles.js"
 
-test("CODEX_V2 flag is off unless exactly on", () => {
+test("CODEX_V2 flag is off unless exactly on (env fallback with no switch row)", async () => {
   const prev = process.env.CODEX_V2
   delete process.env.CODEX_V2
-  assert.equal(isCodexV2Enabled(), false)
+  assert.equal(await isCodexV2Enabled(), false)
   process.env.CODEX_V2 = "true"
-  assert.equal(isCodexV2Enabled(), false)
+  assert.equal(await isCodexV2Enabled(), false)
   process.env.CODEX_V2 = "on"
-  assert.equal(isCodexV2Enabled(), true)
+  assert.equal(await isCodexV2Enabled(), true)
   process.env.CODEX_V2 = "ON"
-  assert.equal(isCodexV2Enabled(), true)
+  assert.equal(await isCodexV2Enabled(), true)
   if (prev === undefined) delete process.env.CODEX_V2
   else process.env.CODEX_V2 = prev
 })

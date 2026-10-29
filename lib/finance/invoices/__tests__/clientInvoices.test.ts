@@ -31,13 +31,13 @@ function candidate(
 }
 
 describe("isClientInvoicesEnabled", () => {
-  it("defaults off", () => {
+  it("defaults off", async () => {
     const off = { NODE_ENV: "test" } as NodeJS.ProcessEnv
     const explicitOff = { NODE_ENV: "test", CLIENT_INVOICES_ENABLED: "off" } as NodeJS.ProcessEnv
     const on = { NODE_ENV: "test", CLIENT_INVOICES_ENABLED: "on" } as NodeJS.ProcessEnv
-    assert.equal(isClientInvoicesEnabled(off), false)
-    assert.equal(isClientInvoicesEnabled(explicitOff), false)
-    assert.equal(isClientInvoicesEnabled(on), true)
+    assert.equal(await isClientInvoicesEnabled(off), false)
+    assert.equal(await isClientInvoicesEnabled(explicitOff), false)
+    assert.equal(await isClientInvoicesEnabled(on), true)
   })
 })
 

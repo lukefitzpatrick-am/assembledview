@@ -4,7 +4,8 @@
  * as negative amounts, so the true-up counts them and the O7 dispute flow
  * closes a disputed match when one arrives.
  *
- * Off unless XERO_SYNC_CREDIT_NOTES is exactly "true". Purchase credit notes
+ * Off unless the xero_credit_notes switch is on (Admin > Features; with no
+ * switch row, XERO_SYNC_CREDIT_NOTES exactly "true"). Purchase credit notes
  * (ACCPAYCREDIT) are skipped by the upsert.
  *
  * Readers that show or bill invoices exclude credit notes with
@@ -13,12 +14,15 @@
  * billing record matcher.
  */
 
+import { featureEnvValue } from "@/lib/features/registry"
+
 import type { XeroInvoice } from "./stages/ingestInvoices"
 
 export const CREDIT_NOTE_PAGES_CAP = 10
 
+/** The env fallback of the xero_credit_notes switch (live reads use isFeatureOn). */
 export function isXeroCreditNoteSyncEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return String(env.XERO_SYNC_CREDIT_NOTES ?? "").trim() === "true"
+  return featureEnvValue("xero_credit_notes", env)
 }
 
 export type XeroCreditNote = {

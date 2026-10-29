@@ -19,7 +19,7 @@ type Ctx = { params: Promise<{ id: string }> }
  * Body optional edits for edit-then-accept.
  */
 export async function POST(request: Request, context: Ctx) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)

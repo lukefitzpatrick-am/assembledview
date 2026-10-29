@@ -17,7 +17,7 @@ type Ctx = { params: Promise<{ id: string }> }
  * as an assignment_rules training signal. Inbox badge is unchanged.
  */
 export async function POST(request: Request, context: Ctx) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)

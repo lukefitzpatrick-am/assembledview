@@ -31,7 +31,7 @@ export async function GET(
     const isAdmin = roles.includes("admin")
     const isClient = roles.includes("client")
 
-    if (isClient && !isAdmin && !isClientInvoicesEnabled()) {
+    if (isClient && !isAdmin && !(await isClientInvoicesEnabled())) {
       return NextResponse.json({ error: "not found" }, { status: 404 })
     }
 

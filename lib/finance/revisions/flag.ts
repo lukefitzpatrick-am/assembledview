@@ -1,23 +1,19 @@
 /**
- * BILLING_REVISIONS flag (design 5.2). Default off.
+ * Billing revisions switch (design 5.2; lib/features/registry.ts). Default off.
+ * Set on /admin/features; before 0111 or with no row it reads BILLING_REVISIONS.
  *
- * - Server: BILLING_REVISIONS=on gates the routes and the Ava tools.
- * - Browser: NEXT_PUBLIC_BILLING_REVISIONS=on shows the panel and hides
- *   Alter billing. It is inlined at build time, so a change needs a deploy.
- * Turn both on together. With both off the finance row is unchanged.
+ * One switch for the server (routes, Ava tools) and the browser (the panel,
+ * and Alter billing hidden). The browser reads it from the root layout
+ * snapshot (clientFeatureOn("billing_revisions")), so no redeploy is needed.
  */
+import "server-only"
 
-function isOn(raw: string | undefined): boolean {
-  const v = String(raw ?? "off").trim().toLowerCase()
-  return v === "on" || v === "1" || v === "true"
-}
+import { isFeatureOn } from "@/lib/features/server"
 
-export function isBillingRevisionsEnabled(): boolean {
-  return isOn(process.env.BILLING_REVISIONS)
-}
-
-export function isBillingRevisionsUiEnabled(): boolean {
-  return isOn(process.env.NEXT_PUBLIC_BILLING_REVISIONS)
+export async function isBillingRevisionsEnabled(
+  read: (key: "billing_revisions") => Promise<boolean> = (key) => isFeatureOn(key),
+): Promise<boolean> {
+  return read("billing_revisions")
 }
 
 export const BILLING_REVISIONS_MARKER = "0106_billing_revisions"

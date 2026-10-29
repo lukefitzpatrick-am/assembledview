@@ -79,9 +79,9 @@ if (supportsMockModule()) {
       requireRole: requireRoleMock,
     },
   })
-  await mock.module!("@/lib/mediaplan/drafts/flag", {
+  await mock.module!("@/lib/mediaplan/drafts/serverFlag", {
     namedExports: {
-      isPlanDraftsEnabled: () => true,
+      isPlanDraftsEnabledServer: async () => true,
     },
   })
   await mock.module!("@/lib/mediaplan/drafts/serverStore", {

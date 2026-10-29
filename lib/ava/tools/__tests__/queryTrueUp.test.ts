@@ -15,12 +15,12 @@ const RUN_FILE = path.join(ROOT, "sql/supabase/2026-10-29_0110_ava_true_up_read_
 const REPO_FILE = path.join(ROOT, "db/migrations/0110_ava_true_up_read.sql")
 const TABLES = ["true_up_runs", "true_up_actions", "true_up_invoice_links"]
 
-function withTrueUp<T>(value: string | undefined, fn: () => T): T {
+async function withTrueUp<T>(value: string | undefined, fn: () => T | Promise<T>): Promise<T> {
   const before = process.env.TRUE_UP
   if (value === undefined) delete process.env.TRUE_UP
   else process.env.TRUE_UP = value
   try {
-    return fn()
+    return await fn()
   } finally {
     if (before === undefined) delete process.env.TRUE_UP
     else process.env.TRUE_UP = before
@@ -45,13 +45,13 @@ test("allowlist: 0109 itself still grants AVA nothing (the grant lives only in 0
   assert.doesNotMatch(sql, /GRANT[\s\S]*ava_readonly/i)
 })
 
-test("gate: admin only, then TRUE_UP", () => {
-  withTrueUp("true", () => {
-    assert.match(String(trueUpToolGate({ roles: ["client"] })?.content), /finance admins only/)
-    assert.equal(trueUpToolGate({ roles: ["admin"] }), null)
+test("gate: admin only, then the true_up switch (env TRUE_UP with no switch row)", async () => {
+  await withTrueUp("true", async () => {
+    assert.match(String((await trueUpToolGate({ roles: ["client"] }))?.content), /finance admins only/)
+    assert.equal(await trueUpToolGate({ roles: ["admin"] }), null)
   })
-  withTrueUp(undefined, () => {
-    assert.match(String(trueUpToolGate({ roles: ["admin"] })?.content), /TRUE_UP/)
+  await withTrueUp(undefined, async () => {
+    assert.match(String((await trueUpToolGate({ roles: ["admin"] }))?.content), /True-up report/)
   })
 })
 
@@ -63,17 +63,25 @@ test("gate: execute refuses a non-admin before any database read", async () => {
   })
 })
 
-test("offer: on /finance and the MBA page with TRUE_UP on, never on create or edit, never with TRUE_UP off", () => {
+test("offer: on /finance and the MBA page with TRUE_UP on, never on create or edit, never with TRUE_UP off", async () => {
   const defs = [{ name: "query_true_up" }, { name: "get_media_plan_summary" }]
   const offered = (pathname: string) => avaToolDefinitionsForPage(defs, { route: { pathname } } as never).map((d) => d.name)
-  withTrueUp("true", () => {
+  await withTrueUp("true", () => {
     assert.ok(offered("/finance/reports/true-up").includes("query_true_up"))
     assert.ok(offered("/mediaplans/mba/golf025").includes("query_true_up"))
     assert.equal(offered("/mediaplans/mba/golf025/edit").includes("query_true_up"), false)
     assert.equal(offered("/pacing").includes("query_true_up"), false)
   })
-  withTrueUp(undefined, () => {
+  await withTrueUp(undefined, () => {
     assert.equal(offered("/finance/reports/true-up").includes("query_true_up"), false)
+  })
+  // The chat path passes the live switch values; they win over env.
+  await withTrueUp(undefined, () => {
+    const live = avaToolDefinitionsForPage(defs, { route: { pathname: "/finance/reports/true-up" } } as never, {
+      billingRevisions: false,
+      trueUp: true,
+    }).map((d) => d.name)
+    assert.ok(live.includes("query_true_up"))
   })
 })
 

@@ -34,7 +34,7 @@ export async function isWebReportPublished(slug: string): Promise<boolean> {
 
 /** The subset of a client user's slugs whose Web & search tab is visible. */
 export async function publishedWebSearchSlugs(slugs: readonly string[]): Promise<string[]> {
-  if (!isWebSearchFlagOn() || slugs.length === 0) return []
+  if (slugs.length === 0 || !(await isWebSearchFlagOn())) return []
   const checks = await Promise.all(slugs.map(async (slug) => ((await isWebReportPublished(slug)) ? slug : null)))
   return checks.filter((slug): slug is string => slug != null)
 }

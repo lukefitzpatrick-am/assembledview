@@ -27,7 +27,7 @@ export async function GET(
   ctx: { params: Promise<{ slug: string; mba_number: string }> },
 ) {
   const { slug, mba_number } = await ctx.params
-  if (!isCreativePerformanceEnabled(slug)) return notFound()
+  if (!(await isCreativePerformanceEnabled(slug))) return notFound()
 
   const session = await auth0.getSession(req)
   const user = session?.user

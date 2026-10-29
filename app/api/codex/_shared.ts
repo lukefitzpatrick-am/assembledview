@@ -19,8 +19,8 @@ export type CodexAuthOk = {
 export type CodexAuthResult = CodexAuthOk | { error: NextResponse }
 
 /** 404 when Codex v2 flag is off — checked before auth (module invisible). */
-export function codexFlagGuard(): NextResponse | null {
-  if (!isCodexV2Enabled()) {
+export async function codexFlagGuard(): Promise<NextResponse | null> {
+  if (!(await isCodexV2Enabled())) {
     return NextResponse.json({ error: "not_found" }, { status: 404 })
   }
   return null

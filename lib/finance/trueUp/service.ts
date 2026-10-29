@@ -57,7 +57,7 @@ const FIX_OPTIONS: RevisionOptions = {
 
 /** Flag, then 0109, then 0106. 404 while off so the actions are invisible. */
 export async function trueUpActionsGate(): Promise<ServiceError | null> {
-  if (!isTrueUpActionsEnabled()) return err(404, "NOT_FOUND", "Not found")
+  if (!(await isTrueUpActionsEnabled())) return err(404, "NOT_FOUND", "Not found")
   if (!(await isTrueUpMigrationApplied())) return err(409, "NOT_READY", TRUE_UP_NOT_READY_MESSAGE)
   if (!(await isBillingRevisionsMigrationApplied())) {
     return err(409, "NOT_READY", "True-up fixes need migration 0106 (billing revisions).")

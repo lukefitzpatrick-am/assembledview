@@ -56,7 +56,7 @@ export async function loadAdminWebReportList(): Promise<AdminWebReportListResult
         })),
         accounts,
         reports,
-        flagOn: isWebSearchFlagOn(),
+        flagOn: await isWebSearchFlagOn(),
       }),
     }
   } catch (err) {

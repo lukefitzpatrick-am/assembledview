@@ -15,7 +15,7 @@ export const runtime = "nodejs"
  * Same rejected + training semantics as single dismiss. Never creates a task.
  */
 export async function POST(request: Request) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)

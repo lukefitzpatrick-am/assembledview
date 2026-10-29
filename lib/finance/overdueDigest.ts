@@ -22,6 +22,7 @@ import { fromCents } from "@/lib/money"
 import { FY26_AR_START } from "@/lib/xero/contactLinks"
 import { rowsOf } from "@/lib/xero/dbRows"
 import { coerceDollars, dollarsToCents } from "@/lib/xero/money"
+import { isFeatureOn } from "@/lib/features/server"
 
 export const NO_CLIENT_LINK_LABEL = "No client link"
 
@@ -107,8 +108,9 @@ export type OverdueDigestRunResult =
   | { skipped: "disabled" | "weekend" | "already_sent" | "nothing_overdue" }
   | { status: "sent"; invoiceCount: number; totalDueCents: number; logged: boolean }
 
-export function isOverdueDigestEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.OVERDUE_DIGEST_ENABLED === "true"
+/** The overdue_digest switch (Admin > Features); with no switch row, OVERDUE_DIGEST_ENABLED exactly "true". */
+export async function isOverdueDigestEnabled(env: Record<string, string | undefined> = process.env): Promise<boolean> {
+  return isFeatureOn("overdue_digest", env)
 }
 
 export function overdueDigestXeroUrl(env: NodeJS.ProcessEnv = process.env): string {
@@ -404,7 +406,7 @@ async function productionRecordSend(row: OverdueDigestSendRow): Promise<void> {
 }
 
 export async function runOverdueDigest(io: Partial<OverdueDigestIo> = {}): Promise<OverdueDigestRunResult> {
-  const enabled = io.enabled ?? isOverdueDigestEnabled()
+  const enabled = io.enabled ?? (await isOverdueDigestEnabled())
   if (!enabled) return { skipped: "disabled" }
 
   const civil = sydneyCivilParts(io.now ?? new Date())

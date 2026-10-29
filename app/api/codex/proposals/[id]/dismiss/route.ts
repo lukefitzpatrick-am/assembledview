@@ -16,7 +16,7 @@ type Ctx = { params: Promise<{ id: string }> }
  * Records rejected + who + when (training signal later). Never creates a task.
  */
 export async function POST(request: Request, context: Ctx) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)

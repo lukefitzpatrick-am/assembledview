@@ -9,8 +9,8 @@ import { pageMetadata } from "@/lib/nav/routeManifest"
 
 export const metadata = pageMetadata("/tasks")
 
-export default function TasksPage() {
-  if (!isCodexV2Enabled()) {
+export default async function TasksPage() {
+  if (!(await isCodexV2Enabled())) {
     return (
       <PageShell width="standard">
         <PageHeader
@@ -20,7 +20,7 @@ export default function TasksPage() {
         />
         <EmptyState
           title="Codex is not enabled"
-          message="Set CODEX_V2=on in the server environment to turn on the Postgres-native Codex module."
+          message="Turn on Tasks (Codex) on Admin > Features to use the Postgres-native Codex module."
         />
       </PageShell>
     )

@@ -11,6 +11,7 @@ import {
   type MonthlyReportMbaCandidate,
   type QueuedReportRun,
 } from "@/lib/reports/selectMonthlyReportMbas"
+import { isFeatureOn } from "@/lib/features/server";
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -20,8 +21,8 @@ export const preferredRegion = ["syd1"]
 /**
  * 20:05 UTC on the 3rd is 07:05 AEDT on the 4th (06:05 AEST). 20:05 UTC on the
  * 4th is the 5th in Sydney, the retry. Inserts are idempotent, so the 5th
- * adds nothing that the 4th already queued. `AUTO_REPORTS_ENABLED` must be
- * the string `true`. Do not run until migration 0095 is applied.
+ * adds nothing that the 4th already queued. The auto_reports switch (Admin >
+ * Features; with no row, `AUTO_REPORTS_ENABLED` exactly `true`) must be on. Do not run until migration 0095 is applied.
  */
 export async function GET(request: Request) {
   if (!assertCronSecret(request)) {
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
     )
   }
 
-  if (process.env.AUTO_REPORTS_ENABLED !== "true") {
+  if (!(await isFeatureOn("auto_reports"))) {
     return NextResponse.json({ skipped: "disabled" })
   }
 

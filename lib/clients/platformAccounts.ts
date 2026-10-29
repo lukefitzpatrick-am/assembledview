@@ -47,7 +47,8 @@ export function isPlatformAccountPlatform(value: string): value is PlatformAccou
 
 /**
  * GA4 and Search Console stay off the client page until
- * NEXT_PUBLIC_PLATFORM_ACCOUNTS_WEB is exactly "1". 0098 is not applied.
+ * the platform_accounts_web switch is on (Admin > Features; with no switch
+ * row, NEXT_PUBLIC_PLATFORM_ACCOUNTS_WEB exactly "1"). Callers pass "1" when on.
  */
 export function platformAccountChoices(flag?: string): readonly PlatformAccountPlatform[] {
   if (flag === "1") return PLATFORM_ACCOUNT_PLATFORMS

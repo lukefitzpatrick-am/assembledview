@@ -9,7 +9,7 @@ import type { AvaToolContext, AvaToolResult } from "./types"
 
 export async function billingRevisionToolGate(context: AvaToolContext, name: string): Promise<AvaToolResult | null> {
   if (!context.roles.includes("admin")) return { content: `${name} is admin-only.`, isError: true }
-  if (!isBillingRevisionsEnabled()) return { content: "Billing revisions are turned off (BILLING_REVISIONS).", isError: true }
+  if (!(await isBillingRevisionsEnabled())) return { content: "Billing revisions are turned off (Admin > Features).", isError: true }
   if (!context.userSub) return { content: "Could not resolve the signed-in user.", isError: true }
   const { isBillingRevisionsMigrationApplied } = await import("@/lib/finance/revisions/marker")
   if (!(await isBillingRevisionsMigrationApplied())) {

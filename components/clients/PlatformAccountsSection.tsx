@@ -21,6 +21,7 @@ import {
   platformAccountChoices,
   type PlatformAccountPlatform,
 } from "@/lib/clients/platformAccounts"
+import { clientFeatureOn } from "@/lib/features/client"
 
 type AccountRow = {
   id: number
@@ -182,7 +183,7 @@ export function PlatformAccountsSection({ clientId }: { clientId: number }) {
     }
   }
 
-  const choices = platformAccountChoices(process.env.NEXT_PUBLIC_PLATFORM_ACCOUNTS_WEB)
+  const choices = platformAccountChoices(clientFeatureOn("platform_accounts_web") ? "1" : undefined)
   const pickerReady = advertisers.status === "ready"
 
   return (

@@ -18,7 +18,7 @@ import { isBillingRevisionsMigrationApplied } from "./marker"
 export type RevisionRouteGate = { response: NextResponse } | { sub: string; actor: RevisionActor }
 
 export async function gateBillingRevisionRoute(request: NextRequest): Promise<RevisionRouteGate> {
-  if (!isBillingRevisionsEnabled()) {
+  if (!(await isBillingRevisionsEnabled())) {
     return { response: NextResponse.json({ error: "not_found" }, { status: 404 }) }
   }
   const admin = await requireFinanceAdmin(request)

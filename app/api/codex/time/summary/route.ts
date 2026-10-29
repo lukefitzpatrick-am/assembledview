@@ -12,7 +12,7 @@ export const runtime = "nodejs"
  * Hours-to-date for one MBA (admin/Codex shadow only — commercially sensitive).
  */
 export async function GET(request: Request) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)

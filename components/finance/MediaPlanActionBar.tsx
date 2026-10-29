@@ -10,7 +10,7 @@ import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersis
 import { AlterBillingDialog } from "@/components/billing/AlterBillingDialog"
 import { BillingRevisionLog } from "@/components/finance/billing-revisions/BillingRevisionLog"
 import { BillingRevisionPanel } from "@/components/finance/billing-revisions/BillingRevisionPanel"
-import { isBillingRevisionsUiEnabled } from "@/lib/finance/revisions/flag"
+import { clientFeatureOn } from "@/lib/features/client"
 import type { PanelTab } from "@/lib/finance/revisions/panelModel"
 import type { BillingMonth } from "@/lib/billing/types"
 import type { MediaPlanGroup } from "@/lib/finance/useReceivablesData"
@@ -30,8 +30,8 @@ export function useMediaPlanActions({
   const [isLoadingAlter, setIsLoadingAlter] = useState(false)
   const [alterMonths, setAlterMonths] = useState<BillingMonth[] | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  /** BILLING_REVISIONS: Change billing timing replaces Alter billing (flag off = unchanged). */
-  const revisionsUi = isBillingRevisionsUiEnabled()
+  /** billing_revisions switch: Change billing timing replaces Alter billing (off = unchanged). */
+  const revisionsUi = clientFeatureOn("billing_revisions")
   const [revisionOpen, setRevisionOpen] = useState<{ tab: PanelTab; month: string | null } | null>(null)
   const openRevision = useCallback((tab: PanelTab = "bill_amount", month: string | null = null) => {
     setRevisionOpen({ tab, month })

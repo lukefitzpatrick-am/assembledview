@@ -18,13 +18,16 @@ import { coerceDollars, dollarsToCents } from "@/lib/xero/money"
 import { rowsOf } from "@/lib/xero/dbRows"
 
 import { resolveInvoiceClients } from "./resolveInvoiceClient"
+import { isFeatureOn } from "@/lib/features/server"
 
-/** Server env. Unset or anything other than on / 1 / true stays off. */
-export function isClientInvoicesEnabled(
-  env: NodeJS.ProcessEnv = process.env,
-): boolean {
-  const v = (env.CLIENT_INVOICES_ENABLED ?? "off").trim().toLowerCase()
-  return v === "on" || v === "1" || v === "true"
+/**
+ * The client_invoices switch (Admin > Features). With no switch row it reads
+ * CLIENT_INVOICES_ENABLED: unset or anything other than on / 1 / true stays off.
+ */
+export async function isClientInvoicesEnabled(
+  env: Record<string, string | undefined> = process.env,
+): Promise<boolean> {
+  return isFeatureOn("client_invoices", env)
 }
 
 const ALLOWED_STATUSES = new Set(["AUTHORISED", "PAID"])

@@ -36,7 +36,7 @@ export async function runCodexRecurring(
 ): Promise<RecurringRunResult> {
   const sydneyYmd = sydneyCivilParts(now).ymd
 
-  if (!isCodexV2Enabled()) {
+  if (!(await isCodexV2Enabled())) {
     return {
       status: "skipped",
       reason: "codex_v2_off",

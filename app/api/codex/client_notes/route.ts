@@ -5,7 +5,7 @@ import { codexFlagGuard, requireCodexInternalAccess } from "../_shared"
 export const runtime = "nodejs"
 
 export async function GET(request: Request) {
-  const flag = codexFlagGuard()
+  const flag = await codexFlagGuard()
   if (flag) return flag
 
   const auth = await requireCodexInternalAccess(request)

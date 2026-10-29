@@ -1,6 +1,5 @@
 import type { PageContext } from "@/lib/ava/types"
-import { isBillingRevisionsEnabled } from "@/lib/finance/revisions/flag"
-import { isTrueUpEnabled } from "@/lib/finance/trueUp/flag"
+import { featureEnvValue } from "@/lib/features/registry"
 import {
   CAMPAIGN_READ_GENERATE_SURFACE,
   CAMPAIGN_READ_GENERATE_TOOLS,
@@ -10,19 +9,30 @@ const MEDIA_PLAN_CREATE = /^\/mediaplans\/create\/?$/
 const MEDIA_PLAN_EDIT = /^\/mediaplans\/mba\/[^/]+\/edit\/?$/
 const MBA_DETAIL = /^\/mediaplans\/mba\/[^/]+\/?$/
 
-/** Billing revision tools: BILLING_REVISIONS on, and only on /finance/* or the MBA detail page. */
+/**
+ * Live switch values for the gated tools. The chat path reads them from
+ * lib/features/server (lib/ava/tools/toolFlags.ts) and passes them in. With
+ * none passed (tests, pure callers) the env value is the fallback.
+ */
+export type AvaToolFlags = { billingRevisions: boolean; trueUp: boolean }
+
+function envToolFlags(): AvaToolFlags {
+  return { billingRevisions: featureEnvValue("billing_revisions"), trueUp: featureEnvValue("true_up") }
+}
+
+/** Billing revision tools: billing_revisions on, and only on /finance/* or the MBA detail page. */
 export const BILLING_REVISION_TOOLS = new Set(["preview_billing_revision", "apply_billing_revision"])
 
-function billingRevisionToolsOk(pathname: string | undefined): boolean {
-  if (!isBillingRevisionsEnabled() || !pathname) return false
+function billingRevisionToolsOk(pathname: string | undefined, on: boolean): boolean {
+  if (!on || !pathname) return false
   return pathname === "/finance" || pathname.startsWith("/finance/") || MBA_DETAIL.test(pathname)
 }
 
-/** query_true_up: TRUE_UP on, and only on /finance/* or the MBA detail page. */
+/** query_true_up: true_up on, and only on /finance/* or the MBA detail page. */
 export const TRUE_UP_TOOLS = new Set(["query_true_up"])
 
-function trueUpToolsOk(pathname: string | undefined): boolean {
-  if (!isTrueUpEnabled() || !pathname) return false
+function trueUpToolsOk(pathname: string | undefined, on: boolean): boolean {
+  if (!on || !pathname) return false
   return pathname === "/finance" || pathname.startsWith("/finance/") || MBA_DETAIL.test(pathname)
 }
 
@@ -60,10 +70,11 @@ export function isMediaPlanCreateOrEditRoute(
 export function avaToolDefinitionsForPage<T extends { name: string }>(
   definitions: readonly T[],
   pageContext?: PageContext,
+  flags: AvaToolFlags = envToolFlags(),
 ): T[] {
   const pathname = pageContextRoutePathname(pageContext)
-  const revisionsOk = billingRevisionToolsOk(pathname)
-  const trueUpOk = trueUpToolsOk(pathname)
+  const revisionsOk = billingRevisionToolsOk(pathname, flags.billingRevisions)
+  const trueUpOk = trueUpToolsOk(pathname, flags.trueUp)
   const offered = definitions.filter(
     (t) => (revisionsOk || !BILLING_REVISION_TOOLS.has(t.name)) && (trueUpOk || !TRUE_UP_TOOLS.has(t.name)),
   )

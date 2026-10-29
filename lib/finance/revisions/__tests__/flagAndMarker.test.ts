@@ -7,31 +7,41 @@ import { getTableConfig } from "drizzle-orm/pg-core"
 
 import { billingRevisions } from "@/db/schema/billingRevisions"
 
-import { isBillingRevisionsEnabled, isBillingRevisionsUiEnabled } from "../flag"
+import { clientFeatureOn, setClientFeatureSnapshot } from "@/lib/features/client"
+
+import { isBillingRevisionsEnabled } from "../flag"
 import {
   BillingRevisionsNotReadyError,
   assertBillingRevisionsReady,
   isBillingRevisionsMigrationApplied,
 } from "../marker"
 
-function withEnv(key: string, value: string | undefined, fn: () => void) {
+async function withEnv(key: string, value: string | undefined, fn: () => void | Promise<void>) {
   const prev = process.env[key]
   if (value === undefined) delete process.env[key]
   else process.env[key] = value
   try {
-    fn()
+    await fn()
   } finally {
     if (prev === undefined) delete process.env[key]
     else process.env[key] = prev
   }
 }
 
-test("BILLING_REVISIONS defaults off", () => {
-  withEnv("BILLING_REVISIONS", undefined, () => assert.equal(isBillingRevisionsEnabled(), false))
-  withEnv("BILLING_REVISIONS", "off", () => assert.equal(isBillingRevisionsEnabled(), false))
-  withEnv("BILLING_REVISIONS", "on", () => assert.equal(isBillingRevisionsEnabled(), true))
-  withEnv("NEXT_PUBLIC_BILLING_REVISIONS", undefined, () => assert.equal(isBillingRevisionsUiEnabled(), false))
-  withEnv("NEXT_PUBLIC_BILLING_REVISIONS", "on", () => assert.equal(isBillingRevisionsUiEnabled(), true))
+test("billing_revisions defaults off, and with no switch row reads BILLING_REVISIONS", async () => {
+  await withEnv("BILLING_REVISIONS", undefined, async () => assert.equal(await isBillingRevisionsEnabled(), false))
+  await withEnv("BILLING_REVISIONS", "off", async () => assert.equal(await isBillingRevisionsEnabled(), false))
+  await withEnv("BILLING_REVISIONS", "on", async () => assert.equal(await isBillingRevisionsEnabled(), true))
+  assert.equal(await isBillingRevisionsEnabled(async () => true), true)
+})
+
+test("browser: the root layout snapshot wins; before it, the build-time NEXT_PUBLIC_ value", async () => {
+  setClientFeatureSnapshot(null)
+  await withEnv("NEXT_PUBLIC_BILLING_REVISIONS", undefined, () => assert.equal(clientFeatureOn("billing_revisions"), false))
+  await withEnv("NEXT_PUBLIC_BILLING_REVISIONS", "on", () => assert.equal(clientFeatureOn("billing_revisions"), true))
+  setClientFeatureSnapshot({ billing_revisions: false })
+  await withEnv("NEXT_PUBLIC_BILLING_REVISIONS", "on", () => assert.equal(clientFeatureOn("billing_revisions"), false))
+  setClientFeatureSnapshot(null)
 })
 
 test("marker gate: missing marker or a failed read means not ready", async () => {

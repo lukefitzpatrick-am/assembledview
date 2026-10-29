@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!session?.user) {
       return NextResponse.json({ error: "unauthorised" }, { status: 401 })
     }
-    if (webSearchFlagBlocks({ isAdmin: hasRole(session.user, ["admin"]), flagOn: isWebSearchFlagOn() })) {
+    if (webSearchFlagBlocks({ isAdmin: hasRole(session.user, ["admin"]), flagOn: await isWebSearchFlagOn() })) {
       return NextResponse.json({ error: "not found" }, { status: 404 })
     }
     const roles = getUserRoles(session.user)

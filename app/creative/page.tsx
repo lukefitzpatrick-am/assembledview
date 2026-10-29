@@ -24,7 +24,7 @@ export default async function CreativeUploadsPage() {
 
   // Admin-only process-first landing; other staff keep the filter-first picker.
   if (roles.includes("admin")) {
-    return <CreativeAdminLanding codexEnabled={isCodexV2Enabled()} />
+    return <CreativeAdminLanding codexEnabled={await isCodexV2Enabled()} />
   }
 
   return (

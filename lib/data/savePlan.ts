@@ -112,6 +112,7 @@ import {
   type ScheduleMonthInsert,
 } from "@/scripts/migration/_scheduleTransform"
 import { toCents } from "@/lib/money"
+import { isFeatureOn } from "@/lib/features/server"
 
 export { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
 
@@ -470,9 +471,12 @@ function isUniqueViolation(err: unknown): boolean {
   )
 }
 
-/** FEE_SNAPSHOT_WRITE_ONCE=on|off — default off until Luke confirms audit §5.3. */
-export function getFeeSnapshotWriteOnce(): boolean {
-  return (process.env.FEE_SNAPSHOT_WRITE_ONCE ?? "off").trim().toLowerCase() === "on"
+/**
+ * The fee_snapshot_write_once switch (Admin > Features; with no switch row,
+ * FEE_SNAPSHOT_WRITE_ONCE=on|off). Default off until Luke confirms audit §5.3.
+ */
+export async function getFeeSnapshotWriteOnce(): Promise<boolean> {
+  return isFeatureOn("fee_snapshot_write_once")
 }
 
 function approvedLineIdsFromInput(lines: SavePlanLineItem[]): string[] {
@@ -909,6 +913,8 @@ export async function savePlanVersion(
   const lineIds = input.lineItems.map((l) => String(l.lineItemId).trim())
   /** Captured for 23505 messaging — publish path may differ from client number. */
   let attemptedVersionNumber = input.versionNumber
+  // Read once before the transaction (cached switch read, never inside the txn).
+  const feeSnapshotWriteOnce = await getFeeSnapshotWriteOnce()
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -1352,7 +1358,7 @@ export async function savePlanVersion(
           .where(eq(schema.mediaPlanMasters.id, input.masterId))
 
         const fees = input.feeSnapshot ?? (input.feeLoading as Record<string, unknown>) ?? {}
-        if (getFeeSnapshotWriteOnce()) {
+        if (feeSnapshotWriteOnce) {
           // Audit §5.3: write-once per version; admin re-snapshot to overwrite.
           await tx
             .insert(schema.mbaFeeSnapshots)

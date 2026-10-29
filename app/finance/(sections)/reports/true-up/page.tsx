@@ -9,8 +9,8 @@ import { pageMetadata } from "@/lib/nav/routeManifest"
 export const metadata = pageMetadata("/finance/reports/true-up")
 export const dynamic = "force-dynamic"
 
-export default function TrueUpPage() {
-  if (!isTrueUpEnabled()) notFound()
+export default async function TrueUpPage() {
+  if (!(await isTrueUpEnabled())) notFound()
   return (
     <Suspense fallback={<LoadingState rows={8} className="m-4" />}>
       <TrueUpPageClient />

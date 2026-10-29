@@ -126,9 +126,9 @@ describe("overdue digest send gates", () => {
   it("skips when the flag is not exactly true", async () => {
     const env = (flag?: string): NodeJS.ProcessEnv =>
       ({ NODE_ENV: "test", OVERDUE_DIGEST_ENABLED: flag }) as NodeJS.ProcessEnv
-    assert.equal(isOverdueDigestEnabled(env("true")), true)
-    assert.equal(isOverdueDigestEnabled(env(undefined)), false)
-    assert.equal(isOverdueDigestEnabled(env("on")), false)
+    assert.equal(await isOverdueDigestEnabled(env("true")), true)
+    assert.equal(await isOverdueDigestEnabled(env(undefined)), false)
+    assert.equal(await isOverdueDigestEnabled(env("on")), false)
 
     let loaded = 0
     let sent = 0

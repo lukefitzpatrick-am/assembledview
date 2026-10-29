@@ -60,7 +60,7 @@ export async function loadWebReportStatusForClientId(clientId: number): Promise<
         report: reports[0] ?? null,
         ga4Count: accounts.filter((row) => row.platform === "ga4").length,
         gscCount: accounts.filter((row) => row.platform === "gsc").length,
-        flagOn: isWebSearchFlagOn(),
+        flagOn: await isWebSearchFlagOn(),
       }),
     }
   } catch (err) {
@@ -107,7 +107,7 @@ export async function loadWebReportStatusesBySlug(): Promise<WebReportStatusesRe
     ])
     return {
       ok: true,
-      bySlug: webReportStatusesBySlug({ clients: clientRows, reports, accounts }, isWebSearchFlagOn()),
+      bySlug: webReportStatusesBySlug({ clients: clientRows, reports, accounts }, await isWebSearchFlagOn()),
     }
   } catch (err) {
     console.warn("[web-report-status] statuses unavailable", err)

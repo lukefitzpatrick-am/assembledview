@@ -72,9 +72,9 @@ export type TrueUpActionRecord = {
 }
 
 /** Defence in depth: the chat route is admin only already. */
-export function trueUpToolGate(context: Pick<AvaToolContext, "roles">): AvaToolResult | null {
+export async function trueUpToolGate(context: Pick<AvaToolContext, "roles">): Promise<AvaToolResult | null> {
   if (!context.roles.includes("admin")) return { content: "query_true_up is for finance admins only.", isError: true }
-  if (!isTrueUpEnabled()) return { content: "The true-up is turned off (TRUE_UP).", isError: true }
+  if (!(await isTrueUpEnabled())) return { content: "The true-up is turned off (Admin > Features, True-up report).", isError: true }
   return null
 }
 
@@ -181,7 +181,7 @@ export const queryTrueUpTool: AvaTool = {
     },
   },
   async execute(input, context) {
-    const denied = trueUpToolGate(context)
+    const denied = await trueUpToolGate(context)
     if (denied) return denied
     const gate = requireAvaDbOrSoftFail()
     if (!gate.ok) return gate.result

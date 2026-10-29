@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatMoney } from "@/lib/format/money"
-import { isTrueUpUiEnabled } from "@/lib/finance/trueUp/flag"
+import { clientFeatureOn } from "@/lib/features/client"
 import {
   defaultReconciliationMonth,
   planReconciliationFilename,
@@ -138,7 +138,7 @@ export function PlanReconciliationPageClient() {
               {planReconciliationFilename(month)}
             </a>
           </Button>
-          {isTrueUpUiEnabled() ? (
+          {clientFeatureOn("true_up") ? (
             <Button variant="outline" size="sm" asChild>
               <a href="/finance/reports/true-up">True-up</a>
             </Button>

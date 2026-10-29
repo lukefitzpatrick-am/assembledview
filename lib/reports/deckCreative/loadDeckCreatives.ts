@@ -40,7 +40,7 @@ export async function loadDeckCreatives(input: {
   from: string
   to: string
 }): Promise<LoadedDeckCreatives | null> {
-  if (!isCreativePerformanceEnabled("")) return null
+  if (!(await isCreativePerformanceEnabled(""))) return null
   try {
     const rows = await getCreativePerformance({ ...input, sort: "impressions" })
     const selected = selectDeckCreatives(rows)
