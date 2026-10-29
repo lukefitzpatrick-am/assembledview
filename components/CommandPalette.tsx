@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { HelpCircle, Search } from "lucide-react"
+import { Globe, HelpCircle, Search } from "lucide-react"
 
 import { useAuthContext } from "@/contexts/AuthContext"
 import {
@@ -25,6 +25,8 @@ import {
   type NavLink,
 } from "@/lib/nav/routeManifest"
 import { ROUTE_ICON_MAP } from "@/lib/nav/routeIcons"
+import type { AdminWebReportListRow } from "@/lib/webReport/admin/list"
+import { webSearchPaletteEntries } from "@/lib/webReport/admin/search"
 
 const RECENTS_STORAGE_KEY = "avmediaplan.commandPalette.recents"
 const MAX_RECENTS = 10
@@ -128,6 +130,8 @@ export function CommandPalette() {
   const [open, setOpen] = React.useState(false)
   const [cheatOpen, setCheatOpen] = React.useState(false)
   const [recents, setRecents] = React.useState<RecentEntry[]>([])
+  const [webEntries, setWebEntries] = React.useState<ReturnType<typeof webSearchPaletteEntries>>([])
+  const webLoadedRef = React.useRef(false)
 
   const primaryItems = React.useMemo(
     () => (!isLoading ? getPrimaryNavItems(isAdmin, userClient) : []),
@@ -163,6 +167,36 @@ export function CommandPalette() {
       setCheatOpen(false)
     }
   }, [open, refreshRecents])
+
+  // Admin only: "Web & search: {Client}" for every client with a report. Loaded once, on first open.
+  React.useEffect(() => {
+    if (!open || !isAdmin || webLoadedRef.current) return
+    webLoadedRef.current = true
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch("/api/admin/web-reports", { cache: "no-store" })
+        if (!res.ok) {
+          webLoadedRef.current = false
+          return
+        }
+        const body = (await res.json().catch(() => null)) as { rows?: AdminWebReportListRow[] } | null
+        if (!cancelled) setWebEntries(webSearchPaletteEntries(body?.rows ?? []))
+      } catch {
+        webLoadedRef.current = false
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, isAdmin])
+
+  React.useEffect(() => {
+    if (!isAdmin) {
+      setWebEntries([])
+      webLoadedRef.current = false
+    }
+  }, [isAdmin])
 
   const navigate = React.useCallback(
     (href: string, title: string) => {
@@ -268,6 +302,24 @@ export function CommandPalette() {
                 </CommandGroup>
               </>
             )}
+
+            {isAdmin && webEntries.length > 0 ? (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Web & search">
+                  {webEntries.map((entry) => (
+                    <CommandItem
+                      key={entry.href}
+                      value={`${entry.label} ${entry.searchTerms}`}
+                      onSelect={() => navigate(entry.href, entry.label)}
+                    >
+                      <Globe className="text-muted-foreground" />
+                      <span>{entry.label}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            ) : null}
 
             <CommandSeparator />
             <CommandGroup heading="Help">

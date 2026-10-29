@@ -6,6 +6,7 @@ import { fetchClientById } from '@/lib/clients/fetchClientById'
 import { fetchXanoClientRowByUrlSlug } from '@/lib/clients/fetchClientRowByUrlSlug'
 import { hasRole } from '@/lib/rbac'
 import { ClientDashboardPageContent } from '@/components/dashboard/ClientDashboardPageContent'
+import { loadWebReportStatusForClientId } from '@/lib/webReport/admin/statusLoad'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +49,12 @@ export default async function ClientHubDetailPage({ params, searchParams }: Page
     notFound()
   }
 
+  const slugClientId = Number(slugRow?.id)
+  const webStatus =
+    Number.isFinite(slugClientId) && slugClientId > 0
+      ? await loadWebReportStatusForClientId(slugClientId)
+      : null
+
   const clientLogo =
     typeof clientRecord?.logo === 'string' && clientRecord.logo.trim()
       ? clientRecord.logo
@@ -67,6 +74,7 @@ export default async function ClientHubDetailPage({ params, searchParams }: Page
       defaultRangeStartISO={defaultRange.rangeStartISO}
       defaultRangeEndISO={defaultRange.rangeEndISO}
       accountsContactEmail={process.env.ACCOUNTS_CONTACT_EMAIL?.trim() || null}
+      webReportStatus={webStatus?.ok ? webStatus.status : null}
     />
   )
 }

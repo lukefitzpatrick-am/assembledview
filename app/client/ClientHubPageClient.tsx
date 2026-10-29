@@ -15,10 +15,20 @@ import { ClientHubCard } from "./ClientHubCard"
 import { Button } from "@/components/ui/button"
 import { Edit, Search, Users } from "lucide-react"
 import { matchTextAny } from "@/lib/search/matchText"
+import { WebSearchListBadge } from "@/components/dashboard/WebSearchHubLink"
+import type { WebReportAdminStatus } from "@/lib/webReport/admin/status"
 
 type ClientSortKey = "clientName" | "liveCampaigns" | "totalSpend"
 
-export function ClientHubPageClient({ summaries }: { summaries: ClientHubSummary[] }) {
+export function ClientHubPageClient({
+  summaries,
+  webStatuses = null,
+}: {
+  summaries: ClientHubSummary[]
+  /** Web & search status by lower-case slug. Null when the batch read failed (badges hidden). */
+  webStatuses?: Record<string, WebReportAdminStatus> | null
+}) {
+  const webStatusFor = (slug: string) => webStatuses?.[slug.trim().toLowerCase()] ?? null
   const { mode, setMode } = useListGridLayoutPreference()
   const [search, setSearch] = useState("")
   const [sortKey, setSortKey] = useState<ClientSortKey>("clientName")
@@ -146,6 +156,7 @@ export function ClientHubPageClient({ summaries }: { summaries: ClientHubSummary
                         <TableCell>
                           <div className="font-semibold">{row.clientName}</div>
                           <p className="text-xs text-muted-foreground">View dashboard &amp; details</p>
+                          <WebSearchListBadge slug={row.slug} status={webStatusFor(row.slug)} />
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-medium">{row.liveCampaigns}</TableCell>
                         <TableCell className="text-right tabular-nums font-medium">
@@ -174,7 +185,7 @@ export function ClientHubPageClient({ summaries }: { summaries: ClientHubSummary
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {rows.map((row) => (
-            <ClientHubCard key={`${row.id}-${row.slug}`} row={row} />
+            <ClientHubCard key={`${row.id}-${row.slug}`} row={row} webStatus={webStatusFor(row.slug)} />
           ))}
         </div>
       )}

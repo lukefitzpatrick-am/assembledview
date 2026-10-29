@@ -39,6 +39,8 @@ export interface HeroBannerProps {
   clientRecord?: Record<string, unknown> | null
   /** Header actions. The client hub passes Change range. */
   actions?: ReactNode
+  /** Client hub admin actions (Web & search, View as client). Shown only with `clientHubLayout && isAdmin`. */
+  adminHubActions?: ReactNode
 }
 
 function formatRoas(value: number): string {
@@ -67,11 +69,13 @@ export function HeroBanner({
   clientHubLayout = false,
   clientRecord = null,
   actions,
+  adminHubActions,
 }: HeroBannerProps) {
   const showBenchmarkLine = !clientHubLayout
   const showProfileLinks = clientHubLayout && isAdmin
   const showBrainIcon = Boolean(isAdmin && onOpenBrain && clientHubLayout)
   const showAdminRail = isAdmin
+  const hubActions = clientHubLayout && isAdmin ? adminHubActions : null
 
   const detail = (
     <>
@@ -128,9 +132,10 @@ export function HeroBanner({
       lede={detail}
       meta={showProfileLinks ? <ClientProfileLinks record={clientRecord} /> : undefined}
       actions={
-        actions || showAdminRail ? (
+        actions || showAdminRail || hubActions ? (
           <>
             {actions}
+            {hubActions}
             {showAdminRail ? (
           <TooltipProvider delayDuration={100}>
             <div

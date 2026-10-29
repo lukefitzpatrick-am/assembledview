@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { PlusCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
@@ -11,6 +11,7 @@ import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer
 import { CampaignCardCompact } from "@/components/dashboard/CampaignCardCompact"
 import { CampaignStatusPills, type CampaignStatus } from "@/components/dashboard/CampaignStatusPills"
 import { HeroBanner } from "@/components/dashboard/HeroBanner"
+import { WebSearchHubLink } from "@/components/dashboard/WebSearchHubLink"
 import { HeroKPIBar } from "@/components/dashboard/HeroKPIBar"
 import { SpendingInsightsSection } from "@/components/dashboard/SpendingInsightsSection"
 import { UpcomingCampaignsSection } from "@/components/dashboard/UpcomingCampaignsSection"
@@ -44,6 +45,7 @@ import { fyDisplayLabel } from "@/lib/finance/months"
 import DateRangeSelector from "@/components/dashboard/shared/DateRangeSelector"
 import { applyAssumedToHubTotals, EMPTY_DELIVERED_TOTALS_WITH_AS_OF } from "@/lib/delivery/deliveredTotals"
 import { formatDateShort } from "@/lib/format/date"
+import type { WebReportAdminStatus } from "@/lib/webReport/admin/status"
 import type { Campaign as LegacyCampaign, ClientDashboardData as LegacyClientDashboardData } from "@/lib/types/dashboard"
 
 /** Derive a freshness caption from Snowflake delivery `asOf` — never invent relative times. */
@@ -70,6 +72,10 @@ export interface ClientDashboardPageContentProps {
   defaultRangeEndISO: string
   /** Server-read `ACCOUNTS_CONTACT_EMAIL`. Omitted when unset. */
   accountsContactEmail?: string | null
+  /** Client hub only: Web & search status for the chip. Null when the read failed. */
+  webReportStatus?: WebReportAdminStatus | null
+  /** Client hub only: extra admin actions (View as client). */
+  extraHubActions?: ReactNode
 }
 
 /** `/api/dashboard/[slug]/delivered` response shape — see `getDeliveredTotalsForClient`. */
@@ -164,6 +170,8 @@ export function ClientDashboardPageContent({
   defaultRangeStartISO,
   defaultRangeEndISO,
   accountsContactEmail,
+  webReportStatus = null,
+  extraHubActions = null,
 }: ClientDashboardPageContentProps) {
   const isAdmin = campaignLinkMode === "adminHub"
   const clientIdRaw = clientData.clientRecord?.id
@@ -403,6 +411,14 @@ export function ClientDashboardPageContent({
             isAdmin={isAdmin}
             clientHubLayout={isClientHub}
             clientRecord={isClientHub ? clientData.clientRecord : null}
+            adminHubActions={
+              isClientHub ? (
+                <div className="flex flex-col items-end gap-2">
+                  <WebSearchHubLink slug={slug} status={webReportStatus} />
+                  {extraHubActions}
+                </div>
+              ) : null
+            }
             actions={
               <Suspense fallback={null}>
                 <DateRangeSelector

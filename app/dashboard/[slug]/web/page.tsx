@@ -1,8 +1,16 @@
 import { notFound, redirect } from "next/navigation"
 
+import {
+  WebReportAdminStrip,
+  WebReportSetupState,
+  WebSearchFlagOffNotice,
+} from "@/components/dashboard/web/WebReportAdminNotices"
 import { WebReportView } from "@/components/dashboard/web/WebReportView"
+import { getClientDashboardData } from "@/lib/api/dashboard"
 import { auth0 } from "@/lib/auth0"
 import { getPrimaryRole, getUserClientSlugs, hasRole } from "@/lib/rbac"
+import { resolveWebPageMode } from "@/lib/webReport/admin/pageMode"
+import { loadWebReportStatusForSlug } from "@/lib/webReport/admin/statusLoad"
 import { isWebSearchFlagOn } from "@/lib/webReport/featureFlag"
 import { isWebReportPublished } from "@/lib/webReport/visibility"
 import { loadWebReportResponse, WebReportRangeError } from "@/lib/webReport/loadPage"
@@ -20,13 +28,17 @@ function first(value: string | string[] | undefined): string | null {
 
 export default async function WebSearchPage({ params, searchParams }: WebSearchPageProps) {
   const { slug } = await params
-  if (!isWebSearchFlagOn()) notFound()
 
   const session = await auth0.getSession()
   const user = session?.user
   if (!user) {
     redirect(`/auth/login?returnTo=/dashboard/${slug}/web`)
   }
+
+  const isAdmin = hasRole(user, ["admin"])
+  const flagOn = isWebSearchFlagOn()
+  // Clients keep the 404 when the switch is off. Admins get a notice instead.
+  if (!flagOn && !isAdmin) notFound()
 
   const role = getPrimaryRole(user)
   const userClientSlugs = getUserClientSlugs(user)
@@ -36,6 +48,27 @@ export default async function WebSearchPage({ params, searchParams }: WebSearchP
     }
     // Clients see the tab only after the report has been saved and published.
     if (!(await isWebReportPublished(slug))) notFound()
+  }
+
+  const statusResult = isAdmin ? await loadWebReportStatusForSlug(slug) : null
+  const mode = resolveWebPageMode({
+    isAdmin,
+    flagOn,
+    status: statusResult?.ok ? statusResult.status : null,
+  })
+  if (mode.kind === "not_found") notFound()
+
+  if (mode.kind === "admin_setup") {
+    const dashboard = await getClientDashboardData(slug)
+    if (!dashboard) notFound()
+    return (
+      <WebReportSetupState
+        slug={slug}
+        clientName={dashboard.clientName}
+        status={mode.status}
+        flagOff={mode.flagOff}
+      />
+    )
   }
 
   const sp = searchParams ? await searchParams : undefined
@@ -67,6 +100,14 @@ export default async function WebSearchPage({ params, searchParams }: WebSearchP
       : windowPeriod
   const range = windowPeriod === "custom" ? report.data.windows.current : null
 
+  const notices =
+    mode.kind === "admin_report" && (mode.flagOff || mode.strip) ? (
+      <>
+        {mode.flagOff ? <WebSearchFlagOffNotice /> : null}
+        {mode.strip ? <WebReportAdminStrip slug={slug} strip={mode.strip} status={mode.status} /> : null}
+      </>
+    ) : null
+
   return (
     <WebReportView
       slug={slug}
@@ -76,7 +117,8 @@ export default async function WebSearchPage({ params, searchParams }: WebSearchP
       data={report.data}
       connected={report.connected}
       range={range}
-      builderHref={hasRole(user, ["admin"]) ? `/dashboard/${slug}/web/builder` : null}
+      builderHref={isAdmin ? `/dashboard/${slug}/web/builder` : null}
+      notices={notices}
     />
   )
 }

@@ -98,14 +98,16 @@ test("Home / Clients / Users labels and Create Campaign is palette-only", () => 
   assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/reports"))
   assert.equal(getRouteByExactPath("/admin/reports")!.label, "Reports")
   assert.equal(getRouteByExactPath("/admin/reports")!.roles?.[0], "admin")
-  const reportsAt = (ADMIN_SIDEBAR_PATHS as readonly string[]).indexOf("/admin/reports")
+  const creativeAt = (ADMIN_SIDEBAR_PATHS as readonly string[]).indexOf("/creative")
   assert.equal(
-    (ADMIN_SIDEBAR_PATHS as readonly string[])[reportsAt + 1],
+    (ADMIN_SIDEBAR_PATHS as readonly string[])[creativeAt + 1],
     "/admin/web-reports",
   )
   const webReports = getRouteByExactPath("/admin/web-reports")!
-  assert.equal(webReports.label, "Web & search reports")
-  assert.equal(webReports.title, "Web & search reports")
+  assert.equal(webReports.label, "Analytics")
+  assert.equal(webReports.title, "Analytics")
+  assert.equal(webReports.group, "core")
+  assert.match(webReports.searchTerms ?? "", /web search/)
   assert.equal(webReports.roles?.[0], "admin")
   assert.equal(webReports.inSidebar, true)
   assert.equal(getPaletteNav(false).some((item) => item.path === "/admin/web-reports"), false)
@@ -134,7 +136,7 @@ test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async (
         label: "Plan",
         paths: ["/tools/behavioural-planner", "/mediaplans", "/scopes-of-work"],
       },
-      { id: "deliver", label: "Deliver", paths: ["/pacing", "/creative"] },
+      { id: "deliver", label: "Deliver", paths: ["/pacing", "/creative", "/admin/web-reports"] },
       {
         id: "finance",
         label: "Finance",
@@ -163,7 +165,6 @@ test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async (
           "/admin/fireflies-unattributed",
           "/admin/schedule-ingest",
           "/admin/reports",
-          "/admin/web-reports",
         ],
       },
     ]

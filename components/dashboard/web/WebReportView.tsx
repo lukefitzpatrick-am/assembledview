@@ -115,6 +115,7 @@ export function WebReportView({
   builderHref,
   interactivePeriod = true,
   range = null,
+  notices = null,
 }: {
   slug: string
   clientName: string
@@ -126,9 +127,12 @@ export function WebReportView({
   interactivePeriod?: boolean
   /** A custom from/to range from the URL. Null for a preset. */
   range?: DateWindow | null
+  /** Staff-only notices above the header (flag off, draft, accounts missing). */
+  notices?: ReactNode
 }) {
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-6 sm:px-6">
+      {notices}
       <PageHeader
         title={clientName}
         accent={`Web & search, ${data.windows.phrase}`}

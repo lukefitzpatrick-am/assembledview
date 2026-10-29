@@ -120,7 +120,7 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
   {
     id: "deliver",
     label: "Deliver",
-    paths: ["/pacing", "/creative"],
+    paths: ["/pacing", "/creative", "/admin/web-reports"],
   },
   {
     id: "finance",
@@ -151,7 +151,6 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
       "/admin/fireflies-unattributed",
       "/admin/schedule-ingest",
       "/admin/reports",
-      "/admin/web-reports",
     ],
   },
 ] as const
@@ -420,15 +419,16 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     group: "admin",
   },
   {
+    // Core nav (Deliver). Path kept; the page lists every client's Web & search report.
     path: "/admin/web-reports",
-    label: "Web & search reports",
-    title: "Web & search reports",
+    label: "Analytics",
+    title: "Analytics",
     icon: "Globe",
     inPalette: true,
     inSidebar: true,
     roles: ["admin"],
-    searchTerms: "web search reports ga4 search console builder",
-    group: "admin",
+    searchTerms: "analytics web search reports ga4 google analytics search console builder",
+    group: "core",
   },
   {
     path: "/admin/web-reports/[slug]",

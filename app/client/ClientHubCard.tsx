@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import type { ClientHubSummary } from '@/lib/types/dashboard'
+import { WebSearchListBadge } from '@/components/dashboard/WebSearchHubLink'
+import type { WebReportAdminStatus } from '@/lib/webReport/admin/status'
 
 function clientInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean)
@@ -10,14 +12,21 @@ function clientInitials(name: string): string {
   return `${words[0][0]}${words[1][0]}`.toUpperCase()
 }
 
-export function ClientHubCard({ row }: { row: ClientHubSummary }) {
+/**
+ * The card is one stretched link to the client hub. The Web & search badge is
+ * its own link above the stretch (`relative z-10`), so links never nest.
+ */
+export function ClientHubCard({
+  row,
+  webStatus = null,
+}: {
+  row: ClientHubSummary
+  webStatus?: WebReportAdminStatus | null
+}) {
   const hasActiveCampaigns = row.liveCampaigns > 0
 
   return (
-    <Link
-      href={`/client/${encodeURIComponent(row.slug)}`}
-      className="block focus:outline-none"
-    >
+    <div className="relative h-full">
       <Card className="h-full overflow-hidden rounded-card border border-border bg-card transition-colors hover:border-[var(--dashboard-border-hover)] focus-within:ring-2 focus-within:ring-ring">
         <div className="h-[3px] bg-primary" aria-hidden />
         <CardHeader className="pb-3">
@@ -28,7 +37,12 @@ export function ClientHubCard({ row }: { row: ClientHubSummary }) {
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-start gap-2">
                 <CardTitle className="text-lg font-semibold leading-snug line-clamp-2">
-                  {row.clientName}
+                  <Link
+                    href={`/client/${encodeURIComponent(row.slug)}`}
+                    className="after:absolute after:inset-0 focus:outline-none"
+                  >
+                    {row.clientName}
+                  </Link>
                 </CardTitle>
               </div>
               <CardDescription className="text-xs">View dashboard &amp; details</CardDescription>
@@ -46,8 +60,9 @@ export function ClientHubCard({ row }: { row: ClientHubSummary }) {
             <span className="text-muted-foreground">FY spend</span>
             <span className="num font-semibold">${row.totalSpend.toLocaleString()}</span>
           </div>
+          <WebSearchListBadge slug={row.slug} status={webStatus} />
         </CardContent>
       </Card>
-    </Link>
+    </div>
   )
 }

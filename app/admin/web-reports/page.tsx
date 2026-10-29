@@ -1,18 +1,21 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Search } from "lucide-react"
 
 import { AdminGuard } from "@/components/guards/AdminGuard"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { PageShell } from "@/components/layout/PageShell"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table"
 import { StatusPill } from "@/components/ui/status-pill"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { formatDateShort } from "@/lib/format/date"
 import type { Tone } from "@/lib/design/status"
 import type { AdminWebReportListRow, AdminWebReportStatus } from "@/lib/webReport/admin/list"
+import { filterAdminWebReportRows } from "@/lib/webReport/admin/search"
 
 type ListResponse = {
   ready: boolean
@@ -46,12 +49,12 @@ function ActionsCell({ row }: { row: AdminWebReportListRow }) {
   if (!row.slug) return <span className="text-muted-foreground">No slug</span>
   const slug = encodeURIComponent(row.slug)
   return (
-    <div className="flex flex-wrap gap-3">
-      <Button variant="link" size="sm" className="h-auto px-0" asChild>
-        <Link href={`/admin/web-reports/${slug}`}>Edit report</Link>
+    <div className="flex flex-wrap items-center gap-3">
+      <Button size="sm" asChild>
+        <Link href={`/dashboard/${slug}/web`}>View</Link>
       </Button>
       <Button variant="link" size="sm" className="h-auto px-0" asChild>
-        <Link href={`/dashboard/${slug}/web`}>View</Link>
+        <Link href={`/admin/web-reports/${slug}`}>Edit report</Link>
       </Button>
       <Button variant="link" size="sm" className="h-auto px-0" asChild>
         <Link href={`/client/${slug}#platform-accounts`}>Edit accounts</Link>
@@ -108,6 +111,8 @@ function WebReportsPageInner() {
   const [ready, setReady] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState("")
+  const visibleRows = useMemo(() => filterAdminWebReportRows(rows, search), [rows, search])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -117,14 +122,14 @@ function WebReportsPageInner() {
       const body = (await response.json().catch(() => null)) as ListResponse | null
       if (!response.ok) {
         setRows([])
-        setError(body?.error || "Could not load Web & search reports.")
+        setError(body?.error || "Could not load Analytics.")
         return
       }
       setReady(body?.ready !== false)
       setRows(body?.rows ?? [])
     } catch {
       setRows([])
-      setError("Could not load Web & search reports.")
+      setError("Could not load Analytics.")
     } finally {
       setLoading(false)
     }
@@ -137,12 +142,24 @@ function WebReportsPageInner() {
   return (
     <PageShell>
       <PageHeader
-        title="Web & search reports"
-        lede="Every client is listed. Open Edit report to pick their GA4 property and Search Console site and build the report. A client sees their Web & search tab only once the report is saved and published."
+        title="Analytics"
+        lede="Every client's Web & search report (GA4 and Search Console). View opens the report as staff see it. Edit report picks the GA4 property and Search Console site and builds the report. A client sees their Web & search tab only once the report is saved and published."
+        actions={
+          <div className="relative w-full min-w-[12rem] max-w-xs sm:w-64">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input
+              className="h-9 pl-8"
+              placeholder="Search clients…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              aria-label="Search clients by name or slug"
+            />
+          </div>
+        }
       />
       {loading ? <LoadingState /> : null}
       {!loading && error ? (
-        <ErrorState title="Web & search reports unavailable" message={error} onRetry={() => void load()} />
+        <ErrorState title="Analytics unavailable" message={error} onRetry={() => void load()} />
       ) : null}
       {!loading && !error && !ready ? (
         <EmptyState
@@ -156,10 +173,13 @@ function WebReportsPageInner() {
           message="No clients have a dashboard slug yet."
         />
       ) : null}
-      {!loading && !error && ready && rows.length > 0 ? (
+      {!loading && !error && ready && rows.length > 0 && visibleRows.length === 0 ? (
+        <EmptyState title="No clients match your search" message="Try a different name or slug." />
+      ) : null}
+      {!loading && !error && ready && visibleRows.length > 0 ? (
         <DataTable
           columns={columns}
-          rows={rows}
+          rows={visibleRows}
           getRowId={(row) => String(row.clientId)}
           initialSort={{ id: "client", direction: "asc" }}
           csvFilename="web-search-reports"
