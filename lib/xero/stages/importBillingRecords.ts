@@ -145,6 +145,7 @@ WITH shaped AS (
   LEFT JOIN xero_contacts c ON c.xero_contact_id = a.xero_contact_id
   WHERE a.issue_date >= DATE '2025-07-01'
     AND a.xero_invoice_id IS NOT NULL
+    AND coalesce(upper(a.raw_json->>'Type'), '') <> 'ACCRECCREDIT'
 ),
 name_hits AS (
   SELECT norm, COUNT(*)::int AS n, MIN(id) AS only_id

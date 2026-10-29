@@ -12,6 +12,12 @@ import {
   loadScopeOfWorkRefs,
 } from "../applyMatchMba"
 import { getXeroAccessToken, xeroApiRequest } from "../client"
+import {
+  CREDIT_NOTE_PAGES_CAP,
+  creditNoteToXeroInvoice,
+  isXeroCreditNoteSyncEnabled,
+  type XeroCreditNote,
+} from "../creditNotes"
 import { rowsOf } from "../dbRows"
 import { coerceDollars } from "../money"
 import { parseXeroDateString, parseXeroDotNetDate } from "../parseXeroDate"
@@ -28,6 +34,8 @@ export type IngestInvoicesResult = {
   pages_fetched: number
   ar_upserted: number
   ap_upserted: number
+  /** Sales credit notes from /CreditNotes (XERO_SYNC_CREDIT_NOTES). Counted in ar_upserted too. */
+  credit_notes_upserted?: number
   matched: number
   unmatched: number
   watermark_used: string
@@ -89,11 +97,12 @@ export async function upsertPagedXeroInvoice(
   const contactId = inv.Contact?.ContactID ?? null
 
   if (inv.Type === "ACCREC" || inv.Type === "ACCRECCREDIT") {
+    // Credit notes are stored negative: total, sub_total and tax. The O7
+    // dispute reconcile reads sub_total < 0; the true-up reads the Type.
+    const credit = inv.Type === "ACCRECCREDIT"
+    const signed = (n: number) => (credit && n > 0 ? -n : n)
     const totalDollars = coerceDollars(inv.Total)
-    const signedTotal =
-      inv.Type === "ACCRECCREDIT" && totalDollars > 0
-        ? -totalDollars
-        : totalDollars
+    const signedTotal = signed(totalDollars)
     const row = rowsOf<{
       id: number
       mba_match_id: number | null
@@ -109,8 +118,8 @@ export async function upsertPagedXeroInvoice(
                 ${inv.InvoiceNumber ?? null},
                 ${contactId},
                 ${inv.Status ?? null},
-                ${moneyStr(coerceDollars(inv.SubTotal))},
-                ${moneyStr(coerceDollars(inv.TotalTax))},
+                ${moneyStr(signed(coerceDollars(inv.SubTotal)))},
+                ${moneyStr(signed(coerceDollars(inv.TotalTax)))},
                 ${moneyStr(signedTotal)},
                 ${moneyStr(coerceDollars(inv.AmountPaid))},
                 ${moneyStr(coerceDollars(inv.AmountDue))},
@@ -320,7 +329,26 @@ export async function stageIngestInvoices(opts?: {
       }
     }
 
-    const incomplete = budgetHit || (!stopLoop && pagesFetched >= pagesCap)
+    let incomplete = budgetHit || (!stopLoop && pagesFetched >= pagesCap)
+
+    // T9: sales credit notes, same watermark. Only after the invoice pages
+    // finished cleanly; an unfinished credit-note walk marks the run
+    // incomplete so the next run keeps this watermark (the upsert is idempotent).
+    let creditNotesUpserted: number | undefined
+    if (isXeroCreditNoteSyncEnabled() && !incomplete && errors.length === 0) {
+      const cn = await ingestCreditNotePages({
+        accessToken,
+        watermarkStr,
+        fetchImpl,
+        runStartedAt,
+        budget: opts?.budget,
+      })
+      creditNotesUpserted = cn.upserted
+      arUpserted += cn.upserted
+      if (cn.upserted > 0) sawNegativeAr = true
+      errors.push(...cn.errors)
+      if (cn.incomplete) incomplete = true
+    }
 
     // O7: credit-note-shaped AR (negative total / ACCRECCREDIT) closes disputed matches.
     // Skip when the time budget is already spent so the log row can be updated.
@@ -341,6 +369,7 @@ export async function stageIngestInvoices(opts?: {
       pages_fetched: pagesFetched,
       ar_upserted: arUpserted,
       ap_upserted: apUpserted,
+      ...(creditNotesUpserted === undefined ? {} : { credit_notes_upserted: creditNotesUpserted }),
       matched,
       unmatched,
       watermark_used: watermarkStr,
@@ -370,3 +399,67 @@ export async function stageIngestInvoices(opts?: {
 }
 
 const DEFAULT_FALLBACK = "2024-07-01T00:00:00"
+
+export type CreditNotePagesResult = {
+  pages: number
+  upserted: number
+  incomplete: boolean
+  errors: string[]
+}
+
+/**
+ * Page /CreditNotes from the invoice watermark and upsert the sales credit
+ * notes (ACCRECCREDIT) into xero_ar_invoices. No MBA match: the ingest only
+ * matches non-negative AR, so a credit note is placed by a hand link on the
+ * true-up page or its line descriptions.
+ */
+export async function ingestCreditNotePages(args: {
+  accessToken: string
+  watermarkStr: string
+  fetchImpl: typeof fetch
+  runStartedAt: Date
+  budget?: StageBudget
+  pagesCap?: number
+  upsert?: typeof upsertPagedXeroInvoice
+}): Promise<CreditNotePagesResult> {
+  const upsert = args.upsert ?? upsertPagedXeroInvoice
+  const cap = args.pagesCap ?? CREDIT_NOTE_PAGES_CAP
+  const errors: string[] = []
+  let page = 1
+  let pages = 0
+  let upserted = 0
+  let done = false
+  while (!done && pages < cap) {
+    if (args.budget && tickStageBudget(args.budget).status === "incomplete") {
+      return { pages, upserted, incomplete: true, errors }
+    }
+    try {
+      const api = await xeroApiRequest({
+        accessToken: args.accessToken,
+        path: `/CreditNotes?page=${page}`,
+        ifModifiedSince: args.watermarkStr,
+        fetchImpl: args.fetchImpl,
+      })
+      if (api.status >= 400) {
+        errors.push(`CreditNotes page ${page}: HTTP ${api.status}`)
+        return { pages, upserted, incomplete: false, errors }
+      }
+      const notes = (api.body as { CreditNotes?: XeroCreditNote[] }).CreditNotes ?? []
+      if (notes.length === 0) {
+        done = true
+        break
+      }
+      for (const cn of notes) {
+        if (cn.Type !== "ACCRECCREDIT" || !cn.CreditNoteID) continue
+        const persisted = await upsert(creditNoteToXeroInvoice(cn), args.runStartedAt)
+        if (persisted.kind === "ar") upserted++
+      }
+      page++
+      pages++
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err))
+      return { pages, upserted, incomplete: false, errors }
+    }
+  }
+  return { pages, upserted, incomplete: !done, errors }
+}

@@ -13,6 +13,7 @@ import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import { daysOverdue } from "@/lib/finance/sections/owedLedger"
 import { pdfAvailableFromJson } from "@/lib/finance/sections/owedQuery"
 import { FY26_AR_START } from "@/lib/xero/contactLinks"
+import { arNotCreditNoteSql } from "@/lib/xero/creditNotes"
 import { coerceDollars, dollarsToCents } from "@/lib/xero/money"
 import { rowsOf } from "@/lib/xero/dbRows"
 
@@ -224,6 +225,7 @@ export async function loadClientInvoicesForClient(
         LEFT JOIN xero_contacts c ON c.xero_contact_id = i.xero_contact_id
         WHERE i.issue_date >= ${FY26_AR_START}
           AND upper(btrim(coalesce(i.status, ''))) IN ('AUTHORISED', 'PAID')
+          AND ${sql.raw(arNotCreditNoteSql("i"))}
       `),
     ),
   ])

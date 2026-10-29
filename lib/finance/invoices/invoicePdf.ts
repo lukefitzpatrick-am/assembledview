@@ -10,6 +10,7 @@ import {
 import { getPrivateBlob } from "@/lib/creative/getPrivateBlob"
 import { getUserRoles } from "@/lib/rbac"
 import { rowsOf } from "@/lib/xero/dbRows"
+import { arNotCreditNoteSql } from "@/lib/xero/creditNotes"
 import { type ResolvedClient } from "@/lib/xero/normalizeContact"
 
 import { apInvoicePdfPath, arInvoicePdfPath } from "./invoicePdfPaths"
@@ -144,6 +145,7 @@ async function loadArInvoice(xeroInvoiceId: string): Promise<InvoicePdfRecord | 
       FROM xero_ar_invoices i
       LEFT JOIN xero_contacts c ON c.xero_contact_id = i.xero_contact_id
       WHERE i.xero_invoice_id = ${xeroInvoiceId}
+        AND ${sql.raw(arNotCreditNoteSql("i"))}
       LIMIT 1
     `),
   )

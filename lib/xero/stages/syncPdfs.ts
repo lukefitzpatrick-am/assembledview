@@ -16,6 +16,7 @@ import { db } from "@/db"
 
 import { upsertExceptionByInvoiceId } from "../applyMatchMba"
 import { getXeroAccessToken, xeroApiRequest } from "../client"
+import { arNotCreditNoteSql } from "../creditNotes"
 import { rowsOf } from "../dbRows"
 
 /** Default rows processed per stage run. Override via `XERO_PDF_BATCH_SIZE`. */
@@ -202,6 +203,7 @@ async function defaultListPending(
     SELECT xero_invoice_id, invoice_number, reference_raw, issue_date::text AS issue_date
     FROM ${sql.raw(table)}
     WHERE ${sql.raw(PDF_PENDING_WHERE)}
+      AND ${sql.raw(arNotCreditNoteSql())}
     ORDER BY id ASC
   `)
   return rowsOf<PendingPdfRow>(result)

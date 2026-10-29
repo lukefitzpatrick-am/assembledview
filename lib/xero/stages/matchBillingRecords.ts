@@ -8,6 +8,7 @@ import { sql } from "drizzle-orm"
 
 import { getClient, getDb } from "@/db"
 import { loadMbaMasters, loadScopeOfWorkRefs } from "@/lib/xero/applyMatchMba"
+import { arNotCreditNoteSql } from "@/lib/xero/creditNotes"
 import { loadContactLinks } from "@/lib/xero/contactLinks"
 import { rowsOf } from "@/lib/xero/dbRows"
 import { coerceDollars, dollarsToCents } from "@/lib/xero/money"
@@ -97,6 +98,7 @@ async function loadMatchInputs(): Promise<{
              reference_raw, sub_total, xero_contact_id, line_items_json
       FROM xero_ar_invoices
       WHERE upper(btrim(status)) IN ('DRAFT', 'SUBMITTED', 'AUTHORISED', 'PAID', 'DELETED', 'VOIDED')
+        AND ${sql.raw(arNotCreditNoteSql())}
       ORDER BY issue_date ASC NULLS LAST, invoice_number ASC NULLS LAST, xero_invoice_id ASC
     `),
   ])
