@@ -877,6 +877,16 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     group: "finance",
     searchTerms: "plan reconciliation schedule months billing gap export finance check",
   },
+  {
+    path: "/finance/reports/true-up",
+    label: "True-up",
+    title: "Finance · True-up",
+    icon: "FileText",
+    inPalette: false,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "true-up true up invoiced vs billing schedule fee ad serving gap xero finance",
+  },
 
   // ── Scopes ─────────────────────────────────────────────────────────
   {

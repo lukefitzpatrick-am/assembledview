@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatMoney } from "@/lib/format/money"
+import { isTrueUpUiEnabled } from "@/lib/finance/trueUp/flag"
 import {
   defaultReconciliationMonth,
   planReconciliationFilename,
@@ -137,6 +138,11 @@ export function PlanReconciliationPageClient() {
               {planReconciliationFilename(month)}
             </a>
           </Button>
+          {isTrueUpUiEnabled() ? (
+            <Button variant="outline" size="sm" asChild>
+              <a href="/finance/reports/true-up">True-up</a>
+            </Button>
+          ) : null}
         </div>
       }
     >
