@@ -60,6 +60,40 @@ export type RevisionOptions = {
 export type RestoreTarget = {
   media: Record<string, Record<MonthKey, Cents>>
   fee?: Record<string, Record<MonthKey, Cents>>
+  /** True-up revisions only (the other kinds never move ad serving). */
+  adserving?: Record<string, Record<MonthKey, Cents>>
+}
+
+/** The four true-up components. Production and media are both media cells, split by line. */
+export type TrueUpComponentKey = "fee" | "adserving" | "production" | "media"
+
+export type TrueUpStrategy = "spread" | "carry"
+
+/**
+ * True-up (design DESIGN-AV-true-up-2026-10-29, section 4). Months listed in
+ * `actuals` are set to what was invoiced (MBA level, counted invoices only),
+ * split across lines pro rata to the month's schedule. The open months after
+ * them rebalance so every line keeps its contract total. A month listed with
+ * zeros is a no-invoice month finance chose to carry (decision 2, mixed).
+ */
+export type TrueUpRequest = {
+  mode: "true_up"
+  asOfMonth: MonthKey
+  strategy: TrueUpStrategy
+  components: TrueUpComponentKey[]
+  actuals: Record<MonthKey, Partial<Record<TrueUpComponentKey, Cents>>>
+}
+
+/** Undo of a true-up: puts the before cells back (media, fee, ad serving). */
+export type TrueUpRestoreRequest = {
+  mode: "true_up_restore"
+  target: RestoreTarget
+  /**
+   * The current month when the true-up ran. Months from it on were open
+   * months then and must still be open to undo; earlier months were trued
+   * up and must still be writable (not in a closed period or sent AA pack).
+   */
+  fixedAtMonth: MonthKey
 }
 
 export type RevisionRequest =
@@ -78,9 +112,19 @@ export type RevisionRequest =
       noRemaining?: Record<string, UnderspendNoRemainingChoice>
     }
   | { mode: "restore"; target: RestoreTarget }
+  | TrueUpRequest
+  | TrueUpRestoreRequest
 
 export type RevisionMode = RevisionRequest["mode"]
 
+/** True-up kinds. Only the true-up service builds these; the generic billing revision routes refuse them. */
+export const TRUE_UP_REVISION_MODES = ["true_up", "true_up_restore"] as const
+
+export function isTrueUpRevisionMode(mode: unknown): mode is (typeof TRUE_UP_REVISION_MODES)[number] {
+  return mode === "true_up" || mode === "true_up_restore"
+}
+
+/** The generic billing revision modes (the true-up kinds are separate). */
 export const REVISION_MODES: readonly RevisionMode[] = [
   "pull_month",
   "bill_remainder",
@@ -99,6 +143,12 @@ export type RevisionInput = {
   campaignMonths: MonthKey[]
   /** True when the blob carries a header-only fixed fee (__service__fees). */
   hasFixedHeaderFee?: boolean
+  /**
+   * True-up only: billing cells that are not on a plan line (__service__*
+   * header rows, rows with no line). They count toward a month's schedule
+   * but never change.
+   */
+  fixedCells?: Partial<Record<TrueUpComponentKey, Record<MonthKey, Cents>>>
   request: RevisionRequest
   options: RevisionOptions
 }
@@ -137,6 +187,9 @@ export type RevisionWarningCode =
   | "UNDERSPEND_TO_LAST_MONTH"
   | "UNDERSPEND_LINE_SKIPPED"
   | "RESTORE_LINE_NOT_UNDONE"
+  | "TRUE_UP_RESIDUAL"
+  | "TRUE_UP_MONTH_LOCKED"
+  | "TRUE_UP_NO_LINES"
 
 export type RevisionWarning = {
   code: RevisionWarningCode
@@ -165,6 +218,7 @@ export type RevisionErrorCode =
   | "PARTIAL_MBA_UNSUPPORTED"
   | "BAD_MONTH"
   | "NO_CHANGE"
+  | "TRUE_UP_BAD_REQUEST"
 
 export type UnderspendChoiceNeeded = {
   lineItemId: string
@@ -190,8 +244,30 @@ export type RevisionOk = {
     fee: Record<MonthKey, Cents>
     mediaChanged: boolean
     feeChanged: boolean
+    /** True-up kinds only. The other kinds never move ad serving. */
+    adserving?: Record<MonthKey, Cents>
+    adservingChanged?: boolean
   }>
   hash: string
+  /** True-up kinds only. */
+  trueUp?: TrueUpPlanSummary
+}
+
+export type TrueUpComponentSummaryPlan = {
+  component: TrueUpComponentKey
+  /** Invoiced minus scheduled over the trued-up months, before the fix. */
+  gapBefore: Cents
+  /** What the schedule could not absorb: + credit to raise, - charge to raise. */
+  residual: Cents
+  /** Cents moved into or out of the open months. */
+  rebalanced: Cents
+}
+
+export type TrueUpPlanSummary = {
+  asOfMonth: MonthKey
+  strategy: TrueUpStrategy
+  months: MonthKey[]
+  components: TrueUpComponentSummaryPlan[]
 }
 
 export type RevisionFail = {

@@ -29,6 +29,7 @@ import {
 } from "@/lib/finance/manualBillingOverridesUi"
 
 import { allocateCents } from "./allocateCents"
+import { planTrueUpRevision } from "./planTrueUp"
 import {
   RevisionInvariantError,
   type Cents,
@@ -163,6 +164,8 @@ function stripZeros(rec: Record<MonthKey, Cents>): Record<MonthKey, Cents> {
 }
 
 export function planBillingRevision(input: RevisionInput): RevisionResult {
+  // True-up kinds have their own planner and laws (lib/finance/revisions/planTrueUp.ts).
+  if (input.request.mode === "true_up" || input.request.mode === "true_up_restore") return planTrueUpRevision(input)
   const { request, options, currentMonth } = input
   if (!isMonthKey(currentMonth)) return fail("BAD_MONTH", `Current month "${currentMonth}" is not YYYY-MM`)
 
