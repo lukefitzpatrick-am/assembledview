@@ -25,6 +25,8 @@
  * feeds billing, pacing or dashboards.
  */
 
+import { toCents } from "@/lib/money/cents"
+
 import { COUNTED_BILL_STATUSES } from "./bills/policy"
 
 /** One billed (or delivery) schedule cell of a fixed-cost line on a published tip. */
@@ -382,11 +384,6 @@ function emptyTotals(): MarginTotals {
   }
 }
 
-/** Integer cents, half away from zero. */
-function roundCents(value: number): number {
-  return Math.sign(value) * Math.round(Math.abs(value))
-}
-
 /**
  * This line's share of an MBA-month Five Stones bill: bill x line DV360 spend
  * / MBA DV360 spend. Null when either spend is 0 or no bill is counted.
@@ -397,7 +394,8 @@ export function fiveStonesShareCents(
   mbaDv360SpendCents: number
 ): number | null {
   if (!billCents || !lineDv360SpendCents || !mbaDv360SpendCents) return null
-  return roundCents((billCents * lineDv360SpendCents) / mbaDv360SpendCents)
+  // One rounding, through lib/money (half away from zero at the cent).
+  return toCents((billCents * lineDv360SpendCents) / mbaDv360SpendCents / 100)
 }
 
 /** Margin over billed as a fraction; null when billed is 0. */

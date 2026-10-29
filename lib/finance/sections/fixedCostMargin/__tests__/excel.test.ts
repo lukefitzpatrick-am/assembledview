@@ -39,6 +39,9 @@ test("workbook: bill lines sheet lists matched and unmatched lines with gross, r
     billLines: [
       {
         key: "a#1",
+        xeroInvoiceId: "a",
+        xeroLineItemId: "li-1",
+        lineIndex: 1,
         supplier: "Advertising Associates",
         supplierKind: "Advertising Associates",
         invoiceNumber: "Krusty | KRUSTY001 | 1",
@@ -65,6 +68,7 @@ test("workbook: bill lines sheet lists matched and unmatched lines with gross, r
         grossCents: 1_000_000,
         rebateCents: 80_000,
         netCents: 920_000,
+        savedMatch: null,
       },
     ],
     billTotals: [],
