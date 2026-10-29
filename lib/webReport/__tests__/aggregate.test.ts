@@ -324,7 +324,9 @@ describe("GA4 cities", () => {
     })
     const cityCall = calls.find((call) => call.sql.includes("V_GA4_CITY_DAILY"))
     assert.deepEqual(cityCall?.binds, ["123", windows.current.from, windows.current.to])
-    assert.doesNotMatch(cityCall?.sql ?? "", /total_users/)
+    // REP-6 (Luke 28 Oct 2026): total users is summed only for the optional
+    // Total users column, which says "sum of daily". Ranking stays on engaged sessions.
+    assert.match(cityCall?.sql ?? "", /SUM\(total_users\) AS total_users/)
     assert.deepEqual(slice.cities.map((row) => row.city), ["Sydney", "(not set)"])
     assert.equal(slice.cities[0]?.keyEventRate, 3 / 9)
 
@@ -425,7 +427,7 @@ describe("element states", () => {
     assert.match(city, /SUM\(engaged_sessions\)/)
     assert.match(city, /SUM\(new_users\)/)
     assert.match(city, /SUM\(key_events\)/)
-    assert.doesNotMatch(city, /total_users/)
+    assert.match(city, /SUM\(total_users\) AS total_users/)
 
     const creative = readFileSync(join(root, "lib/creative/performance/getCreativePerformance.ts"), "utf8")
     assert.match(creative, /creative_size/)

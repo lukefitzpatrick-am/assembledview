@@ -35,7 +35,17 @@ export function newListItem(key: string): Record<string, unknown> {
   return { kind: "metric", metric: "sessions" }
 }
 
-function optionLabel(value: string): string {
+/** Platform pickers (Paid search, Paid social). "all" here is every platform, not every query. */
+const PLATFORM_OPTION_LABEL: Record<string, string> = {
+  all: "All platforms",
+  google: "Google Ads",
+  meta: "Meta",
+  tiktok: "TikTok",
+  reddit: "Reddit",
+}
+
+function optionLabel(value: string, key?: string): string {
+  if (key === "platform") return PLATFORM_OPTION_LABEL[value] ?? OPTION_LABEL[value] ?? value
   return OPTION_LABEL[value] ?? value
 }
 
@@ -217,7 +227,7 @@ export function SettingsControl({
         {field.optional ? <option value="">None</option> : null}
         {field.options.map((option) => (
           <option key={option} value={option}>
-            {optionLabel(option)}
+            {optionLabel(option, field.key)}
           </option>
         ))}
       </select>
@@ -240,7 +250,7 @@ export function SettingsControl({
                   onChange(next)
                 }}
               />
-              {optionLabel(option)}
+              {optionLabel(option, field.key)}
             </label>
           )
         })}

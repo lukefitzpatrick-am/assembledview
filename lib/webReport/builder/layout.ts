@@ -55,6 +55,8 @@ export function defaultElementSettings(id: WebElementId): unknown {
       return { kpiIds: [], months: "12" }
     case "searchAds":
       return { tiles: ["impressions", "clicks"], platform: "google", compare: true }
+    case "socialAds":
+      return { tiles: ["spend", "impressions", "clicks"], platform: "all", compare: true }
     default:
       return {}
   }

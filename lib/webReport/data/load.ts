@@ -5,6 +5,7 @@ import { readGa4 } from "@/lib/webReport/data/ga4"
 import { readGsc } from "@/lib/webReport/data/gsc"
 import { readAvPaid } from "@/lib/webReport/data/paid"
 import { readSearchAds } from "@/lib/webReport/data/searchAds"
+import { readSocialAds } from "@/lib/webReport/data/socialAds"
 import { loadKpiReport } from "@/lib/webReport/kpis/warehouse"
 import type { ReportWindows } from "@/lib/webReport/periods"
 import type { WarehouseQuery, WebReportData } from "@/lib/webReport/types"
@@ -22,21 +23,31 @@ export async function loadWebReportData(input: {
   query?: WarehouseQuery
 }): Promise<WebReportData> {
   const searchLineItemIds = new Set<string>()
+  const socialLineItemIds = new Set<string>()
   const paidAndSearch = readAvPaid({
     campaigns: input.campaigns,
     current: input.windows.current,
     previous: input.windows.previous,
     searchLineItemIds,
-  }).then(async (paid) => ({
-    paid,
-    searchAds: await readSearchAds({
-      lineItemIds: searchLineItemIds,
-      current: input.windows.current,
-      previous: input.windows.previous,
-      query: input.query,
-    }),
-  }))
-  const [ga4, gsc, { paid, searchAds }, kpis] = await Promise.all([
+    socialLineItemIds,
+  }).then(async (paid) => {
+    const [searchAds, socialAds] = await Promise.all([
+      readSearchAds({
+        lineItemIds: searchLineItemIds,
+        current: input.windows.current,
+        previous: input.windows.previous,
+        query: input.query,
+      }),
+      readSocialAds({
+        lineItemIds: socialLineItemIds,
+        current: input.windows.current,
+        previous: input.windows.previous,
+        query: input.query,
+      }),
+    ])
+    return { paid, searchAds, socialAds }
+  })
+  const [ga4, gsc, { paid, searchAds, socialAds }, kpis] = await Promise.all([
     readGa4({
       propertyId: input.ga4PropertyId,
       today: input.today,
@@ -72,6 +83,7 @@ export async function loadWebReportData(input: {
     gsc,
     paid,
     searchAds,
+    socialAds,
   }
   if (kpis) data.kpis = kpis
   return data

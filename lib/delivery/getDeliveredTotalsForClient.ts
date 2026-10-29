@@ -7,6 +7,7 @@ import { getAsOfDate } from "@/lib/pacing/maths"
 import { slugifyPlanClientName } from "@/lib/pacing/scope/slugifyPlanClientName"
 import {
   collectSearchLineItemIds,
+  collectSocialLineItemIds,
   combineDeliveredTotals,
   deliveredQueryWindow,
   hasFixedCostMediaTypeLabel,
@@ -94,6 +95,8 @@ export async function getDeliveredTotalsForClient(
      * The return value does not change, so the delivered route never sends these ids.
      */
     searchLineItemIds?: Set<string>
+    /** Same, for social line items (the web report's social element). */
+    socialLineItemIds?: Set<string>
   },
 ): Promise<ClientDeliveredTotals> {
   const window = deliveredQueryWindow(range?.startDate, range?.endDate)
@@ -149,6 +152,9 @@ export async function getDeliveredTotalsForClient(
 
   if (options?.searchLineItemIds) {
     collectSearchLineItemIds(snapshots, options.searchLineItemIds)
+  }
+  if (options?.socialLineItemIds) {
+    collectSocialLineItemIds(snapshots, options.socialLineItemIds)
   }
 
   const snapshotByMba = new Map<string, (typeof snapshots)[number]>()

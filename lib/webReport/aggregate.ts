@@ -262,6 +262,8 @@ function keyEventTotals(
 
 export type Ga4CityRow = {
   city: string
+  /** Sum of daily total_users for the window (not a deduped count). */
+  totalUsers?: number | null
   engagedSessions: number | null
   newUsers: number | null
   keyEvents: number | null
@@ -270,9 +272,9 @@ export type Ga4CityRow = {
 const UNSET_CITY = "(not set)"
 
 /**
- * Rank cities by engaged sessions. total_users does not add across days, so it
- * is not summed and is not shown. New users, engaged sessions, and key events
- * do add. "(not set)" stays off the ranking and is appended last when present.
+ * Rank cities by engaged sessions. total_users does not add across days; it is
+ * carried as a sum of daily for the optional Total users column (REP-6), which
+ * says so. New users, engaged sessions, and key events do add. "(not set)" stays off the ranking and is appended last when present.
  * Key event rate is key events / engaged sessions, and is null when engaged
  * sessions are zero.
  */
@@ -282,6 +284,7 @@ export function rankCities(rows: Ga4CityRow[]): CityRow[] {
   for (const row of rows) {
     const item: CityRow = {
       city: row.city,
+      ...(row.totalUsers != null ? { totalUsers: row.totalUsers } : {}),
       engagedSessions: row.engagedSessions ?? 0,
       newUsers: row.newUsers ?? 0,
       keyEvents: row.keyEvents ?? 0,
@@ -307,6 +310,11 @@ export function buildGa4Slice(input: {
   events: Ga4EventRow[]
   pageTitles: Ga4PageTitleRow[]
   cities?: Ga4CityRow[]
+  /**
+   * Page title engagement seconds per window (REP-6). Null when the view has
+   * no user_engagement_duration column yet; the column then says not available.
+   */
+  pageEngagement?: Ga4PageEngagementRow[] | null
   error?: string | null
 }): Ga4Slice {
   if (!input.connected) {
@@ -372,11 +380,52 @@ export function buildGa4Slice(input: {
     daily,
     sourceMedium: medium.rows,
     sourceMediumStatus: medium.status,
-    pages: withPreviousPages(currentTitlePages.pages, previousTitlePages.pages),
+    pages: withPageEngagement(
+      withPreviousPages(currentTitlePages.pages, previousTitlePages.pages),
+      input.pageEngagement,
+    ),
     landing: withPreviousPages(currentLandingPages.pages, previousLandingPages.pages),
     keyEventsByName: keyEventTotals(currentEvents, previousEvents),
     cities,
+    pageEngagementStatus: input.pageEngagement == null ? "needs_report" : "ok",
   }
+}
+
+/** GA4 user_engagement_duration (seconds) by page title, for each window. */
+export type Ga4PageEngagementRow = {
+  pageTitle: string
+  currentSeconds: number
+  previousSeconds: number
+}
+
+function withPageEngagement(pages: PageRow[], engagement: Ga4PageEngagementRow[] | null | undefined): PageRow[] {
+  if (engagement == null) return pages
+  const byTitle = new Map(engagement.map((row) => [row.pageTitle, row]))
+  return pages.map((row) => {
+    const match = byTitle.get(row.page)
+    return {
+      ...row,
+      engagementSeconds: match?.currentSeconds ?? 0,
+      previous: {
+        ...(row.previous ?? { pageViews: 0, users: 0, keyEvents: 0 }),
+        engagementSeconds: match?.previousSeconds ?? 0,
+      },
+    }
+  })
+}
+
+export function pageEngagementRowsFromWarehouse(rows: Record<string, unknown>[]): Ga4PageEngagementRow[] {
+  return rows.flatMap((row) => {
+    const pageTitle = text(field(row, "page_title"))
+    if (!pageTitle) return []
+    return [
+      {
+        pageTitle,
+        currentSeconds: num(field(row, "cur_engagement_seconds")) ?? 0,
+        previousSeconds: num(field(row, "prev_engagement_seconds")) ?? 0,
+      },
+    ]
+  })
 }
 
 function withPreviousPages(current: PageRow[], previous: PageRow[]): PageRow[] {
@@ -561,6 +610,7 @@ export function cityRowsFromWarehouse(rows: Record<string, unknown>[]): Ga4CityR
     return [
       {
         city,
+        totalUsers: num(field(row, "total_users")),
         engagedSessions: num(field(row, "engaged_sessions")),
         newUsers: num(field(row, "new_users")),
         keyEvents: num(field(row, "key_events")),

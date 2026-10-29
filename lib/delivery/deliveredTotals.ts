@@ -471,6 +471,26 @@ export function hasFixedCostMediaTypeLabel(mediaTypes: string[] | null | undefin
   })
 }
 
+/**
+ * Social line ids from snapshot channel groups (social_meta, social_tiktok,
+ * social_reddit, and social lines on another platform, which the snapshot
+ * keeps as plan_only), lowercased and trimmed like the social pacing read.
+ */
+export function collectSocialLineItemIds(
+  snapshots: ReadonlyArray<{ channels: ReadonlyArray<{ group: string; lines: ReadonlyArray<{ lineItemId: string }> }> } | null>,
+  into: Set<string>,
+): void {
+  for (const snapshot of snapshots) {
+    for (const channel of snapshot?.channels ?? []) {
+      if (!channel.group.startsWith("social_") && channel.group !== "plan_only") continue
+      for (const line of channel.lines) {
+        const id = String(line.lineItemId ?? "").trim().toLowerCase()
+        if (id) into.add(id)
+      }
+    }
+  }
+}
+
 /** Search line ids from snapshot channel groups, lowercased and trimmed like the search pacing read. */
 export function collectSearchLineItemIds(
   snapshots: ReadonlyArray<{ channels: ReadonlyArray<{ group: string; lines: ReadonlyArray<{ lineItemId: string }> }> } | null>,

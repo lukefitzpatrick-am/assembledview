@@ -48,6 +48,11 @@ export function elementViewState(id: WebElementId, data: WebReportData): Element
     if (!slice) return { status: "needs_report", message: "Not available yet" }
     return fromSource(slice.status, "Paid search", null, slice.message)
   }
+  if (id === "socialAds") {
+    const slice = data.socialAds
+    if (!slice) return { status: "needs_report", message: "Not available yet" }
+    return fromSource(slice.status, "Paid social", null, slice.message)
+  }
   if (id === "paidSpend") return fromSource(data.paid.status, "Paid media", null, data.paid.message)
   if (id === "costPer") {
     if (data.paid.status === "error") return fromSource(data.paid.status, "Paid media", null, data.paid.message)

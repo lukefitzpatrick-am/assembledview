@@ -1,6 +1,13 @@
 import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import { formatChange, relativeChange } from "@/lib/webReport/change"
 import { filterSearchAdsRows, sumSearchAds, type SearchAdsMetric, type SearchAdsPlatform } from "@/lib/webReport/searchAds"
+import {
+  filterSocialAdsRows,
+  SOCIAL_PLATFORM_LABEL,
+  sumSocialAds,
+  type SocialAdsMetric,
+  type SocialAdsPlatform,
+} from "@/lib/webReport/socialAds"
 import type { DeliveryStatus } from "@/lib/pacing/deliveryStatusFromPct"
 import { elementViewState } from "@/lib/webReport/elementState"
 import {
@@ -611,50 +618,108 @@ function gscSeries(data: WebReportData): Record<string, string | number>[] {
 const GSC_CLICKS: SeriesSpec = { key: "clicks", label: "Clicks", color: CHART_SERIES.one }
 const GSC_IMPRESSIONS: SeriesSpec = { key: "impressions", label: "Impressions", color: CHART_SERIES.two }
 
-function cityTable(rows: CityRow[], topN: number) {
+function cityTable(rows: CityRow[], topN: number, totalUsers = false) {
   const unset = rows.find((row) => row.city === "(not set)")
   const ranked = rows.filter((row) => row.city !== "(not set)").slice(0, topN)
   const shown = unset ? [...ranked, unset] : ranked
+  const unsetNote = "(not set) stays at the bottom when Google Analytics 4 has no city."
   return {
-    headers: ["City", "Engaged sessions", "New users", "Key events", "Key event rate"],
+    headers: totalUsers
+      ? ["City", "Total users", "Engaged sessions", "New users", "Key events", "Key event rate"]
+      : ["City", "Engaged sessions", "New users", "Key events", "Key event rate"],
     rows: shown.map((row) => ({
       key: row.city,
       cells: [
         { text: row.city },
+        // REP-6: total users is a sum of daily, like the Users tile.
+        ...(totalUsers ? [{ text: row.totalUsers == null ? "—" : NUMBER.format(row.totalUsers) }] : []),
         { text: NUMBER.format(row.engagedSessions) },
         { text: NUMBER.format(row.newUsers) },
         { text: NUMBER.format(row.keyEvents) },
         { text: row.keyEventRate == null ? "—" : formatPercent(row.keyEventRate * 100) },
       ],
     })),
-    note: "(not set) stays at the bottom when Google Analytics 4 has no city.",
+    note: totalUsers ? `Total users are summed across days. ${unsetNote}` : unsetNote,
   }
 }
 
-function pageTable(rows: PageRow[], topN: number, heading: string, compare = false) {
+/** Average engagement time: GA4 engagement seconds ÷ users (sum of daily). Null with no users or no seconds. */
+export function averageEngagementSeconds(seconds: number | undefined, users: number): number | null {
+  if (seconds == null || !(users > 0)) return null
+  return seconds / users
+}
+
+/** "1m 05s", or "35s" under a minute. */
+export function formatEngagementTime(seconds: number | null): string {
+  if (seconds == null || !Number.isFinite(seconds)) return "—"
+  const whole = Math.round(seconds)
+  if (whole < 60) return `${whole}s`
+  const minutes = Math.floor(whole / 60)
+  const rest = whole % 60
+  return `${minutes}m ${String(rest).padStart(2, "0")}s`
+}
+
+const ENGAGEMENT_TIME_HEADER = "Avg engagement time"
+const ENGAGEMENT_TIME_NOTE = "Average engagement time is engagement time ÷ users, with users summed across days."
+const ENGAGEMENT_TIME_MISSING = "Average engagement time is not available yet."
+
+function pageTable(
+  rows: PageRow[],
+  topN: number,
+  heading: string,
+  compare = false,
+  /** REP-6: page title only. "missing" draws the column with a dash and says why. */
+  engagement: "off" | "on" | "missing" = "off",
+) {
+  const withTime = engagement !== "off"
+  const timeOf = (seconds: number | undefined, users: number) =>
+    engagement === "on" ? averageEngagementSeconds(seconds, users) : null
+  const timeNote = engagement === "on" ? ENGAGEMENT_TIME_NOTE : engagement === "missing" ? ENGAGEMENT_TIME_MISSING : null
   if (compare) {
     const change = (current: number, previous: number | undefined) => ({
       text: prepareChange(current, previous ?? null).text,
     })
+    const note = ["Users are summed across days. % Δ is the change vs the previous period.", timeNote]
+      .filter(Boolean)
+      .join(" ")
     return {
-      headers: [heading, "Page views", CHANGE_HEADER, "Users", CHANGE_HEADER, "Key events", CHANGE_HEADER],
-      rows: rows.slice(0, topN).map((row) => ({
-        key: row.page,
-        cells: [
-          { text: row.page },
-          { text: NUMBER.format(row.pageViews) },
-          change(row.pageViews, row.previous?.pageViews),
-          { text: NUMBER.format(row.users) },
-          change(row.users, row.previous?.users),
-          { text: NUMBER.format(row.keyEvents) },
-          change(row.keyEvents, row.previous?.keyEvents),
-        ],
-      })),
-      note: "Users are summed across days. % Δ is the change vs the previous period.",
+      headers: [
+        heading,
+        "Page views",
+        CHANGE_HEADER,
+        "Users",
+        CHANGE_HEADER,
+        "Key events",
+        CHANGE_HEADER,
+        ...(withTime ? [ENGAGEMENT_TIME_HEADER, CHANGE_HEADER] : []),
+      ],
+      rows: rows.slice(0, topN).map((row) => {
+        const time = timeOf(row.engagementSeconds, row.users)
+        const previousTime = timeOf(row.previous?.engagementSeconds, row.previous?.users ?? 0)
+        return {
+          key: row.page,
+          cells: [
+            { text: row.page },
+            { text: NUMBER.format(row.pageViews) },
+            change(row.pageViews, row.previous?.pageViews),
+            { text: NUMBER.format(row.users) },
+            change(row.users, row.previous?.users),
+            { text: NUMBER.format(row.keyEvents) },
+            change(row.keyEvents, row.previous?.keyEvents),
+            ...(withTime
+              ? [
+                  { text: formatEngagementTime(time) },
+                  { text: time == null ? "—" : prepareChange(time, previousTime).text },
+                ]
+              : []),
+          ],
+        }
+      }),
+      note,
     }
   }
   return {
-    headers: [heading, "Page views", "Users", "Key events"],
+    headers: [heading, "Page views", "Users", "Key events", ...(withTime ? [ENGAGEMENT_TIME_HEADER] : [])],
     rows: rows.slice(0, topN).map((row) => ({
       key: row.page,
       cells: [
@@ -662,8 +727,10 @@ function pageTable(rows: PageRow[], topN: number, heading: string, compare = fal
         { text: NUMBER.format(row.pageViews) },
         { text: NUMBER.format(row.users) },
         { text: NUMBER.format(row.keyEvents) },
+        ...(withTime ? [{ text: formatEngagementTime(timeOf(row.engagementSeconds, row.users)) }] : []),
       ],
     })),
+    ...(timeNote ? { note: timeNote } : {}),
   }
 }
 
@@ -828,11 +895,19 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
   }
 
   if (id === "pages" || id === "landing") {
-    const { topN, compare } = settings as { topN: number; compare?: boolean }
+    const { topN, compare, engagementTime } = settings as { topN: number; compare?: boolean; engagementTime?: boolean }
     const source = id === "pages" ? data.ga4.pages : data.ga4.landing
     const heading = id === "pages" ? "Page title" : "Page path"
     if (source.length === 0) return emptyMessage(title)
-    if (display === "table") return { kind: "table", title, ...pageTable(source, topN, heading, compare === true) }
+    const engagement =
+      id === "pages" && engagementTime === true
+        ? data.ga4.pageEngagementStatus === "ok"
+          ? "on"
+          : "missing"
+        : "off"
+    if (display === "table") {
+      return { kind: "table", title, ...pageTable(source, topN, heading, compare === true, engagement) }
+    }
     return {
       kind: "ranked",
       title,
@@ -843,7 +918,7 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
   }
 
   if (id === "location") {
-    const topN = (settings as { topN: number }).topN
+    const { topN, totalUsers } = settings as { topN: number; totalUsers?: boolean }
     if (data.ga4.cities.length === 0) return emptyMessage(title)
     if (display === "bar") {
       const unset = data.ga4.cities.find((row) => row.city === "(not set)")
@@ -858,7 +933,7 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
         note: "(not set) stays at the bottom when Google Analytics 4 has no city.",
       }
     }
-    return { kind: "table", title, ...cityTable(data.ga4.cities, topN) }
+    return { kind: "table", title, ...cityTable(data.ga4.cities, topN, totalUsers === true) }
   }
 
   if (id === "queries") {
@@ -912,7 +987,7 @@ function buildBody(item: WebReportLayoutItem, data: WebReportData, display: WebD
     return { kind: "tiles", title, tiles: tilesFor(id, settings, data), withSpark: false }
   }
 
-  if (id === "searchAds") {
+  if (id === "searchAds" || id === "socialAds") {
     return { kind: "tiles", title, tiles: tilesFor(id, settings, data), withSpark: false }
   }
 
@@ -945,6 +1020,9 @@ function tilesFor(id: WebElementId, settings: unknown, data: WebReportData): Pre
   }
   if (id === "searchAds") {
     return searchAdsTiles(settings as SearchAdsSetting, data)
+  }
+  if (id === "socialAds") {
+    return socialAdsTiles(settings as SocialAdsSetting, data)
   }
   if (id === "costPer") {
     const events = data.ga4.current.keyEvents
@@ -987,6 +1065,43 @@ export function searchAdsTiles(spec: SearchAdsSetting, data: WebReportData): Pre
     const current = sum.current[metric]
     const tile: PreparedTile = {
       label: `${prefix} ${SEARCH_ADS_LABEL[metric].toLowerCase()}`,
+      value: metric === "spend" ? formatMoneyCompact(current) : NUMBER.format(current),
+      caption,
+      current,
+      spark: [],
+    }
+    if (spec.compare === true) tile.change = prepareChange(current, sum.previous[metric])
+    return tile
+  })
+}
+
+type SocialAdsSetting = {
+  tiles: SocialAdsMetric[]
+  platform: SocialAdsPlatform
+  campaignContains?: string
+  label?: string
+  compare?: boolean
+}
+
+const SOCIAL_ADS_LABEL: Record<SocialAdsMetric, string> = {
+  spend: "Spend",
+  impressions: "Impressions",
+  clicks: "Clicks",
+}
+
+/** Spend, impressions or clicks for the matching social campaigns, with change vs the compared window. */
+export function socialAdsTiles(spec: SocialAdsSetting, data: WebReportData): PreparedTile[] {
+  const rows = filterSocialAdsRows(data.socialAds?.campaigns ?? [], spec)
+  const sum = sumSocialAds(rows)
+  const prefix = spec.label ?? SOCIAL_PLATFORM_LABEL[spec.platform]
+  const filter = spec.campaignContains?.trim()
+  const caption = filter
+    ? `${rows.length} campaign${rows.length === 1 ? "" : "s"} containing "${filter}"`
+    : undefined
+  return spec.tiles.map((metric) => {
+    const current = sum.current[metric]
+    const tile: PreparedTile = {
+      label: `${prefix} ${SOCIAL_ADS_LABEL[metric].toLowerCase()}`,
       value: metric === "spend" ? formatMoneyCompact(current) : NUMBER.format(current),
       caption,
       current,

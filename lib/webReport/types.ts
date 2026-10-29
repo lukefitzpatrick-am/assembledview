@@ -31,8 +31,14 @@ export type PageRow = {
   pageViews: number
   users: number
   keyEvents: number
+  /**
+   * Page title only: GA4 user_engagement_duration in seconds, summed across
+   * days. Average engagement time is this ÷ users. Omitted when the view has
+   * no engagement column.
+   */
+  engagementSeconds?: number
   /** The same page in the compared window. Zeros when the page had no rows then. */
-  previous?: { pageViews: number; users: number; keyEvents: number }
+  previous?: { pageViews: number; users: number; keyEvents: number; engagementSeconds?: number }
 }
 
 export type QueryRow = {
@@ -89,10 +95,17 @@ export type Ga4Slice = {
    * "(not set)" is last when present. Key event rate is key events / engaged sessions.
    */
   cities: CityRow[]
+  /**
+   * Page title engagement time. "needs_report" until V_GA4_PAGE_TITLE_DAILY
+   * exposes user_engagement_duration. Absent on data loaded before this field.
+   */
+  pageEngagementStatus?: SourceStatus
 }
 
 export type CityRow = {
   city: string
+  /** Sum of daily total_users. Users do not add across days. */
+  totalUsers?: number
   engagedSessions: number
   newUsers: number
   keyEvents: number
@@ -138,6 +151,22 @@ export type SearchAdsSlice = {
   campaigns: SearchAdsCampaignRow[]
 }
 
+export type SocialAdsTotals = { impressions: number; clicks: number; spend: number }
+
+/** One campaign on one SOCIAL_PACING_FACT channel ("Social - Meta"), for the client's social line items. Spend is platform spend. */
+export type SocialAdsCampaignRow = {
+  campaign: string
+  channel: string
+  current: SocialAdsTotals
+  previous: SocialAdsTotals
+}
+
+export type SocialAdsSlice = {
+  status: SourceStatus
+  message: string | null
+  campaigns: SocialAdsCampaignRow[]
+}
+
 export type WebReportData = {
   windows: ReportWindows
   /** GA4 property display name, or the property id when it has no name. */
@@ -148,6 +177,8 @@ export type WebReportData = {
   paid: PaidSlice
   /** Paid search by campaign from SEARCH_PACING_FACT. Absent on data loaded before this field existed. */
   searchAds?: SearchAdsSlice
+  /** Paid social by campaign and channel from SOCIAL_PACING_FACT. Absent on data loaded before this field existed. */
+  socialAds?: SocialAdsSlice
   /** Saved monthly KPIs. Absent when the report was loaded without a client. */
   kpis?: WebKpiReport
 }

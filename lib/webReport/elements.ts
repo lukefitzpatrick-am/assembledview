@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { SEARCH_ADS_METRICS, SEARCH_ADS_PLATFORMS } from "@/lib/webReport/searchAds"
+import { SOCIAL_ADS_METRICS, SOCIAL_ADS_PLATFORMS } from "@/lib/webReport/socialAds"
 
 /**
  * Element registry. Render is `WebReportElement` in
@@ -126,10 +127,17 @@ export const elementSettings = {
     shade: z.boolean(),
     compare: compareSchema,
   }),
-  pages: z.object({ topN: z.number().int().min(1).max(50), compare: compareSchema }),
+  pages: z.object({
+    topN: z.number().int().min(1).max(50),
+    compare: compareSchema,
+    /** REP-6: average engagement time column. Off when absent, so saved reports read as before. */
+    engagementTime: z.boolean().optional(),
+  }),
   landing: z.object({ topN: z.number().int().min(1).max(50), compare: compareSchema }),
   location: z.object({
     topN: z.number().int().min(1).max(50).default(10),
+    /** REP-6: Total users column (sum of daily). Off when absent. */
+    totalUsers: z.boolean().optional(),
   }).strict(),
   events: z.object({}).strict(),
   gscKpi: z.object({
@@ -148,6 +156,16 @@ export const elementSettings = {
     /** Case-insensitive match on the campaign name, e.g. "Brand". Blank keeps every campaign. */
     campaignContains: z.string().trim().max(80).optional(),
     /** Tile title prefix, e.g. "Brand Search". Defaults to "Google Ads" or "Paid search". */
+    label: tileLabelSchema.optional(),
+    compare: compareSchema,
+  }),
+  /** REP-6: paid social from SOCIAL_PACING_FACT, every platform, with a platform filter. */
+  socialAds: z.object({
+    tiles: z.array(z.enum(SOCIAL_ADS_METRICS)).min(1).max(3),
+    platform: z.enum(SOCIAL_ADS_PLATFORMS),
+    /** Case-insensitive match on the campaign name. Blank keeps every campaign. */
+    campaignContains: z.string().trim().max(80).optional(),
+    /** Tile title prefix. Defaults to the platform, e.g. "Meta Ads" or "Paid social". */
     label: tileLabelSchema.optional(),
     compare: compareSchema,
   }),
@@ -337,6 +355,15 @@ export const WEB_REPORT_ELEMENTS: { [K in WebElementId]: WebElementDefinition<K>
     title: "Paid search",
     group: "Paid media",
     settings: elementSettings.searchAds,
+    dataNeeds: ["paid"],
+    displays: ["tiles"],
+    defaultWidth: 12,
+  },
+  socialAds: {
+    id: "socialAds",
+    title: "Paid social",
+    group: "Paid media",
+    settings: elementSettings.socialAds,
     dataNeeds: ["paid"],
     displays: ["tiles"],
     defaultWidth: 12,

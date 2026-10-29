@@ -56,6 +56,8 @@ const FIELD_LABEL: Record<string, string> = {
   kpiIds: "Saved KPIs",
   months: "Months",
   target: "Target",
+  engagementTime: "Average engagement time column",
+  totalUsers: "Total users column (sum of daily)",
 }
 
 function checkOf(check: ZodCheck) {

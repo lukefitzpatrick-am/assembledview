@@ -7,8 +7,10 @@ import {
   cityRowsFromWarehouse,
   eventRowsFromWarehouse,
   landingRowsFromWarehouse,
+  pageEngagementRowsFromWarehouse,
   pageTitleRowsFromWarehouse,
   sourceMediumRowsFromWarehouse,
+  type Ga4PageEngagementRow,
 } from "@/lib/webReport/aggregate"
 import { dateOnly, field, isMissingMartView } from "@/lib/webReport/rows"
 import type { DateWindow } from "@/lib/webReport/periods"
@@ -49,10 +51,54 @@ WHERE property_id = ?
   AND date BETWEEN ? AND ?
 `
 
-// total_users does not add across days. Do not sum it for the window.
-// Rank cities by engaged sessions. New users and key events do add.
+// REP-6: page title average engagement time. Its own query, so the rest of
+// GA4 still reads while V_GA4_PAGE_TITLE_DAILY has no user_engagement_duration
+// column (the view update is a Luke task).
+const PAGE_ENGAGEMENT_SQL = `
+SELECT page_title,
+  SUM(IFF(date BETWEEN ? AND ?, user_engagement_duration, 0)) AS cur_engagement_seconds,
+  SUM(IFF(date BETWEEN ? AND ?, user_engagement_duration, 0)) AS prev_engagement_seconds
+FROM ASSEMBLEDVIEW.MART.V_GA4_PAGE_TITLE_DAILY
+WHERE property_id = ?
+  AND date BETWEEN ? AND ?
+GROUP BY page_title
+`
+
+let warnedPageEngagement = false
+
+async function readPageEngagement(
+  query: WarehouseQuery,
+  input: { propertyId: string; current: DateWindow; previous: DateWindow; from: string; to: string },
+): Promise<Ga4PageEngagementRow[] | null> {
+  try {
+    const rows = await query(PAGE_ENGAGEMENT_SQL, [
+      input.current.from,
+      input.current.to,
+      input.previous.from,
+      input.previous.to,
+      input.propertyId,
+      input.from,
+      input.to,
+    ])
+    return pageEngagementRowsFromWarehouse(rows)
+  } catch (err) {
+    if (!warnedPageEngagement) {
+      warnedPageEngagement = true
+      console.warn(
+        "[web-report] page title engagement time is not available (V_GA4_PAGE_TITLE_DAILY.user_engagement_duration)",
+        err instanceof Error ? err.message : String(err),
+      )
+    }
+    return null
+  }
+}
+
+// total_users does not add across days. It is summed only for the optional
+// Total users column, which says "sum of daily" (REP-6). Rank cities by engaged
+// sessions. New users and key events do add.
 const CITY_SQL = `
 SELECT city,
+  SUM(total_users) AS total_users,
   SUM(engaged_sessions) AS engaged_sessions,
   SUM(key_events) AS key_events,
   SUM(new_users) AS new_users
@@ -96,7 +142,7 @@ export async function readGa4(input: {
   const binds = [input.propertyId, from, to]
   const currentBinds = [input.propertyId, input.current.from, input.current.to]
   try {
-    const [campaign, landing, sourceMedium, events, pageTitles, cities, maxRows] = await Promise.all([
+    const [campaign, landing, sourceMedium, events, pageTitles, cities, maxRows, pageEngagement] = await Promise.all([
       query(CAMPAIGN_SQL, binds),
       query(LANDING_SQL, binds),
       query(SOURCE_MEDIUM_SQL, binds),
@@ -104,6 +150,13 @@ export async function readGa4(input: {
       query(PAGE_TITLE_SQL, binds),
       query(CITY_SQL, currentBinds),
       query(MAX_SQL, [input.propertyId]),
+      readPageEngagement(query, {
+        propertyId: input.propertyId,
+        current: input.current,
+        previous: input.previous,
+        from,
+        to,
+      }),
     ])
     const maxDate = dateOnly(field(maxRows[0] ?? {}, "max_date"))
     return buildGa4Slice({
@@ -118,6 +171,7 @@ export async function readGa4(input: {
       events: eventRowsFromWarehouse(events),
       pageTitles: pageTitleRowsFromWarehouse(pageTitles),
       cities: cityRowsFromWarehouse(cities),
+      pageEngagement,
     })
   } catch (err) {
     if (isMissingMartView(err, "v_ga4_")) {
