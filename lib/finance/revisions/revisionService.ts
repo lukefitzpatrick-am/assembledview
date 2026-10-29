@@ -11,6 +11,7 @@ import { getDb, schema, type Db } from "@/db"
 import {
   BillingRevisionWriteError,
   publishBillingRevision,
+  type PublishBillingRevisionInput,
   type PublishBillingRevisionResult,
   type RevisionActor,
 } from "@/lib/data/publishBillingRevision"
@@ -185,6 +186,10 @@ export async function applyRevisionFromToken(args: {
   db?: Db
   /** Only the true-up service applies true-up tokens (it writes the true-up ledger too). */
   allowTrueUp?: boolean
+  /** Runs inside the publish transaction (the true-up ledger). */
+  inTransaction?: PublishBillingRevisionInput["inTransaction"]
+  /** Checks the verified token before anything is written (the true-up stale check). */
+  beforeApply?: (payload: { mbaNumber: string; request: RevisionRequest }) => Promise<ServiceError | null>
 }): Promise<ApplyOutcome> {
   const verified = verifyPreviewToken(args.token, { sub: args.sub, now: args.now })
   if (!verified.ok) {
@@ -199,6 +204,10 @@ export async function applyRevisionFromToken(args: {
       args.allowTrueUp ? "This preview is not a true-up. Preview again." : "Apply a true-up from the True-up page.",
     )
   }
+  if (args.beforeApply) {
+    const refused = await args.beforeApply({ mbaNumber: p.mbaNumber, request: p.request })
+    if (refused) return refused
+  }
   try {
     const result = await publishBillingRevision(
       {
@@ -212,6 +221,7 @@ export async function applyRevisionFromToken(args: {
         actor: args.actor,
         restoresRevisionId: p.restoresRevisionId,
         now: args.now,
+        inTransaction: args.inTransaction,
       },
       args.db ?? getDb(),
     )

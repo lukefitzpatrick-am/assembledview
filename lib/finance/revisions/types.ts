@@ -82,6 +82,10 @@ export type TrueUpRequest = {
   strategy: TrueUpStrategy
   components: TrueUpComponentKey[]
   actuals: Record<MonthKey, Partial<Record<TrueUpComponentKey, Cents>>>
+  /** The report window's first month (the apply rebuilds the same report to check nothing moved). */
+  fromMonth?: MonthKey
+  /** No-invoice months finance chose to carry (listed in actuals with zeros). */
+  noInvoiceMonths?: MonthKey[]
 }
 
 /** Undo of a true-up: puts the before cells back (media, fee, ad serving). */

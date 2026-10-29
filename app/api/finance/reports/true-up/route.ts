@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { financialYearStart, defaultTrueUpAsOf, isTrueUpMonth } from "@/lib/finance/trueUp/compute"
 import { buildTrueUpCsv, trueUpCsvFilename } from "@/lib/finance/trueUp/csv"
-import { isTrueUpEnabled } from "@/lib/finance/trueUp/flag"
+import { isTrueUpActionsEnabled, isTrueUpEnabled } from "@/lib/finance/trueUp/flag"
 import { loadTrueUp, todaySydneyIso } from "@/lib/finance/trueUp/load"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
@@ -46,7 +46,8 @@ export async function GET(request: NextRequest) {
         },
       })
     }
-    return NextResponse.json(report)
+    // Stage 2: the page shows the fix buttons only when TRUE_UP_ACTIONS is on and 0109 is in.
+    return NextResponse.json({ ...report, actionsEnabled: isTrueUpActionsEnabled() && report.stage2Ready })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not build the true-up."
     return NextResponse.json({ error: "report_failed", message }, { status: 500 })

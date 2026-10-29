@@ -49,7 +49,7 @@ import { normalisePublishedByEmail } from "@/lib/mediaplan/versionPublication"
 import { rowsOf } from "@/lib/xero/dbRows"
 import { explodeScheduleToMonthRows } from "@/scripts/migration/_scheduleTransform"
 
-type Tx = PostgresJsDatabase<typeof schema>
+export type Tx = PostgresJsDatabase<typeof schema>
 
 export type BillingRevisionWriteCode =
   | "NOT_READY"
@@ -97,6 +97,11 @@ export type PublishBillingRevisionInput = {
   markerReader?: MarkerReader
   aaLineIds?: AaLineIdsLoader
   afterCommit?: (r: { newVersionId: number; mbaNumber: string }) => Promise<void>
+  /**
+   * Runs inside the publish transaction after the billing_revisions row is
+   * written (the true-up ledger). A throw rolls the whole revision back.
+   */
+  inTransaction?: (tx: Tx, r: { revisionId: number; newVersionId: number; mbaNumber: string; plan: RevisionOk }) => Promise<void>
 }
 
 export type PublishBillingRevisionResult =
@@ -532,6 +537,9 @@ export async function publishBillingRevision(
           recordType: "billing_revision",
         })),
       )
+    }
+    if (input.inTransaction) {
+      await input.inTransaction(tx, { revisionId, newVersionId, mbaNumber: ctx.mbaNumber, plan })
     }
     await notify(tx, {
       mba: ctx.mbaNumber,

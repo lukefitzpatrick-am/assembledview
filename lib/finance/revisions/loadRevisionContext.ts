@@ -12,16 +12,21 @@ import { schema } from "@/db"
 import { isFinancePeriodsLockEnforced } from "@/lib/finance/periods/flag"
 import { rowsOf } from "@/lib/xero/dbRows"
 
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
+
 import { assembleRevisionLines } from "./assembleRevisionLines"
 import { monthKeyRange } from "./planBillingRevision"
+import { isProductionLikeLine } from "./planTrueUp"
 import { resolveMonthLocks, revisionMonthSpan, type LockFinanceRecord } from "./resolveMonthLocks"
 import type {
+  Cents,
   MonthKey,
   MonthLock,
   RevisionInput,
   RevisionLine,
   RevisionOptions,
   RevisionRequest,
+  TrueUpComponentKey,
 } from "./types"
 
 type Schema = typeof schema
@@ -293,11 +298,41 @@ export async function loadRevisionContext(
   }
 }
 
+/**
+ * True-up only: billing cells that are not on a plan line (__service__*
+ * header rows, rows with no line_items row). They count toward a month's
+ * schedule in the true-up and never change. Same split as the report:
+ * __service__production and PROD line ids are production.
+ */
+export function trueUpFixedCells(ctx: Pick<RevisionContext, "lines" | "billingRows">): Partial<
+  Record<TrueUpComponentKey, Record<MonthKey, Cents>>
+> {
+  const onLines = new Set(ctx.lines.map((l) => toBillingOverrideLineItemId(l.lineItemId)))
+  const out: Partial<Record<TrueUpComponentKey, Record<MonthKey, Cents>>> = {}
+  const add = (c: TrueUpComponentKey, m: MonthKey, v: number) => {
+    const rec = (out[c] ??= {})
+    rec[m] = (rec[m] ?? 0) + v
+  }
+  for (const r of ctx.billingRows) {
+    if (!r.amountCents) continue
+    const isService = r.lineItemId.startsWith("__service__")
+    if (!isService && onLines.has(toBillingOverrideLineItemId(r.lineItemId))) continue
+    const m = r.month.slice(0, 7)
+    if (r.component === "fee") add("fee", m, r.amountCents)
+    else if (r.component === "adserving") add("adserving", m, r.amountCents)
+    else if (r.lineItemId === "__service__production") add("production", m, r.amountCents)
+    else if (!isService && isProductionLikeLine({ lineItemId: r.lineItemId, isProduction: false })) add("production", m, r.amountCents)
+    else add("media", m, r.amountCents)
+  }
+  return out
+}
+
 export function buildRevisionInput(
   ctx: RevisionContext,
   request: RevisionRequest,
   options: RevisionOptions,
 ): RevisionInput {
+  const trueUp = request.mode === "true_up" || request.mode === "true_up_restore"
   return {
     lines: ctx.lines,
     locks: ctx.locks,
@@ -305,6 +340,7 @@ export function buildRevisionInput(
     currentMonth: ctx.currentMonth,
     campaignMonths: ctx.campaignMonths,
     hasFixedHeaderFee: ctx.hasFixedHeaderFee,
+    ...(trueUp ? { fixedCells: trueUpFixedCells(ctx) } : {}),
     request,
     options,
   }

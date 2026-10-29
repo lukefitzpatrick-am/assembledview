@@ -160,3 +160,14 @@ test("gateBillingRevisionRoute counts as a guard only because it calls requireFi
   assert.equal(/getCurrentUser\(|isBillingRevisionsMigrationApplied\(/.test(before), false)
   assert.equal(HARNESS_GUARD_NAMES.has("gateBillingRevisionRoute"), true)
 })
+
+test("gateTrueUpRoute counts as a guard only because it calls requireFinanceAdmin first", () => {
+  const gate = fs.readFileSync(path.join(repoRoot, "lib/finance/trueUp/routeGate.ts"), "utf8")
+  const body = gate.slice(gate.indexOf("export async function gateTrueUpRoute"))
+  assert.ok(body.length > 0, "gateTrueUpRoute not found")
+  const finance = body.indexOf("requireFinanceAdmin(")
+  assert.ok(finance > 0, "gateTrueUpRoute must call requireFinanceAdmin")
+  const before = body.slice(0, finance)
+  assert.equal(/trueUpActionsGate\(|getCurrentUser\(/.test(before), false)
+  assert.equal(HARNESS_GUARD_NAMES.has("gateTrueUpRoute"), true)
+})

@@ -61,6 +61,11 @@ const RECOGNISED_GUARD_PATTERNS: { name: string; re: RegExp; bucket: Mechanism }
    * requireFinanceAdmin before anything else runs (asserted in the harness test).
    */
   { name: "gateBillingRevisionRoute", re: /\bgateBillingRevisionRoute\b/, bucket: "requireRole" },
+  /**
+   * /api/finance/true-up/*: lib/finance/trueUp/routeGate.ts calls
+   * requireFinanceAdmin first (asserted in the harness test).
+   */
+  { name: "gateTrueUpRoute", re: /\bgateTrueUpRoute\b/, bucket: "requireRole" },
   { name: "assertCronSecret", re: /\bassertCronSecret\b/, bucket: "CRON_SECRET" },
   { name: "verifyFrameToken", re: /\bverifyFrameToken\b/, bucket: "none" },
   { name: "getUserClientSlugs", re: /\bgetUserClientSlugs\b/, bucket: "checkClientMbaAccess" },

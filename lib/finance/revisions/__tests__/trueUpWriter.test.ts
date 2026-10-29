@@ -141,7 +141,7 @@ test("sum law holds for every component, ad serving included", () => {
   const { plan: p, lines } = plan()
   const checks = p.afterCells.flatMap((c) => {
     const base = lines.find((l) => l.lineItemId === c.lineItemId)!
-    const out = []
+    const out: Parameters<typeof overrideSumViolations>[0] = []
     if (c.mediaChanged) out.push({ lineItemId: c.lineItemId, component: "media" as const, months: overrideMonthsFor(base.media, c.media), expectedCents: Object.values(base.media).reduce((s, v) => s + v, 0) })
     if (c.feeChanged) out.push({ lineItemId: c.lineItemId, component: "fee" as const, months: overrideMonthsFor(base.fee, c.fee), expectedCents: Object.values(base.fee).reduce((s, v) => s + v, 0) })
     if (c.adservingChanged) out.push({ lineItemId: c.lineItemId, component: "adserving" as const, months: overrideMonthsFor(base.adserving, c.adserving ?? {}), expectedCents: Object.values(base.adserving).reduce((s, v) => s + v, 0) })

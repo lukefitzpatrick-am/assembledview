@@ -593,6 +593,10 @@ export type TrueUpReport = {
   }
   rows: TrueUpMbaRow[]
   unattributed: UnattributedLine[]
+  /** 0109 read (invoice links, billing timing, ledger). False until the marker exists. */
+  stage2Ready: boolean
+  /** clients.id -> billing timing (same month is absent). */
+  billingTiming: Record<string, TrueUpBillingTiming>
 }
 
 const STATUS_RANK: Record<TrueUpStatus, number> = {
@@ -962,5 +966,11 @@ export function buildTrueUpReport(input: TrueUpInput): TrueUpReport {
       const m = monthOf(u.issueDate)
       return m != null && inWindow(m)
     }),
+    stage2Ready: input.actions !== undefined,
+    billingTiming: Object.fromEntries(
+      Object.entries(input.billingTiming ?? {}).filter(
+        (e): e is [string, TrueUpBillingTiming] => e[1] === "month_ahead" || e[1] === "in_arrears",
+      ),
+    ),
   }
 }
