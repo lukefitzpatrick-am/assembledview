@@ -52,6 +52,8 @@ const insertGeneratingMock = mock.fn(async () => ({
 
 const fetchKpisMock = mock.fn(async () => [{ ctr: 0.01 }])
 
+const snapshotArgs: Array<Record<string, unknown>> = []
+
 if (supportsMockModule()) {
   await mock.module!("@/lib/campaign-read/repo", {
     namedExports: {
@@ -69,7 +71,9 @@ if (supportsMockModule()) {
   })
   await mock.module!("@/lib/delivery/loadDeliverySnapshot", {
     namedExports: {
-      loadDeliverySnapshot: async () => ({
+      loadDeliverySnapshot: async (args: Record<string, unknown>) => {
+        snapshotArgs.push(args)
+        return {
         asOf: "2026-09-18",
         window: { startDate: null, endDate: null },
         mbaNumber: "GOLF001",
@@ -86,7 +90,8 @@ if (supportsMockModule()) {
           ctr: null,
           cpc: null,
         },
-      }),
+        }
+      },
     },
   })
   await mock.module!("@/lib/ava/agentLoop", {
@@ -128,6 +133,8 @@ test("generate stores a draft with six beats", { skip }, async () => {
   })
 
   assert.equal(item.status, "draft")
+  // The KPI review reads the dashboard's modelled CM360 spend (Luke, 29 Oct 2026).
+  assert.equal(snapshotArgs.at(-1)?.modelProgrammaticSpend, true)
   assert.equal(item.beats.planned, "You booked $180K.")
   assert.equal(item.beats.worst, "Meta lag. We moved $8K.")
   assert.equal(insertGeneratingMock.mock.calls.length, 1)

@@ -122,7 +122,8 @@ export async function writeCampaignReadFromAgent(input: {
   try {
     const [kpis, snapshot] = await Promise.all([
       fetchCampaignKpis(mbaNumber, versionNumber),
-      loadDeliverySnapshot({ mbaNumber, versionNumber }),
+      // Same modelled CM360 spend as the dashboard, the deck, AVA and the strip (REP-1, Luke 29 Oct 2026).
+      loadDeliverySnapshot({ mbaNumber, versionNumber, modelProgrammaticSpend: true }),
     ])
     kpiPayload = buildKpiReviewPayloadForRead({
       channels: snapshot.channels,
