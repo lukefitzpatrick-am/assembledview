@@ -90,8 +90,10 @@ function ratio(numerator: number | undefined, denominator: number | undefined): 
   return clamp01(numerator / denominator)
 }
 
-function pctLabel(value: number): string {
-  return `${Math.round(clamp01(value) * 100)}%`
+/** Whole-percent label. Capped at 0 to 100% unless `uncapped` (ahead shows as ahead). */
+function pctLabel(value: number, uncapped = false): string {
+  const ratio = uncapped ? Math.max(0, Number.isFinite(value) ? value : 0) : clamp01(value)
+  return `${Math.round(ratio * 100)}%`
 }
 
 function formatImpressions(value: number | undefined): string {
@@ -212,7 +214,7 @@ export function CampaignStatusStrip({
     impressionsAgainstExpected &&
     typeof deliveredImpressions === "number" &&
     Number.isFinite(deliveredImpressions)
-      ? `${Math.round((Math.max(0, deliveredImpressions) / expectedImpressions!) * 100)}%`
+      ? pctLabel(Math.max(0, deliveredImpressions) / expectedImpressions!, true)
       : pctLabel(impressionsPct)
   const impressionsCaption =
     typeof channelsTotal === "number" && channelsTotal > 0

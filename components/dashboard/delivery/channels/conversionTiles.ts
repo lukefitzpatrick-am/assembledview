@@ -1,4 +1,5 @@
 import { formatMoney, formatMoneyCompact } from "@/lib/format/money"
+import { toCentsOrNull } from "@/lib/money"
 import {
   conversionPlatformsForSection,
   cpa,
@@ -283,8 +284,9 @@ export function campaignConversionSummaryKey(summary: CampaignConversionSummary 
     summary.tracked ? 1 : 0,
     summary.showRevenue ? 1 : 0,
     summary.valueTracked ? 1 : 0,
-    summary.revenue.toFixed(2),
-    summary.roasSpend.toFixed(2),
+    // Whole cents through lib/money, so the key changes exactly when a shown amount does.
+    toCentsOrNull(summary.revenue),
+    toCentsOrNull(summary.roasSpend),
   ].join("|")
 }
 

@@ -240,3 +240,20 @@ test("campaign summary: a revenue platform with no section on the campaign adds 
   assert.equal(s?.valueTracked, false)
   assert.deepEqual(campaignConversionStripCells(s)?.map((c) => c.label), ["Purchases"])
 })
+
+test("campaign summary key: changes with whole cents of revenue and ROAS spend only", () => {
+  const base = {
+    headline: "purchases",
+    count: 3,
+    tracked: true,
+    showRevenue: true,
+    valueTracked: true,
+    revenue: 1234.5,
+    roasSpend: 100.004,
+    roas: 12.34,
+  } as unknown as Parameters<typeof campaignConversionSummaryKey>[0]
+  const key = campaignConversionSummaryKey(base)
+  assert.equal(key, "purchases|3|1|1|1|123450|10000")
+  assert.equal(campaignConversionSummaryKey({ ...base!, roasSpend: 100.001 }), key)
+  assert.notEqual(campaignConversionSummaryKey({ ...base!, roasSpend: 100.01 }), key)
+})
