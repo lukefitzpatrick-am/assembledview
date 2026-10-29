@@ -263,6 +263,7 @@ Existing `/api/admin/*` handlers in this recount: **29** methods across **25** f
 | GET | `/api/finance/owners` | admin-only | requireFinanceAdmin | FP-6 finance owner per client and active team members; `{ ready: false }` until 0105 is applied |
 | PUT | `/api/finance/owners` | admin-only | requireFinanceAdmin | set or clear one client's finance owner; 409 `not_ready` until 0105 is applied |
 | GET | `/api/finance/reports/plan-reconciliation` | admin-only | requireFinanceAdmin | FP-2a read-only check: finance figure vs billing `schedule_months` per MBA-month; `view=gaps|all`, `format=xlsx` |
+| GET | `/api/finance/reports/true-up` | admin-only | requireFinanceAdmin | True-up Stage 1, read only, 404 while `TRUE_UP` is off: Xero invoiced (sent and approved) vs billing `schedule_months` per MBA, component and month, to the end of `asOf`; `from` defaults to the July of the financial year; `format=csv` |
 | GET | `/api/finance/exports/download` | admin-only | requireFinanceAdmin | private Blob proxy for the pack files |
 | POST | `/api/finance/billing/notes` | admin-only | requireRole | `app/api/finance/billing/notes/route.ts` |
 | POST | `/api/finance/billing/unapprove` | admin-only | requireRole | `app/api/finance/billing/unapprove/route.ts` |

@@ -23,7 +23,7 @@ import { PUBLISHED_VERSION_JOIN_SQL } from "@/lib/mediaplan/publishedVersionGuar
 import { rowsOf } from "@/lib/xero/dbRows"
 
 /** Production rows: bare `...PROD1` ids and decorated production ids, not the synthetic. */
-const LINE_PRODUCTION_SQL = `(s.line_item_id <> '__service__production' AND (s.line_item_id ~ '^[A-Za-z]+[0-9]+PROD[0-9]+$' OR s.line_item_id ILIKE '%production%'))`
+export const LINE_PRODUCTION_SQL = `(s.line_item_id <> '__service__production' AND (s.line_item_id ~ '^[A-Za-z]+[0-9]+PROD[0-9]+$' OR s.line_item_id ILIKE '%production%'))`
 
 export async function loadPlanReconciliation(month: string): Promise<PlanReconciliationReport> {
   const monthDate = `${month}-01`
