@@ -32,7 +32,7 @@ export default async function AdminWebReportEditPage({
   return (
     <div className="flex flex-col gap-4">
       <Link href="/admin/web-reports" className="text-sm text-muted-foreground">
-        Web & search reports
+        Analytics
       </Link>
       <WebReportBuilderScreen slug={slug} draft={opened.draft} />
     </div>
