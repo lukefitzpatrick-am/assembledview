@@ -486,7 +486,7 @@ import {
 } from "@/lib/docs/saveDocSteps"
 import { deriveLiveMbaScopeSelection } from "@/lib/docs/liveMbaScopeSelection"
 import { liveCampaignDatesIfChanged } from "@/lib/docs/liveCampaignDates"
-import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
+import { MEDIA_TYPE_ID_CODES, registerLineIdFloors } from "@/lib/mediaplan/lineItemIds"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 
@@ -3727,7 +3727,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       try {
         // Include version parameter if available
         const versionParam = versionNumber ? `&version=${encodeURIComponent(versionNumber)}` : ''
-        const apiUrl = `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?skipLineItems=true&billingScheduleFull=1${versionParam}`
+        const apiUrl = `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?skipLineItems=true&billingScheduleFull=1&lineIdFloors=1${versionParam}`
         
         const response = await fetchMediaPlanMbaCoalesced(apiUrl, {
           cache: 'no-store',
@@ -3839,6 +3839,9 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         const data = await response.json()
         
         if (isCancelled) return
+
+        // Never reuse a line id: new lines number above every id any version used.
+        registerLineIdFloors(mbaNumber, (data as { line_id_floors?: unknown }).line_id_floors)
         
         // Comprehensive logging to debug data structure
         

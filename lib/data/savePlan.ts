@@ -97,6 +97,13 @@ import {
 import { normalisePublishedByEmail } from "@/lib/mediaplan/versionPublication"
 import { campaignStatusForWrite } from "@/lib/mediaplan/campaignStatusGuard"
 import { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
+import { loadMasterLineIdHistory } from "@/lib/data/lineIdHistory"
+import { computeLineIdFloors } from "@/lib/mediaplan/lineItemIds"
+import {
+  findRetiredLineIdReuse,
+  resolveContinuingVersionIds,
+  retiredLineIdMessage,
+} from "@/lib/mediaplan/retiredLineIds"
 import {
   explodeScheduleToMonthRows,
   type ScheduleMonthInsert,
@@ -252,17 +259,72 @@ export type SavePlanErrorCode =
   | "C1_FULL_SCOPE"
   | "BILLING_OVERRIDE_SUM_VIOLATION"
   | "VERSION_PUBLISHED_IMMUTABLE"
+  | "LINE_ITEM_ID_RETIRED"
 
 export class SavePlanError extends Error {
   readonly code: SavePlanErrorCode
   readonly lineItemId?: string
+  /** Extra JSON for the route response (e.g. `retiredLineItemIds`). */
+  readonly details?: Record<string, unknown>
 
-  constructor(code: SavePlanErrorCode, message: string, lineItemId?: string) {
+  constructor(
+    code: SavePlanErrorCode,
+    message: string,
+    lineItemId?: string,
+    details?: Record<string, unknown>
+  ) {
     super(message)
     this.name = "SavePlanError"
     this.code = code
     this.lineItemId = lineItemId
+    this.details = details
   }
+}
+
+/**
+ * Never reuse a line id within a plan (Luke, 29 Oct 2026). Runs inside the
+ * save txn after the version row resolves and before the line_items
+ * replace-set, so a draft overwrite still sees the rows it is replacing.
+ * A line on the continuing version keeps its id; an id another version used
+ * that the continuing version does not carry is refused (409), never
+ * renumbered here (the editor's billing, scope, KPI and ingest state all
+ * reference the id it sent).
+ */
+async function assertNoRetiredLineIdReuse(
+  tx: Tx,
+  input: Pick<
+    SavePlanVersionInput,
+    "masterId" | "mbaNumber" | "mode" | "baseVersionId" | "lineItems"
+  >,
+  targetVersionId: number
+): Promise<void> {
+  if (input.lineItems.length === 0) return
+  const history = await loadMasterLineIdHistory(tx, input.masterId)
+  const continuingVersionIds = resolveContinuingVersionIds({
+    mode: input.mode,
+    versions: history.versions,
+    targetVersionId,
+    baseVersionId: input.baseVersionId ?? null,
+  })
+  const reuse = findRetiredLineIdReuse({
+    versions: history.versions,
+    rows: history.rows,
+    continuingVersionIds,
+    incomingLineItemIds: input.lineItems.map((l) => String(l.lineItemId)),
+  })
+  if (reuse.length === 0) return
+  throw new SavePlanError(
+    "LINE_ITEM_ID_RETIRED",
+    retiredLineIdMessage(reuse),
+    reuse[0]!.lineItemId,
+    {
+      retiredLineItemIds: reuse,
+      lineIdFloors: computeLineIdFloors(
+        input.mbaNumber,
+        history.rows.map((r) => r.lineItemId)
+      ),
+    }
+  )
 }
 
 function monthToDate(monthKey: string): string | null {
@@ -833,6 +895,8 @@ export async function savePlanVersion(
         { billingSchedule: [], deliverySchedule: [] },
         versionNumber
       )
+
+      await assertNoRetiredLineIdReuse(tx as Tx, input, versionId)
 
       // Replace-set line_items (atomic inside txn — readers never see the gap).
       await tx

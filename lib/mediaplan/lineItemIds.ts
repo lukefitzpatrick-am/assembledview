@@ -291,7 +291,11 @@ export function lineItemIdsInUse(
   return ids
 }
 
-/** Identity fields for a new line. Existing rows are left unchanged. */
+/**
+ * Identity fields for a new line. Existing rows are left unchanged.
+ * The number is above every suffix on these rows and above the plan's line id
+ * floor (`lineIdFloor`), so an id used by any earlier version is never reused.
+ */
 export function nextLineFields(
   items: readonly any[] | null | undefined,
   mbaNumber: string,
@@ -302,7 +306,10 @@ export function nextLineFields(
   line_item: number
   lineItem: number
 } {
-  const lineNumber = nextLineNumber(lineItemIdsInUse(items))
+  const lineNumber = Math.max(
+    nextLineNumber(lineItemIdsInUse(items)),
+    lineIdFloor(mbaNumber, mediaTypeIdCode) + 1,
+  )
   const id = buildLineItemId(mbaNumber || "", mediaTypeIdCode, lineNumber)
   return {
     lineItemId: id,
@@ -384,4 +391,90 @@ export function sortLineItemsByLineItemNumber<T>(items: T[]): T[] {
       return a.index - b.index;
     })
     .map(({ item }) => item);
+}
+
+/**
+ * Line id floor: per plan (MBA) and per media code, the highest line number
+ * ever used by any version of the plan. A new line numbers above it, so a
+ * deleted line's id never comes back on a different line.
+ */
+export type LineIdFloors = Record<string, number>
+
+const KNOWN_MEDIA_CODES = new Set<string>(Object.values(MEDIA_TYPE_ID_CODES))
+
+function floorKey(mbaNumber: string | null | undefined): string {
+  return String(mbaNumber ?? "").trim().toLowerCase()
+}
+
+/**
+ * Highest number per media code over `ids` for this MBA. Only ids shaped
+ * `<mba><code><n>` count (case-insensitive). Other ids cannot collide with an
+ * id minted for this MBA, so they are ignored.
+ */
+export function computeLineIdFloors(
+  mbaNumber: string | null | undefined,
+  ids: readonly (string | null | undefined)[],
+): LineIdFloors {
+  const mba = floorKey(mbaNumber)
+  const floors: LineIdFloors = {}
+  if (!mba) return floors
+  for (const raw of ids) {
+    if (raw == null) continue
+    const id = String(raw).trim().toLowerCase()
+    if (!id.startsWith(mba)) continue
+    const m = id.slice(mba.length).match(/^([a-z]+)(\d+)$/)
+    if (!m) continue
+    const code = m[1].toUpperCase()
+    if (!KNOWN_MEDIA_CODES.has(code)) continue
+    const n = parseInt(m[2], 10)
+    if (!Number.isFinite(n) || n <= 0) continue
+    if (n > (floors[code] ?? 0)) floors[code] = n
+  }
+  return floors
+}
+
+const registeredFloors = new Map<string, LineIdFloors>()
+
+/**
+ * Record floors for a plan (editor load, save response). Merges by max, so a
+ * floor never goes down in a session. Bad input is ignored.
+ */
+export function registerLineIdFloors(
+  mbaNumber: string | null | undefined,
+  floors: unknown,
+): void {
+  const key = floorKey(mbaNumber)
+  if (!key || !floors || typeof floors !== "object") return
+  const current = { ...(registeredFloors.get(key) ?? {}) }
+  for (const [rawCode, rawValue] of Object.entries(floors as Record<string, unknown>)) {
+    const code = String(rawCode).trim().toUpperCase()
+    if (!KNOWN_MEDIA_CODES.has(code)) continue
+    const n = Math.trunc(Number(rawValue))
+    if (!Number.isFinite(n) || n <= 0) continue
+    if (n > (current[code] ?? 0)) current[code] = n
+  }
+  registeredFloors.set(key, current)
+}
+
+/** Raise the floors to cover ids this session just saved. */
+export function noteSavedLineItemIds(
+  mbaNumber: string | null | undefined,
+  ids: readonly (string | null | undefined)[],
+): void {
+  registerLineIdFloors(mbaNumber, computeLineIdFloors(mbaNumber, ids))
+}
+
+/** Highest number ever used for this plan and code. 0 when none is known. */
+export function lineIdFloor(
+  mbaNumber: string | null | undefined,
+  mediaTypeIdCode: string,
+): number {
+  const key = floorKey(mbaNumber)
+  if (!key) return 0
+  return registeredFloors.get(key)?.[String(mediaTypeIdCode).toUpperCase()] ?? 0
+}
+
+/** Tests only. */
+export function resetLineIdFloorsForTests(): void {
+  registeredFloors.clear()
 }

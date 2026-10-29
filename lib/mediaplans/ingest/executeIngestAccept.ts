@@ -270,6 +270,11 @@ export async function executeIngestAccept(
   const insertPanels =
     merged.insertPanels ??
     (await import("@/lib/mediaplans/ingest/insertIngestPanels")).insertIngestPanels
+  const loadLineIdFloors =
+    merged.loadLineIdFloors ??
+    (merged.savePlanVersion
+      ? undefined
+      : (await import("@/lib/data/lineIdHistory")).loadLineIdFloorsForMaster)
 
   const result = await acceptIngestProposal(
     {
@@ -281,6 +286,9 @@ export async function executeIngestAccept(
     {
       savePlanVersion: savePlanVersion as AcceptIngestDeps["savePlanVersion"],
       insertPanels,
+      loadLineIdFloors: loadLineIdFloors
+        ? (masterId, mba) => loadLineIdFloors(masterId, mba)
+        : undefined,
     },
   )
 

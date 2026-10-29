@@ -507,6 +507,7 @@ export async function GET(
       requestUrl.searchParams.get("includeVersionsMeta") === "1" ||
       requestUrl.searchParams.get("includeVersionsMeta") === "true"
     const skipLineItems = requestUrl.searchParams.get("skipLineItems") === "true"
+    const includeLineIdFloors = requestUrl.searchParams.get("lineIdFloors") === "1"
 
     // C-22 / X2: postgres is the only implemented PLAN_DETAIL branch.
     // Flag remains; `xano` → explicit 410 (no fan-out, no silent fallback).
@@ -529,6 +530,7 @@ export async function GET(
           : null,
       skipLineItems,
       includeVersionsMeta,
+      includeLineIdFloors,
       billingScheduleFull,
       requestedStartDateParam,
       requestedEndDateParam,

@@ -353,7 +353,8 @@ export async function POST(request: NextRequest) {
         err.code === "BOSS006_EMPTY_PUBLISH" ||
         err.code === "C1_FULL_SCOPE" ||
         err.code === "BILLING_OVERRIDE_SUM_VIOLATION" ||
-        err.code === "VERSION_PUBLISHED_IMMUTABLE"
+        err.code === "VERSION_PUBLISHED_IMMUTABLE" ||
+        err.code === "LINE_ITEM_ID_RETIRED"
           ? 409
           : err.code === "MASTER_NOT_FOUND"
             ? 404
@@ -363,8 +364,11 @@ export async function POST(request: NextRequest) {
                 err.code === "UNIQUE_VIOLATION"
               ? 400
               : 500
+      // LINE_ITEM_ID_RETIRED adds `retiredLineItemIds` and `lineIdFloors`.
+      const details =
+        err.details && typeof err.details === "object" ? err.details : {}
       return NextResponse.json(
-        { error: err.message, code: err.code, lineItemId: err.lineItemId },
+        { ...details, error: err.message, code: err.code, lineItemId: err.lineItemId },
         { status }
       )
     }

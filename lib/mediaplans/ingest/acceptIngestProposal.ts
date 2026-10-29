@@ -37,6 +37,14 @@ export type AcceptIngestDeps = {
     lineCount: number
   }>
   insertPanels: (rows: IngestPanelRow[]) => Promise<number>
+  /**
+   * Plan line id floors for the never-reuse rule. Missing: stamp without a
+   * floor (the save still refuses a retired id).
+   */
+  loadLineIdFloors?: (
+    masterId: number,
+    mbaNumber: string,
+  ) => Promise<Record<string, number>>
 }
 
 export type AcceptIngestResult = {
@@ -66,10 +74,14 @@ export async function acceptIngestProposal(
   },
   deps: AcceptIngestDeps,
 ): Promise<AcceptIngestResult> {
+  const lineIdFloors = deps.loadLineIdFloors
+    ? await deps.loadLineIdFloors(args.campaign.masterId, args.campaign.mbaNumber)
+    : null
   const { lineItems, panels } = stampProposalForSave(
     args.proposal,
     args.campaign.mbaNumber,
     args.resolvedControlled,
+    lineIdFloors,
   )
 
   const merged = [...(args.existingLineItems ?? []), ...lineItems]

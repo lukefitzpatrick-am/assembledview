@@ -411,6 +411,8 @@ export function stampProposalForSave(
   proposal: IngestProposal,
   mbaNumber: string,
   resolvedControlled?: ResolvedControlledValue[],
+  /** Plan line id floors (code -> highest number any version used). */
+  lineIdFloors?: Record<string, number> | null,
 ): {
   lineItems: SavePlanLineItem[]
   panels: IngestPanelRow[]
@@ -477,7 +479,10 @@ export function stampProposalForSave(
     return line
   })
 
-  const stamped = assignStableLineItemNumbers(stubs, mbaNumber, code)
+  // Number above every id any version of the plan used (never reuse).
+  const stamped = assignStableLineItemNumbers(stubs, mbaNumber, code, {
+    floor: lineIdFloors?.[code] ?? 0,
+  })
 
   const panels: IngestPanelRow[] = []
   for (let i = 0; i < proposal.line_items.length; i++) {

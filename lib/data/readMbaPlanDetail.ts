@@ -24,6 +24,7 @@ import {
 } from "@/lib/data/planShapes"
 import { coerceNumericStringsToNumbers, toApiRow } from "@/lib/data/toApiRow"
 import { sortLineItemsByLineItemNumber } from "@/lib/mediaplan/lineItemIds"
+import { loadLineIdFloorsForMaster } from "@/lib/data/lineIdHistory"
 import {
   assembleMbaGetCombinedData,
   createEmptyMbaGetLineItems,
@@ -106,6 +107,8 @@ export type ReadMbaPlanDetailQuery = {
   skipLineItems?: boolean
   includeVersionsMeta?: boolean
   billingScheduleFull?: boolean
+  /** Editor load: add `line_id_floors` (highest line number per code, all versions). */
+  includeLineIdFloors?: boolean
   requestedStartDateParam?: string | null
   requestedEndDateParam?: string | null
 }
@@ -164,6 +167,11 @@ export const MBA_PLAN_DETAIL_INTENTIONAL_DIFFS = [
     path: "mba_scope",
     reason:
       "Postgres version mapper surfaces media_plan_versions.mba_scope (null on pre-scope rows). Xano GET never had this column.",
+  },
+  {
+    path: "line_id_floors",
+    reason:
+      "Postgres only, on `lineIdFloors=1`: per media code, the highest line number any version of the plan used, so the editor never reuses a deleted line id. Xano GET never had it.",
   },
   {
     path: "is_published_tip",
@@ -394,6 +402,19 @@ export async function readMbaPlanDetailFromPostgres(
       requestedEndDateParam: query.requestedEndDateParam ?? null,
       clientBrandColour,
     })
+
+    if (query.includeLineIdFloors) {
+      const masterId = Number(master.id)
+      try {
+        if (Number.isFinite(masterId) && masterId > 0) {
+          data.line_id_floors = await loadLineIdFloorsForMaster(masterId, mbaNumber)
+        }
+      } catch (err) {
+        // Fail soft: the editor falls back to the current list and the save
+        // still refuses a retired id.
+        console.warn("[readMbaPlanDetailFromPostgres] line_id_floors failed", err)
+      }
+    }
 
     return { ok: true, data }
   } catch (err) {

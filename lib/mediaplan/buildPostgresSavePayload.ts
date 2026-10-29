@@ -17,6 +17,10 @@ import {
 } from "@/lib/auth/writeSessionExpiry"
 import { DOC_STEP_POSTGRES_GENERATE } from "@/lib/docs/saveDocSteps"
 import { normaliseBuyType } from "@/lib/mediaplan/missingBuyTypeGate"
+import {
+  noteSavedLineItemIds,
+  registerLineIdFloors,
+} from "@/lib/mediaplan/lineItemIds"
 
 const ATTR_SKIP = new Set([
   "id",
@@ -343,6 +347,13 @@ export type PlansSaveResponse = {
   error?: string
   code?: string
   lineItemId?: string
+  /**
+   * 409 `LINE_ITEM_ID_RETIRED`: ids an earlier version used for a different
+   * line, with the last version each appeared in.
+   */
+  retiredLineItemIds?: Array<{ lineItemId: string; lastVersionNumber: number }>
+  /** Plan line id floors (code -> highest number ever used). */
+  lineIdFloors?: Record<string, number>
   /** BT-1 — 422 MISSING_BUY_TYPE names the offending lines. */
   lineItemIds?: string[]
   /** O4 — AUTO-line server correction vs pre-save preview (toast, never silent). */
@@ -407,9 +418,18 @@ export async function postPlansSave(
   const data = (await res.json().catch(() => ({}))) as PlansSaveResponse
   if (!res.ok) {
     if (isUnauthorizedStatus(res.status)) noteWriteUnauthorized()
+    // A retired-id refusal carries the plan's floors, so a re-added line
+    // mints above every id an earlier version used.
+    if (data?.lineIdFloors) registerLineIdFloors(body.mbaNumber, data.lineIdFloors)
     return { ok: false, status: res.status, data }
   }
   noteAuthenticatedWriteOk()
+  // The ids just saved are now history: a line added after this save numbers
+  // above them even if one of them is deleted in this session.
+  noteSavedLineItemIds(
+    body.mbaNumber,
+    (body.lineItems ?? []).map((l) => l.lineItemId),
+  )
   return { ok: true, data }
 }
 

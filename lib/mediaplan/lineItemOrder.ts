@@ -1,5 +1,6 @@
 import {
   buildLineItemId,
+  lineIdFloor,
   MEDIA_TYPE_ID_CODES,
   pickLineItemNumber,
   parseLineNumberFromLineItemId,
@@ -58,26 +59,43 @@ function claimLineNumber(item: LineItemWithIdentity): number | null {
   return null
 }
 
+function hasLineItemId(item: LineItemWithIdentity): boolean {
+  for (const id of [item.line_item_id, item.lineItemId]) {
+    if (id != null && String(id).trim()) return true
+  }
+  return false
+}
+
 /**
  * Path A: assign STABLE, UNIQUE line numbers.
  * - Each item with a valid existing line number keeps it (first occurrence wins).
  * - Items with no number, or a number already claimed by an earlier item, get the
- *   next number strictly ABOVE the current max (never reuse a deleted gap).
+ *   next number strictly ABOVE the current max and above the plan's line id
+ *   floor (never reuse a deleted gap or an id an earlier version used).
+ * - An item with a number but no id is a new line. A number at or below the
+ *   floor is not claimed; it mints above the floor instead.
  * - line_item_id is rebuilt deterministically from the final stable number.
  * Unlike reassignLineItemNumbers (positional 1..n), this preserves existing identity,
  * so deleting/reordering does not churn downstream ids.
+ *
+ * `options.floor` overrides the registered floor (`lineIdFloor`); the server
+ * ingest path passes it explicitly.
  */
 export function assignStableLineItemNumbers<T extends LineItemWithIdentity>(
   items: T[],
   mbaNumber: string,
   mediaTypeCode: MediaCode,
+  options?: { floor?: number },
 ): T[] {
   const mba = (mbaNumber ?? "").trim()
+  const rawFloor = options?.floor ?? lineIdFloor(mba, mediaTypeCode)
+  const floor = Number.isFinite(rawFloor) && rawFloor > 0 ? Math.trunc(rawFloor) : 0
   const used = new Set<number>()
 
   // Pass 1: claim valid, not-yet-used existing numbers (first occurrence wins).
   const claimed: Array<number | null> = items.map((item) => {
     const n = claimLineNumber(item)
+    if (n != null && !hasLineItemId(item) && n <= floor) return null
     if (n != null && !used.has(n)) {
       used.add(n)
       return n
@@ -85,8 +103,9 @@ export function assignStableLineItemNumbers<T extends LineItemWithIdentity>(
     return null
   })
 
-  // Pass 2: new/colliding items get numbers strictly above the current max.
-  let next = (used.size ? Math.max(...used) : 0) + 1
+  // Pass 2: new/colliding items get numbers strictly above the current max
+  // and above the floor.
+  let next = Math.max(used.size ? Math.max(...used) : 0, floor) + 1
   const finalNumbers = claimed.map((n) => {
     if (n !== null) return n
     const assigned = next++
