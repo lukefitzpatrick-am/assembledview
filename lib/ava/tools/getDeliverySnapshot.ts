@@ -239,6 +239,8 @@ export const getDeliverySnapshotTool: AvaTool = {
         versionNumber,
         mediaTypeFilter,
         mpSearchEnabled,
+        // Same modelled CM360 spend as the dashboard's programmatic section (REP-1).
+        modelProgrammaticSpend: true,
         ...snapshotRange(window, campaignStartISO, Boolean(asString(args.startDate))),
       })
       // Chosen conversions on the same window and lines (CF5). Read-only.

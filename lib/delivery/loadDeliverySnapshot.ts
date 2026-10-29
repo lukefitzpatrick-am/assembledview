@@ -90,8 +90,10 @@ export type LoadDeliverySnapshotInput = {
    * REP-1. When true, programmatic lines whose delivery_source_map row has
    * `derive_spend_from_plan` (CM360 Quantcast and Twitch) carry the
    * dashboard's modelled spend (`modelledProgrammaticSpendByDate`) as
-   * spendMode `estimated`. The report deck sets it. Default off, so AVA, the
-   * campaign strip and delivered totals are unchanged.
+   * spendMode `estimated`. Set by the report deck, AVA's delivery snapshot
+   * tool, the campaign strip (getDeliveredTotalsForCampaign) and client totals
+   * (getDeliveredTotalsForClient), so they all show the dashboard's spend
+   * (Luke, 29 Oct 2026). Default off for any other caller.
    */
   modelProgrammaticSpend?: boolean
 }

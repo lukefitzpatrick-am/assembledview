@@ -81,6 +81,8 @@ export async function getDeliveredTotalsForCampaign(
       versionNumber: input.versionNumber,
       mpSearchEnabled: input.mpSearchEnabled,
       snowflakeLabel: "delivered-totals",
+      // Same modelled CM360 spend as the dashboard's programmatic section (REP-1).
+      modelProgrammaticSpend: true,
       ...(lineItemsByChannel ? { lineItemsByChannel } : {}),
       ...(window ?? {}),
       ...(input.feePctsByVersionId ? { feePctsByVersionId: input.feePctsByVersionId } : {}),

@@ -128,6 +128,8 @@ export async function getDeliveredTotalsForClient(
           const snapshot = await loadDeliverySnapshot({
             mbaNumber: c.mbaNumber,
             versionNumber: c.versionNumber,
+            // Same modelled CM360 spend as the dashboard's programmatic section (REP-1).
+            modelProgrammaticSpend: true,
             ...(window ?? {}),
           })
           if (snapshot.fixedCostOverlayFailed) {

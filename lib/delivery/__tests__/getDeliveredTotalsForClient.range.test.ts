@@ -112,8 +112,11 @@ test(
     const args = loadDeliverySnapshot.mock.calls[0]?.arguments[0] as {
       startDate?: string
       endDate?: string
+      modelProgrammaticSpend?: boolean
     }
     assert.equal(args.startDate, "2026-03-01")
     assert.equal(args.endDate, "2026-03-31")
+    // Client totals read the dashboard's modelled CM360 spend (Luke, 29 Oct 2026).
+    assert.equal(args.modelProgrammaticSpend, true)
   },
 )

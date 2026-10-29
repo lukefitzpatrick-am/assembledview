@@ -115,6 +115,8 @@ test("get_delivery_snapshot reads delivered and expected on the strip window", {
     { startDate: loadCalls[0]!.startDate, endDate: loadCalls[0]!.endDate },
     { startDate: "2026-08-01", endDate: "2026-09-30" },
   )
+  // AVA reads the dashboard's modelled CM360 spend (Luke, 29 Oct 2026).
+  assert.equal(loadCalls[0]!.modelProgrammaticSpend, true)
   assert.equal(attachStripExpectedMock.mock.calls.length, 1)
   const arg = attachStripExpectedMock.mock.calls[0]!.arguments[0] as StripArg
   assert.equal(arg.asOf, "2026-09-30")
