@@ -78,6 +78,7 @@ export const AVA_TOOL_NAMES = [
   "run_scenario",
   "preview_billing_revision",
   "apply_billing_revision",
+  "query_true_up",
 ] as const
 
 /**

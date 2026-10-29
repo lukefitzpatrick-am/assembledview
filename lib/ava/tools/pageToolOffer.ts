@@ -1,5 +1,6 @@
 import type { PageContext } from "@/lib/ava/types"
 import { isBillingRevisionsEnabled } from "@/lib/finance/revisions/flag"
+import { isTrueUpEnabled } from "@/lib/finance/trueUp/flag"
 import {
   CAMPAIGN_READ_GENERATE_SURFACE,
   CAMPAIGN_READ_GENERATE_TOOLS,
@@ -14,6 +15,14 @@ export const BILLING_REVISION_TOOLS = new Set(["preview_billing_revision", "appl
 
 function billingRevisionToolsOk(pathname: string | undefined): boolean {
   if (!isBillingRevisionsEnabled() || !pathname) return false
+  return pathname === "/finance" || pathname.startsWith("/finance/") || MBA_DETAIL.test(pathname)
+}
+
+/** query_true_up: TRUE_UP on, and only on /finance/* or the MBA detail page. */
+export const TRUE_UP_TOOLS = new Set(["query_true_up"])
+
+function trueUpToolsOk(pathname: string | undefined): boolean {
+  if (!isTrueUpEnabled() || !pathname) return false
   return pathname === "/finance" || pathname.startsWith("/finance/") || MBA_DETAIL.test(pathname)
 }
 
@@ -45,15 +54,19 @@ export function isMediaPlanCreateOrEditRoute(
  * Surface-aware tool offer. Create/edit mega-pages and unknown/absent routes
  * omit `accept_ingest_proposal` (fail closed). Hub and other known routes keep it.
  * `run_scenario` is offered only on `/pacing/*` and `/dashboard/*`.
- * Billing revision tools are offered only with BILLING_REVISIONS on, on
+ * Billing revision tools (BILLING_REVISIONS) and query_true_up (TRUE_UP) are offered only on
  * `/finance/*` and the MBA detail page (never create or edit).
  */
 export function avaToolDefinitionsForPage<T extends { name: string }>(
   definitions: readonly T[],
   pageContext?: PageContext,
 ): T[] {
-  const revisionsOk = billingRevisionToolsOk(pageContextRoutePathname(pageContext))
-  const offered = revisionsOk ? definitions : definitions.filter((t) => !BILLING_REVISION_TOOLS.has(t.name))
+  const pathname = pageContextRoutePathname(pageContext)
+  const revisionsOk = billingRevisionToolsOk(pathname)
+  const trueUpOk = trueUpToolsOk(pathname)
+  const offered = definitions.filter(
+    (t) => (revisionsOk || !BILLING_REVISION_TOOLS.has(t.name)) && (trueUpOk || !TRUE_UP_TOOLS.has(t.name)),
+  )
   return offerForSurface(offered, pageContext)
 }
 
