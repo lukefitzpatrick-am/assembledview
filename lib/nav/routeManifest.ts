@@ -151,6 +151,7 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
       "/admin/fireflies-unattributed",
       "/admin/schedule-ingest",
       "/admin/reports",
+      "/admin/features",
     ],
   },
 ] as const
@@ -416,6 +417,17 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inSidebar: true,
     roles: ["admin"],
     searchTerms: "reports campaign monthly download generate mba commentary",
+    group: "admin",
+  },
+  {
+    path: "/admin/features",
+    label: "Features",
+    title: "Features",
+    icon: "Shield",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    searchTerms: "features feature switches flags toggle turn on off env vars true-up billing revisions",
     group: "admin",
   },
   {

@@ -165,6 +165,7 @@ test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async (
           "/admin/fireflies-unattributed",
           "/admin/schedule-ingest",
           "/admin/reports",
+          "/admin/features",
         ],
       },
     ]
