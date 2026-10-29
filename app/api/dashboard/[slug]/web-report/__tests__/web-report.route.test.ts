@@ -112,3 +112,27 @@ test("GET web-report — a client's own unpublished report is 404", { skip }, as
   publishedMock.mock.mockImplementation(async () => true)
   disableFlag()
 })
+
+test("GET web-report — flag off, an admin still gets the report (no 404)", { skip }, async () => {
+  disableFlag()
+  getSessionMock.mock.resetCalls()
+  getSessionMock.mock.mockImplementation(async () => ({
+    user: { sub: "admin-web", email: "admin@example.com", [ROLE_CLAIM]: ["admin"] },
+  }))
+  loadMock.mock.resetCalls()
+  loadMock.mock.mockImplementation(async () => ({ clientName: "Golf Australia", connected: true }))
+
+  const res = await getReport("golf-australia")
+  assert.equal(res.status, 200)
+  const body = await res.json()
+  assert.equal(body.clientName, "Golf Australia")
+  assert.equal(loadMock.mock.calls.length, 1)
+})
+
+test("web search flag blocks clients only", async () => {
+  const { webSearchFlagBlocks } = await import("../../../../../../lib/webReport/featureFlag.js")
+  assert.equal(webSearchFlagBlocks({ isAdmin: false, flagOn: false }), true)
+  assert.equal(webSearchFlagBlocks({ isAdmin: true, flagOn: false }), false)
+  assert.equal(webSearchFlagBlocks({ isAdmin: false, flagOn: true }), false)
+  assert.equal(webSearchFlagBlocks({ isAdmin: true, flagOn: true }), false)
+})

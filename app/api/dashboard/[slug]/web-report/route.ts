@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { auth0 } from "@/lib/auth0"
 import { parseIsoDateOnlyStrict } from "@/lib/dashboard/campaignDateRange"
-import { getUserClientSlugs, getUserRoles } from "@/lib/rbac"
-import { isWebSearchFlagOn } from "@/lib/webReport/featureFlag"
+import { getUserClientSlugs, getUserRoles, hasRole } from "@/lib/rbac"
+import { isWebSearchFlagOn, webSearchFlagBlocks } from "@/lib/webReport/featureFlag"
 import { isWebReportPublished } from "@/lib/webReport/visibility"
 import { loadWebReportResponse, WebReportRangeError } from "@/lib/webReport/loadPage"
 import { isReportPeriod } from "@/lib/webReport/periods"
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic"
 /**
  * Client Web & search report. Same client gate as the client dashboard page:
  * a client sees only their own slug, and only once the report is published.
- * Flag off is 404 for every role.
+ * Flag off is 404 for clients only. Admins get the report, as on the page.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!session?.user) {
       return NextResponse.json({ error: "unauthorised" }, { status: 401 })
     }
-    if (!isWebSearchFlagOn()) {
+    if (webSearchFlagBlocks({ isAdmin: hasRole(session.user, ["admin"]), flagOn: isWebSearchFlagOn() })) {
       return NextResponse.json({ error: "not found" }, { status: 404 })
     }
     const roles = getUserRoles(session.user)

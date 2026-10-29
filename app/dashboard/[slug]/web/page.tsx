@@ -11,7 +11,7 @@ import { auth0 } from "@/lib/auth0"
 import { getPrimaryRole, getUserClientSlugs, hasRole } from "@/lib/rbac"
 import { resolveWebPageMode } from "@/lib/webReport/admin/pageMode"
 import { loadWebReportStatusForSlug } from "@/lib/webReport/admin/statusLoad"
-import { isWebSearchFlagOn } from "@/lib/webReport/featureFlag"
+import { isWebSearchFlagOn, webSearchFlagBlocks } from "@/lib/webReport/featureFlag"
 import { isWebReportPublished } from "@/lib/webReport/visibility"
 import { loadWebReportResponse, WebReportRangeError } from "@/lib/webReport/loadPage"
 import { isReportPeriod, type ReportPeriod } from "@/lib/webReport/periods"
@@ -38,7 +38,7 @@ export default async function WebSearchPage({ params, searchParams }: WebSearchP
   const isAdmin = hasRole(user, ["admin"])
   const flagOn = isWebSearchFlagOn()
   // Clients keep the 404 when the switch is off. Admins get a notice instead.
-  if (!flagOn && !isAdmin) notFound()
+  if (webSearchFlagBlocks({ isAdmin, flagOn })) notFound()
 
   const role = getPrimaryRole(user)
   const userClientSlugs = getUserClientSlugs(user)
