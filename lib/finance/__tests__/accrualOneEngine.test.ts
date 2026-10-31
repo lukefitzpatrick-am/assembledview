@@ -7,6 +7,7 @@ import {
   accrualServiceFeeAmount,
   computeAccrualByClient,
 } from "@/lib/finance/computeAccrual"
+import { buildAccrualDetailRows } from "@/lib/finance/accrualDetailRows"
 import { mbaBreakdownFromAccrualRow } from "@/lib/finance/sections/useCostsAccrualData"
 import type { BillingLineItem, BillingRecord, BillingStatus } from "@/lib/types/financeBilling"
 
@@ -56,7 +57,7 @@ function rec(
   }
 }
 
-const RANGE = { from: "2026-10", to: "2026-10" }
+const RANGE = { from: "2026-10", to: "2026-11" }
 
 function fixture() {
   const receivables: BillingRecord[] = [
@@ -88,6 +89,24 @@ function fixture() {
       total: 250,
       line_items: [line({ amount: 50, line_type: "fee" })],
     }),
+    // Blank MBA lands on the "—" key.
+    rec({ id: 5, billing_type: "media", mba_number: null, total: 80 }),
+    // Credit: negative receivable.
+    rec({ id: 6, billing_type: "media", mba_number: "ACME001", total: -120.5 }),
+    // Second month, same client.
+    rec({ id: 7, billing_type: "media", mba_number: "ACME001", billing_month: "2026-11", total: 640 }),
+    // Second client.
+    rec({ id: 8, clients_id: 9, client_name: "Beta", billing_type: "media", mba_number: "BETA001", total: 900 }),
+    rec({
+      id: 9,
+      clients_id: 9,
+      client_name: "Beta",
+      billing_type: "sow",
+      mba_number: "BETA002",
+      status: "paid",
+      total: 300,
+      line_items: [line({ amount: 30, line_type: "service" })],
+    }),
   ]
   const payables: BillingRecord[] = [
     rec({
@@ -106,38 +125,105 @@ function fixture() {
       mba_number: "ACME002",
       line_items: [line({ amount: 200, line_type: "media" })],
     }),
+    rec({
+      id: 12,
+      billing_type: "payable",
+      mba_number: null,
+      line_items: [line({ amount: 30, line_type: "media" })],
+    }),
+    rec({
+      id: 13,
+      billing_type: "payable",
+      mba_number: "ACME001",
+      billing_month: "2026-11",
+      line_items: [
+        line({ amount: 300, line_type: "media" }),
+        line({ amount: 75, line_type: "media", client_pays_media: true }),
+      ],
+    }),
+    rec({
+      id: 14,
+      clients_id: 9,
+      client_name: "Beta",
+      billing_type: "payable",
+      mba_number: "BETA001",
+      line_items: [
+        line({ amount: 500, line_type: "media" }),
+        line({ amount: 99, line_type: "media", client_pays_media: true }),
+      ],
+    }),
   ]
   return { receivables, payables }
 }
 
+const cents = (n: number) => Math.round(n * 100)
+
+function rowFor(rows: ReturnType<typeof computeAccrualByClient>, client: string, month: string) {
+  const row = rows.find((r) => r.client_name === client && r.month === month)
+  assert.ok(row, `${client} ${month}`)
+  return row!
+}
+
 describe("accrual one engine (F1, D2)", () => {
-  it("client row excludes client-pays payables and draft SOW fees", () => {
+  it("client rows exclude client-pays payables and draft SOW fees", () => {
     const { receivables, payables } = fixture()
     const rows = computeAccrualByClient(receivables, payables, RANGE)
-    assert.equal(rows.length, 1)
-    const row = rows[0]!
-    assert.equal(row.receivable_total, 1750)
-    assert.equal(row.payable_total, 600)
-    assert.equal(row.fees_total, 150)
-    assert.equal(row.accrual, 1000)
+    assert.equal(rows.length, 3)
+    const oct = rowFor(rows, "Acme", "2026-10")
+    assert.equal(oct.receivable_total, 1709.5)
+    assert.equal(oct.payable_total, 630)
+    assert.equal(oct.fees_total, 150)
+    assert.equal(oct.accrual, 929.5)
+    const nov = rowFor(rows, "Acme", "2026-11")
+    assert.equal(nov.receivable_total, 640)
+    assert.equal(nov.payable_total, 300)
+    assert.equal(nov.fees_total, 0)
+    assert.equal(nov.accrual, 340)
+    const beta = rowFor(rows, "Beta", "2026-10")
+    assert.equal(beta.receivable_total, 1200)
+    assert.equal(beta.payable_total, 500)
+    assert.equal(beta.fees_total, 30)
+    assert.equal(beta.accrual, 670)
   })
 
-  it("MBA breakdown rows sum to the client row", () => {
+  it("MBA breakdown rows sum to every client row", () => {
     const { receivables, payables } = fixture()
-    const [row] = computeAccrualByClient(receivables, payables, RANGE)
-    const mba = mbaBreakdownFromAccrualRow(row!)
-    const sum = (k: "receivable" | "payable" | "fees" | "accrual") =>
-      Math.round(mba.reduce((s, m) => s + m[k] * 100, 0)) / 100
-    assert.equal(sum("receivable"), row!.receivable_total)
-    assert.equal(sum("payable"), row!.payable_total)
-    assert.equal(sum("fees"), row!.fees_total)
-    assert.equal(sum("accrual"), row!.accrual)
-    const acme001 = mba.find((m) => m.mbaNumber === "ACME001")!
+    const rows = computeAccrualByClient(receivables, payables, RANGE)
+    for (const row of rows) {
+      const mba = mbaBreakdownFromAccrualRow(row)
+      const sum = (k: "receivable" | "payable" | "fees" | "accrual") =>
+        mba.reduce((s, m) => s + cents(m[k]), 0)
+      assert.equal(sum("receivable"), cents(row.receivable_total), `${row.client_name} ${row.month} receivable`)
+      assert.equal(sum("payable"), cents(row.payable_total), `${row.client_name} ${row.month} payable`)
+      assert.equal(sum("fees"), cents(row.fees_total), `${row.client_name} ${row.month} fees`)
+      assert.equal(sum("accrual"), cents(row.accrual), `${row.client_name} ${row.month} accrual`)
+    }
+    const oct = mbaBreakdownFromAccrualRow(rowFor(rows, "Acme", "2026-10"))
+    const acme001 = oct.find((m) => m.mbaNumber === "ACME001")!
     assert.equal(acme001.payable, 400, "client-pays media is not an agency payable")
-    assert.equal(mba.some((m) => m.mbaNumber === "ACME003"), false, "draft SOW is out of accrual")
+    assert.equal(acme001.receivable, 879.5, "credit nets off the MBA receivable")
+    const blank = oct.find((m) => m.mbaNumber === "—")!
+    assert.equal(blank.receivable, 80)
+    assert.equal(blank.payable, 30)
+    assert.equal(oct.some((m) => m.mbaNumber === "ACME003"), false, "draft SOW is out of accrual")
   })
 
-  it("fee amount follows the receivable status set", () => {
+  it("detail sheet sides sum to the summary totals", () => {
+    const { receivables, payables } = fixture()
+    const rows = computeAccrualByClient(receivables, payables, RANGE)
+    const detail = buildAccrualDetailRows(rows)
+    for (const row of rows) {
+      const side = (s: string) =>
+        detail
+          .filter((d) => d.client === row.client_name && d.month === row.month && d.side === s)
+          .reduce((t, d) => t + cents(d.amount), 0)
+      assert.equal(side("Receivable"), cents(row.receivable_total), `${row.client_name} ${row.month} receivable`)
+      assert.equal(side("Payable (agency)"), cents(row.payable_total), `${row.client_name} ${row.month} payable`)
+      assert.equal(side("Fee (SOW/retainer)"), cents(row.fees_total), `${row.client_name} ${row.month} fees`)
+    }
+  })
+
+  it("fee amount follows the receivable status set, case-sensitive as today", () => {
     const fee = (status: string) =>
       accrualServiceFeeAmount(
         rec({
@@ -148,7 +234,7 @@ describe("accrual one engine (F1, D2)", () => {
         }),
       )
     for (const s of ["booked", "approved", "invoiced", "paid"]) assert.equal(fee(s), 80, s)
-    for (const s of ["draft", "planned", "cancelled", ""]) assert.equal(fee(s), 0, s)
+    for (const s of ["draft", "cancelled", "expected", "disputed", "Booked", ""]) assert.equal(fee(s), 0, s)
     assert.equal(
       accrualServiceFeeAmount(rec({ id: 21, billing_type: "media", line_items: [line({ amount: 80, line_type: "fee" })] })),
       0,
@@ -156,13 +242,18 @@ describe("accrual one engine (F1, D2)", () => {
     )
   })
 
-  it("rounds half-up at cents through roundMoney2", () => {
+  it("rounds once, half-up away from zero, through roundMoney2", () => {
     assert.equal(accrualReceivableAmount(rec({ id: 30, billing_type: "media", total: 1.005 })), 1.01)
-    assert.equal(
+    const pay = (amounts: number[]) =>
       accrualPayableAmount(
-        rec({ id: 31, billing_type: "payable", line_items: [line({ amount: 2.675, line_type: "media" })] }),
-      ),
-      2.68,
-    )
+        rec({
+          id: 31,
+          billing_type: "payable",
+          line_items: amounts.map((amount) => line({ amount, line_type: "media" })),
+        }),
+      )
+    assert.equal(pay([1.005]), 1.01)
+    assert.equal(pay([-2.675]), -2.68)
+    assert.equal(pay([0.5, 0.505]), 1.01, "sums first, rounds once")
   })
 })

@@ -1,5 +1,4 @@
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
-import { sumPayableLineItems } from "@/lib/finance/aggregatePayablesPublisherGroups"
 import { roundMoney2 } from "@/lib/money"
 import type { MonthRange } from "./monthRange"
 import { expandMonthRange } from "./monthRange"
@@ -62,9 +61,16 @@ export function accrualReceivableAmount(r: BillingRecord): number {
   return roundMoney2(Number(r.total || 0))
 }
 
-/** Agency payable for one record: line items excluding client-pays media. */
+/**
+ * Agency payable for one record: line items excluding client-pays media (the
+ * same lines `sumPayableLineItems` counts), rounded once through `roundMoney2`.
+ */
 export function accrualPayableAmount(r: BillingRecord): number {
-  return roundMoney2(sumPayableLineItems(r))
+  return roundMoney2(
+    (r.line_items || [])
+      .filter((li) => !li.client_pays_media)
+      .reduce((s, li) => s + Number(li.amount || 0), 0)
+  )
 }
 
 /**

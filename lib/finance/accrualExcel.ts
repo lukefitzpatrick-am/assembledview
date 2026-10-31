@@ -1,6 +1,7 @@
 import type ExcelJS from "exceljs"
 import { saveAs } from "file-saver"
 import type { AccrualRow } from "@/lib/finance/computeAccrual"
+import { buildAccrualDetailRows } from "@/lib/finance/accrualDetailRows"
 import { paintSandHeader, stampAptos } from "@/lib/excel/brandSheet"
 
 const TEXT_ALIGNMENT: Partial<ExcelJS.Alignment> = {
@@ -87,33 +88,7 @@ export async function exportAccrualWorkbook(rows: AccrualRow[], filename: string
     { header: "Amount", key: "amount", width: 16 },
   ]
 
-  for (const r of rows) {
-    for (const rec of r.contributing_receivables) {
-      detail.addRow({
-        client: r.client_name,
-        month: r.month,
-        side: "Receivable",
-        type: rec.billing_type,
-        mba: rec.mba_number || "",
-        campaign: rec.campaign_name || "",
-        status: rec.status,
-        amount: Number(rec.total || 0),
-      })
-    }
-    for (const pay of r.contributing_payables) {
-      const expected = (pay.line_items || []).reduce((s, li) => s + Number(li.amount || 0), 0)
-      detail.addRow({
-        client: r.client_name,
-        month: r.month,
-        side: "Payable (expected)",
-        type: pay.billing_type,
-        mba: pay.mba_number || "",
-        campaign: pay.campaign_name || "",
-        status: pay.status,
-        amount: expected,
-      })
-    }
-  }
+  for (const d of buildAccrualDetailRows(rows)) detail.addRow(d)
   detail.getColumn("amount").numFmt = "$#,##0.00"
   applyAccrualDetailAlignment(detail)
   detail.getRow(1).eachCell({ includeEmpty: false }, (cell) => paintSandHeader(cell))
