@@ -172,7 +172,7 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | `publishers` | POST | admin-only | `requireRole(admin)` | — |
 | `publishers/[publisherId]` | GET | session-ref | middleware only | — |
 | `publishers/[publisherId]` | PUT | admin-only | `requireRole(admin)` | — |
-| `publishers/check-id` | GET | session-ref | middleware only | — |
+| `publishers/check-id` | GET | deleted 1 Nov 2026 (F5: no caller, no role check) | — | — |
 
 ### Media plans (underscore = channel tables)
 

@@ -40,10 +40,6 @@ export const API_ROUTE_GUARD_ALLOWLIST: {
     file: "app/api/me/route.ts",
     reason: "session-ref: returns caller identity/roles only",
   },
-  {
-    file: "app/api/publishers/check-id/route.ts",
-    reason: "session-ref: publisher id uniqueness probe for admin create forms",
-  },
 
   // --- admin-only by path, session-only AuthZ (should be requireFinanceAdmin) ---
   {

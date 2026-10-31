@@ -262,12 +262,6 @@ export async function findPublisherByBusinessId(
   return rows[0] ?? null
 }
 
-/** True when no publisher uses this publisherid (case and spaces ignored). */
-export async function isPublisherIdUnique(publisherid: string): Promise<boolean> {
-  const found = await findPublisherByBusinessId(publisherid)
-  return found == null
-}
-
 export async function createPublisherPostgresFirst(
   body: Record<string, unknown>
 ): Promise<PublisherWriteResult> {

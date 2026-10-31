@@ -427,7 +427,7 @@ PASTE INTO CURSOR — X8: last Xano callers
 | Area | Confidence | Why |
 |---|---:|---|
 | Channel POST dead | 95% | Grep + create* still use MEDIA_PLANS_BASE_URL |
-| campaigns/* + accrual + check-id dead | 90% | Zero in-repo fetch; external bookmarks unknown |
+| campaigns/* + accrual + check-id dead | 90% | Zero in-repo fetch; external bookmarks unknown. check-id deleted 1 Nov 2026 (F5) |
 | XANO_CODEX gone | 99% | Zero code hits; F-27 documented |
 | XANO_DASHBOARDS still live code | 95% | global.ts + spend routes; cold under plans=postgres |
 | xero-queue not dead | 99% | XeroExceptionsPanel fetch |
