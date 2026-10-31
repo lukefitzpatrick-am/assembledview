@@ -207,9 +207,10 @@ describe("B2a wiring: create runs edit's manual billing steps", () => {
       body(create, "function handleManualBillingLineItemPreBillToggle("),
       /setDraftBillingOverrideRows/,
     )
-    const modal = create.slice(create.indexOf("<MbaBillingModal"), create.indexOf("versionLabel=", create.indexOf("<MbaBillingModal")))
-    assert.match(modal, /appliedManualBillingRef\.current/)
-    assert.match(modal, /setManualBillingMonths\(restored\)/)
+    // B2a fix: the teardown lives in cancelMbaBilling (footer Cancel and dialog close).
+    const cancel = body(create, "function cancelMbaBilling(")
+    assert.match(cancel, /resolveManualBillingCancel\(\s*hasPendingManualBilling,\s*appliedManualBillingRef\.current\s*\)/)
+    assert.match(cancel, /setManualBillingMonths\(outcome\.months\)/)
   })
 
   it("M5: create full reset drops the pending rows", () => {

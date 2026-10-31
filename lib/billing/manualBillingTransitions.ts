@@ -10,6 +10,7 @@
  * - `resetLineToAutoTemplate` is the single-line reset (M4): media AND fee
  *   timing come back from the current auto template and the fee lane returns
  *   to auto.
+ * - `resolveManualBillingCancel` is create's Cancel: back to the last Apply.
  */
 
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
@@ -46,6 +47,34 @@ export function commitManualBillingDraft(
     pendingRows,
     metaSnapshot: cloneLineOverrideMetaMap(metaByLine),
   }
+}
+
+export type ManualBillingCancelOutcome =
+  /** Pending timing exists: the editor goes back to the last Apply. */
+  | { kind: "restore_applied"; months: BillingMonth[]; meta: Map<string, LineOverrideMeta[]> }
+  /** Nothing applied: drop the draft months and meta. */
+  | { kind: "discard_draft" }
+  /** Pending flag set but no applied snapshot (should not happen): leave as is. */
+  | { kind: "keep" }
+
+/**
+ * Create page Cancel (footer button, Escape, overlay, close): what happens to
+ * the open draft. Create keeps the last Apply; edit's Cancel discards all
+ * pending rows. That twin difference is open, pending Luke's decision.
+ */
+export function resolveManualBillingCancel(
+  hasPendingManualBilling: boolean,
+  applied: { months: BillingMonth[]; meta: Map<string, LineOverrideMeta[]> } | null
+): ManualBillingCancelOutcome {
+  if (hasPendingManualBilling && applied) {
+    return {
+      kind: "restore_applied",
+      months: JSON.parse(JSON.stringify(applied.months)) as BillingMonth[],
+      meta: cloneLineOverrideMetaMap(applied.meta),
+    }
+  }
+  if (!hasPendingManualBilling) return { kind: "discard_draft" }
+  return { kind: "keep" }
 }
 
 /**

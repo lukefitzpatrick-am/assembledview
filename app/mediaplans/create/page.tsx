@@ -104,7 +104,6 @@ import {
   removedEmptyLineUpdates,
 } from "@/lib/mediaplan/stripEmptyLineItems"
 import { generateBillingLineItems } from "@/lib/billing/generateBillingLineItems"
-import { billingSnapshotFeeTotals } from "@/lib/billing/billingSnapshotFeeTotals"
 import { mergeInvestmentMonths } from "@/lib/billing/mergeInvestmentMonths"
 import { MbaBillingAutoCalcSummary } from "@/components/billing/MbaBillingAutoCalcSummary"
 import {
@@ -171,14 +170,18 @@ import {
   validateManualMediaMonthsSum,
   type LineOverrideMeta,
 } from "@/lib/finance/manualBillingOverridesUi"
-import {
-  cloneLineOverrideMetaMap,
-  removeLineFromPendingBillingOverrideRows,
-} from "@/lib/finance/pendingBillingOverrides"
+import { removeLineFromPendingBillingOverrideRows } from "@/lib/finance/pendingBillingOverrides"
 import {
   commitManualBillingDraft,
   resetLineToAutoTemplate,
+  resolveManualBillingCancel,
 } from "@/lib/billing/manualBillingTransitions"
+import type { LineItemInput } from "@/lib/finance/campaignFinancials.types"
+import {
+  manualBillingLineIdBlockReason,
+  rekeyCreateManualBillingStateForMba,
+  rekeyLineInputsForMba,
+} from "@/lib/billing/rekeyManualBillingForMba"
 import { canonicalisePartialMbaSelectedLineItemIds } from "@/lib/finance/mbaLineApprovalsClient"
 import {
   monthsForMbaBillingGates,
@@ -1026,20 +1029,6 @@ function CreateMediaPlan() {
     adServing?: string[]
     production?: string[]
   }>({})
-  const manualBillingAutoLineItemSnapshotRef = useRef<
-    Record<
-      string,
-      {
-        mediaKey: string
-        lineItemId: string
-        header1: string
-        header2: string
-        monthlyAmounts: Record<string, number>
-        mediaTotal: number
-        feeTotal: number
-      }
-    >
-  >({})
   /** Empty on create — no fetchBillingOverridesClient until after save. */
   const manualBillingOverrideMetaRef = useRef<Map<string, LineOverrideMeta[]>>(new Map())
   /** MB-8: Prebill scope memory for this draft session. */
@@ -1065,6 +1054,14 @@ function CreateMediaPlan() {
     months: BillingMonth[]
     meta: Map<string, LineOverrideMeta[]>
   } | null>(null)
+  /**
+   * B2a fix: the MBA number the applied timing's line ids carry (set on Apply).
+   * When the MBA number changes the timing is re-keyed (the "MBA number taken"
+   * retry) or cleared with a warning (any other change, e.g. a new client).
+   */
+  const appliedUnderMbaNumberRef = useRef<string | null>(null)
+  /** Set by the "MBA number taken" retry: the save moves billing lines from → to. */
+  const mbaNumberRenameRef = useRef<{ from: string; to: string } | null>(null)
   /** Auto schedule (+ line items) the user edited against — snapshotted at open/apply. */
   const manualBillingAutoReferenceMonthsRef = useRef<BillingMonth[]>([])
   const [billingError, setBillingError] = useState<{ show: boolean; messages: string[] }>({
@@ -4169,7 +4166,6 @@ function CreateMediaPlan() {
     const mediaTypeMap = buildCreateManualBillingMediaTypeMap()
     const allLineItems: Record<string, BillingLineItem[]> = {}
 
-    manualBillingAutoLineItemSnapshotRef.current = {}
     Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
       if (watchedMediaTypesMap[mediaTypeKey] && lineItems?.length) {
         const billingLineItems = generateBillingLineItems(
@@ -4184,20 +4180,6 @@ function CreateMediaPlan() {
         })
         if (billingLineItems.length > 0) {
           allLineItems[key] = billingLineItems
-          const feeTotals = billingSnapshotFeeTotals(lineItems, key, deepCopiedMonths)
-          billingLineItems.forEach((billingLineItem, index) => {
-            const feeTotal = feeTotals[index] ?? 0
-            const snapshotKey = `${key}::${billingLineItem.id}`
-            manualBillingAutoLineItemSnapshotRef.current[snapshotKey] = {
-              mediaKey: key,
-              lineItemId: billingLineItem.id,
-              header1: billingLineItem.header1,
-              header2: billingLineItem.header2,
-              monthlyAmounts: { ...billingLineItem.monthlyAmounts },
-              mediaTotal: billingLineItem.totalAmount || 0,
-              feeTotal,
-            }
-          })
         }
       }
     })
@@ -4464,6 +4446,11 @@ function CreateMediaPlan() {
   }
 
   function handleManualBillingLineItemPrebill(mediaKey: string, lineItemId: string) {
+    const blocked = manualBillingLineIdBlockReason(mbaNumber, [lineItemId])
+    if (blocked) {
+      toast({ variant: "destructive", title: "Cannot prebill", description: blocked })
+      return
+    }
     let base = manualBillingMonths
     if (!manualBillingDraftReady || base.length === 0) {
       const opened = handleManualBillingOpen()
@@ -4517,6 +4504,11 @@ function CreateMediaPlan() {
   ) {
     const base = baseMonths ?? manualBillingMonths
     if (!base.length) return
+    const blocked = manualBillingLineIdBlockReason(mbaNumber, [lineItemId])
+    if (blocked) {
+      toast({ variant: "destructive", title: "Cannot prebill", description: blocked })
+      return
+    }
 
     rememberPrebillScope(prebillScopeMemoryRef.current, lineItemId, scope)
 
@@ -4726,7 +4718,67 @@ function CreateMediaPlan() {
     // included), so the save sends auto timing, like edit.
     setDraftBillingOverrideRows([])
     appliedManualBillingRef.current = null
+    appliedUnderMbaNumberRef.current = null
   }, [calculateBillingSchedule])
+
+  /**
+   * B2a fix: applied timing is keyed to line ids that carry the MBA number.
+   * When the number changes, the "MBA number taken" retry (same client, same
+   * lines, next number) re-keys every carrier; any other change (a new client
+   * means new fees too) or an id that cannot be moved clears the timing and
+   * says so. A blank number waits for the next one.
+   */
+  useEffect(() => {
+    const from = appliedUnderMbaNumberRef.current
+    const to = String(mbaNumber ?? "").trim()
+    if (!from || !to || from === to) return
+    const hasApplied =
+      hasPendingManualBilling ||
+      draftBillingOverrideRows.length > 0 ||
+      appliedManualBillingRef.current != null
+    if (!hasApplied) {
+      appliedUnderMbaNumberRef.current = null
+      return
+    }
+    const rename = mbaNumberRenameRef.current
+    if (rename && rename.from === from && rename.to === to) {
+      const moved = rekeyCreateManualBillingStateForMba(
+        {
+          pendingRows: draftBillingOverrideRows,
+          draftMonths: manualBillingMonths,
+          meta: manualBillingOverrideMetaRef.current,
+          applied: appliedManualBillingRef.current,
+          autoReferenceMonths: manualBillingAutoReferenceMonthsRef.current,
+        },
+        from,
+        to
+      )
+      if (moved) {
+        setDraftBillingOverrideRows(moved.pendingRows)
+        setManualBillingMonths(moved.draftMonths)
+        manualBillingOverrideMetaRef.current = moved.meta
+        appliedManualBillingRef.current = moved.applied
+        manualBillingAutoReferenceMonthsRef.current = moved.autoReferenceMonths
+        setManualBillingAutoReferenceMonths(moved.autoReferenceMonths)
+        clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
+        appliedUnderMbaNumberRef.current = to
+        return
+      }
+    }
+    handleResetBillingScheduleToAuto()
+    clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
+    toast({
+      variant: "destructive",
+      title: "Billing timing cleared",
+      description: `The MBA number changed from ${from} to ${to}, so the applied billing timing no longer matches the plan's lines. Open Billing and apply the timing again before saving.`,
+    })
+  }, [
+    mbaNumber,
+    hasPendingManualBilling,
+    draftBillingOverrideRows,
+    manualBillingMonths,
+    handleResetBillingScheduleToAuto,
+  ])
 
   const runConfirmedFullBillingResetToAuto = useCallback(async () => {
     setFullBillingResetConfirmOpen(false)
@@ -4754,8 +4806,52 @@ function CreateMediaPlan() {
     })
   }, [handleResetBillingScheduleToAuto, mbaNumber])
 
+  /**
+   * B2a fix: one Cancel for the MBA billing modal. The footer Cancel button and
+   * the dialog's own close (Escape, overlay, X) both run this, so unapplied edits
+   * and Prebills never survive a Cancel. Create keeps the last Apply; edit's
+   * Cancel discards all pending rows (open twin difference, pending Luke).
+   */
+  function cancelMbaBilling() {
+    setIsMbaBillingModalOpen(false)
+    setIsManualBillingModalOpen(false)
+    setManualBillingDraftReady(false)
+    const outcome = resolveManualBillingCancel(
+      hasPendingManualBilling,
+      appliedManualBillingRef.current
+    )
+    if (outcome.kind === "restore_applied") {
+      setManualBillingMonths(outcome.months)
+      setManualBillingTotal(
+        mbaCurrencyFormatter.format(
+          recalculateManualBillingTotals(outcome.months, mbaCurrencyFormatter)
+        )
+      )
+      manualBillingOverrideMetaRef.current = outcome.meta
+      clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
+    } else if (outcome.kind === "discard_draft") {
+      setManualBillingMonths([])
+      manualBillingOverrideMetaRef.current = new Map()
+      clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
+    }
+    setPrebillScopePrompt(null)
+    setBillingError({ show: false, messages: [] })
+  }
+
   /** Apply locally only — campaign save commits via MB-22 REPLACE-SET. */
   function handleManualBillingApply() {
+    // B2a fix: timing on a line without a real id (blank MBA number, or a
+    // placeholder `new-N` line) never reaches the save, so refuse instead.
+    const manualIdsForBlock = listManualOverrideLineIds(manualBillingMonths)
+    const blocked = manualBillingLineIdBlockReason(mbaNumber, [
+      ...manualIdsForBlock.media,
+      ...manualIdsForBlock.fee,
+    ])
+    if (blocked) {
+      setBillingError({ show: true, messages: [blocked] })
+      toast({ variant: "destructive", title: "Billing timing not applied", description: blocked })
+      return
+    }
     const autoMonths =
       manualBillingAutoReferenceMonthsRef.current.length > 0
         ? manualBillingAutoReferenceMonthsRef.current
@@ -4803,6 +4899,7 @@ function CreateMediaPlan() {
       months: committed.appliedMonths,
       meta: committed.metaSnapshot,
     }
+    appliedUnderMbaNumberRef.current = String(mbaNumber ?? "").trim()
     setHasPendingManualBilling(true)
     setIsManualBilling(true)
     setIsManualBillingModalOpen(false)
@@ -4811,11 +4908,18 @@ function CreateMediaPlan() {
     setIsMbaBillingModalOpen(false)
     setBillingError({ show: false, messages: [] })
     forceDirty()
-    toast({
-      title: "Manual billing applied",
-      description:
-        "Timing kept locally. Save the campaign to commit overrides (works before a version row exists).",
-    })
+    toast(
+      committed.pendingRows.length > 0
+        ? {
+            title: "Manual billing applied",
+            description:
+              "Timing kept locally. Save the campaign to commit overrides (works before a version row exists).",
+          }
+        : {
+            title: "Auto billing kept",
+            description: "No line has manual timing, so the schedule stays on auto.",
+          }
+    )
   }
 
   function handlePartialMBAMonthsChange(nextMonthYears: string[]) {
@@ -5574,6 +5678,11 @@ function CreateMediaPlan() {
       if (decision.action === "retry") {
         mbaNumberTakenRetriedRef.current = true
         const oldNumber = String(form.getValues("mba_number") ?? "").trim()
+        // B2a fix: the lines re-mint under the new number; billing timing follows.
+        mbaNumberRenameRef.current = {
+          from: oldNumber,
+          to: String(decision.nextMbaNumber ?? "").trim(),
+        }
         form.setValue("mba_number", decision.nextMbaNumber)
         setMbaNumber(decision.nextMbaNumber)
         toast({
@@ -5687,6 +5796,24 @@ function CreateMediaPlan() {
     return result
   }
 
+  /** Billing line inputs keyed to `mbaNum` (see `mbaNumberRenameRef`). */
+  function billingLineInputsForMbaNumber(
+    lines: LineItemInput[],
+    mbaNum: string
+  ): LineItemInput[] {
+    const rename = mbaNumberRenameRef.current
+    const to = String(mbaNum ?? "").trim()
+    if (!rename || rename.to !== to || rename.from === to) return lines
+    const moved = rekeyLineInputsForMba(lines, rename.from, rename.to)
+    if (moved) return moved
+    toast({
+      variant: "destructive",
+      title: "Billing timing not carried over",
+      description: `The plan saves as ${to}, but some billing lines could not be matched from ${rename.from}. Check billing timing and partial MBA selections after the save.`,
+    })
+    return lines
+  }
+
   const handleSaveMediaPlanVersion = async (
     masterId: number,
     opts?: { intent?: "save" | "publish" }
@@ -5718,6 +5845,13 @@ function CreateMediaPlan() {
       )
       const planVersionNumber = parseInt(fv.mp_plannumber ?? "1", 10) || 1
       const mbaNum = String(fv.mba_number)
+      // B2a fix: after the "MBA number taken" retry this closure still holds the
+      // billing lines keyed to the old number; move them so overrides and
+      // approvals land on the re-minted save lines.
+      const billingLinesForSave = billingLineInputsForMbaNumber(
+        billingSaveInputs.lineItems,
+        mbaNum
+      )
 
       // --- T4c: WRITE_BACKEND=postgres → one transactional save ---
       if (writeBackend === "postgres") {
@@ -5852,7 +5986,7 @@ function CreateMediaPlan() {
 
         const lineItemsForSave = buildSavePlanLineItemsFromSnapshots(
           snapshots,
-          billingSaveInputs.lineItems,
+          billingLinesForSave,
           createChannelLoadSucceeded
         )
 
@@ -6232,10 +6366,7 @@ function CreateMediaPlan() {
           ...values,
           mp_client_name: clientName,
           mp_production: shouldEnableProduction,
-          lineItems: withMbaScopeLineLabels(
-            billingSaveInputs.lineItems,
-            mbaBillingScopeLines
-          ),
+          lineItems: withMbaScopeLineLabels(billingLinesForSave, mbaBillingScopeLines),
           feeLoading: billingSaveInputs.feeLoading,
           billingSchedule: undefined,
           deliverySchedule: undefined,
@@ -8486,31 +8617,8 @@ const handleSaveAll = async (opts?: {
       <MbaBillingModal
         open={isMbaBillingModalOpen}
         onOpenChange={(open) => {
-          setIsMbaBillingModalOpen(open)
-          if (!open) {
-            setIsManualBillingModalOpen(false)
-            setManualBillingDraftReady(false)
-            const applied = appliedManualBillingRef.current
-            if (hasPendingManualBilling && applied) {
-              // B2a (M7, MB-24 port): Cancel drops unapplied edits and Prebills.
-              // The editor returns to the last Apply; pending rows are untouched.
-              const restored = deepCloneBillingMonths(applied.months)
-              setManualBillingMonths(restored)
-              setManualBillingTotal(
-                mbaCurrencyFormatter.format(
-                  recalculateManualBillingTotals(restored, mbaCurrencyFormatter)
-                )
-              )
-              manualBillingOverrideMetaRef.current = cloneLineOverrideMetaMap(applied.meta)
-              clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
-            } else if (!hasPendingManualBilling) {
-              setManualBillingMonths([])
-              manualBillingOverrideMetaRef.current = new Map()
-              clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
-            }
-            setPrebillScopePrompt(null)
-            setBillingError({ show: false, messages: [] })
-          }
+          if (open) setIsMbaBillingModalOpen(true)
+          else cancelMbaBilling()
         }}
         versionLabel="v1"
         financials={mbaBillingModalState.financials}
@@ -9002,11 +9110,7 @@ const handleSaveAll = async (opts?: {
         footer={
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsMbaBillingModalOpen(false)}
-              >
+              <Button type="button" variant="outline" onClick={cancelMbaBilling}>
                 Cancel
               </Button>
               {isPartialMBA ? (
