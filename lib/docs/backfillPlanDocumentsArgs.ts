@@ -212,8 +212,8 @@ export function storedPlanDocumentOutFilenames(
   version: number,
 ): Record<PlanDocumentKind, string> {
   return {
-    mba_pdf: `${mba}-v${version}-mba_pdf.xano.pdf`,
-    media_plan: `${mba}-v${version}-media_plan.xano.xlsx`,
-    aa_media_plan: `${mba}-v${version}-aa_media_plan.xano.xlsx`,
+    mba_pdf: `${mba}-v${version}-mba_pdf.stored.pdf`,
+    media_plan: `${mba}-v${version}-media_plan.stored.xlsx`,
+    aa_media_plan: `${mba}-v${version}-aa_media_plan.stored.xlsx`,
   }
 }

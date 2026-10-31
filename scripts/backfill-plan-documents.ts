@@ -257,7 +257,7 @@ async function writeOutDocuments(args: {
     }
 
     console.log("")
-    console.log("stored originals (Xano / Blob url):")
+    console.log("stored originals (the file the app serves today):")
     for (const kind of args.kinds) {
       const dest = join(args.outDir, storedNames[kind])
       try {
