@@ -231,7 +231,7 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 test("every on/off switch is read through the registry: no file reads its env var directly", () => {
-  const names = FEATURE_DEFINITIONS.map((d) => d.envName)
+  const names = FEATURE_DEFINITIONS.flatMap((d) => ("envName" in d && d.envName ? [d.envName] : []))
   const extra = ["NEXT_PUBLIC_TRUE_UP", "NEXT_PUBLIC_BILLING_REVISIONS"]
   const offenders: string[] = []
   for (const dir of SCAN_DIRS) {

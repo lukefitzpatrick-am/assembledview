@@ -60,6 +60,42 @@ export function resolvedLineItemIsUnmapped(
 }
 
 /**
+ * The one copy of the warehouse "is this delivery on a published line" rule,
+ * shared by the CM360 placements list and the all-channel unmapped delivery
+ * list (lib/pacing/admin/unmappedDelivery.ts).
+ *
+ * Join an active LINE_ITEM_LABEL_MAP override onto a fact alias. The resolved
+ * line id is then COALESCE(map.LINE_ITEM_ID, fact.LINE_ITEM_ID): the map wins.
+ */
+export function labelMapJoinSql(factAlias: string, mapAlias: string): string {
+  return `LEFT JOIN ASSEMBLEDVIEW.MART.LINE_ITEM_LABEL_MAP ${mapAlias}
+        ON LOWER(TRIM(${mapAlias}.CHANNEL)) = LOWER(TRIM(${factAlias}.CHANNEL))
+       AND LOWER(TRIM(CAST(${mapAlias}.PLATFORM_LINE_ITEM_ID AS VARCHAR))) = LOWER(TRIM(CAST(${factAlias}.PLATFORM_LINE_ITEM_ID AS VARCHAR)))
+       AND ${mapAlias}.IS_ACTIVE = TRUE`
+}
+
+/** The resolved line id: an active map override first, then the fact stamp (applyLabelMapThenResolve). */
+export function resolvedLineIdSql(factAlias: string, mapAlias: string): string {
+  return `COALESCE(NULLIF(TRIM(CAST(${mapAlias}.LINE_ITEM_ID AS VARCHAR)), ''), NULLIF(TRIM(CAST(${factAlias}.LINE_ITEM_ID AS VARCHAR)), ''))`
+}
+
+/**
+ * SQL predicate: the resolved line id is null, empty, or not a published line
+ * in MART.XANO_LINE_ITEMS_SNAPSHOT (the ids warehouse attach uses).
+ * Mirrors resolvedLineItemIsUnmapped.
+ */
+export function resolvedLineIsUnmappedSql(resolvedExpr: string): string {
+  return `(${resolvedExpr} IS NULL
+       OR TRIM(CAST(${resolvedExpr} AS VARCHAR)) = ''
+       OR LOWER(TRIM(CAST(${resolvedExpr} AS VARCHAR))) NOT IN (
+         SELECT LOWER(TRIM(CAST(s.LINE_ITEM_ID AS VARCHAR)))
+         FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT s
+         WHERE s.LINE_ITEM_ID IS NOT NULL
+           AND TRIM(CAST(s.LINE_ITEM_ID AS VARCHAR)) <> ''
+       ))`
+}
+
+/**
  * PACING_FACT CM360 rows in the last 60 days whose resolved LINE_ITEM_ID
  * (LABEL_MAP first, then the fact stamp) is null, empty, or absent from
  * MART.XANO_LINE_ITEMS_SNAPSHOT — the published ids warehouse attach uses.
@@ -72,12 +108,9 @@ export function buildUnmappedPlacementsSql(): string {
         CAST(f.CAMPAIGN_NAME AS VARCHAR) AS CAMPAIGN_NAME,
         CAST(f.DATE_DAY AS DATE) AS DATE_DAY,
         f.IMPRESSIONS AS IMPRESSIONS,
-        COALESCE(m.LINE_ITEM_ID, f.LINE_ITEM_ID) AS RESOLVED_LINE_ITEM_ID
+        ${resolvedLineIdSql("f", "m")} AS RESOLVED_LINE_ITEM_ID
       FROM ASSEMBLEDVIEW.MART.PACING_FACT f
-      LEFT JOIN ASSEMBLEDVIEW.MART.LINE_ITEM_LABEL_MAP m
-        ON LOWER(TRIM(m.CHANNEL)) = LOWER(TRIM(f.CHANNEL))
-       AND LOWER(TRIM(CAST(m.PLATFORM_LINE_ITEM_ID AS VARCHAR))) = LOWER(TRIM(CAST(f.PLATFORM_LINE_ITEM_ID AS VARCHAR)))
-       AND m.IS_ACTIVE = TRUE
+      ${labelMapJoinSql("f", "m")}
       WHERE f.CHANNEL = '${CM360_PACING_CHANNEL}'
         AND CAST(f.DATE_DAY AS DATE) >= DATEADD(day, -?, CURRENT_DATE())
     )
@@ -88,14 +121,7 @@ export function buildUnmappedPlacementsSql(): string {
       MAX(r.DATE_DAY) AS LAST_DATE,
       SUM(r.IMPRESSIONS) AS IMPRESSIONS
     FROM resolved r
-    WHERE r.RESOLVED_LINE_ITEM_ID IS NULL
-       OR TRIM(CAST(r.RESOLVED_LINE_ITEM_ID AS VARCHAR)) = ''
-       OR LOWER(TRIM(CAST(r.RESOLVED_LINE_ITEM_ID AS VARCHAR))) NOT IN (
-         SELECT LOWER(TRIM(CAST(s.LINE_ITEM_ID AS VARCHAR)))
-         FROM ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT s
-         WHERE s.LINE_ITEM_ID IS NOT NULL
-           AND TRIM(CAST(s.LINE_ITEM_ID AS VARCHAR)) <> ''
-       )
+    WHERE ${resolvedLineIsUnmappedSql("r.RESOLVED_LINE_ITEM_ID")}
     GROUP BY r.PLACEMENT_NAME, r.CAMPAIGN_NAME
     ORDER BY IMPRESSIONS DESC NULLS LAST, r.PLACEMENT_NAME
   `

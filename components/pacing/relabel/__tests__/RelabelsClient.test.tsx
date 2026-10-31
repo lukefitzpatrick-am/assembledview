@@ -3,6 +3,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { setClientFeatureSnapshot } from "@/lib/features/client"
 import { RelabelsClient } from "../RelabelsClient"
 
 const UNMAPPED = {
@@ -14,6 +15,30 @@ const UNMAPPED = {
       lastDate: "2026-09-02",
       impressions: 12000,
       suggestedMba: "BICAU",
+    },
+  ],
+}
+
+const DELIVERY = {
+  windowDays: 30,
+  rows: [
+    {
+      channel: "Social - Meta",
+      platformEntityId: "120200001",
+      name: "SA Awareness pgaaus015sm3",
+      campaignName: "PGA Tour 2026/27",
+      account: null,
+      firstDate: "2026-10-02",
+      lastDate: "2026-10-30",
+      spend: 1940.99,
+      impressions: 1000,
+      currentLineItemId: null,
+      suggestion: {
+        kind: "relabel",
+        mba: "pgaaus015",
+        lineItemId: "pgaaus015sm3",
+        action: "The ad set name carries pgaaus015sm3, a published line. Relabel it to that line.",
+      },
     },
   ],
 }
@@ -75,6 +100,9 @@ describe("RelabelsClient", () => {
         if (url.includes("/api/admin/unmapped-placements")) {
           return { ok: true, json: async () => UNMAPPED }
         }
+        if (url.includes("/api/admin/unmapped-delivery")) {
+          return { ok: true, json: async () => DELIVERY }
+        }
         if (url.includes("/api/pacing/relabels/preview") && method === "POST") {
           return { ok: true, json: async () => BLOCKED_PREVIEW }
         }
@@ -92,6 +120,7 @@ describe("RelabelsClient", () => {
     })
     container.remove()
     vi.unstubAllGlobals()
+    setClientFeatureSnapshot(null)
   })
 
   async function settle() {
@@ -327,7 +356,8 @@ describe("RelabelsClient", () => {
     expect(save?.hasAttribute("disabled")).toBe(false)
   })
 
-  it("pre-fills New relabel from an Unmapped row action", async () => {
+  it("pre-fills New relabel from an Unmapped row action (CM360 table, switch off)", async () => {
+    setClientFeatureSnapshot({ unmapped_delivery: false })
     act(() => {
       root.render(<RelabelsClient initial={{ tab: "unmapped" }} />)
     })
@@ -344,6 +374,27 @@ describe("RelabelsClient", () => {
     expect(entity?.value).toBe("BICAU002_Twitch_ROS")
     expect(channel?.value).toBe("Ad Serving - CM360")
     expect(mba?.value).toBe("BICAU")
+    expect(container.querySelector('[role="tab"][data-state="active"]')?.textContent).toBe("New relabel")
+  })
+
+  it("Unmapped shows every channel with what to do, and Relabel pre-fills the suggested line (switch on)", async () => {
+    setClientFeatureSnapshot({ unmapped_delivery: true })
+    act(() => {
+      root.render(<RelabelsClient initial={{ tab: "unmapped" }} />)
+    })
+    await settle()
+    expect(container.querySelector("[data-unmapped-delivery]")).toBeTruthy()
+    expect(container.textContent).toContain("Social - Meta: 1")
+    expect(container.textContent).toContain("Relabel it to that line.")
+    const relabel = [...container.querySelectorAll("button")].find((el) => el.textContent === "Relabel")
+    act(() => {
+      relabel!.click()
+    })
+    await settle()
+    expect((container.querySelector("#relabel-entity") as HTMLInputElement)?.value).toBe("120200001")
+    expect((container.querySelector("#relabel-channel") as HTMLSelectElement)?.value).toBe("Social - Meta")
+    expect((container.querySelector("#relabel-mba") as HTMLInputElement)?.value).toBe("pgaaus015")
+    expect((container.querySelector("#relabel-line") as HTMLInputElement)?.value).toBe("pgaaus015sm3")
     expect(container.querySelector('[role="tab"][data-state="active"]')?.textContent).toBe("New relabel")
   })
 

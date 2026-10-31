@@ -104,6 +104,11 @@ function adminConsolidationCandidates(rows: HandlerRow[]): string {
       links: "pacing admin unmapped CM360 placements list",
     },
     {
+      path: "/api/admin/unmapped-delivery",
+      gate: "requireRole([\"admin\"]); 404 when the unmapped_delivery switch is off",
+      links: "relabels Unmapped tab, every warehouse channel",
+    },
+    {
       path: "/api/finance/forecast (gated root)",
       gate: "requireRole(admin) on `/api/finance/forecast`",
       links: "`ForecastingPageClient`, finance forecast section",

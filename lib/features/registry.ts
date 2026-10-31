@@ -37,9 +37,13 @@ export type FeatureDefinition = {
   description: string
   area: FeatureArea
   defaultOn: boolean
-  /** Server env var read when no switch row exists. */
-  envName: string
-  envParse: FeatureEnvParse
+  /**
+   * Server env var read when no switch row exists. Only switches that moved
+   * off an env var on 30 Oct have one; new switches leave both out and fall
+   * back to `defaultOn`.
+   */
+  envName?: string
+  envParse?: FeatureEnvParse
   /** Sent to the browser in the root layout (client components read it there). */
   clientVisible: boolean
   toggleRole: FeatureToggleRole
@@ -237,6 +241,17 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
   },
   {
+    key: "unmapped_delivery",
+    label: "Unmapped delivery",
+    description:
+      "Pacing > Relabels > Unmapped lists the last 30 days of platform delivery (Meta, TikTok, Reddit, Google, Microsoft, programmatic, CM360) that attaches to no published line, with what to do about each. Admins only. Off: the tab shows CM360 placements only.",
+    area: "planning",
+    defaultOn: true,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+  },
+  {
     key: "view_as",
     label: "View as client",
     description: "Admins can view the app as a client (read only, audited). Also needs a signing secret.",
@@ -308,12 +323,13 @@ export function resolveFeature(
   env: Record<string, string | undefined>,
 ): { enabled: boolean; source: FeatureSource } {
   if (def.source === "vercel") {
-    return { enabled: parseFeatureEnv(env[def.envName], def.envParse), source: "vercel" }
+    const raw = def.envName ? env[def.envName] : undefined
+    return { enabled: def.envParse ? parseFeatureEnv(raw, def.envParse) : def.defaultOn, source: "vercel" }
   }
   const row = rows?.get(def.key)
   if (row) return { enabled: row.enabled, source: "switch" }
-  const raw = env[def.envName]
-  if (raw !== undefined && String(raw).trim() !== "") {
+  const raw = def.envName ? env[def.envName] : undefined
+  if (def.envParse && raw !== undefined && String(raw).trim() !== "") {
     return { enabled: parseFeatureEnv(raw, def.envParse), source: "env" }
   }
   return { enabled: def.defaultOn, source: "default" }

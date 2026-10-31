@@ -45,12 +45,12 @@ export const FEATURE_AREA_LABELS: Record<FeatureArea, string> = {
 
 const AREA_ORDER: FeatureArea[] = ["finance", "planning", "reporting", "clients", "platform"]
 
-export function featureSourceLabel(source: FeatureSource, envName: string): string {
+export function featureSourceLabel(source: FeatureSource, envName: string | undefined): string {
   switch (source) {
     case "switch":
       return "Switch"
     case "env":
-      return `Env var ${envName}`
+      return envName ? `Env var ${envName}` : "Default"
     case "default":
       return "Default"
     case "vercel":
@@ -90,7 +90,7 @@ export function buildFeaturePageModel(args: {
       area: def.area,
       enabled,
       source,
-      sourceLabel: featureSourceLabel(source, def.envName),
+      sourceLabel: featureSourceLabel(source, "envName" in def ? def.envName : undefined),
       lastChanged: lastChanged(s?.row ?? null),
       note: s?.row?.note ?? null,
       canToggle: args.ready && allowed && def.source !== "vercel",

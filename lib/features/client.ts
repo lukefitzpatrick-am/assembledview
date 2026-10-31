@@ -8,7 +8,7 @@
  * Next can inline them. New switches don't need one.
  */
 import type { ClientFeatureKey } from "./registry"
-import { parseFeatureEnv } from "./registry"
+import { featureDefinition, parseFeatureEnv } from "./registry"
 
 let snapshot: Partial<Record<ClientFeatureKey, boolean>> | null = null
 
@@ -28,6 +28,9 @@ function buildTimeFallback(key: ClientFeatureKey): boolean {
       return parseFeatureEnv(process.env.NEXT_PUBLIC_PLAN_DRAFTS, "on_1_true")
     case "platform_accounts_web":
       return parseFeatureEnv(process.env.NEXT_PUBLIC_PLATFORM_ACCOUNTS_WEB, "exact_1")
+    default:
+      // Switches added after 30 Oct have no build-time env: their default.
+      return featureDefinition(key)?.defaultOn ?? false
   }
 }
 

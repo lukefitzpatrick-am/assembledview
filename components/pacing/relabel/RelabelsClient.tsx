@@ -27,6 +27,9 @@ import type { DeliveryRelabelRow, RelabelPreview } from "@/lib/pacing/relabel/sh
 import type { RelabelDriftFinding } from "@/lib/pacing/relabel/drift"
 import { CM360_PACING_CHANNEL, RELABEL_WAREHOUSE_CHANNELS } from "@/lib/pacing/relabel/shared/types"
 import { RelabelMatchTab } from "./RelabelMatchTab"
+import { UnmappedDeliveryTab } from "./UnmappedDeliveryTab"
+import { clientFeatureOn } from "@/lib/features/client"
+import type { UnmappedDeliveryRow } from "@/lib/pacing/admin/unmappedDelivery"
 
 const numberFmt = new Intl.NumberFormat("en-AU")
 
@@ -345,6 +348,17 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
     setTab("new")
   }, [])
 
+  const prefillFromDelivery = useCallback((row: UnmappedDeliveryRow) => {
+    setChannel(row.channel)
+    setEntity(row.platformEntityId)
+    setEntitySearch(row.platformEntityId)
+    setMba(row.suggestion.mba ?? "")
+    setLineItemId(row.suggestion.kind === "relabel" ? row.suggestion.lineItemId ?? "" : "")
+    setPreview(null)
+    setAckWarnings(false)
+    setTab("new")
+  }, [])
+
   const revertRow = useCallback(
     async (row: DeliveryRelabelRow) => {
       if (!canRevertRelabel(row.createdAt)) return
@@ -653,7 +667,9 @@ export function RelabelsClient({ initial }: { initial: RelabelsQuery }) {
         </TabsContent>
 
         <TabsContent value="unmapped" className="pt-4">
-          {unmappedError ? (
+          {clientFeatureOn("unmapped_delivery") ? (
+            <UnmappedDeliveryTab mbaFilter={unmappedFilter} onRelabel={prefillFromDelivery} />
+          ) : unmappedError ? (
             <ErrorState
               title="Unmapped placements failed to load"
               message={unmappedError}
