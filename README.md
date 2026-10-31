@@ -123,7 +123,7 @@ Repo scripts: `npm run snowflake:migrate:pacing`, `npm run pacing:backfill:searc
 
 ### Other services (optional)
 
-[env.local.example](env.local.example) also documents **OpenAI**, **SendGrid** / **SMTP** for email, and related keys used by specific features.
+[env.local.example](env.local.example) also documents **OpenAI**, **SendGrid** for email (the only email provider), and related keys used by specific features.
 
 ### Debug
 

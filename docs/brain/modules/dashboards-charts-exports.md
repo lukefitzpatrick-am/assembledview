@@ -93,7 +93,7 @@ Template/skill files resolve via `process.cwd()` — serverless bundle tracing m
 ## Email
 
 - `lib/email/sendHtmlEmail.ts` (`server-only`, SendGrid; **throws** when `SENDGRID_API_KEY` missing — cron digests fail loudly; `EMAIL_FROM` required).
-- `lib/email/inviteSender.ts` (Auth0 invites, SMTP fallback). Consumers: admin users route + the 3 digest crons.
+- `lib/email/inviteSender.ts` (Auth0 invites, SendGrid only; the Nodemailer SMTP fallback was removed 31 Oct 2026, so a missing `SENDGRID_API_KEY` is a clear error). Consumers: admin users route + the 3 digest crons.
 
 ## Excel/export gotchas (verified, recurring)
 
