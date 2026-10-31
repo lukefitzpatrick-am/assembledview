@@ -1,5 +1,6 @@
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { sumPayableLineItems } from "@/lib/finance/aggregatePayablesPublisherGroups"
+import { roundMoney2 } from "@/lib/money"
 import type { MonthRange } from "./monthRange"
 import { expandMonthRange } from "./monthRange"
 
@@ -31,37 +32,53 @@ const RECEIVABLE_TYPES: BillingType[] = ["media", "sow", "retainer"]
  */
 const RECEIVABLE_STATUSES = new Set(["booked", "approved", "invoiced", "paid"])
 
-function roundMoney(n: number): number {
-  return Math.round(n * 100) / 100
+/**
+ * The per-record amounts below are the one accrual engine. The client row
+ * (`computeAccrualByClient`) and the per-MBA breakdown
+ * (`mbaBreakdownFromAccrualRow`) both call them, so the MBA rows always sum to
+ * the client row (F1, 1 Nov 2026). Money rounds through `roundMoney2`.
+ */
+
+/** Receivable status set for accrual revenue AND SOW/retainer fee deductions (D2, 1 Nov 2026). */
+export function isAccrualCountedStatus(status: string | null | undefined): boolean {
+  return RECEIVABLE_STATUSES.has(String(status ?? ""))
 }
 
-function sumLineItemsExpected(record: BillingRecord): number {
-  if (record.billing_type === "payable") {
-    return sumPayableLineItems(record)
-  }
-  const items = record.line_items || []
-  return roundMoney(items.reduce((s, li) => s + Number(li.amount || 0), 0))
+export function isAccrualReceivable(r: BillingRecord): boolean {
+  return RECEIVABLE_TYPES.includes(r.billing_type)
 }
 
-function sumServiceFees(record: BillingRecord): number {
-  const items = record.line_items || []
-  return roundMoney(
+export function isAccrualPayable(r: BillingRecord): boolean {
+  return r.billing_type === "payable"
+}
+
+/** SOW and retainer records carry the service fees accrual deducts. */
+export function isAccrualFeeSource(r: BillingRecord): boolean {
+  return r.billing_type === "sow" || r.billing_type === "retainer"
+}
+
+/** Receivable revenue for one record (its total). */
+export function accrualReceivableAmount(r: BillingRecord): number {
+  return roundMoney2(Number(r.total || 0))
+}
+
+/** Agency payable for one record: line items excluding client-pays media. */
+export function accrualPayableAmount(r: BillingRecord): number {
+  return roundMoney2(sumPayableLineItems(r))
+}
+
+/**
+ * SOW/retainer service fees for one record. Zero for other record types and for
+ * statuses outside the accrual set, so a draft SOW never lowers accrual (D2).
+ */
+export function accrualServiceFeeAmount(r: BillingRecord): number {
+  if (!isAccrualFeeSource(r) || !isAccrualCountedStatus(r.status)) return 0
+  const items = r.line_items || []
+  return roundMoney2(
     items
       .filter((li) => li.line_type === "service" || li.line_type === "fee")
       .reduce((s, li) => s + Number(li.amount || 0), 0)
   )
-}
-
-function isReceivable(r: BillingRecord): boolean {
-  return RECEIVABLE_TYPES.includes(r.billing_type)
-}
-
-function isPayable(r: BillingRecord): boolean {
-  return r.billing_type === "payable"
-}
-
-function isFeeSource(r: BillingRecord): boolean {
-  return r.billing_type === "sow" || r.billing_type === "retainer"
 }
 
 export function accrualBucketKey(clients_id: number, month: string): string {
@@ -153,37 +170,35 @@ export function computeAccrualByClient(
   }
 
   for (const r of receivables) {
-    if (!isReceivable(r)) continue
+    if (!isAccrualReceivable(r)) continue
     const m = r.billing_month
     if (!months.has(m)) continue
-    if (!RECEIVABLE_STATUSES.has(r.status)) continue
+    if (!isAccrualCountedStatus(r.status)) continue
     touch(r.clients_id, r.client_name, m)
     const b = buckets.get(accrualBucketKey(r.clients_id, m))!
-    const add = roundMoney(Number(r.total || 0))
-    b.receivable_total = roundMoney(b.receivable_total + add)
+    b.receivable_total = roundMoney2(b.receivable_total + accrualReceivableAmount(r))
     b.contributing_receivables.push(r)
   }
 
   for (const r of payables) {
-    if (!isPayable(r)) continue
+    if (!isAccrualPayable(r)) continue
     const m = r.billing_month
     if (!months.has(m)) continue
     touch(r.clients_id, r.client_name, m)
     const b = buckets.get(accrualBucketKey(r.clients_id, m))!
-    const add = sumLineItemsExpected(r)
-    b.payable_total = roundMoney(b.payable_total + add)
+    b.payable_total = roundMoney2(b.payable_total + accrualPayableAmount(r))
     b.contributing_payables.push(r)
   }
 
   for (const r of receivables) {
-    if (!isFeeSource(r)) continue
+    if (!isAccrualReceivable(r)) continue
     const m = r.billing_month
     if (!months.has(m)) continue
-    const fees = sumServiceFees(r)
+    const fees = accrualServiceFeeAmount(r)
     if (fees <= 0) continue
     touch(r.clients_id, r.client_name, m)
     const b = buckets.get(accrualBucketKey(r.clients_id, m))!
-    b.fees_total = roundMoney(b.fees_total + fees)
+    b.fees_total = roundMoney2(b.fees_total + fees)
   }
 
   if (reconcile) {
@@ -211,7 +226,7 @@ export function computeAccrualByClient(
   const rows: AccrualRow[] = [...buckets.values()].map((b) => {
     const k = accrualBucketKey(b.clients_id, b.month)
     const rec = reconcile?.get(k)
-    const accrual = roundMoney(b.receivable_total - b.payable_total - b.fees_total)
+    const accrual = roundMoney2(b.receivable_total - b.payable_total - b.fees_total)
     return {
       clients_id: b.clients_id,
       client_name: b.client_name,

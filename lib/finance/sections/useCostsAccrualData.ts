@@ -14,10 +14,14 @@ import {
   type FinanceBillingQuery,
 } from "@/lib/finance/api"
 import {
+  accrualPayableAmount,
+  accrualReceivableAmount,
+  accrualServiceFeeAmount,
   computeAccrualByClient,
   parseAccrualReconcilesFromEdits,
   type AccrualRow,
 } from "@/lib/finance/computeAccrual"
+import { roundMoney2 } from "@/lib/money"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import {
@@ -39,11 +43,10 @@ export type CostsAccrualMbaBreakdown = {
   accrual: number
 }
 
-function roundMoney(n: number): number {
-  return Math.round(n * 100) / 100
-}
-
-/** MBA rollup from the same AccrualRow contributors — not a second engine. */
+/**
+ * MBA rollup from the same AccrualRow contributors and the same per-record
+ * amounts as the client row (`computeAccrual.ts`), so the MBA rows sum to it.
+ */
 export function mbaBreakdownFromAccrualRow(row: AccrualRow): CostsAccrualMbaBreakdown[] {
   const map = new Map<string, CostsAccrualMbaBreakdown>()
   const touch = (mba: string, campaign: string) => {
@@ -66,27 +69,23 @@ export function mbaBreakdownFromAccrualRow(row: AccrualRow): CostsAccrualMbaBrea
 
   for (const r of row.contributing_receivables) {
     const b = touch((r.mba_number || "").trim() || "—", (r.campaign_name || "").trim())
-    b.receivable = roundMoney(b.receivable + Number(r.total || 0))
+    b.receivable = roundMoney2(b.receivable + accrualReceivableAmount(r))
   }
   for (const r of row.contributing_payables) {
     const b = touch((r.mba_number || "").trim() || "—", (r.campaign_name || "").trim())
-    const pay = (r.line_items || []).reduce((s, li) => s + Number(li.amount || 0), 0)
-    b.payable = roundMoney(b.payable + pay)
+    b.payable = roundMoney2(b.payable + accrualPayableAmount(r))
   }
   for (const r of row.contributing_receivables) {
-    if (r.billing_type !== "sow" && r.billing_type !== "retainer") continue
-    const fees = (r.line_items || [])
-      .filter((li) => li.line_type === "service" || li.line_type === "fee")
-      .reduce((s, li) => s + Number(li.amount || 0), 0)
+    const fees = accrualServiceFeeAmount(r)
     if (fees <= 0) continue
     const b = touch((r.mba_number || "").trim() || "—", (r.campaign_name || "").trim())
-    b.fees = roundMoney(b.fees + fees)
+    b.fees = roundMoney2(b.fees + fees)
   }
 
   return [...map.values()]
     .map((b) => ({
       ...b,
-      accrual: roundMoney(b.receivable - b.payable - b.fees),
+      accrual: roundMoney2(b.receivable - b.payable - b.fees),
     }))
     .sort((a, b) => a.mbaNumber.localeCompare(b.mbaNumber))
 }
