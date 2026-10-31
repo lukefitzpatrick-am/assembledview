@@ -7,11 +7,14 @@
 
 import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import { sydneyYmdFromUtcInstant } from "@/lib/myhours/sydneyWeek"
+import { isLegacyExportStamp } from "@/lib/finance/legacyExportStamp"
 
 export type BillingState =
   | "ready"
   | "approved"
   | "sent_to_finance"
+  /** C-150: FY26 rows imported from Xero, stamped 1970 / by 0. Closed. */
+  | "legacy_billed"
   | "issued_outside_av"
   | "drafted"
   | "issued"
@@ -30,6 +33,8 @@ export type BillingXeroEvidence = {
 export type ResolveBillingStateInput = {
   approvedAt: string | null
   exportedAt: string | null
+  /** With `exportedAt`, tells the pre-AssembledView stamp (1970, by 0) from a real send. */
+  exportedBy?: number | string | null
   xero: BillingXeroEvidence | null
   today?: Date
   /**
@@ -129,6 +134,9 @@ export function resolveBillingState(input: ResolveBillingStateInput): {
     return { state: "issued", reason: "Matched Xero invoice" }
   }
 
+  if (isLegacyExportStamp(input.exportedAt, input.exportedBy)) {
+    return { state: "legacy_billed", reason: "Billed in Xero before AssembledView (FY26 import)" }
+  }
   if (stampPresent(input.exportedAt)) {
     return { state: "sent_to_finance", reason: "Sheet exported to finance" }
   }

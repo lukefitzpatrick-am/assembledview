@@ -60,6 +60,7 @@ export const BILLING_STATE: Record<BillingState, { tone: Tone; label: string }> 
   ready: { tone: "neutral", label: "Ready" },
   approved: { tone: "action", label: "Approved" },
   sent_to_finance: { tone: "action", label: "Sent to finance" },
+  legacy_billed: { tone: "ink", label: "Billed before AssembledView" },
   drafted: { tone: "insight", label: "Drafted" },
   issued: { tone: "ink", label: "Issued" },
   issued_outside_av: { tone: "ink", label: "Issued outside AV" },

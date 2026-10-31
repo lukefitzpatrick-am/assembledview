@@ -1,3 +1,4 @@
+import { isLegacyExportStamp } from "@/lib/finance/legacyExportStamp"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 
 function hasApprovedStamp(record: BillingRecord): boolean {
@@ -51,7 +52,9 @@ export type LastExportSummary = {
 export function summariseLastExport(records: BillingRecord[]): LastExportSummary | null {
   let maxMs = -1
   let maxStamp: string | number | null = null
-  for (const r of records) {
+  // C-150: the 1970 / by-0 FY26 import was never sent from AssembledView.
+  const sent = records.filter((r) => !isLegacyExportStamp(r.exported_at, r.exported_by))
+  for (const r of sent) {
     const ms = exportedAtMs(r.exported_at)
     if (ms == null || ms < maxMs) continue
     maxMs = ms
@@ -59,7 +62,7 @@ export function summariseLastExport(records: BillingRecord[]): LastExportSummary
   }
   if (maxMs < 0 || maxStamp == null) return null
 
-  const batch = records.filter((r) => exportedAtMs(r.exported_at) === maxMs)
+  const batch = sent.filter((r) => exportedAtMs(r.exported_at) === maxMs)
   const clients = new Set<number>()
   let total = 0
   let exportedBy: number | null = null

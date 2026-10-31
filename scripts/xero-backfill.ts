@@ -136,13 +136,23 @@ export const BACKFILL_STEPS = [
 
 export type BackfillStepName = (typeof BACKFILL_STEPS)[number]
 
-export const EPOCH_EXPORT_STAMP_SQL = `-- Hand-apply in the SQL editor. This script does not execute it.
--- Nulls the epoch-zero export stamps (exported_at = 1970-01-01, exported_by = 0).
-UPDATE finance_billing_records
-SET exported_at = NULL,
-    exported_by = NULL
+/**
+ * The `sql` step prints a read-only check, not a fix (C-150, closed 31 Oct 2026).
+ * The 443 FY26 rows imported from Xero carry exported_at = 1970-01-01 and
+ * exported_by = 0 on purpose: they were billed before AssembledView. Nulling
+ * the stamps would drop them all to "ready" (lib/finance/billingLifecycle.ts).
+ * Readers use isLegacyExportStamp (lib/finance/legacyExportStamp.ts), which
+ * shows them as "Billed before AssembledView".
+ */
+export const EPOCH_EXPORT_STAMP_SQL = `-- Read-only. Do NOT null these stamps (C-150): the 1970 / by-0 rows are FY26
+-- invoices billed in Xero before AssembledView. The app reads them as
+-- "Billed before AssembledView" (isLegacyExportStamp). This only counts them.
+SELECT status, count(*) AS rows_
+FROM finance_billing_records
 WHERE exported_at = '1970-01-01'
-  AND exported_by = 0;`
+  AND exported_by = 0
+GROUP BY status
+ORDER BY status;`
 
 const STEP_STAGE: Record<BackfillStepName, string> = {
   invoices: "backfill-invoices",

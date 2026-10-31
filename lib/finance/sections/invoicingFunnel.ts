@@ -2,7 +2,7 @@
  * Invoicing KPI funnel — same record.total dollars as the old strip, regrouped
  * into Ready / Approved / Issued outside AV / Sent-to-finance so those tiles add
  * to the scope total. Sent-to-finance includes every derived state past approved
- * except issued_outside_av. Needs attention is a differs count, not a dollar tile.
+ * except issued_outside_av and legacy_billed (C-150), which share the Issued outside AV tile. Needs attention is a differs count, not a dollar tile.
  */
 
 import type { BillingState } from "@/lib/finance/billingLifecycle"
@@ -56,7 +56,8 @@ export function invoicingFunnelBucket(
   state: BillingState | null | undefined
 ): InvoicingFunnelBucketId {
   if (state === "approved") return "approved"
-  if (state === "issued_outside_av") return "issued_outside_av"
+  // C-150: billed in Xero before AssembledView, never sent from here.
+  if (state === "issued_outside_av" || state === "legacy_billed") return "issued_outside_av"
   if (state != null && state !== "ready") return "sent_to_finance"
   return "ready"
 }

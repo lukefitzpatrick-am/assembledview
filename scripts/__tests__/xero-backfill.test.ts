@@ -4,6 +4,7 @@ import { describe, it } from "node:test"
 import {
   applyPublishedMbaRematch,
   createCallPacer,
+  EPOCH_EXPORT_STAMP_SQL,
   invoiceBackfillPath,
   PDF_BACKFILL_PENDING_SQL,
   pdfBackfillStepOutcome,
@@ -307,5 +308,13 @@ describe("call pacer", () => {
     assert.equal(sleeps.length, 1)
     assert.ok(sleeps[0] > 0)
     assert.ok(now - 1_000 >= 60_000)
+  })
+})
+
+describe("sql step (C-150)", () => {
+  it("prints a read-only count and never suggests nulling the legacy stamps", () => {
+    assert.match(EPOCH_EXPORT_STAMP_SQL, /^SELECT status, count\(\*\)/m)
+    assert.doesNotMatch(EPOCH_EXPORT_STAMP_SQL, /\b(UPDATE|DELETE|SET exported_at)\b/)
+    assert.match(EPOCH_EXPORT_STAMP_SQL, /Do NOT null/)
   })
 })

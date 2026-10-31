@@ -198,7 +198,7 @@ export function sydneyMonthNow(now: Date = new Date()): MonthKey {
   return `${parts.find((p) => p.type === "year")?.value}-${parts.find((p) => p.type === "month")?.value}`
 }
 
-const HARD_STATES = new Set(["sent_to_finance", "drafted", "issued", "paid", "overdue", "issued_outside_av"])
+const HARD_STATES = new Set(["sent_to_finance", "legacy_billed", "drafted", "issued", "paid", "overdue", "issued_outside_av"])
 
 /** Record underspend on a finance row: past or current month, not invoiced. */
 export function underspendAction(record: {

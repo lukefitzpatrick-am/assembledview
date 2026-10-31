@@ -97,6 +97,7 @@ export function pressedBillingMonth(
 }
 
 const IN_XERO_WITHOUT_AMOUNT = new Set<BillingState>([
+  "legacy_billed",
   "drafted",
   "issued",
   "issued_outside_av",

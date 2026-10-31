@@ -154,6 +154,7 @@ function withDerivedLifecycle(
   evidence: {
     approvedAt: unknown
     exportedAt: unknown
+    exportedBy?: unknown
     xero: BillingXeroEvidence | null
     resolution?: string | null
   }
@@ -161,6 +162,7 @@ function withDerivedLifecycle(
   const resolved = resolveBillingState({
     approvedAt: overlayStampIso(evidence.approvedAt),
     exportedAt: overlayStampIso(evidence.exportedAt),
+    exportedBy: evidence.exportedBy == null ? null : Number(evidence.exportedBy),
     xero: evidence.xero,
     unapprovedXeroIsOutsideAv: true,
   })
@@ -319,6 +321,7 @@ export function applyStatusOverlay(
     {
       approvedAt: persisted.approved_at,
       exportedAt: persisted.exported_at,
+      exportedBy: persisted.exported_by ?? null,
       xero: persisted.xero ?? null,
       resolution: persisted.xero_match_resolution ?? null,
     }
