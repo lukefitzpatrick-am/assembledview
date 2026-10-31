@@ -403,6 +403,11 @@ import {
   stampAllBillingLineModes,
   type BillingLineMode,
 } from "@/lib/billing/applyBillingLineMode"
+import {
+  commitManualBillingDraft,
+  resetLineToAutoTemplate,
+} from "@/lib/billing/manualBillingTransitions"
+import { saveAndDownloadAllMode } from "@/lib/mediaplan/saveAndDownloadAllMode"
 import { ManualBillingSpreadsheetCostInput } from "@/components/billing/ManualBillingSpreadsheetCostInput"
 import { ManualBillingSpreadsheetLineItemInput } from "@/components/billing/ManualBillingSpreadsheetLineItemInput"
 import { ManualBillingSpreadsheetProvider } from "@/components/billing/manualBillingSpreadsheetContext"
@@ -425,7 +430,6 @@ import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLine
 import {
   applyCostBucketFromAutoReferenceAggregates,
   buildWorkingMonthsFromAutoReference,
-  copySingleLineItemFromAutoTemplate,
   deepCloneBillingMonthsState,
 } from "@/lib/billing/resetFromAutoReference"
 import { computeDerivedCampaignFeeAmount } from "@/lib/billing/computeDerivedCampaignFeeAmount"
@@ -5648,8 +5652,11 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       "billing"
     )
     const copy = deepCloneBillingMonthsState(manualBillingMonths)
-    const ok = copySingleLineItemFromAutoTemplate(copy, template, mediaKey, lineItemId)
-    if (!ok) {
+    const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
+    // B2a: the same line reset create runs (lib/billing/manualBillingTransitions):
+    // media and fee from auto, line and fee lane back to auto, media-type totals.
+    const copyWithAutoMode = resetLineToAutoTemplate(copy, template, mediaKey, lineItemId, formatter)
+    if (!copyWithAutoMode) {
       toast({
         variant: "destructive",
         title: "Cannot reset this line",
@@ -5657,31 +5664,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       })
       return
     }
-
-    const copyWithAutoMode = applyBillingLineMode(copy, lineItemId, "auto")
-    // Also stamp fee lane back to auto after copying auto fee amounts.
-    for (const month of copyWithAutoMode) {
-      if (!month.lineItems) continue
-      for (const items of Object.values(month.lineItems)) {
-        if (!Array.isArray(items)) continue
-        for (const line of items) {
-          if (billingOverrideLineIdsMatch(String(line.id ?? ""), lineItemId)) {
-            line.feeBillingMode = "auto"
-          }
-        }
-      }
-    }
-    const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
-    copyWithAutoMode.forEach((month) => {
-      const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
-        | BillingLineItemType[]
-        | undefined
-      if (!monthLineItems) return
-      const mediaTypeTotal = monthLineItems.reduce((sum, li) => sum + (li.monthlyAmounts?.[month.monthYear] || 0), 0)
-      if (month.mediaCosts && mediaKey in month.mediaCosts) {
-        ;(month.mediaCosts as Record<string, string>)[mediaKey] = formatter.format(mediaTypeTotal)
-      }
-    })
 
     recalculateManualBillingTotals(copyWithAutoMode, formatter)
     setManualBillingMonths(copyWithAutoMode)
@@ -7299,11 +7281,12 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
 
     // MB-23: Apply is state-only — promote draft → pending. Campaign save commits
     // via MB-22 REPLACE-SET. No version id required; no /api/billing-overrides write.
-    const applied = JSON.parse(JSON.stringify(manualBillingMonths)) as BillingMonth[]
-    const pendingRows = buildPendingBillingOverrideRows(
-      applied,
-      manualBillingOverrideMetaRef.current
-    )
+    // B2a: the same Apply step create runs (lib/billing/manualBillingTransitions).
+    const {
+      appliedMonths: applied,
+      pendingRows,
+      metaSnapshot: appliedMetaSnapshot,
+    } = commitManualBillingDraft(manualBillingMonths, manualBillingOverrideMetaRef.current)
     if (pendingRows.length === 0) {
       toast({
         variant: "destructive",
@@ -7315,9 +7298,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     }
 
     setPendingBillingOverrideRows(pendingRows)
-    pendingBillingOverrideMetaRef.current = cloneLineOverrideMetaMap(
-      manualBillingOverrideMetaRef.current
-    )
+    pendingBillingOverrideMetaRef.current = appliedMetaSnapshot
     // MB-25: re-asserted pending lines leave the Reset tombstone; other clears remain.
     setClearedBillingOverrideLineIds((prev) =>
       pruneClearedBillingOverrideLineIdsAfterApply(prev, pendingRows)
@@ -9981,7 +9962,14 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   }
 
   const handleSaveAndDownloadAll = async () => {
-    if (!isPublished) {
+    // Q7 (Luke, 1 Nov 2026): save first unless the plan is unchanged. A published
+    // plan with edits (or a working draft) saves and publishes before zipping, so
+    // the zip never misses unsaved changes.
+    const mode = saveAndDownloadAllMode({
+      isPublished,
+      hasChanges: hasUnsavedChanges || Boolean(planDraft.activeDraft),
+    })
+    if (mode === "save_then_zip") {
       await handleSaveAll({ intent: "publish", zipAfter: true })
       return
     }

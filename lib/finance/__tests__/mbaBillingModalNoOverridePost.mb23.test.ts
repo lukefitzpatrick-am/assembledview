@@ -53,7 +53,13 @@ test("MB-23: edit Apply / Reset / date-basis keep are state-only (no override PO
     applyBody,
     /persistManualBillingOverrides|replaceBillingOverrideLineClient|resetBillingOverrideLineClient|fetchBillingOverridesClient|reportBillingOverridesRefetchAnomaly/
   )
-  assert.match(applyBody, /buildPendingBillingOverrideRows/)
+  // B2a: Apply builds pending rows through the shared commitManualBillingDraft,
+  // which wraps buildPendingBillingOverrideRows (lib/billing/manualBillingTransitions).
+  assert.match(applyBody, /buildPendingBillingOverrideRows|commitManualBillingDraft/)
+  assert.match(
+    readSrc("lib/billing/manualBillingTransitions.ts"),
+    /buildPendingBillingOverrideRows\(/
+  )
   assert.match(applyBody, /MB-23/)
 
   // Extract Reset handler (ends at its useCallback deps).

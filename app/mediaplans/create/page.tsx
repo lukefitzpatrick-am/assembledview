@@ -160,22 +160,25 @@ import {
   applyLinePrebillToMonths,
   billingOverrideLineIdsMatch,
   buildCanonicalBillingLineIdSet,
-  buildPrepaymentOverrideMonths,
   clearLineOverrideMeta,
   extractOverrideMonthsFromSchedule,
   listManualOverrideLineIds,
-  removeOptimisticFeeOverrideRow,
-  removeOptimisticMediaOverrideRow,
   restoreLinePrebillSnapshot,
   sumLineFeeAcrossMonths,
   sumLineMediaAcrossMonths,
   toBillingOverrideLineItemId,
   upsertLineOverrideMeta,
-  upsertOptimisticFeePrepaymentOverrideRow,
-  upsertOptimisticPrepaymentOverrideRow,
   validateManualMediaMonthsSum,
   type LineOverrideMeta,
 } from "@/lib/finance/manualBillingOverridesUi"
+import {
+  cloneLineOverrideMetaMap,
+  removeLineFromPendingBillingOverrideRows,
+} from "@/lib/finance/pendingBillingOverrides"
+import {
+  commitManualBillingDraft,
+  resetLineToAutoTemplate,
+} from "@/lib/billing/manualBillingTransitions"
 import { canonicalisePartialMbaSelectedLineItemIds } from "@/lib/finance/mbaLineApprovalsClient"
 import {
   monthsForMbaBillingGates,
@@ -1053,6 +1056,15 @@ function CreateMediaPlan() {
   const [draftBillingOverrideRows, setDraftBillingOverrideRows] = useState<BillingOverrideRow[]>(
     []
   )
+  /**
+   * B2a (M1/M7, MB-24 port): the applied timing and meta as they stood at the last
+   * Apply. Cancel restores the editor to this; `draftBillingOverrideRows` is the
+   * pending carrier and only Apply, line reset and full reset change it.
+   */
+  const appliedManualBillingRef = useRef<{
+    months: BillingMonth[]
+    meta: Map<string, LineOverrideMeta[]>
+  } | null>(null)
   /** Auto schedule (+ line items) the user edited against — snapshotted at open/apply. */
   const manualBillingAutoReferenceMonthsRef = useRef<BillingMonth[]>([])
   const [billingError, setBillingError] = useState<{ show: boolean; messages: string[] }>({
@@ -4552,20 +4564,8 @@ function CreateMediaPlan() {
       clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, "fee")
     }
 
-    const mediaOverrideMonths = buildPrepaymentOverrideMonths(next, lineMediaTotal)
-    const feeOverrideMonths =
-      scope === "media_and_fee" && lineFeeTotal > 0.005
-        ? buildPrepaymentOverrideMonths(next, lineFeeTotal)
-        : null
-    setDraftBillingOverrideRows((prev) => {
-      let rows = upsertOptimisticPrepaymentOverrideRow(prev, lineItemId, mediaOverrideMonths)
-      if (feeOverrideMonths) {
-        rows = upsertOptimisticFeePrepaymentOverrideRow(rows, lineItemId, feeOverrideMonths)
-      } else {
-        rows = removeOptimisticFeeOverrideRow(rows, lineItemId)
-      }
-      return rows
-    })
+    // B2a (M7, MB-24 port): Prebill changes the draft months and meta only. The
+    // modal shows the draft; the pending rows the save sends change on Apply.
   }
 
   function handleManualBillingLineItemPreBillToggle(
@@ -4607,57 +4607,58 @@ function CreateMediaPlan() {
       dateBasis: "",
       component: "media",
     })
-    setDraftBillingOverrideRows((prev) =>
-      removeOptimisticFeeOverrideRow(
-        removeOptimisticMediaOverrideRow(prev, lineItemId),
-        lineItemId
-      )
-    )
+    // B2a (M7): unchecking Prebill changes the draft and meta only, like edit.
   }
 
   function handleManualBillingLineItemResetToAuto(mediaKey: string, lineItemId: string) {
-    const copy = [...manualBillingMonths]
-    if (copy.length === 0) return
-    const snapshot = manualBillingAutoLineItemSnapshotRef.current[`${mediaKey}::${lineItemId}`]
-    if (!snapshot) return
+    // B2a (M4): reset from the CURRENT auto schedule, media and fee timing, the
+    // same steps as edit (lib/billing/manualBillingTransitions).
+    const autoSource = autoBillingMonths.length > 0 ? autoBillingMonths : billingMonths
+    if (!autoSource.length || manualBillingMonths.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Cannot reset this line",
+        description:
+          "No auto billing reference. Set campaign dates and bursts, or use Reset billing to auto.",
+      })
+      return
+    }
+    const template = attachLineItemsForManualBillingEditor(autoSource).months
+    const formatter = mbaCurrencyFormatter
+    const next = resetLineToAutoTemplate(
+      deepCloneBillingMonths(manualBillingMonths),
+      template,
+      mediaKey,
+      lineItemId,
+      formatter
+    )
+    if (!next) {
+      toast({
+        variant: "destructive",
+        title: "Cannot reset this line",
+        description: "This row is not present on the auto template for these months.",
+      })
+      return
+    }
 
     clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId)
-    setDraftBillingOverrideRows((prev) =>
-      removeOptimisticFeeOverrideRow(
-        removeOptimisticMediaOverrideRow(prev, lineItemId),
-        lineItemId
+    setDraftBillingOverrideRows((prev) => removeLineFromPendingBillingOverrideRows(prev, lineItemId))
+    const applied = appliedManualBillingRef.current
+    if (applied) {
+      clearLineOverrideMeta(applied.meta, lineItemId)
+      const appliedNext = resetLineToAutoTemplate(
+        deepCloneBillingMonths(applied.months),
+        template,
+        mediaKey,
+        lineItemId,
+        formatter
       )
-    )
+      if (appliedNext) {
+        recalculateManualBillingTotals(appliedNext, formatter)
+        applied.months = appliedNext
+      }
+    }
 
-    copy.forEach((month) => {
-      const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
-        | BillingLineItem[]
-        | undefined
-      if (!monthLineItems) return
-      const li = monthLineItems.find((x) =>
-        billingOverrideLineIdsMatch(String(x.id ?? ""), lineItemId)
-      )
-      if (!li) return
-      li.monthlyAmounts = { ...snapshot.monthlyAmounts }
-      li.totalAmount = Object.values(li.monthlyAmounts).reduce((sum, v) => sum + (v || 0), 0)
-      li.preBill = false
-      li.preBillSnapshot = undefined
-    })
-
-    const formatter = mbaCurrencyFormatter
-    copy.forEach((month) => {
-      const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
-        | BillingLineItem[]
-        | undefined
-      if (!monthLineItems) return
-      const mediaTypeTotal = monthLineItems.reduce(
-        (sum, li) => sum + (li.monthlyAmounts?.[month.monthYear] || 0),
-        0
-      )
-      ;(month.mediaCosts as Record<string, string>)[mediaKey] = formatter.format(mediaTypeTotal)
-    })
-
-    const next = applyBillingLineMode(copy, lineItemId, "auto")
     const grandTotalNumber = recalculateManualBillingTotals(next, formatter)
     setManualBillingTotal(formatter.format(grandTotalNumber))
     setManualBillingMonths(next)
@@ -4721,6 +4722,10 @@ function CreateMediaPlan() {
     setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
     manualBillingCostPreBillSnapshotRef.current = {}
     manualBillingOverrideMetaRef.current = new Map()
+    // B2a (M5): a full reset also drops the pending override rows (Prebill
+    // included), so the save sends auto timing, like edit.
+    setDraftBillingOverrideRows([])
+    appliedManualBillingRef.current = null
   }, [calculateBillingSchedule])
 
   const runConfirmedFullBillingResetToAuto = useCallback(async () => {
@@ -4786,6 +4791,18 @@ function CreateMediaPlan() {
     const autoSnap = deepCloneBillingMonths(autoMonths)
     manualBillingAutoReferenceMonthsRef.current = autoSnap
     setManualBillingAutoReferenceMonths(autoSnap)
+    // B2a (M1): Apply turns the typed timing and Prebill into the pending override
+    // rows the campaign save sends (MB-22 REPLACE-SET), the same step as edit.
+    // Before this only Prebill rows reached the save, so typed timing was dropped.
+    const committed = commitManualBillingDraft(
+      manualBillingMonths,
+      manualBillingOverrideMetaRef.current
+    )
+    setDraftBillingOverrideRows(committed.pendingRows)
+    appliedManualBillingRef.current = {
+      months: committed.appliedMonths,
+      meta: committed.metaSnapshot,
+    }
     setHasPendingManualBilling(true)
     setIsManualBilling(true)
     setIsManualBillingModalOpen(false)
@@ -8473,7 +8490,20 @@ const handleSaveAll = async (opts?: {
           if (!open) {
             setIsManualBillingModalOpen(false)
             setManualBillingDraftReady(false)
-            if (!hasPendingManualBilling) {
+            const applied = appliedManualBillingRef.current
+            if (hasPendingManualBilling && applied) {
+              // B2a (M7, MB-24 port): Cancel drops unapplied edits and Prebills.
+              // The editor returns to the last Apply; pending rows are untouched.
+              const restored = deepCloneBillingMonths(applied.months)
+              setManualBillingMonths(restored)
+              setManualBillingTotal(
+                mbaCurrencyFormatter.format(
+                  recalculateManualBillingTotals(restored, mbaCurrencyFormatter)
+                )
+              )
+              manualBillingOverrideMetaRef.current = cloneLineOverrideMetaMap(applied.meta)
+              clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
+            } else if (!hasPendingManualBilling) {
               setManualBillingMonths([])
               manualBillingOverrideMetaRef.current = new Map()
               clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
