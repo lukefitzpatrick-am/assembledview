@@ -12,6 +12,10 @@
  *   number), so the applied timing is re-keyed by swapping the MBA prefix. Any
  *   id not in that shape makes the re-key refuse (null) so the caller clears
  *   and warns instead of guessing.
+ *
+ * The partial MBA line selection is keyed the same way: the save's `mbaScope`
+ * rebuilds every line's approval from it by exact canonical id
+ * (`applyMbaScopeLineApprovals`), so a stale selection would exclude every line.
  */
 
 import type { BillingMonth } from "@/lib/billing/types"
@@ -30,6 +34,10 @@ export const MBA_NUMBER_BLANK_BILLING_MESSAGE =
 export const PLACEHOLDER_LINE_ID_BILLING_MESSAGE =
   "Some lines do not have a line id yet, so their billing timing would not save. Wait for the media lines to finish loading, reopen Billing and try again."
 
+export function lineIdMbaMismatchBillingMessage(mbaNumber: string): string {
+  return `Some lines' ids do not belong to MBA ${mbaNumber}, so their billing timing would not save. Close Billing, reopen it so the lines refresh, then try again.`
+}
+
 function splitBillingPrefix(id: string): { prefix: string; bare: string } {
   const s = String(id ?? "").trim()
   const m = BILLING_PREFIX.exec(s)
@@ -42,29 +50,38 @@ export function isPlaceholderBillingLineId(id: string): boolean {
 }
 
 /**
- * Why Apply or Prebill must not run yet, or null when it may. `lineIds` are the
- * lines whose timing would be saved (manual media or fee, or the line being
- * prebilled).
+ * True when `bare` is `<mba><media code><n>` exactly as `buildLineItemId`
+ * mints it for this MBA number (case-sensitive; the code must be a known one).
  */
-export function manualBillingLineIdBlockReason(
-  mbaNumber: string | null | undefined,
-  lineIds: readonly string[]
-): string | null {
-  if (!String(mbaNumber ?? "").trim()) return MBA_NUMBER_BLANK_BILLING_MESSAGE
-  if (lineIds.some(isPlaceholderBillingLineId)) return PLACEHOLDER_LINE_ID_BILLING_MESSAGE
-  return null
-}
-
-function isMintedFor(bare: string, mba: string): boolean {
+export function isLineIdMintedForMba(bare: string, mba: string): boolean {
   if (!mba || !bare.startsWith(mba)) return false
   const m = /^([A-Z]+)(\d+)$/.exec(bare.slice(mba.length))
   return Boolean(m && CODES.has(m[1]!) && Number(m[2]) > 0)
 }
 
 /**
+ * Why Apply or Prebill must not run yet, or null when it may. `lineIds` are the
+ * lines whose timing would be saved (manual media or fee, or the line being
+ * prebilled). Every one must be minted for the current MBA number; anything
+ * else would not match a save line and the timing would be dropped.
+ */
+export function manualBillingLineIdBlockReason(
+  mbaNumber: string | null | undefined,
+  lineIds: readonly string[]
+): string | null {
+  const mba = String(mbaNumber ?? "").trim()
+  if (!mba) return MBA_NUMBER_BLANK_BILLING_MESSAGE
+  if (lineIds.some(isPlaceholderBillingLineId)) return PLACEHOLDER_LINE_ID_BILLING_MESSAGE
+  if (lineIds.some((id) => !isLineIdMintedForMba(splitBillingPrefix(id).bare, mba))) {
+    return lineIdMbaMismatchBillingMessage(mba)
+  }
+  return null
+}
+
+/**
  * Move one line id (bare or `billing-x::` decorated) from `from` to `to`.
- * Already on `to`: unchanged. Placeholder `new-N`: unchanged. Anything else
- * not shaped `<from><code><n>`: null.
+ * Already on `to`: unchanged. Placeholder `new-N` and `__service__*` (not
+ * MBA-keyed): unchanged. Anything else not shaped `<from><code><n>`: null.
  */
 export function rekeyLineIdForMba(id: string, from: string, to: string): string | null {
   const f = String(from ?? "").trim()
@@ -72,9 +89,9 @@ export function rekeyLineIdForMba(id: string, from: string, to: string): string 
   const { prefix, bare } = splitBillingPrefix(id)
   if (!f || !t) return null
   if (f === t) return String(id ?? "").trim()
-  if (bare.startsWith("new-")) return String(id ?? "").trim()
-  if (isMintedFor(bare, t)) return `${prefix}${bare}`
-  if (!isMintedFor(bare, f)) return null
+  if (bare.startsWith("new-") || bare.startsWith("__service__")) return String(id ?? "").trim()
+  if (isLineIdMintedForMba(bare, t)) return `${prefix}${bare}`
+  if (!isLineIdMintedForMba(bare, f)) return null
   return `${prefix}${t}${bare.slice(f.length)}`
 }
 
@@ -181,4 +198,55 @@ export function rekeyCreateManualBillingStateForMba(
     applied = { months, meta: appliedMeta }
   }
   return { pendingRows, draftMonths, meta, applied, autoReferenceMonths }
+}
+
+/** Partial MBA line selection (`partialMBASelectedLineItemIds`). Copy, or null. */
+export function rekeyPartialMbaSelectionForMba(
+  byMedia: Readonly<Record<string, readonly string[] | undefined>>,
+  from: string,
+  to: string
+): Record<string, string[]> | null {
+  const out: Record<string, string[]> = {}
+  for (const [media, ids] of Object.entries(byMedia)) {
+    const next: string[] = []
+    for (const id of ids ?? []) {
+      const moved = rekeyLineIdForMba(id, from, to)
+      if (moved == null) return null
+      next.push(moved)
+    }
+    out[media] = next
+  }
+  return out
+}
+
+/** Rows keyed by `lineItemId` (MBA scope labels). Copy, or null. */
+export function rekeyLineIdRowsForMba<T extends { lineItemId: string }>(
+  rows: readonly T[],
+  from: string,
+  to: string
+): T[] | null {
+  const out: T[] = []
+  for (const row of rows) {
+    const moved = rekeyLineIdForMba(row.lineItemId, from, to)
+    if (moved == null) return null
+    out.push({ ...row, lineItemId: moved })
+  }
+  return out
+}
+
+/** Partial approval metadata: each channel's `selectedLineItemIds`. Copy, or null. */
+export function rekeyPartialApprovalChannelsForMba<
+  M extends { channels: Array<{ selectedLineItemIds: string[] }> },
+>(metadata: M, from: string, to: string): M | null {
+  const channels: M["channels"] = []
+  for (const channel of metadata.channels) {
+    const ids: string[] = []
+    for (const id of channel.selectedLineItemIds) {
+      const moved = rekeyLineIdForMba(id, from, to)
+      if (moved == null) return null
+      ids.push(moved)
+    }
+    channels.push({ ...channel, selectedLineItemIds: ids })
+  }
+  return { ...metadata, channels }
 }

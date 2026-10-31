@@ -180,7 +180,10 @@ import type { LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import {
   manualBillingLineIdBlockReason,
   rekeyCreateManualBillingStateForMba,
+  rekeyLineIdRowsForMba,
   rekeyLineInputsForMba,
+  rekeyPartialApprovalChannelsForMba,
+  rekeyPartialMbaSelectionForMba,
 } from "@/lib/billing/rekeyManualBillingForMba"
 import { canonicalisePartialMbaSelectedLineItemIds } from "@/lib/finance/mbaLineApprovalsClient"
 import {
@@ -1062,6 +1065,8 @@ function CreateMediaPlan() {
   const appliedUnderMbaNumberRef = useRef<string | null>(null)
   /** Set by the "MBA number taken" retry: the save moves billing lines from → to. */
   const mbaNumberRenameRef = useRef<{ from: string; to: string } | null>(null)
+  /** B2a fix 2: the MBA number the partial MBA line selection ids carry. */
+  const partialScopeMbaNumberRef = useRef<string | null>(null)
   /** Auto schedule (+ line items) the user edited against — snapshotted at open/apply. */
   const manualBillingAutoReferenceMonthsRef = useRef<BillingMonth[]>([])
   const [billingError, setBillingError] = useState<{ show: boolean; messages: string[] }>({
@@ -4765,13 +4770,17 @@ function CreateMediaPlan() {
         return
       }
     }
+    // An "Auto billing kept" Apply has no manual rows: nothing is lost, so no warning.
+    const hadManualRows = draftBillingOverrideRows.length > 0
     handleResetBillingScheduleToAuto()
     clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
-    toast({
-      variant: "destructive",
-      title: "Billing timing cleared",
-      description: `The MBA number changed from ${from} to ${to}, so the applied billing timing no longer matches the plan's lines. Open Billing and apply the timing again before saving.`,
-    })
+    if (hadManualRows) {
+      toast({
+        variant: "destructive",
+        title: "Billing timing cleared",
+        description: `The MBA number changed from ${from} to ${to}, so the applied billing timing no longer matches the plan's lines. Open Billing and apply the timing again before saving.`,
+      })
+    }
   }, [
     mbaNumber,
     hasPendingManualBilling,
@@ -4779,6 +4788,51 @@ function CreateMediaPlan() {
     manualBillingMonths,
     handleResetBillingScheduleToAuto,
   ])
+
+  /**
+   * B2a fix 2: the partial MBA line selection is keyed to line ids that carry
+   * the MBA number, and the save rebuilds every line's approval from it by
+   * exact id. On the "MBA number taken" retry it is re-keyed (with the partial
+   * approval metadata); any other change, or an id that will not move, resets
+   * the scope to the full plan and says so. `partialScopeMbaNumberRef` is the
+   * last non-blank MBA number the selection was keyed to.
+   */
+  useEffect(() => {
+    const to = String(mbaNumber ?? "").trim()
+    if (!to) return
+    const from = partialScopeMbaNumberRef.current
+    if (from === to) return
+    partialScopeMbaNumberRef.current = to
+    // A selection can outlive partial mode (reset to all-in keeps every id), so
+    // it moves or clears either way; only an active partial scope warns.
+    const hasSelection = Object.values(partialMBASelectedLineItemIds).some(
+      (ids) => (ids?.length ?? 0) > 0
+    )
+    if (!hasSelection) return
+    const rename = mbaNumberRenameRef.current
+    if (from && rename && rename.from === from && rename.to === to) {
+      const selection = rekeyPartialMbaSelectionForMba(partialMBASelectedLineItemIds, from, to)
+      const metadata = partialApprovalMetadata
+        ? rekeyPartialApprovalChannelsForMba(partialApprovalMetadata, from, to)
+        : null
+      if (selection && (metadata || !partialApprovalMetadata)) {
+        setPartialMBASelectedLineItemIds(selection)
+        setPartialApprovalMetadata(metadata)
+        return
+      }
+    }
+    setPartialMBASelectedLineItemIds({})
+    setPartialApprovalMetadata(null)
+    if (!isPartialMBA) return
+    setIsPartialMBA(false)
+    toast({
+      variant: "destructive",
+      title: "Partial MBA scope reset",
+      description: from
+        ? `The MBA number changed from ${from} to ${to}, so the partial MBA line selection no longer matches the plan's lines. The MBA is back to the full plan (all lines and months); choose the partial scope again before saving.`
+        : `The plan now has MBA number ${to}, so the partial MBA line selection made before it no longer matches the plan's lines. The MBA is back to the full plan (all lines and months); choose the partial scope again before saving.`,
+    })
+  }, [mbaNumber, isPartialMBA, partialMBASelectedLineItemIds, partialApprovalMetadata])
 
   const runConfirmedFullBillingResetToAuto = useCallback(async () => {
     setFullBillingResetConfirmOpen(false)
@@ -5814,6 +5868,41 @@ function CreateMediaPlan() {
     return lines
   }
 
+  /**
+   * B2a fix 2: partial MBA selection, scope labels and approval metadata keyed
+   * to `mbaNum` (see `mbaNumberRenameRef`). A partial selection that cannot be
+   * moved stops the version save rather than saving every line as excluded.
+   */
+  function partialMbaScopeForMbaNumber(mbaNum: string): {
+    selection: Record<string, string[]>
+    scopeLines: MbaBillingScopeLine[]
+    metadata: PartialApprovalMetadata | null
+  } {
+    const current = {
+      selection: partialMBASelectedLineItemIds,
+      scopeLines: mbaBillingScopeLines,
+      metadata: partialApprovalMetadata,
+    }
+    const rename = mbaNumberRenameRef.current
+    const to = String(mbaNum ?? "").trim()
+    if (!rename || rename.to !== to || rename.from === to) return current
+    const selection = rekeyPartialMbaSelectionForMba(current.selection, rename.from, to)
+    const metadata = current.metadata
+      ? rekeyPartialApprovalChannelsForMba(current.metadata, rename.from, to)
+      : null
+    if (isPartialMBA && (!selection || (current.metadata && !metadata))) {
+      throw new Error(
+        `This plan saves as ${to}, but the partial MBA line selection could not be matched from ${rename.from}. The version was not saved. Check the partial MBA scope and save again.`
+      )
+    }
+    return {
+      selection: selection ?? {},
+      // Labels are display copy: keep the current rows if any id will not move.
+      scopeLines: rekeyLineIdRowsForMba(current.scopeLines, rename.from, to) ?? current.scopeLines,
+      metadata,
+    }
+  }
+
   const handleSaveMediaPlanVersion = async (
     masterId: number,
     opts?: { intent?: "save" | "publish" }
@@ -5852,6 +5941,9 @@ function CreateMediaPlan() {
         billingSaveInputs.lineItems,
         mbaNum
       )
+      // B2a fix 2: the same closure holds the partial MBA selection under the old
+      // number; the server rebuilds every approval from it by exact id.
+      const partialScopeForSave = partialMbaScopeForMbaNumber(mbaNum)
 
       // --- T4c: WRITE_BACKEND=postgres → one transactional save ---
       if (writeBackend === "postgres") {
@@ -6103,7 +6195,7 @@ function CreateMediaPlan() {
               lineItems: lineItemsForSave,
               mbaScope: buildMbaScopeForSaveBody({
                 isPartialMBA,
-                partialMBASelectedLineItemIds,
+                partialMBASelectedLineItemIds: partialScopeForSave.selection,
                 partialMBAMonthYears,
               }),
               ingestStageId: ingestStageIdRef.current || undefined,
@@ -6366,19 +6458,19 @@ function CreateMediaPlan() {
           ...values,
           mp_client_name: clientName,
           mp_production: shouldEnableProduction,
-          lineItems: withMbaScopeLineLabels(billingLinesForSave, mbaBillingScopeLines),
+          lineItems: withMbaScopeLineLabels(billingLinesForSave, partialScopeForSave.scopeLines),
           feeLoading: billingSaveInputs.feeLoading,
           billingSchedule: undefined,
           deliverySchedule: undefined,
           delivery_schedule: undefined,
           partialApproval:
-            isPartialMBA && partialApprovalMetadata
+            isPartialMBA && partialScopeForSave.metadata
               ? {
-                  ...partialApprovalMetadata,
+                  ...partialScopeForSave.metadata,
                   selectedMonthYears:
                     partialMBAMonthYears.length > 0
                       ? partialMBAMonthYears
-                      : partialApprovalMetadata.selectedMonthYears,
+                      : partialScopeForSave.metadata.selectedMonthYears,
                 }
               : null,
           // Stage the version row without flipping media_plans.version yet.

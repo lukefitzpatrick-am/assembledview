@@ -12,12 +12,19 @@ import { applyBillingLineMode } from "@/lib/billing/applyBillingLineMode"
 import {
   MBA_NUMBER_BLANK_BILLING_MESSAGE,
   PLACEHOLDER_LINE_ID_BILLING_MESSAGE,
+  isLineIdMintedForMba,
+  lineIdMbaMismatchBillingMessage,
   manualBillingLineIdBlockReason,
   rekeyCreateManualBillingStateForMba,
   rekeyLineIdForMba,
+  rekeyLineIdRowsForMba,
   rekeyLineInputsForMba,
   rekeyOverrideRowsForMba,
+  rekeyPartialApprovalChannelsForMba,
+  rekeyPartialMbaSelectionForMba,
 } from "@/lib/billing/rekeyManualBillingForMba"
+import { buildMbaScopeForSaveBody } from "@/lib/mediaplan/mbaScopeClient"
+import { applyMbaScopeLineApprovals } from "@/lib/mediaplan/mbaScopeForSave"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { attachOverridesToLineInputs } from "@/lib/finance/billingOverrides"
 import type { LineItemInput } from "@/lib/finance/campaignFinancials.types"
@@ -150,6 +157,21 @@ describe("B2a fix item 3: Apply and Prebill refused while a line id would not sa
     assert.equal(manualBillingLineIdBlockReason(OLD, ["billing-search::abc001SE1"]), null)
   })
 
+  it("fix 2 item 3: every manual line id must be minted for the current MBA number", () => {
+    assert.equal(
+      manualBillingLineIdBlockReason(NEW, ["billing-search::abc002SE1", "billing-search::abc001SE2"]),
+      lineIdMbaMismatchBillingMessage(NEW),
+      "a line still on the old number",
+    )
+    assert.equal(manualBillingLineIdBlockReason(OLD, ["billing-search::SESE1"]), lineIdMbaMismatchBillingMessage(OLD), "minted while the MBA was blank")
+    assert.equal(manualBillingLineIdBlockReason(OLD, ["billing-search::ABC001SE1"]), lineIdMbaMismatchBillingMessage(OLD), "case differs")
+    assert.equal(manualBillingLineIdBlockReason(OLD, ["billing-search::abc001ZZ1"]), lineIdMbaMismatchBillingMessage(OLD), "unknown code")
+    assert.equal(manualBillingLineIdBlockReason("golf1", ["billing-search::golf10SE1"]), lineIdMbaMismatchBillingMessage("golf1"), "golf10 is not golf1")
+    assert.equal(manualBillingLineIdBlockReason("golf10", ["billing-search::golf10SE1", "billing-production::golf10PROD2"]), null)
+    assert.equal(isLineIdMintedForMba("golf10SE1", "golf1"), false)
+    assert.equal(isLineIdMintedForMba("golf1SE10", "golf1"), true)
+  })
+
   it("a placeholder line's timing is dropped by the save (why Apply is refused)", () => {
     const rows = commitManualBillingDraft(
       editorMonths(OLD).map((m) => {
@@ -180,6 +202,37 @@ describe("B2a fix item 3: line ids move from the old MBA number to the new one",
     assert.equal(rekeyLineIdForMba("xyz009SE1", OLD, NEW), null, "another plan's id")
     assert.equal(rekeyLineIdForMba("abc001ZZ1", OLD, NEW), null, "unknown media code")
     assert.equal(rekeyLineIdForMba("abc001SE1", OLD, ""), null)
+  })
+
+  it("fix 2 item 2: prefix collisions", () => {
+    // golf1 -> golf10 and back
+    assert.equal(rekeyLineIdForMba("golf1SE1", "golf1", "golf10"), "golf10SE1")
+    assert.equal(rekeyLineIdForMba("golf1SE10", "golf1", "golf10"), "golf10SE10")
+    assert.equal(rekeyLineIdForMba("golf10SE1", "golf1", "golf10"), "golf10SE1", "already moved")
+    assert.equal(rekeyLineIdForMba("golf10SE1", "golf10", "golf1"), "golf1SE1")
+    assert.equal(rekeyLineIdForMba("golf1SE1", "golf10", "golf1"), "golf1SE1", "already moved")
+    assert.equal(rekeyLineIdForMba("golf1SE1", "golf10", "golf100"), null, "golf1 is not golf10")
+    // golf099 -> golf100
+    assert.equal(rekeyLineIdForMba("billing-search::golf099SE3", "golf099", "golf100"), "billing-search::golf100SE3")
+    assert.equal(rekeyLineIdForMba("golf099PROD1", "golf099", "golf100"), "golf100PROD1")
+    assert.equal(rekeyLineIdForMba("golf09SE3", "golf099", "golf100"), null)
+    // golf02 -> golf025 and back
+    assert.equal(rekeyLineIdForMba("golf02SE1", "golf02", "golf025"), "golf025SE1")
+    assert.equal(rekeyLineIdForMba("golf025SE1", "golf02", "golf025"), "golf025SE1", "already moved, not golf02 + 5SE1")
+    assert.equal(rekeyLineIdForMba("golf025SE1", "golf025", "golf02"), "golf02SE1")
+    assert.equal(rekeyLineIdForMba("golf02SE1", "golf025", "golf02"), "golf02SE1", "already moved")
+  })
+
+  it("fix 2 item 2: case mismatch is not guessed (null, so the page clears and warns)", () => {
+    assert.equal(rekeyLineIdForMba("ABC001SE1", OLD, NEW), null)
+    assert.equal(rekeyLineIdForMba("abc001se1", OLD, NEW), null, "lower-case media code")
+    assert.equal(rekeyLineIdForMba("Golf1SE1", "golf1", "golf10"), null)
+    assert.equal(rekeyLineIdForMba("Golf1SE1", "Golf1", "Golf10"), "Golf10SE1", "exact case moves")
+    assert.equal(rekeyLineIdForMba("GOLF10SE1", "golf1", "golf10"), null, "not on to either")
+  })
+
+  it("service ids are not MBA-keyed and pass through", () => {
+    assert.equal(rekeyLineIdForMba("__service__production", OLD, NEW), "__service__production")
   })
 
   it("override rows: all move, or null so the page clears and warns", () => {
@@ -261,6 +314,65 @@ describe("B2a fix item 4: create-style Apply rows reach the matching save line",
   })
 })
 
+describe("B2a fix 2 item 1: partial MBA approvals survive the MBA number taken retry", () => {
+  // Server-side line shape: bare ids after the rename.
+  const serverLines = ["abc002SE1", "abc002SE2", "abc002SM1"].map((lineItemId) => ({
+    lineItemId,
+    approval: "approved" as const,
+  }))
+  const selected = {
+    search: ["abc001SE1"],
+    socialMedia: ["billing-socialMedia::abc001SM1"],
+  }
+  const approvals = (selection: Record<string, string[]>) =>
+    Object.fromEntries(
+      applyMbaScopeLineApprovals(
+        serverLines,
+        buildMbaScopeForSaveBody({
+          isPartialMBA: true,
+          partialMBASelectedLineItemIds: selection,
+          partialMBAMonthYears: ["October 2026"],
+        }).lineItemIds,
+      ).map((l) => [l.lineItemId, l.approval]),
+    )
+
+  it("without a re-key every scoped line saves as excluded (the bug)", () => {
+    assert.deepEqual(approvals(selected), {
+      abc002SE1: "excluded",
+      abc002SE2: "excluded",
+      abc002SM1: "excluded",
+    })
+  })
+
+  it("re-keyed selection keeps the chosen lines in and the rest out", () => {
+    const moved = rekeyPartialMbaSelectionForMba(selected, OLD, NEW)
+    assert.deepEqual(moved, { search: ["abc002SE1"], socialMedia: ["billing-socialMedia::abc002SM1"] })
+    assert.deepEqual(approvals(moved!), {
+      abc002SE1: "approved",
+      abc002SE2: "excluded",
+      abc002SM1: "approved",
+    })
+    assert.equal(rekeyPartialMbaSelectionForMba({ search: ["abc001SE1", "zzz9SE1"] }, OLD, NEW), null)
+  })
+
+  it("approval metadata channels and scope labels move too", () => {
+    const meta = {
+      isPartial: true,
+      channels: [{ mediaKey: "search", selectedLineItemIds: ["abc001SE1"], selectedCount: 1 }],
+      note: "",
+    }
+    assert.deepEqual(rekeyPartialApprovalChannelsForMba(meta, OLD, NEW), {
+      ...meta,
+      channels: [{ mediaKey: "search", selectedLineItemIds: ["abc002SE1"], selectedCount: 1 }],
+    })
+    assert.equal(rekeyPartialApprovalChannelsForMba({ channels: [{ selectedLineItemIds: ["x1"] }] }, OLD, NEW), null)
+    assert.deepEqual(
+      rekeyLineIdRowsForMba([{ lineItemId: "billing-search::abc001SE1", title: "Google" }], OLD, NEW),
+      [{ lineItemId: "billing-search::abc002SE1", title: "Google" }],
+    )
+  })
+})
+
 describe("B2a fix item 1: create Cancel", () => {
   it("module: pending + applied restores a copy of the last Apply; nothing applied discards", () => {
     const meta = new Map<string, LineOverrideMeta[]>([
@@ -317,7 +429,25 @@ describe("B2a fix wiring: create page", () => {
     const save = between("const handleSaveMediaPlanVersion = async (", "const omitModeBody = () =>")
     assert.match(save, /billingLineInputsForMbaNumber\(\s*billingSaveInputs\.lineItems,\s*mbaNum\s*\)/)
     assert.match(save, /buildSavePlanLineItemsFromSnapshots\(\s*snapshots,\s*billingLinesForSave,/)
-    assert.match(create, /withMbaScopeLineLabels\(billingLinesForSave, mbaBillingScopeLines\)/)
+  })
+
+  it("fix 2: partial selection is re-keyed on the retry, reset with a warning otherwise, and the save maps it", () => {
+    const effect = between("const from = partialScopeMbaNumberRef.current", "}, [mbaNumber, isPartialMBA, partialMBASelectedLineItemIds, partialApprovalMetadata])")
+    assert.match(effect, /rekeyPartialMbaSelectionForMba\(/)
+    assert.match(effect, /rekeyPartialApprovalChannelsForMba\(/)
+    assert.match(effect, /setIsPartialMBA\(false\)/)
+    assert.match(effect, /title: "Partial MBA scope reset"/)
+    const save = between("const handleSaveMediaPlanVersion = async (", "const omitModeBody = () =>")
+    assert.match(save, /const partialScopeForSave = partialMbaScopeForMbaNumber\(mbaNum\)/)
+    assert.match(save, /partialMBASelectedLineItemIds: partialScopeForSave\.selection/)
+    assert.match(create, /withMbaScopeLineLabels\(billingLinesForSave, partialScopeForSave\.scopeLines\)/)
+    assert.match(create, /\.\.\.partialScopeForSave\.metadata,/)
+  })
+
+  it("fix 2 item 4: an MBA change only warns when manual rows were applied", () => {
+    const effect = between("const from = appliedUnderMbaNumberRef.current", "handleResetBillingScheduleToAuto,\n  ])")
+    assert.match(effect, /const hadManualRows = draftBillingOverrideRows\.length > 0/)
+    assert.match(effect, /if \(hadManualRows\) \{\s*toast\(\{\s*variant: "destructive",\s*title: "Billing timing cleared"/)
   })
 
   it("item 5: the dead auto line snapshot ref is gone; item 6: zero rows says auto is kept", () => {
