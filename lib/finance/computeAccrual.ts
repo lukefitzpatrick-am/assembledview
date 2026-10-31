@@ -33,9 +33,11 @@ const RECEIVABLE_STATUSES = new Set(["booked", "approved", "invoiced", "paid"])
 
 /**
  * The per-record amounts below are the one accrual engine. The client row
- * (`computeAccrualByClient`) and the per-MBA breakdown
- * (`mbaBreakdownFromAccrualRow`) both call them, so the MBA rows always sum to
- * the client row (F1, 1 Nov 2026). Money rounds through `roundMoney2`.
+ * (`computeAccrualByClient`), the per-MBA breakdown
+ * (`mbaBreakdownFromAccrualRow`) and the accrual workbook detail sheet
+ * (`buildAccrualDetailRows` in `accrualDetailRows.ts`) all call them, so MBA
+ * rows and detail lines always sum to the client row (F1, 1 Nov 2026). Money
+ * rounds through `roundMoney2`.
  */
 
 /** Receivable status set for accrual revenue AND SOW/retainer fee deductions (D2, 1 Nov 2026). */

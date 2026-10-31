@@ -5,7 +5,15 @@ import {
   type AccrualRow,
 } from "@/lib/finance/computeAccrual"
 
-export type AccrualDetailSide = "Receivable" | "Payable (agency)" | "Fee (SOW/retainer)"
+export type AccrualDetailSide =
+  | "Receivable"
+  | "Payable (agency, deducted)"
+  | "Fee (SOW/retainer, deducted)"
+
+/** Blank MBA shows as "—", trimmed, the same key as the on-screen MBA breakdown. */
+function mbaLabel(mba: string | null | undefined): string {
+  return (mba || "").trim() || "—"
+}
 
 export type AccrualDetailRow = {
   client: string
@@ -33,7 +41,7 @@ export function buildAccrualDetailRows(rows: AccrualRow[]): AccrualDetailRow[] {
         month: r.month,
         side: "Receivable",
         type: rec.billing_type,
-        mba: rec.mba_number || "",
+        mba: mbaLabel(rec.mba_number),
         campaign: rec.campaign_name || "",
         status: rec.status,
         amount: accrualReceivableAmount(rec),
@@ -43,9 +51,9 @@ export function buildAccrualDetailRows(rows: AccrualRow[]): AccrualDetailRow[] {
       out.push({
         client: r.client_name,
         month: r.month,
-        side: "Payable (agency)",
+        side: "Payable (agency, deducted)",
         type: pay.billing_type,
-        mba: pay.mba_number || "",
+        mba: mbaLabel(pay.mba_number),
         campaign: pay.campaign_name || "",
         status: pay.status,
         amount: accrualPayableAmount(pay),
@@ -57,9 +65,9 @@ export function buildAccrualDetailRows(rows: AccrualRow[]): AccrualDetailRow[] {
       out.push({
         client: r.client_name,
         month: r.month,
-        side: "Fee (SOW/retainer)",
+        side: "Fee (SOW/retainer, deducted)",
         type: rec.billing_type,
-        mba: rec.mba_number || "",
+        mba: mbaLabel(rec.mba_number),
         campaign: rec.campaign_name || "",
         status: rec.status,
         amount: fees,

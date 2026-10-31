@@ -95,6 +95,9 @@ function fixture() {
     rec({ id: 6, billing_type: "media", mba_number: "ACME001", total: -120.5 }),
     // Second month, same client.
     rec({ id: 7, billing_type: "media", mba_number: "ACME001", billing_month: "2026-11", total: 640 }),
+    // Not in the accrual status set: excluded from revenue and the breakdown.
+    rec({ id: 15, billing_type: "media", mba_number: "ACME004", status: "expected", total: 777 }),
+    rec({ id: 16, billing_type: "media", mba_number: "ACME005", status: "Booked" as BillingStatus, total: 333 }),
     // Second client.
     rec({ id: 8, clients_id: 9, client_name: "Beta", billing_type: "media", mba_number: "BETA001", total: 900 }),
     rec({
@@ -206,6 +209,8 @@ describe("accrual one engine (F1, D2)", () => {
     assert.equal(blank.receivable, 80)
     assert.equal(blank.payable, 30)
     assert.equal(oct.some((m) => m.mbaNumber === "ACME003"), false, "draft SOW is out of accrual")
+    assert.equal(oct.some((m) => m.mbaNumber === "ACME004"), false, "expected status is out of accrual")
+    assert.equal(oct.some((m) => m.mbaNumber === "ACME005"), false, "case variant Booked is out of accrual")
   })
 
   it("detail sheet sides sum to the summary totals", () => {
@@ -218,9 +223,12 @@ describe("accrual one engine (F1, D2)", () => {
           .filter((d) => d.client === row.client_name && d.month === row.month && d.side === s)
           .reduce((t, d) => t + cents(d.amount), 0)
       assert.equal(side("Receivable"), cents(row.receivable_total), `${row.client_name} ${row.month} receivable`)
-      assert.equal(side("Payable (agency)"), cents(row.payable_total), `${row.client_name} ${row.month} payable`)
-      assert.equal(side("Fee (SOW/retainer)"), cents(row.fees_total), `${row.client_name} ${row.month} fees`)
+      assert.equal(side("Payable (agency, deducted)"), cents(row.payable_total), `${row.client_name} ${row.month} payable`)
+      assert.equal(side("Fee (SOW/retainer, deducted)"), cents(row.fees_total), `${row.client_name} ${row.month} fees`)
     }
+    const blank = detail.filter((d) => d.mba === "—")
+    assert.ok(blank.length >= 2, "blank MBA shows as an em-dash key on the detail sheet")
+    assert.equal(detail.some((d) => d.mba === ""), false)
   })
 
   it("fee amount follows the receivable status set, case-sensitive as today", () => {
@@ -254,6 +262,6 @@ describe("accrual one engine (F1, D2)", () => {
       )
     assert.equal(pay([1.005]), 1.01)
     assert.equal(pay([-2.675]), -2.68)
-    assert.equal(pay([0.5, 0.505]), 1.01, "sums first, rounds once")
+    assert.equal(pay([0.004, 0.004]), 0.01, "sums first, rounds once (per-line rounding would give 0)")
   })
 })

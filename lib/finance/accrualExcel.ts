@@ -80,7 +80,7 @@ export async function exportAccrualWorkbook(rows: AccrualRow[], filename: string
   detail.columns = [
     { header: "Client", key: "client", width: 24 },
     { header: "Month", key: "month", width: 12 },
-    { header: "Side", key: "side", width: 12 },
+    { header: "Side", key: "side", width: 30 },
     { header: "Type", key: "type", width: 12 },
     { header: "MBA", key: "mba", width: 14 },
     { header: "Campaign", key: "campaign", width: 32 },
