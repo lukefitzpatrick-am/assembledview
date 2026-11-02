@@ -44,7 +44,7 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `dashboard/[slug]/web-builder` | POST | client edit | `requireRole(admin)` | `requireRole(["admin"])`; a client role is 404; writes only when migration marker `0098_ga4_gsc_accounts_and_creative_previews` exists | OK |
 | `dashboard/[slug]/web-kpis` | GET/POST | client edit | `requireRole(admin)` | `builderGate`, `requireRole(["admin"])`, `resolveBuilderClient(slug)`; a client role is 404; every write passes the slug's `clientId` and another client's KPI is 404; 409 without marker `0101_web_kpis` | OK |
 | `mediaplans/mba/[mba_number]` | GET/PUT/PATCH | `mediaplans` list | scope / `requireRole` | `checkClientMbaAccess` | OK |
-| `mediaplans/mba/[mba_number]/expected-spend-to-date` | GET | MBA peer | `checkClientMbaAccess` | cookie-forwards to gated MBA | OK |
+| `mediaplans/mba/[mba_number]/expected-spend-to-date` | GET | — | — | — | **DELETED (B9, 3 Nov 2026)**. No caller (F7) |
 | `mediaplans/mba/[mba_number]/material-instructions` | GET/POST | MBA peer | `checkClientMbaAccess` | session + admin (inline) | OK |
 | `mediaplans/[id]/download` | GET | generate-pdf | `checkClientMbaAccess` | `checkClientMbaAccess` | OK |
 | `mediaplans/mba/[mba_number]/documents` | GET | MBA GET | `checkClientMbaAccess` | `checkClientMbaAccess` | OK |

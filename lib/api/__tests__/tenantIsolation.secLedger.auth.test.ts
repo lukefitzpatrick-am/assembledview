@@ -1,5 +1,5 @@
 /**
- * SEC-14 / expected-spend local MBA gate.
+ * SEC-14 mediaplans/mbanumber gate.
  * Requires Node 22+ with `--experimental-test-module-mocks`.
  */
 import assert from "node:assert/strict"
@@ -105,65 +105,4 @@ test("GET /api/mediaplans/mbanumber — admin mint unaffected (create-page path)
   assert.equal(body.mba_number, "krusty003")
   assert.equal(body.mbanumber, "krusty003")
   assert.equal(readPlanMastersMock.mock.calls.length, 1)
-})
-
-test("GET expected-spend-to-date — foreign MBA blocked before media-plan fetch", { skip }, async () => {
-  checkClientMbaAccessMock.mock.resetCalls()
-  checkClientMbaAccessMock.mock.mockImplementation(async () => ({
-    ok: false,
-    response: NextResponse.json({ error: "forbidden" }, { status: 403 }),
-  }))
-
-  const { GET } = await import(
-    "../../../app/api/mediaplans/mba/[mba_number]/expected-spend-to-date/route.js"
-  )
-  const res = await GET(
-    new NextRequest("http://localhost/api/mediaplans/mba/hema001/expected-spend-to-date"),
-    { params: Promise.resolve({ mba_number: "hema001" }) },
-  )
-  assert.equal(res.status, 403)
-  assert.equal(checkClientMbaAccessMock.mock.calls.length, 1)
-  assert.equal(checkClientMbaAccessMock.mock.calls[0]!.arguments[1], "hema001")
-})
-
-test("GET expected-spend-to-date — own MBA passes local gate", { skip }, async () => {
-  checkClientMbaAccessMock.mock.resetCalls()
-  checkClientMbaAccessMock.mock.mockImplementation(async () => ({
-    ok: true,
-    isClient: true,
-  }))
-
-  // Upstream media-plan fetch will fail without a real server — gate must run first.
-  // Stub global fetch to prove we got past AuthZ.
-  const originalFetch = globalThis.fetch
-  let fetchCalled = false
-  globalThis.fetch = (async () => {
-    fetchCalled = true
-    return new Response(
-      JSON.stringify({
-        campaign_start_date: "2026-01-01",
-        campaign_end_date: "2026-12-31",
-        lineItems: {},
-        metrics: { monthlySpend: [] },
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    )
-  }) as typeof fetch
-
-  try {
-    const { GET } = await import(
-      "../../../app/api/mediaplans/mba/[mba_number]/expected-spend-to-date/route.js"
-    )
-    const res = await GET(
-      new NextRequest("http://localhost/api/mediaplans/mba/bicau002/expected-spend-to-date"),
-      { params: Promise.resolve({ mba_number: "bicau002" }) },
-    )
-    assert.equal(checkClientMbaAccessMock.mock.calls.length, 1)
-    assert.equal(fetchCalled, true)
-    assert.equal(res.status, 200)
-    const body = (await res.json()) as { expectedSpendToDate: number }
-    assert.equal(typeof body.expectedSpendToDate, "number")
-  } finally {
-    globalThis.fetch = originalFetch
-  }
 })

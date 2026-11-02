@@ -195,7 +195,7 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | `mediaplans/mba/[mba_number]/documents` | GET | tenant-scoped | `checkClientMbaAccess` | **OK** |
 | `mediaplans/generate-pdf` | POST | deleted 3 Nov 2026 (B9, no caller) | — | — |
 | `mediaplans/mba/[mba_number]` | GET, PUT, PATCH | tenant-scoped | `checkClientMbaAccess` | **OK** |
-| `mediaplans/mba/[mba_number]/expected-spend-to-date` | GET | tenant-scoped | cookie-forward → gated MBA GET | **OK** (proxy) |
+| `mediaplans/mba/[mba_number]/expected-spend-to-date` | GET | deleted 3 Nov 2026 (B9, F7: no caller) | — | — |
 | `mediaplans/mba/[mba_number]/material-instructions` | GET, POST | admin-only | inline admin | — |
 | `mediaplans/versions/[id]/billing-schedule` | PATCH | admin-only | `requireFinanceAdmin` | — |
 | `mediaplans/versions/[id]/documents` | POST | admin-only | `requireRole(admin)` | — |
