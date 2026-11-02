@@ -96,6 +96,7 @@ Do not reintroduce background/fire-and-forget refresh. It was removed on purpose
 
 - Unit and contract tests live beside the code in `lib/**/__tests__/`.
 - `npm run typecheck` (`tsc --noEmit`) and `npm run lint` before any handover.
+- `check:any-ratchet` holds a per-file count of `: any`, `as any`, `any[]` and `@ts-ignore` outside tests (`scripts/any-ratchet-baseline.json`). It only goes down: `--update` lowers it, never raises it. Type new code with the real type or `unknown` plus a narrow.
 - 115 npm scripts exist — check for a targeted one (`test:line-item-attrs`, `test:approvals`, `test:shadow-diff`, `test:save-plan`) before writing a new harness.
 - Suites that import `db/` preload `scripts/test-shims/register-server-only.mjs` so `import "server-only"` is a no-op outside Next. Copy that pattern rather than removing the import.
 - Two different schema checks, and they answer different questions. `npm run db:generate` must produce an **empty diff** — that proves nobody edited `db/schema/*.ts` without regenerating the snapshot. It does **not** prove the mirror matches Postgres, because the baseline is generated from the TypeScript. For that, run `npm run db:drift` against the applied database before any handover that edits the mirror. Mirror-ahead columns are a deploy blocker (FATAL banner, exit 1). Never apply the file `generate` produces. Fixture coverage: `npm run test:db-drift` (CI).

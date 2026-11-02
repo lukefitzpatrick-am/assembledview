@@ -74,6 +74,12 @@ jobs:
       - name: Money-inline guard self-test
         run: npm run test:money-inline
 
+      - name: Per-file any count only goes down
+        run: npm run check:any-ratchet
+
+      - name: Any-ratchet self-test
+        run: npm run test:any-ratchet
+
       - name: No hardcoded external URLs
         run: npm run check:hardcoded-urls
 
