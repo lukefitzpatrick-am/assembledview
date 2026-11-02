@@ -27,12 +27,22 @@
  *      assigned later, `env = process.env`), `const { a, ...rest } =
  *      process.env`, a spread copy (`const env = { ...process.env }`), or
  *      `const { env } = process` / `const { env: e } = process`; then
- *      `env.X`, `env["X"]` or `const { X } = env`.
+ *      `env.X`, `env["X"]` or `const { X } = env`;
+ *    - B10 (B8 review notes, finding 3): the process module imported or
+ *      required: `import { env } from "process"` (or "node:process", or
+ *      `{ env as e }`), `import p from "process"`, `import * as p from
+ *      "node:process"`, `require("process")` used directly, aliased or
+ *      destructured; `globalThis["process"]`; a parenthesised process object
+ *      `(process).env` or `(p).env`; `((process.env))`, `(<any>process.env)`
+ *      and `(process.env satisfies T)`; `({ ...process.env })`; and an
+ *      empty-object default, `const { env = {} } = process`.
  *    Not caught (no current code does this; review catches it): a host split
  *    across strings ("x.xano" + ".io", [..].join(".")), an alias made in
  *    another file or passed through a function, an alias of an alias
  *    (`const b = a`), a copy made with `Object.assign`, a key held in a
- *    variable or passed to a helper (`process.env[k]`), and `import.meta.env`.
+ *    variable or passed to a helper (`process.env[k]`), `import.meta.env`, a
+ *    dynamic `await import("process")`, and `require` with a computed
+ *    specifier (`require(name)`).
  *    A bare "xano.io" string (no leading dot) used to recognise old stored
  *    vault URLs is not a host and is not flagged; neither is "notxano.io".
  *
@@ -413,8 +423,16 @@ function unscopedVersionHits(rel, src) {
 
 const XANO_ENV_NAME = String.raw`(?:NEXT_PUBLIC_)?XANO_[A-Za-z0-9_]*`
 const IDENT = String.raw`[A-Za-z_$][\w$]*`
-/** `process`, `global.process` or `globalThis.process` (B8 review 4). */
-const PROCESS_OBJ = String.raw`(?:(?:global|globalThis)\s*\??\.\s*)?process`
+/**
+ * The process object: `process`, `global.process` or `globalThis.process` (B8
+ * review 4), `globalThis["process"]`, or `require("process")` /
+ * `require("node:process")` (B10). One pair of parentheses may wrap it:
+ * `(process).env` (B10).
+ */
+const PROCESS_CORE = String.raw`(?:(?:global|globalThis)\s*(?:\??\.\s*process|(?:\?\.\s*)?\[\s*["'\`]process["'\`]\s*\])|\brequire\s*\(\s*["'\`](?:node:)?process["'\`]\s*\)|process)`
+const PROCESS_OBJ = String.raw`(?:\(\s*${PROCESS_CORE}\s*\)|${PROCESS_CORE})`
+/** A module specifier for the process module: "process" or "node:process" (B10). */
+const PROCESS_MODULE = String.raw`["'\`](?:node:)?process["'\`]`
 /** Not followed by a member access: the whole object, not one of its members. */
 const WHOLE = String.raw`(?![\w$]|\s*(?:\?\.|\.|\[))`
 /** `name = ` or a typed `name: T = ` (B8 review 4: `const env: NodeJS.ProcessEnv = process.env`). */
@@ -435,12 +453,42 @@ function regexAlt(names) {
  */
 function envObjectSources(processAliases) {
   const proc = processAliases.length
-    ? String.raw`(?:${PROCESS_OBJ}|${regexAlt(processAliases)})`
+    ? String.raw`(?:${PROCESS_OBJ}|\(\s*(?:${regexAlt(processAliases)})\s*\)|${regexAlt(processAliases)})`
     : PROCESS_OBJ
   const envObj = String.raw`${proc}\s*(?:\??\.\s*env|(?:\?\.\s*)?\[\s*["'\`]env["'\`]\s*\])`
   // `(process.env as any)`, `(process.env!)`, then an optional `!`: `process.env!.X` (B8 review 4).
-  const envExpr = String.raw`(?:\(\s*${envObj}\s*!?\s*(?:as\s+[^()]*?)?\)|${envObj})\s*!?`
+  // B10: also `(process.env satisfies T)`, an angle cast `(<any>process.env)` and
+  // a doubled pair `((process.env))`.
+  const inner = String.raw`(?:\(\s*${envObj}\s*!?\s*\)|${envObj})`
+  const envExpr = String.raw`(?:\(\s*(?:<[^<>()]*>\s*)?${inner}\s*!?\s*(?:(?:as|satisfies)\s+[^()]*?)?\)|${envObj})\s*!?`
   return { proc, envExpr }
+}
+
+/**
+ * B10: names bound by an import from "process" or "node:process".
+ * `import p from`, `import * as p from` give a process alias; `import { env }`
+ * or `import { env as e }` give an env alias.
+ */
+function processImportAliases(src) {
+  const processAliases = []
+  const envAliases = []
+  const re = new RegExp(String.raw`\bimport\s+([^;"'\`]*?)\s*\bfrom\s*${PROCESS_MODULE}`, "g")
+  let m
+  while ((m = re.exec(src))) {
+    const clause = m[1].replace(/^type\s+/, "")
+    const ns = new RegExp(String.raw`\*\s*as\s+(${IDENT})`).exec(clause)
+    if (ns) processAliases.push(ns[1])
+    const def = new RegExp(String.raw`^\s*(${IDENT})\s*(?:,|$)`).exec(clause)
+    if (def) processAliases.push(def[1])
+    const named = /\{([^}]*)\}/.exec(clause)
+    if (named) {
+      for (const part of named[1].split(",")) {
+        const entry = new RegExp(String.raw`^\s*env\s*(?:as\s+(${IDENT})\s*)?$`).exec(part)
+        if (entry) envAliases.push(entry[1] ?? "env")
+      }
+    }
+  }
+  return { processAliases, envAliases }
 }
 
 /** Rule 2 on comment-free source with strings kept. */
@@ -457,13 +505,17 @@ export function xanoEgressHits(rel, src) {
 
   // Same-file aliases of `process` (B8 review 4): `const p = process`,
   // `const p = global.process`, `p = globalThis.process`, then `p.env.XANO_X`.
-  const processAliases = new Set()
+  // B10: also `const p = require("process")` (through PROCESS_OBJ) and
+  // `import p from "process"` / `import * as p from "node:process"`.
+  const imported = processImportAliases(src)
+  const processAliases = new Set(imported.processAliases)
   const processAliasRe = new RegExp(String.raw`${BINDS}\(?\s*${PROCESS_OBJ}\s*\)?${WHOLE}`, "g")
   while ((m = processAliasRe.exec(src))) processAliases.add(m[1])
   const { proc, envExpr } = envObjectSources([...processAliases])
 
   // Same-file aliases of the env object (B7 review, widened in B8 review 4).
-  const aliases = new Set()
+  // B10: `import { env } from "process"` and `import { env as e } from "node:process"`.
+  const aliases = new Set(imported.envAliases)
   const aliasRes = [
     // `const env = process.env`, `let e = process["env"]`, `env = process.env` (a later
     // assignment), `const env: NodeJS.ProcessEnv = process.env`,
@@ -471,14 +523,17 @@ export function xanoEgressHits(rel, src) {
     new RegExp(String.raw`${BINDS}${envExpr}${WHOLE}`, "g"),
     // `const { a, ...rest } = process.env`
     new RegExp(String.raw`\.\.\.\s*(${IDENT})\s*\}\s*=\s*${envExpr}${WHOLE}`, "g"),
-    // A spread copy: `const env = { ...process.env }`, `{ A: 1, ...process.env }`.
-    new RegExp(String.raw`${BINDS}\{[^{}]*\.\.\.\s*${envExpr}${WHOLE}`, "g"),
+    // A spread copy: `const env = { ...process.env }`, `{ A: 1, ...process.env }`,
+    // or wrapped in parentheses, `const env = ({ ...process.env })` (B10).
+    new RegExp(String.raw`${BINDS}\(?\s*\{[^{}]*\.\.\.\s*${envExpr}${WHOLE}`, "g"),
   ]
   for (const re of aliasRes) {
     while ((m = re.exec(src))) aliases.add(m[1])
   }
   // `const { env } = process` and `const { argv, env: e } = global.process`.
-  const procDestructureRe = new RegExp(String.raw`\{([^{}]*)\}\s*=\s*${proc}${WHOLE}`, "g")
+  // B10: an empty-object default, `const { env = {} } = process`, and
+  // `const { env } = require("process")` (through PROCESS_OBJ).
+  const procDestructureRe = new RegExp(String.raw`\{((?:[^{}]|\{\s*\})*)\}\s*=\s*${proc}${WHOLE}`, "g")
   while ((m = procDestructureRe.exec(src))) {
     for (const part of m[1].split(",")) {
       const entry = /^\s*env\s*(?::\s*([A-Za-z_$][\w$]*)\s*)?(?:=[^,]*)?$/.exec(part)
@@ -501,7 +556,8 @@ export function xanoEgressHits(rel, src) {
   }
   // const { env: { XANO_X } } = process  (B7 review; any process form, B8 review 4)
   envRes.push(
-    new RegExp(String.raw`\{[^{}]*\benv\s*:\s*\{[^}]*\b${XANO_ENV_NAME}[^}]*\}[^{}]*\}\s*=\s*${proc}\b`, "gi"),
+    // B10: ends on WHOLE, not `\b`, so `= require("process")` and `= (process)` count.
+    new RegExp(String.raw`\{[^{}]*\benv\s*:\s*\{[^}]*\b${XANO_ENV_NAME}[^}]*\}[^{}]*\}\s*=\s*${proc}${WHOLE}`, "gi"),
   )
   const seen = new Set()
   for (const envRe of envRes) {

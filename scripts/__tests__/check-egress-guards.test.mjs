@@ -97,6 +97,29 @@ const CAUGHT = [
   ["lib/env_process_alias.ts", `const p = process; export const u = p.env.XANO_KEY`],
   ["lib/env_global_destructure.ts", `const { env } = global.process; export const u = env.XANO_KEY`],
   ["lib/env_global_nested_destructure.ts", `const { env: { XANO_KEY } } = global.process; export const u = XANO_KEY`],
+  // B10 (B8 review notes, finding 3): the process module imported or required,
+  // bracketed globalThis, parentheses, satisfies, angle casts, empty defaults.
+  ["lib/env_import_named.ts", `import { env } from "process"; export const u = env.XANO_KEY`],
+  ["lib/env_import_named_node.ts", `import { env } from "node:process"; export const u = env.XANO_KEY`],
+  ["lib/env_import_named_as.ts", `import { argv, env as e } from "node:process"; export const u = e["XANO_KEY"] + argv`],
+  ["lib/env_import_default.ts", `import p from "process"; export const u = p.env.XANO_KEY`],
+  ["lib/env_import_namespace.ts", `import * as p from "node:process"; export const u = p.env.XANO_KEY`],
+  ["lib/env_import_default_and_named.ts", `import p, { env } from "process"; export const u = env.XANO_KEY + p.argv`],
+  ["lib/env_require_destructure.ts", `const { env } = require("process"); export const u = env.XANO_KEY`],
+  ["lib/env_require_alias.ts", `const p = require("node:process"); export const u = p.env.XANO_KEY`],
+  ["lib/env_require_direct.ts", `export const u = require("process").env.XANO_KEY`],
+  ["lib/env_require_nested.ts", `const { env: { XANO_KEY } } = require("process"); export const u = XANO_KEY`],
+  ["lib/env_global_this_bracket.ts", `export const u = globalThis["process"].env.XANO_KEY`],
+  ["lib/env_global_this_bracket_alias.ts", `const p = globalThis["process"]; export const u = p.env.XANO_KEY`],
+  ["lib/env_paren_process.ts", `export const u = (process).env.XANO_KEY`],
+  ["lib/env_paren_process_alias.ts", `const p = process; export const u = (p).env.XANO_KEY`],
+  ["lib/env_double_paren.ts", `export const u = ((process.env)).XANO_KEY`],
+  ["lib/env_angle_cast.ts", `export const u = (<any>process.env).XANO_KEY`],
+  ["lib/env_satisfies.ts", `export const u = (process.env satisfies Record<string, string>).XANO_KEY`],
+  ["lib/env_spread_paren.ts", `const e = ({ ...process.env }); export const u = e.XANO_KEY`],
+  ["lib/env_destructure_default.ts", `const { env = {} } = process; export const u = env.XANO_KEY`],
+  ["lib/env_destructure_default_rename.ts", `const { env: e = {} } = process; export const u = e.XANO_KEY`],
+  ["lib/env_nested_destructure_paren.ts", `const { env: { XANO_KEY } } = (process); export const u = XANO_KEY`],
 ]
 
 const ALLOWED = [
@@ -134,6 +157,16 @@ const ALLOWED = [
   ["lib/process_alias_other_env.ts", `const p = process; export const u = p.env.DATABASE_URL + p.argv`],
   ["lib/destructure_env_other.ts", `const { env } = process; export const u = env.DATABASE_URL`],
   ["lib/compare_not_alias.ts", `const env = {} as Record<string, string>; export const same = env === process.env; export const u = env.XANO_KEY`],
+  // B10: the import, require and parenthesis rules leave these alone.
+  ["lib/import_process_other_env.ts", `import { env } from "process"; export const u = env.DATABASE_URL`],
+  ["lib/import_process_no_env.ts", `import { argv } from "process"; export const env = { XANO_KEY: 1 }; export const u = argv`],
+  ["lib/import_local_process.ts", `import { env } from "./process"; export const u = env.XANO_KEY`],
+  ["lib/import_processx.ts", `import p from "processx"; export const u = p.env.XANO_KEY`],
+  ["lib/require_process_other_env.ts", `const { env } = require("process"); export const u = env.DATABASE_URL`],
+  ["lib/require_child_process.ts", `const p = require("child_process"); export const u = p.env.XANO_KEY`],
+  ["lib/global_this_bracket_other_env.ts", `export const u = globalThis["process"].env.DATABASE_URL`],
+  ["lib/paren_process_other_env.ts", `export const u = (process).env.DATABASE_URL`],
+  ["lib/destructure_default_other_env.ts", `const { env = {} } = process; export const u = env.DATABASE_URL`],
   ["lib/member_assign_not_alias.ts", `const o: { env?: unknown } = {}; o.env = process.env; export const u = { env: {} as Record<string, string> }.env.XANO_KEY`],
 ]
 
@@ -147,6 +180,9 @@ const KNOWN_GAPS = [
   // B8 review 4: still not caught (no current code does this).
   ["lib/gap_object_assign_copy.ts", `const env = Object.assign({}, process.env); export const u = env.XANO_KEY`],
   ["lib/gap_alias_of_alias.ts", `const a = process.env; const b = a; export const u = b.XANO_KEY`],
+  // B10: still not caught (no current code does this).
+  ["lib/gap_dynamic_import.ts", `const { env } = await import("node:process"); export const u = env.XANO_KEY`],
+  ["lib/gap_require_computed.ts", `const m = "process"; const p = require(m); export const u = p.env.XANO_KEY`],
 ]
 
 function writeRoot(cases) {
