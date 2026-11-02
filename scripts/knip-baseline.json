@@ -24,7 +24,6 @@
   "files:components/dashboard/campaign/MaterialDeadlinesStrip.tsx",
   "files:components/dashboard/delivery/__tests__/socialAdSetBreakdown.test.tsx",
   "files:components/dashboard/delivery/shared/LineItemDailyDeliveryChart.tsx",
-  "files:components/dashboard/web/__tests__/adminNotices.render.test.tsx",
   "files:components/finance/sections/FinanceChromeDemo.tsx",
   "files:components/finance/sections/FinanceSectionPage.tsx",
   "files:components/finance/sections/FinanceSectionsLanding.tsx",
