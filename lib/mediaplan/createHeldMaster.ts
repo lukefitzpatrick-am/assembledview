@@ -63,9 +63,24 @@ export const MBA_NUMBER_LOADING_MESSAGE = "The MBA number is still loading. Try 
 /**
  * B8 review finding 2: the create page gives up on the MBA number request
  * after this long. The abort fails the request like any other error, so the
- * in-flight flag clears and the next Save fetches the number again.
+ * in-flight flag clears and the next Save fetches the number again. B10: 25 s
+ * (was 15 s), so a cold first database connection has room to finish.
  */
-export const MBA_NUMBER_FETCH_TIMEOUT_MS = 15_000
+export const MBA_NUMBER_FETCH_TIMEOUT_MS = 25_000
+
+/** B10 (B8 review notes, finding 2): shown when the MBA number request times out. */
+export const MBA_NUMBER_TIMEOUT_TITLE = "MBA number timed out"
+export const MBA_NUMBER_TIMEOUT_MESSAGE =
+  "The MBA number took too long to load. Save will fetch it again; try again in a moment."
+
+/** True for the error a fetch rejects with when its AbortController fires. */
+export function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { name?: unknown }).name === "AbortError"
+  )
+}
 
 /**
  * B8 review finding 1: the "MBA number taken" retry number didn't belong to
@@ -84,8 +99,10 @@ export type MbaNumberClientProblem = {
  * Before a new master is created: the MBA number must be the selected client's
  * MBA identifier followed by digits only (trimmed, case-insensitive). This is
  * the auth matcher `mbaNumberMatchesClientIdentifier` (`^id\d+$`), not a bare
- * prefix check, so `test123001` is refused for identifier `test1` (B8 review
- * finding 3). `allocateNextMbaNumber` always builds `<identifier
+ * prefix check (B8 review finding 3): `golfx01` and `xgolf001` are refused for
+ * `golf`. Identifiers ending in digits share a family, so `test123001` passes
+ * for `test1`, as in the auth matcher (see createHeldMaster.f1.test.ts).
+ * `allocateNextMbaNumber` always builds `<identifier
  * lowercased><digits>`, so a mismatch means the number belongs to another
  * client (picked before the new one's number came back) or is missing. Null
  * when the pair is fine.

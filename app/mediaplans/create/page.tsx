@@ -198,7 +198,11 @@ import { useUnsavedChangesPrompt } from "@/hooks/use-unsaved-changes-prompt"
 import {
   createMediaPlan,
 } from "@/lib/api"
-import { CreateMediaPlanError, mbaNumberTakenRetry } from "@/lib/mediaplan/mbaNumberTaken"
+import {
+  CreateMediaPlanError,
+  mbaNumberTakenRetry,
+  mbaNumberTakenWithoutReplacement,
+} from "@/lib/mediaplan/mbaNumberTaken"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { toDateOnlyString } from "@/lib/timezone"
 import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
@@ -356,9 +360,12 @@ import {
   CREATE_CLIENT_LOCKED_NOTE,
   MASTER_ID_MISMATCH,
   heldMasterIdentityFixes,
+  isAbortError,
   MBA_NUMBER_FETCH_TIMEOUT_MS,
   MBA_NUMBER_LOADING_MESSAGE,
   MBA_NUMBER_TAKEN_REFETCH_MESSAGE,
+  MBA_NUMBER_TIMEOUT_MESSAGE,
+  MBA_NUMBER_TIMEOUT_TITLE,
   masterIdMismatchMessage,
   mayApplyMbaNumberResponse,
   mbaNumberClientProblem,
@@ -3400,7 +3407,14 @@ function CreateMediaPlan() {
         form.setValue("mba_number", "")
       }
       setMbaNumber("")
-      // Optionally show a toast notification here if you have toast available
+      // B10 (B8 review notes, finding 2): say so when the request timed out.
+      if (isAbortError(error)) {
+        toast({
+          title: MBA_NUMBER_TIMEOUT_TITLE,
+          description: MBA_NUMBER_TIMEOUT_MESSAGE,
+          variant: "destructive",
+        })
+      }
     } finally {
       clearTimeout(abortTimer)
       // Only the latest request clears the flag; an older one finishing leaves the newer pending.
@@ -5126,11 +5140,20 @@ function CreateMediaPlan() {
         alreadyRetried: mbaNumberTakenRetriedRef.current,
       })
       const identifier = String(form.getValues("mbaidentifier") ?? "")
-      if (decision.action === "retry" && mbaNumberClientProblem(decision.nextMbaNumber, identifier)) {
+      const refetchInstead =
+        (decision.action === "retry" && mbaNumberClientProblem(decision.nextMbaNumber, identifier) != null) ||
+        mbaNumberTakenWithoutReplacement({
+          code: taken?.code,
+          nextMbaNumber: taken?.nextMbaNumber,
+          alreadyRetried: mbaNumberTakenRetriedRef.current,
+        })
+      if (refetchInstead) {
         // B8 review finding 1: the server's replacement number doesn't belong
         // to this client (it guesses the identifier from the taken number).
-        // Don't save under it or point billing at it: drop any rename and get
-        // a fresh number from the normal allocator for the next Save.
+        // B10 (B8 review notes, finding 1): or it sent none at all (identifier
+        // `000`). Either way, don't save under it or point billing at it: drop
+        // any rename and get a fresh number from the normal allocator for the
+        // next Save.
         mbaNumberRenameRef.current = null
         void generateMBANumber(identifier)
         err = new Error(MBA_NUMBER_TAKEN_REFETCH_MESSAGE)

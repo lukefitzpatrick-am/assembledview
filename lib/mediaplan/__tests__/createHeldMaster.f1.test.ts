@@ -14,14 +14,18 @@ import {
   CREATE_CLIENT_LOCKED_NOTE,
   MASTER_ID_MISMATCH,
   heldMasterIdentityFixes,
+  isAbortError,
   MBA_NUMBER_FETCH_TIMEOUT_MS,
   MBA_NUMBER_LOADING_MESSAGE,
   MBA_NUMBER_TAKEN_REFETCH_MESSAGE,
+  MBA_NUMBER_TIMEOUT_MESSAGE,
+  MBA_NUMBER_TIMEOUT_TITLE,
   masterIdMismatchMessage,
   mayApplyMbaNumberResponse,
   mbaNumberClientProblem,
 } from "../createHeldMaster"
 import { allocateNextMbaNumber } from "../allocateNextMbaNumber"
+import { mbaNumberTakenRetry, mbaNumberTakenWithoutReplacement } from "../mbaNumberTaken"
 
 const read = (rel: string) => readFileSync(join(process.cwd(), rel), "utf8")
 const create = read("app/mediaplans/create/page.tsx")
@@ -242,8 +246,8 @@ test("B8 review 7: a client with no MBA identifier is told to reload the page, n
   assert.doesNotMatch(message, /pick it again/)
 })
 
-test("B8 review 2 (create): the MBA number request gives up after 15 s and clears like a failure", () => {
-  assert.equal(MBA_NUMBER_FETCH_TIMEOUT_MS, 15_000)
+test("B8 review 2 (create): the MBA number request gives up after 25 s (B10) and clears like a failure", () => {
+  assert.equal(MBA_NUMBER_FETCH_TIMEOUT_MS, 25_000)
   const body = constFnText("generateMBANumber")
   const controller = body.indexOf("const abort = new AbortController()")
   const timer = body.indexOf("const abortTimer = setTimeout(() => abort.abort(), MBA_NUMBER_FETCH_TIMEOUT_MS)")
@@ -259,8 +263,13 @@ test("B8 review 2 (create): the MBA number request gives up after 15 s and clear
 
 test("B8 review 1 (create): an MBA-taken retry number that isn't the client's is not saved; a fresh number is fetched", () => {
   const master = constFnText("handleSaveMediaPlan")
-  const check = master.indexOf('if (decision.action === "retry" && mbaNumberClientProblem(decision.nextMbaNumber, identifier)) {')
+  const decide = master.indexOf("const refetchInstead =")
+  const check = master.indexOf("if (refetchInstead) {")
   const retry = master.indexOf('} else if (decision.action === "retry") {')
+  assert.ok(decide >= 0 && check > decide, "the refetch decision comes first")
+  const decision = master.slice(decide, check)
+  assert.match(decision, /\(decision\.action === "retry" && mbaNumberClientProblem\(decision\.nextMbaNumber, identifier\) != null\) \|\|/)
+  assert.match(decision, /mbaNumberTakenWithoutReplacement\(\{\s*code: taken\?\.code,\s*nextMbaNumber: taken\?\.nextMbaNumber,\s*alreadyRetried: mbaNumberTakenRetriedRef\.current,\s*\}\)/)
   assert.ok(check >= 0 && retry > check, "checked before the retry branch")
   const refused = master.slice(check, retry)
   assert.match(refused, /mbaNumberRenameRef\.current = null/, "the stale rename is dropped")
@@ -271,4 +280,44 @@ test("B8 review 1 (create): an MBA-taken retry number that isn't the client's is
   // The good retry still renames and saves once.
   assert.match(master.slice(retry), /^[\s\S]*?mbaNumberRenameRef\.current = \{[\s\S]*?return await handleSaveMediaPlan\(\)/)
   assert.match(MBA_NUMBER_TAKEN_REFETCH_MESSAGE, /taken by another plan\. Getting a new one now; try again in a moment\.$/)
+})
+
+test("B10 (B8 review notes 1): MBA-taken with no usable replacement takes the refetch branch once", () => {
+  // Client identifier `000`: the server can't read an identifier from `000003`, so it sends none.
+  const base = { code: "MBA_NUMBER_TAKEN", nextMbaNumber: undefined, alreadyRetried: false }
+  assert.equal(mbaNumberTakenWithoutReplacement(base), true)
+  assert.equal(mbaNumberTakenWithoutReplacement({ ...base, nextMbaNumber: "   " }), true, "blank counts as none")
+  assert.equal(mbaNumberTakenRetry(base).action, "error", "the retry helper alone would fail every Save")
+  // Not this branch: a usable replacement (the retry branch handles it), a second
+  // collision after a retry, or any other error.
+  assert.equal(mbaNumberTakenWithoutReplacement({ ...base, nextMbaNumber: "000004" }), false)
+  assert.equal(mbaNumberTakenWithoutReplacement({ ...base, alreadyRetried: true }), false)
+  assert.equal(mbaNumberTakenWithoutReplacement({ ...base, code: "OTHER" }), false)
+  assert.equal(mbaNumberTakenWithoutReplacement({ ...base, code: undefined }), false)
+  // The allocator's next number for `000` passes the client rule, so the refetch fixes it.
+  const next = allocateNextMbaNumber(["000001", "000002", "000003"], "000")
+  assert.equal(next, "000004")
+  assert.equal(mbaNumberClientProblem(next, "000"), null)
+})
+
+test("B10 (B8 review notes 2): a timed-out MBA number request tells the planner", () => {
+  assert.equal(isAbortError(new DOMException("aborted", "AbortError")), true)
+  assert.equal(isAbortError({ name: "AbortError" }), true)
+  assert.equal(isAbortError(new Error("Failed to generate MBA number")), false)
+  assert.equal(isAbortError(null), false)
+  assert.equal(isAbortError("AbortError"), false)
+  assert.equal(MBA_NUMBER_TIMEOUT_TITLE, "MBA number timed out")
+  assert.match(MBA_NUMBER_TIMEOUT_MESSAGE, /took too long to load\. Save will fetch it again; try again in a moment\.$/)
+  const body = constFnText("generateMBANumber")
+  const catchAt = body.lastIndexOf("} catch (error) {")
+  const fin = body.lastIndexOf("} finally {")
+  const inCatch = body.slice(catchAt, fin)
+  // After the stale-response return, so only the latest request toasts.
+  const gate = inCatch.indexOf("mayApplyMbaNumberResponse(")
+  const abortCheck = inCatch.indexOf("if (isAbortError(error)) {")
+  assert.ok(gate >= 0 && abortCheck > gate, "toast only for the latest request")
+  assert.match(
+    inCatch.slice(abortCheck),
+    /toast\(\{\s*title: MBA_NUMBER_TIMEOUT_TITLE,\s*description: MBA_NUMBER_TIMEOUT_MESSAGE,\s*variant: "destructive",\s*\}\)/,
+  )
 })

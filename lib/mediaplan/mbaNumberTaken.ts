@@ -52,3 +52,20 @@ export function mbaNumberTakenRetry(args: {
   if (!next) return { action: "error" }
   return { action: "retry", nextMbaNumber: next }
 }
+
+/**
+ * B10 (B8 review notes, finding 1): the first save hit MBA_NUMBER_TAKEN and
+ * the server sent no usable replacement (it can't read an identifier from a
+ * number such as `000003` for identifier `000`). The create page then fetches
+ * a fresh number from the normal allocator instead of failing the same way on
+ * every Save. A second collision after a retry stays a plain error.
+ */
+export function mbaNumberTakenWithoutReplacement(args: {
+  code: string | undefined
+  nextMbaNumber: string | undefined
+  alreadyRetried: boolean
+}): boolean {
+  if (args.alreadyRetried) return false
+  if (args.code !== "MBA_NUMBER_TAKEN") return false
+  return !(args.nextMbaNumber?.trim() ?? "")
+}
