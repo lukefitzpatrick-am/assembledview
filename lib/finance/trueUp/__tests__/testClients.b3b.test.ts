@@ -19,6 +19,7 @@ import {
   type TrueUpScheduleSqlRow,
 } from "../compute.js"
 import { buildTrueUpCsv, trueUpCsvHeader } from "../csv.js"
+import { parseCsv } from "./csvParse.js"
 import { trueUpPlansSql } from "../load.js"
 import { buildTrueUpRunEmail, compactRunRows } from "../monthlyRunModel.js"
 import { trueUpSkippedLines } from "../viewModel.js"
@@ -168,17 +169,22 @@ test("client form: Test or internal client is off by default, admin only, and sa
 })
 
 test("B3b fix: the CSV keeps skipped plans visible (no-client MBAs listed, test clients counted)", () => {
-  const rows = buildTrueUpCsv(withTests).trim().split("\r\n")
+  const csv = buildTrueUpCsv(withTests)
+  const rows = parseCsv(csv)
   const width = trueUpCsvHeader().length
-  const skipped = rows.filter((r) => r.startsWith("skipped,"))
-  for (const r of skipped) assert.ok(r.split(",").length >= width, r)
-  assert.ok(skipped.some((r) => r.endsWith(",Skipped: test or internal clients (2)")))
-  assert.ok(skipped.some((r) => r.endsWith(",Skipped: no client (1): mb15cmv2xy4x5")))
-  assert.ok(skipped.some((r) => r.startsWith("skipped,,mb15cmv2xy4x5,") && r.endsWith(",Skipped: no client. No client")))
+  for (const r of rows) assert.equal(r.length, width, r.join("|"))
+  const skipped = rows.filter((r) => r[0] === "skipped")
+  const notes = skipped.map((r) => r[width - 1])
+  assert.deepEqual(notes, [
+    "Skipped: test or internal clients (2)",
+    "Skipped: no client (1): mb15cmv2xy4x5",
+    "Skipped: no client. No client",
+  ])
+  assert.equal(skipped[2]![2], "mb15cmv2xy4x5", "the no-client row carries its MBA number")
   // Test-client plans are a count only: their MBA numbers are nowhere in the CSV.
-  assert.ok(!rows.some((r) => /krusty003|assembled001/.test(r)))
+  assert.doesNotMatch(csv, /krusty003|assembled001/)
   // A report with nothing skipped still prints the two zero lines.
-  const base = buildTrueUpCsv(baseline).trim().split("\r\n").filter((r) => r.startsWith("skipped,"))
+  const base = parseCsv(buildTrueUpCsv(baseline)).filter((r) => r[0] === "skipped")
   assert.equal(base.length, 2)
 })
 

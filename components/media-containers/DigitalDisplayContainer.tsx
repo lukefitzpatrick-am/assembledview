@@ -43,7 +43,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
-import { getPublishersForDigiDisplay, getClientInfo, getDisplaySites, createDisplaySite } from "@/lib/api"
+import { getPublishersForDigiDisplay, getDisplaySites, createDisplaySite } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import {
   MEDIA_TYPE_ID_CODES,

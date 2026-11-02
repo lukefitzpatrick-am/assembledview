@@ -97,6 +97,12 @@ SELECT key FROM public.migration_markers
 -- (krusty003, supabase001, assembled001 on 2 Nov 2026), compared lower-cased.
 -- If any of the three does not match, the UPDATE changes nothing and returns
 -- 0 rows.
+--
+-- If someone already ticked "Test or internal client" on the client form for
+-- any of the three before PART B runs, PART B changes nothing at all (the
+-- guard needs all three still false). The preview (B1) shows it: a row with
+-- is_test_client true. In that case tick the others on the form instead, or
+-- leave them if all three are already true.
 --   53 Krusty Krab (demo, plan krusty003)
 --   54 Supabase test client (plan supabase001)
 --   57 Assembled Media, internal (plan assembled001 "LinkedIn Lead Gen")

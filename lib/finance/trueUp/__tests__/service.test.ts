@@ -44,7 +44,7 @@ if (typeof mock.module === "function") {
   })
 }
 
-const { applyTrueUpFromToken, previewTrueUpFix } = await import("../service")
+const { applyTrueUpFromToken, previewTrueUpFix, recordTrueUpNote } = await import("../service")
 const { buildTrueUpReport } = await import("../compute")
 const { INVOICES, MATCHED_RECORDS, PLANS, SCHEDULE } = await import("./fixtures")
 const { buildTrueUpFixRequest } = await import("../fixRequest")
@@ -161,4 +161,36 @@ test("skipped plans (0112): preview and apply say why instead of 'nothing to tru
 
   const gone = await previewTrueUpFix({ ...args, mbaNumber: "nope001", load })
   assert.match("message" in gone ? String(gone.message) : "", /nope001 has nothing to true up/)
+})
+
+test("skipped plans (0112): a note (explained, one-off) is refused with 409 SKIPPED", { skip }, async () => {
+  const skippedLoad = (patch: Record<string, unknown>) => async (a: { asOfMonth: string; fromMonth: string }) =>
+    buildTrueUpReport({
+      ...a,
+      plans: PLANS.map((p) => (p.mba_number === "golf025" ? { ...p, ...patch } : p)),
+      schedule: SCHEDULE,
+      invoices: INVOICES,
+      matchedRecords: MATCHED_RECORDS,
+    })
+  // No ledger write may happen: any db.execute call fails the test.
+  const db = { execute: async () => assert.fail("a skipped MBA must not write the ledger") } as never
+  const base = { mbaNumber: "golf025", component: "fee" as const, asOfMonth: "2026-09", fromMonth: "2026-07" }
+  const flagged = await recordTrueUpNote({
+    input: { ...base, action: "explained", reasonCode: "timing" },
+    actor,
+    db,
+    load: skippedLoad({ is_test_client: true }),
+  })
+  assert.equal(flagged.ok, false)
+  if (!flagged.ok) {
+    assert.equal(flagged.status, 409)
+    assert.equal(flagged.code, "SKIPPED")
+    assert.equal(flagged.message, "golf025 is skipped: test or internal client.")
+  }
+  const none = await recordTrueUpNote({ input: { ...base, action: "one_off" }, actor, db, load: skippedLoad({ client_id: null }) })
+  assert.equal(none.ok, false)
+  if (!none.ok) {
+    assert.equal(none.status, 409)
+    assert.equal(none.message, "golf025 is skipped: no client.")
+  }
 })

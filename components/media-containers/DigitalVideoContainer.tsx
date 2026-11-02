@@ -40,7 +40,7 @@ import { Form } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label";
-import { getPublishersForDigiVideo, getClientInfo, getVideoSites, createVideoSite } from "@/lib/api"
+import { getPublishersForDigiVideo, getVideoSites, createVideoSite } from "@/lib/api"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"

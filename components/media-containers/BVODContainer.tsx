@@ -43,7 +43,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label";
-import { getPublishersForBvod, getClientInfo, getBVODSites, createBVODSite } from "@/lib/api"
+import { getPublishersForBvod, getBVODSites, createBVODSite } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { appendBurst, duplicateBurst, newBurstReactKey, removeBurst, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"

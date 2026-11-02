@@ -3,6 +3,7 @@ import test from "node:test"
 
 import { buildTrueUpReport } from "../compute.js"
 import { buildTrueUpCsv, centsToPlain, trueUpCsvFilename, trueUpCsvHeader } from "../csv.js"
+import { parseCsv } from "./csvParse.js"
 import { filterTrueUpRows, sydneyTodayIso, trueUpMonthOptions, trueUpRowSuggestions } from "../viewModel.js"
 import { INVOICES, MATCHED_RECORDS, PLANS, SCHEDULE } from "./fixtures.js"
 
@@ -26,7 +27,9 @@ test("CSV: month rows, a to-date row per MBA, header width on every row", () => 
   const csv = buildTrueUpCsv(report)
   const rows = csv.trim().split("\r\n")
   const width = trueUpCsvHeader().length
-  for (const r of rows) assert.equal(r.split(",").length >= width, true)
+  const parsed = parseCsv(csv)
+  assert.deepEqual(parsed[0], trueUpCsvHeader())
+  for (const r of parsed) assert.equal(r.length, width, r.join("|"))
   const golfToDate = rows.find((r) => r.startsWith("to date,Golf Australia,golf025"))
   assert.ok(golfToDate)
   assert.match(golfToDate!, /,-1638\.93,Gap,Spread the charge over the remaining months,/)
