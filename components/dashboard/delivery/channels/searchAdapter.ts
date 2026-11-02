@@ -4,6 +4,7 @@ import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
+import { formatRatioAsPercent } from "@/lib/pacing/kpi/formatKpi"
 import { applyKpiBandTargetsFromPlan } from "@/lib/kpi/kpiBandTargets"
 import { aggregateRatioTargetFromLineItems, getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
 import type { CampaignKPI } from "@/lib/kpi/types"
@@ -69,12 +70,23 @@ function formatWholeNumber(value: number | null | undefined) {
   return Math.round(Number(value ?? 0)).toLocaleString("en-AU")
 }
 
-function formatPercentAuto(value: number | null | undefined, digits: number = 2) {
-  if (value === null || value === undefined) return "—"
-  const n = Number(value)
-  if (!Number.isFinite(n)) return "—"
-  const pct = n <= 1 ? n * 100 : n
-  return `${pct.toFixed(digits)}%`
+/**
+ * B3 (F4): CTR and targets are decimal ratios (AV-25 v2, `lib/kpi/percentUnits.ts`),
+ * formatted without guessing the unit from the number's size.
+ */
+function formatDecimalPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—"
+  return formatRatioAsPercent(Number(value))
+}
+
+/**
+ * Top impression share for display, through `topShareFraction` (the one place
+ * that reads this column, also used for the progress bar) so the shown value
+ * and the bar agree. The source (Google Ads via Fivetran) is a fraction.
+ */
+function formatTopShare(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—"
+  return formatRatioAsPercent(topShareFraction(value))
 }
 
 /** Lower actual CPC vs expected target => ahead when expected/actual is high */
@@ -384,10 +396,10 @@ export function buildSearchSection(input: {
 
   const ctrTile: KpiTileProps = {
     label: "CTR",
-    value: formatPercentAuto(actualCtrDec),
+    value: formatDecimalPercent(actualCtrDec),
     ...(ctrTargetDec !== null
       ? {
-          expected: formatPercentAuto(ctrTargetDec),
+          expected: formatDecimalPercent(ctrTargetDec),
           status: compareHigherIsBetter(actualCtrDec ?? 0, ctrTargetDec),
           progress: Math.max(0, Math.min(1, (actualCtrDec ?? 0) / ctrTargetDec)),
         }
@@ -423,7 +435,7 @@ export function buildSearchSection(input: {
     },
     {
       label: "Top Impression Share",
-      value: formatPercentAuto(totals.topImpressionPct, 2),
+      value: formatTopShare(totals.topImpressionPct),
       expected: "50.00%",
       status: compareHigherIsBetter(topFrac, 0.5),
       progress: Math.max(0, Math.min(1, topFrac / 0.5)),
@@ -614,10 +626,10 @@ function buildSearchLineItemBlocks(input: {
 
       const liCtrTile: KpiTileProps = {
         label: "CTR",
-        value: formatPercentAuto(liCtr),
+        value: formatDecimalPercent(liCtr),
         ...(ctrTargetDec !== null
           ? {
-              expected: formatPercentAuto(ctrTargetDec),
+              expected: formatDecimalPercent(ctrTargetDec),
               status: compareHigherIsBetter(liCtr ?? 0, ctrTargetDec),
               progress: Math.max(0, Math.min(1, (liCtr ?? 0) / ctrTargetDec)),
             }
@@ -690,7 +702,7 @@ function buildSearchLineItemBlocks(input: {
             },
             {
               label: "Top Impression Share",
-              value: formatPercentAuto(liTotals.topImpressionPct, 2),
+              value: formatTopShare(liTotals.topImpressionPct),
               expected: "50.00%",
               status: compareHigherIsBetter(liTopFrac, TOP_SHARE_TARGET),
               progress: Math.max(0, Math.min(1, liTopFrac / TOP_SHARE_TARGET)),

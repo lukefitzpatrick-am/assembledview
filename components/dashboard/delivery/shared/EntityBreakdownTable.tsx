@@ -7,6 +7,7 @@
 import { Fragment, useId, useMemo, useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { formatMoney } from "@/lib/format/money"
+import { formatRatioAsPercent } from "@/lib/pacing/kpi/formatKpi"
 import { stripPlanCodeSuffix } from "@/lib/delivery/lineItemDisplayName"
 import type { CreativePerformanceRow } from "@/lib/creative/performance/metrics"
 import { adSetGroupKey, creativesByAdSet } from "@/lib/creative/performance/present"
@@ -62,14 +63,6 @@ function formatWholeNumber(value: number | null | undefined) {
   return Math.round(Number(value ?? 0)).toLocaleString("en-AU")
 }
 
-/** Same presentation as searchAdapter.formatPercentAuto. */
-function formatPercentAuto(value: number | null | undefined, digits: number = 2) {
-  if (value === null || value === undefined) return "—"
-  const n = Number(value)
-  if (!Number.isFinite(n)) return "—"
-  const pct = n <= 1 ? n * 100 : n
-  return `${pct.toFixed(digits)}%`
-}
 
 function formatCpc(spend: number, clicks: number): string {
   if (!(clicks > 0) || !Number.isFinite(spend)) return "—"
@@ -78,12 +71,14 @@ function formatCpc(spend: number, clicks: number): string {
 
 function formatCtr(clicks: number, impressions: number): string {
   if (!(impressions > 0) || !Number.isFinite(clicks)) return "—"
-  return formatPercentAuto(clicks / impressions)
+  // Decimal ratio (AV-25 v2): never guess the unit from the size of the number.
+  return formatRatioAsPercent(clicks / impressions)
 }
 
 function formatCompletionRate(videoCompletes: number, impressions: number): string {
   if (!(impressions > 0) || !Number.isFinite(videoCompletes)) return "—"
-  return formatPercentAuto(videoCompletes / impressions)
+  // Above 100% is real (completes > impressions) and must show as e.g. 120.00%.
+  return formatRatioAsPercent(videoCompletes / impressions)
 }
 
 function titleCaseFirst(singular: string): string {

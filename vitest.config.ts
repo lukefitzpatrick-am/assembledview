@@ -118,6 +118,7 @@ export default defineConfig({
       "lib/mediaplan/__tests__/oohStandardContainer.bench.test.tsx",
       "components/dashboard/delivery/__tests__/shouldShowChannelAggregate.test.ts",
       "components/dashboard/delivery/__tests__/entityBreakdown.test.tsx",
+      "components/dashboard/delivery/__tests__/entityBreakdown.percentUnits.f4.test.tsx",
       "components/dashboard/delivery/channels/__tests__/directDigitalChart.test.ts",
       "lib/delivery/__tests__/deliveredTotals.test.ts",
       "components/ui/__tests__/data-table.test.tsx",

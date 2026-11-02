@@ -44,17 +44,87 @@ export type KpiComparison = {
 export const KPI_TOLERANCE = PACING_STATUS_THRESHOLDS.kpiTolerance;
 
 /**
+ * B3 (Q9): the KPI comparison helpers every pacing channel uses (Search,
+ * Programmatic, Social). Before this each channel had its own copy, and Search
+ * passed a 0 target through as a real target, so `actual >= 0` read "on track".
+ */
+
+/** campaign_kpi exports use 0 for "not set": treat 0 like null for every metric. */
+export function unsetAsNull(value: number | null | undefined): number | null {
+  return value === null || value === undefined || value === 0 ? null : value;
+}
+
+/** Ratio target (ctr, conversion rate, vtr): unset (null or 0) → null, else decimal. */
+export function resolveRatioTarget(raw: number | null | undefined): number | null {
+  const t = unsetAsNull(raw);
+  if (t === null) return null;
+  return normaliseRatioTarget(t);
+}
+
+/** Dollar target (cpv): unset (null or 0) → null. */
+export function resolveDollarTarget(raw: number | null | undefined): number | null {
+  return unsetAsNull(raw);
+}
+
+/**
  * Determines status of a single KPI where higher-is-better.
  * 'On-track' means actual >= target * (1 - tolerance).
  *
  * Returns 'no-target' if target is null (no benchmark set).
  * Returns 'no-delivery' if target exists but actual is null (no Snowflake data).
  */
-function statusForHigherIsBetter(target: number | null, actual: number | null): SingleKpiStatus {
+export function statusForHigherIsBetter(
+  target: number | null,
+  actual: number | null,
+): SingleKpiStatus {
   if (target === null || target === undefined) return "no-target";
   if (actual === null || actual === undefined) return "no-delivery";
   const threshold = target * (1 - KPI_TOLERANCE);
   return actual >= threshold ? "on-track" : "off-target";
+}
+
+/**
+ * Lower-is-better (cpv): cheaper than target is good.
+ * 'On-track' means actual <= target * (1 + tolerance).
+ */
+export function statusForLowerIsBetter(
+  target: number | null,
+  actual: number | null,
+): SingleKpiStatus {
+  if (target === null || target === undefined) return "no-target";
+  if (actual === null || actual === undefined) return "no-delivery";
+  const threshold = target * (1 + KPI_TOLERANCE);
+  return actual <= threshold ? "on-track" : "off-target";
+}
+
+/** (actual - target) / target * 100, or null when either is null or target is 0. */
+export function variancePercent(target: number | null, actual: number | null): number | null {
+  if (target === null || actual === null || target === 0) return null;
+  return ((actual - target) / target) * 100;
+}
+
+/**
+ * The six-state row reduction shared by every channel, once the caller has
+ * decided the row has targets at all (`kpiTargets` present, or a plan CPV).
+ */
+export function reduceRowKpiStatus(
+  comparisons: ReadonlyArray<{ status: SingleKpiStatus }>,
+): RowKpiStatus {
+  const hasAnyTarget = comparisons.some((c) => c.status !== "no-target");
+  if (!hasAnyTarget) return "kpi-pending";
+
+  const comparable = comparisons.filter(
+    (c) => c.status === "on-track" || c.status === "off-target",
+  );
+
+  if (comparable.length === 0) return "kpi-no-delivery";
+
+  const onTrackCount = comparable.filter((c) => c.status === "on-track").length;
+  const offTargetCount = comparable.filter((c) => c.status === "off-target").length;
+
+  if (onTrackCount > 0 && offTargetCount > 0) return "kpi-mixed";
+  if (offTargetCount > 0) return "kpi-off-target";
+  return "kpi-on-track";
 }
 
 /**
@@ -65,28 +135,24 @@ function statusForHigherIsBetter(target: number | null, actual: number | null): 
  * future media types (Social/Video) where the relevant actual will be sourced
  * from the appropriate Snowflake fact.
  *
- * Targets may be legacy percentage-points (>= 1); normalise to decimal ratios so
- * they match Snowflake actuals (0.045 = 4.5%). Same helper as programmatic/social.
+ * Targets are decimal ratios (AV-25 v2) matching Snowflake actuals (0.045 = 4.5%);
+ * a 0 target means "not set". Same helpers as programmatic/social.
  */
 export function buildKpiComparisons(row: SearchPacingCampaignRow): KpiComparison[] {
   const targets = row.kpiTargets;
 
-  const rawCtr = targets?.ctr ?? null;
-  const targetCtr = rawCtr != null ? normaliseRatioTarget(rawCtr) : null;
+  // Q9: a 0 target is "not set" (KPI pending), same as Programmatic and Social.
+  const targetCtr = resolveRatioTarget(targets?.ctr);
   const actualCtr = row.ctr ?? null;
   const ctrComparison: KpiComparison = {
     metric: "ctr",
     target: targetCtr,
     actual: actualCtr,
-    variancePercent:
-      targetCtr !== null && actualCtr !== null && targetCtr !== 0
-        ? ((actualCtr - targetCtr) / targetCtr) * 100
-        : null,
+    variancePercent: variancePercent(targetCtr, actualCtr),
     status: statusForHigherIsBetter(targetCtr, actualCtr),
   };
 
-  const rawConvRate = targets?.conversionRate ?? null;
-  const targetConvRate = rawConvRate != null ? normaliseRatioTarget(rawConvRate) : null;
+  const targetConvRate = resolveRatioTarget(targets?.conversionRate);
   const actualConvRate =
     row.clicks > 0 && row.conversions !== null && row.conversions !== undefined
       ? row.conversions / row.clicks
@@ -95,10 +161,7 @@ export function buildKpiComparisons(row: SearchPacingCampaignRow): KpiComparison
     metric: "conversionRate",
     target: targetConvRate,
     actual: actualConvRate,
-    variancePercent:
-      targetConvRate !== null && actualConvRate !== null && targetConvRate !== 0
-        ? ((actualConvRate - targetConvRate) / targetConvRate) * 100
-        : null,
+    variancePercent: variancePercent(targetConvRate, actualConvRate),
     status: statusForHigherIsBetter(targetConvRate, actualConvRate),
   };
 
@@ -123,23 +186,7 @@ export function buildKpiComparisons(row: SearchPacingCampaignRow): KpiComparison
 export function computeRowKpiStatus(row: SearchPacingCampaignRow): RowKpiStatus {
   if (row.kpiTargets === null) return "kpi-pending";
 
-  const comparisons = buildKpiComparisons(row);
-
-  const hasAnyTarget = comparisons.some((c) => c.status !== "no-target");
-  if (!hasAnyTarget) return "kpi-pending";
-
-  const comparable = comparisons.filter(
-    (c) => c.status === "on-track" || c.status === "off-target",
-  );
-
-  if (comparable.length === 0) return "kpi-no-delivery";
-
-  const onTrackCount = comparable.filter((c) => c.status === "on-track").length;
-  const offTargetCount = comparable.filter((c) => c.status === "off-target").length;
-
-  if (onTrackCount > 0 && offTargetCount > 0) return "kpi-mixed";
-  if (offTargetCount > 0) return "kpi-off-target";
-  return "kpi-on-track";
+  return reduceRowKpiStatus(buildKpiComparisons(row));
 }
 
 /**

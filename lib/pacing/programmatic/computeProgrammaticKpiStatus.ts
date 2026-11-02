@@ -1,6 +1,11 @@
 import {
-  KPI_TOLERANCE,
   copyForRowKpiStatus,
+  reduceRowKpiStatus,
+  resolveDollarTarget,
+  resolveRatioTarget,
+  statusForHigherIsBetter,
+  statusForLowerIsBetter,
+  variancePercent,
   type RowKpiStatus,
   type SingleKpiStatus,
 } from "@/lib/pacing/kpi/computeKpiStatus";
@@ -20,39 +25,6 @@ export type ProgrammaticKpiComparison = {
 };
 
 export { copyForRowKpiStatus, type RowKpiStatus };
-
-function unsetAsNull(value: number | null | undefined): number | null {
-  return value === null || value === undefined || value === 0 ? null : value;
-}
-
-function resolveRatioTarget(raw: number | null | undefined): number | null {
-  const t = unsetAsNull(raw);
-  if (t === null) return null;
-  return normaliseRatioTarget(t);
-}
-
-function resolveDollarTarget(raw: number | null | undefined): number | null {
-  return unsetAsNull(raw);
-}
-
-function statusForHigherIsBetter(target: number | null, actual: number | null): SingleKpiStatus {
-  if (target === null || target === undefined) return "no-target";
-  if (actual === null || actual === undefined) return "no-delivery";
-  const threshold = target * (1 - KPI_TOLERANCE);
-  return actual >= threshold ? "on-track" : "off-target";
-}
-
-function statusForLowerIsBetter(target: number | null, actual: number | null): SingleKpiStatus {
-  if (target === null || target === undefined) return "no-target";
-  if (actual === null || actual === undefined) return "no-delivery";
-  const threshold = target * (1 + KPI_TOLERANCE);
-  return actual <= threshold ? "on-track" : "off-target";
-}
-
-function variancePercent(target: number | null, actual: number | null): number | null {
-  if (target === null || actual === null || target === 0) return null;
-  return ((actual - target) / target) * 100;
-}
 
 /**
  * Builds per-KPI comparisons for a programmatic pacing row.
@@ -115,21 +87,5 @@ export function computeProgrammaticRowKpiStatus(
   const hasPlanCpv = row.planCpvRate != null && row.planCpvRate > 0;
   if (row.kpiTargets === null && !hasPlanCpv) return "kpi-pending";
 
-  const comparisons = buildProgrammaticKpiComparisons(row);
-
-  const hasAnyTarget = comparisons.some((c) => c.status !== "no-target");
-  if (!hasAnyTarget) return "kpi-pending";
-
-  const comparable = comparisons.filter(
-    (c) => c.status === "on-track" || c.status === "off-target"
-  );
-
-  if (comparable.length === 0) return "kpi-no-delivery";
-
-  const onTrackCount = comparable.filter((c) => c.status === "on-track").length;
-  const offTargetCount = comparable.filter((c) => c.status === "off-target").length;
-
-  if (onTrackCount > 0 && offTargetCount > 0) return "kpi-mixed";
-  if (offTargetCount > 0) return "kpi-off-target";
-  return "kpi-on-track";
+  return reduceRowKpiStatus(buildProgrammaticKpiComparisons(row));
 }
