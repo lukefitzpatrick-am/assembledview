@@ -319,8 +319,10 @@ DO (delete or stub-404 only after re-grepping ZERO callers):
    newspaper, production, prog-video, search, social — remove POST exports; keep GET dual.
 2. Delete or 410: /api/campaigns/[mba_number], /api/campaigns/[mba_number]/billing-schedule,
    /api/finance/accrual. (/api/publishers/check-id: already deleted 1 Nov 2026, F5.)
-3. Do NOT delete television POST/PUT/DELETE here (lib/api.ts stopped calling them in B5;
-   retire them with the routes batch after the 30-day log check).
+3. (Done.) `app/api/media_plans/television/route.ts` exports GET only; there are no TV
+   write handlers left. Before B5, saveTelevisionLineItems already called the throwing
+   replaceChannelLineItems stub. The catch-all `media_plans/[...path]` is the only
+   channel write route left (admin-gated).
 4. Do NOT touch lib/api.ts direct Xano creates (that is X7).
 5. Re-grep after each deletion; update XANO-SEVERANCE-REGISTER.md tallies.
 REPORT: files deleted, residual callers if any, confidence.
