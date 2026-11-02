@@ -63,7 +63,6 @@ function formatWholeNumber(value: number | null | undefined) {
   return Math.round(Number(value ?? 0)).toLocaleString("en-AU")
 }
 
-
 function formatCpc(spend: number, clicks: number): string {
   if (!(clicks > 0) || !Number.isFinite(spend)) return "—"
   return formatCurrency(spend / clicks)

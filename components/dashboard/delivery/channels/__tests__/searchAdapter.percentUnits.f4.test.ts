@@ -70,6 +70,15 @@ test("CTR and top impression share are decimal ratios: 2.50% and 45.00%", () => 
   }
 })
 
+test("C-158: top impression share is read as a fraction with no size guess", () => {
+  assert.equal(tile(build(1).aggregate.kpiBand.tiles, "Top Impression Share").value, "100.00%")
+  assert.equal(tile(build(0.008).aggregate.kpiBand.tiles, "Top Impression Share").value, "0.80%")
+  // A value above 1 is not divided by 100 any more (the source never holds one).
+  assert.equal(tile(build(45).aggregate.kpiBand.tiles, "Top Impression Share").value, "4500.00%")
+  const src = readFileSync(join(ROOT, "components/dashboard/delivery/channels/searchAdapter.ts"), "utf8")
+  assert.doesNotMatch(src, /value > 1 \? value \/ 100/)
+})
+
 test("no top impression data shows a dash, not 0%", () => {
   const section = build(null)
   assert.equal(tile(section.aggregate.kpiBand.tiles, "Top Impression Share").value, "—")

@@ -12,12 +12,13 @@
  * Stored as nullable numbers because not every line item has a target for
  * every metric — a Search line item won't have a VTR target, for instance.
  *
- * Values are in their natural units:
- *   - ctr: percentage points (4.5 means 4.5%)
- *   - conversionRate: percentage points
+ * Units (AV-25 v2, `lib/kpi/percentUnits.ts`):
+ *   - ctr: decimal ratio (0.045 means 4.5%)
+ *   - conversionRate: decimal ratio
  *   - cpv: dollars
- *   - vtr: percentage points
+ *   - vtr: decimal ratio
  *   - frequency: count (e.g. 3.5 means avg 3.5 impressions per user)
+ * A 0 or missing target means "not set" (`resolveRatioTarget`).
  */
 export type KpiTargets = {
   mediaType: string | null;

@@ -80,9 +80,8 @@ function formatDecimalPercent(value: number | null | undefined): string {
 }
 
 /**
- * Top impression share for display, through `topShareFraction` (the one place
- * that reads this column, also used for the progress bar) so the shown value
- * and the bar agree. The source (Google Ads via Fivetran) is a fraction.
+ * Top impression share for display, through `topShareFraction` (also used for
+ * the progress bar) so the shown value and the bar agree.
  */
 function formatTopShare(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—"
@@ -109,9 +108,15 @@ function compareHigherIsBetter(actual: number, expected: number | undefined): De
 }
 
 /** Normalise API top-impression share to 0–1 for benchmarks */
+/**
+ * Top impression share as a 0 to 1 fraction, read as stored. C-158: the source
+ * (Google Ads via Fivetran, TOP_IMPRESSION_PERCENTAGE) is a fraction; checked
+ * 2 Nov 2026, 122,157 non-null rows in SEARCH_PACING_FACT, max 1, none above 1.
+ * No magnitude guess (AV-25 v2).
+ */
 function topShareFraction(value: number | null | undefined): number {
   if (value === null || value === undefined || !Number.isFinite(value)) return 0
-  return value > 1 ? value / 100 : value
+  return value
 }
 
 function searchLineItemIdSources(searchLineItems: unknown[] | undefined): Array<{ line_item_id: string }> {
