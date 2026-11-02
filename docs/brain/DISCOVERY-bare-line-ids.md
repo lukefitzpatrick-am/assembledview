@@ -35,7 +35,7 @@ Create does not GET a billing schedule. There is no `workingBillingMonths` state
 2. Route: `app/api/mediaplans/mba/[mba_number]/route.ts:801-852` → `readMbaPlanDetailFromPostgres`.
 3. Version mapper spreads the blob with **no id rewrite**: `lib/data/readMediaPlans.ts:395` (`billingSchedule: legacy.billingSchedule ?? null`).
 4. Assemble copies it onto the response: `lib/mediaplan/mbaGetAssemble.ts:633-639`, `768` (`billingSchedule: filteredBillingSchedule`). Date-range filter may drop months; it does not remap `lineItems[].id`.
-5. Edit hydrates working/saved from that payload **verbatim**: `edit/page.tsx:3686-3707` → `parseSavedBillingSchedulePayload` (`edit/page.tsx:1090-1118`) deep-clones months including `lineItems[].id`.
+5. Edit hydrates working/saved from that payload **verbatim**: `parseSavedBillingForEditor` (`lib/mediaplan/parseSavedBillingForEditor.ts`, B4; was the inline `parseSavedBillingSchedulePayload`) → `parsePersistedBillingScheduleToMonths`, whose month-shaped passthrough deep-clones months including `lineItems[].id`.
 
 **Returned id shape = whatever `legacy_schedules.billingSchedule` last stored.** After a T4c postgres save that is **bare** (Hop 3). After a historical Xano-era blob that had editor-attached line detail it can be **decorated**. The GET does not decorate and does not strip.
 

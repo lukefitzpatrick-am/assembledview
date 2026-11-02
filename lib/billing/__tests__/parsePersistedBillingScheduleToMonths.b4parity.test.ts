@@ -5,9 +5,12 @@
  * three rows Luke decided (P5, P6):
  *   1. old Xano layout, Search or Social, no saved fee: the saved fee ($0), no estimate;
  *   2. a negative line amount keeps its minus sign;
- *   3. a negative saved fee keeps its minus sign (and so is not a fee: 0);
+ *   3. a negative saved fee or total keeps its minus sign;
  * plus row 4: line items with no month media total get it rebuilt from the
- * line items (the old editor got the same total by inference).
+ * line items (the old editor got the same header cents by inference: total
+ * minus fee, ad serving and production, and dropped the line items).
+ * The reviewer's probe cases (F3) are documented differences too: the editor
+ * now reads them as finance does. Live: 0 of each (2 Nov 2026).
  */
 import assert from "node:assert/strict"
 import test from "node:test"
@@ -135,16 +138,24 @@ test("row 2 (P5): a negative line amount keeps its minus sign", () => {
   assert.equal(parseSavedBillingForEditor(schedule)!.billingTotalFormatted, "-$490.00")
 })
 
-test("row 3 (P5): a negative saved fee keeps its minus sign (not added as a $50 fee)", () => {
+test("row 3 (P6): a negative saved fee or total keeps its minus sign", () => {
   const schedule = [{ monthYear: "July 2026", feeTotal: "-$50.00", mediaTypes: [{ mediaType: "Television", lineItems: [{ header1: "Seven", header2: "", amount: "$500.00", lineItemId: "x1TV1" }] }] }]
   const legacy = legacyEditorParse(schedule, FEES)!
   const lib = parsePersistedBillingScheduleToMonths(schedule)!
   assert.deepEqual(headers(plain(legacy.months)), [{ month: "July 2026", media: 50000, fee: 5000, adserving: 0, production: 0, total: 55000 }], "old: -$50 read as +$50")
-  // The lib counts only a positive saved fee, so a negative fee is not added at all.
-  assert.deepEqual(headers(plain(lib)), [{ month: "July 2026", media: 50000, fee: 0, adserving: 0, production: 0, total: 50000 }])
-  // A negative saved total on a total-only row was already kept (same both ways).
+  assert.deepEqual(headers(plain(lib)), [{ month: "July 2026", media: 50000, fee: -5000, adserving: 0, production: 0, total: 45000 }])
+  assert.equal(lib[0]!.feeTotal, "-$50.00")
+  assert.equal(parseSavedBillingForEditor(schedule)!.billingTotalFormatted, "$450.00")
+  // Total-only row: the old editor (and the lib before the B4 fix) made -$100 a $0 month.
   const totalOnly = [{ monthYear: "July 2026", totalAmount: "-$100.00", feeTotal: "$0.00" }]
-  assert.deepEqual(plain(parsePersistedBillingScheduleToMonths(totalOnly)), plain(legacyEditorParse(totalOnly, FEES)!.months))
+  assert.deepEqual(headers(plain(legacyEditorParse(totalOnly, FEES)!.months)), [{ month: "July 2026", media: 0, fee: 0, adserving: 0, production: 0, total: 0 }], "old: credit lost")
+  assert.deepEqual(headers(plain(parsePersistedBillingScheduleToMonths(totalOnly)!)), [{ month: "July 2026", media: -10000, fee: 0, adserving: 0, production: 0, total: -10000 }])
+  // A credit with a negative fee: media is the rest, and the saved total is kept.
+  const withFee = [{ monthYear: "July 2026", totalAmount: "-$110.00", feeTotal: "-$10.00" }]
+  assert.deepEqual(headers(plain(parsePersistedBillingScheduleToMonths(withFee)!)), [{ month: "July 2026", media: -10000, fee: -1000, adserving: 0, production: 0, total: -11000 }])
+  // A positive total-only row keeps its old floor: media never below 0.
+  const floor = [{ monthYear: "July 2026", totalAmount: "$100.00", feeTotal: "$150.00" }]
+  assert.deepEqual(plain(parsePersistedBillingScheduleToMonths(floor)), plain(legacyEditorParse(floor, FEES)!.months))
 })
 
 test("row 4 (P6): line items with no month media total get it rebuilt from the line items", () => {
@@ -171,6 +182,33 @@ test("row 4 (P6): line items with no month media total get it rebuilt from the l
   // Missing headers are filled: no fee or totals saved.
   const bare = [{ monthYear: "October 2026", lineItems: { search: [{ id: "a", header1: "", header2: "", monthlyAmounts: { "October 2026": 250 }, totalAmount: 250 }] } }]
   assert.deepEqual(headers(plain(parsePersistedBillingScheduleToMonths(bare)!)), [{ month: "October 2026", media: 25000, fee: 0, adserving: 0, production: 0, total: 25000 }])
+})
+
+test("F3 probe cases (documented differences): the editor now reads these as finance does", () => {
+  const tv = (amount: unknown) => [{ header1: "A", header2: "B", amount, lineItemId: "x" }]
+  const cases: Array<{ name: string; schedule: unknown; legacy: Record<string, unknown>; lib: Record<string, unknown> }> = [
+    { name: '"AU$" amount: the lib does not read it (old editor read $1,000)',
+      schedule: [{ monthYear: "July 2026", feeTotal: "$10.00", mediaTypes: [{ mediaType: "Television", lineItems: tv("AU$1,000.00") }] }],
+      legacy: { media: 100000, fee: 1000, adserving: 0, production: 0, total: 101000 },
+      lib: { media: 0, fee: 1000, adserving: 0, production: 0, total: 1000 } },
+    { name: "blank adservingTechFees with adServing: the lib reads the blank (old editor fell back to adServing)",
+      schedule: [{ monthYear: "July 2026", feeTotal: "$10.00", adservingTechFees: "", adServing: "$40.00", mediaTypes: [{ mediaType: "Television", lineItems: tv("$100.00") }] }],
+      legacy: { media: 10000, fee: 1000, adserving: 4000, production: 0, total: 15000 },
+      lib: { media: 10000, fee: 1000, adserving: 0, production: 0, total: 11000 } },
+    { name: "blank monthYear with month_year: the lib keeps the blank month (old editor used month_year)",
+      schedule: [{ monthYear: "", month_year: "July 2026", feeTotal: "$10.00", mediaTypes: [{ mediaType: "Television", lineItems: tv("$100.00") }] }],
+      legacy: { month: "July 2026", media: 10000, fee: 1000, adserving: 0, production: 0, total: 11000 },
+      lib: { month: "", media: 10000, fee: 1000, adserving: 0, production: 0, total: 11000 } },
+    { name: "snake media_types with no line items: the lib reads $0 (old editor used the saved total)",
+      schedule: [{ monthYear: "July 2026", totalAmount: "$500.00", media_types: [{ media_type: "Television" }] }],
+      legacy: { media: 50000, fee: 0, adserving: 0, production: 0, total: 50000 },
+      lib: { media: 0, fee: 0, adserving: 0, production: 0, total: 0 } },
+  ]
+  for (const c of cases) {
+    const month = (h: Record<string, unknown>) => ({ month: "July 2026", ...h })
+    assert.deepEqual(headers(plain(legacyEditorParse(c.schedule, FEES)!.months)), [month(c.legacy)], `${c.name} (old)`)
+    assert.deepEqual(headers(plain(parsePersistedBillingScheduleToMonths(c.schedule)!)), [month(c.lib)], c.name)
+  }
 })
 
 test("the edit page reads saved billing through the lib parser only", async () => {

@@ -359,5 +359,4 @@ function parseSavedBillingSchedulePayload(
   return { months: parsedBillingMonthRows, billingTotalFormatted, partial }
 }
 
-/** Grand total line for the billing table from month `totalAmount` strings (aligned with auto-calculate). */
 export { parseSavedBillingSchedulePayload as legacyEditorParse }

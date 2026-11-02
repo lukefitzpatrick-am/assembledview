@@ -45,9 +45,12 @@ const fmtAud = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AU
 /**
  * B4 (P6, Luke 2 Nov 2026): a saved month that has line items but no month
  * media total gets it rebuilt from its line items (and per-type media costs
- * when those are missing too), as the editor did before it moved to this
- * parser. Media total is the month's line amounts outside production
- * (production is its own header). A saved media total is never replaced.
+ * when those are missing too). Media total is the month's line amounts
+ * outside production (production is its own header). A saved media total is
+ * never replaced. The old editor parser did not do this: it worked media out
+ * as total minus fee, ad serving and production, and dropped the line items.
+ * Edge case: a saved `production` (even "$0.00") wins over the production
+ * line items for the month's production header.
  */
 function fillMissingMonthHeaders(month: BillingMonth): BillingMonth {
   const lineItems = month.lineItems as Record<string, BillingLineItem[] | undefined> | undefined
@@ -246,13 +249,8 @@ export function parsePersistedBillingScheduleToMonths(
       })
     }
 
-    let finalFeeTotal = 0
-    if (entry.feeTotal) {
-      const savedFeeTotal = parseMoney(entry.feeTotal) ?? 0
-      if (savedFeeTotal > 0) {
-        finalFeeTotal = savedFeeTotal
-      }
-    }
+    // The saved fee as saved, minus sign included (P6): a credit stays a credit.
+    const finalFeeTotal = entry.feeTotal ? parseMoney(entry.feeTotal) ?? 0 : 0
 
     const adservingTechFees = parseMoney(entry.adservingTechFees ?? entry.adServing ?? 0) ?? 0
     const production = parseMoney(entry.production ?? 0) ?? 0
@@ -269,18 +267,22 @@ export function parsePersistedBillingScheduleToMonths(
       const feeLegacy = parseMoneySaved(entry.feeTotal)
       const adservLegacy = parseMoneySaved(entry.adservingTechFees ?? entry.adServing)
       const prodLegacy = parseMoneySaved(entry.production)
+      // Minus signs are kept here too (P6): a -$100 credit month stays -$100.
+      // A positive total keeps its old floor (media never below 0).
       if (
         monthYear &&
-        (legacyTotal > 0 || feeLegacy > 0 || adservLegacy > 0 || prodLegacy > 0)
+        (legacyTotal !== 0 || feeLegacy !== 0 || adservLegacy !== 0 || prodLegacy !== 0)
       ) {
         const inferredMedia =
           legacyTotal > 0
             ? Math.max(0, legacyTotal - feeLegacy - adservLegacy - prodLegacy)
-            : totalMedia
-        const useMedia = inferredMedia > 0 ? inferredMedia : totalMedia
-        const useFee = feeLegacy > 0 ? feeLegacy : finalFeeTotal
-        const useAd = adservLegacy > 0 ? adservLegacy : adservingTechFees
-        const useProd = prodLegacy > 0 ? prodLegacy : production
+            : legacyTotal < 0
+              ? legacyTotal - feeLegacy - adservLegacy - prodLegacy
+              : totalMedia
+        const useMedia = inferredMedia !== 0 ? inferredMedia : totalMedia
+        const useFee = feeLegacy !== 0 ? feeLegacy : finalFeeTotal
+        const useAd = adservLegacy !== 0 ? adservLegacy : adservingTechFees
+        const useProd = prodLegacy !== 0 ? prodLegacy : production
         const productionLineItemsSumLegacy = (lineItems.production ?? []).reduce(
           (sum: number, item) => sum + (item.totalAmount ?? 0),
           0
@@ -292,7 +294,7 @@ export function parsePersistedBillingScheduleToMonths(
         mediaCosts.production = currencyFormatter.format(reconciledProductionLegacy)
         const finalProductionFormattedLegacy = currencyFormatter.format(reconciledProductionLegacy)
         totalAmountNum =
-          legacyTotal > 0
+          legacyTotal !== 0
             ? legacyTotal
             : useMedia + useFee + useAd + reconciledProductionLegacy
         return {
