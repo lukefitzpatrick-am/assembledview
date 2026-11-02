@@ -66,9 +66,6 @@
   "files:lib/webReport/__tests__/view.test.tsx",
   "files:lib/xano/pacing-types.ts",
   "unlisted:fast-xml-parser scripts/reports/describe-pptx-layouts.ts",
-  "unlisted:playwright scripts/verify/avu4-10-screenshot.mjs",
-  "unlisted:playwright scripts/verify/avu4-8-screenshot.mjs",
-  "unlisted:playwright scripts/verify/avu4-9-screenshot.mjs",
   "unlisted:postcss-load-config postcss.config.mjs",
   "unlisted:sharp lib/reports/deckCreative/loadDeckCreatives.ts",
   "unlisted:sharp scripts/spikes/report-deck-skill/run-deck.ts"
