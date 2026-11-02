@@ -171,59 +171,6 @@ export function mapMbaCampaignResponseVersionsToListEntries(
   return entries
 }
 
-/** All versions for one MBA from Postgres (newest first). */
-export async function fetchVersionsForMba(mbaNumber: string): Promise<MediaPlanVersionListEntry[]> {
-  const { loadDashboardVersionsForMba } = await import('@/lib/api/dashboard/planRows')
-  const all = await loadDashboardVersionsForMba(String(mbaNumber).trim())
-  const normalisedMba = String(mbaNumber).trim()
-  const out: MediaPlanVersionListEntry[] = []
-  for (const raw of all) {
-    const v = raw as Record<string, unknown>
-    const candidate = String(v.mba_number ?? "").trim()
-    if (candidate !== normalisedMba) continue
-    const versionNumber = Number(v.version_number ?? v.versionNumber)
-    if (!Number.isFinite(versionNumber) || versionNumber <= 0) continue
-    const createdAt =
-      typeof v.created_at === "number" && Number.isFinite(v.created_at)
-        ? new Date(v.created_at).toISOString()
-        : typeof v.created_at === "string"
-          ? v.created_at.trim()
-          : ""
-    const planDate =
-      typeof v.plan_date === "string" && v.plan_date.trim()
-        ? v.plan_date.trim()
-        : createdAt ||
-          (typeof v.updated_at === "string" && v.updated_at.trim()
-            ? v.updated_at.trim()
-            : undefined)
-    const idRaw = v.id
-    const id =
-      typeof idRaw === "number"
-        ? idRaw
-        : typeof idRaw === "string" && Number.isFinite(Number(idRaw))
-          ? Number(idRaw)
-          : undefined
-    out.push({
-      versionNumber,
-      planDate,
-      id,
-      publishedAt:
-        v.published_at != null
-          ? String(v.published_at)
-          : v.publishedAt != null
-            ? String(v.publishedAt)
-            : null,
-      publishedBy:
-        v.published_by != null
-          ? String(v.published_by)
-          : v.publishedBy != null
-            ? String(v.publishedBy)
-            : null,
-    })
-  }
-  return out.sort((a, b) => b.versionNumber - a.versionNumber)
-}
-
 function buildYtdCountBySlugFromMaster(
   masterPlans: any[],
   fyWindow: ReturnType<typeof getAustralianFinancialYearWindow>
@@ -1047,35 +994,4 @@ export async function exportDashboardData(slug: string, format: 'csv' | 'json' =
   })
 
   return csvRows.join('\n')
-}
-
-// Helper functions for async chart loading
-export async function getSpendByMediaTypeData(slug: string): Promise<Array<{
-  mediaType: string
-  amount: number
-  percentage: number
-}>> {
-  const dashboardData = await getClientDashboardData(slug)
-  return dashboardData?.spendByMediaType || []
-}
-
-export async function getSpendByCampaignData(slug: string): Promise<Array<{
-  campaignName: string
-  mbaNumber: string
-  amount: number
-  percentage: number
-}>> {
-  const dashboardData = await getClientDashboardData(slug)
-  return dashboardData?.spendByCampaign || []
-}
-
-export async function getMonthlySpendData(slug: string): Promise<Array<{
-  month: string
-  data: Array<{
-    mediaType: string
-    amount: number
-  }>
-}>> {
-  const dashboardData = await getClientDashboardData(slug)
-  return dashboardData?.monthlySpend || []
 }

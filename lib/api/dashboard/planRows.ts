@@ -1,9 +1,7 @@
 import "server-only"
 
 import {
-  readPlanMasterByMba,
   readPlanMasters,
-  readPlanVersionsByMba,
   readPlanVersionsForMbas,
   readPublishedPointerPlanVersions,
 } from "@/lib/data/readMediaPlans"
@@ -145,14 +143,4 @@ export function publishedCutByMba(
     publishedVersionIdByMba.set(key, pointer)
   }
   return { publishedByMba, publishedVersionIdByMba }
-}
-
-export async function loadDashboardVersionsForMba(
-  mbaNumber: string,
-): Promise<Array<Record<string, unknown>>> {
-  const [versions, master] = await Promise.all([
-    readPlanVersionsByMba(mbaNumber),
-    readPlanMasterByMba(mbaNumber),
-  ])
-  return stampVersionClientsFromMasters(versions, master ? [master] : [])
 }

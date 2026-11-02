@@ -47,7 +47,7 @@ Helpers:
 | **admin-only** | **151** | Finance-admin, codex-internal, inline admin, catch-all proxies, staff plan save/PDF/KPI writes, creative DELETE (client blocked → admin-only on two-role surface) |
 | **tenant-scoped** | **56** | **34 OK** · **22 DEFECT** |
 | **public** | **16** | 15 cron methods + 1 signed frame |
-| **session-ref** | **6** | `me`; publishers GET ×3; best-practice GET; spend-parity (soft-spot — 404 in prod) |
+| **session-ref** | **6** | `me`; publishers GET ×3; best-practice GET; spend-parity (soft-spot — 404 in prod; deleted 3 Nov 2026, B9 Q5) |
 
 Recount check: 151 + 56 + 16 + 6 = **229**.
 
@@ -109,7 +109,7 @@ Confidence on class totals: **~90%** — method bodies verified for P0/P1 defect
 
 | Handler | Note | Confidence |
 |---|---|---|
-| `GET /api/dashboard/spend-parity` | No role gate; **404 in production**; non-prod returns book-wide parity. | 85% intentional tooling |
+| `GET /api/dashboard/spend-parity` | No role gate; **404 in production**; non-prod returns book-wide parity. Deleted 3 Nov 2026 (B9 Q5) | 85% intentional tooling |
 | `GET /api/clients/[id]` | Client own-id OK; any non-client session = any id. Fine while only `admin\|client`. | 80% |
 | `DELETE /api/creative-assets/[id]` | Blocks `client` role only — no `checkClientMbaAccess`. Equivalent to admin-only today; docs in `API-DYNAMIC-ROUTE-GATES.md` claim check on DELETE (drift). | 88% |
 | `GET/POST …/material-instructions` | Inline admin only; no MBA tenant check (staff product). | 90% admin-only by design |
@@ -123,7 +123,7 @@ Goal: put **cross-tenant reporting and ops** behind one namespace so role is enf
 | Move / keep | Target | Gate |
 |---|---|---|
 | `dashboard/global-monthly-*-spend` | `/api/admin/dashboard/global-monthly-*-spend` | `requireAdmin` (already admin) |
-| `dashboard/spend-parity` | `/api/admin/dashboard/spend-parity` | `requireAdmin` + keep non-prod 404 or delete |
+| `dashboard/spend-parity` | n/a | Deleted 3 Nov 2026 (B9 Q5) |
 | `pacing/admin/orphans/*` | keep under `/api/pacing/admin/*` **or** `/api/admin/pacing/orphans/*` | already `requireAdmin` |
 | Existing `/api/admin/*` (users, client-hub, migration-diffs, fee-snapshots, finance-periods) | keep | already role-gated |
 | Finance book-wide reads (`finance/data`, forecast, payables, …) | optional `/api/admin/finance/*` alias; keep current paths during migrate | `requireFinanceAdmin` |
@@ -241,7 +241,7 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | `dashboard/[slug]/delivered` | GET | tenant-scoped | same | **OK** |
 | `dashboard/global-monthly-client-spend` | GET | admin-only | `requireRole(admin)` | — |
 | `dashboard/global-monthly-publisher-spend` | GET | admin-only | `requireRole(admin)` | — |
-| `dashboard/spend-parity` | GET | session-ref / soft | NONE (404 in prod) | soft-spot |
+| `dashboard/spend-parity` | GET | deleted 3 Nov 2026 (B9 Q5) | — | — |
 | `reports/download` | GET | tenant-scoped | `checkClientMbaAccess` | **OK** |
 | `mi/exports/download` | GET | tenant-scoped | `checkClientMbaAccess` | **OK** |
 | `naming/exports/download` | GET | tenant-scoped | `checkClientMbaAccess` | **OK** |

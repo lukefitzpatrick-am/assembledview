@@ -7,10 +7,6 @@ export {
   getClientHubSummaries,
   getClientHubSummariesForAdminHub,
   exportDashboardData,
-  getSpendByMediaTypeData,
-  getSpendByCampaignData,
-  getMonthlySpendData,
-  fetchVersionsForMba,
   mapMbaCampaignResponseVersionsToListEntries,
   type MediaPlanVersionListEntry,
 } from "./dashboard/client"
@@ -18,7 +14,6 @@ export {
 export { getPublisherDashboardData } from "./dashboard/publisher"
 
 export {
-  getGlobalMonthlySpend,
   getGlobalMonthlyPublisherSpend,
   getGlobalMonthlyClientSpend,
 } from "./dashboard/global"

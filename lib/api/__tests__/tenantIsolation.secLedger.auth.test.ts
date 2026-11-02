@@ -1,5 +1,5 @@
 /**
- * SEC-14 / expected-spend local MBA gate / spend-parity admin gate.
+ * SEC-14 / expected-spend local MBA gate.
  * Requires Node 22+ with `--experimental-test-module-mocks`.
  */
 import assert from "node:assert/strict"
@@ -165,40 +165,5 @@ test("GET expected-spend-to-date — own MBA passes local gate", { skip }, async
     assert.equal(typeof body.expectedSpendToDate, "number")
   } finally {
     globalThis.fetch = originalFetch
-  }
-})
-
-test("GET /api/dashboard/spend-parity — non-admin blocked", { skip }, async () => {
-  requireRoleMock.mock.resetCalls()
-  requireRoleMock.mock.mockImplementation(async () => ({
-    response: NextResponse.json({ error: "Unauthorized" }, { status: 403 }),
-  }))
-
-  const { GET } = await import("../../../app/api/dashboard/spend-parity/route.js")
-  const res = await GET(new NextRequest("http://localhost/api/dashboard/spend-parity"))
-  assert.equal(res.status, 403)
-  assert.equal(requireRoleMock.mock.calls.length, 1)
-  assert.deepEqual(requireRoleMock.mock.calls[0]!.arguments[1], ["admin"])
-})
-
-test("GET /api/dashboard/spend-parity — admin reaches handler (prod still 404)", { skip }, async () => {
-  requireRoleMock.mock.resetCalls()
-  requireRoleMock.mock.mockImplementation(async () => ({
-    session: { user: { email: "admin@example.com" } },
-    roles: ["admin"],
-    clientSlug: null,
-    grantedByAllowlist: false,
-  }))
-
-  const prev = process.env.NODE_ENV
-  const env = process.env as { NODE_ENV?: string }
-  env.NODE_ENV = "production"
-  try {
-    const { GET } = await import("../../../app/api/dashboard/spend-parity/route.js")
-    const res = await GET(new NextRequest("http://localhost/api/dashboard/spend-parity"))
-    assert.equal(res.status, 404)
-    assert.equal(requireRoleMock.mock.calls.length, 1)
-  } finally {
-    env.NODE_ENV = prev
   }
 })

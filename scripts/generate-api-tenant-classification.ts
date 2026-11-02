@@ -89,11 +89,6 @@ function adminConsolidationCandidates(rows: HandlerRow[]): string {
       links: "same as client-spend twin",
     },
     {
-      path: "/api/dashboard/spend-parity",
-      gate: "requireRole(admin); 404 in production",
-      links: "ops/debug bookmarks only",
-    },
-    {
       path: "/api/pacing/admin/orphans*",
       gate: "requireAdmin",
       links: "pacing orphans admin UI; optional rename to `/api/admin/pacing/orphans*`",

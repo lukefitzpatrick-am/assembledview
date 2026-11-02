@@ -120,11 +120,6 @@ export interface ClientDashboardData {
   selectedFinancialYear?: number
 }
 
-export interface GlobalMonthlySpend {
-  month: string
-  amount: number
-}
-
 export interface GlobalMonthlyPublisherSpend {
   month: string
   data: Array<{

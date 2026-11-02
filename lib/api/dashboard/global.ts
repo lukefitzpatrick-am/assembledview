@@ -1,22 +1,15 @@
 import {
-  GlobalMonthlySpend,
   GlobalMonthlyPublisherSpend,
   GlobalMonthlyClientSpend,
 } from '@/lib/types/dashboard'
-import { getCachedMediaPlanVersions } from '@/lib/api/mediaPlanVersionsCache'
 import {
   fetchDashboardMonthlyClientSpendFromPostgres,
   fetchDashboardMonthlyPublisherSpendFromPostgres,
 } from '@/lib/data/dashboardMonthlySpend'
-import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { getCachedClients } from '@/lib/finance/xanoReferenceCache'
 import {
   getAustralianFinancialYear,
-  normalizeSchedule,
   parseMonthYear,
-  getMonthYearValue,
-  parseMoney,
-  resolveDashboardCommercialLiveVersionRow,
 } from './shared'
 
 /**
@@ -29,130 +22,6 @@ async function fetchDashboardMonthlyPublisherSpendRows(): Promise<any[]> {
 
 async function fetchDashboardMonthlyClientSpendRows(): Promise<any[]> {
   return fetchDashboardMonthlyClientSpendFromPostgres()
-}
-
-/**
- * Global monthly spend (all clients), sourced from deliverySchedule on media_plan_versions
- * with billingSchedule as a fallback. Rules: booked/approved/completed, highest matching version per MBA,
- * current AU FY (Jul–Jun).
- */
-export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
-  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
-
-  const { data: allVersions } = await getCachedMediaPlanVersions()
-
-  const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
-    const key = mbaJoinKey(version?.mba_number)
-    if (!key) return acc
-    acc[key] = acc[key] || []
-    acc[key].push(version)
-    return acc
-  }, {} as Record<string, any[]>)
-
-  // VC1-5: tip via published_at (no master tip here); commercial via BAC on that tip only.
-  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
-    const chosen = resolveDashboardCommercialLiveVersionRow(versions)
-    if (chosen) acc[mbaNumber] = chosen
-    return acc
-  }, {} as Record<string, any>)
-
-  const deliveryMonthlyMap: Record<string, number> = {}
-  fyMonths.forEach(month => { deliveryMonthlyMap[month] = 0 })
-
-  const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
-
-  Object.values(highestApprovedVersionByMBA).forEach(version => {
-    const schedule = normalizeSchedule(
-      (version as any)?.deliverySchedule ||
-        (version as any)?.delivery_schedule ||
-        (version as any)?.billingSchedule ||
-        (version as any)?.billing_schedule
-    )
-    if (!Array.isArray(schedule) || schedule.length === 0) return
-
-    schedule.forEach(entry => {
-      const monthDate = parseMonthYear(getMonthYearValue(entry))
-      if (!monthDate || monthDate < fyStart || monthDate > fyEnd) return
-      const monthLabel = monthLabelFromDate(monthDate)
-
-      const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
-      mediaTypes.forEach((mt: any) => {
-        const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
-        const totalForType = lineItems.reduce((sum: number, li: any) => sum + parseMoney(li?.amount), 0)
-        if (totalForType <= 0) return
-        deliveryMonthlyMap[monthLabel] = (deliveryMonthlyMap[monthLabel] || 0) + totalForType
-      })
-    })
-  })
-
-  return fyMonths.map(month => ({
-    month,
-    amount: deliveryMonthlyMap[month] || 0
-  }))
-}
-
-/**
- * Legacy: fetch-all media_plan_versions + app-side aggregation.
- * Kept for parity harness; remove after parity gate passes.
- */
-export async function getGlobalMonthlyPublisherSpendLegacy(): Promise<GlobalMonthlyPublisherSpend[]> {
-  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
-
-  const { data: allVersions } = await getCachedMediaPlanVersions()
-
-  const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
-    const key = mbaJoinKey(version?.mba_number)
-    if (!key) return acc
-    acc[key] = acc[key] || []
-    acc[key].push(version)
-    return acc
-  }, {} as Record<string, any[]>)
-
-  // VC1-5: tip via published_at; commercial via BAC on that tip only.
-  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
-    const chosen = resolveDashboardCommercialLiveVersionRow(versions)
-    if (chosen) acc[mbaNumber] = chosen
-    return acc
-  }, {} as Record<string, any>)
-
-  const deliveryMonthlyMap: Record<string, Record<string, number>> = {}
-  fyMonths.forEach(month => { deliveryMonthlyMap[month] = {} })
-
-  const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
-
-  Object.values(highestApprovedVersionByMBA).forEach(version => {
-    const schedule = normalizeSchedule(
-      (version as any)?.deliverySchedule ||
-        (version as any)?.delivery_schedule ||
-        (version as any)?.billingSchedule ||
-        (version as any)?.billing_schedule
-    )
-    if (!Array.isArray(schedule) || schedule.length === 0) return
-
-    schedule.forEach(entry => {
-      const monthDate = parseMonthYear(getMonthYearValue(entry))
-      if (!monthDate || monthDate < fyStart || monthDate > fyEnd) return
-      const monthLabel = monthLabelFromDate(monthDate)
-
-      const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
-      mediaTypes.forEach((mt: any) => {
-        const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
-        lineItems.forEach((li: any) => {
-          const publisher = li?.header1 || 'Unspecified'
-          const amount = parseMoney(li?.amount)
-          if (amount <= 0) return
-          deliveryMonthlyMap[monthLabel][publisher] = (deliveryMonthlyMap[monthLabel][publisher] || 0) + amount
-        })
-      })
-    })
-  })
-
-  return fyMonths.map(month => ({
-    month,
-    data: Object.entries(deliveryMonthlyMap[month] || {})
-      .map(([publisher, amount]) => ({ publisher, amount }))
-      .filter(item => item.amount > 0)
-  }))
 }
 
 /**
@@ -186,87 +55,6 @@ export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPub
       .map(([publisher, amount]) => ({ publisher, amount }))
       .filter(item => item.amount > 0)
   }))
-}
-
-/**
- * Legacy: fetch-all media_plan_versions + app-side aggregation.
- * Kept for parity harness; remove after parity gate passes.
- */
-export async function getGlobalMonthlyClientSpendLegacy(): Promise<{
-  data: GlobalMonthlyClientSpend[]
-  clientColors: Record<string, string>
-}> {
-  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
-
-  // Fetch client colors map (coalesced via finance reference cache)
-  let clientColors: Record<string, string> = {}
-  try {
-    const clients = await getCachedClients()
-    clientColors = clients.reduce((acc: Record<string, string>, c: any) => {
-      if (c.mp_client_name && c.brand_colour) {
-        acc[c.mp_client_name] = c.brand_colour
-      }
-      return acc
-    }, {})
-  } catch (err) {
-    console.warn('Global monthly client spend: unable to fetch client colors', err)
-  }
-
-  const { data: allVersions } = await getCachedMediaPlanVersions()
-
-  const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
-    const key = mbaJoinKey(version?.mba_number)
-    if (!key) return acc
-    acc[key] = acc[key] || []
-    acc[key].push(version)
-    return acc
-  }, {} as Record<string, any[]>)
-
-  // VC1-5: tip via published_at; commercial via BAC on that tip only.
-  const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
-    const chosen = resolveDashboardCommercialLiveVersionRow(versions)
-    if (chosen) acc[mbaNumber] = chosen
-    return acc
-  }, {} as Record<string, any>)
-
-  const deliveryMonthlyMap: Record<string, Record<string, number>> = {}
-  fyMonths.forEach(month => { deliveryMonthlyMap[month] = {} })
-
-  const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
-
-  Object.values(highestApprovedVersionByMBA).forEach(version => {
-    const clientName = version?.mp_client_name || 'Unspecified'
-    const schedule = normalizeSchedule(
-      (version as any)?.deliverySchedule ||
-        (version as any)?.delivery_schedule ||
-        (version as any)?.billingSchedule ||
-        (version as any)?.billing_schedule
-    )
-    if (!Array.isArray(schedule) || schedule.length === 0) return
-
-    schedule.forEach(entry => {
-      const monthDate = parseMonthYear(getMonthYearValue(entry))
-      if (!monthDate || monthDate < fyStart || monthDate > fyEnd) return
-      const monthLabel = monthLabelFromDate(monthDate)
-
-      const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
-      mediaTypes.forEach((mt: any) => {
-        const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
-        const totalForType = lineItems.reduce((sum: number, li: any) => sum + parseMoney(li?.amount), 0)
-        if (totalForType <= 0) return
-        deliveryMonthlyMap[monthLabel][clientName] = (deliveryMonthlyMap[monthLabel][clientName] || 0) + totalForType
-      })
-    })
-  })
-
-  const data: GlobalMonthlyClientSpend[] = fyMonths.map(month => ({
-    month,
-    data: Object.entries(deliveryMonthlyMap[month] || {})
-      .map(([client, amount]) => ({ client, amount }))
-      .filter(item => item.amount > 0)
-  }))
-
-  return { data, clientColors }
 }
 
 /**
