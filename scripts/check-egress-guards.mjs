@@ -5,14 +5,13 @@
  * 1. Empty `db.select()` from `schema.mediaPlanVersions` (or a same-file alias)
  *    with no `.where(` on that chain. A select that passes a column object is
  *    narrowed and passes. One allowlisted reader remains unscoped.
- * 2. Runtime calls of `xanoMediaPlansUrl`, `getXanoClientsCollectionUrl`, or
- *    `fetchAllXanoPages` under app/ or lib/. Definitions are not calls.
- *    `fetchAllXanoPagesWithCompleteness` is a different function.
- *    A call is allowed only when its enclosing function is on
- *    `MAIN_ONLY_COLD_XANO_BRANCHES`. Any other call fails.
- *    The known-live list (five FX-1 calls, printed as a WARNING on every run)
- *    was removed on 2026-10-28 (PLAT-6): none of those functions calls a
- *    Xano helper any more, and the check passes without it.
+ * 2. No Xano egress under app/ or lib/ (tests excluded): no hardcoded Xano
+ *    host (`<sub>.xano.io`, or a URL whose host ends in xano.io) and no
+ *    `XANO_*` env read (`process.env.XANO_*` / `process.env["XANO_*"]`).
+ *    No allowlist. (B6, DEAD-14: the old call-name list and its
+ *    cold-branch allowlist named helpers and files that no longer exist.)
+ *    A bare "xano.io" string used to recognise old stored vault URLs is not
+ *    a host and is not flagged.
  *
  * Frozen names this check does not flag (do not rename them):
  *   MART.XANO_LINE_ITEMS_SNAPSHOT
@@ -26,12 +25,6 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const SCAN_DIRS = ["app", "lib"]
 const CODE_EXT = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs"])
 
-const XANO_CALLS = new Set([
-  "xanoMediaPlansUrl",
-  "getXanoClientsCollectionUrl",
-  "fetchAllXanoPages",
-])
-
 /** Unscoped full version reads that are still intentional. Rule 1 only — do not add entries. */
 const UNSCOPED_VERSION_ALLOWLIST = [
   {
@@ -39,94 +32,6 @@ const UNSCOPED_VERSION_ALLOWLIST = [
     fn: "fetchPlanVersionsFromPostgres",
     reason:
       "full history for lib/finance/relevantPlanVersions.ts; scoping pending finance decision",
-  },
-]
-
-function coldXanoReason(flag) {
-  return `cold Xano branch behind ${flag}; removed when localhost severance lands on main`
-}
-
-/** Rule 2. Flag-gated Xano branches. Not printed. */
-const MAIN_ONLY_COLD_XANO_BRANCHES = [
-  {
-    file: "lib/api/fetchChannelLineItemsByMba.ts",
-    fn: "resolveVersionScopeForChannelGet",
-    reason: coldXanoReason("DATA_BACKEND_PLANS"),
-  },
-  {
-    file: "lib/api/replaceChannelLineItems.ts",
-    fn: "listExistingRows",
-    reason: coldXanoReason("WRITE_BACKEND"),
-  },
-  {
-    file: "lib/api.ts",
-    fn: "getMediaPlanVersions",
-    reason: coldXanoReason("DATA_BACKEND_PLANS"),
-  },
-  {
-    file: "lib/data/mirrorToXano.ts",
-    fn: "defaultUpsertVersion",
-    reason: coldXanoReason("XANO_MIRROR_ENABLED"),
-  },
-  {
-    file: "lib/data/readClients.ts",
-    fn: "fetchClientsFromXano",
-    reason: coldXanoReason("DATA_BACKEND_CLIENTS"),
-  },
-  {
-    file: "lib/data/readClients.ts",
-    fn: "fetchClientByIdFromXano",
-    reason: coldXanoReason("DATA_BACKEND_CLIENTS"),
-  },
-  {
-    file: "lib/data/readKpi.ts",
-    fn: "fetchCampaignKpisForMbasFromXano",
-    reason: coldXanoReason("DATA_BACKEND_KPI"),
-  },
-  {
-    file: "lib/data/readMediaPlans.ts",
-    fn: "fetchPlanMastersFromXano",
-    reason: coldXanoReason("DATA_BACKEND_PLANS"),
-  },
-  {
-    file: "lib/data/readMediaPlans.ts",
-    fn: "fetchPlanVersionsFromXano",
-    reason: coldXanoReason("DATA_BACKEND_PLANS"),
-  },
-  {
-    file: "lib/data/readMediaPlans.ts",
-    fn: "readPlanVersionsByMba",
-    reason: coldXanoReason("DATA_BACKEND_PLANS"),
-  },
-  {
-    file: "lib/data/readMediaPlans.ts",
-    fn: "probePlansShadowDiffs",
-    reason: coldXanoReason("DATA_BACKEND_PLANS"),
-  },
-  {
-    file: "lib/data/readPacing.ts",
-    fn: "fetchPacingMastersFromXano",
-    reason: coldXanoReason("DATA_BACKEND_PACING"),
-  },
-  {
-    file: "lib/data/readPacing.ts",
-    fn: "fetchPacingVersionsFromXano",
-    reason: coldXanoReason("DATA_BACKEND_PACING"),
-  },
-  {
-    file: "lib/finance/relevantPlanVersions.ts",
-    fn: "fetchMastersAndAllVersions",
-    reason: coldXanoReason("DATA_BACKEND_PLANS"),
-  },
-  {
-    file: "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
-    fn: "fetchSearchLineItemsForMba",
-    reason: coldXanoReason("DATA_BACKEND_PLANS"),
-  },
-  {
-    file: "lib/pacing/plans/resolveLivePlanLineItems.ts",
-    fn: "fetchXanoLineItemsForMba",
-    reason: coldXanoReason("DATA_BACKEND_PLANS"),
   },
 ]
 
@@ -154,14 +59,20 @@ function walk(dir, out = []) {
   return out
 }
 
-/** Blank comments and string contents. Keep indexes and newlines. `${}` stays code. */
-function maskNonCode(src) {
+/**
+ * Blank comments and (unless keepStrings) string contents. Keep indexes and
+ * newlines. `${}` stays code.
+ */
+function maskNonCode(src, { keepStrings = false } = {}) {
   const out = Array.from(src)
   let i = 0
   const n = src.length
 
   function blank(at) {
     out[at] = src[at] === "\n" ? "\n" : " "
+  }
+  function blankStr(at) {
+    if (!keepStrings) blank(at)
   }
 
   function scanCode(inInterpolation) {
@@ -193,46 +104,46 @@ function maskNonCode(src) {
       }
       if (c === "'" || c === '"') {
         const quote = c
-        blank(i)
+        blankStr(i)
         i++
         while (i < n) {
           const ch = src[i]
           if (ch === "\\" && i + 1 < n) {
-            blank(i)
-            blank(i + 1)
+            blankStr(i)
+            blankStr(i + 1)
             i += 2
             continue
           }
-          blank(i)
+          blankStr(i)
           i++
           if (ch === quote) break
         }
         continue
       }
       if (c === "`") {
-        blank(i)
+        blankStr(i)
         i++
         while (i < n) {
           const ch = src[i]
           if (ch === "\\" && i + 1 < n) {
-            blank(i)
-            blank(i + 1)
+            blankStr(i)
+            blankStr(i + 1)
             i += 2
             continue
           }
           if (ch === "$" && src[i + 1] === "{") {
-            blank(i)
-            blank(i + 1)
+            blankStr(i)
+            blankStr(i + 1)
             i += 2
             scanCode(true)
             continue
           }
           if (ch === "`") {
-            blank(i)
+            blankStr(i)
             i++
             break
           }
-          blank(i)
+          blankStr(i)
           i++
         }
         continue
@@ -367,12 +278,6 @@ function isAllowlisted(rel, fn) {
   return UNSCOPED_VERSION_ALLOWLIST.some((entry) => entry.file === rel && entry.fn === fn)
 }
 
-function isListedXanoCall(rel, fn) {
-  return (
-    MAIN_ONLY_COLD_XANO_BRANCHES.some((entry) => entry.file === rel && entry.fn === fn)
-  )
-}
-
 function unscopedVersionHits(rel, src) {
   const hits = []
   const aliases = versionAliases(src)
@@ -400,19 +305,17 @@ function unscopedVersionHits(rel, src) {
   return hits
 }
 
-function xanoCallHits(rel, src) {
+/** Rule 2 on comment-free source with strings kept. */
+function xanoEgressHits(rel, src) {
   const hits = []
-  const ranges = functionRanges(src)
-  const re = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
+  const hostRe = /(?:[A-Za-z0-9-]+\.xano\.io\b|:\/\/[^\s'"`/]*xano\.io\b)/g
   let m
-  while ((m = re.exec(src))) {
-    if (!XANO_CALLS.has(m[1])) continue
-    const before = src.slice(Math.max(0, m.index - 30), m.index)
-    if (/\bfunction\s+$/.test(before)) continue
-    const fn = enclosingFunction(ranges, m.index)
-    if (isListedXanoCall(rel, fn)) continue
-    const where = fn ? ` in ${fn}` : ""
-    hits.push(`${rel}:${lineAt(src, m.index)} calls ${m[1]}${where}`)
+  while ((m = hostRe.exec(src))) {
+    hits.push(`${rel}:${lineAt(src, m.index)} hardcoded Xano host ${m[0]}`)
+  }
+  const envRe = /process\.env(?:\.XANO_[A-Za-z0-9_]*|\[\s*["'`]XANO_[A-Za-z0-9_]*)/g
+  while ((m = envRe.exec(src))) {
+    hits.push(`${rel}:${lineAt(src, m.index)} reads ${m[0].replace(/\[\s*["'`]/, ".")}`)
   }
   return hits
 }
@@ -426,9 +329,9 @@ for (const dir of SCAN_DIRS) {
 const hits = []
 for (const file of files) {
   const rel = posix(path.relative(rootDir, file))
-  const masked = maskNonCode(fs.readFileSync(file, "utf8"))
-  hits.push(...unscopedVersionHits(rel, masked))
-  if (!isTestPath(rel)) hits.push(...xanoCallHits(rel, masked))
+  const raw = fs.readFileSync(file, "utf8")
+  hits.push(...unscopedVersionHits(rel, maskNonCode(raw)))
+  if (!isTestPath(rel)) hits.push(...xanoEgressHits(rel, maskNonCode(raw, { keepStrings: true })))
 }
 
 if (hits.length) {
