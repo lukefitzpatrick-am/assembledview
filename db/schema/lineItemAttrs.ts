@@ -6,7 +6,8 @@ const optText = z.string().nullish()
 
 /**
  * Per-channel validators for `line_items.attrs`.
- * Fields derived from xano-tables-schema.json channel tables (2026-07-30),
+ * Fields derived from the Xano channel tables in xano-tables-schema.json
+ * (2026-07-30; archived at docs/archive/xano/),
  * excluding columns promoted to first-class `line_items` columns.
  * `.passthrough()` keeps legacy unknown keys.
  */
