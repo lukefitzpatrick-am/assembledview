@@ -1,6 +1,6 @@
 # Queue: B6 and B8 items left by B5 / B5a
 
-Status: B6 holds done (3 Nov 2026); B8 list open. Inputs for the B8 prompt pack. Delete or mark done when B8 lands.
+Status: B6 holds done (3 Nov 2026). B8 list done (3 Nov 2026) except the dependencies row: only `@babel/runtime` and `core-js` went; the rest of that row is still open. Kept for the record.
 
 ## Held for B6 (backend switch and shadow leftovers): done
 
@@ -19,7 +19,15 @@ No code reads these after B6. Delete them from production and preview.
 
 Keep: `DATA_BACKEND_FINANCE_SCHEDULE` (a separate live switch, `shadow` today), `SAVE_GATE_FULL_SCOPE`.
 
-## B8 list (no app caller after B5; reviewer's list merged with the builder's)
+## B8 list (no app caller after B5; reviewer's list merged with the builder's): done
+
+Done in B8 (container commits, queued as patches 0010 to 0014):
+- Finance helpers (0010): `humaniseBillingSaveError.ts`, the four `preservePriorBilling.ts` exports, `applyDateBasisKeepOrReset.ts`, `c1FullScopeGate.ts`; `assertCoreScheduleParity` moved to `lib/finance/__tests__/fixtures` (test helper only).
+- Publish and save helpers (0011): `shouldRunDeferredMasterPublish`, `shouldBlockEmptyPublish`, `SESSION_EXPIRED_PUBLISH_MESSAGE`, `createSemaphore.ts` with the `test:xano-mirror` script, the create page's unused `investmentPerMonth` memo, and `mergeInvestmentMonths.ts`, which that left without a caller.
+- Data (0012): `readChannelLineItems`, `filterXanoItemsToPublishedTips` (and the helpers only it used).
+- Planning (0013): the dead 401 and `XANO_API_KEY` branches; a missing `DATABASE_URL` stays 502 (C-167, Luke's call).
+- Dependencies (0014): `@babel/runtime` and `core-js` removed from `package.json`; `npm ls` shows jspdf, canvg, json-schema-to-ts and react-transition-group still bring them in.
+- Still open from the table: `autoprefixer`, `mammoth`, `@radix-ui/react-switch`, `drizzle-zod`, the unlisted imports, and the two orphan tests the B7 review found (`socialAdSetBreakdown.test.tsx`, `adminNotices.render.test.tsx`).
 
 | Item | File | Notes |
 |---|---|---|
