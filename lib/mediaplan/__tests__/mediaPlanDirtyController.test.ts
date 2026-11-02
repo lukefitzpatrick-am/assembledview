@@ -171,15 +171,17 @@ test("P2-3 PROPERTY adapter: create save/publish clears only via clearDirtyOnSav
   assert.match(create, /clearDirtyOnSaveSuccess\(\)/)
   assert.doesNotMatch(create, /setHasUnsavedChanges\(false\)/)
 
-  // B5: the publish-retry branches are gone. handleSaveAll clears after the
-  // version save returns and never in its catch. (C-164: the create version
-  // save also returns after a failed save, so this clear runs then too.)
+  // handleSaveAll clears only after the version save returns "ok" (C-164,
+  // B5a: a refused save returns "failed" and stops first) and never in its
+  // catch. The per-refusal pins live in createFailedSaveStays.c164.test.ts.
   const start = create.indexOf("const handleSaveAll = async")
   const end = create.indexOf("const handleExit = useCallback", start)
   assert.ok(start >= 0 && end > start)
   const body = create.slice(start, end)
   const afterVersionSave = body.slice(body.indexOf("await handleSaveMediaPlanVersion("))
-  assert.match(afterVersionSave, /clearDirtyOnSaveSuccess\(\)/)
+  const okCheck = afterVersionSave.indexOf('if (versionResult !== "ok") return')
+  assert.ok(okCheck >= 0, "stops on a failed version save")
+  assert.ok(afterVersionSave.indexOf("clearDirtyOnSaveSuccess()") > okCheck, "clears only after the ok check")
   const outerCatch = body.slice(body.lastIndexOf("} catch {"), body.lastIndexOf("} finally {"))
   assert.doesNotMatch(outerCatch, /clearDirtyOnSaveSuccess\(\)/)
 })

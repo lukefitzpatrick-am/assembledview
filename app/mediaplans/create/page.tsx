@@ -5183,10 +5183,14 @@ function CreateMediaPlan() {
     return lines
   }
 
+  /**
+   * Saves the version through POST /api/plans/save. "failed" when the save was
+   * refused (the modal and toast already say why); handleSaveAll then stops,
+   * so the page stays dirty and on create (C-164). Throws for anything else.
+   */
   const handleSaveMediaPlanVersion = async (
     masterId: number,
-    opts?: { intent?: "save" | "publish" }
-  ) => {
+  ): Promise<"ok" | "failed"> => {
     setIsSaveModalOpen(true);
     setIsVersionSaving(true);
     
@@ -5393,7 +5397,7 @@ function CreateMediaPlan() {
           title: "Publish rejected — no line items",
           description: "Enable channels need at least one line item before publish.",
         })
-        return
+        return "failed"
       }
 
       updateSaveStatus("Save plan (transactional)", "pending")
@@ -5518,7 +5522,7 @@ function CreateMediaPlan() {
             title: "Someone published this plan while you were editing",
             description: "Your draft is kept. Compare the two, then re-apply what you need.",
           })
-          return
+          return "failed"
         }
         if (saveResult.data.code === MISSING_BUY_TYPE) {
           const ids = saveResult.data.lineItemIds ?? []
@@ -5530,7 +5534,7 @@ function CreateMediaPlan() {
             title: "Buy type required",
             description: human,
           })
-          return
+          return "failed"
         }
         if (saveResult.data.code === MISSING_BURST_DATES) {
           const ids = saveResult.data.lineItemIds ?? []
@@ -5542,7 +5546,7 @@ function CreateMediaPlan() {
             title: "Burst dates required",
             description: human,
           })
-          return
+          return "failed"
         }
         const human =
           saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
@@ -5556,7 +5560,7 @@ function CreateMediaPlan() {
                   : saveResult.data.error || "Postgres save failed"
         updateSaveStatus("Save plan (transactional)", "error", human)
         toast({ variant: "destructive", title: "Save failed", description: human })
-        return
+        return "failed"
       }
 
       updateSaveStatus("Save plan (transactional)", "success")
@@ -5704,7 +5708,7 @@ function CreateMediaPlan() {
             ? `Cut v${modeResolved.versionNumber} (unpublished) — approval scope changed`
             : `Saved as version ${modeResolved.versionNumber}`,
       })
-      return
+      return "ok"
     } catch (err: any) {
       if (isWriteSessionExpiredError(err)) {
         throw err
@@ -5782,9 +5786,10 @@ const handleSaveAll = async (opts?: {
 
     // 2️⃣ Save version (Media Plan Version status will be initialized in handleSaveMediaPlanVersion)
     try {
-      await handleSaveMediaPlanVersion(newMediaPlanId, {
-        intent: opts?.intent,
-      })
+      const versionResult = await handleSaveMediaPlanVersion(newMediaPlanId)
+      // C-164: a refused save keeps the page dirty and on create. The master
+      // exists (mediaPlanIdRef), so the next Save reuses it.
+      if (versionResult !== "ok") return
       clearDirtyOnSaveSuccess()
       form.reset(form.getValues())
       const fv = form.getValues()

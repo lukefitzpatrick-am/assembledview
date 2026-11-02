@@ -105,11 +105,9 @@ Same hand-rolled pattern: `markUnsavedChanges` gated by `navigationHydratedRef` 
 | Site | Mechanism | Sets dirty when | Clears dirty when | SUCCESS vs ATTEMPT | Notes |
 |---|---|---|---|---|---|
 | Edit `handleSaveAll` working_draft branch | `clearDirtyOnSaveSuccess` after `planDraft.saveDraftNow()` | — | After draft save succeeds | **SUCCESS** | Early return on draft failure; dirty kept |
-| Edit `handleSaveAll` postgres/path success | `clearDirtyOnSaveSuccess` then optional `exitAfter` navigate | — | After save + KPI/approval side paths that reached success | **SUCCESS** | Download only when `download: true`; stay on page by default |
-| Edit `handleSaveAll` legacy Xano success | clear then optional `exitAfter` navigate | — | End of try, after success toast | **SUCCESS** | Outer `catch` does **not** clear (characterisation + P2-3) |
+| Edit `handleSaveAll` save success | `clearDirtyOnSaveSuccess` then optional `exitAfter` navigate | — | After save + KPI/approval side paths that reached success | **SUCCESS** | Download only when `download: true`; stay on page by default. Failures return from `handleSaveAll`; the outer `catch` does **not** clear (characterisation + P2-3). The Xano path is gone (B5) |
 | Edit `handleSaveAll` entry / early returns | none | — | — | **ATTEMPT does not clear** | Hydration hold, clients error, duplicates, billing-overrides block, user cancels overspend confirm |
-| Create `handleSaveAll` | `clearDirtyOnSaveSuccess` after version save | — | After `handleSaveMediaPlanVersion` completes (not `publish_pending`) | **SUCCESS** | `publish_pending` returns without clear |
-| Create publish-retry | clear on ok | — | After `publishResponse.ok` | **SUCCESS** | `!ok` / catch: no clear |
+| Create `handleSaveAll` | `clearDirtyOnSaveSuccess` after version save | — | After `handleSaveMediaPlanVersion` returns `"ok"` | **SUCCESS** | `"failed"` (0-line publish, stale base, missing buy type or burst dates, other save error) returns before the clear, form reset, side effects and navigation; the page stays on create and the held master is reused (C-164, B5a). Throws: catch, no clear. Publish retry is gone (B5) |
 | Edit hydration gate effect | `clearDirtyForHydration` ×2 | — | When channels + client bootstrap ready (+400ms) | **LOAD / gate** | Not a save; can true→false-fire Expert bridge if dirty was already true |
 | Edit form `reset` on plan load | `clearDirtyForHydration` + gate closed | — | Data load | **LOAD** | |
 | Expert Apply (14 + hook) | `setExpertApplyPendingPageSave(true)` | Apply | — | n/a (sets soft badge) | Also dirties page via `form.setValue(…, { shouldDirty: true })` + watch |
