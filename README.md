@@ -1,6 +1,6 @@
 # AssembledView
 
-Web application for **media planning**, **client dashboards**, **campaign pacing**, **finance** views, and related workflows. It is a [Next.js](https://nextjs.org/) App Router project with **Auth0** authentication, **Xano** HTTP backends for plans and directory data, and **Snowflake** for pacing and analytics-style workloads.
+Web application for **media planning**, **client dashboards**, **campaign pacing**, **finance** views, and related workflows. It is a [Next.js](https://nextjs.org/) App Router project with **Auth0** authentication, **Supabase Postgres** for plans, finance and directory data, and **Snowflake** for pacing and analytics-style workloads. Xano is retired: no app code calls its APIs.
 
 ---
 
@@ -91,24 +91,17 @@ The code also accepts swapped `.com` / `.com.au` variants so one environment can
 Add an Action that puts the user’s **roles** on the custom roles claim and the **client identifier** (slug) on the client claim(s) above so the ID token (and thus the session) carries them. **Client** users must resolve to at least one **client slug** for dashboard scoping; otherwise the API returns 401 and the UI may send them to `/unauthorized`.
 
 **Admin user sync**  
-The admin user create/update API expects Auth0 Management credentials and, when syncing users to Xano, `XANO_USERS_ENDPOINT` plus `XANO_API_KEY` if that endpoint is secured (see [env.local.example](env.local.example)).
+The admin user create/update API expects Auth0 Management credentials (see [env.local.example](env.local.example)).
 
 **Admin email allowlist**  
 `ADMIN_EMAIL_ALLOWLIST` (comma-separated) is used where server routes enforce staff access.
 
-### Xano
+### Postgres and Blob
 
-Many routes call Xano REST groups. Typical variables (not exhaustive—grep `process.env.XANO_` for the full set):
-
-- `XANO_API_KEY` — Bearer token for secured Xano APIs
+- `DATABASE_URL` — Supabase Postgres, the only data backend ([db/](db/)). `DIRECT_URL` (or `DATABASE_URL`) is the direct connection `drizzle-kit` uses ([drizzle.config.ts](drizzle.config.ts)).
 - `BLOB_READ_WRITE_TOKEN` — Vercel Blob read/write token (private SYD1 store) for creative assets and AVA MI workbook export. Local: set in `.env.local` and **restart the Next.js server** (env loads at boot). Production: connect the Blob store to the Vercel project (auto-injects the token) or add the var in Project Settings → Environment Variables (without quotes), then redeploy. `BLOB_STORE_ID` is unused by app code.
-- `XANO_MEDIA_PLANS_BASE_URL` / `XANO_MEDIAPLANS_BASE_URL` — media plan master, versions, line items
-- `XANO_CLIENTS_BASE_URL` — clients, finance helpers, some pacing alerts
-- `XANO_PUBLISHERS_BASE_URL`, `XANO_MEDIA_CONTAINERS_BASE_URL`, `XANO_MEDIA_DETAILS_BASE_URL`
-- `XANO_SCOPES_BASE_URL`, `XANO_SAVE_FILE_BASE_URL`
-- `XANO_PACING_BASE_URL`, `XANO_SAVED_VIEWS_BASE_URL` ([lib/xano/config.ts](lib/xano/config.ts))
-- Finance forecast snapshots persist to Postgres (`DATABASE_URL` + migration `0016_finance_forecast_snapshots`). `XANO_FINANCE_FORECAST_SNAPSHOTS_*` is author-only for `npm run db:migrate-forecast-snapshots`.
-- Resilience: `XANO_TIMEOUT_MS`, `XANO_MAX_RETRIES`, `XANO_OVERALL_TIMEOUT_MS`
+
+Xano is retired. No app code calls a Xano API or reads an `XANO_*` env var, and `npm run check:egress-guards` fails if one is added. Its exports and notes are archived in [docs/archive/xano/](docs/archive/xano/).
 
 ### Snowflake
 
@@ -204,14 +197,14 @@ flowchart TB
   end
   subgraph backends [Backends]
     SF[Snowflake]
-    Xano[Xano HTTP APIs]
+    PG[Supabase Postgres]
   end
   Pages --> MW
   MW --> Auth0MW
   MW --> Pages
   Pages --> API
   API --> SF
-  API --> Xano
+  API --> PG
 ```
 
 ---
@@ -255,5 +248,5 @@ flowchart TB
 ## Further reading
 
 - Auth0 RBAC detail: [docs/auth0-rbac.md](docs/auth0-rbac.md)
-- Finance forecast snapshots (Xano): [docs/finance-forecast-snapshots-xano.md](docs/finance-forecast-snapshots-xano.md)
-- Pacing / Snowflake operations: [docs/pacing/snowflake-deployment.md](docs/pacing/snowflake-deployment.md), [docs/xano/pacing-api.md](docs/xano/pacing-api.md)
+- Finance forecast snapshots (Xano-era data model; the tables now live in Postgres, migration 0016): [docs/finance-forecast-snapshots-xano.md](docs/finance-forecast-snapshots-xano.md)
+- Pacing / Snowflake operations: [docs/pacing/snowflake-deployment.md](docs/pacing/snowflake-deployment.md); Xano-era pacing API spec (history): [docs/xano/pacing-api.md](docs/xano/pacing-api.md)

@@ -24,17 +24,17 @@ Living inventory of every Next.js surface that still depends on Xano. Built by X
 
 ## Tallies
 
-Re-audited inclusion set was **112** files (app 13, lib 75, scripts 24, components 0). XS-1 marks **36** of those rows **DONE**. XS-2a marks **6** more **DONE** (`xanoReferenceCache`, deleted `xanoFinanceApi`, `xero-queue`, `readFinance`, `relevantPlanVersions`, `loadFinanceForecastDataset`). That archive is history and is excluded from the live inclusion set. Live remainder is **70** files that still match the scope above.
+Row counts in the file tables below after the B18 pass (3 Nov 2026): 88 rows. The August and October tallies (112 files re-audited, 70 live) are superseded. B18 re-checked only the rows whose file is gone, `lib/xano/fetchAllLineItems.ts`, `lib/api/publishers.ts`, and the archived scripts (deleted, now one paragraph); the other rows' verdicts are as last audited. A **DONE** row may name a file that still exists: its Xano call is gone.
 
-| Verdict | Files |
+| Verdict | Rows |
 |---|---|
-| PORT | 34 |
-| TOOLING | 16 |
+| PORT | 0 |
+| TOOLING | 7 |
 | NAME-ONLY | 13 |
 | MIRROR | 0 |
-| VAULT | 7 |
+| VAULT | 5 |
 | DEAD | 0 |
-| DONE | 42 |
+| DONE | 63 |
 
 **Production env** (`vercel env ls production --non-interactive`, names only). XANO_* present: XANO_API_KEY, XANO_CLIENT_DASHBOARDS_BASE_URL, XANO_CLIENTS_BASE_URL, XANO_DASHBOARDS_BASE_URL, XANO_EXPORT_INSTANCE_URL, XANO_MEDIA_CONTAINERS_BASE_URL, XANO_MEDIA_DETAILS_BASE_URL, XANO_MEDIA_PLANS_BASE_URL, XANO_MEDIAPLANS_BASE_URL, XANO_METADATA_TOKEN, XANO_OVERALL_TIMEOUT_MS, XANO_PUBLISHERS_BASE_URL, XANO_SAVE_FILE_BASE_URL, XANO_SCOPES_BASE_URL, XANO_TIMEOUT_MS.
 
@@ -55,7 +55,7 @@ No other DATA_BACKEND_* exists. B6 removed the switch (`lib/data/backend.ts` del
 
 `/api/cron/xano-line-item-sync` always reads Postgres. `LINE_ITEM_SNAPSHOT_SOURCE` is no longer read (B6; delete it from Vercel). The cron does not call `fetchAllXanoLineItems`.
 
-XS-2b reads KPI, publishers, clients, pacing, approvals, best practice, and publisher market share from Postgres, and writes `publisher_kpi` and `pacing_orphan_fixes` to Postgres. `lib/xano/pacingOrphanFixes.ts` is deleted. `lib/api/publishers.ts` still has `fetchPublishersFromXano` for the archived backfill script. `getClientBySlug` and the admin hub client list in `lib/api/dashboard/client.ts` read `readClientsList`. XS-2a removed finance HTTP. Tallies below are not recounted.
+XS-2b reads KPI, publishers, clients, pacing, approvals, best practice, and publisher market share from Postgres, and writes `publisher_kpi` and `pacing_orphan_fixes` to Postgres. `lib/xano/pacingOrphanFixes.ts` is deleted. `lib/api/publishers.ts` no longer has `fetchPublishersFromXano` (B18 check). `getClientBySlug` and the admin hub client list in `lib/api/dashboard/client.ts` read `readClientsList`. XS-2a removed finance HTTP. Tallies below are not recounted.
 
 **Ten largest PORT files by non-test importers** (direct imports of the file; tests excluded). Dual-read modules rank high because many callers exist; those callers take the Postgres branch today.
 
@@ -177,12 +177,12 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/api/mediaPlansListCache.ts` | latest versions and masters from Postgres | none | no | readMediaPlans | **DONE** |
 | `lib/api/mediaPlanVersionHelper.ts` | filterLineItemsByPlanNumber only; getVersionNumberForMBA deleted (XS-1) | — | no | none | **DONE** |
 | `lib/api/mediaPlanVersionsCache.ts` | latest version per MBA from Postgres | none | no | readPlanVersions / readPlanMasters | **DONE** |
-| `lib/api/publishers.ts` | market share is Postgres published lines; `fetchPublishersFromXano` remains for the archived backfill | market share none | `fetchPublishersFromXano` only | lib/publishers/marketShare.ts | **PORT** (`fetchPublishersFromXano`) |
+| `lib/api/publishers.ts` | market share is Postgres published lines; `fetchPublishersFromXano` is gone (no match in the repo, B18 check) | — | no | lib/publishers/marketShare.ts | **DONE** |
 | `lib/api/replaceChannelLineItems.ts` | list/DELETE/POST channel media_plan_* | — | no | lib/data/savePlan.ts savePlanVersion | **DONE** (deleted; the `.pure` helper and the `lib/api.ts` stub went in B5) |
 | `lib/api/xano.ts` | URL, auth header, timeout (no table of its own) | unconditional | yes | none | **TOOLING** |
-| `lib/api/xanoClients.ts` | URL builders for clients, media plans, dashboards | unconditional | yes | none | **TOOLING** |
-| `lib/api/xanoPagination.ts` | paginated GET walk | callee-gated | yes | none | **TOOLING** |
-| `lib/api/__tests__/xanoPaginationCompleteness.test.ts` | test double / env stub | unconditional | no | none | **TOOLING** |
+| `lib/api/xanoClients.ts` | deleted (file gone by B18) | — | no | none | **DONE** |
+| `lib/api/xanoPagination.ts` | deleted (PLAT-8, see KNOWN-ISSUES DI-5) | — | no | none | **DONE** |
+| `lib/api/__tests__/xanoPaginationCompleteness.test.ts` | deleted with `xanoPagination.ts` | — | no | none | **DONE** |
 | `lib/api.ts` | version GETs from Postgres or /api/media_plans. `getProgVideoLineItemsByMBA` uses the browser `/api/media_plans` path only (no server `fetchAllXanoPages`). replaceChannelLineItems, createMediaPlanVersion and the 20 channel save helpers are deleted (B5, with the editor Xano branch) | none for version GETs | no | readMediaPlans; referenceTables fetchReferenceTableFromPostgres | **DONE** (version GETs, reference getters, prog-video GET) |
 | `lib/ava/tools/getBestPractice.ts` | media_container_best_practice from Postgres | — | no | fetchMediaContainerBestPracticeFromPostgres | **DONE** (XS-2b) |
 | `lib/ava/tools/getCampaignContext.ts` | getAvaXanoSummary | unconditional | no | lib/xano/ava.ts getAvaXanoSummary → fetchPlan*FromPostgres | **NAME-ONLY** |
@@ -217,7 +217,7 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/docs/__tests__/servePlanFile.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** |
 | `lib/finance/api.ts` | parseXanoListPayload on /api/finance responses; no Xano HTTP | unconditional | no | the /api/finance routes it calls | **NAME-ONLY** |
 | `lib/finance/forecast/server/loadFinanceForecastDataset.ts` | readPlanMasters / readPlanVersions / readClientsList / readPublishersList (XS-2a) | — | no | same file | **DONE** |
-| `lib/finance/forecast/snapshot/xanoPersistSnapshot.ts` | finance_forecast_snapshots create | unconditional | no | lib/finance/forecast/snapshot/pgSnapshots.ts persistFinanceForecastSnapshotToPostgres | **TOOLING** |
+| `lib/finance/forecast/snapshot/xanoPersistSnapshot.ts` | deleted (file gone by B18) | — | no | lib/finance/forecast/snapshot/pgSnapshots.ts persistFinanceForecastSnapshotToPostgres | **DONE** |
 | `lib/finance/forecast/snapshot/xanoSnapshotQuery.ts` | list/lines names call Postgres; *Legacy functions GET Xano | unconditional for Legacy helpers | no | pgSnapshots.ts fetchFinanceForecastSnapshot*FromPostgres | **TOOLING** |
 | `lib/finance/forecast/targets/xanoTargetLines.ts` | revenue_forecast_lines | unconditional | no | pgTargetLines.ts (app routes). Finance shadow probe no longer calls this (XS-2a) | **TOOLING** |
 | `lib/finance/relevantPlanVersions.ts` | readPlanMasters / readPlanVersions (XS-2a) | — | no | same file | **DONE** |
@@ -239,7 +239,7 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/snowflake/tipScopeLineItems.ts` | deleted (B18) with `publishedVersionPointerAudit.ts`; the Xano row filter went in B8 | — | no | none | **DONE** |
 | `lib/snowflake/__tests__/syncPgLineItems.parity.test.ts` | deleted (B6) with the parity module | — | no | none | **DONE** |
 | `lib/snowflake/__tests__/syncXanoLineItemsPrune.test.ts` | media_plan_search | unconditional | no | none | **TOOLING** |
-| `lib/xano/fetchAllLineItems.ts` | GET all channel media_plan_* tables | archive parity script only; cron does not call it | no | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **TOOLING** |
+| `lib/xano/fetchAllLineItems.ts` | types only (`XanoLineItem`, `FetchAllXanoLineItemsResult`) for the snapshot sync; no HTTP, no function (B18 check) | — | no | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **NAME-ONLY** |
 | `lib/xano/pacingOrphanFixes.ts` | deleted | — | no | lib/pacing/admin/pacingOrphanFixes.ts | **DONE** (XS-2b) |
 
 ### Scripts (archived by XS-1, deleted in B18)

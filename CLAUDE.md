@@ -10,7 +10,7 @@ The app is deeply interconnected and uncoordinated changes cause regressions in 
 - **Warehouse:** Snowflake `ASSEMBLEDVIEW.MART.*`, read-only, delivery and pacing facts.
 - **App:** Next.js 15 App Router, 70 pages, 196 API route handlers, ~450 components, ~1,440 lib files.
 - **Auth:** Auth0 v4. `middleware.ts` authenticates; **every route does its own authorisation and tenant check.**
-- **Hosting:** Vercel (`avmediaplan`), 13 crons. Files in Vercel Blob.
+- **Hosting:** Vercel (`avmediaplan`), 28 crons (`vercel.json`). Files in Vercel Blob.
 - **AI:** Anthropic SDK. AVA reads through a fail-closed `ava_readonly` role with a per-table grant allowlist.
 
 ## Before you change anything
