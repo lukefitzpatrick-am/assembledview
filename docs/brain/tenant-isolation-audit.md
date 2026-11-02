@@ -193,14 +193,14 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | `mediaplans/[id]/mbanumber` | POST | deleted 3 Nov 2026 (B9; was a 410 stub) | — | — |
 | `mediaplans/[id]/download` | GET | tenant-scoped | `checkClientMbaAccess` | **OK** |
 | `mediaplans/mba/[mba_number]/documents` | GET | tenant-scoped | `checkClientMbaAccess` | **OK** |
-| `mediaplans/generate-pdf` | POST | admin-only | `requireRole(admin)` | — |
+| `mediaplans/generate-pdf` | POST | deleted 3 Nov 2026 (B9, no caller) | — | — |
 | `mediaplans/mba/[mba_number]` | GET, PUT, PATCH | tenant-scoped | `checkClientMbaAccess` | **OK** |
 | `mediaplans/mba/[mba_number]/expected-spend-to-date` | GET | tenant-scoped | cookie-forward → gated MBA GET | **OK** (proxy) |
 | `mediaplans/mba/[mba_number]/material-instructions` | GET, POST | admin-only | inline admin | — |
 | `mediaplans/versions/[id]/billing-schedule` | PATCH | admin-only | `requireFinanceAdmin` | — |
 | `mediaplans/versions/[id]/documents` | POST | admin-only | `requireRole(admin)` | — |
 | `campaigns/[mba_number]` (+ billing-schedule) | GET | deleted 3 Nov 2026 (B9; were 410 stubs) | — | — |
-| `campaigns/export-report` | POST | admin-only | `requireRole` + `checkClientMbaAccess` | — |
+| `campaigns/export-report` | POST | deleted 3 Nov 2026 (B9; replaced by `reports/on-demand`) | — | — |
 | `reports/on-demand` | POST | admin-only | `requireRole` + `checkClientMbaAccess` | MBA checked |
 | `reports/on-demand/[runId]` | GET | admin-only | `requireRole` + `checkClientMbaAccess` | MBA of the run |
 | `plans/drafts` | GET, PUT, DELETE | admin-only | `requireRole(admin)` | — |

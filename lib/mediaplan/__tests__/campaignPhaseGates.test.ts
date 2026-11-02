@@ -80,7 +80,6 @@ describe("a. download gate — publication, never campaign_status", () => {
   it("doc generate/download sources do not consult campaign_status in the gate", () => {
     const files = [
       "app/api/mediaplans/[id]/download/route.ts",
-      "app/api/mediaplans/generate-pdf/route.ts",
       "lib/docs/buildMbaFromPersisted.ts",
       "lib/docs/saveDocSteps.ts",
     ]
