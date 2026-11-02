@@ -356,7 +356,9 @@ import {
   CREATE_CLIENT_LOCKED_NOTE,
   MASTER_ID_MISMATCH,
   heldMasterIdentityFixes,
+  MBA_NUMBER_FETCH_TIMEOUT_MS,
   MBA_NUMBER_LOADING_MESSAGE,
+  MBA_NUMBER_TAKEN_REFETCH_MESSAGE,
   masterIdMismatchMessage,
   mayApplyMbaNumberResponse,
   mbaNumberClientProblem,
@@ -3330,9 +3332,16 @@ function CreateMediaPlan() {
     const requestToken = beginMbaNumberRequest(mbaNumberRequestTokenRef)
     mbaNumberPendingRef.current = true
     setMbaNumberLoading(true)
+    // B8 review finding 2: a stalled request must not hold Save forever. The
+    // abort lands in the catch below like any other failure, so the number is
+    // blanked, the flag clears in finally and the next Save fetches again.
+    const abort = new AbortController()
+    const abortTimer = setTimeout(() => abort.abort(), MBA_NUMBER_FETCH_TIMEOUT_MS)
 
     try {
-      const response = await fetch(`/api/mediaplans/mbanumber?mbaidentifier=${encodeURIComponent(mbaidentifier)}`)
+      const response = await fetch(`/api/mediaplans/mbanumber?mbaidentifier=${encodeURIComponent(mbaidentifier)}`, {
+        signal: abort.signal,
+      })
 
       if (
         !mayApplyMbaNumberResponse({
@@ -3393,6 +3402,7 @@ function CreateMediaPlan() {
       setMbaNumber("")
       // Optionally show a toast notification here if you have toast available
     } finally {
+      clearTimeout(abortTimer)
       // Only the latest request clears the flag; an older one finishing leaves the newer pending.
       if (requestToken === mbaNumberRequestTokenRef.current) {
         mbaNumberPendingRef.current = false
@@ -5107,14 +5117,24 @@ function CreateMediaPlan() {
       ))
       toast({ title: 'Plan created', description: `ID ${mediaPlan.id}` })
       return mediaPlan.id
-    } catch (err: any) {
+    } catch (caught: any) {
+      let err = caught
       const taken = err instanceof CreateMediaPlanError ? err : null
       const decision = mbaNumberTakenRetry({
         code: taken?.code,
         nextMbaNumber: taken?.nextMbaNumber,
         alreadyRetried: mbaNumberTakenRetriedRef.current,
       })
-      if (decision.action === "retry") {
+      const identifier = String(form.getValues("mbaidentifier") ?? "")
+      if (decision.action === "retry" && mbaNumberClientProblem(decision.nextMbaNumber, identifier)) {
+        // B8 review finding 1: the server's replacement number doesn't belong
+        // to this client (it guesses the identifier from the taken number).
+        // Don't save under it or point billing at it: drop any rename and get
+        // a fresh number from the normal allocator for the next Save.
+        mbaNumberRenameRef.current = null
+        void generateMBANumber(identifier)
+        err = new Error(MBA_NUMBER_TAKEN_REFETCH_MESSAGE)
+      } else if (decision.action === "retry") {
         mbaNumberTakenRetriedRef.current = true
         const oldNumber = String(form.getValues("mba_number") ?? "").trim()
         // B2a fix: the lines re-mint under the new number; billing timing follows.

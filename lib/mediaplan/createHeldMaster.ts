@@ -5,6 +5,7 @@
  * the page must not mint a new MBA number while it holds a master (B6 notes,
  * F1). The held master is never cleared here: that would orphan it.
  */
+import { mbaNumberMatchesClientIdentifier } from "@/lib/auth/mbaNumberMatchesClientIdentifier"
 import { shouldApplyMbaNumberResponse } from "@/lib/mediaplan/mbaNumberRequestGate"
 
 export const MASTER_ID_MISMATCH = "MASTER_ID_MISMATCH"
@@ -59,6 +60,20 @@ export function mayApplyMbaNumberResponse(args: {
 /** Save refusal while a new client's MBA number request is in flight (B7 review, finding 1). */
 export const MBA_NUMBER_LOADING_MESSAGE = "The MBA number is still loading. Try again in a moment."
 
+/**
+ * B8 review finding 2: the create page gives up on the MBA number request
+ * after this long. The abort fails the request like any other error, so the
+ * in-flight flag clears and the next Save fetches the number again.
+ */
+export const MBA_NUMBER_FETCH_TIMEOUT_MS = 15_000
+
+/**
+ * B8 review finding 1: the "MBA number taken" retry number didn't belong to
+ * the client, so the page fetches a fresh number instead of saving under it.
+ */
+export const MBA_NUMBER_TAKEN_REFETCH_MESSAGE =
+  "That MBA number was taken by another plan. Getting a new one now; try again in a moment."
+
 export type MbaNumberClientProblem = {
   message: string
   /** True when fetching the client's number again fixes it. */
@@ -66,23 +81,26 @@ export type MbaNumberClientProblem = {
 }
 
 /**
- * Before a new master is created: the MBA number must start with the selected
- * client's MBA identifier (trimmed, case-insensitive). `allocateNextMbaNumber`
- * always builds `<identifier lowercased><digits>`, so a mismatch means the
- * number belongs to another client (picked before the new one's number came
- * back) or is missing. Null when the pair is fine.
+ * Before a new master is created: the MBA number must be the selected client's
+ * MBA identifier followed by digits only (trimmed, case-insensitive). This is
+ * the auth matcher `mbaNumberMatchesClientIdentifier` (`^id\d+$`), not a bare
+ * prefix check, so `test123001` is refused for identifier `test1` (B8 review
+ * finding 3). `allocateNextMbaNumber` always builds `<identifier
+ * lowercased><digits>`, so a mismatch means the number belongs to another
+ * client (picked before the new one's number came back) or is missing. Null
+ * when the pair is fine.
  */
 export function mbaNumberClientProblem(mbaNumber: unknown, mbaIdentifier: unknown): MbaNumberClientProblem | null {
   const id = String(mbaIdentifier ?? "").trim()
   const num = String(mbaNumber ?? "").trim()
   if (!id) {
     return {
-      message: "This client has no MBA identifier, so the plan can't get an MBA number. Add one on the client, then pick it again.",
+      message: "This client has no MBA identifier, so the plan can't get an MBA number. Add one on the client, then reload this page.",
       refetch: false,
     }
   }
   if (!num) return { message: "The plan has no MBA number yet. Getting it now; try again in a moment.", refetch: true }
-  if (!num.toLowerCase().startsWith(id.toLowerCase())) {
+  if (!mbaNumberMatchesClientIdentifier(num, id)) {
     return {
       message: `MBA number ${num} doesn't belong to this client (identifier ${id}). Getting the right number now; try again in a moment.`,
       refetch: true,

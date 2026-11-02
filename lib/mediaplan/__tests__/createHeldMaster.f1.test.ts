@@ -14,7 +14,9 @@ import {
   CREATE_CLIENT_LOCKED_NOTE,
   MASTER_ID_MISMATCH,
   heldMasterIdentityFixes,
+  MBA_NUMBER_FETCH_TIMEOUT_MS,
   MBA_NUMBER_LOADING_MESSAGE,
+  MBA_NUMBER_TAKEN_REFETCH_MESSAGE,
   masterIdMismatchMessage,
   mayApplyMbaNumberResponse,
   mbaNumberClientProblem,
@@ -70,11 +72,17 @@ test("F1 create: no client change (picker, prefill, URL) can mint a new MBA numb
   for (const later of ["generateMBANumber(", 'form.setValue("mba_number"', 'form.setValue("mp_client_name"', "setSelectedClientId("]) {
     assert.ok(body.indexOf(later) > guard, `${later} runs only before a master exists`)
   }
-  // generateMBANumber is reached through handleClientChange, and from Save's
-  // refetch when the number is missing or another client's (B7 review); both
-  // stop once a master exists (generateMBANumber's own early return).
-  assert.equal((create.match(/generateMBANumber\(/g) ?? []).length, 2, "handleClientChange and handleSaveAll's refetch")
+  // generateMBANumber is reached through handleClientChange, from Save's
+  // refetch when the number is missing or another client's (B7 review), and
+  // from the master save when an MBA-taken retry number isn't the client's (B8
+  // review 1); all stop once a master exists (generateMBANumber's own early return).
+  assert.equal(
+    (create.match(/generateMBANumber\(/g) ?? []).length,
+    3,
+    "handleClientChange, handleSaveAll's refetch and the MBA-taken refetch",
+  )
   assert.match(constFnText("handleSaveAll"), /if \(problem\.refetch\) void generateMBANumber\(/)
+  assert.match(constFnText("handleSaveMediaPlan"), /void generateMBANumber\(identifier\)/)
 })
 
 test("F1 create: draft restore keeps the held master's MBA number and client; the held id is never cleared", () => {
@@ -199,4 +207,68 @@ test("B7 review 1 (create): a client change blanks the old number first; the mas
 test("B7 review 1: the edit page has no MBA number generation or client picker to guard", () => {
   assert.doesNotMatch(edit, /generateMBANumber|\/api\/mediaplans\/mbanumber|beginMbaNumberRequest|setIsClientPopoverOpen/)
   assert.equal(MBA_NUMBER_LOADING_MESSAGE, "The MBA number is still loading. Try again in a moment.")
+})
+
+test("B8 review 3: the MBA number is the identifier then digits only (the auth matcher), not a bare prefix", () => {
+  for (const [num, id] of [
+    ["golfx01", "golf"],
+    ["xgolf001", "golf"],
+    ["golf", "golf"],
+    ["golf026a", "golf"],
+    ["test-qa-3003", "test-qa-003"],
+  ]) {
+    assert.equal(mbaNumberClientProblem(num, id)?.refetch, true, `${num} vs ${id}`)
+  }
+  // Known overlap, shared with auth and the allocator: an identifier ending in
+  // digits can't tell its own numbers from a longer identifier's. `test1` +
+  // `23001` is digits, so `test123001` passes for `test1`, as it does in
+  // mbaNumberMatchesClientIdentifier. Pinned so a change here is deliberate.
+  assert.equal(mbaNumberClientProblem("test123001", "test1"), null)
+  // The five live odd identifiers: every number the allocator hands out passes.
+  for (const id of ["iwd2026", "000", "test123", "test-qa-003", "historical ox and harty clients", " historical ox and harty clients "]) {
+    for (const existing of [[], [`${id.trim()}001`], [`${id.trim()}099`], [`${id.trim().toUpperCase()}1234`]]) {
+      const allocated = allocateNextMbaNumber(existing, id)
+      assert.equal(mbaNumberClientProblem(allocated, id), null, `${allocated} for ${JSON.stringify(id)}`)
+    }
+  }
+  const body = read("lib/mediaplan/createHeldMaster.ts")
+  assert.match(body, /if \(!mbaNumberMatchesClientIdentifier\(num, id\)\) \{/)
+  assert.doesNotMatch(body, /startsWith\(/)
+})
+
+test("B8 review 7: a client with no MBA identifier is told to reload the page, not to pick it again", () => {
+  const message = mbaNumberClientProblem("golf026", "")!.message
+  assert.match(message, /Add one on the client, then reload this page\.$/)
+  assert.doesNotMatch(message, /pick it again/)
+})
+
+test("B8 review 2 (create): the MBA number request gives up after 15 s and clears like a failure", () => {
+  assert.equal(MBA_NUMBER_FETCH_TIMEOUT_MS, 15_000)
+  const body = constFnText("generateMBANumber")
+  const controller = body.indexOf("const abort = new AbortController()")
+  const timer = body.indexOf("const abortTimer = setTimeout(() => abort.abort(), MBA_NUMBER_FETCH_TIMEOUT_MS)")
+  const fetchAt = body.indexOf("fetch(")
+  assert.ok(controller >= 0 && timer > controller && timer < fetchAt, "timer armed before the fetch")
+  assert.match(body.slice(fetchAt, fetchAt + 200), /\{\s*signal: abort\.signal,\s*\}\)/)
+  // The abort rejects into the same catch as an error (blank the number), and
+  // finally clears the timer and, for the latest request, the in-flight flag.
+  const fin = body.lastIndexOf("} finally {")
+  assert.ok(body.lastIndexOf("} catch (error) {") < fin)
+  assert.match(body.slice(fin), /\} finally \{\s*clearTimeout\(abortTimer\)\s*\/\/[^\n]*\n\s*if \(requestToken === mbaNumberRequestTokenRef\.current\) \{\s*mbaNumberPendingRef\.current = false/)
+})
+
+test("B8 review 1 (create): an MBA-taken retry number that isn't the client's is not saved; a fresh number is fetched", () => {
+  const master = constFnText("handleSaveMediaPlan")
+  const check = master.indexOf('if (decision.action === "retry" && mbaNumberClientProblem(decision.nextMbaNumber, identifier)) {')
+  const retry = master.indexOf('} else if (decision.action === "retry") {')
+  assert.ok(check >= 0 && retry > check, "checked before the retry branch")
+  const refused = master.slice(check, retry)
+  assert.match(refused, /mbaNumberRenameRef\.current = null/, "the stale rename is dropped")
+  assert.match(refused, /void generateMBANumber\(identifier\)/, "a fresh number from the normal allocator")
+  assert.match(refused, /err = new Error\(MBA_NUMBER_TAKEN_REFETCH_MESSAGE\)/, "the save fails with the clear message")
+  assert.doesNotMatch(refused, /handleSaveMediaPlan\(|form\.setValue\("mba_number"|mbaNumberRenameRef\.current = \{/, "no save, no form number, no rename")
+  assert.match(master, /const identifier = String\(form\.getValues\("mbaidentifier"\) \?\? ""\)/)
+  // The good retry still renames and saves once.
+  assert.match(master.slice(retry), /^[\s\S]*?mbaNumberRenameRef\.current = \{[\s\S]*?return await handleSaveMediaPlan\(\)/)
+  assert.match(MBA_NUMBER_TAKEN_REFETCH_MESSAGE, /taken by another plan\. Getting a new one now; try again in a moment\.$/)
 })
