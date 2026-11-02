@@ -12,11 +12,9 @@ export const runtime = "nodejs"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
+/** 404 for a missing audience, else 502 (B8 removed the dead 401 branch: nothing throws it). */
 function xanoErrorResponse(error: unknown): NextResponse {
   if (error instanceof XanoPlanningAudienceError) {
-    if (error.status === 401) {
-      return NextResponse.json({ error: "Xano unauthorized" }, { status: 401 })
-    }
     if (error.status === 404) {
       return NextResponse.json({ error: "Audience not found" }, { status: 404 })
     }
