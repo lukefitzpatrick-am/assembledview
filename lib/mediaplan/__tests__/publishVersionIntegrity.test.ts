@@ -5,7 +5,6 @@ import {
   countEnabledPublishIntegrityFlags,
   enabledPublishIntegrityChannels,
   isPublishVersionAdvance,
-  shouldBlockEmptyPublish,
 } from "@/lib/mediaplan/publishVersionIntegrity"
 
 test("isPublishVersionAdvance: skipped when version_number absent", () => {
@@ -129,50 +128,6 @@ test("countEnabledPublishIntegrityFlags: zero for null/undefined/empty formValue
   assert.equal(countEnabledPublishIntegrityFlags(null), 0)
   assert.equal(countEnabledPublishIntegrityFlags(undefined), 0)
   assert.equal(countEnabledPublishIntegrityFlags({}), 0)
-})
-
-test("shouldBlockEmptyPublish: blocks only deferred publish + enabled channels + zero staged", () => {
-  assert.equal(
-    shouldBlockEmptyPublish({
-      deferredPublish: true,
-      enabledMediaTypeCount: 1,
-      totalStagedLineItems: 0,
-    }),
-    true
-  )
-})
-
-test("shouldBlockEmptyPublish: allows when items are staged", () => {
-  assert.equal(
-    shouldBlockEmptyPublish({
-      deferredPublish: true,
-      enabledMediaTypeCount: 1,
-      totalStagedLineItems: 5,
-    }),
-    false
-  )
-})
-
-test("shouldBlockEmptyPublish: allows when no channels enabled (nothing to stage)", () => {
-  assert.equal(
-    shouldBlockEmptyPublish({
-      deferredPublish: true,
-      enabledMediaTypeCount: 0,
-      totalStagedLineItems: 0,
-    }),
-    false
-  )
-})
-
-test("shouldBlockEmptyPublish: never blocks the overwrite/draft path (deferredPublish=false)", () => {
-  assert.equal(
-    shouldBlockEmptyPublish({
-      deferredPublish: false,
-      enabledMediaTypeCount: 1,
-      totalStagedLineItems: 0,
-    }),
-    false
-  )
 })
 
 test("checkPublishLineItemIntegrity: version row fetch throws → fail-open allow", async () => {

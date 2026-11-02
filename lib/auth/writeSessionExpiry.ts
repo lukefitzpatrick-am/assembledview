@@ -19,9 +19,6 @@ export const SESSION_EXPIRED_SKIPPED_STEP =
 export const SESSION_EXPIRED_BANNER_BODY =
   "Your session expired. Unsaved work on this page was not written. Sign in again, then retry Save."
 
-export const SESSION_EXPIRED_PUBLISH_MESSAGE =
-  "Your session expired, so publish did not finish. That is not something you did in the form. Sign in again, then retry publish. Channel data may already be staged; the live version was not advanced."
-
 export class WriteSessionExpiredError extends Error {
   readonly code = "WRITE_SESSION_EXPIRED" as const
   constructor(message: string = SESSION_EXPIRED_SAVE_MESSAGE) {

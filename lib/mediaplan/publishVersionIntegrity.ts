@@ -30,8 +30,6 @@ export {
   enabledPublishIntegrityChannels,
   flagIsEnabledForPublishIntegrity,
   isPublishVersionAdvance,
-  shouldBlockEmptyPublish,
-  shouldRunDeferredMasterPublish,
   type PublishIntegrityChannelKey,
 } from "@/lib/mediaplan/publishVersionIntegrityClient"
 

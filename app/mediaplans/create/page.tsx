@@ -97,7 +97,6 @@ import {
   removedEmptyLineUpdates,
 } from "@/lib/mediaplan/stripEmptyLineItems"
 import { generateBillingLineItems } from "@/lib/billing/generateBillingLineItems"
-import { mergeInvestmentMonths } from "@/lib/billing/mergeInvestmentMonths"
 import { MbaBillingAutoCalcSummary } from "@/components/billing/MbaBillingAutoCalcSummary"
 import {
   MbaBillingModal,
@@ -935,10 +934,6 @@ function CreateMediaPlan() {
 
   const [investmentPerMonthByChannel, setInvestmentPerMonthByChannel] = useState<Record<string, any[]>>({})
   const investmentPerMonthByChannelRef = useRef(investmentPerMonthByChannel)
-  const investmentPerMonth = useMemo(
-    () => mergeInvestmentMonths(investmentPerMonthByChannel),
-    [investmentPerMonthByChannel],
-  )
   const [autoBillingMonths, setAutoBillingMonths] = useState<BillingMonth[]>([]);
   const [autoDeliveryMonths, setAutoDeliveryMonths] = useState<BillingMonth[]>([]);
   const deliveryScheduleSnapshotRef = useRef<BillingMonth[] | null>(null);
