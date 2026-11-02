@@ -356,6 +356,81 @@ export function roundDeliverables(buyType: BuyType, value: number): number {
 }
 
 /**
+ * B10 (F2, decision D1, Luke 31 Oct 2026): a `package` line's deliverable is
+ * the quantity entered. On the card the planner types it (`handleValueChange`
+ * skips package and `computeLoadedDeliverables` keeps the saved value). On an
+ * expert grid it is the week, merged-span or day quantity in the row. Rounded
+ * with {@link roundDeliverables}, like every other expert grid quantity (OOH,
+ * Radio, TV, Cinema, BVOD and Digital Audio already do this). A blank or
+ * non-finite quantity is 0, as on the card.
+ */
+export function packageDeliverablesFromEnteredQty(enteredQty: number | null | undefined): number {
+  if (typeof enteredQty !== "number" || !Number.isFinite(enteredQty)) return 0;
+  return roundDeliverables("package", enteredQty);
+}
+
+/**
+ * Which expert grid rule set {@link expertGridDeliverables} follows.
+ * - `digital`: Digital Video, Digital Display, Social, Search, Influencers,
+ *   Integration and the five programmatic grids.
+ * - `press`: Newspaper and Magazines.
+ */
+export type ExpertGridDeliverableProfile = "digital" | "press";
+
+/**
+ * B10 (F2; first SUP-8 step): the deliverable an expert grid Apply writes to
+ * one card burst on the digital, programmatic and press grids. One helper in
+ * place of the two local copies that were in `expertChannelMappings.ts`
+ * (`bvodCalculatedDeliverables` for `digital`, `newspaperCalculatedDeliverables`
+ * for `press`).
+ *
+ * - `package`: with `packageKeepsEnteredQty` (switch `expert_package_quantity`
+ *   on), the quantity entered, via {@link packageDeliverablesFromEnteredQty}.
+ *   Off: the old result, `digital` 0 and `press` 1.
+ * - Every other buy type gives exactly the old result for its grid, unrounded:
+ *   `cpc` and `cpv` (and `insertions` on `press`) are net budget ÷ unit rate,
+ *   `cpm` is net budget ÷ unit rate × 1000, each 0 when the rate is 0;
+ *   `fixed_cost` and `package_inclusions` are 1; `bonus` is the quantity
+ *   entered; anything else is 0. Those differ from
+ *   {@link deliverablesFromBudget} (no `cpcv`, `cpi`, `cps` or
+ *   `guaranteed_leads`, and no rounding). Lining them up changes saved
+ *   numbers, so it waits for a decision.
+ */
+export function expertGridDeliverables(args: {
+  profile: ExpertGridDeliverableProfile;
+  buyType: string;
+  /** Net media for the burst (fees taken out when the budget includes them). */
+  netBudget: number;
+  unitRate: number;
+  /** The week, span or day quantity in the expert row. */
+  enteredQty: number;
+  packageKeepsEnteredQty: boolean;
+}): number {
+  const bt = String(args.buyType || "").toLowerCase();
+  const amt = args.unitRate || 0;
+  switch (bt) {
+    case "cpc":
+    case "cpv":
+      return amt !== 0 ? args.netBudget / amt : 0;
+    case "insertions":
+      if (args.profile !== "press") return 0;
+      return amt !== 0 ? args.netBudget / amt : 0;
+    case "cpm":
+      return amt !== 0 ? (args.netBudget / amt) * 1000 : 0;
+    case "fixed_cost":
+    case "package_inclusions":
+      return 1;
+    case "package":
+      if (args.packageKeepsEnteredQty) return packageDeliverablesFromEnteredQty(args.enteredQty);
+      return args.profile === "press" ? 1 : 0;
+    case "bonus":
+      return args.enteredQty ?? 0;
+    default:
+      return 0;
+  }
+}
+
+/**
  * Package, bonus, and package inclusions keep the quantity the editor sent.
  * They are derived or manual, and save does not rewrite them.
  */

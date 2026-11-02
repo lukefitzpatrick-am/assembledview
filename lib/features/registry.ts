@@ -181,6 +181,17 @@ export const FEATURE_DEFINITIONS = [
     source: "switch",
   },
   {
+    key: "expert_package_quantity",
+    label: "Expert grid package quantity",
+    description:
+      "Applying an expert grid saves a package line's deliverables as the quantity entered, on every channel (decision D1). Off: the Digital Video, Digital Display, Social, Search, Influencers, Integration and programmatic grids save 0 and the Newspaper and Magazines grids save 1, as before. Budgets and billing don't change either way.",
+    area: "planning",
+    defaultOn: false,
+    clientVisible: true,
+    toggleRole: "admin",
+    source: "switch",
+  },
+  {
     key: "web_search",
     label: "Web & search for clients",
     description: "Clients see their Web & search tab once their report is published. Admins see it either way.",

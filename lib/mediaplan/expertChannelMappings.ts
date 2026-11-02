@@ -5,12 +5,14 @@ import {
   computeLoadedDeliverables,
   distributeBurstDeliverablesToExpertWeeks,
   deliverablesFromBudget,
+  expertGridDeliverables,
   grossFromNet,
   netFromGross,
   netMediaFromDeliverables,
   roundDeliverables,
 } from "./deliverableBudget"
 import { resolveLineItemBursts } from "./deriveBursts"
+import { clientFeatureOn } from "@/lib/features/client"
 import {
   clampDateToCampaignRange,
   type WeeklyGanttWeekColumn,
@@ -262,6 +264,17 @@ export interface ExpertToStandardBurstOptions {
   /** Programmatic Video */
   feePctProgVideo?: number
   budgetIncludesFees?: boolean
+  /**
+   * B10 (F2, decision D1): a package row's deliverable is the quantity entered
+   * on the digital, programmatic and press grids. Unset: the
+   * `expert_package_quantity` switch (default off: the old 0 or 1).
+   */
+  packageKeepsEnteredQty?: boolean
+}
+
+/** B10: the caller's choice, else the `expert_package_quantity` switch. */
+function packageKeepsEnteredQty(options?: ExpertToStandardBurstOptions): boolean {
+  return options?.packageKeepsEnteredQty ?? clientFeatureOn("expert_package_quantity")
 }
 
 type ExpertRowWithSourceLineItemId = {
@@ -381,58 +394,6 @@ function radioNetBudgetForDeliverables(
   if (!budgetIncludesFees) return rawBudget
   return (rawBudget * (100 - (feePct || 0))) / 100
 }
-
-function oohCalculatedDeliverables(
-  buyType: string,
-  netBudget: number,
-  buyAmount: number,
-  bonusDeliverables?: number
-): number {
-  const amt = buyAmount || 0
-  switch (buyType) {
-    case "cpc":
-    case "cpv":
-    case "panels":
-      return amt !== 0 ? netBudget / amt : 0
-    case "cpm":
-      return amt !== 0 ? (netBudget / amt) * 1000 : 0
-    case "fixed_cost":
-    case "package":
-      return 1
-    case "bonus":
-      return bonusDeliverables ?? 0
-    default:
-      return 0
-  }
-}
-
-/** Matches {@link NewspaperContainer} burst deliverable math (net budget after fee split). */
-function newspaperCalculatedDeliverables(
-  buyType: string,
-  netBudget: number,
-  buyAmount: number,
-  bonusDeliverables?: number
-): number {
-  const bt = String(buyType || "").toLowerCase()
-  const amt = buyAmount || 0
-  switch (bt) {
-    case "cpc":
-    case "cpv":
-    case "insertions":
-      return amt !== 0 ? netBudget / amt : 0
-    case "cpm":
-      return amt !== 0 ? (netBudget / amt) * 1000 : 0
-    case "fixed_cost":
-    case "package":
-    case "package_inclusions":
-      return 1
-    case "bonus":
-      return bonusDeliverables ?? 0
-    default:
-      return 0
-  }
-}
-
 
 /** Dated bursts that already carry a quantity must not be rewritten into week 1. */
 function hasImportableDatedBursts(
@@ -3033,30 +2994,6 @@ export function mapStandardTvLineItemsToExpertRows(
   )
 }
 
-function bvodCalculatedDeliverables(
-  buyType: string,
-  netBudget: number,
-  buyAmount: number,
-  bonusDeliverables?: number
-): number {
-  const bt = String(buyType || "").toLowerCase()
-  const amt = buyAmount || 0
-  switch (bt) {
-    case "cpc":
-    case "cpv":
-      return amt !== 0 ? netBudget / amt : 0
-    case "cpm":
-      return amt !== 0 ? (netBudget / amt) * 1000 : 0
-    case "fixed_cost":
-    case "package_inclusions":
-      return 1
-    case "bonus":
-      return bonusDeliverables ?? 0
-    default:
-      return 0
-  }
-}
-
 /** BVOD `bvodlineItems` entry shape used by {@link BVODContainer}. */
 export interface StandardBvodFormLineItem {
   platform: string
@@ -3693,20 +3630,16 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
       const isInclusionBuyType =
         buyTypeLower === "bonus" ||
         buyTypeLower === "package_inclusions"
-      const isFixedDeliverableBuyType =
-        buyTypeLower === "package"
-      const usesManualDeliverable =
-        isInclusionBuyType ||
-        isFixedDeliverableBuyType
       const buyAmountStr = formatRate(unitRate)
-      const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
-      const calculatedValue = bvodCalculatedDeliverables(
+      // B10 (F2, D1): package keeps the quantity entered when the switch is on.
+      const calculatedValue = expertGridDeliverables({
+        profile: "digital",
         buyType,
-        netForCalc,
-        buyAmtNum,
-        bonusVal
-      )
+        netBudget: netForCalc,
+        unitRate,
+        enteredQty: qty,
+        packageKeepsEnteredQty: packageKeepsEnteredQty(options),
+      })
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
@@ -4136,20 +4069,16 @@ export function mapDigitalDisplayExpertRowsToStandardLineItems(
       const isInclusionBuyType =
         buyTypeLower === "bonus" ||
         buyTypeLower === "package_inclusions"
-      const isFixedDeliverableBuyType =
-        buyTypeLower === "package"
-      const usesManualDeliverable =
-        isInclusionBuyType ||
-        isFixedDeliverableBuyType
       const buyAmountStr = formatRate(unitRate)
-      const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
-      const calculatedValue = bvodCalculatedDeliverables(
+      // B10 (F2, D1): package keeps the quantity entered when the switch is on.
+      const calculatedValue = expertGridDeliverables({
+        profile: "digital",
         buyType,
-        netForCalc,
-        buyAmtNum,
-        bonusVal
-      )
+        netBudget: netForCalc,
+        unitRate,
+        enteredQty: qty,
+        packageKeepsEnteredQty: packageKeepsEnteredQty(options),
+      })
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
@@ -5003,20 +4932,16 @@ export function mapSocialMediaExpertRowsToStandardLineItems(
       const isInclusionBuyType =
         buyTypeLower === "bonus" ||
         buyTypeLower === "package_inclusions"
-      const isFixedDeliverableBuyType =
-        buyTypeLower === "package"
-      const usesManualDeliverable =
-        isInclusionBuyType ||
-        isFixedDeliverableBuyType
       const buyAmountStr = formatRate(unitRate)
-      const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
-      const calculatedValue = bvodCalculatedDeliverables(
+      // B10 (F2, D1): package keeps the quantity entered when the switch is on.
+      const calculatedValue = expertGridDeliverables({
+        profile: "digital",
         buyType,
-        netForCalc,
-        buyAmtNum,
-        bonusVal
-      )
+        netBudget: netForCalc,
+        unitRate,
+        enteredQty: qty,
+        packageKeepsEnteredQty: packageKeepsEnteredQty(options),
+      })
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
@@ -5432,20 +5357,16 @@ export function mapSearchExpertRowsToStandardLineItems(
       const isInclusionBuyType =
         buyTypeLower === "bonus" ||
         buyTypeLower === "package_inclusions"
-      const isFixedDeliverableBuyType =
-        buyTypeLower === "package"
-      const usesManualDeliverable =
-        isInclusionBuyType ||
-        isFixedDeliverableBuyType
       const buyAmountStr = formatRate(unitRate)
-      const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
-      const calculatedValue = bvodCalculatedDeliverables(
+      // B10 (F2, D1): package keeps the quantity entered when the switch is on.
+      const calculatedValue = expertGridDeliverables({
+        profile: "digital",
         buyType,
-        netForCalc,
-        buyAmtNum,
-        bonusVal
-      )
+        netBudget: netForCalc,
+        unitRate,
+        enteredQty: qty,
+        packageKeepsEnteredQty: packageKeepsEnteredQty(options),
+      })
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
@@ -5864,20 +5785,16 @@ export function mapInfluencersExpertRowsToStandardLineItems(
       const isInclusionBuyType =
         buyTypeLower === "bonus" ||
         buyTypeLower === "package_inclusions"
-      const isFixedDeliverableBuyType =
-        buyTypeLower === "package"
-      const usesManualDeliverable =
-        isInclusionBuyType ||
-        isFixedDeliverableBuyType
       const buyAmountStr = formatRate(unitRate)
-      const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
-      const calculatedValue = bvodCalculatedDeliverables(
+      // B10 (F2, D1): package keeps the quantity entered when the switch is on.
+      const calculatedValue = expertGridDeliverables({
+        profile: "digital",
         buyType,
-        netForCalc,
-        buyAmtNum,
-        bonusVal
-      )
+        netBudget: netForCalc,
+        unitRate,
+        enteredQty: qty,
+        packageKeepsEnteredQty: packageKeepsEnteredQty(options),
+      })
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
@@ -6308,20 +6225,16 @@ export function mapIntegrationExpertRowsToStandardLineItems(
       const isInclusionBuyType =
         buyTypeLower === "bonus" ||
         buyTypeLower === "package_inclusions"
-      const isFixedDeliverableBuyType =
-        buyTypeLower === "package"
-      const usesManualDeliverable =
-        isInclusionBuyType ||
-        isFixedDeliverableBuyType
       const buyAmountStr = formatRate(unitRate)
-      const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
-      const calculatedValue = bvodCalculatedDeliverables(
+      // B10 (F2, D1): package keeps the quantity entered when the switch is on.
+      const calculatedValue = expertGridDeliverables({
+        profile: "digital",
         buyType,
-        netForCalc,
-        buyAmtNum,
-        bonusVal
-      )
+        netBudget: netForCalc,
+        unitRate,
+        enteredQty: qty,
+        packageKeepsEnteredQty: packageKeepsEnteredQty(options),
+      })
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
@@ -6683,19 +6596,15 @@ export function mapNewspaperExpertRowsToStandardLineItems(
       const isInclusionBuyType =
         buyTypeLower === "bonus" ||
         buyTypeLower === "package_inclusions"
-      const isFixedDeliverableBuyType =
-        buyTypeLower === "package"
-      const usesManualDeliverable =
-        isInclusionBuyType ||
-        isFixedDeliverableBuyType
-      const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
-      const calculatedValue = newspaperCalculatedDeliverables(
+      // B10 (F2, D1): package keeps the quantity entered when the switch is on.
+      const calculatedValue = expertGridDeliverables({
+        profile: "press",
         buyType,
-        netForCalc,
-        buyAmtNum,
-        bonusVal
-      )
+        netBudget: netForCalc,
+        unitRate,
+        enteredQty: qty,
+        packageKeepsEnteredQty: packageKeepsEnteredQty(options),
+      })
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
@@ -6947,21 +6856,6 @@ function normalizeMagazineBursts(item: StandardMagazineLineItemInput): StandardM
   return normalizeOohBursts(item)
 }
 
-/** Same deliverable math as newspaper (see burst-calculated-fields magazine variant). */
-function magazineCalculatedDeliverables(
-  buyType: string,
-  netBudget: number,
-  buyAmount: number,
-  bonusDeliverables?: number
-): number {
-  return newspaperCalculatedDeliverables(
-    buyType,
-    netBudget,
-    buyAmount,
-    bonusDeliverables
-  )
-}
-
 function emptyMagazineLineItem(
   row: MagazinesExpertScheduleRow,
   campaignStartDate: Date,
@@ -7060,19 +6954,15 @@ export function mapMagazineExpertRowsToStandardLineItems(
       const isInclusionBuyType =
         buyTypeLower === "bonus" ||
         buyTypeLower === "package_inclusions"
-      const isFixedDeliverableBuyType =
-        buyTypeLower === "package"
-      const usesManualDeliverable =
-        isInclusionBuyType ||
-        isFixedDeliverableBuyType
-      const bonusVal = usesManualDeliverable ? qty : undefined
-      const buyAmtNum = usesManualDeliverable ? 0 : unitRate
-      const calculatedValue = magazineCalculatedDeliverables(
+      // B10 (F2, D1): package keeps the quantity entered when the switch is on.
+      const calculatedValue = expertGridDeliverables({
+        profile: "press",
         buyType,
-        netForCalc,
-        buyAmtNum,
-        bonusVal
-      )
+        netBudget: netForCalc,
+        unitRate,
+        enteredQty: qty,
+        packageKeepsEnteredQty: packageKeepsEnteredQty(options),
+      })
 
       bursts.push({
         budget: formatBurstBudget(rawBudget),
@@ -7369,7 +7259,8 @@ function buildBurstsFromProgExpertLikeRow(
   weekColumns: WeeklyGanttWeekColumn[],
   campaignStartDate: Date,
   campaignEndDate: Date,
-  feePct: number
+  feePct: number,
+  options?: ExpertToStandardBurstOptions
 ): StandardMediaBurst[] {
   const unitRate = parseNum(row.unitRate)
   const buyType = row.buyType
@@ -7413,19 +7304,15 @@ function buildBurstsFromProgExpertLikeRow(
     const isInclusionBuyType =
       buyTypeLower === "bonus" ||
       buyTypeLower === "package_inclusions"
-    const isFixedDeliverableBuyType =
-      buyTypeLower === "package"
-    const usesManualDeliverable =
-      isInclusionBuyType ||
-      isFixedDeliverableBuyType
-    const bonusVal = usesManualDeliverable ? qty : undefined
-    const buyAmtNum = usesManualDeliverable ? 0 : unitRate
-    const calculatedValue = bvodCalculatedDeliverables(
+    // B10 (F2, D1): package keeps the quantity entered when the switch is on.
+    const calculatedValue = expertGridDeliverables({
+      profile: "digital",
       buyType,
-      netForCalc,
-      buyAmtNum,
-      bonusVal
-    )
+      netBudget: netForCalc,
+      unitRate,
+      enteredQty: qty,
+      packageKeepsEnteredQty: packageKeepsEnteredQty(options),
+    })
 
     bursts.push({
       budget: formatBurstBudget(rawBudget),
@@ -7658,7 +7545,8 @@ export function mapProgAudioExpertRowsToStandardLineItems(
       weekColumns,
       campaignStartDate,
       campaignEndDate,
-      feePct
+      feePct,
+      options
     )
 
     if (bursts.length === 0) {
@@ -7857,7 +7745,8 @@ export function mapProgBvodExpertRowsToStandardLineItems(
       weekColumns,
       campaignStartDate,
       campaignEndDate,
-      feePct
+      feePct,
+      options
     )
     if (bursts.length === 0) {
       return emptyProgBvodLineItem(
@@ -8057,7 +7946,8 @@ export function mapProgDisplayExpertRowsToStandardLineItems(
       weekColumns,
       campaignStartDate,
       campaignEndDate,
-      feePct
+      feePct,
+      options
     )
     if (bursts.length === 0) {
       return emptyProgDisplayLineItem(
@@ -8257,7 +8147,8 @@ export function mapProgVideoExpertRowsToStandardLineItems(
       weekColumns,
       campaignStartDate,
       campaignEndDate,
-      feePct
+      feePct,
+      options
     )
     if (bursts.length === 0) {
       return emptyProgVideoLineItem(
@@ -8453,7 +8344,8 @@ export function mapProgOohExpertRowsToStandardLineItems(
       weekColumns,
       campaignStartDate,
       campaignEndDate,
-      feePct
+      feePct,
+      options
     )
     if (bursts.length === 0) {
       return emptyProgOohLineItem(
