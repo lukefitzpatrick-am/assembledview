@@ -191,6 +191,7 @@ test("skipped plans (0112): a note (explained, one-off) is refused with 409 SKIP
   assert.equal(none.ok, false)
   if (!none.ok) {
     assert.equal(none.status, 409)
+    assert.equal(none.code, "SKIPPED")
     assert.equal(none.message, "golf025 is skipped: no client.")
   }
 })

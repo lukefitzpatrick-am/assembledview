@@ -1,6 +1,6 @@
 /**
- * Test helper: a strict RFC 4180 parse of the true-up CSV (quoted fields,
- * doubled quotes, CRLF rows). Used to check exact column widths.
+ * Test helper: a minimal RFC 4180 parser for app-generated CSV (quoted
+ * fields, doubled quotes, CRLF rows). Used to check exact column widths.
  */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = []
