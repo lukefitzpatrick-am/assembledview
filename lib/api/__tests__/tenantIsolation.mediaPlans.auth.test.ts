@@ -2,7 +2,6 @@
  * Tenant isolation for:
  *   GET  /api/media_plans
  *   GET  /api/media_plans/<channel> (via createChannelLineItemsGetHandler)
- *   POST /api/pacing/search
  *
  * Requires Node 22+ with `--experimental-test-module-mocks`.
  */
@@ -50,20 +49,6 @@ const fetchChannelLineItemsForMbaGetMock = mock.fn(
     { line_item_id: `${mbaNumber}SM1`, mba_number: mbaNumber },
   ]
 )
-const getSearchPacingDataMock = mock.fn(
-  async (_opts?: {
-    lineItemIds: string[]
-    startDate?: string
-    endDate?: string
-    requestId?: string
-    signal?: AbortSignal
-  }) => ({
-  totals: { cost: 1, clicks: 0, conversions: 0, revenue: 0, impressions: 0, topImpressionPct: null },
-  daily: [],
-  lineItems: [{ lineItemId: "hema001SE1", lineItemName: null, totals: { cost: 1, clicks: 0, conversions: 0, revenue: 0, impressions: 0, topImpressionPct: null }, daily: [] }],
-  keywords: [],
-}))
-
 if (supportsMockModule()) {
   await mock.module!("@/lib/auth0", {
     namedExports: {
@@ -92,20 +77,6 @@ if (supportsMockModule()) {
       fetchChannelLineItemsForMbaGet: fetchChannelLineItemsForMbaGetMock,
     },
   })
-  await mock.module!("@/lib/snowflake/search-pacing-service", {
-    namedExports: {
-      getSearchPacingData: getSearchPacingDataMock,
-    },
-  })
-}
-
-function clientSession(ownMba: string) {
-  return {
-    user: {
-      email: "client@example.com",
-      app_metadata: { role: "client", mba_numbers: [ownMba] },
-    },
-  }
 }
 
 test("GET /api/media_plans — client-role only sees own MBA rows", { skip }, async () => {
@@ -196,134 +167,4 @@ test("channel GET — client own MBA → 200; admin unscoped → 200", { skip },
     new Request("http://localhost/api/media_plans/social?mba_number=hema001")
   )
   assert.equal(admin.status, 200)
-})
-
-test("POST /api/pacing/search — client foreign lineItemIds → 403; Snowflake not called", { skip }, async () => {
-  getSessionMock.mock.resetCalls()
-  getSessionMock.mock.mockImplementation(async () => clientSession("BICAU002"))
-  checkClientMbaAccessMock.mock.resetCalls()
-  getSearchPacingDataMock.mock.resetCalls()
-  checkClientMbaAccessMock.mock.mockImplementation(async (_req, mba) => {
-    if (String(mba).toLowerCase() === "bicau002") {
-      return { ok: true, isClient: true }
-    }
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "forbidden" }, { status: 403 }),
-    }
-  })
-
-  const { POST } = await import("../../../app/api/pacing/search/route.js")
-  const res = await POST(
-    new NextRequest("http://localhost/api/pacing/search", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ lineItemIds: ["hema001SE1"] }),
-    })
-  )
-  assert.equal(res.status, 403)
-  assert.equal(getSearchPacingDataMock.mock.calls.length, 0)
-  assert.ok(
-    checkClientMbaAccessMock.mock.calls.some(
-      (c) => String(c.arguments[1]).toLowerCase() === "hema001"
-    )
-  )
-})
-
-test("POST /api/pacing/search — client own lineItemIds unaffected; admin can read foreign", { skip }, async () => {
-  getSearchPacingDataMock.mock.resetCalls()
-
-  getSessionMock.mock.mockImplementation(async () => clientSession("BICAU002"))
-  checkClientMbaAccessMock.mock.mockImplementation(async (_req, mba) => {
-    if (String(mba).toLowerCase() === "bicau002") {
-      return { ok: true, isClient: true }
-    }
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "forbidden" }, { status: 403 }),
-    }
-  })
-  const { POST } = await import("../../../app/api/pacing/search/route.js")
-  const own = await POST(
-    new NextRequest("http://localhost/api/pacing/search", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ lineItemIds: ["BICAU002SE1"] }),
-    })
-  )
-  assert.equal(own.status, 200)
-  assert.equal(getSearchPacingDataMock.mock.calls.length, 1)
-
-  getSearchPacingDataMock.mock.resetCalls()
-  getSessionMock.mock.mockImplementation(async () => ({
-    user: { email: "admin@example.com", app_metadata: { role: "admin" } },
-  }))
-  checkClientMbaAccessMock.mock.mockImplementation(async () => ({
-    ok: true,
-    isClient: false,
-  }))
-  const admin = await POST(
-    new NextRequest("http://localhost/api/pacing/search", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ lineItemIds: ["hema001SE1"] }),
-    })
-  )
-  assert.equal(admin.status, 200)
-  assert.equal(getSearchPacingDataMock.mock.calls.length, 1)
-})
-
-test("POST /api/pacing/search — P3 admin proceeds past unparseable junk ids", { skip }, async () => {
-  getSearchPacingDataMock.mock.resetCalls()
-  checkClientMbaAccessMock.mock.resetCalls()
-  getSessionMock.mock.mockImplementation(async () => ({
-    user: { email: "admin@example.com", app_metadata: { role: "admin" } },
-  }))
-  checkClientMbaAccessMock.mock.mockImplementation(async () => ({
-    ok: true,
-    isClient: false,
-  }))
-
-  const { POST } = await import("../../../app/api/pacing/search/route.js")
-  const res = await POST(
-    new NextRequest("http://localhost/api/pacing/search", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        lineItemIds: ["not-a-line-id", "hema001SE1"],
-      }),
-    }),
-  )
-  assert.equal(res.status, 200)
-  assert.equal(getSearchPacingDataMock.mock.calls.length, 1)
-  const arg = getSearchPacingDataMock.mock.calls[0]!.arguments[0] as {
-    lineItemIds: string[]
-  }
-  assert.deepEqual(arg.lineItemIds, ["hema001SE1"])
-})
-
-test("POST /api/pacing/search — P3 client unparseable id → 403 naming the id", { skip }, async () => {
-  getSearchPacingDataMock.mock.resetCalls()
-  checkClientMbaAccessMock.mock.resetCalls()
-  getSessionMock.mock.mockImplementation(async () => clientSession("BICAU002"))
-
-  const { POST } = await import("../../../app/api/pacing/search/route.js")
-  const res = await POST(
-    new NextRequest("http://localhost/api/pacing/search", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ lineItemIds: ["totally-junk-id"] }),
-    }),
-  )
-  assert.equal(res.status, 403)
-  const body = (await res.json()) as {
-    error: string
-    failedLineItemId?: string
-    failedLineItemIds?: string[]
-  }
-  assert.equal(body.error, "forbidden")
-  assert.equal(body.failedLineItemId, "totally-junk-id")
-  assert.deepEqual(body.failedLineItemIds, ["totally-junk-id"])
-  assert.equal(getSearchPacingDataMock.mock.calls.length, 0)
-  assert.equal(checkClientMbaAccessMock.mock.calls.length, 0)
 })

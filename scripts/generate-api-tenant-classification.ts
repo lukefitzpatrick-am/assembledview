@@ -30,7 +30,6 @@ const D1_D2_FIXED = new Set([
   "GET /api/media_plans/search",
   "GET /api/media_plans/social",
   "GET /api/media_plans/television",
-  "POST /api/pacing/search",
   "GET /api/billing-overrides",
   "POST /api/billing-overrides/replace_line",
   "POST /api/billing-overrides/reset_line",

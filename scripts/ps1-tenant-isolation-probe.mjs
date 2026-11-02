@@ -240,82 +240,7 @@ async function main() {
     `   control own MBA ${tenants.own.mba}: status=${ownRes.status} length=${Array.isArray(ownBody) ? ownBody.length : "?"}`
   )
 
-  // ── 3. POST /api/pacing/search ─────────────────────────────────────────
-  // Client session already installed above.
-
-  let foreignLineItemId = `${tenants.foreign.mba}SE1`
-  try {
-    const searchChannelMod = await import(fileUrl("app/api/media_plans/search/route.ts"))
-    const searchChRes = await searchChannelMod.GET(
-      new Request(
-        `${REQUEST_ORIGIN}/api/media_plans/search?mba_number=${encodeURIComponent(tenants.foreign.mba)}`
-      )
-    )
-    if (searchChRes.status === 200) {
-      const searchItems = await searchChRes.json()
-      if (Array.isArray(searchItems) && searchItems.length > 0) {
-        const id =
-          searchItems[0]?.line_item_id ||
-          searchItems[0]?.lineItemId ||
-          searchItems[0]?.mp_line_item_id
-        if (typeof id === "string" && id.trim()) foreignLineItemId = id.trim()
-        console.log(
-          `\n   foreign search line items: ${searchItems.length}; using id=${foreignLineItemId}`
-        )
-      } else {
-        console.log(
-          `\n   foreign search channel empty; using synthetic id=${foreignLineItemId}`
-        )
-      }
-    }
-  } catch (err) {
-    console.log(`   (search channel hydrate skipped: ${err?.message || err})`)
-  }
-
-  const pacingMod = await import(fileUrl("app/api/pacing/search/route.ts"))
-  const pacingReq = new NextRequest(`${REQUEST_ORIGIN}/api/pacing/search`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ lineItemIds: [foreignLineItemId] }),
-  })
-  const pacingRes = await pacingMod.POST(pacingReq)
-  const pacingStatus = pacingRes.status
-  let pacingBody
-  try {
-    pacingBody = await pacingRes.json()
-  } catch {
-    pacingBody = null
-  }
-
-  console.log(
-    `\n── 3. POST /api/pacing/search (client session scoped to ${tenants.own.mba}) ──`
-  )
-  console.log(`   mock role: client; mba_numbers=[${tenants.own.mba}]`)
-  console.log(`   requested foreign lineItemIds: [${foreignLineItemId}]`)
-  console.log(`   status: ${pacingStatus}`)
-  if (pacingBody?.error) {
-    console.log(`   error: ${pacingBody.error}`)
-  } else if (pacingBody) {
-    console.log(
-      `   daily.length=${Array.isArray(pacingBody.daily) ? pacingBody.daily.length : "?"}`
-    )
-    console.log(
-      `   lineItems.length=${Array.isArray(pacingBody.lineItems) ? pacingBody.lineItems.length : "?"}`
-    )
-    if (pacingBody.totals) {
-      console.log(`   totals.cost=${pacingBody.totals.cost}`)
-    }
-  }
-
-  console.log(
-    `   VERDICT: ${
-      pacingStatus === 403
-        ? "NOT EXPOSED — 403"
-        : pacingStatus === 401
-          ? "auth mock failed (401) — inconclusive"
-          : `EXPOSED — client session accepted foreign lineItemIds (status ${pacingStatus}; session-only gate)`
-    }`
-  )
+  // Section 3 (POST /api/pacing/search) was removed in B9: the route is deleted.
 
   // Restore
   auth0Mod.auth0.getSession = originalGetSession
@@ -324,11 +249,6 @@ async function main() {
   console.log(`1. GET /api/media_plans:              ${exposure1 ? "EXPOSED" : "OK/INCONCLUSIVE"}`)
   console.log(
     `2. GET /api/media_plans/${probeChannel}:    ${channelStatus === 403 ? "OK" : "EXPOSED"}`
-  )
-  console.log(
-    `3. POST /api/pacing/search:             ${
-      pacingStatus === 403 ? "OK" : pacingStatus === 401 ? "INCONCLUSIVE" : "EXPOSED"
-    }`
   )
   console.log("")
   process.exit(0)

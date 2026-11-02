@@ -224,9 +224,9 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | Path | Methods | Class | Gate | Scope |
 |---|---|---|---|---|
 | `pacing/bulk` | POST | tenant-scoped | `checkClientMbaAccess` | **OK** |
-| `pacing/search` | POST | tenant-scoped | session only | **DEFECT** |
-| `pacing/programmatic/{display,video}` | POST | tenant-scoped | `checkClientMbaAccess` | **OK** |
-| `pacing/social/{meta,tiktok}` | POST | tenant-scoped | `checkClientMbaAccess` | **OK** |
+| `pacing/search` | POST | deleted 3 Nov 2026 (B9; was gated in SEC-11) | — | — |
+| `pacing/programmatic/{display,video}` | POST | deleted 3 Nov 2026 (B9) | — | — |
+| `pacing/social/{meta,tiktok}` | POST | deleted 3 Nov 2026 (B9) | — | — |
 | `pacing/{campaigns,social-campaigns,programmatic-campaigns,direct-campaigns,ad-serving-campaigns,overview}` | GET | tenant-scoped | `requirePacingAccess` | **OK** |
 | `pacing/admin/orphans` | GET | admin-only | `requireAdmin` | — |
 | `pacing/admin/orphans/live-line-items` | GET | admin-only | `requireAdmin` | — |
