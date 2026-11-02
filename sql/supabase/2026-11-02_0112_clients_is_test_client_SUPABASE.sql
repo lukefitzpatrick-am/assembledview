@@ -7,16 +7,24 @@
 --   writes the marker 0112_clients_is_test_client. Every existing client
 --   reads false. Updates no rows. ava_readonly already reads clients (0003).
 --
--- Run order
---   1. Run the BEFORE block. Check every expected value.
---   2. Run the DO block. It refuses (nothing done) if the marker or the
---      column already exists, and rolls back if any AFTER check inside fails.
---   3. Run the AFTER block. Check every expected value.
---   4. Then, separately, the guarded UPDATE at the end (STEP 2) sets the
---      three test clients. Run it only after the AFTER block passes.
---   Apply before deploying the code that carries the db/schema mirror (C-76).
+-- Two parts. Run PART A first, then PART B second, as separate runs.
+--
+-- PART A (run first): the migration.
+--   A1. Run the BEFORE block. Check every expected value.
+--   A2. Run the DO block. It refuses (nothing done) if the marker or the
+--       column already exists, and rolls back if any AFTER check inside fails.
+--   A3. Run the AFTER block. Check every expected value.
+--   Apply PART A before deploying the code that carries the db/schema mirror (C-76).
+--
+-- PART B (run second, only after A3 passes): mark the three test clients.
+--   B1. Preview. B2. The guarded UPDATE (returns the rows it changed).
+--   B3. After check.
 
--- ===================== BEFORE (read only) =====================
+-- #########################################################################
+-- PART A: RUN FIRST (the migration)
+-- #########################################################################
+
+-- ===================== A1. BEFORE (read only) =====================
 SELECT count(*) AS column_rows FROM information_schema.columns
  WHERE table_schema = 'public' AND table_name = 'clients'
    AND column_name = 'is_test_client';                                        -- expect 0
@@ -24,7 +32,7 @@ SELECT count(*) AS marker_rows FROM public.migration_markers
  WHERE key = '0112_clients_is_test_client';                                   -- expect 0
 SELECT count(*) AS clients FROM public.clients;                               -- note the number
 
--- ===================== CHANGE (one DO block) =====================
+-- ===================== A2. CHANGE (one DO block) =====================
 DO $$
 DECLARE
   n_col     integer;
@@ -70,7 +78,7 @@ BEGIN
 END
 $$;
 
--- ===================== AFTER (read only) =====================
+-- ===================== A3. AFTER (read only) =====================
 SELECT column_name, data_type, is_nullable, column_default
   FROM information_schema.columns
  WHERE table_schema = 'public' AND table_name = 'clients'
@@ -81,24 +89,32 @@ SELECT count(*) FILTER (WHERE is_test_client) AS test_clients,
 SELECT key FROM public.migration_markers
  WHERE key = '0112_clients_is_test_client';             -- expect 1 row
 
--- ===================== STEP 2: mark the three test clients (guarded) =====================
--- Sets is_test_client = true for client ids 53, 54 and 57 only. The CTE
--- checks each id still has the MBA identifier its plans use (krusty003,
--- supabase001, assembled001 on 2 Nov 2026); if any of the three does not
--- match, the UPDATE changes nothing and returns 0 rows.
+-- #########################################################################
+-- PART B: RUN SECOND (only after PART A's AFTER block passed)
+-- Marks clients 53, 54 and 57 as test or internal. Nothing else.
+-- #########################################################################
+-- The CTE checks each id still has the MBA identifier its plans use
+-- (krusty003, supabase001, assembled001 on 2 Nov 2026), compared lower-cased.
+-- If any of the three does not match, the UPDATE changes nothing and returns
+-- 0 rows.
 --   53 Krusty Krab (demo, plan krusty003)
 --   54 Supabase test client (plan supabase001)
 --   57 Assembled Media, internal (plan assembled001 "LinkedIn Lead Gen")
 
--- Preview (read only): expect exactly 3 rows, mbaidentifier krusty,
--- supabase, assembled, all is_test_client false.
+-- ===================== B1. Preview (read only) =====================
+-- Expect exactly 3 rows (53, 54, 57), all is_test_client false. The live
+-- mbaidentifier for 57 is "Assembled" (capital A): that matches, because the
+-- check lower-cases it to "assembled".
 SELECT id, mp_client_name, mbaidentifier, is_test_client
   FROM public.clients
  WHERE id IN (53, 54, 57)
  ORDER BY id;
 
--- Change: expect 3 rows returned (53, 54, 57). 0 rows = a check failed and
--- nothing was changed; read the preview and stop.
+-- ===================== B2. Change (guarded UPDATE) =====================
+-- Expect 3 rows returned (53, 54, 57). On a first run, 0 rows means a check
+-- failed and nothing changed: read the preview and stop. Re-running B2 after
+-- a successful first run returns 0 rows: that is expected (all three are
+-- already true, and the guard only matches clients still false).
 WITH expected(id, mbaidentifier) AS (
   VALUES (53::bigint, 'krusty'), (54::bigint, 'supabase'), (57::bigint, 'assembled')
 ),
@@ -120,7 +136,8 @@ UPDATE public.clients c
    AND c.id IN (SELECT id FROM checked)
 RETURNING c.id, c.mp_client_name, c.mbaidentifier, c.is_test_client;
 
--- After (read only): expect exactly 3 rows, ids 53, 54, 57, all true.
+-- ===================== B3. After (read only) =====================
+-- Expect exactly 3 rows, ids 53, 54, 57, all true.
 SELECT id, mp_client_name, mbaidentifier, is_test_client
   FROM public.clients
  WHERE is_test_client

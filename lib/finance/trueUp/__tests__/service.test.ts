@@ -131,3 +131,34 @@ test("reset guard: the preview warns when the plan is not approved, and stays qu
   assert.ok("impacts" in draft)
   assert.ok((draft as { impacts: string[] }).impacts.some((x) => x.includes("full billing reset") && x.includes("draft")))
 })
+
+test("skipped plans (0112): preview and apply say why instead of 'nothing to true up'", { skip }, async () => {
+  const skippedLoad = (patch: Record<string, unknown>) => async (a: { asOfMonth: string; fromMonth: string }) =>
+    buildTrueUpReport({
+      ...a,
+      plans: PLANS.map((p) => (p.mba_number === "golf025" ? { ...p, ...patch } : p)),
+      schedule: SCHEDULE,
+      invoices: INVOICES,
+      matchedRecords: MATCHED_RECORDS,
+    })
+  const choice = { components: ["fee" as const], strategy: "spread" as const }
+  const args = { mbaNumber: "golf025", asOfMonth: "2026-09", fromMonth: "2026-07", choice, sub: "auth0|x", now }
+
+  const flagged = await previewTrueUpFix({ ...args, load: skippedLoad({ is_test_client: true }) })
+  assert.equal("code" in flagged && flagged.code, "SKIPPED")
+  assert.equal("message" in flagged && flagged.message, "golf025 is skipped: test or internal client.")
+
+  const none = await previewTrueUpFix({ ...args, load: skippedLoad({ client_id: null }) })
+  assert.equal("message" in none && none.message, "golf025 is skipped: no client.")
+
+  tokenRequest = { ...fresh }
+  const applied = await applyTrueUpFromToken({ token: "t", sub: "s", actor, now, load: skippedLoad({ client_id: null }) })
+  assert.equal(applied.ok, false)
+  if (!applied.ok) {
+    assert.equal(applied.code, "SKIPPED")
+    assert.equal(applied.message, "golf025 is skipped: no client.")
+  }
+
+  const gone = await previewTrueUpFix({ ...args, mbaNumber: "nope001", load })
+  assert.match("message" in gone ? String(gone.message) : "", /nope001 has nothing to true up/)
+})

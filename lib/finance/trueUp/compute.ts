@@ -637,8 +637,27 @@ function isTrueFlag(value: unknown): boolean {
 }
 
 function idOrNull(value: unknown): number | null {
+  // null, undefined and "" are no id (Number(null) would read as 0 anyway).
+  if (value === null || value === undefined || value === "") return null
   const n = Number(value)
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null
+}
+
+export type TrueUpSkipReason = "no_client" | "test_client"
+
+/**
+ * The one skip rule for the true-up (report, monthly run, AVA). No client means
+ * no positive client id (null, 0, negative or not a number); otherwise a client
+ * flagged `is_test_client` is skipped. A real client is never skipped.
+ */
+export function trueUpSkipReason(owner: { clientId: unknown; isTestClient: unknown }): TrueUpSkipReason | null {
+  if (idOrNull(owner.clientId) == null) return "no_client"
+  if (isTrueFlag(owner.isTestClient)) return "test_client"
+  return null
+}
+
+export function isTrueUpSkippedOwner(owner: { clientId: unknown; isTestClient: unknown }): boolean {
+  return trueUpSkipReason(owner) != null
 }
 
 function suggestionFor(summary: Omit<TrueUpComponentSummary, "suggestion" | "underlyingStatus" | "coveredBy">): string {
@@ -920,11 +939,12 @@ export function buildTrueUpReport(input: TrueUpInput): TrueUpReport {
       clientName: String(plan.mp_client_name ?? "").trim(),
       campaignName: String(plan.campaign_name ?? "").trim(),
     }
-    if (idOrNull(plan.client_id) == null) {
+    const skipReason = trueUpSkipReason({ clientId: plan.client_id, isTestClient: plan.is_test_client })
+    if (skipReason === "no_client") {
       skipped.noClient.push(skippedRef)
       continue
     }
-    if (isTrueFlag(plan.is_test_client)) {
+    if (skipReason === "test_client") {
       skipped.testClients.push(skippedRef)
       continue
     }

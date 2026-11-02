@@ -78,7 +78,15 @@ async function reportRow(
 ): Promise<{ report: TrueUpReport; row: TrueUpMbaRow } | ServiceError> {
   const report = await load({ asOfMonth, fromMonth })
   const row = report.rows.find((r) => mbaKey(r.mbaNumber) === mbaKey(mbaNumber))
-  if (!row) return err(404, "NOT_FOUND", `${mbaNumber} has nothing to true up to ${monthLabel(asOfMonth)}.`)
+  if (!row) {
+    // A skipped plan (0112) says why, instead of "nothing to true up".
+    const skipped = report.totals.skipped
+    const isIn = (list: Array<{ mbaNumber: string }> | undefined) =>
+      (list ?? []).some((s) => mbaKey(s.mbaNumber) === mbaKey(mbaNumber))
+    if (isIn(skipped?.testClients)) return err(409, "SKIPPED", `${mbaNumber} is skipped: test or internal client.`)
+    if (isIn(skipped?.noClient)) return err(409, "SKIPPED", `${mbaNumber} is skipped: no client.`)
+    return err(404, "NOT_FOUND", `${mbaNumber} has nothing to true up to ${monthLabel(asOfMonth)}.`)
+  }
   return { report, row }
 }
 

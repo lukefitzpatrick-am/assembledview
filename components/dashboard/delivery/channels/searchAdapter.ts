@@ -107,7 +107,6 @@ function compareHigherIsBetter(actual: number, expected: number | undefined): De
   return "on-track"
 }
 
-/** Normalise API top-impression share to 0–1 for benchmarks */
 /**
  * Top impression share as a 0 to 1 fraction, read as stored. C-158: the source
  * (Google Ads via Fivetran, TOP_IMPRESSION_PERCENTAGE) is a fraction; checked

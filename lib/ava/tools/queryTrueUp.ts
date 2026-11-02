@@ -16,6 +16,7 @@ import { desc, eq, inArray, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { getAvaDb, schema } from "@/db/avaClient"
+import { trueUpSkipReason } from "@/lib/finance/trueUp/compute"
 import { isTrueUpEnabled } from "@/lib/finance/trueUp/flag"
 
 import { asRecord, asString, jsonContent } from "./helpers"
@@ -199,7 +200,12 @@ export function shapeTrueUpForModel(
   }
 }
 
-/** Which run MBAs to leave out. An MBA with no master row is kept (nothing to go on). Pure. */
+/**
+ * Which run MBAs to leave out, by today's client flags: a saved run is not
+ * rewritten, so a run saved before 0112 (or before a client was flagged) is
+ * filtered here. Same rule as the report (`trueUpSkipReason`). An MBA with no
+ * master row is kept (nothing to go on). Pure.
+ */
 export function trueUpExclusionsFromOwners(
   owners: ReadonlyArray<{ mbaNumber: string | null; clientId: number | null; isTestClient: boolean | null }>,
 ): TrueUpRunExclusions {
@@ -208,8 +214,9 @@ export function trueUpExclusionsFromOwners(
   for (const o of owners) {
     const k = key(o.mbaNumber)
     if (!k) continue
-    if (o.clientId == null) noClientMbas.add(k)
-    else if (o.isTestClient === true) testMbas.add(k)
+    const reason = trueUpSkipReason({ clientId: o.clientId, isTestClient: o.isTestClient })
+    if (reason === "no_client") noClientMbas.add(k)
+    else if (reason === "test_client") testMbas.add(k)
   }
   return { testMbas, noClientMbas }
 }

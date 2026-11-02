@@ -1,8 +1,10 @@
 /**
  * True-up CSV (Stage 1). One row per MBA and month, then a "To date" row per
  * MBA with the status and suggestion for each component, then the
- * unattributed invoice lines. Dollars ex GST, two decimals, no symbol.
- * Sign: invoiced minus scheduled. Plus = credit due, minus = charge due.
+ * unattributed invoice lines, then "skipped" rows: the two lines the page and
+ * email show (`trueUpSkippedLines`, test clients as a count) and one row per
+ * plan with no client, with its MBA number. Dollars ex GST, two decimals, no
+ * symbol. Sign: invoiced minus scheduled. Plus = credit due, minus = charge due.
  */
 
 import {
@@ -11,6 +13,7 @@ import {
   TRUE_UP_STATUS_LABELS,
   type TrueUpReport,
 } from "./compute"
+import { trueUpSkippedLines } from "./viewModel"
 
 /** Integer cents to "1234.56" without float maths. */
 export function centsToPlain(cents: number): string {
@@ -77,6 +80,14 @@ export function buildTrueUpCsv(report: TrueUpReport): string {
     }
     out.push(`${u.reason === "no_mba" ? "No MBA found" : "MBA has no published plan"}. Reference: ${u.reference}`)
     lines.push(out)
+  }
+  // Skipped plans (0112): never silently dropped from the export.
+  const blanks = () => Array.from({ length: TRUE_UP_COMPONENTS.length * 6 }, () => "")
+  for (const text of trueUpSkippedLines(report.totals.skipped)) {
+    lines.push(["skipped", "", "", "", "", "", "", ...blanks(), text])
+  }
+  for (const s of report.totals.skipped?.noClient ?? []) {
+    lines.push(["skipped", s.clientName, s.mbaNumber, "", "", "", "", ...blanks(), `Skipped: no client. ${s.campaignName}`.trim()])
   }
   return lines.map((l) => l.map(cell).join(",")).join("\r\n") + "\r\n"
 }

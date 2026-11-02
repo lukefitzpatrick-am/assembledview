@@ -25,6 +25,7 @@ C-numbers are allocated on `localhost` only, and are never reassigned once writt
 | SEC-16 | `POST /api/pacing/search` returned opaque 403 on unparseable `lineItemId` before role resolution — admins hit by junk/legacy MBA ids | FIXED — resolve admin first; admin skips junk ids (logged); client 403 names `failedLineItemId` |
 | SEC-17 | `GET …/expected-spend-to-date` had no local MBA gate (cookie-forward only) | FIXED — `checkClientMbaAccess` on mba param before upstream fetch |
 | SEC-18 | `GET /api/dashboard/spend-parity` classified tenant-scoped+none (404 in prod is not a guard) | FIXED — `requireRole(["admin"])` then existing prod 404 |
+| SEC-19 | **`GET /api/clients/[id]` returns the full client row to the client role.** After the own-id check (`app/api/clients/[id]/route.ts:62-71`) it returns `readClientById` unfiltered: `client_brain`, the fee and ad-serving rates, `is_test_client` and every other column. `app/client/[slug]/page.tsx:34` says the full row (incl. brain) is for admins only, never tenant clients. No client-role UI calls this route today (callers: the edit media plan page, staff; `EditClientForm` PUT; `lib/api.ts` `getClientInfo`, which has no callers), but a signed-in client can request its own id directly. | Open — not fixed in B3b. Fix: a client-facing column allowlist for the client role (or admin/staff only on GET). |
 
 ## Session / save UI (SE-*)
 

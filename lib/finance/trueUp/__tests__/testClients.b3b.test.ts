@@ -13,9 +13,12 @@ import { PgDialect } from "drizzle-orm/pg-core"
 import {
   buildTrueUpReport,
   financialYearStart,
+  isTrueUpSkippedOwner,
+  trueUpSkipReason,
   type TrueUpPlanSqlRow,
   type TrueUpScheduleSqlRow,
 } from "../compute.js"
+import { buildTrueUpCsv, trueUpCsvHeader } from "../csv.js"
 import { trueUpPlansSql } from "../load.js"
 import { buildTrueUpRunEmail, compactRunRows } from "../monthlyRunModel.js"
 import { trueUpSkippedLines } from "../viewModel.js"
@@ -162,4 +165,38 @@ test("client form: Test or internal client is off by default, admin only, and sa
   // The write path keeps the column, including false (unticking).
   assert.equal(normalizeClientWritePayload({ is_test_client: true }, { requireIdentity: false }).is_test_client, true)
   assert.equal(normalizeClientWritePayload({ is_test_client: false }, { requireIdentity: false }).is_test_client, false)
+})
+
+test("B3b fix: the CSV keeps skipped plans visible (no-client MBAs listed, test clients counted)", () => {
+  const rows = buildTrueUpCsv(withTests).trim().split("\r\n")
+  const width = trueUpCsvHeader().length
+  const skipped = rows.filter((r) => r.startsWith("skipped,"))
+  for (const r of skipped) assert.ok(r.split(",").length >= width, r)
+  assert.ok(skipped.some((r) => r.endsWith(",Skipped: test or internal clients (2)")))
+  assert.ok(skipped.some((r) => r.endsWith(",Skipped: no client (1): mb15cmv2xy4x5")))
+  assert.ok(skipped.some((r) => r.startsWith("skipped,,mb15cmv2xy4x5,") && r.endsWith(",Skipped: no client. No client")))
+  // Test-client plans are a count only: their MBA numbers are nowhere in the CSV.
+  assert.ok(!rows.some((r) => /krusty003|assembled001/.test(r)))
+  // A report with nothing skipped still prints the two zero lines.
+  const base = buildTrueUpCsv(baseline).trim().split("\r\n").filter((r) => r.startsWith("skipped,"))
+  assert.equal(base.length, 2)
+})
+
+test("B3b fix: one skip rule (no positive client id, else the test flag) for the report and AVA", () => {
+  for (const id of [null, undefined, "", 0, -3, "x"]) {
+    assert.equal(trueUpSkipReason({ clientId: id, isTestClient: true }), "no_client", String(id))
+  }
+  assert.equal(trueUpSkipReason({ clientId: 53, isTestClient: true }), "test_client")
+  assert.equal(trueUpSkipReason({ clientId: "53", isTestClient: "t" }), "test_client")
+  assert.equal(trueUpSkipReason({ clientId: 19, isTestClient: false }), null)
+  assert.equal(trueUpSkipReason({ clientId: 19, isTestClient: null }), null)
+  assert.equal(isTrueUpSkippedOwner({ clientId: 0, isTestClient: false }), true)
+  // AVA now agrees with the report on a 0 client id (it used to keep it).
+  const ex = trueUpExclusionsFromOwners([{ mbaNumber: "zero001", clientId: 0, isTestClient: false }])
+  assert.ok(ex.noClientMbas.has("zero001"))
+  const report0 = report(
+    [...PLANS.map((p) => ({ ...p, is_test_client: false })), { ...TEST_PLANS[2]!, mba_number: "zero001", client_id: 0 }],
+    [...SCHEDULE, ...scheduleFor("zero001")],
+  )
+  assert.deepEqual(report0.totals.skipped.noClient.map((s) => s.mbaNumber), ["zero001"])
 })
