@@ -103,7 +103,7 @@ export async function fetchPersistedFinanceStatusForMonth(
 export async function fetchAllPersistedFinanceStatusRows(
   _logContextMonth?: string
 ): Promise<PersistedFinanceStatusRow[]> {
-  // DATA_BACKEND_FINANCE / DATA_BACKEND — reads Postgres; writes go through writeFinance.ts.
+  // Reads Postgres; writes go through writeFinance.ts.
   const rows = (await readFinanceBillingRecords()) as unknown as PersistedFinanceStatusRow[]
   const ids = rows.flatMap((r) => {
     const id =

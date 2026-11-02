@@ -7197,7 +7197,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         }
       }
 
-      // PC4: collision worksheet — pause before WRITE_BACKEND=postgres when manual
+      // PC4: collision worksheet — pause before the save when manual
       // lines' booked media totals diverged from current override shape.
       let billingMonthsForSave = workingBillingMonths
       const getBurstsForLineOnSave = (billingRowId: string): BurstDateLike[] => {

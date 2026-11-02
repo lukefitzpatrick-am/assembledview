@@ -40,8 +40,8 @@ function asRecordList(body: unknown): Record<string, unknown>[] {
 
 /**
  * GET /api/finance/data?month=YYYY-MM&client=
- * Legacy hub Excel export — versions via DATA_BACKEND_PLANS readers,
- * clients/publishers via DATA_BACKEND_CLIENTS / PUBLISHERS (X3).
+ * Legacy hub Excel export — versions, clients and publishers from the
+ * Postgres readers (X3).
  */
 export async function GET(request: NextRequest) {
   const gate = await requireFinanceAdmin(request)

@@ -6,8 +6,6 @@ import type { MediaPlanMaster } from "../../../types/mediaPlanMaster.js"
 
 const skip = mockModuleSkip()
 
-const getDataBackendFor = mock.fn((_domain: string) => "postgres")
-
 const fetchLineItemsFromPostgresByEndpoint = mock.fn(
   async (_endpoint: string, _mba: string, _version: number) => [] as Record<string, unknown>[]
 )
@@ -36,9 +34,6 @@ const LIVE_MASTER: MediaPlanMaster = {
 const VERSION_ROW = { id: 88, version_number: 4, brand: "Penfolds" }
 
 if (supportsMockModule()) {
-  await mock.module!("@/lib/data/backend", {
-    namedExports: { getDataBackendFor },
-  })
   await mock.module!("@/lib/data/readMediaPlans", {
     namedExports: {
       fetchLineItemsFromPostgresByEndpoint,
@@ -55,7 +50,6 @@ if (supportsMockModule()) {
 }
 
 function resetMocks() {
-  getDataBackendFor.mock.resetCalls()
   fetchLineItemsFromPostgresByEndpoint.mock.resetCalls()
   readPlanMasters.mock.resetCalls()
   readPlanVersionsForMbas.mock.resetCalls()
@@ -71,7 +65,6 @@ function resetMocks() {
 async function withPostgresLines(
   linesByEndpoint: Record<string, Record<string, unknown>[]>
 ) {
-  getDataBackendFor.mock.mockImplementation(() => "postgres")
   readPlanMasters.mock.mockImplementation(async () => [
     LIVE_MASTER as unknown as Record<string, unknown>,
   ])

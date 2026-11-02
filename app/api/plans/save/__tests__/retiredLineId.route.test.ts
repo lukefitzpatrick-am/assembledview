@@ -94,9 +94,6 @@ if (supportsMockModule()) {
   await mock.module!("@/lib/auth/checkClientMbaAccess", {
     namedExports: { checkClientMbaAccess: mock.fn(async () => ({ ok: true as const, isClient: false })) },
   })
-  await mock.module!("@/lib/data/backend", {
-    namedExports: { getWriteBackend: mock.fn(() => "postgres" as const) },
-  })
   await mock.module!("@/lib/mediaplan/drafts/serverStore", {
     namedExports: {
       resolvePublishedVersionId: mock.fn(async () => 140),

@@ -4,7 +4,6 @@ import {
   MEDIA_CONTAINER_ENDPOINTS,
   type MediaContainerLineItem,
 } from "@/lib/api/media-containers"
-import { getDataBackendFor } from "@/lib/data/backend"
 import type { DeliveryChannelGroup, DeliveryLineSnapshot } from "@/lib/ava/tools/summaries"
 import {
   cleanPacingLineItemId,
@@ -982,7 +981,6 @@ export async function loadDeliverySnapshot(
     console.warn("[loadDeliverySnapshot] no plan lines resolved", {
       mba,
       versionNumber,
-      backend: getDataBackendFor("plans"),
     })
   }
 

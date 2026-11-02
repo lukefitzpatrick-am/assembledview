@@ -42,9 +42,6 @@ const getSearchPacingData = mock.fn(async () => null)
 const queryDailyFacts = mock.fn(async () => [])
 
 if (supportsMockModule()) {
-  await mock.module!("@/lib/data/backend", {
-    namedExports: { getDataBackendFor: () => "postgres" },
-  })
   await mock.module!("@/lib/snowflake/pacing-service", {
     namedExports: { getCampaignPacingData },
   })

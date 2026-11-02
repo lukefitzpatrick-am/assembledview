@@ -851,7 +851,7 @@ function invalidateMediaDetailBrowserCache(path: string): void {
 }
 
 async function fetchMediaDetail(path: string): Promise<any> {
-  // Server: reference tables honor DATA_BACKEND via shared reader (same as proxy).
+  // Server: reference tables come from the shared Postgres reader (same as proxy).
   // webpackIgnore keeps the server-only reader out of client chunks of this
   // isomorphic file (create/edit pages import getTVStations etc. from here).
   // The path check lives in the browser-safe module so the client graph never
@@ -1076,7 +1076,7 @@ async function fetchAllPublishers(): Promise<PublisherRow[]> {
         });
         rows = Array.isArray(data) ? data : [];
       } else {
-        // Server: honor DATA_BACKEND_PUBLISHERS via shared reader (same as /api/publishers).
+        // Server: the shared Postgres reader (same as /api/publishers).
         const { readPublishersList } = await import(
           /* webpackIgnore: true */ "@/lib/data/readPublishers"
         )

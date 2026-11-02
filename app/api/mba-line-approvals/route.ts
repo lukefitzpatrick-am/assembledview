@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic"
 
 /**
  * GET /api/mba-line-approvals?mba_number=&media_plan_version=
- * DATA_BACKEND_APPROVALS / DATA_BACKEND switch (default xano).
+ * Reads Postgres `mba_line_approvals`.
  * Absence of rows = all approved. 404 upstream → { lines: [], available: false }.
  */
 export async function GET(request: NextRequest) {
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 /**
  * PATCH /api/mba-line-approvals
  * Body: { mba_number, media_plan_version, lines:[{ line_item_id, media_type, approved }] }
- * Writes follow WRITE_BACKEND (default xano).
+ * Writes Postgres.
  */
 export async function PATCH(request: NextRequest) {
   try {

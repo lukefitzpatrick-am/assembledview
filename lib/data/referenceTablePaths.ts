@@ -1,5 +1,5 @@
 /**
- * Media-details reference tables eligible for DATA_BACKEND shadow/postgres reads.
+ * Media-details reference tables served from Postgres.
  * Shared (browser-safe) — no db imports.
  */
 export const REFERENCE_TABLE_PATHS = [

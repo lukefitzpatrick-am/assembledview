@@ -27,7 +27,6 @@ import {
   countPublishIntegrityChildren,
   isPublishVersionAdvance,
 } from "@/lib/mediaplan/publishVersionIntegrity"
-import { getPlanDetailBackend } from "@/lib/data/backend"
 import {
   PLAN_DETAIL_POSTGRES_ERROR_CODE,
   readMbaPlanDetailFromPostgres,
@@ -44,9 +43,6 @@ import {
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
-
-const XANO_TIMEOUT_MS = 15_000
-const XANO_LONG_TIMEOUT_MS = 30_000
 
 type MediaLineItems = {
   television: any[]
@@ -509,19 +505,7 @@ export async function GET(
     const skipLineItems = requestUrl.searchParams.get("skipLineItems") === "true"
     const includeLineIdFloors = requestUrl.searchParams.get("lineIdFloors") === "1"
 
-    // C-22 / X2: postgres is the only implemented PLAN_DETAIL branch.
-    // Flag remains; `xano` → explicit 410 (no fan-out, no silent fallback).
-    if (getPlanDetailBackend() === "xano") {
-      return NextResponse.json(
-        {
-          error:
-            "DATA_BACKEND_PLAN_DETAIL=xano is retired (X2). Use postgres (default).",
-          code: "PLAN_DETAIL_XANO_GONE",
-        },
-        { status: 410 }
-      )
-    }
-
+    // C-22 / X2: Postgres is the only plan detail read (the backend switch is gone, B6).
     const pgResult = await readMbaPlanDetailFromPostgres({
       mbaNumber: mba_number,
       requestedVersionNumber:

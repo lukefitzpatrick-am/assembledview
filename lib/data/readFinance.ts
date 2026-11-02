@@ -284,7 +284,3 @@ export async function readScopeOfWork(opts?: {
   return fetchScopeOfWorkFromPostgres(opts)
 }
 
-/** Finance reads are Postgres. The shadow probe no longer calls Xano. */
-export async function probeFinanceShadowDiffs(): Promise<void> {
-  return
-}

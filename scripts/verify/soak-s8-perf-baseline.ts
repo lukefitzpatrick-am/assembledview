@@ -27,8 +27,6 @@ async function main() {
   const tBoot = performance.now()
   // Defer heavy imports until after env load.
   const { getCachedMediaPlansList } = await import("@/lib/api/mediaPlansListCache")
-  const { getDataBackend, getDataBackendFor, getWriteBackend, getPlanDetailBackend } =
-    await import("@/lib/data/backend")
   const { getFinanceScheduleBackend, hydrateVersionsFinanceScheduleSource, loadScheduleMonthRowsForVersions } =
     await import("@/lib/finance/scheduleMonthsSource")
   const { fetchRelevantPlanVersionsForFinanceMonth } = await import(
@@ -44,13 +42,6 @@ async function main() {
   console.log(
     JSON.stringify(
       {
-        DATA_BACKEND: getDataBackend(),
-        WRITE_BACKEND: getWriteBackend(),
-        DATA_BACKEND_PLANS: getDataBackendFor("plans"),
-        DATA_BACKEND_FINANCE: getDataBackendFor("finance"),
-        DATA_BACKEND_KPI: getDataBackendFor("kpi"),
-        DATA_BACKEND_APPROVALS: getDataBackendFor("approvals"),
-        DATA_BACKEND_PLAN_DETAIL: getPlanDetailBackend(),
         DATA_BACKEND_FINANCE_SCHEDULE: getFinanceScheduleBackend(),
         SAVE_GATE_FULL_SCOPE: flag("SAVE_GATE_FULL_SCOPE", "off"),
         FEE_SNAPSHOT_WRITE_ONCE: flag("FEE_SNAPSHOT_WRITE_ONCE", "off"),

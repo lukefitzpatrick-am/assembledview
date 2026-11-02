@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic"
 
 /**
  * GET /api/billing-overrides?media_plan_version_id=
- * Reads via DATA_BACKEND_FINANCE / DATA_BACKEND.
+ * Reads Postgres.
  * Writes: replace_line / reset_line → Postgres (`writeBillingOverrides`, X2).
  * Tenant: MBA derived from version id server-side, then checkClientMbaAccess.
  */

@@ -28,7 +28,6 @@ const requireRoleMock = mock.fn(async () => ({
 }))
 
 const checkClientMbaAccessMock = mock.fn(async () => ({ ok: true as const, isClient: false }))
-const getWriteBackendMock = mock.fn(() => "postgres" as const)
 const resolvePublishedVersionIdMock = mock.fn(async () => TIP_ID)
 const countVersionLinesMock = mock.fn(async () => 1)
 const getWorkingDraftMock = mock.fn(async () => null)
@@ -68,9 +67,6 @@ if (supportsMockModule()) {
   })
   await mock.module!("@/lib/auth/checkClientMbaAccess", {
     namedExports: { checkClientMbaAccess: checkClientMbaAccessMock },
-  })
-  await mock.module!("@/lib/data/backend", {
-    namedExports: { getWriteBackend: getWriteBackendMock },
   })
   await mock.module!("@/lib/mediaplan/drafts/serverStore", {
     namedExports: {

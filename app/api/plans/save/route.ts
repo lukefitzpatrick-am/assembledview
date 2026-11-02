@@ -4,7 +4,6 @@ import { eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { LINE_CHANNELS } from "@/db/schema"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
-import { getWriteBackend } from "@/lib/data/backend"
 import { plansSaveBodySchema } from "@/lib/mediaplan/plansSaveBodySchema"
 import { missingBurstDatesGateResult } from "@/lib/mediaplan/missingBurstDatesGate"
 import {
@@ -41,23 +40,13 @@ export const revalidate = 0
 export const maxDuration = 60
 
 /**
- * POST /api/plans/save — Postgres transactional save (T4a) + best-effort Xano
- * mirror (T4b). Inactive for users while WRITE_BACKEND=xano (default).
- * Page wiring is T4c. Mirror failure never rolls back Postgres.
+ * POST /api/plans/save — the only plan save: one Postgres transaction
+ * (`savePlanVersion`). Create and edit call it once per save (B5). There is no
+ * Xano mirror and no write-backend switch (B6).
  */
 export async function POST(request: NextRequest) {
   const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
-
-  if (getWriteBackend() !== "postgres") {
-    return NextResponse.json(
-      {
-        error: "Postgres plan writes are disabled (WRITE_BACKEND=xano)",
-        code: "WRITE_BACKEND_XANO",
-      },
-      { status: 501 }
-    )
-  }
 
   let raw: unknown
   try {

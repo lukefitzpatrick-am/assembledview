@@ -65,7 +65,7 @@ async function loadClientsRows(): Promise<Record<string, unknown>[]> {
   if (cached?.length) return cached as Record<string, unknown>[]
 
   try {
-    // Cold path → clientsCache → readClientsList (DATA_BACKEND_CLIENTS / T2a).
+    // Cold path → clientsCache → readClientsList (Postgres, T2a).
     const { data } = await getCachedClientsList()
     return (data ?? []) as Record<string, unknown>[]
   } catch {

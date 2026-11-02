@@ -11,7 +11,7 @@
 
 /**
  * Postgres-authoritative tables: never truncate-reload from Xano.
- * Writes follow WRITE_BACKEND=postgres with no Xano mirror; a reload would
+ * Writes go to Postgres with no Xano mirror; a reload would
  * destroy live exclusions (PC0 / X1 design gap).
  */
 export const POSTGRES_AUTHORITATIVE_TABLES = new Set([

@@ -51,7 +51,7 @@ Not set in either environment: XANO_BASE_URL, XANO_FINANCE_FORECAST_SNAPSHOTS_BA
 | DATA_BACKEND_FINANCE_SCHEDULE | shadow |
 | WRITE_BACKEND | postgres |
 
-No other DATA_BACKEND_* exists. Unset domains fall back to DATA_BACKEND, so plans, clients, publishers, finance, kpi, pacing, and reference reads take the Postgres branch. DATA_BACKEND_FINANCE_SCHEDULE=shadow is the schedule-months serve mode (blob vs rows); it does not call Xano. XS-1 removed the Postgres-then-Xano mirror writes in `lib/data/writeClients.ts`, `writePublishers.ts`, `writeKpi.ts`, `writeMediaContainerBestPractice.ts`, `writeReferenceMediaDetail.ts`, and `writeMediaPlanMasters.ts`. The Postgres write is the whole function.
+No other DATA_BACKEND_* exists. B6 removed the switch (`lib/data/backend.ts` deleted): the app no longer reads DATA_BACKEND, DATA_BACKEND_<DOMAIN>, DATA_BACKEND_PLAN_DETAIL or WRITE_BACKEND, and every read and write is Postgres. Delete DATA_BACKEND, DATA_BACKEND_APPROVALS and WRITE_BACKEND from Vercel after the B6 deploy. DATA_BACKEND_FINANCE_SCHEDULE=shadow is the schedule-months serve mode (blob vs rows); it does not call Xano. XS-1 removed the Postgres-then-Xano mirror writes in `lib/data/writeClients.ts`, `writePublishers.ts`, `writeKpi.ts`, `writeMediaContainerBestPractice.ts`, `writeReferenceMediaDetail.ts`, and `writeMediaPlanMasters.ts`. The Postgres write is the whole function.
 
 `/api/cron/xano-line-item-sync` always reads Postgres. `LINE_ITEM_SNAPSHOT_SOURCE` does not select a source; a value other than `postgres` is logged and ignored. The cron does not call `fetchAllXanoLineItems`.
 
@@ -193,7 +193,7 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/config/__tests__/endpoints.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** |
 | `lib/creative/adCopy/avContext.ts` | getAvaXanoSummary | unconditional | no | lib/xano/ava.ts getAvaXanoSummary | **NAME-ONLY** |
 | `lib/creative/searchCopy/avContext.ts` | getAvaXanoSummary | unconditional | no | lib/xano/ava.ts getAvaXanoSummary | **NAME-ONLY** |
-| `lib/data/backend.ts` | no longer reads XANO_MIRROR_ENABLED (XS-1); DATA_BACKEND / WRITE_BACKEND remain | — | no | none | **DONE** |
+| `lib/data/backend.ts` | deleted (B6): the DATA_BACKEND / WRITE_BACKEND switch selected nothing but Postgres | — | no | none | **DONE** |
 | `lib/data/mirrorToXano.ts` | deleted (XS-1) | — | no | none | **DONE** |
 | `lib/data/readApprovals.ts` | mba_line_approvals from Postgres | — | no | same file | **DONE** (XS-2b) |
 | `lib/data/readClients.ts` | clients from Postgres | — | no | same file | **DONE** (XS-2b) |
@@ -211,7 +211,7 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/data/writePublishers.ts` | Postgres write is the whole function (XS-1) | — | no | same file | **DONE** |
 | `lib/data/writeReferenceMediaDetail.ts` | Postgres insert is the whole function (XS-1) | — | no | same file createReferenceMediaDetailPostgresFirst | **DONE** |
 | `lib/data/__tests__/mirrorToXano.test.ts` | deleted with mirrorToXano.ts (XS-1) | — | no | none | **DONE** |
-| `lib/data/__tests__/shadowDiff.test.ts` | clients, campaign_kpi, finance_billing_records | DATA_BACKEND_PUBLISHERS | no | none | **TOOLING** |
+| `lib/data/__tests__/shadowDiff.test.ts` | clients, campaign_kpi, finance_billing_records | none (backend switch tests removed in B6) | no | none | **TOOLING** |
 | `lib/docs/__tests__/fixtures/xanoEnvStub.ts` | test double / env stub | unconditional | no | none | **TOOLING** |
 | `lib/docs/__tests__/planVersionFiles.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** |
 | `lib/docs/__tests__/servePlanFile.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** |

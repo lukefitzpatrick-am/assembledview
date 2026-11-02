@@ -26,8 +26,6 @@
  * MB-25: REPLACE-SET runs only when `billingOverrides.authoritative === true`
  * (client loaded overrides successfully). Otherwise skip and leave DB rows
  * untouched. `clearedLineIds` deletes Reset-to-auto lines even after refetch.
- *
- * Gated by `WRITE_BACKEND=postgres`.
  */
 import { and, count, eq, inArray, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
@@ -874,8 +872,8 @@ async function upsertVersionRow(
 }
 
 /**
- * Single-transaction save. Callers must ensure `WRITE_BACKEND=postgres` at the
- * route boundary; this function always writes Postgres when invoked.
+ * Single-transaction save. Always writes Postgres. Callers: `POST /api/plans/save`
+ * and the ingest accept path (`acceptIngestProposal`).
  */
 export async function savePlanVersion(
   input: SavePlanVersionInput,

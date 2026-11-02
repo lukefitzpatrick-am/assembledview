@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/requireRole"
-import { getDataBackend, getDataBackendFor } from "@/lib/data/backend"
 import { summarizeShadowDiffs } from "@/lib/data/shadowDiff"
-import { probeFinanceShadowDiffs } from "@/lib/data/readFinance"
-import { probePacingShadowDiffs } from "@/lib/data/readPacing"
-import { probePlansShadowDiffs } from "@/lib/data/readMediaPlans"
 import {
   getFinanceScheduleBackend,
   probeFinanceScheduleDiffs,
@@ -13,16 +9,12 @@ import {
 export const runtime = "nodejs"
 
 /**
- * Admin-only summary of DATA_BACKEND=shadow field-level diffs from the last 24h
- * (in-memory, process-local). Includes per-domain counts.
- *
- * Finance: `unexpected` vs `duplicate-class` (PG deduped / Xano duplicated — EXPECTED)
- * are split in byDomain/byTable totals. Optional `?probe=finance` triggers a
- * read of all finance tables so cold processes accumulate diffs.
- * Optional `?probe=pacing` probes pacing-owned Xano tables (masters/versions/orphan_fixes).
- * Optional `?probe=plans` probes media-plan masters/versions + sample channel line items.
- * Optional `?probe=finance-schedule` compares blob vs schedule_months-derived amounts
- * across all published versions (PC1); returns CSV + top divergent MBAs.
+ * Admin-only summary of shadow field-level diffs from the last 24h (in-memory,
+ * process-local). The only producer left is the finance schedule blob vs
+ * `schedule_months` compare (`DATA_BACKEND_FINANCE_SCHEDULE=shadow`).
+ * `?probe=finance-schedule` runs that compare across all published versions
+ * (PC1) and returns CSV + top divergent MBAs. The Xano-era `?probe=finance`,
+ * `pacing` and `plans` no-ops and the `DATA_BACKEND*` echo are gone (B6).
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request)
@@ -31,33 +23,11 @@ export async function GET(request: NextRequest) {
   }
 
   const probe = request.nextUrl.searchParams.get("probe")
-  if (probe === "finance" && getDataBackendFor("finance") === "shadow") {
-    try {
-      await probeFinanceShadowDiffs()
-    } catch (err) {
-      console.error("[migration-diffs] finance probe failed", err)
-    }
-  }
-  if (probe === "pacing" && getDataBackendFor("pacing") === "shadow") {
-    try {
-      await probePacingShadowDiffs()
-    } catch (err) {
-      console.error("[migration-diffs] pacing probe failed", err)
-    }
-  }
-  if (probe === "plans" && getDataBackendFor("plans") === "shadow") {
-    try {
-      await probePlansShadowDiffs()
-    } catch (err) {
-      console.error("[migration-diffs] plans probe failed", err)
-    }
-  }
   if (probe === "finance-schedule") {
     try {
       const result = await probeFinanceScheduleDiffs()
       const summary = summarizeShadowDiffs(24 * 60 * 60 * 1000)
       return NextResponse.json({
-        dataBackend: getDataBackend(),
         financeScheduleBackend: getFinanceScheduleBackend(),
         financeScheduleProbe: {
           versionCount: result.versionCount,
@@ -93,16 +63,6 @@ export async function GET(request: NextRequest) {
     : null
 
   return NextResponse.json({
-    dataBackend: getDataBackend(),
-    dataBackendsByDomain: {
-      reference: getDataBackendFor("reference"),
-      publishers: getDataBackendFor("publishers"),
-      clients: getDataBackendFor("clients"),
-      kpi: getDataBackendFor("kpi"),
-      finance: getDataBackendFor("finance"),
-      pacing: getDataBackendFor("pacing"),
-      plans: getDataBackendFor("plans"),
-    },
     financeScheduleBackend: getFinanceScheduleBackend(),
     financeDiffSplit: financeSplit,
     ...summary,

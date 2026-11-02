@@ -263,5 +263,3 @@ export async function readPacingOrphanFixes(): Promise<Record<string, unknown>[]
   return fetchPacingOrphanFixesFromPostgres()
 }
 
-/** Pacing shadow probe is retired. Postgres is the only read. */
-export async function probePacingShadowDiffs(): Promise<void> {}

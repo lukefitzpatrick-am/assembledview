@@ -33,7 +33,7 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `media_plans/television/[id]` | PUT/DELETE | — | — | — | **RETIRED (X2)** — route deleted |
 | `media_plans/<channel>` dedicated POSTs | POST | — | — | — | **RETIRED (X2)** — GET-only dual handlers remain |
 | `media_plans/[...path]` | GET | catch-all | — | `requireRole(admin)` + dual channel/master reads | OK |
-| `media_plans/[...path]` | POST/PUT/DELETE | catch-all | — | `requireRole(admin)`; channel writes 410 when `WRITE_BACKEND=postgres` | **X2** |
+| `media_plans/[...path]` | POST/PUT/DELETE | catch-all | — | `requireRole(admin)`; channel writes 410 | **X2** |
 | `media-details/[...path]` | * | catch-all | — | `requireRole(admin)` | N/A |
 | `codex/tasks/[id]` | PATCH | `codex/tasks` | `requireCodexInternalAccess` | same | OK |
 | `dashboard/[slug]` | GET | client dashboard | — | session + slug / admin | OK |

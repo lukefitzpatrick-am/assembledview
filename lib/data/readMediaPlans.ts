@@ -712,15 +712,9 @@ export async function readChannelLineItems(
   endpoint: string,
   mbaNumber: string,
   versionNumber: number,
-  _xanoFetcher?: () => Promise<Record<string, unknown>[]>
 ): Promise<Record<string, unknown>[]> {
   const channel = channelFromEndpoint(endpoint)
   if (!channel) return []
   return fetchLineItemsFromPostgres(mbaNumber, versionNumber, channel)
 }
 
-/** Plans reads are Postgres. Kept so admin migration-diffs still calls a no-op. */
-export async function probePlansShadowDiffs(_options?: {
-  mbaNumbers?: string[]
-  channels?: LineChannel[]
-}): Promise<void> {}

@@ -19,8 +19,6 @@ const fetchLineItemsFromPostgresByEndpoint = mock.fn(
 
 const readPlanMasterByMba = mock.fn(async (_mba: string) => ({ version_number: 28 }))
 
-const getDataBackendFor = mock.fn((_domain: string) => "postgres")
-
 const getCampaignPacingData = mock.fn(
   async (_mba: string, _ids: string[]) => [] as Array<{ lineItemId: string }>,
 )
@@ -41,9 +39,6 @@ if (supportsMockModule()) {
     namedExports: {
       isAxiosError: () => false,
     },
-  })
-  await mock.module!("@/lib/data/backend", {
-    namedExports: { getDataBackendFor },
   })
   await mock.module!("@/lib/data/readMediaPlans", {
     namedExports: {
@@ -293,7 +288,6 @@ test(
 
     axiosGet.mock.resetCalls()
     fetchLineItemsFromPostgresByEndpoint.mock.resetCalls()
-    getDataBackendFor.mock.mockImplementation(() => "postgres")
 
     await fetchAllPlanLineItemsForDelivery("BICAU002", 28)
 

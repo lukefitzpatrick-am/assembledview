@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireRole } from "@/lib/requireRole"
 import { checkMediaDetailsProxyPath } from "@/lib/security/proxyAllowlist"
 import { logProxy403 } from "@/lib/security/logProxy403"
-import { getDataBackend } from "@/lib/data/backend"
 import { isReferenceTablePath } from "@/lib/data/referenceTables"
 import { readReferenceMediaDetail } from "@/lib/data/readReferenceMediaDetail"
 import {
@@ -55,7 +54,6 @@ async function proxyRequest(request: Request, { params }: Params, method: string
     } catch (error: any) {
       console.error("[media-details reference read] error", {
         path: pathSegments[0],
-        backend: getDataBackend(),
         error,
       })
       return NextResponse.json(
