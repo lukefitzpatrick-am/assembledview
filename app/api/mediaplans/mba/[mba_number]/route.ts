@@ -540,27 +540,6 @@ export async function GET(
   }
 }
 
-// PUT is retired. The editor saves through POST /api/plans/save.
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ mba_number: string }> }
-) {
-  const { mba_number: rawMbaNumber } = await params
-  const mba_number = parseMbaNumber(rawMbaNumber)
-  if (!mba_number) return invalidMbaNumberResponse()
-
-  const access = await checkClientMbaAccess(request, mba_number)
-  if (!access.ok) return access.response
-
-  return NextResponse.json(
-    {
-      error: "MBA PUT is retired. The editor saves through POST /api/plans/save.",
-      path: `/api/mediaplans/mba/${mba_number}`,
-    },
-    { status: 410 },
-  )
-}
-
 // PATCH updates the Postgres media_plan_masters row (and the publish stamp).
 export async function PATCH(
   request: NextRequest,

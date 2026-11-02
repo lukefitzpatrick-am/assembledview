@@ -419,9 +419,9 @@ export async function upsertFinanceBillingRecordByInvoiceKey(
 }
 
 /**
- * Postgres writer for billed-era columns. No production caller — the human
- * writer is the 410 mark-billed route. Kept as that route's documented
- * counterpart so billed-column echo tests still have a mutate path.
+ * Postgres writer for billed-era columns. No production caller. The retired
+ * mark-billed route was deleted in B9 (3 Nov 2026). Kept so billed-column
+ * echo tests still have a mutate path.
  */
 export async function setFinanceBillingRecordBilled(
   input: SetFinanceBillingRecordBilledInput,

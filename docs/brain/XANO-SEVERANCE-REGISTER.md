@@ -153,7 +153,7 @@ In-repo callers grepped under components/, app/, and lib/. A route with no calle
 | `app/api/finance/xero-queue/route.ts` | GET open xero_sync_exceptions; assign_mba writes xero_ar_invoices and resolves the exception | — | no | lib/finance/xeroQueue.ts | **DONE** | XeroExceptionsPanel.tsx, XeroPageClient.tsx |
 | `app/api/media-details/[...path]/route.ts` | GET reference tables from Postgres; POST reference writes; any other path returns 410 with the path | none | no | lib/data/referenceTables.ts fetchReferenceTableFromPostgres; createReferenceMediaDetailPostgresFirst | **DONE** | lib/api.ts → container get* helpers |
 | `app/api/mediaplans/mba/[mba_number]/documents/__tests__/documents.route.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** | — |
-| `app/api/mediaplans/mba/[mba_number]/route.ts` | GET plan detail from Postgres. PUT returns 410 with the path and does not reap. PATCH updates media_plan_masters and, on publish, stamps published_at and published_version_id. Dead `detectDuplicateLineItemWarning` / `fetchXanoTableForMediaType` crawls are removed | none | no | readMbaPlanDetailFromPostgres; stampVersionPublicationByMbaVersion | **DONE** | edit/create pages still call PUT/PATCH on the Xano write branch |
+| `app/api/mediaplans/mba/[mba_number]/route.ts` | GET plan detail from Postgres. No PUT (the 410 stub was removed in B9, 3 Nov 2026). PATCH updates media_plan_masters and, on publish, stamps published_at and published_version_id. Dead `detectDuplicateLineItemWarning` / `fetchXanoTableForMediaType` crawls are removed | none | no | readMbaPlanDetailFromPostgres; stampVersionPublicationByMbaVersion | **DONE** | edit page and status control call GET/PATCH; no PUT caller |
 | `app/api/mediaplans/[id]/download/__tests__/download.route.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** | — |
 | `app/api/media_plans/[...path]/route.ts` | GET masters/versions/channel lines from Postgres; any other path returns 410 with the path | none | no | readPlanMasters / readPlanVersions; createChannelLineItemsGetHandler | **DONE** | lib/api.ts browser GET |
 | `app/api/plans/save/route.ts` | Postgres save only; mirrorPlanToXano removed (XS-1) | — | no | lib/data/savePlan.ts savePlanVersion | **DONE** | lib/mediaplan/buildPostgresSavePayload.ts; create + edit pages |
@@ -291,7 +291,8 @@ DO (delete or stub-404 only after re-grepping ZERO callers):
 1. Channel POST handlers with RETIRE(dead): cinema, digi-bvod, influencers, integration,
    newspaper, production, prog-video, search, social — remove POST exports; keep GET dual.
 2. Delete or 410: /api/campaigns/[mba_number], /api/campaigns/[mba_number]/billing-schedule,
-   /api/finance/accrual. (/api/publishers/check-id: already deleted 1 Nov 2026, F5.)
+   /api/finance/accrual. (/api/publishers/check-id: already deleted 1 Nov 2026, F5. The three 410
+   stubs were deleted 3 Nov 2026, B9.)
 3. (Done.) `app/api/media_plans/television/route.ts` exports GET only; there are no TV
    write handlers left. Before B5, saveTelevisionLineItems already called the throwing
    replaceChannelLineItems stub. The catch-all `media_plans/[...path]` is the only

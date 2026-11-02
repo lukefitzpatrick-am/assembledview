@@ -11,13 +11,11 @@ import type { BillingRecord } from "@/lib/types/financeBilling"
 
 const approveMock = vi.hoisted(() => vi.fn())
 const unapproveMock = vi.hoisted(() => vi.fn())
-const unmarkMock = vi.hoisted(() => vi.fn())
 const toastMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/finance/api", () => ({
   approveBillingRecords: approveMock,
   unapproveBillingRecords: unapproveMock,
-  unmarkBillingRecordsExported: unmarkMock,
 }))
 
 vi.mock("@/components/ui/use-toast", () => ({
@@ -52,11 +50,9 @@ describe("ReceivableApproveButton", () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     approveMock.mockReset()
     unapproveMock.mockReset()
-    unmarkMock.mockReset()
     toastMock.mockReset()
     approveMock.mockResolvedValue({ ok: true, records: [], errors: [] })
     unapproveMock.mockResolvedValue({ ok: true, records: [] })
-    unmarkMock.mockResolvedValue({ ok: true, records: [] })
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)

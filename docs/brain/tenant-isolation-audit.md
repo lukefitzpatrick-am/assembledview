@@ -190,7 +190,7 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | `mediaplans` | GET | tenant-scoped | `resolveClientMbaScope` (+ admin via `requireRole` path) | **OK** |
 | `mediaplans` | POST | admin-only | `requireRole(admin)` | — |
 | `mediaplans/mbanumber` | GET | tenant-scoped | **NONE** (`mbaidentifier`) | **DEFECT** |
-| `mediaplans/[id]/mbanumber` | POST | admin-only | `requireRole(admin)` (410 retired) | — |
+| `mediaplans/[id]/mbanumber` | POST | deleted 3 Nov 2026 (B9; was a 410 stub) | — | — |
 | `mediaplans/[id]/download` | GET | tenant-scoped | `checkClientMbaAccess` | **OK** |
 | `mediaplans/mba/[mba_number]/documents` | GET | tenant-scoped | `checkClientMbaAccess` | **OK** |
 | `mediaplans/generate-pdf` | POST | admin-only | `requireRole(admin)` | — |
@@ -199,7 +199,7 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | `mediaplans/mba/[mba_number]/material-instructions` | GET, POST | admin-only | inline admin | — |
 | `mediaplans/versions/[id]/billing-schedule` | PATCH | admin-only | `requireFinanceAdmin` | — |
 | `mediaplans/versions/[id]/documents` | POST | admin-only | `requireRole(admin)` | — |
-| `campaigns/[mba_number]` (+ billing-schedule) | GET | tenant-scoped | `checkClientMbaAccess` then 410 | **OK** (stub) |
+| `campaigns/[mba_number]` (+ billing-schedule) | GET | deleted 3 Nov 2026 (B9; were 410 stubs) | — | — |
 | `campaigns/export-report` | POST | admin-only | `requireRole` + `checkClientMbaAccess` | — |
 | `reports/on-demand` | POST | admin-only | `requireRole` + `checkClientMbaAccess` | MBA checked |
 | `reports/on-demand/[runId]` | GET | admin-only | `requireRole` + `checkClientMbaAccess` | MBA of the run |
@@ -263,11 +263,11 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 
 ### Finance (staff book)
 
-All finance handlers below are **admin-only** (`requireFinanceAdmin`, `requireRole(admin)`, or inline admin), including thin wrappers (`finance/sections/[...path]`, forecast snapshots/targets/variance, `xero-queue`, mark-billed, approve, unapprove, mark-exported, unmark-exported, notes). Middleware also fail-closes `/api/finance/sections*` to admin.
+All finance handlers below are **admin-only** (`requireFinanceAdmin`, `requireRole(admin)`, or inline admin), including thin wrappers (`finance/sections/[...path]`, forecast snapshots/targets/variance, `xero-queue`, approve, unapprove, notes). The mark-billed, mark-exported and unmark-exported 410 stubs were deleted 3 Nov 2026 (B9). Middleware also fail-closes `/api/finance/sections*` to admin.
 
 | Path group | Methods (summary) | Gate |
 |---|---|---|
-| `finance/accrual`, `periods`, `periods/sheet`, `xero-match*` | GET/POST as defined | `requireRole(admin)` |
+| `periods`, `periods/sheet`, `xero-match*` (`finance/accrual` deleted 3 Nov 2026, B9) | GET/POST as defined | `requireRole(admin)` |
 | `finance/billing*`, `data`, `edits`, `hub-schedule-ytd`, `payables`, `publishers`, `receivables/*`, `saved-views`, `sow`, `sections*` | various | `requireFinanceAdmin` (or inline admin equivalent) |
 | `finance/forecast*` | various | `requireRole` / inline admin |
 
@@ -306,7 +306,6 @@ All finance handlers below are **admin-only** (`requireFinanceAdmin`, `requireRo
 | `cron/on-demand-decks` | GET | public | `assertCronSecret` |
 | `cron/snapshot-checksum` | GET | public | `assertCronSecret` |
 | `cron/xano-line-item-sync` | GET | public | `assertCronSecret` |
-| `cron/xero-sync` | GET, POST | public | `assertCronSecret` (410) |
 | `cron/xero-sync-invoices` | GET, POST | public | `assertCronSecret` |
 | `cron/xero-sync-import` | GET, POST | public | `assertCronSecret` |
 | `cron/xero-sync-contacts` | GET, POST | public | `assertCronSecret` |

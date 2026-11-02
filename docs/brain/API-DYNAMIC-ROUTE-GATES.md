@@ -23,9 +23,9 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 |---|---|---|---|---|---|
 | `scopes-of-work/[id]` | GET | `scopes-of-work` GET | `requireRole(admin)` | `requireRole(admin)` | **GATED (O6)** |
 | `scopes-of-work/[id]` | PUT | `scopes-of-work` POST | `requireRole(admin)` | `requireRole(admin)` | **GATED (O6)** |
-| `campaigns/[mba_number]` | GET | — | `checkClientMbaAccess` | 410 `CAMPAIGNS_MBA_GONE` | **RETIRED (X3)** |
-| `campaigns/[mba_number]/billing-schedule` | GET | — | `checkClientMbaAccess` | 410 | **RETIRED (X3)** |
-| `mediaplans/[id]/mbanumber` | POST | — | `requireRole(admin)` | 410 `MBANUMBER_BY_ID_GONE` | **RETIRED (X3)** |
+| `campaigns/[mba_number]` | GET | — | — | — | **DELETED (B9, 3 Nov 2026)**. Was a 410 stub (X3) |
+| `campaigns/[mba_number]/billing-schedule` | GET | — | — | — | **DELETED (B9, 3 Nov 2026)**. Was a 410 stub (X3) |
+| `mediaplans/[id]/mbanumber` | POST | — | — | — | **DELETED (B9, 3 Nov 2026)**. Was a 410 stub (X3) |
 | `publishers/[publisherId]` | GET | `publishers` GET | session (middleware) | session (middleware) | OK |
 | `publishers/[publisherId]` | PUT | `publishers` POST | `requireRole(admin)` | `requireRole(admin)` | **GATED (SEC-G)** |
 | `publishers/[publisherId]/meetings` | GET | Hub ingest peer | `requireAdmin` | `requireAdmin` | OK |

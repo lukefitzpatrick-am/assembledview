@@ -445,41 +445,6 @@ export async function unapproveBillingRecords(params: { invoice_keys: string[] }
   return jsonOrThrow(response, path)
 }
 
-export async function markBillingRecordsExported(params: { invoice_keys: string[] }): Promise<{
-  ok: boolean
-  exported_by_name: string
-  records: Array<{
-    invoice_key: string
-    persisted_record_id: number
-    exported_at: string | null
-    exported_by: number | null
-    exported_by_name: string
-  }>
-  skipped: Array<{ invoice_key: string; error: "not_approved" }>
-  errors: Array<{ invoice_key: string; error: "not_found"; status: 404 }>
-}> {
-  const path = "/api/finance/billing/mark-exported"
-  const response = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  })
-  return jsonOrThrow(response, path)
-}
-
-export async function unmarkBillingRecordsExported(params: { invoice_keys: string[] }): Promise<{
-  ok: true
-  records: Array<{ invoice_key: string; persisted_record_id: number }>
-}> {
-  const path = "/api/finance/billing/unmark-exported"
-  const response = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  })
-  return jsonOrThrow(response, path)
-}
-
 export async function updateLineItem(
   id: number,
   data: Partial<BillingLineItem>

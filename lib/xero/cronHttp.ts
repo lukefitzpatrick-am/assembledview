@@ -4,9 +4,6 @@ import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import type { XeroCronStageResult } from "@/lib/xero/runLoggedStage"
 import type { XeroCronStageName } from "@/lib/xero/syncLogNotes"
 
-export const XERO_SYNC_GONE_MESSAGE =
-  "/api/cron/xero-sync was split into /api/cron/xero-sync-invoices, /api/cron/xero-sync-import, /api/cron/xero-sync-contacts, and /api/cron/xero-sync-pdfs. This route returns 410 for one release, then it is deleted."
-
 function unauthorised() {
   return NextResponse.json(
     { error: "unauthorised", hint: "cron_secret_required" },

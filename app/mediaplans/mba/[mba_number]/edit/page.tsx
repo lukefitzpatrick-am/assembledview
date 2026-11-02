@@ -1129,7 +1129,7 @@ const MEDIA_TYPE_KEYS = [
 
 type MediaTypeKey = typeof MEDIA_TYPE_KEYS[number];
 
-/** Same flag â†’ container fetchKey map as app/api/campaigns/[mba_number]/route.ts */
+/** Media flag to container fetchKey. */
 const MEDIA_FLAG_TO_FETCH_KEY: Partial<Record<MediaTypeKey, string>> = {
   mp_television: "television",
   mp_radio: "radio",
