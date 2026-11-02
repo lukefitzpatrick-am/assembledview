@@ -1,1 +1,0 @@
-These scripts are kept for the history of the Xano cutover. They must not be run. They are not on any cron, gate, or CI path, and their npm scripts have been removed. Do not wire them back into package.json.

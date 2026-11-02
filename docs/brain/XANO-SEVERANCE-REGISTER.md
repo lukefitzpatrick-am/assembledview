@@ -6,7 +6,7 @@ Vault copy done (1,899 files, 0 failures, marker `xs3_vault_to_blob`). `lib/api.
 
 Living inventory of every Next.js surface that still depends on Xano. Built by X-AUDIT-1 (report-only). Source audit `av-review/xano-severance-audit-2026-08-02.md` was **not present in the repo** — structure and X1–X8 owner prompts below are synthesized from grepped call graphs + brain T6 checklist; replace if the audit file is restored.
 
-**Scope (HEAD re-audit):** every file under `app/`, `lib/`, `components/`, and `scripts/` that imports `lib/api/xano`, `lib/api/xanoClients`, `lib/api/xanoPagination`, `lib/xano/*`, or reads `process.env.XANO*`, or contains `xano.io`. `components/` matched **0** files. `scripts/_archive/xano/` is historical and excluded from the live inclusion set. §1, §5, and §7 below are the August record and were not re-audited. XS-1 removed `lib/data/mirrorToXano`.
+**Scope (HEAD re-audit):** every file under `app/`, `lib/`, `components/`, and `scripts/` that imports `lib/api/xano`, `lib/api/xanoClients`, `lib/api/xanoPagination`, `lib/xano/*`, or reads `process.env.XANO*`, or contains `xano.io`. `components/` matched **0** files. `scripts/_archive/xano/` was historical and excluded from the live inclusion set; it was deleted in B18. §1, §5, and §7 below are the August record and were not re-audited. XS-1 removed `lib/data/mirrorToXano`.
 
 **Verdict key**
 
@@ -236,42 +236,15 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/snowflake/pgLineItemSnapshotMap.ts` | type import; row map, no HTTP | unconditional | no | none | **NAME-ONLY** |
 | `lib/snowflake/syncPgLineItems.ts` | always `fetchAllPgLineItems` then MERGE; no Xano fetch | none (`LINE_ITEM_SNAPSHOT_SOURCE` not read, B6) | no | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **NAME-ONLY** |
 | `lib/snowflake/syncXanoLineItems.ts` | MERGE into MART.XANO_LINE_ITEMS_SNAPSHOT; no HTTP | unconditional | no | none | **NAME-ONLY** |
-| `lib/snowflake/tipScopeLineItems.ts` | `PublishedTipPointer` type only; the Xano row filter went in B8 | — | no | none | **DONE** |
+| `lib/snowflake/tipScopeLineItems.ts` | deleted (B18) with `publishedVersionPointerAudit.ts`; the Xano row filter went in B8 | — | no | none | **DONE** |
 | `lib/snowflake/__tests__/syncPgLineItems.parity.test.ts` | deleted (B6) with the parity module | — | no | none | **DONE** |
 | `lib/snowflake/__tests__/syncXanoLineItemsPrune.test.ts` | media_plan_search | unconditional | no | none | **TOOLING** |
 | `lib/xano/fetchAllLineItems.ts` | GET all channel media_plan_* tables | archive parity script only; cron does not call it | no | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **TOOLING** |
 | `lib/xano/pacingOrphanFixes.ts` | deleted | — | no | lib/pacing/admin/pacingOrphanFixes.ts | **DONE** (XS-2b) |
 
-### Scripts (archived by XS-1; not in the live inclusion set)
+### Scripts (archived by XS-1, deleted in B18)
 
-Kept under `scripts/_archive/xano/` for history. They do not run. npm scripts that invoked them are removed. Not on any cron, gate, or CI path.
-
-| File | Fetches / writes | Flag | Production | Postgres equivalent | Verdict |
-|---|---|---|---|---|---|
-| `scripts/_archive/xano/backfill-campaign-kpi-from-publisher.ts` | campaign_kpi, publisher_kpi, media_plan_master | — | no | none | **DONE** |
-| `scripts/_archive/xano/backfill-delivery-schedule-client-paid.ts` | media_plan_versions | — | no | none | **DONE** |
-| `scripts/_archive/xano/bulk-import-kpi-best-practice.ts` | publisher_kpi, media_container_best_practice, get_publishers | — | no | none | **DONE** |
-| `scripts/_archive/xano/inspect-xano-shapes.mjs` | media_plan_versions_trimmed, media_plan_versions, media_plan_versions_latest | — | no | none | **DONE** |
-| `scripts/_archive/xano/measure-strip.mjs` | XANO_MEDIA_PLANS_BASE_URL, XANO_API_KEY | — | no | none | **DONE** |
-| `scripts/_archive/xano/migration/export-xano.ts` | mba_line_approvals | — | no | none | **DONE** |
-| `scripts/_archive/xano/migration/migrate-forecast-snapshots-xano-to-pg.ts` | XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL | — | no | none | **DONE** |
-| `scripts/_archive/xano/migration/shadow-smoke-approvals.ts` | mba_line_approvals | — | no | none | **DONE** |
-| `scripts/_archive/xano/migration/shadow-smoke-finance.ts` | finance_billing_records, finance_billing_line_items, finance_edits, finance_saved_views | — | no | none | **DONE** |
-| `scripts/_archive/xano/migration/shadow-smoke-kpi.ts` | campaign_kpi, client_kpi, publisher_kpi | — | no | none | **DONE** |
-| `scripts/_archive/xano/migration/shadow-smoke-pacing.ts` | media_plan_versions, pacing_orphan_fixes, media_plan_master | — | no | none | **DONE** |
-| `scripts/_archive/xano/migration/shadow-smoke-publishers-clients.ts` | get_publishers, clients | — | no | none | **DONE** |
-| `scripts/_archive/xano/normalize-kpi-percent-scale.ts` | publisher_kpi | — | no | none | **DONE** |
-| `scripts/_archive/xano/page-speed-after.mjs` | XANO_MEDIA_PLANS_BASE_URL, XANO_MEDIAPLANS_BASE_URL, XANO_PUBLISHERS_BASE_URL | — | no | none | **DONE** |
-| `scripts/_archive/xano/page-speed-baseline.mjs` | XANO_MEDIA_PLANS_BASE_URL, XANO_MEDIAPLANS_BASE_URL, XANO_PUBLISHERS_BASE_URL | — | no | none | **DONE** |
-| `scripts/_archive/xano/repro-blob-private-get.ts` | XANO_CLIENTS_BASE_URL, XANO_API_KEY | — | no | none | **DONE** |
-| `scripts/_archive/xano/scan-kpi-percent-units.ts` | campaign_kpi, client_kpi, publisher_kpi | — | no | none | **DONE** |
-| `scripts/_archive/xano/verify/finance-sections-summary-recon.ts` | media_plan_versions, media_plan_master | — | no | none | **DONE** |
-| `scripts/_archive/xano/verify/line-item-snapshot-parity.ts` | Xano HTTP when the script is run | — | no | none | **DONE** |
-| `scripts/_archive/xano/verify/probe-xano-forecast-targets.ts` | XANO_FINANCE_FORECAST_TARGETS_BASE_URL, XANO_CLIENTS_BASE_URL, XANO_API_KEY | — | no | none | **DONE** |
-| `scripts/_archive/xano/verify/probe-xano-line-item-pagination.ts` | Xano HTTP when the script is run | — | no | none | **DONE** |
-| `scripts/_archive/xano/verify/x3-legacy-hub-recon.ts` | get_publishers | — | no | none | **DONE** |
-| `scripts/_archive/xano/verify-kpi-scale.ts` | publisher_kpi | — | no | none | **DONE** |
-| `scripts/_archive/xano/x5-1-mba-line-approvals.mjs` | media_plan_version, mba_line_approvals | — | no | none | **DONE** |
+The 28 files under `scripts/_archive/xano/` (Xano backfills, exports, shadow smokes, probes and the line-item snapshot parity script) were deleted in B18 (3 Nov 2026). They could not run: they imported deleted Xano helpers, no npm script, cron, gate or CI step used them, and `tsconfig.json` excluded the folder. Git history keeps them (last present at `c4d15cd1`). Every row was **DONE**.
 
 ### Frozen contracts
 
@@ -411,7 +384,7 @@ snapshot source of truth. Prod LINE_ITEM_SNAPSHOT_SOURCE=postgres ONLY after
 X-series merge ships sync code; until then parity mode (MERGE still Xano).
 golf022: zero versions both stores — NULL published_version_id correct;
 scripts/fix-golf022-published-pointer.sql UPDATE unapplied / closed.
-Author: npm run verify:line-item-snapshot-parity (removed in XS-1; script is scripts/_archive/xano/verify/line-item-snapshot-parity.ts and does not run)
+Author: npm run verify:line-item-snapshot-parity (removed in XS-1; the archived script was deleted in B18)
 ```
 
 ### X8 — last Xano callers (env-literal severance)
