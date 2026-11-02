@@ -167,7 +167,7 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | File | Fetches / writes | Flag | Production | Postgres equivalent | Verdict |
 |---|---|---|---|---|---|
 | `lib/api/dashboard/client.ts` | Client row via `readClientsList`. Plan rows via `loadClientDashboardPlanRows` (`client_id` set, `readPlanVersionsForMbas` with schedules). Published cut is `published_version_id` with `published_at`. Campaign status is the master status | none | no | lib/data/readClients.ts; lib/api/dashboard/planRows.ts | **DONE** |
-| `lib/api/dashboard/finance.ts` | FYTD totals from `loadPublishedDashboardPlanRows` (pointer versions, master status) | none | no | lib/api/dashboard/planRows.ts | **DONE** |
+| `lib/api/dashboard/finance.ts` | Deleted 3 Nov 2026 (B9) with `/api/finance/hub-schedule-ytd`, its only caller. Was FYTD totals from `loadPublishedDashboardPlanRows` | none | no | lib/api/dashboard/planRows.ts | **DONE** |
 | `lib/api/dashboard/global.ts` | dashboard monthly publisher/client spend from Postgres | none | no | lib/data/dashboardMonthlySpend.ts fetchDashboardMonthly*FromPostgres | **DONE** |
 | `lib/api/dashboard/publisher.ts` | Publisher spend from `loadPublishedDashboardPlanRows` (pointer versions, master status) | none | no | lib/api/dashboard/planRows.ts | **DONE** |
 | `lib/api/dashboard/shared.ts` | axios client with Xano auth headers (no request until a caller uses apiClient) | unconditional | yes | none | **TOOLING** |
