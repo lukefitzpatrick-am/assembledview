@@ -4,16 +4,30 @@
  *
  * Counts hits in .ts and .tsx files, excluding lib/money, tests, scripts, and tmp.
  * The baseline is scripts/money-inline-baseline.json. A file fails when its
- * count rises or a new file appears. A drop passes. --update rewrites the
- * baseline to the current counts.
+ * count rises or a new file appears. A drop passes.
+ *
+ * The baseline only goes down (B7, G1):
+ *   --update   lowers each file to its current count and drops files at 0.
+ *              It never raises a count or adds a file; if any file is over
+ *              its baseline it fails like the check does.
+ *   --reseed   writes the current counts as they are. Only for the commit
+ *              that changes the pattern list below, so the reviewer sees the
+ *              pattern change and the new baseline together.
+ * Adding debt on purpose means editing the JSON by hand, in review.
  *
  * Patterns:
- *   (100 - or (100- near a fee or pct identifier
+ *   (100 - or (100- near a fee or pct identifier (fee splits, in components too)
  *   * 100) / 100
  *   Math.round( ... * 100 ... )
  *   <money identifier>.toFixed(2)
  *   / 100 next to a fee identifier
- *   local functions named parseMoney, parseAmount, formatCurrency, roundCents, toCents
+ *   parseFloat( / Number( ... .replace(/[^0-9. or /[^\d. ... ): a local number
+ *     parser. Counted for money and counts (TARPs, impressions) alike; lib/money
+ *     parseMoney is the money one
+ *   percent guessing: a ternary on `<= 1` / `> 1` with a `* 100` branch
+ *   local functions named parseMoney, parseAmount, formatCurrency, roundCents,
+ *   toCents, roundMoney, roundMoneyCents, parseCurrency, parseMoneySaved,
+ *   parseScheduleMoney, toCurrencyNumber, parseDollars, parseBillingScheduleAmount
  *
  * ESLint no-restricted-syntax is not used. Those patterns already match the
  * baseline, so a warn would fire on existing debt on every lint.
@@ -22,7 +36,13 @@ import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+// --root <dir> scans another tree with its own scripts/money-inline-baseline.json
+// (the self-test, scripts/__tests__/check-money-inline.test.mjs, uses it).
+const rootArg = process.argv.indexOf("--root")
+const rootDir =
+  rootArg >= 0 && process.argv[rootArg + 1]
+    ? path.resolve(process.argv[rootArg + 1])
+    : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const baselinePath = path.join(rootDir, "scripts", "money-inline-baseline.json")
 
 const SKIP_DIRS = new Set([
@@ -40,8 +60,26 @@ const MONEY_IDENT =
   /amount|budget|cost|spend|fee|total|gross|net|media/i
 const FEE_OR_PCT = /\b\w*(?:fee|pct)\w*\b/i
 const FEE_IDENT = /\b\w*fee\w*\b/i
-const LOCAL_FN =
-  /(?:^|[^\w.])(?:export\s+)?(?:async\s+)?function\s+(parseMoney|parseAmount|formatCurrency|roundCents|toCents)\b|(?:^|[^\w.])(?:export\s+)?(?:const|let|var)\s+(parseMoney|parseAmount|formatCurrency|roundCents|toCents)\s*=/g
+const LOCAL_FN_NAMES = [
+  "parseMoney",
+  "parseAmount",
+  "formatCurrency",
+  "roundCents",
+  "toCents",
+  // B7 (G1)
+  "roundMoney",
+  "roundMoneyCents",
+  "parseCurrency",
+  "parseMoneySaved",
+  "parseScheduleMoney",
+  "toCurrencyNumber",
+  "parseDollars",
+  "parseBillingScheduleAmount",
+].join("|")
+const LOCAL_FN = new RegExp(
+  String.raw`(?:^|[^\w.])(?:export\s+)?(?:async\s+)?function\s+(${LOCAL_FN_NAMES})\b|(?:^|[^\w.])(?:export\s+)?(?:const|let|var)\s+(${LOCAL_FN_NAMES})\s*=`,
+  "g",
+)
 
 function toPosix(rel) {
   return rel.split(path.sep).join("/")
@@ -214,6 +252,20 @@ function scanSource(src) {
     if (hasIdent(near, FEE_IDENT)) add(m.index, "/ 100 next to fee")
   }
 
+  const numberParse = /\b(?:parseFloat|Number)\s*\(/g
+  while ((m = numberParse.exec(src)) !== null) {
+    const open = m.index + m[0].length - 1
+    const close = matchingParen(src, open)
+    if (close < 0) continue
+    const inner = src.slice(open + 1, close)
+    if (/\.replace\s*\(\s*\/\[\^(?:0-9|\\d)/.test(inner)) add(m.index, "local number parser (parseFloat/Number of .replace(/[^0-9.); money or count")
+  }
+
+  const pctGuess = /(?:<=?|>=?)\s*1(?:\.0+)?\s*\?[^;\n]{0,80}\*\s*100\b/g
+  while ((m = pctGuess.exec(src)) !== null) {
+    add(m.index, "percent guessing (<= 1 / > 1 ? ... * 100)")
+  }
+
   LOCAL_FN.lastIndex = 0
   while ((m = LOCAL_FN.exec(src)) !== null) {
     add(m.index, `local function ${m[1] || m[2]}`)
@@ -301,22 +353,23 @@ function writeBaseline(counts) {
 }
 
 const update = process.argv.includes("--update")
+const reseed = process.argv.includes("--reseed")
 const files = walk(rootDir)
 const scans = files.map(scanFile)
 const counts = countsFrom(scans)
 const total = Object.values(counts).reduce((sum, n) => sum + n, 0)
 
-if (update) {
+if (reseed) {
   writeBaseline(counts)
   console.log(
-    `check:money-inline: updated baseline (${Object.keys(counts).length} files, ${total} hits). use lib/money`,
+    `check:money-inline: reseeded baseline (${Object.keys(counts).length} files, ${total} hits). Only with a pattern change. use lib/money`,
   )
   process.exit(0)
 }
 
 const baseline = readBaseline()
 if (!baseline) {
-  console.error("check:money-inline: baseline missing. Run with --update. use lib/money")
+  console.error("check:money-inline: baseline missing. Run with --reseed once. use lib/money")
   process.exit(1)
 }
 
@@ -331,7 +384,11 @@ for (const [rel, count] of Object.entries(counts)) {
 }
 
 if (failures.length > 0) {
-  console.error("inline money maths increased. use lib/money\n")
+  console.error(
+    update
+      ? "check:money-inline: --update only lowers the baseline; these files are over it. use lib/money\n"
+      : "inline money maths increased. use lib/money\n",
+  )
   const byRel = new Map(scans.map((scan) => [scan.rel, scan]))
   for (const failure of failures) {
     console.error(
@@ -350,6 +407,16 @@ let dropped = 0
 for (const [rel, allowed] of Object.entries(baseline)) {
   const count = counts[rel] ?? 0
   if (count < allowed) dropped += allowed - count
+}
+if (update) {
+  const lowered = {}
+  for (const [rel, allowed] of Object.entries(baseline)) {
+    const count = Math.min(counts[rel] ?? 0, allowed)
+    if (count > 0) lowered[rel] = count
+  }
+  writeBaseline(lowered)
+  console.log(`check:money-inline: baseline lowered by ${dropped} (${total} hits). use lib/money`)
+  process.exit(0)
 }
 if (dropped > 0) {
   console.log(
