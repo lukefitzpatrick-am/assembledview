@@ -1,8 +1,4 @@
 [
-  "dependencies:@radix-ui/react-switch",
-  "dependencies:autoprefixer",
-  "dependencies:drizzle-zod",
-  "dependencies:mammoth",
   "files:app/tools/behavioural-planner/components/AudienceCard.tsx",
   "files:app/tools/behavioural-planner/components/AvaNarration.tsx",
   "files:app/tools/behavioural-planner/components/BcsBadge.tsx",
@@ -65,7 +61,5 @@
   "files:lib/webReport/__tests__/view.test.tsx",
   "files:lib/xano/pacing-types.ts",
   "unlisted:fast-xml-parser scripts/reports/describe-pptx-layouts.ts",
-  "unlisted:postcss-load-config postcss.config.mjs",
-  "unlisted:sharp lib/reports/deckCreative/loadDeckCreatives.ts",
-  "unlisted:sharp scripts/spikes/report-deck-skill/run-deck.ts"
+  "unlisted:postcss-load-config postcss.config.mjs"
 ]
