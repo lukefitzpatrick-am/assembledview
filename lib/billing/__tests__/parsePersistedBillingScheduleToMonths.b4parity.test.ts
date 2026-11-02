@@ -156,6 +156,20 @@ test("row 3 (P6): a negative saved fee or total keeps its minus sign", () => {
   // A positive total-only row keeps its old floor: media never below 0.
   const floor = [{ monthYear: "July 2026", totalAmount: "$100.00", feeTotal: "$150.00" }]
   assert.deepEqual(plain(parsePersistedBillingScheduleToMonths(floor)), plain(legacyEditorParse(floor, FEES)!.months))
+  // Brackets mean negative on a total-only row too, as on the mediaTypes path
+  // (the old loose read made "($100.00)" +$100). 0 live (2 Nov 2026).
+  const brackets = [{ monthYear: "July 2026", totalAmount: "($100.00)", feeTotal: "$0.00" }]
+  assert.deepEqual(headers(plain(parsePersistedBillingScheduleToMonths(brackets)!)), [{ month: "July 2026", media: -10000, fee: 0, adserving: 0, production: 0, total: -10000 }])
+  assert.deepEqual(headers(plain(legacyEditorParse(brackets, FEES)!.months)), [{ month: "July 2026", media: 10000, fee: 0, adserving: 0, production: 0, total: 10000 }], "old: brackets read as +$100")
+  // Strings parseMoney cannot read keep the old loose read (no change).
+  for (const odd of ["AU$1,000.00", "1000."]) {
+    const row = [{ monthYear: "July 2026", totalAmount: odd }]
+    assert.deepEqual(plain(parsePersistedBillingScheduleToMonths(row)), plain(legacyEditorParse(row, FEES)!.months), odd)
+  }
+  // A credit that nets to nothing shows $0.00, never -$0.00.
+  // (-1.10 + 0.20 + 0.90 is -1.1e-16 in floats.)
+  const nets = [{ monthYear: "July 2026", totalAmount: "-$1.10", feeTotal: "-$0.20", adservingTechFees: "-$0.90" }]
+  assert.equal(parsePersistedBillingScheduleToMonths(nets)![0]!.mediaTotal, "$0.00")
 })
 
 test("row 4 (P6): line items with no month media total get it rebuilt from the line items", () => {

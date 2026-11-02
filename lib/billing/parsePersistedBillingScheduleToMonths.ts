@@ -1,4 +1,4 @@
-import { parseMoney } from "@/lib/money"
+import { parseMoney, roundMoney2 } from "@/lib/money"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 
 /** Unwrap string / `{ months: [...] }` / top-level array from media_plan_versions or API. */
@@ -23,6 +23,13 @@ export function normalizeBillingScheduleToArray(raw: unknown): unknown[] | null 
 }
 
 const parseMoneySaved = (val: unknown) => parseFloat(String(val ?? "").replace(/[^0-9.-]/g, "")) || 0
+
+/**
+ * Total-only rows: `parseMoney` first, so "($100.00)" is -$100 as on the
+ * mediaTypes path. Strings `parseMoney` cannot read ("AU$1,000.00",
+ * "1000.") keep the old loose read, so those months do not change.
+ */
+const parseMoneyTotalOnly = (val: unknown) => parseMoney(val) ?? parseMoneySaved(val)
 
 function optionalString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined
@@ -263,10 +270,10 @@ export function parsePersistedBillingScheduleToMonths(
         !Array.isArray((entry as { media_types: unknown[] }).media_types) ||
         (entry as { media_types: unknown[] }).media_types.length === 0)
     ) {
-      const legacyTotal = parseMoneySaved(entry.totalAmount ?? entry.amount)
-      const feeLegacy = parseMoneySaved(entry.feeTotal)
-      const adservLegacy = parseMoneySaved(entry.adservingTechFees ?? entry.adServing)
-      const prodLegacy = parseMoneySaved(entry.production)
+      const legacyTotal = parseMoneyTotalOnly(entry.totalAmount ?? entry.amount)
+      const feeLegacy = parseMoneyTotalOnly(entry.feeTotal)
+      const adservLegacy = parseMoneyTotalOnly(entry.adservingTechFees ?? entry.adServing)
+      const prodLegacy = parseMoneyTotalOnly(entry.production)
       // Minus signs are kept here too (P6): a -$100 credit month stays -$100.
       // A positive total keeps its old floor (media never below 0).
       if (
@@ -277,7 +284,8 @@ export function parsePersistedBillingScheduleToMonths(
           legacyTotal > 0
             ? Math.max(0, legacyTotal - feeLegacy - adservLegacy - prodLegacy)
             : legacyTotal < 0
-              ? legacyTotal - feeLegacy - adservLegacy - prodLegacy
+              ? // Cents, never -0: a credit that nets to nothing shows "$0.00", not "-$0.00".
+                roundMoney2(legacyTotal - feeLegacy - adservLegacy - prodLegacy)
               : totalMedia
         const useMedia = inferredMedia !== 0 ? inferredMedia : totalMedia
         const useFee = feeLegacy !== 0 ? feeLegacy : finalFeeTotal
