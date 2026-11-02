@@ -10,7 +10,7 @@ import test from "node:test"
 
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import type { BillingBurst } from "@/lib/billing/types"
-import { assertCoreScheduleParity } from "@/lib/finance/assertCoreScheduleParity"
+import { assertCoreScheduleParity } from "@/lib/finance/__tests__/fixtures/assertCoreScheduleParity"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import type { LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import { parseMoneyInput } from "@/lib/format/money"

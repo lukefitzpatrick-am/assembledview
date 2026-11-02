@@ -84,7 +84,7 @@ test("MB-23: edit Apply / Reset / date-basis keep are state-only (no override PO
   const keepBody = src.slice(keepStart, keepEnd)
   assert.doesNotMatch(
     keepBody,
-    /replaceBillingOverrideLineClient|applyDateBasisKeepOrReset|persistManualBillingOverrides/
+    /replaceBillingOverrideLineClient|persistManualBillingOverrides/
   )
 
   const dateResetStart = keepEnd
@@ -96,7 +96,7 @@ test("MB-23: edit Apply / Reset / date-basis keep are state-only (no override PO
   const dateResetBody = src.slice(dateResetStart, dateResetEnd)
   assert.doesNotMatch(
     dateResetBody,
-    /applyDateBasisKeepOrReset|resetBillingOverrideLineClient|replaceBillingOverrideLineClient/
+    /resetBillingOverrideLineClient|replaceBillingOverrideLineClient/
   )
 })
 

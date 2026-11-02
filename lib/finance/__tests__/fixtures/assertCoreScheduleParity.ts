@@ -1,5 +1,7 @@
 /**
  * Cent-level parity check: persisted billing schedule vs core campaignFinancials.billingSchedule.
+ * Test helper only (moved from lib/finance in B8: the create post-save parity
+ * check that used it went in B5). burstDateParity.test.ts compares schedules with it.
  */
 
 import type { BillingMonth } from "@/lib/billing/types"

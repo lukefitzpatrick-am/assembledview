@@ -1,9 +1,8 @@
 /**
- * C3 — preserve-prior on additive change + stale dateBasis detection.
- *
- * Diff incoming activity vs persisted lines; new lines get fresh auto billing,
- * prior override rows are kept. Stale `dateBasis` vs current burst dates
- * surfaces a keep-or-reset decision for the UI.
+ * C3 — stale dateBasis detection: override rows whose stored `dateBasis` no
+ * longer matches the line's current burst dates (the edit page asks keep or
+ * reset). The additive-preserve diff helpers that sat here had no caller
+ * after B5 and went in B8.
  */
 
 import {
@@ -15,7 +14,6 @@ import {
   toBillingOverrideLineItemId,
   billingOverrideLineIdsMatch,
 } from "@/lib/finance/manualBillingOverridesUi"
-import type { BillingMonth } from "@/lib/billing/types"
 
 export type BillingActivityLine = {
   /** Canonical line_item_id (no `billing-…::` prefix). */
@@ -23,14 +21,6 @@ export type BillingActivityLine = {
   /** Human label for alerts (publisher / platform + targeting). */
   label: string
   bursts: BurstDateLike[]
-}
-
-export type BillingActivityDiff = {
-  priorLineIds: string[]
-  newActivity: BillingActivityLine[]
-  removedLineIds: string[]
-  /** True when prior activity remains and at least one new line was added. */
-  isAdditivePreserve: boolean
 }
 
 export type StaleDateBasisOverride = {
@@ -42,8 +32,6 @@ export type StaleDateBasisOverride = {
   label: string
 }
 
-export type DateBasisDecision = "keep" | "reset"
-
 function rowLineId(row: BillingOverrideRow): string {
   return toBillingOverrideLineItemId(String(row.line_item_id ?? row.lineItemId ?? "").trim())
 }
@@ -54,71 +42,6 @@ function rowComponent(row: BillingOverrideRow): "media" | "fee" {
 
 function rowDateBasis(row: BillingOverrideRow): string {
   return String(row.date_basis ?? row.dateBasis ?? "").trim()
-}
-
-/** Collect canonical line ids present on a persisted billing schedule. */
-export function collectPersistedBillingLineIds(months: BillingMonth[]): Set<string> {
-  const ids = new Set<string>()
-  for (const month of months) {
-    if (!month.lineItems) continue
-    for (const items of Object.values(month.lineItems)) {
-      if (!Array.isArray(items)) continue
-      for (const line of items) {
-        const id = toBillingOverrideLineItemId(String(line.id ?? "").trim())
-        if (id) ids.add(id)
-      }
-    }
-  }
-  return ids
-}
-
-/**
- * Diff persisted schedule line ids vs incoming container activity.
- * Additive preserve = prior ids still present + at least one brand-new line.
- */
-export function diffBillingActivity(args: {
-  persistedLineIds: Iterable<string>
-  incoming: BillingActivityLine[]
-}): BillingActivityDiff {
-  // MB-11: both prior and incoming membership use canonical bare ids.
-  const priorSet = new Set(
-    [...args.persistedLineIds].map((id) => toBillingOverrideLineItemId(String(id))).filter(Boolean)
-  )
-  const incomingIds = new Set(
-    args.incoming
-      .map((l) => toBillingOverrideLineItemId(String(l.lineItemId ?? "").trim()))
-      .filter(Boolean)
-  )
-
-  const priorLineIds = [...priorSet].filter((id) => incomingIds.has(id)).sort()
-  const newActivity = args.incoming
-    .filter((l) => !priorSet.has(toBillingOverrideLineItemId(String(l.lineItemId ?? "").trim())))
-    .slice()
-    .sort((a, b) => a.lineItemId.localeCompare(b.lineItemId))
-  const removedLineIds = [...priorSet].filter((id) => !incomingIds.has(id)).sort()
-
-  return {
-    priorLineIds,
-    newActivity,
-    removedLineIds,
-    isAdditivePreserve: priorLineIds.length > 0 && newActivity.length > 0,
-  }
-}
-
-/**
- * Alert copy when prior overrides stay and new lines are billed fresh.
- * Example: `Prior billing preserved; new billing added for Google Search, Meta Prospecting.`
- */
-export function formatPreservePriorAlert(diff: BillingActivityDiff): string | null {
-  if (!diff.isAdditivePreserve) return null
-  const names = diff.newActivity.map((l) => l.label.trim() || l.lineItemId).filter(Boolean)
-  const joined =
-    names.length <= 1
-      ? names[0] ?? "new lines"
-      : names.length === 2
-        ? `${names[0]} and ${names[1]}`
-        : `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`
-  return `Prior billing preserved; new billing added for ${joined}.`
 }
 
 /**
@@ -164,20 +87,4 @@ export async function findStaleDateBasisOverrides(args: {
   return out.sort((a, b) =>
     `${a.lineItemId}:${a.component}`.localeCompare(`${b.lineItemId}:${b.component}`)
   )
-}
-
-/**
- * Merge policy (documentation / callers):
- * - Prior lines with overrides → keep override rows (table unchanged unless stale reset)
- * - New lines → no override → C1 recompute produces fresh auto months
- * - Resulting schedule = computeCampaignFinancials(all lines + remaining overrides)
- */
-export function describePreservePriorMerge(diff: BillingActivityDiff): {
-  preserveOverrideLineIds: string[]
-  freshComputeLineIds: string[]
-} {
-  return {
-    preserveOverrideLineIds: diff.priorLineIds,
-    freshComputeLineIds: diff.newActivity.map((l) => l.lineItemId),
-  }
 }

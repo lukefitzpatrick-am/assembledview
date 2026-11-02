@@ -53,8 +53,6 @@
   "files:lib/avaSnowflake.ts",
   "files:lib/billing/lockBillingMonth.ts",
   "files:lib/charts/stackedColumnExport.ts",
-  "files:lib/finance/applyDateBasisKeepOrReset.ts",
-  "files:lib/finance/c1FullScopeGate.ts",
   "files:lib/finance/periods/index.ts",
   "files:lib/flags/index.ts",
   "files:lib/m365/provisioningLog.server.ts",

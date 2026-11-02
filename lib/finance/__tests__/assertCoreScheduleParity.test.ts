@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { assertCoreScheduleParity } from "../assertCoreScheduleParity.js"
+import { assertCoreScheduleParity } from "./fixtures/assertCoreScheduleParity"
 import type { BillingMonth } from "../../billing/types.js"
 
 function month(
