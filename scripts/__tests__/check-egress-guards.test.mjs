@@ -76,6 +76,27 @@ const CAUGHT = [
   ["lib/env_rest_alias_bracket.ts", `const { A, ...others } = process.env; export const u = others["XANO_KEY"] + A`],
   ["lib/env_alias.ts", `const env = process.env; export const u = env.XANO_BASE_URL`],
   ["lib/env_alias_optional.ts", `let e = process["env"]; export const u = e?.XANO_BASE_URL`],
+  // B8 review 4: more same-file alias and cast forms.
+  ["lib/env_destructure_env.ts", `const { env } = process; export const u = env.XANO_BASE_URL`],
+  ["lib/env_destructure_env_rename.ts", `const { argv, env: e } = process; export const u = e.XANO_KEY + argv`],
+  ["lib/env_destructure_env_bracket.ts", `const { env } = process; export const u = env["XANO_KEY"]`],
+  ["lib/env_typed_alias.ts", `const env: NodeJS.ProcessEnv = process.env; export const u = env.XANO_BASE_URL`],
+  ["lib/env_typed_alias_record.ts", `const env: Record<string, string | undefined> = process.env; export const u = env.XANO_KEY`],
+  ["lib/env_cast_any.ts", `export const u = (process.env as any).XANO_BASE_URL`],
+  ["lib/env_cast_record_bracket.ts", `export const u = (process.env as Record<string, string>)["XANO_KEY"]`],
+  ["lib/env_non_null.ts", `export const u = process.env!.XANO_BASE_URL`],
+  ["lib/env_non_null_paren.ts", `export const u = (process.env!).XANO_BASE_URL`],
+  ["lib/env_spread_copy.ts", `const env = { ...process.env }; export const u = env.XANO_BASE_URL`],
+  ["lib/env_spread_copy_mixed.ts", `const env = { A: "1", ...process.env }; export const u = env["XANO_KEY"]`],
+  ["lib/env_alias_assigned_later.ts", `let env; env = process.env; export const u = env.XANO_KEY`],
+  ["lib/env_alias_destructure.ts", `const env = process.env; const { XANO_KEY } = env; export const u = XANO_KEY`],
+  ["lib/env_alias_non_null.ts", `const env = process.env!; export const u = env!.XANO_KEY`],
+  ["lib/env_global_process.ts", `export const u = global.process.env.XANO_BASE_URL`],
+  ["lib/env_global_process_alias.ts", `const p = global.process; export const u = p.env.XANO_KEY`],
+  ["lib/env_global_this_process_alias.ts", `const p = globalThis.process; export const u = p.env["XANO_KEY"]`],
+  ["lib/env_process_alias.ts", `const p = process; export const u = p.env.XANO_KEY`],
+  ["lib/env_global_destructure.ts", `const { env } = global.process; export const u = env.XANO_KEY`],
+  ["lib/env_global_nested_destructure.ts", `const { env: { XANO_KEY } } = global.process; export const u = XANO_KEY`],
 ]
 
 const ALLOWED = [
@@ -106,6 +127,14 @@ const ALLOWED = [
   ["lib/alias_member_not_alias.ts", `const url = process.env.DATABASE_URL; export const u = url + "x"`],
   ["lib/rest_other_env.ts", `const { A, ...rest } = process.env; export const u = rest.B + A`],
   ["lib/env_name_not_alias.ts", `export function f(env: Record<string, string>) { return env.XANO_KEY }`],
+  // B8 review 4: the wider alias rules leave these alone.
+  ["lib/alias_typed_other_env.ts", `const env: NodeJS.ProcessEnv = process.env; export const u = env.DATABASE_URL`],
+  ["lib/cast_other_env.ts", `export const u = (process.env as any).DATABASE_URL + process.env!.MY_XANO_THING`],
+  ["lib/spread_other_env.ts", `const env = { ...process.env }; export const u = env.DATABASE_URL`],
+  ["lib/process_alias_other_env.ts", `const p = process; export const u = p.env.DATABASE_URL + p.argv`],
+  ["lib/destructure_env_other.ts", `const { env } = process; export const u = env.DATABASE_URL`],
+  ["lib/compare_not_alias.ts", `const env = {} as Record<string, string>; export const same = env === process.env; export const u = env.XANO_KEY`],
+  ["lib/member_assign_not_alias.ts", `const o: { env?: unknown } = {}; o.env = process.env; export const u = { env: {} as Record<string, string> }.env.XANO_KEY`],
 ]
 
 const KNOWN_GAPS = [
@@ -115,6 +144,9 @@ const KNOWN_GAPS = [
   ["lib/gap_env_key_var.ts", `const k = "XANO_BASE_URL"; export const u = process.env[k]`],
   ["lib/gap_env_helper.ts", `function requireEnv(n: string) { return process.env[n] } export const u = requireEnv("XANO_BASE_URL")`],
   ["lib/gap_import_meta.ts", `export const u = (import.meta as any).env.XANO_BASE_URL`],
+  // B8 review 4: still not caught (no current code does this).
+  ["lib/gap_object_assign_copy.ts", `const env = Object.assign({}, process.env); export const u = env.XANO_KEY`],
+  ["lib/gap_alias_of_alias.ts", `const a = process.env; const b = a; export const u = b.XANO_KEY`],
 ]
 
 function writeRoot(cases) {

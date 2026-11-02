@@ -16,13 +16,23 @@
  *      (a host suffix being concatenated on);
  *    - an `XANO_*` or `NEXT_PUBLIC_XANO_*` env read through `process.env` or
  *      `process["env"]`: `.X`, `?.X`, `["X..."]`, `?.["X..."]`,
- *      `const { X } = process.env`, `const { env: { X } } = process`, and an
- *      alias of the env object in the same file (`const env = process.env`
- *      or `const { a, ...rest } = process.env`, then `env.X` / `rest["X"]`).
+ *      `const { X } = process.env`, `const { env: { X } } = process`;
+ *    - the same through a cast or non-null env object (B8 review 4):
+ *      `(process.env as any).X`, `(process.env as T)["X"]`, `process.env!.X`;
+ *    - the same through `global.process` or `globalThis.process`, or a
+ *      same-file alias of the process object (`const p = process`, then
+ *      `p.env.X`);
+ *    - the same through a same-file alias of the env object: `const env =
+ *      process.env` (also typed, `const env: NodeJS.ProcessEnv = ...`, or
+ *      assigned later, `env = process.env`), `const { a, ...rest } =
+ *      process.env`, a spread copy (`const env = { ...process.env }`), or
+ *      `const { env } = process` / `const { env: e } = process`; then
+ *      `env.X`, `env["X"]` or `const { X } = env`.
  *    Not caught (no current code does this; review catches it): a host split
  *    across strings ("x.xano" + ".io", [..].join(".")), an alias made in
- *    another file or passed through a function, a key held in a variable or
- *    passed to a helper (`process.env[k]`), and `import.meta.env`.
+ *    another file or passed through a function, an alias of an alias
+ *    (`const b = a`), a copy made with `Object.assign`, a key held in a
+ *    variable or passed to a helper (`process.env[k]`), and `import.meta.env`.
  *    A bare "xano.io" string (no leading dot) used to recognise old stored
  *    vault URLs is not a host and is not flagged; neither is "notxano.io".
  *
@@ -401,8 +411,37 @@ function unscopedVersionHits(rel, src) {
   return hits
 }
 
-const ENV_OBJ = String.raw`process\s*(?:\.\s*env|\[\s*["'\`]env["'\`]\s*\])`
 const XANO_ENV_NAME = String.raw`(?:NEXT_PUBLIC_)?XANO_[A-Za-z0-9_]*`
+const IDENT = String.raw`[A-Za-z_$][\w$]*`
+/** `process`, `global.process` or `globalThis.process` (B8 review 4). */
+const PROCESS_OBJ = String.raw`(?:(?:global|globalThis)\s*\??\.\s*)?process`
+/** Not followed by a member access: the whole object, not one of its members. */
+const WHOLE = String.raw`(?![\w$]|\s*(?:\?\.|\.|\[))`
+/** `name = ` or a typed `name: T = ` (B8 review 4: `const env: NodeJS.ProcessEnv = process.env`). */
+const BINDS = String.raw`(?<![\w$.])(${IDENT})\s*(?::\s*[^=;\n]+?)?\s*=(?![=>])\s*`
+
+function escIdent(name) {
+  return name.replace(/\$/g, "\\$")
+}
+
+function regexAlt(names) {
+  return names.map((n) => String.raw`(?<![\w$.])${escIdent(n)}`).join("|")
+}
+
+/**
+ * Regex sources for the process object (`process`, `global.process`,
+ * `globalThis.process` or a same-file alias of one) and for its env object,
+ * bare, cast or non-null asserted.
+ */
+function envObjectSources(processAliases) {
+  const proc = processAliases.length
+    ? String.raw`(?:${PROCESS_OBJ}|${regexAlt(processAliases)})`
+    : PROCESS_OBJ
+  const envObj = String.raw`${proc}\s*(?:\??\.\s*env|(?:\?\.\s*)?\[\s*["'\`]env["'\`]\s*\])`
+  // `(process.env as any)`, `(process.env!)`, then an optional `!`: `process.env!.X` (B8 review 4).
+  const envExpr = String.raw`(?:\(\s*${envObj}\s*!?\s*(?:as\s+[^()]*?)?\)|${envObj})\s*!?`
+  return { proc, envExpr }
+}
 
 /** Rule 2 on comment-free source with strings kept. */
 export function xanoEgressHits(rel, src) {
@@ -415,40 +454,63 @@ export function xanoEgressHits(rel, src) {
   while ((m = hostRe.exec(src))) {
     hits.push(`${rel}:${lineAt(src, m.index)} hardcoded Xano host ${m[0]}`)
   }
-  const envRes = [
-    // process.env.XANO_X / process.env?.XANO_X / process["env"].XANO_X
-    new RegExp(String.raw`${ENV_OBJ}\s*\??\.\s*${XANO_ENV_NAME}`, "gi"),
-    // process.env["XANO_X"] / process.env?.["XANO_X"] / process.env[`XANO_${k}`]
-    new RegExp(String.raw`${ENV_OBJ}\s*(?:\?\.\s*)?\[\s*["'\`]${XANO_ENV_NAME}`, "gi"),
-    // const { XANO_X } = process.env
-    new RegExp(String.raw`\{[^}]*\b${XANO_ENV_NAME}[^}]*\}\s*=\s*${ENV_OBJ}`, "gi"),
-    // const { env: { XANO_X } } = process  (B7 review)
-    new RegExp(
-      String.raw`\{[^{}]*\benv\s*:\s*\{[^}]*\b${XANO_ENV_NAME}[^}]*\}[^{}]*\}\s*=\s*(?:globalThis\s*\.\s*)?process\b`,
-      "gi",
-    ),
-  ]
-  // An alias of the env object in this file (B7 review): `const env = process.env`
-  // or `const { a, ...rest } = process.env`, then `env.XANO_X` / `rest["XANO_X"]`.
+
+  // Same-file aliases of `process` (B8 review 4): `const p = process`,
+  // `const p = global.process`, `p = globalThis.process`, then `p.env.XANO_X`.
+  const processAliases = new Set()
+  const processAliasRe = new RegExp(String.raw`${BINDS}\(?\s*${PROCESS_OBJ}\s*\)?${WHOLE}`, "g")
+  while ((m = processAliasRe.exec(src))) processAliases.add(m[1])
+  const { proc, envExpr } = envObjectSources([...processAliases])
+
+  // Same-file aliases of the env object (B7 review, widened in B8 review 4).
   const aliases = new Set()
   const aliasRes = [
-    new RegExp(String.raw`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*${ENV_OBJ}(?![\w$]|\s*(?:\?\.|\.|\[))`, "g"),
-    new RegExp(String.raw`\.\.\.\s*([A-Za-z_$][\w$]*)\s*\}\s*=\s*${ENV_OBJ}`, "g"),
+    // `const env = process.env`, `let e = process["env"]`, `env = process.env` (a later
+    // assignment), `const env: NodeJS.ProcessEnv = process.env`,
+    // `const env = process.env as Record<string, string>`, `const env = (process.env as any)`.
+    new RegExp(String.raw`${BINDS}${envExpr}${WHOLE}`, "g"),
+    // `const { a, ...rest } = process.env`
+    new RegExp(String.raw`\.\.\.\s*(${IDENT})\s*\}\s*=\s*${envExpr}${WHOLE}`, "g"),
+    // A spread copy: `const env = { ...process.env }`, `{ A: 1, ...process.env }`.
+    new RegExp(String.raw`${BINDS}\{[^{}]*\.\.\.\s*${envExpr}${WHOLE}`, "g"),
   ]
   for (const re of aliasRes) {
     while ((m = re.exec(src))) aliases.add(m[1])
   }
-  for (const alias of aliases) {
-    const esc = alias.replace(/\$/g, "\\$")
+  // `const { env } = process` and `const { argv, env: e } = global.process`.
+  const procDestructureRe = new RegExp(String.raw`\{([^{}]*)\}\s*=\s*${proc}${WHOLE}`, "g")
+  while ((m = procDestructureRe.exec(src))) {
+    for (const part of m[1].split(",")) {
+      const entry = /^\s*env\s*(?::\s*([A-Za-z_$][\w$]*)\s*)?(?:=[^,]*)?$/.exec(part)
+      if (entry) aliases.add(entry[1] ?? "env")
+    }
+  }
+
+  const envSources = [envExpr]
+  if (aliases.size) envSources.push(String.raw`(?:${regexAlt([...aliases])})\s*!?`)
+  const envRes = []
+  for (const obj of envSources) {
     envRes.push(
-      new RegExp(String.raw`(?<![\w$.])${esc}\s*\??\.\s*${XANO_ENV_NAME}`, "gi"),
-      new RegExp(String.raw`(?<![\w$.])${esc}\s*(?:\?\.\s*)?\[\s*["'\`]${XANO_ENV_NAME}`, "gi"),
+      // process.env.XANO_X / process.env?.XANO_X / process["env"].XANO_X / env.XANO_X
+      new RegExp(String.raw`(?:${obj})\s*\??\.\s*${XANO_ENV_NAME}`, "gi"),
+      // process.env["XANO_X"] / process.env?.["XANO_X"] / process.env[`XANO_${k}`]
+      new RegExp(String.raw`(?:${obj})\s*(?:\?\.\s*)?\[\s*["'\`]${XANO_ENV_NAME}`, "gi"),
+      // const { XANO_X } = process.env / const { XANO_X } = env
+      new RegExp(String.raw`\{[^}]*\b${XANO_ENV_NAME}[^}]*\}\s*=\s*(?:${obj})${WHOLE}`, "gi"),
     )
   }
+  // const { env: { XANO_X } } = process  (B7 review; any process form, B8 review 4)
+  envRes.push(
+    new RegExp(String.raw`\{[^{}]*\benv\s*:\s*\{[^}]*\b${XANO_ENV_NAME}[^}]*\}[^{}]*\}\s*=\s*${proc}\b`, "gi"),
+  )
+  const seen = new Set()
   for (const envRe of envRes) {
     while ((m = envRe.exec(src))) {
       const name = /(?:NEXT_PUBLIC_)?XANO_[A-Za-z0-9_]*/i.exec(m[0])?.[0] ?? "XANO_*"
-      hits.push(`${rel}:${lineAt(src, m.index)} reads env ${name}`)
+      const hit = `${rel}:${lineAt(src, m.index)} reads env ${name}`
+      if (seen.has(hit)) continue
+      seen.add(hit)
+      hits.push(hit)
     }
   }
   return hits
