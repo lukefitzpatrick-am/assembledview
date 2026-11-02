@@ -67,11 +67,6 @@ jobs:
           AUTH0_CLIENT_SECRET: ci-build
           AUTH0_SECRET: ci-auth0-secret-32-characters-min
           APP_BASE_URL: http://localhost:3000
-          XANO_BASE_URL: https://ci.example.invalid
-          XANO_PUBLISHERS_BASE_URL: https://ci.example.invalid
-          XANO_CLIENTS_BASE_URL: https://ci.example.invalid
-          XANO_MEDIA_DETAILS_BASE_URL: https://ci.example.invalid
-          XANO_MEDIA_PLANS_BASE_URL: https://ci.example.invalid
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
         run: npm run build
 

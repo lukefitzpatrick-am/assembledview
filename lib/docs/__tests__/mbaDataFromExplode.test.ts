@@ -2,7 +2,6 @@
  * Assemble MBAData for regenerate when the slice path throws NO_FEE_BASIS.
  * Numbers come from the Excel adapter (DOC-3). Header date is published_at.
  */
-import "./fixtures/xanoEnvStub"
 
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"

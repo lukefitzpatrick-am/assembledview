@@ -1,11 +1,9 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-const ENV_SKIP = !process.env["XANO_PUBLISHERS_BASE_URL"]
-  ? "Missing XANO_PUBLISHERS_BASE_URL (integration test requires Xano env)"
-  : false
-
-test("bonus buy type burst helpers", { skip: ENV_SKIP }, async () => {
+// B6: no Xano env needed (the container burst helpers read none); this test
+// used to skip whenever XANO_PUBLISHERS_BASE_URL was unset, i.e. always.
+test("bonus buy type burst helpers", async () => {
   const { getTelevisionBursts } = await import(
     "../../components/media-containers/TelevisionContainer"
   )

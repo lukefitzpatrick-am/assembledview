@@ -52,7 +52,7 @@ The campaign builder. Creates an MBA-numbered plan (`media_plan_master`), cuts i
 
 ### Full MBA GET `!skipLineItems` (C-22 / X2)
 
-Create/edit load with `skipLineItems=true` and hydrate channels via the `readMediaPlans` per-channel readers. Full combined GET (`!skipLineItems`) serves from one `line_items` query set (`readMbaPlanDetail` + `mbaGetAssemble`); shape parity suite: `lib/data/__tests__/mbaPlanDetailParity.test.ts`. `nextVersionNumber` = tip+1 (O4.6). Snowflake `XANO_LINE_ITEMS_SNAPSHOT` ingest always reads Postgres and tip-scopes `published_version_id`. `LINE_ITEM_SNAPSHOT_SOURCE` does not select a source (closed `506c014e`). Warehouse snapshot consumers expect pre-scoped tip rows.
+Create/edit load with `skipLineItems=true` and hydrate channels via the `readMediaPlans` per-channel readers. Full combined GET (`!skipLineItems`) serves from one `line_items` query set (`readMbaPlanDetail` + `mbaGetAssemble`); shape parity suite: `lib/data/__tests__/mbaPlanDetailParity.test.ts`. `nextVersionNumber` = tip+1 (O4.6). Snowflake `XANO_LINE_ITEMS_SNAPSHOT` ingest always reads Postgres and tip-scopes `published_version_id`. There is no source switch (B6). Warehouse snapshot consumers expect pre-scoped tip rows.
 
 ## Load
 

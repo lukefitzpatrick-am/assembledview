@@ -4,7 +4,6 @@
 import assert from "node:assert/strict"
 import test, { afterEach, beforeEach } from "node:test"
 
-import "@/lib/mediaplan/__tests__/testXanoEnv"
 import { clearCoalescedGetJsonForTests } from "@/lib/api/coalescedGetJson"
 
 const { fetchMediaDetailBrowser, mediaDetailsBrowserUrl } = await import("@/lib/api")

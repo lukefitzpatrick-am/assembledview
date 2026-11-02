@@ -40,7 +40,7 @@ Re-audited inclusion set was **112** files (app 13, lib 75, scripts 24, componen
 
 **Preview env:** the same set minus XANO_EXPORT_INSTANCE_URL.
 
-Not set in either environment: XANO_BASE_URL, XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL, XANO_FINANCE_FORECAST_TARGETS_BASE_URL, XANO_WORKSPACE_ID. `XANO_MIRROR_ENABLED` is deleted from code (XS-1).
+Not set in either environment: XANO_BASE_URL, XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL, XANO_FINANCE_FORECAST_TARGETS_BASE_URL, XANO_WORKSPACE_ID. `XANO_MIRROR_ENABLED` is deleted from code (XS-1). B6: no app, lib or component code reads any `XANO_*` env var (only archived scripts do); CI no longer sets them, so the production and preview `XANO_*` names above can be deleted too.
 
 **Backend flags** (same value on production and preview; not secrets):
 
@@ -53,7 +53,7 @@ Not set in either environment: XANO_BASE_URL, XANO_FINANCE_FORECAST_SNAPSHOTS_BA
 
 No other DATA_BACKEND_* exists. B6 removed the switch (`lib/data/backend.ts` deleted): the app no longer reads DATA_BACKEND, DATA_BACKEND_<DOMAIN>, DATA_BACKEND_PLAN_DETAIL or WRITE_BACKEND, and every read and write is Postgres. Delete DATA_BACKEND, DATA_BACKEND_APPROVALS and WRITE_BACKEND from Vercel after the B6 deploy. DATA_BACKEND_FINANCE_SCHEDULE=shadow is the schedule-months serve mode (blob vs rows); it does not call Xano. XS-1 removed the Postgres-then-Xano mirror writes in `lib/data/writeClients.ts`, `writePublishers.ts`, `writeKpi.ts`, `writeMediaContainerBestPractice.ts`, `writeReferenceMediaDetail.ts`, and `writeMediaPlanMasters.ts`. The Postgres write is the whole function.
 
-`/api/cron/xano-line-item-sync` always reads Postgres. `LINE_ITEM_SNAPSHOT_SOURCE` does not select a source; a value other than `postgres` is logged and ignored. The cron does not call `fetchAllXanoLineItems`.
+`/api/cron/xano-line-item-sync` always reads Postgres. `LINE_ITEM_SNAPSHOT_SOURCE` is no longer read (B6; delete it from Vercel). The cron does not call `fetchAllXanoLineItems`.
 
 XS-2b reads KPI, publishers, clients, pacing, approvals, best practice, and publisher market share from Postgres, and writes `publisher_kpi` and `pacing_orphan_fixes` to Postgres. `lib/xano/pacingOrphanFixes.ts` is deleted. `lib/api/publishers.ts` still has `fetchPublishersFromXano` for the archived backfill script. `getClientBySlug` and the admin hub client list in `lib/api/dashboard/client.ts` read `readClientsList`. XS-2a removed finance HTTP. Tallies below are not recounted.
 
@@ -212,7 +212,7 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/data/writeReferenceMediaDetail.ts` | Postgres insert is the whole function (XS-1) | — | no | same file createReferenceMediaDetailPostgresFirst | **DONE** |
 | `lib/data/__tests__/mirrorToXano.test.ts` | deleted with mirrorToXano.ts (XS-1) | — | no | none | **DONE** |
 | `lib/data/__tests__/shadowDiff.test.ts` | clients, campaign_kpi, finance_billing_records | none (backend switch tests removed in B6) | no | none | **TOOLING** |
-| `lib/docs/__tests__/fixtures/xanoEnvStub.ts` | test double / env stub | unconditional | no | none | **TOOLING** |
+| `lib/docs/__tests__/fixtures/xanoEnvStub.ts` | deleted (B6) with `testXanoEnv.ts` and the inline test stubs; no code reads `XANO_*` | — | no | none | **DONE** |
 | `lib/docs/__tests__/planVersionFiles.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** |
 | `lib/docs/__tests__/servePlanFile.test.ts` | fixture URL a2.xano.io/vault | unconditional | no | none | **VAULT** |
 | `lib/finance/api.ts` | parseXanoListPayload on /api/finance responses; no Xano HTTP | unconditional | no | the /api/finance routes it calls | **NAME-ONLY** |
@@ -231,13 +231,13 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/pacing/plans/resolveLivePlanLineItems.ts` | channel lines from Postgres line_items | none | no | resolveFromPostgres | **DONE** |
 | `lib/pacing/programmatic/fetchProgrammaticPacingCampaignRows.ts` | campaign_kpi via readKpi (Postgres) | — | no | lib/data/readKpi.ts | **DONE** (XS-2b) |
 | `lib/pacing/social/fetchSocialPacingCampaignRows.ts` | campaign_kpi via readKpi (Postgres) | — | no | lib/data/readKpi.ts | **DONE** (XS-2b) |
-| `lib/snowflake/fetchAllPgLineItems.ts` | type import only; rows from Postgres | LINE_ITEM_SNAPSHOT_SOURCE | no | same file fetchAllPgLineItems | **NAME-ONLY** |
-| `lib/snowflake/lineItemSnapshotParity.ts` | type import; parity math, no HTTP | LINE_ITEM_SNAPSHOT_SOURCE | no | none | **NAME-ONLY** |
+| `lib/snowflake/fetchAllPgLineItems.ts` | type import only; rows from Postgres | — | no | same file fetchAllPgLineItems | **NAME-ONLY** |
+| `lib/snowflake/lineItemSnapshotParity.ts` | deleted (B6): the Xano vs Postgres parity report nothing ran | — | no | none | **DONE** |
 | `lib/snowflake/pgLineItemSnapshotMap.ts` | type import; row map, no HTTP | unconditional | no | none | **NAME-ONLY** |
 | `lib/snowflake/syncPgLineItems.ts` | always `fetchAllPgLineItems` then MERGE; no Xano fetch | ignored unless `postgres` | no | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **NAME-ONLY** |
 | `lib/snowflake/syncXanoLineItems.ts` | MERGE into MART.XANO_LINE_ITEMS_SNAPSHOT; no HTTP | unconditional | no | none | **NAME-ONLY** |
 | `lib/snowflake/tipScopeLineItems.ts` | filters snapshot rows; no HTTP | unconditional | no | none | **NAME-ONLY** |
-| `lib/snowflake/__tests__/syncPgLineItems.parity.test.ts` | media_plan_search, media_plan_social | unconditional | no | none | **TOOLING** |
+| `lib/snowflake/__tests__/syncPgLineItems.parity.test.ts` | deleted (B6) with the parity module | — | no | none | **DONE** |
 | `lib/snowflake/__tests__/syncXanoLineItemsPrune.test.ts` | media_plan_search | unconditional | no | none | **TOOLING** |
 | `lib/xano/fetchAllLineItems.ts` | GET all channel media_plan_* tables | archive parity script only; cron does not call it | no | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **TOOLING** |
 | `lib/xano/pacingOrphanFixes.ts` | deleted | — | no | lib/pacing/admin/pacingOrphanFixes.ts | **DONE** (XS-2b) |

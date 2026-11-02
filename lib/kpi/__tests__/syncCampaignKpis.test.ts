@@ -5,8 +5,6 @@ import { mockModuleSkip, supportsMockModule } from "../../test/mockModuleHarness
 
 const skip = mockModuleSkip()
 
-process.env["XANO_CLIENTS_BASE_URL"] = "https://xano.test"
-
 const mockGet = mock.fn(async (): Promise<{ data: CampaignKPI[] }> => ({ data: [] }))
 const mockPost = mock.fn(
   async (): Promise<{ data: CampaignKPI }> => ({ data: {} as CampaignKPI }),

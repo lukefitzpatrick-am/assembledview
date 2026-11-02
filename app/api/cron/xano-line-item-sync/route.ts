@@ -10,9 +10,8 @@ export const maxDuration = 300
 /**
  * Daily line-item snapshot → Snowflake `MART.XANO_LINE_ITEMS_SNAPSHOT`.
  *
- * Always reads Postgres and MERGEs those rows. `LINE_ITEM_SNAPSHOT_SOURCE`
- * does not select a source. A value other than `postgres` is logged and
- * ignored. The route path and the table name stay as the historic contracts.
+ * Always reads Postgres and MERGEs those rows. The route path and the table
+ * name stay as the historic (frozen) contracts.
  */
 
 export async function GET(request: Request) {
@@ -29,9 +28,7 @@ export async function GET(request: Request) {
   )
 
   try {
-    const result = await runLineItemSnapshotSync(
-      process.env.LINE_ITEM_SNAPSHOT_SOURCE
-    )
+    const result = await runLineItemSnapshotSync()
 
     const completedAt = new Date()
     const durationMs = completedAt.getTime() - startedAt.getTime()
@@ -48,12 +45,6 @@ export async function GET(request: Request) {
       console.error("[line-item-snapshot] Errors:", sync.errors.slice(0, 10))
     }
 
-    if (result.parity) {
-      logJob(
-        `[line-item-snapshot] parity summary: mismatches=${result.parity.mba_mismatches} row_delta_abs=${result.parity.row_delta_abs_sum} spend_delta_abs=${result.parity.spend_delta_abs_sum}`
-      )
-    }
-
     return NextResponse.json({
       status: "ok",
       started_at: startedAt.toISOString(),
@@ -68,23 +59,6 @@ export async function GET(request: Request) {
       batches: sync?.batches ?? 0,
       duplicates_collapsed: sync?.duplicates_collapsed ?? 0,
       sample_errors: sync?.errors.slice(0, 5) ?? [],
-      parity: result.parity
-        ? {
-            xano_raw: result.parity.xano_raw,
-            pg_raw: result.parity.pg_raw,
-            xano_deduped: result.parity.xano_deduped,
-            pg_deduped: result.parity.pg_deduped,
-            mba_count_xano: result.parity.mba_count_xano,
-            mba_count_pg: result.parity.mba_count_pg,
-            mba_mismatches: result.parity.mba_mismatches,
-            row_delta_abs_sum: result.parity.row_delta_abs_sum,
-            spend_delta_abs_sum: result.parity.spend_delta_abs_sum,
-            sample: result.parity.sample,
-            // Full mismatch list can be large — cap in HTTP body.
-            mismatched: result.parity.mismatched.slice(0, 100),
-            mismatched_truncated: result.parity.mismatched.length > 100,
-          }
-        : null,
     })
   } catch (err) {
     console.error("[line-item-snapshot] Fatal error:", err)
