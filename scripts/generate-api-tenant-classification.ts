@@ -83,11 +83,6 @@ function adminConsolidationCandidates(rows: HandlerRow[]): string {
       links: "`components/dashboard/*`, admin spend charts, any fetch to this path",
     },
     {
-      path: "/api/dashboard/global-monthly-publisher-spend",
-      gate: "requireRole(admin)",
-      links: "same as client-spend twin",
-    },
-    {
       path: "/api/pacing/admin/orphans*",
       gate: "requireAdmin",
       links: "pacing orphans admin UI; optional rename to `/api/admin/pacing/orphans*`",

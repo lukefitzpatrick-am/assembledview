@@ -13,9 +13,4 @@ export {
 
 export { getPublisherDashboardData } from "./dashboard/publisher"
 
-export {
-  getGlobalMonthlyPublisherSpend,
-  getGlobalMonthlyClientSpend,
-} from "./dashboard/global"
-
-export { getFinanceHubScheduleFytdTotals } from "./dashboard/finance"
+export { getGlobalMonthlyClientSpend } from "./dashboard/global"

@@ -73,7 +73,7 @@ Confidence on class totals: **~90%** — method bodies verified for P0/P1 defect
 | July concern | Current verdict |
 |---|---|
 | Global spend endpoints | **Fixed.** `GET /api/dashboard/global-monthly-{client,publisher}-spend` → `requireRole(["admin"])`. |
-| `/api/delivery/meta-adset` | **Fixed for clients.** Session + `checkClientMbaAccess` when `client`; non-admin non-client → empty; admin may omit MBA (book-wide by design). |
+| `/api/delivery/meta-adset` | **Fixed for clients.** Session + `checkClientMbaAccess` when `client`; non-admin non-client → empty; admin may omit MBA (book-wide by design). Deleted 3 Nov 2026 (B9, no caller). |
 | `/api/clients*` | **Mostly fixed.** Collection GET/POST + `[id]` PUT/PATCH → `requireRole(["admin"])`. `[id]` GET is **intentional split** (admin any-id; client own-id via slug→row). Soft spot: unknown future non-admin/non-client roles would read any id (today `UserRole = admin \| client` only). |
 | Publisher writes | **Fixed.** `POST /api/publishers`, `PUT /api/publishers/[publisherId]` → `requireRole(["admin"])`. GETs remain session-ref (SEC-G). |
 
@@ -122,10 +122,10 @@ Goal: put **cross-tenant reporting and ops** behind one namespace so role is enf
 
 | Move / keep | Target | Gate |
 |---|---|---|
-| `dashboard/global-monthly-*-spend` | `/api/admin/dashboard/global-monthly-*-spend` | `requireAdmin` (already admin) |
+| `dashboard/global-monthly-client-spend` | `/api/admin/dashboard/global-monthly-client-spend` | `requireAdmin` (already admin). The publisher twin was deleted in B9 |
 | `dashboard/spend-parity` | n/a | Deleted 3 Nov 2026 (B9 Q5) |
 | `pacing/admin/orphans/*` | keep under `/api/pacing/admin/*` **or** `/api/admin/pacing/orphans/*` | already `requireAdmin` |
-| Existing `/api/admin/*` (users, client-hub, migration-diffs, fee-snapshots, finance-periods) | keep | already role-gated |
+| Existing `/api/admin/*` (users, migration-diffs, fee-snapshots, finance-periods) | keep | already role-gated |
 | Finance book-wide reads (`finance/data`, forecast, payables, …) | optional `/api/admin/finance/*` alias; keep current paths during migrate | `requireFinanceAdmin` |
 | **Do not** move: `/api/mediaplans/mba/*`, creative MBA routes, pacing campaign tabs, dashboard `[slug]` — these are tenant-scoped |
 
@@ -148,7 +148,7 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 
 | Path | Methods | Class | Gate | Scope |
 |---|---|---|---|---|
-| `admin/client-hub` | GET | admin-only | `requireAdmin` | — |
+| `admin/client-hub` | GET | deleted 3 Nov 2026 (B9, no caller) | — | — |
 | `admin/clients/refresh-slug` | POST | admin-only | `requireAdmin` (+ email allowlist) | — |
 | `admin/fee-snapshots/resnapshot` | POST | admin-only | `requireFinanceAdmin` | — |
 | `admin/finance-periods/lock` | POST | admin-only | `requireRole(admin)` | — |
@@ -231,7 +231,7 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | `pacing/admin/orphans` | GET | admin-only | `requireAdmin` | — |
 | `pacing/admin/orphans/live-line-items` | GET | admin-only | `requireAdmin` | — |
 | `pacing/admin/orphans/assign` | POST | admin-only | `requireAdmin` | — |
-| `delivery/meta-adset` | GET | tenant-scoped | `checkClientMbaAccess` (+ admin unscoped) | **OK** |
+| `delivery/meta-adset` | GET | deleted 3 Nov 2026 (B9, no caller) | — | — |
 
 ### Dashboard & exports
 
@@ -240,7 +240,7 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 | `dashboard/[slug]` | GET | tenant-scoped | `getUserClientSlugs` / admin | **OK** |
 | `dashboard/[slug]/delivered` | GET | tenant-scoped | same | **OK** |
 | `dashboard/global-monthly-client-spend` | GET | admin-only | `requireRole(admin)` | — |
-| `dashboard/global-monthly-publisher-spend` | GET | admin-only | `requireRole(admin)` | — |
+| `dashboard/global-monthly-publisher-spend` | GET | deleted 3 Nov 2026 (B9, no caller) | — | — |
 | `dashboard/spend-parity` | GET | deleted 3 Nov 2026 (B9 Q5) | — | — |
 | `reports/download` | GET | tenant-scoped | `checkClientMbaAccess` | **OK** |
 | `mi/exports/download` | GET | tenant-scoped | `checkClientMbaAccess` | **OK** |
@@ -268,7 +268,7 @@ All finance handlers below are **admin-only** (`requireFinanceAdmin`, `requireRo
 | Path group | Methods (summary) | Gate |
 |---|---|---|
 | `periods`, `periods/sheet`, `xero-match*` (`finance/accrual` deleted 3 Nov 2026, B9) | GET/POST as defined | `requireRole(admin)` |
-| `finance/billing*`, `data`, `edits`, `hub-schedule-ytd`, `payables`, `publishers`, `receivables/*`, `saved-views`, `sow`, `sections*` | various | `requireFinanceAdmin` (or inline admin equivalent) |
+| `finance/billing*`, `data`, `edits`, `payables`, `publishers`, `receivables/*`, `saved-views`, `sow`, `sections*` | various | `requireFinanceAdmin` (or inline admin equivalent) |
 | `finance/forecast*` | various | `requireRole` / inline admin |
 
 ### Planning, SOW, KPI, Codex, chat, misc

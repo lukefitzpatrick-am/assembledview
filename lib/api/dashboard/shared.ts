@@ -365,29 +365,6 @@ export function sumLineItems(entry: any): number {
   return mediaTotal + feeTotal + production + adServing
 }
 
-export function deliveryLineItemIsClientPaidDirect(li: any): boolean {
-  return li?.clientPaysForMedia === true || li?.client_pays_for_media === true
-}
-
-/** Delivery schedule month row: agency-owed media only (excludes client-paid-direct line items). Fees/production/ad serving unchanged. */
-export function sumDeliveryScheduleMonthAgencyMedia(entry: any): number {
-  const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
-  const lineItemTotal = mediaTypes.reduce((mtSum: number, mt: any) => {
-    const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
-    const liSum = lineItems.reduce((liAcc: number, li: any) => {
-      if (deliveryLineItemIsClientPaidDirect(li)) return liAcc
-      return liAcc + parseMoney(li?.amount)
-    }, 0)
-    return mtSum + liSum
-  }, 0)
-
-  const feeTotal = parseMoney(entry?.feeTotal)
-  const production = parseMoney(entry?.production)
-  const adServing = parseMoney(entry?.adservingTechFees ?? entry?.adServingTechFees)
-
-  return lineItemTotal + feeTotal + production + adServing
-}
-
 export function calcOverlapAmountForWindow(
   entryRange: { start: Date; end: Date },
   totalAmount: number,

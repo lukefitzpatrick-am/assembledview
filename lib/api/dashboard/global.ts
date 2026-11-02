@@ -1,11 +1,5 @@
-import {
-  GlobalMonthlyPublisherSpend,
-  GlobalMonthlyClientSpend,
-} from '@/lib/types/dashboard'
-import {
-  fetchDashboardMonthlyClientSpendFromPostgres,
-  fetchDashboardMonthlyPublisherSpendFromPostgres,
-} from '@/lib/data/dashboardMonthlySpend'
+import { GlobalMonthlyClientSpend } from '@/lib/types/dashboard'
+import { fetchDashboardMonthlyClientSpendFromPostgres } from '@/lib/data/dashboardMonthlySpend'
 import { getCachedClients } from '@/lib/finance/xanoReferenceCache'
 import {
   getAustralianFinancialYear,
@@ -16,45 +10,8 @@ import {
  * Raw list rows for treemap feeds.
  * Postgres schedule_months aggregate.
  */
-async function fetchDashboardMonthlyPublisherSpendRows(): Promise<any[]> {
-  return fetchDashboardMonthlyPublisherSpendFromPostgres()
-}
-
 async function fetchDashboardMonthlyClientSpendRows(): Promise<any[]> {
   return fetchDashboardMonthlyClientSpendFromPostgres()
-}
-
-/**
- * Global monthly spend split by publisher (header1 / line_items.publisher).
- * Pre-aggregated from Postgres schedule_months (delivery). FY filter stays app-side.
- * Upstream / DB failures throw — never soft-fail to empty months (dead backend ≠ quiet FY).
- */
-export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPublisherSpend[]> {
-  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
-
-  const rows = await fetchDashboardMonthlyPublisherSpendRows()
-
-  const deliveryMonthlyMap: Record<string, Record<string, number>> = {}
-  fyMonths.forEach(month => { deliveryMonthlyMap[month] = {} })
-
-  for (const row of rows) {
-    const monthDate = parseMonthYear(row?.month)
-    if (!monthDate || monthDate < fyStart || monthDate > fyEnd) continue
-    const monthLabel = fyMonths[(monthDate.getMonth() + 12 - 6) % 12]
-    const publisher = typeof row?.publisher === 'string' && row.publisher.length > 0
-      ? row.publisher
-      : 'Unspecified'
-    const amount = Number(row?.amount)
-    if (!Number.isFinite(amount) || amount <= 0) continue
-    deliveryMonthlyMap[monthLabel][publisher] = (deliveryMonthlyMap[monthLabel][publisher] || 0) + amount
-  }
-
-  return fyMonths.map(month => ({
-    month,
-    data: Object.entries(deliveryMonthlyMap[month] || {})
-      .map(([publisher, amount]) => ({ publisher, amount }))
-      .filter(item => item.amount > 0)
-  }))
 }
 
 /**

@@ -13,7 +13,7 @@ A dead backend is a **ViewState error**, not a quiet day. UI already speaks
 | Finance | `fetchBillingOverridesFromXano` | 4xx/throw → `[]` | 404 → `[]`; else throws |
 | Finance | `fetchAllPersistedFinanceStatusRows` | catch → `[]` | throws through |
 | Approvals | `readMbaLineApprovals` | catch → `{ ok: true, available: false }` | `{ ok: false, error }` (API 503) |
-| Plans/dashboard | `getGlobalMonthlyPublisherSpend` / `ClientSpend` | catch → empty months | throws |
+| Plans/dashboard | `getGlobalMonthlyClientSpend` (publisher twin deleted in B9) | catch → empty months | throws |
 | Pacing | social / programmatic / ad-serving Snowflake fact fetch | catch → `[]` | rethrow |
 
 ## Dying-at-T6 — do not convert
