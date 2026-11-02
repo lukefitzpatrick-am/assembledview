@@ -34,6 +34,57 @@ function optionalFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
+const MEDIA_COST_KEYS = [
+  "search", "socialMedia", "television", "radio", "newspaper", "magazines", "ooh", "cinema",
+  "digiDisplay", "digiAudio", "digiVideo", "bvod", "integration", "progDisplay", "progVideo",
+  "progBvod", "progAudio", "progOoh", "influencers", "production",
+] as const
+
+const fmtAud = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
+
+/**
+ * B4 (P6, Luke 2 Nov 2026): a saved month that has line items but no month
+ * media total gets it rebuilt from its line items (and per-type media costs
+ * when those are missing too), as the editor did before it moved to this
+ * parser. Media total is the month's line amounts outside production
+ * (production is its own header). A saved media total is never replaced.
+ */
+function fillMissingMonthHeaders(month: BillingMonth): BillingMonth {
+  const lineItems = month.lineItems as Record<string, BillingLineItem[] | undefined> | undefined
+  if (!lineItems || typeof lineItems !== "object") return month
+  const hasMediaTotal = month.mediaTotal != null && String(month.mediaTotal).trim() !== ""
+  // Only the row-4 shape (no month media total) is rebuilt; a saved total is kept as is.
+  if (hasMediaTotal) return month
+  const hasMediaCosts = month.mediaCosts != null && typeof month.mediaCosts === "object"
+  const byKey: Record<string, number> = {}
+  for (const [key, items] of Object.entries(lineItems)) {
+    if (!Array.isArray(items)) continue
+    byKey[key] = items.reduce((sum, li) => sum + (Number(li?.monthlyAmounts?.[month.monthYear]) || 0), 0)
+  }
+  const media = Object.entries(byKey).reduce((sum, [k, v]) => (k === "production" ? sum : sum + v), 0)
+  const blank = (v: unknown) => v == null || String(v).trim() === ""
+  const fee = parseMoney(month.feeTotal) ?? 0
+  const adserving = parseMoney(month.adservingTechFees) ?? 0
+  const production = parseMoney(month.production) ?? byKey.production ?? 0
+  const next: BillingMonth = {
+    ...month,
+    mediaTotal: fmtAud.format(media),
+    feeTotal: blank(month.feeTotal) ? fmtAud.format(0) : month.feeTotal,
+    adservingTechFees: blank(month.adservingTechFees) ? fmtAud.format(0) : month.adservingTechFees,
+    production: blank(month.production) ? fmtAud.format(production) : month.production,
+    totalAmount: blank(month.totalAmount) ? fmtAud.format(media + fee + adserving + production) : month.totalAmount,
+  }
+  if (!hasMediaCosts) {
+    next.mediaCosts = Object.fromEntries(
+      MEDIA_COST_KEYS.map((k) => [
+        k,
+        fmtAud.format(k === "production" ? production : byKey[k] ?? 0),
+      ]),
+    ) as BillingMonth["mediaCosts"]
+  }
+  return next
+}
+
 /**
  * Parse persisted `billingSchedule` JSON (compact Xano / MBA shape) into `BillingMonth[]`
  * for finance hub Alter Billing. Mirrors the edit page hydrate path.
@@ -41,6 +92,8 @@ function optionalFiniteNumber(value: unknown): number | undefined {
  * The month fee is always the saved `feeTotal` (0 when absent). There is no
  * fee-on-top estimate here: fees come from the saved schedule or the gross-up
  * engine (computeBurstAmounts), never from media x fee % at parse time.
+ * Minus signs are kept (credits). The media plan editor reads saved billing
+ * through this parser too (B4).
  */
 export function parsePersistedBillingScheduleToMonths(
   billingSchedule: unknown,
@@ -64,7 +117,7 @@ export function parsePersistedBillingScheduleToMonths(
         typeof sample.lineItems === "object" &&
         !Array.isArray(sample.lineItems)))
   ) {
-    return JSON.parse(JSON.stringify(parsed)) as BillingMonth[]
+    return (JSON.parse(JSON.stringify(parsed)) as BillingMonth[]).map(fillMissingMonthHeaders)
   }
 
   const currencyFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
