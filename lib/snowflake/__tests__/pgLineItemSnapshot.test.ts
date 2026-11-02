@@ -14,7 +14,7 @@ import { CHANNEL_TO_SOURCE_TABLE, mapPgLineItemToSnapshot } from "../pgLineItemS
 const here = dirname(fileURLToPath(import.meta.url))
 
 test("fetchAllPgLineItems defaults to tip scope (published_version_id), not all versions", () => {
-  // Source pin: fetchAllPgLineItems is server-only and needs a database.
+  // Source pin; the behaviour (which query runs) is pgLineItemSnapshotScope.test.ts.
   const src = readFileSync(join(here, "../fetchAllPgLineItems.ts"), "utf8")
   assert.match(src, /options\?\.scope === "all" \? "all" : "tip"/)
   assert.match(

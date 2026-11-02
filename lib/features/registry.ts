@@ -371,3 +371,7 @@ export function unsavedFeatureSwitches(
   }
   return out
 }
+
+/** POST /api/admin/features/save-current outside the production deployment (B7 review, finding 2). */
+export const SAVE_CURRENT_NOT_PRODUCTION_MESSAGE =
+  "Save current values only runs on the production site, because it saves this deployment's env var values for everyone. Open the production /admin/features and try there."

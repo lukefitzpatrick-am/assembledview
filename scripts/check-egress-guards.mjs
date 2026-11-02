@@ -6,18 +6,22 @@
  *    with no `.where(` on that chain. A select that passes a column object is
  *    narrowed and passes. One allowlisted reader remains unscoped.
  * 2. No Xano egress in app code (app/, lib/, components/, src/, hooks/,
- *    contexts/, middleware.ts; tests excluded). No allowlist. (B6, DEAD-14:
+ *    contexts/, db/, middleware.ts, instrumentation.ts, instrumentation.node.ts,
+ *    next.config.mjs; .ts .tsx .js .jsx .mjs .cjs .mts .cts; tests excluded).
+ *    No allowlist. (B6, DEAD-14:
  *    the old call-name list and its cold-branch allowlist named helpers and
  *    files that no longer exist.) Caught, case-insensitive:
  *    - a Xano host: `<sub>.xano.io`, `${sub}.xano.io`, a URL whose host is
  *      xano.io or ends in .xano.io, or a string that starts with ".xano.io"
  *      (a host suffix being concatenated on);
  *    - an `XANO_*` or `NEXT_PUBLIC_XANO_*` env read through `process.env` or
- *      `process["env"]`: `.X`, `?.X`, `["X..."]`, `?.["X..."]`, and
- *      `const { X } = process.env`.
+ *      `process["env"]`: `.X`, `?.X`, `["X..."]`, `?.["X..."]`,
+ *      `const { X } = process.env`, `const { env: { X } } = process`, and an
+ *      alias of the env object in the same file (`const env = process.env`
+ *      or `const { a, ...rest } = process.env`, then `env.X` / `rest["X"]`).
  *    Not caught (no current code does this; review catches it): a host split
- *    across strings ("x.xano" + ".io", [..].join(".")), an env object alias
- *    (`const env = process.env; env.XANO_X`), a key held in a variable or
+ *    across strings ("x.xano" + ".io", [..].join(".")), an alias made in
+ *    another file or passed through a function, a key held in a variable or
  *    passed to a helper (`process.env[k]`), and `import.meta.env`.
  *    A bare "xano.io" string (no leading dot) used to recognise old stored
  *    vault URLs is not a host and is not flagged; neither is "notxano.io".
@@ -34,9 +38,9 @@ import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 const defaultRootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-export const SCAN_DIRS = ["app", "lib", "components", "src", "hooks", "contexts"]
-export const SCAN_FILES = ["middleware.ts"]
-const CODE_EXT = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs"])
+export const SCAN_DIRS = ["app", "lib", "components", "src", "hooks", "contexts", "db"]
+export const SCAN_FILES = ["middleware.ts", "instrumentation.ts", "instrumentation.node.ts", "next.config.mjs"]
+const CODE_EXT = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"])
 
 /** Unscoped full version reads that are still intentional. Rule 1 only — do not add entries. */
 const UNSCOPED_VERSION_ALLOWLIST = [
@@ -55,7 +59,7 @@ function posix(rel) {
 function isTestPath(rel) {
   const p = posix(rel)
   if (p.includes("/__tests__/")) return true
-  return /\.(test|spec)\.(ts|tsx|js|jsx|mjs)$/.test(p)
+  return /\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/.test(p)
 }
 
 function walk(dir, out = []) {
@@ -418,7 +422,29 @@ export function xanoEgressHits(rel, src) {
     new RegExp(String.raw`${ENV_OBJ}\s*(?:\?\.\s*)?\[\s*["'\`]${XANO_ENV_NAME}`, "gi"),
     // const { XANO_X } = process.env
     new RegExp(String.raw`\{[^}]*\b${XANO_ENV_NAME}[^}]*\}\s*=\s*${ENV_OBJ}`, "gi"),
+    // const { env: { XANO_X } } = process  (B7 review)
+    new RegExp(
+      String.raw`\{[^{}]*\benv\s*:\s*\{[^}]*\b${XANO_ENV_NAME}[^}]*\}[^{}]*\}\s*=\s*(?:globalThis\s*\.\s*)?process\b`,
+      "gi",
+    ),
   ]
+  // An alias of the env object in this file (B7 review): `const env = process.env`
+  // or `const { a, ...rest } = process.env`, then `env.XANO_X` / `rest["XANO_X"]`.
+  const aliases = new Set()
+  const aliasRes = [
+    new RegExp(String.raw`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*${ENV_OBJ}(?![\w$]|\s*(?:\?\.|\.|\[))`, "g"),
+    new RegExp(String.raw`\.\.\.\s*([A-Za-z_$][\w$]*)\s*\}\s*=\s*${ENV_OBJ}`, "g"),
+  ]
+  for (const re of aliasRes) {
+    while ((m = re.exec(src))) aliases.add(m[1])
+  }
+  for (const alias of aliases) {
+    const esc = alias.replace(/\$/g, "\\$")
+    envRes.push(
+      new RegExp(String.raw`(?<![\w$.])${esc}\s*\??\.\s*${XANO_ENV_NAME}`, "gi"),
+      new RegExp(String.raw`(?<![\w$.])${esc}\s*(?:\?\.\s*)?\[\s*["'\`]${XANO_ENV_NAME}`, "gi"),
+    )
+  }
   for (const envRe of envRes) {
     while ((m = envRe.exec(src))) {
       const name = /(?:NEXT_PUBLIC_)?XANO_[A-Za-z0-9_]*/i.exec(m[0])?.[0] ?? "XANO_*"

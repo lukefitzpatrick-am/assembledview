@@ -96,7 +96,7 @@ Do not reintroduce background/fire-and-forget refresh. It was removed on purpose
 
 - Unit and contract tests live beside the code in `lib/**/__tests__/`.
 - `npm run typecheck` (`tsc --noEmit`) and `npm run lint` before any handover.
-- `check:any-ratchet` holds a per-file count of `: any`, `as any`, `any[]` and `@ts-ignore` outside tests (`scripts/any-ratchet-baseline.json`). It only goes down: `--update` lowers it, never raises it. Type new code with the real type or `unknown` plus a narrow.
+- `check:any-ratchet` holds a per-file count of `: any`, `as any`, `any[]`, `any` as a type argument or union member (`Record<string, any>`, `Promise<any>`, `string | any`), `type T = any`, and `@ts-ignore` / `@ts-expect-error` / `@ts-nocheck` outside tests (`scripts/any-ratchet-baseline.json`). It only goes down: `--update` lowers it, never raises it. Type new code with the real type or `unknown` plus a narrow.
 - `check:knip` (CI) fails on a new unused file, unused dependency or unlisted dependency; known ones are in `scripts/knip-baseline.json`, which only shrinks (`--update`). `knip.json` hides no package except `eslint-config-next` (loaded through FlatCompat, which knip cannot follow). Delete or wire up a file rather than adding it to `ignore`.
 - 115 npm scripts exist — check for a targeted one (`test:line-item-attrs`, `test:approvals`, `test:shadow-diff`, `test:save-plan`) before writing a new harness.
 - Suites that import `db/` preload `scripts/test-shims/register-server-only.mjs` so `import "server-only"` is a no-op outside Next. Copy that pattern rather than removing the import.

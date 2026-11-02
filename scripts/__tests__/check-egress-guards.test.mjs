@@ -60,6 +60,22 @@ const CAUGHT = [
   ["hooks/useX.ts", `export const u = process.env.NEXT_PUBLIC_XANO_URL`],
   ["contexts/X.tsx", `export const u = process.env.XANO_URL`],
   ["middleware.ts", `export const u = process.env.XANO_BASE_URL`],
+  // B7 review: more runtime code in scope.
+  ["db/index.ts", `export const u = process.env.XANO_BASE_URL`],
+  ["db/client.ts", `export const u = "https://x8ki.xano.io/api"`],
+  ["instrumentation.ts", `export const u = process.env.XANO_BASE_URL`],
+  ["instrumentation.node.ts", `export const u = "https://x8ki.xano.io/api"`],
+  ["next.config.mjs", `export default { env: { A: process.env.XANO_BASE_URL } }`],
+  ["lib/specs/parse.cjs", `module.exports = process.env.XANO_BASE_URL`],
+  ["lib/x.mts", `export const u = "https://x8ki.xano.io/api"`],
+  ["lib/y.cts", `export const u = process.env.XANO_BASE_URL`],
+  // B7 review: nested destructure and env object aliases.
+  ["lib/env_nested_destructure.ts", `const { env: { XANO_KEY } } = process; export const u = XANO_KEY`],
+  ["lib/env_nested_destructure_multi.ts", `const { argv, env: { HOME, XANO_KEY: k } } = process; export const u = k + HOME + argv`],
+  ["lib/env_rest_alias.ts", `const { DATABASE_URL, ...rest } = process.env; export const u = rest.XANO_KEY + DATABASE_URL`],
+  ["lib/env_rest_alias_bracket.ts", `const { A, ...others } = process.env; export const u = others["XANO_KEY"] + A`],
+  ["lib/env_alias.ts", `const env = process.env; export const u = env.XANO_BASE_URL`],
+  ["lib/env_alias_optional.ts", `let e = process["env"]; export const u = e?.XANO_BASE_URL`],
 ]
 
 const ALLOWED = [
@@ -83,12 +99,19 @@ const ALLOWED = [
   ["lib/file.test.ts", `export const u = process.env.XANO_BASE_URL + "https://a.xano.io"`],
   // Not scanned: outside the guard's dirs.
   ["scripts/tool.mjs", `export const u = process.env.XANO_BASE_URL`],
+  ["lib/specs/__tests__/p.cjs", `module.exports = process.env.XANO_BASE_URL`],
+  ["lib/z.test.cjs", `module.exports = process.env.XANO_BASE_URL`],
+  ["db/frozen.ts", `export const T = "MART.XANO_LINE_ITEMS_SNAPSHOT"; export const P = "/api/cron/xano-line-item-sync"`],
+  ["lib/alias_other_env.ts", `const env = process.env; export const u = env.DATABASE_URL + env.MY_XANO_THING`],
+  ["lib/alias_member_not_alias.ts", `const url = process.env.DATABASE_URL; export const u = url + "x"`],
+  ["lib/rest_other_env.ts", `const { A, ...rest } = process.env; export const u = rest.B + A`],
+  ["lib/env_name_not_alias.ts", `export function f(env: Record<string, string>) { return env.XANO_KEY }`],
 ]
 
 const KNOWN_GAPS = [
   ["lib/gap_host_split.ts", `export const u = "https://x8ki.xano" + ".io/api"`],
   ["lib/gap_host_join.ts", `export const u = ["https://x8ki", "xano", "io"].join(".")`],
-  ["lib/gap_env_alias.ts", `const env = process.env; export const u = env.XANO_BASE_URL`],
+  ["lib/gap_env_alias_other_file.ts", `import { env } from "./env"; export const u = env.XANO_BASE_URL`],
   ["lib/gap_env_key_var.ts", `const k = "XANO_BASE_URL"; export const u = process.env[k]`],
   ["lib/gap_env_helper.ts", `function requireEnv(n: string) { return process.env[n] } export const u = requireEnv("XANO_BASE_URL")`],
   ["lib/gap_import_meta.ts", `export const u = (import.meta as any).env.XANO_BASE_URL`],

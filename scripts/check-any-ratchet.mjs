@@ -4,8 +4,11 @@
  *
  * Counts, in .ts and .tsx files under app/, lib/, components/, src/, hooks/,
  * contexts/ and middleware.ts (tests excluded: __tests__/, *.test.*, *.spec.*):
- *   `: any` (including `: any[]`), `as any`, any other `any[]`, and
- *   `@ts-ignore` comments.
+ *   `: any` (including `: any[]`), `as any`, any other `any[]`, `any` as a
+ *   type argument or union member (`Record<string, any>`, `Array<any>`,
+ *   `Promise<any>`, `string | any`), `type T = any`, and `@ts-ignore`,
+ *   `@ts-expect-error` and `@ts-nocheck` comments (the last four forms and
+ *   comments added in the B7 review).
  * Each `any` counts once. Comments and string contents are ignored (except for
  * `@ts-ignore`, which lives in a comment).
  *
@@ -52,16 +55,25 @@ function walk(dir, out = []) {
 export function countAny(raw) {
   const code = maskNonCode(raw)
   const seen = new Set()
-  const res = [/:\s*any\b/g, /\bas\s+any\b/g, /\bany\s*\[\s*\]/g]
+  const res = [
+    /:\s*any\b/g,
+    /\bas\s+any\b/g,
+    /\bany\s*\[\s*\]/g,
+    // B7 review: a type argument or union member (`Record<string, any>`,
+    // `Array<any>`, `Promise<any>`, `string | any`, `A & any`).
+    /[<,|&]\s*any\b/g,
+    // B7 review: `type T = any` (and `type T<U> = any`).
+    /\btype\s+[A-Za-z_$][\w$]*(?:\s*<[^>=]*>)?\s*=\s*any\b/g,
+  ]
   for (const re of res) {
     let m
     while ((m = re.exec(code))) {
-      // The `any` token's index, so `: any[]` and `as any[]` count once.
-      const at = m.index + m[0].search(/any/)
+      // The `any` token's index, so `: any[]`, `as any[]` and `<any[]>` count once.
+      const at = m.index + m[0].lastIndexOf("any")
       seen.add(at)
     }
   }
-  const ignores = raw.match(/@ts-ignore\b/g)?.length ?? 0
+  const ignores = raw.match(/@ts-(?:ignore|expect-error|nocheck)\b/g)?.length ?? 0
   return seen.size + ignores
 }
 

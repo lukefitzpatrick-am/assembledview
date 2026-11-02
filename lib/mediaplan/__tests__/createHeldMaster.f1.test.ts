@@ -14,9 +14,12 @@ import {
   CREATE_CLIENT_LOCKED_NOTE,
   MASTER_ID_MISMATCH,
   heldMasterIdentityFixes,
+  MBA_NUMBER_LOADING_MESSAGE,
   masterIdMismatchMessage,
   mayApplyMbaNumberResponse,
+  mbaNumberClientProblem,
 } from "../createHeldMaster"
+import { allocateNextMbaNumber } from "../allocateNextMbaNumber"
 
 const read = (rel: string) => readFileSync(join(process.cwd(), rel), "utf8")
 const create = read("app/mediaplans/create/page.tsx")
@@ -67,8 +70,11 @@ test("F1 create: no client change (picker, prefill, URL) can mint a new MBA numb
   for (const later of ["generateMBANumber(", 'form.setValue("mba_number"', 'form.setValue("mp_client_name"', "setSelectedClientId("]) {
     assert.ok(body.indexOf(later) > guard, `${later} runs only before a master exists`)
   }
-  // generateMBANumber is only reached through handleClientChange.
-  assert.equal((create.match(/generateMBANumber\(/g) ?? []).length, 1, "one call, inside handleClientChange")
+  // generateMBANumber is reached through handleClientChange, and from Save's
+  // refetch when the number is missing or another client's (B7 review); both
+  // stop once a master exists (generateMBANumber's own early return).
+  assert.equal((create.match(/generateMBANumber\(/g) ?? []).length, 2, "handleClientChange and handleSaveAll's refetch")
+  assert.match(constFnText("handleSaveAll"), /if \(problem\.refetch\) void generateMBANumber\(/)
 })
 
 test("F1 create: draft restore keeps the held master's MBA number and client; the held id is never cleared", () => {
@@ -118,4 +124,79 @@ test("C-165 gap (create): an already-open client picker cannot change a held mas
   const onSelect = create.slice(create.indexOf("onSelect={() => {", create.indexOf('key={client.id}')))
   const guard = onSelect.indexOf("if (mediaPlanIdRef.current != null) {")
   assert.ok(guard >= 0 && guard < onSelect.indexOf("field.onChange(client.mp_client_name)"), "guard before field.onChange")
+})
+
+test("B7 review 1: the MBA number must start with the client's identifier; blank or another client's number is refused", () => {
+  assert.equal(mbaNumberClientProblem("golf026", "golf"), null)
+  assert.equal(mbaNumberClientProblem("GOLF026", " golf "), null, "trimmed, case-insensitive")
+  assert.equal(mbaNumberClientProblem(" golf026 ", "GOLF"), null)
+  assert.deepEqual(mbaNumberClientProblem("krusty004", "golf")?.refetch, true, "another client's number")
+  assert.match(mbaNumberClientProblem("krusty004", "golf")!.message, /krusty004 doesn't belong to this client \(identifier golf\)/)
+  assert.equal(mbaNumberClientProblem("", "golf")?.refetch, true, "no number yet")
+  assert.equal(mbaNumberClientProblem(null, "golf")?.refetch, true)
+  assert.equal(mbaNumberClientProblem("golf026", "")?.refetch, false, "client with no identifier: refetch can't help")
+  assert.equal(mbaNumberClientProblem("golf026", null)?.refetch, false)
+  // By construction every allocated number passes for its own identifier, whatever its case or digits.
+  for (const id of ["golf", "PENFOLD", "abc1", " Buxton ", "pga"]) {
+    assert.equal(mbaNumberClientProblem(allocateNextMbaNumber([], id), id), null, id)
+    assert.equal(mbaNumberClientProblem(allocateNextMbaNumber([`${id.trim()}099`], id), id), null, id)
+  }
+})
+
+test("B7 review 1 (create): Save refuses while an MBA number request is in flight, on every save route", () => {
+  const saveAll = constFnText("handleSaveAll")
+  const pending = saveAll.indexOf("if (mbaNumberPendingRef.current) {")
+  const problem = saveAll.indexOf('mbaNumberClientProblem(form.getValues("mba_number"), form.getValues("mbaidentifier"))')
+  const aa = saveAll.indexOf("setAaPublishPrompt(")
+  const master = saveAll.indexOf("await handleSaveMediaPlan()")
+  assert.ok(pending >= 0 && pending < aa && pending < master, "pending check before the AA prompt and the master save")
+  assert.ok(saveAll.slice(pending, pending + 200).includes("MBA_NUMBER_LOADING_MESSAGE"))
+  assert.ok(problem > pending && problem < aa, "client/number check before the AA prompt")
+  assert.match(saveAll.slice(problem - 120, problem), /if \(mediaPlanIdRef\.current == null\) \{/, "only before a master exists")
+  // Every save route goes through handleSaveAll: the master and version saves have no other caller.
+  assert.equal((create.match(/await handleSaveMediaPlan\(\)/g) ?? []).length, 2, "handleSaveAll and the MBA-taken retry")
+  assert.ok(constFnText("handleSaveMediaPlan").includes("return await handleSaveMediaPlan()"), "the second is the retry, inside itself")
+  assert.equal((create.match(/await handleSaveMediaPlanVersion\(/g) ?? []).length, 1, "one call, in handleSaveAll")
+  assert.ok(saveAll.includes("await handleSaveMediaPlanVersion(newMediaPlanId)"))
+  for (const route of [
+    'handleSaveAll({ intent: "publish", download: true })',
+    'handleSaveAll({ intent: "publish", exitAfter: true })',
+    "handleSaveAll({ exitAfter: true })",
+    'handleSaveAll({ intent: "publish", zipAfter: true })',
+    "handleSaveAll({ ...pending.opts, ackAaWarnings: true })",
+    "onSave={() => void handleSaveAll()}",
+  ]) {
+    assert.ok(create.includes(route), route)
+  }
+  // The bar and the unsaved-changes dialog show it too.
+  assert.match(create, /isWizardSaving \|\| saveBlockedByClientsError \|\| datesOutOfOrder \|\| mbaNumberLoading/)
+  assert.match(create, /saveDisabled=\{saveBlockedByClientsError \|\| mbaNumberLoading\}/)
+})
+
+test("B7 review 1 (create): the pending flag is set per request and cleared only by the latest one", () => {
+  const body = constFnText("generateMBANumber")
+  const begin = body.indexOf("const requestToken = beginMbaNumberRequest(mbaNumberRequestTokenRef)")
+  const set = body.indexOf("mbaNumberPendingRef.current = true")
+  assert.ok(begin >= 0 && set > begin && set < body.indexOf("fetch("))
+  const fin = body.lastIndexOf("} finally {")
+  const tail = body.slice(fin)
+  assert.match(tail, /if \(requestToken === mbaNumberRequestTokenRef\.current\) \{\s*mbaNumberPendingRef\.current = false\s*setMbaNumberLoading\(false\)/)
+})
+
+test("B7 review 1 (create): a client change blanks the old number first; the master create re-checks the pair", () => {
+  const body = constFnText("handleClientChange")
+  const guard = body.indexOf("if (mediaPlanIdRef.current != null) {")
+  const blank = body.indexOf('form.setValue("mba_number", "")', guard)
+  const gen = body.indexOf("generateMBANumber(selectedClient.mbaidentifier)")
+  assert.ok(guard >= 0 && blank > guard && blank < gen, "blanked after the held-master guard, before the new request")
+  const master = constFnText("handleSaveMediaPlan")
+  const check = master.indexOf('mbaNumberClientProblem(mba_number, form.getValues("mbaidentifier"))')
+  assert.ok(check >= 0 && check < master.indexOf("await createMediaPlan(payload)"), "checked before createMediaPlan")
+  assert.ok(check > master.indexOf("if (existingId != null) {"), "only for a new master")
+  assert.match(master.slice(check, check + 200), /if \(clientProblem\) throw new Error\(clientProblem\.message\)/)
+})
+
+test("B7 review 1: the edit page has no MBA number generation or client picker to guard", () => {
+  assert.doesNotMatch(edit, /generateMBANumber|\/api\/mediaplans\/mbanumber|beginMbaNumberRequest|setIsClientPopoverOpen/)
+  assert.equal(MBA_NUMBER_LOADING_MESSAGE, "The MBA number is still loading. Try again in a moment.")
 })

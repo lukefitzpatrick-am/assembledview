@@ -21,11 +21,28 @@ test("countAny counts each any once, plus @ts-ignore", () => {
   assert.equal(countAny("// @ts-ignore\nconst c = 1"), 1)
 })
 
-test("countAny ignores comments, strings, words that start with any, and generics", () => {
-  assert.equal(countAny("// a: any\n/* b as any */\nconst s = 'x: any as any any[]'"), 0)
+test("countAny ignores comments, strings and words that start with any", () => {
+  assert.equal(countAny("// a: any\n/* b as any */\nconst s = 'x: any as any any[] Record<string, any>'"), 0)
   assert.equal(countAny("const t = `${'a'}: any`"), 0)
   assert.equal(countAny("const o = { k: anyValue, j: anything }"), 0)
-  assert.equal(countAny("type R = Record<string, any>"), 0)
+  assert.equal(countAny("type Company = string; type Anyway = number"), 0)
+  assert.equal(countAny("type R = Record<string, anything>"), 0)
+})
+
+test("B7 review: type arguments, unions, type aliases and the other ts directives count", () => {
+  assert.equal(countAny("type R = Record<string, any>"), 1)
+  assert.equal(countAny("const a: Array<any> = []"), 1)
+  assert.equal(countAny("async function f(): Promise<any> { return 1 }"), 1)
+  assert.equal(countAny("let u: string | any"), 1)
+  assert.equal(countAny("type I = A & any"), 1)
+  assert.equal(countAny("type T = any"), 1)
+  assert.equal(countAny("type Company = any"), 1, "the any, not the 'any' inside Company")
+  assert.equal(countAny("type G<U> = any"), 1)
+  assert.equal(countAny("const [s] = useState<any[]>([])"), 1, "<any[]> once")
+  assert.equal(countAny("const m = new Map<string, any>()"), 1)
+  assert.equal(countAny("// @ts-expect-error\nconst a = 1"), 1)
+  assert.equal(countAny("// @ts-nocheck\nconst a = 1"), 1)
+  assert.equal(countAny("// @ts-ignore\n// @ts-expect-error\n// @ts-nocheck"), 3)
 })
 
 function makeRoot(files, baseline) {

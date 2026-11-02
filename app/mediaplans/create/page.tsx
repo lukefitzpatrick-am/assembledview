@@ -357,8 +357,10 @@ import {
   CREATE_CLIENT_LOCKED_NOTE,
   MASTER_ID_MISMATCH,
   heldMasterIdentityFixes,
+  MBA_NUMBER_LOADING_MESSAGE,
   masterIdMismatchMessage,
   mayApplyMbaNumberResponse,
+  mbaNumberClientProblem,
   type HeldMasterIdentity,
 } from "@/lib/mediaplan/createHeldMaster"
 import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
@@ -667,6 +669,9 @@ function CreateMediaPlan() {
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   /** Monotonic token so stale MBA-number responses never overwrite a newer client pick. */
   const mbaNumberRequestTokenRef = useRef(0)
+  // B7 review finding 1: Save waits while the latest MBA number request is in flight.
+  const mbaNumberPendingRef = useRef(false)
+  const [mbaNumberLoading, setMbaNumberLoading] = useState(false)
   const [isClientPopoverOpen, setIsClientPopoverOpen] = useState(false)
   const { setMbaNumber } = useMediaPlanContext() 
   const [burstsData, setBurstsData] = useState([])
@@ -3328,6 +3333,8 @@ function CreateMediaPlan() {
     }
 
     const requestToken = beginMbaNumberRequest(mbaNumberRequestTokenRef)
+    mbaNumberPendingRef.current = true
+    setMbaNumberLoading(true)
 
     try {
       const response = await fetch(`/api/mediaplans/mbanumber?mbaidentifier=${encodeURIComponent(mbaidentifier)}`)
@@ -3390,6 +3397,12 @@ function CreateMediaPlan() {
       }
       setMbaNumber("")
       // Optionally show a toast notification here if you have toast available
+    } finally {
+      // Only the latest request clears the flag; an older one finishing leaves the newer pending.
+      if (requestToken === mbaNumberRequestTokenRef.current) {
+        mbaNumberPendingRef.current = false
+        setMbaNumberLoading(false)
+      }
     }
   }
 
@@ -3413,6 +3426,11 @@ function CreateMediaPlan() {
       if (form.getValues("mbaidentifier") !== nextMbaId) {
         form.setValue("mbaidentifier", nextMbaId)
       }
+      // B7 review finding 1: the old client's number never stays on the new client.
+      if (form.getValues("mba_number") !== "") {
+        form.setValue("mba_number", "")
+      }
+      setMbaNumber("")
       // Only generate MBA number if mbaidentifier exists
       if (selectedClient.mbaidentifier) {
         generateMBANumber(selectedClient.mbaidentifier)
@@ -5062,6 +5080,11 @@ function CreateMediaPlan() {
         mp_plannumber
       } = form.getValues()
   
+      // B7 review finding 1: never create a master under another client's number
+      // (also covers the MBA_NUMBER_TAKEN retry's replacement number).
+      const clientProblem = mbaNumberClientProblem(mba_number, form.getValues("mbaidentifier"))
+      if (clientProblem) throw new Error(clientProblem.message)
+
       const payload = { 
         mp_client_name, 
         mba_number: typeof mba_number === "string" ? mba_number.trim() : mba_number, 
@@ -5804,6 +5827,20 @@ const handleSaveAll = async (opts?: {
       return
     }
   if (saveAllInFlightRef.current) return
+  // B7 review finding 1: every save route (Save, publish, save and exit, save
+  // and download, the AA re-run, the unsaved-changes dialog) comes through here.
+  if (mbaNumberPendingRef.current) {
+    toast({ title: "Not saved yet", description: MBA_NUMBER_LOADING_MESSAGE })
+    return
+  }
+  if (mediaPlanIdRef.current == null) {
+    const problem = mbaNumberClientProblem(form.getValues("mba_number"), form.getValues("mbaidentifier"))
+    if (problem) {
+      toast({ title: "Not saved", description: problem.message, variant: "destructive" })
+      if (problem.refetch) void generateMBANumber(String(form.getValues("mbaidentifier") ?? ""))
+      return
+    }
+  }
   if (!opts?.ackAaWarnings) {
     const publishMode = resolvePostgresSaveMode({
       campaignStatus: form.getValues("mp_campaignstatus"),
@@ -6561,12 +6598,14 @@ const handleSaveAll = async (opts?: {
   const isPublished = false
   const draftBlocksDownloadMessage = DRAFT_BLOCKS_DOWNLOAD_MESSAGE
   const saveBarDisabled =
-    isWizardSaving || saveBlockedByClientsError || datesOutOfOrder
+    isWizardSaving || saveBlockedByClientsError || datesOutOfOrder || mbaNumberLoading
   const saveBarTitle = saveBlockedByClientsError
     ? clientsError ?? "Client list unavailable"
     : datesOutOfOrder
       ? END_BEFORE_START_MESSAGE
-      : undefined
+      : mbaNumberLoading
+        ? MBA_NUMBER_LOADING_MESSAGE
+        : undefined
   const primarySaveLabel = wizardPrimarySaveLabel({
     savePublishesImmediately: SAVE_PUBLISHES_IMMEDIATELY,
     isPublished,
@@ -8337,11 +8376,13 @@ const handleSaveAll = async (opts?: {
           (Boolean(planDraft.activeDraft) ||
             Boolean(planDraft.pill?.secondary?.startsWith("Autosaved")))
         }
-        saveDisabled={saveBlockedByClientsError}
+        saveDisabled={saveBlockedByClientsError || mbaNumberLoading}
         saveDisabledReason={
           saveBlockedByClientsError
             ? clientsError ?? "Client list unavailable — try again"
-            : undefined
+            : mbaNumberLoading
+              ? MBA_NUMBER_LOADING_MESSAGE
+              : undefined
         }
       />
     </>

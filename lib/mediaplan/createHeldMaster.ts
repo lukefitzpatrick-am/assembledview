@@ -55,3 +55,38 @@ export function mayApplyMbaNumberResponse(args: {
 }): boolean {
   return !args.masterHeld && shouldApplyMbaNumberResponse(args.requestToken, args.currentToken)
 }
+
+/** Save refusal while a new client's MBA number request is in flight (B7 review, finding 1). */
+export const MBA_NUMBER_LOADING_MESSAGE = "The MBA number is still loading. Try again in a moment."
+
+export type MbaNumberClientProblem = {
+  message: string
+  /** True when fetching the client's number again fixes it. */
+  refetch: boolean
+}
+
+/**
+ * Before a new master is created: the MBA number must start with the selected
+ * client's MBA identifier (trimmed, case-insensitive). `allocateNextMbaNumber`
+ * always builds `<identifier lowercased><digits>`, so a mismatch means the
+ * number belongs to another client (picked before the new one's number came
+ * back) or is missing. Null when the pair is fine.
+ */
+export function mbaNumberClientProblem(mbaNumber: unknown, mbaIdentifier: unknown): MbaNumberClientProblem | null {
+  const id = String(mbaIdentifier ?? "").trim()
+  const num = String(mbaNumber ?? "").trim()
+  if (!id) {
+    return {
+      message: "This client has no MBA identifier, so the plan can't get an MBA number. Add one on the client, then pick it again.",
+      refetch: false,
+    }
+  }
+  if (!num) return { message: "The plan has no MBA number yet. Getting it now; try again in a moment.", refetch: true }
+  if (!num.toLowerCase().startsWith(id.toLowerCase())) {
+    return {
+      message: `MBA number ${num} doesn't belong to this client (identifier ${id}). Getting the right number now; try again in a moment.`,
+      refetch: true,
+    }
+  }
+  return null
+}
