@@ -11,7 +11,7 @@ Import a media-owner xlsx into the Assembled View form for **human review**. Nev
 
 ## Pipeline (do not skip steps)
 
-1. User attaches an `.xlsx` in AVA chat (ChatWidget → `/api/processPlan`).
+1. User attaches an `.xlsx` in AVA chat. Since 14 Aug 2026 (`b9c5d8a7`) ChatWidget sends it to the Hub ingest review (`/api/admin/ingest/review`), not `/api/processPlan`; no page calls `/api/processPlan` now.
 2. Deterministic detector locates header, flight band, cost columns, junk columns.
 3. Claude mapper classifies rows and maps cells → container fields + bursts (**copy numbers from cells only**).
 4. You **summarise** the parse in chat (counts, meta, needs_review, warnings).

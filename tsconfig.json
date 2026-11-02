@@ -40,7 +40,6 @@
     "node_modules",
     ".next",
     "_to_delete",
-    "scripts/_archive",
     "docs/archive",
     "tmp",
     "lib/mediaplan/expertGridRowPerf.bench.test.ts",

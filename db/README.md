@@ -142,7 +142,6 @@ Wire `AVA_DATABASE_URL` to the **transaction pooler** host with that password. R
 - `npm run db:drift` — live Postgres vs `db/schema/*.ts`; must be clean (exit 0). Read-only; never writes
 - `npm run db:migrate` — future only (after journal baseline)
 - `npm run db:studio`
-- `npm run db:etl` / `npm run db:recon` — use server-only test-shims (same as `test:save-plan`); `mba_line_approvals` is postgres-authoritative and skipped by ETL truncate-reload
 - `npm run test:line-item-attrs`
 - `npm run test:shadow-diff`
 - `npm run test:approvals`

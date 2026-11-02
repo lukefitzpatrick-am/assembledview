@@ -49,7 +49,7 @@ tmp-slide16-test.pptx
 *.zip
 xano-metadata-token.txt
 
-# Xano / migration snapshots (large; regenerate via npm run xano:export)
+# Xano / migration snapshots (large; the export script is gone, the folder is kept out of git)
 /exports/
 
 _claude_repo_snapshot.tgz
