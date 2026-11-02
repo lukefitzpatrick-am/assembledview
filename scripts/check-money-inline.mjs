@@ -2,7 +2,8 @@
 /**
  * Ratchet inline money maths outside lib/money.
  *
- * Counts hits in .ts and .tsx files, excluding lib/money, tests, scripts, and tmp.
+ * Counts hits in .ts and .tsx files, excluding lib/money, tests, scripts, tmp
+ * and docs/archive (archived code that never runs; B18, D8).
  * The baseline is scripts/money-inline-baseline.json. A file fails when its
  * count rises or a new file appears. A drop passes.
  *
@@ -88,6 +89,7 @@ function toPosix(rel) {
 function isExcluded(relPosix) {
   if (relPosix === "lib/money" || relPosix.startsWith("lib/money/")) return true
   if (relPosix === "scripts" || relPosix.startsWith("scripts/")) return true
+  if (relPosix === "docs/archive" || relPosix.startsWith("docs/archive/")) return true
   if (relPosix === "tests" || relPosix.startsWith("tests/")) return true
   if (relPosix.includes("/__tests__/")) return true
   if (/\.(test|spec)\.tsx?$/.test(relPosix)) return true

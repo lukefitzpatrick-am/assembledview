@@ -18,7 +18,8 @@
     ".worktrees/**",
     ".parked-untracked/**",
     ".digiaudio-expert-origin.tsx",
-    "lib/specs/recordSpecPdfRun.ts"
+    "lib/specs/recordSpecPdfRun.ts",
+    "docs/archive/**"
   ],
   "ignoreDependencies": [
     "eslint-config-next"

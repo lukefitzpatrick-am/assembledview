@@ -56,6 +56,8 @@ const CLEAN = {
   "lib/c_plain_number.ts": `export const a = (v: string) => Number(v) + parseFloat(v)`,
   "lib/money/parse.ts": `export function parseCurrency(v: string) { return parseFloat(v.replace(/[^0-9.]/g, "")) }`,
   "lib/__tests__/t.test.ts": `export const a = (v: string) => parseFloat(v.replace(/[^0-9.]/g, ""))`,
+  // B18 (D8): archived code under docs/archive never runs.
+  "docs/archive/xano/migration/recon.ts": `export const c = (burstSum: number) => Math.round(burstSum * 100)`,
 }
 
 test("each new G1 pattern is counted; comments, lib/money and tests are not", () => {
@@ -73,6 +75,18 @@ test("each new G1 pattern is counted; comments, lib/money and tests are not", ()
     assert.equal(baseline["lib/f_parse_currency.ts"], 1)
     assert.equal(baseline["lib/f_names.ts"], 6)
     for (const rel of Object.keys(CLEAN)) assert.equal(baseline[rel], undefined, rel)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test("B18: docs/archive is skipped, other docs .ts files still count", () => {
+  const src = `export const c = (burstSum: number) => Math.round(burstSum * 100)`
+  const root = makeRoot({ "docs/archive/a/x.ts": src, "docs/notes/x.ts": src }, null)
+  try {
+    const r = run(root, "--reseed")
+    assert.equal(r.status, 0, r.stderr)
+    assert.deepEqual(readBaseline(root), { "docs/notes/x.ts": 1 })
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
