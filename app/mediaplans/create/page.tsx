@@ -151,7 +151,6 @@ import {
   applyLineFeePrebillToMonths,
   applyLinePrebillToMonths,
   billingOverrideLineIdsMatch,
-  buildCanonicalBillingLineIdSet,
   clearLineOverrideMeta,
   extractOverrideMonthsFromSchedule,
   listManualOverrideLineIds,
@@ -2222,15 +2221,6 @@ function CreateMediaPlan() {
     const months = monthsForMbaBillingGates(mbaBillingModalState, manualBillingMonths)
     return validateAgencyFeeMonthTotalDrift(months, 0).sumOfMonthFeeTotals
   }, [mbaBillingModalState, manualBillingMonths])
-
-  const campaignFinancialsMediaByKey = useMemo(() => {
-    const out: Record<string, number> = {}
-    for (const line of campaignFinancials.perLine) {
-      if (line.flags.excluded) continue
-      out[line.mediaType] = (out[line.mediaType] ?? 0) + line.media
-    }
-    return out
-  }, [campaignFinancials])
 
   const panelIndicators = useMemo(
     () =>
