@@ -684,6 +684,8 @@ export async function fetchLineItemsFromPostgres(
             eq(schema.lineItems.channel, channel)
           )
         ),
+      // Query label kept as is (it names this read in logs); the
+      // readChannelLineItems wrapper itself went in B8.
       "readChannelLineItems",
     ),
   )
@@ -705,16 +707,5 @@ export async function fetchLineItemsFromPostgresByEndpoint(
     throw new Error(`Unknown channel endpoint for plans read: ${endpoint}`)
   }
   return fetchLineItemsFromPostgres(mbaNumber, versionNumber, channel, options)
-}
-
-/** Channel line-item list from Postgres `line_items`. */
-export async function readChannelLineItems(
-  endpoint: string,
-  mbaNumber: string,
-  versionNumber: number,
-): Promise<Record<string, unknown>[]> {
-  const channel = channelFromEndpoint(endpoint)
-  if (!channel) return []
-  return fetchLineItemsFromPostgres(mbaNumber, versionNumber, channel)
 }
 

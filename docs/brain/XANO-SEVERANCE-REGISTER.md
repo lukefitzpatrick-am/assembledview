@@ -236,7 +236,7 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/snowflake/pgLineItemSnapshotMap.ts` | type import; row map, no HTTP | unconditional | no | none | **NAME-ONLY** |
 | `lib/snowflake/syncPgLineItems.ts` | always `fetchAllPgLineItems` then MERGE; no Xano fetch | none (`LINE_ITEM_SNAPSHOT_SOURCE` not read, B6) | no | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **NAME-ONLY** |
 | `lib/snowflake/syncXanoLineItems.ts` | MERGE into MART.XANO_LINE_ITEMS_SNAPSHOT; no HTTP | unconditional | no | none | **NAME-ONLY** |
-| `lib/snowflake/tipScopeLineItems.ts` | filters snapshot rows; no HTTP | unconditional | no | none | **NAME-ONLY** |
+| `lib/snowflake/tipScopeLineItems.ts` | `PublishedTipPointer` type only; the Xano row filter went in B8 | — | no | none | **DONE** |
 | `lib/snowflake/__tests__/syncPgLineItems.parity.test.ts` | deleted (B6) with the parity module | — | no | none | **DONE** |
 | `lib/snowflake/__tests__/syncXanoLineItemsPrune.test.ts` | media_plan_search | unconditional | no | none | **TOOLING** |
 | `lib/xano/fetchAllLineItems.ts` | GET all channel media_plan_* tables | archive parity script only; cron does not call it | no | lib/snowflake/fetchAllPgLineItems.ts fetchAllPgLineItems | **TOOLING** |
