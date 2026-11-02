@@ -29,17 +29,10 @@ interface SavingModalProps {
   title?: string;
   titleComplete?: string;
   titleWithErrors?: string;
-  /** Shown when children saved but master publish failed and retry is available. */
-  titleRetryPublish?: string;
   descriptionSaving?: string;
   descriptionComplete?: string;
   descriptionError?: string;
-  descriptionRetryPublish?: string;
   emptyStateLabel?: string;
-  /** When set with publishRetryPending, shows a "Retry publish" CTA that re-issues only the publish PATCH. */
-  onRetryPublish?: () => void;
-  isRetryingPublish?: boolean;
-  publishRetryPending?: boolean;
 }
 
 export function SavingModal({
@@ -50,15 +43,10 @@ export function SavingModal({
   title = "Saving Changes",
   titleComplete = "Saving Complete",
   titleWithErrors = "Saving with Errors",
-  titleRetryPublish = "Saved but not published",
   descriptionSaving = "We are saving your changes. This may take a moment.",
   descriptionComplete = "All sections have been processed.",
   descriptionError = "Some sections failed to save. Review the errors below and fix them before retrying.",
-  descriptionRetryPublish = "Channel data was saved to a staged version, but the master version was not advanced. Retry publish to finish.",
   emptyStateLabel = "Saving changes...",
-  onRetryPublish,
-  isRetryingPublish = false,
-  publishRetryPending = false,
 }: SavingModalProps) {
   const hasItems = items.length > 0;
   const allComplete = savingDialogAllComplete(items);
@@ -66,16 +54,12 @@ export function SavingModal({
   const sessionChrome = savingModalChromeForItems(items);
   const resolvedTitleWithErrors = sessionChrome.titleWithErrors ?? titleWithErrors;
   const resolvedDescriptionError = sessionChrome.descriptionError ?? descriptionError;
-  const showRetryPublish =
-    Boolean(publishRetryPending && onRetryPublish) && hasErrors && !isSaving;
-  const canClose = !isSaving && !isRetryingPublish;
-  const dialogTitle = showRetryPublish
-    ? titleRetryPublish
-    : hasErrors
-      ? resolvedTitleWithErrors
-      : allComplete
-        ? titleComplete
-        : title;
+  const canClose = !isSaving;
+  const dialogTitle = hasErrors
+    ? resolvedTitleWithErrors
+    : allComplete
+      ? titleComplete
+      : title;
 
   const handleClose = () => {
     if (!canClose) return;
@@ -96,13 +80,11 @@ export function SavingModal({
         <DialogTitle className="text-lg font-semibold">{dialogTitle}</DialogTitle>
         {hasItems && (
           <DialogDescription className={cn("text-sm", hasErrors ? "text-destructive" : "text-muted-foreground")}>
-            {showRetryPublish
-              ? descriptionRetryPublish
-              : hasErrors
-                ? resolvedDescriptionError
-                : isSaving
-                  ? descriptionSaving
-                  : descriptionComplete}
+            {hasErrors
+              ? resolvedDescriptionError
+              : isSaving
+                ? descriptionSaving
+                : descriptionComplete}
           </DialogDescription>
         )}
         
@@ -167,18 +149,8 @@ export function SavingModal({
           </div>
         )}
 
-        {(hasErrors || (!isSaving && allComplete) || showRetryPublish) && (
+        {(hasErrors || (!isSaving && allComplete)) && (
           <div className="flex justify-end gap-2">
-            {showRetryPublish ? (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => onRetryPublish?.()}
-                disabled={isRetryingPublish || isSaving}
-              >
-                {isRetryingPublish ? "Retrying publish…" : "Retry publish"}
-              </Button>
-            ) : null}
             <Button
               variant={hasErrors ? "destructive" : "outline"}
               size="sm"

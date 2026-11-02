@@ -95,9 +95,8 @@ import { MediaPlanLoadModal } from "@/components/mediaplans/MediaPlanLoadModal"
 import { MediaPlanLoadStatusPill } from "@/components/mediaplans/MediaPlanLoadStatusPill"
 import { OutcomeModal } from "@/components/outcome-modal"
 import { useUnsavedChangesPrompt } from "@/hooks/use-unsaved-changes-prompt"
-import { 
-  getSearchLineItemsByMBA, 
-  saveSocialMediaLineItems,
+import {
+  getSearchLineItemsByMBA,
   getTelevisionLineItemsByMBA,
   getRadioLineItemsByMBA,
   getNewspaperLineItemsByMBA,
@@ -117,25 +116,6 @@ import {
   getInfluencersLineItemsByMBA,
   getSocialMediaLineItemsByMBA,
   getProductionLineItemsByMBA,
-  saveTelevisionLineItems,
-  saveRadioLineItems,
-  saveNewspaperLineItems,
-  saveMagazinesLineItems,
-  saveOOHLineItems,
-  saveCinemaLineItems,
-  saveDigitalDisplayLineItems,
-  saveDigitalAudioLineItems,
-  saveDigitalVideoLineItems,
-  saveBVODLineItems,
-  saveIntegrationLineItems,
-  saveSearchLineItems,
-  saveProgDisplayLineItems,
-  saveProgVideoLineItems,
-  saveProgBVODLineItems,
-  saveProgAudioLineItems,
-  saveProgOOHLineItems,
-  saveInfluencersLineItems,
-  saveProductionLineItems,
 } from "@/lib/api"
 import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst } from "@/lib/billing/types"
 import { computeAppendNewMediaTypeBucket } from "@/lib/billing/appendNewMediaTypeBucket"
@@ -152,7 +132,6 @@ import {
 } from "@/lib/billing/compareBillingDivergence"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver"
-import { mergeInvestmentMonths } from "@/lib/billing/mergeInvestmentMonths"
 import { generateBillingLineItems } from "@/lib/billing/generateBillingLineItems"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
@@ -189,10 +168,7 @@ import {
 } from "@/lib/mediaplan/channelHydrationGate"
 import {
   countEnabledPublishIntegrityFlags,
-  shouldBlockEmptyPublish,
-  shouldRunDeferredMasterPublish,
 } from "@/lib/mediaplan/publishVersionIntegrityClient"
-import { useWriteBackend } from "@/lib/data/WriteBackendContext"
 import { AaPublishWarningDialog } from "@/components/mediaplans/AaPublishWarningDialog"
 import {
   buildAaPublishWarnings,
@@ -256,14 +232,11 @@ import {
   missingBuyTypeBuilderIssues,
 } from "@/lib/mediaplan/missingBuyTypeGate"
 import {
-  SESSION_EXPIRED_PUBLISH_MESSAGE,
   SESSION_EXPIRED_SAVE_MESSAGE,
   SESSION_EXPIRED_TITLE,
-  WriteSessionExpiredError,
   applySessionExpiredToSaveItems,
   isUnauthorizedStatus,
   isWriteSessionExpiredError,
-  noteWriteUnauthorized,
 } from "@/lib/auth/writeSessionExpiry"
 import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
 import {
@@ -300,10 +273,6 @@ import {
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import { resolveDraftBaseVersionNumber } from "@/lib/mediaplan/drafts/resolveDraftBaseVersionNumber"
-import {
-  humaniseBillingSaveError,
-  withMbaScopeLineLabels,
-} from "@/lib/finance/humaniseBillingSaveError"
 import type { BurstDateLike } from "@/lib/finance/billingOverrideDateBasis"
 import {
   fetchBillingOverridesClient,
@@ -376,14 +345,10 @@ import {
   persistManualBillingOverrides,
 } from "@/lib/finance/persistManualBillingOverrides"
 import {
-  collectPersistedBillingLineIds,
-  diffBillingActivity,
   findStaleDateBasisOverrides,
-  formatPreservePriorAlert,
   type BillingActivityLine,
   type StaleDateBasisOverride,
 } from "@/lib/finance/preservePriorBilling"
-import { applyDateBasisKeepOrReset } from "@/lib/finance/applyDateBasisKeepOrReset"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { MbaBillingAutoCalcSummary } from "@/components/billing/MbaBillingAutoCalcSummary"
 import {
@@ -1541,11 +1506,8 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const versionsMetaInflightRef = useRef<Promise<void> | null>(null)
   const ingestStageIdRef = useRef<string | null>(null)
   const [latestVersionNumber, setLatestVersionNumber] = useState<number>(1)
-  const [nextSaveVersionNumber, setNextSaveVersionNumber] = useState<number | null>(null)
   const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null)
   const [saveModeLabel, setSaveModeLabel] = useState<string | null>(null)
-  /** Server-injected via edit layout — `WRITE_BACKEND` (not derived from DATA_BACKEND). */
-  const writeBackend = useWriteBackend()
   /** DB row id of the current `media_plan_versions` record — NOT `version_number`. */
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<string | number | null>(null)
   /** Master's published_version_id. Set from the load response, and from versionId after a publish. */
@@ -1738,10 +1700,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const [burstsData, setBurstsData] = useState<any[]>([])
   const [investmentPerMonthByChannel, setInvestmentPerMonthByChannel] = useState<Record<string, any[]>>({})
   const investmentPerMonthByChannelRef = useRef(investmentPerMonthByChannel)
-  const investmentPerMonth = useMemo(
-    () => mergeInvestmentMonths(investmentPerMonthByChannel),
-    [investmentPerMonthByChannel],
-  )
   const [searchBursts, setSearchBursts] = useState<any[]>([])
   const [socialMediaBursts, setSocialMediaBursts] = useState<any[]>([])
   // Burst state variables for all media types (matching create page pattern)
@@ -1799,8 +1757,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     lineItemId: string
     defaultScope: PrebillScope
   } | null>(null)
-  /** Canonical line ids present on last hydrated / saved billing baseline (C3 preserve-prior). */
-  const persistedBillingLineIdsRef = useRef<Set<string>>(new Set())
   /**
    * MB-24 — fetch-only saved billing_overrides for provenance + save baseline.
    * Written ONLY by successful fetch and plan-change reset. Never optimistic.
@@ -1851,7 +1807,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   >(null)
   const autoReferenceBillingMonthsRef = useRef<BillingMonth[]>([])
   const [autoDeliveryMonths, setAutoDeliveryMonths] = useState<BillingMonth[]>([])
-  const deliveryScheduleSnapshotRef = useRef<BillingMonth[] | null>(null)
   const [billingError, setBillingError] = useState<{
     show: boolean
     blockingErrors: string[]
@@ -1961,13 +1916,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       zipAfter?: boolean
     }
   } | null>(null)
-  /** Children saved, master.version_number bump failed — retry publishes only. */
-  const [pendingPublishRetry, setPendingPublishRetry] = useState<{
-    versionNumber: number
-    versionId: number | string | null
-    publishedBefore: number
-  } | null>(null)
-  const [isRetryingPublish, setIsRetryingPublish] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalTitle, setModalTitle] = useState("")
   const [modalOutcome, setModalOutcome] = useState("")
@@ -2319,7 +2267,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   const hasSaveErrors = saveStatus.some(item => item.status === 'error')
   const shouldShowSaveModal =
     isSaveModalOpen &&
-    (isSaving || isRetryingPublish || hasSaveErrors || saveStatus.length > 0 || Boolean(pendingPublishRetry))
+    (isSaving || hasSaveErrors || saveStatus.length > 0)
 
   const updateLoadStatus = useCallback(
     (name: string, status: SaveStatusItem['status'], error?: string) => {
@@ -2343,8 +2291,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
   useEffect(() => {
     if (
       !isSaving &&
-      !isRetryingPublish &&
-      !pendingPublishRetry &&
       isSaveModalOpen &&
       saveStatus.length > 0 &&
       !hasSaveErrors
@@ -2352,121 +2298,13 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       setIsSaveModalOpen(false)
       setSaveStatus([])
     }
-  }, [hasSaveErrors, isSaveModalOpen, isSaving, isRetryingPublish, pendingPublishRetry, saveStatus])
+  }, [hasSaveErrors, isSaveModalOpen, isSaving, saveStatus])
 
   const handleCloseSaveModal = useCallback(() => {
-    if (isSaving || isRetryingPublish) return
+    if (isSaving) return
     setIsSaveModalOpen(false)
-    if (!pendingPublishRetry) {
-      setSaveStatus([])
-    }
-  }, [isSaving, isRetryingPublish, pendingPublishRetry])
-
-  const patchPublishStatus = useCallback(
-    (status: SaveStatusItem["status"], error?: string) => {
-      setSaveStatus((prev) => {
-        const name = "Publish version"
-        const existing = prev.find((item) => item.name === name)
-        if (!existing) return [...prev, { name, status, error }]
-        return prev.map((item) =>
-          item.name === name ? { ...item, status, error } : item
-        )
-      })
-    },
-    []
-  )
-
-  const handleRetryPublish = useCallback(async () => {
-    if (!pendingPublishRetry || !mbaNumber || isRetryingPublish) return
-    const { versionNumber, versionId, publishedBefore } = pendingPublishRetry
-    setIsRetryingPublish(true)
-    setIsSaveModalOpen(true)
-    patchPublishStatus("pending")
-    try {
-      const publishResponse = await fetch(`/api/mediaplans/mba/${mbaNumber}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ version_number: versionNumber }),
-      })
-      if (!publishResponse.ok) {
-        if (isUnauthorizedStatus(publishResponse.status)) {
-          noteWriteUnauthorized()
-          patchPublishStatus("error", SESSION_EXPIRED_PUBLISH_MESSAGE)
-          toast({
-            variant: "destructive",
-            title: SESSION_EXPIRED_TITLE,
-            description: SESSION_EXPIRED_PUBLISH_MESSAGE,
-          })
-          return
-        }
-        let publishError = "Failed to publish version number"
-        try {
-          const body = await publishResponse.json()
-          publishError = body.error || body.message || publishError
-        } catch {
-          /* ignore */
-        }
-        patchPublishStatus("error", publishError)
-        toast({
-          variant: "destructive",
-          title: "Publish retry failed",
-          description: `${publishError}. Master version remains ${publishedBefore}. Staged version ${versionNumber} is still unpublished.`,
-        })
-        return
-      }
-      patchPublishStatus("success")
-      setPendingPublishRetry(null)
-      const resolvedPublishedId =
-        typeof versionId === "number"
-          ? versionId
-          : typeof versionId === "string" && versionId.trim() !== "" && Number.isFinite(Number(versionId))
-            ? Number(versionId)
-            : null
-      if (resolvedPublishedId != null && resolvedPublishedId > 0) {
-        setPublishedVersionId(resolvedPublishedId)
-      }
-      const updatedLatest = Math.max(latestVersionNumber || 0, versionNumber)
-      setLatestVersionNumber(updatedLatest)
-      setNextSaveVersionNumber(updatedLatest + 1)
-      setSelectedVersionNumber(versionNumber)
-      setAvailableVersions((prev) => {
-        const existing = prev.some((v) => v.version_number === versionNumber)
-        const resolvedId = resolvedPublishedId ?? undefined
-        const newEntry = {
-          id: resolvedId,
-          version_number: versionNumber,
-          created_at: Date.now(),
-        }
-        if (existing) {
-          return prev.map((v) =>
-            v.version_number === versionNumber ? { ...v, ...newEntry } : v
-          )
-        }
-        return [...prev, newEntry]
-      })
-      toast({
-        title: "Version published",
-        description: `Version ${versionNumber} is now live.`,
-      })
-    } catch (err: any) {
-      const message = err?.message || String(err)
-      patchPublishStatus("error", message)
-      toast({
-        variant: "destructive",
-        title: "Publish retry failed",
-        description: message,
-      })
-    } finally {
-      setIsRetryingPublish(false)
-    }
-  }, [
-    pendingPublishRetry,
-    mbaNumber,
-    isRetryingPublish,
-    latestVersionNumber,
-    patchPublishStatus,
-    toast,
-  ])
+    setSaveStatus([])
+  }, [isSaving])
 
   useEffect(() => {
     const subscription = form.watch(() => {
@@ -3056,18 +2894,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     return JSON.parse(JSON.stringify(months)) as BillingMonth[]
   }, [])
 
-  // Reset snapshot only when campaign dates change OR we switch to a new MBA/version context.
-  const deliverySnapshotKeyRef = useRef<string | null>(null)
-  useEffect(() => {
-    const startKey = campaignStartDate ? toDateOnlyString(campaignStartDate) : ""
-    const endKey = campaignEndDate ? toDateOnlyString(campaignEndDate) : ""
-    const key = `${startKey}|${endKey}|${mbaNumber ?? ""}|${selectedVersionNumber ?? ""}`
-    if (deliverySnapshotKeyRef.current && deliverySnapshotKeyRef.current !== key) {
-      deliveryScheduleSnapshotRef.current = null
-    }
-    deliverySnapshotKeyRef.current = key
-  }, [campaignStartDate, campaignEndDate, mbaNumber, selectedVersionNumber])
-
   useEffect(() => {
     const result = checkLineItemDatesOutsideCampaign({
       campaignStart: campaignStartDate,
@@ -3194,11 +3020,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       return
     }
 
-    // Keep delivery snapshot in sync with latest auto-calculation (e.g. after fee % loads)
-    if (deliveryMonthsCalculated.length > 0) {
-      deliveryScheduleSnapshotRef.current = deepCloneBillingMonths(deliveryMonthsCalculated)
-    }
-  
     autoReferenceBillingMonthsRef.current = billingMonthsCalculated
     setAutoReferenceBillingMonths(billingMonthsCalculated)
     setAutoDeliveryMonths(deliveryMonthsCalculated)
@@ -3261,7 +3082,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     influencersBursts,
     adservaudio,
     getRateForMediaType,
-    deepCloneBillingMonths,
     isManualBilling,
     form,
   ]);
@@ -3334,7 +3154,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       setInfluencersBursts([])
       setSavedBillingMonths([])
       savedBillingMonthsRef.current = []
-      persistedBillingLineIdsRef.current = new Set()
       setSavedBillingOverrideRows([])
       setBillingOverridesLoadState("unknown")
       setClearedBillingOverrideLineIds([])
@@ -3357,7 +3176,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
       manualBillingCostPreBillSnapshotRef.current = {}
       manualBillingOverrideMetaRef.current = new Map()
-      deliveryScheduleSnapshotRef.current = null
       setIsPartialMBA(false)
       setPartialApprovalMetadata(null)
       setPartialMBALineItemsByMedia({})
@@ -3545,10 +3363,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           setPublishedVersionId(loadedPublishedVersionId)
         }
 
-        const nextFromApi = data.nextVersionNumber
-          ?? data.next_version_number
-          ?? (latestFromApi + 1)
-        setNextSaveVersionNumber(nextFromApi)
         
         if (requestedVersionNumber !== null && loadedVersionNumber !== null && loadedVersionNumber !== requestedVersionNumber) {
           console.warn(`[DATA LOAD] Version mismatch! Requested: ${requestedVersionNumber}, Loaded: ${loadedVersionNumber}`)
@@ -3588,7 +3402,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           hasPersistedBillingScheduleRef.current = true
           setSavedBillingMonths(deepSaved)
           savedBillingMonthsRef.current = deepSaved
-          persistedBillingLineIdsRef.current = collectPersistedBillingLineIds(deepSaved)
           setWorkingBillingMonths(deepWorking)
           workingBillingMonthsRef.current = deepWorking
           setBillingHydrationComplete(true)
@@ -3612,7 +3425,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           hasPersistedBillingScheduleRef.current = false
           setSavedBillingMonths([])
           savedBillingMonthsRef.current = []
-          persistedBillingLineIdsRef.current = new Set()
           setBillingHydrationComplete(true)
           setHasPersistedBillingSchedule(false)
           setIsManualBilling(false)
@@ -6975,30 +6787,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     })
   }
 
-  // Media type display names mapping
-  const mediaTypeDisplayNames: Record<string, string> = {
-    mp_television: 'Television',
-    mp_radio: 'Radio',
-    mp_newspaper: 'Newspaper',
-    mp_magazines: 'Magazines',
-    mp_ooh: 'OOH',
-    mp_cinema: 'Cinema',
-    mp_digidisplay: 'Digital Display',
-    mp_digiaudio: 'Digital Audio',
-    mp_digivideo: 'Digital Video',
-    mp_bvod: 'BVOD',
-    mp_integration: 'Integration',
-  mp_production: 'Production',
-    mp_search: 'Search',
-    mp_socialmedia: 'Social Media',
-    mp_progdisplay: 'Programmatic Display',
-    mp_progvideo: 'Programmatic Video',
-    mp_progbvod: 'Programmatic BVOD',
-    mp_progaudio: 'Programmatic Audio',
-    mp_progooh: 'Programmatic OOH',
-    mp_influencers: 'Influencers'
-  };
-
   // Helper function to update save status
   const updateSaveStatus = (name: string, status: SaveStatusItem['status'], error?: string) => {
     setSaveStatus(prev => {
@@ -7250,9 +7038,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     
     try {
       const formValues = form.getValues()
-      let billingOverrideNotices: string[] = []
-      const inferredLatest = typeof latestVersionNumber === 'number' ? latestVersionNumber : (typeof mediaPlan?.version_number === 'number' ? mediaPlan.version_number : 0)
-      const targetSaveVersion = nextSaveVersionNumber ?? (inferredLatest + 1)
       
       if (!mbaNumber || !mediaPlan?.id) {
         throw new Error("MBA number and media plan ID are required")
@@ -7382,11 +7167,7 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         influencers: influencersMediaLineItemsForSave,
       }
 
-      if (
-        writeBackend === "postgres"
-          ? hasExplicitManualBillingLines(workingBillingMonths)
-          : isManualBilling
-      ) {
+      if (hasExplicitManualBillingLines(workingBillingMonths)) {
         if (
           workingBillingMonths.length > 0 &&
           !isPartialMBA &&
@@ -7394,7 +7175,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
           Object.keys(workingBillingMonths[0].lineItems).length > 0
         ) {
           const billingValidation = validateBillingBeforeSave(workingBillingMonths, { feeCheck: true })
-          billingOverrideNotices = billingValidation.preservedManualOverrides
           if (billingValidation.blockingErrors.length > 0) {
             const list = billingValidation.blockingErrors
             const head = list.slice(0, 4).join(" • ")
@@ -7412,22 +7192,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             })
             setIsSaving(false)
             return
-          }
-        }
-      }
-
-      // O4: postgres AUTO drift is corrected server-side — never pre-block with "reset to auto".
-      // Xano path: keep the informational toast only (PUT still omits schedule / C1 reject unchanged).
-      if (workingBillingMonths.length > 0 && autoReferenceBillingMonths.length > 0) {
-        if (writeBackend !== "postgres") {
-          const saveDivergence = compareBillingDivergence(workingBillingMonths, autoReferenceBillingMonths, {
-            attachComputedLineItems: (months, mode) => attachLineItemsToMonths(months, mode, lineItemSnapshotsForSave),
-          })
-          if (saveDivergence.isDivergent) {
-            toast({
-              title: "Manual billing differences",
-              description: "Saving a billing schedule that differs from the auto-computed values.",
-            })
           }
         }
       }
@@ -7456,7 +7220,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       }
       if (
         isBillingBalancerEnabled() &&
-        writeBackend === "postgres" &&
         workingBillingMonths.length > 0 &&
         autoReferenceBillingMonths.length > 0
       ) {
@@ -7592,774 +7355,465 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         formValues.mp_production || (productionMediaLineItemsForSave?.length ?? 0) > 0
       )
 
-      // --- T4c: WRITE_BACKEND=postgres → one transactional save (Xano path below stays byte-identical) ---
-      if (writeBackend === "postgres") {
-        setSaveStatus(
-          POSTGRES_SAVE_MODAL_STEPS.map((name) => ({
-            name,
-            status: "pending" as const,
-          }))
-        )
+      // One transactional save through POST /api/plans/save (the only save path).
+      setSaveStatus(
+        POSTGRES_SAVE_MODAL_STEPS.map((name) => ({
+          name,
+          status: "pending" as const,
+        }))
+      )
 
-        const saveModeInput = buildSaveModeInput({
-          latestVersionNumber,
-          mediaPlan,
-          availableVersions,
-          selectedVersionNumber,
-          forceIncrement: false,
-          intent: saveIntent,
-          campaignStatus: formValues.mp_campaignstatus,
-        })
-        const modeResolved = resolvePostgresSaveMode(saveModeInput)
+      const saveModeInput = buildSaveModeInput({
+        latestVersionNumber,
+        mediaPlan,
+        availableVersions,
+        selectedVersionNumber,
+        forceIncrement: false,
+        intent: saveIntent,
+        campaignStatus: formValues.mp_campaignstatus,
+      })
+      const modeResolved = resolvePostgresSaveMode(saveModeInput)
 
-        setSaveModeLabel(
-          formatSaveModeLabel(modeResolved.uiMode, modeResolved.versionNumber)
-        )
+      setSaveModeLabel(
+        formatSaveModeLabel(modeResolved.uiMode, modeResolved.versionNumber)
+      )
 
-        // VC Stage 2b: save on a published tip writes a working draft — never
-        // touch the version row and never cut a new version.
-        if (modeResolved.uiMode === "working_draft") {
-          updateSaveStatus("Save plan (transactional)", "pending")
-          try {
-            await planDraft.saveDraftNow()
-          } catch (draftErr: any) {
-            const expired = isWriteSessionExpiredError(draftErr)
-            const human = expired
-              ? SESSION_EXPIRED_SAVE_MESSAGE
-              : draftErr?.message || String(draftErr)
-            updateSaveStatus("Save plan (transactional)", "error", human)
-            toast({
-              variant: "destructive",
-              title: expired ? SESSION_EXPIRED_TITLE : "Draft save failed",
-              description: human,
-            })
-            skipUnrunPostgresSaveSteps(updateSaveStatus)
-            setIsSaving(false)
-            return
-          }
-          updateSaveStatus("Save plan (transactional)", "success")
-          skipUnrunPostgresSaveSteps(updateSaveStatus)
-          await afterSuccessfulSave({
-            skipDownload: true,
-            existingToast: {
-              title: "Working draft saved",
-              description: `Draft of v${modeResolved.versionNumber} saved. Publishing will create the next version.`,
-            },
-          })
-          setIsSaving(false)
-          return
-        }
-
-        let lineItemsForSave
-        try {
-          lineItemsForSave = buildSavePlanLineItemsFromSnapshots(
-            {
-              television: televisionMediaLineItemsForSave,
-              radio: radioMediaLineItemsForSave,
-              newspaper: newspaperMediaLineItemsForSave,
-              magazines: magazinesMediaLineItemsForSave,
-              ooh: oohMediaLineItemsForSave,
-              cinema: cinemaMediaLineItemsForSave,
-              digiDisplay: digitalDisplayMediaLineItemsForSave,
-              digiAudio: digitalAudioMediaLineItemsForSave,
-              digiVideo: digitalVideoMediaLineItemsForSave,
-              bvod: bvodMediaLineItemsForSave,
-              integration: integrationMediaLineItemsForSave,
-              production: productionMediaLineItemsForSave,
-              search: searchMediaLineItemsForSave,
-              socialMedia: socialMediaMediaLineItemsForSave,
-              progDisplay: progDisplayMediaLineItemsForSave,
-              progVideo: progVideoMediaLineItemsForSave,
-              progBvod: progBvodMediaLineItemsForSave,
-              progAudio: progAudioMediaLineItemsForSave,
-              progOoh: progOohMediaLineItemsForSave,
-              influencers: influencersMediaLineItemsForSave,
-            },
-            billingSaveInputs.lineItems,
-            channelLoadSucceeded
-          )
-        } catch (buildErr: any) {
-          updateSaveStatus(
-            "Save plan (transactional)",
-            "error",
-            buildErr?.message || String(buildErr)
-          )
-          throw buildErr
-        }
-
-        if (
-          (modeResolved.mode === "publish" ||
-            modeResolved.mode === "new_version") &&
-          lineItemsForSave.length === 0 &&
-          countEnabledPublishIntegrityFlags(formValues) > 0
-        ) {
-          updateSaveStatus(
-            "Save plan (transactional)",
-            "error",
-            "Cannot publish version with 0 line items (BOSS006)"
-          )
-          toast({
-            variant: "destructive",
-            title: "Publish rejected — no line items",
-            description: "Enable channels need at least one line item before publish.",
-          })
-          setIsSaving(false)
-          return
-        }
-
+      // VC Stage 2b: save on a published tip writes a working draft — never
+      // touch the version row and never cut a new version.
+      if (modeResolved.uiMode === "working_draft") {
         updateSaveStatus("Save plan (transactional)", "pending")
-        const resolvedMasterId = resolveMasterIdFromCombinedPlan(mediaPlan)
-        if (resolvedMasterId == null) {
-          throw new Error(
-            "Cannot resolve media_plan_masters id (missing media_plan_master_id on loaded plan)"
-          )
-        }
-        if (modeResolved.mode == null) {
-          throw new Error("working_draft must not POST /api/plans/save")
-        }
-        // uiMode → POST mode (shared path after working_draft early return):
-        //   "increment"             → mode "publish"
-        //   "increment_unpublished" → mode "new_version"
-        //   "overwrite"             → mode "draft" (in-place tip; versionNumber === tip)
-        //   "working_draft"         → never reaches here
-        setMissingBuyTypeLineIds([])
-        setMissingBurstDateLineIds([])
-        const saveResult = await postPlansSave(
-          assemblePlansSaveRequestBody(
-            {
-              masterId: resolvedMasterId,
-              mbaNumber: String(mbaNumber),
-              versionNumber: modeResolved.versionNumber,
-              mode: modeResolved.mode,
-              baseVersionId: draftBaseVersionId,
-              tipVersionIdAtLoad: tipVersionIdAtLoadRef.current,
-              campaignName: formValues.mp_campaignname ?? null,
-              campaignStartDate: toDateOnlyString(formValues.mp_campaigndates_start),
-              campaignEndDate: toDateOnlyString(formValues.mp_campaigndates_end),
-              brand: formValues.mp_brand ?? null,
-              clientContact: formValues.mp_clientcontact ?? null,
-              poNumber: formValues.mp_ponumber ?? null,
-              campaignBudgetCents: dollarsToCampaignBudgetCents(formValues.mp_campaignbudget),
-              fixedFee: Boolean(formValues.mp_fixedfee),
-              clientBillingSchedulePreview:
-                workingBillingMonths.length > 0 ? workingBillingMonths : undefined,
-              billingOverrides: buildBillingOverridesSaveEnvelope({
-                loadState: billingOverridesLoadState,
-                clearedLineIds: clearedBillingOverrideLineIdsRef.current,
-              }),
-              channelFlags: {
-                mp_television: Boolean(formValues.mp_television),
-                mp_radio: Boolean(formValues.mp_radio),
-                mp_newspaper: Boolean(formValues.mp_newspaper),
-                mp_magazines: Boolean(formValues.mp_magazines),
-                mp_ooh: Boolean(formValues.mp_ooh),
-                mp_cinema: Boolean(formValues.mp_cinema),
-                mp_digidisplay: Boolean(formValues.mp_digidisplay),
-                mp_digiaudio: Boolean(formValues.mp_digiaudio),
-                mp_digivideo: Boolean(formValues.mp_digivideo),
-                mp_bvod: Boolean(formValues.mp_bvod),
-                mp_integration: Boolean(formValues.mp_integration),
-                mp_search: Boolean(formValues.mp_search),
-                mp_socialmedia: Boolean(formValues.mp_socialmedia),
-                mp_progdisplay: Boolean(formValues.mp_progdisplay),
-                mp_progvideo: Boolean(formValues.mp_progvideo),
-                mp_progbvod: Boolean(formValues.mp_progbvod),
-                mp_progaudio: Boolean(formValues.mp_progaudio),
-                mp_progooh: Boolean(formValues.mp_progooh),
-                mp_influencers: Boolean(formValues.mp_influencers),
-                mp_production: shouldEnableProduction,
-                television: Boolean(formValues.mp_television),
-                radio: Boolean(formValues.mp_radio),
-                newspaper: Boolean(formValues.mp_newspaper),
-                magazines: Boolean(formValues.mp_magazines),
-                ooh: Boolean(formValues.mp_ooh),
-                cinema: Boolean(formValues.mp_cinema),
-                digi_display: Boolean(formValues.mp_digidisplay),
-                digi_audio: Boolean(formValues.mp_digiaudio),
-                digi_video: Boolean(formValues.mp_digivideo),
-                digi_bvod: Boolean(formValues.mp_bvod),
-                integrations: Boolean(formValues.mp_integration),
-                search: Boolean(formValues.mp_search),
-                social: Boolean(formValues.mp_socialmedia),
-                prog_display: Boolean(formValues.mp_progdisplay),
-                prog_video: Boolean(formValues.mp_progvideo),
-                prog_bvod: Boolean(formValues.mp_progbvod),
-                prog_audio: Boolean(formValues.mp_progaudio),
-                prog_ooh: Boolean(formValues.mp_progooh),
-                influencers: Boolean(formValues.mp_influencers),
-                production: shouldEnableProduction,
-              },
-              lineItems: lineItemsForSave,
-              mbaScope: buildMbaScopeForSaveBody({
-                isPartialMBA,
-                partialMBASelectedLineItemIds,
-                partialMBAMonthYears,
-              }),
-              ingestStageId: ingestStageIdRef.current || undefined,
-            },
-            {
-              feeLoading: feeLoadingForSave,
-              adservaudio,
-              adservvideo,
-              adservdisplay,
-              adservimp,
-            }
-          )
-        )
-
-        if (!saveResult.ok) {
-          skipUnrunPostgresSaveSteps(updateSaveStatus)
-          if (isUnauthorizedStatus(saveResult.status)) {
-            setSaveStatus((prev) =>
-              applySessionExpiredToSaveItems(prev, "Save plan (transactional)")
-            )
-            toast({
-              variant: "destructive",
-              title: SESSION_EXPIRED_TITLE,
-              description: SESSION_EXPIRED_SAVE_MESSAGE,
-            })
-            setIsSaving(false)
-            return
-          }
-          if (saveResult.data.code === "STALE_BASE_VERSION" && saveResult.data.compare) {
-            planDraft.setStaleCompare(saveResult.data.compare)
-            updateSaveStatus(
-              "Save plan (transactional)",
-              "error",
-              "Someone published a new version — compare and re-apply"
-            )
-            toast({
-              variant: "destructive",
-              title: "Someone published this plan while you were editing",
-              description: "Your draft is kept. Compare the two, then re-apply what you need.",
-            })
-            setIsSaving(false)
-            return
-          }
-          if (saveResult.data.code === MISSING_BUY_TYPE) {
-            const ids = saveResult.data.lineItemIds ?? []
-            setMissingBuyTypeLineIds(ids)
-            const human = formatMissingBuyTypeMessage(ids)
-            updateSaveStatus("Save plan (transactional)", "error", human)
-            toast({
-              variant: "destructive",
-              title: "Buy type required",
-              description: human,
-            })
-            setIsSaving(false)
-            return
-          }
-          if (saveResult.data.code === MISSING_BURST_DATES) {
-            const ids = saveResult.data.lineItemIds ?? []
-            setMissingBurstDateLineIds(ids)
-            const human = formatMissingBurstDatesMessage(ids)
-            updateSaveStatus("Save plan (transactional)", "error", human)
-            toast({
-              variant: "destructive",
-              title: "Burst dates required",
-              description: human,
-            })
-            setIsSaving(false)
-            return
-          }
-          const human =
-            saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
-              ? "Cannot publish version with 0 line items (BOSS006)"
-              : saveResult.data.code === "DUPLICATE_LINE_ITEM_ID"
-                ? `Duplicate line_item_id rejected: ${saveResult.data.lineItemId ?? "(unknown)"}`
-                : saveResult.data.code === "VERSION_ALREADY_EXISTS"
-                  ? saveResult.data.error || "That version number already exists"
-                  : saveResult.data.code === "MISSING_CAMPAIGN_STATUS"
-                    ? "Campaign status is required on publish"
-                    : saveResult.data.code === "BILLING_OVERRIDE_SUM_VIOLATION"
-                      ? saveResult.data.error || "Manual billing months do not sum to the line total"
-                    : saveResult.data.code === "UNIQUE_VIOLATION"
-                      ? saveResult.data.error || "Unique constraint violated on save"
-                      : saveResult.data.error || "Postgres save failed"
+        try {
+          await planDraft.saveDraftNow()
+        } catch (draftErr: any) {
+          const expired = isWriteSessionExpiredError(draftErr)
+          const human = expired
+            ? SESSION_EXPIRED_SAVE_MESSAGE
+            : draftErr?.message || String(draftErr)
           updateSaveStatus("Save plan (transactional)", "error", human)
           toast({
             variant: "destructive",
-            title: "Save failed",
+            title: expired ? SESSION_EXPIRED_TITLE : "Draft save failed",
             description: human,
           })
+          skipUnrunPostgresSaveSteps(updateSaveStatus)
           setIsSaving(false)
           return
         }
-
         updateSaveStatus("Save plan (transactional)", "success")
-        applyPublishDocumentsStep(updateSaveStatus, saveResult.data.documents)
-        if (saveResult.data.documents?.status === "error") {
-          toast({
-            variant: "destructive",
-            title: "Plan saved without documents",
-            description: saveResult.data.documents.error || "Document generation failed",
-          })
-        }
-        for (const warning of saveResult.data.deliverableWarnings ?? []) {
-          toast({ title: "Check the rate", description: warning.message })
-        }
-        const { updates, removedCount } = removedEmptyLineUpdates(
-          [
-            { key: "television", lines: televisionMediaLineItems },
-            { key: "radio", lines: radioMediaLineItems },
-            { key: "newspaper", lines: newspaperMediaLineItems },
-            { key: "magazines", lines: magazinesMediaLineItems },
-            { key: "ooh", lines: oohMediaLineItems },
-            { key: "cinema", lines: cinemaMediaLineItems },
-            { key: "digiDisplay", lines: digitalDisplayMediaLineItems },
-            { key: "digiAudio", lines: digitalAudioMediaLineItems },
-            { key: "digiVideo", lines: digitalVideoMediaLineItems },
-            { key: "bvod", lines: bvodMediaLineItems },
-            { key: "integration", lines: integrationMediaLineItems },
-            { key: "production", lines: productionMediaLineItems, channel: "production" },
-            { key: "search", lines: searchMediaLineItems },
-            { key: "social", lines: socialMediaMediaLineItems },
-            { key: "progDisplay", lines: progDisplayMediaLineItems },
-            { key: "progVideo", lines: progVideoMediaLineItems },
-            { key: "progBvod", lines: progBvodMediaLineItems },
-            { key: "progAudio", lines: progAudioMediaLineItems },
-            { key: "progOoh", lines: progOohMediaLineItems },
-            { key: "influencers", lines: influencersMediaLineItems },
-          ],
-          saveResult.data.removedIds ?? [],
-        )
-        if (updates.length > 0) {
-          const writers: Record<
-            string,
-            { media: (lines: any[]) => void; initial?: (lines: any[]) => void }
-          > = {
-            television: { media: setTelevisionMediaLineItems, initial: setTelevisionLineItems },
-            radio: { media: setRadioMediaLineItems, initial: setRadioLineItems },
-            newspaper: { media: setNewspaperMediaLineItems, initial: setNewspaperLineItems },
-            magazines: { media: setMagazinesMediaLineItems, initial: setMagazinesLineItems },
-            ooh: { media: setOohMediaLineItems, initial: setOohLineItems },
-            cinema: { media: setCinemaMediaLineItems, initial: setCinemaLineItems },
-            digiDisplay: { media: setDigitalDisplayMediaLineItems, initial: setDigitalDisplayLineItems },
-            digiAudio: { media: setDigitalAudioMediaLineItems, initial: setDigitalAudioLineItems },
-            digiVideo: { media: setDigitalVideoMediaLineItems, initial: setDigitalVideoLineItems },
-            bvod: { media: setBvodMediaLineItems, initial: setBvodLineItems },
-            integration: { media: setIntegrationMediaLineItems, initial: setIntegrationLineItems },
-            production: { media: setProductionMediaLineItems, initial: setProductionLineItems },
-            search: { media: setSearchMediaLineItems, initial: setSearchLineItems },
-            social: { media: setSocialMediaMediaLineItems, initial: setSocialMediaLineItems },
-            progDisplay: { media: setProgDisplayMediaLineItems, initial: setProgDisplayLineItems },
-            progVideo: { media: setProgVideoMediaLineItems, initial: setProgVideoLineItems },
-            progBvod: { media: setProgBvodMediaLineItems, initial: setProgBvodLineItems },
-            progAudio: { media: setProgAudioMediaLineItems, initial: setProgAudioLineItems },
-            progOoh: { media: setProgOohMediaLineItems, initial: setProgOohLineItems },
-            influencers: { media: setInfluencersMediaLineItems, initial: setInfluencersLineItems },
-          }
-          for (const update of updates) {
-            const writer = writers[update.key]
-            if (!writer) continue
-            const next = update.lines
-            writer.media(next)
-            writer.initial?.(next)
-          }
-        }
-        if (removedCount > 0) {
-          toast({ title: emptyLinesRemovedNotice(removedCount) })
-        }
-        if (saveResult.data.ingestStageRetained) {
-          ingestStageIdRef.current = null
-        }
-        if (saveResult.data.ingestPanelError) {
-          toast({
-            variant: "destructive",
-            title: "Plan saved without panels",
-            description: saveResult.data.ingestPanelError,
-          })
-        }
-        catchPlanDraftAction(planDraft.clearAfterPublish(), toast)
-        const versionId = saveResult.data.versionId
-        const numericSavedVersion = modeResolved.versionNumber
-
-        if (saveResult.data.billingCorrection?.correctedLineCount) {
-          toast({
-            title: "Billing schedule corrected",
-            description: saveResult.data.billingCorrection.toastDescription,
-          })
-        } else if (
-          workingBillingMonths.length > 0 &&
-          autoReferenceBillingMonths.length > 0
-        ) {
-          // Fallback when server omitted correction but pre-save compare saw AUTO drift.
-          const local = evaluatePostgresAutoDivergence({
-            working: workingBillingMonths,
-            autoReference: autoReferenceBillingMonths,
-            attachComputedLineItems: (months, mode) =>
-              attachLineItemsToMonths(months, mode, lineItemSnapshotsForSave),
-          })
-          if (local.correction) {
-            toast({
-              title: "Billing schedule corrected",
-              description: local.correction.toastDescription,
-            })
-          }
-        }
-
-        setMediaPlanVersionId(versionId)
-        if (modeResolved.mode === "publish" && saveResult.data.published) {
-          setPublishedVersionId(versionId)
-          tipVersionIdAtLoadRef.current = tipVersionIdAfterSave({
-            mode: "publish",
-            published: true,
-            versionId,
-            tipVersionIdAtLoad: tipVersionIdAtLoadRef.current,
-          })
-        }
-        const updatedLatest = Math.max(latestVersionNumber || 0, numericSavedVersion)
-        setLatestVersionNumber(updatedLatest)
-        setNextSaveVersionNumber(updatedLatest + 1)
-        setSelectedVersionNumber(numericSavedVersion)
-        setAvailableVersions((prev) => {
-          const existing = prev.some((v) => v.version_number === numericSavedVersion)
-          const newEntry = {
-            id: versionId,
-            version_number: numericSavedVersion,
-            created_at: Date.now(),
-            published_at:
-              modeResolved.mode === "publish" ? new Date().toISOString() : undefined,
-          }
-          if (existing) {
-            return prev.map((v) =>
-              v.version_number === numericSavedVersion ? { ...v, ...newEntry } : v
-            )
-          }
-          return [...prev, newEntry]
-        })
-        if (modeResolved.mode === "publish") {
-          setMediaPlan((prev: any) =>
-            prev
-              ? {
-                  ...prev,
-                  published_at: prev.published_at ?? new Date().toISOString(),
-                  version_number: numericSavedVersion,
-                }
-              : prev
-          )
-        }
-
-        const snapshotAfterSave = deepCloneBillingMonthsState(
-          billingMonthsForSave.length > 0 ? billingMonthsForSave : workingBillingMonths
-        )
-        setSavedBillingMonths(snapshotAfterSave)
-        savedBillingMonthsRef.current = snapshotAfterSave
-        persistedBillingLineIdsRef.current = collectPersistedBillingLineIds(snapshotAfterSave)
-        billingLineItemsFollowAutoRef.current = false
-        if (snapshotAfterSave.length > 0) {
-          hasPersistedBillingScheduleRef.current = true
-          setHasPersistedBillingSchedule(true)
-        }
-
-        updateSaveStatus("KPI sync", "pending")
-        if (kpiRows.length > 0 && Number.isFinite(numericSavedVersion)) {
-          const kpiPayload: CampaignKPI[] = buildCampaignKpiSavePayload({
-            kpiRows,
-            identity: {
-              mp_client_name: formValues.mp_clientname,
-              mba_number: mbaNumber,
-              version_number: numericSavedVersion,
-              campaign_name: formValues.mp_campaignname,
-            },
-            mediaPairs: {
-              search: { media: searchMediaLineItemsForSave, export: searchItems },
-              socialMedia: { media: socialMediaMediaLineItemsForSave, export: socialMediaItems },
-              progDisplay: { media: progDisplayMediaLineItemsForSave, export: progDisplayItems },
-              progVideo: { media: progVideoMediaLineItemsForSave, export: progVideoItems },
-              progBvod: { media: progBvodMediaLineItemsForSave, export: progBvodItems },
-              progAudio: { media: progAudioMediaLineItemsForSave, export: progAudioItems },
-              progOoh: { media: progOohMediaLineItemsForSave, export: progOohItems },
-              digiDisplay: { media: digitalDisplayMediaLineItemsForSave, export: digitalDisplayItems },
-              digiAudio: { media: digitalAudioMediaLineItemsForSave, export: digitalAudioItems },
-              digiVideo: { media: digitalVideoMediaLineItemsForSave, export: digitalVideoItems },
-              bvod: { media: bvodMediaLineItemsForSave, export: bvodItems },
-              integration: { media: integrationMediaLineItemsForSave, export: integrationItems },
-              television: { media: televisionMediaLineItemsForSave, export: televisionItems },
-              radio: { media: radioMediaLineItemsForSave, export: radioItems },
-              newspaper: { media: newspaperMediaLineItemsForSave, export: newspaperItems },
-              magazines: { media: magazinesMediaLineItemsForSave, export: magazinesItems },
-              ooh: { media: oohMediaLineItemsForSave, export: oohItems },
-              cinema: { media: cinemaMediaLineItemsForSave, export: cinemaItems },
-              influencers: { media: influencersMediaLineItemsForSave, export: influencersItems },
-              production: { media: productionMediaLineItemsForSave, export: productionItems },
-            },
-          })
-          const kpiResult = await saveCampaignKpisFromRows(kpiRows, kpiPayload)
-          if (kpiResult.status === "error") {
-            updateSaveStatus("KPI sync", "error", kpiResult.message)
-          } else {
-            updateSaveStatus("KPI sync", "success")
-          }
-        } else {
-          updateSaveStatus("KPI sync", "success")
-        }
-
-        // MB-25: committed — clear Reset tombstone + pending (DB now matches).
-        setClearedBillingOverrideLineIds([])
-        setPendingBillingOverrideRows([])
-        pendingBillingOverrideMetaRef.current = new Map()
+        skipUnrunPostgresSaveSteps(updateSaveStatus)
         await afterSuccessfulSave({
-          versionNumber: numericSavedVersion,
-          versionId,
-          documentsStatus: saveResult.data.documents?.status,
+          skipDownload: true,
           existingToast: {
-            title: "Success",
-            description:
-              modeResolved.uiMode === "overwrite"
-                ? `Saved over v${numericSavedVersion} — still unpublished`
-                : modeResolved.uiMode === "increment_unpublished"
-                  ? `Cut v${numericSavedVersion} (unpublished)`
-                  : `Saved as version ${numericSavedVersion}`,
+            title: "Working draft saved",
+            description: `Draft of v${modeResolved.versionNumber} saved. Publishing will create the next version.`,
           },
         })
         setIsSaving(false)
         return
       }
 
-      // 1. Update media_plan_master (campaign fields only, NOT version_number)
-      updateSaveStatus('Media Plan Master', 'pending')
-      let masterUpdateResponse: Response
+      let lineItemsForSave
       try {
-        masterUpdateResponse = await fetch(`/api/mediaplans/mba/${mbaNumber}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
+        lineItemsForSave = buildSavePlanLineItemsFromSnapshots(
+          {
+            television: televisionMediaLineItemsForSave,
+            radio: radioMediaLineItemsForSave,
+            newspaper: newspaperMediaLineItemsForSave,
+            magazines: magazinesMediaLineItemsForSave,
+            ooh: oohMediaLineItemsForSave,
+            cinema: cinemaMediaLineItemsForSave,
+            digiDisplay: digitalDisplayMediaLineItemsForSave,
+            digiAudio: digitalAudioMediaLineItemsForSave,
+            digiVideo: digitalVideoMediaLineItemsForSave,
+            bvod: bvodMediaLineItemsForSave,
+            integration: integrationMediaLineItemsForSave,
+            production: productionMediaLineItemsForSave,
+            search: searchMediaLineItemsForSave,
+            socialMedia: socialMediaMediaLineItemsForSave,
+            progDisplay: progDisplayMediaLineItemsForSave,
+            progVideo: progVideoMediaLineItemsForSave,
+            progBvod: progBvodMediaLineItemsForSave,
+            progAudio: progAudioMediaLineItemsForSave,
+            progOoh: progOohMediaLineItemsForSave,
+            influencers: influencersMediaLineItemsForSave,
           },
-          body: JSON.stringify({
-            mp_campaignname: formValues.mp_campaignname,
-            campaign_status: formValues.mp_campaignstatus,
-            campaign_start_date: toDateOnlyString(formValues.mp_campaigndates_start),
-            campaign_end_date: toDateOnlyString(formValues.mp_campaigndates_end),
-            mp_campaignbudget: formValues.mp_campaignbudget,
-          })
+          billingSaveInputs.lineItems,
+          channelLoadSucceeded
+        )
+      } catch (buildErr: any) {
+        updateSaveStatus(
+          "Save plan (transactional)",
+          "error",
+          buildErr?.message || String(buildErr)
+        )
+        throw buildErr
+      }
+
+      if (
+        (modeResolved.mode === "publish" ||
+          modeResolved.mode === "new_version") &&
+        lineItemsForSave.length === 0 &&
+        countEnabledPublishIntegrityFlags(formValues) > 0
+      ) {
+        updateSaveStatus(
+          "Save plan (transactional)",
+          "error",
+          "Cannot publish version with 0 line items (BOSS006)"
+        )
+        toast({
+          variant: "destructive",
+          title: "Publish rejected — no line items",
+          description: "Enable channels need at least one line item before publish.",
         })
-      } catch (fetchError) {
-        console.error("Network error during master update:", fetchError)
-        updateSaveStatus('Media Plan Master', 'error', fetchError instanceof Error ? fetchError.message : String(fetchError))
-        throw new Error(`Network error: Failed to connect to API. ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`)
+        setIsSaving(false)
+        return
       }
-      
-      if (!masterUpdateResponse.ok) {
-        let errorMessage = "Failed to update media plan master"
-        try {
-          const error = await masterUpdateResponse.json()
-          errorMessage = error.error || error.message || error.details?.message || errorMessage
-          console.error("Master update error:", {
-            status: masterUpdateResponse.status,
-            statusText: masterUpdateResponse.statusText,
-            error: error,
-            details: error.details
-          })
-        } catch (e) {
-          const text = await masterUpdateResponse.text().catch(() => "")
-          console.error("Master update error (non-JSON):", {
-            status: masterUpdateResponse.status,
-            statusText: masterUpdateResponse.statusText,
-            body: text
-          })
-          errorMessage = `Failed to update media plan master (${masterUpdateResponse.status}: ${masterUpdateResponse.statusText})${text ? ` - ${text}` : ''}`
-        }
-        updateSaveStatus('Media Plan Master', 'error', errorMessage)
-        throw new Error(errorMessage)
+
+      updateSaveStatus("Save plan (transactional)", "pending")
+      const resolvedMasterId = resolveMasterIdFromCombinedPlan(mediaPlan)
+      if (resolvedMasterId == null) {
+        throw new Error(
+          "Cannot resolve media_plan_masters id (missing media_plan_master_id on loaded plan)"
+        )
       }
-      
-      updateSaveStatus('Media Plan Master', 'success')
-
-      // --- C3 preflight: preserve-prior diff + stale dateBasis keep/reset (before version PUT) ---
-      const incomingActivity = buildIncomingActivity()
-      const activityDiff = diffBillingActivity({
-        persistedLineIds: persistedBillingLineIdsRef.current,
-        incoming: incomingActivity,
-      })
-
-      const preflightVersionId = await resolveMediaPlanVersionRowId()
-      if (isUsableBillingVersionId(preflightVersionId)) {
-        try {
-          const overrideRows = await fetchBillingOverridesClient(preflightVersionId)
-          const stale = await findStaleDateBasisOverrides({
-            overrideRows,
-            incoming: incomingActivity,
-          })
-          if (stale.length > 0) {
-            // Unresolved stale overrides: auto-keep (timing UI already offered Keep / Reset).
-            await applyDateBasisKeepOrReset({
-              versionId: preflightVersionId,
-              mbaNumber,
-              decision: "keep",
-              stale,
-              overrideRows,
-            })
-            await refreshBillingOverrideRowsForPanels(preflightVersionId)
-            setDateBasisStaleOverrides([])
+      if (modeResolved.mode == null) {
+        throw new Error("working_draft must not POST /api/plans/save")
+      }
+      // uiMode → POST mode (shared path after working_draft early return):
+      //   "increment"             → mode "publish"
+      //   "increment_unpublished" → mode "new_version"
+      //   "overwrite"             → mode "draft" (in-place tip; versionNumber === tip)
+      //   "working_draft"         → never reaches here
+      setMissingBuyTypeLineIds([])
+      setMissingBurstDateLineIds([])
+      const saveResult = await postPlansSave(
+        assemblePlansSaveRequestBody(
+          {
+            masterId: resolvedMasterId,
+            mbaNumber: String(mbaNumber),
+            versionNumber: modeResolved.versionNumber,
+            mode: modeResolved.mode,
+            baseVersionId: draftBaseVersionId,
+            tipVersionIdAtLoad: tipVersionIdAtLoadRef.current,
+            campaignName: formValues.mp_campaignname ?? null,
+            campaignStartDate: toDateOnlyString(formValues.mp_campaigndates_start),
+            campaignEndDate: toDateOnlyString(formValues.mp_campaigndates_end),
+            brand: formValues.mp_brand ?? null,
+            clientContact: formValues.mp_clientcontact ?? null,
+            poNumber: formValues.mp_ponumber ?? null,
+            campaignBudgetCents: dollarsToCampaignBudgetCents(formValues.mp_campaignbudget),
+            fixedFee: Boolean(formValues.mp_fixedfee),
+            clientBillingSchedulePreview:
+              workingBillingMonths.length > 0 ? workingBillingMonths : undefined,
+            billingOverrides: buildBillingOverridesSaveEnvelope({
+              loadState: billingOverridesLoadState,
+              clearedLineIds: clearedBillingOverrideLineIdsRef.current,
+            }),
+            channelFlags: {
+              mp_television: Boolean(formValues.mp_television),
+              mp_radio: Boolean(formValues.mp_radio),
+              mp_newspaper: Boolean(formValues.mp_newspaper),
+              mp_magazines: Boolean(formValues.mp_magazines),
+              mp_ooh: Boolean(formValues.mp_ooh),
+              mp_cinema: Boolean(formValues.mp_cinema),
+              mp_digidisplay: Boolean(formValues.mp_digidisplay),
+              mp_digiaudio: Boolean(formValues.mp_digiaudio),
+              mp_digivideo: Boolean(formValues.mp_digivideo),
+              mp_bvod: Boolean(formValues.mp_bvod),
+              mp_integration: Boolean(formValues.mp_integration),
+              mp_search: Boolean(formValues.mp_search),
+              mp_socialmedia: Boolean(formValues.mp_socialmedia),
+              mp_progdisplay: Boolean(formValues.mp_progdisplay),
+              mp_progvideo: Boolean(formValues.mp_progvideo),
+              mp_progbvod: Boolean(formValues.mp_progbvod),
+              mp_progaudio: Boolean(formValues.mp_progaudio),
+              mp_progooh: Boolean(formValues.mp_progooh),
+              mp_influencers: Boolean(formValues.mp_influencers),
+              mp_production: shouldEnableProduction,
+              television: Boolean(formValues.mp_television),
+              radio: Boolean(formValues.mp_radio),
+              newspaper: Boolean(formValues.mp_newspaper),
+              magazines: Boolean(formValues.mp_magazines),
+              ooh: Boolean(formValues.mp_ooh),
+              cinema: Boolean(formValues.mp_cinema),
+              digi_display: Boolean(formValues.mp_digidisplay),
+              digi_audio: Boolean(formValues.mp_digiaudio),
+              digi_video: Boolean(formValues.mp_digivideo),
+              digi_bvod: Boolean(formValues.mp_bvod),
+              integrations: Boolean(formValues.mp_integration),
+              search: Boolean(formValues.mp_search),
+              social: Boolean(formValues.mp_socialmedia),
+              prog_display: Boolean(formValues.mp_progdisplay),
+              prog_video: Boolean(formValues.mp_progvideo),
+              prog_bvod: Boolean(formValues.mp_progbvod),
+              prog_audio: Boolean(formValues.mp_progaudio),
+              prog_ooh: Boolean(formValues.mp_progooh),
+              influencers: Boolean(formValues.mp_influencers),
+              production: shouldEnableProduction,
+            },
+            lineItems: lineItemsForSave,
+            mbaScope: buildMbaScopeForSaveBody({
+              isPartialMBA,
+              partialMBASelectedLineItemIds,
+              partialMBAMonthYears,
+            }),
+            ingestStageId: ingestStageIdRef.current || undefined,
+          },
+          {
+            feeLoading: feeLoadingForSave,
+            adservaudio,
+            adservvideo,
+            adservdisplay,
+            adservimp,
           }
-        } catch (err: any) {
-          console.warn("[C3] dateBasis preflight failed; continuing save", err)
-          toast({
-            variant: "destructive",
-            title: "Billing override check failed",
-            description: err?.message || "Proceeding with save without keep/reset prompt.",
-          })
-        }
-      }
+        )
+      )
 
-      // 2. C1 omit-mode: send core inputs; server regenerates schedules from core + overrides.
-      const hasWorkingBillingPayload = workingBillingMonths.length > 0
-      const billingScheduleSource = hasWorkingBillingPayload ? "working" : "empty"
-
-      const snapshot = deliveryScheduleSnapshotRef.current
-      const deliveryScheduleSource =
-        snapshot && snapshot.length > 0
-          ? "snapshot"
-          : (autoReferenceBillingMonths.length > 0 ? "auto" : "billing")
-      const deliveryMonthsSource =
-        snapshot && snapshot.length > 0
-          ? snapshot
-          : (autoReferenceBillingMonths.length > 0 ? autoReferenceBillingMonths : workingBillingMonths)
-
-
-      // 3. Create new media_plan_versions record using PUT.
-      // REVIEW (integrity P0): deferMasterVersionPublish stages the version row without
-      // advancing master.version_number. We publish only after every channel child write succeeds.
-      updateSaveStatus('Media Plan Version', 'pending')
-      const versionResponse = await fetch(`/api/mediaplans/mba/${mbaNumber}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...formValues,
-          mp_production: shouldEnableProduction,
-          search_bursts: searchBursts,
-          social_media_bursts: socialMediaBursts,
-          investment_by_month: investmentPerMonth,
-          lineItems: withMbaScopeLineLabels(
-            billingSaveInputs.lineItems,
-            mbaBillingScopeLines
-          ),
-          feeLoading: billingSaveInputs.feeLoading,
-          billingSchedule: undefined,
-          deliverySchedule: undefined,
-          delivery_schedule: undefined,
-          partialApproval:
-            isPartialMBA && partialApprovalMetadata
-              ? {
-                  ...partialApprovalMetadata,
-                  selectedMonthYears:
-                    partialMBAMonthYears.length > 0
-                      ? partialMBAMonthYears
-                      : partialApprovalMetadata.selectedMonthYears,
-                }
-              : null,
-          deferMasterVersionPublish: true,
-        }),
-      })
-      
-      if (!versionResponse.ok) {
-        if (isUnauthorizedStatus(versionResponse.status)) {
+      if (!saveResult.ok) {
+        skipUnrunPostgresSaveSteps(updateSaveStatus)
+        if (isUnauthorizedStatus(saveResult.status)) {
           setSaveStatus((prev) =>
-            applySessionExpiredToSaveItems(prev, "Media Plan Version")
+            applySessionExpiredToSaveItems(prev, "Save plan (transactional)")
           )
           toast({
             variant: "destructive",
             title: SESSION_EXPIRED_TITLE,
             description: SESSION_EXPIRED_SAVE_MESSAGE,
           })
-          throw new WriteSessionExpiredError()
+          setIsSaving(false)
+          return
         }
-        const error = await versionResponse.json().catch(() => ({} as { error?: string }))
-        const human = humaniseBillingSaveError(error, "Failed to create new version")
-        updateSaveStatus('Media Plan Version', 'error', human)
-        throw new Error(human)
+        if (saveResult.data.code === "STALE_BASE_VERSION" && saveResult.data.compare) {
+          planDraft.setStaleCompare(saveResult.data.compare)
+          updateSaveStatus(
+            "Save plan (transactional)",
+            "error",
+            "Someone published a new version — compare and re-apply"
+          )
+          toast({
+            variant: "destructive",
+            title: "Someone published this plan while you were editing",
+            description: "Your draft is kept. Compare the two, then re-apply what you need.",
+          })
+          setIsSaving(false)
+          return
+        }
+        if (saveResult.data.code === MISSING_BUY_TYPE) {
+          const ids = saveResult.data.lineItemIds ?? []
+          setMissingBuyTypeLineIds(ids)
+          const human = formatMissingBuyTypeMessage(ids)
+          updateSaveStatus("Save plan (transactional)", "error", human)
+          toast({
+            variant: "destructive",
+            title: "Buy type required",
+            description: human,
+          })
+          setIsSaving(false)
+          return
+        }
+        if (saveResult.data.code === MISSING_BURST_DATES) {
+          const ids = saveResult.data.lineItemIds ?? []
+          setMissingBurstDateLineIds(ids)
+          const human = formatMissingBurstDatesMessage(ids)
+          updateSaveStatus("Save plan (transactional)", "error", human)
+          toast({
+            variant: "destructive",
+            title: "Burst dates required",
+            description: human,
+          })
+          setIsSaving(false)
+          return
+        }
+        const human =
+          saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
+            ? "Cannot publish version with 0 line items (BOSS006)"
+            : saveResult.data.code === "DUPLICATE_LINE_ITEM_ID"
+              ? `Duplicate line_item_id rejected: ${saveResult.data.lineItemId ?? "(unknown)"}`
+              : saveResult.data.code === "VERSION_ALREADY_EXISTS"
+                ? saveResult.data.error || "That version number already exists"
+                : saveResult.data.code === "MISSING_CAMPAIGN_STATUS"
+                  ? "Campaign status is required on publish"
+                  : saveResult.data.code === "BILLING_OVERRIDE_SUM_VIOLATION"
+                    ? saveResult.data.error || "Manual billing months do not sum to the line total"
+                  : saveResult.data.code === "UNIQUE_VIOLATION"
+                    ? saveResult.data.error || "Unique constraint violated on save"
+                    : saveResult.data.error || "Postgres save failed"
+        updateSaveStatus("Save plan (transactional)", "error", human)
+        toast({
+          variant: "destructive",
+          title: "Save failed",
+          description: human,
+        })
+        setIsSaving(false)
+        return
       }
-      
-      const versionData = await versionResponse.json()
-      updateSaveStatus('Media Plan Version', 'success')
 
-      /**
-       * Persisted billing model (post–campaign save):
-       * - **workingBillingMonths** — unchanged; remains the live editor state.
-       * - **savedBillingMonths** — deep copy of working; new baseline for “last successful save” / guards.
-       * - **autoReferenceBillingMonths** — untouched here; still the calculated reference for resets.
-       */
-      const snapshotAfterSave = deepCloneBillingMonthsState(workingBillingMonths)
+      updateSaveStatus("Save plan (transactional)", "success")
+      applyPublishDocumentsStep(updateSaveStatus, saveResult.data.documents)
+      if (saveResult.data.documents?.status === "error") {
+        toast({
+          variant: "destructive",
+          title: "Plan saved without documents",
+          description: saveResult.data.documents.error || "Document generation failed",
+        })
+      }
+      for (const warning of saveResult.data.deliverableWarnings ?? []) {
+        toast({ title: "Check the rate", description: warning.message })
+      }
+      const { updates, removedCount } = removedEmptyLineUpdates(
+        [
+          { key: "television", lines: televisionMediaLineItems },
+          { key: "radio", lines: radioMediaLineItems },
+          { key: "newspaper", lines: newspaperMediaLineItems },
+          { key: "magazines", lines: magazinesMediaLineItems },
+          { key: "ooh", lines: oohMediaLineItems },
+          { key: "cinema", lines: cinemaMediaLineItems },
+          { key: "digiDisplay", lines: digitalDisplayMediaLineItems },
+          { key: "digiAudio", lines: digitalAudioMediaLineItems },
+          { key: "digiVideo", lines: digitalVideoMediaLineItems },
+          { key: "bvod", lines: bvodMediaLineItems },
+          { key: "integration", lines: integrationMediaLineItems },
+          { key: "production", lines: productionMediaLineItems, channel: "production" },
+          { key: "search", lines: searchMediaLineItems },
+          { key: "social", lines: socialMediaMediaLineItems },
+          { key: "progDisplay", lines: progDisplayMediaLineItems },
+          { key: "progVideo", lines: progVideoMediaLineItems },
+          { key: "progBvod", lines: progBvodMediaLineItems },
+          { key: "progAudio", lines: progAudioMediaLineItems },
+          { key: "progOoh", lines: progOohMediaLineItems },
+          { key: "influencers", lines: influencersMediaLineItems },
+        ],
+        saveResult.data.removedIds ?? [],
+      )
+      if (updates.length > 0) {
+        const writers: Record<
+          string,
+          { media: (lines: any[]) => void; initial?: (lines: any[]) => void }
+        > = {
+          television: { media: setTelevisionMediaLineItems, initial: setTelevisionLineItems },
+          radio: { media: setRadioMediaLineItems, initial: setRadioLineItems },
+          newspaper: { media: setNewspaperMediaLineItems, initial: setNewspaperLineItems },
+          magazines: { media: setMagazinesMediaLineItems, initial: setMagazinesLineItems },
+          ooh: { media: setOohMediaLineItems, initial: setOohLineItems },
+          cinema: { media: setCinemaMediaLineItems, initial: setCinemaLineItems },
+          digiDisplay: { media: setDigitalDisplayMediaLineItems, initial: setDigitalDisplayLineItems },
+          digiAudio: { media: setDigitalAudioMediaLineItems, initial: setDigitalAudioLineItems },
+          digiVideo: { media: setDigitalVideoMediaLineItems, initial: setDigitalVideoLineItems },
+          bvod: { media: setBvodMediaLineItems, initial: setBvodLineItems },
+          integration: { media: setIntegrationMediaLineItems, initial: setIntegrationLineItems },
+          production: { media: setProductionMediaLineItems, initial: setProductionLineItems },
+          search: { media: setSearchMediaLineItems, initial: setSearchLineItems },
+          social: { media: setSocialMediaMediaLineItems, initial: setSocialMediaLineItems },
+          progDisplay: { media: setProgDisplayMediaLineItems, initial: setProgDisplayLineItems },
+          progVideo: { media: setProgVideoMediaLineItems, initial: setProgVideoLineItems },
+          progBvod: { media: setProgBvodMediaLineItems, initial: setProgBvodLineItems },
+          progAudio: { media: setProgAudioMediaLineItems, initial: setProgAudioLineItems },
+          progOoh: { media: setProgOohMediaLineItems, initial: setProgOohLineItems },
+          influencers: { media: setInfluencersMediaLineItems, initial: setInfluencersLineItems },
+        }
+        for (const update of updates) {
+          const writer = writers[update.key]
+          if (!writer) continue
+          const next = update.lines
+          writer.media(next)
+          writer.initial?.(next)
+        }
+      }
+      if (removedCount > 0) {
+        toast({ title: emptyLinesRemovedNotice(removedCount) })
+      }
+      if (saveResult.data.ingestStageRetained) {
+        ingestStageIdRef.current = null
+      }
+      if (saveResult.data.ingestPanelError) {
+        toast({
+          variant: "destructive",
+          title: "Plan saved without panels",
+          description: saveResult.data.ingestPanelError,
+        })
+      }
+      catchPlanDraftAction(planDraft.clearAfterPublish(), toast)
+      const versionId = saveResult.data.versionId
+      const numericSavedVersion = modeResolved.versionNumber
+
+      if (saveResult.data.billingCorrection?.correctedLineCount) {
+        toast({
+          title: "Billing schedule corrected",
+          description: saveResult.data.billingCorrection.toastDescription,
+        })
+      } else if (
+        workingBillingMonths.length > 0 &&
+        autoReferenceBillingMonths.length > 0
+      ) {
+        // Fallback when server omitted correction but pre-save compare saw AUTO drift.
+        const local = evaluatePostgresAutoDivergence({
+          working: workingBillingMonths,
+          autoReference: autoReferenceBillingMonths,
+          attachComputedLineItems: (months, mode) =>
+            attachLineItemsToMonths(months, mode, lineItemSnapshotsForSave),
+        })
+        if (local.correction) {
+          toast({
+            title: "Billing schedule corrected",
+            description: local.correction.toastDescription,
+          })
+        }
+      }
+
+      setMediaPlanVersionId(versionId)
+      if (modeResolved.mode === "publish" && saveResult.data.published) {
+        setPublishedVersionId(versionId)
+        tipVersionIdAtLoadRef.current = tipVersionIdAfterSave({
+          mode: "publish",
+          published: true,
+          versionId,
+          tipVersionIdAtLoad: tipVersionIdAtLoadRef.current,
+        })
+      }
+      const updatedLatest = Math.max(latestVersionNumber || 0, numericSavedVersion)
+      setLatestVersionNumber(updatedLatest)
+      setSelectedVersionNumber(numericSavedVersion)
+      setAvailableVersions((prev) => {
+        const existing = prev.some((v) => v.version_number === numericSavedVersion)
+        const newEntry = {
+          id: versionId,
+          version_number: numericSavedVersion,
+          created_at: Date.now(),
+          published_at:
+            modeResolved.mode === "publish" ? new Date().toISOString() : undefined,
+        }
+        if (existing) {
+          return prev.map((v) =>
+            v.version_number === numericSavedVersion ? { ...v, ...newEntry } : v
+          )
+        }
+        return [...prev, newEntry]
+      })
+      if (modeResolved.mode === "publish") {
+        setMediaPlan((prev: any) =>
+          prev
+            ? {
+                ...prev,
+                published_at: prev.published_at ?? new Date().toISOString(),
+                version_number: numericSavedVersion,
+              }
+            : prev
+        )
+      }
+
+      const snapshotAfterSave = deepCloneBillingMonthsState(
+        billingMonthsForSave.length > 0 ? billingMonthsForSave : workingBillingMonths
+      )
       setSavedBillingMonths(snapshotAfterSave)
       savedBillingMonthsRef.current = snapshotAfterSave
-      persistedBillingLineIdsRef.current = collectPersistedBillingLineIds(snapshotAfterSave)
       billingLineItemsFollowAutoRef.current = false
       if (snapshotAfterSave.length > 0) {
         hasPersistedBillingScheduleRef.current = true
         setHasPersistedBillingSchedule(true)
       }
 
-      // Get the version number from the response (PUT stages or overwrites; publish may be deferred)
-      const mode = versionData.mode
-      const versionId = versionData.versionId ?? versionData.version?.id ?? versionData.id
-      const savedVersionNumber = versionData.versionNumber
-        ?? versionData.nextVersionNumber
-        ?? versionData.version?.version_number 
-        ?? versionData.master?.version_number 
-        ?? targetSaveVersion
-      const nextVersion = savedVersionNumber
-      const numericSavedVersion = typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber
-
-      setSaveModeLabel(
-        mode === "overwrite"
-          ? formatSaveModeLabel("overwrite", Number(numericSavedVersion) || 1)
-          : formatSaveModeLabel(
-              "increment",
-              (Number(numericSavedVersion) || 0) + 1
-            )
-      )
-      if (versionData.duplicateWarning) {
-        const channels = Array.isArray(versionData.duplicateWarning.channels)
-          ? versionData.duplicateWarning.channels
-          : []
-        const rows = channels.reduce(
-          (sum: number, c: { rows?: number }) => sum + (Number(c.rows) || 0),
-          0
-        )
-        const ids = channels.reduce(
-          (sum: number, c: { distinctLineItemIds?: number }) =>
-            sum + (Number(c.distinctLineItemIds) || 0),
-          0
-        )
-        toast({
-          title: "Duplicate line-item rows detected",
-          description:
-            rows > 0
-              ? `${rows} rows / ${ids} ids — totals may be inflated. Do not rely on this save.`
-              : "Channel rows exceed distinct line_item_ids after save.",
-          variant: "destructive",
-        })
-      }
-      const isOverwriteMode = mode === "overwrite"
-      // REVIEW: deferredPublish means master.version_number was NOT advanced yet — do not
-      // commit local "current version" UI state until channel writes succeed and we PATCH publish.
-      const deferredPublish = Boolean(versionData.deferredPublish) && !isOverwriteMode
-      const publishedVersionBeforeSave =
-        versionData.publishedVersionNumber ?? inferredLatest
-      if (isOverwriteMode) {
-        const updatedLatest = Math.max(
-          latestVersionNumber || 0,
-          typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber || 0
-        )
-        setLatestVersionNumber(updatedLatest)
-        setNextSaveVersionNumber(updatedLatest + 1)
-        setSelectedVersionNumber(
-          typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber
-        )
-      }
-      if (isOverwriteMode && !versionId) {
-        throw new Error("Missing version 1 ID for draft overwrite")
-      }
-
-      // --- KPI: save campaign KPIs against the new version (non-blocking) (Stage 2) ---
-      const startCampaignKpiSync = () => {
-        if (kpiRows.length === 0 || typeof numericSavedVersion !== "number" || !Number.isFinite(numericSavedVersion)) {
-          return Promise.resolve()
-        }
-        updateSaveStatus("Campaign KPIs", "pending")
+      updateSaveStatus("KPI sync", "pending")
+      if (kpiRows.length > 0 && Number.isFinite(numericSavedVersion)) {
         const kpiPayload: CampaignKPI[] = buildCampaignKpiSavePayload({
           kpiRows,
           identity: {
@@ -8391,509 +7845,36 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
             production: { media: productionMediaLineItemsForSave, export: productionItems },
           },
         })
-        return saveCampaignKpisFromRows(kpiRows, kpiPayload).then((result) => {
-          if (result.status === "skipped") {
-            updateSaveStatus("Campaign KPIs", "success")
-          } else if (result.status === "success") {
-            updateSaveStatus("Campaign KPIs", "success")
-          } else {
-            updateSaveStatus("Campaign KPIs", "error", result.message)
-          }
-        })
-      }
-      if (!isOverwriteMode) {
-        startCampaignKpiSync()
-      }
-
-      if (versionId != null) {
-        setMediaPlanVersionId(versionId)
-      }
-
-      // Only surface the version in the picker after publish (or on overwrite).
-      // Staged-but-unpublished rows must not appear in availableVersions.
-      if (!deferredPublish) {
-        setAvailableVersions((prev) => {
-          const existing = prev.some((v) => v.version_number === numericSavedVersion)
-          const newEntry = {
-            id: versionId,
-            version_number: numericSavedVersion,
-            created_at: versionData.version?.created_at ?? Date.now(),
-          }
-          if (existing) {
-            return prev.map((v) =>
-              v.version_number === numericSavedVersion ? { ...v, ...newEntry } : v
-            )
-          }
-          return [...prev, newEntry]
-        })
-      }
-
-      // 4. Save all line items with new version number
-      const savePromises: Promise<any>[] = []
-      const clientName = formValues.mp_clientname || selectedClient?.clientname_input || ""
-
-      // Draft overwrite no longer runs clearVersionChildren/clearVersionKpis here —
-      // those hard-coded version-1 deletes were no-ops for v2+ and burned ~20
-      // requests per save. Channel replace is owned by replaceChannelLineItems
-      // (GET mba-scoped → DELETE by media_plan_version id → POST). The unpublished
-      // version reaper still mirrors clearVersionChildren for abandoned drafts.
-
-      // Initialize save status for enabled media types
-      if (formValues.mp_search && searchMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_search, 'pending')
-        savePromises.push(
-          saveSearchLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), searchMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_search, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_search, 'error', error.message || String(error))
-              return { type: 'search', error }
-            })
-        )
-      }
-      if (formValues.mp_socialmedia && socialMediaMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_socialmedia, 'pending')
-        savePromises.push(
-          saveSocialMediaLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), socialMediaMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_socialmedia, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_socialmedia, 'error', error.message || String(error))
-              return { type: 'socialmedia', error }
-            })
-        )
-      }
-      if (formValues.mp_television && televisionMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_television, 'pending')
-        savePromises.push(
-          saveTelevisionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), televisionMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_television, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_television, 'error', error.message || String(error))
-              return { type: 'television', error }
-            })
-        )
-      }
-      if (formValues.mp_radio && radioMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_radio, 'pending')
-        savePromises.push(
-          saveRadioLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), radioMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_radio, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_radio, 'error', error.message || String(error))
-              return { type: 'radio', error }
-            })
-        )
-      }
-      if (formValues.mp_newspaper && newspaperMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_newspaper, 'pending')
-        savePromises.push(
-          saveNewspaperLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), newspaperMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_newspaper, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_newspaper, 'error', error.message || String(error))
-              return { type: 'newspaper', error }
-            })
-        )
-      }
-      if (formValues.mp_magazines && magazinesMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_magazines, 'pending')
-        savePromises.push(
-          saveMagazinesLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), magazinesMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_magazines, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_magazines, 'error', error.message || String(error))
-              return { type: 'magazines', error }
-            })
-        )
-      }
-      if (formValues.mp_ooh && oohMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_ooh, 'pending')
-        savePromises.push(
-          saveOOHLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), oohMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_ooh, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_ooh, 'error', error.message || String(error))
-              return { type: 'ooh', error }
-            })
-        )
-      }
-      if (formValues.mp_cinema && cinemaMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_cinema, 'pending')
-        savePromises.push(
-          saveCinemaLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), cinemaMediaLineItemsForSave, nextVersion)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_cinema, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_cinema, 'error', error.message || String(error))
-              return { type: 'cinema', error }
-            })
-        )
-      }
-      if (formValues.mp_digidisplay && digitalDisplayMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_digidisplay, 'pending')
-        savePromises.push(
-          saveDigitalDisplayLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), digitalDisplayMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_digidisplay, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_digidisplay, 'error', error.message || String(error))
-              return { type: 'digidisplay', error }
-            })
-        )
-      }
-      if (formValues.mp_digiaudio && digitalAudioMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_digiaudio, 'pending')
-        savePromises.push(
-          saveDigitalAudioLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), digitalAudioMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_digiaudio, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_digiaudio, 'error', error.message || String(error))
-              return { type: 'digiaudio', error }
-            })
-        )
-      }
-      if (formValues.mp_digivideo && digitalVideoMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_digivideo, 'pending')
-        savePromises.push(
-          saveDigitalVideoLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), digitalVideoMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_digivideo, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_digivideo, 'error', error.message || String(error))
-              return { type: 'digivideo', error }
-            })
-        )
-      }
-      if (formValues.mp_bvod && bvodMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_bvod, 'pending')
-        savePromises.push(
-          saveBVODLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), bvodMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_bvod, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_bvod, 'error', error.message || String(error))
-              return { type: 'bvod', error }
-            })
-        )
-      }
-      if (formValues.mp_integration && integrationMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_integration, 'pending')
-        savePromises.push(
-          saveIntegrationLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), integrationMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_integration, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_integration, 'error', error.message || String(error))
-              return { type: 'integration', error }
-            })
-        )
-      }
-      if (shouldEnableProduction && productionMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_production, 'pending')
-        savePromises.push(
-          saveProductionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), productionMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_production, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_production, 'error', error.message || String(error))
-              return { type: 'production', error }
-            })
-        )
-      }
-      const progDisplayPayload = buildProgDisplayPayload(progDisplayMediaLineItemsForSave);
-      if (formValues.mp_progdisplay && progDisplayPayload.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_progdisplay, 'pending')
-        savePromises.push(
-          saveProgDisplayLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progDisplayPayload)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_progdisplay, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_progdisplay, 'error', error.message || String(error))
-              return { type: 'progdisplay', error }
-            })
-        )
-      }
-      if (formValues.mp_progvideo && progVideoMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_progvideo, 'pending')
-        savePromises.push(
-          saveProgVideoLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progVideoMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_progvideo, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_progvideo, 'error', error.message || String(error))
-              return { type: 'progvideo', error }
-            })
-        )
-      }
-      if (formValues.mp_progbvod && progBvodMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_progbvod, 'pending')
-        savePromises.push(
-          saveProgBVODLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progBvodMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_progbvod, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_progbvod, 'error', error.message || String(error))
-              return { type: 'progbvod', error }
-            })
-        )
-      }
-      if (formValues.mp_progaudio && progAudioMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_progaudio, 'pending')
-        savePromises.push(
-          saveProgAudioLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progAudioMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_progaudio, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_progaudio, 'error', error.message || String(error))
-              return { type: 'progaudio', error }
-            })
-        )
-      }
-      if (formValues.mp_progooh && progOohMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_progooh, 'pending')
-        savePromises.push(
-          saveProgOOHLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progOohMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_progooh, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_progooh, 'error', error.message || String(error))
-              return { type: 'progooh', error }
-            })
-        )
-      }
-      if (formValues.mp_influencers && influencersMediaLineItemsForSave.length > 0) {
-        updateSaveStatus(mediaTypeDisplayNames.mp_influencers, 'pending')
-        savePromises.push(
-          saveInfluencersLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), influencersMediaLineItemsForSave)
-            .then(() => updateSaveStatus(mediaTypeDisplayNames.mp_influencers, 'success'))
-            .catch(error => {
-              updateSaveStatus(mediaTypeDisplayNames.mp_influencers, 'error', error.message || String(error))
-              return { type: 'influencers', error }
-            })
-        )
-      }
-      
-      // Execute all channel child writes in parallel (stage), then publish master version.
-      // REVIEW (integrity P0): So-Fail — any channel error blocks success toast, navigation, and publish.
-      let channelSaveErrors: Array<{ type?: string; error?: unknown }> = []
-      if (savePromises.length > 0) {
-        const results = await Promise.all(savePromises)
-        channelSaveErrors = results.filter(
-          (result): result is { type?: string; error?: unknown } =>
-            Boolean(result && typeof result === 'object' && 'error' in result && result.error)
-        )
-      }
-
-      if (channelSaveErrors.length > 0) {
-        const failedChannels = channelSaveErrors.map((e) => e.type || 'unknown')
-        console.error('[save integrity] channel writes failed; blocking version publish', {
-          mbaNumber,
-          versionId,
-          stagedVersionNumber: nextVersion,
-          publishedVersionNumber: publishedVersionBeforeSave,
-          deferredPublish,
-          failedChannels,
-          partialStateNote:
-            'Staged version row and any successful channel children may need cleanup; master.version_number was not advanced.',
-          errors: channelSaveErrors,
-        })
-        toast({
-          variant: 'destructive',
-          title: 'Save failed — version not published',
-          description: `Channel write(s) failed: ${failedChannels.join(', ')}. Master version remains ${publishedVersionBeforeSave}. Staged version ${nextVersion} (id ${versionId ?? 'n/a'}) was not published.`,
-        })
-        setIsSaving(false)
-        return
-      }
-
-      // Integrity: channels enabled but nothing staged → do not publish an empty version.
-      // (savePromises.length === 0 previously skipped the So-Fail path and published anyway.)
-      // Shared with the server's 409 guard via PUBLISH_INTEGRITY_CHANNEL_FLAGS so the two
-      // checks can't drift apart (see lib/mediaplan/publishVersionIntegrity.ts).
-      const enabledMediaTypeCount = countEnabledPublishIntegrityFlags(formValues)
-      const totalStagedLineItems =
-        televisionMediaLineItemsForSave.length +
-        radioMediaLineItemsForSave.length +
-        newspaperMediaLineItemsForSave.length +
-        magazinesMediaLineItemsForSave.length +
-        oohMediaLineItemsForSave.length +
-        cinemaMediaLineItemsForSave.length +
-        digitalDisplayMediaLineItemsForSave.length +
-        digitalAudioMediaLineItemsForSave.length +
-        digitalVideoMediaLineItemsForSave.length +
-        bvodMediaLineItemsForSave.length +
-        integrationMediaLineItemsForSave.length +
-        searchMediaLineItemsForSave.length +
-        socialMediaMediaLineItemsForSave.length +
-        progDisplayPayload.length +
-        progVideoMediaLineItemsForSave.length +
-        progBvodMediaLineItemsForSave.length +
-        progAudioMediaLineItemsForSave.length +
-        progOohMediaLineItemsForSave.length +
-        influencersMediaLineItemsForSave.length +
-        productionMediaLineItemsForSave.length
-
-      // Phase-two publish only on explicit publish intent — plain Save stages and leaves unpublished.
-      const willDeferredPublish = shouldRunDeferredMasterPublish({
-        deferredPublish,
-        saveIntent,
-      })
-
-      if (
-        shouldBlockEmptyPublish({
-          deferredPublish,
-          enabledMediaTypeCount,
-          totalStagedLineItems,
-          saveIntent,
-        })
-      ) {
-        console.error('[save integrity] empty staged line items; blocking version publish', {
-          mbaNumber,
-          versionId,
-          stagedVersionNumber: nextVersion,
-          publishedVersionNumber: publishedVersionBeforeSave,
-          enabledMediaTypeCount,
-          totalStagedLineItems,
-        })
-        updateSaveStatus(
-          'Publish version',
-          'error',
-          'No line items staged for enabled channels'
-        )
-        toast({
-          variant: 'destructive',
-          title: 'Version not published — no line items staged',
-          description: `Master remains ${publishedVersionBeforeSave}. Staged version ${nextVersion} left unpublished.`,
-        })
-        setIsSaving(false)
-        return
-      }
-
-      // Publish: advance master.version_number only after every child write succeeded.
-      if (willDeferredPublish) {
-        updateSaveStatus('Publish version', 'pending')
-        const publishResponse = await fetch(`/api/mediaplans/mba/${mbaNumber}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ version_number: nextVersion }),
-        })
-        if (!publishResponse.ok) {
-          if (isUnauthorizedStatus(publishResponse.status)) {
-            noteWriteUnauthorized()
-            const stagedVn =
-              typeof nextVersion === 'string' ? parseInt(nextVersion, 10) : Number(nextVersion)
-            setPendingPublishRetry({
-              versionNumber: Number.isFinite(stagedVn) ? stagedVn : Number(numericSavedVersion),
-              versionId: versionId ?? null,
-              publishedBefore:
-                typeof publishedVersionBeforeSave === 'number'
-                  ? publishedVersionBeforeSave
-                  : Number(publishedVersionBeforeSave) || 0,
-            })
-            updateSaveStatus('Publish version', 'error', SESSION_EXPIRED_PUBLISH_MESSAGE)
-            toast({
-              variant: 'destructive',
-              title: SESSION_EXPIRED_TITLE,
-              description: SESSION_EXPIRED_PUBLISH_MESSAGE,
-            })
-            setIsSaving(false)
-            return
-          }
-          let publishError = 'Failed to publish version number after channel saves'
-          try {
-            const body = await publishResponse.json()
-            publishError = body.error || body.message || publishError
-          } catch {
-            /* ignore */
-          }
-          console.error('[save integrity] channel writes succeeded but publish failed', {
-            mbaNumber,
-            versionId,
-            stagedVersionNumber: nextVersion,
-            publishedVersionNumber: publishedVersionBeforeSave,
-          })
-          const stagedVn =
-            typeof nextVersion === 'string' ? parseInt(nextVersion, 10) : Number(nextVersion)
-          setPendingPublishRetry({
-            versionNumber: Number.isFinite(stagedVn) ? stagedVn : Number(numericSavedVersion),
-            versionId: versionId ?? null,
-            publishedBefore:
-              typeof publishedVersionBeforeSave === 'number'
-                ? publishedVersionBeforeSave
-                : Number(publishedVersionBeforeSave) || 0,
-          })
-          updateSaveStatus('Publish version', 'error', publishError)
-          toast({
-            variant: 'destructive',
-            title: 'Saved but not published — retry publish',
-            description: `${publishError}. Channel data is staged as version ${nextVersion}. Master remains ${publishedVersionBeforeSave}. Use Retry publish to finish.`,
-          })
-          setIsSaving(false)
-          return
+        const kpiResult = await saveCampaignKpisFromRows(kpiRows, kpiPayload)
+        if (kpiResult.status === "error") {
+          updateSaveStatus("KPI sync", "error", kpiResult.message)
+        } else {
+          updateSaveStatus("KPI sync", "success")
         }
-        updateSaveStatus('Publish version', 'success')
-        setPendingPublishRetry(null)
-        const updatedLatest = Math.max(
-          latestVersionNumber || 0,
-          typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber || 0
-        )
-        setLatestVersionNumber(updatedLatest)
-        setNextSaveVersionNumber(updatedLatest + 1)
-        setSelectedVersionNumber(
-          typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber
-        )
-        setAvailableVersions((prev) => {
-          const existing = prev.some((v) => v.version_number === numericSavedVersion)
-          const newEntry = {
-            id: versionId,
-            version_number: numericSavedVersion,
-            created_at: versionData.version?.created_at ?? Date.now(),
-          }
-          if (existing) {
-            return prev.map((v) =>
-              v.version_number === numericSavedVersion ? { ...v, ...newEntry } : v
-            )
-          }
-          return [...prev, newEntry]
-        })
+      } else {
+        updateSaveStatus("KPI sync", "success")
       }
 
-      if (isOverwriteMode) {
-        startCampaignKpiSync()
-      }
-      
-      // Refresh media plan data to show updated version
-      const refreshResponse = await fetch(`/api/mediaplans/mba/${mbaNumber}?skipLineItems=true`)
-      if (refreshResponse.ok) {
-        const refreshedData = await refreshResponse.json()
-        setMediaPlan(refreshedData)
-        const refreshedVersionRowId =
-          refreshedData.versionData?.id ??
-          refreshedData.version?.id ??
-          (versionId != null ? versionId : null) ??
-          (refreshedData.media_plan_master_id != null &&
-          refreshedData.id != null &&
-          String(refreshedData.id) !== String(refreshedData.media_plan_master_id)
-            ? refreshedData.id
-            : null)
-        if (refreshedVersionRowId != null) {
-          setMediaPlanVersionId(refreshedVersionRowId)
-        }
-      }
-      
-      if (activityDiff.isAdditivePreserve) {
-        const preserveMsg = formatPreservePriorAlert(activityDiff)
-        if (preserveMsg) {
-          toast({
-            title: "Prior billing preserved",
-            description: preserveMsg,
-          })
-        }
-      }
-
-      if (billingOverrideNotices.length > 0) {
-        toast({
-          title: "Billing — manual differences kept",
-          description: `${billingOverrideNotices.length} note(s): your billing differs from burst-based auto (fees/media/legacy rows). This is allowed. Open Manual Billing to review details.`,
-        })
-      }
-      
-      // Stay on the campaign after a successful save unless exitAfter is set.
+      // MB-25: committed — clear Reset tombstone + pending (DB now matches).
+      setClearedBillingOverrideLineIds([])
+      setPendingBillingOverrideRows([])
+      pendingBillingOverrideMetaRef.current = new Map()
       await afterSuccessfulSave({
-        versionNumber: nextVersion,
+        versionNumber: numericSavedVersion,
+        versionId,
+        documentsStatus: saveResult.data.documents?.status,
         existingToast: {
           title: "Success",
-          description: `Saved as version ${nextVersion}`,
+          description:
+            modeResolved.uiMode === "overwrite"
+              ? `Saved over v${numericSavedVersion} — still unpublished`
+              : modeResolved.uiMode === "increment_unpublished"
+                ? `Cut v${numericSavedVersion} (unpublished)`
+                : `Saved as version ${numericSavedVersion}`,
         },
       })
+      setIsSaving(false)
+      return
     } catch (error: any) {
       console.error("Error saving:", error)
       if (!isWriteSessionExpiredError(error)) {
@@ -9887,41 +8868,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
     }
   }, [markChannelHydrationSettled, markPassiveChannelChange])
 
-  // Ensure Programmatic Display payload always contains the full set of fields
-  const buildProgDisplayPayload = useCallback(
-    (items: any[]) =>
-      (items || []).map((item, idx) => ({
-        id: item.id ?? item.line_item_id ?? `${mbaNumber || "PD"}${idx + 1}`,
-        media_plan_version: item.media_plan_version ?? 0,
-        mba_number: item.mba_number ?? mbaNumber ?? "",
-        mp_client_name: item.mp_client_name ?? "",
-        mp_plannumber: item.mp_plannumber ?? "",
-        platform: item.platform ?? item.publisher ?? "",
-        bid_strategy: item.bid_strategy ?? item.bidStrategy ?? "",
-        buy_type: item.buy_type ?? item.buyType ?? "",
-        creative_targeting: item.creative_targeting ?? item.targeting ?? item.targeting_attribute ?? "",
-        creative: item.creative ?? "",
-        buying_demo: item.buying_demo ?? "",
-        market: item.market ?? "",
-        site: item.site ?? "",
-        placement: item.placement ?? "",
-        size: item.size ?? "",
-        targeting_attribute: item.targeting_attribute ?? "",
-        fixed_cost_media: item.fixed_cost_media ?? item.fixedCostMedia ?? false,
-        client_pays_for_media: item.client_pays_for_media ?? item.clientPaysForMedia ?? false,
-        budget_includes_fees: item.budget_includes_fees ?? item.budgetIncludesFees ?? false,
-        no_adserving: item.noadserving ?? item.no_adserving ?? false,
-        line_item_id: item.line_item_id ?? `${mbaNumber || "PD"}${idx + 1}`,
-        bursts_json:
-          typeof item.bursts_json === "string"
-            ? item.bursts_json
-            : JSON.stringify(item.bursts_json ?? item.bursts ?? []),
-        line_item: item.line_item ?? idx + 1,
-        totalMedia: item.totalMedia ?? item.total_media ?? undefined,
-      })),
-    [mbaNumber]
-  );
-
   const handleProgVideoMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_progvideo === true
     markChannelHydrationSettled("mp_progvideo")
@@ -10873,7 +9819,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
       if (savedResult.linesSeeded > 0) {
         setSavedBillingMonths(savedResult.months)
         savedBillingMonthsRef.current = savedResult.months
-        persistedBillingLineIdsRef.current = collectPersistedBillingLineIds(savedResult.months)
       }
     }
   }, [
@@ -12946,11 +11891,6 @@ function EditMediaPlan({ params }: { params: Promise<{ mba_number: string }> }) 
         items={saveStatus}
         isSaving={isSaving}
         onClose={handleCloseSaveModal}
-        onRetryPublish={handleRetryPublish}
-        isRetryingPublish={isRetryingPublish}
-        publishRetryPending={Boolean(pendingPublishRetry)}
-        titleRetryPublish="Saved but not published"
-        descriptionRetryPublish="Channel data was saved to a staged version, but the master version was not advanced. Retry publish to finish — this only re-issues the version publish PATCH."
       />
 
       <OutcomeModal

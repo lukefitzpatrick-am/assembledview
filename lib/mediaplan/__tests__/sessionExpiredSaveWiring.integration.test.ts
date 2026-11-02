@@ -41,7 +41,6 @@ describe("create + edit 401 save wiring", () => {
       createSrc,
       /if \(isWriteSessionExpiredError\(err\)\) \{\s*throw err/
     )
-    assert.match(createSrc, /versionResult === 'publish_pending'/)
     assert.match(createSrc, /router\.push\(['"]\/mediaplans['"]\)/)
   })
 
@@ -54,11 +53,12 @@ describe("create + edit 401 save wiring", () => {
     )
   })
 
-  it("Xano PUT 401 on create and edit uses the session-expired copy", () => {
+  it("B5: the Xano MBA PUT is gone from both pages (no second 401 path)", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
     for (const src of [createSrc, editSrc]) {
-      assert.match(src, /isUnauthorizedStatus\s*\(\s*versionResponse\.status/)
+      assert.doesNotMatch(src, /versionResponse/)
+      assert.doesNotMatch(src, /deferMasterVersionPublish/)
     }
   })
 })

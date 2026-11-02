@@ -178,12 +178,12 @@ Lib files. `Production` is whether that file's Xano HTTP runs under the env in T
 | `lib/api/mediaPlanVersionHelper.ts` | filterLineItemsByPlanNumber only; getVersionNumberForMBA deleted (XS-1) | — | no | none | **DONE** |
 | `lib/api/mediaPlanVersionsCache.ts` | latest version per MBA from Postgres | none | no | readPlanVersions / readPlanMasters | **DONE** |
 | `lib/api/publishers.ts` | market share is Postgres published lines; `fetchPublishersFromXano` remains for the archived backfill | market share none | `fetchPublishersFromXano` only | lib/publishers/marketShare.ts | **PORT** (`fetchPublishersFromXano`) |
-| `lib/api/replaceChannelLineItems.ts` | list/DELETE/POST channel media_plan_* | unconditional in this file; callers sit on the xano write path | only if flag flipped | lib/data/savePlan.ts savePlanVersion | **PORT** |
+| `lib/api/replaceChannelLineItems.ts` | list/DELETE/POST channel media_plan_* | — | no | lib/data/savePlan.ts savePlanVersion | **DONE** (deleted; the `.pure` helper and the `lib/api.ts` stub went in B5) |
 | `lib/api/xano.ts` | URL, auth header, timeout (no table of its own) | unconditional | yes | none | **TOOLING** |
 | `lib/api/xanoClients.ts` | URL builders for clients, media plans, dashboards | unconditional | yes | none | **TOOLING** |
 | `lib/api/xanoPagination.ts` | paginated GET walk | callee-gated | yes | none | **TOOLING** |
 | `lib/api/__tests__/xanoPaginationCompleteness.test.ts` | test double / env stub | unconditional | no | none | **TOOLING** |
-| `lib/api.ts` | version GETs from Postgres or /api/media_plans. `getProgVideoLineItemsByMBA` uses the browser `/api/media_plans` path only (no server `fetchAllXanoPages`). replaceChannelLineItems and createMediaPlanVersion throw. Channel save/create helpers that still name Xano URLs throw or remain for the editor Xano branch | none for version GETs | channel save helpers if that branch runs | readMediaPlans; referenceTables fetchReferenceTableFromPostgres | **DONE** (version GETs, reference getters, prog-video GET) |
+| `lib/api.ts` | version GETs from Postgres or /api/media_plans. `getProgVideoLineItemsByMBA` uses the browser `/api/media_plans` path only (no server `fetchAllXanoPages`). replaceChannelLineItems, createMediaPlanVersion and the 20 channel save helpers are deleted (B5, with the editor Xano branch) | none for version GETs | no | readMediaPlans; referenceTables fetchReferenceTableFromPostgres | **DONE** (version GETs, reference getters, prog-video GET) |
 | `lib/ava/tools/getBestPractice.ts` | media_container_best_practice from Postgres | — | no | fetchMediaContainerBestPracticeFromPostgres | **DONE** (XS-2b) |
 | `lib/ava/tools/getCampaignContext.ts` | getAvaXanoSummary | unconditional | no | lib/xano/ava.ts getAvaXanoSummary → fetchPlan*FromPostgres | **NAME-ONLY** |
 | `lib/ava/tools/getMediaPlanSummary.ts` | getAvaXanoSummary | unconditional | no | lib/xano/ava.ts getAvaXanoSummary → fetchPlan*FromPostgres | **NAME-ONLY** |

@@ -150,12 +150,13 @@ test("P2-3 PROPERTY adapter: edit save clears only via clearDirtyOnSaveSuccess",
   const edit = read("app/mediaplans/mba/[mba_number]/edit/page.tsx")
   assert.match(edit, /clearDirtyOnSaveSuccess\(\)/)
   assert.doesNotMatch(edit, /setHasUnsavedChanges\(false\)/)
-  // Legacy success marker sequence still clears via the success API, not attempt.
-  const marker =
-    "Stay on the campaign after a successful save unless exitAfter is set."
-  const idx = edit.indexOf(marker)
-  assert.ok(idx >= 0, "expected success-clear → outer catch sequence")
-  const catchStart = edit.indexOf("} catch (error: any) {", idx)
+  // B5: the Xano tail and its success marker are gone; the outer catch is the
+  // last `catch (error: any)` inside handleSaveAll.
+  const start = edit.indexOf("const handleSaveAll = async")
+  const end = edit.indexOf("const generateMbaPdfBlob = async", start)
+  assert.ok(start >= 0 && end > start, "expected success-clear → outer catch sequence")
+  const catchStart = edit.lastIndexOf("} catch (error: any) {", end)
+  assert.ok(catchStart > start)
   const finallyStart = edit.indexOf("} finally {", catchStart)
   const outerCatch = edit.slice(catchStart, finallyStart)
   assert.doesNotMatch(
@@ -170,16 +171,17 @@ test("P2-3 PROPERTY adapter: create save/publish clears only via clearDirtyOnSav
   assert.match(create, /clearDirtyOnSaveSuccess\(\)/)
   assert.doesNotMatch(create, /setHasUnsavedChanges\(false\)/)
 
-  const failStart = create.indexOf("if (!publishResponse.ok) {")
-  assert.ok(failStart >= 0)
-  const failEnd = create.indexOf('patchPublishStatus("success")', failStart)
-  const failBranch = create.slice(failStart, failEnd)
-  assert.doesNotMatch(failBranch, /clearDirtyOnSaveSuccess\(\)/)
-
-  const okStart = create.indexOf('patchPublishStatus("success")')
-  const okEnd = create.indexOf("} catch (err: any) {", okStart)
-  const ok = create.slice(okStart, okEnd)
-  assert.match(ok, /clearDirtyOnSaveSuccess\(\)/)
+  // B5: the publish-retry branches are gone. handleSaveAll clears after the
+  // version save returns and never in its catch. (C-164: the create version
+  // save also returns after a failed save, so this clear runs then too.)
+  const start = create.indexOf("const handleSaveAll = async")
+  const end = create.indexOf("const handleExit = useCallback", start)
+  assert.ok(start >= 0 && end > start)
+  const body = create.slice(start, end)
+  const afterVersionSave = body.slice(body.indexOf("await handleSaveMediaPlanVersion("))
+  assert.match(afterVersionSave, /clearDirtyOnSaveSuccess\(\)/)
+  const outerCatch = body.slice(body.lastIndexOf("} catch {"), body.lastIndexOf("} finally {"))
+  assert.doesNotMatch(outerCatch, /clearDirtyOnSaveSuccess\(\)/)
 })
 
 test("P2-3 controller module: source has no clear-on-attempt API symbol", () => {

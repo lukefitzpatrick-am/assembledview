@@ -338,7 +338,9 @@ describe("B2a fix 3: create offers a full MBA only (Luke, 2 Nov)", () => {
   it("every create save body sends the full scope and no partial approval", () => {
     assert.equal((create.match(/mbaScope: CREATE_PAGE_FULL_MBA_SCOPE,/g) ?? []).length, 2, "draft documents body and version save")
     assert.doesNotMatch(create, /buildMbaScopeForSaveBody/)
-    assert.match(create, /partialApproval: null,/)
+    // B5: the Xano version body (the only one that wrote `partialApproval: null`) is gone;
+    // create sends no partial approval at all.
+    assert.doesNotMatch(create, /partialApproval/)
     assert.doesNotMatch(create, /partialApprovalMetadata|partialMBASelectedLineItemIds|partialMBAMonthYears|isPartialMBA,/)
     assert.equal((create.match(/buildEditorLineItemInputs\(billingFeeSeedEnabledConfigs, \{ isPartialMBA: false \}\)/g) ?? []).length, 2)
     assert.match(create, /saveScopeNote=\{null\}/)

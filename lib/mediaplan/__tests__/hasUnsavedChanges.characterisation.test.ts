@@ -212,11 +212,13 @@ test("CHARACTERISATION edit page: dirty sources and clear sites", () => {
 
 test("CHARACTERISATION edit page: outer handleSaveAll catch does NOT clear dirty (failed save stays dirty)", () => {
   const edit = read("app/mediaplans/mba/[mba_number]/edit/page.tsx")
-  const marker =
-    "Stay on the campaign after a successful save unless exitAfter is set."
-  const idx = edit.indexOf(marker)
-  assert.ok(idx >= 0, "expected success-clear → outer catch sequence")
-  const catchStart = edit.indexOf("} catch (error: any) {", idx)
+  // B5: the Xano tail (and its "Stay on the campaign…" marker) is gone; the
+  // outer catch is the last `catch (error: any)` inside handleSaveAll.
+  const start = edit.indexOf("const handleSaveAll = async")
+  const end = edit.indexOf("const generateMbaPdfBlob = async", start)
+  assert.ok(start >= 0 && end > start, "expected success-clear → outer catch sequence")
+  const catchStart = edit.lastIndexOf("} catch (error: any) {", end)
+  assert.ok(catchStart > start)
   const finallyStart = edit.indexOf("} finally {", catchStart)
   assert.ok(catchStart >= 0 && finallyStart > catchStart)
   const outerCatch = edit.slice(catchStart, finallyStart)
@@ -257,26 +259,12 @@ test("CHARACTERISATION create page: Save not gated; draft gated; ExpertApplyDirt
   )
 })
 
-test("CHARACTERISATION create page: failed publish-retry (!ok) returns without clearing dirty", () => {
-  const create = read("app/mediaplans/create/page.tsx")
-  const start = create.indexOf("if (!publishResponse.ok) {")
-  assert.ok(start >= 0)
-  const end = create.indexOf('patchPublishStatus("success")', start)
-  assert.ok(end > start)
-  const branch = create.slice(start, end)
-  assert.match(branch, /Publish retry failed/)
-  assert.match(branch, /return/)
-  assert.doesNotMatch(branch, /clearDirtyOnSaveSuccess\(\)/)
-})
-
-test("CHARACTERISATION create page: successful publish-retry DOES clear dirty then navigate (CURRENT)", () => {
-  const create = read("app/mediaplans/create/page.tsx")
-  const start = create.indexOf('patchPublishStatus("success")')
-  const end = create.indexOf("} catch (err: any) {", start)
-  assert.ok(start >= 0 && end > start)
-  const ok = create.slice(start, end)
-  assert.match(ok, /clearDirtyOnSaveSuccess\(\)/)
-  assert.match(ok, /router\.push\("\/mediaplans"\)/)
+test("B5: neither page has a publish retry (the Xano stage-then-publish save is gone)", () => {
+  for (const rel of ["app/mediaplans/create/page.tsx", "app/mediaplans/mba/[mba_number]/edit/page.tsx"]) {
+    const src = read(rel)
+    assert.doesNotMatch(src, /pendingPublishRetry|handleRetryPublish|patchPublishStatus|publish_pending/, rel)
+    assert.doesNotMatch(src, /useWriteBackend|writeBackend ===|save[A-Z][A-Za-z]*LineItems\(/, rel)
+  }
 })
 
 test("CHARACTERISATION edit handleInvestmentChange: dirty mark is outside setState updater", () => {

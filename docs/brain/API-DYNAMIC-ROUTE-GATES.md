@@ -70,7 +70,7 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 
 1. **`publishers/*`** — writes (`POST` / `PUT`) → `requireRole(admin)`; GETs stay session-auth (reference data for create/edit).
 2. **`media-container-best-practice/*`** — writes (`POST` / `PUT`) → `requireRole(admin)`; keep `_name` audit stamp after the gate; reads stay session-auth.
-3. **`media_plans` dedicated mutates** — X2 retired `television/[id]` and all dedicated channel collection POSTs (dead exports / zero browser callers). Live channel writes: `WRITE_BACKEND=postgres` → `/api/plans/save`; `WRITE_BACKEND=xano` → catch-all `replaceChannelLineItems` (still admin-gated).
+3. **`media_plans` dedicated mutates** — X2 retired `television/[id]` and all dedicated channel collection POSTs (dead exports / zero browser callers). Live channel writes: `/api/plans/save` only. The editors no longer call the catch-all channel writes (`replaceChannelLineItems` deleted, B5); the admin-gated catch-all stays until B6/B9.
 4. **`clients/[id]` GET** — **intentional split**: collection is admin-only; `[id]` GET allows admin any-id + client own-id only. Do not apply collection `requireRole` (breaks client self-read).
 5. **Creative soft-spot** — all creative MBA-scoped handlers call `checkClientMbaAccess`; helper itself now scopes **only admin** as unscoped (empty `mba_numbers` on non-admin → 403). Closes empty-MBA non-admin sessions across every consumer of the helper.
 6. **Forecast snapshots** — deferred (not in SEC-G apply list).

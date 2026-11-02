@@ -410,20 +410,12 @@ describe("5. dollarsToCampaignBudgetCents boundaries", () => {
 })
 
 describe("create + edit assembly twins (shared helpers)", () => {
-  it("both pages gate deferred phase-two publish on saveIntent via shouldRunDeferredMasterPublish", () => {
+  it("B5: neither page runs the Xano deferred phase-two publish (stage-then-publish is gone)", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
     for (const src of [createSrc, editSrc]) {
-      assert.match(src, /shouldRunDeferredMasterPublish/)
-      assert.match(
-        src,
-        /shouldRunDeferredMasterPublish\(\{\s*deferredPublish,\s*saveIntent/
-      )
+      assert.doesNotMatch(src, /shouldRunDeferredMasterPublish|shouldBlockEmptyPublish|deferredPublish/)
     }
-    assert.match(
-      editSrc,
-      /shouldBlockEmptyPublish\(\{[\s\S]*?saveIntent/
-    )
   })
 
   it("both pages wire assignStableLineItemNumbers, dollarsToCampaignBudgetCents, resolvePostgresSaveMode, formatSaveModeLabel, assemblePlansSaveRequestBody", () => {
@@ -793,7 +785,9 @@ describe("UI-1 twin: save messages live in the sidebar panel, bar is actions onl
       assert.doesNotMatch(strip, /compact/)
 
       assert.match(src, /const extraProblemTexts: string\[\] = \[\]/)
-      assert.match(src, /Duplicate line-item rows detected/)
+      // B5: create only had this text in the deleted Xano PUT response toast;
+      // the hydrate duplicate problem text is an edit-page concern.
+      if (src === editSrc) assert.match(src, /Duplicate line-item rows detected/)
       assert.match(src, /flight dates outside the campaign window/)
 
       const bar = sliceBottomBar(src)

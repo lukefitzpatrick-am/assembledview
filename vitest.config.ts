@@ -116,6 +116,7 @@ export default defineConfig({
       "lib/mediaplan/__tests__/handleInvestmentChange.dirty.characterisation.test.tsx",
       "lib/mediaplan/__tests__/channelTotalChange.dirty.characterisation.test.tsx",
       "lib/mediaplan/__tests__/oohStandardContainer.bench.test.tsx",
+      "lib/mediaplan/__tests__/draftSaveReplaceInvariants.test.ts",
       "components/dashboard/delivery/__tests__/shouldShowChannelAggregate.test.ts",
       "components/dashboard/delivery/__tests__/entityBreakdown.test.tsx",
       "components/dashboard/delivery/__tests__/entityBreakdown.percentUnits.f4.test.tsx",

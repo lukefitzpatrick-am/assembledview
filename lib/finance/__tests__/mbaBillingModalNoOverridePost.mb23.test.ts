@@ -46,7 +46,8 @@ test("MB-23: edit Apply / Reset / date-basis keep are state-only (no override PO
   // Extract handleManualBillingSave body (Apply).
   const applyStart = src.indexOf("async function handleManualBillingSave")
   assert.ok(applyStart >= 0, "handleManualBillingSave present")
-  const applyEnd = src.indexOf("\n  // Media type display names mapping", applyStart)
+  // B5: the display-name map that used to follow Apply went with the Xano save path.
+  const applyEnd = src.indexOf("\n  // Helper function to update save status", applyStart)
   assert.ok(applyEnd > applyStart, "Apply function bounds")
   const applyBody = src.slice(applyStart, applyEnd)
   assert.doesNotMatch(

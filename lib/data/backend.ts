@@ -6,10 +6,10 @@
  * falls back to global `DATA_BACKEND`, then `postgres`. `xano` remains a legal
  * explicit value (ETL / shadow-diff tooling) and warns once per process.
  *
- * Write path (T4a+): `WRITE_BACKEND` is independent of reads. Default
- * `postgres` enables `POST /api/plans/save` → `savePlanVersion`. Create/edit
- * layouts inject the value via `WriteBackendProvider` (T4c). Explicit
- * `WRITE_BACKEND=xano` keeps the legacy fan-out and warns.
+ * Write path (T4a+): `WRITE_BACKEND` is independent of reads. The create and
+ * edit pages always save through `POST /api/plans/save` → `savePlanVersion`
+ * (B5: the Xano fan-out is gone); that route refuses unless this resolves to
+ * `postgres`. Explicit `WRITE_BACKEND=xano` still parses and warns (removed in B6).
  */
 export type DataBackend = "xano" | "shadow" | "postgres"
 
@@ -81,8 +81,8 @@ export function getDataBackendFor(domain: DataBackendDomain | string): DataBacke
 }
 
 /**
- * Plan write sink. Default `postgres` — unset must not select the retired
- * Xano fan-out. Explicit `WRITE_BACKEND=xano` remains legal and warns.
+ * Plan write sink, read by `POST /api/plans/save` only. Default `postgres`.
+ * Explicit `WRITE_BACKEND=xano` parses and warns; the route then refuses.
  */
 export function getWriteBackend(): WriteBackend {
   const v = (process.env.WRITE_BACKEND ?? "").trim().toLowerCase()
